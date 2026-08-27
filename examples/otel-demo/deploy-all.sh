@@ -6,6 +6,7 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROLLOUT_TIMEOUT="${ROLLOUT_TIMEOUT:-600}"
+OPENSEARCH_DASHBOARDS_HELM_TIMEOUT="${OPENSEARCH_DASHBOARDS_HELM_TIMEOUT:-60m}"
 
 MODE="${1:-upgrade}"
 IMAGE_TAG="${2:-${JAEGER_DEMO_IMAGE_TAG:-latest}}"
@@ -147,6 +148,108 @@ diagnose_deployment_failure() {
   kubectl -n "$namespace" describe pods -l app.kubernetes.io/instance=jaeger || true
   kubectl -n "$namespace" logs -l app.kubernetes.io/instance=jaeger --all-containers --tail=200 --prefix || true
   kubectl -n "$namespace" get events --sort-by=.lastTimestamp | tail -80 || true
+}
+
+summarize_opensearch_dashboards_logs() {
+  awk '
+    BEGIN {
+      lines = errors = warnings = timeouts = connection_failures = memory_failures = readiness_failures = 0
+    }
+    {
+      lines++
+      lower = tolower($0)
+      if (lower ~ /(error|exception|fatal)/) errors++
+      if (lower ~ /warn/) warnings++
+      if (lower ~ /(etimedout|timed out|timeout)/) timeouts++
+      if (lower ~ /(connection refused|econnrefused|unable to connect|unavailable)/) connection_failures++
+      if (lower ~ /(heap|oomkilled|out of memory)/) memory_failures++
+      if (lower ~ /(liveness|not ready|readiness|startup probe)/) readiness_failures++
+    }
+    END {
+      printf "lines=%d errors=%d warnings=%d timeouts=%d connection_failures=%d memory_failures=%d readiness_failures=%d\n", lines, errors, warnings, timeouts, connection_failures, memory_failures, readiness_failures
+    }
+  '
+}
+
+collect_opensearch_dashboards_logs() {
+  local pod
+  local pod_number=0
+  local logs
+
+  while IFS= read -r pod; do
+    [[ -n "$pod" ]] || continue
+    pod_number=$((pod_number + 1))
+    if logs=$(kubectl -n opensearch logs "$pod" -c dashboards --tail=300 2>/dev/null); then
+      log "Current Dashboards container log summary (pod $pod_number)"
+      printf '%s' "$logs" | summarize_opensearch_dashboards_logs
+    else
+      log "Current Dashboards container logs are unavailable (pod $pod_number)"
+    fi
+    if logs=$(kubectl -n opensearch logs "$pod" -c dashboards --previous --tail=300 2>/dev/null); then
+      log "Previous Dashboards container log summary (pod $pod_number)"
+      printf '%s' "$logs" | summarize_opensearch_dashboards_logs
+    else
+      log "Previous Dashboards container logs are unavailable (pod $pod_number)"
+    fi
+  done < <(kubectl -n opensearch get pods \
+    -l app.kubernetes.io/name=opensearch-dashboards,app.kubernetes.io/instance=opensearch-dashboards \
+    -o name 2>/dev/null || true)
+}
+
+diagnose_opensearch_dashboards_failure() {
+  log "Collecting sanitized OpenSearch Dashboards diagnostics"
+
+  if command -v jq >/dev/null 2>&1; then
+    helm status opensearch-dashboards -n opensearch -o json 2>/dev/null |
+      jq -c '
+        def string_or_null: if type == "string" then . else null end;
+        def revision_or_null: if type == "string" or type == "number" then . else null end;
+        if type == "object" then
+          {
+            revision: ((.version // .revision) | revision_or_null),
+            status: ((.info.status // .status) | string_or_null),
+            chartVersion: (if (.chart | type) == "object" then (.chart.metadata.version | string_or_null) else (.chart | string_or_null) end),
+            appVersion: (if (.chart | type) == "object" then ((.chart.metadata.appVersion // .app_version) | string_or_null) else (.app_version | string_or_null) end)
+          }
+        else
+          {revision: null, status: null, chartVersion: null, appVersion: null}
+        end
+      ' || true
+    helm history opensearch-dashboards -n opensearch -o json 2>/dev/null |
+      jq -c '
+        def string_or_null: if type == "string" then . else null end;
+        def revision_or_null: if type == "string" or type == "number" then . else null end;
+        [.[]? | select(type == "object") | {
+          revision: (.revision | revision_or_null),
+          status: (.status | string_or_null),
+          chart: (.chart | string_or_null),
+          appVersion: ((.app_version // .appVersion) | string_or_null)
+        }]
+      ' || true
+    kubectl -n opensearch get deployment opensearch-dashboards -o json 2>/dev/null |
+      jq -c '{generation: .metadata.generation, observedGeneration: .status.observedGeneration, replicas: .status.replicas, updatedReplicas: .status.updatedReplicas, readyReplicas: .status.readyReplicas, availableReplicas: .status.availableReplicas, unavailableReplicas: .status.unavailableReplicas, conditions: [.status.conditions[]? | {type, status, reason, lastTransitionTime}]}' || true
+    kubectl -n opensearch get pods \
+      -l app.kubernetes.io/name=opensearch-dashboards,app.kubernetes.io/instance=opensearch-dashboards \
+      -o json 2>/dev/null |
+      jq -c '[.items[] | {phase: .status.phase, scheduled: ([.status.conditions[]? | select(.type == "PodScheduled") | {status, reason}] | .[0] // null), dashboards: ([.status.containerStatuses[]? | select(.name == "dashboards") | {ready, started, restartCount, waitingReason: .state.waiting.reason, terminatedReason: .state.terminated.reason, exitCode: .state.terminated.exitCode, lastTerminatedReason: .lastState.terminated.reason, lastExitCode: .lastState.terminated.exitCode}] | .[0] // null)}]' || true
+    kubectl -n opensearch get events -o json 2>/dev/null |
+      jq -c '[.items[] | select((.involvedObject.name // "") | startswith("opensearch-dashboards")) | {type, reason, count, firstTimestamp, lastTimestamp, eventTime}]' || true
+  else
+    log "jq is unavailable; skipping structured Dashboards diagnostics"
+  fi
+
+  collect_opensearch_dashboards_logs
+}
+
+wait_for_opensearch_dashboards() {
+  local timeout="${1:-${ROLLOUT_TIMEOUT}s}"
+
+  log "Waiting for OpenSearch Dashboards deployment..."
+  if ! kubectl rollout status deployment/opensearch-dashboards -n opensearch --timeout="$timeout"; then
+    diagnose_opensearch_dashboards_failure
+    err "OpenSearch Dashboards failed to remain ready"
+  fi
+  log "OpenSearch Dashboards deployment is ready"
 }
 
 collect_otel_collector_logs() {
@@ -329,12 +432,15 @@ deploy_opensearch_releases() {
   wait_for_statefulset opensearch opensearch-cluster-single "${ROLLOUT_TIMEOUT}s"
 
   log "Deploying OpenSearch Dashboards chart $OPENSEARCH_DASHBOARDS_CHART_VERSION"
-  helm upgrade --install opensearch-dashboards opensearch/opensearch-dashboards \
+  if ! helm upgrade --install opensearch-dashboards opensearch/opensearch-dashboards \
     --namespace opensearch \
     --version "$OPENSEARCH_DASHBOARDS_CHART_VERSION" \
     -f "$SCRIPT_DIR/opensearch-dashboard-values.yaml" \
-    --wait --timeout 10m
-  wait_for_deployment opensearch opensearch-dashboards "${ROLLOUT_TIMEOUT}s"
+    --wait --timeout "$OPENSEARCH_DASHBOARDS_HELM_TIMEOUT"; then
+    diagnose_opensearch_dashboards_failure
+    err "Helm release opensearch-dashboards failed"
+  fi
+  wait_for_opensearch_dashboards "${ROLLOUT_TIMEOUT}s"
 }
 
 cleanup() {
