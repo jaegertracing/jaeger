@@ -1,6 +1,6 @@
 # RFC 0007: Synchronous Elasticsearch/OpenSearch Writes
 
-- **Status:** Draft
+- **Status:** Partially Implemented
 - **Author:** Yuri Shkuro
 - **Created:** 2026-07-06
 - **Last Updated:** 2026-07-06

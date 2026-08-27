@@ -33,10 +33,8 @@ func TestGRPCStorage(t *testing.T) {
 		ConfigFile:         "../../config-remote-storage.yaml",
 		SkipStorageCleaner: true,
 		StorageIntegration: integration.StorageIntegration{
-			CleanUp: purge,
-			// This deployment reads through gRPC remote storage, which cannot report what
-			// the store behind it supports (RFC 0013 §3.6).
-			Capabilities: capabilities.RemoteStorageE2E(),
+			CleanUp:      purge,
+			Capabilities: capabilities.E2EWithoutNativeFilters(),
 		},
 		PropagateEnvVars: []string{
 			"REMOTE_STORAGE_ENDPOINT",

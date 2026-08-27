@@ -8,7 +8,6 @@ import (
 	"bufio"
 	"errors"
 	"fmt"
-	"maps"
 	"os"
 	"path/filepath"
 	"strings"
@@ -369,123 +368,6 @@ type BasicAuthentication struct {
 // the TokenFilePath will be ignored.
 // For more information about token-based authentication in elasticsearch, check out
 // https://www.elastic.co/guide/en/elasticsearch/reference/current/token-authentication-services.html.
-
-func setDefaultIndexOptions(target, source *IndexOptions) {
-	if target.Shards == 0 {
-		target.Shards = source.Shards
-	}
-
-	if target.Replicas == nil {
-		target.Replicas = source.Replicas
-	}
-
-	if target.Priority == 0 {
-		target.Priority = source.Priority
-	}
-
-	if !target.DateLayout.HasValue() && source.DateLayout.HasValue() {
-		target.DateLayout = source.DateLayout
-	}
-
-	if !target.RolloverFrequency.HasValue() && source.RolloverFrequency.HasValue() {
-		target.RolloverFrequency = source.RolloverFrequency
-	}
-}
-
-// ApplyDefaults copies settings from source unless its own value is non-zero.
-func (c *Configuration) ApplyDefaults(source *Configuration) {
-	if len(c.RemoteReadClusters) == 0 {
-		c.RemoteReadClusters = source.RemoteReadClusters
-	}
-	// Handle BasicAuthentication defaults
-	sourceHasBasicAuth := source.Authentication.BasicAuthentication.HasValue()
-	targetHasBasicAuth := c.Authentication.BasicAuthentication.HasValue()
-	if sourceHasBasicAuth {
-		// If target doesn't have BasicAuth, copy it from source
-		if !targetHasBasicAuth {
-			c.Authentication.BasicAuthentication = source.Authentication.BasicAuthentication
-		} else {
-			// Target has BasicAuth, apply field-level defaults
-			sourceBasicAuth := source.Authentication.BasicAuthentication.Get()
-			// Make a copy of target BasicAuth
-			basicAuth := *c.Authentication.BasicAuthentication.Get()
-
-			// Apply defaults for username if not set
-			if basicAuth.Username == "" && sourceBasicAuth.Username != "" {
-				basicAuth.Username = sourceBasicAuth.Username
-			}
-			// Apply defaults for password if not set
-			if basicAuth.Password == "" && sourceBasicAuth.Password != "" {
-				basicAuth.Password = sourceBasicAuth.Password
-			}
-
-			// Only update BasicAuthentication if we have values to set
-			if basicAuth.Username != "" || basicAuth.Password != "" {
-				c.Authentication.BasicAuthentication = configoptional.Some(basicAuth)
-			}
-		}
-	}
-	if !c.Sniffing.Enabled {
-		c.Sniffing.Enabled = source.Sniffing.Enabled
-	}
-	if c.MaxSpanAge == 0 {
-		c.MaxSpanAge = source.MaxSpanAge
-	}
-	if c.MaxTraceDuration == 0 {
-		c.MaxTraceDuration = source.MaxTraceDuration
-	}
-	if c.AdaptiveSamplingLookback == 0 {
-		c.AdaptiveSamplingLookback = source.AdaptiveSamplingLookback
-	}
-	if c.Indices.IndexPrefix == "" {
-		c.Indices.IndexPrefix = source.Indices.IndexPrefix
-	}
-
-	setDefaultIndexOptions(&c.Indices.Spans, &source.Indices.Spans)
-	setDefaultIndexOptions(&c.Indices.Services, &source.Indices.Services)
-	setDefaultIndexOptions(&c.Indices.Dependencies, &source.Indices.Dependencies)
-
-	if c.BulkProcessing.MaxBytes == 0 {
-		c.BulkProcessing.MaxBytes = source.BulkProcessing.MaxBytes
-	}
-	if c.BulkProcessing.Workers == 0 {
-		c.BulkProcessing.Workers = source.BulkProcessing.Workers
-	}
-	if c.BulkProcessing.FlushInterval == 0 {
-		c.BulkProcessing.FlushInterval = source.BulkProcessing.FlushInterval
-	}
-	if c.WriteMode == "" {
-		c.WriteMode = source.WriteMode
-	}
-	if c.PoisonPillHandling == "" {
-		c.PoisonPillHandling = source.PoisonPillHandling
-	}
-	if !c.Tags.AllAsFields {
-		c.Tags.AllAsFields = source.Tags.AllAsFields
-	}
-	if c.Tags.DotReplacement == "" {
-		c.Tags.DotReplacement = source.Tags.DotReplacement
-	}
-	if c.Tags.Include == "" {
-		c.Tags.Include = source.Tags.Include
-	}
-	if c.Tags.File == "" {
-		c.Tags.File = source.Tags.File
-	}
-	if c.MaxDocCount == 0 {
-		c.MaxDocCount = source.MaxDocCount
-	}
-	if c.LogLevel == "" {
-		c.LogLevel = source.LogLevel
-	}
-	if !c.HTTPCompression {
-		c.HTTPCompression = source.HTTPCompression
-	}
-	if c.CustomHeaders == nil && len(source.CustomHeaders) > 0 {
-		c.CustomHeaders = make(map[string]string)
-		maps.Copy(c.CustomHeaders, source.CustomHeaders)
-	}
-}
 
 // RolloverFrequencyAsNegativeDuration returns the index rollover frequency as a negative duration.
 func RolloverFrequencyAsNegativeDuration(frequency string) time.Duration {

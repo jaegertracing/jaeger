@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"io"
 	"iter"
+	"sync/atomic"
 
 	"go.opentelemetry.io/collector/pdata/pcommon"
 	"go.opentelemetry.io/collector/pdata/ptrace"
@@ -18,13 +19,21 @@ import (
 
 	"github.com/jaegertracing/jaeger/internal/jptrace"
 	"github.com/jaegertracing/jaeger/internal/proto-gen/storage/v2"
+	expressionproto "github.com/jaegertracing/jaeger/internal/proto/expression/v1"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore"
 )
 
 var _ tracestore.Reader = (*TraceReader)(nil)
 
 type TraceReader struct {
-	client storage.TraceReaderClient
+	client       storage.TraceReaderClient
+	capabilities storage.CapabilitiesClient
+
+	// cachedCaps holds the backend's answer once it has given one; the proto says capabilities
+	// are stable for the lifetime of a connection. Failures are not cached, so a backend that
+	// was not up yet is not mistaken for one that has answered. Racing callers may each ask,
+	// which is harmless because they store the same answer.
+	cachedCaps atomic.Pointer[tracestore.SearchCapabilities]
 }
 
 // NewTraceReader creates a TraceReader that communicates with a remote gRPC storage server.
@@ -32,21 +41,36 @@ type TraceReader struct {
 // to enable instrumentation on the connection without risk of recursively generating traces.
 func NewTraceReader(conn *grpc.ClientConn) *TraceReader {
 	return &TraceReader{
-		client: storage.NewTraceReaderClient(conn),
+		client:       storage.NewTraceReaderClient(conn),
+		capabilities: storage.NewCapabilitiesClient(conn),
 	}
 }
 
-// SearchCapabilities cannot be answered: jaeger.storage.v2 has no capability RPC, so a
-// remote backend's abilities are invisible from here and any value would be a guess.
-// Callers treat ErrUnsupported as no capabilities, which keeps every existing remote
-// deployment behaving as it does today, while leaving "unknown" distinguishable from a
-// backend that declared nothing. RFC 0013 Milestone 5 adds the operator-set override that
-// lets a deployment answer for its own remote backend.
-func (*TraceReader) SearchCapabilities(context.Context) (tracestore.SearchCapabilities, error) {
-	return tracestore.SearchCapabilities{}, fmt.Errorf(
-		"jaeger.storage.v2 does not expose the remote backend's search capabilities: %w",
-		errors.ErrUnsupported,
-	)
+// SearchCapabilities asks the remote backend what it supports and remembers the answer. A
+// backend that does not serve the Capabilities service answers UNIMPLEMENTED, which becomes
+// ErrUnsupported, so the caller assumes the least capable backend and a backend predating the
+// service keeps working (RFC 0013 §3.6).
+func (tr *TraceReader) SearchCapabilities(ctx context.Context) (tracestore.SearchCapabilities, error) {
+	if caps := tr.cachedCaps.Load(); caps != nil {
+		return *caps, nil
+	}
+
+	resp, err := tr.capabilities.GetCapabilities(ctx, &storage.GetCapabilitiesRequest{})
+	if err != nil {
+		if status.Code(err) == codes.Unimplemented {
+			return tracestore.SearchCapabilities{}, fmt.Errorf(
+				"remote storage does not report its capabilities: %w", errors.ErrUnsupported,
+			)
+		}
+		return tracestore.SearchCapabilities{}, err
+	}
+	caps := tracestore.SearchCapabilities{
+		WithoutServiceName:  resp.GetSearch().GetWithoutServiceName(),
+		SameSpanConjunction: resp.GetSearch().GetSameSpanConjunction(),
+		Filter:              fromProtoFilterCapabilities(resp.GetSearch().GetFilter()),
+	}
+	tr.cachedCaps.Store(&caps)
+	return caps, nil
 }
 
 func (tr *TraceReader) GetTraces(
@@ -115,9 +139,12 @@ func (tr *TraceReader) FindTraces(
 	params tracestore.TraceQueryParams,
 ) iter.Seq2[[]ptrace.Traces, error] {
 	return func(yield func([]ptrace.Traces, error) bool) {
-		stream, err := tr.client.FindTraces(ctx, &storage.FindTracesRequest{
-			Query: toProtoQueryParameters(params),
-		})
+		query, err := toProtoQueryParameters(params)
+		if err != nil {
+			yield(nil, err)
+			return
+		}
+		stream, err := tr.client.FindTraces(ctx, &storage.FindTracesRequest{Query: query})
 		if err != nil {
 			yield(nil, fmt.Errorf("failed to execute FindTraces: %w", err))
 			return
@@ -139,9 +166,12 @@ func (tr *TraceReader) FindTraceIDs(
 	params tracestore.TraceQueryParams,
 ) iter.Seq2[[]tracestore.FoundTraceID, error] {
 	return func(yield func([]tracestore.FoundTraceID, error) bool) {
-		resp, err := tr.client.FindTraceIDs(ctx, &storage.FindTraceIDsRequest{
-			Query: toProtoQueryParameters(params),
-		})
+		query, err := toProtoQueryParameters(params)
+		if err != nil {
+			yield(nil, err)
+			return
+		}
+		resp, err := tr.client.FindTraceIDs(ctx, &storage.FindTraceIDsRequest{Query: query})
 		if err != nil {
 			yield(nil, fmt.Errorf("failed to execute FindTraceIDs: %w", err))
 			return
@@ -172,9 +202,12 @@ func (tr *TraceReader) FindTraceSummaries(
 		return fmt.Errorf("%s: %w", msg, err)
 	}
 	return func(yield func([]tracestore.TraceSummary, error) bool) {
-		stream, err := tr.client.FindTraceSummaries(ctx, &storage.FindTraceSummariesRequest{
-			Query: toProtoQueryParameters(params),
-		})
+		query, err := toProtoQueryParameters(params)
+		if err != nil {
+			yield(nil, err)
+			return
+		}
+		stream, err := tr.client.FindTraceSummaries(ctx, &storage.FindTraceSummariesRequest{Query: query})
 		if err != nil {
 			yield(nil, maybeNotImplemented(err, "failed to execute FindTraceSummaries"))
 			return
@@ -223,7 +256,15 @@ func convertSummaryBatch(protos []*storage.TraceSummary) []tracestore.TraceSumma
 	return batch
 }
 
-func toProtoQueryParameters(t tracestore.TraceQueryParams) *storage.TraceQueryParameters {
+// toProtoQueryParameters encodes a query for the remote server. Encoding the filter can fail, for
+// a tree the wire has no form for, and asking here rather than at each RPC keeps that one refusal in
+// one place: the alternative is sending a query whose filter went missing, which reads to the server
+// as a search with no predicates.
+func toProtoQueryParameters(t tracestore.TraceQueryParams) (*storage.TraceQueryParameters, error) {
+	filter, err := expressionproto.ToProto(t.Filter)
+	if err != nil {
+		return nil, fmt.Errorf("cannot send the query filter: %w", err)
+	}
 	return &storage.TraceQueryParameters{
 		ServiceName:   t.ServiceName,
 		OperationName: t.OperationName,
@@ -233,7 +274,8 @@ func toProtoQueryParameters(t tracestore.TraceQueryParams) *storage.TraceQueryPa
 		DurationMin:   t.DurationMin,
 		DurationMax:   t.DurationMax,
 		SearchDepth:   int32(t.SearchDepth), //nolint:gosec // G115
-	}
+		Filter:        filter,
+	}, nil
 }
 
 func convertMapToKeyValueList(m pcommon.Map) []*storage.KeyValue {

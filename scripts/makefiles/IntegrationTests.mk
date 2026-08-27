@@ -33,7 +33,7 @@ BINARY_COVEROUT = cover-binary.out
 .PHONY: jaeger-v2-storage-integration-test
 jaeger-v2-storage-integration-test: $(GOTESTSUM) $(GOCOVMERGE)
 	rm -rf $(BINARY_COVERDIR) && mkdir -p $(BINARY_COVERDIR)
-	(cd cmd/jaeger/ && go build -cover -covermode=atomic -o jaeger .)
+	go build -cover -covermode=atomic -o ./cmd/jaeger/jaeger-e2e ./cmd/jaeger/internal/integration/jaeger-e2e
 	# Expire tests results for jaeger storage integration tests since the environment
 	# might have changed even though the code remains the same.
 	go clean -testcache
