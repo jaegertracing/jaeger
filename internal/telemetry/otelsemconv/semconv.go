@@ -12,13 +12,6 @@ import (
 // the semver of the imports the same. This package serves as a
 // one stop shop replacement / alias.
 const (
-	// SchemaURL suits a resource built only from the attributes this package
-	// aliases. Do not pass it to resource.New alongside the OpenTelemetry SDK's
-	// own detectors, such as resource.WithTelemetrySDK: the SDK stamps its own
-	// semconv version onto what it detects, and resource.New rejects a resource
-	// whose parts disagree about the schema URL.
-	SchemaURL = semconv.SchemaURL
-
 	// Telemetry SDK
 	TelemetrySDKLanguageKey   = string(semconv.TelemetrySDKLanguageKey)
 	TelemetrySDKNameKey       = string(semconv.TelemetrySDKNameKey)
