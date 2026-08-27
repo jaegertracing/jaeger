@@ -18,6 +18,21 @@ runs:
           ./internal/tools/go.sum
     - name: Download Go module dependencies
       shell: bash
+      # proxy.golang.org and sum.golang.org drop streams often enough to fail an
+      # unrelated job, and every CI job uses this action.
       run: |
-        go mod download
-        cd internal/tools && go mod download
+        download() {
+          for attempt in 1 2 3; do
+            if go mod download; then
+              return 0
+            fi
+            if [ "$attempt" -lt 3 ]; then
+              echo "::warning::go mod download in $PWD failed (attempt $attempt of 3); retrying"
+              sleep $((attempt * 10))
+            fi
+          done
+          echo "::error::go mod download in $PWD failed after 3 attempts"
+          return 1
+        }
+        download
+        cd internal/tools && download
