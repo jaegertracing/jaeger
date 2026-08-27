@@ -3,8 +3,8 @@ module github.com/jaegertracing/jaeger
 go 1.26.0
 
 require (
-	github.com/ClickHouse/ch-go v0.73.0
-	github.com/ClickHouse/clickhouse-go/v2 v2.47.0
+	github.com/ClickHouse/ch-go v0.74.0
+	github.com/ClickHouse/clickhouse-go/v2 v2.48.0
 	github.com/ag-ui-protocol/ag-ui/sdks/community/go v0.0.0-20260630145048-7479d97e25f6
 	github.com/apache/cassandra-gocql-driver/v2 v2.1.2
 	github.com/asaskevich/govalidator v0.0.0-20230301143203-a9d515a09cc2
@@ -71,7 +71,6 @@ require (
 	go.opentelemetry.io/collector/confmap/provider/httpprovider v1.65.0
 	go.opentelemetry.io/collector/confmap/provider/httpsprovider v1.65.0
 	go.opentelemetry.io/collector/confmap/provider/yamlprovider v1.65.0
-	go.opentelemetry.io/collector/confmap/xconfmap v0.159.0
 	go.opentelemetry.io/collector/connector v0.159.0
 	go.opentelemetry.io/collector/connector/forwardconnector v0.159.0
 	go.opentelemetry.io/collector/consumer v1.65.0
@@ -138,7 +137,7 @@ require (
 	github.com/Microsoft/go-winio v0.6.2 // indirect
 	github.com/alecthomas/participle/v2 v2.1.4 // indirect
 	github.com/alecthomas/units v0.0.0-20240927000941-0f3dac36c52b // indirect
-	github.com/andybalholm/brotli v1.2.1 // indirect
+	github.com/andybalholm/brotli v1.2.2 // indirect
 	github.com/antchfx/xmlquery v1.5.1 // indirect
 	github.com/antchfx/xpath v1.3.8 // indirect
 	github.com/apache/thrift v0.24.0 // indirect
@@ -285,6 +284,7 @@ require (
 	go.opentelemetry.io/auto/sdk v1.2.1 // indirect
 	go.opentelemetry.io/collector v0.159.0 // indirect
 	go.opentelemetry.io/collector/config/configcompression v1.65.0 // indirect
+	go.opentelemetry.io/collector/confmap/xconfmap v0.159.0 // indirect
 	go.opentelemetry.io/collector/connector/connectortest v0.159.0 // indirect
 	go.opentelemetry.io/collector/connector/xconnector v0.159.0 // indirect
 	go.opentelemetry.io/collector/consumer/consumererror v0.159.0 // indirect
