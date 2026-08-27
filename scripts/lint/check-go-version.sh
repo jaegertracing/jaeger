@@ -87,7 +87,7 @@ check go.mod "^go\s\+$version_regex" "$go_latest_version"
 check .golangci.yml "go:\s\+\"$version_regex\"" "$go_latest_version"
 
 # find all other go.mod files in the repository and check for latest Go version
-for file in $(find . -type f -name go.mod | grep -v '^./go.mod'); do
+for file in $(find . -type f -name go.mod -not -path './.claude/*' | grep -v '^./go.mod'); do
     if [[ $file == "./idl/go.mod" ]]; then
         continue
     fi

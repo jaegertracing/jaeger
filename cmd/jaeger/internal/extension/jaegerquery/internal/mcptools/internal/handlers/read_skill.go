@@ -56,9 +56,12 @@ func (h *readSkillHandler) handle(
 	if err != nil && !errors.Is(err, io.ErrUnexpectedEOF) && !errors.Is(err, io.EOF) {
 		return nil, types.ReadSkillOutput{}, fmt.Errorf("cannot read %q: %w", input.Path, err)
 	}
-	content := string(buf[:n])
-	if n > int(h.maxFileSize) {
-		content += fmt.Sprintf("\n\nfile content truncated after %d bytes\n", h.maxFileSize)
+	// The buffer is maxFileSize+1 so that an oversize file is detectable; the
+	// served content is capped at exactly maxFileSize bytes.
+	maxSize := int(h.maxFileSize)
+	content := string(buf[:min(n, maxSize)])
+	if n > maxSize {
+		content += fmt.Sprintf("\n\nfile content truncated after %d bytes\n", maxSize)
 	}
 
 	return &mcp.CallToolResult{

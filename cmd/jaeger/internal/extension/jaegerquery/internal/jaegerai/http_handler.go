@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"strings"
 
+	"go.opentelemetry.io/collector/config/configopaque"
 	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerquery/internal/mcptools"
@@ -41,8 +42,11 @@ type Handler struct {
 // in a struct keeps the constructor readable as the gateway gains MCP wiring (query
 // service, tenancy, telemetry) on top of the chat parameters.
 type HandlerParams struct {
-	Logger             *zap.Logger
-	AgentURL           string
+	Logger   *zap.Logger
+	AgentURL string
+	// AgentHeaders are sent on the agent WebSocket handshake, for agents that
+	// require authentication. See AIConfig.AgentHeaders.
+	AgentHeaders       configopaque.MapList
 	BasePath           string
 	MaxRequestBodySize int64
 	// EnableMCP mounts the turn-scoped telemetry MCP endpoint. When false, only the
@@ -71,7 +75,7 @@ type HandlerParams struct {
 func NewHandler(p HandlerParams) *Handler {
 	basePath := normalizeBasePath(p.BasePath)
 	turns := newTurnRegistry()
-	chat := newChatEndpoint(p.Logger, NewContextualToolsStore(), turns, p.AgentURL, basePath, p.MaxRequestBodySize)
+	chat := newChatEndpoint(p.Logger, NewContextualToolsStore(), turns, p.AgentURL, p.AgentHeaders, basePath, p.MaxRequestBodySize)
 	h := &Handler{basePath: basePath, chat: chat}
 	if p.EnableMCP {
 		h.mcp = turnScopedEndpointBuilder{
