@@ -22,6 +22,7 @@ import (
 	"go.opentelemetry.io/collector/config/configoptional"
 	"go.opentelemetry.io/collector/extension/extensionauth"
 	"go.opentelemetry.io/otel"
+	nooptrace "go.opentelemetry.io/otel/trace/noop"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zaptest"
 
@@ -34,15 +35,6 @@ import (
 	"github.com/jaegertracing/jaeger/internal/storage/v2/elasticsearch/tracestore/core/dbmodel"
 )
 
-var mockEsServerResponse = []byte(`
-{
-	"version": {
-		"number": "7.10.2"
-	},
-	"tagline": "You Know, for Search"
-}
-`)
-
 func TestElasticsearchFactoryBase(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.Write(mockEsServerResponse)
@@ -52,7 +44,7 @@ func TestElasticsearchFactoryBase(t *testing.T) {
 		Servers:  []string{server.URL},
 		LogLevel: "debug",
 	}
-	f, err := NewFactoryBase(context.Background(), cfg, metrics.NullFactory, zaptest.NewLogger(t), nil)
+	f, err := NewFactoryBase(context.Background(), cfg, metrics.NullFactory, zaptest.NewLogger(t), nooptrace.NewTracerProvider(), nil)
 	require.NoError(t, err)
 	readerParams := f.GetSpanReaderParams()
 	assert.IsType(t, core.SpanReaderParams{}, readerParams)
@@ -77,7 +69,7 @@ func TestFactoryBase_SpanBatchWriterForWriteMode(t *testing.T) {
 	for _, mode := range []escfg.WriteMode{escfg.WriteModeAsync, escfg.WriteModeSync} {
 		t.Run(string(mode), func(t *testing.T) {
 			cfg := escfg.Configuration{Servers: []string{server.URL}, WriteMode: mode}
-			f, err := NewFactoryBase(context.Background(), cfg, metrics.NullFactory, zaptest.NewLogger(t), nil)
+			f, err := NewFactoryBase(context.Background(), cfg, metrics.NullFactory, zaptest.NewLogger(t), nooptrace.NewTracerProvider(), nil)
 			require.NoError(t, err)
 			t.Cleanup(func() { require.NoError(t, f.Close()) })
 			assert.NotNil(t, f.GetSpanWriterParams().BatchWriter)
@@ -118,7 +110,12 @@ func TestFactoryBase_Purge(t *testing.T) {
 			esClient, err := esclient.NewClient(context.Background(),
 				&escfg.Configuration{Servers: []string{server.URL}, Version: uint(es.ElasticV7)}, zap.NewNop(), nil)
 			require.NoError(t, err)
-			f := &FactoryBase{esClient: esClient, logger: zap.NewNop(), config: &escfg.Configuration{}}
+			f := &FactoryBase{
+				esClient:          esClient,
+				logger:            zap.NewNop(),
+				config:            &escfg.Configuration{},
+				serviceOperations: core.NewServiceOperationStorage(nil, zap.NewNop(), 0),
+			}
 
 			err = f.Purge(context.Background())
 			mu.Lock()
@@ -139,6 +136,55 @@ func TestFactoryBase_Purge(t *testing.T) {
 	}
 }
 
+// countingBatchWriter records how many service documents the span writer sends,
+// which is what the dedup cache suppresses.
+type countingBatchWriter struct {
+	serviceDocs int
+}
+
+func (w *countingBatchWriter) WriteBatch(_ context.Context, items []esclient.BulkItem) error {
+	for _, item := range items {
+		if _, ok := item.Body.(dbmodel.Service); ok {
+			w.serviceDocs++
+		}
+	}
+	return nil
+}
+
+// TestFactoryBase_PurgeClearsServiceCache covers the regression behind the flaky
+// GetOperations integration test: after Purge deletes the indices, the next write
+// must re-send the service documents rather than assume they are still there.
+func TestFactoryBase_PurgeClearsServiceCache(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == http.MethodDelete {
+			w.Write([]byte("{}"))
+			return
+		}
+		w.Write(mockEsServerResponse)
+	}))
+	t.Cleanup(server.Close)
+
+	f, err := NewFactoryBase(context.Background(), escfg.Configuration{Servers: []string{server.URL}},
+		metrics.NullFactory, zaptest.NewLogger(t), nooptrace.NewTracerProvider(), nil)
+	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, f.Close()) })
+
+	batchWriter := &countingBatchWriter{}
+	params := f.GetSpanWriterParams()
+	params.BatchWriter = batchWriter
+	writer := core.NewSpanWriter(params)
+	span := dbmodel.Span{Process: dbmodel.Process{ServiceName: "foo"}, OperationName: "bar"}
+
+	require.NoError(t, writer.WriteSpans(context.Background(), []dbmodel.Span{span}))
+	require.NoError(t, writer.WriteSpans(context.Background(), []dbmodel.Span{span}))
+	assert.Equal(t, 1, batchWriter.serviceDocs, "the cached pair must not be re-sent")
+
+	require.NoError(t, f.Purge(context.Background()))
+
+	require.NoError(t, writer.WriteSpans(context.Background(), []dbmodel.Span{span}))
+	assert.Equal(t, 2, batchWriter.serviceDocs, "the pair must be re-sent after a purge")
+}
+
 func TestElasticsearchTagsFileDoNotExist(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.Write(mockEsServerResponse)
@@ -151,7 +197,7 @@ func TestElasticsearchTagsFileDoNotExist(t *testing.T) {
 		},
 		LogLevel: "debug",
 	}
-	f, err := NewFactoryBase(context.Background(), cfg, metrics.NullFactory, zaptest.NewLogger(t), nil)
+	f, err := NewFactoryBase(context.Background(), cfg, metrics.NullFactory, zaptest.NewLogger(t), nooptrace.NewTracerProvider(), nil)
 	require.ErrorContains(t, err, "open fixtures/file-does-not-exist.txt: no such file or directory")
 	assert.Nil(t, f)
 }
@@ -339,20 +385,6 @@ func TestCreateSamplingStoreTemplateError(t *testing.T) {
 	require.ErrorContains(t, err, "failed to create template")
 }
 
-func TestESStorageFactoryWithConfig(t *testing.T) {
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-		w.Write(mockEsServerResponse)
-	}))
-	defer server.Close()
-	cfg := escfg.Configuration{
-		Servers:  []string{server.URL},
-		LogLevel: "error",
-	}
-	factory, err := NewFactoryBase(context.Background(), cfg, metrics.NullFactory, zap.NewNop(), nil)
-	require.NoError(t, err)
-	factory.Close()
-}
-
 func TestESStorageFactoryWithConfigError(t *testing.T) {
 	t.Parallel()
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -366,7 +398,7 @@ func TestESStorageFactoryWithConfigError(t *testing.T) {
 		Servers:  []string{server.URL},
 		LogLevel: "error",
 	}
-	_, err := NewFactoryBase(context.Background(), cfg, metrics.NullFactory, zap.NewNop(), nil)
+	_, err := NewFactoryBase(context.Background(), cfg, metrics.NullFactory, zap.NewNop(), nooptrace.NewTracerProvider(), nil)
 	require.ErrorContains(t, err, "failed to create Elasticsearch data client")
 }
 
@@ -391,7 +423,7 @@ func TestESStorageFactoryClosesOnTemplateError(t *testing.T) {
 			Services: escfg.IndexOptions{Shards: 1, Replicas: new(int64(0)), Priority: 10},
 		},
 	}
-	_, err := NewFactoryBase(context.Background(), cfg, metrics.NullFactory, zap.NewNop(), nil)
+	_, err := NewFactoryBase(context.Background(), cfg, metrics.NullFactory, zap.NewNop(), nooptrace.NewTracerProvider(), nil)
 	require.Error(t, err)
 }
 
@@ -409,7 +441,7 @@ func TestNewFactoryBaseDataClientError(t *testing.T) {
 	_, err := NewFactoryBase(
 		context.Background(),
 		escfg.Configuration{Servers: []string{"http://localhost:9200"}},
-		metrics.NullFactory, zap.NewNop(), nil,
+		metrics.NullFactory, zap.NewNop(), nooptrace.NewTracerProvider(), nil,
 		withESClientFn(func(context.Context, *escfg.Configuration, *zap.Logger, extensionauth.HTTPClient) (*esclient.Client, error) {
 			return nil, errors.New("data client boom")
 		}),
@@ -423,7 +455,7 @@ func TestNewFactoryBaseBulkIndexerError(t *testing.T) {
 	_, err := NewFactoryBase(
 		context.Background(),
 		escfg.Configuration{Servers: []string{"http://localhost:9200"}},
-		metrics.NullFactory, zap.NewNop(), nil,
+		metrics.NullFactory, zap.NewNop(), nooptrace.NewTracerProvider(), nil,
 		withESClientFn(func(context.Context, *escfg.Configuration, *zap.Logger, extensionauth.HTTPClient) (*esclient.Client, error) {
 			return &esclient.Client{}, nil
 		}),
@@ -484,7 +516,7 @@ func runPasswordFromFileTest(t *testing.T) {
 		},
 	}
 
-	f, err := NewFactoryBase(context.Background(), cfg, metrics.NullFactory, zap.NewNop(), nil)
+	f, err := NewFactoryBase(context.Background(), cfg, metrics.NullFactory, zap.NewNop(), nooptrace.NewTracerProvider(), nil)
 	require.NoError(t, err)
 	t.Cleanup(func() { require.NoError(t, f.Close()) })
 
@@ -528,7 +560,7 @@ func TestFactoryBase_MissingPasswordFile(t *testing.T) {
 		},
 	}
 
-	_, err := NewFactoryBase(context.Background(), cfg, metrics.NullFactory, zaptest.NewLogger(t), nil)
+	_, err := NewFactoryBase(context.Background(), cfg, metrics.NullFactory, zaptest.NewLogger(t), nooptrace.NewTracerProvider(), nil)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "failed to initialize basic authentication")
 	assert.Contains(t, err.Error(), "failed to get token from file")
@@ -550,7 +582,7 @@ func TestElasticsearchFactoryBaseWithAuthenticator(t *testing.T) {
 
 	mockAuth := &mockHTTPAuthenticator{}
 
-	f, err := NewFactoryBase(context.Background(), cfg, metrics.NullFactory, zaptest.NewLogger(t), mockAuth)
+	f, err := NewFactoryBase(context.Background(), cfg, metrics.NullFactory, zaptest.NewLogger(t), nooptrace.NewTracerProvider(), mockAuth)
 	require.NoError(t, err)
 	require.NotNil(t, f)
 	defer require.NoError(t, f.Close())
@@ -799,6 +831,7 @@ func TestGetSpanReaderParams_NonPeriodicMaxSpanAge(t *testing.T) {
 	f := &FactoryBase{config: &cfg, logger: zap.NewNop(), tracer: otel.GetTracerProvider()}
 	params := f.GetSpanReaderParams()
 	assert.Equal(t, core.DawnOfTimeSpanAge, params.MaxSpanAge)
+	assert.Equal(t, 72*time.Hour, params.ServicesMaxLookback)
 }
 
 func TestGetSpanReaderParams_MaxTraceDuration(t *testing.T) {

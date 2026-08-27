@@ -14,7 +14,7 @@ jobs:
   lint:
     runs-on: ubuntu-latest
     steps:
-    - uses: step-security/harden-runner@a5ad31d6a139d249332a2605b85202e8c0b78450 # v2.19.1
+    - uses: step-security/harden-runner@05e31511f85b41b11d1cf0ef85d0992719546e2c # v2.21.0
       with:
         egress-policy: audit # TODO: change to 'egress-policy: block' after a couple of runs
 
@@ -34,7 +34,7 @@ jobs:
   pull-request-preconditions:
     runs-on: ubuntu-latest
     steps:
-    - uses: step-security/harden-runner@a5ad31d6a139d249332a2605b85202e8c0b78450 # v2.19.1
+    - uses: step-security/harden-runner@05e31511f85b41b11d1cf0ef85d0992719546e2c # v2.21.0
       with:
         egress-policy: audit # TODO: change to 'egress-policy: block' after a couple of runs
 
@@ -49,7 +49,7 @@ jobs:
   dco-check:
     runs-on: ubuntu-latest
     steps:
-    - uses: step-security/harden-runner@a5ad31d6a139d249332a2605b85202e8c0b78450 # v2.19.1
+    - uses: step-security/harden-runner@05e31511f85b41b11d1cf0ef85d0992719546e2c # v2.21.0
       with:
         egress-policy: audit # TODO: change to 'egress-policy: block' after a couple of runs
 
@@ -73,7 +73,7 @@ jobs:
   idl-version-check:
     runs-on: ubuntu-latest
     steps:
-    - uses: step-security/harden-runner@a5ad31d6a139d249332a2605b85202e8c0b78450 # v2.19.1
+    - uses: step-security/harden-runner@05e31511f85b41b11d1cf0ef85d0992719546e2c # v2.21.0
       with:
         egress-policy: audit # TODO: change to 'egress-policy: block' after couple of runs
 
@@ -88,7 +88,7 @@ jobs:
   generated-files-check:
     runs-on: ubuntu-latest
     steps:
-    - uses: step-security/harden-runner@a5ad31d6a139d249332a2605b85202e8c0b78450 # v2.19.1
+    - uses: step-security/harden-runner@05e31511f85b41b11d1cf0ef85d0992719546e2c # v2.21.0
       with:
         egress-policy: audit # TODO: change to 'egress-policy: block' after couple of runs
 
@@ -113,7 +113,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-    - uses: step-security/harden-runner@a5ad31d6a139d249332a2605b85202e8c0b78450 # v2.19.1
+    - uses: step-security/harden-runner@05e31511f85b41b11d1cf0ef85d0992719546e2c # v2.21.0
       with:
         egress-policy: audit
 
@@ -143,8 +143,12 @@ jobs:
 
   binary-size-check:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      # Reading the PR's labels is what lets a maintainer waive the size gate.
+      pull-requests: read
     steps:
-    - uses: step-security/harden-runner@a5ad31d6a139d249332a2605b85202e8c0b78450 # v2.19.1
+    - uses: step-security/harden-runner@05e31511f85b41b11d1cf0ef85d0992719546e2c # v2.21.0
       with:
         egress-policy: audit
 
@@ -179,6 +183,11 @@ jobs:
 
     - name: Compare `jaeger` binary sizes
       if: ${{ (steps.cache-binary-size.outputs.cache-matched-key != '') && ((github.event_name != 'push') || (github.ref != 'refs/heads/main')) }}
+      env:
+        GH_TOKEN: ${{ github.token }}
+        # Empty on merge_group runs, which are not attached to a pull request.
+        PR_NUMBER: ${{ github.event.pull_request.number }}
+        WAIVER_LABEL: accept-binary-size-increase
       run: |
         set -euf -o pipefail
         OLD_BINARY_SIZE=$(cat ./jaeger_binary_size.txt)
@@ -187,12 +196,40 @@ jobs:
         printf "New binary size:      %'d bytes\n" $NEW_BINARY_SIZE
 
         PERCENTAGE_CHANGE=$(echo "scale=2; ($NEW_BINARY_SIZE - $OLD_BINARY_SIZE) * 100 / $OLD_BINARY_SIZE" | bc)
-        if (( $(echo "$PERCENTAGE_CHANGE > 2.0" | bc) == 1 )); then
-          echo "❌ binary size increased by more than 2% ($PERCENTAGE_CHANGE%)"
-          exit 1
-        else
+        if (( $(echo "$PERCENTAGE_CHANGE <= 2.0" | bc) == 1 )); then
           echo "✅ binary size change is within acceptable range ($PERCENTAGE_CHANGE%)"
+          exit 0
         fi
+
+        # An upstream upgrade can link in a large amount of code that Jaeger has no way to
+        # avoid, and then no change to this PR can bring the binary back under the
+        # threshold. A maintainer waives the gate for that PR by labeling it, and explains
+        # the growth in the PR description.
+        #
+        # The label comes from the API rather than from github.event, because re-running
+        # this job replays the payload the run started with, which cannot contain a label
+        # added after the failure. Anything short of a definite match keeps the gate
+        # closed, including a failed API call.
+        WAIVED=false
+        if [ -n "$PR_NUMBER" ]; then
+          WAIVED=$(gh api "repos/$GITHUB_REPOSITORY/issues/$PR_NUMBER/labels" \
+            --jq 'any(.name == $ENV.WAIVER_LABEL)' || echo false)
+        fi
+
+        if [ "$WAIVED" = "true" ]; then
+          echo "::warning::binary size grew by $PERCENTAGE_CHANGE%, waived by the '$WAIVER_LABEL' label"
+          exit 0
+        fi
+
+        # The merge queue cannot read labels, the same reason label-check.yml exempts it.
+        # A PR reaches the queue only after review, which is where the waiver was granted.
+        if [ "$GITHUB_EVENT_NAME" = "merge_group" ]; then
+          echo "::warning::binary size grew by $PERCENTAGE_CHANGE%; not failing a merge_group run, which cannot read PR labels"
+          exit 0
+        fi
+
+        echo "::error::binary size increased by more than 2% ($PERCENTAGE_CHANGE%). If the growth comes from upstream and this PR cannot avoid it, describe it in the PR description and add the '$WAIVER_LABEL' label."
+        exit 1
 
 
     - name: Remove previous *_binary_*.txt
@@ -210,7 +247,7 @@ jobs:
   validate-renovate-config:
     runs-on: ubuntu-latest
     steps:
-    - uses: step-security/harden-runner@a5ad31d6a139d249332a2605b85202e8c0b78450 # v2.19.1
+    - uses: step-security/harden-runner@05e31511f85b41b11d1cf0ef85d0992719546e2c # v2.21.0
       with:
         egress-policy: audit
 
