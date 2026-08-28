@@ -5,6 +5,7 @@ package integration
 
 import (
 	"context"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -18,6 +19,7 @@ import (
 	"github.com/jaegertracing/jaeger/internal/jiter"
 	"github.com/jaegertracing/jaeger/internal/jptrace"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore"
+	"github.com/jaegertracing/jaeger/internal/telemetry/otelsemconv"
 )
 
 // The structured query filter of RFC 0005 is checked against a live backend here, because what a
@@ -189,13 +191,22 @@ func filterTestCases(p builder.Predicate) []filterCase {
 // fields. A filter stands alone — a query carrying one beside a service name or a tag map is
 // refused — so the service, the operation name and the duration bounds are predicates of the
 // filter here, and only the time range and the search depth are left outside it.
+//
+// Every case is therefore a conjunction of the scope below and the predicate it is testing. That
+// costs some isolation — a fault in how the backend lowers a conjunction fails the whole battery
+// rather than one case — but a conjunction that fails everywhere at once is easy to read, and it
+// is what lets these cases run against a corpus the suite wrote for every other assertion too.
 func (s *StorageIntegration) testFindTracesWithFilter(t *testing.T) {
 	s.skipIfNeeded(t)
-	defer s.cleanUp(t)
 
-	corpus := s.writeFilterCorpus(t)
+	corpus := s.Corpus.Filter
 	start, end := filterCorpusTimeRange(corpus)
 	var p builder.Predicate
+	// The suite's corpus holds far more than these fixtures, and a case's time range covers all of
+	// it, so every case below is scoped to the services only these fixtures use. The scope is
+	// derived from the corpus rather than listed here, so a fixture added to filterCorpusDir is
+	// searched without being named anywhere.
+	scope := p.Resource().Service.In(filterCorpusServices(corpus)...)
 
 	// A deployment that will not serve a filter at all refuses every case below, and a search that
 	// comes back with an error is retried for a minute and a half before it is called a failure —
@@ -207,7 +218,8 @@ func (s *StorageIntegration) testFindTracesWithFilter(t *testing.T) {
 		t.Run(testCase.caption, func(t *testing.T) {
 			s.skipIfNeeded(t)
 			expected := filterCorpusTraces(t, corpus, testCase.expected)
-			actual := s.findTracesByQuery(t, filterQuery(testCase.filter, start, end), expected)
+			query := filterQuery(p.And(scope, testCase.filter), start, end)
+			actual := s.findTracesByQuery(t, query, expected)
 			CompareTraceSlices(t, expected, actual)
 		})
 	}
@@ -325,8 +337,28 @@ func (s *StorageIntegration) requireFilterIsServed(t *testing.T, query *tracesto
 	require.NoError(t, err, "this deployment refuses the filter itself, so no case below can pass")
 }
 
+// filterCorpusServices are the services the filter fixtures use, as the values of a membership
+// predicate. Only these fixtures use a "filter-" prefixed service, which is what lets a case be
+// scoped to them.
+func filterCorpusServices(corpus map[string]ptrace.Traces) []any {
+	seen := make(map[string]struct{})
+	for _, trace := range corpus {
+		for i := 0; i < trace.ResourceSpans().Len(); i++ {
+			if name, ok := trace.ResourceSpans().At(i).Resource().Attributes().Get(otelsemconv.ServiceNameKey); ok {
+				seen[name.Str()] = struct{}{}
+			}
+		}
+	}
+	values := make([]any, 0, len(seen))
+	for _, name := range slices.Sorted(maps(seen)) {
+		values = append(values, name)
+	}
+	return values
+}
+
 // writeFilterCorpus writes every trace in filterCorpusDir and returns them by file name, without
-// the extension.
+// the extension. Only RunFilterRewriteTest uses it: that test runs outside the suite's corpus,
+// because it compares the two forms of one query against each other rather than against fixtures.
 func (s *StorageIntegration) writeFilterCorpus(t *testing.T) map[string]ptrace.Traces {
 	entries, err := fixtures.ReadDir(filterCorpusDir)
 	require.NoError(t, err)
