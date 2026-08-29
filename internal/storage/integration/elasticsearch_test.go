@@ -88,7 +88,6 @@ func (s *ESStorageIntegration) initSpanstore(t *testing.T, allTagsAsFields bool)
 	}
 	cfg.WriteMode = s.writeMode
 	cfg.Tags.AllAsFields = allTagsAsFields
-	cfg.ServiceCacheTTL = 1 * time.Second
 	cfg.Indices.IndexPrefix = indexPrefix
 	var err error
 	f, err := esv2.NewFactory(context.Background(), cfg, telemetry.NoopSettings(), nil)
