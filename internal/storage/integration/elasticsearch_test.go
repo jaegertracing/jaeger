@@ -257,11 +257,14 @@ func (s *ESStorageIntegration) testDataStreamTemplates(t *testing.T) {
 	// Only spans carry an "@timestamp", so the service:operation rotation targets an
 	// ordinary index; a data stream would reject those documents.
 	writer := core.NewSpanWriter(core.SpanWriterParams{
-		BatchWriter:     esclient.NewSyncBulkWriter(s.client.client, 0, false, metrics.NullFactory, zap.NewNop()),
-		Logger:          zap.NewNop(),
-		MetricsFactory:  metrics.NullFactory,
-		SpanRotation:    esindices.NewDataStreamRotation(dataStream, ""),
-		ServiceRotation: esindices.NewAliasedRotation(serviceIndex, ""),
+		BatchWriter:    esclient.NewSyncBulkWriter(s.client.client, 0, false, metrics.NullFactory, zap.NewNop()),
+		Logger:         zap.NewNop(),
+		MetricsFactory: metrics.NullFactory,
+		// Write-only, as in the factory: the span writer builds service documents but
+		// never reads them back.
+		ServiceOperations: core.NewServiceOperationStorage(nil, zap.NewNop(), 0),
+		SpanRotation:      esindices.NewDataStreamRotation(dataStream, ""),
+		ServiceRotation:   esindices.NewAliasedRotation(serviceIndex, ""),
 	})
 	require.NoError(t, writer.WriteSpans(ctx, []dbmodel.Span{{
 		TraceID:       "ds-trace",
