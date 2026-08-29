@@ -30,6 +30,7 @@ const (
 	// composable choice (templateEndpoint) tracks UsesV8API.
 	componentTemplateAPI = "_component_template"
 	indexTemplateAPI     = "_index_template"
+	dataStreamAPI        = "_data_stream"
 
 	// dataStreamPriority is the composable index template priority from RFC 0004
 	// §3.2: high enough that the Jaeger template wins over a cluster's lower-priority
@@ -53,13 +54,13 @@ type dataStreamTemplate struct {
 	body string
 }
 
-// CreateDataStreamTemplates installs the objects that back the span data stream
+// CreateSpanDataStreamTemplates installs the objects that back the span data stream
 // (RFC 0004 §3.2): the "@mappings" and "@settings" component templates, the
 // user-owned "@custom" component, and the composable index template that composes
 // all three with "data_stream": {}. The components are created first because the
 // index template references them in composed_of, which the cluster validates on
 // write.
-func (i IndicesClient) CreateDataStreamTemplates(ctx context.Context) error {
+func (i IndicesClient) CreateSpanDataStreamTemplates(ctx context.Context) error {
 	templates, err := renderSpanDataStreamTemplates(i.Indices)
 	if err != nil {
 		return err
@@ -112,6 +113,39 @@ func (i IndicesClient) componentTemplateExists(ctx context.Context, name string)
 	return true, nil
 }
 
+// TestsOnlyDataStreamExists reports whether name is a data stream. Integration-test
+// only: a write to a name no data-stream template matches auto-creates an ordinary
+// index that reads back exactly like a stream, and for such an index this API
+// answers 200 with an empty list, so the streams it lists are the answer and the
+// status code is not.
+func (i IndicesClient) TestsOnlyDataStreamExists(ctx context.Context, name string) (bool, error) {
+	body, err := i.request(ctx, elasticRequest{
+		endpoint: dataStreamAPI + "/" + name,
+		method:   http.MethodGet,
+	})
+	if err != nil {
+		var responseError ResponseError
+		if errors.As(err, &responseError) && responseError.StatusCode == http.StatusNotFound {
+			return false, nil
+		}
+		return false, fmt.Errorf("failed to check if data stream %q exists: %w", name, err)
+	}
+	var decoded struct {
+		DataStreams []struct {
+			Name string `json:"name"`
+		} `json:"data_streams"`
+	}
+	if err := json.Unmarshal(body, &decoded); err != nil {
+		return false, fmt.Errorf("failed to parse the data stream response for %q: %w", name, err)
+	}
+	for _, stream := range decoded.DataStreams {
+		if stream.Name == name {
+			return true, nil
+		}
+	}
+	return false, nil
+}
+
 // putComposableTemplate PUTs a composable component or index template body. It
 // mirrors CreateTemplate's response handling so failures read the same way.
 func (i IndicesClient) putComposableTemplate(ctx context.Context, api, name, body string) error {
@@ -130,17 +164,17 @@ func (i IndicesClient) putComposableTemplate(ctx context.Context, api, name, bod
 	return nil
 }
 
-// TestsOnlyDeleteDataStreamObjects removes the span data stream, its backing
-// indices, and every template CreateDataStreamTemplates installs, tolerating any
+// TestsOnlyDeleteSpanDataStreamObjects removes the span data stream, its backing
+// indices, and every template CreateSpanDataStreamTemplates installs, tolerating any
 // that are already absent. Integration-test-only: a data stream's backing indices
 // are hidden, so the suite's DeleteAllIndices("*") teardown does not reclaim them,
 // and the composable endpoints used here are the same on every backend version.
-func (i IndicesClient) TestsOnlyDeleteDataStreamObjects(ctx context.Context) error {
+func (i IndicesClient) TestsOnlyDeleteSpanDataStreamObjects(ctx context.Context) error {
 	base := i.Indices.IndexPrefix.DataStreamName(spanDataStreamBase)
 	// The data stream first: a template cannot be deleted while one composed from
 	// it is still in use.
 	targets := []struct{ api, name string }{
-		{"_data_stream", base},
+		{dataStreamAPI, base},
 		{indexTemplateAPI, base},
 		{componentTemplateAPI, base + componentMappingsSuffix},
 		{componentTemplateAPI, base + componentSettingsSuffix},

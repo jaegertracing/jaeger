@@ -230,7 +230,15 @@ func (s *ESStorageIntegration) testDataStreamTemplates(t *testing.T) {
 		IgnoreUnavailableIndex: true,
 		Indices:                indicesCfg,
 	}
-	dataStream := indicesCfg.IndexPrefix.DataStreamName("jaeger.spans")
+	// The span rotation is built the way the factory builds it, from a data-stream
+	// rotation config, so the stream this test writes to is the one production would
+	// derive rather than a name the test spells itself.
+	spanRotation := esindices.BuildRotation(
+		indicesCfg.IndexPrefix, escfg.SpanIndexName,
+		escfg.RotationConfig{DataStream: configoptional.Some(escfg.DataStreamRotation{})},
+		nil, zap.NewNop(),
+	)
+	dataStream := spanRotation.WriteTarget(time.Now())
 	// The writer below also emits a service:operation document. Its aliased rotation
 	// has no alias here, so the backend auto-creates an ordinary index under this
 	// exact name.
@@ -239,15 +247,15 @@ func (s *ESStorageIntegration) testDataStreamTemplates(t *testing.T) {
 	// Scoped teardown for both targets this test writes. A data stream's backing
 	// indices are hidden, so the suite's DeleteAllIndices("*") does not reclaim them,
 	// and this test never runs the shared suite that would invoke s.CleanUp.
-	require.NoError(t, indices.TestsOnlyDeleteDataStreamObjects(ctx))
+	require.NoError(t, indices.TestsOnlyDeleteSpanDataStreamObjects(ctx))
 	t.Cleanup(func() {
-		require.NoError(t, indices.TestsOnlyDeleteDataStreamObjects(context.Background()))
+		require.NoError(t, indices.TestsOnlyDeleteSpanDataStreamObjects(context.Background()))
 		require.NoError(t, s.client.indices.DeleteIndices(
 			context.Background(), []esclient.Index{{Index: serviceIndex}},
 		))
 	})
 
-	require.NoError(t, indices.CreateDataStreamTemplates(ctx))
+	require.NoError(t, indices.CreateSpanDataStreamTemplates(ctx))
 
 	// The write is the assertion that matters: installing the templates only proves
 	// the cluster parsed them. It goes through the real SpanWriter, not a hand-built
@@ -263,7 +271,7 @@ func (s *ESStorageIntegration) testDataStreamTemplates(t *testing.T) {
 		// Write-only, as in the factory: the span writer builds service documents but
 		// never reads them back.
 		ServiceOperations: core.NewServiceOperationStorage(nil, zap.NewNop(), 0),
-		SpanRotation:      esindices.NewDataStreamRotation(dataStream, ""),
+		SpanRotation:      spanRotation,
 		ServiceRotation:   esindices.NewAliasedRotation(serviceIndex, ""),
 	})
 	require.NoError(t, writer.WriteSpans(ctx, []dbmodel.Span{{
@@ -273,6 +281,13 @@ func (s *ESStorageIntegration) testDataStreamTemplates(t *testing.T) {
 		StartTime:     uint64(time.Now().UnixMicro()),
 		Process:       dbmodel.Process{ServiceName: "data-stream-service"},
 	}}))
+
+	// A write to a name no data-stream template matches auto-creates an ordinary
+	// index and reads back exactly like a data stream, so the search below cannot
+	// tell the two apart. This is what says the templates took effect.
+	exists, err := indices.TestsOnlyDataStreamExists(ctx, dataStream)
+	require.NoError(t, err)
+	require.True(t, exists, "the write must have gone into a data stream, not an auto-created index")
 
 	searcher := esclient.SearchClient{Client: s.client.client}
 	require.Eventually(t, func() bool {

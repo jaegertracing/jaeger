@@ -189,11 +189,11 @@ func TestSpanDataStreamTemplatesErrors(t *testing.T) {
 	})
 }
 
-func TestCreateDataStreamTemplates(t *testing.T) {
+func TestCreateSpanDataStreamTemplates(t *testing.T) {
 	t.Run("nil replicas errors before any request", func(t *testing.T) {
 		rec, url := okServer(t)
 		c := IndicesClient{Client: makeClient(t, url, "", ""), Indices: config.Indices{}}
-		err := c.CreateDataStreamTemplates(context.Background())
+		err := c.CreateSpanDataStreamTemplates(context.Background())
 		require.ErrorContains(t, err, "no replica count configured")
 		assert.Empty(t, rec.Requests(), "a render failure must not issue any request")
 	})
@@ -201,7 +201,7 @@ func TestCreateDataStreamTemplates(t *testing.T) {
 	t.Run("an existing @custom is left untouched", func(t *testing.T) {
 		rec, url := okServer(t)
 		c := IndicesClient{Client: makeClient(t, url, "", ""), Indices: testIndices()}
-		require.NoError(t, c.CreateDataStreamTemplates(context.Background()))
+		require.NoError(t, c.CreateSpanDataStreamTemplates(context.Background()))
 		for _, r := range rec.Requests() {
 			if strings.Contains(r.Path, componentCustomSuffix) {
 				assert.Equal(t, http.MethodGet, r.Method,
@@ -213,7 +213,7 @@ func TestCreateDataStreamTemplates(t *testing.T) {
 	t.Run("a missing @custom is created empty", func(t *testing.T) {
 		rec, url := freshClusterServer(t)
 		c := IndicesClient{Client: makeClient(t, url, "", ""), Indices: testIndices()}
-		require.NoError(t, c.CreateDataStreamTemplates(context.Background()))
+		require.NoError(t, c.CreateSpanDataStreamTemplates(context.Background()))
 		var created bool
 		for _, r := range rec.Requests() {
 			if r.Method == http.MethodPut && strings.Contains(r.Path, componentCustomSuffix) {
@@ -232,7 +232,7 @@ func TestCreateDataStreamTemplates(t *testing.T) {
 		}))
 		defer srv.Close()
 		c := IndicesClient{Client: makeClient(t, srv.URL, "", ""), Indices: testIndices()}
-		err := c.CreateDataStreamTemplates(context.Background())
+		err := c.CreateSpanDataStreamTemplates(context.Background())
 		require.ErrorContains(t, err, "failed to check if component template")
 	})
 
@@ -248,13 +248,13 @@ func TestCreateDataStreamTemplates(t *testing.T) {
 		}))
 		defer srv.Close()
 		c := IndicesClient{Client: makeClient(t, srv.URL, "", ""), Indices: testIndices()}
-		err := c.CreateDataStreamTemplates(context.Background())
+		err := c.CreateSpanDataStreamTemplates(context.Background())
 		require.ErrorContains(t, err, `failed to create data stream template "jaeger.spans@mappings"`)
 	})
 
 	t.Run("transport error on the probe", func(t *testing.T) {
 		c := IndicesClient{Client: makeClient(t, "http://localhost:1", "", ""), Indices: testIndices()}
-		err := c.CreateDataStreamTemplates(context.Background())
+		err := c.CreateSpanDataStreamTemplates(context.Background())
 		require.ErrorContains(t, err, "failed to check if component template")
 	})
 
@@ -278,16 +278,16 @@ func TestCreateDataStreamTemplates(t *testing.T) {
 		}))
 		defer srv.Close()
 		c := IndicesClient{Client: makeClient(t, srv.URL, "", ""), Indices: testIndices()}
-		err := c.CreateDataStreamTemplates(context.Background())
+		err := c.CreateSpanDataStreamTemplates(context.Background())
 		require.ErrorContains(t, err, `failed to create data stream template "jaeger.spans@mappings"`)
 	})
 }
 
-func TestTestsOnlyDeleteDataStreamObjects(t *testing.T) {
+func TestTestsOnlyDeleteSpanDataStreamObjects(t *testing.T) {
 	t.Run("deletes the stream before the templates it composes", func(t *testing.T) {
 		rec, url := okServer(t)
 		c := IndicesClient{Client: makeClient(t, url, "", ""), Indices: testIndices()}
-		require.NoError(t, c.TestsOnlyDeleteDataStreamObjects(context.Background()))
+		require.NoError(t, c.TestsOnlyDeleteSpanDataStreamObjects(context.Background()))
 
 		paths := make([]string, 0, len(rec.Requests()))
 		for _, r := range rec.Requests() {
@@ -310,7 +310,7 @@ func TestTestsOnlyDeleteDataStreamObjects(t *testing.T) {
 		}))
 		defer srv.Close()
 		c := IndicesClient{Client: makeClient(t, srv.URL, "", ""), Indices: testIndices()}
-		require.NoError(t, c.TestsOnlyDeleteDataStreamObjects(context.Background()))
+		require.NoError(t, c.TestsOnlyDeleteSpanDataStreamObjects(context.Background()))
 	})
 
 	t.Run("surfaces a real failure", func(t *testing.T) {
@@ -320,19 +320,74 @@ func TestTestsOnlyDeleteDataStreamObjects(t *testing.T) {
 		}))
 		defer srv.Close()
 		c := IndicesClient{Client: makeClient(t, srv.URL, "", ""), Indices: testIndices()}
-		err := c.TestsOnlyDeleteDataStreamObjects(context.Background())
+		err := c.TestsOnlyDeleteSpanDataStreamObjects(context.Background())
 		require.ErrorContains(t, err, "failed to delete _data_stream/jaeger.spans")
 	})
 }
 
-// TestCreateDataStreamTemplatesRequestSnapshot freezes the exact bytes of the PUTs
+func TestTestsOnlyDataStreamExists(t *testing.T) {
+	// dataStreamClient answers the existence probe with a fixed status and body.
+	dataStreamClient := func(t *testing.T, status int, body string) (IndicesClient, *snapshottest.Recorder) {
+		t.Helper()
+		rec := snapshottest.NewRecorder(func(w http.ResponseWriter, _ *http.Request) {
+			w.WriteHeader(status)
+			w.Write([]byte(body))
+		})
+		server := httptest.NewServer(rec)
+		t.Cleanup(server.Close)
+		return IndicesClient{
+			Client:  makeClient(t, server.URL, "", ""),
+			Indices: testIndices(),
+		}, rec
+	}
+
+	t.Run("the stream is listed", func(t *testing.T) {
+		c, rec := dataStreamClient(t, http.StatusOK, `{"data_streams":[{"name":"jaeger.spans"}]}`)
+		exists, err := c.TestsOnlyDataStreamExists(context.Background(), "jaeger.spans")
+		require.NoError(t, err)
+		assert.True(t, exists)
+		require.Len(t, rec.Requests(), 1)
+		assert.Equal(t, http.MethodGet, rec.Requests()[0].Method)
+		assert.Equal(t, "/_data_stream/jaeger.spans", rec.Requests()[0].Path)
+	})
+
+	// This is the case the probe exists for: an ordinary index of that name answers
+	// 200 with no streams, which a status-code check would read as a data stream.
+	t.Run("an ordinary index of that name is not a stream", func(t *testing.T) {
+		c, _ := dataStreamClient(t, http.StatusOK, `{"data_streams":[]}`)
+		exists, err := c.TestsOnlyDataStreamExists(context.Background(), "jaeger.spans")
+		require.NoError(t, err)
+		assert.False(t, exists)
+	})
+
+	t.Run("nothing of that name at all", func(t *testing.T) {
+		c, _ := dataStreamClient(t, http.StatusNotFound, `{"status":404}`)
+		exists, err := c.TestsOnlyDataStreamExists(context.Background(), "jaeger.spans")
+		require.NoError(t, err)
+		assert.False(t, exists)
+	})
+
+	t.Run("surfaces a real failure", func(t *testing.T) {
+		c, _ := dataStreamClient(t, http.StatusInternalServerError, esErrResponse)
+		_, err := c.TestsOnlyDataStreamExists(context.Background(), "jaeger.spans")
+		require.ErrorContains(t, err, `failed to check if data stream "jaeger.spans" exists`)
+	})
+
+	t.Run("unparseable response", func(t *testing.T) {
+		c, _ := dataStreamClient(t, http.StatusOK, "not-json")
+		_, err := c.TestsOnlyDataStreamExists(context.Background(), "jaeger.spans")
+		require.ErrorContains(t, err, `failed to parse the data stream response for "jaeger.spans"`)
+	})
+}
+
+// TestCreateSpanDataStreamTemplatesRequestSnapshot freezes the exact bytes of the PUTs
 // that back the span data stream, in the order they are issued (ADR-012 §Wire-format
 // stability), against a cluster that does not yet have an "@custom" component — the
 // fresh-install path. Recording every backend version and letting AssertByVersion
 // collapse them also asserts that this path is version-invariant: unlike
 // CreateTemplate it must not branch on UsesV8API, so a single all-versions snapshot
 // is the expected outcome and a per-version split would fail the test.
-func TestCreateDataStreamTemplatesRequestSnapshot(t *testing.T) {
+func TestCreateSpanDataStreamTemplatesRequestSnapshot(t *testing.T) {
 	content := map[es.BackendVersion]string{}
 	for _, version := range es.AllVersions {
 		rec, url := freshClusterServer(t)
@@ -344,7 +399,7 @@ func TestCreateDataStreamTemplatesRequestSnapshot(t *testing.T) {
 			Client:  makeClient(t, url, "", "", version),
 			Indices: templateSnapshotIndices(),
 		}
-		require.NoError(t, c.CreateDataStreamTemplates(context.Background()))
+		require.NoError(t, c.CreateSpanDataStreamTemplates(context.Background()))
 		content[version] = rec.Marshal(t)
 	}
 	snapshottest.AssertByVersion(t, "testdata/create_data_stream_templates", content)

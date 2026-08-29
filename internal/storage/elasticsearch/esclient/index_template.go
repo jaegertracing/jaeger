@@ -114,18 +114,6 @@ func (m MappingType) options(indices config.Indices) config.IndexOptions {
 	}
 }
 
-// innerParams are the version-independent values rendered into a neutral body.
-// renderNeutralBody fills Shards and Replicas from the mapping type's own options,
-// so a caller supplies only the lifecycle fields.
-type innerParams struct {
-	IndexPrefix   string
-	Shards        int64
-	Replicas      int64
-	UseILM        bool
-	ILMPolicyName string
-	IsOpenSearch  bool
-}
-
 // lifecycleParams are the fields that differ between renderNeutralBody's callers.
 // Every template consumes IndexPrefix only inside a UseILM branch — the read alias
 // and the ISM/ILM rollover alias — so these four are the rotation path's lifecycle
@@ -137,6 +125,15 @@ type lifecycleParams struct {
 	UseILM        bool
 	ILMPolicyName string
 	IsOpenSearch  bool
+}
+
+// innerParams are the version-independent values rendered into a neutral body.
+// renderNeutralBody fills Shards and Replicas from the mapping type's own options,
+// so a caller supplies only the lifecycle fields.
+type innerParams struct {
+	lifecycleParams
+	Shards   int64
+	Replicas int64
 }
 
 // renderNeutralBody renders a mapping type's neutral body and decodes its
@@ -156,12 +153,9 @@ func renderNeutralBody(m MappingType, indices config.Indices, lifecycle lifecycl
 
 	var buf bytes.Buffer
 	if err := indexTemplates.ExecuteTemplate(&buf, file, innerParams{
-		IndexPrefix:   lifecycle.IndexPrefix,
-		Shards:        opts.Shards,
-		Replicas:      *opts.Replicas,
-		UseILM:        lifecycle.UseILM,
-		ILMPolicyName: lifecycle.ILMPolicyName,
-		IsOpenSearch:  lifecycle.IsOpenSearch,
+		lifecycleParams: lifecycle,
+		Shards:          opts.Shards,
+		Replicas:        *opts.Replicas,
 	}); err != nil {
 		return nil, fmt.Errorf("failed to render %s index template: %w", m, err)
 	}
