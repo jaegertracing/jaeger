@@ -28,8 +28,10 @@ ALL_SRC = $(shell find . -name '*.go' \
 				   -not -name '.*' \
 				   -not -name 'mocks*' \
 				   -not -name '*.pb.go' \
+				   -not -path './.claude/*' \
 				   -not -path './vendor/*' \
 				   -not -path './idl/*' \
+				   -not -path './jaeger-ui/*' \
 				   -not -path './internal/tools/*' \
 				   -not -path './scripts/build/docker/debug/*' \
 				   -not -path '*/mocks/*' \
@@ -46,6 +48,7 @@ LIST_LICENSE_SRC = git ls-files \
 # All .sh or .py or Makefile or .mk files that should be auto-formatted and linted.
 SCRIPTS_SRC = $(shell find . \( -name '*.sh' -o -name '*.py' -o -name '*.mk' -o -name 'Makefile*' -o -name 'Dockerfile*' \) \
 						-not -path './.git/*' \
+						-not -path './.claude/*' \
 						-not -path './vendor/*' \
 						-not -path './idl/*' \
 						-not -path './jaeger-ui/*' \

@@ -16,6 +16,7 @@ import (
 	acp "github.com/coder/acp-go-sdk"
 	"github.com/gorilla/websocket"
 	"github.com/stretchr/testify/require"
+	"go.opentelemetry.io/collector/config/configopaque"
 	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerquery/internal/jaegerai"
@@ -25,9 +26,10 @@ import (
 // only Initialize is exercised. Every other method returns a zero value and
 // nil error so the SDK does not blow up if it routes something unexpected.
 type stubAgent struct {
-	mu        sync.Mutex
-	initCount int
-	initErr   error
+	mu             sync.Mutex
+	initCount      int
+	initErr        error
+	lastAuthHeader string
 }
 
 func (*stubAgent) Authenticate(context.Context, acp.AuthenticateRequest) (acp.AuthenticateResponse, error) {
@@ -79,6 +81,10 @@ func startMockACPServer(t *testing.T, agent *stubAgent) string {
 	t.Helper()
 	upgrader := websocket.Upgrader{CheckOrigin: func(*http.Request) bool { return true }}
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		agent.mu.Lock()
+		agent.lastAuthHeader = r.Header.Get("X-Secret-Key")
+		agent.mu.Unlock()
+
 		conn, err := upgrader.Upgrade(w, r, nil)
 		if err != nil {
 			return
@@ -102,7 +108,7 @@ func TestACPCheck_SucceedsAgainstReachableSidecar(t *testing.T) {
 	agent := &stubAgent{}
 	wsURL := startMockACPServer(t, agent)
 
-	err := NewACPCheck(wsURL, zap.NewNop())(t.Context())
+	err := NewACPCheck(wsURL, nil, zap.NewNop())(t.Context())
 	require.NoError(t, err)
 
 	agent.mu.Lock()
@@ -111,7 +117,7 @@ func TestACPCheck_SucceedsAgainstReachableSidecar(t *testing.T) {
 }
 
 func TestACPCheck_FailsWhenDialFails(t *testing.T) {
-	err := NewACPCheck("ws://127.0.0.1:1", zap.NewNop())(t.Context()) // closed port
+	err := NewACPCheck("ws://127.0.0.1:1", nil, zap.NewNop())(t.Context()) // closed port
 	require.ErrorContains(t, err, "dial:")
 }
 
@@ -119,6 +125,24 @@ func TestACPCheck_FailsWhenInitializeRejected(t *testing.T) {
 	agent := &stubAgent{initErr: errors.New("agent rejected initialize")}
 	wsURL := startMockACPServer(t, agent)
 
-	err := NewACPCheck(wsURL, zap.NewNop())(t.Context())
+	err := NewACPCheck(wsURL, nil, zap.NewNop())(t.Context())
 	require.ErrorContains(t, err, "initialize:")
+}
+
+// The health checker dials the agent independently of the chat endpoint. If it
+// were to skip the configured headers, an authenticated agent would reject it
+// and the gateway would never advertise the assistant, even though chat itself
+// works — a failure that looks like the agent being down.
+func TestACPCheck_SendsConfiguredHeaders(t *testing.T) {
+	agent := &stubAgent{}
+	wsURL := startMockACPServer(t, agent)
+
+	var headers configopaque.MapList
+	headers.Set("X-Secret-Key", "s3cret")
+
+	require.NoError(t, NewACPCheck(wsURL, headers, zap.NewNop())(t.Context()))
+
+	agent.mu.Lock()
+	defer agent.mu.Unlock()
+	require.Equal(t, "s3cret", agent.lastAuthHeader, "health check must send the configured header")
 }
