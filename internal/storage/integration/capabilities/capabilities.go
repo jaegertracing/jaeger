@@ -11,17 +11,35 @@ import (
 const (
 	scopeAttributesTest    = "Scope_Attributes"
 	linkAttributesTest     = "Link_Attributes"
-	FindTraceSummariesTest = "FindTraceSummaries"
+	findTraceSummariesTest = "FindTraceSummaries"
+	structuredFilterTest   = "FindTracesWithFilter"
+	attributeOrderingTest  = "ordering_compares_a_numeric_attribute_as_a_number"
 )
 
-// Capabilities defines the capabilities of a storage backend for integration tests.
+// Capabilities records what a storage backend *cannot* do in the integration suite. Every
+// field is an opt-out: the zero value runs the whole battery, and a backend lists only the
+// tests or behaviors it cannot satisfy. New fields must keep that polarity, so a backend
+// added later gets full coverage until someone deliberately excuses it from something.
+//
+// A value is an opt-out claim, exactly the opposite of the opt-in storage capability mechanism of
+// ADR-013. An e2e suite may claim more than its direct counterpart, because jaeger-query satisfies
+// tests the backend's own reader would fail.
 type Capabilities struct {
 	// TODO: remove this after all storage backends return spanKind from GetOperations
 	getOperationsMissingSpanKind bool
 	// TODO: remove this after all storage backends return Source column from GetDependencies
 	getDependenciesMissingSource bool
+	// searchRequiresServiceName excuses a backend whose reader rejects a search that omits
+	// the service name — Cassandra and Badger key every index by it (RFC 0013).
+	searchRequiresServiceName bool
 	// List of tests which to be skipped (exact name or substring)
 	skipList []string
+}
+
+// SearchRequiresServiceName returns true if the storage backend cannot serve a search that
+// omits the service name.
+func (c Capabilities) SearchRequiresServiceName() bool {
+	return c.searchRequiresServiceName
 }
 
 // GetOperationsMissingSpanKind returns true if the storage backend does not return spanKind from GetOperations.
@@ -55,7 +73,7 @@ func (c Capabilities) SkipList() []string {
 // Memory returns the capabilities for the in-process memory storage backend.
 func Memory() Capabilities {
 	return Capabilities{
-		skipList: []string{FindTraceSummariesTest},
+		skipList: []string{findTraceSummariesTest, structuredFilterTest},
 	}
 }
 
@@ -64,13 +82,14 @@ func Memory() Capabilities {
 // summaries natively; the test backend (memory) does not yet.
 func GRPC() Capabilities {
 	return Capabilities{
-		skipList: []string{FindTraceSummariesTest},
+		skipList: []string{findTraceSummariesTest, structuredFilterTest},
 	}
 }
 
 // Cassandra returns the capabilities for the Cassandra storage backend.
 func Cassandra() Capabilities {
 	return Capabilities{
+		searchRequiresServiceName:    true,
 		getDependenciesMissingSource: true,
 		skipList: []string{
 			"Tags_+_Operation_name_+_Duration_range",
@@ -81,7 +100,8 @@ func Cassandra() Capabilities {
 			"Multiple_Traces",
 			scopeAttributesTest,
 			linkAttributesTest,
-			FindTraceSummariesTest,
+			findTraceSummariesTest,
+			structuredFilterTest,
 		},
 	}
 }
@@ -89,16 +109,17 @@ func Cassandra() Capabilities {
 // ClickHouse returns the capabilities for the ClickHouse storage backend.
 func ClickHouse() Capabilities {
 	return Capabilities{
-		skipList: []string{"GetThroughput", "GetLatestProbability", FindTraceSummariesTest},
+		skipList: []string{"GetThroughput", "GetLatestProbability", findTraceSummariesTest, structuredFilterTest},
 	}
 }
 
 // Badger defines the capabilities for the Badger storage backend.
 func Badger() Capabilities {
 	return Capabilities{
+		searchRequiresServiceName: true,
 		// TODO: remove this once Badger supports returning spanKind from GetOperations
 		getOperationsMissingSpanKind: true,
-		skipList:                     []string{scopeAttributesTest, linkAttributesTest, FindTraceSummariesTest},
+		skipList:                     []string{scopeAttributesTest, linkAttributesTest, findTraceSummariesTest, structuredFilterTest},
 	}
 }
 
@@ -108,7 +129,10 @@ func Elasticsearch() Capabilities {
 		// TODO: remove this flag after ES supports returning spanKind
 		//  Issue https://github.com/jaegertracing/jaeger/issues/1923
 		getOperationsMissingSpanKind: true,
-		skipList:                     []string{scopeAttributesTest, linkAttributesTest},
+		// This schema indexes every attribute as a keyword, so ordering one is refused rather than
+		// answered lexicographically, and the battery's paired refusal case is the one to run
+		// (RFC 0015 is what changes that).
+		skipList: []string{scopeAttributesTest, linkAttributesTest, attributeOrderingTest},
 	}
 }
 
@@ -120,6 +144,7 @@ func ElasticsearchSmokeTest() Capabilities {
 		skipList: []string{
 			scopeAttributesTest,
 			linkAttributesTest,
+			structuredFilterTest,
 			"GetLargeTrace",
 			"GetTraceWithDuplicateSpans",
 		},
@@ -130,15 +155,25 @@ func ElasticsearchSmokeTest() Capabilities {
 func OpenSearch() Capabilities {
 	return Capabilities{
 		getOperationsMissingSpanKind: true,
-		skipList:                     []string{scopeAttributesTest, linkAttributesTest},
+		// Same keyword mapping as Elasticsearch; see the note there.
+		skipList: []string{scopeAttributesTest, linkAttributesTest, attributeOrderingTest},
 	}
 }
 
 // Kafka defines the capabilities for the Kafka storage backend.
 func Kafka() Capabilities {
 	return Capabilities{
+		searchRequiresServiceName:    true,
 		getDependenciesMissingSource: true,
-		skipList:                     []string{scopeAttributesTest, linkAttributesTest, FindTraceSummariesTest},
+		skipList:                     []string{scopeAttributesTest, linkAttributesTest, findTraceSummariesTest, structuredFilterTest},
+	}
+}
+
+// E2EWithoutNativeFilters is for an e2e suite whose backend does not evaluate a structured filter
+// itself: the query service rewrites one for it, so the battery is all such a suite excuses.
+func E2EWithoutNativeFilters() Capabilities {
+	return Capabilities{
+		skipList: []string{structuredFilterTest},
 	}
 }
 

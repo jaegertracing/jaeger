@@ -54,14 +54,12 @@ type Server struct {
 }
 
 // NewServer creates and initializes Server.
-// aiHealthCheck may be nil; the chat surface stays hidden when it is.
 func NewServer(
 	ctx context.Context,
 	querySvc *querysvc.QueryService,
 	metricsQuerySvc metricstore.Reader,
 	options *QueryOptions,
-	caps querysvc.StorageCapabilities,
-	aiHealthCheck func() bool,
+	backendCaps BackendCapabilityProvider,
 	tm *tenancy.Manager,
 	telset telemetry.Settings,
 ) (*Server, error) {
@@ -84,7 +82,7 @@ func NewServer(
 		return nil, err
 	}
 	registerGRPCHandlers(grpcServer, querySvc, telset)
-	httpServer, err := createHTTPServer(ctx, querySvc, metricsQuerySvc, options, caps, aiHealthCheck, tm, telset)
+	httpServer, err := createHTTPServer(ctx, querySvc, metricsQuerySvc, options, backendCaps, tm, telset)
 	if err != nil {
 		return nil, err
 	}
@@ -195,8 +193,7 @@ func initRouter(
 	querySvc *querysvc.QueryService,
 	metricsQuerySvc metricstore.Reader,
 	queryOpts *QueryOptions,
-	caps querysvc.StorageCapabilities,
-	aiHealthCheck func() bool,
+	backendCaps BackendCapabilityProvider,
 	tenancyMgr *tenancy.Manager,
 	telset telemetry.Settings,
 ) (http.Handler, closers, error) {
@@ -248,9 +245,11 @@ func initRouter(
 		http.Error(w, "404 page not found", http.StatusNotFound)
 	})
 
-	cs = append(cs, RegisterStaticHandler(r, telset.Logger, queryOpts, caps, aiHealthCheck))
+	cs = append(cs, RegisterStaticHandler(r, telset.Logger, queryOpts, backendCaps))
 
-	var handler http.Handler = r
+	// MUST wrap the mux directly: nothing may be inserted between the two, or the pattern
+	// the mux records becomes invisible again. The wrappers below go on top of this one.
+	handler := routeTagHandler(queryOpts.BasePath, r)
 	if queryOpts.BearerTokenPropagation {
 		handler = bearertoken.PropagationHandler(telset.Logger, handler)
 	}
@@ -316,6 +315,7 @@ func registerAIRoutes(
 		aiGateway := jaegerai.NewHandler(jaegerai.HandlerParams{
 			Logger:             telset.Logger,
 			AgentURL:           aiCfg.AgentURL,
+			AgentHeaders:       aiCfg.AgentHeaders,
 			BasePath:           queryOpts.BasePath,
 			MaxRequestBodySize: aiCfg.MaxRequestBodySize,
 			EnableMCP:          aiCfg.MCP.HasValue(),
@@ -388,12 +388,11 @@ func createHTTPServer(
 	querySvc *querysvc.QueryService,
 	metricsQuerySvc metricstore.Reader,
 	queryOpts *QueryOptions,
-	caps querysvc.StorageCapabilities,
-	aiHealthCheck func() bool,
+	backendCaps BackendCapabilityProvider,
 	tm *tenancy.Manager,
 	telset telemetry.Settings,
 ) (*httpServer, error) {
-	handler, cs, err := initRouter(ctx, querySvc, metricsQuerySvc, queryOpts, caps, aiHealthCheck, tm, telset)
+	handler, cs, err := initRouter(ctx, querySvc, metricsQuerySvc, queryOpts, backendCaps, tm, telset)
 	if err != nil {
 		return nil, err
 	}
@@ -414,21 +413,7 @@ func createHTTPServer(
 		xconfighttp.WithOtelHTTPOptions(
 			otelhttp.WithFilter(otelFilterFunc(queryOpts.BasePath)),
 			otelhttp.WithSpanNameFormatter(func(_ string, r *http.Request) string {
-				// Use just the route pattern without the HTTP method prefix or basePath
-				// r.Pattern includes the method like "GET /jaeger/api/v3/traces/{trace_id}"
-				// We want to return just "/api/v3/traces/{trace_id}" (without basePath)
-				pattern := r.Pattern
-				if pattern != "" {
-					// Remove the method prefix (e.g., "GET ", "POST ", etc.)
-					if idx := strings.Index(pattern, " "); idx > 0 {
-						pattern = pattern[idx+1:]
-					}
-					// Remove basePath prefix if present
-					if queryOpts.BasePath != "" && queryOpts.BasePath != "/" {
-						pattern = strings.TrimPrefix(pattern, queryOpts.BasePath)
-					}
-				}
-				return pattern
+				return spanNameForRoute(routeFromPattern(r.Pattern), queryOpts.BasePath)
 			}),
 		),
 	)

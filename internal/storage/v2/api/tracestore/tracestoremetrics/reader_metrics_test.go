@@ -5,10 +5,12 @@ package tracestoremetrics
 
 import (
 	"context"
+	"fmt"
 	"iter"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/collector/pdata/ptrace"
 
@@ -248,4 +250,31 @@ func TestReadMetricsDecorator_FindTraceSummaries_EarlyExit(t *testing.T) {
 	counters, _ := mf.Snapshot()
 	assert.Equal(t, int64(1), counters["requests|operation=find_trace_summaries|result=ok"])
 	assert.Equal(t, int64(2), counters["responses|operation=find_trace_summaries"])
+}
+
+// TestReadMetricsDecorator_SearchCapabilities pins that the decorator forwards the
+// backend's declaration rather than answering for itself. This decorator wraps every
+// reader the factories build, so answering here would hide a capability the backend has
+// from everything downstream (RFC 0013 §3.1).
+//
+// The cases enumerate every permutation of SearchCapabilities, so forwarding is proven
+// per field rather than for one value that happens to pass;
+// TestSearchCapabilities_FieldCount fails when a field is added without extending this
+// table.
+func TestReadMetricsDecorator_SearchCapabilities(t *testing.T) {
+	for _, caps := range []tracestore.SearchCapabilities{
+		{WithoutServiceName: false},
+		{WithoutServiceName: true},
+	} {
+		t.Run(fmt.Sprintf("%+v", caps), func(t *testing.T) {
+			inner := &mocks.Reader{}
+			inner.On("SearchCapabilities", mock.Anything).Return(caps, nil)
+
+			d := NewReaderDecorator(inner, metricstest.NewFactory(0))
+
+			got, err := d.SearchCapabilities(context.Background())
+			require.NoError(t, err)
+			assert.Equal(t, caps, got)
+		})
+	}
 }

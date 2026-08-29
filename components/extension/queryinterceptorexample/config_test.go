@@ -30,7 +30,7 @@ import (
 // query_interceptor_example extension parses its deny/redact policy from the
 // file. The runtime behavior of the two hooks (OnQuery rejecting a forbidden
 // filter, OnResult redacting attributes) is covered by extension_test.go, and
-// the reader decorator that applies them by reader_decorator_test.go.
+// the query service that invokes them by its own interceptor_test.go.
 func TestExampleConfigValidates(t *testing.T) {
 	provider, err := otelcol.NewConfigProvider(otelcol.ConfigProviderSettings{
 		ResolverSettings: confmap.ResolverSettings{

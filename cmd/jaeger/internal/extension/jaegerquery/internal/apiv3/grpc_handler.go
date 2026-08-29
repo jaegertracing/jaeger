@@ -5,6 +5,7 @@ package apiv3
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"iter"
 
@@ -14,8 +15,10 @@ import (
 
 	"github.com/jaegertracing/jaeger-idl/model/v1"
 	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerquery/querysvc"
+	"github.com/jaegertracing/jaeger/components/extension/jaegerquery/queryinterceptor"
 	"github.com/jaegertracing/jaeger/internal/jptrace"
 	"github.com/jaegertracing/jaeger/internal/proto/api_v3"
+	expressionproto "github.com/jaegertracing/jaeger/internal/proto/expression/v1"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/v1adapter"
 )
@@ -82,7 +85,10 @@ func (h *Handler) internalFindTraces(
 }
 
 // traceQueryParams converts a proto TraceQueryParameters to querysvc.TraceQueryParams,
-// validating that the required time range fields are present.
+// validating that the required time range fields are present. An unset (or
+// non-positive) search_depth defaults to defaultSearchDepth, mirroring the
+// HTTP gateway: proto3 cannot distinguish an omitted field from 0, and a
+// literal 0 is rejected by some storage backends (e.g. the in-memory store).
 func traceQueryParams(query *api_v3.TraceQueryParameters) (querysvc.TraceQueryParams, error) {
 	if query == nil {
 		return querysvc.TraceQueryParams{}, status.Error(codes.InvalidArgument, "missing query")
@@ -90,17 +96,28 @@ func traceQueryParams(query *api_v3.TraceQueryParameters) (querysvc.TraceQueryPa
 	if query.GetStartTimeMin().IsZero() || query.GetStartTimeMax().IsZero() {
 		return querysvc.TraceQueryParams{}, status.Error(codes.InvalidArgument, "start time min and max are required parameters")
 	}
+	searchDepth := int(query.GetSearchDepth())
+	if searchDepth <= 0 {
+		searchDepth = defaultSearchDepth
+	}
 	queryParams := querysvc.TraceQueryParams{
 		TraceQueryParams: tracestore.TraceQueryParams{
 			ServiceName:   query.GetServiceName(),
 			OperationName: query.GetOperationName(),
 			Attributes:    jptrace.PlainMapToPcommonMap(query.GetAttributes()),
-			SearchDepth:   int(query.GetSearchDepth()),
+			SearchDepth:   searchDepth,
 			StartTimeMin:  query.GetStartTimeMin(),
 			StartTimeMax:  query.GetStartTimeMax(),
 			DurationMin:   query.GetDurationMin(),
 			DurationMax:   query.GetDurationMax(),
 		},
+	}
+	if protoFilter := query.GetFilter(); protoFilter != nil {
+		filter, err := expressionproto.FromProto(protoFilter)
+		if err != nil {
+			return querysvc.TraceQueryParams{}, status.Error(codes.InvalidArgument, err.Error())
+		}
+		queryParams.Filter = filter
 	}
 	return queryParams, nil
 }
@@ -114,7 +131,7 @@ func (h *Handler) FindTraceSummaries(request *api_v3.FindTraceSummariesRequest, 
 
 	for summaries, err := range h.QueryService.FindTraceSummaries(stream.Context(), queryParams) {
 		if err != nil {
-			return err
+			return asStatusError(err)
 		}
 		if err := stream.Send(&api_v3.FindTraceSummariesResponse{Summaries: toProtoTraceSummaries(summaries)}); err != nil {
 			return status.Errorf(codes.Internal, "failed to send response stream chunk to client: %v", err)
@@ -215,13 +232,27 @@ func (h *Handler) GetDependencies(ctx context.Context, request *api_v3.GetDepend
 	return &api_v3.DependenciesResponse{Dependencies: links}, nil
 }
 
+// asStatusError maps a query-service error to a gRPC status code. A query this
+// deployment's storage cannot serve is the caller's problem (InvalidArgument) rather than
+// a server fault, and without this it would reach the client as Unknown. Other errors pass
+// through unchanged.
+func asStatusError(err error) error {
+	if querysvc.IsBadRequest(err) {
+		return status.Error(codes.InvalidArgument, err.Error())
+	}
+	if errors.Is(err, queryinterceptor.ErrAccessDenied) {
+		return status.Error(codes.PermissionDenied, err.Error())
+	}
+	return err
+}
+
 func receiveTraces(
 	seq iter.Seq2[[]ptrace.Traces, error],
 	sendFn func(*jptrace.TracesData) error,
 ) error {
 	for traces, err := range seq {
 		if err != nil {
-			return err
+			return asStatusError(err)
 		}
 		for _, trace := range traces {
 			tracesData := jptrace.TracesData(trace)
