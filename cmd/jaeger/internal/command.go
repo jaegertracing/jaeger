@@ -21,7 +21,7 @@ import (
 
 	"github.com/jaegertracing/jaeger/cmd/internal/docs"
 	"github.com/jaegertracing/jaeger/internal/config"
-	"github.com/jaegertracing/jaeger/internal/storage/v1/elasticsearch/mappings"
+	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/mappings"
 	"github.com/jaegertracing/jaeger/internal/version"
 )
 
