@@ -1,0 +1,76 @@
+# Copyright (c) 2026 The Jaeger Authors.
+# SPDX-License-Identifier: Apache-2.0
+
+# Each job writes the integration corpus with a Jaeger built from main and reads it back with the
+# Jaeger built from the pull request, which is what catches a change to the storage schema or to the
+# span encoding that leaves the pull request unable to read what the released binary wrote.
+#
+# Only the matrix is specific to a storage backend. Each entry carries the command that stands that
+# backend's storage up and runs the suite against it, because the per-backend e2e scripts do not all
+# take the same arguments; every step around it is the same for every backend.
+#
+# This workflow is not part of the CI Orchestrator and gates nothing. Building a second Jaeger and
+# standing up a storage backend is expensive, so a maintainer opts a pull request in by labelling
+# it `ci:backward-compat`.
+
+name: CIT Backward Compatibility
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, labeled]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  backward-compatibility:
+    if: contains(github.event.pull_request.labels.*.name, 'ci:backward-compat')
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        # TODO(#8691): add cassandra and clickhouse. Each one needs a `compat` mode in its own
+        # scripts/e2e script, the way elasticsearch.sh has one, and a BackwardCompatibility entry
+        # point in its own cmd/jaeger/internal/integration test file. Nothing else here changes.
+        include:
+        - backend: elasticsearch
+          command: bash scripts/e2e/elasticsearch.sh elasticsearch 9.x compat
+        - backend: opensearch
+          command: bash scripts/e2e/elasticsearch.sh opensearch 3.x compat
+    name: ${{ matrix.backend }}
+    steps:
+    - name: Harden Runner
+      uses: step-security/harden-runner@05e31511f85b41b11d1cf0ef85d0992719546e2c # v2.21.0
+      with:
+        egress-policy: audit # TODO: change to 'egress-policy: block' after couple of runs
+
+    - name: Check out the pull request
+      uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+      with:
+        submodules: true
+
+    # Only ./cmd/jaeger is built from this checkout, and that builds without the UI assets, so this
+    # one does not pay for the jaeger-ui submodule.
+    - name: Check out the earlier revision
+      uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+      with:
+        ref: main
+        path: .jaeger-old
+
+    - uses: ./.github/actions/setup-go
+      with:
+        go-version: 1.26.x
+
+    - name: Build the earlier revision's Jaeger
+      run: go build -o "$RUNNER_TEMP/jaeger-old" ./cmd/jaeger
+      working-directory: .jaeger-old
+
+    - name: Run the ${{ matrix.backend }} backward compatibility tests
+      run: ${{ matrix.command }}
+      env:
+        JAEGER_OLD_BINARY: ${{ runner.temp }}/jaeger-old
+        JAEGER_OLD_CONFIG_DIR: ${{ github.workspace }}/.jaeger-old/cmd/jaeger
