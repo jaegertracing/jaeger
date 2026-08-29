@@ -11,17 +11,16 @@ db_is_up=
 success="false"
 
 usage() {
-  echo "Usage: $0 <backend> <backend_version> <storage_test> <backward_compatibility>"
+  echo "Usage: $0 <backend> <backend_version> <storage_test>"
   echo "  backend:         elasticsearch | opensearch"
   echo "  backend_version: major version, e.g. 7.x"
-  echo "  storage_test:    direct | e2e"
-  echo "  backward_compatibility: true | false, default=false"
+  echo "  storage_test:    direct | e2e | compat"
   exit 1
 }
 
 check_arg() {
-  if [ $# -lt 3 ] || [ $# -gt 4 ]; then
-    echo "ERROR: need three or four arguments"
+  if [ ! $# -eq 3 ]; then
+    echo "ERROR: need exactly three arguments"
     usage
   fi
 }
@@ -131,16 +130,14 @@ main() {
   local distro=$1
   local es_version=$2
   local storage_test=$3
-  local backward_compatibility=${4:-false}
-  if [[ "${storage_test}" == "direct" && "${backward_compatibility}" == "true" ]]; then
-    echo "ERROR: Can't run backward compatibility with direct storage tests"
-    exit 1
-  fi
+
   set -x
 
   bring_up_storage "${distro}" "${es_version}"
   if [[ "${storage_test}" == "e2e" ]]; then
-    STORAGE=${distro} SPAN_STORAGE_TYPE=${distro} BACKWARD_COMPATIBILITY=${backward_compatibility} make jaeger-v2-storage-integration-test
+    STORAGE=${distro} SPAN_STORAGE_TYPE=${distro} make jaeger-v2-storage-integration-test
+  elif [[ "${storage_test}" == "compat" ]]; then
+    STORAGE=${distro} SPAN_STORAGE_TYPE=${distro} make jaeger-v2-backward-compatibility-test
   elif [[ "${storage_test}" == "direct" ]]; then
     build_local_img
     echo "::group::⬇️ Pre-pull test docker images"
@@ -149,7 +146,7 @@ main() {
     echo "::endgroup::"
     STORAGE=${distro} make storage-integration-test
   else
-    echo "ERROR: Invalid argument value storage_test=${storage_test}, expecting direct or e2e"
+    echo "ERROR: Invalid argument value storage_test=${storage_test}, expecting direct, e2e or compat"
     exit 1
   fi
   success="true"

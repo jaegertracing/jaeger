@@ -41,11 +41,6 @@ extensions:
     backends:
       some_storage: &elasticsearch_config
         elasticsearch:
-          bulk_processing:
-            # Integration tests override this to a very short interval so that
-            # writes are visible to reads immediately; the default matches the
-            # production default in elasticsearch.DefaultConfig().
-            flush_interval: ${env:ES_BULK_FLUSH_INTERVAL:-200ms}
           server_urls:
             - http://localhost:9200
           # custom_headers:

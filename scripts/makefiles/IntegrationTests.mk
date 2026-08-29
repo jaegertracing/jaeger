@@ -9,25 +9,6 @@ INTEGRATION_TEST_FLAGS = --format standard-verbose --format-icons hivis
 all-in-one-integration-test: $(GOTESTSUM)
 	TEST_MODE=integration $(GOTESTSUM) $(GOTESTSUM_FLAGS) -- $(RACE) ./cmd/jaeger/internal/all_in_one_test.go
 
-JAEGER_MAIN_INSTALL_DIR = /tmp/jaeger-main
-export JAEGER_MAIN_INSTALL_DIR
-
-# Installs the @main jaeger binary into JAEGER_MAIN_INSTALL_DIR.
-# Reusable by other backward-compatibility targets (e.g. for future backends).
-.PHONY: install-jaeger-main
-install-jaeger-main:
-	mkdir -p $(JAEGER_MAIN_INSTALL_DIR)
-	rm -rf $(JAEGER_MAIN_INSTALL_DIR)/jaeger-repo
-	git clone --depth 1 --branch main https://github.com/jaegertracing/jaeger.git $(JAEGER_MAIN_INSTALL_DIR)/jaeger-repo
-	(cd $(JAEGER_MAIN_INSTALL_DIR)/jaeger-repo/cmd/jaeger && go build -o $(JAEGER_MAIN_INSTALL_DIR)/jaeger .)
-	rm -rf $(JAEGER_MAIN_INSTALL_DIR)/jaeger-repo
-
-BACKWARD_COMPATIBILITY ?= false
-ifeq ($(BACKWARD_COMPATIBILITY),true)
-PRE_TEST := install-jaeger-main
-EXTRA_TEST_ARGS := -run ".*BackwardCompatibility"
-endif
-
 # A general integration tests for jaeger-v2 storage backends,
 # these tests placed at `./cmd/jaeger/internal/integration/*_test.go`.
 # The integration tests are filtered by STORAGE env.
@@ -50,7 +31,7 @@ BINARY_COVERDIR = $(CURDIR)/.cover-binary
 BINARY_COVEROUT = cover-binary.out
 
 .PHONY: jaeger-v2-storage-integration-test
-jaeger-v2-storage-integration-test: $(GOTESTSUM) $(GOCOVMERGE) $(PRE_TEST)
+jaeger-v2-storage-integration-test: $(GOTESTSUM) $(GOCOVMERGE)
 	rm -rf $(BINARY_COVERDIR) && mkdir -p $(BINARY_COVERDIR)
 	go build -cover -covermode=atomic -o ./cmd/jaeger/jaeger-e2e ./cmd/jaeger/internal/integration/jaeger-e2e
 	# Expire tests results for jaeger storage integration tests since the environment
@@ -74,6 +55,21 @@ jaeger-v2-storage-integration-test: $(GOTESTSUM) $(GOCOVMERGE) $(PRE_TEST)
 	else \
 		echo "WARNING: no binary coverage counters in $(BINARY_COVERDIR); did the binary exit cleanly?"; \
 	fi
+
+# Runs only the backward-compatibility suites out of the jaeger-v2 storage tests. Those suites
+# write the corpus with a second Jaeger built from an earlier revision, so they need JAEGER_OLD_BINARY
+# and JAEGER_OLD_CONFIG_DIR to name that binary and that revision's cmd/jaeger directory. Without
+# them each suite skips itself, so the check below is what keeps a workflow that forgot to set them
+# from reporting success having tested nothing.
+.PHONY: jaeger-v2-backward-compatibility-test
+jaeger-v2-backward-compatibility-test:
+ifndef JAEGER_OLD_BINARY
+	$(error JAEGER_OLD_BINARY must point at a Jaeger binary built from an earlier revision)
+endif
+ifndef JAEGER_OLD_CONFIG_DIR
+	$(error JAEGER_OLD_CONFIG_DIR must point at the cmd/jaeger directory of that earlier revision)
+endif
+	$(MAKE) jaeger-v2-storage-integration-test EXTRA_TEST_ARGS='-run BackwardCompatibility'
 
 .PHONY: storage-integration-test
 storage-integration-test: $(GOTESTSUM)

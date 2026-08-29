@@ -157,9 +157,6 @@ func (s *StorageIntegration) cleanUp(t *testing.T) {
 }
 
 func SkipUnlessEnv(t *testing.T, storage ...StorageType) {
-	if !capabilities.IsBackwardCompatibilityEnv() && strings.Contains(t.Name(), "BackwardCompatibility") {
-		t.Skip("This test requires capability backward-compatibility environment")
-	}
 	env := os.Getenv("STORAGE")
 	for _, s := range storage {
 		if string(s) == env {
@@ -171,12 +168,6 @@ func SkipUnlessEnv(t *testing.T, storage ...StorageType) {
 		names[i] = string(s)
 	}
 	t.Skipf("This test requires environment variable STORAGE=%s", strings.Join(names, "|"))
-}
-
-func (s *StorageIntegration) skipReadingTracesIfNeeded(t *testing.T) {
-	if s.SkipReadingTraces {
-		t.Skip()
-	}
 }
 
 func (s *StorageIntegration) skipIfNeeded(t *testing.T) {
@@ -528,9 +519,6 @@ func (s *StorageIntegration) findTracesByQuery(t *testing.T, query *tracestore.T
 }
 
 func (s *StorageIntegration) writeTrace(t *testing.T, trace ptrace.Traces) {
-	if s.SkipWritingTraces {
-		return
-	}
 	t.Logf("%-23s Writing trace with %d spans", time.Now().Format("2006-01-02 15:04:05.999"), trace.SpanCount())
 	ctx, cx := context.WithTimeout(context.Background(), 5*time.Minute)
 	defer cx()

@@ -12,6 +12,7 @@ import (
 
 func TestElasticsearchStorage(t *testing.T) {
 	integration.SkipUnlessEnv(t, integration.StorageElasticsearch)
+
 	s := &E2EStorageIntegration{
 		ConfigFile:   "../../config-elasticsearch.yaml",
 		FeatureGates: structuredFilterGates,
@@ -50,15 +51,14 @@ func TestElasticsearchStorage_DataStream(t *testing.T) {
 	runRotationSmokeTest(t, "../../config-elasticsearch-data-stream.yaml", "elasticsearch", func(*testing.T) {})
 }
 
-func TestElasticSearch_BackwardCompatibility(t *testing.T) {
+func TestElasticsearchStorage_BackwardCompatibility(t *testing.T) {
 	integration.SkipUnlessEnv(t, integration.StorageElasticsearch)
-	fastBulkFlush := map[string]string{"ES_BULK_FLUSH_INTERVAL": "1ms"}
-	s := E2EStorageIntegration{
-		ConfigFile:      "../../config-elasticsearch.yaml",
-		EnvVarOverrides: fastBulkFlush,
+	runBackwardCompatibilityTests(t, "elasticsearch", E2EStorageIntegration{
+		ConfigFile:   "../../config-elasticsearch.yaml",
+		FeatureGates: structuredFilterGates,
 		StorageIntegration: integration.StorageIntegration{
-			Fixtures: integration.LoadAndParseQueryTestCases(t, "fixtures/queries_es.json"),
+			Fixtures:     integration.LoadAndParseQueryTestCases(t, "fixtures/queries_es.json"),
+			Capabilities: capabilities.Elasticsearch(),
 		},
-	}
-	runBackwardCompatibilityTests(t, "elasticsearch", s, capabilities.Elasticsearch(), capabilities.Elasticsearch())
+	})
 }
