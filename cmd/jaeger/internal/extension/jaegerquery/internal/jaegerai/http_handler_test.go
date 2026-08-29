@@ -13,15 +13,13 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
-
-	"github.com/jaegertracing/jaeger/internal/telemetry"
 )
 
 func TestNewHandlerBuildsEndpoints(t *testing.T) {
 	h := NewHandler(HandlerParams{Logger: zap.NewNop(), AgentURL: "ws://example", BasePath: "/jaeger", MaxRequestBodySize: 1 << 20})
 	require.NotNil(t, h.chat, "NewHandler must build the chat endpoint")
 	assert.Equal(t, "/jaeger", h.basePath)
-	assert.Nil(t, h.mcp, "the MCP endpoint must be nil when EnableMCP is false")
+	assert.Nil(t, h.mcp, "the MCP endpoint must be nil when no MCP handler is supplied")
 }
 
 func TestRegisterRoutesMountsChatEndpoint(t *testing.T) {
@@ -89,8 +87,7 @@ func TestNewHandlerNormalizesMCPBaseURL(t *testing.T) {
 	} {
 		h := NewHandler(HandlerParams{
 			Logger: zap.NewNop(), AgentURL: "ws://x", MaxRequestBodySize: 1,
-			MCP:    sharedMCPHandler(t),
-			Telset: telemetry.NoopSettings(), MCPBaseURL: base,
+			MCP: sharedMCPHandler(t), MCPBaseURL: base,
 		})
 		got := h.chat.announceMCP(httpCaps(true), "SID")
 		require.Len(t, got, 1)
@@ -107,13 +104,12 @@ func mcpEnabledHandler(t *testing.T, basePath string) *Handler {
 		BasePath:           basePath,
 		MaxRequestBodySize: 1 << 20,
 		MCP:                sharedMCPHandler(t),
-		Telset:             telemetry.NoopSettings(),
 	})
 }
 
 func TestRegisterRoutesMountsSessionScopedMCPWhenEnabled(t *testing.T) {
 	h := mcpEnabledHandler(t, "")
-	require.NotNil(t, h.mcp, "MCP endpoint must be built when EnableMCP is true")
+	require.NotNil(t, h.mcp, "MCP endpoint must be built when an MCP handler is supplied")
 	mux := http.NewServeMux()
 	h.RegisterRoutes(mux)
 	routeID := registerTurn(h.mcp.turns, testStreamingClient(), nil) // active turn
@@ -154,11 +150,11 @@ func TestRegisterRoutesOmitsMCPEndpointWhenDisabled(t *testing.T) {
 }
 
 // TestSharedCloseReapsTurnScopedSessions pins the turn-scoped endpoint into
-// jaeger-query's teardown chain. The gateway holds nothing itself — its turn-scoped
-// endpoint borrows the shared MCP handler — so the sessions it binds must be reaped
-// when the query server closes that handler (Server.Close → httpServer.Close →
-// closers.Close → mcptools.Handler.Close). The MCP SDK reaps a session only when it
-// goes idle, so without this a live turn's session would outlive the server.
+// jaeger-query's teardown chain (Server.Close → httpServer.Close → closers.Close →
+// mcptools.Handler.Close). The gateway holds nothing itself, so closing the shared
+// MCP handler has to reap the sessions the turn-scoped mount bound; the SDK reaps a
+// session only when it goes idle, so otherwise a live turn's session would outlive
+// the server.
 func TestSharedCloseReapsTurnScopedSessions(t *testing.T) {
 	shared := sharedMCPHandler(t)
 	h := NewHandler(HandlerParams{
@@ -166,7 +162,6 @@ func TestSharedCloseReapsTurnScopedSessions(t *testing.T) {
 		AgentURL:           "ws://127.0.0.1:1",
 		MaxRequestBodySize: 1 << 20,
 		MCP:                shared,
-		Telset:             telemetry.NoopSettings(),
 	})
 
 	mux := http.NewServeMux()

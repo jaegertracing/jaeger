@@ -10,7 +10,6 @@ import (
 	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerquery/internal/mcptools"
-	"github.com/jaegertracing/jaeger/internal/telemetry"
 )
 
 const routeChat = "/api/ai/chat"
@@ -42,19 +41,15 @@ type HandlerParams struct {
 	AgentURL           string
 	BasePath           string
 	MaxRequestBodySize int64
-	// MCP is the shared telemetry MCP endpoint, already built and mounted by the
-	// query server because it serves external MCP clients whether or not this gateway
-	// exists. Supplying it mounts the turn-scoped endpoint on the same *mcp.Server,
-	// with this gateway's per-turn UI tools layered on; nil means the operator did not
-	// configure ai.mcp, so only the chat endpoint is registered. The query server owns
-	// its teardown — this gateway only borrows it.
+	// MCP is the telemetry MCP endpoint the query server built. Supplying it mounts
+	// the turn-scoped endpoint on that same server, with this gateway's per-turn UI
+	// tools layered on. Nil leaves the gateway chat-only.
 	MCP *mcptools.Handler
 	// MCPBaseURL is the scheme+authority (e.g. "https://jaeger.example.com:16686")
 	// the gateway announces to the sidecar so it can dial the turn-scoped MCP
 	// endpoint. Empty announces nothing — see chatEndpoint.announceMCP. Ignored when
 	// MCP is nil.
 	MCPBaseURL string
-	Telset     telemetry.Settings
 }
 
 // NewHandler constructs a jaegerai.Handler, building the endpoints it will mount.
@@ -72,7 +67,7 @@ func NewHandler(p HandlerParams) *Handler {
 			shared:   p.MCP,
 			turns:    turns,
 			basePath: basePath,
-			logger:   p.Telset.Logger,
+			logger:   p.Logger,
 		}.build()
 		// Hand the chat endpoint the endpoint's reachable base URL so each turn
 		// announces it to the sidecar (see chatEndpoint.announceMCP). Setting it only
@@ -111,7 +106,3 @@ func (h *Handler) RegisterRoutes(router *http.ServeMux) {
 		h.mcp.registerRoutes(router)
 	}
 }
-
-// The gateway holds nothing past the request that opened it: the MCP sessions its
-// turn-scoped endpoint binds live on the shared server the query server built and
-// closes (see mcptools.Handler.Close), so there is nothing here to tear down.

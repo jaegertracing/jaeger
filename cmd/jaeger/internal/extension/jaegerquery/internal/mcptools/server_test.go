@@ -95,7 +95,7 @@ func TestNewServerDegradesWithoutMetrics(t *testing.T) {
 	telset := telemetry.NoopSettings()
 	telset.MeterProvider = &failingMeterProvider{failCounter: true}
 
-	srv := NewServer(telset, svc, DefaultConfig())
+	srv := newServer(telset, svc, DefaultConfig())
 	require.NotNil(t, srv)
 }
 

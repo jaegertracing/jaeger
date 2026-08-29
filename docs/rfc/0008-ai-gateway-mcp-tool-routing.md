@@ -21,8 +21,8 @@ This RFC captures the "MCP movement": consolidating every AI tool call — telem
 | M5 | Announce the turn-scoped endpoint to the sidecar over **HTTP** (`ai.mcp_base_url`) | ✅ Done — [#9009][pr-9009] |
 | M6 | Migrate the Gemini sidecar onto the gateway MCP URL; drop its bespoke `jaeger_mcp` bridge and the ext-method path | ⏳ Pending |
 | M7 | Consolidate the shared and turn-scoped mounts onto **one** `mcp.Server`. The query server builds it whenever `ai.mcp` is configured — independently of `ai.agent_url`, since external MCP clients use the shared mount with no sidecar — and the chat gateway, when enabled, layers its per-turn UI tools onto that same server and serves the turn-scoped route from it. One server, two mounts. | ✅ Done — [#9216][pr-9216] |
-| M7.1 | Reap the **shared** endpoint's MCP sessions. `mcptools.NewHandler` now returns a closeable `Handler` that owns the reaping, and the query server holds it in its closer set, so the sessions on both mounts are torn down with the server instead of being left to process exit. | ✅ Done — [#9216][pr-9216] |
-| M7.2 | Decouple **UI tools** from `ai.enable_mcp`. The turn-scoped endpoint is mounted only when `enable_mcp` is set, yet it also carries the per-turn UI tools. Today the ACP ext-method path still carries them too, so the gate is harmless — but M6 drops that path, at which point `enable_mcp: false` with chat enabled would leave the agent no UI tools at all. Needs a decision: mount the endpoint whenever chat is enabled (which exposes the telemetry tools `enable_mcp` is meant to gate) or register only the UI tools on it in that case. **Settle before M6.** | ⏳ Proposed |
+| M7.1 | Reap the **shared** endpoint's MCP sessions. `mcptools.NewHandler` returns a closeable `Handler` that owns the reaping, and the query server holds it in its closer set, so the sessions on both mounts are torn down with the server instead of being left to process exit. | ✅ Done — [#9216][pr-9216] |
+| M7.2 | **UI tools stay gated on `ai.mcp`.** The turn-scoped endpoint carries the per-turn UI tools and is mounted only when `ai.mcp` is configured, so once M6 drops the ACP ext-method path that also carries them today, chat without `ai.mcp` leaves the agent no UI tools. Mounting the endpoint for chat alone was considered and dropped: it would serve the telemetry tools `ai.mcp` exists to gate, and the sidecar only learns the endpoint's address from `ai.mcp.base_url`, which is part of the same block. An AI-chat-only deployment, if it is ever wanted, comes as a flag inside `ai.mcp` that turns the shared telemetry tools off — not as a second gate. | ✅ Decided — [#9216][pr-9216] |
 | M8 | Probe `ai.mcp_base_url` reachability at startup before announcing (analogous to the ACP agent health probe), so a wrong address surfaces at startup, not mid-turn | ⏳ Proposed |
 | — | Claude Code sidecar (parallel track; consumes the same URL) | ⏳ In progress — [#8631][pr-8631] |
 
@@ -221,7 +221,7 @@ The telemetry tools no longer live in a standalone `jaeger_mcp` extension; they 
 
 - Serving UI tools as MCP tools requires an MCP server **inside the gateway** — one with access to the per-turn UI state — and the gateway lives in the query extension. So an in-gateway MCP server must exist regardless of `jaeger_mcp`.
 - The standalone `jaeger_mcp` extension ([ADR-002](../adr/002-mcp-server.md)) had a runtime dependency on the query extension: it fetched `QueryService` via `GetExtension(host)` at startup. The separate-extension boundary bought nothing except that coupling.
-- Once an in-gateway MCP server is needed anyway, a separate extension is redundant. Merging `jaeger_mcp`'s tool handlers into the query extension (they already took `*querysvc.QueryService` as a parameter) removes the inter-extension coupling — `mcptools.NewServer` now takes `QueryService` directly — and lets one MCP implementation (the `mcptools` library) back both the shared and turn-scoped endpoints, advertised to an agent with or without a turn id (today via two server instances; collapsing them to one is a cleanup milestone, M7).
+- Once an in-gateway MCP server is needed anyway, a separate extension is redundant. Merging `jaeger_mcp`'s tool handlers into the query extension (they already took `*querysvc.QueryService` as a parameter) removes the inter-extension coupling — the `mcptools` constructors take `QueryService` directly — and lets one MCP implementation (the `mcptools` library) back both the shared and turn-scoped endpoints, advertised to an agent with or without a turn id. Both mounts share a single `mcp.Server` (M7).
 
 The standalone extension and its `:16687` listener are retired; the shared `/api/ai/mcp/` mount on the query port (`:16686`) replaces them for external MCP clients (Cursor, IDEs, and other AI tools that are not Jaeger's own chat sidecar).
 
@@ -235,11 +235,9 @@ The gateway serves Jaeger's own telemetry in-process (§4.5); it does **not** pr
 
 See the **Implementation status** table at the top. In narrative:
 
-- **Done:** `jaeger_mcp` is merged into the query extension (M1, [#8894][pr-8894]); the turn-scoped endpoint serves telemetry + UI tools (M2, [#8973][pr-8973]); tool calls are traceable (M3, [#8942][pr-8942]). The endpoint stayed dormant until announced.
-- **Next — before any further tool-routing PRs:** the terminology cleanup (M4, §2), so the renamed ids/endpoints are in place before a sidecar contract forms.
-- **In review (should adopt the M4 names before it merges):** announce the endpoint to the sidecar over HTTP (M5, [#9009][pr-9009]) — the PR that wakes the dormant endpoint.
-- **Then:** migrate the Gemini sidecar onto the URL and drop its bespoke `jaeger_mcp` bridge + the ext-method (M6) — the sidecar-simplification payoff and the ext-method retirement.
-- **Cleanups:** consolidate the two MCP server instances (M7); add the reachability probe (M8).
+- **Done:** `jaeger_mcp` is merged into the query extension (M1, [#8894][pr-8894]); the turn-scoped endpoint serves telemetry + UI tools (M2, [#8973][pr-8973]); tool calls are traceable (M3, [#8942][pr-8942]); the terminology cleanup landed (M4, [#9017][pr-9017]); the sidecar is told where to reach the endpoint (M5, [#9009][pr-9009]); and both mounts share one `mcp.Server` whose sessions are reaped at shutdown (M7/M7.1, [#9216][pr-9216]).
+- **Next:** migrate the Gemini sidecar onto the URL and drop its bespoke `jaeger_mcp` bridge + the ext-method (M6) — the sidecar-simplification payoff and the ext-method retirement.
+- **Cleanups:** add the reachability probe (M8).
 - **Out of scope:** MCP-over-ACP, query-type UI tools, and gateway-as-proxy — see §6.
 
 ---

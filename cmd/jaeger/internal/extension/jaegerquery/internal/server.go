@@ -280,11 +280,14 @@ func registerAIRoutes(
 	}
 
 	var cs closers
-	// One server backs both MCP mounts, so there is one config; it stays the zero
-	// value when MCP is off, in which case nothing reads it.
-	var mcpCfg mcptools.Config
+	// The telemetry MCP endpoint stands on its own: external MCP clients (Claude Code,
+	// Cursor, IDEs) dial it with no chat sidecar involved, so it is built and mounted
+	// whenever ai.mcp is configured, never depending on ai.agent_url. It comes before
+	// the gateway because the gateway layers its per-turn UI tools onto this same
+	// *mcp.Server rather than standing up a second one.
+	var mcpHandler *mcptools.Handler
 	if mcp := aiCfg.MCP.Get(); mcp != nil {
-		mcpCfg = mcptools.DefaultConfig()
+		mcpCfg := mcptools.DefaultConfig()
 		// Opened once, so a broken path is reported once, at startup. It stays open
 		// for as long as it serves, so it is released with the server rather than at
 		// process exit.
@@ -296,18 +299,10 @@ func registerAIRoutes(
 			cs = append(cs, customSkills)
 		}
 		mcpCfg.CustomSkillsFS = customSkills
-	}
 
-	// The telemetry MCP endpoint stands on its own: external MCP clients (Claude Code,
-	// Cursor, IDEs) use it with no chat sidecar involved, so it is built whenever
-	// ai.mcp is configured and never depends on ai.agent_url. Built before the gateway
-	// because the gateway layers its per-turn UI tools onto this same *mcp.Server
-	// rather than standing up a second one. It holds MCP sessions past the request
-	// that opened them, so it joins the closers.
-	var mcpHandler *mcptools.Handler
-	if aiCfg.MCP.HasValue() {
 		mcpHandler = mcptools.NewHandler(telset, querySvc, tenancyMgr, mcpCfg)
 		cs = append(cs, mcpHandler)
+		mountSharedMCP(r, mcpHandler, queryOpts.BasePath, telset)
 	}
 
 	if aiCfg.AgentURL != "" {
@@ -327,18 +322,8 @@ func registerAIRoutes(
 			MaxRequestBodySize: aiCfg.MaxRequestBodySize,
 			MCP:                mcpHandler,
 			MCPBaseURL:         aiCfg.resolveMCPBaseURL(ctx, queryOpts.HTTP.NetAddr.Endpoint, queryOpts.HTTP.TLS.HasValue()),
-			Telset:             telset,
 		})
 		aiGateway.RegisterRoutes(r)
-	}
-
-	if mcpHandler != nil {
-		// Shared telemetry endpoint (/api/ai/mcp/) for external MCP clients. Mounted
-		// whenever MCP is configured, chat gateway or not — enabling chat must not take
-		// away the endpoint those clients dial. It coexists with the turn-scoped routes
-		// the gateway registers above because those patterns are strictly more specific,
-		// so ServeMux sends /api/ai/mcp/<id>/ there and everything else here.
-		mountSharedMCP(r, mcpHandler, queryOpts.BasePath, telset)
 	}
 	return cs, nil
 }
@@ -368,6 +353,9 @@ func otelFilterFunc(basePath string) func(*http.Request) bool {
 
 // mountSharedMCP mounts handler as the shared telemetry MCP endpoint at
 // <basePath>/api/ai/mcp/, stripping that prefix so the handler sees its own root.
+// This pattern coexists with the AI gateway's turn-scoped ones because those are
+// strictly more specific, so ServeMux sends /api/ai/mcp/<id>/ to the gateway and
+// everything else here.
 func mountSharedMCP(r *http.ServeMux, handler http.Handler, basePath string, telset telemetry.Settings) {
 	prefix := strings.TrimSuffix(basePath, "/") + "/api/ai/mcp"
 	r.Handle(prefix+"/", http.StripPrefix(prefix, handler))

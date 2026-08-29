@@ -53,12 +53,9 @@ func mcpRouteIDFromContext(ctx context.Context) string {
 // SSE stream. Access is gated to route ids that belong to an active chat turn
 // (present in turnRegistry).
 type turnScopedEndpoint struct {
-	// streamable is the shared telemetry MCP endpoint's handler, borrowed from the
-	// query server: this endpoint serves that same *mcp.Server, so the telemetry
-	// tools are registered once for both mounts. Per-turn UI tools are layered on by
-	// the uiToolsMiddleware build installs on it, keyed by the route id carried in
-	// the request context. The query server owns the handler's teardown — this
-	// endpoint only borrows it and closes nothing.
+	// streamable is the telemetry MCP endpoint's handler, which the query server
+	// built and still owns. Serving it here means both mounts share one *mcp.Server,
+	// so the telemetry tools are registered once and this endpoint closes nothing.
 	streamable http.Handler
 	turns      *turnRegistry
 	basePath   string
@@ -66,9 +63,9 @@ type turnScopedEndpoint struct {
 }
 
 // turnScopedEndpointBuilder collects the endpoint's dependencies. The MCP handler
-// arrives ready-made because the shared telemetry endpoint exists independently of
-// this gateway — external MCP clients use it with no chat sidecar involved — so the
-// query server builds it and this endpoint layers the per-turn UI tools onto it.
+// arrives ready-made: external MCP clients dial the shared telemetry endpoint with
+// no chat sidecar involved, so the query server builds it and this endpoint layers
+// the per-turn UI tools onto it.
 type turnScopedEndpointBuilder struct {
 	shared   *mcptools.Handler
 	turns    *turnRegistry
@@ -77,10 +74,9 @@ type turnScopedEndpointBuilder struct {
 }
 
 // build layers this gateway's per-turn UI tools onto the shared MCP server and
-// serves it under the turn-scoped routes. The telemetry tools are a fixed
-// capability already registered on that server, and each turn's UI tools are added
-// per-request by uiToolsMiddleware, so no server has to be stood up per turn — nor
-// a second one for this mount.
+// serves it under the turn-scoped routes. uiToolsMiddleware adds each turn's UI
+// tools per request, keyed by the route id in the request context, so neither a
+// server per turn nor a second server for this mount is needed.
 func (b turnScopedEndpointBuilder) build() *turnScopedEndpoint {
 	b.shared.AddReceivingMiddleware(uiToolsMiddleware(b.turns, b.logger))
 	return &turnScopedEndpoint{

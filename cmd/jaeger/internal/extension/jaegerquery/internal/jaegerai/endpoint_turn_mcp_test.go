@@ -80,48 +80,53 @@ func connectTurnMCP(t *testing.T, ts *httptest.Server, path string) *mcp.ClientS
 	return session
 }
 
-func TestTurnScopedEndpointServesTelemetryPlusUITools(t *testing.T) {
-	ts, _, routeID := turnMCPServer(t, []json.RawMessage{rawUITool(t, "show_chart")})
-	session := connectTurnMCP(t, ts, "/api/ai/mcp/"+routeID+"/")
-
+// listToolNames connects an MCP client to path and returns the tool names the
+// server advertises there.
+func listToolNames(t *testing.T, ts *httptest.Server, path string) []string {
+	t.Helper()
+	session := connectTurnMCP(t, ts, path)
 	listed, err := session.ListTools(context.Background(), &mcp.ListToolsParams{})
 	require.NoError(t, err)
+	return toolNames(listed.Tools)
+}
 
-	got := make([]string, 0, len(listed.Tools))
-	for _, tool := range listed.Tools {
-		got = append(got, tool.Name)
-	}
+func TestTurnScopedEndpointServesTelemetryPlusUITools(t *testing.T) {
+	ts, _, routeID := turnMCPServer(t, []json.RawMessage{rawUITool(t, "show_chart")})
+
+	got := listToolNames(t, ts, "/api/ai/mcp/"+routeID+"/")
 	assert.Contains(t, got, "get_services", "built-in telemetry tools must be advertised")
 	assert.Contains(t, got, "show_chart", "the turn's UI tools must be advertised")
 }
 
 // TestSharedMCPHandlerServesTelemetryOnly pins the shared mount's contract while a
-// chat gateway runs on the same server: building the gateway layers uiToolsMiddleware
-// onto that server, and the middleware degrades to telemetry-only when a request
-// carries no turn — so an external MCP client on the shared mount still sees exactly
-// the built-in telemetry tools, never another turn's UI tools.
+// chat gateway runs on the same server. Building the gateway installs
+// uiToolsMiddleware on that server, so the middleware now sees the external clients'
+// requests too; it must resolve no turn for them and leave the tool list alone. The
+// turn below is live throughout, so a leak would show up as its UI tool appearing on
+// the shared mount.
 func TestSharedMCPHandlerServesTelemetryOnly(t *testing.T) {
 	shared := sharedMCPHandler(t)
-	// Constructing the gateway installs the UI-tool middleware on `shared`.
-	NewHandler(HandlerParams{
+	h := NewHandler(HandlerParams{
 		Logger:             telemetry.NoopSettings().Logger,
 		AgentURL:           "ws://127.0.0.1:1",
 		MaxRequestBodySize: 1 << 20,
 		MCP:                shared,
-		Telset:             telemetry.NoopSettings(),
 	})
-	ts := httptest.NewServer(shared)
+	routeID := registerTurn(h.mcp.turns, testStreamingClient(), []json.RawMessage{rawUITool(t, "show_chart")})
+
+	mux := http.NewServeMux()
+	h.RegisterRoutes(mux)
+	// The shared mount, as jaeger-query's mountSharedMCP registers it.
+	mux.Handle("/api/ai/mcp/", http.StripPrefix("/api/ai/mcp", shared))
+	ts := httptest.NewServer(mux)
 	t.Cleanup(ts.Close)
 
-	session := connectTurnMCP(t, ts, "")
-	listed, err := session.ListTools(context.Background(), &mcp.ListToolsParams{})
-	require.NoError(t, err)
+	require.Contains(t, listToolNames(t, ts, "/api/ai/mcp/"+routeID+"/"), "show_chart",
+		"precondition: the turn's UI tool is live on the turn-scoped mount")
 
-	got := make([]string, 0, len(listed.Tools))
-	for _, tool := range listed.Tools {
-		got = append(got, tool.Name)
-	}
-	assert.Contains(t, got, "get_services", "the shared mount serves the telemetry tools via the gateway's server")
+	got := listToolNames(t, ts, "/api/ai/mcp/")
+	assert.Contains(t, got, "get_services", "the shared mount serves the telemetry tools")
+	assert.NotContains(t, got, "show_chart", "the shared mount must never advertise a turn's UI tools")
 }
 
 func TestTurnScopedEndpointDispatchesUIToolToStream(t *testing.T) {

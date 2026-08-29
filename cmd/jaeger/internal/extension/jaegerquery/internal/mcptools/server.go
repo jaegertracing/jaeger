@@ -37,17 +37,13 @@ var serverInstructions string
 //go:embed all:skills
 var skillsEmbedFS embed.FS
 
-// NewServer builds an *mcp.Server with the Jaeger telemetry tools and the
+// newServer builds an *mcp.Server with the Jaeger telemetry tools and the
 // tracing/metrics middleware registered. It takes *querysvc.QueryService
 // directly (rather than fetching it from the component host), which keeps it
 // dependency-free of the jaegerquery extension package and avoids the import
 // cycle a host-based lookup would create now that the tools live under
 // jaegerquery/internal.
-//
-// Callers wanting to serve these tools over HTTP should use NewHandler, which
-// composes this with the transport shell; this returns the bare server for callers
-// that drive it over another transport.
-func NewServer(telset telemetry.Settings, queryAPI *querysvc.QueryService, cfg Config) *mcp.Server {
+func newServer(telset telemetry.Settings, queryAPI *querysvc.QueryService, cfg Config) *mcp.Server {
 	server := mcp.NewServer(
 		&mcp.Implementation{
 			Name:    cfg.ServerName,
@@ -72,11 +68,13 @@ func NewServer(telset telemetry.Settings, queryAPI *querysvc.QueryService, cfg C
 	return server
 }
 
-// Handler serves an *mcp.Server over HTTP and reaps that server's sessions on
-// Close, so a mount's MCP sessions are torn down with the query server rather than
-// left to process exit. NewHandler returns it, so the mount gets its teardown from
-// construction instead of from whoever remembers to reach for the server. It embeds
-// the http.Handler, so it is usable anywhere an http.Handler is.
+// Handler serves an *mcp.Server over HTTP and owns that server's teardown: Close
+// reaps the sessions still bound to it, so a mount gets its teardown from
+// construction instead of from whoever remembers to reach for the server. Mounting
+// one Handler at several paths — jaeger-query serves it at /api/ai/mcp/, and the AI
+// gateway serves it again under the turn-scoped routes — gives those paths one
+// server and one session map, so a session established through either resolves on
+// both.
 type Handler struct {
 	http.Handler
 	server *mcp.Server
@@ -115,7 +113,7 @@ func (h *Handler) AddReceivingMiddleware(middleware ...mcp.Middleware) {
 // the returned handler on an existing mux and closes it at shutdown so its MCP
 // sessions are reaped.
 func NewHandler(telset telemetry.Settings, queryAPI *querysvc.QueryService, tenancyMgr *tenancy.Manager, cfg Config) *Handler {
-	server := NewServer(telset, queryAPI, cfg)
+	server := newServer(telset, queryAPI, cfg)
 	streamable := mcp.NewStreamableHTTPHandler(
 		func(*http.Request) *mcp.Server { return server },
 		&mcp.StreamableHTTPOptions{
