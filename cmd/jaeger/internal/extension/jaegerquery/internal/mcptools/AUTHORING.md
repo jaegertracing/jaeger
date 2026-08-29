@@ -53,10 +53,10 @@ Two mechanical rules for the link itself:
   file under any name; the one-directory-per-skill convention is a convention.
 
 ```markdown
-- [slow-checkout-triage](custom/slow-checkout-triage/SKILL.md) — Triage a slow
+
+- [slow-checkout-triage](slow-checkout-triage/SKILL.md) — Triage a slow
   checkout by separating queue wait from service time. Use when a checkout trace
   is slow but nothing errored.
-```
 
 ## Being realistic about whether it gets read
 
