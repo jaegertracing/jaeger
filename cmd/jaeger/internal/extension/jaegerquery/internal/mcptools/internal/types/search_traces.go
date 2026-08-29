@@ -15,7 +15,7 @@ type SearchTracesInput struct {
 
 	// ServiceName filters by service name (optional). Omitting it searches every service,
 	// which some storage backends cannot do; those reject the query with an error saying so.
-	ServiceName string `json:"service_name,omitempty" jsonschema:"Filter by service name. Use get_services to discover valid names. Omit to search all services, which some storage backends do not support"`
+	ServiceName string `json:"service_name,omitempty" jsonschema:"Filter by service name (see get_services). Omit to search all services; some backends disallow that"`
 
 	// SpanName filters by span name (optional).
 	SpanName string `json:"span_name,omitempty" jsonschema:"Filter by span name"`

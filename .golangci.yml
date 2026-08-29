@@ -103,11 +103,11 @@ linters:
       severity: error
       enable-all-rules: true
       rules:
-        # not a completely bad linter, but needs clean-up and sensible width (80 is too small)
+        # enabled with a sensible width instead of the default 80 (#5506); violators
+        # at 180 have been wrapped or shortened
         - name: line-length-limit
           arguments:
-            - 80
-          disabled: true
+            - 180
         # this should be enabled after fixing or disabling in a few packages
         - name: package-directory-mismatch
           disabled: true
