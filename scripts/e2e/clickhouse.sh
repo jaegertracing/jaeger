@@ -54,10 +54,12 @@ run_integration_test() {
     healthcheck_clickhouse
     if [[ "${storage_test}" == "e2e" ]]; then
         STORAGE=clickhouse make jaeger-v2-storage-integration-test
+    elif [[ "${storage_test}" == "compat" ]]; then
+        STORAGE=clickhouse make jaeger-v2-backward-compatibility-test
     elif [[ "${storage_test}" == "direct" ]]; then
         STORAGE=clickhouse make storage-integration-test
     else
-        echo "ERROR: Invalid argument value storage_test=${storage_test}, expecting direct or e2e"
+        echo "ERROR: Invalid argument value storage_test=${storage_test}, expecting direct, e2e or compat"
         exit 1
     fi
     success="true"
