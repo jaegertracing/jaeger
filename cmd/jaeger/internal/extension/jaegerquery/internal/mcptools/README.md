@@ -14,8 +14,7 @@ themselves, see [AUTHORING.md](./AUTHORING.md).
 
 ## Turning the MCP endpoint on
 
-Skills are served over MCP, so the `ai.mcp` block is what exposes them. Its
-presence is what enables the endpoint; an empty block is enough:
+The `ai.mcp` block enables the endpoint; an empty block is enough:
 
 ```yaml
 extensions:
@@ -24,9 +23,9 @@ extensions:
       mcp: {}
 ```
 
-That serves the built-in skills, and the rest of the telemetry tools, at
-`<basePath>/api/ai/mcp/` on the query port. Point an MCP client there, or leave
-it to an AI chat sidecar configured with `ai.agent_url`.
+It serves at `<basePath>/api/ai/mcp/` on the query port, carrying the telemetry
+tools and `read_skill` with the built-in skills. Point an MCP client there, or
+leave it to an AI chat sidecar configured with `ai.agent_url`.
 
 ## Adding installation-specific skills
 
@@ -101,8 +100,9 @@ link in your index.
 
 `skills_dir` is read live. Editing a skill's text, or adding a file the index
 links to, takes effect on the next `read_skill` call — no restart, no reload
-signal. The only check that runs solely at startup is the one below, so a
-`skills_dir` you break *after* startup surfaces at read time instead.
+signal. Startup validation is the exception: it runs once, so a `skills_dir`
+that breaks after the server started is reported when an agent reads it rather
+than by refusing to serve.
 
 Skills are static text, and Jaeger never executes them. What reads them is an
 agent, which then decides what to do.

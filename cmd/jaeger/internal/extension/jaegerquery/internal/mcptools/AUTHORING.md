@@ -23,63 +23,83 @@ Skills are a poor fit for anything that is really a missing tool, a missing span
 attribute, or a policy your team enforces elsewhere. They are text an agent
 chooses to read, not a rule it must obey.
 
-## The index line is the trigger
+## The trigger is what gets it read
 
 Jaeger parses nothing inside a skill. An agent chooses what to open from the
 root index and from nothing else, so **the one line you write beside a link is
 what decides whether that skill is ever read.** Everything else in the file is
 addressed to a reader who has already arrived.
 
-Write that line as *when to use this*, not what it does. Name the symptom
-someone will actually be looking at, in the words they would use, before naming
-the technique:
+The rule for that line is narrower than it looks: **it has to be checkable
+before the skill runs.** An agent matches it against what it knows going in —
+the user's question, and whatever it has cheaply observed — not against what it
+will know afterwards.
 
-> **Weak:** — Analyses span timing distributions to classify sibling groups.
+That rules out the two usual ways of getting it wrong:
+
+> **Says what it does.** "Analyses span timing distributions to classify sibling
+> groups." Nothing here describes a situation, so there is nothing to match
+> against.
 >
-> **Better:** — Detect N+1 query patterns, where one parent operation triggers
-> many near-identical child spans. Use when a trace is slow and shows repeated
-> downstream calls, or when the user asks about N+1, repeated queries, or chatty
-> DB access.
+> **Circular.** "Use when a trace shows many repeated near-identical child
+> spans." This reads as: *if a trace makes many repeated calls, use the skill
+> that will tell you it is making many repeated calls.* You would already have
+> had to do the analysis to know the trigger applied.
+>
+> **Checkable.** "Use when a request is slow and the cause is not yet known, or
+> when the user asks about repeated queries or chatty database access." Both
+> halves are known before any analysis — one from the trace's duration, the other
+> from what the user said.
 
-The "use when…" half is doing the work. An agent looking at a slow trace full of
-repeated calls has no reason to connect it to "timing distributions".
+The test is mechanical: **could you tell that your trigger applies without
+running the skill?** If not, it names the finding rather than the situation, and
+it will only match once it is too late to be useful.
+
+Two sources are always legitimate, and between them usually enough:
+
+- **What the user said**, in their words. "The user asks why a request failed."
+- **What is cheap to observe** before any real analysis. "A trace is slow."
+  "Some span in the trace carries an error status."
+
+The built-in skills are a matched pair on this. `error-root-cause` triggers on
+"a trace has errors and the user asks why it failed" — both checkable up front.
+`detect-n-plus-one` triggers partly on the trace "showing repeated downstream
+calls", which is the finding, not the situation.
 
 Two mechanical rules for the link itself:
 
-- **Write it relative to the skills root**, not to the linking file's directory.
-  The agent passes the link text straight back to `read_skill`, so a link that
-  resolves in a markdown preview but not from the root is a broken link.
-- **`SKILL.md` is required only at the root.** Below it, a link may point at any
-  file under any name; the one-directory-per-skill convention is a convention.
+- **Write it relative to the skills root**, not to the linking file's own
+  directory. The agent passes the link text straight back to `read_skill`, so a
+  path that resolves in a markdown preview can still be a broken link. Your entry
+  point is `<skills_dir>/SKILL.md` on disk, but an agent asks for it as
+  `custom/SKILL.md` — so a skill in `<skills_dir>/slow-checkout-triage/` is
+  linked as `custom/slow-checkout-triage/SKILL.md`, **not** as
+  `slow-checkout-triage/SKILL.md`.
+- **`SKILL.md` is required only at the root.** Below it a link may point at any
+  file under any name; one directory per skill is a convention, not a rule.
 
 ```markdown
-
-- [slow-checkout-triage](slow-checkout-triage/SKILL.md) — Triage a slow
-  checkout by separating queue wait from service time. Use when a checkout trace
-  is slow but nothing errored.
+- [slow-checkout-triage](custom/slow-checkout-triage/SKILL.md) — Triage a slow
+  checkout by separating queue wait from service time. Use when a checkout
+  request is slow and nothing in the trace errored.
+```
 
 ## Being realistic about whether it gets read
 
-A good trigger line is necessary and not sufficient.
+A checkable trigger is necessary and not sufficient.
 
 Measured against real ACP agents, a skill the prompt does not name is frequently
 not opened at all — not because the agent failed to find it, but because a
 telemetry tool appeared to answer the question and it reasonably concluded the
 skill was unnecessary. Rewriting the index and the server instructions did not
-change that. The measurements, what did and did not move the number, and the
-open questions are recorded in
-[#9336](https://github.com/jaegertracing/jaeger/issues/9336).
+change that. The measurements, and what did and did not move the number, are
+recorded in [#9336](https://github.com/jaegertracing/jaeger/issues/9336).
 
-Two things follow for you as an author:
-
-- **The skills most at risk of being skipped are the ones with the most value** —
-  the ones that exist to correct a plausible wrong answer, where a tool already
-  looks like it answered. A skill that does something no tool appears to do is
-  reached far more readily.
-- **A trigger that names the misleading symptom beats one that names the
-  technique.** "Use when a trace failed and the only errored span is a proxy or
-  gateway" gives an agent something to recognise mid-investigation. "Use for root
-  cause analysis" does not.
+That issue also offers a prediction, so far untested: that the skills most at
+risk of being skipped are the ones whose value is correcting a plausible wrong
+answer, since those are exactly the cases where a tool looks like it has already
+answered. If it holds it would tell you which skills need more than a good
+trigger. Treat it as a hypothesis rather than as guidance.
 
 The index routes humans reliably and agents only sometimes. Keep it accurate —
 it is how people find what exists, and how an agent that *has* opened it
@@ -207,8 +227,8 @@ above. Both built-in skills changed as a result.
 ## Checklist
 
 - [ ] Linked from the index, relative to the skills root.
-- [ ] The index line says *when to use this*, naming the symptom before the
-      technique.
+- [ ] The index line is checkable before the skill runs — you could tell it
+      applies without doing the analysis.
 - [ ] `name` matches the directory; frontmatter `description` matches the index
       line.
 - [ ] Every step names a measurement and says what to do with each outcome.
