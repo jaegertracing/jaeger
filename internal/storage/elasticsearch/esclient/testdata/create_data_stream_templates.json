@@ -6,6 +6,11 @@
   {
     "method": "PUT",
     "path": "/_component_template/test.jaeger.spans@custom",
+    "query": {
+      "create": [
+        "true"
+      ]
+    },
     "body": {
       "template": {
         "settings": {}

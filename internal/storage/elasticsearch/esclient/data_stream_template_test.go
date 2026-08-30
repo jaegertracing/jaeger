@@ -225,6 +225,64 @@ func TestCreateSpanDataStreamTemplates(t *testing.T) {
 		assert.True(t, created, "a missing @custom must be created before it is composed")
 	})
 
+	// The two paths a conditional create can take when it is refused. The refusal
+	// looks the same either way — a 400 — so what separates them is whether the
+	// template exists afterwards.
+	t.Run("a @custom created during the race is kept", func(t *testing.T) {
+		var probes int
+		rec := snapshottest.NewRecorder(func(w http.ResponseWriter, r *http.Request) {
+			if !strings.Contains(r.URL.Path, componentCustomSuffix) {
+				w.WriteHeader(http.StatusOK)
+				w.Write([]byte("{}"))
+				return
+			}
+			// The user creates @custom between Jaeger's probe and its write: the
+			// first probe misses it, the conditional create is refused, and the
+			// second probe finds theirs.
+			if r.Method == http.MethodGet {
+				probes++
+				if probes == 1 {
+					w.WriteHeader(http.StatusNotFound)
+					w.Write([]byte(`{"status":404}`))
+					return
+				}
+				w.WriteHeader(http.StatusOK)
+				w.Write([]byte("{}"))
+				return
+			}
+			w.WriteHeader(http.StatusBadRequest)
+			w.Write([]byte(`{"error":{"type":"illegal_argument_exception",` +
+				`"reason":"component template [jaeger.spans@custom] already exists"},"status":400}`))
+		})
+		srv := httptest.NewServer(rec)
+		defer srv.Close()
+		c := IndicesClient{Client: makeClient(t, srv.URL, "", ""), Indices: testIndices()}
+		require.NoError(t, c.CreateSpanDataStreamTemplates(context.Background()))
+		for _, r := range rec.Requests() {
+			if r.Method == http.MethodPut && strings.Contains(r.Path, componentCustomSuffix) {
+				assert.Equal(t, []string{"true"}, r.Query["create"],
+					"the write must be conditional, so the user's template survives it")
+			}
+		}
+	})
+
+	t.Run("a create that fails for a real reason is surfaced", func(t *testing.T) {
+		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			// @custom stays absent throughout, so the refusal is not a lost race.
+			if r.Method == http.MethodGet {
+				w.WriteHeader(http.StatusNotFound)
+				w.Write([]byte(`{"status":404}`))
+				return
+			}
+			w.WriteHeader(http.StatusBadRequest)
+			w.Write([]byte(esErrResponse))
+		}))
+		defer srv.Close()
+		c := IndicesClient{Client: makeClient(t, srv.URL, "", ""), Indices: testIndices()}
+		err := c.CreateSpanDataStreamTemplates(context.Background())
+		require.ErrorContains(t, err, `failed to create data stream template "jaeger.spans@custom"`)
+	})
+
 	t.Run("component probe error", func(t *testing.T) {
 		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 			w.WriteHeader(http.StatusInternalServerError)

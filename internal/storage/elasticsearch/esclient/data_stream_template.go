@@ -70,7 +70,7 @@ func (i IndicesClient) CreateSpanDataStreamTemplates(ctx context.Context) error 
 		return err
 	}
 	for _, t := range templates {
-		if err := i.putComposableTemplate(ctx, t.api, t.name, t.body); err != nil {
+		if err := i.putComposableTemplate(ctx, t.api, t.name, "", t.body); err != nil {
 			return err
 		}
 	}
@@ -81,11 +81,13 @@ func (i IndicesClient) CreateSpanDataStreamTemplates(ctx context.Context) error 
 // is absent, leaving an existing one untouched. Referencing it without creating it
 // does not survive the supported backend matrix (RFC 0004 §3.2).
 //
-// The check and the create are not atomic: a user who writes "@custom" between them
-// has that write replaced by the empty body. The window is a single round trip at
-// startup, and closing it with ?create=true would turn an already-present template
-// into a rejection that has to be told apart from a real failure, so the race is
-// accepted instead.
+// The write is conditional (?create=true), so a user who creates "@custom" between
+// the probe and the write keeps it: the cluster refuses Jaeger's body instead of
+// replacing theirs. Every supported backend answers that refusal with a 400 whose
+// only distinguishing mark is the message "component template [...] already exists",
+// and a malformed body fails with the same status and, on most of them, the same
+// exception type. So rather than match on wording, a failed create re-probes: a
+// template that exists now belongs to whoever won the race, and this call is done.
 func (i IndicesClient) ensureCustomComponent(ctx context.Context, name string) error {
 	exists, err := i.componentTemplateExists(ctx, name)
 	if err != nil {
@@ -94,7 +96,14 @@ func (i IndicesClient) ensureCustomComponent(ctx context.Context, name string) e
 	if exists {
 		return nil
 	}
-	return i.putComposableTemplate(ctx, componentTemplateAPI, name, emptyComponentBody)
+	createErr := i.putComposableTemplate(ctx, componentTemplateAPI, name, "create=true", emptyComponentBody)
+	if createErr == nil {
+		return nil
+	}
+	if exists, err := i.componentTemplateExists(ctx, name); err == nil && exists {
+		return nil
+	}
+	return createErr
 }
 
 // componentTemplateExists reports whether a component template exists.
@@ -146,11 +155,16 @@ func (i IndicesClient) TestsOnlyDataStreamExists(ctx context.Context, name strin
 	return false, nil
 }
 
-// putComposableTemplate PUTs a composable component or index template body. It
-// mirrors CreateTemplate's response handling so failures read the same way.
-func (i IndicesClient) putComposableTemplate(ctx context.Context, api, name, body string) error {
+// putComposableTemplate PUTs a composable component or index template body, with
+// query appended to the endpoint when it is not empty. It mirrors CreateTemplate's
+// response handling so failures read the same way.
+func (i IndicesClient) putComposableTemplate(ctx context.Context, api, name, query, body string) error {
+	endpoint := api + "/" + name
+	if query != "" {
+		endpoint += "?" + query
+	}
 	_, err := i.request(ctx, elasticRequest{
-		endpoint: api + "/" + name,
+		endpoint: endpoint,
 		method:   http.MethodPut,
 		body:     []byte(body),
 	})
