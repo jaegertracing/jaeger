@@ -156,3 +156,17 @@ func E2EWithoutNativeFilters() Capabilities {
 		skipList: []string{structuredFilterTest},
 	}
 }
+
+func ElasticsearchBackwardCompat() Capabilities {
+	return Capabilities{
+		getOperationsMissingSpanKind: true,
+		skipList:                     []string{scopeAttributesTest, linkAttributesTest, attributeOrderingTest},
+	}
+}
+
+func OpenSearchBackwardCompat() Capabilities {
+	return Capabilities{
+		getOperationsMissingSpanKind: true,
+		skipList:                     []string{scopeAttributesTest, linkAttributesTest, attributeOrderingTest},
+	}
+}

@@ -97,7 +97,7 @@ func TestOpenSearchStorage_BackwardCompatibility(t *testing.T) {
 		FeatureGates: structuredFilterGates,
 		StorageIntegration: integration.StorageIntegration{
 			Fixtures:     integration.LoadAndParseQueryTestCases(t, "fixtures/queries_es.json"),
-			Capabilities: capabilities.OpenSearch(),
+			Capabilities: capabilities.OpenSearchBackwardCompat(),
 		},
 	})
 }
