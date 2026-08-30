@@ -152,7 +152,7 @@ The `data_stream: {}` directive tells ES/OpenSearch that any write to a matching
 
 The `@custom` component template is explicitly listed in `composed_of` (last position = highest priority), because OpenSearch does not auto-merge `@custom` templates — they must be explicitly referenced. Jaeger creates it empty when the cluster does not already have one, so that reference always resolves.
 
-This RFC originally proposed marking it in `ignore_missing_component_templates` instead, which does not survive the supported matrix: the field arrived in Elasticsearch 8.7 and exists in no OpenSearch version, and both parsers reject unknown template fields. Dropping the field on its own is not sufficient either, because OpenSearch rejects a `composed_of` naming a component template that does not exist. Creating it empty gives one index-template body that is valid on every supported version, with the contents still owned by the user.
+This RFC originally proposed marking it in `ignore_missing_component_templates` instead, which does not survive the supported matrix: the field arrived in Elasticsearch 8.7 and exists in no OpenSearch version, and both parsers reject unknown template fields. Dropping the field on its own is not sufficient either, because every supported backend — Elasticsearch included, whatever its version — rejects a `composed_of` naming a component template that does not exist. Creating it empty gives one index-template body that is valid on every supported version, with the contents still owned by the user.
 
 #### Idempotency and Conflict Handling
 
