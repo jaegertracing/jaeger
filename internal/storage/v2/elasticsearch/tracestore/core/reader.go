@@ -46,6 +46,10 @@ const (
 	tagValueField          = "value"
 	errorTag               = "error"
 
+	objectScopeTagsField      = "scopeTag"
+	nestedScopeTagsField      = "scopeTags"
+	nestedReferencesTagsField = "references.tags"
+
 	defaultSearchDepth = 100
 
 	DawnOfTimeSpanAge = time.Hour * 24 * 365 * 50
@@ -69,9 +73,9 @@ var (
 
 	defaultMaxDuration = model.DurationAsMicroseconds(time.Hour * 24)
 
-	objectTagFieldList = []string{objectTagsField, objectProcessTagsField}
+	objectTagFieldList = []string{objectTagsField, objectProcessTagsField, objectScopeTagsField}
 
-	nestedTagFieldList = []string{nestedTagsField, nestedProcessTagsField, nestedLogFieldsField}
+	nestedTagFieldList = []string{nestedTagsField, nestedProcessTagsField, nestedLogFieldsField, nestedScopeTagsField, nestedReferencesTagsField}
 
 	_ Reader = (*SpanReader)(nil) // check API conformance
 )
@@ -610,7 +614,11 @@ func (*SpanReader) buildNestedQuery(field string, k string, v string) esquery.Qu
 	keyQuery := esquery.NewMatchQuery(keyField, k)
 	valueQuery := esquery.NewRegexpQuery(valueField, v)
 	tagBoolQuery := esquery.NewBoolQuery().Must(keyQuery, valueQuery)
-	return esquery.NewNestedQuery(field, tagBoolQuery)
+	query := esquery.NewNestedQuery(field, tagBoolQuery)
+	if field == nestedScopeTagsField || field == nestedReferencesTagsField {
+		return query.IgnoreUnmapped(true)
+	}
+	return query
 }
 
 func (*SpanReader) buildObjectQuery(field string, k string, v string) esquery.Query {
@@ -624,6 +632,8 @@ func (s *SpanReader) mergeAllNestedAndElevatedTagsOfSpan(span *dbmodel.Span) {
 	span.Process.Tags = processTags
 	spanTags := s.mergeNestedAndElevatedTags(span.Tags, span.Tag)
 	span.Tags = spanTags
+	scopeTags := s.mergeNestedAndElevatedTags(span.ScopeTags, span.ScopeTag)
+	span.ScopeTags = scopeTags
 }
 
 func (s *SpanReader) mergeNestedAndElevatedTags(nestedTags []dbmodel.KeyValue, elevatedTags map[string]any) []dbmodel.KeyValue {
