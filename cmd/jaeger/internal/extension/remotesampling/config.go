@@ -12,7 +12,7 @@ import (
 	"go.opentelemetry.io/collector/config/configgrpc"
 	"go.opentelemetry.io/collector/config/confighttp"
 	"go.opentelemetry.io/collector/config/configoptional"
-	"go.opentelemetry.io/collector/confmap/xconfmap"
+	"go.opentelemetry.io/collector/confmap"
 
 	"github.com/jaegertracing/jaeger/internal/sampling/samplingstrategy/adaptive"
 )
@@ -24,8 +24,8 @@ var (
 )
 
 var (
-	_ component.Config   = (*Config)(nil)
-	_ xconfmap.Validator = (*Config)(nil)
+	_ component.Config  = (*Config)(nil)
+	_ confmap.Validator = (*Config)(nil)
 )
 
 type Config struct {
