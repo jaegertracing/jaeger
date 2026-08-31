@@ -86,7 +86,7 @@ Two mechanical rules for the link itself:
 
 ## Being realistic about whether it gets read
 
-A checkable trigger is necessary and not sufficient.
+A checkable trigger is necessary but not sufficient.
 
 Measured against real ACP agents, a skill the prompt does not name is frequently
 not opened at all — not because the agent failed to find it, but because a
@@ -98,7 +98,7 @@ recorded in [#9336](https://github.com/jaegertracing/jaeger/issues/9336).
 That issue also offers a prediction, so far untested: that the skills most at
 risk of being skipped are the ones whose value is correcting a plausible wrong
 answer, since those are exactly the cases where a tool looks like it has already
-answered. If it holds it would tell you which skills need more than a good
+answered. If it holds, it would tell you which skills need more than a good
 trigger. Treat it as a hypothesis rather than as guidance.
 
 The index routes humans reliably and agents only sometimes. Keep it accurate —
