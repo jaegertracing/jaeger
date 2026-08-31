@@ -220,23 +220,26 @@ func TestElasticsearchStorage_DataStreamTemplates(t *testing.T) {
 	s.testDataStreamTemplates(t)
 }
 
-// TODO: This test overrides the span rotation on the factory's own writer params
-// instead of configuring indices.spans.rotation.data_stream, because the factory
-// refuses that configuration: RotationConfig.validate rejects data_stream with "not
-// yet implemented" (config_rotation.go), so esv2.NewFactory fails before a store
-// exists.
+// TODO: This test overrides the span rotation on the factory's writer params, and
+// installs the data-stream templates itself, because two things still stand between
+// an indices.spans.rotation.data_stream config and a working data stream.
 //
-// The only thing missing behind that guard is one branch in
-// FactoryBase.createTemplates, which unconditionally installs the rotation-path
-// template on jaeger-span-* and needs to call CreateSpanDataStreamTemplates when the
-// span rotation is a data stream. Everything else already handles data streams:
-// BuildRotation resolves the config, the writer emits @timestamp and the "create" op
-// type, and ReadTargets returns the stream name.
+// RotationConfig.validate rejects data_stream with "not yet implemented"
+// (config_rotation.go), so esv2.NewFactory fails before a store exists. That guard
+// has to narrow to non-span indices — services, dependencies and sampling need
+// document updates, which data streams reject.
 //
-// So this override must go as soon as RFC 0004 milestone 9 lands that branch and
-// narrows the guard to non-span indices. Set the rotation in the config the factory
-// is built from, drop the override, and let createTemplates install the templates
-// this test installs by hand.
+// FactoryBase.createTemplates then has to stop unconditionally installing the
+// rotation-path template on jaeger-span-* and call CreateSpanDataStreamTemplates when
+// the span rotation is a data stream. Lifting the guard without this is worse than
+// leaving it: BuildRotation resolves the write target correctly and the writer emits
+// @timestamp and the "create" op type, so the first write silently auto-creates an
+// ordinary index named jaeger.spans, with nothing to say the data stream was never
+// there. TestsOnlyDataStreamExists below is what catches that.
+//
+// Both land with RFC 0004 milestone 9. Then set the rotation in the config the
+// factory is built from and delete the override, the CreateSpanDataStreamTemplates
+// call, and the data-stream half of the teardown.
 func (s *ESStorageIntegration) testDataStreamTemplates(t *testing.T) {
 	ctx := context.Background()
 	replicas := int64(0)
