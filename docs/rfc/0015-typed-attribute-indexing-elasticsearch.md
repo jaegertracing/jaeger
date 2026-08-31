@@ -1,10 +1,18 @@
 # RFC 0015: Typed Attribute Indexing for Elasticsearch/OpenSearch
 
-- **Status:** Draft
+- **Status:** Draft — Option A is implemented behind an alpha feature gate
 - **Author:** Yuri Shkuro
 - **Created:** 2026-08-12
-- **Last Updated:** 2026-08-12
+- **Last Updated:** 2026-08-24
 - **Related:** [RFC 0005](./0005-structured-query-filters.md) (structured query filters — the caller that needs this), [ADR-012](../adr/012-unified-elasticsearch-client.md) (unified Elasticsearch client), [ADR-013](../adr/013-storage-capability-declaration.md) (storage capability declaration)
+
+---
+
+## Delivery
+
+- ✅ **The mapping and the query path.** Delivered in [#9321](https://github.com/jaegertracing/jaeger/pull/9321) behind the alpha feature gate `jaeger.es.typedAttributeIndexing`, off by default. The gate adds the `number` sub-field to the span, resource and event attribute values in [`jaeger-span.json`](../../internal/storage/elasticsearch/esclient/index_templates/jaeger-span.json), in both the nested and the elevated representation, and lowers `gt`/`lt`/`gte`/`lte` on an attribute onto it in [`core/filter.go`](../../internal/storage/v2/elasticsearch/tracestore/core/filter.go). With the gate off both halves behave exactly as before, and the ordering predicate is refused rather than answered. §7 records what the implementation measured, including the two answers that changed the design.
+
+Two things named in this RFC are deliberately not delivered. `long` is not mapped separately from `double` (§7, question 2), and the boolean sub-field §4 proposed is not mapped at all, because it cannot be installed on both engines (§7, question 7). Typed constants on attributes — RFC 0005 §5.4's authoritative typed matching, which §1.1 gives as the second of the two refusals — remain refused; the sub-field makes them answerable, but routing a declared type to it is a separate change.
 
 ---
 
@@ -108,13 +116,14 @@ Two settings there are worth spelling out, because the proposal keeps both and n
 "value": {
   "type": "keyword", "ignore_above": 256,
   "fields": {
-    "number":  { "type": "double",  "ignore_malformed": true },
-    "boolean": { "type": "boolean", "ignore_malformed": true }
+    "number": { "type": "double", "coerce": false, "ignore_malformed": true }
   }
 }
 ```
 
-`fields` declares **multi-fields**: Elasticsearch indexes the *same* source value again under each one, with a different mapping. So `tags.value` keeps its exact-term behavior unchanged and gains `tags.value.number` and `tags.value.boolean` beside it. `ignore_malformed: true` is what makes that safe — a value that will not coerce to a sub-field's type is skipped *for that sub-field* rather than rejecting the document. The numeric sub-field is named `number`, not `double`, because integer and floating-point attributes both land in it; `double` is merely the Elasticsearch type wide enough to hold them (§7, question 2).
+`fields` declares a **multi-field**: Elasticsearch indexes the *same* source value again under it, with a different mapping. So `tags.value` keeps its exact-term behavior unchanged and gains `tags.value.number` beside it. `ignore_malformed: true` is what makes that safe — a value that will not fit the sub-field's type is skipped *for that sub-field* rather than rejecting the document. The sub-field is named `number`, not `double`, because integer and floating-point attributes both land in it; `double` is merely the Elasticsearch type wide enough to hold them (§7, question 2).
+
+**`coerce: false` is what makes the sub-field authoritative.** Coercion defaults to on, and it converts a numeric *string* into a numeric field, so by default a string-typed attribute whose value looks like a number is indexed as one and a range query cannot tell it from a real number. With coercion off, only a value that arrived as a JSON number enters the sub-field, so being indexed there *is* the statement that the value is numeric. That is what delivers R2 without consulting a discriminator, and it is why there is a sub-field for numbers and none for booleans: `coerce` is not a boolean parameter, so a boolean sub-field could not have been made authoritative the same way, and OpenSearch rejects `ignore_malformed` on a boolean mapper outright (§7, question 7).
 
 **What it produces.** Take a span carrying five attributes:
 
@@ -132,27 +141,26 @@ Two settings there are worth spelling out, because the proposal keeps both and n
 
 Nothing about this document changes — the mapping only changes what is built from it:
 
-| attribute | `value` (keyword) | `value.number` | `value.boolean` |
-|---|---|---|---|
-| `http.response.size` = `4096` (int64) | `"4096"` | `4096.0` | — |
-| `sampler.param` = `0.001` (float64) | `"0.001"` | `0.001` | — |
-| `error` = `true` (bool) | `"true"` | — | `true` |
-| `http.method` = `"GET"` (string) | `"GET"` | — | — |
-| `retry.count` = `"3"` (string) | `"3"` | `3.0` ⚠️ | — |
+| attribute | `value` (keyword) | `value.number` |
+|---|---|---|
+| `http.response.size` = `4096` (int64) | `"4096"` | `4096.0` |
+| `sampler.param` = `0.001` (float64) | `"0.001"` | `0.001` |
+| `error` = `true` (bool) | `"true"` | — |
+| `http.method` = `"GET"` (string) | `"GET"` | — |
+| `retry.count` = `"3"` (string) | `"3"` | — |
 
-**The last row is why the `type` pairing is not optional.** Elasticsearch coerces numeric *strings* into a numeric field — that is the `coerce` mapping parameter, which defaults to `true` — so a string-typed attribute whose value looks like a number lands in `value.number` too, and a range query alone cannot tell it from a real number. Pairing the range with the recorded discriminator is what makes R2 hold, and is exactly what the discriminator is for. So `span.retry.count > 2` must not match that span, and `span.http.response.size > 500` must match it:
+**The last two rows are what `coerce: false` buys.** A string that looks like a number, and a boolean, are both absent from the numeric index, so a range over it matches neither. `span.retry.count > 2` therefore does not match this span while `span.http.response.size > 500` does, and the range needs no second clause to say so:
 
 ```json
 { "nested": { "path": "tags", "query": { "bool": { "must": [
   { "term":  { "tags.key":  "http.response.size" } },
-  { "terms": { "tags.type": ["int64", "float64"] } },
   { "range": { "tags.value.number": { "gt": 500 } } }
 ] } } } }
 ```
 
-When the caller declares a type, pair with that one. When the caller declares nothing — the common case (§1.1) — pair with the numeric *set* as above, which is the whole numeric space and needs no metadata lookup. A single `double` sub-field serves both, so separate `long` and `double` sub-fields would add a field for no reach.
+The recorded `type` discriminator is still there and could be paired with the range, but it has nothing left to decide: the sub-field already holds only numbers. That is what makes the same lowering work on the elevated representation, which carries no discriminator at all. A single `double` sub-field serves the whole numeric space, so separate `long` and `double` sub-fields would add a field for no reach (§7, question 2).
 
-Note that the `nested` query is what keeps the three clauses correlated: they must match the same array element, not three different attributes on the same span. That is the existing tag-search mechanism, unchanged.
+Note that the `nested` query is what keeps the two clauses correlated: they must match the same array element, not two different attributes on the same span. That is the existing tag-search mechanism, unchanged.
 
 **Why multi-fields rather than sibling fields.** The natural-looking alternative is to leave `value` as it is and add `number` and `boolean` as *siblings* of it inside the nested object, giving a flatter query path (`tags.number`) and no apparent duplication. It does not work as a mapping-only change, and the reason is the crux: a mapping declares how to index a field the document **contains**. Adding `tags.number` to `properties` does not create it — the writer has to emit it. That puts the sibling shape on the far side of R5, and from there it splits two ways, neither cheap:
 
@@ -163,7 +171,7 @@ So the duplication is not something multi-fields introduce. Serving exact match 
 
 One variant does reach a flat name without touching the write path: map `value` with `copy_to` pointing at a sibling `number`. It is not obviously better, because `copy_to` values do not appear in `_source` either, so it buys only the shorter field path — and `copy_to` has documented restrictions around `nested` scopes that would need verifying on both engines. Not adopted, but recorded so the option is not mistaken for unexplored.
 
-**Multi-typed keys index correctly.** Because the sub-fields hang off one `value` field shared by every key, and `ignore_malformed` skips what will not coerce, a key emitted as an int by one service and a string by another produces two documents that are each indexed correctly and each carry their own discriminator. Nothing conflicts, nothing is rejected, and no key has to be assigned a single type. That is a direct consequence of typing per value rather than per key (§2).
+**Multi-typed keys index correctly.** Because the sub-field hangs off one `value` field shared by every key, and `ignore_malformed` skips what will not fit, a key emitted as an int by one service and a string by another produces two documents that are each indexed correctly. Nothing conflicts, nothing is rejected, and no key has to be assigned a single type. That is a direct consequence of typing per value rather than per key (§2).
 
 All of the above is a mapping-only change.
 
@@ -176,19 +184,20 @@ All of the above is a mapping-only change.
     "mapping": {
       "type": "keyword", "ignore_above": 256,
       "fields": {
-        "number":  { "type": "double",  "ignore_malformed": true },
-        "boolean": { "type": "boolean", "ignore_malformed": true }
+        "number": { "type": "double", "coerce": false, "ignore_malformed": true }
       }
     }
   }
 }
 ```
 
-Every elevated key then gets `tag.<key>`, `tag.<key>.number`, and `tag.<key>.boolean`, and `span.http.response.size > 500` lowers to a plain range on `tag.http_response_size.number` with no `nested` wrapper, because an elevated field is not in an array.
+Every elevated key then gets `tag.<key>` and `tag.<key>.number`, and `span.http.response.size > 500` lowers to a plain range on `tag.http_response_size.number` with no `nested` wrapper, because an elevated field is not in an array.
 
-**The template declares the mappings rather than inferring them, so no key is ever assigned a single type.** All three mappings are in place for every key before any value arrives, so nothing depends on which value is seen first. A key that one service emits as an int and another as a string indexes the int into `.number` and the string into the keyword, and `ignore_malformed` skips only the coercion that cannot happen. The multi-typed key of §2 is therefore represented on the elevated side too, without a discriminator, because the sub-field a value lands in stands in for one.
+**The template declares the mappings rather than inferring them, so no key is ever assigned a single type.** Both mappings are in place for every key before any value arrives, so nothing depends on which value is seen first. A key that one service emits as an int and another as a string indexes the int into `.number` and the string into the keyword, and `ignore_malformed` skips only what cannot be indexed. The multi-typed key of §2 is therefore represented on the elevated side too.
 
-Two limits remain on the elevated side. It costs **field count**: three mapped fields per key instead of one, against Elasticsearch's total-fields limit, which matters for a `tags_as_fields: all` deployment and is negligible for an include list. And there is still no discriminator, so `tag.foo.number` holds a stored number and a stored numeric *string* indistinguishably. Ordering works (R1); authoritative typed matching does not (R2). That is a real gap, and it is smaller than it looks, because §1.1's common case is an untyped constant and a numeric operator on it wants exactly the ordering that does work.
+**And `coerce: false` closes the gap the elevated side would otherwise have.** With coercion on, `tag.foo.number` would hold a stored number and a stored numeric *string* indistinguishably, and the elevated representation has no discriminator to separate them — so it would deliver ordering (R1) and not authoritative typed matching (R2). With coercion off the sub-field holds only values that arrived as numbers, which is the same statement a discriminator would have made, so both representations satisfy R2 on the same lowering.
+
+One limit remains on the elevated side: **field count**, two mapped fields per key instead of one, against Elasticsearch's total-fields limit. That matters for a `tags_as_fields: all` deployment and is negligible for an include list.
 
 ### Option B — Type-partitioned nested arrays
 
@@ -231,23 +240,25 @@ Legend: 🟢 good · 🟡 partial · 🔴 poor
 | R7 — covers both representations | 🟢⁷ | 🔴⁸ | 🟡⁹ | 🟢 | 🟡 |
 | R8 — works on existing indices | 🔴 | 🔴 | 🔴 | 🟢 | 🔴 |
 
-¹ only for the curated key set. ² on the nested side, by pairing the range with the recorded discriminator; a range alone matches numeric strings too. On the elevated side there is no discriminator, so A delivers ordering there and not authoritative typing. ³ the inferred mapping honors string versus number versus boolean, which is the distinction predicates turn on, but it is per key rather than per value, so it holds only for a key that is consistently typed — and it conflates integer with double, which costs nothing for the operators involved. ⁴ no effect on the nested side, where the sub-fields hang off one shared `value`; on the elevated side it maps three fields per key instead of one, which is a bounded multiplier against the total-fields limit and only bites a `tags_as_fields: all` deployment. ⁵ `ignore_malformed` prevents rejected documents, but an attribute seen at two types becomes silently unsearchable for whichever type lost the race, and the result set says nothing about it. ⁶ Elasticsearch runtime fields and OpenSearch derived fields differ in syntax and minimum version. ⁷ the same multi-field shape applies to the nested `value` and, through the dynamic template, to the elevated fields. ⁸ replaces the nested representation and leaves the elevated one untouched. ⁹ elevated representation only.
+¹ only for the curated key set. ² in both representations, because `coerce: false` keeps a numeric string out of the numeric sub-field, so being indexed there is itself the statement that the value arrived as a number. The nested side's recorded discriminator agrees with it and is not consulted. ³ the inferred mapping honors string versus number versus boolean, which is the distinction predicates turn on, but it is per key rather than per value, so it holds only for a key that is consistently typed — and it conflates integer with double, which costs nothing for the operators involved. ⁴ no effect on the nested side, where the sub-field hangs off one shared `value`; on the elevated side it maps two fields per key instead of one, which is a bounded multiplier against the total-fields limit and only bites a `tags_as_fields: all` deployment. ⁵ `ignore_malformed` prevents rejected documents, but an attribute seen at two types becomes silently unsearchable for whichever type lost the race, and the result set says nothing about it. ⁶ Elasticsearch runtime fields and OpenSearch derived fields differ in syntax and minimum version. ⁷ the same multi-field shape applies to the nested `value` and, through the dynamic template, to the elevated fields. ⁸ replaces the nested representation and leaves the elevated one untouched. ⁹ elevated representation only.
 
 ---
 
 ## 5. Recommendation
 
-**Adopt Option A, applied to both representations: multi-fields on the nested `value`, and the same multi-fields in the `tag.*` dynamic template. Reject B, C, D, and E as the primary mechanism.**
+**Adopt Option A, applied to both representations: a numeric multi-field on the nested `value`, and the same multi-field in the `tag.*` dynamic template, both with `coerce: false`. Reject B, C, D, and E as the primary mechanism.**
 
-Option A satisfies R1 through R7 together, and it does so as a change to two mappings in one index template. It needs no write-path change, because the data it indexes is already being written. It prunes at the index, because the values are genuinely indexed. And on the nested side it honors a type whether or not the caller declared one, because the discriminator it pairs with is recorded per value.
+Option A satisfies R1 through R7 together, and it does so as a change to two mappings in one index template. It needs no write-path change, because the data it indexes is already being written. It prunes at the index, because the values are genuinely indexed. And it honors a type whether or not the caller declared one, because with coercion off the sub-field holds only values that arrived as numbers.
 
-The property that matters most is the one easiest to overlook: **A never assigns a type to a key.** On the nested side the sub-fields hang off one shared `value`; on the elevated side the template gives every key all three mappings. Either way a key that different services emit at different types is indexed correctly for every span, with no winner to pick and nothing silently dropped (§2). A is also the most reversible of the five — reverting the template stops populating the sub-fields, and no document ever became invalid.
+The property that matters most is the one easiest to overlook: **A never assigns a type to a key.** On the nested side the sub-field hangs off one shared `value`; on the elevated side the template gives every key both mappings. Either way a key that different services emit at different types is indexed correctly for every span, with no winner to pick and nothing silently dropped (§2). A is also the most reversible of the five — reverting the template stops populating the sub-field, and no document ever became invalid.
 
-Its one real cost is field count on the elevated side, three mapped fields per key instead of one. That is a bounded multiplier, it is visible in advance, and it only presses on a `tags_as_fields: all` deployment, which is already the configuration that trades mapping size for Kibana ergonomics. Dropping the `boolean` sub-field would reduce it (§7, question 7).
+Its one real cost is field count on the elevated side, two mapped fields per key instead of one. That is a bounded multiplier, it is visible in advance, and it only presses on a `tags_as_fields: all` deployment, which is already the configuration that trades mapping size for Kibana ergonomics.
+
+**One consequence of `coerce: false` deserves stating plainly, because it is a behavior change and not only an improvement.** An attribute a service wrote as *text* is absent from the numeric index, so an ordering predicate on it matches nothing rather than being refused. `http.status_code >= 400` is the canonical example from §1.2 and also the canonical instance of the problem: the semantic convention is an integer, but instrumentation that writes it as a string leaves the numeric sub-field empty, and the caller reads an empty answer as a complete one. That is a narrower answer than a refusal, which is the trade RFC 0005 §7 exists to prevent, and it is the price of not consulting a discriminator. What makes it acceptable is that the alternative is worse in the same direction: with coercion on, the same query answers with the *string* values ordered lexicographically, which is wrong rather than empty.
 
 It fails only R8, and R8 is the requirement daily index rotation makes cheap. A deployment that adopts the new template gets ordered predicates on tomorrow's data, on all data once retention has turned over, and a clean `InvalidArgument` in the meantime rather than a wrong answer. That is a materially better trade than Option D's correct-but-unscalable scan, which would make the feature's cost unpredictable exactly when a time range is wide.
 
-Option C is rejected because A reaches the same predicates on the same fields without C's failure mode. Both give ordering on an elevated attribute and neither gives authoritative typing there. C's inferred mapping is per key, so it picks one type and silently stops indexing the others — very hard for an operator to diagnose, and exactly what RFC 0005's refuse-rather-than-approximate posture exists to avoid. Today's forced-`keyword` template is what currently buys immunity from that (§2), and A keeps the immunity while adding the reach. What C saves is field count, and paying for that in silently wrong results is not a trade worth making.
+Option C is rejected because A reaches the same predicates on the same fields without C's failure mode. Both give ordering on an elevated attribute, and with `coerce: false` A gives authoritative typing there as well, which C cannot. C's inferred mapping is per key, so it picks one type and silently stops indexing the others — very hard for an operator to diagnose, and exactly what RFC 0005's refuse-rather-than-approximate posture exists to avoid. Today's forced-`keyword` template is what currently buys immunity from that (§2), and A keeps the immunity while adding the reach. What C saves is field count, and paying for that in silently wrong results is not a trade worth making.
 
 Option B is the better data model and is rejected on cost: it buys nothing over A that a user can observe, while requiring a schema migration. It is worth revisiting only if a future schema change is being made for other reasons. Option E is rejected as a general solution but should be adopted opportunistically for a small set of hot semantic-convention keys, where an exact typed mapping beats a coerced sub-field.
 
@@ -255,11 +266,13 @@ Option B is the better data model and is rejected on cost: it buys nothing over 
 
 ## 6. Consequences
 
-**The query path gains two branches, and the API does not change at all.** RFC 0005's structured filter already carries `gt`/`lt`/`gte`/`lte` and an optional constant type, and the Elasticsearch reader already refuses them. Lowering them means a `nested` query over `tags.value.number` paired with a `tags.type` term, *or* a plain range over `tag.<key>.number` for an elevated key with no pairing available — which is the same OR across representations the reader already builds for every tag search today (§2). Then the operators join the `FilterCapabilities` the reader declares. No proto change, no client change, no UI change — which is the capability-declaration design from ADR-013 and RFC 0005 §7 paying off.
+**The query path gains one branch, and the API does not change at all.** RFC 0005's structured filter already carries `gt`/`lt`/`gte`/`lte`, and the Elasticsearch reader already refuses them on an attribute. Lowering them means a range over the value's `.number` sub-field, applied to each field the attribute lives in: a `nested` query over `tags.value.number` paired with the key term, *or* a plain range over `tag.<key>.number` for an elevated key — which is the same OR across representations the reader already builds for every tag search today (§2). No proto change, no client change, no UI change.
 
-**Refusal stays the behavior for an index without the sub-fields**, which is what makes the rollout safe. Because a range query against a missing sub-field silently matches nothing rather than erroring, the reader must *not* discover support by trying; it has to know. So the reader needs a way to tell whether the index it is about to query carries the typed sub-fields.
+`FilterCapabilities` needs no change either, which is not obvious. `gt`/`lt`/`gte`/`lte` are already declared, because `span.duration` needs them, and a capability declaration names levels and operators rather than the pairing of an operator with a particular attribute. So this refusal was never at the capability edge: it came from the reader, and lifting it is a reader change alone.
 
-**How the reader learns that is the main design question this RFC leaves open** (§7). The options are an explicit configuration setting, introspecting the mapping at startup, or versioning the index template and reading the version from the index. The setting is the least clever and the most predictable, and it composes with the capability declaration: the setting decides what `FilterCapabilities` advertises, and everything downstream follows from that one answer.
+**Refusal stays the behavior for an index without the sub-field**, which is what makes the rollout safe. Because a range query against a missing sub-field silently matches nothing rather than erroring, the reader must *not* discover support by trying; it has to know. So the reader needs a way to tell whether the index it is about to query carries the sub-field.
+
+**A feature gate is how it is told.** `jaeger.es.typedAttributeIndexing` decides both halves at once: with it off the template maps no sub-field and the reader refuses an ordering predicate on an attribute, and with it on the template maps the sub-field and the reader lowers the predicate onto it. One switch, so the write side and the read side cannot disagree — which is the failure a per-index-options configuration field would invite. What the gate does *not* solve is a deployment whose retention still holds indices written before it was turned on: those carry no sub-field, and a range over them matches nothing. §7 question 1 is that gap, and an alpha gate is where it is acceptable to have it.
 
 **Nothing about span reading changes.** Mappings do not affect `_source` (§2), so reconstruction, round-tripping, and every existing snapshot test are unaffected. The change is additive to the index and invisible to the documents.
 
@@ -269,19 +282,15 @@ Option B is the better data model and is rejected on cost: it buys nothing over 
 
 ## 7. Open questions
 
-1. **How does the reader know an index has the typed sub-fields?** An explicit setting, startup mapping introspection, or a version recorded in the index template. The setting is the recommended starting point, but a deployment reading indices written across a template change will hold a mix, and a single setting describes that mix badly. Is a per-index answer needed, or is "refuse until the oldest in-range index has the sub-fields" good enough?
-2. **Should `long` be mapped separately from `double`?** One `number` sub-field of Elasticsearch type `double` is proposed, for field economy and because ordering does not care which it is. The relevant engine rules, because they are not symmetric:
+Questions 2 and 4 through 7 have been measured, on Elasticsearch 7.17 and 9.4 and OpenSearch 1.3 and 3.7. Two of them came back against what this RFC assumed, and both changed the design: `coerce: false` is adopted, and there is no boolean sub-field. The measurements run in CI as part of the storage integration suite, so they are re-checked against every backend version Jaeger supports rather than resting on one probe.
 
-   - **`long` is a true signed 64-bit integer**, `-2^63` to `2^63-1`, and Elasticsearch parses an integral JSON token straight into it. An OTLP int attribute therefore survives exactly in a `long` field. The 2^53 ceiling people associate with JSON is a *client* limit — JavaScript, and any parser that routes numbers through IEEE-754 — not an Elasticsearch one. Elastic takes it seriously enough that `unsigned_long` is returned as a *string* to protect precision on the way out.
-   - **`double` is IEEE-754**, so an integer above 2^53 indexed there is silently rounded. That is the cost the single `number` sub-field accepts.
-   - **`coerce` defaults to `true` and truncates fractions for an integer field.** So a naive added `int`/`long` sub-field would index `sampler.param = 0.001` as `0` — not malformed, so `ignore_malformed` never fires, and the value is quietly wrong. Splitting `number` therefore requires `coerce: false` on the integer sub-field, not just an extra mapping.
-
-   So the question is narrower than it looks: does any real span attribute carry an integer above 2^53 *and* need an exact comparison on it? If so, `number` splits into `int` and `double` sub-fields, the integer one with `coerce: false`, and the discriminator pairing already tells them apart.
-3. **Should the elevated sub-fields be on by default?** They serve ordering for a `tags_as_fields` deployment, and they triple its mapped field count. On for everyone, on only for an include list, or behind a setting? An include-list deployment pays almost nothing; `tags_as_fields: all` pays the most and is the configuration least able to afford it.
-4. **Is `ignore_above: 256` a problem for the sub-fields?** It is a keyword parameter and a multi-field is mapped independently, so it should not reach `value.number` at all — and no number is 256 characters long anyway. The interaction still deserves a test rather than an assumption, since it is cheap to write and the failure would be silent.
-5. **Can a skipped sub-field be detected?** `ignore_malformed` records the skipped field name in the `_ignored` metadata field, which is queryable, so "which spans had a value that would not coerce" may be answerable rather than invisible. Confirm the behavior on both Elasticsearch and OpenSearch before relying on it — R6 applies here too.
-6. **Could `coerce: false` make the sub-field its own discriminator?** With coercion off, a JSON *string* would not enter `value.number` at all, so the sub-field would contain only values that arrived as numbers. That would separate a stored `500` from a stored `"500"` structurally — making the `type` pairing an optimization instead of a requirement on the nested side, and delivering R2 on the *elevated* side, where there is no discriminator to pair with. It is the most valuable open question here and it rests on one unverified assumption: that `ignore_malformed` reliably absorbs a refused coercion instead of rejecting the document. Elasticsearch has a history of `ignore_malformed` not catching string and boolean inputs on numeric fields ([#10070](https://github.com/elastic/elasticsearch/issues/10070), [#11498](https://github.com/elastic/elasticsearch/issues/11498), [#25289](https://github.com/elastic/elasticsearch/issues/25289)), which is precisely the failure R4 forbids. Measure it on both engines and current versions before adopting it; until then the design keeps `coerce` at its default and relies on the discriminator.
-7. **Is the `boolean` sub-field worth its field?** RFC 0005 gives a boolean only equality, and the keyword already matches `"true"`. On the nested side the discriminator makes `type: "bool"` authoritative without it. Its one job is on the elevated side, where being indexed in `tag.foo.boolean` is the only signal that `"true"` was a boolean rather than the string. Dropping it takes the elevated multiplier from three fields per key to two (§5).
+1. **How does the reader know an index has the typed sub-field?** *Answered for now, and not finished.* The `jaeger.es.typedAttributeIndexing` gate decides it, for the template and for the reader together (§6). What the gate cannot describe is a retention window holding indices written on both sides of the change: those older indices carry no sub-field, so an ordering predicate over a time range that reaches them matches nothing where it should refuse. Startup mapping introspection or a version recorded in the template would answer per index; "refuse until the oldest in-range index has the sub-field" is the cheaper approximation. Still open, and the reason the gate is alpha.
+2. **Should `long` be mapped separately from `double`?** *Measured: the rounding is real, and one `double` stays.* `9007199254740993` indexed into the `double` sub-field reads back as `9007199254740992`, off by one as predicted, identically on both engines. Two things keep this from mattering. The keyword still holds the value exactly, so `eq` is unaffected and only the ordered comparison is approximate above 2^53. And splitting `number` into `int` and `double` would need `coerce: false` on the integer sub-field anyway — because `coerce` truncates fractions for an integer field, which would index `sampler.param = 0.001` as `0`, not malformed and so quietly wrong. Since the design now sets `coerce: false` regardless, the split is available at the cost of one more field per key if a real attribute ever needs an exact comparison above 2^53. Nothing has asked.
+3. **Should the sub-field be on by default?** *Open.* It is off, behind an alpha gate. The field-count cost falls on `tags_as_fields: all`, which is the configuration least able to afford it, and question 1's gap is the other reason not to default it on yet.
+4. **Is `ignore_above: 256` a problem for the sub-field?** *Measured, and the assumption behind the question was wrong.* The first half held: `ignore_above` is a keyword parameter and does not reach `value.number`. The second half — "no number is 256 characters long anyway" — does not. Under default coercion a 300-character numeric *string* is indexed into `.number` as `1e+300` and matches a range, while the parent keyword skips it for exceeding `ignore_above`. The same value is then invisible to equality and visible to ordering. `coerce: false` removes it, which is a second and independent reason to adopt it.
+5. **Can a skipped sub-field be detected?** *Measured: yes, on both engines.* `ignore_malformed` records the skipped field in the `_ignored` metadata field, which is queryable, and it names the specific sub-field rather than only the document. It is useful on the elevated side, where the field is per key and so the answer names the attribute. On the nested side every attribute shares one `tags.value`, so an entry says only that some attribute on the span did not fit — which does not identify which one.
+6. **Could `coerce: false` make the sub-field its own discriminator?** *Measured: yes. Adopted.* With coercion off a JSON string does not enter `value.number`, so the sub-field holds only values that arrived as numbers. The `type` pairing becomes an optimization rather than a correctness requirement on the nested side, and R2 is delivered on the elevated side, where there is no discriminator to pair with. The one unverified assumption this rested on holds: **every document was accepted**, on every engine and version tried, so `ignore_malformed` absorbs the refused coercion and the old Elasticsearch bugs ([#10070](https://github.com/elastic/elasticsearch/issues/10070), [#11498](https://github.com/elastic/elasticsearch/issues/11498), [#25289](https://github.com/elastic/elasticsearch/issues/25289)) do not reproduce. What it costs is stated in §5: an attribute written as text answers an ordering predicate with nothing rather than with a refusal.
+7. **Is the `boolean` sub-field worth its field?** *Measured: it cannot do the job, and it cannot be mapped on both engines. Dropped.* The question assumed that landing in `tag.foo.boolean` would be the signal that `"true"` was a boolean rather than the string. It is not: parsing `"true"` into a boolean field is not coercion, so `coerce` does not separate them and the string is indexed there too. The keyword has the same ambiguity — it renders a JSON boolean as the term `"true"` — so there was never a distinction for the sub-field to add. Portability then settles it outright: **OpenSearch rejects `ignore_malformed` on a boolean mapper**, so the template fails to install with a 400, and without that parameter a value that is not a boolean costs the whole document, which is the one thing R4 forbids. Neither spelling can be installed on both engines. Dropping it takes the elevated multiplier from three fields per key to two (§5), and loses nothing, because equality is the only operator a boolean has and the keyword answers it.
 
 ---
 

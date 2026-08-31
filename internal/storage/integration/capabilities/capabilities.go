@@ -8,7 +8,13 @@ const (
 	linkAttributesTest     = "Link_Attributes"
 	findTraceSummariesTest = "FindTraceSummaries"
 	structuredFilterTest   = "FindTracesWithFilter"
-	attributeOrderingTest  = "ordering_compares_a_numeric_attribute_as_a_number"
+
+	// The battery pairs these two: ordering an attribute is answered where the index carries the
+	// typed-attribute mapping (RFC 0015) and refused where it does not, so exactly one of them runs
+	// for any deployment. Elasticsearch and OpenSearch skip the refusal, because the suites that
+	// run the battery enable the mapping; WithoutTypedAttributeIndexing swaps them back.
+	attributeOrderingTest = "ordering_compares_a_numeric_attribute_as_a_number"
+	attributeRefusedTest  = "ordering_an_attribute_is_refused_where_it_is_indexed_as_text"
 )
 
 // Capabilities records what a storage backend *cannot* do in the integration suite. Every
@@ -50,6 +56,25 @@ func (c Capabilities) GetDependenciesMissingSource() bool {
 // SkipList returns a list of tests that should be skipped for this storage backend.
 func (c Capabilities) SkipList() []string {
 	return c.skipList
+}
+
+// WithoutTypedAttributeIndexing declares a deployment reading indices that were created without the
+// typed-attribute mapping (RFC 0015), so that ordering an attribute is refused rather than answered.
+// It swaps which of the battery's two paired ordering cases runs.
+//
+// An index template reaches only indices created after it is installed, so this is not the same
+// question as whether the binary has the feature gate on. A read phase whose gate is on, over an
+// index a previous phase created with the gate off, still has no numeric sub-field to range over —
+// which is why the backward-compatibility suites use this and the ordinary e2e suites do not.
+func (c Capabilities) WithoutTypedAttributeIndexing() Capabilities {
+	swapped := make([]string, 0, len(c.skipList)+1)
+	for _, test := range c.skipList {
+		if test != attributeRefusedTest {
+			swapped = append(swapped, test)
+		}
+	}
+	c.skipList = append(swapped, attributeOrderingTest)
+	return c
 }
 
 // Memory returns the capabilities for the in-process memory storage backend.
@@ -111,10 +136,10 @@ func Elasticsearch() Capabilities {
 		// TODO: remove this flag after ES supports returning spanKind
 		//  Issue https://github.com/jaegertracing/jaeger/issues/1923
 		getOperationsMissingSpanKind: true,
-		// This schema indexes every attribute as a keyword, so ordering one is refused rather than
-		// answered lexicographically, and the battery's paired refusal case is the one to run
-		// (RFC 0015 is what changes that).
-		skipList: []string{scopeAttributesTest, linkAttributesTest, attributeOrderingTest},
+		// The suite runs with typed attribute indexing enabled (RFC 0015), so an attribute value is
+		// indexed as a number beside the keyword and ordering one is answered rather than refused.
+		// That makes the battery's paired refusal case the one to skip.
+		skipList: []string{scopeAttributesTest, linkAttributesTest, attributeRefusedTest},
 	}
 }
 
@@ -137,8 +162,8 @@ func ElasticsearchSmokeTest() Capabilities {
 func OpenSearch() Capabilities {
 	return Capabilities{
 		getOperationsMissingSpanKind: true,
-		// Same keyword mapping as Elasticsearch; see the note there.
-		skipList: []string{scopeAttributesTest, linkAttributesTest, attributeOrderingTest},
+		// Same mapping and same gate as Elasticsearch; see the note there.
+		skipList: []string{scopeAttributesTest, linkAttributesTest, attributeRefusedTest},
 	}
 }
 

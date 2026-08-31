@@ -10,6 +10,7 @@ import (
 
 	"github.com/jaegertracing/jaeger-idl/model/v1"
 	expression "github.com/jaegertracing/jaeger-idl/query/expression/v1"
+	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/esclient"
 	esquery "github.com/jaegertracing/jaeger/internal/storage/elasticsearch/query"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore"
 )
@@ -447,17 +448,58 @@ func nestedField(path, field string) string {
 	return path + "." + field
 }
 
-// attributeValueMatch chooses how a comparison tests an attribute value. Attribute values
-// are indexed as keywords, so equality and patterns work and ordering does not.
+// attributeValueMatch chooses how a comparison tests an attribute value. Every value is indexed
+// as a keyword, which is what serves equality and patterns. Ordering needs the numeric sub-field
+// the typed-attribute mapping adds beside that keyword, so it is served only where that mapping
+// is in place.
 func attributeValueMatch(op expression.Operator, ref reference, value string) (valueMatch, error) {
 	switch op {
 	case expression.OpEq:
 		return termMatch(value), nil
 	case expression.OpRegex:
 		return forThisEngine(value)
+	case expression.OpGt, expression.OpLt, expression.OpGte, expression.OpLte:
+		return orderedAttributeMatch(op, ref, value)
 	default:
 		return nil, errUnorderedValue(op, ref)
 	}
+}
+
+// orderedAttributeMatch orders an attribute against a numeric bound, over the sub-field the
+// typed-attribute mapping indexes the value in (RFC 0015). Without that mapping there is nothing
+// numeric to range over, and a range over the keyword would compare lexicographically, where "9"
+// is greater than "10" — so the predicate is refused instead.
+//
+// The sub-field is mapped with coerce: false, so it holds only values that arrived as numbers. An
+// attribute a service wrote as text is therefore absent from it, and a numeric predicate on that
+// attribute matches nothing rather than matching the text lexicographically.
+func orderedAttributeMatch(op expression.Operator, ref reference, value string) (valueMatch, error) {
+	if !esclient.TypedAttributeIndexingGate.IsEnabled() {
+		return nil, errUnorderedValue(op, ref)
+	}
+	bound, err := strconv.ParseFloat(value, 64)
+	if err != nil {
+		return nil, errNotANumber(op, ref, value)
+	}
+	return func(field string) esquery.Query {
+		return numberComparisons[op](nestedField(field, numberSubField), bound)
+	}, nil
+}
+
+// numberComparisons is how each ordering operator tests the numeric sub-field of an attribute.
+var numberComparisons = map[expression.Operator]func(field string, bound float64) esquery.Query{
+	expression.OpGt: func(field string, bound float64) esquery.Query {
+		return esquery.NewRangeQuery(field).Gt(bound)
+	},
+	expression.OpGte: func(field string, bound float64) esquery.Query {
+		return esquery.NewRangeQuery(field).Gte(bound)
+	},
+	expression.OpLt: func(field string, bound float64) esquery.Query {
+		return esquery.NewRangeQuery(field).Lt(bound)
+	},
+	expression.OpLte: func(field string, bound float64) esquery.Query {
+		return esquery.NewRangeQuery(field).Lte(bound)
+	},
 }
 
 // forThisEngine builds the match for this engine's regexp query, or refuses a pattern it would read
@@ -675,6 +717,14 @@ func errUnsupportedField(ref reference) error {
 func errUnorderedValue(op expression.Operator, ref reference) error {
 	return fmt.Errorf("%w: it indexes %q as a keyword rather than a number, so it cannot evaluate %q on it",
 		tracestore.ErrFilterUnsupported, ref.name, op)
+}
+
+// errNotANumber refuses an ordering predicate whose bound is not a number. The operator asks for a
+// numeric reading of the attribute (RFC 0005 §5.3), so a bound that is not a number describes no
+// comparison this schema could make, whatever the stored values are.
+func errNotANumber(op expression.Operator, ref reference, value string) error {
+	return fmt.Errorf("%w: %q on %q compares against a number, and %q is not one",
+		tracestore.ErrFilterInvalid, op, ref.name, value)
 }
 
 // errTypedConstant refuses a constant of a type this schema cannot match. A declared type is
