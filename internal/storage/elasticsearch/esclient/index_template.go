@@ -114,26 +114,25 @@ func (m MappingType) options(indices config.Indices) config.IndexOptions {
 	}
 }
 
-// lifecycleParams are the fields that differ between renderNeutralBody's callers.
-// Every template consumes IndexPrefix only inside a UseILM branch — the read alias
-// and the ISM/ILM rollover alias — so these four are the rotation path's lifecycle
-// wiring, and the data-stream path, which owns none of it, passes the zero value.
-// IsOpenSearch selects ISM vs ILM settings and is derived from the client's own
-// resolved version, so it never crosses the API boundary.
+// lifecycleParams are the rotation settings that differ between renderNeutralBody's
+// callers: the rotation path wires up ILM or ISM, and the data-stream path, which
+// owns no lifecycle of its own, passes the zero value. IsOpenSearch selects ISM vs
+// ILM settings and is derived from the client's own resolved version, so it never
+// crosses the API boundary.
 type lifecycleParams struct {
-	IndexPrefix   string
 	UseILM        bool
 	ILMPolicyName string
 	IsOpenSearch  bool
 }
 
 // innerParams are the version-independent values rendered into a neutral body.
-// renderNeutralBody fills Shards and Replicas from the mapping type's own options,
-// so a caller supplies only the lifecycle fields.
+// renderNeutralBody fills everything but the lifecycle fields from the mapping type
+// and the index config.
 type innerParams struct {
 	lifecycleParams
-	Shards   int64
-	Replicas int64
+	IndexPrefix string
+	Shards      int64
+	Replicas    int64
 }
 
 // renderNeutralBody renders a mapping type's neutral body and decodes its
@@ -154,6 +153,7 @@ func renderNeutralBody(m MappingType, indices config.Indices, lifecycle lifecycl
 	var buf bytes.Buffer
 	if err := indexTemplates.ExecuteTemplate(&buf, file, innerParams{
 		lifecycleParams: lifecycle,
+		IndexPrefix:     indices.IndexPrefix.Apply(""),
 		Shards:          opts.Shards,
 		Replicas:        *opts.Replicas,
 	}); err != nil {
@@ -179,7 +179,6 @@ func renderNeutralBody(m MappingType, indices config.Indices, lifecycle lifecycl
 func RenderIndexTemplate(m MappingType, indices config.Indices, useILM bool, ilmPolicyName string, version es.BackendVersion) (string, error) {
 	prefix := indices.IndexPrefix.Apply("")
 	inner, err := renderNeutralBody(m, indices, lifecycleParams{
-		IndexPrefix:   prefix,
 		UseILM:        useILM,
 		ILMPolicyName: ilmPolicyName,
 		IsOpenSearch:  version.IsOpenSearch(),

@@ -19,6 +19,31 @@ import (
 	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/snapshottest"
 )
 
+// componentBody returns the rendered body of the component template whose name ends
+// in suffix, and indexTemplateBody the one composable index template. Both let a
+// test name what it asserts on instead of indexing into the rendered slice.
+func componentBody(t *testing.T, templates []dataStreamTemplate, suffix string) string {
+	t.Helper()
+	for _, template := range templates {
+		if template.api == componentTemplateAPI && strings.HasSuffix(template.name, suffix) {
+			return template.body
+		}
+	}
+	require.FailNowf(t, "no such component", "nothing named %q was rendered", suffix)
+	return ""
+}
+
+func indexTemplateBody(t *testing.T, templates []dataStreamTemplate) string {
+	t.Helper()
+	for _, template := range templates {
+		if template.api == indexTemplateAPI {
+			return template.body
+		}
+	}
+	require.FailNow(t, "no composable index template was rendered")
+	return ""
+}
+
 // decodeComponentTemplate decodes the "template" envelope of a rendered component
 // body.
 func decodeComponentTemplate(t *testing.T, body string) map[string]any {
@@ -72,11 +97,11 @@ func TestSpanDataStreamComponentsMatchRotationTemplate(t *testing.T) {
 	}
 	require.NoError(t, json.Unmarshal([]byte(rotation), &want))
 
-	gotSettings := decodeComponentTemplate(t, templates[1].body)["settings"]
+	gotSettings := decodeComponentTemplate(t, componentBody(t, templates, componentSettingsSuffix))["settings"]
 	assert.Equal(t, want.Settings, gotSettings,
 		"@settings must equal the span rotation template's settings")
 
-	gotMappings, ok := decodeComponentTemplate(t, templates[0].body)["mappings"].(map[string]any)
+	gotMappings, ok := decodeComponentTemplate(t, componentBody(t, templates, componentMappingsSuffix))["mappings"].(map[string]any)
 	require.True(t, ok)
 	properties, ok := gotMappings["properties"].(map[string]any)
 	require.True(t, ok)
@@ -88,8 +113,8 @@ func TestSpanDataStreamComponentsMatchRotationTemplate(t *testing.T) {
 }
 
 // TestRenderMappingsComponentDoesNotMutateInput pins that adding "@timestamp" stays
-// inside the component body. renderNeutralBody is now shared with the rotation path,
-// so a component built by mutating the rendered mappings in place would leak a
+// inside the component body. renderNeutralBody is shared with the rotation path, so a
+// component built by mutating the rendered mappings in place would leak a
 // data-stream-only field into whatever else reads that body.
 func TestRenderMappingsComponentDoesNotMutateInput(t *testing.T) {
 	raw := json.RawMessage(`{"properties":{"traceID":{"type":"keyword"}}}`)
@@ -114,7 +139,7 @@ func TestSpanDataStreamIndexTemplatePriority(t *testing.T) {
 
 	templates, err := renderSpanDataStreamTemplates(testIndices())
 	require.NoError(t, err)
-	assert.Equal(t, int64(dataStreamPriority), decodePriority(t, templates[2].body))
+	assert.Equal(t, int64(dataStreamPriority), decodePriority(t, indexTemplateBody(t, templates)))
 
 	// indices.spans.priority tunes the rotation templates, whose jaeger-span-* pattern
 	// never competes with the exact name jaeger.spans, so a value set there must not
@@ -123,16 +148,15 @@ func TestSpanDataStreamIndexTemplatePriority(t *testing.T) {
 	tuned.Spans.Priority = 42
 	templates, err = renderSpanDataStreamTemplates(tuned)
 	require.NoError(t, err)
-	assert.Equal(t, int64(dataStreamPriority), decodePriority(t, templates[2].body))
+	assert.Equal(t, int64(dataStreamPriority), decodePriority(t, indexTemplateBody(t, templates)))
 }
 
-// TestSpanDataStreamIndexTemplateComposesCustom pins the composed_of contract that
-// the backend matrix forced: "@custom" is composed unconditionally and
+// TestSpanDataStreamIndexTemplateComposesCustom pins the composed_of contract every
+// supported backend requires: "@custom" is composed unconditionally, and
 // ignore_missing_component_templates is never emitted, because that field exists on
 // no OpenSearch version and both parsers reject unknown fields.
 func TestSpanDataStreamIndexTemplateComposesCustom(t *testing.T) {
-	body, err := renderSpanDataStreamIndexTemplate("jaeger.spans")
-	require.NoError(t, err)
+	body := renderSpanDataStreamIndexTemplate("jaeger.spans")
 	assert.NotContains(t, body, "ignore_missing_component_templates")
 
 	var decoded struct {
@@ -202,12 +226,15 @@ func TestCreateSpanDataStreamTemplates(t *testing.T) {
 		rec, url := okServer(t)
 		c := IndicesClient{Client: makeClient(t, url, "", ""), Indices: testIndices()}
 		require.NoError(t, c.CreateSpanDataStreamTemplates(context.Background()))
+		var probed bool
 		for _, r := range rec.Requests() {
 			if strings.Contains(r.Path, componentCustomSuffix) {
+				probed = true
 				assert.Equal(t, http.MethodGet, r.Method,
 					"@custom is user-owned: probe it, never overwrite it")
 			}
 		}
+		assert.True(t, probed, "@custom must be probed before it is composed")
 	})
 
 	t.Run("a missing @custom is created empty", func(t *testing.T) {
@@ -258,12 +285,15 @@ func TestCreateSpanDataStreamTemplates(t *testing.T) {
 		defer srv.Close()
 		c := IndicesClient{Client: makeClient(t, srv.URL, "", ""), Indices: testIndices()}
 		require.NoError(t, c.CreateSpanDataStreamTemplates(context.Background()))
+		var attempted bool
 		for _, r := range rec.Requests() {
 			if r.Method == http.MethodPut && strings.Contains(r.Path, componentCustomSuffix) {
+				attempted = true
 				assert.Equal(t, []string{"true"}, r.Query["create"],
 					"the write must be conditional, so the user's template survives it")
 			}
 		}
+		assert.True(t, attempted, "the refused create is the path under test")
 	})
 
 	t.Run("a create that fails for a real reason is surfaced", func(t *testing.T) {
@@ -438,13 +468,11 @@ func TestTestsOnlyDataStreamExists(t *testing.T) {
 	})
 }
 
-// TestCreateSpanDataStreamTemplatesRequestSnapshot freezes the exact bytes of the PUTs
-// that back the span data stream, in the order they are issued (ADR-012 §Wire-format
-// stability), against a cluster that does not yet have an "@custom" component — the
-// fresh-install path. Recording every backend version and letting AssertByVersion
-// collapse them also asserts that this path is version-invariant: unlike
-// CreateTemplate it must not branch on UsesV8API, so a single all-versions snapshot
-// is the expected outcome and a per-version split would fail the test.
+// TestCreateSpanDataStreamTemplatesRequestSnapshot freezes the bytes of the PUTs that
+// back the span data stream, in the order they are issued, against a cluster with no
+// "@custom" component yet (ADR-012 §Wire-format stability). Every backend version is
+// recorded so that AssertByVersion collapsing them into one snapshot is itself the
+// assertion that this path, unlike CreateTemplate, never branches on UsesV8API.
 func TestCreateSpanDataStreamTemplatesRequestSnapshot(t *testing.T) {
 	content := map[es.BackendVersion]string{}
 	for _, version := range es.AllVersions {

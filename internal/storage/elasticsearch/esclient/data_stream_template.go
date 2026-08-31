@@ -33,11 +33,10 @@ const (
 	dataStreamAPI        = "_data_stream"
 
 	// dataStreamPriority is the composable index template priority from RFC 0004
-	// §3.2: high enough that the Jaeger template wins over a cluster's lower-priority
-	// default templates for the jaeger.spans pattern. It is fixed rather than read
-	// from indices.spans.priority, because that setting tunes the rotation templates
-	// on jaeger-span-*, which never compete with the exact name jaeger.spans, so a
-	// value chosen there has no reason to carry over here.
+	// §3.2, high enough that Jaeger's template wins over a cluster's default
+	// templates. indices.spans.priority does not apply here: it tunes the rotation
+	// templates on jaeger-span-*, which never compete with the exact name
+	// jaeger.spans.
 	dataStreamPriority = 500
 
 	// emptyComponentBody is the body Jaeger PUTs to create a missing "@custom"
@@ -82,12 +81,9 @@ func (i IndicesClient) CreateSpanDataStreamTemplates(ctx context.Context) error 
 // does not survive the supported backend matrix (RFC 0004 §3.2).
 //
 // The write is conditional (?create=true), so a user who creates "@custom" between
-// the probe and the write keeps it: the cluster refuses Jaeger's body instead of
-// replacing theirs. Every supported backend answers that refusal with a 400 whose
-// only distinguishing mark is the message "component template [...] already exists",
-// and a malformed body fails with the same status and, on most of them, the same
-// exception type. So rather than match on wording, a failed create re-probes: a
-// template that exists now belongs to whoever won the race, and this call is done.
+// the probe and the write keeps it: the cluster refuses Jaeger's body rather than
+// replacing theirs. A refused create is settled by probing again instead of by
+// reading the error message, since a template that exists now is the one to compose.
 func (i IndicesClient) ensureCustomComponent(ctx context.Context, name string) error {
 	exists, err := i.componentTemplateExists(ctx, name)
 	if err != nil {
@@ -231,10 +227,8 @@ func renderSpanDataStreamTemplates(indices config.Indices) ([]dataStreamTemplate
 	return spanDataStreamTemplates(base, inner)
 }
 
-// spanDataStreamTemplates builds the objects in the order they must be created. It
-// takes an already-rendered body rather than the config so its failure paths — a
-// body whose mappings or settings cannot become a component — are directly
-// unit-testable rather than unreachable behind the embedded template.
+// spanDataStreamTemplates builds the objects in the order they must be created,
+// from a body the caller has already rendered.
 func spanDataStreamTemplates(base string, inner map[string]json.RawMessage) ([]dataStreamTemplate, error) {
 	// json.RawMessage marshals an absent key as null, so a neutral body missing
 	// either half would be PUT as "mappings": null / "settings": null instead of
@@ -257,14 +251,10 @@ func spanDataStreamTemplates(base string, inner map[string]json.RawMessage) ([]d
 	if err != nil {
 		return nil, err
 	}
-	indexTemplate, err := renderSpanDataStreamIndexTemplate(base)
-	if err != nil {
-		return nil, err
-	}
 	return []dataStreamTemplate{
 		{componentTemplateAPI, base + componentMappingsSuffix, mappings},
 		{componentTemplateAPI, base + componentSettingsSuffix, settings},
-		{indexTemplateAPI, base, indexTemplate},
+		{indexTemplateAPI, base, renderSpanDataStreamIndexTemplate(base)},
 	}, nil
 }
 
@@ -292,14 +282,15 @@ func renderMappingsComponent(raw json.RawMessage) (string, error) {
 // renderSpanDataStreamIndexTemplate renders the composable index template that
 // declares the span data stream (RFC 0004 §3.2), composing Jaeger's "@mappings" and
 // "@settings" components with the user-owned "@custom" one.
-func renderSpanDataStreamIndexTemplate(base string) (string, error) {
+func renderSpanDataStreamIndexTemplate(base string) string {
 	type composableTemplate struct {
 		IndexPatterns []string `json:"index_patterns"`
 		DataStream    struct{} `json:"data_stream"`
 		ComposedOf    []string `json:"composed_of"`
 		Priority      int64    `json:"priority"`
 	}
-	return marshalTemplateBody("span data stream index template", composableTemplate{
+	// Every field is a string or an int, so this cannot fail to serialize.
+	body, _ := json.Marshal(composableTemplate{
 		IndexPatterns: []string{base},
 		ComposedOf: []string{
 			base + componentMappingsSuffix,
@@ -308,11 +299,12 @@ func renderSpanDataStreamIndexTemplate(base string) (string, error) {
 		},
 		Priority: dataStreamPriority,
 	})
+	return string(body)
 }
 
-// marshalTemplateBody serializes a template body. Every PUT body is built here, so a
-// payload that cannot serialize fails the call rather than leaving json.Marshal's
-// empty result behind and PUTting an empty template.
+// marshalTemplateBody serializes a template body that embeds raw JSON from the
+// rendered index template, naming what failed rather than PUTting json.Marshal's
+// empty result.
 func marshalTemplateBody(what string, body any) (string, error) {
 	out, err := json.Marshal(body)
 	if err != nil {
