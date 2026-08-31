@@ -14,6 +14,7 @@ import (
 
 	escfg "github.com/jaegertracing/jaeger/internal/storage/elasticsearch/config"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/badger"
+	"github.com/jaegertracing/jaeger/internal/storage/v2/clickhouse"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/memory"
 )
 
@@ -168,16 +169,26 @@ func TestTraceBackendUnmarshal(t *testing.T) {
 			},
 		},
 		{
-			name: "grpc backend with defaults",
+			name: "grpc backend with defaults and case-insensitive balancer names",
 			configMap: map[string]any{
 				"grpc": map[string]any{
-					"endpoint": "localhost:17271",
+					"endpoint":      "localhost:17271",
+					"balancer_name": "ROUND_ROBIN",
+					"writer": map[string]any{
+						"endpoint":      "localhost:17272",
+						"balancer_name": "PICK_FIRST",
+					},
 				},
 			},
 			expectError: false,
 			validateFunc: func(t *testing.T, tb *TraceBackend) {
 				require.NotNil(t, tb.GRPC)
 				assert.Equal(t, "localhost:17271", tb.GRPC.ClientConfig.Endpoint)
+				assert.Equal(t, "localhost:17272", tb.GRPC.Writer.Endpoint)
+				assert.Equal(t, "round_robin", tb.GRPC.BalancerName)
+				assert.Equal(t, "pick_first", tb.GRPC.Writer.BalancerName)
+				require.NotEmpty(t, tb.GRPC.Timeout)
+				require.NoError(t, confmap.Validate(tb))
 			},
 		},
 		{
@@ -211,6 +222,52 @@ func TestTraceBackendUnmarshal(t *testing.T) {
 			expectError: false,
 			validateFunc: func(t *testing.T, tb *TraceBackend) {
 				require.NotNil(t, tb.Opensearch)
+			},
+		},
+		{
+			name: "clickhouse backend with defaults",
+			configMap: map[string]any{
+				"clickhouse": map[string]any{
+					"addresses": []any{"localhost:9000"},
+				},
+			},
+			expectError: false,
+			validateFunc: func(t *testing.T, tb *TraceBackend) {
+				require.NotNil(t, tb.ClickHouse)
+				assert.Equal(t, clickhouse.DefaultConfiguration().DefaultSearchDepth, tb.ClickHouse.DefaultSearchDepth)
+				assert.Equal(t, clickhouse.DefaultConfiguration().AttributeMetadataCacheTTL, tb.ClickHouse.AttributeMetadataCacheTTL)
+				assert.Equal(t, clickhouse.DefaultConfiguration().AttributeMetadataCacheMaxSize, tb.ClickHouse.AttributeMetadataCacheMaxSize)
+				require.NoError(t, confmap.Validate(tb))
+			},
+		},
+		{
+			name: "clickhouse backend rejects a non-positive search depth",
+			configMap: map[string]any{
+				"clickhouse": map[string]any{
+					"addresses":            []any{"localhost:9000"},
+					"default_search_depth": -1,
+				},
+			},
+			expectError: false,
+			validateFunc: func(t *testing.T, tb *TraceBackend) {
+				require.ErrorContains(t, confmap.Validate(tb), "default_search_depth must be a positive number")
+			},
+		},
+		{
+			name: "clickhouse backend keeps an explicitly configured zero",
+			configMap: map[string]any{
+				"clickhouse": map[string]any{
+					"addresses":                         []any{"localhost:9000"},
+					"attribute_metadata_cache_ttl":      0,
+					"attribute_metadata_cache_max_size": 0,
+				},
+			},
+			expectError: false,
+			validateFunc: func(t *testing.T, tb *TraceBackend) {
+				require.NotNil(t, tb.ClickHouse)
+				assert.Zero(t, tb.ClickHouse.AttributeMetadataCacheTTL)
+				assert.Zero(t, tb.ClickHouse.AttributeMetadataCacheMaxSize)
+				require.NoError(t, confmap.Validate(tb))
 			},
 		},
 	}
@@ -278,6 +335,7 @@ func TestMetricBackendUnmarshal(t *testing.T) {
 			expectError: false,
 			validateFunc: func(t *testing.T, mb *MetricBackend) {
 				require.NotNil(t, mb.ClickHouse)
+				assert.Equal(t, clickhouse.DefaultConfiguration().Database, mb.ClickHouse.Database)
 			},
 		},
 	}

@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/jaegertracing/jaeger/internal/storage/integration"
+	"github.com/jaegertracing/jaeger/internal/storage/integration/capabilities"
 )
 
 func TestClickHouseStorage(t *testing.T) {
@@ -14,9 +15,9 @@ func TestClickHouseStorage(t *testing.T) {
 	s := &E2EStorageIntegration{
 		ConfigFile: "../../config-clickhouse.yaml",
 		StorageIntegration: integration.StorageIntegration{
-			CleanUp: purge,
+			CleanUp:      purge,
+			Capabilities: capabilities.E2EWithoutNativeFilters(),
 		},
-		FeatureGates: []string{"storage.clickhouse"},
 	}
 	s.e2eInitialize(t, "clickhouse")
 	s.RunSpanStoreTests(t)

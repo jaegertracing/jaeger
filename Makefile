@@ -28,8 +28,10 @@ ALL_SRC = $(shell find . -name '*.go' \
 				   -not -name '.*' \
 				   -not -name 'mocks*' \
 				   -not -name '*.pb.go' \
+				   -not -path './.claude/*' \
 				   -not -path './vendor/*' \
 				   -not -path './idl/*' \
+				   -not -path './jaeger-ui/*' \
 				   -not -path './internal/tools/*' \
 				   -not -path './scripts/build/docker/debug/*' \
 				   -not -path '*/mocks/*' \
@@ -46,6 +48,7 @@ LIST_LICENSE_SRC = git ls-files \
 # All .sh or .py or Makefile or .mk files that should be auto-formatted and linted.
 SCRIPTS_SRC = $(shell find . \( -name '*.sh' -o -name '*.py' -o -name '*.mk' -o -name 'Makefile*' -o -name 'Dockerfile*' \) \
 						-not -path './.git/*' \
+						-not -path './.claude/*' \
 						-not -path './vendor/*' \
 						-not -path './idl/*' \
 						-not -path './jaeger-ui/*' \
@@ -210,9 +213,12 @@ lint-goleak:
 	@echo Verifying that all packages with tests have goleak in their TestMain
 	@scripts/lint/check-goleak-files.sh $(ALL_PKGS)
 
+# Each checkout gets its own cache because golangci-lint keys entries by file
+# content rather than by path, so worktrees sharing one cache report findings
+# against each other's paths.
 .PHONY: lint-go
 lint-go: $(LINT)
-	$(LINT) -v run
+	GOLANGCI_LINT_CACHE=$(TOOLS_BIN_DIR)/golangci-lint-cache $(LINT) -v run
 
 .PHONY: govulncheck
 govulncheck: $(GOVULNCHECK)
@@ -242,11 +248,11 @@ draft-release:
 .PHONY: prepare-release
 prepare-release:
 	@if [ -z "$(VERSION)" ]; then \
-		echo "Usage: make prepare-release VERSION=x.x.x"; \
-		echo "Example: make prepare-release VERSION=2.14.0"; \
+		echo "Usage: make prepare-release VERSION=x.x.x [ISSUE=nnnn]"; \
+		echo "Example: make prepare-release VERSION=2.14.0 ISSUE=1234"; \
 		exit 1; \
 	fi
-	bash ./scripts/release/prepare.sh $(VERSION)
+	bash ./scripts/release/prepare.sh $(VERSION) $(ISSUE)
 
 .PHONY: test-ci
 test-ci: build-examples cover

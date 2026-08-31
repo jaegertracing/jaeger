@@ -1,0 +1,4 @@
+{
+  "method": "HEAD",
+  "path": "/_alias/jaeger-span-read"
+}

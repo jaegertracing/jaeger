@@ -14,11 +14,11 @@ jobs:
   lint:
     runs-on: ubuntu-latest
     steps:
-    - uses: step-security/harden-runner@a5ad31d6a139d249332a2605b85202e8c0b78450 # v2.19.1
+    - uses: step-security/harden-runner@05e31511f85b41b11d1cf0ef85d0992719546e2c # v2.21.0
       with:
         egress-policy: audit # TODO: change to 'egress-policy: block' after a couple of runs
 
-    - uses: actions/checkout@1af3b93b6815bc44a9784bd300feb67ff0d1eeb3 # v6.0.0
+    - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
 
     - uses: ./.github/actions/setup-go
       with:
@@ -34,11 +34,11 @@ jobs:
   pull-request-preconditions:
     runs-on: ubuntu-latest
     steps:
-    - uses: step-security/harden-runner@a5ad31d6a139d249332a2605b85202e8c0b78450 # v2.19.1
+    - uses: step-security/harden-runner@05e31511f85b41b11d1cf0ef85d0992719546e2c # v2.21.0
       with:
         egress-policy: audit # TODO: change to 'egress-policy: block' after a couple of runs
 
-    - uses: actions/checkout@1af3b93b6815bc44a9784bd300feb67ff0d1eeb3 # v6.0.0
+    - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
 
     - uses: ./.github/actions/block-pr-from-main-branch
 
@@ -49,19 +49,23 @@ jobs:
   dco-check:
     runs-on: ubuntu-latest
     steps:
-    - uses: step-security/harden-runner@a5ad31d6a139d249332a2605b85202e8c0b78450 # v2.19.1
+    - uses: step-security/harden-runner@05e31511f85b41b11d1cf0ef85d0992719546e2c # v2.21.0
       with:
         egress-policy: audit # TODO: change to 'egress-policy: block' after a couple of runs
 
-    - uses: actions/checkout@1af3b93b6815bc44a9784bd300feb67ff0d1eeb3 # v6.0.0
+    - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
 
     - name: Set up Python 3.x for DCO check
-      uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6.3.0
+      uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
       with:
         python-version: '3.x'
 
     - name: Run DCO check
-      if: ${{ github.event.pull_request.user.login != 'dependabot' && github.event_name != 'merge_group' }}
+      # Sign-offs are enforced before the merge, so only the pull_request event matters:
+      # dco_check.py rejects the merge_group event outright, and on a push to main it
+      # inspects GitHub's squash commit, which GitHub authors as the PR author while the
+      # Signed-off-by trailer names the author of the commits that were squashed.
+      if: ${{ github.event.pull_request.user.login != 'dependabot' && github.event_name != 'merge_group' && github.event_name != 'push' }}
       run: python3 scripts/lint/dco_check.py -b main -v --exclude-pattern '@users\.noreply\.github\.com'
       env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -69,11 +73,11 @@ jobs:
   idl-version-check:
     runs-on: ubuntu-latest
     steps:
-    - uses: step-security/harden-runner@a5ad31d6a139d249332a2605b85202e8c0b78450 # v2.19.1
+    - uses: step-security/harden-runner@05e31511f85b41b11d1cf0ef85d0992719546e2c # v2.21.0
       with:
         egress-policy: audit # TODO: change to 'egress-policy: block' after couple of runs
 
-    - uses: actions/checkout@1af3b93b6815bc44a9784bd300feb67ff0d1eeb3 # v6.0.0
+    - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
       with:
         submodules: recursive
         fetch-tags: true
@@ -84,11 +88,11 @@ jobs:
   generated-files-check:
     runs-on: ubuntu-latest
     steps:
-    - uses: step-security/harden-runner@a5ad31d6a139d249332a2605b85202e8c0b78450 # v2.19.1
+    - uses: step-security/harden-runner@05e31511f85b41b11d1cf0ef85d0992719546e2c # v2.21.0
       with:
         egress-policy: audit # TODO: change to 'egress-policy: block' after couple of runs
 
-    - uses: actions/checkout@1af3b93b6815bc44a9784bd300feb67ff0d1eeb3 # v6.0.0
+    - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
       with:
         submodules: recursive
 
@@ -109,21 +113,24 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-    - uses: step-security/harden-runner@a5ad31d6a139d249332a2605b85202e8c0b78450 # v2.19.1
+    - uses: step-security/harden-runner@05e31511f85b41b11d1cf0ef85d0992719546e2c # v2.21.0
       with:
         egress-policy: audit
 
-    - uses: actions/checkout@1af3b93b6815bc44a9784bd300feb67ff0d1eeb3 # v6.0.0
+    - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
 
     - run: sudo apt-get install shellcheck
 
     - run: shellcheck scripts/**/*.sh
 
     - name: Install shunit2 for shell unit tests
-      uses: actions/checkout@1af3b93b6815bc44a9784bd300feb67ff0d1eeb3 # v6.0.0
+      uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
       with:
         repository: kward/shunit2
         path: .tools/shunit2
+
+    - name: Install Helm
+      uses: azure/setup-helm@dda3372f752e03dde6b3237bc9431cdc2f7a02a2 # v5
 
     - name: Run unit tests for scripts
       run: |
@@ -136,12 +143,16 @@ jobs:
 
   binary-size-check:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      # Reading the PR's labels is what lets a maintainer waive the size gate.
+      pull-requests: read
     steps:
-    - uses: step-security/harden-runner@a5ad31d6a139d249332a2605b85202e8c0b78450 # v2.19.1
+    - uses: step-security/harden-runner@05e31511f85b41b11d1cf0ef85d0992719546e2c # v2.21.0
       with:
         egress-policy: audit
 
-    - uses: actions/checkout@1af3b93b6815bc44a9784bd300feb67ff0d1eeb3 # v6.0.0
+    - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
       with:
         submodules: true
 
@@ -163,7 +174,7 @@ jobs:
 
     - name: Restore previous binary size
       id: cache-binary-size
-      uses: actions/cache/restore@caa296126883cff596d87d8935842f9db880ef25      # v5.1.0
+      uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9      # v6.1.0
       with:
         path: ./jaeger_binary_size.txt
         key: jaeger_binary_size
@@ -172,6 +183,11 @@ jobs:
 
     - name: Compare `jaeger` binary sizes
       if: ${{ (steps.cache-binary-size.outputs.cache-matched-key != '') && ((github.event_name != 'push') || (github.ref != 'refs/heads/main')) }}
+      env:
+        GH_TOKEN: ${{ github.token }}
+        # Empty on merge_group runs, which are not attached to a pull request.
+        PR_NUMBER: ${{ github.event.pull_request.number }}
+        WAIVER_LABEL: accept-binary-size-increase
       run: |
         set -euf -o pipefail
         OLD_BINARY_SIZE=$(cat ./jaeger_binary_size.txt)
@@ -180,12 +196,40 @@ jobs:
         printf "New binary size:      %'d bytes\n" $NEW_BINARY_SIZE
 
         PERCENTAGE_CHANGE=$(echo "scale=2; ($NEW_BINARY_SIZE - $OLD_BINARY_SIZE) * 100 / $OLD_BINARY_SIZE" | bc)
-        if (( $(echo "$PERCENTAGE_CHANGE > 2.0" | bc) == 1 )); then
-          echo "❌ binary size increased by more than 2% ($PERCENTAGE_CHANGE%)"
-          exit 1
-        else
+        if (( $(echo "$PERCENTAGE_CHANGE <= 2.0" | bc) == 1 )); then
           echo "✅ binary size change is within acceptable range ($PERCENTAGE_CHANGE%)"
+          exit 0
         fi
+
+        # An upstream upgrade can link in a large amount of code that Jaeger has no way to
+        # avoid, and then no change to this PR can bring the binary back under the
+        # threshold. A maintainer waives the gate for that PR by labeling it, and explains
+        # the growth in the PR description.
+        #
+        # The label comes from the API rather than from github.event, because re-running
+        # this job replays the payload the run started with, which cannot contain a label
+        # added after the failure. Anything short of a definite match keeps the gate
+        # closed, including a failed API call.
+        WAIVED=false
+        if [ -n "$PR_NUMBER" ]; then
+          WAIVED=$(gh api "repos/$GITHUB_REPOSITORY/issues/$PR_NUMBER/labels" \
+            --jq 'any(.name == $ENV.WAIVER_LABEL)' || echo false)
+        fi
+
+        if [ "$WAIVED" = "true" ]; then
+          echo "::warning::binary size grew by $PERCENTAGE_CHANGE%, waived by the '$WAIVER_LABEL' label"
+          exit 0
+        fi
+
+        # The merge queue cannot read labels, the same reason label-check.yml exempts it.
+        # A PR reaches the queue only after review, which is where the waiver was granted.
+        if [ "$GITHUB_EVENT_NAME" = "merge_group" ]; then
+          echo "::warning::binary size grew by $PERCENTAGE_CHANGE%; not failing a merge_group run, which cannot read PR labels"
+          exit 0
+        fi
+
+        echo "::error::binary size increased by more than 2% ($PERCENTAGE_CHANGE%). If the growth comes from upstream and this PR cannot avoid it, describe it in the PR description and add the '$WAIVER_LABEL' label."
+        exit 1
 
 
     - name: Remove previous *_binary_*.txt
@@ -195,7 +239,7 @@ jobs:
 
     - name: Save new jaeger binary size
       if: ${{ (github.event_name == 'push') && (github.ref == 'refs/heads/main') }}
-      uses: actions/cache/save@caa296126883cff596d87d8935842f9db880ef25     # v5.1.0
+      uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9     # v6.1.0
       with:
         path: ./jaeger_binary_size.txt
         key: jaeger_binary_size_${{ github.run_id }}
@@ -203,11 +247,11 @@ jobs:
   validate-renovate-config:
     runs-on: ubuntu-latest
     steps:
-    - uses: step-security/harden-runner@a5ad31d6a139d249332a2605b85202e8c0b78450 # v2.19.1
+    - uses: step-security/harden-runner@05e31511f85b41b11d1cf0ef85d0992719546e2c # v2.21.0
       with:
         egress-policy: audit
 
-    - uses: actions/checkout@1af3b93b6815bc44a9784bd300feb67ff0d1eeb3 # v6.0.0
+    - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
       with:
         submodules: false
 

@@ -4,27 +4,27 @@
 package filter
 
 import (
-	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/client"
+	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/esclient"
 )
 
 // AliasExists check if the some of indices has a certain alias name
-func AliasExists(indices []client.Index, aliasName string) bool {
+func AliasExists(indices []esclient.Index, aliasName string) bool {
 	aliases := ByAlias(indices, []string{aliasName})
 	return len(aliases) > 0
 }
 
 // ByAlias filter indices that have an alias in the array of alias
-func ByAlias(indices []client.Index, aliases []string) []client.Index {
+func ByAlias(indices []esclient.Index, aliases []string) []esclient.Index {
 	return filterByAliasWithOptions(indices, aliases, false)
 }
 
 // ByAliasExclude filter indices that doesn't have an alias in the array of alias
-func ByAliasExclude(indices []client.Index, aliases []string) []client.Index {
+func ByAliasExclude(indices []esclient.Index, aliases []string) []esclient.Index {
 	return filterByAliasWithOptions(indices, aliases, true)
 }
 
-func filterByAliasWithOptions(indices []client.Index, aliases []string, exclude bool) []client.Index {
-	var results []client.Index
+func filterByAliasWithOptions(indices []esclient.Index, aliases []string, exclude bool) []esclient.Index {
+	var results []esclient.Index
 	for _, alias := range aliases {
 		for _, index := range indices {
 			hasAlias := index.Aliases[alias]
@@ -39,8 +39,8 @@ func filterByAliasWithOptions(indices []client.Index, aliases []string, exclude 
 	return results
 }
 
-func exlude(indices []client.Index, exclusionList []client.Index) []client.Index {
-	excludedIndices := make([]client.Index, 0, len(indices))
+func exlude(indices []esclient.Index, exclusionList []esclient.Index) []esclient.Index {
+	excludedIndices := make([]esclient.Index, 0, len(indices))
 	for _, idx := range indices {
 		if !contains(idx, exclusionList) {
 			excludedIndices = append(excludedIndices, idx)
@@ -49,7 +49,7 @@ func exlude(indices []client.Index, exclusionList []client.Index) []client.Index
 	return excludedIndices
 }
 
-func contains(index client.Index, indexList []client.Index) bool {
+func contains(index esclient.Index, indexList []esclient.Index) bool {
 	for _, idx := range indexList {
 		if idx.Index == index.Index {
 			return true

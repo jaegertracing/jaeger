@@ -31,6 +31,7 @@ import (
 	"github.com/jaegertracing/jaeger-idl/proto-gen/api_v2"
 	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerquery/internal/apiv3"
 	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerquery/internal/jaegerai"
+	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerquery/internal/mcptools"
 	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerquery/querysvc"
 	"github.com/jaegertracing/jaeger/internal/auth/bearertoken"
 	"github.com/jaegertracing/jaeger/internal/headerforwarding"
@@ -53,14 +54,12 @@ type Server struct {
 }
 
 // NewServer creates and initializes Server.
-// aiHealthCheck may be nil; the chat surface stays hidden when it is.
 func NewServer(
 	ctx context.Context,
 	querySvc *querysvc.QueryService,
 	metricsQuerySvc metricstore.Reader,
 	options *QueryOptions,
-	caps querysvc.StorageCapabilities,
-	aiHealthCheck func() bool,
+	backendCaps BackendCapabilityProvider,
 	tm *tenancy.Manager,
 	telset telemetry.Settings,
 ) (*Server, error) {
@@ -83,7 +82,7 @@ func NewServer(
 		return nil, err
 	}
 	registerGRPCHandlers(grpcServer, querySvc, telset)
-	httpServer, err := createHTTPServer(ctx, querySvc, metricsQuerySvc, options, caps, aiHealthCheck, tm, telset)
+	httpServer, err := createHTTPServer(ctx, querySvc, metricsQuerySvc, options, backendCaps, tm, telset)
 	if err != nil {
 		return nil, err
 	}
@@ -161,22 +160,43 @@ func createGRPCServer(
 	)
 }
 
+// closers are the components initRouter mounts that own resources past a single
+// request — the static assets handler, the AI gateway's MCP sessions, and whatever
+// is mounted next. Being an io.Closer itself lets both the caller that owns the
+// slice and the httpServer that stores it close the whole set the same way.
+type closers []io.Closer
+
+var _ io.Closer = closers(nil)
+
+// Close closes every closer and joins the errors, so one failure does not hide the
+// rest. This mirrors how the storage extension shuts its factories down.
+func (cs closers) Close() error {
+	var errs []error
+	for _, closer := range cs {
+		errs = append(errs, closer.Close())
+	}
+	return errors.Join(errs...)
+}
+
 type httpServer struct {
 	*http.Server
-	staticHandlerCloser io.Closer
+	// closers shut down with the query server instead of being left to process exit.
+	closers closers
 }
 
 var _ io.Closer = (*httpServer)(nil)
 
+// initRouter returns, alongside the handler, the closers for everything it mounted
+// that outlives a request; the caller owns closing them (see httpServer.closers).
 func initRouter(
+	ctx context.Context,
 	querySvc *querysvc.QueryService,
 	metricsQuerySvc metricstore.Reader,
 	queryOpts *QueryOptions,
-	caps querysvc.StorageCapabilities,
-	aiHealthCheck func() bool,
+	backendCaps BackendCapabilityProvider,
 	tenancyMgr *tenancy.Manager,
 	telset telemetry.Settings,
-) (http.Handler, io.Closer, error) {
+) (http.Handler, closers, error) {
 	apiHandlerOptions := []HandlerOption{
 		HandlerOptions.Logger(telset.Logger),
 		HandlerOptions.Tracer(telset.TracerProvider),
@@ -189,6 +209,7 @@ func initRouter(
 		apiHandlerOptions...,
 	)
 	r := http.NewServeMux()
+	var cs closers
 
 	(&apiv3.HTTPGateway{
 		QueryService: querySvc,
@@ -206,20 +227,17 @@ func initRouter(
 		apiNotFoundPattern = queryOpts.BasePath + apiNotFoundPattern
 	}
 
-	// AI Gateway Endpoints
 	if queryOpts.AI.HasValue() {
-		if aiCfg := queryOpts.AI.Get(); aiCfg != nil && aiCfg.AgentURL != "" {
-			if err := aiCfg.Validate(); err != nil {
-				telset.Logger.Error("Invalid AI config, AI handler disabled", zap.Error(err))
-			} else {
-				jaegerai.NewHandler(telset.Logger, aiCfg.AgentURL, queryOpts.BasePath, aiCfg.MaxRequestBodySize).RegisterRoutes(r)
-			}
+		aiClosers, err := registerAIRoutes(ctx, r, queryOpts, querySvc, tenancyMgr, telset)
+		if err != nil {
+			return nil, nil, errors.Join(err, cs.Close())
 		}
+		cs = append(cs, aiClosers...)
 	}
 
 	if queryOpts.OTLPProxy.HasValue() {
 		if err := registerOTLPProxy(r, queryOpts, telset); err != nil {
-			return nil, nil, err
+			return nil, nil, errors.Join(err, cs.Close())
 		}
 	}
 
@@ -227,9 +245,11 @@ func initRouter(
 		http.Error(w, "404 page not found", http.StatusNotFound)
 	})
 
-	staticHandlerCloser := RegisterStaticHandler(r, telset.Logger, queryOpts, caps, aiHealthCheck)
+	cs = append(cs, RegisterStaticHandler(r, telset.Logger, queryOpts, backendCaps))
 
-	var handler http.Handler = r
+	// MUST wrap the mux directly: nothing may be inserted between the two, or the pattern
+	// the mux records becomes invisible again. The wrappers below go on top of this one.
+	handler := routeTagHandler(queryOpts.BasePath, r)
 	if queryOpts.BearerTokenPropagation {
 		handler = bearertoken.PropagationHandler(telset.Logger, handler)
 	}
@@ -240,7 +260,75 @@ func initRouter(
 		handler = tenancy.ExtractTenantHTTPHandler(tenancyMgr, handler)
 	}
 	handler = traceResponseHandler(handler)
-	return handler, staticHandlerCloser, nil
+	return handler, cs, nil
+}
+
+// registerAIRoutes mounts the AI chat gateway and the telemetry MCP endpoint,
+// and returns the closers for whatever it mounted. Invalid AI config disables
+// the AI surface rather than stopping the query server, which also serves the
+// UI and the trace APIs.
+func registerAIRoutes(
+	ctx context.Context,
+	r *http.ServeMux,
+	queryOpts *QueryOptions,
+	querySvc *querysvc.QueryService,
+	tenancyMgr *tenancy.Manager,
+	telset telemetry.Settings,
+) (closers, error) {
+	aiCfg := queryOpts.AI.Get()
+	if err := aiCfg.Validate(); err != nil {
+		telset.Logger.Error("Invalid AI config, AI handler disabled", zap.Error(err))
+		return nil, nil
+	}
+
+	var cs closers
+	// One config for both MCP endpoints so they cannot drift, and the zero value
+	// when MCP is off — the gateway ignores it then.
+	var mcpCfg mcptools.Config
+	if mcp := aiCfg.MCP.Get(); mcp != nil {
+		mcpCfg = mcptools.DefaultConfig()
+		// Opened once, so both endpoints share the handle and a broken path is
+		// reported once, at startup. It stays open for as long as it serves, so
+		// it is released with the server rather than at process exit.
+		customSkills, err := mcptools.OpenCustomSkillsDir(mcp.SkillsDir)
+		if err != nil {
+			return nil, err
+		}
+		if customSkills != nil {
+			cs = append(cs, customSkills)
+		}
+		mcpCfg.CustomSkillsFS = customSkills
+		// Shared telemetry endpoint (/api/ai/mcp/). Coexists with the wildcard
+		// turn-scoped pattern the gateway registers below.
+		registerMCPTools(r, querySvc, tenancyMgr, queryOpts.BasePath, mcpCfg, telset)
+	}
+
+	if aiCfg.AgentURL != "" {
+		// jaegerai owns the chat endpoint and, when MCP is on, the turn-scoped
+		// endpoint (/api/ai/mcp/<id>/) — which is why mcpCfg is built above
+		// rather than inside this branch. It holds MCP sessions past the request
+		// that opened them, so it joins the closers.
+		//
+		// The announced base URL is resolved here because inferring the
+		// gateway's own localhost address needs the query HTTP endpoint and TLS
+		// setting, which live on QueryOptions, not AIConfig.
+		aiGateway := jaegerai.NewHandler(jaegerai.HandlerParams{
+			Logger:             telset.Logger,
+			AgentURL:           aiCfg.AgentURL,
+			AgentHeaders:       aiCfg.AgentHeaders,
+			BasePath:           queryOpts.BasePath,
+			MaxRequestBodySize: aiCfg.MaxRequestBodySize,
+			EnableMCP:          aiCfg.MCP.HasValue(),
+			MCPBaseURL:         aiCfg.resolveMCPBaseURL(ctx, queryOpts.HTTP.NetAddr.Endpoint, queryOpts.HTTP.TLS.HasValue()),
+			QueryService:       querySvc,
+			TenancyMgr:         tenancyMgr,
+			Telset:             telset,
+			MCPConfig:          mcpCfg,
+		})
+		aiGateway.RegisterRoutes(r)
+		cs = append(cs, aiGateway)
+	}
+	return cs, nil
 }
 
 func otlpProxyPathPrefix(basePath string) string {
@@ -266,10 +354,13 @@ func otelFilterFunc(basePath string) func(*http.Request) bool {
 	}
 }
 
-// registerOTLPProxy mounts the route described by OTLPProxyConfig. The proxy
-// handler is wrapped with otelhttp using a no-op tracer but the real meter
-// provider so HTTP server metrics flow without producing a self-referential
-// server span; the top-level otelhttp filter excludes this prefix so the
+func registerMCPTools(r *http.ServeMux, querySvc *querysvc.QueryService, tenancyMgr *tenancy.Manager, basePath string, cfg mcptools.Config, telset telemetry.Settings) {
+	handler := mcptools.NewHandler(telset, querySvc, tenancyMgr, cfg)
+	prefix := strings.TrimSuffix(basePath, "/") + "/api/ai/mcp"
+	r.Handle(prefix+"/", http.StripPrefix(prefix, handler))
+	telset.Logger.Info("Jaeger telemetry MCP endpoint enabled", zap.String("path", prefix+"/"))
+}
+
 // per-route wrap is the only instrumentation layer.
 func registerOTLPProxy(r *http.ServeMux, queryOpts *QueryOptions, telset telemetry.Settings) error {
 	cfg := queryOpts.OTLPProxy.Get()
@@ -297,12 +388,11 @@ func createHTTPServer(
 	querySvc *querysvc.QueryService,
 	metricsQuerySvc metricstore.Reader,
 	queryOpts *QueryOptions,
-	caps querysvc.StorageCapabilities,
-	aiHealthCheck func() bool,
+	backendCaps BackendCapabilityProvider,
 	tm *tenancy.Manager,
 	telset telemetry.Settings,
 ) (*httpServer, error) {
-	handler, staticHandlerCloser, err := initRouter(querySvc, metricsQuerySvc, queryOpts, caps, aiHealthCheck, tm, telset)
+	handler, cs, err := initRouter(ctx, querySvc, metricsQuerySvc, queryOpts, backendCaps, tm, telset)
 	if err != nil {
 		return nil, err
 	}
@@ -323,43 +413,23 @@ func createHTTPServer(
 		xconfighttp.WithOtelHTTPOptions(
 			otelhttp.WithFilter(otelFilterFunc(queryOpts.BasePath)),
 			otelhttp.WithSpanNameFormatter(func(_ string, r *http.Request) string {
-				// Use just the route pattern without the HTTP method prefix or basePath
-				// r.Pattern includes the method like "GET /jaeger/api/v3/traces/{trace_id}"
-				// We want to return just "/api/v3/traces/{trace_id}" (without basePath)
-				pattern := r.Pattern
-				if pattern != "" {
-					// Remove the method prefix (e.g., "GET ", "POST ", etc.)
-					if idx := strings.Index(pattern, " "); idx > 0 {
-						pattern = pattern[idx+1:]
-					}
-					// Remove basePath prefix if present
-					if queryOpts.BasePath != "" && queryOpts.BasePath != "/" {
-						pattern = strings.TrimPrefix(pattern, queryOpts.BasePath)
-					}
-				}
-				return pattern
+				return spanNameForRoute(routeFromPattern(r.Pattern), queryOpts.BasePath)
 			}),
 		),
 	)
 	if err != nil {
-		return nil, errors.Join(err, staticHandlerCloser.Close())
+		return nil, errors.Join(err, cs.Close())
 	}
 	server := &httpServer{
-		Server:              hs,
-		staticHandlerCloser: staticHandlerCloser,
+		Server:  hs,
+		closers: cs,
 	}
 
 	return server, nil
 }
 
 func (hS httpServer) Close() error {
-	var errs []error
-	errs = append(
-		errs,
-		hS.Server.Close(),
-		hS.staticHandlerCloser.Close(),
-	)
-	return errors.Join(errs...)
+	return errors.Join(hS.Server.Close(), hS.closers.Close())
 }
 
 // initListener initialises listeners of the server

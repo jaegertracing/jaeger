@@ -5,6 +5,8 @@ package grpc
 
 import (
 	"context"
+	"errors"
+	"fmt"
 	"iter"
 	"testing"
 	"time"
@@ -16,10 +18,14 @@ import (
 	"go.opentelemetry.io/collector/pdata/ptrace"
 	"go.opentelemetry.io/collector/pdata/ptrace/ptraceotlp"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 
 	"github.com/jaegertracing/jaeger-idl/model/v1"
+	expression "github.com/jaegertracing/jaeger-idl/query/expression/v1"
 	"github.com/jaegertracing/jaeger/internal/jptrace"
 	"github.com/jaegertracing/jaeger/internal/proto-gen/storage/v2"
+	expressionproto "github.com/jaegertracing/jaeger/internal/proto/expression/v1"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/api/depstore"
 	depstoremocks "github.com/jaegertracing/jaeger/internal/storage/v2/api/depstore/mocks"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore"
@@ -749,28 +755,21 @@ func (s *summaryStream) Send(r *storage.FindTraceSummariesResponse) error {
 	return nil
 }
 
-// readerWithSummaries embeds tracestoremocks.Reader and additionally
-// implements tracestore.SummaryReader so the handler sees a single object
-// that satisfies both interfaces.
-type readerWithSummaries struct {
-	tracestoremocks.Reader
-	summaryMock *tracestoremocks.SummaryReader
-}
-
-func (r *readerWithSummaries) FindTraceSummaries(ctx context.Context, q tracestore.TraceQueryParams) iter.Seq2[[]tracestore.TraceSummary, error] {
-	return r.summaryMock.FindTraceSummaries(ctx, q)
-}
-
 func TestHandler_FindTraceSummaries_NotImplemented(t *testing.T) {
+	// A backend that cannot compute summaries natively yields errors.ErrUnsupported;
+	// the handler must translate that into gRPC Unimplemented.
 	reader := new(tracestoremocks.Reader)
-	writer := new(tracestoremocks.Writer)
-	depReader := new(depstoremocks.Reader)
-	handler := NewHandler(reader, writer, depReader)
+	reader.On("FindTraceSummaries", mock.Anything, mock.Anything).
+		Return(iter.Seq2[[]tracestore.TraceSummary, error](func(yield func([]tracestore.TraceSummary, error) bool) {
+			yield(nil, fmt.Errorf("bare reader: %w", errors.ErrUnsupported))
+		})).Once()
+	handler := NewHandler(reader, new(tracestoremocks.Writer), new(depstoremocks.Reader))
 
 	err := handler.FindTraceSummaries(&storage.FindTraceSummariesRequest{
 		Query: &storage.TraceQueryParameters{},
 	}, &summaryStream{})
 	require.Error(t, err)
+	require.Equal(t, codes.Unimplemented, status.Code(err))
 	require.Contains(t, err.Error(), "not implemented")
 }
 
@@ -792,13 +791,12 @@ func TestHandler_FindTraceSummaries_Success(t *testing.T) {
 			},
 		},
 	}
-	summaryMock := new(tracestoremocks.SummaryReader)
-	summaryMock.On("FindTraceSummaries", mock.Anything, mock.Anything).
+	reader := new(tracestoremocks.Reader)
+	reader.On("FindTraceSummaries", mock.Anything, mock.Anything).
 		Return(iter.Seq2[[]tracestore.TraceSummary, error](func(yield func([]tracestore.TraceSummary, error) bool) {
 			yield(want, nil)
 		})).Once()
 
-	reader := &readerWithSummaries{summaryMock: summaryMock}
 	handler := NewHandler(reader, new(tracestoremocks.Writer), new(depstoremocks.Reader))
 	stream := &summaryStream{}
 
@@ -820,13 +818,12 @@ func TestHandler_FindTraceSummaries_Success(t *testing.T) {
 }
 
 func TestHandler_FindTraceSummaries_StorageError(t *testing.T) {
-	summaryMock := new(tracestoremocks.SummaryReader)
-	summaryMock.On("FindTraceSummaries", mock.Anything, mock.Anything).
+	reader := new(tracestoremocks.Reader)
+	reader.On("FindTraceSummaries", mock.Anything, mock.Anything).
 		Return(iter.Seq2[[]tracestore.TraceSummary, error](func(yield func([]tracestore.TraceSummary, error) bool) {
 			yield(nil, assert.AnError)
 		})).Once()
 
-	reader := &readerWithSummaries{summaryMock: summaryMock}
 	handler := NewHandler(reader, new(tracestoremocks.Writer), new(depstoremocks.Reader))
 
 	err := handler.FindTraceSummaries(&storage.FindTraceSummariesRequest{
@@ -836,17 +833,136 @@ func TestHandler_FindTraceSummaries_StorageError(t *testing.T) {
 }
 
 func TestHandler_FindTraceSummaries_SendError(t *testing.T) {
-	summaryMock := new(tracestoremocks.SummaryReader)
-	summaryMock.On("FindTraceSummaries", mock.Anything, mock.Anything).
+	reader := new(tracestoremocks.Reader)
+	reader.On("FindTraceSummaries", mock.Anything, mock.Anything).
 		Return(iter.Seq2[[]tracestore.TraceSummary, error](func(yield func([]tracestore.TraceSummary, error) bool) {
 			yield([]tracestore.TraceSummary{{TraceID: pcommon.TraceID([16]byte{1})}}, nil)
 		})).Once()
 
-	reader := &readerWithSummaries{summaryMock: summaryMock}
 	handler := NewHandler(reader, new(tracestoremocks.Writer), new(depstoremocks.Reader))
 
 	err := handler.FindTraceSummaries(&storage.FindTraceSummariesRequest{
 		Query: &storage.TraceQueryParameters{},
 	}, &summaryStream{sendErr: assert.AnError})
 	require.ErrorIs(t, err, assert.AnError)
+}
+
+// TestHandler_GetCapabilities covers what the server makes of each answer its reader gives.
+func TestHandler_GetCapabilities(t *testing.T) {
+	tests := []struct {
+		name         string
+		caps         tracestore.SearchCapabilities
+		readerErr    error
+		expected     *storage.SearchCapabilities
+		expectedCode codes.Code
+	}{
+		{
+			name:     "capability is reported",
+			caps:     tracestore.SearchCapabilities{WithoutServiceName: true},
+			expected: &storage.SearchCapabilities{WithoutServiceName: true},
+		},
+		{
+			name:     "absence is reported",
+			caps:     tracestore.SearchCapabilities{},
+			expected: &storage.SearchCapabilities{},
+		},
+		{
+			name: "every capability is reported",
+			caps: tracestore.SearchCapabilities{
+				WithoutServiceName:  true,
+				SameSpanConjunction: true,
+				Filter: &tracestore.FilterCapabilities{
+					Levels:    []expression.Level{expression.LevelSpan, expression.LevelResource},
+					Operators: []expression.Operator{expression.OpAnd, expression.OpEq, expression.OpRegex},
+				},
+			},
+			expected: &storage.SearchCapabilities{
+				WithoutServiceName:  true,
+				SameSpanConjunction: true,
+				Filter: &storage.FilterCapabilities{
+					Levels:    []string{"span", "resource"},
+					Operators: []string{"and", "eq", "regex"},
+				},
+			},
+		},
+		{
+			name:         "a reader that cannot answer becomes Unimplemented",
+			readerErr:    fmt.Errorf("cannot ask: %w", errors.ErrUnsupported),
+			expectedCode: codes.Unimplemented,
+		},
+		{
+			name:         "any other failure is Internal",
+			readerErr:    assert.AnError,
+			expectedCode: codes.Internal,
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			reader := new(tracestoremocks.Reader)
+			reader.On("SearchCapabilities", mock.Anything).Return(test.caps, test.readerErr).Once()
+
+			server := NewHandler(reader, new(tracestoremocks.Writer), new(depstoremocks.Reader))
+			resp, err := server.GetCapabilities(context.Background(), &storage.GetCapabilitiesRequest{})
+
+			if test.expectedCode != codes.OK {
+				require.Error(t, err)
+				assert.Equal(t, test.expectedCode, status.Code(err))
+				return
+			}
+			require.NoError(t, err)
+			assert.Equal(t, test.expected, resp.GetSearch())
+		})
+	}
+}
+
+// TestHandler_RefusesUnusableFilter covers the refusal every search method shares: a filter the
+// caller has to change never reaches the reader, because a reader handed a filter it was not asked
+// about would answer the time range instead and call that a match.
+func TestHandler_RefusesUnusableFilter(t *testing.T) {
+	// An operator no vocabulary lists survives decoding and is refused by Finalize, which is the
+	// refusal these methods have to carry back as InvalidArgument.
+	query := &storage.TraceQueryParameters{
+		Filter: &expressionproto.Call{Op: "no-such-operator"},
+	}
+	tests := []struct {
+		name   string
+		method string
+		call   func(*Handler) error
+	}{
+		{
+			name:   "FindTraces",
+			method: "FindTraces",
+			call: func(h *Handler) error {
+				return h.FindTraces(&storage.FindTracesRequest{Query: query}, &testStream{})
+			},
+		},
+		{
+			name:   "FindTraceSummaries",
+			method: "FindTraceSummaries",
+			call: func(h *Handler) error {
+				return h.FindTraceSummaries(&storage.FindTraceSummariesRequest{Query: query}, &summaryStream{})
+			},
+		},
+		{
+			name:   "FindTraceIDs",
+			method: "FindTraceIDs",
+			call: func(h *Handler) error {
+				_, err := h.FindTraceIDs(context.Background(), &storage.FindTraceIDsRequest{Query: query})
+				return err
+			},
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			reader := new(tracestoremocks.Reader)
+			handler := NewHandler(reader, new(tracestoremocks.Writer), new(depstoremocks.Reader))
+
+			err := test.call(handler)
+
+			require.Error(t, err)
+			assert.Equal(t, codes.InvalidArgument, status.Code(err))
+			assert.Contains(t, err.Error(), "no-such-operator")
+			reader.AssertNotCalled(t, test.method, mock.Anything, mock.Anything)
+		})
+	}
 }

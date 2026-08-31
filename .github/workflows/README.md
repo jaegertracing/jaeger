@@ -25,7 +25,7 @@ The `setup` job determines whether to use parallel execution based on these **OR
 | `merge_group` event | Merge Queue entry, high confidence |
 | PR author is an org member (`MEMBER` or `OWNER`) | Trusted maintainer |
 | PR author has 5+ merged PRs in this repo | Established contributor. Covers private org members whose `author_association` is incorrectly reported as `CONTRIBUTOR` when they lack direct team access. |
-| PR author login is `dependabot[bot]`, `renovate-bot`, or `Copilot` | Dependency automation bots and the Copilot coding agent (`Copilot` is the `user.login` for `copilot-swe-agent[bot]`; GitHub Search API returns 422 for that login so the merged-PR fallback cannot detect it) |
+| PR author login is `dependabot[bot]`, `renovate-bot`, `Copilot`, or `ysh-bot` | Dependency automation bots, the Copilot coding agent, and the `ysh-bot` maintainer automation account (`Copilot` is the `user.login` for `copilot-swe-agent[bot]`; GitHub Search API returns 422 for that login so the merged-PR fallback cannot detect it) |
 | PR has the `ci:parallel` label | Explicit opt-in |
 
 #### Stage Workflows (DRY Encapsulation)
@@ -40,6 +40,14 @@ This avoids duplication: both the sequential and parallel paths call the same st
 
 #### Stage 1: Fast Gate (Linters only)
 - **ci-lint-checks.yaml** - Go linting, DCO checks, generated files validation, shell script linting
+
+`ci-lint-checks.yaml` also fails a pull request whose `jaeger` binary grows by more than 2%. When an
+upstream upgrade links in code that the pull request has no way to avoid, no change to the branch can
+bring the binary back under the threshold. A maintainer waives the gate for that pull request by
+labeling it `accept-binary-size-increase` and describing the growth in the description; the job then
+reports the measurement as a warning instead of failing. Adding the label to a pull request whose run
+already failed takes effect on re-running the failed job, because the job reads the label from the
+API rather than from the event that started the run.
 
 #### Stage 2: Unit Tests
 - **ci-unit-tests.yml** - Full unit test suite with coverage
@@ -142,6 +150,9 @@ The following workflows operate independently and are **not** part of the orches
 - **label-check.yml** - Verifies PR labels
 - **pr-quota-manager.yml** - PR management automation
 - **dco_merge_group.yml** - DCO verification for merge groups
+
+### Opt-in Checks
+- **ci-backward-compatibility.yml** - Writes the integration corpus with a Jaeger built from `main` and reads it back with the one built from the pull request. A backend joins by adding a matrix entry carrying the command that stands its storage up; Elasticsearch and OpenSearch are there today, Cassandra and ClickHouse are still to come. Each job builds a second Jaeger and stands up a storage backend, so the workflow runs only on a pull request labelled `ci:backward-compat`, and it gates nothing.
 
 ### Scheduled Maintenance
 - **stale.yml** - Marks and closes stale issues/PRs

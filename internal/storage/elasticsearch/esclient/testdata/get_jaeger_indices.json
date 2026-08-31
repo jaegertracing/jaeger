@@ -1,0 +1,12 @@
+{
+  "method": "GET",
+  "path": "/jaeger-*",
+  "query": {
+    "filter_path": [
+      "*.aliases,*.settings"
+    ],
+    "flat_settings": [
+      "true"
+    ]
+  }
+}

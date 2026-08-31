@@ -14,25 +14,42 @@ import (
 	"github.com/jaegertracing/jaeger/internal/storage/v2/elasticsearch/tracestore/core/dbmodel"
 )
 
+var _ tracestore.Reader = (*TraceReader)(nil)
+
 // TraceReader is a wrapper around core.Reader which returns the output parallel to OTLP Models
 type TraceReader struct {
 	spanReader core.Reader
 }
 
-// NewTraceReader returns an instance of TraceReader
+// NewTraceReader returns an instance of TraceReader.
 func NewTraceReader(p core.SpanReaderParams) *TraceReader {
 	return &TraceReader{
 		spanReader: core.NewSpanReader(p),
 	}
 }
 
-func (t *TraceReader) GetTraces(ctx context.Context, params ...tracestore.GetTraceParams) iter.Seq2[[]ptrace.Traces, error] {
+func (*TraceReader) SearchCapabilities(context.Context) (tracestore.SearchCapabilities, error) {
+	filter := core.FilterCapabilities()
+	return tracestore.SearchCapabilities{
+		// The query adds its process.serviceName clause only when the query carries a
+		// name, and no other clause depends on it, so an omitted name matches spans from
+		// every service.
+		WithoutServiceName: true,
+		// A search matches span documents, and the clauses of a conjunction all apply to the
+		// same document, so a conjunction is satisfied within one span rather than across a
+		// trace.
+		SameSpanConjunction: true,
+		Filter:              &filter,
+	}, nil
+}
+
+func (r *TraceReader) GetTraces(ctx context.Context, params ...tracestore.GetTraceParams) iter.Seq2[[]ptrace.Traces, error] {
 	return func(yield func([]ptrace.Traces, error) bool) {
 		dbTraceIds := make([]dbmodel.TraceID, 0, len(params))
 		for _, id := range params {
 			dbTraceIds = append(dbTraceIds, dbmodel.TraceID(id.TraceID.String()))
 		}
-		dbTraces, err := t.spanReader.GetTraces(ctx, dbTraceIds)
+		dbTraces, err := r.spanReader.GetTraces(ctx, dbTraceIds)
 		if err != nil {
 			yield(nil, err)
 			return
@@ -50,12 +67,12 @@ func (t *TraceReader) GetTraces(ctx context.Context, params ...tracestore.GetTra
 	}
 }
 
-func (t *TraceReader) GetServices(ctx context.Context) ([]string, error) {
-	return t.spanReader.GetServices(ctx)
+func (r *TraceReader) GetServices(ctx context.Context) ([]string, error) {
+	return r.spanReader.GetServices(ctx)
 }
 
-func (t *TraceReader) GetOperations(ctx context.Context, query tracestore.OperationQueryParams) ([]tracestore.Operation, error) {
-	dbOperations, err := t.spanReader.GetOperations(ctx, dbmodel.OperationQueryParameters{
+func (r *TraceReader) GetOperations(ctx context.Context, query tracestore.OperationQueryParams) ([]tracestore.Operation, error) {
+	dbOperations, err := r.spanReader.GetOperations(ctx, dbmodel.OperationQueryParameters{
 		ServiceName: query.ServiceName,
 		SpanKind:    query.SpanKind,
 	})
@@ -72,9 +89,9 @@ func (t *TraceReader) GetOperations(ctx context.Context, query tracestore.Operat
 	return operations, nil
 }
 
-func (t *TraceReader) FindTraces(ctx context.Context, query tracestore.TraceQueryParams) iter.Seq2[[]ptrace.Traces, error] {
+func (r *TraceReader) FindTraces(ctx context.Context, query tracestore.TraceQueryParams) iter.Seq2[[]ptrace.Traces, error] {
 	return func(yield func([]ptrace.Traces, error) bool) {
-		traces, err := t.spanReader.FindTraces(ctx, toDBTraceQueryParams(query))
+		traces, err := r.spanReader.FindTraces(ctx, toDBTraceQueryParams(query))
 		if err != nil {
 			yield(nil, err)
 			return
@@ -92,9 +109,9 @@ func (t *TraceReader) FindTraces(ctx context.Context, query tracestore.TraceQuer
 	}
 }
 
-func (t *TraceReader) FindTraceIDs(ctx context.Context, query tracestore.TraceQueryParams) iter.Seq2[[]tracestore.FoundTraceID, error] {
+func (r *TraceReader) FindTraceIDs(ctx context.Context, query tracestore.TraceQueryParams) iter.Seq2[[]tracestore.FoundTraceID, error] {
 	return func(yield func([]tracestore.FoundTraceID, error) bool) {
-		traceIds, err := t.spanReader.FindTraceIDs(ctx, toDBTraceQueryParams(query))
+		traceIds, err := r.spanReader.FindTraceIDs(ctx, toDBTraceQueryParams(query))
 		if err != nil {
 			yield(nil, err)
 			return
@@ -128,5 +145,6 @@ func toDBTraceQueryParams(query tracestore.TraceQueryParams) dbmodel.TraceQueryP
 		SearchDepth:   query.SearchDepth,
 		DurationMin:   query.DurationMin,
 		DurationMax:   query.DurationMax,
+		Filter:        query.Filter,
 	}
 }

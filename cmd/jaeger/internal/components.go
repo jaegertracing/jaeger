@@ -12,7 +12,6 @@ import (
 	"go.opentelemetry.io/collector/processor"
 	"go.opentelemetry.io/collector/receiver"
 
-	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/integration/storagecleaner"
 	"github.com/jaegertracing/jaeger/components/exporter/storageexporter"
 	"github.com/jaegertracing/jaeger/components/ext/connector/forwardconnector"
 	"github.com/jaegertracing/jaeger/components/ext/connector/spanmetricsconnector"
@@ -38,7 +37,6 @@ import (
 	"github.com/jaegertracing/jaeger/components/ext/receiver/otlpreceiver"
 	"github.com/jaegertracing/jaeger/components/ext/receiver/zipkinreceiver"
 	"github.com/jaegertracing/jaeger/components/extension/expvar"
-	"github.com/jaegertracing/jaeger/components/extension/jaegermcp"
 	"github.com/jaegertracing/jaeger/components/extension/jaegerquery"
 	"github.com/jaegertracing/jaeger/components/extension/jaegerstorage"
 	"github.com/jaegertracing/jaeger/components/extension/remotesampling"
@@ -80,13 +78,10 @@ func (b builders) build() (otelcol.Factories, error) {
 		// add-ons
 		basicauthextension.NewFactory(),
 		sigv4authextension.NewFactory(),
-		jaegermcp.NewFactory(),
 		jaegerquery.NewFactory(),
 		jaegerstorage.NewFactory(),
 		remotesampling.NewFactory(),
 		expvar.NewFactory(),
-		// only for e2e testing
-		storagecleaner.NewFactory(),
 		remotestorage.NewFactory(),
 	)
 	if err != nil {

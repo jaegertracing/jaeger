@@ -9,7 +9,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
-	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/client"
+	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/esclient"
 )
 
 func TestIndexFilter(t *testing.T) {
@@ -22,7 +22,7 @@ func TestIndexFilterWithPrefix(t *testing.T) {
 
 func runIndexFilterTest(t *testing.T, prefix string) {
 	time20200807 := time.Date(2020, time.August, 6, 0, 0, 0, 0, time.UTC).AddDate(0, 0, 1)
-	indices := []client.Index{
+	indices := []esclient.Index{
 		{
 			Index:        prefix + "jaeger-span-2020-08-06",
 			CreationTime: time.Date(2020, time.August, 6, 15, 0, 0, 0, time.UTC),
@@ -148,7 +148,7 @@ func runIndexFilterTest(t *testing.T, prefix string) {
 	tests := []struct {
 		name     string
 		filter   *IndexFilter
-		expected []client.Index
+		expected []esclient.Index
 	}{
 		{
 			name: "normal indices, remove older than 2 days",
@@ -169,7 +169,7 @@ func runIndexFilterTest(t *testing.T, prefix string) {
 				Rollover:             false,
 				DeleteBeforeThisDate: time20200807.Add(-time.Hour * 24 * time.Duration(1)),
 			},
-			expected: []client.Index{
+			expected: []esclient.Index{
 				{
 					Index:        prefix + "jaeger-span-2020-08-05",
 					CreationTime: time.Date(2020, time.August, 5, 15, 0, 0, 0, time.UTC),
@@ -201,7 +201,7 @@ func runIndexFilterTest(t *testing.T, prefix string) {
 				Rollover:             false,
 				DeleteBeforeThisDate: time20200807.Add(-time.Hour * 24 * time.Duration(0)),
 			},
-			expected: []client.Index{
+			expected: []esclient.Index{
 				{
 					Index:        prefix + "jaeger-span-2020-08-06",
 					CreationTime: time.Date(2020, time.August, 6, 15, 0, 0, 0, time.UTC),
@@ -253,7 +253,7 @@ func runIndexFilterTest(t *testing.T, prefix string) {
 				Rollover:             false,
 				DeleteBeforeThisDate: time20200807.Add(-time.Hour * 24 * time.Duration(1)),
 			},
-			expected: []client.Index{
+			expected: []esclient.Index{
 				{
 					Index:        prefix + "jaeger-span-archive-000001",
 					CreationTime: time.Date(2020, time.August, 5, 15, 0, 0, 0, time.UTC),
@@ -272,7 +272,7 @@ func runIndexFilterTest(t *testing.T, prefix string) {
 				Rollover:             true,
 				DeleteBeforeThisDate: time20200807.Add(-time.Hour * 24 * time.Duration(1)),
 			},
-			expected: []client.Index{
+			expected: []esclient.Index{
 				{
 					Index:        prefix + "jaeger-span-000001",
 					CreationTime: time.Date(2020, time.August, 5, 15, 0, 0, 0, time.UTC),
@@ -298,7 +298,7 @@ func runIndexFilterTest(t *testing.T, prefix string) {
 				Rollover:             true,
 				DeleteBeforeThisDate: time20200807.Add(-time.Hour * 24 * time.Duration(0)),
 			},
-			expected: []client.Index{
+			expected: []esclient.Index{
 				{
 					Index:        prefix + "jaeger-span-000001",
 					CreationTime: time.Date(2020, time.August, 5, 15, 0, 0, 0, time.UTC),
@@ -324,7 +324,7 @@ func runIndexFilterTest(t *testing.T, prefix string) {
 				Rollover:             true,
 				DeleteBeforeThisDate: time20200807.Add(-time.Hour * 24 * time.Duration(1)),
 			},
-			expected: []client.Index{
+			expected: []esclient.Index{
 				{
 					Index:        prefix + "jaeger-span-archive-000001",
 					CreationTime: time.Date(2020, time.August, 5, 15, 0, 0, 0, time.UTC),
@@ -343,7 +343,7 @@ func runIndexFilterTest(t *testing.T, prefix string) {
 				Rollover:             true,
 				DeleteBeforeThisDate: time20200807.Add(-time.Hour * 24 * time.Duration(0)),
 			},
-			expected: []client.Index{
+			expected: []esclient.Index{
 				{
 					Index:        prefix + "jaeger-span-archive-000001",
 					CreationTime: time.Date(2020, time.August, 5, 15, 0, 0, 0, time.UTC),

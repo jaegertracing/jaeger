@@ -5,10 +5,13 @@ package tracestoremetrics
 
 import (
 	"context"
+	"fmt"
 	"iter"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/mock"
+	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/collector/pdata/ptrace"
 
 	"github.com/jaegertracing/jaeger/internal/metricstest"
@@ -174,9 +177,104 @@ func emptyIter[T any](td []T, err error) iter.Seq2[[]T, error] {
 	}
 }
 
-func TestReadMetricsDecorator_Unwrap(t *testing.T) {
+func TestReadMetricsDecorator_FindTraceSummaries(t *testing.T) {
 	mf := metricstest.NewFactory(0)
+
 	inner := &mocks.Reader{}
+	summaries := []tracestore.TraceSummary{{RootServiceName: "svc-a"}, {RootServiceName: "svc-b"}}
+	inner.On("FindTraceSummaries", context.Background(), tracestore.TraceQueryParams{}).
+		Return(emptyIter[tracestore.TraceSummary](summaries, nil))
+
 	d := NewReaderDecorator(inner, mf)
-	assert.Same(t, inner, d.Unwrap())
+
+	var got []tracestore.TraceSummary
+	for batch, err := range d.FindTraceSummaries(context.Background(), tracestore.TraceQueryParams{}) {
+		require.NoError(t, err)
+		got = append(got, batch...)
+	}
+	assert.Len(t, got, len(summaries))
+
+	counters, _ := mf.Snapshot()
+	assert.Equal(t, int64(1), counters["requests|operation=find_trace_summaries|result=ok"])
+	assert.Equal(t, int64(int64(len(summaries))), counters["responses|operation=find_trace_summaries"])
+}
+
+func TestReadMetricsDecorator_FindTraceSummaries_Error(t *testing.T) {
+	mf := metricstest.NewFactory(0)
+
+	inner := &mocks.Reader{}
+	inner.On("FindTraceSummaries", context.Background(), tracestore.TraceQueryParams{}).
+		Return(emptyIter[tracestore.TraceSummary](nil, assert.AnError))
+
+	d := NewReaderDecorator(inner, mf)
+	for range d.FindTraceSummaries(context.Background(), tracestore.TraceQueryParams{}) {
+		t.Log("FindTraceSummaries error iteration")
+	}
+
+	counters, _ := mf.Snapshot()
+	assert.Equal(t, int64(1), counters["requests|operation=find_trace_summaries|result=err"])
+}
+
+func TestReadMetricsDecorator_FindTraceSummaries_EarlyExit(t *testing.T) {
+	mf := metricstest.NewFactory(0)
+
+	inner := &mocks.Reader{}
+	// emptyIter yields each summary as its own batch. The consumer stops after the
+	// second batch, exercising the !yield early-exit path inside FindTraceSummaries:
+	// the third summary must never be delivered.
+	summaries := []tracestore.TraceSummary{
+		{RootServiceName: "svc-a"},
+		{RootServiceName: "svc-b"},
+		{RootServiceName: "svc-c"},
+	}
+	inner.On("FindTraceSummaries", context.Background(), tracestore.TraceQueryParams{}).
+		Return(emptyIter[tracestore.TraceSummary](summaries, nil))
+
+	d := NewReaderDecorator(inner, mf)
+	var got []tracestore.TraceSummary
+	for batch, err := range d.FindTraceSummaries(context.Background(), tracestore.TraceQueryParams{}) {
+		require.NoError(t, err)
+		got = append(got, batch...)
+		if len(got) == 2 {
+			break
+		}
+	}
+
+	// The consumer received exactly the first two summaries; the third was never yielded.
+	require.Len(t, got, 2)
+	assert.Equal(t, "svc-a", got[0].RootServiceName)
+	assert.Equal(t, "svc-b", got[1].RootServiceName)
+
+	// The deferred metrics emit still runs on early exit, counting the batches
+	// delivered before the break as a successful operation.
+	counters, _ := mf.Snapshot()
+	assert.Equal(t, int64(1), counters["requests|operation=find_trace_summaries|result=ok"])
+	assert.Equal(t, int64(2), counters["responses|operation=find_trace_summaries"])
+}
+
+// TestReadMetricsDecorator_SearchCapabilities pins that the decorator forwards the
+// backend's declaration rather than answering for itself. This decorator wraps every
+// reader the factories build, so answering here would hide a capability the backend has
+// from everything downstream (RFC 0013 §3.1).
+//
+// The cases enumerate every permutation of SearchCapabilities, so forwarding is proven
+// per field rather than for one value that happens to pass;
+// TestSearchCapabilities_FieldCount fails when a field is added without extending this
+// table.
+func TestReadMetricsDecorator_SearchCapabilities(t *testing.T) {
+	for _, caps := range []tracestore.SearchCapabilities{
+		{WithoutServiceName: false},
+		{WithoutServiceName: true},
+	} {
+		t.Run(fmt.Sprintf("%+v", caps), func(t *testing.T) {
+			inner := &mocks.Reader{}
+			inner.On("SearchCapabilities", mock.Anything).Return(caps, nil)
+
+			d := NewReaderDecorator(inner, metricstest.NewFactory(0))
+
+			got, err := d.SearchCapabilities(context.Background())
+			require.NoError(t, err)
+			assert.Equal(t, caps, got)
+		})
+	}
 }

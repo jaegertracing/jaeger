@@ -10,9 +10,19 @@ import (
 
 	"go.opentelemetry.io/collector/pdata/pcommon"
 	"go.opentelemetry.io/collector/pdata/ptrace"
+
+	expression "github.com/jaegertracing/jaeger-idl/query/expression/v1"
 )
 
 // Reader finds and loads traces and other data from storage.
+//
+// Ownership of returned traces: the caller owns every ptrace.Traces a Reader
+// yields and may modify it in place — query-time adjusters do, and so does any
+// query-interceptor extension that rewrites spans on the return path. An
+// implementation that keeps its own copy of the data (an in-memory backend, or
+// any backend with a read cache) MUST therefore yield a deep copy rather than a
+// reference to what it holds, or a single reader will corrupt the stored trace
+// for every later one.
 type Reader interface {
 	// GetTraces returns an iterator that retrieves all traces with given IDs.
 	// The iterator is single-use: once consumed, it cannot be used again.
@@ -60,6 +70,32 @@ type Reader interface {
 	// large list of trace IDs may be queried first and then the full traces are loaded
 	// in batches.
 	FindTraceIDs(ctx context.Context, query TraceQueryParams) iter.Seq2[[]FoundTraceID, error]
+
+	// FindTraceSummaries returns an iterator over lightweight summaries of the traces
+	// matching the query parameters (the metadata shown in search-result lists). The
+	// iterator is single-use: once consumed, it cannot be used again.
+	//
+	// Backends that can compute summaries natively (e.g. via a storage-side aggregation)
+	// should do so. Backends that cannot must yield errors.ErrUnsupported (wrapped with
+	// %w) as the first error, before any batch; the caller then falls back to FindTraces
+	// plus client-side aggregation. Such backends can embed UnsupportedTraceSummaries to
+	// get this behavior for free.
+	//
+	// The iterator streams result batches; each yielded batch may contain one or more
+	// summaries, and implementations may yield incrementally rather than buffering all
+	// results first.
+	FindTraceSummaries(ctx context.Context, query TraceQueryParams) iter.Seq2[[]TraceSummary, error]
+
+	// SearchCapabilities reports how this reader's search methods behave; see
+	// SearchCapabilities for what it describes.
+	//
+	// A reader that cannot determine its own — one whose backend sits behind an API that
+	// cannot be asked — returns errors.ErrUnsupported (wrapped with %w) rather than a
+	// value a caller might trust.
+	//
+	// A Reader that wraps another must forward the call, or it reports the wrapper's
+	// capabilities instead of the backend's.
+	SearchCapabilities(ctx context.Context) (SearchCapabilities, error)
 }
 
 // GetTraceParams contains single-trace parameters for a GetTraces request.
@@ -87,6 +123,14 @@ type TraceQueryParams struct {
 	DurationMin  time.Duration
 	DurationMax  time.Duration
 	SearchDepth  int
+	// Filter is the structured query filter (RFC 0005): a boolean-valued Call over
+	// level-qualified attributes and built-in fields. It is mutually exclusive with the
+	// predicate fields above — ServiceName, OperationName, Attributes and the duration
+	// bounds — so a reader sees one filtering model, not a mix of the two. A reader only
+	// receives a Filter whose levels and operators its SearchCapabilities declare; for any
+	// other reader the query service expresses the filter in the legacy fields instead, or
+	// refuses the query.
+	Filter *expression.Call
 }
 
 // FoundTraceID is a wrapper around trace ID returned from FindTraceIDs
