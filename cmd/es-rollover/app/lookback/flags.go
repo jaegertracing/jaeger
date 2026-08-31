@@ -5,6 +5,8 @@ package lookback
 
 import (
 	"flag"
+	"fmt"
+	"strings"
 
 	"github.com/spf13/viper"
 
@@ -27,7 +29,7 @@ type Config struct {
 
 // AddFlags adds flags for TLS to the FlagSet.
 func (*Config) AddFlags(flags *flag.FlagSet) {
-	flags.String(unit, defaultUnit, "used with lookback to remove indices from read alias e.g, days, weeks, months, years")
+	flags.String(unit, defaultUnit, fmt.Sprintf("used with lookback to remove indices from read alias, one of: %s", strings.Join(validUnits, ", ")))
 	flags.Int(unitCount, defaultUnitCount, "count of UNITs")
 }
 
