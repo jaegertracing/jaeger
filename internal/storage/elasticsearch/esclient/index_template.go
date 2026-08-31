@@ -116,8 +116,8 @@ func (m MappingType) options(indices config.Indices) config.IndexOptions {
 
 // lifecycleParams decide whether a template hands its indices to a rollover
 // lifecycle policy, and which engine runs it: Elasticsearch ILM, or the OpenSearch
-// index_state_management plugin. UseILM off leaves the other two unread, which is
-// how a target that manages its own rollover asks for no lifecycle settings.
+// index_state_management plugin. UseILM==false leaves the other fields unread, which
+// is how a target that manages its own rollover asks for no lifecycle settings.
 type lifecycleParams struct {
 	UseILM        bool
 	ILMPolicyName string

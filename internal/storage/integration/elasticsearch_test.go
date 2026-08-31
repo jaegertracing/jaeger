@@ -201,11 +201,11 @@ func (s *ESStorageIntegration) cleanESIndexTemplates(t *testing.T, prefix string
 //
 // Running in the ES/OS matrix job is what makes this meaningful. The esclient
 // snapshot pins the bytes Jaeger sends but cannot tell whether a backend accepts
-// them, and this slice spans versions that disagree on exactly that:
+// them, and the versions in that matrix disagree on exactly the "@custom" question:
 // ignore_missing_component_templates is ES 8.7+ and exists on no OpenSearch version,
-// while OpenSearch rejects a composed_of naming a template that does not exist. It
-// also proves the mapping accepts what Jaeger writes, which creating the templates
-// alone does not.
+// and every one of them rejects a composed_of naming a template that does not exist.
+// Writing a document then proves the mapping accepts what Jaeger produces, which
+// installing the templates alone does not.
 func TestElasticsearchStorage_DataStreamTemplates(t *testing.T) {
 	SkipUnlessEnv(t, StorageElasticsearch, StorageOpenSearch)
 	t.Cleanup(func() {
@@ -218,6 +218,26 @@ func TestElasticsearchStorage_DataStreamTemplates(t *testing.T) {
 	s.testDataStreamTemplates(t)
 }
 
+// TODO: This test assembles the storage layer by hand — an IndicesClient, a
+// SpanWriter and both rotations — where every other test in this file gets its store
+// from esv2.NewFactory. That is wrong for an integration test: it duplicates
+// FactoryBase.GetSpanWriterParams, and it has already drifted from it once, so the
+// test can keep passing while writing through a writer production would never build.
+//
+// It is not a shortcut. The factory refuses this configuration outright:
+// RotationConfig.validate rejects data_stream with "not yet implemented"
+// (config_rotation.go), so esv2.NewFactory fails before any store exists. The only
+// thing actually missing behind that guard is one branch in
+// FactoryBase.createTemplates, which unconditionally installs the rotation-path
+// template on jaeger-span-* and needs to call CreateSpanDataStreamTemplates instead
+// when the span rotation is a data stream. Everything else already handles data
+// streams: BuildRotation resolves the config, the writer emits @timestamp and the
+// "create" op type, and ReadTargets returns the stream name.
+//
+// So this must go away as soon as RFC 0004 milestone 9 lands that branch and narrows
+// the guard to non-span indices. Rewrite this test to configure
+// indices.spans.rotation.data_stream and take its writer from the factory, and delete
+// the hand assembly below.
 func (s *ESStorageIntegration) testDataStreamTemplates(t *testing.T) {
 	ctx := context.Background()
 	replicas := int64(0)
