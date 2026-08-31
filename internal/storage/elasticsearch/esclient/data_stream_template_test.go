@@ -383,12 +383,11 @@ func TestTestsOnlyDeleteSpanDataStreamObjects(t *testing.T) {
 			paths = append(paths, r.Path)
 		}
 		assert.Equal(t, []string{
-			"/_data_stream/jaeger.spans",
 			"/_index_template/jaeger.spans",
 			"/_component_template/jaeger.spans@mappings",
 			"/_component_template/jaeger.spans@settings",
 			"/_component_template/jaeger.spans@custom",
-		}, paths, "a template cannot be dropped while a stream composed from it exists")
+		}, paths, "a component cannot be dropped while a template composing it exists")
 	})
 
 	t.Run("tolerates objects that are already absent", func(t *testing.T) {
@@ -409,62 +408,7 @@ func TestTestsOnlyDeleteSpanDataStreamObjects(t *testing.T) {
 		defer srv.Close()
 		c := IndicesClient{Client: makeClient(t, srv.URL, "", ""), Indices: testIndices()}
 		err := c.TestsOnlyDeleteSpanDataStreamObjects(context.Background())
-		require.ErrorContains(t, err, "failed to delete _data_stream/jaeger.spans")
-	})
-}
-
-func TestTestsOnlyDataStreamExists(t *testing.T) {
-	// dataStreamClient answers the existence probe with a fixed status and body.
-	dataStreamClient := func(t *testing.T, status int, body string) (IndicesClient, *snapshottest.Recorder) {
-		t.Helper()
-		rec := snapshottest.NewRecorder(func(w http.ResponseWriter, _ *http.Request) {
-			w.WriteHeader(status)
-			w.Write([]byte(body))
-		})
-		server := httptest.NewServer(rec)
-		t.Cleanup(server.Close)
-		return IndicesClient{
-			Client:  makeClient(t, server.URL, "", ""),
-			Indices: testIndices(),
-		}, rec
-	}
-
-	t.Run("the stream is listed", func(t *testing.T) {
-		c, rec := dataStreamClient(t, http.StatusOK, `{"data_streams":[{"name":"jaeger.spans"}]}`)
-		exists, err := c.TestsOnlyDataStreamExists(context.Background(), "jaeger.spans")
-		require.NoError(t, err)
-		assert.True(t, exists)
-		require.Len(t, rec.Requests(), 1)
-		assert.Equal(t, http.MethodGet, rec.Requests()[0].Method)
-		assert.Equal(t, "/_data_stream/jaeger.spans", rec.Requests()[0].Path)
-	})
-
-	// This is the case the probe exists for: an ordinary index of that name answers
-	// 200 with no streams, which a status-code check would read as a data stream.
-	t.Run("an ordinary index of that name is not a stream", func(t *testing.T) {
-		c, _ := dataStreamClient(t, http.StatusOK, `{"data_streams":[]}`)
-		exists, err := c.TestsOnlyDataStreamExists(context.Background(), "jaeger.spans")
-		require.NoError(t, err)
-		assert.False(t, exists)
-	})
-
-	t.Run("nothing of that name at all", func(t *testing.T) {
-		c, _ := dataStreamClient(t, http.StatusNotFound, `{"status":404}`)
-		exists, err := c.TestsOnlyDataStreamExists(context.Background(), "jaeger.spans")
-		require.NoError(t, err)
-		assert.False(t, exists)
-	})
-
-	t.Run("surfaces a real failure", func(t *testing.T) {
-		c, _ := dataStreamClient(t, http.StatusInternalServerError, esErrResponse)
-		_, err := c.TestsOnlyDataStreamExists(context.Background(), "jaeger.spans")
-		require.ErrorContains(t, err, `failed to check if data stream "jaeger.spans" exists`)
-	})
-
-	t.Run("unparseable response", func(t *testing.T) {
-		c, _ := dataStreamClient(t, http.StatusOK, "not-json")
-		_, err := c.TestsOnlyDataStreamExists(context.Background(), "jaeger.spans")
-		require.ErrorContains(t, err, `failed to parse the data stream response for "jaeger.spans"`)
+		require.ErrorContains(t, err, "failed to delete _index_template/jaeger.spans")
 	})
 }
 

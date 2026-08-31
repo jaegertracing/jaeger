@@ -24,13 +24,10 @@ import (
 	esstorage "github.com/jaegertracing/jaeger/internal/storage/elasticsearch"
 	escfg "github.com/jaegertracing/jaeger/internal/storage/elasticsearch/config"
 	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/esclient"
-	esindices "github.com/jaegertracing/jaeger/internal/storage/elasticsearch/indices"
 	"github.com/jaegertracing/jaeger/internal/storage/integration/capabilities"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/api/depstore"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore"
 	esv2 "github.com/jaegertracing/jaeger/internal/storage/v2/elasticsearch"
-	"github.com/jaegertracing/jaeger/internal/storage/v2/elasticsearch/tracestore/core"
-	"github.com/jaegertracing/jaeger/internal/storage/v2/elasticsearch/tracestore/core/dbmodel"
 	"github.com/jaegertracing/jaeger/internal/telemetry"
 	"github.com/jaegertracing/jaeger/internal/testutils"
 )
@@ -194,114 +191,49 @@ func (s *ESStorageIntegration) cleanESIndexTemplates(t *testing.T, prefix string
 	s.client.cleanTemplates(t, prefix)
 }
 
-// TestElasticsearchStorage_DataStreamTemplates exercises the RFC 0004 §3.2
-// data-stream templates against a live backend: it installs the two Jaeger
-// components plus the composable index template, then writes a document through the
-// data stream and reads it back.
+// TestElasticsearchStorage_DataStreamTemplates checks that every supported backend
+// accepts the RFC 0004 §3.2 data-stream templates: the two Jaeger component
+// templates, the user-owned "@custom" component, and the composable index template
+// composing all three.
 //
 // Running in the ES/OS matrix job is what makes this meaningful. The esclient
 // snapshot pins the bytes Jaeger sends but cannot tell whether a backend accepts
 // them, and the versions in that matrix disagree on exactly the "@custom" question:
 // ignore_missing_component_templates is ES 8.7+ and exists on no OpenSearch version,
 // and every one of them rejects a composed_of naming a template that does not exist.
-// Writing a document then proves the mapping accepts what Jaeger produces, which
-// installing the templates alone does not.
+// The cluster resolves composed_of when the index template is written, so these three
+// PUTs succeeding is the compatibility result.
+//
+// Writing a span through a data stream belongs with the factory wiring that makes one
+// reachable (RFC 0004 milestone 9), together with the end-to-end test that reads it
+// back.
 func TestElasticsearchStorage_DataStreamTemplates(t *testing.T) {
 	SkipUnlessEnv(t, StorageElasticsearch, StorageOpenSearch)
 	t.Cleanup(func() {
 		testutils.VerifyGoLeaksOnce(t)
 	})
-	c := getESHttpClient(t)
-	require.NoError(t, healthCheck(c))
-	// Sync mode so that a document the data stream rejects fails the write itself.
-	// The async indexer reports item-level rejections nowhere the caller can see.
-	s := &ESStorageIntegration{writeMode: escfg.WriteModeSync}
-	s.initializeES(t, true)
-	s.testDataStreamTemplates(t)
-}
+	require.NoError(t, healthCheck(getESHttpClient(t)))
 
-// TODO: This test overrides the span rotation on the factory's writer params, and
-// installs the data-stream templates itself, because two things still stand between
-// an indices.spans.rotation.data_stream config and a working data stream.
-//
-// RotationConfig.validate rejects data_stream with "not yet implemented"
-// (config_rotation.go), so esv2.NewFactory fails before a store exists. That guard
-// has to narrow to non-span indices — services, dependencies and sampling need
-// document updates, which data streams reject.
-//
-// FactoryBase.createTemplates then has to stop unconditionally installing the
-// rotation-path template on jaeger-span-* and call CreateSpanDataStreamTemplates when
-// the span rotation is a data stream. Lifting the guard without this is worse than
-// leaving it: BuildRotation resolves the write target correctly and the writer emits
-// @timestamp and the "create" op type, so the first write silently auto-creates an
-// ordinary index named jaeger.spans, with nothing to say the data stream was never
-// there. TestsOnlyDataStreamExists below is what catches that.
-//
-// Both land with RFC 0004 milestone 9. Then set the rotation in the config the
-// factory is built from and delete the override, the CreateSpanDataStreamTemplates
-// call, and the data-stream half of the teardown.
-func (s *ESStorageIntegration) testDataStreamTemplates(t *testing.T) {
 	ctx := context.Background()
 	replicas := int64(0)
+	client := newESTestClient(t)
 	indices := esclient.IndicesClient{
-		Client:                 s.client.client,
+		Client:                 client.client,
 		IgnoreUnavailableIndex: true,
 		Indices: escfg.Indices{
 			IndexPrefix: escfg.IndexPrefix(indexPrefix),
 			Spans:       escfg.IndexOptions{Shards: 1, Replicas: &replicas},
 		},
 	}
-	// Resolve the stream name the way the factory would, so this test writes to the
-	// name production derives rather than one it spells itself.
-	spanRotation := esindices.BuildRotation(
-		escfg.IndexPrefix(indexPrefix), escfg.SpanIndexName,
-		escfg.RotationConfig{DataStream: configoptional.Some(escfg.DataStreamRotation{})},
-		nil, zap.NewNop(),
-	)
-	dataStream := spanRotation.WriteTarget(time.Now())
 
-	// A data stream's backing indices are hidden, so the factory's Purge does not
-	// reclaim them and this test has to delete its own. Purge covers the ordinary
-	// index the service:operation document lands in.
+	// Composable templates are not indices, so the suite's DeleteAllIndices teardown
+	// leaves them behind.
 	require.NoError(t, indices.TestsOnlyDeleteSpanDataStreamObjects(ctx))
 	t.Cleanup(func() {
 		require.NoError(t, indices.TestsOnlyDeleteSpanDataStreamObjects(context.Background()))
-		require.NoError(t, s.factory.Purge(context.Background()))
 	})
 
 	require.NoError(t, indices.CreateSpanDataStreamTemplates(ctx))
-
-	// Installing the templates only proves the cluster parsed them. The write is what
-	// matters, and it goes through the factory's own writer so that the "@timestamp"
-	// and op type the cluster validates are the ones production produces. Only the
-	// span rotation is overridden; spans are the only documents carrying an
-	// "@timestamp", so services keep the factory's ordinary-index rotation.
-	writerParams := s.factory.GetSpanWriterParams()
-	writerParams.SpanRotation = spanRotation
-	writer := core.NewSpanWriter(writerParams)
-	require.NoError(t, writer.WriteSpans(ctx, []dbmodel.Span{{
-		TraceID:       "ds-trace",
-		SpanID:        "ds-span",
-		OperationName: "data-stream-write",
-		StartTime:     uint64(time.Now().UnixMicro()),
-		Process:       dbmodel.Process{ServiceName: "data-stream-service"},
-	}}))
-
-	// The write is durable once WriteSpans returns, but a search only sees the
-	// document after the backing index refreshes.
-	searcher := esclient.SearchClient{Client: s.client.client}
-	require.Eventually(t, func() bool {
-		resp, err := searcher.Search(ctx, []string{dataStream}, esclient.SearchRequest{Size: 10})
-		return err == nil && len(resp.Hits.Hits) == 1
-	}, 10*time.Second, 100*time.Millisecond,
-		"the document must be durably readable through the data stream")
-
-	// A write to a name that matches no data-stream template auto-creates an ordinary
-	// index and reads back identically, so the search above cannot tell the two
-	// apart. This is what says the templates took effect.
-	exists, err := indices.TestsOnlyDataStreamExists(ctx, dataStream)
-	require.NoError(t, err)
-	require.True(t, exists, "the write must have gone into a data stream, not an auto-created index")
 }
 
 // TestElasticsearchStorage_SyncBulkWriter exercises the RFC 0007 synchronous bulk

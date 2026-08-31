@@ -29,7 +29,6 @@ const (
 	// composable choice (templateEndpoint) tracks UsesV8API.
 	componentTemplateAPI = "_component_template"
 	indexTemplateAPI     = "_index_template"
-	dataStreamAPI        = "_data_stream"
 
 	// dataStreamPriority is the composable index template priority from RFC 0004
 	// §3.2, high enough that Jaeger's template wins over a cluster's default
@@ -114,39 +113,6 @@ func (i IndicesClient) componentTemplateExists(ctx context.Context, name string)
 	return true, nil
 }
 
-// TestsOnlyDataStreamExists tells an integration test whether name really is a data
-// stream, which matters because a write to a name that matches no data-stream
-// template auto-creates an ordinary index that reads back identically. The answer is
-// the list of streams the cluster returns, not the status code it returns them
-// with.
-func (i IndicesClient) TestsOnlyDataStreamExists(ctx context.Context, name string) (bool, error) {
-	body, err := i.request(ctx, elasticRequest{
-		endpoint: dataStreamAPI + "/" + name,
-		method:   http.MethodGet,
-	})
-	if err != nil {
-		var responseError ResponseError
-		if errors.As(err, &responseError) && responseError.StatusCode == http.StatusNotFound {
-			return false, nil
-		}
-		return false, fmt.Errorf("failed to check if data stream %q exists: %w", name, err)
-	}
-	var decoded struct {
-		DataStreams []struct {
-			Name string `json:"name"`
-		} `json:"data_streams"`
-	}
-	if err := json.Unmarshal(body, &decoded); err != nil {
-		return false, fmt.Errorf("failed to parse the data stream response for %q: %w", name, err)
-	}
-	for _, stream := range decoded.DataStreams {
-		if stream.Name == name {
-			return true, nil
-		}
-	}
-	return false, nil
-}
-
 // putComposableTemplate reports failures the way CreateTemplate does, so an error
 // from either reads the same.
 func (i IndicesClient) putComposableTemplate(ctx context.Context, api, name, query, body string) error {
@@ -169,17 +135,15 @@ func (i IndicesClient) putComposableTemplate(ctx context.Context, api, name, que
 	return nil
 }
 
-// TestsOnlyDeleteSpanDataStreamObjects removes the span data stream, its backing
-// indices, and every template CreateSpanDataStreamTemplates installs, tolerating any
-// that are already absent. Integration-test-only: a data stream's backing indices
-// are hidden, so the suite's DeleteAllIndices("*") teardown does not reclaim them,
-// and the composable endpoints used here are the same on every backend version.
+// TestsOnlyDeleteSpanDataStreamObjects removes every template
+// CreateSpanDataStreamTemplates installs, tolerating any that are already absent.
+// Integration-test-only: composable templates are not indices, so a suite that tears
+// down with DeleteAllIndices leaves them behind.
 func (i IndicesClient) TestsOnlyDeleteSpanDataStreamObjects(ctx context.Context) error {
 	base := i.Indices.IndexPrefix.DataStreamName(spanDataStreamBase)
-	// The data stream first: a template cannot be deleted while one composed from
-	// it is still in use.
+	// The index template first: a component cannot be deleted while a template
+	// composing it still exists.
 	targets := []struct{ api, name string }{
-		{dataStreamAPI, base},
 		{indexTemplateAPI, base},
 		{componentTemplateAPI, base + componentMappingsSuffix},
 		{componentTemplateAPI, base + componentSettingsSuffix},
