@@ -8,7 +8,13 @@ const (
 	linkAttributesTest     = "Link_Attributes"
 	findTraceSummariesTest = "FindTraceSummaries"
 	structuredFilterTest   = "FindTracesWithFilter"
-	attributeRefusedTest   = "ordering_an_attribute_is_refused_where_it_is_indexed_as_text"
+
+	// The battery pairs these two: ordering an attribute is answered where the index carries the
+	// typed-attribute mapping (RFC 0015) and refused where it does not, so exactly one of them runs
+	// for any deployment. Elasticsearch and OpenSearch skip the refusal, because the suites that
+	// run the battery enable the mapping; WithoutTypedAttributeIndexing swaps them back.
+	attributeOrderingTest = "ordering_compares_a_numeric_attribute_as_a_number"
+	attributeRefusedTest  = "ordering_an_attribute_is_refused_where_it_is_indexed_as_text"
 )
 
 // Capabilities records what a storage backend *cannot* do in the integration suite. Every
@@ -50,6 +56,25 @@ func (c Capabilities) GetDependenciesMissingSource() bool {
 // SkipList returns a list of tests that should be skipped for this storage backend.
 func (c Capabilities) SkipList() []string {
 	return c.skipList
+}
+
+// WithoutTypedAttributeIndexing declares a deployment reading indices that were created without the
+// typed-attribute mapping (RFC 0015), so that ordering an attribute is refused rather than answered.
+// It swaps which of the battery's two paired ordering cases runs.
+//
+// An index template reaches only indices created after it is installed, so this is not the same
+// question as whether the binary has the feature gate on. A read phase whose gate is on, over an
+// index a previous phase created with the gate off, still has no numeric sub-field to range over —
+// which is why the backward-compatibility suites use this and the ordinary e2e suites do not.
+func (c Capabilities) WithoutTypedAttributeIndexing() Capabilities {
+	swapped := make([]string, 0, len(c.skipList)+1)
+	for _, test := range c.skipList {
+		if test != attributeRefusedTest {
+			swapped = append(swapped, test)
+		}
+	}
+	c.skipList = append(swapped, attributeOrderingTest)
+	return c
 }
 
 // Memory returns the capabilities for the in-process memory storage backend.

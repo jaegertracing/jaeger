@@ -42,7 +42,7 @@ func TestOpenSearchStorage_TwoPhase(t *testing.T) {
 		s := &E2EStorageIntegration{
 			ConfigFile:   "../../config-opensearch.yaml",
 			BinaryName:   binaryName,
-			FeatureGates: structuredFilterGates,
+			FeatureGates: elasticsearchFilterGates,
 			StorageIntegration: integration.StorageIntegration{
 				CleanUp:      func(*testing.T) {},
 				Fixtures:     fixtures,
@@ -96,8 +96,10 @@ func TestOpenSearchStorage_BackwardCompatibility(t *testing.T) {
 		ConfigFile:   "../../config-opensearch.yaml",
 		FeatureGates: structuredFilterGates,
 		StorageIntegration: integration.StorageIntegration{
-			Fixtures:     integration.LoadAndParseQueryTestCases(t, "fixtures/queries_es.json"),
-			Capabilities: capabilities.OpenSearch(),
+			Fixtures: integration.LoadAndParseQueryTestCases(t, "fixtures/queries_es.json"),
+			// The write phase ran the earlier binary, which knows nothing of the typed-attribute
+			// mapping, and an index template reaches only indices created after it is installed.
+			Capabilities: capabilities.OpenSearch().WithoutTypedAttributeIndexing(),
 		},
 	})
 }
