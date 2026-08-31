@@ -205,6 +205,22 @@ func TestCreateTraceReader(t *testing.T) {
 	require.NotNil(t, reader)
 }
 
+func TestCreateDependencyReader(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Write(mockEsServerResponse)
+	}))
+	defer server.Close()
+
+	cfg := escfg.Configuration{Servers: []string{server.URL}, LogLevel: "error"}
+	factory, err := NewFactory(context.Background(), cfg, telemetry.NoopSettings(), nil)
+	require.NoError(t, err)
+	defer factory.Close()
+
+	reader, err := factory.CreateDependencyReader()
+	require.NoError(t, err)
+	require.NotNil(t, reader)
+}
+
 func TestEnsureRequiredFields_AllAsFieldsTrue(t *testing.T) {
 	originalCfg := escfg.Configuration{
 		Tags: escfg.TagsAsFields{

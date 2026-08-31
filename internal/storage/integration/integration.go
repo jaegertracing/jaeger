@@ -8,7 +8,6 @@ import (
 	"cmp"
 	"context"
 	"embed"
-	"encoding/binary"
 	"encoding/json"
 	"fmt"
 	"math"
@@ -80,6 +79,16 @@ type StorageIntegration struct {
 	// CleanUp() should ensure that the storage backend is clean before another test.
 	// called either before or after each test, and should be idempotent
 	CleanUp func(t *testing.T)
+
+	// Corpus is the data WriteCorpus writes and AssertCorpus reads back. RunSpanStoreTests builds
+	// it; a suite that runs the two phases against different Jaeger processes builds it once and
+	// sets it on both, so that the reader compares against the fixture timestamps the writer wrote.
+	Corpus *Corpus
+}
+
+// requireCorpus fails with the reason rather than a nil dereference somewhere further along.
+func (s *StorageIntegration) requireCorpus(t *testing.T) {
+	require.NotNil(t, s.Corpus, "Corpus must be provided, or built by RunSpanStoreTests")
 }
 
 // === SpanStore Integration Tests ===
@@ -187,10 +196,8 @@ func (*StorageIntegration) waitForCondition(t *testing.T, predicate func(t *test
 
 func (s *StorageIntegration) testGetServices(t *testing.T) {
 	s.skipIfNeeded(t)
-	defer s.cleanUp(t)
 
-	expected := []string{"example-service-1", "example-service-2", "example-service-3"}
-	s.loadParseAndWriteExampleTrace(t)
+	expected := s.Corpus.Services()
 
 	var actual []string
 	found := s.waitForCondition(t, func(t *testing.T) bool {
@@ -233,20 +240,16 @@ func (s *StorageIntegration) testGetServices(t *testing.T) {
 	}
 }
 
-func (s *StorageIntegration) helperTestGetTrace(
+// assertTraceByID reads one trace of the corpus back by ID and requires the backend to return at
+// least every span that was written.
+func (s *StorageIntegration) assertTraceByID(
 	t *testing.T,
-	traceSize int,
-	duplicateCount int,
-	testName string,
+	expected ptrace.Traces,
 	validator func(t *testing.T, actual ptrace.Traces),
 ) {
 	s.skipIfNeeded(t)
-	defer s.cleanUp(t)
 
-	t.Logf("Testing %s...", testName)
-
-	expected := s.writeLargeTraceWithDuplicateSpanIds(t, traceSize, duplicateCount)
-	expectedTraceID := expected.ResourceSpans().At(0).ScopeSpans().At(0).Spans().At(0).TraceID()
+	expectedTraceID := jptrace.GetTraceID(expected)
 
 	actual := ptrace.NewTraces()
 	found := s.waitForCondition(t, func(_ *testing.T) bool {
@@ -276,7 +279,7 @@ func (s *StorageIntegration) helperTestGetTrace(
 }
 
 func (s *StorageIntegration) testGetLargeTrace(t *testing.T) {
-	s.helperTestGetTrace(t, 10008, 0, "Large Trace over 10K without duplicates", nil)
+	s.assertTraceByID(t, s.Corpus.Large, nil)
 }
 
 func (s *StorageIntegration) testGetTraceWithDuplicates(t *testing.T) {
@@ -291,12 +294,11 @@ func (s *StorageIntegration) testGetTraceWithDuplicates(t *testing.T) {
 		}
 		assert.Positive(t, duplicateCount, "Duplicate SpanIDs should be present in the trace")
 	}
-	s.helperTestGetTrace(t, 200, 20, "Trace with duplicate span IDs", validator)
+	s.assertTraceByID(t, s.Corpus.Duplicates, validator)
 }
 
 func (s *StorageIntegration) testGetOperations(t *testing.T) {
 	s.skipIfNeeded(t)
-	defer s.cleanUp(t)
 
 	var expected []tracestore.Operation
 	if s.Capabilities.GetOperationsMissingSpanKind() {
@@ -312,7 +314,6 @@ func (s *StorageIntegration) testGetOperations(t *testing.T) {
 			{Name: "example-operation-4", SpanKind: "client"},
 		}
 	}
-	s.loadParseAndWriteExampleTrace(t)
 
 	var actual []tracestore.Operation
 	found := s.waitForCondition(t, func(t *testing.T) bool {
@@ -338,10 +339,9 @@ func (s *StorageIntegration) testGetOperations(t *testing.T) {
 
 func (s *StorageIntegration) testGetTrace(t *testing.T) {
 	s.skipIfNeeded(t)
-	defer s.cleanUp(t)
 
-	expected := s.loadParseAndWriteExampleTrace(t)
-	expectedTraceID := expected.ResourceSpans().At(0).ScopeSpans().At(0).Spans().At(0).TraceID()
+	expected := s.Corpus.Example
+	expectedTraceID := jptrace.GetTraceID(expected)
 
 	actual := ptrace.Traces{} // no spans
 	found := s.waitForCondition(t, func(t *testing.T) bool {
@@ -363,7 +363,7 @@ func (s *StorageIntegration) testGetTrace(t *testing.T) {
 	}
 
 	t.Run("NotFound error", func(t *testing.T) {
-		fakeTraceID := pcommon.TraceID{0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1}
+		fakeTraceID := s.Corpus.AbsentTraceID(t)
 		iterTraces := s.TraceReader.GetTraces(context.Background(), tracestore.GetTraceParams{TraceID: fakeTraceID})
 		traces, err := jiter.CollectWithErrors(jptrace.AggregateTraces(iterTraces))
 		require.NoError(t, err) // v2 TraceReader no longer returns an error for not found
@@ -373,32 +373,12 @@ func (s *StorageIntegration) testGetTrace(t *testing.T) {
 
 func (s *StorageIntegration) testFindTraces(t *testing.T) {
 	s.skipIfNeeded(t)
-	defer s.cleanUp(t)
 
-	// Note: all cases include ServiceName + StartTime range
-	s.Fixtures = append(s.Fixtures, LoadAndParseQueryTestCases(t, "fixtures/queries.json")...)
-
-	// Each query test case only specifies matching traces, but does not provide counterexamples.
-	// To improve coverage we get all possible traces and store all of them before running queries.
-	allTraceFixtures := make(map[string]ptrace.Traces)
-	expectedTracesPerTestCase := make([][]ptrace.Traces, 0, len(s.Fixtures))
-	for _, queryTestCase := range s.Fixtures {
-		var expected []ptrace.Traces
-		for _, traceFixture := range queryTestCase.ExpectedFixtures {
-			trace, ok := allTraceFixtures[traceFixture]
-			if !ok {
-				trace = s.getTraceFixture(t, traceFixture)
-				s.writeTrace(t, trace)
-				allTraceFixtures[traceFixture] = trace
-			}
-			expected = append(expected, trace)
-		}
-		expectedTracesPerTestCase = append(expectedTracesPerTestCase, expected)
-	}
-	for i, queryTestCase := range s.Fixtures {
+	expectations := s.Corpus.QueryExpectations(t)
+	for i, queryTestCase := range s.Corpus.Queries {
 		t.Run(queryTestCase.Caption, func(t *testing.T) {
 			s.skipIfNeeded(t)
-			expected := expectedTracesPerTestCase[i]
+			expected := expectations[i]
 			actual := s.findTracesByQuery(t, queryTestCase.Query.ToTraceQueryParams(t), expected)
 			CompareTraceSlices(t, expected, actual)
 		})
@@ -407,9 +387,8 @@ func (s *StorageIntegration) testFindTraces(t *testing.T) {
 
 func (s *StorageIntegration) testFindTraceSummaries(t *testing.T) {
 	s.skipIfNeeded(t)
-	defer s.cleanUp(t)
 
-	trace := s.loadParseAndWriteExampleTrace(t)
+	trace := s.Corpus.Example
 
 	// Derive the expected trace ID, time range, and service name from the written trace.
 	expectedTraceID := jptrace.GetTraceID(trace)
@@ -487,31 +466,14 @@ func (s *StorageIntegration) testFindTracesWithoutServiceName(t *testing.T) {
 	if s.Capabilities.SearchRequiresServiceName() {
 		t.Skip("this storage backend requires a service name to search")
 	}
-	defer s.cleanUp(t)
 
-	const marker = "rfc0013.cross.service"
-	start := time.Now().Add(-time.Hour)
-	expected := make([]ptrace.Traces, 0, 2)
-	for i, service := range []string{"cross-service-a", "cross-service-b"} {
-		trace := ptrace.NewTraces()
-		rs := trace.ResourceSpans().AppendEmpty()
-		rs.Resource().Attributes().PutStr(otelsemconv.ServiceNameKey, service)
-		span := rs.ScopeSpans().AppendEmpty().Spans().AppendEmpty()
-		span.SetTraceID(pcommon.TraceID{byte(i + 1), 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16})
-		span.SetSpanID(pcommon.SpanID{byte(i + 1), 2, 3, 4, 5, 6, 7, 8})
-		span.SetName("cross-service-op")
-		span.SetStartTimestamp(pcommon.NewTimestampFromTime(time.Now()))
-		span.SetEndTimestamp(pcommon.NewTimestampFromTime(time.Now().Add(time.Millisecond)))
-		span.Attributes().PutStr(marker, "yes")
-		s.writeTrace(t, trace)
-		expected = append(expected, trace)
-	}
+	expected := s.Corpus.CrossService
 
 	attributes := pcommon.NewMap()
-	attributes.PutStr(marker, "yes")
+	attributes.PutStr(crossServiceMarker, "yes")
 	query := &tracestore.TraceQueryParams{
 		Attributes:   attributes,
-		StartTimeMin: start,
+		StartTimeMin: time.Now().Add(-time.Hour),
 		StartTimeMax: time.Now().Add(time.Hour),
 		SearchDepth:  10,
 	}
@@ -566,50 +528,7 @@ func (s *StorageIntegration) writeTrace(t *testing.T, trace ptrace.Traces) {
 	t.Logf("%-23s Finished writing trace with %d spans", time.Now().Format("2006-01-02 15:04:05.999"), trace.SpanCount())
 }
 
-func (s *StorageIntegration) loadParseAndWriteExampleTrace(t *testing.T) ptrace.Traces {
-	trace := s.getTraceFixture(t, "example_trace")
-	s.writeTrace(t, trace)
-	return trace
-}
-
-func (s *StorageIntegration) writeLargeTraceWithDuplicateSpanIds(
-	t *testing.T,
-	totalCount int,
-	dupFreq int,
-) ptrace.Traces {
-	trace := s.getTraceFixture(t, "example_trace")
-	repeatedResourceSpan := trace.ResourceSpans().At(0)
-	repeatedScopeSpan := repeatedResourceSpan.ScopeSpans().At(0)
-	repeatedSpans := repeatedScopeSpan.Spans()
-	repeatedSpan := repeatedSpans.At(0)
-	newResourceSpan := ptrace.NewResourceSpans()
-	newScopeSpan := newResourceSpan.ScopeSpans().AppendEmpty()
-	repeatedResourceSpan.Resource().CopyTo(newResourceSpan.Resource())
-	repeatedScopeSpan.Scope().CopyTo(newScopeSpan.Scope())
-	newSpans := newScopeSpan.Spans()
-	newSpans.EnsureCapacity(totalCount)
-	for i := range totalCount {
-		newSpan := ptrace.NewSpan()
-		repeatedSpan.CopyTo(newSpan)
-		switch {
-		case dupFreq > 0 && i > 0 && i%dupFreq == 0:
-			newSpan.SetSpanID(repeatedSpan.SpanID())
-		default:
-			var spanId [8]byte
-			binary.BigEndian.PutUint64(spanId[:], uint64(i+1))
-			newSpan.SetSpanID(spanId)
-		}
-		newSpan.SetStartTimestamp(pcommon.NewTimestampFromTime(newSpan.StartTimestamp().AsTime().Add(time.Second * time.Duration(i+1))))
-		newSpan.SetEndTimestamp(pcommon.NewTimestampFromTime(newSpan.EndTimestamp().AsTime().Add(time.Second * time.Duration(i+1))))
-		newSpan.CopyTo(newSpans.AppendEmpty())
-	}
-	newTrace := ptrace.NewTraces()
-	newResourceSpan.CopyTo(newTrace.ResourceSpans().AppendEmpty())
-	s.writeTrace(t, newTrace)
-	return newTrace
-}
-
-func (*StorageIntegration) getTraceFixture(t *testing.T, fixture string) ptrace.Traces {
+func getTraceFixture(t *testing.T, fixture string) ptrace.Traces {
 	fileName := fmt.Sprintf("fixtures/traces/%s.json", fixture)
 	return loadOTLPTrace(t, fileName)
 }
@@ -797,8 +716,24 @@ func (s *StorageIntegration) RunAll(t *testing.T) {
 	t.Run("GetLatestProbability", s.testGetLatestProbability)
 }
 
-// RunSpanStoreTests runs only span related integration tests
+// RunSpanStoreTests runs only span related integration tests. It writes the corpus once and then
+// only reads, so the backend holds every dataset for the whole run and each assertion has to
+// discriminate its own data rather than rely on an empty store.
 func (s *StorageIntegration) RunSpanStoreTests(t *testing.T) {
+	s.Corpus = BuildCorpus(t, s.Fixtures, s.Capabilities)
+	// Deferred rather than registered with t.Cleanup, because a suite may own resources that
+	// CleanUp needs and tear them down in a defer of its own once this returns — the gRPC suite
+	// closes its factory there, and a t.Cleanup would run after that and clean up through a closed
+	// connection.
+	defer s.cleanUp(t)
+	s.WriteCorpus(t)
+	s.AssertCorpus(t)
+}
+
+// AssertCorpus reads back a corpus that is already in the backend and writes nothing, so it can
+// run against a different Jaeger process than the one that wrote it.
+func (s *StorageIntegration) AssertCorpus(t *testing.T) {
+	s.requireCorpus(t)
 	t.Run("GetServices", s.testGetServices)
 	t.Run("GetOperations", s.testGetOperations)
 	t.Run("GetTrace", s.testGetTrace)

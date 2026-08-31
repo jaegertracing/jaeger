@@ -25,6 +25,7 @@ import (
 	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerquery/querysvc"
+	"github.com/jaegertracing/jaeger/components/extension/jaegerquery/queryinterceptor"
 	"github.com/jaegertracing/jaeger/internal/proto/api_v3"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/api/spanstore"
 	dependencystoremocks "github.com/jaegertracing/jaeger/internal/storage/v2/api/depstore/mocks"
@@ -114,6 +115,10 @@ func TestHTTPGatewayTryHandleError(t *testing.T) {
 	assert.True(t, gw.tryHandleError(w, querysvc.ErrServiceNameRequired, http.StatusInternalServerError))
 	assert.Equal(t, http.StatusBadRequest, w.Code, "sets status code to 400")
 	assert.Contains(t, w.Body.String(), "requires a service name", "explains the limitation")
+
+	w = httptest.NewRecorder()
+	assert.True(t, gw.tryHandleError(w, fmt.Errorf("denied: %w", queryinterceptor.ErrAccessDenied), http.StatusInternalServerError))
+	assert.Equal(t, http.StatusForbidden, w.Code, "ErrAccessDenied maps to 403")
 
 	logger, log := testutils.NewLogger()
 	gw.Logger = logger

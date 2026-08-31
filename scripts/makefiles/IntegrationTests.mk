@@ -37,7 +37,7 @@ jaeger-v2-storage-integration-test: $(GOTESTSUM) $(GOCOVMERGE)
 	# Expire tests results for jaeger storage integration tests since the environment
 	# might have changed even though the code remains the same.
 	go clean -testcache
-	JAEGER_BINARY_COVERDIR=$(BINARY_COVERDIR) $(GOTESTSUM) $(INTEGRATION_TEST_FLAGS) -- $(RACE) -covermode=atomic -coverprofile $(COVEROUT) $(JAEGER_V2_STORAGE_PKGS)
+	JAEGER_BINARY_COVERDIR=$(BINARY_COVERDIR) $(GOTESTSUM) $(INTEGRATION_TEST_FLAGS) -- $(RACE) $(EXTRA_TEST_ARGS) -covermode=atomic -coverprofile $(COVEROUT) $(JAEGER_V2_STORAGE_PKGS)
 	# Require both files. The meta file is written when the instrumented binary
 	# starts, the counters only when it exits normally, so an abnormal exit leaves
 	# meta alone. covdata is happy to convert that: it exits 0 and emits a profile
@@ -55,6 +55,21 @@ jaeger-v2-storage-integration-test: $(GOTESTSUM) $(GOCOVMERGE)
 	else \
 		echo "WARNING: no binary coverage counters in $(BINARY_COVERDIR); did the binary exit cleanly?"; \
 	fi
+
+# Runs only the backward-compatibility suites out of the jaeger-v2 storage tests. Those suites
+# write the corpus with a second Jaeger built from an earlier revision, so they need JAEGER_OLD_BINARY
+# and JAEGER_OLD_CONFIG_DIR to name that binary and that revision's cmd/jaeger directory. Without
+# them each suite skips itself, so the check below is what keeps a workflow that forgot to set them
+# from reporting success having tested nothing.
+.PHONY: jaeger-v2-backward-compatibility-test
+jaeger-v2-backward-compatibility-test:
+ifndef JAEGER_OLD_BINARY
+	$(error JAEGER_OLD_BINARY must point at a Jaeger binary built from an earlier revision)
+endif
+ifndef JAEGER_OLD_CONFIG_DIR
+	$(error JAEGER_OLD_CONFIG_DIR must point at the cmd/jaeger directory of that earlier revision)
+endif
+	$(MAKE) jaeger-v2-storage-integration-test EXTRA_TEST_ARGS='-run BackwardCompatibility'
 
 .PHONY: storage-integration-test
 storage-integration-test: $(GOTESTSUM)
