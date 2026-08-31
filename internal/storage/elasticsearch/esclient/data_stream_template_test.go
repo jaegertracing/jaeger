@@ -113,8 +113,8 @@ func TestSpanDataStreamComponentsMatchRotationTemplate(t *testing.T) {
 }
 
 // TestRenderMappingsComponentDoesNotMutateInput pins that adding "@timestamp" stays
-// inside the component body. renderNeutralBody is shared with the rotation path, so a
-// component built by mutating the rendered mappings in place would leak a
+// inside the component body. renderBackendNeutralBody is shared with the rotation
+// path, so a component built by mutating the rendered mappings in place would leak a
 // data-stream-only field into whatever else reads that body.
 func TestRenderMappingsComponentDoesNotMutateInput(t *testing.T) {
 	raw := json.RawMessage(`{"properties":{"traceID":{"type":"keyword"}}}`)

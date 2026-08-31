@@ -132,12 +132,11 @@ type innerParams struct {
 	Replicas    int64
 }
 
-// renderNeutralBody executes the embedded template for one mapping type and returns
-// its top-level fields: settings, mappings, and aliases where the template emits
-// them. Those fields are the part of an index template that reads the same on every
-// backend version, so a caller wraps them in whatever envelope its own target
-// needs.
-func renderNeutralBody(m MappingType, indices config.Indices, lifecycle lifecycleParams) (map[string]json.RawMessage, error) {
+// renderBackendNeutralBody executes the embedded template for one mapping type and
+// returns its top-level fields: settings, mappings, and aliases where the template
+// emits them. Those fields read the same on every backend version, so a caller wraps
+// them in whatever envelope its own target needs.
+func renderBackendNeutralBody(m MappingType, indices config.Indices, lifecycle lifecycleParams) (map[string]json.RawMessage, error) {
 	file := m.file()
 	if file == "" {
 		return nil, fmt.Errorf("unknown index template mapping type %d", m)
@@ -175,7 +174,7 @@ func renderNeutralBody(m MappingType, indices config.Indices, lifecycle lifecycl
 // template for an explicitly-requested version.
 func RenderIndexTemplate(m MappingType, indices config.Indices, useILM bool, ilmPolicyName string, version es.BackendVersion) (string, error) {
 	prefix := indices.IndexPrefix.Apply("")
-	inner, err := renderNeutralBody(m, indices, lifecycleParams{
+	inner, err := renderBackendNeutralBody(m, indices, lifecycleParams{
 		UseILM:        useILM,
 		ILMPolicyName: ilmPolicyName,
 		IsOpenSearch:  version.IsOpenSearch(),

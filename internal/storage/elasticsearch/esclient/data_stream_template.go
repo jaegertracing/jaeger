@@ -213,7 +213,7 @@ func (i IndicesClient) deleteIfPresent(ctx context.Context, api, name string) er
 // renders name jaeger-span-write as their rollover alias, which a data stream must
 // not inherit; the stream's own policy is attached separately.
 func renderSpanDataStreamTemplates(indices config.Indices) ([]dataStreamTemplate, error) {
-	inner, err := renderNeutralBody(SpanMapping, indices, lifecycleParams{})
+	inner, err := renderBackendNeutralBody(SpanMapping, indices, lifecycleParams{})
 	if err != nil {
 		return nil, err
 	}

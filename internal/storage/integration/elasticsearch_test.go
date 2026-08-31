@@ -213,87 +213,69 @@ func TestElasticsearchStorage_DataStreamTemplates(t *testing.T) {
 	})
 	c := getESHttpClient(t)
 	require.NoError(t, healthCheck(c))
-	s := &ESStorageIntegration{}
+	// Sync mode so that a document the data stream rejects fails the write itself.
+	// The async indexer reports item-level rejections nowhere the caller can see.
+	s := &ESStorageIntegration{writeMode: escfg.WriteModeSync}
 	s.initializeES(t, true)
 	s.testDataStreamTemplates(t)
 }
 
-// TODO: This test assembles the storage layer by hand — an IndicesClient, a
-// SpanWriter and both rotations — where every other test in this file gets its store
-// from esv2.NewFactory. That is wrong for an integration test: it duplicates
-// FactoryBase.GetSpanWriterParams, and it has already drifted from it once, so the
-// test can keep passing while writing through a writer production would never build.
+// TODO: This test overrides the span rotation on the factory's own writer params
+// instead of configuring indices.spans.rotation.data_stream, because the factory
+// refuses that configuration: RotationConfig.validate rejects data_stream with "not
+// yet implemented" (config_rotation.go), so esv2.NewFactory fails before a store
+// exists.
 //
-// It is not a shortcut. The factory refuses this configuration outright:
-// RotationConfig.validate rejects data_stream with "not yet implemented"
-// (config_rotation.go), so esv2.NewFactory fails before any store exists. The only
-// thing actually missing behind that guard is one branch in
+// The only thing missing behind that guard is one branch in
 // FactoryBase.createTemplates, which unconditionally installs the rotation-path
-// template on jaeger-span-* and needs to call CreateSpanDataStreamTemplates instead
-// when the span rotation is a data stream. Everything else already handles data
-// streams: BuildRotation resolves the config, the writer emits @timestamp and the
-// "create" op type, and ReadTargets returns the stream name.
+// template on jaeger-span-* and needs to call CreateSpanDataStreamTemplates when the
+// span rotation is a data stream. Everything else already handles data streams:
+// BuildRotation resolves the config, the writer emits @timestamp and the "create" op
+// type, and ReadTargets returns the stream name.
 //
-// So this must go away as soon as RFC 0004 milestone 9 lands that branch and narrows
-// the guard to non-span indices. Rewrite this test to configure
-// indices.spans.rotation.data_stream and take its writer from the factory, and delete
-// the hand assembly below.
+// So this override must go as soon as RFC 0004 milestone 9 lands that branch and
+// narrows the guard to non-span indices. Set the rotation in the config the factory
+// is built from, drop the override, and let createTemplates install the templates
+// this test installs by hand.
 func (s *ESStorageIntegration) testDataStreamTemplates(t *testing.T) {
 	ctx := context.Background()
 	replicas := int64(0)
-	indicesCfg := escfg.Indices{
-		IndexPrefix: escfg.IndexPrefix(indexPrefix),
-		Spans:       escfg.IndexOptions{Shards: 1, Replicas: &replicas},
-	}
 	indices := esclient.IndicesClient{
 		Client:                 s.client.client,
 		IgnoreUnavailableIndex: true,
-		Indices:                indicesCfg,
+		Indices: escfg.Indices{
+			IndexPrefix: escfg.IndexPrefix(indexPrefix),
+			Spans:       escfg.IndexOptions{Shards: 1, Replicas: &replicas},
+		},
 	}
-	// The span rotation is built the way the factory builds it, from a data-stream
-	// rotation config, so the stream this test writes to is the one production would
-	// derive rather than a name the test spells itself.
+	// Resolve the stream name the way the factory would, so this test writes to the
+	// name production derives rather than one it spells itself.
 	spanRotation := esindices.BuildRotation(
-		indicesCfg.IndexPrefix, escfg.SpanIndexName,
+		escfg.IndexPrefix(indexPrefix), escfg.SpanIndexName,
 		escfg.RotationConfig{DataStream: configoptional.Some(escfg.DataStreamRotation{})},
 		nil, zap.NewNop(),
 	)
 	dataStream := spanRotation.WriteTarget(time.Now())
-	// The writer below also emits a service:operation document. Its aliased rotation
-	// has no alias here, so the backend auto-creates an ordinary index under this
-	// exact name.
-	serviceIndex := indicesCfg.IndexPrefix.Apply(escfg.ServiceIndexName)
 
-	// Scoped teardown for both targets this test writes. A data stream's backing
-	// indices are hidden, so the suite's DeleteAllIndices("*") does not reclaim them,
-	// and this test never runs the shared suite that would invoke s.CleanUp.
+	// A data stream's backing indices are hidden, so the factory's Purge does not
+	// reclaim them and this test has to delete its own. Purge covers the ordinary
+	// index the service:operation document lands in.
 	require.NoError(t, indices.TestsOnlyDeleteSpanDataStreamObjects(ctx))
 	t.Cleanup(func() {
 		require.NoError(t, indices.TestsOnlyDeleteSpanDataStreamObjects(context.Background()))
-		require.NoError(t, s.client.indices.DeleteIndices(
-			context.Background(), []esclient.Index{{Index: serviceIndex}},
-		))
+		require.NoError(t, s.factory.Purge(context.Background()))
 	})
 
 	require.NoError(t, indices.CreateSpanDataStreamTemplates(ctx))
 
-	// The write is the assertion that matters: installing the templates only proves
-	// the cluster parsed them. It goes through the real SpanWriter, not a hand-built
-	// document, so the "@timestamp" and op_type the cluster validates are the ones
-	// the write path produces.
-	//
-	// Only spans carry an "@timestamp", so the service:operation rotation targets an
-	// ordinary index; a data stream would reject those documents.
-	writer := core.NewSpanWriter(core.SpanWriterParams{
-		BatchWriter:    esclient.NewSyncBulkWriter(s.client.client, 0, false, metrics.NullFactory, zap.NewNop()),
-		Logger:         zap.NewNop(),
-		MetricsFactory: metrics.NullFactory,
-		// Write-only, as in the factory: the span writer builds service documents but
-		// never reads them back.
-		ServiceOperations: core.NewServiceOperationStorage(nil, zap.NewNop(), 0),
-		SpanRotation:      spanRotation,
-		ServiceRotation:   esindices.NewAliasedRotation(serviceIndex, ""),
-	})
+	// Installing the templates only proves the cluster parsed them. The write is what
+	// matters, and it goes through the factory's own writer so that the "@timestamp"
+	// and op type the cluster validates are the ones production produces. Only the
+	// span rotation is overridden; spans are the only documents carrying an
+	// "@timestamp", so services keep the factory's ordinary-index rotation.
+	writerParams := s.factory.GetSpanWriterParams()
+	writerParams.SpanRotation = spanRotation
+	writer := core.NewSpanWriter(writerParams)
 	require.NoError(t, writer.WriteSpans(ctx, []dbmodel.Span{{
 		TraceID:       "ds-trace",
 		SpanID:        "ds-span",
@@ -302,19 +284,21 @@ func (s *ESStorageIntegration) testDataStreamTemplates(t *testing.T) {
 		Process:       dbmodel.Process{ServiceName: "data-stream-service"},
 	}}))
 
-	// A write to a name no data-stream template matches auto-creates an ordinary
-	// index and reads back exactly like a data stream, so the search below cannot
-	// tell the two apart. This is what says the templates took effect.
-	exists, err := indices.TestsOnlyDataStreamExists(ctx, dataStream)
-	require.NoError(t, err)
-	require.True(t, exists, "the write must have gone into a data stream, not an auto-created index")
-
+	// The write is durable once WriteSpans returns, but a search only sees the
+	// document after the backing index refreshes.
 	searcher := esclient.SearchClient{Client: s.client.client}
 	require.Eventually(t, func() bool {
 		resp, err := searcher.Search(ctx, []string{dataStream}, esclient.SearchRequest{Size: 10})
 		return err == nil && len(resp.Hits.Hits) == 1
 	}, 10*time.Second, 100*time.Millisecond,
 		"the document must be durably readable through the data stream")
+
+	// A write to a name that matches no data-stream template auto-creates an ordinary
+	// index and reads back identically, so the search above cannot tell the two
+	// apart. This is what says the templates took effect.
+	exists, err := indices.TestsOnlyDataStreamExists(ctx, dataStream)
+	require.NoError(t, err)
+	require.True(t, exists, "the write must have gone into a data stream, not an auto-created index")
 }
 
 // TestElasticsearchStorage_SyncBulkWriter exercises the RFC 0007 synchronous bulk
