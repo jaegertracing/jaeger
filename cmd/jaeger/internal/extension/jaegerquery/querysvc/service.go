@@ -306,9 +306,7 @@ func (qs QueryService) ArchiveTrace(ctx context.Context, query tracestore.GetTra
 	if qs.options.ArchiveTraceWriter == nil {
 		return errNoArchiveSpanStorage
 	}
-	getTracesIter := qs.GetTraces(
-		ctx, GetTraceParams{TraceIDs: []tracestore.GetTraceParams{query}},
-	)
+	getTracesIter := qs.interceptResults(ctx, qs.traceReader.GetTraces(ctx, query))
 	var (
 		found      bool
 		archiveErr error
