@@ -87,8 +87,8 @@ func TestSpanDataStreamComponentsMatchRotationTemplate(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, templates, 3)
 
-	// On ES7 the rotation template renders the neutral body at the top level, so its
-	// "settings" and "mappings" are directly comparable to the two components.
+	// The ES7 template puts "settings" and "mappings" at the top level rather than
+	// under a "template" key, so they compare directly against the two components.
 	rotation, err := RenderIndexTemplate(SpanMapping, indices, false, "", es.ElasticV7)
 	require.NoError(t, err)
 	var want struct {
@@ -171,10 +171,10 @@ func TestSpanDataStreamIndexTemplateComposesCustom(t *testing.T) {
 }
 
 func TestSpanDataStreamTemplatesErrors(t *testing.T) {
-	// A neutral body is decoded from a rendered template, so a missing half means
-	// that template lost a field. Catching it here names the field, instead of
-	// PUTting a component whose body is literally null.
-	t.Run("neutral body missing a half", func(t *testing.T) {
+	// Only an edit to jaeger-span.json can drop one of these fields. Failing here
+	// names the field that went missing, rather than PUTting a component whose body
+	// is literally null.
+	t.Run("rendered template missing settings or mappings", func(t *testing.T) {
 		for _, field := range []string{"mappings", "settings"} {
 			inner := map[string]json.RawMessage{
 				"mappings": json.RawMessage(`{"properties":{}}`),

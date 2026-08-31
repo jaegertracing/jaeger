@@ -114,20 +114,17 @@ func (m MappingType) options(indices config.Indices) config.IndexOptions {
 	}
 }
 
-// lifecycleParams are the rotation settings that differ between renderNeutralBody's
-// callers: the rotation path wires up ILM or ISM, and the data-stream path, which
-// owns no lifecycle of its own, passes the zero value. IsOpenSearch selects ISM vs
-// ILM settings and is derived from the client's own resolved version, so it never
-// crosses the API boundary.
+// lifecycleParams decide whether a template hands its indices to a rollover
+// lifecycle policy, and which engine runs it: Elasticsearch ILM, or the OpenSearch
+// index_state_management plugin. UseILM off leaves the other two unread, which is
+// how a target that manages its own rollover asks for no lifecycle settings.
 type lifecycleParams struct {
 	UseILM        bool
 	ILMPolicyName string
 	IsOpenSearch  bool
 }
 
-// innerParams are the version-independent values rendered into a neutral body.
-// renderNeutralBody fills everything but the lifecycle fields from the mapping type
-// and the index config.
+// innerParams are the values the templates in index_templates/ interpolate.
 type innerParams struct {
 	lifecycleParams
 	IndexPrefix string
@@ -135,11 +132,11 @@ type innerParams struct {
 	Replicas    int64
 }
 
-// renderNeutralBody renders a mapping type's neutral body and decodes its
-// top-level fields (settings, mappings, and optional aliases). It is the step
-// RenderIndexTemplate and the span data-stream components share: the same replica
-// check, the same template execution and the same JSON decode, so both paths fail
-// identically on the same input.
+// renderNeutralBody executes the embedded template for one mapping type and returns
+// its top-level fields: settings, mappings, and aliases where the template emits
+// them. Those fields are the part of an index template that reads the same on every
+// backend version, so a caller wraps them in whatever envelope its own target
+// needs.
 func renderNeutralBody(m MappingType, indices config.Indices, lifecycle lifecycleParams) (map[string]json.RawMessage, error) {
 	file := m.file()
 	if file == "" {

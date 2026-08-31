@@ -13,11 +13,10 @@ import (
 	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/config"
 )
 
-// Data-stream span template names. The span data stream is stored under the
-// dot-notation base name (config.IndexPrefix.DataStreamName), and Jaeger owns two
-// component templates plus the composable index template that ties them together
-// (RFC 0004 §3.2). The "@custom" component is user-owned: Jaeger creates it empty
-// when it is absent (see ensureCustomComponent) and otherwise leaves it alone.
+// Jaeger stores spans in a data stream named for the dot-notation base below, and
+// owns two component templates plus the composable index template that composes them
+// (RFC 0004 §3.2). A third component, "@custom", belongs to the user: Jaeger creates
+// it empty if the cluster has none and never writes to it again.
 const (
 	spanDataStreamBase      = "jaeger.spans"
 	componentMappingsSuffix = "@mappings"
@@ -45,8 +44,6 @@ const (
 	emptyComponentBody = `{"template":{"settings":{}}}`
 )
 
-// dataStreamTemplate is one composable object to PUT: the API path it lives under,
-// its name, and its rendered body.
 type dataStreamTemplate struct {
 	api  string
 	name string
@@ -102,7 +99,6 @@ func (i IndicesClient) ensureCustomComponent(ctx context.Context, name string) e
 	return createErr
 }
 
-// componentTemplateExists reports whether a component template exists.
 func (i IndicesClient) componentTemplateExists(ctx context.Context, name string) (bool, error) {
 	_, err := i.request(ctx, elasticRequest{
 		endpoint: componentTemplateAPI + "/" + name,
@@ -118,11 +114,11 @@ func (i IndicesClient) componentTemplateExists(ctx context.Context, name string)
 	return true, nil
 }
 
-// TestsOnlyDataStreamExists reports whether name is a data stream. Integration-test
-// only: a write to a name no data-stream template matches auto-creates an ordinary
-// index that reads back exactly like a stream, and for such an index this API
-// answers 200 with an empty list, so the streams it lists are the answer and the
-// status code is not.
+// TestsOnlyDataStreamExists tells an integration test whether name really is a data
+// stream, which matters because a write to a name that matches no data-stream
+// template auto-creates an ordinary index that reads back identically. The answer is
+// the list of streams the cluster returns, not the status code it returns them
+// with.
 func (i IndicesClient) TestsOnlyDataStreamExists(ctx context.Context, name string) (bool, error) {
 	body, err := i.request(ctx, elasticRequest{
 		endpoint: dataStreamAPI + "/" + name,
@@ -151,9 +147,8 @@ func (i IndicesClient) TestsOnlyDataStreamExists(ctx context.Context, name strin
 	return false, nil
 }
 
-// putComposableTemplate PUTs a composable component or index template body, with
-// query appended to the endpoint when it is not empty. It mirrors CreateTemplate's
-// response handling so failures read the same way.
+// putComposableTemplate reports failures the way CreateTemplate does, so an error
+// from either reads the same.
 func (i IndicesClient) putComposableTemplate(ctx context.Context, api, name, query, body string) error {
 	endpoint := api + "/" + name
 	if query != "" {
@@ -198,7 +193,6 @@ func (i IndicesClient) TestsOnlyDeleteSpanDataStreamObjects(ctx context.Context)
 	return nil
 }
 
-// deleteIfPresent DELETEs a composable object, treating a missing one as success.
 func (i IndicesClient) deleteIfPresent(ctx context.Context, api, name string) error {
 	_, err := i.request(ctx, elasticRequest{
 		endpoint: api + "/" + name,
@@ -214,10 +208,10 @@ func (i IndicesClient) deleteIfPresent(ctx context.Context, api, name string) er
 	return nil
 }
 
-// renderSpanDataStreamTemplates renders the span data-stream objects Jaeger owns.
-// The neutral body is rendered with lifecycle off (see lifecycleParams): those
-// settings carry rotation-path alias names a data stream must not inherit, and the
-// stream's own lifecycle policy is attached separately.
+// renderSpanDataStreamTemplates renders the three objects Jaeger owns for the span
+// data stream. It asks for no lifecycle settings, because the ones the rotation path
+// renders name jaeger-span-write as their rollover alias, which a data stream must
+// not inherit; the stream's own policy is attached separately.
 func renderSpanDataStreamTemplates(indices config.Indices) ([]dataStreamTemplate, error) {
 	inner, err := renderNeutralBody(SpanMapping, indices, lifecycleParams{})
 	if err != nil {
@@ -227,12 +221,11 @@ func renderSpanDataStreamTemplates(indices config.Indices) ([]dataStreamTemplate
 	return spanDataStreamTemplates(base, inner)
 }
 
-// spanDataStreamTemplates builds the objects in the order they must be created,
-// from a body the caller has already rendered.
+// spanDataStreamTemplates returns the objects in the order a cluster will accept
+// them: both components before the index template that composes them.
 func spanDataStreamTemplates(base string, inner map[string]json.RawMessage) ([]dataStreamTemplate, error) {
-	// json.RawMessage marshals an absent key as null, so a neutral body missing
-	// either half would be PUT as "mappings": null / "settings": null instead of
-	// failing here with the missing field named.
+	// A json.RawMessage that was never set marshals as null, so a template missing
+	// either field would be PUT as "mappings": null rather than named here.
 	if _, ok := inner["mappings"]; !ok {
 		return nil, errors.New("span index template has no mappings object")
 	}
