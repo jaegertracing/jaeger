@@ -84,27 +84,16 @@ Two mechanical rules for the link itself:
   request is slow and nothing in the trace errored.
 ```
 
-## Being realistic about whether it gets read
+## Whether it gets read
 
-A checkable trigger is necessary but not sufficient.
+An agent will not always open a skill, even when your trigger matches, and it is
+often right not to. If the answer is something a capable model already knows,
+reading the skill only spends context. The skills worth writing are the ones
+that change the answer, not the ones that restate it.
 
-Measured against real ACP agents, a skill the prompt does not name is frequently
-not opened at all — not because the agent failed to find it, but because a
-telemetry tool appeared to answer the question and it reasonably concluded the
-skill was unnecessary. Rewriting the index and the server instructions did not
-change that. The measurements, and what did and did not move the number, are
-recorded in [#9336](https://github.com/jaegertracing/jaeger/issues/9336).
-
-That issue also offers a prediction, so far untested: that the skills most at
-risk of being skipped are the ones whose value is correcting a plausible wrong
-answer, since those are exactly the cases where a tool looks like it has already
-answered. If it holds, it would tell you which skills need more than a good
-trigger. Treat it as a hypothesis rather than as guidance.
-
-The index routes humans reliably and agents only sometimes. Keep it accurate —
-it is how people find what exists, and how an agent that *has* opened it
-navigates — but do not treat a correct index as the thing that gets your skill
-used. Today, naming the skill in the prompt is what reliably gets it read.
+Where a skill does change the answer, naming it in the prompt is what reliably
+gets it read today. [#9336](https://github.com/jaegertracing/jaeger/issues/9336)
+tracks what has been measured about reaching them without that.
 
 ## Anatomy
 
