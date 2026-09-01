@@ -85,7 +85,7 @@ func TestOpenSearchStorage_AutoRollover(t *testing.T) {
 }
 
 func TestOpenSearchStorage_DataStream(t *testing.T) {
-	t.Skip("data_stream rotation not yet implemented (see RFC 0004 Phase 2)")
+	// See TestElasticsearchStorage_DataStream for why no setup helper is needed.
 	integration.SkipUnlessEnv(t, integration.StorageOpenSearch)
 	runRotationSmokeTest(t, "../../config-opensearch-data-stream.yaml", "opensearch", func(*testing.T) {})
 }
