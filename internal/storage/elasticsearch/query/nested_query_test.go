@@ -20,6 +20,8 @@ func TestNestedQuerySource(t *testing.T) {
 	nested := src.(map[string]any)["nested"].(map[string]any)
 	assert.Equal(t, "tags", nested["path"])
 	assert.Contains(t, nested, "query")
+	assert.Equal(t, true, nested["ignore_unmapped"],
+		"ignore_unmapped must be true to tolerate indices without nested tag mappings")
 }
 
 func TestNestedQueryPropagatesInnerError(t *testing.T) {

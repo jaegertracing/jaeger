@@ -4,8 +4,12 @@
 package query
 
 // NestedQuery runs an inner query against a nested-field path. It renders to
-// {"nested": {"path": path, "query": <inner>}}, matching what the storage layer
-// previously produced.
+// {"nested": {"path": path, "query": <inner>, "ignore_unmapped": true}},
+// matching what the storage layer previously produced.
+//
+// ignore_unmapped is set to true so that searches against indices whose
+// mapping does not contain the nested path (e.g. spans stored with
+// tags-as-fields enabled) do not return a 400 error but simply yield no hits.
 type NestedQuery struct {
 	path  string
 	query Query
@@ -23,8 +27,9 @@ func (q *NestedQuery) Source() (any, error) {
 	}
 	return map[string]any{
 		"nested": map[string]any{
-			"path":  q.path,
-			"query": inner,
+			"path":             q.path,
+			"query":            inner,
+			"ignore_unmapped": true,
 		},
 	}, nil
 }
