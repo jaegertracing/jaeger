@@ -57,8 +57,13 @@ func (r *TraceReader) GetTraces(ctx context.Context, params ...tracestore.GetTra
 		for _, trace := range dbTraces {
 			td, err := FromDBModel(trace.Spans)
 			if err != nil {
-				yield(nil, err)
-				return
+				// A single trace's conversion failure — only malformed trace/span IDs in a
+				// stored document reach here — must not abandon the rest of the batch.
+				// Surface it as a per-trace error and continue with the remaining traces.
+				if !yield(nil, err) {
+					return
+				}
+				continue
 			}
 			if !yield([]ptrace.Traces{td}, nil) {
 				return
@@ -99,8 +104,13 @@ func (r *TraceReader) FindTraces(ctx context.Context, query tracestore.TraceQuer
 		for _, trace := range traces {
 			td, err := FromDBModel(trace.Spans)
 			if err != nil {
-				yield(nil, err)
-				return
+				// A single trace's conversion failure — only malformed trace/span IDs in a
+				// stored document reach here — must not abandon the rest of the batch.
+				// Surface it as a per-trace error and continue with the remaining traces.
+				if !yield(nil, err) {
+					return
+				}
+				continue
 			}
 			if !yield([]ptrace.Traces{td}, nil) {
 				return

@@ -157,6 +157,92 @@ func TestTraceReader_GetTraces_Errors(t *testing.T) {
 	})
 }
 
+// testSkipsConversionErrorAndContinues verifies that one trace's conversion
+// failure is surfaced as a per-trace error without abandoning the rest of the
+// batch (issue #8899). The batch order is good, bad, good: both good traces must
+// still be yielded, and the bad one reported as a single error.
+func testSkipsConversionErrorAndContinues(t *testing.T, fxnName string, actualTraces func(r TraceReader) iter.Seq2[[]ptrace.Traces, error]) {
+	coreReader := &mocks.Reader{}
+	reader := TraceReader{spanReader: coreReader}
+
+	_, spanStr := loadFixtures(t, 1)
+	var good dbmodel.Span
+	require.NoError(t, json.Unmarshal(spanStr, &good))
+	goodTrace1 := dbmodel.Trace{Spans: []dbmodel.Span{good}}
+	good2 := good
+	good2.TraceID = "00000000000000020000000000000000"
+	goodTrace2 := dbmodel.Trace{Spans: []dbmodel.Span{good2}}
+	badTrace := dbmodel.Trace{Spans: []dbmodel.Span{{TraceID: "wrong-trace-id"}}}
+	coreReader.On(fxnName, mock.Anything, mock.Anything).
+		Return([]dbmodel.Trace{goodTrace1, badTrace, goodTrace2}, nil)
+
+	var goodCount, errCount int
+	for td, err := range actualTraces(reader) {
+		if err != nil {
+			errCount++
+			require.ErrorContains(t, err, "encoding/hex: invalid byte")
+			require.Nil(t, td)
+			continue
+		}
+		goodCount++
+		require.Len(t, td, 1)
+	}
+	assert.Equal(t, 2, goodCount, "both good traces are yielded despite the bad one in the middle")
+	assert.Equal(t, 1, errCount, "the bad trace is surfaced as one per-trace error, not an abort")
+}
+
+func TestTraceReader_GetTraces_SkipsConversionErrorAndContinues(t *testing.T) {
+	testSkipsConversionErrorAndContinues(t, "GetTraces", func(r TraceReader) iter.Seq2[[]ptrace.Traces, error] {
+		return r.GetTraces(context.Background(), tracestore.GetTraceParams{})
+	})
+}
+
+func TestTraceReader_FindTraces_SkipsConversionErrorAndContinues(t *testing.T) {
+	testSkipsConversionErrorAndContinues(t, "FindTraces", func(r TraceReader) iter.Seq2[[]ptrace.Traces, error] {
+		return r.FindTraces(context.Background(), tracestore.TraceQueryParams{
+			Attributes: pcommon.NewMap(),
+		})
+	})
+}
+
+// testStopsWhenConsumerBreaksOnError verifies that a consumer breaking out of
+// the iteration while handling a per-trace conversion error stops it cleanly
+// instead of continuing to the rest of the batch (issue #8899).
+func testStopsWhenConsumerBreaksOnError(t *testing.T, fxnName string, actualTraces func(r TraceReader) iter.Seq2[[]ptrace.Traces, error]) {
+	coreReader := &mocks.Reader{}
+	reader := TraceReader{spanReader: coreReader}
+
+	_, spanStr := loadFixtures(t, 1)
+	var good dbmodel.Span
+	require.NoError(t, json.Unmarshal(spanStr, &good))
+	badTrace := dbmodel.Trace{Spans: []dbmodel.Span{{TraceID: "wrong-trace-id"}}}
+	goodTrace := dbmodel.Trace{Spans: []dbmodel.Span{good}}
+	coreReader.On(fxnName, mock.Anything, mock.Anything).
+		Return([]dbmodel.Trace{badTrace, goodTrace}, nil)
+
+	var yields int
+	for _, err := range actualTraces(reader) {
+		yields++
+		require.ErrorContains(t, err, "encoding/hex: invalid byte")
+		break
+	}
+	assert.Equal(t, 1, yields, "iteration stops at the break during the error yield")
+}
+
+func TestTraceReader_GetTraces_StopsWhenConsumerBreaksOnError(t *testing.T) {
+	testStopsWhenConsumerBreaksOnError(t, "GetTraces", func(r TraceReader) iter.Seq2[[]ptrace.Traces, error] {
+		return r.GetTraces(context.Background(), tracestore.GetTraceParams{})
+	})
+}
+
+func TestTraceReader_FindTraces_StopsWhenConsumerBreaksOnError(t *testing.T) {
+	testStopsWhenConsumerBreaksOnError(t, "FindTraces", func(r TraceReader) iter.Seq2[[]ptrace.Traces, error] {
+		return r.FindTraces(context.Background(), tracestore.TraceQueryParams{
+			Attributes: pcommon.NewMap(),
+		})
+	})
+}
+
 func TestTraceReader_FindTraces(t *testing.T) {
 	coreReader := &mocks.Reader{}
 	reader := TraceReader{spanReader: coreReader}
