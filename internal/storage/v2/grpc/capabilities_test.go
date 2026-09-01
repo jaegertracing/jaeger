@@ -239,3 +239,55 @@ func TestFilterCapabilitiesRoundTrip(t *testing.T) {
 		})
 	}
 }
+
+// TestQueryParametersCarryPagination pins Pagination onto the query parameters the same way
+// TestQueryParametersCarryTheFilter pins Filter: encoded by toProtoQueryParameters, decoded by
+// toTraceQueryParams, on a reader that declares Paginated so the token is not refused.
+func TestQueryParametersCarryPagination(t *testing.T) {
+	reader := new(tracestoremocks.Reader)
+	reader.On("SearchCapabilities", mock.Anything).Return(tracestore.SearchCapabilities{Paginated: true}, nil)
+
+	sent, err := toProtoQueryParameters(tracestore.TraceQueryParams{
+		Attributes: pcommon.NewMap(),
+		Pagination: tracestore.Pagination{PageSize: 25, PageToken: "opaque-cursor"},
+	})
+	require.NoError(t, err)
+	require.NotNil(t, sent.GetPagination())
+	assert.Equal(t, uint32(25), sent.GetPagination().GetPageSize())
+	assert.Equal(t, "opaque-cursor", sent.GetPagination().GetPageToken())
+
+	decoded, err := NewHandler(reader, nil, nil).toTraceQueryParams(t.Context(), sent)
+	require.NoError(t, err)
+	assert.Equal(t, tracestore.Pagination{PageSize: 25, PageToken: "opaque-cursor"}, decoded.Pagination)
+	assert.Equal(t, 25, decoded.SearchDepth, "PageSize overrides SearchDepth")
+}
+
+// TestToTraceQueryParams_RejectsPageTokenWhenUnsupported pins RFC 0014 §6.2 at the storage/v2
+// boundary: a reader that cannot paginate cannot have minted the token, so the query is
+// refused with InvalidArgument rather than silently treated as a new search.
+func TestToTraceQueryParams_RejectsPageTokenWhenUnsupported(t *testing.T) {
+	reader := new(tracestoremocks.Reader)
+	reader.On("SearchCapabilities", mock.Anything).Return(tracestore.SearchCapabilities{}, nil)
+
+	_, err := NewHandler(reader, nil, nil).toTraceQueryParams(t.Context(), &storage.TraceQueryParameters{
+		Pagination: &storage.Pagination{PageToken: "opaque-cursor"},
+	})
+	require.Error(t, err)
+	assert.Equal(t, codes.InvalidArgument, status.Code(err))
+	assert.Contains(t, err.Error(), tracestore.ErrPaginationUnsupported.Error())
+}
+
+// TestToTraceQueryParams_PageSizeOnlySkipsCapabilityCheck pins that a Pagination with no
+// PageToken never needs the reader's capabilities: it is not asking to resume anything, so
+// nothing about pagination support needs answering — the reader has no expectations set, so a
+// call to it would fail this test.
+func TestToTraceQueryParams_PageSizeOnlySkipsCapabilityCheck(t *testing.T) {
+	reader := new(tracestoremocks.Reader)
+
+	decoded, err := NewHandler(reader, nil, nil).toTraceQueryParams(t.Context(), &storage.TraceQueryParameters{
+		Pagination: &storage.Pagination{PageSize: 10},
+	})
+	require.NoError(t, err)
+	assert.Equal(t, tracestore.Pagination{PageSize: 10}, decoded.Pagination)
+	assert.Equal(t, 10, decoded.SearchDepth)
+}

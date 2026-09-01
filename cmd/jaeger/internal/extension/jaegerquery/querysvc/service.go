@@ -201,6 +201,19 @@ func (qs QueryService) prepareSearchQuery(
 	ctx context.Context,
 	query TraceQueryParams,
 ) (context.Context, TraceQueryParams, error) {
+	if query.Pagination != (tracestore.Pagination{}) {
+		// Same reasoning as the filter gate below: this refusal does not depend on the
+		// backend, so it comes before any capability call.
+		if !PaginationGate.IsEnabled() {
+			return ctx, query, fmt.Errorf("%w: enable the %q feature gate to use it",
+				ErrPaginationDisabled, PaginationGate.ID())
+		}
+		// PageSize bounds this page; it takes over SearchDepth's role as the page bound
+		// when set, exactly as jaeger.api_v3.Pagination.page_size documents (RFC 0014 §4).
+		if query.Pagination.PageSize > 0 {
+			query.SearchDepth = query.Pagination.PageSize
+		}
+	}
 	if query.Filter != nil {
 		// None of these refusals depends on the backend, so they come before the capability call
 		// rather than after it.
@@ -226,22 +239,32 @@ func (qs QueryService) prepareSearchQuery(
 			return ctx, query, err
 		}
 	}
-	if query.Filter == nil {
+	// A PageToken needs the same capability round trip a Filter does, to learn whether this
+	// reader can honor it (RFC 0014 §6.2), so the two share one capability fetch below rather
+	// than each making its own.
+	if query.Filter == nil && query.Pagination.PageToken == "" {
 		return ctx, query, qs.checkServiceName(ctx, query)
 	}
 	caps, err := qs.traceReader.SearchCapabilities(ctx)
 	if err != nil {
 		// A reader that cannot report its capabilities reads as the least capable one, which
-		// serves only the legacy predicate fields.
+		// serves only the legacy predicate fields and cannot paginate.
 		caps = tracestore.SearchCapabilities{}
 	}
-	// The filter is settled before the service name is checked, because a filter can name the
-	// service itself and rewriting it is what moves that into ServiceName.
-	prepared, err := query.ForCapabilities(caps)
-	if err != nil {
-		return ctx, query, err
+	if query.Pagination.PageToken != "" && !caps.Paginated {
+		// This reader cannot have minted the token, so honoring it as a fresh search would
+		// silently reinterpret what the caller sent.
+		return ctx, query, tracestore.ErrPaginationUnsupported
 	}
-	query.TraceQueryParams = prepared
+	if query.Filter != nil {
+		// The filter is settled before the service name is checked, because a filter can name
+		// the service itself and rewriting it is what moves that into ServiceName.
+		prepared, err := query.ForCapabilities(caps)
+		if err != nil {
+			return ctx, query, err
+		}
+		query.TraceQueryParams = prepared
+	}
 	if query.ServiceName == "" && !caps.WithoutServiceName {
 		return ctx, query, ErrServiceNameRequired
 	}

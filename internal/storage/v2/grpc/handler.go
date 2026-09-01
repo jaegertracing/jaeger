@@ -284,6 +284,7 @@ func (h *Handler) GetCapabilities(
 			WithoutServiceName:  caps.WithoutServiceName,
 			SameSpanConjunction: caps.SameSpanConjunction,
 			Filter:              toProtoFilterCapabilities(caps.Filter),
+			Paginated:           caps.Paginated,
 		},
 	}, nil
 }
@@ -323,17 +324,33 @@ func (h *Handler) toTraceQueryParams(
 		SearchDepth:   int(t.SearchDepth),
 		Filter:        filter,
 	}
+	if pagination := t.GetPagination(); pagination != nil {
+		query.Pagination = tracestore.Pagination{
+			PageSize:  int(pagination.GetPageSize()),
+			PageToken: pagination.GetPageToken(),
+		}
+		if query.Pagination.PageSize > 0 {
+			query.SearchDepth = query.Pagination.PageSize
+		}
+	}
 	if err := query.EnsureFilterStandsAlone(); err != nil {
 		return tracestore.TraceQueryParams{}, status.Error(codes.InvalidArgument, err.Error())
 	}
-	if query.Filter == nil {
+	if query.Filter == nil && query.Pagination.PageToken == "" {
 		return query, nil
 	}
 	caps, err := h.traceReader.SearchCapabilities(ctx)
 	if err != nil {
 		// A reader that cannot report its capabilities reads as the least capable one, which serves
-		// only the legacy predicate fields.
+		// only the legacy predicate fields and cannot paginate.
 		caps = tracestore.SearchCapabilities{}
+	}
+	if query.Pagination.PageToken != "" && !caps.Paginated {
+		// This reader cannot have minted the token (RFC 0014 §6.2).
+		return tracestore.TraceQueryParams{}, status.Error(codes.InvalidArgument, tracestore.ErrPaginationUnsupported.Error())
+	}
+	if query.Filter == nil {
+		return query, nil
 	}
 	prepared, err := query.ForCapabilities(caps)
 	if err != nil {

@@ -131,6 +131,25 @@ type TraceQueryParams struct {
 	// other reader the query service expresses the filter in the legacy fields instead, or
 	// refuses the query.
 	Filter *expression.Call
+	// Pagination requests a paginated search (RFC 0014). Its zero value means this is not
+	// a paginated request, the same as an absent jaeger.api_v3.Pagination on the wire.
+	Pagination Pagination
+}
+
+// Pagination asks for one page of a search result and, on continuation, says where the
+// previous page stopped. It mirrors jaeger.api_v3.Pagination and jaeger.storage.v2.Pagination
+// (RFC 0014 §4, §6).
+type Pagination struct {
+	// PageSize bounds the number of results in one page. Zero means this is not a
+	// paginated request; the query service falls back to SearchDepth as the page bound
+	// before a Reader ever sees the query (RFC 0014 §4).
+	PageSize int
+	// PageToken continues a previous search. Empty starts a new one. A Reader that
+	// receives a non-empty PageToken MUST treat it as an uninterpreted cursor it minted
+	// itself for the same query — a Reader is never asked to interpret a token it did not
+	// produce, since the query service rejects a PageToken against a Reader whose
+	// SearchCapabilities.Paginated is false before dispatching (RFC 0014 §6.2).
+	PageToken string
 }
 
 // FoundTraceID is a wrapper around trace ID returned from FindTraceIDs
