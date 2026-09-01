@@ -23,10 +23,10 @@ var PaginationGate = featuregate.GlobalRegistry().MustRegister(
 	featuregate.StageAlpha,
 	featuregate.WithRegisterFromVersion("v2.21.0"),
 	featuregate.WithRegisterDescription(
-		"Accepts the RFC 0014 Pagination field on trace search. This admits pagination "+
-			"requests into the query path only; no storage backend can honor a page token "+
-			"yet, so a request carrying one is refused with InvalidArgument regardless of "+
-			"this gate (RFC 0014 §6.2).",
+		"Accepts the RFC 0014 Pagination field on trace search. A query carrying Pagination "+
+			"is refused while this is disabled. When enabled, page_size overrides search_depth, "+
+			"and a query carrying page_token is rejected with InvalidArgument unless the "+
+			"storage backend advertises SearchCapabilities.Paginated (RFC 0014 §6.2).",
 	),
 	featuregate.WithRegisterReferenceURL("https://github.com/jaegertracing/jaeger/blob/main/docs/rfc/0014-search-result-pagination.md"),
 )

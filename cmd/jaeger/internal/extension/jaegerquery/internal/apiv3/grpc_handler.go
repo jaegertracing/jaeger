@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"iter"
+	"math"
 
 	"go.opentelemetry.io/collector/pdata/ptrace"
 	"google.golang.org/grpc/codes"
@@ -120,8 +121,12 @@ func traceQueryParams(query *api_v3.TraceQueryParameters) (querysvc.TraceQueryPa
 		queryParams.Filter = filter
 	}
 	if pagination := query.GetPagination(); pagination != nil {
+		pageSize := pagination.GetPageSize()
+		if uint64(pageSize) > uint64(math.MaxInt) {
+			return querysvc.TraceQueryParams{}, status.Error(codes.InvalidArgument, "pagination.page_size is too large")
+		}
 		queryParams.Pagination = tracestore.Pagination{
-			PageSize:  int(pagination.GetPageSize()),
+			PageSize:  int(pageSize),
 			PageToken: pagination.GetPageToken(),
 		}
 	}

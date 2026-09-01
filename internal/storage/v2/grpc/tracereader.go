@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"io"
 	"iter"
+	"math"
 	"sync/atomic"
 
 	"go.opentelemetry.io/collector/pdata/pcommon"
@@ -278,6 +279,9 @@ func toProtoQueryParameters(t tracestore.TraceQueryParams) (*storage.TraceQueryP
 		Filter:        filter,
 	}
 	if t.Pagination != (tracestore.Pagination{}) {
+		if t.Pagination.PageSize < 0 || uint64(t.Pagination.PageSize) > math.MaxUint32 {
+			return nil, fmt.Errorf("invalid pagination page size %d", t.Pagination.PageSize)
+		}
 		q.Pagination = &storage.Pagination{
 			PageSize:  uint32(t.Pagination.PageSize), //nolint:gosec // G115
 			PageToken: t.Pagination.PageToken,

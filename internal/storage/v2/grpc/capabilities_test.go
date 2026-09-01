@@ -4,6 +4,7 @@
 package grpc
 
 import (
+	"math"
 	"testing"
 	"time"
 
@@ -260,6 +261,29 @@ func TestQueryParametersCarryPagination(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, tracestore.Pagination{PageSize: 25, PageToken: "opaque-cursor"}, decoded.Pagination)
 	assert.Equal(t, 25, decoded.SearchDepth, "PageSize overrides SearchDepth")
+}
+
+// TestToProtoQueryParameters_RejectsOutOfRangePageSize pins that a PageSize which does not fit
+// in the wire's uint32 is refused before it can wrap into an unintended value, rather than
+// silently sent as something the caller never asked for.
+func TestToProtoQueryParameters_RejectsOutOfRangePageSize(t *testing.T) {
+	tests := []struct {
+		name     string
+		pageSize int
+	}{
+		{name: "negative", pageSize: -1},
+		{name: "larger than uint32", pageSize: math.MaxUint32 + 1},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			_, err := toProtoQueryParameters(tracestore.TraceQueryParams{
+				Attributes: pcommon.NewMap(),
+				Pagination: tracestore.Pagination{PageSize: test.pageSize},
+			})
+			require.Error(t, err)
+			assert.Contains(t, err.Error(), "invalid pagination page size")
+		})
+	}
 }
 
 // TestToTraceQueryParams_RejectsPageTokenWhenUnsupported pins RFC 0014 §6.2 at the storage/v2

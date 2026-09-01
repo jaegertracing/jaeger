@@ -6,6 +6,7 @@ package grpc
 import (
 	"context"
 	"errors"
+	"math"
 
 	"go.opentelemetry.io/collector/pdata/pcommon"
 	"go.opentelemetry.io/collector/pdata/ptrace/ptraceotlp"
@@ -325,8 +326,12 @@ func (h *Handler) toTraceQueryParams(
 		Filter:        filter,
 	}
 	if pagination := t.GetPagination(); pagination != nil {
+		pageSize := pagination.GetPageSize()
+		if uint64(pageSize) > uint64(math.MaxInt) {
+			return tracestore.TraceQueryParams{}, status.Error(codes.InvalidArgument, "pagination.page_size is too large")
+		}
 		query.Pagination = tracestore.Pagination{
-			PageSize:  int(pagination.GetPageSize()),
+			PageSize:  int(pageSize),
 			PageToken: pagination.GetPageToken(),
 		}
 		if query.Pagination.PageSize > 0 {
