@@ -10,7 +10,7 @@ inputs:
 runs:
   using: "composite"
   steps:
-    - uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6.5.0
+    - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
       with:
         go-version: ${{ inputs.go-version }}
         cache-dependency-path: |
@@ -18,6 +18,21 @@ runs:
           ./internal/tools/go.sum
     - name: Download Go module dependencies
       shell: bash
+      # proxy.golang.org and sum.golang.org drop streams often enough to fail an
+      # unrelated job, and every CI job uses this action.
       run: |
-        go mod download
-        cd internal/tools && go mod download
+        download() {
+          for attempt in 1 2 3; do
+            if go mod download; then
+              return 0
+            fi
+            if [ "$attempt" -lt 3 ]; then
+              echo "::warning::go mod download in $PWD failed (attempt $attempt of 3); retrying"
+              sleep $((attempt * 10))
+            fi
+          done
+          echo "::error::go mod download in $PWD failed after 3 attempts"
+          return 1
+        }
+        download
+        cd internal/tools && download
