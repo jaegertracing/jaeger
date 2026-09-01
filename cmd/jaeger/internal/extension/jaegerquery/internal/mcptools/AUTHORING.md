@@ -35,21 +35,19 @@ before the skill runs.** An agent matches it against what it knows going in —
 the user's question, and whatever it has cheaply observed — not against what it
 will know afterwards.
 
-That rules out the two usual ways of getting it wrong:
+The same skill, written three ways:
 
-> **Says what it does.** "Analyses span timing distributions to classify sibling
-> groups." Nothing here describes a situation, so there is nothing to match
-> against.
->
-> **Circular.** "Use when a trace shows many repeated near-identical child
-> spans." This reads as: *if a trace makes many repeated calls, use the skill
-> that will tell you it is making many repeated calls.* You would already have
-> had to do the analysis to know the trigger applied.
->
-> **Checkable.** "Use when a request is slow and the cause is not yet known, or
-> when the user asks about repeated queries or chatty database access." Both
-> halves are known before any analysis — one from the trace's duration, the other
-> from what the user said.
+- ❌ **Says what it does.** "Analyses span timing distributions to classify
+  sibling groups." Nothing here describes a situation, so there is nothing to
+  match against.
+- ❌ **Circular.** "Use when a trace shows many repeated near-identical child
+  spans." This reads as: *if a trace makes many repeated calls, use the skill
+  that will tell you it is making many repeated calls.* You would already have
+  had to do the analysis to know the trigger applied.
+- ✅ **Checkable.** "Use when a request is slow and the cause is not yet known,
+  or when the user asks about repeated queries or chatty database access." Both
+  halves are known before any analysis: one from the trace's duration, the other
+  from what the user said.
 
 The test is mechanical: **could you tell that your trigger applies without
 running the skill?** If not, it names the finding rather than the situation, and
