@@ -33,6 +33,7 @@ It is driven by `deploy-all.sh`, which supports both clean installs and upgrades
 
 Environment variables:
 - ROLLOUT_TIMEOUT: rollout wait timeout in seconds (default 600)
+- OPENSEARCH_DASHBOARDS_HELM_TIMEOUT: Helm wait timeout for OpenSearch Dashboards (default 60m)
 
 ```bash path=null start=null
 ROLLOUT_TIMEOUT=900 ./deploy-all.sh clean

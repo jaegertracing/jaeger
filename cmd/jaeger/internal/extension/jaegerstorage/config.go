@@ -4,12 +4,12 @@
 package jaegerstorage
 
 import (
-	"go.opentelemetry.io/collector/confmap/xconfmap"
+	"go.opentelemetry.io/collector/confmap"
 
 	"github.com/jaegertracing/jaeger/cmd/internal/storageconfig"
 )
 
-var _ xconfmap.Validator = (*Config)(nil)
+var _ confmap.Validator = (*Config)(nil)
 
 // Config embeds the shared storage configuration.
 type Config struct {

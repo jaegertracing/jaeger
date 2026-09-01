@@ -12,8 +12,6 @@ import (
 // the semver of the imports the same. This package serves as a
 // one stop shop replacement / alias.
 const (
-	SchemaURL = semconv.SchemaURL
-
 	// Telemetry SDK
 	TelemetrySDKLanguageKey   = string(semconv.TelemetrySDKLanguageKey)
 	TelemetrySDKNameKey       = string(semconv.TelemetrySDKNameKey)
