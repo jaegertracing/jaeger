@@ -8,7 +8,6 @@ set -euxf -o pipefail
 success="false"
 timeout=600
 end_time=$((SECONDS + timeout))
-compose_file="docker-compose/clickhouse/docker-compose.yml"
 container_name="clickhouse"
 
 setup_clickhouse() {
@@ -49,6 +48,12 @@ teardown_clickhouse() {
 
 run_integration_test() {
     local storage_test=${1:-e2e}
+    local clickhouse_lts=${2:-lts-latest}
+    compose_file="docker-compose/clickhouse/${clickhouse_lts}/docker-compose.yml"
+    if [ ! -f "$compose_file" ]; then
+        echo "ERROR: Compose file not found: $compose_file"
+        exit 1
+    fi
     setup_clickhouse
     trap teardown_clickhouse EXIT
     healthcheck_clickhouse
@@ -65,8 +70,9 @@ run_integration_test() {
 
 main() {
     local storage_test=${1:-e2e}
-    echo "Executing ClickHouse ${storage_test} integration tests"
-    run_integration_test "${storage_test}"
+    local clickhouse_lts=${2:-lts-latest}
+    echo "Executing ClickHouse ${storage_test} integration tests (${clickhouse_lts})"
+    run_integration_test "${storage_test}" "${clickhouse_lts}"
 }
 
 main "$@"
