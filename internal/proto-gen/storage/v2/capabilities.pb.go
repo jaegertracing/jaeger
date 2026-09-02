@@ -54,11 +54,8 @@ type SearchCapabilities struct {
 	// paginated is true when FindTraceIDs and FindTraceSummaries honor a request's
 	// Pagination and return a next_page_token that resumes the search exactly where
 	// the previous page stopped, visiting every matching trace once under a stable
-	// total ordering. Its zero value means the backend cannot paginate: the query
-	// service serves a single page capped at page_size/search_depth, returns an empty
-	// next_page_token even though matches may remain, and rejects a request that
-	// carries a page_token with InvalidArgument, since a backend that cannot paginate
-	// cannot have minted a valid cursor.
+	// total ordering. Its zero value means the backend cannot paginate. See comments
+	// for Pagination in trace_storage.proto.
 	Paginated            bool     `protobuf:"varint,4,opt,name=paginated,proto3" json:"paginated,omitempty"`
 	XXX_NoUnkeyedLiteral struct{} `json:"-"`
 	XXX_unrecognized     []byte   `json:"-"`

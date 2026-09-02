@@ -320,6 +320,16 @@ func TestTraceQueryParamsPagination(t *testing.T) {
 		params, err := traceQueryParams(query)
 		require.NoError(t, err)
 		assert.Equal(t, tracestore.Pagination{PageSize: 25, PageToken: "opaque-cursor"}, params.Pagination)
+		assert.Zero(t, params.SearchDepth,
+			"search_depth must not be defaulted when Pagination is present, or every paginated "+
+				"request would trip EnsurePaginationStandsAlone's mutual-exclusivity check")
+	})
+	t.Run("page_size clamped to max", func(t *testing.T) {
+		query := baseQuery()
+		query.Pagination = &api_v3.Pagination{PageSize: tracestore.MaxPageSize + 1000}
+		params, err := traceQueryParams(query)
+		require.NoError(t, err)
+		assert.Equal(t, tracestore.MaxPageSize, params.Pagination.PageSize)
 	})
 }
 

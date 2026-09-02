@@ -16,6 +16,39 @@ import (
 // declare it can evaluate (RFC 0005 §7). The checks live here, beside the query type and the
 // capability declaration, so each wire runs the same ones rather than its own.
 
+// Pagination arrives over the same two wires and owes the same query. EnsurePaginationStandsAlone
+// and EnsureNoPaginationOnFindTraces live here for that reason, beside EnsureFilterStandsAlone,
+// so both call sites — the api_v3 request path and the storage/v2 remote boundary — run the same
+// checks rather than each writing its own.
+
+// EnsurePaginationStandsAlone rejects a query whose Pagination is malformed on its own terms,
+// independent of any backend. Pagination.page_size replaces search_depth rather than falling back
+// to it (RFC 0014 §4), so the two bounds have no single honest meaning together, and a Pagination
+// that leaves page_size at zero does not describe a page.
+func (q TraceQueryParams) EnsurePaginationStandsAlone() error {
+	if q.Pagination == (Pagination{}) {
+		return nil
+	}
+	if q.SearchDepth != 0 {
+		return fmt.Errorf("%w: it cannot be combined with search_depth", ErrPaginationInvalid)
+	}
+	if q.Pagination.PageSize <= 0 {
+		return fmt.Errorf("%w: page_size is required whenever Pagination is present", ErrPaginationInvalid)
+	}
+	return nil
+}
+
+// EnsureNoPaginationOnFindTraces rejects a query with Pagination set, for a caller that is about
+// to dispatch it to FindTraces specifically. FindTraces streams whole traces with no field to
+// carry a continuation token, so accepting the request would silently drop the pagination it
+// asked for rather than honor it (RFC 0014 §4).
+func (q TraceQueryParams) EnsureNoPaginationOnFindTraces() error {
+	if q.Pagination == (Pagination{}) {
+		return nil
+	}
+	return ErrPaginationUnsupportedByFindTraces
+}
+
 // EnsureFilterStandsAlone rejects a query that carries both a filter and one of the predicate
 // fields the filter replaces. The two express the same things — a service, an operation name, a
 // duration bound, a tag — so honoring both would leave the caller guessing which one applied.

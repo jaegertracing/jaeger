@@ -9,24 +9,20 @@ import (
 	"go.opentelemetry.io/collector/featuregate"
 )
 
-// PaginationGate admits the RFC 0014 Pagination request field. It is off by default because
-// no storage backend can honor a page token yet (SearchCapabilities.Paginated is false
-// everywhere), so a deployment that has not opted in behaves exactly as it did before
-// pagination existed.
-//
-// It admits Pagination into the query path; whether a backend actually paginates is a
-// separate signal, SearchCapabilities.Paginated, because the two stabilize on different
-// schedules — this gate governs when jaeger-query starts accepting the request shape, not
-// when any particular backend can serve it.
+// PaginationGate admits the RFC 0014 Pagination request field into the query path. It does not
+// deliver working pagination on its own: no Reader yields a next_page_token yet — FindTraceIDs
+// and FindTraceSummaries still return unpaginated batches — so enabling this gate only lets a
+// request carrying Pagination reach admission instead of being refused outright; the response
+// side (RFC 0014 §5, M2's remaining exit bar) lands separately.
 var PaginationGate = featuregate.GlobalRegistry().MustRegister(
 	"jaeger.query.pagination",
 	featuregate.StageAlpha,
 	featuregate.WithRegisterFromVersion("v2.21.0"),
 	featuregate.WithRegisterDescription(
-		"Accepts the RFC 0014 Pagination field on trace search. A query carrying Pagination "+
-			"is refused while this is disabled. When enabled, page_size overrides search_depth, "+
-			"and a query carrying page_token is rejected with InvalidArgument unless the "+
-			"storage backend advertises SearchCapabilities.Paginated (RFC 0014 §6.2).",
+		"Accepts the RFC 0014 Pagination field on trace search. A query carrying Pagination is "+
+			"refused while this is disabled. This is the request-side admission only: no Reader "+
+			"returns a continuation token yet, so enabling it does not yet make search results "+
+			"resumable end to end.",
 	),
 	featuregate.WithRegisterReferenceURL("https://github.com/jaegertracing/jaeger/blob/main/docs/rfc/0014-search-result-pagination.md"),
 )

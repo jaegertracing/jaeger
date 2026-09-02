@@ -4,7 +4,6 @@
 package grpc
 
 import (
-	"math"
 	"testing"
 	"time"
 
@@ -260,30 +259,33 @@ func TestQueryParametersCarryPagination(t *testing.T) {
 	decoded, err := NewHandler(reader, nil, nil).toTraceQueryParams(t.Context(), sent)
 	require.NoError(t, err)
 	assert.Equal(t, tracestore.Pagination{PageSize: 25, PageToken: "opaque-cursor"}, decoded.Pagination)
-	assert.Equal(t, 25, decoded.SearchDepth, "PageSize overrides SearchDepth")
+	assert.Zero(t, decoded.SearchDepth, "Pagination replaces search_depth rather than setting it")
 }
 
-// TestToProtoQueryParameters_RejectsOutOfRangePageSize pins that a PageSize which does not fit
-// in the wire's uint32 is refused before it can wrap into an unintended value, rather than
-// silently sent as something the caller never asked for.
-func TestToProtoQueryParameters_RejectsOutOfRangePageSize(t *testing.T) {
-	tests := []struct {
-		name     string
-		pageSize int
-	}{
-		{name: "negative", pageSize: -1},
-		{name: "larger than uint32", pageSize: math.MaxUint32 + 1},
-	}
-	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
-			_, err := toProtoQueryParameters(tracestore.TraceQueryParams{
-				Attributes: pcommon.NewMap(),
-				Pagination: tracestore.Pagination{PageSize: test.pageSize},
-			})
-			require.Error(t, err)
-			assert.Contains(t, err.Error(), "invalid pagination page size")
-		})
-	}
+// TestToTraceQueryParams_PageSizeClampedToMax pins that a page_size above tracestore.MaxPageSize
+// is clamped down rather than refused, the treatment RFC 0014 §4 (and AIP-158) prescribes.
+func TestToTraceQueryParams_PageSizeClampedToMax(t *testing.T) {
+	reader := new(tracestoremocks.Reader)
+
+	decoded, err := NewHandler(reader, nil, nil).toTraceQueryParams(t.Context(), &storage.TraceQueryParameters{
+		Pagination: &storage.Pagination{PageSize: tracestore.MaxPageSize + 1000},
+	})
+	require.NoError(t, err)
+	assert.Equal(t, tracestore.MaxPageSize, decoded.Pagination.PageSize)
+}
+
+// TestToTraceQueryParams_RejectsPaginationWithSearchDepth pins RFC 0014 §4's mutual exclusivity
+// at the storage/v2 boundary: a query that sets both has not said how many results it wants.
+func TestToTraceQueryParams_RejectsPaginationWithSearchDepth(t *testing.T) {
+	reader := new(tracestoremocks.Reader)
+
+	_, err := NewHandler(reader, nil, nil).toTraceQueryParams(t.Context(), &storage.TraceQueryParameters{
+		SearchDepth: 20,
+		Pagination:  &storage.Pagination{PageSize: 10},
+	})
+	require.Error(t, err)
+	assert.Equal(t, codes.InvalidArgument, status.Code(err))
+	assert.Contains(t, err.Error(), "search_depth")
 }
 
 // TestToTraceQueryParams_RejectsPageTokenWhenUnsupported pins RFC 0014 §6.2 at the storage/v2
@@ -294,7 +296,7 @@ func TestToTraceQueryParams_RejectsPageTokenWhenUnsupported(t *testing.T) {
 	reader.On("SearchCapabilities", mock.Anything).Return(tracestore.SearchCapabilities{}, nil)
 
 	_, err := NewHandler(reader, nil, nil).toTraceQueryParams(t.Context(), &storage.TraceQueryParameters{
-		Pagination: &storage.Pagination{PageToken: "opaque-cursor"},
+		Pagination: &storage.Pagination{PageSize: 20, PageToken: "opaque-cursor"},
 	})
 	require.Error(t, err)
 	assert.Equal(t, codes.InvalidArgument, status.Code(err))
@@ -313,5 +315,5 @@ func TestToTraceQueryParams_PageSizeOnlySkipsCapabilityCheck(t *testing.T) {
 	})
 	require.NoError(t, err)
 	assert.Equal(t, tracestore.Pagination{PageSize: 10}, decoded.Pagination)
-	assert.Equal(t, 10, decoded.SearchDepth)
+	assert.Zero(t, decoded.SearchDepth)
 }

@@ -32,6 +32,18 @@ var ErrFilterInvalid = errors.New("invalid query filter")
 // the caller sent (RFC 0014 §6.2).
 var ErrPaginationUnsupported = errors.New("this storage backend cannot resume a paginated search")
 
+// ErrPaginationInvalid is returned for a query whose Pagination is malformed on its own
+// terms, independent of any backend: one that also sets SearchDepth, since the two bounds
+// have no single honest meaning together, or one that leaves PageSize at zero, since a
+// Pagination with no page size does not describe a page (RFC 0014 §4).
+var ErrPaginationInvalid = errors.New("invalid pagination")
+
+// ErrPaginationUnsupportedByFindTraces is returned for a FindTraces query that carries
+// Pagination. FindTraces streams whole traces with no field to carry a continuation token,
+// so honoring the request would accept a paging request and never hand back a cursor,
+// leaving the caller unable to tell a bounded page from the last one (RFC 0014 §4).
+var ErrPaginationUnsupportedByFindTraces = errors.New("FindTraces cannot be paginated: its response has no field to carry a continuation token")
+
 // SearchCapabilities describes how a Reader's search methods behave where backends
 // differ: which TraceQueryParams fields may be omitted, which are honored exactly
 // rather than approximated, and which combinations a backend cannot serve. Its zero

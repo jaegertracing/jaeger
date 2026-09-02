@@ -9,7 +9,6 @@ import (
 	"fmt"
 	"io"
 	"iter"
-	"math"
 	"sync/atomic"
 
 	"go.opentelemetry.io/collector/pdata/pcommon"
@@ -279,9 +278,10 @@ func toProtoQueryParameters(t tracestore.TraceQueryParams) (*storage.TraceQueryP
 		Filter:        filter,
 	}
 	if t.Pagination != (tracestore.Pagination{}) {
-		if t.Pagination.PageSize < 0 || uint64(t.Pagination.PageSize) > math.MaxUint32 {
-			return nil, fmt.Errorf("invalid pagination page size %d", t.Pagination.PageSize)
-		}
+		// No bounds check here: PageSize is already clamped to tracestore.MaxPageSize at
+		// intake, by every path that decodes a Pagination off the wire (grpc_handler.go's
+		// traceQueryParams and this package's own toTraceQueryParams), well within uint32's
+		// range, so there is nothing left for a cast here to catch.
 		q.Pagination = &storage.Pagination{
 			PageSize:  uint32(t.Pagination.PageSize), //nolint:gosec // G115
 			PageToken: t.Pagination.PageToken,

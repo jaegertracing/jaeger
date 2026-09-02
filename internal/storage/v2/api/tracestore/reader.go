@@ -132,17 +132,26 @@ type TraceQueryParams struct {
 	// refuses the query.
 	Filter *expression.Call
 	// Pagination requests a paginated search (RFC 0014). Its zero value means this is not
-	// a paginated request, the same as an absent jaeger.api_v3.Pagination on the wire.
+	// a paginated request, the same as an absent jaeger.api_v3.Pagination on the wire. When
+	// present it replaces SearchDepth rather than falling back to it — the two are mutually
+	// exclusive, enforced by EnsurePaginationStandsAlone before a Reader ever sees the query.
 	Pagination Pagination
 }
+
+// MaxPageSize is the largest Pagination.PageSize the query service accepts. A larger request
+// is clamped down to this value rather than refused, the treatment AIP-158 prescribes for a
+// page-size field (RFC 0014 §4).
+const MaxPageSize = 10000
 
 // Pagination asks for one page of a search result and, on continuation, says where the
 // previous page stopped. It mirrors jaeger.api_v3.Pagination and jaeger.storage.v2.Pagination
 // (RFC 0014 §4, §6).
 type Pagination struct {
-	// PageSize bounds the number of results in one page. Zero means this is not a
-	// paginated request; the query service falls back to SearchDepth as the page bound
-	// before a Reader ever sees the query (RFC 0014 §4).
+	// PageSize bounds the number of results in one page. It replaces SearchDepth as the page
+	// bound rather than falling back to it, so it is required whenever Pagination is present:
+	// a Pagination that leaves PageSize at zero does not describe a page, and
+	// EnsurePaginationStandsAlone refuses it before a Reader ever sees the query (RFC 0014
+	// §4).
 	PageSize int
 	// PageToken continues a previous search. Empty starts a new one. A Reader that
 	// receives a non-empty PageToken MUST treat it as an uninterpreted cursor it minted

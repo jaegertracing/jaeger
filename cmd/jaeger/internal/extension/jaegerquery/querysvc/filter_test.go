@@ -337,6 +337,8 @@ func TestIsBadRequest(t *testing.T) {
 	assert.True(t, IsBadRequest(fmt.Errorf("%w: nested", tracestore.ErrFilterUnsupported)))
 	assert.True(t, IsBadRequest(ErrPaginationDisabled))
 	assert.True(t, IsBadRequest(tracestore.ErrPaginationUnsupported))
+	assert.True(t, IsBadRequest(tracestore.ErrPaginationInvalid))
+	assert.True(t, IsBadRequest(tracestore.ErrPaginationUnsupportedByFindTraces))
 	assert.False(t, IsBadRequest(errors.New("storage is down")))
 	assert.False(t, IsBadRequest(nil))
 }

@@ -733,8 +733,9 @@ type TraceQueryParameters struct {
 	// has the `jaeger.query.structuredFilters` feature gate enabled (Alpha, off by
 	// default) and the backend declares support via SearchCapabilities.filter.
 	Filter *v1.Call `protobuf:"bytes,9,opt,name=filter,proto3" json:"filter,omitempty"`
-	// pagination requests a paginated search. When this field is absent the search
-	// behaves exactly as today: one page bounded by search_depth, no continuation.
+	// pagination requests a paginated search, see comments for Pagination.
+	// Mutually exclusive with search_depth. When this field is absent the search
+	// returns a single page bounded by search_depth and no continuation token.
 	Pagination           *Pagination `protobuf:"bytes,10,opt,name=pagination,proto3" json:"pagination,omitempty"`
 	XXX_NoUnkeyedLiteral struct{}    `json:"-"`
 	XXX_unrecognized     []byte      `json:"-"`
@@ -847,16 +848,40 @@ func (m *TraceQueryParameters) GetPagination() *Pagination {
 // Pagination asks for one page of results and, on continuation, says where the
 // previous page stopped. Same shape as jaeger.api_v3.Pagination; duplicated here
 // because jaeger.storage.v2 does not import jaeger.api_v3.
+//
+// A paginated search returns at most page_size results, and when more matches
+// remain the response also carries a next_page_token. Sending that value back as
+// page_token in an otherwise identical request returns the page that follows, so
+// that a caller walking the token chain sees every matching trace exactly once. An
+// empty next_page_token means the search is exhausted.
+//
+// Pagination replaces search_depth rather than refining it: the two are mutually
+// exclusive, and a request that sets both is refused with InvalidArgument.
+//
+// Only FindTraceIDs and FindTraceSummaries paginate, returning the token on
+// FindTraceIDsResponse and FindTraceSummariesResponse. FindTraces streams
+// opentelemetry.proto.trace.v1.TracesData, an OTLP type with no field to carry a
+// token, so FindTraces is not paginated at all: a FindTraces request that sets
+// pagination is refused with InvalidArgument, and search_depth bounds such a call
+// instead.
+//
+// A backend should only honor a Pagination if it declares
+// SearchCapabilities.paginated. One that does not serves a single page capped at
+// page_size and returns an empty next_page_token even when matches remain, and
+// refuses a request carrying a page_token with InvalidArgument, since it cannot
+// have minted a valid token.
 type Pagination struct {
-	// page_size bounds the number of results in one page. When zero it falls back to
-	// search_depth (and search_depth's own default).
+	// page_size bounds the number of results in one page. A Pagination that leaves it
+	// zero does not describe a page and is refused with InvalidArgument.
+	//
+	// This field is required.
 	PageSize uint32 `protobuf:"varint,1,opt,name=page_size,json=pageSize,proto3" json:"page_size,omitempty"`
-	// page_token continues a previous search. Empty starts a new one. The value is
-	// opaque: clients MUST treat it as an uninterpreted cursor and echo back exactly
-	// what the server returned, without inspecting or modifying it. Because this field
-	// is a protobuf string, the server MUST encode the token as valid UTF-8 text (for
-	// example, unpadded base64url of the underlying cursor bytes). A token is only
-	// valid for the same query that produced it.
+	// page_token is the next_page_token returned for the preceding page; empty starts
+	// a new search. The value is opaque, and a caller MUST echo back exactly what the
+	// backend returned without inspecting or modifying it. A token is only valid for
+	// the query that produced it.
+	//
+	// This field is optional.
 	PageToken            string   `protobuf:"bytes,2,opt,name=page_token,json=pageToken,proto3" json:"page_token,omitempty"`
 	XXX_NoUnkeyedLiteral struct{} `json:"-"`
 	XXX_unrecognized     []byte   `json:"-"`
@@ -1079,8 +1104,9 @@ func (m *FoundTraceID) GetEnd() time.Time {
 // FindTraceIDsResponse represents the response for FindTraceIDsRequest.
 type FindTraceIDsResponse struct {
 	TraceIds []*FoundTraceID `protobuf:"bytes,1,rep,name=trace_ids,json=traceIds,proto3" json:"trace_ids,omitempty"`
-	// next_page_token continues the search past this page. Empty means there are no
-	// more pages. See TraceQueryParameters.pagination.
+	// next_page_token is the cursor the caller can send back as Pagination.page_token
+	// to fetch the page after this one, see comments for Pagination. The backend
+	// leaves it empty when this is the last page.
 	NextPageToken        string   `protobuf:"bytes,2,opt,name=next_page_token,json=nextPageToken,proto3" json:"next_page_token,omitempty"`
 	XXX_NoUnkeyedLiteral struct{} `json:"-"`
 	XXX_unrecognized     []byte   `json:"-"`
@@ -1365,9 +1391,10 @@ func (m *FindTraceSummariesRequest) GetQuery() *TraceQueryParameters {
 // Mirrors the chunked streaming contract of GetTraces / FindTraces.
 type FindTraceSummariesResponse struct {
 	Summaries []*TraceSummary `protobuf:"bytes,1,rep,name=summaries,proto3" json:"summaries,omitempty"`
-	// next_page_token continues the search past this page. Set only on the final
-	// chunk of the stream; empty means there are no more pages. See
-	// TraceQueryParameters.pagination.
+	// next_page_token is the cursor the caller can send back as Pagination.page_token
+	// to fetch the page after this one, see comments for Pagination. The backend sets
+	// it only on the final chunk of the stream, and leaves it empty there when
+	// this is the last page.
 	NextPageToken        string   `protobuf:"bytes,2,opt,name=next_page_token,json=nextPageToken,proto3" json:"next_page_token,omitempty"`
 	XXX_NoUnkeyedLiteral struct{} `json:"-"`
 	XXX_unrecognized     []byte   `json:"-"`

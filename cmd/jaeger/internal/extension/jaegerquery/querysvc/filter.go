@@ -46,5 +46,7 @@ func IsBadRequest(err error) bool {
 		errors.Is(err, tracestore.ErrFilterUnsupported) ||
 		errors.Is(err, tracestore.ErrFilterInvalid) ||
 		errors.Is(err, ErrPaginationDisabled) ||
-		errors.Is(err, tracestore.ErrPaginationUnsupported)
+		errors.Is(err, tracestore.ErrPaginationUnsupported) ||
+		errors.Is(err, tracestore.ErrPaginationInvalid) ||
+		errors.Is(err, tracestore.ErrPaginationUnsupportedByFindTraces)
 }

@@ -6,7 +6,6 @@ package grpc
 import (
 	"context"
 	"errors"
-	"math"
 
 	"go.opentelemetry.io/collector/pdata/pcommon"
 	"go.opentelemetry.io/collector/pdata/ptrace/ptraceotlp"
@@ -127,6 +126,12 @@ func (h *Handler) FindTraces(
 	query, err := h.toTraceQueryParams(srv.Context(), req.Query)
 	if err != nil {
 		return err
+	}
+	// FindTraces streams whole traces with no field to carry a continuation token, so this
+	// check cannot live in toTraceQueryParams, which FindTraceIDs and FindTraceSummaries
+	// share and which does admit Pagination (RFC 0014 §4).
+	if err := query.EnsureNoPaginationOnFindTraces(); err != nil {
+		return status.Error(codes.InvalidArgument, err.Error())
 	}
 	for traces, err := range h.traceReader.FindTraces(srv.Context(), query) {
 		if err != nil {
@@ -327,18 +332,18 @@ func (h *Handler) toTraceQueryParams(
 	}
 	if pagination := t.GetPagination(); pagination != nil {
 		pageSize := pagination.GetPageSize()
-		if uint64(pageSize) > uint64(math.MaxInt) {
-			return tracestore.TraceQueryParams{}, status.Error(codes.InvalidArgument, "pagination.page_size is too large")
+		if pageSize > tracestore.MaxPageSize {
+			pageSize = tracestore.MaxPageSize
 		}
 		query.Pagination = tracestore.Pagination{
 			PageSize:  int(pageSize),
 			PageToken: pagination.GetPageToken(),
 		}
-		if query.Pagination.PageSize > 0 {
-			query.SearchDepth = query.Pagination.PageSize
-		}
 	}
 	if err := query.EnsureFilterStandsAlone(); err != nil {
+		return tracestore.TraceQueryParams{}, status.Error(codes.InvalidArgument, err.Error())
+	}
+	if err := query.EnsurePaginationStandsAlone(); err != nil {
 		return tracestore.TraceQueryParams{}, status.Error(codes.InvalidArgument, err.Error())
 	}
 	if query.Filter == nil && query.Pagination.PageToken == "" {

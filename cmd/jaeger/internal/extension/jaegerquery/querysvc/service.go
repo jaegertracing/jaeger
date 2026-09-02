@@ -161,6 +161,13 @@ func (qs QueryService) FindTraces(
 	query TraceQueryParams,
 ) iter.Seq2[[]ptrace.Traces, error] {
 	return func(yield func([]ptrace.Traces, error) bool) {
+		// FindTraces streams whole traces with no field to carry a continuation token, so a
+		// Pagination is refused here, before prepareSearchQuery — which FindTraceSummaries
+		// shares and which does admit Pagination — ever sees it (RFC 0014 §4).
+		if err := query.EnsureNoPaginationOnFindTraces(); err != nil {
+			yield(nil, err)
+			return
+		}
 		ctx, query, err := qs.prepareSearchQuery(ctx, query)
 		if err != nil {
 			yield(nil, err)
@@ -208,10 +215,8 @@ func (qs QueryService) prepareSearchQuery(
 			return ctx, query, fmt.Errorf("%w: enable the %q feature gate to use it",
 				ErrPaginationDisabled, PaginationGate.ID())
 		}
-		// PageSize bounds this page; it takes over SearchDepth's role as the page bound
-		// when set, exactly as jaeger.api_v3.Pagination.page_size documents (RFC 0014 §4).
-		if query.Pagination.PageSize > 0 {
-			query.SearchDepth = query.Pagination.PageSize
+		if err := query.EnsurePaginationStandsAlone(); err != nil {
+			return ctx, query, err
 		}
 	}
 	if query.Filter != nil {
