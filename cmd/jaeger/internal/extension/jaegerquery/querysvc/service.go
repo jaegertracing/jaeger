@@ -14,7 +14,6 @@ import (
 	"go.opentelemetry.io/collector/pdata/ptrace"
 
 	"github.com/jaegertracing/jaeger-idl/model/v1"
-	expression "github.com/jaegertracing/jaeger-idl/query/expression/v1"
 	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerquery/internal/adjuster"
 	"github.com/jaegertracing/jaeger/components/extension/jaegerquery/queryinterceptor"
 	"github.com/jaegertracing/jaeger/internal/jptrace"
@@ -213,7 +212,7 @@ func (qs QueryService) prepareSearchQuery(
 		}
 		// Decoding a filter validates nothing, so it is finalized — validated and normalized —
 		// here, on behalf of every API layer above (RFC 0005 §7).
-		finalized, err := expression.Finalize(query.Filter)
+		finalized, err := tracestore.FinalizeFilter(query.Filter)
 		if err != nil {
 			return ctx, query, fmt.Errorf("%w: %w", tracestore.ErrFilterInvalid, err)
 		}
