@@ -25,7 +25,7 @@ class GetTraceRequest(_message.Message):
     def __init__(self, trace_id: _Optional[str] = ..., start_time: _Optional[_Union[datetime.datetime, _timestamp_pb2.Timestamp, _Mapping]] = ..., end_time: _Optional[_Union[datetime.datetime, _timestamp_pb2.Timestamp, _Mapping]] = ..., raw_traces: _Optional[bool] = ...) -> None: ...
 
 class TraceQueryParameters(_message.Message):
-    __slots__ = ("service_name", "operation_name", "attributes", "start_time_min", "start_time_max", "duration_min", "duration_max", "search_depth", "raw_traces", "filter")
+    __slots__ = ("service_name", "operation_name", "attributes", "start_time_min", "start_time_max", "duration_min", "duration_max", "search_depth", "raw_traces", "filter", "pagination")
     class AttributesEntry(_message.Message):
         __slots__ = ("key", "value")
         KEY_FIELD_NUMBER: _ClassVar[int]
@@ -43,6 +43,7 @@ class TraceQueryParameters(_message.Message):
     SEARCH_DEPTH_FIELD_NUMBER: _ClassVar[int]
     RAW_TRACES_FIELD_NUMBER: _ClassVar[int]
     FILTER_FIELD_NUMBER: _ClassVar[int]
+    PAGINATION_FIELD_NUMBER: _ClassVar[int]
     service_name: str
     operation_name: str
     attributes: _containers.ScalarMap[str, str]
@@ -53,7 +54,16 @@ class TraceQueryParameters(_message.Message):
     search_depth: int
     raw_traces: bool
     filter: _expression_pb2.Call
-    def __init__(self, service_name: _Optional[str] = ..., operation_name: _Optional[str] = ..., attributes: _Optional[_Mapping[str, str]] = ..., start_time_min: _Optional[_Union[datetime.datetime, _timestamp_pb2.Timestamp, _Mapping]] = ..., start_time_max: _Optional[_Union[datetime.datetime, _timestamp_pb2.Timestamp, _Mapping]] = ..., duration_min: _Optional[_Union[datetime.timedelta, _duration_pb2.Duration, _Mapping]] = ..., duration_max: _Optional[_Union[datetime.timedelta, _duration_pb2.Duration, _Mapping]] = ..., search_depth: _Optional[int] = ..., raw_traces: _Optional[bool] = ..., filter: _Optional[_Union[_expression_pb2.Call, _Mapping]] = ...) -> None: ...
+    pagination: Pagination
+    def __init__(self, service_name: _Optional[str] = ..., operation_name: _Optional[str] = ..., attributes: _Optional[_Mapping[str, str]] = ..., start_time_min: _Optional[_Union[datetime.datetime, _timestamp_pb2.Timestamp, _Mapping]] = ..., start_time_max: _Optional[_Union[datetime.datetime, _timestamp_pb2.Timestamp, _Mapping]] = ..., duration_min: _Optional[_Union[datetime.timedelta, _duration_pb2.Duration, _Mapping]] = ..., duration_max: _Optional[_Union[datetime.timedelta, _duration_pb2.Duration, _Mapping]] = ..., search_depth: _Optional[int] = ..., raw_traces: _Optional[bool] = ..., filter: _Optional[_Union[_expression_pb2.Call, _Mapping]] = ..., pagination: _Optional[_Union[Pagination, _Mapping]] = ...) -> None: ...
+
+class Pagination(_message.Message):
+    __slots__ = ("page_size", "page_token")
+    PAGE_SIZE_FIELD_NUMBER: _ClassVar[int]
+    PAGE_TOKEN_FIELD_NUMBER: _ClassVar[int]
+    page_size: int
+    page_token: str
+    def __init__(self, page_size: _Optional[int] = ..., page_token: _Optional[str] = ...) -> None: ...
 
 class FindTracesRequest(_message.Message):
     __slots__ = ("query",)
@@ -156,10 +166,12 @@ class FindTraceSummariesRequest(_message.Message):
     def __init__(self, query: _Optional[_Union[TraceQueryParameters, _Mapping]] = ...) -> None: ...
 
 class FindTraceSummariesResponse(_message.Message):
-    __slots__ = ("summaries",)
+    __slots__ = ("summaries", "next_page_token")
     SUMMARIES_FIELD_NUMBER: _ClassVar[int]
+    NEXT_PAGE_TOKEN_FIELD_NUMBER: _ClassVar[int]
     summaries: _containers.RepeatedCompositeFieldContainer[TraceSummary]
-    def __init__(self, summaries: _Optional[_Iterable[_Union[TraceSummary, _Mapping]]] = ...) -> None: ...
+    next_page_token: str
+    def __init__(self, summaries: _Optional[_Iterable[_Union[TraceSummary, _Mapping]]] = ..., next_page_token: _Optional[str] = ...) -> None: ...
 
 class GRPCGatewayError(_message.Message):
     __slots__ = ("error",)

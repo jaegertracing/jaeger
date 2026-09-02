@@ -50,6 +50,8 @@ flt = (slow | failed) & ~noisy
 
 The operators Python cannot overload have method forms: `.matches()` for a regular expression, `.exists()`, `.one_of()` and `.not_one_of()` for set membership, plus `.eq()`, `.ne()`, `.gt()`, `.lt()`, `.gte()` and `.lte()` for callers who prefer them.
 
+`one_of` sends its values as text and declares no type for them, so each element matches a value of any stored type, just as an untyped scalar does. A caller who knows the type declares it by building the list outright — `one_of(ListValue(["500"], "int"))` narrows the match to values stored as integers. What a backend does with that narrowing depends on how it stores attributes. Elasticsearch and OpenSearch index every attribute value as text, so beside an attribute they serve a list declaring `string` and refuse one declaring a number or a boolean, because they have no typed value to search.
+
 A span holds many events and many links, so a filter naming two event fields is ambiguous: either one event satisfies both, or two different events satisfy one each. `some` asks for the first reading, binding its predicate's event references to a single element:
 
 ```python
