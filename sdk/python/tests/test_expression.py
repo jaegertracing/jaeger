@@ -19,7 +19,6 @@ from jaeger_query import (
     Scalar,
     SpanKind,
     SpanStatus,
-    ValueRef,
     and_,
     attr,
     event,
@@ -69,7 +68,7 @@ def test_a_builtin_field_is_a_field_term_and_always_carries_a_level():
                     "op": "in",
                     "args": [
                         {"attr": {"key": "http.status_code"}},
-                        {"list": {"values": ["500", "503"], "type": "int"}},
+                        {"list": {"values": ["500", "503"]}},
                     ],
                 }
             },
@@ -317,20 +316,20 @@ def test_a_scalar_declares_no_type_unless_a_caller_sets_one():
     }
 
 
-def test_a_list_declares_its_element_type_only_against_an_attribute():
-    # The field supplies the type; an attribute declares nothing, so the list must.
+def test_a_list_declares_no_element_type_of_its_own():
+    # A built-in field supplies the type for a list compared against it. An attribute supplies no
+    # type, and the elements then match values of any stored type rather than a type guessed from
+    # the values.
     assert resource.service.one_of(["cart"]).args[1].to_expression() == {"list": {"values": ["cart"]}}
-    assert attr("code").one_of([500]).args[1].to_expression() == {"list": {"values": ["500"], "type": "int"}}
-    assert attr("ratio").one_of([0.5]).args[1].to_expression() == {
-        "list": {"values": ["0.5"], "type": "double"}
-    }
-    assert attr("on").one_of([True]).args[1].to_expression() == {"list": {"values": ["true"], "type": "bool"}}
-    assert attr("name").one_of(["a"]).args[1].to_expression() == {"list": {"values": ["a"], "type": "string"}}
+    assert attr("code").one_of([500]).args[1].to_expression() == {"list": {"values": ["500"]}}
+    assert attr("ratio").one_of([0.5]).args[1].to_expression() == {"list": {"values": ["0.5"]}}
+    assert attr("on").one_of([True]).args[1].to_expression() == {"list": {"values": ["true"]}}
+    assert attr("name").one_of(["a"]).args[1].to_expression() == {"list": {"values": ["a"]}}
 
 
-def test_a_mixed_list_is_read_as_text():
+def test_a_mixed_list_carries_the_text_of_each_element():
     assert attr("code").one_of([500, "unknown"]).args[1].to_expression() == {
-        "list": {"values": ["500", "unknown"], "type": "string"}
+        "list": {"values": ["500", "unknown"]}
     }
 
 
@@ -369,11 +368,9 @@ def test_the_terms_are_readable_when_printed():
     assert "http.status_code" in repr(attr("http.status_code") == 500)
 
 
-def test_the_base_nodes_leave_their_hooks_to_subclasses():
+def test_the_base_node_leaves_its_hook_to_subclasses():
     with pytest.raises(NotImplementedError):
         Expr().to_expression()
-    with pytest.raises(NotImplementedError):
-        ValueRef()._list_needs_type()
 
 
 def test_a_combinator_needs_a_predicate():
