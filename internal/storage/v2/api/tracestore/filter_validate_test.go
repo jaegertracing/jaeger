@@ -694,9 +694,11 @@ func TestValidateFilter_AcceptsEveryLevel(t *testing.T) {
 		"an empty level is the unqualified attribute and is always allowed")
 }
 
-// TestValidateFilter_AcceptsEveryValueType pins that a list may declare any of the defined types.
-// Declaring none is accepted only where the field opposite the list declares one instead, which is
-// what the two subjects here distinguish.
+// TestValidateFilter_AcceptsEveryValueType pins that a list may declare any of the defined types,
+// and that it may also declare none. Declaring none means one of two things, which the last two
+// subjects distinguish: the built-in field the list is compared against supplies the type, or the
+// list sits beside an attribute, where nothing supplies one and the elements are under no type
+// constraint.
 func TestValidateFilter_AcceptsEveryValueType(t *testing.T) {
 	for _, vt := range expression.ValueTypes() {
 		t.Run(string(vt), func(t *testing.T) {
