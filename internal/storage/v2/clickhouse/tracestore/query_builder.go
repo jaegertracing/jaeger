@@ -171,7 +171,7 @@ func (r *Reader) buildFindTraceIDsQuery(
 		return "", nil, err
 	}
 
-	inner.WriteString("\nLIMIT ?")
+	inner.WriteString("\nGROUP BY s.trace_id\nORDER BY max(s.start_time) DESC, s.trace_id\nLIMIT ?")
 	args = append(args, limit)
 
 	// Wrap the inner subquery with a JOIN to trace_id_timestamps
