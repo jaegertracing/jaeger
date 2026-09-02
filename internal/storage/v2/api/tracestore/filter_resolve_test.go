@@ -647,3 +647,42 @@ func TestReadConstant_RefusesAnUndeclaredType(t *testing.T) {
 	require.ErrorContains(t, err, `no rule for reading a constant as "nonesuch"`)
 	assert.Nil(t, value)
 }
+
+// TestFieldTypes_AreAllReadable pins that every type a built-in field declares has a rule for
+// reading a constant as it. Without this, jaeger-idl adding a field of a new type would refuse
+// every constant compared against that field, and only an end-to-end query would show it.
+//
+// The types come from the fields themselves, since a type no field declares is one no query can
+// reach. TestReadConstant_RefusesAnUndeclaredType covers the other side, where a type has no rule.
+func TestFieldTypes_AreAllReadable(t *testing.T) {
+	require.NotEmpty(t, expression.Fields())
+	seen := map[expression.FieldType]bool{}
+	for _, f := range expression.Fields() {
+		if seen[f.Type] {
+			continue
+		}
+		seen[f.Type] = true
+		t.Run(string(f.Type), func(t *testing.T) {
+			value, err := readConstant(f.Type, textFor(f.Type))
+			require.NoError(t, err)
+			assert.NotNil(t, value)
+		})
+	}
+}
+
+// textFor is a value the given field type can be read from, so that walking the field types does
+// not turn into a test of each type's parser.
+func textFor(t expression.FieldType) string {
+	switch t {
+	case expression.FieldTypeDuration:
+		return "2s"
+	case expression.FieldTypeTimestamp:
+		return "2026-08-16T18:56:20.123456789Z"
+	case expression.FieldTypeSpanKind:
+		return expression.SpanKinds()[0]
+	case expression.FieldTypeSpanStatus:
+		return expression.SpanStatuses()[0]
+	default:
+		return "anything"
+	}
+}

@@ -732,7 +732,10 @@ func TestValidateFilter_AcceptsEveryValueType(t *testing.T) {
 // instant are comparable only against a built-in field that declares that type (§5.4), which is why
 // the reference this compares against depends on the constant.
 func TestValidateFilter_AcceptsEveryConstant(t *testing.T) {
-	for _, test := range allConstants {
+	for _, test := range allTerms {
+		if !isConstant(test.term) {
+			continue
+		}
 		t.Run(test.name, func(t *testing.T) {
 			var reference expression.Expression = attr("a")
 			switch test.term.(type) {
@@ -898,14 +901,17 @@ func TestValidateFilter_RejectsATypedNilConstant(t *testing.T) {
 	}
 }
 
-// allConstants is every constant term, as the pointer a tree is built from, paired with the name
-// an error message gives it. TestValidateFilter_AcceptsEveryConstant walks it to check that each
-// one is comparable against something. The jaeger-idl package's own tests are what pin this list
-// against the full set of term types.
-var allConstants = []struct {
+// allTerms is every term type the AST defines, as the pointer a tree is built from, paired with
+// the name an error message gives it. The tests below walk it, so a term type that jaeger-idl adds
+// without a case in termName or domainOf fails here rather than being reported to a caller as an
+// empty term or silently compared as a value of unknown type.
+var allTerms = []struct {
 	term expression.Expression
 	name string
 }{
+	{&expression.AttributeRef{}, "an attribute reference"},
+	{&expression.FieldRef{}, "a field reference"},
+	{&expression.NestedRef{}, "a collection reference"},
 	{&expression.AnyValue{}, "an untyped constant"},
 	{&expression.StringValue{}, "a string constant"},
 	{&expression.IntValue{}, "an integer constant"},
@@ -913,6 +919,51 @@ var allConstants = []struct {
 	{&expression.BoolValue{}, "a boolean constant"},
 	{&expression.DurationValue{}, "a duration constant"},
 	{&expression.TimestampValue{}, "a timestamp constant"},
+	{&expression.List{}, "a list"},
+	{&expression.Call{}, "a predicate"},
+}
+
+// TestTermNames pins the name a filter's rejection gives each term, which is the whole of what a
+// caller learns about a term the validator would not take. A term type with no case here is
+// reported as an unknown term, so this is what keeps the message honest as jaeger-idl grows terms.
+func TestTermNames(t *testing.T) {
+	for _, test := range allTerms {
+		assert.Equal(t, test.name, termName(test.term))
+	}
+	assert.Equal(t, "an empty term", termName(nil))
+}
+
+// TestConstantKinds pins the kind of value each constant holds, and which ones can serve as a
+// regular expression. An untyped constant holds nothing known, because it is what a value with no
+// wire hint arrives as and no operator can settle its type from its text alone.
+func TestConstantKinds(t *testing.T) {
+	domains := map[string]domain{}
+	patterns := map[string]bool{}
+	for _, test := range allTerms {
+		if !isConstant(test.term) {
+			continue
+		}
+		domains[test.name] = domainOf(test.term)
+		if _, ok := patternText(test.term); ok {
+			patterns[test.name] = true
+		}
+	}
+	assert.Equal(t, map[string]domain{
+		"an untyped constant":       domainUnknown,
+		"a string constant":         domainText,
+		"an integer constant":       domainNumber,
+		"a floating-point constant": domainNumber,
+		"a boolean constant":        domainBool,
+		"a duration constant":       domainDuration,
+		"a timestamp constant":      domainTimestamp,
+	}, domains)
+	assert.Equal(t, map[string]bool{
+		"an untyped constant": true,
+		"a string constant":   true,
+	}, patterns)
+
+	assert.False(t, isConstant(&expression.List{}), "a list is only ever a membership operand")
+	assert.False(t, isConstant(nil))
 }
 
 // unknownTerm is a term the AST does not define. jaeger-idl closes Expression with an unexported
