@@ -29,7 +29,7 @@ import urllib.request
 
 import pytest
 
-from jaeger_query import Query, QueryClient, attr, event, resource, span
+from jaeger_query import ListValue, Query, QueryClient, attr, event, resource, span
 
 pytestmark = pytest.mark.e2e
 
@@ -167,6 +167,14 @@ def _matches(client: QueryClient, *predicates) -> list[str]:
         ("duration ordering", span.duration > "2s"),
         ("regex", span.name.matches("GET.*")),
         ("membership against a field", resource.service.one_of([SERVICE, "other"])),
+        ("membership against an attribute", span.attr("http.method").one_of(["GET", "POST"])),
+        # An attribute is stored as text, so declaring `string` asks for the comparison the
+        # backend already performs, rather than narrowing to a type it cannot search.
+        (
+            "membership whose list declares string",
+            span.attr("http.method").one_of(ListValue(["GET"], "string")),
+        ),
+        ("negated membership against an attribute", span.attr("http.method").not_one_of(["DELETE"])),
         ("existence", span.attr("http.method").exists()),
         ("negation", ~(span.name == "something-else")),
         ("event level", event.name == "exception"),
@@ -210,13 +218,14 @@ REFUSED = {
     # OpenSearch declares every operator except `some`, so quantifying over events
     # asks for what it does not advertise.
     "an operator the backend does not declare": event.some(event.name == "exception"),
-    # A list compared against an attribute has to declare its element type, because an
-    # attribute declares nothing itself. OpenSearch serves untyped constants only, so
-    # the two requirements cannot both be met and membership against an attribute is
-    # unserviceable there. Against a built-in field, which supplies the type, it works
-    # — see the served cases above.
-    "membership against an attribute": span.attr("http.method").one_of(["GET", "POST"]),
-    "negated membership against an attribute": span.attr("http.method").not_one_of(["GET"]),
+    # A declared type is authoritative: the backend matches only values stored at that type.
+    # OpenSearch indexes every attribute value as a keyword, so it can compare one as text but
+    # has nowhere to search for a number. A list declaring `string` asks for the text comparison
+    # it already performs, and is served (see the cases above); a list declaring `int` asks for
+    # storage OpenSearch does not have.
+    "a list that declares a numeric type, beside an attribute": span.attr("http.status_code").one_of(
+        ListValue(["500"], "int")
+    ),
     # `regex` matches anywhere in the value, so a pattern that anchors itself is asking
     # for semantics the operator does not have.
     "an anchored pattern": span.name.matches("^GET"),

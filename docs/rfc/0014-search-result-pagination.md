@@ -3,7 +3,7 @@
 - **Status:** Draft
 - **Author:** Yuri Shkuro
 - **Created:** 2026-08-12
-- **Last Updated:** 2026-08-19
+- **Last Updated:** 2026-09-02
 - **Related:** [RFC 0005 (structured query filters)](0005-structured-query-filters.md), [RFC 0011 (trace summary API)](0011-trace-summary-api.md), [ADR-013 (storage capability declaration)](../adr/013-storage-capability-declaration.md)
 
 ---
@@ -149,30 +149,37 @@ message TraceQueryParameters {
   // ... existing fields 1..9 (service_name, operation_name, attributes,
   // start_time_min/max, duration_min/max, search_depth = 8, raw_traces = 9) ...
 
-  // pagination requests a paginated search. When the message is absent the search
-  // behaves exactly as today: one page bounded by search_depth, no continuation.
+  // pagination requests a paginated search, see comments for Pagination.
+  // Mutually exclusive with search_depth. When this field is absent the search
+  // returns a single page bounded by search_depth and no continuation token.
   Pagination pagination = 11;
 }
 
 // Pagination asks for one page of results and, on continuation, says where the
 // previous page stopped.
 message Pagination {
-  // page_size bounds the number of results in one page. When zero it falls back to
-  // search_depth (and search_depth's own default).
-  int32 page_size = 1;
+  // page_size bounds the number of results in one page. A Pagination that leaves it
+  // zero does not describe a page, and the query service rejects such a request
+  // with InvalidArgument.
+  uint32 page_size = 1 [(google.api.field_behavior) = REQUIRED];
 
-  // page_token continues a previous search. Empty starts a new one. The value is
-  // opaque: clients MUST treat it as a blob and echo back exactly what the server
-  // returned. A token is only valid for the same query that produced it.
-  string page_token = 2;
+  // page_token is the next_page_token the server returned for the preceding page;
+  // empty starts a new search. The value is opaque, and a client MUST echo back
+  // exactly what the server returned without inspecting or modifying it. A token is
+  // only valid for the query that produced it.
+  string page_token = 2 [(google.api.field_behavior) = OPTIONAL];
 }
 ```
 
-Field numbers are illustrative and must be coordinated with RFC 0005, which reserves field 10 (`filter`) on the same message; 11 is shown here to avoid that collision. Grouping the two fields costs one field number instead of two on a message that already carries nine, plus RFC 0005's filter.
+Grouping the two paging fields costs one field number instead of two on a message that already carries nine, plus RFC 0005's filter.
 
-Nesting buys more than tidiness. The two fields are one concept — a page bound is meaningless without the cursor it bounds, and both are always supplied by the same caller for the same purpose — so a reader of the message sees one thing to understand rather than two fields it must infer are related. It also gives the request **presence semantics** that flat fields cannot express: because a proto3 message field distinguishes absent from default-valued, "this client does not know about pagination" (message absent) is a different request from "this client wants a page of the default size" (message present, `page_size` zero). With two flat fields, zero and empty would have to serve for both, and the server could not tell an old client from a new one asking for defaults. Finally, one message type defines the paging contract once and can attach to any request that becomes paginated later, instead of each one growing its own pair of fields. The trade-off is a deliberate divergence from the flat `page_size`/`page_token` convention of Google's AIP-158, and one extra level of access for callers; §5 keeps the Go side ergonomic by mirroring the message as a value struct.
+Nesting buys more than tidiness. The two fields are one concept — a page bound is meaningless without the cursor it bounds, and both are always supplied by the same caller for the same purpose — so a reader of the message sees one thing to understand rather than two fields it must infer are related. It also gives the request **presence semantics** that flat fields cannot express: because a proto3 message field distinguishes absent from default-valued, "this client does not know about pagination" (message absent) is a different request from "this client is asking for a page" (message present), and the second can be validated on its own terms. With two flat fields, zero and empty would have to serve for both, and the server could not tell an old client from a new one that meant to paginate. Finally, one message type defines the paging contract once and can attach to any request that becomes paginated later, instead of each one growing its own pair of fields. The trade-off is a deliberate divergence from the flat `page_size`/`page_token` convention of Google's AIP-158, and one extra level of access for callers; §5 keeps the Go side ergonomic by mirroring the message as a value struct.
 
-`Pagination.page_size` is the page bound; `search_depth` is retained and its role is clarified rather than changed. When `page_size` is zero it defaults to `search_depth`, so `search_depth` becomes the default page size for callers that have not adopted pagination — and such a caller, sending no `Pagination` at all, receives one page and no continuation, which is precisely today's behavior (G5). `search_depth` additionally remains meaningful as an optional **overall traversal ceiling**: a backend or the query service may cap the total number of pages a single cursor lineage will yield, so an unbounded "load more" cannot walk an entire index; when the ceiling is reached the response returns an empty `next_page_token` even though matches remain. Whether to enforce such a ceiling by default is an open question (§12).
+`Pagination.page_size` is the page bound, and it **replaces** `search_depth` rather than defaulting from it: the two are mutually exclusive, and the query service rejects a request that sets both with `InvalidArgument`. This is the posture RFC 0005 already takes for `filter` against the legacy predicate fields, and it exists because two live bounds on one request have no single honest meaning — a caller that sends both has not said how many results it wants. A paginated request draws its bound from `page_size` alone, which makes `page_size` **required** whenever a `Pagination` is present: a `Pagination` with no page size does not describe a page, and is rejected on the same grounds. `search_depth` is untouched for callers that have not adopted pagination — sending no `Pagination` at all yields one page and no continuation, which is precisely today's behavior (G5).
+
+Mutual exclusivity rules out two things a reader might expect here. A zero `page_size` does not fall back to `search_depth`, because there is no second bound left to fall back to. And `search_depth` cannot double as an overall traversal ceiling on a paginated search, because a paginated request may not set it.
+
+What bounds cost instead is a **server-side maximum on `page_size`**: the query service clamps a larger request down to a configured maximum rather than refusing it, and documents the maximum, which is the treatment AIP-158 prescribes for the same field. This is the per-request cost lever, and under keyset paging it is the only one that matters — each page costs the same to serve whether it is the first or the thousandth (§3, §7.2), so the depth of a traversal does not raise the cost of the next page. There is deliberately **no ceiling on the total number of pages** a cursor lineage may yield; §12 records why, and what bounds a runaway traversal in its place.
 
 The response carries the continuation token as a flat field rather than a mirrored wrapper message, because there is only one thing for a response to say about paging and nothing to group it with; the request nests because it has two related inputs, not for symmetry's own sake. `FindTraceIDs` returns a single `FindTraceIDsResponse`, which gains the field directly; `FindTraceSummaries` streams `FindTraceSummariesResponse` chunks, and the **last** chunk carries the token:
 
@@ -188,9 +195,11 @@ message FindTraceSummariesResponse {   // streamed; the final chunk sets the tok
 }
 ```
 
-`FindTraces` is the awkward one. Its api_v3 response is a stream of OpenTelemetry `TracesData`, an OTLP type with no room for a Jaeger continuation field. Rather than wrap or fork the OTLP stream, pagination attaches to the **find** half of the search, not the **fetch** half. The query service already implements `FindTraces` as find-then-fetch — resolve matching trace IDs, then load those traces — and the ES reader does exactly this internally (`FindTraces` calls `FindTraceIDs`, then `multiRead`; §1.2, §7.3). So the token-bearing primitives are `FindTraceIDs` and `FindTraceSummaries`, and `FindTraces` pagination is driven by the query service: it paginates the ID resolution (which yields a token), fetches that page of traces, and surfaces `next_page_token` on the api_v3 HTTP response envelope alongside the streamed traces. No pagination field is added to the OTLP stream, and the storage-layer `FindTraces` RPC (which streams whole traces) is left un-tokenized on purpose (§5, §6).
+`FindTraces` is **not paginated at all**. Its api_v3 response is a stream of OpenTelemetry `TracesData`, an OTLP type with no field to carry a Jaeger continuation token, so a `FindTraces` request that sets `pagination` is rejected with `InvalidArgument`, and `search_depth` bounds such a call instead. `FindTraceIDs` and `FindTraceSummaries` are the token-bearing primitives.
 
-For the UI this is a non-issue: the search-results list is populated from `FindTraceSummaries` (RFC 0011), which carries the token cleanly, so "load more" in the results list is a `FindTraceSummaries` continuation.
+Composing `FindTraces` pagination inside the query service is the alternative, and it does not work. The mechanics are available: the query service implements `FindTraces` as find-then-fetch — resolve matching trace IDs, then load those traces — and the ES reader does the same internally (`FindTraces` calls `FindTraceIDs`, then `multiRead`; §1.2, §7.3), so paginating the ID resolution and returning that page of traces would be straightforward. What is missing is anywhere to return the resulting token. The `{"result": ...}` wrapper an api_v3 HTTP caller sees is grpc-gateway's own per-chunk envelope, generated rather than declared in the IDL and with no room for a Jaeger field, and a native gRPC caller sees no envelope at all. Honoring `pagination` on `FindTraces` would therefore accept a paging request and never hand back a cursor, leaving the client unable to tell a bounded page from the last one — the silent-truncation failure §6.1 builds the capability mechanism to prevent. Rejecting the request reports the limit instead of hiding it.
+
+For the UI this costs nothing: the search-results list is populated from `FindTraceSummaries` (RFC 0011), which carries the token cleanly, so "load more" in the results list is a `FindTraceSummaries` continuation, and whole traces are fetched only for the rows a user opens.
 
 ---
 
@@ -212,7 +221,7 @@ type Pagination struct {
 }
 ```
 
-The Go mirror is a value struct, not a pointer, so no reader has to nil-check before reading a page size. The proto's absent-versus-present distinction (§4) is resolved at the API boundary: the query service turns an absent `Pagination` into the zero struct and a present one into a concrete `PageSize`, having already applied the `search_depth` fallback. A reader therefore reads `PageSize > 0` as "this is a paginated request, return a cursor" and never has to reason about which fields the client set.
+The Go mirror is a value struct, not a pointer, so no reader has to nil-check before reading a page size. The proto's absent-versus-present distinction (§4) is resolved at the API boundary: the query service turns an absent `Pagination` into the zero struct and a present one into a concrete `PageSize`, having already rejected a present `Pagination` that carries no page size. A reader therefore reads `PageSize > 0` as "this is a paginated request, return a cursor" and never has to reason about which fields the client set.
 
 The outbound token needs a home on the return path. `FindTraceIDs` returns `iter.Seq2[[]FoundTraceID, error]` — batches of IDs — and the cursor belongs to the *page*, not to any single ID. The recommended shape carries the token on the page rather than widening `FoundTraceID`:
 
@@ -228,7 +237,7 @@ type TraceIDPage struct {
 
 This changes the element type of an internal iterator, which is acceptable because the internal `tracestore.Reader` is versioned with the binary — ADR-013 and RFC 0005 both rely on evolving it in step with its callers, unlike the published gRPC contract. The alternative of a raw `[]FoundTraceID` element with the token smuggled onto the last element's fields was rejected as a worse fit: the token is not a property of a trace ID. `FindTraceSummaries` gains the token the same way, on its yielded summary page.
 
-`FindTraces` at this interface keeps returning `iter.Seq2[[]ptrace.Traces, error]` with no token, for the same reason as §4: whole-trace streaming is the fetch half, and the query service drives its pagination through `FindTraceIDs`. A backend therefore implements the cursor logic once, in its ID/summary search, and inherits `FindTraces` pagination for free.
+`FindTraces` at this interface keeps returning `iter.Seq2[[]ptrace.Traces, error]` with no token, for the same reason as §4: whole-trace streaming has nowhere to carry one, and `FindTraces` is not a paginated call. A backend implements the cursor logic once, in its ID and summary search, and the query service refuses a `FindTraces` request that asks to paginate before it reaches the reader.
 
 The query service is the single place that mints and validates tokens end to end: it builds the reader's `Pagination` from the api_v3 request, checks the fingerprint (§3.2), calls the reader, and relays `next_page_token` back — the same central-enforcement posture ADR-013 uses for capabilities.
 
@@ -240,12 +249,12 @@ The same shape goes on `jaeger.storage.v2` so a remote backend paginates over th
 
 ```protobuf
 message TraceQueryParameters {   // storage/v2
-  // ... existing fields 1..8 (search_depth = 8) ...
-  Pagination pagination = 9;
+  // ... existing fields 1..9 (search_depth = 8, RFC 0005's filter = 9) ...
+  Pagination pagination = 10;
 }
 
 message Pagination {   // storage/v2; same shape as the api_v3 message
-  int32  page_size  = 1;
+  uint32 page_size  = 1;   // required whenever Pagination is present
   string page_token = 2;
 }
 
@@ -260,7 +269,7 @@ message FindTraceSummariesResponse {   // streamed; final chunk sets the token
 }
 ```
 
-Field numbers are illustrative and must be coordinated with RFC 0005's additions to the same messages. The storage-layer `FindTraces` RPC — a stream of OTLP `TracesData` — gains no token, matching §4/§5: a remote backend exposes its cursor through `FindTraceIDs`/`FindTraceSummaries`, and the query service composes `FindTraces` from the paginated ID search.
+The storage-layer `FindTraces` RPC — a stream of OTLP `TracesData` — gains no token, matching §4 and §5: a remote backend exposes its cursor through `FindTraceIDs` and `FindTraceSummaries`, and a `FindTraces` request that sets `pagination` is refused with `InvalidArgument`.
 
 ### 6.1 Declaring the capability
 
@@ -271,7 +280,7 @@ A plain additive `page_token` would be a silent gap at the remote boundary. A pl
 ```protobuf
 message SearchCapabilities {
   bool without_service_name = 1;   // ADR-013
-  bool paginated            = 2;   // RFC 0014; absent/false = single capped page only
+  bool paginated            = 4;   // RFC 0014; absent/false = single capped page only
 }
 ```
 
@@ -291,8 +300,10 @@ A boolean suffices for the first cut because the honest keyset scheme is the onl
 The query service reads the declaration before it dispatches and behaves like this:
 
 - **Backend declares `Paginated = true`.** Pass the `Pagination` message through; relay `next_page_token`. Full pagination.
-- **Backend declares `Paginated = false`, request has no `page_token`.** Serve a single page capped at `page_size`/`search_depth` and return an **empty** `next_page_token`. This is a *reported degradation*, not an error: the query service still surfaces the truncation honestly through the capability the UI already reads (ADR-013's reporting path), so the client can show "results may be incomplete" rather than mistaking a short list for the whole answer.
+- **Backend declares `Paginated = false`, request has no `page_token`.** Serve a single page capped at whichever bound the request carried, `page_size` or `search_depth`, and return an **empty** `next_page_token`. This is a *reported degradation*, not an error: the query service still surfaces the truncation honestly through the capability the UI already reads (ADR-013's reporting path), so the client can show "results may be incomplete" rather than mistaking a short list for the whole answer.
 - **Backend declares `Paginated = false`, request carries a `page_token`.** Reject with `InvalidArgument`. A backend that cannot paginate cannot have minted a valid cursor, so any token presented to it is either forged or stale, and answering it would be a lie.
+
+Three further rejections do not depend on the backend and are enforced in the same place, before dispatch: a request that sets both `pagination` and `search_depth`, a `pagination` whose `page_size` is zero, and a `FindTraces` request that sets `pagination` at all (all three from §4). Each is `InvalidArgument`, on the principle this section already applies — a request the service cannot answer as asked is refused rather than answered approximately.
 
 This is the RFC 0005 §7 posture applied to pagination: a backend-wide limit is *declared* and enforced centrally before dispatch, so a backend never silently returns a wrong or partial result. Which backends declare `true` at rollout is set by §7 (ES/OS) and §11 (the roadmap for the others); ClickHouse can paginate natively (`WHERE (startTime, traceID) < cursor ORDER BY … LIMIT size`), while the flat backends (Cassandra, Badger) declare `Paginated = false` until their index is made cursor-able, and degrade honestly in the meantime.
 
@@ -380,7 +391,7 @@ OpenSearch forked from Elasticsearch 7.10, where field collapsing, `search_after
 
 ## 9. Backward compatibility and degradation
 
-The new fields default to empty and are purely additive at all three layers, so a client that never sends a `Pagination` message is byte-for-byte unaffected (G5): with no message it gets one page, and `page_size` falling back to `search_depth` preserves the current page size and default. No previously valid request changes meaning.
+The new fields default to empty and are purely additive at all three layers, so a client that never sends a `Pagination` message is byte-for-byte unaffected (G5): with no message it gets one page bounded by `search_depth`, which keeps both its meaning and its default of 100 for such a client. No previously valid request changes meaning.
 
 Degradation is honest, never silent (G6, §6.2): a backend that cannot paginate declares so, the query service serves a single capped page and reports the truncation through the capability channel the UI already reads, and a stale or forged token presented to such a backend is rejected rather than answered. A remote plugin predating the capability field reads as least-capable and is never sent a token, so the pre-`page_token` under-answering failure of §6.1 cannot occur.
 
@@ -402,9 +413,9 @@ The pagination-model comparison (offset vs. keyset vs. opaque token) is the §3 
 
 PR-sized milestones with explicit exit bars, grouped by layer, bottom-up so each rests on the one before. The proto and interface stages are additive and change no behavior; the ES/OS stage is where the correctness fix and the user-visible capability land.
 
-**M1 — Proto foundation (jaeger-idl).** Add the `Pagination` message and a `pagination` field on `TraceQueryParameters` in both api_v3 and storage/v2; add `next_page_token` to `FindTraceIDsResponse` and `FindTraceSummariesResponse`; add the `paginated` field to `storage.v2.SearchCapabilities`. Legacy fields untouched; field numbers coordinated with RFC 0005. *Exit:* generated types compile and vendor cleanly; existing api_v3/storage callers byte-for-byte unaffected.
+**✅ M1 — Proto foundation (jaeger-idl).** Delivered by [jaeger-idl#213](https://github.com/jaegertracing/jaeger-idl/pull/213). Add the `Pagination` message and a `pagination` field on `TraceQueryParameters` in both api_v3 and storage/v2; add `next_page_token` to `FindTraceIDsResponse` and `FindTraceSummariesResponse`; add the `paginated` field to `storage.v2.SearchCapabilities`. Legacy fields untouched; field numbers coordinated with RFC 0005. *Exit:* generated types compile and vendor cleanly; existing api_v3/storage callers byte-for-byte unaffected.
 
-**M2 — Internal interface and query-service plumbing.** Extend `TraceQueryParams` with the nested `Pagination` struct (§5); change `FindTraceIDs`/`FindTraceSummaries` to yield the token on their result page (§5); add `Paginated` to `SearchCapabilities`; implement token minting, fingerprint binding (§3.2), and the degradation rules (§6.2) centrally in the query service. No backend paginates yet — every reader declares `Paginated = false`, so the query service serves one capped page and reports it. *Exit:* a request with no token returns today's results; a token against a non-paginating backend is rejected; the capability is reported to the UI.
+**M2 — Internal interface and query-service plumbing.** Extend `TraceQueryParams` with the nested `Pagination` struct (§5); change `FindTraceIDs`/`FindTraceSummaries` to yield the token on their result page (§5); add `Paginated` to `SearchCapabilities`; implement token minting, fingerprint binding (§3.2), the page_size maximum (§4), and the degradation rules (§6.2) centrally in the query service. No backend paginates yet — every reader declares `Paginated = false`, so the query service serves one capped page and reports it. *Exit:* a request with no token returns today's results; a token against a non-paginating backend is rejected; the capability is reported to the UI.
 
 **M3 — Elasticsearch/OpenSearch.** Add a `collapse` clause to `esquery`; replace the terms aggregation in `FindTraceIDs` with the collapse + `search_after` scheme (§7); mint/decode the result cursor (§7.4); keep the intra-trace span cursor separate (§7.3); declare `Paginated = true`. This also fixes the cross-shard ordering approximation of §1.2. *Exit:* start-to-finish paging over a fixed dataset visits every matching trace exactly once in most-recent-first order; a shard-count-varying integration test asserts completeness; a test writes a late span that raises an already-returned trace's maximum `startTime` mid-traversal and asserts the trace is not returned a second time (§3.4); unqualified single-page results match today's within the ordering fix.
 
@@ -424,8 +435,14 @@ PR-sized milestones with explicit exit bars, grouped by layer, bottom-up so each
 
 ## 12. Open questions
 
-1. **Default page size.** Should `Pagination.page_size`'s default track `search_depth`'s current default of 100, or should interactive search default to a smaller screenful (e.g. 20) with `search_depth` as the traversal ceiling? The compatibility argument (§4) favors 100; the interactive-UX argument favors smaller.
-2. **A default traversal ceiling.** Should the query service cap the number of pages a single cursor lineage yields by default (so unbounded "load more" cannot walk an entire index), and if so, at what multiple of `search_depth`? Or is an unbounded traversal acceptable and rate-limiting left to deployment?
+1. ✅ **Default page size — resolved: there is no default.** `page_size` is required whenever a `Pagination` is present (§4), so a paginated search always states its own page size and the UI picks its own screenful. A client that wants today's behavior sends no `Pagination` and keeps `search_depth` and its default of 100.
+2. ✅ **A default traversal ceiling — resolved: there is none.** The query service caps `page_size` (§4) and does not cap how many pages a cursor lineage yields. Three reasons.
+
+   A total ceiling exists in other systems to defend against a cost curve keyset paging does not have. Elasticsearch bounds `from + size` with `index.max_result_window` because offset paging re-scans and re-sorts everything before the offset, so cost grows with depth; `search_after` is exempt from that window for exactly this reason, and `search_after` is what §7 adopts. Prevailing cursor-API practice follows the same logic: a documented maximum page size, no limit on traversal.
+
+   A silent ceiling would also reintroduce the defect this RFC exists to remove. §1.1 is an argument against a cap that hides results, and a cap that appears at page N is worse than today's, because the caller has been given every reason to believe paging works. The relevance-ranked search APIs that do stop early — GitHub's at 1,000 results — cap for a product reason that does not apply here: Jaeger orders results chronologically (§3.3), so the nine-hundredth result is as meaningful as the ninth.
+
+   What bounds a runaway traversal is not a page count. Every search requires `start_time_min` and `start_time_max`, so a traversal walks a time window rather than an entire index, and per-tenant rate limiting is where "one client is issuing too many requests" belongs in any deployment. If a ceiling is ever wanted regardless, it has to be **reported** rather than silent: an empty `next_page_token` already means "exhausted," so a truncated traversal needs a signal of its own instead of overloading that one.
 3. **Capability granularity.** Is a single `Paginated bool` enough, or should it be an enum from the start to leave room for a future best-effort mode that cannot promise completeness (§6.1)? A bool now, graduating to an enum on demand, matches ADR-013's stated evolution path, but naming it right the first time avoids a later rename.
 4. **Sort-key semantics: max or min span `startTime`?** Search has ranked traces by their maximum span `startTime` since 2017 with no recorded rationale, while the results list labels each trace with its `MinStartTime`, so a long-running trace can outrank one that started later (§7.1). Adopting collapse makes that ordering permanent, since collapse cannot rank by a per-group minimum (§7.2). Is the discrepancy worth fixing — and if so, is the answer to keep the terms aggregation for ranking, to build the per-trace document of §11, or to accept max and document it as the definition? The choice also decides whether concurrent writes cause skips or duplicates (§3.4).
 5. **Fingerprint scope.** Exactly which request fields enter the token's query fingerprint (§3.2)? Clearly the matching parameters; `raw_traces` and `page_size` are arguably presentation, not matching, so a client could legitimately change `page_size` mid-session — should that invalidate the token or not?

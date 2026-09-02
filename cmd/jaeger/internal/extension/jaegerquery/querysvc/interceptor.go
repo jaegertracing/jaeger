@@ -106,7 +106,7 @@ func finalizeInterceptorFilter(returned *expression.Call) (*expression.Call, err
 		return nil, fmt.Errorf("%w: it returned no filter for a query that had predicates, which "+
 			"would widen the search to every trace in the time range", ErrInterceptorFilter)
 	}
-	finalized, err := expression.Finalize(returned)
+	finalized, err := tracestore.FinalizeFilter(returned)
 	if err != nil {
 		return nil, fmt.Errorf("%w: %w", ErrInterceptorFilter, err)
 	}
