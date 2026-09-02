@@ -29,6 +29,10 @@ import (
 
 func TestToUpsertItem(t *testing.T) {
 	indexName := "jaeger-1995-04-21"
+	// The Elasticsearch document _id for the service/operation pair below. The
+	// value is pinned because it is persisted: if hashCode changes, existing
+	// indices keep the old ids and every pair is stored a second time.
+	serviceHash := "d82cd4c84f128f01"
 
 	jsonSpan := &dbmodel.Span{
 		OperationName: "operation",
@@ -39,6 +43,7 @@ func TestToUpsertItem(t *testing.T) {
 	item, key, ok := s.toUpsertItem(indexName, jsonSpan)
 	require.True(t, ok)
 	assert.Equal(t, indexName, item.Index)
+	assert.Equal(t, serviceHash, item.ID)
 	assert.Equal(t, key, item.ID)
 	assert.IsType(t, dbmodel.Service{}, item.Body)
 
