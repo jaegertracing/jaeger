@@ -5,6 +5,7 @@ package app
 
 import (
 	"context"
+	"strings"
 	"time"
 
 	"go.opentelemetry.io/collector/config/configoptional"
@@ -19,6 +20,9 @@ import (
 // transport stack. Auth methods are assumed mutually exclusive; InitFromViper
 // rejects ambiguous combinations.
 func NewESClient(ctx context.Context, endpoint string, cfg *Config, logger *zap.Logger) (*esclient.Client, error) {
+	// govalidator's url validation rejects 0.0.0.0, replace it with 127.0.0.1 for tests
+	endpoint = strings.Replace(endpoint, "://0.0.0.0:", "://127.0.0.1:", 1)
+
 	esCfg := &escfg.Configuration{
 		Servers:      []string{endpoint},
 		QueryTimeout: time.Duration(cfg.MasterNodeTimeoutSeconds) * time.Second,
@@ -41,6 +45,9 @@ func NewESClient(ctx context.Context, endpoint string, cfg *Config, logger *zap.
 		esCfg.Authentication.APIKeyAuth = configoptional.Some(escfg.TokenAuthentication{
 			FilePath: cfg.APIKeyFilePath,
 		})
+	}
+	if err := esCfg.Validate(); err != nil {
+		return nil, err
 	}
 	return esclient.NewClient(ctx, esCfg, logger, nil)
 }
