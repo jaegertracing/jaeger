@@ -7,14 +7,15 @@ import (
 	"context"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/require"
-	"go.opentelemetry.io/collector/featuregate"
+	"go.opentelemetry.io/collector/pdata/pcommon"
+	"go.opentelemetry.io/collector/pdata/ptrace"
 
 	"github.com/jaegertracing/jaeger-idl/model/v1"
 	escfg "github.com/jaegertracing/jaeger/internal/storage/elasticsearch/config"
-	"github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore"
 	"github.com/jaegertracing/jaeger/internal/telemetry"
 )
 
@@ -59,10 +60,73 @@ func TestESStorageFactoryWithConfig(t *testing.T) {
 	factory.Close()
 }
 
+// TestSyncWriteModePropagatesBulkError asserts the RFC 0007 M4 wiring end-to-end:
+// with write_mode: sync, a failing _bulk request surfaces as a WriteTraces error
+// (unlike async mode, which returns nil at enqueue time). The mock backend answers
+// the version probe but rejects _bulk with 500.
+func TestSyncWriteModePropagatesBulkError(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if strings.Contains(r.URL.Path, "_bulk") {
+			w.WriteHeader(http.StatusInternalServerError)
+			return
+		}
+		w.Write(mockEsServerResponse)
+	}))
+	defer server.Close()
+
+	cfg := escfg.Configuration{
+		Servers:   []string{server.URL},
+		WriteMode: escfg.WriteModeSync,
+		LogLevel:  "error",
+	}
+	factory, err := NewFactory(context.Background(), cfg, telemetry.NoopSettings(), nil)
+	require.NoError(t, err)
+	defer factory.Close()
+
+	writer, err := factory.CreateTraceWriter()
+	require.NoError(t, err)
+
+	td := ptrace.NewTraces()
+	rs := td.ResourceSpans().AppendEmpty()
+	rs.Resource().Attributes().PutStr("service.name", "svc")
+	span := rs.ScopeSpans().AppendEmpty().Spans().AppendEmpty()
+	span.SetName("op")
+	span.SetTraceID(pcommon.TraceID([16]byte{1}))
+	span.SetSpanID(pcommon.SpanID([8]byte{2}))
+
+	err = writer.WriteTraces(context.Background(), td)
+	require.Error(t, err, "a failing _bulk must surface as a WriteTraces error in sync mode")
+}
+
 func TestESStorageFactoryErr(t *testing.T) {
 	f, err := NewFactory(context.Background(), escfg.Configuration{}, telemetry.NoopSettings(), nil)
 	require.ErrorContains(t, err, "no servers specified")
 	require.Nil(t, f)
+}
+
+func TestSyncBulkWriteByteCap(t *testing.T) {
+	tests := []struct {
+		name        string
+		writeMode   escfg.WriteMode
+		maxBytes    int
+		expectSync  bool
+		expectedCap int
+	}{
+		{name: "sync mode reports its byte cap", writeMode: escfg.WriteModeSync, maxBytes: 5_000_000, expectSync: true, expectedCap: 5_000_000},
+		{name: "async mode is not sync", writeMode: escfg.WriteModeAsync, maxBytes: 5_000_000, expectSync: false, expectedCap: 5_000_000},
+		{name: "unset mode defaults to async", writeMode: "", maxBytes: 5_000_000, expectSync: false, expectedCap: 5_000_000},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			f := &Factory{config: escfg.Configuration{
+				WriteMode:      tt.writeMode,
+				BulkProcessing: escfg.BulkProcessing{MaxBytes: tt.maxBytes},
+			}}
+			sync, maxBytes := f.SyncBulkWriteByteCap()
+			require.Equal(t, tt.expectSync, sync)
+			require.Equal(t, tt.expectedCap, maxBytes)
+		})
+	}
 }
 
 // func getTestingFactoryBase(t *testing.T, cfg *escfg.Configuration) *elasticsearch.FactoryBase {
@@ -123,43 +187,38 @@ func TestAlwaysIncludesRequiredTags(t *testing.T) {
 	}
 }
 
-func TestCreateTraceReaderNativeSummariesGate(t *testing.T) {
+func TestCreateTraceReader(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.Write(mockEsServerResponse)
 	}))
 	defer server.Close()
 
-	tests := []struct {
-		name           string
-		gateEnabled    bool
-		wantSummaryRdr bool
-	}{
-		{name: "enabled exposes SummaryReader", gateEnabled: true, wantSummaryRdr: true},
-		{name: "disabled falls back to query service", gateEnabled: false, wantSummaryRdr: false},
-	}
+	cfg := escfg.Configuration{Servers: []string{server.URL}, LogLevel: "error"}
+	factory, err := NewFactory(context.Background(), cfg, telemetry.NoopSettings(), nil)
+	require.NoError(t, err)
+	defer factory.Close()
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			original := nativeTraceSummariesGate.IsEnabled()
-			require.NoError(t, featuregate.GlobalRegistry().Set(nativeTraceSummariesGate.ID(), tt.gateEnabled))
-			defer func() {
-				require.NoError(t, featuregate.GlobalRegistry().Set(nativeTraceSummariesGate.ID(), original))
-			}()
+	// Gate-driven behavior of FindTraceSummaries is covered by the tracestore package
+	// unit tests; here we only assert the factory wires up a usable reader.
+	reader, err := factory.CreateTraceReader()
+	require.NoError(t, err)
+	require.NotNil(t, reader)
+}
 
-			cfg := escfg.Configuration{Servers: []string{server.URL}, LogLevel: "error"}
-			factory, err := NewFactory(context.Background(), cfg, telemetry.NoopSettings(), nil)
-			require.NoError(t, err)
-			defer factory.Close()
+func TestCreateDependencyReader(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Write(mockEsServerResponse)
+	}))
+	defer server.Close()
 
-			reader, err := factory.CreateTraceReader()
-			require.NoError(t, err)
+	cfg := escfg.Configuration{Servers: []string{server.URL}, LogLevel: "error"}
+	factory, err := NewFactory(context.Background(), cfg, telemetry.NoopSettings(), nil)
+	require.NoError(t, err)
+	defer factory.Close()
 
-			// The metrics decorator forwards SummaryReader only when the gate enabled
-			// the native wrapper; the query service discovers it via this same assertion.
-			_, ok := reader.(tracestore.SummaryReader)
-			require.Equal(t, tt.wantSummaryRdr, ok)
-		})
-	}
+	reader, err := factory.CreateDependencyReader()
+	require.NoError(t, err)
+	require.NotNil(t, reader)
 }
 
 func TestEnsureRequiredFields_AllAsFieldsTrue(t *testing.T) {

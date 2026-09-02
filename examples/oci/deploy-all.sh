@@ -97,7 +97,7 @@ if [[ "$MODE" == "upgrade" ]]; then
       echo "🟡 Use clean mode or repair the Prometheus release separately to reinstall monitoring."
       ;;
   esac
-  HELM_JAEGER_CMD="upgrade --install --wait"
+  HELM_JAEGER_CMD="upgrade --install --wait --atomic"
   HELM_PROM_CMD="upgrade --install --wait"
 else
   echo "🟣 Clean mode: Uninstalling Jaeger and Prometheus..."
@@ -228,7 +228,7 @@ smoke_expect() {
 if [[ "$RUN_PUBLIC_SMOKE_TESTS" == "true" ]]; then
   echo "🔎 Step 7: Verifying public demo endpoints..."
   smoke_expect "${PUBLIC_BASE_URL}/hotrod/dispatch?customer=123" '"Driver"' /tmp/hotrod-smoke.json
-  smoke_expect "${PUBLIC_BASE_URL}/jaeger/api/services" '"frontend"' /tmp/jaeger-services.json
+  smoke_expect "${PUBLIC_BASE_URL}/jaeger/api/v3/services" '"frontend"' /tmp/jaeger-services.json
 fi
 
 # Output Port-forward Instructions

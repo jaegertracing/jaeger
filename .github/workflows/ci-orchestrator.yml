@@ -129,7 +129,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
-      - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
           node-version: '24'
           cache: 'npm'
@@ -172,6 +172,8 @@ jobs:
     if: ${{ needs.setup.outputs.parallel == 'false' }}
     permissions:
       contents: read
+      # binary-size-check reads the PR's labels to see whether its size gate is waived.
+      pull-requests: read
     uses: ./.github/workflows/ci-orchestrator-stage1.yml
     secrets: inherit
 
@@ -204,6 +206,8 @@ jobs:
     if: ${{ needs.setup.outputs.parallel == 'true' }}
     permissions:
       contents: read
+      # binary-size-check reads the PR's labels to see whether its size gate is waived.
+      pull-requests: read
     uses: ./.github/workflows/ci-orchestrator-stage1.yml
     secrets: inherit
 
@@ -229,11 +233,18 @@ jobs:
   # ============================================================================
   # FINAL GATEKEEPER: Use this job for Branch Protection.
   # Validates whichever execution path was taken (sequential or parallel).
+  #
+  # It runs when a stage fails, which is the point of always(), but not when the run itself was
+  # cancelled: a cancelled run is one a newer run superseded, and every job it reports on was
+  # cancelled with it, so a verdict from it says nothing about the commit. Reporting failure there
+  # writes a red "All CI Checks Passed" onto a commit whose live run passed, and branch protection
+  # reads the red one. Skipping instead leaves the surviving run's verdict as the only one, and a
+  # skipped job counts as a pass.
   # ============================================================================
   ci-success:
     name: All CI Checks Passed
     runs-on: ubuntu-latest
-    if: always()
+    if: always() && !cancelled()
     needs: [setup, ci-scripts, stage1-seq, stage2-seq, stage3-seq, stage1-fast, stage2-fast, stage3-fast]
     steps:
       - name: Check setup status

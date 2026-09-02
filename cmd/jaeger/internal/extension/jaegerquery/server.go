@@ -15,6 +15,7 @@ import (
 
 	queryapp "github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerquery/internal"
 	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerquery/internal/jaegerai/aihealth"
+	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerquery/queryinterceptor"
 	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerquery/querysvc"
 	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerstorage"
 	"github.com/jaegertracing/jaeger/internal/metrics"
@@ -48,10 +49,16 @@ func newServer(config *Config, otel component.TelemetrySettings) *server {
 	}
 }
 
-// Dependencies implements extensioncapabilities.Dependent
-// to ensure this always starts after jaegerstorage extension.
-func (*server) Dependencies() []component.ID {
-	return []component.ID{jaegerstorage.ID}
+// Dependencies implements extensioncapabilities.Dependent so the collector
+// starts this extension after the ones it consumes: the jaegerstorage extension
+// (for the trace reader) and every configured query-interceptor extension. The
+// latter guarantees each interceptor's own Start has run before jaeger-query
+// begins serving queries, so it is ready when OnQuery/OnResult are invoked.
+func (s *server) Dependencies() []component.ID {
+	deps := make([]component.ID, 0, 1+len(s.config.QueryInterceptors))
+	deps = append(deps, jaegerstorage.ID)
+	deps = append(deps, s.config.QueryInterceptors...)
+	return deps
 }
 
 func (s *server) Start(ctx context.Context, host component.Host) error {
@@ -71,6 +78,11 @@ func (s *server) Start(ctx context.Context, host component.Host) error {
 		return fmt.Errorf("cannot create trace reader: %w", err)
 	}
 
+	interceptors, err := queryinterceptor.Resolve(host, s.config.QueryInterceptors)
+	if err != nil {
+		return fmt.Errorf("cannot resolve query interceptors: %w", err)
+	}
+
 	df, ok := tf.(depstore.Factory)
 	if !ok {
 		return fmt.Errorf("cannot find factory for dependency storage %s: %w", s.config.Storage.TracesPrimary, err)
@@ -83,6 +95,7 @@ func (s *server) Start(ctx context.Context, host component.Host) error {
 	opts := querysvc.QueryServiceOptions{
 		MaxClockSkewAdjust: s.config.MaxClockSkewAdjust,
 		MaxTraceSize:       s.config.MaxTraceSize,
+		Interceptors:       interceptors,
 	}
 	if err := s.addArchiveStorage(&opts, host); err != nil {
 		return err
@@ -98,16 +111,23 @@ func (s *server) Start(ctx context.Context, host component.Host) error {
 	tm := tenancy.NewManager(&s.config.Tenancy)
 	s.tenancyManager = tm
 
-	caps := querysvc.StorageCapabilities{
-		ArchiveStorage: opts.ArchiveTraceReader != nil && opts.ArchiveTraceWriter != nil,
-		MetricsStorage: s.config.Storage.Metrics != "",
-	}
-
 	s.aiHealth = buildAIHealthChecker(&s.config.QueryOptions, telset.Logger)
 
-	var aiHealthCheck func() bool
-	if s.aiHealth != nil {
-		aiHealthCheck = s.aiHealth.Current
+	archiveStorage := opts.ArchiveTraceReader != nil && opts.ArchiveTraceWriter != nil
+	metricsStorage := s.config.Storage.Metrics != ""
+	backendCaps := func(ctx context.Context) queryapp.BackendCapabilities {
+		searchWithoutServiceName, err := qs.SearchWithoutServiceName(ctx)
+		if err != nil {
+			searchWithoutServiceName = false
+			telset.Logger.Info("Storage did not report its search capabilities; assuming baseline",
+				zap.Error(err))
+		}
+		return queryapp.BackendCapabilities{
+			ArchiveStorage:           archiveStorage,
+			MetricsStorage:           metricsStorage,
+			SearchWithoutServiceName: searchWithoutServiceName,
+			AIAssistant:              s.aiHealth != nil && s.aiHealth.Current(),
+		}
 	}
 
 	s.server, err = queryapp.NewServer(
@@ -116,8 +136,7 @@ func (s *server) Start(ctx context.Context, host component.Host) error {
 		qs,
 		mqs,
 		&s.config.QueryOptions,
-		caps,
-		aiHealthCheck,
+		backendCaps,
 		tm,
 		telset,
 	)
@@ -153,7 +172,7 @@ func buildAIHealthChecker(opts *queryapp.QueryOptions, logger *zap.Logger) *aihe
 	}
 	aiCfg := opts.AI.Get() // cannot be nil when HasValue is true
 	if aiCfg.AgentURL == "" {
-		// MCP-only mode (enable_mcp without agent_url): there is no chat
+		// MCP-only mode (ai.mcp without agent_url): there is no chat
 		// sidecar to probe, so the health checker has nothing to do.
 		logger.Info("AI Assistant health check disabled (no agent_url)")
 		return nil
@@ -163,7 +182,7 @@ func buildAIHealthChecker(opts *queryapp.QueryOptions, logger *zap.Logger) *aihe
 		return nil
 	}
 	return &aihealth.Checker{
-		Check:    aihealth.NewACPCheck(aiCfg.AgentURL, logger),
+		Check:    aihealth.NewACPCheck(aiCfg.AgentURL, aiCfg.AgentHeaders, logger),
 		Interval: aiCfg.HealthCheckInterval,
 		Timeout:  aiCfg.HealthCheckTimeout,
 		Logger:   logger,

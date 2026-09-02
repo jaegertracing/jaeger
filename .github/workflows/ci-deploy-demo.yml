@@ -35,15 +35,29 @@ on:
           - otel
           - all
       otel_deploy_scope:
-        description: 'OTel demo deploy scope. Use all to refresh OpenSearch and the OTel app.'
+        description: 'OTel demo deploy scope. Use otel-demo or opensearch for an isolated upgrade, or all for the full stack.'
         required: false
         default: jaeger
         type: choice
         options:
           - jaeger
+          - otel-demo
+          - opensearch
           - all
+      opensearch_recovery:
+        description: 'OpenSearch recovery policy. Waive only for disposable data in an isolated upgrade.'
+        required: false
+        default: required
+        type: choice
+        options:
+          - required
+          - waive
 
 permissions: read-all
+
+concurrency:
+  group: jaeger-otel-demo-opensearch-recovery
+  cancel-in-progress: false
 
 jobs:
   deploy:
@@ -64,9 +78,33 @@ jobs:
       JAEGER_DEMO_DEPLOY_MODE: ${{ github.event.inputs.deploy_mode || 'upgrade' }}
       JAEGER_DEMO_STACK: ${{ github.event.inputs.demo_stack || 'oci' }}
       JAEGER_OTEL_DEMO_DEPLOY_SCOPE: ${{ github.event.inputs.otel_deploy_scope || 'jaeger' }}
+      JAEGER_OTEL_DEMO_OPENSEARCH_RECOVERY: ${{ github.event.inputs.opensearch_recovery || 'required' }}
       RUN_PUBLIC_SMOKE_TESTS: "true"
+      MAIN_SHA: ${{ github.sha }}
+      GITHUB_EVENT_NAME: ${{ github.event_name }}
 
     steps:
+    - name: Validate OpenSearch recovery policy
+      run: |
+        case "${JAEGER_OTEL_DEMO_OPENSEARCH_RECOVERY}" in
+          required)
+            ;;
+          waive)
+            if [[ "${GITHUB_EVENT_NAME}" != "workflow_dispatch" ||
+              "${GITHUB_REF}" != "refs/heads/main" ||
+              "${JAEGER_DEMO_STACK}" != "otel" ||
+              "${JAEGER_DEMO_DEPLOY_MODE}" != "upgrade" ||
+              "${JAEGER_OTEL_DEMO_DEPLOY_SCOPE}" != "opensearch" ]]; then
+              echo "OpenSearch recovery may be waived only by a manual isolated otel/upgrade/opensearch run from main" >&2
+              exit 1
+            fi
+            ;;
+          *)
+            echo "Invalid OpenSearch recovery policy: ${JAEGER_OTEL_DEMO_OPENSEARCH_RECOVERY}" >&2
+            exit 1
+            ;;
+        esac
+
     - name: Configure kubectl with OKE
       uses: oracle-actions/configure-kubectl-oke@77a733d79446dabe7bf0e58eb56197d33ce4dc58 # v1.5.0
       with:
@@ -78,6 +116,10 @@ jobs:
 
     - name: Checkout jaeger repository
       uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
+
+    - name: Resolve and verify snapshot image tags
+      if: env.JAEGER_DEMO_STACK != 'otel' || (env.JAEGER_OTEL_DEMO_DEPLOY_SCOPE != 'otel-demo' && env.JAEGER_OTEL_DEMO_DEPLOY_SCOPE != 'opensearch') || env.JAEGER_DEMO_DEPLOY_MODE == 'clean'
+      run: bash scripts/utils/resolve-demo-snapshot-tags.sh
 
     - name: Deploy using appropriate script
       run: |

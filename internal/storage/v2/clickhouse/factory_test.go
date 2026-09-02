@@ -15,7 +15,6 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/collector/config/configoptional"
 	"go.opentelemetry.io/collector/config/configtls"
-	"go.opentelemetry.io/collector/featuregate"
 
 	"github.com/jaegertracing/jaeger/internal/storage/v2/clickhouse/clickhousetest"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/clickhouse/sql"
@@ -348,16 +347,6 @@ func TestNewFactory_TLSLoadSuccess(t *testing.T) {
 	require.NotContains(t, err.Error(), "failed to load TLS configuration")
 }
 
-func TestNewFactory_FeatureGateDisabled(t *testing.T) {
-	require.NoError(t, featuregate.GlobalRegistry().Set(clickhouseStorageGate.ID(), false))
-	t.Cleanup(func() {
-		require.NoError(t, featuregate.GlobalRegistry().Set(clickhouseStorageGate.ID(), true))
-	})
-	f, err := NewFactory(context.Background(), Configuration{}, telemetry.NoopSettings())
-	require.ErrorContains(t, err, "must be explicitly enabled")
-	require.Nil(t, f)
-}
-
 func TestNewSchemaBuilder_Errors(t *testing.T) {
 	originalLoadTemplate := loadTemplate
 	t.Cleanup(func() { loadTemplate = originalLoadTemplate })
@@ -470,4 +459,22 @@ func TestCreateTraceIDTimestampsTableTemplate(t *testing.T) {
 		require.NoError(t, err)
 		assert.Contains(t, queryWithTTL, "TTL end + INTERVAL 86400 SECOND DELETE")
 	})
+}
+
+func TestNewFactory_KeepsExplicitZeroCacheSettings(t *testing.T) {
+	srv := clickhousetest.NewServer(clickhousetest.FailureConfig{})
+	defer srv.Close()
+
+	cfg := DefaultConfiguration()
+	cfg.Protocol = "http"
+	cfg.Addresses = []string{srv.Listener.Addr().String()}
+	cfg.AttributeMetadataCacheTTL = 0
+	cfg.AttributeMetadataCacheMaxSize = 0
+
+	f, err := NewFactory(context.Background(), cfg, telemetry.NoopSettings())
+	require.NoError(t, err)
+	defer func() { require.NoError(t, f.Close()) }()
+
+	assert.Zero(t, f.config.AttributeMetadataCacheTTL)
+	assert.Zero(t, f.config.AttributeMetadataCacheMaxSize)
 }

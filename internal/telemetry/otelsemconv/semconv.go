@@ -12,8 +12,6 @@ import (
 // the semver of the imports the same. This package serves as a
 // one stop shop replacement / alias.
 const (
-	SchemaURL = semconv.SchemaURL
-
 	// Telemetry SDK
 	TelemetrySDKLanguageKey   = string(semconv.TelemetrySDKLanguageKey)
 	TelemetrySDKNameKey       = string(semconv.TelemetrySDKNameKey)
@@ -83,7 +81,10 @@ func HTTPStatusCodeAttribute(value int) attribute.KeyValue {
 var HTTPResponseStatusCode = semconv.HTTPResponseStatusCode
 
 // MCP + GenAI helper values/functions.
-var GenAIOperationNameExecuteTool = semconv.GenAIOperationNameExecuteTool
+var (
+	GenAIOperationNameExecuteTool = semconv.GenAIOperationNameExecuteTool
+	GenAIOperationNameInvokeAgent = semconv.GenAIOperationNameInvokeAgent
+)
 
 func McpMethodName(value string) attribute.KeyValue {
 	return semconv.McpMethodNameKey.String(value)
@@ -95,6 +96,35 @@ func McpSessionID(value string) attribute.KeyValue {
 
 func GenAIToolName(value string) attribute.KeyValue {
 	return semconv.GenAIToolName(value)
+}
+
+// GenAIToolCallArguments is the arguments a tool call was invoked with,
+// JSON-encoded.
+func GenAIToolCallArguments(value string) attribute.KeyValue {
+	return semconv.GenAIToolCallArgumentsKey.String(value)
+}
+
+// GenAIToolCallResult is the result a tool call returned, JSON-encoded.
+func GenAIToolCallResult(value string) attribute.KeyValue {
+	return semconv.GenAIToolCallResultKey.String(value)
+}
+
+// GenAIAgentName identifies the sidecar agent handling a chat turn (e.g. the
+// name the agent reports in its ACP InitializeResponse.AgentInfo).
+func GenAIAgentName(value string) attribute.KeyValue {
+	return semconv.GenAIAgentName(value)
+}
+
+// GenAIAgentVersion is the version the sidecar agent reports in its ACP
+// InitializeResponse.AgentInfo.
+func GenAIAgentVersion(value string) attribute.KeyValue {
+	return semconv.GenAIAgentVersion(value)
+}
+
+// GenAIConversationID correlates the chat span with the ACP session id
+// assigned by the sidecar agent for this turn.
+func GenAIConversationID(value string) attribute.KeyValue {
+	return semconv.GenAIConversationID(value)
 }
 
 func ErrorType(value string) attribute.KeyValue {
