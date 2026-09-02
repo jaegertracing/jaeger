@@ -15,7 +15,6 @@ import (
 	"google.golang.org/grpc/health/grpc_health_v1"
 	"google.golang.org/grpc/status"
 
-	expression "github.com/jaegertracing/jaeger-idl/query/expression/v1"
 	"github.com/jaegertracing/jaeger/internal/jptrace"
 	"github.com/jaegertracing/jaeger/internal/proto-gen/storage/v2"
 	expressionproto "github.com/jaegertracing/jaeger/internal/proto/expression/v1"
@@ -314,7 +313,7 @@ func (h *Handler) toTraceQueryParams(
 ) (tracestore.TraceQueryParams, error) {
 	filter, err := expressionproto.FromProto(t.GetFilter())
 	if err == nil && filter != nil {
-		filter, err = expression.Finalize(filter)
+		filter, err = tracestore.FinalizeFilter(filter)
 	}
 	if err != nil {
 		return tracestore.TraceQueryParams{}, status.Error(codes.InvalidArgument, err.Error())
