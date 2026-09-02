@@ -246,7 +246,7 @@ func (s *SpanReader) buildMembership(predicate *expression.Call) (esquery.Query,
 	}
 	members := make([]esquery.Query, 0, len(list.Values))
 	for _, value := range list.Values {
-		element, err := expression.ReadElement(list, fieldType, value)
+		element, err := tracestore.ReadFilterElement(list, fieldType, value)
 		if err != nil {
 			return nil, fmt.Errorf("%w: %w", tracestore.ErrFilterInvalid, err)
 		}
@@ -348,7 +348,7 @@ func lengthOfTime(value expression.Expression) (time.Duration, error) {
 		}
 		// An untyped constant reaches here from a tree that was not finalized, so it is read the way
 		// finalizing would have read it rather than by a second parser of this package's own.
-		read, err := expression.ReadConstant(expression.FieldTypeDuration, constant.Value)
+		read, err := tracestore.ReadFilterConstant(expression.FieldTypeDuration, constant.Value)
 		if err != nil {
 			return 0, fmt.Errorf(`%w: %q is not a duration such as "2s": %w`,
 				tracestore.ErrFilterInvalid, constant.Value, err)
