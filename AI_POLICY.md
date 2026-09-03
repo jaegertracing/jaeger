@@ -36,7 +36,7 @@ We use AI tools ourselves and assume most contributors do too. Helpful uses incl
 - You must understand your code well enough to explain it. "My agent wrote that" is not an answer to a review comment.
 - You must run tests locally before opening or updating a PR.
 - Your DCO sign-off covers AI output the same as code you typed. A generator can reproduce code from its training data, and you cannot inspect where its output came from, so keep it to code you are confident is yours to contribute under Jaeger's license. If you are not confident, do not submit it.
-- Declare AI usage with the checkbox in the pull request template. Keep it out of commit trailers, though: a `Co-authored-by` line for your agent distorts contributor statistics.
+- Declare AI usage with the checkbox in the pull request template. Whether you also credit your tool with a `Co-authored-by` trailer is up to you; what the project requires is your own sign-off, which is the line that carries the certification.
 
 ## Talk to us yourself
 
