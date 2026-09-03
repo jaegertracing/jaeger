@@ -201,6 +201,7 @@ To upgrade:
 1. Change the top-level `go.mod` by hand, e.g. `go mod edit -go=1.27.0`. The script takes its target version from that file, so nothing else can be updated until this is done.
 2. Run `./scripts/lint/check-go-version.sh -u` to propagate the version everywhere else. Pass `-v` as well to print a diff of each file it rewrites.
 3. Run `make fmt`, `make lint`, and `make test`, and fix whatever the new compiler and the new linter complain about.
+4. Upgrade Delve to a release that supports the new Go version. `dlv` refuses to attach to a binary built by a newer Go than it knows about, and the all-in-one integration test runs the debug image, so skipping this fails CI rather than only degrading the debug image. Delve is built in the [base-image-with-debugger](https://github.com/jaegertracing/base-image-with-debugger) repository, which also pins the `golang` image it is built with and runs on; no Dockerfile in this repository names a `golang` image. Once that repository has cut a release, repoint the digest in `scripts/build/docker/debug/Dockerfile` and match the Delve version in the `go.mod` next to it.
 
 The `-u` mode only rewrites the minor version. A line that pins a patch version has to be updated manually; the script reports such a line and exits.
 
