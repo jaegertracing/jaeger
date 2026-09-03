@@ -26,7 +26,7 @@ We use AI tools ourselves and assume most contributors do too. Helpful uses incl
 
 - Copy-pasting AI output without reading or understanding it.
 - Submitting AI-generated code without testing.
-- Letting an agent answer review feedback autonomously, posting its replies without reading and approving each one. What matters is not whether a tool wrote the words, but whether **you verified them and hold the position** they take.
+- Letting an agent answer review feedback autonomously, so that its replies go out without **you** reading and approving each one. What matters is not whether a tool wrote the words, but whether **you verified them and hold the position** they take.
 - Pointing an agent at someone else's pull request and posting what it produces. We already run automated review tools; we do not need more generated commentary. Using AI to help you understand a change you are reviewing is fine, as long as the review you post is your own.
 - Submitting a change you cannot explain, contextualize, or justify during review.
 
