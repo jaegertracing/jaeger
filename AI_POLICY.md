@@ -20,19 +20,19 @@ We use AI tools ourselves and assume most contributors do too. Helpful uses incl
 - Using AI to help you understand the code.
 - Using AI to write drafts of code, tests, or docs.
 - Using AI to explore ideas or try different approaches.
-- Using AI to help you word an issue, a PR description, or a reply to review feedback, as long as you read it, correct what you disagree with, and stand behind what you post.
+- Using AI to help you word an issue, a PR description, or a reply to review feedback, as long as you **read it**, correct what you disagree with, and **stand behind what you post**.
 
 ## Disallowed use of AI
 
 - Copy-pasting AI output without reading or understanding it.
 - Submitting AI-generated code without testing.
-- Letting an agent answer review feedback autonomously, posting its replies without reading and approving each one. What matters is not whether a tool wrote the words, but whether you verified them and hold the position they take.
+- Letting an agent answer review feedback autonomously, posting its replies without reading and approving each one. What matters is not whether a tool wrote the words, but whether **you verified them and hold the position** they take.
 - Pointing an agent at someone else's pull request and posting what it produces. We already run automated review tools; we do not need more generated commentary. Using AI to help you understand a change you are reviewing is fine, as long as the review you post is your own.
 - Submitting a change you cannot explain, contextualize, or justify during review.
 
 ## Your responsibility
 
-- You own everything you submit, even if AI wrote it.
+- **You own everything you submit, even if AI wrote it.**
 - You must understand your code well enough to explain it. "My agent wrote that" is not an answer to a review comment.
 - You must run tests locally before opening or updating a PR.
 - Your DCO sign-off covers AI output the same as code you typed. A generator can reproduce code from its training data, and you cannot inspect where its output came from, so keep it to code you are confident is yours to contribute under Jaeger's license. If you are not confident, do not submit it.
