@@ -46,6 +46,17 @@ Run these commands without asking for permission:
 - Always use `git commit -s` (DCO sign-off) when committing.
 - Capitalize the first word of the description after the `type(scope):` prefix, e.g. `fix(test): Inline all deps…` not `fix(test): inline all deps…`
 
+## Copyright and Third-Party Code
+
+Write the code yourself rather than copying it in from another project. If a change genuinely needs third-party code, it must be Apache-2.0 compatible, and its original copyright header must be preserved — add the Jaeger copyright above it rather than replacing it. See [Copyright Header](./CONTRIBUTING_GUIDELINES.md#copyright-header) for the exact form. Never remove an existing copyright header.
+
+New files get the standard header:
+
+```
+// Copyright (c) 2026 The Jaeger Authors.
+// SPDX-License-Identifier: Apache-2.0
+```
+
 ## Do Not Edit
 
 **Auto-generated files:**

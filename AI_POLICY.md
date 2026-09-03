@@ -35,6 +35,7 @@ We use AI tools ourselves and assume most contributors do too. Helpful uses incl
 - You own everything you submit, even if AI wrote it.
 - You must understand your code well enough to explain it. "My agent wrote that" is not an answer to a review comment.
 - You must run tests locally before opening or updating a PR.
+- Your DCO sign-off covers AI output the same as code you typed. A generator can reproduce code from its training data, and you cannot inspect where its output came from, so keep it to code you are confident is yours to contribute under Jaeger's license. If you are not confident, do not submit it.
 - If AI wrote a big part of your PR, mention that in the PR description. We do not need a disclosure for routine assistance such as autocomplete or spell-checking, and we would rather you left agent attribution out of commit trailers, since it distorts contributor statistics.
 
 ## Talk to us yourself
@@ -46,10 +47,6 @@ Match the level of detail to the change. AI tools happily generate walls of text
 ## Maintainer time is limited
 
 AI has made opening a pull request nearly free, while reviewing one costs a maintainer just as much as it always did. So bias towards discussion first — for anything beyond a clearly scoped fix, [open an issue](./CONTRIBUTING_GUIDELINES.md#open-an-issue-first) and agree on the direction before you implement it — and keep each change small and focused. New contributors are also subject to a cap on simultaneous open pull requests, described in [Pull Request Limits for New Contributors](./CONTRIBUTING_GUIDELINES.md#pull-request-limits-for-new-contributors).
-
-## Licensing and the DCO
-
-Every contribution to Jaeger requires a [Developer Certificate of Origin](./CONTRIBUTING_GUIDELINES.md#certificate-of-origin---sign-your-work) sign-off, and AI-assisted contributions are no exception. AI tools are trained on code whose licensing they do not disclose, and they can reproduce it. When you sign off on a change, you are certifying that you have the right to contribute it under Jaeger's license, whatever tools produced it. If you are not sure your contribution is yours to give, do not submit it.
 
 ## Enforcement
 
