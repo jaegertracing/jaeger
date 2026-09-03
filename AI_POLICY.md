@@ -1,4 +1,4 @@
-# Jaeger AI Usage Policy
+# Jaeger's AI Usage Policy
 
 This policy describes how the Jaeger maintainers expect contributors to use AI tools — LLMs, coding agents, autocomplete, and anything similar — when contributing to the project. It applies to every repository in the [jaegertracing](https://github.com/jaegertracing) GitHub organization and to all project spaces, including issues, pull requests, and Slack.
 
