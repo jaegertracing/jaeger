@@ -26,6 +26,14 @@ var eventNameAsAttribute = reference{
 	attribute: true,
 }
 
+// spanKindAsAttribute reads span.kind from the tag the write path creates for the OTLP span kind.
+// The read path promotes that tag back to the built-in field, so both spellings share one lowering.
+var spanKindAsAttribute = reference{
+	name:      model.SpanKindKey,
+	level:     expression.LevelSpan,
+	attribute: true,
+}
+
 // reference is what a lowering needs to know about a reference term: the level it names, the key or
 // field name under it, and whether it is an attribute. The AST has a distinct type per kind
 // (RFC 0005 §5.1); reading one into this shape once keeps every lowering below from switching on
@@ -289,6 +297,8 @@ func (s *SpanReader) buildComparison(
 	switch {
 	case ref.isField(expression.LevelSpan, expression.SpanFieldName):
 		return buildTextComparison(operationNameField, op, ref, text)
+	case ref.isField(expression.LevelSpan, expression.SpanFieldKind):
+		return s.buildAttributeComparison(op, spanKindAsAttribute, text)
 	case ref.isField(expression.LevelResource, expression.ResourceFieldService):
 		return buildTextComparison(serviceNameField, op, ref, text)
 	case ref.isField(expression.LevelEvent, expression.EventFieldName):
@@ -352,6 +362,8 @@ func (s *SpanReader) buildExists(ref reference) (esquery.Query, error) {
 		return s.buildAttributeExists(ref)
 	case ref.isField(expression.LevelSpan, expression.SpanFieldName):
 		return esquery.NewExistsQuery(operationNameField), nil
+	case ref.isField(expression.LevelSpan, expression.SpanFieldKind):
+		return s.buildAttributeExists(spanKindAsAttribute)
 	case ref.isField(expression.LevelResource, expression.ResourceFieldService):
 		return esquery.NewExistsQuery(serviceNameField), nil
 	case ref.isField(expression.LevelSpan, expression.SpanFieldDuration):
