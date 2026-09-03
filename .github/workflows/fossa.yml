@@ -30,13 +30,12 @@ jobs:
           echo "GOPATH=$(go env GOPATH)" >>"$GITHUB_ENV"
           echo "$GOPATH/bin" >>"$GITHUB_PATH"
 
-      - name: Remove excluded development-only modules before FOSSA scan
+      - name: Remove the excluded development-only module before FOSSA scan
         run: |
           # FOSSA still discovers nested manifests under excluded paths.
-          # Remove the dev-only modules that are already excluded in .fossa.yml
-          # so they cannot be auto-detected during analysis.
+          # Remove the dev-only module that is already excluded in .fossa.yml
+          # so it cannot be auto-detected during analysis.
           rm -rf internal/tools
-          rm -rf scripts/build/docker/debug
 
       - name: Run FOSSA scan and upload report
         uses: fossa-contrib/fossa-action@d28f0c947e7406706981a62a91ecc009bcc39fd7 # v4.0.0

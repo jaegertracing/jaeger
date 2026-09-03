@@ -15,7 +15,7 @@ git submodule update --init --recursive
 
 ## Upgrading Go
 
-Follow [Upgrading the Go Version](./CONTRIBUTING.md#upgrading-the-go-version) in CONTRIBUTING.md. The version is mirrored across several files that a script propagates from the top-level `go.mod`, and Delve has to be upgraded alongside it in another repository.
+Follow [Upgrading the Go Version](./CONTRIBUTING.md#upgrading-the-go-version) in CONTRIBUTING.md. The version is mirrored across several files that a script propagates from the top-level `go.mod`, and Delve has to be upgraded alongside it in [jaegertracing/base-image-with-debugger](https://github.com/jaegertracing/base-image-with-debugger).
 
 ## Pull Requests
 
