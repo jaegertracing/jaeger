@@ -4,6 +4,8 @@ We'd love your help!
 
 General contributing guidelines are described in [Contributing Guidelines](./CONTRIBUTING_GUIDELINES.md).
 
+If you use AI tools to help you contribute, read the [AI Usage Policy](./AI_POLICY.md) as well.
+
 Jaeger is [Apache 2.0 licensed](LICENSE) and accepts contributions via GitHub
 pull requests. This document outlines some of the conventions on development
 workflow, commit message formatting, contact points and other resources to make
