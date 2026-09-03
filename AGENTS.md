@@ -2,6 +2,8 @@
 
 This file provides guidance for AI agents working on the Jaeger repository. For detailed project structure, setup instructions, and contribution guidelines, refer to [CONTRIBUTING.md](./CONTRIBUTING.md).
 
+What the project expects from a human contributor who works with an agent is stated in the [AI Usage Policy](./AI_POLICY.md). It applies to work done in this repository, and the human running you owns everything you produce.
+
 ## Setup
 
 The primary branch is called `main`, all PRs are merged into it.
