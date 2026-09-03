@@ -194,7 +194,7 @@ After the merge make sure referenced issues were closed.
 
 ## Upgrading the Go Version
 
-Jaeger builds with the latest Go minor release. The version is declared in the top-level `go.mod` and mirrored into the other `go.mod` files, `.golangci.yml`, and every GitHub Actions workflow that installs Go. `scripts/lint/check-go-version.sh` runs as part of `make lint` and fails the build when any of those copies disagrees with the top-level `go.mod`.
+Jaeger builds with the latest Go minor release. The version is declared in the top-level `go.mod` and mirrored into the other `go.mod` files, `.golangci.yml`, and the shared `.github/actions/setup-go` action. That action is the only way CI installs Go, and it hardcodes the version rather than taking one from its callers, so no workflow names a Go version. `scripts/lint/check-go-version.sh` runs as part of `make lint` and fails the build when any of those copies disagrees with the top-level `go.mod`.
 
 To upgrade:
 
@@ -202,7 +202,7 @@ To upgrade:
 2. Run `./scripts/lint/check-go-version.sh -u` to propagate the version everywhere else. Pass `-v` as well to print a diff of each file it rewrites.
 3. Run `make fmt`, `make lint`, and `make test`, and fix whatever the new compiler and the new linter complain about.
 
-The `-u` mode only rewrites the minor version. A line that pins a patch version, such as `go-version: 1.27.1` in a workflow, has to be updated manually; the script reports such a line and exits.
+The `-u` mode only rewrites the minor version. A line that pins a patch version has to be updated manually; the script reports such a line and exits.
 
 The `idl` submodule has its own `go.mod` and is deliberately excluded; its Go version is upgraded through a PR to the [jaeger-idl](https://github.com/jaegertracing/jaeger-idl) repository.
 
