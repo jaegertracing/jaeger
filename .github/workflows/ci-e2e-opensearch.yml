@@ -49,7 +49,7 @@ jobs:
 
     - uses: ./.github/actions/setup-go
       with:
-        go-version: 1.26.x
+        go-version: 1.27.x
 
     - name: Run ${{ matrix.version.distribution }} integration tests
       id: test-execution

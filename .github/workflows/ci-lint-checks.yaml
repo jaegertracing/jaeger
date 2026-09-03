@@ -22,7 +22,7 @@ jobs:
 
     - uses: ./.github/actions/setup-go
       with:
-        go-version: 1.26.x
+        go-version: 1.27.x
 
     - name: Print Jaeger version for no reason
       run: make echo-version
@@ -98,7 +98,7 @@ jobs:
 
     - uses: ./.github/actions/setup-go
       with:
-        go-version: 1.26.x
+        go-version: 1.27.x
 
     # `make proto` generates the Python SDK's stubs alongside the Go ones, and drives
     # protoc from that package's uv environment, so this job needs uv to run it. uv
@@ -166,7 +166,7 @@ jobs:
 
     - uses: ./.github/actions/setup-go
       with:
-        go-version: 1.26.x
+        go-version: 1.27.x
 
     - name: Setup Node.js version
       uses: ./.github/actions/setup-node.js

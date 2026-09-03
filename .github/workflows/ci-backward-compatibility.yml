@@ -63,7 +63,7 @@ jobs:
 
     - uses: ./.github/actions/setup-go
       with:
-        go-version: 1.26.x
+        go-version: 1.27.x
 
     - name: Build the earlier revision's Jaeger
       run: go build -o "$RUNNER_TEMP/jaeger-old" ./cmd/jaeger

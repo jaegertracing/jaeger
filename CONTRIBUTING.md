@@ -192,6 +192,20 @@ Non-trivial pull requests should be reviewed and approved by a maintainer or kno
 Merge the PR by using "Squash and merge" option on Github. Avoid creating merge commits.
 After the merge make sure referenced issues were closed.
 
+## Upgrading the Go Version
+
+Jaeger builds with the latest Go minor release. The version is declared in the top-level `go.mod` and mirrored into the other `go.mod` files, `.golangci.yml`, and every GitHub Actions workflow that installs Go. `scripts/lint/check-go-version.sh` runs as part of `make lint` and fails the build when any of those copies disagrees with the top-level `go.mod`.
+
+To upgrade:
+
+1. Change the top-level `go.mod` by hand, e.g. `go mod edit -go=1.27.0`. The script takes its target version from that file, so nothing else can be updated until this is done.
+2. Run `./scripts/lint/check-go-version.sh -u` to propagate the version everywhere else. Pass `-v` as well to print a diff of each file it rewrites.
+3. Run `make fmt`, `make lint`, and `make test`, and fix whatever the new compiler and the new linter complain about.
+
+The `-u` mode only rewrites the minor version. A line that pins a patch version, such as `go-version: 1.27.1` in a workflow, has to be updated manually; the script reports such a line and exits.
+
+The `idl` submodule has its own `go.mod` and is deliberately excluded; its Go version is upgraded through a PR to the [jaeger-idl](https://github.com/jaegertracing/jaeger-idl) repository.
+
 ## Deprecating CLI Flags
 
 * If a flag is deprecated in release N, it can be removed in release N+2 or three months later, whichever is later.
