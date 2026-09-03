@@ -192,6 +192,21 @@ Non-trivial pull requests should be reviewed and approved by a maintainer or kno
 Merge the PR by using "Squash and merge" option on Github. Avoid creating merge commits.
 After the merge make sure referenced issues were closed.
 
+## Upgrading the Go Version
+
+Jaeger builds with the latest Go minor release. The version is declared in the top-level `go.mod` and mirrored into the other `go.mod` files, `.golangci.yml`, and the shared `.github/actions/setup-go` action. That action is the only way CI installs Go, and it hardcodes the version rather than taking one from its callers, so no workflow names a Go version. `scripts/lint/check-go-version.sh` runs as part of `make lint` and fails the build when any of those copies disagrees with the top-level `go.mod`.
+
+To upgrade:
+
+1. Change the top-level `go.mod` by hand, e.g. `go mod edit -go=1.27.0`. The script takes its target version from that file, so nothing else can be updated until this is done.
+2. Run `./scripts/lint/check-go-version.sh -u` to propagate the version everywhere else. Pass `-v` as well to print a diff of each file it rewrites.
+3. Run `make fmt`, `make lint`, and `make test`, and fix whatever the new compiler and the new linter complain about.
+4. Upgrade Delve to a release that supports the new Go version. `dlv` refuses to attach to a binary built by a newer Go than it knows about, and the all-in-one integration test runs the debug image, so skipping this fails CI rather than only degrading the debug image. Delve is built in the [base-image-with-debugger](https://github.com/jaegertracing/base-image-with-debugger) repository, which also pins the `golang` image it is built with and runs on; no Dockerfile in this repository names a `golang` image. Once that repository has cut a release, repoint the digest in `scripts/build/docker/debug/Dockerfile`, which is the whole of Jaeger's debug image.
+
+The `-u` mode only rewrites the minor version. A line that pins a patch version has to be updated manually; the script reports such a line and exits.
+
+The `idl` submodule has its own `go.mod` and is deliberately excluded; its Go version is upgraded through a PR to the [jaeger-idl](https://github.com/jaegertracing/jaeger-idl) repository.
+
 ## Deprecating CLI Flags
 
 * If a flag is deprecated in release N, it can be removed in release N+2 or three months later, whichever is later.

@@ -13,6 +13,10 @@ If checking out a fresh repository, initialize submodules:
 git submodule update --init --recursive
 ```
 
+## Upgrading Go
+
+Follow [Upgrading the Go Version](./CONTRIBUTING.md#upgrading-the-go-version) in CONTRIBUTING.md. The version is mirrored across several files that a script propagates from the top-level `go.mod`, and Delve has to be upgraded alongside it in [jaegertracing/base-image-with-debugger](https://github.com/jaegertracing/base-image-with-debugger).
+
 ## Pull Requests
 
 - **Require an issue:** Do not open a Pull Request unless there is an existing, open GitHub Issue that explicitly requests the work. Speculative refactors and unsolicited feature work are not accepted.
