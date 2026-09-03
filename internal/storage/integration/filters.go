@@ -46,10 +46,11 @@ type filterCase struct {
 	expected []string
 }
 
-// filterTestCases covers what M4 of RFC 0005 delivered for Elasticsearch and OpenSearch: the three
-// levels those index, the built-in fields they route to a field of their own, every operator they
-// declare, and boolean composition over the lot.
-func filterTestCases(p builder.Predicate) []filterCase {
+// filterTestCases covers what M4 of RFC 0005 delivered for Elasticsearch and OpenSearch: every
+// level those index in part or in whole, the built-in fields they route to a column of their own,
+// every operator they declare, and boolean composition over the lot.
+func filterTestCases(t *testing.T, p builder.Predicate, corpus map[string]ptrace.Traces) []filterCase {
+	start := filterCorpusSpanStart(t, corpus, "cart_get")
 	return []filterCase{
 		{
 			caption:  "a span-level attribute matches the span's own attributes only",
@@ -104,6 +105,74 @@ func filterTestCases(p builder.Predicate) []filterCase {
 			caption:  "the name of one of the span's events",
 			filter:   p.Event().Name.Eq("exception"),
 			expected: []string{"cart_post"},
+		},
+		{
+			caption:  "the trace ID of the span itself",
+			filter:   p.Span().TraceID.Eq("00000000000000000000000000000f01"),
+			expected: []string{"cart_get"},
+		},
+		{
+			caption:  "the span ID",
+			filter:   p.Span().SpanID.Eq("0000000000000f02"),
+			expected: []string{"cart_post"},
+		},
+		{
+			caption: "the trace ID against a list of them",
+			filter: p.Span().TraceID.In(
+				"00000000000000000000000000000f01",
+				"00000000000000000000000000000f03",
+			),
+			expected: []string{"cart_get", "checkout"},
+		},
+		{
+			caption:  "the name of the instrumentation scope",
+			filter:   p.Scope().Name.Eq("io.opentelemetry.contrib.cart"),
+			expected: []string{"cart_get", "cart_post"},
+		},
+		{
+			caption:  "the version of the instrumentation scope",
+			filter:   p.Scope().Version.Eq("2.0.0"),
+			expected: []string{"cart_post"},
+		},
+		{
+			caption:  "a span carrying an instrumentation scope at all",
+			filter:   p.Scope().Name.Exists(),
+			expected: []string{"cart_get", "cart_post"},
+		},
+		{
+			caption:  "the trace ID one of the span's links points at",
+			filter:   p.Link().TraceID.Eq("00000000000000000000000000000f02"),
+			expected: []string{"checkout"},
+		},
+		{
+			caption:  "the span ID one of the span's links points at",
+			filter:   p.Link().SpanID.Eq("0000000000000f02"),
+			expected: []string{"checkout"},
+		},
+		{
+			caption:  "a span carrying a link at all",
+			filter:   p.Link().SpanID.Exists(),
+			expected: []string{"checkout"},
+		},
+		{
+			caption:  "a start time after a bound",
+			filter:   p.Span().StartTime.Gt(start.Add(5 * time.Second)),
+			expected: []string{"search"},
+		},
+		{
+			caption:  "a start time at or before a bound",
+			filter:   p.Span().StartTime.Lte(start),
+			expected: []string{"cart_get", "cart_post", "checkout"},
+		},
+		{
+			caption:  "the time of one of the span's events, before a bound",
+			filter:   p.Event().Time.Lt(start.Add(5 * time.Second)),
+			expected: []string{"cart_post"},
+		},
+		{
+			caption:  "the time of one of the span's events, after a bound",
+			filter:   p.Event().Time.Gt(start.Add(5 * time.Second)),
+			expected: []string{"search"},
 		},
 		{
 			caption:  "a duration greater than a bound",
@@ -214,7 +283,7 @@ func (s *StorageIntegration) testFindTracesWithFilter(t *testing.T) {
 	// first filter goes straight to the reader, whose error says what is actually wrong.
 	s.requireFilterIsServed(t, filterQuery(p.Resource().Service.Exists(), start, end))
 
-	for _, testCase := range filterTestCases(p) {
+	for _, testCase := range filterTestCases(t, p, corpus) {
 		t.Run(testCase.caption, func(t *testing.T) {
 			s.skipIfNeeded(t)
 			expected := filterCorpusTraces(t, corpus, testCase.expected)
@@ -225,18 +294,23 @@ func (s *StorageIntegration) testFindTracesWithFilter(t *testing.T) {
 	}
 
 	// RFC 0005 §7 promises that a backend either evaluates a predicate or refuses it, and never
-	// answers a predicate it cannot evaluate with a wider result set. These two are the shapes an
-	// Elasticsearch or OpenSearch reader declares it cannot serve: the scope level, which its
-	// schema does not index apart from the span's own attributes, and the `some` quantifier.
+	// answers a predicate it cannot evaluate with a wider result set. These are the shapes an
+	// Elasticsearch or OpenSearch reader cannot serve: an instrumentation scope's attributes, which
+	// its write path drops while keeping the scope's name and version, and the `some` quantifier.
 	refusals := []struct {
 		caption string
 		filter  *expression.Call
 		names   string
 	}{
 		{
-			caption: "a level the backend does not index is refused",
+			caption: "attributes the backend does not index are refused",
 			filter:  p.Scope().Attr("library.tier").Eq("core"),
 			names:   "scope",
+		},
+		{
+			caption: "a built-in field the backend has no column for is refused",
+			filter:  p.Link().TraceState.Eq("congo=t61rcWkgMzE"),
+			names:   "traceState",
 		},
 		{
 			caption: "an operator the backend does not evaluate is refused",
@@ -382,6 +456,16 @@ func filterCorpusTraces(t *testing.T, corpus map[string]ptrace.Traces, names []s
 		traces = append(traces, trace)
 	}
 	return traces
+}
+
+func filterCorpusSpanStart(t *testing.T, corpus map[string]ptrace.Traces, name string) time.Time {
+	trace, ok := corpus[name]
+	require.True(t, ok, "no fixture named %q in %s", name, filterCorpusDir)
+	for _, span := range jptrace.SpanIter(trace) {
+		return span.StartTimestamp().AsTime()
+	}
+	require.Fail(t, "no span in fixture", "the %q fixture carries no span to read an instant from", name)
+	return time.Time{}
 }
 
 // filterCorpusTimeRange is a range around the whole corpus, so that every case is answered by its

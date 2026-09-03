@@ -1,0 +1,10 @@
+{
+  "nested": {
+    "path": "references",
+    "query": {
+      "exists": {
+        "field": "references.spanID"
+      }
+    }
+  }
+}

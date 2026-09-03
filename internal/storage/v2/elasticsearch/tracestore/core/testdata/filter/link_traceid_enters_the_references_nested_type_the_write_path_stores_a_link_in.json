@@ -1,0 +1,10 @@
+{
+  "nested": {
+    "path": "references",
+    "query": {
+      "term": {
+        "references.traceID": "00000000000000000000000000000f02"
+      }
+    }
+  }
+}
