@@ -122,15 +122,17 @@ func (h *Handler) FindTraces(
 	req *storage.FindTracesRequest,
 	srv storage.TraceReader_FindTracesServer,
 ) error {
+	// Checked on the raw proto, before toTraceQueryParams, so a Pagination is refused without
+	// ever fetching capabilities for a request already known to be rejected: FindTraces streams
+	// whole traces with no field to carry a continuation token, so this check cannot live in
+	// toTraceQueryParams, which FindTraceIDs and FindTraceSummaries share and which does admit
+	// Pagination (RFC 0014 §4).
+	if req.GetQuery().GetPagination() != nil {
+		return status.Error(codes.InvalidArgument, tracestore.ErrPaginationUnsupportedByFindTraces.Error())
+	}
 	query, err := h.toTraceQueryParams(srv.Context(), req.Query)
 	if err != nil {
 		return err
-	}
-	// FindTraces streams whole traces with no field to carry a continuation token, so this
-	// check cannot live in toTraceQueryParams, which FindTraceIDs and FindTraceSummaries
-	// share and which does admit Pagination (RFC 0014 §4).
-	if err := query.EnsureNoPaginationOnFindTraces(); err != nil {
-		return status.Error(codes.InvalidArgument, err.Error())
 	}
 	for traces, err := range h.traceReader.FindTraces(srv.Context(), query) {
 		if err != nil {
@@ -330,6 +332,15 @@ func (h *Handler) toTraceQueryParams(
 		Filter:        filter,
 	}
 	if pagination := t.GetPagination(); pagination != nil {
+		// The wire message is present here (as opposed to absent), but a plain proto3 scalar
+		// has no presence of its own, so an explicitly-zero page_size and an omitted one both
+		// read as 0 from GetPageSize(). Reject it now, while GetPagination() != nil still tells
+		// us the message itself was sent: a page_size check on the Go zero value later cannot
+		// tell "Pagination{}" apart from "no Pagination at all" (RFC 0014 §4).
+		if pagination.GetPageSize() == 0 {
+			return tracestore.TraceQueryParams{}, status.Error(codes.InvalidArgument,
+				"invalid pagination: page_size is required whenever pagination is present")
+		}
 		pageSize := pagination.GetPageSize()
 		if pageSize > tracestore.MaxPageSize {
 			pageSize = tracestore.MaxPageSize
@@ -345,7 +356,7 @@ func (h *Handler) toTraceQueryParams(
 	if err := query.EnsurePaginationStandsAlone(); err != nil {
 		return tracestore.TraceQueryParams{}, status.Error(codes.InvalidArgument, err.Error())
 	}
-	if query.Filter == nil && query.Pagination.PageToken == "" {
+	if query.Filter == nil && query.Pagination == (tracestore.Pagination{}) {
 		return query, nil
 	}
 	caps, err := h.traceReader.SearchCapabilities(ctx)
@@ -354,9 +365,13 @@ func (h *Handler) toTraceQueryParams(
 		// only the legacy predicate fields and cannot paginate.
 		caps = tracestore.SearchCapabilities{}
 	}
-	if query.Pagination.PageToken != "" && !caps.Paginated {
-		// This reader cannot have minted the token (RFC 0014 §6.2).
-		return tracestore.TraceQueryParams{}, status.Error(codes.InvalidArgument, tracestore.ErrPaginationUnsupported.Error())
+	if query.Pagination != (tracestore.Pagination{}) {
+		applied, err := query.ApplyPaginationCapability(caps)
+		if err != nil {
+			// This reader cannot have minted the token (RFC 0014 §6.2).
+			return tracestore.TraceQueryParams{}, status.Error(codes.InvalidArgument, err.Error())
+		}
+		query = applied
 	}
 	if query.Filter == nil {
 		return query, nil

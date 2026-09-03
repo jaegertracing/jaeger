@@ -123,6 +123,15 @@ func traceQueryParams(query *api_v3.TraceQueryParameters) (querysvc.TraceQueryPa
 		queryParams.Filter = filter
 	}
 	if pagination := query.GetPagination(); pagination != nil {
+		// The wire message is present here (as opposed to absent), but a plain proto3 scalar
+		// has no presence of its own, so an explicitly-zero page_size and an omitted one both
+		// read as 0 from GetPageSize(). Reject it now, while GetPagination() != nil still tells
+		// us the message itself was sent: a page_size check on the Go zero value later cannot
+		// tell "Pagination{}" apart from "no Pagination at all" (RFC 0014 §4).
+		if pagination.GetPageSize() == 0 {
+			return querysvc.TraceQueryParams{}, status.Error(codes.InvalidArgument,
+				"invalid pagination: page_size is required whenever pagination is present")
+		}
 		pageSize := pagination.GetPageSize()
 		if pageSize > tracestore.MaxPageSize {
 			pageSize = tracestore.MaxPageSize

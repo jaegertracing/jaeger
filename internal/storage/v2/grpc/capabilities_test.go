@@ -266,6 +266,7 @@ func TestQueryParametersCarryPagination(t *testing.T) {
 // is clamped down rather than refused, the treatment RFC 0014 §4 (and AIP-158) prescribes.
 func TestToTraceQueryParams_PageSizeClampedToMax(t *testing.T) {
 	reader := new(tracestoremocks.Reader)
+	reader.On("SearchCapabilities", mock.Anything).Return(tracestore.SearchCapabilities{Paginated: true}, nil)
 
 	decoded, err := NewHandler(reader, nil, nil).toTraceQueryParams(t.Context(), &storage.TraceQueryParameters{
 		Pagination: &storage.Pagination{PageSize: tracestore.MaxPageSize + 1000},
@@ -286,6 +287,25 @@ func TestToTraceQueryParams_RejectsPaginationWithSearchDepth(t *testing.T) {
 	require.Error(t, err)
 	assert.Equal(t, codes.InvalidArgument, status.Code(err))
 	assert.Contains(t, err.Error(), "search_depth")
+	reader.AssertNotCalled(t, "SearchCapabilities", mock.Anything)
+}
+
+// TestToTraceQueryParams_RejectsEmptyPagination pins the proto-presence gap Copilot found: an
+// explicitly-present-but-empty Pagination message (`{"pagination":{}}`) reads identically to an
+// absent one once page_size (a plain proto3 scalar with no presence of its own) is copied into
+// the Go zero-valued Pagination struct. The rejection has to happen at decode time, while
+// GetPagination() != nil still distinguishes "sent, empty" from "not sent" — a check on the Go
+// value afterward cannot.
+func TestToTraceQueryParams_RejectsEmptyPagination(t *testing.T) {
+	reader := new(tracestoremocks.Reader)
+
+	_, err := NewHandler(reader, nil, nil).toTraceQueryParams(t.Context(), &storage.TraceQueryParameters{
+		Pagination: &storage.Pagination{},
+	})
+	require.Error(t, err)
+	assert.Equal(t, codes.InvalidArgument, status.Code(err))
+	assert.Contains(t, err.Error(), "page_size is required")
+	reader.AssertNotCalled(t, "SearchCapabilities", mock.Anything)
 }
 
 // TestToTraceQueryParams_RejectsPageTokenWhenUnsupported pins RFC 0014 §6.2 at the storage/v2
@@ -303,12 +323,29 @@ func TestToTraceQueryParams_RejectsPageTokenWhenUnsupported(t *testing.T) {
 	assert.Contains(t, err.Error(), tracestore.ErrPaginationUnsupported.Error())
 }
 
-// TestToTraceQueryParams_PageSizeOnlySkipsCapabilityCheck pins that a Pagination with no
-// PageToken never needs the reader's capabilities: it is not asking to resume anything, so
-// nothing about pagination support needs answering — the reader has no expectations set, so a
-// call to it would fail this test.
-func TestToTraceQueryParams_PageSizeOnlySkipsCapabilityCheck(t *testing.T) {
+// TestToTraceQueryParams_PageSizeFoldedIntoSearchDepthWhenUnsupported pins the fix for the other
+// half of the same Copilot finding: a page-size-only request against a reader that cannot
+// paginate must still be bounded when it reaches that reader. Readers only read SearchDepth
+// today, so PageSize is folded into it and Pagination is cleared (ApplyPaginationCapability) —
+// leaving SearchDepth at zero would dispatch an effectively unbounded search.
+func TestToTraceQueryParams_PageSizeFoldedIntoSearchDepthWhenUnsupported(t *testing.T) {
 	reader := new(tracestoremocks.Reader)
+	reader.On("SearchCapabilities", mock.Anything).Return(tracestore.SearchCapabilities{}, nil)
+
+	decoded, err := NewHandler(reader, nil, nil).toTraceQueryParams(t.Context(), &storage.TraceQueryParameters{
+		Pagination: &storage.Pagination{PageSize: 10},
+	})
+	require.NoError(t, err)
+	assert.Equal(t, tracestore.Pagination{}, decoded.Pagination, "cleared once folded")
+	assert.Equal(t, 10, decoded.SearchDepth)
+}
+
+// TestToTraceQueryParams_PageSizeOnlyKeepsPaginationWhenSupported covers the other side: a
+// reader that declares Paginated keeps Pagination as sent, since it has its own field to read
+// PageSize from and SearchDepth is not involved.
+func TestToTraceQueryParams_PageSizeOnlyKeepsPaginationWhenSupported(t *testing.T) {
+	reader := new(tracestoremocks.Reader)
+	reader.On("SearchCapabilities", mock.Anything).Return(tracestore.SearchCapabilities{Paginated: true}, nil)
 
 	decoded, err := NewHandler(reader, nil, nil).toTraceQueryParams(t.Context(), &storage.TraceQueryParameters{
 		Pagination: &storage.Pagination{PageSize: 10},

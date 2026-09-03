@@ -49,6 +49,29 @@ func (q TraceQueryParams) EnsureNoPaginationOnFindTraces() error {
 	return ErrPaginationUnsupportedByFindTraces
 }
 
+// ApplyPaginationCapability settles Pagination against what the Reader can do, immediately
+// before dispatch. A Reader that declares Paginated gets Pagination as sent — it has its own
+// field to read PageSize from. A Reader that does not has no such field: PageSize is folded into
+// SearchDepth, the bound every Reader already reads, and Pagination is cleared, so the query
+// still reaches storage bounded rather than as an unbounded search with SearchDepth left at zero.
+// A PageToken is never folded — a Reader that cannot paginate cannot have minted it, so it is
+// refused (RFC 0014 §6.2) rather than silently started over as a new search.
+//
+// It answers only that question. Whether the request is one this deployment accepts at all,
+// and whether Pagination is well-formed on its own terms, are the caller's to settle first
+// (EnsurePaginationStandsAlone).
+func (q TraceQueryParams) ApplyPaginationCapability(caps SearchCapabilities) (TraceQueryParams, error) {
+	if q.Pagination == (Pagination{}) || caps.Paginated {
+		return q, nil
+	}
+	if q.Pagination.PageToken != "" {
+		return TraceQueryParams{}, ErrPaginationUnsupported
+	}
+	q.SearchDepth = q.Pagination.PageSize
+	q.Pagination = Pagination{}
+	return q, nil
+}
+
 // EnsureFilterStandsAlone rejects a query that carries both a filter and one of the predicate
 // fields the filter replaces. The two express the same things — a service, an operation name, a
 // duration bound, a tag — so honoring both would leave the caller guessing which one applied.
