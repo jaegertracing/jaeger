@@ -1301,13 +1301,30 @@ func TestTagsMap(t *testing.T) {
 		{fieldTags: map[string]any{"float": float64(123.0)}, expected: dbmodel.KeyValue{Key: "float", Value: float64(123.0), Type: dbmodel.Float64Type}},
 		{fieldTags: map[string]any{"float:float": float64(123)}, expected: dbmodel.KeyValue{Key: "float.float", Value: float64(123), Type: dbmodel.Float64Type}},
 		{fieldTags: map[string]any{"json_number:int": json.Number("123")}, expected: dbmodel.KeyValue{Key: "json_number.int", Value: int64(123), Type: dbmodel.Int64Type}},
-		{fieldTags: map[string]any{"json_number:float": json.Number("123.0")}, expected: dbmodel.KeyValue{Key: "json_number.float", Value: float64(123.0), Type: dbmodel.Float64Type}},
-		{fieldTags: map[string]any{"json_number:err": json.Number("foo")}, expected: dbmodel.KeyValue{Key: "json_number.err", Value: "invalid tag type in foo: strconv.ParseFloat: parsing \"foo\": invalid syntax", Type: dbmodel.StringType}},
+		{
+			fieldTags: map[string]any{"json_number:float": json.Number("123.0")},
+			expected:  dbmodel.KeyValue{Key: "json_number.float", Value: float64(123.0), Type: dbmodel.Float64Type},
+		},
+		{
+			fieldTags: map[string]any{"json_number:err": json.Number("foo")},
+			expected: dbmodel.KeyValue{
+				Key:   "json_number.err",
+				Value: "invalid tag type in foo: strconv.ParseFloat: parsing \"foo\": invalid syntax",
+				Type:  dbmodel.StringType,
+			},
+		},
 		{fieldTags: map[string]any{"str": "foo"}, expected: dbmodel.KeyValue{Key: "str", Value: "foo", Type: dbmodel.StringType}},
 		{fieldTags: map[string]any{"str:str": "foo"}, expected: dbmodel.KeyValue{Key: "str.str", Value: "foo", Type: dbmodel.StringType}},
 		{fieldTags: map[string]any{"binary": []byte("foo")}, expected: dbmodel.KeyValue{Key: "binary", Value: []byte("foo"), Type: dbmodel.BinaryType}},
 		{fieldTags: map[string]any{"binary:binary": []byte("foo")}, expected: dbmodel.KeyValue{Key: "binary.binary", Value: []byte("foo"), Type: dbmodel.BinaryType}},
-		{fieldTags: map[string]any{"unsupported": struct{}{}}, expected: dbmodel.KeyValue{Key: "unsupported", Value: fmt.Sprintf("invalid tag type in %+v", struct{}{}), Type: dbmodel.StringType}},
+		{
+			fieldTags: map[string]any{"unsupported": struct{}{}},
+			expected: dbmodel.KeyValue{
+				Key:   "unsupported",
+				Value: fmt.Sprintf("invalid tag type in %+v", struct{}{}),
+				Type:  dbmodel.StringType,
+			},
+		},
 	}
 	reader := NewSpanReader(SpanReaderParams{
 		TagDotReplacement: ":",
