@@ -194,14 +194,16 @@ After the merge make sure referenced issues were closed.
 
 ## Upgrading the Go Version
 
-Jaeger builds with the latest Go minor release. The version is declared in the top-level `go.mod` and mirrored into the other `go.mod` files, `.golangci.yml`, and the shared `.github/actions/setup-go` action. That action is the only way CI installs Go, and it hardcodes the version rather than taking one from its callers, so no workflow names a Go version. `scripts/lint/check-go-version.sh` runs as part of `make lint` and fails the build when any of those copies disagrees with the top-level `go.mod`.
+Jaeger builds with the latest Go minor release. The version is declared in the top-level `go.mod` and mirrored into the other `go.mod` files, `.golangci.yml`, and the shared `.github/actions/setup-go` action. That action is the only way CI installs Go, and it hardcodes the version rather than taking one from its callers, so no workflow names a Go version. `scripts/lint/check-go-version.sh` runs as part of `make lint` and fails the build when any of those copies disagrees with the top-level `go.mod`. No Dockerfile here names a `golang` image, because nothing in this repository compiles Go inside a container; the one Go-bearing image is the pre-built debug base image described in step 4.
 
 To upgrade:
 
 1. Change the top-level `go.mod` by hand, e.g. `go mod edit -go=1.27.0`. The script takes its target version from that file, so nothing else can be updated until this is done.
 2. Run `./scripts/lint/check-go-version.sh -u` to propagate the version everywhere else. Pass `-v` as well to print a diff of each file it rewrites.
 3. Run `make fmt`, `make lint`, and `make test`, and fix whatever the new compiler and the new linter complain about.
-4. Upgrade Delve to a release that supports the new Go version. `dlv` refuses to attach to a binary built by a newer Go than it knows about, and the all-in-one integration test runs the debug image, so skipping this fails CI rather than only degrading the debug image. Delve is built in the [base-image-with-debugger](https://github.com/jaegertracing/base-image-with-debugger) repository, which also pins the `golang` image it is built with and runs on; no Dockerfile in this repository names a `golang` image. Once that repository has cut a release, repoint the digest in `scripts/build/docker/debug/Dockerfile`, which is the whole of Jaeger's debug image.
+4. Upgrade Delve for the new Go version, following [Upgrading for a New Go Release](https://github.com/jaegertracing/base-image-with-debugger#upgrading-for-a-new-go-release). `dlv` refuses to attach to a binary built by a newer Go than it knows about, and the all-in-one integration test runs the debug image, so a Go bump without this step fails CI rather than merely degrading the debug image. Once that image is published, either repoint `scripts/build/docker/debug/Dockerfile` at it or leave it to Renovate, which manages that pin and gets the digest right without being told it. Renovate opens pull requests on a monthly schedule, but the update appears on the [dependency dashboard](https://github.com/jaegertracing/jaeger/issues/5586) ahead of that, and ticking its checkbox there creates the pull request straight away.
+
+[#9478](https://github.com/jaegertracing/jaeger/pull/9478), the upgrade to Go 1.27, is a worked example of the whole sequence.
 
 The `-u` mode only rewrites the minor version. A line that pins a patch version has to be updated manually; the script reports such a line and exits.
 
