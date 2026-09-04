@@ -55,7 +55,7 @@
       "automerge": false
     },
     {
-      "description": "Keep the OTel demo OpenSearch charts on supported 2.x releases and update them together",
+      "description": "Keep the OTel demo OpenSearch charts on supported 3.x releases and update them together",
       "matchManagers": [
         "custom.regex"
       ],
@@ -69,7 +69,7 @@
       "groupName": "OTel demo OpenSearch Helm charts",
       "groupSlug": "otel-demo-opensearch-helm",
       "minimumGroupSize": 2,
-      "allowedVersions": "/^2\\./",
+      "allowedVersions": "/^3\\./",
       "automerge": false
     },
     {
