@@ -82,5 +82,66 @@
 
 | V1 Metric | V1 Labels | V2 Metric | V2 Labels |
 |-----------|---------------|-----------|---------------|
+| jaeger_collector_spans_received_total | debug, format, svc, transport | receiver_accepted_spans | receiver, service_instance_id, service_name, service_version, transport |
 | jaeger_collector_spans_rejected_total | debug, format, svc, transport | receiver_refused_spans | receiver, service_instance_id, service_name, service_version, transport |
 | jaeger_build_info | build_date, revision,  version | target_info | service_instance_id, service_name, service_version |
+
+### Notes
+
+#### Prometheus metric naming
+
+The V2 metric names in this table use OTel semantic names (no prefix, no `_total` suffix).
+On the Prometheus scrape endpoint (default `:8888`), counters appear with the `otelcol_` prefix
+and `_total` suffix:
+
+| Table name | Prometheus endpoint name |
+|---|---|
+| `receiver_accepted_spans` | `otelcol_receiver_accepted_spans_total` |
+| `receiver_refused_spans` | `otelcol_receiver_refused_spans_total` |
+
+#### Why `svc` label is not available in v2
+
+In V1, the collector parsed each span's payload to extract the application's service name
+and attach it as the `svc` label. In V2, the OTel Collector deliberately does not parse
+trace payloads for its own internal telemetry — this avoids metric cardinality explosions
+when thousands of microservices each generate a new time series.
+
+The `service_name` label on `receiver_accepted_spans` refers to the **Jaeger collector's own**
+`service.name` resource attribute (typically `"jaeger"`), not the downstream application.
+
+#### Per-service span counts via spanmetrics connector
+
+To regain per-application-service span counts, add the `spanmetrics` connector to your pipeline:
+
+```yaml
+connectors:
+  spanmetrics:
+
+service:
+  pipelines:
+    traces:
+      receivers: [otlp]
+      processors: [batch]
+      exporters: [jaeger_storage_exporter, spanmetrics]
+    metrics/spanmetrics:
+      receivers: [spanmetrics]
+      exporters: [prometheus]
+```
+
+The spanmetrics Prometheus endpoint (default `:8889`) exports per-service call counters.
+The exact metric name depends on connector namespace configuration:
+
+- Default (no namespace): `calls_total`
+- With namespace `traces_span_metrics` (Jaeger SPM default): `traces_span_metrics_calls_total`
+
+```promql
+# Total collector ingestion (port :8888)
+sum(rate(otelcol_receiver_accepted_spans_total[5m]))
+
+# Per-application service counts (port :8889, requires spanmetrics pipeline)
+sum(rate(traces_span_metrics_calls_total[5m])) by (service_name)
+# or, if no namespace is configured:
+sum(rate(calls_total[5m])) by (service_name)
+```
+
+Reference config: [`cmd/jaeger/config-spm.yaml`](../../config-spm.yaml).
