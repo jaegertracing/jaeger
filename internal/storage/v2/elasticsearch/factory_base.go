@@ -260,12 +260,18 @@ func (f *FactoryBase) Close() error {
 	return errors.Join(errs...)
 }
 
-// Purge resets the storage to empty: it deletes the indices and clears the span
-// writers' service:operation cache, which is part of that state. A cache entry left
-// behind suppresses the service document for the next write, so the emptied index
-// would not get it back until the entry expired (12 hours by default).
+// Purge resets the storage to empty: it deletes the indices and any span data
+// stream, and clears the span writers' service:operation cache, which is part of
+// that state. A cache entry left behind suppresses the service document for the
+// next write, so the emptied index would not get it back until the entry expired
+// (12 hours by default).
 func (f *FactoryBase) Purge(ctx context.Context) error {
-	err := f.indicesClient().DeleteAllIndices(ctx)
+	ic := f.indicesClient()
+	err := ic.DeleteAllIndices(ctx)
+	// The span data stream outlives DeleteAllIndices, so it is deleted by name.
+	if f.config.ResolvedSpanRotation().DataStream.HasValue() {
+		err = errors.Join(err, ic.DeleteSpanDataStream(ctx))
+	}
 	f.serviceOperations.ClearCache()
 	return err
 }
@@ -310,16 +316,28 @@ func (f *FactoryBase) buildRotations() (spanRotation, serviceRotation indices.Ro
 	return spanRotation, serviceRotation
 }
 
+// createTemplates installs the index templates the configured rotation needs.
+// Spans get the rotation path's jaeger-span-* template, or the composable template
+// that declares the data stream (RFC 0004 §3.2), never both. Services keep theirs
+// either way: their documents are updated in place, so they stay on standard
+// indices even when spans do not (§2.1).
 func (f *FactoryBase) createTemplates(ctx context.Context) error {
 	if !f.config.CreateIndexTemplates {
 		return nil
 	}
 	ic := f.indicesClient()
-	jaegerSpanIdx := f.config.Indices.IndexPrefix.Apply(config.SpanIndexName)
-	jaegerServiceIdx := f.config.Indices.IndexPrefix.Apply(config.ServiceIndexName)
-	if err := ic.CreateTemplate(ctx, jaegerSpanIdx, esclient.SpanMapping); err != nil {
-		return fmt.Errorf("failed to create template %q: %w", jaegerSpanIdx, err)
+	if f.config.ResolvedSpanRotation().DataStream.HasValue() {
+		// The error already names the object that could not be created.
+		if err := ic.CreateSpanDataStreamTemplates(ctx); err != nil {
+			return err
+		}
+	} else {
+		jaegerSpanIdx := f.config.Indices.IndexPrefix.Apply(config.SpanIndexName)
+		if err := ic.CreateTemplate(ctx, jaegerSpanIdx, esclient.SpanMapping); err != nil {
+			return fmt.Errorf("failed to create template %q: %w", jaegerSpanIdx, err)
+		}
 	}
+	jaegerServiceIdx := f.config.Indices.IndexPrefix.Apply(config.ServiceIndexName)
 	if err := ic.CreateTemplate(ctx, jaegerServiceIdx, esclient.ServiceMapping); err != nil {
 		return fmt.Errorf("failed to create template %q: %w", jaegerServiceIdx, err)
 	}
