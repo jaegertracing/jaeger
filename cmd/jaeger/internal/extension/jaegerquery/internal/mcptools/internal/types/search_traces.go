@@ -24,8 +24,12 @@ type SearchTracesInput struct {
 	// Example: {"http.status_code": "500", "user.id": "12345"}
 	Attributes map[string]string `json:"attributes,omitempty" jsonschema:"Key-value pairs to match against span/resource attributes"`
 
-	// WithErrors filters to only return traces containing error spans (optional).
-	WithErrors bool `json:"with_errors,omitempty" jsonschema:"If true only return traces containing error spans"`
+	// WithErrors filters to traces whose matching span has error status (optional).
+	// Storage backends apply all search criteria to a single span, so the error
+	// status must be on the same span that matches the other criteria (service
+	// name, span name, attributes); errors on other spans of the trace do not
+	// match. Use HasErrors in the output to check for errors anywhere in a trace.
+	WithErrors bool `json:"with_errors,omitempty" jsonschema:"If true, only return traces where the span matching the other criteria (service name, span name, attributes) has error status. Errors on other spans of the trace do not match. Use has_errors in the output to check whether a trace contains any error span"`
 
 	// DurationMin is the minimum duration filter (optional, e.g., "2s", "100ms").
 	DurationMin string `json:"duration_min,omitempty" jsonschema:"Minimum duration filter (e.g. 2s 100ms)"`
