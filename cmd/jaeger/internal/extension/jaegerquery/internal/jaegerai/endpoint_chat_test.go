@@ -533,7 +533,7 @@ func TestChatEndpointAnnouncesNothingWithoutBaseURL(t *testing.T) {
 	defer cleanup()
 
 	handler := newChatEndpoint(zap.NewNop(), nil, newTurnRegistry(), wsURL, nil, "", 1<<20)
-	// mcpBaseURL deliberately left empty — enable_mcp without ai.mcp_base_url.
+	// mcpBaseURL deliberately left empty — ai.mcp configured without ai.mcp.base_url.
 
 	reqBody, err := json.Marshal(newAGUIRequest("hello"))
 	require.NoError(t, err)
@@ -544,7 +544,7 @@ func TestChatEndpointAnnouncesNothingWithoutBaseURL(t *testing.T) {
 
 	_, sessionReq, _ := agent.snapshot()
 	require.NotNil(t, sessionReq)
-	assert.Empty(t, sessionReq.McpServers, "nothing may be announced when ai.mcp_base_url is unset")
+	assert.Empty(t, sessionReq.McpServers, "nothing may be announced when ai.mcp.base_url is unset")
 }
 
 func TestChatEndpointAppendsContextEntriesToPromptBlocks(t *testing.T) {
