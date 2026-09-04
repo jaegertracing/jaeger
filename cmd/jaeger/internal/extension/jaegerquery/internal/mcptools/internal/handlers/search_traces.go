@@ -176,8 +176,9 @@ func (h *searchTracesHandler) buildQuery(input types.SearchTracesInput) (querysv
 	// The error filter is expressed as a span attribute because the span-level
 	// criteria (service name, span name, attributes) are conjunctive on a single
 	// span: only traces whose matching span has error status are returned, not
-	// traces with errors anywhere. Trace-level filters (time window, duration)
-	// still apply to the trace as a whole.
+	// traces with errors anywhere. Only the criteria actually provided apply.
+	// Trace-level filters (time window, duration) still apply to the trace as
+	// a whole.
 	if input.WithErrors {
 		attributes.PutStr("error", "true")
 	}
