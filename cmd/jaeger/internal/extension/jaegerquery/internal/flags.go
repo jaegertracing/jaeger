@@ -109,9 +109,35 @@ type MCPConfig struct {
 	// Jaeger. See mcptools/README.md for the layout it expects. Empty (the
 	// default) serves the built-in skills only.
 	SkillsDir string `mapstructure:"skills_dir" valid:"optional"`
+	// MaxSpanDetailsPerRequest caps how many spans a single get_span_details,
+	// get_trace_errors, or get_trace_topology call returns. It is the main lever
+	// on how much raw JSON a tool pushes into the model's context window, so
+	// operators running smaller-context models need to lower it. Zero (the
+	// default) keeps mcptools.DefaultMaxSpanDetailsPerRequest.
+	MaxSpanDetailsPerRequest int `mapstructure:"max_span_details_per_request" valid:"optional"`
+	// MaxSearchResults caps search_traces' search_depth. A caller asking for more
+	// is clamped to this value rather than rejected. Zero (the default) keeps
+	// mcptools.DefaultMaxSearchResults.
+	MaxSearchResults int `mapstructure:"max_search_results" valid:"optional"`
+	// MaxReadFileSize bounds the size in bytes of a skill file served by
+	// read_skill. Zero (the default) keeps mcptools.DefaultMaxReadFileSize.
+	MaxReadFileSize int64 `mapstructure:"max_read_file_size" valid:"optional"`
 }
 
 func (c *MCPConfig) Validate() error {
+	// Negative limits would silently disable the tools they bound rather than
+	// restrict them, so reject them at config load. Zero stays legal and means
+	// "keep the built-in default".
+	if c.MaxSpanDetailsPerRequest < 0 {
+		return errors.New("ai.mcp.max_span_details_per_request must not be negative")
+	}
+	if c.MaxSearchResults < 0 {
+		return errors.New("ai.mcp.max_search_results must not be negative")
+	}
+	if c.MaxReadFileSize < 0 {
+		return errors.New("ai.mcp.max_read_file_size must not be negative")
+	}
+
 	if c.BaseURL == "" {
 		return nil
 	}

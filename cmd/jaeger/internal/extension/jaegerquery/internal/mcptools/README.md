@@ -80,3 +80,27 @@ link in your index.
 A `skills_dir` that cannot be opened, or whose `SKILL.md` cannot be read, is
 broken configuration, and Jaeger refuses to start rather than quietly serving an
 incomplete skill set.
+
+## Tuning tool response limits
+
+The tools cap their own responses so a single call cannot flood the agent's
+context window. The caps are the same ones the retired `jaeger_mcp` extension
+exposed, and each can be overridden:
+
+```yaml
+extensions:
+  jaeger_query:
+    ai:
+      mcp:
+        max_span_details_per_request: 20     # spans per get_span_details / get_trace_errors / get_trace_topology
+        max_search_results: 100              # ceiling on search_traces' search_depth
+        max_read_file_size: 524288           # bytes, per read_skill response
+```
+
+Omitting a field, or setting it to `0`, keeps the built-in default shown above.
+Negative values are rejected at startup — they would disable the tool they bound
+rather than restrict it.
+
+Lower `max_span_details_per_request` when running a model with a smaller context
+window: it is the dominant lever on how much raw JSON a single call returns. Note
+that it bounds three tools at once, so changing it moves all of them together.
