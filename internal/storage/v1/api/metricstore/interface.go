@@ -44,6 +44,8 @@ type BaseQueryParameters struct {
 	// The jaeger_query extension always populates this with a non-empty default,
 	// so backend implementations can assume it will not be empty.
 	SpanKinds []string
+	// Tags is a map of tag keys and values to filter the metrics by.
+	Tags map[string]string
 }
 
 // LatenciesQueryParameters contains the parameters required for latency metrics queries.
