@@ -57,6 +57,11 @@ jobs:
         echo "::error::ocb build failed after 3 attempts"
         exit 1
 
+    - name: Verify Jaeger subcommands present
+      run: |
+        ./cmd/jaeger/_build/jaeger version
+        ./cmd/jaeger/_build/jaeger elasticsearch-mappings --help
+
     - name: Run ocb-built binary
       run: |
         ./cmd/jaeger/_build/jaeger --config cmd/jaeger/config-ocb-smoketest.yaml &
