@@ -93,6 +93,12 @@ func newSchemaBuilder(cfg Configuration) (*schemaBuilder, error) {
 	return &schemaBuilder{
 		statements: []schemaStatement{
 			{"spans table", createSpansTableQuery},
+			{"spans span str attr keys index", sql.AlterSpansAddSpanStrAttrKeysIndex},
+			{"spans span str attr values index", sql.AlterSpansAddSpanStrAttrValuesIndex},
+			{"spans resource str attr keys index", sql.AlterSpansAddResStrAttrKeysIndex},
+			{"spans resource str attr values index", sql.AlterSpansAddResStrAttrValuesIndex},
+			{"spans scope str attr keys index", sql.AlterSpansAddScopeStrAttrKeysIndex},
+			{"spans scope str attr values index", sql.AlterSpansAddScopeStrAttrValuesIndex},
 			{"services table", sql.CreateServicesTable},
 			{"services materialized view", sql.CreateServicesMaterializedView},
 			{"operations table", sql.CreateOperationsTable},
