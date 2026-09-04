@@ -5,6 +5,7 @@ package metricstore
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"time"
 
@@ -74,6 +75,10 @@ func (r *Reader) GetErrorRates(ctx context.Context, params *metricstore.ErrorRat
 		opQuery:   sql.SelectErrorRatesByOperation,
 		args:      []any{step, start, end, base.ServiceNames, kinds},
 	}, base)
+}
+
+func (*Reader) GetAttributeValues(_ context.Context, _ *metricstore.AttributeValuesQueryParameters) ([]string, error) {
+	return nil, errors.New("GetAttributeValues is not implemented for ClickHouse")
 }
 
 type metricsQuery struct {
