@@ -76,14 +76,19 @@ else
 	SED=sed
 endif
 
-COVEROUT=cover.out
+# Every coverage artifact lives under COVERDIR so that nothing is written to the
+# repository root. `go test` and `covdata` do not create the directory they write
+# into, so each target that produces coverage creates it first.
+COVERDIR = .cover
+COVEROUT = $(COVERDIR)/cover.out
+COVERHTML = $(COVERDIR)/cover.html
 
 # gotestsum reruns a failed package by invoking `go test` again with the same
 # flags, and `go test -coverprofile` truncates the file it is given, so a rerun
 # leaves a profile holding only the package that was rerun. Writing binary
 # counters into a directory instead accumulates them: each invocation adds
 # uniquely named files, and covdata merges the whole set afterwards.
-UNIT_COVERDIR = $(CURDIR)/.cover-unit
+UNIT_COVERDIR = $(CURDIR)/$(COVERDIR)/unit
 GOFMT=gofmt
 FMT_LOG=.fmt.log
 IMPORT_LOG=.import.log
@@ -129,7 +134,7 @@ echo-all-srcs:
 
 .PHONY: clean
 clean:
-	rm -rf cover*.out .cover/ .cover-unit/ cover.html $(FMT_LOG) $(IMPORT_LOG) \
+	rm -rf $(COVERDIR)/ $(FMT_LOG) $(IMPORT_LOG) \
 		jaeger-ui/packages/jaeger-ui/build
 	find ./cmd/jaeger/internal/extension/jaegerquery/internal/ui/actual -type f -name '*.gz' -delete
 	GOCACHE=$(GOCACHE) go clean -cache -testcache
@@ -147,7 +152,7 @@ cover: nocover $(GOTESTSUM)
 	# match, and the CI Summary Report merges all of them.
 	STORAGE=memory $(GOTESTSUM) $(GOTESTSUM_FLAGS) --rerun-fails --packages ./... -- $(RACE) -timeout 5m -cover -covermode=atomic -args -test.gocoverdir=$(UNIT_COVERDIR)
 	go tool covdata textfmt -i=$(UNIT_COVERDIR) -o=$(COVEROUT)
-	go tool cover -html=$(COVEROUT) -o cover.html
+	go tool cover -html=$(COVEROUT) -o $(COVERHTML)
 
 .PHONY: nocover
 nocover:
