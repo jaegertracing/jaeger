@@ -56,3 +56,6 @@ sidecar.py.orig
 # binary coverage artifacts from e2e legs
 cover-binary.out
 .cover-binary/
+
+# binary coverage counters from the unit-test run
+.cover-unit/

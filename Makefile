@@ -77,6 +77,13 @@ else
 endif
 
 COVEROUT=cover.out
+
+# gotestsum reruns a failed package by invoking `go test` again with the same
+# flags, and `go test -coverprofile` truncates the file it is given, so a rerun
+# leaves a profile holding only the package that was rerun. Writing binary
+# counters into a directory instead accumulates them: each invocation adds
+# uniquely named files, and covdata merges the whole set afterwards.
+UNIT_COVERDIR = $(CURDIR)/.cover-unit
 GOFMT=gofmt
 FMT_LOG=.fmt.log
 IMPORT_LOG=.import.log
@@ -122,7 +129,7 @@ echo-all-srcs:
 
 .PHONY: clean
 clean:
-	rm -rf cover*.out .cover/ cover.html $(FMT_LOG) $(IMPORT_LOG) \
+	rm -rf cover*.out .cover/ .cover-unit/ cover.html $(FMT_LOG) $(IMPORT_LOG) \
 		jaeger-ui/packages/jaeger-ui/build
 	find ./cmd/jaeger/internal/extension/jaegerquery/internal/ui/actual -type f -name '*.gz' -delete
 	GOCACHE=$(GOCACHE) go clean -cache -testcache
@@ -134,8 +141,13 @@ test: $(GOTESTSUM)
 
 .PHONY: cover
 cover: nocover $(GOTESTSUM)
-	STORAGE=memory $(GOTESTSUM) $(GOTESTSUM_FLAGS) --rerun-fails --packages ./... -- $(RACE) -timeout 5m -coverprofile $(COVEROUT)
-	go tool cover -html=cover.out -o cover.html
+	rm -rf $(UNIT_COVERDIR) && mkdir -p $(UNIT_COVERDIR)
+	# -covermode=atomic is pinned rather than left to -race, because gocovmerge
+	# refuses to merge this profile with the e2e legs' profiles unless the modes
+	# match, and the CI Summary Report merges all of them.
+	STORAGE=memory $(GOTESTSUM) $(GOTESTSUM_FLAGS) --rerun-fails --packages ./... -- $(RACE) -timeout 5m -cover -covermode=atomic -args -test.gocoverdir=$(UNIT_COVERDIR)
+	go tool covdata textfmt -i=$(UNIT_COVERDIR) -o=$(COVEROUT)
+	go tool cover -html=$(COVEROUT) -o cover.html
 
 .PHONY: nocover
 nocover:
