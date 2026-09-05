@@ -9,10 +9,12 @@ services:
     environment:
       - discovery.type=single-node
       - cluster.routing.allocation.disk.threshold_enabled=false
-      - plugins.security.disabled=true
+      # The security plugin is not installed at all, rather than installed and disabled.
+      # Since OpenSearch 3.8 its audit logging runs even when the plugin itself is
+      # disabled, and auditing every bulk request makes indexing unusably slow.
+      - DISABLE_SECURITY_PLUGIN=true
       - http.host=0.0.0.0
       - transport.host=127.0.0.1
-      - OPENSEARCH_INITIAL_ADMIN_PASSWORD=passRT%^#234
     ports:
       - "9200:9200"
     healthcheck:
