@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"io"
 	"iter"
+	"math"
 	"sync/atomic"
 
 	"go.opentelemetry.io/collector/pdata/pcommon"
@@ -265,6 +266,9 @@ func toProtoQueryParameters(t tracestore.TraceQueryParams) (*storage.TraceQueryP
 	if err != nil {
 		return nil, fmt.Errorf("cannot send the query filter: %w", err)
 	}
+	if t.SearchDepth < math.MinInt32 || t.SearchDepth > math.MaxInt32 {
+		return nil, fmt.Errorf("SearchDepth must be in [%d, %d]", math.MinInt32, math.MaxInt32)
+	}
 	return &storage.TraceQueryParameters{
 		ServiceName:   t.ServiceName,
 		OperationName: t.OperationName,
@@ -273,7 +277,7 @@ func toProtoQueryParameters(t tracestore.TraceQueryParams) (*storage.TraceQueryP
 		StartTimeMax:  t.StartTimeMax,
 		DurationMin:   t.DurationMin,
 		DurationMax:   t.DurationMax,
-		SearchDepth:   int32(t.SearchDepth), //nolint:gosec // G115
+		SearchDepth:   int32(t.SearchDepth),
 		Filter:        filter,
 	}, nil
 }
