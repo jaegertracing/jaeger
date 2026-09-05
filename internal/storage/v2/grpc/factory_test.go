@@ -30,6 +30,9 @@ import (
 	"google.golang.org/protobuf/types/known/emptypb"
 
 	"github.com/jaegertracing/jaeger/internal/headerforwarding"
+	"github.com/jaegertracing/jaeger/internal/jiter"
+	"github.com/jaegertracing/jaeger/internal/proto-gen/storage/v2"
+	"github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore"
 	"github.com/jaegertracing/jaeger/internal/telemetry"
 	"github.com/jaegertracing/jaeger/internal/tenancy"
 )
@@ -183,6 +186,61 @@ func TestNewFactory_MaxRecvMsgSize(t *testing.T) {
 	optsWithSize := capture(withSize)
 
 	assert.Greater(t, len(optsWithSize), len(optsBase), "MaxRecvMsgSizeMiB > 0 should add a WithDefaultCallOptions dial option")
+}
+
+func TestNewFactory_Timeout(t *testing.T) {
+	lis, err := net.Listen("tcp", ":0")
+	require.NoError(t, err, "failed to listen")
+
+	// The server sleeps far longer than the configured Timeout, so a passing
+	// test proves calls fail at the configured Timeout rather than blocking
+	// on the server (or an absent parent-context deadline). server.Stop()
+	// closes lis, so it is the only cleanup needed for the listener.
+	server := grpc.NewServer()
+	storage.RegisterTraceReaderServer(server, &testServer{delay: 500 * time.Millisecond})
+	t.Cleanup(server.Stop)
+	go func() { _ = server.Serve(lis) }()
+
+	const configuredTimeout = 20 * time.Millisecond
+	cfg := Config{
+		ClientConfig: configgrpc.ClientConfig{
+			Endpoint: lis.Addr().String(),
+			TLS: configtls.ClientConfig{
+				Insecure: true,
+			},
+		},
+		TimeoutConfig: exporterhelper.TimeoutConfig{
+			Timeout: configuredTimeout,
+		},
+	}
+	f, err := NewFactory(context.Background(), cfg, telemetry.NoopSettings())
+	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, f.Close()) })
+
+	reader, err := f.CreateTraceReader()
+	require.NoError(t, err)
+
+	// slack is how much longer than configuredTimeout a call is allowed to take
+	// before we conclude the deadline was not actually enforced.
+	const slack = 300 * time.Millisecond
+
+	t.Run("unary call fails fast at configured timeout", func(t *testing.T) {
+		start := time.Now()
+		_, err := reader.GetServices(context.Background())
+		elapsed := time.Since(start)
+		require.Error(t, err)
+		assert.Equal(t, codes.DeadlineExceeded, status.Code(err))
+		assert.Less(t, elapsed, configuredTimeout+slack)
+	})
+
+	t.Run("streaming call fails fast at configured timeout", func(t *testing.T) {
+		start := time.Now()
+		_, err := jiter.FlattenWithErrors(reader.GetTraces(context.Background(), tracestore.GetTraceParams{}))
+		elapsed := time.Since(start)
+		require.Error(t, err)
+		assert.Equal(t, codes.DeadlineExceeded, status.Code(err))
+		assert.Less(t, elapsed, configuredTimeout+slack)
+	})
 }
 
 func TestInitializeConnections_ClientError(t *testing.T) {
