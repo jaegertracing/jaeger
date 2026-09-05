@@ -1,0 +1,8 @@
+{
+  "regexp": {
+    "traceID": {
+      "flags": "NONE",
+      "value": ".*(0f0[12]).*"
+    }
+  }
+}

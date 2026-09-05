@@ -1,0 +1,10 @@
+{
+  "nested": {
+    "path": "references",
+    "query": {
+      "term": {
+        "references.spanID": "0000000000000f02"
+      }
+    }
+  }
+}
