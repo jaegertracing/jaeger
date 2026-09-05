@@ -94,7 +94,7 @@ tools:
       service_name: string (required) - Filter by service name. Use get_services to discover valid names.
       span_name: string (optional) - Filter by span name. Use get_span_names to discover valid names.
       attributes: object (optional) - Key-value pairs to match against span/resource attributes (e.g., {"http.status_code": "500"})
-      with_errors: boolean (optional) - If true, only return traces where the span matching the other provided criteria (service name, span name, attributes) has error status. Errors on other spans of the trace do not match; use has_errors in the output to check whether a trace contains any error span
+      with_errors: boolean (optional) - If true, only return traces containing error spans
       duration_min: duration string (optional, e.g., "2s", "100ms")
       duration_max: duration string (optional)
       search_depth: integer (optional, default: 10, max: server-configured via MaxSearchResults) - Maximum search depth. Depending on the storage backend, this may behave like a limit, but it is not guaranteed to be an exact SQL-style LIMIT.
@@ -165,7 +165,7 @@ Find traces matching criteria. Returns lightweight metadata only (no attributes/
     "http.status_code": "500",
     "user.id": "12345"
   },
-  "with_errors": true,               // optional: matching span must have error status
+  "with_errors": true,               // optional: filter to error traces
   "duration_min": "2s",              // optional
   "duration_max": "10s",             // optional
   "search_depth": 10                 // optional: default 10, max server-configured MaxSearchResults
