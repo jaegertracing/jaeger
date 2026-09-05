@@ -12,7 +12,7 @@ require (
 	github.com/coder/acp-go-sdk v0.13.5
 	github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc
 	github.com/dgraph-io/badger/v4 v4.9.2
-	github.com/elastic/elastic-transport-go/v8 v8.9.0
+	github.com/elastic/elastic-transport-go/v8 v8.11.0
 	github.com/elastic/go-elasticsearch/v9 v9.4.2
 	github.com/go-logr/zapr v1.3.0
 	github.com/gogo/googleapis v1.4.1
