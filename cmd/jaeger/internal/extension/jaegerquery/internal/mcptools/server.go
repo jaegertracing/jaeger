@@ -146,6 +146,9 @@ func registerTools(server *mcp.Server, queryAPI *querysvc.QueryService, cfg Conf
 	mcp.AddTool(s.mcpServer, &mcp.Tool{
 		Name: "get_trace_errors",
 		Description: "Get full details for all error-status spans in a trace. " +
+			"An error-status span is not necessarily the root cause: a caller or proxy may report an error " +
+			"because a child span failed or timed out even when that child has no error status. " +
+			"Inspect the trace topology and child spans before identifying the failing service or operation. " +
 			"Results may be truncated to the server limit; " +
 			"compare total_error_count with the number of returned spans to detect truncation.",
 	}, handlers.NewGetTraceErrorsHandler(s.queryAPI, s.config.MaxSpanDetailsPerRequest))
@@ -153,6 +156,8 @@ func registerTools(server *mcp.Server, queryAPI *querysvc.QueryService, cfg Conf
 	mcp.AddTool(s.mcpServer, &mcp.Tool{
 		Name: "get_trace_topology",
 		Description: "Get the structural overview of a trace as a flat, depth-first span list. " +
+			"Use this to inspect parent-child relationships when an error-status span may only be a caller or proxy " +
+			"that timed out or gave up waiting for a child; the actual cause may be a descendant without error status. " +
 			"Each span includes a 'path' field encoding ancestry as slash-delimited span IDs " +
 			"(e.g. 'rootID/parentID/spanID'). " +
 			"Does NOT include attributes, events, or links.",
