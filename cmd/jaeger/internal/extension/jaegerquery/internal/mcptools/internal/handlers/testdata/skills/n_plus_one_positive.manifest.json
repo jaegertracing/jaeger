@@ -1,0 +1,28 @@
+{
+  "fixture": "n-plus-one-positive",
+  "skill": "detect-n-plus-one",
+  "pattern_present": true,
+  "label_derived_from": "capture",
+  "source": {
+    "system": "HotROD",
+    "hotrod_image": "jaegertracing/example-hotrod@sha256:69be0c5805c52dd10213cbcf7c846383ae89a8319d5954eadc789cd34e3392e4",
+    "jaeger_image": "jaegertracing/jaeger@sha256:46a886260e04002d8f45e213fc39063fa11a50446048fdaa64786fc0840cb9f8",
+    "endpoint": "GET /dispatch?customer=123",
+    "captured": "2026-08-06"
+  },
+  "trace_id": "ea6db5d7b317ca1a5e2c4e0e7cea53ce",
+  "expected": {
+    "parent_span_id": "be56eec6f3678130",
+    "service": "redis-manual",
+    "operation": "GetDriver",
+    "siblings": 13,
+    "overlapping_pairs": 0,
+    "wall_ms": 194.3,
+    "sum_of_durations_ms": 192.4
+  },
+  "why_it_is_an_n_plus_one": "FindDriverIDs returns a list, then driver/server.go loops GetDriver once per ID. The siblings never overlap and their durations sum to the elapsed window, so every call is paid for serially.",
+  "notes": [
+    "Two of the 13 siblings carry status ERROR with a 'Retrying GetDriver after error' event. HotROD fails one Redis call on every dispatch, so an error-free group does not exist. The retries are kept: a real N+1 has them.",
+    "Trimmed to the sibling group, its parent, and the ancestry to the trace root. 16 spans."
+  ]
+}
