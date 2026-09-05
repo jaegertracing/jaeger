@@ -102,7 +102,7 @@ jobs:
     - name: Install uv
       uses: astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d # v10.0.1
       with:
-        version: "0.11.19"
+        version: "0.12.7"
 
     - name: Verify Protobuf types are up to date
       run: make proto && { if git status --porcelain | grep '??'; then exit 1; else git diff --name-status --exit-code; fi }
