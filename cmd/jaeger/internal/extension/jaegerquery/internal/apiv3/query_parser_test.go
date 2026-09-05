@@ -4,7 +4,6 @@
 package apiv3
 
 import (
-	"math"
 	"net/url"
 	"strconv"
 	"testing"
@@ -91,8 +90,8 @@ func TestParseFindTracesQuery(t *testing.T) {
 		assert.Equal(t, 7, got.SearchDepth)
 	})
 
-	t.Run("search depth at int32 bounds", func(t *testing.T) {
-		for _, depth := range []int{math.MaxInt32, math.MinInt32} {
+	t.Run("search depth at zero and max", func(t *testing.T) {
+		for _, depth := range []int{0, maxSearchDepth} {
 			q := url.Values{}
 			q.Set(paramTimeMin, goodMin)
 			q.Set(paramTimeMax, goodMax)
@@ -193,18 +192,18 @@ func TestParseFindTracesQuery(t *testing.T) {
 			wantErr: "malformed parameter " + paramNumTraces,
 		},
 		{
-			name:    "searchDepth above int32",
-			params:  map[string]string{paramTimeMin: goodMin, paramTimeMax: goodMax, paramSearchDepth: "2147483648"},
+			name:    "searchDepth negative",
+			params:  map[string]string{paramTimeMin: goodMin, paramTimeMax: goodMax, paramSearchDepth: "-1"},
 			wantErr: "malformed parameter " + paramSearchDepth,
 		},
 		{
-			name:    "searchDepth below int32",
-			params:  map[string]string{paramTimeMin: goodMin, paramTimeMax: goodMax, paramSearchDepth: "-2147483649"},
+			name:    "searchDepth above max",
+			params:  map[string]string{paramTimeMin: goodMin, paramTimeMax: goodMax, paramSearchDepth: "10001"},
 			wantErr: "malformed parameter " + paramSearchDepth,
 		},
 		{
-			name:    "num_traces above int32",
-			params:  map[string]string{paramTimeMin: goodMin, paramTimeMax: goodMax, paramNumTraces: "2147483648"},
+			name:    "num_traces above max",
+			params:  map[string]string{paramTimeMin: goodMin, paramTimeMax: goodMax, paramNumTraces: "10001"},
 			wantErr: "malformed parameter " + paramNumTraces,
 		},
 		{

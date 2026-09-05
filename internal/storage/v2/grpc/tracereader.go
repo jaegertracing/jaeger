@@ -9,7 +9,6 @@ import (
 	"fmt"
 	"io"
 	"iter"
-	"math"
 	"sync/atomic"
 
 	"go.opentelemetry.io/collector/pdata/pcommon"
@@ -23,6 +22,11 @@ import (
 	expressionproto "github.com/jaegertracing/jaeger/internal/proto/expression/v1"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore"
 )
+
+// maxSearchDepth is the largest SearchDepth this client will encode. It matches
+// ClickHouse's default MaxSearchDepth (10000): a search window, not an int32
+// bound. 0 is valid and means "backend default" on several stores.
+const maxSearchDepth = 10000
 
 var _ tracestore.Reader = (*TraceReader)(nil)
 
@@ -266,8 +270,8 @@ func toProtoQueryParameters(t tracestore.TraceQueryParams) (*storage.TraceQueryP
 	if err != nil {
 		return nil, fmt.Errorf("cannot send the query filter: %w", err)
 	}
-	if t.SearchDepth < math.MinInt32 || t.SearchDepth > math.MaxInt32 {
-		return nil, fmt.Errorf("SearchDepth must be in [%d, %d]", math.MinInt32, math.MaxInt32)
+	if t.SearchDepth < 0 || t.SearchDepth > maxSearchDepth {
+		return nil, fmt.Errorf("SearchDepth must be in [0, %d]", maxSearchDepth)
 	}
 	return &storage.TraceQueryParameters{
 		ServiceName:   t.ServiceName,
