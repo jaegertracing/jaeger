@@ -54,9 +54,12 @@ func TestAggregator(t *testing.T) {
 	defer a.Close()
 	require.Eventually(t, func() bool {
 		counters, _ := metricsFactory.Snapshot()
-		_, ok := counters["sampling_operations"]
-		return ok
-	}, 10*time.Second, time.Millisecond, "aggregation loop never recorded sampling_operations")
+		_, gotOperations := counters["sampling_operations"]
+		_, gotServices := counters["sampling_services"]
+		// saveThroughput increments the two counters in separate calls, so waiting
+		// on only one can observe the window between them and assert too early.
+		return gotOperations && gotServices
+	}, 10*time.Second, time.Millisecond, "aggregation loop never recorded both counters")
 
 	metricsFactory.AssertCounterMetrics(t, []metricstest.ExpectedMetric{
 		{Name: "sampling_operations", Value: 4},
