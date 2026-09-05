@@ -306,25 +306,28 @@ func (qs QueryService) ArchiveTrace(ctx context.Context, query tracestore.GetTra
 	if qs.options.ArchiveTraceWriter == nil {
 		return errNoArchiveSpanStorage
 	}
-	getTracesIter := qs.interceptResults(ctx, qs.traceReader.GetTraces(ctx, query))
 	var (
 		found      bool
 		archiveErr error
 	)
-	getTracesIter(func(traces []ptrace.Traces, err error) bool {
-		if err != nil {
-			archiveErr = err
-			return false
-		}
-		for _, trace := range traces {
-			found = true
-			err = qs.options.ArchiveTraceWriter.WriteTraces(ctx, trace)
+	qs.receiveTraces(
+		qs.interceptResults(ctx, qs.traceReader.GetTraces(ctx, query)),
+		func(traces []ptrace.Traces, err error) bool {
 			if err != nil {
-				archiveErr = errors.Join(archiveErr, err)
+				archiveErr = err
+				return false
 			}
-		}
-		return true
-	})
+			for _, trace := range traces {
+				found = true
+				err = qs.options.ArchiveTraceWriter.WriteTraces(ctx, trace)
+				if err != nil {
+					archiveErr = errors.Join(archiveErr, err)
+				}
+			}
+			return true
+		},
+		false,
+	)
 	if archiveErr == nil && !found {
 		return spanstore.ErrTraceNotFound
 	}
