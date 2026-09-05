@@ -10,6 +10,11 @@ Read a sub-skill's SKILL.md before applying it.
 
 ## Available Skills
 
+- [analyze-critical-path](analyze-critical-path/SKILL.md) — Triage latency
+  bottlenecks by isolating execution time from scheduling or queue waits along
+  the critical path. Use when a trace is slow and no spans show errors, or when
+  the user asks what is slowing down a request.
+
 - [detect-n-plus-one](detect-n-plus-one/SKILL.md) — Detect N+1 query patterns where one
   parent operation triggers many near-identical child spans. Use when traces show repeated
   downstream calls or the user asks about chatty DB access.

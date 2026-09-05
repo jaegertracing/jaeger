@@ -85,6 +85,73 @@ func TestNewHandler_CallTool(t *testing.T) {
 	assert.Contains(t, text.Text, "svc-b")
 }
 
+// TestNewHandler_ReadBuiltinSkills exercises read_skill against the embedded
+// built-in skills catalog and individual sub-skills over the live MCP endpoint.
+func TestNewHandler_ReadBuiltinSkills(t *testing.T) {
+	svc := querysvc.NewQueryService(&tracestoremocks.Reader{}, &depstoremocks.Reader{}, querysvc.QueryServiceOptions{})
+	handler := NewHandler(telemetry.NoopSettings(), svc, tenancy.NewManager(&tenancy.Options{}), DefaultConfig())
+
+	session := connectTestClient(t, handler)
+	ctx := context.Background()
+
+	t.Run("root catalog lists all three built-in skills", func(t *testing.T) {
+		res, err := session.CallTool(ctx, &mcp.CallToolParams{
+			Name:      "read_skill",
+			Arguments: map[string]any{"path": "SKILL.md"},
+		})
+		require.NoError(t, err)
+		assert.False(t, res.IsError)
+		require.NotEmpty(t, res.Content)
+		text, ok := res.Content[0].(*mcp.TextContent)
+		require.True(t, ok)
+		assert.Contains(t, text.Text, "analyze-critical-path")
+		assert.Contains(t, text.Text, "detect-n-plus-one")
+		assert.Contains(t, text.Text, "error-root-cause")
+	})
+
+	t.Run("analyze-critical-path is servable and valid", func(t *testing.T) {
+		res, err := session.CallTool(ctx, &mcp.CallToolParams{
+			Name:      "read_skill",
+			Arguments: map[string]any{"path": "analyze-critical-path/SKILL.md"},
+		})
+		require.NoError(t, err)
+		assert.False(t, res.IsError)
+		require.NotEmpty(t, res.Content)
+		text, ok := res.Content[0].(*mcp.TextContent)
+		require.True(t, ok)
+		assert.Contains(t, text.Text, "name: analyze-critical-path")
+		assert.Contains(t, text.Text, "get_critical_path")
+		assert.Contains(t, text.Text, "self_time_us")
+		assert.Contains(t, text.Text, "get_trace_topology")
+	})
+
+	t.Run("detect-n-plus-one is servable", func(t *testing.T) {
+		res, err := session.CallTool(ctx, &mcp.CallToolParams{
+			Name:      "read_skill",
+			Arguments: map[string]any{"path": "detect-n-plus-one/SKILL.md"},
+		})
+		require.NoError(t, err)
+		assert.False(t, res.IsError)
+		require.NotEmpty(t, res.Content)
+		text, ok := res.Content[0].(*mcp.TextContent)
+		require.True(t, ok)
+		assert.Contains(t, text.Text, "name: detect-n-plus-one")
+	})
+
+	t.Run("error-root-cause is servable", func(t *testing.T) {
+		res, err := session.CallTool(ctx, &mcp.CallToolParams{
+			Name:      "read_skill",
+			Arguments: map[string]any{"path": "error-root-cause/SKILL.md"},
+		})
+		require.NoError(t, err)
+		assert.False(t, res.IsError)
+		require.NotEmpty(t, res.Content)
+		text, ok := res.Content[0].(*mcp.TextContent)
+		require.True(t, ok)
+		assert.Contains(t, text.Text, "name: error-root-cause")
+	})
+}
+
 // TestNewServerDegradesWithoutMetrics covers the branch where the metrics
 // middleware fails to build: the server is still returned (metrics degraded)
 // rather than the construction failing.
