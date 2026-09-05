@@ -18,7 +18,7 @@ import subprocess
 # go run -tags ui ./cmd/jaeger/main.go --config ./cmd/jaeger/config-elasticsearch.yaml
 # extract the metrics by running the following command:
 # prom2json http://localhost:8888/metrics > V2_Metrics.json
-# it is first recomended to generate the differences for all-in-one.json by running the following command:
+# it is first recommended to generate the differences for all-in-one.json by running the following command:
 # python3 compare_metrics.py --out md --is_storage F
 # rename that file to all_in_one.json and use it to filter out the overlapping metrics by using the is_storage falg to T
 # 2. Run the script with the following command:
