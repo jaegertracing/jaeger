@@ -318,6 +318,32 @@ def test_execute_tool_records_arguments_and_result(
     }
 
 
+def test_execute_tool_forwards_mcp_envelope_unwrapped(
+    span_exporter: InMemorySpanExporter, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """raw_output must carry the MCP CallToolResult envelope verbatim.
+
+    The AG-UI gateway's flattenToolResultContent (translation.go) expects
+    raw_output itself to be the {"content": [...], "structuredContent": {...}}
+    envelope MCP tools return. Re-wrapping it as {"content": tool_output}
+    here would double-nest that "content" key, which is exactly the bug this
+    test guards against.
+    """
+    agent = _new_jaeger_sidecar_agent()
+    conn = FakeConn()
+    agent.on_connect(conn)  # pyright: ignore[reportArgumentType]
+    mcp_envelope = {
+        "content": [{"type": "text", "text": "Found 3 services"}],
+        "structuredContent": {"services": ["frontend", "backend", "cart"]},
+    }
+    monkeypatch.setattr(agent._mcp, "call_tool", _fake_call_tool(mcp_envelope))
+
+    asyncio.run(agent._execute_tool("sess-1", "search_traces", {}, "call-4"))
+
+    completed_update = conn.session_updates[-1]
+    assert completed_update.raw_output == mcp_envelope
+
+
 def test_execute_contextual_tool_records_arguments_but_not_synthetic_ack(
     span_exporter: InMemorySpanExporter,
 ) -> None:
@@ -352,10 +378,13 @@ def test_execute_tool_truncates_oversized_result_on_span_only(
 
     result = asyncio.run(agent._execute_tool("sess-1", "search_traces", {}, "call-3"))
 
-    # The full, untruncated payload still reaches the AG-UI wire.
+    # The full, untruncated payload still reaches the AG-UI wire, forwarded
+    # verbatim rather than wrapped in an extra {"content": ...} envelope
+    # (which would double-nest it on top of the "content" key MCP
+    # CallToolResult envelopes already carry).
     assert result == huge_output
     completed_update = conn.session_updates[-1]
-    assert completed_update.raw_output == {"content": huge_output}
+    assert completed_update.raw_output == huge_output
 
     # Only the span attribute is capped, to protect OTLP export from
     # arbitrarily large tool payloads.
