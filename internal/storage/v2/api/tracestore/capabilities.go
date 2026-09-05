@@ -25,6 +25,25 @@ var ErrFilterUnsupported = errors.New("this storage backend cannot serve this qu
 // deliberately does not carry types (RFC 0005 §6.1).
 var ErrFilterInvalid = errors.New("invalid query filter")
 
+// ErrPaginationUnsupported is returned for a query carrying a Pagination.PageToken to a
+// Reader whose SearchCapabilities.Paginated is false. The query is refused rather than
+// treated as a new search, because a Reader that cannot paginate cannot have minted the
+// token, so honoring it as if it started a fresh search would silently reinterpret what
+// the caller sent (RFC 0014 §6.2).
+var ErrPaginationUnsupported = errors.New("this storage backend cannot resume a paginated search")
+
+// ErrPaginationInvalid is returned for a query whose Pagination is malformed on its own
+// terms, independent of any backend: one that also sets SearchDepth, since the two bounds
+// have no single honest meaning together, or one that leaves PageSize at zero, since a
+// Pagination with no page size does not describe a page (RFC 0014 §4).
+var ErrPaginationInvalid = errors.New("invalid pagination")
+
+// ErrPaginationUnsupportedByFindTraces is returned for a FindTraces query that carries
+// Pagination. FindTraces streams whole traces with no field to carry a continuation token,
+// so honoring the request would accept a paging request and never hand back a cursor,
+// leaving the caller unable to tell a bounded page from the last one (RFC 0014 §4).
+var ErrPaginationUnsupportedByFindTraces = errors.New("FindTraces cannot be paginated: its response has no field to carry a continuation token")
+
 // SearchCapabilities describes how a Reader's search methods behave where backends
 // differ: which TraceQueryParams fields may be omitted, which are honored exactly
 // rather than approximated, and which combinations a backend cannot serve. Its zero
@@ -60,6 +79,14 @@ type SearchCapabilities struct {
 	// means none of it: the reader serves only the other, legacy fields, so a caller with
 	// a filter to run must express it in those fields or refuse the query.
 	Filter *FilterCapabilities
+
+	// Paginated is true when FindTraceIDs and FindTraceSummaries honor
+	// TraceQueryParams.Pagination and let a caller resume a search past its first page
+	// (RFC 0014). False, the zero value, means the reader cannot paginate: the query
+	// service serves a single page capped at Pagination.PageSize or SearchDepth and
+	// rejects a query that carries a PageToken, since a reader that cannot paginate
+	// cannot have minted a valid one.
+	Paginated bool
 }
 
 // FilterCapabilities declares how much of a structured filter a Reader evaluates, by naming

@@ -24,14 +24,17 @@ import (
 var ErrInterceptorFilter = errors.New("query interceptor returned an invalid filter")
 
 // toPublicQuery and fromPublicQuery convert at the contract boundary, so the internal query type
-// never crosses it. Only the envelope and the filter survive the round trip, which is all the
-// public Query carries: onQuery hands over a query whose predicate fields are already empty.
+// never crosses it. Only the envelope, the filter, and Pagination survive the round trip, which
+// is all the public Query carries: onQuery hands over a query whose predicate fields are already
+// empty.
 func toPublicQuery(q tracestore.TraceQueryParams) queryinterceptor.Query {
 	return queryinterceptor.Query{
 		Filter:       q.Filter,
 		StartTimeMin: q.StartTimeMin,
 		StartTimeMax: q.StartTimeMax,
 		SearchDepth:  q.SearchDepth,
+		PageSize:     q.Pagination.PageSize,
+		PageToken:    q.Pagination.PageToken,
 	}
 }
 
@@ -42,6 +45,7 @@ func fromPublicQuery(q queryinterceptor.Query) tracestore.TraceQueryParams {
 		StartTimeMin: q.StartTimeMin,
 		StartTimeMax: q.StartTimeMax,
 		SearchDepth:  q.SearchDepth,
+		Pagination:   tracestore.Pagination{PageSize: q.PageSize, PageToken: q.PageToken},
 	}
 }
 
@@ -76,6 +80,13 @@ func (qs QueryService) onQuery(ctx context.Context, query TraceQueryParams) (con
 		query.StartTimeMin = queryPostIntercept.StartTimeMin
 		query.StartTimeMax = queryPostIntercept.StartTimeMax
 		query.SearchDepth = queryPostIntercept.SearchDepth
+		query.Pagination = tracestore.Pagination{PageSize: queryPostIntercept.PageSize, PageToken: queryPostIntercept.PageToken}
+		// An interceptor that left Filter alone could still have touched SearchDepth or
+		// Pagination, so the mutual-exclusivity check runs again on whatever it returned —
+		// the same posture finalizeInterceptorFilter takes for Filter below.
+		if err := query.EnsurePaginationStandsAlone(); err != nil {
+			return ctx, query, err
+		}
 		return ctx, query, nil
 	}
 
@@ -86,6 +97,9 @@ func (qs QueryService) onQuery(ctx context.Context, query TraceQueryParams) (con
 		return ctx, query, err
 	}
 	query.TraceQueryParams = fromPublicQuery(queryPostIntercept)
+	if err := query.EnsurePaginationStandsAlone(); err != nil {
+		return ctx, query, err
+	}
 	return ctx, query, nil
 }
 

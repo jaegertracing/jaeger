@@ -239,3 +239,118 @@ func TestFilterCapabilitiesRoundTrip(t *testing.T) {
 		})
 	}
 }
+
+// TestQueryParametersCarryPagination pins Pagination onto the query parameters the same way
+// TestQueryParametersCarryTheFilter pins Filter: encoded by toProtoQueryParameters, decoded by
+// toTraceQueryParams, on a reader that declares Paginated so the token is not refused.
+func TestQueryParametersCarryPagination(t *testing.T) {
+	reader := new(tracestoremocks.Reader)
+	reader.On("SearchCapabilities", mock.Anything).Return(tracestore.SearchCapabilities{Paginated: true}, nil)
+
+	sent, err := toProtoQueryParameters(tracestore.TraceQueryParams{
+		Attributes: pcommon.NewMap(),
+		Pagination: tracestore.Pagination{PageSize: 25, PageToken: "opaque-cursor"},
+	})
+	require.NoError(t, err)
+	require.NotNil(t, sent.GetPagination())
+	assert.Equal(t, uint32(25), sent.GetPagination().GetPageSize())
+	assert.Equal(t, "opaque-cursor", sent.GetPagination().GetPageToken())
+
+	decoded, err := NewHandler(reader, nil, nil).toTraceQueryParams(t.Context(), sent)
+	require.NoError(t, err)
+	assert.Equal(t, tracestore.Pagination{PageSize: 25, PageToken: "opaque-cursor"}, decoded.Pagination)
+	assert.Zero(t, decoded.SearchDepth, "Pagination replaces search_depth rather than setting it")
+}
+
+// TestToTraceQueryParams_PageSizeClampedToMax pins that a page_size above tracestore.MaxPageSize
+// is clamped down rather than refused, the treatment RFC 0014 §4 (and AIP-158) prescribes.
+func TestToTraceQueryParams_PageSizeClampedToMax(t *testing.T) {
+	reader := new(tracestoremocks.Reader)
+	reader.On("SearchCapabilities", mock.Anything).Return(tracestore.SearchCapabilities{Paginated: true}, nil)
+
+	decoded, err := NewHandler(reader, nil, nil).toTraceQueryParams(t.Context(), &storage.TraceQueryParameters{
+		Pagination: &storage.Pagination{PageSize: tracestore.MaxPageSize + 1000},
+	})
+	require.NoError(t, err)
+	assert.Equal(t, tracestore.MaxPageSize, decoded.Pagination.PageSize)
+}
+
+// TestToTraceQueryParams_RejectsPaginationWithSearchDepth pins RFC 0014 §4's mutual exclusivity
+// at the storage/v2 boundary: a query that sets both has not said how many results it wants.
+func TestToTraceQueryParams_RejectsPaginationWithSearchDepth(t *testing.T) {
+	reader := new(tracestoremocks.Reader)
+
+	_, err := NewHandler(reader, nil, nil).toTraceQueryParams(t.Context(), &storage.TraceQueryParameters{
+		SearchDepth: 20,
+		Pagination:  &storage.Pagination{PageSize: 10},
+	})
+	require.Error(t, err)
+	assert.Equal(t, codes.InvalidArgument, status.Code(err))
+	assert.Contains(t, err.Error(), "search_depth")
+	reader.AssertNotCalled(t, "SearchCapabilities", mock.Anything)
+}
+
+// TestToTraceQueryParams_RejectsEmptyPagination pins the proto-presence gap Copilot found: an
+// explicitly-present-but-empty Pagination message (`{"pagination":{}}`) reads identically to an
+// absent one once page_size (a plain proto3 scalar with no presence of its own) is copied into
+// the Go zero-valued Pagination struct. The rejection has to happen at decode time, while
+// GetPagination() != nil still distinguishes "sent, empty" from "not sent" — a check on the Go
+// value afterward cannot.
+func TestToTraceQueryParams_RejectsEmptyPagination(t *testing.T) {
+	reader := new(tracestoremocks.Reader)
+
+	_, err := NewHandler(reader, nil, nil).toTraceQueryParams(t.Context(), &storage.TraceQueryParameters{
+		Pagination: &storage.Pagination{},
+	})
+	require.Error(t, err)
+	assert.Equal(t, codes.InvalidArgument, status.Code(err))
+	assert.Contains(t, err.Error(), "page_size is required")
+	reader.AssertNotCalled(t, "SearchCapabilities", mock.Anything)
+}
+
+// TestToTraceQueryParams_RejectsPageTokenWhenUnsupported pins RFC 0014 §6.2 at the storage/v2
+// boundary: a reader that cannot paginate cannot have minted the token, so the query is
+// refused with InvalidArgument rather than silently treated as a new search.
+func TestToTraceQueryParams_RejectsPageTokenWhenUnsupported(t *testing.T) {
+	reader := new(tracestoremocks.Reader)
+	reader.On("SearchCapabilities", mock.Anything).Return(tracestore.SearchCapabilities{}, nil)
+
+	_, err := NewHandler(reader, nil, nil).toTraceQueryParams(t.Context(), &storage.TraceQueryParameters{
+		Pagination: &storage.Pagination{PageSize: 20, PageToken: "opaque-cursor"},
+	})
+	require.Error(t, err)
+	assert.Equal(t, codes.InvalidArgument, status.Code(err))
+	assert.Contains(t, err.Error(), tracestore.ErrPaginationUnsupported.Error())
+}
+
+// TestToTraceQueryParams_PageSizeFoldedIntoSearchDepthWhenUnsupported pins the fix for the other
+// half of the same Copilot finding: a page-size-only request against a reader that cannot
+// paginate must still be bounded when it reaches that reader. Readers only read SearchDepth
+// today, so PageSize is folded into it and Pagination is cleared (ApplyPaginationCapability) —
+// leaving SearchDepth at zero would dispatch an effectively unbounded search.
+func TestToTraceQueryParams_PageSizeFoldedIntoSearchDepthWhenUnsupported(t *testing.T) {
+	reader := new(tracestoremocks.Reader)
+	reader.On("SearchCapabilities", mock.Anything).Return(tracestore.SearchCapabilities{}, nil)
+
+	decoded, err := NewHandler(reader, nil, nil).toTraceQueryParams(t.Context(), &storage.TraceQueryParameters{
+		Pagination: &storage.Pagination{PageSize: 10},
+	})
+	require.NoError(t, err)
+	assert.Equal(t, tracestore.Pagination{}, decoded.Pagination, "cleared once folded")
+	assert.Equal(t, 10, decoded.SearchDepth)
+}
+
+// TestToTraceQueryParams_PageSizeOnlyKeepsPaginationWhenSupported covers the other side: a
+// reader that declares Paginated keeps Pagination as sent, since it has its own field to read
+// PageSize from and SearchDepth is not involved.
+func TestToTraceQueryParams_PageSizeOnlyKeepsPaginationWhenSupported(t *testing.T) {
+	reader := new(tracestoremocks.Reader)
+	reader.On("SearchCapabilities", mock.Anything).Return(tracestore.SearchCapabilities{Paginated: true}, nil)
+
+	decoded, err := NewHandler(reader, nil, nil).toTraceQueryParams(t.Context(), &storage.TraceQueryParameters{
+		Pagination: &storage.Pagination{PageSize: 10},
+	})
+	require.NoError(t, err)
+	assert.Equal(t, tracestore.Pagination{PageSize: 10}, decoded.Pagination)
+	assert.Zero(t, decoded.SearchDepth)
+}

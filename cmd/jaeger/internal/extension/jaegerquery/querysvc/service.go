@@ -160,6 +160,13 @@ func (qs QueryService) FindTraces(
 	query TraceQueryParams,
 ) iter.Seq2[[]ptrace.Traces, error] {
 	return func(yield func([]ptrace.Traces, error) bool) {
+		// FindTraces streams whole traces with no field to carry a continuation token, so a
+		// Pagination is refused here, before prepareSearchQuery — which FindTraceSummaries
+		// shares and which does admit Pagination — ever sees it (RFC 0014 §4).
+		if err := query.EnsureNoPaginationOnFindTraces(); err != nil {
+			yield(nil, err)
+			return
+		}
 		ctx, query, err := qs.prepareSearchQuery(ctx, query)
 		if err != nil {
 			yield(nil, err)
@@ -200,6 +207,17 @@ func (qs QueryService) prepareSearchQuery(
 	ctx context.Context,
 	query TraceQueryParams,
 ) (context.Context, TraceQueryParams, error) {
+	if query.Pagination != (tracestore.Pagination{}) {
+		// Same reasoning as the filter gate below: this refusal does not depend on the
+		// backend, so it comes before any capability call.
+		if !PaginationGate.IsEnabled() {
+			return ctx, query, fmt.Errorf("%w: enable the %q feature gate to use it",
+				ErrPaginationDisabled, PaginationGate.ID())
+		}
+		if err := query.EnsurePaginationStandsAlone(); err != nil {
+			return ctx, query, err
+		}
+	}
 	if query.Filter != nil {
 		// None of these refusals depends on the backend, so they come before the capability call
 		// rather than after it.
@@ -225,22 +243,37 @@ func (qs QueryService) prepareSearchQuery(
 			return ctx, query, err
 		}
 	}
-	if query.Filter == nil {
+	// Pagination needs the same capability round trip a Filter does, to learn whether this
+	// reader can honor it (RFC 0014 §6.2) — not only when a PageToken is present, but for a
+	// page-size-only request too, since a reader that cannot paginate has no field of its own
+	// to read PageSize from and needs it folded into SearchDepth before dispatch
+	// (ApplyPaginationCapability). So the two share one capability fetch below rather than
+	// each making its own.
+	if query.Filter == nil && query.Pagination == (tracestore.Pagination{}) {
 		return ctx, query, qs.checkServiceName(ctx, query)
 	}
 	caps, err := qs.traceReader.SearchCapabilities(ctx)
 	if err != nil {
 		// A reader that cannot report its capabilities reads as the least capable one, which
-		// serves only the legacy predicate fields.
+		// serves only the legacy predicate fields and cannot paginate.
 		caps = tracestore.SearchCapabilities{}
 	}
-	// The filter is settled before the service name is checked, because a filter can name the
-	// service itself and rewriting it is what moves that into ServiceName.
-	prepared, err := query.ForCapabilities(caps)
-	if err != nil {
-		return ctx, query, err
+	if query.Pagination != (tracestore.Pagination{}) {
+		applied, err := query.ApplyPaginationCapability(caps)
+		if err != nil {
+			return ctx, query, err
+		}
+		query.TraceQueryParams = applied
 	}
-	query.TraceQueryParams = prepared
+	if query.Filter != nil {
+		// The filter is settled before the service name is checked, because a filter can name
+		// the service itself and rewriting it is what moves that into ServiceName.
+		prepared, err := query.ForCapabilities(caps)
+		if err != nil {
+			return ctx, query, err
+		}
+		query.TraceQueryParams = prepared
+	}
 	if query.ServiceName == "" && !caps.WithoutServiceName {
 		return ctx, query, ErrServiceNameRequired
 	}

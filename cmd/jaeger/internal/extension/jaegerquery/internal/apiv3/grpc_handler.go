@@ -85,10 +85,13 @@ func (h *Handler) internalFindTraces(
 }
 
 // traceQueryParams converts a proto TraceQueryParameters to querysvc.TraceQueryParams,
-// validating that the required time range fields are present. An unset (or
-// non-positive) search_depth defaults to defaultSearchDepth, mirroring the
-// HTTP gateway: proto3 cannot distinguish an omitted field from 0, and a
-// literal 0 is rejected by some storage backends (e.g. the in-memory store).
+// validating that the required time range fields are present. An unset (or non-positive)
+// search_depth defaults to defaultSearchDepth, mirroring the HTTP gateway: proto3 cannot
+// distinguish an omitted field from 0, and a literal 0 is rejected by some storage backends
+// (e.g. the in-memory store). That default is skipped when pagination is present, because
+// Pagination.page_size replaces search_depth rather than falling back to it (RFC 0014 §4) —
+// defaulting search_depth here would make search_depth "set" from EnsurePaginationStandsAlone's
+// point of view for every paginated request, even ones that never sent it.
 func traceQueryParams(query *api_v3.TraceQueryParameters) (querysvc.TraceQueryParams, error) {
 	if query == nil {
 		return querysvc.TraceQueryParams{}, status.Error(codes.InvalidArgument, "missing query")
@@ -97,7 +100,7 @@ func traceQueryParams(query *api_v3.TraceQueryParameters) (querysvc.TraceQueryPa
 		return querysvc.TraceQueryParams{}, status.Error(codes.InvalidArgument, "start time min and max are required parameters")
 	}
 	searchDepth := int(query.GetSearchDepth())
-	if searchDepth <= 0 {
+	if query.GetPagination() == nil && searchDepth <= 0 {
 		searchDepth = defaultSearchDepth
 	}
 	queryParams := querysvc.TraceQueryParams{
@@ -118,6 +121,25 @@ func traceQueryParams(query *api_v3.TraceQueryParameters) (querysvc.TraceQueryPa
 			return querysvc.TraceQueryParams{}, status.Error(codes.InvalidArgument, err.Error())
 		}
 		queryParams.Filter = filter
+	}
+	if pagination := query.GetPagination(); pagination != nil {
+		// The wire message is present here (as opposed to absent), but a plain proto3 scalar
+		// has no presence of its own, so an explicitly-zero page_size and an omitted one both
+		// read as 0 from GetPageSize(). Reject it now, while GetPagination() != nil still tells
+		// us the message itself was sent: a page_size check on the Go zero value later cannot
+		// tell "Pagination{}" apart from "no Pagination at all" (RFC 0014 §4).
+		if pagination.GetPageSize() == 0 {
+			return querysvc.TraceQueryParams{}, status.Error(codes.InvalidArgument,
+				"invalid pagination: page_size is required whenever pagination is present")
+		}
+		pageSize := pagination.GetPageSize()
+		if pageSize > tracestore.MaxPageSize {
+			pageSize = tracestore.MaxPageSize
+		}
+		queryParams.Pagination = tracestore.Pagination{
+			PageSize:  int(pageSize),
+			PageToken: pagination.GetPageToken(),
+		}
 	}
 	return queryParams, nil
 }
