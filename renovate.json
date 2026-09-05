@@ -202,6 +202,16 @@
       ]
     },
     {
+      "groupName": "All Elasticsearch client packages",
+      "matchManagers": [
+        "gomod"
+      ],
+      "matchPackageNames": [
+        "github.com/elastic/go-elasticsearch/**",
+        "github.com/elastic/elastic-transport-go/**"
+      ]
+    },
+    {
       "groupName": "All ClickHouse packages",
       "matchManagers": [
         "gomod"
