@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"strconv"
 	"testing"
+	"testing/synctest"
 	"time"
 
 	"github.com/stretchr/testify/assert"
@@ -21,50 +22,52 @@ import (
 )
 
 func TestAggregator(t *testing.T) {
-	metricsFactory := metricstest.NewFactory(0)
+	// synctest gives the aggregation loop a fake clock, so the tick is triggered
+	// deterministically instead of waiting for one and hoping it landed.
+	synctest.Test(t, func(t *testing.T) {
+		metricsFactory := metricstest.NewFactory(0)
 
-	mockStorage := &mocks.Store{}
-	mockStorage.On("InsertThroughput", mock.AnythingOfType("[]*model.Throughput")).Return(nil)
-	// Start() initializes the post-aggregator's throughput buckets, and its
-	// calculation loop saves probabilities back once this host is leader. Both
-	// read through the store, so both need stubbing or the mock panics.
-	mockStorage.On("GetThroughput", mock.Anything, mock.Anything).Return(nil, nil)
-	mockStorage.On("InsertProbabilitiesAndQPS", mock.Anything, mock.Anything, mock.Anything).Return(nil)
-	mockEP := &epmocks.ElectionParticipant{}
-	mockEP.On("Start").Return(nil)
-	mockEP.On("Close").Return(nil)
-	mockEP.On("IsLeader").Return(true)
-	testOpts := Options{
-		CalculationInterval:   1 * time.Second,
-		AggregationBuckets:    1,
-		BucketsForCalculation: 1,
-	}
-	logger := zap.NewNop()
+		mockStorage := &mocks.Store{}
+		mockStorage.On("InsertThroughput", mock.AnythingOfType("[]*model.Throughput")).Return(nil)
+		// Start() initializes the post-aggregator's throughput buckets, and its
+		// calculation loop saves probabilities back once this host is leader. Both
+		// read through the store, so both need stubbing or the mock panics.
+		mockStorage.On("GetThroughput", mock.Anything, mock.Anything).Return(nil, nil)
+		mockStorage.On("InsertProbabilitiesAndQPS", mock.Anything, mock.Anything, mock.Anything).Return(nil)
+		mockEP := &epmocks.ElectionParticipant{}
+		mockEP.On("Start").Return(nil)
+		mockEP.On("Close").Return(nil)
+		mockEP.On("IsLeader").Return(true)
+		testOpts := Options{
+			CalculationInterval:   1 * time.Second,
+			AggregationBuckets:    1,
+			BucketsForCalculation: 1,
+		}
+		logger := zap.NewNop()
 
-	a, err := NewAggregator(testOpts, logger, metricsFactory, mockEP, mockStorage)
-	require.NoError(t, err)
-	a.RecordThroughput("A", http.MethodGet, model.SamplerTypeProbabilistic, 0.001)
-	a.RecordThroughput("B", http.MethodPost, model.SamplerTypeProbabilistic, 0.001)
-	a.RecordThroughput("C", http.MethodGet, model.SamplerTypeProbabilistic, 0.001)
-	a.RecordThroughput("A", http.MethodPost, model.SamplerTypeProbabilistic, 0.001)
-	a.RecordThroughput("A", http.MethodGet, model.SamplerTypeProbabilistic, 0.001)
-	a.RecordThroughput("A", http.MethodGet, model.SamplerTypeLowerBound, 0.001)
+		a, err := NewAggregator(testOpts, logger, metricsFactory, mockEP, mockStorage)
+		require.NoError(t, err)
+		a.RecordThroughput("A", http.MethodGet, model.SamplerTypeProbabilistic, 0.001)
+		a.RecordThroughput("B", http.MethodPost, model.SamplerTypeProbabilistic, 0.001)
+		a.RecordThroughput("C", http.MethodGet, model.SamplerTypeProbabilistic, 0.001)
+		a.RecordThroughput("A", http.MethodPost, model.SamplerTypeProbabilistic, 0.001)
+		a.RecordThroughput("A", http.MethodGet, model.SamplerTypeProbabilistic, 0.001)
+		a.RecordThroughput("A", http.MethodGet, model.SamplerTypeLowerBound, 0.001)
 
-	a.Start()
-	defer a.Close()
-	require.Eventually(t, func() bool {
-		counters, _ := metricsFactory.Snapshot()
-		_, gotOperations := counters["sampling_operations"]
-		_, gotServices := counters["sampling_services"]
-		// saveThroughput increments the two counters in separate calls, so waiting
-		// on only one can observe the window between them and assert too early.
-		return gotOperations && gotServices
-	}, 10*time.Second, time.Millisecond, "aggregation loop never recorded both counters")
+		a.Start()
+		defer a.Close()
 
-	metricsFactory.AssertCounterMetrics(t, []metricstest.ExpectedMetric{
-		{Name: "sampling_operations", Value: 4},
-		{Name: "sampling_services", Value: 3},
-	}...)
+		// Advance past exactly one aggregation tick. Inside the bubble this is
+		// instant, and synctest.Wait blocks until the loop goroutine has finished
+		// handling the tick, so the counters below cannot be read mid-update.
+		time.Sleep(testOpts.CalculationInterval + time.Millisecond)
+		synctest.Wait()
+
+		metricsFactory.AssertCounterMetrics(t, []metricstest.ExpectedMetric{
+			{Name: "sampling_operations", Value: 4},
+			{Name: "sampling_services", Value: 3},
+		}...)
+	})
 }
 
 func TestIncrementThroughput(t *testing.T) {
