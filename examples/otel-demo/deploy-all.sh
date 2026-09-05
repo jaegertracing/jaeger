@@ -22,9 +22,9 @@ OPENSEARCH_RECOVERY="${JAEGER_OTEL_DEMO_OPENSEARCH_RECOVERY:-required}"
 # renovate: datasource=helm depName=opentelemetry-demo registryUrl=https://open-telemetry.github.io/opentelemetry-helm-charts
 OTEL_DEMO_CHART_VERSION="0.40.9"
 # renovate: datasource=helm depName=opensearch registryUrl=https://opensearch-project.github.io/helm-charts
-OPENSEARCH_CHART_VERSION="2.38.0"
+OPENSEARCH_CHART_VERSION="3.7.0"
 # renovate: datasource=helm depName=opensearch-dashboards registryUrl=https://opensearch-project.github.io/helm-charts
-OPENSEARCH_DASHBOARDS_CHART_VERSION="2.34.0"
+OPENSEARCH_DASHBOARDS_CHART_VERSION="3.7.0"
 
 log() { echo "[$(date +"%F %T")] $*"; }
 err() { echo "[$(date +"%F %T")] ERROR: $*" >&2; exit 1; }
