@@ -1,7 +1,7 @@
 # Migrate Coverage Gating from Codecov to GitHub Actions
 
 * **Status**: Accepted (implemented)
-* **Date**: 2026-03-01, extended 2026-07-29 (binary coverage, upload-invariant check, Codecov follow-up resolved), extended 2026-08-19 (the in-run summary check is the required context)
+* **Date**: 2026-03-01, extended 2026-07-29 (binary coverage, upload-invariant check, Codecov follow-up resolved), extended 2026-08-19 (the in-run summary check is the required context), extended 2026-09-05 (the unit-test leg collects counters instead of a text profile; all coverage artifacts moved under `.cover/`)
 
 ## Context
 
@@ -41,9 +41,11 @@ Extend the existing `CI Summary Report` fan-in workflow to add coverage aggregat
 
 ### Coverage Artifact Pipeline
 
-Each CI job uploads its coverage profile as a `coverage-<flag>` artifact (7-day retention) via `.github/actions/upload-codecov/action.yml`, alongside the existing Codecov upload.
+Each CI job uploads its coverage profile as a `coverage-<flag>` artifact (7-day retention) via `.github/actions/upload-codecov/action.yml`, alongside the existing Codecov upload. Every coverage artifact a job produces — the profile, the counter directories, the HTML report — lives under `.cover/`, so a test run writes nothing to the repository root and a single `.gitignore` entry and `make clean` path cover all of them.
 
-The e2e legs additionally contribute coverage of the jaeger binary they spawn. Those legs run jaeger as a separate OS process and drive it over the wire, so `go test -coverpkg` in the test process cannot observe it — before this was added, their profiles covered only `cmd/jaeger/internal/integration`, which `.codecov.yml` ignores, so 15 of the 27 uploads contributed nothing countable. The binary is built with `go build -cover -covermode=atomic`, writes counters into a directory passed as `JAEGER_BINARY_COVERDIR` and mapped onto `GOCOVERDIR` for the child only, and `go tool covdata textfmt` plus `gocovmerge` merge the result into the leg's `cover.out` (`scripts/makefiles/IntegrationTests.mk`). Three constraints are load-bearing:
+The unit-test leg writes binary counters into a directory instead of a text profile. `make cover` runs `gotestsum --rerun-fails`, which re-invokes `go test` with the same flags for every package it retries, and `go test -coverprofile` truncates the file it is given. A single retried package therefore left `cover.out` holding only that package, and the fan-in job scored the truncated profile as a coverage regression while the job that produced it reported success. Counters accumulate instead: each invocation adds uniquely named files under `.cover/unit`, and `go tool covdata textfmt` converts the whole set into `.cover/cover.out` after the run (`Makefile`). The mode is pinned with `-covermode=atomic` for the same `gocovmerge` reason as the e2e legs below. One consequence is worth knowing: a package with no test files runs no test binary and so contributes no counters, where `go test -coverprofile` used to list its statements at zero. Every such package in this repository is matched by `.codecov.yml`'s `ignore` list, so the profile the gate scores is unchanged.
+
+The e2e legs additionally contribute coverage of the jaeger binary they spawn. Those legs run jaeger as a separate OS process and drive it over the wire, so `go test -coverpkg` in the test process cannot observe it — before this was added, their profiles covered only `cmd/jaeger/internal/integration`, which `.codecov.yml` ignores, so 15 of the 27 uploads contributed nothing countable. The binary is built with `go build -cover -covermode=atomic`, writes counters into a directory passed as `JAEGER_BINARY_COVERDIR` and mapped onto `GOCOVERDIR` for the child only, and `go tool covdata textfmt` plus `gocovmerge` merge the result into the leg's profile (`scripts/makefiles/IntegrationTests.mk`). Three constraints are load-bearing:
 
 1. **The binary must exit normally.** Go flushes coverage counters from the runtime exit path, so `Binary.Stop` sends `SIGTERM` and escalates to `SIGKILL` only after a timeout. Under `SIGKILL` the directory gets a meta file and no counters.
 2. **The destination cannot be named `GOCOVERDIR`.** Under `go test -coverprofile` the toolchain sets `GOCOVERDIR` in the test process for its own use, so an inherited value is overwritten and the binary's counters land where the build discards them.

@@ -60,7 +60,6 @@ jobs:
     - name: Upload coverage to codecov
       uses: ./.github/actions/upload-codecov
       with:
-        files: cover.out
         flag: cassandra-${{ matrix.version.major }}-${{ matrix.storage_test }}-${{ matrix.create-schema }}
 
 

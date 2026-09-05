@@ -27,8 +27,8 @@ all-in-one-integration-test: $(GOTESTSUM)
 # with different modes: `go test -race` silently promotes the test profile to
 # atomic while covdata emits set, so leaving the mode implicit makes the merge
 # succeed locally (no -race) and fail in CI (-race).
-BINARY_COVERDIR = $(CURDIR)/.cover-binary
-BINARY_COVEROUT = cover-binary.out
+BINARY_COVERDIR = $(CURDIR)/$(COVERDIR)/binary
+BINARY_COVEROUT = $(COVERDIR)/binary.out
 
 .PHONY: jaeger-v2-storage-integration-test
 jaeger-v2-storage-integration-test: $(GOTESTSUM) $(GOCOVMERGE)
@@ -79,6 +79,7 @@ endif
 	# Expire tests results for storage integration tests since the environment might change
 	# even though the code remains the same.
 	go clean -testcache
+	mkdir -p $(COVERDIR)
 	$(GOTESTSUM) $(INTEGRATION_TEST_FLAGS) -- $(RACE) -coverpkg=./... -coverprofile $(COVEROUT) $(STORAGE_PKGS)
 
 .PHONY: badger-storage-integration-test
