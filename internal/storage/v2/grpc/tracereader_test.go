@@ -6,6 +6,7 @@ package grpc
 import (
 	"context"
 	"errors"
+	"math"
 	"net"
 	"testing"
 	"time"
@@ -1003,4 +1004,28 @@ func TestTraceReader_RefusesUnencodableFilter(t *testing.T) {
 			assert.ErrorContains(t, err, "cannot send the query filter")
 		})
 	}
+}
+
+func TestToProtoQueryParameters_SearchDepth(t *testing.T) {
+	t.Run("int32 bounds encode as-is", func(t *testing.T) {
+		for _, depth := range []int{0, 1, math.MaxInt32, math.MinInt32} {
+			got, err := toProtoQueryParameters(tracestore.TraceQueryParams{
+				Attributes:  pcommon.NewMap(),
+				SearchDepth: depth,
+			})
+			require.NoError(t, err)
+			assert.Equal(t, int32(depth), got.GetSearchDepth())
+		}
+	})
+
+	t.Run("outside int32 is refused", func(t *testing.T) {
+		for _, depth := range []int{math.MaxInt32 + 1, math.MinInt32 - 1} {
+			_, err := toProtoQueryParameters(tracestore.TraceQueryParams{
+				Attributes:  pcommon.NewMap(),
+				SearchDepth: depth,
+			})
+			require.Error(t, err)
+			assert.ErrorContains(t, err, "SearchDepth must be in")
+		}
+	})
 }

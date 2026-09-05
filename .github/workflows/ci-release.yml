@@ -20,6 +20,10 @@ on:
         type: boolean
         description: Allow overwriting artifacts.
 
+# Scorecard Token-Permissions: read-only default; writes stay on the publish job.
+permissions:
+  contents: read
+
 jobs:
   publish-release:
     permissions:
