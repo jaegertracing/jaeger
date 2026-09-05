@@ -140,7 +140,8 @@ func registerTools(server *mcp.Server, queryAPI *querysvc.QueryService, cfg Conf
 	mcp.AddTool(s.mcpServer, &mcp.Tool{
 		Name: "get_span_details",
 		Description: "Fetch full span data (attributes, events, links, status) for specific spans. " +
-			"Returns verbose output per span.",
+			"Returns verbose output per span. Prefer a small, targeted set of span IDs; " +
+			"requesting an entire trace's spans produces a large response.",
 	}, handlers.NewGetSpanDetailsHandler(s.queryAPI, s.config.MaxSpanDetailsPerRequest))
 
 	mcp.AddTool(s.mcpServer, &mcp.Tool{
@@ -155,7 +156,8 @@ func registerTools(server *mcp.Server, queryAPI *querysvc.QueryService, cfg Conf
 		Description: "Get the structural overview of a trace as a flat, depth-first span list. " +
 			"Each span includes a 'path' field encoding ancestry as slash-delimited span IDs " +
 			"(e.g. 'rootID/parentID/spanID'). " +
-			"Does NOT include attributes, events, or links.",
+			"Does NOT include attributes, events, or links, keeping output compact " +
+			"even for large traces.",
 	}, handlers.NewGetTraceTopologyHandler(s.queryAPI, s.config.MaxSpanDetailsPerRequest))
 
 	mcp.AddTool(s.mcpServer, &mcp.Tool{
