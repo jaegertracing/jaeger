@@ -701,13 +701,8 @@ func TestArchiveTrace(t *testing.T) {
 				primaryIter := iter.Seq2[[]ptrace.Traces, error](func(yield func([]ptrace.Traces, error) bool) {
 					yield([]ptrace.Traces{}, nil)
 				})
-				archiveIter := iter.Seq2[[]ptrace.Traces, error](func(yield func([]ptrace.Traces, error) bool) {
-					yield([]ptrace.Traces{makeTestTrace()}, nil)
-				})
 				tqs.traceReader.On("GetTraces", mock.Anything, paramsTraceIDs).
 					Return(primaryIter).Once()
-				tqs.archiveTraceReader.On("GetTraces", mock.Anything, paramsTraceIDs).
-					Return(archiveIter).Maybe()
 			},
 			expectedError: spanstore.ErrTraceNotFound,
 		},
