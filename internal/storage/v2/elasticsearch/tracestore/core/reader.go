@@ -608,14 +608,14 @@ func (*SpanReader) buildNestedQuery(field string, k string, v string) esquery.Qu
 	keyField := fmt.Sprintf("%s.%s", field, tagKeyField)
 	valueField := fmt.Sprintf("%s.%s", field, tagValueField)
 	keyQuery := esquery.NewMatchQuery(keyField, k)
-	valueQuery := esquery.NewRegexpQuery(valueField, v)
+	valueQuery := esquery.NewRegexpQuery(valueField, v).Flags("NONE")
 	tagBoolQuery := esquery.NewBoolQuery().Must(keyQuery, valueQuery)
 	return esquery.NewNestedQuery(field, tagBoolQuery)
 }
 
 func (*SpanReader) buildObjectQuery(field string, k string, v string) esquery.Query {
 	keyField := fmt.Sprintf("%s.%s", field, k)
-	keyQuery := esquery.NewRegexpQuery(keyField, v)
+	keyQuery := esquery.NewRegexpQuery(keyField, v).Flags("NONE")
 	return esquery.NewBoolQuery().Must(keyQuery)
 }
 
