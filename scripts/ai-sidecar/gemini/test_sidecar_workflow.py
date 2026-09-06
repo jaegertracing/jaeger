@@ -21,6 +21,7 @@ from acp.helpers import text_block, update_agent_message
 
 import sidecar
 from sidecar_config import SidecarConfig
+from sidecar_helpers import _extract_prompt_text
 
 END_OF_TURN_MARKER = "__END_OF_TURN__"
 DEFAULT_PROMPT = "hello"
@@ -106,7 +107,7 @@ class FakeAgent(Agent):
         return ListSessionsResponse(sessions=[])
 
     async def prompt(self, prompt: list[Any], session_id: str, message_id: str | None = None, **kwargs: Any) -> PromptResponse:
-        user_text = "".join(block.text for block in prompt if hasattr(block, "text"))
+        user_text = _extract_prompt_text(prompt)
         self.received_prompts.append((session_id, user_text))
 
         assert self._conn is not None
@@ -167,10 +168,23 @@ async def send_request(
         raise
 
 
-async def run_workflow_test(prompt: str, cwd: str) -> None:
+async def run_workflow_test(
+    prompt: str | list[dict[str, Any]],
+    cwd: str,
+    expected_user_text: str | None = None,
+) -> None:
     pending = PendingRequests()
     received_messages: list[dict[str, Any]] = []
     stop_event = asyncio.Event()
+
+    if isinstance(prompt, str):
+        prompt_blocks = [{"type": "text", "text": prompt}]
+        expected_text = expected_user_text if expected_user_text is not None else prompt
+    else:
+        prompt_blocks = prompt
+        if expected_user_text is None:
+            raise ValueError("expected_user_text is required when prompt is a list of blocks")
+        expected_text = expected_user_text
 
     async with websockets.serve(partial(sidecar.handle_websocket, agent_factory=FakeAgent), "127.0.0.1", 0) as server:
         port = next(iter(server.sockets)).getsockname()[1]
@@ -221,12 +235,7 @@ async def run_workflow_test(prompt: str, cwd: str) -> None:
                     "session/prompt",
                     {
                         "sessionId": session_id,
-                        "prompt": [
-                            {
-                                "type": "text",
-                                "text": prompt,
-                            }
-                        ],
+                        "prompt": prompt_blocks,
                     },
                 )
                 prompt_result = prompt_response.get("result", prompt_response)
@@ -240,12 +249,78 @@ async def run_workflow_test(prompt: str, cwd: str) -> None:
 
     fake_agent = FakeAgent.last_instance
     assert fake_agent is not None
-    assert fake_agent.received_prompts == [(session_id, prompt)]
+    assert fake_agent.received_prompts == [(session_id, expected_text)]
     assert any(END_OF_TURN_MARKER in json.dumps(message) for message in received_messages)
     assert any("echo: " in json.dumps(message) for message in received_messages)
 
+
 def test_complete_acp_workflow_with_fake_agent() -> None:
     asyncio.run(run_workflow_test(DEFAULT_PROMPT, DEFAULT_CWD))
+
+
+def test_complete_acp_workflow_multi_block_prompt() -> None:
+    # Regression test: verify ACP prompt content blocks (user prompt + telemetry context)
+    # are separated with paragraph delimiters over the complete WS wire.
+    prompt_blocks = [
+        {"type": "text", "text": "Investigate latency in this trace"},
+        {"type": "text", "text": "Active Trace ID:\n4bc972776e103118"},
+        {"type": "text", "text": "Active Service:\nfrontend"},
+    ]
+    expected_text = (
+        "Investigate latency in this trace\n\n"
+        "Active Trace ID:\n4bc972776e103118\n\n"
+        "Active Service:\nfrontend"
+    )
+    asyncio.run(run_workflow_test(prompt_blocks, DEFAULT_CWD, expected_user_text=expected_text))
+
+
+def test_extract_prompt_text_empty_list() -> None:
+    assert _extract_prompt_text([]) == ""
+
+
+def test_extract_prompt_text_single_block() -> None:
+    assert _extract_prompt_text([type("Block", (), {"text": "hello world"})()]) == "hello world"
+
+
+def test_extract_prompt_text_multi_block_prevents_identifier_fusion() -> None:
+    prompt = [
+        type("Block", (), {"text": "Investigate latency in this trace"})(),
+        type("Block", (), {"text": "Active Trace ID:\n4bc972776e103118"})(),
+        type("Block", (), {"text": "Active Service:\nfrontend"})(),
+    ]
+    result = _extract_prompt_text(prompt)
+    expected = (
+        "Investigate latency in this trace\n\n"
+        "Active Trace ID:\n4bc972776e103118\n\n"
+        "Active Service:\nfrontend"
+    )
+    assert result == expected
+    assert "traceActive" not in result
+    assert "4bc972776e103118Active" not in result
+
+
+def test_extract_prompt_text_skips_empty_and_whitespace_blocks() -> None:
+    prompt = [
+        type("Block", (), {"text": "First"})(),
+        type("Block", (), {"text": ""})(),
+        type("Block", (), {"text": "   \n\t  "})(),
+        type("Block", (), {"text": "Second"})(),
+    ]
+    assert _extract_prompt_text(prompt) == "First\n\nSecond"
+
+
+def test_extract_prompt_text_skips_non_text_and_invalid_blocks() -> None:
+    class ImageBlock:
+        pass
+
+    prompt = [
+        type("Block", (), {"text": "Text prompt"})(),
+        ImageBlock(),
+        type("Block", (), {"text": 12345})(),  # Non-string .text
+        type("Block", (), {"text": "Final text"})(),
+    ]
+    assert _extract_prompt_text(prompt) == "Text prompt\n\nFinal text"
+
 
 
 class FakeConn:

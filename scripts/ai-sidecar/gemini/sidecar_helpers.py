@@ -142,3 +142,18 @@ def _extract_function_declaration(tool: Any) -> types.FunctionDeclaration | None
         return cast(types.FunctionDeclaration, private_get_declaration())
 
     return None
+
+
+def _extract_prompt_text(prompt: list[Any]) -> str:
+    """Extract and combine text from ACP prompt content blocks.
+
+    Separates discrete content blocks (e.g. user prompt and contextual metadata
+    entries such as active trace IDs or service names) with blank lines to
+    prevent words and hex identifiers from fusing across block boundaries.
+    """
+    return "\n\n".join(
+        stripped
+        for block in prompt
+        if isinstance(text := getattr(block, "text", None), str)
+        and (stripped := text.strip())
+    )

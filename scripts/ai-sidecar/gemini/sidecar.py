@@ -23,6 +23,7 @@ from sidecar_config import SidecarConfig
 from sidecar_helpers import (
     _build_gemini_contextual_tool,
     _extract_contextual_tools,
+    _extract_prompt_text,
     _to_tool_text,
     _truncate_for_span,
     _validate_function_call,
@@ -410,10 +411,7 @@ class JaegerSidecarAgent(Agent):
             logger.info("Received prompt request for session %s", session_id)
 
             # Extract text from prompt blocks
-            user_text = ""
-            for block in prompt:
-                if hasattr(block, "text"):
-                    user_text += block.text
+            user_text = _extract_prompt_text(prompt)
 
             try:
                 conn = self._require_conn()
