@@ -122,11 +122,13 @@ func parseFindTracesQuery(q url.Values) (*querysvc.TraceQueryParams, error) {
 		searchDepthParam = paramNumTraces
 	}
 	if n != "" {
-		searchDepth, err := strconv.Atoi(n)
+		// bitSize 32 keeps searchDepth inside the protobuf int32 the gRPC
+		// storage client later encodes, instead of wrapping on int32(...).
+		searchDepth, err := strconv.ParseInt(n, 10, 32)
 		if err != nil {
 			return nil, fmt.Errorf("malformed parameter %s: %w", searchDepthParam, err)
 		}
-		queryParams.SearchDepth = searchDepth
+		queryParams.SearchDepth = int(searchDepth)
 	} else {
 		queryParams.SearchDepth = defaultSearchDepth
 	}

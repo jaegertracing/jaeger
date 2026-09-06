@@ -20,20 +20,19 @@ import (
 	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerquery/internal/jaegerai"
+	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerquery/internal/jaegerai/internal/acptest"
 )
 
-// stubAgent is the minimal acp.Agent implementation needed by the check —
-// only Initialize is exercised. Every other method returns a zero value and
-// nil error so the SDK does not blow up if it routes something unexpected.
+// stubAgent is the minimal acp.Agent implementation needed by the check: only
+// Initialize is exercised, and the embedded UnimplementedAgent answers
+// anything else the SDK happens to route.
 type stubAgent struct {
+	acptest.UnimplementedAgent
+
 	mu             sync.Mutex
 	initCount      int
 	initErr        error
 	lastAuthHeader string
-}
-
-func (*stubAgent) Authenticate(context.Context, acp.AuthenticateRequest) (acp.AuthenticateResponse, error) {
-	return acp.AuthenticateResponse{}, nil
 }
 
 func (a *stubAgent) Initialize(_ context.Context, params acp.InitializeRequest) (acp.InitializeResponse, error) {
@@ -45,36 +44,6 @@ func (a *stubAgent) Initialize(_ context.Context, params acp.InitializeRequest) 
 		return acp.InitializeResponse{}, initErr
 	}
 	return acp.InitializeResponse{ProtocolVersion: params.ProtocolVersion}, nil
-}
-
-func (*stubAgent) Cancel(context.Context, acp.CancelNotification) error { return nil }
-
-func (*stubAgent) CloseSession(context.Context, acp.CloseSessionRequest) (acp.CloseSessionResponse, error) {
-	return acp.CloseSessionResponse{}, nil
-}
-
-func (*stubAgent) ListSessions(context.Context, acp.ListSessionsRequest) (acp.ListSessionsResponse, error) {
-	return acp.ListSessionsResponse{}, nil
-}
-
-func (*stubAgent) NewSession(context.Context, acp.NewSessionRequest) (acp.NewSessionResponse, error) {
-	return acp.NewSessionResponse{SessionId: "sess-check"}, nil
-}
-
-func (*stubAgent) Prompt(context.Context, acp.PromptRequest) (acp.PromptResponse, error) {
-	return acp.PromptResponse{StopReason: acp.StopReasonEndTurn}, nil
-}
-
-func (*stubAgent) ResumeSession(context.Context, acp.ResumeSessionRequest) (acp.ResumeSessionResponse, error) {
-	return acp.ResumeSessionResponse{}, nil
-}
-
-func (*stubAgent) SetSessionConfigOption(context.Context, acp.SetSessionConfigOptionRequest) (acp.SetSessionConfigOptionResponse, error) {
-	return acp.SetSessionConfigOptionResponse{}, nil
-}
-
-func (*stubAgent) SetSessionMode(context.Context, acp.SetSessionModeRequest) (acp.SetSessionModeResponse, error) {
-	return acp.SetSessionModeResponse{}, nil
 }
 
 func startMockACPServer(t *testing.T, agent *stubAgent) string {

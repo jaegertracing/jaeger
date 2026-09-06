@@ -4,7 +4,9 @@
 package apiv3
 
 import (
+	"math"
 	"net/url"
+	"strconv"
 	"testing"
 	"time"
 
@@ -87,6 +89,19 @@ func TestParseFindTracesQuery(t *testing.T) {
 		got, err := parseFindTracesQuery(q)
 		require.NoError(t, err)
 		assert.Equal(t, 7, got.SearchDepth)
+	})
+
+	t.Run("search depth at int32 bounds", func(t *testing.T) {
+		for _, depth := range []int{math.MaxInt32, math.MinInt32} {
+			q := url.Values{}
+			q.Set(paramTimeMin, goodMin)
+			q.Set(paramTimeMax, goodMax)
+			q.Set(paramSearchDepth, strconv.Itoa(depth))
+
+			got, err := parseFindTracesQuery(q)
+			require.NoError(t, err)
+			assert.Equal(t, depth, got.SearchDepth)
+		}
 	})
 
 	t.Run("attributes", func(t *testing.T) {
@@ -175,6 +190,21 @@ func TestParseFindTracesQuery(t *testing.T) {
 		{
 			name:    "bad num_traces (deprecated alias)",
 			params:  map[string]string{paramTimeMin: goodMin, paramTimeMax: goodMax, paramNumTraces: "NaN"},
+			wantErr: "malformed parameter " + paramNumTraces,
+		},
+		{
+			name:    "searchDepth above int32",
+			params:  map[string]string{paramTimeMin: goodMin, paramTimeMax: goodMax, paramSearchDepth: "2147483648"},
+			wantErr: "malformed parameter " + paramSearchDepth,
+		},
+		{
+			name:    "searchDepth below int32",
+			params:  map[string]string{paramTimeMin: goodMin, paramTimeMax: goodMax, paramSearchDepth: "-2147483649"},
+			wantErr: "malformed parameter " + paramSearchDepth,
+		},
+		{
+			name:    "num_traces above int32",
+			params:  map[string]string{paramTimeMin: goodMin, paramTimeMax: goodMax, paramNumTraces: "2147483648"},
 			wantErr: "malformed parameter " + paramNumTraces,
 		},
 		{

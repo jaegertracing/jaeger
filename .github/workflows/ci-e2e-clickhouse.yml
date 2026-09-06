@@ -45,7 +45,6 @@ jobs:
     - name: Upload coverage to codecov
       uses: ./.github/actions/upload-codecov
       with:
-        files: cover.out
         flag: clickhouse-${{ matrix.storage_test }}
 
 

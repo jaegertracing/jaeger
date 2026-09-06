@@ -12,13 +12,16 @@
 name: CI Summary Report
 on:
   workflow_call:
+# Scorecard Token-Permissions: keep actions: write on the job that saves cache.
 permissions:
   contents: read
-  actions: write  # required for actions/cache save and gh run download
 
 jobs:
   summary-report:
     name: Summary Report
+    permissions:
+      contents: read
+      actions: write  # required for actions/cache save and gh run download
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
