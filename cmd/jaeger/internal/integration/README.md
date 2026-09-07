@@ -168,9 +168,9 @@ storage, or a second binary) and override `MetricsPort`, `HealthCheckPort`,
 `ConfigFile`, or `BinaryPath` on `E2EStorageIntegration`. Prefer the defaults
 in each `*_test.go` file when debugging a single backend.
 
-Configs under `/cmd/jaeger/` are used as the base collector configuration; the
-test harness injects the storage cleaner extension into that config before
-starting the binary.
+Configs under `cmd/jaeger/` are used as the base collector configuration. Unless
+`SkipStorageCleaner` is set, the test harness injects the storage cleaner
+extension into that config before starting the binary.
 
 ## Running tests locally
 
