@@ -1007,7 +1007,7 @@ func TestTraceReader_RefusesUnencodableFilter(t *testing.T) {
 
 func TestToProtoQueryParameters_SearchDepth(t *testing.T) {
 	t.Run("zero and max encode as-is", func(t *testing.T) {
-		for _, depth := range []int{0, 1, maxSearchDepth} {
+		for _, depth := range []int{0, 1, tracestore.MaxSearchDepth} {
 			got, err := toProtoQueryParameters(tracestore.TraceQueryParams{
 				Attributes:  pcommon.NewMap(),
 				SearchDepth: depth,
@@ -1018,7 +1018,7 @@ func TestToProtoQueryParameters_SearchDepth(t *testing.T) {
 	})
 
 	t.Run("negative and above max are refused", func(t *testing.T) {
-		for _, depth := range []int{-1, maxSearchDepth + 1} {
+		for _, depth := range []int{-1, tracestore.MaxSearchDepth + 1} {
 			_, err := toProtoQueryParameters(tracestore.TraceQueryParams{
 				Attributes:  pcommon.NewMap(),
 				SearchDepth: depth,

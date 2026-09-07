@@ -23,11 +23,6 @@ import (
 	"github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore"
 )
 
-// maxSearchDepth is the largest SearchDepth this client will encode. It matches
-// ClickHouse's default MaxSearchDepth (10000): a search window, not an int32
-// bound. 0 is valid and means "backend default" on several stores.
-const maxSearchDepth = 10000
-
 var _ tracestore.Reader = (*TraceReader)(nil)
 
 type TraceReader struct {
@@ -270,8 +265,12 @@ func toProtoQueryParameters(t tracestore.TraceQueryParams) (*storage.TraceQueryP
 	if err != nil {
 		return nil, fmt.Errorf("cannot send the query filter: %w", err)
 	}
-	if t.SearchDepth < 0 || t.SearchDepth > maxSearchDepth {
-		return nil, fmt.Errorf("SearchDepth must be in [0, %d]", maxSearchDepth)
+	// The HTTP query parser already refuses a SearchDepth outside this range,
+	// but other callers (MCP, gRPC query, tests) can set it without going
+	// through that parser. This client still has to refuse values that will
+	// not encode cleanly as a protobuf search window.
+	if t.SearchDepth < 0 || t.SearchDepth > tracestore.MaxSearchDepth {
+		return nil, fmt.Errorf("SearchDepth must be in [0, %d]", tracestore.MaxSearchDepth)
 	}
 	return &storage.TraceQueryParameters{
 		ServiceName:   t.ServiceName,

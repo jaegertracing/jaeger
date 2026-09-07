@@ -14,6 +14,7 @@ import (
 	"go.opentelemetry.io/collector/pdata/pcommon"
 
 	expression "github.com/jaegertracing/jaeger-idl/query/expression/v1"
+	"github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore"
 )
 
 func TestParseFindTracesQuery(t *testing.T) {
@@ -91,7 +92,7 @@ func TestParseFindTracesQuery(t *testing.T) {
 	})
 
 	t.Run("search depth at zero and max", func(t *testing.T) {
-		for _, depth := range []int{0, maxSearchDepth} {
+		for _, depth := range []int{0, tracestore.MaxSearchDepth} {
 			q := url.Values{}
 			q.Set(paramTimeMin, goodMin)
 			q.Set(paramTimeMax, goodMax)
@@ -198,12 +199,12 @@ func TestParseFindTracesQuery(t *testing.T) {
 		},
 		{
 			name:    "searchDepth above max",
-			params:  map[string]string{paramTimeMin: goodMin, paramTimeMax: goodMax, paramSearchDepth: "10001"},
+			params:  map[string]string{paramTimeMin: goodMin, paramTimeMax: goodMax, paramSearchDepth: strconv.Itoa(tracestore.MaxSearchDepth + 1)},
 			wantErr: "malformed parameter " + paramSearchDepth,
 		},
 		{
 			name:    "num_traces above max",
-			params:  map[string]string{paramTimeMin: goodMin, paramTimeMax: goodMax, paramNumTraces: "10001"},
+			params:  map[string]string{paramTimeMin: goodMin, paramTimeMax: goodMax, paramNumTraces: strconv.Itoa(tracestore.MaxSearchDepth + 1)},
 			wantErr: "malformed parameter " + paramNumTraces,
 		},
 		{

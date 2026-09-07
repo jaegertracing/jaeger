@@ -22,9 +22,6 @@ import (
 
 const (
 	defaultSearchDepth = 100
-	// maxSearchDepth matches ClickHouse's default MaxSearchDepth: a search
-	// window, not an int32 bound. The HTTP default is 100; MCP defaults to 10.
-	maxSearchDepth = 10000
 
 	paramTraceID = "trace_id" // path parameter
 
@@ -129,8 +126,8 @@ func parseFindTracesQuery(q url.Values) (*querysvc.TraceQueryParams, error) {
 		if err != nil {
 			return nil, fmt.Errorf("malformed parameter %s: %w", searchDepthParam, err)
 		}
-		if searchDepth < 0 || searchDepth > maxSearchDepth {
-			return nil, fmt.Errorf("malformed parameter %s: search depth must be in [0, %d]", searchDepthParam, maxSearchDepth)
+		if searchDepth < 0 || searchDepth > int64(tracestore.MaxSearchDepth) {
+			return nil, fmt.Errorf("malformed parameter %s: search depth must be in [0, %d]", searchDepthParam, tracestore.MaxSearchDepth)
 		}
 		queryParams.SearchDepth = int(searchDepth)
 	} else {
