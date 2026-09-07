@@ -9,7 +9,6 @@ import (
 	"fmt"
 	"io"
 	"iter"
-	"math"
 	"sync/atomic"
 
 	"go.opentelemetry.io/collector/pdata/pcommon"
@@ -266,8 +265,12 @@ func toProtoQueryParameters(t tracestore.TraceQueryParams) (*storage.TraceQueryP
 	if err != nil {
 		return nil, fmt.Errorf("cannot send the query filter: %w", err)
 	}
-	if t.SearchDepth < math.MinInt32 || t.SearchDepth > math.MaxInt32 {
-		return nil, fmt.Errorf("SearchDepth must be in [%d, %d]", math.MinInt32, math.MaxInt32)
+	// The HTTP query parser already refuses a SearchDepth outside this range,
+	// but other callers (MCP, gRPC query, tests) can set it without going
+	// through that parser. This client still has to refuse values that will
+	// not encode cleanly as a protobuf search window.
+	if t.SearchDepth < 0 || t.SearchDepth > tracestore.MaxSearchDepth {
+		return nil, fmt.Errorf("SearchDepth must be in [0, %d]", tracestore.MaxSearchDepth)
 	}
 	return &storage.TraceQueryParameters{
 		ServiceName:   t.ServiceName,
