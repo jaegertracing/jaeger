@@ -177,6 +177,36 @@ func TestNewSpanReader(t *testing.T) {
 	assert.Equal(t, time.Hour*72, reader.maxSpanAge)
 }
 
+func TestSpanReader_ServiceQueriesUseBoundedLookback(t *testing.T) {
+	searcher := esclientmocks.NewSearcher(t)
+	searcher.On(
+		"Search",
+		mock.Anything,
+		mock.Anything,
+		mock.Anything,
+	).Run(func(args mock.Arguments) {
+		assert.Len(t, args.Get(1).([]string), 4)
+	}).Return(&esclient.SearchResponse{Aggregations: termsAggregations(map[string]esclient.AggregationResult{
+		servicesAggregation:   {},
+		operationsAggregation: {},
+	})}, nil).Twice()
+
+	reader := NewSpanReader(SpanReaderParams{
+		Searcher:            searcher,
+		MaxSpanAge:          DawnOfTimeSpanAge,
+		ServicesMaxLookback: 72 * time.Hour,
+		MaxDocCount:         defaultMaxDocCount,
+		Logger:              zap.NewNop(),
+		Tracer:              noop.NewTracerProvider().Tracer("test"),
+		ServiceRotation:     indices.NewPeriodicRotation(config.ServiceIndexName, "2006-01-02", 24*time.Hour),
+	})
+
+	_, err := reader.GetServices(context.Background())
+	require.NoError(t, err)
+	_, err = reader.GetOperations(context.Background(), dbmodel.OperationQueryParameters{ServiceName: "service"})
+	require.NoError(t, err)
+}
+
 func TestSpanReaderRotations(t *testing.T) {
 	date := time.Date(2019, 10, 10, 5, 0, 0, 0, time.UTC)
 
@@ -950,7 +980,8 @@ func TestSpanReader_buildFindTraceIDsQuery(t *testing.T) {
 			},
 		}
 
-		actualQuery := r.reader.buildFindTraceIDsQuery(traceQuery)
+		actualQuery, err := r.reader.buildFindTraceIDsQuery(traceQuery)
+		require.NoError(t, err)
 		actual, err := actualQuery.Source()
 		require.NoError(t, err)
 		expectedQuery := esquery.NewBoolQuery().
@@ -981,7 +1012,9 @@ func TestSpanReader_buildFindTraceIDsQueryWithoutServiceName(t *testing.T) {
 			},
 		}
 
-		actual, err := r.reader.buildFindTraceIDsQuery(traceQuery).Source()
+		actualQuery, err := r.reader.buildFindTraceIDsQuery(traceQuery)
+		require.NoError(t, err)
+		actual, err := actualQuery.Source()
 		require.NoError(t, err)
 		expected, err := esquery.NewBoolQuery().
 			Must(
@@ -1036,11 +1069,13 @@ func TestSpanReader_buildFindTraceIDsQuery_errorTag(t *testing.T) {
 			{"2", wantSource(base().Must(r.reader.buildTagQuery("error", "2")))},
 		} {
 			t.Run("error="+tt.value, func(t *testing.T) {
-				got, err := r.reader.buildFindTraceIDsQuery(dbmodel.TraceQueryParameters{
+				query, err := r.reader.buildFindTraceIDsQuery(dbmodel.TraceQueryParameters{
 					StartTimeMin: start,
 					StartTimeMax: end,
 					Tags:         map[string]string{"error": tt.value},
-				}).Source()
+				})
+				require.NoError(t, err)
+				got, err := query.Source()
 				require.NoError(t, err)
 				assert.Equal(t, tt.want, got)
 			})

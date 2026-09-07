@@ -12,6 +12,7 @@ import (
 
 	aguitypes "github.com/ag-ui-protocol/ag-ui/sdks/community/go/pkg/core/types"
 	acp "github.com/coder/acp-go-sdk"
+	"go.opentelemetry.io/collector/config/configopaque"
 	oteltrace "go.opentelemetry.io/otel/trace"
 	"go.uber.org/zap"
 
@@ -38,8 +39,10 @@ type chatEndpoint struct {
 	// mcpBaseURL is the scheme+authority announced for the turn-scoped MCP
 	// endpoint. NewHandler sets it only when that endpoint is actually mounted and
 	// a reachable address is known, so empty means announce nothing.
-	mcpBaseURL         string
-	sidecarWSURL       string
+	mcpBaseURL   string
+	sidecarWSURL string
+	// sidecarHeaders are sent on the agent WebSocket handshake; see AIConfig.AgentHeaders.
+	sidecarHeaders     configopaque.MapList
 	basePath           string
 	maxRequestBodySize int64
 }
@@ -77,12 +80,13 @@ func (h *chatEndpoint) announceMCP(caps acp.AgentCapabilities, mcpRouteID string
 // for consistency with sibling handlers even though ServeHTTP does not currently
 // read it. mcpBaseURL defaults to the zero value — the announcement stays off until
 // NewHandler enables it — so tests that do not exercise MCP need no extra wiring.
-func newChatEndpoint(logger *zap.Logger, ctxTools *ContextualToolsStore, turns *turnRegistry, sidecarWSURL, basePath string, maxRequestBodySize int64) *chatEndpoint {
+func newChatEndpoint(logger *zap.Logger, ctxTools *ContextualToolsStore, turns *turnRegistry, sidecarWSURL string, sidecarHeaders configopaque.MapList, basePath string, maxRequestBodySize int64) *chatEndpoint {
 	return &chatEndpoint{
 		Logger:             logger,
 		ctxTools:           ctxTools,
 		turns:              turns,
 		sidecarWSURL:       sidecarWSURL,
+		sidecarHeaders:     sidecarHeaders,
 		basePath:           normalizeBasePath(basePath),
 		maxRequestBodySize: maxRequestBodySize,
 	}
@@ -145,7 +149,7 @@ func (h *chatEndpoint) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	acpCtx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
-	adapter, err := DialWsAdapter(acpCtx, h.sidecarWSURL, h.Logger)
+	adapter, err := DialWsAdapter(acpCtx, h.sidecarWSURL, h.sidecarHeaders, h.Logger)
 	if err != nil {
 		http.Error(w, "Failed to connect to agent backend", http.StatusBadGateway)
 		return

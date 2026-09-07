@@ -124,8 +124,6 @@ type Factory struct {
 }
 
 func NewFactory(ctx context.Context, cfg Configuration, telset telemetry.Settings) (*Factory, error) {
-	cfg.applyDefaults()
-
 	var builder *schemaBuilder
 	if cfg.CreateSchema {
 		var err error

@@ -41,6 +41,14 @@ This avoids duplication: both the sequential and parallel paths call the same st
 #### Stage 1: Fast Gate (Linters only)
 - **ci-lint-checks.yaml** - Go linting, DCO checks, generated files validation, shell script linting
 
+`ci-lint-checks.yaml` also fails a pull request whose `jaeger` binary grows by more than 2%. When an
+upstream upgrade links in code that the pull request has no way to avoid, no change to the branch can
+bring the binary back under the threshold. A maintainer waives the gate for that pull request by
+labeling it `accept-binary-size-increase` and describing the growth in the description; the job then
+reports the measurement as a warning instead of failing. Adding the label to a pull request whose run
+already failed takes effect on re-running the failed job, because the job reads the label from the
+API rather than from the event that started the run.
+
 #### Stage 2: Unit Tests
 - **ci-unit-tests.yml** - Full unit test suite with coverage
 - **ci-ai-sidecar-gemini.yml** - Python ACP sidecar workflow test for the Gemini example
@@ -142,6 +150,9 @@ The following workflows operate independently and are **not** part of the orches
 - **label-check.yml** - Verifies PR labels
 - **pr-quota-manager.yml** - PR management automation
 - **dco_merge_group.yml** - DCO verification for merge groups
+
+### Opt-in Checks
+- **ci-backward-compatibility.yml** - Writes the integration corpus with a Jaeger built from `main` and reads it back with the one built from the pull request. A backend joins by adding a matrix entry carrying the command that stands its storage up; Elasticsearch and OpenSearch are there today, Cassandra and ClickHouse are still to come. Each job builds a second Jaeger and stands up a storage backend, so the workflow runs only on a pull request labelled `ci:backward-compat`, and it gates nothing.
 
 ### Scheduled Maintenance
 - **stale.yml** - Marks and closes stale issues/PRs
