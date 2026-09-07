@@ -561,6 +561,39 @@ func TestGetDependencies(t *testing.T) {
 	assert.Equal(t, uint64(100), response.GetDependencies()[0].CallCount)
 }
 
+func TestGetDependencies_SortedByParentThenChild(t *testing.T) {
+	tsc := newTestServerClient(t)
+	endTime := time.Now().UTC()
+	lookback := 24 * time.Hour
+
+	// Deliberately out of order, and not orderable by insertion or by
+	// CallCount, so a passing assertion can only come from an actual sort.
+	unsortedDeps := []model.DependencyLink{
+		{Parent: "b", Child: "y", CallCount: 1, Source: "traces"},
+		{Parent: "a", Child: "z", CallCount: 2, Source: "traces"},
+		{Parent: "a", Child: "x", CallCount: 3, Source: "traces"},
+	}
+
+	tsc.depsReader.On("GetDependencies", matchContext, mock.MatchedBy(func(p depstore.QueryParameters) bool {
+		return p.EndTime.Equal(endTime) && p.StartTime.Equal(endTime.Add(-lookback))
+	})).Return(unsortedDeps, nil).Once()
+
+	response, err := tsc.client.GetDependencies(context.Background(), &api_v3.GetDependenciesRequest{
+		StartTime: endTime.Add(-lookback),
+		EndTime:   endTime,
+	})
+	require.NoError(t, err)
+	require.Len(t, response.GetDependencies(), 3)
+
+	got := response.GetDependencies()
+	assert.Equal(t, "a", got[0].Parent)
+	assert.Equal(t, "x", got[0].Child)
+	assert.Equal(t, "a", got[1].Parent)
+	assert.Equal(t, "z", got[1].Child)
+	assert.Equal(t, "b", got[2].Parent)
+	assert.Equal(t, "y", got[2].Child)
+}
+
 func TestGetDependenciesStorageError(t *testing.T) {
 	tsc := newTestServerClient(t)
 	tsc.depsReader.On("GetDependencies", matchContext, mock.Anything).Return(
