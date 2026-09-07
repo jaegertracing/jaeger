@@ -67,5 +67,4 @@ jobs:
     - name: Upload coverage to codecov
       uses: ./.github/actions/upload-codecov
       with:
-        files: cover.out
         flag: ${{ matrix.version.distribution }}-${{ matrix.version.major }}-${{ matrix.version.storage_test }}
