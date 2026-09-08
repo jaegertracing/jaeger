@@ -12,6 +12,7 @@ import (
 
 func TestClickHouseStorage(t *testing.T) {
 	integration.SkipUnlessEnv(t, integration.StorageClickHouse)
+	t.Setenv("CLICKHOUSE_ATTRIBUTE_METADATA_CACHE_TTL", "5s")
 	s := &E2EStorageIntegration{
 		ConfigFile: "../../config-clickhouse.yaml",
 		StorageIntegration: integration.StorageIntegration{

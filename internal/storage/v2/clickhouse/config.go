@@ -18,7 +18,7 @@ const (
 	defaultDatabase                      = "jaeger"
 	defaultSearchDepth                   = 1000
 	defaultMaxSearchDepth                = 10000
-	defaultAttributeMetadataCacheTTL     = 10 * time.Minute
+	defaultAttributeMetadataCacheTTL     = time.Hour
 	defaultAttributeMetadataCacheMaxSize = 1000
 )
 
