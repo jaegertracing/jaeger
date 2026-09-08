@@ -3,16 +3,14 @@
 
 name: 'Setup Go'
 description: 'Setup Go toolchain with module cache keyed on both go.sum files'
-inputs:
-  go-version:
-    description: 'The Go version to install'
-    required: true
 runs:
   using: "composite"
   steps:
     - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
       with:
-        go-version: ${{ inputs.go-version }}
+        # This is the only place CI names a Go version;
+        # scripts/lint/check-go-version.sh keeps it in sync with go.mod.
+        go-version: 1.27.x
         cache-dependency-path: |
           ./go.sum
           ./internal/tools/go.sum

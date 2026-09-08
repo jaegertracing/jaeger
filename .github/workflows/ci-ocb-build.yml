@@ -27,8 +27,6 @@ jobs:
         submodules: true
 
     - uses: ./.github/actions/setup-go
-      with:
-        go-version: 1.26.x
 
     - uses: ./.github/actions/setup-node.js
 

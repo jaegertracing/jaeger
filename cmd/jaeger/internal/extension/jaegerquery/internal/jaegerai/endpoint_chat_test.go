@@ -26,11 +26,14 @@ import (
 	"go.opentelemetry.io/otel/trace"
 	"go.uber.org/zap"
 
+	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerquery/internal/jaegerai/internal/acptest"
 	"github.com/jaegertracing/jaeger/internal/telemetry/otelsemconv"
 	"github.com/jaegertracing/jaeger/internal/version"
 )
 
 type mockACPAgent struct {
+	acptest.UnimplementedAgent
+
 	mu sync.Mutex
 
 	initializeReq   *acp.InitializeRequest
@@ -63,10 +66,6 @@ type mockACPAgent struct {
 	asc *acp.AgentSideConnection
 }
 
-func (*mockACPAgent) Authenticate(context.Context, acp.AuthenticateRequest) (acp.AuthenticateResponse, error) {
-	return acp.AuthenticateResponse{}, nil
-}
-
 func (a *mockACPAgent) Initialize(_ context.Context, params acp.InitializeRequest) (acp.InitializeResponse, error) {
 	if a.initializeErr != nil {
 		return acp.InitializeResponse{}, a.initializeErr
@@ -83,10 +82,6 @@ func (a *mockACPAgent) Initialize(_ context.Context, params acp.InitializeReques
 	}, nil
 }
 
-func (*mockACPAgent) Cancel(context.Context, acp.CancelNotification) error {
-	return nil
-}
-
 func (a *mockACPAgent) CloseSession(_ context.Context, params acp.CloseSessionRequest) (acp.CloseSessionResponse, error) {
 	a.mu.Lock()
 	defer a.mu.Unlock()
@@ -96,14 +91,6 @@ func (a *mockACPAgent) CloseSession(_ context.Context, params acp.CloseSessionRe
 		return acp.CloseSessionResponse{}, a.closeSessionErr
 	}
 	return acp.CloseSessionResponse{}, nil
-}
-
-func (*mockACPAgent) ListSessions(context.Context, acp.ListSessionsRequest) (acp.ListSessionsResponse, error) {
-	return acp.ListSessionsResponse{}, nil
-}
-
-func (*mockACPAgent) ResumeSession(context.Context, acp.ResumeSessionRequest) (acp.ResumeSessionResponse, error) {
-	return acp.ResumeSessionResponse{}, nil
 }
 
 func (a *mockACPAgent) NewSession(_ context.Context, params acp.NewSessionRequest) (acp.NewSessionResponse, error) {
@@ -137,14 +124,6 @@ func (a *mockACPAgent) Prompt(ctx context.Context, params acp.PromptRequest) (ac
 		reason = acp.StopReasonEndTurn
 	}
 	return acp.PromptResponse{StopReason: reason}, nil
-}
-
-func (*mockACPAgent) SetSessionConfigOption(context.Context, acp.SetSessionConfigOptionRequest) (acp.SetSessionConfigOptionResponse, error) {
-	return acp.SetSessionConfigOptionResponse{}, nil
-}
-
-func (*mockACPAgent) SetSessionMode(context.Context, acp.SetSessionModeRequest) (acp.SetSessionModeResponse, error) {
-	return acp.SetSessionModeResponse{}, nil
 }
 
 func (a *mockACPAgent) snapshot() (*acp.InitializeRequest, *acp.NewSessionRequest, *acp.PromptRequest) {
