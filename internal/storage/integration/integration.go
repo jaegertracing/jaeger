@@ -217,6 +217,8 @@ func (s *StorageIntegration) testGetServices(t *testing.T) {
 					ServiceName:  service,
 					StartTimeMin: time.Now().Add(-2 * time.Hour),
 					StartTimeMax: time.Now(),
+					SearchDepth:  100,
+					Attributes:   pcommon.NewMap(),
 				})
 				for traces, err := range iterTraces {
 					if err != nil {
