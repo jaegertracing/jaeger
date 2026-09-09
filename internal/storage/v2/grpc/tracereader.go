@@ -26,6 +26,9 @@ import (
 var _ tracestore.Reader = (*TraceReader)(nil)
 
 type TraceReader struct {
+	// SpanSearch is unsupported for now.
+	tracestore.UnsupportedSpanSearch
+
 	client       storage.TraceReaderClient
 	capabilities storage.CapabilitiesClient
 

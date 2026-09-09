@@ -19,6 +19,7 @@ var _ tracestore.Reader = (*ReadMetricsDecorator)(nil)
 // ReadMetricsDecorator wraps a tracestore.Reader and collects metrics around each read operation.
 type ReadMetricsDecorator struct {
 	traceReader               tracestore.Reader
+	findSpansMetrics          *queryMetrics
 	findTracesMetrics         *queryMetrics
 	findTraceIDsMetrics       *queryMetrics
 	findTraceSummariesMetrics *queryMetrics
@@ -51,6 +52,7 @@ func (q *queryMetrics) emit(err error, latency time.Duration, responses int) {
 func NewReaderDecorator(traceReader tracestore.Reader, metricsFactory metrics.Factory) tracestore.Reader {
 	return &ReadMetricsDecorator{
 		traceReader:               traceReader,
+		findSpansMetrics:          buildQueryMetrics("find_spans", metricsFactory),
 		findTracesMetrics:         buildQueryMetrics("find_traces", metricsFactory),
 		findTraceIDsMetrics:       buildQueryMetrics("find_trace_ids", metricsFactory),
 		findTraceSummariesMetrics: buildQueryMetrics("find_trace_summaries", metricsFactory),
@@ -65,6 +67,25 @@ func buildQueryMetrics(operation string, metricsFactory metrics.Factory) *queryM
 	scoped := metricsFactory.Namespace(metrics.NSOptions{Name: "", Tags: map[string]string{"operation": operation}})
 	metrics.Init(qMetrics, scoped, nil)
 	return qMetrics
+}
+
+// FindSpans implements tracestore.Reader#FindSpans
+func (m *ReadMetricsDecorator) FindSpans(ctx context.Context, query tracestore.SpanQueryParams) iter.Seq2[tracestore.SpanPage, error] {
+	return func(yield func(tracestore.SpanPage, error) bool) {
+		start := time.Now()
+		var err error
+		length := 0
+		defer func() {
+			m.findSpansMetrics.emit(err, time.Since(start), length)
+		}()
+		for page, iterErr := range m.traceReader.FindSpans(ctx, query) {
+			err = iterErr
+			length++
+			if !yield(page, iterErr) {
+				return
+			}
+		}
+	}
 }
 
 // FindTraces implements tracestore.Reader#FindTraces
