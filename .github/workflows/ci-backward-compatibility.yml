@@ -33,14 +33,19 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        # TODO(#8691): add cassandra and clickhouse. Each one needs a `compat` mode in its own
-        # scripts/e2e script, the way elasticsearch.sh has one, and a BackwardCompatibility entry
-        # point in its own cmd/jaeger/internal/integration test file. Nothing else here changes.
         include:
         - backend: elasticsearch
           command: bash scripts/e2e/elasticsearch.sh elasticsearch 9.x compat
         - backend: opensearch
           command: bash scripts/e2e/elasticsearch.sh opensearch 3.x compat
+        # Cassandra is the one backend whose schema can come either from the e2e script or from
+        # Jaeger itself. The compat job takes the latter, so the earlier revision creates the
+        # schema and this revision reads back through whatever that one made, which is the shape
+        # a real upgrade has.
+        - backend: cassandra
+          command: SKIP_APPLY_SCHEMA=true bash scripts/e2e/cassandra.sh 5.x v004 compat
+        - backend: clickhouse
+          command: bash scripts/e2e/clickhouse.sh compat
     name: ${{ matrix.backend }}
     steps:
     - name: Harden Runner
