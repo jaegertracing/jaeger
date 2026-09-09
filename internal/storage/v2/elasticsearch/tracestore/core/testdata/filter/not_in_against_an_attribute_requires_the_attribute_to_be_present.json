@@ -1,0 +1,57 @@
+{
+  "bool": {
+    "must": {
+      "bool": {
+        "should": [
+          {
+            "exists": {
+              "field": "tag.http@method"
+            }
+          },
+          {
+            "nested": {
+              "path": "tags",
+              "query": {
+                "term": {
+                  "tags.key": "http.method"
+                }
+              }
+            }
+          }
+        ]
+      }
+    },
+    "must_not": {
+      "bool": {
+        "should": [
+          {
+            "term": {
+              "tag.http@method": "GET"
+            }
+          },
+          {
+            "nested": {
+              "path": "tags",
+              "query": {
+                "bool": {
+                  "must": [
+                    {
+                      "term": {
+                        "tags.key": "http.method"
+                      }
+                    },
+                    {
+                      "term": {
+                        "tags.value": "GET"
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        ]
+      }
+    }
+  }
+}

@@ -16,7 +16,7 @@ AI_REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 AI_JAEGER_CONFIG="$AI_REPO_ROOT/cmd/jaeger/config.yaml"
 
 # Jaeger query HTTP endpoint we poll to declare readiness.
-AI_JAEGER_READY_URL="http://127.0.0.1:16686/api/services"
+AI_JAEGER_READY_URL="http://127.0.0.1:16686/api/v3/services"
 
 # How long to wait for Jaeger to come up before giving up. Cold `go run` can
 # take 30s+ on a fresh build cache; 90s leaves room without hanging forever.

@@ -1,6 +1,6 @@
 # RFC 0002: AI Gateway — Frontend-Driven Contextual Tools
 
-- **Status:** Draft
+- **Status:** Implemented — the §5 tool-routing decision is superseded by [RFC 0008](./0008-ai-gateway-mcp-tool-routing.md)
 - **Author:** Nabil Salah
 - **Created:** 2026-04-23
 - **Last Updated:** 2026-04-23

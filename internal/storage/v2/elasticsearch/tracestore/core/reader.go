@@ -10,6 +10,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"strconv"
 	"time"
 
 	"go.opentelemetry.io/otel/attribute"
@@ -43,6 +44,7 @@ const (
 	nestedLogFieldsField   = "logs.fields"
 	tagKeyField            = "key"
 	tagValueField          = "value"
+	errorTag               = "error"
 
 	defaultSearchDepth = 100
 
@@ -50,9 +52,6 @@ const (
 )
 
 var (
-	// ErrServiceNameNotSet occurs when attempting to query with an empty service name
-	ErrServiceNameNotSet = errors.New("service Name must be set")
-
 	// ErrStartTimeMinGreaterThanMax occurs when start time min is above start time max
 	ErrStartTimeMinGreaterThanMax = errors.New("start Time Minimum is above Maximum")
 
@@ -104,9 +103,12 @@ var (
 // SpanReader can query for and load traces from ElasticSearch
 type SpanReader struct {
 	searcher esclient.Searcher
-	// The age of the oldest service/operation we will look for. Because indices in ElasticSearch are by day,
-	// this will be rounded down to UTC 00:00 of that day.
-	maxSpanAge              time.Duration
+	// maxSpanAge is how far back (in terms of timestamped indices)
+	// we look when loading trace by ID (a query without a time range).
+	maxSpanAge time.Duration
+	// servicesMaxLookback bounds GetServices/GetOperations independently from maxSpanAge,
+	// which may be widened to DawnOfTimeSpanAge for trace reads through an alias or data stream.
+	servicesMaxLookback     time.Duration
 	maxTraceDuration        time.Duration
 	serviceOperationStorage *ServiceOperationStorage
 	spanRotation            indices.Rotation
@@ -121,15 +123,17 @@ type SpanReader struct {
 type SpanReaderParams struct {
 	// Searcher is the esclient data-plane search client backing every read path:
 	// service/operation reads, trace-ID and trace lookups, and native summaries.
-	Searcher          esclient.Searcher
-	MaxSpanAge        time.Duration
-	MaxTraceDuration  time.Duration
-	MaxDocCount       int
-	TagDotReplacement string
-	Logger            *zap.Logger
-	Tracer            trace.Tracer
-	SpanRotation      indices.Rotation
-	ServiceRotation   indices.Rotation
+	Searcher   esclient.Searcher
+	MaxSpanAge time.Duration
+	// ServicesMaxLookback bounds GetServices/GetOperations.
+	ServicesMaxLookback time.Duration
+	MaxTraceDuration    time.Duration
+	MaxDocCount         int
+	TagDotReplacement   string
+	Logger              *zap.Logger
+	Tracer              trace.Tracer
+	SpanRotation        indices.Rotation
+	ServiceRotation     indices.Rotation
 }
 
 // NewSpanReader returns a new SpanReader with a metrics.
@@ -137,6 +141,7 @@ func NewSpanReader(p SpanReaderParams) *SpanReader {
 	return &SpanReader{
 		searcher:                p.Searcher,
 		maxSpanAge:              p.MaxSpanAge,
+		servicesMaxLookback:     p.ServicesMaxLookback,
 		maxTraceDuration:        p.MaxTraceDuration,
 		serviceOperationStorage: NewServiceOperationStorage(p.Searcher, p.Logger, 0), // read-only; the decorator takes care of metrics
 		spanRotation:            p.SpanRotation,
@@ -225,7 +230,7 @@ func (s *SpanReader) GetServices(ctx context.Context) ([]string, error) {
 	ctx, span := s.tracer.Start(ctx, "GetService")
 	defer span.End()
 	currentTime := time.Now()
-	jaegerIndices := s.serviceRotation.ReadTargets(currentTime.Add(-s.maxSpanAge), currentTime)
+	jaegerIndices := s.serviceRotation.ReadTargets(currentTime.Add(-s.servicesMaxLookback), currentTime)
 	return s.serviceOperationStorage.getServices(ctx, jaegerIndices, s.maxDocCount)
 }
 
@@ -237,7 +242,7 @@ func (s *SpanReader) GetOperations(
 	ctx, span := s.tracer.Start(ctx, "GetOperations")
 	defer span.End()
 	currentTime := time.Now()
-	jaegerIndices := s.serviceRotation.ReadTargets(currentTime.Add(-s.maxSpanAge), currentTime)
+	jaegerIndices := s.serviceRotation.ReadTargets(currentTime.Add(-s.servicesMaxLookback), currentTime)
 	operations, err := s.serviceOperationStorage.getOperations(ctx, jaegerIndices, query.ServiceName, s.maxDocCount)
 	if err != nil {
 		return nil, err
@@ -388,9 +393,6 @@ func buildTraceByIDQuery(traceID dbmodel.TraceID) esquery.Query {
 }
 
 func validateQuery(p dbmodel.TraceQueryParameters) error {
-	if p.ServiceName == "" && len(p.Tags) > 0 {
-		return ErrServiceNameNotSet
-	}
 	if p.StartTimeMin.IsZero() || p.StartTimeMax.IsZero() {
 		return ErrStartAndEndTimeNotSet
 	}
@@ -460,7 +462,10 @@ func (s *SpanReader) findTraceIDsFromQuery(ctx context.Context, traceQuery dbmod
 	//      "aggs": { "traceIDs" : { "terms" : {"size": 100,"field": "traceID" }}}
 	//  }
 	aggregation := s.buildTraceIDAggregation(traceQuery.SearchDepth)
-	boolQuery := s.buildFindTraceIDsQuery(traceQuery)
+	boolQuery, err := s.buildFindTraceIDsQuery(traceQuery)
+	if err != nil {
+		return nil, err
+	}
 	jaegerIndices := s.spanRotation.ReadTargets(traceQuery.StartTimeMin, traceQuery.StartTimeMax)
 
 	searchResult, err := s.searcher.Search(ctx, jaegerIndices, esclient.SearchRequest{
@@ -500,7 +505,7 @@ func (*SpanReader) buildTraceIDSubAggregation() esquery.Aggregation {
 	return esquery.NewMaxAggregation(startTimeField)
 }
 
-func (s *SpanReader) buildFindTraceIDsQuery(traceQuery dbmodel.TraceQueryParameters) esquery.Query {
+func (s *SpanReader) buildFindTraceIDsQuery(traceQuery dbmodel.TraceQueryParameters) (esquery.Query, error) {
 	boolQuery := esquery.NewBoolQuery()
 
 	// add duration query
@@ -526,10 +531,36 @@ func (s *SpanReader) buildFindTraceIDsQuery(traceQuery dbmodel.TraceQueryParamet
 	}
 
 	for k, v := range traceQuery.Tags {
+		// The error tag is only written for error spans (error=true; see
+		// getTagFromStatusCode in to_dbmodel.go). A non-error span carries no error
+		// tag at all, so a literal error=false tag match returns nothing. Treat
+		// error=false as the complement of error=true — every non-error span — by
+		// excluding error=true instead, mirroring the in-memory store (#9096).
+		if k == errorTag {
+			if isError, parseErr := strconv.ParseBool(v); parseErr == nil {
+				if isError {
+					boolQuery.Must(s.buildTagQuery(errorTag, "true"))
+				} else {
+					boolQuery.MustNot(s.buildTagQuery(errorTag, "true"))
+				}
+				continue
+			}
+		}
 		tagQuery := s.buildTagQuery(k, v)
 		boolQuery.Must(tagQuery)
 	}
-	return boolQuery
+
+	// The structured filter carries the same kinds of predicate as the fields above and the
+	// query service keeps the two mutually exclusive, so at most one of them contributes
+	// clauses to this query.
+	if traceQuery.Filter != nil {
+		filterQuery, err := s.buildFilterQuery(traceQuery.Filter)
+		if err != nil {
+			return nil, err
+		}
+		boolQuery.Must(filterQuery)
+	}
+	return boolQuery, nil
 }
 
 func (*SpanReader) buildDurationQuery(durationMin time.Duration, durationMax time.Duration) esquery.Query {
@@ -577,14 +608,14 @@ func (*SpanReader) buildNestedQuery(field string, k string, v string) esquery.Qu
 	keyField := fmt.Sprintf("%s.%s", field, tagKeyField)
 	valueField := fmt.Sprintf("%s.%s", field, tagValueField)
 	keyQuery := esquery.NewMatchQuery(keyField, k)
-	valueQuery := esquery.NewRegexpQuery(valueField, v)
+	valueQuery := esquery.NewRegexpQuery(valueField, v).Flags("NONE")
 	tagBoolQuery := esquery.NewBoolQuery().Must(keyQuery, valueQuery)
 	return esquery.NewNestedQuery(field, tagBoolQuery)
 }
 
 func (*SpanReader) buildObjectQuery(field string, k string, v string) esquery.Query {
 	keyField := fmt.Sprintf("%s.%s", field, k)
-	keyQuery := esquery.NewRegexpQuery(keyField, v)
+	keyQuery := esquery.NewRegexpQuery(keyField, v).Flags("NONE")
 	return esquery.NewBoolQuery().Must(keyQuery)
 }
 

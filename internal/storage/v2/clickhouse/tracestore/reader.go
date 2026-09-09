@@ -58,6 +58,15 @@ func NewReader(conn driver.Conn, cfg ReaderConfig) *Reader {
 	return &Reader{conn: conn, config: cfg, attrMetaCache: attrMetaCache}
 }
 
+func (*Reader) SearchCapabilities(context.Context) (tracestore.SearchCapabilities, error) {
+	return tracestore.SearchCapabilities{
+		// The search SQL starts from "WHERE 1=1" and appends the service predicate only
+		// when the query carries a name, so an omitted name matches spans from every
+		// service.
+		WithoutServiceName: true,
+	}, nil
+}
+
 func (r *Reader) GetTraces(
 	ctx context.Context,
 	traceIDs ...tracestore.GetTraceParams,

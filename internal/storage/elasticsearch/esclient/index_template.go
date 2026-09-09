@@ -114,16 +114,53 @@ func (m MappingType) options(indices config.Indices) config.IndexOptions {
 	}
 }
 
-// innerParams are the version-independent values rendered into a neutral body.
-// IsOpenSearch selects ISM vs ILM settings and is derived from the client's own
-// resolved version, so it never crosses the API boundary.
-type innerParams struct {
-	IndexPrefix   string
-	Shards        int64
-	Replicas      int64
+// lifecycleParams decide whether a template hands its indices to a rollover
+// lifecycle policy, and which engine runs it: Elasticsearch ILM, or the OpenSearch
+// index_state_management plugin. UseILM==false leaves the other fields unread, which
+// is how a target that manages its own rollover asks for no lifecycle settings.
+type lifecycleParams struct {
 	UseILM        bool
 	ILMPolicyName string
 	IsOpenSearch  bool
+}
+
+// innerParams are the values the templates in index_templates/ interpolate.
+type innerParams struct {
+	lifecycleParams
+	IndexPrefix string
+	Shards      int64
+	Replicas    int64
+}
+
+// renderBackendNeutralBody executes the embedded template for one mapping type and
+// returns its top-level fields: settings, mappings, and aliases where the template
+// emits them. Those fields read the same on every backend version, so a caller wraps
+// them in whatever envelope its own target needs.
+func renderBackendNeutralBody(m MappingType, indices config.Indices, lifecycle lifecycleParams) (map[string]json.RawMessage, error) {
+	file := m.file()
+	if file == "" {
+		return nil, fmt.Errorf("unknown index template mapping type %d", m)
+	}
+	opts := m.options(indices)
+	if opts.Replicas == nil {
+		return nil, fmt.Errorf("index options for %s have no replica count configured", m)
+	}
+
+	var buf bytes.Buffer
+	if err := indexTemplates.ExecuteTemplate(&buf, file, innerParams{
+		lifecycleParams: lifecycle,
+		IndexPrefix:     indices.IndexPrefix.Apply(""),
+		Shards:          opts.Shards,
+		Replicas:        *opts.Replicas,
+	}); err != nil {
+		return nil, fmt.Errorf("failed to render %s index template: %w", m, err)
+	}
+
+	var inner map[string]json.RawMessage
+	if err := json.Unmarshal(buf.Bytes(), &inner); err != nil {
+		return nil, fmt.Errorf("rendered %s index template is not valid JSON: %w", m, err)
+	}
+	return inner, nil
 }
 
 // RenderIndexTemplate renders the full index template body for a mapping type,
@@ -136,36 +173,19 @@ type innerParams struct {
 // offline `esmapping-generator` CLI, which has no cluster to probe and renders a
 // template for an explicitly-requested version.
 func RenderIndexTemplate(m MappingType, indices config.Indices, useILM bool, ilmPolicyName string, version es.BackendVersion) (string, error) {
-	file := m.file()
-	if file == "" {
-		return "", fmt.Errorf("unknown index template mapping type %d", m)
-	}
-	opts := m.options(indices)
-	if opts.Replicas == nil {
-		return "", fmt.Errorf("index options for %s have no replica count configured", m)
-	}
 	prefix := indices.IndexPrefix.Apply("")
-
-	var buf bytes.Buffer
-	if err := indexTemplates.ExecuteTemplate(&buf, file, innerParams{
-		IndexPrefix:   prefix,
-		Shards:        opts.Shards,
-		Replicas:      *opts.Replicas,
+	inner, err := renderBackendNeutralBody(m, indices, lifecycleParams{
 		UseILM:        useILM,
 		ILMPolicyName: ilmPolicyName,
 		IsOpenSearch:  version.IsOpenSearch(),
-	}); err != nil {
-		return "", fmt.Errorf("failed to render %s index template: %w", m, err)
-	}
-
-	var inner map[string]json.RawMessage
-	if err := json.Unmarshal(buf.Bytes(), &inner); err != nil {
-		return "", fmt.Errorf("rendered %s index template is not valid JSON: %w", m, err)
+	})
+	if err != nil {
+		return "", err
 	}
 
 	if version.UsesV8API() {
 		body, err := json.Marshal(map[string]any{
-			"priority":       opts.Priority,
+			"priority":       m.options(indices).Priority,
 			"index_patterns": prefix + m.indexBase() + "-*",
 			"template":       inner,
 		})

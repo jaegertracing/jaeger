@@ -637,6 +637,66 @@ func (_c *Reader_GetTraces_Call) RunAndReturn(run func(ctx context.Context, trac
 	return _c
 }
 
+// SearchCapabilities provides a mock function for the type Reader
+func (_mock *Reader) SearchCapabilities(ctx context.Context) (tracestore.SearchCapabilities, error) {
+	ret := _mock.Called(ctx)
+
+	if len(ret) == 0 {
+		panic("no return value specified for SearchCapabilities")
+	}
+
+	var r0 tracestore.SearchCapabilities
+	var r1 error
+	if returnFunc, ok := ret.Get(0).(func(context.Context) (tracestore.SearchCapabilities, error)); ok {
+		return returnFunc(ctx)
+	}
+	if returnFunc, ok := ret.Get(0).(func(context.Context) tracestore.SearchCapabilities); ok {
+		r0 = returnFunc(ctx)
+	} else {
+		r0 = ret.Get(0).(tracestore.SearchCapabilities)
+	}
+	if returnFunc, ok := ret.Get(1).(func(context.Context) error); ok {
+		r1 = returnFunc(ctx)
+	} else {
+		r1 = ret.Error(1)
+	}
+	return r0, r1
+}
+
+// Reader_SearchCapabilities_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'SearchCapabilities'
+type Reader_SearchCapabilities_Call struct {
+	*mock.Call
+}
+
+// SearchCapabilities is a helper method to define mock.On call
+//   - ctx context.Context
+func (_e *Reader_Expecter) SearchCapabilities(ctx interface{}) *Reader_SearchCapabilities_Call {
+	return &Reader_SearchCapabilities_Call{Call: _e.mock.On("SearchCapabilities", ctx)}
+}
+
+func (_c *Reader_SearchCapabilities_Call) Run(run func(ctx context.Context)) *Reader_SearchCapabilities_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		var arg0 context.Context
+		if args[0] != nil {
+			arg0 = args[0].(context.Context)
+		}
+		run(
+			arg0,
+		)
+	})
+	return _c
+}
+
+func (_c *Reader_SearchCapabilities_Call) Return(searchCapabilities tracestore.SearchCapabilities, err error) *Reader_SearchCapabilities_Call {
+	_c.Call.Return(searchCapabilities, err)
+	return _c
+}
+
+func (_c *Reader_SearchCapabilities_Call) RunAndReturn(run func(ctx context.Context) (tracestore.SearchCapabilities, error)) *Reader_SearchCapabilities_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // NewWriter creates a new instance of Writer. It also registers a testing interface on the mock and a cleanup function to assert the mocks expectations.
 // The first argument is typically a *testing.T value.
 func NewWriter(t interface {

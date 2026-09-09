@@ -27,6 +27,14 @@ type TraceReader struct {
 	spanReader spanstore.Reader
 }
 
+func (*TraceReader) SearchCapabilities(context.Context) (tracestore.SearchCapabilities, error) {
+	return tracestore.SearchCapabilities{
+		// The v1 readers reject a query with no service name: Cassandra and Badger both
+		// index by it.
+		WithoutServiceName: false,
+	}, nil
+}
+
 func NewTraceReader(spanReader spanstore.Reader) *TraceReader {
 	return &TraceReader{
 		spanReader: spanReader,

@@ -128,6 +128,12 @@ func (m *ReadMetricsDecorator) GetTraces(ctx context.Context, traceIDs ...traces
 }
 
 // GetServices implements tracestore.Reader#GetServices
+// SearchCapabilities forwards the wrapped reader's declaration: the decorator only
+// times queries, so the backend's abilities are what callers must see.
+func (m *ReadMetricsDecorator) SearchCapabilities(ctx context.Context) (tracestore.SearchCapabilities, error) {
+	return m.traceReader.SearchCapabilities(ctx)
+}
+
 func (m *ReadMetricsDecorator) GetServices(ctx context.Context) ([]string, error) {
 	start := time.Now()
 	retMe, err := m.traceReader.GetServices(ctx)

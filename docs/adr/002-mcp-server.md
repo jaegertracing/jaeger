@@ -18,7 +18,7 @@ Jaeger serves an MCP endpoint whose tools wrap the existing `QueryService`, rath
 
 ### 2. Run as a standalone `jaeger_mcp` extension on its own port ⚠️ superseded
 
-Shipped that way in [#8423](https://github.com/jaegertracing/jaeger/pull/8423), serving `:16687`, then retired by [RFC 0008](../rfc/0008-ai-gateway-mcp-tool-routing.md) M1 ([#8894](https://github.com/jaegertracing/jaeger/pull/8894)). The tools are now a library — [`mcptools`](../../cmd/jaeger/internal/extension/jaegerquery/internal/mcptools/) — inside the query extension, served under `<base_path>/api/ai/mcp/` on the **query port** and gated by `enable_mcp` (off by default). One MCP implementation now backs both that endpoint and the turn-scoped one the AI gateway announces.
+Shipped that way in [#8423](https://github.com/jaegertracing/jaeger/pull/8423), serving `:16687`, then retired by [RFC 0008](../rfc/0008-ai-gateway-mcp-tool-routing.md) M1 ([#8894](https://github.com/jaegertracing/jaeger/pull/8894)). The tools are now a library — [`mcptools`](../../cmd/jaeger/internal/extension/jaegerquery/internal/mcptools/) — inside the query extension, served under `<base_path>/api/ai/mcp/` on the **query port** and gated by the presence of the `ai.mcp` config block (absent by default). One MCP implementation now backs both that endpoint and the turn-scoped one the AI gateway announces.
 
 ### 3. Obtain `QueryService` from the `jaegerquery` extension ⚠️ superseded
 
