@@ -4,9 +4,11 @@
 package querysvc
 
 import (
+	"cmp"
 	"context"
 	"errors"
 	"iter"
+	"slices"
 	"time"
 
 	"go.opentelemetry.io/collector/pdata/pcommon"
@@ -226,10 +228,22 @@ func (qs QueryService) ArchiveTrace(ctx context.Context, query tracestore.GetTra
 }
 
 func (qs QueryService) GetDependencies(ctx context.Context, endTs time.Time, lookback time.Duration) ([]model.DependencyLink, error) {
-	return qs.dependencyReader.GetDependencies(ctx, depstore.QueryParameters{
+	deps, err := qs.dependencyReader.GetDependencies(ctx, depstore.QueryParameters{
 		StartTime: endTs.Add(-lookback),
 		EndTime:   endTs,
 	})
+	if err != nil {
+		return nil, err
+	}
+	// Storage backends do not guarantee a stable order (the in-memory store
+	// builds links from a map). Sort here so that every API returns the same order.
+	slices.SortFunc(deps, func(a, b model.DependencyLink) int {
+		if c := cmp.Compare(a.Parent, b.Parent); c != 0 {
+			return c
+		}
+		return cmp.Compare(a.Child, b.Child)
+	})
+	return deps, nil
 }
 
 func (qs QueryService) receiveTraces(

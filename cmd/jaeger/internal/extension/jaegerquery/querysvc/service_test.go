@@ -722,6 +722,39 @@ func TestGetDependencies(t *testing.T) {
 	assert.Equal(t, expected, actualDependencies)
 }
 
+func TestGetDependenciesSortsLinks(t *testing.T) {
+	tqs := initializeTestService()
+	// Returned in an order that is not sorted, mimicking the unstable map
+	// iteration order the storage layer builds dependency links from.
+	unsorted := []model.DependencyLink{
+		{Parent: "frontend", Child: "redis", CallCount: 1},
+		{Parent: "backend", Child: "mysql", CallCount: 2},
+		{Parent: "frontend", Child: "backend", CallCount: 3},
+	}
+	endTs := time.Unix(0, 1476374248550*millisToNanosMultiplier)
+	tqs.depsReader.On("GetDependencies", mock.Anything, mock.Anything).
+		Return(unsorted, nil).Once()
+
+	actualDependencies, err := tqs.queryService.GetDependencies(context.Background(), endTs, defaultDependencyLookbackDuration)
+	require.NoError(t, err)
+	assert.Equal(t, []model.DependencyLink{
+		{Parent: "backend", Child: "mysql", CallCount: 2},
+		{Parent: "frontend", Child: "backend", CallCount: 3},
+		{Parent: "frontend", Child: "redis", CallCount: 1},
+	}, actualDependencies)
+}
+
+func TestGetDependenciesError(t *testing.T) {
+	tqs := initializeTestService()
+	endTs := time.Unix(0, 1476374248550*millisToNanosMultiplier)
+	tqs.depsReader.On("GetDependencies", mock.Anything, mock.Anything).
+		Return(nil, assert.AnError).Once()
+
+	actualDependencies, err := tqs.queryService.GetDependencies(context.Background(), endTs, defaultDependencyLookbackDuration)
+	require.ErrorIs(t, err, assert.AnError)
+	assert.Nil(t, actualDependencies)
+}
+
 // Consolidate Underlimit, Overlimit and Exactly at limit tests
 func TestMaxTraceSize(t *testing.T) {
 	tests := []struct {
