@@ -24,6 +24,18 @@ class GetTraceRequest(_message.Message):
     raw_traces: bool
     def __init__(self, trace_id: _Optional[str] = ..., start_time: _Optional[_Union[datetime.datetime, _timestamp_pb2.Timestamp, _Mapping]] = ..., end_time: _Optional[_Union[datetime.datetime, _timestamp_pb2.Timestamp, _Mapping]] = ..., raw_traces: _Optional[bool] = ...) -> None: ...
 
+class SpanQueryParameters(_message.Message):
+    __slots__ = ("start_time_min", "start_time_max", "filter", "pagination")
+    START_TIME_MIN_FIELD_NUMBER: _ClassVar[int]
+    START_TIME_MAX_FIELD_NUMBER: _ClassVar[int]
+    FILTER_FIELD_NUMBER: _ClassVar[int]
+    PAGINATION_FIELD_NUMBER: _ClassVar[int]
+    start_time_min: _timestamp_pb2.Timestamp
+    start_time_max: _timestamp_pb2.Timestamp
+    filter: _expression_pb2.Call
+    pagination: Pagination
+    def __init__(self, start_time_min: _Optional[_Union[datetime.datetime, _timestamp_pb2.Timestamp, _Mapping]] = ..., start_time_max: _Optional[_Union[datetime.datetime, _timestamp_pb2.Timestamp, _Mapping]] = ..., filter: _Optional[_Union[_expression_pb2.Call, _Mapping]] = ..., pagination: _Optional[_Union[Pagination, _Mapping]] = ...) -> None: ...
+
 class TraceQueryParameters(_message.Message):
     __slots__ = ("service_name", "operation_name", "attributes", "start_time_min", "start_time_max", "duration_min", "duration_max", "search_depth", "raw_traces", "filter", "pagination")
     class AttributesEntry(_message.Message):
@@ -64,6 +76,20 @@ class Pagination(_message.Message):
     page_size: int
     page_token: str
     def __init__(self, page_size: _Optional[int] = ..., page_token: _Optional[str] = ...) -> None: ...
+
+class FindSpansRequest(_message.Message):
+    __slots__ = ("query",)
+    QUERY_FIELD_NUMBER: _ClassVar[int]
+    query: SpanQueryParameters
+    def __init__(self, query: _Optional[_Union[SpanQueryParameters, _Mapping]] = ...) -> None: ...
+
+class FindSpansResponse(_message.Message):
+    __slots__ = ("spans", "next_page_token")
+    SPANS_FIELD_NUMBER: _ClassVar[int]
+    NEXT_PAGE_TOKEN_FIELD_NUMBER: _ClassVar[int]
+    spans: _trace_pb2.TracesData
+    next_page_token: str
+    def __init__(self, spans: _Optional[_Union[_trace_pb2.TracesData, _Mapping]] = ..., next_page_token: _Optional[str] = ...) -> None: ...
 
 class FindTracesRequest(_message.Message):
     __slots__ = ("query",)

@@ -40,6 +40,11 @@ class QueryServiceStub:
                 request_serializer=api__v3_dot_query__service__pb2.GetTraceRequest.SerializeToString,
                 response_deserializer=opentelemetry_dot_proto_dot_trace_dot_v1_dot_trace__pb2.TracesData.FromString,
                 _registered_method=True)
+        self.FindSpans = channel.unary_stream(
+                '/jaeger.api_v3.QueryService/FindSpans',
+                request_serializer=api__v3_dot_query__service__pb2.FindSpansRequest.SerializeToString,
+                response_deserializer=api__v3_dot_query__service__pb2.FindSpansResponse.FromString,
+                _registered_method=True)
         self.FindTraces = channel.unary_stream(
                 '/jaeger.api_v3.QueryService/FindTraces',
                 request_serializer=api__v3_dot_query__service__pb2.FindTracesRequest.SerializeToString,
@@ -76,6 +81,13 @@ class QueryServiceServicer:
         It means that the JSON response cannot be directly unmarshalled using JSONPb.
         This can be fixed by first parsing into user-defined envelope with standard JSON library
         or string manipulation to remove the envelope. Alternatively generate objects using OpenAPI.
+        """
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+    def FindSpans(self, request, context):
+        """FindSpans searches for spans matching the given query
         """
         context.set_code(grpc.StatusCode.UNIMPLEMENTED)
         context.set_details('Method not implemented!')
@@ -126,6 +138,11 @@ def add_QueryServiceServicer_to_server(servicer, server):
                     servicer.GetTrace,
                     request_deserializer=api__v3_dot_query__service__pb2.GetTraceRequest.FromString,
                     response_serializer=opentelemetry_dot_proto_dot_trace_dot_v1_dot_trace__pb2.TracesData.SerializeToString,
+            ),
+            'FindSpans': grpc.unary_stream_rpc_method_handler(
+                    servicer.FindSpans,
+                    request_deserializer=api__v3_dot_query__service__pb2.FindSpansRequest.FromString,
+                    response_serializer=api__v3_dot_query__service__pb2.FindSpansResponse.SerializeToString,
             ),
             'FindTraces': grpc.unary_stream_rpc_method_handler(
                     servicer.FindTraces,
@@ -180,6 +197,33 @@ class QueryService:
             '/jaeger.api_v3.QueryService/GetTrace',
             api__v3_dot_query__service__pb2.GetTraceRequest.SerializeToString,
             opentelemetry_dot_proto_dot_trace_dot_v1_dot_trace__pb2.TracesData.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def FindSpans(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_stream(
+            request,
+            target,
+            '/jaeger.api_v3.QueryService/FindSpans',
+            api__v3_dot_query__service__pb2.FindSpansRequest.SerializeToString,
+            api__v3_dot_query__service__pb2.FindSpansResponse.FromString,
             options,
             channel_credentials,
             insecure,

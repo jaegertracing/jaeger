@@ -396,15 +396,17 @@ func (m *Scalar) GetType() string {
 }
 
 // List is a homogeneous list constant, the right arg of in/not_in. Every element is read as one
-// type: either type declares it, or the built-in field the list is compared against supplies it.
-// Compared against an attribute there is neither, and the elements are matched at whatever type
-// they were stored, exactly as an untyped scalar beside an attribute is (§5.4).
+// type, and that type comes from one of two places: either the type field below declares it, or the
+// built-in field the list is compared against supplies it. Compared against an attribute neither
+// place has a type to give, so the elements are matched at whatever type they were stored, the same
+// way an untyped scalar beside an attribute is matched (§5.4).
 type List struct {
 	// values must have at least one element: membership in nothing matches nothing.
 	Values []string `protobuf:"bytes,1,rep,name=values,proto3" json:"values,omitempty"`
 	// type is the type every element is read as, and a list matches only values of that type. It is
-	// OPTIONAL: empty means the built-in field opposite the list supplies the type, or, beside an
-	// attribute, that the elements are under no type constraint at all (see Scalar.type).
+	// OPTIONAL. Left empty, it means one of two things: the built-in field the list is compared
+	// against supplies the type, or the list sits beside an attribute, where nothing supplies one and
+	// the elements are under no type constraint at all (see Scalar.type).
 	Type                 string   `protobuf:"bytes,2,opt,name=type,proto3" json:"type,omitempty"`
 	XXX_NoUnkeyedLiteral struct{} `json:"-"`
 	XXX_unrecognized     []byte   `json:"-"`
