@@ -78,6 +78,10 @@ func (*fakeReader) FindTraceIDs(context.Context, tracestore.TraceQueryParams) it
 	return func(func([]tracestore.FoundTraceID, error) bool) {}
 }
 
+func (*fakeReader) FindSpans(ctx context.Context, q tracestore.SpanQueryParams) iter.Seq2[tracestore.SpanPage, error] {
+	return tracestore.UnsupportedSpanSearch{}.FindSpans(ctx, q)
+}
+
 func (*fakeReader) GetServices(context.Context) ([]string, error) {
 	return []string{"svc"}, nil
 }

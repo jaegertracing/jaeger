@@ -19,6 +19,8 @@ type TraceReader struct {
 	// Cassandra does not compute trace summaries natively; fall back to
 	// FindTraces + client-side aggregation.
 	tracestore.UnsupportedTraceSummaries
+	// SpanSearch is unsupported in Cassandra for now.
+	tracestore.UnsupportedSpanSearch
 
 	reader spanstore.CoreSpanReader
 }
