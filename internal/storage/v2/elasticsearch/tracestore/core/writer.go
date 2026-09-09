@@ -22,11 +22,6 @@ import (
 	"github.com/jaegertracing/jaeger/internal/storage/v2/elasticsearch/tracestore/core/dbmodel"
 )
 
-const (
-	serviceCacheTTLDefault = 12 * time.Hour
-	indexCacheTTLDefault   = 48 * time.Hour
-)
-
 // SpanWriter writes spans and their service:operation pairs through an
 // esclient.BatchWriter — the async indexer or the synchronous bulk writer, chosen by
 // the factory. Which one is not the writer's concern; it assembles the batch and
@@ -56,26 +51,23 @@ type Writer interface {
 
 // SpanWriterParams holds constructor parameters for NewSpanWriter. BatchWriter is
 // the destination for assembled documents; the factory supplies the async or
-// synchronous implementation, so the writer stays mode-agnostic.
+// synchronous implementation, so the writer stays mode-agnostic. ServiceOperations
+// carries the service:operation dedup cache and is owned by the factory rather than
+// the writer, so that Purge can clear it.
 type SpanWriterParams struct {
 	BatchWriter       esclient.BatchWriter
 	Logger            *zap.Logger
 	MetricsFactory    metrics.Factory
+	ServiceOperations *ServiceOperationStorage
 	AllTagsAsFields   bool
 	TagKeysAsFields   []string
 	TagDotReplacement string
-	ServiceCacheTTL   time.Duration
 	SpanRotation      indices.Rotation
 	ServiceRotation   indices.Rotation
 }
 
 // NewSpanWriter creates a new SpanWriter for use
 func NewSpanWriter(p SpanWriterParams) *SpanWriter {
-	serviceCacheTTL := p.ServiceCacheTTL
-	if p.ServiceCacheTTL == 0 {
-		serviceCacheTTL = serviceCacheTTLDefault
-	}
-
 	tags := map[string]bool{}
 	for _, k := range p.TagKeysAsFields {
 		tags[k] = true
@@ -83,7 +75,7 @@ func NewSpanWriter(p SpanWriterParams) *SpanWriter {
 
 	return &SpanWriter{
 		batchWriter:       p.BatchWriter,
-		serviceOp:         NewServiceOperationStorage(nil, p.Logger, serviceCacheTTL), // write-only: no searcher
+		serviceOp:         p.ServiceOperations,
 		logger:            p.Logger,
 		writerMetrics:     spanstoremetrics.NewWriter(p.MetricsFactory, "spans"),
 		spanRotation:      p.SpanRotation,
@@ -114,7 +106,7 @@ func (s *SpanWriter) WriteSpans(ctx context.Context, spans []dbmodel.Span) error
 		// Span doc.
 		s.convertNestedTagsToFieldTags(span)
 		if s.spanRotation.RequiresDocumentTimestamp() {
-			span.Timestamp = strconv.FormatInt(spanStartTime.UnixNano(), 10)
+			span.Timestamp = spanStartTime.Format(time.RFC3339Nano)
 		}
 		item, err := s.buildSpanItem(s.spanRotation.WriteTarget(spanStartTime), span)
 		if err != nil {

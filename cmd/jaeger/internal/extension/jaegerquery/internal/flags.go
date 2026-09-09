@@ -7,6 +7,7 @@ package app
 import (
 	"context"
 	"errors"
+	"fmt"
 	"net"
 	"net/netip"
 	"net/url"
@@ -16,6 +17,7 @@ import (
 	"go.opentelemetry.io/collector/config/configgrpc"
 	"go.opentelemetry.io/collector/config/confighttp"
 	"go.opentelemetry.io/collector/config/confignet"
+	"go.opentelemetry.io/collector/config/configopaque"
 	"go.opentelemetry.io/collector/config/configoptional"
 
 	"github.com/jaegertracing/jaeger/internal/headerforwarding"
@@ -54,6 +56,17 @@ type AIConfig struct {
 	// Optional: leave empty (and set the mcp block) to expose the telemetry MCP
 	// endpoint without the AI chat surface.
 	AgentURL string `mapstructure:"agent_url" valid:"optional"`
+	// AgentHeaders are extra HTTP headers sent on the agent WebSocket
+	// handshake, for agents that require authentication. The header name is the
+	// agent's choice, not ours (Goose expects "X-Secret-Key", others expect
+	// "Authorization"), so this is a map rather than a token field: a new scheme
+	// needs configuration instead of code.
+	//
+	// The values are configopaque.String, the collector's own secret-safe type,
+	// so a credential stays out of logs and config dumps by construction rather
+	// than by everyone remembering not to print it. Prefer env expansion
+	// (${env:VAR}) over inline values. Ignored unless AgentURL is set.
+	AgentHeaders configopaque.MapList `mapstructure:"agent_headers" valid:"optional"`
 	// MCP exposes Jaeger telemetry MCP server at <basePath>/api/ai/mcp/ on
 	// the query port. Present enables it, absent disables it — an empty block
 	// (`mcp: {}`) is enough. It replaces the retired standalone jaeger_mcp
@@ -148,6 +161,11 @@ func (c *AIConfig) Validate() error {
 	}
 	if c.HealthCheckInterval > 0 && c.HealthCheckTimeout <= 0 {
 		return errors.New("ai.health_check_timeout must be positive when health_check_interval is positive")
+	}
+	// MapList permits repeated names on the wire; a duplicated header would
+	// silently keep only one value, so reject it here rather than guess which.
+	if err := c.AgentHeaders.Validate(); err != nil {
+		return fmt.Errorf("ai.agent_headers: %w", err)
 	}
 	// MCPConfig.Validate is reached by the collector's config walk on its own,
 	// the same way OTLPProxyConfig's is; delegating to it here would only

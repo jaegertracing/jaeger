@@ -4,7 +4,11 @@
 
 package dbmodel
 
-import "time"
+import (
+	"time"
+
+	expression "github.com/jaegertracing/jaeger-idl/query/expression/v1"
+)
 
 // ReferenceType is the reference type of one span to another
 type ReferenceType string
@@ -60,9 +64,9 @@ type Span struct {
 	Tag     map[string]any `json:"tag,omitempty"`
 	Logs    []Log          `json:"logs"`
 	Process Process        `json:"process"`
-	// Timestamp is epoch nanoseconds as a decimal string, written only for data
-	// streams (mapped as date_nanos). Using a string avoids JSON float64 truncation
-	// of large int64 nanosecond values; legacy strategies leave it empty.
+	// Timestamp is the span's start time as an RFC 3339 string, written only on the
+	// data stream path; other rotation strategies leave it empty. It has to be the
+	// string form rather than a number (RFC 0004 §3.3).
 	Timestamp string `json:"@timestamp,omitempty"`
 }
 
@@ -122,4 +126,10 @@ type TraceQueryParameters struct {
 	DurationMin   time.Duration
 	DurationMax   time.Duration
 	SearchDepth   int
+	// Filter is the structured query filter (RFC 0005), which carries the same kinds of
+	// predicate as the fields above and is mutually exclusive with them. It is the storage
+	// API's own expression tree rather than a translation of it, because the tree is what the
+	// reader lowers into the Elasticsearch query and a second encoding of it would earn
+	// nothing.
+	Filter *expression.Call
 }
