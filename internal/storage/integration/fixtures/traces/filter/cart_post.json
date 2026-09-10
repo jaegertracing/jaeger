@@ -19,7 +19,10 @@
       },
       "scopeSpans": [
         {
-          "scope": {},
+          "scope": {
+            "name": "io.opentelemetry.contrib.cart",
+            "version": "2.0.0"
+          },
           "spans": [
             {
               "traceId": "00000000000000000000000000000f02",

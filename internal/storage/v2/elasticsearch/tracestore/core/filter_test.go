@@ -51,7 +51,9 @@ func TestFilterCapabilities(t *testing.T) {
 	assert.Equal(t, []expression.Level{
 		expression.LevelSpan,
 		expression.LevelResource,
+		expression.LevelScope,
 		expression.LevelEvent,
+		expression.LevelLink,
 	}, caps.Levels)
 	for _, op := range []expression.Operator{
 		expression.OpAnd, expression.OpOr, expression.OpNot,
@@ -63,8 +65,8 @@ func TestFilterCapabilities(t *testing.T) {
 	}
 	assert.False(t, caps.SupportsOperator(expression.OpSome),
 		"correlated matching over a span's events is not implemented")
-	assert.False(t, caps.SupportsLevel(expression.LevelScope))
-	assert.False(t, caps.SupportsLevel(expression.LevelLink))
+	assert.True(t, caps.SupportsLevel(expression.LevelScope))
+	assert.True(t, caps.SupportsLevel(expression.LevelLink))
 }
 
 // filterSnapshots is where the lowered form of each accepted case is committed, one file per case
@@ -112,6 +114,34 @@ func TestBuildFilterQuery(t *testing.T) {
 			filter: p.Resource().Service.Eq("cart"),
 		},
 		{
+			name:   "span.traceID is a keyword of the span document",
+			filter: p.Span().TraceID.Eq("00000000000000000000000000000f01"),
+		},
+		{
+			name:   "span.spanID is the keyword beside it",
+			filter: p.Span().SpanID.Eq("0000000000000f01"),
+		},
+		{
+			name:   "a pattern on span.traceID, which is text like any other keyword",
+			filter: p.Span().TraceID.Matches("0f0[12]"),
+		},
+		{
+			name:   "scope.name reads the span tag the write path folds the scope into",
+			filter: p.Scope().Name.Eq("io.opentelemetry.contrib.cart"),
+		},
+		{
+			name:   "scope.version reads the tag beside it",
+			filter: p.Scope().Version.Eq("1.2.0"),
+		},
+		{
+			name:   "link.traceID enters the references nested type the write path stores a link in",
+			filter: p.Link().TraceID.Eq("00000000000000000000000000000f02"),
+		},
+		{
+			name:   "link.spanID is the keyword beside it, in the same nested document",
+			filter: p.Link().SpanID.Eq("0000000000000f02"),
+		},
+		{
 			name:   "span.duration compares microseconds against a value carrying its unit",
 			filter: p.Span().Duration.Gt("2s"),
 		},
@@ -130,6 +160,32 @@ func TestBuildFilterQuery(t *testing.T) {
 		{
 			name:   "eq on the duration",
 			filter: p.Span().Duration.Eq("3s"),
+		},
+		{
+			name:   "span.startTime compares microseconds against an instant",
+			filter: p.Span().StartTime.Gte("2026-08-16T18:56:20.123456789Z"),
+		},
+		{
+			name:   "lt on the start time",
+			filter: p.Span().StartTime.Lt("2026-08-16T18:56:21Z"),
+		},
+		{
+			name:   "eq on the start time, which is exact to the microsecond the write path kept",
+			filter: p.Span().StartTime.Eq("2026-08-16T18:56:20.123456Z"),
+		},
+		{
+			name:   "an instant before the epoch, which the column holds as a negative number",
+			filter: p.Span().StartTime.Gt("1969-12-31T23:59:59Z"),
+		},
+		{
+			name: "a timestamp constant, which is what a finalized filter carries",
+			filter: p.Span().StartTime.Gt(&expression.TimestampValue{
+				Value: time.Date(2026, time.August, 16, 18, 56, 20, 123456789, time.UTC),
+			}),
+		},
+		{
+			name:   "event.time enters the nested logs document the write path stores an event in",
+			filter: p.Event().Time.Lte("2026-08-16T18:56:20Z"),
 		},
 		{
 			name:   "a string constant against the operation name, which is what finalizing produces",
@@ -194,6 +250,26 @@ func TestBuildFilterQuery(t *testing.T) {
 			filter: p.Resource().Service.Exists(),
 		},
 		{
+			name:   "exists on span.traceID",
+			filter: p.Span().TraceID.Exists(),
+		},
+		{
+			name:   "exists on scope.name tests the tag the write path folds it into",
+			filter: p.Scope().Name.Exists(),
+		},
+		{
+			name:   "exists on link.spanID enters the nested type before testing the field",
+			filter: p.Link().SpanID.Exists(),
+		},
+		{
+			name:   "exists on span.startTime",
+			filter: p.Span().StartTime.Exists(),
+		},
+		{
+			name:   "exists on event.time",
+			filter: p.Event().Time.Exists(),
+		},
+		{
 			name:   "and becomes the must clause",
 			filter: p.And(p.Resource().Service.Eq("cart"), p.Span().Duration.Gt("2s")),
 		},
@@ -245,6 +321,28 @@ func TestBuildFilterQuery(t *testing.T) {
 		{
 			name:   "not_in requires the reference to be present, like ne",
 			filter: p.Resource().Service.NotIn("cart", "checkout"),
+		},
+		{
+			name: "membership on span.traceID, whose members are read as the string the field holds",
+			filter: p.Span().TraceID.In(
+				"00000000000000000000000000000f01",
+				"00000000000000000000000000000f02",
+			),
+		},
+		{
+			name: "membership on span.startTime reads each member as an instant",
+			filter: p.Span().StartTime.In(
+				"2026-08-16T18:56:20Z",
+				"2026-08-16T18:56:21Z",
+			),
+		},
+		{
+			name:   "ne on link.spanID guards on the nested field's own presence",
+			filter: p.Link().SpanID.Ne("0000000000000f02"),
+		},
+		{
+			name:   "ne on scope.name guards on the tag holding it",
+			filter: p.Scope().Name.Ne("io.opentelemetry.contrib.cart"),
 		},
 		{
 			// The lowering is the disjunction of equalities the membership stands for, and each
@@ -366,28 +464,34 @@ func TestBuildFilterQueryRefused(t *testing.T) {
 		wantMsg string
 	}{
 		{
-			name:    "the scope level is folded into the span's own tags",
-			filter:  p.Scope().Attr("otel.scope.name").Eq("lib"),
+			name:    "an instrumentation scope's attributes, which the write path never writes",
+			filter:  p.Scope().Attr("library.tier").Eq("core"),
 			wantErr: tracestore.ErrFilterUnsupported,
-			wantMsg: `does not index the "scope" level`,
+			wantMsg: `does not index the attributes of the "scope" level`,
 		},
 		{
-			name:    "link attributes are not indexed at all",
+			name:    "a link's attributes, which a reference does not carry either",
 			filter:  p.Link().Attr("k").Eq("v"),
 			wantErr: tracestore.ErrFilterUnsupported,
-			wantMsg: `does not index the "link" level`,
+			wantMsg: `does not index the attributes of the "link" level`,
 		},
 		{
-			name:    "a built-in field this schema has no field for",
+			name:    "a built-in field this schema has no column for",
 			filter:  p.Span().Kind.Eq("server"),
 			wantErr: tracestore.ErrFilterUnsupported,
 			wantMsg: `built-in field "kind" of the "span" level`,
 		},
 		{
-			name:    "exists on a built-in field this schema has no field for",
-			filter:  p.Link().TraceID.Exists(),
+			name:    "a built-in field of a level whose other fields are served",
+			filter:  p.Link().TraceState.Eq("congo=t61rcWkgMzE"),
 			wantErr: tracestore.ErrFilterUnsupported,
-			wantMsg: `built-in field "traceID" of the "link" level`,
+			wantMsg: `built-in field "traceState" of the "link" level`,
+		},
+		{
+			name:    "exists on a built-in field this schema has no column for",
+			filter:  p.Span().EndTime.Exists(),
+			wantErr: tracestore.ErrFilterUnsupported,
+			wantMsg: `built-in field "endTime" of the "span" level`,
 		},
 		{
 			name:    "ordering an attribute, which is indexed as a keyword",
@@ -444,6 +548,18 @@ func TestBuildFilterQueryRefused(t *testing.T) {
 			wantMsg: "that operand declares a type",
 		},
 		{
+			name:    "a timestamp constant carrying nothing, which a finalized filter never holds",
+			filter:  p.Span().StartTime.Gt((*expression.TimestampValue)(nil)),
+			wantErr: tracestore.ErrFilterUnsupported,
+			wantMsg: "a timestamp constant declares a type",
+		},
+		{
+			name:    "an untyped constant carrying nothing, beside an instant",
+			filter:  p.Event().Time.Gt((*expression.AnyValue)(nil)),
+			wantErr: tracestore.ErrFilterUnsupported,
+			wantMsg: "that operand declares a type",
+		},
+		{
 			name:    "a list where a comparison takes one value",
 			filter:  p.Span().Attr("http.route").Eq(&expression.List{Values: []string{"/cart"}}),
 			wantErr: tracestore.ErrFilterUnsupported,
@@ -462,10 +578,40 @@ func TestBuildFilterQueryRefused(t *testing.T) {
 			wantMsg: "a boolean constant declares a type",
 		},
 		{
-			name:    "a timestamp constant, which no field here holds",
-			filter:  p.Span().StartTime.Gt(&expression.TimestampValue{Value: time.Unix(0, 0).UTC()}),
+			name:    "a timestamp constant beside an attribute, which is stored as text",
+			filter:  p.Span().Attr("checkout.deadline").Eq(&expression.TimestampValue{Value: time.Unix(0, 0).UTC()}),
 			wantErr: tracestore.ErrFilterUnsupported,
 			wantMsg: "a timestamp constant declares a type",
+		},
+		{
+			name:    "a typed constant beside a keyword field, which holds only text",
+			filter:  p.Span().TraceID.Eq(&expression.IntValue{Value: 3841}),
+			wantErr: tracestore.ErrFilterUnsupported,
+			wantMsg: "an integer constant declares a type",
+		},
+		{
+			name:    "a string where the duration belongs, which carries no unit to read",
+			filter:  p.Span().Duration.Gt(p.Text("2s")),
+			wantErr: tracestore.ErrFilterUnsupported,
+			wantMsg: "a string constant declares a type",
+		},
+		{
+			name:    "a duration where an instant belongs",
+			filter:  p.Span().StartTime.Gt(&expression.DurationValue{Value: time.Second}),
+			wantErr: tracestore.ErrFilterUnsupported,
+			wantMsg: "a duration constant declares a type",
+		},
+		{
+			name:    "a pattern over the start time, which is a number",
+			filter:  p.Span().StartTime.Matches("2026.*"),
+			wantErr: tracestore.ErrFilterUnsupported,
+			wantMsg: `operator "regex" on a timestamp`,
+		},
+		{
+			name:    "a pattern over an event's time, the other column holding one",
+			filter:  p.Event().Time.Matches("2026.*"),
+			wantErr: tracestore.ErrFilterUnsupported,
+			wantMsg: `operator "regex" on a timestamp`,
 		},
 		{
 			name:    "a boolean where the duration belongs",
@@ -526,6 +672,24 @@ func TestBuildFilterQueryRefused(t *testing.T) {
 			filter:  p.Span().Duration.NotIn("2s", "later"),
 			wantErr: tracestore.ErrFilterInvalid,
 			wantMsg: `invalid duration "later"`,
+		},
+		{
+			name:    "an instant that is not RFC 3339",
+			filter:  p.Span().StartTime.Gt("yesterday"),
+			wantErr: tracestore.ErrFilterInvalid,
+			wantMsg: `"yesterday" is not an instant such as`,
+		},
+		{
+			name:    "an instant that is not RFC 3339, negated",
+			filter:  p.Event().Time.Ne("yesterday"),
+			wantErr: tracestore.ErrFilterInvalid,
+			wantMsg: `"yesterday" is not an instant such as`,
+		},
+		{
+			name:    "a list member that is not an instant",
+			filter:  p.Span().StartTime.NotIn("2026-08-16T18:56:20Z", "later"),
+			wantErr: tracestore.ErrFilterInvalid,
+			wantMsg: `cannot parse "later"`,
 		},
 		{
 			name:    "a comparison with the wrong number of arguments",
@@ -652,7 +816,7 @@ func TestBuildFilterQueryRefusalFromWithin(t *testing.T) {
 			query, err := r.reader.buildFilterQuery(filter)
 			assert.Nil(t, query)
 			require.ErrorIs(t, err, tracestore.ErrFilterUnsupported)
-			assert.Contains(t, err.Error(), `does not index the "link" level`)
+			assert.Contains(t, err.Error(), `does not index the attributes of the "link" level`)
 		})
 	}
 }

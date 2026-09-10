@@ -1,0 +1,32 @@
+{
+  "bool": {
+    "should": [
+      {
+        "term": {
+          "tag.otel@scope@version": "1.2.0"
+        }
+      },
+      {
+        "nested": {
+          "path": "tags",
+          "query": {
+            "bool": {
+              "must": [
+                {
+                  "term": {
+                    "tags.key": "otel.scope.version"
+                  }
+                },
+                {
+                  "term": {
+                    "tags.value": "1.2.0"
+                  }
+                }
+              ]
+            }
+          }
+        }
+      }
+    ]
+  }
+}
