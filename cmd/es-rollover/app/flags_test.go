@@ -93,26 +93,3 @@ func TestInitFromViper_TLSError(t *testing.T) {
 	err = c.InitFromViper(v)
 	require.Error(t, err)
 }
-
-func TestInitFromViper_MultipleAuthMethods(t *testing.T) {
-	tests := map[string][]string{
-		"basic and bearer":   {"--es.username=u", "--es.password=p", "--es.token-file=/token"},
-		"bearer and api key": {"--es.token-file=/token", "--es.api-key-file=/apikey"},
-		"all three":          {"--es.username=u", "--es.password=p", "--es.token-file=/token", "--es.api-key-file=/apikey"},
-	}
-	for name, args := range tests {
-		t.Run(name, func(t *testing.T) {
-			v := viper.New()
-			c := &Config{}
-			command := cobra.Command{}
-			flags := &flag.FlagSet{}
-			AddFlags(flags)
-			command.PersistentFlags().AddGoFlagSet(flags)
-			v.BindPFlags(command.PersistentFlags())
-
-			require.NoError(t, command.ParseFlags(args))
-			err := c.InitFromViper(v)
-			require.ErrorContains(t, err, "only one of")
-		})
-	}
-}

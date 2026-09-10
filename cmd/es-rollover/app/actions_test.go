@@ -227,3 +227,14 @@ func TestExecuteAction_ClientError(t *testing.T) {
 	})
 	require.ErrorContains(t, err, "failed to create Elasticsearch client")
 }
+
+func TestNewESClientValidationError(t *testing.T) {
+	cfg := &Config{
+		Username:      "user",
+		Password:      "pass",
+		TokenFilePath: "/tmp/dummy-token",
+	}
+	_, err := newESClient(context.Background(), "http://localhost:9200", cfg, zap.NewNop())
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "at most one authentication method")
+}
