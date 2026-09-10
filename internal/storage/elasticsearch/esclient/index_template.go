@@ -130,6 +130,10 @@ type innerParams struct {
 	IndexPrefix string
 	Shards      int64
 	Replicas    int64
+	// TotalFieldsLimit is left nil when unconfigured, so the template omits
+	// "index.mapping.total_fields.limit" entirely rather than rendering a
+	// default.
+	TotalFieldsLimit *int64
 }
 
 // renderBackendNeutralBody executes the embedded template for one mapping type and
@@ -148,10 +152,11 @@ func renderBackendNeutralBody(m MappingType, indices config.Indices, lifecycle l
 
 	var buf bytes.Buffer
 	if err := indexTemplates.ExecuteTemplate(&buf, file, innerParams{
-		lifecycleParams: lifecycle,
-		IndexPrefix:     indices.IndexPrefix.Apply(""),
-		Shards:          opts.Shards,
-		Replicas:        *opts.Replicas,
+		lifecycleParams:  lifecycle,
+		IndexPrefix:      indices.IndexPrefix.Apply(""),
+		Shards:           opts.Shards,
+		Replicas:         *opts.Replicas,
+		TotalFieldsLimit: opts.TotalFieldsLimit,
 	}); err != nil {
 		return nil, fmt.Errorf("failed to render %s index template: %w", m, err)
 	}
