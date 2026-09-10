@@ -7,6 +7,7 @@ from dataclasses import dataclass
 @dataclass(frozen=True)
 class SidecarConfig:
     gemini_api_key: str
+    gemini_model_name: str
     mcp_url: str
     mcp_discovery_timeout_sec: float
     otlp_endpoint: str
@@ -16,6 +17,11 @@ class SidecarConfig:
         if not self.gemini_api_key:
             raise RuntimeError(
                 "GEMINI_API_KEY must be provided via --gemini-api-key or environment variable"
+            )
+        if not self.gemini_model_name:
+            raise RuntimeError(
+                "GEMINI_MODEL_NAME must be a non-empty model name (unset it to use the "
+                "default, or set via --gemini-model-name/GEMINI_MODEL_NAME)"
             )
         if not self.mcp_url:
             raise RuntimeError("JAEGER_MCP_URL must be provided via --mcp-url or environment variable")
