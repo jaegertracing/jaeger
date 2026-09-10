@@ -315,3 +315,49 @@ func TestGetCriticalPathHandler_BuildOutput_MissingSpan(t *testing.T) {
 	assert.Len(t, output.Segments, 1)
 	assert.Equal(t, span.SpanID().String(), output.Segments[0].SpanID)
 }
+
+func TestGetCriticalPathHandler_BuildOutput_ZeroStartTime(t *testing.T) {
+	// A span starting at timestamp 0 is a real start time, not an unset sentinel.
+	handler := &getCriticalPathHandler{}
+
+	traces := ptrace.NewTraces()
+	rs := traces.ResourceSpans().AppendEmpty()
+	rs.Resource().Attributes().PutStr("service.name", "test-service")
+	ss := rs.ScopeSpans().AppendEmpty()
+
+	span0 := ss.Spans().AppendEmpty()
+	span0.SetSpanID([8]byte{1})
+	span0.SetTraceID([16]byte{1})
+	span0.SetStartTimestamp(pcommon.Timestamp(0))
+	span0.SetEndTimestamp(pcommon.Timestamp(200 * 1000)) // 200us
+	span0.SetName("span-at-zero")
+
+	span1 := ss.Spans().AppendEmpty()
+	span1.SetSpanID([8]byte{2})
+	span1.SetTraceID([16]byte{1})
+	span1.SetStartTimestamp(pcommon.Timestamp(100 * 1000)) // 100us
+	span1.SetEndTimestamp(pcommon.Timestamp(200 * 1000))   // 200us
+	span1.SetName("span-at-100")
+
+	sections := []criticalpath.Section{
+		{
+			SpanID:       span0.SpanID().String(),
+			SectionStart: 0,
+			SectionEnd:   100,
+		},
+		{
+			SpanID:       span1.SpanID().String(),
+			SectionStart: 100,
+			SectionEnd:   200,
+		},
+	}
+
+	output := handler.buildOutput(span0.TraceID().String(), traces, sections)
+
+	require.Len(t, output.Segments, 2)
+	assert.Equal(t, uint64(200), output.TotalDurationUs)
+	assert.Equal(t, uint64(0), output.Segments[0].StartOffsetUs)
+	assert.Equal(t, uint64(100), output.Segments[0].EndOffsetUs)
+	assert.Equal(t, uint64(100), output.Segments[1].StartOffsetUs)
+	assert.Equal(t, uint64(200), output.Segments[1].EndOffsetUs)
+}
