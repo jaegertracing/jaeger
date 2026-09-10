@@ -5,6 +5,7 @@ package remotestorage
 
 import (
 	"context"
+	"errors"
 	"testing"
 
 	"github.com/open-telemetry/opentelemetry-collector-contrib/extension/storage/storagetest"
@@ -172,6 +173,33 @@ func TestServer_Start(t *testing.T) {
 			}
 		})
 	}
+}
+
+// TestServer_Start_DepStorageNotImplemented is a regression test for the nil
+// error wrap bug: when the trace factory does not implement depstore.Factory
+// the returned error must not contain "%!w" or "<nil>" artefacts, must carry
+// the expected message, and must have no wrapped cause.
+func TestServer_Start_DepStorageNotImplemented(t *testing.T) {
+	t.Run("nil error wrap regression", func(t *testing.T) {
+		t.Setenv("OTEL_TRACES_SAMPLER", "always_off")
+		host := storagetest.NewStorageHost().WithExtension(jaegerstorage.ID, fakeStorageExt{})
+		telemetrySettings := component.TelemetrySettings{
+			Logger:         zaptest.NewLogger(t, zaptest.WrapOptions(zap.AddCaller())),
+			MeterProvider:  noopmetric.NewMeterProvider(),
+			TracerProvider: nooptrace.NewTracerProvider(),
+		}
+		config := createDefaultConfig().(*Config)
+		config.Storage = "without-dependency-storage"
+		config.NetAddr.Endpoint = "localhost:0"
+		config.NetAddr.Transport = confignet.TransportTypeTCP
+		s := newServer(config, telemetrySettings)
+		err := s.Start(context.Background(), host)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "cannot find factory for dependency storage")
+		assert.NotContains(t, err.Error(), "%!w")
+		assert.NotContains(t, err.Error(), "<nil>")
+		assert.NoError(t, errors.Unwrap(err))
+	})
 }
 
 func TestTraceStorageFactory_DefaultCase(t *testing.T) {
