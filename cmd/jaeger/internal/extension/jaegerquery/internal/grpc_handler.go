@@ -238,6 +238,9 @@ func (g *GRPCHandler) GetDependencies(ctx context.Context, r *api_v2.GetDependen
 	if startTime.IsZero() || endTime.IsZero() {
 		return nil, status.Errorf(codes.InvalidArgument, "StartTime and EndTime must be initialized.")
 	}
+	if !endTime.After(startTime) {
+		return nil, status.Errorf(codes.InvalidArgument, "end_time must be after start_time")
+	}
 
 	dependencies, err := g.queryService.GetDependencies(ctx, endTime, endTime.Sub(startTime))
 	if err != nil {
