@@ -308,3 +308,79 @@ func generateSpanNameInfos(n int) []types.SpanNameInfo {
 	}
 	return infos
 }
+
+// TestGetSpanNamesHandler_OrderIndependentOfStorageOrder asserts the handler
+// answers identically no matter what order storage returns operations in.
+//
+// One operation name under several span kinds leaves entries tied on Name.
+// slices.SortFunc is not stable, so before the SpanKind tiebreak those ties
+// resolved according to the incoming order, and the limit then cut a different
+// set of span kinds depending on which backend served the query.
+func TestGetSpanNamesHandler_OrderIndependentOfStorageOrder(t *testing.T) {
+	// Enough entries to get past the insertion-sort threshold, so the unstable
+	// path in the sort is actually exercised.
+	build := func(reversed bool) []tracestore.Operation {
+		var ops []tracestore.Operation
+		for i := 0; i < 10; i++ {
+			kind := i
+			if reversed {
+				kind = 9 - i
+			}
+			ops = append(ops, tracestore.Operation{
+				Name:     "HTTP GET",
+				SpanKind: fmt.Sprintf("kind%02d", kind),
+			})
+		}
+		for i := 0; i < 20; i++ {
+			ops = append(ops, tracestore.Operation{
+				Name:     fmt.Sprintf("op%02d", i),
+				SpanKind: "server",
+			})
+		}
+		return ops
+	}
+
+	run := func(t *testing.T, ops []tracestore.Operation, limit int) types.GetSpanNamesOutput {
+		t.Helper()
+		h := &getSpanNamesHandler{
+			queryService: &mockGetOperationsQueryService{
+				getOperationsFunc: func(context.Context, tracestore.OperationQueryParams) ([]tracestore.Operation, error) {
+					return ops, nil
+				},
+			},
+		}
+		_, out, err := h.handle(context.Background(), &mcp.CallToolRequest{}, types.GetSpanNamesInput{
+			ServiceName: "test-service",
+			Limit:       limit,
+		})
+		require.NoError(t, err)
+		return out
+	}
+
+	t.Run("full result set is identical", func(t *testing.T) {
+		forward := run(t, build(false), 0)
+		reversed := run(t, build(true), 0)
+		assert.Equal(t, forward.SpanNames, reversed.SpanNames)
+	})
+
+	t.Run("truncated result set is identical", func(t *testing.T) {
+		// The limit lands inside the tied run, which is where the ordering used
+		// to change what the caller saw.
+		forward := run(t, build(false), 3)
+		reversed := run(t, build(true), 3)
+		assert.Equal(t, forward.SpanNames, reversed.SpanNames)
+		assert.True(t, forward.Truncated)
+		assert.Equal(t, 30, forward.TotalCount)
+	})
+
+	t.Run("ties are ordered by span kind", func(t *testing.T) {
+		out := run(t, build(true), 3)
+		require.Len(t, out.SpanNames, 3)
+		for _, sn := range out.SpanNames {
+			assert.Equal(t, "HTTP GET", sn.Name)
+		}
+		assert.Equal(t, "kind00", out.SpanNames[0].SpanKind)
+		assert.Equal(t, "kind01", out.SpanNames[1].SpanKind)
+		assert.Equal(t, "kind02", out.SpanNames[2].SpanKind)
+	})
+}
