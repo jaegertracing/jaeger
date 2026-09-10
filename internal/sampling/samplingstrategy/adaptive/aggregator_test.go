@@ -39,9 +39,10 @@ func TestAggregator(t *testing.T) {
 		mockEP.On("Close").Return(nil)
 		mockEP.On("IsLeader").Return(true)
 		testOpts := Options{
-			CalculationInterval:   1 * time.Second,
-			AggregationBuckets:    1,
-			BucketsForCalculation: 1,
+			TargetSamplesPerSecond: 1.0,
+			CalculationInterval:    1 * time.Second,
+			AggregationBuckets:     1,
+			BucketsForCalculation:  1,
 		}
 		logger := zap.NewNop()
 
@@ -75,9 +76,10 @@ func TestIncrementThroughput(t *testing.T) {
 	mockStorage := &mocks.Store{}
 	mockEP := &epmocks.ElectionParticipant{}
 	testOpts := Options{
-		CalculationInterval:   1 * time.Second,
-		AggregationBuckets:    1,
-		BucketsForCalculation: 1,
+		TargetSamplesPerSecond: 1.0,
+		CalculationInterval:    1 * time.Second,
+		AggregationBuckets:     1,
+		BucketsForCalculation:  1,
 	}
 	logger := zap.NewNop()
 	a, err := NewAggregator(testOpts, logger, metricsFactory, mockEP, mockStorage)
@@ -102,9 +104,10 @@ func TestLowerboundThroughput(t *testing.T) {
 	mockStorage := &mocks.Store{}
 	mockEP := &epmocks.ElectionParticipant{}
 	testOpts := Options{
-		CalculationInterval:   1 * time.Second,
-		AggregationBuckets:    1,
-		BucketsForCalculation: 1,
+		TargetSamplesPerSecond: 1.0,
+		CalculationInterval:    1 * time.Second,
+		AggregationBuckets:     1,
+		BucketsForCalculation:  1,
 	}
 	logger := zap.NewNop()
 
@@ -120,9 +123,10 @@ func TestRecordThroughput(t *testing.T) {
 	mockStorage := &mocks.Store{}
 	mockEP := &epmocks.ElectionParticipant{}
 	testOpts := Options{
-		CalculationInterval:   1 * time.Second,
-		AggregationBuckets:    1,
-		BucketsForCalculation: 1,
+		TargetSamplesPerSecond: 1.0,
+		CalculationInterval:    1 * time.Second,
+		AggregationBuckets:     1,
+		BucketsForCalculation:  1,
 	}
 	logger := zap.NewNop()
 	a, err := NewAggregator(testOpts, logger, metricsFactory, mockEP, mockStorage)
@@ -161,9 +165,10 @@ func TestRecordThroughputFunc(t *testing.T) {
 	mockEP := &epmocks.ElectionParticipant{}
 	logger := zap.NewNop()
 	testOpts := Options{
-		CalculationInterval:   1 * time.Second,
-		AggregationBuckets:    1,
-		BucketsForCalculation: 1,
+		TargetSamplesPerSecond: 1.0,
+		CalculationInterval:    1 * time.Second,
+		AggregationBuckets:     1,
+		BucketsForCalculation:  1,
 	}
 
 	a, err := NewAggregator(testOpts, logger, metricsFactory, mockEP, mockStorage)
