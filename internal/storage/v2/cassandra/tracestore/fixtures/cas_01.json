@@ -18,16 +18,6 @@
       "value_bool": true
     },
     {
-      "Key": "otel.scope.name",
-      "ValueType": "string",
-      "value_string": "testing-library"
-    },
-    {
-      "Key": "otel.scope.version",
-      "ValueType": "string",
-      "value_string": "1.1.1"
-    },
-    {
       "Key": "otel.status_description",
       "ValueType": "string",
       "value_string": "random-message"
@@ -46,11 +36,6 @@
       "Key": "temperature",
       "ValueType": "float64",
       "value_double": 72.5
-    },
-    {
-      "Key": "w3c.tracestate",
-      "ValueType": "string",
-      "value_string": "some-state"
     }
   ],
   "Logs": [
@@ -84,17 +69,35 @@
     {
       "RefType": "child-of",
       "TraceID": "AAAAAAAAAAEAAAAAAAAAAA==",
-      "SpanID": 3
+      "SpanID": 3,
+      "TraceState": "",
+      "Tags": null
     },
     {
       "RefType": "follows-from",
       "TraceID": "AAAAAAAAAAEAAAAAAAAAAA==",
-      "SpanID": 4
+      "SpanID": 4,
+      "TraceState": "",
+      "Tags": [
+        {
+          "Key": "opentracing.ref_type",
+          "ValueType": "string",
+          "value_string": "follows_from"
+        }
+      ]
     },
     {
       "RefType": "child-of",
       "TraceID": "AAAAAAAAAP8AAAAAAAAAAA==",
-      "SpanID": 255
+      "SpanID": 255,
+      "TraceState": "",
+      "Tags": [
+        {
+          "Key": "opentracing.ref_type",
+          "ValueType": "string",
+          "value_string": "child_of"
+        }
+      ]
     }
   ],
   "Process": {
@@ -108,5 +111,8 @@
     ]
   },
   "ServiceName": "service-x",
-  "SpanHash": 8792829599673354201
+  "SpanHash": 2543081352552686892,
+  "ScopeName": "testing-library",
+  "ScopeVersion": "1.1.1",
+  "TraceState": "some-state"
 }
