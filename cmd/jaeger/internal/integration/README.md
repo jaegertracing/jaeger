@@ -153,15 +153,19 @@ end
 ## Assumptions
 
 These e2e tests start the `jaeger-e2e` binary (not the user-facing `jaeger`
-binary) so the `storagecleaner` extension is available. Unless a storage test
-overrides ports, the following defaults apply:
+binary) so the `storagecleaner` extension is available when needed. However,
+`e2eInitialize` skips configuration injection when `SkipStorageCleaner` is set
+(e.g., query, gRPC collector, and Kafka collector test processes), so
+developers should not expect the `/purge` endpoint on those processes. Unless a
+storage test overrides ports or skips cleaner injection, the following defaults
+apply:
 
 | Endpoint | Default port | Role |
 |----------|--------------|------|
 | OTLP gRPC receiver | `4317` | Span writes from the test process |
 | Query gRPC (`jaeger_query`) | `16685` (`ports.QueryGRPC`) | Span reads |
 | Metrics | `8888` (`MetricsPort`) | Collector metrics scrape |
-| Storage cleaner | `9231` (`POST /purge`) | Wipe storage between cases |
+| Storage cleaner | `9231` (`POST /purge`) | Wipe storage between cases (omitted when `SkipStorageCleaner` is set) |
 
 Storage-specific tests may run extra processes (for example Kafka, remote
 storage, or a second binary) and override `MetricsPort`, `HealthCheckPort`,
