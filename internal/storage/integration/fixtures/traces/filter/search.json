@@ -1,0 +1,51 @@
+{
+  "resourceSpans": [
+    {
+      "resource": {
+        "attributes": [
+          {
+            "key": "service.name",
+            "value": {
+              "stringValue": "filter-search"
+            }
+          },
+          {
+            "key": "deployment.environment",
+            "value": {
+              "stringValue": "staging"
+            }
+          }
+        ]
+      },
+      "scopeSpans": [
+        {
+          "scope": {},
+          "spans": [
+            {
+              "traceId": "00000000000000000000000000000f04",
+              "spanId": "0000000000000f04",
+              "name": "GET /search",
+              "startTimeUnixNano": "1485449191639875000",
+              "endTimeUnixNano": "1485449191644875000",
+              "events": [
+                {
+                  "timeUnixNano": "1485449191642875000",
+                  "name": "cache.miss",
+                  "attributes": [
+                    {
+                      "key": "zone",
+                      "value": {
+                        "stringValue": "eu-west"
+                      }
+                    }
+                  ]
+                }
+              ],
+              "status": {}
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

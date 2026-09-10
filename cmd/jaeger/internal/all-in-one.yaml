@@ -30,7 +30,7 @@ extensions:
       traces: some_storage
     ai:
       # Serve the Jaeger MCP tools /api/ai/mcp/
-      enable_mcp: true
+      mcp: {}
 
   jaeger_storage:
     backends:

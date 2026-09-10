@@ -20,6 +20,7 @@ import (
 
 	"github.com/jaegertracing/jaeger-idl/model/v1"
 	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerquery/querysvc"
+	"github.com/jaegertracing/jaeger/components/extension/jaegerquery/queryinterceptor"
 	"github.com/jaegertracing/jaeger/internal/jiter"
 	"github.com/jaegertracing/jaeger/internal/jptrace"
 	"github.com/jaegertracing/jaeger/internal/proto/api_v3"
@@ -75,6 +76,13 @@ func (h *HTTPGateway) tryHandleError(w http.ResponseWriter, err error, statusCod
 	}
 	if errors.Is(err, spanstore.ErrTraceNotFound) {
 		statusCode = http.StatusNotFound
+	}
+	if querysvc.IsBadRequest(err) {
+		// Either the query needs changing, or this deployment's storage cannot serve it.
+		statusCode = http.StatusBadRequest
+	}
+	if errors.Is(err, queryinterceptor.ErrAccessDenied) {
+		statusCode = http.StatusForbidden
 	}
 	if statusCode == http.StatusInternalServerError {
 		h.Logger.Error("HTTP handler, Internal Server Error", zap.Error(err))

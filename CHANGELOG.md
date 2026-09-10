@@ -21,6 +21,172 @@ copy from UI changelog
 
 </details>
 
+v2.20.0 (2026-07-19)
+-------------------------------
+
+### Backend Changes
+
+#### ⛔ Breaking Changes
+
+* Feat(es): promote es.* rotation and index-cleaner feature gates to beta ([@ysh-bot](https://github.com/ysh-bot) in [#9018](https://github.com/jaegertracing/jaeger/pull/9018))
+* Feat(es): remove support for elasticsearch v6 ([@yurishkuro](https://github.com/yurishkuro) in [#8948](https://github.com/jaegertracing/jaeger/pull/8948))
+* Feat(mcp): merge jaegermcp extension into jaegerquery extension ([@Nabil-Salah](https://github.com/Nabil-Salah) in [#8894](https://github.com/jaegertracing/jaeger/pull/8894))
+* Feat(es): add configurable max_trace_duration and improve time-range design ([@yurishkuro](https://github.com/yurishkuro) in [#8840](https://github.com/jaegertracing/jaeger/pull/8840))
+
+#### ✨ New Features
+
+* Feat(es): add --backend flag to esmapping-generator for opensearch selection ([@ysh-bot](https://github.com/ysh-bot) in [#8985](https://github.com/jaegertracing/jaeger/pull/8985))
+* Feat(es): native trace summaries (summaryreader) ([@Me-Priyank](https://github.com/Me-Priyank) in [#8812](https://github.com/jaegertracing/jaeger/pull/8812))
+
+#### 🐞 Bug fixes, Minor Improvements
+
+* Feat(es): add synchronous bulk write primitive to the elasticsearch client ([@ysh-bot](https://github.com/ysh-bot) in [#8992](https://github.com/jaegertracing/jaeger/pull/8992))
+* Feat(es): gate parentspanid reference-compat write behind a feature gate ([@ysh-bot](https://github.com/ysh-bot) in [#9015](https://github.com/jaegertracing/jaeger/pull/9015))
+* Fix(ci): resolve published snapshot shas for oke demo deploy ([@FlamingSaint](https://github.com/FlamingSaint) in [#8999](https://github.com/jaegertracing/jaeger/pull/8999))
+* feat(jaegerai): add genai span attributes and gateway↔sidecar trace propagation ([@SoumyaRaikwar](https://github.com/SoumyaRaikwar) in [#8942](https://github.com/jaegertracing/jaeger/pull/8942))
+* Chore(storage): remove expired stable feature gates ([@Anujkumar9081](https://github.com/Anujkumar9081) in [#8970](https://github.com/jaegertracing/jaeger/pull/8970))
+* Chore(es): scrub lingering olivere references from code comments ([@ysh-bot](https://github.com/ysh-bot) in [#8983](https://github.com/jaegertracing/jaeger/pull/8983))
+* Feat(es): migrate template creation to esclient and retire legacy mapping rendering ([@Me-Priyank](https://github.com/Me-Priyank) in [#8963](https://github.com/jaegertracing/jaeger/pull/8963))
+* Fix(storage): reject mutually-exclusive es auth methods in validate() ([@Anujkumar9081](https://github.com/Anujkumar9081) in [#8946](https://github.com/jaegertracing/jaeger/pull/8946))
+* Make "spm not configured" error message more explicit ([@Saithej2k](https://github.com/Saithej2k) in [#8878](https://github.com/jaegertracing/jaeger/pull/8878))
+* Feat(es): migrate span writes onto an owned bounded bulk indexer ([@yurishkuro](https://github.com/yurishkuro) in [#8944](https://github.com/jaegertracing/jaeger/pull/8944))
+* Fix(auth): synchronize fallback token in tokenproviderwithtime closure ([@yurishkuro](https://github.com/yurishkuro) in [#8952](https://github.com/jaegertracing/jaeger/pull/8952))
+* Feat(es): migrate service/operation reads onto owned searcher and query ast ([@yurishkuro](https://github.com/yurishkuro) in [#8943](https://github.com/jaegertracing/jaeger/pull/8943))
+* [es] add bearer-token and api-key cli flags to es admin tools (rfc 0006 m3.5c) ([@yurishkuro](https://github.com/yurishkuro) in [#8939](https://github.com/jaegertracing/jaeger/pull/8939))
+* [es] route admin plane through the shared auth stack (rfc 0006 m3.5b) ([@yurishkuro](https://github.com/yurishkuro) in [#8937](https://github.com/jaegertracing/jaeger/pull/8937))
+* Fix(clickhouse): validate decoded trace/span id lengths to prevent panic on corrupted rows ([@iammdzaidalam](https://github.com/iammdzaidalam) in [#8935](https://github.com/jaegertracing/jaeger/pull/8935))
+* Fix(es): apply custom_headers to all elasticsearch clients and honor host override ([@iammdzaidalam](https://github.com/iammdzaidalam) in [#8917](https://github.com/jaegertracing/jaeger/pull/8917))
+* Fix(storage): populate req.getbody before sigv4 signing, not after ([@truffle-dev](https://github.com/truffle-dev) in [#8768](https://github.com/jaegertracing/jaeger/pull/8768))
+* Fix(mcp): report total_count and truncated on get_services and get_span_names ([@CedricConday](https://github.com/CedricConday) in [#8902](https://github.com/jaegertracing/jaeger/pull/8902))
+* Fix(sampling): forfeit leader lock on graceful shutdown ([@HESleagacy](https://github.com/HESleagacy) in [#8825](https://github.com/jaegertracing/jaeger/pull/8825))
+* Feat(tracestoremetrics): forward summaryreader when underlying reader supports it ([@yurishkuro](https://github.com/yurishkuro) in [#8895](https://github.com/jaegertracing/jaeger/pull/8895))
+* Feat(hotrod): add standard otel db semconv attributes to hotrod spans ([@yurishkuro](https://github.com/yurishkuro) in [#8893](https://github.com/jaegertracing/jaeger/pull/8893))
+* Fix(es): populate parentspanid field on write path ([@yurishkuro](https://github.com/yurishkuro) in [#8859](https://github.com/jaegertracing/jaeger/pull/8859))
+* Fix(mcp): don't error on empty critical path ([@Me-Priyank](https://github.com/Me-Priyank) in [#8806](https://github.com/jaegertracing/jaeger/pull/8806))
+* Fix(jaegermcp): wait for server goroutine to exit on shutdown ([@g-k-s-03](https://github.com/g-k-s-03) in [#8852](https://github.com/jaegertracing/jaeger/pull/8852))
+* Fix(mcp): validate span_id format before querying backend ([@truffle-dev](https://github.com/truffle-dev) in [#8845](https://github.com/jaegertracing/jaeger/pull/8845))
+* Test(v1adapter): fix mock expectation validation in dependency reader tests ([@kavyarathod05](https://github.com/kavyarathod05) in [#8756](https://github.com/jaegertracing/jaeger/pull/8756))
+* Fix(es): improve es/os integration test ci coverage and reduce noise ([@yurishkuro](https://github.com/yurishkuro) in [#8836](https://github.com/jaegertracing/jaeger/pull/8836))
+* Fix(es): emit opensearch ism rollover_alias and consolidate backendversion ([@yurishkuro](https://github.com/yurishkuro) in [#8830](https://github.com/jaegertracing/jaeger/pull/8830))
+* Feat(query): accept base64-encoded trace ids in http api endpoints ([@yurishkuro](https://github.com/yurishkuro) in [#8828](https://github.com/jaegertracing/jaeger/pull/8828))
+* Refactor(es): introduce index rotation config schema with legacy flag deprecation ([@yurishkuro](https://github.com/yurishkuro) in [#8823](https://github.com/jaegertracing/jaeger/pull/8823))
+
+#### 🚧 Experimental Features
+
+* Feat(ai-gateway): serve per-session ui tools over the session-scoped mcp endpoint ([@Nabil-Salah](https://github.com/Nabil-Salah) in [#8973](https://github.com/jaegertracing/jaeger/pull/8973))
+* Feat(ai-gateway): add session-scoped mcp endpoint and session-stream registry ([@Nabil-Salah](https://github.com/Nabil-Salah) in [#8910](https://github.com/jaegertracing/jaeger/pull/8910))
+* Feat(jaegermcp): add `read_skill` tool for agent skill discovery ([@SoumyaRaikwar](https://github.com/SoumyaRaikwar) in [#8849](https://github.com/jaegertracing/jaeger/pull/8849))
+* Feat(es): add datastreamrotation strategy and data-stream-aware span write path ([@Me-Priyank](https://github.com/Me-Priyank) in [#8833](https://github.com/jaegertracing/jaeger/pull/8833))
+
+#### 👷 CI Improvements
+
+* Fix(build): build embedded ui with pnpm after jaeger-ui migration ([@ysh-bot](https://github.com/ysh-bot) in [#9044](https://github.com/jaegertracing/jaeger/pull/9044))
+* Fix windows test cleanup failure: close output/error log file handles ([@shayannab](https://github.com/shayannab) in [#8884](https://github.com/jaegertracing/jaeger/pull/8884))
+* [chore] close idle connections for http clients in integration tests ([@Manik2708](https://github.com/Manik2708) in [#8815](https://github.com/jaegertracing/jaeger/pull/8815))
+* [chore]: add binary.stop() and binarypath for mid-test process control ([@iammdzaidalam](https://github.com/iammdzaidalam) in [#8822](https://github.com/jaegertracing/jaeger/pull/8822))
+* Feat(es): add e2e integration tests for all rotation strategies ([@yurishkuro](https://github.com/yurishkuro) in [#8838](https://github.com/jaegertracing/jaeger/pull/8838))
+
+#### ⚙️ Refactoring
+
+* Refactor(ai-gateway): apply rfc 0008 terminology — turn registry, route id, endpoint naming ([@Nabil-Salah](https://github.com/Nabil-Salah) in [#9017](https://github.com/jaegertracing/jaeger/pull/9017))
+* Refactor(es): introduce batch writespans api in v2 elasticsearch trace writer ([@ysh-bot](https://github.com/ysh-bot) in [#8990](https://github.com/jaegertracing/jaeger/pull/8990))
+* Feat(es): delete the olivere elasticsearch client stack ([@ysh-bot](https://github.com/ysh-bot) in [#8982](https://github.com/jaegertracing/jaeger/pull/8982))
+* Test(es): retire the detailederror olivere-error enricher ([@ysh-bot](https://github.com/ysh-bot) in [#8981](https://github.com/jaegertracing/jaeger/pull/8981))
+* Test(es): migrate the elasticsearch rotation e2e tests to the owned client ([@ysh-bot](https://github.com/ysh-bot) in [#8976](https://github.com/jaegertracing/jaeger/pull/8976))
+* Refactor(es): make esclient.client a pointer handle ([@ysh-bot](https://github.com/ysh-bot) in [#8979](https://github.com/jaegertracing/jaeger/pull/8979))
+* Test(es): migrate the direct elasticsearch integration tests to the owned client ([@ysh-bot](https://github.com/ysh-bot) in [#8975](https://github.com/jaegertracing/jaeger/pull/8975))
+* Feat(es): close idle connections on the owned elasticsearch client ([@ysh-bot](https://github.com/ysh-bot) in [#8974](https://github.com/jaegertracing/jaeger/pull/8974))
+* Feat(es): migrate the es metricstore onto the owned searcher and query ast ([@ysh-bot](https://github.com/ysh-bot) in [#8967](https://github.com/jaegertracing/jaeger/pull/8967))
+* Feat(es): migrate the es span reader onto the owned searcher and query ast ([@ysh-bot](https://github.com/ysh-bot) in [#8958](https://github.com/jaegertracing/jaeger/pull/8958))
+* Feat(es): migrate dependency store reads and writes onto owned esclient ([@ysh-bot](https://github.com/ysh-bot) in [#8957](https://github.com/jaegertracing/jaeger/pull/8957))
+* Feat(es): migrate sampling store reads and writes onto owned esclient ([@yurishkuro](https://github.com/yurishkuro) in [#8954](https://github.com/jaegertracing/jaeger/pull/8954))
+* Test(es): snapshot sampling store write requests via an injectable clock ([@yurishkuro](https://github.com/yurishkuro) in [#8955](https://github.com/jaegertracing/jaeger/pull/8955))
+* Unify elasticsearch backend version detection at client construction (rfc 0006 m4) ([@iammdzaidalam](https://github.com/iammdzaidalam) in [#8938](https://github.com/jaegertracing/jaeger/pull/8938))
+* Relocate the shared es roundtripper stack into the esclient package ([@yurishkuro](https://github.com/yurishkuro) in [#8936](https://github.com/jaegertracing/jaeger/pull/8936))
+* Route the elasticsearch admin client through a shared elastic-transport-go pool ([@yurishkuro](https://github.com/yurishkuro) in [#8932](https://github.com/jaegertracing/jaeger/pull/8932))
+* Rename the elasticsearch control-plane client package to esclient ([@yurishkuro](https://github.com/yurishkuro) in [#8930](https://github.com/jaegertracing/jaeger/pull/8930))
+* Add es/os request-snapshot suite baseline and converge mapping fixtures ([@yurishkuro](https://github.com/yurishkuro) in [#8922](https://github.com/jaegertracing/jaeger/pull/8922))
+* Refactor(es): thread context.context through the es rest client ([@Me-Priyank](https://github.com/Me-Priyank) in [#8873](https://github.com/jaegertracing/jaeger/pull/8873))
+* Refactor(es): rename index name constants, eliminate *indexbasename ([@yurishkuro](https://github.com/yurishkuro) in [#8870](https://github.com/jaegertracing/jaeger/pull/8870))
+* Refactor(es): move index name constants to config package, drop prefix param from resolved*rotation ([@yurishkuro](https://github.com/yurishkuro) in [#8868](https://github.com/jaegertracing/jaeger/pull/8868))
+* Refactor(es): extract client construction into clientbuilder package ([@yurishkuro](https://github.com/yurishkuro) in [#8842](https://github.com/jaegertracing/jaeger/pull/8842))
+* Feat: export reusable jaegercli.newcommand for custom ocb distributions ([@iammdzaidalam](https://github.com/iammdzaidalam) in [#8835](https://github.com/jaegertracing/jaeger/pull/8835))
+* Refactor(es): rename rotation implementation files to rotation_{name}.go ([@yurishkuro](https://github.com/yurishkuro) in [#8839](https://github.com/jaegertracing/jaeger/pull/8839))
+* Chore(storage): remove fswatcher from elasticsearch factory ([@iammdzaidalam](https://github.com/iammdzaidalam) in [#8750](https://github.com/jaegertracing/jaeger/pull/8750))
+* Refactor(es): migrate depstore and metricstore to use rotation interface ([@yurishkuro](https://github.com/yurishkuro) in [#8826](https://github.com/jaegertracing/jaeger/pull/8826))
+
+#### 📖 Documentation
+
+* Rfc 0004: elasticsearch/opensearch data streams for span storage ([@yurishkuro](https://github.com/yurishkuro) in [#8804](https://github.com/jaegertracing/jaeger/pull/8804))
+
+### 📊 UI Changes
+
+#### ✨ New Features
+
+* Feat(genai-tab): add content-sensitive rendering toggle (plain/markdown/json) for message content ([@swetalin-10](https://github.com/swetalin-10) in [#4213](https://github.com/jaegertracing/jaeger-ui/pull/4213))
+* Feat(assistant): add markdown rendering and panel resize ([@SoumyaRaikwar](https://github.com/SoumyaRaikwar) in [#4181](https://github.com/jaegertracing/jaeger-ui/pull/4181))
+* Feat(search): add ascending sort support for start time column ([@akshatsinghai6682-sketch](https://github.com/akshatsinghai6682-sketch) in [#4033](https://github.com/jaegertracing/jaeger-ui/pull/4033))
+* Feat: treat trace ids as opaque strings, support base64 encoding ([@yurishkuro](https://github.com/yurishkuro) in [#4118](https://github.com/jaegertracing/jaeger-ui/pull/4118))
+* Feat(flamegraph): implement native & improved flamegraph trace view ([@yurishkuro](https://github.com/yurishkuro) in [#4098](https://github.com/jaegertracing/jaeger-ui/pull/4098))
+* Feat(tracing): export ui-emitted otlp traces to jaeger ([@yurishkuro](https://github.com/yurishkuro) in [#4051](https://github.com/jaegertracing/jaeger-ui/pull/4051))
+
+#### 🐞 Bug fixes, Minor Improvements
+
+* Fix(genai): fix span icon hover tooltip and refine type icons and labels ([@swetalin-10](https://github.com/swetalin-10) in [#4239](https://github.com/jaegertracing/jaeger-ui/pull/4239))
+* Feat(timeline): emphasize span-type icons and soften tree chrome ([@ysh-bot](https://github.com/ysh-bot) in [#4238](https://github.com/jaegertracing/jaeger-ui/pull/4238))
+* Chore(genai-tab): prefix the token usage row with "tokens:" ([@swetalin-10](https://github.com/swetalin-10) in [#4222](https://github.com/jaegertracing/jaeger-ui/pull/4222))
+* Fix(trace): show span pill labels as tooltips ([@udita-0707](https://github.com/udita-0707) in [#4220](https://github.com/jaegertracing/jaeger-ui/pull/4220))
+* Feat(trace): expand span pills to hardcoded attribute set ([@udita-0707](https://github.com/udita-0707) in [#4214](https://github.com/jaegertracing/jaeger-ui/pull/4214))
+* Fix(genai-tab): simplify and fix rendering of genai span icons ([@swetalin-10](https://github.com/swetalin-10) in [#4221](https://github.com/jaegertracing/jaeger-ui/pull/4221))
+* Feat(search): show and track trace search latency ([@ysh-bot](https://github.com/ysh-bot) in [#4216](https://github.com/jaegertracing/jaeger-ui/pull/4216))
+* Refactor(otel): introduce iattributes collection replacing raw attribute arrays ([@ysh-bot](https://github.com/ysh-bot) in [#4211](https://github.com/jaegertracing/jaeger-ui/pull/4211))
+* Feat(trace): add http status summary chips ([@udita-0707](https://github.com/udita-0707) in [#4149](https://github.com/jaegertracing/jaeger-ui/pull/4149))
+* Feat(spanbarrow): add genai span type icons for llm, tool, agent, and retrieval spans ([@swetalin-10](https://github.com/swetalin-10) in [#3857](https://github.com/jaegertracing/jaeger-ui/pull/3857))
+* Fix(stats): make heatmap theme-aware ([@jkowall](https://github.com/jkowall) in [#4200](https://github.com/jaegertracing/jaeger-ui/pull/4200))
+* Fix(listview): remove array-length pre-allocation that created holes ([@dolliecoder](https://github.com/dolliecoder) in [#4194](https://github.com/jaegertracing/jaeger-ui/pull/4194))
+* Feat(genai-tab): add genai span detail content ([@swetalin-10](https://github.com/swetalin-10) in [#4191](https://github.com/jaegertracing/jaeger-ui/pull/4191))
+* Feat(utils): add genai span classification and isgenaitrace detection ([@swetalin-10](https://github.com/swetalin-10) in [#3856](https://github.com/jaegertracing/jaeger-ui/pull/3856))
+* Feat(monitor): sync monitor filters to url on change ([@udita-0707](https://github.com/udita-0707) in [#4182](https://github.com/jaegertracing/jaeger-ui/pull/4182))
+* Fix(timeline): restore critical path hover animation in dark mode ([@yurishkuro](https://github.com/yurishkuro) in [#4180](https://github.com/jaegertracing/jaeger-ui/pull/4180))
+* Feat(search): add absolute/relative toggle for table start time ([@yurishkuro](https://github.com/yurishkuro) in [#4175](https://github.com/jaegertracing/jaeger-ui/pull/4175))
+* Feat(search): improve table view column sorting ([@sksingh2005](https://github.com/sksingh2005) in [#3994](https://github.com/jaegertracing/jaeger-ui/pull/3994))
+* Fix(filter-spans): stringify object/array attribute values for span search ([@bhuvan-somisetty](https://github.com/bhuvan-somisetty) in [#4171](https://github.com/jaegertracing/jaeger-ui/pull/4171))
+* Fix: increase critical path bar contrast in dark mode ([@bhavyamsharmaa](https://github.com/bhavyamsharmaa) in [#4163](https://github.com/jaegertracing/jaeger-ui/pull/4163))
+* Fix(assistant): render tool-call parts in chat thread ([@SoumyaRaikwar](https://github.com/SoumyaRaikwar) in [#4164](https://github.com/jaegertracing/jaeger-ui/pull/4164))
+* Feat(monitor): support service/spankind/timeframe url params ([@udita-0707](https://github.com/udita-0707) in [#4119](https://github.com/jaegertracing/jaeger-ui/pull/4119))
+* Feat(trace): add decorative span type icons in tree view ([@swetalin-10](https://github.com/swetalin-10) in [#3832](https://github.com/jaegertracing/jaeger-ui/pull/3832))
+* Fix(tracegraph): theme-aware edge and legend colors in dark mode ([@bhavyamsharmaa](https://github.com/bhavyamsharmaa) in [#4074](https://github.com/jaegertracing/jaeger-ui/pull/4074))
+* Fix(tracepage): handle root span navigation at index 0 ([@dolliecoder](https://github.com/dolliecoder) in [#4145](https://github.com/jaegertracing/jaeger-ui/pull/4145))
+* Fix: fix sidepanel resize when timeline is hidden ([@sksingh2005](https://github.com/sksingh2005) in [#4046](https://github.com/jaegertracing/jaeger-ui/pull/4046))
+* Fix(bug): clear trace id input field on navigation/reload (#4135) ([@shubhtrek](https://github.com/shubhtrek) in [#4136](https://github.com/jaegertracing/jaeger-ui/pull/4136))
+* Refactor: standardize keyvaluepair typing across the ddg model ([@shubhtrek](https://github.com/shubhtrek) in [#4064](https://github.com/jaegertracing/jaeger-ui/pull/4064))
+* Default to table view for search results ([@yurishkuro](https://github.com/yurishkuro) in [#4133](https://github.com/jaegertracing/jaeger-ui/pull/4133))
+* Feat(flamegraph): resizable 50/50 table/chart split with scroll affordance ([@yurishkuro](https://github.com/yurishkuro) in [#4121](https://github.com/jaegertracing/jaeger-ui/pull/4121))
+* Fix: copyicon button jumps/enlarges on hover (animation/layout glitch) ([@akshatsinghai6682-sketch](https://github.com/akshatsinghai6682-sketch) in [#4022](https://github.com/jaegertracing/jaeger-ui/pull/4022))
+* Fix(plexus): use currentcolor for ddg edge weight labels in dark mode ([@shubhtrek](https://github.com/shubhtrek) in [#4079](https://github.com/jaegertracing/jaeger-ui/pull/4079))
+* Fix(search): keep back-to-search across find and trace id clicks ([@udita-0707](https://github.com/udita-0707) in [#4080](https://github.com/jaegertracing/jaeger-ui/pull/4080))
+* Fix(monitor): replace hardcoded light-mode colors with design tokens in operations table ([@udita-0707](https://github.com/udita-0707) in [#4054](https://github.com/jaegertracing/jaeger-ui/pull/4054))
+* Fix(assistant): wrap fetch passed to httpagent ([@yurishkuro](https://github.com/yurishkuro) in [#4044](https://github.com/jaegertracing/jaeger-ui/pull/4044))
+
+#### 🚧 Experimental Features
+
+* Feat(genai): add genai tab shell to span detail panel ([@swetalin-10](https://github.com/swetalin-10) in [#4122](https://github.com/jaegertracing/jaeger-ui/pull/4122))
+* Feat(tracepage): add genaitimelineviewer view type with auto-activation ([@swetalin-10](https://github.com/swetalin-10) in [#3872](https://github.com/jaegertracing/jaeger-ui/pull/3872))
+
+#### 👷 CI Improvements
+
+* Chore(pnpm): migrate from npm to pnpm ([@thisis-manan](https://github.com/thisis-manan) in [#4137](https://github.com/jaegertracing/jaeger-ui/pull/4137))
+* Chore(ci): route build/lint/test/coverage steps through makefile entrypoints(part of migration to pnpm) ([@aprv10](https://github.com/aprv10) in [#4139](https://github.com/jaegertracing/jaeger-ui/pull/4139))
+
+#### ⚙️ Refactoring
+
+* Refactor(search): remove dead trace redux slice and its search actions/api ([@swetalin-10](https://github.com/swetalin-10) in [#3999](https://github.com/jaegertracing/jaeger-ui/pull/3999))
+* Refactor(timeline): extract critical path logic into helper module ([@sonalyadav1](https://github.com/sonalyadav1) in [#4060](https://github.com/jaegertracing/jaeger-ui/pull/4060))
+* Refactor(stats): extract computespanselftime to shared utility ([@yurishkuro](https://github.com/yurishkuro) in [#4113](https://github.com/jaegertracing/jaeger-ui/pull/4113))
+* Refactor(ddg): use functional component for graph ([@sksingh2005](https://github.com/sksingh2005) in [#4100](https://github.com/jaegertracing/jaeger-ui/pull/4100))
+* Refactor:migrate virtualizedtraceview to functional component ([@sksingh2005](https://github.com/sksingh2005) in [#4081](https://github.com/jaegertracing/jaeger-ui/pull/4081))
+* Refactor(tracegraph): migrate to functional component ([@sksingh2005](https://github.com/sksingh2005) in [#4058](https://github.com/jaegertracing/jaeger-ui/pull/4058))
+
 v2.19.0 (2026-06-03)
 -------------------------------
 

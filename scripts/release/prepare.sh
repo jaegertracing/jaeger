@@ -12,13 +12,16 @@
 #   5. Include exact tag commands in the PR description for post-merge execution.
 #
 # Use:
-#   bash scripts/release/prepare.sh <version>
+#   bash scripts/release/prepare.sh <version> [issue]
 #   OR
-#   make prepare-release VERSION=<version>
+#   make prepare-release VERSION=<version> [ISSUE=<issue>]
+#
+# The optional issue number links the release PR back to the release
+# tracking issue via a "Part of #<issue>" line in the PR description.
 #
 # Example:
-#   bash scripts/release/prepare.sh 2.14.0
-#   make prepare-release VERSION=2.14.0
+#   bash scripts/release/prepare.sh 2.14.0 1234
+#   make prepare-release VERSION=2.14.0 ISSUE=1234
 #
 # After the PR is merged, follow the tag commands in the PR description.
 
@@ -142,6 +145,7 @@ push_branch() {
 
 create_pull_request() {
     local version=$1
+    local issue=$2
 
     local pr_body="This PR prepares the release for v${version}.
 
@@ -152,6 +156,12 @@ create_pull_request() {
 
 After this PR is merged, continue with the release process as outlined in the release issue."
 
+    if [ -n "$issue" ]; then
+        pr_body="${pr_body}
+
+Part of #${issue}"
+    fi
+
     # Create the PR
     gh pr create \
         --title "Prepare release v${version}" \
@@ -161,13 +171,19 @@ After this PR is merged, continue with the release process as outlined in the re
 }
 
 main() {
-    if [ "$#" -ne 1 ]; then
-        echo "Usage: $0 <version>"
-        echo "Example: $0 2.14.0"
+    if [ "$#" -lt 1 ] || [ "$#" -gt 2 ]; then
+        echo "Usage: $0 <version> [issue]"
+        echo "Example: $0 2.14.0 1234"
         exit 1
     fi
 
     local version="${1#v}" # Remove 'v' prefix if present
+    local issue="${2:-}"
+    issue="${issue#\#}"    # Remove '#' prefix if present
+    if [ -n "$issue" ] && ! [[ "$issue" =~ ^[0-9]+$ ]]; then
+        echo "Error: issue must be a number, got '${issue}'"
+        exit 1
+    fi
 
     echo "Preparing release for v${version}"
 
@@ -183,7 +199,7 @@ main() {
     rotate_release_managers
     commit_changes "$version"
     push_branch "$branch_name"
-    create_pull_request "$version"
+    create_pull_request "$version" "$issue"
 
     echo "Done. Review and merge the PR, then follow the instructions in the PR description."
 }

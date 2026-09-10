@@ -1,0 +1,12 @@
+{
+  "method": "DELETE",
+  "path": "/jaeger-span-000001,jaeger-service-000001,",
+  "query": {
+    "ignore_unavailable": [
+      "true"
+    ],
+    "master_timeout": [
+      "5s"
+    ]
+  }
+}

@@ -12,8 +12,7 @@ import (
 	"go.opentelemetry.io/collector/config/configgrpc"
 	"go.opentelemetry.io/collector/config/confighttp"
 	"go.opentelemetry.io/collector/config/configoptional"
-	"go.opentelemetry.io/collector/confmap/xconfmap"
-	"go.opentelemetry.io/collector/featuregate"
+	"go.opentelemetry.io/collector/confmap"
 
 	"github.com/jaegertracing/jaeger/internal/sampling/samplingstrategy/adaptive"
 )
@@ -25,17 +24,8 @@ var (
 )
 
 var (
-	_ component.Config   = (*Config)(nil)
-	_ xconfmap.Validator = (*Config)(nil)
-
-	_ = featuregate.GlobalRegistry().MustRegister(
-		"jaeger.sampling.includeDefaultOpStrategies",
-		featuregate.StageStable, // can only be ON
-		featuregate.WithRegisterFromVersion("v2.2.0"),
-		featuregate.WithRegisterToVersion("v2.5.0"),
-		featuregate.WithRegisterDescription("Forces service strategy to be merged with default strategy, including per-operation overrides."),
-		featuregate.WithRegisterReferenceURL("https://github.com/jaegertracing/jaeger/issues/5270"),
-	)
+	_ component.Config  = (*Config)(nil)
+	_ confmap.Validator = (*Config)(nil)
 )
 
 type Config struct {

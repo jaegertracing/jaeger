@@ -1,0 +1,21 @@
+{
+  "bool": {
+    "should": [
+      {
+        "exists": {
+          "field": "tag.http@route"
+        }
+      },
+      {
+        "nested": {
+          "path": "tags",
+          "query": {
+            "term": {
+              "tags.key": "http.route"
+            }
+          }
+        }
+      }
+    ]
+  }
+}

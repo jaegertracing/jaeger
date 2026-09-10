@@ -1,0 +1,4 @@
+{
+  "method": "GET",
+  "path": "/_plugins/_ism/policies/jaeger-ilm-policy"
+}

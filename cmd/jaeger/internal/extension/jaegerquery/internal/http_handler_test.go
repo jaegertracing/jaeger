@@ -135,7 +135,6 @@ func initializeTestServerWithHandler(t *testing.T, queryOptions querysvc.QuerySe
 				// add options for test coverage
 				HandlerOptions.Prefix(defaultAPIPrefix),
 				HandlerOptions.BasePath("/"),
-				HandlerOptions.QueryLookbackDuration(defaultTraceQueryLookbackDuration),
 			},
 			options...,
 		)...,
@@ -495,318 +494,6 @@ func TestGetTraceBadRawTracesFlag(t *testing.T) {
 	require.ErrorContains(t, err, "unable to parse param 'raw'")
 }
 
-func TestSearchSuccess(t *testing.T) {
-	ts := initializeTestServer(t)
-	ts.traceReader.On("FindTraces", mock.Anything, mock.Anything).
-		Return(tracesIter(makeMockPTrace())).Once()
-
-	var response structuredResponse
-	err := getJSON(ts.server.URL+`/api/traces?service=service&start=0&end=0&operation=operation&limit=200&minDuration=20ms`, &response)
-	require.NoError(t, err)
-	assert.Empty(t, response.Errors)
-}
-
-func TestSearchByTraceIDSuccess(t *testing.T) {
-	ts := initializeTestServer(t)
-	ts.traceReader.On("GetTraces", mock.Anything, mock.MatchedBy(func(params []tracestore.GetTraceParams) bool {
-		return len(params) == 2 &&
-			params[0].TraceID == v1adapter.FromV1TraceID(model.NewTraceID(0, 1)) &&
-			params[1].TraceID == v1adapter.FromV1TraceID(model.NewTraceID(0, 2))
-	})).Return(tracesIter(
-		makeTraceWithID(model.NewTraceID(0, 1)),
-		makeTraceWithID(model.NewTraceID(0, 2)),
-	)).Once()
-
-	var response structuredResponse
-	err := getJSON(ts.server.URL+`/api/traces?traceID=1&traceID=2`, &response)
-	require.NoError(t, err)
-	assert.Empty(t, response.Errors)
-	assert.Len(t, response.Data, 2)
-}
-
-func TestSearchByTraceIDWithTimeWindowSuccess(t *testing.T) {
-	ts := initializeTestServer(t)
-	traceId2 := model.NewTraceID(0, 456789)
-
-	ts.traceReader.On("GetTraces", mock.Anything, mock.MatchedBy(func(params []tracestore.GetTraceParams) bool {
-		if len(params) != 2 {
-			return false
-		}
-		return params[0].TraceID == v1adapter.FromV1TraceID(mockTraceID) &&
-			params[0].Start.Equal(time.UnixMicro(1)) &&
-			params[0].End.Equal(time.UnixMicro(2)) &&
-			params[1].TraceID == v1adapter.FromV1TraceID(traceId2) &&
-			params[1].Start.Equal(time.UnixMicro(1)) &&
-			params[1].End.Equal(time.UnixMicro(2))
-	})).Return(tracesIter(
-		makeTraceWithID(mockTraceID),
-		makeTraceWithID(traceId2),
-	)).Once()
-
-	var response structuredResponse
-	err := getJSON(ts.server.URL+`/api/traces?traceID=`+mockTraceID.String()+`&traceID=`+traceId2.String()+`&start=1&end=2`, &response)
-	require.NoError(t, err)
-	assert.Empty(t, response.Errors)
-	assert.Len(t, response.Data, 2)
-}
-
-func TestSearchTraceBadTimeWindow(t *testing.T) {
-	testCases := []struct {
-		name  string
-		query string
-	}{
-		{
-			name:  "Bad start time",
-			query: "start=a",
-		},
-		{
-			name:  "Bad end time",
-			query: "end=b",
-		},
-	}
-	for _, tc := range testCases {
-		t.Run(tc.name, func(t *testing.T) {
-			ts := initializeTestServer(t)
-			var response structuredResponse
-			err := getJSON(ts.server.URL+`/api/traces?traceID=1&traceID=2&`+tc.query, &response)
-			require.Error(t, err)
-			require.ErrorContains(t, err, "400 error from server")
-			require.ErrorContains(t, err, "unable to parse param")
-		})
-	}
-}
-
-func TestSearchByTraceIDSuccessWithArchive(t *testing.T) {
-	archiveReader := &tracestoremocks.Reader{}
-	ts := initializeTestServerWithOptions(t, &tenancy.Manager{}, querysvc.QueryServiceOptions{
-		ArchiveTraceReader: archiveReader,
-	})
-	// Main reader returns empty (not found)
-	ts.traceReader.On("GetTraces", mock.Anything, mock.Anything).
-		Return(emptyIter()).Once()
-	// Archive reader returns traces
-	archiveReader.On("GetTraces", mock.Anything, mock.MatchedBy(func(params []tracestore.GetTraceParams) bool {
-		return len(params) == 2
-	})).Return(tracesIter(
-		makeTraceWithID(model.NewTraceID(0, 1)),
-		makeTraceWithID(model.NewTraceID(0, 2)),
-	)).Once()
-
-	var response structuredResponse
-	err := getJSON(ts.server.URL+`/api/traces?traceID=1&traceID=2`, &response)
-	require.NoError(t, err)
-	assert.Empty(t, response.Errors)
-	assert.Len(t, response.Data, 2)
-}
-
-func TestSearchByTraceIDSuccessWithArchiveAndTimeWindow(t *testing.T) {
-	archiveReader := &tracestoremocks.Reader{}
-	ts := initializeTestServerWithOptions(t, &tenancy.Manager{}, querysvc.QueryServiceOptions{
-		ArchiveTraceReader: archiveReader,
-	})
-	// Main reader returns empty
-	ts.traceReader.On("GetTraces", mock.Anything, mock.MatchedBy(func(params []tracestore.GetTraceParams) bool {
-		return len(params) == 1 &&
-			params[0].TraceID == v1adapter.FromV1TraceID(mockTraceID) &&
-			params[0].Start.Equal(time.UnixMicro(1)) &&
-			params[0].End.Equal(time.UnixMicro(2))
-	})).Return(emptyIter()).Once()
-	// Archive reader returns trace
-	archiveReader.On("GetTraces", mock.Anything, mock.Anything).
-		Return(tracesIter(makeTraceWithID(mockTraceID))).Once()
-
-	var response structuredResponse
-	err := getJSON(ts.server.URL+`/api/traces?traceID=`+mockTraceID.String()+`&start=1&end=2`, &response)
-	require.NoError(t, err)
-	assert.Empty(t, response.Errors)
-	assert.Len(t, response.Data, 1)
-}
-
-func TestSearchByTraceIDNotFound(t *testing.T) {
-	ts := initializeTestServer(t)
-	ts.traceReader.On("GetTraces", mock.Anything, mock.Anything).
-		Return(emptyIter()).Once()
-
-	var response structuredResponse
-	err := getJSON(ts.server.URL+`/api/traces?traceID=1`, &response)
-	require.NoError(t, err)
-	assert.Len(t, response.Errors, 1)
-	assert.Equal(t, structuredError{Msg: "trace not found", TraceID: ui.TraceID("0000000000000001")}, response.Errors[0])
-}
-
-func TestSearchByTraceIDFailure(t *testing.T) {
-	ts := initializeTestServer(t)
-	whatsamattayou := "whatsamattayou"
-	ts.traceReader.On("GetTraces", mock.Anything, mock.Anything).
-		Return(errorIter(errors.New(whatsamattayou))).Once()
-
-	var response structuredResponse
-	err := getJSON(ts.server.URL+`/api/traces?traceID=1`, &response)
-	require.EqualError(t, err, parsedError(500, whatsamattayou))
-}
-
-func TestSearchDBFailure(t *testing.T) {
-	ts := initializeTestServer(t)
-	ts.traceReader.On("FindTraces", mock.Anything, mock.Anything).
-		Return(errorIter(errors.New("whatsamattayou"))).Once()
-
-	var response structuredResponse
-	err := getJSON(ts.server.URL+`/api/traces?service=service&start=0&end=0&operation=operation&limit=200&minDuration=20ms`, &response)
-	require.EqualError(t, err, parsedError(500, "whatsamattayou"))
-}
-
-func TestSearchFailures(t *testing.T) {
-	tests := []struct {
-		urlStr string
-		errMsg string
-	}{
-		{
-			`/api/traces?start=0&end=0&operation=operation&limit=200&minDuration=20ms`,
-			parsedError(400, "parameter 'service' is required"),
-		},
-		{
-			`/api/traces?service=service&start=0&end=0&operation=operation&maxDuration=10ms&limit=200&minDuration=20ms`,
-			parsedError(400, "'maxDuration' should be greater than 'minDuration'"),
-		},
-	}
-	for _, test := range tests {
-		testIndividualSearchFailures(t, test.urlStr, test.errMsg)
-	}
-}
-
-func testIndividualSearchFailures(t *testing.T, urlStr, errMsg string) {
-	ts := initializeTestServer(t)
-	ts.traceReader.On("FindTraces", mock.Anything, mock.Anything).
-		Return(emptyIter()).Once()
-
-	var response structuredResponse
-	err := getJSON(ts.server.URL+urlStr, &response)
-	require.EqualError(t, err, errMsg)
-}
-
-func TestGetServicesSuccess(t *testing.T) {
-	ts := initializeTestServer(t)
-	expectedServices := []string{"trifle", "bling"}
-	ts.traceReader.On("GetServices", mock.Anything).Return(expectedServices, nil).Once()
-
-	var response structuredResponse
-	err := getJSON(ts.server.URL+"/api/services", &response)
-	require.NoError(t, err)
-	actualServices := make([]string, len(expectedServices))
-	for i, s := range response.Data.([]any) {
-		actualServices[i] = s.(string)
-	}
-	assert.Equal(t, expectedServices, actualServices)
-}
-
-func TestGetServicesEmpty(t *testing.T) {
-	ts := initializeTestServer(t)
-	ts.traceReader.
-		On("GetServices", mock.Anything).
-		Return(nil, nil).
-		Once()
-
-	var response structuredResponse
-	err := getJSON(ts.server.URL+"/api/services", &response)
-	require.NoError(t, err)
-
-	require.NotNil(t, response.Data)
-	data := response.Data.([]any)
-	assert.Empty(t, data)
-}
-
-func TestGetServicesStorageFailure(t *testing.T) {
-	ts := initializeTestServer(t)
-	ts.traceReader.On("GetServices", mock.Anything).Return(nil, errStorage).Once()
-
-	var response structuredResponse
-	err := getJSON(ts.server.URL+"/api/services", &response)
-	require.Error(t, err)
-}
-
-func TestGetOperationsSuccess(t *testing.T) {
-	ts := initializeTestServer(t)
-	expectedOperations := []tracestore.Operation{{Name: ""}, {Name: "get", SpanKind: "server"}}
-	ts.traceReader.On(
-		"GetOperations",
-		mock.Anything,
-		tracestore.OperationQueryParams{
-			ServiceName: "abc/trifle",
-			SpanKind:    "server",
-		},
-	).Return(expectedOperations, nil).Once()
-
-	var response struct {
-		Operations []ui.Operation    `json:"data"`
-		Total      int               `json:"total"`
-		Limit      int               `json:"limit"`
-		Offset     int               `json:"offset"`
-		Errors     []structuredError `json:"errors"`
-	}
-
-	err := getJSON(ts.server.URL+"/api/operations?service=abc%2Ftrifle&spanKind=server", &response)
-	require.NoError(t, err)
-	assert.Len(t, response.Operations, len(expectedOperations))
-	for i, op := range response.Operations {
-		assert.Equal(t, expectedOperations[i].Name, op.Name)
-		assert.Equal(t, expectedOperations[i].SpanKind, op.SpanKind)
-	}
-}
-
-func TestGetOperationsNoServiceName(t *testing.T) {
-	ts := initializeTestServer(t)
-	var response structuredResponse
-	err := getJSON(ts.server.URL+"/api/operations", &response)
-	require.Error(t, err)
-}
-
-func TestGetOperationsStorageFailure(t *testing.T) {
-	ts := initializeTestServer(t)
-	ts.traceReader.On(
-		"GetOperations",
-		mock.Anything,
-		mock.AnythingOfType("tracestore.OperationQueryParams"),
-	).Return(nil, errStorage).Once()
-
-	var response structuredResponse
-	err := getJSON(ts.server.URL+"/api/operations?service=trifle", &response)
-	require.Error(t, err)
-}
-
-func TestGetOperationsLegacySuccess(t *testing.T) {
-	ts := initializeTestServer(t)
-	expectedOperationNames := []string{"", "get"}
-	expectedOperations := []tracestore.Operation{
-		{Name: ""},
-		{Name: "get", SpanKind: "server"},
-		{Name: "get", SpanKind: "client"},
-	}
-
-	ts.traceReader.On(
-		"GetOperations",
-		mock.Anything,
-		mock.AnythingOfType("tracestore.OperationQueryParams"),
-	).Return(expectedOperations, nil).Once()
-
-	var response structuredResponse
-	err := getJSON(ts.server.URL+"/api/services/abc%2Ftrifle/operations", &response)
-
-	require.NoError(t, err)
-	assert.ElementsMatch(t, expectedOperationNames, response.Data.([]any))
-}
-
-func TestGetOperationsLegacyStorageFailure(t *testing.T) {
-	ts := initializeTestServer(t)
-	ts.traceReader.On(
-		"GetOperations",
-		mock.Anything,
-		mock.AnythingOfType("tracestore.OperationQueryParams"),
-	).Return(nil, errStorage).Once()
-	var response structuredResponse
-	err := getJSON(ts.server.URL+"/api/services/trifle/operations", &response)
-	require.Error(t, err)
-}
-
 func TestTransformOTLPSuccess(t *testing.T) {
 	reformat := func(in []byte) []byte {
 		obj := new(any)
@@ -1019,26 +706,13 @@ func TestMetricsQueryDisabled(t *testing.T) {
 	ts := initializeTestServer(t, HandlerOptions.MetricsQueryService(disabledReader))
 	defer ts.server.Close()
 
-	for _, tc := range []struct {
-		name             string
-		urlPath          string
-		wantErrorMessage string
-	}{
-		{
-			name:             "metrics query disabled error returned when fetching latency metrics",
-			urlPath:          "/api/metrics/latencies?service=emailservice&quantile=0.95",
-			wantErrorMessage: "metrics querying is currently disabled",
-		},
-	} {
-		t.Run(tc.name, func(t *testing.T) {
-			// Test
-			var response any
-			err := getJSON(ts.server.URL+tc.urlPath, &response)
-
-			// Verify
-			assert.ErrorContains(t, err, tc.wantErrorMessage)
-		})
-	}
+	const urlPath = "/api/metrics/latencies?service=emailservice&quantile=0.95"
+	var response any
+	err = getJSON(ts.server.URL+urlPath, &response)
+	var httpErr *HTTPError
+	require.ErrorAs(t, err, &httpErr)
+	require.Equal(t, http.StatusNotImplemented, httpErr.StatusCode)
+	require.Contains(t, httpErr.Body, "currently disabled")
 }
 
 // getJSON fetches a JSON document from a server via HTTP GET
@@ -1120,7 +794,7 @@ func parsedError(code int, err string) string {
 	return fmt.Sprintf(`%d error from server: {"data":null,"total":0,"limit":0,"offset":0,"errors":[{"code":%d,"msg":"%s"}]}`+"\n", code, code, err)
 }
 
-func TestSearchTenancyHTTP(t *testing.T) {
+func TestGetTraceTenancyHTTP(t *testing.T) {
 	tenancyOptions := tenancy.Options{
 		Enabled: true,
 	}
@@ -1128,30 +802,28 @@ func TestSearchTenancyHTTP(t *testing.T) {
 		tenancy.NewManager(&tenancyOptions),
 		querysvc.QueryServiceOptions{})
 	ts.traceReader.On("GetTraces", mock.Anything, mock.MatchedBy(func(params []tracestore.GetTraceParams) bool {
-		return len(params) == 2
-	})).Return(tracesIter(
-		makeTraceWithID(model.NewTraceID(0, 1)),
-		makeTraceWithID(model.NewTraceID(0, 2)),
-	)).Once()
+		return len(params) == 1 &&
+			params[0].TraceID == v1adapter.FromV1TraceID(model.NewTraceID(0, 1))
+	})).Return(tracesIter(makeTraceWithID(model.NewTraceID(0, 1)))).Once()
 
 	var response structuredResponse
-	err := getJSON(ts.server.URL+`/api/traces?traceID=1&traceID=2`, &response)
+	err := getJSON(ts.server.URL+`/api/traces/1`, &response)
 	require.Error(t, err)
 	assert.Equal(t, "401 error from server: missing tenant header", err.Error())
 	assert.Empty(t, response.Errors)
 	assert.Nil(t, response.Data)
 
 	err = getJSONCustomHeaders(
-		ts.server.URL+`/api/traces?traceID=1&traceID=2`,
+		ts.server.URL+`/api/traces/1`,
 		map[string]string{"x-tenant": "acme"},
 		&response,
 	)
 	require.NoError(t, err)
 	assert.Empty(t, response.Errors)
-	assert.Len(t, response.Data, 2)
+	assert.Len(t, response.Data, 1)
 }
 
-func TestSearchTenancyRejectionHTTP(t *testing.T) {
+func TestGetTraceTenancyRejectionHTTP(t *testing.T) {
 	tenancyOptions := tenancy.Options{
 		Enabled: true,
 	}
@@ -1159,7 +831,7 @@ func TestSearchTenancyRejectionHTTP(t *testing.T) {
 	ts.traceReader.On("GetTraces", mock.Anything, mock.Anything).
 		Return(tracesIter(makeMockPTrace())).Twice()
 
-	req, err := http.NewRequest(http.MethodGet, ts.server.URL+`/api/traces?traceID=1&traceID=2`, http.NoBody)
+	req, err := http.NewRequest(http.MethodGet, ts.server.URL+`/api/traces/1`, http.NoBody)
 	require.NoError(t, err)
 	req.Header.Add("Accept", "application/json")
 	// We don't set tenant header
@@ -1177,7 +849,7 @@ func TestSearchTenancyRejectionHTTP(t *testing.T) {
 	// Skip unmarshal of response; it is enough that it succeeded
 }
 
-func TestSearchTenancyFlowTenantHTTP(t *testing.T) {
+func TestGetTraceTenancyFlowTenantHTTP(t *testing.T) {
 	tenancyOptions := tenancy.Options{
 		Enabled: true,
 	}
@@ -1189,11 +861,8 @@ func TestSearchTenancyFlowTenantHTTP(t *testing.T) {
 		}
 		return true
 	}), mock.MatchedBy(func(params []tracestore.GetTraceParams) bool {
-		return len(params) == 2
-	})).Return(tracesIter(
-		makeTraceWithID(model.NewTraceID(0, 1)),
-		makeTraceWithID(model.NewTraceID(0, 2)),
-	)).Once()
+		return len(params) == 1
+	})).Return(tracesIter(makeTraceWithID(model.NewTraceID(0, 1)))).Once()
 	ts.traceReader.On("GetTraces", mock.MatchedBy(func(v any) bool {
 		ctx, ok := v.(context.Context)
 		if !ok || tenancy.GetTenant(ctx) != "megacorp" {
@@ -1204,17 +873,17 @@ func TestSearchTenancyFlowTenantHTTP(t *testing.T) {
 
 	var responseAcme structuredResponse
 	err := getJSONCustomHeaders(
-		ts.server.URL+`/api/traces?traceID=1&traceID=2`,
+		ts.server.URL+`/api/traces/1`,
 		map[string]string{"x-tenant": "acme"},
 		&responseAcme,
 	)
 	require.NoError(t, err)
 	assert.Empty(t, responseAcme.Errors)
-	assert.Len(t, responseAcme.Data, 2)
+	assert.Len(t, responseAcme.Data, 1)
 
 	var responseMegacorp structuredResponse
 	err = getJSONCustomHeaders(
-		ts.server.URL+`/api/traces?traceID=1&traceID=2`,
+		ts.server.URL+`/api/traces/1`,
 		map[string]string{"x-tenant": "megacorp"},
 		&responseMegacorp,
 	)
@@ -1227,12 +896,4 @@ func TestNewAPIHandler_Defaults(t *testing.T) {
 	aH := NewAPIHandler(&querysvc.QueryService{})
 	assert.NotNil(t, aH.logger)
 	assert.NotNil(t, aH.tracer)
-}
-
-func TestTracesByIDs_EmptyIDs(t *testing.T) {
-	aH := &APIHandler{}
-	traces, errs, err := aH.tracesByIDs(context.Background(), &traceQueryParameters{})
-	assert.Nil(t, traces)
-	assert.Nil(t, errs)
-	assert.NoError(t, err)
 }

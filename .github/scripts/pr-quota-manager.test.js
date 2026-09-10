@@ -179,20 +179,19 @@ describe('addLabel', () => {
     });
   });
 
-  test('handles errors gracefully', async () => {
+  test('throws when the API rejects, so the job fails instead of silently skipping', async () => {
     const mockOctokit = {
       rest: {
         issues: {
-          addLabels: jest.fn().mockRejectedValue(new Error('API error'))
+          addLabels: jest.fn().mockRejectedValue(
+            new Error('Resource not accessible by personal access token')
+          )
         }
       }
     };
 
-    await addLabel(mockOctokit, 'owner', 'repo', 123, mockLogger);
-
-    expect(mockLogger.error).toHaveBeenCalledWith(
-      expect.stringContaining('Failed to add label'),
-      expect.any(String)
+    await expect(addLabel(mockOctokit, 'owner', 'repo', 123, mockLogger)).rejects.toThrow(
+      'Failed to add label to PR #123: Resource not accessible by personal access token'
     );
   });
 });
@@ -231,12 +230,14 @@ describe('removeLabel', () => {
       }
     };
 
-    await removeLabel(mockOctokit, 'owner', 'repo', 123, testLogger);
+    await expect(
+      removeLabel(mockOctokit, 'owner', 'repo', 123, testLogger)
+    ).resolves.toBeUndefined();
 
     expect(testLogger.error).not.toHaveBeenCalled();
   });
 
-  test('logs non-404 errors', async () => {
+  test('throws on non-404 errors', async () => {
     const mockOctokit = {
       rest: {
         issues: {
@@ -245,9 +246,9 @@ describe('removeLabel', () => {
       }
     };
 
-    await removeLabel(mockOctokit, 'owner', 'repo', 123, mockLogger);
-
-    expect(mockLogger.error).toHaveBeenCalled();
+    await expect(removeLabel(mockOctokit, 'owner', 'repo', 123, mockLogger)).rejects.toThrow(
+      'Failed to remove label from PR #123: Server error'
+    );
   });
 });
 
@@ -330,6 +331,23 @@ describe('postBlockingComment', () => {
 
     expect(mockOctokit.rest.issues.createComment).not.toHaveBeenCalled();
   });
+
+  test('throws when the API rejects', async () => {
+    const mockOctokit = {
+      rest: {
+        issues: {
+          listComments: jest.fn().mockResolvedValue({ data: [] }),
+          createComment: jest.fn().mockRejectedValue(
+            new Error('Resource not accessible by personal access token')
+          )
+        }
+      }
+    };
+
+    await expect(
+      postBlockingComment(mockOctokit, 'owner', 'repo', 123, 'testuser', 2, 1, mockLogger)
+    ).rejects.toThrow('Failed to post blocking comment on PR #123');
+  });
 });
 
 describe('postUnblockingComment', () => {
@@ -350,6 +368,20 @@ describe('postUnblockingComment', () => {
       issue_number: 123,
       body: expect.stringContaining('PR quota unlocked!')
     });
+  });
+
+  test('throws when the API rejects', async () => {
+    const mockOctokit = {
+      rest: {
+        issues: {
+          createComment: jest.fn().mockRejectedValue(new Error('Server error'))
+        }
+      }
+    };
+
+    await expect(
+      postUnblockingComment(mockOctokit, 'owner', 'repo', 123, 'testuser', 1, 2, mockLogger)
+    ).rejects.toThrow('Failed to post unblocking comment on PR #123');
   });
 });
 
@@ -399,6 +431,60 @@ describe('processQuotaForAuthor', () => {
     expect(result.openCount).toBe(2);
     expect(result.results.blocked).toEqual([2]);
     expect(result.results.unchanged).toEqual([1]);
+  });
+
+  // Regression test: the label/comment writes used to be caught and logged, so a token
+  // without Issues write permission produced a successful run that reported every PR as
+  // blocked while nothing was labelled.
+  test('fails the run instead of reporting success when labelling is not permitted', async () => {
+    const testLogger = {
+      log: jest.fn(),
+      error: jest.fn()
+    };
+
+    const mockOctokit = {
+      rest: {
+        pulls: {
+          list: jest.fn()
+            .mockResolvedValueOnce({
+              data: [
+                {
+                  number: 1,
+                  user: { login: 'newuser' },
+                  state: 'open',
+                  merged_at: null,
+                  created_at: '2024-01-01T00:00:00Z',
+                  labels: []
+                },
+                {
+                  number: 2,
+                  user: { login: 'newuser' },
+                  state: 'open',
+                  merged_at: null,
+                  created_at: '2024-01-02T00:00:00Z',
+                  labels: []
+                }
+              ]
+            })
+            .mockResolvedValueOnce({ data: [] })
+        },
+        issues: {
+          getLabel: jest.fn().mockResolvedValue({ data: { name: LABEL_NAME } }),
+          addLabels: jest.fn().mockRejectedValue(
+            new Error('Resource not accessible by personal access token')
+          ),
+          listComments: jest.fn().mockResolvedValue({ data: [] }),
+          createComment: jest.fn().mockResolvedValue({})
+        }
+      }
+    };
+
+    await expect(
+      processQuotaForAuthor(mockOctokit, 'owner', 'repo', 'newuser', testLogger)
+    ).rejects.toThrow('Failed to add label to PR #2');
+
+    const logged = testLogger.log.mock.calls.map(call => call.join(' ')).join('\n');
+    expect(logged).not.toContain('Labeled PR #2 as blocked');
   });
 
   test('unblocks PRs when quota becomes available', async () => {

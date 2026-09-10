@@ -15,7 +15,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-    - uses: step-security/harden-runner@a5ad31d6a139d249332a2605b85202e8c0b78450 # v2.19.1
+    - uses: step-security/harden-runner@05e31511f85b41b11d1cf0ef85d0992719546e2c # v2.21.0
       with:
         egress-policy: audit # TODO: change to 'egress-policy: block' after couple of runs
 
@@ -27,8 +27,6 @@ jobs:
       run: git fetch --prune --unshallow --tags
 
     - uses: ./.github/actions/setup-go
-      with:
-        go-version: 1.26.x
 
     - uses: ./.github/actions/setup-node.js
 
@@ -36,7 +34,7 @@ jobs:
 
     - run: make install-ci
 
-    - uses: docker/setup-qemu-action@06116385d9baf250c9f4dcb4858b16962ea869c3 # v4.1.0
+    - uses: docker/setup-qemu-action@1f40c72289eff860ee54a304f1438e3cff362e0a # v4.3.0
 
     - name: Build only linux/amd64 container images (PR and merge queue)
       if: github.event_name == 'pull_request' || github.event_name == 'merge_group'

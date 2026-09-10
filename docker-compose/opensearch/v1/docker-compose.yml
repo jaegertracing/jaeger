@@ -6,6 +6,7 @@ services:
     image: opensearchproject/opensearch:1.3.17@sha256:749c568af3106a12b1600673ab8dd2d1980d1c699a09f10cbcf6a003d8e38aed
     environment:
       - discovery.type=single-node
+      - cluster.routing.allocation.disk.threshold_enabled=false
       - plugins.security.disabled=true
       - http.host=0.0.0.0
       - transport.host=127.0.0.1

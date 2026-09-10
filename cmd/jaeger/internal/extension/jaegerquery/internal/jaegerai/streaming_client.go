@@ -166,6 +166,21 @@ func (c *streamingClient) ensureTextStart() {
 	c.textOpen = true
 }
 
+// EmitContextualToolCall fires the TOOL_CALL_START / TOOL_CALL_ARGS /
+// TOOL_CALL_END lifecycle for a UI tool the agent invoked via the
+// turn-scoped MCP endpoint, writing the events onto the browser SSE stream so
+// the frontend executes the tool. It acquires c.mu like the other entry points,
+// so it is safe to call concurrently with the ACP SessionUpdate path.
+func (c *streamingClient) EmitContextualToolCall(toolCallID, toolName string, rawArgs any) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.emit(aguievents.NewToolCallStartEvent(toolCallID, toolName))
+	if rawArgs != nil {
+		c.emit(aguievents.NewToolCallArgsEvent(toolCallID, marshalToolArgsDelta(rawArgs)))
+	}
+	c.emit(aguievents.NewToolCallEndEvent(toolCallID))
+}
+
 // RequestPermission auto-accepts tool calls by selecting the first
 // allow-flavoured option the agent offers. The gateway curates which tools
 // an agent can invoke through two pre-approved channels:

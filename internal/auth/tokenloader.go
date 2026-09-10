@@ -63,8 +63,18 @@ func TokenProviderWithTime(path string, interval time.Duration, logger *zap.Logg
 		return nil, fmt.Errorf("failed to get token from file: %w", err)
 	}
 
+	// currentToken is the last successfully loaded token, held so it can be
+	// returned as a fallback if a later reload fails. The returned closure is
+	// invoked by the auth RoundTripper on every HTTP request and may run
+	// concurrently, so access is guarded by mu. A mutex (rather than an
+	// atomic.Pointer/atomic.Value) keeps this hot path allocation-free.
+	var mu sync.Mutex
+
 	return func() string {
 		newToken, err := loader()
+
+		mu.Lock()
+		defer mu.Unlock()
 		if err != nil {
 			logger.Warn("Token reload failed", zap.Error(err))
 			return currentToken

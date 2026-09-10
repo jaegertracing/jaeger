@@ -19,6 +19,7 @@ const (
 	priorityServiceTemplate      = "priority-service-template"
 	priorityDependenciesTemplate = "priority-dependencies-template"
 	prioritySamplingTemplate     = "priority-sampling-template"
+	spanTotalFieldsLimit         = "span-total-fields-limit"
 )
 
 // Config holds configuration for index cleaner binary.
@@ -36,6 +37,7 @@ func (*Config) AddFlags(flags *flag.FlagSet) {
 	flags.Int(priorityServiceTemplate, 0, "Priority of jaeger-service index template (ESv8 only)")
 	flags.Int(priorityDependenciesTemplate, 0, "Priority of jaeger-dependencies index template (ESv8 only)")
 	flags.Int(prioritySamplingTemplate, 0, "Priority of jaeger-sampling index template (ESv8 only)")
+	flags.Int64(spanTotalFieldsLimit, 0, "Sets index.mapping.total_fields.limit on the jaeger-span index template. If unset, no limit is set and Elasticsearch's own default applies")
 }
 
 // InitFromViper initializes config from viper.Viper.
@@ -55,4 +57,12 @@ func (c *Config) InitFromViper(v *viper.Viper) {
 	c.Indices.Services.Priority = v.GetInt64(priorityServiceTemplate)
 	c.Indices.Dependencies.Priority = v.GetInt64(priorityDependenciesTemplate)
 	c.Indices.Sampling.Priority = v.GetInt64(prioritySamplingTemplate)
+
+	if v.IsSet(spanTotalFieldsLimit) {
+		c.Indices.Spans.TotalFieldsLimit = new(v.GetInt64(spanTotalFieldsLimit))
+	}
+
+	// Config.IndexPrefix supersedes Indices.IndexPrefix: the client renders the
+	// templates from Indices, so reconcile the prefix onto it here.
+	c.Indices.IndexPrefix = cfg.IndexPrefix(c.Config.IndexPrefix)
 }

@@ -52,10 +52,20 @@ wget -O "$UI_TMPFILE" https://raw.githubusercontent.com/jaegertracing/jaeger-ui/
 
 issue_body=$(python3 scripts/release/formatter.py "${user_version}" "${UI_TMPFILE}" "${DOCS_TEMPLATE}")
 
+# The checklist templates reference the release tracking issue via the
+# __RELEASE_ISSUE__ token so the prepare-release commands can be linked
+# back to this issue. Its number is only known after the issue is created,
+# so create the issue first, then edit the body to fill in the number.
 if $dry_run; then
-  echo "${issue_body}"
+  echo "${issue_body//__RELEASE_ISSUE__/<this issue number>}"
 else
-  gh issue create -R jaegertracing/jaeger --title "Prepare Jaeger Release ${new_version}" --body "$issue_body"
+  issue_url=$(gh issue create -R jaegertracing/jaeger --title "Prepare Jaeger Release ${new_version}" --body "$issue_body")
+  echo "Created issue: ${issue_url}"
+  issue_number="${issue_url##*/}"
+  if [[ "$issue_number" =~ ^[0-9]+$ ]] && [[ "$issue_body" == *"__RELEASE_ISSUE__"* ]]; then
+    gh issue edit "$issue_number" -R jaegertracing/jaeger --body "${issue_body//__RELEASE_ISSUE__/$issue_number}"
+    echo "Linked prepare-release commands to issue #${issue_number}"
+  fi
 fi
 
 rm "${DOCS_TEMPLATE}" "${UI_TMPFILE}"

@@ -118,6 +118,9 @@ func (t *Tenant) storeTraces(tracesById map[pcommon.TraceID]ptrace.ResourceSpans
 	}
 }
 
+// findTraceAndIds returns references to the traces the store holds, not copies,
+// so that FindTraceIDs pays nothing for trace data it discards. Anything that
+// hands the traces to a reader must pass them through cloneTrace first.
 func (t *Tenant) findTraceAndIds(query tracestore.TraceQueryParams) ([]traceAndId, error) {
 	if query.SearchDepth <= 0 || query.SearchDepth > t.config.MaxTraces {
 		return nil, errInvalidSearchDepth
@@ -144,6 +147,8 @@ func (t *Tenant) findTraceAndIds(query tracestore.TraceQueryParams) ([]traceAndI
 	return traceAndIds, nil
 }
 
+// getTraces returns references to the traces the store holds, not copies; see
+// findTraceAndIds. Callers must clone before handing them to a reader.
 func (t *Tenant) getTraces(traceIds ...tracestore.GetTraceParams) []ptrace.Traces {
 	t.mu.RLock()
 	defer t.mu.RUnlock()
@@ -262,10 +267,14 @@ func validSpan(resourceAttributes pcommon.Map, scope pcommon.InstrumentationScop
 		if !valid {
 			return false
 		}
+		// error=true matches only Error spans; error=false is its complement — every
+		// span that is not an error, i.e. Ok *and* the default Unset status. Requiring
+		// Ok here would drop Unset spans, which are the common case, so error=false
+		// would return almost nothing.
 		if errorVal && span.Status().Code() != ptrace.StatusCodeError {
 			return false
 		}
-		if !errorVal && span.Status().Code() != ptrace.StatusCodeOk {
+		if !errorVal && span.Status().Code() == ptrace.StatusCodeError {
 			return false
 		}
 	}

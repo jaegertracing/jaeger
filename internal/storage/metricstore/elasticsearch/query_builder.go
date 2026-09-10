@@ -9,11 +9,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/olivere/elastic/v7"
-
 	"github.com/jaegertracing/jaeger-idl/model/v1"
-	es "github.com/jaegertracing/jaeger/internal/storage/elasticsearch"
 	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/config"
+	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/esclient"
 	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/indices"
 	esquery "github.com/jaegertracing/jaeger/internal/storage/elasticsearch/query"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/api/metricstore"
@@ -32,34 +30,34 @@ const (
 // QueryBuilder is responsible for constructing Elasticsearch queries (bool and aggregation)
 // based on provided parameters and executing them to retrieve raw search results.
 type QueryBuilder struct {
-	client       es.Client
+	searcher     esclient.Searcher
 	cfg          config.Configuration
 	spanRotation indices.Rotation
 }
 
 // NewQueryBuilder creates a new QueryBuilder instance.
-func NewQueryBuilder(client es.Client, cfg config.Configuration, spanRotation indices.Rotation) *QueryBuilder {
+func NewQueryBuilder(searcher esclient.Searcher, cfg config.Configuration, spanRotation indices.Rotation) *QueryBuilder {
 	return &QueryBuilder{
-		client:       client,
+		searcher:     searcher,
 		cfg:          cfg,
 		spanRotation: spanRotation,
 	}
 }
 
-func (q *QueryBuilder) BuildErrorBoolQuery(params metricstore.BaseQueryParameters, timeRange TimeRange) elastic.BoolQuery {
-	errorQuery := elastic.NewTermQuery("tag.error", true)
+func (q *QueryBuilder) BuildErrorBoolQuery(params metricstore.BaseQueryParameters, timeRange TimeRange) *esquery.BoolQuery {
+	errorQuery := esquery.NewTermQuery("tag.error", true)
 	return q.BuildBoolQuery(params, timeRange, errorQuery)
 }
 
 // BuildBoolQuery constructs the base bool query for filtering metrics data.
-func (q *QueryBuilder) BuildBoolQuery(params metricstore.BaseQueryParameters, timeRange TimeRange, termsQueries ...elastic.Query) elastic.BoolQuery {
-	boolQuery := elastic.NewBoolQuery()
+func (q *QueryBuilder) BuildBoolQuery(params metricstore.BaseQueryParameters, timeRange TimeRange, termsQueries ...esquery.Query) *esquery.BoolQuery {
+	boolQuery := esquery.NewBoolQuery()
 
-	serviceNameQuery := elastic.NewTermsQuery("process.serviceName", buildInterfaceSlice(params.ServiceNames)...)
+	serviceNameQuery := esquery.NewTermsQuery("process.serviceName", buildInterfaceSlice(params.ServiceNames)...)
 	boolQuery.Filter(serviceNameQuery)
 
 	spanKindField := strings.ReplaceAll(model.SpanKindKey, ".", q.cfg.Tags.DotReplacement)
-	spanKindQuery := elastic.NewTermsQuery("tag."+spanKindField, buildInterfaceSlice(normalizeSpanKinds(params.SpanKinds))...)
+	spanKindQuery := esquery.NewTermsQuery("tag."+spanKindField, buildInterfaceSlice(normalizeSpanKinds(params.SpanKinds))...)
 	boolQuery.Filter(spanKindQuery)
 
 	// Add additional terms queries if provided
@@ -73,28 +71,28 @@ func (q *QueryBuilder) BuildBoolQuery(params metricstore.BaseQueryParameters, ti
 		Format("epoch_millis")
 	boolQuery.Filter(rangeQuery)
 
-	return *boolQuery
+	return boolQuery
 }
 
 // BuildLatenciesAggQuery constructs the aggregation query for latency metrics.
-func (q *QueryBuilder) BuildLatenciesAggQuery(params *metricstore.LatenciesQueryParameters, timeRange TimeRange) elastic.Aggregation {
-	percentilesAgg := elastic.NewPercentilesAggregation().
+func (q *QueryBuilder) BuildLatenciesAggQuery(params *metricstore.LatenciesQueryParameters, timeRange TimeRange) esquery.Aggregation {
+	percentilesAgg := esquery.NewPercentilesAggregation().
 		Field("duration").
 		Percentiles(params.Quantile * 100)
 	return q.buildTimeSeriesAggQuery(params.BaseQueryParameters, timeRange, percentilesAggName, percentilesAgg)
 }
 
 // BuildCallRateAggQuery constructs the aggregation query for call rate metrics.
-func (q *QueryBuilder) BuildCallRateAggQuery(params metricstore.BaseQueryParameters, timeRange TimeRange) elastic.Aggregation {
-	cumulativeSumAgg := elastic.NewCumulativeSumAggregation().BucketsPath("_count")
+func (q *QueryBuilder) BuildCallRateAggQuery(params metricstore.BaseQueryParameters, timeRange TimeRange) esquery.Aggregation {
+	cumulativeSumAgg := esquery.NewCumulativeSumAggregation().BucketsPath("_count")
 	return q.buildTimeSeriesAggQuery(params, timeRange, culmuAggName, cumulativeSumAgg)
 }
 
 // buildTimeSeriesAggQuery constructs a time series aggregation with a sub-aggregation.
-func (*QueryBuilder) buildTimeSeriesAggQuery(params metricstore.BaseQueryParameters, timeRange TimeRange, subAggName string, subAgg elastic.Aggregation) elastic.Aggregation {
+func (*QueryBuilder) buildTimeSeriesAggQuery(params metricstore.BaseQueryParameters, timeRange TimeRange, subAggName string, subAgg esquery.Aggregation) esquery.Aggregation {
 	fixedIntervalString := strconv.FormatInt(params.Step.Milliseconds(), 10) + "ms"
 
-	dateHistAgg := elastic.NewDateHistogramAggregation().
+	dateHistAgg := esquery.NewDateHistogramAggregation().
 		Field("startTimeMillis").
 		FixedInterval(fixedIntervalString).
 		MinDocCount(0).
@@ -102,8 +100,7 @@ func (*QueryBuilder) buildTimeSeriesAggQuery(params metricstore.BaseQueryParamet
 		SubAggregation(subAggName, subAgg)
 
 	if params.GroupByOperation {
-		return elastic.NewTermsAggregation().
-			Field("operationName").
+		return esquery.NewTermsAggregation("operationName").
 			Size(10).
 			SubAggregation(dateHistAggName, dateHistAgg)
 	}
@@ -111,18 +108,18 @@ func (*QueryBuilder) buildTimeSeriesAggQuery(params metricstore.BaseQueryParamet
 }
 
 // Execute runs the Elasticsearch search with the provided bool and aggregation queries.
-func (q *QueryBuilder) Execute(ctx context.Context, boolQuery elastic.BoolQuery, aggQuery elastic.Aggregation, timeRange TimeRange) (*elastic.SearchResult, error) {
+func (q *QueryBuilder) Execute(ctx context.Context, boolQuery *esquery.BoolQuery, aggQuery esquery.Aggregation, timeRange TimeRange) (*esclient.SearchResponse, error) {
 	idxList := q.spanRotation.ReadTargets(
 		time.UnixMilli(timeRange.extendedStartTimeMillis).UTC(),
 		time.UnixMilli(timeRange.endTimeMillis).UTC(),
 	)
 
-	return q.client.Search(idxList...).
-		IgnoreUnavailable(true).
-		Query(&boolQuery).
-		Size(0). // Set Size to 0 to return only aggregation results, excluding individual search hits
-		Aggregation(aggName, aggQuery).
-		Do(ctx)
+	// Size 0 returns only aggregation results, excluding individual search hits.
+	return q.searcher.Search(ctx, idxList, esclient.SearchRequest{
+		Size:         0,
+		Query:        boolQuery,
+		Aggregations: map[string]esquery.Aggregation{aggName: aggQuery},
+	})
 }
 
 // normalizeSpanKinds normalizes a slice of span kinds.
@@ -134,7 +131,7 @@ func normalizeSpanKinds(spanKinds []string) []string {
 	return normalized
 }
 
-// buildInterfaceSlice converts []string to []interface{} for elastic terms query.
+// buildInterfaceSlice converts []string to []any for a terms query.
 func buildInterfaceSlice(s []string) []any {
 	ifaceSlice := make([]any, len(s))
 	for i, v := range s {

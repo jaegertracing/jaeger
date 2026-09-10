@@ -9,12 +9,12 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
-	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/client"
+	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/esclient"
 )
 
 func TestByDate(t *testing.T) {
 	beforeDateFilter := time.Date(2021, 10, 10, 12, 0, 0, 0, time.Local)
-	expectedIndices := []client.Index{
+	expectedIndices := []esclient.Index{
 		{
 			Index:        "jaeger-span-0006",
 			CreationTime: time.Date(2021, 7, 7, 7, 10, 10, 10, time.Local),
@@ -34,7 +34,7 @@ func TestByDate(t *testing.T) {
 			},
 		},
 	}
-	indices := []client.Index{
+	indices := []esclient.Index{
 		{
 			Index:        "jaeger-span-0006",
 			CreationTime: time.Date(2021, 7, 7, 7, 10, 10, 10, time.Local),

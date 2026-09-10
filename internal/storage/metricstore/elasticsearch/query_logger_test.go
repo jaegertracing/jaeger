@@ -9,7 +9,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/olivere/elastic/v7"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/otel/codes"
@@ -18,6 +17,7 @@ import (
 	"go.uber.org/zap"
 	"go.uber.org/zap/zaptest"
 
+	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/esclient"
 	"github.com/jaegertracing/jaeger/internal/telemetry/otelsemconv"
 )
 
@@ -74,7 +74,7 @@ func TestLogAndTraceResult(t *testing.T) {
 		tc := newTestContext(t)
 		_, span := tc.tracer.Start(context.Background(), "test_span")
 
-		result := &elastic.SearchResult{TookInMillis: 10, Hits: &elastic.SearchHits{TotalHits: &elastic.TotalHits{Value: 5, Relation: "eq"}}}
+		result := &esclient.SearchResponse{Hits: esclient.HitsResult{Total: esclient.TotalHits{Value: 5}}}
 		tc.ql.LogAndTraceResult(span, result)
 
 		span.End()

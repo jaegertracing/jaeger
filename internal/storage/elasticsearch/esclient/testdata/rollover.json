@@ -1,0 +1,9 @@
+{
+  "method": "POST",
+  "path": "/jaeger-span-write/_rollover/",
+  "body": {
+    "conditions": {
+      "max_age": "2d"
+    }
+  }
+}

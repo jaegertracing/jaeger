@@ -6,6 +6,7 @@ services:
     image: docker.elastic.co/elasticsearch/elasticsearch:8.19.0@sha256:e1e66bfabae0fd03a0a36651a9bb198e7f061e0c99f457a6203b116e053e9cdb
     environment:
       - discovery.type=single-node
+      - cluster.routing.allocation.disk.threshold_enabled=false
       - http.host=0.0.0.0
       - transport.host=127.0.0.1
       - xpack.security.enabled=false  # Disable security features

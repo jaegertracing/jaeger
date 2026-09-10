@@ -13,10 +13,10 @@ import (
 	"strings"
 	"time"
 
-	"github.com/olivere/elastic/v7"
 	"go.uber.org/zap"
 
-	es "github.com/jaegertracing/jaeger/internal/storage/elasticsearch"
+	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/esclient"
+	esquery "github.com/jaegertracing/jaeger/internal/storage/elasticsearch/query"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/elasticsearch/tracestore/core/dbmodel"
 )
 
@@ -70,12 +70,13 @@ func (s *SpanReader) FindTraceSummaries(
 		traceQuery.StartTimeMax.Add(s.maxTraceDuration),
 	)
 
-	searchResult, err := s.client().Search(jaegerIndices...).
-		Size(0).
-		Aggregation(aggName, aggregation).
-		IgnoreUnavailable(true).
-		Query(boolQuery).
-		Do(ctx)
+	searchResult, err := s.searcher.Search(ctx, jaegerIndices, esclient.SearchRequest{
+		Size:  0,
+		Query: boolQuery,
+		Aggregations: map[string]esquery.Aggregation{
+			aggName: aggregation,
+		},
+	})
 	if err != nil {
 		if isScriptingDisabledError(err) {
 			// The max_end aggregation needs Painless scripting. When it is disabled,
@@ -83,7 +84,6 @@ func (s *SpanReader) FindTraceSummaries(
 			// summary computation instead of failing the request.
 			return nil, fmt.Errorf("native trace summaries require Painless scripting enabled on the cluster: %w", errors.ErrUnsupported)
 		}
-		err = es.DetailedError(err)
 		s.logger.Info("es search for trace summaries failed", zap.Any("traceQuery", traceQuery), zap.Error(err))
 		return nil, fmt.Errorf("search for trace summaries failed: %w", err)
 	}
@@ -93,24 +93,37 @@ func (s *SpanReader) FindTraceSummaries(
 		return nil, fmt.Errorf("could not find aggregation %q", aggName)
 	}
 	// Buckets arrive most-recent-first, ordered by the aggregation's max_start sort.
-	return parseTraceSummaries(buckets)
+	return parseTraceSummaries(buckets.Buckets)
 }
 
 // isScriptingDisabledError reports whether an Elasticsearch/OpenSearch error was
 // caused by inline (Painless) scripting being disabled on the cluster, which the
 // max_end aggregation depends on. The cluster surfaces this as an
-// illegal_argument_exception whose reason mentions scripts being disabled.
+// illegal_argument_exception whose reason mentions scripts being disabled; the
+// reason is carried in the raw response body of the client's ResponseError.
 func isScriptingDisabledError(err error) bool {
-	var esErr *elastic.Error
-	if !errors.As(err, &esErr) || esErr.Details == nil {
+	var respErr esclient.ResponseError
+	if !errors.As(err, &respErr) || len(respErr.Body) == 0 {
 		return false
 	}
-	causes := append([]*elastic.ErrorDetails{esErr.Details}, esErr.Details.RootCause...)
-	for _, c := range causes {
-		if c == nil {
-			continue
-		}
-		reason := strings.ToLower(c.Reason)
+	var body struct {
+		Error struct {
+			Reason    string `json:"reason"`
+			RootCause []struct {
+				Reason string `json:"reason"`
+			} `json:"root_cause"`
+		} `json:"error"`
+	}
+	if json.Unmarshal(respErr.Body, &body) != nil {
+		return false
+	}
+	reasons := make([]string, 0, len(body.Error.RootCause)+1)
+	reasons = append(reasons, body.Error.Reason)
+	for _, c := range body.Error.RootCause {
+		reasons = append(reasons, c.Reason)
+	}
+	for _, reason := range reasons {
+		reason = strings.ToLower(reason)
 		if strings.Contains(reason, "script") &&
 			(strings.Contains(reason, "disabled") || strings.Contains(reason, "cannot execute")) {
 			return true
@@ -121,7 +134,7 @@ func isScriptingDisabledError(err error) bool {
 
 // buildTraceSummariesByIDsQuery selects every span belonging to the given traces
 // within a padded time window, so the summary aggregation runs over full traces.
-func (s *SpanReader) buildTraceSummariesByIDsQuery(traceIDs []dbmodel.TraceID, startMin, startMax time.Time) elastic.Query {
+func (s *SpanReader) buildTraceSummariesByIDsQuery(traceIDs []dbmodel.TraceID, startMin, startMax time.Time) esquery.Query {
 	ids := make([]any, len(traceIDs))
 	for i, id := range traceIDs {
 		ids[i] = string(id)
@@ -131,109 +144,93 @@ func (s *SpanReader) buildTraceSummariesByIDsQuery(traceIDs []dbmodel.TraceID, s
 	// ReadTargets above (otherwise spans in adjacent indices would be filtered in but
 	// never searched, yielding partial summaries).
 	startTimeQuery := s.buildStartTimeQuery(startMin.Add(-s.maxTraceDuration), startMax.Add(s.maxTraceDuration))
-	return elastic.NewBoolQuery().
-		Must(elastic.NewTermsQuery(traceIDField, ids...)).
+	return esquery.NewBoolQuery().
+		Must(esquery.NewTermsQuery(traceIDField, ids...)).
 		Must(startTimeQuery)
 }
 
-func (s *SpanReader) buildTraceSummariesAggregation(numOfTraces int) elastic.Aggregation {
+func (s *SpanReader) buildTraceSummariesAggregation(numOfTraces int) esquery.Aggregation {
 	// "error"="true" is the canonical boolean error tag the v2 ES writer emits for
 	// spans with OTEL StatusCode=ERROR (see to_dbmodel.go).
 	errorFilter := s.buildTagQuery("error", "true")
 
-	services := elastic.NewTermsAggregation().
-		Field(serviceNameField).
+	services := esquery.NewTermsAggregation(serviceNameField).
 		Size(maxServicesPerTrace).
-		SubAggregation("service_errors", elastic.NewFilterAggregation().Filter(errorFilter))
+		SubAggregation("service_errors", esquery.NewFilterAggregation(errorFilter))
 
 	// The root span is the one without a parent. Since #8859 the write path stores
 	// parentSpanID only for non-root spans, so an existence filter selects the root
 	// directly in Elasticsearch and the nested top_hits returns the earliest root's
 	// service and operation. Spans written before #8859 carry no parentSpanID and
 	// fall back to the earliest span of the trace.
-	rootSpan := elastic.NewFilterAggregation().
-		Filter(elastic.NewBoolQuery().MustNot(elastic.NewExistsQuery(parentSpanIDField))).
-		SubAggregation("root_hit", elastic.NewTopHitsAggregation().
-			Size(1).
-			Sort(startTimeField, true). // earliest root first
-			FetchSourceContext(elastic.NewFetchSourceContext(true).
-				Include(serviceNameField, operationNameField)))
+	rootSpan := esquery.NewFilterAggregation(
+		esquery.NewBoolQuery().MustNot(esquery.NewExistsQuery(parentSpanIDField)),
+	).SubAggregation("root_hit", esquery.NewTopHitsAggregation().
+		Size(1).
+		Sort(startTimeField, esquery.Ascending). // earliest root first
+		SourceIncludes(serviceNameField, operationNameField))
 
-	return elastic.NewTermsAggregation().
-		Field(traceIDField).
+	return esquery.NewTermsAggregation(traceIDField).
 		Size(numOfTraces).
-		Order("max_start", false). // most recent traces first
-		SubAggregation("min_start", elastic.NewMinAggregation().Field(startTimeField)).
-		SubAggregation("max_start", elastic.NewMaxAggregation().Field(startTimeField)).
+		Order("max_start", esquery.Descending). // most recent traces first
+		SubAggregation("min_start", esquery.NewMinAggregation(startTimeField)).
+		SubAggregation("max_start", esquery.NewMaxAggregation(startTimeField)).
 		// max_end is derived by script: ES persists no end-time field (end = start + duration).
-		SubAggregation("max_end", elastic.NewMaxAggregation().
-			Script(elastic.NewScript("doc['"+startTimeField+"'].value + doc['"+durationField+"'].value"))).
-		SubAggregation("error_count", elastic.NewFilterAggregation().Filter(errorFilter)).
+		SubAggregation("max_end", esquery.NewScriptedMaxAggregation(
+			"doc['"+startTimeField+"'].value + doc['"+durationField+"'].value",
+		)).
+		SubAggregation("error_count", esquery.NewFilterAggregation(errorFilter)).
 		SubAggregation("services", services).
 		SubAggregation("root_span", rootSpan)
 }
 
-func parseTraceSummaries(buckets *elastic.AggregationBucketKeyItems) ([]dbmodel.TraceSummary, error) {
-	summaries := make([]dbmodel.TraceSummary, 0, len(buckets.Buckets))
-	for _, bucket := range buckets.Buckets {
-		traceID, ok := bucket.Key.(string)
-		if !ok {
-			return nil, errors.New("non-string trace ID key in summary aggregation")
-		}
-
+func parseTraceSummaries(buckets []esclient.AggregationBucket) ([]dbmodel.TraceSummary, error) {
+	summaries := make([]dbmodel.TraceSummary, 0, len(buckets))
+	for _, bucket := range buckets {
 		summary := dbmodel.TraceSummary{
-			TraceID:   dbmodel.TraceID(traceID),
-			SpanCount: int(bucket.DocCount),
+			TraceID:   dbmodel.TraceID(bucket.Key),
+			SpanCount: bucket.DocCount,
 		}
-		if minStart, ok := bucket.Min("min_start"); ok && minStart.Value != nil {
-			summary.MinStartTime = uint64(*minStart.Value)
+		if minStart, ok := bucket.Metric("min_start"); ok && minStart != nil {
+			summary.MinStartTime = uint64(*minStart)
 		}
-		if maxEnd, ok := bucket.Max("max_end"); ok && maxEnd.Value != nil {
-			summary.MaxEndTime = uint64(*maxEnd.Value)
+		if maxEnd, ok := bucket.Metric("max_end"); ok && maxEnd != nil {
+			summary.MaxEndTime = uint64(*maxEnd)
 		}
 		if errorCount, ok := bucket.Filter("error_count"); ok {
-			summary.ErrorSpanCount = int(errorCount.DocCount)
+			summary.ErrorSpanCount = errorCount.DocCount
 		}
-		services, err := parseServiceSummaries(bucket)
-		if err != nil {
-			return nil, fmt.Errorf("trace %s: %w", traceID, err)
-		}
-		summary.Services = services
+		summary.Services = parseServiceSummaries(bucket)
 		rootService, rootOperation, err := parseRootSpan(bucket)
 		if err != nil {
-			return nil, fmt.Errorf("trace %s: %w", traceID, err)
+			return nil, fmt.Errorf("trace %s: %w", bucket.Key, err)
 		}
 		summary.RootServiceName, summary.RootOperationName = rootService, rootOperation
-
 		summaries = append(summaries, summary)
 	}
 	return summaries, nil
 }
 
-func parseServiceSummaries(bucket *elastic.AggregationBucketKeyItem) ([]dbmodel.ServiceSummary, error) {
+func parseServiceSummaries(bucket esclient.AggregationBucket) []dbmodel.ServiceSummary {
 	servicesAgg, ok := bucket.Terms("services")
 	if !ok {
-		return nil, nil
+		return nil
 	}
 	services := make([]dbmodel.ServiceSummary, 0, len(servicesAgg.Buckets))
 	for _, serviceBucket := range servicesAgg.Buckets {
-		name, ok := serviceBucket.Key.(string)
-		if !ok {
-			return nil, errors.New("non-string service name in summary aggregation")
-		}
 		svc := dbmodel.ServiceSummary{
-			ServiceName: name,
-			SpanCount:   int(serviceBucket.DocCount),
+			ServiceName: serviceBucket.Key,
+			SpanCount:   serviceBucket.DocCount,
 		}
 		if errs, ok := serviceBucket.Filter("service_errors"); ok {
-			svc.ErrorSpanCount = int(errs.DocCount)
+			svc.ErrorSpanCount = errs.DocCount
 		}
 		services = append(services, svc)
 	}
 	slices.SortFunc(services, func(a, b dbmodel.ServiceSummary) int {
 		return cmp.Compare(a.ServiceName, b.ServiceName)
 	})
-	return services, nil
+	return services
 }
 
 // rootSpanSource is the projection of the root span's _source.
@@ -250,21 +247,22 @@ type rootSpanSource struct {
 // Empty values with a nil error are returned when the trace has no parentless span
 // (a valid outcome); a malformed top-hit _source is surfaced as an error rather
 // than dropped.
-func parseRootSpan(bucket *elastic.AggregationBucketKeyItem) (serviceName, operationName string, err error) {
+func parseRootSpan(bucket esclient.AggregationBucket) (serviceName, operationName string, err error) {
 	rootSpan, ok := bucket.Filter("root_span")
 	if !ok {
 		return "", "", nil
 	}
 	topHits, ok := rootSpan.TopHits("root_hit")
-	if !ok || topHits.Hits == nil || len(topHits.Hits.Hits) == 0 {
+	if !ok || len(topHits.Hits) == 0 {
 		return "", "", nil
 	}
-	if topHits.Hits.Hits[0].Source == nil {
+	source := topHits.Hits[0].Source
+	if len(source) == 0 {
 		return "", "", errors.New("root span top-hit missing _source")
 	}
-	var source rootSpanSource
-	if err := json.Unmarshal(topHits.Hits.Hits[0].Source, &source); err != nil {
+	var parsed rootSpanSource
+	if err := json.Unmarshal(source, &parsed); err != nil {
 		return "", "", fmt.Errorf("failed to decode root span source: %w", err)
 	}
-	return source.Process.ServiceName, source.OperationName, nil
+	return parsed.Process.ServiceName, parsed.OperationName, nil
 }

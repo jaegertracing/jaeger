@@ -10,7 +10,7 @@ import (
 	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger/cmd/es-rollover/app"
-	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/client"
+	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/esclient"
 	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/filter"
 )
 
@@ -19,7 +19,7 @@ var timeNow func() time.Time = time.Now
 // Action holds the configuration and clients for lookback action
 type Action struct {
 	Config
-	IndicesClient client.IndexAPI
+	IndicesClient esclient.IndexAPI
 	Logger        *zap.Logger
 }
 
@@ -51,11 +51,11 @@ func (a *Action) lookback(ctx context.Context, indexSet app.IndexOption) error {
 		return nil
 	}
 
-	aliases := make([]client.Alias, 0, len(finalIndices))
+	aliases := make([]esclient.Alias, 0, len(finalIndices))
 	a.Logger.Info("About to remove indices", zap.String("readAliasName", readAliasName), zap.Int("indicesCount", len(finalIndices)))
 
 	for _, index := range finalIndices {
-		aliases = append(aliases, client.Alias{
+		aliases = append(aliases, esclient.Alias{
 			Index: index.Index,
 			Name:  readAliasName,
 		})

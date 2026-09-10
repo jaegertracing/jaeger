@@ -1,0 +1,58 @@
+{
+  "bool": {
+    "should": [
+      {
+        "term": {
+          "tag.http@method": "GET"
+        }
+      },
+      {
+        "term": {
+          "process.tag.http@method": "GET"
+        }
+      },
+      {
+        "nested": {
+          "path": "tags",
+          "query": {
+            "bool": {
+              "must": [
+                {
+                  "term": {
+                    "tags.key": "http.method"
+                  }
+                },
+                {
+                  "term": {
+                    "tags.value": "GET"
+                  }
+                }
+              ]
+            }
+          }
+        }
+      },
+      {
+        "nested": {
+          "path": "process.tags",
+          "query": {
+            "bool": {
+              "must": [
+                {
+                  "term": {
+                    "process.tags.key": "http.method"
+                  }
+                },
+                {
+                  "term": {
+                    "process.tags.value": "GET"
+                  }
+                }
+              ]
+            }
+          }
+        }
+      }
+    ]
+  }
+}

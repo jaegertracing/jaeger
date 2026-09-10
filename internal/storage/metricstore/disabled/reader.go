@@ -12,7 +12,7 @@ import (
 
 type (
 	// MetricsReader represents a "disabled" metricstore.Reader implementation where
-	// the METRICS_STORAGE_TYPE has not been set.
+	// no metrics backend is configured.
 	MetricsReader struct{}
 
 	// errMetricsQueryDisabledError is the error returned by disabledMetricsQueryService.
@@ -23,7 +23,7 @@ type (
 var ErrDisabled = &errMetricsQueryDisabledError{}
 
 func (*errMetricsQueryDisabledError) Error() string {
-	return "metrics querying is currently disabled"
+	return "trace metrics are currently disabled - no metrics backend configured"
 }
 
 // NewMetricsReader returns a new Disabled MetricsReader.

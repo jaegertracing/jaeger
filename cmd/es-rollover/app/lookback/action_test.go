@@ -14,13 +14,13 @@ import (
 	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger/cmd/es-rollover/app"
-	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/client"
-	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/client/mocks"
+	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/esclient"
+	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/esclient/mocks"
 )
 
 func TestLookBackAction(t *testing.T) {
 	nowTime := time.Date(2021, 10, 12, 10, 10, 10, 10, time.Local)
-	indices := []client.Index{
+	indices := []esclient.Index{
 		{
 			Index: "jaeger-span-archive-0000",
 			Aliases: map[string]bool{
@@ -74,7 +74,7 @@ func TestLookBackAction(t *testing.T) {
 			name: "success",
 			setupCallExpectations: func(indexClient *mocks.IndexAPI) {
 				indexClient.On("GetJaegerIndices", mock.Anything, "").Return(indices, nil)
-				indexClient.On("DeleteAlias", mock.Anything, []client.Alias{
+				indexClient.On("DeleteAlias", mock.Anything, []esclient.Alias{
 					{
 						Index: "jaeger-span-archive-0001",
 						Name:  "jaeger-span-archive-read",
@@ -109,7 +109,7 @@ func TestLookBackAction(t *testing.T) {
 		{
 			name: "empty indices",
 			setupCallExpectations: func(indexClient *mocks.IndexAPI) {
-				indexClient.On("GetJaegerIndices", mock.Anything, "").Return([]client.Index{}, nil)
+				indexClient.On("GetJaegerIndices", mock.Anything, "").Return([]esclient.Index{}, nil)
 			},
 			config: Config{
 				Unit:      "days",

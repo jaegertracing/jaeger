@@ -19,12 +19,17 @@ import (
 	"go.uber.org/zap/zaptest"
 	"go.yaml.in/yaml/v3"
 
+	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerquery/querysvc"
 	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/integration/storagecleaner"
 	"github.com/jaegertracing/jaeger/internal/storage/integration"
 	"github.com/jaegertracing/jaeger/ports"
 )
 
 const otlpPort = 4317
+
+// binaryCoverDirEnvVar names the directory where the spawned jaeger binary should
+// write coverage counters. Deliberately not GOCOVERDIR — see binaryEnv.
+const binaryCoverDirEnvVar = "JAEGER_BINARY_COVERDIR"
 
 // E2EStorageIntegration holds components for e2e mode of Jaeger-v2
 // storage integration test. The intended usage is as follows:
@@ -42,7 +47,7 @@ type E2EStorageIntegration struct {
 	SkipStorageCleaner bool
 	ConfigFile         string
 	BinaryName         string
-	BinaryPath         string // overrides default "./cmd/jaeger/jaeger"; resolved relative to the repo root
+	BinaryPath         string // overrides default "./cmd/jaeger/jaeger-e2e"; resolved relative to the repo root
 
 	MetricsPort     int // overridable, default to 8888
 	HealthCheckPort int // overridable for tests (e.g. Kafka, query) which run two binaries and need different ports
@@ -69,6 +74,46 @@ func (s *E2EStorageIntegration) args(configFile string) []string {
 	return args
 }
 
+// structuredFilterGates enables the RFC 0005 filter, which is alpha and off by default. Only the
+// suites whose searches carry one need it: the filter battery, where the backend evaluates a filter,
+// and the rewrite test, where it does not.
+var structuredFilterGates = []string{querysvc.StructuredFiltersGate.ID()}
+
+// binaryEnv builds the environment for the spawned jaeger binary. The child gets
+// an explicit environment rather than inheriting the test process's, so anything
+// it needs must be listed here.
+//
+// lookupEnv has os.LookupEnv's signature and is a parameter so that tests can
+// exercise this without mutating the test process's own environment. That
+// matters here: these tests run in the same process as the e2e tests, which rely
+// on GOCOVERDIR being set, so a test that unset it would silently disable binary
+// coverage for every test that ran afterwards.
+func (s *E2EStorageIntegration) binaryEnv(lookupEnv func(string) (string, bool)) []string {
+	envVars := []string{"OTEL_TRACES_SAMPLER=always_off"}
+	// A binary built with `go build -cover` writes its coverage counters into
+	// GOCOVERDIR when it exits. That directory cannot simply be inherited: when the
+	// tests themselves run under `go test -coverprofile`, the toolchain sets
+	// GOCOVERDIR in the test process to a temp dir of its own, so an inherited value
+	// would be overwritten and the binary's counters would land somewhere the build
+	// discards. The make target therefore passes the destination as
+	// binaryCoverDirEnvVar and it is mapped onto GOCOVERDIR only for the child.
+	if dir, ok := lookupEnv(binaryCoverDirEnvVar); ok && dir != "" {
+		envVars = append(envVars, "GOCOVERDIR="+dir)
+	}
+	// Order preserved from before this function was extracted: os/exec keeps the
+	// last of duplicate keys, so it decides which wins if a variable appears in
+	// both EnvVarOverrides and PropagateEnvVars.
+	for key, value := range s.EnvVarOverrides {
+		envVars = append(envVars, fmt.Sprintf("%s=%s", key, value))
+	}
+	for _, key := range s.PropagateEnvVars {
+		if value, ok := lookupEnv(key); ok {
+			envVars = append(envVars, fmt.Sprintf("%s=%s", key, value))
+		}
+	}
+	return envVars
+}
+
 // e2eInitialize starts the Jaeger-v2 collector with the provided config file,
 // it also initialize the SpanWriter and SpanReader below.
 // This function should be called before any of the tests start.
@@ -90,19 +135,11 @@ func (s *E2EStorageIntegration) e2eInitialize(t *testing.T, storage string) {
 	require.NoError(t, err)
 	t.Logf("Config file content:\n%s", string(cfgBytes))
 
-	envVars := []string{"OTEL_TRACES_SAMPLER=always_off"}
-	for key, value := range s.EnvVarOverrides {
-		envVars = append(envVars, fmt.Sprintf("%s=%s", key, value))
-	}
-	for _, key := range s.PropagateEnvVars {
-		if value, ok := os.LookupEnv(key); ok {
-			envVars = append(envVars, fmt.Sprintf("%s=%s", key, value))
-		}
-	}
+	envVars := s.binaryEnv(os.LookupEnv)
 
 	binaryPath := s.BinaryPath
 	if binaryPath == "" {
-		binaryPath = "./cmd/jaeger/jaeger"
+		binaryPath = "./cmd/jaeger/jaeger-e2e"
 	}
 	cmd := Binary{
 		Name:            s.BinaryName,
