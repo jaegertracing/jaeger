@@ -33,19 +33,19 @@ def _validate_function_call(tool_name: str, args: Any, tool_call_id: str) -> dic
         )
 
     if args is None:
-        return {}
-
-    if isinstance(args, str):
+        args = {}
+    elif isinstance(args, str):
         args_str = args.strip()
         if not args_str:
-            return {}
-        try:
-            args = json.loads(args_str)
-        except Exception as err:
-            raise ValueError(
-                f"function_call '{tool_name}' has string args that failed JSON decoding: {err} "
-                f"(call_id={tool_call_id})"
-            ) from err
+            args = {}
+        else:
+            try:
+                args = json.loads(args_str)
+            except Exception as err:
+                raise ValueError(
+                    f"function_call '{tool_name}' has string args that failed JSON decoding: {err} "
+                    f"(call_id={tool_call_id})"
+                ) from err
 
     if not isinstance(args, dict):
         raise ValueError(
