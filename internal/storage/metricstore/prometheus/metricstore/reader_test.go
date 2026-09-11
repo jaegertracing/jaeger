@@ -43,6 +43,7 @@ type (
 		wantDescription  string
 		wantLabels       map[string]string
 		wantPromQlQuery  string
+		tags             map[string]string
 	}
 )
 
@@ -140,6 +141,21 @@ func TestGetLatencies(t *testing.T) {
 			},
 			wantPromQlQuery: `histogram_quantile(0.95, sum(rate(duration_bucket{service_name =~ "emailservice", ` +
 				`span_kind =~ "SPAN_KIND_SERVER"}[10m])) by (service_name,le))`,
+		},
+		{
+			name:             "tag filtering should be included in the query",
+			serviceNames:     []string{"emailservice"},
+			spanKinds:        []string{"SPAN_KIND_SERVER"},
+			tags:             map[string]string{"http.method": "GET"},
+			groupByOperation: false,
+			wantName:         "service_latencies",
+			wantDescription:  "0.95th quantile latency, grouped by service",
+			wantLabels: map[string]string{
+				"service_name": "emailservice",
+				"http.method":  "GET",
+			},
+			wantPromQlQuery: `histogram_quantile(0.95, sum(rate(duration_bucket{service_name =~ "emailservice", ` +
+				`span_kind =~ "SPAN_KIND_SERVER", http_method="GET"}[10m])) by (service_name,le))`,
 		},
 		{
 			name:             "group by service and operation should be reflected in name/description and query group-by",
@@ -245,6 +261,23 @@ func TestGetCallRates(t *testing.T) {
 				`span_kind =~ "SPAN_KIND_SERVER"}[10m])) by (service_name)`,
 		},
 		{
+			name:             "tag filtering should be included in the query",
+			serviceNames:     []string{"emailservice"},
+			spanKinds:        []string{"SPAN_KIND_SERVER"},
+			groupByOperation: false,
+			tags: map[string]string{
+				"http.method": "GET",
+			},
+			wantName:        "service_call_rate",
+			wantDescription: "calls/sec, grouped by service",
+			wantLabels: map[string]string{
+				"http.method":  "GET",
+				"service_name": "emailservice",
+			},
+			wantPromQlQuery: `sum(rate(calls{service_name =~ "emailservice", span_kind =~ "SPAN_KIND_SERVER",` +
+				` http_method="GET"}[10m])) by (service_name)`,
+		},
+		{
 			name:             "group by service and operation should be reflected in name/description and query group-by",
 			serviceNames:     []string{"emailservice"},
 			spanKinds:        []string{"SPAN_KIND_SERVER"},
@@ -341,9 +374,25 @@ func TestGetErrorRates(t *testing.T) {
 			wantLabels: map[string]string{
 				"service_name": "emailservice",
 			},
-			wantPromQlQuery: `sum(rate(calls{service_name =~ "emailservice", status_code = "STATUS_CODE_ERROR", ` +
-				`span_kind =~ "SPAN_KIND_SERVER"}[10m])) by (service_name) / ` +
+			wantPromQlQuery: `sum(rate(calls{service_name =~ "emailservice", span_kind =~ "SPAN_KIND_SERVER", status_code = "STATUS_CODE_ERROR"}[10m])) by (service_name) / ` +
 				`sum(rate(calls{service_name =~ "emailservice", span_kind =~ "SPAN_KIND_SERVER"}[10m])) by (service_name)`,
+		},
+		{
+			name:             "tag filtering should be included in the query",
+			serviceNames:     []string{"emailservice"},
+			spanKinds:        []string{"SPAN_KIND_SERVER"},
+			groupByOperation: false,
+			tags: map[string]string{
+				"http.method": "GET",
+			},
+			wantName:        "service_error_rate",
+			wantDescription: "error rate, computed as a fraction of errors/sec over calls/sec, grouped by service",
+			wantLabels: map[string]string{
+				"service_name": "emailservice",
+				"http.method":  "GET",
+			},
+			wantPromQlQuery: `sum(rate(calls{service_name =~ "emailservice", span_kind =~ "SPAN_KIND_SERVER", http_method="GET", status_code = "STATUS_CODE_ERROR"}[10m])) by (service_name) / ` +
+				`sum(rate(calls{service_name =~ "emailservice", span_kind =~ "SPAN_KIND_SERVER", http_method="GET"}[10m])) by (service_name)`,
 		},
 		{
 			name:             "group by service and operation should be reflected in name/description and query group-by",
@@ -356,8 +405,7 @@ func TestGetErrorRates(t *testing.T) {
 				"operation":    "/OrderResult",
 				"service_name": "emailservice",
 			},
-			wantPromQlQuery: `sum(rate(calls{service_name =~ "emailservice", status_code = "STATUS_CODE_ERROR", ` +
-				`span_kind =~ "SPAN_KIND_SERVER"}[10m])) by (service_name,span_name) / ` +
+			wantPromQlQuery: `sum(rate(calls{service_name =~ "emailservice", span_kind =~ "SPAN_KIND_SERVER", status_code = "STATUS_CODE_ERROR"}[10m])) by (service_name,span_name) / ` +
 				`sum(rate(calls{service_name =~ "emailservice", span_kind =~ "SPAN_KIND_SERVER"}[10m])) by (service_name,span_name)`,
 		},
 		{
@@ -370,8 +418,7 @@ func TestGetErrorRates(t *testing.T) {
 			wantLabels: map[string]string{
 				"service_name": "emailservice",
 			},
-			wantPromQlQuery: `sum(rate(calls{service_name =~ "frontend|emailservice", status_code = "STATUS_CODE_ERROR", ` +
-				`span_kind =~ "SPAN_KIND_SERVER|SPAN_KIND_CLIENT"}[10m])) by (service_name) / ` +
+			wantPromQlQuery: `sum(rate(calls{service_name =~ "frontend|emailservice", span_kind =~ "SPAN_KIND_SERVER|SPAN_KIND_CLIENT", status_code = "STATUS_CODE_ERROR"}[10m])) by (service_name) / ` +
 				`sum(rate(calls{service_name =~ "frontend|emailservice", span_kind =~ "SPAN_KIND_SERVER|SPAN_KIND_CLIENT"}[10m])) by (service_name)`,
 		},
 		{
@@ -389,8 +436,7 @@ func TestGetErrorRates(t *testing.T) {
 			wantLabels: map[string]string{
 				"service_name": "emailservice",
 			},
-			wantPromQlQuery: `sum(rate(span_metrics_calls_total{service_name =~ "emailservice", status_code = "STATUS_CODE_ERROR", ` +
-				`span_kind =~ "SPAN_KIND_SERVER"}[10m])) by (service_name) / ` +
+			wantPromQlQuery: `sum(rate(span_metrics_calls_total{service_name =~ "emailservice", span_kind =~ "SPAN_KIND_SERVER", status_code = "STATUS_CODE_ERROR"}[10m])) by (service_name) / ` +
 				`sum(rate(span_metrics_calls_total{service_name =~ "emailservice", span_kind =~ "SPAN_KIND_SERVER"}[10m])) by (service_name)`,
 		},
 		{
@@ -408,8 +454,7 @@ func TestGetErrorRates(t *testing.T) {
 				"operation":    "/OrderResult",
 				"service_name": "emailservice",
 			},
-			wantPromQlQuery: `sum(rate(span_metrics_calls{service_name =~ "emailservice", status_code = "STATUS_CODE_ERROR", ` +
-				`span_kind =~ "SPAN_KIND_SERVER"}[10m])) by (service_name,span_name) / ` +
+			wantPromQlQuery: `sum(rate(span_metrics_calls{service_name =~ "emailservice", span_kind =~ "SPAN_KIND_SERVER", status_code = "STATUS_CODE_ERROR"}[10m])) by (service_name,span_name) / ` +
 				`sum(rate(span_metrics_calls{service_name =~ "emailservice", span_kind =~ "SPAN_KIND_SERVER"}[10m])) by (service_name,span_name)`,
 		},
 		{
@@ -427,8 +472,7 @@ func TestGetErrorRates(t *testing.T) {
 				"operation":    "/OrderResult",
 				"service_name": "emailservice",
 			},
-			wantPromQlQuery: `sum(rate(calls_total{service_name =~ "emailservice", status_code = "STATUS_CODE_ERROR", ` +
-				`span_kind =~ "SPAN_KIND_SERVER"}[10m])) by (service_name,span_name) / ` +
+			wantPromQlQuery: `sum(rate(calls_total{service_name =~ "emailservice", span_kind =~ "SPAN_KIND_SERVER", status_code = "STATUS_CODE_ERROR"}[10m])) by (service_name,span_name) / ` +
 				`sum(rate(calls_total{service_name =~ "emailservice", span_kind =~ "SPAN_KIND_SERVER"}[10m])) by (service_name,span_name)`,
 		},
 	} {
@@ -464,8 +508,7 @@ func TestGetErrorRatesZero(t *testing.T) {
 	defer closer()
 
 	const (
-		queryErrorRate = `sum(rate(calls{service_name =~ "emailservice", status_code = "STATUS_CODE_ERROR", ` +
-			`span_kind =~ "SPAN_KIND_SERVER"}[10m])) by (service_name) / ` +
+		queryErrorRate = `sum(rate(calls{service_name =~ "emailservice", span_kind =~ "SPAN_KIND_SERVER", status_code = "STATUS_CODE_ERROR"}[10m])) by (service_name) / ` +
 			`sum(rate(calls{service_name =~ "emailservice", span_kind =~ "SPAN_KIND_SERVER"}[10m])) by (service_name)`
 		queryCallRate = `sum(rate(calls{service_name =~ "emailservice", ` +
 			`span_kind =~ "SPAN_KIND_SERVER"}[10m])) by (service_name)`
@@ -527,8 +570,7 @@ func TestGetErrorRatesNull(t *testing.T) {
 	defer closer()
 
 	const (
-		queryErrorRate = `sum(rate(calls{service_name =~ "emailservice", status_code = "STATUS_CODE_ERROR", ` +
-			`span_kind =~ "SPAN_KIND_SERVER"}[10m])) by (service_name) / ` +
+		queryErrorRate = `sum(rate(calls{service_name =~ "emailservice", span_kind =~ "SPAN_KIND_SERVER", status_code = "STATUS_CODE_ERROR"}[10m])) by (service_name) / ` +
 			`sum(rate(calls{service_name =~ "emailservice", span_kind =~ "SPAN_KIND_SERVER"}[10m])) by (service_name)`
 		queryCallRate = `sum(rate(calls{service_name =~ "emailservice", ` +
 			`span_kind =~ "SPAN_KIND_SERVER"}[10m])) by (service_name)`
@@ -598,8 +640,7 @@ func TestGetErrorRatesErrors(t *testing.T) {
 			defer closer()
 
 			const (
-				queryErrorRate = `sum(rate(calls{service_name =~ "emailservice", status_code = "STATUS_CODE_ERROR", ` +
-					`span_kind =~ "SPAN_KIND_SERVER"}[10m])) by (service_name) / ` +
+				queryErrorRate = `sum(rate(calls{service_name =~ "emailservice", span_kind =~ "SPAN_KIND_SERVER", status_code = "STATUS_CODE_ERROR"}[10m])) by (service_name) / ` +
 					`sum(rate(calls{service_name =~ "emailservice", span_kind =~ "SPAN_KIND_SERVER"}[10m])) by (service_name)`
 				queryCallRate = `sum(rate(calls{service_name =~ "emailservice", ` +
 					`span_kind =~ "SPAN_KIND_SERVER"}[10m])) by (service_name)`
@@ -916,6 +957,8 @@ func startMockPrometheusServer(t *testing.T, wantPromQlQuery string, wantWarning
 		mockResponsePayloadFile := "testdata/service_datapoint_response.json"
 		if strings.Contains(promQuery, "by (service_name,span_name") {
 			mockResponsePayloadFile = "testdata/service_span_name_datapoint_response.json"
+		} else if strings.Contains(promQuery, "http_method=") {
+			mockResponsePayloadFile = "testdata/service_with_tags_response.json"
 		}
 		sendResponse(t, w, mockResponsePayloadFile)
 	}))
@@ -943,6 +986,7 @@ func buildTestBaseQueryParametersFrom(tc metricsTestCase) metricstore.BaseQueryP
 		Step:             &step,
 		RatePer:          &ratePer,
 		SpanKinds:        tc.spanKinds,
+		Tags:             tc.tags,
 	}
 }
 
