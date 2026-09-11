@@ -21,6 +21,8 @@ import (
 	"github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore"
 )
 
+// TODO test findspans
+
 // fakeReader is a minimal tracestore.Reader that records the query and the context it received
 // and yields a single configured batch (or error).
 type fakeReader struct {

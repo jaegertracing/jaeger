@@ -159,22 +159,10 @@ func parseFindTracesQuery(q url.Values) (*querysvc.TraceQueryParams, error) {
 }
 
 func parseFindSpansQuery(q url.Values) (*querysvc.SpanQueryParams, error) {
-	//serviceName, _ := getQueryParam(q, paramServiceName, paramServiceNameDeprecated)
-	//operationName, _ := getQueryParam(q, paramOperationName, paramOperationNameDeprecated)
-
-	//filter := q.Get(paramFilter)
 	queryParams := &querysvc.SpanQueryParams{
-		SpanQueryParams: tracestore.SpanQueryParams{
-			// Filter: filter,
-		},
+		SpanQueryParams: tracestore.SpanQueryParams{},
 	}
-	//if attrsParam := q.Get(paramAttributes); attrsParam != "" {
-	//	var attrsMap map[string]string
-	//	if err := json.Unmarshal([]byte(attrsParam), &attrsMap); err != nil {
-	//		return nil, fmt.Errorf("malformed parameter %s: %w", paramAttributes, err)
-	//	}
-	//	queryParams.Attributes = jptrace.PlainMapToPcommonMap(attrsMap)
-	//}
+
 	// The filter parameter carries a JSON-encoded expression.
 	if filterParam := q.Get(paramFilter); filterParam != "" {
 		var call expressionproto.Call
@@ -207,44 +195,5 @@ func parseFindSpansQuery(q url.Values) (*querysvc.SpanQueryParams, error) {
 	queryParams.StartTimeMin = timeMinParsed
 	queryParams.StartTimeMax = timeMaxParsed
 
-	//n, searchDepthParam := getQueryParam(q, paramSearchDepth, paramSearchDepthDeprecated)
-	//if n == "" {
-	//	n = q.Get(paramNumTraces)
-	//	searchDepthParam = paramNumTraces
-	//}
-	////if n != "" {
-	////	searchDepth, err := strconv.ParseInt(n, 10, 32)
-	////	if err != nil {
-	////		return nil, fmt.Errorf("malformed parameter %s: %w", searchDepthParam, err)
-	////	}
-	////	if searchDepth < 0 || searchDepth > int64(tracestore.MaxSearchDepth) {
-	////		return nil, fmt.Errorf("malformed parameter %s: search depth must be in [0, %d]", searchDepthParam, tracestore.MaxSearchDepth)
-	////	}
-	////	queryParams.SearchDepth = int(searchDepth)
-	////} else {
-	////	queryParams.SearchDepth = defaultSearchDepth
-	////}
-	//
-	//if d, paramName := getQueryParam(q, paramDurationMin, paramDurationMinDeprecated); d != "" {
-	//	dur, err := time.ParseDuration(d)
-	//	if err != nil {
-	//		return nil, fmt.Errorf("malformed parameter %s: %w", paramName, err)
-	//	}
-	//	queryParams.DurationMin = dur
-	//}
-	//if d, paramName := getQueryParam(q, paramDurationMax, paramDurationMaxDeprecated); d != "" {
-	//	dur, err := time.ParseDuration(d)
-	//	if err != nil {
-	//		return nil, fmt.Errorf("malformed parameter %s: %w", paramName, err)
-	//	}
-	//	queryParams.DurationMax = dur
-	//}
-	//if r, paramName := getQueryParam(q, paramQueryRawTraces, paramQueryRawTracesDeprecated); r != "" {
-	//	rawTraces, err := strconv.ParseBool(r)
-	//	if err != nil {
-	//		return nil, fmt.Errorf("malformed parameter %s: %w", paramName, err)
-	//	}
-	//	queryParams.RawTraces = rawTraces
-	//}
 	return queryParams, nil
 }

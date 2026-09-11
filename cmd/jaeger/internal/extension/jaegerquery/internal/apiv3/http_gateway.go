@@ -170,6 +170,7 @@ func (h *HTTPGateway) returnSpans(spanPages []querysvc.SpanPage, err error, w ht
 	}
 	// TODO: the response should be streamed back to the client
 	// https://github.com/jaegertracing/jaeger/issues/6467
+	// Collapse the span pages into a single page to be easily coerced into a response
 	combinedTrace := ptrace.NewTraces()
 	nextPageToken := ""
 	for _, p := range spanPages {
@@ -235,15 +236,7 @@ func (h *HTTPGateway) findSpans(w http.ResponseWriter, r *http.Request) {
 	}
 
 	findSpansIter := h.QueryService.FindSpans(r.Context(), *queryParams)
-	var result []querysvc.SpanPage
-	for v, err := range findSpansIter {
-		if err != nil {
-			break
-			//return v, err
-		}
-		result = append(result, v)
-	}
-	//traces, err := jiter.FlattenSpansWithErrors(findSpansIter)
+	result, err := jiter.CollectWithErrors(findSpansIter)
 	h.returnSpans(result, err, w)
 }
 
