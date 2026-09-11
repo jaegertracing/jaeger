@@ -45,6 +45,25 @@ func fromPublicQuery(q queryinterceptor.Query) tracestore.TraceQueryParams {
 	}
 }
 
+// TODO toPublicQuery and fromPublicQuery convert at the contract boundary, so the internal query type
+// never crosses it. Only the envelope and the filter survive the round trip, which is all the
+// public Query carries: onQuery hands over a query whose predicate fields are already empty.
+func toPublicSpanQuery(q tracestore.SpanQueryParams) queryinterceptor.Query {
+	return queryinterceptor.Query{
+		Filter:       q.Filter,
+		StartTimeMin: q.StartTimeMin,
+		StartTimeMax: q.StartTimeMax,
+	}
+}
+
+func fromPublicSpanQuery(q queryinterceptor.Query) tracestore.SpanQueryParams {
+	return tracestore.SpanQueryParams{
+		Filter:       q.Filter,
+		StartTimeMin: q.StartTimeMin,
+		StartTimeMax: q.StartTimeMax,
+	}
+}
+
 // onQuery runs every interceptor's OnQuery in order, threading the context each returns into the
 // next. The final context is returned so the caller can pass it to the storage reader and to
 // OnResult, letting an interceptor carry per-query state (a resolved caller identity, say) from
@@ -72,6 +91,9 @@ func (qs QueryService) onQuery(ctx context.Context, query TraceQueryParams) (con
 	// filter reference — Elasticsearch reads the legacy tag search over the event location too, while
 	// the filter's unqualified default is span-or-resource (RFC 0005 §5.1) — and enabling an
 	// interceptor must not move a result set by itself.
+	//
+	// If the query was a legacy query, and the interceptors made no changes to the filter, then allow
+	// start time min/max changes. Why? I don't know.
 	if query.Filter == nil && reflect.DeepEqual(queryPostIntercept.Filter, queryPreIntercept.Filter) {
 		query.StartTimeMin = queryPostIntercept.StartTimeMin
 		query.StartTimeMax = queryPostIntercept.StartTimeMax
@@ -86,6 +108,38 @@ func (qs QueryService) onQuery(ctx context.Context, query TraceQueryParams) (con
 		return ctx, query, err
 	}
 	query.TraceQueryParams = fromPublicQuery(queryPostIntercept)
+	return ctx, query, nil
+}
+
+// TODO replace all this comment
+// onQuery runs every interceptor's OnQuery in order, threading the context each returns into the
+// next. The final context is returned so the caller can pass it to the storage reader and to
+// OnResult, letting an interceptor carry per-query state (a resolved caller identity, say) from
+// the pre-query hook to the return path.
+//
+// The interceptors are shown the query in filter shape whatever shape it arrived in, because gating
+// a search means reading and narrowing its predicates, and an interceptor should not have to find
+// them in two places. A filter one of them leaves behind is not converted back: the query service
+// chooses the outgoing shape from what the reader declared, and a predicate an interceptor added is
+// held to the same capability check as one the caller sent.
+func (qs QueryService) onSpanQuery(ctx context.Context, query SpanQueryParams) (context.Context, SpanQueryParams, error) {
+	queryPreIntercept := toPublicSpanQuery(query.SpanQueryParams)
+	queryPostIntercept := queryPreIntercept
+	var err error
+	for _, interceptor := range qs.options.Interceptors {
+		ctx, queryPostIntercept, err = interceptor.OnQuery(ctx, queryPostIntercept)
+		if err != nil {
+			return ctx, query, err
+		}
+	}
+
+	// Finalized after that comparison, so finalizing's own rewriting cannot read as a change an
+	// interceptor made.
+	queryPostIntercept.Filter, err = finalizeInterceptorFilter(queryPostIntercept.Filter)
+	if err != nil {
+		return ctx, query, err
+	}
+	query.SpanQueryParams = fromPublicSpanQuery(queryPostIntercept)
 	return ctx, query, nil
 }
 
@@ -143,6 +197,48 @@ func (qs QueryService) interceptResults(
 				}
 			}
 			if !yield(traces, nil) {
+				return
+			}
+		}
+	}
+}
+
+// interceptSpanResults hands every batch of seq to the interceptors' OnResult in order, threading the
+// context each returns into the next so that state can accumulate across a multi-batch result.
+// An OnResult error ends the stream rather than yielding later batches, which could leak results
+// the failed sanitize or redaction was meant to withhold.
+//
+// It wraps the batches as storage yielded them, before the query service aggregates and adjusts
+// them, so an interceptor rewrites the traces the reader actually returned.
+func (qs QueryService) interceptSpanResults(
+	ctx context.Context,
+	seq iter.Seq2[tracestore.SpanPage, error],
+) iter.Seq2[SpanPage, error] {
+	if len(qs.options.Interceptors) == 0 {
+		return func(yield func(SpanPage, error) bool) {
+			for spanPage, err := range seq {
+				yield(SpanPage{SpanPage: spanPage}, err)
+			}
+		}
+	}
+	return func(yield func(SpanPage, error) bool) {
+		for spanPage, err := range seq {
+			if err != nil {
+				if !yield(SpanPage{spanPage}, err) {
+					return
+				}
+				continue
+			}
+			spans := []ptrace.Traces{spanPage.Spans}
+			for _, interceptor := range qs.options.Interceptors {
+				ctx, spans, err = interceptor.OnResult(ctx, spans)
+				if err != nil {
+					yield(SpanPage{}, err)
+					return
+				}
+			}
+			spanPage.Spans = spans[0]
+			if !yield(SpanPage{spanPage}, nil) {
 				return
 			}
 		}
