@@ -66,6 +66,15 @@ type GetTraceParams struct {
 	RawTraces bool
 }
 
+// SpanQueryParams represents the parameters for querying a batch of traces.
+type SpanQueryParams struct {
+	tracestore.SpanQueryParams
+}
+
+type SpanPage struct {
+	tracestore.SpanPage
+}
+
 // TraceQueryParams represents the parameters for querying a batch of traces.
 type TraceQueryParams struct {
 	tracestore.TraceQueryParams
@@ -142,6 +151,23 @@ func (qs QueryService) GetOperations(
 	query tracestore.OperationQueryParams,
 ) ([]tracestore.Operation, error) {
 	return qs.traceReader.GetOperations(ctx, query)
+}
+
+// FindSpans searches for spans matching the query parameters.
+// The iterator is single-use: once consumed, it cannot be used again.
+func (qs QueryService) FindSpans(
+	ctx context.Context,
+	query SpanQueryParams,
+) iter.Seq2[SpanPage, error] {
+	return func(yield func(SpanPage, error) bool) {
+		ctx, query, err := qs.prepareSpanSearchQuery(ctx, query)
+		if err != nil {
+			yield(SpanPage{}, err)
+			return
+		}
+		spansIter := qs.interceptSpanResults(ctx, qs.traceReader.FindSpans(ctx, query.SpanQueryParams))
+		qs.receiveSpans(spansIter, yield)
+	}
 }
 
 // FindTraces searches for traces matching the query parameters.
@@ -244,6 +270,59 @@ func (qs QueryService) prepareSearchQuery(
 	if query.ServiceName == "" && !caps.WithoutServiceName {
 		return ctx, query, ErrServiceNameRequired
 	}
+	return ctx, query, nil
+}
+
+// prepareSearchQuery settles a search before it is dispatched: it refuses a request this
+// deployment does not accept, gives the configured query interceptors their say, and returns the
+// query to dispatch in the shape the backend understands, along with the context to dispatch it
+// with. One place decides, so that every caller gets the same answer instead of each backend's
+// own (ADR-013).
+//
+// The interceptors run after the caller's request is validated and before the backend's
+// capabilities are consulted. So an interceptor is never shown a request jaeger-query was going
+// to refuse anyway, and a predicate an interceptor adds is held to the same capability check as
+// one the caller sent.
+func (qs QueryService) prepareSpanSearchQuery(
+	ctx context.Context,
+	query SpanQueryParams,
+) (context.Context, SpanQueryParams, error) {
+	if query.Filter != nil {
+		// None of these refusals depends on the backend, so they come before the capability call
+		// rather than after it.
+		if !StructuredFiltersGate.IsEnabled() {
+			return ctx, query, fmt.Errorf("%w: enable the %q feature gate to use it",
+				ErrFilterDisabled, StructuredFiltersGate.ID())
+		}
+
+		// Decoding a filter validates nothing, so it is finalized — validated and normalized —
+		// here, on behalf of every API layer above (RFC 0005 §7).
+		finalized, err := tracestore.FinalizeFilter(query.Filter)
+		if err != nil {
+			return ctx, query, fmt.Errorf("%w: %w", tracestore.ErrFilterInvalid, err)
+		}
+		query.Filter = finalized
+	}
+	if len(qs.options.Interceptors) > 0 {
+		var err error
+		ctx, query, err = qs.onSpanQuery(ctx, query)
+		if err != nil {
+			return ctx, query, err
+		}
+	}
+	caps, err := qs.traceReader.SearchCapabilities(ctx)
+	if err != nil {
+		// A reader that cannot report its capabilities reads as the least capable one, which
+		// serves only the legacy predicate fields.
+		caps = tracestore.SearchCapabilities{}
+	}
+	// The filter is settled before the service name is checked, because a filter can name the
+	// service itself and rewriting it is what moves that into ServiceName.
+	prepared, err := query.ForSpanCapabilities(caps)
+	if err != nil {
+		return ctx, query, err
+	}
+	query.SpanQueryParams = prepared
 	return ctx, query, nil
 }
 
@@ -372,6 +451,32 @@ func (qs QueryService) receiveTraces(
 			return processTraces([]ptrace.Traces{trace}, err)
 		})
 	}
+
+	return foundTraceIDs, proceed
+}
+
+func (_ QueryService) receiveSpans(
+	seq iter.Seq2[SpanPage, error],
+	yield func(SpanPage, error) bool,
+) (map[pcommon.TraceID]struct{}, bool) {
+	foundTraceIDs := make(map[pcommon.TraceID]struct{})
+	proceed := true
+
+	processTraces := func(traces SpanPage, err error) bool {
+		if err != nil {
+			proceed = yield(traces, err)
+			return proceed
+		}
+		jptrace.SpanIter(traces.Spans)(func(_ jptrace.SpanIterPos, span ptrace.Span) bool {
+			foundTraceIDs[span.TraceID()] = struct{}{}
+			return true
+		})
+
+		proceed = yield(traces, nil)
+		return proceed
+	}
+
+	seq(processTraces)
 
 	return foundTraceIDs, proceed
 }

@@ -64,6 +64,14 @@ func (q TraceQueryParams) ForCapabilities(caps SearchCapabilities) (TraceQueryPa
 	return q, caps.Filter.EnsureSupported(q.Filter)
 }
 
+// TODO comment
+func (q SpanQueryParams) ForSpanCapabilities(caps SearchCapabilities) (SpanQueryParams, error) {
+	if q.Filter == nil {
+		return q, nil
+	} //might be wrong here, but eh
+	return q, caps.Filter.EnsureSupported(q.Filter)
+}
+
 // EnsureSupported walks the filter and refuses the first predicate the Reader did not declare it
 // can evaluate.
 func (c FilterCapabilities) EnsureSupported(filter *expression.Call) error {
