@@ -23,7 +23,7 @@ import (
 // caller's request was fine, and the fault is in the extension this deployment configured.
 var ErrInterceptorFilter = errors.New("query interceptor returned an invalid filter")
 
-// toPublicQuery and fromPublicQuery convert at the contract boundary, so the internal query type
+// toPublicQuery, fromPublicQuery, toPublicSpanQuery and fromPublicSpanQuery convert at the contract boundary, so the internal query type
 // never crosses it. Only the envelope and the filter survive the round trip, which is all the
 // public Query carries: onQuery hands over a query whose predicate fields are already empty.
 func toPublicQuery(q tracestore.TraceQueryParams) queryinterceptor.Query {
@@ -45,9 +45,6 @@ func fromPublicQuery(q queryinterceptor.Query) tracestore.TraceQueryParams {
 	}
 }
 
-// TODO toPublicQuery and fromPublicQuery convert at the contract boundary, so the internal query type
-// never crosses it. Only the envelope and the filter survive the round trip, which is all the
-// public Query carries: onQuery hands over a query whose predicate fields are already empty.
 func toPublicSpanQuery(q tracestore.SpanQueryParams) queryinterceptor.Query {
 	return queryinterceptor.Query{
 		Filter:       q.Filter,
@@ -112,7 +109,7 @@ func (qs QueryService) onQuery(ctx context.Context, query TraceQueryParams) (con
 }
 
 // TODO replace all this comment
-// onQuery runs every interceptor's OnQuery in order, threading the context each returns into the
+// onSpanQuery runs every interceptor's OnQuery in order, threading the context each returns into the
 // next. The final context is returned so the caller can pass it to the storage reader and to
 // OnResult, letting an interceptor carry per-query state (a resolved caller identity, say) from
 // the pre-query hook to the return path.
@@ -132,6 +129,7 @@ func (qs QueryService) onSpanQuery(ctx context.Context, query SpanQueryParams) (
 			return ctx, query, err
 		}
 	}
+	// TODO do we want to carry forward the behavior where if a filter is not provided, the startmin/max can be reset by interceptors?
 
 	// Finalized after that comparison, so finalizing's own rewriting cannot read as a change an
 	// interceptor made.

@@ -66,6 +66,7 @@ type GetTraceParams struct {
 	RawTraces bool
 }
 
+// I'm not sure these structs buy enough. Maybe rm them. It seems like the tracestore types already leak into the http gateway anyway
 // SpanQueryParams represents the parameters for querying a batch of traces.
 type SpanQueryParams struct {
 	tracestore.SpanQueryParams
@@ -162,7 +163,7 @@ func (qs QueryService) FindSpans(
 	return func(yield func(SpanPage, error) bool) {
 		ctx, query, err := qs.prepareSpanSearchQuery(ctx, query)
 		if err != nil {
-			yield(SpanPage{}, err)
+			yield(SpanPage{}, err) // I think if I changed the type I'm returning to seq2[[]SpanPage,err], this would be less awkward
 			return
 		}
 		spansIter := qs.interceptSpanResults(ctx, qs.traceReader.FindSpans(ctx, query.SpanQueryParams))
