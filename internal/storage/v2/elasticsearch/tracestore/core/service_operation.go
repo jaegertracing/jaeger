@@ -6,6 +6,7 @@ package core
 
 import (
 	"context"
+	"encoding/binary"
 	"errors"
 	"fmt"
 	"hash/fnv"
@@ -196,7 +197,11 @@ func aggregationKeys(resp *esclient.SearchResponse, name string) ([]string, erro
 
 func hashCode(s dbmodel.Service) string {
 	h := fnv.New64a()
-	h.Write([]byte(s.ServiceName))
-	h.Write([]byte(s.OperationName))
+	var length [8]byte
+	for _, value := range []string{s.ServiceName, s.OperationName} {
+		binary.BigEndian.PutUint64(length[:], uint64(len(value)))
+		_, _ = h.Write(length[:])
+		_, _ = h.Write([]byte(value))
+	}
 	return strconv.FormatUint(h.Sum64(), 16)
 }
