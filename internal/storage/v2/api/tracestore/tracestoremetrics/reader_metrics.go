@@ -70,18 +70,18 @@ func buildQueryMetrics(operation string, metricsFactory metrics.Factory) *queryM
 }
 
 // FindSpans implements tracestore.Reader#FindSpans
-func (m *ReadMetricsDecorator) FindSpans(ctx context.Context, query tracestore.SpanQueryParams) iter.Seq2[tracestore.SpanPage, error] {
-	return func(yield func(tracestore.SpanPage, error) bool) {
+func (m *ReadMetricsDecorator) FindSpans(ctx context.Context, query tracestore.SpanQueryParams) iter.Seq2[[]tracestore.SpanPage, error] {
+	return func(yield func([]tracestore.SpanPage, error) bool) {
 		start := time.Now()
 		var err error
 		length := 0
 		defer func() {
 			m.findSpansMetrics.emit(err, time.Since(start), length)
 		}()
-		for page, iterErr := range m.traceReader.FindSpans(ctx, query) {
+		for pages, iterErr := range m.traceReader.FindSpans(ctx, query) {
 			err = iterErr
-			length++
-			if !yield(page, iterErr) {
+			length += len(pages)
+			if !yield(pages, iterErr) {
 				return
 			}
 		}

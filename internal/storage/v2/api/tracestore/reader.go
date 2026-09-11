@@ -57,7 +57,7 @@ type Reader interface {
 	// A reader that cannot serve span queries yields errors.ErrUnsupported (wrapped
 	// with %w) as the first error before any page; such readers embed
 	// UnsupportedSpanSearch.
-	FindSpans(ctx context.Context, query SpanQueryParams) iter.Seq2[SpanPage, error]
+	FindSpans(ctx context.Context, query SpanQueryParams) iter.Seq2[[]SpanPage, error]
 
 	// FindTraces returns an iterator that retrieves traces matching query parameters.
 	// The iterator is single-use: once consumed, it cannot be used again.
@@ -162,9 +162,9 @@ type SpanQueryParams struct {
 // so the query service refuses the query before dispatch (RFC 0016 §4.5).
 type UnsupportedSpanSearch struct{}
 
-func (UnsupportedSpanSearch) FindSpans(context.Context, SpanQueryParams) iter.Seq2[SpanPage, error] {
-	return func(yield func(SpanPage, error) bool) {
-		yield(SpanPage{}, fmt.Errorf("this storage backend does not support span search: %w", errors.ErrUnsupported))
+func (UnsupportedSpanSearch) FindSpans(context.Context, SpanQueryParams) iter.Seq2[[]SpanPage, error] {
+	return func(yield func([]SpanPage, error) bool) {
+		yield(nil, fmt.Errorf("this storage backend does not support span search: %w", errors.ErrUnsupported))
 	}
 }
 
