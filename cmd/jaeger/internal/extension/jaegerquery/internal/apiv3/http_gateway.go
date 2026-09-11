@@ -116,7 +116,7 @@ func (h *HTTPGateway) returnTrace(td ptrace.Traces, w http.ResponseWriter) {
 	h.marshalResponse(response, w)
 }
 
-func (h *HTTPGateway) returnSpanPage(sp querysvc.SpanPage, w http.ResponseWriter) {
+func (h *HTTPGateway) returnSpanPage(sp tracestore.SpanPage, w http.ResponseWriter) {
 	tracesData := jptrace.TracesData(sp.Spans)
 	h.marshalResponse(&api_v3.FindSpansResponse{
 		Spans:         &tracesData,
@@ -152,7 +152,7 @@ func (h *HTTPGateway) returnTraces(traces []ptrace.Traces, err error, w http.Res
 	h.returnTrace(combinedTrace, w)
 }
 
-func (h *HTTPGateway) returnSpans(spanPages []querysvc.SpanPage, err error, w http.ResponseWriter) {
+func (h *HTTPGateway) returnSpans(spanPages []tracestore.SpanPage, err error, w http.ResponseWriter) {
 	if h.tryHandleError(w, err, http.StatusInternalServerError) {
 		return
 	}
@@ -181,7 +181,7 @@ func (h *HTTPGateway) returnSpans(spanPages []querysvc.SpanPage, err error, w ht
 			resource.CopyTo(combinedTrace.ResourceSpans().AppendEmpty())
 		}
 	}
-	h.returnSpanPage(querysvc.SpanPage{tracestore.SpanPage{combinedTrace, nextPageToken}}, w)
+	h.returnSpanPage(tracestore.SpanPage{combinedTrace, nextPageToken}, w)
 }
 
 func (*HTTPGateway) marshalResponse(response proto.Message, w http.ResponseWriter) {
@@ -236,7 +236,7 @@ func (h *HTTPGateway) findSpans(w http.ResponseWriter, r *http.Request) {
 	}
 
 	findSpansIter := h.QueryService.FindSpans(r.Context(), *queryParams)
-	result, err := jiter.CollectWithErrors(findSpansIter)
+	result, err := jiter.FlattenWithErrors(findSpansIter)
 	h.returnSpans(result, err, w)
 }
 

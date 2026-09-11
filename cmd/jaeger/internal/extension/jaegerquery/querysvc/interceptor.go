@@ -210,33 +210,32 @@ func (qs QueryService) interceptResults(
 // them, so an interceptor rewrites the traces the reader actually returned.
 func (qs QueryService) interceptSpanResults(
 	ctx context.Context,
-	seq iter.Seq2[tracestore.SpanPage, error],
-) iter.Seq2[SpanPage, error] {
+	seq iter.Seq2[[]tracestore.SpanPage, error],
+) iter.Seq2[[]tracestore.SpanPage, error] {
 	if len(qs.options.Interceptors) == 0 {
-		return func(yield func(SpanPage, error) bool) {
-			for spanPage, err := range seq {
-				yield(SpanPage{SpanPage: spanPage}, err)
-			}
-		}
+		return seq
 	}
-	return func(yield func(SpanPage, error) bool) {
-		for spanPage, err := range seq {
+	return func(yield func([]tracestore.SpanPage, error) bool) {
+		for spanPages, err := range seq {
 			if err != nil {
-				if !yield(SpanPage{spanPage}, err) {
+				if !yield(spanPages, err) {
 					return
 				}
 				continue
 			}
-			spans := []ptrace.Traces{spanPage.Spans}
-			for _, interceptor := range qs.options.Interceptors {
-				ctx, spans, err = interceptor.OnResult(ctx, spans)
-				if err != nil {
-					yield(SpanPage{}, err)
-					return
+			for _, spanPage := range spanPages {
+				spans := []ptrace.Traces{spanPage.Spans}
+				for _, interceptor := range qs.options.Interceptors {
+					ctx, spans, err = interceptor.OnResult(ctx, spans)
+					if err != nil {
+						yield(nil, err)
+						return
+					}
 				}
+				spanPage.Spans = spans[0]
 			}
-			spanPage.Spans = spans[0]
-			if !yield(SpanPage{spanPage}, nil) {
+
+			if !yield(spanPages, nil) {
 				return
 			}
 		}

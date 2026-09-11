@@ -72,10 +72,6 @@ type SpanQueryParams struct {
 	tracestore.SpanQueryParams
 }
 
-type SpanPage struct {
-	tracestore.SpanPage
-}
-
 // TraceQueryParams represents the parameters for querying a batch of traces.
 type TraceQueryParams struct {
 	tracestore.TraceQueryParams
@@ -159,11 +155,11 @@ func (qs QueryService) GetOperations(
 func (qs QueryService) FindSpans(
 	ctx context.Context,
 	query SpanQueryParams,
-) iter.Seq2[SpanPage, error] {
-	return func(yield func(SpanPage, error) bool) {
+) iter.Seq2[[]tracestore.SpanPage, error] {
+	return func(yield func([]tracestore.SpanPage, error) bool) {
 		ctx, query, err := qs.prepareSpanSearchQuery(ctx, query)
 		if err != nil {
-			yield(SpanPage{}, err) // I think if I changed the type I'm returning to seq2[[]SpanPage,err], this would be less awkward
+			yield(nil, err)
 			return
 		}
 		spansIter := qs.interceptSpanResults(ctx, qs.traceReader.FindSpans(ctx, query.SpanQueryParams))
@@ -457,27 +453,28 @@ func (qs QueryService) receiveTraces(
 }
 
 func (_ QueryService) receiveSpans(
-	seq iter.Seq2[SpanPage, error],
-	yield func(SpanPage, error) bool,
+	seq iter.Seq2[[]tracestore.SpanPage, error],
+	yield func([]tracestore.SpanPage, error) bool,
 ) (map[pcommon.TraceID]struct{}, bool) {
 	foundTraceIDs := make(map[pcommon.TraceID]struct{})
 	proceed := true
 
-	processTraces := func(traces SpanPage, err error) bool {
+	processSpans := func(spanPages []tracestore.SpanPage, err error) bool {
 		if err != nil {
-			proceed = yield(traces, err)
+			proceed = yield(spanPages, err)
 			return proceed
 		}
-		jptrace.SpanIter(traces.Spans)(func(_ jptrace.SpanIterPos, span ptrace.Span) bool {
-			foundTraceIDs[span.TraceID()] = struct{}{}
-			return true
-		})
-
-		proceed = yield(traces, nil)
+		for _, spanPage := range spanPages {
+			jptrace.SpanIter(spanPage.Spans)(func(_ jptrace.SpanIterPos, span ptrace.Span) bool {
+				foundTraceIDs[span.TraceID()] = struct{}{}
+				return true
+			})
+		}
+		proceed = yield(spanPages, nil)
 		return proceed
 	}
 
-	seq(processTraces)
+	seq(processSpans)
 
 	return foundTraceIDs, proceed
 }

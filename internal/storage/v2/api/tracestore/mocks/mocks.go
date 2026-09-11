@@ -263,19 +263,19 @@ func (_m *Reader) EXPECT() *Reader_Expecter {
 }
 
 // FindSpans provides a mock function for the type Reader
-func (_mock *Reader) FindSpans(ctx context.Context, query tracestore.SpanQueryParams) iter.Seq2[tracestore.SpanPage, error] {
+func (_mock *Reader) FindSpans(ctx context.Context, query tracestore.SpanQueryParams) iter.Seq2[[]tracestore.SpanPage, error] {
 	ret := _mock.Called(ctx, query)
 
 	if len(ret) == 0 {
 		panic("no return value specified for FindSpans")
 	}
 
-	var r0 iter.Seq2[tracestore.SpanPage, error]
-	if returnFunc, ok := ret.Get(0).(func(context.Context, tracestore.SpanQueryParams) iter.Seq2[tracestore.SpanPage, error]); ok {
+	var r0 iter.Seq2[[]tracestore.SpanPage, error]
+	if returnFunc, ok := ret.Get(0).(func(context.Context, tracestore.SpanQueryParams) iter.Seq2[[]tracestore.SpanPage, error]); ok {
 		r0 = returnFunc(ctx, query)
 	} else {
 		if ret.Get(0) != nil {
-			r0 = ret.Get(0).(iter.Seq2[tracestore.SpanPage, error])
+			r0 = ret.Get(0).(iter.Seq2[[]tracestore.SpanPage, error])
 		}
 	}
 	return r0
@@ -311,12 +311,12 @@ func (_c *Reader_FindSpans_Call) Run(run func(ctx context.Context, query tracest
 	return _c
 }
 
-func (_c *Reader_FindSpans_Call) Return(seq2 iter.Seq2[tracestore.SpanPage, error]) *Reader_FindSpans_Call {
+func (_c *Reader_FindSpans_Call) Return(seq2 iter.Seq2[[]tracestore.SpanPage, error]) *Reader_FindSpans_Call {
 	_c.Call.Return(seq2)
 	return _c
 }
 
-func (_c *Reader_FindSpans_Call) RunAndReturn(run func(ctx context.Context, query tracestore.SpanQueryParams) iter.Seq2[tracestore.SpanPage, error]) *Reader_FindSpans_Call {
+func (_c *Reader_FindSpans_Call) RunAndReturn(run func(ctx context.Context, query tracestore.SpanQueryParams) iter.Seq2[[]tracestore.SpanPage, error]) *Reader_FindSpans_Call {
 	_c.Call.Return(run)
 	return _c
 }

@@ -68,7 +68,7 @@ func (q TraceQueryParams) ForCapabilities(caps SearchCapabilities) (TraceQueryPa
 func (q SpanQueryParams) ForSpanCapabilities(caps SearchCapabilities) (SpanQueryParams, error) {
 	if q.Filter == nil {
 		return q, nil
-	} //might be wrong here, but eh
+	} // might be wrong here, but eh
 	return q, caps.Filter.EnsureSupported(q.Filter)
 }
 
