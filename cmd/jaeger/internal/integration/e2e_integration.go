@@ -19,6 +19,7 @@ import (
 	"go.uber.org/zap/zaptest"
 	"go.yaml.in/yaml/v3"
 
+	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerquery/querysvc"
 	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/integration/storagecleaner"
 	"github.com/jaegertracing/jaeger/internal/storage/integration"
 	"github.com/jaegertracing/jaeger/ports"
@@ -72,6 +73,11 @@ func (s *E2EStorageIntegration) args(configFile string) []string {
 	}
 	return args
 }
+
+// structuredFilterGates enables the RFC 0005 filter, which is alpha and off by default. Only the
+// suites whose searches carry one need it: the filter battery, where the backend evaluates a filter,
+// and the rewrite test, where it does not.
+var structuredFilterGates = []string{querysvc.StructuredFiltersGate.ID()}
 
 // binaryEnv builds the environment for the spawned jaeger binary. The child gets
 // an explicit environment rather than inheriting the test process's, so anything

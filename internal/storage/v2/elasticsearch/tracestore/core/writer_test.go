@@ -62,11 +62,12 @@ func withSpanWriter(fn func(w *spanWriterTest)) {
 		logger:      logger,
 		logBuffer:   logBuffer,
 		writer: NewSpanWriter(SpanWriterParams{
-			BatchWriter:     batchWriter,
-			Logger:          logger,
-			MetricsFactory:  metricsFactory,
-			SpanRotation:    indices.NewPeriodicRotation(config.SpanIndexName, "2006-01-02", 24*time.Hour),
-			ServiceRotation: indices.NewPeriodicRotation(config.ServiceIndexName, "2006-01-02", 24*time.Hour),
+			BatchWriter:       batchWriter,
+			Logger:            logger,
+			MetricsFactory:    metricsFactory,
+			ServiceOperations: NewServiceOperationStorage(nil, logger, 0),
+			SpanRotation:      indices.NewPeriodicRotation(config.SpanIndexName, "2006-01-02", 24*time.Hour),
+			ServiceRotation:   indices.NewPeriodicRotation(config.ServiceIndexName, "2006-01-02", 24*time.Hour),
 		}),
 	}
 	fn(w)
@@ -229,11 +230,12 @@ func TestSpanWriter_WriteSpansEmpty(t *testing.T) {
 func newSpanWriterWith(bw esclient.BatchWriter) *SpanWriter {
 	logger, _ := testutils.NewLogger()
 	return NewSpanWriter(SpanWriterParams{
-		BatchWriter:     bw,
-		Logger:          logger,
-		MetricsFactory:  metricstest.NewFactory(0),
-		SpanRotation:    indices.NewAliasedRotation("jaeger-span-write", "jaeger-span-read"),
-		ServiceRotation: indices.NewAliasedRotation("jaeger-service-write", "jaeger-service-read"),
+		BatchWriter:       bw,
+		Logger:            logger,
+		MetricsFactory:    metricstest.NewFactory(0),
+		ServiceOperations: NewServiceOperationStorage(nil, logger, 0),
+		SpanRotation:      indices.NewAliasedRotation("jaeger-span-write", "jaeger-span-read"),
+		ServiceRotation:   indices.NewAliasedRotation("jaeger-service-write", "jaeger-service-read"),
 	})
 }
 
@@ -417,11 +419,12 @@ func TestWriteSpan_DataStreamTimestamp(t *testing.T) {
 	logger, _ := testutils.NewLogger()
 	metricsFactory := metricstest.NewFactory(0)
 	writer := NewSpanWriter(SpanWriterParams{
-		BatchWriter:     &fakeBatchWriter{},
-		Logger:          logger,
-		MetricsFactory:  metricsFactory,
-		SpanRotation:    indices.NewDataStreamRotation("jaeger.spans", ""),
-		ServiceRotation: indices.NewDataStreamRotation("jaeger.services", ""),
+		BatchWriter:       &fakeBatchWriter{},
+		Logger:            logger,
+		MetricsFactory:    metricsFactory,
+		ServiceOperations: NewServiceOperationStorage(nil, logger, 0),
+		SpanRotation:      indices.NewDataStreamRotation("jaeger.spans", ""),
+		ServiceRotation:   indices.NewDataStreamRotation("jaeger.services", ""),
 	})
 
 	spans := []dbmodel.Span{{TraceID: "abc", SpanID: "def", StartTime: model.TimeAsEpochMicroseconds(date)}}
@@ -469,12 +472,12 @@ func TestSpanWriterParamsTTL(t *testing.T) {
 			batchWriter := &fakeBatchWriter{}
 			added := &batchWriter.items
 			params := SpanWriterParams{
-				BatchWriter:     batchWriter,
-				Logger:          logger,
-				MetricsFactory:  metricsFactory,
-				ServiceCacheTTL: test.serviceTTL,
-				SpanRotation:    indices.NewPeriodicRotation(config.SpanIndexName, "2006-01-02", 24*time.Hour),
-				ServiceRotation: indices.NewPeriodicRotation(config.ServiceIndexName, "2006-01-02", 24*time.Hour),
+				BatchWriter:       batchWriter,
+				Logger:            logger,
+				MetricsFactory:    metricsFactory,
+				ServiceOperations: NewServiceOperationStorage(nil, logger, test.serviceTTL),
+				SpanRotation:      indices.NewPeriodicRotation(config.SpanIndexName, "2006-01-02", 24*time.Hour),
+				ServiceRotation:   indices.NewPeriodicRotation(config.ServiceIndexName, "2006-01-02", 24*time.Hour),
 			}
 			w := NewSpanWriter(params)
 
@@ -639,11 +642,12 @@ func TestWriterRequestSnapshots(t *testing.T) {
 		bulkWriter, err := esclient.NewBulkIndexer(esClient, esclient.BulkIndexerConfig{}, metrics.NullFactory, zap.NewNop())
 		require.NoError(t, err)
 		writer := NewSpanWriter(SpanWriterParams{
-			BatchWriter:     bulkWriter,
-			Logger:          zap.NewNop(),
-			MetricsFactory:  metrics.NullFactory,
-			SpanRotation:    indices.NewAliasedRotation(writeIndex, "jaeger-span-read"),
-			ServiceRotation: indices.NewAliasedRotation("jaeger-service-write-000001", "jaeger-service-read"),
+			BatchWriter:       bulkWriter,
+			Logger:            zap.NewNop(),
+			MetricsFactory:    metrics.NullFactory,
+			ServiceOperations: NewServiceOperationStorage(nil, zap.NewNop(), 0),
+			SpanRotation:      indices.NewAliasedRotation(writeIndex, "jaeger-span-read"),
+			ServiceRotation:   indices.NewAliasedRotation("jaeger-service-write-000001", "jaeger-service-read"),
 		})
 
 		rec.Reset()

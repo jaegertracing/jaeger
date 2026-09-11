@@ -33,12 +33,19 @@ package queryinterceptor
 
 import (
 	"context"
+	"errors"
 	"time"
 
 	"go.opentelemetry.io/collector/pdata/ptrace"
 
 	expression "github.com/jaegertracing/jaeger-idl/query/expression/v1"
 )
+
+// ErrAccessDenied is the sentinel that interceptor implementations wrap
+// when the caller's query is refused on access-control grounds. The API
+// layers map it to HTTP 403 / gRPC PERMISSION_DENIED instead of a
+// generic server error.
+var ErrAccessDenied = errors.New("access denied")
 
 // Query is the public view of a trace-search query passed to Interceptor.OnQuery.
 //

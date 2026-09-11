@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"strconv"
 	"testing"
+	"testing/synctest"
 	"time"
 
 	"github.com/stretchr/testify/assert"
@@ -21,45 +22,53 @@ import (
 )
 
 func TestAggregator(t *testing.T) {
-	t.Skip("Skipping flaky unit test")
-	metricsFactory := metricstest.NewFactory(0)
+	// synctest gives the aggregation loop a fake clock, so the tick is triggered
+	// deterministically instead of waiting for one and hoping it landed.
+	synctest.Test(t, func(t *testing.T) {
+		metricsFactory := metricstest.NewFactory(0)
 
-	mockStorage := &mocks.Store{}
-	mockStorage.On("InsertThroughput", mock.AnythingOfType("[]*model.Throughput")).Return(nil)
-	mockEP := &epmocks.ElectionParticipant{}
-	mockEP.On("Start").Return(nil)
-	mockEP.On("Close").Return(nil)
-	mockEP.On("IsLeader").Return(true)
-	testOpts := Options{
-		CalculationInterval:   1 * time.Second,
-		AggregationBuckets:    1,
-		BucketsForCalculation: 1,
-	}
-	logger := zap.NewNop()
-
-	a, err := NewAggregator(testOpts, logger, metricsFactory, mockEP, mockStorage)
-	require.NoError(t, err)
-	a.RecordThroughput("A", http.MethodGet, model.SamplerTypeProbabilistic, 0.001)
-	a.RecordThroughput("B", http.MethodPost, model.SamplerTypeProbabilistic, 0.001)
-	a.RecordThroughput("C", http.MethodGet, model.SamplerTypeProbabilistic, 0.001)
-	a.RecordThroughput("A", http.MethodPost, model.SamplerTypeProbabilistic, 0.001)
-	a.RecordThroughput("A", http.MethodGet, model.SamplerTypeProbabilistic, 0.001)
-	a.RecordThroughput("A", http.MethodGet, model.SamplerTypeLowerBound, 0.001)
-
-	a.Start()
-	defer a.Close()
-	for range 10000 {
-		counters, _ := metricsFactory.Snapshot()
-		if _, ok := counters["sampling_operations"]; ok {
-			break
+		mockStorage := &mocks.Store{}
+		mockStorage.On("InsertThroughput", mock.AnythingOfType("[]*model.Throughput")).Return(nil)
+		// Start() initializes the post-aggregator's throughput buckets, and its
+		// calculation loop saves probabilities back once this host is leader. Both
+		// read through the store, so both need stubbing or the mock panics.
+		mockStorage.On("GetThroughput", mock.Anything, mock.Anything).Return(nil, nil)
+		mockStorage.On("InsertProbabilitiesAndQPS", mock.Anything, mock.Anything, mock.Anything).Return(nil)
+		mockEP := &epmocks.ElectionParticipant{}
+		mockEP.On("Start").Return(nil)
+		mockEP.On("Close").Return(nil)
+		mockEP.On("IsLeader").Return(true)
+		testOpts := Options{
+			TargetSamplesPerSecond: 1.0,
+			CalculationInterval:    1 * time.Second,
+			AggregationBuckets:     1,
+			BucketsForCalculation:  1,
 		}
-		time.Sleep(1 * time.Millisecond)
-	}
+		logger := zap.NewNop()
 
-	metricsFactory.AssertCounterMetrics(t, []metricstest.ExpectedMetric{
-		{Name: "sampling_operations", Value: 4},
-		{Name: "sampling_services", Value: 3},
-	}...)
+		a, err := NewAggregator(testOpts, logger, metricsFactory, mockEP, mockStorage)
+		require.NoError(t, err)
+		a.RecordThroughput("A", http.MethodGet, model.SamplerTypeProbabilistic, 0.001)
+		a.RecordThroughput("B", http.MethodPost, model.SamplerTypeProbabilistic, 0.001)
+		a.RecordThroughput("C", http.MethodGet, model.SamplerTypeProbabilistic, 0.001)
+		a.RecordThroughput("A", http.MethodPost, model.SamplerTypeProbabilistic, 0.001)
+		a.RecordThroughput("A", http.MethodGet, model.SamplerTypeProbabilistic, 0.001)
+		a.RecordThroughput("A", http.MethodGet, model.SamplerTypeLowerBound, 0.001)
+
+		a.Start()
+		defer a.Close()
+
+		// Advance past exactly one aggregation tick. Inside the bubble this is
+		// instant, and synctest.Wait blocks until the loop goroutine has finished
+		// handling the tick, so the counters below cannot be read mid-update.
+		time.Sleep(testOpts.CalculationInterval + time.Millisecond)
+		synctest.Wait()
+
+		metricsFactory.AssertCounterMetrics(t, []metricstest.ExpectedMetric{
+			{Name: "sampling_operations", Value: 4},
+			{Name: "sampling_services", Value: 3},
+		}...)
+	})
 }
 
 func TestIncrementThroughput(t *testing.T) {
@@ -67,9 +76,10 @@ func TestIncrementThroughput(t *testing.T) {
 	mockStorage := &mocks.Store{}
 	mockEP := &epmocks.ElectionParticipant{}
 	testOpts := Options{
-		CalculationInterval:   1 * time.Second,
-		AggregationBuckets:    1,
-		BucketsForCalculation: 1,
+		TargetSamplesPerSecond: 1.0,
+		CalculationInterval:    1 * time.Second,
+		AggregationBuckets:     1,
+		BucketsForCalculation:  1,
 	}
 	logger := zap.NewNop()
 	a, err := NewAggregator(testOpts, logger, metricsFactory, mockEP, mockStorage)
@@ -94,9 +104,10 @@ func TestLowerboundThroughput(t *testing.T) {
 	mockStorage := &mocks.Store{}
 	mockEP := &epmocks.ElectionParticipant{}
 	testOpts := Options{
-		CalculationInterval:   1 * time.Second,
-		AggregationBuckets:    1,
-		BucketsForCalculation: 1,
+		TargetSamplesPerSecond: 1.0,
+		CalculationInterval:    1 * time.Second,
+		AggregationBuckets:     1,
+		BucketsForCalculation:  1,
 	}
 	logger := zap.NewNop()
 
@@ -112,9 +123,10 @@ func TestRecordThroughput(t *testing.T) {
 	mockStorage := &mocks.Store{}
 	mockEP := &epmocks.ElectionParticipant{}
 	testOpts := Options{
-		CalculationInterval:   1 * time.Second,
-		AggregationBuckets:    1,
-		BucketsForCalculation: 1,
+		TargetSamplesPerSecond: 1.0,
+		CalculationInterval:    1 * time.Second,
+		AggregationBuckets:     1,
+		BucketsForCalculation:  1,
 	}
 	logger := zap.NewNop()
 	a, err := NewAggregator(testOpts, logger, metricsFactory, mockEP, mockStorage)
@@ -153,9 +165,10 @@ func TestRecordThroughputFunc(t *testing.T) {
 	mockEP := &epmocks.ElectionParticipant{}
 	logger := zap.NewNop()
 	testOpts := Options{
-		CalculationInterval:   1 * time.Second,
-		AggregationBuckets:    1,
-		BucketsForCalculation: 1,
+		TargetSamplesPerSecond: 1.0,
+		CalculationInterval:    1 * time.Second,
+		AggregationBuckets:     1,
+		BucketsForCalculation:  1,
 	}
 
 	a, err := NewAggregator(testOpts, logger, metricsFactory, mockEP, mockStorage)

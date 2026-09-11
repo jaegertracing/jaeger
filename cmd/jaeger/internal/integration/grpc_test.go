@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/jaegertracing/jaeger/internal/storage/integration"
+	"github.com/jaegertracing/jaeger/internal/storage/integration/capabilities"
 )
 
 func TestGRPCStorage(t *testing.T) {
@@ -32,7 +33,8 @@ func TestGRPCStorage(t *testing.T) {
 		ConfigFile:         "../../config-remote-storage.yaml",
 		SkipStorageCleaner: true,
 		StorageIntegration: integration.StorageIntegration{
-			CleanUp: purge,
+			CleanUp:      purge,
+			Capabilities: capabilities.E2EWithoutNativeFilters(),
 		},
 		PropagateEnvVars: []string{
 			"REMOTE_STORAGE_ENDPOINT",

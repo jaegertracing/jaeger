@@ -182,7 +182,7 @@ func buildAIHealthChecker(opts *queryapp.QueryOptions, logger *zap.Logger) *aihe
 		return nil
 	}
 	return &aihealth.Checker{
-		Check:    aihealth.NewACPCheck(aiCfg.AgentURL, logger),
+		Check:    aihealth.NewACPCheck(aiCfg.AgentURL, aiCfg.AgentHeaders, logger),
 		Interval: aiCfg.HealthCheckInterval,
 		Timeout:  aiCfg.HealthCheckTimeout,
 		Logger:   logger,

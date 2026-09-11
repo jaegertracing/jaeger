@@ -26,6 +26,7 @@ import (
 	"github.com/jaegertracing/jaeger-idl/model/v1"
 	expression "github.com/jaegertracing/jaeger-idl/query/expression/v1"
 	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerquery/querysvc"
+	"github.com/jaegertracing/jaeger/components/extension/jaegerquery/queryinterceptor"
 	_ "github.com/jaegertracing/jaeger/internal/gogocodec" // force gogo codec registration
 	"github.com/jaegertracing/jaeger/internal/jptrace"
 	"github.com/jaegertracing/jaeger/internal/proto/api_v3"
@@ -755,4 +756,34 @@ func TestFindTraceSummariesServiceNameRequired(t *testing.T) {
 	_, err = responseStream.Recv()
 	require.ErrorContains(t, err, "requires a service name")
 	assert.Equal(t, codes.InvalidArgument, status.Code(err))
+}
+
+func TestAsStatusError(t *testing.T) {
+	tests := []struct {
+		name     string
+		err      error
+		wantCode codes.Code
+	}{
+		{
+			name:     "access denied maps to PermissionDenied",
+			err:      fmt.Errorf("acl: denied: %w", queryinterceptor.ErrAccessDenied),
+			wantCode: codes.PermissionDenied,
+		},
+		{
+			name:     "bad request maps to InvalidArgument",
+			err:      querysvc.ErrServiceNameRequired,
+			wantCode: codes.InvalidArgument,
+		},
+		{
+			name:     "generic error passes through",
+			err:      errors.New("something broke"),
+			wantCode: codes.Unknown,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := asStatusError(tt.err)
+			assert.Equal(t, tt.wantCode, status.Code(got))
+		})
+	}
 }

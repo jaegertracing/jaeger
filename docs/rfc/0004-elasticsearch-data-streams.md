@@ -144,19 +144,20 @@ Ties everything together:
     "<prefix>jaeger.spans@settings",
     "<prefix>jaeger.spans@custom"
   ],
-  "priority": 500,
-  "ignore_missing_component_templates": ["<prefix>jaeger.spans@custom"]
+  "priority": 500
 }
 ```
 
 The `data_stream: {}` directive tells ES/OpenSearch that any write to a matching index pattern should be handled as a data stream (auto-creating backing indices, enforcing append-only semantics, etc.).
 
-The `@custom` component template is explicitly listed in `composed_of` (last position = highest priority) but marked in `ignore_missing_component_templates` so that the index template is valid even when the user has not created it. This is required because OpenSearch does not auto-merge `@custom` templates — they must be explicitly referenced.
+The `@custom` component template is explicitly listed in `composed_of` (last position = highest priority), because OpenSearch does not auto-merge `@custom` templates — they must be explicitly referenced. Jaeger creates it empty when the cluster does not already have one, so that reference always resolves.
+
+Creating it empty is what gives one index-template body that every supported version accepts, with the contents still owned by the user. `ignore_missing_component_templates`, which this RFC originally proposed instead, cannot do that: the field arrived in Elasticsearch 8.7, exists in no OpenSearch version, and both parsers reject unknown template fields. Nor is omitting the field enough on its own, because every supported backend rejects a `composed_of` that names a component template which does not exist.
 
 #### Idempotency and Conflict Handling
 
 - Template creation is idempotent: PUT with the same name overwrites the previous version. This is safe because Jaeger controls these templates.
-- **User customizations are never overwritten** because they live in a separate `<prefix>jaeger.spans@custom` component template which Jaeger does not touch. Since `@custom` is listed last in `composed_of`, its settings take highest priority when it exists.
+- **User customizations are never overwritten** because they live in a separate `<prefix>jaeger.spans@custom` component template, which Jaeger writes only to create empty when it is absent (§3.2). Since `@custom` is listed last in `composed_of`, its settings take highest priority.
 - On startup, Jaeger always writes its templates (ensuring mappings stay current with the Jaeger version). This is the same behavior as the current `create_mappings: true` mode, applied to the new composable template format.
 
 #### Index Prefix / Custom Names
@@ -172,7 +173,7 @@ This preserves multi-tenancy support for shared ES clusters.
 
 #### User Customization via `@custom` Pattern
 
-Jaeger's composable index template includes a `<prefix>jaeger.spans@custom` component template reference (with `ignore_missing_component_templates` so it need not exist). When a user creates this component template, its settings are merged with highest priority (last in `composed_of` wins). Jaeger never creates or modifies this template — it is entirely user-controlled.
+Jaeger's composable index template composes a `<prefix>jaeger.spans@custom` component template, creating it empty if the cluster does not already have one (§3.2). Its contents stay entirely user-controlled: once the template exists, Jaeger only composes it, and its settings are merged with highest priority (last in `composed_of` wins).
 
 Example: a user wanting a different ILM policy creates:
 ```json
@@ -880,12 +881,12 @@ PR: [#8823](https://github.com/jaegertracing/jaeger/pull/8823)
 
 Make data streams functional for writes. Reads still go to the data stream name directly (no migration alias yet).
 
-8. Add `@timestamp` field (date_nanos) to span document at write time
-9. Implement `DataStreamStrategy.CreateTemplates()`: composable index template + component templates (§3.2)
-10. Implement `DataStreamStrategy.WriteTarget()`: return data stream name
-11. Implement `DataStreamStrategy.OpType()`: return `"create"`
+8. ✅ **Add `@timestamp` field (date_nanos) to span document at write time.** Delivered in [#8833](https://github.com/jaegertracing/jaeger/pull/8833), with the value corrected to an RFC 3339 string in [#9363](https://github.com/jaegertracing/jaeger/pull/9363) (§3.3)
+9. Implement `DataStreamStrategy.CreateTemplates()`: composable index template + component templates (§3.2) — partially delivered by [#8991](https://github.com/jaegertracing/jaeger/pull/8991), which renders and installs them as `esclient.IndicesClient.CreateSpanDataStreamTemplates`. Still open: `FactoryBase.createTemplates` must call it when the span rotation is a data stream instead of installing the rotation-path template unconditionally, and `RotationConfig.validate` must narrow its `data_stream` rejection to non-span indices
+10. ✅ **Implement `DataStreamStrategy.WriteTarget()`: return data stream name.** Delivered in [#8833](https://github.com/jaegertracing/jaeger/pull/8833) as `DataStreamRotation.WriteTarget`
+11. ✅ **Implement `DataStreamStrategy.OpType()`: return `"create"`.** Delivered in [#8833](https://github.com/jaegertracing/jaeger/pull/8833) as `DataStreamRotation.WriteOpType`
 12. Implement ISM policy creation for OpenSearch, ILM for Elasticsearch (§3.6)
-13. Implement `DataStreamStrategy.ReadTargets()`: return data stream name (no migration alias yet)
+13. ✅ **Implement `DataStreamStrategy.ReadTargets()`: return data stream name (no migration alias yet).** Delivered in [#8833](https://github.com/jaegertracing/jaeger/pull/8833) as `DataStreamRotation.ReadTargets`
 14. **CI**: Integration test — write spans via data stream, read them back, verify end-to-end on both OS and ES
 
 Deliverable: `rotation.data_stream` is fully functional for fresh installations (no legacy data).

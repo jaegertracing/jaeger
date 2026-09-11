@@ -23,6 +23,10 @@ import (
 const (
 	serviceName = "serviceName"
 
+	// serviceCacheTTLDefault is how long a written service:operation pair is
+	// remembered when the configuration does not say.
+	serviceCacheTTLDefault = 12 * time.Hour
+
 	operationsAggregation = "distinct_operations"
 	servicesAggregation   = "distinct_services"
 )
@@ -44,11 +48,15 @@ type ServiceOperationStorage struct {
 // used only by the read methods (getServices/getOperations); a write-only instance
 // (the SpanWriter) may pass a nil searcher. The write side builds documents via
 // toUpsertItem and commits the cache via commitToCache — it does not write directly.
+// A cacheTTL of zero selects serviceCacheTTLDefault.
 func NewServiceOperationStorage(
 	searcher esclient.Searcher,
 	logger *zap.Logger,
 	cacheTTL time.Duration,
 ) *ServiceOperationStorage {
+	if cacheTTL == 0 {
+		cacheTTL = serviceCacheTTLDefault
+	}
 	return &ServiceOperationStorage{
 		searcher: searcher,
 		logger:   logger,
@@ -83,6 +91,14 @@ func (s *ServiceOperationStorage) toUpsertItem(indexName string, jsonSpan *dbmod
 // is not re-sent until the cache entry expires. Called only after a successful flush.
 func (s *ServiceOperationStorage) commitToCache(cacheKey string) {
 	s.serviceCache.Put(cacheKey, cacheKey)
+}
+
+// ClearCache forgets every remembered service:operation pair, so the next write
+// re-sends its service document. The factory calls it from Purge: once the indices
+// are deleted the cache describes documents that no longer exist, and leaving it
+// populated would suppress the writes that should restore them.
+func (s *ServiceOperationStorage) ClearCache() {
+	s.serviceCache.Clear()
 }
 
 // serviceOperationBatch accumulates the new service:operation documents for one write

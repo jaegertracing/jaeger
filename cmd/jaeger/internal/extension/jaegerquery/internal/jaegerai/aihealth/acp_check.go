@@ -11,6 +11,7 @@ import (
 	"log/slog"
 
 	acp "github.com/coder/acp-go-sdk"
+	"go.opentelemetry.io/collector/config/configopaque"
 	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerquery/internal/jaegerai"
@@ -30,7 +31,7 @@ var silentACPLogger = slog.New(slog.NewTextHandler(io.Discard, nil))
 // connection to agentURL, performs one ACP `initialize` round-trip, and
 // closes. Any transport-level or protocol-level error counts as unhealthy.
 // Suitable for use as aihealth.Config.Check.
-func NewACPCheck(agentURL string, logger *zap.Logger) func(ctx context.Context) error {
+func NewACPCheck(agentURL string, agentHeaders configopaque.MapList, logger *zap.Logger) func(ctx context.Context) error {
 	// The check only sends `initialize` and immediately closes — the sidecar
 	// should never send a client-bound call in that window, but if it does we
 	// refuse it rather than crash.
@@ -38,7 +39,7 @@ func NewACPCheck(agentURL string, logger *zap.Logger) func(ctx context.Context) 
 		return nil, acp.NewMethodNotFound(method)
 	}
 	return func(ctx context.Context) error {
-		adapter, err := jaegerai.DialWsAdapter(ctx, agentURL, logger)
+		adapter, err := jaegerai.DialWsAdapter(ctx, agentURL, agentHeaders, logger)
 		if err != nil {
 			return fmt.Errorf("dial: %w", err)
 		}

@@ -25,7 +25,6 @@ import (
 	escfg "github.com/jaegertracing/jaeger/internal/storage/elasticsearch/config"
 	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/esclient"
 	"github.com/jaegertracing/jaeger/internal/storage/integration/capabilities"
-	es "github.com/jaegertracing/jaeger/internal/storage/v1/elasticsearch"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/api/depstore"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore"
 	esv2 "github.com/jaegertracing/jaeger/internal/storage/v2/elasticsearch"
@@ -79,14 +78,13 @@ func (s *ESStorageIntegration) esCleanUp(t *testing.T) {
 }
 
 func (s *ESStorageIntegration) initSpanstore(t *testing.T, allTagsAsFields bool) {
-	cfg := es.DefaultConfig()
+	cfg := esv2.DefaultConfig()
 	cfg.CreateIndexTemplates = true
 	cfg.BulkProcessing = escfg.BulkProcessing{
 		MaxBytes: 1, // flush on essentially every document, for test determinism
 	}
 	cfg.WriteMode = s.writeMode
 	cfg.Tags.AllAsFields = allTagsAsFields
-	cfg.ServiceCacheTTL = 1 * time.Second
 	cfg.Indices.IndexPrefix = indexPrefix
 	var err error
 	f, err := esv2.NewFactory(context.Background(), cfg, telemetry.NoopSettings(), nil)
@@ -94,7 +92,7 @@ func (s *ESStorageIntegration) initSpanstore(t *testing.T, allTagsAsFields bool)
 	t.Cleanup(func() {
 		require.NoError(t, f.Close())
 	})
-	acfg := es.DefaultConfig()
+	acfg := esv2.DefaultConfig()
 	acfg.ReadAliasSuffix = archiveAliasSuffix
 	acfg.WriteAliasSuffix = archiveAliasSuffix
 	acfg.UseReadWriteAliases = configoptional.Some(true)
@@ -191,6 +189,51 @@ func TestElasticsearchStorage_IndexTemplates(t *testing.T) {
 
 func (s *ESStorageIntegration) cleanESIndexTemplates(t *testing.T, prefix string) {
 	s.client.cleanTemplates(t, prefix)
+}
+
+// TestElasticsearchStorage_DataStreamTemplates checks that every supported backend
+// accepts the RFC 0004 §3.2 data-stream templates: the two Jaeger component
+// templates, the user-owned "@custom" component, and the composable index template
+// composing all three.
+//
+// Running in the ES/OS matrix job is what makes this meaningful. The esclient
+// snapshot pins the bytes Jaeger sends but cannot tell whether a backend accepts
+// them, and the versions in that matrix disagree on exactly the "@custom" question:
+// ignore_missing_component_templates is ES 8.7+ and exists on no OpenSearch version,
+// and every one of them rejects a composed_of naming a template that does not exist.
+// The cluster resolves composed_of when the index template is written, so these three
+// PUTs succeeding is the compatibility result.
+//
+// Writing a span through a data stream belongs with the factory wiring that makes one
+// reachable (RFC 0004 milestone 9), together with the end-to-end test that reads it
+// back.
+func TestElasticsearchStorage_DataStreamTemplates(t *testing.T) {
+	SkipUnlessEnv(t, StorageElasticsearch, StorageOpenSearch)
+	t.Cleanup(func() {
+		testutils.VerifyGoLeaksOnce(t)
+	})
+	require.NoError(t, healthCheck(getESHttpClient(t)))
+
+	ctx := context.Background()
+	replicas := int64(0)
+	client := newESTestClient(t)
+	indices := esclient.IndicesClient{
+		Client:                 client.client,
+		IgnoreUnavailableIndex: true,
+		Indices: escfg.Indices{
+			IndexPrefix: escfg.IndexPrefix(indexPrefix),
+			Spans:       escfg.IndexOptions{Shards: 1, Replicas: &replicas},
+		},
+	}
+
+	// Composable templates are not indices, so the suite's DeleteAllIndices teardown
+	// leaves them behind.
+	require.NoError(t, indices.TestsOnlyDeleteSpanDataStreamObjects(ctx))
+	t.Cleanup(func() {
+		require.NoError(t, indices.TestsOnlyDeleteSpanDataStreamObjects(context.Background()))
+	})
+
+	require.NoError(t, indices.CreateSpanDataStreamTemplates(ctx))
 }
 
 // TestElasticsearchStorage_SyncBulkWriter exercises the RFC 0007 synchronous bulk

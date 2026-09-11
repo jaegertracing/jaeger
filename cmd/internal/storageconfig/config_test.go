@@ -11,7 +11,6 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/collector/confmap"
-	"go.opentelemetry.io/collector/confmap/xconfmap"
 
 	escfg "github.com/jaegertracing/jaeger/internal/storage/elasticsearch/config"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/badger"
@@ -189,7 +188,7 @@ func TestTraceBackendUnmarshal(t *testing.T) {
 				assert.Equal(t, "round_robin", tb.GRPC.BalancerName)
 				assert.Equal(t, "pick_first", tb.GRPC.Writer.BalancerName)
 				require.NotEmpty(t, tb.GRPC.Timeout)
-				require.NoError(t, xconfmap.Validate(tb))
+				require.NoError(t, confmap.Validate(tb))
 			},
 		},
 		{
@@ -238,7 +237,7 @@ func TestTraceBackendUnmarshal(t *testing.T) {
 				assert.Equal(t, clickhouse.DefaultConfiguration().DefaultSearchDepth, tb.ClickHouse.DefaultSearchDepth)
 				assert.Equal(t, clickhouse.DefaultConfiguration().AttributeMetadataCacheTTL, tb.ClickHouse.AttributeMetadataCacheTTL)
 				assert.Equal(t, clickhouse.DefaultConfiguration().AttributeMetadataCacheMaxSize, tb.ClickHouse.AttributeMetadataCacheMaxSize)
-				require.NoError(t, xconfmap.Validate(tb))
+				require.NoError(t, confmap.Validate(tb))
 			},
 		},
 		{
@@ -251,7 +250,7 @@ func TestTraceBackendUnmarshal(t *testing.T) {
 			},
 			expectError: false,
 			validateFunc: func(t *testing.T, tb *TraceBackend) {
-				require.ErrorContains(t, xconfmap.Validate(tb), "default_search_depth must be a positive number")
+				require.ErrorContains(t, confmap.Validate(tb), "default_search_depth must be a positive number")
 			},
 		},
 		{
@@ -268,7 +267,7 @@ func TestTraceBackendUnmarshal(t *testing.T) {
 				require.NotNil(t, tb.ClickHouse)
 				assert.Zero(t, tb.ClickHouse.AttributeMetadataCacheTTL)
 				assert.Zero(t, tb.ClickHouse.AttributeMetadataCacheMaxSize)
-				require.NoError(t, xconfmap.Validate(tb))
+				require.NoError(t, confmap.Validate(tb))
 			},
 		},
 	}

@@ -90,22 +90,21 @@ class FakeAgent(Agent):
         self,
         cwd: str,
         session_id: str,
-        additional_directories: list[str] | None = None,
         mcp_servers: Any = None,
+        additional_directories: list[str] | None = None,
         **kwargs: Any,
     ) -> LoadSessionResponse | None:
         return LoadSessionResponse()
 
     async def list_sessions(
         self,
-        additional_directories: list[str] | None = None,
-        cursor: str | None = None,
         cwd: str | None = None,
+        cursor: str | None = None,
         **kwargs: Any,
     ) -> ListSessionsResponse:
         return ListSessionsResponse(sessions=[])
 
-    async def prompt(self, prompt: list[Any], session_id: str, message_id: str | None = None, **kwargs: Any) -> PromptResponse:
+    async def prompt(self, session_id: str, prompt: list[Any], message_id: str | None = None, **kwargs: Any) -> PromptResponse:
         user_text = "".join(block.text for block in prompt if hasattr(block, "text"))
         self.received_prompts.append((session_id, user_text))
 
