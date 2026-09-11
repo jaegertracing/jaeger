@@ -12,6 +12,7 @@ import (
 	"github.com/spf13/viper"
 	"github.com/stretchr/testify/require"
 
+	statusflags "github.com/jaegertracing/jaeger/cmd/internal/flags"
 	"github.com/jaegertracing/jaeger/internal/testutils"
 )
 
@@ -31,6 +32,20 @@ func TestReady(t *testing.T) {
 	v := viper.New()
 	cmd := Command(v, 80)
 	cmd.ParseFlags([]string{"--status.http.host-port=" + strings.TrimPrefix(ts.URL, "http://")})
+	err := cmd.Execute()
+	require.NoError(t, err)
+}
+func TestReadyAgainstHealthHost(t *testing.T) {
+	healthHost := statusflags.NewHealthHost()
+	healthHost.Ready()
+
+	ts := httptest.NewServer(healthHost.Handler())
+	defer ts.Close()
+
+	v := viper.New()
+	cmd := Command(v, 80)
+	cmd.ParseFlags([]string{"--status.http.host-port=" + strings.TrimPrefix(ts.URL, "http://")})
+
 	err := cmd.Execute()
 	require.NoError(t, err)
 }

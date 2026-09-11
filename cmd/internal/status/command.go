@@ -38,7 +38,7 @@ func Command(v *viper.Viper, adminPort int) *cobra.Command {
 			defer resp.Body.Close()
 			body, _ := io.ReadAll(resp.Body)
 			fmt.Println(string(body))
-			if resp.StatusCode != http.StatusOK {
+			if resp.StatusCode < 200 || resp.StatusCode >= 300 {
 				return fmt.Errorf("abnormal value of http status code: %v", resp.StatusCode)
 			}
 			return nil
