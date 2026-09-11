@@ -71,6 +71,10 @@ type Options struct {
 	// FollowerLeaseRefreshInterval is the duration to sleep if this processor is a follower
 	// (ie. failed to gain the leader lock).
 	FollowerLeaseRefreshInterval time.Duration `mapstructure:"follower_lease_refresh_interval"`
+
+	// FollowerRefreshInterval determines how often a follower (non-leader) processor fetches
+	// the latest sampling probabilities from storage to update its local cache.
+	FollowerRefreshInterval time.Duration `mapstructure:"follower_refresh_interval"`
 }
 
 func DefaultOptions() Options {
@@ -86,5 +90,6 @@ func DefaultOptions() Options {
 		MinSamplesPerSecond:          1.0 / float64(time.Minute/time.Second), // once every 1 minute
 		LeaderLeaseRefreshInterval:   5 * time.Second,
 		FollowerLeaseRefreshInterval: 60 * time.Second,
+		FollowerRefreshInterval:      20 * time.Second,
 	}
 }
