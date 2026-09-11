@@ -69,6 +69,23 @@ func TestToMCPTraceSummary_WithErrors(t *testing.T) {
 	assert.True(t, out.HasErrors)
 }
 
+func TestToMCPTraceSummary_PreservesSubSecondPrecision(t *testing.T) {
+	s := tracestore.TraceSummary{
+		TraceID:           testTraceIDBytes,
+		RootServiceName:   "frontend",
+		RootOperationName: "/api/checkout",
+		MinStartTime:      time.Date(2025, time.July, 14, 10, 30, 0, 750123456, time.UTC),
+		MaxEndTime:        time.Date(2025, time.July, 14, 10, 30, 1, 0, time.UTC),
+		SpanCount:         1,
+		Services: []tracestore.ServiceSummary{
+			{Name: "frontend", SpanCount: 1},
+		},
+	}
+	out := toMCPTraceSummary(s)
+
+	assert.Equal(t, "2025-07-14T10:30:00.750123456Z", out.StartTime)
+}
+
 func TestToMCPTraceSummary_MultipleServices(t *testing.T) {
 	s := tracestore.TraceSummary{
 		TraceID:           testTraceIDBytes,
