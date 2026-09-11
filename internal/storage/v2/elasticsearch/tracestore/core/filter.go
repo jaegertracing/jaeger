@@ -62,8 +62,8 @@ func (r reference) isField(level expression.Level, name string) bool {
 // object fields, whose leaf is the attribute key, and the nested key/value arrays. Both are
 // searched because which of the two the write path produced depends on the tags-as-fields
 // setting in force when the span was indexed, and that setting can change over the life of
-// an index. Instrumentation-scope attributes are folded into the span's own tags and link
-// attributes are not indexed at all, so neither level appears here (RFC 0005 §1.6).
+// an index. Instrumentation-scope and link attributes now have fields of their own, but no
+// scope or link level is served off them yet, so neither appears here (RFC 0005 §1.6).
 var attributeLocations = map[expression.Level]attributeLocation{
 	expression.LevelSpan: {
 		object: []string{objectTagsField},
@@ -79,8 +79,12 @@ var attributeLocations = map[expression.Level]attributeLocation{
 	// An unqualified reference searches the span and resource levels (RFC 0005 §5.1). It
 	// deliberately stops short of the event level that the legacy Tags search also covers:
 	// the legacy field keeps its behavior, and the filter follows the documented contract.
+	// The two field lists are spelled out rather than borrowed from the legacy search's
+	// objectTagFieldList, which also carries the scope field: taking that list would search
+	// elevated scope attributes and not nested ones, making an unqualified match depend on
+	// the tags-as-fields setting the span was written under.
 	"": {
-		object: objectTagFieldList,
+		object: []string{objectTagsField, objectProcessTagsField},
 		nested: []string{nestedTagsField, nestedProcessTagsField},
 	},
 }

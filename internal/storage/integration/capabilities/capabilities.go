@@ -114,7 +114,7 @@ func Elasticsearch() Capabilities {
 		// This schema indexes every attribute as a keyword, so ordering one is refused rather than
 		// answered lexicographically, and the battery's paired refusal case is the one to run
 		// (RFC 0015 is what changes that).
-		skipList: []string{scopeAttributesTest, linkAttributesTest, attributeOrderingTest},
+		skipList: []string{attributeOrderingTest},
 	}
 }
 
@@ -124,8 +124,6 @@ func ElasticsearchSmokeTest() Capabilities {
 	return Capabilities{
 		getOperationsMissingSpanKind: true,
 		skipList: []string{
-			scopeAttributesTest,
-			linkAttributesTest,
 			structuredFilterTest,
 			"GetLargeTrace",
 			"GetTraceWithDuplicateSpans",
@@ -138,7 +136,7 @@ func OpenSearch() Capabilities {
 	return Capabilities{
 		getOperationsMissingSpanKind: true,
 		// Same keyword mapping as Elasticsearch; see the note there.
-		skipList: []string{scopeAttributesTest, linkAttributesTest, attributeOrderingTest},
+		skipList: []string{attributeOrderingTest},
 	}
 }
 
@@ -156,5 +154,19 @@ func Kafka() Capabilities {
 func E2EWithoutNativeFilters() Capabilities {
 	return Capabilities{
 		skipList: []string{structuredFilterTest},
+	}
+}
+
+func ElasticsearchBackwardCompat() Capabilities {
+	return Capabilities{
+		getOperationsMissingSpanKind: true,
+		skipList:                     []string{scopeAttributesTest, linkAttributesTest, attributeOrderingTest},
+	}
+}
+
+func OpenSearchBackwardCompat() Capabilities {
+	return Capabilities{
+		getOperationsMissingSpanKind: true,
+		skipList:                     []string{scopeAttributesTest, linkAttributesTest, attributeOrderingTest},
 	}
 }

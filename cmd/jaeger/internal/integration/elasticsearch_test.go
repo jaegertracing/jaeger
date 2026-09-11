@@ -58,7 +58,7 @@ func TestElasticsearchStorage_BackwardCompatibility(t *testing.T) {
 		FeatureGates: structuredFilterGates,
 		StorageIntegration: integration.StorageIntegration{
 			Fixtures:     integration.LoadAndParseQueryTestCases(t, "fixtures/queries_es.json"),
-			Capabilities: capabilities.Elasticsearch(),
+			Capabilities: capabilities.ElasticsearchBackwardCompat(),
 		},
 	})
 }
