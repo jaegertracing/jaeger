@@ -108,6 +108,10 @@ func TestBuildFilterQuery(t *testing.T) {
 			filter: p.Span().Name.Eq("/api/v3/traces"),
 		},
 		{
+			name:   "span.kind reads the attribute the write path stores",
+			filter: p.Span().Kind.Eq(p.Text("server")),
+		},
+		{
 			name:   "resource.service is the service name",
 			filter: p.Resource().Service.Eq("cart"),
 		},
@@ -158,6 +162,10 @@ func TestBuildFilterQuery(t *testing.T) {
 			filter: p.Span().Attr("http.route").Matches("/api/.*"),
 		},
 		{
+			name:   "regex on span.kind reads the stored attribute",
+			filter: p.Span().Kind.Matches("serv.*"),
+		},
+		{
 			name:   "an escaped punctuation character, which both dialects read the same way",
 			filter: p.Span().Attr("http.route").Matches(`/cart\.json`),
 		},
@@ -188,6 +196,10 @@ func TestBuildFilterQuery(t *testing.T) {
 		{
 			name:   "exists on the operation name",
 			filter: p.Span().Name.Exists(),
+		},
+		{
+			name:   "exists on span.kind reads the stored attribute",
+			filter: p.Span().Kind.Exists(),
 		},
 		{
 			name:   "exists on the service name",
@@ -235,6 +247,10 @@ func TestBuildFilterQuery(t *testing.T) {
 			filter: p.Resource().Service.Ne("cart"),
 		},
 		{
+			name:   "ne on span.kind requires the stored attribute to be present",
+			filter: p.Span().Kind.Ne("server"),
+		},
+		{
 			name:   "in is the disjunction of equalities it stands for",
 			filter: p.Resource().Service.In("cart", "checkout"),
 		},
@@ -245,6 +261,14 @@ func TestBuildFilterQuery(t *testing.T) {
 		{
 			name:   "not_in requires the reference to be present, like ne",
 			filter: p.Resource().Service.NotIn("cart", "checkout"),
+		},
+		{
+			name:   "membership on span.kind reads the stored attribute",
+			filter: p.Span().Kind.In("server", "client"),
+		},
+		{
+			name:   "not_in on span.kind requires the stored attribute to be present",
+			filter: p.Span().Kind.NotIn("server", "client"),
 		},
 		{
 			// The lowering is the disjunction of equalities the membership stands for, and each
@@ -379,9 +403,9 @@ func TestBuildFilterQueryRefused(t *testing.T) {
 		},
 		{
 			name:    "a built-in field this schema has no field for",
-			filter:  p.Span().Kind.Eq("server"),
+			filter:  p.Span().Status.Eq("ok"),
 			wantErr: tracestore.ErrFilterUnsupported,
-			wantMsg: `built-in field "kind" of the "span" level`,
+			wantMsg: `built-in field "status" of the "span" level`,
 		},
 		{
 			name:    "exists on a built-in field this schema has no field for",
@@ -400,6 +424,12 @@ func TestBuildFilterQueryRefused(t *testing.T) {
 			filter:  p.Span().Name.Lte("m"),
 			wantErr: tracestore.ErrFilterUnsupported,
 			wantMsg: `indexes "name" as a keyword rather than a number`,
+		},
+		{
+			name:    "ordering span.kind",
+			filter:  p.Span().Kind.Gt("server"),
+			wantErr: tracestore.ErrFilterUnsupported,
+			wantMsg: `indexes "span.kind" as a keyword rather than a number`,
 		},
 		{
 			name:    "a pattern over the duration, which is a number",
@@ -626,7 +656,7 @@ func TestFindTraceIDsRefusesUnservableFilter(t *testing.T) {
 		_, err := r.reader.FindTraceIDs(context.Background(), dbmodel.TraceQueryParameters{
 			StartTimeMin: now,
 			StartTimeMax: now.Add(time.Hour),
-			Filter:       p.Span().Kind.Eq("server"),
+			Filter:       p.Link().Attr("k").Eq("v"),
 		})
 		require.ErrorIs(t, err, tracestore.ErrFilterUnsupported)
 	})
