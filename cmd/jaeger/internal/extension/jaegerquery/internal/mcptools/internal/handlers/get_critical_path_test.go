@@ -315,3 +315,70 @@ func TestGetCriticalPathHandler_BuildOutput_MissingSpan(t *testing.T) {
 	assert.Len(t, output.Segments, 1)
 	assert.Equal(t, span.SpanID().String(), output.Segments[0].SpanID)
 }
+
+func TestGetCriticalPathHandler_BuildOutput_OffsetUnderflowProtection(t *testing.T) {
+	// Verify that if a critical path section start/end time is less than traceStartTime,
+	// StartOffsetUs and EndOffsetUs clamp to 0 rather than underflowing uint64.
+	handler := &getCriticalPathHandler{}
+
+	traces := ptrace.NewTraces()
+	rs := traces.ResourceSpans().AppendEmpty()
+	ss := rs.ScopeSpans().AppendEmpty()
+	span := ss.Spans().AppendEmpty()
+	span.SetSpanID([8]byte{1})
+	span.SetTraceID([16]byte{1})
+	// Trace start time = 5000us (5,000,000 ns)
+	span.SetStartTimestamp(pcommon.Timestamp(5000 * 1000))
+	span.SetEndTimestamp(pcommon.Timestamp(10000 * 1000))
+	span.SetName("test-span")
+
+	traceID := span.TraceID().String()
+
+	sections := []criticalpath.Section{
+		{
+			SpanID:       span.SpanID().String(),
+			SectionStart: 2000, // < traceStartTime (5000)
+			SectionEnd:   3000, // < traceStartTime (5000)
+		},
+	}
+
+	output := handler.buildOutput(traceID, traces, sections)
+
+	require.Len(t, output.Segments, 1)
+	assert.Equal(t, uint64(0), output.Segments[0].StartOffsetUs)
+	assert.Equal(t, uint64(0), output.Segments[0].EndOffsetUs)
+	assert.Equal(t, uint64(1000), output.Segments[0].SelfTimeUs)
+}
+
+func TestGetCriticalPathHandler_BuildOutput_ValidOffset(t *testing.T) {
+	// Verify normal case: traceStartTime = 1000us, SectionStart = 5000us, SectionEnd = 10000us.
+	handler := &getCriticalPathHandler{}
+
+	traces := ptrace.NewTraces()
+	rs := traces.ResourceSpans().AppendEmpty()
+	ss := rs.ScopeSpans().AppendEmpty()
+	span := ss.Spans().AppendEmpty()
+	span.SetSpanID([8]byte{1})
+	span.SetTraceID([16]byte{1})
+	// Trace start time = 1000us (1,000,000 ns)
+	span.SetStartTimestamp(pcommon.Timestamp(1000 * 1000))
+	span.SetEndTimestamp(pcommon.Timestamp(15000 * 1000))
+	span.SetName("test-span")
+
+	traceID := span.TraceID().String()
+
+	sections := []criticalpath.Section{
+		{
+			SpanID:       span.SpanID().String(),
+			SectionStart: 5000,
+			SectionEnd:   10000,
+		},
+	}
+
+	output := handler.buildOutput(traceID, traces, sections)
+
+	require.Len(t, output.Segments, 1)
+	assert.Equal(t, uint64(4000), output.Segments[0].StartOffsetUs)
+	assert.Equal(t, uint64(9000), output.Segments[0].EndOffsetUs)
+	assert.Equal(t, uint64(5000), output.Segments[0].SelfTimeUs)
+}

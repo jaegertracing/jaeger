@@ -163,22 +163,40 @@ func (*getCriticalPathHandler) buildOutput(
 		// Get service name from service map
 		serviceName := serviceMap[section.SpanID]
 
-		selfTime := section.SectionEnd - section.SectionStart
+		var selfTime uint64
+		if section.SectionEnd >= section.SectionStart {
+			selfTime = section.SectionEnd - section.SectionStart
+		}
 		criticalPathDuration += selfTime
+
+		var startOffset uint64
+		if section.SectionStart >= traceStartTime {
+			startOffset = section.SectionStart - traceStartTime
+		}
+
+		var endOffset uint64
+		if section.SectionEnd >= traceStartTime {
+			endOffset = section.SectionEnd - traceStartTime
+		}
 
 		segments = append(segments, types.CriticalPathSegment{
 			SpanID:        section.SpanID,
 			Service:       serviceName,
 			SpanName:      span.Name(),
 			SelfTimeUs:    selfTime,
-			StartOffsetUs: section.SectionStart - traceStartTime,
-			EndOffsetUs:   section.SectionEnd - traceStartTime,
+			StartOffsetUs: startOffset,
+			EndOffsetUs:   endOffset,
 		})
+	}
+
+	var totalDuration uint64
+	if traceEndTime >= traceStartTime {
+		totalDuration = traceEndTime - traceStartTime
 	}
 
 	return types.GetCriticalPathOutput{
 		TraceID:                traceIDStr,
-		TotalDurationUs:        traceEndTime - traceStartTime,
+		TotalDurationUs:        totalDuration,
 		CriticalPathDurationUs: criticalPathDuration,
 		Segments:               segments,
 	}
