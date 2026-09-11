@@ -9,6 +9,7 @@ import (
 	"reflect"
 	"regexp/syntax"
 	"slices"
+	"strings"
 
 	expression "github.com/jaegertracing/jaeger-idl/query/expression/v1"
 )
@@ -437,6 +438,9 @@ func validatePattern(pattern string) error {
 	if err != nil {
 		return fmt.Errorf("operator %q takes a pattern in RE2 syntax: %w", expression.OpRegex, err)
 	}
+	if hasInlineCaseFolding(pattern) {
+		return fmt.Errorf("operator %q matches case-sensitively, so a pattern cannot use an inline case-folding flag", expression.OpRegex)
+	}
 	return checkPortable(parsed)
 }
 
@@ -452,9 +456,6 @@ func checkPortable(re *syntax.Regexp) error {
 	}
 	if re.Flags&syntax.NonGreedy != 0 {
 		return fmt.Errorf("operator %q asks whether the value matches, so a quantifier cannot be lazy", expression.OpRegex)
-	}
-	if re.Flags&syntax.FoldCase != 0 {
-		return fmt.Errorf("operator %q matches case-sensitively, so a pattern cannot fold case", expression.OpRegex)
 	}
 	for _, sub := range re.Sub {
 		if err := checkPortable(sub); err != nil {
@@ -535,4 +536,81 @@ func termName(e expression.Expression) string {
 	default:
 		return "an unknown term"
 	}
+}
+
+// hasInlineCaseFolding reports whether a pattern contains an unescaped inline
+// case-folding flag, e.g. (?i) or (?i:...).
+//
+// The check is lexical because Go's regexp parser folds two-element case
+// classes like [aA] or (a|A) into a FoldCase AST node, destroying the
+// distinction between a case class (which is portable and supported by
+// storage engines) and an inline flag group (which backends like Elasticsearch
+// cannot honor).
+func hasInlineCaseFolding(pattern string) bool {
+	inClass := false
+	for i := 0; i < len(pattern); i++ {
+		switch pattern[i] {
+		case '\\':
+			i = skipEscape(pattern, i)
+		case '[':
+			inClass = true
+		case ']':
+			inClass = false
+		case '(':
+			if inClass {
+				continue
+			}
+			folds, last := groupFoldsCase(pattern, i)
+			if folds {
+				return true
+			}
+			i = last
+		default:
+		}
+	}
+	return false
+}
+
+// skipEscape returns the index of the last byte consumed by the escape that
+// starts at pattern[i]: the escaped character, or the whole of a \Q...\E
+// quoted run, which extends to the end of the pattern when \E is absent.
+func skipEscape(pattern string, i int) int {
+	if i+1 >= len(pattern) {
+		return i
+	}
+	if pattern[i+1] != 'Q' {
+		return i + 1
+	}
+	end := strings.Index(pattern[i+2:], `\E`)
+	if end < 0 {
+		return len(pattern)
+	}
+	return i + 2 + end + 1
+}
+
+// groupFoldsCase reports whether the group opening at pattern[i] is a flag
+// group that switches case folding on, such as (?i) or (?i:...), and returns
+// the index of the last byte it examined. A named group (?P<n>...) and a flag
+// that only appears after a minus, such as (?-i), do not fold case.
+func groupFoldsCase(pattern string, i int) (bool, int) {
+	if i+1 >= len(pattern) || pattern[i+1] != '?' {
+		return false, i
+	}
+	j := i + 2
+	if j < len(pattern) && pattern[j] == 'P' {
+		return false, j
+	}
+	negated := false
+	for ; j < len(pattern) && pattern[j] != ':' && pattern[j] != ')'; j++ {
+		switch pattern[j] {
+		case '-':
+			negated = true
+		case 'i', 'I':
+			if !negated {
+				return true, j
+			}
+		default:
+		}
+	}
+	return false, j
 }
