@@ -694,6 +694,18 @@ func TestArchiveTrace(t *testing.T) {
 			},
 			expectedError: spanstore.ErrTraceNotFound,
 		},
+		{
+			name:    "archive only trace is not re-archived",
+			options: []testOption{withArchiveTraceReader(), withArchiveTraceWriter()},
+			setupMocks: func(tqs *testQueryService) {
+				primaryIter := iter.Seq2[[]ptrace.Traces, error](func(yield func([]ptrace.Traces, error) bool) {
+					yield([]ptrace.Traces{}, nil)
+				})
+				tqs.traceReader.On("GetTraces", mock.Anything, paramsTraceIDs).
+					Return(primaryIter).Once()
+			},
+			expectedError: spanstore.ErrTraceNotFound,
+		},
 	}
 
 	for _, test := range tests {
