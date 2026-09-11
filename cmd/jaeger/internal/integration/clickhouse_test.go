@@ -22,3 +22,13 @@ func TestClickHouseStorage(t *testing.T) {
 	s.e2eInitialize(t, "clickhouse")
 	s.RunSpanStoreTests(t)
 }
+
+func TestClickHouseStorage_BackwardCompatibility(t *testing.T) {
+	integration.SkipUnlessEnv(t, integration.StorageClickHouse)
+	runBackwardCompatibilityTests(t, "clickhouse", E2EStorageIntegration{
+		ConfigFile: "../../config-clickhouse.yaml",
+		StorageIntegration: integration.StorageIntegration{
+			Capabilities: capabilities.E2EWithoutNativeFilters(),
+		},
+	})
+}

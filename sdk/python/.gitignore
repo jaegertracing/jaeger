@@ -5,3 +5,5 @@ __pycache__/
 .ruff_cache/
 .coverage
 /e2e/.build/
+/build/
+/dist/

@@ -122,11 +122,14 @@ func parseFindTracesQuery(q url.Values) (*querysvc.TraceQueryParams, error) {
 		searchDepthParam = paramNumTraces
 	}
 	if n != "" {
-		searchDepth, err := strconv.Atoi(n)
+		searchDepth, err := strconv.ParseInt(n, 10, 32)
 		if err != nil {
 			return nil, fmt.Errorf("malformed parameter %s: %w", searchDepthParam, err)
 		}
-		queryParams.SearchDepth = searchDepth
+		if searchDepth < 0 || searchDepth > int64(tracestore.MaxSearchDepth) {
+			return nil, fmt.Errorf("malformed parameter %s: search depth must be in [0, %d]", searchDepthParam, tracestore.MaxSearchDepth)
+		}
+		queryParams.SearchDepth = int(searchDepth)
 	} else {
 		queryParams.SearchDepth = defaultSearchDepth
 	}

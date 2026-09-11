@@ -309,6 +309,31 @@ func TestSearchTracesHandler_Handle_SearchDepthMax(t *testing.T) {
 	require.NoError(t, err)
 }
 
+func TestSearchTracesHandler_Handle_SearchDepthUnlimitedMaxResults(t *testing.T) {
+	want := makeTraceSummary("test", "/test", false)
+
+	mock := &mockQueryService{
+		findTraceSummariesFunc: func(_ context.Context, query querysvc.TraceQueryParams) iter.Seq2[[]tracestore.TraceSummary, error] {
+			assert.Equal(t, 25, query.SearchDepth)
+			return func(yield func([]tracestore.TraceSummary, error) bool) {
+				yield([]tracestore.TraceSummary{want}, nil)
+			}
+		},
+	}
+
+	// maxResults == 0 means "no global cap", so an explicit search_depth must be preserved.
+	handler := &searchTracesHandler{queryService: mock, maxResults: 0}
+
+	input := types.SearchTracesInput{
+		StartTimeMin: "-1h",
+		ServiceName:  "test",
+		SearchDepth:  25,
+	}
+
+	_, _, err := handler.handle(context.Background(), &mcp.CallToolRequest{}, input)
+	require.NoError(t, err)
+}
+
 func TestSearchTracesHandler_Handle_QueryError(t *testing.T) {
 	want := makeTraceSummary("test-service", "/api/test", false)
 
