@@ -24,14 +24,21 @@ originating failure, not just the symptoms.
 2. Use `get_trace_topology` to see the full span tree and identify
    parent-child relationships among the error spans.
 3. Walk from each error span toward the leaves of the tree. The deepest error
-   span with no errored children is the most likely root cause.
-4. Use `get_span_details` on the candidate root-cause span(s) to inspect
-   attributes, events, and status for the actual failure reason.
-5. Report: root-cause span (service, operation, error message), the
-   propagation chain, and a recommendation.
+   span with no errored children is the *candidate* root cause.
+4. Before accepting that candidate, look at its children even though none of
+   them errored. If one ran for nearly the whole of the candidate's duration,
+   the candidate did not fail — it gave up waiting, and the cause lies in that
+   child. Descend into it and repeat, until no child accounts for the time.
+5. Use `get_span_details` on the span you settled on to inspect attributes,
+   events, and status for the actual failure reason.
+6. Report: the span the failure originates from (service, operation, and error
+   message if it has one), the propagation chain, and a recommendation.
 
 ## Gotchas
 
-- Timeouts at a parent may mask the real cause in a child that was cancelled —
-  check children of timed-out spans even if they do not have error status.
+- A timed-out call often has nothing below it. The work it was waiting on never
+  returned, so no spans were recorded for it. Name the last span you can see and
+  say the cause lies beneath it, rather than blaming the timeout itself.
+- The span a trace blames and the span that failed are frequently in different
+  services. Report where the failure originates, not where it surfaced.
 - Multiple independent root causes can exist in a single trace.

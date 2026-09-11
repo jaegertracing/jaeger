@@ -1,0 +1,39 @@
+{
+  "fixture": "sibling-errors",
+  "skill": "error-root-cause",
+  "pattern_present": true,
+  "label_derived_from": "construction",
+  "skill_rule_reaches_expected_answer": false,
+  "source": {
+    "system": "synthetic",
+    "why_not_captured": "Two rounds of OpenTelemetry Demo fault injection across 620 traces (productCatalogFailure, cartFailure, adFailure, recommendationCacheFailure, paymentFailure) produced no parent with two errored children. The demo's services abort on the first failure, so errors propagate up a single chain and this shape does not occur.",
+    "captured": "2026-08-06"
+  },
+  "trace_id": "7c4f1a90b3e84d2f9a6c5e8017b3d264",
+  "expected": {
+    "locus_span_id": "d4e5f60718293a4b",
+    "locus_service": "payment",
+    "locus_operation": "oteldemo.PaymentService/Charge",
+    "locus_start_offset_ms": 22,
+    "mechanism_determinable_from_trace": true,
+    "mechanism": "payment declined: card processor rejected transaction"
+  },
+  "naive_answer": {
+    "problem": "ambiguous, not wrong",
+    "why": "PlaceOrder has two errored children, payment/Charge and email/SendOrderConfirmation. Both bottom out in a leaf error span with no errored children of its own, so the step 3 rule selects both and cannot choose between them. Nothing in the tree structure breaks the tie.",
+    "tie_breaker": "Start times. payment/Charge begins at +20ms, email/SendOrderConfirmation at +120ms, after the charge had already failed. The later error is fallout from the earlier one."
+  },
+  "structure": [
+    "ERR checkout/PlaceOrder                     0-200ms",
+    "  ok  checkout/GetCart                      5-15ms",
+    "  ERR checkout/PaymentService/Charge        20-60ms   <- first failure, the cause",
+    "    ERR payment/PaymentService/Charge       22-58ms   <- locus",
+    "  ERR checkout/EmailService/SendOrder…      120-180ms <- consequence",
+    "    ERR email/EmailService/SendOrder…       122-178ms"
+  ],
+  "notes": [
+    "Constructed, not captured, and the fixture is deliberately small: 6 spans across 3 services. Its value is the shape, not the realism.",
+    "Timestamps are pinned to a fixed epoch, so the file is stable and the structure above fully describes it.",
+    "This is the only fixture whose correct answer needs information the span tree alone does not carry. It tests whether a skill's procedure reaches for start times when the hierarchy is ambiguous."
+  ]
+}

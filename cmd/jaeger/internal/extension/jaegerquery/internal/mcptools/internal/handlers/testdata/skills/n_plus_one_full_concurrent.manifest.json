@@ -1,0 +1,29 @@
+{
+  "fixture": "n-plus-one-full-concurrent",
+  "skill": "detect-n-plus-one",
+  "pattern_present": false,
+  "label_derived_from": "capture",
+  "source": {
+    "system": "HotROD",
+    "hotrod_build": "jaegertracing/example-hotrod@sha256:69be0c5805c52dd10213cbcf7c846383ae89a8319d5954eadc789cd34e3392e4",
+    "hotrod_flags": "-W 3",
+    "endpoint": "GET /dispatch?customer=123",
+    "captured": "2026-08-19"
+  },
+  "trace_id": "1a4e4a7b270e9f2a0f716e3ee115218a",
+  "untrimmed": true,
+  "expected": {
+    "parent_span_id": "97e1247531a58678",
+    "service": "frontend",
+    "operation": "HTTP GET",
+    "siblings": 11,
+    "overlapping_pairs": 9,
+    "wall_ms": 693.8,
+    "sum_of_durations_ms": 782.6
+  },
+  "why_it_is_not_an_n_plus_one": "HotROD's -W flag sets the route-service worker pool. At the default of 3 the eleven route calls overlap, so their durations sum to more than the window they occupy. The label is a property of the flag the capture ran under, not a judgement about the trace.",
+  "notes": [
+    "Whole trace, 40 spans across 6 services, nothing removed. Its pair, n_plus_one_full_serial, is the same trace shape captured at -W 1, where the identical group runs serially and the correct answer flips.",
+    "The trace also contains a genuine N+1 elsewhere: 13 serial GetDriver calls under the driver service. That is why the trimmed near-miss fixture exists — a whole-trace negative can only be scoped to a named group, which is what expected.parent_span_id does here."
+  ]
+}
