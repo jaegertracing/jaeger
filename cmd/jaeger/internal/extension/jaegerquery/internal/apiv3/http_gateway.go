@@ -31,6 +31,7 @@ import (
 
 const (
 	routeGetTrace      = "/api/v3/traces/{" + paramTraceID + "}"
+	routeFindSpans     = "/api/v3/spans"
 	routeFindTraces    = "/api/v3/traces"
 	routeFindSummaries = "/api/v3/trace-summaries"
 	routeGetServices   = "/api/v3/services"
@@ -48,6 +49,7 @@ type HTTPGateway struct {
 // RegisterRoutes registers HTTP endpoints for APIv3 into provided mux.
 func (h *HTTPGateway) RegisterRoutes(router *http.ServeMux) {
 	h.addRoute(router, h.getTrace, routeGetTrace, http.MethodGet)
+	h.addRoute(router, h.findSpans, routeFindSpans, http.MethodGet)
 	h.addRoute(router, h.findTraces, routeFindTraces, http.MethodGet)
 	h.addRoute(router, h.findTraceSummaries, routeFindSummaries, http.MethodGet)
 	h.addRoute(router, h.getServices, routeGetServices, http.MethodGet)
@@ -114,6 +116,14 @@ func (h *HTTPGateway) returnTrace(td ptrace.Traces, w http.ResponseWriter) {
 	h.marshalResponse(response, w)
 }
 
+func (h *HTTPGateway) returnSpanPage(sp tracestore.SpanPage, w http.ResponseWriter) {
+	tracesData := jptrace.TracesData(sp.Spans)
+	h.marshalResponse(&api_v3.FindSpansResponse{
+		Spans:         &tracesData,
+		NextPageToken: sp.NextPageToken,
+	}, w)
+}
+
 func (h *HTTPGateway) returnTraces(traces []ptrace.Traces, err error, w http.ResponseWriter) {
 	if h.tryHandleError(w, err, http.StatusInternalServerError) {
 		return
@@ -140,6 +150,38 @@ func (h *HTTPGateway) returnTraces(traces []ptrace.Traces, err error, w http.Res
 		}
 	}
 	h.returnTrace(combinedTrace, w)
+}
+
+func (h *HTTPGateway) returnSpans(spanPages []tracestore.SpanPage, err error, w http.ResponseWriter) {
+	if h.tryHandleError(w, err, http.StatusInternalServerError) {
+		return
+	}
+	if len(spanPages) == 0 {
+		errorResponse := api_v3.GRPCGatewayError{
+			Error: &api_v3.GRPCGatewayError_GRPCGatewayErrorDetails{
+				HttpCode: http.StatusNotFound, // this is weird for returning a collection, because the collection does
+				// exist, it just is empty. For a single trace it makes sense, but I don't think it makes sense for a search
+				Message: "No spans found",
+			},
+		}
+		resp, _ := json.Marshal(&errorResponse)
+		http.Error(w, string(resp), http.StatusNotFound)
+		return
+	}
+	// TODO: the response should be streamed back to the client
+	// https://github.com/jaegertracing/jaeger/issues/6467
+	// Collapse the span pages into a single page to be easily coerced into a response
+	combinedTrace := ptrace.NewTraces()
+	nextPageToken := ""
+	for _, p := range spanPages {
+		nextPageToken = p.NextPageToken
+		resources := p.Spans.ResourceSpans()
+		for i := 0; i < resources.Len(); i++ {
+			resource := resources.At(i)
+			resource.CopyTo(combinedTrace.ResourceSpans().AppendEmpty())
+		}
+	}
+	h.returnSpanPage(tracestore.SpanPage{combinedTrace, nextPageToken}, w)
 }
 
 func (*HTTPGateway) marshalResponse(response proto.Message, w http.ResponseWriter) {
@@ -185,6 +227,17 @@ func (h *HTTPGateway) getTrace(w http.ResponseWriter, r *http.Request) {
 	getTracesIter := h.QueryService.GetTraces(r.Context(), request)
 	trc, err := jiter.FlattenWithErrors(getTracesIter)
 	h.returnTraces(trc, err, w)
+}
+
+func (h *HTTPGateway) findSpans(w http.ResponseWriter, r *http.Request) {
+	queryParams, err := parseFindSpansQuery(r.URL.Query())
+	if h.tryHandleError(w, err, http.StatusBadRequest) {
+		return
+	}
+
+	findSpansIter := h.QueryService.FindSpans(r.Context(), *queryParams)
+	result, err := jiter.FlattenWithErrors(findSpansIter)
+	h.returnSpans(result, err, w)
 }
 
 func (h *HTTPGateway) findTraces(w http.ResponseWriter, r *http.Request) {

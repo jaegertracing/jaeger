@@ -37,6 +37,9 @@ var (
 
 // traceReader retrieves trace data from the jaeger-v2 query service through the api_v2.QueryServiceClient.
 type traceReader struct {
+	// SpanSearch is unsupported for now.
+	tracestore.UnsupportedSpanSearch
+
 	logger     *zap.Logger
 	clientConn *grpc.ClientConn
 	client     api_v3.QueryServiceClient

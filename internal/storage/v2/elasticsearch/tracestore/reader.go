@@ -18,6 +18,9 @@ var _ tracestore.Reader = (*TraceReader)(nil)
 
 // TraceReader is a wrapper around core.Reader which returns the output parallel to OTLP Models
 type TraceReader struct {
+	// SpanSearch is unsupported in ElasticSearch for now.
+	tracestore.UnsupportedSpanSearch
+
 	spanReader core.Reader
 }
 
