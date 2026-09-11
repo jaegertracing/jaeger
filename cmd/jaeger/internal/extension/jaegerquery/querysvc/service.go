@@ -314,7 +314,7 @@ func (qs QueryService) ArchiveTrace(ctx context.Context, query tracestore.GetTra
 		qs.interceptResults(ctx, qs.traceReader.GetTraces(ctx, query)),
 		func(traces []ptrace.Traces, err error) bool {
 			if err != nil {
-				archiveErr = err
+				archiveErr = errors.Join(archiveErr, err)
 				return false
 			}
 			for _, trace := range traces {
