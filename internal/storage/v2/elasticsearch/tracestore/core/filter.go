@@ -292,7 +292,7 @@ func (s *SpanReader) buildComparison(
 	case ref.isField(expression.LevelResource, expression.ResourceFieldService):
 		return buildTextComparison(serviceNameField, op, ref, text)
 	case ref.isField(expression.LevelEvent, expression.EventFieldName):
-		return s.buildAttributeComparison(op, eventNameAsAttribute, text)
+		return s.buildEventNameComparison(op, ref, text)
 	default:
 		return nil, errUnsupportedField(ref)
 	}
@@ -388,6 +388,21 @@ func (s *SpanReader) buildAttributeComparison(
 		return nil, err
 	}
 	return s.attributeQuery(locations, ref.name, match), nil
+}
+
+// buildEventNameComparison compares the event name stored in the nested event attributes. Unlike
+// an attribute, an event name is declared as text, so its keyword representation can be ordered
+// lexicographically.
+func (s *SpanReader) buildEventNameComparison(
+	op expression.Operator,
+	ref reference,
+	value string,
+) (esquery.Query, error) {
+	match, err := textValueMatch(op, ref, value)
+	if err != nil {
+		return nil, err
+	}
+	return s.attributeQuery(attributeLocations[eventNameAsAttribute.level], eventNameKey, match), nil
 }
 
 // attributeQuery matches an attribute in every field its level keeps attributes in.
@@ -497,23 +512,36 @@ func termMatch(value string) valueMatch {
 	return func(field string) esquery.Query { return esquery.NewTermQuery(field, value) }
 }
 
-// buildTextComparison compares a built-in field held as a keyword — an operation name or a
-// service name — which supports equality and patterns but carries no order worth exposing.
+// buildTextComparison compares a built-in text field held as a keyword.
 func buildTextComparison(
 	field string,
 	op expression.Operator,
 	ref reference,
 	value string,
 ) (esquery.Query, error) {
+	match, err := textValueMatch(op, ref, value)
+	if err != nil {
+		return nil, err
+	}
+	return match(field), nil
+}
+
+// textValueMatch chooses how to compare a built-in text field. Keyword range queries compare
+// lexicographically, which is the ordered comparison RFC 0005 defines for text.
+func textValueMatch(op expression.Operator, ref reference, value string) (valueMatch, error) {
 	switch op {
 	case expression.OpEq:
-		return esquery.NewTermQuery(field, value), nil
+		return termMatch(value), nil
 	case expression.OpRegex:
-		match, err := forThisEngine(value)
-		if err != nil {
-			return nil, err
-		}
-		return match(field), nil
+		return forThisEngine(value)
+	case expression.OpGt:
+		return func(field string) esquery.Query { return esquery.NewRangeQuery(field).Gt(value) }, nil
+	case expression.OpGte:
+		return func(field string) esquery.Query { return esquery.NewRangeQuery(field).Gte(value) }, nil
+	case expression.OpLt:
+		return func(field string) esquery.Query { return esquery.NewRangeQuery(field).Lt(value) }, nil
+	case expression.OpLte:
+		return func(field string) esquery.Query { return esquery.NewRangeQuery(field).Lte(value) }, nil
 	default:
 		return nil, errUnorderedValue(op, ref)
 	}
@@ -658,8 +686,8 @@ func errUnsupportedField(ref reference) error {
 }
 
 func errUnorderedValue(op expression.Operator, ref reference) error {
-	return fmt.Errorf("%w: it indexes %q as a keyword rather than a number, so it cannot evaluate %q on it",
-		tracestore.ErrFilterUnsupported, ref.name, op)
+	return fmt.Errorf("%w: it cannot evaluate %q on attribute %q because its keyword value may represent a number, for which a lexicographic comparison would be wrong",
+		tracestore.ErrFilterUnsupported, op, ref.name)
 }
 
 // errTypedConstant refuses a constant that declares a type this schema cannot search. A declared

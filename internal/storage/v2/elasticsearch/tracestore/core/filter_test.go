@@ -108,6 +108,38 @@ func TestBuildFilterQuery(t *testing.T) {
 			filter: p.Span().Name.Eq("/api/v3/traces"),
 		},
 		{
+			name:   "gt on the span name compares lexicographically",
+			filter: p.Span().Name.Gt("m"),
+		},
+		{
+			name:   "gte on the span name compares lexicographically",
+			filter: p.Span().Name.Gte("m"),
+		},
+		{
+			name:   "lt on the span name compares lexicographically",
+			filter: p.Span().Name.Lt("m"),
+		},
+		{
+			name:   "lte on the span name compares lexicographically",
+			filter: p.Span().Name.Lte("m"),
+		},
+		{
+			name:   "gt on the event name compares lexicographically",
+			filter: p.Event().Name.Gt("m"),
+		},
+		{
+			name:   "gte on the event name compares lexicographically",
+			filter: p.Event().Name.Gte("m"),
+		},
+		{
+			name:   "lt on the event name compares lexicographically",
+			filter: p.Event().Name.Lt("m"),
+		},
+		{
+			name:   "lte on the event name compares lexicographically",
+			filter: p.Event().Name.Lte("m"),
+		},
+		{
 			name:   "resource.service is the service name",
 			filter: p.Resource().Service.Eq("cart"),
 		},
@@ -390,16 +422,10 @@ func TestBuildFilterQueryRefused(t *testing.T) {
 			wantMsg: `built-in field "traceID" of the "link" level`,
 		},
 		{
-			name:    "ordering an attribute, which is indexed as a keyword",
+			name:    "ordering an attribute, whose keyword value may represent a number",
 			filter:  p.Span().Attr("http.response.size").Gt("500"),
 			wantErr: tracestore.ErrFilterUnsupported,
-			wantMsg: `indexes "http.response.size" as a keyword rather than a number`,
-		},
-		{
-			name:    "ordering the operation name",
-			filter:  p.Span().Name.Lte("m"),
-			wantErr: tracestore.ErrFilterUnsupported,
-			wantMsg: `indexes "name" as a keyword rather than a number`,
+			wantMsg: `attribute "http.response.size" because its keyword value may represent a number`,
 		},
 		{
 			name:    "a pattern over the duration, which is a number",
