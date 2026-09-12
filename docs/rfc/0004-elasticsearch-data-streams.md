@@ -882,14 +882,14 @@ PR: [#8823](https://github.com/jaegertracing/jaeger/pull/8823)
 Make data streams functional for writes. Reads still go to the data stream name directly (no migration alias yet).
 
 8. ✅ **Add `@timestamp` field (date_nanos) to span document at write time.** Delivered in [#8833](https://github.com/jaegertracing/jaeger/pull/8833), with the value corrected to an RFC 3339 string in [#9363](https://github.com/jaegertracing/jaeger/pull/9363) (§3.3)
-9. Implement `DataStreamStrategy.CreateTemplates()`: composable index template + component templates (§3.2) — partially delivered by [#8991](https://github.com/jaegertracing/jaeger/pull/8991), which renders and installs them as `esclient.IndicesClient.CreateSpanDataStreamTemplates`. Still open: `FactoryBase.createTemplates` must call it when the span rotation is a data stream instead of installing the rotation-path template unconditionally, and `RotationConfig.validate` must narrow its `data_stream` rejection to non-span indices
+9. ✅ **Implement `DataStreamStrategy.CreateTemplates()`: composable index template + component templates (§3.2).** Rendered and installed by `esclient.IndicesClient.CreateSpanDataStreamTemplates` in [#8991](https://github.com/jaegertracing/jaeger/pull/8991). `FactoryBase.createTemplates` calls it in place of the rotation-path template when the span rotation is a data stream, and `RotationConfig.validate` accepts `data_stream` for spans while still rejecting it for the index types that update documents in place (§2.1)
 10. ✅ **Implement `DataStreamStrategy.WriteTarget()`: return data stream name.** Delivered in [#8833](https://github.com/jaegertracing/jaeger/pull/8833) as `DataStreamRotation.WriteTarget`
 11. ✅ **Implement `DataStreamStrategy.OpType()`: return `"create"`.** Delivered in [#8833](https://github.com/jaegertracing/jaeger/pull/8833) as `DataStreamRotation.WriteOpType`
 12. Implement ISM policy creation for OpenSearch, ILM for Elasticsearch (§3.6)
 13. ✅ **Implement `DataStreamStrategy.ReadTargets()`: return data stream name (no migration alias yet).** Delivered in [#8833](https://github.com/jaegertracing/jaeger/pull/8833) as `DataStreamRotation.ReadTargets`
-14. **CI**: Integration test — write spans via data stream, read them back, verify end-to-end on both OS and ES
+14. ✅ **CI**: Integration test — write spans via data stream, read them back, verify end-to-end on both OS and ES. Runs as `TestElasticsearchStorage_DataStream` and `TestOpenSearchStorage_DataStream`, driving the full binary through `config-{elasticsearch,opensearch}-data-stream.yaml`
 
-Deliverable: `rotation.data_stream` is fully functional for fresh installations (no legacy data).
+Deliverable: `rotation.data_stream` is fully functional for fresh installations (no legacy data). Until milestone 12 lands, the stream is created without a lifecycle policy, so its backing indices grow until an operator attaches one.
 
 ### Phase 3: Migration Support
 

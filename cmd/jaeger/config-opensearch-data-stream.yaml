@@ -49,8 +49,7 @@ extensions:
               shards: 1
               replicas: 0
               rotation:
-                data_stream:
-                  policy_name: "jaeger-spans-lifecycle"
+                data_stream: {}
             services:
               shards: 1
               replicas: 0

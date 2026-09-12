@@ -43,8 +43,6 @@ func TestElasticsearchStorage_AutoRollover(t *testing.T) {
 }
 
 func TestElasticsearchStorage_DataStream(t *testing.T) {
-	t.Skip("data_stream rotation not yet implemented (see RFC 0004 Phase 2)")
-
 	// No setup helper is needed because data streams auto-create on first write
 	// once the composable template is in place.
 	integration.SkipUnlessEnv(t, integration.StorageElasticsearch)
