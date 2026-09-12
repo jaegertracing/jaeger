@@ -516,6 +516,34 @@ func TestGetSpanDetailsHandler_ExceedsLimit(t *testing.T) {
 	assert.Contains(t, err.Error(), "max allowed 2")
 }
 
+func TestGetSpanDetailsHandler_Handle_ZeroLimitIsUnlimited(t *testing.T) {
+	// maxSpanDetailsPerRequest == 0 must mean unlimited, matching the convention
+	// get_trace_errors and get_trace_topology use for the same config value,
+	// instead of rejecting every non-empty request.
+	traceID := testTraceID
+	spanConfigs := []spanConfig{
+		{spanID: "span001", operation: "/api/test1"},
+		{spanID: "span002", operation: "/api/test2"},
+		{spanID: "span003", operation: "/api/test3"},
+	}
+
+	testTrace := createTestTraceWithSpans(traceID, spanConfigs)
+
+	mock := newMockYieldingTraces(testTrace)
+
+	handler := &getSpanDetailsHandler{queryService: mock, maxSpanDetailsPerRequest: 0}
+
+	input := types.GetSpanDetailsInput{
+		TraceID: traceID,
+		SpanIDs: []string{spanIDToHex("span001"), spanIDToHex("span002"), spanIDToHex("span003")},
+	}
+
+	_, output, err := handler.handle(context.Background(), &mcp.CallToolRequest{}, input)
+
+	require.NoError(t, err)
+	assert.Len(t, output.Spans, 3)
+}
+
 func TestParseTraceID(t *testing.T) {
 	tests := []struct {
 		name      string

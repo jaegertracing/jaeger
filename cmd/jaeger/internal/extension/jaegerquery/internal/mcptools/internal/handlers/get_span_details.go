@@ -131,8 +131,10 @@ func (h *getSpanDetailsHandler) buildQuery(input types.GetSpanDetailsInput) (que
 		return querysvc.GetTraceParams{}, nil, errors.New("span_ids is required and must not be empty")
 	}
 
-	// Validate span count against configured limit
-	if len(input.SpanIDs) > h.maxSpanDetailsPerRequest {
+	// Validate span count against configured limit. A limit of 0 means unlimited,
+	// matching the convention get_trace_errors and get_trace_topology use for the
+	// same config value.
+	if h.maxSpanDetailsPerRequest > 0 && len(input.SpanIDs) > h.maxSpanDetailsPerRequest {
 		return querysvc.GetTraceParams{}, nil, fmt.Errorf(
 			"span_ids exceeds maximum limit: requested %d, max allowed %d",
 			len(input.SpanIDs),
