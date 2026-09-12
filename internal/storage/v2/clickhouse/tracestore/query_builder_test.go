@@ -15,6 +15,7 @@ import (
 	"github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/clickhouse/clickhousetest"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/clickhouse/sql"
+	"github.com/jaegertracing/jaeger/internal/storage/v2/clickhouse/tracestore/dbmodel"
 )
 
 func TestBuildFindTraceIDsQuery_MarshalErrors(t *testing.T) {
@@ -189,4 +190,155 @@ func TestBuildStringAttributeCondition_MultipleTypes(t *testing.T) {
 	assert.Contains(t, query, "OR")
 	assert.Contains(t, query, "str_attributes")
 	assert.Len(t, args, 4)
+}
+
+func TestBuildFindTraceIDsQuery_ErrorAttribute(t *testing.T) {
+	tests := []struct {
+		name     string
+		setAttr  func(attrs pcommon.Map)
+		wantCond string
+		wantArgs []any
+	}{
+		{
+			name:     "true as string",
+			setAttr:  func(attrs pcommon.Map) { attrs.PutStr("error", "true") },
+			wantCond: "s.status_code = ?",
+			wantArgs: []any{"svc", "Error", 10},
+		},
+		{
+			name:     "true as bool",
+			setAttr:  func(attrs pcommon.Map) { attrs.PutBool("error", true) },
+			wantCond: "s.status_code = ?",
+			wantArgs: []any{"svc", "Error", 10},
+		},
+		{
+			name:     "false as string",
+			setAttr:  func(attrs pcommon.Map) { attrs.PutStr("error", "false") },
+			wantCond: "s.status_code != ?",
+			wantArgs: []any{"svc", "Error", 10},
+		},
+		{
+			name:     "false as bool",
+			setAttr:  func(attrs pcommon.Map) { attrs.PutBool("error", false) },
+			wantCond: "s.status_code != ?",
+			wantArgs: []any{"svc", "Error", 10},
+		},
+		{
+			name:     "invalid value matches nothing",
+			setAttr:  func(attrs pcommon.Map) { attrs.PutInt("error", 1) },
+			wantCond: "1 = 0",
+			wantArgs: []any{"svc", 10},
+		},
+		{
+			name:     "unparseable string matches nothing",
+			setAttr:  func(attrs pcommon.Map) { attrs.PutStr("error", "maybe") },
+			wantCond: "1 = 0",
+			wantArgs: []any{"svc", 10},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			attrs := pcommon.NewMap()
+			tt.setAttr(attrs)
+
+			// The bare driver proves no attribute metadata query is issued.
+			reader := NewReader(&clickhousetest.Driver{}, testReaderConfig)
+			query, args, err := reader.buildFindTraceIDsQuery(t.Context(), tracestore.TraceQueryParams{
+				ServiceName: "svc",
+				Attributes:  attrs,
+				SearchDepth: 10,
+			})
+			require.NoError(t, err)
+
+			assert.Contains(t, query, tt.wantCond)
+			assert.Equal(t, tt.wantArgs, args)
+		})
+	}
+}
+
+func TestBuildFindTraceIDsQuery_ErrorAttributeAlongsideOthers(t *testing.T) {
+	attrs := pcommon.NewMap()
+	attrs.PutStr("error", "true")
+	attrs.PutStr("http.method", "GET")
+
+	conn := &clickhousetest.Driver{
+		QueryResponses: map[string]*clickhousetest.QueryResponse{
+			sql.SelectAttributeMetadata: {
+				Rows: &clickhousetest.Rows[dbmodel.AttributeMetadata]{
+					Data:   nil,
+					ScanFn: scanAttributeMetadataFn(),
+				},
+			},
+		},
+	}
+	reader := NewReader(conn, testReaderConfig)
+	query, args, err := reader.buildFindTraceIDsQuery(t.Context(), tracestore.TraceQueryParams{
+		ServiceName: "svc",
+		Attributes:  attrs,
+		SearchDepth: 10,
+	})
+	require.NoError(t, err)
+
+	assert.Contains(t, query, "s.status_code = ?")
+	assert.Contains(t, query, "arrayExists")
+	assert.Equal(t, []any{
+		"svc", "Error",
+		"http.method", "GET", "http.method", "GET", "http.method", "GET",
+		"http.method", "GET", "http.method", "GET",
+		10,
+	}, args)
+}
+
+func TestBuildFindTraceIDsQuery_ErrorFalseAlongsideOthers(t *testing.T) {
+	attrs := pcommon.NewMap()
+	attrs.PutBool("error", false)
+	attrs.PutStr("http.method", "GET")
+
+	conn := &clickhousetest.Driver{
+		QueryResponses: map[string]*clickhousetest.QueryResponse{
+			sql.SelectAttributeMetadata: {
+				Rows: &clickhousetest.Rows[dbmodel.AttributeMetadata]{
+					Data:   nil,
+					ScanFn: scanAttributeMetadataFn(),
+				},
+			},
+		},
+	}
+	reader := NewReader(conn, testReaderConfig)
+	query, args, err := reader.buildFindTraceIDsQuery(t.Context(), tracestore.TraceQueryParams{
+		ServiceName: "svc",
+		Attributes:  attrs,
+		SearchDepth: 10,
+	})
+	require.NoError(t, err)
+
+	assert.Contains(t, query, "s.status_code != ?")
+	assert.Contains(t, query, "arrayExists")
+	assert.Equal(t, []any{
+		"svc", "Error",
+		"http.method", "GET", "http.method", "GET", "http.method", "GET",
+		"http.method", "GET", "http.method", "GET",
+		10,
+	}, args)
+}
+
+func TestBuildFindTraceIDsQuery_InvalidErrorDropsSiblings(t *testing.T) {
+	// An unparseable error value matches nothing, so the sibling attribute
+	// conditions are intentionally dropped.
+	attrs := pcommon.NewMap()
+	attrs.PutStr("error", "maybe")
+	attrs.PutStr("http.method", "GET")
+
+	reader := NewReader(&clickhousetest.Driver{}, testReaderConfig)
+	query, args, err := reader.buildFindTraceIDsQuery(t.Context(), tracestore.TraceQueryParams{
+		ServiceName: "svc",
+		Attributes:  attrs,
+		SearchDepth: 10,
+	})
+	require.NoError(t, err)
+
+	assert.Contains(t, query, "1 = 0")
+	assert.NotContains(t, query, "arrayExists")
+	assert.Equal(t, []any{"svc", 10}, args)
 }
