@@ -282,6 +282,11 @@ func parseTraceID(traceIDStr string) (pcommon.TraceID, error) {
 	}
 
 	copy(traceID[:], bytes)
+	// The all-zero trace ID can never identify a real trace: TraceID.String()
+	// returns "" for it, so it would silently never match in storage.
+	if traceID.IsEmpty() {
+		return pcommon.TraceID{}, errors.New("trace ID must not be all zero")
+	}
 	return traceID, nil
 }
 
