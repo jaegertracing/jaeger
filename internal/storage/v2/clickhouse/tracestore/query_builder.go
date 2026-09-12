@@ -52,9 +52,9 @@ func appendAnd(q *strings.Builder, cond string) {
 	q.WriteString(cond)
 }
 
-type arrayExistsFn func(q *strings.Builder, indent int, prefix string, valueType pcommon.ValueType)
+type arrayExistsFn func(q *strings.Builder, args []any, indent int, prefix string, valueType pcommon.ValueType, key string, value any) []any
 
-func appendArrayExists(q *strings.Builder, indent int, prefix string, valueType pcommon.ValueType) {
+func appendArrayExists(q *strings.Builder, args []any, indent int, prefix string, valueType pcommon.ValueType, key string, value any) []any {
 	strColumnType := jptrace.ValueTypeToString(valueType)
 	if valueType == pcommon.ValueTypeBytes || valueType == pcommon.ValueTypeMap || valueType == pcommon.ValueTypeSlice {
 		strColumnType = "complex"
@@ -64,36 +64,38 @@ func appendArrayExists(q *strings.Builder, indent int, prefix string, valueType 
 		columnPrefix = prefix + "_"
 	}
 	appendNewlineAndIndent(q, indent)
-	q.WriteString("arrayExists((key, value) -> key = ? AND value = ?, s." + columnPrefix + strColumnType + "_attributes.key, s." + columnPrefix + strColumnType + "_attributes.value)")
+	q.WriteString("has(s." + columnPrefix + strColumnType + "_attributes.key, ?) AND has(s." + columnPrefix + strColumnType + "_attributes.value, ?) AND arrayExists((key, value) -> key = ? AND value = ?, s." + columnPrefix + strColumnType + "_attributes.key, s." + columnPrefix + strColumnType + "_attributes.value)")
+	return append(args, key, value, key, value)
 }
 
 // appendNestedArrayExists appends a condition that checks for a key-value pair in nested array attributes.
 // Events and links are stored as nested arrays within spans, so we need to use a nested arrayExists to search
 // through all items and their attributes.
-func appendNestedArrayExists(q *strings.Builder, indent int, nestedArray string, valueType pcommon.ValueType) {
+func appendNestedArrayExists(q *strings.Builder, args []any, indent int, nestedArray string, valueType pcommon.ValueType, key string, value any) []any {
 	strColumnType := jptrace.ValueTypeToString(valueType)
 	if valueType == pcommon.ValueTypeBytes || valueType == pcommon.ValueTypeMap || valueType == pcommon.ValueTypeSlice {
 		strColumnType = "complex"
 	}
 	appendNewlineAndIndent(q, indent)
 	q.WriteString("arrayExists(x -> arrayExists((key, value) -> key = ? AND value = ?, x." + strColumnType + "_attributes.key, x." + strColumnType + "_attributes.value), s." + nestedArray + ")")
+	return append(args, key, value)
 }
 
 func appendStringAttributeFallback(q *strings.Builder, args []any, key string, attr pcommon.Value) []any {
-	appendArrayExists(q, 2, "", pcommon.ValueTypeStr)
+	args = appendArrayExists(q, args, 2, "", pcommon.ValueTypeStr, key, attr.Str())
 	appendNewlineAndIndent(q, 2)
 	q.WriteString("OR")
-	appendArrayExists(q, 2, "resource", pcommon.ValueTypeStr)
+	args = appendArrayExists(q, args, 2, "resource", pcommon.ValueTypeStr, key, attr.Str())
 	appendNewlineAndIndent(q, 2)
 	q.WriteString("OR")
-	appendArrayExists(q, 2, "scope", pcommon.ValueTypeStr)
+	args = appendArrayExists(q, args, 2, "scope", pcommon.ValueTypeStr, key, attr.Str())
 	appendNewlineAndIndent(q, 2)
 	q.WriteString("OR")
-	appendNestedArrayExists(q, 2, "events", pcommon.ValueTypeStr)
+	args = appendNestedArrayExists(q, args, 2, "events", pcommon.ValueTypeStr, key, attr.Str())
 	appendNewlineAndIndent(q, 2)
 	q.WriteString("OR")
-	appendNestedArrayExists(q, 2, "links", pcommon.ValueTypeStr)
-	return append(args, key, attr.Str(), key, attr.Str(), key, attr.Str(), key, attr.Str(), key, attr.Str())
+	args = appendNestedArrayExists(q, args, 2, "links", pcommon.ValueTypeStr, key, attr.Str())
+	return args
 }
 
 func buildGetTracesQuery(params tracestore.GetTraceParams) (string, []any) {
@@ -219,20 +221,20 @@ func buildAttributeConditions(q *strings.Builder, args []any, attributes pcommon
 }
 
 func buildSimpleAttributeCondition(q *strings.Builder, args []any, key string, valueType pcommon.ValueType, value any) []any {
-	appendArrayExists(q, 2, "", valueType)
+	args = appendArrayExists(q, args, 2, "", valueType, key, value)
 	appendNewlineAndIndent(q, 2)
 	q.WriteString("OR")
-	appendArrayExists(q, 2, "resource", valueType)
+	args = appendArrayExists(q, args, 2, "resource", valueType, key, value)
 	appendNewlineAndIndent(q, 2)
 	q.WriteString("OR")
-	appendArrayExists(q, 2, "scope", valueType)
+	args = appendArrayExists(q, args, 2, "scope", valueType, key, value)
 	appendNewlineAndIndent(q, 2)
 	q.WriteString("OR")
-	appendNestedArrayExists(q, 2, "events", valueType)
+	args = appendNestedArrayExists(q, args, 2, "events", valueType, key, value)
 	appendNewlineAndIndent(q, 2)
 	q.WriteString("OR")
-	appendNestedArrayExists(q, 2, "links", valueType)
-	return append(args, key, value, key, value, key, value, key, value, key, value)
+	args = appendNestedArrayExists(q, args, 2, "links", valueType, key, value)
+	return args
 }
 
 func buildBytesAttributeCondition(q *strings.Builder, args []any, key string, attr pcommon.Value) []any {
@@ -328,8 +330,7 @@ func buildStringAttributeCondition(
 			}
 			generatedCondition = true
 
-			fn(q, 2, prefix, tav.valueType)
-			args = append(args, tav.key, tav.value)
+			args = fn(q, args, 2, prefix, tav.valueType, tav.key, tav.value)
 		}
 	}
 

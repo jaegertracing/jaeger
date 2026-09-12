@@ -114,7 +114,7 @@ func TestBuildStringAttributeCondition_Fallbacks(t *testing.T) {
 			assert.Contains(t, query, "scope_str_attributes")
 			assert.Contains(t, query, "events")
 			assert.Contains(t, query, "links")
-			assert.Len(t, args, 10)
+			assert.Len(t, args, 16)
 		})
 	}
 }
@@ -188,5 +188,5 @@ func TestBuildStringAttributeCondition_MultipleTypes(t *testing.T) {
 	assert.Contains(t, query, "int_attributes")
 	assert.Contains(t, query, "OR")
 	assert.Contains(t, query, "str_attributes")
-	assert.Len(t, args, 4)
+	assert.Len(t, args, 8)
 }
