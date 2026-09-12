@@ -65,8 +65,11 @@ func (h *readSkillHandler) handle(
 	}
 
 	return &mcp.CallToolResult{
-		Content: []mcp.Content{&mcp.TextContent{Text: content}},
-	}, types.ReadSkillOutput{Instructions: content}, nil
+			Content: []mcp.Content{&mcp.TextContent{Text: content}},
+		}, types.ReadSkillOutput{
+			Path:      input.Path,
+			Truncated: n > int(h.maxFileSize),
+		}, nil
 }
 
 // open routes p to the custom tree when it names the custom/ prefix and to the
