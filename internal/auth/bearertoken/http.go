@@ -18,6 +18,7 @@ func PropagationHandler(logger *zap.Logger, h http.Handler) http.Handler {
 		ctx := r.Context()
 		authHeaderValue := r.Header.Get("Authorization")
 		// If no Authorization header is present, try with X-Forwarded-Access-Token
+		// Some proxies forward the original token via the X-Forwarded-Access-Token header.
 		if authHeaderValue == "" {
 			authHeaderValue = r.Header.Get("X-Forwarded-Access-Token")
 		}
