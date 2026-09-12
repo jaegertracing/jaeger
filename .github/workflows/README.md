@@ -52,6 +52,7 @@ API rather than from the event that started the run.
 #### Stage 2: Unit Tests
 - **ci-unit-tests.yml** - Full unit test suite with coverage
 - **ci-ai-sidecar-gemini.yml** - Python ACP sidecar workflow test for the Gemini example
+- **ci-ai-sidecar-ollama.yml** - Python ACP sidecar workflow test for the Ollama (local model) example
 
 #### Stage 3: Expensive Checks & Static Analysis
 Executes in parallel within the stage:
