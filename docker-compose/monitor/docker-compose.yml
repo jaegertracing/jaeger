@@ -22,13 +22,25 @@ services:
       - "4317:4317"
       - "4318:4318"
 
-  microsim:
+  microsim-production:
     networks:
       - backend
     image: yurishkuro/microsim:v0.6.0@sha256:fd75a9b3dd1bb4d7d305a562edeac60051a7fec784b898ff7ab834eacc73f41e
     command: "-d 24h -s 500ms"
     environment:
       - OTEL_EXPORTER_OTLP_TRACES_ENDPOINT=http://jaeger:4318/v1/traces
+      - OTEL_RESOURCE_ATTRIBUTES=environment=production,region=us-east-1
+    depends_on:
+      - jaeger
+
+  microsim-staging:
+    networks:
+      - backend
+    image: yurishkuro/microsim:v0.6.0@sha256:fd75a9b3dd1bb4d7d305a562edeac60051a7fec784b898ff7ab834eacc73f41e
+    command: "-d 24h -s 5000ms"
+    environment:
+      - OTEL_EXPORTER_OTLP_TRACES_ENDPOINT=http://jaeger:4318/v1/traces
+      - OTEL_RESOURCE_ATTRIBUTES=environment=staging,region=us-east-2
     depends_on:
       - jaeger
 

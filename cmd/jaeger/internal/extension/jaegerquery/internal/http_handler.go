@@ -111,6 +111,7 @@ func (aH *APIHandler) RegisterRoutes(router *http.ServeMux) {
 	aH.handleFunc(router, aH.latencies, http.MethodGet, "/metrics/latencies")
 	aH.handleFunc(router, aH.calls, http.MethodGet, "/metrics/calls")
 	aH.handleFunc(router, aH.errors, http.MethodGet, "/metrics/errors")
+	aH.handleFunc(router, aH.attributeValues, http.MethodGet, "/metrics/attributes")
 	aH.handleFunc(router, aH.getQualityMetrics, http.MethodGet, "/quality-metrics")
 }
 
@@ -217,6 +218,29 @@ func (aH *APIHandler) errors(w http.ResponseWriter, r *http.Request) {
 			BaseQueryParameters: baseParams,
 		})
 	})
+}
+
+func (aH *APIHandler) attributeValues(w http.ResponseWriter, r *http.Request) {
+	key := r.URL.Query().Get("key")
+	if key == "" {
+		aH.handleError(w, errors.New("attribute key is required"), http.StatusBadRequest)
+		return
+	}
+	serviceName := r.URL.Query().Get("service")
+
+	values, err := aH.metricsQueryService.GetAttributeValues(r.Context(), &metricstore.AttributeValuesQueryParameters{
+		AttributeKey: key,
+		ServiceName:  serviceName,
+	})
+	if aH.handleError(w, err, http.StatusInternalServerError) {
+		return
+	}
+
+	structuredRes := structuredResponse{
+		Data:  values,
+		Total: len(values),
+	}
+	aH.writeJSON(w, r, &structuredRes)
 }
 
 func (aH *APIHandler) metrics(w http.ResponseWriter, r *http.Request, getMetrics func(context.Context, metricstore.BaseQueryParameters) (*metrics.MetricFamily, error)) {

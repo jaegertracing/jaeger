@@ -14,10 +14,11 @@ import (
 
 // ReadMetricsDecorator wraps a metricstore.Reader and collects metrics around each read operation.
 type ReadMetricsDecorator struct {
-	reader               metricstore.Reader
-	getLatenciesMetrics  *queryMetrics
-	getCallRatesMetrics  *queryMetrics
-	getErrorRatesMetrics *queryMetrics
+	reader                    metricstore.Reader
+	getLatenciesMetrics       *queryMetrics
+	getCallRatesMetrics       *queryMetrics
+	getErrorRatesMetrics      *queryMetrics
+	getAttributeValuesMetrics *queryMetrics
 }
 
 type queryMetrics struct {
@@ -40,10 +41,11 @@ func (q *queryMetrics) emit(err error, latency time.Duration) {
 // NewReadMetricsDecorator returns a new ReadMetricsDecorator.
 func NewReaderDecorator(reader metricstore.Reader, metricsFactory metrics.Factory) *ReadMetricsDecorator {
 	return &ReadMetricsDecorator{
-		reader:               reader,
-		getLatenciesMetrics:  buildQueryMetrics("get_latencies", metricsFactory),
-		getCallRatesMetrics:  buildQueryMetrics("get_call_rates", metricsFactory),
-		getErrorRatesMetrics: buildQueryMetrics("get_error_rates", metricsFactory),
+		reader:                    reader,
+		getLatenciesMetrics:       buildQueryMetrics("get_latencies", metricsFactory),
+		getCallRatesMetrics:       buildQueryMetrics("get_call_rates", metricsFactory),
+		getErrorRatesMetrics:      buildQueryMetrics("get_error_rates", metricsFactory),
+		getAttributeValuesMetrics: buildQueryMetrics("get_attribute_values", metricsFactory),
 	}
 }
 
@@ -76,4 +78,12 @@ func (m *ReadMetricsDecorator) GetErrorRates(ctx context.Context, params *metric
 	retMe, err := m.reader.GetErrorRates(ctx, params)
 	m.getErrorRatesMetrics.emit(err, time.Since(start))
 	return retMe, err
+}
+
+// GetAttributeValues implements metricstore.Reader.
+func (m *ReadMetricsDecorator) GetAttributeValues(ctx context.Context, params *metricstore.AttributeValuesQueryParameters) ([]string, error) {
+	start := time.Now()
+	values, err := m.reader.GetAttributeValues(ctx, params)
+	m.getAttributeValuesMetrics.emit(err, time.Since(start))
+	return values, err
 }
