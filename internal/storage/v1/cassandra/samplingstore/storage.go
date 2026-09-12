@@ -252,6 +252,7 @@ func (s *SamplingStore) parseString(str string, numColumns int, appendFunc func(
 		}
 		if err != nil {
 			s.logger.Error("failed to read csv", zap.Error(err))
+			continue
 		}
 		if len(csvFields) != numColumns {
 			s.logger.Warn("incomplete throughput data", zap.Int("expected_columns", numColumns), zap.Any("entries", csvFields))
