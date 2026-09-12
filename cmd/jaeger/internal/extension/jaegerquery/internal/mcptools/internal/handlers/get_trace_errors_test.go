@@ -373,6 +373,9 @@ func TestGetTraceErrorsHandler_Handle_ErrorSpanWithEvents(t *testing.T) {
 	assert.Equal(t, "Something went wrong", span.Events[0].Attributes["exception.message"])
 }
 
+// TestGetTraceErrorsHandler_Handle_LimitEnforced verifies that when the number of error
+// spans exceeds the configured limit, TotalErrorCount still reflects the full count and
+// exactly `limit` spans are returned.
 func TestGetTraceErrorsHandler_Handle_LimitEnforced(t *testing.T) {
 	traceID := testTraceID
 
@@ -402,4 +405,161 @@ func TestGetTraceErrorsHandler_Handle_LimitEnforced(t *testing.T) {
 	assert.Equal(t, 5, output.TotalErrorCount)
 	// Returned Spans are capped at exactly the limit (5 errors, limit=3 → exactly 3 spans).
 	assert.Len(t, output.Spans, 3)
+}
+
+// TestGetTraceErrorsHandler_Handle_RootCausePrioritized is the regression test for the
+// exact scenario described in the issue: a propagated failure chain where the originating
+// error is on the deepest span. It verifies that the deepest error span is always present
+// in the truncated response regardless of the order spans arrive from storage.
+func TestGetTraceErrorsHandler_Handle_RootCausePrioritized(t *testing.T) {
+	traceID := testTraceID
+
+	// Chain: frontend (root, depth 0) → orders (depth 1) → payments (depth 2, originating error)
+	// All three spans are in error. With limit=2, payments must always be included.
+	//
+	// spanID strings are 8 bytes max (pcommon.SpanID is [8]byte).
+	// createTestTraceWithSpans copies the string bytes directly into the array.
+	frontendID := "frontend"
+	ordersID := "orders00"
+	paymentsID := "payments"
+
+	forwardOrder := []spanConfig{
+		{spanID: frontendID, operation: "/checkout", hasError: true, errorMessage: "downstream error"},
+		{spanID: ordersID, parentSpanID: frontendID, operation: "/place-order", hasError: true, errorMessage: "downstream error"},
+		{spanID: paymentsID, parentSpanID: ordersID, operation: "/charge", hasError: true, errorMessage: "payment declined"},
+	}
+	reversedOrder := []spanConfig{
+		{spanID: paymentsID, parentSpanID: ordersID, operation: "/charge", hasError: true, errorMessage: "payment declined"},
+		{spanID: ordersID, parentSpanID: frontendID, operation: "/place-order", hasError: true, errorMessage: "downstream error"},
+		{spanID: frontendID, operation: "/checkout", hasError: true, errorMessage: "downstream error"},
+	}
+
+	paymentsHex := spanIDToHex(paymentsID)
+	ordersHex := spanIDToHex(ordersID)
+
+	for _, tc := range []struct {
+		name    string
+		configs []spanConfig
+	}{
+		{"forward storage order", forwardOrder},
+		{"reversed storage order", reversedOrder},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			testTrace := createTestTraceWithSpans(traceID, tc.configs)
+			mock := newMockYieldingTraces(testTrace)
+
+			handler := &getTraceErrorsHandler{
+				queryService:             mock,
+				maxSpanDetailsPerRequest: 2,
+			}
+
+			input := types.GetTraceErrorsInput{TraceID: traceID}
+			_, output, err := handler.handle(context.Background(), &mcp.CallToolRequest{}, input)
+
+			require.NoError(t, err)
+			assert.Equal(t, 3, output.TotalErrorCount)
+			require.Len(t, output.Spans, 2)
+
+			// The deepest error (payments, depth 2) must always be first.
+			assert.Equal(t, paymentsHex, output.Spans[0].SpanID, "payments span should be first (deepest)")
+			// The next deepest (orders, depth 1) must always be second.
+			assert.Equal(t, ordersHex, output.Spans[1].SpanID, "orders span should be second")
+			// The root (frontend, depth 0) must be dropped.
+			for _, s := range output.Spans {
+				assert.NotEqual(t, spanIDToHex(frontendID), s.SpanID, "frontend root span should be dropped")
+			}
+		})
+	}
+}
+
+// TestGetTraceErrorsHandler_Handle_DeterministicTieBreaking verifies that when two error
+// spans are at the same depth (siblings), the same span is always selected regardless of
+// which one arrives first from storage. Tie-breaking is by span ID ascending.
+func TestGetTraceErrorsHandler_Handle_DeterministicTieBreaking(t *testing.T) {
+	traceID := testTraceID
+
+	// Two sibling error spans (both children of the same root); limit=1.
+	// spanID "aaa" < "bbb" lexicographically, so "aaa" should always be kept.
+	rootID := "root0000"
+	aaaID := "aaaa0000"
+	bbbID := "bbbb0000"
+
+	forwardOrder := []spanConfig{
+		{spanID: rootID, operation: "/root", hasError: false},
+		{spanID: aaaID, parentSpanID: rootID, operation: "/aaa", hasError: true, errorMessage: "err"},
+		{spanID: bbbID, parentSpanID: rootID, operation: "/bbb", hasError: true, errorMessage: "err"},
+	}
+	reversedOrder := []spanConfig{
+		{spanID: rootID, operation: "/root", hasError: false},
+		{spanID: bbbID, parentSpanID: rootID, operation: "/bbb", hasError: true, errorMessage: "err"},
+		{spanID: aaaID, parentSpanID: rootID, operation: "/aaa", hasError: true, errorMessage: "err"},
+	}
+
+	aaaHex := spanIDToHex(aaaID)
+
+	for _, tc := range []struct {
+		name    string
+		configs []spanConfig
+	}{
+		{"aaa before bbb", forwardOrder},
+		{"bbb before aaa", reversedOrder},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			testTrace := createTestTraceWithSpans(traceID, tc.configs)
+			mock := newMockYieldingTraces(testTrace)
+
+			handler := &getTraceErrorsHandler{
+				queryService:             mock,
+				maxSpanDetailsPerRequest: 1,
+			}
+
+			input := types.GetTraceErrorsInput{TraceID: traceID}
+			_, output, err := handler.handle(context.Background(), &mcp.CallToolRequest{}, input)
+
+			require.NoError(t, err)
+			assert.Equal(t, 2, output.TotalErrorCount)
+			require.Len(t, output.Spans, 1)
+			assert.Equal(t, aaaHex, output.Spans[0].SpanID,
+				"span with lexicographically smaller ID should always win tie-break")
+		})
+	}
+}
+
+// TestGetTraceErrorsHandler_Handle_MixedDepthErrors verifies that non-error spans in the
+// parent chain are still used to compute depth correctly. The deepest error span should
+// always rank first even when its ancestors are not in error.
+func TestGetTraceErrorsHandler_Handle_MixedDepthErrors(t *testing.T) {
+	traceID := testTraceID
+
+	// root (ok) → middle (ok) → deep (error)   depth=2
+	//           → shallow (error)              depth=1
+	// Limit=1. deep must win.
+	rootID := "root0000"
+	middleID := "middle00"
+	deepID := "deep0000"
+	shallowID := "shallow0"
+
+	configs := []spanConfig{
+		{spanID: rootID, operation: "/root", hasError: false},
+		{spanID: middleID, parentSpanID: rootID, operation: "/middle", hasError: false},
+		{spanID: deepID, parentSpanID: middleID, operation: "/deep", hasError: true, errorMessage: "deep err"},
+		{spanID: shallowID, parentSpanID: rootID, operation: "/shallow", hasError: true, errorMessage: "shallow err"},
+	}
+
+	testTrace := createTestTraceWithSpans(traceID, configs)
+	mock := newMockYieldingTraces(testTrace)
+
+	handler := &getTraceErrorsHandler{
+		queryService:             mock,
+		maxSpanDetailsPerRequest: 1,
+	}
+
+	input := types.GetTraceErrorsInput{TraceID: traceID}
+	_, output, err := handler.handle(context.Background(), &mcp.CallToolRequest{}, input)
+
+	require.NoError(t, err)
+	assert.Equal(t, 2, output.TotalErrorCount)
+	require.Len(t, output.Spans, 1)
+	assert.Equal(t, spanIDToHex(deepID), output.Spans[0].SpanID,
+		"deeper error span (depth 2) should be selected over shallower one (depth 1)")
 }
