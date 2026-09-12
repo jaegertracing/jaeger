@@ -117,11 +117,7 @@ class ValueRef(Expr):
     def _member(self, op: str, values: Iterable[object] | ListValue) -> Call:
         if isinstance(values, ListValue):
             return Call(op, [self, values])
-        return Call(op, [self, ListValue.of(values, declare_type=self._list_needs_type())])
-
-    def _list_needs_type(self) -> bool:
-        """Whether a list compared against this reference must declare its element type."""
-        raise NotImplementedError
+        return Call(op, [self, ListValue.of(values)])
 
 
 class OrderedRef(ValueRef):
@@ -174,9 +170,6 @@ class AttributeRef(OrderedRef):
             ref["level"] = self.level
         return {"attr": ref}
 
-    def _list_needs_type(self) -> bool:
-        return True
-
     def __repr__(self) -> str:
         return f"AttributeRef(key={self.key!r}, level={self.level!r})"
 
@@ -198,9 +191,6 @@ class FieldRef(OrderedRef):
     def to_expression(self) -> dict:
         return {"field": {"name": self.name, "level": self.level}}
 
-    def _list_needs_type(self) -> bool:
-        return False
-
     def __repr__(self) -> str:
         return f"FieldRef(name={self.name!r}, level={self.level!r})"
 
@@ -218,9 +208,6 @@ class UnorderedFieldRef(ValueRef):
 
     def to_expression(self) -> dict:
         return {"field": {"name": self.name, "level": self.level}}
-
-    def _list_needs_type(self) -> bool:
-        return False
 
     def __repr__(self) -> str:
         return f"UnorderedFieldRef(name={self.name!r}, level={self.level!r})"
@@ -280,10 +267,13 @@ class Scalar(Expr):
 class ListValue(Expr):
     """A homogeneous list constant, the right argument of ``in`` / ``not_in``.
 
-    Every element is read as one type, and that type has to be known: a built-in
-    field supplies it, and against an attribute the list declares it. So
-    :meth:`ValueRef.one_of` infers the type from the values when the subject is an
-    attribute, and leaves it empty when the subject is a field.
+    A built-in field supplies the type for a list compared against it. An attribute
+    supplies no type, and the elements then match values of any stored type,
+    exactly as an untyped scalar does. So :meth:`ValueRef.one_of` declares no type,
+    and a caller who knows the type builds the list here instead. Declaring a type
+    narrows the match, and beside an attribute a backend that indexes attribute
+    values as text can honor only ``string``: it refuses a number or a boolean,
+    having no typed value to search.
 
     Named ``ListValue`` here for the proto ``jaeger.expression.v1.List``, to keep
     the builtin ``list`` readable in this module.
@@ -298,10 +288,9 @@ class ListValue(Expr):
         self.type = type
 
     @classmethod
-    def of(cls, values: Iterable[object], declare_type: bool) -> ListValue:
-        """Build a list constant, declaring the element type only where it is needed."""
-        elements = list(values)
-        return cls([_render(v) for v in elements], _element_type(elements) if declare_type else "")
+    def of(cls, values: Iterable[object]) -> ListValue:
+        """Build a list constant that declares no element type."""
+        return cls([_render(v) for v in values])
 
     def to_expression(self) -> dict:
         constant: dict = {"values": list(self.values)}
@@ -549,24 +538,3 @@ def _render(value: object) -> str:
     if isinstance(value, (int, float)):
         return str(value)
     raise TypeError(f"cannot use {type(value).__name__} as a filter value")
-
-
-def _element_type(values: Sequence[object]) -> str:
-    """Name the type every element of a list is read as.
-
-    A list matches only values of the type it declares, so its elements have to
-    agree on one. A mixed list is read as text, which is how the values were
-    written.
-    """
-    kinds = {_value_type(v) for v in values}
-    return kinds.pop() if len(kinds) == 1 else "string"
-
-
-def _value_type(value: object) -> str:
-    if isinstance(value, bool):
-        return "bool"
-    if isinstance(value, int):
-        return "int"
-    if isinstance(value, float):
-        return "double"
-    return "string"

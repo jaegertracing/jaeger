@@ -235,9 +235,9 @@ func (s *SpanReader) buildMembership(predicate *expression.Call) (esquery.Query,
 	if err != nil {
 		return nil, err
 	}
-	// Each element is read as the type the list is read at, which the AST answers rather than this
-	// package: the type the list declares, or the type of the built-in field it is compared against.
-	// A list beside an attribute always declares one, so no field type is passed for that case.
+	// ReadFilterElement needs the field's type to read an element the list left untyped. An
+	// attribute has no type to pass, and the element then comes back untyped, which is the form
+	// this schema searches.
 	var fieldType expression.FieldType
 	if !ref.attribute {
 		if field, found := expression.LookupField(ref.level, ref.name); found {
@@ -246,7 +246,7 @@ func (s *SpanReader) buildMembership(predicate *expression.Call) (esquery.Query,
 	}
 	members := make([]esquery.Query, 0, len(list.Values))
 	for _, value := range list.Values {
-		element, err := expression.ReadElement(list, fieldType, value)
+		element, err := tracestore.ReadFilterElement(list, fieldType, value)
 		if err != nil {
 			return nil, fmt.Errorf("%w: %w", tracestore.ErrFilterInvalid, err)
 		}
@@ -279,16 +279,12 @@ func (s *SpanReader) buildComparison(
 	if ref.isField(expression.LevelSpan, expression.SpanFieldDuration) {
 		return buildDurationComparison(op, value)
 	}
-	if ref.attribute {
-		text, err := untypedText(value)
-		if err != nil {
-			return nil, err
-		}
-		return s.buildAttributeComparison(op, ref, text)
-	}
-	text, err := fieldText(value)
+	text, err := constantText(value)
 	if err != nil {
 		return nil, err
+	}
+	if ref.attribute {
+		return s.buildAttributeComparison(op, ref, text)
 	}
 	switch {
 	case ref.isField(expression.LevelSpan, expression.SpanFieldName):
@@ -302,23 +298,12 @@ func (s *SpanReader) buildComparison(
 	}
 }
 
-// untypedText reads the text a constant is matched as against an attribute. Only an untyped constant
-// is read there: this schema writes every attribute value as a keyword, so it cannot tell 500 the
-// number from "500" the text, and honoring a declared type would match more than was asked
-// (RFC 0005 §5.4). Typed attribute indexing is what makes those answerable (RFC 0015).
-func untypedText(value expression.Expression) (string, error) {
-	if constant, ok := value.(*expression.AnyValue); ok {
-		return constant.Value, nil
-	}
-	return "", errTypedConstant(value)
-}
-
-// fieldText reads the text a constant is matched as against a built-in field that holds text. A
-// string constant is read as well as an untyped one, because a built-in field declares its own type:
-// finalizing a filter rewrites the constant beside `span.name` as a string precisely because that is
-// what the field holds, so refusing it here would refuse `span.name == "checkout"` — the most
-// ordinary predicate there is (RFC 0005 §5.4).
-func fieldText(value expression.Expression) (string, error) {
+// constantText returns the text that a constant contributes to a comparison. It accepts an untyped
+// constant and one declaring string, because this schema compares text whether the reference is an
+// attribute or a built-in field holding text, so a string declaration asks for the comparison the
+// caller already gets. Any other declared type names typed storage this schema lacks
+// (RFC 0005 §5.4).
+func constantText(value expression.Expression) (string, error) {
 	switch constant := value.(type) {
 	case *expression.AnyValue:
 		if constant != nil {
@@ -348,7 +333,7 @@ func lengthOfTime(value expression.Expression) (time.Duration, error) {
 		}
 		// An untyped constant reaches here from a tree that was not finalized, so it is read the way
 		// finalizing would have read it rather than by a second parser of this package's own.
-		read, err := expression.ReadConstant(expression.FieldTypeDuration, constant.Value)
+		read, err := tracestore.ReadFilterConstant(expression.FieldTypeDuration, constant.Value)
 		if err != nil {
 			return 0, fmt.Errorf(`%w: %q is not a duration such as "2s": %w`,
 				tracestore.ErrFilterInvalid, constant.Value, err)
@@ -677,13 +662,13 @@ func errUnorderedValue(op expression.Operator, ref reference) error {
 		tracestore.ErrFilterUnsupported, ref.name, op)
 }
 
-// errTypedConstant refuses a constant of a type this schema cannot match. A declared type is
-// authoritative — a backend matches only values stored at that type (RFC 0005 §5.4) — and every
-// attribute value here is written as a keyword, so there is no type to route by: honoring the
-// declaration would silently match more than was asked. Typed attribute indexing is what makes
-// these answerable (RFC 0015).
+// errTypedConstant refuses a constant that declares a type this schema cannot search. A declared
+// type is authoritative: the backend must match only the values stored at that type (RFC 0005 §5.4).
+// This schema stores every attribute value as text, so it can honor a string declaration but has
+// nowhere to search for an integer, a double or a boolean. RFC 0015 adds the typed indexing that
+// would make those searchable.
 func errTypedConstant(value expression.Expression) error {
-	return fmt.Errorf("%w: it serves untyped constants only, and %s declares a type it cannot route to a typed value",
+	return fmt.Errorf("%w: %s declares a type this schema cannot search",
 		tracestore.ErrFilterUnsupported, constantKind(value))
 }
 

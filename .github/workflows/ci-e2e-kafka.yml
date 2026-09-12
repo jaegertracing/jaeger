@@ -30,8 +30,6 @@ jobs:
     - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
 
     - uses: ./.github/actions/setup-go
-      with:
-        go-version: 1.26.x
 
     - name: Run kafka integration tests
       id: test-execution
@@ -45,5 +43,4 @@ jobs:
     - name: Upload coverage to codecov
       uses: ./.github/actions/upload-codecov
       with:
-        files: cover.out
         flag: kafka-${{ matrix.kafka-version }}-v2
