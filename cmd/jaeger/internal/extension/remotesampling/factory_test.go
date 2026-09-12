@@ -1,4 +1,4 @@
-// Copyright (c) 2024 The Jaeger Authors.
+// Copyright (c) 2025 The Jaeger Authors.
 // SPDX-License-Identifier: Apache-2.0
 
 package remotesampling
@@ -14,18 +14,26 @@ import (
 )
 
 func TestCreateDefaultConfig(t *testing.T) {
-	cfg := createDefaultConfig().(*Config)
-	require.NotNil(t, cfg, "failed to create default config")
-	require.NoError(t, componenttest.CheckConfigStruct(cfg))
+	f := NewFactory()
+	cfg := f.CreateDefaultConfig()
+	assert.NotNil(t, cfg, "failed to create default config")
+	assert.NoError(t, componenttest.CheckConfigStruct(cfg))
 }
 
 func TestCreateExtension(t *testing.T) {
-	cfg := createDefaultConfig().(*Config)
 	f := NewFactory()
-	r, err := f.Create(context.Background(), extension.Settings{
+	cfg := f.CreateDefaultConfig()
+	ctx := context.Background()
+	params := extension.Settings{
 		ID:                ID,
 		TelemetrySettings: componenttest.NewNopTelemetrySettings(),
-	}, cfg)
+	}
+
+	ext, err := f.Create(ctx, params, cfg)
 	require.NoError(t, err)
-	assert.NotNil(t, r)
+	require.NotNil(t, ext)
+
+	t.Cleanup(func() {
+		require.NoError(t, ext.Shutdown(ctx))
+	})
 }
