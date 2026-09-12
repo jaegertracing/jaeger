@@ -184,10 +184,11 @@ func TestHeaderFallbacks(t *testing.T) {
 			{Header: &headers[0], Value: "alice"},
 		})
 		var gotMD metadata.MD
-		err = headerforwarding.NewUnaryClientInterceptor()(clientCtx, "m", nil, nil, nil, func(ctx context.Context, _ string, _, _ any, _ *grpc.ClientConn, _ ...grpc.CallOption) error {
+		invoker := func(ctx context.Context, _ string, _, _ any, _ *grpc.ClientConn, _ ...grpc.CallOption) error {
 			gotMD, _ = metadata.FromOutgoingContext(ctx)
 			return nil
-		})
+		}
+		err = headerforwarding.NewUnaryClientInterceptor()(clientCtx, "m", nil, nil, nil, invoker)
 		require.NoError(t, err)
 		assert.Equal(t, []string{"alice"}, gotMD.Get("x-user"))
 	})
@@ -198,10 +199,11 @@ func TestHeaderFallbacks(t *testing.T) {
 			{Header: &hdr, Value: "alice"},
 		})
 		var gotMD metadata.MD
-		err := headerforwarding.NewUnaryClientInterceptor()(clientCtx, "m", nil, nil, nil, func(ctx context.Context, _ string, _, _ any, _ *grpc.ClientConn, _ ...grpc.CallOption) error {
+		invoker := func(ctx context.Context, _ string, _, _ any, _ *grpc.ClientConn, _ ...grpc.CallOption) error {
 			gotMD, _ = metadata.FromOutgoingContext(ctx)
 			return nil
-		})
+		}
+		err := headerforwarding.NewUnaryClientInterceptor()(clientCtx, "m", nil, nil, nil, invoker)
 		require.NoError(t, err)
 		assert.Equal(t, []string{"alice"}, gotMD.Get("x-grpc-user"))
 		assert.Empty(t, gotMD.Get("x-user"))

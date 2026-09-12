@@ -44,7 +44,13 @@ type aggregator struct {
 
 // NewAggregator creates a throughput aggregator that simply emits metrics
 // about the number of operations seen over the aggregationInterval.
-func NewAggregator(options Options, logger *zap.Logger, metricsFactory metrics.Factory, participant leaderelection.ElectionParticipant, store samplingstore.Store) (samplingstrategy.Aggregator, error) {
+func NewAggregator(
+	options Options,
+	logger *zap.Logger,
+	metricsFactory metrics.Factory,
+	participant leaderelection.ElectionParticipant,
+	store samplingstore.Store,
+) (samplingstrategy.Aggregator, error) {
 	hostId, err := hostname.AsIdentifier()
 	if err != nil {
 		return nil, err

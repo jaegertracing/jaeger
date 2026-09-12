@@ -62,7 +62,8 @@ func (c *Config) AddFlags(flagSet *flag.FlagSet) {
 	flagSet.Bool(
 		prefix+suffixReadOnly,
 		c.ReadOnly,
-		"Allows to open badger database in read only mode. Multiple instances can open same database in read-only mode. Values still in the write-ahead-log must be replayed before opening.",
+		"Allows to open badger database in read only mode. Multiple instances can open same database in read-only mode. "+
+			"Values still in the write-ahead-log must be replayed before opening.",
 	)
 }
 

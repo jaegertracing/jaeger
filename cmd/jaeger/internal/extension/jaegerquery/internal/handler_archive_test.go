@@ -99,7 +99,8 @@ func TestArchiveTrace_NoStorage(t *testing.T) {
 	withTestServer(t, func(ts *testServer) {
 		var response structuredResponse
 		err := postJSON(ts.server.URL+"/api/archive/"+mockTraceID.String(), []string{}, &response)
-		require.EqualError(t, err, `500 error from server: {"data":null,"total":0,"limit":0,"offset":0,"errors":[{"code":500,"msg":"archive span storage was not configured"}]}`+"\n")
+		require.EqualError(t, err,
+			`500 error from server: {"data":null,"total":0,"limit":0,"offset":0,"errors":[{"code":500,"msg":"archive span storage was not configured"}]}`+"\n")
 	}, querysvc.QueryServiceOptions{})
 }
 

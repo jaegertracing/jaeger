@@ -89,7 +89,15 @@ func runCreateIndicesWithILM(t *testing.T, ilmPolicyName string) {
 	})
 }
 
-func runIndexRolloverWithILMTest(t *testing.T, client *esTestClient, version es.BackendVersion, prefix string, expectedIndices, envVars []string, ilmPolicyName string, adaptiveSampling bool) {
+func runIndexRolloverWithILMTest(
+	t *testing.T,
+	client *esTestClient,
+	version es.BackendVersion,
+	prefix string,
+	expectedIndices, envVars []string,
+	ilmPolicyName string,
+	adaptiveSampling bool,
+) {
 	writeAliases := []string{"jaeger-service-write", "jaeger-span-write", "jaeger-dependencies-write"}
 	if adaptiveSampling {
 		writeAliases = append(writeAliases, "jaeger-sampling-write")
