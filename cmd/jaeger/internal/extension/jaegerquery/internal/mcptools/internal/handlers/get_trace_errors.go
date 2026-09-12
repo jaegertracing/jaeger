@@ -89,6 +89,7 @@ func (h *getTraceErrorsHandler) handle(
 		TraceID:         input.TraceID,
 		TotalErrorCount: totalErrors,
 		Spans:           errorSpans,
+		Truncated:       totalErrors > len(errorSpans),
 	}
 
 	return nil, output, nil
