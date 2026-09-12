@@ -659,6 +659,66 @@ func TestShutdownWithProviderError(t *testing.T) {
 	})
 }
 
+// TestShutdownWaitsForGoroutines is a regression test for the bug where
+// Shutdown returned before the serve goroutines (registered on shutdownWG)
+// had finished unwinding. Without the shutdownWG.Wait() call Shutdown would
+// return before the goroutine exits, and this test would fail.
+func TestShutdownWaitsForGoroutines(t *testing.T) {
+	ext := &rsExtension{
+		cfg:       &Config{},
+		telemetry: componenttest.NewNopTelemetrySettings(),
+	}
+
+	// goroutineDone is closed by the goroutine when it exits so the test
+	// can assert that Shutdown() did not return before the goroutine did.
+	goroutineDone := make(chan struct{})
+
+	// blockUntilShutdown keeps the fake goroutine alive until the server
+	// shutdown signals (mimicking the real Serve loop behaviour).
+	blockUntilShutdown := make(chan struct{})
+
+	// Register a goroutine on shutdownWG exactly the way startHTTPServer /
+	// startGRPCServer do, but using a controlled channel instead of a real
+	// network server so the test is fast and deterministic.
+	ext.shutdownWG.Go(func() {
+		defer close(goroutineDone)
+		<-blockUntilShutdown
+	})
+
+	// Run Shutdown in a separate goroutine so we can observe its completion.
+	// The fake serve goroutine is still blocked at this point, so Shutdown
+	// must block inside shutdownWG.Wait() until we release it below.
+	shutdownDone := make(chan struct{})
+	go func() {
+		defer close(shutdownDone)
+		assert.NoError(t, ext.Shutdown(context.Background()))
+	}()
+
+	// Shutdown must block while the fake serve goroutine is still running.
+	select {
+	case <-shutdownDone:
+		// Shutdown returned too early — unblock and drain to avoid leaking.
+		close(blockUntilShutdown)
+		select {
+		case <-goroutineDone:
+		case <-time.After(5 * time.Second):
+			// best-effort cleanup
+		}
+		t.Fatal("Shutdown returned before the serve goroutine finished; shutdownWG.Wait() is missing")
+	case <-time.After(200 * time.Millisecond):
+		// expected: Shutdown is still blocked waiting for the goroutine
+	}
+
+	// Unblock the fake serve goroutine and ensure Shutdown then returns.
+	close(blockUntilShutdown)
+	select {
+	case <-shutdownDone:
+		// expected
+	case <-time.After(5 * time.Second):
+		t.Fatal("Shutdown did not return within 5 seconds after goroutine exited")
+	}
+}
+
 // mockFailingProvider is a mock that always fails on Close()
 type mockFailingProvider struct{}
 
