@@ -4,10 +4,12 @@
 package handlers
 
 import (
+	"cmp"
 	"context"
 	"errors"
 	"fmt"
 	"iter"
+	"slices"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"go.opentelemetry.io/collector/pdata/ptrace"
@@ -29,14 +31,22 @@ type queryServiceGetCriticalPathInterface interface {
 // (the blocking execution path) in a distributed trace.
 type getCriticalPathHandler struct {
 	queryService queryServiceGetCriticalPathInterface
+	// maxSegments bounds the number of segments returned to the caller; 0 means
+	// unlimited. The critical path itself is always computed over the complete
+	// trace — truncating the input spans would change which path is critical —
+	// so only the response is capped, keeping the segments with the largest
+	// self time.
+	maxSegments int
 }
 
 // NewGetCriticalPathHandler creates a new get_critical_path handler and returns the handler function.
 func NewGetCriticalPathHandler(
 	queryService *querysvc.QueryService,
+	maxSegments int,
 ) mcp.ToolHandlerFor[types.GetCriticalPathInput, types.GetCriticalPathOutput] {
 	h := &getCriticalPathHandler{
 		queryService: queryService,
+		maxSegments:  maxSegments,
 	}
 	return h.handle
 }
@@ -108,7 +118,7 @@ func (*getCriticalPathHandler) buildQuery(input types.GetCriticalPathInput) (que
 }
 
 // buildOutput constructs the GetCriticalPathOutput from the trace and critical path sections.
-func (*getCriticalPathHandler) buildOutput(
+func (h *getCriticalPathHandler) buildOutput(
 	traceIDStr string,
 	trace ptrace.Traces,
 	criticalPathSections []criticalpath.Section,
@@ -180,6 +190,39 @@ func (*getCriticalPathHandler) buildOutput(
 		TraceID:                traceIDStr,
 		TotalDurationUs:        traceEndTime - traceStartTime,
 		CriticalPathDurationUs: criticalPathDuration,
-		Segments:               segments,
+		TotalSegmentCount:      len(segments),
+		Segments:               h.capSegments(segments),
 	}
+}
+
+// capSegments bounds the response to maxSegments entries. The segments dropped
+// are the ones contributing the least latency: the survivors are chosen by
+// largest self time and then re-sorted back into the path's native order,
+// which walks from the end of the trace backwards (see the section order in
+// computeCriticalPath), so capped and uncapped responses read the same way.
+// Ties break by start offset and span ID, making both comparators total orders
+// so the selection is deterministic. A maxSegments of zero (or below) means
+// unlimited.
+func (h *getCriticalPathHandler) capSegments(segments []types.CriticalPathSegment) []types.CriticalPathSegment {
+	if h.maxSegments <= 0 || len(segments) <= h.maxSegments {
+		return segments
+	}
+	bySelfTime := slices.Clone(segments)
+	slices.SortFunc(bySelfTime, func(a, b types.CriticalPathSegment) int {
+		if a.SelfTimeUs != b.SelfTimeUs {
+			return cmp.Compare(b.SelfTimeUs, a.SelfTimeUs) // descending
+		}
+		if a.StartOffsetUs != b.StartOffsetUs {
+			return cmp.Compare(b.StartOffsetUs, a.StartOffsetUs)
+		}
+		return cmp.Compare(a.SpanID, b.SpanID)
+	})
+	kept := bySelfTime[:h.maxSegments]
+	slices.SortFunc(kept, func(a, b types.CriticalPathSegment) int {
+		if a.StartOffsetUs != b.StartOffsetUs {
+			return cmp.Compare(b.StartOffsetUs, a.StartOffsetUs) // trace end first
+		}
+		return cmp.Compare(a.SpanID, b.SpanID)
+	})
+	return kept
 }
