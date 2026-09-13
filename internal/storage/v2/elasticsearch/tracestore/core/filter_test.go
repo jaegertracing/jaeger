@@ -654,6 +654,20 @@ func TestBuildFilterQueryRefused(t *testing.T) {
 			typedAttributes: true,
 		},
 		{
+			name:            "ordering the event name, which is text whatever the bound looks like",
+			filter:          p.Event().Name.Gt("10"),
+			wantErr:         tracestore.ErrFilterUnsupported,
+			wantMsg:         `cannot evaluate "gt"`,
+			typedAttributes: true,
+		},
+		{
+			name:            "ordering the event name against text",
+			filter:          p.Event().Name.Lt("m"),
+			wantErr:         tracestore.ErrFilterUnsupported,
+			wantMsg:         `cannot evaluate "lt"`,
+			typedAttributes: true,
+		},
+		{
 			// ne builds the presence test first, so this reaches the comparison behind it.
 			name:            "a negated comparison against a constant this schema cannot type",
 			filter:          p.Span().Attr("retry.count").Ne(&expression.IntValue{Value: 3}),

@@ -297,6 +297,13 @@ func (s *SpanReader) buildComparison(
 	case ref.isField(expression.LevelResource, expression.ResourceFieldService):
 		return buildTextComparison(serviceNameField, op, ref, text)
 	case ref.isField(expression.LevelEvent, expression.EventFieldName):
+		// The event name is stored as the "event" entry of logs.fields rather than as a field of
+		// its own, so it shares the attribute lowering below, and with typed indexing on that
+		// lowering would range over the entry's numeric sub-field. The name is a text field in the
+		// query model, so ordering it is refused the way span.name and resource.service are.
+		if ordersValues(op) {
+			return nil, errUnorderedValue(op, ref)
+		}
 		return s.buildAttributeComparison(op, eventNameAsAttribute, text)
 	default:
 		return nil, errUnsupportedField(ref)
