@@ -633,6 +633,20 @@ func TestBuildFilterQueryRefused(t *testing.T) {
 			typedAttributes: true,
 		},
 		{
+			name:            "ordering an attribute against a bound that is not a finite number",
+			filter:          p.Span().Attr("retry.count").Lt("NaN"),
+			wantErr:         tracestore.ErrFilterInvalid,
+			wantMsg:         `"lt" on "retry.count" compares against a number, and "NaN" is not one`,
+			typedAttributes: true,
+		},
+		{
+			name:            "ordering an attribute against an infinite bound",
+			filter:          p.Span().Attr("retry.count").Gte("-Inf"),
+			wantErr:         tracestore.ErrFilterInvalid,
+			wantMsg:         `"gte" on "retry.count" compares against a number, and "-Inf" is not one`,
+			typedAttributes: true,
+		},
+		{
 			// ne builds the presence test first, so this reaches the comparison behind it.
 			name:            "a negated comparison against a constant this schema cannot type",
 			filter:          p.Span().Attr("retry.count").Ne(&expression.IntValue{Value: 3}),

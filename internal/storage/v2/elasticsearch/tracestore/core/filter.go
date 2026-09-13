@@ -5,6 +5,7 @@ package core
 
 import (
 	"fmt"
+	"math"
 	"strconv"
 	"time"
 
@@ -462,8 +463,10 @@ func orderedAttributeMatch(op expression.Operator, ref reference, value string) 
 	if !esclient.TypedAttributeIndexingGate.IsEnabled() {
 		return nil, errUnorderedValue(op, ref)
 	}
+	// ParseFloat accepts NaN and the infinities, which no range can be built over and which
+	// the request body cannot even encode, so they are refused with the other non-numbers.
 	bound, err := strconv.ParseFloat(value, 64)
-	if err != nil {
+	if err != nil || math.IsNaN(bound) || math.IsInf(bound, 0) {
 		return nil, errNotANumber(op, ref, value)
 	}
 	return func(field string) esquery.Query {
