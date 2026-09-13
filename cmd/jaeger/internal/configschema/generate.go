@@ -63,7 +63,7 @@ func (g *generator) generate(factories otelcol.Factories) (*Schema, error) {
 				continue
 			}
 
-			root.Properties[typ.String()] = g.typeToSchema(v.Type(), v)
+			root.Properties[fmt.Sprintf("%s/%s", e.kind, typ.String())] = g.typeToSchema(v.Type(), v)
 		}
 	}
 
@@ -84,6 +84,7 @@ func sourceDirs() []string {
 	root := moduleRoot()
 	return []string{
 		filepath.Join(root, "cmd", "jaeger", "internal"),
+		filepath.Join(root, "cmd", "internal"),
 		filepath.Join(root, "components"),
 		filepath.Join(root, "internal"),
 	}

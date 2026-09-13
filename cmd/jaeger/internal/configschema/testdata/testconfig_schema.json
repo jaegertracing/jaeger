@@ -48,7 +48,7 @@
     }
   },
   "properties": {
-    "test": {
+    "extension/test": {
       "$ref": "#/$defs/testdata_TestConfig"
     }
   }

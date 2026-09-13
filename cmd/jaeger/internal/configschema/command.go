@@ -40,11 +40,17 @@ source code of the Jaeger v2 configuration structs. It reduces drift between
 code and documentation by deriving property names from mapstructure tags,
 descriptions from doc comments, defaults from the runtime default values, and
 required flags from the absence of omitempty/squash.`),
-		RunE: func(_ *cobra.Command, _ []string) error {
+		RunE: func(cmd *cobra.Command, _ []string) error {
 			switch format {
 			case "json", "markdown":
 			default:
 				return fmt.Errorf("unsupported format %q (use json or markdown)", format)
+			}
+
+			// The --output flag keeps the JSON default for a sensible --help,
+			// but markdown output should default to the Markdown path.
+			if !cmd.Flags().Changed("output") && format == "markdown" {
+				output = defaultMarkdownOutput
 			}
 
 			schema, err := generateFunc(factories)

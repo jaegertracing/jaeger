@@ -156,7 +156,7 @@ func (g *generator) structSchema(t reflect.Type, v reflect.Value, s *Schema) {
 
 		s.Properties[name] = prop
 
-		if !opts.Contains("omitempty") && !opts.Contains("squash") && !prop.Deprecated && !isOptionalType(field.Type) {
+		if !opts.Contains("omitempty") && !opts.Contains("squash") && !prop.Deprecated && !isOptionalType(field.Type) && !isValidOptional(field) {
 			required[name] = struct{}{}
 		}
 	}
@@ -203,26 +203,14 @@ func (g *generator) typeToSchema(t reflect.Type, v reflect.Value) *Schema {
 		return primitiveSchema(t, v, "number")
 	case reflect.Slice, reflect.Array:
 		itemType := t.Elem()
-		var itemValue reflect.Value
-		if v.IsValid() && v.Len() > 0 {
-			itemValue = v.Index(0)
-		}
-		items := g.typeToSchema(itemType, itemValue)
+		items := g.typeToSchema(itemType, reflect.Value{})
 		if items == nil {
 			items = newObjectSchema()
 		}
 		return newArraySchema(items)
 	case reflect.Map:
 		elemType := t.Elem()
-		var elemValue reflect.Value
-		if v.IsValid() && v.Len() > 0 {
-			// Use the first map value as a representative sample for default extraction.
-			for _, val := range v.MapKeys() {
-				elemValue = v.MapIndex(val)
-				break
-			}
-		}
-		additional := g.typeToSchema(elemType, elemValue)
+		additional := g.typeToSchema(elemType, reflect.Value{})
 		if additional == nil {
 			additional = newObjectSchema()
 		}
@@ -250,7 +238,7 @@ func (g *generator) typeToSchema(t reflect.Type, v reflect.Value) *Schema {
 
 // optionalSchema handles configoptional.Optional[T] types.
 func (g *generator) optionalSchema(t reflect.Type, v reflect.Value) (*Schema, bool) {
-	if t.PkgPath() != optionalPkgPath || t.Name() != "Optional" {
+	if t.PkgPath() != optionalPkgPath || !strings.HasPrefix(t.Name(), "Optional") {
 		return nil, false
 	}
 
@@ -261,18 +249,19 @@ func (g *generator) optionalSchema(t reflect.Type, v reflect.Value) (*Schema, bo
 	}
 	inner := m.Type.Out(0).Elem()
 
-	s := g.typeToSchema(inner, reflect.Zero(inner))
-	if s == nil {
-		s = newObjectSchema()
-	}
-
+	// Build the inner schema from the actual optional value when one is set,
+	// so that nested defaults are captured by the inner schema itself.
+	innerValue := reflect.Zero(inner)
 	if v.IsValid() && v.CanAddr() {
 		res := v.Addr().MethodByName("Get").Call(nil)[0]
 		if !res.IsNil() {
-			if def := defaultValue(res.Elem()); def != nil {
-				s.Default = def
-			}
+			innerValue = res.Elem()
 		}
+	}
+
+	s := g.typeToSchema(inner, innerValue)
+	if s == nil {
+		s = newObjectSchema()
 	}
 	return s, true
 }
@@ -318,7 +307,17 @@ func isOptionalType(t reflect.Type) bool {
 	for t.Kind() == reflect.Pointer {
 		t = t.Elem()
 	}
-	return t.PkgPath() == optionalPkgPath && t.Name() == "Optional"
+	return t.PkgPath() == optionalPkgPath && strings.HasPrefix(t.Name(), "Optional")
+}
+
+// isValidOptional reports whether the field is tagged with valid:"optional".
+func isValidOptional(field reflect.StructField) bool {
+	for _, option := range strings.Split(field.Tag.Get("valid"), ",") {
+		if strings.TrimSpace(option) == "optional" {
+			return true
+		}
+	}
+	return false
 }
 
 func parseTag(tag string) (string, tagOptions) {

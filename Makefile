@@ -190,8 +190,10 @@ config-docs:
 .PHONY: lint-config-docs
 lint-config-docs: config-docs
 	@echo Verifying that generated Jaeger v2 config docs are up to date
-	@git diff --name-status --exit-code docs/jaeger-v2-config.schema.json docs/jaeger-v2-config.md || \
-		(echo "ERROR: generated config docs are out of sync. Run 'make config-docs'."; exit 1)
+	@if git status --porcelain docs/jaeger-v2-config.schema.json docs/jaeger-v2-config.md | grep -q .; then \
+		echo "ERROR: generated config docs are out of sync or untracked. Run 'make config-docs' and commit the results."; \
+		exit 1; \
+	fi
 	@echo "OK: generated config docs are in sync."
 
 .PHONY: lint-license

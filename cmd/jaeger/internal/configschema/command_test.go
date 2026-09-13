@@ -72,6 +72,26 @@ func TestCommand_Markdown(t *testing.T) {
 	assert.Contains(t, content, "| field | string | no | | |")
 }
 
+func TestCommand_MarkdownDefaultOutput(t *testing.T) {
+	orig := generateFunc
+	defer func() { generateFunc = orig }()
+	generateFunc = func(_ otelcol.Factories) (*Schema, error) {
+		return &Schema{
+			Title: "Jaeger v2 component configuration schema",
+			Type:  "object",
+		}, nil
+	}
+
+	dir := t.TempDir()
+	t.Chdir(dir)
+	cmd := Command(otelcol.Factories{})
+	cmd.SetArgs([]string{"--format", "markdown"})
+
+	require.NoError(t, cmd.Execute())
+	_, err := os.Stat(filepath.Join(dir, defaultMarkdownOutput))
+	require.NoError(t, err)
+}
+
 func TestCommand_UnsupportedFormat(t *testing.T) {
 	cmd := Command(otelcol.Factories{})
 	cmd.SetArgs([]string{"--format", "yaml"})

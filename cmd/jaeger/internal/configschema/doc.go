@@ -192,8 +192,9 @@ func embeddedName(expr ast.Expr) string {
 	return ""
 }
 
-// normalizeDoc returns the first paragraph of the comment, joining its lines
-// with single spaces.
+// normalizeDoc returns the full comment, keeping all non-empty lines and
+// joining them with single spaces so that subsequent paragraphs (such as a
+// separate "Deprecated:" paragraph) are preserved.
 func normalizeDoc(text string) string {
 	text = strings.TrimSpace(text)
 	if text == "" {
@@ -203,10 +204,6 @@ func normalizeDoc(text string) string {
 	for _, line := range strings.Split(text, "\n") {
 		line = strings.TrimSpace(line)
 		if line == "" {
-			if len(out) > 0 {
-				// End of the first paragraph.
-				break
-			}
 			continue
 		}
 		out = append(out, line)
