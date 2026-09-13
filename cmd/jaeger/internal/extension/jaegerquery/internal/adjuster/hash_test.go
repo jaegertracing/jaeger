@@ -289,6 +289,99 @@ func TestSpanHash_DuplicateSpansDifferentResourceAttributes(t *testing.T) {
 	assert.Equal(t, expected(), i)
 }
 
+func TestSpanHash_DuplicateSpansDifferentScopeName(t *testing.T) {
+	adjuster := DeduplicateSpans()
+	makeTraces := func() ptrace.Traces {
+		traces := ptrace.NewTraces()
+		rs := traces.ResourceSpans().AppendEmpty()
+
+		ss := rs.ScopeSpans().AppendEmpty()
+		ss.Scope().SetName("scope-a")
+		span1 := ss.Spans().AppendEmpty()
+		span1.SetName("span1")
+		span1.SetTraceID([16]byte{1})
+		span1.SetSpanID([8]byte{1})
+
+		ss2 := rs.ScopeSpans().AppendEmpty()
+		ss2.Scope().SetName("scope-b")
+		span2 := ss2.Spans().AppendEmpty()
+		span2.SetName("span1")
+		span2.SetTraceID([16]byte{1})
+		span2.SetSpanID([8]byte{1})
+
+		return traces
+	}
+
+	i := makeTraces()
+	adjuster.Adjust(i)
+	// The two spans belong to different instrumentation scopes, so they are
+	// distinct and must both be preserved.
+	assert.Equal(t, makeTraces(), i)
+}
+
+func TestSpanHash_DuplicateSpansDifferentScopeVersion(t *testing.T) {
+	adjuster := DeduplicateSpans()
+	makeTraces := func() ptrace.Traces {
+		traces := ptrace.NewTraces()
+		rs := traces.ResourceSpans().AppendEmpty()
+
+		ss := rs.ScopeSpans().AppendEmpty()
+		ss.Scope().SetName("scope")
+		ss.Scope().SetVersion("v1")
+		span1 := ss.Spans().AppendEmpty()
+		span1.SetName("span1")
+		span1.SetTraceID([16]byte{1})
+		span1.SetSpanID([8]byte{1})
+
+		ss2 := rs.ScopeSpans().AppendEmpty()
+		ss2.Scope().SetName("scope")
+		ss2.Scope().SetVersion("v2")
+		span2 := ss2.Spans().AppendEmpty()
+		span2.SetName("span1")
+		span2.SetTraceID([16]byte{1})
+		span2.SetSpanID([8]byte{1})
+
+		return traces
+	}
+
+	i := makeTraces()
+	adjuster.Adjust(i)
+	assert.Equal(t, makeTraces(), i)
+}
+
+func TestSpanHash_DuplicateSpansDifferentSchemaURL(t *testing.T) {
+	adjuster := DeduplicateSpans()
+	makeTraces := func() ptrace.Traces {
+		traces := ptrace.NewTraces()
+
+		rs := traces.ResourceSpans().AppendEmpty()
+		rs.SetSchemaUrl("https://example.com/schema/1")
+		ss := rs.ScopeSpans().AppendEmpty()
+		ss.SetSchemaUrl("https://example.com/scope/1")
+		span1 := ss.Spans().AppendEmpty()
+		span1.SetName("span1")
+		span1.SetTraceID([16]byte{1})
+		span1.SetSpanID([8]byte{1})
+
+		rs2 := traces.ResourceSpans().AppendEmpty()
+		rs2.SetSchemaUrl("https://example.com/schema/2")
+		ss2 := rs2.ScopeSpans().AppendEmpty()
+		ss2.SetSchemaUrl("https://example.com/scope/2")
+		span2 := ss2.Spans().AppendEmpty()
+		span2.SetName("span1")
+		span2.SetTraceID([16]byte{1})
+		span2.SetSpanID([8]byte{1})
+
+		return traces
+	}
+
+	i := makeTraces()
+	adjuster.Adjust(i)
+	// Spans carrying different resource/scope schema URLs are distinct and must
+	// both survive.
+	assert.Equal(t, makeTraces(), i)
+}
+
 type errorMarshaler struct{}
 
 func (*errorMarshaler) MarshalTraces(ptrace.Traces) ([]byte, error) {
