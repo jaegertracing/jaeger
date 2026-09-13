@@ -647,6 +647,13 @@ func TestBuildFilterQueryRefused(t *testing.T) {
 			typedAttributes: true,
 		},
 		{
+			name:            "ordering an attribute against a bound that declares the string type",
+			filter:          p.Span().Attr("retry.count").Gt(p.Text("10")),
+			wantErr:         tracestore.ErrFilterUnsupported,
+			wantMsg:         `orders "retry.count" only as a number, so it cannot evaluate "gt" against a string constant`,
+			typedAttributes: true,
+		},
+		{
 			// ne builds the presence test first, so this reaches the comparison behind it.
 			name:            "a negated comparison against a constant this schema cannot type",
 			filter:          p.Span().Attr("retry.count").Ne(&expression.IntValue{Value: 3}),

@@ -286,6 +286,9 @@ func (s *SpanReader) buildComparison(
 		return nil, err
 	}
 	if ref.attribute {
+		if _, declared := value.(*expression.StringValue); declared && ordersValues(op) {
+			return nil, errOrderedString(op, ref)
+		}
 		return s.buildAttributeComparison(op, ref, text)
 	}
 	switch {
@@ -700,6 +703,25 @@ func errUnsupportedLevel(level expression.Level) error {
 func errUnsupportedField(ref reference) error {
 	return fmt.Errorf("%w: it does not support the built-in field %q of the %q level",
 		tracestore.ErrFilterUnsupported, ref.name, ref.level)
+}
+
+// ordersValues reports whether op compares its operands by order rather than by identity.
+func ordersValues(op expression.Operator) bool {
+	switch op {
+	case expression.OpGt, expression.OpLt, expression.OpGte, expression.OpLte:
+		return true
+	default:
+		return false
+	}
+}
+
+// errOrderedString refuses an ordering predicate whose bound declares the string type. The
+// declaration asks for the string-typed values ordered as strings (RFC 0005 §5.4), and this
+// schema orders an attribute only as a number: lowering the bound onto the numeric sub-field
+// would match numbers and skip the strings, the opposite of what was asked.
+func errOrderedString(op expression.Operator, ref reference) error {
+	return fmt.Errorf("%w: it orders %q only as a number, so it cannot evaluate %q against a string constant",
+		tracestore.ErrFilterUnsupported, ref.name, op)
 }
 
 func errUnorderedValue(op expression.Operator, ref reference) error {
