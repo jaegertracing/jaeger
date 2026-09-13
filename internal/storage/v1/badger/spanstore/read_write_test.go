@@ -25,6 +25,7 @@ import (
 )
 
 func TestWriteReadBack(t *testing.T) {
+	t.Parallel()
 	runFactoryTest(t, func(_ testing.TB, sw spanstore.Writer, sr spanstore.Reader) {
 		tid := time.Now()
 		traces := 40
@@ -79,6 +80,7 @@ func TestWriteReadBack(t *testing.T) {
 }
 
 func TestValidation(t *testing.T) {
+	t.Parallel()
 	runFactoryTest(t, func(_ testing.TB, _ spanstore.Writer, sr spanstore.Reader) {
 		tid := time.Now()
 		params := &spanstore.TraceQueryParameters{
@@ -118,6 +120,7 @@ func TestValidation(t *testing.T) {
 }
 
 func TestIndexSeeks(t *testing.T) {
+	t.Parallel()
 	runFactoryTest(t, func(_ testing.TB, sw spanstore.Writer, sr spanstore.Reader) {
 		startT := time.Now()
 		traces := 60
@@ -278,6 +281,7 @@ func TestIndexSeeks(t *testing.T) {
 }
 
 func TestFindNothing(t *testing.T) {
+	t.Parallel()
 	runFactoryTest(t, func(_ testing.TB, _ spanstore.Writer, sr spanstore.Reader) {
 		startT := time.Now()
 		params := &spanstore.TraceQueryParameters{
@@ -297,6 +301,7 @@ func TestFindNothing(t *testing.T) {
 }
 
 func TestWriteDuplicates(t *testing.T) {
+	t.Parallel()
 	runFactoryTest(t, func(_ testing.TB, sw spanstore.Writer, _ spanstore.Reader) {
 		tid := time.Now()
 		times := 40
@@ -324,6 +329,7 @@ func TestWriteDuplicates(t *testing.T) {
 }
 
 func TestMenuSeeks(t *testing.T) {
+	t.Parallel()
 	runFactoryTest(t, func(_ testing.TB, sw spanstore.Writer, sr spanstore.Reader) {
 		tid := time.Now()
 		traces := 40
@@ -364,6 +370,7 @@ func TestMenuSeeks(t *testing.T) {
 }
 
 func TestPersist(t *testing.T) {
+	t.Parallel()
 	dir := t.TempDir()
 
 	p := func(t *testing.T, dir string, test func(t *testing.T, sw spanstore.Writer, sr spanstore.Reader)) {
@@ -606,6 +613,7 @@ func runLargeFactoryTest(tb testing.TB, test func(tb testing.TB, sw spanstore.Wr
 
 // TestRandomTraceID from issue #1808
 func TestRandomTraceID(t *testing.T) {
+	t.Parallel()
 	runFactoryTest(t, func(_ testing.TB, sw spanstore.Writer, sr spanstore.Reader) {
 		s1 := model.Span{
 			TraceID: model.TraceID{
