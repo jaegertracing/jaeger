@@ -181,6 +181,19 @@ lint-monitoring:
 		(echo "ERROR: dashboard-for-grafana.json is out of sync. Run 'make generate-dashboards'."; exit 1)
 	@echo "OK: dashboard-for-grafana.json is in sync."
 
+.PHONY: config-docs
+config-docs:
+	@echo Generating Jaeger v2 config schema and Markdown docs...
+	@go run ./cmd/jaeger config-schema --format json --output docs/jaeger-v2-config.schema.json
+	@go run ./cmd/jaeger config-schema --format markdown --output docs/jaeger-v2-config.md
+
+.PHONY: lint-config-docs
+lint-config-docs: config-docs
+	@echo Verifying that generated Jaeger v2 config docs are up to date
+	@git diff --name-status --exit-code docs/jaeger-v2-config.schema.json docs/jaeger-v2-config.md || \
+		(echo "ERROR: generated config docs are out of sync. Run 'make config-docs'."; exit 1)
+	@echo "OK: generated config docs are in sync."
+
 .PHONY: lint-license
 lint-license:
 	@echo Verifying that all files have license headers

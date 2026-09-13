@@ -1,0 +1,55 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "title": "Jaeger v2 component configuration schema",
+  "$defs": {
+    "testdata_NestedConfig": {
+      "description": "NestedConfig is a nested struct used by TestConfig.",
+      "type": "object",
+      "properties": {
+        "flag": {
+          "description": "Flag is a boolean flag.",
+          "type": "boolean",
+          "default": true
+        }
+      },
+      "required": [
+        "flag"
+      ]
+    },
+    "testdata_TestConfig": {
+      "description": "TestConfig is a sample component config used by the schema generator tests.",
+      "type": "object",
+      "properties": {
+        "duration": {
+          "description": "Duration is a time duration.",
+          "type": "string",
+          "format": "duration",
+          "default": "5s"
+        },
+        "nested": {
+          "description": "Nested holds nested settings.",
+          "$ref": "#/$defs/testdata_NestedConfig"
+        },
+        "optional_field": {
+          "description": "OptionalField is an optional string.",
+          "type": "string"
+        },
+        "required_field": {
+          "description": "RequiredField is a required string with a default value.",
+          "type": "string",
+          "default": "hello"
+        }
+      },
+      "required": [
+        "nested",
+        "required_field"
+      ]
+    }
+  },
+  "properties": {
+    "test": {
+      "$ref": "#/$defs/testdata_TestConfig"
+    }
+  }
+}
