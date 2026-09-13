@@ -100,6 +100,11 @@ func (a Aggregations) TopHits(name string) (*HitsResult, bool) {
 	return &h.Hits, true
 }
 
+// Nested returns a nested aggregation's sub-aggregations.
+func (a Aggregations) Nested(name string) (*FilterResult, bool) {
+	return a.Filter(name)
+}
+
 // AggregationBucket is a single terms bucket: its (string) key, document count,
 // and any nested sub-aggregations (reached through the promoted Aggregations
 // accessors).
