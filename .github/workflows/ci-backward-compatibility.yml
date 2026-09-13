@@ -1,9 +1,10 @@
 # Copyright (c) 2026 The Jaeger Authors.
 # SPDX-License-Identifier: Apache-2.0
 
-# Each job writes the integration corpus with a Jaeger built from main and reads it back with the
-# Jaeger built from the pull request, which is what catches a change to the storage schema or to the
-# span encoding that leaves the pull request unable to read what the released binary wrote.
+# Each job writes the integration corpus with a Jaeger built from the latest release tag or main
+# and reads it back with the Jaeger built from the pull request. The release baseline catches a
+# change to the storage schema or span encoding that leaves the pull request unable to read what a
+# released binary wrote; main gives an earlier signal for a change that landed after that release.
 #
 # Only the matrix is specific to a storage backend. Each entry carries the command that stands that
 # backend's storage up and runs the suite against it, because the per-backend e2e scripts do not all
@@ -35,18 +36,34 @@ jobs:
       matrix:
         include:
         - backend: elasticsearch
+          baseline: latest-release
+          command: bash scripts/e2e/elasticsearch.sh elasticsearch 9.x compat
+        - backend: elasticsearch
+          baseline: main
           command: bash scripts/e2e/elasticsearch.sh elasticsearch 9.x compat
         - backend: opensearch
+          baseline: latest-release
+          command: bash scripts/e2e/elasticsearch.sh opensearch 3.x compat
+        - backend: opensearch
+          baseline: main
           command: bash scripts/e2e/elasticsearch.sh opensearch 3.x compat
         # Cassandra is the one backend whose schema can come either from the e2e script or from
         # Jaeger itself. The compat job takes the latter, so the earlier revision creates the
         # schema and this revision reads back through whatever that one made, which is the shape
         # a real upgrade has.
         - backend: cassandra
+          baseline: latest-release
+          command: SKIP_APPLY_SCHEMA=true bash scripts/e2e/cassandra.sh 5.x v004 compat
+        - backend: cassandra
+          baseline: main
           command: SKIP_APPLY_SCHEMA=true bash scripts/e2e/cassandra.sh 5.x v004 compat
         - backend: clickhouse
+          baseline: latest-release
           command: bash scripts/e2e/clickhouse.sh compat
-    name: ${{ matrix.backend }}
+        - backend: clickhouse
+          baseline: main
+          command: bash scripts/e2e/clickhouse.sh compat
+    name: ${{ matrix.backend }} (${{ matrix.baseline }})
     steps:
     - name: Harden Runner
       uses: step-security/harden-runner@05e31511f85b41b11d1cf0ef85d0992719546e2c # v2.21.0
@@ -57,13 +74,24 @@ jobs:
       uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
       with:
         submodules: true
+        fetch-depth: 0
+
+    - name: Determine the latest release tag
+      id: latest-release
+      run: |
+        tag=$(scripts/utils/compute-version.sh)
+        if [[ -z "$tag" || "$tag" == "0.0.0" ]]; then
+          echo "could not resolve the latest release tag" >&2
+          exit 1
+        fi
+        echo "tag=$tag" >> "$GITHUB_OUTPUT"
 
     # Only ./cmd/jaeger is built from this checkout, and that builds without the UI assets, so this
     # one does not pay for the jaeger-ui submodule.
     - name: Check out the earlier revision
       uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
       with:
-        ref: main
+        ref: ${{ matrix.baseline == 'latest-release' && steps.latest-release.outputs.tag || matrix.baseline }}
         path: .jaeger-old
 
     - uses: ./.github/actions/setup-go
