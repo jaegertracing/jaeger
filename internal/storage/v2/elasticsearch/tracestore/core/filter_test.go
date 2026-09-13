@@ -247,6 +247,33 @@ func TestBuildFilterQuery(t *testing.T) {
 			filter: p.Resource().Service.NotIn("cart", "checkout"),
 		},
 		{
+			// The lowering is the disjunction of equalities the membership stands for, and each
+			// element is compared as text, because this schema writes every attribute value as a
+			// keyword. A list with no type and a list declaring string therefore ask for the same
+			// comparison (the next case); a numeric or boolean element type is refused.
+			name:   "membership against an attribute is the disjunction of equalities it stands for",
+			filter: p.Span().Attr("http.method").In("GET", "POST"),
+		},
+		{
+			name:   "a list declaring string, beside an attribute this schema matches as text",
+			filter: p.Span().Attr("http.method").In(p.List(expression.ValueTypeString, "GET")),
+		},
+		{
+			// The legacy tag search carried a map of strings, so a string constant matched a value
+			// of any stored type. A declared string asks for that same comparison, the only one
+			// this schema performs on an attribute.
+			name:   "a string constant, beside an attribute this schema matches as text",
+			filter: p.Span().Attr("http.route").Eq(p.Text("/cart")),
+		},
+		{
+			name:   "not_in against an attribute requires the attribute to be present",
+			filter: p.Span().Attr("http.method").NotIn("GET"),
+		},
+		{
+			name:   "membership against an unqualified attribute searches both levels",
+			filter: p.Attr("http.method").In("GET"),
+		},
+		{
 			name:   "error=true matches the tag the write path records",
 			filter: p.Span().Attr("error").Eq("true"),
 		},
@@ -405,12 +432,6 @@ func TestBuildFilterQueryRefused(t *testing.T) {
 			wantMsg: `it reads "\\w" as the literal character`,
 		},
 		{
-			name:    "a string constant, whose declared type this schema cannot route to",
-			filter:  p.Span().Attr("http.route").Eq(p.Text("/cart")),
-			wantErr: tracestore.ErrFilterUnsupported,
-			wantMsg: "a string constant declares a type",
-		},
-		{
 			name:    "a duration constant carrying nothing, which a finalized filter never holds",
 			filter:  p.Span().Duration.Gt((*expression.DurationValue)(nil)),
 			wantErr: tracestore.ErrFilterUnsupported,
@@ -439,12 +460,6 @@ func TestBuildFilterQueryRefused(t *testing.T) {
 			filter:  p.Span().Attr("ok").In(p.List(expression.ValueTypeBool, true)),
 			wantErr: tracestore.ErrFilterUnsupported,
 			wantMsg: "a boolean constant declares a type",
-		},
-		{
-			name:    "a list of strings, whose declared text this schema cannot tell from a number",
-			filter:  p.Span().Attr("http.route").In(p.List(expression.ValueTypeString, "/cart")),
-			wantErr: tracestore.ErrFilterUnsupported,
-			wantMsg: "a string constant declares a type",
 		},
 		{
 			name:    "a timestamp constant, which no field here holds",

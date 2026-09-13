@@ -1,0 +1,70 @@
+{
+  "bool": {
+    "should": [
+      {
+        "bool": {
+          "should": [
+            {
+              "term": {
+                "tag.http@method": "GET"
+              }
+            },
+            {
+              "nested": {
+                "path": "tags",
+                "query": {
+                  "bool": {
+                    "must": [
+                      {
+                        "term": {
+                          "tags.key": "http.method"
+                        }
+                      },
+                      {
+                        "term": {
+                          "tags.value": "GET"
+                        }
+                      }
+                    ]
+                  }
+                }
+              }
+            }
+          ]
+        }
+      },
+      {
+        "bool": {
+          "should": [
+            {
+              "term": {
+                "tag.http@method": "POST"
+              }
+            },
+            {
+              "nested": {
+                "path": "tags",
+                "query": {
+                  "bool": {
+                    "must": [
+                      {
+                        "term": {
+                          "tags.key": "http.method"
+                        }
+                      },
+                      {
+                        "term": {
+                          "tags.value": "POST"
+                        }
+                      }
+                    ]
+                  }
+                }
+              }
+            }
+          ]
+        }
+      }
+    ]
+  }
+}

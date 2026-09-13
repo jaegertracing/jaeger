@@ -5,6 +5,7 @@ package apiv3
 
 import (
 	"net/url"
+	"strconv"
 	"testing"
 	"time"
 
@@ -13,6 +14,7 @@ import (
 	"go.opentelemetry.io/collector/pdata/pcommon"
 
 	expression "github.com/jaegertracing/jaeger-idl/query/expression/v1"
+	"github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore"
 )
 
 func TestParseFindTracesQuery(t *testing.T) {
@@ -87,6 +89,19 @@ func TestParseFindTracesQuery(t *testing.T) {
 		got, err := parseFindTracesQuery(q)
 		require.NoError(t, err)
 		assert.Equal(t, 7, got.SearchDepth)
+	})
+
+	t.Run("search depth at zero and max", func(t *testing.T) {
+		for _, depth := range []int{0, tracestore.MaxSearchDepth} {
+			q := url.Values{}
+			q.Set(paramTimeMin, goodMin)
+			q.Set(paramTimeMax, goodMax)
+			q.Set(paramSearchDepth, strconv.Itoa(depth))
+
+			got, err := parseFindTracesQuery(q)
+			require.NoError(t, err)
+			assert.Equal(t, depth, got.SearchDepth)
+		}
 	})
 
 	t.Run("attributes", func(t *testing.T) {
@@ -175,6 +190,21 @@ func TestParseFindTracesQuery(t *testing.T) {
 		{
 			name:    "bad num_traces (deprecated alias)",
 			params:  map[string]string{paramTimeMin: goodMin, paramTimeMax: goodMax, paramNumTraces: "NaN"},
+			wantErr: "malformed parameter " + paramNumTraces,
+		},
+		{
+			name:    "searchDepth negative",
+			params:  map[string]string{paramTimeMin: goodMin, paramTimeMax: goodMax, paramSearchDepth: "-1"},
+			wantErr: "malformed parameter " + paramSearchDepth,
+		},
+		{
+			name:    "searchDepth above max",
+			params:  map[string]string{paramTimeMin: goodMin, paramTimeMax: goodMax, paramSearchDepth: strconv.Itoa(tracestore.MaxSearchDepth + 1)},
+			wantErr: "malformed parameter " + paramSearchDepth,
+		},
+		{
+			name:    "num_traces above max",
+			params:  map[string]string{paramTimeMin: goodMin, paramTimeMax: goodMax, paramNumTraces: strconv.Itoa(tracestore.MaxSearchDepth + 1)},
 			wantErr: "malformed parameter " + paramNumTraces,
 		},
 		{

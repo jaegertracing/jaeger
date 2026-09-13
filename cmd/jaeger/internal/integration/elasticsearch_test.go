@@ -14,7 +14,8 @@ func TestElasticsearchStorage(t *testing.T) {
 	integration.SkipUnlessEnv(t, integration.StorageElasticsearch)
 
 	s := &E2EStorageIntegration{
-		ConfigFile: "../../config-elasticsearch.yaml",
+		ConfigFile:   "../../config-elasticsearch.yaml",
+		FeatureGates: structuredFilterGates,
 		StorageIntegration: integration.StorageIntegration{
 			CleanUp:      purge,
 			Fixtures:     integration.LoadAndParseQueryTestCases(t, "fixtures/queries_es.json"),
@@ -48,4 +49,16 @@ func TestElasticsearchStorage_DataStream(t *testing.T) {
 	// once the composable template is in place.
 	integration.SkipUnlessEnv(t, integration.StorageElasticsearch)
 	runRotationSmokeTest(t, "../../config-elasticsearch-data-stream.yaml", "elasticsearch", func(*testing.T) {})
+}
+
+func TestElasticsearchStorage_BackwardCompatibility(t *testing.T) {
+	integration.SkipUnlessEnv(t, integration.StorageElasticsearch)
+	runBackwardCompatibilityTests(t, "elasticsearch", E2EStorageIntegration{
+		ConfigFile:   "../../config-elasticsearch.yaml",
+		FeatureGates: structuredFilterGates,
+		StorageIntegration: integration.StorageIntegration{
+			Fixtures:     integration.LoadAndParseQueryTestCases(t, "fixtures/queries_es.json"),
+			Capabilities: capabilities.Elasticsearch(),
+		},
+	})
 }

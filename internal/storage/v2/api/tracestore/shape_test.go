@@ -381,8 +381,8 @@ func TestToFilterShape_NeedsNoResolution(t *testing.T) {
 		DurationMin:   2 * time.Second,
 	}.ToFilterShape()
 
-	require.NoError(t, expression.ValidateFilter(converted.Filter))
-	resolved, err := expression.ResolveConstants(converted.Filter)
+	require.NoError(t, ValidateFilter(converted.Filter))
+	resolved, err := ResolveFilterConstants(converted.Filter)
 	require.NoError(t, err)
 	assert.Equal(t, converted.Filter, resolved)
 }

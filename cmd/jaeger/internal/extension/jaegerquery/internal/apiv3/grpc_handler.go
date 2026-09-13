@@ -5,6 +5,7 @@ package apiv3
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"iter"
 
@@ -14,6 +15,7 @@ import (
 
 	"github.com/jaegertracing/jaeger-idl/model/v1"
 	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerquery/querysvc"
+	"github.com/jaegertracing/jaeger/components/extension/jaegerquery/queryinterceptor"
 	"github.com/jaegertracing/jaeger/internal/jptrace"
 	"github.com/jaegertracing/jaeger/internal/proto/api_v3"
 	expressionproto "github.com/jaegertracing/jaeger/internal/proto/expression/v1"
@@ -237,6 +239,9 @@ func (h *Handler) GetDependencies(ctx context.Context, request *api_v3.GetDepend
 func asStatusError(err error) error {
 	if querysvc.IsBadRequest(err) {
 		return status.Error(codes.InvalidArgument, err.Error())
+	}
+	if errors.Is(err, queryinterceptor.ErrAccessDenied) {
+		return status.Error(codes.PermissionDenied, err.Error())
 	}
 	return err
 }

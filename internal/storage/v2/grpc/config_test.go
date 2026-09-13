@@ -8,7 +8,6 @@ import (
 
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/collector/confmap"
-	"go.opentelemetry.io/collector/confmap/xconfmap"
 )
 
 func TestDefaultConfig(t *testing.T) {
@@ -32,7 +31,7 @@ func TestConfigUnmarshalNormalizesBalancerNames(t *testing.T) {
 	require.Equal(t, "round_robin", cfg.BalancerName)
 	require.Equal(t, "pick_first", cfg.Writer.BalancerName)
 	require.NotEmpty(t, cfg.Timeout)
-	require.NoError(t, xconfmap.Validate(&cfg))
+	require.NoError(t, confmap.Validate(&cfg))
 }
 
 func TestConfigUnmarshalError(t *testing.T) {

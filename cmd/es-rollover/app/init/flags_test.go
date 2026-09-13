@@ -29,6 +29,7 @@ func TestBindFlags(t *testing.T) {
 		"--priority-service-template=301",
 		"--priority-dependencies-template=302",
 		"--priority-sampling-template=303",
+		"--span-total-fields-limit=2000",
 	})
 	require.NoError(t, err)
 
@@ -40,4 +41,22 @@ func TestBindFlags(t *testing.T) {
 	assert.EqualValues(t, 301, c.Indices.Services.Priority)
 	assert.EqualValues(t, 302, c.Indices.Dependencies.Priority)
 	assert.EqualValues(t, 303, c.Indices.Sampling.Priority)
+	require.NotNil(t, c.Indices.Spans.TotalFieldsLimit)
+	assert.EqualValues(t, 2000, *c.Indices.Spans.TotalFieldsLimit)
+}
+
+func TestBindFlagsTotalFieldsLimitUnset(t *testing.T) {
+	v := viper.New()
+	c := &Config{}
+	command := cobra.Command{}
+	flags := &flag.FlagSet{}
+	c.AddFlags(flags)
+	command.PersistentFlags().AddGoFlagSet(flags)
+	v.BindPFlags(command.PersistentFlags())
+
+	err := command.ParseFlags([]string{})
+	require.NoError(t, err)
+
+	c.InitFromViper(v)
+	assert.Nil(t, c.Indices.Spans.TotalFieldsLimit)
 }

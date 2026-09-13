@@ -176,8 +176,8 @@ class JaegerSidecarAgent(Agent):
         self,
         cwd: str,
         session_id: str,
-        additional_directories: list[str] | None = None,
         mcp_servers: Any = None,
+        additional_directories: list[str] | None = None,
         **kwargs: Any,
     ) -> LoadSessionResponse | None:
         """Handle ACP `session/load` RPC.
@@ -188,9 +188,8 @@ class JaegerSidecarAgent(Agent):
 
     async def list_sessions(
         self,
-        additional_directories: list[str] | None = None,
-        cursor: str | None = None,
         cwd: str | None = None,
+        cursor: str | None = None,
         **kwargs: Any,
     ) -> ListSessionsResponse:
         """Handle ACP `session/list` RPC.
@@ -393,8 +392,8 @@ class JaegerSidecarAgent(Agent):
 
     async def prompt(
         self,
-        prompt: list[Any],
         session_id: str,
+        prompt: list[Any],
         message_id: str | None = None,
         **kwargs: Any,
     ) -> PromptResponse:

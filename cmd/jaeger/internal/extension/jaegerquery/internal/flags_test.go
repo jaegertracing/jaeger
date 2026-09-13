@@ -12,6 +12,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.opentelemetry.io/collector/config/configopaque"
 	"go.opentelemetry.io/collector/config/configoptional"
 )
 
@@ -320,4 +321,27 @@ func TestHostIPSkipsResolverForLocalhost(t *testing.T) {
 		require.NotNil(t, ip, "%q must resolve without the resolver", host)
 		assert.True(t, ip.IsLoopback(), "%q is loopback", host)
 	}
+}
+
+func TestAIConfigRejectsDuplicateAgentHeaders(t *testing.T) {
+	cfg := AIConfig{
+		AgentURL:           "ws://localhost:16688",
+		MaxRequestBodySize: 1 << 20,
+		AgentHeaders: configopaque.MapList{
+			{Name: "X-Secret-Key", Value: "one"},
+			{Name: "X-Secret-Key", Value: "two"},
+		},
+	}
+	require.ErrorContains(t, cfg.Validate(), "ai.agent_headers")
+}
+
+func TestAIConfigAcceptsAgentHeaders(t *testing.T) {
+	cfg := AIConfig{
+		AgentURL:           "ws://localhost:16688",
+		MaxRequestBodySize: 1 << 20,
+		AgentHeaders: configopaque.MapList{
+			{Name: "X-Secret-Key", Value: "one"},
+		},
+	}
+	require.NoError(t, cfg.Validate())
 }

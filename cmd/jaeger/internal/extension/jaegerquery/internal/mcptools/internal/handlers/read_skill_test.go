@@ -6,6 +6,7 @@ package handlers
 import (
 	"context"
 	"io/fs"
+	"strings"
 	"testing"
 	"testing/fstest"
 
@@ -145,4 +146,25 @@ func TestReadSkillHandler_DispatchesByPrefix(t *testing.T) {
 		_, _, err := h.handle(context.Background(), &mcp.CallToolRequest{}, types.ReadSkillInput{Path: "custom/../etc/passwd"})
 		require.Error(t, err)
 	})
+}
+
+func TestReadSkillHandler_SizeLimitBoundary(t *testing.T) {
+	fsys := fstest.MapFS{
+		"exactly.bin": &fstest.MapFile{Data: []byte(strings.Repeat("B", testMaxFileSize))},
+		"over.bin":    &fstest.MapFile{Data: []byte(strings.Repeat("A", testMaxFileSize+1))},
+	}
+	h := &readSkillHandler{builtins: fsys, maxFileSize: testMaxFileSize}
+
+	// Exactly at the limit: whole file served, no truncation notice.
+	_, out, err := h.handle(context.Background(), &mcp.CallToolRequest{}, types.ReadSkillInput{Path: "exactly.bin"})
+	require.NoError(t, err)
+	assert.Equal(t, strings.Repeat("B", testMaxFileSize), out.Instructions)
+	assert.NotContains(t, out.Instructions, "truncated")
+
+	// One byte over: content capped at exactly maxFileSize, then the notice.
+	_, out, err = h.handle(context.Background(), &mcp.CallToolRequest{}, types.ReadSkillInput{Path: "over.bin"})
+	require.NoError(t, err)
+	idx := strings.Index(out.Instructions, "\n\nfile content truncated")
+	require.NotEqual(t, -1, idx)
+	assert.Equal(t, testMaxFileSize, idx)
 }

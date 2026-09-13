@@ -52,6 +52,40 @@ func TestRenderIndexTemplateNilReplicas(t *testing.T) {
 	require.ErrorContains(t, err, "no replica count configured")
 }
 
+func TestRenderIndexTemplateTotalFieldsLimit(t *testing.T) {
+	reps := int64(1)
+	limit := int64(2000)
+	tests := []struct {
+		name             string
+		totalFieldsLimit *int64
+		wantContains     string
+	}{
+		{
+			name:             "configured",
+			totalFieldsLimit: &limit,
+			wantContains:     `"index.mapping.total_fields.limit":2000`,
+		},
+		{
+			name:             "unconfigured",
+			totalFieldsLimit: nil,
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			indices := config.Indices{
+				Spans: config.IndexOptions{Replicas: &reps, TotalFieldsLimit: test.totalFieldsLimit},
+			}
+			rendered, err := RenderIndexTemplate(SpanMapping, indices, false, "", es.ElasticV8)
+			require.NoError(t, err)
+			if test.wantContains != "" {
+				assert.Contains(t, rendered, test.wantContains)
+			} else {
+				assert.NotContains(t, rendered, "index.mapping.total_fields.limit")
+			}
+		})
+	}
+}
+
 func TestRenderIndexTemplateInvalidJSON(t *testing.T) {
 	// A prefix carrying a double quote makes the rendered template invalid JSON
 	// (the prefix appears in the ILM alias name), exercising the parse-failure branch.

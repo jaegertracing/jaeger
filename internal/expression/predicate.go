@@ -29,7 +29,6 @@ package expression
 
 import (
 	"fmt"
-	"reflect"
 	"strconv"
 	"time"
 
@@ -286,7 +285,7 @@ func (r Ref) compare(op ast.Operator, value any) *ast.Call {
 }
 
 func (r Ref) member(op ast.Operator, values []any) *ast.Call {
-	return &ast.Call{Op: op, Args: []ast.Expression{r.ref, r.list(values)}}
+	return &ast.Call{Op: op, Args: []ast.Expression{r.ref, listOf(values)}}
 }
 
 func combine(op ast.Operator, predicates []*ast.Call) *ast.Call {
@@ -325,65 +324,16 @@ func operand(value any) ast.Expression {
 	return &ast.AnyValue{Value: render(value)}
 }
 
-// list reads the right-hand side of In or NotIn. A list built by List is taken as it stands, which
-// is how a caller declares the element type outright.
-//
-// Otherwise the type comes from what the list is compared against: a built-in field declares one
-// already, so the list needs none, while an attribute declares nothing and every list has to have
-// one (RFC 0005 §5.4). There the type follows the Go values, which is the only statement of intent
-// available — and unlike a lone constant, a list cannot decline to make one.
-func (r Ref) list(values []any) *ast.List {
+// listOf builds the right-hand side of In or NotIn. A List the caller built is returned unchanged,
+// which is how a caller declares the element type; any other values become a list with no type.
+// It deliberately infers no type from the values, for the reasons in RFC 0005 §5.4 and §6.3.
+func listOf(values []any) *ast.List {
 	if len(values) == 1 {
 		if list, ok := values[0].(*ast.List); ok {
 			return list
 		}
 	}
-	elements := renderAll(values)
-	if _, ok := r.ref.(*ast.FieldRef); ok {
-		return &ast.List{Values: elements}
-	}
-	return &ast.List{Values: elements, Type: elementType(values)}
-}
-
-// elementType names the type a set of Go values was written as. Mixed kinds and anything that is
-// not a number or a boolean read as text, which is what a rendered value is.
-func elementType(values []any) ast.ValueType {
-	kinds := make(map[ast.ValueType]bool, len(values))
-	for _, value := range values {
-		kinds[valueType(value)] = true
-	}
-	if len(kinds) == 1 {
-		for only := range kinds {
-			return only
-		}
-	}
-	return ast.ValueTypeString
-}
-
-func valueType(value any) ast.ValueType {
-	switch value.(type) {
-	case bool:
-		return ast.ValueTypeBool
-	case time.Duration, time.Time:
-		// Read before the kinds below, where a duration would read as the integer its underlying
-		// type is while render writes it as "1s". A list has to declare a type that parses the
-		// values it carries, and the wire has no duration or instant type, so text is the one that
-		// does. Against a duration field the list declares nothing at all and the field's own type
-		// reads the elements (see Ref.list).
-		return ast.ValueTypeString
-	}
-	// Every integer and floating-point width reaches the same two types, so they are read by kind
-	// rather than as a dozen cases naming the same answer. A duration and an instant are text: the
-	// wire has no type for either, and only a built-in field's own type can rebuild them.
-	switch reflect.ValueOf(value).Kind() {
-	case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64,
-		reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64:
-		return ast.ValueTypeInt
-	case reflect.Float32, reflect.Float64:
-		return ast.ValueTypeDouble
-	default:
-		return ast.ValueTypeString
-	}
+	return &ast.List{Values: renderAll(values)}
 }
 
 func renderAll(values []any) []string {
