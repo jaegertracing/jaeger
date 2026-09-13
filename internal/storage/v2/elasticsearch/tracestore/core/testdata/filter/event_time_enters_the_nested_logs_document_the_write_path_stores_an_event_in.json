@@ -1,0 +1,12 @@
+{
+  "nested": {
+    "path": "logs",
+    "query": {
+      "range": {
+        "logs.timestamp": {
+          "lte": 1786906580000000
+        }
+      }
+    }
+  }
+}

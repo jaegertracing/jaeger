@@ -12,19 +12,12 @@ import (
 	expression "github.com/jaegertracing/jaeger-idl/query/expression/v1"
 	esquery "github.com/jaegertracing/jaeger/internal/storage/elasticsearch/query"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore"
+	conventions "github.com/jaegertracing/jaeger/internal/telemetry/otelsemconv"
 )
 
 // eventNameKey is the logs.fields key the write path stores a span event's name under
 // (spanEventsToDbSpanLogs), which is what makes the event.name built-in field readable.
 const eventNameKey = "event"
-
-// eventNameAsAttribute reads event.name as the logs.fields entry it is stored in, so the
-// built-in field and an event attribute share one lowering.
-var eventNameAsAttribute = reference{
-	name:      eventNameKey,
-	level:     expression.LevelEvent,
-	attribute: true,
-}
 
 // reference is what a lowering needs to know about a reference term: the level it names, the key or
 // field name under it, and whether it is an attribute. The AST has a distinct type per kind
@@ -53,17 +46,22 @@ func asReference(term expression.Expression) (reference, bool) {
 	return reference{}, false
 }
 
-// isField reports whether the reference names one particular built-in field.
-func (r reference) isField(level expression.Level, name string) bool {
-	return !r.attribute && r.level == level && r.name == name
+type fieldKey struct {
+	level expression.Level
+	name  string
+}
+
+func (r reference) fieldKey() fieldKey {
+	return fieldKey{level: r.level, name: r.name}
 }
 
 // attributeLocations is where a level's attributes live in a span document: the flattened
 // object fields, whose leaf is the attribute key, and the nested key/value arrays. Both are
 // searched because which of the two the write path produced depends on the tags-as-fields
 // setting in force when the span was indexed, and that setting can change over the life of
-// an index. Instrumentation-scope attributes are folded into the span's own tags and link
-// attributes are not indexed at all, so neither level appears here (RFC 0005 §1.6).
+// an index. The instrumentation scope's and a link's attributes are not written at all — the
+// write path keeps the scope's name and version and a link's IDs, and drops everything else —
+// so neither level appears here (RFC 0005 §1.6).
 var attributeLocations = map[expression.Level]attributeLocation{
 	expression.LevelSpan: {
 		object: []string{objectTagsField},
@@ -95,18 +93,94 @@ type attributeLocation struct {
 // once and then applied to each of them.
 type valueMatch func(field string) esquery.Query
 
-// FilterCapabilities declares the part of the RFC 0005 filter model this reader evaluates.
-// It omits the scope and link levels, which the schema does not index separately,
-// and the `some` quantifier, whose correlated matching over a span's events is not
-// implemented yet. Which built-in fields are served is not declarable — a field name is
-// indistinguishable from an attribute key — so buildFilterQuery refuses the ones this
-// schema has no field for.
+var fieldsHeldAsAttributes = map[fieldKey]reference{
+	{level: expression.LevelEvent, name: expression.EventFieldName}: {
+		name:      eventNameKey,
+		level:     expression.LevelEvent,
+		attribute: true,
+	},
+	{level: expression.LevelScope, name: expression.ScopeFieldName}: {
+		name:      conventions.AttributeOtelScopeName,
+		level:     expression.LevelSpan,
+		attribute: true,
+	},
+	{level: expression.LevelScope, name: expression.ScopeFieldVersion}: {
+		name:      conventions.AttributeOtelScopeVersion,
+		level:     expression.LevelSpan,
+		attribute: true,
+	},
+}
+
+type fieldKind int
+
+const (
+	durationKind fieldKind = iota + 1
+	instantKind
+)
+
+type fieldColumn struct {
+	field  string
+	nested string
+	kind   fieldKind
+}
+
+var fieldColumns = map[fieldKey]fieldColumn{
+	{level: expression.LevelSpan, name: expression.SpanFieldTraceID}: {field: traceIDField},
+	{level: expression.LevelSpan, name: expression.SpanFieldSpanID}:  {field: spanIDField},
+	{level: expression.LevelSpan, name: expression.SpanFieldName}:    {field: operationNameField},
+	{level: expression.LevelSpan, name: expression.SpanFieldDuration}: {
+		field: durationField,
+		kind:  durationKind,
+	},
+	{level: expression.LevelSpan, name: expression.SpanFieldStartTime}: {
+		field: startTimeField,
+		kind:  instantKind,
+	},
+
+	{level: expression.LevelResource, name: expression.ResourceFieldService}: {field: serviceNameField},
+
+	{level: expression.LevelEvent, name: expression.EventFieldTime}: {
+		field:  logTimestampField,
+		nested: nestedLogsField,
+		kind:   instantKind,
+	},
+
+	{level: expression.LevelLink, name: expression.LinkFieldTraceID}: {
+		field:  referenceTraceIDField,
+		nested: nestedReferencesField,
+	},
+	{level: expression.LevelLink, name: expression.LinkFieldSpanID}: {
+		field:  referenceSpanIDField,
+		nested: nestedReferencesField,
+	},
+}
+
+func (c fieldColumn) wrap(match valueMatch) esquery.Query {
+	matched := match(c.field)
+	if c.nested == "" {
+		return matched
+	}
+	return esquery.NewNestedQuery(c.nested, matched)
+}
+
+func (c fieldColumn) existsQuery() esquery.Query {
+	return c.wrap(existsMatch)
+}
+
+// FilterCapabilities declares the part of the RFC 0005 filter model this reader evaluates. Every
+// level is declared, because every one of them has at least one field this schema indexes, and the
+// `some` quantifier is omitted, its correlated matching over a span's events not being implemented
+// yet. What is served within a level is not declarable — a field name is indistinguishable from an
+// attribute key — so buildFilterQuery refuses what this schema has nowhere to search: an
+// instrumentation scope's or a link's attributes, and the built-in fields no column holds.
 func FilterCapabilities() tracestore.FilterCapabilities {
 	return tracestore.FilterCapabilities{
 		Levels: []expression.Level{
 			expression.LevelSpan,
 			expression.LevelResource,
+			expression.LevelScope,
 			expression.LevelEvent,
+			expression.LevelLink,
 		},
 		Operators: []expression.Operator{
 			expression.OpAnd,
@@ -276,25 +350,60 @@ func (s *SpanReader) buildComparison(
 	ref reference,
 	value expression.Expression,
 ) (esquery.Query, error) {
-	if ref.isField(expression.LevelSpan, expression.SpanFieldDuration) {
-		return buildDurationComparison(op, value)
+	if attribute, ok := attributeHolding(ref); ok {
+		text, err := constantText(value)
+		if err != nil {
+			return nil, err
+		}
+		return s.buildAttributeComparison(op, attribute, text)
 	}
-	text, err := constantText(value)
-	if err != nil {
-		return nil, err
-	}
-	if ref.attribute {
-		return s.buildAttributeComparison(op, ref, text)
-	}
-	switch {
-	case ref.isField(expression.LevelSpan, expression.SpanFieldName):
-		return buildTextComparison(operationNameField, op, ref, text)
-	case ref.isField(expression.LevelResource, expression.ResourceFieldService):
-		return buildTextComparison(serviceNameField, op, ref, text)
-	case ref.isField(expression.LevelEvent, expression.EventFieldName):
-		return s.buildAttributeComparison(op, eventNameAsAttribute, text)
-	default:
+	column, ok := fieldColumns[ref.fieldKey()]
+	if !ok {
 		return nil, errUnsupportedField(ref)
+	}
+	return column.buildFieldComparison(op, ref, value)
+}
+
+func attributeHolding(ref reference) (reference, bool) {
+	if ref.attribute {
+		return ref, true
+	}
+	held, ok := fieldsHeldAsAttributes[ref.fieldKey()]
+	return held, ok
+}
+
+func (c fieldColumn) buildFieldComparison(
+	op expression.Operator,
+	ref reference,
+	value expression.Expression,
+) (esquery.Query, error) {
+	switch c.kind {
+	case durationKind:
+		compare, ok := numberComparisons[op]
+		if !ok {
+			return nil, errUnorderedOperator(op, "duration")
+		}
+		duration, err := lengthOfTime(value)
+		if err != nil {
+			return nil, err
+		}
+		return c.wrap(compare(model.DurationAsMicroseconds(duration))), nil
+	case instantKind:
+		compare, ok := numberComparisons[op]
+		if !ok {
+			return nil, errUnorderedOperator(op, "timestamp")
+		}
+		instant, err := instantOf(value)
+		if err != nil {
+			return nil, err
+		}
+		return c.wrap(compare(instant.UnixMicro())), nil
+	default:
+		text, err := constantText(value)
+		if err != nil {
+			return nil, err
+		}
+		return c.buildKeywordComparison(op, ref, text)
 	}
 }
 
@@ -346,21 +455,39 @@ func lengthOfTime(value expression.Expression) (time.Duration, error) {
 	return 0, errTypedConstant(value)
 }
 
-func (s *SpanReader) buildExists(ref reference) (esquery.Query, error) {
-	switch {
-	case ref.attribute:
-		return s.buildAttributeExists(ref)
-	case ref.isField(expression.LevelSpan, expression.SpanFieldName):
-		return esquery.NewExistsQuery(operationNameField), nil
-	case ref.isField(expression.LevelResource, expression.ResourceFieldService):
-		return esquery.NewExistsQuery(serviceNameField), nil
-	case ref.isField(expression.LevelSpan, expression.SpanFieldDuration):
-		return esquery.NewExistsQuery(durationField), nil
-	case ref.isField(expression.LevelEvent, expression.EventFieldName):
-		return s.buildAttributeExists(eventNameAsAttribute)
+func instantOf(value expression.Expression) (time.Time, error) {
+	switch constant := value.(type) {
+	case *expression.TimestampValue:
+		if constant != nil {
+			return constant.Value, nil
+		}
+	case *expression.AnyValue:
+		if constant == nil {
+			break
+		}
+		read, err := tracestore.ReadFilterConstant(expression.FieldTypeTimestamp, constant.Value)
+		if err != nil {
+			return time.Time{}, fmt.Errorf(
+				`%w: %q is not an instant such as "2026-08-16T18:56:20.123456789Z": %w`,
+				tracestore.ErrFilterInvalid, constant.Value, err)
+		}
+		if instant, ok := read.(*expression.TimestampValue); ok {
+			return instant.Value, nil
+		}
 	default:
+	}
+	return time.Time{}, errTypedConstant(value)
+}
+
+func (s *SpanReader) buildExists(ref reference) (esquery.Query, error) {
+	if attribute, ok := attributeHolding(ref); ok {
+		return s.buildAttributeExists(attribute)
+	}
+	column, ok := fieldColumns[ref.fieldKey()]
+	if !ok {
 		return nil, errUnsupportedField(ref)
 	}
+	return column.existsQuery(), nil
 }
 
 func (s *SpanReader) buildAttributeComparison(
@@ -493,66 +620,49 @@ func perlShorthand(pattern string) (string, bool) {
 	return "", false
 }
 
-func termMatch(value string) valueMatch {
+func termMatch(value any) valueMatch {
 	return func(field string) esquery.Query { return esquery.NewTermQuery(field, value) }
 }
 
-// buildTextComparison compares a built-in field held as a keyword — an operation name or a
+func existsMatch(field string) esquery.Query {
+	return esquery.NewExistsQuery(field)
+}
+
+// buildKeywordComparison compares a built-in field held as a keyword — an ID, an operation name, a
 // service name — which supports equality and patterns but carries no order worth exposing.
-func buildTextComparison(
-	field string,
+func (c fieldColumn) buildKeywordComparison(
 	op expression.Operator,
 	ref reference,
 	value string,
 ) (esquery.Query, error) {
 	switch op {
 	case expression.OpEq:
-		return esquery.NewTermQuery(field, value), nil
+		return c.wrap(termMatch(value)), nil
 	case expression.OpRegex:
 		match, err := forThisEngine(value)
 		if err != nil {
 			return nil, err
 		}
-		return match(field), nil
+		return c.wrap(match), nil
 	default:
 		return nil, errUnorderedValue(op, ref)
 	}
 }
 
-// durationComparisons is how each operator tests the duration field, which is the one
-// ordered value this schema indexes numerically.
-var durationComparisons = map[expression.Operator]func(micros uint64) esquery.Query{
-	expression.OpEq: func(micros uint64) esquery.Query {
-		return esquery.NewTermQuery(durationField, micros)
+var numberComparisons = map[expression.Operator]func(micros any) valueMatch{
+	expression.OpEq: termMatch,
+	expression.OpGt: func(micros any) valueMatch {
+		return func(field string) esquery.Query { return esquery.NewRangeQuery(field).Gt(micros) }
 	},
-	expression.OpGt: func(micros uint64) esquery.Query {
-		return esquery.NewRangeQuery(durationField).Gt(micros)
+	expression.OpGte: func(micros any) valueMatch {
+		return func(field string) esquery.Query { return esquery.NewRangeQuery(field).Gte(micros) }
 	},
-	expression.OpGte: func(micros uint64) esquery.Query {
-		return esquery.NewRangeQuery(durationField).Gte(micros)
+	expression.OpLt: func(micros any) valueMatch {
+		return func(field string) esquery.Query { return esquery.NewRangeQuery(field).Lt(micros) }
 	},
-	expression.OpLt: func(micros uint64) esquery.Query {
-		return esquery.NewRangeQuery(durationField).Lt(micros)
+	expression.OpLte: func(micros any) valueMatch {
+		return func(field string) esquery.Query { return esquery.NewRangeQuery(field).Lte(micros) }
 	},
-	expression.OpLte: func(micros uint64) esquery.Query {
-		return esquery.NewRangeQuery(durationField).Lte(micros)
-	},
-}
-
-// buildDurationComparison compares the span duration, which the field holds in microseconds. The
-// operator is resolved before the value is read, so an operator the duration has no answer for is
-// refused as that rather than as a value of the wrong kind.
-func buildDurationComparison(op expression.Operator, value expression.Expression) (esquery.Query, error) {
-	compare, ok := durationComparisons[op]
-	if !ok {
-		return nil, fmt.Errorf("%w: it does not support the operator %q on a duration",
-			tracestore.ErrFilterUnsupported, op)
-	}
-	duration, err := lengthOfTime(value)
-	if err != nil {
-		return nil, err
-	}
-	return compare(model.DurationAsMicroseconds(duration)), nil
 }
 
 // asErrorTagEquality reports through ok whether a predicate tests the error tag for a
@@ -649,7 +759,8 @@ func errRefAgainstConstant(predicate *expression.Call) error {
 }
 
 func errUnsupportedLevel(level expression.Level) error {
-	return fmt.Errorf("%w: it does not index the %q level", tracestore.ErrFilterUnsupported, level)
+	return fmt.Errorf("%w: it does not index the attributes of the %q level",
+		tracestore.ErrFilterUnsupported, level)
 }
 
 func errUnsupportedField(ref reference) error {
@@ -662,11 +773,17 @@ func errUnorderedValue(op expression.Operator, ref reference) error {
 		tracestore.ErrFilterUnsupported, ref.name, op)
 }
 
+func errUnorderedOperator(op expression.Operator, kind string) error {
+	return fmt.Errorf("%w: it does not support the operator %q on a %s",
+		tracestore.ErrFilterUnsupported, op, kind)
+}
+
 // errTypedConstant refuses a constant that declares a type this schema cannot search. A declared
 // type is authoritative: the backend must match only the values stored at that type (RFC 0005 §5.4).
-// This schema stores every attribute value as text, so it can honor a string declaration but has
-// nowhere to search for an integer, a double or a boolean. RFC 0015 adds the typed indexing that
-// would make those searchable.
+// This schema stores every attribute value as text, so beside an attribute or a keyword field it
+// can honor a string declaration but has nowhere to search for anything else — an integer, a
+// double, a boolean, or a duration or an instant, which are numbers only in the three columns that
+// hold one. RFC 0015 adds the typed indexing that would make the rest searchable.
 func errTypedConstant(value expression.Expression) error {
 	return fmt.Errorf("%w: %s declares a type this schema cannot search",
 		tracestore.ErrFilterUnsupported, constantKind(value))

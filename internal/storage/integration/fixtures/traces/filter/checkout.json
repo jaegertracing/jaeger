@@ -41,6 +41,20 @@
                   }
                 }
               ],
+              "links": [
+                {
+                  "traceId": "00000000000000000000000000000f02",
+                  "spanId": "0000000000000f02",
+                  "attributes": [
+                    {
+                      "key": "opentracing.ref_type",
+                      "value": {
+                        "stringValue": "follows_from"
+                      }
+                    }
+                  ]
+                }
+              ],
               "status": {}
             }
           ]
