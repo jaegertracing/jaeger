@@ -145,7 +145,7 @@ func TestFindLastFinishingChildSpan(t *testing.T) {
 			expectedSpanID:          &pcommon.SpanID{2}, // Should find span 2 since it ends exactly at 150
 		},
 		{
-			name: "zero-duration child at boundary is skipped",
+			name: "child starting at returning boundary is skipped",
 			spanMap: map[pcommon.SpanID]CPSpan{
 				spanID(2): {
 					SpanID:    spanID(2),
