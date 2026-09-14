@@ -6,13 +6,12 @@ description: 'Setup Node.js and pnpm as required by jaeger-ui repo. Must be call
 runs:
   using: "composite"
   steps:
-    # The Node.js version comes from jaeger-ui's package.json "engines" field.
-    # No dependency cache: the UI build usually downloads prebuilt release assets
-    # (see rebuild-ui.sh) and never runs `pnpm install`, so there is no pnpm store
-    # to cache, and a cache-save step would fail on the missing path.
+    # Pin Node to major 24 so Corepack stays available. jaeger-ui engines allow
+    # >=24.16.0, which would otherwise let setup-node resolve Node 25+ where
+    # Corepack is no longer bundled.
     - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
       with:
-        node-version-file: jaeger-ui/package.json
+        node-version: '24'
         package-manager-cache: false
 
     # Provision the pnpm version pinned in jaeger-ui/package.json via Corepack
