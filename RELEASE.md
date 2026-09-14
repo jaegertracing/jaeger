@@ -120,9 +120,9 @@ Here are the release managers for future versions with the tentative release dat
 
 | Version | Release Manager | Tentative release date    |
 |---------|-----------------|---------------------------|
-| 2.21.0  | @jkowall        | 5 August 2026             |
-| 2.22.0  | @mahadzaryab1   | 2 September 2026          |
-| 2.23.0  | @albertteoh     | 7 October 2026            |
-| 2.24.0  | @pavolloffay    | 4 November 2026           |
-| 2.25.0  | @joe-elliott    | 2 December 2026           |
-| 2.26.0  | @yurishkuro     | 6 January 2027            |
+| 2.22.0  | @mahadzaryab1   | 7 October 2026            |
+| 2.23.0  | @albertteoh     | 4 November 2026           |
+| 2.24.0  | @pavolloffay    | 2 December 2026           |
+| 2.25.0  | @joe-elliott    | 6 January 2027            |
+| 2.26.0  | @yurishkuro     | 3 February 2027           |
+| 2.27.0  | @jkowall        | 3 March 2027              |
