@@ -161,9 +161,7 @@ def main(token, repo, branch, num_commits, exclude_dependabot, verbose):
     if not num_commits:
         return
 
-    # Load commits
-    data = urllib.parse.urlencode({'per_page': num_commits})
-    commits = github_api_request(commits_url + '?' + data, token)
+    commits = load_commits(token, commits_url, num_commits)
 
     if verbose:
         eprint('Retrieved', len(commits), 'commits')
@@ -263,6 +261,28 @@ def main(token, repo, branch, num_commits, exclude_dependabot, verbose):
     if skipped_dependabot:
         if verbose:
             eprint(f"(Skipped dependabot commits: {skipped_dependabot})")
+
+
+# The GitHub commits API returns at most 100 commits per page regardless of
+# the requested per_page, so a release window with more commits than that
+# needs to be fetched page by page.
+COMMITS_PER_PAGE = 100
+
+
+def load_commits(token, commits_url, num_commits):
+    # The page size must stay the same on every request, because GitHub
+    # computes the page offset from it; shrinking it for the last page
+    # would skip commits.
+    commits = []
+    page = 1
+    while len(commits) < num_commits:
+        data = urllib.parse.urlencode({'per_page': COMMITS_PER_PAGE, 'page': page})
+        batch = github_api_request(commits_url + '?' + data, token)
+        if not batch:
+            break
+        commits.extend(batch)
+        page += 1
+    return commits[:num_commits]
 
 
 def get_pull_request_labels(token, repo, pull_number):
