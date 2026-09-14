@@ -34,9 +34,20 @@ import (
 	"github.com/jaegertracing/jaeger/internal/testutils"
 )
 
+// The baseline search capabilities: a backend that requires a service name for FindTraces and supports SpanSearch
+var defaultSearchCapabilities = tracestore.SearchCapabilities{SpanSearch: true}
+
 func setupHTTPGatewayNoServer(
+	t *testing.T,
+	basePath string,
+) *testGateway {
+	return setupHTTPGatewayNoServerWithSearchCapabilities(t, basePath, defaultSearchCapabilities)
+}
+
+func setupHTTPGatewayNoServerWithSearchCapabilities(
 	_ *testing.T,
 	basePath string,
+	searchCapabilities tracestore.SearchCapabilities,
 ) *testGateway {
 	gw := &testGateway{
 		reader: &tracestoremocks.Reader{},
@@ -48,9 +59,8 @@ func setupHTTPGatewayNoServer(
 			yield(nil, fmt.Errorf("unsupported: %w", errors.ErrUnsupported))
 		})).Maybe()
 
-	// The baseline: a backend that requires a service name. Only service-less searches ask.
 	gw.reader.On("SearchCapabilities", mock.Anything).
-		Return(tracestore.SearchCapabilities{}, nil).Maybe()
+		Return(searchCapabilities, nil).Maybe()
 	q := querysvc.NewQueryService(
 		gw.reader,
 		&dependencystoremocks.Reader{},
@@ -288,7 +298,7 @@ func TestHTTPGatewayFindSpansEmptyResponse(t *testing.T) {
 	require.NoError(t, err)
 	w := httptest.NewRecorder()
 
-	gw := setupHTTPGatewayNoServer(t, "")
+	gw := setupHTTPGatewayNoServerWithSearchCapabilities(t, "", tracestore.SearchCapabilities{SpanSearch: true})
 	gw.reader.
 		On("FindSpans", matchContext, qp).
 		Return(iter.Seq2[[]tracestore.SpanPage, error](func(yield func([]tracestore.SpanPage, error) bool) {

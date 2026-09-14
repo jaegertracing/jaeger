@@ -24,6 +24,9 @@ import (
 
 var errNoArchiveSpanStorage = errors.New("archive span storage was not configured")
 
+// ErrSpanSearchUnsupported is returned when the backend does not support searching and returning spans
+var ErrSpanSearchUnsupported = errors.New("this storage backend does not support FindSpans")
+
 // ErrServiceNameRequired is returned for a search that omits the service name against a
 // backend whose reader does not accept one (RFC 0013 §3.3). It names the backend's
 // limitation rather than the missing field, because the same query is valid elsewhere.
@@ -284,6 +287,10 @@ func (qs QueryService) prepareSpanSearchQuery(
 	ctx context.Context,
 	query SpanQueryParams,
 ) (context.Context, SpanQueryParams, error) {
+	if err := qs.checkSpanSearchCapability(ctx); err != nil {
+		return ctx, query, err
+	}
+	// TODO should this fail if the filter is nil?
 	if query.Filter != nil {
 		// None of these refusals depends on the backend, so they come before the capability call
 		// rather than after it.
@@ -321,6 +328,18 @@ func (qs QueryService) prepareSpanSearchQuery(
 	}
 	query.SpanQueryParams = prepared
 	return ctx, query, nil
+}
+
+func (qs QueryService) checkSpanSearchCapability(ctx context.Context) error {
+	caps, err := qs.traceReader.SearchCapabilities(ctx)
+	if err != nil {
+		// A reader that cannot report its capabilities won't support the span search feature
+		caps = tracestore.SearchCapabilities{}
+	}
+	if caps.SpanSearch {
+		return nil
+	}
+	return ErrSpanSearchUnsupported
 }
 
 func (qs QueryService) checkServiceName(ctx context.Context, query TraceQueryParams) error {

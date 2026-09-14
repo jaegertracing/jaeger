@@ -29,13 +29,11 @@ func TestParseFindSpansQuery(t *testing.T) {
 		q := url.Values{}
 		q.Set(paramTimeMin, goodMin)
 		q.Set(paramTimeMax, goodMax)
-		//q.Set(paramFilter, "{}")
 
 		got, err := parseFindSpansQuery(q)
 		require.NoError(t, err)
 		assert.Equal(t, tMin, got.StartTimeMin)
 		assert.Equal(t, tMax, got.StartTimeMax)
-		//assert.Equal(t, ,got.Filter)
 	})
 
 	errorCases := []struct {
