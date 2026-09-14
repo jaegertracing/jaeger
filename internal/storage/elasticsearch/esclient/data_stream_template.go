@@ -29,6 +29,7 @@ const (
 	// composable choice (templateEndpoint) tracks UsesV8API.
 	componentTemplateAPI = "_component_template"
 	indexTemplateAPI     = "_index_template"
+	dataStreamAPI        = "_data_stream"
 
 	// dataStreamPriority is the composable index template priority from RFC 0004
 	// §3.2, high enough that Jaeger's template wins over a cluster's default
@@ -133,6 +134,19 @@ func (i IndicesClient) putComposableTemplate(ctx context.Context, api, name, que
 		return fmt.Errorf("failed to create data stream template %q: %w", name, err)
 	}
 	return nil
+}
+
+// DeleteSpanDataStream deletes the span data stream and the backing indices it
+// owns, tolerating a stream that does not exist.
+//
+// Purge cannot reach it through DeleteAllIndices: a data stream's backing indices
+// are hidden, so the "*" wildcard leaves them in place and every span written
+// before the purge is still searchable through the stream afterwards. Verified on
+// Elasticsearch 7.17 and 9.4 and OpenSearch 1.3 and 3.7, which all acknowledge the
+// wildcard delete and all keep the stream.
+func (i IndicesClient) DeleteSpanDataStream(ctx context.Context) error {
+	name := i.Indices.IndexPrefix.DataStreamName(spanDataStreamBase)
+	return i.deleteIfPresent(ctx, dataStreamAPI, name)
 }
 
 // TestsOnlyDeleteSpanDataStreamObjects removes every template

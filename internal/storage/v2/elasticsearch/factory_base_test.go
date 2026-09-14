@@ -136,6 +136,53 @@ func TestFactoryBase_Purge(t *testing.T) {
 	}
 }
 
+// TestFactoryBase_PurgeDataStream covers what DeleteAllIndices cannot reach: a
+// data stream survives DELETE /*, because its backing indices are hidden and the
+// wildcard does not match them, so purging has to name the stream as well.
+// Asserting both DELETEs in order is the point — dropping either one leaves spans
+// from the previous run readable.
+func TestFactoryBase_PurgeDataStream(t *testing.T) {
+	var (
+		mu      sync.Mutex
+		deletes []string
+	)
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == http.MethodDelete {
+			mu.Lock()
+			deletes = append(deletes, r.URL.Path)
+			mu.Unlock()
+			w.Write([]byte("{}"))
+			return
+		}
+		w.Write(mockEsServerResponse)
+	}))
+	defer server.Close()
+
+	esClient, err := esclient.NewClient(context.Background(),
+		&escfg.Configuration{Servers: []string{server.URL}, Version: uint(es.ElasticV7)}, zap.NewNop(), nil)
+	require.NoError(t, err)
+	f := &FactoryBase{
+		esClient: esClient,
+		logger:   zap.NewNop(),
+		config: &escfg.Configuration{
+			Indices: escfg.Indices{
+				IndexPrefix: "prod",
+				Spans: escfg.IndexOptions{
+					Rotation: escfg.RotationConfig{
+						DataStream: configoptional.Some(escfg.DataStreamRotation{}),
+					},
+				},
+			},
+		},
+		serviceOperations: core.NewServiceOperationStorage(nil, zap.NewNop(), 0),
+	}
+
+	require.NoError(t, f.Purge(context.Background()))
+	mu.Lock()
+	defer mu.Unlock()
+	assert.Equal(t, []string{"/*", "/_data_stream/prod.jaeger.spans"}, deletes)
+}
+
 // countingBatchWriter records how many service documents the span writer sends,
 // which is what the dedup cache suppresses.
 type countingBatchWriter struct {
@@ -319,6 +366,93 @@ func TestCreateTemplates(t *testing.T) {
 				require.NoError(t, err)
 				assert.Equal(t, []string{"/_template/jaeger-span", "/_template/jaeger-service"}, puts)
 			}
+		})
+	}
+}
+
+// dataStreamFactory builds a factory whose spans are configured for a data stream,
+// pointed at the given test server.
+func dataStreamFactory(t *testing.T, serverURL string) *FactoryBase {
+	esClient, err := esclient.NewClient(context.Background(),
+		&escfg.Configuration{Servers: []string{serverURL}, Version: uint(es.ElasticV7)}, zap.NewNop(), nil)
+	require.NoError(t, err)
+	return &FactoryBase{
+		esClient: esClient,
+		logger:   zap.NewNop(),
+		config: &escfg.Configuration{
+			CreateIndexTemplates: true,
+			Indices: escfg.Indices{
+				Spans: escfg.IndexOptions{
+					Shards:   3,
+					Replicas: new(int64(1)),
+					Rotation: escfg.RotationConfig{
+						DataStream: configoptional.Some(escfg.DataStreamRotation{}),
+					},
+				},
+				Services: escfg.IndexOptions{Shards: 3, Replicas: new(int64(1))},
+			},
+		},
+	}
+}
+
+// TestCreateTemplatesDataStream pins the rotation branch: spans configured for a
+// data stream get the composable objects and not the jaeger-span-* rotation
+// template, while services keep theirs. Asserting the exact PUT list is what makes
+// the "and not" half of that checkable — a wiring that installed both would still
+// create a working data stream, and pass any assertion that only looked for one.
+//
+// The cluster answers the "@custom" probe with 404, so both cases also cover the
+// fresh-install path where Jaeger has to create that component itself. When the
+// PUTs fail, startup must fail with them rather than leave spans pointed at a
+// stream the cluster has no template for.
+func TestCreateTemplatesDataStream(t *testing.T) {
+	tests := []struct {
+		name      string
+		putStatus int
+		expectErr string
+		expectPut []string
+	}{
+		{
+			name:      "installs data stream objects instead of the span template",
+			putStatus: http.StatusOK,
+			expectPut: []string{
+				"/_component_template/jaeger.spans@custom",
+				"/_component_template/jaeger.spans@mappings",
+				"/_component_template/jaeger.spans@settings",
+				"/_index_template/jaeger.spans",
+				"/_template/jaeger-service",
+			},
+		},
+		{
+			name:      "template error fails startup",
+			putStatus: http.StatusInternalServerError,
+			expectErr: "jaeger.spans@custom",
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			var puts []string
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				switch {
+				case r.Method == http.MethodPut:
+					puts = append(puts, r.URL.Path)
+					w.WriteHeader(test.putStatus)
+					w.Write([]byte("{}"))
+				case strings.HasPrefix(r.URL.Path, "/_component_template/"):
+					w.WriteHeader(http.StatusNotFound)
+				default:
+					w.Write(mockEsServerResponse)
+				}
+			}))
+			defer server.Close()
+
+			err := dataStreamFactory(t, server.URL).createTemplates(context.Background())
+			if test.expectErr != "" {
+				require.ErrorContains(t, err, test.expectErr)
+				return
+			}
+			require.NoError(t, err)
+			assert.Equal(t, test.expectPut, puts)
 		})
 	}
 }
