@@ -1,0 +1,32 @@
+{
+  "bool": {
+    "should": [
+      {
+        "term": {
+          "tag.span@kind": "server"
+        }
+      },
+      {
+        "nested": {
+          "path": "tags",
+          "query": {
+            "bool": {
+              "must": [
+                {
+                  "term": {
+                    "tags.key": "span.kind"
+                  }
+                },
+                {
+                  "term": {
+                    "tags.value": "server"
+                  }
+                }
+              ]
+            }
+          }
+        }
+      }
+    ]
+  }
+}
