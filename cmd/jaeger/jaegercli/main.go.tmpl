@@ -1,0 +1,24 @@
+// Copyright (c) 2026 The Jaeger Authors.
+// SPDX-License-Identifier: Apache-2.0
+
+// Workspace-overwrite entrypoint for custom OCB-built Jaeger distributions:
+// build-ocb copies it over OCB's generated main.go before compiling so the
+// binary keeps Jaeger's subcommands and embedded all-in-one config.
+// components() is provided by OCB's generated components.go.
+package main
+
+import (
+	"log"
+
+	"github.com/jaegertracing/jaeger/cmd/jaeger/jaegercli"
+)
+
+func main() {
+	factories, err := components()
+	if err != nil {
+		log.Fatal(err)
+	}
+	if err := jaegercli.NewCommand(factories).Execute(); err != nil {
+		log.Fatal(err)
+	}
+}
