@@ -9,6 +9,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"strings"
 
 	"go.uber.org/zap"
 
@@ -57,18 +58,32 @@ func (r *spanReader) NextSpan() (*uimodel.Span, error) {
 			return nil, errors.New("file must begin with '['")
 		}
 	}
-	s, err := r.reader.ReadString('\n')
-	if err != nil {
-		r.eofReached = true
-		return nil, fmt.Errorf("cannot read file: %w", err)
+	var s string
+	for s == "" {
+		line, err := r.reader.ReadString('\n')
+		if err != nil {
+			r.eofReached = true
+			return nil, fmt.Errorf("cannot read file: %w", err)
+		}
+		// Blank lines carry no span; the writer emits one before the closing
+		// bracket when it captured nothing.
+		s = strings.TrimRight(line, "\r\n")
 	}
-	if s[len(s)-2] == ',' { // all but last span lines end with ,\n
-		s = s[0 : len(s)-2]
+	if s == "]" {
+		r.eofReached = true
+		if r.spansRead > 0 {
+			// The previous line ended with a comma, so a span was promised.
+			return nil, errors.New("unexpected end of array after a trailing comma")
+		}
+		return nil, errNoMoreSpans
+	}
+	if strings.HasSuffix(s, ",") { // all but the last span line end with a comma
+		s = strings.TrimSuffix(s, ",")
 	} else {
 		r.eofReached = true
 	}
 	var span uimodel.Span
-	err = json.Unmarshal([]byte(s), &span)
+	err := json.Unmarshal([]byte(s), &span)
 	if err != nil {
 		r.eofReached = true
 		return nil, fmt.Errorf("cannot unmarshal span: %w; %s", err, s)

@@ -15,7 +15,7 @@ func TestElasticsearchStorage(t *testing.T) {
 
 	s := &E2EStorageIntegration{
 		ConfigFile:   "../../config-elasticsearch.yaml",
-		FeatureGates: structuredFilterGates,
+		FeatureGates: elasticsearchFilterGates,
 		StorageIntegration: integration.StorageIntegration{
 			CleanUp:      purge,
 			Fixtures:     integration.LoadAndParseQueryTestCases(t, "fixtures/queries_es.json"),
@@ -57,8 +57,10 @@ func TestElasticsearchStorage_BackwardCompatibility(t *testing.T) {
 		ConfigFile:   "../../config-elasticsearch.yaml",
 		FeatureGates: structuredFilterGates,
 		StorageIntegration: integration.StorageIntegration{
-			Fixtures:     integration.LoadAndParseQueryTestCases(t, "fixtures/queries_es.json"),
-			Capabilities: capabilities.Elasticsearch(),
+			Fixtures: integration.LoadAndParseQueryTestCases(t, "fixtures/queries_es.json"),
+			// This suite leaves the typed-attribute gate off on both binaries, so its indices carry
+			// no numeric sub-field and ordering an attribute is refused.
+			Capabilities: capabilities.Elasticsearch().WithoutTypedAttributeIndexing(),
 		},
 	})
 }
