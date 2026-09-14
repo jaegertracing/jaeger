@@ -41,6 +41,8 @@ v2.21.0 (2026-09-14)
 #### 🐞 Bug fixes, Minor Improvements
 
 * Fix(memory): match unset-status spans in error=false trace search ([@hharshhsaini](https://github.com/hharshhsaini) in [#9096](https://github.com/jaegertracing/jaeger/pull/9096))
+* Fix(anonymizer): register the gogo codec ([@DsThakurRawat](https://github.com/DsThakurRawat) in [#9540](https://github.com/jaegertracing/jaeger/pull/9540))
+* Fix(release): paginate the commits query in the release notes script ([@ysh-bot](https://github.com/ysh-bot) in [#9560](https://github.com/jaegertracing/jaeger/pull/9560))
 * Fix(es): surface failed _msearch items instead of dropping traces silently ([@hharshhsaini](https://github.com/hharshhsaini) in [#9008](https://github.com/jaegertracing/jaeger/pull/9008))
 * Feat(featuregate): normalize Jaeger gate names ([@maindevhoon](https://github.com/maindevhoon) in [#9037](https://github.com/jaegertracing/jaeger/pull/9037))
 * Fix(mcp): use inclusive bound for critical path child search ([@Harizz076](https://github.com/Harizz076) in [#9174](https://github.com/jaegertracing/jaeger/pull/9174))
