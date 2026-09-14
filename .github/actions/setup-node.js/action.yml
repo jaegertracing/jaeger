@@ -6,12 +6,6 @@ description: 'Setup Node.js and pnpm as required by jaeger-ui repo. Must be call
 runs:
   using: "composite"
   steps:
-    # pnpm must be installed before setup-node. The pnpm version is read from the
-    # "packageManager" field in jaeger-ui's package.json, keeping it deterministic.
-    - uses: pnpm/action-setup@0ebf47130e4866e96fce0953f49152a61190b271 # v6.0.9
-      with:
-        package_json_file: jaeger-ui/package.json
-
     # The Node.js version comes from jaeger-ui's package.json "engines" field.
     # No dependency cache: the UI build usually downloads prebuilt release assets
     # (see rebuild-ui.sh) and never runs `pnpm install`, so there is no pnpm store
@@ -19,6 +13,16 @@ runs:
     - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
       with:
         node-version-file: jaeger-ui/package.json
+        package-manager-cache: false
+
+    # Provision the pnpm version pinned in jaeger-ui/package.json via Corepack
+    # instead of pnpm/action-setup. The action's installed wrapper is currently
+    # failing to execute on ubuntu-latest during binary-size-check.
+    - name: Enable pnpm via Corepack
+      shell: bash
+      run: |
+        corepack enable pnpm
+        corepack install --global "$(node -p 'require("./jaeger-ui/package.json").packageManager')"
 
     - name: Print node and pnpm versions
       shell: bash
