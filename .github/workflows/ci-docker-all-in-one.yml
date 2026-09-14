@@ -46,8 +46,6 @@ jobs:
 
     - uses: ./.github/actions/setup-branch
 
-    - run: make install-ci
-
     - uses: docker/setup-qemu-action@1f40c72289eff860ee54a304f1438e3cff362e0a # v4.3.0
 
     - name: Define BUILD_FLAGS var if running on a Pull Request or Merge Queue

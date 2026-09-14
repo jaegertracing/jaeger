@@ -14,7 +14,7 @@ func TestOpenSearchStorage(t *testing.T) {
 	integration.SkipUnlessEnv(t, integration.StorageOpenSearch)
 	s := &E2EStorageIntegration{
 		ConfigFile:   "../../config-opensearch.yaml",
-		FeatureGates: structuredFilterGates,
+		FeatureGates: elasticsearchFilterGates,
 		StorageIntegration: integration.StorageIntegration{
 			CleanUp:      purge,
 			Fixtures:     integration.LoadAndParseQueryTestCases(t, "fixtures/queries_es.json"),
@@ -42,7 +42,7 @@ func TestOpenSearchStorage_TwoPhase(t *testing.T) {
 		s := &E2EStorageIntegration{
 			ConfigFile:   "../../config-opensearch.yaml",
 			BinaryName:   binaryName,
-			FeatureGates: structuredFilterGates,
+			FeatureGates: elasticsearchFilterGates,
 			StorageIntegration: integration.StorageIntegration{
 				CleanUp:      func(*testing.T) {},
 				Fixtures:     fixtures,
@@ -96,8 +96,10 @@ func TestOpenSearchStorage_BackwardCompatibility(t *testing.T) {
 		ConfigFile:   "../../config-opensearch.yaml",
 		FeatureGates: structuredFilterGates,
 		StorageIntegration: integration.StorageIntegration{
-			Fixtures:     integration.LoadAndParseQueryTestCases(t, "fixtures/queries_es.json"),
-			Capabilities: capabilities.OpenSearch(),
+			Fixtures: integration.LoadAndParseQueryTestCases(t, "fixtures/queries_es.json"),
+			// This suite leaves the typed-attribute gate off on both binaries, so its indices carry
+			// no numeric sub-field and ordering an attribute is refused.
+			Capabilities: capabilities.OpenSearch().WithoutTypedAttributeIndexing(),
 		},
 	})
 }
