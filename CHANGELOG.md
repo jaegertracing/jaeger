@@ -41,7 +41,8 @@ v2.21.0 (2026-09-14)
 #### 🐞 Bug fixes, Minor Improvements
 
 * Fix(memory): match unset-status spans in error=false trace search ([@hharshhsaini](https://github.com/hharshhsaini) in [#9096](https://github.com/jaegertracing/jaeger/pull/9096))
-* Fix(es): surface failed _msearch items instead of dropping traces silently ([@ysh-bot](https://github.com/ysh-bot) in [#9008](https://github.com/jaegertracing/jaeger/pull/9008))
+* Fix(es): surface failed _msearch items instead of dropping traces silently ([@hharshhsaini](https://github.com/hharshhsaini) in [#9008](https://github.com/jaegertracing/jaeger/pull/9008))
+* Feat(featuregate): normalize Jaeger gate names ([@maindevhoon](https://github.com/maindevhoon) in [#9037](https://github.com/jaegertracing/jaeger/pull/9037))
 * Fix(mcp): use inclusive bound for critical path child search ([@Harizz076](https://github.com/Harizz076) in [#9174](https://github.com/jaegertracing/jaeger/pull/9174))
 * Feat(es): accept --feature-gates in esmapping-generator and es-rollover init ([@ysh-bot](https://github.com/ysh-bot) in [#9546](https://github.com/jaegertracing/jaeger/pull/9546))
 * Fix(anonymizer): read the writer's zero-span capture without panicking ([@DsThakurRawat](https://github.com/DsThakurRawat) in [#9528](https://github.com/jaegertracing/jaeger/pull/9528))
