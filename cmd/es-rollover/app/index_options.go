@@ -79,6 +79,15 @@ func (i *IndexOption) WriteAliasName() string {
 	return fmt.Sprintf(writeAliasFormat, i.IndexName())
 }
 
+// ReadAliasNameWithPrefix returns the read alias name for this index's type,
+// substituting prefix for the option's own prefix. It lets an additional index
+// prefix (see --index-prefixes-read) be attached as a read alias pointing at
+// the same underlying rollover index created for the option's own prefix.
+func (i *IndexOption) ReadAliasNameWithPrefix(prefix string) string {
+	indexName := strings.TrimLeft(fmt.Sprintf("%s%s", prefix, i.indexType), "-")
+	return fmt.Sprintf(readAliasFormat, indexName)
+}
+
 // InitialRolloverIndex returns the initial index rollover name
 func (i *IndexOption) InitialRolloverIndex() string {
 	return fmt.Sprintf(rolloverIndexFormat, i.IndexName())

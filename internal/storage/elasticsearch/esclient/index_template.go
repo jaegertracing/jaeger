@@ -168,13 +168,23 @@ type innerParams struct {
 	// ignore_malformed on a boolean mapper, and the keyword already answers equality, which is the
 	// only operator a boolean has (RFC 0015 §7, question 7).
 	TypedAttributes bool
+	// AdditionalReadAliases are extra, fully-qualified read alias names (e.g.
+	// "unified-jaeger-span-read") declared in the template's own "aliases" object
+	// alongside the primary "<IndexPrefix>jaeger-span-read" one, so that Elasticsearch
+	// ILM/OpenSearch ISM carries them onto every index the policy rolls over to, not
+	// just the one this template happens to create first. Rendered only when UseILM,
+	// matching the primary read alias, which is declared in the template for the same
+	// reason and otherwise only attached explicitly to the initial index.
+	AdditionalReadAliases []string
 }
 
 // renderBackendNeutralBody executes the embedded template for one mapping type and
 // returns its top-level fields: settings, mappings, and aliases where the template
 // emits them. Those fields read the same on every backend version, so a caller wraps
-// them in whatever envelope its own target needs.
-func renderBackendNeutralBody(m MappingType, indices config.Indices, lifecycle lifecycleParams) (map[string]json.RawMessage, error) {
+// them in whatever envelope its own target needs. additionalReadPrefixes holds extra
+// index prefixes (see cmd/es-rollover's --index-prefixes-read); each becomes an extra
+// read alias declared in the template alongside the one for indices.IndexPrefix.
+func renderBackendNeutralBody(m MappingType, indices config.Indices, lifecycle lifecycleParams, additionalReadPrefixes []string) (map[string]json.RawMessage, error) {
 	file := m.file()
 	if file == "" {
 		return nil, fmt.Errorf("unknown index template mapping type %d", m)
@@ -184,14 +194,20 @@ func renderBackendNeutralBody(m MappingType, indices config.Indices, lifecycle l
 		return nil, fmt.Errorf("index options for %s have no replica count configured", m)
 	}
 
+	additionalReadAliases := make([]string, 0, len(additionalReadPrefixes))
+	for _, prefix := range additionalReadPrefixes {
+		additionalReadAliases = append(additionalReadAliases, prefix+m.indexBase()+"-read")
+	}
+
 	var buf bytes.Buffer
 	if err := indexTemplates.ExecuteTemplate(&buf, file, innerParams{
-		lifecycleParams:  lifecycle,
-		IndexPrefix:      indices.IndexPrefix.Apply(""),
-		Shards:           opts.Shards,
-		Replicas:         *opts.Replicas,
-		TotalFieldsLimit: opts.TotalFieldsLimit,
-		TypedAttributes:  TypedAttributeIndexingGate.IsEnabled(),
+		lifecycleParams:       lifecycle,
+		IndexPrefix:           indices.IndexPrefix.Apply(""),
+		Shards:                opts.Shards,
+		Replicas:              *opts.Replicas,
+		TotalFieldsLimit:      opts.TotalFieldsLimit,
+		TypedAttributes:       TypedAttributeIndexingGate.IsEnabled(),
+		AdditionalReadAliases: additionalReadAliases,
 	}); err != nil {
 		return nil, fmt.Errorf("failed to render %s index template: %w", m, err)
 	}
@@ -212,13 +228,17 @@ func renderBackendNeutralBody(m MappingType, indices config.Indices, lifecycle l
 // online callers never pass a version. This entry point is exported only for the
 // offline `esmapping-generator` CLI, which has no cluster to probe and renders a
 // template for an explicitly-requested version.
-func RenderIndexTemplate(m MappingType, indices config.Indices, useILM bool, ilmPolicyName string, version es.BackendVersion) (string, error) {
+//
+// additionalReadPrefixes holds extra index prefixes (see cmd/es-rollover's
+// --index-prefixes-read); each becomes an extra read alias declared in the
+// template's own "aliases" object, alongside the one for indices.IndexPrefix.
+func RenderIndexTemplate(m MappingType, indices config.Indices, useILM bool, ilmPolicyName string, version es.BackendVersion, additionalReadPrefixes []string) (string, error) {
 	prefix := indices.IndexPrefix.Apply("")
 	inner, err := renderBackendNeutralBody(m, indices, lifecycleParams{
 		UseILM:        useILM,
 		ILMPolicyName: ilmPolicyName,
 		IsOpenSearch:  version.IsOpenSearch(),
-	})
+	}, additionalReadPrefixes)
 	if err != nil {
 		return "", err
 	}

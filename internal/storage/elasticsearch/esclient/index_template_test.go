@@ -45,14 +45,14 @@ func TestMappingTypeFromString(t *testing.T) {
 }
 
 func TestRenderIndexTemplateUnknownType(t *testing.T) {
-	_, err := RenderIndexTemplate(MappingType(99), config.Indices{}, false, "", es.ElasticV8)
+	_, err := RenderIndexTemplate(MappingType(99), config.Indices{}, false, "", es.ElasticV8, nil)
 	require.ErrorContains(t, err, "unknown index template mapping type")
 }
 
 func TestRenderIndexTemplateNilReplicas(t *testing.T) {
 	// config.IndexOptions.Replicas is a pointer; a caller that builds Indices without
 	// defaults must get a clear error rather than a nil-dereference panic.
-	_, err := RenderIndexTemplate(SpanMapping, config.Indices{}, false, "", es.ElasticV8)
+	_, err := RenderIndexTemplate(SpanMapping, config.Indices{}, false, "", es.ElasticV8, nil)
 	require.ErrorContains(t, err, "no replica count configured")
 }
 
@@ -79,7 +79,7 @@ func TestRenderIndexTemplateTotalFieldsLimit(t *testing.T) {
 			indices := config.Indices{
 				Spans: config.IndexOptions{Replicas: &reps, TotalFieldsLimit: test.totalFieldsLimit},
 			}
-			rendered, err := RenderIndexTemplate(SpanMapping, indices, false, "", es.ElasticV8)
+			rendered, err := RenderIndexTemplate(SpanMapping, indices, false, "", es.ElasticV8, nil)
 			require.NoError(t, err)
 			if test.wantContains != "" {
 				assert.Contains(t, rendered, test.wantContains)
@@ -90,6 +90,30 @@ func TestRenderIndexTemplateTotalFieldsLimit(t *testing.T) {
 	}
 }
 
+func TestRenderIndexTemplateAdditionalReadAliases(t *testing.T) {
+	indices := config.Indices{Spans: config.IndexOptions{Shards: 5, Replicas: new(int64)}}
+
+	t.Run("useILM declares the additional read aliases alongside the primary one", func(t *testing.T) {
+		rendered, err := RenderIndexTemplate(SpanMapping, indices, true, "policy", es.ElasticV7, []string{"unified-", "other-"})
+		require.NoError(t, err)
+		var doc map[string]any
+		require.NoError(t, json.Unmarshal([]byte(rendered), &doc))
+		assert.Equal(t, map[string]any{
+			"jaeger-span-read":         map[string]any{},
+			"unified-jaeger-span-read": map[string]any{},
+			"other-jaeger-span-read":   map[string]any{},
+		}, doc["aliases"])
+	})
+
+	t.Run("no ILM omits aliases entirely, regardless of additional read prefixes", func(t *testing.T) {
+		rendered, err := RenderIndexTemplate(SpanMapping, indices, false, "", es.ElasticV7, []string{"unified-"})
+		require.NoError(t, err)
+		var doc map[string]any
+		require.NoError(t, json.Unmarshal([]byte(rendered), &doc))
+		assert.NotContains(t, doc, "aliases")
+	})
+}
+
 func TestRenderIndexTemplateInvalidJSON(t *testing.T) {
 	// A prefix carrying a double quote makes the rendered template invalid JSON
 	// (the prefix appears in the ILM alias name), exercising the parse-failure branch.
@@ -97,7 +121,7 @@ func TestRenderIndexTemplateInvalidJSON(t *testing.T) {
 		Spans:       config.IndexOptions{Replicas: new(int64)},
 		IndexPrefix: `bad"prefix-`,
 	}
-	_, err := RenderIndexTemplate(SpanMapping, indices, true, "policy", es.ElasticV8)
+	_, err := RenderIndexTemplate(SpanMapping, indices, true, "policy", es.ElasticV8, nil)
 	require.ErrorContains(t, err, "not valid JSON")
 }
 
@@ -136,7 +160,7 @@ func dig(t *testing.T, doc any, path string) any {
 func renderSpanMapping(t *testing.T) any {
 	t.Helper()
 	indices := config.Indices{Spans: config.IndexOptions{Shards: 5, Replicas: new(int64)}}
-	rendered, err := RenderIndexTemplate(SpanMapping, indices, false, "", es.ElasticV7)
+	rendered, err := RenderIndexTemplate(SpanMapping, indices, false, "", es.ElasticV7, nil)
 	require.NoError(t, err)
 	var doc any
 	require.NoError(t, json.Unmarshal([]byte(rendered), &doc))
@@ -221,7 +245,7 @@ func TestRenderIndexTemplateTypedAttributesValidForAllVersions(t *testing.T) {
 		for _, mapping := range mappings {
 			t.Run(version.String()+"/"+mapping.String(), func(t *testing.T) {
 				for _, useILM := range []bool{false, true} {
-					_, err := RenderIndexTemplate(mapping, indices, useILM, "policy", version)
+					_, err := RenderIndexTemplate(mapping, indices, useILM, "policy", version, nil)
 					require.NoError(t, err)
 				}
 			})

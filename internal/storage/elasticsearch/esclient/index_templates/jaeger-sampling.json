@@ -2,6 +2,9 @@
   {{- if .UseILM }}
     "aliases": {
       "{{ .IndexPrefix }}jaeger-sampling-read": {}
+      {{- range .AdditionalReadAliases }},
+      "{{ . }}": {}
+      {{- end }}
     },
     {{- end }}
     "settings": {

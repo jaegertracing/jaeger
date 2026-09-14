@@ -103,6 +103,21 @@ func (c Action) init(ctx context.Context, indexopt app.IndexOption) error {
 		})
 	}
 
+	for _, extraPrefix := range c.Config.AdditionalReadPrefixes {
+		extraReadAlias := indexopt.ReadAliasNameWithPrefix(extraPrefix)
+		extraPrefixIndices, err := c.IndicesClient.GetJaegerIndices(ctx, extraPrefix)
+		if err != nil {
+			return err
+		}
+		if !filter.AliasExists(extraPrefixIndices, extraReadAlias) {
+			aliases = append(aliases, esclient.Alias{
+				Index:        index,
+				Name:         extraReadAlias,
+				IsWriteIndex: false,
+			})
+		}
+	}
+
 	if len(aliases) > 0 {
 		err = c.IndicesClient.CreateAlias(ctx, aliases)
 		if err != nil {
