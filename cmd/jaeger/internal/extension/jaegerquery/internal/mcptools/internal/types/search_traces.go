@@ -44,6 +44,14 @@ type SearchTracesInput struct {
 type SearchTracesOutput struct {
 	Traces []TraceSummary `json:"traces,omitempty" jsonschema:"List of trace summaries matching the search criteria"`
 	Error  string         `json:"error,omitempty" jsonschema:"Error message if partial results were returned"`
+
+	// SearchDepthUsed is the depth the search actually ran with, which is the
+	// requested search_depth clamped to the server's MaxSearchResults.
+	SearchDepthUsed int `json:"search_depth_used" jsonschema:"Search depth actually used, after clamping to the server limit"`
+
+	// Truncated is true when the result filled SearchDepthUsed, so more traces
+	// may match the query.
+	Truncated bool `json:"truncated" jsonschema:"True if the result filled the search depth; more traces may match. Raise search_depth or narrow the query"`
 }
 
 // TraceSummary contains lightweight metadata about a single trace.

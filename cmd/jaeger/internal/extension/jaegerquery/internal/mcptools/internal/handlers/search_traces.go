@@ -73,7 +73,14 @@ outer:
 		}
 	}
 
-	output := types.SearchTracesOutput{Traces: summaries}
+	// The search depth is clamped to the server limit and is what bounds the
+	// result, so report it alongside whether the result filled it. Without both,
+	// a full page is indistinguishable from an exhaustive one.
+	output := types.SearchTracesOutput{
+		Traces:          summaries,
+		SearchDepthUsed: query.SearchDepth,
+		Truncated:       query.SearchDepth > 0 && len(summaries) >= query.SearchDepth,
+	}
 	if len(processErrs) > 0 {
 		searchErr := errors.Join(processErrs...)
 		if len(summaries) == 0 {
