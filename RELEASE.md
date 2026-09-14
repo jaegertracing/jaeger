@@ -64,7 +64,8 @@ Create a PR "Prepare release vX.Y.Z" against main or maintenance branch ([exampl
   * Update CHANGELOG.md to include:
     * A new section with the header `vX.Y.Z (YYYY-MM-DD)` (copy the template at the top)
     * A curated list of notable changes and links to PRs. Do not simply dump git log, select the changes that affect the users.
-      To obtain the list of all changes run `make changelog`.
+      To obtain the list of all changes run `make changelog`. The script fails when a PR in the release
+      has no `changelog:` label or has more than one; fix the labels on those PRs and rerun it.
     * The section can be split into sub-section if necessary, e.g. UI Changes, Backend Changes, Bug Fixes, etc.
   * Then upgrade the submodule versions and finally commit. For example:
       ```

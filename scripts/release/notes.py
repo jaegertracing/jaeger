@@ -169,7 +169,7 @@ def main(token, repo, branch, num_commits, exclude_dependabot, verbose):
     # Load PR for each commit and print summary
     category_results = {category['title']: [] for category in categories}
     other_results = []
-    commits_with_multiple_labels = []
+    problems = []
 
     progress_iterator = 0
     for commit in commits:
@@ -199,6 +199,7 @@ def main(token, repo, branch, num_commits, exclude_dependabot, verbose):
 
             result = f'* {msg} ([@{author_login}]({author_url}) in [{short_sha}]({commit_url}))'
             other_results.append(result)
+            problems.append(f'commit {short_sha} has no pull request: {commit_url}')
             continue
 
         pull = pulls[0]
@@ -210,9 +211,13 @@ def main(token, repo, branch, num_commits, exclude_dependabot, verbose):
         pull_labels = get_pull_request_labels(token, repo, pull_id)
         changelog_labels = [label for label in pull_labels if label.startswith('changelog:')]
 
-        # Handle multiple changelog labels
+        result = f'* {msg} ([@{author_login}]({author_url}) in [#{pull_id}]({pull_url}))'
+
+        # A PR with several changelog labels cannot be placed in one category,
+        # so it is reported next to the unlabeled ones for a human to resolve.
         if len(changelog_labels) > 1:
-            commits_with_multiple_labels.append((sha, pull_id, changelog_labels))
+            other_results.append(f"{result} (labels: {', '.join(changelog_labels)})")
+            problems.append(f"PR #{pull_id} has several changelog labels ({', '.join(changelog_labels)}): {pull_url}")
             continue
 
         category = UNCATTEGORIZED
@@ -222,9 +227,9 @@ def main(token, repo, branch, num_commits, exclude_dependabot, verbose):
                     category = cat['title']
                     break
 
-        result = f'* {msg} ([@{author_login}]({author_url}) in [#{pull_id}]({pull_url}))'
         if category == UNCATTEGORIZED:
             other_results.append(result)
+            problems.append(f'PR #{pull_id} has no changelog label: {pull_url}')
         else:
             category_results[category].append(result)
 
@@ -243,24 +248,24 @@ def main(token, repo, branch, num_commits, exclude_dependabot, verbose):
 
     # Print pull requests in the 'UNCATTEGORIZED' category
     if other_results:
-        print(f'### 💩💩💩 The following commits cannot be categorized (missing "changelog:*" labels):')
+        print(f'### 💩💩💩 The following commits cannot be categorized (missing or multiple "changelog:*" labels):')
         for result in other_results:
             print(result)
-        print(f'### 💩💩💩 Please attach labels to these ^^^ PRs and rerun the script.')
+        print(f'### 💩💩💩 Please fix the labels on these ^^^ PRs and rerun the script.')
         print(f'### 💩💩💩 Do not include this section in the changelog.')
-
-    # Print warnings for commits with more than one changelog label
-    if commits_with_multiple_labels:
-        eprint("Warnings: Commits with more than one changelog label found. Please fix them:\n")
-        for sha, pull_id, labels in commits_with_multiple_labels:
-            pr_url = f"https://github.com/jaegertracing/{repo}/pull/{pull_id}"
-            eprint(f"Commit {sha} associated with multiple changelog labels: {', '.join(labels)}")
-            eprint(f"Pull Request URL: {pr_url}\n")
-        print()
 
     if skipped_dependabot:
         if verbose:
             eprint(f"(Skipped dependabot commits: {skipped_dependabot})")
+
+    # The notes above are still printed in full so they can be inspected, but
+    # the script fails so that a release is not prepared from incomplete notes.
+    if problems:
+        eprint()
+        eprint(f'🔴 {len(problems)} commit(s) could not be categorized. Fix the labels and rerun the script:')
+        for problem in problems:
+            eprint(f'    🔴 {problem}')
+        sys.exit(1)
 
 
 # The GitHub commits API returns at most 100 commits per page regardless of
