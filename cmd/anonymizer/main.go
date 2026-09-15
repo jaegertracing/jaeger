@@ -12,6 +12,7 @@ import (
 	"github.com/spf13/cobra"
 	"go.uber.org/zap"
 
+	"github.com/jaegertracing/jaeger-idl/model/v1"
 	"github.com/jaegertracing/jaeger/cmd/anonymizer/app"
 	"github.com/jaegertracing/jaeger/cmd/anonymizer/app/anonymizer"
 	"github.com/jaegertracing/jaeger/cmd/anonymizer/app/query"
@@ -30,6 +31,11 @@ func main() {
 		Short: "Jaeger anonymizer hashes fields of a trace for easy sharing",
 		Long:  `Jaeger anonymizer queries Jaeger query for a trace, anonymizes fields, and store in file`,
 		Run: func(_ *cobra.Command, _ /* args */ []string) {
+			normalizedTraceID, err := normalizeTraceID(options.TraceID)
+			if err != nil {
+				logger.Fatal("error while parsing trace ID", zap.Error(err))
+			}
+			options.TraceID = normalizedTraceID
 			prefix := options.OutputDir + "/" + options.TraceID
 			conf := writer.Config{
 				MaxSpansCount:  options.MaxSpansCount,
@@ -106,4 +112,12 @@ func initTime(ts int64) time.Time {
 		t = time.Unix(0, ts)
 	}
 	return t
+}
+
+func normalizeTraceID(traceID string) (string, error) {
+	id, err := model.TraceIDFromString(traceID)
+	if err != nil {
+		return "", err
+	}
+	return id.String(), nil
 }
