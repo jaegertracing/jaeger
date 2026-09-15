@@ -89,6 +89,7 @@ func (qs QueryService) onQuery(ctx context.Context, query TraceQueryParams) (con
 	// the filter's unqualified default is span-or-resource (RFC 0005 §5.1) — and enabling an
 	// interceptor must not move a result set by itself.
 	//
+	// TODO follow up to see if this is intended behavior:
 	// If the query was a legacy query, and the interceptors made no changes to the filter, then allow
 	// start time min/max changes. Why? I don't know.
 	if query.Filter == nil && reflect.DeepEqual(queryPostIntercept.Filter, queryPreIntercept.Filter) {
@@ -108,7 +109,6 @@ func (qs QueryService) onQuery(ctx context.Context, query TraceQueryParams) (con
 	return ctx, query, nil
 }
 
-// TODO replace all this comment
 // onSpanQuery runs every interceptor's OnQuery in order, threading the context each returns into the
 // next. The final context is returned so the caller can pass it to the storage reader and to
 // OnResult, letting an interceptor carry per-query state (a resolved caller identity, say) from
@@ -130,6 +130,8 @@ func (qs QueryService) onSpanQuery(ctx context.Context, query SpanQueryParams) (
 		}
 	}
 	// TODO do we want to carry forward the behavior where if a filter is not provided, the startmin/max can be reset by interceptors?
+	// I would like to be able to collapse these two methods to wrappers over a common method that runs the interceptors with the
+	// public query objects, but not if that behavior needs to be separate.
 
 	// Finalized after that comparison, so finalizing's own rewriting cannot read as a change an
 	// interceptor made.
@@ -218,7 +220,7 @@ func (qs QueryService) interceptSpanResults(
 	return func(yield func([]tracestore.SpanPage, error) bool) {
 		for spanPages, err := range seq {
 			if err != nil {
-				if !yield(spanPages, err) {
+				if !yield(nil, err) {
 					return
 				}
 				continue
@@ -232,6 +234,8 @@ func (qs QueryService) interceptSpanResults(
 						return
 					}
 				}
+				// TODO what if the interceptor splits up the span array, how should we handle that?
+				// Naively, I think it would make sense to just merge the resulting Traces objects, but maybe that points to something else?
 				spanPage.Spans = spans[0]
 			}
 

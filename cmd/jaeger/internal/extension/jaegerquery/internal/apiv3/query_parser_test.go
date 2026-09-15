@@ -17,7 +17,7 @@ import (
 	"github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore"
 )
 
-// TODO maybe test parseFindSpansQuery for filter specific bits
+// TODO maybe break out the filter tests to test the shared utility method
 func TestParseFindSpansQuery(t *testing.T) {
 	tMin := time.Now().Add(-time.Hour).UTC().Truncate(time.Nanosecond)
 	tMax := time.Now().UTC().Truncate(time.Nanosecond)
