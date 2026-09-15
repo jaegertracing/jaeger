@@ -68,6 +68,7 @@ func (tr *TraceReader) SearchCapabilities(ctx context.Context) (tracestore.Searc
 		WithoutServiceName:  resp.GetSearch().GetWithoutServiceName(),
 		SameSpanConjunction: resp.GetSearch().GetSameSpanConjunction(),
 		Filter:              fromProtoFilterCapabilities(resp.GetSearch().GetFilter()),
+		Paginated:           resp.GetSearch().GetPaginated(),
 	}
 	tr.cachedCaps.Store(&caps)
 	return caps, nil
@@ -272,7 +273,7 @@ func toProtoQueryParameters(t tracestore.TraceQueryParams) (*storage.TraceQueryP
 	if t.SearchDepth < 0 || t.SearchDepth > tracestore.MaxSearchDepth {
 		return nil, fmt.Errorf("SearchDepth must be in [0, %d]", tracestore.MaxSearchDepth)
 	}
-	return &storage.TraceQueryParameters{
+	q := &storage.TraceQueryParameters{
 		ServiceName:   t.ServiceName,
 		OperationName: t.OperationName,
 		Attributes:    convertMapToKeyValueList(t.Attributes),
@@ -282,7 +283,18 @@ func toProtoQueryParameters(t tracestore.TraceQueryParams) (*storage.TraceQueryP
 		DurationMax:   t.DurationMax,
 		SearchDepth:   int32(t.SearchDepth),
 		Filter:        filter,
-	}, nil
+	}
+	if t.Pagination != (tracestore.Pagination{}) {
+		// No bounds check here: PageSize is already clamped to tracestore.MaxPageSize at
+		// intake, by every path that decodes a Pagination off the wire (grpc_handler.go's
+		// traceQueryParams and this package's own toTraceQueryParams), well within uint32's
+		// range, so there is nothing left for a cast here to catch.
+		q.Pagination = &storage.Pagination{
+			PageSize:  uint32(t.Pagination.PageSize), //nolint:gosec // G115
+			PageToken: t.Pagination.PageToken,
+		}
+	}
+	return q, nil
 }
 
 func convertMapToKeyValueList(m pcommon.Map) []*storage.KeyValue {
