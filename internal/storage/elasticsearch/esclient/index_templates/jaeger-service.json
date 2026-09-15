@@ -2,6 +2,9 @@
   {{- if .UseILM }}
     "aliases": {
       "{{ .IndexPrefix }}jaeger-service-read": {}
+      {{- range .AdditionalReadAliases }},
+      "{{ . }}": {}
+      {{- end }}
     },
     {{- end }}
     "settings": {

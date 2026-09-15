@@ -89,7 +89,7 @@ func TestSpanDataStreamComponentsMatchRotationTemplate(t *testing.T) {
 
 	// The ES7 template puts "settings" and "mappings" at the top level rather than
 	// under a "template" key, so they compare directly against the two components.
-	rotation, err := RenderIndexTemplate(SpanMapping, indices, false, "", es.ElasticV7)
+	rotation, err := RenderIndexTemplate(SpanMapping, indices, false, "", es.ElasticV7, nil)
 	require.NoError(t, err)
 	var want struct {
 		Settings map[string]any `json:"settings"`

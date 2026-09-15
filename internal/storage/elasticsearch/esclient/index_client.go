@@ -49,6 +49,10 @@ type IndicesClient struct {
 	Indices       config.Indices
 	UseILM        bool
 	ILMPolicyName string
+	// AdditionalReadPrefixes holds extra index prefixes (see cmd/es-rollover's
+	// --index-prefixes-read); each becomes an extra read alias declared in the
+	// rendered template's own "aliases" object, alongside the one for Indices.IndexPrefix.
+	AdditionalReadPrefixes []string
 }
 
 // GetJaegerIndices queries all Jaeger indices including the archive and rollover.
@@ -292,7 +296,7 @@ func (i *IndicesClient) aliasAction(ctx context.Context, action string, aliases 
 // in the version-appropriate envelope from its own resolved backend version — so
 // callers express pure Jaeger intent and never hold a BackendVersion.
 func (i IndicesClient) CreateTemplate(ctx context.Context, name string, mappingType MappingType) error {
-	template, err := RenderIndexTemplate(mappingType, i.Indices, i.UseILM, i.ILMPolicyName, i.version)
+	template, err := RenderIndexTemplate(mappingType, i.Indices, i.UseILM, i.ILMPolicyName, i.version, i.AdditionalReadPrefixes)
 	if err != nil {
 		return err
 	}

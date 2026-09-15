@@ -46,11 +46,12 @@ func main() {
 				initCfg.Config = cfg
 				initCfg.InitFromViper(v)
 				indicesClient := &esclient.IndicesClient{
-					Client:               c,
-					MasterTimeoutSeconds: initCfg.Timeout,
-					Indices:              initCfg.Indices,
-					UseILM:               initCfg.UseILM,
-					ILMPolicyName:        initCfg.ILMPolicyName,
+					Client:                 c,
+					MasterTimeoutSeconds:   initCfg.Timeout,
+					Indices:                initCfg.Indices,
+					UseILM:                 initCfg.UseILM,
+					ILMPolicyName:          initCfg.ILMPolicyName,
+					AdditionalReadPrefixes: initCfg.AdditionalReadPrefixes,
 				}
 				ilmClient := &esclient.ILMClient{
 					Client: c,

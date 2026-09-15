@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestRolloverIndices(t *testing.T) {
@@ -180,6 +181,39 @@ func TestRolloverIndices(t *testing.T) {
 				assert.Equal(t, test.expected[i].writeAliasName, r.WriteAliasName())
 				assert.Equal(t, test.expected[i].initialRolloverIndex, r.InitialRolloverIndex())
 			}
+		})
+	}
+}
+
+func TestReadAliasNameWithPrefix(t *testing.T) {
+	tests := []struct {
+		name           string
+		prefix         string
+		extraPrefix    string
+		expectedString string
+	}{
+		{
+			name:           "no prefixes",
+			expectedString: "jaeger-span-read",
+		},
+		{
+			name:           "own prefix ignored, extra prefix used",
+			prefix:         "mytenant-",
+			extraPrefix:    "othertenant-",
+			expectedString: "othertenant-jaeger-span-read",
+		},
+		{
+			name:           "empty extra prefix",
+			prefix:         "mytenant-",
+			expectedString: "jaeger-span-read",
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			indices := RolloverIndices(false, false, false, test.prefix)
+			require.NotEmpty(t, indices)
+			assert.Equal(t, test.expectedString, indices[0].ReadAliasNameWithPrefix(test.extraPrefix))
 		})
 	}
 }

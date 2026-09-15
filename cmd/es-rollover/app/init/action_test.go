@@ -235,6 +235,54 @@ func TestRolloverAction(t *testing.T) {
 				},
 			},
 		},
+		{
+			name:    "additional read prefixes attach extra read aliases",
+			version: es.ElasticV7,
+			setupCallExpectations: func(indexClient *mocks.IndexAPI, _ *mocks.IndexManagementLifecycleAPI) {
+				indexClient.On("IndexExists", mock.Anything, "jaeger-span-archive-000001").Return(false, nil)
+				indexClient.On("AliasExists", mock.Anything, "jaeger-span-archive-000001").Return(false, nil)
+				indexClient.On("CreateTemplate", mock.Anything, "jaeger-span", mock.Anything).Return(nil)
+				indexClient.On("CreateIndex", mock.Anything, "jaeger-span-archive-000001").Return(nil)
+				indexClient.On("GetJaegerIndices", mock.Anything, "").Return([]esclient.Index{}, nil)
+				indexClient.On("GetJaegerIndices", mock.Anything, "tenant1-").Return([]esclient.Index{}, nil)
+				indexClient.On("GetJaegerIndices", mock.Anything, "tenant2-").Return([]esclient.Index{
+					{Index: "tenant2-jaeger-span-archive-000001", Aliases: map[string]bool{"tenant2-jaeger-span-archive-read": true}},
+				}, nil)
+				indexClient.On("CreateAlias", mock.Anything, []esclient.Alias{
+					{Index: "jaeger-span-archive-000001", Name: "jaeger-span-archive-read", IsWriteIndex: false},
+					{Index: "jaeger-span-archive-000001", Name: "jaeger-span-archive-write", IsWriteIndex: false},
+					{Index: "jaeger-span-archive-000001", Name: "tenant1-jaeger-span-archive-read", IsWriteIndex: false},
+				}).Return(nil)
+			},
+			expectedErr: nil,
+			config: Config{
+				Config: app.Config{
+					Archive: true,
+					UseILM:  false,
+				},
+				AdditionalReadPrefixes: []string{"tenant1-", "tenant2-"},
+			},
+		},
+		{
+			name:    "fail to get jaeger indices for additional read prefix",
+			version: es.ElasticV7,
+			setupCallExpectations: func(indexClient *mocks.IndexAPI, _ *mocks.IndexManagementLifecycleAPI) {
+				indexClient.On("IndexExists", mock.Anything, "jaeger-span-archive-000001").Return(false, nil)
+				indexClient.On("AliasExists", mock.Anything, "jaeger-span-archive-000001").Return(false, nil)
+				indexClient.On("CreateTemplate", mock.Anything, "jaeger-span", mock.Anything).Return(nil)
+				indexClient.On("CreateIndex", mock.Anything, "jaeger-span-archive-000001").Return(nil)
+				indexClient.On("GetJaegerIndices", mock.Anything, "").Return([]esclient.Index{}, nil)
+				indexClient.On("GetJaegerIndices", mock.Anything, "tenant1-").Return([]esclient.Index{}, errors.New("error getting jaeger indices for tenant1"))
+			},
+			expectedErr: errors.New("error getting jaeger indices for tenant1"),
+			config: Config{
+				Config: app.Config{
+					Archive: true,
+					UseILM:  false,
+				},
+				AdditionalReadPrefixes: []string{"tenant1-"},
+			},
+		},
 	}
 
 	for _, test := range tests {

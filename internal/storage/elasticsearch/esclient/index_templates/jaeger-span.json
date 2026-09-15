@@ -9,6 +9,9 @@
   {{- if .UseILM}}
     "aliases": {
       "{{ .IndexPrefix }}jaeger-span-read": {}
+      {{- range .AdditionalReadAliases }},
+      "{{ . }}": {}
+      {{- end }}
     },
     {{- end}}
     "settings": {

@@ -66,6 +66,46 @@ func TestBindFlagsTotalFieldsLimitUnset(t *testing.T) {
 	assert.Nil(t, c.Indices.Spans.TotalFieldsLimit)
 }
 
+func TestBindFlagsReadIndexPrefixes(t *testing.T) {
+	tests := []struct {
+		name     string
+		args     []string
+		expected []string
+	}{
+		{
+			name:     "unset",
+			args:     []string{},
+			expected: nil,
+		},
+		{
+			name:     "single prefix",
+			args:     []string{"--index-prefixes-read=tenant1"},
+			expected: []string{"tenant1-"},
+		},
+		{
+			name:     "multiple prefixes with whitespace",
+			args:     []string{"--index-prefixes-read=tenant1, tenant2 ,,tenant3"},
+			expected: []string{"tenant1-", "tenant2-", "tenant3-"},
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			v := viper.New()
+			c := &Config{}
+			command := cobra.Command{}
+			flags := &flag.FlagSet{}
+			c.AddFlags(flags)
+			command.PersistentFlags().AddGoFlagSet(flags)
+			v.BindPFlags(command.PersistentFlags())
+
+			require.NoError(t, command.ParseFlags(test.args))
+			c.InitFromViper(v)
+			assert.Equal(t, test.expected, c.AdditionalReadPrefixes)
+		})
+	}
+}
+
 func TestFeatureGatesFlag(t *testing.T) {
 	c := &Config{}
 	command := cobra.Command{}
