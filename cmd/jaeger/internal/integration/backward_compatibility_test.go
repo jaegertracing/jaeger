@@ -4,10 +4,7 @@
 package integration
 
 import (
-	"encoding/json"
-	"errors"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"testing"
 
@@ -38,8 +35,8 @@ type compatScenario struct {
 // catches a change to the storage schema or to the span encoding that leaves this revision unable
 // to read what the earlier one wrote.
 //
-// scenarios is the list of explicit upgrade paths to test. Each scenario defines what feature
-// gates the writer and reader run with and what capabilities that combination yields.
+// Nothing here specifies which backend it is running against, so a backend joins the battery by
+// calling this from its own test file and stays out of it by not calling it.
 func runBackwardCompatibilityTests(t *testing.T, storage string, suite E2EStorageIntegration, scenarios ...compatScenario) {
 	require.NotEmpty(t, scenarios, "at least one backward compatibility scenario must be provided")
 
@@ -52,14 +49,6 @@ func runBackwardCompatibilityTests(t *testing.T, storage string, suite E2EStorag
 
 	for _, scenario := range scenarios {
 		t.Run(scenario.Name, func(t *testing.T) {
-			for _, gate := range scenario.OldGates {
-				supported, err := probeGate(oldBinary, gate)
-				require.NoError(t, err, "failed to probe feature gate %q on earlier binary %s", gate, oldBinary)
-				if !supported {
-					t.Skipf("earlier binary (%s) does not recognize feature gate %q", binaryVersion(oldBinary), gate)
-				}
-			}
-
 			// Both phases share one corpus for this scenario, so that the reader compares against
 			// the timestamps the writer wrote: loading a fixture moves its dates to a recent day,
 			// and a corpus built twice would move them twice.
@@ -103,55 +92,4 @@ func runBackwardCompatibilityTests(t *testing.T, storage string, suite E2EStorag
 			})
 		})
 	}
-}
-
-// resolveBinaryPath resolves relative binary paths to absolute paths so commands like
-// `featuregate` and `version` can be executed regardless of the working directory.
-func resolveBinaryPath(binaryPath string) string {
-	if filepath.IsAbs(binaryPath) {
-		return binaryPath
-	}
-	if abs, err := filepath.Abs(filepath.Join("..", "..", "..", "..", binaryPath)); err == nil {
-		return abs
-	}
-	return binaryPath
-}
-
-// probeGate asks the binary whether it recognizes the feature gate through the featuregate subcommand.
-// Returns true if recognized (exit code 0), false if unrecognized (non-zero exit code), or an error
-// if the binary could not be executed.
-func probeGate(binaryPath, gate string) (bool, error) {
-	cmd := exec.Command(resolveBinaryPath(binaryPath), "featuregate", gate)
-	cmd.Dir = "../../../.."
-	err := cmd.Run()
-	if err == nil {
-		return true, nil
-	}
-	var exitErr *exec.ExitError
-	if errors.As(err, &exitErr) && exitErr.ExitCode() != 0 {
-		return false, nil
-	}
-	return false, err
-}
-
-// binaryVersion returns the git version or commit of the binary, or its basename if unavailable.
-func binaryVersion(binaryPath string) string {
-	cmd := exec.Command(resolveBinaryPath(binaryPath), "version")
-	cmd.Dir = "../../../.."
-	out, err := cmd.Output()
-	if err == nil {
-		var v struct {
-			GitVersion string `json:"gitVersion"`
-			GitCommit  string `json:"gitCommit"`
-		}
-		if json.Unmarshal(out, &v) == nil {
-			if v.GitVersion != "" {
-				return v.GitVersion
-			}
-			if v.GitCommit != "" {
-				return v.GitCommit
-			}
-		}
-	}
-	return filepath.Base(binaryPath)
 }
