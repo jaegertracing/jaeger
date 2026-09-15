@@ -60,6 +60,22 @@ func TestToMCPTraceSummary_Basic(t *testing.T) {
 	assert.Positive(t, out.DurationUs)
 }
 
+func TestToMCPTraceSummary_SubSecondPrecision(t *testing.T) {
+	startTime, err := time.Parse(time.RFC3339Nano, "2026-09-11T10:30:00.750123456Z")
+	require.NoError(t, err)
+
+	s := tracestore.TraceSummary{
+		TraceID:           testTraceIDBytes,
+		RootServiceName:   "test-service",
+		RootOperationName: "/test-op",
+		MinStartTime:      startTime,
+		MaxEndTime:        startTime.Add(100 * time.Millisecond),
+	}
+
+	out := toMCPTraceSummary(s)
+	assert.Equal(t, "2026-09-11T10:30:00.750123456Z", out.StartTime)
+}
+
 func TestToMCPTraceSummary_WithErrors(t *testing.T) {
 	s := makeTraceSummary("payment", "/process", true)
 	out := toMCPTraceSummary(s)
@@ -567,6 +583,11 @@ func TestParseTimeParam(t *testing.T) {
 		{
 			name:      "RFC3339",
 			input:     "2024-01-15T10:30:00Z",
+			wantError: false,
+		},
+		{
+			name:      "RFC3339 sub-second precision",
+			input:     "2026-09-11T10:30:00.750123456Z",
 			wantError: false,
 		},
 		{
