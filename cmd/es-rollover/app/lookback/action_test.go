@@ -121,6 +121,22 @@ func TestLookBackAction(t *testing.T) {
 			},
 			expectedErr: nil,
 		},
+		{
+			name: "unknown unit",
+			setupCallExpectations: func(_ *mocks.IndexAPI) {
+				// No calls expected: an unknown unit must be rejected before any
+				// indices are read or removed from the alias.
+			},
+			config: Config{
+				Unit:      "dayss",
+				UnitCount: 1,
+				Config: app.Config{
+					Archive: true,
+					UseILM:  true,
+				},
+			},
+			expectedErr: errors.New(`unknown unit "dayss", expected one of: seconds, minutes, hours, days, weeks, months, years`),
+		},
 	}
 
 	logger, _ := zap.NewProduction()
