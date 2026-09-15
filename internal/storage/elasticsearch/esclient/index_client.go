@@ -75,8 +75,10 @@ func (i *IndicesClient) GetJaegerIndices(ctx context.Context, prefix string) ([]
 	}
 
 	type indexInfo struct {
-		Aliases  map[string]any    `json:"aliases"`
-		Settings map[string]string `json:"settings"`
+		Aliases  map[string]any `json:"aliases"`
+		Settings struct {
+			CreationDate string `json:"index.creation_date"`
+		} `json:"settings"`
 	}
 	var indicesInfo map[string]indexInfo
 	if err = json.Unmarshal(body, &indicesInfo); err != nil {
@@ -90,7 +92,7 @@ func (i *IndicesClient) GetJaegerIndices(ctx context.Context, prefix string) ([]
 			aliases[alias] = true
 		}
 		// ignoring error, ES should return valid date
-		creationDate, _ := strconv.ParseInt(v.Settings["index.creation_date"], 10, 64)
+		creationDate, _ := strconv.ParseInt(v.Settings.CreationDate, 10, 64)
 
 		indices = append(indices, Index{
 			Index:        k,
