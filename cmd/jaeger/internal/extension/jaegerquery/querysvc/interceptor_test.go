@@ -21,6 +21,8 @@ import (
 	"github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore"
 )
 
+// TODO test findspans
+
 // fakeReader is a minimal tracestore.Reader that records the query and the context it received
 // and yields a single configured batch (or error).
 type fakeReader struct {
@@ -76,6 +78,10 @@ func (f *fakeReader) GetTraces(_ context.Context, _ ...tracestore.GetTraceParams
 
 func (*fakeReader) FindTraceIDs(context.Context, tracestore.TraceQueryParams) iter.Seq2[[]tracestore.FoundTraceID, error] {
 	return func(func([]tracestore.FoundTraceID, error) bool) {}
+}
+
+func (*fakeReader) FindSpans(ctx context.Context, q tracestore.SpanQueryParams) iter.Seq2[[]tracestore.SpanPage, error] {
+	return tracestore.UnsupportedSpanSearch{}.FindSpans(ctx, q)
 }
 
 func (*fakeReader) GetServices(context.Context) ([]string, error) {

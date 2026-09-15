@@ -14,6 +14,7 @@ import (
 	"github.com/gogo/protobuf/jsonpb"
 	"go.opentelemetry.io/collector/pdata/pcommon"
 
+	"github.com/jaegertracing/jaeger-idl/query/expression/v1"
 	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerquery/querysvc"
 	"github.com/jaegertracing/jaeger/internal/jptrace"
 	expressionproto "github.com/jaegertracing/jaeger/internal/proto/expression/v1"
@@ -66,6 +67,30 @@ func getQueryParam(q url.Values, canonical, deprecated string) (value string, pa
 	return q.Get(deprecated), deprecated
 }
 
+func parseFindSpansQuery(q url.Values) (*querysvc.SpanQueryParams, error) {
+	queryParams := &querysvc.SpanQueryParams{
+		SpanQueryParams: tracestore.SpanQueryParams{},
+	}
+
+	// The filter parameter may be empty
+	filter, err := maybeParseFilterQueryParam(q)
+	if err != nil {
+		return nil, err
+	}
+	if filter != nil {
+		queryParams.Filter = filter
+	}
+
+	timeMinParsed, timeMaxParsed, err := parseTimeParametersDisallowingDeprecated(q)
+	if err != nil {
+		return nil, err
+	}
+	queryParams.StartTimeMin = timeMinParsed
+	queryParams.StartTimeMax = timeMaxParsed
+
+	return queryParams, nil
+}
+
 func parseFindTracesQuery(q url.Values) (*querysvc.TraceQueryParams, error) {
 	serviceName, _ := getQueryParam(q, paramServiceName, paramServiceNameDeprecated)
 	operationName, _ := getQueryParam(q, paramOperationName, paramOperationNameDeprecated)
@@ -84,34 +109,18 @@ func parseFindTracesQuery(q url.Values) (*querysvc.TraceQueryParams, error) {
 		}
 		queryParams.Attributes = jptrace.PlainMapToPcommonMap(attrsMap)
 	}
-	// The filter parameter carries a JSON-encoded expression.
-	if filterParam := q.Get(paramFilter); filterParam != "" {
-		var call expressionproto.Call
-		if err := jsonpb.Unmarshal(strings.NewReader(filterParam), &call); err != nil {
-			return nil, fmt.Errorf("malformed parameter %s: %w", paramFilter, err)
-		}
-		filter, err := expressionproto.FromProto(&call)
-		if err != nil {
-			return nil, fmt.Errorf("malformed parameter %s: %w", paramFilter, err)
-		}
+	// The filter parameter may be empty
+	filter, err := maybeParseFilterQueryParam(q)
+	if err != nil {
+		return nil, err
+	}
+	if filter != nil {
 		queryParams.Filter = filter
 	}
 
-	timeMinStr, timeMinParam := getQueryParam(q, paramTimeMin, paramTimeMinDeprecated)
-	timeMaxStr, timeMaxParam := getQueryParam(q, paramTimeMax, paramTimeMaxDeprecated)
-	if timeMinStr == "" || timeMaxStr == "" {
-		return nil, fmt.Errorf("%s and %s are required", paramTimeMin, paramTimeMax)
-	}
-	timeMinParsed, err := time.Parse(time.RFC3339Nano, timeMinStr)
+	timeMinParsed, timeMaxParsed, err := parseTimeParametersAllowingDeprecated(q)
 	if err != nil {
-		return nil, fmt.Errorf("malformed parameter %s: %w", timeMinParam, err)
-	}
-	timeMaxParsed, err := time.Parse(time.RFC3339Nano, timeMaxStr)
-	if err != nil {
-		return nil, fmt.Errorf("malformed parameter %s: %w", timeMaxParam, err)
-	}
-	if !timeMinParsed.Before(timeMaxParsed) {
-		return nil, fmt.Errorf("%s must be before %s", paramTimeMin, paramTimeMax)
+		return nil, err
 	}
 	queryParams.StartTimeMin = timeMinParsed
 	queryParams.StartTimeMax = timeMaxParsed
@@ -156,4 +165,56 @@ func parseFindTracesQuery(q url.Values) (*querysvc.TraceQueryParams, error) {
 		queryParams.RawTraces = rawTraces
 	}
 	return queryParams, nil
+}
+
+func maybeParseFilterQueryParam(q url.Values) (*expression.Call, error) {
+	// The filter parameter carries a JSON-encoded expression.
+	if filterParam := q.Get(paramFilter); filterParam != "" {
+		var call expressionproto.Call
+		if err := jsonpb.Unmarshal(strings.NewReader(filterParam), &call); err != nil {
+			return nil, fmt.Errorf("malformed parameter %s: %w", paramFilter, err)
+		}
+		filter, err := expressionproto.FromProto(&call)
+		if err != nil {
+			return nil, fmt.Errorf("malformed parameter %s: %w", paramFilter, err)
+		}
+		return filter, nil
+	}
+	return nil, nil
+}
+
+func parseTimeParametersAllowingDeprecated(q url.Values) (time.Time, time.Time, error) {
+	timeMinStr, timeMinParam := getQueryParam(q, paramTimeMin, paramTimeMinDeprecated)
+	timeMaxStr, timeMaxParam := getQueryParam(q, paramTimeMax, paramTimeMaxDeprecated)
+	timeMinParsed, timeMaxParsed, err := parseAndValidateTimeParameters(timeMinStr, timeMinParam, timeMaxStr, timeMaxParam)
+	if err != nil {
+		return timeMinParsed, timeMaxParsed, err
+	}
+	return timeMinParsed, timeMaxParsed, nil
+}
+
+func parseTimeParametersDisallowingDeprecated(q url.Values) (time.Time, time.Time, error) {
+	timeMinParsed, timeMaxParsed, err := parseAndValidateTimeParameters(q.Get(paramTimeMin), paramTimeMin, q.Get(paramTimeMax), paramTimeMax)
+	if err != nil {
+		return timeMinParsed, timeMaxParsed, err
+	}
+	return timeMinParsed, timeMaxParsed, nil
+}
+
+func parseAndValidateTimeParameters(timeMinStr string, timeMinParam string, timeMaxStr string, timeMaxParam string) (time.Time, time.Time, error) {
+	if timeMinStr == "" || timeMaxStr == "" {
+		return time.Time{}, time.Time{}, fmt.Errorf("%s and %s are required", paramTimeMin, paramTimeMax)
+	}
+	timeMinParsed, err := time.Parse(time.RFC3339Nano, timeMinStr)
+	if err != nil {
+		return time.Time{}, time.Time{}, fmt.Errorf("malformed parameter %s: %w", timeMinParam, err)
+	}
+	timeMaxParsed, err := time.Parse(time.RFC3339Nano, timeMaxStr)
+	if err != nil {
+		return time.Time{}, time.Time{}, fmt.Errorf("malformed parameter %s: %w", timeMaxParam, err)
+	}
+	if !timeMinParsed.Before(timeMaxParsed) {
+		return time.Time{}, time.Time{}, fmt.Errorf("%s must be before %s", paramTimeMin, paramTimeMax)
+	}
+	return timeMinParsed, timeMaxParsed, nil
 }

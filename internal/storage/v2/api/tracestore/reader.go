@@ -5,6 +5,8 @@ package tracestore
 
 import (
 	"context"
+	"errors"
+	"fmt"
 	"iter"
 	"time"
 
@@ -45,6 +47,17 @@ type Reader interface {
 	// GetOperations returns all operation names for a given service
 	// known to the backend from spans within its retention period.
 	GetOperations(ctx context.Context, query OperationQueryParams) ([]Operation, error)
+
+	// FindSpans returns an iterator over pages of spans matching the query.
+	//
+	// Unlike FindTraces, a yielded ptrace.Traces may hold spans from many traces:
+	// the result is a set of spans, not a set of traces. Spans are returned as
+	// stored, with no query-time adjustment (RFC 0016 §7).
+	//
+	// A reader that cannot serve span queries yields errors.ErrUnsupported (wrapped
+	// with %w) as the first error before any page; such readers embed
+	// UnsupportedSpanSearch.
+	FindSpans(ctx context.Context, query SpanQueryParams) iter.Seq2[[]SpanPage, error]
 
 	// FindTraces returns an iterator that retrieves traces matching query parameters.
 	// The iterator is single-use: once consumed, it cannot be used again.
@@ -115,6 +128,45 @@ type GetTraceParams struct {
 // search window, not an int32 bound. 0 is valid and means "backend default" on
 // several stores.
 const MaxSearchDepth = 10000
+
+// Pagination mirrors the proto message of the same name.
+// TODO does this need to wait on 0014's go side landing?
+type Pagination struct {
+	PageSize  int    // page bound; zero means this is not a paginated request
+	PageToken string // opaque continuation cursor; empty starts a new search
+}
+
+// SpanPage is one chunk of a page of span results. NextPageToken is meaningful
+// only on the page's final chunk, where an empty value means this page is the
+// last; the earlier chunks leave it unset, so a caller reads it from the last
+// chunk the iterator yields.
+type SpanPage struct {
+	Spans         ptrace.Traces
+	NextPageToken string
+}
+
+// SpanQueryParams contains query parameters to find spans. For a more detailed
+// definition of each field in this message, refer to `SpanQueryParameters` in `jaeger.api_v3`
+// (https://github.com/jaegertracing/jaeger-idl/blob/main/proto/api_v3/query_service.proto).
+type SpanQueryParams struct {
+	StartTimeMin time.Time
+	StartTimeMax time.Time
+	Filter       *expression.Call // RFC 0005
+	Pagination   Pagination       // RFC 0014
+}
+
+// UnsupportedSpanSearch provides a Reader.FindSpans implementation for backends that
+// cannot serve span queries. It yields errors.ErrUnsupported as its first (and only)
+// error, before any page. Embed it in a Reader to opt into that behavior without
+// writing the method by hand; pair it with a SearchCapabilities.SpanSearch of false
+// so the query service refuses the query before dispatch (RFC 0016 §4.5).
+type UnsupportedSpanSearch struct{}
+
+func (UnsupportedSpanSearch) FindSpans(context.Context, SpanQueryParams) iter.Seq2[[]SpanPage, error] {
+	return func(yield func([]SpanPage, error) bool) {
+		yield(nil, fmt.Errorf("this storage backend does not support span search: %w", errors.ErrUnsupported))
+	}
+}
 
 // TraceQueryParams contains query parameters to find traces. For a detailed
 // definition of each field in this message, refer to `TraceQueryParameters` in `jaeger.api_v3`

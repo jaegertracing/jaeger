@@ -111,6 +111,7 @@ func runGatewayTests(
 	t.Run("GetServices", gw.runGatewayGetServices)
 	t.Run("GetOperations", gw.runGatewayGetOperations)
 	t.Run("GetTrace", gw.runGatewayGetTrace)
+	t.Run("FindSpans", gw.runGatewayFindSpans)
 	t.Run("FindTraces", gw.runGatewayFindTraces)
 	t.Run("FindTraceSummaries", gw.runGatewayFindTraceSummaries)
 }
@@ -152,6 +153,15 @@ func (gw *testGateway) runGatewayGetTrace(t *testing.T) {
 			yield([]ptrace.Traces{makeTestTrace()}, nil)
 		})).Once()
 	gw.verifyGetTraces(t, "/api/v3/traces/1", traceID)
+}
+
+func (gw *testGateway) runGatewayFindSpans(t *testing.T) {
+	q, qp := mockFindSpansQueries()
+	gw.reader.On("FindSpans", matchContext, qp).
+		Return(iter.Seq2[[]tracestore.SpanPage, error](func(yield func([]tracestore.SpanPage, error) bool) {
+			yield([]tracestore.SpanPage{{Spans: makeTestTrace(), NextPageToken: ""}}, nil)
+		})).Once()
+	gw.verifyGetSpans(t, "/api/v3/spans?"+q.Encode(), traceID)
 }
 
 func (gw *testGateway) runGatewayFindTraces(t *testing.T) {
@@ -205,6 +215,19 @@ func (gw *testGateway) verifyGetTraces(t *testing.T, url string, expectedTraceID
 	var response api_v3.GRPCGatewayWrapper
 	parseResponse(t, body, &response)
 	td := response.Result.ToTraces()
+	assert.Equal(t, 1, td.SpanCount())
+	traceID := td.ResourceSpans().At(0).ScopeSpans().At(0).Spans().At(0).TraceID()
+	assert.Equal(t, expectedTraceID.String(), traceID.String())
+}
+
+func (gw *testGateway) verifyGetSpans(t *testing.T, url string, expectedTraceID pcommon.TraceID) {
+	body, statusCode := gw.execRequest(t, url)
+	require.Equal(t, http.StatusOK, statusCode, "response=%s", string(body))
+	body = gw.verifySnapshot(t, body)
+
+	var response api_v3.FindSpansResponse
+	parseResponse(t, body, &response)
+	td := response.Spans.ToTraces()
 	assert.Equal(t, 1, td.SpanCount())
 	traceID := td.ResourceSpans().At(0).ScopeSpans().At(0).Spans().At(0).TraceID()
 	assert.Equal(t, expectedTraceID.String(), traceID.String())

@@ -23,6 +23,8 @@ type TraceReader struct {
 	// v1 storage backends do not compute trace summaries natively; fall back to
 	// FindTraces + client-side aggregation.
 	tracestore.UnsupportedTraceSummaries
+	// v1 spanstore.Reader has no span-search method to adapt; unsupported
+	tracestore.UnsupportedSpanSearch
 
 	spanReader spanstore.Reader
 }

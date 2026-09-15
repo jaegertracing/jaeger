@@ -34,9 +34,20 @@ import (
 	"github.com/jaegertracing/jaeger/internal/testutils"
 )
 
+// The baseline search capabilities: a backend that requires a service name for FindTraces and supports SpanSearch
+var defaultSearchCapabilities = tracestore.SearchCapabilities{SpanSearch: true}
+
 func setupHTTPGatewayNoServer(
+	t *testing.T,
+	basePath string,
+) *testGateway {
+	return setupHTTPGatewayNoServerWithSearchCapabilities(t, basePath, defaultSearchCapabilities)
+}
+
+func setupHTTPGatewayNoServerWithSearchCapabilities(
 	_ *testing.T,
 	basePath string,
+	searchCapabilities tracestore.SearchCapabilities,
 ) *testGateway {
 	gw := &testGateway{
 		reader: &tracestoremocks.Reader{},
@@ -48,9 +59,8 @@ func setupHTTPGatewayNoServer(
 			yield(nil, fmt.Errorf("unsupported: %w", errors.ErrUnsupported))
 		})).Maybe()
 
-	// The baseline: a backend that requires a service name. Only service-less searches ask.
 	gw.reader.On("SearchCapabilities", mock.Anything).
-		Return(tracestore.SearchCapabilities{}, nil).Maybe()
+		Return(searchCapabilities, nil).Maybe()
 	q := querysvc.NewQueryService(
 		gw.reader,
 		&dependencystoremocks.Reader{},
@@ -282,6 +292,24 @@ func TestHTTPGatewayFindTracesEmptyResponse(t *testing.T) {
 	assert.Contains(t, w.Body.String(), "No traces found")
 }
 
+func TestHTTPGatewayFindSpansEmptyResponse(t *testing.T) {
+	q, qp := mockFindSpansQueries()
+	r, err := http.NewRequest(http.MethodGet, "/api/v3/spans?"+q.Encode(), http.NoBody)
+	require.NoError(t, err)
+	w := httptest.NewRecorder()
+
+	gw := setupHTTPGatewayNoServerWithSearchCapabilities(t, "", tracestore.SearchCapabilities{SpanSearch: true})
+	gw.reader.
+		On("FindSpans", matchContext, qp).
+		Return(iter.Seq2[[]tracestore.SpanPage, error](func(yield func([]tracestore.SpanPage, error) bool) {
+			yield([]tracestore.SpanPage{}, nil)
+		})).Once()
+
+	gw.router.ServeHTTP(w, r)
+	assert.Equal(t, http.StatusNotFound, w.Code)
+	assert.Contains(t, w.Body.String(), "No spans found")
+}
+
 // TestHTTPGatewayFindTracesDeprecatedParams verifies that deprecated snake_case query params
 // are accepted as fallbacks for the canonical camelCase params.
 func TestHTTPGatewayFindTracesDeprecatedParams(t *testing.T) {
@@ -436,6 +464,20 @@ func mockFindQueries() (url.Values, tracestore.TraceQueryParams) {
 	}
 }
 
+func mockFindSpansQueries() (url.Values, tracestore.SpanQueryParams) {
+	// Truncate monotonic clock and force UTC to avoid comparison failures in mocks.
+	tMin := time.Now().Add(-time.Hour).UTC().Truncate(time.Nanosecond)
+	tMax := time.Now().UTC().Truncate(time.Nanosecond)
+	q := url.Values{}
+	q.Set("query.startTimeMin", tMin.Format(time.RFC3339Nano))
+	q.Set("query.startTimeMax", tMax.Format(time.RFC3339Nano))
+
+	return q, tracestore.SpanQueryParams{
+		StartTimeMin: tMin,
+		StartTimeMax: tMax,
+	}
+}
+
 func TestHTTPGatewayFindTracesErrors(t *testing.T) {
 	t.Run("parse error returns 400", func(t *testing.T) {
 		// Detailed parse error cases are covered by TestParseFindTracesQuery.
@@ -459,6 +501,37 @@ func TestHTTPGatewayFindTracesErrors(t *testing.T) {
 		gw.reader.
 			On("FindTraces", matchContext, qp).
 			Return(iter.Seq2[[]ptrace.Traces, error](func(yield func([]ptrace.Traces, error) bool) {
+				yield(nil, assert.AnError)
+			})).Once()
+
+		gw.router.ServeHTTP(w, r)
+		assert.Contains(t, w.Body.String(), assert.AnError.Error())
+	})
+}
+
+func TestHTTPGatewayFindSpansErrors(t *testing.T) {
+	t.Run("parse error returns 400", func(t *testing.T) {
+		// Detailed parse error cases are covered by TestParseFindSpansQuery.
+		// Here we only verify that any parse error is propagated as HTTP 400.
+		r, err := http.NewRequest(http.MethodGet, "/api/v3/spans", http.NoBody)
+		require.NoError(t, err)
+		w := httptest.NewRecorder()
+
+		gw := setupHTTPGatewayNoServer(t, "")
+		gw.router.ServeHTTP(w, r)
+		assert.Equal(t, http.StatusBadRequest, w.Code)
+		assert.Contains(t, w.Body.String(), "query.startTimeMin and query.startTimeMax are required")
+	})
+	t.Run("span reader error", func(t *testing.T) {
+		q, qp := mockFindSpansQueries()
+		r, err := http.NewRequest(http.MethodGet, "/api/v3/spans?"+q.Encode(), http.NoBody)
+		require.NoError(t, err)
+		w := httptest.NewRecorder()
+
+		gw := setupHTTPGatewayNoServer(t, "")
+		gw.reader.
+			On("FindSpans", matchContext, qp).
+			Return(iter.Seq2[[]tracestore.SpanPage, error](func(yield func([]tracestore.SpanPage, error) bool) {
 				yield(nil, assert.AnError)
 			})).Once()
 

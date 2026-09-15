@@ -17,6 +17,83 @@ import (
 	"github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore"
 )
 
+// TODO maybe break out the filter tests to test the shared utility method
+func TestParseFindSpansQuery(t *testing.T) {
+	tMin := time.Now().Add(-time.Hour).UTC().Truncate(time.Nanosecond)
+	tMax := time.Now().UTC().Truncate(time.Nanosecond)
+
+	goodMin := tMin.Format(time.RFC3339Nano)
+	goodMax := tMax.Format(time.RFC3339Nano)
+
+	t.Run("all params (canonical)", func(t *testing.T) {
+		q := url.Values{}
+		q.Set(paramTimeMin, goodMin)
+		q.Set(paramTimeMax, goodMax)
+
+		got, err := parseFindSpansQuery(q)
+		require.NoError(t, err)
+		assert.Equal(t, tMin, got.StartTimeMin)
+		assert.Equal(t, tMax, got.StartTimeMax)
+	})
+
+	errorCases := []struct {
+		name    string
+		params  map[string]string
+		wantErr string
+	}{
+		{
+			name:    "no time range",
+			wantErr: "query.startTimeMin and query.startTimeMax are required",
+		},
+		{
+			name:    "no max time",
+			params:  map[string]string{paramTimeMin: goodMin},
+			wantErr: "query.startTimeMin and query.startTimeMax are required",
+		},
+		{
+			name:    "no min time",
+			params:  map[string]string{paramTimeMax: goodMax},
+			wantErr: "query.startTimeMin and query.startTimeMax are required",
+		},
+		{
+			name:    "deprecated parameters",
+			params:  map[string]string{paramTimeMinDeprecated: goodMin, paramTimeMaxDeprecated: goodMax},
+			wantErr: "query.startTimeMin and query.startTimeMax are required",
+		},
+		{
+			name:    "startTimeMin not before startTimeMax",
+			params:  map[string]string{paramTimeMin: goodMax, paramTimeMax: goodMin},
+			wantErr: paramTimeMin + " must be before " + paramTimeMax,
+		},
+		{
+			name:    "startTimeMin equals startTimeMax",
+			params:  map[string]string{paramTimeMin: goodMin, paramTimeMax: goodMin},
+			wantErr: paramTimeMin + " must be before " + paramTimeMax,
+		},
+		{
+			name:    "bad startTimeMin (canonical)",
+			params:  map[string]string{paramTimeMin: "NaN", paramTimeMax: goodMax},
+			wantErr: "malformed parameter " + paramTimeMin,
+		},
+		{
+			name:    "bad startTimeMax (canonical)",
+			params:  map[string]string{paramTimeMin: goodMin, paramTimeMax: "NaN"},
+			wantErr: "malformed parameter " + paramTimeMax,
+		},
+	}
+	for _, tc := range errorCases {
+		t.Run(tc.name, func(t *testing.T) {
+			q := url.Values{}
+			for k, v := range tc.params {
+				q.Set(k, v)
+			}
+			_, err := parseFindSpansQuery(q)
+			require.Error(t, err)
+			assert.Contains(t, err.Error(), tc.wantErr)
+		})
+	}
+}
+
 func TestParseFindTracesQuery(t *testing.T) {
 	tMin := time.Now().Add(-time.Hour).UTC().Truncate(time.Nanosecond)
 	tMax := time.Now().UTC().Truncate(time.Nanosecond)
