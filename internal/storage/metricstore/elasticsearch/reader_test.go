@@ -224,6 +224,7 @@ func TestScaleToMillisAndRound_EmptyWindow(t *testing.T) {
 
 func Test_ErrorCases(t *testing.T) {
 	endTime := time.UnixMilli(0)
+	lookback := time.Hour
 	tests := []struct {
 		name    string
 		params  metricstore.BaseQueryParameters
@@ -247,13 +248,10 @@ func Test_ErrorCases(t *testing.T) {
 		},
 		{
 			name: "nil RatePer",
-			params: func() metricstore.BaseQueryParameters {
-				lookback := time.Hour
-				return metricstore.BaseQueryParameters{
-					EndTime:  &endTime,
-					Lookback: &lookback,
-				}
-			}(),
+			params: metricstore.BaseQueryParameters{
+				EndTime:  &endTime,
+				Lookback: &lookback,
+			},
 			wantErr: "invalid parameters",
 		},
 	}
