@@ -305,9 +305,8 @@ func (qs QueryService) ArchiveTrace(ctx context.Context, query tracestore.GetTra
 	if qs.options.ArchiveTraceWriter == nil {
 		return errNoArchiveSpanStorage
 	}
-	getTracesIter := qs.GetTraces(
-		ctx, GetTraceParams{TraceIDs: []tracestore.GetTraceParams{query}},
-	)
+	// use primary reader only to avoid readArchive->archive cycle
+	getTracesIter := qs.traceReader.GetTraces(ctx, query)
 	var (
 		found      bool
 		archiveErr error
