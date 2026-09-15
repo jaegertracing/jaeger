@@ -56,6 +56,11 @@ func TestParseFindSpansQuery(t *testing.T) {
 			wantErr: "query.startTimeMin and query.startTimeMax are required",
 		},
 		{
+			name:    "deprecated parameters",
+			params:  map[string]string{paramTimeMinDeprecated: goodMin, paramTimeMaxDeprecated: goodMax},
+			wantErr: "query.startTimeMin and query.startTimeMax are required",
+		},
+		{
 			name:    "startTimeMin not before startTimeMax",
 			params:  map[string]string{paramTimeMin: goodMax, paramTimeMax: goodMin},
 			wantErr: paramTimeMin + " must be before " + paramTimeMax,
@@ -71,19 +76,9 @@ func TestParseFindSpansQuery(t *testing.T) {
 			wantErr: "malformed parameter " + paramTimeMin,
 		},
 		{
-			name:    "bad start_time_min (deprecated)",
-			params:  map[string]string{paramTimeMinDeprecated: "NaN", paramTimeMaxDeprecated: goodMax},
-			wantErr: "malformed parameter " + paramTimeMinDeprecated,
-		},
-		{
 			name:    "bad startTimeMax (canonical)",
 			params:  map[string]string{paramTimeMin: goodMin, paramTimeMax: "NaN"},
 			wantErr: "malformed parameter " + paramTimeMax,
-		},
-		{
-			name:    "bad start_time_max (deprecated)",
-			params:  map[string]string{paramTimeMinDeprecated: goodMin, paramTimeMaxDeprecated: "NaN"},
-			wantErr: "malformed parameter " + paramTimeMaxDeprecated,
 		},
 	}
 	for _, tc := range errorCases {
@@ -92,7 +87,7 @@ func TestParseFindSpansQuery(t *testing.T) {
 			for k, v := range tc.params {
 				q.Set(k, v)
 			}
-			_, err := parseFindTracesQuery(q)
+			_, err := parseFindSpansQuery(q)
 			require.Error(t, err)
 			assert.Contains(t, err.Error(), tc.wantErr)
 		})
