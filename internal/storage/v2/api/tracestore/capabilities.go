@@ -56,13 +56,16 @@ type SearchCapabilities struct {
 	// this looser scoping rather than refusing the query.
 	SameSpanConjunction bool
 
-	Paginated  bool // RFC 0014: TODO annotate these
-	SpanSearch bool // RFC 0016: FindSpans returns spans
-
 	// Filter is how much of TraceQueryParams.Filter the reader evaluates. A nil Filter
 	// means none of it: the reader serves only the other, legacy fields, so a caller with
 	// a filter to run must express it in those fields or refuse the query.
 	Filter *FilterCapabilities
+
+	Paginated bool // RFC 0014: TODO either wait on the PR for this, or drop it from this changeset
+
+	// SpanSearch is true when FindSpans is supported by the backend. False means that the
+	// backend does not support that capability.
+	SpanSearch bool // RFC 0016: FindSpans returns spans
 }
 
 // FilterCapabilities declares how much of a structured filter a Reader evaluates, by naming

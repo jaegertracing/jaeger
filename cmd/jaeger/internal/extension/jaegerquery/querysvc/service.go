@@ -320,13 +320,13 @@ func (qs QueryService) prepareSpanSearchQuery(
 		// serves only the legacy predicate fields.
 		caps = tracestore.SearchCapabilities{}
 	}
-	// The filter is settled before the service name is checked, because a filter can name the
-	// service itself and rewriting it is what moves that into ServiceName.
-	prepared, err := query.ForSpanCapabilities(caps)
+	// check that the modified query is still valid
+	// TODO do we want to obscure the error message if the error is in something the interceptors generated?
+	// Maybe we should check before and after. That would also make determining when an error is introduced easier.
+	err = qs.checkSpanSearchFilterCapabilities(caps, query)
 	if err != nil {
 		return ctx, query, err
 	}
-	query.SpanQueryParams = prepared
 	return ctx, query, nil
 }
 
@@ -340,6 +340,13 @@ func (qs QueryService) checkSpanSearchCapability(ctx context.Context) error {
 		return nil
 	}
 	return ErrSpanSearchUnsupported
+}
+
+func (_ QueryService) checkSpanSearchFilterCapabilities(caps tracestore.SearchCapabilities, query SpanQueryParams) error {
+	if caps.Filter == nil {
+		return nil
+	}
+	return caps.Filter.EnsureSupported(query.Filter)
 }
 
 func (qs QueryService) checkServiceName(ctx context.Context, query TraceQueryParams) error {
