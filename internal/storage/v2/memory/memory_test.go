@@ -982,11 +982,18 @@ func TestGetDependencies_InferredService_NamingChain(t *testing.T) {
 		expectedName string
 	}{
 		{
-			name: "peer.service",
+			name: "peer.service (OpenTracing)",
 			configure: func(span ptrace.Span) {
-				span.Attributes().PutStr(conventions.PeerServiceKey, "downstream-svc")
+				span.Attributes().PutStr(conventions.OpenTracingPeerServiceKey, "downstream-svc")
 			},
 			expectedName: "downstream-svc",
+		},
+		{
+			name: "service.peer.name (OTEL equivalent of peer.service)",
+			configure: func(span ptrace.Span) {
+				span.Attributes().PutStr(conventions.PeerServiceKey, "downstream-svc-otel")
+			},
+			expectedName: "downstream-svc-otel",
 		},
 		{
 			name: "peer.address",

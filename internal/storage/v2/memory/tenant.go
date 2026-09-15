@@ -267,6 +267,9 @@ func collectParentSpanIds(trace ptrace.Traces) map[pcommon.SpanID]struct{} {
 // operation name is marked with the inferredServiceNamePrefix.
 func inferServiceName(span ptrace.Span) string {
 	attrs := span.Attributes()
+	if v, ok := attrs.Get(conventions.OpenTracingPeerServiceKey); ok && v.Str() != "" {
+		return v.Str()
+	}
 	if v, ok := attrs.Get(conventions.PeerServiceKey); ok && v.Str() != "" {
 		return v.Str()
 	}
