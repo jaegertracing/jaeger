@@ -511,6 +511,12 @@ func TestBuildFilterQueryRefused(t *testing.T) {
 			wantMsg: `it reads "\\w" as the literal character`,
 		},
 		{
+			name:    "an event-name pattern using a word shorthand",
+			filter:  p.Event().Name.Matches(`exception\.\w+`),
+			wantErr: tracestore.ErrFilterUnsupported,
+			wantMsg: `it reads "\\w" as the literal character`,
+		},
+		{
 			name:    "a duration constant carrying nothing, which a finalized filter never holds",
 			filter:  p.Span().Duration.Gt((*expression.DurationValue)(nil)),
 			wantErr: tracestore.ErrFilterUnsupported,
@@ -707,6 +713,17 @@ func TestBuildFilterQueryRefused(t *testing.T) {
 			})
 		}
 	})
+}
+
+func TestTextValueMatchRefusesUnsupportedOperator(t *testing.T) {
+	match, err := textValueMatch(
+		expression.OpNe,
+		reference{name: expression.SpanFieldName, level: expression.LevelSpan},
+		"checkout",
+	)
+	assert.Nil(t, match)
+	require.ErrorIs(t, err, tracestore.ErrFilterUnsupported)
+	assert.Contains(t, err.Error(), `cannot evaluate "ne"`)
 }
 
 // TestBuildFindTraceIDsQueryWithFilter checks how the filter joins the search: as one more
