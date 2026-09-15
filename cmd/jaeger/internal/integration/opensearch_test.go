@@ -93,13 +93,22 @@ func TestOpenSearchStorage_DataStream(t *testing.T) {
 func TestOpenSearchStorage_BackwardCompatibility(t *testing.T) {
 	integration.SkipUnlessEnv(t, integration.StorageOpenSearch)
 	runBackwardCompatibilityTests(t, "opensearch", E2EStorageIntegration{
-		ConfigFile:   "../../config-opensearch.yaml",
-		FeatureGates: structuredFilterGates,
+		ConfigFile: "../../config-opensearch.yaml",
 		StorageIntegration: integration.StorageIntegration{
 			Fixtures: integration.LoadAndParseQueryTestCases(t, "fixtures/queries_es.json"),
-			// This suite leaves the typed-attribute gate off on both binaries, so its indices carry
-			// no numeric sub-field and ordering an attribute is refused.
+		},
+	},
+		compatScenario{
+			Name:         "default",
+			OldGates:     nil,
+			NewGates:     structuredFilterGates,
 			Capabilities: capabilities.OpenSearch().WithoutTypedAttributeIndexing(),
 		},
-	})
+		compatScenario{
+			Name:         "already-enabled",
+			OldGates:     elasticsearchFilterGates,
+			NewGates:     elasticsearchFilterGates,
+			Capabilities: capabilities.OpenSearch(),
+		},
+	)
 }
