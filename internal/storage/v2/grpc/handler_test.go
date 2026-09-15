@@ -24,6 +24,7 @@ import (
 	"github.com/jaegertracing/jaeger-idl/model/v1"
 	expression "github.com/jaegertracing/jaeger-idl/query/expression/v1"
 	"github.com/jaegertracing/jaeger/internal/jptrace"
+	"github.com/jaegertracing/jaeger/internal/jptrace/sanitizer"
 	"github.com/jaegertracing/jaeger/internal/proto-gen/storage/v2"
 	expressionproto "github.com/jaegertracing/jaeger/internal/proto/expression/v1"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/api/depstore"
@@ -429,9 +430,9 @@ func TestHandler_Export(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			reader := new(tracestoremocks.Reader)
-			writer := new(tracestoremocks.Writer)
+			writer := tracestoremocks.NewWriter(t)
 			depReader := new(depstoremocks.Reader)
-			writer.On("WriteTraces", mock.Anything, makeTestTrace()).Return(test.writeTracesErr).Once()
+			writer.On("WriteTraces", mock.Anything, sanitizer.Sanitize(makeTestTrace())).Return(test.writeTracesErr).Once()
 			server := NewHandler(reader, writer, depReader)
 
 			response, err := server.Export(context.Background(), ptraceotlp.NewExportRequestFromTraces(makeTestTrace()))
