@@ -135,6 +135,10 @@ func runElasticsearchTest(t *testing.T, allTagsAsFields bool, writeMode escfg.Wr
 	SkipUnlessEnv(t, StorageElasticsearch, StorageOpenSearch)
 	c := getESHttpClient(t)
 	require.NoError(t, healthCheck(c))
+	// The filter battery orders an attribute, which needs the numeric sub-field the typed-attribute
+	// mapping adds (RFC 0015). The gate has to precede the factory, which installs the template, and
+	// capabilities.Elasticsearch declares the battery's paired refusal case skipped to match.
+	setTypedAttributeIndexing(t, true)
 	s := &ESStorageIntegration{
 		StorageIntegration: StorageIntegration{
 			Fixtures:     LoadAndParseQueryTestCases(t, "fixtures/queries_es.json"),
