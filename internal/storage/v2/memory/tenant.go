@@ -16,7 +16,10 @@ import (
 	"github.com/jaegertracing/jaeger-idl/model/v1"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/api/depstore"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore"
+	conventions "github.com/jaegertracing/jaeger/internal/telemetry/otelsemconv"
 )
+
+const inferredServiceNamePrefix = "inferred::"
 
 var errInvalidMaxTraces = errors.New("max traces must be greater than zero")
 
@@ -177,26 +180,22 @@ func (t *Tenant) getDependencies(query depstore.QueryParameters) ([]model.Depend
 		if !traceWithTime.traceIsBetweenStartAndEnd(query.StartTime, query.EndTime) {
 			continue
 		}
+		spansWithChildren := collectParentSpanIds(traceWithTime.trace)
 		for _, resourceSpan := range traceWithTime.trace.ResourceSpans().All() {
 			for _, scopeSpan := range resourceSpan.ScopeSpans().All() {
 				for _, span := range scopeSpan.Spans().All() {
-					if span.ParentSpanID().IsEmpty() {
-						continue
-					}
 					spanServiceName := getServiceNameFromResource(resourceSpan.Resource())
-					parentSpanServiceName, found := findServiceNameWithSpanId(traceWithTime.trace, span.ParentSpanID())
-					if !found {
-						continue
-					}
-					depKey := parentSpanServiceName + "&&&" + spanServiceName
-					if _, ok := deps[depKey]; !ok {
-						deps[depKey] = &model.DependencyLink{
-							Parent:    parentSpanServiceName,
-							Child:     spanServiceName,
-							CallCount: 1,
+					if !span.ParentSpanID().IsEmpty() {
+						parentSpanServiceName, found := findServiceNameWithSpanId(traceWithTime.trace, span.ParentSpanID())
+						if found {
+							addDependencyLink(deps, parentSpanServiceName, spanServiceName)
 						}
-					} else {
-						deps[depKey].CallCount++
+					}
+					if isUninstrumentedCall(span, spansWithChildren) {
+						inferredServiceName := inferServiceName(span)
+						if inferredServiceName != spanServiceName {
+							addDependencyLink(deps, spanServiceName, inferredServiceName)
+						}
 					}
 				}
 			}
@@ -207,6 +206,126 @@ func (t *Tenant) getDependencies(query depstore.QueryParameters) ([]model.Depend
 		retMe = append(retMe, *dep)
 	}
 	return retMe, nil
+}
+
+// addDependencyLink records a call from parent to child, deduping by service pair.
+func addDependencyLink(deps map[string]*model.DependencyLink, parent, child string) {
+	if parent == "" || child == "" {
+		return
+	}
+	depKey := parent + "&&&" + child
+	if dep, ok := deps[depKey]; ok {
+		dep.CallCount++
+		return
+	}
+	deps[depKey] = &model.DependencyLink{
+		Parent:    parent,
+		Child:     child,
+		CallCount: 1,
+	}
+}
+
+// isUninstrumentedCall reports whether span looks like a call to a downstream
+// service that never reported its own span. Being a leaf (no other span in the
+// trace names it as parent) is not sufficient by itself, since a genuine leaf
+// span looks the same; only a CLIENT or PRODUCER span is a definitive signal
+// that "the other side" of a transmission was expected but is missing.
+func isUninstrumentedCall(span ptrace.Span, spansWithChildren map[pcommon.SpanID]struct{}) bool {
+	if _, hasChild := spansWithChildren[span.SpanID()]; hasChild {
+		return false
+	}
+	switch span.Kind() {
+	case ptrace.SpanKindClient, ptrace.SpanKindProducer:
+		return true
+	default:
+		return false
+	}
+}
+
+// collectParentSpanIds returns the set of span IDs referenced as a parent by
+// some other span in the trace.
+func collectParentSpanIds(trace ptrace.Traces) map[pcommon.SpanID]struct{} {
+	parents := make(map[pcommon.SpanID]struct{})
+	for _, resourceSpan := range trace.ResourceSpans().All() {
+		for _, scopeSpan := range resourceSpan.ScopeSpans().All() {
+			for _, span := range scopeSpan.Spans().All() {
+				if !span.ParentSpanID().IsEmpty() {
+					parents[span.ParentSpanID()] = struct{}{}
+				}
+			}
+		}
+	}
+	return parents
+}
+
+// inferServiceName derives a name for an uninstrumented downstream service from
+// attributes on the CLIENT/PRODUCER span that called it. peer.service (and its
+// address/network equivalents) are used verbatim and unprefixed, so that a real,
+// reusable identifier coalesces with any other node of the same service name
+// elsewhere in the topology, rather than being needlessly split into a distinct
+// "inferred" node. Only the last-resort guess derived from the span's own
+// operation name is marked with the inferredServiceNamePrefix.
+func inferServiceName(span ptrace.Span) string {
+	attrs := span.Attributes()
+	if v, ok := attrs.Get(conventions.PeerServiceKey); ok && v.Str() != "" {
+		return v.Str()
+	}
+	if v, ok := attrs.Get(conventions.PeerAddressKey); ok && v.Str() != "" {
+		return v.Str()
+	}
+	if v, ok := attrs.Get(conventions.PeerHostnameKey); ok && v.Str() != "" {
+		return v.Str()
+	}
+	if host, ok := peerIPAndPort(attrs); ok {
+		return host
+	}
+	if v, ok := attrs.Get(conventions.NetworkPeerAddressKey); ok && v.Str() != "" {
+		return joinHostPort(v.Str(), attrs, conventions.NetworkPeerPortKey)
+	}
+	if v, ok := attrs.Get(conventions.ServerAddressKey); ok && v.Str() != "" {
+		return joinHostPort(v.Str(), attrs, conventions.ServerPortKey)
+	}
+	if v, ok := attrs.Get(conventions.RPCServiceKey); ok && v.Str() != "" {
+		return "rpc-" + v.Str()
+	}
+	if v, ok := attrs.Get(conventions.HTTPRouteKey); ok && v.Str() != "" {
+		return "http-" + v.Str()
+	}
+	if v, ok := attrs.Get(conventions.DBSystemKey); ok && v.Str() != "" {
+		return "db-" + v.Str()
+	}
+	return inferredServiceNamePrefix + span.Name()
+}
+
+// peerIPAndPort builds a name from the OpenTracing peer.ipv4/peer.ipv6 tags,
+// combined with peer.port when present.
+func peerIPAndPort(attrs pcommon.Map) (string, bool) {
+	ip, ok := attrs.Get(conventions.PeerIPv4Key)
+	if !ok || ip.Str() == "" {
+		ip, ok = attrs.Get(conventions.PeerIPv6Key)
+	}
+	if !ok || ip.Str() == "" {
+		return "", false
+	}
+	return joinHostPort(ip.Str(), attrs, conventions.PeerPortKey), true
+}
+
+func joinHostPort(host string, attrs pcommon.Map, portKey string) string {
+	port, ok := attrs.Get(portKey)
+	if !ok {
+		return host
+	}
+	switch port.Type() {
+	case pcommon.ValueTypeInt:
+		return host + ":" + strconv.FormatInt(port.Int(), 10)
+	case pcommon.ValueTypeStr:
+		if port.Str() == "" {
+			return host
+		}
+		return host + ":" + port.Str()
+	default:
+		return host
+	}
 }
 
 func findServiceNameWithSpanId(trace ptrace.Traces, spanId pcommon.SpanID) (string, bool) {
