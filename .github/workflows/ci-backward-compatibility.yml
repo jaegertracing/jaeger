@@ -1,9 +1,10 @@
 # Copyright (c) 2026 The Jaeger Authors.
 # SPDX-License-Identifier: Apache-2.0
 
-# Each job writes the integration corpus with a Jaeger built from main and reads it back with the
-# Jaeger built from the pull request, which is what catches a change to the storage schema or to the
-# span encoding that leaves the pull request unable to read what the released binary wrote.
+# Each job writes the integration corpus with a Jaeger built from the latest release tag and reads
+# it back with the Jaeger built from the pull request, which is what catches a change to the storage
+# schema or to the span encoding that leaves the pull request unable to read what the released
+# binary wrote.
 #
 # Only the matrix is specific to a storage backend. Each entry carries the command that stands that
 # backend's storage up and runs the suite against it, because the per-backend e2e scripts do not all
@@ -57,13 +58,18 @@ jobs:
       uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
       with:
         submodules: true
+        fetch-depth: 0
+
+    - name: Determine the latest release tag
+      id: latest-release
+      run: echo "tag=$(scripts/utils/compute-version.sh)" >> "$GITHUB_OUTPUT"
 
     # Only ./cmd/jaeger is built from this checkout, and that builds without the UI assets, so this
     # one does not pay for the jaeger-ui submodule.
     - name: Check out the earlier revision
       uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
       with:
-        ref: main
+        ref: ${{ steps.latest-release.outputs.tag }}
         path: .jaeger-old
 
     - uses: ./.github/actions/setup-go
