@@ -12,9 +12,9 @@ import (
 	"time"
 
 	"github.com/gogo/protobuf/jsonpb"
-	"github.com/jaegertracing/jaeger-idl/query/expression/v1"
 	"go.opentelemetry.io/collector/pdata/pcommon"
 
+	"github.com/jaegertracing/jaeger-idl/query/expression/v1"
 	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerquery/querysvc"
 	"github.com/jaegertracing/jaeger/internal/jptrace"
 	expressionproto "github.com/jaegertracing/jaeger/internal/proto/expression/v1"
@@ -192,6 +192,7 @@ func parseTimeParametersAllowingDeprecated(q url.Values) (time.Time, time.Time, 
 	}
 	return timeMinParsed, timeMaxParsed, nil
 }
+
 func parseTimeParametersDisallowingDeprecated(q url.Values) (time.Time, time.Time, error) {
 	timeMinParsed, timeMaxParsed, err := parseAndValidateTimeParameters(q.Get(paramTimeMin), paramTimeMin, q.Get(paramTimeMax), paramTimeMax)
 	if err != nil {
