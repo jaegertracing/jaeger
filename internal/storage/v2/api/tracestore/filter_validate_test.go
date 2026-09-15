@@ -140,6 +140,30 @@ func TestValidateFilter_Accepts(t *testing.T) {
 			}},
 		},
 		{
+			name: "a regular expression spelling case-insensitivity as a character class",
+			filter: &expression.Call{Op: expression.OpRegex, Args: []expression.Expression{
+				&expression.FieldRef{Name: expression.SpanFieldName, Level: expression.LevelSpan}, &expression.StringValue{Value: "[gG]et"},
+			}},
+		},
+		{
+			name: "a regular expression spelling case-insensitivity as an alternation",
+			filter: &expression.Call{Op: expression.OpRegex, Args: []expression.Expression{
+				&expression.FieldRef{Name: expression.SpanFieldName, Level: expression.LevelSpan}, &expression.StringValue{Value: "(g|G)et"},
+			}},
+		},
+		{
+			name: "a regular expression quoting what looks like a case-folding flag",
+			filter: &expression.Call{Op: expression.OpRegex, Args: []expression.Expression{
+				&expression.FieldRef{Name: expression.SpanFieldName, Level: expression.LevelSpan}, &expression.StringValue{Value: `\Q(?i)\Eget`},
+			}},
+		},
+		{
+			name: "a regular expression switching case folding off",
+			filter: &expression.Call{Op: expression.OpRegex, Args: []expression.Expression{
+				&expression.FieldRef{Name: expression.SpanFieldName, Level: expression.LevelSpan}, &expression.StringValue{Value: "(?-i)get"},
+			}},
+		},
+		{
 			name: "an ordered comparison of typed constants",
 			filter: &expression.Call{Op: expression.OpGte, Args: []expression.Expression{
 				attr("http.response.size"),
@@ -445,9 +469,30 @@ func TestValidateFilter_Rejects(t *testing.T) {
 		},
 		{
 			name:        "a regular expression asking to fold case",
-			expectedErr: `operator "regex" matches case-sensitively, so a pattern cannot fold case`,
+			expectedErr: `operator "regex" matches case-sensitively, so a pattern cannot use an inline case-folding flag`,
 			filter: &expression.Call{Op: expression.OpRegex, Args: []expression.Expression{
 				&expression.FieldRef{Name: expression.SpanFieldName, Level: expression.LevelSpan}, &expression.StringValue{Value: "(?i)get"},
+			}},
+		},
+		{
+			name:        "a regular expression folding case inside a group",
+			expectedErr: `operator "regex" matches case-sensitively, so a pattern cannot use an inline case-folding flag`,
+			filter: &expression.Call{Op: expression.OpRegex, Args: []expression.Expression{
+				&expression.FieldRef{Name: expression.SpanFieldName, Level: expression.LevelSpan}, &expression.StringValue{Value: "(?i:get)"},
+			}},
+		},
+		{
+			name:        "a regular expression folding case from the middle of the pattern",
+			expectedErr: `operator "regex" matches case-sensitively, so a pattern cannot use an inline case-folding flag`,
+			filter: &expression.Call{Op: expression.OpRegex, Args: []expression.Expression{
+				&expression.FieldRef{Name: expression.SpanFieldName, Level: expression.LevelSpan}, &expression.StringValue{Value: "g(?i)et"},
+			}},
+		},
+		{
+			name:        "a regular expression folding case among other flags",
+			expectedErr: `operator "regex" matches case-sensitively, so a pattern cannot use an inline case-folding flag`,
+			filter: &expression.Call{Op: expression.OpRegex, Args: []expression.Expression{
+				&expression.FieldRef{Name: expression.SpanFieldName, Level: expression.LevelSpan}, &expression.StringValue{Value: "(?is)get"},
 			}},
 		},
 		{
@@ -980,4 +1025,18 @@ func TestValidateFilter_RefusesAnUnknownTerm(t *testing.T) {
 	var term expression.Expression = &unknownTerm{}
 	err := ValidateFilter(eq(attr("a"), term))
 	require.ErrorContains(t, err, "an unknown term")
+}
+
+func TestHasInlineCaseFolding(t *testing.T) {
+	folding := []string{"(?i)get", "(?i:get)", "g(?i)et", "(?is)get", "(?i-s)get", "(?si)get"}
+	for _, pattern := range folding {
+		assert.True(t, hasInlineCaseFolding(pattern), pattern)
+	}
+	notFolding := []string{
+		"get", "[gG]et", "(g|G)et", "[(?i)]", `\(?i\)`, `\Q(?i)\Eget`, `\Q(?i)`,
+		"(?-i)get", "(?-si)get", "(?s)get", "(?P<n>get)", "(?:get)", "(", "(?",
+	}
+	for _, pattern := range notFolding {
+		assert.False(t, hasInlineCaseFolding(pattern), pattern)
+	}
 }
