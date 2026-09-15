@@ -945,6 +945,203 @@ func TestGetDependencies_WrongSpanId(t *testing.T) {
 	assert.Empty(t, deps)
 }
 
+func newLeafSpanTrace(t *testing.T, callerService string, kind ptrace.SpanKind, configureSpan func(span ptrace.Span)) (ptrace.Traces, time.Time) {
+	td := ptrace.NewTraces()
+	resourceSpan := td.ResourceSpans().AppendEmpty()
+	resourceSpan.Resource().Attributes().PutStr(conventions.ServiceNameKey, callerService)
+	span := resourceSpan.ScopeSpans().AppendEmpty().Spans().AppendEmpty()
+	startTime := time.Now()
+	span.SetTraceID(fromString(t, "00000000000000010000000000000000"))
+	span.SetSpanID(spanIdFromString(t, "0000000000000001"))
+	span.SetName("call-downstream")
+	span.SetKind(kind)
+	span.SetStartTimestamp(pcommon.NewTimestampFromTime(startTime))
+	span.SetEndTimestamp(pcommon.NewTimestampFromTime(startTime.Add(1 * time.Second)))
+	if configureSpan != nil {
+		configureSpan(span)
+	}
+	return td, startTime
+}
+
+func getDependenciesForTrace(t *testing.T, td ptrace.Traces, startTime time.Time) []model.DependencyLink {
+	store, err := NewStore(Configuration{MaxTraces: 10})
+	require.NoError(t, err)
+	require.NoError(t, store.WriteTraces(context.Background(), td))
+	deps, err := store.GetDependencies(context.Background(), depstore.QueryParameters{
+		StartTime: startTime.Add(-1 * time.Second),
+		EndTime:   startTime.Add(2 * time.Second),
+	})
+	require.NoError(t, err)
+	return deps
+}
+
+func TestGetDependencies_InferredService_NamingChain(t *testing.T) {
+	tests := []struct {
+		name         string
+		configure    func(span ptrace.Span)
+		expectedName string
+	}{
+		{
+			name: "peer.service (OpenTracing)",
+			configure: func(span ptrace.Span) {
+				span.Attributes().PutStr(conventions.OpenTracingPeerServiceKey, "downstream-svc")
+			},
+			expectedName: "downstream-svc",
+		},
+		{
+			name: "service.peer.name (OTEL equivalent of peer.service)",
+			configure: func(span ptrace.Span) {
+				span.Attributes().PutStr(conventions.PeerServiceKey, "downstream-svc-otel")
+			},
+			expectedName: "downstream-svc-otel",
+		},
+		{
+			name: "peer.address",
+			configure: func(span ptrace.Span) {
+				span.Attributes().PutStr(conventions.PeerAddressKey, "10.0.0.5:6379")
+			},
+			expectedName: "10.0.0.5:6379",
+		},
+		{
+			name: "peer.hostname",
+			configure: func(span ptrace.Span) {
+				span.Attributes().PutStr(conventions.PeerHostnameKey, "redis.internal")
+			},
+			expectedName: "redis.internal",
+		},
+		{
+			name: "peer.ipv4 and peer.port",
+			configure: func(span ptrace.Span) {
+				span.Attributes().PutStr(conventions.PeerIPv4Key, "10.0.0.6")
+				span.Attributes().PutInt(conventions.PeerPortKey, 6379)
+			},
+			expectedName: "10.0.0.6:6379",
+		},
+		{
+			name: "peer.ipv6 without peer.port",
+			configure: func(span ptrace.Span) {
+				span.Attributes().PutStr(conventions.PeerIPv6Key, "::1")
+			},
+			expectedName: "::1",
+		},
+		{
+			name: "network.peer.address and network.peer.port",
+			configure: func(span ptrace.Span) {
+				span.Attributes().PutStr(conventions.NetworkPeerAddressKey, "10.0.0.7")
+				span.Attributes().PutInt(conventions.NetworkPeerPortKey, 5432)
+			},
+			expectedName: "10.0.0.7:5432",
+		},
+		{
+			name: "server.address and server.port",
+			configure: func(span ptrace.Span) {
+				span.Attributes().PutStr(conventions.ServerAddressKey, "payments.internal")
+				span.Attributes().PutInt(conventions.ServerPortKey, 443)
+			},
+			expectedName: "payments.internal:443",
+		},
+		{
+			name: "server.address and server.port as string",
+			configure: func(span ptrace.Span) {
+				span.Attributes().PutStr(conventions.ServerAddressKey, "billing.internal")
+				span.Attributes().PutStr(conventions.ServerPortKey, "8443")
+			},
+			expectedName: "billing.internal:8443",
+		},
+		{
+			name: "network.peer.address with empty string port",
+			configure: func(span ptrace.Span) {
+				span.Attributes().PutStr(conventions.NetworkPeerAddressKey, "10.0.0.8")
+				span.Attributes().PutStr(conventions.NetworkPeerPortKey, "")
+			},
+			expectedName: "10.0.0.8",
+		},
+		{
+			name: "rpc.service",
+			configure: func(span ptrace.Span) {
+				span.Attributes().PutStr(conventions.RPCServiceKey, "Cart")
+			},
+			expectedName: "rpc-Cart",
+		},
+		{
+			name: "http.route",
+			configure: func(span ptrace.Span) {
+				span.Attributes().PutStr(conventions.HTTPRouteKey, "/api/orders")
+			},
+			expectedName: "http-/api/orders",
+		},
+		{
+			name: "db.system",
+			configure: func(span ptrace.Span) {
+				span.Attributes().PutStr(conventions.DBSystemKey, "mysql")
+			},
+			expectedName: "db-mysql",
+		},
+		{
+			name:         "fallback to span name",
+			configure:    func(ptrace.Span) {},
+			expectedName: "inferred::call-downstream",
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			td, startTime := newLeafSpanTrace(t, "caller-svc", ptrace.SpanKindClient, test.configure)
+			deps := getDependenciesForTrace(t, td, startTime)
+			require.Len(t, deps, 1)
+			assert.Equal(t, model.DependencyLink{
+				Parent:    "caller-svc",
+				Child:     test.expectedName,
+				CallCount: 1,
+			}, deps[0])
+		})
+	}
+}
+
+func TestGetDependencies_InferredService_LeafButNotClient(t *testing.T) {
+	td, startTime := newLeafSpanTrace(t, "caller-svc", ptrace.SpanKindInternal, func(span ptrace.Span) {
+		span.Attributes().PutStr(conventions.PeerServiceKey, "downstream-svc")
+	})
+	deps := getDependenciesForTrace(t, td, startTime)
+	assert.Empty(t, deps, "a leaf span that isn't CLIENT/PRODUCER must not infer a downstream service")
+}
+
+func TestGetDependencies_InferredService_ClientButNotLeaf(t *testing.T) {
+	td, startTime := newLeafSpanTrace(t, "caller-svc", ptrace.SpanKindClient, func(span ptrace.Span) {
+		span.Attributes().PutStr(conventions.PeerServiceKey, "downstream-svc")
+	})
+	// Add a child span that names span 1 as its parent, so span 1 is no longer a leaf.
+	resourceSpan := td.ResourceSpans().At(0)
+	child := resourceSpan.ScopeSpans().At(0).Spans().AppendEmpty()
+	child.SetTraceID(fromString(t, "00000000000000010000000000000000"))
+	child.SetSpanID(spanIdFromString(t, "0000000000000002"))
+	child.SetParentSpanID(spanIdFromString(t, "0000000000000001"))
+	child.SetStartTimestamp(pcommon.NewTimestampFromTime(startTime))
+	child.SetEndTimestamp(pcommon.NewTimestampFromTime(startTime.Add(1 * time.Second)))
+	deps := getDependenciesForTrace(t, td, startTime)
+	require.Len(t, deps, 1)
+	assert.Equal(t, model.DependencyLink{
+		Parent:    "caller-svc",
+		Child:     "caller-svc",
+		CallCount: 1,
+	}, deps[0], "the real parent-child link is still recorded, but no inferred link is added since span 1 is not a leaf")
+}
+
+func TestGetDependencies_InferredService_EmptyCallerServiceName(t *testing.T) {
+	td, startTime := newLeafSpanTrace(t, "" /* no service.name on the caller's resource */, ptrace.SpanKindClient, func(span ptrace.Span) {
+		span.Attributes().PutStr(conventions.PeerServiceKey, "downstream-svc")
+	})
+	deps := getDependenciesForTrace(t, td, startTime)
+	assert.Empty(t, deps, "an inferred link must not be added when the caller's own service name is unknown")
+}
+
+func TestGetDependencies_InferredService_SelfLoopGuard(t *testing.T) {
+	td, startTime := newLeafSpanTrace(t, "caller-svc", ptrace.SpanKindClient, func(span ptrace.Span) {
+		span.Attributes().PutStr(conventions.PeerServiceKey, "caller-svc")
+	})
+	deps := getDependenciesForTrace(t, td, startTime)
+	assert.Empty(t, deps, "an inferred link from a service to itself must not be created")
+}
+
 func writeTenTraces(t *testing.T, store *Store) {
 	for i := 1; i < 10; i++ {
 		traceID := fromString(t, fmt.Sprintf("000000000000000%d0000000000000000", i))

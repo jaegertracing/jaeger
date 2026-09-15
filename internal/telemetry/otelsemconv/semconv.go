@@ -27,9 +27,23 @@ const (
 	DBSystemKey    = "db.system"
 
 	// Network
-	PeerServiceKey = string(semconv.ServicePeerNameKey)
+	PeerServiceKey            = string(semconv.ServicePeerNameKey)
+	OpenTracingPeerServiceKey = "peer.service"
+	PeerAddressKey            = "peer.address"
+	PeerHostnameKey           = "peer.hostname"
+	PeerIPv4Key               = "peer.ipv4"
+	PeerIPv6Key               = "peer.ipv6"
+	PeerPortKey               = "peer.port"
+	NetworkPeerAddressKey     = string(semconv.NetworkPeerAddressKey)
+	NetworkPeerPortKey        = string(semconv.NetworkPeerPortKey)
+	ServerAddressKey          = string(semconv.ServerAddressKey)
+	ServerPortKey             = string(semconv.ServerPortKey)
+
+	// RPC
+	RPCServiceKey = "rpc.service"
 
 	// HTTP
+	HTTPRouteKey              = string(semconv.HTTPRouteKey)
 	HTTPResponseStatusCodeKey = string(semconv.HTTPResponseStatusCodeKey)
 
 	// Host
