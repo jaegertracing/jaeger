@@ -79,6 +79,15 @@ type Query struct {
 	StartTimeMin time.Time
 	StartTimeMax time.Time
 	SearchDepth  int
+
+	// PageSize and PageToken mirror jaeger-query's internal Pagination (RFC 0014) — not
+	// imported here, since this package depends only on public packages, so the two fields sit
+	// flat on Query instead of nesting a jaeger-internal type. PageSize is zero and PageToken is
+	// empty when the search is not paginated, the same as an absent Pagination on the wire.
+	// jaeger-query re-validates them against SearchDepth after OnQuery returns, the same as an
+	// interceptor's own Filter is finalized on the way back (RFC 0014 §4).
+	PageSize  int
+	PageToken string
 }
 
 // Interceptor is implemented by an extension that gates trace queries and/or

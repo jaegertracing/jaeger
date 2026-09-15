@@ -122,6 +122,14 @@ func (h *Handler) FindTraces(
 	req *storage.FindTracesRequest,
 	srv storage.TraceReader_FindTracesServer,
 ) error {
+	// Checked on the raw proto, before toTraceQueryParams, so a Pagination is refused without
+	// ever fetching capabilities for a request already known to be rejected: FindTraces streams
+	// whole traces with no field to carry a continuation token, so this check cannot live in
+	// toTraceQueryParams, which FindTraceIDs and FindTraceSummaries share and which does admit
+	// Pagination (RFC 0014 §4).
+	if req.GetQuery().GetPagination() != nil {
+		return status.Error(codes.InvalidArgument, tracestore.ErrPaginationUnsupportedByFindTraces.Error())
+	}
 	query, err := h.toTraceQueryParams(srv.Context(), req.Query)
 	if err != nil {
 		return err
@@ -283,6 +291,7 @@ func (h *Handler) GetCapabilities(
 			WithoutServiceName:  caps.WithoutServiceName,
 			SameSpanConjunction: caps.SameSpanConjunction,
 			Filter:              toProtoFilterCapabilities(caps.Filter),
+			Paginated:           caps.Paginated,
 		},
 	}, nil
 }
@@ -322,17 +331,38 @@ func (h *Handler) toTraceQueryParams(
 		SearchDepth:   int(t.SearchDepth),
 		Filter:        filter,
 	}
+	if pagination := t.GetPagination(); pagination != nil {
+		p, err := tracestore.DecodePagination(pagination.GetPageSize(), pagination.GetPageToken())
+		if err != nil {
+			return tracestore.TraceQueryParams{}, status.Error(codes.InvalidArgument, err.Error())
+		}
+		query.Pagination = p
+	}
 	if err := query.EnsureFilterStandsAlone(); err != nil {
 		return tracestore.TraceQueryParams{}, status.Error(codes.InvalidArgument, err.Error())
 	}
-	if query.Filter == nil {
+	if err := query.EnsurePaginationStandsAlone(); err != nil {
+		return tracestore.TraceQueryParams{}, status.Error(codes.InvalidArgument, err.Error())
+	}
+	if query.Filter == nil && query.Pagination == (tracestore.Pagination{}) {
 		return query, nil
 	}
 	caps, err := h.traceReader.SearchCapabilities(ctx)
 	if err != nil {
 		// A reader that cannot report its capabilities reads as the least capable one, which serves
-		// only the legacy predicate fields.
+		// only the legacy predicate fields and cannot paginate.
 		caps = tracestore.SearchCapabilities{}
+	}
+	if query.Pagination != (tracestore.Pagination{}) {
+		applied, err := query.ApplyPaginationCapability(caps)
+		if err != nil {
+			// This reader cannot have minted the token (RFC 0014 §6.2).
+			return tracestore.TraceQueryParams{}, status.Error(codes.InvalidArgument, err.Error())
+		}
+		query = applied
+	}
+	if query.Filter == nil {
+		return query, nil
 	}
 	prepared, err := query.ForCapabilities(caps)
 	if err != nil {

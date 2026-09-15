@@ -867,6 +867,7 @@ func TestTraceReader_SearchCapabilities(t *testing.T) {
 								Levels:    []string{"span", "resource"},
 								Operators: []string{"and", "eq", "regex"},
 							},
+							Paginated: true,
 						},
 					},
 				})
@@ -878,6 +879,7 @@ func TestTraceReader_SearchCapabilities(t *testing.T) {
 					Levels:    []expression.Level{expression.LevelSpan, expression.LevelResource},
 					Operators: []expression.Operator{expression.OpAnd, expression.OpEq, expression.OpRegex},
 				},
+				Paginated: true,
 			},
 		},
 		{
