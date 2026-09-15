@@ -36,6 +36,11 @@ func (a *Action) Do() error {
 }
 
 func (a *Action) lookback(ctx context.Context, indexSet app.IndexOption) error {
+	timeReference, err := getTimeReference(timeNow(), a.Unit, a.UnitCount)
+	if err != nil {
+		return err
+	}
+
 	jaegerIndex, err := a.IndicesClient.GetJaegerIndices(ctx, a.Config.IndexPrefix)
 	if err != nil {
 		return err
@@ -44,7 +49,7 @@ func (a *Action) lookback(ctx context.Context, indexSet app.IndexOption) error {
 	readAliasName := indexSet.ReadAliasName()
 	readAliasIndices := filter.ByAlias(jaegerIndex, []string{readAliasName})
 	excludedWriteIndex := filter.ByAliasExclude(readAliasIndices, []string{indexSet.WriteAliasName()})
-	finalIndices := filter.ByDate(excludedWriteIndex, getTimeReference(timeNow(), a.Unit, a.UnitCount))
+	finalIndices := filter.ByDate(excludedWriteIndex, timeReference)
 
 	if len(finalIndices) == 0 {
 		a.Logger.Info("No indices to remove from alias", zap.String("readAliasName", readAliasName))
