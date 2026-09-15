@@ -57,7 +57,7 @@ func TestFilterCapabilities_SupportsOperator(t *testing.T) {
 // added here without extending those tables would leave the new capability's forwarding
 // unproven. Update the count with those tables.
 func TestSearchCapabilities_FieldCount(t *testing.T) {
-	assert.Equal(t, 3, reflect.TypeOf(SearchCapabilities{}).NumField(),
+	assert.Equal(t, 4, reflect.TypeOf(SearchCapabilities{}).NumField(),
 		"extend the permutation tables in the tracestoremetrics and queryinterceptor "+
 			"reader-decorator tests, then update this count")
 }

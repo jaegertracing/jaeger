@@ -265,6 +265,8 @@ func TestReadMetricsDecorator_SearchCapabilities(t *testing.T) {
 	for _, caps := range []tracestore.SearchCapabilities{
 		{WithoutServiceName: false},
 		{WithoutServiceName: true},
+		{Paginated: false},
+		{Paginated: true},
 	} {
 		t.Run(fmt.Sprintf("%+v", caps), func(t *testing.T) {
 			inner := &mocks.Reader{}
