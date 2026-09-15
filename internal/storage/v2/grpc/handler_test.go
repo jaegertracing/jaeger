@@ -331,6 +331,28 @@ func TestHandler_FindTraces(t *testing.T) {
 	}
 }
 
+// TestHandler_FindTraces_RejectsPagination pins that FindTraces refuses a query carrying
+// Pagination outright, before the reader is ever asked anything: it streams whole traces with
+// no field to carry a continuation token (RFC 0014 §4).
+func TestHandler_FindTraces_RejectsPagination(t *testing.T) {
+	reader := new(tracestoremocks.Reader)
+	writer := new(tracestoremocks.Writer)
+	depReader := new(depstoremocks.Reader)
+
+	server := NewHandler(reader, writer, depReader)
+	stream := &testStream{}
+	err := server.FindTraces(&storage.FindTracesRequest{
+		Query: &storage.TraceQueryParameters{
+			ServiceName: "service",
+			Pagination:  &storage.Pagination{PageSize: 10},
+		},
+	}, stream)
+	require.Error(t, err)
+	assert.Equal(t, codes.InvalidArgument, status.Code(err))
+	assert.Contains(t, err.Error(), tracestore.ErrPaginationUnsupportedByFindTraces.Error())
+	reader.AssertNotCalled(t, "FindTraces", mock.Anything, mock.Anything)
+}
+
 func TestHandler_FindTraceIDs(t *testing.T) {
 	query := tracestore.TraceQueryParams{
 		ServiceName:   "service",
@@ -875,6 +897,7 @@ func TestHandler_GetCapabilities(t *testing.T) {
 					Levels:    []expression.Level{expression.LevelSpan, expression.LevelResource},
 					Operators: []expression.Operator{expression.OpAnd, expression.OpEq, expression.OpRegex},
 				},
+				Paginated: true,
 			},
 			expected: &storage.SearchCapabilities{
 				WithoutServiceName:  true,
@@ -883,6 +906,7 @@ func TestHandler_GetCapabilities(t *testing.T) {
 					Levels:    []string{"span", "resource"},
 					Operators: []string{"and", "eq", "regex"},
 				},
+				Paginated: true,
 			},
 		},
 		{

@@ -89,6 +89,7 @@ func (h *Handler) internalFindTraces(
 // non-positive) search_depth defaults to defaultSearchDepth, mirroring the
 // HTTP gateway: proto3 cannot distinguish an omitted field from 0, and a
 // literal 0 is rejected by some storage backends (e.g. the in-memory store).
+// That default is skipped when pagination is present (RFC 0014 §4).
 func traceQueryParams(query *api_v3.TraceQueryParameters) (querysvc.TraceQueryParams, error) {
 	if query == nil {
 		return querysvc.TraceQueryParams{}, status.Error(codes.InvalidArgument, "missing query")
@@ -97,7 +98,7 @@ func traceQueryParams(query *api_v3.TraceQueryParameters) (querysvc.TraceQueryPa
 		return querysvc.TraceQueryParams{}, status.Error(codes.InvalidArgument, "start time min and max are required parameters")
 	}
 	searchDepth := int(query.GetSearchDepth())
-	if searchDepth <= 0 {
+	if query.GetPagination() == nil && searchDepth <= 0 {
 		searchDepth = defaultSearchDepth
 	}
 	queryParams := querysvc.TraceQueryParams{
@@ -118,6 +119,13 @@ func traceQueryParams(query *api_v3.TraceQueryParameters) (querysvc.TraceQueryPa
 			return querysvc.TraceQueryParams{}, status.Error(codes.InvalidArgument, err.Error())
 		}
 		queryParams.Filter = filter
+	}
+	if pagination := query.GetPagination(); pagination != nil {
+		p, err := tracestore.DecodePagination(pagination.GetPageSize(), pagination.GetPageToken())
+		if err != nil {
+			return querysvc.TraceQueryParams{}, status.Error(codes.InvalidArgument, err.Error())
+		}
+		queryParams.Pagination = p
 	}
 	return queryParams, nil
 }
