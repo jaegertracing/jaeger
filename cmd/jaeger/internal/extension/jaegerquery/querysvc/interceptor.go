@@ -178,7 +178,7 @@ func (qs QueryService) interceptResults(
 				}
 				continue
 			}
-			ctx, traces, err = qs.onResultRunInterceptors(ctx, traces, err)
+			ctx, traces, err = qs.onResultRunInterceptors(ctx, traces)
 			if err != nil {
 				yield(nil, err)
 				return
@@ -190,7 +190,8 @@ func (qs QueryService) interceptResults(
 	}
 }
 
-func (qs QueryService) onResultRunInterceptors(ctx context.Context, traces []ptrace.Traces, err error) (context.Context, []ptrace.Traces, error) {
+func (qs QueryService) onResultRunInterceptors(ctx context.Context, traces []ptrace.Traces) (context.Context, []ptrace.Traces, error) {
+	var err error
 	for _, interceptor := range qs.options.Interceptors {
 		ctx, traces, err = interceptor.OnResult(ctx, traces)
 		if err != nil {
@@ -224,7 +225,7 @@ func (qs QueryService) interceptSpanResults(
 			}
 			for _, spanPage := range spanPages {
 				spans := []ptrace.Traces{spanPage.Spans}
-				ctx, spans, err = qs.onResultRunInterceptors(ctx, spans, err)
+				ctx, spans, err = qs.onResultRunInterceptors(ctx, spans)
 				if err != nil {
 					yield(nil, err)
 					return

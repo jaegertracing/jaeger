@@ -342,7 +342,7 @@ func (qs QueryService) checkSpanSearchCapability(ctx context.Context) error {
 	return ErrSpanSearchUnsupported
 }
 
-func (_ QueryService) checkSpanSearchFilterCapabilities(caps tracestore.SearchCapabilities, query SpanQueryParams) error {
+func (QueryService) checkSpanSearchFilterCapabilities(caps tracestore.SearchCapabilities, query SpanQueryParams) error {
 	if caps.Filter == nil {
 		return nil
 	}
@@ -478,7 +478,7 @@ func (qs QueryService) receiveTraces(
 	return foundTraceIDs, proceed
 }
 
-func (_ QueryService) receiveSpans(
+func (QueryService) receiveSpans(
 	seq iter.Seq2[[]tracestore.SpanPage, error],
 	yield func([]tracestore.SpanPage, error) bool,
 ) (map[pcommon.TraceID]struct{}, bool) {

@@ -181,7 +181,7 @@ func (h *HTTPGateway) returnSpans(spanPages []tracestore.SpanPage, err error, w 
 			resource.CopyTo(combinedTrace.ResourceSpans().AppendEmpty())
 		}
 	}
-	h.returnSpanPage(tracestore.SpanPage{combinedTrace, nextPageToken}, w)
+	h.returnSpanPage(tracestore.SpanPage{Spans: combinedTrace, NextPageToken: nextPageToken}, w)
 }
 
 func (*HTTPGateway) marshalResponse(response proto.Message, w http.ResponseWriter) {

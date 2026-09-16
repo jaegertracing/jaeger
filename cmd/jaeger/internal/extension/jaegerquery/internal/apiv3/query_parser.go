@@ -183,33 +183,29 @@ func maybeParseFilterQueryParam(q url.Values) (*expression.Call, error) {
 	return nil, nil
 }
 
-func parseTimeParametersAllowingDeprecated(q url.Values) (time.Time, time.Time, error) {
+func parseTimeParametersAllowingDeprecated(q url.Values) (timeMinParsed time.Time, timeMaxParsed time.Time, err error) {
 	timeMinStr, timeMinParam := getQueryParam(q, paramTimeMin, paramTimeMinDeprecated)
 	timeMaxStr, timeMaxParam := getQueryParam(q, paramTimeMax, paramTimeMaxDeprecated)
-	timeMinParsed, timeMaxParsed, err := parseAndValidateTimeParameters(timeMinStr, timeMinParam, timeMaxStr, timeMaxParam)
+	timeMinParsed, timeMaxParsed, err = parseAndValidateTimeParameters(timeMinStr, timeMinParam, timeMaxStr, timeMaxParam)
 	if err != nil {
 		return timeMinParsed, timeMaxParsed, err
 	}
 	return timeMinParsed, timeMaxParsed, nil
 }
 
-func parseTimeParametersDisallowingDeprecated(q url.Values) (time.Time, time.Time, error) {
-	timeMinParsed, timeMaxParsed, err := parseAndValidateTimeParameters(q.Get(paramTimeMin), paramTimeMin, q.Get(paramTimeMax), paramTimeMax)
-	if err != nil {
-		return timeMinParsed, timeMaxParsed, err
-	}
-	return timeMinParsed, timeMaxParsed, nil
+func parseTimeParametersDisallowingDeprecated(q url.Values) (timeMinParsed time.Time, timeMaxParsed time.Time, err error) {
+	return parseAndValidateTimeParameters(q.Get(paramTimeMin), paramTimeMin, q.Get(paramTimeMax), paramTimeMax)
 }
 
-func parseAndValidateTimeParameters(timeMinStr string, timeMinParam string, timeMaxStr string, timeMaxParam string) (time.Time, time.Time, error) {
+func parseAndValidateTimeParameters(timeMinStr string, timeMinParam string, timeMaxStr string, timeMaxParam string) (timeMinParsed time.Time, timeMaxParsed time.Time, err error) {
 	if timeMinStr == "" || timeMaxStr == "" {
 		return time.Time{}, time.Time{}, fmt.Errorf("%s and %s are required", paramTimeMin, paramTimeMax)
 	}
-	timeMinParsed, err := time.Parse(time.RFC3339Nano, timeMinStr)
+	timeMinParsed, err = time.Parse(time.RFC3339Nano, timeMinStr)
 	if err != nil {
 		return time.Time{}, time.Time{}, fmt.Errorf("malformed parameter %s: %w", timeMinParam, err)
 	}
-	timeMaxParsed, err := time.Parse(time.RFC3339Nano, timeMaxStr)
+	timeMaxParsed, err = time.Parse(time.RFC3339Nano, timeMaxStr)
 	if err != nil {
 		return time.Time{}, time.Time{}, fmt.Errorf("malformed parameter %s: %w", timeMaxParam, err)
 	}
