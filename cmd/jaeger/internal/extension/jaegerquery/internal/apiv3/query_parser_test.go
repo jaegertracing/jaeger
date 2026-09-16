@@ -17,7 +17,6 @@ import (
 	"github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore"
 )
 
-// TODO maybe break out the filter tests to test the shared utility method
 func TestParseFindSpansQuery(t *testing.T) {
 	tMin := time.Now().Add(-time.Hour).UTC().Truncate(time.Nanosecond)
 	tMax := time.Now().UTC().Truncate(time.Nanosecond)
@@ -333,11 +332,11 @@ func TestParseFindTracesQuery(t *testing.T) {
 	}
 }
 
-// TestParseFindTracesQuery_Filter covers the GET binding of the structured filter: the parser
+// TestMaybeParseFilterQueryParam_Filter covers the GET binding of the structured filter: the parser
 // reads one URL-encoded JSON object, and reports what it cannot read under the parameter's own
 // name. The first case doubles as the contract test for the JSON spelling of the AST, since
 // this is the only surface where a caller writes it by hand.
-func TestParseFindTracesQuery_Filter(t *testing.T) {
+func TestMaybeParseFilterQueryParam_Filter(t *testing.T) {
 	timeRange := func() url.Values {
 		q := url.Values{}
 		q.Set(paramTimeMin, time.Now().Add(-time.Hour).UTC().Format(time.RFC3339Nano))
@@ -351,7 +350,7 @@ func TestParseFindTracesQuery_Filter(t *testing.T) {
 			{"call":{"op":"gt","args":[{"field":{"name":"duration","level":"span"}},{"scalar":{"value":"2s"}}]}},
 			{"call":{"op":"in","args":[{"attr":{"key":"http.status_code"}},{"list":{"values":["500","503"],"type":"int"}}]}}]}`)
 
-		got, err := parseFindTracesQuery(q)
+		got, err := maybeParseFilterQueryParam(q)
 		require.NoError(t, err)
 		assert.Equal(t, &expression.Call{Op: expression.OpAnd, Args: []expression.Expression{
 			&expression.Call{Op: expression.OpGt, Args: []expression.Expression{
@@ -362,7 +361,7 @@ func TestParseFindTracesQuery_Filter(t *testing.T) {
 				&expression.AttributeRef{Key: "http.status_code"},
 				&expression.List{Values: []string{"500", "503"}, Type: expression.ValueTypeInt},
 			}},
-		}}, got.Filter)
+		}}, got)
 	})
 
 	// The quantifier is the one place the third reference arm is written, and its own level says
@@ -373,7 +372,7 @@ func TestParseFindTracesQuery_Filter(t *testing.T) {
 			{"nested":{"level":"event"}},
 			{"call":{"op":"eq","args":[{"field":{"name":"name","level":"event"}},{"scalar":{"value":"exception","type":"string"}}]}}]}`)
 
-		got, err := parseFindTracesQuery(q)
+		got, err := maybeParseFilterQueryParam(q)
 		require.NoError(t, err)
 		assert.Equal(t, &expression.Call{Op: expression.OpSome, Args: []expression.Expression{
 			&expression.NestedRef{Level: expression.LevelEvent},
@@ -381,7 +380,7 @@ func TestParseFindTracesQuery_Filter(t *testing.T) {
 				&expression.FieldRef{Level: expression.LevelEvent, Name: expression.EventFieldName},
 				&expression.StringValue{Value: "exception"},
 			}},
-		}}, got.Filter)
+		}}, got)
 	})
 
 	t.Run("a constant that is not the type it declares", func(t *testing.T) {
@@ -389,22 +388,22 @@ func TestParseFindTracesQuery_Filter(t *testing.T) {
 		q.Set(paramFilter, `{"op":"eq","args":[
 			{"attr":{"key":"size"}},{"scalar":{"value":"large","type":"int"}}]}`)
 
-		_, err := parseFindTracesQuery(q)
+		_, err := maybeParseFilterQueryParam(q)
 		require.ErrorContains(t, err, "malformed parameter query.filter")
 		require.ErrorContains(t, err, `"large" is not the "int" it declares`)
 	})
 
 	t.Run("no filter", func(t *testing.T) {
-		got, err := parseFindTracesQuery(timeRange())
+		got, err := maybeParseFilterQueryParam(timeRange())
 		require.NoError(t, err)
-		assert.Nil(t, got.Filter)
+		assert.Nil(t, got)
 	})
 
 	t.Run("malformed JSON", func(t *testing.T) {
 		q := timeRange()
 		q.Set(paramFilter, `{"op":"eq",`)
 
-		_, err := parseFindTracesQuery(q)
+		_, err := maybeParseFilterQueryParam(q)
 		require.ErrorContains(t, err, "malformed parameter query.filter")
 	})
 }
