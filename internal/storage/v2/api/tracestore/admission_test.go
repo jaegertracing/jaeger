@@ -204,34 +204,34 @@ func TestEnsureNoPaginationOnFindTraces(t *testing.T) {
 	})
 }
 
-// TestApplyPaginationCapability covers the capability-based degradation: a Reader that declares
+// TestPaginationForCapabilities covers the capability-based degradation: a Reader that declares
 // Paginated gets Pagination as sent, one that does not gets PageSize folded into SearchDepth and
 // a PageToken refused outright, since it cannot have minted a token it cannot interpret.
-func TestApplyPaginationCapability(t *testing.T) {
+func TestPaginationForCapabilities(t *testing.T) {
 	t.Run("no pagination is left alone", func(t *testing.T) {
 		query := TraceQueryParams{ServiceName: "cart"}
-		applied, err := query.ApplyPaginationCapability(SearchCapabilities{})
+		applied, err := query.PaginationForCapabilities(SearchCapabilities{})
 		require.NoError(t, err)
 		assert.Equal(t, query, applied)
 	})
 
 	t.Run("a paginating reader gets pagination as sent", func(t *testing.T) {
 		query := TraceQueryParams{Pagination: Pagination{PageSize: 50, PageToken: "cursor"}}
-		applied, err := query.ApplyPaginationCapability(SearchCapabilities{Paginated: true})
+		applied, err := query.PaginationForCapabilities(SearchCapabilities{Paginated: true})
 		require.NoError(t, err)
 		assert.Equal(t, query, applied)
 	})
 
 	t.Run("a non-paginating reader gets page_size folded into search_depth", func(t *testing.T) {
 		query := TraceQueryParams{Pagination: Pagination{PageSize: 50}}
-		applied, err := query.ApplyPaginationCapability(SearchCapabilities{})
+		applied, err := query.PaginationForCapabilities(SearchCapabilities{})
 		require.NoError(t, err)
 		assert.Equal(t, TraceQueryParams{SearchDepth: 50}, applied)
 	})
 
 	t.Run("a page token against a non-paginating reader is refused", func(t *testing.T) {
 		query := TraceQueryParams{Pagination: Pagination{PageSize: 50, PageToken: "cursor"}}
-		_, err := query.ApplyPaginationCapability(SearchCapabilities{})
+		_, err := query.PaginationForCapabilities(SearchCapabilities{})
 		require.ErrorIs(t, err, ErrPaginationUnsupported)
 	})
 }
