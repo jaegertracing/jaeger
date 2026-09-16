@@ -17,6 +17,7 @@ import (
 	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger/internal/telemetry/otelsemconv"
+	"github.com/jaegertracing/jaeger/internal/tenancy"
 	"github.com/jaegertracing/jaeger/internal/version"
 )
 
@@ -42,7 +43,11 @@ type chatEndpoint struct {
 	mcpBaseURL   string
 	sidecarWSURL string
 	// sidecarHeaders are sent on the agent WebSocket handshake; see AIConfig.AgentHeaders.
-	sidecarHeaders     configopaque.MapList
+	sidecarHeaders configopaque.MapList
+	// tenancyMgr names the header the announced MCP endpoint requires, so each turn
+	// can hand the sidecar the tenant its own request arrived with. Nil (or disabled)
+	// announces no headers.
+	tenancyMgr         *tenancy.Manager
 	basePath           string
 	maxRequestBodySize int64
 }
@@ -60,7 +65,7 @@ const mcpServerName = "jaeger"
 // requires an agent to opt into each McpServer variant, and announcing one it cannot
 // consume would make it fail the session. Streamable HTTP is the only variant the
 // gateway offers today.
-func (h *chatEndpoint) announceMCP(caps acp.AgentCapabilities, mcpRouteID string) []acp.McpServer {
+func (h *chatEndpoint) announceMCP(ctx context.Context, caps acp.AgentCapabilities, mcpRouteID string) []acp.McpServer {
 	if mcpRouteID == "" || h.mcpBaseURL == "" || !caps.McpCapabilities.Http {
 		return []acp.McpServer{}
 	}
@@ -69,9 +74,27 @@ func (h *chatEndpoint) announceMCP(caps acp.AgentCapabilities, mcpRouteID string
 			Type:    "http",
 			Name:    mcpServerName,
 			Url:     h.mcpBaseURL + h.basePath + routeMCPPrefix + mcpRouteID + "/",
-			Headers: []acp.HttpHeader{},
+			Headers: h.announcedHeaders(ctx),
 		},
 	}}
+}
+
+// announcedHeaders carries this turn's tenant to the sidecar. The announced endpoint
+// is served behind tenancy.ExtractTenantHTTPHandler, which rejects a request without
+// the tenant header, and the announcement is the only thing that tells the sidecar
+// how to dial — so with multi-tenancy on, announcing no headers would hand out a URL
+// that 401s on every tool call. The tenant is the one this turn's own chat request
+// arrived with (the query mux extracts it before this handler runs), so the sidecar
+// can only ever reach the data the caller could already reach.
+func (h *chatEndpoint) announcedHeaders(ctx context.Context) []acp.HttpHeader {
+	if h.tenancyMgr == nil || !h.tenancyMgr.Enabled {
+		return []acp.HttpHeader{}
+	}
+	tenant := tenancy.GetTenant(ctx)
+	if tenant == "" {
+		return []acp.HttpHeader{}
+	}
+	return []acp.HttpHeader{{Name: h.tenancyMgr.Header, Value: tenant}}
 }
 
 // newChatEndpoint wires the chat endpoint against a sidecar WebSocket URL.
@@ -80,13 +103,14 @@ func (h *chatEndpoint) announceMCP(caps acp.AgentCapabilities, mcpRouteID string
 // for consistency with sibling handlers even though ServeHTTP does not currently
 // read it. mcpBaseURL defaults to the zero value — the announcement stays off until
 // NewHandler enables it — so tests that do not exercise MCP need no extra wiring.
-func newChatEndpoint(logger *zap.Logger, ctxTools *ContextualToolsStore, turns *turnRegistry, sidecarWSURL string, sidecarHeaders configopaque.MapList, basePath string, maxRequestBodySize int64) *chatEndpoint {
+func newChatEndpoint(logger *zap.Logger, ctxTools *ContextualToolsStore, turns *turnRegistry, sidecarWSURL string, sidecarHeaders configopaque.MapList, tenancyMgr *tenancy.Manager, basePath string, maxRequestBodySize int64) *chatEndpoint {
 	return &chatEndpoint{
 		Logger:             logger,
 		ctxTools:           ctxTools,
 		turns:              turns,
 		sidecarWSURL:       sidecarWSURL,
 		sidecarHeaders:     sidecarHeaders,
+		tenancyMgr:         tenancyMgr,
 		basePath:           normalizeBasePath(basePath),
 		maxRequestBodySize: maxRequestBodySize,
 	}
@@ -210,7 +234,7 @@ func (h *chatEndpoint) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		Cwd: "/",
 		// Point the sidecar at this turn's turn-scoped MCP endpoint, on the
 		// transports it advertised support for in Initialize.
-		McpServers: h.announceMCP(init.AgentCapabilities, mcpRouteID),
+		McpServers: h.announceMCP(ctx, init.AgentCapabilities, mcpRouteID),
 	}
 	if len(prefixedTools) > 0 {
 		newSessionReq.Meta = map[string]any{

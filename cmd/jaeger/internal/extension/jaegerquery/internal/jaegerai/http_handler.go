@@ -11,6 +11,7 @@ import (
 	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerquery/internal/mcptools"
+	"github.com/jaegertracing/jaeger/internal/tenancy"
 )
 
 const routeChat = "/api/ai/chat"
@@ -49,6 +50,10 @@ type HandlerParams struct {
 	// the turn-scoped endpoint on that same server, with this gateway's per-turn UI
 	// tools layered on. Nil leaves the gateway chat-only.
 	MCP *mcptools.Handler
+	// TenancyMgr names the tenant header the announced MCP endpoint requires, so a
+	// turn can hand the sidecar the tenant its own request arrived with. Without it
+	// a multi-tenant deployment announces a URL that 401s on every tool call.
+	TenancyMgr *tenancy.Manager
 	// MCPBaseURL is the scheme+authority (e.g. "https://jaeger.example.com:16686")
 	// the gateway announces to the sidecar so it can dial the turn-scoped MCP
 	// endpoint. Empty announces nothing — see chatEndpoint.announceMCP. Ignored when
@@ -64,7 +69,7 @@ type HandlerParams struct {
 func NewHandler(p HandlerParams) *Handler {
 	basePath := normalizeBasePath(p.BasePath)
 	turns := newTurnRegistry()
-	chat := newChatEndpoint(p.Logger, NewContextualToolsStore(), turns, p.AgentURL, p.AgentHeaders, basePath, p.MaxRequestBodySize)
+	chat := newChatEndpoint(p.Logger, NewContextualToolsStore(), turns, p.AgentURL, p.AgentHeaders, p.TenancyMgr, basePath, p.MaxRequestBodySize)
 	h := &Handler{basePath: basePath, chat: chat}
 	if p.MCP != nil {
 		h.mcp = turnScopedEndpointBuilder{

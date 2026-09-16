@@ -89,7 +89,7 @@ func TestNewHandlerNormalizesMCPBaseURL(t *testing.T) {
 			Logger: zap.NewNop(), AgentURL: "ws://x", MaxRequestBodySize: 1,
 			MCP: sharedMCPHandler(t), MCPBaseURL: base,
 		})
-		got := h.chat.announceMCP(httpCaps(true), "SID")
+		got := h.chat.announceMCP(context.Background(), httpCaps(true), "SID")
 		require.Len(t, got, 1)
 		assert.Equal(t, "http://127.0.0.1:16686/api/ai/mcp/SID/", got[0].Http.Url,
 			"base URL %q must normalize to a single slash", base)

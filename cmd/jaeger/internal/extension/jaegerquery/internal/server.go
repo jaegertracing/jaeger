@@ -324,6 +324,7 @@ func registerAIRoutes(
 			BasePath:           queryOpts.BasePath,
 			MaxRequestBodySize: aiCfg.MaxRequestBodySize,
 			MCP:                mcpHandler,
+			TenancyMgr:         tenancyMgr,
 			MCPBaseURL:         aiCfg.resolveMCPBaseURL(ctx, queryOpts.HTTP.NetAddr.Endpoint, queryOpts.HTTP.TLS.HasValue()),
 		})
 		aiGateway.RegisterRoutes(r)
