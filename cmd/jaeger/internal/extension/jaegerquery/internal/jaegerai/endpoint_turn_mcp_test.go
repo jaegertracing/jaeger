@@ -13,6 +13,7 @@ import (
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 
 	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerquery/internal/mcptools"
@@ -36,9 +37,16 @@ func rawUITool(t *testing.T, name string) json.RawMessage {
 
 // sharedMCPHandler builds the shared telemetry MCP endpoint the query server owns
 // and hands to the gateway — the same server both mounts are served from.
-func sharedMCPHandler(t *testing.T) *mcptools.Handler {
+func sharedMCPHandler(t *testing.T, readers ...*tracestoremocks.Reader) *mcptools.Handler {
 	t.Helper()
-	svc := querysvc.NewQueryService(&tracestoremocks.Reader{}, &depstoremocks.Reader{}, querysvc.QueryServiceOptions{})
+	// Most tests only exercise tools/list, which touches no storage, so the default
+	// is an unprogrammed mock. A test that actually calls a telemetry tool passes a
+	// reader with the expectation set.
+	reader := &tracestoremocks.Reader{}
+	if len(readers) > 0 {
+		reader = readers[0]
+	}
+	svc := querysvc.NewQueryService(reader, &depstoremocks.Reader{}, querysvc.QueryServiceOptions{})
 	h := mcptools.NewHandler(telemetry.NoopSettings(), svc, tenancy.NewManager(&tenancy.Options{}), mcptools.DefaultConfig())
 	t.Cleanup(func() { h.Close() })
 	return h
@@ -47,14 +55,14 @@ func sharedMCPHandler(t *testing.T) *mcptools.Handler {
 // turnMCPServer mounts a real turn-scoped handler with one active turn
 // ("sess-1") holding the given UI tools, and returns the test HTTP server plus
 // the recorder backing that turn's SSE stream (to observe UI-tool dispatch).
-func turnMCPServer(t *testing.T, uiTools []json.RawMessage) (ts *httptest.Server, rec *httptest.ResponseRecorder, routeID string) {
+func turnMCPServer(t *testing.T, uiTools []json.RawMessage, readers ...*tracestoremocks.Reader) (ts *httptest.Server, rec *httptest.ResponseRecorder, routeID string) {
 	t.Helper()
 	turns := newTurnRegistry()
 	rec = httptest.NewRecorder()
 	routeID = registerTurn(turns, newStreamingClient(context.Background(), rec, "thread", "run"), uiTools)
 
 	h := turnScopedEndpointBuilder{
-		shared: sharedMCPHandler(t),
+		shared: sharedMCPHandler(t, readers...),
 		turns:  turns,
 		logger: telemetry.NoopSettings().Logger,
 	}.build()
@@ -143,6 +151,83 @@ func TestTurnScopedEndpointDispatchesUIToolToStream(t *testing.T) {
 	// The UI-tool call was dispatched to the browser over the turn's SSE
 	// stream — the recorder should carry the TOOL_CALL_* frames for it.
 	assert.Contains(t, rec.Body.String(), "show_chart")
+}
+
+// TestTurnScopedEndpointReportsTelemetryToolToStream is the counterpart to the UI
+// dispatch above: a telemetry tool is run by the gateway, and its TOOL_CALL_*
+// lifecycle is reported on the same browser stream so the chat shows it ran and
+// what it returned. Before the sidecar stopped emitting these itself, this was the
+// sidecar's job; the gateway owns it now because only the gateway knows which kind
+// of tool was called.
+func TestTurnScopedEndpointReportsTelemetryToolToStream(t *testing.T) {
+	reader := &tracestoremocks.Reader{}
+	reader.On("GetServices", mock.Anything).Return([]string{"frontend"}, nil)
+	ts, rec, routeID := turnMCPServer(t, []json.RawMessage{rawUITool(t, "show_chart")}, reader)
+	session := connectTurnMCP(t, ts, "/api/ai/mcp/"+routeID+"/")
+
+	result, err := session.CallTool(context.Background(), &mcp.CallToolParams{Name: "get_services"})
+	require.NoError(t, err)
+	assert.False(t, result.IsError)
+
+	body := rec.Body.String()
+	assert.Contains(t, body, "TOOL_CALL_START", "the chat must show that the tool ran")
+	assert.Contains(t, body, "get_services")
+	assert.Contains(t, body, "TOOL_CALL_RESULT",
+		"a telemetry tool is executed by the gateway, so its output must reach the chat")
+	assert.Contains(t, body, "TOOL_CALL_END")
+}
+
+// TestTurnScopedEndpointUIToolReportsNoResult pins the asymmetry that makes this
+// the gateway's job rather than the sidecar's. A UI tool must end WITHOUT a
+// TOOL_CALL_RESULT: the browser is the executor, and assistant-ui skips its local
+// execute() if it thinks the server already produced a result. A telemetry tool
+// must end WITH one. The agent sees one flat tool set and cannot make that
+// distinction, which is why it no longer reports these events at all.
+func TestTurnScopedEndpointUIToolReportsNoResult(t *testing.T) {
+	ts, rec, routeID := turnMCPServer(t, []json.RawMessage{rawUITool(t, "show_chart")})
+	session := connectTurnMCP(t, ts, "/api/ai/mcp/"+routeID+"/")
+
+	_, err := session.CallTool(context.Background(), &mcp.CallToolParams{
+		Name:      "show_chart",
+		Arguments: map[string]any{"series": "latency"},
+	})
+	require.NoError(t, err)
+
+	body := rec.Body.String()
+	assert.Contains(t, body, "TOOL_CALL_START")
+	assert.NotContains(t, body, "TOOL_CALL_RESULT",
+		"a UI tool ends without a result so the browser still executes it locally")
+}
+
+// TestSharedMountReportsNothingToAnyStream covers the turn-less mount: an external
+// MCP client (Cursor, Claude Code) has no browser stream, so the tool runs and
+// nothing is reported. Reporting would mean writing a turn's events with no turn.
+func TestSharedMountReportsNothingToAnyStream(t *testing.T) {
+	reader := &tracestoremocks.Reader{}
+	reader.On("GetServices", mock.Anything).Return([]string{"frontend"}, nil)
+	shared := sharedMCPHandler(t, reader)
+	h := NewHandler(HandlerParams{
+		Logger:             telemetry.NoopSettings().Logger,
+		AgentURL:           "ws://127.0.0.1:1",
+		MaxRequestBodySize: 1 << 20,
+		MCP:                shared,
+	})
+	rec := httptest.NewRecorder()
+	routeID := registerTurn(h.mcp.turns, newStreamingClient(context.Background(), rec, "t", "r"), nil)
+
+	mux := http.NewServeMux()
+	h.RegisterRoutes(mux)
+	mux.Handle("/api/ai/mcp/", http.StripPrefix("/api/ai/mcp", shared))
+	ts := httptest.NewServer(mux)
+	t.Cleanup(ts.Close)
+
+	session := connectTurnMCP(t, ts, "/api/ai/mcp/")
+	_, err := session.CallTool(context.Background(), &mcp.CallToolParams{Name: "get_services"})
+	require.NoError(t, err)
+
+	assert.NotContains(t, rec.Body.String(), "TOOL_CALL_START",
+		"a turn-less call must not write events onto some turn's stream")
+	_ = routeID
 }
 
 // TestTurnScopedEndpointIsolatesTurns is the key guarantee of the single

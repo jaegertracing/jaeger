@@ -7,6 +7,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"strings"
 	"sync/atomic"
 	"time"
 
@@ -31,8 +32,12 @@ const (
 //     Server.AddTool's replace-by-name semantics), keeping the list free of
 //     duplicate names.
 //   - tools/call — a call to one of the turn's UI tools is dispatched to the
-//     browser over its SSE stream (the browser is the executor) and acked;
-//     everything else falls through to the telemetry handlers.
+//     browser over its SSE stream (the browser is the executor) and acked. A
+//     telemetry tool runs here instead, and its TOOL_CALL_* lifecycle is reported
+//     on the same stream so the chat shows both kinds of tool alike. That makes
+//     this middleware the single source of those events: the sidecar reports
+//     nothing, because it can no longer tell the two kinds apart — and must not,
+//     since one flat tool set is the point of the consolidation.
 //
 // The turn is resolved from the request context: ServeHTTP stamps the URL
 // route id before delegating, and the go-sdk propagates the initialize
@@ -73,8 +78,14 @@ func uiToolsMiddleware(turns *turnRegistry, logger *zap.Logger) mcp.Middleware {
 					return uiToolErrorResult("missing tool call parameters"), nil
 				}
 				turn := turns.get(mcpRouteIDFromContext(ctx))
-				if turn == nil || !turnDeclaredUITool(turn, call.Params.Name) {
+				if turn == nil {
+					// No turn: the shared mount serving an external MCP client
+					// (Cursor, Claude Code). There is no browser stream to report
+					// to, so run the tool and stay out of the way.
 					return next(ctx, method, req)
+				}
+				if !turnDeclaredUITool(turn, call.Params.Name) {
+					return emitTelemetryToolCall(ctx, method, req, call, turn.stream, next)
 				}
 				return emitUIToolCall(turn.stream, call.Params.Name, call.Params.Arguments), nil
 
@@ -196,6 +207,65 @@ func emitUIToolCall(stream *streamingClient, toolName string, rawArgs json.RawMe
 	return &mcp.CallToolResult{
 		Content: []mcp.Content{&mcp.TextContent{Text: fmt.Sprintf("ui tool %q dispatched to the browser", toolName)}},
 	}
+}
+
+// emitTelemetryToolCall runs a built-in telemetry tool and reports its
+// TOOL_CALL_* lifecycle on the turn's browser stream.
+//
+// The gateway reports this rather than the sidecar because only the gateway knows
+// which kind of tool was called: the turn-scoped endpoint advertises telemetry and
+// UI tools as one flat set, so the agent cannot distinguish them, and the two need
+// opposite treatment — a UI tool must end without a result so the browser still
+// executes it, a telemetry tool must end with one so the chat shows the output.
+//
+// A nil stream (turn ended mid-request) still runs the tool; the call is already
+// in flight for the agent, and only the browser-side reporting is lost.
+func emitTelemetryToolCall(
+	ctx context.Context,
+	method string,
+	req mcp.Request,
+	call *mcp.CallToolRequest,
+	stream *streamingClient,
+	next mcp.MethodHandler,
+) (mcp.Result, error) {
+	res, err := next(ctx, method, req)
+	if stream == nil {
+		return res, err
+	}
+
+	var args any
+	if len(call.Params.Arguments) > 0 {
+		// Unreported rather than fatal: the tool already ran, and the agent's
+		// result does not depend on our ability to render the arguments.
+		_ = json.Unmarshal(call.Params.Arguments, &args)
+	}
+	stream.EmitTelemetryToolCall(
+		newUIToolCallID(call.Params.Name),
+		call.Params.Name,
+		args,
+		toolResultText(res, err),
+	)
+	return res, err
+}
+
+// toolResultText renders a tool result for the browser, and an error as the
+// result text so a failed call shows why in the chat instead of appearing to
+// hang with no output.
+func toolResultText(res mcp.Result, err error) string {
+	if err != nil {
+		return "tool call failed: " + err.Error()
+	}
+	callResult, ok := res.(*mcp.CallToolResult)
+	if !ok {
+		return ""
+	}
+	texts := make([]string, 0, len(callResult.Content))
+	for _, content := range callResult.Content {
+		if text, ok := content.(*mcp.TextContent); ok {
+			texts = append(texts, text.Text)
+		}
+	}
+	return strings.Join(texts, "\n")
 }
 
 // uiToolErrorResult builds an IsError CallToolResult carrying msg, so a bad

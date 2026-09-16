@@ -181,6 +181,35 @@ func (c *streamingClient) EmitContextualToolCall(toolCallID, toolName string, ra
 	c.emit(aguievents.NewToolCallEndEvent(toolCallID))
 }
 
+// EmitTelemetryToolCall fires the full TOOL_CALL_START / TOOL_CALL_ARGS /
+// TOOL_CALL_RESULT / TOOL_CALL_END lifecycle for a built-in telemetry tool the
+// agent invoked via the turn-scoped MCP endpoint.
+//
+// Unlike EmitContextualToolCall this carries a result, because the gateway ran
+// the tool itself: the browser is a spectator here, not the executor. The two
+// therefore differ exactly where the executor differs — a UI tool ends without a
+// result so assistant-ui still runs it locally, a telemetry tool ends with one so
+// the chat shows what came back.
+//
+// It acquires c.mu like the other entry points, so it is safe to call
+// concurrently with the ACP SessionUpdate path.
+func (c *streamingClient) EmitTelemetryToolCall(toolCallID, toolName string, rawArgs any, result string) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.emit(aguievents.NewToolCallStartEvent(toolCallID, toolName))
+	if rawArgs != nil {
+		c.emit(aguievents.NewToolCallArgsEvent(toolCallID, marshalToolArgsDelta(rawArgs)))
+	}
+	if result != "" {
+		c.emit(aguievents.NewToolCallResultEvent(
+			toolResultMessageID(acp.ToolCallId(toolCallID)),
+			toolCallID,
+			result,
+		))
+	}
+	c.emit(aguievents.NewToolCallEndEvent(toolCallID))
+}
+
 // RequestPermission auto-accepts tool calls by selecting the first
 // allow-flavoured option the agent offers. The gateway curates which tools
 // an agent can invoke through two pre-approved channels:

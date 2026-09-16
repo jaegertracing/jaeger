@@ -231,3 +231,48 @@ func mustJSON(t *testing.T, v any) json.RawMessage {
 	require.NoError(t, err)
 	return b
 }
+
+// TestToolResultTextRendersError pins that a failed telemetry tool shows why in
+// the chat: with no result text the tool card would end empty and look like a
+// hang rather than a failure.
+func TestToolResultTextRendersError(t *testing.T) {
+	got := toolResultText(nil, errors.New("storage unavailable"))
+	assert.Equal(t, "tool call failed: storage unavailable", got)
+}
+
+// TestToolResultTextIgnoresNonToolResult covers the shape the SDK should never
+// hand us for tools/call. Returning "" omits TOOL_CALL_RESULT rather than
+// rendering Go's default formatting of an unexpected type into the chat.
+func TestToolResultTextIgnoresNonToolResult(t *testing.T) {
+	assert.Empty(t, toolResultText(&mcp.ListToolsResult{}, nil))
+}
+
+// TestToolResultTextJoinsTextContent pins the multi-block case: a tool returning
+// several text blocks renders as one result rather than only its first block.
+func TestToolResultTextJoinsTextContent(t *testing.T) {
+	res := &mcp.CallToolResult{Content: []mcp.Content{
+		&mcp.TextContent{Text: "first"},
+		&mcp.ImageContent{},
+		&mcp.TextContent{Text: "second"},
+	}}
+	assert.Equal(t, "first\nsecond", toolResultText(res, nil))
+}
+
+// TestEmitTelemetryToolCallWithoutStreamStillRunsTool covers a turn that ended
+// mid-request. The call is already in flight for the agent, so the tool must still
+// run and return — only the browser-side reporting is lost.
+func TestEmitTelemetryToolCallWithoutStreamStillRunsTool(t *testing.T) {
+	want := &mcp.CallToolResult{Content: []mcp.Content{&mcp.TextContent{Text: "ok"}}}
+	called := false
+	next := func(context.Context, string, mcp.Request) (mcp.Result, error) {
+		called = true
+		return want, nil
+	}
+	call := &mcp.CallToolRequest{Params: &mcp.CallToolParamsRaw{Name: "get_services"}}
+
+	got, err := emitTelemetryToolCall(context.Background(), methodCallTool, call, call, nil, next)
+
+	require.NoError(t, err)
+	assert.True(t, called, "the tool must run even with no stream to report to")
+	assert.Same(t, want, got)
+}
