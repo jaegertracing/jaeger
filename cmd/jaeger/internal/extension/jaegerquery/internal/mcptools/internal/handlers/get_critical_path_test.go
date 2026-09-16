@@ -315,3 +315,41 @@ func TestGetCriticalPathHandler_BuildOutput_MissingSpan(t *testing.T) {
 	assert.Len(t, output.Segments, 1)
 	assert.Equal(t, span.SpanID().String(), output.Segments[0].SpanID)
 }
+
+func TestGetCriticalPathHandler_BuildOutput_ZeroStartTimestampSpan(t *testing.T) {
+	handler := &getCriticalPathHandler{}
+
+	traces := ptrace.NewTraces()
+	rs := traces.ResourceSpans().AppendEmpty()
+	ss := rs.ScopeSpans().AppendEmpty()
+
+	// Span 1 with zero StartTimestamp
+	span1 := ss.Spans().AppendEmpty()
+	span1.SetSpanID([8]byte{1})
+	span1.SetTraceID([16]byte{1})
+	span1.SetStartTimestamp(pcommon.Timestamp(0)) // 0 start timestamp
+	span1.SetEndTimestamp(pcommon.Timestamp(5000 * 1000))
+	span1.SetName("zero-start-span")
+
+	// Span 2 with positive StartTimestamp
+	span2 := ss.Spans().AppendEmpty()
+	span2.SetSpanID([8]byte{2})
+	span2.SetTraceID([16]byte{1})
+	span2.SetStartTimestamp(pcommon.Timestamp(1000 * 1000))
+	span2.SetEndTimestamp(pcommon.Timestamp(3000 * 1000))
+	span2.SetName("normal-span")
+
+	sections := []criticalpath.Section{
+		{
+			SpanID:       span1.SpanID().String(),
+			SectionStart: 0,
+			SectionEnd:   5000,
+		},
+	}
+
+	output := handler.buildOutput(span1.TraceID().String(), traces, sections)
+
+	assert.Len(t, output.Segments, 1)
+	assert.Equal(t, uint64(0), output.Segments[0].StartOffsetUs)
+}
+
