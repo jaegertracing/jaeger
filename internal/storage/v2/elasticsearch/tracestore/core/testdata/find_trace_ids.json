@@ -71,6 +71,7 @@
                     "must": {
                       "regexp": {
                         "tag.httpstatus_code": {
+                          "flags": "NONE",
                           "value": "200"
                         }
                       }
@@ -82,6 +83,7 @@
                     "must": {
                       "regexp": {
                         "process.tag.httpstatus_code": {
+                          "flags": "NONE",
                           "value": "200"
                         }
                       }
@@ -104,6 +106,7 @@
                           {
                             "regexp": {
                               "tags.value": {
+                                "flags": "NONE",
                                 "value": "200"
                               }
                             }
@@ -129,6 +132,7 @@
                           {
                             "regexp": {
                               "process.tags.value": {
+                                "flags": "NONE",
                                 "value": "200"
                               }
                             }
@@ -154,6 +158,7 @@
                           {
                             "regexp": {
                               "logs.fields.value": {
+                                "flags": "NONE",
                                 "value": "200"
                               }
                             }

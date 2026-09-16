@@ -48,8 +48,6 @@ jobs:
         submodules: true
 
     - uses: ./.github/actions/setup-go
-      with:
-        go-version: 1.26.x
 
     - name: time settings
       run: |
@@ -69,5 +67,4 @@ jobs:
     - name: Upload coverage to codecov
       uses: ./.github/actions/upload-codecov
       with:
-        files: cover.out
         flag: ${{ matrix.version.distribution }}-${{ matrix.version.major }}-${{ matrix.version.storage_test }}

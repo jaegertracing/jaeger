@@ -13,6 +13,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	ast "github.com/jaegertracing/jaeger-idl/query/expression/v1"
+	"github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore"
 )
 
 // p is the builder under test. Predicate holds no state, so one value serves every case.
@@ -188,7 +189,7 @@ func TestLowering(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			assert.Equal(t, test.want, test.built)
-			require.NoError(t, ast.ValidateFilter(test.built))
+			require.NoError(t, tracestore.ValidateFilter(test.built))
 		})
 	}
 }
@@ -245,8 +246,9 @@ func TestConstantLeavesTheTypeOpen(t *testing.T) {
 // attribute it has to declare one, because nothing else does and the AST requires it; compared
 // against a built-in field it declares none, since the field's own type says how to read the
 // elements — which is also the only way to write a list of durations, the wire having no duration
-// type (RFC 0005 §5.4).
-func TestListDeclaresItsElementType(t *testing.T) {
+// TestListLeavesTheElementTypeToTheCaller pins that the values a caller passes never produce a
+// declared type, whatever the reference and whatever the Go types (RFC 0005 §5.4).
+func TestListLeavesTheElementTypeToTheCaller(t *testing.T) {
 	tests := []struct {
 		name  string
 		built *ast.Call
@@ -255,27 +257,27 @@ func TestListDeclaresItsElementType(t *testing.T) {
 		{
 			name:  "strings against an attribute",
 			built: p.Attr("k").In("cart", "checkout"),
-			want:  &ast.List{Values: []string{"cart", "checkout"}, Type: ast.ValueTypeString},
+			want:  &ast.List{Values: []string{"cart", "checkout"}},
 		},
 		{
-			name:  "integers against an attribute",
+			name:  "integers against an attribute, which say nothing about how they were stored",
 			built: p.Attr("size").In(1, 2),
-			want:  &ast.List{Values: []string{"1", "2"}, Type: ast.ValueTypeInt},
+			want:  &ast.List{Values: []string{"1", "2"}},
 		},
 		{
 			name:  "floating-point numbers against an attribute",
 			built: p.Attr("ratio").In(1.5, float32(0.5)),
-			want:  &ast.List{Values: []string{"1.5", "0.5"}, Type: ast.ValueTypeDouble},
+			want:  &ast.List{Values: []string{"1.5", "0.5"}},
 		},
 		{
 			name:  "booleans against an attribute",
 			built: p.Attr("ok").In(true, false),
-			want:  &ast.List{Values: []string{"true", "false"}, Type: ast.ValueTypeBool},
+			want:  &ast.List{Values: []string{"true", "false"}},
 		},
 		{
-			name:  "mixed kinds, which read as text",
+			name:  "mixed kinds",
 			built: p.Attr("k").In("cart", 500),
-			want:  &ast.List{Values: []string{"cart", "500"}, Type: ast.ValueTypeString},
+			want:  &ast.List{Values: []string{"cart", "500"}},
 		},
 		{
 			name:  "durations against the field that holds them",
@@ -290,12 +292,12 @@ func TestListDeclaresItsElementType(t *testing.T) {
 		{
 			name:  "durations against an attribute, which are text however Go holds them",
 			built: p.Attr("latency").In(time.Second, 2*time.Second),
-			want:  &ast.List{Values: []string{"1s", "2s"}, Type: ast.ValueTypeString},
+			want:  &ast.List{Values: []string{"1s", "2s"}},
 		},
 		{
 			name:  "instants against an attribute",
 			built: p.Attr("deadline").In(time.Date(2026, 8, 18, 0, 0, 0, 0, time.UTC)),
-			want:  &ast.List{Values: []string{"2026-08-18T00:00:00Z"}, Type: ast.ValueTypeString},
+			want:  &ast.List{Values: []string{"2026-08-18T00:00:00Z"}},
 		},
 		{
 			name:  "a list built outright, which says its own type",
@@ -310,14 +312,14 @@ func TestListDeclaresItsElementType(t *testing.T) {
 	}
 }
 
-// TestListElementText covers how a Go value is written into a list, whose elements stay text
-// because that is what the AST holds them as. These are of mixed kinds, so the list reads as text.
+// TestListElementText covers how a Go value is written into a list. The elements stay text,
+// because the AST stores them as text.
 func TestListElementText(t *testing.T) {
 	instant := time.Date(2026, 8, 16, 18, 56, 20, 0, time.UTC)
 	assert.Equal(t,
 		&ast.List{Values: []string{
 			"cart", "500", "1.5", "0.5", "true", "2s", "2026-08-16T18:56:20Z",
-		}, Type: ast.ValueTypeString},
+		}},
 		p.Attr("k").In("cart", 500, 1.5, float32(0.5), true, 2*time.Second, instant).Args[1])
 }
 
@@ -328,7 +330,7 @@ func TestValueWithoutOwnRendering(t *testing.T) {
 		&ast.AnyValue{Value: "[1 2]"},
 		p.Attr("ids").Eq([]int{1, 2}).Args[1])
 	assert.Equal(t,
-		&ast.List{Values: []string{"[1 2]"}, Type: ast.ValueTypeString},
+		&ast.List{Values: []string{"[1 2]"}},
 		p.Attr("ids").In([]int{1, 2}).Args[1])
 }
 
@@ -360,7 +362,7 @@ func TestCombineFlattens(t *testing.T) {
 	t.Run("a nil predicate is carried through to be refused", func(t *testing.T) {
 		built := p.And(first, nil)
 		require.Len(t, built.Args, 2)
-		require.Error(t, ast.ValidateFilter(built))
+		require.Error(t, tracestore.ValidateFilter(built))
 	})
 }
 
@@ -396,7 +398,7 @@ func TestEveryAccessorNamesABuiltInField(t *testing.T) {
 		refs := accessors(t, object)
 		require.NotEmpty(t, refs)
 		for _, ref := range refs {
-			require.NoError(t, ast.ValidateFilter(
+			require.NoError(t, tracestore.ValidateFilter(
 				&ast.Call{Op: ast.OpExists, Args: []ast.Expression{ref}},
 			))
 			assert.Equal(t, level, ref.Level)

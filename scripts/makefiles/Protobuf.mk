@@ -102,7 +102,8 @@ proto: \
 	proto-hotrod \
 	proto-zipkin \
 	proto-openmetrics \
-	proto-api-v3
+	proto-api-v3 \
+	proto-api-v3-python
 
 EXPRESSION_PATCHED_DIR=$(PROTO_GEN)/.patched/expression/v1
 EXPRESSION_PATCHED=$(EXPRESSION_PATCHED_DIR)/expression.proto
@@ -200,3 +201,76 @@ proto-api-v3: patch-api-v3 proto-expression
 	$(SED) -i '0,/go.opentelemetry.io\/proto\/otlp\/trace\/v1/s|go.opentelemetry.io/proto/otlp/trace/v1|github.com/jaegertracing/jaeger/internal/jptrace|' $(API_V3_PATH)/query_service.pb.go
 	@echo "🏗️  remove all remaining OTEL imports because we're not using any other OTLP types"
 	$(SED) -i 's+^.*v1 "go.opentelemetry.io/proto/otlp/trace/v1".*$$++' $(API_V3_PATH)/query_service.pb.go
+
+# The prototype Python SDK in sdk/python needs the same api_v3 service, and its
+# stubs are committed, so they are generated here alongside the Go ones: one
+# `make proto` after an IDL bump refreshes every language.
+#
+# Python gets its own patched copy because the Go one adds gogo annotations, and
+# because Python has the opposite need — patch-api-v3-python *removes* the
+# google.api and gnostic.openapiv3 options. A gRPC client reads neither, but
+# protoc records the files defining them as dependencies, and the generated
+# Python then imports their generated modules just to register the option
+# extensions. gnostic publishes no Python distribution, so keeping the options
+# would mean generating and committing its whole OpenAPI v3 model for annotations
+# nobody reads. Stripping them also means this pass needs no gnostic include.
+PYTHON_SDK_DIR=sdk/python
+PYTHON_SDK_PATH=$(PYTHON_SDK_DIR)/src
+API_V3_PYTHON_PATCHED_ROOT=$(PROTO_GEN)/.patched/api_v3_python
+API_V3_PYTHON_PATCHED_DIR=$(API_V3_PYTHON_PATCHED_ROOT)/api_v3
+API_V3_PYTHON_PATCHED=$(API_V3_PYTHON_PATCHED_DIR)/query_service.proto
+# api_v3 imports the shared filter AST, so Python needs a patched copy of that too.
+EXPRESSION_PYTHON_PATCHED_DIR=$(API_V3_PYTHON_PATCHED_ROOT)/expression/v1
+EXPRESSION_PYTHON_PATCHED=$(EXPRESSION_PYTHON_PATCHED_DIR)/expression.proto
+API_V3_PYTHON_PROTOS=$(API_V3_PYTHON_PATCHED) $(EXPRESSION_PYTHON_PATCHED)
+
+.PHONY: patch-api-v3-python
+patch-api-v3-python:
+	mkdir -p $(API_V3_PYTHON_PATCHED_DIR) $(EXPRESSION_PYTHON_PATCHED_DIR)
+	$(SED) -f ./$(PROTO_GEN)/patch-python.sed \
+		idl/proto/api_v3/query_service.proto \
+		> $(API_V3_PYTHON_PATCHED)
+	$(SED) -f ./$(PROTO_GEN)/patch-python.sed \
+		idl/proto/expression/v1/expression.proto \
+		> $(EXPRESSION_PYTHON_PATCHED)
+	@echo "🏗️  verifying that no annotation survived the patch"
+	@! grep -nE 'google\.api|openapi\.v3|gnostic' $(API_V3_PYTHON_PROTOS) || \
+		(echo "ERROR: $(PROTO_GEN)/patch-python.sed did not remove every annotation"; exit 1)
+
+# protoc comes from grpcio-tools rather than $(PROTOC), because the shared
+# jaegertracing/protobuf image carries libprotoc 3.14 and Python output from
+# anything below 3.19 is rejected outright by the protobuf 4.x runtime
+# ("Descriptors cannot be created directly"). Move this to $(PROTOC) once that
+# image's protoc is new enough. Only two includes are needed: the patch removed
+# the annotations, so nothing outside the patched tree and OTLP is imported.
+#
+# `uv run` syncs the SDK's environment from its lock file first, and keeps this
+# directory as the working directory, so the include paths stay repo-relative.
+PYTHON_PROTOC=uv run --project $(PYTHON_SDK_DIR) python -m grpc_tools.protoc
+
+.PHONY: proto-api-v3-python
+proto-api-v3-python: patch-api-v3-python
+	$(call print_caption, "Processing $(API_V3_PYTHON_PATCHED) --> $(PYTHON_SDK_PATH)")
+	$(PYTHON_PROTOC) \
+		-I$(API_V3_PYTHON_PATCHED_ROOT) \
+		-Iidl/opentelemetry-proto \
+		--python_out=$(PYTHON_SDK_PATH) \
+		--pyi_out=$(PYTHON_SDK_PATH) \
+		--grpc_python_out=$(PYTHON_SDK_PATH) \
+		api_v3/query_service.proto
+	@# expression.proto declares no service, so it needs no gRPC stub.
+	$(PYTHON_PROTOC) \
+		-I$(API_V3_PYTHON_PATCHED_ROOT) \
+		--python_out=$(PYTHON_SDK_PATH) \
+		--pyi_out=$(PYTHON_SDK_PATH) \
+		expression/v1/expression.proto
+	@# protoc leaves the output directory without __init__.py, which would make the
+	@# generated modules importable only as a namespace package.
+	find $(PYTHON_SDK_PATH)/api_v3 $(PYTHON_SDK_PATH)/expression -type d -exec touch {}/__init__.py \;
+	@# The OpenTelemetry messages are deliberately not generated: opentelemetry-proto
+	@# on PyPI already ships them, and a second copy would register the same protos
+	@# twice in the descriptor pool. So the generated modules must import them, and
+	@# must import nothing from the stripped annotations.
+	@! grep -qE '^from (google\.api|gnostic|openapiv3) ' $(PYTHON_SDK_PATH)/api_v3/query_service_pb2.py || \
+		(echo "ERROR: an annotation import survived into the generated Python"; exit 1)
+	@echo "🏗️  OK: generated Python imports only the protobuf runtime and opentelemetry-proto"

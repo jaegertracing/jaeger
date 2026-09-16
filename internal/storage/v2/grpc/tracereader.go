@@ -265,6 +265,13 @@ func toProtoQueryParameters(t tracestore.TraceQueryParams) (*storage.TraceQueryP
 	if err != nil {
 		return nil, fmt.Errorf("cannot send the query filter: %w", err)
 	}
+	// The HTTP query parser already refuses a SearchDepth outside this range,
+	// but other callers (MCP, gRPC query, tests) can set it without going
+	// through that parser. This client still has to refuse values that will
+	// not encode cleanly as a protobuf search window.
+	if t.SearchDepth < 0 || t.SearchDepth > tracestore.MaxSearchDepth {
+		return nil, fmt.Errorf("SearchDepth must be in [0, %d]", tracestore.MaxSearchDepth)
+	}
 	return &storage.TraceQueryParameters{
 		ServiceName:   t.ServiceName,
 		OperationName: t.OperationName,
@@ -273,7 +280,7 @@ func toProtoQueryParameters(t tracestore.TraceQueryParams) (*storage.TraceQueryP
 		StartTimeMax:  t.StartTimeMax,
 		DurationMin:   t.DurationMin,
 		DurationMax:   t.DurationMax,
-		SearchDepth:   int32(t.SearchDepth), //nolint:gosec // G115
+		SearchDepth:   int32(t.SearchDepth),
 		Filter:        filter,
 	}, nil
 }

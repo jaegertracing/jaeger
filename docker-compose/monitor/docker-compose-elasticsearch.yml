@@ -3,7 +3,7 @@
 
 services:
   elasticsearch:
-    image: docker.elastic.co/elasticsearch/elasticsearch:9.4.2@sha256:be5f49784ff5ec8a5b5d7ba17f944d9d6b10c067f596ee93e6b6cb82d2dd874c
+    image: docker.elastic.co/elasticsearch/elasticsearch:9.5.3@sha256:f456578fc2a620a8a4f4c21d070fff1f6070345adb2be5e5626b65be72aea350
     networks:
       - backend
     environment:

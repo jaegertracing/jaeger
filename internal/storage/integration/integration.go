@@ -213,10 +213,16 @@ func (s *StorageIntegration) testGetServices(t *testing.T) {
 			// If the storage backend returns more services than expected, let's log traces for those
 			t.Log("🛑 Found unexpected services!")
 			for _, service := range actual {
+				// Attributes and SearchDepth are not optional: readers dereference the map
+				// before anything else, where a zero value panics, and the memory store
+				// rejects a non-positive depth. 100 is what Cassandra and Elasticsearch
+				// default to when the field is unset, and it exceeds the whole corpus.
 				iterTraces := s.TraceReader.FindTraces(context.Background(), tracestore.TraceQueryParams{
 					ServiceName:  service,
+					Attributes:   pcommon.NewMap(),
 					StartTimeMin: time.Now().Add(-2 * time.Hour),
 					StartTimeMax: time.Now(),
+					SearchDepth:  100,
 				})
 				for traces, err := range iterTraces {
 					if err != nil {

@@ -4,6 +4,8 @@
 package uiconv
 
 import (
+	"os"
+	"path/filepath"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -72,5 +74,56 @@ func TestReaderTraceInvalidJson(t *testing.T) {
 	_, err = r.NextSpan()
 	require.ErrorContains(t, err, "cannot unmarshal span")
 	assert.Equal(t, 0, r.spansRead)
+	assert.True(t, r.eofReached)
+}
+
+func TestReaderTraceNoSpans(t *testing.T) {
+	// The writer emits "[\n]\n" when it captured no spans.
+	inputFile := "fixtures/trace_no_spans.json"
+	r, err := newSpanReader(inputFile, zap.NewNop())
+	require.NoError(t, err)
+
+	_, err = r.NextSpan()
+	require.ErrorIs(t, err, errNoMoreSpans)
+	assert.Equal(t, 0, r.spansRead)
+	assert.True(t, r.eofReached)
+}
+
+func TestReaderTraceBlankLinesAndCRLF(t *testing.T) {
+	inputFile := filepath.Join(t.TempDir(), "trace.json")
+	content := "[{\"traceID\":\"2be38093ead7a083\",\"spanID\":\"7606ddfe69932d34\"},\r\n" +
+		"\n" +
+		"{\"traceID\":\"2be38093ead7a083\",\"spanID\":\"7bd66f09ba90ea3d\"}\r\n" +
+		"]\r\n"
+	require.NoError(t, os.WriteFile(inputFile, []byte(content), 0o600))
+	r, err := newSpanReader(inputFile, zap.NewNop())
+	require.NoError(t, err)
+
+	span, err := r.NextSpan()
+	require.NoError(t, err)
+	assert.Equal(t, "7606ddfe69932d34", string(span.SpanID))
+	span, err = r.NextSpan()
+	require.NoError(t, err)
+	assert.Equal(t, "7bd66f09ba90ea3d", string(span.SpanID))
+	_, err = r.NextSpan()
+	require.ErrorIs(t, err, errNoMoreSpans)
+	assert.Equal(t, 2, r.spansRead)
+}
+
+func TestReaderTraceTruncatedAfterComma(t *testing.T) {
+	// A writer killed mid-run leaves a span line with a trailing comma and no
+	// closing bracket.
+	inputFile := filepath.Join(t.TempDir(), "trace.json")
+	content := "[{\"traceID\":\"2be38093ead7a083\",\"spanID\":\"7606ddfe69932d34\"},\n"
+	require.NoError(t, os.WriteFile(inputFile, []byte(content), 0o600))
+	r, err := newSpanReader(inputFile, zap.NewNop())
+	require.NoError(t, err)
+
+	span, err := r.NextSpan()
+	require.NoError(t, err)
+	assert.Equal(t, "7606ddfe69932d34", string(span.SpanID))
+	_, err = r.NextSpan()
+	require.ErrorContains(t, err, "cannot read file")
+	assert.Equal(t, 1, r.spansRead)
 	assert.True(t, r.eofReached)
 }

@@ -110,6 +110,12 @@ type GetTraceParams struct {
 	End time.Time
 }
 
+// MaxSearchDepth is the largest SearchDepth the query API and the gRPC storage
+// client accept. It matches ClickHouse's default MaxSearchDepth (10000): a
+// search window, not an int32 bound. 0 is valid and means "backend default" on
+// several stores.
+const MaxSearchDepth = 10000
+
 // TraceQueryParams contains query parameters to find traces. For a detailed
 // definition of each field in this message, refer to `TraceQueryParameters` in `jaeger.api_v3`
 // (https://github.com/jaegertracing/jaeger-idl/blob/main/proto/api_v3/query_service.proto).
