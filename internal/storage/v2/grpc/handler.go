@@ -354,7 +354,7 @@ func (h *Handler) toTraceQueryParams(
 		caps = tracestore.SearchCapabilities{}
 	}
 	if query.Pagination != (tracestore.Pagination{}) {
-		applied, err := query.ApplyPaginationCapability(caps)
+		applied, err := query.PaginationForCapabilities(caps)
 		if err != nil {
 			// This reader cannot have minted the token (RFC 0014 §6.2).
 			return tracestore.TraceQueryParams{}, status.Error(codes.InvalidArgument, err.Error())

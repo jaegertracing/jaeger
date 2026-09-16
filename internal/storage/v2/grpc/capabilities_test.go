@@ -326,7 +326,7 @@ func TestToTraceQueryParams_RejectsPageTokenWhenUnsupported(t *testing.T) {
 // TestToTraceQueryParams_PageSizeFoldedIntoSearchDepthWhenUnsupported pins the fix for the other
 // half of the same Copilot finding: a page-size-only request against a reader that cannot
 // paginate must still be bounded when it reaches that reader. Readers only read SearchDepth
-// today, so PageSize is folded into it and Pagination is cleared (ApplyPaginationCapability) —
+// today, so PageSize is folded into it and Pagination is cleared (PaginationForCapabilities) —
 // leaving SearchDepth at zero would dispatch an effectively unbounded search.
 func TestToTraceQueryParams_PageSizeFoldedIntoSearchDepthWhenUnsupported(t *testing.T) {
 	reader := new(tracestoremocks.Reader)

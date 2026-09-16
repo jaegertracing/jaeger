@@ -121,7 +121,7 @@ func TestPrepareSearchQuery_PageSizeRequiredWhenPaginationPresent(t *testing.T) 
 // bug Copilot found: a page-size-only request against a reader that cannot paginate used to
 // return before the capability round trip at all, so it reached the reader with SearchDepth == 0
 // and a Pagination field that reader does not consume — effectively unbounded. PageSize is now
-// folded into SearchDepth and Pagination cleared (ApplyPaginationCapability), so every reader in
+// folded into SearchDepth and Pagination cleared (PaginationForCapabilities), so every reader in
 // the fleet today, which only understands SearchDepth, actually honors the requested bound.
 func TestPrepareSearchQuery_PageSizeFoldedIntoSearchDepthWhenUnsupported(t *testing.T) {
 	enablePagination(t)
