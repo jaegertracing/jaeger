@@ -73,32 +73,18 @@ func fromPublicSpanQuery(q queryinterceptor.Query) tracestore.SpanQueryParams {
 // held to the same capability check as one the caller sent.
 func (qs QueryService) onQuery(ctx context.Context, query TraceQueryParams) (context.Context, TraceQueryParams, error) {
 	queryPreIntercept := toPublicQuery(query.ToFilterShape())
-	queryPostIntercept := queryPreIntercept
-	var err error
-	for _, interceptor := range qs.options.Interceptors {
-		ctx, queryPostIntercept, err = interceptor.OnQuery(ctx, queryPostIntercept)
-		if err != nil {
-			return ctx, query, err
-		}
+	ctx, queryPostIntercept, err := qs.onQueryRunInterceptors(ctx, queryPreIntercept)
+	if err != nil {
+		return ctx, query, err
 	}
-
-	// A legacy query whose predicates no interceptor touched reaches storage as it arrived, carrying
-	// only the time range or search depth one of them may have narrowed. Converting it anyway would
-	// change the answer on a backend that searches a legacy attribute more widely than an unqualified
-	// filter reference — Elasticsearch reads the legacy tag search over the event location too, while
-	// the filter's unqualified default is span-or-resource (RFC 0005 §5.1) — and enabling an
-	// interceptor must not move a result set by itself.
-	//
-	// TODO follow up to see if this is intended behavior:
-	// If the query was a legacy query, and the interceptors made no changes to the filter, then allow
-	// start time min/max changes. Why? I don't know.
+	// If this is a legacy query, and no changes were made by the interceptors to the filters,
+	// accept the updates from the time and search depth fields and ignore the filter changes
 	if query.Filter == nil && reflect.DeepEqual(queryPostIntercept.Filter, queryPreIntercept.Filter) {
 		query.StartTimeMin = queryPostIntercept.StartTimeMin
 		query.StartTimeMax = queryPostIntercept.StartTimeMax
 		query.SearchDepth = queryPostIntercept.SearchDepth
 		return ctx, query, nil
 	}
-
 	// Finalized after that comparison, so finalizing's own rewriting cannot read as a change an
 	// interceptor made.
 	queryPostIntercept.Filter, err = finalizeInterceptorFilter(queryPostIntercept.Filter)
@@ -107,6 +93,19 @@ func (qs QueryService) onQuery(ctx context.Context, query TraceQueryParams) (con
 	}
 	query.TraceQueryParams = fromPublicQuery(queryPostIntercept)
 	return ctx, query, nil
+}
+
+func (qs QueryService) onQueryRunInterceptors(ctx context.Context, queryPreIntercept queryinterceptor.Query) (context.Context, queryinterceptor.Query, error) {
+	queryPostIntercept := queryPreIntercept
+	var err error
+	for _, interceptor := range qs.options.Interceptors {
+		ctx, queryPostIntercept, err = interceptor.OnQuery(ctx, queryPostIntercept)
+		if err != nil {
+			return ctx, queryPreIntercept, err
+		}
+	}
+
+	return ctx, queryPostIntercept, nil
 }
 
 // onSpanQuery runs every interceptor's OnQuery in order, threading the context each returns into the
@@ -121,20 +120,10 @@ func (qs QueryService) onQuery(ctx context.Context, query TraceQueryParams) (con
 // held to the same capability check as one the caller sent.
 func (qs QueryService) onSpanQuery(ctx context.Context, query SpanQueryParams) (context.Context, SpanQueryParams, error) {
 	queryPreIntercept := toPublicSpanQuery(query.SpanQueryParams)
-	queryPostIntercept := queryPreIntercept
-	var err error
-	for _, interceptor := range qs.options.Interceptors {
-		ctx, queryPostIntercept, err = interceptor.OnQuery(ctx, queryPostIntercept)
-		if err != nil {
-			return ctx, query, err
-		}
+	ctx, queryPostIntercept, err := qs.onQueryRunInterceptors(ctx, queryPreIntercept)
+	if err != nil {
+		return ctx, query, err
 	}
-	// TODO do we want to carry forward the behavior where if a filter is not provided, the startmin/max can be reset by interceptors?
-	// I would like to be able to collapse these two methods to wrappers over a common method that runs the interceptors with the
-	// public query objects, but not if that behavior needs to be separate.
-
-	// Finalized after that comparison, so finalizing's own rewriting cannot read as a change an
-	// interceptor made.
 	queryPostIntercept.Filter, err = finalizeInterceptorFilter(queryPostIntercept.Filter)
 	if err != nil {
 		return ctx, query, err
@@ -189,18 +178,26 @@ func (qs QueryService) interceptResults(
 				}
 				continue
 			}
-			for _, interceptor := range qs.options.Interceptors {
-				ctx, traces, err = interceptor.OnResult(ctx, traces)
-				if err != nil {
-					yield(nil, err)
-					return
-				}
+			ctx, traces, err = qs.onResultRunInterceptors(ctx, traces, err)
+			if err != nil {
+				yield(nil, err)
+				return
 			}
 			if !yield(traces, nil) {
 				return
 			}
 		}
 	}
+}
+
+func (qs QueryService) onResultRunInterceptors(ctx context.Context, traces []ptrace.Traces, err error) (context.Context, []ptrace.Traces, error) {
+	for _, interceptor := range qs.options.Interceptors {
+		ctx, traces, err = interceptor.OnResult(ctx, traces)
+		if err != nil {
+			return nil, nil, err
+		}
+	}
+	return ctx, traces, nil
 }
 
 // interceptSpanResults hands every batch of seq to the interceptors' OnResult in order, threading the
@@ -227,12 +224,10 @@ func (qs QueryService) interceptSpanResults(
 			}
 			for _, spanPage := range spanPages {
 				spans := []ptrace.Traces{spanPage.Spans}
-				for _, interceptor := range qs.options.Interceptors {
-					ctx, spans, err = interceptor.OnResult(ctx, spans)
-					if err != nil {
-						yield(nil, err)
-						return
-					}
+				ctx, spans, err = qs.onResultRunInterceptors(ctx, spans, err)
+				if err != nil {
+					yield(nil, err)
+					return
 				}
 				// TODO what if the interceptor splits up the span array, how should we handle that?
 				// Naively, I think it would make sense to just merge the resulting Traces objects, but maybe that points to something else?
