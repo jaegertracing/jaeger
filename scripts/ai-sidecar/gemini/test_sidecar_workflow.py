@@ -248,32 +248,47 @@ def test_complete_acp_workflow_with_fake_agent() -> None:
 
 
 class FakeConn:
-    """Minimal stand-in for the ACP Client the runtime passes to on_connect,
-    covering only the surface JaegerSidecarAgent._execute_tool /
-    _execute_contextual_tool actually call."""
+    """Minimal stand-in for the ACP Client the runtime passes to on_connect.
 
-    def __init__(self, ext_method_response: dict[str, Any] | None = None) -> None:
+    It still records session_update calls, because the tests assert the sidecar
+    no longer emits any around a tool call — the gateway is the single source of
+    the TOOL_CALL_* events now.
+    """
+
+    def __init__(self) -> None:
         self.session_updates: list[Any] = []
-        self._ext_method_response = ext_method_response or {"acknowledged": True}
 
     async def session_update(self, session_id: str, update: Any, **kwargs: Any) -> None:
         self.session_updates.append(update)
 
-    async def ext_method(self, method: str, params: dict[str, Any]) -> dict[str, Any]:
-        return self._ext_method_response
+
+class FakeMCPClient:
+    """Stand-in for the per-turn GatewayMCPClient, covering the surface
+    _execute_tool uses."""
+
+    def __init__(self, tool_output: Any) -> None:
+        self._tool_output = tool_output
+        self.closed = False
+
+    async def call_tool(self, name: str, args: dict[str, Any]) -> Any:
+        return self._tool_output
+
+    async def close(self) -> None:
+        self.closed = True
 
 
-def _fake_call_tool(tool_output: Any) -> Any:
-    async def call_tool(name: str, args: dict[str, Any]) -> Any:
-        return tool_output
-
-    return call_tool
+def _agent_with_tool_output(tool_output: Any) -> tuple[sidecar.JaegerSidecarAgent, FakeConn]:
+    """An agent whose session "sess-1" has a live MCP client returning tool_output."""
+    agent = _new_jaeger_sidecar_agent()
+    conn = FakeConn()
+    agent.on_connect(conn)  # pyright: ignore[reportArgumentType]
+    agent._mcp_clients["sess-1"] = FakeMCPClient(tool_output)  # pyright: ignore[reportArgumentType]
+    return agent, conn
 
 
 def _new_jaeger_sidecar_agent() -> sidecar.JaegerSidecarAgent:
     config = SidecarConfig(
         gemini_api_key="test-key",
-        mcp_url="http://127.0.0.1:0/mcp",
         mcp_discovery_timeout_sec=1.0,
         otlp_endpoint="127.0.0.1:0",
         otlp_insecure=True,
@@ -298,13 +313,9 @@ def span_exporter(monkeypatch: pytest.MonkeyPatch) -> InMemorySpanExporter:
 
 
 def test_execute_tool_records_arguments_and_result(
-    span_exporter: InMemorySpanExporter, monkeypatch: pytest.MonkeyPatch
+    span_exporter: InMemorySpanExporter,
 ) -> None:
-    agent = _new_jaeger_sidecar_agent()
-    agent.on_connect(FakeConn())  # pyright: ignore[reportArgumentType]
-    monkeypatch.setattr(
-        agent._mcp, "call_tool", _fake_call_tool({"services": ["frontend", "backend"]})
-    )
+    agent, _ = _agent_with_tool_output({"services": ["frontend", "backend"]})
 
     args = {"service": "frontend", "limit": 20}
     result = asyncio.run(agent._execute_tool("sess-1", "search_traces", args, "call-1"))
@@ -317,44 +328,42 @@ def test_execute_tool_records_arguments_and_result(
     }
 
 
-def test_execute_contextual_tool_records_arguments_but_not_synthetic_ack(
+def test_execute_tool_emits_no_session_updates(span_exporter: InMemorySpanExporter) -> None:
+    """The gateway owns the TOOL_CALL_* SSE for every tool now that all calls go
+    through its endpoint. Emitting from here too would double each event on the
+    AG-UI wire, so the sidecar must stay silent."""
+    agent, conn = _agent_with_tool_output({"services": []})
+
+    asyncio.run(agent._execute_tool("sess-1", "search_traces", {}, "call-1"))
+
+    assert conn.session_updates == []
+
+
+def test_execute_tool_without_announced_endpoint_fails_loudly(
     span_exporter: InMemorySpanExporter,
 ) -> None:
+    """A session the gateway announced no MCP endpoint for has no tools to call.
+    Failing here beats returning a silent empty result that Gemini would narrate
+    as a real answer."""
     agent = _new_jaeger_sidecar_agent()
-    ext_response = {"acknowledged": True, "requestId": "abc"}
-    agent.on_connect(FakeConn(ext_method_response=ext_response))  # pyright: ignore[reportArgumentType]
+    agent.on_connect(FakeConn())  # pyright: ignore[reportArgumentType]
 
-    args = {"query": "error rate"}
-    result = asyncio.run(
-        agent._execute_contextual_tool("sess-1", "frontend_widget_tool", args, "call-2")
-    )
-
-    assert result == ext_response
-    span = _find_span(span_exporter, "sidecar.execute_contextual_tool")
-    assert json.loads(span.attributes["gen_ai.tool.call.arguments"]) == args
-    # The gateway's ack is not the tool's real output (fire-and-forget; see
-    # _execute_contextual_tool's docstring), so it must not be mislabeled as
-    # gen_ai.tool.call.result.
-    assert "gen_ai.tool.call.result" not in span.attributes
+    with pytest.raises(RuntimeError, match="no MCP endpoint was announced"):
+        asyncio.run(agent._execute_tool("sess-unknown", "search_traces", {}, "call-1"))
 
 
 def test_execute_tool_truncates_oversized_result_on_span_only(
-    span_exporter: InMemorySpanExporter, monkeypatch: pytest.MonkeyPatch
+    span_exporter: InMemorySpanExporter,
 ) -> None:
     from sidecar_helpers import MAX_SPAN_ATTR_CHARS
 
-    agent = _new_jaeger_sidecar_agent()
-    conn = FakeConn()
-    agent.on_connect(conn)  # pyright: ignore[reportArgumentType]
     huge_output = {"text": "x" * (MAX_SPAN_ATTR_CHARS * 2)}
-    monkeypatch.setattr(agent._mcp, "call_tool", _fake_call_tool(huge_output))
+    agent, _ = _agent_with_tool_output(huge_output)
 
     result = asyncio.run(agent._execute_tool("sess-1", "search_traces", {}, "call-3"))
 
-    # The full, untruncated payload still reaches the AG-UI wire.
+    # The full, untruncated payload still reaches the LLM loop.
     assert result == huge_output
-    completed_update = conn.session_updates[-1]
-    assert completed_update.raw_output == {"content": huge_output}
 
     # Only the span attribute is capped, to protect OTLP export from
     # arbitrarily large tool payloads.
@@ -363,3 +372,144 @@ def test_execute_tool_truncates_oversized_result_on_span_only(
     assert len(result_attr) <= MAX_SPAN_ATTR_CHARS
     assert result_attr.endswith("chars total]")
 
+
+# --- the gateway announcement: session/new -> the turn's MCP endpoint ---------
+
+
+def test_initialize_advertises_http_mcp_capability() -> None:
+    """ACP requires an agent to opt into each McpServer variant, and the gateway
+    announces nothing to an agent that did not. Without mcpCapabilities.http the
+    sidecar would receive no mcpServers and every turn would silently run with
+    zero tools — so this is the capability the whole design hangs on."""
+    agent = _new_jaeger_sidecar_agent()
+
+    response = asyncio.run(agent.initialize(PROTOCOL_VERSION))
+
+    caps = response.agent_capabilities
+    assert caps is not None and caps.mcp_capabilities is not None
+    assert caps.mcp_capabilities.http is True
+
+
+def test_announced_mcp_endpoint_skips_sse() -> None:
+    """An SSE announcement carries the same url/headers shape as HTTP but speaks a
+    different protocol, so dialing it with the streamable-HTTP client would fail
+    at connect. Only the http variant is consumed."""
+    from sidecar_helpers import _announced_mcp_endpoint
+
+    assert _announced_mcp_endpoint([
+        {"type": "sse", "name": "jaeger", "url": "http://x/sse", "headers": []}
+    ]) is None
+
+
+def test_announced_mcp_endpoint_reads_url_and_headers() -> None:
+    """The announcement is the only thing telling the sidecar where to dial, and
+    its headers are load-bearing: the endpoint sits behind jaeger-query's tenancy
+    extraction, so a dropped tenant header turns every tool call into a 401."""
+    from sidecar_helpers import _announced_mcp_endpoint
+
+    announced = _announced_mcp_endpoint([
+        {
+            "type": "http",
+            "name": "jaeger",
+            "url": "http://127.0.0.1:16686/api/ai/mcp/route-1/",
+            "headers": [{"name": "x-tenant", "value": "acme"}],
+        }
+    ])
+
+    assert announced == (
+        "http://127.0.0.1:16686/api/ai/mcp/route-1/",
+        {"x-tenant": "acme"},
+    )
+
+
+def test_announced_mcp_endpoint_accepts_acp_models() -> None:
+    """Depending on how the router decoded session/new, entries arrive as parsed
+    ACP models rather than dicts; both must read the same."""
+    from acp.schema import HttpMcpServer
+
+    from sidecar_helpers import _announced_mcp_endpoint
+
+    server = HttpMcpServer.model_validate({
+        "type": "http",
+        "name": "jaeger",
+        "url": "http://127.0.0.1:16686/api/ai/mcp/route-2/",
+        "headers": [{"name": "x-tenant", "value": "acme"}],
+    })
+
+    assert _announced_mcp_endpoint([server]) == (
+        "http://127.0.0.1:16686/api/ai/mcp/route-2/",
+        {"x-tenant": "acme"},
+    )
+
+
+@pytest.mark.parametrize(
+    "mcp_servers",
+    [
+        pytest.param(None, id="nothing announced"),
+        pytest.param([], id="empty announcement"),
+        pytest.param([{"type": "stdio", "name": "x", "command": "y"}], id="stdio only"),
+    ],
+)
+def test_announced_mcp_endpoint_absent(mcp_servers: Any) -> None:
+    """No HTTP endpoint announced is the shape of a deployment without the MCP
+    config block — the turn runs with no tools rather than failing at parse."""
+    from sidecar_helpers import _announced_mcp_endpoint
+
+    assert _announced_mcp_endpoint(mcp_servers) is None
+
+
+def test_new_session_builds_client_from_announcement() -> None:
+    agent = _new_jaeger_sidecar_agent()
+
+    response = asyncio.run(
+        agent.new_session(
+            cwd="/",
+            mcp_servers=[
+                {
+                    "type": "http",
+                    "name": "jaeger",
+                    "url": "http://127.0.0.1:16686/api/ai/mcp/route-1/",
+                    "headers": [{"name": "x-tenant", "value": "acme"}],
+                }
+            ],
+        )
+    )
+
+    client = agent._mcp_clients[response.session_id]
+    assert client._url == "http://127.0.0.1:16686/api/ai/mcp/route-1/"
+    assert client._headers == {"x-tenant": "acme"}
+
+
+def test_new_session_without_announcement_registers_no_client() -> None:
+    agent = _new_jaeger_sidecar_agent()
+
+    response = asyncio.run(agent.new_session(cwd="/", mcp_servers=[]))
+
+    assert response.session_id not in agent._mcp_clients
+
+
+def test_prompt_closes_the_turns_mcp_client() -> None:
+    """The gateway opens one ACP session per chat request and never reuses the id,
+    so a client left open would leak an HTTP connection per turn. prompt closes it
+    in finally, which also covers turns the gateway never closes (client
+    disconnect mid-stream)."""
+    agent, _ = _agent_with_tool_output({"services": []})
+    client = agent._mcp_clients["sess-1"]
+
+    asyncio.run(agent.prompt("sess-1", [text_block("hello")]))
+
+    assert client.closed  # pyright: ignore[reportAttributeAccessIssue]
+    assert "sess-1" not in agent._mcp_clients
+
+
+def test_aclose_releases_clients_for_unfinished_sessions() -> None:
+    """A session the gateway opened but never prompted never reaches prompt's
+    finally, and session/close is not advertised — so the connection teardown is
+    the only thing left to release its MCP client."""
+    agent, _ = _agent_with_tool_output({"services": []})
+    client = agent._mcp_clients["sess-1"]
+
+    asyncio.run(agent.aclose())
+
+    assert client.closed  # pyright: ignore[reportAttributeAccessIssue]
+    assert agent._mcp_clients == {}
