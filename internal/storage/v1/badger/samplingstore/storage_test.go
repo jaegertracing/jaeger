@@ -113,6 +113,45 @@ func TestDecodeThroughtputValue(t *testing.T) {
 	assert.Equal(t, expected, acrual)
 }
 
+func TestInsertThroughput_Error(t *testing.T) {
+	opts := badger.DefaultOptions("")
+	dir := t.TempDir()
+	opts.Dir = dir
+	opts.ValueDir = dir
+
+	store, err := badger.Open(opts)
+	require.NoError(t, err)
+	ss := newTestSamplingStore(store)
+
+	require.NoError(t, store.Close())
+
+	throughputs := []*samplemodel.Throughput{
+		{Service: "my-svc", Operation: "op"},
+	}
+	err = ss.InsertThroughput(throughputs)
+	assert.Error(t, err)
+}
+
+func TestInsertProbabilitiesAndQPS_Error(t *testing.T) {
+	opts := badger.DefaultOptions("")
+	dir := t.TempDir()
+	opts.Dir = dir
+	opts.ValueDir = dir
+
+	store, err := badger.Open(opts)
+	require.NoError(t, err)
+	ss := newTestSamplingStore(store)
+
+	require.NoError(t, store.Close())
+
+	err = ss.InsertProbabilitiesAndQPS(
+		"hostname",
+		samplemodel.ServiceOperationProbabilities{"svc": {"op": 0.5}},
+		samplemodel.ServiceOperationQPS{"svc": {"op": 10}},
+	)
+	assert.Error(t, err)
+}
+
 func runWithBadger(t *testing.T, test func(t *testing.T, store *SamplingStore)) {
 	opts := badger.DefaultOptions("")
 
