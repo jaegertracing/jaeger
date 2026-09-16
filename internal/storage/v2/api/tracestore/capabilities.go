@@ -61,8 +61,6 @@ type SearchCapabilities struct {
 	// a filter to run must express it in those fields or refuse the query.
 	Filter *FilterCapabilities
 
-	Paginated bool // RFC 0014: TODO either wait on the PR for this, or drop it from this changeset
-
 	// SpanSearch is true when FindSpans is supported by the backend. False means that the
 	// backend does not support that capability.
 	SpanSearch bool // RFC 0016: FindSpans returns spans

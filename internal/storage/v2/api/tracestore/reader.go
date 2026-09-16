@@ -129,13 +129,6 @@ type GetTraceParams struct {
 // several stores.
 const MaxSearchDepth = 10000
 
-// Pagination mirrors the proto message of the same name.
-// TODO does this need to wait on 0014's go side landing?
-type Pagination struct {
-	PageSize  int    // page bound; zero means this is not a paginated request
-	PageToken string // opaque continuation cursor; empty starts a new search
-}
-
 // SpanPage is one chunk of a page of span results. NextPageToken is meaningful
 // only on the page's final chunk, where an empty value means this page is the
 // last; the earlier chunks leave it unset, so a caller reads it from the last
@@ -152,7 +145,7 @@ type SpanQueryParams struct {
 	StartTimeMin time.Time
 	StartTimeMax time.Time
 	Filter       *expression.Call // RFC 0005
-	Pagination   Pagination       // RFC 0014
+	// TODO add pagination after RFC 0014 lands
 }
 
 // UnsupportedSpanSearch provides a Reader.FindSpans implementation for backends that

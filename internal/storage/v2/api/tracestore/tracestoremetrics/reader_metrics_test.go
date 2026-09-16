@@ -267,7 +267,7 @@ func TestReadMetricsDecorator_SearchCapabilities(t *testing.T) {
 		{WithoutServiceName: false},
 		{WithoutServiceName: true},
 		{SameSpanConjunction: true},
-		{Paginated: true},
+		{SpanSearch: false},
 		{SpanSearch: true},
 		{Filter: &tracestore.FilterCapabilities{Levels: []expression.Level{expression.LevelSpan}}},
 	} {
