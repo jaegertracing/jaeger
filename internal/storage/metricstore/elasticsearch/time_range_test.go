@@ -18,9 +18,24 @@ func TestCalculateTimeRange(t *testing.T) {
 	lookback := time.Hour
 	startTime := endTime.Add(-lookback)
 
+	tr, err := calculateTimeRange(&metricstore.BaseQueryParameters{
+		EndTime:  &endTime,
+		Lookback: &lookback,
+	})
+	require.NoError(t, err)
+	assert.Equal(t, startTime.UnixMilli(), tr.startTimeMillis)
+	assert.Equal(t, endTime.UnixMilli(), tr.endTimeMillis)
+	assert.Equal(t, startTime.UnixMilli(), tr.extendedStartTimeMillis)
+}
+
+func TestCalculateRateTimeRange(t *testing.T) {
+	endTime := time.Date(2026, 1, 15, 12, 0, 0, 0, time.UTC)
+	lookback := time.Hour
+	startTime := endTime.Add(-lookback)
+
 	for _, ratePer := range []time.Duration{5 * time.Minute, 10 * time.Minute, 30 * time.Minute, time.Hour} {
 		t.Run(ratePer.String(), func(t *testing.T) {
-			tr, err := calculateTimeRange(&metricstore.BaseQueryParameters{
+			tr, err := calculateRateTimeRange(&metricstore.BaseQueryParameters{
 				EndTime:  &endTime,
 				Lookback: &lookback,
 				RatePer:  &ratePer,
