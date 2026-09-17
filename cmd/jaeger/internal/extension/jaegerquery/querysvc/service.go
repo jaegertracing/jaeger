@@ -24,6 +24,9 @@ import (
 
 var errNoArchiveSpanStorage = errors.New("archive span storage was not configured")
 
+// ErrSpanSearchUnsupported is returned when the backend does not support searching and returning spans
+var ErrSpanSearchUnsupported = errors.New("this storage backend does not support FindSpans")
+
 // ErrServiceNameRequired is returned for a search that omits the service name against a
 // backend whose reader does not accept one (RFC 0013 §3.3). It names the backend's
 // limitation rather than the missing field, because the same query is valid elsewhere.
@@ -64,6 +67,12 @@ type GetTraceParams struct {
 	// RawTraces indicates whether to retrieve raw traces.
 	// If set to false, the traces will be adjusted using QueryServiceOptions.Adjuster.
 	RawTraces bool
+}
+
+// TODO I'm not sure these structs buy enough. Maybe rm them. It seems like the tracestore types already leak into the http gateway anyway
+// SpanQueryParams represents the parameters for querying a batch of traces.
+type SpanQueryParams struct {
+	tracestore.SpanQueryParams
 }
 
 // TraceQueryParams represents the parameters for querying a batch of traces.
@@ -151,6 +160,23 @@ func (qs QueryService) GetOperations(
 	query tracestore.OperationQueryParams,
 ) ([]tracestore.Operation, error) {
 	return qs.traceReader.GetOperations(ctx, query)
+}
+
+// FindSpans searches for spans matching the query parameters.
+// The iterator is single-use: once consumed, it cannot be used again.
+func (qs QueryService) FindSpans(
+	ctx context.Context,
+	query SpanQueryParams,
+) iter.Seq2[[]tracestore.SpanPage, error] {
+	return func(yield func([]tracestore.SpanPage, error) bool) {
+		ctx, query, err := qs.prepareSpanSearchQuery(ctx, query)
+		if err != nil {
+			yield(nil, err)
+			return
+		}
+		spansIter := qs.interceptSpanResults(ctx, qs.traceReader.FindSpans(ctx, query.SpanQueryParams))
+		spansIter(yield)
+	}
 }
 
 // FindTraces searches for traces matching the query parameters.
@@ -254,6 +280,82 @@ func (qs QueryService) prepareSearchQuery(
 		return ctx, query, ErrServiceNameRequired
 	}
 	return ctx, query, nil
+}
+
+// prepareSearchQuery settles a search before it is dispatched: it refuses a request this
+// deployment does not accept, gives the configured query interceptors their say, and returns the
+// query to dispatch in the shape the backend understands, along with the context to dispatch it
+// with. One place decides, so that every caller gets the same answer instead of each backend's
+// own (ADR-013).
+//
+// The interceptors run after the caller's request is validated and before the backend's
+// capabilities are consulted. So an interceptor is never shown a request jaeger-query was going
+// to refuse anyway, and a predicate an interceptor adds is held to the same capability check as
+// one the caller sent.
+func (qs QueryService) prepareSpanSearchQuery(
+	ctx context.Context,
+	query SpanQueryParams,
+) (context.Context, SpanQueryParams, error) {
+	if err := qs.checkSpanSearchCapability(ctx); err != nil {
+		return ctx, query, err
+	}
+	// TODO should this fail if the filter is nil?
+	if query.Filter != nil {
+		// None of these refusals depends on the backend, so they come before the capability call
+		// rather than after it.
+		if !StructuredFiltersGate.IsEnabled() {
+			return ctx, query, fmt.Errorf("%w: enable the %q feature gate to use it",
+				ErrFilterDisabled, StructuredFiltersGate.ID())
+		}
+
+		// Decoding a filter validates nothing, so it is finalized — validated and normalized —
+		// here, on behalf of every API layer above (RFC 0005 §7).
+		finalized, err := tracestore.FinalizeFilter(query.Filter)
+		if err != nil {
+			return ctx, query, fmt.Errorf("%w: %w", tracestore.ErrFilterInvalid, err)
+		}
+		query.Filter = finalized
+	}
+	if len(qs.options.Interceptors) > 0 {
+		var err error
+		ctx, query, err = qs.onSpanQuery(ctx, query)
+		if err != nil {
+			return ctx, query, err
+		}
+	}
+	caps, err := qs.traceReader.SearchCapabilities(ctx)
+	if err != nil {
+		// A reader that cannot report its capabilities reads as the least capable one, which
+		// serves only the legacy predicate fields.
+		caps = tracestore.SearchCapabilities{}
+	}
+	// check that the modified query is still valid
+	// TODO do we want to obscure the error message if the error is in something the interceptors generated?
+	// Maybe we should check before and after. That would also make determining when an error is introduced easier.
+	err = qs.checkSpanSearchFilterCapabilities(caps, query)
+	if err != nil {
+		return ctx, query, err
+	}
+	return ctx, query, nil
+}
+
+func (qs QueryService) checkSpanSearchCapability(ctx context.Context) error {
+	caps, err := qs.traceReader.SearchCapabilities(ctx)
+	if err != nil {
+		// A reader that cannot report its capabilities won't support the span search feature
+		caps = tracestore.SearchCapabilities{}
+	}
+	if caps.SpanSearch {
+		return nil
+	}
+	return ErrSpanSearchUnsupported
+}
+
+func (QueryService) checkSpanSearchFilterCapabilities(caps tracestore.SearchCapabilities, query SpanQueryParams) error {
+	if caps.Filter == nil {
+		return nil
+	}
+	return caps.Filter.EnsureSupported(query.Filter)
 }
 
 func (qs QueryService) checkServiceName(ctx context.Context, query TraceQueryParams) error {
