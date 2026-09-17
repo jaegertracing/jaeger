@@ -29,6 +29,8 @@ type Store struct {
 	// The in-memory store does not compute trace summaries natively; fall back to
 	// FindTraces + client-side aggregation.
 	tracestore.UnsupportedTraceSummaries
+	// The in-memory store does not serve span search yet (RFC 0016); unsupported.
+	tracestore.UnsupportedSpanSearch
 
 	mu sync.RWMutex
 	// Each tenant gets a copy of default config.
