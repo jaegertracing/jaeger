@@ -223,16 +223,29 @@ func (qs QueryService) interceptSpanResults(
 				}
 				continue
 			}
-			for _, spanPage := range spanPages {
-				spans := []ptrace.Traces{spanPage.Spans}
+			for i := range spanPages {
+				spans := []ptrace.Traces{spanPages[i].Spans}
 				ctx, spans, err = qs.onResultRunInterceptors(ctx, spans)
 				if err != nil {
 					yield(nil, err)
 					return
 				}
-				// TODO what if the interceptor splits up the span array, how should we handle that?
-				// Naively, I think it would make sense to just merge the resulting Traces objects, but maybe that points to something else?
-				spanPage.Spans = spans[0]
+				if spans == nil {
+					return
+				}
+
+				switch len(spans) {
+				case 0:
+					spanPages[i].Spans = ptrace.NewTraces()
+				case 1:
+					spanPages[i].Spans = spans[0]
+				default:
+					newSpans := ptrace.NewTraces()
+					for _, spanTraces := range spans {
+						spanTraces.CopyTo(newSpans)
+					}
+					spanPages[i].Spans = newSpans
+				}
 			}
 
 			if !yield(spanPages, nil) {

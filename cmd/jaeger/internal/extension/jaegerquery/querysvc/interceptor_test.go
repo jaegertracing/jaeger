@@ -43,7 +43,7 @@ type fakeReader struct {
 // unless a test says otherwise, since that is the shape most of these searches assume.
 func (f *fakeReader) SearchCapabilities(context.Context) (tracestore.SearchCapabilities, error) {
 	if f.capabilities == nil {
-		return tracestore.SearchCapabilities{WithoutServiceName: true}, nil
+		return tracestore.SearchCapabilities{WithoutServiceName: true, SpanSearch: true}, nil
 	}
 	return *f.capabilities, nil
 }
@@ -80,8 +80,21 @@ func (*fakeReader) FindTraceIDs(context.Context, tracestore.TraceQueryParams) it
 	return func(func([]tracestore.FoundTraceID, error) bool) {}
 }
 
-func (*fakeReader) FindSpans(ctx context.Context, q tracestore.SpanQueryParams) iter.Seq2[[]tracestore.SpanPage, error] {
-	return tracestore.UnsupportedSpanSearch{}.FindSpans(ctx, q)
+func (f *fakeReader) FindSpans(ctx context.Context, _ tracestore.SpanQueryParams) iter.Seq2[[]tracestore.SpanPage, error] {
+	// f.findCalled = true
+	// f.gotQuery = q
+	f.gotCtx = ctx
+	return func(yield func([]tracestore.SpanPage, error) bool) {
+		if f.err != nil {
+			yield(nil, f.err)
+			return
+		}
+		pages := make([]tracestore.SpanPage, 0, len(f.batch))
+		for _, spans := range f.batch {
+			pages = append(pages, tracestore.SpanPage{Spans: spans, NextPageToken: ""})
+		}
+		yield(pages, nil)
+	}
 }
 
 func (*fakeReader) GetServices(context.Context) ([]string, error) {
@@ -879,6 +892,40 @@ func TestFindTraces_ThreadsResultContextAcrossBatches(t *testing.T) {
 	_, err := collectTraces(qs.FindTraces(t.Context(), searchQuery(tracestore.TraceQueryParams{})))
 	require.NoError(t, err)
 	assert.Equal(t, []int{0, 1}, seen, "OnResult's returned context must thread into the next batch")
+}
+
+func TestFindSpans_interceptorModifications(t *testing.T) {
+	t.Run("interceptor creates nil spans", func(t *testing.T) {
+		enableStructuredFilters(t)
+		reader := &fakeReader{batch: tracesWith("v", "0")}
+		interceptor := fakeInterceptor{onResult: func(_ []ptrace.Traces) ([]ptrace.Traces, error) {
+			return nil, nil
+		}}
+		qs := interceptedService(reader, interceptor)
+		_, err := collectSpans(qs.FindSpans(t.Context(), SpanQueryParams{tracestore.SpanQueryParams{Filter: serviceFilter("v")}}))
+		assert.NoError(t, err)
+	})
+	t.Run("interceptor creates empty spans", func(t *testing.T) {
+		enableStructuredFilters(t)
+		reader := &fakeReader{batch: tracesWith("v", "0")}
+		interceptor := fakeInterceptor{onResult: func(_ []ptrace.Traces) ([]ptrace.Traces, error) {
+			return []ptrace.Traces{}, nil
+		}}
+		qs := interceptedService(reader, interceptor)
+		_, err := collectSpans(qs.FindSpans(t.Context(), SpanQueryParams{tracestore.SpanQueryParams{Filter: serviceFilter("v")}}))
+		require.NoError(t, err)
+	})
+}
+
+func collectSpans(it iter.Seq2[[]tracestore.SpanPage, error]) ([][]tracestore.SpanPage, error) {
+	var out [][]tracestore.SpanPage
+	for batch, err := range it {
+		if err != nil {
+			return out, err
+		}
+		out = append(out, batch)
+	}
+	return out, nil
 }
 
 func TestGetTraces_ThreadsResultContextAcrossBatches(t *testing.T) {

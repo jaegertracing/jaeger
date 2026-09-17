@@ -490,6 +490,9 @@ func (QueryService) receiveSpans(
 			proceed = yield(spanPages, err)
 			return proceed
 		}
+		if spanPages == nil {
+			return false
+		}
 		for _, spanPage := range spanPages {
 			jptrace.SpanIter(spanPage.Spans)(func(_ jptrace.SpanIterPos, span ptrace.Span) bool {
 				foundTraceIDs[span.TraceID()] = struct{}{}
