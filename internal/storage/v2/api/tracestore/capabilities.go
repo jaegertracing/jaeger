@@ -62,8 +62,8 @@ type SearchCapabilities struct {
 	Filter *FilterCapabilities
 
 	// SpanSearch is true when FindSpans is supported by the backend. False means that the
-	// backend does not support that capability.
-	SpanSearch bool // RFC 0016: FindSpans returns spans
+	// backend does not support that capability. See RFC 0016 for details.
+	SpanSearch bool
 }
 
 // FilterCapabilities declares how much of a structured filter a Reader evaluates, by naming
