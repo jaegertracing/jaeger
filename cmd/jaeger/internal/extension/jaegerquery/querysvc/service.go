@@ -69,7 +69,7 @@ type GetTraceParams struct {
 	RawTraces bool
 }
 
-// I'm not sure these structs buy enough. Maybe rm them. It seems like the tracestore types already leak into the http gateway anyway
+// TODO I'm not sure these structs buy enough. Maybe rm them. It seems like the tracestore types already leak into the http gateway anyway
 // SpanQueryParams represents the parameters for querying a batch of traces.
 type SpanQueryParams struct {
 	tracestore.SpanQueryParams
