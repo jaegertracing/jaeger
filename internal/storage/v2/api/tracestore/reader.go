@@ -129,6 +129,9 @@ type TraceQueryParams struct {
 	DurationMin  time.Duration
 	DurationMax  time.Duration
 	SearchDepth  int
+	// Offset is the number of matching traces to skip before returning results.
+	// Defaults to 0 (return matching traces starting from the first match).
+	Offset int
 	// Filter is the structured query filter (RFC 0005): a boolean-valued Call over
 	// level-qualified attributes and built-in fields. It is mutually exclusive with the
 	// predicate fields above — ServiceName, OperationName, Attributes and the duration

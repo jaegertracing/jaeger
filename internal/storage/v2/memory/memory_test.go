@@ -561,6 +561,116 @@ func testInvalidSearchDepth(t *testing.T, fxn func(store *Store, params tracesto
 	}
 }
 
+func TestFindTraces_OffsetPagination(t *testing.T) {
+	store, err := NewStore(Configuration{
+		MaxTraces: 10,
+	})
+	require.NoError(t, err)
+
+	traceIDs := make([]pcommon.TraceID, 5)
+	for i := 0; i < 5; i++ {
+		traceIDs[i] = fromString(t, fmt.Sprintf("0000000000000%03d0000000000000000", i+1))
+		td := ptrace.NewTraces()
+		resourceSpan := td.ResourceSpans().AppendEmpty()
+		resourceSpan.Resource().Attributes().PutStr(conventions.ServiceNameKey, "service-offset")
+		span := resourceSpan.ScopeSpans().AppendEmpty().Spans().AppendEmpty()
+		span.SetTraceID(traceIDs[i])
+		span.SetName(fmt.Sprintf("span-%d", i+1))
+		require.NoError(t, store.WriteTraces(context.Background(), td))
+	}
+
+	collectTraceIDsFromFindTraces := func(offset, limit int) ([]pcommon.TraceID, error) {
+		query := tracestore.TraceQueryParams{
+			ServiceName: "service-offset",
+			Attributes:  pcommon.NewMap(),
+			SearchDepth: limit,
+			Offset:      offset,
+		}
+		var ids []pcommon.TraceID
+		for traces, err := range store.FindTraces(context.Background(), query) {
+			if err != nil {
+				return nil, err
+			}
+			for _, tr := range traces {
+				if tr.ResourceSpans().Len() > 0 &&
+					tr.ResourceSpans().At(0).ScopeSpans().Len() > 0 &&
+					tr.ResourceSpans().At(0).ScopeSpans().At(0).Spans().Len() > 0 {
+					ids = append(ids, tr.ResourceSpans().At(0).ScopeSpans().At(0).Spans().At(0).TraceID())
+				}
+			}
+		}
+		return ids, nil
+	}
+
+	collectTraceIDsFromFindTraceIDs := func(offset, limit int) ([]pcommon.TraceID, error) {
+		query := tracestore.TraceQueryParams{
+			ServiceName: "service-offset",
+			Attributes:  pcommon.NewMap(),
+			SearchDepth: limit,
+			Offset:      offset,
+		}
+		var ids []pcommon.TraceID
+		for foundIDs, err := range store.FindTraceIDs(context.Background(), query) {
+			if err != nil {
+				return nil, err
+			}
+			for _, id := range foundIDs {
+				ids = append(ids, id.TraceID)
+			}
+		}
+		return ids, nil
+	}
+
+	// Traces in store ordered from most recent to oldest: traceIDs[4], traceIDs[3], traceIDs[2], traceIDs[1], traceIDs[0]
+	t.Run("first page offset 0", func(t *testing.T) {
+		ids, err := collectTraceIDsFromFindTraces(0, 2)
+		require.NoError(t, err)
+		assert.Equal(t, []pcommon.TraceID{traceIDs[4], traceIDs[3]}, ids)
+
+		idsFromIDs, err := collectTraceIDsFromFindTraceIDs(0, 2)
+		require.NoError(t, err)
+		assert.Equal(t, []pcommon.TraceID{traceIDs[4], traceIDs[3]}, idsFromIDs)
+	})
+
+	t.Run("second page offset 2", func(t *testing.T) {
+		ids, err := collectTraceIDsFromFindTraces(2, 2)
+		require.NoError(t, err)
+		assert.Equal(t, []pcommon.TraceID{traceIDs[2], traceIDs[1]}, ids)
+
+		idsFromIDs, err := collectTraceIDsFromFindTraceIDs(2, 2)
+		require.NoError(t, err)
+		assert.Equal(t, []pcommon.TraceID{traceIDs[2], traceIDs[1]}, idsFromIDs)
+	})
+
+	t.Run("last partial page offset 4", func(t *testing.T) {
+		ids, err := collectTraceIDsFromFindTraces(4, 2)
+		require.NoError(t, err)
+		assert.Equal(t, []pcommon.TraceID{traceIDs[0]}, ids)
+
+		idsFromIDs, err := collectTraceIDsFromFindTraceIDs(4, 2)
+		require.NoError(t, err)
+		assert.Equal(t, []pcommon.TraceID{traceIDs[0]}, idsFromIDs)
+	})
+
+	t.Run("out of bounds offset", func(t *testing.T) {
+		ids, err := collectTraceIDsFromFindTraces(5, 2)
+		require.NoError(t, err)
+		assert.Empty(t, ids)
+
+		idsFromIDs, err := collectTraceIDsFromFindTraceIDs(5, 2)
+		require.NoError(t, err)
+		assert.Empty(t, idsFromIDs)
+	})
+
+	t.Run("negative offset returns error", func(t *testing.T) {
+		_, err := collectTraceIDsFromFindTraces(-1, 2)
+		require.ErrorIs(t, err, errInvalidOffset)
+
+		_, err = collectTraceIDsFromFindTraceIDs(-1, 2)
+		require.ErrorIs(t, err, errInvalidOffset)
+	})
+}
+
 func TestFindTraces_StatusCode(t *testing.T) {
 	store, err := NewStore(Configuration{
 		MaxTraces: 10,

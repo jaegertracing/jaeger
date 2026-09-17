@@ -31,6 +31,7 @@ func TestParseFindTracesQuery(t *testing.T) {
 		q.Set(paramTimeMin, goodMin)
 		q.Set(paramTimeMax, goodMax)
 		q.Set(paramSearchDepth, "20")
+		q.Set(paramOffset, "10")
 		q.Set(paramDurationMin, "1s")
 		q.Set(paramDurationMax, "2s")
 		q.Set(paramQueryRawTraces, "true")
@@ -42,6 +43,7 @@ func TestParseFindTracesQuery(t *testing.T) {
 		assert.Equal(t, tMin, got.StartTimeMin)
 		assert.Equal(t, tMax, got.StartTimeMax)
 		assert.Equal(t, 20, got.SearchDepth)
+		assert.Equal(t, 10, got.Offset)
 		assert.Equal(t, time.Second, got.DurationMin)
 		assert.Equal(t, 2*time.Second, got.DurationMax)
 		assert.True(t, got.RawTraces)
@@ -54,6 +56,7 @@ func TestParseFindTracesQuery(t *testing.T) {
 		q.Set(paramTimeMinDeprecated, goodMin)
 		q.Set(paramTimeMaxDeprecated, goodMax)
 		q.Set(paramSearchDepthDeprecated, "5")
+		q.Set(paramOffsetDeprecated, "5")
 		q.Set(paramDurationMinDeprecated, "500ms")
 		q.Set(paramDurationMaxDeprecated, "1s")
 		q.Set(paramQueryRawTracesDeprecated, "true")
@@ -65,12 +68,13 @@ func TestParseFindTracesQuery(t *testing.T) {
 		assert.Equal(t, tMin, got.StartTimeMin)
 		assert.Equal(t, tMax, got.StartTimeMax)
 		assert.Equal(t, 5, got.SearchDepth)
+		assert.Equal(t, 5, got.Offset)
 		assert.Equal(t, 500*time.Millisecond, got.DurationMin)
 		assert.Equal(t, time.Second, got.DurationMax)
 		assert.True(t, got.RawTraces)
 	})
 
-	t.Run("default search depth", func(t *testing.T) {
+	t.Run("default search depth and offset", func(t *testing.T) {
 		q := url.Values{}
 		q.Set(paramTimeMin, goodMin)
 		q.Set(paramTimeMax, goodMax)
@@ -78,6 +82,51 @@ func TestParseFindTracesQuery(t *testing.T) {
 		got, err := parseFindTracesQuery(q)
 		require.NoError(t, err)
 		assert.Equal(t, defaultSearchDepth, got.SearchDepth)
+		assert.Equal(t, 0, got.Offset)
+	})
+
+	t.Run("offset via query.offset (canonical)", func(t *testing.T) {
+		q := url.Values{}
+		q.Set(paramTimeMin, goodMin)
+		q.Set(paramTimeMax, goodMax)
+		q.Set(paramOffset, "12")
+
+		got, err := parseFindTracesQuery(q)
+		require.NoError(t, err)
+		assert.Equal(t, 12, got.Offset)
+	})
+
+	t.Run("offset via offset alias", func(t *testing.T) {
+		q := url.Values{}
+		q.Set(paramTimeMin, goodMin)
+		q.Set(paramTimeMax, goodMax)
+		q.Set(paramOffsetDeprecated, "7")
+
+		got, err := parseFindTracesQuery(q)
+		require.NoError(t, err)
+		assert.Equal(t, 7, got.Offset)
+	})
+
+	t.Run("search depth via limit alias", func(t *testing.T) {
+		q := url.Values{}
+		q.Set(paramTimeMin, goodMin)
+		q.Set(paramTimeMax, goodMax)
+		q.Set(paramLimitDeprecated, "25")
+
+		got, err := parseFindTracesQuery(q)
+		require.NoError(t, err)
+		assert.Equal(t, 25, got.SearchDepth)
+	})
+
+	t.Run("search depth via query.limit alias", func(t *testing.T) {
+		q := url.Values{}
+		q.Set(paramTimeMin, goodMin)
+		q.Set(paramTimeMax, goodMax)
+		q.Set(paramLimit, "30")
+
+		got, err := parseFindTracesQuery(q)
+		require.NoError(t, err)
+		assert.Equal(t, 30, got.SearchDepth)
 	})
 
 	t.Run("search depth via num_traces alias", func(t *testing.T) {
@@ -206,6 +255,26 @@ func TestParseFindTracesQuery(t *testing.T) {
 			name:    "num_traces above max",
 			params:  map[string]string{paramTimeMin: goodMin, paramTimeMax: goodMax, paramNumTraces: strconv.Itoa(tracestore.MaxSearchDepth + 1)},
 			wantErr: "malformed parameter " + paramNumTraces,
+		},
+		{
+			name:    "bad offset (canonical)",
+			params:  map[string]string{paramTimeMin: goodMin, paramTimeMax: goodMax, paramOffset: "NaN"},
+			wantErr: "malformed parameter " + paramOffset,
+		},
+		{
+			name:    "bad offset (deprecated)",
+			params:  map[string]string{paramTimeMin: goodMin, paramTimeMax: goodMax, paramOffsetDeprecated: "NaN"},
+			wantErr: "malformed parameter " + paramOffsetDeprecated,
+		},
+		{
+			name:    "negative offset (canonical)",
+			params:  map[string]string{paramTimeMin: goodMin, paramTimeMax: goodMax, paramOffset: "-1"},
+			wantErr: "malformed parameter " + paramOffset + ": offset cannot be negative",
+		},
+		{
+			name:    "negative offset (deprecated)",
+			params:  map[string]string{paramTimeMin: goodMin, paramTimeMax: goodMax, paramOffsetDeprecated: "-5"},
+			wantErr: "malformed parameter " + paramOffsetDeprecated + ": offset cannot be negative",
 		},
 		{
 			name:    "bad durationMin (canonical)",

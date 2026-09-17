@@ -125,10 +125,14 @@ func (t *Tenant) findTraceAndIds(query tracestore.TraceQueryParams) ([]traceAndI
 	if query.SearchDepth <= 0 || query.SearchDepth > t.config.MaxTraces {
 		return nil, errInvalidSearchDepth
 	}
+	if query.Offset < 0 {
+		return nil, errInvalidOffset
+	}
 	t.mu.RLock()
 	defer t.mu.RUnlock()
 	traceAndIds := make([]traceAndId, 0, query.SearchDepth)
 	n := len(t.traces)
+	skipped := 0
 	for i := range t.traces {
 		if len(traceAndIds) == query.SearchDepth {
 			break
@@ -141,6 +145,10 @@ func (t *Tenant) findTraceAndIds(query tracestore.TraceQueryParams) ([]traceAndI
 			break
 		}
 		if validTrace(traceById.trace, query) {
+			if skipped < query.Offset {
+				skipped++
+				continue
+			}
 			traceAndIds = append(traceAndIds, traceById)
 		}
 	}

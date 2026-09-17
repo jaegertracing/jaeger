@@ -40,6 +40,8 @@ const (
 	paramAttributes     = "query.attributes"
 	paramFilter         = "query.filter"
 	paramSpanKind       = "spanKind"
+	paramOffset         = "query.offset"
+	paramLimit          = "query.limit"
 
 	// Deprecated snake_case aliases kept for backward compatibility.
 	paramStartTimeDeprecated      = "start_time"
@@ -55,6 +57,8 @@ const (
 	paramDurationMaxDeprecated    = "query.duration_max"
 	paramQueryRawTracesDeprecated = "query.raw_traces"
 	paramSpanKindDeprecated       = "span_kind"
+	paramOffsetDeprecated         = "offset"
+	paramLimitDeprecated          = "limit"
 )
 
 // getQueryParam returns the value and effective param name, preferring the canonical name
@@ -121,6 +125,9 @@ func parseFindTracesQuery(q url.Values) (*querysvc.TraceQueryParams, error) {
 		n = q.Get(paramNumTraces)
 		searchDepthParam = paramNumTraces
 	}
+	if n == "" {
+		n, searchDepthParam = getQueryParam(q, paramLimit, paramLimitDeprecated)
+	}
 	if n != "" {
 		searchDepth, err := strconv.ParseInt(n, 10, 32)
 		if err != nil {
@@ -132,6 +139,17 @@ func parseFindTracesQuery(q url.Values) (*querysvc.TraceQueryParams, error) {
 		queryParams.SearchDepth = int(searchDepth)
 	} else {
 		queryParams.SearchDepth = defaultSearchDepth
+	}
+
+	if offsetStr, offsetParam := getQueryParam(q, paramOffset, paramOffsetDeprecated); offsetStr != "" {
+		offset, err := strconv.ParseInt(offsetStr, 10, 32)
+		if err != nil {
+			return nil, fmt.Errorf("malformed parameter %s: %w", offsetParam, err)
+		}
+		if offset < 0 {
+			return nil, fmt.Errorf("malformed parameter %s: offset cannot be negative", offsetParam)
+		}
+		queryParams.Offset = int(offset)
 	}
 
 	if d, paramName := getQueryParam(q, paramDurationMin, paramDurationMinDeprecated); d != "" {

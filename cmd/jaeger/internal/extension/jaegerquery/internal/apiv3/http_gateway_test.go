@@ -502,6 +502,104 @@ func TestHTTPGatewayFindTracesAttributes(t *testing.T) {
 	gw.reader.AssertExpectations(t)
 }
 
+func TestHTTPGatewayFindTracesOffset(t *testing.T) {
+	tMin := time.Now().Add(-time.Hour).UTC().Truncate(time.Nanosecond)
+	tMax := time.Now().UTC().Truncate(time.Nanosecond)
+
+	baseParams := func() url.Values {
+		q := url.Values{}
+		q.Set(paramServiceName, "svc")
+		q.Set(paramTimeMin, tMin.Format(time.RFC3339Nano))
+		q.Set(paramTimeMax, tMax.Format(time.RFC3339Nano))
+		return q
+	}
+
+	t.Run("query without offset defaults to 0", func(t *testing.T) {
+		q := baseParams()
+		gw := setupHTTPGatewayNoServer(t, "")
+		gw.reader.
+			On("FindTraces", matchContext, mock.MatchedBy(func(qp tracestore.TraceQueryParams) bool {
+				return qp.Offset == 0
+			})).
+			Return(iter.Seq2[[]ptrace.Traces, error](func(yield func([]ptrace.Traces, error) bool) {
+				yield([]ptrace.Traces{makeTestTrace()}, nil)
+			})).Once()
+
+		r, err := http.NewRequest(http.MethodGet, "/api/v3/traces?"+q.Encode(), http.NoBody)
+		require.NoError(t, err)
+		w := httptest.NewRecorder()
+		gw.router.ServeHTTP(w, r)
+		assert.Equal(t, http.StatusOK, w.Code)
+		gw.reader.AssertExpectations(t)
+	})
+
+	t.Run("query with canonical query.offset", func(t *testing.T) {
+		q := baseParams()
+		q.Set(paramOffset, "10")
+		gw := setupHTTPGatewayNoServer(t, "")
+		gw.reader.
+			On("FindTraces", matchContext, mock.MatchedBy(func(qp tracestore.TraceQueryParams) bool {
+				return qp.Offset == 10
+			})).
+			Return(iter.Seq2[[]ptrace.Traces, error](func(yield func([]ptrace.Traces, error) bool) {
+				yield([]ptrace.Traces{makeTestTrace()}, nil)
+			})).Once()
+
+		r, err := http.NewRequest(http.MethodGet, "/api/v3/traces?"+q.Encode(), http.NoBody)
+		require.NoError(t, err)
+		w := httptest.NewRecorder()
+		gw.router.ServeHTTP(w, r)
+		assert.Equal(t, http.StatusOK, w.Code)
+		gw.reader.AssertExpectations(t)
+	})
+
+	t.Run("query with deprecated offset alias", func(t *testing.T) {
+		q := baseParams()
+		q.Set(paramOffsetDeprecated, "5")
+		gw := setupHTTPGatewayNoServer(t, "")
+		gw.reader.
+			On("FindTraces", matchContext, mock.MatchedBy(func(qp tracestore.TraceQueryParams) bool {
+				return qp.Offset == 5
+			})).
+			Return(iter.Seq2[[]ptrace.Traces, error](func(yield func([]ptrace.Traces, error) bool) {
+				yield([]ptrace.Traces{makeTestTrace()}, nil)
+			})).Once()
+
+		r, err := http.NewRequest(http.MethodGet, "/api/v3/traces?"+q.Encode(), http.NoBody)
+		require.NoError(t, err)
+		w := httptest.NewRecorder()
+		gw.router.ServeHTTP(w, r)
+		assert.Equal(t, http.StatusOK, w.Code)
+		gw.reader.AssertExpectations(t)
+	})
+
+	t.Run("negative offset returns 400 Bad Request", func(t *testing.T) {
+		q := baseParams()
+		q.Set(paramOffset, "-1")
+		gw := setupHTTPGatewayNoServer(t, "")
+
+		r, err := http.NewRequest(http.MethodGet, "/api/v3/traces?"+q.Encode(), http.NoBody)
+		require.NoError(t, err)
+		w := httptest.NewRecorder()
+		gw.router.ServeHTTP(w, r)
+		assert.Equal(t, http.StatusBadRequest, w.Code)
+		assert.Contains(t, w.Body.String(), "offset cannot be negative")
+	})
+
+	t.Run("invalid offset returns 400 Bad Request", func(t *testing.T) {
+		q := baseParams()
+		q.Set(paramOffset, "abc")
+		gw := setupHTTPGatewayNoServer(t, "")
+
+		r, err := http.NewRequest(http.MethodGet, "/api/v3/traces?"+q.Encode(), http.NoBody)
+		require.NoError(t, err)
+		w := httptest.NewRecorder()
+		gw.router.ServeHTTP(w, r)
+		assert.Equal(t, http.StatusBadRequest, w.Code)
+		assert.Contains(t, w.Body.String(), "malformed parameter query.offset")
+	})
+}
+
 func TestHTTPGatewayGetServicesErrors(t *testing.T) {
 	gw := setupHTTPGatewayNoServer(t, "")
 

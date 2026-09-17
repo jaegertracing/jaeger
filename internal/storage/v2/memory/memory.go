@@ -22,7 +22,10 @@ import (
 
 const errorAttribute = "error"
 
-var errInvalidSearchDepth = errors.New("search depth must be greater than 0 and less than max traces")
+var (
+	errInvalidSearchDepth = errors.New("search depth must be greater than 0 and less than max traces")
+	errInvalidOffset      = errors.New("offset cannot be negative")
+)
 
 // Store is an in-memory store of traces
 type Store struct {
