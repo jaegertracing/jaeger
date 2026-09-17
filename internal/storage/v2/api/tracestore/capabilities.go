@@ -60,6 +60,10 @@ type SearchCapabilities struct {
 	// means none of it: the reader serves only the other, legacy fields, so a caller with
 	// a filter to run must express it in those fields or refuse the query.
 	Filter *FilterCapabilities
+
+	// SpanSearch is true when FindSpans is supported by the backend. False means that the
+	// backend does not support that capability.
+	SpanSearch bool // RFC 0016: FindSpans returns spans
 }
 
 // FilterCapabilities declares how much of a structured filter a Reader evaluates, by naming
