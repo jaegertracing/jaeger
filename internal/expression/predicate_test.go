@@ -13,6 +13,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	ast "github.com/jaegertracing/jaeger-idl/query/expression/v1"
+	"github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore"
 )
 
 // p is the builder under test. Predicate holds no state, so one value serves every case.
@@ -188,7 +189,7 @@ func TestLowering(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			assert.Equal(t, test.want, test.built)
-			require.NoError(t, ast.ValidateFilter(test.built))
+			require.NoError(t, tracestore.ValidateFilter(test.built))
 		})
 	}
 }
@@ -361,7 +362,7 @@ func TestCombineFlattens(t *testing.T) {
 	t.Run("a nil predicate is carried through to be refused", func(t *testing.T) {
 		built := p.And(first, nil)
 		require.Len(t, built.Args, 2)
-		require.Error(t, ast.ValidateFilter(built))
+		require.Error(t, tracestore.ValidateFilter(built))
 	})
 }
 
@@ -397,7 +398,7 @@ func TestEveryAccessorNamesABuiltInField(t *testing.T) {
 		refs := accessors(t, object)
 		require.NotEmpty(t, refs)
 		for _, ref := range refs {
-			require.NoError(t, ast.ValidateFilter(
+			require.NoError(t, tracestore.ValidateFilter(
 				&ast.Call{Op: ast.OpExists, Args: []ast.Expression{ref}},
 			))
 			assert.Equal(t, level, ref.Level)

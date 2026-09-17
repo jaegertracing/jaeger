@@ -14,7 +14,7 @@ func TestOpenSearchStorage(t *testing.T) {
 	integration.SkipUnlessEnv(t, integration.StorageOpenSearch)
 	s := &E2EStorageIntegration{
 		ConfigFile:   "../../config-opensearch.yaml",
-		FeatureGates: structuredFilterGates,
+		FeatureGates: elasticsearchFilterGates,
 		StorageIntegration: integration.StorageIntegration{
 			CleanUp:      purge,
 			Fixtures:     integration.LoadAndParseQueryTestCases(t, "fixtures/queries_es.json"),
@@ -42,7 +42,7 @@ func TestOpenSearchStorage_TwoPhase(t *testing.T) {
 		s := &E2EStorageIntegration{
 			ConfigFile:   "../../config-opensearch.yaml",
 			BinaryName:   binaryName,
-			FeatureGates: structuredFilterGates,
+			FeatureGates: elasticsearchFilterGates,
 			StorageIntegration: integration.StorageIntegration{
 				CleanUp:      func(*testing.T) {},
 				Fixtures:     fixtures,
@@ -93,11 +93,28 @@ func TestOpenSearchStorage_DataStream(t *testing.T) {
 func TestOpenSearchStorage_BackwardCompatibility(t *testing.T) {
 	integration.SkipUnlessEnv(t, integration.StorageOpenSearch)
 	runBackwardCompatibilityTests(t, "opensearch", E2EStorageIntegration{
-		ConfigFile:   "../../config-opensearch.yaml",
-		FeatureGates: structuredFilterGates,
+		ConfigFile: "../../config-opensearch.yaml",
 		StorageIntegration: integration.StorageIntegration{
-			Fixtures:     integration.LoadAndParseQueryTestCases(t, "fixtures/queries_es.json"),
+			Fixtures: integration.LoadAndParseQueryTestCases(t, "fixtures/queries_es.json"),
+		},
+	},
+		compatScenario{
+			Name:         "feature gates disabled on both old writer and new reader",
+			OldGates:     nil,
+			NewGates:     structuredFilterGates,
+			Capabilities: capabilities.OpenSearch().WithoutTypedAttributeIndexing(),
+		},
+		compatScenario{
+			Name:         "feature gates enabled on new reader only (enable-on-upgrade)",
+			OldGates:     nil,
+			NewGates:     elasticsearchFilterGates,
+			Capabilities: capabilities.OpenSearch().WithoutTypedAttributeIndexing(),
+		},
+		compatScenario{
+			Name:         "feature gates enabled on both old writer and new reader (already enabled)",
+			OldGates:     elasticsearchFilterGates,
+			NewGates:     elasticsearchFilterGates,
 			Capabilities: capabilities.OpenSearch(),
 		},
-	})
+	)
 }

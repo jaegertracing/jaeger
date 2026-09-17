@@ -30,9 +30,6 @@ jobs:
 
     - uses: ./.github/actions/setup-node.js
 
-    - name: Install tools
-      run: make install-ci
-
     - name: Build UI
       run: make build-ui
 
