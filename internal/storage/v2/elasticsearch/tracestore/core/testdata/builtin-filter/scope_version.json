@@ -1,0 +1,345 @@
+{
+  "eq": {
+    "bool": {
+      "should": [
+        {
+          "term": {
+            "tag.otel@scope@version": "1.2.3"
+          }
+        },
+        {
+          "nested": {
+            "path": "tags",
+            "query": {
+              "bool": {
+                "must": [
+                  {
+                    "term": {
+                      "tags.key": "otel.scope.version"
+                    }
+                  },
+                  {
+                    "term": {
+                      "tags.value": "1.2.3"
+                    }
+                  }
+                ]
+              }
+            }
+          }
+        }
+      ]
+    }
+  },
+  "exists": {
+    "bool": {
+      "should": [
+        {
+          "exists": {
+            "field": "tag.otel@scope@version"
+          }
+        },
+        {
+          "nested": {
+            "path": "tags",
+            "query": {
+              "term": {
+                "tags.key": "otel.scope.version"
+              }
+            }
+          }
+        }
+      ]
+    }
+  },
+  "gt": {
+    "bool": {
+      "should": [
+        {
+          "range": {
+            "tag.otel@scope@version": {
+              "gt": "1.2.3"
+            }
+          }
+        },
+        {
+          "nested": {
+            "path": "tags",
+            "query": {
+              "bool": {
+                "must": [
+                  {
+                    "term": {
+                      "tags.key": "otel.scope.version"
+                    }
+                  },
+                  {
+                    "range": {
+                      "tags.value": {
+                        "gt": "1.2.3"
+                      }
+                    }
+                  }
+                ]
+              }
+            }
+          }
+        }
+      ]
+    }
+  },
+  "gte": {
+    "bool": {
+      "should": [
+        {
+          "range": {
+            "tag.otel@scope@version": {
+              "gte": "1.2.3"
+            }
+          }
+        },
+        {
+          "nested": {
+            "path": "tags",
+            "query": {
+              "bool": {
+                "must": [
+                  {
+                    "term": {
+                      "tags.key": "otel.scope.version"
+                    }
+                  },
+                  {
+                    "range": {
+                      "tags.value": {
+                        "gte": "1.2.3"
+                      }
+                    }
+                  }
+                ]
+              }
+            }
+          }
+        }
+      ]
+    }
+  },
+  "in": {
+    "bool": {
+      "should": [
+        {
+          "term": {
+            "tag.otel@scope@version": "1.2.3"
+          }
+        },
+        {
+          "nested": {
+            "path": "tags",
+            "query": {
+              "bool": {
+                "must": [
+                  {
+                    "term": {
+                      "tags.key": "otel.scope.version"
+                    }
+                  },
+                  {
+                    "term": {
+                      "tags.value": "1.2.3"
+                    }
+                  }
+                ]
+              }
+            }
+          }
+        }
+      ]
+    }
+  },
+  "lt": {
+    "bool": {
+      "should": [
+        {
+          "range": {
+            "tag.otel@scope@version": {
+              "lt": "1.2.3"
+            }
+          }
+        },
+        {
+          "nested": {
+            "path": "tags",
+            "query": {
+              "bool": {
+                "must": [
+                  {
+                    "term": {
+                      "tags.key": "otel.scope.version"
+                    }
+                  },
+                  {
+                    "range": {
+                      "tags.value": {
+                        "lt": "1.2.3"
+                      }
+                    }
+                  }
+                ]
+              }
+            }
+          }
+        }
+      ]
+    }
+  },
+  "lte": {
+    "bool": {
+      "should": [
+        {
+          "range": {
+            "tag.otel@scope@version": {
+              "lte": "1.2.3"
+            }
+          }
+        },
+        {
+          "nested": {
+            "path": "tags",
+            "query": {
+              "bool": {
+                "must": [
+                  {
+                    "term": {
+                      "tags.key": "otel.scope.version"
+                    }
+                  },
+                  {
+                    "range": {
+                      "tags.value": {
+                        "lte": "1.2.3"
+                      }
+                    }
+                  }
+                ]
+              }
+            }
+          }
+        }
+      ]
+    }
+  },
+  "ne": {
+    "bool": {
+      "must": {
+        "bool": {
+          "should": [
+            {
+              "exists": {
+                "field": "tag.otel@scope@version"
+              }
+            },
+            {
+              "nested": {
+                "path": "tags",
+                "query": {
+                  "term": {
+                    "tags.key": "otel.scope.version"
+                  }
+                }
+              }
+            }
+          ]
+        }
+      },
+      "must_not": {
+        "bool": {
+          "should": [
+            {
+              "term": {
+                "tag.otel@scope@version": "1.2.3"
+              }
+            },
+            {
+              "nested": {
+                "path": "tags",
+                "query": {
+                  "bool": {
+                    "must": [
+                      {
+                        "term": {
+                          "tags.key": "otel.scope.version"
+                        }
+                      },
+                      {
+                        "term": {
+                          "tags.value": "1.2.3"
+                        }
+                      }
+                    ]
+                  }
+                }
+              }
+            }
+          ]
+        }
+      }
+    }
+  },
+  "not_in": {
+    "bool": {
+      "must": {
+        "bool": {
+          "should": [
+            {
+              "exists": {
+                "field": "tag.otel@scope@version"
+              }
+            },
+            {
+              "nested": {
+                "path": "tags",
+                "query": {
+                  "term": {
+                    "tags.key": "otel.scope.version"
+                  }
+                }
+              }
+            }
+          ]
+        }
+      },
+      "must_not": {
+        "bool": {
+          "should": [
+            {
+              "term": {
+                "tag.otel@scope@version": "1.2.3"
+              }
+            },
+            {
+              "nested": {
+                "path": "tags",
+                "query": {
+                  "bool": {
+                    "must": [
+                      {
+                        "term": {
+                          "tags.key": "otel.scope.version"
+                        }
+                      },
+                      {
+                        "term": {
+                          "tags.value": "1.2.3"
+                        }
+                      }
+                    ]
+                  }
+                }
+              }
+            }
+          ]
+        }
+      }
+    }
+  }
+}

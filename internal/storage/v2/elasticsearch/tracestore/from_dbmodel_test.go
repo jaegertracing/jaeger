@@ -365,6 +365,25 @@ func TestParentIdWhenRefTraceIdIsDifferent(t *testing.T) {
 	assert.True(t, trace.ResourceSpans().At(0).ScopeSpans().At(0).Spans().At(0).ParentSpanID().IsEmpty())
 }
 
+func TestFromDBModelKeepsCrossTraceLinkWithParentSpanID(t *testing.T) {
+	traceID := getDbTraceIdFromByteArray([16]byte{1})
+	linkTraceID := getDbTraceIdFromByteArray([16]byte{2})
+	parentSpanID := getDbSpanIdFromByteArray([8]byte{3})
+	trace, err := FromDBModel([]dbmodel.Span{{
+		TraceID:      traceID,
+		ParentSpanID: parentSpanID,
+		References: []dbmodel.Reference{
+			{TraceID: traceID, SpanID: parentSpanID, RefType: dbmodel.ChildOf},
+			{TraceID: linkTraceID, SpanID: parentSpanID, RefType: dbmodel.ChildOf},
+		},
+	}})
+	require.NoError(t, err)
+	links := trace.ResourceSpans().At(0).ScopeSpans().At(0).Spans().At(0).Links()
+	require.Equal(t, 1, links.Len())
+	assert.Equal(t, pcommon.TraceID([16]byte{2}), links.At(0).TraceID())
+	assert.Equal(t, pcommon.SpanID([8]byte{3}), links.At(0).SpanID())
+}
+
 func TestDbSpanToSpanWithSpanKind(t *testing.T) {
 	tests := []struct {
 		name         string

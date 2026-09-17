@@ -888,6 +888,24 @@ func TestFindTraceIDs(t *testing.T) {
 	testGet(traceIDAggregation, t)
 }
 
+func TestSpanReader_FindTraceIDs_ScriptingDisabled(t *testing.T) {
+	withSpanReader(t, func(r *spanReaderTest) {
+		scriptErr := esclient.ResponseError{
+			Err:        errors.New("all shards failed"),
+			StatusCode: 400,
+			Body: []byte(`{"error":{"reason":"all shards failed","root_cause":[` +
+				`{"reason":"cannot execute [inline] scripts"}]}}`),
+		}
+		r.searcher.On("Search", mock.Anything, mock.Anything, mock.Anything).Return(nil, scriptErr).Once()
+
+		_, err := r.reader.FindTraceIDs(context.Background(), dbmodel.TraceQueryParameters{
+			StartTimeMin: time.Now().Add(-time.Hour),
+			StartTimeMax: time.Now(),
+		})
+		require.EqualError(t, err, "source-aware link filters require Painless scripting enabled on the cluster: all shards failed")
+	})
+}
+
 func TestReturnSearchFunc_DefaultCase(t *testing.T) {
 	r := &spanReaderTest{}
 

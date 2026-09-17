@@ -1,0 +1,345 @@
+{
+  "eq": {
+    "bool": {
+      "should": [
+        {
+          "term": {
+            "tag.otel@scope@name": "instrumentation.cart"
+          }
+        },
+        {
+          "nested": {
+            "path": "tags",
+            "query": {
+              "bool": {
+                "must": [
+                  {
+                    "term": {
+                      "tags.key": "otel.scope.name"
+                    }
+                  },
+                  {
+                    "term": {
+                      "tags.value": "instrumentation.cart"
+                    }
+                  }
+                ]
+              }
+            }
+          }
+        }
+      ]
+    }
+  },
+  "exists": {
+    "bool": {
+      "should": [
+        {
+          "exists": {
+            "field": "tag.otel@scope@name"
+          }
+        },
+        {
+          "nested": {
+            "path": "tags",
+            "query": {
+              "term": {
+                "tags.key": "otel.scope.name"
+              }
+            }
+          }
+        }
+      ]
+    }
+  },
+  "gt": {
+    "bool": {
+      "should": [
+        {
+          "range": {
+            "tag.otel@scope@name": {
+              "gt": "instrumentation.cart"
+            }
+          }
+        },
+        {
+          "nested": {
+            "path": "tags",
+            "query": {
+              "bool": {
+                "must": [
+                  {
+                    "term": {
+                      "tags.key": "otel.scope.name"
+                    }
+                  },
+                  {
+                    "range": {
+                      "tags.value": {
+                        "gt": "instrumentation.cart"
+                      }
+                    }
+                  }
+                ]
+              }
+            }
+          }
+        }
+      ]
+    }
+  },
+  "gte": {
+    "bool": {
+      "should": [
+        {
+          "range": {
+            "tag.otel@scope@name": {
+              "gte": "instrumentation.cart"
+            }
+          }
+        },
+        {
+          "nested": {
+            "path": "tags",
+            "query": {
+              "bool": {
+                "must": [
+                  {
+                    "term": {
+                      "tags.key": "otel.scope.name"
+                    }
+                  },
+                  {
+                    "range": {
+                      "tags.value": {
+                        "gte": "instrumentation.cart"
+                      }
+                    }
+                  }
+                ]
+              }
+            }
+          }
+        }
+      ]
+    }
+  },
+  "in": {
+    "bool": {
+      "should": [
+        {
+          "term": {
+            "tag.otel@scope@name": "instrumentation.cart"
+          }
+        },
+        {
+          "nested": {
+            "path": "tags",
+            "query": {
+              "bool": {
+                "must": [
+                  {
+                    "term": {
+                      "tags.key": "otel.scope.name"
+                    }
+                  },
+                  {
+                    "term": {
+                      "tags.value": "instrumentation.cart"
+                    }
+                  }
+                ]
+              }
+            }
+          }
+        }
+      ]
+    }
+  },
+  "lt": {
+    "bool": {
+      "should": [
+        {
+          "range": {
+            "tag.otel@scope@name": {
+              "lt": "instrumentation.cart"
+            }
+          }
+        },
+        {
+          "nested": {
+            "path": "tags",
+            "query": {
+              "bool": {
+                "must": [
+                  {
+                    "term": {
+                      "tags.key": "otel.scope.name"
+                    }
+                  },
+                  {
+                    "range": {
+                      "tags.value": {
+                        "lt": "instrumentation.cart"
+                      }
+                    }
+                  }
+                ]
+              }
+            }
+          }
+        }
+      ]
+    }
+  },
+  "lte": {
+    "bool": {
+      "should": [
+        {
+          "range": {
+            "tag.otel@scope@name": {
+              "lte": "instrumentation.cart"
+            }
+          }
+        },
+        {
+          "nested": {
+            "path": "tags",
+            "query": {
+              "bool": {
+                "must": [
+                  {
+                    "term": {
+                      "tags.key": "otel.scope.name"
+                    }
+                  },
+                  {
+                    "range": {
+                      "tags.value": {
+                        "lte": "instrumentation.cart"
+                      }
+                    }
+                  }
+                ]
+              }
+            }
+          }
+        }
+      ]
+    }
+  },
+  "ne": {
+    "bool": {
+      "must": {
+        "bool": {
+          "should": [
+            {
+              "exists": {
+                "field": "tag.otel@scope@name"
+              }
+            },
+            {
+              "nested": {
+                "path": "tags",
+                "query": {
+                  "term": {
+                    "tags.key": "otel.scope.name"
+                  }
+                }
+              }
+            }
+          ]
+        }
+      },
+      "must_not": {
+        "bool": {
+          "should": [
+            {
+              "term": {
+                "tag.otel@scope@name": "instrumentation.cart"
+              }
+            },
+            {
+              "nested": {
+                "path": "tags",
+                "query": {
+                  "bool": {
+                    "must": [
+                      {
+                        "term": {
+                          "tags.key": "otel.scope.name"
+                        }
+                      },
+                      {
+                        "term": {
+                          "tags.value": "instrumentation.cart"
+                        }
+                      }
+                    ]
+                  }
+                }
+              }
+            }
+          ]
+        }
+      }
+    }
+  },
+  "not_in": {
+    "bool": {
+      "must": {
+        "bool": {
+          "should": [
+            {
+              "exists": {
+                "field": "tag.otel@scope@name"
+              }
+            },
+            {
+              "nested": {
+                "path": "tags",
+                "query": {
+                  "term": {
+                    "tags.key": "otel.scope.name"
+                  }
+                }
+              }
+            }
+          ]
+        }
+      },
+      "must_not": {
+        "bool": {
+          "should": [
+            {
+              "term": {
+                "tag.otel@scope@name": "instrumentation.cart"
+              }
+            },
+            {
+              "nested": {
+                "path": "tags",
+                "query": {
+                  "bool": {
+                    "must": [
+                      {
+                        "term": {
+                          "tags.key": "otel.scope.name"
+                        }
+                      },
+                      {
+                        "term": {
+                          "tags.value": "instrumentation.cart"
+                        }
+                      }
+                    ]
+                  }
+                }
+              }
+            }
+          ]
+        }
+      }
+    }
+  }
+}

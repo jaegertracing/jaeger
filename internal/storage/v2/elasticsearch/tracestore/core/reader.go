@@ -479,6 +479,9 @@ func (s *SpanReader) findTraceIDsFromQuery(ctx context.Context, traceQuery dbmod
 		},
 	})
 	if err != nil {
+		if isScriptingDisabledError(err) {
+			return nil, fmt.Errorf("source-aware link filters require Painless scripting enabled on the cluster: %w", err)
+		}
 		s.logger.Info("es search services failed", zap.Any("traceQuery", traceQuery), zap.Error(err))
 		return nil, fmt.Errorf("search services failed: %w", err)
 	}

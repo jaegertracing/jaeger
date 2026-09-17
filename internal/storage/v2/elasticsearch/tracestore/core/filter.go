@@ -98,9 +98,9 @@ type attributeLocation struct {
 type valueMatch func(field string) esquery.Query
 
 // FilterCapabilities declares the part of the RFC 0005 filter model this reader evaluates.
-// It omits the scope and link levels, which the schema does not index separately,
-// and the `some` quantifier, whose correlated matching over a span's events is not
-// implemented yet. Which built-in fields are served is not declarable — a field name is
+// Scope and link levels expose indexed identity fields, but not attributes.
+// It omits the `some` quantifier, whose correlated matching is not implemented yet.
+// Which built-in fields are served is not declarable — a field name is
 // indistinguishable from an attribute key — so buildFilterQuery refuses the ones this
 // schema has no field for.
 func FilterCapabilities() tracestore.FilterCapabilities {
@@ -109,6 +109,8 @@ func FilterCapabilities() tracestore.FilterCapabilities {
 			expression.LevelSpan,
 			expression.LevelResource,
 			expression.LevelEvent,
+			expression.LevelScope,
+			expression.LevelLink,
 		},
 		Operators: []expression.Operator{
 			expression.OpAnd,
@@ -278,6 +280,9 @@ func (s *SpanReader) buildComparison(
 	ref reference,
 	value expression.Expression,
 ) (esquery.Query, error) {
+	if field, path := indexedField(ref); field != "" {
+		return indexedFieldComparison(ref, field, path, op, value)
+	}
 	if ref.isField(expression.LevelSpan, expression.SpanFieldDuration) {
 		return buildDurationComparison(op, value)
 	}
@@ -290,6 +295,13 @@ func (s *SpanReader) buildComparison(
 			return nil, errOrderedString(op, ref)
 		}
 		return s.buildAttributeComparison(op, ref, text)
+	}
+	if attr, ok := scopeIdentity(ref); ok {
+		match, err := indexedTextMatch(op, ref, text)
+		if err != nil {
+			return nil, err
+		}
+		return s.attributeQuery(attributeLocations[attr.level], attr.name, match), nil
 	}
 	switch {
 	case ref.isField(expression.LevelSpan, expression.SpanFieldName):
@@ -359,6 +371,16 @@ func lengthOfTime(value expression.Expression) (time.Duration, error) {
 }
 
 func (s *SpanReader) buildExists(ref reference) (esquery.Query, error) {
+	if field, path := indexedField(ref); field != "" {
+		candidate := inCollection(path, esquery.NewExistsQuery(field))
+		if ref.level == expression.LevelLink {
+			return exactLinkQuery(candidate, ref.name, expression.OpExists, ""), nil
+		}
+		return candidate, nil
+	}
+	if attr, ok := scopeIdentity(ref); ok {
+		return s.buildAttributeExists(attr)
+	}
 	switch {
 	case ref.attribute:
 		return s.buildAttributeExists(ref)
@@ -382,7 +404,7 @@ func (s *SpanReader) buildAttributeComparison(
 ) (esquery.Query, error) {
 	locations, ok := attributeLocations[ref.level]
 	if !ok {
-		return nil, errUnsupportedLevel(ref.level)
+		return nil, errUnsupportedAttribute(ref)
 	}
 	if isError, ok := asErrorTagEquality(op, ref, value); ok {
 		// The write path records the error tag only for a span whose status is an error
@@ -420,7 +442,7 @@ func (s *SpanReader) attributeQuery(locations attributeLocation, key string, mat
 func (s *SpanReader) buildAttributeExists(ref reference) (esquery.Query, error) {
 	locations, ok := attributeLocations[ref.level]
 	if !ok {
-		return nil, errUnsupportedLevel(ref.level)
+		return nil, errUnsupportedAttribute(ref)
 	}
 	queries := make([]esquery.Query, 0, len(locations.object)+len(locations.nested))
 	for _, field := range locations.object {
@@ -703,8 +725,8 @@ func errRefAgainstConstant(predicate *expression.Call) error {
 		tracestore.ErrFilterUnsupported, predicate.Op)
 }
 
-func errUnsupportedLevel(level expression.Level) error {
-	return fmt.Errorf("%w: it does not index the %q level", tracestore.ErrFilterUnsupported, level)
+func errUnsupportedAttribute(ref reference) error {
+	return fmt.Errorf("%w: it does not index attribute %q at the %q level", tracestore.ErrFilterUnsupported, ref.name, ref.level)
 }
 
 func errUnsupportedField(ref reference) error {

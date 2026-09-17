@@ -1,0 +1,73 @@
+{
+  "eq": {
+    "term": {
+      "startTimeMillis": 1788248096123
+    }
+  },
+  "exists": {
+    "exists": {
+      "field": "startTimeMillis"
+    }
+  },
+  "gt": {
+    "range": {
+      "startTimeMillis": {
+        "gt": 1788248096123
+      }
+    }
+  },
+  "gte": {
+    "range": {
+      "startTimeMillis": {
+        "gte": 1788248096123
+      }
+    }
+  },
+  "in": {
+    "term": {
+      "startTimeMillis": 1788248096123
+    }
+  },
+  "lt": {
+    "range": {
+      "startTimeMillis": {
+        "lt": 1788248096123
+      }
+    }
+  },
+  "lte": {
+    "range": {
+      "startTimeMillis": {
+        "lte": 1788248096123
+      }
+    }
+  },
+  "ne": {
+    "bool": {
+      "must": {
+        "exists": {
+          "field": "startTimeMillis"
+        }
+      },
+      "must_not": {
+        "term": {
+          "startTimeMillis": 1788248096123
+        }
+      }
+    }
+  },
+  "not_in": {
+    "bool": {
+      "must": {
+        "exists": {
+          "field": "startTimeMillis"
+        }
+      },
+      "must_not": {
+        "term": {
+          "startTimeMillis": 1788248096123
+        }
+      }
+    }
+  }
+}

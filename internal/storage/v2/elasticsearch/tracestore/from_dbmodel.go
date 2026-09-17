@@ -118,7 +118,7 @@ func dbSpanToSpan(dbSpan *dbmodel.Span, span ptrace.Span) error {
 		span.SetParentSpanID(parentSpanId)
 	}
 	dbSpanLogsToSpanEvents(dbSpan.Logs, span.Events())
-	return dbSpanRefsToSpanEvents(dbSpan.References, dbParentSpanId, span.Links())
+	return dbSpanRefsToSpanEvents(dbSpan.References, dbSpan.TraceID, dbParentSpanId, span.Links())
 }
 
 func dbTagsToAttributes(tags []dbmodel.KeyValue, attributes pcommon.Map) {
@@ -327,15 +327,16 @@ func dbSpanLogsToSpanEvents(logs []dbmodel.Log, events ptrace.SpanEventSlice) {
 	}
 }
 
-// dbSpanRefsToSpanEvents sets internal span links based on db references skipping excludeParentID
-func dbSpanRefsToSpanEvents(refs []dbmodel.Reference, excludeParentID dbmodel.SpanID, spanLinks ptrace.SpanLinkSlice) error {
-	if len(refs) == 0 || len(refs) == 1 && refs[0].SpanID == excludeParentID && refs[0].RefType == dbmodel.ChildOf {
+// dbSpanRefsToSpanEvents sets internal span links based on db references, skipping the
+// synthetic parent only when both its trace and span IDs identify the containing span's parent.
+func dbSpanRefsToSpanEvents(refs []dbmodel.Reference, parentTraceID dbmodel.TraceID, parentSpanID dbmodel.SpanID, spanLinks ptrace.SpanLinkSlice) error {
+	if len(refs) == 0 || len(refs) == 1 && refs[0].TraceID == parentTraceID && refs[0].SpanID == parentSpanID && refs[0].RefType == dbmodel.ChildOf {
 		return nil
 	}
 
 	spanLinks.EnsureCapacity(len(refs))
 	for _, ref := range refs {
-		if ref.SpanID == excludeParentID && ref.RefType == dbmodel.ChildOf {
+		if ref.TraceID == parentTraceID && ref.SpanID == parentSpanID && ref.RefType == dbmodel.ChildOf {
 			continue
 		}
 

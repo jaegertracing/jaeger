@@ -1,0 +1,73 @@
+{
+  "eq": {
+    "term": {
+      "traceID": "0123456789abcdef0123456789abcdef"
+    }
+  },
+  "exists": {
+    "exists": {
+      "field": "traceID"
+    }
+  },
+  "gt": {
+    "range": {
+      "traceID": {
+        "gt": "0123456789abcdef0123456789abcdef"
+      }
+    }
+  },
+  "gte": {
+    "range": {
+      "traceID": {
+        "gte": "0123456789abcdef0123456789abcdef"
+      }
+    }
+  },
+  "in": {
+    "term": {
+      "traceID": "0123456789abcdef0123456789abcdef"
+    }
+  },
+  "lt": {
+    "range": {
+      "traceID": {
+        "lt": "0123456789abcdef0123456789abcdef"
+      }
+    }
+  },
+  "lte": {
+    "range": {
+      "traceID": {
+        "lte": "0123456789abcdef0123456789abcdef"
+      }
+    }
+  },
+  "ne": {
+    "bool": {
+      "must": {
+        "exists": {
+          "field": "traceID"
+        }
+      },
+      "must_not": {
+        "term": {
+          "traceID": "0123456789abcdef0123456789abcdef"
+        }
+      }
+    }
+  },
+  "not_in": {
+    "bool": {
+      "must": {
+        "exists": {
+          "field": "traceID"
+        }
+      },
+      "must_not": {
+        "term": {
+          "traceID": "0123456789abcdef0123456789abcdef"
+        }
+      }
+    }
+  }
+}
