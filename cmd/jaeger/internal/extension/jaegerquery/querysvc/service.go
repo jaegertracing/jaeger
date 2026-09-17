@@ -166,7 +166,7 @@ func (qs QueryService) FindSpans(
 			return
 		}
 		spansIter := qs.interceptSpanResults(ctx, qs.traceReader.FindSpans(ctx, query.SpanQueryParams))
-		qs.receiveSpans(spansIter, yield)
+		spansIter(yield)
 	}
 }
 
@@ -474,36 +474,6 @@ func (qs QueryService) receiveTraces(
 			return processTraces([]ptrace.Traces{trace}, err)
 		})
 	}
-
-	return foundTraceIDs, proceed
-}
-
-func (QueryService) receiveSpans(
-	seq iter.Seq2[[]tracestore.SpanPage, error],
-	yield func([]tracestore.SpanPage, error) bool,
-) (map[pcommon.TraceID]struct{}, bool) {
-	foundTraceIDs := make(map[pcommon.TraceID]struct{})
-	proceed := true
-
-	processSpans := func(spanPages []tracestore.SpanPage, err error) bool {
-		if err != nil {
-			proceed = yield(spanPages, err)
-			return proceed
-		}
-		if spanPages == nil {
-			return false
-		}
-		for _, spanPage := range spanPages {
-			jptrace.SpanIter(spanPage.Spans)(func(_ jptrace.SpanIterPos, span ptrace.Span) bool {
-				foundTraceIDs[span.TraceID()] = struct{}{}
-				return true
-			})
-		}
-		proceed = yield(spanPages, nil)
-		return proceed
-	}
-
-	seq(processSpans)
 
 	return foundTraceIDs, proceed
 }
