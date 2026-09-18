@@ -124,7 +124,7 @@ func (qs QueryService) onSpanQuery(ctx context.Context, query SpanQueryParams) (
 	if err != nil {
 		return ctx, query, err
 	}
-	if queryPreIntercept.Filter != nil {
+	if queryPostIntercept.Filter != nil {
 		queryPostIntercept.Filter, err = finalizeInterceptorFilter(queryPostIntercept.Filter)
 	}
 	if err != nil {

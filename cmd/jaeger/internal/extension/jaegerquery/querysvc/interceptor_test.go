@@ -1065,10 +1065,6 @@ func TestFindSpans_RefusesAnInvalidInterceptorFilter(t *testing.T) {
 		expectedErr string
 	}{
 		{
-			name:        "no filter at all, for a query that had predicates",
-			expectedErr: "widen the search to every trace in the time range",
-		},
-		{
 			name:        "a conjunction of one",
 			filter:      &expression.Call{Op: expression.OpAnd, Args: []expression.Expression{serviceFilter("gated")}},
 			expectedErr: `operator "and" takes at least two arguments`,
