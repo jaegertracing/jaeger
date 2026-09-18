@@ -27,8 +27,9 @@ type GetTraceTopologyOutput struct {
 // The Path field encodes the tree structure: it contains all span IDs from the root span down
 // to this span, separated by slashes.
 // Example: "rootSpanID/parentSpanID/thisSpanID"
-// For orphan spans (whose parent is not present in the trace) the missing parent ID is prepended
-// so the caller can identify the attachment point.
+// For orphan spans (whose parent is not present in the stored trace) the missing parent ID is prepended
+// so the caller can identify the attachment point. Parents omitted only by the per-request span-count
+// limit are not prefixed that way; TruncatedChildren on a surviving ancestor signals the gap.
 type TopologySpan struct {
 	// Path is a slash-delimited sequence of span IDs from the root span to this span.
 	Path              string `json:"path"                         jsonschema:"Slash-delimited span IDs from root to this span"`
@@ -37,5 +38,5 @@ type TopologySpan struct {
 	StartTime         string `json:"start_time"                   jsonschema:"Span start time in RFC3339 format"`
 	DurationUs        int64  `json:"duration_us"                  jsonschema:"Span duration in microseconds"`
 	Status            string `json:"status"                       jsonschema:"Span status (Unset Ok Error)"`
-	TruncatedChildren int    `json:"truncated_children,omitempty" jsonschema:"Number of direct children excluded due to depth limit"`
+	TruncatedChildren int    `json:"truncated_children,omitempty" jsonschema:"Number of direct children excluded by the depth limit or the per-request span-count limit"`
 }

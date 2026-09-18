@@ -7,6 +7,7 @@ import (
 	"context"
 	"errors"
 	"iter"
+	"strings"
 	"testing"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
@@ -598,4 +599,46 @@ func TestGetTraceTopologyHandler_Handle_LimitEnforced(t *testing.T) {
 	require.NoError(t, err)
 	// Exactly 3 spans returned — 6-span trace with limit=3 must truncate to exactly 3
 	assert.Len(t, output.Spans, 3)
+}
+
+// TestGetTraceTopologyHandler_Handle_LimitOutOfOrderSpans is the #9178 repro:
+// iteration order is grandchild, root, child, so a count limit of 2 keeps the
+// descendant and the root and drops the intermediate parent.
+func TestGetTraceTopologyHandler_Handle_LimitOutOfOrderSpans(t *testing.T) {
+	traceID := testTraceID
+
+	spanConfigs := []spanConfig{
+		{spanID: "grand01", parentSpanID: "child01", operation: "grandchild"},
+		{spanID: "root001", operation: "root"},
+		{spanID: "child01", parentSpanID: "root001", operation: "child"},
+	}
+
+	testTrace := createTestTraceWithSpans(traceID, spanConfigs)
+	mock := newMockYieldingTraces(testTrace)
+
+	handler := &getTraceTopologyHandler{
+		queryService:             mock,
+		maxSpanDetailsPerRequest: 2,
+	}
+
+	input := types.GetTraceTopologyInput{TraceID: traceID}
+	_, output, err := handler.handle(context.Background(), &mcp.CallToolRequest{}, input)
+	require.NoError(t, err)
+
+	assert.Len(t, output.Spans, 2)
+
+	root := findSpanByName(output.Spans, "root")
+	child := findSpanByName(output.Spans, "child")
+	grandchild := findSpanByName(output.Spans, "grandchild")
+
+	require.NotNil(t, root)
+	require.Nil(t, child)
+	require.NotNil(t, grandchild)
+
+	assert.NotZero(t, root.TruncatedChildren,
+		"surviving ancestor must signal that the count limit dropped part of its subtree")
+
+	droppedParentPrefix := spanIDToHex("child01") + "/"
+	assert.False(t, strings.HasPrefix(grandchild.Path, droppedParentPrefix),
+		"grandchild Path must not use genuine-orphan encoding for a parent dropped only by the count limit, got %q", grandchild.Path)
 }
