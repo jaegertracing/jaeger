@@ -281,3 +281,70 @@ func TestReadMetricsDecorator_SearchCapabilities(t *testing.T) {
 		})
 	}
 }
+
+func TestReadMetricsDecorator_FindSpans(t *testing.T) {
+	mf := metricstest.NewFactory(0)
+
+	inner := &mocks.Reader{}
+	pages := []tracestore.SpanPage{{NextPageToken: "a"}, {NextPageToken: "b"}}
+	inner.On("FindSpans", context.Background(), tracestore.SpanQueryParams{}).
+		Return(emptyIter[tracestore.SpanPage](pages, nil))
+
+	d := NewReaderDecorator(inner, mf)
+
+	var got []tracestore.SpanPage
+	for batch, err := range d.FindSpans(context.Background(), tracestore.SpanQueryParams{}) {
+		require.NoError(t, err)
+		got = append(got, batch...)
+	}
+	assert.Len(t, got, len(pages))
+
+	counters, _ := mf.Snapshot()
+	assert.Equal(t, int64(1), counters["requests|operation=find_spans|result=ok"])
+	assert.Equal(t, int64(len(pages)), counters["responses|operation=find_spans"])
+}
+
+func TestReadMetricsDecorator_FindSpans_Error(t *testing.T) {
+	mf := metricstest.NewFactory(0)
+
+	inner := &mocks.Reader{}
+	inner.On("FindSpans", context.Background(), tracestore.SpanQueryParams{}).
+		Return(emptyIter[tracestore.SpanPage](nil, assert.AnError))
+
+	d := NewReaderDecorator(inner, mf)
+	for range d.FindSpans(context.Background(), tracestore.SpanQueryParams{}) {
+		t.Log("FindSpans error iteration")
+	}
+
+	counters, _ := mf.Snapshot()
+	assert.Equal(t, int64(1), counters["requests|operation=find_spans|result=err"])
+}
+
+func TestReadMetricsDecorator_FindSpans_EarlyExit(t *testing.T) {
+	mf := metricstest.NewFactory(0)
+
+	inner := &mocks.Reader{}
+	// emptyIter yields each page as its own batch. The consumer stops after the
+	// second batch, so the third page must never be delivered.
+	pages := []tracestore.SpanPage{{NextPageToken: "a"}, {NextPageToken: "b"}, {NextPageToken: "c"}}
+	inner.On("FindSpans", context.Background(), tracestore.SpanQueryParams{}).
+		Return(emptyIter[tracestore.SpanPage](pages, nil))
+
+	d := NewReaderDecorator(inner, mf)
+	var got []tracestore.SpanPage
+	for batch, err := range d.FindSpans(context.Background(), tracestore.SpanQueryParams{}) {
+		require.NoError(t, err)
+		got = append(got, batch...)
+		if len(got) == 2 {
+			break
+		}
+	}
+
+	require.Len(t, got, 2)
+	assert.Equal(t, "a", got[0].NextPageToken)
+	assert.Equal(t, "b", got[1].NextPageToken)
+
+	counters, _ := mf.Snapshot()
+	assert.Equal(t, int64(1), counters["requests|operation=find_spans|result=ok"])
+	assert.Equal(t, int64(2), counters["responses|operation=find_spans"])
+}
