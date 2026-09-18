@@ -17,6 +17,7 @@ import (
 
 	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerquery/internal/mcptools/internal/types"
 	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerquery/querysvc"
+	"github.com/jaegertracing/jaeger/internal/jptrace"
 )
 
 // findSpanByName is a test helper that looks up a TopologySpan by its SpanName field.
@@ -626,6 +627,7 @@ func TestGetTraceTopologyHandler_Handle_LimitOutOfOrderSpans(t *testing.T) {
 	require.NoError(t, err)
 
 	assert.Len(t, output.Spans, 2)
+	assert.True(t, output.Truncated)
 
 	root := findSpanByName(output.Spans, "root")
 	child := findSpanByName(output.Spans, "child")
@@ -641,4 +643,36 @@ func TestGetTraceTopologyHandler_Handle_LimitOutOfOrderSpans(t *testing.T) {
 	droppedParentPrefix := spanIDToHex("child01") + "/"
 	assert.False(t, strings.HasPrefix(grandchild.Path, droppedParentPrefix),
 		"grandchild Path must not use genuine-orphan encoding for a parent dropped only by the count limit, got %q", grandchild.Path)
+}
+
+func TestGetTraceTopologyHandler_Handle_OmittedRootSignalsTruncation(t *testing.T) {
+	traceID := testTraceID
+	trace := createTestTraceWithSpans(traceID, []spanConfig{
+		{spanID: "child01", parentSpanID: "root001", operation: "child"},
+		{spanID: "root001", operation: "root"},
+	})
+	handler := &getTraceTopologyHandler{
+		queryService: newMockYieldingTraces(trace), maxSpanDetailsPerRequest: 1,
+	}
+	_, output, err := handler.handle(context.Background(), &mcp.CallToolRequest{}, types.GetTraceTopologyInput{TraceID: traceID})
+	require.NoError(t, err)
+	require.Len(t, output.Spans, 1)
+	assert.True(t, output.Truncated)
+	assert.Equal(t, spanIDToHex("child01"), output.Spans[0].Path)
+}
+
+func TestGetTraceTopologyHandler_Handle_UpstreamTruncationDoesNotClaimOrphan(t *testing.T) {
+	traceID := testTraceID
+	trace := createTestTraceWithSpans(traceID, []spanConfig{
+		{spanID: "child01", parentSpanID: "root001", operation: "child"},
+	})
+	for _, span := range jptrace.SpanIter(trace) {
+		jptrace.AddWarnings(span, "trace has more than 1 spans, showing first 1 spans only")
+	}
+	handler := &getTraceTopologyHandler{queryService: newMockYieldingTraces(trace)}
+	_, output, err := handler.handle(context.Background(), &mcp.CallToolRequest{}, types.GetTraceTopologyInput{TraceID: traceID})
+	require.NoError(t, err)
+	require.Len(t, output.Spans, 1)
+	assert.True(t, output.Truncated)
+	assert.Equal(t, spanIDToHex("child01"), output.Spans[0].Path)
 }
