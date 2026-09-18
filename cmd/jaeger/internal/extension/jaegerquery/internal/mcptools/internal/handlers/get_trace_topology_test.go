@@ -12,12 +12,14 @@ import (
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/stretchr/testify/assert"
+	testifymock "github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/collector/pdata/ptrace"
 
 	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerquery/internal/mcptools/internal/types"
 	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerquery/querysvc"
 	"github.com/jaegertracing/jaeger/internal/jptrace"
+	tracestoremocks "github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore/mocks"
 )
 
 // findSpanByName is a test helper that looks up a TopologySpan by its SpanName field.
@@ -108,6 +110,11 @@ func TestGetTraceTopologyHandler_Handle_DepthLimit(t *testing.T) {
 		expectRootTruncated  int
 		expectChildTruncated int
 	}{
+		{
+			name:            "negative depth returns full tree",
+			depth:           -1,
+			expectSpanNames: []string{"/api/checkout", "getCart", "queryDB"},
+		},
 		{
 			name:                 "depth 0 returns full tree",
 			depth:                0,
@@ -665,14 +672,37 @@ func TestGetTraceTopologyHandler_Handle_UpstreamTruncationDoesNotClaimOrphan(t *
 	traceID := testTraceID
 	trace := createTestTraceWithSpans(traceID, []spanConfig{
 		{spanID: "child01", parentSpanID: "root001", operation: "child"},
+		{spanID: "root001", operation: "root"},
 	})
-	for _, span := range jptrace.SpanIter(trace) {
-		jptrace.AddWarnings(span, "trace has more than 1 spans, showing first 1 spans only")
-	}
-	handler := &getTraceTopologyHandler{queryService: newMockYieldingTraces(trace)}
+	reader := &tracestoremocks.Reader{}
+	reader.On("GetTraces", testifymock.Anything, testifymock.Anything).Return(iter.Seq2[[]ptrace.Traces, error](func(yield func([]ptrace.Traces, error) bool) {
+		yield([]ptrace.Traces{trace}, nil)
+	})).Once()
+	handler := &getTraceTopologyHandler{queryService: querysvc.NewQueryService(reader, nil, querysvc.QueryServiceOptions{MaxTraceSize: 1})}
 	_, output, err := handler.handle(context.Background(), &mcp.CallToolRequest{}, types.GetTraceTopologyInput{TraceID: traceID})
 	require.NoError(t, err)
 	require.Len(t, output.Spans, 1)
 	assert.True(t, output.Truncated)
 	assert.Equal(t, spanIDToHex("child01"), output.Spans[0].Path)
+	reader.AssertExpectations(t)
+}
+
+func TestGetTraceTopologyHandler_Handle_StoredWarningPreservesOrphan(t *testing.T) {
+	trace := createTestTraceWithSpans(testTraceID, []spanConfig{
+		{spanID: "child01", parentSpanID: "root001", operation: "child"},
+	})
+	for _, span := range jptrace.SpanIter(trace) {
+		jptrace.AddWarnings(span, "trace has more than 1 spans, showing first 1 spans only")
+	}
+	reader := &tracestoremocks.Reader{}
+	reader.On("GetTraces", testifymock.Anything, testifymock.Anything).Return(iter.Seq2[[]ptrace.Traces, error](func(yield func([]ptrace.Traces, error) bool) {
+		yield([]ptrace.Traces{trace}, nil)
+	})).Once()
+	handler := &getTraceTopologyHandler{queryService: querysvc.NewQueryService(reader, nil, querysvc.QueryServiceOptions{MaxTraceSize: 1})}
+	_, output, err := handler.handle(context.Background(), &mcp.CallToolRequest{}, types.GetTraceTopologyInput{TraceID: testTraceID})
+	require.NoError(t, err)
+	require.Len(t, output.Spans, 1)
+	assert.False(t, output.Truncated)
+	assert.Equal(t, spanIDToHex("root001")+"/"+spanIDToHex("child01"), output.Spans[0].Path)
+	reader.AssertExpectations(t)
 }

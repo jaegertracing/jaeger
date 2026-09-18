@@ -823,8 +823,12 @@ func TestMaxTraceSize(t *testing.T) {
 			tqs := &testQueryService{}
 			tqs.queryService = NewQueryService(traceReader, dependencyStorage, options)
 
+			var truncatedIDs []pcommon.TraceID
 			params := GetTraceParams{
 				TraceIDs: []tracestore.GetTraceParams{{TraceID: testTraceID}},
+				OnTraceTruncated: func(id pcommon.TraceID) {
+					truncatedIDs = append(truncatedIDs, id)
+				},
 			}
 			traceReader.On("GetTraces", mock.Anything, params.TraceIDs).
 				Return(responseIter).Once()
@@ -843,12 +847,14 @@ func TestMaxTraceSize(t *testing.T) {
 			warningsAttr, hasWarning := firstSpan.Attributes().Get("@jaeger@warnings")
 
 			if tt.expectWarning {
+				require.Equal(t, []pcommon.TraceID{testTraceID}, truncatedIDs)
 				require.True(t, hasWarning, "expected warning but none found")
 				require.Equal(t, pcommon.ValueTypeSlice, warningsAttr.Type())
 				warnings := warningsAttr.Slice()
 				require.Positive(t, warnings.Len())
 				require.Contains(t, warnings.At(warnings.Len()-1).Str(), tt.warningPattern)
 			} else {
+				require.Empty(t, truncatedIDs)
 				require.False(t, hasWarning, "unexpected warning found")
 			}
 		})

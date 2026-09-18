@@ -9,10 +9,10 @@ import (
 	"errors"
 	"fmt"
 	"slices"
-	"strings"
 	"time"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
+	"go.opentelemetry.io/collector/pdata/pcommon"
 	"go.opentelemetry.io/collector/pdata/ptrace"
 
 	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerquery/internal/mcptools/internal/types"
@@ -65,6 +65,10 @@ func (h *getTraceTopologyHandler) handle(
 		return nil, types.GetTraceTopologyOutput{}, err
 	}
 
+	upstreamTruncated := false
+	params.OnTraceTruncated = func(_ pcommon.TraceID) {
+		upstreamTruncated = true
+	}
 	tracesIter := h.queryService.GetTraces(ctx, params)
 
 	// Retain only response spans. IDs and direct-child counts are enough to
@@ -73,7 +77,6 @@ func (h *getTraceTopologyHandler) handle(
 	allIDs := make(map[string]struct{})
 	childCounts := make(map[string]int)
 	traceFound := false
-	upstreamTruncated := false
 	countTruncated := false
 
 	for traces, err := range tracesIter {
@@ -87,11 +90,6 @@ func (h *getTraceTopologyHandler) handle(
 				allIDs[id] = struct{}{}
 				if !span.ParentSpanID().IsEmpty() {
 					childCounts[span.ParentSpanID().String()]++
-				}
-				for _, warning := range jptrace.GetWarnings(span) {
-					if strings.HasPrefix(warning, "trace has more than ") && strings.Contains(warning, " spans, showing first ") {
-						upstreamTruncated = true
-					}
 				}
 				if h.maxSpanDetailsPerRequest <= 0 || len(spans) < h.maxSpanDetailsPerRequest {
 					spans = append(spans, extractRawSpan(pos, span))
@@ -260,7 +258,7 @@ func (h *getTraceTopologyHandler) dfs(
 	})
 
 	// Recurse only for children still in this response and above the depth limit.
-	if maxDepth == 0 || depth < maxDepth {
+	if maxDepth <= 0 || depth < maxDepth {
 		for _, child := range childrenOf[span.spanID] {
 			h.dfs(child, path+"/"+child.spanID, depth+1, maxDepth, childrenOf, childCounts, result)
 		}
