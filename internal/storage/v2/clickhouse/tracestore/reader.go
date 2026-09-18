@@ -40,6 +40,8 @@ type Reader struct {
 	// ClickHouse does not compute trace summaries natively yet; fall back to
 	// FindTraces + client-side aggregation.
 	tracestore.UnsupportedTraceSummaries
+	// SpanSearch is unsupported in ClickHouse for now.
+	tracestore.UnsupportedSpanSearch
 
 	conn          driver.Conn
 	config        ReaderConfig
