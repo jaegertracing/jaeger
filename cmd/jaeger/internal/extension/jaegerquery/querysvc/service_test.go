@@ -392,6 +392,7 @@ func TestGetOperations(t *testing.T) {
 }
 
 func TestFindSpans_Success(t *testing.T) {
+	enableStructuredFilters(t)
 	tqs := initializeBareTestQueryService()
 
 	tqs.traceReader.On("SearchCapabilities", context.Background()).Return(tracestore.SearchCapabilities{SpanSearch: true}, nil)

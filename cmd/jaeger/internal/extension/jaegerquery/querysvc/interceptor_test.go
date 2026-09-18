@@ -836,6 +836,7 @@ func TestInterceptedSearch_EarlyStop(t *testing.T) {
 	})
 
 	t.Run("FindSpans: on a batch", func(t *testing.T) {
+		enableStructuredFilters(t)
 		next := &multiBatchReader{
 			fakeReader: &fakeReader{},
 			batches:    [][]ptrace.Traces{tracesWith("k", "1"), tracesWith("k", "2")},
@@ -1212,6 +1213,7 @@ func TestFindSpans_RefusesAnInterceptorConstantThatWillNotParse(t *testing.T) {
 // of the time range alone has no filter to begin with, so an interceptor that leaves it that way
 // has widened nothing and the search proceeds.
 func TestFindSpans_AllowsNoFilterForAPredicatelessQuery(t *testing.T) {
+	enableStructuredFilters(t)
 	next := &fakeReader{batch: tracesWith("k", "v")}
 	var seen queryinterceptor.Query
 	qs := interceptedService(next, fakeInterceptor{
@@ -1229,6 +1231,7 @@ func TestFindSpans_AllowsNoFilterForAPredicatelessQuery(t *testing.T) {
 }
 
 func TestFindSpans_QueryRejectionSkipsStorage(t *testing.T) {
+	enableStructuredFilters(t)
 	sentinel := errors.New("denied")
 	next := &fakeReader{batch: tracesWith("k", "v")}
 	qs := interceptedService(next, fakeInterceptor{
@@ -1241,6 +1244,7 @@ func TestFindSpans_QueryRejectionSkipsStorage(t *testing.T) {
 }
 
 func TestFindSpans_ResultErrorAborts(t *testing.T) {
+	enableStructuredFilters(t)
 	sentinel := errors.New("sanitize failed")
 	next := &fakeReader{batch: tracesWith("k", "v")}
 	qs := interceptedService(next, fakeInterceptor{
@@ -1252,6 +1256,7 @@ func TestFindSpans_ResultErrorAborts(t *testing.T) {
 }
 
 func TestFindSpans_ResultErrorStopsIteration(t *testing.T) {
+	enableStructuredFilters(t)
 	assertResultErrorStops(t, func(qs *QueryService) iter.Seq2[[]ptrace.Traces, error] {
 		return func(yield func([]ptrace.Traces, error) bool) {
 			spanPagesBatches := qs.FindSpans(t.Context(), searchSpansQuery(tracestore.SpanQueryParams{}))
@@ -1273,6 +1278,7 @@ func TestFindSpans_ResultErrorStopsIteration(t *testing.T) {
 }
 
 func TestFindSpans_ChainAppliesInOrder(t *testing.T) {
+	enableStructuredFilters(t)
 	next := &fakeReader{batch: tracesWith("v", "0")}
 	var order []string
 	first := fakeInterceptor{onQuery: func(q queryinterceptor.Query) (queryinterceptor.Query, error) {
@@ -1293,6 +1299,7 @@ func TestFindSpans_ChainAppliesInOrder(t *testing.T) {
 }
 
 func TestFindSpans_ThreadsQueryContextToStorageAndResult(t *testing.T) {
+	enableStructuredFilters(t)
 	next := &fakeReader{batch: tracesWith("k", "v")}
 	var resultSaw any
 	qs := interceptedService(next, fakeInterceptor{
@@ -1312,6 +1319,7 @@ func TestFindSpans_ThreadsQueryContextToStorageAndResult(t *testing.T) {
 }
 
 func TestFindSpans_ThreadsResultContextAcrossBatches(t *testing.T) {
+	enableStructuredFilters(t)
 	next := &multiBatchReader{
 		fakeReader: &fakeReader{},
 		batches:    [][]ptrace.Traces{tracesWith("k", "1"), tracesWith("k", "2")},

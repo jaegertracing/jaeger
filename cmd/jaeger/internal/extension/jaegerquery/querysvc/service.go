@@ -69,7 +69,6 @@ type GetTraceParams struct {
 	RawTraces bool
 }
 
-// TODO I'm not sure these structs buy enough. Maybe rm them. It seems like the tracestore types already leak into the http gateway anyway
 // SpanQueryParams represents the parameters for querying a batch of traces.
 type SpanQueryParams struct {
 	tracestore.SpanQueryParams
@@ -263,12 +262,7 @@ func (qs QueryService) prepareSearchQuery(
 	if query.Filter == nil {
 		return ctx, query, qs.checkServiceName(ctx, query)
 	}
-	caps, err := qs.traceReader.SearchCapabilities(ctx)
-	if err != nil {
-		// A reader that cannot report its capabilities reads as the least capable one, which
-		// serves only the legacy predicate fields.
-		caps = tracestore.SearchCapabilities{}
-	}
+	caps := qs.readerSearchCapabilitiesOrDefault(ctx)
 	// The filter is settled before the service name is checked, because a filter can name the
 	// service itself and rewriting it is what moves that into ServiceName.
 	prepared, err := query.ForCapabilities(caps)
@@ -299,17 +293,14 @@ func (qs QueryService) prepareSpanSearchQuery(
 	if err := qs.checkSpanSearchCapability(ctx); err != nil {
 		return ctx, query, err
 	}
-	// TODO should this fail if the filter is nil?
+	// TODO decide if we need this gate here. SpanSearch requires structured filters, so it's kinda implied. otoh
+	// it would probably be an incorrect config to have it disabled and SearchSpans enabled.
+	if !StructuredFiltersGate.IsEnabled() {
+		return ctx, query, fmt.Errorf("%w: enable the %q feature gate to use it",
+			ErrFilterDisabled, StructuredFiltersGate.ID())
+	}
+	// TODO should having a non-nil filter be required by FindSpans like it is for non-legacy FindTraces requests?
 	if query.Filter != nil {
-		// None of these refusals depends on the backend, so they come before the capability call
-		// rather than after it.
-		if !StructuredFiltersGate.IsEnabled() {
-			return ctx, query, fmt.Errorf("%w: enable the %q feature gate to use it",
-				ErrFilterDisabled, StructuredFiltersGate.ID())
-		}
-
-		// Decoding a filter validates nothing, so it is finalized — validated and normalized —
-		// here, on behalf of every API layer above (RFC 0005 §7).
 		finalized, err := tracestore.FinalizeFilter(query.Filter)
 		if err != nil {
 			return ctx, query, fmt.Errorf("%w: %w", tracestore.ErrFilterInvalid, err)
@@ -323,28 +314,30 @@ func (qs QueryService) prepareSpanSearchQuery(
 			return ctx, query, err
 		}
 	}
-	caps, err := qs.traceReader.SearchCapabilities(ctx)
-	if err != nil {
-		// A reader that cannot report its capabilities reads as the least capable one, which
-		// serves only the legacy predicate fields.
-		caps = tracestore.SearchCapabilities{}
-	}
+	caps := qs.readerSearchCapabilitiesOrDefault(ctx)
 	// check that the modified query is still valid
-	// TODO do we want to obscure the error message if the error is in something the interceptors generated?
-	// Maybe we should check before and after. That would also make determining when an error is introduced easier.
-	err = qs.checkSpanSearchFilterCapabilities(caps, query)
+	err := qs.checkSpanSearchFilterCapabilities(caps, query)
 	if err != nil {
+		// TODO do we want to obscure the error message if the error is in something the interceptors generated?
+		// We could also check before and after each interceptor if we wanted to be able to find issues with individual
+		// ones. That would make determining when an error is introduced easier.
 		return ctx, query, err
 	}
+
 	return ctx, query, nil
 }
 
-func (qs QueryService) checkSpanSearchCapability(ctx context.Context) error {
+func (qs QueryService) readerSearchCapabilitiesOrDefault(ctx context.Context) tracestore.SearchCapabilities {
 	caps, err := qs.traceReader.SearchCapabilities(ctx)
 	if err != nil {
 		// A reader that cannot report its capabilities won't support the span search feature
 		caps = tracestore.SearchCapabilities{}
 	}
+	return caps
+}
+
+func (qs QueryService) checkSpanSearchCapability(ctx context.Context) error {
+	caps := qs.readerSearchCapabilitiesOrDefault(ctx)
 	if caps.SpanSearch {
 		return nil
 	}
