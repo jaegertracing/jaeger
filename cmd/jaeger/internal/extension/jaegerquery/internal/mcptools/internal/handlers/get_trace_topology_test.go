@@ -6,6 +6,7 @@ package handlers
 import (
 	"context"
 	"errors"
+	"fmt"
 	"iter"
 	"strings"
 	"testing"
@@ -21,6 +22,35 @@ import (
 	"github.com/jaegertracing/jaeger/internal/jptrace"
 	tracestoremocks "github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore/mocks"
 )
+
+func TestTopologyCollector_MetadataBoundedByResponseLimit(t *testing.T) {
+	collector := newTopologyCollector(2)
+	add := func(configs []spanConfig) {
+		trace := createTestTraceWithSpans(testTraceID, configs)
+		for pos, span := range jptrace.SpanIter(trace) {
+			collector.add(pos, span)
+		}
+	}
+	add([]spanConfig{
+		{spanID: "grand01", parentSpanID: "child01", operation: "grandchild"},
+		{spanID: "root001", operation: "root"},
+	})
+	// Each omitted span has a distinct, unrelated parent. Neither ID should
+	// consume metadata space; the relevant parent may arrive much later.
+	for i := range 1000 {
+		add([]spanConfig{{spanID: fmt.Sprintf("s%06d", i), parentSpanID: fmt.Sprintf("p%06d", i)}})
+		assert.Len(t, collector.knownIDs, 2)
+		assert.Len(t, collector.childCounts, 1)
+	}
+	add([]spanConfig{{spanID: "child01", parentSpanID: "root001", operation: "child"}})
+	require.Len(t, collector.spans, 2)
+	assert.Len(t, collector.retainedIDs, 2)
+	assert.Len(t, collector.knownIDs, 3)
+	assert.Len(t, collector.childCounts, 2)
+	assert.Contains(t, collector.knownIDs, spanIDToHex("child01"))
+	assert.Equal(t, 1, collector.childCounts[spanIDToHex("root001")])
+	assert.True(t, collector.truncated)
+}
 
 // findSpanByName is a test helper that looks up a TopologySpan by its SpanName field.
 func findSpanByName(spans []types.TopologySpan, spanName string) *types.TopologySpan {

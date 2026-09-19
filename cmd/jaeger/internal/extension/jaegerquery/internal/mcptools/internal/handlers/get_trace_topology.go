@@ -53,6 +53,53 @@ type rawSpan struct {
 	startNano  int64 // used for sorting children by start time
 }
 
+// topologyCollector retains at most limit span records and O(limit) metadata.
+// Once the response is full, only its missing parents and direct children matter.
+type topologyCollector struct {
+	limit       int
+	spans       []rawSpan
+	retainedIDs map[string]struct{}
+	knownIDs    map[string]struct{}
+	childCounts map[string]int
+	truncated   bool
+}
+
+func newTopologyCollector(limit int) *topologyCollector {
+	return &topologyCollector{
+		limit:       limit,
+		retainedIDs: make(map[string]struct{}),
+		knownIDs:    make(map[string]struct{}),
+		childCounts: make(map[string]int),
+	}
+}
+
+func (c *topologyCollector) add(pos jptrace.SpanIterPos, span ptrace.Span) {
+	if c.limit <= 0 || len(c.spans) < c.limit {
+		s := extractRawSpan(pos, span)
+		c.spans = append(c.spans, s)
+		c.retainedIDs[s.spanID] = struct{}{}
+		c.knownIDs[s.spanID] = struct{}{}
+		if s.parentID != "" {
+			c.childCounts[s.parentID]++
+		}
+		return
+	}
+
+	c.truncated = true
+	id := span.SpanID().String()
+	// Keys are parents referenced by retained spans, or retained spans with
+	// omitted children. Unrelated IDs never enter either metadata map.
+	if _, needed := c.childCounts[id]; needed {
+		c.knownIDs[id] = struct{}{}
+	}
+	if !span.ParentSpanID().IsEmpty() {
+		parentID := span.ParentSpanID().String()
+		if _, retained := c.retainedIDs[parentID]; retained {
+			c.childCounts[parentID]++
+		}
+	}
+}
+
 // handle processes the get_trace_topology tool request.
 func (h *getTraceTopologyHandler) handle(
 	ctx context.Context,
@@ -71,13 +118,8 @@ func (h *getTraceTopologyHandler) handle(
 	}
 	tracesIter := h.queryService.GetTraces(ctx, params)
 
-	// Retain only response spans. IDs and direct-child counts are enough to
-	// classify omitted parents without copying full span payloads.
-	var spans []rawSpan
-	allIDs := make(map[string]struct{})
-	childCounts := make(map[string]int)
+	collector := newTopologyCollector(h.maxSpanDetailsPerRequest)
 	traceFound := false
-	countTruncated := false
 
 	for traces, err := range tracesIter {
 		if err != nil {
@@ -86,16 +128,7 @@ func (h *getTraceTopologyHandler) handle(
 		for _, trace := range traces {
 			for pos, span := range jptrace.SpanIter(trace) {
 				traceFound = true
-				id := span.SpanID().String()
-				allIDs[id] = struct{}{}
-				if !span.ParentSpanID().IsEmpty() {
-					childCounts[span.ParentSpanID().String()]++
-				}
-				if h.maxSpanDetailsPerRequest <= 0 || len(spans) < h.maxSpanDetailsPerRequest {
-					spans = append(spans, extractRawSpan(pos, span))
-				} else {
-					countTruncated = true
-				}
+				collector.add(pos, span)
 			}
 		}
 	}
@@ -106,8 +139,8 @@ func (h *getTraceTopologyHandler) handle(
 
 	output := types.GetTraceTopologyOutput{
 		TraceID:   input.TraceID,
-		Truncated: countTruncated || upstreamTruncated,
-		Spans:     h.buildFlatTopology(spans, input.Depth, allIDs, childCounts, upstreamTruncated),
+		Truncated: collector.truncated || upstreamTruncated,
+		Spans:     h.buildFlatTopology(collector.spans, input.Depth, collector.knownIDs, collector.childCounts, upstreamTruncated),
 	}
 
 	return nil, output, nil
