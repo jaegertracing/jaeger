@@ -35,6 +35,7 @@ type fakeReader struct {
 	summaries       []tracestore.TraceSummary
 	summaryErr      error
 	capabilities    *tracestore.SearchCapabilities
+	tracestore.UnsupportedSpanSearch
 }
 
 // SearchCapabilities answers for a backend that searches every service and evaluates no filter
