@@ -46,6 +46,7 @@
                       "must": {
                         "regexp": {
                           "scopeTag.error": {
+                            "flags": "NONE",
                             "value": "true"
                           }
                         }
@@ -147,6 +148,7 @@
                             {
                               "regexp": {
                                 "scopeTags.value": {
+                                  "flags": "NONE",
                                   "value": "true"
                                 }
                               }
@@ -173,6 +175,7 @@
                             {
                               "regexp": {
                                 "references.tags.value": {
+                                  "flags": "NONE",
                                   "value": "true"
                                 }
                               }
@@ -269,6 +272,7 @@
                           "must": {
                             "regexp": {
                               "scopeTag.error": {
+                                "flags": "NONE",
                                 "value": "true"
                               }
                             }
@@ -370,6 +374,7 @@
                                 {
                                   "regexp": {
                                     "scopeTags.value": {
+                                      "flags": "NONE",
                                       "value": "true"
                                     }
                                   }
@@ -396,6 +401,7 @@
                                 {
                                   "regexp": {
                                     "references.tags.value": {
+                                      "flags": "NONE",
                                       "value": "true"
                                     }
                                   }
