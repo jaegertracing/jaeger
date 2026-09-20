@@ -30,6 +30,7 @@
           "must":{
             "regexp":{
               "scopeTag.bat@foo":{
+                "flags":"NONE",
                 "value":"spo.*"
               }
             }
@@ -131,6 +132,7 @@
                 {
                   "regexp": {
                     "scopeTags.value": {
+                      "flags": "NONE",
                       "value": "spo.*"
                     }
                   }
@@ -157,6 +159,7 @@
                 {
                   "regexp": {
                     "references.tags.value": {
+                      "flags": "NONE",
                       "value": "spo.*"
                     }
                   }
