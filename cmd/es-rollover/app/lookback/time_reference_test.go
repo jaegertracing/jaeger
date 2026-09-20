@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestGetTimeReference(t *testing.T) {
@@ -65,25 +66,23 @@ func TestGetTimeReference(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			ref := getTimeReference(now, test.unit, test.unitCount)
+			ref, err := getTimeReference(now, test.unit, test.unitCount)
+			require.NoError(t, err)
 			assert.Equal(t, test.expectedTime, ref)
 		})
 	}
 }
 
-func TestGetTimeReference_DefaultCase(t *testing.T) {
+func TestGetTimeReference_UnknownUnit(t *testing.T) {
 	now := time.Date(2021, time.October, 10, 10, 10, 10, 10, time.UTC)
-
-	unknownUnit := "unknown-unit"
 	unitCount := 30
 
-	ref := getTimeReference(now, unknownUnit, unitCount)
-
-	expectedTime := time.Date(2021, time.October, 10, 10, 9, 40, 0, time.UTC)
-	assert.Equal(t, expectedTime, ref)
-
-	anotherUnknownUnit := "milliseconds"
-	ref2 := getTimeReference(now, anotherUnknownUnit, unitCount)
-
-	assert.Equal(t, expectedTime, ref2)
+	for _, unknownUnit := range []string{"unknown-unit", "milliseconds", "day", "dayss"} {
+		t.Run(unknownUnit, func(t *testing.T) {
+			ref, err := getTimeReference(now, unknownUnit, unitCount)
+			require.Error(t, err)
+			assert.Contains(t, err.Error(), unknownUnit)
+			assert.Equal(t, time.Time{}, ref)
+		})
+	}
 }
