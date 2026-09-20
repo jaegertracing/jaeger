@@ -105,11 +105,11 @@ func (tr *TraceReader) FindTraces(
 func (tr *TraceReader) FindTraceIDs(
 	ctx context.Context,
 	query tracestore.TraceQueryParams,
-) iter.Seq2[[]tracestore.FoundTraceID, error] {
-	return func(yield func([]tracestore.FoundTraceID, error) bool) {
+) iter.Seq2[tracestore.PageChunk[[]tracestore.FoundTraceID], error] {
+	return func(yield func(tracestore.PageChunk[[]tracestore.FoundTraceID], error) bool) {
 		traceIDs, err := tr.spanReader.FindTraceIDs(ctx, GetV1QueryParameters(query))
 		if err != nil {
-			yield(nil, err)
+			yield(tracestore.PageChunk[[]tracestore.FoundTraceID]{}, err)
 			return
 		}
 		otelIDs := make([]tracestore.FoundTraceID, 0, len(traceIDs))
@@ -118,7 +118,8 @@ func (tr *TraceReader) FindTraceIDs(
 				TraceID: FromV1TraceID(traceID),
 			})
 		}
-		yield(otelIDs, nil)
+		// TODO: Populate NextPageToken when the v1 adapter supports RFC 0014 pagination.
+		yield(tracestore.PageChunk[[]tracestore.FoundTraceID]{Results: otelIDs}, nil)
 	}
 }
 

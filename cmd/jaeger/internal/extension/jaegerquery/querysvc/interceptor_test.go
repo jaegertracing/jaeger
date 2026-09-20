@@ -75,8 +75,8 @@ func (f *fakeReader) GetTraces(_ context.Context, _ ...tracestore.GetTraceParams
 	}
 }
 
-func (*fakeReader) FindTraceIDs(context.Context, tracestore.TraceQueryParams) iter.Seq2[[]tracestore.FoundTraceID, error] {
-	return func(func([]tracestore.FoundTraceID, error) bool) {}
+func (*fakeReader) FindTraceIDs(context.Context, tracestore.TraceQueryParams) iter.Seq2[tracestore.PageChunk[[]tracestore.FoundTraceID], error] {
+	return func(func(tracestore.PageChunk[[]tracestore.FoundTraceID], error) bool) {}
 }
 
 func (*fakeReader) GetServices(context.Context) ([]string, error) {
@@ -87,15 +87,15 @@ func (*fakeReader) GetOperations(context.Context, tracestore.OperationQueryParam
 	return []tracestore.Operation{{Name: "op"}}, nil
 }
 
-func (f *fakeReader) FindTraceSummaries(_ context.Context, q tracestore.TraceQueryParams) iter.Seq2[[]tracestore.TraceSummary, error] {
+func (f *fakeReader) FindTraceSummaries(_ context.Context, q tracestore.TraceQueryParams) iter.Seq2[tracestore.PageChunk[[]tracestore.TraceSummary], error] {
 	f.summaryCalled = true
 	f.gotSummaryQuery = q
-	return func(yield func([]tracestore.TraceSummary, error) bool) {
+	return func(yield func(tracestore.PageChunk[[]tracestore.TraceSummary], error) bool) {
 		if f.summaryErr != nil {
-			yield(nil, f.summaryErr)
+			yield(tracestore.PageChunk[[]tracestore.TraceSummary]{}, f.summaryErr)
 			return
 		}
-		yield(f.summaries, nil)
+		yield(tracestore.PageChunk[[]tracestore.TraceSummary]{Results: f.summaries}, nil)
 	}
 }
 
@@ -897,11 +897,11 @@ func TestFindTraceSummaries_AppliesQueryHook(t *testing.T) {
 	qs := interceptedService(next, fakeInterceptor{onQuery: narrowTo(serviceFilter("gated"))})
 
 	var got [][]tracestore.TraceSummary
-	for s, err := range qs.FindTraceSummaries(t.Context(), searchQuery(tracestore.TraceQueryParams{
+	for chunk, err := range qs.FindTraceSummaries(t.Context(), searchQuery(tracestore.TraceQueryParams{
 		ServiceName: "original",
 	})) {
 		require.NoError(t, err)
-		got = append(got, s)
+		got = append(got, chunk.Results)
 	}
 	assert.Equal(t, "gated", next.gotSummaryQuery.ServiceName, "pre-query hook must reach storage")
 	require.Len(t, got, 1)

@@ -263,19 +263,19 @@ func (_m *Reader) EXPECT() *Reader_Expecter {
 }
 
 // FindSpans provides a mock function for the type Reader
-func (_mock *Reader) FindSpans(ctx context.Context, query tracestore.SpanQueryParams) iter.Seq2[[]tracestore.SpanPage, error] {
+func (_mock *Reader) FindSpans(ctx context.Context, query tracestore.SpanQueryParams) iter.Seq2[tracestore.PageChunk[ptrace.Traces], error] {
 	ret := _mock.Called(ctx, query)
 
 	if len(ret) == 0 {
 		panic("no return value specified for FindSpans")
 	}
 
-	var r0 iter.Seq2[[]tracestore.SpanPage, error]
-	if returnFunc, ok := ret.Get(0).(func(context.Context, tracestore.SpanQueryParams) iter.Seq2[[]tracestore.SpanPage, error]); ok {
+	var r0 iter.Seq2[tracestore.PageChunk[ptrace.Traces], error]
+	if returnFunc, ok := ret.Get(0).(func(context.Context, tracestore.SpanQueryParams) iter.Seq2[tracestore.PageChunk[ptrace.Traces], error]); ok {
 		r0 = returnFunc(ctx, query)
 	} else {
 		if ret.Get(0) != nil {
-			r0 = ret.Get(0).(iter.Seq2[[]tracestore.SpanPage, error])
+			r0 = ret.Get(0).(iter.Seq2[tracestore.PageChunk[ptrace.Traces], error])
 		}
 	}
 	return r0
@@ -311,30 +311,30 @@ func (_c *Reader_FindSpans_Call) Run(run func(ctx context.Context, query tracest
 	return _c
 }
 
-func (_c *Reader_FindSpans_Call) Return(seq2 iter.Seq2[[]tracestore.SpanPage, error]) *Reader_FindSpans_Call {
+func (_c *Reader_FindSpans_Call) Return(seq2 iter.Seq2[tracestore.PageChunk[ptrace.Traces], error]) *Reader_FindSpans_Call {
 	_c.Call.Return(seq2)
 	return _c
 }
 
-func (_c *Reader_FindSpans_Call) RunAndReturn(run func(ctx context.Context, query tracestore.SpanQueryParams) iter.Seq2[[]tracestore.SpanPage, error]) *Reader_FindSpans_Call {
+func (_c *Reader_FindSpans_Call) RunAndReturn(run func(ctx context.Context, query tracestore.SpanQueryParams) iter.Seq2[tracestore.PageChunk[ptrace.Traces], error]) *Reader_FindSpans_Call {
 	_c.Call.Return(run)
 	return _c
 }
 
 // FindTraceIDs provides a mock function for the type Reader
-func (_mock *Reader) FindTraceIDs(ctx context.Context, query tracestore.TraceQueryParams) iter.Seq2[[]tracestore.FoundTraceID, error] {
+func (_mock *Reader) FindTraceIDs(ctx context.Context, query tracestore.TraceQueryParams) iter.Seq2[tracestore.PageChunk[[]tracestore.FoundTraceID], error] {
 	ret := _mock.Called(ctx, query)
 
 	if len(ret) == 0 {
 		panic("no return value specified for FindTraceIDs")
 	}
 
-	var r0 iter.Seq2[[]tracestore.FoundTraceID, error]
-	if returnFunc, ok := ret.Get(0).(func(context.Context, tracestore.TraceQueryParams) iter.Seq2[[]tracestore.FoundTraceID, error]); ok {
+	var r0 iter.Seq2[tracestore.PageChunk[[]tracestore.FoundTraceID], error]
+	if returnFunc, ok := ret.Get(0).(func(context.Context, tracestore.TraceQueryParams) iter.Seq2[tracestore.PageChunk[[]tracestore.FoundTraceID], error]); ok {
 		r0 = returnFunc(ctx, query)
 	} else {
 		if ret.Get(0) != nil {
-			r0 = ret.Get(0).(iter.Seq2[[]tracestore.FoundTraceID, error])
+			r0 = ret.Get(0).(iter.Seq2[tracestore.PageChunk[[]tracestore.FoundTraceID], error])
 		}
 	}
 	return r0
@@ -370,30 +370,30 @@ func (_c *Reader_FindTraceIDs_Call) Run(run func(ctx context.Context, query trac
 	return _c
 }
 
-func (_c *Reader_FindTraceIDs_Call) Return(seq2 iter.Seq2[[]tracestore.FoundTraceID, error]) *Reader_FindTraceIDs_Call {
+func (_c *Reader_FindTraceIDs_Call) Return(seq2 iter.Seq2[tracestore.PageChunk[[]tracestore.FoundTraceID], error]) *Reader_FindTraceIDs_Call {
 	_c.Call.Return(seq2)
 	return _c
 }
 
-func (_c *Reader_FindTraceIDs_Call) RunAndReturn(run func(ctx context.Context, query tracestore.TraceQueryParams) iter.Seq2[[]tracestore.FoundTraceID, error]) *Reader_FindTraceIDs_Call {
+func (_c *Reader_FindTraceIDs_Call) RunAndReturn(run func(ctx context.Context, query tracestore.TraceQueryParams) iter.Seq2[tracestore.PageChunk[[]tracestore.FoundTraceID], error]) *Reader_FindTraceIDs_Call {
 	_c.Call.Return(run)
 	return _c
 }
 
 // FindTraceSummaries provides a mock function for the type Reader
-func (_mock *Reader) FindTraceSummaries(ctx context.Context, query tracestore.TraceQueryParams) iter.Seq2[[]tracestore.TraceSummary, error] {
+func (_mock *Reader) FindTraceSummaries(ctx context.Context, query tracestore.TraceQueryParams) iter.Seq2[tracestore.PageChunk[[]tracestore.TraceSummary], error] {
 	ret := _mock.Called(ctx, query)
 
 	if len(ret) == 0 {
 		panic("no return value specified for FindTraceSummaries")
 	}
 
-	var r0 iter.Seq2[[]tracestore.TraceSummary, error]
-	if returnFunc, ok := ret.Get(0).(func(context.Context, tracestore.TraceQueryParams) iter.Seq2[[]tracestore.TraceSummary, error]); ok {
+	var r0 iter.Seq2[tracestore.PageChunk[[]tracestore.TraceSummary], error]
+	if returnFunc, ok := ret.Get(0).(func(context.Context, tracestore.TraceQueryParams) iter.Seq2[tracestore.PageChunk[[]tracestore.TraceSummary], error]); ok {
 		r0 = returnFunc(ctx, query)
 	} else {
 		if ret.Get(0) != nil {
-			r0 = ret.Get(0).(iter.Seq2[[]tracestore.TraceSummary, error])
+			r0 = ret.Get(0).(iter.Seq2[tracestore.PageChunk[[]tracestore.TraceSummary], error])
 		}
 	}
 	return r0
@@ -429,12 +429,12 @@ func (_c *Reader_FindTraceSummaries_Call) Run(run func(ctx context.Context, quer
 	return _c
 }
 
-func (_c *Reader_FindTraceSummaries_Call) Return(seq2 iter.Seq2[[]tracestore.TraceSummary, error]) *Reader_FindTraceSummaries_Call {
+func (_c *Reader_FindTraceSummaries_Call) Return(seq2 iter.Seq2[tracestore.PageChunk[[]tracestore.TraceSummary], error]) *Reader_FindTraceSummaries_Call {
 	_c.Call.Return(seq2)
 	return _c
 }
 
-func (_c *Reader_FindTraceSummaries_Call) RunAndReturn(run func(ctx context.Context, query tracestore.TraceQueryParams) iter.Seq2[[]tracestore.TraceSummary, error]) *Reader_FindTraceSummaries_Call {
+func (_c *Reader_FindTraceSummaries_Call) RunAndReturn(run func(ctx context.Context, query tracestore.TraceQueryParams) iter.Seq2[tracestore.PageChunk[[]tracestore.TraceSummary], error]) *Reader_FindTraceSummaries_Call {
 	_c.Call.Return(run)
 	return _c
 }
