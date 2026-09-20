@@ -897,11 +897,11 @@ func TestFindTraceSummaries_AppliesQueryHook(t *testing.T) {
 	qs := interceptedService(next, fakeInterceptor{onQuery: narrowTo(serviceFilter("gated"))})
 
 	var got [][]tracestore.TraceSummary
-	for s, err := range qs.FindTraceSummaries(t.Context(), searchQuery(tracestore.TraceQueryParams{
+	for chunk, err := range qs.FindTraceSummaries(t.Context(), searchQuery(tracestore.TraceQueryParams{
 		ServiceName: "original",
 	})) {
 		require.NoError(t, err)
-		got = append(got, s)
+		got = append(got, chunk.Results)
 	}
 	assert.Equal(t, "gated", next.gotSummaryQuery.ServiceName, "pre-query hook must reach storage")
 	require.Len(t, got, 1)

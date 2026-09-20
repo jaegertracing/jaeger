@@ -891,8 +891,9 @@ func TestQueryServiceGetServicesReturnsEmptySlice(t *testing.T) {
 // summaries natively (rather than yielding ErrUnsupported).
 type mockSummaryReader struct {
 	tracestoremocks.Reader
-	summaries []tracestore.TraceSummary
-	err       error
+	summaries     []tracestore.TraceSummary
+	nextPageToken string
+	err           error
 }
 
 func (m *mockSummaryReader) FindTraceSummaries(_ context.Context, _ tracestore.TraceQueryParams) iter.Seq2[tracestore.PageChunk[[]tracestore.TraceSummary], error] {
@@ -902,24 +903,40 @@ func (m *mockSummaryReader) FindTraceSummaries(_ context.Context, _ tracestore.T
 			return
 		}
 		if len(m.summaries) > 0 {
-			yield(tracestore.PageChunk[[]tracestore.TraceSummary]{Results: m.summaries}, nil)
+			yield(tracestore.PageChunk[[]tracestore.TraceSummary]{
+				Results:       m.summaries,
+				NextPageToken: m.nextPageToken,
+			}, nil)
 		}
 	}
 }
 
+func flattenPageChunks[T any](seq iter.Seq2[PageChunk[[]T], error]) ([]T, error) {
+	var results []T
+	for chunk, err := range seq {
+		if err != nil {
+			return nil, err
+		}
+		results = append(results, chunk.Results...)
+	}
+	return results, nil
+}
+
 func TestFindTraceSummaries_NativePath(t *testing.T) {
 	want := []tracestore.TraceSummary{{RootServiceName: "native"}}
-	nativeReader := &mockSummaryReader{summaries: want}
+	nativeReader := &mockSummaryReader{summaries: want, nextPageToken: "next-page"}
 	declaresSearchWithoutServiceName(&nativeReader.Reader, true)
 
 	depsMock := initializeTestService().depsReader
 	qs := NewQueryService(nativeReader, depsMock, QueryServiceOptions{})
 
-	got, err := jiter.FlattenWithErrors(qs.FindTraceSummaries(context.Background(), TraceQueryParams{
+	chunks, err := jiter.CollectWithErrors(qs.FindTraceSummaries(context.Background(), TraceQueryParams{
 		TraceQueryParams: tracestore.TraceQueryParams{Attributes: pcommon.NewMap()},
 	}))
 	require.NoError(t, err)
-	assert.Equal(t, want, got)
+	require.Len(t, chunks, 1)
+	assert.Equal(t, want, chunks[0].Results)
+	assert.Equal(t, "next-page", chunks[0].NextPageToken)
 	// FindTraces should NOT have been called on the native reader.
 	nativeReader.AssertNotCalled(t, "FindTraces")
 }
@@ -934,7 +951,7 @@ func TestFindTraceSummaries_NativeError(t *testing.T) {
 	depsMock := initializeTestService().depsReader
 	qs := NewQueryService(errReader, depsMock, QueryServiceOptions{})
 
-	_, err := jiter.FlattenWithErrors(qs.FindTraceSummaries(context.Background(), TraceQueryParams{
+	_, err := flattenPageChunks(qs.FindTraceSummaries(context.Background(), TraceQueryParams{
 		TraceQueryParams: tracestore.TraceQueryParams{Attributes: pcommon.NewMap()},
 	}))
 	require.ErrorIs(t, err, assert.AnError)
@@ -958,7 +975,7 @@ func TestFindTraceSummaries_ErrUnsupported(t *testing.T) {
 	depsMock := initializeTestService().depsReader
 	qs := NewQueryService(unsupportedReader, depsMock, QueryServiceOptions{})
 
-	got, err := jiter.FlattenWithErrors(qs.FindTraceSummaries(context.Background(), TraceQueryParams{
+	got, err := flattenPageChunks(qs.FindTraceSummaries(context.Background(), TraceQueryParams{
 		TraceQueryParams: tracestore.TraceQueryParams{Attributes: pcommon.NewMap()},
 	}))
 	require.NoError(t, err)
@@ -1045,7 +1062,7 @@ func TestFindTraces_ServiceNameRequired(t *testing.T) {
 			_, err := jiter.FlattenWithErrors(qs.FindTraces(context.Background(), serviceless))
 			require.ErrorIs(t, err, ErrServiceNameRequired)
 
-			_, err = jiter.FlattenWithErrors(qs.FindTraceSummaries(context.Background(), serviceless))
+			_, err = flattenPageChunks(qs.FindTraceSummaries(context.Background(), serviceless))
 			require.ErrorIs(t, err, ErrServiceNameRequired)
 		})
 	}
@@ -1253,7 +1270,7 @@ func TestFindTraces_UnservableFilterIsRefusedBeforeStorage(t *testing.T) {
 			_, err := jiter.FlattenWithErrors(qs.FindTraces(context.Background(), query))
 			require.ErrorIs(t, err, tracestore.ErrFilterUnsupported)
 
-			_, err = jiter.FlattenWithErrors(qs.FindTraceSummaries(context.Background(), query))
+			_, err = flattenPageChunks(qs.FindTraceSummaries(context.Background(), query))
 			require.ErrorIs(t, err, tracestore.ErrFilterUnsupported)
 		})
 	}
