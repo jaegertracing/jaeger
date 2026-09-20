@@ -7,7 +7,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"iter"
+	stditer "iter"
 	"reflect"
 	"testing"
 	"time"
@@ -55,7 +55,7 @@ var (
 	}
 )
 
-func flattenPageChunks[T any](seq iter.Seq2[tracestore.PageChunk[[]T], error]) ([]T, error) {
+func flattenPageChunks[T any](seq stditer.Seq2[tracestore.PageChunk[[]T], error]) ([]T, error) {
 	var results []T
 	for chunk, err := range seq {
 		if err != nil {
