@@ -171,18 +171,18 @@ func (r *traceReader) FindTraces(
 func (*traceReader) FindTraceIDs(
 	_ context.Context,
 	_ tracestore.TraceQueryParams,
-) iter.Seq2[[]tracestore.FoundTraceID, error] {
+) iter.Seq2[tracestore.PageChunk[[]tracestore.FoundTraceID], error] {
 	panic("not implemented")
 }
 
 func (r *traceReader) FindTraceSummaries(
 	ctx context.Context,
 	query tracestore.TraceQueryParams,
-) iter.Seq2[[]tracestore.TraceSummary, error] {
-	return func(yield func([]tracestore.TraceSummary, error) bool) {
+) iter.Seq2[tracestore.PageChunk[[]tracestore.TraceSummary], error] {
+	return func(yield func(tracestore.PageChunk[[]tracestore.TraceSummary], error) bool) {
 		protoQuery, err := toProtoQuery(query)
 		if err != nil {
-			yield(nil, err)
+			yield(tracestore.PageChunk[[]tracestore.TraceSummary]{}, err)
 			return
 		}
 		stream, err := r.client.FindTraceSummaries(ctx, &api_v3.FindTraceSummariesRequest{Query: protoQuery})
@@ -190,7 +190,7 @@ func (r *traceReader) FindTraceSummaries(
 			if status.Code(err) == codes.Unimplemented {
 				err = fmt.Errorf("remote server does not support FindTraceSummaries: %w", errors.ErrUnsupported)
 			}
-			yield(nil, err)
+			yield(tracestore.PageChunk[[]tracestore.TraceSummary]{}, err)
 			return
 		}
 		for {
@@ -199,14 +199,14 @@ func (r *traceReader) FindTraceSummaries(
 				return
 			}
 			if err != nil {
-				yield(nil, err)
+				yield(tracestore.PageChunk[[]tracestore.TraceSummary]{}, err)
 				return
 			}
 			batch := make([]tracestore.TraceSummary, len(resp.GetSummaries()))
 			for i, ps := range resp.GetSummaries() {
 				traceID, parseErr := traceIDFromHex(ps.GetTraceId())
 				if parseErr != nil {
-					yield(nil, parseErr)
+					yield(tracestore.PageChunk[[]tracestore.TraceSummary]{}, parseErr)
 					return
 				}
 				svcs := make([]tracestore.ServiceSummary, len(ps.GetServices()))
@@ -229,7 +229,8 @@ func (r *traceReader) FindTraceSummaries(
 					Services:          svcs,
 				}
 			}
-			if !yield(batch, nil) {
+			// TODO: Forward NextPageToken when the query API supports RFC 0014 pagination.
+			if !yield(tracestore.PageChunk[[]tracestore.TraceSummary]{Results: batch}, nil) {
 				return
 			}
 		}

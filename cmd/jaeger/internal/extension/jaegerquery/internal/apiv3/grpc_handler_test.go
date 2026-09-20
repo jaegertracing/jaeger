@@ -87,8 +87,8 @@ func newTestServerClientWithCapabilities(t *testing.T, caps tracestore.SearchCap
 	// The mock reader models a backend without native trace summaries: FindTraceSummaries
 	// yields ErrUnsupported so the query service falls back to FindTraces + aggregation.
 	tsc.reader.On("FindTraceSummaries", mock.Anything, mock.Anything).
-		Return(iter.Seq2[[]tracestore.TraceSummary, error](func(yield func([]tracestore.TraceSummary, error) bool) {
-			yield(nil, fmt.Errorf("unsupported: %w", errors.ErrUnsupported))
+		Return(iter.Seq2[tracestore.PageChunk[[]tracestore.TraceSummary], error](func(yield func(tracestore.PageChunk[[]tracestore.TraceSummary], error) bool) {
+			yield(tracestore.PageChunk[[]tracestore.TraceSummary]{}, fmt.Errorf("unsupported: %w", errors.ErrUnsupported))
 		})).Maybe()
 
 	tsc.reader.On("SearchCapabilities", mock.Anything).Return(caps, nil).Maybe()
@@ -499,8 +499,8 @@ func TestFindTraceSummariesStorageError(t *testing.T) {
 func TestFindTraceSummariesSendError(t *testing.T) {
 	reader := new(tracestoremocks.Reader)
 	reader.On("FindTraceSummaries", mock.Anything, mock.Anything).
-		Return(iter.Seq2[[]tracestore.TraceSummary, error](func(yield func([]tracestore.TraceSummary, error) bool) {
-			yield([]tracestore.TraceSummary{{TraceID: traceID}}, nil)
+		Return(iter.Seq2[tracestore.PageChunk[[]tracestore.TraceSummary], error](func(yield func(tracestore.PageChunk[[]tracestore.TraceSummary], error) bool) {
+			yield(tracestore.PageChunk[[]tracestore.TraceSummary]{Results: []tracestore.TraceSummary{{TraceID: traceID}}}, nil)
 		})).Once()
 	h := &Handler{
 		QueryService: querysvc.NewQueryService(

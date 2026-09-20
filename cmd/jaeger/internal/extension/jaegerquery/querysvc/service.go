@@ -274,7 +274,7 @@ func (qs QueryService) FindTraceSummaries(
 			yield(nil, err)
 			return
 		}
-		for batch, err := range qs.traceReader.FindTraceSummaries(ctx, query.TraceQueryParams) {
+		for chunk, err := range qs.traceReader.FindTraceSummaries(ctx, query.TraceQueryParams) {
 			if err != nil {
 				if errors.Is(err, errors.ErrUnsupported) {
 					// Fall back to FindTraces + aggregation. The fallback loads whole traces, so
@@ -291,7 +291,7 @@ func (qs QueryService) FindTraceSummaries(
 				yield(nil, err)
 				return
 			}
-			if !yield(batch, nil) {
+			if !yield(chunk.Results, nil) {
 				return
 			}
 		}

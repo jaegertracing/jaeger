@@ -149,7 +149,7 @@ func (h *Handler) FindTraceSummaries(
 	if err != nil {
 		return err
 	}
-	for summaries, err := range h.traceReader.FindTraceSummaries(srv.Context(), query) {
+	for chunk, err := range h.traceReader.FindTraceSummaries(srv.Context(), query) {
 		if err != nil {
 			// A backend that cannot compute summaries natively signals this with
 			// errors.ErrUnsupported; surface it as gRPC Unimplemented so the remote
@@ -159,9 +159,9 @@ func (h *Handler) FindTraceSummaries(
 			}
 			return err
 		}
-		batch := make([]*storage.TraceSummary, len(summaries))
-		for i := range summaries {
-			s := &summaries[i]
+		batch := make([]*storage.TraceSummary, len(chunk.Results))
+		for i := range chunk.Results {
+			s := &chunk.Results[i]
 			svcs := make([]*storage.ServiceSummary, len(s.Services))
 			for j := range s.Services {
 				svcs[j] = &storage.ServiceSummary{
@@ -182,6 +182,7 @@ func (h *Handler) FindTraceSummaries(
 				Services:             svcs,
 			}
 		}
+		// TODO: Return NextPageToken when the storage gRPC API enables RFC 0014 pagination.
 		if err := srv.Send(&storage.FindTraceSummariesResponse{Summaries: batch}); err != nil {
 			return err
 		}
@@ -198,11 +199,11 @@ func (h *Handler) FindTraceIDs(
 	if err != nil {
 		return nil, err
 	}
-	for traceIDs, err := range h.traceReader.FindTraceIDs(ctx, query) {
+	for chunk, err := range h.traceReader.FindTraceIDs(ctx, query) {
 		if err != nil {
 			return nil, err
 		}
-		for _, traceID := range traceIDs {
+		for _, traceID := range chunk.Results {
 			foundTraceIDs = append(foundTraceIDs, &storage.FoundTraceID{
 				TraceId: traceID.TraceID[:],
 				Start:   traceID.Start,
@@ -210,6 +211,7 @@ func (h *Handler) FindTraceIDs(
 			})
 		}
 	}
+	// TODO: Return NextPageToken when the storage gRPC API enables RFC 0014 pagination.
 	return &storage.FindTraceIDsResponse{
 		TraceIds: foundTraceIDs,
 	}, nil

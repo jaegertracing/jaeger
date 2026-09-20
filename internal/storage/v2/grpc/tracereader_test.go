@@ -6,6 +6,7 @@ package grpc
 import (
 	"context"
 	"errors"
+	"iter"
 	"net"
 	"testing"
 	"time"
@@ -26,6 +27,17 @@ import (
 	expressionproto "github.com/jaegertracing/jaeger/internal/proto/expression/v1"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore"
 )
+
+func flattenPageChunks[T any](seq iter.Seq2[tracestore.PageChunk[[]T], error]) ([]T, error) {
+	var results []T
+	for chunk, err := range seq {
+		if err != nil {
+			return nil, err
+		}
+		results = append(results, chunk.Results...)
+	}
+	return results, nil
+}
 
 // testServer implements the storage.TraceReaderServer interface
 // to simulate responses for testing.
@@ -555,7 +567,7 @@ func TestTraceReader_FindTraceIDs(t *testing.T) {
 			reader := NewTraceReader(conn)
 
 			foundIDsIter := reader.FindTraceIDs(context.Background(), test.queryParams)
-			foundIDs, err := jiter.FlattenWithErrors(foundIDsIter)
+			foundIDs, err := flattenPageChunks(foundIDsIter)
 
 			if test.expectedError != "" {
 				require.ErrorContains(t, err, test.expectedError)
@@ -743,11 +755,12 @@ func TestTraceReader_FindTraceSummaries_Success(t *testing.T) {
 	reader := NewTraceReader(conn)
 
 	var got []tracestore.TraceSummary
-	for batch, err := range reader.FindTraceSummaries(context.Background(), tracestore.TraceQueryParams{
+	for chunk, err := range reader.FindTraceSummaries(context.Background(), tracestore.TraceQueryParams{
 		Attributes: pcommon.NewMap(),
 	}) {
 		require.NoError(t, err)
-		got = append(got, batch...)
+		assert.Empty(t, chunk.NextPageToken)
+		got = append(got, chunk.Results...)
 	}
 	require.Len(t, got, 1)
 	assert.Equal(t, pcommon.TraceID([16]byte{1}), got[0].TraceID)
@@ -982,14 +995,14 @@ func TestTraceReader_RefusesUnencodableFilter(t *testing.T) {
 		{
 			name: "FindTraceIDs",
 			call: func() error {
-				_, err := jiter.FlattenWithErrors(reader.FindTraceIDs(context.Background(), params))
+				_, err := flattenPageChunks(reader.FindTraceIDs(context.Background(), params))
 				return err
 			},
 		},
 		{
 			name: "FindTraceSummaries",
 			call: func() error {
-				_, err := jiter.FlattenWithErrors(reader.FindTraceSummaries(context.Background(), params))
+				_, err := flattenPageChunks(reader.FindTraceSummaries(context.Background(), params))
 				return err
 			},
 		},

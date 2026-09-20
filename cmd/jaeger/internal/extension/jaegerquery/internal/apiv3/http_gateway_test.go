@@ -44,8 +44,8 @@ func setupHTTPGatewayNoServer(
 	// The mock reader models a backend without native trace summaries: FindTraceSummaries
 	// yields ErrUnsupported so the query service falls back to FindTraces + aggregation.
 	gw.reader.On("FindTraceSummaries", mock.Anything, mock.Anything).
-		Return(iter.Seq2[[]tracestore.TraceSummary, error](func(yield func([]tracestore.TraceSummary, error) bool) {
-			yield(nil, fmt.Errorf("unsupported: %w", errors.ErrUnsupported))
+		Return(iter.Seq2[tracestore.PageChunk[[]tracestore.TraceSummary], error](func(yield func(tracestore.PageChunk[[]tracestore.TraceSummary], error) bool) {
+			yield(tracestore.PageChunk[[]tracestore.TraceSummary]{}, fmt.Errorf("unsupported: %w", errors.ErrUnsupported))
 		})).Maybe()
 
 	// The baseline: a backend that requires a service name. Only service-less searches ask.

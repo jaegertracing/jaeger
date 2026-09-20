@@ -895,14 +895,14 @@ type mockSummaryReader struct {
 	err       error
 }
 
-func (m *mockSummaryReader) FindTraceSummaries(_ context.Context, _ tracestore.TraceQueryParams) iter.Seq2[[]tracestore.TraceSummary, error] {
-	return func(yield func([]tracestore.TraceSummary, error) bool) {
+func (m *mockSummaryReader) FindTraceSummaries(_ context.Context, _ tracestore.TraceQueryParams) iter.Seq2[tracestore.PageChunk[[]tracestore.TraceSummary], error] {
+	return func(yield func(tracestore.PageChunk[[]tracestore.TraceSummary], error) bool) {
 		if m.err != nil {
-			yield(nil, m.err)
+			yield(tracestore.PageChunk[[]tracestore.TraceSummary]{}, m.err)
 			return
 		}
 		if len(m.summaries) > 0 {
-			yield(m.summaries, nil)
+			yield(tracestore.PageChunk[[]tracestore.TraceSummary]{Results: m.summaries}, nil)
 		}
 	}
 }

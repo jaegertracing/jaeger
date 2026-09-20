@@ -438,9 +438,9 @@ func (s *StorageIntegration) testFindTraceSummaries(t *testing.T) {
 		}
 		summary = nil
 		for _, b := range batches {
-			for i := range b {
-				if b[i].TraceID == expectedTraceID {
-					sm := b[i]
+			for i := range b.Results {
+				if b.Results[i].TraceID == expectedTraceID {
+					sm := b.Results[i]
 					summary = &sm
 				}
 			}
