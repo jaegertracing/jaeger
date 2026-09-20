@@ -57,7 +57,7 @@ type Reader interface {
 	// A reader that cannot serve span queries yields errors.ErrUnsupported (wrapped
 	// with %w) as the first error before any page; such readers embed
 	// UnsupportedSpanSearch.
-	FindSpans(ctx context.Context, query SpanQueryParams) iter.Seq2[[]SpanPage, error]
+	FindSpans(ctx context.Context, query SpanQueryParams) iter.Seq2[PageChunk[ptrace.Traces], error]
 
 	// FindTraces returns an iterator that retrieves traces matching query parameters.
 	// The iterator is single-use: once consumed, it cannot be used again.
@@ -82,7 +82,7 @@ type Reader interface {
 	// of matching trace IDs. This is useful in some contexts, such as batch jobs, where a
 	// large list of trace IDs may be queried first and then the full traces are loaded
 	// in batches.
-	FindTraceIDs(ctx context.Context, query TraceQueryParams) iter.Seq2[[]FoundTraceID, error]
+	FindTraceIDs(ctx context.Context, query TraceQueryParams) iter.Seq2[PageChunk[[]FoundTraceID], error]
 
 	// FindTraceSummaries returns an iterator over lightweight summaries of the traces
 	// matching the query parameters (the metadata shown in search-result lists). The
@@ -97,7 +97,7 @@ type Reader interface {
 	// The iterator streams result batches; each yielded batch may contain one or more
 	// summaries, and implementations may yield incrementally rather than buffering all
 	// results first.
-	FindTraceSummaries(ctx context.Context, query TraceQueryParams) iter.Seq2[[]TraceSummary, error]
+	FindTraceSummaries(ctx context.Context, query TraceQueryParams) iter.Seq2[PageChunk[[]TraceSummary], error]
 
 	// SearchCapabilities reports how this reader's search methods behave; see
 	// SearchCapabilities for what it describes.
@@ -129,12 +129,12 @@ type GetTraceParams struct {
 // several stores.
 const MaxSearchDepth = 10000
 
-// SpanPage is one chunk of a page of span results. NextPageToken is meaningful
-// only on the page's final chunk, where an empty value means this page is the
-// last; the earlier chunks leave it unset, so a caller reads it from the last
-// chunk the iterator yields.
-type SpanPage struct {
-	Spans         ptrace.Traces
+// PageChunk carries one streamed chunk of a page. A page may span several chunks
+// to satisfy transport message limits without changing the page boundary.
+// NextPageToken is set only on the final chunk: an empty token there means
+// no later page, while an empty token on an earlier chunk says nothing about pagination.
+type PageChunk[T any] struct {
+	Results       T
 	NextPageToken string
 }
 
@@ -155,9 +155,9 @@ type SpanQueryParams struct {
 // so the query service refuses the query before dispatch (RFC 0016 §4.5).
 type UnsupportedSpanSearch struct{}
 
-func (UnsupportedSpanSearch) FindSpans(context.Context, SpanQueryParams) iter.Seq2[[]SpanPage, error] {
-	return func(yield func([]SpanPage, error) bool) {
-		yield(nil, fmt.Errorf("this storage backend does not support span search: %w", errors.ErrUnsupported))
+func (UnsupportedSpanSearch) FindSpans(context.Context, SpanQueryParams) iter.Seq2[PageChunk[ptrace.Traces], error] {
+	return func(yield func(PageChunk[ptrace.Traces], error) bool) {
+		yield(PageChunk[ptrace.Traces]{}, fmt.Errorf("this storage backend does not support span search: %w", errors.ErrUnsupported))
 	}
 }
 
@@ -182,6 +182,34 @@ type TraceQueryParams struct {
 	// other reader the query service expresses the filter in the legacy fields instead, or
 	// refuses the query.
 	Filter *expression.Call
+	// Pagination requests a paginated search (RFC 0014). Its zero value means this is not
+	// a paginated request, the same as an absent jaeger.api_v3.Pagination on the wire. When
+	// present it replaces SearchDepth rather than falling back to it — the two are mutually
+	// exclusive, enforced by EnsurePaginationStandsAlone before a Reader ever sees the query.
+	Pagination Pagination
+}
+
+// MaxPageSize is the largest Pagination.PageSize the query service accepts. A larger request
+// is clamped down to this value rather than refused, the treatment AIP-158 prescribes for a
+// page-size field (RFC 0014 §4).
+const MaxPageSize = 10000
+
+// Pagination asks for one page of a search result and, on continuation, says where the
+// previous page stopped. It mirrors jaeger.api_v3.Pagination and jaeger.storage.v2.Pagination
+// (RFC 0014 §4, §6).
+type Pagination struct {
+	// PageSize bounds the number of results in one page. It replaces SearchDepth as the page
+	// bound rather than falling back to it, so it is required whenever Pagination is present:
+	// a Pagination that leaves PageSize at zero does not describe a page, and
+	// EnsurePaginationStandsAlone refuses it before a Reader ever sees the query (RFC 0014
+	// §4).
+	PageSize int
+	// PageToken continues a previous search. Empty starts a new one. A Reader that
+	// receives a non-empty PageToken MUST treat it as an uninterpreted cursor it minted
+	// itself for the same query — a Reader is never asked to interpret a token it did not
+	// produce, since the query service rejects a PageToken against a Reader whose
+	// SearchCapabilities.Paginated is false before dispatching (RFC 0014 §6.2).
+	PageToken string
 }
 
 // FoundTraceID is a wrapper around trace ID returned from FindTraceIDs

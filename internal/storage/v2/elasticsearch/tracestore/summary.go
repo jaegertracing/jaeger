@@ -36,17 +36,17 @@ var nativeTraceSummariesGate = featuregate.GlobalRegistry().MustRegister(
 // cannot compute them (e.g. Painless scripting is disabled, which the core reader
 // surfaces as errors.ErrUnsupported), it yields errors.ErrUnsupported so the query
 // service falls back to loading full traces and aggregating client-side.
-func (r *TraceReader) FindTraceSummaries(ctx context.Context, query tracestore.TraceQueryParams) iter.Seq2[[]tracestore.TraceSummary, error] {
+func (r *TraceReader) FindTraceSummaries(ctx context.Context, query tracestore.TraceQueryParams) iter.Seq2[tracestore.PageChunk[[]tracestore.TraceSummary], error] {
 	if !nativeTraceSummariesGate.IsEnabled() {
 		return tracestore.UnsupportedTraceSummaries{}.FindTraceSummaries(ctx, query)
 	}
-	return func(yield func([]tracestore.TraceSummary, error) bool) {
+	return func(yield func(tracestore.PageChunk[[]tracestore.TraceSummary], error) bool) {
 		// The aggregation returns all matching summaries in a single ES response,
 		// so they are materialized and yielded in one batch (allowed by the
 		// FindTraceSummaries contract).
 		dbSummaries, err := r.spanReader.FindTraceSummaries(ctx, toDBTraceQueryParams(query))
 		if err != nil {
-			yield(nil, err)
+			yield(tracestore.PageChunk[[]tracestore.TraceSummary]{}, err)
 			return
 		}
 
@@ -54,12 +54,13 @@ func (r *TraceReader) FindTraceSummaries(ctx context.Context, query tracestore.T
 		for _, dbSummary := range dbSummaries {
 			summary, err := convertTraceSummaryFromDB(dbSummary)
 			if err != nil {
-				yield(nil, err)
+				yield(tracestore.PageChunk[[]tracestore.TraceSummary]{}, err)
 				return
 			}
 			summaries = append(summaries, summary)
 		}
-		yield(summaries, nil)
+		// TODO: Populate NextPageToken when Elasticsearch supports RFC 0014 pagination.
+		yield(tracestore.PageChunk[[]tracestore.TraceSummary]{Results: summaries}, nil)
 	}
 }
 
