@@ -129,8 +129,10 @@ type GetTraceParams struct {
 // several stores.
 const MaxSearchDepth = 10000
 
-// PageChunk carries one streamed chunk of a page. NextPageToken is set only on
-// the page's final chunk; an empty value there means this is the last page.
+// PageChunk carries one streamed chunk of a page. A page may span several chunks
+// to satisfy transport message limits without changing the page boundary.
+// NextPageToken is meaningful only on the final chunk: an empty token there means
+// no later page, while an empty token on an earlier chunk says nothing about pagination.
 type PageChunk[T any] struct {
 	Results       T
 	NextPageToken string
