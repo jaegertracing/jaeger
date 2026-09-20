@@ -23,8 +23,10 @@ originating failure, not just the symptoms.
 1. Use `get_trace_errors` to list all error spans with their status messages.
 2. Use `get_trace_topology` to see the full span tree and identify
    parent-child relationships among the error spans.
-3. Walk from each error span toward the leaves of the tree. The deepest error
-   span with no errored children is the most likely root cause.
+3. `get_trace_errors` returns spans ordered from deepest (most likely root cause) to shallowest. If the
+   result is truncated (`total_error_count > len(spans)`), the included spans are the deepest candidates
+   — the originating exception should already be present. Use `get_trace_topology` to confirm the
+   parent-child chain, then `get_span_details` if any additional span detail is needed.
 4. Use `get_span_details` on the candidate root-cause span(s) to inspect
    attributes, events, and status for the actual failure reason.
 5. Report: root-cause span (service, operation, error message), the
