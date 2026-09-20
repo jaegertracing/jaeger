@@ -975,13 +975,15 @@ func TestFindTraceSummaries_ErrUnsupported(t *testing.T) {
 	depsMock := initializeTestService().depsReader
 	qs := NewQueryService(unsupportedReader, depsMock, QueryServiceOptions{})
 
-	got, err := flattenPageChunks(qs.FindTraceSummaries(context.Background(), TraceQueryParams{
+	chunks, err := jiter.CollectWithErrors(qs.FindTraceSummaries(context.Background(), TraceQueryParams{
 		TraceQueryParams: tracestore.TraceQueryParams{Attributes: pcommon.NewMap()},
 	}))
 	require.NoError(t, err)
-	require.Len(t, got, 1, "expected one summary from fallback aggregation")
+	require.Len(t, chunks, 1)
+	assert.Empty(t, chunks[0].NextPageToken)
+	require.Len(t, chunks[0].Results, 1, "expected one summary from fallback aggregation")
 	// Verify the fallback produced a real summary from the trace data.
-	assert.Equal(t, trace.SpanCount(), got[0].SpanCount)
+	assert.Equal(t, trace.SpanCount(), chunks[0].Results[0].SpanCount)
 }
 
 func TestFindTraceSummaries_NativePath_YieldStopsIteration(t *testing.T) {

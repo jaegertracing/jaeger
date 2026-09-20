@@ -289,7 +289,13 @@ func (qs QueryService) FindTraceSummaries(
 					// summaries computed from them carry no spans and have no hook of their own.
 					traces := qs.interceptResults(ctx, qs.traceReader.FindTraces(ctx, query.TraceQueryParams))
 					for b, e := range computeSummaries(traces, qs.adjuster) {
-						if !yield(PageChunk[[]tracestore.TraceSummary]{Results: b}, e) {
+						// FindTraces does not return pagination metadata, so fallback results cannot
+						// supply a next-page token.
+						result := PageChunk[[]tracestore.TraceSummary]{
+							Results:       b,
+							NextPageToken: "",
+						}
+						if !yield(result, e) {
 							return
 						}
 					}
