@@ -27,8 +27,8 @@ func TestCassandraStorage_BackwardCompatibility(t *testing.T) {
 	integration.SkipUnlessEnv(t, integration.StorageCassandra)
 	runBackwardCompatibilityTests(t, "cassandra", E2EStorageIntegration{
 		ConfigFile: "../../config-cassandra.yaml",
-		StorageIntegration: integration.StorageIntegration{
-			Capabilities: capabilities.Cassandra(),
-		},
+	}, compatScenario{
+		Name:         "feature gates disabled on both old writer and new reader",
+		Capabilities: capabilities.Cassandra(),
 	})
 }
