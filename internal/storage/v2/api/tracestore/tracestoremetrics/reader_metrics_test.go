@@ -266,6 +266,8 @@ func TestReadMetricsDecorator_SearchCapabilities(t *testing.T) {
 		{WithoutServiceName: false},
 		{WithoutServiceName: true},
 		{SameSpanConjunction: true},
+		{Paginated: false},
+		{Paginated: true},
 		{SpanSearch: false},
 		{SpanSearch: true},
 	} {
