@@ -197,7 +197,10 @@ func TestReadMetricsDecorator_FindTraceSummaries(t *testing.T) {
 	inner := &mocks.Reader{}
 	summaries := []tracestore.TraceSummary{{RootServiceName: "svc-a"}, {RootServiceName: "svc-b"}}
 	inner.On("FindTraceSummaries", context.Background(), tracestore.TraceQueryParams{}).
-		Return(pageChunkIter([]tracestore.PageChunk[[]tracestore.TraceSummary]{{Results: summaries}}, nil))
+		Return(pageChunkIter([]tracestore.PageChunk[[]tracestore.TraceSummary]{{
+			Results:       summaries,
+			NextPageToken: "next-page",
+		}}, nil))
 
 	d := NewReaderDecorator(inner, mf)
 
@@ -205,13 +208,32 @@ func TestReadMetricsDecorator_FindTraceSummaries(t *testing.T) {
 	for chunk, err := range d.FindTraceSummaries(context.Background(), tracestore.TraceQueryParams{}) {
 		require.NoError(t, err)
 		got = append(got, chunk.Results...)
-		assert.Empty(t, chunk.NextPageToken)
+		assert.Equal(t, "next-page", chunk.NextPageToken)
 	}
 	assert.Len(t, got, len(summaries))
 
 	counters, _ := mf.Snapshot()
 	assert.Equal(t, int64(1), counters["requests|operation=find_trace_summaries|result=ok"])
 	assert.Equal(t, int64(int64(len(summaries))), counters["responses|operation=find_trace_summaries"])
+}
+
+func TestReadMetricsDecorator_FindTraceIDsPreservesNextPageToken(t *testing.T) {
+	mf := metricstest.NewFactory(0)
+	inner := &mocks.Reader{}
+	inner.On("FindTraceIDs", context.Background(), tracestore.TraceQueryParams{}).
+		Return(pageChunkIter([]tracestore.PageChunk[[]tracestore.FoundTraceID]{{
+			NextPageToken: "next-page",
+		}}, nil))
+
+	d := NewReaderDecorator(inner, mf)
+	chunks := []tracestore.PageChunk[[]tracestore.FoundTraceID]{}
+	for chunk, err := range d.FindTraceIDs(context.Background(), tracestore.TraceQueryParams{}) {
+		require.NoError(t, err)
+		chunks = append(chunks, chunk)
+	}
+
+	require.Len(t, chunks, 1)
+	assert.Equal(t, "next-page", chunks[0].NextPageToken)
 }
 
 func TestReadMetricsDecorator_FindTraceSummaries_Error(t *testing.T) {

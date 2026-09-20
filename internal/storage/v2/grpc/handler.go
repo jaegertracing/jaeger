@@ -182,8 +182,11 @@ func (h *Handler) FindTraceSummaries(
 				Services:             svcs,
 			}
 		}
-		// TODO: Return NextPageToken when the storage gRPC API enables RFC 0014 pagination.
-		if err := srv.Send(&storage.FindTraceSummariesResponse{Summaries: batch}); err != nil {
+		response := &storage.FindTraceSummariesResponse{
+			Summaries:     batch,
+			NextPageToken: chunk.NextPageToken,
+		}
+		if err := srv.Send(response); err != nil {
 			return err
 		}
 	}
@@ -195,6 +198,7 @@ func (h *Handler) FindTraceIDs(
 	req *storage.FindTraceIDsRequest,
 ) (*storage.FindTraceIDsResponse, error) {
 	foundTraceIDs := []*storage.FoundTraceID{}
+	var nextPageToken string
 	query, err := h.toTraceQueryParams(ctx, req.Query)
 	if err != nil {
 		return nil, err
@@ -210,10 +214,11 @@ func (h *Handler) FindTraceIDs(
 				End:     traceID.End,
 			})
 		}
+		nextPageToken = chunk.NextPageToken
 	}
-	// TODO: Return NextPageToken when the storage gRPC API enables RFC 0014 pagination.
 	return &storage.FindTraceIDsResponse{
-		TraceIds: foundTraceIDs,
+		TraceIds:      foundTraceIDs,
+		NextPageToken: nextPageToken,
 	}, nil
 }
 

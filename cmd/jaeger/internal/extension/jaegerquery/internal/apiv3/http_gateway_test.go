@@ -599,19 +599,19 @@ func TestJSONPBFixed64AsDecimalString(t *testing.T) {
 func TestHTTPGatewayFindTraceSummaries(t *testing.T) {
 	q, qp := mockFindQueries()
 	gw := setupHTTPGatewayNoServer(t, "")
-
-	trace := makeTestTrace()
-	// Ensure the trace has a root span (no parent) so summarizeTrace populates root fields.
-	rs := trace.ResourceSpans().At(0)
-	rs.Resource().Attributes().PutStr("service.name", "frontend")
-	span := rs.ScopeSpans().At(0).Spans().At(0)
-	span.SetName("HTTP GET /")
-	span.SetParentSpanID(pcommon.SpanID{}) // explicit root
+	gw.reader.ExpectedCalls = nil
 
 	gw.reader.
-		On("FindTraces", matchContext, qp).
-		Return(iter.Seq2[[]ptrace.Traces, error](func(yield func([]ptrace.Traces, error) bool) {
-			yield([]ptrace.Traces{trace}, nil)
+		On("FindTraceSummaries", matchContext, qp).
+		Return(iter.Seq2[tracestore.PageChunk[[]tracestore.TraceSummary], error](func(yield func(tracestore.PageChunk[[]tracestore.TraceSummary], error) bool) {
+			yield(tracestore.PageChunk[[]tracestore.TraceSummary]{
+				Results: []tracestore.TraceSummary{{
+					RootServiceName:   "frontend",
+					RootOperationName: "HTTP GET /",
+					SpanCount:         1,
+				}},
+				NextPageToken: "next-page",
+			}, nil)
 		})).Once()
 
 	r, err := http.NewRequest(http.MethodGet, "/api/v3/trace-summaries?"+q.Encode(), http.NoBody)
@@ -626,6 +626,7 @@ func TestHTTPGatewayFindTraceSummaries(t *testing.T) {
 	assert.Equal(t, "frontend", resp.Summaries[0].RootServiceName)
 	assert.Equal(t, "HTTP GET /", resp.Summaries[0].RootOperationName)
 	assert.Equal(t, int32(1), resp.Summaries[0].SpanCount)
+	assert.Equal(t, "next-page", resp.GetNextPageToken())
 }
 
 func TestHTTPGatewayFindTraceSummariesError(t *testing.T) {

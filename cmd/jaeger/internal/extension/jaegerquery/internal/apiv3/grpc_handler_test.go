@@ -73,6 +73,20 @@ func (*sendErrorTraceSummariesStream) Send(*api_v3.FindTraceSummariesResponse) e
 	return assert.AnError
 }
 
+type captureTraceSummariesStream struct {
+	grpc.ServerStream
+	response *api_v3.FindTraceSummariesResponse
+}
+
+func (*captureTraceSummariesStream) Context() context.Context {
+	return context.Background()
+}
+
+func (s *captureTraceSummariesStream) Send(response *api_v3.FindTraceSummariesResponse) error {
+	s.response = response
+	return nil
+}
+
 // newTestServerClient stands up the handler over a backend that requires a service name and
 // evaluates no filter, which is what most of these tests want.
 func newTestServerClient(t *testing.T) *testServerClient {
@@ -455,6 +469,32 @@ func TestFindTraceSummaries(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, recv.GetSummaries(), 1)
 	assert.Equal(t, traceID.String(), recv.GetSummaries()[0].GetTraceId())
+}
+
+func TestFindTraceSummariesPreservesNextPageToken(t *testing.T) {
+	reader := &tracestoremocks.Reader{}
+	reader.On("FindTraceSummaries", mock.Anything, mock.Anything).
+		Return(iter.Seq2[tracestore.PageChunk[[]tracestore.TraceSummary], error](func(yield func(tracestore.PageChunk[[]tracestore.TraceSummary], error) bool) {
+			yield(tracestore.PageChunk[[]tracestore.TraceSummary]{NextPageToken: "next-page"}, nil)
+		})).Once()
+	handler := &Handler{QueryService: querysvc.NewQueryService(
+		reader,
+		&dependencystoremocks.Reader{},
+		querysvc.QueryServiceOptions{},
+	)}
+	stream := &captureTraceSummariesStream{}
+
+	err := handler.FindTraceSummaries(&api_v3.FindTraceSummariesRequest{
+		Query: &api_v3.TraceQueryParameters{
+			ServiceName:  "service-a",
+			StartTimeMin: time.Now().Add(-time.Hour),
+			StartTimeMax: time.Now(),
+		},
+	}, stream)
+
+	require.NoError(t, err)
+	require.NotNil(t, stream.response)
+	assert.Equal(t, "next-page", stream.response.GetNextPageToken())
 }
 
 func TestFindTraceSummariesQueryNil(t *testing.T) {

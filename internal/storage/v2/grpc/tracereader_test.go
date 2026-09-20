@@ -44,12 +44,13 @@ func flattenPageChunks[T any](seq iter.Seq2[tracestore.PageChunk[[]T], error]) (
 type testServer struct {
 	storage.UnimplementedTraceReaderServer
 
-	traces     []*jptrace.TracesData
-	services   []string
-	operations []*storage.Operation
-	traceIDs   []*storage.FoundTraceID
-	summaries  []*storage.TraceSummary
-	err        error
+	traces        []*jptrace.TracesData
+	services      []string
+	operations    []*storage.Operation
+	traceIDs      []*storage.FoundTraceID
+	summaries     []*storage.TraceSummary
+	nextPageToken string
+	err           error
 }
 
 func (ts *testServer) GetTraces(_ *storage.GetTracesRequest, s storage.TraceReader_GetTracesServer) error {
@@ -92,7 +93,8 @@ func (ts *testServer) FindTraceIDs(
 	*storage.FindTraceIDsRequest,
 ) (*storage.FindTraceIDsResponse, error) {
 	return &storage.FindTraceIDsResponse{
-		TraceIds: ts.traceIDs,
+		TraceIds:      ts.traceIDs,
+		NextPageToken: ts.nextPageToken,
 	}, ts.err
 }
 
@@ -104,7 +106,10 @@ func (ts *testServer) FindTraceSummaries(
 		return ts.err
 	}
 	if len(ts.summaries) > 0 {
-		return s.Send(&storage.FindTraceSummariesResponse{Summaries: ts.summaries})
+		return s.Send(&storage.FindTraceSummariesResponse{
+			Summaries:     ts.summaries,
+			NextPageToken: ts.nextPageToken,
+		})
 	}
 	return nil
 }
@@ -483,6 +488,7 @@ func TestTraceReader_FindTraceIDs(t *testing.T) {
 		{
 			name: "success",
 			testServer: &testServer{
+				nextPageToken: "next-page",
 				traceIDs: []*storage.FoundTraceID{
 					{
 						TraceId: []byte{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16},
@@ -566,14 +572,17 @@ func TestTraceReader_FindTraceIDs(t *testing.T) {
 
 			reader := NewTraceReader(conn)
 
-			foundIDsIter := reader.FindTraceIDs(context.Background(), test.queryParams)
-			foundIDs, err := flattenPageChunks(foundIDsIter)
+			chunks, err := jiter.CollectWithErrors(reader.FindTraceIDs(context.Background(), test.queryParams))
 
 			if test.expectedError != "" {
 				require.ErrorContains(t, err, test.expectedError)
 			} else {
 				require.NoError(t, err)
-				require.Equal(t, test.expectedIDs, foundIDs)
+				require.Len(t, chunks, 1)
+				require.Equal(t, test.expectedIDs, chunks[0].Results)
+				if test.name == "success" {
+					assert.Equal(t, "next-page", chunks[0].NextPageToken)
+				}
 			}
 		})
 	}
@@ -750,7 +759,7 @@ func TestTraceReader_FindTraceSummaries_Success(t *testing.T) {
 			},
 		},
 	}
-	ts := &testServer{summaries: wantSummaries}
+	ts := &testServer{summaries: wantSummaries, nextPageToken: "next-page"}
 	conn := startTestServer(t, ts)
 	reader := NewTraceReader(conn)
 
@@ -759,7 +768,7 @@ func TestTraceReader_FindTraceSummaries_Success(t *testing.T) {
 		Attributes: pcommon.NewMap(),
 	}) {
 		require.NoError(t, err)
-		assert.Empty(t, chunk.NextPageToken)
+		assert.Equal(t, "next-page", chunk.NextPageToken)
 		got = append(got, chunk.Results...)
 	}
 	require.Len(t, got, 1)

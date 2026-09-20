@@ -229,8 +229,11 @@ func (r *traceReader) FindTraceSummaries(
 					Services:          svcs,
 				}
 			}
-			// TODO: Forward NextPageToken when the query API supports RFC 0014 pagination.
-			if !yield(tracestore.PageChunk[[]tracestore.TraceSummary]{Results: batch}, nil) {
+			chunk := tracestore.PageChunk[[]tracestore.TraceSummary]{
+				Results:       batch,
+				NextPageToken: resp.GetNextPageToken(),
+			}
+			if !yield(chunk, nil) {
 				return
 			}
 		}

@@ -190,8 +190,10 @@ func (tr *TraceReader) FindTraceIDs(
 				End:     foundTraceID.End,
 			}
 		}
-		// TODO: Forward NextPageToken when remote storage supports RFC 0014 pagination.
-		yield(tracestore.PageChunk[[]tracestore.FoundTraceID]{Results: foundTraceIDs}, nil)
+		yield(tracestore.PageChunk[[]tracestore.FoundTraceID]{
+			Results:       foundTraceIDs,
+			NextPageToken: resp.GetNextPageToken(),
+		}, nil)
 	}
 }
 
@@ -225,8 +227,10 @@ func (tr *TraceReader) FindTraceSummaries(
 				yield(tracestore.PageChunk[[]tracestore.TraceSummary]{}, maybeNotImplemented(err, "received error from grpc stream"))
 				return
 			}
-			// TODO: Forward NextPageToken when remote storage supports RFC 0014 pagination.
-			chunk := tracestore.PageChunk[[]tracestore.TraceSummary]{Results: convertSummaryBatch(resp.GetSummaries())}
+			chunk := tracestore.PageChunk[[]tracestore.TraceSummary]{
+				Results:       convertSummaryBatch(resp.GetSummaries()),
+				NextPageToken: resp.GetNextPageToken(),
+			}
 			if !yield(chunk, nil) {
 				return
 			}

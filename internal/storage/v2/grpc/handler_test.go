@@ -343,12 +343,14 @@ func TestHandler_FindTraceIDs(t *testing.T) {
 	tests := []struct {
 		name             string
 		traceIDs         []tracestore.FoundTraceID
+		nextPageToken    string
 		expectedTraceIDs []*storage.FoundTraceID
 		findTraceIDsErr  error
 		expectedErr      error
 	}{
 		{
-			name: "success",
+			name:          "success",
+			nextPageToken: "next-page",
 			traceIDs: []tracestore.FoundTraceID{
 				{
 					TraceID: traceIDA,
@@ -392,7 +394,10 @@ func TestHandler_FindTraceIDs(t *testing.T) {
 		depReader := new(depstoremocks.Reader)
 		reader.On("FindTraceIDs", mock.Anything, query).
 			Return(iter.Seq2[tracestore.PageChunk[[]tracestore.FoundTraceID], error](func(yield func(tracestore.PageChunk[[]tracestore.FoundTraceID], error) bool) {
-				yield(tracestore.PageChunk[[]tracestore.FoundTraceID]{Results: test.traceIDs}, test.findTraceIDsErr)
+				yield(tracestore.PageChunk[[]tracestore.FoundTraceID]{
+					Results:       test.traceIDs,
+					NextPageToken: test.nextPageToken,
+				}, test.findTraceIDsErr)
 			})).Once()
 		server := NewHandler(reader, writer, depReader)
 
@@ -407,6 +412,7 @@ func TestHandler_FindTraceIDs(t *testing.T) {
 		} else {
 			require.NoError(t, err)
 			require.Equal(t, test.expectedTraceIDs, response.TraceIds)
+			require.Equal(t, test.nextPageToken, response.NextPageToken)
 		}
 	}
 }
@@ -794,7 +800,10 @@ func TestHandler_FindTraceSummaries_Success(t *testing.T) {
 	reader := new(tracestoremocks.Reader)
 	reader.On("FindTraceSummaries", mock.Anything, mock.Anything).
 		Return(iter.Seq2[tracestore.PageChunk[[]tracestore.TraceSummary], error](func(yield func(tracestore.PageChunk[[]tracestore.TraceSummary], error) bool) {
-			yield(tracestore.PageChunk[[]tracestore.TraceSummary]{Results: want}, nil)
+			yield(tracestore.PageChunk[[]tracestore.TraceSummary]{
+				Results:       want,
+				NextPageToken: "next-page",
+			}, nil)
 		})).Once()
 
 	handler := NewHandler(reader, new(tracestoremocks.Writer), new(depstoremocks.Reader))
@@ -805,6 +814,7 @@ func TestHandler_FindTraceSummaries_Success(t *testing.T) {
 	}, stream)
 	require.NoError(t, err)
 	require.Len(t, stream.sent, 1)
+	assert.Equal(t, "next-page", stream.sent[0].GetNextPageToken())
 	got := stream.sent[0].GetSummaries()
 	require.Len(t, got, 1)
 	assert.Equal(t, want[0].TraceID[:], got[0].GetTraceId())
