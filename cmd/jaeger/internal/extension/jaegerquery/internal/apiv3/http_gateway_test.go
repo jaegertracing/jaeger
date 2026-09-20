@@ -610,6 +610,13 @@ func TestHTTPGatewayFindTraceSummaries(t *testing.T) {
 					RootOperationName: "HTTP GET /",
 					SpanCount:         1,
 				}},
+			}, nil)
+			yield(tracestore.PageChunk[[]tracestore.TraceSummary]{
+				Results: []tracestore.TraceSummary{{
+					RootServiceName:   "backend",
+					RootOperationName: "SELECT",
+					SpanCount:         2,
+				}},
 				NextPageToken: "next-page",
 			}, nil)
 		})).Once()
@@ -622,10 +629,13 @@ func TestHTTPGatewayFindTraceSummaries(t *testing.T) {
 	require.Equal(t, http.StatusOK, w.Code)
 	var resp api_v3.FindTraceSummariesResponse
 	require.NoError(t, jsonpb.Unmarshal(w.Body, &resp))
-	require.Len(t, resp.Summaries, 1)
+	require.Len(t, resp.Summaries, 2)
 	assert.Equal(t, "frontend", resp.Summaries[0].RootServiceName)
 	assert.Equal(t, "HTTP GET /", resp.Summaries[0].RootOperationName)
 	assert.Equal(t, int32(1), resp.Summaries[0].SpanCount)
+	assert.Equal(t, "backend", resp.Summaries[1].RootServiceName)
+	assert.Equal(t, "SELECT", resp.Summaries[1].RootOperationName)
+	assert.Equal(t, int32(2), resp.Summaries[1].SpanCount)
 	assert.Equal(t, "next-page", resp.GetNextPageToken())
 }
 

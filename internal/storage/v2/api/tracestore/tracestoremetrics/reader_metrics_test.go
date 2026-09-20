@@ -329,7 +329,7 @@ func TestReadMetricsDecorator_FindSpans(t *testing.T) {
 	mf := metricstest.NewFactory(0)
 
 	inner := &mocks.Reader{}
-	pages := []tracestore.PageChunk[ptrace.Traces]{{NextPageToken: "a"}, {NextPageToken: "b"}}
+	pages := []tracestore.PageChunk[ptrace.Traces]{{}, {NextPageToken: "next-page"}}
 	inner.On("FindSpans", context.Background(), tracestore.SpanQueryParams{}).
 		Return(pageChunkIter(pages, nil))
 
@@ -340,7 +340,9 @@ func TestReadMetricsDecorator_FindSpans(t *testing.T) {
 		require.NoError(t, err)
 		got = append(got, chunk)
 	}
-	assert.Len(t, got, len(pages))
+	require.Len(t, got, len(pages))
+	assert.Empty(t, got[0].NextPageToken)
+	assert.Equal(t, "next-page", got[1].NextPageToken)
 
 	counters, _ := mf.Snapshot()
 	assert.Equal(t, int64(1), counters["requests|operation=find_spans|result=ok"])
@@ -369,7 +371,7 @@ func TestReadMetricsDecorator_FindSpans_EarlyExit(t *testing.T) {
 	inner := &mocks.Reader{}
 	// emptyIter yields each page as its own batch. The consumer stops after the
 	// second batch, so the third page must never be delivered.
-	pages := []tracestore.PageChunk[ptrace.Traces]{{NextPageToken: "a"}, {NextPageToken: "b"}, {NextPageToken: "c"}}
+	pages := []tracestore.PageChunk[ptrace.Traces]{{}, {}, {NextPageToken: "next-page"}}
 	inner.On("FindSpans", context.Background(), tracestore.SpanQueryParams{}).
 		Return(pageChunkIter(pages, nil))
 
@@ -384,8 +386,8 @@ func TestReadMetricsDecorator_FindSpans_EarlyExit(t *testing.T) {
 	}
 
 	require.Len(t, got, 2)
-	assert.Equal(t, "a", got[0].NextPageToken)
-	assert.Equal(t, "b", got[1].NextPageToken)
+	assert.Empty(t, got[0].NextPageToken)
+	assert.Empty(t, got[1].NextPageToken)
 
 	counters, _ := mf.Snapshot()
 	assert.Equal(t, int64(1), counters["requests|operation=find_spans|result=ok"])

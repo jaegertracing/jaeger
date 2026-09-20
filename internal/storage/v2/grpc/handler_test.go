@@ -417,6 +417,37 @@ func TestHandler_FindTraceIDs(t *testing.T) {
 	}
 }
 
+func TestHandler_FindTraceIDsUsesFinalChunkNextPageToken(t *testing.T) {
+	query := tracestore.TraceQueryParams{
+		ServiceName: "service",
+		Attributes:  pcommon.NewMap(),
+	}
+	firstID := pcommon.TraceID([16]byte{1})
+	secondID := pcommon.TraceID([16]byte{2})
+	reader := new(tracestoremocks.Reader)
+	reader.On("FindTraceIDs", mock.Anything, query).
+		Return(iter.Seq2[tracestore.PageChunk[[]tracestore.FoundTraceID], error](func(yield func(tracestore.PageChunk[[]tracestore.FoundTraceID], error) bool) {
+			yield(tracestore.PageChunk[[]tracestore.FoundTraceID]{
+				Results: []tracestore.FoundTraceID{{TraceID: firstID}},
+			}, nil)
+			yield(tracestore.PageChunk[[]tracestore.FoundTraceID]{
+				Results:       []tracestore.FoundTraceID{{TraceID: secondID}},
+				NextPageToken: "next-page",
+			}, nil)
+		})).Once()
+	server := NewHandler(reader, new(tracestoremocks.Writer), new(depstoremocks.Reader))
+
+	response, err := server.FindTraceIDs(context.Background(), &storage.FindTraceIDsRequest{
+		Query: &storage.TraceQueryParameters{ServiceName: "service"},
+	})
+
+	require.NoError(t, err)
+	require.Len(t, response.TraceIds, 2)
+	assert.Equal(t, firstID[:], response.TraceIds[0].GetTraceId())
+	assert.Equal(t, secondID[:], response.TraceIds[1].GetTraceId())
+	assert.Equal(t, "next-page", response.GetNextPageToken())
+}
+
 func TestHandler_Export(t *testing.T) {
 	tests := []struct {
 		name           string

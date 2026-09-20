@@ -75,7 +75,9 @@ type TraceQueryParams struct {
 }
 
 // PageChunk carries one streamed chunk of a page without exposing the storage
-// API's result container to query-service consumers.
+// API's result container to query-service consumers. NextPageToken is meaningful
+// only on the final chunk; an empty token on an earlier chunk says nothing about
+// whether another page exists.
 type PageChunk[T any] struct {
 	Results       T
 	NextPageToken string
