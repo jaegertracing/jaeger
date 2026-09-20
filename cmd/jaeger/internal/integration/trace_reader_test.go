@@ -45,6 +45,14 @@ func (s *traceSummariesStream) Recv() (*api_v3.FindTraceSummariesResponse, error
 	return response, nil
 }
 
+func TestTraceReaderFindSpansPreservesNextPageToken(t *testing.T) {
+	t.Skip("The integration trace reader does not implement FindSpans yet.")
+}
+
+func TestTraceReaderFindTraceIDsPreservesNextPageToken(t *testing.T) {
+	t.Skip("The API v3 query service does not expose FindTraceIDs.")
+}
+
 func TestTraceReaderFindTraceSummariesPreservesNextPageToken(t *testing.T) {
 	reader := &traceReader{
 		logger: zap.NewNop(),
