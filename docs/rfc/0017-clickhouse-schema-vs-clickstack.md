@@ -229,7 +229,7 @@ The criteria below are the ones a Jaeger deployment cares about. The columns are
 | Retention cost | 🟡 ⁶ | 🟢 ¹¹ | 🟢 |
 | Scope attributes preserved | 🟢 | 🟢 | 🔴 |
 | Replicated / clustered deployment | 🟡 ⁹ | 🟢 | 🟢 |
-| Interoperability with OTel exporter tables | 🔴 | 🔴 ⁷ | 🟢 |
+| Reads tables written by the OTel `clickhouseexporter` | 🔴 | 🔴 ⁷ | 🟢 |
 | Schema simplicity (tables, views) | 🟡 ⁸ | 🟡 ⁸ | 🟢 |
 
 - ¹ Every value is stringified on write; integer, boolean, and ordered predicates are unanswerable without query-time parsing.
@@ -263,6 +263,30 @@ The factory only ever runs `CREATE TABLE IF NOT EXISTS`, so an existing table is
 ### 5.2 Add pairwise attribute skip indexes and index-friendly predicates
 
 This is the concrete design for #8715, corrected for the two findings in §3.5.
+
+**What an attribute index can and cannot answer.** A Bloom filter skip index, whatever expression it is built on, answers one question per granule: might this granule contain value X. It serves equality and `IN`, and nothing else. Ordered predicates on typed values (RFC 0005's `http.status_code >= 500`) and aggregations over an attribute (`GROUP BY` a key's values) need the key's values addressable as a column, which no index over a shared `Nested` group provides. The shapes on offer differ in which equalities they prune and in whether they open a path to the rest. Legend: 🟢 good · 🟡 partial · 🔴 not served.
+
+| Criterion | Key filter + value filter (exporter) | Pair filter, hashed (proposed) | Per-key `JSON` subcolumn (M3) | Inverted `(key, value)` table |
+| --- | --- | --- | --- | --- |
+| Equality, rare key | 🟢 | 🟢 | 🟢 | 🟢 |
+| Equality, common key and common value | 🔴 ¹ | 🟢 | 🟢 ² | 🟢 |
+| Ordered predicate on a typed value | 🔴 | 🔴 | 🟢 ³ | 🟢 |
+| Aggregation over a key's values | 🔴 | 🔴 | 🟢 | 🟡 ⁴ |
+| Extra storage | 🟡 ⁵ | 🟢 ⁶ | 🟡 ⁷ | 🔴 ⁸ |
+| Fits the current typed `Nested` layout | 🟢 | 🟢 | 🔴 ⁹ | 🟡 ¹⁰ |
+
+- ¹ Both filters pass a granule that has the key on one row and the value on another; for `http.status_code=500` that is every granule.
+- ² A `JSON` subcolumn makes the value a plain column, so the sort key, a `minmax`, or a Bloom filter on that one path all work.
+- ³ `minmax` per subcolumn per granule, which is exactly the flat-column indexing ADR-008's limitations section wishes for.
+- ⁴ A `GROUP BY` over one key is a range scan of that key's slice of the table; joining back to spans for anything else is a second query.
+- ⁵ Two Bloom filters per attribute group, each over every key or every value.
+- ⁶ One filter per attribute group over an `ALIAS`; the hashes are never stored.
+- ⁷ Dynamic paths above the `max_dynamic_paths` limit fall back to a shared column, and the type's per-path bookkeeping costs space.
+- ⁸ One row per attribute pair per span, sorted independently of `spans`: a second copy of every attribute.
+- ⁹ Replaces the five typed `Nested` groups and the `attribute_metadata` mechanism; a superseding RFC.
+- ¹⁰ Adds a table and a materialized view beside the existing layout, and the reader has to join.
+
+The pair filter is the strongest equality index available without changing the attribute layout, and equality is the whole of what the UI sends today. It is the right first step, and it is deliberately only that: the ordered and aggregating predicates go through M3, whose `JSON` subcolumns serve all three rows at once, rather than through an inverted table that would add a second copy of every attribute to serve two of them.
 
 **Index the pair, not the key and value separately.** For each string-attribute group, add an `ALIAS` column that hashes each pair to one 64-bit value, and a `bloom_filter` on it:
 
