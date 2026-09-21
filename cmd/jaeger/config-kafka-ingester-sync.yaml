@@ -19,6 +19,11 @@
 #      batches inside its sending queue, so there is NO pipeline `batch` processor.
 #   4. The Kafka receiver marks offsets only after successful processing
 #      (message_marking.after: true, on_error: false).
+#   5. The storage exporter retries a failed write until it succeeds
+#      (retry_on_failure with max_elapsed_time: 0). Without it a single transient
+#      failure reaches the receiver, which pauses the partition until a rebalance;
+#      with one ingester replica that rebalance never comes and the partition
+#      stalls for good.
 
 service:
   extensions: [jaeger_storage, jaeger_query, healthcheckv2]
@@ -91,6 +96,16 @@ processors:
 exporters:
   jaeger_storage_exporter:
     trace_storage: some_storage
+    # Retry a failed batch until the backend accepts it. The write is idempotent
+    # (deterministic span _id), so a retry after a lost acknowledgement upserts
+    # rather than duplicates. max_elapsed_time: 0 disables the give-up deadline:
+    # giving up returns the error to the Kafka receiver, which then pauses the
+    # partition until a rebalance, so the offset must instead be held by retrying.
+    retry_on_failure:
+      enabled: true
+      initial_interval: 1s
+      max_interval: 30s
+      max_elapsed_time: 0
     # Block the receiver on the write result and batch inside the queue, replacing
     # the pipeline `batch` processor. Sizes are in bytes to stay comparable with the
     # storage's bulk_processing.max_bytes.
