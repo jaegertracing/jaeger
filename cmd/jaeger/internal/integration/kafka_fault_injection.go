@@ -74,7 +74,9 @@ func newESFaultProxy(t *testing.T, target string) *esFaultProxy {
 	}
 	p.server = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if p.fault() == esFaultReject && isBulk(r) {
-			http.Error(w, `{"error":"injected by esFaultProxy"}`, http.StatusServiceUnavailable)
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusServiceUnavailable)
+			_, _ = w.Write([]byte(`{"error":"injected by esFaultProxy"}`))
 			return
 		}
 		rp.ServeHTTP(w, r)

@@ -173,8 +173,8 @@ func TestKafkaStorage_SyncElasticsearch_FaultInjection(t *testing.T) {
 
 	t.Run("baseline", func(t *testing.T) {
 		trace := f.write(t, 0x01)
-		f.requireStoredOnce(t, trace)
 		f.requireOffsetCaughtUp(t)
+		f.requireStoredOnce(t, trace)
 	})
 
 	t.Run("backend_down", func(t *testing.T) {
@@ -194,7 +194,7 @@ func TestKafkaStorage_SyncElasticsearch_FaultInjection(t *testing.T) {
 
 	t.Run("no_stall", func(t *testing.T) {
 		trace := f.write(t, 0x04)
-		f.requireStoredOnce(t, trace)
 		f.requireOffsetCaughtUp(t)
+		f.requireStoredOnce(t, trace)
 	})
 }
