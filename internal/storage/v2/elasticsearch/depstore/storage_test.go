@@ -54,13 +54,13 @@ func hitsResponse(sources ...string) *esclient.SearchResponse {
 var _ CoreDependencyStore = &DependencyStore{} // check API conformance
 
 func TestWriteDependencies(t *testing.T) {
-	bulkWriter := esclientmocks.NewBulkWriter(t)
+	batchWriter := esclientmocks.NewBatchWriter(t)
 	var added []esclient.BulkItem
-	bulkWriter.On("Add", mock.Anything).Run(func(args mock.Arguments) {
-		added = append(added, args.Get(0).(esclient.BulkItem))
-	}).Return()
+	batchWriter.On("WriteBatch", mock.Anything, mock.Anything).Run(func(args mock.Arguments) {
+		added = append(added, args.Get(1).([]esclient.BulkItem)...)
+	}).Return(nil)
 	store := NewDependencyStore(Params{
-		BulkWriter:  bulkWriter,
+		BatchWriter: batchWriter,
 		Logger:      zap.NewNop(),
 		MaxDocCount: defaultMaxDocCount,
 		Rotation:    periodicRotation("", "2006-01-02"),
@@ -254,7 +254,7 @@ func TestDependencyStoreRequestSnapshots(t *testing.T) {
 		require.NoError(t, err)
 		store := NewDependencyStore(Params{
 			Searcher:    esclient.SearchClient{Client: esClient},
-			BulkWriter:  bulkWriter,
+			BatchWriter: bulkWriter,
 			Logger:      zap.NewNop(),
 			MaxDocCount: defaultMaxDocCount,
 			Rotation:    periodicRotation("", "2006-01-02"),

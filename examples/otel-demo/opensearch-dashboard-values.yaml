@@ -4,7 +4,6 @@
 
 image:
   repository: docker.io/opensearchproject/opensearch-dashboards
-  tag: "2.11.0"
 
 opensearchHosts: "http://opensearch-cluster-single:9200"
 
@@ -20,4 +19,3 @@ config:
     opensearch.password: "admin123"
     opensearch.ssl.verificationMode: none
     opensearch_security.enabled: false
-

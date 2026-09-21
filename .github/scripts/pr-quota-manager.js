@@ -241,7 +241,8 @@ async function addLabel(octokit, owner, repo, issueNumber, logger) {
       labels: [LABEL_NAME]
     });
   } catch (error) {
-    logger.error(`Failed to add label to PR #${issueNumber}:`, error.message);
+    // Fail the job: a quota that cannot be applied is a quota that does not exist.
+    throw new Error(`Failed to add label to PR #${issueNumber}: ${error.message}`, { cause: error });
   }
 }
 
@@ -257,9 +258,9 @@ async function removeLabel(octokit, owner, repo, issueNumber, logger) {
       name: LABEL_NAME
     });
   } catch (error) {
-    // Ignore 404 errors (label wasn't present)
+    // A 404 means the label was not present, which is already the desired state.
     if (error.status !== 404) {
-      logger.error(`Failed to remove label from PR #${issueNumber}:`, error.message);
+      throw new Error(`Failed to remove label from PR #${issueNumber}: ${error.message}`, { cause: error });
     }
   }
 }
@@ -306,7 +307,7 @@ Please see our [Contributing Guidelines](https://github.com/jaegertracing/jaeger
       body: message
     });
   } catch (error) {
-    logger.error(`Failed to post blocking comment on PR #${issueNumber}:`, error.message);
+    throw new Error(`Failed to post blocking comment on PR #${issueNumber}: ${error.message}`, { cause: error });
   }
 }
 
@@ -330,7 +331,7 @@ Thank you for your patience.`;
       body: message
     });
   } catch (error) {
-    logger.error(`Failed to post unblocking comment on PR #${issueNumber}:`, error.message);
+    throw new Error(`Failed to post unblocking comment on PR #${issueNumber}: ${error.message}`, { cause: error });
   }
 }
 

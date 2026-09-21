@@ -3,7 +3,9 @@
 
 package headerforwarding
 
-// HeaderRole describes the semantic role of a forwarded header value.
+// HeaderRole labels the semantic meaning of a forwarded header value (e.g. a
+// username or an email identity). It is a runtime annotation that in-process
+// consumers can read off the captured header — see ForwardedHeader.Role.
 type HeaderRole string
 
 const (
@@ -20,8 +22,11 @@ type ForwardedHeader struct {
 	// GRPCName is the name of the gRPC metadata key to extract on inbound gRPC requests.
 	// When empty, HTTPName is used as the fallback.
 	GRPCName string `mapstructure:"grpc_name"`
-	// Role describes the semantic meaning of the header value (e.g. username, email).
-	// Jaeger does not act on this today; it is informational for downstream consumers.
+	// Role labels the semantic meaning of the header value (e.g. username, email).
+	// It travels with the captured header on the request context (see
+	// CapturedFromContext), so in-process consumers — storage plugins, extensions,
+	// exporters — can read it, even though Jaeger's own code does not. It is not sent
+	// to the backend; only the header value is forwarded.
 	Role HeaderRole `mapstructure:"header_role"`
 	// GRPCOutboundName is the metadata key used when forwarding the value to the gRPC storage backend.
 	// When empty, GRPCName/HTTPName is used as the fallback (in that order).

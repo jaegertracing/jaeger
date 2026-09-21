@@ -212,7 +212,7 @@ func (s SearchClient) MultiSearch(ctx context.Context, reqs []MultiSearchRequest
 	}
 	raw, err := s.request(ctx, elasticRequest{
 		endpoint:    "_msearch",
-		method:      http.MethodGet,
+		method:      http.MethodPost,
 		body:        buf.Bytes(),
 		contentType: "application/x-ndjson",
 	})

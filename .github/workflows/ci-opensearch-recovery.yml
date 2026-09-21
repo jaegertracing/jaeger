@@ -1,0 +1,74 @@
+# Copyright (c) 2026 The Jaeger Authors.
+# SPDX-License-Identifier: Apache-2.0
+
+name: Verify OTel Demo OpenSearch Recovery
+
+on:
+  workflow_dispatch:
+
+permissions: read-all
+
+concurrency:
+  group: jaeger-otel-demo-opensearch-recovery
+  cancel-in-progress: false
+
+jobs:
+  require-main:
+    name: Require protected main branch
+    runs-on: ubuntu-latest
+    steps:
+    - name: Reject non-main dispatches
+      env:
+        DISPATCH_REF: ${{ github.ref }}
+      run: test "$DISPATCH_REF" = 'refs/heads/main'
+
+  backup-and-restore:
+    name: Create and test retained recovery point
+    needs: require-main
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    env:
+      OCI_CLI_USER: ${{ secrets.OCI_CLI_USER }}
+      OCI_CLI_TENANCY: ${{ secrets.OCI_CLI_TENANCY }}
+      OCI_CLI_FINGERPRINT: ${{ secrets.OCI_CLI_FINGERPRINT }}
+      OCI_CLI_KEY_CONTENT: ${{ secrets.OCI_CLI_KEY_CONTENT }}
+      OCI_CLI_REGION: ${{ secrets.OCI_CLI_REGION }}
+
+    steps:
+    - name: Configure kubectl with OKE
+      uses: oracle-actions/configure-kubectl-oke@77a733d79446dabe7bf0e58eb56197d33ce4dc58 # v1.5.0
+      with:
+        cluster: ${{ secrets.OKE_CLUSTER_OCID }}
+        enablePrivateEndpoint: false
+
+    - name: Checkout Jaeger repository
+      uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
+      with:
+        ref: ${{ github.sha }}
+
+    - name: Create and verify OpenSearch recovery point
+      env:
+        OPENSEARCH_RECOVERY_ID: ${{ github.run_id }}-${{ github.run_attempt }}
+      run: bash examples/otel-demo/opensearch-recovery.sh backup-test
+
+    - name: Collect failure diagnostics
+      if: failure()
+      run: |
+        kubectl -n opensearch get volumesnapshots \
+          -l jaegertracing.io/recovery-source=opensearch \
+          -o custom-columns=NAME:.metadata.name,READY:.status.readyToUse,AGE:.metadata.creationTimestamp || true
+        kubectl -n opensearch get pvc \
+          -l jaegertracing.io/recovery-source=opensearch \
+          -o custom-columns=NAME:.metadata.name,PHASE:.status.phase,CAPACITY:.status.capacity.storage || true
+        kubectl -n opensearch get pods \
+          -l jaegertracing.io/recovery-source=opensearch \
+          -o custom-columns=NAME:.metadata.name,PHASE:.status.phase || true
+
+    - name: Remove disposable restore pod
+      if: always()
+      env:
+        OPENSEARCH_RECOVERY_ID: ${{ github.run_id }}-${{ github.run_attempt }}
+      run: |
+        kubectl -n opensearch delete pod "jaeger-os-verify-$OPENSEARCH_RECOVERY_ID" \
+          --ignore-not-found=true --wait=false

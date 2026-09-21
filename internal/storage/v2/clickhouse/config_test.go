@@ -14,88 +14,98 @@ import (
 
 func TestValidate(t *testing.T) {
 	tests := []struct {
-		name    string
-		cfg     Configuration
-		wantErr bool
+		name string
+		// mutate changes DefaultConfiguration() into the case under test.
+		mutate  func(cfg *Configuration)
+		wantErr string
 	}{
 		{
-			name: "valid config with native protocol",
-			cfg: Configuration{
-				Protocol:  "native",
-				Addresses: []string{"localhost:9000"},
-			},
-			wantErr: false,
+			name:   "defaults with native protocol",
+			mutate: func(cfg *Configuration) { cfg.Protocol = "native" },
 		},
 		{
-			name: "valid config with http protocol",
-			cfg: Configuration{
-				Protocol:  "http",
-				Addresses: []string{"localhost:8123"},
-			},
-			wantErr: false,
+			name:   "http protocol",
+			mutate: func(cfg *Configuration) { cfg.Protocol = "http" },
 		},
 		{
-			name: "valid config with empty protocol",
-			cfg: Configuration{
-				Addresses: []string{"localhost:9000"},
-			},
-			wantErr: false,
+			name:   "empty protocol",
+			mutate: func(cfg *Configuration) { cfg.Protocol = "" },
 		},
 		{
-			name: "valid config with multiple addresses",
-			cfg: Configuration{
-				Protocol:  "native",
-				Addresses: []string{"localhost:9000", "localhost:9001"},
+			name: "multiple addresses",
+			mutate: func(cfg *Configuration) {
+				cfg.Addresses = []string{"localhost:9000", "localhost:9001"}
 			},
-			wantErr: false,
 		},
 		{
-			name: "invalid config with unsupported protocol",
-			cfg: Configuration{
-				Protocol:  "grpc",
-				Addresses: []string{"localhost:9000"},
+			name: "caching disabled and entries kept forever",
+			mutate: func(cfg *Configuration) {
+				cfg.AttributeMetadataCacheMaxSize = 0
+				cfg.AttributeMetadataCacheTTL = 0
 			},
-			wantErr: true,
 		},
 		{
-			name: "invalid config with empty addresses",
-			cfg: Configuration{
-				Protocol:  "native",
-				Addresses: []string{},
-			},
-			wantErr: true,
+			name:    "unsupported protocol",
+			mutate:  func(cfg *Configuration) { cfg.Protocol = "grpc" },
+			wantErr: "Protocol",
 		},
 		{
-			name: "invalid config with nil addresses",
-			cfg: Configuration{
-				Protocol: "native",
-			},
-			wantErr: true,
+			name:    "empty addresses",
+			mutate:  func(cfg *Configuration) { cfg.Addresses = []string{} },
+			wantErr: "Addresses",
+		},
+		{
+			name:    "nil addresses",
+			mutate:  func(cfg *Configuration) { cfg.Addresses = nil },
+			wantErr: "Addresses",
+		},
+		{
+			name:    "zero default search depth",
+			mutate:  func(cfg *Configuration) { cfg.DefaultSearchDepth = 0 },
+			wantErr: "default_search_depth must be a positive number",
+		},
+		{
+			name:    "negative max search depth",
+			mutate:  func(cfg *Configuration) { cfg.MaxSearchDepth = -1 },
+			wantErr: "max_search_depth must be a positive number",
+		},
+		{
+			name:    "negative attribute metadata cache TTL",
+			mutate:  func(cfg *Configuration) { cfg.AttributeMetadataCacheTTL = -time.Second },
+			wantErr: "attribute_metadata_cache_ttl must be a non-negative duration",
+		},
+		{
+			name:    "negative attribute metadata cache size",
+			mutate:  func(cfg *Configuration) { cfg.AttributeMetadataCacheMaxSize = -1 },
+			wantErr: "attribute_metadata_cache_max_size must be a non-negative number",
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			err := tt.cfg.Validate()
-			if tt.wantErr {
-				require.Error(t, err)
-			} else {
+			cfg := DefaultConfiguration()
+			cfg.Addresses = []string{"localhost:9000"}
+			tt.mutate(&cfg)
+
+			err := cfg.Validate()
+			if tt.wantErr == "" {
 				require.NoError(t, err)
+			} else {
+				require.ErrorContains(t, err, tt.wantErr)
 			}
 		})
 	}
 }
 
-func TestConfigurationApplyDefaults(t *testing.T) {
-	config := &Configuration{}
-	config.applyDefaults()
+func TestDefaultConfiguration(t *testing.T) {
+	cfg := DefaultConfiguration()
 
-	require.Equal(t, defaultProtocol, config.Protocol)
-	require.Equal(t, defaultDatabase, config.Database)
-	require.Equal(t, defaultSearchDepth, config.DefaultSearchDepth)
-	require.Equal(t, defaultMaxSearchDepth, config.MaxSearchDepth)
-	require.Equal(t, defaultAttributeMetadataCacheTTL, config.AttributeMetadataCacheTTL)
-	require.Equal(t, defaultAttributeMetadataCacheMaxSize, config.AttributeMetadataCacheMaxSize)
+	require.Equal(t, defaultProtocol, cfg.Protocol)
+	require.Equal(t, defaultDatabase, cfg.Database)
+	require.Equal(t, defaultSearchDepth, cfg.DefaultSearchDepth)
+	require.Equal(t, defaultMaxSearchDepth, cfg.MaxSearchDepth)
+	require.Equal(t, defaultAttributeMetadataCacheTTL, cfg.AttributeMetadataCacheTTL)
+	require.Equal(t, defaultAttributeMetadataCacheMaxSize, cfg.AttributeMetadataCacheMaxSize)
 }
 
 func TestConfiguration_TLS(t *testing.T) {
@@ -120,10 +130,9 @@ func TestConfiguration_TLS(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			cfg := &Configuration{
-				Addresses: []string{"localhost:9000"},
-				TLS:       tt.tls,
-			}
+			cfg := DefaultConfiguration()
+			cfg.Addresses = []string{"localhost:9000"}
+			cfg.TLS = tt.tls
 			require.NoError(t, cfg.Validate())
 		})
 	}
@@ -157,10 +166,9 @@ func TestConfiguration_Validate_TTL(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			cfg := &Configuration{
-				Addresses: []string{"localhost:9000"},
-				TTL:       test.ttl,
-			}
+			cfg := DefaultConfiguration()
+			cfg.Addresses = []string{"localhost:9000"}
+			cfg.TTL = test.ttl
 			err := cfg.Validate()
 			if test.errorMsg != "" {
 				require.ErrorContains(t, err, test.errorMsg)

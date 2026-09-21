@@ -12,7 +12,8 @@ The sidecar:
 
 ## Prerequisites
 
-- Python 3.14+
+- Python 3.14+. On macOS, the Gemini sidecar requires Apple silicon because
+  [`cryptography` 49+ no longer supports Intel macOS](https://cryptography.io/en/latest/changelog/#v49-0-0).
 - [`uv`](https://docs.astral.sh/uv/) installed
 - A Gemini API key
 

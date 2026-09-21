@@ -218,8 +218,13 @@ func validateQuery(p *tracestore.TraceQueryParams) error {
 	if p == nil {
 		return ErrMalformedRequestObject
 	}
-	if p.ServiceName == "" && p.Attributes.Len() > 0 {
-		return ErrServiceNameNotSet
+	// Every index is keyed by service name, so a query without one has no partition to
+	// read: queryByService would run with an empty partition key and return zero rows,
+	// which is indistinguishable from "no matching traces". Refusing it says what is
+	// actually true (RFC 0013 §3.3); the query service normally rejects such a query
+	// first, from the capability this reader declares.
+	if p.ServiceName == "" {
+		return fmt.Errorf("%w: %w", ErrServiceNameNotSet, errors.ErrUnsupported)
 	}
 	if p.StartTimeMin.IsZero() || p.StartTimeMax.IsZero() {
 		return ErrStartAndEndTimeNotSet

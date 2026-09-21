@@ -13,8 +13,9 @@ type SearchTracesInput struct {
 	// Supports RFC3339 or relative time (e.g., "now", "-1m").
 	StartTimeMax string `json:"start_time_max,omitempty" jsonschema:"End of time interval (RFC3339 or relative like now). Default: now"`
 
-	// ServiceName filters by service name (required).
-	ServiceName string `json:"service_name" jsonschema:"Filter by service name. Use get_services to discover valid names"`
+	// ServiceName filters by service name (optional). Omitting it searches every service,
+	// which some storage backends cannot do; those reject the query with an error saying so.
+	ServiceName string `json:"service_name,omitempty" jsonschema:"Filter by service name. Use get_services to discover valid names. Omit to search all services, which some storage backends do not support"`
 
 	// SpanName filters by span name (optional).
 	SpanName string `json:"span_name,omitempty" jsonschema:"Filter by span name"`

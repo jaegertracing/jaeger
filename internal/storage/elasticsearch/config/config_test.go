@@ -17,212 +17,6 @@ import (
 	"github.com/jaegertracing/jaeger/internal/testutils"
 )
 
-// basicAuth creates basic authentication component
-func basicAuth(username, password, passwordFilePath string) configoptional.Optional[BasicAuthentication] {
-	return configoptional.Some(BasicAuthentication{
-		Username:         username,
-		Password:         password,
-		PasswordFilePath: passwordFilePath,
-	})
-}
-
-func TestApplyDefaults(t *testing.T) {
-	source := &Configuration{
-		RemoteReadClusters: []string{"cluster1", "cluster2"},
-		Authentication: Authentication{
-			BasicAuthentication: basicAuth("sourceUser", "sourcePass", ""),
-		},
-		Sniffing: Sniffing{
-			Enabled:  true,
-			UseHTTPS: true,
-		},
-		MaxSpanAge:               100,
-		AdaptiveSamplingLookback: 50,
-		Indices: Indices{
-			IndexPrefix: "hello",
-			Spans: IndexOptions{
-				Shards:   5,
-				Replicas: new(int64(1)),
-				Priority: 10,
-			},
-			Services: IndexOptions{
-				Shards:   5,
-				Replicas: new(int64(1)),
-				Priority: 20,
-			},
-			Dependencies: IndexOptions{
-				Shards:   5,
-				Replicas: new(int64(1)),
-				Priority: 30,
-			},
-			Sampling: IndexOptions{},
-		},
-		BulkProcessing: BulkProcessing{
-			MaxBytes:      1000,
-			Workers:       10,
-			MaxActions:    100,
-			FlushInterval: 30,
-		},
-		Tags:          TagsAsFields{AllAsFields: true, DotReplacement: "dot", Include: "include", File: "file"},
-		MaxDocCount:   10000,
-		LogLevel:      "info",
-		SendGetBodyAs: "json",
-	}
-
-	tests := []struct {
-		name     string
-		target   *Configuration
-		expected *Configuration
-	}{
-		{
-			name: "All Defaults Applied except PriorityDependenciesTemplate",
-			target: &Configuration{
-				Indices: Indices{
-					Dependencies: IndexOptions{
-						Priority: 30,
-					},
-				},
-			}, // All fields are empty
-			expected: source,
-		},
-		{
-			name: "Some Defaults Applied",
-			target: &Configuration{
-				RemoteReadClusters: []string{"customCluster"},
-				Authentication: Authentication{
-					BasicAuthentication: basicAuth("customUser", "", ""),
-				},
-				Indices: Indices{
-					Spans: IndexOptions{
-						Priority: 10,
-					},
-					Services: IndexOptions{
-						Priority: 20,
-					},
-					Dependencies: IndexOptions{
-						Priority: 30,
-					},
-				},
-				// Other fields left default
-			},
-			expected: &Configuration{
-				RemoteReadClusters: []string{"customCluster"},
-				Authentication: Authentication{
-					BasicAuthentication: basicAuth("customUser", "sourcePass", ""),
-				},
-				Sniffing: Sniffing{
-					Enabled:  true,
-					UseHTTPS: true,
-				},
-				MaxSpanAge:               100,
-				AdaptiveSamplingLookback: 50,
-				Indices: Indices{
-					IndexPrefix: "hello",
-					Spans: IndexOptions{
-						Shards:   5,
-						Replicas: new(int64(1)),
-						Priority: 10,
-					},
-					Services: IndexOptions{
-						Shards:   5,
-						Replicas: new(int64(1)),
-						Priority: 20,
-					},
-					Dependencies: IndexOptions{
-						Shards:   5,
-						Replicas: new(int64(1)),
-						Priority: 30,
-					},
-				},
-				BulkProcessing: BulkProcessing{
-					MaxBytes:      1000,
-					Workers:       10,
-					MaxActions:    100,
-					FlushInterval: 30,
-				},
-				Tags:          TagsAsFields{AllAsFields: true, DotReplacement: "dot", Include: "include", File: "file"},
-				MaxDocCount:   10000,
-				LogLevel:      "info",
-				SendGetBodyAs: "json",
-			},
-		},
-		{
-			name: "No Defaults Applied",
-			target: &Configuration{
-				RemoteReadClusters: []string{"cluster1", "cluster2"},
-				Authentication: Authentication{
-					BasicAuthentication: basicAuth("sourceUser", "sourcePass", ""),
-				},
-				Sniffing: Sniffing{
-					Enabled:  true,
-					UseHTTPS: true,
-				},
-				MaxSpanAge:               100,
-				AdaptiveSamplingLookback: 50,
-				Indices: Indices{
-					IndexPrefix: "hello",
-					Spans: IndexOptions{
-						Shards:   5,
-						Replicas: new(int64(1)),
-						Priority: 10,
-					},
-					Services: IndexOptions{
-						Shards:   5,
-						Replicas: new(int64(1)),
-						Priority: 20,
-					},
-					Dependencies: IndexOptions{
-						Shards:   5,
-						Replicas: new(int64(1)),
-						Priority: 30,
-					},
-				},
-				BulkProcessing: BulkProcessing{
-					MaxBytes:      1000,
-					Workers:       10,
-					MaxActions:    100,
-					FlushInterval: 30,
-				},
-				Tags:          TagsAsFields{AllAsFields: true, DotReplacement: "dot", Include: "include", File: "file"},
-				MaxDocCount:   10000,
-				LogLevel:      "info",
-				SendGetBodyAs: "json",
-			},
-			expected: source,
-		},
-	}
-
-	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
-			test.target.ApplyDefaults(source)
-			require.Equal(t, test.expected, test.target)
-		})
-	}
-}
-
-func TestApplyDefaults_Auth(t *testing.T) {
-	source := &Configuration{
-		Authentication: Authentication{
-			BasicAuthentication: basicAuth("sourceUser", "sourcePass", ""),
-		},
-	}
-
-	target := &Configuration{
-		Authentication: Authentication{
-			BasicAuthentication: basicAuth("", "", ""),
-		},
-	}
-
-	expected := &Configuration{
-		Authentication: Authentication{
-			BasicAuthentication: basicAuth("sourceUser", "sourcePass", ""),
-		},
-	}
-
-	target.ApplyDefaults(source)
-	require.Equal(t, expected, target)
-}
-
 func TestTagKeysAsFields(t *testing.T) {
 	const (
 		pwd1 = "tag1\ntag2"
@@ -368,6 +162,100 @@ func TestValidate(t *testing.T) {
 			name:          "no valid input are set",
 			config:        &Configuration{},
 			expectedError: "Servers: non zero value required",
+		},
+		{
+			name: "unrecognized log_level rejected",
+			config: &Configuration{
+				Servers:  []string{"localhost:8000/dummyserver"},
+				LogLevel: "trace",
+			},
+			expectedError: `unrecognized log_level "trace"`,
+		},
+		{
+			name:   "recognized log_level accepted",
+			config: &Configuration{Servers: []string{"localhost:8000/dummyserver"}, LogLevel: "debug"},
+		},
+		{
+			name:   "write_mode sync accepted",
+			config: &Configuration{Servers: []string{"localhost:8000/dummyserver"}, WriteMode: WriteModeSync},
+		},
+		{
+			name:          "unrecognized write_mode rejected",
+			config:        &Configuration{Servers: []string{"localhost:8000/dummyserver"}, WriteMode: "eventually"},
+			expectedError: `unrecognized write_mode "eventually"`,
+		},
+		{
+			name:   "poison_pill_handling drop accepted",
+			config: &Configuration{Servers: []string{"localhost:8000/dummyserver"}, PoisonPillHandling: PoisonDrop},
+		},
+		{
+			name:          "unrecognized poison_pill_handling rejected",
+			config:        &Configuration{Servers: []string{"localhost:8000/dummyserver"}, PoisonPillHandling: "quarantine"},
+			expectedError: `unrecognized poison_pill_handling "quarantine"`,
+		},
+		{
+			name: "sniffing.use_https set is rejected",
+			config: &Configuration{
+				Servers:  []string{"localhost:8000/dummyserver"},
+				Sniffing: Sniffing{UseHTTPS: configoptional.Some(true)},
+			},
+			expectedError: "'sniffing.use_https' is no longer supported",
+		},
+		{
+			name: "sniffing.use_https set to false is still rejected",
+			config: &Configuration{
+				Servers:  []string{"localhost:8000/dummyserver"},
+				Sniffing: Sniffing{UseHTTPS: configoptional.Some(false)},
+			},
+			expectedError: "'sniffing.use_https' is no longer supported",
+		},
+		{
+			name: "disable_health_check set is rejected",
+			config: &Configuration{
+				Servers:            []string{"localhost:8000/dummyserver"},
+				DisableHealthCheck: configoptional.Some(true),
+			},
+			expectedError: "'disable_health_check' is no longer supported",
+		},
+		{
+			name: "health_check_timeout_startup set is rejected",
+			config: &Configuration{
+				Servers:                   []string{"localhost:8000/dummyserver"},
+				HealthCheckTimeoutStartup: configoptional.Some(5 * time.Second),
+			},
+			expectedError: "'health_check_timeout_startup' is no longer supported",
+		},
+		{
+			name: "send_get_body_as set is rejected",
+			config: &Configuration{
+				Servers:       []string{"localhost:8000/dummyserver"},
+				SendGetBodyAs: configoptional.Some("POST"),
+			},
+			expectedError: "'send_get_body_as' is no longer supported",
+		},
+		{
+			name: "max_actions set is rejected",
+			config: &Configuration{
+				Servers:        []string{"localhost:8000/dummyserver"},
+				BulkProcessing: BulkProcessing{MaxActions: configoptional.Some(1000)},
+			},
+			expectedError: "'bulk_processing.max_actions' is no longer supported",
+		},
+		{
+			name: "max_actions set to zero is still rejected",
+			config: &Configuration{
+				Servers:        []string{"localhost:8000/dummyserver"},
+				BulkProcessing: BulkProcessing{MaxActions: configoptional.Some(0)},
+			},
+			expectedError: "'bulk_processing.max_actions' is no longer supported",
+		},
+		{
+			name: "rejection error points to the explaining PR",
+			config: &Configuration{
+				Servers:       []string{"localhost:8000/dummyserver"},
+				SendGetBodyAs: configoptional.Some("POST"),
+			},
+			expectedError: "github.com/jaegertracing/jaeger/pull/9076",
 		},
 		{
 			name:          "ilm disabled and read-write aliases enabled error",
@@ -555,6 +443,18 @@ func TestValidate(t *testing.T) {
 	}
 }
 
+func TestEffectiveWriteMode(t *testing.T) {
+	assert.Equal(t, WriteModeAsync, (&Configuration{}).EffectiveWriteMode(), "unset defaults to async")
+	assert.Equal(t, WriteModeAsync, (&Configuration{WriteMode: WriteModeAsync}).EffectiveWriteMode())
+	assert.Equal(t, WriteModeSync, (&Configuration{WriteMode: WriteModeSync}).EffectiveWriteMode())
+}
+
+func TestEffectivePoisonHandling(t *testing.T) {
+	assert.Equal(t, PoisonFail, (&Configuration{}).EffectivePoisonHandling(), "unset defaults to fail")
+	assert.Equal(t, PoisonFail, (&Configuration{PoisonPillHandling: PoisonFail}).EffectivePoisonHandling())
+	assert.Equal(t, PoisonDrop, (&Configuration{PoisonPillHandling: PoisonDrop}).EffectivePoisonHandling())
+}
+
 func TestApplyForIndexPrefix(t *testing.T) {
 	tests := []struct {
 		testName     string
@@ -659,55 +559,6 @@ func TestCustomHeaders(t *testing.T) {
 			} else {
 				assert.Equal(t, test.expected, test.config.CustomHeaders)
 			}
-		})
-	}
-}
-
-func TestApplyDefaultsCustomHeaders(t *testing.T) {
-	source := &Configuration{
-		CustomHeaders: map[string]string{
-			"Host":            "source-host",
-			"X-Custom-Header": "source-value",
-		},
-	}
-
-	tests := []struct {
-		name     string
-		target   *Configuration
-		expected map[string]string
-	}{
-		{
-			name:   "target has no headers, apply from source",
-			target: &Configuration{},
-			expected: map[string]string{
-				"Host":            "source-host",
-				"X-Custom-Header": "source-value",
-			},
-		},
-		{
-			name: "target has headers, keep target headers",
-			target: &Configuration{
-				CustomHeaders: map[string]string{
-					"Host": "target-host",
-				},
-			},
-			expected: map[string]string{
-				"Host": "target-host",
-			},
-		},
-		{
-			name: "target has empty map, keep empty",
-			target: &Configuration{
-				CustomHeaders: map[string]string{},
-			},
-			expected: map[string]string{},
-		},
-	}
-
-	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
-			test.target.ApplyDefaults(source)
-			assert.Equal(t, test.expected, test.target.CustomHeaders)
 		})
 	}
 }

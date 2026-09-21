@@ -8,12 +8,15 @@ import (
 	"fmt"
 	"net/url"
 	"strconv"
+	"strings"
 	"time"
 
+	"github.com/gogo/protobuf/jsonpb"
 	"go.opentelemetry.io/collector/pdata/pcommon"
 
 	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerquery/querysvc"
 	"github.com/jaegertracing/jaeger/internal/jptrace"
+	expressionproto "github.com/jaegertracing/jaeger/internal/proto/expression/v1"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore"
 )
 
@@ -35,6 +38,7 @@ const (
 	paramDurationMax    = "query.durationMax"
 	paramQueryRawTraces = "query.rawTraces"
 	paramAttributes     = "query.attributes"
+	paramFilter         = "query.filter"
 	paramSpanKind       = "spanKind"
 
 	// Deprecated snake_case aliases kept for backward compatibility.
@@ -80,6 +84,18 @@ func parseFindTracesQuery(q url.Values) (*querysvc.TraceQueryParams, error) {
 		}
 		queryParams.Attributes = jptrace.PlainMapToPcommonMap(attrsMap)
 	}
+	// The filter parameter carries a JSON-encoded expression.
+	if filterParam := q.Get(paramFilter); filterParam != "" {
+		var call expressionproto.Call
+		if err := jsonpb.Unmarshal(strings.NewReader(filterParam), &call); err != nil {
+			return nil, fmt.Errorf("malformed parameter %s: %w", paramFilter, err)
+		}
+		filter, err := expressionproto.FromProto(&call)
+		if err != nil {
+			return nil, fmt.Errorf("malformed parameter %s: %w", paramFilter, err)
+		}
+		queryParams.Filter = filter
+	}
 
 	timeMinStr, timeMinParam := getQueryParam(q, paramTimeMin, paramTimeMinDeprecated)
 	timeMaxStr, timeMaxParam := getQueryParam(q, paramTimeMax, paramTimeMaxDeprecated)
@@ -106,11 +122,14 @@ func parseFindTracesQuery(q url.Values) (*querysvc.TraceQueryParams, error) {
 		searchDepthParam = paramNumTraces
 	}
 	if n != "" {
-		searchDepth, err := strconv.Atoi(n)
+		searchDepth, err := strconv.ParseInt(n, 10, 32)
 		if err != nil {
 			return nil, fmt.Errorf("malformed parameter %s: %w", searchDepthParam, err)
 		}
-		queryParams.SearchDepth = searchDepth
+		if searchDepth < 0 || searchDepth > int64(tracestore.MaxSearchDepth) {
+			return nil, fmt.Errorf("malformed parameter %s: search depth must be in [0, %d]", searchDepthParam, tracestore.MaxSearchDepth)
+		}
+		queryParams.SearchDepth = int(searchDepth)
 	} else {
 		queryParams.SearchDepth = defaultSearchDepth
 	}

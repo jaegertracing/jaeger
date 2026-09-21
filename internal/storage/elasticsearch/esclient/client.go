@@ -48,7 +48,13 @@ func NewClient(ctx context.Context, c *config.Configuration, logger *zap.Logger,
 	if err != nil {
 		return nil, err
 	}
-	transport, err := newRawClient(c.Servers, base)
+	transport, err := newRawClient(ctx, base, rawClientOptions{
+		servers:             c.Servers,
+		compressRequestBody: c.HTTPCompression,
+		discoverNodes:       c.Sniffing.Enabled,
+		logLevel:            c.LogLevel,
+		logger:              logger,
+	})
 	if err != nil {
 		return nil, err
 	}
@@ -65,7 +71,8 @@ func NewClient(ctx context.Context, c *config.Configuration, logger *zap.Logger,
 
 // Close releases the client's pooled idle connections. It is safe to call on a nil
 // *Client (a factory that failed to construct one). The transport has no background
-// goroutines (node discovery is off), so there is nothing else to stop.
+// goroutines — node discovery (sniffing), when enabled, runs once at startup rather
+// than on a schedule — so there is nothing else to stop.
 func (c *Client) Close() error {
 	if c != nil && c.transport != nil {
 		c.transport.close()

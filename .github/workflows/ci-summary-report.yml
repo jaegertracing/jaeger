@@ -12,13 +12,16 @@
 name: CI Summary Report
 on:
   workflow_call:
+# Scorecard Token-Permissions: keep actions: write on the job that saves cache.
 permissions:
   contents: read
-  actions: write  # required for actions/cache save and gh run download
 
 jobs:
   summary-report:
     name: Summary Report
+    permissions:
+      contents: read
+      actions: write  # required for actions/cache save and gh run download
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
@@ -49,11 +52,15 @@ jobs:
 
       - name: Set up Go for coverage tools
         uses: ./.github/actions/setup-go
-        with:
-          go-version: 1.26.x
 
       - name: Install coverage tools
         run: make install-coverage-tools
+
+      # Fails the run when Codecov's after_n_builds threshold is no longer
+      # reachable, so that a stalled merge queue surfaces as a failing check here
+      # rather than as codecov/patch and codecov/project never being posted.
+      - name: Check coverage uploads against the Codecov threshold
+        run: python3 scripts/e2e/check_coverage_uploads.py .artifacts
 
       - name: Merge coverage profiles
         id: merge-coverage

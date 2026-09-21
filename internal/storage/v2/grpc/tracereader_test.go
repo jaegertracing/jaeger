@@ -6,6 +6,7 @@ package grpc
 import (
 	"context"
 	"errors"
+	"iter"
 	"net"
 	"testing"
 	"time"
@@ -15,25 +16,41 @@ import (
 	"go.opentelemetry.io/collector/pdata/pcommon"
 	"go.opentelemetry.io/collector/pdata/ptrace"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/credentials/insecure"
+	"google.golang.org/grpc/status"
 
+	expression "github.com/jaegertracing/jaeger-idl/query/expression/v1"
 	"github.com/jaegertracing/jaeger/internal/jiter"
 	"github.com/jaegertracing/jaeger/internal/jptrace"
 	"github.com/jaegertracing/jaeger/internal/proto-gen/storage/v2"
+	expressionproto "github.com/jaegertracing/jaeger/internal/proto/expression/v1"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore"
 )
+
+func flattenPageChunks[T any](seq iter.Seq2[tracestore.PageChunk[[]T], error]) ([]T, error) {
+	var results []T
+	for chunk, err := range seq {
+		if err != nil {
+			return nil, err
+		}
+		results = append(results, chunk.Results...)
+	}
+	return results, nil
+}
 
 // testServer implements the storage.TraceReaderServer interface
 // to simulate responses for testing.
 type testServer struct {
 	storage.UnimplementedTraceReaderServer
 
-	traces     []*jptrace.TracesData
-	services   []string
-	operations []*storage.Operation
-	traceIDs   []*storage.FoundTraceID
-	summaries  []*storage.TraceSummary
-	err        error
+	traces        []*jptrace.TracesData
+	services      []string
+	operations    []*storage.Operation
+	traceIDs      []*storage.FoundTraceID
+	summaries     []*storage.TraceSummary
+	nextPageToken string
+	err           error
 }
 
 func (ts *testServer) GetTraces(_ *storage.GetTracesRequest, s storage.TraceReader_GetTracesServer) error {
@@ -76,7 +93,8 @@ func (ts *testServer) FindTraceIDs(
 	*storage.FindTraceIDsRequest,
 ) (*storage.FindTraceIDsResponse, error) {
 	return &storage.FindTraceIDsResponse{
-		TraceIds: ts.traceIDs,
+		TraceIds:      ts.traceIDs,
+		NextPageToken: ts.nextPageToken,
 	}, ts.err
 }
 
@@ -88,7 +106,10 @@ func (ts *testServer) FindTraceSummaries(
 		return ts.err
 	}
 	if len(ts.summaries) > 0 {
-		return s.Send(&storage.FindTraceSummariesResponse{Summaries: ts.summaries})
+		return s.Send(&storage.FindTraceSummariesResponse{
+			Summaries:     ts.summaries,
+			NextPageToken: ts.nextPageToken,
+		})
 	}
 	return nil
 }
@@ -467,6 +488,7 @@ func TestTraceReader_FindTraceIDs(t *testing.T) {
 		{
 			name: "success",
 			testServer: &testServer{
+				nextPageToken: "next-page",
 				traceIDs: []*storage.FoundTraceID{
 					{
 						TraceId: []byte{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16},
@@ -550,14 +572,17 @@ func TestTraceReader_FindTraceIDs(t *testing.T) {
 
 			reader := NewTraceReader(conn)
 
-			foundIDsIter := reader.FindTraceIDs(context.Background(), test.queryParams)
-			foundIDs, err := jiter.FlattenWithErrors(foundIDsIter)
+			chunks, err := jiter.CollectWithErrors(reader.FindTraceIDs(context.Background(), test.queryParams))
 
 			if test.expectedError != "" {
 				require.ErrorContains(t, err, test.expectedError)
 			} else {
 				require.NoError(t, err)
-				require.Equal(t, test.expectedIDs, foundIDs)
+				require.Len(t, chunks, 1)
+				require.Equal(t, test.expectedIDs, chunks[0].Results)
+				if test.name == "success" {
+					assert.Equal(t, "next-page", chunks[0].NextPageToken)
+				}
 			}
 		})
 	}
@@ -734,16 +759,17 @@ func TestTraceReader_FindTraceSummaries_Success(t *testing.T) {
 			},
 		},
 	}
-	ts := &testServer{summaries: wantSummaries}
+	ts := &testServer{summaries: wantSummaries, nextPageToken: "next-page"}
 	conn := startTestServer(t, ts)
 	reader := NewTraceReader(conn)
 
 	var got []tracestore.TraceSummary
-	for batch, err := range reader.FindTraceSummaries(context.Background(), tracestore.TraceQueryParams{
+	for chunk, err := range reader.FindTraceSummaries(context.Background(), tracestore.TraceQueryParams{
 		Attributes: pcommon.NewMap(),
 	}) {
 		require.NoError(t, err)
-		got = append(got, batch...)
+		assert.Equal(t, "next-page", chunk.NextPageToken)
+		got = append(got, chunk.Results...)
 	}
 	require.Len(t, got, 1)
 	assert.Equal(t, pcommon.TraceID([16]byte{1}), got[0].TraceID)
@@ -814,4 +840,213 @@ func TestTraceReader_FindTraceSummaries_Unimplemented(t *testing.T) {
 		Attributes: pcommon.NewMap(),
 	}))
 	require.ErrorIs(t, err, errors.ErrUnsupported)
+}
+
+// capabilitiesServer serves the Capabilities service with a configured answer.
+type capabilitiesServer struct {
+	storage.UnimplementedCapabilitiesServer
+	resp *storage.GetCapabilitiesResponse
+	err  error
+}
+
+func (cs *capabilitiesServer) GetCapabilities(
+	context.Context,
+	*storage.GetCapabilitiesRequest,
+) (*storage.GetCapabilitiesResponse, error) {
+	return cs.resp, cs.err
+}
+
+// TestTraceReader_SearchCapabilities covers what the reader makes of each answer a remote
+// backend can give, including the UNIMPLEMENTED case that keeps older backends working.
+func TestTraceReader_SearchCapabilities(t *testing.T) {
+	tests := []struct {
+		name         string
+		register     func(*grpc.Server)
+		expected     tracestore.SearchCapabilities
+		expectErrIs  error
+		expectErrMsg string
+	}{
+		{
+			name: "backend reports the capability",
+			register: func(srv *grpc.Server) {
+				storage.RegisterCapabilitiesServer(srv, &capabilitiesServer{
+					resp: &storage.GetCapabilitiesResponse{
+						Search: &storage.SearchCapabilities{WithoutServiceName: true},
+					},
+				})
+			},
+			expected: tracestore.SearchCapabilities{WithoutServiceName: true},
+		},
+		{
+			name: "backend reports every capability",
+			register: func(srv *grpc.Server) {
+				storage.RegisterCapabilitiesServer(srv, &capabilitiesServer{
+					resp: &storage.GetCapabilitiesResponse{
+						Search: &storage.SearchCapabilities{
+							WithoutServiceName:  true,
+							SameSpanConjunction: true,
+							Filter: &storage.FilterCapabilities{
+								Levels:    []string{"span", "resource"},
+								Operators: []string{"and", "eq", "regex"},
+							},
+						},
+					},
+				})
+			},
+			expected: tracestore.SearchCapabilities{
+				WithoutServiceName:  true,
+				SameSpanConjunction: true,
+				Filter: &tracestore.FilterCapabilities{
+					Levels:    []expression.Level{expression.LevelSpan, expression.LevelResource},
+					Operators: []expression.Operator{expression.OpAnd, expression.OpEq, expression.OpRegex},
+				},
+			},
+		},
+		{
+			name: "backend reports its absence",
+			register: func(srv *grpc.Server) {
+				storage.RegisterCapabilitiesServer(srv, &capabilitiesServer{
+					resp: &storage.GetCapabilitiesResponse{Search: &storage.SearchCapabilities{}},
+				})
+			},
+			expected: tracestore.SearchCapabilities{},
+		},
+		{
+			name: "backend answers without a search group",
+			register: func(srv *grpc.Server) {
+				storage.RegisterCapabilitiesServer(srv, &capabilitiesServer{
+					resp: &storage.GetCapabilitiesResponse{},
+				})
+			},
+			expected: tracestore.SearchCapabilities{},
+		},
+		{
+			name:        "backend does not serve the service",
+			register:    func(*grpc.Server) {},
+			expectErrIs: errors.ErrUnsupported,
+		},
+		{
+			name: "backend serves it but does not override the method",
+			register: func(srv *grpc.Server) {
+				storage.RegisterCapabilitiesServer(srv, &storage.UnimplementedCapabilitiesServer{})
+			},
+			expectErrIs: errors.ErrUnsupported,
+		},
+		{
+			// Not UNIMPLEMENTED, so a real error: reporting it as ErrUnsupported would let a
+			// broken backend look like an old one.
+			name: "backend fails for another reason",
+			register: func(srv *grpc.Server) {
+				storage.RegisterCapabilitiesServer(srv, &capabilitiesServer{
+					err: status.Error(codes.Internal, "boom"),
+				})
+			},
+			expectErrMsg: "boom",
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			listener, netErr := net.Listen("tcp", ":0")
+			require.NoError(t, netErr)
+			server := grpc.NewServer()
+			storage.RegisterTraceReaderServer(server, &testServer{})
+			test.register(server)
+			reader := NewTraceReader(startServer(t, server, listener))
+
+			caps, err := reader.SearchCapabilities(context.Background())
+
+			switch {
+			case test.expectErrIs != nil:
+				require.ErrorIs(t, err, test.expectErrIs)
+			case test.expectErrMsg != "":
+				require.ErrorContains(t, err, test.expectErrMsg)
+				require.NotErrorIs(t, err, errors.ErrUnsupported)
+			default:
+				require.NoError(t, err)
+				assert.Equal(t, test.expected, caps)
+			}
+		})
+	}
+}
+
+// TestTraceReader_RefusesUnencodableFilter covers what each search method does with a filter that
+// has no wire form. The query is never sent, because a receiver reading a truncated filter would
+// answer a different question than the one asked.
+func TestTraceReader_RefusesUnencodableFilter(t *testing.T) {
+	params := tracestore.TraceQueryParams{
+		ServiceName: "service-a",
+		Attributes:  pcommon.NewMap(),
+		// A comparison missing an operand is a tree Predicate cannot build and ToProto has no
+		// wire form for, which is how a filter that was never finalized shows up here.
+		Filter: &expression.Call{
+			Op:   expression.OpEq,
+			Args: []expression.Expression{nil, nil},
+		},
+	}
+	conn, err := grpc.NewClient(":0", grpc.WithTransportCredentials(insecure.NewCredentials()))
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		conn.Close()
+	})
+	reader := NewTraceReader(conn)
+
+	tests := []struct {
+		name string
+		call func() error
+	}{
+		{
+			name: "FindTraces",
+			call: func() error {
+				_, err := jiter.FlattenWithErrors(reader.FindTraces(context.Background(), params))
+				return err
+			},
+		},
+		{
+			name: "FindTraceIDs",
+			call: func() error {
+				_, err := flattenPageChunks(reader.FindTraceIDs(context.Background(), params))
+				return err
+			},
+		},
+		{
+			name: "FindTraceSummaries",
+			call: func() error {
+				_, err := flattenPageChunks(reader.FindTraceSummaries(context.Background(), params))
+				return err
+			},
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			err := test.call()
+			// The reader holds a client to a server that was never started, so a query that did go
+			// out would fail with the call's own message instead of this one.
+			require.ErrorIs(t, err, expressionproto.ErrTermNotEncodable)
+			assert.ErrorContains(t, err, "cannot send the query filter")
+		})
+	}
+}
+
+func TestToProtoQueryParameters_SearchDepth(t *testing.T) {
+	t.Run("zero and max encode as-is", func(t *testing.T) {
+		for _, depth := range []int{0, 1, tracestore.MaxSearchDepth} {
+			got, err := toProtoQueryParameters(tracestore.TraceQueryParams{
+				Attributes:  pcommon.NewMap(),
+				SearchDepth: depth,
+			})
+			require.NoError(t, err)
+			assert.Equal(t, int32(depth), got.GetSearchDepth())
+		}
+	})
+
+	t.Run("negative and above max are refused", func(t *testing.T) {
+		for _, depth := range []int{-1, tracestore.MaxSearchDepth + 1} {
+			_, err := toProtoQueryParameters(tracestore.TraceQueryParams{
+				Attributes:  pcommon.NewMap(),
+				SearchDepth: depth,
+			})
+			require.Error(t, err)
+			assert.ErrorContains(t, err, "SearchDepth must be in [0,")
+		}
+	})
 }

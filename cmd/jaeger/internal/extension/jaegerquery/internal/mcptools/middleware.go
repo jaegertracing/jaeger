@@ -5,9 +5,11 @@ package mcptools
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"reflect"
 	"time"
+	"unicode/utf8"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"go.opentelemetry.io/otel/attribute"
@@ -29,6 +31,17 @@ const (
 
 	metricStatusSuccess = "success"
 	metricStatusError   = "error"
+
+	// maxSpanAttrChars bounds gen_ai.tool.call.arguments/result so an oversized
+	// tool payload can't trip OTLP attribute-size limits.
+	//
+	// The SDK does not do this for us: DefaultAttributeValueLengthLimit is -1
+	// (unlimited) and Jaeger sets neither SpanLimits nor
+	// OTEL_SPAN_ATTRIBUTE_VALUE_LENGTH_LIMIT, so an oversized value is exported
+	// in full. Because the batch processor packs many spans into one OTLP
+	// request, a single huge value can fail the export of every span batched
+	// with it.
+	maxSpanAttrChars = 65536
 )
 
 var requestMetaPropagator = propagation.NewCompositeTextMapPropagator(
@@ -55,6 +68,9 @@ func createTracingMiddleware(tracerProvider trace.TracerProvider) mcp.Middleware
 					otelsemconv.GenAIOperationNameExecuteTool,
 					otelsemconv.GenAIToolName(toolName),
 				)
+				if toolArgs := toolArgumentsFromRequest(method, req); toolArgs != "" {
+					attrs = append(attrs, otelsemconv.GenAIToolCallArguments(truncateForSpan(toolArgs, maxSpanAttrChars)))
+				}
 			} else {
 				attrs = append(attrs, otelsemconv.McpMethodName(method))
 			}
@@ -76,10 +92,15 @@ func createTracingMiddleware(tracerProvider trace.TracerProvider) mcp.Middleware
 				span.SetStatus(codes.Error, err.Error())
 				return result, err
 			}
-			if callResult, ok := result.(*mcp.CallToolResult); ok && callResult.IsError {
-				span.SetAttributes(otelsemconv.ErrorType(errorTypeTool))
-				if toolErr := callResult.GetError(); toolErr != nil {
-					span.RecordError(toolErr)
+			if callResult, ok := result.(*mcp.CallToolResult); ok {
+				if resultText := toolResultText(callResult); resultText != "" {
+					span.SetAttributes(otelsemconv.GenAIToolCallResult(truncateForSpan(resultText, maxSpanAttrChars)))
+				}
+				if callResult.IsError {
+					span.SetAttributes(otelsemconv.ErrorType(errorTypeTool))
+					if toolErr := callResult.GetError(); toolErr != nil {
+						span.RecordError(toolErr)
+					}
 				}
 			}
 
@@ -150,6 +171,70 @@ func toolNameFromRequest(method string, req mcp.Request) string {
 		return ""
 	}
 	return params.Name
+}
+
+// toolArgumentsFromRequest returns the raw JSON arguments a tools/call
+// request was made with, as received over the wire. Returns "" when the
+// method isn't tools/call or carries no arguments.
+func toolArgumentsFromRequest(method string, req mcp.Request) string {
+	if method != mcpMethodToolsCall || req == nil {
+		return ""
+	}
+	params, ok := req.GetParams().(*mcp.CallToolParamsRaw)
+	if !ok || params == nil {
+		return ""
+	}
+	return string(params.Arguments)
+}
+
+// toolResultText JSON-encodes a tool call result for the
+// gen_ai.tool.call.result span attribute. Falls back to a Go-syntax
+// representation if the result cannot be marshaled (defensive; the MCP wire
+// types are JSON-safe by construction).
+func toolResultText(result *mcp.CallToolResult) string {
+	if result == nil {
+		return ""
+	}
+	data, err := json.Marshal(result)
+	if err != nil {
+		return fmt.Sprintf("%+v", result)
+	}
+	return string(data)
+}
+
+// truncateForSpan caps text at maxChars before it's set as a span attribute
+// value. See maxSpanAttrChars for why.
+//
+// The marker leads rather than trails. maxChars is already long enough that a
+// UI will clip or collapse the value, and a trailing marker is the one part a
+// reader never sees, whereas a leading one survives every rendering including a
+// one-line preview. Opening with "(" also stops a UI that special-cases
+// gen_ai.* attributes from parsing the value as JSON and reporting a parse
+// error: truncated JSON that still opens with "{" advertises itself as
+// parseable while being malformed.
+//
+// The cut lands on a rune boundary. Tool results carry arbitrary text — service
+// names, log messages, span tags — so a byte-boundary cut can split a multi-byte
+// rune and leave the value invalid UTF-8. Protobuf string fields must hold valid
+// UTF-8 and the Go marshaler enforces it, so such a value fails the OTLP export
+// of every span batched with it: precisely the failure this cap exists to
+// prevent.
+func truncateForSpan(text string, maxChars int) string {
+	if len(text) <= maxChars {
+		return text
+	}
+	prefix := fmt.Sprintf("(truncated from %d) ", len(text))
+	if maxChars <= len(prefix) {
+		// Degenerate cap: keep as much of the marker as fits. It is ASCII, so
+		// slicing it cannot produce invalid UTF-8.
+		return prefix[:maxChars]
+	}
+	keep := maxChars - len(prefix)
+	// Back off to the start of the rune straddling the cut, if any.
+	for keep > 0 && !utf8.RuneStart(text[keep]) {
+		keep--
+	}
+	return prefix + text[:keep]
 }
 
 func sessionIDFromRequest(req mcp.Request) string {

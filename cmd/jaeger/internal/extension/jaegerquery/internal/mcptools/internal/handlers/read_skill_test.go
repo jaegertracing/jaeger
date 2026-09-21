@@ -5,6 +5,8 @@ package handlers
 
 import (
 	"context"
+	"io/fs"
+	"strings"
 	"testing"
 	"testing/fstest"
 
@@ -27,7 +29,7 @@ func testSkillsFS() fstest.MapFS {
 }
 
 func newTestHandler() *readSkillHandler {
-	return &readSkillHandler{skillsFS: testSkillsFS(), maxFileSize: testMaxFileSize}
+	return &readSkillHandler{builtins: testSkillsFS(), maxFileSize: testMaxFileSize}
 }
 
 func TestReadSkillHandler_RootSkillMD(t *testing.T) {
@@ -96,6 +98,73 @@ func TestReadSkillHandler_RawTextInContent(t *testing.T) {
 }
 
 func TestNewReadSkillHandler(t *testing.T) {
-	handler := NewReadSkillHandler(testSkillsFS(), testMaxFileSize)
+	handler := NewReadSkillHandler(testSkillsFS(), nil, testMaxFileSize)
 	assert.NotNil(t, handler)
+}
+
+func testCustomFS() fstest.MapFS {
+	return fstest.MapFS{
+		"SKILL.md":              &fstest.MapFile{Data: []byte("# Operator catalog")},
+		"slow-db-call/SKILL.md": &fstest.MapFile{Data: []byte("# Slow DB Call")},
+	}
+}
+
+// With no skills_dir configured every custom/ path must report not-exist
+// rather than falling through to the built-ins.
+func TestReadSkillHandler_CustomPathWithoutOperatorFS(t *testing.T) {
+	h := newTestHandler()
+	for _, p := range []string{"custom/SKILL.md", "custom/slow-db-call/SKILL.md"} {
+		t.Run(p, func(t *testing.T) {
+			_, _, err := h.handle(context.Background(), &mcp.CallToolRequest{}, types.ReadSkillInput{Path: p})
+			require.ErrorIs(t, err, fs.ErrNotExist)
+		})
+	}
+}
+
+func TestReadSkillHandler_DispatchesByPrefix(t *testing.T) {
+	h := &readSkillHandler{builtins: testSkillsFS(), custom: testCustomFS(), maxFileSize: testMaxFileSize}
+
+	t.Run("custom prefix reaches the custom tree", func(t *testing.T) {
+		_, out, err := h.handle(context.Background(), &mcp.CallToolRequest{}, types.ReadSkillInput{Path: "custom/slow-db-call/SKILL.md"})
+		require.NoError(t, err)
+		assert.Equal(t, "# Slow DB Call", out.Instructions)
+	})
+
+	t.Run("custom entry point is served", func(t *testing.T) {
+		_, out, err := h.handle(context.Background(), &mcp.CallToolRequest{}, types.ReadSkillInput{Path: "custom/SKILL.md"})
+		require.NoError(t, err)
+		assert.Equal(t, "# Operator catalog", out.Instructions)
+	})
+
+	t.Run("built-ins still reachable at the root", func(t *testing.T) {
+		_, out, err := h.handle(context.Background(), &mcp.CallToolRequest{}, types.ReadSkillInput{Path: "skill-a/SKILL.md"})
+		require.NoError(t, err)
+		assert.Equal(t, "# Skill A\n\nContent here.", out.Instructions)
+	})
+
+	t.Run("traversal out of custom is rejected", func(t *testing.T) {
+		_, _, err := h.handle(context.Background(), &mcp.CallToolRequest{}, types.ReadSkillInput{Path: "custom/../etc/passwd"})
+		require.Error(t, err)
+	})
+}
+
+func TestReadSkillHandler_SizeLimitBoundary(t *testing.T) {
+	fsys := fstest.MapFS{
+		"exactly.bin": &fstest.MapFile{Data: []byte(strings.Repeat("B", testMaxFileSize))},
+		"over.bin":    &fstest.MapFile{Data: []byte(strings.Repeat("A", testMaxFileSize+1))},
+	}
+	h := &readSkillHandler{builtins: fsys, maxFileSize: testMaxFileSize}
+
+	// Exactly at the limit: whole file served, no truncation notice.
+	_, out, err := h.handle(context.Background(), &mcp.CallToolRequest{}, types.ReadSkillInput{Path: "exactly.bin"})
+	require.NoError(t, err)
+	assert.Equal(t, strings.Repeat("B", testMaxFileSize), out.Instructions)
+	assert.NotContains(t, out.Instructions, "truncated")
+
+	// One byte over: content capped at exactly maxFileSize, then the notice.
+	_, out, err = h.handle(context.Background(), &mcp.CallToolRequest{}, types.ReadSkillInput{Path: "over.bin"})
+	require.NoError(t, err)
+	idx := strings.Index(out.Instructions, "\n\nfile content truncated")
+	require.NotEqual(t, -1, idx)
+	assert.Equal(t, testMaxFileSize, idx)
 }

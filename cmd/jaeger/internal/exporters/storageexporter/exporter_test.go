@@ -12,13 +12,18 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/collector/component"
+	"go.opentelemetry.io/collector/config/configoptional"
 	"go.opentelemetry.io/collector/exporter"
+	"go.opentelemetry.io/collector/exporter/exporterhelper"
 	"go.opentelemetry.io/collector/extension"
 	"go.opentelemetry.io/collector/pdata/pcommon"
 	"go.opentelemetry.io/collector/pdata/ptrace"
 	noopmetric "go.opentelemetry.io/otel/metric/noop"
 	nooptrace "go.opentelemetry.io/otel/trace/noop"
+	"go.uber.org/zap"
+	"go.uber.org/zap/zapcore"
 	"go.uber.org/zap/zaptest"
+	"go.uber.org/zap/zaptest/observer"
 
 	"github.com/jaegertracing/jaeger/cmd/internal/storageconfig"
 	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerstorage"
@@ -65,6 +70,115 @@ func TestExporterConfigError(t *testing.T) {
 	config := createDefaultConfig().(*Config)
 	err := config.Validate()
 	require.EqualError(t, err, "TraceStorage: non zero value required")
+}
+
+// fakeSyncFactory is a tracestore.Factory that also advertises a synchronous,
+// byte-capped write mode via syncBulkWriteConfig. The embedded interface is nil;
+// the batch-sizing guard never calls its factory methods, so tests that only
+// exercise the guard don't need a working implementation.
+type fakeSyncFactory struct {
+	tracestore.Factory
+	sync     bool
+	maxBytes int
+}
+
+func (f fakeSyncFactory) SyncBulkWriteByteCap() (bool, int) { return f.sync, f.maxBytes }
+
+// fakeFactoryExt is a jaegerstorage.Extension serving a single named trace-store
+// factory, letting a start() test inject an arbitrary factory (e.g. fakeSyncFactory).
+type fakeFactoryExt struct {
+	name    string
+	factory tracestore.Factory
+}
+
+var _ jaegerstorage.Extension = (*fakeFactoryExt)(nil)
+
+func (*fakeFactoryExt) Start(context.Context, component.Host) error { return nil }
+func (*fakeFactoryExt) Shutdown(context.Context) error              { return nil }
+
+func (e *fakeFactoryExt) TraceStorageFactory(name string) (tracestore.Factory, error) {
+	if e.name == name {
+		return e.factory, nil
+	}
+	return nil, errors.New("storage not found")
+}
+
+func (*fakeFactoryExt) MetricStorageFactory(string) (storage.MetricStoreFactory, error) {
+	return nil, errors.New("metric storage not found")
+}
+
+func byteBatchQueue(maxSize int64) configoptional.Optional[exporterhelper.QueueBatchConfig] {
+	return configoptional.Some(exporterhelper.QueueBatchConfig{
+		Batch: configoptional.Some(exporterhelper.BatchConfig{
+			Sizer:   exporterhelper.RequestSizerTypeBytes,
+			MaxSize: maxSize,
+		}),
+	})
+}
+
+func TestWarnMisalignedSyncBatchSizing(t *testing.T) {
+	const maxBytes = 5_000_000
+	itemBatchQueue := configoptional.Some(exporterhelper.QueueBatchConfig{
+		Batch: configoptional.Some(exporterhelper.BatchConfig{
+			Sizer:   exporterhelper.RequestSizerTypeItems,
+			MaxSize: maxBytes + 1,
+		}),
+	})
+	tests := []struct {
+		name     string
+		factory  tracestore.Factory
+		queue    configoptional.Optional[exporterhelper.QueueBatchConfig]
+		wantWarn bool
+	}{
+		{name: "factory without sync capability is skipped", factory: new(tracestoremocks.Factory), queue: byteBatchQueue(maxBytes + 1)},
+		{name: "async factory is skipped", factory: fakeSyncFactory{sync: false, maxBytes: maxBytes}, queue: byteBatchQueue(maxBytes + 1)},
+		{name: "sync with zero cap is skipped", factory: fakeSyncFactory{sync: true, maxBytes: 0}, queue: byteBatchQueue(maxBytes + 1)},
+		{name: "sync without queue is skipped", factory: fakeSyncFactory{sync: true, maxBytes: maxBytes}, queue: configoptional.None[exporterhelper.QueueBatchConfig]()},
+		{name: "sync with queue but no batch is skipped", factory: fakeSyncFactory{sync: true, maxBytes: maxBytes}, queue: configoptional.Some(exporterhelper.QueueBatchConfig{})},
+		{name: "sync with item-sized batch is skipped", factory: fakeSyncFactory{sync: true, maxBytes: maxBytes}, queue: itemBatchQueue},
+		{name: "sync with byte batch within cap is quiet", factory: fakeSyncFactory{sync: true, maxBytes: maxBytes}, queue: byteBatchQueue(maxBytes)},
+		{name: "sync with byte batch over cap warns", factory: fakeSyncFactory{sync: true, maxBytes: maxBytes}, queue: byteBatchQueue(maxBytes + 1), wantWarn: true},
+		{name: "sync with unbounded byte batch warns", factory: fakeSyncFactory{sync: true, maxBytes: maxBytes}, queue: byteBatchQueue(0), wantWarn: true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			core, logs := observer.New(zapcore.WarnLevel)
+			exp := &storageExporter{
+				config: &Config{QueueConfig: tt.queue},
+				logger: zap.New(core),
+			}
+			exp.warnMisalignedSyncBatchSizing(tt.factory)
+			if !tt.wantWarn {
+				require.Zero(t, logs.Len())
+				return
+			}
+			require.Equal(t, 1, logs.Len())
+			require.Contains(t, logs.All()[0].Message, "not aligned with the storage's")
+		})
+	}
+}
+
+func TestExporterStartWarnsButSucceedsOnMisalignedSyncBatch(t *testing.T) {
+	factory := new(tracestoremocks.Factory)
+	factory.On("CreateTraceWriter").Return(nil, nil)
+
+	core, logs := observer.New(zapcore.WarnLevel)
+	host := storagetest.NewStorageHost()
+	host.WithExtension(jaegerstorage.ID, &fakeFactoryExt{
+		name:    "es",
+		factory: fakeSyncFactory{Factory: factory, sync: true, maxBytes: 1000},
+	})
+	exp := &storageExporter{
+		config: &Config{
+			TraceStorage: "es",
+			QueueConfig:  byteBatchQueue(2000),
+		},
+		logger: zap.New(core),
+	}
+	err := exp.start(context.Background(), host)
+	require.NoError(t, err, "misaligned batch sizing must not fail startup")
+	require.Equal(t, 1, logs.Len())
+	require.Contains(t, logs.All()[0].Message, "not aligned with the storage's")
 }
 
 func TestExporterStartBadNameError(t *testing.T) {

@@ -14,6 +14,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"syscall"
 	"testing"
 	"time"
 
@@ -22,10 +23,17 @@ import (
 	"github.com/jaegertracing/jaeger/ports"
 )
 
+// defaultShutdownTimeout is how long Stop waits for the process to exit after
+// SIGTERM before escalating to SIGKILL.
+const defaultShutdownTimeout = time.Minute
+
 // Binary is a wrapper around exec.Cmd to help running binaries in tests.
 type Binary struct {
 	Name            string
 	HealthCheckPort int // overridable for Kafka tests which run two binaries and need different ports
+	// ShutdownTimeout overrides how long Stop waits after SIGTERM before
+	// escalating to SIGKILL. Zero means defaultShutdownTimeout.
+	ShutdownTimeout time.Duration
 	exec.Cmd
 }
 
@@ -73,17 +81,50 @@ func (b *Binary) Start(t *testing.T) {
 	t.Logf("%s is ready", b.Name)
 }
 
-// Stop kills the process and waits for it to exit. It is safe to call more than
-// once (and after the process has already exited): once the process has been
-// reaped, Kill returns os.ErrProcessDone, which is treated as a successful stop.
+// Stop shuts the process down and waits for it to exit.
+//
+// SIGTERM is sent first so the binary runs its own shutdown path — for jaeger
+// that means the collector's Shutdown hooks and storage Close calls, which
+// SIGKILL skips entirely, hiding any bug in them from every e2e test. A kill is
+// still a kill: if the process has not exited within ShutdownTimeout, it is
+// escalated to SIGKILL, which cannot be caught or ignored, so Stop always
+// terminates the process rather than trusting it to cooperate.
+//
+// It is safe to call more than once (and after the process has already exited):
+// once the process has been reaped, signalling it returns os.ErrProcessDone,
+// which is treated as a successful stop.
 func (b *Binary) Stop(t *testing.T) {
 	t.Helper()
-	if err := b.Process.Kill(); err != nil && !errors.Is(err, os.ErrProcessDone) {
-		t.Errorf("Failed to kill %s process: %v", b.Name, err)
+	timeout := b.ShutdownTimeout
+	if timeout == 0 {
+		timeout = defaultShutdownTimeout
 	}
-	t.Logf("Waiting for %s to exit", b.Name)
-	b.Process.Wait()
-	t.Logf("%s exited", b.Name)
+
+	if err := b.Process.Signal(syscall.SIGTERM); err != nil && !errors.Is(err, os.ErrProcessDone) {
+		t.Errorf("Failed to signal %s process: %v", b.Name, err)
+	}
+	t.Logf("Waiting up to %v for %s to exit after SIGTERM", timeout, b.Name)
+
+	// A single Wait runs in the background: os.Process.Wait must not be called
+	// concurrently or twice, so the escalation path below waits on this channel
+	// rather than calling Wait again.
+	exited := make(chan struct{})
+	go func() {
+		b.Process.Wait()
+		close(exited)
+	}()
+
+	select {
+	case <-exited:
+		t.Logf("%s exited on SIGTERM", b.Name)
+	case <-time.After(timeout):
+		t.Logf("%s did not exit within %v of SIGTERM, sending SIGKILL", b.Name, timeout)
+		if err := b.Process.Kill(); err != nil && !errors.Is(err, os.ErrProcessDone) {
+			t.Errorf("Failed to kill %s process: %v", b.Name, err)
+		}
+		<-exited
+		t.Logf("%s killed", b.Name)
+	}
 }
 
 func (b *Binary) doHealthCheck(t *testing.T, client *http.Client) bool {

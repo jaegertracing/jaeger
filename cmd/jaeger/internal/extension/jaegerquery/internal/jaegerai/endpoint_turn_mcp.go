@@ -11,13 +11,13 @@ import (
 	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerquery/internal/mcptools"
-	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerquery/querysvc"
-	"github.com/jaegertracing/jaeger/internal/telemetry"
-	"github.com/jaegertracing/jaeger/internal/tenancy"
 )
 
-// routeTurnMCP and routeTurnMCPNoSlash are the turn-scoped MCP
-// patterns. Both are strictly more specific than the shared
+// routeMCPPrefix is the single source of truth for the endpoint's path: the mux
+// patterns, the prefix ServeHTTP strips, and the URL announced to the sidecar
+// (see chatEndpoint.announceMCP) all derive from it, so they cannot drift.
+//
+// routeTurnMCP and routeTurnMCPNoSlash are strictly more specific than the shared
 // "/api/ai/mcp/" pattern jaeger-query mounts, so all three coexist on one mux:
 //
 //	/api/ai/mcp/           → shared handler (jaeger-query)
@@ -25,12 +25,12 @@ import (
 //	/api/ai/mcp/<id>/...   → turn-scoped (this handler)
 //
 // Registering both the slash and no-slash forms is deliberate: without the
-// no-slash pattern, a client dialing "/api/ai/mcp/<id>" (no trailing slash)
-// would fall through to the shared subtree pattern instead of reaching
-// the turn-scoped handler.
+// no-slash pattern, a client dialing "/api/ai/mcp/<id>" (no trailing slash) would
+// fall through to the shared subtree pattern instead of the turn-scoped handler.
 const (
-	routeTurnMCP        = "/api/ai/mcp/{mcpRouteID}/"
-	routeTurnMCPNoSlash = "/api/ai/mcp/{mcpRouteID}"
+	routeMCPPrefix      = "/api/ai/mcp/"
+	routeTurnMCPNoSlash = routeMCPPrefix + "{mcpRouteID}"
+	routeTurnMCP        = routeTurnMCPNoSlash + "/"
 )
 
 // mcpRouteIDContextKey carries the URL route id from ServeHTTP into the
@@ -53,30 +53,37 @@ func mcpRouteIDFromContext(ctx context.Context) string {
 // SSE stream. Access is gated to route ids that belong to an active chat turn
 // (present in turnRegistry).
 type turnScopedEndpoint struct {
-	// streamable is the MCP streamable-HTTP handler (from mcptools.WrapHTTP)
-	// serving a single shared telemetry server. Per-turn UI tools are layered
-	// on by the uiToolsMiddleware registered on that server, keyed by the
-	// route id carried in the request context.
+	// streamable is the telemetry MCP endpoint's handler, which the query server
+	// built and still owns. Serving it here means both mounts share one *mcp.Server,
+	// so the telemetry tools are registered once and this endpoint closes nothing.
 	streamable http.Handler
 	turns      *turnRegistry
 	basePath   string
 	logger     *zap.Logger
 }
 
-// newTurnScopedEndpoint builds the turn-scoped handler around a single shared
-// MCP server. The telemetry tools are a fixed capability, so they are registered
-// once; the per-turn UI tools are layered on via uiToolsMiddleware, which
-// reads the route id from the request context and, for that turn,
-// advertises its UI tools in tools/list and dispatches their tools/call to the
-// browser stream. This avoids standing up a fresh server per turn.
-func newTurnScopedEndpoint(telset telemetry.Settings, queryAPI *querysvc.QueryService, tenancyMgr *tenancy.Manager, turns *turnRegistry, basePath string, logger *zap.Logger) *turnScopedEndpoint {
-	srv := mcptools.NewServer(telset, queryAPI, mcptools.DefaultConfig())
-	srv.AddReceivingMiddleware(uiToolsMiddleware(turns, logger))
+// turnScopedEndpointBuilder collects the endpoint's dependencies. The MCP handler
+// arrives ready-made: external MCP clients dial the shared telemetry endpoint with
+// no chat sidecar involved, so the query server builds it and this endpoint layers
+// the per-turn UI tools onto it.
+type turnScopedEndpointBuilder struct {
+	shared   *mcptools.Handler
+	turns    *turnRegistry
+	basePath string
+	logger   *zap.Logger
+}
+
+// build layers this gateway's per-turn UI tools onto the shared MCP server and
+// serves it under the turn-scoped routes. uiToolsMiddleware adds each turn's UI
+// tools per request, keyed by the route id in the request context, so neither a
+// server per turn nor a second server for this mount is needed.
+func (b turnScopedEndpointBuilder) build() *turnScopedEndpoint {
+	b.shared.AddReceivingMiddleware(uiToolsMiddleware(b.turns, b.logger))
 	return &turnScopedEndpoint{
-		streamable: mcptools.WrapHTTP(srv, tenancyMgr, telset),
-		turns:      turns,
-		basePath:   basePath,
-		logger:     logger,
+		streamable: b.shared,
+		turns:      b.turns,
+		basePath:   b.basePath,
+		logger:     b.logger,
 	}
 }
 
@@ -102,7 +109,7 @@ func (h *turnScopedEndpoint) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	// middleware. The no-slash form strips to "", which we normalize to "/". Our
 	// routes carry no percent-encoding past the UUID, so Path is canonical and
 	// RawPath cleared.
-	prefix := h.basePath + "/api/ai/mcp/" + mcpRouteID
+	prefix := h.basePath + routeMCPPrefix + mcpRouteID
 	rest := strings.TrimPrefix(r.URL.Path, prefix)
 	if rest == "" {
 		rest = "/"

@@ -9,13 +9,10 @@ import (
 	"strings"
 
 	"go.opentelemetry.io/collector/extension/extensionauth"
-	"go.opentelemetry.io/collector/featuregate"
 
 	"github.com/jaegertracing/jaeger-idl/model/v1"
 	"github.com/jaegertracing/jaeger/internal/metrics"
 	escfg "github.com/jaegertracing/jaeger/internal/storage/elasticsearch/config"
-	"github.com/jaegertracing/jaeger/internal/storage/v1/api/samplingstore"
-	"github.com/jaegertracing/jaeger/internal/storage/v1/elasticsearch"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/api/depstore"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore/tracestoremetrics"
@@ -26,31 +23,19 @@ import (
 
 const tagError = "error"
 
-// nativeTraceSummariesGate enables computing trace summaries (the metadata shown
-// on the search-results page) natively in Elasticsearch/OpenSearch via a single
-// aggregation query, instead of loading full traces and aggregating them in the
-// query service. Enabled by default; when disabled, CreateTraceReader returns a
-// reader that does not implement tracestore.SummaryReader, so the query service
-// transparently falls back to the full-trace path.
-var nativeTraceSummariesGate = featuregate.GlobalRegistry().MustRegister(
-	"jaeger.es.nativeTraceSummaries",
-	featuregate.StageBeta,
-	featuregate.WithRegisterFromVersion("v2.20.0"),
-	featuregate.WithRegisterDescription(
-		"Computes trace summaries natively in Elasticsearch/OpenSearch via aggregations "+
-			"instead of loading full traces and aggregating in the query service. Requires "+
-			"inline (Painless) scripts to be enabled on the cluster.",
-	),
-)
-
 var (
-	_ io.Closer          = (*Factory)(nil)
-	_ tracestore.Factory = (*Factory)(nil)
-	_ depstore.Factory   = (*Factory)(nil)
+	_ io.Closer                      = (*Factory)(nil)
+	_ tracestore.Factory             = (*Factory)(nil)
+	_ tracestore.SyncBulkWriteConfig = (*Factory)(nil)
+	_ depstore.Factory               = (*Factory)(nil)
 )
 
 type Factory struct {
-	coreFactory    *elasticsearch.FactoryBase
+	// FactoryBase is embedded rather than held in a named field so that the
+	// methods it already provides — Close, Purge, CreateSamplingStore — reach
+	// callers directly instead of through pass-throughs. Factory's own config and
+	// metricsFactory shadow the embedded ones, as they did before.
+	*FactoryBase
 	config         escfg.Configuration
 	metricsFactory metrics.Factory
 }
@@ -59,12 +44,12 @@ func NewFactory(ctx context.Context, cfg escfg.Configuration, telset telemetry.S
 	// Ensure required fields are always included in tagsAsFields
 	cfg = ensureRequiredFields(cfg)
 
-	coreFactory, err := elasticsearch.NewFactoryBase(ctx, cfg, telset.Metrics, telset.Logger, httpAuth)
+	base, err := NewFactoryBase(ctx, cfg, telset.Metrics, telset.Logger, telset.TracerProvider, httpAuth)
 	if err != nil {
 		return nil, err
 	}
 	f := &Factory{
-		coreFactory:    coreFactory,
+		FactoryBase:    base,
 		config:         cfg,
 		metricsFactory: telset.Metrics,
 	}
@@ -72,37 +57,30 @@ func NewFactory(ctx context.Context, cfg escfg.Configuration, telset telemetry.S
 }
 
 func (f *Factory) CreateTraceReader() (tracestore.Reader, error) {
-	params := f.coreFactory.GetSpanReaderParams()
-	var reader tracestore.Reader
-	if nativeTraceSummariesGate.IsEnabled() {
-		reader = v2tracestore.NewReaderWithSummaries(params)
-	} else {
-		reader = v2tracestore.NewTraceReader(params)
-	}
+	params := f.GetSpanReaderParams()
+	reader := v2tracestore.NewTraceReader(params)
 	return tracestoremetrics.NewReaderDecorator(reader, f.metricsFactory), nil
 }
 
 func (f *Factory) CreateTraceWriter() (tracestore.Writer, error) {
-	params := f.coreFactory.GetSpanWriterParams()
+	params := f.GetSpanWriterParams()
 	wr := v2tracestore.NewTraceWriter(params)
 	return wr, nil
 }
 
+// SyncBulkWriteByteCap implements tracestore.SyncBulkWriteConfig: it reports
+// whether spans are written synchronously (write_mode: sync) and, if so, the
+// maximum number of bytes the synchronous writer places in a single _bulk request
+// (bulk_processing.max_bytes). A blocking exporter uses it to check its configured
+// batch size against the cap (RFC 0007 §4.5). In async mode sync is false and the
+// cap is irrelevant.
+func (f *Factory) SyncBulkWriteByteCap() (sync bool, maxBytes int) {
+	return f.config.EffectiveWriteMode() == escfg.WriteModeSync, f.config.BulkProcessing.MaxBytes
+}
+
 func (f *Factory) CreateDependencyReader() (depstore.Reader, error) {
-	params := f.coreFactory.GetDependencyStoreParams()
+	params := f.GetDependencyStoreParams()
 	return v2depstore.NewDependencyStoreV2(params), nil
-}
-
-func (f *Factory) CreateSamplingStore(maxBuckets int) (samplingstore.Store, error) {
-	return f.coreFactory.CreateSamplingStore(maxBuckets)
-}
-
-func (f *Factory) Close() error {
-	return f.coreFactory.Close()
-}
-
-func (f *Factory) Purge(ctx context.Context) error {
-	return f.coreFactory.Purge(ctx)
 }
 
 // ensureRequiredFields adds span.kind and span.status error to tags-as-fields configuration
