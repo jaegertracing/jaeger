@@ -2,6 +2,10 @@
 
 The Jaeger v2 integration test is an extension of the existing `integration.StorageIntegration` designed to test the Jaeger-v2 OtelCol binary; currently, it only tests the span store. The existing tests at `internal/storage/integration` (also called "unit mode") test by writing and reading span data directly to the storage API. In contrast, these tests (or "e2e mode") read and write span data through the RPC client to the Jaeger-v2 OtelCol binary. E2E mode tests read from the jaeger_query extension and write to the receiver in OTLP formats. For details, see the [Architecture](#architecture) section below.
 
+## File layout
+
+The `e2e_*_test.go` files hold the end-to-end tests themselves, one per backend or pipeline feature; each spawns the `jaeger-e2e` binary and is skipped unless the matching `STORAGE` (or `SAMPLING`) environment variable selects it. Every other `*_test.go` file in the package is either a helper the e2e tests share (the fault-injecting Elasticsearch proxy, the ES admin client, the backward-compatibility scenarios) or a unit test of the harness itself (`binary_test.go`, `trace_writer_test.go`, `e2e_integration_unit_test.go`), which runs without any backend.
+
 ## Architecture
 
 ```mermaid
