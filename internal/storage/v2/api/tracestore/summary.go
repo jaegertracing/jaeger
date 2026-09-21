@@ -53,8 +53,8 @@ type TraceSummary struct {
 // opt into that behavior without writing the method by hand.
 type UnsupportedTraceSummaries struct{}
 
-func (UnsupportedTraceSummaries) FindTraceSummaries(context.Context, TraceQueryParams) iter.Seq2[[]TraceSummary, error] {
-	return func(yield func([]TraceSummary, error) bool) {
-		yield(nil, fmt.Errorf("this storage backend does not compute trace summaries natively: %w", errors.ErrUnsupported))
+func (UnsupportedTraceSummaries) FindTraceSummaries(context.Context, TraceQueryParams) iter.Seq2[PageChunk[[]TraceSummary], error] {
+	return func(yield func(PageChunk[[]TraceSummary], error) bool) {
+		yield(PageChunk[[]TraceSummary]{}, fmt.Errorf("this storage backend does not compute trace summaries natively: %w", errors.ErrUnsupported))
 	}
 }

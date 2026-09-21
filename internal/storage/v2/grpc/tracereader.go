@@ -167,16 +167,16 @@ func (tr *TraceReader) FindTraces(
 func (tr *TraceReader) FindTraceIDs(
 	ctx context.Context,
 	params tracestore.TraceQueryParams,
-) iter.Seq2[[]tracestore.FoundTraceID, error] {
-	return func(yield func([]tracestore.FoundTraceID, error) bool) {
+) iter.Seq2[tracestore.PageChunk[[]tracestore.FoundTraceID], error] {
+	return func(yield func(tracestore.PageChunk[[]tracestore.FoundTraceID], error) bool) {
 		query, err := toProtoQueryParameters(params)
 		if err != nil {
-			yield(nil, err)
+			yield(tracestore.PageChunk[[]tracestore.FoundTraceID]{}, err)
 			return
 		}
 		resp, err := tr.client.FindTraceIDs(ctx, &storage.FindTraceIDsRequest{Query: query})
 		if err != nil {
-			yield(nil, fmt.Errorf("failed to execute FindTraceIDs: %w", err))
+			yield(tracestore.PageChunk[[]tracestore.FoundTraceID]{}, fmt.Errorf("failed to execute FindTraceIDs: %w", err))
 			return
 		}
 		foundTraceIDs := make([]tracestore.FoundTraceID, len(resp.TraceIds))
@@ -190,29 +190,32 @@ func (tr *TraceReader) FindTraceIDs(
 				End:     foundTraceID.End,
 			}
 		}
-		yield(foundTraceIDs, nil)
+		yield(tracestore.PageChunk[[]tracestore.FoundTraceID]{
+			Results:       foundTraceIDs,
+			NextPageToken: resp.GetNextPageToken(),
+		}, nil)
 	}
 }
 
 func (tr *TraceReader) FindTraceSummaries(
 	ctx context.Context,
 	params tracestore.TraceQueryParams,
-) iter.Seq2[[]tracestore.TraceSummary, error] {
+) iter.Seq2[tracestore.PageChunk[[]tracestore.TraceSummary], error] {
 	maybeNotImplemented := func(err error, msg string) error {
 		if status.Code(err) == codes.Unimplemented || errors.Is(err, errors.ErrUnsupported) {
 			return fmt.Errorf("remote server does not support FindTraceSummaries: %w", errors.ErrUnsupported)
 		}
 		return fmt.Errorf("%s: %w", msg, err)
 	}
-	return func(yield func([]tracestore.TraceSummary, error) bool) {
+	return func(yield func(tracestore.PageChunk[[]tracestore.TraceSummary], error) bool) {
 		query, err := toProtoQueryParameters(params)
 		if err != nil {
-			yield(nil, err)
+			yield(tracestore.PageChunk[[]tracestore.TraceSummary]{}, err)
 			return
 		}
 		stream, err := tr.client.FindTraceSummaries(ctx, &storage.FindTraceSummariesRequest{Query: query})
 		if err != nil {
-			yield(nil, maybeNotImplemented(err, "failed to execute FindTraceSummaries"))
+			yield(tracestore.PageChunk[[]tracestore.TraceSummary]{}, maybeNotImplemented(err, "failed to execute FindTraceSummaries"))
 			return
 		}
 		for {
@@ -221,10 +224,14 @@ func (tr *TraceReader) FindTraceSummaries(
 				return
 			}
 			if err != nil {
-				yield(nil, maybeNotImplemented(err, "received error from grpc stream"))
+				yield(tracestore.PageChunk[[]tracestore.TraceSummary]{}, maybeNotImplemented(err, "received error from grpc stream"))
 				return
 			}
-			if !yield(convertSummaryBatch(resp.GetSummaries()), nil) {
+			chunk := tracestore.PageChunk[[]tracestore.TraceSummary]{
+				Results:       convertSummaryBatch(resp.GetSummaries()),
+				NextPageToken: resp.GetNextPageToken(),
+			}
+			if !yield(chunk, nil) {
 				return
 			}
 		}

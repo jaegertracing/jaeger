@@ -206,12 +206,18 @@ func (h *HTTPGateway) findTraceSummaries(w http.ResponseWriter, r *http.Request)
 	// Summaries always use adjusted, aggregated data; raw_traces has no effect here.
 	queryParams.RawTraces = false
 	summariesIter := h.QueryService.FindTraceSummaries(r.Context(), *queryParams)
-	summaries, err := jiter.FlattenWithErrors(summariesIter)
-	if h.tryHandleError(w, err, http.StatusInternalServerError) {
-		return
+	var summaries []tracestore.TraceSummary
+	var nextPageToken string
+	for chunk, err := range summariesIter {
+		if h.tryHandleError(w, err, http.StatusInternalServerError) {
+			return
+		}
+		summaries = append(summaries, chunk.Results...)
+		nextPageToken = chunk.NextPageToken
 	}
 	h.marshalResponse(&api_v3.FindTraceSummariesResponse{
-		Summaries: toProtoTraceSummaries(summaries),
+		Summaries:     toProtoTraceSummaries(summaries),
+		NextPageToken: nextPageToken,
 	}, w)
 }
 

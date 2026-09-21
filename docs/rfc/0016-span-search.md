@@ -3,7 +3,7 @@
 - **Status:** Draft
 - **Author:** Yuri Shkuro
 - **Created:** 2026-08-18
-- **Last Updated:** 2026-08-18
+- **Last Updated:** 2026-09-20
 - **Related:** [RFC 0005 (structured query filters)](0005-structured-query-filters.md) · [RFC 0011 (trace summary API)](0011-trace-summary-api.md) · [RFC 0014 (search result pagination)](0014-search-result-pagination.md) · [RFC 0001 (GenAI data layer)](0001-genai-data-layer.md) · [ADR-010](../adr/010-trace-summary-api.md) · [ADR-013 (storage capability declaration)](../adr/013-storage-capability-declaration.md)
 
 ---
@@ -282,16 +282,7 @@ rpc FindSpans(FindSpansRequest) returns (stream FindSpansResponse) {
 // A reader that cannot serve span queries yields errors.ErrUnsupported (wrapped
 // with %w) as the first error before any page; such readers embed
 // UnsupportedSpanSearch.
-FindSpans(ctx context.Context, query SpanQueryParams) iter.Seq2[SpanPage, error]
-
-// SpanPage is one chunk of a page of span results. NextPageToken is meaningful
-// only on the page's final chunk, where an empty value means this page is the
-// last; the earlier chunks leave it unset, so a caller reads it from the last
-// chunk the iterator yields.
-type SpanPage struct {
-    Spans         ptrace.Traces
-    NextPageToken string
-}
+FindSpans(ctx context.Context, query SpanQueryParams) iter.Seq2[PageChunk[ptrace.Traces], error]
 
 type SpanQueryParams struct {
     StartTimeMin time.Time
@@ -301,7 +292,7 @@ type SpanQueryParams struct {
 }
 ```
 
-`SpanPage` mirrors RFC 0014's `TraceIDPage` rather than inventing a second way to carry a cursor. The ownership rule in the `Reader` doc comment applies unchanged: the caller owns each yielded `ptrace.Traces`, so a reader that holds its own copy of the data yields a deep copy.
+`PageChunk[T]` is RFC 0014's shared internal envelope for paginated reader methods. `FindSpans` supplies `ptrace.Traces` as its payload while trace ID and summary searches supply their batch types; the method-specific protobuf response messages map to these instantiations at the wire boundaries. The ownership rule in the `Reader` doc comment applies unchanged: the caller owns each yielded `ptrace.Traces`, so a reader that holds its own copy of the data yields a deep copy.
 
 **One capability, because the query is one shape as far as the API is concerned.**
 
@@ -497,9 +488,10 @@ PR-sized milestones with exit bars. Everything here sits behind RFC 0005 M1 and 
 
 ✅ **M1 — Proto foundation (jaeger-idl).** `SpanQueryParameters`, `FindSpansRequest`, `FindSpansResponse` with the span payload and `next_page_token`, and the `FindSpans` RPC on `jaeger.api_v3.QueryService` with its `GET /api/v3/spans` binding and `POST` body; the same RPC on `jaeger.storage.v2.TraceReader`; the `span_search` field on `jaeger.storage.v2.SearchCapabilities`. *Exit:* generated types compile and vendor cleanly; existing api_v3 and storage.v2 callers byte-for-byte unaffected.
 
-🚧 **M2 — Internal interface and query-service plumbing.** `Reader.FindSpans`, `SpanQueryParams`, `SpanPage`, `UnsupportedSpanSearch`, and `SearchCapabilities.SpanSearch`; every backend embeds the mixin and declares `false`; `querysvc.FindSpans` with validation and the capability refusal; the api_v3 gRPC handler, the HTTP route and the query parameters. *Exit:* a span query against any backend is refused with `InvalidArgument` naming the backend limitation; no existing search changes behavior.
+🚧 **M2 — Internal interface and query-service plumbing.** `Reader.FindSpans`, `SpanQueryParams`, `UnsupportedSpanSearch`, and `SearchCapabilities.SpanSearch`; every backend embeds the mixin and declares `false`; `querysvc.FindSpans` with validation and the capability refusal; the api_v3 gRPC handler, the HTTP route and the query parameters. *Exit:* a span query against any backend is refused with `InvalidArgument` naming the backend limitation; no existing search changes behavior.
 
 - ✅ Storage interface: `Reader.FindSpans`, `SpanQueryParams`, `SpanPage`, `UnsupportedSpanSearch`, `SearchCapabilities.SpanSearch`, every backend embedding the mixin, and the `find_spans` read metrics. Delivered in [#9578](https://github.com/jaegertracing/jaeger/pull/9578).
+- Replace `SpanPage` with RFC 0014's shared `PageChunk[ptrace.Traces]` when RFC 0014 M2 adds the pagination envelope to the other reader methods.
 - `querysvc.FindSpans` with parameter validation and the capability refusal.
 - The api_v3 gRPC `FindSpans` handler.
 - The `GET /api/v3/spans` HTTP route and its query parameters.

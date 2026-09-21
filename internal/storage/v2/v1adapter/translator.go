@@ -55,17 +55,17 @@ func V1TracesFromSeq2(otelSeq iter.Seq2[[]ptrace.Traces, error]) ([]*model.Trace
 	return jaegerTraces, nil
 }
 
-func V1TraceIDsFromSeq2(traceIDsIter iter.Seq2[[]tracestore.FoundTraceID, error]) ([]model.TraceID, error) {
+func V1TraceIDsFromSeq2(traceIDsIter iter.Seq2[tracestore.PageChunk[[]tracestore.FoundTraceID], error]) ([]model.TraceID, error) {
 	var (
 		iterErr       error
 		modelTraceIDs []model.TraceID
 	)
-	traceIDsIter(func(traceIDs []tracestore.FoundTraceID, err error) bool {
+	traceIDsIter(func(chunk tracestore.PageChunk[[]tracestore.FoundTraceID], err error) bool {
 		if err != nil {
 			iterErr = err
 			return false
 		}
-		for _, traceID := range traceIDs {
+		for _, traceID := range chunk.Results {
 			modelTraceIDs = append(modelTraceIDs, ToV1TraceID(traceID.TraceID))
 		}
 		return true
