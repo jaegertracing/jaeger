@@ -11,6 +11,10 @@ import (
 
 const legacyRotationFlagsList = "use_aliases, use_ilm, span_read_alias, span_write_alias, service_read_alias, service_write_alias"
 
+// spansIndexType names the span indices in rotation validation errors. Spans are
+// the only index type that can use the data_stream strategy.
+const spansIndexType = "spans"
+
 // RotationConfig defines how Jaeger manages index naming and lookup for a given
 // index type (spans, services, etc.). Exactly one variant should be set.
 // If none is set, legacy flags (use_aliases, use_ilm, etc.) determine behavior.
@@ -28,8 +32,9 @@ type RotationConfig struct {
 	// State Management) policy attached to the index template. Jaeger embeds the
 	// policy name into the template so ES/OpenSearch can manage the lifecycle.
 	AutoRollover configoptional.Optional[AutoRolloverRotation] `mapstructure:"auto_rollover"`
-	// DataStream uses ES/OpenSearch data streams for append-only span storage.
-	// Not yet implemented.
+	// DataStream stores spans in an ES/OpenSearch data stream, which is
+	// append-only and rolls its own backing indices over. Spans only: the other
+	// index types are updated in place (RFC 0004 §2.1).
 	DataStream configoptional.Optional[DataStreamRotation] `mapstructure:"data_stream"`
 }
 
@@ -77,15 +82,18 @@ type AutoRolloverRotation struct {
 	PolicyName string `mapstructure:"policy_name"`
 }
 
-// DataStreamRotation configures data stream-based storage (not yet implemented).
+// DataStreamRotation configures data stream-based storage for spans.
 type DataStreamRotation struct {
-	// PolicyName is embedded into the data stream's index template so that
-	// ES/OpenSearch manages the lifecycle (rollover, retention) automatically.
-	// If empty, the cluster's default lifecycle policy applies.
+	// PolicyName is the ILM/ISM policy that manages the data stream's lifecycle
+	// (rollover, retention).
+	//
+	// Not honored yet: the data stream is created without a lifecycle policy, so
+	// its backing indices grow until an operator attaches one. Wiring it up is
+	// RFC 0004 Phase 2 milestone 12.
 	PolicyName string `mapstructure:"policy_name"`
-	// PolicyFile is a path to a JSON file containing the ILM/ISM policy definition.
-	// When set, Jaeger creates or updates the policy at startup before creating
-	// the data stream. If empty, the policy must already exist in the cluster.
+	// PolicyFile is a path to a JSON file containing the ILM/ISM policy definition,
+	// which Jaeger creates at startup. Not honored yet, for the same reason as
+	// PolicyName.
 	PolicyFile string `mapstructure:"policy_file"`
 	// ReadAlias is an optional alias layered on top of the data stream for reads.
 	// Useful for cross-cluster search or to decouple consumer queries from the
@@ -119,7 +127,7 @@ func (c *Configuration) validateRotationConfig() error {
 		rotation *RotationConfig
 	}
 	entries := []rotationEntry{
-		{"spans", &c.Indices.Spans, &c.Indices.Spans.Rotation},
+		{spansIndexType, &c.Indices.Spans, &c.Indices.Spans.Rotation},
 		{"services", &c.Indices.Services, &c.Indices.Services.Rotation},
 		{"dependencies", &c.Indices.Dependencies, &c.Indices.Dependencies.Rotation},
 		{"sampling", &c.Indices.Sampling, &c.Indices.Sampling.Rotation},
@@ -160,9 +168,11 @@ func (r *RotationConfig) validate(indexType string) error {
 			indexType, count,
 		)
 	}
-	if r.DataStream.HasValue() {
+	// Only spans are append-only. Services and dependencies deduplicate by
+	// rewriting documents, which a data stream does not allow (RFC 0004 §2.1).
+	if r.DataStream.HasValue() && indexType != spansIndexType {
 		return fmt.Errorf(
-			"indices.%s.rotation: data_stream is not yet implemented",
+			"indices.%s.rotation: data_stream is supported only for spans",
 			indexType,
 		)
 	}
