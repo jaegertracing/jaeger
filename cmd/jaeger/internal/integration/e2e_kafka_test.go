@@ -160,6 +160,9 @@ func TestKafkaStorage_SyncElasticsearch_FaultInjection(t *testing.T) {
 		HealthCheckPort:    14133,
 		EnvVarOverrides:    envVarOverrides,
 	}
+	// With the storage cleaner off, the storage name only labels the metrics
+	// snapshot this ingester writes; it does not inject the cleaner or shorten the
+	// service-cache TTL as it does for TestKafkaStorage_SyncElasticsearch.
 	ingester.e2eInitialize(t, "elasticsearch")
 	t.Log("Ingester initialized")
 	// The storage cleaner is off for this test, so drop the written indices here;

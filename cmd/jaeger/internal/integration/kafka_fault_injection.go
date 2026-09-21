@@ -320,6 +320,9 @@ func requireOffsets(t *testing.T, read func() (partitionOffsets, error)) partiti
 func (*faultInjectionSteps) storedSpanCount(t *testing.T, trace ptrace.Traces) int {
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
+	// Refresh first so the count is exact rather than bounded by the index's own
+	// refresh interval; a document written moments ago would otherwise be missed.
+	require.NoError(t, refreshSpanIndices(ctx))
 	count, err := countSpanDocs(ctx, singleTraceID(trace))
 	require.NoError(t, err)
 	return count
@@ -338,11 +341,6 @@ func (f *faultInjectionSteps) requireStoredOnce(t *testing.T, trace ptrace.Trace
 		count, err := countSpanDocs(ctx, id)
 		return err == nil && count >= expected
 	}, 2*time.Minute, time.Second, "trace %s never became fully indexed", id)
-	// A duplicate written moments before the offset committed may not have been
-	// refreshed yet, so force a refresh before the exact count.
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-	defer cancel()
-	require.NoError(t, refreshSpanIndices(ctx))
 	assert.Equal(t, expected, f.storedSpanCount(t, trace), "trace %s must be stored exactly once", id)
 }
 
