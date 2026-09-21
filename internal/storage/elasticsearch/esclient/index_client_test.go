@@ -70,7 +70,8 @@ const esIndexResponse = `
   }
 }`
 
-const esErrResponse = `{"error":{"root_cause":[{"type":"illegal_argument_exception","reason":"request [/jaeger-*] contains unrecognized parameter: [help]"}],"type":"illegal_argument_exception","reason":"request [/jaeger-*] contains unrecognized parameter: [help]"},"status":400}`
+const esErrResponse = `{"error":{"root_cause":[{"type":"illegal_argument_exception","reason":"request [/jaeger-*] contains unrecognized parameter: [help]"}],` +
+	`"type":"illegal_argument_exception","reason":"request [/jaeger-*] contains unrecognized parameter: [help]"},"status":400}`
 
 func TestClientGetIndices(t *testing.T) {
 	tests := []struct {
@@ -518,7 +519,8 @@ func TestClientCreateAliases(t *testing.T) {
 			IsWriteIndex: true,
 		},
 	}
-	expectedRequestBody := `{"actions":[{"add":{"alias":"jaeger-span-read","index":"jaeger-span"}},{"add":{"alias":"jaeger-span-write","index":"jaeger-span","is_write_index":true}}]}`
+	expectedRequestBody := `{"actions":[{"add":{"alias":"jaeger-span-read","index":"jaeger-span"}},` +
+		`{"add":{"alias":"jaeger-span-write","index":"jaeger-span","is_write_index":true}}]}`
 	tests := []struct {
 		name         string
 		responseCode int
@@ -574,7 +576,8 @@ func TestClientDeleteAliases(t *testing.T) {
 			IsWriteIndex: true,
 		},
 	}
-	expectedRequestBody := `{"actions":[{"remove":{"alias":"jaeger-span-read","index":"jaeger-span"}},{"remove":{"alias":"jaeger-span-write","index":"jaeger-span","is_write_index":true}}]}`
+	expectedRequestBody := `{"actions":[{"remove":{"alias":"jaeger-span-read","index":"jaeger-span"}},` +
+		`{"remove":{"alias":"jaeger-span-write","index":"jaeger-span","is_write_index":true}}]}`
 	tests := []struct {
 		name         string
 		responseCode int

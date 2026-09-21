@@ -72,10 +72,12 @@ func TestGetThroughput(t *testing.T) {
 
 func TestInsertProbabilitiesAndQPS(t *testing.T) {
 	withMemorySamplingStore(func(samplingStore *SamplingStore) {
-		require.NoError(t, samplingStore.InsertProbabilitiesAndQPS("dell11eg843d", model.ServiceOperationProbabilities{"new-srv": {"op": 0.1}}, model.ServiceOperationQPS{"new-srv": {"op": 4}}))
+		require.NoError(t, samplingStore.InsertProbabilitiesAndQPS("dell11eg843d",
+			model.ServiceOperationProbabilities{"new-srv": {"op": 0.1}}, model.ServiceOperationQPS{"new-srv": {"op": 4}}))
 		assert.NotEmpty(t, 1, samplingStore.probabilitiesAndQPS)
 		// Only latest one is kept in memory
-		require.NoError(t, samplingStore.InsertProbabilitiesAndQPS("lncol73", model.ServiceOperationProbabilities{"my-app": {"hello": 0.3}}, model.ServiceOperationQPS{"new-srv": {"op": 7}}))
+		require.NoError(t, samplingStore.InsertProbabilitiesAndQPS("lncol73",
+			model.ServiceOperationProbabilities{"my-app": {"hello": 0.3}}, model.ServiceOperationQPS{"new-srv": {"op": 7}}))
 		assert.InDelta(t, 0.3, samplingStore.probabilitiesAndQPS.probabilities["my-app"]["hello"], 0.01)
 	})
 }
@@ -93,7 +95,8 @@ func TestGetLatestProbability(t *testing.T) {
 		ret, err := samplingStore.GetLatestProbabilities()
 		require.NoError(t, err)
 		assert.Equal(t, model.ServiceOperationProbabilities{"svc-1": {"op-1": 0.01}}, ret)
-		require.NoError(t, samplingStore.InsertProbabilitiesAndQPS("utfhyolf", model.ServiceOperationProbabilities{"another-service": {"hello": 0.009}}, model.ServiceOperationQPS{"new-srv": {"op": 5}}))
+		require.NoError(t, samplingStore.InsertProbabilitiesAndQPS("utfhyolf",
+			model.ServiceOperationProbabilities{"another-service": {"hello": 0.009}}, model.ServiceOperationQPS{"new-srv": {"op": 5}}))
 		ret, _ = samplingStore.GetLatestProbabilities()
 		assert.NotEqual(t, model.ServiceOperationProbabilities{"svc-1": {"op-1": 0.01}}, ret)
 	})
