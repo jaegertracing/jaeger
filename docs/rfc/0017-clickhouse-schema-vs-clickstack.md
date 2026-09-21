@@ -68,7 +68,7 @@ Five derived tables hang off it through materialized views: `trace_id_timestamps
 
 ### 2.2 ClickStack
 
-The ClickStack documentation reproduces the `clickhouseexporter`'s [`traces_table.sql`](https://github.com/open-telemetry/opentelemetry-collector-contrib/blob/main/exporter/clickhouseexporter/internal/sqltemplates/traces_table.sql) with HyperDX-specific additions marked below:
+The DDL below is the one the ClickStack documentation publishes. It is the `clickhouseexporter`'s [`traces_table.sql`](https://github.com/open-telemetry/opentelemetry-collector-contrib/blob/main/exporter/clickhouseexporter/internal/sqltemplates/traces_table.sql) with HyperDX-specific additions, marked below, and two cosmetic differences: the exporter template writes the timestamp codec as `CODEC(Delta, ZSTD(1))` and renders the TTL as `toDateTime(Timestamp) + toInterval...`, both equivalent to what is shown here.
 
 ```sql
 CREATE TABLE otel_traces (
@@ -111,7 +111,7 @@ SETTINGS index_granularity = 8192, ttl_only_drop_parts = 1;
 
 One derived table accompanies it: `otel_traces_trace_id_ts` (`TraceId`, `Start DateTime`, `End DateTime`), a plain `MergeTree` partitioned by day and ordered by `(TraceId, Start)`, fed by a materialized view that groups `min`/`max` of `Timestamp` per `TraceId` within each insert block. There is no services, operations, or attribute-metadata table; HyperDX answers those questions by querying the `LowCardinality` columns of the main table directly.
 
-The exporter also ships an experimental **JSON variant** ([`traces_json_table.sql`](https://github.com/open-telemetry/opentelemetry-collector-contrib/blob/main/exporter/clickhouseexporter/internal/sqltemplates/traces_json_table.sql)) in which `ResourceAttributes` and `SpanAttributes` are ClickHouse `JSON` columns accompanied by `*AttributesKeys Array(LowCardinality(String))` columns that carry the key Bloom filters, and the sort key gains `Timestamp` as a fourth component. The ClickStack documentation does not yet describe it, but it is the direction the exporter is heading and §3.2 accounts for it.
+The exporter also ships an experimental **JSON variant** ([`traces_json_table.sql`](https://github.com/open-telemetry/opentelemetry-collector-contrib/blob/main/exporter/clickhouseexporter/internal/sqltemplates/traces_json_table.sql)) in which `ResourceAttributes` and `SpanAttributes` are ClickHouse `JSON` columns accompanied by `*AttributesKeys Array(LowCardinality(String))` columns that carry the key Bloom filters, the sort key gains `Timestamp` as a fourth component, and the trace-ID Bloom filter is absent, so trace retrieval by ID falls back to the sort key and partition pruning alone. The ClickStack documentation does not yet describe it, but it is the direction the exporter is heading and §3.2 accounts for it.
 
 ---
 
@@ -144,7 +144,7 @@ This is the deepest divergence and the one ADR-008 spends most of its argument o
 | Query-time type resolution | Needs the `attribute_metadata` table to learn which typed column a string filter should hit | Not needed: everything is a string | Needed in principle; the exporter has no reader, so unaddressed |
 | Filter expression | `arrayExists((k, v) -> k = ? AND v = ?, col.key, col.value)`, one per `(type, level)` observed | `SpanAttributes['key'] = 'value'` | `SpanAttributes.key = value` with dynamic type |
 | Point-lookup cost per row | Scan the short arrays for that type | Scan the map's key array | Subcolumn read; cheapest of the three |
-| Compression | 8.6x measured (ADR-008 benchmark) | Not measured here. ADR-008 rejected `Map` on compression grounds, but that comparison used `Map(String, String)`; `LowCardinality` keys narrow the gap and the ClickStack table is the production evidence that it compresses acceptably | Not measured; the ClickHouse `JSON` type stores each path as its own subcolumn, so compression should approach a flat-column layout |
+| Compression | 8.6x measured (ADR-008 benchmark) | Not measured here. ADR-008 rejected `Map` on compression grounds, but its Option 3 was one `Map(String, T)` per primitive type with plain `String` keys; `LowCardinality` keys narrow the gap and the ClickStack table is the production evidence that it compresses acceptably | Not measured; the ClickHouse `JSON` type stores each path as its own subcolumn, so compression should approach a flat-column layout |
 
 ADR-008 chose typed `Nested` over `Map` on compression, filter ergonomics, and schema clarity, and that reasoning stands. The type fidelity argument is stronger than the ADR states: the Jaeger query API accepts typed `pcommon.Value` filters, and a `Map(String, String)` cannot answer `http.status_code = 500` (integer) differently from `= "500"` (string), nor can it support the ordered predicates of [RFC 0005](0005-structured-query-filters.md) (`duration_ms > 100` on an attribute) without parsing strings at query time. ClickStack accepts that limitation because HyperDX's search box is string-typed anyway; Jaeger should not.
 
@@ -249,30 +249,33 @@ The matrix says Jaeger's schema is right where it made a decision and behind whe
 
 ### 5.1 Adopt the storage tuning
 
-Apply to `spans` and, where the column exists, to the derived tables:
+Apply to `spans`, and the codecs and `LowCardinality` wrappers to the derived tables where the column exists:
 
 - `CODEC(ZSTD(1))` on every column, and `CODEC(Delta(8), ZSTD(1))` on `start_time` and `events.timestamp`.
 - `LowCardinality(String)` on `service_name`, `name`, `kind`, `status_code`, `scope_name`, `scope_version`, `events.name`, and on the `key` member of every attribute `Nested` group (`Nested(key LowCardinality(String), value ...)`).
-- `SETTINGS index_granularity = 8192, ttl_only_drop_parts = 1`.
+- `SETTINGS index_granularity = 8192, ttl_only_drop_parts = 1` on `spans` only. `trace_id_timestamps` has no partition key, so one of its parts can hold bounds from many days and whole-part expiry would keep expired trace IDs alive for as long as the newest row in the part; it keeps row-level TTL.
 
-All three apply to new parts as they are written, and `ALTER TABLE ... MODIFY COLUMN` and `MODIFY SETTING` make them applicable to an existing table without a rewrite, so existing deployments pick them up on their next `create_schema` run or by hand. `ttl_only_drop_parts = 1` changes when data disappears: a row is removed only when its whole part has expired, so a day-partitioned table with a 7-day TTL retains up to one extra day. The trade is worth making, and the configuration documentation should say so.
+The factory only ever runs `CREATE TABLE IF NOT EXISTS`, so an existing table is untouched by the change and a new deployment gets all of it. For an existing table the three parts migrate differently: `ALTER TABLE ... MODIFY SETTING` is a metadata change, `MODIFY COLUMN ... CODEC(...)` is also metadata-only and takes effect on parts as background merges rewrite them, but `MODIFY COLUMN ... LowCardinality(String)` is a type change and ClickHouse rewrites every part that holds the column. M1 therefore ships the DDL for new tables and a documented, hand-run `ALTER` sequence for existing ones, with the type change called out as the expensive step that an operator may choose to skip. `ttl_only_drop_parts = 1` changes when data disappears: a row is removed only when its whole part has expired, so a day-partitioned table with a 7-day TTL retains up to one extra day. The trade is worth making, and the configuration documentation should say so.
 
 ### 5.2 Add pairwise attribute skip indexes and index-friendly predicates
 
 This is the concrete design for #8715, corrected for the two findings in §3.5.
 
-**Index the pair, not the key and value separately.** For each string-attribute group at the resource, scope, and span levels, add an `ALIAS` column that materializes the pairs as `key=value` strings, and a `bloom_filter` on it:
+**Index the pair, not the key and value separately.** For each string-attribute group, add a `MATERIALIZED` column holding the pairs as `key=value` strings, and a `bloom_filter` on it:
 
 ```sql
 ALTER TABLE spans
     ADD COLUMN str_attribute_items Array(String)
-        ALIAS arrayMap((k, v) -> concat(k, '=', v), str_attributes.key, str_attributes.value),
+        MATERIALIZED arrayMap((k, v) -> concat(k, '=', v), str_attributes.key, str_attributes.value),
     ADD INDEX idx_str_attribute_items str_attribute_items TYPE bloom_filter(0.01) GRANULARITY 4;
 ```
 
-and likewise `resource_str_attribute_items` and `scope_str_attribute_items`. `bloom_filter` on an `Array` column indexes each element and is served by `has()`; it is the same shape ClickStack uses, on the stable index type rather than the beta `text` type. Only the string groups are indexed, because typed numeric and boolean groups have low-cardinality values that a Bloom filter cannot help with, and `duration`-style range predicates on attributes ([RFC 0005](0005-structured-query-filters.md)) are not Bloom-shaped at all.
+and likewise for the resource and scope groups, and for the event and link groups through `arrayFlatten` over the nested arrays. `bloom_filter` on an `Array` column indexes each element and is served by `has()`; it is the same shape ClickStack uses, on the stable index type rather than the beta `text` type. Two details differ from ClickStack's DDL, both because ClickHouse would otherwise silently ignore the index.
 
-**Change the predicate the query builder emits** for string attributes at those three levels from
+- The column is `MATERIALIZED`, not `ALIAS`. On the ClickHouse version the repository pins (25.12), the planner does not match a `has()` predicate on an `ALIAS` column to the index defined on it and reads every granule, while the same predicate on a `MATERIALIZED` column prunes. The cost is a stored copy of every string attribute pair, which compresses well because the key half repeats and the value half is already stored once.
+- **Every level is indexed, including events and links.** A skip index can prune a granule only when the whole `WHERE` clause is provably false for it, and an `OR` is provably false only when every branch is. The query builder's fallback for a key that `attribute_metadata` has not seen ORs five branches, one per level, and the metadata path ORs one branch per observed level. One unindexed branch in that `OR` therefore disables pruning for the entire attribute predicate, which is exactly the attribute-only benchmark case. So the item columns and indexes cover all five levels, and the nested `arrayExists` for events and links gains the same `has()` prefilter. The string groups are indexed first because they are where the UI's filters land: every value the search box sends arrives as a string, and `attribute_metadata` resolves it to a typed column only when the key has been seen with that type. Boolean groups are excluded because two possible values give a Bloom filter nothing to skip on. Integer groups can carry high-cardinality values (request IDs, ports, user IDs) and would benefit from the same item index over `toString(value)`; M2 measures the string groups and adds the integer groups if the acceptance benchmark shows a comparable gain. Range predicates on attributes ([RFC 0005](0005-structured-query-filters.md)) are not Bloom-shaped and are out of scope here.
+
+**Change the predicate the query builder emits** for string attributes at every level from
 
 ```sql
 arrayExists((key, value) -> key = ? AND value = ?, s.str_attributes.key, s.str_attributes.value)
@@ -284,7 +287,7 @@ to
 has(s.str_attribute_items, concat(?, '=', ?))
 ```
 
-which is the form the skip index recognizes. The concatenation is not injective: the key `a=b` with the value `c` and the key `a` with the value `b=c` produce the same item. The `has()` predicate therefore serves as the index-driving prefilter and the existing `arrayExists` stays beside it, `AND`ed, as the exact check; on every granule the prefilter admits, the array scan runs as it does today, so the change can only remove work. Event and link attributes keep the nested `arrayExists`, unindexed, as in ClickStack.
+which is the form the skip index recognizes. The concatenation is not injective: the key `a=b` with the value `c` and the key `a` with the value `b=c` produce the same item. The `has()` predicate therefore serves as the index-driving prefilter and the existing `arrayExists` stays beside it, `AND`ed, as the exact check; on every granule the prefilter admits, each row now evaluates `has()` on the stored item column in addition to the array scan it runs today, so the change wins only when the index drops enough granules to pay for that. The acceptance benchmark therefore includes a low-selectivity attribute (a key present on most spans with few distinct values) alongside the high-selectivity case, so the worst case is measured rather than assumed. For events and links the exact check is the existing doubly nested `arrayExists` and the prefilter is `has()` on the flattened item column.
 
 **Tighten the trace-ID Bloom filter** to `bloom_filter(0.001)`, matching ClickStack, and expose the rate in configuration so that a deployment at #8918's scale can go tighter without hand-editing DDL. The index name stays `idx_trace_id`, so on an existing table the change is `DROP INDEX` then `ADD INDEX` and `MATERIALIZE INDEX` for old parts.
 
@@ -323,8 +326,8 @@ A read-only adapter is therefore feasible as a second `dbmodel` and a second set
 Each milestone is independently shippable and each carries a before/after benchmark on the [documented setup](../../internal/storage/v2/clickhouse/BENCHMARKING.md).
 
 - **M1 — Storage tuning (§5.1).** Codecs, `LowCardinality`, table settings, and the configuration note on `ttl_only_drop_parts`. Measured by compressed size and insert throughput; no query-shape change.
-- **M2 — Attribute skip indexes (§5.2).** `ALIAS` item columns, `bloom_filter` indexes, the `has()` predicate in the query builder, the tighter and configurable trace-ID filter. Measured by attribute-only search latency and `EXPLAIN indexes = 1`. Closes #8715 and the Bloom-rate half of #8918.
-- **M3 — JSON attribute spike (§5.3).** A benchmark-only branch storing attributes as `JSON` columns on ClickHouse 25.3+, measuring compression and attribute search against M2. Its output is a recommendation, and if positive, a superseding RFC.
+- **M2 — Attribute skip indexes (§5.2).** `MATERIALIZED` item columns and `bloom_filter` indexes at all five levels, the `has()` prefilter in the query builder, the tighter and configurable trace-ID filter. Measured by attribute-only search latency and `EXPLAIN indexes = 1`. Closes #8715 and the Bloom-rate half of #8918.
+- **M3 — JSON attribute spike (§5.3).** A benchmark-only branch storing attributes as `JSON` columns on ClickHouse 25.3+, measuring compression, attribute search, and trace retrieval by ID against M2, the last because the exporter's JSON template carries no trace-ID Bloom filter and Jaeger's variant would have to add one back. Its output is a recommendation, and if positive, a superseding RFC.
 - **M4 — Configurable table engine (§5.4).** The `table_engine` option and its rendering into every DDL statement, exercised by an integration test against a `ReplicatedMergeTree` single-replica Keeper setup.
 
 ADR-008 is extended in place when M1 and M2 land, in its Secondary Indexes and TTL sections, because neither reverses a decision it records. M3 and M4 update ADR-008's limitations section.
