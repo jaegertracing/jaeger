@@ -8,6 +8,7 @@ dependencies = [
     "agent-client-protocol>=0.8.1",
     "google-cloud-aiplatform>=1.133.0",
     "google-genai>=1.68.0",
+    "httpx>=0.28.1",
     "mcp>=1.19.0",
     "opentelemetry-exporter-otlp-proto-grpc",
     "opentelemetry-instrumentation-google-generativeai",

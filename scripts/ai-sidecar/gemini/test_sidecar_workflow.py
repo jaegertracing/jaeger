@@ -273,7 +273,7 @@ class FakeMCPClient:
     async def call_tool(self, name: str, args: dict[str, Any]) -> Any:
         return self._tool_output
 
-    async def close(self) -> None:
+    async def aclose(self) -> None:
         self.closed = True
 
 

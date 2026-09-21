@@ -7,8 +7,9 @@ from contextlib import AsyncExitStack
 from typing import Any
 
 from google.genai import types
+import httpx
 from mcp import ClientSession
-from mcp.client.streamable_http import streamablehttp_client
+from mcp.client.streamable_http import streamable_http_client
 from opentelemetry.semconv._incubating.attributes.gen_ai_attributes import GEN_AI_TOOL_NAME
 from opentelemetry.semconv.attributes.url_attributes import URL_FULL
 from opentelemetry.trace import Status, StatusCode
@@ -62,8 +63,16 @@ class GatewayMCPClient:
             )
             stack = AsyncExitStack()
             try:
+                # streamable_http_client takes no headers of its own — headers ride
+                # on a caller-supplied httpx client, which it deliberately does not
+                # close (its `client_provided` branch), so it goes on the stack to be
+                # released with everything else. follow_redirects mirrors the SDK's
+                # own default for MCP clients.
+                http_client = await stack.enter_async_context(
+                    httpx.AsyncClient(headers=self._headers, follow_redirects=True)
+                )
                 read, write, _ = await stack.enter_async_context(
-                    streamablehttp_client(url=self._url, headers=self._headers)
+                    streamable_http_client(url=self._url, http_client=http_client)
                 )
                 session = await stack.enter_async_context(ClientSession(read, write))
                 await asyncio.wait_for(session.initialize(), timeout=self._timeout_sec)
@@ -120,9 +129,9 @@ class GatewayMCPClient:
                 span.set_status(Status(StatusCode.ERROR, description=str(e)))
                 raise
 
-    async def close(self) -> None:
-        """Release the MCP session. Idempotent, so a turn that failed before
-        connecting closes to nothing."""
+    async def aclose(self) -> None:
+        """Release the MCP session and the HTTP client behind it. Idempotent, so a
+        turn that failed before connecting closes to nothing."""
         stack, self._stack = self._stack, None
         self._session = None
         self._tools_by_name = {}

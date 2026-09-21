@@ -175,7 +175,7 @@ class JaegerSidecarAgent(Agent):
         for session_id, client in clients.items():
             logger.info("Releasing MCP client for unfinished session %s", session_id)
             try:
-                await client.close()
+                await client.aclose()
             except Exception as exc:  # pragma: no cover - best-effort teardown
                 logger.warning("Error closing MCP client for %s: %s", session_id, exc)
 
@@ -381,7 +381,7 @@ class JaegerSidecarAgent(Agent):
                 # close_session is still safe.
                 client = self._mcp_clients.pop(session_id, None)
                 if client is not None:
-                    await client.close()
+                    await client.aclose()
 
             return PromptResponse(stop_reason="end_turn")
 
