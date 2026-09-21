@@ -954,6 +954,16 @@ func TestFindSpans_interceptorModifications(t *testing.T) {
 		_, err := collectSpans(qs.FindSpans(t.Context(), SpanQueryParams{tracestore.SpanQueryParams{Filter: serviceFilter("v")}}))
 		require.NoError(t, err)
 	})
+	t.Run("interceptor duplicates spans", func(t *testing.T) {
+		enableStructuredFilters(t)
+		reader := &fakeReader{batch: tracesWith("v", "0")}
+		interceptor := fakeInterceptor{onResult: func(traces []ptrace.Traces) ([]ptrace.Traces, error) {
+			return []ptrace.Traces{traces[0], traces[0]}, nil
+		}}
+		qs := interceptedService(reader, interceptor)
+		_, err := collectSpans(qs.FindSpans(t.Context(), SpanQueryParams{tracestore.SpanQueryParams{Filter: serviceFilter("v")}}))
+		require.NoError(t, err)
+	})
 }
 
 func TestFindSpans_AppliesQueryAndResultHooks(t *testing.T) {
@@ -971,6 +981,24 @@ func TestFindSpans_AppliesQueryAndResultHooks(t *testing.T) {
 	assert.Equal(t, serviceFilter("gated"), next.gotSpanQuery.Filter, "pre-query hook must reach storage")
 	require.Len(t, out, 1)
 	assert.Equal(t, "REDACTED", firstSpanAttr(t, []ptrace.Traces{out[0].Results}, "secret"), "result hook must redact")
+}
+
+func TestFindSpans_OnErrorInResponse(t *testing.T) {
+	enableStructuredFilters(t)
+	onResultCalled := 0
+	next := &fakeReader{batch: tracesWith("secret", "value"), err: fmt.Errorf("failure")}
+	qs := interceptedService(next, fakeInterceptor{
+		onResult: func(traces []ptrace.Traces) ([]ptrace.Traces, error) {
+			onResultCalled++
+			return traces, nil
+		},
+	})
+
+	_, err := collectSpans(qs.FindSpans(t.Context(), SpanQueryParams{SpanQueryParams: tracestore.SpanQueryParams{
+		Filter: serviceFilter("original"),
+	}}))
+	assert.Error(t, err)
+	assert.Equal(t, 0, onResultCalled)
 }
 
 // TestFindSpans_ShowsEveryPredicateAsAFilter pins what an interceptor is shown and what storage
