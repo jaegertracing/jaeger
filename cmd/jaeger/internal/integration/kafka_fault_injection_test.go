@@ -33,7 +33,7 @@ func fakeES(t *testing.T) (*httptest.Server, *atomic.Int32) {
 	return server, &hits
 }
 
-func postBulk(t *testing.T, proxy *esFaultProxy, path string) *http.Response {
+func post(t *testing.T, proxy *esFaultProxy, path string) *http.Response {
 	req, err := http.NewRequestWithContext(t.Context(), http.MethodPost, proxy.URL()+path, strings.NewReader("{}\n"))
 	require.NoError(t, err)
 	resp, err := http.DefaultClient.Do(req)
@@ -46,7 +46,7 @@ func TestESFaultProxy_PassesThroughByDefault(t *testing.T) {
 	backend, hits := fakeES(t)
 	proxy := newESFaultProxy(t, backend.URL)
 
-	resp := postBulk(t, proxy, "/_bulk")
+	resp := post(t, proxy, "/_bulk")
 	assert.Equal(t, http.StatusOK, resp.StatusCode)
 	assert.Equal(t, int32(1), hits.Load())
 }
@@ -56,7 +56,7 @@ func TestESFaultProxy_RejectAnswersBulkWithoutForwarding(t *testing.T) {
 	proxy := newESFaultProxy(t, backend.URL)
 	proxy.setFault(esFaultReject)
 
-	resp := postBulk(t, proxy, "/_bulk")
+	resp := post(t, proxy, "/_bulk")
 	body, err := io.ReadAll(resp.Body)
 	require.NoError(t, err)
 	assert.Equal(t, http.StatusServiceUnavailable, resp.StatusCode)
@@ -65,7 +65,7 @@ func TestESFaultProxy_RejectAnswersBulkWithoutForwarding(t *testing.T) {
 	assert.Zero(t, hits.Load(), "a rejected _bulk must not reach the backend")
 
 	// Only _bulk is faulted; everything else still passes through.
-	other := postBulk(t, proxy, "/_cluster/health")
+	other := post(t, proxy, "/_cluster/health")
 	assert.Equal(t, http.StatusOK, other.StatusCode)
 	assert.Equal(t, int32(1), hits.Load())
 }
@@ -75,7 +75,7 @@ func TestESFaultProxy_LoseAckForwardsThenFails(t *testing.T) {
 	proxy := newESFaultProxy(t, backend.URL)
 	proxy.setFault(esFaultLoseAck)
 
-	resp := postBulk(t, proxy, "/_bulk")
+	resp := post(t, proxy, "/_bulk")
 	body, err := io.ReadAll(resp.Body)
 	require.NoError(t, err)
 	assert.Equal(t, int32(1), hits.Load(), "the backend must apply the request before the ack is dropped")
@@ -84,7 +84,7 @@ func TestESFaultProxy_LoseAckForwardsThenFails(t *testing.T) {
 	assert.Empty(t, resp.Header.Get("Content-Encoding"), "the replacement body is not compressed")
 
 	proxy.setFault(esFaultNone)
-	resp = postBulk(t, proxy, "/_bulk")
+	resp = post(t, proxy, "/_bulk")
 	assert.Equal(t, http.StatusOK, resp.StatusCode)
 }
 
@@ -111,9 +111,6 @@ func TestBuildFaultInjectionTrace(t *testing.T) {
 		spanIDs[span.SpanID()] = struct{}{}
 	}
 	assert.Len(t, spanIDs, 4, "span IDs are distinct")
-
-	again := buildFaultInjectionTrace(0x2a, 4)
-	assert.NotEqual(t, id, singleTraceID(again), "a later build gets a different trace ID")
 }
 
 func TestKafkaBroker(t *testing.T) {

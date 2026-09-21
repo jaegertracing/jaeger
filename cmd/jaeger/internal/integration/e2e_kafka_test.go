@@ -160,16 +160,17 @@ func TestKafkaStorage_SyncElasticsearch_FaultInjection(t *testing.T) {
 		HealthCheckPort:    14133,
 		EnvVarOverrides:    envVarOverrides,
 	}
+	// The storage cleaner is off for this test, so drop the written indices at the
+	// end; otherwise the fault-injection service lingers for the next suite on this
+	// cluster. Registered before the ingester starts so that, cleanups running last
+	// in first out, it runs after the ingester has exited and can write no more.
+	admin := newESAdmin(t)
+	t.Cleanup(func() { admin.deleteJaegerIndices(t, faultInjectionIndexPrefix+"-") })
 	// With the storage cleaner off, the storage name only labels the metrics
 	// snapshot this ingester writes; it does not inject the cleaner or shorten the
 	// service-cache TTL as it does for TestKafkaStorage_SyncElasticsearch.
 	ingester.e2eInitialize(t, "elasticsearch")
 	t.Log("Ingester initialized")
-	// The storage cleaner is off for this test, so drop the written indices here;
-	// otherwise the fault-injection service lingers for the next suite on this
-	// cluster. Registered after the ingester starts, so it runs before it stops.
-	admin := newESAdmin(t)
-	t.Cleanup(func() { admin.deleteJaegerIndices(t, faultInjectionIndexPrefix+"-") })
 
 	offsets := newKafkaOffsets(t, kafkaBroker(), faultInjectionConsumerGroup, uniqueTopic)
 	f := &faultInjectionSteps{collector: collector, proxy: proxy, offsets: offsets}

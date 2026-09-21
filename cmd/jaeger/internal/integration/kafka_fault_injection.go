@@ -59,6 +59,7 @@ const (
 type esFaultProxy struct {
 	server   *httptest.Server
 	injected atomic.Int32 // the esFault currently applied to _bulk requests
+	faulted  atomic.Int32 // _bulk requests the proxy has failed so far
 }
 
 func newESFaultProxy(t *testing.T, target string) *esFaultProxy {
@@ -69,11 +70,13 @@ func newESFaultProxy(t *testing.T, target string) *esFaultProxy {
 	rp.ModifyResponse = func(resp *http.Response) error {
 		if p.fault() == esFaultLoseAck && isBulk(resp.Request) {
 			injectServiceUnavailable(resp)
+			p.faulted.Add(1)
 		}
 		return nil
 	}
 	p.server = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if p.fault() == esFaultReject && isBulk(r) {
+			p.faulted.Add(1)
 			w.Header().Set("Content-Type", "application/json")
 			w.WriteHeader(http.StatusServiceUnavailable)
 			_, _ = w.Write([]byte(`{"error":"injected by esFaultProxy"}`))
@@ -90,6 +93,9 @@ func (p *esFaultProxy) URL() string { return p.server.URL }
 func (p *esFaultProxy) setFault(fault esFault) { p.injected.Store(int32(fault)) }
 
 func (p *esFaultProxy) fault() esFault { return esFault(p.injected.Load()) }
+
+// faultedBulks returns how many _bulk requests the proxy has failed so far.
+func (p *esFaultProxy) faultedBulks() int32 { return p.faulted.Load() }
 
 func isBulk(r *http.Request) bool {
 	return r != nil && strings.HasSuffix(r.URL.Path, "/_bulk")
@@ -270,6 +276,7 @@ func (f *faultInjectionSteps) runOutage(t *testing.T, fault esFault, traceIDByte
 	committedBefore := requireOffsets(t, f.offsets.committed)
 	logEndBefore := requireOffsets(t, f.offsets.logEnd)
 
+	faultedBefore := f.proxy.faultedBulks()
 	f.proxy.setFault(fault)
 	defer f.proxy.setFault(esFaultNone)
 	trace := f.write(t, traceIDByte)
@@ -285,6 +292,9 @@ func (f *faultInjectionSteps) runOutage(t *testing.T, fault esFault, traceIDByte
 	logEndDuring := requireOffsets(t, f.offsets.logEnd)
 	t.Logf("Kafka offsets while the fault holds: committed=%v logEnd=%v", committedDuring, logEndDuring)
 	assert.Equal(t, committedBefore, committedDuring, "no partition's committed offset may advance while the write fails")
+	// A held offset proves nothing if the ingester never tried to write, so the
+	// proxy must have failed at least one _bulk during the hold.
+	assert.Positive(t, f.proxy.faultedBulks()-faultedBefore, "the ingester must have attempted the write while the fault held")
 	duringOutage(t, trace)
 
 	f.proxy.setFault(esFaultNone)
