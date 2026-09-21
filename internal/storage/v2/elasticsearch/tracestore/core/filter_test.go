@@ -426,9 +426,9 @@ func TestBuildFilterQueryRefused(t *testing.T) {
 		},
 		{
 			name:    "a built-in field this schema has no field for",
-			filter:  p.Span().Kind.Eq("server"),
+			filter:  p.Span().TraceID.Eq("abc"),
 			wantErr: tracestore.ErrFilterUnsupported,
-			wantMsg: `built-in field "kind" of the "span" level`,
+			wantMsg: `built-in field "traceID" of the "span" level`,
 		},
 		{
 			name:    "exists on a built-in field this schema has no field for",
@@ -726,7 +726,7 @@ func TestFindTraceIDsRefusesUnservableFilter(t *testing.T) {
 		_, err := r.reader.FindTraceIDs(context.Background(), dbmodel.TraceQueryParameters{
 			StartTimeMin: now,
 			StartTimeMax: now.Add(time.Hour),
-			Filter:       p.Span().Kind.Eq("server"),
+			Filter:       p.Span().TraceID.Eq("abc"),
 		})
 		require.ErrorIs(t, err, tracestore.ErrFilterUnsupported)
 	})
