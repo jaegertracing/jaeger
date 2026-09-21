@@ -162,9 +162,13 @@ func TestKafkaStorage_SyncElasticsearch_FaultInjection(t *testing.T) {
 	}
 	ingester.e2eInitialize(t, "elasticsearch")
 	t.Log("Ingester initialized")
+	// The storage cleaner is off for this test, so drop the written indices here;
+	// otherwise the fault-injection service lingers for the next suite on this
+	// cluster. Registered after the ingester starts, so it runs before it stops.
+	admin := newESAdmin(t)
+	t.Cleanup(func() { admin.deleteJaegerIndices(t, faultInjectionIndexPrefix+"-") })
 
-	// The consumer group is the Kafka receiver's default.
-	offsets := newKafkaOffsets(t, kafkaBroker(), "otel-collector", uniqueTopic)
+	offsets := newKafkaOffsets(t, kafkaBroker(), faultInjectionConsumerGroup, uniqueTopic)
 	f := &faultInjectionSteps{collector: collector, proxy: proxy, offsets: offsets}
 
 	t.Run("baseline", func(t *testing.T) {

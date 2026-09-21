@@ -108,6 +108,16 @@ func injectServiceUnavailable(resp *http.Response) {
 	resp.Header.Del("Content-Encoding")
 }
 
+const (
+	// faultInjectionIndexPrefix is the index_prefix in config-kafka-ingester-sync.yaml.
+	faultInjectionIndexPrefix = "jaeger-main"
+	// faultInjectionSpanIndices matches the span indices the ingester writes.
+	faultInjectionSpanIndices = faultInjectionIndexPrefix + "-jaeger-span-*"
+	// faultInjectionConsumerGroup is the Kafka receiver's default group_id, which
+	// the ingester config leaves unset.
+	faultInjectionConsumerGroup = "otel-collector"
+)
+
 // kafkaBroker returns the broker the collector and ingester configs connect to,
 // read from the same KAFKA_BROKER variable with the same default.
 func kafkaBroker() string {
@@ -189,26 +199,11 @@ func (o partitionOffsets) advancedPast(before partitionOffsets) bool {
 // countSpanDocs asks Elasticsearch directly how many span documents carry the
 // trace ID. It bypasses the query service on purpose: jaeger_query deduplicates
 // spans before returning a trace, which would hide a document written twice.
-// The index pattern follows the index_prefix in config-kafka-ingester-sync.yaml.
-func countSpanDocs(ctx context.Context, traceID pcommon.TraceID) (int, error) {
-	query := fmt.Sprintf(`{"query":{"term":{"traceID":%q}}}`, traceID.String())
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost,
-		esBaseURL+"/jaeger-main-jaeger-span-*/_count", bytes.NewBufferString(query))
+func countSpanDocs(ctx context.Context, id pcommon.TraceID) (int, error) {
+	query := fmt.Sprintf(`{"query":{"term":{"traceID":%q}}}`, id.String())
+	body, err := postES(ctx, faultInjectionSpanIndices+"/_count", query)
 	if err != nil {
 		return 0, err
-	}
-	req.Header.Set("Content-Type", "application/json")
-	resp, err := http.DefaultClient.Do(req)
-	if err != nil {
-		return 0, err
-	}
-	defer resp.Body.Close()
-	body, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return 0, err
-	}
-	if resp.StatusCode != http.StatusOK {
-		return 0, fmt.Errorf("_count returned %d: %s", resp.StatusCode, body)
 	}
 	var result struct {
 		Count int `json:"count"`
@@ -217,6 +212,37 @@ func countSpanDocs(ctx context.Context, traceID pcommon.TraceID) (int, error) {
 		return 0, err
 	}
 	return result.Count, nil
+}
+
+// refreshSpanIndices makes every document indexed so far visible to a following
+// _count, which otherwise sees only documents refreshed on the index's own
+// interval.
+func refreshSpanIndices(ctx context.Context) error {
+	_, err := postES(ctx, faultInjectionSpanIndices+"/_refresh", "")
+	return err
+}
+
+// postES sends a JSON request to Elasticsearch and returns the response body,
+// treating any non-200 status as an error.
+func postES(ctx context.Context, path, body string) ([]byte, error) {
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, esBaseURL+"/"+path, bytes.NewBufferString(body))
+	if err != nil {
+		return nil, err
+	}
+	req.Header.Set("Content-Type", "application/json")
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+	respBody, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, err
+	}
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("%s returned %d: %s", path, resp.StatusCode, respBody)
+	}
+	return respBody, nil
 }
 
 // faultInjectionSteps groups the pipeline handles the fault-injection subtests share.
@@ -290,7 +316,7 @@ func requireOffsets(t *testing.T, read func() (partitionOffsets, error)) partiti
 func (*faultInjectionSteps) storedSpanCount(t *testing.T, trace ptrace.Traces) int {
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
-	count, err := countSpanDocs(ctx, traceID(trace))
+	count, err := countSpanDocs(ctx, singleTraceID(trace))
 	require.NoError(t, err)
 	return count
 }
@@ -301,13 +327,19 @@ func (*faultInjectionSteps) storedSpanCount(t *testing.T, trace ptrace.Traces) i
 // in flight that could add a document after the count.
 func (f *faultInjectionSteps) requireStoredOnce(t *testing.T, trace ptrace.Traces) {
 	expected := trace.SpanCount()
+	id := singleTraceID(trace)
 	require.Eventually(t, func() bool {
 		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 		defer cancel()
-		count, err := countSpanDocs(ctx, traceID(trace))
+		count, err := countSpanDocs(ctx, id)
 		return err == nil && count >= expected
-	}, 2*time.Minute, time.Second, "trace %s never became fully indexed", traceID(trace))
-	assert.Equal(t, expected, f.storedSpanCount(t, trace), "trace %s must be stored exactly once", traceID(trace))
+	}, 2*time.Minute, time.Second, "trace %s never became fully indexed", id)
+	// A duplicate written moments before the offset committed may not have been
+	// refreshed yet, so force a refresh before the exact count.
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+	require.NoError(t, refreshSpanIndices(ctx))
+	assert.Equal(t, expected, f.storedSpanCount(t, trace), "trace %s must be stored exactly once", id)
 }
 
 // requireOffsetCaughtUp waits until every partition's committed offset equals its
@@ -333,8 +365,8 @@ func (f *faultInjectionSteps) requireOffsetCaughtUp(t *testing.T) {
 	}, 2*time.Minute, time.Second, "the committed offsets never caught up with the end offsets")
 }
 
-// traceID returns the trace ID shared by every span of a single-trace ptrace.Traces.
-func traceID(trace ptrace.Traces) pcommon.TraceID {
+// singleTraceID returns the trace ID shared by every span of a single-trace ptrace.Traces.
+func singleTraceID(trace ptrace.Traces) pcommon.TraceID {
 	return trace.ResourceSpans().At(0).ScopeSpans().At(0).Spans().At(0).TraceID()
 }
 
