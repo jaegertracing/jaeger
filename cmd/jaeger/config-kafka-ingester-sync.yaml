@@ -65,7 +65,8 @@ extensions:
       some_storage:
         elasticsearch:
           server_urls:
-            - http://localhost:9200
+            # The e2e fault-injection test points this at a proxy it controls.
+            - ${env:ES_SERVER_URL:-http://localhost:9200}
           # Write each batch with one blocking _bulk request (RFC 0007).
           write_mode: sync
           # Drop poison spans so a malformed document can't stall the partition.
