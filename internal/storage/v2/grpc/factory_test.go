@@ -200,12 +200,11 @@ func TestInitializeConnections_ClientError(t *testing.T) {
 	assert.ErrorContains(t, err, "error creating reader client connection")
 }
 
-// serveListener returns a listener with an empty gRPC server accepting on it.
-// configgrpc.ToClientConn connects eagerly, so a factory built against a listener
-// that nothing serves is still mid-dial when the test ends, and Factory.Close then
-// abandons TCP dial goroutines that the package leak check catches. Reaching Ready
-// needs both this server and an insecure client config, because the default client
-// expects TLS; waitReady then keeps Close from racing the connect.
+// serveListener returns a listener with an empty gRPC server accepting on it, because
+// configgrpc.ToClientConn connects eagerly and a connection to an unserved listener is
+// still mid-dial when Factory.Close runs, leaking TCP dial goroutines past the package
+// leak check. The connection reaches Ready only with an insecure client config as well,
+// since the default client expects TLS.
 func serveListener(t *testing.T) net.Listener {
 	t.Helper()
 	lis, err := net.Listen("tcp", ":0")
