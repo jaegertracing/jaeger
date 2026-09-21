@@ -6,11 +6,6 @@
   "operationName": "test-general-conversion",
   "references": [
     {
-      "refType": "CHILD_OF",
-      "traceID": "00000000000000010000000000000000",
-      "spanID": "0000000000000003"
-    },
-    {
       "refType": "FOLLOWS_FROM",
       "traceID": "00000000000000010000000000000000",
       "spanID": "0000000000000004"

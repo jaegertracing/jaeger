@@ -25,6 +25,7 @@ import (
 	"go.opentelemetry.io/otel/sdk/trace/tracetest"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/connectivity"
 	"google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/types/known/emptypb"
@@ -53,13 +54,12 @@ func TestNewFactory_NonEmptyAuthenticator(t *testing.T) {
 }
 
 func TestNewFactory(t *testing.T) {
-	lis, err := net.Listen("tcp", ":0")
-	require.NoError(t, err, "failed to listen")
-	t.Cleanup(func() { require.NoError(t, lis.Close()) })
+	lis := serveListener(t)
 
 	cfg := Config{
 		ClientConfig: configgrpc.ClientConfig{
 			Endpoint: lis.Addr().String(),
+			TLS:      configtls.ClientConfig{Insecure: true},
 		},
 		TimeoutConfig: exporterhelper.TimeoutConfig{
 			Timeout: 1 * time.Second,
@@ -72,25 +72,23 @@ func TestNewFactory(t *testing.T) {
 	f, err := NewFactory(context.Background(), cfg, telset)
 	require.NoError(t, err)
 	t.Cleanup(func() { require.NoError(t, f.Close()) })
+	waitReady(t, f.readerConn, f.writerConn)
 	require.Equal(t, lis.Addr().String(), f.readerConn.Target())
 	require.Equal(t, lis.Addr().String(), f.writerConn.Target())
 }
 
 func TestNewFactory_WriteEndpointOverride(t *testing.T) {
-	readListener, err := net.Listen("tcp", ":0")
-	require.NoError(t, err, "failed to listen")
-	t.Cleanup(func() { require.NoError(t, readListener.Close()) })
-
-	writeListener, err := net.Listen("tcp", ":0")
-	require.NoError(t, err, "failed to listen")
-	t.Cleanup(func() { require.NoError(t, writeListener.Close()) })
+	readListener := serveListener(t)
+	writeListener := serveListener(t)
 
 	cfg := Config{
 		ClientConfig: configgrpc.ClientConfig{
 			Endpoint: readListener.Addr().String(),
+			TLS:      configtls.ClientConfig{Insecure: true},
 		},
 		Writer: configgrpc.ClientConfig{
 			Endpoint: writeListener.Addr().String(),
+			TLS:      configtls.ClientConfig{Insecure: true},
 		},
 		TimeoutConfig: exporterhelper.TimeoutConfig{
 			Timeout: 1 * time.Second,
@@ -103,6 +101,7 @@ func TestNewFactory_WriteEndpointOverride(t *testing.T) {
 	f, err := NewFactory(context.Background(), cfg, telset)
 	require.NoError(t, err)
 	t.Cleanup(func() { require.NoError(t, f.Close()) })
+	waitReady(t, f.readerConn, f.writerConn)
 	require.Equal(t, readListener.Addr().String(), f.readerConn.Target())
 	require.Equal(t, writeListener.Addr().String(), f.writerConn.Target())
 }
@@ -138,13 +137,12 @@ func TestFactory(t *testing.T) {
 }
 
 func TestNewFactory_WithHeaderForwarding(t *testing.T) {
-	lis, err := net.Listen("tcp", ":0")
-	require.NoError(t, err, "failed to listen")
-	t.Cleanup(func() { require.NoError(t, lis.Close()) })
+	lis := serveListener(t)
 
 	cfg := Config{
 		ClientConfig: configgrpc.ClientConfig{
 			Endpoint: lis.Addr().String(),
+			TLS:      configtls.ClientConfig{Insecure: true},
 		},
 		TimeoutConfig: exporterhelper.TimeoutConfig{
 			Timeout: 1 * time.Second,
@@ -156,6 +154,7 @@ func TestNewFactory_WithHeaderForwarding(t *testing.T) {
 	f, err := NewFactory(context.Background(), cfg, telemetry.NoopSettings())
 	require.NoError(t, err)
 	t.Cleanup(func() { require.NoError(t, f.Close()) })
+	waitReady(t, f.readerConn, f.writerConn)
 	require.Equal(t, lis.Addr().String(), f.readerConn.Target())
 }
 
@@ -186,21 +185,12 @@ func TestNewFactory_MaxRecvMsgSize(t *testing.T) {
 }
 
 func TestInitializeConnections_ClientError(t *testing.T) {
-	f, err := NewFactory(
-		context.Background(),
-		Config{
-			ClientConfig: configgrpc.ClientConfig{
-				Endpoint: ":0",
-			},
-		}, telemetry.NoopSettings(),
-	)
-	require.NoError(t, err)
-	t.Cleanup(func() { require.NoError(t, f.Close()) })
+	f := &Factory{}
 	newClientFn := func(_ component.TelemetrySettings, _ *configgrpc.ClientConfig, _ ...grpc.DialOption) (conn *grpc.ClientConn, err error) {
 		return nil, assert.AnError
 	}
 	noopTelset := telemetry.NoopSettings().ToOtelComponent()
-	err = f.initializeConnections(
+	err := f.initializeConnections(
 		noopTelset,
 		noopTelset,
 		&configgrpc.ClientConfig{},
@@ -208,6 +198,34 @@ func TestInitializeConnections_ClientError(t *testing.T) {
 		newClientFn,
 	)
 	assert.ErrorContains(t, err, "error creating reader client connection")
+}
+
+// serveListener returns a listener with an empty gRPC server accepting on it, because
+// configgrpc.ToClientConn connects eagerly and a connection to an unserved listener is
+// still mid-dial when Factory.Close runs, leaking TCP dial goroutines past the package
+// leak check. The connection reaches Ready only with an insecure client config as well,
+// since the default client expects TLS.
+func serveListener(t *testing.T) net.Listener {
+	t.Helper()
+	lis, err := net.Listen("tcp", ":0")
+	require.NoError(t, err, "failed to listen")
+	server := grpc.NewServer()
+	go func() { server.Serve(lis) }()
+	t.Cleanup(server.Stop)
+	return lis
+}
+
+// waitReady blocks until every connection has finished connecting, so that closing
+// it tears down an established transport instead of an in-flight dial.
+func waitReady(t *testing.T, conns ...*grpc.ClientConn) {
+	t.Helper()
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	for _, conn := range conns {
+		for state := conn.GetState(); state != connectivity.Ready; state = conn.GetState() {
+			require.True(t, conn.WaitForStateChange(ctx, state), "connection stuck in state %s", state)
+		}
+	}
 }
 
 // TestNewFactory_TracesReadsNotWrites checks that the reader connection is
