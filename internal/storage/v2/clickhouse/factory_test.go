@@ -460,3 +460,21 @@ func TestCreateTraceIDTimestampsTableTemplate(t *testing.T) {
 		assert.Contains(t, queryWithTTL, "TTL end + INTERVAL 86400 SECOND DELETE")
 	})
 }
+
+func TestNewFactory_KeepsExplicitZeroCacheSettings(t *testing.T) {
+	srv := clickhousetest.NewServer(clickhousetest.FailureConfig{})
+	defer srv.Close()
+
+	cfg := DefaultConfiguration()
+	cfg.Protocol = "http"
+	cfg.Addresses = []string{srv.Listener.Addr().String()}
+	cfg.AttributeMetadataCacheTTL = 0
+	cfg.AttributeMetadataCacheMaxSize = 0
+
+	f, err := NewFactory(context.Background(), cfg, telemetry.NoopSettings())
+	require.NoError(t, err)
+	defer func() { require.NoError(t, f.Close()) }()
+
+	assert.Zero(t, f.config.AttributeMetadataCacheTTL)
+	assert.Zero(t, f.config.AttributeMetadataCacheMaxSize)
+}

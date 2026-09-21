@@ -11,10 +11,19 @@ replicas: 1
 
 persistence:
   enabled: true
+  # OCI rounds this request up to 50Gi. The live PVC is expanded separately
+  # because StatefulSet volume claim templates cannot be updated in place.
   size: "10Gi"
   storageClass: "oci-bv" # Using Oracle Cloud Block Volume storage class
 
-opensearchJavaOpts: "-Xmx1g -Xms1g"
+opensearchJavaOpts: "-Xms3g -Xmx3g"
+
+resources:
+  requests:
+    cpu: "1000m"
+    memory: "6Gi"
+  limits:
+    memory: "6Gi"
 
 securityConfig:
   enabled: false
@@ -37,4 +46,3 @@ config:
 service:
   type: ClusterIP
   port: 9200
-

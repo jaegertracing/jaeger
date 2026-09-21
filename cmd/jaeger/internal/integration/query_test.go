@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/jaegertracing/jaeger/internal/storage/integration"
+	"github.com/jaegertracing/jaeger/internal/storage/integration/capabilities"
 )
 
 func TestJaegerQueryService(t *testing.T) {
@@ -27,7 +28,8 @@ func TestJaegerQueryService(t *testing.T) {
 		HealthCheckPort: 12133,
 		MetricsPort:     8887,
 		StorageIntegration: integration.StorageIntegration{
-			CleanUp: purge,
+			CleanUp:      purge,
+			Capabilities: capabilities.E2EWithoutNativeFilters(),
 		},
 	}
 	collector.e2eInitialize(t, "memory")

@@ -10,8 +10,34 @@ import (
 	"fmt"
 	"text/template"
 
+	"go.opentelemetry.io/collector/featuregate"
+
 	es "github.com/jaegertracing/jaeger/internal/storage/elasticsearch"
 	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/config"
+)
+
+// TypedAttributeIndexingGate adds a numeric sub-field to each attribute value in
+// the span index template, beside the keyword the value is already indexed as.
+// That is what lets a query order on an attribute — `http.response.size > 500`
+// compares lexicographically against a keyword, which makes "9" greater than
+// "10" — and it is the mapping change RFC 0015 proposes. Documents are
+// unaffected: a mapping does not alter _source, so nothing about reading or
+// writing a span changes.
+//
+// Off by default for two reasons. It costs mapped fields on the elevated
+// representation, two per key instead of one, which presses hardest on a
+// `tags_as_fields: all` deployment. And it reaches only indices created after
+// it is turned on, so a range query against an older index matches nothing.
+var TypedAttributeIndexingGate = featuregate.GlobalRegistry().MustRegister(
+	"jaeger.es.typedAttributeIndexing",
+	featuregate.StageAlpha,
+	featuregate.WithRegisterFromVersion("v2.24.0"),
+	featuregate.WithRegisterDescription(
+		"Indexes span, resource, and event attribute values as numbers beside the "+
+			"keyword, so that ordered predicates (gt/lt/gte/lte) can be answered on an "+
+			"attribute. Applies only to indices created after it is enabled.",
+	),
+	featuregate.WithRegisterReferenceURL("https://github.com/jaegertracing/jaeger/blob/main/docs/rfc/0015-typed-attribute-indexing-elasticsearch.md"),
 )
 
 //go:embed index_templates/*.json
@@ -114,16 +140,67 @@ func (m MappingType) options(indices config.Indices) config.IndexOptions {
 	}
 }
 
-// innerParams are the version-independent values rendered into a neutral body.
-// IsOpenSearch selects ISM vs ILM settings and is derived from the client's own
-// resolved version, so it never crosses the API boundary.
-type innerParams struct {
-	IndexPrefix   string
-	Shards        int64
-	Replicas      int64
+// lifecycleParams decide whether a template hands its indices to a rollover
+// lifecycle policy, and which engine runs it: Elasticsearch ILM, or the OpenSearch
+// index_state_management plugin. UseILM==false leaves the other fields unread, which
+// is how a target that manages its own rollover asks for no lifecycle settings.
+type lifecycleParams struct {
 	UseILM        bool
 	ILMPolicyName string
 	IsOpenSearch  bool
+}
+
+// innerParams are the values the templates in index_templates/ interpolate.
+type innerParams struct {
+	lifecycleParams
+	IndexPrefix string
+	Shards      int64
+	Replicas    int64
+	// TotalFieldsLimit is left nil when unconfigured, so the template omits
+	// "index.mapping.total_fields.limit" entirely rather than rendering a
+	// default.
+	TotalFieldsLimit *int64
+	// TypedAttributes adds a `number` sub-field beside the keyword each attribute value is
+	// indexed as, in both the nested and the elevated representation (RFC 0015 Option A). The
+	// sub-field is mapped with coerce: false, so it holds only values that arrived as JSON numbers
+	// and a numeric string stays out, and with ignore_malformed: true, so a value that does not fit
+	// is skipped rather than costing the document. There is no boolean sub-field: OpenSearch rejects
+	// ignore_malformed on a boolean mapper, and the keyword already answers equality, which is the
+	// only operator a boolean has (RFC 0015 §7, question 7).
+	TypedAttributes bool
+}
+
+// renderBackendNeutralBody executes the embedded template for one mapping type and
+// returns its top-level fields: settings, mappings, and aliases where the template
+// emits them. Those fields read the same on every backend version, so a caller wraps
+// them in whatever envelope its own target needs.
+func renderBackendNeutralBody(m MappingType, indices config.Indices, lifecycle lifecycleParams) (map[string]json.RawMessage, error) {
+	file := m.file()
+	if file == "" {
+		return nil, fmt.Errorf("unknown index template mapping type %d", m)
+	}
+	opts := m.options(indices)
+	if opts.Replicas == nil {
+		return nil, fmt.Errorf("index options for %s have no replica count configured", m)
+	}
+
+	var buf bytes.Buffer
+	if err := indexTemplates.ExecuteTemplate(&buf, file, innerParams{
+		lifecycleParams:  lifecycle,
+		IndexPrefix:      indices.IndexPrefix.Apply(""),
+		Shards:           opts.Shards,
+		Replicas:         *opts.Replicas,
+		TotalFieldsLimit: opts.TotalFieldsLimit,
+		TypedAttributes:  TypedAttributeIndexingGate.IsEnabled(),
+	}); err != nil {
+		return nil, fmt.Errorf("failed to render %s index template: %w", m, err)
+	}
+
+	var inner map[string]json.RawMessage
+	if err := json.Unmarshal(buf.Bytes(), &inner); err != nil {
+		return nil, fmt.Errorf("rendered %s index template is not valid JSON: %w", m, err)
+	}
+	return inner, nil
 }
 
 // RenderIndexTemplate renders the full index template body for a mapping type,
@@ -136,36 +213,19 @@ type innerParams struct {
 // offline `esmapping-generator` CLI, which has no cluster to probe and renders a
 // template for an explicitly-requested version.
 func RenderIndexTemplate(m MappingType, indices config.Indices, useILM bool, ilmPolicyName string, version es.BackendVersion) (string, error) {
-	file := m.file()
-	if file == "" {
-		return "", fmt.Errorf("unknown index template mapping type %d", m)
-	}
-	opts := m.options(indices)
-	if opts.Replicas == nil {
-		return "", fmt.Errorf("index options for %s have no replica count configured", m)
-	}
 	prefix := indices.IndexPrefix.Apply("")
-
-	var buf bytes.Buffer
-	if err := indexTemplates.ExecuteTemplate(&buf, file, innerParams{
-		IndexPrefix:   prefix,
-		Shards:        opts.Shards,
-		Replicas:      *opts.Replicas,
+	inner, err := renderBackendNeutralBody(m, indices, lifecycleParams{
 		UseILM:        useILM,
 		ILMPolicyName: ilmPolicyName,
 		IsOpenSearch:  version.IsOpenSearch(),
-	}); err != nil {
-		return "", fmt.Errorf("failed to render %s index template: %w", m, err)
-	}
-
-	var inner map[string]json.RawMessage
-	if err := json.Unmarshal(buf.Bytes(), &inner); err != nil {
-		return "", fmt.Errorf("rendered %s index template is not valid JSON: %w", m, err)
+	})
+	if err != nil {
+		return "", err
 	}
 
 	if version.UsesV8API() {
 		body, err := json.Marshal(map[string]any{
-			"priority":       opts.Priority,
+			"priority":       m.options(indices).Priority,
 			"index_patterns": prefix + m.indexBase() + "-*",
 			"template":       inner,
 		})

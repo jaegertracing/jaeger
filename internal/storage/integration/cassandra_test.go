@@ -45,26 +45,15 @@ func (s *CassandraStorageIntegration) cleanUp(t *testing.T) {
 func (s *CassandraStorageIntegration) initializeCassandra(t *testing.T) {
 	username := os.Getenv("CASSANDRA_USERNAME")
 	password := os.Getenv("CASSANDRA_PASSWORD")
-	cfg := casconfig.Configuration{
-		Schema: casconfig.Schema{
-			Keyspace: "jaeger_v1_dc1",
-		},
-		Connection: casconfig.Connection{
-			Servers: []string{"127.0.0.1"},
-			Authenticator: casconfig.Authenticator{
-				Basic: casconfig.BasicAuthenticator{
-					Username:              username,
-					Password:              password,
-					AllowedAuthenticators: []string{"org.apache.cassandra.auth.PasswordAuthenticator"},
-				},
-			},
-			TLS: configtls.ClientConfig{
-				Insecure: true,
-			},
-		},
+	cfg := casconfig.DefaultConfiguration()
+	cfg.Schema.Keyspace = "jaeger_v1_dc1"
+	cfg.Connection.Servers = []string{"127.0.0.1"}
+	cfg.Connection.Authenticator.Basic = casconfig.BasicAuthenticator{
+		Username:              username,
+		Password:              password,
+		AllowedAuthenticators: []string{"org.apache.cassandra.auth.PasswordAuthenticator"},
 	}
-	defCfg := casconfig.DefaultConfiguration()
-	cfg.ApplyDefaults(&defCfg)
+	cfg.Connection.TLS = configtls.ClientConfig{Insecure: true}
 	opts := cassandrav1.Options{
 		Configuration: cfg,
 		Index: cassandrav1.IndexConfig{

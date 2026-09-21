@@ -3,7 +3,7 @@
 
 services:
   opensearch:
-    image: opensearchproject/opensearch:2.19.0@sha256:1f8b88245a6af61e7aa500afe0e87d43401e4b33140bb47230a919428ce3f7cb
+    image: opensearchproject/opensearch:2.19.6@sha256:8690b204fe914c60ca76d451ac73bc0481e034d32d3779944c8caca56a2b003f
     environment:
       - discovery.type=single-node
       - cluster.routing.allocation.disk.threshold_enabled=false

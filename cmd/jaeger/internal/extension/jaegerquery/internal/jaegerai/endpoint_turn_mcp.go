@@ -5,18 +5,12 @@ package jaegerai
 
 import (
 	"context"
-	"errors"
-	"io"
 	"net/http"
 	"strings"
 
-	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerquery/internal/mcptools"
-	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerquery/querysvc"
-	"github.com/jaegertracing/jaeger/internal/telemetry"
-	"github.com/jaegertracing/jaeger/internal/tenancy"
 )
 
 // routeMCPPrefix is the single source of truth for the endpoint's path: the mux
@@ -59,34 +53,37 @@ func mcpRouteIDFromContext(ctx context.Context) string {
 // SSE stream. Access is gated to route ids that belong to an active chat turn
 // (present in turnRegistry).
 type turnScopedEndpoint struct {
-	// streamable is the MCP streamable-HTTP handler (from mcptools.WrapHTTP)
-	// serving a single shared telemetry server. Per-turn UI tools are layered
-	// on by the uiToolsMiddleware registered on that server, keyed by the
-	// route id carried in the request context.
+	// streamable is the telemetry MCP endpoint's handler, which the query server
+	// built and still owns. Serving it here means both mounts share one *mcp.Server,
+	// so the telemetry tools are registered once and this endpoint closes nothing.
 	streamable http.Handler
-	// server is the shared MCP server behind streamable. It is retained so this
-	// endpoint can reap the sessions still bound to it at shutdown (see Close).
-	server   *mcp.Server
+	turns      *turnRegistry
+	basePath   string
+	logger     *zap.Logger
+}
+
+// turnScopedEndpointBuilder collects the endpoint's dependencies. The MCP handler
+// arrives ready-made: external MCP clients dial the shared telemetry endpoint with
+// no chat sidecar involved, so the query server builds it and this endpoint layers
+// the per-turn UI tools onto it.
+type turnScopedEndpointBuilder struct {
+	shared   *mcptools.Handler
 	turns    *turnRegistry
 	basePath string
 	logger   *zap.Logger
 }
 
-// newTurnScopedEndpoint builds the turn-scoped handler around a single shared
-// MCP server. The telemetry tools are a fixed capability, so they are registered
-// once; the per-turn UI tools are layered on via uiToolsMiddleware, which
-// reads the route id from the request context and, for that turn,
-// advertises its UI tools in tools/list and dispatches their tools/call to the
-// browser stream. This avoids standing up a fresh server per turn.
-func newTurnScopedEndpoint(telset telemetry.Settings, queryAPI *querysvc.QueryService, tenancyMgr *tenancy.Manager, turns *turnRegistry, basePath string, logger *zap.Logger) *turnScopedEndpoint {
-	srv := mcptools.NewServer(telset, queryAPI, mcptools.DefaultConfig())
-	srv.AddReceivingMiddleware(uiToolsMiddleware(turns, logger))
+// build layers this gateway's per-turn UI tools onto the shared MCP server and
+// serves it under the turn-scoped routes. uiToolsMiddleware adds each turn's UI
+// tools per request, keyed by the route id in the request context, so neither a
+// server per turn nor a second server for this mount is needed.
+func (b turnScopedEndpointBuilder) build() *turnScopedEndpoint {
+	b.shared.AddReceivingMiddleware(uiToolsMiddleware(b.turns, b.logger))
 	return &turnScopedEndpoint{
-		streamable: mcptools.WrapHTTP(srv, tenancyMgr, telset),
-		server:     srv,
-		turns:      turns,
-		basePath:   basePath,
-		logger:     logger,
+		streamable: b.shared,
+		turns:      b.turns,
+		basePath:   b.basePath,
+		logger:     b.logger,
 	}
 }
 
@@ -96,24 +93,6 @@ func newTurnScopedEndpoint(telset telemetry.Settings, queryAPI *querysvc.QuerySe
 func (h *turnScopedEndpoint) registerRoutes(router *http.ServeMux) {
 	router.Handle(h.basePath+routeTurnMCP, h)
 	router.Handle(h.basePath+routeTurnMCPNoSlash, h)
-}
-
-var _ io.Closer = (*turnScopedEndpoint)(nil)
-
-// Close tears down the MCP sessions still bound to this endpoint's server so they do
-// not outlive it. The go-sdk reaps a session only once it goes idle (see
-// StreamableHTTPOptions.SessionTimeout), so a turn whose sidecar has not
-// disconnected would otherwise linger after shutdown.
-//
-// ServerSession.Close is the only teardown the SDK exposes — there is no
-// server-level Shutdown. Sessions() yields a snapshot (it clones under lock), so
-// closing each one mid-iteration, which deregisters it, is safe.
-func (h *turnScopedEndpoint) Close() error {
-	var errs []error
-	for session := range h.server.Sessions() {
-		errs = append(errs, session.Close())
-	}
-	return errors.Join(errs...)
 }
 
 func (h *turnScopedEndpoint) ServeHTTP(w http.ResponseWriter, r *http.Request) {

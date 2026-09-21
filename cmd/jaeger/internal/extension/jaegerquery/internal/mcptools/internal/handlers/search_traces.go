@@ -21,7 +21,7 @@ import (
 
 // queryServiceInterface defines the interface we need from QueryService for testing.
 type queryServiceInterface interface {
-	FindTraceSummaries(ctx context.Context, query querysvc.TraceQueryParams) iter.Seq2[[]tracestore.TraceSummary, error]
+	FindTraceSummaries(ctx context.Context, query querysvc.TraceQueryParams) iter.Seq2[querysvc.PageChunk[[]tracestore.TraceSummary], error]
 }
 
 // searchTracesHandler implements the search_traces MCP tool.
@@ -60,13 +60,13 @@ func (h *searchTracesHandler) handle(
 	var processErrs []error
 
 outer:
-	for batch, err := range h.queryService.FindTraceSummaries(ctx, query) {
+	for chunk, err := range h.queryService.FindTraceSummaries(ctx, query) {
 		if err != nil {
 			processErrs = append(processErrs, err)
 			break
 		}
-		for i := range batch {
-			summaries = append(summaries, toMCPTraceSummary(batch[i]))
+		for i := range chunk.Results {
+			summaries = append(summaries, toMCPTraceSummary(chunk.Results[i]))
 			if h.maxResults > 0 && len(summaries) >= h.maxResults {
 				break outer
 			}
@@ -75,7 +75,15 @@ outer:
 
 	output := types.SearchTracesOutput{Traces: summaries}
 	if len(processErrs) > 0 {
-		output.Error = fmt.Sprintf("partial results returned due to error: %v", errors.Join(processErrs...))
+		searchErr := errors.Join(processErrs...)
+		if len(summaries) == 0 {
+			// Nothing came back — a query the storage backend refused, for one — so calling
+			// it partial would send an agent looking for the missing part instead of
+			// reading why the search could not run.
+			output.Error = searchErr.Error()
+		} else {
+			output.Error = fmt.Sprintf("partial results returned due to error: %v", searchErr)
+		}
 	}
 	return nil, output, nil
 }
@@ -134,10 +142,6 @@ func (h *searchTracesHandler) buildQuery(input types.SearchTracesInput) (querysv
 		return querysvc.TraceQueryParams{}, errors.New("start_time_max must be after start_time_min")
 	}
 
-	if input.ServiceName == "" {
-		return querysvc.TraceQueryParams{}, errors.New("service_name is required")
-	}
-
 	var durationMin, durationMax time.Duration
 	if input.DurationMin != "" {
 		durationMin, err = time.ParseDuration(input.DurationMin)
@@ -161,7 +165,7 @@ func (h *searchTracesHandler) buildQuery(input types.SearchTracesInput) (querysv
 	if searchDepth <= 0 {
 		searchDepth = defaultSearchDepth
 	}
-	if searchDepth > h.maxResults {
+	if h.maxResults > 0 && searchDepth > h.maxResults {
 		searchDepth = h.maxResults
 	}
 

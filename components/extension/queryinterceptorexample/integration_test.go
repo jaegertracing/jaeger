@@ -120,10 +120,13 @@ func TestExampleConfigEndToEnd(t *testing.T) {
 
 	// OnQuery, per caller: a search filtering on the forbidden `prompt` attribute
 	// is admitted for the privileged caller but rejected for everyone else.
-	nowUS := time.Now().UnixMicro()
-	tagFilter := url.QueryEscape(`{"prompt":"hunter2"}`)
-	searchURL := fmt.Sprintf("%s/api/traces?service=checkout&start=%d&end=%d&tags=%s",
-		queryBase, nowUS-3600_000_000, nowUS, tagFilter)
+	now := time.Now()
+	attrFilter := url.QueryEscape(`{"prompt":"my password is hunter2"}`)
+	searchURL := fmt.Sprintf("%s/api/v3/traces?query.serviceName=checkout&query.startTimeMin=%s&query.startTimeMax=%s&query.attributes=%s",
+		queryBase,
+		url.QueryEscape(now.Add(-time.Hour).Format(time.RFC3339Nano)),
+		url.QueryEscape(now.Format(time.RFC3339Nano)),
+		attrFilter)
 
 	adminCode, _ := httpGet(t, searchURL, "admin")
 	assert.Equal(t, http.StatusOK, adminCode, "privileged caller may filter on prompt")

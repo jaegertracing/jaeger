@@ -20,6 +20,7 @@ import (
 
 	"github.com/jaegertracing/jaeger-idl/model/v1"
 	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerquery/querysvc"
+	"github.com/jaegertracing/jaeger/components/extension/jaegerquery/queryinterceptor"
 	"github.com/jaegertracing/jaeger/internal/jiter"
 	"github.com/jaegertracing/jaeger/internal/jptrace"
 	"github.com/jaegertracing/jaeger/internal/proto/api_v3"
@@ -75,6 +76,13 @@ func (h *HTTPGateway) tryHandleError(w http.ResponseWriter, err error, statusCod
 	}
 	if errors.Is(err, spanstore.ErrTraceNotFound) {
 		statusCode = http.StatusNotFound
+	}
+	if querysvc.IsBadRequest(err) {
+		// Either the query needs changing, or this deployment's storage cannot serve it.
+		statusCode = http.StatusBadRequest
+	}
+	if errors.Is(err, queryinterceptor.ErrAccessDenied) {
+		statusCode = http.StatusForbidden
 	}
 	if statusCode == http.StatusInternalServerError {
 		h.Logger.Error("HTTP handler, Internal Server Error", zap.Error(err))
@@ -198,12 +206,18 @@ func (h *HTTPGateway) findTraceSummaries(w http.ResponseWriter, r *http.Request)
 	// Summaries always use adjusted, aggregated data; raw_traces has no effect here.
 	queryParams.RawTraces = false
 	summariesIter := h.QueryService.FindTraceSummaries(r.Context(), *queryParams)
-	summaries, err := jiter.FlattenWithErrors(summariesIter)
-	if h.tryHandleError(w, err, http.StatusInternalServerError) {
-		return
+	var summaries []tracestore.TraceSummary
+	var nextPageToken string
+	for chunk, err := range summariesIter {
+		if h.tryHandleError(w, err, http.StatusInternalServerError) {
+			return
+		}
+		summaries = append(summaries, chunk.Results...)
+		nextPageToken = chunk.NextPageToken
 	}
 	h.marshalResponse(&api_v3.FindTraceSummariesResponse{
-		Summaries: toProtoTraceSummaries(summaries),
+		Summaries:     toProtoTraceSummaries(summaries),
+		NextPageToken: nextPageToken,
 	}, w)
 }
 

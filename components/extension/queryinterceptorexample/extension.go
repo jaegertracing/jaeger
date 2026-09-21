@@ -13,6 +13,7 @@ import (
 	"go.opentelemetry.io/collector/pdata/ptrace"
 	"go.uber.org/zap"
 
+	expression "github.com/jaegertracing/jaeger-idl/query/expression/v1"
 	"github.com/jaegertracing/jaeger/components/extension/jaegerquery/queryinterceptor"
 )
 
@@ -79,13 +80,32 @@ func (i *interceptor) OnQuery(ctx context.Context, query queryinterceptor.Query)
 		return ctx, query, nil
 	}
 	for _, key := range i.cfg.DenyQueryAttributes {
-		if _, ok := query.Attributes.Get(key); ok {
+		if referencesAttribute(query.Filter, key) {
 			i.logger.Debug("rejecting query that filters on a forbidden attribute",
 				zap.String("attribute", key), zap.String("caller_role", role))
 			return ctx, query, fmt.Errorf("query interceptor: filtering on attribute %q is not permitted", key)
 		}
 	}
 	return ctx, query, nil
+}
+
+// referencesAttribute reports whether the filter reads the named attribute anywhere in its
+// tree, at any level. Every predicate of a query reaches an interceptor in the filter, so one
+// walk catches a denied attribute however the caller asked for it.
+func referencesAttribute(expr expression.Expression, key string) bool {
+	switch term := expr.(type) {
+	case *expression.AttributeRef:
+		return term.Key == key
+	case *expression.Call:
+		for _, arg := range term.Args {
+			if referencesAttribute(arg, key) {
+				return true
+			}
+		}
+	default:
+		// A constant references nothing.
+	}
+	return false
 }
 
 // OnResult redacts the configured attributes from every span for non-privileged

@@ -223,6 +223,20 @@ func TestMCPGenAIAttributes(t *testing.T) {
 			wantType: attribute.STRING,
 			wantVal:  "tool_error",
 		},
+		{
+			name:     "gen ai tool call arguments",
+			attr:     GenAIToolCallArguments(`{"service_name":"frontend"}`),
+			wantKey:  string(semconv.GenAIToolCallArgumentsKey),
+			wantType: attribute.STRING,
+			wantVal:  `{"service_name":"frontend"}`,
+		},
+		{
+			name:     "gen ai tool call result",
+			attr:     GenAIToolCallResult(`{"content":[]}`),
+			wantKey:  string(semconv.GenAIToolCallResultKey),
+			wantType: attribute.STRING,
+			wantVal:  `{"content":[]}`,
+		},
 	}
 
 	for _, tt := range tests {

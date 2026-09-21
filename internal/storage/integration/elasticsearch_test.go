@@ -25,7 +25,6 @@ import (
 	escfg "github.com/jaegertracing/jaeger/internal/storage/elasticsearch/config"
 	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/esclient"
 	"github.com/jaegertracing/jaeger/internal/storage/integration/capabilities"
-	es "github.com/jaegertracing/jaeger/internal/storage/v1/elasticsearch"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/api/depstore"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore"
 	esv2 "github.com/jaegertracing/jaeger/internal/storage/v2/elasticsearch"
@@ -79,14 +78,13 @@ func (s *ESStorageIntegration) esCleanUp(t *testing.T) {
 }
 
 func (s *ESStorageIntegration) initSpanstore(t *testing.T, allTagsAsFields bool) {
-	cfg := es.DefaultConfig()
+	cfg := esv2.DefaultConfig()
 	cfg.CreateIndexTemplates = true
 	cfg.BulkProcessing = escfg.BulkProcessing{
 		MaxBytes: 1, // flush on essentially every document, for test determinism
 	}
 	cfg.WriteMode = s.writeMode
 	cfg.Tags.AllAsFields = allTagsAsFields
-	cfg.ServiceCacheTTL = 1 * time.Second
 	cfg.Indices.IndexPrefix = indexPrefix
 	var err error
 	f, err := esv2.NewFactory(context.Background(), cfg, telemetry.NoopSettings(), nil)
@@ -94,7 +92,7 @@ func (s *ESStorageIntegration) initSpanstore(t *testing.T, allTagsAsFields bool)
 	t.Cleanup(func() {
 		require.NoError(t, f.Close())
 	})
-	acfg := es.DefaultConfig()
+	acfg := esv2.DefaultConfig()
 	acfg.ReadAliasSuffix = archiveAliasSuffix
 	acfg.WriteAliasSuffix = archiveAliasSuffix
 	acfg.UseReadWriteAliases = configoptional.Some(true)
@@ -137,6 +135,10 @@ func runElasticsearchTest(t *testing.T, allTagsAsFields bool, writeMode escfg.Wr
 	SkipUnlessEnv(t, StorageElasticsearch, StorageOpenSearch)
 	c := getESHttpClient(t)
 	require.NoError(t, healthCheck(c))
+	// The filter battery orders an attribute, which needs the numeric sub-field the typed-attribute
+	// mapping adds (RFC 0015). The gate has to precede the factory, which installs the template, and
+	// capabilities.Elasticsearch declares the battery's paired refusal case skipped to match.
+	setTypedAttributeIndexing(t, true)
 	s := &ESStorageIntegration{
 		StorageIntegration: StorageIntegration{
 			Fixtures:     LoadAndParseQueryTestCases(t, "fixtures/queries_es.json"),
@@ -191,6 +193,51 @@ func TestElasticsearchStorage_IndexTemplates(t *testing.T) {
 
 func (s *ESStorageIntegration) cleanESIndexTemplates(t *testing.T, prefix string) {
 	s.client.cleanTemplates(t, prefix)
+}
+
+// TestElasticsearchStorage_DataStreamTemplates checks that every supported backend
+// accepts the RFC 0004 §3.2 data-stream templates: the two Jaeger component
+// templates, the user-owned "@custom" component, and the composable index template
+// composing all three.
+//
+// Running in the ES/OS matrix job is what makes this meaningful. The esclient
+// snapshot pins the bytes Jaeger sends but cannot tell whether a backend accepts
+// them, and the versions in that matrix disagree on exactly the "@custom" question:
+// ignore_missing_component_templates is ES 8.7+ and exists on no OpenSearch version,
+// and every one of them rejects a composed_of naming a template that does not exist.
+// The cluster resolves composed_of when the index template is written, so these three
+// PUTs succeeding is the compatibility result.
+//
+// Writing a span through a data stream belongs with the factory wiring that makes one
+// reachable (RFC 0004 milestone 9), together with the end-to-end test that reads it
+// back.
+func TestElasticsearchStorage_DataStreamTemplates(t *testing.T) {
+	SkipUnlessEnv(t, StorageElasticsearch, StorageOpenSearch)
+	t.Cleanup(func() {
+		testutils.VerifyGoLeaksOnce(t)
+	})
+	require.NoError(t, healthCheck(getESHttpClient(t)))
+
+	ctx := context.Background()
+	replicas := int64(0)
+	client := newESTestClient(t)
+	indices := esclient.IndicesClient{
+		Client:                 client.client,
+		IgnoreUnavailableIndex: true,
+		Indices: escfg.Indices{
+			IndexPrefix: escfg.IndexPrefix(indexPrefix),
+			Spans:       escfg.IndexOptions{Shards: 1, Replicas: &replicas},
+		},
+	}
+
+	// Composable templates are not indices, so the suite's DeleteAllIndices teardown
+	// leaves them behind.
+	require.NoError(t, indices.TestsOnlyDeleteSpanDataStreamObjects(ctx))
+	t.Cleanup(func() {
+		require.NoError(t, indices.TestsOnlyDeleteSpanDataStreamObjects(context.Background()))
+	})
+
+	require.NoError(t, indices.CreateSpanDataStreamTemplates(ctx))
 }
 
 // TestElasticsearchStorage_SyncBulkWriter exercises the RFC 0007 synchronous bulk
@@ -298,23 +345,30 @@ func (s *ESStorageIntegration) testSyncBulkWriter(t *testing.T) {
 		return err == nil && len(resp.Hits.Hits) == 2
 	}, 10*time.Second, 100*time.Millisecond, "both documents should be durably readable")
 
-	// Item-level error propagation with a partial batch: one new document (sb-3)
-	// succeeds while re-creating an existing _id (sb-1) is rejected with a 409
-	// version conflict. The sync writer surfaces the rejection as a real error —
-	// the whole point of RFC 0007 — even though the sibling item was written.
-	err := writer.WriteBatch(ctx, []esclient.BulkItem{
+	// A retried document is an idempotent success, not a rejection: re-creating an
+	// existing _id (sb-1) under op_type: create returns a live 409, which counts as
+	// durable because the stored document is the one being written (RFC 0007 §4.7).
+	// The new sibling (sb-3) is written normally in the same batch.
+	require.NoError(t, writer.WriteBatch(ctx, []esclient.BulkItem{
 		{Index: index, ID: "sb-3", OpType: esstorage.WriteOpCreate, Body: map[string]any{"name": "three"}},
 		{Index: index, ID: "sb-1", OpType: esstorage.WriteOpCreate, Body: map[string]any{"name": "one"}},
-	})
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "1 of 2 bulk items rejected")
-	assert.Contains(t, err.Error(), "id=sb-1", "the rejected item's _id aids debugging")
+	}))
 
-	// The non-conflicting item was still durably written (now three documents).
+	// The new document is durable and the conflict added no duplicate.
 	require.Eventually(t, func() bool {
 		resp, err := searcher.Search(ctx, []string{index}, esclient.SearchRequest{Size: 10})
 		return err == nil && len(resp.Hits.Hits) == 3
-	}, 10*time.Second, 100*time.Millisecond, "the non-conflicting document should be durably written")
+	}, 10*time.Second, 100*time.Millisecond, "the new document should be durably written")
+
+	// Item-level error propagation still surfaces a genuine terminal rejection: the
+	// documents above map "name" as a string, so an object value for it is a mapping
+	// conflict the backend rejects with a 400 on every attempt.
+	err := writer.WriteBatch(ctx, []esclient.BulkItem{
+		{Index: index, ID: "sb-4", OpType: esstorage.WriteOpCreate, Body: map[string]any{"name": map[string]any{"nested": "x"}}},
+	})
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "1 of 1 bulk items rejected")
+	assert.Contains(t, err.Error(), "id=sb-4", "the rejected item's _id aids debugging")
 }
 
 // testArchiveTrace validates that a trace with a start time older than maxSpanAge

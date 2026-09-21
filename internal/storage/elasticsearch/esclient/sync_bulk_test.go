@@ -93,7 +93,7 @@ func TestSyncBulkWriter_ItemErrorPropagates(t *testing.T) {
 	_, url := bulkServer(t, func(w http.ResponseWriter) {
 		w.Write([]byte(`{"took":2,"errors":true,"items":[` +
 			`{"index":{"_index":"idx","status":201}},` +
-			`{"create":{"_index":"idx","_id":"dup-1","status":409,"error":{"type":"version_conflict_engine_exception","reason":"boom"}}}` +
+			`{"index":{"_index":"idx","_id":"bad-1","status":400,"error":{"type":"mapper_parsing_exception","reason":"boom"}}}` +
 			`]}`))
 	})
 	core, logs := observer.New(zap.ErrorLevel)
@@ -105,8 +105,8 @@ func TestSyncBulkWriter_ItemErrorPropagates(t *testing.T) {
 	})
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "1 of 2 bulk items rejected")
-	assert.Contains(t, err.Error(), "id=dup-1")
-	assert.Contains(t, err.Error(), "version_conflict_engine_exception")
+	assert.Contains(t, err.Error(), "id=bad-1")
+	assert.Contains(t, err.Error(), "mapper_parsing_exception")
 	assert.Positive(t, logs.FilterMessageSnippet("rejected items").Len())
 	mf.AssertCounterMetrics(
 		t,
@@ -118,6 +118,40 @@ func TestSyncBulkWriter_ItemErrorPropagates(t *testing.T) {
 	_, gauges := mf.Snapshot()
 	assert.True(t, hasTimer(gauges, "bulk_index.latency-ok"), "item rejection still records latency-ok: %v", gauges)
 	assert.False(t, hasTimer(gauges, "bulk_index.latency-err"), "item rejection must not record latency-err: %v", gauges)
+}
+
+// TestSyncBulkWriter_ConflictIsIdempotent asserts a 409 version_conflict (op_type:
+// create, which data streams force) counts as a durable write rather than a rejection:
+// the span writer's _id is a content hash, so the conflicting document is
+// byte-identical and the write already achieved its goal — the expected outcome of an
+// at-least-once retry (RFC 0007 §4.7). It is the sync peer of
+// TestBulkIndexerConflictIsIdempotent, and guards against the 409 being classified as a
+// poison pill, which under the default poison_pill_handling would fail the batch and
+// stall the partition it is retried from.
+func TestSyncBulkWriter_ConflictIsIdempotent(t *testing.T) {
+	mf := metricstest.NewFactory(time.Second)
+	defer mf.Stop()
+	_, url := bulkServer(t, func(w http.ResponseWriter) {
+		w.Write([]byte(`{"took":1,"errors":true,"items":[` +
+			`{"create":{"_index":"idx","status":201}},` +
+			`{"create":{"_index":"idx","_id":"dup-1","status":409,"error":{"type":"version_conflict_engine_exception","reason":"already exists"}}}` +
+			`]}`))
+	})
+	core, logs := observer.New(zap.DebugLevel)
+	w := newSyncWriter(t, url, 0, mf, zap.New(core))
+
+	err := w.WriteBatch(context.Background(), []BulkItem{
+		{Index: "idx", OpType: es.WriteOpCreate, Body: map[string]any{"a": 1}},
+		{Index: "idx", ID: "dup-1", OpType: es.WriteOpCreate, Body: map[string]any{"b": 2}},
+	})
+	require.NoError(t, err, "a 409 on our own content-hash _id is an idempotent success")
+	mf.AssertCounterMetrics(
+		t,
+		metricstest.ExpectedMetric{Name: "bulk_index.inserts", Value: 2},
+		metricstest.ExpectedMetric{Name: "bulk_index.errors", Value: 0},
+	)
+	assert.Zero(t, logs.FilterMessageSnippet("rejected items").Len(), "a benign 409 must not log an error")
+	assert.Positive(t, logs.FilterMessageSnippet("already present").Len(), "the conflict is logged at debug")
 }
 
 func TestSyncBulkWriter_DropPoison_TerminalDropped(t *testing.T) {

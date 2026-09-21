@@ -13,8 +13,6 @@ import (
 	"github.com/jaegertracing/jaeger-idl/model/v1"
 	"github.com/jaegertracing/jaeger/internal/metrics"
 	escfg "github.com/jaegertracing/jaeger/internal/storage/elasticsearch/config"
-	"github.com/jaegertracing/jaeger/internal/storage/v1/api/samplingstore"
-	"github.com/jaegertracing/jaeger/internal/storage/v1/elasticsearch"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/api/depstore"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore/tracestoremetrics"
@@ -33,7 +31,11 @@ var (
 )
 
 type Factory struct {
-	coreFactory    *elasticsearch.FactoryBase
+	// FactoryBase is embedded rather than held in a named field so that the
+	// methods it already provides — Close, Purge, CreateSamplingStore — reach
+	// callers directly instead of through pass-throughs. Factory's own config and
+	// metricsFactory shadow the embedded ones, as they did before.
+	*FactoryBase
 	config         escfg.Configuration
 	metricsFactory metrics.Factory
 }
@@ -42,12 +44,12 @@ func NewFactory(ctx context.Context, cfg escfg.Configuration, telset telemetry.S
 	// Ensure required fields are always included in tagsAsFields
 	cfg = ensureRequiredFields(cfg)
 
-	coreFactory, err := elasticsearch.NewFactoryBase(ctx, cfg, telset.Metrics, telset.Logger, httpAuth)
+	base, err := NewFactoryBase(ctx, cfg, telset.Metrics, telset.Logger, telset.TracerProvider, httpAuth)
 	if err != nil {
 		return nil, err
 	}
 	f := &Factory{
-		coreFactory:    coreFactory,
+		FactoryBase:    base,
 		config:         cfg,
 		metricsFactory: telset.Metrics,
 	}
@@ -55,13 +57,13 @@ func NewFactory(ctx context.Context, cfg escfg.Configuration, telset telemetry.S
 }
 
 func (f *Factory) CreateTraceReader() (tracestore.Reader, error) {
-	params := f.coreFactory.GetSpanReaderParams()
+	params := f.GetSpanReaderParams()
 	reader := v2tracestore.NewTraceReader(params)
 	return tracestoremetrics.NewReaderDecorator(reader, f.metricsFactory), nil
 }
 
 func (f *Factory) CreateTraceWriter() (tracestore.Writer, error) {
-	params := f.coreFactory.GetSpanWriterParams()
+	params := f.GetSpanWriterParams()
 	wr := v2tracestore.NewTraceWriter(params)
 	return wr, nil
 }
@@ -77,20 +79,8 @@ func (f *Factory) SyncBulkWriteByteCap() (sync bool, maxBytes int) {
 }
 
 func (f *Factory) CreateDependencyReader() (depstore.Reader, error) {
-	params := f.coreFactory.GetDependencyStoreParams()
+	params := f.GetDependencyStoreParams()
 	return v2depstore.NewDependencyStoreV2(params), nil
-}
-
-func (f *Factory) CreateSamplingStore(maxBuckets int) (samplingstore.Store, error) {
-	return f.coreFactory.CreateSamplingStore(maxBuckets)
-}
-
-func (f *Factory) Close() error {
-	return f.coreFactory.Close()
-}
-
-func (f *Factory) Purge(ctx context.Context) error {
-	return f.coreFactory.Purge(ctx)
 }
 
 // ensureRequiredFields adds span.kind and span.status error to tags-as-fields configuration

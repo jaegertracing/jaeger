@@ -32,13 +32,16 @@ func (s stubSummaryReader) FindTraceSummaries(context.Context, dbmodel.TraceQuer
 	return s.summaries, s.err
 }
 
-func collectSummaries(seq iter.Seq2[[]tracestore.TraceSummary, error]) ([]tracestore.TraceSummary, error) {
+func collectSummaries(seq iter.Seq2[tracestore.PageChunk[[]tracestore.TraceSummary], error]) ([]tracestore.TraceSummary, error) {
 	var out []tracestore.TraceSummary
-	for batch, err := range seq {
+	for chunk, err := range seq {
 		if err != nil {
 			return nil, err
 		}
-		out = append(out, batch...)
+		out = append(out, chunk.Results...)
+		if chunk.NextPageToken != "" {
+			return nil, errors.New("unexpected next page token")
+		}
 	}
 	return out, nil
 }

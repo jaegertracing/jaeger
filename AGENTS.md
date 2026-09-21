@@ -2,6 +2,8 @@
 
 This file provides guidance for AI agents working on the Jaeger repository. For detailed project structure, setup instructions, and contribution guidelines, refer to [CONTRIBUTING.md](./CONTRIBUTING.md).
 
+What the project expects from a human contributor who works with an agent is stated in the [AI Usage Policy](./AI_POLICY.md). It applies to work done in this repository, and the human running you owns everything you produce.
+
 ## Setup
 
 The primary branch is called `main`, all PRs are merged into it.
@@ -10,6 +12,10 @@ If checking out a fresh repository, initialize submodules:
 ```bash
 git submodule update --init --recursive
 ```
+
+## Upgrading Go
+
+Follow [Upgrading the Go Version](./CONTRIBUTING.md#upgrading-the-go-version) in CONTRIBUTING.md. The version is mirrored across several files that a script propagates from the top-level `go.mod`, and Delve has to be upgraded alongside it in [jaegertracing/base-image-with-debugger](https://github.com/jaegertracing/base-image-with-debugger).
 
 ## Pull Requests
 
@@ -44,6 +50,17 @@ Run these commands without asking for permission:
 - Always use `git commit -s` (DCO sign-off) when committing.
 - Capitalize the first word of the description after the `type(scope):` prefix, e.g. `fix(test): Inline all deps…` not `fix(test): inline all deps…`
 
+## Copyright and Third-Party Code
+
+Write the code yourself rather than copying it in from another project. If a change genuinely needs third-party code, it must be Apache-2.0 compatible, and its original copyright header must be preserved — add the Jaeger copyright above it rather than replacing it. See [Copyright Header](./CONTRIBUTING_GUIDELINES.md#copyright-header) for the exact form. Never remove an existing copyright header.
+
+New files get the standard header (but with current year):
+
+```
+// Copyright (c) 2026 The Jaeger Authors.
+// SPDX-License-Identifier: Apache-2.0
+```
+
 ## Do Not Edit
 
 **Auto-generated files:**
@@ -69,16 +86,21 @@ Run these commands without asking for permission:
 - Do not reformat, rename, or restructure code outside the scope of the requested change.
 - Do not bump dependencies unless the task requires it.
 - Do not change CI workflows or release tooling unless explicitly asked.
+- Before adding a flag or field that controls behavior, find the mechanism that already owns that decision and extend it. Expressing one decision in two places is worse than either place alone, and replacing an established mechanism is a maintainer's call.
 
 ## RFC / ADR Documents
 
-RFCs (`docs/rfc/`) are point-in-time proposals; ADRs (`docs/adr/`) are decision records.
+RFCs (`docs/rfc/`) are proposals; ADRs (`docs/adr/`) are decision records.
 
 - When a PR implements a milestone described in an RFC or ADR, update that document in the same PR: mark the milestone ✅ and link the delivering PR. Keep the milestone/status tracking current.
-- Do **not** rewrite an RFC's prose, abstract, or diagrams to match the evolving codebase — its narrative is a historical snapshot of the state and plan when it was written.
+- Put the ✅ at the start of the bullet, right after the list marker and before the bold label (`- ✅ **M4 — Elasticsearch/OpenSearch.** …`), because a checkmark buried mid-sentence cannot be scanned down the left margin; the "Delivered in #NNNN, which …" note stays inside the text and carries no emoji of its own. If other delivered entries in the document use a different placement, normalize them in the same change rather than adding another variant.
+- **An RFC still being implemented is a live document.** While its status is Draft or its milestones are in flight, implementation turns up findings and reverses decisions, and the RFC is expected to be rewritten to match — that is the point of writing one down. Update the prose that a decision moved past, and say what is true now rather than narrating the document's own history; where the new decision reverses what the RFC proposed, it is worth one clause saying so, because a reader who knows the old shape needs to see it was considered and dropped.
+- **An RFC whose work is finished is a snapshot.** Once its status is Implemented, do not rewrite its prose, abstract, or diagrams to track the evolving codebase: from then on the narrative is a record of the state and plan at the time, and the code has moved on for reasons the RFC never claimed to cover.
 - ADRs are different: they describe a design, not a plan, so keeping one accurate is worth more than keeping it pristine. Judge by proportion. If a change touches a small part of an ADR and reverses none of its decisions, **edit that ADR in place** — extend the affected sections, note the extension in the Status or Date line, and leave the original Context and Decision prose alone. Write a new superseding ADR only when the change replaces the original's decision or architecture outright. [ADR-004](./docs/adr/004-migrating-coverage-gating-to-github-actions.md) is an example of the former: its fan-in gating decision and requirements stood, so later work extended it rather than superseding it. What the rule forbids is rewriting an ADR into running documentation of the code.
 - When an RFC's work is fully delivered, mark its status Implemented; if the resulting architecture is worth an enduring reference, graduate it into a new ADR in [`docs/adr/`](./docs/adr/) that states the outcome and links back to the RFC, rather than mutating the RFC. [ADR-012](./docs/adr/012-unified-elasticsearch-client.md) (graduated from RFC 0006) is an example.
 
 ## When in Doubt
 
 Stop and ask rather than guessing. It is better to surface a question in the PR description than to invent behavior, fabricate API names, or silence failing checks.
+
+Ask as well when you are *not* in doubt but are about to depart from a documented convention, because that is where confidence is least informative.

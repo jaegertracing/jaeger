@@ -18,6 +18,9 @@ var _ tracestore.Reader = (*TraceReader)(nil)
 
 // TraceReader is a wrapper around core.Reader which returns the output parallel to OTLP Models
 type TraceReader struct {
+	// SpanSearch is unsupported in ElasticSearch for now.
+	tracestore.UnsupportedSpanSearch
+
 	spanReader core.Reader
 }
 
@@ -26,6 +29,21 @@ func NewTraceReader(p core.SpanReaderParams) *TraceReader {
 	return &TraceReader{
 		spanReader: core.NewSpanReader(p),
 	}
+}
+
+func (*TraceReader) SearchCapabilities(context.Context) (tracestore.SearchCapabilities, error) {
+	filter := core.FilterCapabilities()
+	return tracestore.SearchCapabilities{
+		// The query adds its process.serviceName clause only when the query carries a
+		// name, and no other clause depends on it, so an omitted name matches spans from
+		// every service.
+		WithoutServiceName: true,
+		// A search matches span documents, and the clauses of a conjunction all apply to the
+		// same document, so a conjunction is satisfied within one span rather than across a
+		// trace.
+		SameSpanConjunction: true,
+		Filter:              &filter,
+	}, nil
 }
 
 func (r *TraceReader) GetTraces(ctx context.Context, params ...tracestore.GetTraceParams) iter.Seq2[[]ptrace.Traces, error] {
@@ -94,25 +112,26 @@ func (r *TraceReader) FindTraces(ctx context.Context, query tracestore.TraceQuer
 	}
 }
 
-func (r *TraceReader) FindTraceIDs(ctx context.Context, query tracestore.TraceQueryParams) iter.Seq2[[]tracestore.FoundTraceID, error] {
-	return func(yield func([]tracestore.FoundTraceID, error) bool) {
+func (r *TraceReader) FindTraceIDs(ctx context.Context, query tracestore.TraceQueryParams) iter.Seq2[tracestore.PageChunk[[]tracestore.FoundTraceID], error] {
+	return func(yield func(tracestore.PageChunk[[]tracestore.FoundTraceID], error) bool) {
 		traceIds, err := r.spanReader.FindTraceIDs(ctx, toDBTraceQueryParams(query))
 		if err != nil {
-			yield(nil, err)
+			yield(tracestore.PageChunk[[]tracestore.FoundTraceID]{}, err)
 			return
 		}
 		otelTraceIds := make([]tracestore.FoundTraceID, 0, len(traceIds))
 		for _, traceId := range traceIds {
 			dbTraceId, err := convertTraceIDFromDB(traceId)
 			if err != nil {
-				yield(nil, err)
+				yield(tracestore.PageChunk[[]tracestore.FoundTraceID]{}, err)
 				return
 			}
 			otelTraceIds = append(otelTraceIds, tracestore.FoundTraceID{
 				TraceID: dbTraceId,
 			})
 		}
-		yield(otelTraceIds, nil)
+		// TODO: Populate NextPageToken when Elasticsearch supports RFC 0014 pagination.
+		yield(tracestore.PageChunk[[]tracestore.FoundTraceID]{Results: otelTraceIds}, nil)
 	}
 }
 
@@ -130,5 +149,6 @@ func toDBTraceQueryParams(query tracestore.TraceQueryParams) dbmodel.TraceQueryP
 		SearchDepth:   query.SearchDepth,
 		DurationMin:   query.DurationMin,
 		DurationMax:   query.DurationMax,
+		Filter:        query.Filter,
 	}
 }
