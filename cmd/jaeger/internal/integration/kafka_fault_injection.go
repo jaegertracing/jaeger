@@ -13,6 +13,7 @@ import (
 	"encoding/binary"
 	"fmt"
 	"io"
+	"maps"
 	"net/http"
 	"net/http/httptest"
 	"net/http/httputil"
@@ -105,14 +106,18 @@ func injectServiceUnavailable(resp *http.Response) {
 	resp.Header.Set("Content-Type", "application/json")
 }
 
-// kafkaOffsets reads the consumer group's committed offset and the log end offset
-// for one topic, summed over its partitions. The test asserts on the gap between
-// the two: it must not close while writes fail and must close once they succeed.
+// kafkaOffsets reads, per partition of one topic, the consumer group's committed
+// offset and the log end offset. The test asserts on the gap between the two: it
+// must not close while writes fail and must close once they succeed.
 type kafkaOffsets struct {
 	admin *kadm.Client
 	group string
 	topic string
 }
+
+// partitionOffsets maps a partition to an offset. A partition the group has never
+// committed for is reported at 0, which is where its consumption starts.
+type partitionOffsets map[int32]int64
 
 func newKafkaOffsets(t *testing.T, broker, group, topic string) *kafkaOffsets {
 	client, err := kgo.NewClient(kgo.SeedBrokers(broker))
@@ -121,36 +126,41 @@ func newKafkaOffsets(t *testing.T, broker, group, topic string) *kafkaOffsets {
 	return &kafkaOffsets{admin: kadm.NewClient(client), group: group, topic: topic}
 }
 
-func (k *kafkaOffsets) committed(t *testing.T) int64 {
+func (k *kafkaOffsets) committed(t *testing.T) partitionOffsets {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 	resp, err := k.admin.FetchOffsetsForTopics(ctx, k.group, k.topic)
 	require.NoError(t, err)
-	var total int64
-	for _, partitions := range resp {
-		for _, o := range partitions {
-			require.NoError(t, o.Err)
-			if o.At > 0 {
-				total += o.At
-			}
-		}
+	offsets := partitionOffsets{}
+	for _, o := range resp[k.topic] {
+		require.NoError(t, o.Err)
+		// kadm reports -1 for a partition without a committed offset.
+		offsets[o.Partition] = max(o.At, 0)
 	}
-	return total
+	return offsets
 }
 
-func (k *kafkaOffsets) end(t *testing.T) int64 {
+func (k *kafkaOffsets) end(t *testing.T) partitionOffsets {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 	resp, err := k.admin.ListEndOffsets(ctx, k.topic)
 	require.NoError(t, err)
-	var total int64
-	for _, partitions := range resp {
-		for _, o := range partitions {
-			require.NoError(t, o.Err)
-			total += o.Offset
+	offsets := partitionOffsets{}
+	for _, o := range resp[k.topic] {
+		require.NoError(t, o.Err)
+		offsets[o.Partition] = o.Offset
+	}
+	return offsets
+}
+
+// advancedPast reports whether any partition's offset is higher than in before.
+func (o partitionOffsets) advancedPast(before partitionOffsets) bool {
+	for partition, offset := range o {
+		if offset > before[partition] {
+			return true
 		}
 	}
-	return total
+	return false
 }
 
 // faultInjectionSteps groups the pipeline handles the fault-injection subtests share.
@@ -179,12 +189,12 @@ func (f *faultInjectionSteps) runOutage(t *testing.T, fault esFault, traceIDByte
 	defer f.proxy.setFault(esFaultNone)
 	trace := f.write(t, traceIDByte, 9)
 
-	require.Eventually(t, func() bool { return f.offsets.end(t) > endBefore },
+	require.Eventually(t, func() bool { return f.offsets.end(t).advancedPast(endBefore) },
 		time.Minute, time.Second, "the trace never reached Kafka")
 	t.Logf("Trace is in Kafka; holding the fault for %v", outageHoldTime)
 	time.Sleep(outageHoldTime)
 
-	assert.Equal(t, committedBefore, f.offsets.committed(t), "the committed offset must not advance while the write fails")
+	assert.Equal(t, committedBefore, f.offsets.committed(t), "no partition's committed offset may advance while the write fails")
 	duringOutage(t, trace)
 
 	f.proxy.setFault(esFaultNone)
@@ -229,13 +239,14 @@ func (f *faultInjectionSteps) requireStoredOnce(t *testing.T, trace ptrace.Trace
 	assert.Equal(t, expected, f.storedSpanCount(t, trace), "trace %s must be stored exactly once", jptrace.GetTraceID(trace))
 }
 
-// requireOffsetCaughtUp waits until the committed offset equals the end offset.
+// requireOffsetCaughtUp waits until every partition's committed offset equals its
+// end offset, and at least one partition holds a message.
 func (f *faultInjectionSteps) requireOffsetCaughtUp(t *testing.T) {
 	require.Eventually(t, func() bool {
 		committed, end := f.offsets.committed(t), f.offsets.end(t)
-		t.Logf("Kafka offsets: committed=%d end=%d", committed, end)
-		return end > 0 && committed == end
-	}, 2*time.Minute, time.Second, "the committed offset never caught up with the end offset")
+		t.Logf("Kafka offsets: committed=%v end=%v", committed, end)
+		return end.advancedPast(partitionOffsets{}) && maps.Equal(committed, end)
+	}, 2*time.Minute, time.Second, "the committed offsets never caught up with the end offsets")
 }
 
 // buildFaultInjectionTrace returns one trace of spanCount distinct spans. The trace
