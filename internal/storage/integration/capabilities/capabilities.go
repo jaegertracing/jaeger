@@ -135,7 +135,7 @@ func Elasticsearch() Capabilities {
 		// The suite runs with typed attribute indexing enabled (RFC 0015), so an attribute value is
 		// indexed as a number beside the keyword and ordering one is answered rather than refused.
 		// That makes the battery's paired refusal case the one to skip.
-		skipList: []string{scopeAttributesTest, linkAttributesTest, attributeRefusedTest},
+		skipList: []string{attributeRefusedTest},
 	}
 }
 
@@ -145,8 +145,6 @@ func ElasticsearchSmokeTest() Capabilities {
 	return Capabilities{
 		getOperationsMissingSpanKind: true,
 		skipList: []string{
-			scopeAttributesTest,
-			linkAttributesTest,
 			structuredFilterTest,
 			"GetLargeTrace",
 			"GetTraceWithDuplicateSpans",
@@ -159,7 +157,7 @@ func OpenSearch() Capabilities {
 	return Capabilities{
 		getOperationsMissingSpanKind: true,
 		// Same mapping and same gate as Elasticsearch; see the note there.
-		skipList: []string{scopeAttributesTest, linkAttributesTest, attributeRefusedTest},
+		skipList: []string{attributeRefusedTest},
 	}
 }
 
@@ -178,4 +176,22 @@ func E2EWithoutNativeFilters() Capabilities {
 	return Capabilities{
 		skipList: []string{structuredFilterTest},
 	}
+}
+
+// ElasticsearchBackwardCompat is for the suite that writes the corpus with an earlier binary and
+// reads it back with this one. That writer stores no scope or link attributes, so searching for one
+// finds nothing however capable the reader is, and every scenario excuses those two tests. Whether
+// the ordering case is answered is a property of the index instead, so a scenario whose writer ran
+// without the typed-attribute gate adds WithoutTypedAttributeIndexing on top of this.
+func ElasticsearchBackwardCompat() Capabilities {
+	c := Elasticsearch()
+	c.skipList = append(c.skipList, scopeAttributesTest, linkAttributesTest)
+	return c
+}
+
+// OpenSearchBackwardCompat is the OpenSearch counterpart; see the note on ElasticsearchBackwardCompat.
+func OpenSearchBackwardCompat() Capabilities {
+	c := OpenSearch()
+	c.skipList = append(c.skipList, scopeAttributesTest, linkAttributesTest)
+	return c
 }

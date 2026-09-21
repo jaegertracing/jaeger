@@ -42,6 +42,18 @@
                     }
                   },
                   {
+                    "bool": {
+                      "must": {
+                        "regexp": {
+                          "scopeTag.error": {
+                            "flags": "NONE",
+                            "value": "true"
+                          }
+                        }
+                      }
+                    }
+                  },
+                  {
                     "nested": {
                       "path": "tags",
                       "query": {
@@ -109,6 +121,60 @@
                             {
                               "regexp": {
                                 "logs.fields.value": {
+                                  "flags": "NONE",
+                                  "value": "true"
+                                }
+                              }
+                            }
+                          ]
+                        }
+                      }
+                    }
+                  },
+                  {
+                    "nested": {
+                      "ignore_unmapped": true,
+                      "path": "scopeTags",
+                      "query": {
+                        "bool": {
+                          "must": [
+                            {
+                              "match": {
+                                "scopeTags.key": {
+                                  "query": "error"
+                                }
+                              }
+                            },
+                            {
+                              "regexp": {
+                                "scopeTags.value": {
+                                  "flags": "NONE",
+                                  "value": "true"
+                                }
+                              }
+                            }
+                          ]
+                        }
+                      }
+                    }
+                  },
+                  {
+                    "nested": {
+                      "ignore_unmapped": true,
+                      "path": "references.tags",
+                      "query": {
+                        "bool": {
+                          "must": [
+                            {
+                              "match": {
+                                "references.tags.key": {
+                                  "query": "error"
+                                }
+                              }
+                            },
+                            {
+                              "regexp": {
+                                "references.tags.value": {
                                   "flags": "NONE",
                                   "value": "true"
                                 }
@@ -202,6 +268,18 @@
                         }
                       },
                       {
+                        "bool": {
+                          "must": {
+                            "regexp": {
+                              "scopeTag.error": {
+                                "flags": "NONE",
+                                "value": "true"
+                              }
+                            }
+                          }
+                        }
+                      },
+                      {
                         "nested": {
                           "path": "tags",
                           "query": {
@@ -269,6 +347,60 @@
                                 {
                                   "regexp": {
                                     "logs.fields.value": {
+                                      "flags": "NONE",
+                                      "value": "true"
+                                    }
+                                  }
+                                }
+                              ]
+                            }
+                          }
+                        }
+                      },
+                      {
+                        "nested": {
+                          "ignore_unmapped": true,
+                          "path": "scopeTags",
+                          "query": {
+                            "bool": {
+                              "must": [
+                                {
+                                  "match": {
+                                    "scopeTags.key": {
+                                      "query": "error"
+                                    }
+                                  }
+                                },
+                                {
+                                  "regexp": {
+                                    "scopeTags.value": {
+                                      "flags": "NONE",
+                                      "value": "true"
+                                    }
+                                  }
+                                }
+                              ]
+                            }
+                          }
+                        }
+                      },
+                      {
+                        "nested": {
+                          "ignore_unmapped": true,
+                          "path": "references.tags",
+                          "query": {
+                            "bool": {
+                              "must": [
+                                {
+                                  "match": {
+                                    "references.tags.key": {
+                                      "query": "error"
+                                    }
+                                  }
+                                },
+                                {
+                                  "regexp": {
+                                    "references.tags.value": {
                                       "flags": "NONE",
                                       "value": "true"
                                     }

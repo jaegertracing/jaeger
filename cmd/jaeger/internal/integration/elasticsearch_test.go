@@ -63,19 +63,21 @@ func TestElasticsearchStorage_BackwardCompatibility(t *testing.T) {
 			Name:         "feature gates disabled on both old writer and new reader",
 			OldGates:     nil,
 			NewGates:     structuredFilterGates,
-			Capabilities: capabilities.Elasticsearch().WithoutTypedAttributeIndexing(),
+			Capabilities: capabilities.ElasticsearchBackwardCompat().WithoutTypedAttributeIndexing(),
 		},
 		compatScenario{
-			Name:         "feature gates enabled on new reader only (enable-on-upgrade)",
-			OldGates:     nil,
-			NewGates:     elasticsearchFilterGates,
-			Capabilities: capabilities.Elasticsearch().WithoutTypedAttributeIndexing(),
+			Name:     "feature gates enabled on new reader only (enable-on-upgrade)",
+			OldGates: nil,
+			NewGates: elasticsearchFilterGates,
+			// The writer ran without the gate, so its indices carry no numeric sub-field and
+			// enabling the reader's gate alone does not make the ordering case answerable.
+			Capabilities: capabilities.ElasticsearchBackwardCompat().WithoutTypedAttributeIndexing(),
 		},
 		compatScenario{
 			Name:         "feature gates enabled on both old writer and new reader (already enabled)",
 			OldGates:     elasticsearchFilterGates,
 			NewGates:     elasticsearchFilterGates,
-			Capabilities: capabilities.Elasticsearch(),
+			Capabilities: capabilities.ElasticsearchBackwardCompat(),
 		},
 	)
 }
