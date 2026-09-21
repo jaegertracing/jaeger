@@ -1,0 +1,330 @@
+# RFC 0017: ClickHouse Schema — Comparison With the ClickStack / OTel Exporter Schema
+
+- **Status:** Draft
+- **Author:** Yuri Shkuro
+- **Created:** 2026-09-21
+- **Last Updated:** 2026-09-21
+- **Related:** [ADR-008 (ClickHouse storage schema)](../adr/008-clickhouse-storage-schema.md) · [#8715 (attribute search skip indexes)](https://github.com/jaegertracing/jaeger/issues/8715) · [#8918 (search performance, Bloom filter tuning)](https://github.com/jaegertracing/jaeger/issues/8918) · [ClickStack schema reference](https://clickhouse.com/docs/clickstack/ingesting-data/schemas#traces) · [OTel `clickhouseexporter` DDL templates](https://github.com/open-telemetry/opentelemetry-collector-contrib/tree/main/exporter/clickhouseexporter/internal/sqltemplates)
+
+---
+
+## Abstract
+
+Jaeger's native ClickHouse backend ([ADR-008](../adr/008-clickhouse-storage-schema.md)) and ClickStack, the ClickHouse-maintained observability stack built on the OpenTelemetry Collector's `clickhouseexporter`, store the same OTLP spans in the same database with strikingly similar skeletons and materially different bodies. Both partition by day and sort by `(service, span name, second-resolution timestamp)`; both maintain a per-trace time-bounds table through a materialized view; both put a Bloom filter on the trace ID and a `minmax` index on duration. They part ways on how attributes are represented (typed `Nested` groups with a metadata side table versus a single untyped `Map`, or the newer `JSON` type), on storage tuning (Jaeger applies no codecs, no `LowCardinality`, and no table settings), and on how attribute search is indexed (Jaeger has no attribute skip indexes at all, and its attribute-only search runs about forty times slower than its other queries).
+
+This RFC sets the two schemas side by side, classifies every difference by whether it reflects a deliberate Jaeger decision or an omission, and proposes to adopt the tuning that carries no trade-off (codecs, `LowCardinality`, `ttl_only_drop_parts`, a tighter trace-ID Bloom filter) and the attribute skip indexes that ClickStack demonstrates work at scale, while keeping Jaeger's typed attribute layout. Reading ClickStack-written tables directly from Jaeger is assessed as feasible but is left to a follow-up RFC.
+
+---
+
+## 1. Motivation
+
+ClickHouse has one dominant ingestion path for OpenTelemetry data: the Collector's `clickhouseexporter`, whose default DDL the ClickStack documentation reproduces with a handful of HyperDX-specific additions. That schema is what most ClickHouse users who arrive at Jaeger already have on disk, and its design reflects operational experience with trace volumes well beyond what Jaeger's own [benchmarks](../../internal/storage/v2/clickhouse/BENCHMARKING.md) cover (10M spans on a single node).
+
+Three things make the comparison worth writing down now.
+
+1. **Jaeger's attribute search is slow, and ClickStack's is indexed.** Jaeger's benchmark shows an attribute-only search at 1,769 ms against 37 to 47 ms for every other predicate, and #8715 proposes Bloom filter skip indexes on the attribute columns to close the gap. The `clickhouseexporter` has shipped exactly such indexes on `mapKeys` and `mapValues` for years, and ClickStack has since replaced the value index with a text index over `key=value` pairs. Whatever Jaeger does here should be informed by what those two choices learned.
+2. **Jaeger's table carries no storage tuning.** The `spans` DDL declares no compression codecs, no `LowCardinality` wrappers, and no `SETTINGS`. Every one of those appears in the ClickStack schema, and each is a pure win or a well-understood trade-off. Omitting them was not a decision recorded in ADR-008; they were simply never considered.
+3. **Users ask whether Jaeger can read the tables they already have.** A deployment that already runs the `clickhouseexporter` has two options today: dual-write into Jaeger's schema, or not use Jaeger. Knowing exactly how far apart the schemas are is the prerequisite for deciding whether a read-only adapter is worth building.
+
+ADR-008 records the decisions behind Jaeger's schema and this RFC does not reopen the ones it argues for. It does identify which parts of the schema were never argued for and proposes filling those in.
+
+---
+
+## 2. The Two Schemas
+
+### 2.1 Jaeger
+
+The full DDL is in [`create_spans_table.sql`](../../internal/storage/v2/clickhouse/sql/create_spans_table.sql); the shape is:
+
+```sql
+CREATE TABLE spans (
+    id String, trace_id String, trace_state String, parent_span_id String,
+    name String, kind String,
+    start_time DateTime64(9),
+    status_code String, status_message String,
+    duration Int64,
+    bool_attributes    Nested (key String, value Bool),
+    double_attributes  Nested (key String, value Float64),
+    int_attributes     Nested (key String, value Int64),
+    str_attributes     Nested (key String, value String),
+    complex_attributes Nested (key String, value String),
+    events Nested (name String, timestamp DateTime64(9),
+                   bool_attributes Nested (...), ..., complex_attributes Nested (...)),
+    links  Nested (trace_id String, span_id String, trace_state String,
+                   bool_attributes Nested (...), ..., complex_attributes Nested (...)),
+    service_name String,
+    resource_{bool,double,int,str,complex}_attributes Nested (key String, value ...),
+    scope_name String, scope_version String,
+    scope_{bool,double,int,str,complex}_attributes Nested (key String, value ...),
+    INDEX idx_trace_id trace_id TYPE bloom_filter GRANULARITY 1,
+    INDEX idx_duration duration TYPE minmax GRANULARITY 1
+) ENGINE = MergeTree
+PARTITION BY toDate(start_time)
+ORDER BY (service_name, name, toDateTime(start_time))
+TTL start_time + INTERVAL <ttl> SECOND DELETE
+```
+
+Five derived tables hang off it through materialized views: `trace_id_timestamps` (per-trace min/max start time, `AggregatingMergeTree`), `services`, `operations`, `attribute_metadata` (every `(key, type, level)` triple ever seen, fed by three views), plus an externally populated `dependencies` table.
+
+### 2.2 ClickStack
+
+The ClickStack documentation reproduces the `clickhouseexporter`'s [`traces_table.sql`](https://github.com/open-telemetry/opentelemetry-collector-contrib/blob/main/exporter/clickhouseexporter/internal/sqltemplates/traces_table.sql) with HyperDX-specific additions marked below:
+
+```sql
+CREATE TABLE otel_traces (
+    Timestamp DateTime64(9) CODEC(Delta(8), ZSTD(1)),
+    TraceId String CODEC(ZSTD(1)), SpanId String CODEC(ZSTD(1)),
+    ParentSpanId String CODEC(ZSTD(1)), TraceState String CODEC(ZSTD(1)),
+    SpanName LowCardinality(String) CODEC(ZSTD(1)),
+    SpanKind LowCardinality(String) CODEC(ZSTD(1)),
+    ServiceName LowCardinality(String) CODEC(ZSTD(1)),
+    ResourceAttributes Map(LowCardinality(String), String) CODEC(ZSTD(1)),
+    ScopeName String CODEC(ZSTD(1)), ScopeVersion String CODEC(ZSTD(1)),
+    SpanAttributes Map(LowCardinality(String), String) CODEC(ZSTD(1)),
+    Duration UInt64 CODEC(ZSTD(1)),
+    StatusCode LowCardinality(String) CODEC(ZSTD(1)),
+    StatusMessage String CODEC(ZSTD(1)),
+    Events Nested (Timestamp DateTime64(9), Name LowCardinality(String),
+                   Attributes Map(LowCardinality(String), String)) CODEC(ZSTD(1)),
+    Links  Nested (TraceId String, SpanId String, TraceState String,
+                   Attributes Map(LowCardinality(String), String)) CODEC(ZSTD(1)),
+    -- HyperDX additions:
+    `__hdx_materialized_rum.sessionId` String MATERIALIZED ResourceAttributes['rum.sessionId'],
+    SampleRate UInt64 MATERIALIZED greatest(toUInt64OrZero(SpanAttributes['SampleRate']), 1),
+    ResourceAttributeItems Array(String) ALIAS arrayMap(kv -> concat(kv.1, '=', kv.2), ResourceAttributes::Array(Tuple(String, String))),
+    SpanAttributeItems     Array(String) ALIAS arrayMap(kv -> concat(kv.1, '=', kv.2), SpanAttributes::Array(Tuple(String, String))),
+    -- indexes:
+    INDEX idx_trace_id TraceId TYPE bloom_filter(0.001) GRANULARITY 1,
+    INDEX idx_res_attr_key  mapKeys(ResourceAttributes) TYPE bloom_filter(0.01) GRANULARITY 1,
+    INDEX idx_span_attr_key mapKeys(SpanAttributes)     TYPE bloom_filter(0.01) GRANULARITY 1,
+    INDEX idx_res_attr_items  ResourceAttributeItems TYPE text(tokenizer = 'array'),   -- HyperDX; exporter uses bloom_filter on mapValues
+    INDEX idx_span_attr_items SpanAttributeItems     TYPE text(tokenizer = 'array'),   -- HyperDX; exporter uses bloom_filter on mapValues
+    INDEX idx_duration Duration TYPE minmax GRANULARITY 1,
+    INDEX idx_lower_span_name lower(SpanName) TYPE tokenbf_v1(32768, 3, 0) GRANULARITY 8,  -- HyperDX
+    INDEX idx_rum_session_id `__hdx_materialized_rum.sessionId` TYPE bloom_filter(0.001) GRANULARITY 1  -- HyperDX
+) ENGINE = MergeTree
+PARTITION BY toDate(Timestamp)
+ORDER BY (ServiceName, SpanName, toDateTime(Timestamp))
+TTL toDate(Timestamp) + <ttl>
+SETTINGS index_granularity = 8192, ttl_only_drop_parts = 1;
+```
+
+One derived table accompanies it: `otel_traces_trace_id_ts` (`TraceId`, `Start DateTime`, `End DateTime`), a plain `MergeTree` partitioned by day and ordered by `(TraceId, Start)`, fed by a materialized view that groups `min`/`max` of `Timestamp` per `TraceId` within each insert block. There is no services, operations, or attribute-metadata table; HyperDX answers those questions by querying the `LowCardinality` columns of the main table directly.
+
+The exporter also ships an experimental **JSON variant** ([`traces_json_table.sql`](https://github.com/open-telemetry/opentelemetry-collector-contrib/blob/main/exporter/clickhouseexporter/internal/sqltemplates/traces_json_table.sql)) in which `ResourceAttributes` and `SpanAttributes` are ClickHouse `JSON` columns accompanied by `*AttributesKeys Array(LowCardinality(String))` columns that carry the key Bloom filters, and the sort key gains `Timestamp` as a fourth component. The ClickStack documentation does not yet describe it, but it is the direction the exporter is heading and §3.2 accounts for it.
+
+---
+
+## 3. Differences
+
+The differences fall into eight groups. For each, the table states what each schema does and whether the Jaeger position is a recorded decision (ADR-008 argues for it), an omission (never considered), or a consequence of a decision made elsewhere.
+
+### 3.1 Identity and scalar columns
+
+| Field | Jaeger | ClickStack | Note |
+| --- | --- | --- | --- |
+| Trace / span / parent IDs | `String`, lowercase hex | `String`, lowercase hex | Identical encoding. |
+| Timestamp | `start_time DateTime64(9)` | `Timestamp DateTime64(9)` | Same type; ClickStack adds `CODEC(Delta(8), ZSTD(1))`. |
+| Duration | `Int64` nanoseconds | `UInt64` nanoseconds | Same unit; sign differs. A negative duration is not meaningful, but `Int64` costs nothing and matches Go's `time.Duration`. |
+| Span kind | `String`, lowercase (`server`), empty for unspecified | `LowCardinality(String)`, Go enum name (`Server`, `Unspecified`) | Casing differs. Jaeger's convention predates the ClickHouse backend and is shared with its other storages through `jptrace.SpanKindToString`. |
+| Status code | `String` (`Ok`, `Error`, `Unset`) | `LowCardinality(String)`, same values | Identical values. |
+| Scope attributes | Stored as typed `Nested` groups | **Not stored** | The exporter drops instrumentation-scope attributes entirely. Jaeger round-trips them. |
+| Column naming | `snake_case` | `CamelCase` | Cosmetic; matters only for a read adapter (§6). |
+
+Nothing here is a design disagreement. The one substantive gap, scope attributes, is a ClickStack omission rather than a Jaeger one.
+
+### 3.2 Attribute representation
+
+This is the deepest divergence and the one ADR-008 spends most of its argument on.
+
+| Aspect | Jaeger (typed `Nested`) | ClickStack (`Map`) | Exporter JSON variant |
+| --- | --- | --- | --- |
+| Value types | Preserved: one `Nested(key, value)` group per primitive type, complex values JSON-encoded under a `@bytes@`/`@map@`/`@slice@` key prefix | **Lost**: every value passes through `AsString()` into `Map(LowCardinality(String), String)` | Preserved by ClickHouse's dynamic `JSON` typing |
+| Level separation | Separate column groups for resource, scope, span, event, link | Separate `Map` per level (no scope) | Separate `JSON` per level (no scope) |
+| Query-time type resolution | Needs the `attribute_metadata` table to learn which typed column a string filter should hit | Not needed: everything is a string | Needed in principle; the exporter has no reader, so unaddressed |
+| Filter expression | `arrayExists((k, v) -> k = ? AND v = ?, col.key, col.value)`, one per `(type, level)` observed | `SpanAttributes['key'] = 'value'` | `SpanAttributes.key = value` with dynamic type |
+| Point-lookup cost per row | Scan the short arrays for that type | Scan the map's key array | Subcolumn read; cheapest of the three |
+| Compression | 8.6x measured (ADR-008 benchmark) | Not measured here. ADR-008 rejected `Map` on compression grounds, but that comparison used `Map(String, String)`; `LowCardinality` keys narrow the gap and the ClickStack table is the production evidence that it compresses acceptably | Not measured; the ClickHouse `JSON` type stores each path as its own subcolumn, so compression should approach a flat-column layout |
+
+ADR-008 chose typed `Nested` over `Map` on compression, filter ergonomics, and schema clarity, and that reasoning stands. The type fidelity argument is stronger than the ADR states: the Jaeger query API accepts typed `pcommon.Value` filters, and a `Map(String, String)` cannot answer `http.status_code = 500` (integer) differently from `= "500"` (string), nor can it support the ordered predicates of [RFC 0005](0005-structured-query-filters.md) (`duration_ms > 100` on an attribute) without parsing strings at query time. ClickStack accepts that limitation because HyperDX's search box is string-typed anyway; Jaeger should not.
+
+The JSON variant is the interesting one. It gives the type fidelity of Jaeger's layout with a per-key subcolumn on disk, which is exactly what ADR-008's "Negative / Limitations" section wishes for when it says attribute filters "can't be SIMD-vectorized or skip-indexed the way a flat column can". It has three costs today: the type is production-ready only in ClickHouse 25.3 and later; the exporter still labels its variant experimental; and Jaeger's `attribute_metadata` mechanism would need rethinking, because a `JSON` column already knows its own paths and types (`JSONAllPaths`, `JSONDynamicPaths`). §5 does not propose adopting it, but §7 reserves a milestone to measure it.
+
+### 3.3 Events and links
+
+Both schemas store events and links as `Nested` arrays on the span row, so a span with five links is one row with arrays of length five. The only difference is inside: ClickStack's `Events.Attributes` is `Array(Map(...))`, Jaeger's is five typed `Nested` groups nested inside the outer `Nested`. Jaeger's query builder searches them with a doubly nested `arrayExists`; HyperDX searches them with `arrayExists(m -> m['key'] = 'v', Events.Attributes)`. Same cost class, same absence of any index. Neither schema indexes event or link attributes, and the ClickStack `*AttributeItems` aliases cover only resource and span attributes.
+
+### 3.4 Storage tuning
+
+| Setting | Jaeger | ClickStack | Effect |
+| --- | --- | --- | --- |
+| Column codecs | None (server default, LZ4) | `ZSTD(1)` on every column, `Delta(8), ZSTD(1)` on `Timestamp` | ZSTD(1) compresses repetitive telemetry strings noticeably better than LZ4 at a modest CPU cost on write; `Delta` on a sorted timestamp turns nanosecond values into small differences before compression. |
+| `LowCardinality` | None | `ServiceName`, `SpanName`, `SpanKind`, `StatusCode`, `Events.Name`, all `Map` keys | Dictionary-encodes the column: smaller on disk, faster `GROUP BY` and equality filters, and the sort key columns become integer comparisons. |
+| `index_granularity` | Default (8192) | Explicit 8192 | No behavioral difference; explicit is documentation. |
+| `ttl_only_drop_parts` | Default (0) | `1` | With `0`, an expired part is rewritten to drop expired rows, a heavy merge. With `1`, a part is dropped only once every row in it has expired, which for a day-partitioned table means whole parts vanish at once for free. |
+| TTL expression | `start_time + INTERVAL n SECOND` | `toDate(Timestamp) + INTERVAL n` | Equivalent to within a day. |
+
+Every row in this table is an omission on Jaeger's side. None of them was weighed in ADR-008, and none has a downside that applies to Jaeger's workload. `LowCardinality` on `service_name` and `name` deserves one caveat: ClickHouse's own guidance is to use it for columns under roughly ten thousand distinct values, and a deployment with more operation names than that would see the dictionary spill and lose the benefit without becoming incorrect.
+
+### 3.5 Skip indexes
+
+| Index | Jaeger | Exporter default | ClickStack (HyperDX) |
+| --- | --- | --- | --- |
+| Trace ID | `bloom_filter` (default false-positive rate 0.025) | `bloom_filter(0.001)` | `bloom_filter(0.001)` |
+| Duration | `minmax` | `minmax` | `minmax` |
+| Attribute keys | none | `bloom_filter(0.01)` on `mapKeys(...)` | same |
+| Attribute values | none | `bloom_filter(0.01)` on `mapValues(...)` | `text(tokenizer = 'array')` on the `key=value` alias columns |
+| Span name tokens | none | none | `tokenbf_v1(32768, 3, 0)` on `lower(SpanName)` |
+
+Three observations.
+
+**The trace-ID Bloom filter is the same idea at a different tolerance.** Jaeger relies on the server default of a 2.5 percent false-positive rate. At granularity 1 every granule carries its own filter, so a false positive costs one decompressed granule of roughly 8,192 rows. The reporter of #8918, running a billion-row table, had to tighten the rate to 0.0001 to make `GetTraces` acceptable. ClickStack's 0.001 is twenty-five times tighter than Jaeger's default at a modest increase in index size.
+
+**Separate key and value Bloom filters cannot prove a pair absent.** The exporter's `mapKeys`/`mapValues` indexes each answer "does any row in this granule contain this key" and "does any row contain this value". A granule that contains the key `http.method` on one row and the value `POST` on another passes both filters even if no row has `http.method=POST`. For the common high-cardinality attribute (a user ID, a request ID) the value filter alone is selective enough, which is why the exporter's design works in practice. ClickStack's move to a `key=value` item index closes the gap exactly, at the cost of depending on the `text` index type, which ClickHouse still lists as beta. #8715 proposes the exporter's separate-filter shape for Jaeger; §5.2 argues for the pairwise shape using the stable `bloom_filter` type instead.
+
+**Whether an index is consulted depends on the query expression.** A skip index is used only when the `WHERE` clause contains the indexed expression in a form the planner recognizes: `has(arr, x)`, `mapContains(m, k)`, `m[k] = v`, and similar. Jaeger's query builder emits `arrayExists` with a lambda, which no skip index can serve. Adding indexes without changing the predicate shape does nothing, which is a detail #8715 leaves implicit and §5.2 makes explicit.
+
+### 3.6 Derived tables
+
+| Table | Jaeger | ClickStack |
+| --- | --- | --- |
+| Per-trace time bounds | `trace_id_timestamps`: `AggregatingMergeTree`, `ORDER BY trace_id`, `SimpleAggregateFunction(min/max, DateTime64(9))`, no partition, TTL on `end` | `otel_traces_trace_id_ts`: `MergeTree`, `PARTITION BY toDate(Start)`, `ORDER BY (TraceId, Start)`, `DateTime` (second) precision, own `bloom_filter(0.01)` on `TraceId` |
+| Services | `services` (`AggregatingMergeTree`) | none; `SELECT DISTINCT ServiceName` on the main table |
+| Operations | `operations` keyed `(service_name, span_kind)` | none; `GROUP BY SpanName` on the main table |
+| Attribute metadata | `attribute_metadata` (`(key, type, level)` triples) | none; not needed for untyped `Map` |
+| Dependencies | `dependencies` (externally populated JSON) | none |
+
+The time-bounds tables differ in an instructive way. Jaeger's collapses to one row per trace in the background and is not partitioned, so a lookup is a point read on the sort key but TTL expiry must rewrite parts. ClickStack's keeps one row per trace per insert block, partitions by day so that TTL drops whole parts, and leaves the `min`/`max` to the reader. With `ttl_only_drop_parts` this is the cheaper design at retention time and the marginally more expensive one at read time; for Jaeger the read happens once per `FindTraceIDs` over a bounded candidate set, so the difference is small either way and §5 leaves the table alone.
+
+The services and operations tables exist because Jaeger's API needs them as first-class lists and ADR-008 chose to precompute them. ClickStack does without because `LowCardinality(ServiceName)` makes the `DISTINCT` cheap enough on the main table. If Jaeger adopts `LowCardinality` (§5.1) the same shortcut becomes available, but replacing a working precomputation is a maintainer's call and is out of scope here; #8906 (operations table collapsing names) is the place that decision would be made.
+
+### 3.7 Product-specific columns
+
+The `__hdx_materialized_rum.sessionId` and `SampleRate` materialized columns, the `idx_lower_span_name` token filter, and the `SampleRate` convention are HyperDX features (session replay correlation, tail-sampling weights, substring search on span names). None has a Jaeger counterpart and none is proposed here. The mechanism behind them is worth noting: a `MATERIALIZED` column computed from a `Map` lookup, plus a Bloom filter on it, is how ClickStack promotes a hot attribute to a first-class indexed column without changing the writer. Jaeger's typed `Nested` layout would need an `arrayFirst` instead of a map subscript but the pattern transfers, and it is the natural answer if a deployment needs one attribute searched as fast as `service_name`.
+
+### 3.8 Schema management
+
+| Capability | Jaeger | Exporter |
+| --- | --- | --- |
+| Create schema on start | `create_schema: true` | `create_schema: true` (default) |
+| Bring your own schema | Supported by setting `create_schema: false` and creating compatible tables | Same, and documented as the recommended production mode |
+| Table engine | Hard-coded `MergeTree` | `table_engine` config (name plus parameters), so `ReplicatedMergeTree` works |
+| Cluster DDL | none | `cluster_name` adds `ON CLUSTER` to every statement |
+| Database creation | Assumed to exist | Created if missing |
+
+Jaeger's single-node assumption is recorded in ADR-008's limitations. The exporter's `table_engine` option is the smallest change that lifts it, and §5.4 proposes it.
+
+---
+
+## 4. Assessment
+
+The criteria below are the ones a Jaeger deployment cares about. The columns are Jaeger's schema as it stands, Jaeger's schema with the §5 proposals applied, and ClickStack's `Map` schema as a reference point. Legend: 🟢 good · 🟡 partial or caveated · 🔴 poor.
+
+| Criterion | Jaeger today | Jaeger + §5 | ClickStack (`Map`) |
+| --- | --- | --- | --- |
+| Attribute type fidelity | 🟢 | 🟢 | 🔴 ¹ |
+| Attribute-only search latency | 🔴 ² | 🟡 ³ | 🟢 |
+| Compression on disk | 🟡 ⁴ | 🟢 | 🟢 |
+| Trace retrieval by ID at scale | 🟡 ⁵ | 🟢 | 🟢 |
+| Retention cost | 🟡 ⁶ | 🟢 | 🟢 |
+| Scope attributes preserved | 🟢 | 🟢 | 🔴 |
+| Replicated / clustered deployment | 🔴 | 🟢 | 🟢 |
+| Interoperability with OTel exporter tables | 🔴 | 🔴 ⁷ | 🟢 |
+| Schema simplicity (tables, views) | 🟡 ⁸ | 🟡 ⁸ | 🟢 |
+
+- ¹ Every value is stringified on write; integer, boolean, and ordered predicates are unanswerable without query-time parsing.
+- ² 1,769 ms attribute-only search versus 37 to 47 ms for other predicates on the 10M-span benchmark; no skip index exists on any attribute column.
+- ³ Bloom filter skip indexes remove granules that provably lack the pair; the surviving granules still pay the array scan, so the result is bounded by selectivity rather than fixed.
+- ⁴ 8.6x measured, but with the server default LZ4 codec and no dictionary encoding on the sort-key columns.
+- ⁵ Default 2.5 percent Bloom false-positive rate; a billion-row deployment reported needing 0.0001.
+- ⁶ TTL expiry rewrites parts to remove expired rows instead of dropping whole day-partition parts.
+- ⁷ The proposals do not change column names or attribute representation, so a ClickStack table remains unreadable by Jaeger's reader; §6 covers what would.
+- ⁸ One main table plus five derived tables and six materialized views, against ClickStack's one plus one.
+
+The matrix says Jaeger's schema is right where it made a decision and behind where it made none. The proposals below therefore change nothing in the attribute model or the derived tables and everything in the tuning and indexing layer.
+
+---
+
+## 5. Proposal
+
+### 5.1 Adopt the storage tuning
+
+Apply to `spans` and, where the column exists, to the derived tables:
+
+- `CODEC(ZSTD(1))` on every column, and `CODEC(Delta(8), ZSTD(1))` on `start_time` and `events.timestamp`.
+- `LowCardinality(String)` on `service_name`, `name`, `kind`, `status_code`, `scope_name`, `scope_version`, `events.name`, and on the `key` member of every attribute `Nested` group (`Nested(key LowCardinality(String), value ...)`).
+- `SETTINGS index_granularity = 8192, ttl_only_drop_parts = 1`.
+
+All three apply to new parts as they are written, and `ALTER TABLE ... MODIFY COLUMN` and `MODIFY SETTING` make them applicable to an existing table without a rewrite, so existing deployments pick them up on their next `create_schema` run or by hand. `ttl_only_drop_parts = 1` changes when data disappears: a row is removed only when its whole part has expired, so a day-partitioned table with a 7-day TTL retains up to one extra day. The trade is worth making, and the configuration documentation should say so.
+
+### 5.2 Add pairwise attribute skip indexes and index-friendly predicates
+
+This is the concrete design for #8715, corrected for the two findings in §3.5.
+
+**Index the pair, not the key and value separately.** For each string-attribute group at the resource, scope, and span levels, add an `ALIAS` column that materializes the pairs as `key=value` strings, and a `bloom_filter` on it:
+
+```sql
+ALTER TABLE spans
+    ADD COLUMN str_attribute_items Array(String)
+        ALIAS arrayMap((k, v) -> concat(k, '=', v), str_attributes.key, str_attributes.value),
+    ADD INDEX idx_str_attribute_items str_attribute_items TYPE bloom_filter(0.01) GRANULARITY 4;
+```
+
+and likewise `resource_str_attribute_items` and `scope_str_attribute_items`. `bloom_filter` on an `Array` column indexes each element and is served by `has()`; it is the same shape ClickStack uses, on the stable index type rather than the beta `text` type. Only the string groups are indexed, because typed numeric and boolean groups have low-cardinality values that a Bloom filter cannot help with, and `duration`-style range predicates on attributes ([RFC 0005](0005-structured-query-filters.md)) are not Bloom-shaped at all.
+
+**Change the predicate the query builder emits** for string attributes at those three levels from
+
+```sql
+arrayExists((key, value) -> key = ? AND value = ?, s.str_attributes.key, s.str_attributes.value)
+```
+
+to
+
+```sql
+has(s.str_attribute_items, concat(?, '=', ?))
+```
+
+which is the form the skip index recognizes. The concatenation is not injective: the key `a=b` with the value `c` and the key `a` with the value `b=c` produce the same item. The `has()` predicate therefore serves as the index-driving prefilter and the existing `arrayExists` stays beside it, `AND`ed, as the exact check; on every granule the prefilter admits, the array scan runs as it does today, so the change can only remove work. Event and link attributes keep the nested `arrayExists`, unindexed, as in ClickStack.
+
+**Tighten the trace-ID Bloom filter** to `bloom_filter(0.001)`, matching ClickStack, and expose the rate in configuration so that a deployment at #8918's scale can go tighter without hand-editing DDL. The index name stays `idx_trace_id`, so on an existing table the change is `DROP INDEX` then `ADD INDEX` and `MATERIALIZE INDEX` for old parts.
+
+Acceptance is the #8715 benchmark: attribute-only search on the 10M-span dataset before and after, with `EXPLAIN indexes = 1` output showing granules dropped.
+
+### 5.3 Keep the typed `Nested` attribute layout
+
+ADR-008's decision stands, for the type-fidelity reasons §3.2 adds to it. `Map(String, String)` is rejected outright. The `JSON` type is the only alternative that preserves types and improves on the current layout, and it is deferred to a measurement milestone (§7, M3) rather than adopted, because it requires ClickHouse 25.3 or later, because the exporter's own JSON variant is still experimental, and because it would replace the `attribute_metadata` mechanism rather than extend it. Adopting it would be a superseding RFC.
+
+### 5.4 Make the table engine configurable
+
+Add a `table_engine` option mirroring the exporter's (engine name plus optional parameters), defaulting to `MergeTree`, and substitute it into every `ENGINE =` clause the factory renders. The `AggregatingMergeTree` derived tables take the `Replicated` prefix the same way. This lifts ADR-008's single-node limitation for deployments that manage a cluster themselves; `ON CLUSTER` DDL is not proposed, because deployments that need it also need to own their DDL and `create_schema: false` already serves them.
+
+### 5.5 Do not change what is not broken
+
+Column names stay `snake_case`, `kind` stays lowercase, `duration` stays `Int64`, scope attributes stay, and the five derived tables stay. Each is either shared with Jaeger's other backends or a recorded decision, and none of the ClickStack differences in those areas is an improvement.
+
+---
+
+## 6. Reading ClickStack Tables Directly
+
+The question users actually ask is whether Jaeger can point at an existing `otel_traces` table. The comparison makes the answer concrete.
+
+**What is the same** is what matters most: the partition key, the sort key, the trace-ID Bloom filter, and the existence of a per-trace time-bounds table. Every query shape Jaeger's reader issues (search narrowed by service, name, and time; trace retrieval by ID with time hints; per-trace bounds lookup) has an efficient equivalent against `otel_traces`.
+
+**What differs** is mechanical: column names, `kind` casing, `UInt64` duration, `DateTime` seconds in the bounds table, and the absence of scope attributes and of the `services`, `operations`, and `attribute_metadata` tables. Services and operations become `DISTINCT` queries on `LowCardinality` columns, which is what HyperDX does. Attribute metadata is unnecessary because there is exactly one type: string. That means the read adapter would accept only string attribute filters, which is exactly what the Jaeger UI sends today and exactly what a ClickStack user already lives with.
+
+**What is lost** is type fidelity on the way out: every attribute comes back as a string, so a trace written by the exporter and read by Jaeger shows `http.status_code: "200"` where the SDK emitted an integer. This is a property of the data on disk, not of the adapter.
+
+A read-only adapter is therefore feasible as a second `dbmodel` and a second set of query templates behind the same `tracestore.Reader` interface, selected by configuration. It is not proposed in this RFC because it is a feature with its own scope (a writer is neither needed nor wanted, since the exporter is the writer), its own compatibility surface (the exporter's schema is versioned by the exporter), and its own tests. It should be its own RFC once there is a demand signal beyond the question being asked.
+
+---
+
+## 7. Implementation Plan
+
+Each milestone is independently shippable and each carries a before/after benchmark on the [documented setup](../../internal/storage/v2/clickhouse/BENCHMARKING.md).
+
+- **M1 — Storage tuning (§5.1).** Codecs, `LowCardinality`, table settings, and the configuration note on `ttl_only_drop_parts`. Measured by compressed size and insert throughput; no query-shape change.
+- **M2 — Attribute skip indexes (§5.2).** `ALIAS` item columns, `bloom_filter` indexes, the `has()` predicate in the query builder, the tighter and configurable trace-ID filter. Measured by attribute-only search latency and `EXPLAIN indexes = 1`. Closes #8715 and the Bloom-rate half of #8918.
+- **M3 — JSON attribute spike (§5.3).** A benchmark-only branch storing attributes as `JSON` columns on ClickHouse 25.3+, measuring compression and attribute search against M2. Its output is a recommendation, and if positive, a superseding RFC.
+- **M4 — Configurable table engine (§5.4).** The `table_engine` option and its rendering into every DDL statement, exercised by an integration test against a `ReplicatedMergeTree` single-replica Keeper setup.
+
+ADR-008 is extended in place when M1 and M2 land, in its Secondary Indexes and TTL sections, because neither reverses a decision it records. M3 and M4 update ADR-008's limitations section.
