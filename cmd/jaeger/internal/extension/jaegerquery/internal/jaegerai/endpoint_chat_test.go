@@ -14,10 +14,12 @@ import (
 	"sync"
 	"testing"
 	"time"
+	"unsafe"
 
 	aguitypes "github.com/ag-ui-protocol/ag-ui/sdks/community/go/pkg/core/types"
 	"github.com/coder/acp-go-sdk"
 	"github.com/gorilla/websocket"
+	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/otel/attribute"
@@ -434,6 +436,58 @@ func TestAnnounceMCPEmbedsBasePath(t *testing.T) {
 	require.Len(t, got, 1)
 	assert.Equal(t, "http://127.0.0.1:16686/jaeger/api/ai/mcp/u-1/", got[0].Http.Url,
 		"the announced URL must carry the query server's base path")
+}
+
+func acpCaps(supported bool) acp.AgentCapabilities {
+	return acp.AgentCapabilities{
+		McpCapabilities: acp.McpCapabilities{Acp: supported},
+	}
+}
+
+func dualCaps(httpSupported, acpSupported bool) acp.AgentCapabilities {
+	return acp.AgentCapabilities{
+		McpCapabilities: acp.McpCapabilities{Http: httpSupported, Acp: acpSupported},
+	}
+}
+
+func TestAnnounceMCPOverACP(t *testing.T) {
+	got := announceEndpoint("", "").announceMCP(acpCaps(true), "route-1")
+	require.Len(t, got, 1)
+	require.NotNil(t, got[0].Acp)
+	assert.Equal(t, "acp", got[0].Acp.Type)
+	assert.Equal(t, mcpServerName, got[0].Acp.Name)
+	assert.Equal(t, acp.McpServerAcpId("route-1"), got[0].Acp.Id)
+}
+
+func TestAnnounceMCPBothTransports(t *testing.T) {
+	got := announceEndpoint(testBaseURL, "").announceMCP(dualCaps(true, true), "route-1")
+	require.Len(t, got, 2)
+	require.NotNil(t, got[0].Http)
+	assert.Equal(t, "http", got[0].Http.Type)
+	require.NotNil(t, got[1].Acp)
+	assert.Equal(t, "acp", got[1].Acp.Type)
+}
+
+func TestAnnounceMCPNeitherTransport(t *testing.T) {
+	got := announceEndpoint(testBaseURL, "").announceMCP(dualCaps(false, false), "route-1")
+	assert.Empty(t, got)
+}
+
+func TestAnnounceMCPDoesNotLeakInternalIDs(t *testing.T) {
+	routeID := "route-clean-uuid"
+	got := announceEndpoint(testBaseURL, "/jaeger").announceMCP(dualCaps(true, true), routeID)
+	require.Len(t, got, 2)
+
+	httpURL := got[0].Http.Url
+	assert.Contains(t, httpURL, routeID)
+	assert.NotContains(t, httpURL, "thread")
+	assert.NotContains(t, httpURL, "run")
+	assert.NotContains(t, httpURL, "session")
+
+	acpID := string(got[1].Acp.Id)
+	assert.Equal(t, routeID, acpID)
+	assert.NotContains(t, acpID, "thread")
+	assert.NotContains(t, acpID, "run")
 }
 
 // TestChatEndpointAnnouncesMCPEndpoint is the end-to-end wiring check: the turn's
@@ -1017,4 +1071,257 @@ func TestChatEndpointSessionCloseSkippedWhenCapabilityAbsent(t *testing.T) {
 
 	require.Equal(t, http.StatusOK, rr.Code, "unexpected status code, body=%q", rr.Body.String())
 	require.Nil(t, agent.capturedCloseRequest(), "session/close must not fire when agent does not advertise the capability")
+}
+
+type ascAccessor struct {
+	conn *acp.Connection
+}
+
+func getRawConn(asc *acp.AgentSideConnection) *acp.Connection {
+	return (*ascAccessor)(unsafe.Pointer(asc)).conn
+}
+
+func TestChatEndpointMCPOverACPEndToEnd(t *testing.T) {
+	mockUpstream := &mockUpstreamCaller{
+		listToolsFunc: func(_ context.Context) (*mcp.ListToolsResult, error) {
+			return &mcp.ListToolsResult{
+				Tools: []*mcp.Tool{
+					{Name: "get_services", Description: "telemetry tool"},
+				},
+			}, nil
+		},
+		callToolFunc: func(_ context.Context, _ string, _ any) (*mcp.CallToolResult, error) {
+			return &mcp.CallToolResult{
+				Content: []mcp.Content{&mcp.TextContent{Text: `["serviceA"]`}},
+			}, nil
+		},
+	}
+
+	var toolListReceived bool
+	var uiToolDispatched bool
+	var telemetryToolCalled bool
+
+	agent := &mockACPAgent{
+		agentCapabilities: acp.AgentCapabilities{
+			McpCapabilities: acp.McpCapabilities{Acp: true},
+		},
+	}
+	agent.promptHook = func(ctx context.Context, conn *acp.AgentSideConnection, _ acp.PromptRequest) {
+		_, newSess, _ := agent.snapshot()
+		require.NotNil(t, newSess)
+		require.Len(t, newSess.McpServers, 1)
+		acpServer := newSess.McpServers[0].Acp
+		require.NotNil(t, acpServer)
+		require.Equal(t, "acp", acpServer.Type)
+		require.Equal(t, mcpServerName, acpServer.Name)
+
+		rawConn := getRawConn(conn)
+
+		// 1. Connect
+		connectResp, err := conn.UnstableConnectMcp(ctx, acp.UnstableConnectMcpRequest{
+			AcpId: acp.UnstableMcpServerAcpId(acpServer.Id),
+		})
+		require.NoError(t, err)
+		require.NotEmpty(t, connectResp.ConnectionId)
+
+		// 2. tools/list
+		listRes, err := acp.SendRequest[*mcp.ListToolsResult](rawConn, ctx, string(acp.ClientMethodMcpMessage), acp.UnstableMessageMcpRequest{
+			ConnectionId: connectResp.ConnectionId,
+			Method:       "tools/list",
+		})
+		require.NoError(t, err)
+		toolNames := make([]string, len(listRes.Tools))
+		for i, tool := range listRes.Tools {
+			toolNames[i] = tool.Name
+		}
+		require.Contains(t, toolNames, "ui_render_chart")
+		require.Contains(t, toolNames, "get_services")
+		toolListReceived = true
+
+		// 3. tools/call UI tool
+		uiCallRes, err := acp.SendRequest[*mcp.CallToolResult](rawConn, ctx, string(acp.ClientMethodMcpMessage), acp.UnstableMessageMcpRequest{
+			ConnectionId: connectResp.ConnectionId,
+			Method:       "tools/call",
+			Params: map[string]any{
+				"name":      "ui_render_chart",
+				"arguments": map[string]any{"type": "flame"},
+			},
+		})
+		require.NoError(t, err)
+		require.False(t, uiCallRes.IsError)
+		uiToolDispatched = true
+
+		// 4. tools/call Telemetry tool
+		telCallRes, err := acp.SendRequest[*mcp.CallToolResult](rawConn, ctx, string(acp.ClientMethodMcpMessage), acp.UnstableMessageMcpRequest{
+			ConnectionId: connectResp.ConnectionId,
+			Method:       "tools/call",
+			Params: map[string]any{
+				"name":      "get_services",
+				"arguments": map[string]any{},
+			},
+		})
+		require.NoError(t, err)
+		require.False(t, telCallRes.IsError)
+		telemetryToolCalled = true
+
+		// 5. Disconnect
+		_, err = conn.UnstableDisconnectMcp(ctx, acp.UnstableDisconnectMcpRequest{
+			ConnectionId: connectResp.ConnectionId,
+		})
+		require.NoError(t, err)
+	}
+
+	wsURL, cleanup := startMockACPWebSocketServer(t, agent)
+	defer cleanup()
+
+	turns := newTurnRegistry()
+	handler := newChatEndpoint(zap.NewNop(), nil, turns, wsURL, nil, "/jaeger", 1<<20,
+		WithChatEndpointUpstream(mockUpstream),
+	)
+
+	chatReq := ChatRequest{
+		ThreadID: "internal-thread-123",
+		RunID:    "internal-run-456",
+		Messages: []aguitypes.Message{{Role: aguitypes.RoleUser, Content: "show trace details"}},
+		Tools: []aguitypes.Tool{
+			{
+				Name:        "render_chart",
+				Description: "render a chart",
+				Parameters:  map[string]any{"type": "object"},
+			},
+		},
+	}
+
+	body, err := json.Marshal(chatReq)
+	require.NoError(t, err)
+	req := httptest.NewRequest(http.MethodPost, "/api/ai/chat", bytes.NewReader(body))
+	rr := httptest.NewRecorder()
+
+	handler.ServeHTTP(rr, req)
+
+	require.Equal(t, http.StatusOK, rr.Code)
+	assert.True(t, toolListReceived)
+	assert.True(t, uiToolDispatched)
+	assert.True(t, telemetryToolCalled)
+	assert.Contains(t, rr.Body.String(), "render_chart")
+	assert.Zero(t, turns.count(), "turn registry must be cleaned up")
+}
+
+func TestChatEndpointTransportIsolation(t *testing.T) {
+	mockUpstream := &mockUpstreamCaller{
+		listToolsFunc: func(_ context.Context) (*mcp.ListToolsResult, error) {
+			return &mcp.ListToolsResult{
+				Tools: []*mcp.Tool{
+					{Name: "get_services", Description: "telemetry tool"},
+				},
+			}, nil
+		},
+		callToolFunc: func(_ context.Context, _ string, _ any) (*mcp.CallToolResult, error) {
+			return &mcp.CallToolResult{
+				Content: []mcp.Content{&mcp.TextContent{Text: `["service1"]`}},
+			}, nil
+		},
+	}
+
+	agent := &mockACPAgent{
+		agentCapabilities: acp.AgentCapabilities{
+			McpCapabilities: acp.McpCapabilities{Http: true, Acp: true},
+		},
+	}
+
+	var wg sync.WaitGroup
+	var worker1Success, worker2Success bool
+
+	agent.promptHook = func(ctx context.Context, conn *acp.AgentSideConnection, _ acp.PromptRequest) {
+		_, newSess, _ := agent.snapshot()
+		require.NotNil(t, newSess)
+		require.Len(t, newSess.McpServers, 2)
+
+		acpServer := newSess.McpServers[1].Acp
+		require.NotNil(t, acpServer)
+
+		rawConn := getRawConn(conn)
+
+		wg.Go(func() {
+			connectResp, err := conn.UnstableConnectMcp(ctx, acp.UnstableConnectMcpRequest{
+				AcpId: acp.UnstableMcpServerAcpId(acpServer.Id),
+			})
+			if err != nil {
+				return
+			}
+			res, err := acp.SendRequest[*mcp.CallToolResult](rawConn, ctx, string(acp.ClientMethodMcpMessage), acp.UnstableMessageMcpRequest{
+				ConnectionId: connectResp.ConnectionId,
+				Method:       "tools/call",
+				Params: map[string]any{
+					"name":      "ui_render_chart",
+					"arguments": map[string]any{"view": "graph"},
+				},
+			})
+			if err == nil && !res.IsError {
+				worker1Success = true
+			}
+			_, _ = conn.UnstableDisconnectMcp(ctx, acp.UnstableDisconnectMcpRequest{
+				ConnectionId: connectResp.ConnectionId,
+			})
+		})
+
+		wg.Go(func() {
+			connectResp, err := conn.UnstableConnectMcp(ctx, acp.UnstableConnectMcpRequest{
+				AcpId: acp.UnstableMcpServerAcpId(acpServer.Id),
+			})
+			if err != nil {
+				return
+			}
+			res, err := acp.SendRequest[*mcp.CallToolResult](rawConn, ctx, string(acp.ClientMethodMcpMessage), acp.UnstableMessageMcpRequest{
+				ConnectionId: connectResp.ConnectionId,
+				Method:       "tools/call",
+				Params: map[string]any{
+					"name":      "get_services",
+					"arguments": map[string]any{},
+				},
+			})
+			if err == nil && !res.IsError {
+				worker2Success = true
+			}
+			_, _ = conn.UnstableDisconnectMcp(ctx, acp.UnstableDisconnectMcpRequest{
+				ConnectionId: connectResp.ConnectionId,
+			})
+		})
+
+		wg.Wait()
+	}
+
+	wsURL, cleanup := startMockACPWebSocketServer(t, agent)
+	defer cleanup()
+
+	turns := newTurnRegistry()
+	handler := newChatEndpoint(zap.NewNop(), nil, turns, wsURL, nil, "/jaeger", 1<<20,
+		WithChatEndpointUpstream(mockUpstream),
+	)
+	handler.mcpBaseURL = "http://127.0.0.1:16686"
+
+	chatReq := ChatRequest{
+		ThreadID: "isolation-thread",
+		RunID:    "isolation-run",
+		Messages: []aguitypes.Message{{Role: aguitypes.RoleUser, Content: "testing isolation"}},
+		Tools: []aguitypes.Tool{
+			{
+				Name:        "render_chart",
+				Description: "render a chart",
+				Parameters:  map[string]any{"type": "object"},
+			},
+		},
+	}
+
+	body, err := json.Marshal(chatReq)
+	require.NoError(t, err)
+	req := httptest.NewRequest(http.MethodPost, "/api/ai/chat", bytes.NewReader(body))
+	rr := httptest.NewRecorder()
+
+	handler.ServeHTTP(rr, req)
+
+	require.Equal(t, http.StatusOK, rr.Code)
+	assert.True(t, worker1Success)
+	assert.True(t, worker2Success)
+	assert.Zero(t, turns.count())
 }

@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"go.opentelemetry.io/collector/config/configopaque"
+	oteltrace "go.opentelemetry.io/otel/trace"
 	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerquery/internal/mcptools"
@@ -28,15 +29,12 @@ type Handler struct {
 	basePath string
 	// chat is the chat endpoint (/api/ai/chat), always present.
 	chat *chatEndpoint
-	// mcp is the turn-scoped MCP endpoint. Non-nil only when the caller supplied an
-	// MCP handler (HandlerParams.MCP); otherwise the endpoint is not mounted and the
-	// gateway advertises AI chat only.
+	// mcp is the turn-scoped MCP endpoint (/api/ai/mcp/<id>/), mounted only when
+	// HandlerParams.MCP is supplied.
 	mcp *turnScopedEndpoint
 }
 
-// HandlerParams carries the dependencies for the AI gateway Handler. Grouping them
-// in a struct keeps the constructor readable as the gateway gains MCP wiring on top
-// of the chat parameters.
+// HandlerParams bundles the dependencies for NewHandler.
 type HandlerParams struct {
 	Logger   *zap.Logger
 	AgentURL string
@@ -54,6 +52,11 @@ type HandlerParams struct {
 	// endpoint. Empty announces nothing — see chatEndpoint.announceMCP. Ignored when
 	// MCP is nil.
 	MCPBaseURL string
+	// Upstream is an optional upstream MCP client for telemetry tools. When provided,
+	// it is passed to the ACP handler and used for forwarding telemetry tools.
+	Upstream UpstreamCaller
+	// TracerProvider is used for GenAI tool execution tracing.
+	TracerProvider oteltrace.TracerProvider
 }
 
 // NewHandler constructs a jaegerai.Handler, building the endpoints it will mount.
@@ -64,7 +67,14 @@ type HandlerParams struct {
 func NewHandler(p HandlerParams) *Handler {
 	basePath := normalizeBasePath(p.BasePath)
 	turns := newTurnRegistry()
-	chat := newChatEndpoint(p.Logger, NewContextualToolsStore(), turns, p.AgentURL, p.AgentHeaders, basePath, p.MaxRequestBodySize)
+	var chatOpts []ChatEndpointOption
+	if p.Upstream != nil {
+		chatOpts = append(chatOpts, WithChatEndpointUpstream(p.Upstream))
+	}
+	if p.TracerProvider != nil {
+		chatOpts = append(chatOpts, WithChatEndpointTracer(p.TracerProvider.Tracer("jaeger-ai-gateway")))
+	}
+	chat := newChatEndpoint(p.Logger, NewContextualToolsStore(), turns, p.AgentURL, p.AgentHeaders, basePath, p.MaxRequestBodySize, chatOpts...)
 	h := &Handler{basePath: basePath, chat: chat}
 	if p.MCP != nil {
 		h.mcp = turnScopedEndpointBuilder{

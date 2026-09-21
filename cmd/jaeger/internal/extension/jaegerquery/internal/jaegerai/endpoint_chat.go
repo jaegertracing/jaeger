@@ -45,6 +45,25 @@ type chatEndpoint struct {
 	sidecarHeaders     configopaque.MapList
 	basePath           string
 	maxRequestBodySize int64
+	upstream           UpstreamCaller
+	tracer             oteltrace.Tracer
+}
+
+// ChatEndpointOption configures a chatEndpoint.
+type ChatEndpointOption func(*chatEndpoint)
+
+// WithChatEndpointUpstream sets the upstream MCP caller.
+func WithChatEndpointUpstream(upstream UpstreamCaller) ChatEndpointOption {
+	return func(e *chatEndpoint) {
+		e.upstream = upstream
+	}
+}
+
+// WithChatEndpointTracer sets the tracer for GenAI tool execution spans.
+func WithChatEndpointTracer(tracer oteltrace.Tracer) ChatEndpointOption {
+	return func(e *chatEndpoint) {
+		e.tracer = tracer
+	}
 }
 
 // mcpServerName is the human-readable name the gateway gives its MCP server in the
@@ -53,25 +72,42 @@ type chatEndpoint struct {
 const mcpServerName = "jaeger"
 
 // announceMCP builds this turn's NewSessionRequest.mcpServers, pointing the sidecar
-// at the turn-scoped MCP endpoint. Without it the endpoint is dormant: it serves the
-// telemetry tools and the turn's UI tools, but no agent knows the URL to dial.
+// at the turn-scoped MCP endpoint or advertising MCP-over-ACP. Without it the endpoint
+// is dormant: it serves the telemetry tools and the turn's UI tools, but no agent knows
+// how to dial or reach them.
 //
 // The announcement is capability-gated on the agent's InitializeResponse: ACP
 // requires an agent to opt into each McpServer variant, and announcing one it cannot
-// consume would make it fail the session. Streamable HTTP is the only variant the
-// gateway offers today.
+// consume would make it fail the session. Both streamable HTTP and ACP transports
+// are announced if supported.
 func (h *chatEndpoint) announceMCP(caps acp.AgentCapabilities, mcpRouteID string) []acp.McpServer {
-	if mcpRouteID == "" || h.mcpBaseURL == "" || !caps.McpCapabilities.Http {
+	if mcpRouteID == "" {
 		return []acp.McpServer{}
 	}
-	return []acp.McpServer{{
-		Http: &acp.McpServerHttpInline{
-			Type:    "http",
-			Name:    mcpServerName,
-			Url:     h.mcpBaseURL + h.basePath + routeMCPPrefix + mcpRouteID + "/",
-			Headers: []acp.HttpHeader{},
-		},
-	}}
+	var servers []acp.McpServer
+	if caps.McpCapabilities.Http && h.mcpBaseURL != "" {
+		servers = append(servers, acp.McpServer{
+			Http: &acp.McpServerHttpInline{
+				Type:    "http",
+				Name:    mcpServerName,
+				Url:     h.mcpBaseURL + h.basePath + routeMCPPrefix + mcpRouteID + "/",
+				Headers: []acp.HttpHeader{},
+			},
+		})
+	}
+	if caps.McpCapabilities.Acp {
+		servers = append(servers, acp.McpServer{
+			Acp: &acp.McpServerAcpInline{
+				Type: "acp",
+				Name: mcpServerName,
+				Id:   acp.McpServerAcpId(mcpRouteID),
+			},
+		})
+	}
+	if len(servers) == 0 {
+		return []acp.McpServer{}
+	}
+	return servers
 }
 
 // newChatEndpoint wires the chat endpoint against a sidecar WebSocket URL.
@@ -80,8 +116,8 @@ func (h *chatEndpoint) announceMCP(caps acp.AgentCapabilities, mcpRouteID string
 // for consistency with sibling handlers even though ServeHTTP does not currently
 // read it. mcpBaseURL defaults to the zero value — the announcement stays off until
 // NewHandler enables it — so tests that do not exercise MCP need no extra wiring.
-func newChatEndpoint(logger *zap.Logger, ctxTools *ContextualToolsStore, turns *turnRegistry, sidecarWSURL string, sidecarHeaders configopaque.MapList, basePath string, maxRequestBodySize int64) *chatEndpoint {
-	return &chatEndpoint{
+func newChatEndpoint(logger *zap.Logger, ctxTools *ContextualToolsStore, turns *turnRegistry, sidecarWSURL string, sidecarHeaders configopaque.MapList, basePath string, maxRequestBodySize int64, opts ...ChatEndpointOption) *chatEndpoint {
+	ep := &chatEndpoint{
 		Logger:             logger,
 		ctxTools:           ctxTools,
 		turns:              turns,
@@ -90,6 +126,10 @@ func newChatEndpoint(logger *zap.Logger, ctxTools *ContextualToolsStore, turns *
 		basePath:           normalizeBasePath(basePath),
 		maxRequestBodySize: maxRequestBodySize,
 	}
+	for _, opt := range opts {
+		opt(ep)
+	}
+	return ep
 }
 
 func (h *chatEndpoint) ServeHTTP(w http.ResponseWriter, r *http.Request) {
@@ -164,13 +204,23 @@ func (h *chatEndpoint) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	// sidecar below as the turn's MCP URL, and hands back a closer.
 	mcpRouteID, closeTurn := h.turns.register(clientImpl, rawTools)
 	defer closeTurn()
+	h.turns.setInternalSession(mcpRouteID, req.ThreadID, req.RunID)
 
 	// Build the ACP connection ourselves so the inbound dispatcher can
-	// route both standard ACP methods (session/update etc.) and our
-	// extension method (ExtMethodJaegerToolCall) — the SDK's
-	// NewClientSideConnection has a hardcoded dispatcher that returns
-	// MethodNotFound for any extension method we add.
-	acpConn := acp.NewConnection(newACPHandler(clientImpl, h.ctxTools, h.Logger), adapter, adapter)
+	// route standard ACP methods (session/update etc.), our extension
+	// method (ExtMethodJaegerToolCall), and MCP-over-ACP methods (mcp/connect,
+	// mcp/message, mcp/disconnect).
+	var acpOpts []ACPHandlerOption
+	if h.turns != nil {
+		acpOpts = append(acpOpts, WithACPHandlerTurns(h.turns))
+	}
+	if h.upstream != nil {
+		acpOpts = append(acpOpts, WithACPHandlerUpstream(h.upstream))
+	}
+	if h.tracer != nil {
+		acpOpts = append(acpOpts, WithACPHandlerTracer(h.tracer))
+	}
+	acpConn := acp.NewConnection(newACPHandler(clientImpl, h.ctxTools, h.Logger, acpOpts...), adapter, adapter)
 
 	init, err := acp.SendRequest[acp.InitializeResponse](acpConn, acpCtx, acp.AgentMethodInitialize, acp.InitializeRequest{
 		ProtocolVersion: acp.ProtocolVersionNumber,
@@ -224,6 +274,7 @@ func (h *chatEndpoint) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, fmt.Sprintf("Error creating session: %v", err), http.StatusBadGateway)
 		return
 	}
+	h.turns.setACPSessionID(mcpRouteID, string(sess.SessionId))
 	span.SetAttributes(otelsemconv.GenAIConversationID(string(sess.SessionId)))
 
 	defer closeACPSession(ctx, acpConn, init.AgentCapabilities, sess.SessionId, h.Logger)

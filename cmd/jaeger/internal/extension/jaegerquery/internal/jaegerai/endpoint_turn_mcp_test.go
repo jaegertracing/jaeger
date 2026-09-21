@@ -95,7 +95,7 @@ func TestTurnScopedEndpointServesTelemetryPlusUITools(t *testing.T) {
 
 	got := listToolNames(t, ts, "/api/ai/mcp/"+routeID+"/")
 	assert.Contains(t, got, "get_services", "built-in telemetry tools must be advertised")
-	assert.Contains(t, got, "show_chart", "the turn's UI tools must be advertised")
+	assert.Contains(t, got, "ui_show_chart", "the turn's UI tools must be advertised")
 }
 
 // TestSharedMCPHandlerServesTelemetryOnly pins the shared mount's contract while a
@@ -121,12 +121,12 @@ func TestSharedMCPHandlerServesTelemetryOnly(t *testing.T) {
 	ts := httptest.NewServer(mux)
 	t.Cleanup(ts.Close)
 
-	require.Contains(t, listToolNames(t, ts, "/api/ai/mcp/"+routeID+"/"), "show_chart",
+	require.Contains(t, listToolNames(t, ts, "/api/ai/mcp/"+routeID+"/"), "ui_show_chart",
 		"precondition: the turn's UI tool is live on the turn-scoped mount")
 
 	got := listToolNames(t, ts, "/api/ai/mcp/")
 	assert.Contains(t, got, "get_services", "the shared mount serves the telemetry tools")
-	assert.NotContains(t, got, "show_chart", "the shared mount must never advertise a turn's UI tools")
+	assert.NotContains(t, got, "ui_show_chart", "the shared mount must never advertise a turn's UI tools")
 }
 
 func TestTurnScopedEndpointDispatchesUIToolToStream(t *testing.T) {
@@ -175,10 +175,10 @@ func TestTurnScopedEndpointIsolatesTurns(t *testing.T) {
 	require.NoError(t, err)
 	namesA, namesB := toolNames(listA.Tools), toolNames(listB.Tools)
 
-	assert.Contains(t, namesA, "chart_a")
-	assert.NotContains(t, namesA, "chart_b", "turn A must not see turn B's UI tools")
-	assert.Contains(t, namesB, "chart_b")
-	assert.NotContains(t, namesB, "chart_a", "turn B must not see turn A's UI tools")
+	assert.Contains(t, namesA, "ui_chart_a")
+	assert.NotContains(t, namesA, "ui_chart_b", "turn A must not see turn B's UI tools")
+	assert.Contains(t, namesB, "ui_chart_b")
+	assert.NotContains(t, namesB, "ui_chart_a", "turn B must not see turn A's UI tools")
 	assert.Contains(t, namesA, "get_services", "both turns still see the shared telemetry tools")
 	assert.Contains(t, namesB, "get_services")
 

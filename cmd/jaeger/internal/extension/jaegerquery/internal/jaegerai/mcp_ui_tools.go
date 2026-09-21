@@ -7,11 +7,18 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"strings"
 	"sync/atomic"
 	"time"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/codes"
+	oteltrace "go.opentelemetry.io/otel/trace"
 	"go.uber.org/zap"
+
+	"github.com/jaegertracing/jaeger/internal/telemetry/otelsemconv"
 )
 
 // MCP method names the UI-dispatch middleware intercepts. The go-sdk keeps its
@@ -27,21 +34,18 @@ const (
 //
 //   - tools/list — after the shared server lists the built-in telemetry tools,
 //     the calling turn's UI tools are appended so the agent can see them.
-//     A UI tool whose name matches a telemetry tool shadows it (matching
-//     Server.AddTool's replace-by-name semantics), keeping the list free of
-//     duplicate names.
+//     UI tools are prefixed with "ui_" for namespace isolation.
 //   - tools/call — a call to one of the turn's UI tools is dispatched to the
-//     browser over its SSE stream (the browser is the executor) and acked;
-//     everything else falls through to the telemetry handlers.
-//
-// The turn is resolved from the request context: ServeHTTP stamps the URL
-// route id before delegating, and the go-sdk propagates the initialize
-// request's context values onto the ServerSession, so the id is recoverable on
-// tools/list and tools/call alike. A request with no active turn degrades to
-// telemetry-only. UI-tool dispatch short-circuits before the telemetry tracing/
-// metrics middleware (which this wraps), so browser dispatches don't pollute the
-// query-tool instrumentation.
-func uiToolsMiddleware(turns *turnRegistry, logger *zap.Logger) mcp.Middleware {
+//     browser over its SSE stream via dispatchUITool; calls to telemetry tools
+//     are forwarded upstream via forwardToUpstream.
+func uiToolsMiddleware(turns *turnRegistry, logger *zap.Logger, optTracer ...oteltrace.Tracer) mcp.Middleware {
+	var tracer oteltrace.Tracer
+	if len(optTracer) > 0 && optTracer[0] != nil {
+		tracer = optTracer[0]
+	} else {
+		tracer = otel.GetTracerProvider().Tracer("jaeger.ai.mcp")
+	}
+
 	return func(next mcp.MethodHandler) mcp.MethodHandler {
 		return func(ctx context.Context, method string, req mcp.Request) (mcp.Result, error) {
 			switch method {
@@ -62,21 +66,25 @@ func uiToolsMiddleware(turns *turnRegistry, logger *zap.Logger) mcp.Middleware {
 			case methodCallTool:
 				call, ok := req.(*mcp.CallToolRequest)
 				if !ok {
-					// Unreachable in practice — the SDK matches the request type to
-					// the method — but stay out of the way rather than assume.
 					return next(ctx, method, req)
 				}
 				if call.Params == nil {
-					// A tools/call with no params is malformed. Return a tool error
-					// rather than forwarding it: the downstream handler dereferences
-					// Params.Name unconditionally and would panic on nil.
 					return uiToolErrorResult("missing tool call parameters"), nil
 				}
 				turn := turns.get(mcpRouteIDFromContext(ctx))
-				if turn == nil || !turnDeclaredUITool(turn, call.Params.Name) {
-					return next(ctx, method, req)
+				if turn != nil && turnDeclaredUITool(turn, call.Params.Name) {
+					return dispatchUITool(ctx, turn, call.Params.Name, call.Params.Arguments, tracer, logger), nil
 				}
-				return emitUIToolCall(turn.stream, call.Params.Name, call.Params.Arguments), nil
+				return forwardToUpstream(ctx, turn, call.Params.Name, call.Params.Arguments, func(callCtx context.Context) (*mcp.CallToolResult, error) {
+					res, err := next(callCtx, method, req)
+					if err != nil {
+						return nil, err
+					}
+					if cr, ok := res.(*mcp.CallToolResult); ok {
+						return cr, nil
+					}
+					return nil, fmt.Errorf("unexpected response type: %T", res)
+				}, tracer, logger)
 
 			default:
 				return next(ctx, method, req)
@@ -98,6 +106,7 @@ func appendUITools(telemetryTools []*mcp.Tool, turn *turnState, logger *zap.Logg
 	shadowed := make(map[string]struct{}, len(uiTools))
 	for _, t := range uiTools {
 		shadowed[t.Name] = struct{}{}
+		shadowed[strings.TrimPrefix(t.Name, UIToolPrefix)] = struct{}{}
 	}
 	merged := make([]*mcp.Tool, 0, len(telemetryTools)+len(uiTools))
 	for _, t := range telemetryTools {
@@ -118,13 +127,8 @@ type uiToolDef struct {
 }
 
 // uiToolDescriptors parses the turn's declared UI tools into MCP tool
-// descriptors for advertisement in tools/list, skipping malformed entries
-// (frontend input is untrusted) and collapsing repeated names to their first
-// occurrence so the advertised list has no duplicates. The InputSchema is
-// normalized to a valid JSON-object schema so a frontend typo can't make the
-// agent reject the tool. These descriptors are advertised only, never registered
-// on the server — dispatch is handled by the middleware — so they bypass
-// Server.AddTool's schema validation by design.
+// descriptors for advertisement in tools/list, prefixing names with "ui_"
+// to avoid collisions with telemetry tools.
 func uiToolDescriptors(turn *turnState, logger *zap.Logger) []*mcp.Tool {
 	descriptors := make([]*mcp.Tool, 0, len(turn.uiTools))
 	seen := make(map[string]struct{}, len(turn.uiTools))
@@ -138,8 +142,12 @@ func uiToolDescriptors(turn *turnState, logger *zap.Logger) []*mcp.Tool {
 			continue // a frontend that declares the same tool twice gets one entry
 		}
 		seen[def.name] = struct{}{}
+		name := def.name
+		if !strings.HasPrefix(name, UIToolPrefix) {
+			name = UIToolPrefix + name
+		}
 		descriptors = append(descriptors, &mcp.Tool{
-			Name:        def.name,
+			Name:        name,
 			Description: def.description,
 			InputSchema: def.schema,
 		})
@@ -148,11 +156,14 @@ func uiToolDescriptors(turn *turnState, logger *zap.Logger) []*mcp.Tool {
 }
 
 // turnDeclaredUITool reports whether toolName is one of the turn's
-// frontend-declared UI tools. Malformed or unnamed entries never match.
+// frontend-declared UI tools, matching either the prefixed or unprefixed name.
 func turnDeclaredUITool(turn *turnState, toolName string) bool {
+	stripped := strings.TrimPrefix(toolName, UIToolPrefix)
 	for _, raw := range turn.uiTools {
-		if def, ok := parseUITool(raw); ok && def.name == toolName {
-			return true
+		if def, ok := parseUITool(raw); ok {
+			if def.name == toolName || def.name == stripped || UIToolPrefix+def.name == toolName {
+				return true
+			}
 		}
 	}
 	return false
@@ -175,6 +186,108 @@ func parseUITool(raw json.RawMessage) (uiToolDef, bool) {
 		description: description,
 		schema:      normalizeUIToolSchema(tool["parameters"]),
 	}, true
+}
+
+// dispatchUITool wraps execution of a UI tool with OpenTelemetry tracing, emits
+// the call to the browser stream, and returns a synthetic acknowledgment.
+func dispatchUITool(ctx context.Context, turn *turnState, toolName string, rawArgs json.RawMessage, tracer oteltrace.Tracer, logger *zap.Logger) *mcp.CallToolResult {
+	if logger != nil {
+		logger.Debug("dispatching UI tool", zap.String("tool", toolName))
+	}
+	if tracer == nil {
+		tracer = otel.GetTracerProvider().Tracer("jaeger.ai.mcp")
+	}
+	spanName := "dispatchUITool " + toolName
+	attrs := []attribute.KeyValue{
+		otelsemconv.GenAIOperationNameExecuteTool,
+		otelsemconv.GenAIToolName(toolName),
+		otelsemconv.McpMethodName(methodCallTool),
+	}
+	if len(rawArgs) > 0 {
+		attrs = append(attrs, otelsemconv.GenAIToolCallArguments(string(rawArgs)))
+	}
+	_, span := tracer.Start(ctx, spanName,
+		oteltrace.WithSpanKind(oteltrace.SpanKindInternal),
+		oteltrace.WithAttributes(attrs...),
+	)
+	defer span.End()
+
+	strippedName := strings.TrimPrefix(toolName, UIToolPrefix)
+	var stream *streamingClient
+	if turn != nil {
+		stream = turn.stream
+	}
+	res := emitUIToolCall(stream, strippedName, rawArgs)
+	if res.IsError {
+		span.SetAttributes(otelsemconv.ErrorType("tool_error"))
+		if len(res.Content) > 0 {
+			if tc, ok := res.Content[0].(*mcp.TextContent); ok {
+				span.SetStatus(codes.Error, tc.Text)
+			}
+		}
+	} else if len(res.Content) > 0 {
+		if tc, ok := res.Content[0].(*mcp.TextContent); ok {
+			span.SetAttributes(otelsemconv.GenAIToolCallResult(tc.Text))
+		}
+	}
+	return res
+}
+
+// forwardToUpstream forwards a telemetry tool call to the upstream executor,
+// wrapping execution in an OpenTelemetry span and emitting SSE tool-call events
+// to the browser stream if enabled.
+func forwardToUpstream(ctx context.Context, turn *turnState, toolName string, rawArgs json.RawMessage, execute func(context.Context) (*mcp.CallToolResult, error), tracer oteltrace.Tracer, logger *zap.Logger) (*mcp.CallToolResult, error) {
+	if logger != nil {
+		logger.Debug("forwarding telemetry tool upstream", zap.String("tool", toolName))
+	}
+	if tracer == nil {
+		tracer = otel.GetTracerProvider().Tracer("jaeger.ai.mcp")
+	}
+	spanName := "forwardToUpstream " + toolName
+	attrs := []attribute.KeyValue{
+		otelsemconv.GenAIOperationNameExecuteTool,
+		otelsemconv.GenAIToolName(toolName),
+		otelsemconv.McpMethodName(methodCallTool),
+	}
+	if len(rawArgs) > 0 {
+		attrs = append(attrs, otelsemconv.GenAIToolCallArguments(string(rawArgs)))
+	}
+	ctx, span := tracer.Start(ctx, spanName,
+		oteltrace.WithSpanKind(oteltrace.SpanKindInternal),
+		oteltrace.WithAttributes(attrs...),
+	)
+	defer span.End()
+
+	// Handle SSE emission during forwardToUpstream
+	if turn != nil && turn.stream != nil && !turn.disableStandaloneSSE {
+		var args any
+		if len(rawArgs) > 0 {
+			_ = json.Unmarshal(rawArgs, &args)
+		}
+		turn.stream.EmitContextualToolCall(newUIToolCallID(toolName), toolName, args)
+	}
+
+	res, err := execute(ctx)
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+		return nil, err
+	}
+	if res != nil {
+		if res.IsError {
+			span.SetAttributes(otelsemconv.ErrorType("tool_error"))
+			if len(res.Content) > 0 {
+				if tc, ok := res.Content[0].(*mcp.TextContent); ok {
+					span.SetStatus(codes.Error, tc.Text)
+				}
+			}
+		} else if len(res.Content) > 0 {
+			if tc, ok := res.Content[0].(*mcp.TextContent); ok {
+				span.SetAttributes(otelsemconv.GenAIToolCallResult(tc.Text))
+			}
+		}
+	}
+	return res, nil
 }
 
 // emitUIToolCall fires the UI tool's TOOL_CALL_* lifecycle onto the browser

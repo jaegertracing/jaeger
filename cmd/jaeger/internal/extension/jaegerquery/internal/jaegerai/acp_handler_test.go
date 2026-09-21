@@ -4,12 +4,14 @@
 package jaegerai
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"net/http/httptest"
 	"testing"
 
 	acp "github.com/coder/acp-go-sdk"
+	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
@@ -328,4 +330,447 @@ func TestToRequestErrorWrapsPlainError(t *testing.T) {
 	got := toRequestError(errors.New("boom"))
 	require.NotNil(t, got)
 	assert.Equal(t, -32603, got.Code, "plain errors should be wrapped as InternalError")
+}
+
+func TestACPHandlerToolCallLogsDeprecationWarning(t *testing.T) {
+	f := freshACPHandler(t)
+	d, store, logs := f.d, f.store, f.logs
+	store.SetForSession("sess-abc", []json.RawMessage{
+		json.RawMessage(`{"name":"render_chart"}`),
+	})
+
+	params, err := json.Marshal(extToolCallRequest{
+		SessionID: "sess-abc",
+		Name:      UIToolPrefix + "render_chart",
+		Args:      json.RawMessage(`{}`),
+	})
+	require.NoError(t, err)
+
+	_, reqErr := d(t.Context(), ExtMethodJaegerToolCall, params)
+	require.Nil(t, reqErr)
+
+	// Verify deprecation warning was logged
+	foundDeprecation := false
+	for _, entry := range logs.All() {
+		if entry.Level == zap.WarnLevel && entry.Message == "invoked deprecated ACP extension method _meta/jaegertracing.io/tools/call; migrate to MCP tools/call" {
+			foundDeprecation = true
+			break
+		}
+	}
+	assert.True(t, foundDeprecation, "deprecation warning must be logged when invoking ExtMethodJaegerToolCall")
+}
+
+type mockUpstreamCaller struct {
+	listToolsFunc func(ctx context.Context) (*mcp.ListToolsResult, error)
+	callToolFunc  func(ctx context.Context, name string, args any) (*mcp.CallToolResult, error)
+	closeFunc     func() error
+}
+
+func (m *mockUpstreamCaller) ListTools(ctx context.Context) (*mcp.ListToolsResult, error) {
+	if m.listToolsFunc != nil {
+		return m.listToolsFunc(ctx)
+	}
+	return &mcp.ListToolsResult{}, nil
+}
+
+func (m *mockUpstreamCaller) CallTool(ctx context.Context, name string, args any) (*mcp.CallToolResult, error) {
+	if m.callToolFunc != nil {
+		return m.callToolFunc(ctx, name, args)
+	}
+	return &mcp.CallToolResult{}, nil
+}
+
+func (m *mockUpstreamCaller) Close() error {
+	if m.closeFunc != nil {
+		return m.closeFunc()
+	}
+	return nil
+}
+
+type mcpACPFixture struct {
+	d       acp.MethodHandler
+	turns   *turnRegistry
+	routeID string
+	closer  func()
+	rr      *httptest.ResponseRecorder
+}
+
+func setupMCPACPHandler(t *testing.T, upstream UpstreamCaller, tools ...json.RawMessage) mcpACPFixture {
+	t.Helper()
+	rr := httptest.NewRecorder()
+	client := newStreamingClient(t.Context(), rr, "thread-test", "run-test")
+	store := NewContextualToolsStore()
+	turns := newTurnRegistry()
+	routeID, closer := turns.register(client, tools)
+
+	handler := newACPHandler(
+		client,
+		store,
+		zap.NewNop(),
+		WithACPHandlerTurns(turns),
+		WithACPHandlerUpstream(upstream),
+	)
+	return mcpACPFixture{
+		d:       handler,
+		turns:   turns,
+		routeID: routeID,
+		closer:  closer,
+		rr:      rr,
+	}
+}
+
+func TestACPHandlerMcpConnectSuccess(t *testing.T) {
+	f := setupMCPACPHandler(t, nil)
+
+	params, err := json.Marshal(acp.UnstableConnectMcpRequest{
+		AcpId: acp.UnstableMcpServerAcpId(f.routeID),
+	})
+	require.NoError(t, err)
+
+	res, reqErr := f.d(t.Context(), acp.ClientMethodMcpConnect, params)
+	require.Nil(t, reqErr)
+	resp, ok := res.(acp.UnstableConnectMcpResponse)
+	require.True(t, ok)
+	assert.NotEmpty(t, resp.ConnectionId)
+}
+
+func TestACPHandlerMcpConnectErrors(t *testing.T) {
+	f := setupMCPACPHandler(t, nil)
+
+	// Malformed JSON
+	_, reqErr := f.d(t.Context(), acp.ClientMethodMcpConnect, json.RawMessage(`{invalid-json`))
+	require.NotNil(t, reqErr)
+	assert.Equal(t, -32602, reqErr.Code)
+
+	// Empty AcpId
+	params, err := json.Marshal(acp.UnstableConnectMcpRequest{AcpId: ""})
+	require.NoError(t, err)
+	_, reqErr = f.d(t.Context(), acp.ClientMethodMcpConnect, params)
+	require.NotNil(t, reqErr)
+	assert.Equal(t, -32602, reqErr.Code)
+
+	// Unknown AcpId
+	params, err = json.Marshal(acp.UnstableConnectMcpRequest{AcpId: "non-existent-turn"})
+	require.NoError(t, err)
+	_, reqErr = f.d(t.Context(), acp.ClientMethodMcpConnect, params)
+	require.NotNil(t, reqErr)
+	assert.Equal(t, -32602, reqErr.Code)
+}
+
+func TestACPHandlerMcpDisconnectSuccess(t *testing.T) {
+	f := setupMCPACPHandler(t, nil)
+
+	connectParams, _ := json.Marshal(acp.UnstableConnectMcpRequest{AcpId: acp.UnstableMcpServerAcpId(f.routeID)})
+	res, reqErr := f.d(t.Context(), acp.ClientMethodMcpConnect, connectParams)
+	require.Nil(t, reqErr)
+	connID := res.(acp.UnstableConnectMcpResponse).ConnectionId
+
+	disconnectParams, _ := json.Marshal(acp.UnstableDisconnectMcpRequest{ConnectionId: connID})
+	res, reqErr = f.d(t.Context(), acp.ClientMethodMcpDisconnect, disconnectParams)
+	require.Nil(t, reqErr)
+	_, ok := res.(acp.UnstableDisconnectMcpResponse)
+	require.True(t, ok)
+
+	// Disconnecting again removes nothing and succeeds cleanly
+	res, reqErr = f.d(t.Context(), acp.ClientMethodMcpDisconnect, disconnectParams)
+	require.Nil(t, reqErr)
+	_, ok = res.(acp.UnstableDisconnectMcpResponse)
+	require.True(t, ok)
+}
+
+func TestACPHandlerMcpDisconnectErrors(t *testing.T) {
+	f := setupMCPACPHandler(t, nil)
+
+	// Malformed JSON
+	_, reqErr := f.d(t.Context(), acp.ClientMethodMcpDisconnect, json.RawMessage(`{not-json`))
+	require.NotNil(t, reqErr)
+	assert.Equal(t, -32602, reqErr.Code)
+
+	// Empty ConnectionId
+	params, _ := json.Marshal(acp.UnstableDisconnectMcpRequest{ConnectionId: ""})
+	_, reqErr = f.d(t.Context(), acp.ClientMethodMcpDisconnect, params)
+	require.NotNil(t, reqErr)
+	assert.Equal(t, -32602, reqErr.Code)
+}
+
+func TestACPHandlerMcpMessageErrors(t *testing.T) {
+	f := setupMCPACPHandler(t, nil)
+
+	// Malformed JSON
+	_, reqErr := f.d(t.Context(), acp.ClientMethodMcpMessage, json.RawMessage(`{bad-json`))
+	require.NotNil(t, reqErr)
+	assert.Equal(t, -32602, reqErr.Code)
+
+	// Empty ConnectionId
+	params, _ := json.Marshal(acp.UnstableMessageMcpRequest{ConnectionId: ""})
+	_, reqErr = f.d(t.Context(), acp.ClientMethodMcpMessage, params)
+	require.NotNil(t, reqErr)
+	assert.Equal(t, -32602, reqErr.Code)
+
+	// Unknown ConnectionId
+	params, _ = json.Marshal(acp.UnstableMessageMcpRequest{ConnectionId: "unknown-conn", Method: "ping"})
+	_, reqErr = f.d(t.Context(), acp.ClientMethodMcpMessage, params)
+	require.NotNil(t, reqErr)
+	assert.Equal(t, -32602, reqErr.Code)
+
+	// Turn closed/expired
+	connectParams, _ := json.Marshal(acp.UnstableConnectMcpRequest{AcpId: acp.UnstableMcpServerAcpId(f.routeID)})
+	res, _ := f.d(t.Context(), acp.ClientMethodMcpConnect, connectParams)
+	connID := res.(acp.UnstableConnectMcpResponse).ConnectionId
+
+	// Unregister turn
+	f.closer()
+	params, _ = json.Marshal(acp.UnstableMessageMcpRequest{ConnectionId: connID, Method: "ping"})
+	_, reqErr = f.d(t.Context(), acp.ClientMethodMcpMessage, params)
+	require.NotNil(t, reqErr)
+	assert.Equal(t, -32602, reqErr.Code)
+}
+
+func TestACPHandlerMcpMessageInitializeAndPing(t *testing.T) {
+	f := setupMCPACPHandler(t, nil)
+
+	connectParams, _ := json.Marshal(acp.UnstableConnectMcpRequest{AcpId: acp.UnstableMcpServerAcpId(f.routeID)})
+	res, _ := f.d(t.Context(), acp.ClientMethodMcpConnect, connectParams)
+	connID := res.(acp.UnstableConnectMcpResponse).ConnectionId
+
+	// initialize
+	initParams, _ := json.Marshal(acp.UnstableMessageMcpRequest{
+		ConnectionId: connID,
+		Method:       "initialize",
+	})
+	res, reqErr := f.d(t.Context(), acp.ClientMethodMcpMessage, initParams)
+	require.Nil(t, reqErr)
+	initMap, ok := res.(map[string]any)
+	require.True(t, ok)
+	assert.Equal(t, "2024-11-05", initMap["protocolVersion"])
+	caps, ok := initMap["capabilities"].(map[string]any)
+	require.True(t, ok)
+	assert.Contains(t, caps, "tools")
+
+	// ping
+	pingParams, _ := json.Marshal(acp.UnstableMessageMcpRequest{
+		ConnectionId: connID,
+		Method:       "ping",
+	})
+	res, reqErr = f.d(t.Context(), acp.ClientMethodMcpMessage, pingParams)
+	require.Nil(t, reqErr)
+	assert.Equal(t, map[string]any{}, res)
+
+	// unknown method
+	unknownParams, _ := json.Marshal(acp.UnstableMessageMcpRequest{
+		ConnectionId: connID,
+		Method:       "unknown/method",
+	})
+	_, reqErr = f.d(t.Context(), acp.ClientMethodMcpMessage, unknownParams)
+	require.NotNil(t, reqErr)
+	assert.Equal(t, -32601, reqErr.Code)
+}
+
+func TestACPHandlerMcpMessageToolsList(t *testing.T) {
+	mockUpstream := &mockUpstreamCaller{
+		listToolsFunc: func(_ context.Context) (*mcp.ListToolsResult, error) {
+			return &mcp.ListToolsResult{
+				Tools: []*mcp.Tool{
+					{Name: "get_services", Description: "telemetry tool"},
+				},
+			}, nil
+		},
+	}
+
+	f := setupMCPACPHandler(t, mockUpstream,
+		json.RawMessage(`{"name":"render_chart","description":"ui chart tool"}`),
+	)
+
+	connectParams, _ := json.Marshal(acp.UnstableConnectMcpRequest{AcpId: acp.UnstableMcpServerAcpId(f.routeID)})
+	res, _ := f.d(t.Context(), acp.ClientMethodMcpConnect, connectParams)
+	connID := res.(acp.UnstableConnectMcpResponse).ConnectionId
+
+	listParams, _ := json.Marshal(acp.UnstableMessageMcpRequest{
+		ConnectionId: connID,
+		Method:       "tools/list",
+	})
+	res, reqErr := f.d(t.Context(), acp.ClientMethodMcpMessage, listParams)
+	require.Nil(t, reqErr)
+	toolsResult, ok := res.(*mcp.ListToolsResult)
+	require.True(t, ok)
+	require.Len(t, toolsResult.Tools, 2)
+
+	// Telemetry tool retains name, UI tool gets ui_ prefix
+	names := []string{toolsResult.Tools[0].Name, toolsResult.Tools[1].Name}
+	assert.Contains(t, names, "get_services")
+	assert.Contains(t, names, "ui_render_chart")
+}
+
+func TestACPHandlerMcpMessageToolsListUpstreamErrorHandledGracefully(t *testing.T) {
+	mockUpstream := &mockUpstreamCaller{
+		listToolsFunc: func(_ context.Context) (*mcp.ListToolsResult, error) {
+			return nil, errors.New("upstream connection failed")
+		},
+	}
+
+	f := setupMCPACPHandler(t, mockUpstream,
+		json.RawMessage(`{"name":"render_chart"}`),
+	)
+
+	connectParams, _ := json.Marshal(acp.UnstableConnectMcpRequest{AcpId: acp.UnstableMcpServerAcpId(f.routeID)})
+	res, _ := f.d(t.Context(), acp.ClientMethodMcpConnect, connectParams)
+	connID := res.(acp.UnstableConnectMcpResponse).ConnectionId
+
+	listParams, _ := json.Marshal(acp.UnstableMessageMcpRequest{
+		ConnectionId: connID,
+		Method:       "tools/list",
+	})
+	res, reqErr := f.d(t.Context(), acp.ClientMethodMcpMessage, listParams)
+	require.Nil(t, reqErr)
+	toolsResult, ok := res.(*mcp.ListToolsResult)
+	require.True(t, ok)
+	// Still returns UI tools despite upstream failure
+	require.Len(t, toolsResult.Tools, 1)
+	assert.Equal(t, "ui_render_chart", toolsResult.Tools[0].Name)
+}
+
+func TestACPHandlerMcpMessageToolsCallUITool(t *testing.T) {
+	f := setupMCPACPHandler(t, nil,
+		json.RawMessage(`{"name":"render_chart"}`),
+	)
+
+	connectParams, _ := json.Marshal(acp.UnstableConnectMcpRequest{AcpId: acp.UnstableMcpServerAcpId(f.routeID)})
+	res, _ := f.d(t.Context(), acp.ClientMethodMcpConnect, connectParams)
+	connID := res.(acp.UnstableConnectMcpResponse).ConnectionId
+
+	// Call using prefixed name "ui_render_chart"
+	callParams, _ := json.Marshal(acp.UnstableMessageMcpRequest{
+		ConnectionId: connID,
+		Method:       "tools/call",
+		Params: map[string]any{
+			"name":      "ui_render_chart",
+			"arguments": map[string]any{"type": "flame"},
+		},
+	})
+	res, reqErr := f.d(t.Context(), acp.ClientMethodMcpMessage, callParams)
+	require.Nil(t, reqErr)
+	callResult, ok := res.(*mcp.CallToolResult)
+	require.True(t, ok)
+	assert.False(t, callResult.IsError)
+	assert.Contains(t, f.rr.Body.String(), "render_chart")
+
+	// Call using unprefixed name "render_chart"
+	callParamsUnprefixed, _ := json.Marshal(acp.UnstableMessageMcpRequest{
+		ConnectionId: connID,
+		Method:       "tools/call",
+		Params: map[string]any{
+			"name":      "render_chart",
+			"arguments": map[string]any{"type": "timeline"},
+		},
+	})
+	res, reqErr = f.d(t.Context(), acp.ClientMethodMcpMessage, callParamsUnprefixed)
+	require.Nil(t, reqErr)
+	callResult, ok = res.(*mcp.CallToolResult)
+	require.True(t, ok)
+	assert.False(t, callResult.IsError)
+}
+
+func TestACPHandlerMcpMessageToolsCallTelemetryTool(t *testing.T) {
+	calledWithArgs := false
+	mockUpstream := &mockUpstreamCaller{
+		callToolFunc: func(_ context.Context, name string, args any) (*mcp.CallToolResult, error) {
+			assert.Equal(t, "get_services", name)
+			if args != nil {
+				calledWithArgs = true
+			}
+			return &mcp.CallToolResult{
+				Content: []mcp.Content{&mcp.TextContent{Text: `["order-service", "customer-service"]`}},
+			}, nil
+		},
+	}
+
+	f := setupMCPACPHandler(t, mockUpstream)
+
+	connectParams, _ := json.Marshal(acp.UnstableConnectMcpRequest{AcpId: acp.UnstableMcpServerAcpId(f.routeID)})
+	res, _ := f.d(t.Context(), acp.ClientMethodMcpConnect, connectParams)
+	connID := res.(acp.UnstableConnectMcpResponse).ConnectionId
+
+	callParams, _ := json.Marshal(acp.UnstableMessageMcpRequest{
+		ConnectionId: connID,
+		Method:       "tools/call",
+		Params: map[string]any{
+			"name":      "get_services",
+			"arguments": map[string]any{"limit": 10},
+		},
+	})
+	res, reqErr := f.d(t.Context(), acp.ClientMethodMcpMessage, callParams)
+	require.Nil(t, reqErr)
+	callResult, ok := res.(*mcp.CallToolResult)
+	require.True(t, ok)
+	assert.False(t, callResult.IsError)
+	assert.True(t, calledWithArgs)
+
+	// Stream should receive tool call start & end events
+	assert.Contains(t, f.rr.Body.String(), "get_services")
+}
+
+func TestACPHandlerMcpMessageToolsCallTelemetryToolNoUpstream(t *testing.T) {
+	f := setupMCPACPHandler(t, nil)
+
+	connectParams, _ := json.Marshal(acp.UnstableConnectMcpRequest{AcpId: acp.UnstableMcpServerAcpId(f.routeID)})
+	res, _ := f.d(t.Context(), acp.ClientMethodMcpConnect, connectParams)
+	connID := res.(acp.UnstableConnectMcpResponse).ConnectionId
+
+	callParams, _ := json.Marshal(acp.UnstableMessageMcpRequest{
+		ConnectionId: connID,
+		Method:       "tools/call",
+		Params: map[string]any{
+			"name": "get_services",
+		},
+	})
+	res, reqErr := f.d(t.Context(), acp.ClientMethodMcpMessage, callParams)
+	require.Nil(t, reqErr)
+	callResult, ok := res.(*mcp.CallToolResult)
+	require.True(t, ok)
+	assert.True(t, callResult.IsError)
+	assert.Contains(t, callResult.Content[0].(*mcp.TextContent).Text, "not found or upstream unavailable")
+}
+
+func TestACPHandlerMcpMessageToolsCallUpstreamError(t *testing.T) {
+	mockUpstream := &mockUpstreamCaller{
+		callToolFunc: func(_ context.Context, _ string, _ any) (*mcp.CallToolResult, error) {
+			return nil, errors.New("upstream rpc failed")
+		},
+	}
+
+	f := setupMCPACPHandler(t, mockUpstream)
+
+	connectParams, _ := json.Marshal(acp.UnstableConnectMcpRequest{AcpId: acp.UnstableMcpServerAcpId(f.routeID)})
+	res, _ := f.d(t.Context(), acp.ClientMethodMcpConnect, connectParams)
+	connID := res.(acp.UnstableConnectMcpResponse).ConnectionId
+
+	callParams, _ := json.Marshal(acp.UnstableMessageMcpRequest{
+		ConnectionId: connID,
+		Method:       "tools/call",
+		Params: map[string]any{
+			"name": "get_services",
+		},
+	})
+	_, reqErr := f.d(t.Context(), acp.ClientMethodMcpMessage, callParams)
+	require.NotNil(t, reqErr)
+	assert.Equal(t, -32603, reqErr.Code)
+}
+
+func TestACPHandlerMcpMessageToolsCallMissingName(t *testing.T) {
+	f := setupMCPACPHandler(t, nil)
+
+	connectParams, _ := json.Marshal(acp.UnstableConnectMcpRequest{AcpId: acp.UnstableMcpServerAcpId(f.routeID)})
+	res, _ := f.d(t.Context(), acp.ClientMethodMcpConnect, connectParams)
+	connID := res.(acp.UnstableConnectMcpResponse).ConnectionId
+
+	callParams, _ := json.Marshal(acp.UnstableMessageMcpRequest{
+		ConnectionId: connID,
+		Method:       "tools/call",
+		Params: map[string]any{
+			"arguments": map[string]any{},
+		},
+	})
+	_, reqErr := f.d(t.Context(), acp.ClientMethodMcpMessage, callParams)
+	require.NotNil(t, reqErr)
+	assert.Equal(t, -32602, reqErr.Code)
 }

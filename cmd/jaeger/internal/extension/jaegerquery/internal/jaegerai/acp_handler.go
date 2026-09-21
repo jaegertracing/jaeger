@@ -9,19 +9,22 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"sync"
 
 	acp "github.com/coder/acp-go-sdk"
+	"github.com/google/uuid"
+	"github.com/modelcontextprotocol/go-sdk/mcp"
+	"go.opentelemetry.io/otel"
+	oteltrace "go.opentelemetry.io/otel/trace"
 	"go.uber.org/zap"
+
+	"github.com/jaegertracing/jaeger/internal/version"
 )
 
 // ExtMethodJaegerToolCall is the ACP extension method the sidecar invokes
-// when Gemini requests a contextual (frontend-supplied) tool call. The
-// gateway strips the UIToolPrefix, validates the (post-strip) name against
-// the per-session contextual tools snapshot, logs the dispatch, and
-// returns an immediate `{acknowledged: true}` ack. The browser observes
-// the call via the parallel TOOL_CALL_* SSE stream and performs the side
-// effect locally — see handleJaegerToolCall for the fire-and-forget
-// rationale.
+// when Gemini requests a contextual (frontend-supplied) tool call.
+//
+// Deprecated: use standard MCP tools/call over HTTP or MCP-over-ACP instead.
 const ExtMethodJaegerToolCall = "_meta/jaegertracing.io/tools/call"
 
 // UIToolPrefix is the namespace the gateway prepends to every contextual
@@ -39,6 +42,8 @@ const UIToolPrefix = "ui_"
 // reads this same key) registers those tools with the LLM so the model
 // can decide when to invoke them; the gateway holds the same snapshot
 // in ContextualToolsStore for any callbacks that come back.
+//
+// Deprecated: use standard MCP tools/list instead.
 const ContextualToolsMetaKey = "jaegertracing.io/contextual-tools"
 
 // extToolCallRequest is the payload the sidecar sends with
@@ -62,30 +67,94 @@ type extToolCallResponse struct {
 	IsError bool `json:"isError,omitempty"`
 }
 
-// newACPHandler returns an acp.MethodHandler that routes inbound
-// JSON-RPC from the sidecar:
-//   - session/update → streamingClient.SessionUpdate (translates ACP
-//     updates into typed AG-UI events — TEXT_MESSAGE_* for assistant
-//     text and TOOL_CALL_* for tool-call lifecycle — and writes them as
-//     SSE frames on the chat HTTP response).
+type mcpConnection struct {
+	connID     acp.UnstableMcpConnectionId
+	mcpRouteID string
+}
+
+type mcpConnRegistry struct {
+	mu    sync.RWMutex
+	conns map[acp.UnstableMcpConnectionId]*mcpConnection
+}
+
+func newMcpConnRegistry() *mcpConnRegistry {
+	return &mcpConnRegistry{
+		conns: make(map[acp.UnstableMcpConnectionId]*mcpConnection),
+	}
+}
+
+func (r *mcpConnRegistry) add(connID acp.UnstableMcpConnectionId, mcpRouteID string) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.conns[connID] = &mcpConnection{connID: connID, mcpRouteID: mcpRouteID}
+}
+
+func (r *mcpConnRegistry) get(connID acp.UnstableMcpConnectionId) *mcpConnection {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	return r.conns[connID]
+}
+
+func (r *mcpConnRegistry) remove(connID acp.UnstableMcpConnectionId) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	delete(r.conns, connID)
+}
+
+type acpHandler struct {
+	client   *streamingClient
+	store    *ContextualToolsStore
+	turns    *turnRegistry
+	upstream UpstreamCaller
+	conns    *mcpConnRegistry
+	tracer   oteltrace.Tracer
+	logger   *zap.Logger
+}
+
+// ACPHandlerOption configures optional parameters for newACPHandler.
+type ACPHandlerOption func(*acpHandler)
+
+// WithACPHandlerTurns injects the turnRegistry for MCP session resolution.
+func WithACPHandlerTurns(turns *turnRegistry) ACPHandlerOption {
+	return func(h *acpHandler) {
+		h.turns = turns
+	}
+}
+
+// WithACPHandlerUpstream injects the upstream caller for telemetry tool routing.
+func WithACPHandlerUpstream(upstream UpstreamCaller) ACPHandlerOption {
+	return func(h *acpHandler) {
+		h.upstream = upstream
+	}
+}
+
+// WithACPHandlerTracer injects an OpenTelemetry tracer.
+func WithACPHandlerTracer(tracer oteltrace.Tracer) ACPHandlerOption {
+	return func(h *acpHandler) {
+		h.tracer = tracer
+	}
+}
+
+// newACPHandler returns an acp.MethodHandler that routes inbound JSON-RPC from the sidecar:
+//   - session/update → streamingClient.SessionUpdate
 //   - session/request_permission → streamingClient.RequestPermission
-//     (always denies; we advertise no fs/terminal capability).
-//   - ExtMethodJaegerToolCall → validate the contextual tool dispatch
-//     against the per-session snapshot and acknowledge with a fire-and-
-//     forget result; the browser executes the side effect on its own.
+//   - mcp/connect → establishes an MCP-over-ACP connection for an active turn
+//   - mcp/message → dispatches inner MCP requests (initialize, tools/list, tools/call, ping)
+//   - mcp/disconnect → terminates an MCP-over-ACP connection
+//   - ExtMethodJaegerToolCall → (deprecated) legacy contextual tool call
 //   - anything else → MethodNotFound.
-//
-// store is consulted by handleJaegerToolCall to confirm the dispatched
-// tool was registered by the frontend for this session; nil store is
-// allowed for tests but rejects every contextual call as "not registered".
-//
-// The standard-method paths replicate the subset of acp_client_gen.go
-// dispatch the gateway actually needs; we cannot reuse the SDK's
-// hardcoded ClientSideConnection.handle because it returns MethodNotFound
-// for our extension method. Client errors flow back through the nil-safe
-// toRequestError so the dispatcher itself stays branchless on the
-// non-malformed-params path.
-func newACPHandler(client *streamingClient, store *ContextualToolsStore, logger *zap.Logger) acp.MethodHandler {
+func newACPHandler(client *streamingClient, store *ContextualToolsStore, logger *zap.Logger, opts ...ACPHandlerOption) acp.MethodHandler {
+	h := &acpHandler{
+		client: client,
+		store:  store,
+		conns:  newMcpConnRegistry(),
+		tracer: otel.GetTracerProvider().Tracer("jaeger.ai.mcp"),
+		logger: logger,
+	}
+	for _, opt := range opts {
+		opt(h)
+	}
+
 	return func(ctx context.Context, method string, params json.RawMessage) (any, *acp.RequestError) {
 		switch method {
 		case acp.ClientMethodSessionUpdate:
@@ -93,22 +162,149 @@ func newACPHandler(client *streamingClient, store *ContextualToolsStore, logger 
 			if err := json.Unmarshal(params, &p); err != nil {
 				return nil, acp.NewInvalidParams(map[string]any{"error": fmt.Sprintf("cannot unmarshal request: %v", err)})
 			}
-			return nil, toRequestError(client.SessionUpdate(ctx, p))
+			return nil, toRequestError(h.client.SessionUpdate(ctx, p))
 
 		case acp.ClientMethodSessionRequestPermission:
 			var p acp.RequestPermissionRequest
 			if err := json.Unmarshal(params, &p); err != nil {
 				return nil, acp.NewInvalidParams(map[string]any{"error": fmt.Sprintf("cannot unmarshal request: %v", err)})
 			}
-			resp, err := client.RequestPermission(ctx, p)
+			resp, err := h.client.RequestPermission(ctx, p)
 			return resp, toRequestError(err)
 
+		case acp.ClientMethodMcpConnect:
+			return h.handleMcpConnect(ctx, params)
+
+		case acp.ClientMethodMcpMessage:
+			return h.handleMcpMessage(ctx, params)
+
+		case acp.ClientMethodMcpDisconnect:
+			return h.handleMcpDisconnect(ctx, params)
+
 		case ExtMethodJaegerToolCall:
-			return handleJaegerToolCall(params, store, logger)
+			return handleJaegerToolCall(params, h.store, h.logger)
 
 		default:
 			return nil, acp.NewMethodNotFound(method)
 		}
+	}
+}
+
+func (h *acpHandler) handleMcpConnect(_ context.Context, params json.RawMessage) (any, *acp.RequestError) {
+	var req acp.UnstableConnectMcpRequest
+	if err := json.Unmarshal(params, &req); err != nil {
+		return nil, acp.NewInvalidParams(map[string]any{"error": fmt.Sprintf("cannot unmarshal request: %v", err)})
+	}
+	if req.AcpId == "" {
+		return nil, acp.NewInvalidParams(map[string]any{"error": "acpId is required"})
+	}
+	mcpRouteID := string(req.AcpId)
+	if h.turns == nil || h.turns.get(mcpRouteID) == nil {
+		return nil, acp.NewInvalidParams(map[string]any{"error": fmt.Sprintf("turn %q not found or inactive", mcpRouteID)})
+	}
+	connID := acp.UnstableMcpConnectionId(uuid.NewString())
+	h.conns.add(connID, mcpRouteID)
+	return acp.UnstableConnectMcpResponse{
+		ConnectionId: connID,
+	}, nil
+}
+
+func (h *acpHandler) handleMcpDisconnect(_ context.Context, params json.RawMessage) (any, *acp.RequestError) {
+	var req acp.UnstableDisconnectMcpRequest
+	if err := json.Unmarshal(params, &req); err != nil {
+		return nil, acp.NewInvalidParams(map[string]any{"error": fmt.Sprintf("cannot unmarshal request: %v", err)})
+	}
+	if req.ConnectionId == "" {
+		return nil, acp.NewInvalidParams(map[string]any{"error": "connectionId is required"})
+	}
+	h.conns.remove(req.ConnectionId)
+	return acp.UnstableDisconnectMcpResponse{}, nil
+}
+
+func (h *acpHandler) handleMcpMessage(ctx context.Context, params json.RawMessage) (any, *acp.RequestError) {
+	var req acp.UnstableMessageMcpRequest
+	if err := json.Unmarshal(params, &req); err != nil {
+		return nil, acp.NewInvalidParams(map[string]any{"error": fmt.Sprintf("cannot unmarshal request: %v", err)})
+	}
+	if req.ConnectionId == "" {
+		return nil, acp.NewInvalidParams(map[string]any{"error": "connectionId is required"})
+	}
+	conn := h.conns.get(req.ConnectionId)
+	if conn == nil {
+		return nil, acp.NewInvalidParams(map[string]any{"error": fmt.Sprintf("connectionId %q not found", req.ConnectionId)})
+	}
+	var turn *turnState
+	if h.turns != nil {
+		turn = h.turns.get(conn.mcpRouteID)
+	}
+	if turn == nil {
+		return nil, acp.NewInvalidParams(map[string]any{"error": fmt.Sprintf("turn %q closed or expired", conn.mcpRouteID)})
+	}
+
+	switch req.Method {
+	case "initialize":
+		return map[string]any{
+			"protocolVersion": "2024-11-05",
+			"capabilities": map[string]any{
+				"tools": map[string]any{},
+			},
+			"serverInfo": map[string]any{
+				"name":    mcpServerName,
+				"version": version.Get().GitVersion,
+			},
+		}, nil
+
+	case methodListTools:
+		var telemetryTools []*mcp.Tool
+		if h.upstream != nil {
+			listRes, err := h.upstream.ListTools(ctx)
+			if err != nil {
+				h.logger.Warn("failed to fetch upstream tools", zap.Error(err))
+			} else if listRes != nil {
+				telemetryTools = listRes.Tools
+			}
+		}
+		merged := appendUITools(telemetryTools, turn, h.logger)
+		return &mcp.ListToolsResult{Tools: merged}, nil
+
+	case methodCallTool:
+		toolName, _ := req.Params["name"].(string)
+		if toolName == "" {
+			return nil, acp.NewInvalidParams(map[string]any{"error": "tool name is required"})
+		}
+		var rawArgs json.RawMessage
+		if argsVal, ok := req.Params["arguments"]; ok && argsVal != nil {
+			rawArgs, _ = json.Marshal(argsVal)
+		}
+
+		if turnDeclaredUITool(turn, toolName) {
+			res := dispatchUITool(ctx, turn, toolName, rawArgs, h.tracer, h.logger)
+			return res, nil
+		}
+
+		res, err := forwardToUpstream(ctx, turn, toolName, rawArgs, func(callCtx context.Context) (*mcp.CallToolResult, error) {
+			if h.upstream != nil {
+				var unmarshaledArgs any
+				if len(rawArgs) > 0 {
+					_ = json.Unmarshal(rawArgs, &unmarshaledArgs)
+				}
+				return h.upstream.CallTool(callCtx, toolName, unmarshaledArgs)
+			}
+			return &mcp.CallToolResult{
+				IsError: true,
+				Content: []mcp.Content{&mcp.TextContent{Text: fmt.Sprintf("tool %q not found or upstream unavailable", toolName)}},
+			}, nil
+		}, h.tracer, h.logger)
+		if err != nil {
+			return nil, acp.NewInternalError(map[string]any{"error": err.Error()})
+		}
+		return res, nil
+
+	case "ping":
+		return map[string]any{}, nil
+
+	default:
+		return nil, acp.NewMethodNotFound(req.Method)
 	}
 }
 
@@ -165,6 +361,11 @@ func handleJaegerToolCall(params json.RawMessage, store *ContextualToolsStore, l
 	if req.Name == "" {
 		return extToolCallResponse{}, acp.NewInvalidParams(map[string]any{"error": "tool name is required"})
 	}
+	logger.Warn(
+		"invoked deprecated ACP extension method _meta/jaegertracing.io/tools/call; migrate to MCP tools/call",
+		zap.String("session_id", req.SessionID),
+		zap.String("tool", req.Name),
+	)
 	originalName := req.Name
 	if stripped, ok := strings.CutPrefix(req.Name, UIToolPrefix); ok {
 		if stripped == "" {

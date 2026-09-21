@@ -60,3 +60,25 @@ func registerTurn(r *turnRegistry, stream *streamingClient, uiTools []json.RawMe
 	id, _ := r.register(stream, uiTools)
 	return id
 }
+
+func TestTurnRegistryInternalSessionAndACPSession(t *testing.T) {
+	s := newTurnRegistry()
+	client := testStreamingClient()
+	id, closeTurn := s.register(client, nil)
+	defer closeTurn()
+
+	s.setInternalSession(id, "thread-123", "run-456")
+	state := s.get(id)
+	require.NotNil(t, state)
+	assert.Equal(t, "thread-123", state.threadID)
+	assert.Equal(t, "run-456", state.runID)
+
+	s.setACPSessionID(id, "acp-session-789")
+	assert.Equal(t, "acp-session-789", state.acpSessionID)
+
+	found := s.getByACPSessionID("acp-session-789")
+	require.NotNil(t, found)
+	assert.Equal(t, id, found.mcpRouteID)
+
+	assert.Nil(t, s.getByACPSessionID("non-existent"))
+}

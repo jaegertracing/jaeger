@@ -13,6 +13,8 @@ import (
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	sdktrace "go.opentelemetry.io/otel/sdk/trace"
+	"go.opentelemetry.io/otel/sdk/trace/tracetest"
 	"go.uber.org/zap"
 )
 
@@ -56,7 +58,7 @@ func TestUIToolDescriptorsSkipsMalformed(t *testing.T) {
 	}}
 	descs := uiToolDescriptors(sess, zap.NewNop())
 	require.Len(t, descs, 1, "only the well-formed tool is described")
-	assert.Equal(t, "show_chart", descs[0].Name)
+	assert.Equal(t, "ui_show_chart", descs[0].Name)
 	assert.Equal(t, "d", descs[0].Description)
 	assert.Equal(t, map[string]any{"type": "object"}, descs[0].InputSchema)
 }
@@ -68,7 +70,7 @@ func TestUIToolDescriptorsDeduplicatesNames(t *testing.T) {
 		rawUITool(t, "highlight"),
 	}}
 	descs := uiToolDescriptors(sess, zap.NewNop())
-	assert.Equal(t, []string{"show_chart", "highlight"}, toolNames(descs), "repeated names collapse to one entry")
+	assert.Equal(t, []string{"ui_show_chart", "ui_highlight"}, toolNames(descs), "repeated names collapse to one entry")
 }
 
 func TestAppendUITools(t *testing.T) {
@@ -83,7 +85,7 @@ func TestAppendUITools(t *testing.T) {
 		rawUITool(t, "show_chart"),
 	}}
 	merged := appendUITools([]*mcp.Tool{{Name: "get_services"}, {Name: "search_traces"}}, sess, zap.NewNop())
-	assert.Equal(t, []string{"get_services", "search_traces", "show_chart"}, toolNames(merged),
+	assert.Equal(t, []string{"get_services", "ui_search_traces", "ui_show_chart"}, toolNames(merged),
 		"shadowed telemetry tool is dropped and UI tools appended, one entry per name")
 }
 
@@ -136,7 +138,7 @@ func TestUIDispatchMiddleware(t *testing.T) {
 	t.Run("tools/list appends the session's UI tools", func(t *testing.T) {
 		res, err := mw(telemetryList)(ctx, methodListTools, &mcp.ListToolsRequest{Params: &mcp.ListToolsParams{}})
 		require.NoError(t, err)
-		assert.Equal(t, []string{"get_services", "show_chart"}, toolNames(res.(*mcp.ListToolsResult).Tools))
+		assert.Equal(t, []string{"get_services", "ui_show_chart"}, toolNames(res.(*mcp.ListToolsResult).Tools))
 	})
 
 	t.Run("tools/list with no active session is telemetry-only", func(t *testing.T) {
@@ -215,6 +217,80 @@ func TestUIDispatchMiddleware(t *testing.T) {
 		require.NoError(t, err)
 		assert.True(t, called)
 	})
+}
+
+func TestDispatchUITool_Tracing(t *testing.T) {
+	exporter := tracetest.NewInMemoryExporter()
+	tp := sdktrace.NewTracerProvider(sdktrace.WithSyncer(exporter))
+	tracer := tp.Tracer("test")
+
+	rec := httptest.NewRecorder()
+	stream := newStreamingClient(context.Background(), rec, "t", "r")
+	turn := &turnState{stream: stream}
+
+	res := dispatchUITool(context.Background(), turn, "ui_show_chart", json.RawMessage(`{"k":"v"}`), tracer, zap.NewNop())
+	require.False(t, res.IsError)
+
+	spans := exporter.GetSpans()
+	require.Len(t, spans, 1)
+	assert.Equal(t, "dispatchUITool ui_show_chart", spans[0].Name)
+
+	hasToolName := false
+	hasGenAIOp := false
+	for _, attr := range spans[0].Attributes {
+		if attr.Key == "gen_ai.tool.name" && attr.Value.AsString() == "ui_show_chart" {
+			hasToolName = true
+		}
+		if attr.Key == "gen_ai.operation.name" && attr.Value.AsString() == "execute_tool" {
+			hasGenAIOp = true
+		}
+	}
+	assert.True(t, hasToolName, "must record gen_ai.tool.name")
+	assert.True(t, hasGenAIOp, "must record gen_ai.operation.name execute_tool")
+}
+
+func TestForwardToUpstream_TracingAndSSE(t *testing.T) {
+	exporter := tracetest.NewInMemoryExporter()
+	tp := sdktrace.NewTracerProvider(sdktrace.WithSyncer(exporter))
+	tracer := tp.Tracer("test")
+
+	rec := httptest.NewRecorder()
+	stream := newStreamingClient(context.Background(), rec, "t", "r")
+	turn := &turnState{stream: stream, disableStandaloneSSE: false}
+
+	called := false
+	res, err := forwardToUpstream(context.Background(), turn, "search_traces", json.RawMessage(`{"limit":10}`), func(_ context.Context) (*mcp.CallToolResult, error) {
+		called = true
+		return &mcp.CallToolResult{
+			Content: []mcp.Content{&mcp.TextContent{Text: "traces-found"}},
+		}, nil
+	}, tracer, zap.NewNop())
+
+	require.NoError(t, err)
+	assert.True(t, called)
+	require.False(t, res.IsError)
+	assert.Contains(t, rec.Body.String(), "search_traces", "SSE emission must occur for upstream tool")
+
+	spans := exporter.GetSpans()
+	require.Len(t, spans, 1)
+	assert.Equal(t, "forwardToUpstream search_traces", spans[0].Name)
+}
+
+func TestForwardToUpstream_DisableStandaloneSSE(t *testing.T) {
+	exporter := tracetest.NewInMemoryExporter()
+	tp := sdktrace.NewTracerProvider(sdktrace.WithSyncer(exporter))
+	tracer := tp.Tracer("test")
+
+	rec := httptest.NewRecorder()
+	stream := newStreamingClient(context.Background(), rec, "t", "r")
+	turn := &turnState{stream: stream, disableStandaloneSSE: true}
+
+	_, err := forwardToUpstream(context.Background(), turn, "search_traces", nil, func(_ context.Context) (*mcp.CallToolResult, error) {
+		return &mcp.CallToolResult{}, nil
+	}, tracer, zap.NewNop())
+
+	require.NoError(t, err)
+	assert.Empty(t, rec.Body.String(), "SSE emission must be suppressed when DisableStandaloneSSE is true")
 }
 
 func toolNames(tools []*mcp.Tool) []string {

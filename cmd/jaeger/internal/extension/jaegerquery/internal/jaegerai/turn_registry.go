@@ -11,12 +11,16 @@ import (
 )
 
 // turnState holds the per-turn state the turn-scoped MCP endpoint needs: the live
-// SSE stream back to the browser, and the UI tools the frontend declared for that
-// turn. The endpoint advertises those UI tools (alongside the built-in telemetry
-// tools) and dispatches their calls onto the stream.
+// SSE stream back to the browser, the UI tools the frontend declared for that
+// turn, and the internal session IDs mapped to this turn.
 type turnState struct {
-	stream  *streamingClient
-	uiTools []json.RawMessage
+	mcpRouteID           string
+	stream               *streamingClient
+	uiTools              []json.RawMessage
+	threadID             string
+	runID                string
+	acpSessionID         string
+	disableStandaloneSSE bool
 }
 
 // turnRegistry maps a per-turn route id (mcpRouteID) to its turn state. The chat
@@ -50,21 +54,52 @@ func newTurnRegistry() *turnRegistry {
 
 // register records a new turn — the browser's SSE stream and the UI tools it
 // declared — under a freshly minted route id, and returns that id plus a closer
-// that removes the turn. The registry mints the id (nothing outside chooses how a
-// turn is keyed); the closer is meant to be deferred by the chat handler and is
-// idempotent. The chat handler ignores the id today — the turn-scoped endpoint
-// resolves it from the request path — but the id is what the turn's MCP URL is
-// built from once that URL is announced to the sidecar.
+// that removes the turn.
 func (s *turnRegistry) register(stream *streamingClient, uiTools []json.RawMessage) (mcpRouteID string, closer func()) {
 	id := uuid.NewString()
 	s.mu.Lock()
-	s.turns[id] = &turnState{stream: stream, uiTools: uiTools}
+	s.turns[id] = &turnState{
+		mcpRouteID: id,
+		stream:     stream,
+		uiTools:    uiTools,
+	}
 	s.mu.Unlock()
 	return id, func() {
 		s.mu.Lock()
 		delete(s.turns, id)
 		s.mu.Unlock()
 	}
+}
+
+// setInternalSession records the AG-UI internal thread and run IDs for the turn.
+func (s *turnRegistry) setInternalSession(mcpRouteID, threadID, runID string) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if t, ok := s.turns[mcpRouteID]; ok {
+		t.threadID = threadID
+		t.runID = runID
+	}
+}
+
+// setACPSessionID records the ACP session ID assigned by the agent for this turn.
+func (s *turnRegistry) setACPSessionID(mcpRouteID, acpSessionID string) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if t, ok := s.turns[mcpRouteID]; ok {
+		t.acpSessionID = acpSessionID
+	}
+}
+
+// getByACPSessionID returns the turnState associated with the given ACP session ID.
+func (s *turnRegistry) getByACPSessionID(acpSessionID string) *turnState {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	for _, t := range s.turns {
+		if t.acpSessionID == acpSessionID {
+			return t
+		}
+	}
+	return nil
 }
 
 // get returns the turn state for mcpRouteID, or nil when no turn is active for it.
