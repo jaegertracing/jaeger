@@ -128,7 +128,9 @@ func kafkaBroker() string {
 }
 
 // kafkaOffsets reads, per partition of one topic, the consumer group's committed
-// offset and the log end offset. The test asserts on the gap between the two: it
+// offset and the log end offset, the tail of the partition: the position right after
+// the last record produced, which kafka-consumer-groups reports as LOG-END-OFFSET.
+// The test asserts on the gap between the two (the consumer lag): it
 // must not close while writes fail and must close once they succeed.
 //
 // The readers return errors instead of failing the test so they can run inside a
@@ -169,7 +171,7 @@ func (k *kafkaOffsets) committed() (partitionOffsets, error) {
 	return offsets, nil
 }
 
-func (k *kafkaOffsets) end() (partitionOffsets, error) {
+func (k *kafkaOffsets) logEnd() (partitionOffsets, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 	resp, err := k.admin.ListEndOffsets(ctx, k.topic)
@@ -264,22 +266,22 @@ const outageHoldTime = 15 * time.Second
 func (f *faultInjectionSteps) runOutage(t *testing.T, fault esFault, traceIDByte byte, duringOutage func(t *testing.T, trace ptrace.Traces)) {
 	f.requireOffsetCaughtUp(t)
 	committedBefore := requireOffsets(t, f.offsets.committed)
-	endBefore := requireOffsets(t, f.offsets.end)
+	logEndBefore := requireOffsets(t, f.offsets.logEnd)
 
 	f.proxy.setFault(fault)
 	defer f.proxy.setFault(esFaultNone)
 	trace := f.write(t, traceIDByte)
 
 	require.Eventually(t, func() bool {
-		end, err := f.offsets.end()
-		return err == nil && end.advancedPast(endBefore)
+		logEnd, err := f.offsets.logEnd()
+		return err == nil && logEnd.advancedPast(logEndBefore)
 	}, time.Minute, time.Second, "the trace never reached Kafka")
 	t.Logf("Trace is in Kafka; holding the fault for %v", outageHoldTime)
 	time.Sleep(outageHoldTime)
 
 	committedDuring := requireOffsets(t, f.offsets.committed)
-	endDuring := requireOffsets(t, f.offsets.end)
-	t.Logf("Kafka offsets while the fault holds: committed=%v end=%v", committedDuring, endDuring)
+	logEndDuring := requireOffsets(t, f.offsets.logEnd)
+	t.Logf("Kafka offsets while the fault holds: committed=%v logEnd=%v", committedDuring, logEndDuring)
 	assert.Equal(t, committedBefore, committedDuring, "no partition's committed offset may advance while the write fails")
 	duringOutage(t, trace)
 
@@ -343,7 +345,7 @@ func (f *faultInjectionSteps) requireStoredOnce(t *testing.T, trace ptrace.Trace
 }
 
 // requireOffsetCaughtUp waits until every partition's committed offset equals its
-// end offset, and at least one partition holds a message.
+// log end offset, and at least one partition holds a message.
 func (f *faultInjectionSteps) requireOffsetCaughtUp(t *testing.T) {
 	var lastLogged string
 	require.Eventually(t, func() bool {
@@ -351,18 +353,18 @@ func (f *faultInjectionSteps) requireOffsetCaughtUp(t *testing.T) {
 		if err != nil {
 			return false
 		}
-		end, err := f.offsets.end()
+		logEnd, err := f.offsets.logEnd()
 		if err != nil {
 			return false
 		}
 		// Log on change only, so a slow recovery does not repeat the same line
 		// once a second.
-		if state := fmt.Sprintf("committed=%v end=%v", committed, end); state != lastLogged {
+		if state := fmt.Sprintf("committed=%v logEnd=%v", committed, logEnd); state != lastLogged {
 			t.Logf("Kafka offsets: %s", state)
 			lastLogged = state
 		}
-		return end.advancedPast(partitionOffsets{}) && maps.Equal(committed, end)
-	}, 2*time.Minute, time.Second, "the committed offsets never caught up with the end offsets")
+		return logEnd.advancedPast(partitionOffsets{}) && maps.Equal(committed, logEnd)
+	}, 2*time.Minute, time.Second, "the committed offsets never caught up with the log end offsets")
 }
 
 // singleTraceID returns the trace ID shared by every span of a single-trace ptrace.Traces.
