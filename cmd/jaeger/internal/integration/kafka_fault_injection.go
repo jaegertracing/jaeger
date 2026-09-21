@@ -56,8 +56,8 @@ const (
 // esFaultProxy is a reverse proxy in front of Elasticsearch whose treatment of
 // _bulk requests the test switches at runtime.
 type esFaultProxy struct {
-	server *httptest.Server
-	mode   atomic.Int32
+	server   *httptest.Server
+	injected atomic.Int32 // the esFault currently applied to _bulk requests
 }
 
 func newESFaultProxy(t *testing.T, target string) *esFaultProxy {
@@ -66,13 +66,13 @@ func newESFaultProxy(t *testing.T, target string) *esFaultProxy {
 	p := &esFaultProxy{}
 	rp := httputil.NewSingleHostReverseProxy(targetURL)
 	rp.ModifyResponse = func(resp *http.Response) error {
-		if p.current() == esFaultLoseAck && isBulk(resp.Request) {
+		if p.fault() == esFaultLoseAck && isBulk(resp.Request) {
 			injectServiceUnavailable(resp)
 		}
 		return nil
 	}
 	p.server = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if p.current() == esFaultReject && isBulk(r) {
+		if p.fault() == esFaultReject && isBulk(r) {
 			http.Error(w, `{"error":"injected by esFaultProxy"}`, http.StatusServiceUnavailable)
 			return
 		}
@@ -84,9 +84,9 @@ func newESFaultProxy(t *testing.T, target string) *esFaultProxy {
 
 func (p *esFaultProxy) URL() string { return p.server.URL }
 
-func (p *esFaultProxy) set(mode esFault) { p.mode.Store(int32(mode)) }
+func (p *esFaultProxy) setFault(fault esFault) { p.injected.Store(int32(fault)) }
 
-func (p *esFaultProxy) current() esFault { return esFault(p.mode.Load()) }
+func (p *esFaultProxy) fault() esFault { return esFault(p.injected.Load()) }
 
 func isBulk(r *http.Request) bool {
 	return r != nil && strings.HasSuffix(r.URL.Path, "/_bulk")
@@ -175,8 +175,8 @@ func (f *faultInjectionSteps) runOutage(t *testing.T, fault esFault, traceIDByte
 	committedBefore := f.offsets.committed(t)
 	endBefore := f.offsets.end(t)
 
-	f.proxy.set(fault)
-	defer f.proxy.set(esFaultNone)
+	f.proxy.setFault(fault)
+	defer f.proxy.setFault(esFaultNone)
 	trace := f.write(t, traceIDByte, 9)
 
 	require.Eventually(t, func() bool { return f.offsets.end(t) > endBefore },
@@ -187,7 +187,7 @@ func (f *faultInjectionSteps) runOutage(t *testing.T, fault esFault, traceIDByte
 	assert.Equal(t, committedBefore, f.offsets.committed(t), "the committed offset must not advance while the write fails")
 	duringOutage(t, trace)
 
-	f.proxy.set(esFaultNone)
+	f.proxy.setFault(esFaultNone)
 	t.Log("Fault lifted; waiting for recovery")
 	f.requireStoredOnce(t, trace)
 	f.requireOffsetCaughtUp(t)
