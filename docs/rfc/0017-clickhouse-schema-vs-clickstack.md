@@ -91,8 +91,8 @@ CREATE TABLE otel_traces (
     -- HyperDX additions:
     `__hdx_materialized_rum.sessionId` String MATERIALIZED ResourceAttributes['rum.sessionId'],
     SampleRate UInt64 MATERIALIZED greatest(toUInt64OrZero(SpanAttributes['SampleRate']), 1),
-    ResourceAttributeItems Array(String) ALIAS arrayMap(kv -> concat(kv.1, '=', kv.2), ResourceAttributes::Array(Tuple(String, String))),
-    SpanAttributeItems     Array(String) ALIAS arrayMap(kv -> concat(kv.1, '=', kv.2), SpanAttributes::Array(Tuple(String, String))),
+    ResourceAttributeItems Array(String) ALIAS arrayMap((arr) -> concat(arr.1, '=', arr.2), ResourceAttributes::Array(Tuple(String, String))),
+    SpanAttributeItems     Array(String) ALIAS arrayMap((arr) -> concat(arr.1, '=', arr.2), SpanAttributes::Array(Tuple(String, String))),
     -- indexes:
     INDEX idx_trace_id TraceId TYPE bloom_filter(0.001) GRANULARITY 1,
     INDEX idx_res_attr_key  mapKeys(ResourceAttributes) TYPE bloom_filter(0.01) GRANULARITY 1,
@@ -164,7 +164,7 @@ Both schemas store events and links as `Nested` arrays on the span row, so a spa
 | `ttl_only_drop_parts` | Default (0) | `1` | With `0`, an expired part is rewritten to drop expired rows, a heavy merge. With `1`, a part is dropped only once every row in it has expired, which for a day-partitioned table means whole parts vanish at once for free. |
 | TTL expression | `start_time + INTERVAL n SECOND` | `toDate(Timestamp) + INTERVAL n` | Equivalent to within a day. |
 
-Every row in this table is an omission on Jaeger's side. None of them was weighed in ADR-008, and none has a downside that applies to Jaeger's workload. `LowCardinality` on `service_name` and `name` deserves one caveat: ClickHouse's own guidance is to use it for columns under roughly ten thousand distinct values, and a deployment with more operation names than that would see the dictionary spill and lose the benefit without becoming incorrect.
+Every row in this table is an omission on Jaeger's side. None of them was weighed in ADR-008, and the only behavioral change among them is the retention slack that `ttl_only_drop_parts` introduces, which §5.1 quantifies. `LowCardinality` on `service_name` and `name` deserves one caveat: ClickHouse's own guidance is to use it for columns under roughly ten thousand distinct values, and a deployment with more operation names than that would see the dictionary spill and lose the benefit without becoming incorrect.
 
 ### 3.5 Skip indexes
 
@@ -225,8 +225,8 @@ The criteria below are the ones a Jaeger deployment cares about. The columns are
 | Attribute type fidelity | 🟢 | 🟢 | 🔴 ¹ |
 | Attribute-only search latency | 🔴 ² | 🟡 ³ | 🟡 ³ |
 | Compression on disk | 🟡 ⁴ | 🟢 | 🟢 |
-| Trace retrieval by ID at scale | 🟡 ⁵ | 🟢 | 🟢 |
-| Retention cost | 🟡 ⁶ | 🟢 | 🟢 |
+| Trace retrieval by ID at scale | 🟡 ⁵ | 🟢 | 🟡 ¹⁰ |
+| Retention cost | 🟡 ⁶ | 🟢 ¹¹ | 🟢 |
 | Scope attributes preserved | 🟢 | 🟢 | 🔴 |
 | Replicated / clustered deployment | 🟡 ⁹ | 🟢 | 🟢 |
 | Interoperability with OTel exporter tables | 🔴 | 🔴 ⁷ | 🟢 |
@@ -241,6 +241,8 @@ The criteria below are the ones a Jaeger deployment cares about. The columns are
 - ⁷ The proposals do not change column names or attribute representation, so a ClickStack table remains unreadable by Jaeger's reader; §6 covers what would.
 - ⁸ One main table plus five derived tables and six materialized views, against ClickStack's one plus one.
 - ⁹ Possible only by creating every table by hand with `create_schema: false`; the factory itself renders `MergeTree` and nothing else.
+- ¹⁰ The 0.001 rate is fixed in the DDL; a deployment that needs the 0.0001 of footnote ⁵ has to own its schema.
+- ¹¹ Whole-part expiry applies to `spans`, which holds nearly all the data; `trace_id_timestamps` keeps row-level TTL (§5.1), and expiry lags the configured TTL by up to one partition day.
 
 The matrix says Jaeger's schema is right where it made a decision and behind where it made none. The proposals below therefore change nothing in the attribute model or the derived tables and everything in the tuning and indexing layer.
 
@@ -273,7 +275,7 @@ ALTER TABLE spans
 
 and likewise for the resource and scope groups, and for the event and link groups through `arrayFlatten` over the nested arrays. `bloom_filter` on an `Array` column indexes each element and is served by `has()`. The shape is ClickStack's pairwise item index with two changes.
 
-- **The item is a hash, not a `key=value` string.** `cityHash64(k, v)` hashes the two arguments as a tuple, so there is no separator to collide on, and an `Array(UInt64)` alias costs nothing on disk. A string alias is not an option on the pinned ClickHouse: on 25.12.11.4, `EXPLAIN indexes = 1` over a 200k-row test table showed `has()` on a `concat(k, '=', v)` `ALIAS` column reading all 25 granules with the index never consulted, while the same predicate on the hashed `ALIAS` column consulted the index and read 1 of 25. A `MATERIALIZED` string column is also served, at the cost of storing every pair twice, which the hash makes unnecessary. M2 repeats this check on the benchmark table before anything else, since the whole milestone rests on it.
+- **The item is a hash, not a `key=value` string.** `cityHash64(k, v)` hashes the two arguments as a tuple, so there is no separator to collide on, and an `Array(UInt64)` alias costs nothing on disk. A string alias is not an option on the pinned ClickHouse: on 25.12.11.4, `EXPLAIN indexes = 1` over a 200k-row test table showed `has()` on a `concat(k, '=', v)` `ALIAS` column reading all 25 granules with the index never consulted, while the same predicate on the hashed `ALIAS` column consulted the index and read 1 of 25. A `MATERIALIZED` string column is also served, at the cost of storing every pair twice, which the hash makes unnecessary. The check holds with the `LowCardinality(String)` keys that M1 introduces: `cityHash64` of a `LowCardinality(String)` equals `cityHash64` of the same `String`, and on a table with `LowCardinality` keys the inline predicate read the same 1 of 25 granules. M2 repeats this check on the benchmark table before anything else, since the whole milestone rests on it.
 - **Every level is indexed, including events and links.** A skip index can prune a granule only when the whole `WHERE` clause is provably false for it, and an `OR` is provably false only when every branch is. The query builder's fallback for a key that `attribute_metadata` has not seen ORs five branches, one per level, and the metadata path ORs one branch per observed `(level, type)` pair whose type can parse the value. One unindexed branch in that `OR` therefore disables pruning for the entire attribute predicate, which is exactly the attribute-only benchmark case. So the hash columns and indexes cover all five levels, and the nested `arrayExists` for events and links gains the same `has()` prefilter.
 
 `GRANULARITY 4` (one filter per four granules) is a starting point rather than a measurement: every row contributes every attribute pair, so a per-granule filter at 0.01 is large, and coarser granularity trades pruning resolution for index size. M2 measures 1 against 4.
@@ -293,13 +295,13 @@ has(arrayMap((k, v) -> cityHash64(k, v), s.str_attributes.key, s.str_attributes.
 AND arrayExists((key, value) -> key = ? AND value = ?, s.str_attributes.key, s.str_attributes.value)
 ```
 
-The predicate spells out the hash expression instead of naming the alias, so the same query runs against a table that predates the alias (an upgraded deployment that has not run the `ALTER` sequence yet) and simply scans as it does today, while on a table that has the alias and its index the planner matches the expression to the index and prunes. On 25.12.11.4 the inline form read the same 1 of 25 granules as the alias name did, with and without the trailing `arrayExists`. The `has()` is the index-driving prefilter and the `arrayExists` stays as the exact check, because both the hash and the Bloom filter admit collisions. On every granule the prefilter admits, each row now computes the alias and `has()` in addition to the array scan it runs today, so the change wins only when the index drops enough granules to pay for that. The acceptance benchmark therefore includes a low-selectivity attribute (a key present on most spans with few distinct values) alongside the high-selectivity case, so the worst case is measured rather than assumed. The integer and boolean branches gain the same prefilter, with the bound value formatted on the query side as `cityHash64(?, toString(?))` for integers and `cityHash64(?, toString(CAST(? AS Bool)))` for booleans, because the driver binds a Go boolean as `1` or `0` while `toString` of a stored `Bool` yields `true` or `false`, and an unnormalized bound value would hash to a different item and silently reject every match. The typed `arrayExists` stays as their exact check, and M2's correctness tests include driver-bound `true` and `false` filters. A mixed-type key thus emits only prefiltered branches, which is what the `OR` rule above requires. For events and links the exact check is the existing doubly nested `arrayExists` and the prefilter is `has()` on the flattened hash column.
+The predicate spells out the hash expression instead of naming the alias, so the same query runs against a table that predates the alias (an upgraded deployment that has not run the `ALTER` sequence yet) and simply scans as it does today, while on a table that has the alias and its index the planner matches the expression to the index and prunes. On 25.12.11.4 the inline form read the same 1 of 25 granules as the alias name did, with and without the trailing `arrayExists`. The `has()` is the index-driving prefilter and the `arrayExists` stays as the exact check, because both the hash and the Bloom filter admit collisions. On every granule the prefilter admits, each row now computes the alias and `has()` in addition to the array scan it runs today, so the change wins only when the index drops enough granules to pay for that. The acceptance benchmark therefore includes a low-selectivity attribute (a key present on most spans with few distinct values) alongside the high-selectivity case, so the worst case is measured rather than assumed. The integer and boolean branches gain the same prefilter, with the bound value formatted on the query side as `cityHash64(?, toString(?))` for integers and `cityHash64(?, toString(CAST(? AS Bool)))` for booleans. Both sides go through `toString` so that the hash depends only on the decimal text and not on how the driver types the bound parameter; on 25.12 `cityHash64` happens to hash an integer literal and an `Int64` alike, but that is an implementation property rather than a documented one. The boolean cast is mandatory rather than defensive: the driver binds a Go boolean as `1` or `0` while `toString` of a stored `Bool` yields `true` or `false`, and an unnormalized bound value would hash to a different item and silently reject every match. The typed `arrayExists` stays as their exact check, and M2's correctness tests include driver-bound `true` and `false` filters. A mixed-type key thus emits only prefiltered branches, which is what the `OR` rule above requires. For events and links the exact check is the existing doubly nested `arrayExists` and the prefilter is `has()` on the flattened hash column.
 
 On an existing table `ADD INDEX` covers only parts written afterwards, so the migration sequence follows it with `MATERIALIZE INDEX` and waits for the mutation to finish in `system.mutations`; until then historical parts are scanned as before, and a before/after benchmark that skips this step measures nothing. The alias itself needs no backfill.
 
 **Tighten the trace-ID Bloom filter** to `bloom_filter(0.001)`, matching ClickStack, and expose the rate in configuration so that a deployment at #8918's scale can go tighter without hand-editing DDL. The index name stays `idx_trace_id`, so on an existing table the change is `DROP INDEX` then `ADD INDEX` and `MATERIALIZE INDEX` for old parts.
 
-Acceptance is the #8715 benchmark: attribute-only search on the 10M-span dataset before and after, with `EXPLAIN indexes = 1` output showing granules dropped.
+Acceptance is the #8715 benchmark: attribute-only search on the 10M-span dataset before and after, with `EXPLAIN indexes = 1` output showing granules dropped. Because fifteen Bloom filters (three types across five levels) each hash every attribute pair on insert, the benchmark also reports insert throughput, the on-disk size of the indexes relative to the table, and the wall time of `MATERIALIZE INDEX` over the existing data, so that the write-side cost is weighed against the read-side gain.
 
 ### 5.3 Keep the typed `Nested` attribute layout
 
