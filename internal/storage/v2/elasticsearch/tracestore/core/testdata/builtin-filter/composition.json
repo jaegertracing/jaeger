@@ -1,0 +1,352 @@
+{
+  "event time predicates are independently existential": {
+    "bool": {
+      "must": [
+        {
+          "nested": {
+            "path": "logs",
+            "query": {
+              "range": {
+                "logs.timestamp": {
+                  "gt": 1788220800000000
+                }
+              }
+            }
+          }
+        },
+        {
+          "nested": {
+            "path": "logs",
+            "query": {
+              "range": {
+                "logs.timestamp": {
+                  "lt": 1788307200000000
+                }
+              }
+            }
+          }
+        }
+      ]
+    }
+  },
+  "link ID predicates are independently existential": {
+    "bool": {
+      "must": [
+        {
+          "script_score": {
+            "min_score": 1,
+            "query": {
+              "nested": {
+                "path": "references",
+                "query": {
+                  "term": {
+                    "references.traceID": "0123456789abcdef0123456789abcdef"
+                  }
+                }
+              }
+            },
+            "script": {
+              "lang": "painless",
+              "params": {
+                "field": "traceID",
+                "op": "eq",
+                "value": "0123456789abcdef0123456789abcdef"
+              },
+              "source": "\ndef source = params._source;\nif (source == null) {\n  throw new IllegalArgumentException('link filters require _source');\n}\ndef references = source.references;\nif (references == null) {\n  throw new IllegalArgumentException('link filters require _source references');\n}\ndef parentTraceID = source.traceID;\ndef parentSpanID = source.parentSpanID;\nif (parentSpanID == null || parentSpanID == '') {\n  def followsFrom = null;\n  for (def reference : references) {\n    if (reference.traceID != parentTraceID) continue;\n    if (reference.refType == 'CHILD_OF') {\n      parentSpanID = reference.spanID;\n      break;\n    }\n    if (followsFrom == null \u0026\u0026 reference.refType == 'FOLLOWS_FROM') followsFrom = reference.spanID;\n  }\n  if (parentSpanID == null || parentSpanID == '') parentSpanID = followsFrom;\n}\nfor (def reference : references) {\n  if (reference.refType == 'CHILD_OF' \u0026\u0026 reference.traceID == parentTraceID \u0026\u0026 reference.spanID == parentSpanID) continue;\n  def actual = reference[params.field];\n  if (actual == null) continue;\n  if (params.op == 'exists') return 1;\n  if (params.op == 'eq' \u0026\u0026 actual == params.value) return 1;\n  if (params.op == 'gt' \u0026\u0026 actual.compareTo(params.value) \u003e 0) return 1;\n  if (params.op == 'gte' \u0026\u0026 actual.compareTo(params.value) \u003e= 0) return 1;\n  if (params.op == 'lt' \u0026\u0026 actual.compareTo(params.value) \u003c 0) return 1;\n  if (params.op == 'lte' \u0026\u0026 actual.compareTo(params.value) \u003c= 0) return 1;\n}\nreturn 0;\n"
+            }
+          }
+        },
+        {
+          "script_score": {
+            "min_score": 1,
+            "query": {
+              "nested": {
+                "path": "references",
+                "query": {
+                  "term": {
+                    "references.spanID": "fedcba9876543210"
+                  }
+                }
+              }
+            },
+            "script": {
+              "lang": "painless",
+              "params": {
+                "field": "spanID",
+                "op": "eq",
+                "value": "fedcba9876543210"
+              },
+              "source": "\ndef source = params._source;\nif (source == null) {\n  throw new IllegalArgumentException('link filters require _source');\n}\ndef references = source.references;\nif (references == null) {\n  throw new IllegalArgumentException('link filters require _source references');\n}\ndef parentTraceID = source.traceID;\ndef parentSpanID = source.parentSpanID;\nif (parentSpanID == null || parentSpanID == '') {\n  def followsFrom = null;\n  for (def reference : references) {\n    if (reference.traceID != parentTraceID) continue;\n    if (reference.refType == 'CHILD_OF') {\n      parentSpanID = reference.spanID;\n      break;\n    }\n    if (followsFrom == null \u0026\u0026 reference.refType == 'FOLLOWS_FROM') followsFrom = reference.spanID;\n  }\n  if (parentSpanID == null || parentSpanID == '') parentSpanID = followsFrom;\n}\nfor (def reference : references) {\n  if (reference.refType == 'CHILD_OF' \u0026\u0026 reference.traceID == parentTraceID \u0026\u0026 reference.spanID == parentSpanID) continue;\n  def actual = reference[params.field];\n  if (actual == null) continue;\n  if (params.op == 'exists') return 1;\n  if (params.op == 'eq' \u0026\u0026 actual == params.value) return 1;\n  if (params.op == 'gt' \u0026\u0026 actual.compareTo(params.value) \u003e 0) return 1;\n  if (params.op == 'gte' \u0026\u0026 actual.compareTo(params.value) \u003e= 0) return 1;\n  if (params.op == 'lt' \u0026\u0026 actual.compareTo(params.value) \u003c 0) return 1;\n  if (params.op == 'lte' \u0026\u0026 actual.compareTo(params.value) \u003c= 0) return 1;\n}\nreturn 0;\n"
+            }
+          }
+        }
+      ]
+    }
+  },
+  "multiple link IDs excluded outside the nested query": {
+    "bool": {
+      "must": {
+        "script_score": {
+          "min_score": 1,
+          "query": {
+            "nested": {
+              "path": "references",
+              "query": {
+                "exists": {
+                  "field": "references.spanID"
+                }
+              }
+            }
+          },
+          "script": {
+            "lang": "painless",
+            "params": {
+              "field": "spanID",
+              "op": "exists",
+              "value": ""
+            },
+            "source": "\ndef source = params._source;\nif (source == null) {\n  throw new IllegalArgumentException('link filters require _source');\n}\ndef references = source.references;\nif (references == null) {\n  throw new IllegalArgumentException('link filters require _source references');\n}\ndef parentTraceID = source.traceID;\ndef parentSpanID = source.parentSpanID;\nif (parentSpanID == null || parentSpanID == '') {\n  def followsFrom = null;\n  for (def reference : references) {\n    if (reference.traceID != parentTraceID) continue;\n    if (reference.refType == 'CHILD_OF') {\n      parentSpanID = reference.spanID;\n      break;\n    }\n    if (followsFrom == null \u0026\u0026 reference.refType == 'FOLLOWS_FROM') followsFrom = reference.spanID;\n  }\n  if (parentSpanID == null || parentSpanID == '') parentSpanID = followsFrom;\n}\nfor (def reference : references) {\n  if (reference.refType == 'CHILD_OF' \u0026\u0026 reference.traceID == parentTraceID \u0026\u0026 reference.spanID == parentSpanID) continue;\n  def actual = reference[params.field];\n  if (actual == null) continue;\n  if (params.op == 'exists') return 1;\n  if (params.op == 'eq' \u0026\u0026 actual == params.value) return 1;\n  if (params.op == 'gt' \u0026\u0026 actual.compareTo(params.value) \u003e 0) return 1;\n  if (params.op == 'gte' \u0026\u0026 actual.compareTo(params.value) \u003e= 0) return 1;\n  if (params.op == 'lt' \u0026\u0026 actual.compareTo(params.value) \u003c 0) return 1;\n  if (params.op == 'lte' \u0026\u0026 actual.compareTo(params.value) \u003c= 0) return 1;\n}\nreturn 0;\n"
+          }
+        }
+      },
+      "must_not": {
+        "bool": {
+          "should": [
+            {
+              "script_score": {
+                "min_score": 1,
+                "query": {
+                  "nested": {
+                    "path": "references",
+                    "query": {
+                      "term": {
+                        "references.spanID": "0123456789abcdef"
+                      }
+                    }
+                  }
+                },
+                "script": {
+                  "lang": "painless",
+                  "params": {
+                    "field": "spanID",
+                    "op": "eq",
+                    "value": "0123456789abcdef"
+                  },
+                  "source": "\ndef source = params._source;\nif (source == null) {\n  throw new IllegalArgumentException('link filters require _source');\n}\ndef references = source.references;\nif (references == null) {\n  throw new IllegalArgumentException('link filters require _source references');\n}\ndef parentTraceID = source.traceID;\ndef parentSpanID = source.parentSpanID;\nif (parentSpanID == null || parentSpanID == '') {\n  def followsFrom = null;\n  for (def reference : references) {\n    if (reference.traceID != parentTraceID) continue;\n    if (reference.refType == 'CHILD_OF') {\n      parentSpanID = reference.spanID;\n      break;\n    }\n    if (followsFrom == null \u0026\u0026 reference.refType == 'FOLLOWS_FROM') followsFrom = reference.spanID;\n  }\n  if (parentSpanID == null || parentSpanID == '') parentSpanID = followsFrom;\n}\nfor (def reference : references) {\n  if (reference.refType == 'CHILD_OF' \u0026\u0026 reference.traceID == parentTraceID \u0026\u0026 reference.spanID == parentSpanID) continue;\n  def actual = reference[params.field];\n  if (actual == null) continue;\n  if (params.op == 'exists') return 1;\n  if (params.op == 'eq' \u0026\u0026 actual == params.value) return 1;\n  if (params.op == 'gt' \u0026\u0026 actual.compareTo(params.value) \u003e 0) return 1;\n  if (params.op == 'gte' \u0026\u0026 actual.compareTo(params.value) \u003e= 0) return 1;\n  if (params.op == 'lt' \u0026\u0026 actual.compareTo(params.value) \u003c 0) return 1;\n  if (params.op == 'lte' \u0026\u0026 actual.compareTo(params.value) \u003c= 0) return 1;\n}\nreturn 0;\n"
+                }
+              }
+            },
+            {
+              "script_score": {
+                "min_score": 1,
+                "query": {
+                  "nested": {
+                    "path": "references",
+                    "query": {
+                      "term": {
+                        "references.spanID": "fedcba9876543210"
+                      }
+                    }
+                  }
+                },
+                "script": {
+                  "lang": "painless",
+                  "params": {
+                    "field": "spanID",
+                    "op": "eq",
+                    "value": "fedcba9876543210"
+                  },
+                  "source": "\ndef source = params._source;\nif (source == null) {\n  throw new IllegalArgumentException('link filters require _source');\n}\ndef references = source.references;\nif (references == null) {\n  throw new IllegalArgumentException('link filters require _source references');\n}\ndef parentTraceID = source.traceID;\ndef parentSpanID = source.parentSpanID;\nif (parentSpanID == null || parentSpanID == '') {\n  def followsFrom = null;\n  for (def reference : references) {\n    if (reference.traceID != parentTraceID) continue;\n    if (reference.refType == 'CHILD_OF') {\n      parentSpanID = reference.spanID;\n      break;\n    }\n    if (followsFrom == null \u0026\u0026 reference.refType == 'FOLLOWS_FROM') followsFrom = reference.spanID;\n  }\n  if (parentSpanID == null || parentSpanID == '') parentSpanID = followsFrom;\n}\nfor (def reference : references) {\n  if (reference.refType == 'CHILD_OF' \u0026\u0026 reference.traceID == parentTraceID \u0026\u0026 reference.spanID == parentSpanID) continue;\n  def actual = reference[params.field];\n  if (actual == null) continue;\n  if (params.op == 'exists') return 1;\n  if (params.op == 'eq' \u0026\u0026 actual == params.value) return 1;\n  if (params.op == 'gt' \u0026\u0026 actual.compareTo(params.value) \u003e 0) return 1;\n  if (params.op == 'gte' \u0026\u0026 actual.compareTo(params.value) \u003e= 0) return 1;\n  if (params.op == 'lt' \u0026\u0026 actual.compareTo(params.value) \u003c 0) return 1;\n  if (params.op == 'lte' \u0026\u0026 actual.compareTo(params.value) \u003c= 0) return 1;\n}\nreturn 0;\n"
+                }
+              }
+            }
+          ]
+        }
+      }
+    }
+  },
+  "scope name custom dot replacement": {
+    "bool": {
+      "should": [
+        {
+          "term": {
+            "tag.otel_scope_name": "cart"
+          }
+        },
+        {
+          "nested": {
+            "path": "tags",
+            "query": {
+              "bool": {
+                "must": [
+                  {
+                    "term": {
+                      "tags.key": "otel.scope.name"
+                    }
+                  },
+                  {
+                    "term": {
+                      "tags.value": "cart"
+                    }
+                  }
+                ]
+              }
+            }
+          }
+        }
+      ]
+    }
+  },
+  "scope version ordered as text": {
+    "bool": {
+      "should": [
+        {
+          "range": {
+            "tag.otel_scope_version": {
+              "gt": "1.2"
+            }
+          }
+        },
+        {
+          "nested": {
+            "path": "tags",
+            "query": {
+              "bool": {
+                "must": [
+                  {
+                    "term": {
+                      "tags.key": "otel.scope.version"
+                    }
+                  },
+                  {
+                    "range": {
+                      "tags.value": {
+                        "gt": "1.2"
+                      }
+                    }
+                  }
+                ]
+              }
+            }
+          }
+        }
+      ]
+    }
+  },
+  "scope.name regex": {
+    "bool": {
+      "should": [
+        {
+          "regexp": {
+            "tag.otel_scope_name": {
+              "flags": "NONE",
+              "value": ".*([a-f]+).*"
+            }
+          }
+        },
+        {
+          "nested": {
+            "path": "tags",
+            "query": {
+              "bool": {
+                "must": [
+                  {
+                    "term": {
+                      "tags.key": "otel.scope.name"
+                    }
+                  },
+                  {
+                    "regexp": {
+                      "tags.value": {
+                        "flags": "NONE",
+                        "value": ".*([a-f]+).*"
+                      }
+                    }
+                  }
+                ]
+              }
+            }
+          }
+        }
+      ]
+    }
+  },
+  "scope.version regex": {
+    "bool": {
+      "should": [
+        {
+          "regexp": {
+            "tag.otel_scope_version": {
+              "flags": "NONE",
+              "value": ".*([a-f]+).*"
+            }
+          }
+        },
+        {
+          "nested": {
+            "path": "tags",
+            "query": {
+              "bool": {
+                "must": [
+                  {
+                    "term": {
+                      "tags.key": "otel.scope.version"
+                    }
+                  },
+                  {
+                    "regexp": {
+                      "tags.value": {
+                        "flags": "NONE",
+                        "value": ".*([a-f]+).*"
+                      }
+                    }
+                  }
+                ]
+              }
+            }
+          }
+        }
+      ]
+    }
+  },
+  "span.spanID regex": {
+    "regexp": {
+      "spanID": {
+        "flags": "NONE",
+        "value": ".*([a-f]+).*"
+      }
+    }
+  },
+  "span.traceID regex": {
+    "regexp": {
+      "traceID": {
+        "flags": "NONE",
+        "value": ".*([a-f]+).*"
+      }
+    }
+  },
+  "uppercase ID literal": {
+    "script_score": {
+      "min_score": 1,
+      "query": {
+        "nested": {
+          "path": "references",
+          "query": {
+            "term": {
+              "references.spanID": "0123456789abcdef"
+            }
+          }
+        }
+      },
+      "script": {
+        "lang": "painless",
+        "params": {
+          "field": "spanID",
+          "op": "eq",
+          "value": "0123456789abcdef"
+        },
+        "source": "\ndef source = params._source;\nif (source == null) {\n  throw new IllegalArgumentException('link filters require _source');\n}\ndef references = source.references;\nif (references == null) {\n  throw new IllegalArgumentException('link filters require _source references');\n}\ndef parentTraceID = source.traceID;\ndef parentSpanID = source.parentSpanID;\nif (parentSpanID == null || parentSpanID == '') {\n  def followsFrom = null;\n  for (def reference : references) {\n    if (reference.traceID != parentTraceID) continue;\n    if (reference.refType == 'CHILD_OF') {\n      parentSpanID = reference.spanID;\n      break;\n    }\n    if (followsFrom == null \u0026\u0026 reference.refType == 'FOLLOWS_FROM') followsFrom = reference.spanID;\n  }\n  if (parentSpanID == null || parentSpanID == '') parentSpanID = followsFrom;\n}\nfor (def reference : references) {\n  if (reference.refType == 'CHILD_OF' \u0026\u0026 reference.traceID == parentTraceID \u0026\u0026 reference.spanID == parentSpanID) continue;\n  def actual = reference[params.field];\n  if (actual == null) continue;\n  if (params.op == 'exists') return 1;\n  if (params.op == 'eq' \u0026\u0026 actual == params.value) return 1;\n  if (params.op == 'gt' \u0026\u0026 actual.compareTo(params.value) \u003e 0) return 1;\n  if (params.op == 'gte' \u0026\u0026 actual.compareTo(params.value) \u003e= 0) return 1;\n  if (params.op == 'lt' \u0026\u0026 actual.compareTo(params.value) \u003c 0) return 1;\n  if (params.op == 'lte' \u0026\u0026 actual.compareTo(params.value) \u003c= 0) return 1;\n}\nreturn 0;\n"
+      }
+    }
+  }
+}

@@ -1,0 +1,73 @@
+{
+  "eq": {
+    "term": {
+      "spanID": "0123456789abcdef"
+    }
+  },
+  "exists": {
+    "exists": {
+      "field": "spanID"
+    }
+  },
+  "gt": {
+    "range": {
+      "spanID": {
+        "gt": "0123456789abcdef"
+      }
+    }
+  },
+  "gte": {
+    "range": {
+      "spanID": {
+        "gte": "0123456789abcdef"
+      }
+    }
+  },
+  "in": {
+    "term": {
+      "spanID": "0123456789abcdef"
+    }
+  },
+  "lt": {
+    "range": {
+      "spanID": {
+        "lt": "0123456789abcdef"
+      }
+    }
+  },
+  "lte": {
+    "range": {
+      "spanID": {
+        "lte": "0123456789abcdef"
+      }
+    }
+  },
+  "ne": {
+    "bool": {
+      "must": {
+        "exists": {
+          "field": "spanID"
+        }
+      },
+      "must_not": {
+        "term": {
+          "spanID": "0123456789abcdef"
+        }
+      }
+    }
+  },
+  "not_in": {
+    "bool": {
+      "must": {
+        "exists": {
+          "field": "spanID"
+        }
+      },
+      "must_not": {
+        "term": {
+          "spanID": "0123456789abcdef"
+        }
+      }
+    }
+  }
+}

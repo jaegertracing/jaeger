@@ -1,0 +1,128 @@
+{
+  "eq": {
+    "nested": {
+      "path": "logs",
+      "query": {
+        "term": {
+          "logs.timestamp": 1788248096123456
+        }
+      }
+    }
+  },
+  "exists": {
+    "nested": {
+      "path": "logs",
+      "query": {
+        "exists": {
+          "field": "logs.timestamp"
+        }
+      }
+    }
+  },
+  "gt": {
+    "nested": {
+      "path": "logs",
+      "query": {
+        "range": {
+          "logs.timestamp": {
+            "gt": 1788248096123456
+          }
+        }
+      }
+    }
+  },
+  "gte": {
+    "nested": {
+      "path": "logs",
+      "query": {
+        "range": {
+          "logs.timestamp": {
+            "gte": 1788248096123456
+          }
+        }
+      }
+    }
+  },
+  "in": {
+    "nested": {
+      "path": "logs",
+      "query": {
+        "term": {
+          "logs.timestamp": 1788248096123456
+        }
+      }
+    }
+  },
+  "lt": {
+    "nested": {
+      "path": "logs",
+      "query": {
+        "range": {
+          "logs.timestamp": {
+            "lt": 1788248096123456
+          }
+        }
+      }
+    }
+  },
+  "lte": {
+    "nested": {
+      "path": "logs",
+      "query": {
+        "range": {
+          "logs.timestamp": {
+            "lte": 1788248096123456
+          }
+        }
+      }
+    }
+  },
+  "ne": {
+    "bool": {
+      "must": {
+        "nested": {
+          "path": "logs",
+          "query": {
+            "exists": {
+              "field": "logs.timestamp"
+            }
+          }
+        }
+      },
+      "must_not": {
+        "nested": {
+          "path": "logs",
+          "query": {
+            "term": {
+              "logs.timestamp": 1788248096123456
+            }
+          }
+        }
+      }
+    }
+  },
+  "not_in": {
+    "bool": {
+      "must": {
+        "nested": {
+          "path": "logs",
+          "query": {
+            "exists": {
+              "field": "logs.timestamp"
+            }
+          }
+        }
+      },
+      "must_not": {
+        "nested": {
+          "path": "logs",
+          "query": {
+            "term": {
+              "logs.timestamp": 1788248096123456
+            }
+          }
+        }
+      }
+    }
+  }
+}
