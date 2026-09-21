@@ -166,14 +166,15 @@ func (qs QueryService) GetOperations(
 func (qs QueryService) FindSpans(
 	ctx context.Context,
 	query SpanQueryParams,
-) iter.Seq2[[]tracestore.SpanPage, error] {
-	return func(yield func([]tracestore.SpanPage, error) bool) {
+) iter.Seq2[tracestore.PageChunk[ptrace.Traces], error] {
+	return func(yield func(tracestore.PageChunk[ptrace.Traces], error) bool) {
 		ctx, query, err := qs.prepareSpanSearchQuery(ctx, query)
 		if err != nil {
-			yield(nil, err)
+			yield(tracestore.PageChunk[ptrace.Traces]{}, err)
 			return
 		}
-		spansIter := qs.interceptSpanResults(ctx, qs.traceReader.FindSpans(ctx, query.SpanQueryParams))
+		spans := qs.traceReader.FindSpans(ctx, query.SpanQueryParams)
+		spansIter := qs.interceptSpanResults(ctx, spans)
 		spansIter(yield)
 	}
 }

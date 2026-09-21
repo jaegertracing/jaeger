@@ -212,42 +212,40 @@ func (qs QueryService) onResultRunInterceptors(ctx context.Context, traces []ptr
 // them, so an interceptor rewrites the traces the reader actually returned.
 func (qs QueryService) interceptSpanResults(
 	ctx context.Context,
-	seq iter.Seq2[[]tracestore.SpanPage, error],
-) iter.Seq2[[]tracestore.SpanPage, error] {
+	seq iter.Seq2[tracestore.PageChunk[ptrace.Traces], error],
+) iter.Seq2[tracestore.PageChunk[ptrace.Traces], error] {
 	if len(qs.options.Interceptors) == 0 {
 		return seq
 	}
-	return func(yield func([]tracestore.SpanPage, error) bool) {
+	return func(yield func(tracestore.PageChunk[ptrace.Traces], error) bool) {
 		for spanPages, err := range seq {
 			if err != nil {
-				if !yield(nil, err) {
+				if !yield(tracestore.PageChunk[ptrace.Traces]{}, err) {
 					return
 				}
 				continue
 			}
-			for i := range spanPages {
-				spans := []ptrace.Traces{spanPages[i].Spans}
-				ctx, spans, err = qs.onResultRunInterceptors(ctx, spans)
-				if err != nil {
-					yield(nil, err)
-					return
-				}
-				if spans == nil {
-					return
-				}
+			spans := []ptrace.Traces{spanPages.Results}
+			ctx, spans, err = qs.onResultRunInterceptors(ctx, spans)
+			if err != nil {
+				yield(tracestore.PageChunk[ptrace.Traces]{}, err)
+				return
+			}
+			if spans == nil {
+				return
+			}
 
-				switch len(spans) {
-				case 0:
-					spanPages[i].Spans = ptrace.NewTraces()
-				case 1:
-					spanPages[i].Spans = spans[0]
-				default:
-					newSpans := ptrace.NewTraces()
-					for _, spanTraces := range spans {
-						spanTraces.CopyTo(newSpans)
-					}
-					spanPages[i].Spans = newSpans
+			switch len(spans) {
+			case 0:
+				spanPages.Results = ptrace.NewTraces()
+			case 1:
+				spanPages.Results = spans[0]
+			default:
+				newSpans := ptrace.NewTraces()
+				for _, spanTraces := range spans {
+					spanTraces.CopyTo(newSpans)
 				}
+				spanPages.Results = newSpans
 			}
 
 			if !yield(spanPages, nil) {

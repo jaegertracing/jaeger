@@ -80,17 +80,17 @@ func (*fakeReader) FindTraceIDs(context.Context, tracestore.TraceQueryParams) it
 	return func(func(tracestore.PageChunk[[]tracestore.FoundTraceID], error) bool) {}
 }
 
-func (f *fakeReader) FindSpans(ctx context.Context, q tracestore.SpanQueryParams) iter.Seq2[[]tracestore.SpanPage, error] {
+func (f *fakeReader) FindSpans(ctx context.Context, q tracestore.SpanQueryParams) iter.Seq2[tracestore.PageChunk[ptrace.Traces], error] {
 	f.findCalled = true
 	f.gotSpanQuery = q
 	f.gotCtx = ctx
-	return func(yield func([]tracestore.SpanPage, error) bool) {
+	return func(yield func(tracestore.PageChunk[ptrace.Traces], error) bool) {
 		if f.err != nil {
-			yield(nil, f.err)
+			yield(tracestore.PageChunk[ptrace.Traces]{}, f.err)
 			return
 		}
 		for _, spans := range f.batch {
-			yield([]tracestore.SpanPage{{Spans: spans, NextPageToken: ""}}, nil)
+			yield(tracestore.PageChunk[ptrace.Traces]{Results: spans, NextPageToken: ""}, nil)
 		}
 	}
 }
@@ -126,7 +126,7 @@ func (r *multiBatchReader) FindTraces(context.Context, tracestore.TraceQueryPara
 	return r.yieldBatches
 }
 
-func (r *multiBatchReader) FindSpans(context.Context, tracestore.SpanQueryParams) iter.Seq2[[]tracestore.SpanPage, error] {
+func (r *multiBatchReader) FindSpans(context.Context, tracestore.SpanQueryParams) iter.Seq2[tracestore.PageChunk[ptrace.Traces], error] {
 	return r.yieldSpanBatches
 }
 
@@ -142,14 +142,14 @@ func (r *multiBatchReader) yieldBatches(yield func([]ptrace.Traces, error) bool)
 	}
 }
 
-func (r *multiBatchReader) yieldSpanBatches(yield func([]tracestore.SpanPage, error) bool) {
+func (r *multiBatchReader) yieldSpanBatches(yield func(tracestore.PageChunk[ptrace.Traces], error) bool) {
 	for _, b := range r.batches {
-		var pages []tracestore.SpanPage
 		for _, spans := range b {
-			pages = append(pages, tracestore.SpanPage{Spans: spans})
-		}
-		if !yield(pages, nil) {
-			return
+			chunk := tracestore.PageChunk[ptrace.Traces]{Results: spans}
+
+			if !yield(chunk, nil) {
+				return
+			}
 		}
 	}
 }
@@ -970,7 +970,7 @@ func TestFindSpans_AppliesQueryAndResultHooks(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, serviceFilter("gated"), next.gotSpanQuery.Filter, "pre-query hook must reach storage")
 	require.Len(t, out, 1)
-	assert.Equal(t, "REDACTED", firstSpanAttr(t, []ptrace.Traces{out[0][0].Spans}, "secret"), "result hook must redact")
+	assert.Equal(t, "REDACTED", firstSpanAttr(t, []ptrace.Traces{out[0].Results}, "secret"), "result hook must redact")
 }
 
 // TestFindSpans_ShowsEveryPredicateAsAFilter pins what an interceptor is shown and what storage
@@ -1256,15 +1256,12 @@ func TestFindSpans_ResultErrorStopsIteration(t *testing.T) {
 	assertResultErrorStops(t, func(qs *QueryService) iter.Seq2[[]ptrace.Traces, error] {
 		return func(yield func([]ptrace.Traces, error) bool) {
 			spanPagesBatches := qs.FindSpans(t.Context(), searchSpansQuery(tracestore.SpanQueryParams{}))
-			processBatch := func(spanPages []tracestore.SpanPage, err error) bool {
+			processBatch := func(spanPages tracestore.PageChunk[ptrace.Traces], err error) bool {
 				if err != nil {
 					return yield(nil, err)
 				}
-				for _, page := range spanPages {
-					proceed := yield([]ptrace.Traces{page.Spans}, nil)
-					if !proceed {
-						return false
-					}
+				if !yield([]ptrace.Traces{spanPages.Results}, nil) {
+					return false
 				}
 				return true
 			}
@@ -1328,8 +1325,8 @@ func TestFindSpans_ThreadsResultContextAcrossBatches(t *testing.T) {
 	assert.Equal(t, []int{0, 1}, seen, "OnResult's returned context must thread into the next batch")
 }
 
-func collectSpans(it iter.Seq2[[]tracestore.SpanPage, error]) ([][]tracestore.SpanPage, error) {
-	var out [][]tracestore.SpanPage
+func collectSpans(it iter.Seq2[tracestore.PageChunk[ptrace.Traces], error]) ([]tracestore.PageChunk[ptrace.Traces], error) {
+	var out []tracestore.PageChunk[ptrace.Traces]
 	for batch, err := range it {
 		if err != nil {
 			return out, err

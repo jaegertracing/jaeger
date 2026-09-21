@@ -398,18 +398,18 @@ func TestFindSpans_Success(t *testing.T) {
 	tqs.traceReader.On("SearchCapabilities", context.Background()).Return(tracestore.SearchCapabilities{SpanSearch: true}, nil)
 
 	expectedSpans := makeTestTrace()
-	responseIter := iter.Seq2[[]tracestore.SpanPage, error](func(yield func([]tracestore.SpanPage, error) bool) {
-		yield([]tracestore.SpanPage{{Spans: expectedSpans, NextPageToken: ""}}, nil)
+	responseIter := iter.Seq2[tracestore.PageChunk[ptrace.Traces], error](func(yield func(tracestore.PageChunk[ptrace.Traces], error) bool) {
+		yield(tracestore.PageChunk[ptrace.Traces]{Results: expectedSpans, NextPageToken: ""}, nil)
 	})
 	params := tracestore.SpanQueryParams{}
 	query := SpanQueryParams{params}
 	tqs.traceReader.On("FindSpans", mock.Anything, params).Return(responseIter).Once()
 
 	seq := tqs.queryService.FindSpans(context.Background(), query)
-	result, err := jiter.FlattenWithErrors(seq)
+	result, err := jiter.CollectWithErrors(seq)
 	require.NoError(t, err)
 	require.Len(t, result, 1)
-	require.Equal(t, expectedSpans, result[0].Spans)
+	require.Equal(t, expectedSpans, result[0].Results)
 }
 
 func TestFindSpans_WithLegacyBackend_UnsupportedError(t *testing.T) {
@@ -418,7 +418,7 @@ func TestFindSpans_WithLegacyBackend_UnsupportedError(t *testing.T) {
 
 	query := SpanQueryParams{}
 	seq := tqs.queryService.FindSpans(context.Background(), query)
-	_, err := jiter.FlattenWithErrors(seq)
+	_, err := jiter.CollectWithErrors(seq)
 	require.Equal(t, ErrSpanSearchUnsupported, err)
 }
 
@@ -428,7 +428,7 @@ func TestFindSpans_WithUnsupportingBackend_UnsupportedError(t *testing.T) {
 
 	query := SpanQueryParams{}
 	seq := tqs.queryService.FindSpans(context.Background(), query)
-	_, err := jiter.FlattenWithErrors(seq)
+	_, err := jiter.CollectWithErrors(seq)
 	require.Equal(t, ErrSpanSearchUnsupported, err)
 }
 
