@@ -4,7 +4,7 @@ The Jaeger v2 integration test is an extension of the existing `integration.Stor
 
 ## File layout
 
-The `e2e_*_test.go` files hold the end-to-end tests themselves, one per backend or pipeline feature; each spawns the `jaeger-e2e` binary and is skipped unless the matching `STORAGE` (or `SAMPLING`) environment variable selects it. Every other `*_test.go` file in the package is either a helper the e2e tests share (the fault-injecting Elasticsearch proxy, the ES admin client, the backward-compatibility scenarios) or a unit test of the harness itself (`binary_test.go`, `trace_writer_test.go`, `e2e_integration_unit_test.go`), which runs without any backend.
+The `e2e_*_test.go` files hold the end-to-end tests themselves, one per backend or pipeline feature; each spawns the `jaeger-e2e` binary and is skipped unless the matching `STORAGE` (or `SAMPLING`) environment variable selects it. The harness and the helpers the e2e tests share live in plain `.go` files (`integration_harness.go`, `binary.go`, `trace_writer.go`, `kafka_fault_injection.go`, `backward_compatibility.go`, ...); the package is only ever compiled for tests, so they import `testing` freely. The remaining `*_test.go` files are unit tests of those helpers, named after the file they test, and run without any backend.
 
 ## Architecture
 
