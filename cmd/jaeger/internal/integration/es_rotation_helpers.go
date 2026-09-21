@@ -80,7 +80,7 @@ func initAutoRolloverIndices(t *testing.T, indexPrefix, policyName string) {
 func runEsRollover(t *testing.T, action string, flags ...string) {
 	args := append([]string{"run", "./cmd/es-rollover", action}, flags...)
 	args = append(args, esBaseURL)
-	cmd := exec.Command("go", args...)
+	cmd := exec.CommandContext(t.Context(), "go", args...)
 	cmd.Dir = "../../../.."
 	out, err := cmd.CombinedOutput()
 	t.Logf("jaeger-es-rollover %s output:\n%s", action, string(out))
