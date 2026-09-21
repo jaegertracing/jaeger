@@ -63,6 +63,15 @@ func WithUpstreamRetryInterval(d time.Duration) UpstreamClientOption {
 	}
 }
 
+// WithUpstreamMaxRetryInterval sets the maximum retry interval for background reconnect.
+func WithUpstreamMaxRetryInterval(d time.Duration) UpstreamClientOption {
+	return func(c *UpstreamClient) {
+		if d > 0 {
+			c.maxRetryInterval = d
+		}
+	}
+}
+
 // UpstreamClient manages a connection to an upstream MCP telemetry server.
 // It hardens communication by using StreamableClientTransport with
 // DisableStandaloneSSE: true, performing a sync-first dial with background retry,
@@ -73,6 +82,7 @@ type UpstreamClient struct {
 	disableStandaloneSSE bool
 	maxRetries           int
 	retryInterval        time.Duration
+	maxRetryInterval     time.Duration
 	logger               *zap.Logger
 
 	mu        sync.RWMutex
@@ -95,6 +105,7 @@ func NewUpstreamClient(endpoint string, opts ...UpstreamClientOption) *UpstreamC
 		disableStandaloneSSE: true,
 		maxRetries:           3,
 		retryInterval:        500 * time.Millisecond,
+		maxRetryInterval:     10 * time.Second,
 		logger:               zap.NewNop(),
 		bgCtx:                bgCtx,
 		cancel:               cancel,
@@ -174,7 +185,10 @@ func (c *UpstreamClient) backgroundRetryLoop() {
 	c.mu.RUnlock()
 
 	interval := c.retryInterval
-	maxInterval := 10 * time.Second
+	maxInterval := c.maxRetryInterval
+	if maxInterval <= 0 {
+		maxInterval = 10 * time.Second
+	}
 
 	for {
 		select {

@@ -12,6 +12,7 @@ import (
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	tracesdk "go.opentelemetry.io/otel/sdk/trace"
 	"go.uber.org/zap"
 )
 
@@ -20,6 +21,21 @@ func TestNewHandlerBuildsEndpoints(t *testing.T) {
 	require.NotNil(t, h.chat, "NewHandler must build the chat endpoint")
 	assert.Equal(t, "/jaeger", h.basePath)
 	assert.Nil(t, h.mcp, "the MCP endpoint must be nil when no MCP handler is supplied")
+}
+
+func TestNewHandlerWithUpstreamAndTracer(t *testing.T) {
+	mockUpstream := &mockUpstreamCaller{}
+	tp := tracesdk.NewTracerProvider()
+	h := NewHandler(HandlerParams{
+		Logger:         zap.NewNop(),
+		AgentURL:       "ws://example",
+		BasePath:       "/jaeger",
+		Upstream:       mockUpstream,
+		TracerProvider: tp,
+	})
+	require.NotNil(t, h.chat)
+	assert.Equal(t, mockUpstream, h.chat.upstream)
+	assert.NotNil(t, h.chat.tracer)
 }
 
 func TestRegisterRoutesMountsChatEndpoint(t *testing.T) {

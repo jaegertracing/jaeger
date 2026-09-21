@@ -1297,6 +1297,7 @@ func TestChatEndpointTransportIsolation(t *testing.T) {
 	turns := newTurnRegistry()
 	handler := newChatEndpoint(zap.NewNop(), nil, turns, wsURL, nil, "/jaeger", 1<<20,
 		WithChatEndpointUpstream(mockUpstream),
+		WithChatEndpointTracer(tracesdk.NewTracerProvider().Tracer("test")),
 	)
 	handler.mcpBaseURL = "http://127.0.0.1:16686"
 

@@ -14,6 +14,7 @@ import (
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	tracesdk "go.opentelemetry.io/otel/sdk/trace"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zaptest/observer"
 )
@@ -773,4 +774,17 @@ func TestACPHandlerMcpMessageToolsCallMissingName(t *testing.T) {
 	_, reqErr := f.d(t.Context(), acp.ClientMethodMcpMessage, callParams)
 	require.NotNil(t, reqErr)
 	assert.Equal(t, -32602, reqErr.Code)
+}
+
+func TestACPHandlerWithTracer(t *testing.T) {
+	tp := tracesdk.NewTracerProvider()
+	tracer := tp.Tracer("test")
+	client := newStreamingClient(t.Context(), httptest.NewRecorder(), "thread", "run")
+	handler := newACPHandler(
+		client,
+		NewContextualToolsStore(),
+		zap.NewNop(),
+		WithACPHandlerTracer(tracer),
+	)
+	assert.NotNil(t, handler)
 }

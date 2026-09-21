@@ -187,6 +187,24 @@ func TestUIDispatchMiddleware(t *testing.T) {
 		assert.True(t, called, "non-UI tool calls fall through to telemetry")
 	})
 
+	t.Run("tools/call telemetry tool returns error", func(t *testing.T) {
+		next := func(context.Context, string, mcp.Request) (mcp.Result, error) {
+			return nil, errors.New("upstream failed")
+		}
+		_, err := mw(next)(ctx, methodCallTool, &mcp.CallToolRequest{Params: &mcp.CallToolParamsRaw{Name: "get_services"}})
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "upstream failed")
+	})
+
+	t.Run("tools/call telemetry tool returns unexpected type", func(t *testing.T) {
+		next := func(context.Context, string, mcp.Request) (mcp.Result, error) {
+			return &mcp.ListToolsResult{}, nil
+		}
+		_, err := mw(next)(ctx, methodCallTool, &mcp.CallToolRequest{Params: &mcp.CallToolParamsRaw{Name: "get_services"}})
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "unexpected response type")
+	})
+
 	t.Run("tools/call with nil params returns a tool error, not a passthrough", func(t *testing.T) {
 		called := false
 		next := func(context.Context, string, mcp.Request) (mcp.Result, error) {
@@ -217,6 +235,35 @@ func TestUIDispatchMiddleware(t *testing.T) {
 		require.NoError(t, err)
 		assert.True(t, called)
 	})
+}
+
+func TestUIToolsMiddleware_WithTracer(t *testing.T) {
+	tp := sdktrace.NewTracerProvider()
+	tracer := tp.Tracer("test")
+	mw := uiToolsMiddleware(newTurnRegistry(), zap.NewNop(), tracer)
+	assert.NotNil(t, mw)
+}
+
+func TestDispatchUITool_ErrorAndNilTracer(t *testing.T) {
+	rec := httptest.NewRecorder()
+	stream := newStreamingClient(context.Background(), rec, "t", "r")
+	turn := &turnState{stream: stream}
+
+	// Nil tracer with valid call
+	res := dispatchUITool(context.Background(), turn, "ui_render", json.RawMessage(`{"a":1}`), nil, zap.NewNop())
+	assert.False(t, res.IsError)
+
+	// Error result with invalid JSON arguments
+	resErr := dispatchUITool(context.Background(), turn, "ui_render", json.RawMessage(`{invalid`), nil, zap.NewNop())
+	assert.True(t, resErr.IsError)
+}
+
+func TestForwardToUpstream_NilTracer(t *testing.T) {
+	res, err := forwardToUpstream(context.Background(), nil, "search_traces", nil, func(_ context.Context) (*mcp.CallToolResult, error) {
+		return &mcp.CallToolResult{}, nil
+	}, nil, zap.NewNop())
+	require.NoError(t, err)
+	assert.False(t, res.IsError)
 }
 
 func TestDispatchUITool_Tracing(t *testing.T) {
