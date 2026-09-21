@@ -6,6 +6,7 @@ package app
 import (
 	"errors"
 	"flag"
+	"strings"
 
 	"github.com/spf13/viper"
 	"go.opentelemetry.io/collector/config/configtls"
@@ -65,7 +66,7 @@ func AddFlags(flags *flag.FlagSet) {
 // InitFromViper initializes config from viper.Viper.
 func (c *Config) InitFromViper(v *viper.Viper) error {
 	c.IndexPrefix = v.GetString(indexPrefix)
-	if c.IndexPrefix != "" {
+	if c.IndexPrefix != "" && !strings.HasSuffix(c.IndexPrefix, "-") {
 		c.IndexPrefix += "-"
 	}
 	c.Archive = v.GetBool(archive)

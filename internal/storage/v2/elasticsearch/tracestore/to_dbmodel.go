@@ -30,19 +30,20 @@ const (
 // omitParentSpanIDReferenceGate, when enabled, stops the write path from encoding a
 // span's parent span ID as a synthetic CHILD_OF entry in the References field. Since
 // v2.20 the parent is written to its own dedicated parentSpanID field, so the synthetic
-// reference is redundant; it is retained by default only so that older query-service
-// readers, which derive the parent from References, keep working against the same index
-// during a rolling upgrade. Once all readers rely on the parentSpanID field this gate can
-// be promoted to Beta and eventually the compat write removed.
+// reference is redundant. The gate is enabled by default; disabling it restores the
+// synthetic reference so that query-service readers older than v2.20, which derive the
+// parent from References, keep working against the same index during a rolling upgrade.
+// Once no supported reader depends on the synthetic reference, the compat write and this
+// gate can be removed.
 var omitParentSpanIDReferenceGate = featuregate.GlobalRegistry().MustRegister(
 	"jaeger.es.omitParentSpanIDReference",
-	featuregate.StageAlpha,
+	featuregate.StageBeta,
 	featuregate.WithRegisterFromVersion("v2.20.0"),
 	featuregate.WithRegisterDescription(
-		"When enabled, the Elasticsearch/OpenSearch write path no longer encodes the parent "+
-			"span ID as a synthetic CHILD_OF reference; the parent is written only to the "+
-			"dedicated parentSpanID field. Keep disabled for compatibility with older readers "+
-			"that derive the parent span from the references list.",
+		"When enabled (the default), the Elasticsearch/OpenSearch write path no longer encodes "+
+			"the parent span ID as a synthetic CHILD_OF reference; the parent is written only to "+
+			"the dedicated parentSpanID field. Disable it for compatibility with readers older "+
+			"than v2.20 that derive the parent span from the references list.",
 	),
 )
 
