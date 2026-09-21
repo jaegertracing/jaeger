@@ -513,3 +513,16 @@ def test_aclose_releases_clients_for_unfinished_sessions() -> None:
 
     assert client.closed  # pyright: ignore[reportAttributeAccessIssue]
     assert agent._mcp_clients == {}
+
+
+def test_gateway_client_timeouts_do_not_inherit_httpx_default() -> None:
+    """httpx defaults every phase to 5s, which would cap the configured connect
+    budget and, worse, time out an idle SSE read while the gateway is still working.
+    Both are set explicitly instead."""
+    from gateway_mcp_client import SSE_READ_TIMEOUT_SEC, GatewayMCPClient
+
+    timeout = GatewayMCPClient("http://x/", {}, 15.0)._httpx_timeout()
+
+    assert timeout.connect == 15.0, "the configured budget must reach the connect phase"
+    assert timeout.read == SSE_READ_TIMEOUT_SEC, "an idle SSE read must not die at 5s"
+    assert timeout.read is not None and timeout.read > 5.0

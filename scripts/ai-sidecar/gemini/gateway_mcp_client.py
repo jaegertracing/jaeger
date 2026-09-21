@@ -20,6 +20,12 @@ from tracing import tracer
 
 logger = logging.getLogger(__name__)
 
+# SSE_READ_TIMEOUT_SEC bounds how long a streamable-HTTP read may sit idle. MCP
+# replies arrive as SSE, so an idle gap is normal while a tool runs; this exists
+# to eventually free a stream the gateway abandoned, not to bound tool work. It
+# matches the default the MCP SDK applies to its own client.
+SSE_READ_TIMEOUT_SEC = 300.0
+
 
 class GatewayMCPClient:
     """MCP client for one chat turn, dialing the endpoint the gateway announced.
@@ -48,6 +54,24 @@ class GatewayMCPClient:
         self._tools_by_name: dict[str, Any] = {}
         self._gemini_tools: list[types.Tool] = []
 
+    def _httpx_timeout(self) -> httpx.Timeout:
+        """Timeouts for the MCP transport.
+
+        httpx defaults every phase to 5s, which is wrong here twice over: it caps
+        the configured connect budget below mcp_discovery_timeout_sec, so that knob
+        could never be honoured, and it applies the same 5s to reads — but MCP
+        streamable HTTP answers over SSE, where a stream legitimately sits idle
+        between events while the gateway is still working. The read budget is
+        therefore generous and the handshake is bounded by asyncio.wait_for below,
+        which is what the caller actually configured.
+        """
+        return httpx.Timeout(
+            connect=self._timeout_sec,
+            read=SSE_READ_TIMEOUT_SEC,
+            write=self._timeout_sec,
+            pool=self._timeout_sec,
+        )
+
     async def initialize(self) -> None:
         """Open the MCP session and discover the turn's tool surface, once."""
         if self._session is not None:
@@ -69,7 +93,11 @@ class GatewayMCPClient:
                 # released with everything else. follow_redirects mirrors the SDK's
                 # own default for MCP clients.
                 http_client = await stack.enter_async_context(
-                    httpx.AsyncClient(headers=self._headers, follow_redirects=True)
+                    httpx.AsyncClient(
+                        headers=self._headers,
+                        follow_redirects=True,
+                        timeout=self._httpx_timeout(),
+                    )
                 )
                 read, write, _ = await stack.enter_async_context(
                     streamable_http_client(url=self._url, http_client=http_client)

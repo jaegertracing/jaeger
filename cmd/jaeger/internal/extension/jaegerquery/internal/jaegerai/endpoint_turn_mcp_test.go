@@ -103,7 +103,8 @@ func TestTurnScopedEndpointServesTelemetryPlusUITools(t *testing.T) {
 
 	got := listToolNames(t, ts, "/api/ai/mcp/"+routeID+"/")
 	assert.Contains(t, got, "get_services", "built-in telemetry tools must be advertised")
-	assert.Contains(t, got, "show_chart", "the turn's UI tools must be advertised")
+	assert.Contains(t, got, UIToolPrefix+"show_chart",
+		"the turn's UI tools must be advertised, namespaced so they cannot shadow a telemetry tool")
 }
 
 // TestSharedMCPHandlerServesTelemetryOnly pins the shared mount's contract while a
@@ -129,12 +130,13 @@ func TestSharedMCPHandlerServesTelemetryOnly(t *testing.T) {
 	ts := httptest.NewServer(mux)
 	t.Cleanup(ts.Close)
 
-	require.Contains(t, listToolNames(t, ts, "/api/ai/mcp/"+routeID+"/"), "show_chart",
+	require.Contains(t, listToolNames(t, ts, "/api/ai/mcp/"+routeID+"/"), UIToolPrefix+"show_chart",
 		"precondition: the turn's UI tool is live on the turn-scoped mount")
 
 	got := listToolNames(t, ts, "/api/ai/mcp/")
 	assert.Contains(t, got, "get_services", "the shared mount serves the telemetry tools")
-	assert.NotContains(t, got, "show_chart", "the shared mount must never advertise a turn's UI tools")
+	assert.NotContains(t, got, UIToolPrefix+"show_chart",
+		"the shared mount must never advertise a turn's UI tools")
 }
 
 func TestTurnScopedEndpointDispatchesUIToolToStream(t *testing.T) {
@@ -142,7 +144,7 @@ func TestTurnScopedEndpointDispatchesUIToolToStream(t *testing.T) {
 	session := connectTurnMCP(t, ts, "/api/ai/mcp/"+routeID+"/")
 
 	result, err := session.CallTool(context.Background(), &mcp.CallToolParams{
-		Name:      "show_chart",
+		Name:      UIToolPrefix + "show_chart",
 		Arguments: map[string]any{"series": "latency"},
 	})
 	require.NoError(t, err)
@@ -188,7 +190,7 @@ func TestTurnScopedEndpointUIToolReportsNoResult(t *testing.T) {
 	session := connectTurnMCP(t, ts, "/api/ai/mcp/"+routeID+"/")
 
 	_, err := session.CallTool(context.Background(), &mcp.CallToolParams{
-		Name:      "show_chart",
+		Name:      UIToolPrefix + "show_chart",
 		Arguments: map[string]any{"series": "latency"},
 	})
 	require.NoError(t, err)
@@ -230,6 +232,38 @@ func TestSharedMountReportsNothingToAnyStream(t *testing.T) {
 	_ = routeID
 }
 
+// TestUIToolCannotShadowTelemetryTool is the collision the UIToolPrefix namespace
+// exists to prevent, and #8875 names the prefix as a prerequisite for the sidecar
+// consuming this endpoint. A frontend declaring a UI tool called "search_traces"
+// must not intercept the agent's telemetry query of the same name: unprefixed it
+// would shadow the real tool in tools/list and be answered by the browser with an
+// acknowledgement instead of trace data.
+func TestUIToolCannotShadowTelemetryTool(t *testing.T) {
+	reader := &tracestoremocks.Reader{}
+	reader.On("GetServices", mock.Anything).Return([]string{"frontend"}, nil)
+	// A UI tool deliberately named after a built-in telemetry tool.
+	ts, rec, routeID := turnMCPServer(t, []json.RawMessage{rawUITool(t, "get_services")}, reader)
+	session := connectTurnMCP(t, ts, "/api/ai/mcp/"+routeID+"/")
+
+	names := listToolNames(t, ts, "/api/ai/mcp/"+routeID+"/")
+	assert.Contains(t, names, "get_services", "the telemetry tool keeps its own name")
+	assert.Contains(t, names, UIToolPrefix+"get_services", "the UI tool is advertised alongside it")
+
+	// The bare name must still reach Jaeger, not the browser.
+	result, err := session.CallTool(context.Background(), &mcp.CallToolParams{Name: "get_services"})
+	require.NoError(t, err)
+	require.False(t, result.IsError)
+	require.NotEmpty(t, result.Content)
+	text, ok := result.Content[0].(*mcp.TextContent)
+	require.True(t, ok)
+	assert.Contains(t, text.Text, "frontend",
+		"the telemetry query must return trace data, not a browser acknowledgement")
+	// Reported as a telemetry call, not dispatched as a UI one: the discriminator is
+	// TOOL_CALL_RESULT, which the gateway emits only when it ran the tool itself.
+	assert.Contains(t, rec.Body.String(), "TOOL_CALL_RESULT",
+		"the gateway ran the tool, so the chat gets its result")
+}
+
 // TestTurnScopedEndpointIsolatesTurns is the key guarantee of the single
 // shared server: two turns declaring different UI tools each see only their
 // own (plus the shared telemetry tools), and a UI-tool call reaches only the
@@ -260,14 +294,14 @@ func TestTurnScopedEndpointIsolatesTurns(t *testing.T) {
 	require.NoError(t, err)
 	namesA, namesB := toolNames(listA.Tools), toolNames(listB.Tools)
 
-	assert.Contains(t, namesA, "chart_a")
-	assert.NotContains(t, namesA, "chart_b", "turn A must not see turn B's UI tools")
-	assert.Contains(t, namesB, "chart_b")
-	assert.NotContains(t, namesB, "chart_a", "turn B must not see turn A's UI tools")
+	assert.Contains(t, namesA, UIToolPrefix+"chart_a")
+	assert.NotContains(t, namesA, UIToolPrefix+"chart_b", "turn A must not see turn B's UI tools")
+	assert.Contains(t, namesB, UIToolPrefix+"chart_b")
+	assert.NotContains(t, namesB, UIToolPrefix+"chart_a", "turn B must not see turn A's UI tools")
 	assert.Contains(t, namesA, "get_services", "both turns still see the shared telemetry tools")
 	assert.Contains(t, namesB, "get_services")
 
-	_, err = sessionA.CallTool(context.Background(), &mcp.CallToolParams{Name: "chart_a"})
+	_, err = sessionA.CallTool(context.Background(), &mcp.CallToolParams{Name: UIToolPrefix + "chart_a"})
 	require.NoError(t, err)
 	assert.Contains(t, recA.Body.String(), "chart_a", "the dispatch reaches the calling turn's stream")
 	assert.NotContains(t, recB.Body.String(), "chart_a", "the other turn's stream is untouched")

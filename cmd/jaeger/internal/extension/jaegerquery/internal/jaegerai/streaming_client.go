@@ -181,25 +181,32 @@ func (c *streamingClient) EmitContextualToolCall(toolCallID, toolName string, ra
 	c.emit(aguievents.NewToolCallEndEvent(toolCallID))
 }
 
-// EmitTelemetryToolCall fires the full TOOL_CALL_START / TOOL_CALL_ARGS /
-// TOOL_CALL_RESULT / TOOL_CALL_END lifecycle for a built-in telemetry tool the
-// agent invoked via the turn-scoped MCP endpoint.
-//
-// Unlike EmitContextualToolCall this carries a result, because the gateway ran
-// the tool itself: the browser is a spectator here, not the executor. The two
-// therefore differ exactly where the executor differs — a UI tool ends without a
-// result so assistant-ui still runs it locally, a telemetry tool ends with one so
-// the chat shows what came back.
+// EmitTelemetryToolStart fires TOOL_CALL_START / TOOL_CALL_ARGS for a built-in
+// telemetry tool the agent invoked via the turn-scoped MCP endpoint, before the
+// tool runs — so the chat shows the query in flight rather than appearing idle
+// until it returns. EmitTelemetryToolResult closes the pair.
 //
 // It acquires c.mu like the other entry points, so it is safe to call
 // concurrently with the ACP SessionUpdate path.
-func (c *streamingClient) EmitTelemetryToolCall(toolCallID, toolName string, rawArgs any, result string) {
+func (c *streamingClient) EmitTelemetryToolStart(toolCallID, toolName string, rawArgs any) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	c.emit(aguievents.NewToolCallStartEvent(toolCallID, toolName))
 	if rawArgs != nil {
 		c.emit(aguievents.NewToolCallArgsEvent(toolCallID, marshalToolArgsDelta(rawArgs)))
 	}
+}
+
+// EmitTelemetryToolResult fires TOOL_CALL_RESULT / TOOL_CALL_END once the tool has
+// run, completing the lifecycle EmitTelemetryToolStart opened.
+//
+// A telemetry tool carries a result because the gateway ran it: the browser is a
+// spectator here, not the executor. That is exactly where this differs from
+// EmitContextualToolCall, which ends a UI tool without a result so assistant-ui
+// still runs it locally.
+func (c *streamingClient) EmitTelemetryToolResult(toolCallID, result string) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
 	if result != "" {
 		c.emit(aguievents.NewToolCallResultEvent(
 			toolResultMessageID(acp.ToolCallId(toolCallID)),

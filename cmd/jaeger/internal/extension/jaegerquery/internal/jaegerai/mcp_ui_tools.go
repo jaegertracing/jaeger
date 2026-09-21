@@ -106,16 +106,10 @@ func appendUITools(telemetryTools []*mcp.Tool, turn *turnState, logger *zap.Logg
 	if len(uiTools) == 0 {
 		return telemetryTools
 	}
-	shadowed := make(map[string]struct{}, len(uiTools))
-	for _, t := range uiTools {
-		shadowed[t.Name] = struct{}{}
-	}
+	// No shadowing pass: UI tools are advertised under UIToolPrefix, so they
+	// occupy a namespace the telemetry tools cannot reach.
 	merged := make([]*mcp.Tool, 0, len(telemetryTools)+len(uiTools))
-	for _, t := range telemetryTools {
-		if _, clash := shadowed[t.Name]; !clash {
-			merged = append(merged, t)
-		}
-	}
+	merged = append(merged, telemetryTools...)
 	return append(merged, uiTools...)
 }
 
@@ -149,8 +143,15 @@ func uiToolDescriptors(turn *turnState, logger *zap.Logger) []*mcp.Tool {
 			continue // a frontend that declares the same tool twice gets one entry
 		}
 		seen[def.name] = struct{}{}
+		// Advertised UIToolPrefix-namespaced so a frontend tool can never collide
+		// with a built-in telemetry tool. Without it a UI tool named
+		// "search_traces" would shadow the real one in tools/list and route the
+		// agent's telemetry query to the browser, which answers with an
+		// acknowledgement instead of trace data. The prefix is stripped again when
+		// dispatching to the browser, which knows the tool by the name it
+		// registered.
 		descriptors = append(descriptors, &mcp.Tool{
-			Name:        def.name,
+			Name:        UIToolPrefix + def.name,
 			Description: def.description,
 			InputSchema: def.schema,
 		})
@@ -161,8 +162,12 @@ func uiToolDescriptors(turn *turnState, logger *zap.Logger) []*mcp.Tool {
 // turnDeclaredUITool reports whether toolName is one of the turn's
 // frontend-declared UI tools. Malformed or unnamed entries never match.
 func turnDeclaredUITool(turn *turnState, toolName string) bool {
+	bare, ok := strings.CutPrefix(toolName, UIToolPrefix)
+	if !ok || bare == "" {
+		return false
+	}
 	for _, raw := range turn.uiTools {
-		if def, ok := parseUITool(raw); ok && def.name == toolName {
+		if def, ok := parseUITool(raw); ok && def.name == bare {
 			return true
 		}
 	}
@@ -203,7 +208,10 @@ func emitUIToolCall(stream *streamingClient, toolName string, rawArgs json.RawMe
 			return uiToolErrorResult(fmt.Sprintf("invalid JSON arguments for tool %q: %v", toolName, err))
 		}
 	}
-	stream.EmitContextualToolCall(newUIToolCallID(toolName), toolName, args)
+	// The browser knows the tool by the name it registered, not the namespaced
+	// one the agent called.
+	bare := stripUIToolPrefix(toolName)
+	stream.EmitContextualToolCall(newToolCallID(bare), bare, args)
 	return &mcp.CallToolResult{
 		Content: []mcp.Content{&mcp.TextContent{Text: fmt.Sprintf("ui tool %q dispatched to the browser", toolName)}},
 	}
@@ -228,23 +236,25 @@ func emitTelemetryToolCall(
 	stream *streamingClient,
 	next mcp.MethodHandler,
 ) (mcp.Result, error) {
-	res, err := next(ctx, method, req)
 	if stream == nil {
-		return res, err
+		return next(ctx, method, req)
 	}
 
 	var args any
 	if len(call.Params.Arguments) > 0 {
-		// Unreported rather than fatal: the tool already ran, and the agent's
+		// Unreported rather than fatal: the tool still runs, and the agent's
 		// result does not depend on our ability to render the arguments.
 		_ = json.Unmarshal(call.Params.Arguments, &args)
 	}
-	stream.EmitTelemetryToolCall(
-		newUIToolCallID(call.Params.Name),
-		call.Params.Name,
-		args,
-		toolResultText(res, err),
-	)
+	// Announce before running, not after: a telemetry query can take seconds, and
+	// emitting the whole lifecycle on completion would leave the chat looking idle
+	// for exactly as long as the work takes.
+	toolCallID := newToolCallID(call.Params.Name)
+	stream.EmitTelemetryToolStart(toolCallID, call.Params.Name, args)
+
+	res, err := next(ctx, method, req)
+
+	stream.EmitTelemetryToolResult(toolCallID, toolResultText(res, err))
 	return res, err
 }
 
@@ -290,13 +300,13 @@ func normalizeUIToolSchema(raw any) map[string]any {
 	return map[string]any{"type": "object"}
 }
 
-// uiToolCallIDSeq is a process-wide monotonic counter appended to generated
+// toolCallIDSeq is a process-wide monotonic counter appended to generated
 // tool-call ids so two dispatches within the same nanosecond don't collide.
-var uiToolCallIDSeq atomic.Uint64
+var toolCallIDSeq atomic.Uint64
 
-// newUIToolCallID produces a stable per-process unique id for a TOOL_CALL_*
+// newToolCallID produces a stable per-process unique id for a TOOL_CALL_*
 // event group. The browser treats it as opaque; name-first keeps logs readable
 // and nanos+counter guarantees uniqueness.
-func newUIToolCallID(name string) string {
-	return fmt.Sprintf("%s-%d-%d", name, time.Now().UnixNano(), uiToolCallIDSeq.Add(1))
+func newToolCallID(name string) string {
+	return fmt.Sprintf("%s-%d-%d", name, time.Now().UnixNano(), toolCallIDSeq.Add(1))
 }
