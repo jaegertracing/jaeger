@@ -542,6 +542,11 @@ func TestParseTraceID(t *testing.T) {
 			input:     "",
 			wantError: true,
 		},
+		{
+			name:      "invalid trace ID - all zero",
+			input:     "00000000000000000000000000000000",
+			wantError: true,
+		},
 	}
 
 	for _, tt := range tests {
@@ -555,6 +560,24 @@ func TestParseTraceID(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestGetSpanDetailsHandler_Handle_ZeroTraceID(t *testing.T) {
+	// The all-zero trace_id is syntactically valid hex but can never identify a
+	// real trace, so it must be rejected before any backend query runs. A nil
+	// queryService is safe here: reaching it would panic.
+	handler := NewGetSpanDetailsHandler(nil, 50)
+
+	input := types.GetSpanDetailsInput{
+		TraceID: "00000000000000000000000000000000",
+		SpanIDs: []string{spanIDToHex("span001")},
+	}
+
+	_, _, err := handler(context.Background(), &mcp.CallToolRequest{}, input)
+
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "invalid trace_id")
+	assert.Contains(t, err.Error(), "trace ID must not be all zero")
 }
 
 func TestGetSpanDetailsHandler_Handle_UppercaseSpanID(t *testing.T) {
