@@ -139,6 +139,9 @@ func TestKafkaStorage_SyncElasticsearch_FaultInjection(t *testing.T) {
 		"KAFKA_TOPIC":    uniqueTopic,
 		"KAFKA_ENCODING": "otlp_proto",
 		"ES_SERVER_URL":  proxy.URL(),
+		// The child processes get an explicit environment, so the broker the
+		// offset reader resolves is passed on to keep all three on one cluster.
+		"KAFKA_BROKER": kafkaBroker(),
 	}
 
 	collector := &E2EStorageIntegration{

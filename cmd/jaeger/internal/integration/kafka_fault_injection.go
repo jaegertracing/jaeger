@@ -104,14 +104,14 @@ func injectServiceUnavailable(resp *http.Response) {
 	resp.ContentLength = int64(len(body))
 	resp.Header.Set("Content-Length", strconv.Itoa(len(body)))
 	resp.Header.Set("Content-Type", "application/json")
-	// The upstream body was gzip-compressed; the replacement is not.
+	// The upstream body may have been gzip-compressed; the replacement is not.
 	resp.Header.Del("Content-Encoding")
 }
 
 // kafkaBroker returns the broker the collector and ingester configs connect to,
 // read from the same KAFKA_BROKER variable with the same default.
 func kafkaBroker() string {
-	if broker, ok := os.LookupEnv("KAFKA_BROKER"); ok && broker != "" {
+	if broker := os.Getenv("KAFKA_BROKER"); broker != "" {
 		return broker
 	}
 	return "localhost:9092"
@@ -237,8 +237,8 @@ const outageHoldTime = 15 * time.Second
 // catches up and the trace is stored exactly once.
 func (f *faultInjectionSteps) runOutage(t *testing.T, fault esFault, traceIDByte byte, duringOutage func(t *testing.T, trace ptrace.Traces)) {
 	f.requireOffsetCaughtUp(t)
-	committedBefore := f.requireOffsets(t, f.offsets.committed)
-	endBefore := f.requireOffsets(t, f.offsets.end)
+	committedBefore := requireOffsets(t, f.offsets.committed)
+	endBefore := requireOffsets(t, f.offsets.end)
 
 	f.proxy.setFault(fault)
 	defer f.proxy.setFault(esFaultNone)
@@ -251,8 +251,8 @@ func (f *faultInjectionSteps) runOutage(t *testing.T, fault esFault, traceIDByte
 	t.Logf("Trace is in Kafka; holding the fault for %v", outageHoldTime)
 	time.Sleep(outageHoldTime)
 
-	committedDuring := f.requireOffsets(t, f.offsets.committed)
-	endDuring := f.requireOffsets(t, f.offsets.end)
+	committedDuring := requireOffsets(t, f.offsets.committed)
+	endDuring := requireOffsets(t, f.offsets.end)
 	t.Logf("Kafka offsets while the fault holds: committed=%v end=%v", committedDuring, endDuring)
 	assert.Equal(t, committedBefore, committedDuring, "no partition's committed offset may advance while the write fails")
 	duringOutage(t, trace)
@@ -265,15 +265,12 @@ func (f *faultInjectionSteps) runOutage(t *testing.T, fault esFault, traceIDByte
 	f.requireStoredOnce(t, trace)
 }
 
-// outageSpanCount is the size of each trace the subtests write. It stays within
-// the trace writer's MaxChunkSize so a trace is one OTLP request and, with the
-// collector's batch processor, one Kafka record; a trace split across records
-// would leave the later record unconsumed while the first one is retried.
-var outageSpanCount = MaxChunkSize
-
-// write sends a trace into the collector and returns it.
+// write sends a trace into the collector and returns it. The trace has MaxChunkSize
+// spans so it is one OTLP request and, with the collector's batch processor, one
+// Kafka record; a trace split across records would leave the later record
+// unconsumed while the first one is retried.
 func (f *faultInjectionSteps) write(t *testing.T, traceIDByte byte) ptrace.Traces {
-	trace := buildFaultInjectionTrace(traceIDByte, outageSpanCount)
+	trace := buildFaultInjectionTrace(traceIDByte, MaxChunkSize)
 	ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
 	defer cancel()
 	require.NoError(t, f.collector.TraceWriter.WriteTraces(ctx, trace))
@@ -282,7 +279,7 @@ func (f *faultInjectionSteps) write(t *testing.T, traceIDByte byte) ptrace.Trace
 
 // requireOffsets reads offsets with one of the kafkaOffsets readers and fails the
 // test on error. It is for reads outside a polling loop.
-func (*faultInjectionSteps) requireOffsets(t *testing.T, read func() (partitionOffsets, error)) partitionOffsets {
+func requireOffsets(t *testing.T, read func() (partitionOffsets, error)) partitionOffsets {
 	offsets, err := read()
 	require.NoError(t, err)
 	return offsets
@@ -316,6 +313,7 @@ func (f *faultInjectionSteps) requireStoredOnce(t *testing.T, trace ptrace.Trace
 // requireOffsetCaughtUp waits until every partition's committed offset equals its
 // end offset, and at least one partition holds a message.
 func (f *faultInjectionSteps) requireOffsetCaughtUp(t *testing.T) {
+	var lastLogged string
 	require.Eventually(t, func() bool {
 		committed, err := f.offsets.committed()
 		if err != nil {
@@ -325,7 +323,12 @@ func (f *faultInjectionSteps) requireOffsetCaughtUp(t *testing.T) {
 		if err != nil {
 			return false
 		}
-		t.Logf("Kafka offsets: committed=%v end=%v", committed, end)
+		// Log on change only, so a slow recovery does not repeat the same line
+		// once a second.
+		if state := fmt.Sprintf("committed=%v end=%v", committed, end); state != lastLogged {
+			t.Logf("Kafka offsets: %s", state)
+			lastLogged = state
+		}
 		return end.advancedPast(partitionOffsets{}) && maps.Equal(committed, end)
 	}, 2*time.Minute, time.Second, "the committed offsets never caught up with the end offsets")
 }
