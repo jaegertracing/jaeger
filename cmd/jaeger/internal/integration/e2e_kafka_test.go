@@ -162,10 +162,10 @@ func TestKafkaStorage_SyncElasticsearch_FaultInjection(t *testing.T) {
 
 	// The consumer group is the Kafka receiver's default.
 	offsets := newKafkaOffsets(t, kafkaBroker(), "otel-collector", uniqueTopic)
-	f := &faultInjectionSteps{collector: collector, ingester: ingester, proxy: proxy, offsets: offsets}
+	f := &faultInjectionSteps{collector: collector, proxy: proxy, offsets: offsets}
 
 	t.Run("baseline", func(t *testing.T) {
-		trace := f.write(t, 0x01, 7)
+		trace := f.write(t, 0x01)
 		f.requireStoredOnce(t, trace)
 		f.requireOffsetCaughtUp(t)
 	})
@@ -186,7 +186,7 @@ func TestKafkaStorage_SyncElasticsearch_FaultInjection(t *testing.T) {
 	})
 
 	t.Run("no_stall", func(t *testing.T) {
-		trace := f.write(t, 0x04, 6)
+		trace := f.write(t, 0x04)
 		f.requireStoredOnce(t, trace)
 		f.requireOffsetCaughtUp(t)
 	})
