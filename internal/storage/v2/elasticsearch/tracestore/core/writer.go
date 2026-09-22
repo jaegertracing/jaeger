@@ -133,8 +133,8 @@ func (s *SpanWriter) WriteSpans(ctx context.Context, spans []dbmodel.Span) error
 		}
 	}
 	// Every span is durable now (or enqueued, in async mode), so the service docs
-	// are remembered, including a lookup document the backend rejected terminally:
-	// re-sending it would only be rejected again.
+	// are cached. That includes a service:operation document that the backend
+	// rejected with a terminal error: sending it again would only fail again.
 	serviceOps.commitToCache()
 	return nil
 }
@@ -188,7 +188,7 @@ func (s *SpanWriter) attributeRejections(err error, items []esclient.BulkItem, d
 			zap.String("id", item.ID), zap.Int("status", item.Status), zap.String("reason", item.Reason))
 	}
 	if len(rejected.Spans) == 0 && rejected.Unidentified == 0 {
-		// Only lookup documents were rejected terminally. Every span is stored, so
+		// The only terminal rejections were lookup documents. Every span is stored, so
 		// the batch is complete unless transient failures still call for a retry.
 		if rejected.Transient {
 			return err

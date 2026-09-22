@@ -31,7 +31,7 @@ type Writer interface {
 	WriteTraces(ctx context.Context, td ptrace.Traces) error
 }
 
-// RejectedSpan identifies one span the backend rejected terminally, with the
+// RejectedSpan identifies one span that the backend rejected with a terminal error, with the
 // backend's reason.
 type RejectedSpan struct {
 	TraceID pcommon.TraceID
@@ -40,7 +40,7 @@ type RejectedSpan struct {
 }
 
 // RejectedSpansError is the error a synchronous Writer returns when the backend
-// stored a batch except for spans it rejected terminally: poison pills that would
+// stored a batch except for spans that it rejected with a terminal error: poison pills that would
 // fail identically on every retry (a mapping conflict, a malformed field). It lets a
 // caller that can re-route spans, such as a dead-letter connector, recover exactly
 // which spans need re-routing with errors.As, without knowing anything about the
