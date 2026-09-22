@@ -239,6 +239,8 @@ func (h *HTTPGateway) findSpans(w http.ResponseWriter, r *http.Request) {
 		spans = append(spans, chunk.Results)
 		nextPageToken = chunk.NextPageToken
 	}
+	// TODO: the response should be streamed back to the client
+	// https://github.com/jaegertracing/jaeger/issues/6467
 	combined := ptrace.NewTraces()
 	for _, t := range spans {
 		resources := t.ResourceSpans()

@@ -325,15 +325,16 @@ func TestParseFindSpansQuery(t *testing.T) {
 		assert.Nil(t, got.Filter)
 	})
 
-	t.Run("deprecated snake_case time params", func(t *testing.T) {
+	t.Run("deprecated snake_case time params are not honored", func(t *testing.T) {
+		// This is a new endpoint with no callers to keep the deprecated aliases for.
 		q := url.Values{}
 		q.Set(paramTimeMinDeprecated, goodMin)
 		q.Set(paramTimeMaxDeprecated, goodMax)
 
 		got, err := parseFindSpansQuery(q)
 		require.NoError(t, err)
-		assert.Equal(t, tMin, got.StartTimeMin)
-		assert.Equal(t, tMax, got.StartTimeMax)
+		assert.True(t, got.StartTimeMin.IsZero())
+		assert.True(t, got.StartTimeMax.IsZero())
 	})
 
 	t.Run("a filter", func(t *testing.T) {

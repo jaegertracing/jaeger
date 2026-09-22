@@ -166,17 +166,19 @@ func parseFindSpansQuery(q url.Values) (*querysvc.SpanQueryParams, error) {
 
 	queryParams := &querysvc.SpanQueryParams{}
 
-	if s, paramName := getQueryParam(q, paramTimeMin, paramTimeMinDeprecated); s != "" {
+	// This is a new endpoint with no callers to keep the deprecated snake_case aliases for, so
+	// it reads only the canonical camelCase params.
+	if s := q.Get(paramTimeMin); s != "" {
 		parsed, err := time.Parse(time.RFC3339Nano, s)
 		if err != nil {
-			return nil, fmt.Errorf("malformed parameter %s: %w", paramName, err)
+			return nil, fmt.Errorf("malformed parameter %s: %w", paramTimeMin, err)
 		}
 		queryParams.StartTimeMin = parsed
 	}
-	if s, paramName := getQueryParam(q, paramTimeMax, paramTimeMaxDeprecated); s != "" {
+	if s := q.Get(paramTimeMax); s != "" {
 		parsed, err := time.Parse(time.RFC3339Nano, s)
 		if err != nil {
-			return nil, fmt.Errorf("malformed parameter %s: %w", paramName, err)
+			return nil, fmt.Errorf("malformed parameter %s: %w", paramTimeMax, err)
 		}
 		queryParams.StartTimeMax = parsed
 	}
