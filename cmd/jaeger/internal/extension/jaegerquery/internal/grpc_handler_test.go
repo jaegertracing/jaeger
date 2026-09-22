@@ -950,3 +950,21 @@ func TestFindTracesServiceNameRequired_GRPC(t *testing.T) {
 		assert.Nil(t, spanResChunk)
 	})
 }
+
+// TestFindTracesWithoutTimeRange_GRPC pins that api_v2 refuses a search with no time range as
+// InvalidArgument. The query service makes that decision for every API; this handler used to
+// forward such a search to storage. No FindTraces expectation is set, so reaching storage
+// would fail the test.
+func TestFindTracesWithoutTimeRange_GRPC(t *testing.T) {
+	withServerAndClient(t, func(_ *grpcServer, client *grpcClient) {
+		res, err := client.FindTraces(context.Background(), &api_v2.FindTracesRequest{
+			Query: &api_v2.TraceQueryParameters{ServiceName: "service"},
+		})
+		require.NoError(t, err)
+
+		spanResChunk, err := res.Recv()
+		require.ErrorContains(t, err, "start_time_min and start_time_max are required")
+		assert.Equal(t, codes.InvalidArgument, status.Code(err))
+		assert.Nil(t, spanResChunk)
+	})
+}
