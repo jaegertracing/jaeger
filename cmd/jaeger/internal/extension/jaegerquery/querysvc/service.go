@@ -47,8 +47,8 @@ type QueryServiceOptions struct {
 	// If a trace has more spans than this limit, it will be truncated and a warning will be added.
 	MaxTraceSize int
 	// Interceptors are the query-interceptor extensions this deployment configured, in the order
-	// it named them. The query service invokes their OnQuery around every trace search and their
-	// OnResult around every batch of loaded traces. Most deployments configure none.
+	// it named them. The query service invokes their OnTraceQuery around every trace search and their
+	// OnTraceResult around every batch of loaded traces. Most deployments configure none.
 	Interceptors []queryinterceptor.Interceptor
 }
 
@@ -126,7 +126,7 @@ func (qs QueryService) GetTraces(
 	ctx context.Context,
 	params GetTraceParams,
 ) iter.Seq2[[]ptrace.Traces, error] {
-	getTracesIter := qs.interceptResults(ctx, qs.traceReader.GetTraces(ctx, params.TraceIDs...))
+	getTracesIter := qs.interceptTraceResults(ctx, qs.traceReader.GetTraces(ctx, params.TraceIDs...))
 	return func(yield func([]ptrace.Traces, error) bool) {
 		foundTraceIDs, proceed := qs.receiveTraces(getTracesIter, yield, params.RawTraces)
 		if proceed && qs.options.ArchiveTraceReader != nil {
@@ -137,7 +137,7 @@ func (qs QueryService) GetTraces(
 				}
 			}
 			if len(missingTraceIDs) > 0 {
-				getArchiveTracesIter := qs.interceptResults(
+				getArchiveTracesIter := qs.interceptTraceResults(
 					ctx, qs.options.ArchiveTraceReader.GetTraces(ctx, missingTraceIDs...),
 				)
 				qs.receiveTraces(getArchiveTracesIter, yield, params.RawTraces)
@@ -200,7 +200,7 @@ func (qs QueryService) FindTraces(
 			yield(nil, err)
 			return
 		}
-		tracesIter := qs.interceptResults(ctx, qs.traceReader.FindTraces(ctx, query.TraceQueryParams))
+		tracesIter := qs.interceptTraceResults(ctx, qs.traceReader.FindTraces(ctx, query.TraceQueryParams))
 		qs.receiveTraces(tracesIter, yield, query.RawTraces)
 	}
 }
@@ -255,7 +255,7 @@ func (qs QueryService) prepareSearchQuery(
 	}
 	if len(qs.options.Interceptors) > 0 {
 		var err error
-		ctx, query, err = qs.onQuery(ctx, query)
+		ctx, query, err = qs.onTraceQuery(ctx, query)
 		if err != nil {
 			return ctx, query, err
 		}
@@ -385,7 +385,7 @@ func (qs QueryService) FindTraceSummaries(
 					// Fall back to FindTraces + aggregation. The fallback loads whole traces, so
 					// the interceptors get the same say over them as on a FindTraces search; the
 					// summaries computed from them carry no spans and have no hook of their own.
-					traces := qs.interceptResults(ctx, qs.traceReader.FindTraces(ctx, query.TraceQueryParams))
+					traces := qs.interceptTraceResults(ctx, qs.traceReader.FindTraces(ctx, query.TraceQueryParams))
 					for b, e := range computeSummaries(traces, qs.adjuster) {
 						// FindTraces does not return pagination metadata, so fallback results cannot
 						// supply a next-page token.

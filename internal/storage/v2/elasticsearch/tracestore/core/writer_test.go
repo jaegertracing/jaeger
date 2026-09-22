@@ -144,7 +144,7 @@ func TestSpanWriter_WriteSpan(t *testing.T) {
 		require.Len(t, *w.added, 2)
 		service, spanItem := (*w.added)[0], (*w.added)[1]
 		assert.Equal(t, "jaeger-service-1995-04-21", service.Index)
-		assert.Equal(t, "de3b5a8f1a79989d", service.ID)
+		assert.Equal(t, "d82cd4c84f128f01", service.ID)
 		assert.IsType(t, dbmodel.Service{}, service.Body)
 		assert.Equal(t, "jaeger-span-1995-04-21", spanItem.Index)
 		assert.Equal(t, es.WriteOpIndex, spanItem.OpType)

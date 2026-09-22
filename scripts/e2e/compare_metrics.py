@@ -123,7 +123,7 @@ def generate_diff(baseline_content, current_content):
     """Compare two Prometheus metrics snapshots and return a unified diff of metric names.
 
     The input files are raw Prometheus text exposition format, scraped directly from
-    the Jaeger /metrics endpoint by e2e_integration.go (scrapeMetrics), e.g.:
+    the Jaeger /metrics endpoint by integration_harness.go (scrapeMetrics), e.g.:
         # HELP http_requests_total The total number of HTTP requests.
         # TYPE http_requests_total counter
         http_requests_total{method="post",code="200"} 1027 1395066363000
