@@ -273,12 +273,9 @@ func (qs QueryService) prepareSearchQuery(
 		}
 		// An oversized page is clamped rather than refused (RFC 0014 §4, AIP-158). The clamp
 		// lands on a copy so the caller's request is not rewritten through the shared pointer.
-		if query.Pagination.PageSize > tracestore.MaxPageSize {
-			query.Pagination = &tracestore.Pagination{
-				PageSize:  tracestore.MaxPageSize,
-				PageToken: query.Pagination.PageToken,
-			}
-		}
+		clamped := *query.Pagination
+		clamped.PageSize = min(clamped.PageSize, tracestore.MaxPageSize)
+		query.Pagination = &clamped
 	}
 	if query.Filter != nil {
 		// None of these refusals depends on the backend, so they come before the capability call
