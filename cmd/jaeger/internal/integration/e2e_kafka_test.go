@@ -330,6 +330,9 @@ func TestKafkaStorage_SyncElasticsearch_DeadLetter(t *testing.T) {
 		assert.Equal(t, singleTraceID(trace), received[0].TraceID())
 		assert.Equal(t, poisonSpanID, received[0].SpanID())
 		assert.Equal(t, poisonSpanFlags, received[0].Flags(), "the span is re-emitted as received, rejection and all")
+		reason, ok := received[0].Attributes().Get("jaeger.storage.rejection_reason")
+		require.True(t, ok, "the re-emitted span carries the backend's rejection reason")
+		assert.Contains(t, reason.Str(), "flags", "the reason names the field the mapping rejected")
 	})
 
 	t.Run("backend_down_holds_offset", func(t *testing.T) {

@@ -50,6 +50,8 @@ type deadLetterServer struct {
 }
 
 func newDeadLetterServer(t *testing.T) *deadLetterServer {
+	// Reserving the port by listening and closing is best effort: another process
+	// could take it before the receiver binds, which surfaces as a Start error.
 	ctx := context.Background()
 	ln, err := (&net.ListenConfig{}).Listen(ctx, "tcp", "127.0.0.1:0")
 	require.NoError(t, err)

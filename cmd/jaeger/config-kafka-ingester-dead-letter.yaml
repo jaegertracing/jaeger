@@ -4,9 +4,10 @@
 # At-least-once Kafka ingester with synchronous Elasticsearch writes and a
 # dead-letter pipeline for poison spans (RFC 0007 §4.8).
 #
-# This is config-kafka-ingester-sync.yaml with one change: the storage write is
-# the jaeger_storage_writer connector instead of jaeger_storage_exporter, and the
-# storage runs with poison_pill_handling: fail instead of drop. A span the backend
+# This is config-kafka-ingester-sync.yaml with these changes: the storage write is
+# the jaeger_storage_writer connector instead of jaeger_storage_exporter, the
+# storage runs with poison_pill_handling: fail instead of drop, and a
+# traces/dead_letter pipeline feeds an otlphttp exporter. A span the backend
 # rejects terminally (a "poison pill": a document that fails identically on every
 # retry, such as a mapping conflict) is then re-emitted onto the traces/dead_letter
 # pipeline instead of being discarded, and the batch completes so the Kafka offset
@@ -128,7 +129,11 @@ connectors:
 
 exporters:
   otlphttp/dead_letter:
-    traces_endpoint: ${env:DEAD_LETTER_ENDPOINT:-http://localhost:4318/v1/traces}
+    # The endpoint has no default on purpose: the obvious local one, port 4318, is
+    # the OTLP receiver of config-kafka-collector.yaml, which would feed every
+    # poison span back into the same Kafka topic in an endless loop. An unset
+    # variable leaves the endpoint empty and the collector refuses to start.
+    traces_endpoint: ${env:DEAD_LETTER_ENDPOINT}
     # The connector needs the sink's verdict before it advances the offset, so the
     # dead-letter exporter must not acknowledge from a queue (see the header).
     sending_queue:
