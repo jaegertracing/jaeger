@@ -141,6 +141,10 @@ func (c *connectorImpl) writeTraces(ctx context.Context, td ptrace.Traces) error
 	}
 	poison := selectSpans(td, rejected.Spans)
 	if n := poison.SpanCount(); n > 0 {
+		for _, r := range rejected.Spans {
+			c.logger.Warn("storage rejected span terminally; sending it to the dead-letter pipeline",
+				zap.Stringer("trace_id", r.TraceID), zap.Stringer("span_id", r.SpanID), zap.String("reason", r.Reason))
+		}
 		if derr := c.next.ConsumeTraces(ctx, poison); derr != nil {
 			// The dead-letter sink refused the spans, so nothing about them is
 			// durable yet: hold the offset and retry the whole batch (§4.8 step 4).
@@ -153,8 +157,6 @@ func (c *connectorImpl) writeTraces(ctx context.Context, td ptrace.Traces) error
 			return fmt.Errorf("dead-letter pipeline rejected %d poison spans: %s", n, derr.Error())
 		}
 		c.deadLetterSpans.Inc(int64(n))
-		c.logger.Warn("sent spans the storage rejected terminally to the dead-letter pipeline",
-			zap.Int("spans", n), zap.Error(err))
 	}
 	// Every rejected document was a span and is now in the dead-letter pipeline, or
 	// the storage handled it itself: the batch is complete, so the offset advances
@@ -162,19 +164,25 @@ func (c *connectorImpl) writeTraces(ctx context.Context, td ptrace.Traces) error
 	return nil
 }
 
+// rejectionReasonAttribute is the attribute set on every span the connector sends
+// to the dead-letter pipeline, carrying the storage's reason for rejecting it
+// (RFC 0007 §4.8: each terminal item is re-emitted with its reason attached). The
+// span in the input batch is left untouched.
+const rejectionReasonAttribute = "jaeger.storage.rejection_reason"
+
 // selectSpans returns a new ptrace.Traces holding only the spans of td that the
-// storage rejected, each under a copy of its resource and scope. A second span in
-// the batch that shares the trace and span id (the shared-span model, RFC 0007
-// §4.7) is selected alongside the rejected one, which over-includes a stored span
-// in the dead letter but never loses one.
+// storage rejected, each under a copy of its resource and scope and tagged with
+// the rejection reason. A second span in the batch that shares the trace and span
+// id (the shared-span model, RFC 0007 §4.7) is selected alongside the rejected one,
+// which over-includes a stored span in the dead letter but never loses one.
 func selectSpans(td ptrace.Traces, rejected []tracestore.RejectedSpan) ptrace.Traces {
 	type spanKey struct {
 		traceID pcommon.TraceID
 		spanID  pcommon.SpanID
 	}
-	want := make(map[spanKey]struct{}, len(rejected))
+	want := make(map[spanKey]string, len(rejected))
 	for _, r := range rejected {
-		want[spanKey{r.TraceID, r.SpanID}] = struct{}{}
+		want[spanKey{r.TraceID, r.SpanID}] = r.Reason
 	}
 	out := ptrace.NewTraces()
 	if len(want) == 0 {
@@ -187,7 +195,8 @@ func selectSpans(td ptrace.Traces, rejected []tracestore.RejectedSpan) ptrace.Tr
 			var outSS ptrace.ScopeSpans
 			ssInit := false
 			for _, span := range ss.Spans().All() {
-				if _, ok := want[spanKey{span.TraceID(), span.SpanID()}]; !ok {
+				reason, ok := want[spanKey{span.TraceID(), span.SpanID()}]
+				if !ok {
 					continue
 				}
 				if !rsInit {
@@ -202,7 +211,9 @@ func selectSpans(td ptrace.Traces, rejected []tracestore.RejectedSpan) ptrace.Tr
 					outSS.SetSchemaUrl(ss.SchemaUrl())
 					ssInit = true
 				}
-				span.CopyTo(outSS.Spans().AppendEmpty())
+				copied := outSS.Spans().AppendEmpty()
+				span.CopyTo(copied)
+				copied.Attributes().PutStr(rejectionReasonAttribute, reason)
 			}
 		}
 	}

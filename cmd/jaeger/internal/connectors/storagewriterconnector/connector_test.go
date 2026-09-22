@@ -35,14 +35,25 @@ import (
 
 // fakeWriter records the traces written and returns a configured error, standing in
 // for a synchronous writer that returns *tracestore.RejectedSpansError.
+// fakeWriter returns err on every call, or the entries of errs in order (the last
+// one repeating) when errs is set, and remembers the span count of the last batch.
 type fakeWriter struct {
-	err   error
-	calls int
+	err       error
+	errs      []error
+	calls     int
+	lastSpans int
 }
 
-func (f *fakeWriter) WriteTraces(context.Context, ptrace.Traces) error {
+func (f *fakeWriter) WriteTraces(_ context.Context, td ptrace.Traces) error {
 	f.calls++
-	return f.err
+	f.lastSpans = td.SpanCount()
+	if len(f.errs) == 0 {
+		return f.err
+	}
+	if f.calls <= len(f.errs) {
+		return f.errs[f.calls-1]
+	}
+	return f.errs[len(f.errs)-1]
 }
 
 // mockStorageExt is a minimal jaeger_storage extension serving one named trace-store
@@ -156,14 +167,22 @@ func rejectedErr(transient bool, spans ...tracestore.RejectedSpan) *tracestore.R
 	return &tracestore.RejectedSpansError{Spans: spans, Transient: transient, Err: errors.New("2 of 3 bulk items rejected")}
 }
 
-func spanNames(td ptrace.Traces) []string {
-	var names []string
+func spansOf(td ptrace.Traces) []ptrace.Span {
+	var spans []ptrace.Span
 	for _, rs := range td.ResourceSpans().All() {
 		for _, ss := range rs.ScopeSpans().All() {
 			for _, s := range ss.Spans().All() {
-				names = append(names, s.Name())
+				spans = append(spans, s)
 			}
 		}
+	}
+	return spans
+}
+
+func spanNames(td ptrace.Traces) []string {
+	var names []string
+	for _, s := range spansOf(td) {
+		names = append(names, s.Name())
 	}
 	return names
 }
@@ -176,6 +195,7 @@ func TestConsumeTraces_Success(t *testing.T) {
 
 	require.NoError(t, c.ConsumeTraces(context.Background(), td))
 	assert.Equal(t, 1, w.calls)
+	assert.Equal(t, td.SpanCount(), w.lastSpans, "the writer receives the whole batch")
 	assert.Empty(t, sink.AllTraces(), "a fully successful write sends nothing to the dead-letter pipeline")
 }
 
@@ -203,9 +223,40 @@ func TestConsumeTraces_TerminalOnlyGoesToDeadLetterAndAdvances(t *testing.T) {
 	got := sink.AllTraces()[0]
 	assert.Equal(t, 2, got.SpanCount(), "only the two poison spans are emitted")
 	assert.ElementsMatch(t, []string{"A", "C"}, spanNames(got), "exactly the poison spans, not B")
-	require.Equal(t, 1, c.logs.Len())
-	assert.Equal(t, "sent spans the storage rejected terminally to the dead-letter pipeline", c.logs.All()[0].Message)
+	for _, span := range spansOf(got) {
+		reason, ok := span.Attributes().Get(rejectionReasonAttribute)
+		require.True(t, ok, "every re-emitted span carries its rejection reason")
+		assert.Equal(t, "mapper_parsing_exception", reason.Str())
+	}
+	_, tagged := spansOf(td)[0].Attributes().Get(rejectionReasonAttribute)
+	assert.False(t, tagged, "the reason is set on the copy, not on the input span")
+	require.Equal(t, 2, c.logs.Len(), "one log per poison span")
+	for _, entry := range c.logs.All() {
+		assert.Equal(t, "storage rejected span terminally; sending it to the dead-letter pipeline", entry.Message)
+		assert.Equal(t, "mapper_parsing_exception", entry.ContextMap()["reason"])
+	}
 	assert.Equal(t, int64(2), c.deadLetterSpans(t), "the counter reports the two re-routed spans")
+}
+
+// TestConsumeTraces_RetryRoutesPoisonOnce is the retry claim end to end: the first
+// attempt sees a transient failure alongside the poison span and is retried by
+// retry_on_failure; the retry sees only the terminal rejection, and only then does
+// the poison span go to the dead-letter pipeline, exactly once.
+func TestConsumeTraces_RetryRoutesPoisonOnce(t *testing.T) {
+	cfg := directConfig()
+	cfg.RetryConfig.Enabled = true
+	cfg.RetryConfig.InitialInterval = time.Millisecond
+	cfg.RetryConfig.MaxInterval = time.Millisecond
+	sink := new(consumertest.TracesSink)
+	td, ids := makeTraces()
+	w := &fakeWriter{errs: []error{rejectedErr(true, ids[0]), rejectedErr(false, ids[0])}}
+	c := newTestConnector(t, cfg, sink, w)
+
+	require.NoError(t, c.ConsumeTraces(context.Background(), td))
+	assert.Equal(t, 2, w.calls, "the transient failure was retried once")
+	require.Len(t, sink.AllTraces(), 1, "the poison span reached the dead-letter pipeline once")
+	assert.Equal(t, []string{"A"}, spanNames(sink.AllTraces()[0]))
+	assert.Equal(t, int64(1), c.deadLetterSpans(t))
 }
 
 func TestConsumeTraces_TransientPresentRetriesWithoutReRouting(t *testing.T) {
