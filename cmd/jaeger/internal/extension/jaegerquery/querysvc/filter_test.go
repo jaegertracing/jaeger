@@ -228,10 +228,10 @@ func setStructuredFilters(t *testing.T, enabled bool) {
 	})
 }
 
-// TestPrepareSearchQuery_FilterDisabled pins what a deployment that has not opted in does with
+// TestPrepareSearchQuery_FilterDisabled pins what a deployment that has opted out does with
 // a query carrying a filter: it is refused where every other unserviceable query is refused,
-// and the reader is never asked for its capabilities, let alone dispatched to. Alpha is what
-// makes that the default, which TestStructuredFiltersGate_IsAlpha pins separately.
+// and the reader is never asked for its capabilities, let alone dispatched to. The gate is on by
+// default, which TestStructuredFiltersGate_IsBeta pins separately, so this is the opted-out path.
 func TestPrepareSearchQuery_FilterDisabled(t *testing.T) {
 	setStructuredFilters(t, false)
 
@@ -324,9 +324,9 @@ func TestPrepareSearchQuery_ResolvesADurationBeforeDispatch(t *testing.T) {
 	reader.AssertExpectations(t)
 }
 
-func TestStructuredFiltersGate_IsAlpha(t *testing.T) {
-	assert.Equal(t, featuregate.StageAlpha, StructuredFiltersGate.Stage(),
-		"Alpha is what keeps the filter off unless a deployment asks for it")
+func TestStructuredFiltersGate_IsBeta(t *testing.T) {
+	assert.Equal(t, featuregate.StageBeta, StructuredFiltersGate.Stage(),
+		"Beta is what makes the filter available unless a deployment turns it off")
 }
 
 func TestIsBadRequest(t *testing.T) {

@@ -1157,6 +1157,7 @@ func TestFindSpans_RefusesAPredicateTheBackendCannotServe(t *testing.T) {
 // Both are the caller's to fix, so both read as a bad request, and neither reaches storage.
 func TestFindSpans_RefusesACallerFilterTheDeploymentDoesNotAccept(t *testing.T) {
 	t.Run("with the filter gate off", func(t *testing.T) {
+		setStructuredFilters(t, false)
 		next := &fakeReader{batch: tracesWith("k", "v")}
 		qs := interceptedService(next)
 
@@ -1169,6 +1170,7 @@ func TestFindSpans_RefusesACallerFilterTheDeploymentDoesNotAccept(t *testing.T) 
 	})
 
 	t.Run("with the filter gate off and no filter", func(t *testing.T) {
+		setStructuredFilters(t, false)
 		next := &fakeReader{batch: tracesWith("k", "v")}
 		qs := interceptedService(next)
 
