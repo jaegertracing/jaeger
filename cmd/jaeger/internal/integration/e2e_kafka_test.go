@@ -319,10 +319,10 @@ func TestKafkaStorage_SyncElasticsearch_DeadLetter(t *testing.T) {
 		trace := f.write(t, 0x01)
 		f.requireOffsetCaughtUp(t)
 		f.requireStoredOnce(t, trace)
-		assert.Empty(t, deadLetter.received(), "a fully stored batch dead-letters nothing")
+		assert.Empty(t, deadLetter.received(), "a fully stored batch sends nothing to the dead-letter pipeline")
 	})
 
-	t.Run("poison_dead_lettered", func(t *testing.T) {
+	t.Run("poison_to_dead_letter", func(t *testing.T) {
 		trace, poisonSpanID := f.writePoison(t, 0x02)
 		f.requirePoisonStoredAround(t, trace)
 		received := deadLetter.received()
@@ -337,6 +337,6 @@ func TestKafkaStorage_SyncElasticsearch_DeadLetter(t *testing.T) {
 		f.runOutage(t, esFaultReject, 0x03, func(t *testing.T, trace ptrace.Traces) {
 			assert.Zero(t, f.storedSpanCount(t, trace), "no spans must be stored while _bulk is rejected")
 		})
-		assert.Len(t, deadLetter.received(), before, "a transient outage dead-letters nothing")
+		assert.Len(t, deadLetter.received(), before, "a transient outage sends nothing to the dead-letter pipeline")
 	})
 }
