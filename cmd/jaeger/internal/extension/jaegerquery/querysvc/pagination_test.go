@@ -90,7 +90,7 @@ func TestPrepareSearchQuery_PaginationMutuallyExclusiveWithSearchDepth(t *testin
 
 	for _, err := range qs.FindTraceSummaries(context.Background(), query) {
 		require.ErrorIs(t, err, tracestore.ErrPaginationInvalid)
-		require.ErrorContains(t, err, "search_depth")
+		require.ErrorContains(t, err, "search depth")
 		assert.True(t, IsBadRequest(err), "the API layers answer 400")
 	}
 	assert.False(t, next.summaryCalled, "storage must not be queried")
@@ -110,10 +110,29 @@ func TestPrepareSearchQuery_PageSizeRequiredWhenPaginationPresent(t *testing.T) 
 
 	for _, err := range qs.FindTraceSummaries(context.Background(), query) {
 		require.ErrorIs(t, err, tracestore.ErrPaginationInvalid)
-		require.ErrorContains(t, err, "page_size is required")
+		require.ErrorContains(t, err, "page size is required")
 		assert.True(t, IsBadRequest(err), "the API layers answer 400")
 	}
 	assert.False(t, next.summaryCalled, "storage must not be queried")
+}
+
+// TestPrepareSearchQuery_PageSizeClampedToMax pins that a page size above tracestore.MaxPageSize
+// is clamped down rather than refused, the treatment RFC 0014 §4 (and AIP-158) prescribes. The
+// clamp is the query service's, so every API gets it without deciding it on the wire.
+func TestPrepareSearchQuery_PageSizeClampedToMax(t *testing.T) {
+	enablePagination(t)
+	next := &fakeReader{summaries: []tracestore.TraceSummary{{RootServiceName: "svc"}}}
+	next.capabilities = &tracestore.SearchCapabilities{WithoutServiceName: true, Paginated: true}
+	qs := interceptedService(next, fakeInterceptor{})
+	query := searchQuery(tracestore.TraceQueryParams{
+		Pagination: tracestore.Pagination{PageSize: tracestore.MaxPageSize + 1000},
+	})
+
+	for _, err := range qs.FindTraceSummaries(context.Background(), query) {
+		require.NoError(t, err)
+	}
+	assert.True(t, next.summaryCalled)
+	assert.Equal(t, tracestore.MaxPageSize, next.gotSummaryQuery.Pagination.PageSize)
 }
 
 // TestPrepareSearchQuery_PageSizeFoldedIntoSearchDepthWhenUnsupported pins the fix for a real

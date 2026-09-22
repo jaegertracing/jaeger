@@ -185,7 +185,7 @@ type TraceQueryParams struct {
 	// Pagination requests a paginated search (RFC 0014). Its zero value means this is not
 	// a paginated request, the same as an absent jaeger.api_v3.Pagination on the wire. When
 	// present it replaces SearchDepth rather than falling back to it — the two are mutually
-	// exclusive, enforced by EnsurePaginationStandsAlone before a Reader ever sees the query.
+	// exclusive, which the query service enforces before a Reader ever sees the query.
 	Pagination Pagination
 }
 
@@ -200,9 +200,8 @@ const MaxPageSize = 10000
 type Pagination struct {
 	// PageSize bounds the number of results in one page. It replaces SearchDepth as the page
 	// bound rather than falling back to it, so it is required whenever Pagination is present:
-	// a Pagination that leaves PageSize at zero does not describe a page, and
-	// EnsurePaginationStandsAlone refuses it before a Reader ever sees the query (RFC 0014
-	// §4).
+	// a Pagination that leaves PageSize at zero does not describe a page, and the query
+	// service refuses it before a Reader ever sees the query (RFC 0014 §4).
 	PageSize int
 	// PageToken continues a previous search. Empty starts a new one. A Reader that
 	// receives a non-empty PageToken MUST treat it as an uninterpreted cursor it minted

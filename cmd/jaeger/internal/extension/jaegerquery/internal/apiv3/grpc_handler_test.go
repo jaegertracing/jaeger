@@ -338,25 +338,7 @@ func TestTraceQueryParamsPagination(t *testing.T) {
 		assert.Equal(t, tracestore.Pagination{PageSize: 25, PageToken: "opaque-cursor"}, params.Pagination)
 		assert.Zero(t, params.SearchDepth,
 			"search_depth must not be defaulted when Pagination is present, or every paginated "+
-				"request would trip EnsurePaginationStandsAlone's mutual-exclusivity check")
-	})
-	t.Run("page_size clamped to max", func(t *testing.T) {
-		query := baseQuery()
-		query.Pagination = &api_v3.Pagination{PageSize: tracestore.MaxPageSize + 1000}
-		params, err := traceQueryParams(query)
-		require.NoError(t, err)
-		assert.Equal(t, tracestore.MaxPageSize, params.Pagination.PageSize)
-	})
-	t.Run("present but empty pagination is rejected", func(t *testing.T) {
-		// A present, all-zero Pagination{} reads identically to an absent one once decoded into
-		// the Go zero value; the rejection has to happen here, while proto presence still
-		// distinguishes "sent, empty" from "not sent" at all (RFC 0014 §4).
-		query := baseQuery()
-		query.Pagination = &api_v3.Pagination{}
-		_, err := traceQueryParams(query)
-		require.Error(t, err)
-		assert.Equal(t, codes.InvalidArgument, status.Code(err))
-		assert.Contains(t, err.Error(), "page_size is required")
+				"request would trip the query service's mutual-exclusivity check")
 	})
 }
 

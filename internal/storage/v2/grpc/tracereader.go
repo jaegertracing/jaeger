@@ -295,10 +295,9 @@ func toProtoQueryParameters(t tracestore.TraceQueryParams) (*storage.TraceQueryP
 		Filter:        filter,
 	}
 	if t.Pagination != (tracestore.Pagination{}) {
-		// No bounds check here: PageSize is already clamped to tracestore.MaxPageSize at
-		// intake, by every path that decodes a Pagination off the wire (grpc_handler.go's
-		// traceQueryParams and this package's own toTraceQueryParams), well within uint32's
-		// range, so there is nothing left for a cast here to catch.
+		// No bounds check here: the query service clamps PageSize to tracestore.MaxPageSize
+		// before dispatching to any reader, well within uint32's range, so there is nothing
+		// left for a cast here to catch.
 		q.Pagination = &storage.Pagination{
 			PageSize:  uint32(t.Pagination.PageSize), //nolint:gosec // G115
 			PageToken: t.Pagination.PageToken,

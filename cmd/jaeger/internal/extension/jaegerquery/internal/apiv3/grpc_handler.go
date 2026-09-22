@@ -111,11 +111,10 @@ func traceQueryParams(query *api_v3.TraceQueryParameters) (querysvc.TraceQueryPa
 		queryParams.Filter = filter
 	}
 	if pagination := query.GetPagination(); pagination != nil {
-		p, err := tracestore.DecodePagination(pagination.GetPageSize(), pagination.GetPageToken())
-		if err != nil {
-			return querysvc.TraceQueryParams{}, status.Error(codes.InvalidArgument, err.Error())
+		queryParams.Pagination = tracestore.Pagination{
+			PageSize:  int(pagination.GetPageSize()),
+			PageToken: pagination.GetPageToken(),
 		}
-		queryParams.Pagination = p
 	}
 	return queryParams, nil
 }

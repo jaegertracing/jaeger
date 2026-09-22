@@ -212,8 +212,8 @@ func (qs QueryService) FindTraces(
 		// FindTraces streams whole traces with no field to carry a continuation token, so a
 		// Pagination is refused here, before prepareSearchQuery — which FindTraceSummaries
 		// shares and which does admit Pagination — ever sees it (RFC 0014 §4).
-		if err := query.EnsureNoPaginationOnFindTraces(); err != nil {
-			yield(nil, err)
+		if query.Pagination != (tracestore.Pagination{}) {
+			yield(nil, tracestore.ErrPaginationUnsupportedByFindTraces)
 			return
 		}
 		ctx, query, err := qs.prepareSearchQuery(ctx, query)
@@ -260,17 +260,26 @@ func (qs QueryService) prepareSearchQuery(
 		return ctx, query, err
 	}
 	if query.Pagination != (tracestore.Pagination{}) {
-		// Same reasoning as the filter gate below: this refusal does not depend on the
-		// backend, so it comes before any capability call. normalizeEnvelope leaves SearchDepth
-		// alone whenever Pagination is set, but a caller that sent both is still invalid,
-		// which is what EnsurePaginationStandsAlone catches here.
+		// None of these refusals depends on the backend, so they come before any capability
+		// call. A page size replaces the search depth rather than falling back to it (RFC 0014
+		// §4), so the two bounds have no single honest meaning together; normalizeEnvelope
+		// leaves SearchDepth alone whenever Pagination is set so that a caller who sent only a
+		// page size is not tripped by the default.
 		if !PaginationGate.IsEnabled() {
 			return ctx, query, fmt.Errorf("%w: enable the %q feature gate to use it",
 				ErrPaginationDisabled, PaginationGate.ID())
 		}
-		if err := query.EnsurePaginationStandsAlone(); err != nil {
-			return ctx, query, err
+		if query.SearchDepth != 0 {
+			return ctx, query, fmt.Errorf("%w: it cannot be combined with search depth",
+				tracestore.ErrPaginationInvalid)
 		}
+		if query.Pagination.PageSize <= 0 {
+			return ctx, query, fmt.Errorf("%w: page size is required whenever pagination is present",
+				tracestore.ErrPaginationInvalid)
+		}
+		// A page size over the maximum is clamped down rather than refused (RFC 0014 §4), the
+		// way AIP-158 prescribes, since the caller loses nothing but has to ask again sooner.
+		query.Pagination.PageSize = min(query.Pagination.PageSize, tracestore.MaxPageSize)
 	}
 	if query.Filter != nil {
 		// None of these refusals depends on the backend, so they come before the capability call

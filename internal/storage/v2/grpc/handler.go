@@ -122,9 +122,6 @@ func (h *Handler) FindTraces(
 	req *storage.FindTracesRequest,
 	srv storage.TraceReader_FindTracesServer,
 ) error {
-	if req.GetQuery().GetPagination() != nil {
-		return status.Error(codes.InvalidArgument, tracestore.ErrPaginationUnsupportedByFindTraces.Error())
-	}
 	query, err := h.toTraceQueryParams(req.Query)
 	if err != nil {
 		return err
@@ -299,14 +296,11 @@ func (h *Handler) GetCapabilities(
 }
 
 // toTraceQueryParams translates a wire query into the reader's shape. It also finalizes the
-// filter, because the decoder only builds the tree and does not validate it, and it decodes
-// Pagination's scalars through DecodePagination; a query that carries a filter or Pagination
-// alongside something either is mutually exclusive with is refused (RFC 0005 §7). Both refusals
-// are InvalidArgument. It does not consult the reader's capabilities: converting a query toward
-// what the reader supports is the query service's job (ADR-013) — querysvc.prepareSearchQuery,
-// on the other end of this same tracestore.Reader, already did that before ever serializing the
-// query onto the wire, so redoing it here against the same capabilities would only repeat the
-// answer.
+// filter, because the decoder only builds the tree and does not validate it, and it refuses a
+// query that carries both a filter and the legacy predicate fields (RFC 0005 §7). Both refusals
+// are InvalidArgument. Pagination is copied as sent: whether it is well-formed and whether the
+// reader can honor it were settled by the query service before the query reached this wire
+// (ADR-013), so a check here would only repeat the answer.
 func (*Handler) toTraceQueryParams(t *storage.TraceQueryParameters) (tracestore.TraceQueryParams, error) {
 	filter, err := expressionproto.FromProto(t.GetFilter())
 	if err == nil && filter != nil {
@@ -327,16 +321,12 @@ func (*Handler) toTraceQueryParams(t *storage.TraceQueryParameters) (tracestore.
 		Filter:        filter,
 	}
 	if pagination := t.GetPagination(); pagination != nil {
-		p, err := tracestore.DecodePagination(pagination.GetPageSize(), pagination.GetPageToken())
-		if err != nil {
-			return tracestore.TraceQueryParams{}, status.Error(codes.InvalidArgument, err.Error())
+		query.Pagination = tracestore.Pagination{
+			PageSize:  int(pagination.GetPageSize()),
+			PageToken: pagination.GetPageToken(),
 		}
-		query.Pagination = p
 	}
 	if err := query.EnsureFilterStandsAlone(); err != nil {
-		return tracestore.TraceQueryParams{}, status.Error(codes.InvalidArgument, err.Error())
-	}
-	if err := query.EnsurePaginationStandsAlone(); err != nil {
 		return tracestore.TraceQueryParams{}, status.Error(codes.InvalidArgument, err.Error())
 	}
 	return query, nil
