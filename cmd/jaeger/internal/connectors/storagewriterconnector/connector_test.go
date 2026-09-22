@@ -288,8 +288,8 @@ func TestConsumeTraces_DeadLetterSinkFailureHoldsOffset(t *testing.T) {
 }
 
 func TestConsumeTraces_TransientRejectionWithoutSpans(t *testing.T) {
-	// drop mode returns a RejectedSpansError with Transient=true and no spans:
-	// nothing to re-route, but the batch must still be retried.
+	// A storage may report transient failures through a RejectedSpansError that
+	// names no spans: nothing to re-route, but the batch must still be retried.
 	sink := new(consumertest.TracesSink)
 	rejected := rejectedErr(true)
 	c := newTestConnector(t, directConfig(), sink, &fakeWriter{err: rejected})
