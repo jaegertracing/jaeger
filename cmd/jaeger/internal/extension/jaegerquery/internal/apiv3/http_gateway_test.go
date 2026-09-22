@@ -437,9 +437,9 @@ func mockFindQueries() (url.Values, tracestore.TraceQueryParams) {
 }
 
 func TestHTTPGatewayFindTracesErrors(t *testing.T) {
-	t.Run("query the query service refuses returns 400", func(t *testing.T) {
-		// The parser reads no time range from an empty query and the query service refuses it;
-		// what matters here is that its refusal comes back as HTTP 400 rather than 500.
+	t.Run("missing time range returns 400", func(t *testing.T) {
+		// The refusal comes from the query service, not the parser; the gateway has to report it
+		// as a bad request rather than a server fault.
 		r, err := http.NewRequest(http.MethodGet, "/api/v3/traces", http.NoBody)
 		require.NoError(t, err)
 		w := httptest.NewRecorder()
