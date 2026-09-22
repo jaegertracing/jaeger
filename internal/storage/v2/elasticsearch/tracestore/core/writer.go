@@ -145,22 +145,26 @@ func (s *SpanWriter) WriteSpans(ctx context.Context, spans []dbmodel.Span) error
 // batch are re-sent too, which the deterministic ids make harmless). A batch whose
 // only terminal rejections are lookup documents therefore succeeds. A rejected
 // document that matches nothing this batch sent is counted as unidentified,
-// because it could be a span. items and spanOf are the batch as sent, aligned.
+// because it could be a span. An error with no terminal rejections (a transport
+// failure, or only transient rejections) is returned as is. items and spanOf are
+// the batch as sent, aligned.
 func (s *SpanWriter) attributeRejections(err error, items []esclient.BulkItem, spanOf []*dbmodel.Span) error {
 	var bulkErr *esclient.BulkWriteError
-	if !errors.As(err, &bulkErr) {
+	if !errors.As(err, &bulkErr) || len(bulkErr.Terminal) == 0 {
 		return err
 	}
-	// Index the batch once, on this error path only, so attributing a batch
-	// that was mostly rejected stays linear.
-	type docKey struct{ index, id string }
-	position := make(map[docKey]int, len(items))
+	// Index the batch once, on this error path only, so attributing a batch that
+	// was mostly rejected stays linear. Documents are matched by _id alone: the
+	// bulk response names the concrete backing index behind a write alias or data
+	// stream, not the index the item was sent to, and ids cannot collide across
+	// the two document kinds (a span's is traceID_spanID_hash, a lookup's a hash).
+	position := make(map[string]int, len(items))
 	for i, sent := range items {
-		position[docKey{sent.Index, sent.ID}] = i
+		position[sent.ID] = i
 	}
 	rejected := &tracestore.RejectedSpansError{Transient: bulkErr.Transient, Err: err}
 	for _, item := range bulkErr.Terminal {
-		pos, ok := position[docKey{item.Index, item.ID}]
+		pos, ok := position[item.ID]
 		if !ok {
 			rejected.Unidentified++
 			continue
@@ -180,7 +184,12 @@ func (s *SpanWriter) attributeRejections(err error, items []esclient.BulkItem, s
 		s.logger.Warn("service:operation lookup document rejected by the backend; its spans are stored and a later span re-creates it",
 			zap.String("id", item.ID), zap.Int("status", item.Status), zap.String("reason", item.Reason))
 	}
-	if len(rejected.Spans) == 0 && rejected.Unidentified == 0 && !rejected.Transient {
+	if len(rejected.Spans) == 0 && rejected.Unidentified == 0 {
+		// Only lookup documents were rejected terminally. Every span is stored, so
+		// the batch is complete unless transient failures still call for a retry.
+		if rejected.Transient {
+			return err
+		}
 		return nil
 	}
 	return rejected

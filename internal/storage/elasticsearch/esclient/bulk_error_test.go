@@ -176,6 +176,14 @@ func TestBulkWriteError_MergeBoundsSample(t *testing.T) {
 	assert.Equal(t, maxReportedFailures+3, a.rejected)
 	require.Len(t, a.Terminal, 1)
 	assert.Contains(t, a.Error(), "…and 3 more")
+
+	// A third chunk that had already overflowed its own sample adds both what it
+	// dropped and what merge drops of its sample.
+	c := &BulkWriteError{rejected: maxReportedFailures + 4, total: maxReportedFailures + 4, sample: sampleOf(maxReportedFailures), overflow: 4}
+	a.merge(c)
+	assert.Len(t, a.sample, maxReportedFailures)
+	assert.Equal(t, 3+4+maxReportedFailures, a.overflow, "overflow counts every reason the message omits")
+	assert.Contains(t, a.Error(), fmt.Sprintf("…and %d more", 7+maxReportedFailures))
 }
 
 // TestBulkWriteError_MessageOverflow drives a real WriteBatch whose terminal sample

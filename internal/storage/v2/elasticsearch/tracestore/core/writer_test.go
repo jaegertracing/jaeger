@@ -294,7 +294,9 @@ func rejecting(transient bool, extraIDs []string, positions ...int) func([]escli
 	return func(items []esclient.BulkItem) error {
 		var terminal []esclient.RejectedItem
 		for _, i := range positions {
-			terminal = append(terminal, esclient.RejectedItem{Index: items[i].Index, ID: items[i].ID, Status: 400, Reason: "mapper_parsing_exception"})
+			// The backend reports the concrete backing index, which differs from the
+			// write alias or data stream the item was sent to.
+			terminal = append(terminal, esclient.RejectedItem{Index: ".ds-" + items[i].Index + "-000001", ID: items[i].ID, Status: 400, Reason: "mapper_parsing_exception"})
 		}
 		for _, id := range extraIDs {
 			terminal = append(terminal, esclient.RejectedItem{ID: id, Status: 400})
@@ -333,6 +335,24 @@ func TestSpanWriter_RejectedSpansError(t *testing.T) {
 		assert.True(t, rejected.Transient)
 		require.Len(t, rejected.Spans, 1)
 		assert.Equal(t, pcommon.TraceID([16]byte{15: 1}), rejected.Spans[0].TraceID, "position 1 of the batch is spanA's document")
+	})
+
+	t.Run("transient rejections without terminal ones pass through", func(t *testing.T) {
+		fake := &fakeBatchWriter{errFor: rejecting(true, nil)}
+		writer := newSpanWriterWith(fake)
+		err := writer.WriteSpans(context.Background(), []dbmodel.Span{spanA})
+		require.Error(t, err)
+		var rejected *tracestore.RejectedSpansError
+		assert.NotErrorAs(t, err, &rejected, "nothing to re-route, so the writer's own error is returned")
+	})
+
+	t.Run("rejected lookup document with transient failures returns the writer's error", func(t *testing.T) {
+		fake := &fakeBatchWriter{errFor: rejecting(true, nil, 0)}
+		writer := newSpanWriterWith(fake)
+		err := writer.WriteSpans(context.Background(), []dbmodel.Span{spanA})
+		require.Error(t, err)
+		var rejected *tracestore.RejectedSpansError
+		assert.NotErrorAs(t, err, &rejected)
 	})
 
 	t.Run("rejected lookup document is logged and the batch succeeds", func(t *testing.T) {
