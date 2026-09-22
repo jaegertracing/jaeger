@@ -124,7 +124,8 @@ func TestBulkWriteError_ChunkTransportFailureIsTransient(t *testing.T) {
 
 	var be *BulkWriteError
 	require.ErrorAs(t, err, &be)
-	assert.Equal(t, []string{"t_s_1"}, []string{be.Terminal[0].ID})
+	require.Len(t, be.Terminal, 1)
+	assert.Equal(t, "t_s_1", be.Terminal[0].ID)
 	assert.True(t, be.Transient, "a chunk that failed in transport makes the batch transient")
 	assert.ErrorContains(t, err, "bulk request failed")
 }
