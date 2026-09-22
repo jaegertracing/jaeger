@@ -20,7 +20,7 @@ import (
 // TraceWriter is the write step behind jaeger_storage_exporter: at Start it resolves
 // the configured trace storage from the jaeger_storage extension, and WriteTraces
 // sanitizes each batch and writes it there. The jaeger_storage_writer connector
-// wraps the same TraceWriter to dead-letter the spans the storage rejects, so the
+// wraps the same TraceWriter to send the spans the storage rejects to a dead-letter pipeline, so the
 // two components resolve and write to storage identically.
 type TraceWriter struct {
 	config      *Config
