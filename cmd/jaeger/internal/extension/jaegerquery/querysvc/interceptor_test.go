@@ -36,12 +36,13 @@ type fakeReader struct {
 	summaries       []tracestore.TraceSummary
 	summaryErr      error
 	capabilities    *tracestore.SearchCapabilities
-	tracestore.UnsupportedSpanSearch
+	capabilityReads int
 }
 
 // SearchCapabilities answers for a backend that searches every service and evaluates no filter
 // unless a test says otherwise, since that is the shape most of these searches assume.
 func (f *fakeReader) SearchCapabilities(context.Context) (tracestore.SearchCapabilities, error) {
+	f.capabilityReads++
 	if f.capabilities == nil {
 		return tracestore.SearchCapabilities{WithoutServiceName: true, SpanSearch: true}, nil
 	}
@@ -151,7 +152,6 @@ func (r *multiBatchReader) yieldSpanBatches(yield func(tracestore.PageChunk[ptra
 	for _, b := range r.batches {
 		for _, spans := range b {
 			chunk := tracestore.PageChunk[ptrace.Traces]{Results: spans}
-
 			if !yield(chunk, nil) {
 				return
 			}
@@ -1017,6 +1017,7 @@ func TestFindTraces_ThreadsResultContextAcrossBatches(t *testing.T) {
 func TestFindSpans_AppliesQueryAndResultHooks(t *testing.T) {
 	enableStructuredFilters(t)
 	next := &fakeReader{batch: tracesWith("secret", "value")}
+	next.capabilities = filterCapableBackend()
 	qs := interceptedService(next, fakeInterceptor{
 		onSpanQuery:  narrowSpansTo(serviceFilter("gated")),
 		onSpanResult: redactSpanResult("secret"),
@@ -1035,6 +1036,7 @@ func TestFindSpans_OnErrorInResponse(t *testing.T) {
 	enableStructuredFilters(t)
 	onResultCalled := 0
 	next := &fakeReader{batch: tracesWith("secret", "value"), err: errors.New("failure")}
+	next.capabilities = filterCapableBackend()
 	qs := interceptedService(next, fakeInterceptor{
 		onSpanResult: func(spans ptrace.Traces) (ptrace.Traces, error) {
 			onResultCalled++
@@ -1049,52 +1051,53 @@ func TestFindSpans_OnErrorInResponse(t *testing.T) {
 	assert.Equal(t, 0, onResultCalled)
 }
 
-// TestFindSpans_ShowsEveryPredicateAsAFilter pins what an interceptor is shown and what storage
-// receives afterwards. Whatever shape a query arrives in, the interceptor sees every predicate in
-// the filter; what reaches storage is the shape the backend declared it evaluates, chosen once
-// after the interceptor has had its say.
-func TestFindSpans_ShowsEveryPredicateAsAFilter(t *testing.T) {
-	// The caller's filter is what the interceptor is shown, so a predicate qualified by the level
-	// it applies to still names that level. An access-control interceptor keys on the level, and
-	// would otherwise judge a predicate the caller never sent.
-	t.Run("a caller's filter keeps the level it named", func(t *testing.T) {
-		enableStructuredFilters(t)
-		sent := routeFilter()
-		var seen queryinterceptor.SpanQuery
-		next := &fakeReader{batch: tracesWith("k", "v")}
-		qs := interceptedService(next, fakeInterceptor{
-			onSpanQuery: func(q queryinterceptor.SpanQuery) (queryinterceptor.SpanQuery, error) {
-				seen = q
-				return q, nil
-			},
-		})
-
-		_, err := collectSpans(qs.FindSpans(t.Context(), searchSpansQuery(tracestore.SpanQueryParams{
-			Filter: sent,
-		})))
-		require.NoError(t, err)
-		assert.Equal(t, sent, seen.Filter, "the caller's filter reaches the interceptor verbatim")
+// TestFindSpans_HandsTheFilterToTheInterceptorAndStorage pins that the caller's filter reaches
+// the interceptor verbatim, level qualifiers included, and then reaches a backend that evaluates
+// filters unchanged. There is no shape to convert, so nothing is lost on either hop.
+func TestFindSpans_HandsTheFilterToTheInterceptorAndStorage(t *testing.T) {
+	enableStructuredFilters(t)
+	sent := routeFilter()
+	var seen queryinterceptor.SpanQuery
+	next := &fakeReader{batch: tracesWith("k", "v")}
+	next.capabilities = &tracestore.SearchCapabilities{
+		SpanSearch: true,
+		Filter: &tracestore.FilterCapabilities{
+			Levels:    []expression.Level{expression.LevelSpan},
+			Operators: []expression.Operator{expression.OpEq},
+		},
+	}
+	qs := interceptedService(next, fakeInterceptor{
+		onSpanQuery: func(q queryinterceptor.SpanQuery) (queryinterceptor.SpanQuery, error) {
+			seen = q
+			return q, nil
+		},
 	})
 
-	t.Run("a filter reaches a backend that evaluates one", func(t *testing.T) {
-		enableStructuredFilters(t)
-		filter := routeFilter()
-		next := &fakeReader{batch: tracesWith("k", "v")}
-		next.capabilities = &tracestore.SearchCapabilities{
-			SpanSearch: true,
-			Filter: &tracestore.FilterCapabilities{
-				Levels:    []expression.Level{expression.LevelSpan},
-				Operators: []expression.Operator{expression.OpEq},
-			},
-		}
-		qs := interceptedService(next, fakeInterceptor{})
+	_, err := collectSpans(qs.FindSpans(t.Context(), searchSpansQuery(tracestore.SpanQueryParams{
+		Filter: sent,
+	})))
+	require.NoError(t, err)
+	assert.Equal(t, sent, seen.Filter, "the caller's filter reaches the interceptor verbatim")
+	assert.Equal(t, sent, next.gotSpanQuery.Filter, "a reader that evaluates filters keeps one")
+	assert.Equal(t, 1, next.capabilityReads, "the capabilities are read once per search")
+}
 
-		_, err := collectSpans(qs.FindSpans(t.Context(), searchSpansQuery(tracestore.SpanQueryParams{
-			Filter: filter,
-		})))
-		require.NoError(t, err)
-		assert.Equal(t, filter, next.gotSpanQuery.Filter, "a reader that evaluates filters keeps one")
-	})
+// TestFindSpans_RefusesAFilterTheBackendDoesNotEvaluate pins the case a trace search never has:
+// a reader that serves span searches but declares no filter support. A trace search would be
+// rewritten into the legacy fields; a span search has no such shape, so the filter is refused
+// rather than sent to a reader that never said it could evaluate it.
+func TestFindSpans_RefusesAFilterTheBackendDoesNotEvaluate(t *testing.T) {
+	enableStructuredFilters(t)
+	next := &fakeReader{batch: tracesWith("k", "v")}
+	next.capabilities = &tracestore.SearchCapabilities{SpanSearch: true}
+	qs := interceptedService(next)
+
+	_, err := collectSpans(qs.FindSpans(t.Context(), searchSpansQuery(tracestore.SpanQueryParams{
+		Filter: serviceFilter("cart"),
+	})))
+	require.ErrorIs(t, err, tracestore.ErrFilterUnsupported)
+	assert.True(t, IsBadRequest(err))
+	assert.False(t, next.findCalled, "storage must not be queried")
 }
 
 // TestFindSpans_RefusesAPredicateTheBackendCannotServe pins that the capability check applies to
@@ -1143,6 +1146,15 @@ func TestFindSpans_RefusesACallerFilterTheDeploymentDoesNotAccept(t *testing.T) 
 		require.ErrorIs(t, err, ErrFilterDisabled)
 		assert.True(t, IsBadRequest(err))
 		assert.False(t, next.findCalled, "storage must not be queried")
+	})
+
+	t.Run("with the filter gate off and no filter", func(t *testing.T) {
+		next := &fakeReader{batch: tracesWith("k", "v")}
+		qs := interceptedService(next)
+
+		out, err := collectSpans(qs.FindSpans(t.Context(), searchSpansQuery(tracestore.SpanQueryParams{})))
+		require.NoError(t, err, "the gate governs filters, and this search sent none")
+		assert.Len(t, out, 1)
 	})
 
 	t.Run("a filter that does not finalize", func(t *testing.T) {
@@ -1206,6 +1218,24 @@ func TestFindSpans_RefusesAnInvalidInterceptorFilter(t *testing.T) {
 			assert.False(t, IsBadRequest(err), "the caller's request was fine")
 		})
 	}
+}
+
+// TestFindSpans_RefusesAFilterALaterInterceptorDrops pins that the nil rule holds across the
+// chain: a predicate the first interceptor adds is a restriction the second cannot remove, even
+// though the query had no filter when the chain started.
+func TestFindSpans_RefusesAFilterALaterInterceptorDrops(t *testing.T) {
+	enableStructuredFilters(t)
+	next := &fakeReader{batch: tracesWith("k", "v")}
+	next.capabilities = filterCapableBackend()
+	qs := interceptedService(next,
+		fakeInterceptor{onSpanQuery: narrowSpansTo(serviceFilter("gated"))},
+		fakeInterceptor{onSpanQuery: narrowSpansTo(nil)},
+	)
+
+	_, err := collectSpans(qs.FindSpans(t.Context(), searchSpansQuery(tracestore.SpanQueryParams{})))
+	require.ErrorIs(t, err, ErrInterceptorFilter)
+	require.ErrorContains(t, err, "widen the search")
+	assert.False(t, next.findCalled, "storage must not be queried")
 }
 
 // TestFindSpans_FinalizesAnInterceptorFilter pins that a predicate an interceptor adds reaches
@@ -1410,6 +1440,7 @@ func TestFindSpans_ResultErrorStopsIteration(t *testing.T) {
 func TestFindSpans_ChainAppliesInOrder(t *testing.T) {
 	enableStructuredFilters(t)
 	next := &fakeReader{batch: tracesWith("v", "0")}
+	next.capabilities = filterCapableBackend()
 	var order []string
 	first := fakeInterceptor{onSpanQuery: func(q queryinterceptor.SpanQuery) (queryinterceptor.SpanQuery, error) {
 		order = append(order, "first")

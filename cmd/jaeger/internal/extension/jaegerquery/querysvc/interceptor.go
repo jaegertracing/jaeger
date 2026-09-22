@@ -105,21 +105,27 @@ func fromInterceptorSpanQuery(q queryinterceptor.SpanQuery) tracestore.SpanQuery
 }
 
 // onSpanQuery runs every interceptor's OnSpanQuery in order, threading the context each returns
-// into the next, as onTraceQuery does for a trace search. There is no legacy branch: the filter
-// the interceptors leave behind is finalized and sent on.
+// into the next, as onTraceQuery does for a trace search. The filter the interceptors leave behind
+// is finalized and sent on; a span query has one shape, so nothing is converted back.
+//
+// The nil rule is checked after every hook rather than once at the end, because a predicate one
+// interceptor adds is a restriction the next must not be able to remove: a query that had no
+// filter, gained one, and lost it again would otherwise pass as the time-range search it started as.
 func (qs QueryService) onSpanQuery(ctx context.Context, query SpanQueryParams) (context.Context, SpanQueryParams, error) {
-	queryPreIntercept := toInterceptorSpanQuery(query.SpanQueryParams)
-	queryPostIntercept := queryPreIntercept
+	queryPostIntercept := toInterceptorSpanQuery(query.SpanQueryParams)
+	hadPredicates := queryPostIntercept.Filter != nil
 	var err error
 	for _, interceptor := range qs.options.Interceptors {
 		ctx, queryPostIntercept, err = interceptor.OnSpanQuery(ctx, queryPostIntercept)
 		if err != nil {
 			return ctx, query, err
 		}
+		if hadPredicates && queryPostIntercept.Filter == nil {
+			return ctx, query, errInterceptorDroppedFilter
+		}
+		hadPredicates = queryPostIntercept.Filter != nil
 	}
-	// A search over the time range alone has no filter to finalize, and an interceptor that leaves
-	// it that way has widened nothing. Any other nil filter is the fail-open case finalizing refuses.
-	if queryPreIntercept.Filter != nil || queryPostIntercept.Filter != nil {
+	if queryPostIntercept.Filter != nil {
 		queryPostIntercept.Filter, err = finalizeInterceptorFilter(queryPostIntercept.Filter)
 		if err != nil {
 			return ctx, query, err
@@ -128,6 +134,11 @@ func (qs QueryService) onSpanQuery(ctx context.Context, query SpanQueryParams) (
 	query.SpanQueryParams = fromInterceptorSpanQuery(queryPostIntercept)
 	return ctx, query, nil
 }
+
+// errInterceptorDroppedFilter is the one interceptor mistake that fails open: a search that had
+// predicates and leaves with none asks for everything in the time range.
+var errInterceptorDroppedFilter = fmt.Errorf("%w: it returned no filter for a query that had predicates, which "+
+	"would widen the search to every trace in the time range", ErrInterceptorFilter)
 
 // finalizeInterceptorFilter finalizes the filter an interceptor returned and rejects what it must
 // not hand to storage. An interceptor builds its filter by hand, in code jaeger-query does not
@@ -143,8 +154,7 @@ func (qs QueryService) onSpanQuery(ctx context.Context, query SpanQueryParams) (
 // nothing else.
 func finalizeInterceptorFilter(returned *expression.Call) (*expression.Call, error) {
 	if returned == nil {
-		return nil, fmt.Errorf("%w: it returned no filter for a query that had predicates, which "+
-			"would widen the search to every trace in the time range", ErrInterceptorFilter)
+		return nil, errInterceptorDroppedFilter
 	}
 	finalized, err := tracestore.FinalizeFilter(returned)
 	if err != nil {

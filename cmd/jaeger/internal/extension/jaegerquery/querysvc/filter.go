@@ -42,6 +42,7 @@ var ErrFilterDisabled = errors.New("the structured query filter is disabled")
 // HTTP 400 rather than reporting a server fault.
 func IsBadRequest(err error) bool {
 	return errors.Is(err, ErrServiceNameRequired) ||
+		errors.Is(err, ErrSpanSearchUnsupported) ||
 		errors.Is(err, ErrFilterDisabled) ||
 		errors.Is(err, tracestore.ErrFilterUnsupported) ||
 		errors.Is(err, tracestore.ErrFilterInvalid)
