@@ -374,8 +374,8 @@ func TestFindTracesSendError(t *testing.T) {
 
 // TestFindTracesRefusesSearchDepthOutOfRange pins that a negative search_depth, which this
 // handler used to replace with the default, and one above the maximum, which it used to
-// forward, are both InvalidArgument end to end. No FindTraces expectation is set, so reaching
-// storage would fail the test.
+// forward, are both InvalidArgument end to end. No FindTraces expectation is set, so a request
+// reaching storage aborts the test.
 func TestFindTracesRefusesSearchDepthOutOfRange(t *testing.T) {
 	for name, depth := range map[string]int32{
 		"negative":          -1,
