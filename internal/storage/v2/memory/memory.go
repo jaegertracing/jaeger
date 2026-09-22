@@ -29,6 +29,8 @@ type Store struct {
 	// The in-memory store does not compute trace summaries natively; fall back to
 	// FindTraces + client-side aggregation.
 	tracestore.UnsupportedTraceSummaries
+	// The in-memory store does not serve span search yet (RFC 0016); unsupported.
+	tracestore.UnsupportedSpanSearch
 
 	mu sync.RWMutex
 	// Each tenant gets a copy of default config.
@@ -131,19 +133,20 @@ func (st *Store) FindTraces(ctx context.Context, query tracestore.TraceQueryPara
 	}
 }
 
-func (st *Store) FindTraceIDs(ctx context.Context, query tracestore.TraceQueryParams) iter.Seq2[[]tracestore.FoundTraceID, error] {
+func (st *Store) FindTraceIDs(ctx context.Context, query tracestore.TraceQueryParams) iter.Seq2[tracestore.PageChunk[[]tracestore.FoundTraceID], error] {
 	m := st.getTenant(tenancy.GetTenant(ctx))
-	return func(yield func([]tracestore.FoundTraceID, error) bool) {
+	return func(yield func(tracestore.PageChunk[[]tracestore.FoundTraceID], error) bool) {
 		traceAndIds, err := m.findTraceAndIds(query)
 		if err != nil {
-			yield(nil, err)
+			yield(tracestore.PageChunk[[]tracestore.FoundTraceID]{}, err)
 			return
 		}
 		ids := make([]tracestore.FoundTraceID, len(traceAndIds))
 		for i := range traceAndIds {
 			ids[i] = tracestore.FoundTraceID{TraceID: traceAndIds[i].id}
 		}
-		yield(ids, nil)
+		// TODO: Populate NextPageToken when the memory store supports RFC 0014 pagination.
+		yield(tracestore.PageChunk[[]tracestore.FoundTraceID]{Results: ids}, nil)
 	}
 }
 

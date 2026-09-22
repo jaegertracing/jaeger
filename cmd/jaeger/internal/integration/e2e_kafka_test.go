@@ -8,6 +8,9 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/assert"
+	"go.opentelemetry.io/collector/pdata/ptrace"
+
 	"github.com/jaegertracing/jaeger/internal/storage/integration"
 	"github.com/jaegertracing/jaeger/internal/storage/integration/capabilities"
 )
@@ -99,7 +102,7 @@ func TestKafkaStorage_SyncElasticsearch(t *testing.T) {
 	ingester := &E2EStorageIntegration{
 		BinaryName:      "jaeger-v2-ingester",
 		ConfigFile:      "../../config-kafka-ingester-sync.yaml",
-		FeatureGates:    structuredFilterGates,
+		FeatureGates:    elasticsearchFilterGates,
 		HealthCheckPort: 14133,
 		StorageIntegration: integration.StorageIntegration{
 			CleanUp:      purge,
@@ -114,4 +117,88 @@ func TestKafkaStorage_SyncElasticsearch(t *testing.T) {
 	t.Log("Ingester initialized")
 
 	ingester.RunSpanStoreTests(t)
+}
+
+// TestKafkaStorage_SyncElasticsearch_FaultInjection proves the RFC 0007 M6
+// at-least-once property of the synchronous ingester end-to-end: while the
+// Elasticsearch write path fails, the Kafka offset does not advance; once the
+// backend recovers, every span written during the outage is stored exactly once,
+// the offset catches up, and the partition keeps consuming. It runs the same
+// Collector -> Kafka -> Ingester -> Elasticsearch pipeline as
+// TestKafkaStorage_SyncElasticsearch, with a fault-injecting reverse proxy between
+// the ingester and Elasticsearch.
+func TestKafkaStorage_SyncElasticsearch_FaultInjection(t *testing.T) {
+	integration.SkipUnlessEnv(t, integration.StorageKafka)
+
+	proxy := newESFaultProxy(t, esBaseURL)
+	t.Logf("Elasticsearch fault proxy listening on %s", proxy.URL())
+
+	uniqueTopic := fmt.Sprintf("jaeger-spans-sync-es-fault-%d", time.Now().UnixNano())
+	t.Logf("Using unique Kafka topic: %s", uniqueTopic)
+	envVarOverrides := map[string]string{
+		"KAFKA_TOPIC":    uniqueTopic,
+		"KAFKA_ENCODING": "otlp_proto",
+		"ES_SERVER_URL":  proxy.URL(),
+		// The child processes get an explicit environment, so the broker the
+		// offset reader resolves is passed on to keep all three on one cluster.
+		"KAFKA_BROKER": kafkaBroker(),
+	}
+
+	collector := &E2EStorageIntegration{
+		BinaryName:         "jaeger-v2-collector",
+		ConfigFile:         "../../config-kafka-collector.yaml",
+		SkipStorageCleaner: true,
+		EnvVarOverrides:    envVarOverrides,
+	}
+	collector.e2eInitialize(t, "kafka")
+	t.Log("Collector initialized")
+
+	ingester := &E2EStorageIntegration{
+		BinaryName:         "jaeger-v2-ingester",
+		ConfigFile:         "../../config-kafka-ingester-sync.yaml",
+		SkipStorageCleaner: true,
+		HealthCheckPort:    14133,
+		EnvVarOverrides:    envVarOverrides,
+	}
+	// The storage cleaner is off for this test, so drop the written indices at the
+	// end; otherwise the fault-injection service lingers for the next suite on this
+	// cluster. Registered before the ingester starts so that, cleanups running last
+	// in first out, it runs after the ingester has exited and can write no more.
+	admin := newESAdmin(t)
+	t.Cleanup(func() { admin.deleteJaegerIndices(t, faultInjectionIndexPrefix+"-") })
+	// With the storage cleaner off, the storage name only labels the metrics
+	// snapshot this ingester writes; it does not inject the cleaner or shorten the
+	// service-cache TTL as it does for TestKafkaStorage_SyncElasticsearch.
+	ingester.e2eInitialize(t, "elasticsearch")
+	t.Log("Ingester initialized")
+
+	offsets := newKafkaOffsets(t, kafkaBroker(), faultInjectionConsumerGroup, uniqueTopic)
+	f := &faultInjectionSteps{collector: collector, proxy: proxy, offsets: offsets}
+
+	t.Run("baseline", func(t *testing.T) {
+		trace := f.write(t, 0x01)
+		f.requireOffsetCaughtUp(t)
+		f.requireStoredOnce(t, trace)
+	})
+
+	t.Run("backend_down", func(t *testing.T) {
+		f.runOutage(t, esFaultReject, 0x02, func(t *testing.T, trace ptrace.Traces) {
+			// Nothing reached Elasticsearch, so the trace is absent for the whole outage.
+			assert.Zero(t, f.storedSpanCount(t, trace), "no spans must be stored while _bulk is rejected")
+		})
+	})
+
+	t.Run("ack_lost", func(t *testing.T) {
+		f.runOutage(t, esFaultLoseAck, 0x03, func(t *testing.T, trace ptrace.Traces) {
+			// The documents were written but the ingester believes they were not.
+			// The offset is still held; the recovery below must not duplicate them.
+			assert.Equal(t, trace.SpanCount(), f.storedSpanCount(t, trace), "documents are written even though the acknowledgement is lost")
+		})
+	})
+
+	t.Run("no_stall", func(t *testing.T) {
+		trace := f.write(t, 0x04)
+		f.requireOffsetCaughtUp(t)
+		f.requireStoredOnce(t, trace)
+	})
 }

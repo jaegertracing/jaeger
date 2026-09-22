@@ -1,0 +1,23 @@
+{
+  "nested": {
+    "path": "logs.fields",
+    "query": {
+      "bool": {
+        "must": [
+          {
+            "term": {
+              "logs.fields.key": "event"
+            }
+          },
+          {
+            "range": {
+              "logs.fields.value": {
+                "gt": "m"
+              }
+            }
+          }
+        ]
+      }
+    }
+  }
+}

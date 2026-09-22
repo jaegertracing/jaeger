@@ -27,8 +27,8 @@ func TestClickHouseStorage_BackwardCompatibility(t *testing.T) {
 	integration.SkipUnlessEnv(t, integration.StorageClickHouse)
 	runBackwardCompatibilityTests(t, "clickhouse", E2EStorageIntegration{
 		ConfigFile: "../../config-clickhouse.yaml",
-		StorageIntegration: integration.StorageIntegration{
-			Capabilities: capabilities.E2EWithoutNativeFilters(),
-		},
+	}, compatScenario{
+		Name:         "feature gates disabled on both old writer and new reader",
+		Capabilities: capabilities.E2EWithoutNativeFilters(),
 	})
 }

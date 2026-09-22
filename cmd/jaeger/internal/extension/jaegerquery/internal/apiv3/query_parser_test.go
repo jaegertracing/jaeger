@@ -70,14 +70,28 @@ func TestParseFindTracesQuery(t *testing.T) {
 		assert.True(t, got.RawTraces)
 	})
 
-	t.Run("default search depth", func(t *testing.T) {
+	t.Run("unset search depth is left for the query service to default", func(t *testing.T) {
 		q := url.Values{}
 		q.Set(paramTimeMin, goodMin)
 		q.Set(paramTimeMax, goodMax)
 
 		got, err := parseFindTracesQuery(q)
 		require.NoError(t, err)
-		assert.Equal(t, defaultSearchDepth, got.SearchDepth)
+		assert.Equal(t, 0, got.SearchDepth)
+	})
+
+	t.Run("an absent or inverted time range is left for the query service to refuse", func(t *testing.T) {
+		got, err := parseFindTracesQuery(url.Values{})
+		require.NoError(t, err)
+		assert.True(t, got.StartTimeMin.IsZero())
+		assert.True(t, got.StartTimeMax.IsZero())
+
+		q := url.Values{}
+		q.Set(paramTimeMin, goodMax)
+		q.Set(paramTimeMax, goodMin)
+		got, err = parseFindTracesQuery(q)
+		require.NoError(t, err)
+		assert.True(t, got.StartTimeMax.Before(got.StartTimeMin))
 	})
 
 	t.Run("search depth via num_traces alias", func(t *testing.T) {
@@ -134,30 +148,6 @@ func TestParseFindTracesQuery(t *testing.T) {
 		wantErr string
 	}{
 		{
-			name:    "no time range",
-			wantErr: "query.startTimeMin and query.startTimeMax are required",
-		},
-		{
-			name:    "no max time",
-			params:  map[string]string{paramTimeMin: goodMin},
-			wantErr: "query.startTimeMin and query.startTimeMax are required",
-		},
-		{
-			name:    "no min time",
-			params:  map[string]string{paramTimeMax: goodMax},
-			wantErr: "query.startTimeMin and query.startTimeMax are required",
-		},
-		{
-			name:    "startTimeMin not before startTimeMax",
-			params:  map[string]string{paramTimeMin: goodMax, paramTimeMax: goodMin},
-			wantErr: paramTimeMin + " must be before " + paramTimeMax,
-		},
-		{
-			name:    "startTimeMin equals startTimeMax",
-			params:  map[string]string{paramTimeMin: goodMin, paramTimeMax: goodMin},
-			wantErr: paramTimeMin + " must be before " + paramTimeMax,
-		},
-		{
 			name:    "bad startTimeMin (canonical)",
 			params:  map[string]string{paramTimeMin: "NaN", paramTimeMax: goodMax},
 			wantErr: "malformed parameter " + paramTimeMin,
@@ -190,21 +180,6 @@ func TestParseFindTracesQuery(t *testing.T) {
 		{
 			name:    "bad num_traces (deprecated alias)",
 			params:  map[string]string{paramTimeMin: goodMin, paramTimeMax: goodMax, paramNumTraces: "NaN"},
-			wantErr: "malformed parameter " + paramNumTraces,
-		},
-		{
-			name:    "searchDepth negative",
-			params:  map[string]string{paramTimeMin: goodMin, paramTimeMax: goodMax, paramSearchDepth: "-1"},
-			wantErr: "malformed parameter " + paramSearchDepth,
-		},
-		{
-			name:    "searchDepth above max",
-			params:  map[string]string{paramTimeMin: goodMin, paramTimeMax: goodMax, paramSearchDepth: strconv.Itoa(tracestore.MaxSearchDepth + 1)},
-			wantErr: "malformed parameter " + paramSearchDepth,
-		},
-		{
-			name:    "num_traces above max",
-			params:  map[string]string{paramTimeMin: goodMin, paramTimeMax: goodMax, paramNumTraces: strconv.Itoa(tracestore.MaxSearchDepth + 1)},
 			wantErr: "malformed parameter " + paramNumTraces,
 		},
 		{

@@ -14,9 +14,11 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.opentelemetry.io/collector/featuregate"
 
 	expression "github.com/jaegertracing/jaeger-idl/query/expression/v1"
 	builder "github.com/jaegertracing/jaeger/internal/expression"
+	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/esclient"
 	esquery "github.com/jaegertracing/jaeger/internal/storage/elasticsearch/query"
 	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/snapshottest"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore"
@@ -82,6 +84,9 @@ func TestBuildFilterQuery(t *testing.T) {
 	tests := []struct {
 		name   string
 		filter *expression.Call
+		// typedAttributes enables the typed-attribute mapping's feature gate for this case,
+		// which is what makes ordering an attribute servable (RFC 0015).
+		typedAttributes bool
 	}{
 		{
 			name:   "unqualified attribute searches the span and resource levels",
@@ -106,6 +111,38 @@ func TestBuildFilterQuery(t *testing.T) {
 		{
 			name:   "span.name is the operation name",
 			filter: p.Span().Name.Eq("/api/v3/traces"),
+		},
+		{
+			name:   "gt on the span name compares lexicographically",
+			filter: p.Span().Name.Gt("m"),
+		},
+		{
+			name:   "gte on the span name compares lexicographically",
+			filter: p.Span().Name.Gte("m"),
+		},
+		{
+			name:   "lt on the span name compares lexicographically",
+			filter: p.Span().Name.Lt("m"),
+		},
+		{
+			name:   "lte on the span name compares lexicographically",
+			filter: p.Span().Name.Lte("m"),
+		},
+		{
+			name:   "gt on the event name compares lexicographically",
+			filter: p.Event().Name.Gt("m"),
+		},
+		{
+			name:   "gte on the event name compares lexicographically",
+			filter: p.Event().Name.Gte("m"),
+		},
+		{
+			name:   "lt on the event name compares lexicographically",
+			filter: p.Event().Name.Lt("m"),
+		},
+		{
+			name:   "lte on the event name compares lexicographically",
+			filter: p.Event().Name.Lte("m"),
 		},
 		{
 			name:   "resource.service is the service name",
@@ -293,11 +330,39 @@ func TestBuildFilterQuery(t *testing.T) {
 			name:   "an error tag at the resource level is an ordinary attribute",
 			filter: p.Resource().Attr("error").Eq("false"),
 		},
+		{
+			name:            "ordering an attribute ranges over its numeric sub-field",
+			filter:          p.Span().Attr("http.response.size").Gt("500"),
+			typedAttributes: true,
+		},
+		{
+			name:            "ordering an unqualified attribute ranges over every location it lives in",
+			filter:          p.Attr("retry.count").Gte("3"),
+			typedAttributes: true,
+		},
+		{
+			name:            "lt on an attribute",
+			filter:          p.Span().Attr("queue.depth").Lt("10"),
+			typedAttributes: true,
+		},
+		{
+			name:            "lte on an attribute",
+			filter:          p.Event().Attr("payload.bytes").Lte("2048"),
+			typedAttributes: true,
+		},
+		{
+			name:            "a fractional bound is compared as written",
+			filter:          p.Span().Attr("sampler.param").Gt("0.001"),
+			typedAttributes: true,
+		},
 	}
 	claimed := make(map[string]bool, len(tests))
 	withSpanReader(t, func(r *spanReaderTest) {
 		for _, test := range tests {
 			t.Run(test.name, func(t *testing.T) {
+				if test.typedAttributes {
+					setTypedAttributeIndexing(t, true)
+				}
 				query, err := r.reader.buildFilterQuery(test.filter)
 				require.NoError(t, err)
 				source, err := query.Source()
@@ -310,6 +375,17 @@ func TestBuildFilterQuery(t *testing.T) {
 		}
 	})
 	assertEverySnapshotIsClaimed(t, filterSnapshots, claimed)
+}
+
+// setTypedAttributeIndexing flips the typed-attribute mapping's gate for the duration of a test.
+// The gate is what tells the reader whether the index carries the numeric sub-field, so it is what
+// decides whether ordering an attribute is lowered or refused.
+func setTypedAttributeIndexing(t *testing.T, enabled bool) {
+	original := esclient.TypedAttributeIndexingGate.IsEnabled()
+	require.NoError(t, featuregate.GlobalRegistry().Set(esclient.TypedAttributeIndexingGate.ID(), enabled))
+	t.Cleanup(func() {
+		require.NoError(t, featuregate.GlobalRegistry().Set(esclient.TypedAttributeIndexingGate.ID(), original))
+	})
 }
 
 // snapshotName turns a case name into the file name holding its lowered query.
@@ -364,6 +440,9 @@ func TestBuildFilterQueryRefused(t *testing.T) {
 		filter  *expression.Call
 		wantErr error
 		wantMsg string
+		// typedAttributes enables the typed-attribute mapping's feature gate, for a refusal
+		// that only arises once ordering an attribute is servable at all.
+		typedAttributes bool
 	}{
 		{
 			name:    "the scope level is folded into the span's own tags",
@@ -390,16 +469,16 @@ func TestBuildFilterQueryRefused(t *testing.T) {
 			wantMsg: `built-in field "traceID" of the "link" level`,
 		},
 		{
-			name:    "ordering an attribute, which is indexed as a keyword",
+			name:    "ordering an attribute without the typed index",
 			filter:  p.Span().Attr("http.response.size").Gt("500"),
 			wantErr: tracestore.ErrFilterUnsupported,
 			wantMsg: `indexes "http.response.size" as a keyword rather than a number`,
 		},
 		{
-			name:    "ordering the operation name",
-			filter:  p.Span().Name.Lte("m"),
+			name:    "ordering the service name",
+			filter:  p.Resource().Service.Gt("m"),
 			wantErr: tracestore.ErrFilterUnsupported,
-			wantMsg: `indexes "name" as a keyword rather than a number`,
+			wantMsg: `indexes "service" as a keyword rather than a number`,
 		},
 		{
 			name:    "a pattern over the duration, which is a number",
@@ -428,6 +507,12 @@ func TestBuildFilterQueryRefused(t *testing.T) {
 		{
 			name:    "a pattern using a word shorthand",
 			filter:  p.Span().Name.Matches(`GET \w+`),
+			wantErr: tracestore.ErrFilterUnsupported,
+			wantMsg: `it reads "\\w" as the literal character`,
+		},
+		{
+			name:    "an event-name pattern using a word shorthand",
+			filter:  p.Event().Name.Matches(`exception\.\w+`),
 			wantErr: tracestore.ErrFilterUnsupported,
 			wantMsg: `it reads "\\w" as the literal character`,
 		},
@@ -578,10 +663,49 @@ func TestBuildFilterQueryRefused(t *testing.T) {
 			wantErr: tracestore.ErrFilterInvalid,
 			wantMsg: `"not_in" cannot take 1 arguments`,
 		},
+		{
+			name:            "ordering an attribute against a bound that is not a number",
+			filter:          p.Span().Attr("retry.count").Gt("soon"),
+			wantErr:         tracestore.ErrFilterInvalid,
+			wantMsg:         `"gt" on "retry.count" compares against a number, and "soon" is not one`,
+			typedAttributes: true,
+		},
+		{
+			name:            "ordering an attribute against a bound that is not a finite number",
+			filter:          p.Span().Attr("retry.count").Lt("NaN"),
+			wantErr:         tracestore.ErrFilterInvalid,
+			wantMsg:         `"lt" on "retry.count" compares against a number, and "NaN" is not one`,
+			typedAttributes: true,
+		},
+		{
+			name:            "ordering an attribute against an infinite bound",
+			filter:          p.Span().Attr("retry.count").Gte("-Inf"),
+			wantErr:         tracestore.ErrFilterInvalid,
+			wantMsg:         `"gte" on "retry.count" compares against a number, and "-Inf" is not one`,
+			typedAttributes: true,
+		},
+		{
+			name:            "ordering an attribute against a bound that declares the string type",
+			filter:          p.Span().Attr("retry.count").Gt(p.Text("10")),
+			wantErr:         tracestore.ErrFilterUnsupported,
+			wantMsg:         `orders "retry.count" only as a number, so it cannot evaluate "gt" against a string constant`,
+			typedAttributes: true,
+		},
+		{
+			// ne builds the presence test first, so this reaches the comparison behind it.
+			name:            "a negated comparison against a constant this schema cannot type",
+			filter:          p.Span().Attr("retry.count").Ne(&expression.IntValue{Value: 3}),
+			wantErr:         tracestore.ErrFilterUnsupported,
+			wantMsg:         "an integer constant declares a type",
+			typedAttributes: true,
+		},
 	}
 	withSpanReader(t, func(r *spanReaderTest) {
 		for _, test := range tests {
 			t.Run(test.name, func(t *testing.T) {
+				if test.typedAttributes {
+					setTypedAttributeIndexing(t, true)
+				}
 				query, err := r.reader.buildFilterQuery(test.filter)
 				assert.Nil(t, query)
 				require.ErrorIs(t, err, test.wantErr)
@@ -589,6 +713,17 @@ func TestBuildFilterQueryRefused(t *testing.T) {
 			})
 		}
 	})
+}
+
+func TestTextValueMatchRefusesUnsupportedOperator(t *testing.T) {
+	match, err := textValueMatch(
+		expression.OpNe,
+		reference{name: expression.SpanFieldName, level: expression.LevelSpan},
+		"checkout",
+	)
+	assert.Nil(t, match)
+	require.ErrorIs(t, err, tracestore.ErrFilterUnsupported)
+	assert.Contains(t, err.Error(), `cannot evaluate "ne"`)
 }
 
 // TestBuildFindTraceIDsQueryWithFilter checks how the filter joins the search: as one more

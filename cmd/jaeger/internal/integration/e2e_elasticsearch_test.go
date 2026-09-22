@@ -15,7 +15,7 @@ func TestElasticsearchStorage(t *testing.T) {
 
 	s := &E2EStorageIntegration{
 		ConfigFile:   "../../config-elasticsearch.yaml",
-		FeatureGates: structuredFilterGates,
+		FeatureGates: elasticsearchFilterGates,
 		StorageIntegration: integration.StorageIntegration{
 			CleanUp:      purge,
 			Fixtures:     integration.LoadAndParseQueryTestCases(t, "fixtures/queries_es.json"),
@@ -54,11 +54,28 @@ func TestElasticsearchStorage_DataStream(t *testing.T) {
 func TestElasticsearchStorage_BackwardCompatibility(t *testing.T) {
 	integration.SkipUnlessEnv(t, integration.StorageElasticsearch)
 	runBackwardCompatibilityTests(t, "elasticsearch", E2EStorageIntegration{
-		ConfigFile:   "../../config-elasticsearch.yaml",
-		FeatureGates: structuredFilterGates,
+		ConfigFile: "../../config-elasticsearch.yaml",
 		StorageIntegration: integration.StorageIntegration{
-			Fixtures:     integration.LoadAndParseQueryTestCases(t, "fixtures/queries_es.json"),
+			Fixtures: integration.LoadAndParseQueryTestCases(t, "fixtures/queries_es.json"),
+		},
+	},
+		compatScenario{
+			Name:         "feature gates disabled on both old writer and new reader",
+			OldGates:     nil,
+			NewGates:     structuredFilterGates,
+			Capabilities: capabilities.Elasticsearch().WithoutTypedAttributeIndexing(),
+		},
+		compatScenario{
+			Name:         "feature gates enabled on new reader only (enable-on-upgrade)",
+			OldGates:     nil,
+			NewGates:     elasticsearchFilterGates,
+			Capabilities: capabilities.Elasticsearch().WithoutTypedAttributeIndexing(),
+		},
+		compatScenario{
+			Name:         "feature gates enabled on both old writer and new reader (already enabled)",
+			OldGates:     elasticsearchFilterGates,
+			NewGates:     elasticsearchFilterGates,
 			Capabilities: capabilities.Elasticsearch(),
 		},
-	})
+	)
 }
