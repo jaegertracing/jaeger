@@ -103,7 +103,7 @@ func TestBulkWriteError_AggregatesAcrossChunks(t *testing.T) {
 // is rejected as a whole (a 503) while another chunk reports only terminal items,
 // the aggregated error still says the batch must be retried: the failed chunk's
 // documents are not durable, so a caller must not acknowledge the batch after
-// dead-lettering the terminal items.
+// re-routing the terminal items.
 func TestBulkWriteError_ChunkTransportFailureIsTransient(t *testing.T) {
 	var call int
 	_, url := bulkServer(t, func(w http.ResponseWriter) {
@@ -131,7 +131,7 @@ func TestBulkWriteError_ChunkTransportFailureIsTransient(t *testing.T) {
 }
 
 // TestBulkWriteError_TransientHasNoTerminalItems checks that a purely transient
-// failure (429) sets Transient and carries no poison to dead-letter.
+// failure (429) sets Transient and carries no poison to re-route.
 func TestBulkWriteError_TransientHasNoTerminalItems(t *testing.T) {
 	_, url := bulkServer(t, func(w http.ResponseWriter) {
 		w.Write([]byte(`{"errors":true,"items":[{"index":{"_index":"idx","status":429,"error":{"reason":"busy"}}}]}`))
@@ -150,7 +150,7 @@ func TestBulkWriteError_TransientHasNoTerminalItems(t *testing.T) {
 // TestBulkWriteError_DropModeDoesNotDeadLetter confirms that in drop mode the writer
 // discards terminal poison itself: the returned error (from a co-occurring transient
 // failure) carries no Terminal items, so a connector wired to a drop-mode backend
-// dead-letters nothing — consistent with drop's contract.
+// re-routes nothing — consistent with drop's contract.
 func TestBulkWriteError_DropModeDoesNotDeadLetter(t *testing.T) {
 	_, url := bulkServer(t, func(w http.ResponseWriter) {
 		w.Write([]byte(`{"errors":true,"items":[` +
@@ -169,7 +169,7 @@ func TestBulkWriteError_DropModeDoesNotDeadLetter(t *testing.T) {
 	var be *BulkWriteError
 	require.ErrorAs(t, err, &be)
 	assert.True(t, be.Transient)
-	assert.Empty(t, be.Terminal, "drop mode discards poison, so nothing is dead-lettered")
+	assert.Empty(t, be.Terminal, "drop mode discards poison, so nothing is left to re-route")
 }
 
 // TestBulkWriteError_MergeBoundsSample checks that merging chunk errors keeps the

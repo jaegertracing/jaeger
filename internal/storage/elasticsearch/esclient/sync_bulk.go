@@ -172,7 +172,7 @@ func (w *SyncBulkWriter) WriteBatch(ctx context.Context, items []BulkItem) error
 		// a transient failure of the batch, and its documents are not durable, so
 		// the verdict must say the batch needs a retry even when the item-level
 		// rejections of the other chunks were all terminal. Otherwise a caller that
-		// dead-letters terminal items and treats the rest as written would advance
+		// re-routes terminal items and treats the rest as written would advance
 		// the offset over the failed chunk.
 		bulkErr.Transient = bulkErr.Transient || len(errs) > 0
 		errs = append(errs, bulkErr)
@@ -261,7 +261,7 @@ func (w *SyncBulkWriter) sendChunk(ctx context.Context, body []byte, count int) 
 		zap.Int("rejected", rejected), zap.Int("total", count))
 	// Return the typed error so a dead-letter connector can recover the poison items
 	// via errors.As (RFC 0007 §4.8). In fail mode Terminal carries the poison to
-	// dead-letter; in drop mode the terminal items were already discarded above, so
+	// re-route; in drop mode the terminal items were already discarded above, so
 	// only the retryable (transient) failures remain and Terminal stays empty.
 	be := &BulkWriteError{
 		Transient: out.transient > 0,

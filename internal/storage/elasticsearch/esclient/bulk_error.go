@@ -36,9 +36,9 @@ type RejectedItem struct {
 // Terminal is populated only in `fail` mode (poison_pill_handling: fail). In `drop`
 // mode the writer discards terminal poison itself before returning, so Terminal is
 // empty and only Transient failures remain to retry — a connector wired to a
-// drop-mode backend therefore dead-letters nothing, consistent with drop's contract.
+// drop-mode backend therefore re-routes nothing, consistent with drop's contract.
 type BulkWriteError struct {
-	// Terminal lists the poison documents to dead-letter. Empty in drop mode.
+	// Terminal lists the poison documents for the caller to re-route. Empty in drop mode.
 	Terminal []RejectedItem
 	// Transient is true if the batch also had transient failures: items rejected
 	// with 429/5xx or a malformed result, or a whole chunk that failed in transport.
