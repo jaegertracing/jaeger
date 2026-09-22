@@ -44,8 +44,8 @@ type QueryServiceOptions struct {
 	// If a trace has more spans than this limit, it will be truncated and a warning will be added.
 	MaxTraceSize int
 	// Interceptors are the query-interceptor extensions this deployment configured, in the order
-	// it named them. The query service invokes their OnQuery around every trace search and their
-	// OnResult around every batch of loaded traces. Most deployments configure none.
+	// it named them. The query service invokes their OnTraceQuery around every trace search and their
+	// OnTraceResult around every batch of loaded traces. Most deployments configure none.
 	Interceptors []queryinterceptor.Interceptor
 }
 
@@ -72,6 +72,15 @@ type TraceQueryParams struct {
 	// RawTraces indicates whether to retrieve raw traces.
 	// If set to false, the traces will be adjusted using QueryServiceOptions.Adjuster.
 	RawTraces bool
+}
+
+// PageChunk carries one streamed chunk of a page without exposing the storage
+// API's result container to query-service consumers. NextPageToken is set only on
+// the final chunk; an empty token there means no later page, while an empty token
+// on an earlier chunk says nothing about pagination.
+type PageChunk[T any] struct {
+	Results       T
+	NextPageToken string
 }
 
 func NewQueryService(
@@ -109,7 +118,7 @@ func (qs QueryService) GetTraces(
 	ctx context.Context,
 	params GetTraceParams,
 ) iter.Seq2[[]ptrace.Traces, error] {
-	getTracesIter := qs.interceptResults(ctx, qs.traceReader.GetTraces(ctx, params.TraceIDs...))
+	getTracesIter := qs.interceptTraceResults(ctx, qs.traceReader.GetTraces(ctx, params.TraceIDs...))
 	return func(yield func([]ptrace.Traces, error) bool) {
 		foundTraceIDs, proceed := qs.receiveTraces(getTracesIter, yield, params.RawTraces)
 		if proceed && qs.options.ArchiveTraceReader != nil {
@@ -120,7 +129,7 @@ func (qs QueryService) GetTraces(
 				}
 			}
 			if len(missingTraceIDs) > 0 {
-				getArchiveTracesIter := qs.interceptResults(
+				getArchiveTracesIter := qs.interceptTraceResults(
 					ctx, qs.options.ArchiveTraceReader.GetTraces(ctx, missingTraceIDs...),
 				)
 				qs.receiveTraces(getArchiveTracesIter, yield, params.RawTraces)
@@ -172,7 +181,7 @@ func (qs QueryService) FindTraces(
 			yield(nil, err)
 			return
 		}
-		tracesIter := qs.interceptResults(ctx, qs.traceReader.FindTraces(ctx, query.TraceQueryParams))
+		tracesIter := qs.interceptTraceResults(ctx, qs.traceReader.FindTraces(ctx, query.TraceQueryParams))
 		qs.receiveTraces(tracesIter, yield, query.RawTraces)
 	}
 }
@@ -238,7 +247,7 @@ func (qs QueryService) prepareSearchQuery(
 	}
 	if len(qs.options.Interceptors) > 0 {
 		var err error
-		ctx, query, err = qs.onQuery(ctx, query)
+		ctx, query, err = qs.onTraceQuery(ctx, query)
 		if err != nil {
 			return ctx, query, err
 		}
@@ -300,31 +309,41 @@ func (qs QueryService) checkServiceName(ctx context.Context, query TraceQueryPar
 func (qs QueryService) FindTraceSummaries(
 	ctx context.Context,
 	query TraceQueryParams,
-) iter.Seq2[[]tracestore.TraceSummary, error] {
-	return func(yield func([]tracestore.TraceSummary, error) bool) {
+) iter.Seq2[PageChunk[[]tracestore.TraceSummary], error] {
+	return func(yield func(PageChunk[[]tracestore.TraceSummary], error) bool) {
 		ctx, query, err := qs.prepareSearchQuery(ctx, query)
 		if err != nil {
-			yield(nil, err)
+			yield(PageChunk[[]tracestore.TraceSummary]{}, err)
 			return
 		}
-		for batch, err := range qs.traceReader.FindTraceSummaries(ctx, query.TraceQueryParams) {
+		for chunk, err := range qs.traceReader.FindTraceSummaries(ctx, query.TraceQueryParams) {
 			if err != nil {
 				if errors.Is(err, errors.ErrUnsupported) {
 					// Fall back to FindTraces + aggregation. The fallback loads whole traces, so
 					// the interceptors get the same say over them as on a FindTraces search; the
 					// summaries computed from them carry no spans and have no hook of their own.
-					traces := qs.interceptResults(ctx, qs.traceReader.FindTraces(ctx, query.TraceQueryParams))
+					traces := qs.interceptTraceResults(ctx, qs.traceReader.FindTraces(ctx, query.TraceQueryParams))
 					for b, e := range computeSummaries(traces, qs.adjuster) {
-						if !yield(b, e) {
+						// FindTraces does not return pagination metadata, so fallback results cannot
+						// supply a next-page token.
+						result := PageChunk[[]tracestore.TraceSummary]{
+							Results:       b,
+							NextPageToken: "",
+						}
+						if !yield(result, e) {
 							return
 						}
 					}
 					return
 				}
-				yield(nil, err)
+				yield(PageChunk[[]tracestore.TraceSummary]{}, err)
 				return
 			}
-			if !yield(batch, nil) {
+			result := PageChunk[[]tracestore.TraceSummary]{
+				Results:       chunk.Results,
+				NextPageToken: chunk.NextPageToken,
+			}
+			if !yield(result, nil) {
 				return
 			}
 		}
@@ -338,9 +357,8 @@ func (qs QueryService) ArchiveTrace(ctx context.Context, query tracestore.GetTra
 	if qs.options.ArchiveTraceWriter == nil {
 		return errNoArchiveSpanStorage
 	}
-	getTracesIter := qs.GetTraces(
-		ctx, GetTraceParams{TraceIDs: []tracestore.GetTraceParams{query}},
-	)
+	// use primary reader only to avoid readArchive->archive cycle
+	getTracesIter := qs.traceReader.GetTraces(ctx, query)
 	var (
 		found      bool
 		archiveErr error

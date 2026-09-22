@@ -70,18 +70,20 @@ func buildQueryMetrics(operation string, metricsFactory metrics.Factory) *queryM
 }
 
 // FindSpans implements tracestore.Reader#FindSpans
-func (m *ReadMetricsDecorator) FindSpans(ctx context.Context, query tracestore.SpanQueryParams) iter.Seq2[[]tracestore.SpanPage, error] {
-	return func(yield func([]tracestore.SpanPage, error) bool) {
+func (m *ReadMetricsDecorator) FindSpans(ctx context.Context, query tracestore.SpanQueryParams) iter.Seq2[tracestore.PageChunk[ptrace.Traces], error] {
+	return func(yield func(tracestore.PageChunk[ptrace.Traces], error) bool) {
 		start := time.Now()
 		var err error
 		length := 0
 		defer func() {
 			m.findSpansMetrics.emit(err, time.Since(start), length)
 		}()
-		for pages, iterErr := range m.traceReader.FindSpans(ctx, query) {
+		for chunk, iterErr := range m.traceReader.FindSpans(ctx, query) {
 			err = iterErr
-			length += len(pages)
-			if !yield(pages, iterErr) {
+			if iterErr == nil {
+				length++
+			}
+			if !yield(chunk, iterErr) {
 				return
 			}
 		}
@@ -109,8 +111,8 @@ func (m *ReadMetricsDecorator) FindTraces(ctx context.Context, query tracestore.
 }
 
 // FindTraceIDs implements tracestore.Reader#FindTraceIDs
-func (m *ReadMetricsDecorator) FindTraceIDs(ctx context.Context, query tracestore.TraceQueryParams) iter.Seq2[[]tracestore.FoundTraceID, error] {
-	return func(yield func([]tracestore.FoundTraceID, error) bool) {
+func (m *ReadMetricsDecorator) FindTraceIDs(ctx context.Context, query tracestore.TraceQueryParams) iter.Seq2[tracestore.PageChunk[[]tracestore.FoundTraceID], error] {
+	return func(yield func(tracestore.PageChunk[[]tracestore.FoundTraceID], error) bool) {
 		start := time.Now()
 		var err error
 		length := 0
@@ -118,10 +120,10 @@ func (m *ReadMetricsDecorator) FindTraceIDs(ctx context.Context, query tracestor
 			m.findTraceIDsMetrics.emit(err, time.Since(start), length)
 		}()
 		findTraceIDsIter := m.traceReader.FindTraceIDs(ctx, query)
-		for traceIds, iterErr := range findTraceIDsIter {
+		for chunk, iterErr := range findTraceIDsIter {
 			err = iterErr
-			length += len(traceIds)
-			if !yield(traceIds, iterErr) {
+			length += len(chunk.Results)
+			if !yield(chunk, iterErr) {
 				return
 			}
 		}
@@ -174,18 +176,18 @@ func (m *ReadMetricsDecorator) GetOperations(
 }
 
 // FindTraceSummaries implements tracestore.Reader#FindTraceSummaries
-func (m *ReadMetricsDecorator) FindTraceSummaries(ctx context.Context, query tracestore.TraceQueryParams) iter.Seq2[[]tracestore.TraceSummary, error] {
-	return func(yield func([]tracestore.TraceSummary, error) bool) {
+func (m *ReadMetricsDecorator) FindTraceSummaries(ctx context.Context, query tracestore.TraceQueryParams) iter.Seq2[tracestore.PageChunk[[]tracestore.TraceSummary], error] {
+	return func(yield func(tracestore.PageChunk[[]tracestore.TraceSummary], error) bool) {
 		start := time.Now()
 		var err error
 		length := 0
 		defer func() {
 			m.findTraceSummariesMetrics.emit(err, time.Since(start), length)
 		}()
-		for summaries, iterErr := range m.traceReader.FindTraceSummaries(ctx, query) {
+		for chunk, iterErr := range m.traceReader.FindTraceSummaries(ctx, query) {
 			err = iterErr
-			length += len(summaries)
-			if !yield(summaries, iterErr) {
+			length += len(chunk.Results)
+			if !yield(chunk, iterErr) {
 				return
 			}
 		}

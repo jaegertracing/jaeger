@@ -75,8 +75,8 @@ func (f *fakeReader) GetTraces(_ context.Context, _ ...tracestore.GetTraceParams
 	}
 }
 
-func (*fakeReader) FindTraceIDs(context.Context, tracestore.TraceQueryParams) iter.Seq2[[]tracestore.FoundTraceID, error] {
-	return func(func([]tracestore.FoundTraceID, error) bool) {}
+func (*fakeReader) FindTraceIDs(context.Context, tracestore.TraceQueryParams) iter.Seq2[tracestore.PageChunk[[]tracestore.FoundTraceID], error] {
+	return func(func(tracestore.PageChunk[[]tracestore.FoundTraceID], error) bool) {}
 }
 
 func (*fakeReader) GetServices(context.Context) ([]string, error) {
@@ -87,15 +87,15 @@ func (*fakeReader) GetOperations(context.Context, tracestore.OperationQueryParam
 	return []tracestore.Operation{{Name: "op"}}, nil
 }
 
-func (f *fakeReader) FindTraceSummaries(_ context.Context, q tracestore.TraceQueryParams) iter.Seq2[[]tracestore.TraceSummary, error] {
+func (f *fakeReader) FindTraceSummaries(_ context.Context, q tracestore.TraceQueryParams) iter.Seq2[tracestore.PageChunk[[]tracestore.TraceSummary], error] {
 	f.summaryCalled = true
 	f.gotSummaryQuery = q
-	return func(yield func([]tracestore.TraceSummary, error) bool) {
+	return func(yield func(tracestore.PageChunk[[]tracestore.TraceSummary], error) bool) {
 		if f.summaryErr != nil {
-			yield(nil, f.summaryErr)
+			yield(tracestore.PageChunk[[]tracestore.TraceSummary]{}, f.summaryErr)
 			return
 		}
-		yield(f.summaries, nil)
+		yield(tracestore.PageChunk[[]tracestore.TraceSummary]{Results: f.summaries}, nil)
 	}
 }
 
@@ -122,18 +122,21 @@ func (r *multiBatchReader) yieldBatches(yield func([]ptrace.Traces, error) bool)
 	}
 }
 
-// fakeInterceptor lets each test supply the hook behavior it needs. It receives the public Query,
-// exactly as a real interceptor would. The optional onQueryCtx and onResultCtx hooks transform
-// (and observe) the context, so a test can assert how the query service threads it from OnQuery
-// into the reader and OnResult.
+// fakeInterceptor lets each test supply the hook behavior it needs. It receives the interceptor's
+// TraceQuery, exactly as a real interceptor would. The optional onQueryCtx and onResultCtx hooks
+// transform (and observe) the context, so a test can assert how the query service threads it from
+// OnTraceQuery into the reader and OnTraceResult. It gates trace searches only, which is what the embedded
+// mixin declares.
 type fakeInterceptor struct {
-	onQuery     func(queryinterceptor.Query) (queryinterceptor.Query, error)
+	queryinterceptor.UnsupportedSpanSearch
+
+	onQuery     func(queryinterceptor.TraceQuery) (queryinterceptor.TraceQuery, error)
 	onResult    func([]ptrace.Traces) ([]ptrace.Traces, error)
 	onQueryCtx  func(context.Context) context.Context
 	onResultCtx func(context.Context) context.Context
 }
 
-func (f fakeInterceptor) OnQuery(ctx context.Context, q queryinterceptor.Query) (context.Context, queryinterceptor.Query, error) {
+func (f fakeInterceptor) OnTraceQuery(ctx context.Context, q queryinterceptor.TraceQuery) (context.Context, queryinterceptor.TraceQuery, error) {
 	if f.onQueryCtx != nil {
 		ctx = f.onQueryCtx(ctx)
 	}
@@ -144,7 +147,7 @@ func (f fakeInterceptor) OnQuery(ctx context.Context, q queryinterceptor.Query) 
 	return ctx, q, nil
 }
 
-func (f fakeInterceptor) OnResult(ctx context.Context, t []ptrace.Traces) (context.Context, []ptrace.Traces, error) {
+func (f fakeInterceptor) OnTraceResult(ctx context.Context, t []ptrace.Traces) (context.Context, []ptrace.Traces, error) {
 	if f.onResultCtx != nil {
 		ctx = f.onResultCtx(ctx)
 	}
@@ -184,8 +187,8 @@ func routeFilter() *expression.Call {
 	}}
 }
 
-func narrowTo(filter *expression.Call) func(queryinterceptor.Query) (queryinterceptor.Query, error) {
-	return func(q queryinterceptor.Query) (queryinterceptor.Query, error) {
+func narrowTo(filter *expression.Call) func(queryinterceptor.TraceQuery) (queryinterceptor.TraceQuery, error) {
+	return func(q queryinterceptor.TraceQuery) (queryinterceptor.TraceQuery, error) {
 		q.Filter = filter
 		return q, nil
 	}
@@ -266,10 +269,10 @@ func TestFindTraces_AppliesQueryAndResultHooks(t *testing.T) {
 // after the interceptor has had its say.
 func TestFindTraces_ShowsEveryPredicateAsAFilter(t *testing.T) {
 	t.Run("a scalar query is shown as a filter", func(t *testing.T) {
-		var seen queryinterceptor.Query
+		var seen queryinterceptor.TraceQuery
 		next := &fakeReader{batch: tracesWith("k", "v")}
 		qs := interceptedService(next, fakeInterceptor{
-			onQuery: func(q queryinterceptor.Query) (queryinterceptor.Query, error) {
+			onQuery: func(q queryinterceptor.TraceQuery) (queryinterceptor.TraceQuery, error) {
 				seen = q
 				q.Filter = serviceFilter("gated")
 				return q, nil
@@ -299,10 +302,10 @@ func TestFindTraces_ShowsEveryPredicateAsAFilter(t *testing.T) {
 	t.Run("a caller's filter keeps the level it named", func(t *testing.T) {
 		enableStructuredFilters(t)
 		sent := routeFilter()
-		var seen queryinterceptor.Query
+		var seen queryinterceptor.TraceQuery
 		next := &fakeReader{batch: tracesWith("k", "v")}
 		qs := interceptedService(next, fakeInterceptor{
-			onQuery: func(q queryinterceptor.Query) (queryinterceptor.Query, error) {
+			onQuery: func(q queryinterceptor.TraceQuery) (queryinterceptor.TraceQuery, error) {
 				seen = q
 				return q, nil
 			},
@@ -343,7 +346,7 @@ func TestFindTraces_ShowsEveryPredicateAsAFilter(t *testing.T) {
 
 // TestFindTraces_RefusesAPredicateTheBackendCannotServe pins that the capability check applies to
 // the interceptor's output and not only to what the caller sent: the query service converts once,
-// after OnQuery, so a predicate an interceptor added is refused on the same terms as the caller's
+// after OnTraceQuery, so a predicate an interceptor added is refused on the same terms as the caller's
 // own.
 func TestFindTraces_RefusesAPredicateTheBackendCannotServe(t *testing.T) {
 	t.Run("the backend evaluates no filter and the fields cannot carry it", func(t *testing.T) {
@@ -497,22 +500,25 @@ func TestFindTraces_LeavesALegacyQueryAloneWhenNothingChangedIt(t *testing.T) {
 
 	t.Run("an interceptor that changes only the envelope", func(t *testing.T) {
 		enableStructuredFilters(t)
+		narrowedEnd := time.Date(2026, 8, 18, 0, 0, 0, 0, time.UTC)
 		next := &fakeReader{batch: tracesWith("k", "v")}
 		next.capabilities = filterCapableBackend()
 		qs := interceptedService(next, fakeInterceptor{
-			onQuery: func(q queryinterceptor.Query) (queryinterceptor.Query, error) {
-				q.SearchDepth = 7
+			onQuery: func(q queryinterceptor.TraceQuery) (queryinterceptor.TraceQuery, error) {
+				q.StartTimeMax = narrowedEnd
 				return q, nil
 			},
 		})
 
 		_, err := collectTraces(qs.FindTraces(t.Context(), searchQuery(tracestore.TraceQueryParams{
 			ServiceName: "cart",
+			SearchDepth: 7,
 		})))
 		require.NoError(t, err)
 		assert.Nil(t, next.gotQuery.Filter, "the predicates are still the legacy ones")
 		assert.Equal(t, "cart", next.gotQuery.ServiceName)
-		assert.Equal(t, 7, next.gotQuery.SearchDepth, "the envelope change survives")
+		assert.Equal(t, narrowedEnd, next.gotQuery.StartTimeMax, "the envelope change survives")
+		assert.Equal(t, 7, next.gotQuery.SearchDepth, "the result bound is not the interceptor's to change")
 	})
 
 	t.Run("a caller's own filter is unaffected by the rule", func(t *testing.T) {
@@ -531,6 +537,44 @@ func TestFindTraces_LeavesALegacyQueryAloneWhenNothingChangedIt(t *testing.T) {
 		require.NoError(t, err)
 		require.NotNil(t, next.gotQuery.Filter, "a filter the caller sent stays a filter")
 	})
+
+	t.Run("an interceptor's rewrite keeps the result bound", func(t *testing.T) {
+		enableStructuredFilters(t)
+		next := &fakeReader{batch: tracesWith("k", "v")}
+		next.capabilities = filterCapableBackend()
+		qs := interceptedService(next, fakeInterceptor{onQuery: narrowTo(serviceFilter("gated"))})
+
+		_, err := collectTraces(qs.FindTraces(t.Context(), searchQuery(tracestore.TraceQueryParams{
+			Filter:      serviceFilter("original"),
+			SearchDepth: 7,
+			Pagination:  tracestore.Pagination{PageSize: 3, PageToken: "next"},
+		})))
+		require.NoError(t, err)
+		assert.Equal(t, serviceFilter("gated"), next.gotQuery.Filter)
+		assert.Equal(t, 7, next.gotQuery.SearchDepth, "the interceptor never saw the search depth")
+		assert.Equal(t, tracestore.Pagination{PageSize: 3, PageToken: "next"}, next.gotQuery.Pagination,
+			"the interceptor never saw the pagination")
+	})
+}
+
+// TestFindTraces_RefusesAFilterALaterInterceptorDrops pins that the nil rule holds across the
+// chain, not only between the query's first and last shape. A legacy query with no predicates
+// gains a restriction from the first interceptor; the second returns no filter. Comparing only the
+// ends would see nil on both and send the query to storage in its original, unrestricted shape.
+func TestFindTraces_RefusesAFilterALaterInterceptorDrops(t *testing.T) {
+	enableStructuredFilters(t)
+	next := &fakeReader{batch: tracesWith("k", "v")}
+	next.capabilities = filterCapableBackend()
+	qs := interceptedService(next,
+		fakeInterceptor{onQuery: narrowTo(serviceFilter("gated"))},
+		fakeInterceptor{onQuery: narrowTo(nil)},
+	)
+
+	_, err := collectTraces(qs.FindTraces(t.Context(), searchQuery(tracestore.TraceQueryParams{})))
+	require.ErrorIs(t, err, ErrInterceptorFilter)
+	require.ErrorContains(t, err, "widen the search")
+	assert.False(t, next.findCalled, "storage must not be queried")
+	assert.False(t, IsBadRequest(err), "the caller's request was fine")
 }
 
 // TestFindTraces_FinalizesAnInterceptorFilter pins that a predicate an interceptor adds reaches
@@ -642,9 +686,9 @@ func TestFindTraces_RefusesAnInterceptorConstantThatWillNotParse(t *testing.T) {
 // has widened nothing and the search proceeds.
 func TestFindTraces_AllowsNoFilterForAPredicatelessQuery(t *testing.T) {
 	next := &fakeReader{batch: tracesWith("k", "v")}
-	var seen queryinterceptor.Query
+	var seen queryinterceptor.TraceQuery
 	qs := interceptedService(next, fakeInterceptor{
-		onQuery: func(q queryinterceptor.Query) (queryinterceptor.Query, error) {
+		onQuery: func(q queryinterceptor.TraceQuery) (queryinterceptor.TraceQuery, error) {
 			seen = q
 			return q, nil
 		},
@@ -661,7 +705,7 @@ func TestFindTraces_QueryRejectionSkipsStorage(t *testing.T) {
 	sentinel := errors.New("denied")
 	next := &fakeReader{batch: tracesWith("k", "v")}
 	qs := interceptedService(next, fakeInterceptor{
-		onQuery: func(q queryinterceptor.Query) (queryinterceptor.Query, error) { return q, sentinel },
+		onQuery: func(q queryinterceptor.TraceQuery) (queryinterceptor.TraceQuery, error) { return q, sentinel },
 	})
 
 	_, err := collectTraces(qs.FindTraces(t.Context(), searchQuery(tracestore.TraceQueryParams{})))
@@ -728,8 +772,8 @@ func TestGetTraces_ContinuesAfterError(t *testing.T) {
 	assert.Equal(t, 1, batches)
 }
 
-// assertResultErrorStops verifies that an OnResult failure aborts the stream: even a consumer
-// that keeps ranging after the error must never receive a later batch, and OnResult must not run
+// assertResultErrorStops verifies that an OnTraceResult failure aborts the stream: even a consumer
+// that keeps ranging after the error must never receive a later batch, and OnTraceResult must not run
 // again. This guards the redaction/authorization use case, where emitting a later batch after a
 // failed sanitize would leak data.
 func assertResultErrorStops(t *testing.T, call func(*QueryService) iter.Seq2[[]ptrace.Traces, error]) {
@@ -756,8 +800,8 @@ func assertResultErrorStops(t *testing.T, call func(*QueryService) iter.Seq2[[]p
 		batches++
 	}
 	assert.Equal(t, 1, errs, "exactly one error, then the stream aborts")
-	assert.Zero(t, batches, "no batch may be delivered after an OnResult error")
-	assert.Equal(t, 1, onResultCalls, "OnResult must not run on batches after it fails")
+	assert.Zero(t, batches, "no batch may be delivered after an OnTraceResult error")
+	assert.Equal(t, 1, onResultCalls, "OnTraceResult must not run on batches after it fails")
 }
 
 func TestFindTraces_ResultErrorStopsIteration(t *testing.T) {
@@ -815,12 +859,12 @@ func TestInterceptedSearch_EarlyStop(t *testing.T) {
 func TestFindTraces_ChainAppliesInOrder(t *testing.T) {
 	next := &fakeReader{batch: tracesWith("v", "0")}
 	var order []string
-	first := fakeInterceptor{onQuery: func(q queryinterceptor.Query) (queryinterceptor.Query, error) {
+	first := fakeInterceptor{onQuery: func(q queryinterceptor.TraceQuery) (queryinterceptor.TraceQuery, error) {
 		order = append(order, "first")
 		q.Filter = serviceFilter("first")
 		return q, nil
 	}}
-	second := fakeInterceptor{onQuery: func(q queryinterceptor.Query) (queryinterceptor.Query, error) {
+	second := fakeInterceptor{onQuery: func(q queryinterceptor.TraceQuery) (queryinterceptor.TraceQuery, error) {
 		order = append(order, "second")
 		assert.Equal(t, serviceFilter("first"), q.Filter, "each interceptor sees the previous one's query")
 		return q, nil
@@ -849,11 +893,11 @@ func TestFindTraces_ThreadsQueryContextToStorageAndResult(t *testing.T) {
 
 	_, err := collectTraces(qs.FindTraces(t.Context(), searchQuery(tracestore.TraceQueryParams{})))
 	require.NoError(t, err)
-	assert.Equal(t, "from-onquery", next.gotCtx.Value(ctxKey{}), "the storage reader must see the context OnQuery returned")
-	assert.Equal(t, "from-onquery", resultSaw, "OnResult must see the context OnQuery returned")
+	assert.Equal(t, "from-onquery", next.gotCtx.Value(ctxKey{}), "the storage reader must see the context OnTraceQuery returned")
+	assert.Equal(t, "from-onquery", resultSaw, "OnTraceResult must see the context OnTraceQuery returned")
 }
 
-// countingResultCtx records the value each OnResult call is given and increments it, so a test can
+// countingResultCtx records the value each OnTraceResult call is given and increments it, so a test can
 // assert the context threads from one batch to the next.
 func countingResultCtx(seen *[]int) func(context.Context) context.Context {
 	return func(ctx context.Context) context.Context {
@@ -873,7 +917,7 @@ func TestFindTraces_ThreadsResultContextAcrossBatches(t *testing.T) {
 
 	_, err := collectTraces(qs.FindTraces(t.Context(), searchQuery(tracestore.TraceQueryParams{})))
 	require.NoError(t, err)
-	assert.Equal(t, []int{0, 1}, seen, "OnResult's returned context must thread into the next batch")
+	assert.Equal(t, []int{0, 1}, seen, "OnTraceResult's returned context must thread into the next batch")
 }
 
 func TestGetTraces_ThreadsResultContextAcrossBatches(t *testing.T) {
@@ -889,7 +933,7 @@ func TestGetTraces_ThreadsResultContextAcrossBatches(t *testing.T) {
 		RawTraces: true,
 	}))
 	require.NoError(t, err)
-	assert.Equal(t, []int{0, 1}, seen, "OnResult's returned context must thread into the next batch")
+	assert.Equal(t, []int{0, 1}, seen, "OnTraceResult's returned context must thread into the next batch")
 }
 
 func TestFindTraceSummaries_AppliesQueryHook(t *testing.T) {
@@ -897,11 +941,11 @@ func TestFindTraceSummaries_AppliesQueryHook(t *testing.T) {
 	qs := interceptedService(next, fakeInterceptor{onQuery: narrowTo(serviceFilter("gated"))})
 
 	var got [][]tracestore.TraceSummary
-	for s, err := range qs.FindTraceSummaries(t.Context(), searchQuery(tracestore.TraceQueryParams{
+	for chunk, err := range qs.FindTraceSummaries(t.Context(), searchQuery(tracestore.TraceQueryParams{
 		ServiceName: "original",
 	})) {
 		require.NoError(t, err)
-		got = append(got, s)
+		got = append(got, chunk.Results)
 	}
 	assert.Equal(t, "gated", next.gotSummaryQuery.ServiceName, "pre-query hook must reach storage")
 	require.Len(t, got, 1)
@@ -913,7 +957,7 @@ func TestFindTraceSummaries_QueryRejectionSkipsStorage(t *testing.T) {
 	sentinel := errors.New("denied")
 	next := &fakeReader{summaries: []tracestore.TraceSummary{{}}}
 	qs := interceptedService(next, fakeInterceptor{
-		onQuery: func(q queryinterceptor.Query) (queryinterceptor.Query, error) { return q, sentinel },
+		onQuery: func(q queryinterceptor.TraceQuery) (queryinterceptor.TraceQuery, error) { return q, sentinel },
 	})
 
 	var err error
@@ -935,7 +979,7 @@ func TestFindTraceSummaries_FallbackAppliesResultHook(t *testing.T) {
 	}
 	onQueryCalls := 0
 	qs := interceptedService(next, fakeInterceptor{
-		onQuery: func(q queryinterceptor.Query) (queryinterceptor.Query, error) {
+		onQuery: func(q queryinterceptor.TraceQuery) (queryinterceptor.TraceQuery, error) {
 			onQueryCalls++
 			return q, nil
 		},
@@ -946,7 +990,7 @@ func TestFindTraceSummaries_FallbackAppliesResultHook(t *testing.T) {
 	for _, e := range qs.FindTraceSummaries(t.Context(), searchQuery(tracestore.TraceQueryParams{})) {
 		err = e
 	}
-	require.ErrorIs(t, err, assert.AnError, "the fallback's traces pass through OnResult")
+	require.ErrorIs(t, err, assert.AnError, "the fallback's traces pass through OnTraceResult")
 	assert.Equal(t, 1, onQueryCalls, "the fallback reuses the query the interceptor already saw")
 }
 
@@ -959,10 +1003,10 @@ func TestFindTraceSummaries_FallbackAppliesResultHook(t *testing.T) {
 func TestInterceptorRunsWithTheFilterGateOff(t *testing.T) {
 	setStructuredFilters(t, false)
 
-	var seen queryinterceptor.Query
+	var seen queryinterceptor.TraceQuery
 	next := &fakeReader{batch: tracesWith("k", "v")}
 	qs := interceptedService(next, fakeInterceptor{
-		onQuery: func(q queryinterceptor.Query) (queryinterceptor.Query, error) {
+		onQuery: func(q queryinterceptor.TraceQuery) (queryinterceptor.TraceQuery, error) {
 			seen = q
 			q.Filter = serviceFilter("gated")
 			return q, nil

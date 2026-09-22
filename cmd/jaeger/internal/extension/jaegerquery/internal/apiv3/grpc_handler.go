@@ -137,11 +137,15 @@ func (h *Handler) FindTraceSummaries(request *api_v3.FindTraceSummariesRequest, 
 		return err
 	}
 
-	for summaries, err := range h.QueryService.FindTraceSummaries(stream.Context(), queryParams) {
+	for chunk, err := range h.QueryService.FindTraceSummaries(stream.Context(), queryParams) {
 		if err != nil {
 			return asStatusError(err)
 		}
-		if err := stream.Send(&api_v3.FindTraceSummariesResponse{Summaries: toProtoTraceSummaries(summaries)}); err != nil {
+		response := &api_v3.FindTraceSummariesResponse{
+			Summaries:     toProtoTraceSummaries(chunk.Results),
+			NextPageToken: chunk.NextPageToken,
+		}
+		if err := stream.Send(response); err != nil {
 			return status.Errorf(codes.Internal, "failed to send response stream chunk to client: %v", err)
 		}
 	}
