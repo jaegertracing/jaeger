@@ -72,3 +72,5 @@ exporters:
 ```
 
 An omitted `queue` field takes its zero value, not the exporterhelper default, so a `queue` block must spell out its sizing as above.
+
+See [`config-kafka-ingester-dead-letter.yaml`](../../../config-kafka-ingester-dead-letter.yaml) for the complete ingester configuration the Kafka end-to-end tests run against.
