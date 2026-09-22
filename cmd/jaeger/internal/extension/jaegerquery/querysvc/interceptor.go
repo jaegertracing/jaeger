@@ -44,7 +44,7 @@ func fromInterceptorTraceQuery(q queryinterceptor.TraceQuery, original tracestor
 	}
 }
 
-// onQuery runs every interceptor's OnTraceQuery in order, threading the context each returns into the
+// onTraceQuery runs every interceptor's OnTraceQuery in order, threading the context each returns into the
 // next. The final context is returned so the caller can pass it to the storage reader and to
 // OnTraceResult, letting an interceptor carry per-query state (a resolved caller identity, say) from
 // the pre-query hook to the return path.
@@ -54,7 +54,7 @@ func fromInterceptorTraceQuery(q queryinterceptor.TraceQuery, original tracestor
 // them in two places. A filter one of them leaves behind is not converted back: the query service
 // chooses the outgoing shape from what the reader declared, and a predicate an interceptor added is
 // held to the same capability check as one the caller sent.
-func (qs QueryService) onQuery(ctx context.Context, query TraceQueryParams) (context.Context, TraceQueryParams, error) {
+func (qs QueryService) onTraceQuery(ctx context.Context, query TraceQueryParams) (context.Context, TraceQueryParams, error) {
 	queryPreIntercept := toInterceptorTraceQuery(query.ToFilterShape())
 	queryPostIntercept := queryPreIntercept
 	var err error
@@ -111,14 +111,14 @@ func finalizeInterceptorFilter(returned *expression.Call) (*expression.Call, err
 	return finalized, nil
 }
 
-// interceptResults hands every batch of seq to the interceptors' OnTraceResult in order, threading the
+// interceptTraceResults hands every batch of seq to the interceptors' OnTraceResult in order, threading the
 // context each returns into the next so that state can accumulate across a multi-batch result.
 // An OnTraceResult error ends the stream rather than yielding later batches, which could leak results
 // the failed sanitize or redaction was meant to withhold.
 //
 // It wraps the batches as storage yielded them, before the query service aggregates and adjusts
 // them, so an interceptor rewrites the traces the reader actually returned.
-func (qs QueryService) interceptResults(
+func (qs QueryService) interceptTraceResults(
 	ctx context.Context,
 	seq iter.Seq2[[]ptrace.Traces, error],
 ) iter.Seq2[[]ptrace.Traces, error] {
