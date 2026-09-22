@@ -26,7 +26,7 @@ var ErrInterceptorFilter = errors.New("query interceptor returned an invalid fil
 // errInterceptorDroppedFilter is the one interceptor mistake that fails open: a search that had
 // predicates and leaves with none asks for everything in the time range.
 var errInterceptorDroppedFilter = fmt.Errorf("%w: it returned no filter for a query that had predicates, which "+
-	"would widen the search to every trace in the time range", ErrInterceptorFilter)
+	"would widen the search to everything in the time range", ErrInterceptorFilter)
 
 // toInterceptorTraceQuery and fromInterceptorTraceQuery convert at the contract boundary, so the
 // internal query type never crosses it.
@@ -101,6 +101,55 @@ func (qs QueryService) onTraceQuery(ctx context.Context, query TraceQueryParams)
 	return ctx, query, nil
 }
 
+// toInterceptorSpanQuery and fromInterceptorSpanQuery are the span search's converters at the
+// same boundary. A span query has one shape, so nothing stays behind on the internal query.
+func toInterceptorSpanQuery(q tracestore.SpanQueryParams) queryinterceptor.SpanQuery {
+	return queryinterceptor.SpanQuery{
+		Filter:       q.Filter,
+		StartTimeMin: q.StartTimeMin,
+		StartTimeMax: q.StartTimeMax,
+	}
+}
+
+func fromInterceptorSpanQuery(q queryinterceptor.SpanQuery) tracestore.SpanQueryParams {
+	return tracestore.SpanQueryParams{
+		Filter:       q.Filter,
+		StartTimeMin: q.StartTimeMin,
+		StartTimeMax: q.StartTimeMax,
+	}
+}
+
+// onSpanQuery runs every interceptor's OnSpanQuery in order, threading the context each returns
+// into the next, as onTraceQuery does for a trace search. The filter the interceptors leave behind
+// is finalized and sent on; a span query has one shape, so there is no legacy branch.
+//
+// The nil rule is checked after every hook rather than once at the end, because a predicate one
+// interceptor adds is a restriction the next must not be able to remove: a query that had no
+// filter, gained one, and lost it again would otherwise pass as the time-range search it started as.
+func (qs QueryService) onSpanQuery(ctx context.Context, query SpanQueryParams) (context.Context, SpanQueryParams, error) {
+	queryPostIntercept := toInterceptorSpanQuery(query.SpanQueryParams)
+	hadPredicates := queryPostIntercept.Filter != nil
+	var err error
+	for _, interceptor := range qs.options.Interceptors {
+		ctx, queryPostIntercept, err = interceptor.OnSpanQuery(ctx, queryPostIntercept)
+		if err != nil {
+			return ctx, query, err
+		}
+		if hadPredicates && queryPostIntercept.Filter == nil {
+			return ctx, query, errInterceptorDroppedFilter
+		}
+		hadPredicates = queryPostIntercept.Filter != nil
+	}
+	if queryPostIntercept.Filter != nil {
+		queryPostIntercept.Filter, err = finalizeInterceptorFilter(queryPostIntercept.Filter)
+		if err != nil {
+			return ctx, query, err
+		}
+	}
+	query.SpanQueryParams = fromInterceptorSpanQuery(queryPostIntercept)
+	return ctx, query, nil
+}
+
 // finalizeInterceptorFilter finalizes the filter an interceptor returned and rejects what it must
 // not hand to storage. An interceptor builds its filter by hand, in code jaeger-query does not
 // control, and a malformed tree is typically answered by a backend matching nothing rather than
@@ -148,6 +197,38 @@ func (qs QueryService) interceptTraceResults(
 				}
 			}
 			if !yield(traces, nil) {
+				return
+			}
+		}
+	}
+}
+
+// interceptSpanResults hands every chunk of seq to the interceptors' OnSpanResult in order, with
+// the same context threading and error handling as interceptTraceResults. The chunk's page token
+// passes through untouched.
+func (qs QueryService) interceptSpanResults(
+	ctx context.Context,
+	seq iter.Seq2[tracestore.PageChunk[ptrace.Traces], error],
+) iter.Seq2[tracestore.PageChunk[ptrace.Traces], error] {
+	if len(qs.options.Interceptors) == 0 {
+		return seq
+	}
+	return func(yield func(tracestore.PageChunk[ptrace.Traces], error) bool) {
+		for chunk, err := range seq {
+			if err != nil {
+				if !yield(tracestore.PageChunk[ptrace.Traces]{}, err) {
+					return
+				}
+				continue
+			}
+			for _, interceptor := range qs.options.Interceptors {
+				ctx, chunk.Results, err = interceptor.OnSpanResult(ctx, chunk.Results)
+				if err != nil {
+					yield(tracestore.PageChunk[ptrace.Traces]{}, err)
+					return
+				}
+			}
+			if !yield(chunk, nil) {
 				return
 			}
 		}
