@@ -141,8 +141,9 @@ func (s *SpanWriter) WriteSpans(ctx context.Context, spans []dbmodel.Span) error
 // caller can re-route them without knowing the document layout. Any other error is
 // returned as is. A rejected service:operation lookup document is logged and not
 // reported: the spans it indexes are stored, and any later span of the same
-// service and operation writes it again. A rejected document that matches nothing
-// this batch sent is counted as unidentified, because it could be a span.
+// service and operation writes it again. A batch whose only terminal rejections
+// are lookup documents therefore succeeds. A rejected document that matches
+// nothing this batch sent is counted as unidentified, because it could be a span.
 func (s *SpanWriter) attributeRejections(err error, spanByDocID map[string]*dbmodel.Span, serviceDocIDs map[string]struct{}) error {
 	var bulkErr *esclient.BulkWriteError
 	if !errors.As(err, &bulkErr) {
@@ -154,8 +155,8 @@ func (s *SpanWriter) attributeRejections(err error, spanByDocID map[string]*dbmo
 			traceID, terr := span.TraceID.ToOTEL()
 			spanID, serr := span.SpanID.ToOTEL()
 			if terr != nil || serr != nil {
-				// The ids came from a pdata span, so this cannot happen; treat it as
-				// unidentified rather than lose the span.
+				// Spans produced by ToDBModel carry valid hex ids, so this should not
+				// happen; treat it as unidentified rather than lose the span.
 				rejected.Unidentified++
 				continue
 			}
@@ -168,6 +169,9 @@ func (s *SpanWriter) attributeRejections(err error, spanByDocID map[string]*dbmo
 			continue
 		}
 		rejected.Unidentified++
+	}
+	if len(rejected.Spans) == 0 && rejected.Unidentified == 0 && !rejected.Transient {
+		return nil
 	}
 	return rejected
 }

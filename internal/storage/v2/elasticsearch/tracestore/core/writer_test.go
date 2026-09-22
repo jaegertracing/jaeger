@@ -334,13 +334,11 @@ func TestSpanWriter_RejectedSpansError(t *testing.T) {
 		assert.Len(t, rejected.Spans, 1)
 	})
 
-	t.Run("rejected lookup document is logged, not reported", func(t *testing.T) {
+	t.Run("rejected lookup document is logged and the batch succeeds", func(t *testing.T) {
 		withSpanWriter(func(w *spanWriterTest) {
 			w.batchWriter.errFor = rejecting(false, nil, 0)
-			var rejected *tracestore.RejectedSpansError
-			require.ErrorAs(t, w.writer.WriteSpans(context.Background(), []dbmodel.Span{spanA}), &rejected)
-			assert.Empty(t, rejected.Spans)
-			assert.Zero(t, rejected.Unidentified)
+			require.NoError(t, w.writer.WriteSpans(context.Background(), []dbmodel.Span{spanA}),
+				"every span is stored, so nothing remains for the caller to retry or re-route")
 			assert.Contains(t, w.logBuffer.String(), "lookup document rejected by the backend")
 		})
 	})

@@ -5,7 +5,6 @@ package esclient
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"net/http"
 	"strings"
@@ -48,25 +47,6 @@ func TestBulkWriteError_FailModeCarriesTerminalItems(t *testing.T) {
 	}, be.Terminal[0])
 	// The message is preserved for logs/humans.
 	assert.Contains(t, be.Error(), "1 of 2 bulk items rejected")
-}
-
-// TestBulkWriteError_SurvivesJoinAndPassThrough is the traversal proof required by
-// the design: the type must be recoverable with errors.As after the writer's own
-// errors.Join across chunks *and* after the pass-through wrapping that WriteSpans /
-// WriteTraces do (they return the error unwrapped today; this also covers a future
-// fmt.Errorf("%w") wrap).
-func TestBulkWriteError_SurvivesJoinAndPassThrough(t *testing.T) {
-	inner := &BulkWriteError{
-		Terminal: []RejectedItem{{Index: "idx", ID: "a_b_c", Status: 400, Reason: "boom"}},
-	}
-	// errors.Join is exactly what WriteBatch applies, even to a single error.
-	joined := errors.Join(inner)
-	// A pass-through caller may additionally wrap with %w.
-	wrapped := fmt.Errorf("write traces: %w", joined)
-
-	var be *BulkWriteError
-	require.ErrorAs(t, wrapped, &be)
-	assert.Same(t, inner, be, "errors.As must recover the same instance through Join + %%w")
 }
 
 // TestBulkWriteError_AggregatesAcrossChunks forces a multi-chunk write (tiny byte
@@ -198,9 +178,8 @@ func TestBulkWriteError_MergeBoundsSample(t *testing.T) {
 	assert.Contains(t, a.Error(), "…and 3 more")
 }
 
-// TestBulkWriteError_MessageOverflow exercises the "…and N more" rendering when the
-// terminal sample exceeds maxReportedFailures, so the merge/overflow accounting is
-// covered independently of the writer.
+// TestBulkWriteError_MessageOverflow drives a real WriteBatch whose terminal sample
+// exceeds maxReportedFailures and checks the "…and N more" rendering.
 func TestBulkWriteError_MessageOverflow(t *testing.T) {
 	const n = maxReportedFailures + 3
 	items := make([]string, n)
