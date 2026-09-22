@@ -10,7 +10,9 @@ package integration
 
 import (
 	"context"
+	"errors"
 	"net"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -18,6 +20,7 @@ import (
 	"go.opentelemetry.io/collector/component/componenttest"
 	"go.opentelemetry.io/collector/config/configgrpc"
 	"go.opentelemetry.io/collector/config/configoptional"
+	"go.opentelemetry.io/collector/consumer"
 	"go.opentelemetry.io/collector/consumer/consumertest"
 	"go.opentelemetry.io/collector/pdata/pcommon"
 	"go.opentelemetry.io/collector/pdata/ptrace"
@@ -43,11 +46,33 @@ func buildPoisonTrace(traceIDByte byte, spanCount int) (ptrace.Traces, pcommon.S
 
 // deadLetterServer is an OTLP/HTTP traces endpoint, the stock otlp receiver in
 // front of a consumertest sink, that records every span the dead-letter pipeline
-// exports to it.
+// exports to it. While refusing is set it rejects every export with a retryable
+// error instead, standing in for a dead-letter sink outage.
 type deadLetterServer struct {
 	endpoint string
 	sink     *consumertest.TracesSink
+	refusing atomic.Bool
+	refusals atomic.Int32
 }
+
+// ConsumeTraces is the receiver's next consumer: the sink, or a refusal.
+func (d *deadLetterServer) ConsumeTraces(ctx context.Context, td ptrace.Traces) error {
+	if d.refusing.Load() {
+		d.refusals.Add(1)
+		return errors.New("dead-letter sink is refusing exports")
+	}
+	return d.sink.ConsumeTraces(ctx, td)
+}
+
+func (*deadLetterServer) Capabilities() consumer.Capabilities {
+	return consumer.Capabilities{MutatesData: false}
+}
+
+// refuse turns the outage on or off.
+func (d *deadLetterServer) refuse(on bool) { d.refusing.Store(on) }
+
+// refused returns how many exports were rejected so far.
+func (d *deadLetterServer) refused() int32 { return d.refusals.Load() }
 
 func newDeadLetterServer(t *testing.T) *deadLetterServer {
 	// Reserving the port by listening and closing is best effort: another process
@@ -65,7 +90,7 @@ func newDeadLetterServer(t *testing.T) *deadLetterServer {
 	// paths on the reserved port.
 	cfg.Protocols.HTTP.GetOrInsertDefault().ServerConfig.NetAddr.Endpoint = d.endpoint
 
-	receiver, err := factory.CreateTraces(ctx, receivertest.NewNopSettings(factory.Type()), cfg, d.sink)
+	receiver, err := factory.CreateTraces(ctx, receivertest.NewNopSettings(factory.Type()), cfg, d)
 	require.NoError(t, err)
 	require.NoError(t, receiver.Start(ctx, componenttest.NewNopHost()))
 	t.Cleanup(func() { require.NoError(t, receiver.Shutdown(ctx)) })
@@ -93,18 +118,24 @@ func (d *deadLetterServer) received() []ptrace.Span {
 // writePoison sends a trace whose first span is a poison pill into the collector,
 // waits for it to land in Kafka, and returns the trace and the poison span's id.
 // Waiting for the record matters because requireOffsetCaughtUp would otherwise be
-// satisfied by the offsets as they stood before the write.
+// satisfied by the offsets as they stood before the write. The offset reads need
+// the topic to exist, and Kafka creates it on the first record, so a test's first
+// step has to write an ordinary trace before this one.
 func (f *faultInjectionSteps) writePoison(t *testing.T, traceIDByte byte) (ptrace.Traces, pcommon.SpanID) {
 	logEndBefore := requireOffsets(t, f.offsets.logEnd)
 	trace, poisonSpanID := buildPoisonTrace(traceIDByte, MaxChunkSize)
-	ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
-	defer cancel()
-	require.NoError(t, f.collector.TraceWriter.WriteTraces(ctx, trace))
+	f.send(t, trace)
+	f.requireInKafka(t, logEndBefore, "the poison trace never reached Kafka")
+	return trace, poisonSpanID
+}
+
+// requireInKafka waits until the log end has moved past the offsets read before a
+// write, which means the written record is in Kafka.
+func (f *faultInjectionSteps) requireInKafka(t *testing.T, logEndBefore partitionOffsets, msg string) {
 	require.Eventually(t, func() bool {
 		logEnd, err := f.offsets.logEnd()
 		return err == nil && logEnd.advancedPast(logEndBefore)
-	}, time.Minute, time.Second, "the poison trace never reached Kafka")
-	return trace, poisonSpanID
+	}, time.Minute, time.Second, msg)
 }
 
 // requirePoisonStoredAround waits until the offset has caught up past the poison
@@ -113,11 +144,5 @@ func (f *faultInjectionSteps) writePoison(t *testing.T, traceIDByte byte) (ptrac
 // stalling on it.
 func (f *faultInjectionSteps) requirePoisonStoredAround(t *testing.T, trace ptrace.Traces) {
 	f.requireOffsetCaughtUp(t)
-	expected := trace.SpanCount() - 1
-	id := singleTraceID(trace)
-	require.Eventually(t, func() bool {
-		count, err := f.countStored(id)
-		return err == nil && count >= expected
-	}, 2*time.Minute, time.Second, "the non-poison spans of trace %s never became fully indexed", id)
-	require.Equal(t, expected, f.storedSpanCount(t, trace), "trace %s must be stored once without its poison span", id)
+	f.requireStoredCount(t, trace, trace.SpanCount()-1, "trace %s must be stored once without its poison span")
 }

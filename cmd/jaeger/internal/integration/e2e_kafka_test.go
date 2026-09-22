@@ -244,8 +244,7 @@ func TestKafkaStorage_SyncElasticsearch_PoisonDrop(t *testing.T) {
 	offsets := newKafkaOffsets(t, kafkaBroker(), faultInjectionConsumerGroup, uniqueTopic)
 	f := &faultInjectionSteps{collector: collector, offsets: offsets}
 
-	// Kafka creates the topic on the first record, so the poison step's offset
-	// reads need a record before it.
+	// The first record creates the topic; see writePoison.
 	t.Run("baseline", func(t *testing.T) {
 		trace := f.write(t, 0x01)
 		f.requireOffsetCaughtUp(t)
@@ -337,7 +336,7 @@ func TestKafkaStorage_SyncElasticsearch_DeadLetter(t *testing.T) {
 			assert.Equal(t, poisonSpanFlags, span.Flags(), "the span is re-emitted as received, rejection and all")
 			reason, ok := span.Attributes().Get("jaeger.storage.rejection_reason")
 			require.True(t, ok, "the re-emitted span carries the backend's rejection reason")
-			assert.Contains(t, reason.Str(), "flags", "the reason names the field the mapping rejected")
+			assert.Contains(t, reason.Str(), "failed to parse field [flags]", "the reason names the field the mapping rejected")
 		}
 	})
 
@@ -347,5 +346,34 @@ func TestKafkaStorage_SyncElasticsearch_DeadLetter(t *testing.T) {
 			assert.Zero(t, f.storedSpanCount(t, trace), "no spans must be stored while _bulk is rejected")
 		})
 		assert.Len(t, deadLetter.received(), before, "a transient outage sends nothing to the dead-letter pipeline")
+	})
+
+	// The behavior only the connector has: a poison span the dead-letter sink will
+	// not take holds the offset (RFC 0007 §4.8 step 4), and lifting the outage lets
+	// the batch complete with the poison span delivered.
+	t.Run("sink_down_holds_offset", func(t *testing.T) {
+		f.requireOffsetCaughtUp(t)
+		committedBefore := requireOffsets(t, f.offsets.committed)
+		receivedBefore := len(deadLetter.received())
+		refusedBefore := deadLetter.refused()
+
+		deadLetter.refuse(true)
+		defer deadLetter.refuse(false)
+		trace, poisonSpanID := f.writePoison(t, 0x04)
+		t.Logf("Poison trace is in Kafka; the dead-letter sink refuses exports for %v", outageHoldTime)
+		time.Sleep(outageHoldTime)
+
+		assert.Equal(t, committedBefore, requireOffsets(t, f.offsets.committed), "the offset must hold while the dead-letter sink refuses the poison span")
+		assert.Positive(t, deadLetter.refused()-refusedBefore, "the connector must have tried the sink while it refused")
+		assert.Len(t, deadLetter.received(), receivedBefore, "nothing reaches the sink while it refuses")
+
+		deadLetter.refuse(false)
+		t.Log("Dead-letter sink accepting again; waiting for recovery")
+		f.requirePoisonStoredAround(t, trace)
+		delivered := deadLetter.received()[receivedBefore:]
+		require.NotEmpty(t, delivered, "the poison span reaches the sink once it accepts")
+		for _, span := range delivered {
+			assert.Equal(t, poisonSpanID, span.SpanID(), "only the poison span is re-emitted")
+		}
 	})
 }

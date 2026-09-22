@@ -138,7 +138,8 @@ exporters:
     # The endpoint has no default on purpose: the obvious local one, port 4318, is
     # the OTLP receiver of config-kafka-collector.yaml, which would feed every
     # poison span back into the same Kafka topic in an endless loop. An unset
-    # variable leaves the endpoint empty and the collector refuses to start.
+    # variable leaves the endpoint empty, which fails the exporter's configuration
+    # validation before anything starts.
     traces_endpoint: ${env:DEAD_LETTER_ENDPOINT}
     # The connector needs the sink's verdict before it advances the offset, so the
     # dead-letter exporter must not acknowledge from a queue (see the header).
