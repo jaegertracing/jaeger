@@ -14,7 +14,6 @@ import (
 	"net"
 	"sync/atomic"
 	"testing"
-	"time"
 
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/collector/component/componenttest"
@@ -72,7 +71,7 @@ func (*deadLetterServer) Capabilities() consumer.Capabilities {
 func (d *deadLetterServer) refuse(on bool) { d.refusing.Store(on) }
 
 // refused returns how many exports were rejected so far.
-func (d *deadLetterServer) refused() int32 { return d.refusals.Load() }
+func (d *deadLetterServer) refused() int { return int(d.refusals.Load()) }
 
 func newDeadLetterServer(t *testing.T) *deadLetterServer {
 	// Reserving the port by listening and closing is best effort: another process
@@ -97,8 +96,8 @@ func newDeadLetterServer(t *testing.T) *deadLetterServer {
 	return d
 }
 
-// TracesURL is the endpoint for an otlphttp exporter's traces_endpoint.
-func (d *deadLetterServer) TracesURL() string { return "http://" + d.endpoint + "/v1/traces" }
+// tracesURL is the endpoint for an otlphttp exporter's traces_endpoint.
+func (d *deadLetterServer) tracesURL() string { return "http://" + d.endpoint + "/v1/traces" }
 
 // received returns every span received so far.
 func (d *deadLetterServer) received() []ptrace.Span {
@@ -127,15 +126,6 @@ func (f *faultInjectionSteps) writePoison(t *testing.T, traceIDByte byte) (ptrac
 	f.send(t, trace)
 	f.requireInKafka(t, logEndBefore, "the poison trace never reached Kafka")
 	return trace, poisonSpanID
-}
-
-// requireInKafka waits until the log end has moved past the offsets read before a
-// write, which means the written record is in Kafka.
-func (f *faultInjectionSteps) requireInKafka(t *testing.T, logEndBefore partitionOffsets, msg string) {
-	require.Eventually(t, func() bool {
-		logEnd, err := f.offsets.logEnd()
-		return err == nil && logEnd.advancedPast(logEndBefore)
-	}, time.Minute, time.Second, msg)
 }
 
 // requirePoisonStoredAround waits until the offset has caught up past the poison

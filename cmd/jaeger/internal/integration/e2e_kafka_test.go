@@ -278,7 +278,7 @@ func TestKafkaStorage_SyncElasticsearch_DeadLetter(t *testing.T) {
 	proxy := newESFaultProxy(t, esBaseURL)
 	t.Logf("Elasticsearch fault proxy listening on %s", proxy.URL())
 	deadLetter := newDeadLetterServer(t)
-	t.Logf("Dead-letter OTLP/HTTP endpoint listening on %s", deadLetter.TracesURL())
+	t.Logf("Dead-letter OTLP/HTTP endpoint listening on %s", deadLetter.tracesURL())
 
 	uniqueTopic := fmt.Sprintf("jaeger-spans-sync-es-dead-letter-%d", time.Now().UnixNano())
 	t.Logf("Using unique Kafka topic: %s", uniqueTopic)
@@ -287,7 +287,7 @@ func TestKafkaStorage_SyncElasticsearch_DeadLetter(t *testing.T) {
 		"KAFKA_ENCODING":       "otlp_proto",
 		"KAFKA_BROKER":         kafkaBroker(),
 		"ES_SERVER_URL":        proxy.URL(),
-		"DEAD_LETTER_ENDPOINT": deadLetter.TracesURL(),
+		"DEAD_LETTER_ENDPOINT": deadLetter.tracesURL(),
 	}
 
 	collector := &E2EStorageIntegration{
@@ -358,7 +358,6 @@ func TestKafkaStorage_SyncElasticsearch_DeadLetter(t *testing.T) {
 		refusedBefore := deadLetter.refused()
 
 		deadLetter.refuse(true)
-		defer deadLetter.refuse(false)
 		trace, poisonSpanID := f.writePoison(t, 0x04)
 		t.Logf("Poison trace is in Kafka; the dead-letter sink refuses exports for %v", outageHoldTime)
 		time.Sleep(outageHoldTime)
@@ -373,6 +372,7 @@ func TestKafkaStorage_SyncElasticsearch_DeadLetter(t *testing.T) {
 		delivered := deadLetter.received()[receivedBefore:]
 		require.NotEmpty(t, delivered, "the poison span reaches the sink once it accepts")
 		for _, span := range delivered {
+			assert.Equal(t, singleTraceID(trace), span.TraceID(), "only this trace's poison span, not a late delivery from an earlier step")
 			assert.Equal(t, poisonSpanID, span.SpanID(), "only the poison span is re-emitted")
 		}
 	})

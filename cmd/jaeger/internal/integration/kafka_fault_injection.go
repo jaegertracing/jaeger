@@ -320,6 +320,15 @@ func (f *faultInjectionSteps) send(t *testing.T, trace ptrace.Traces) {
 	require.NoError(t, f.collector.TraceWriter.WriteTraces(ctx, trace))
 }
 
+// requireInKafka waits until the log end has moved past the offsets read before a
+// write, which means the written record is in Kafka.
+func (f *faultInjectionSteps) requireInKafka(t *testing.T, logEndBefore partitionOffsets, msg string) {
+	require.Eventually(t, func() bool {
+		logEnd, err := f.offsets.logEnd()
+		return err == nil && logEnd.advancedPast(logEndBefore)
+	}, time.Minute, time.Second, msg)
+}
+
 // requireOffsets reads offsets with one of the kafkaOffsets readers and fails the
 // test on error. It is for reads outside a polling loop.
 func requireOffsets(t *testing.T, read func() (partitionOffsets, error)) partitionOffsets {
