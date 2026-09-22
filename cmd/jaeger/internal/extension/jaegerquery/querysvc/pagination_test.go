@@ -142,15 +142,17 @@ func TestPrepareSearchQuery_PageSizeClampedToMax(t *testing.T) {
 	next := &fakeReader{summaries: []tracestore.TraceSummary{{RootServiceName: "svc"}}}
 	next.capabilities = &tracestore.SearchCapabilities{WithoutServiceName: true, Paginated: true}
 	qs := interceptedService(next, fakeInterceptor{})
-	query := searchQuery(tracestore.TraceQueryParams{
-		Pagination: &tracestore.Pagination{PageSize: tracestore.MaxPageSize + 1000},
-	})
+	sent := &tracestore.Pagination{PageSize: tracestore.MaxPageSize + 1000, PageToken: "cursor"}
+	query := searchQuery(tracestore.TraceQueryParams{Pagination: sent})
 
 	for _, err := range qs.FindTraceSummaries(context.Background(), query) {
 		require.NoError(t, err)
 	}
 	assert.True(t, next.summaryCalled)
-	assert.Equal(t, tracestore.MaxPageSize, next.gotSummaryQuery.Pagination.PageSize)
+	assert.Equal(t, &tracestore.Pagination{PageSize: tracestore.MaxPageSize, PageToken: "cursor"},
+		next.gotSummaryQuery.Pagination)
+	assert.Equal(t, tracestore.MaxPageSize+1000, sent.PageSize,
+		"the caller's request is left as sent; the clamp lands on a copy")
 }
 
 // TestPrepareSearchQuery_PageSizeFoldedIntoSearchDepthWhenUnsupported checks that a page-size-only

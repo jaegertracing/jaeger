@@ -271,8 +271,14 @@ func (qs QueryService) prepareSearchQuery(
 			return ctx, query, fmt.Errorf("%w: page size is required whenever pagination is present",
 				tracestore.ErrPaginationInvalid)
 		}
-		// An oversized page is clamped rather than refused (RFC 0014 §4, AIP-158).
-		query.Pagination.PageSize = min(query.Pagination.PageSize, tracestore.MaxPageSize)
+		// An oversized page is clamped rather than refused (RFC 0014 §4, AIP-158). The clamp
+		// lands on a copy so the caller's request is not rewritten through the shared pointer.
+		if query.Pagination.PageSize > tracestore.MaxPageSize {
+			query.Pagination = &tracestore.Pagination{
+				PageSize:  tracestore.MaxPageSize,
+				PageToken: query.Pagination.PageToken,
+			}
+		}
 	}
 	if query.Filter != nil {
 		// None of these refusals depends on the backend, so they come before the capability call
