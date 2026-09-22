@@ -58,7 +58,7 @@ Jaeger v2 is an OpenTelemetry Collector assembly. The ingester pipeline is:
 kafka receiver ──▶ batch processor ──▶ jaeger_storage_exporter ──▶ WriteTraces
 ```
 
-(`config-kafka-ingester.yaml`). The storage exporter wraps `WriteTraces` in `exporterhelper` with **no sending queue and retry disabled by default** ([`storageexporter/factory.go`](../../cmd/jaeger/internal/exporters/storageexporter/factory.go), [`config.go`](../../cmd/jaeger/internal/exporters/storageexporter/config.go)), so `ConsumeTraces → pushTraces → WriteTraces` is a straight synchronous call — **the only asynchronous hop is the `esutil.BulkIndexer` buffer inside the writer.**
+(`config-kafka-ingester.yaml`). The storage exporter wraps `WriteTraces` in `exporterhelper` with **no sending queue and retry disabled by default** ([`storageexporter/factory.go`](../../cmd/jaeger/internal/exporters/storageexporter/factory.go), [`config.go`](../../cmd/jaeger/internal/exporters/storageexporter/config.go)), so `ConsumeTraces → storageexporter.TraceWriter.WriteTraces → tracestore.Writer.WriteTraces` is a straight synchronous call — **the only asynchronous hop is the `esutil.BulkIndexer` buffer inside the writer.**
 
 There are actually **two** independent commit-before-durable gaps, and both must be closed for at-least-once. Verified against the receiver's source (the contrib `kafkareceiver` v0.155.0 is **franz-go**-based, `consumer_franz.go`):
 
