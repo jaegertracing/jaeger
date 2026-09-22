@@ -37,6 +37,7 @@ type fakeReader struct {
 	summaryErr      error
 	capabilities    *tracestore.SearchCapabilities
 	capabilityReads int
+	nextPageToken   string
 }
 
 // SearchCapabilities answers for a backend that searches every service and evaluates no filter
@@ -95,8 +96,12 @@ func (f *fakeReader) FindSpans(ctx context.Context, q tracestore.SpanQueryParams
 			yield(tracestore.PageChunk[ptrace.Traces]{}, f.err)
 			return
 		}
-		for _, spans := range f.batch {
-			if !yield(tracestore.PageChunk[ptrace.Traces]{Results: spans}, nil) {
+		for i, spans := range f.batch {
+			chunk := tracestore.PageChunk[ptrace.Traces]{Results: spans}
+			if i == len(f.batch)-1 {
+				chunk.NextPageToken = f.nextPageToken
+			}
+			if !yield(chunk, nil) {
 				return
 			}
 		}
@@ -487,7 +492,7 @@ func TestFindTraces_RefusesAnInvalidInterceptorFilter(t *testing.T) {
 	}{
 		{
 			name:        "no filter at all, for a query that had predicates",
-			expectedErr: "widen the search to every trace in the time range",
+			expectedErr: "widen the search to everything in the time range",
 		},
 		{
 			name:        "a conjunction of one",
@@ -928,7 +933,6 @@ func TestInterceptedSearch_EarlyStop(t *testing.T) {
 	})
 
 	t.Run("FindSpans: on a batch", func(t *testing.T) {
-		enableStructuredFilters(t)
 		next := &multiBatchReader{
 			fakeReader: &fakeReader{},
 			batches:    [][]ptrace.Traces{tracesWith("k", "1"), tracesWith("k", "2")},
@@ -961,7 +965,6 @@ func TestInterceptedSearch_EarlyStop(t *testing.T) {
 	})
 
 	t.Run("FindSpans: on an error", func(t *testing.T) {
-		enableStructuredFilters(t)
 		next := &fakeReader{leadingErr: assert.AnError, batch: tracesWith("k", "v")}
 		qs := interceptedService(next, fakeInterceptor{})
 
@@ -1039,7 +1042,7 @@ func TestFindTraces_ThreadsResultContextAcrossBatches(t *testing.T) {
 func TestFindSpans_AppliesQueryAndResultHooks(t *testing.T) {
 	enableStructuredFilters(t)
 	narrowedEnd := time.Date(2026, 8, 18, 0, 0, 0, 0, time.UTC)
-	next := &fakeReader{batch: tracesWith("secret", "value")}
+	next := &fakeReader{batch: tracesWith("secret", "value"), nextPageToken: "next"}
 	next.capabilities = filterCapableBackend()
 	qs := interceptedService(next, fakeInterceptor{
 		onSpanQuery: func(q queryinterceptor.SpanQuery) (queryinterceptor.SpanQuery, error) {
@@ -1060,6 +1063,7 @@ func TestFindSpans_AppliesQueryAndResultHooks(t *testing.T) {
 	assert.Equal(t, narrowedEnd.Add(-time.Hour), next.gotSpanQuery.StartTimeMin, "the untouched bound survives the round trip")
 	require.Len(t, out, 1)
 	assert.Equal(t, "REDACTED", firstSpanAttr(t, []ptrace.Traces{out[0].Results}, "secret"), "result hook must redact")
+	assert.Equal(t, "next", out[0].NextPageToken, "the page token is not the interceptor's to touch")
 }
 
 func TestFindSpans_OnErrorInResponse(t *testing.T) {
@@ -1375,7 +1379,6 @@ func TestFindSpans_RefusesAnInterceptorConstantThatWillNotParse(t *testing.T) {
 // of the time range alone has no filter to begin with, so an interceptor that leaves it that way
 // has widened nothing and the search proceeds.
 func TestFindSpans_AllowsNoFilterForAPredicatelessQuery(t *testing.T) {
-	enableStructuredFilters(t)
 	next := &fakeReader{batch: tracesWith("k", "v")}
 	var seen queryinterceptor.SpanQuery
 	qs := interceptedService(next, fakeInterceptor{
@@ -1398,7 +1401,6 @@ func TestFindSpans_AllowsNoFilterForAPredicatelessQuery(t *testing.T) {
 // The interceptor package's ErrSpanSearchUnsupported is a different sentinel from this package's,
 // which names a backend that cannot serve the search and is a bad request.
 func TestFindSpans_RefusedByATraceOnlyInterceptor(t *testing.T) {
-	enableStructuredFilters(t)
 	next := &fakeReader{batch: tracesWith("k", "v")}
 	qs := interceptedService(next, traceOnlyInterceptor{})
 
@@ -1424,7 +1426,6 @@ func (traceOnlyInterceptor) OnTraceResult(ctx context.Context, t []ptrace.Traces
 }
 
 func TestFindSpans_QueryRejectionSkipsStorage(t *testing.T) {
-	enableStructuredFilters(t)
 	sentinel := errors.New("denied")
 	next := &fakeReader{batch: tracesWith("k", "v")}
 	qs := interceptedService(next, fakeInterceptor{
@@ -1437,7 +1438,6 @@ func TestFindSpans_QueryRejectionSkipsStorage(t *testing.T) {
 }
 
 func TestFindSpans_ResultErrorAborts(t *testing.T) {
-	enableStructuredFilters(t)
 	sentinel := errors.New("sanitize failed")
 	next := &fakeReader{batch: tracesWith("k", "v")}
 	qs := interceptedService(next, fakeInterceptor{
@@ -1451,7 +1451,6 @@ func TestFindSpans_ResultErrorAborts(t *testing.T) {
 // TestFindSpans_PassesAReaderErrorThrough pins that an error the reader yields is handed to the
 // caller as it arrived, and that a caller who reads past it still gets the chunks that follow.
 func TestFindSpans_PassesAReaderErrorThrough(t *testing.T) {
-	enableStructuredFilters(t)
 	next := &fakeReader{leadingErr: assert.AnError, batch: tracesWith("k", "v")}
 	qs := interceptedService(next, fakeInterceptor{})
 
@@ -1469,7 +1468,6 @@ func TestFindSpans_PassesAReaderErrorThrough(t *testing.T) {
 }
 
 func TestFindSpans_ResultErrorStopsIteration(t *testing.T) {
-	enableStructuredFilters(t)
 	sentinel := errors.New("sanitize failed")
 	next := &multiBatchReader{
 		fakeReader: &fakeReader{},
@@ -1498,7 +1496,6 @@ func TestFindSpans_ResultErrorStopsIteration(t *testing.T) {
 }
 
 func TestFindSpans_ChainAppliesInOrder(t *testing.T) {
-	enableStructuredFilters(t)
 	next := &fakeReader{batch: tracesWith("v", "0")}
 	next.capabilities = filterCapableBackend()
 	var order []string
@@ -1520,7 +1517,6 @@ func TestFindSpans_ChainAppliesInOrder(t *testing.T) {
 }
 
 func TestFindSpans_ThreadsQueryContextToStorageAndResult(t *testing.T) {
-	enableStructuredFilters(t)
 	next := &fakeReader{batch: tracesWith("k", "v")}
 	var resultSaw any
 	qs := interceptedService(next, fakeInterceptor{
@@ -1540,7 +1536,6 @@ func TestFindSpans_ThreadsQueryContextToStorageAndResult(t *testing.T) {
 }
 
 func TestFindSpans_ThreadsResultContextAcrossBatches(t *testing.T) {
-	enableStructuredFilters(t)
 	next := &multiBatchReader{
 		fakeReader: &fakeReader{},
 		batches:    [][]ptrace.Traces{tracesWith("k", "1"), tracesWith("k", "2")},

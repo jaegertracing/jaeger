@@ -26,7 +26,7 @@ var ErrInterceptorFilter = errors.New("query interceptor returned an invalid fil
 // errInterceptorDroppedFilter is the one interceptor mistake that fails open: a search that had
 // predicates and leaves with none asks for everything in the time range.
 var errInterceptorDroppedFilter = fmt.Errorf("%w: it returned no filter for a query that had predicates, which "+
-	"would widen the search to every trace in the time range", ErrInterceptorFilter)
+	"would widen the search to everything in the time range", ErrInterceptorFilter)
 
 // toInterceptorTraceQuery and fromInterceptorTraceQuery convert at the contract boundary, so the
 // internal query type never crosses it.
