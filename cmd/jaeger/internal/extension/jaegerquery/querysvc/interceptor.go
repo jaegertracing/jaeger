@@ -24,10 +24,7 @@ import (
 var ErrInterceptorFilter = errors.New("query interceptor returned an invalid filter")
 
 // toInterceptorTraceQuery and fromInterceptorTraceQuery convert at the contract boundary, so the
-// internal query type never crosses it. The interceptor's TraceQuery carries only the filter and
-// the time range: onQuery hands over a query whose legacy predicate fields are already empty, and
-// SearchDepth and Pagination are never shown to an interceptor. fromInterceptorTraceQuery
-// therefore copies those two fields from the original query rather than from the interceptor's.
+// internal query type never crosses it.
 func toInterceptorTraceQuery(q tracestore.TraceQueryParams) queryinterceptor.TraceQuery {
 	return queryinterceptor.TraceQuery{
 		Filter:       q.Filter,
