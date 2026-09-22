@@ -36,10 +36,12 @@ const (
 )
 
 // SyncBulkWriter issues synchronous, size-bounded _bulk requests over the shared
-// transport. Bulk blocks until the backend responds and returns an error iff any
-// document in the batch was not durably stored. That single error is a per-batch
-// durability verdict, derived from inspecting each item's status in the response —
-// not a structured per-item list; the caller (WriteTraces) only needs pass/fail.
+// transport. WriteBatch blocks until the backend responds and returns an error iff
+// any document in the batch was not durably stored. That error is a per-batch
+// durability verdict derived from each item's status in the response; when items
+// were rejected it is a *BulkWriteError, which also lists the terminally-rejected
+// documents so a dead-letter connector can re-route them (RFC 0007 §4.8), while
+// WriteTraces itself only needs pass/fail.
 //
 // It is a peer of the async BulkIndexer over the same Client, not a method on it,
 // because esutil's blocking Flush cannot express that verdict. Flush returns nil
@@ -103,6 +105,12 @@ func (w *SyncBulkWriter) WriteBatch(ctx context.Context, items []BulkItem) error
 		chunkLen  int
 		succeeded int
 	)
+	// A batch that splits into several chunks aggregates every chunk's item-level
+	// rejections into one BulkWriteError (bulkErr) rather than joining one per chunk,
+	// so a dead-letter connector recovers the whole batch's poison in a single
+	// errors.As. Transport/parse/context/encode failures are not per-item and stay
+	// individual entries in errs.
+	var bulkErr *BulkWriteError
 	flush := func() {
 		if chunkLen == 0 {
 			return
@@ -110,7 +118,16 @@ func (w *SyncBulkWriter) WriteBatch(ctx context.Context, items []BulkItem) error
 		ok, err := w.sendChunk(ctx, chunk, chunkLen)
 		succeeded += ok
 		if err != nil {
-			errs = append(errs, err)
+			var be *BulkWriteError
+			if errors.As(err, &be) {
+				if bulkErr == nil {
+					bulkErr = be
+				} else {
+					bulkErr.merge(be)
+				}
+			} else {
+				errs = append(errs, err)
+			}
 		}
 		chunk, chunkLen = nil, 0
 	}
@@ -150,6 +167,16 @@ func (w *SyncBulkWriter) WriteBatch(ctx context.Context, items []BulkItem) error
 	w.metrics.Attempts.Inc(int64(len(items)))
 	w.metrics.Inserts.Inc(int64(succeeded))
 	w.metrics.Errors.Inc(int64(len(items) - succeeded))
+	if bulkErr != nil {
+		// A chunk that failed as a whole (transport, non-2xx, malformed response) is
+		// a transient failure of the batch, and its documents are not durable, so
+		// the verdict must say the batch needs a retry even when the item-level
+		// rejections of the other chunks were all terminal. Otherwise a caller that
+		// dead-letters terminal items and treats the rest as written would advance
+		// the offset over the failed chunk.
+		bulkErr.Transient = bulkErr.Transient || len(errs) > 0
+		errs = append(errs, bulkErr)
+	}
 	return errors.Join(errs...)
 }
 
@@ -219,12 +246,12 @@ func (w *SyncBulkWriter) sendChunk(ctx context.Context, body []byte, count int) 
 	// poison logged out-of-band. Transient failures — or fail mode — still error and
 	// retry the whole batch; any terminal items ride along and are re-dropped each
 	// retry until the transient ones clear.
-	if w.dropPoison && out.terminal > 0 {
+	if w.dropPoison && len(out.terminal) > 0 {
 		w.logger.Warn("dropping poison-pill documents the backend rejected terminally",
-			zap.Int("dropped", out.terminal), zap.Int("total", count), zap.String("sample", msg))
+			zap.Int("dropped", len(out.terminal)), zap.Int("total", count), zap.String("sample", msg))
 	}
 	if w.dropPoison && out.transient == 0 {
-		return count - out.terminal, nil
+		return count - len(out.terminal), nil
 	}
 	rejected := failed
 	if w.dropPoison {
@@ -232,7 +259,21 @@ func (w *SyncBulkWriter) sendChunk(ctx context.Context, body []byte, count int) 
 	}
 	w.logger.Error("synchronous bulk write had rejected items",
 		zap.Int("rejected", rejected), zap.Int("total", count))
-	return count - failed, fmt.Errorf("%d of %d bulk items rejected: %s", rejected, count, msg)
+	// Return the typed error so a dead-letter connector can recover the poison items
+	// via errors.As (RFC 0007 §4.8). In fail mode Terminal carries the poison to
+	// dead-letter; in drop mode the terminal items were already discarded above, so
+	// only the retryable (transient) failures remain and Terminal stays empty.
+	be := &BulkWriteError{
+		Transient: out.transient > 0,
+		rejected:  rejected,
+		total:     count,
+		sample:    out.sample,
+		overflow:  failed - len(out.sample),
+	}
+	if !w.dropPoison {
+		be.Terminal = out.terminal
+	}
+	return count - failed, be
 }
 
 // encodeBulkItem renders one document as its two NDJSON lines: the action line
@@ -279,16 +320,18 @@ type bulkItemState struct {
 
 // bulkOutcome tallies the non-durable items of one _bulk response. terminal and
 // transient are the two kinds of failure; conflicts are already-durable documents and
-// are not failures, so failed excludes them.
+// are not failures, so failed excludes them. terminal carries each poison item's
+// identity (not just a count) so a dead-letter connector can route every one back to
+// its source span (RFC 0007 §4.8).
 type bulkOutcome struct {
-	terminal  int
+	terminal  []RejectedItem
 	transient int
 	conflicts int
 	sample    []string
 }
 
 // failed reports how many items were genuinely rejected.
-func (o bulkOutcome) failed() int { return o.terminal + o.transient }
+func (o bulkOutcome) failed() int { return len(o.terminal) + o.transient }
 
 // classify splits the rejected items into terminal (a poison pill — a status the
 // backend will reject identically on replay, e.g. a 4xx mapping/validation error),
@@ -326,7 +369,15 @@ func (r bulkResponse) classify() bulkOutcome {
 		if isTransientStatus(state.Status) {
 			out.transient++
 		} else {
-			out.terminal++
+			// Collect the full terminal set (not the bounded sample): a dead-letter
+			// connector must route every poison document back to its source span, so
+			// it needs each item's _id, not a 20-entry excerpt.
+			out.terminal = append(out.terminal, RejectedItem{
+				Index:  state.Index,
+				ID:     state.ID,
+				Status: state.Status,
+				Reason: truncateBytes(state.Error, maxErrorPayloadBytes),
+			})
 		}
 		if len(out.sample) < maxReportedFailures {
 			out.sample = append(out.sample, rejectionReason(item, state))
