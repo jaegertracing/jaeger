@@ -25,6 +25,7 @@ import (
 // and yields a single configured batch (or error).
 type fakeReader struct {
 	gotQuery        tracestore.TraceQueryParams
+	gotSpanQuery    tracestore.SpanQueryParams
 	gotCtx          context.Context
 	findCalled      bool
 	batch           []ptrace.Traces
@@ -35,13 +36,16 @@ type fakeReader struct {
 	summaries       []tracestore.TraceSummary
 	summaryErr      error
 	capabilities    *tracestore.SearchCapabilities
+	capabilityReads int
+	nextPageToken   string
 }
 
 // SearchCapabilities answers for a backend that searches every service and evaluates no filter
 // unless a test says otherwise, since that is the shape most of these searches assume.
 func (f *fakeReader) SearchCapabilities(context.Context) (tracestore.SearchCapabilities, error) {
+	f.capabilityReads++
 	if f.capabilities == nil {
-		return tracestore.SearchCapabilities{WithoutServiceName: true}, nil
+		return tracestore.SearchCapabilities{WithoutServiceName: true, SpanSearch: true}, nil
 	}
 	return *f.capabilities, nil
 }
@@ -74,8 +78,34 @@ func (f *fakeReader) GetTraces(_ context.Context, _ ...tracestore.GetTraceParams
 	}
 }
 
-func (*fakeReader) FindTraceIDs(context.Context, tracestore.TraceQueryParams) iter.Seq2[[]tracestore.FoundTraceID, error] {
-	return func(func([]tracestore.FoundTraceID, error) bool) {}
+func (*fakeReader) FindTraceIDs(context.Context, tracestore.TraceQueryParams) iter.Seq2[tracestore.PageChunk[[]tracestore.FoundTraceID], error] {
+	return func(func(tracestore.PageChunk[[]tracestore.FoundTraceID], error) bool) {}
+}
+
+func (f *fakeReader) FindSpans(ctx context.Context, q tracestore.SpanQueryParams) iter.Seq2[tracestore.PageChunk[ptrace.Traces], error] {
+	f.findCalled = true
+	f.gotSpanQuery = q
+	f.gotCtx = ctx
+	return func(yield func(tracestore.PageChunk[ptrace.Traces], error) bool) {
+		if f.leadingErr != nil {
+			if !yield(tracestore.PageChunk[ptrace.Traces]{}, f.leadingErr) {
+				return
+			}
+		}
+		if f.err != nil {
+			yield(tracestore.PageChunk[ptrace.Traces]{}, f.err)
+			return
+		}
+		for i, spans := range f.batch {
+			chunk := tracestore.PageChunk[ptrace.Traces]{Results: spans}
+			if i == len(f.batch)-1 {
+				chunk.NextPageToken = f.nextPageToken
+			}
+			if !yield(chunk, nil) {
+				return
+			}
+		}
+	}
 }
 
 func (*fakeReader) GetServices(context.Context) ([]string, error) {
@@ -86,15 +116,15 @@ func (*fakeReader) GetOperations(context.Context, tracestore.OperationQueryParam
 	return []tracestore.Operation{{Name: "op"}}, nil
 }
 
-func (f *fakeReader) FindTraceSummaries(_ context.Context, q tracestore.TraceQueryParams) iter.Seq2[[]tracestore.TraceSummary, error] {
+func (f *fakeReader) FindTraceSummaries(_ context.Context, q tracestore.TraceQueryParams) iter.Seq2[tracestore.PageChunk[[]tracestore.TraceSummary], error] {
 	f.summaryCalled = true
 	f.gotSummaryQuery = q
-	return func(yield func([]tracestore.TraceSummary, error) bool) {
+	return func(yield func(tracestore.PageChunk[[]tracestore.TraceSummary], error) bool) {
 		if f.summaryErr != nil {
-			yield(nil, f.summaryErr)
+			yield(tracestore.PageChunk[[]tracestore.TraceSummary]{}, f.summaryErr)
 			return
 		}
-		yield(f.summaries, nil)
+		yield(tracestore.PageChunk[[]tracestore.TraceSummary]{Results: f.summaries}, nil)
 	}
 }
 
@@ -109,6 +139,10 @@ func (r *multiBatchReader) FindTraces(context.Context, tracestore.TraceQueryPara
 	return r.yieldBatches
 }
 
+func (r *multiBatchReader) FindSpans(context.Context, tracestore.SpanQueryParams) iter.Seq2[tracestore.PageChunk[ptrace.Traces], error] {
+	return r.yieldSpanBatches
+}
+
 func (r *multiBatchReader) GetTraces(context.Context, ...tracestore.GetTraceParams) iter.Seq2[[]ptrace.Traces, error] {
 	return r.yieldBatches
 }
@@ -121,18 +155,32 @@ func (r *multiBatchReader) yieldBatches(yield func([]ptrace.Traces, error) bool)
 	}
 }
 
-// fakeInterceptor lets each test supply the hook behavior it needs. It receives the public Query,
-// exactly as a real interceptor would. The optional onQueryCtx and onResultCtx hooks transform
-// (and observe) the context, so a test can assert how the query service threads it from OnQuery
-// into the reader and OnResult.
-type fakeInterceptor struct {
-	onQuery     func(queryinterceptor.Query) (queryinterceptor.Query, error)
-	onResult    func([]ptrace.Traces) ([]ptrace.Traces, error)
-	onQueryCtx  func(context.Context) context.Context
-	onResultCtx func(context.Context) context.Context
+func (r *multiBatchReader) yieldSpanBatches(yield func(tracestore.PageChunk[ptrace.Traces], error) bool) {
+	for _, b := range r.batches {
+		for _, spans := range b {
+			chunk := tracestore.PageChunk[ptrace.Traces]{Results: spans}
+			if !yield(chunk, nil) {
+				return
+			}
+		}
+	}
 }
 
-func (f fakeInterceptor) OnQuery(ctx context.Context, q queryinterceptor.Query) (context.Context, queryinterceptor.Query, error) {
+// fakeInterceptor lets each test supply the hook behavior it needs. It receives the interceptor's
+// TraceQuery, exactly as a real interceptor would. The optional onQueryCtx and onResultCtx hooks
+// transform (and observe) the context, so a test can assert how the query service threads it from
+// a pre-query hook into the reader and the matching result hook. The same context hooks serve
+// both the trace and the span pair.
+type fakeInterceptor struct {
+	onQuery      func(queryinterceptor.TraceQuery) (queryinterceptor.TraceQuery, error)
+	onResult     func([]ptrace.Traces) ([]ptrace.Traces, error)
+	onSpanQuery  func(queryinterceptor.SpanQuery) (queryinterceptor.SpanQuery, error)
+	onSpanResult func(ptrace.Traces) (ptrace.Traces, error)
+	onQueryCtx   func(context.Context) context.Context
+	onResultCtx  func(context.Context) context.Context
+}
+
+func (f fakeInterceptor) OnTraceQuery(ctx context.Context, q queryinterceptor.TraceQuery) (context.Context, queryinterceptor.TraceQuery, error) {
 	if f.onQueryCtx != nil {
 		ctx = f.onQueryCtx(ctx)
 	}
@@ -143,7 +191,7 @@ func (f fakeInterceptor) OnQuery(ctx context.Context, q queryinterceptor.Query) 
 	return ctx, q, nil
 }
 
-func (f fakeInterceptor) OnResult(ctx context.Context, t []ptrace.Traces) (context.Context, []ptrace.Traces, error) {
+func (f fakeInterceptor) OnTraceResult(ctx context.Context, t []ptrace.Traces) (context.Context, []ptrace.Traces, error) {
 	if f.onResultCtx != nil {
 		ctx = f.onResultCtx(ctx)
 	}
@@ -154,6 +202,28 @@ func (f fakeInterceptor) OnResult(ctx context.Context, t []ptrace.Traces) (conte
 	return ctx, t, nil
 }
 
+func (f fakeInterceptor) OnSpanQuery(ctx context.Context, q queryinterceptor.SpanQuery) (context.Context, queryinterceptor.SpanQuery, error) {
+	if f.onQueryCtx != nil {
+		ctx = f.onQueryCtx(ctx)
+	}
+	if f.onSpanQuery != nil {
+		nq, err := f.onSpanQuery(q)
+		return ctx, nq, err
+	}
+	return ctx, q, nil
+}
+
+func (f fakeInterceptor) OnSpanResult(ctx context.Context, spans ptrace.Traces) (context.Context, ptrace.Traces, error) {
+	if f.onResultCtx != nil {
+		ctx = f.onResultCtx(ctx)
+	}
+	if f.onSpanResult != nil {
+		ns, err := f.onSpanResult(spans)
+		return ctx, ns, err
+	}
+	return ctx, spans, nil
+}
+
 // interceptedService builds a query service that runs the given interceptors over next.
 func interceptedService(next tracestore.Reader, interceptors ...queryinterceptor.Interceptor) *QueryService {
 	return NewQueryService(next, nil, QueryServiceOptions{Interceptors: interceptors})
@@ -161,8 +231,17 @@ func interceptedService(next tracestore.Reader, interceptors ...queryinterceptor
 
 // searchQuery asks for raw traces, so that the batches a test asserts on are the ones the reader
 // yielded and the interceptor rewrote, rather than the aggregated traces built from them.
+// searchQuery wraps a reader query for a test about something other than its envelope, so it
+// fills in the time range every search must carry unless the test set one itself.
 func searchQuery(q tracestore.TraceQueryParams) TraceQueryParams {
+	if q.StartTimeMin.IsZero() && q.StartTimeMax.IsZero() {
+		q.StartTimeMin, q.StartTimeMax = testWindowStart, testWindowEnd
+	}
 	return TraceQueryParams{TraceQueryParams: q, RawTraces: true}
+}
+
+func searchSpansQuery(q tracestore.SpanQueryParams) SpanQueryParams {
+	return SpanQueryParams{SpanQueryParams: q}
 }
 
 // serviceFilter builds the predicate `resource.service == name`, which is how an access-control
@@ -183,8 +262,15 @@ func routeFilter() *expression.Call {
 	}}
 }
 
-func narrowTo(filter *expression.Call) func(queryinterceptor.Query) (queryinterceptor.Query, error) {
-	return func(q queryinterceptor.Query) (queryinterceptor.Query, error) {
+func narrowSpansTo(filter *expression.Call) func(queryinterceptor.SpanQuery) (queryinterceptor.SpanQuery, error) {
+	return func(q queryinterceptor.SpanQuery) (queryinterceptor.SpanQuery, error) {
+		q.Filter = filter
+		return q, nil
+	}
+}
+
+func narrowTo(filter *expression.Call) func(queryinterceptor.TraceQuery) (queryinterceptor.TraceQuery, error) {
+	return func(q queryinterceptor.TraceQuery) (queryinterceptor.TraceQuery, error) {
 		q.Filter = filter
 		return q, nil
 	}
@@ -215,6 +301,18 @@ func collectTraces(it iter.Seq2[[]ptrace.Traces, error]) ([][]ptrace.Traces, err
 		out = append(out, batch)
 	}
 	return out, nil
+}
+
+// redactSpanResult is redactResult for one chunk of spans.
+func redactSpanResult(key string) func(ptrace.Traces) (ptrace.Traces, error) {
+	redact := redactResult(key)
+	return func(spans ptrace.Traces) (ptrace.Traces, error) {
+		out, err := redact([]ptrace.Traces{spans})
+		if err != nil {
+			return spans, err
+		}
+		return out[0], nil
+	}
 }
 
 func redactResult(key string) func([]ptrace.Traces) ([]ptrace.Traces, error) {
@@ -265,10 +363,10 @@ func TestFindTraces_AppliesQueryAndResultHooks(t *testing.T) {
 // after the interceptor has had its say.
 func TestFindTraces_ShowsEveryPredicateAsAFilter(t *testing.T) {
 	t.Run("a scalar query is shown as a filter", func(t *testing.T) {
-		var seen queryinterceptor.Query
+		var seen queryinterceptor.TraceQuery
 		next := &fakeReader{batch: tracesWith("k", "v")}
 		qs := interceptedService(next, fakeInterceptor{
-			onQuery: func(q queryinterceptor.Query) (queryinterceptor.Query, error) {
+			onQuery: func(q queryinterceptor.TraceQuery) (queryinterceptor.TraceQuery, error) {
 				seen = q
 				q.Filter = serviceFilter("gated")
 				return q, nil
@@ -298,10 +396,10 @@ func TestFindTraces_ShowsEveryPredicateAsAFilter(t *testing.T) {
 	t.Run("a caller's filter keeps the level it named", func(t *testing.T) {
 		enableStructuredFilters(t)
 		sent := routeFilter()
-		var seen queryinterceptor.Query
+		var seen queryinterceptor.TraceQuery
 		next := &fakeReader{batch: tracesWith("k", "v")}
 		qs := interceptedService(next, fakeInterceptor{
-			onQuery: func(q queryinterceptor.Query) (queryinterceptor.Query, error) {
+			onQuery: func(q queryinterceptor.TraceQuery) (queryinterceptor.TraceQuery, error) {
 				seen = q
 				return q, nil
 			},
@@ -342,7 +440,7 @@ func TestFindTraces_ShowsEveryPredicateAsAFilter(t *testing.T) {
 
 // TestFindTraces_RefusesAPredicateTheBackendCannotServe pins that the capability check applies to
 // the interceptor's output and not only to what the caller sent: the query service converts once,
-// after OnQuery, so a predicate an interceptor added is refused on the same terms as the caller's
+// after OnTraceQuery, so a predicate an interceptor added is refused on the same terms as the caller's
 // own.
 func TestFindTraces_RefusesAPredicateTheBackendCannotServe(t *testing.T) {
 	t.Run("the backend evaluates no filter and the fields cannot carry it", func(t *testing.T) {
@@ -399,7 +497,7 @@ func TestFindTraces_RefusesAnInvalidInterceptorFilter(t *testing.T) {
 	}{
 		{
 			name:        "no filter at all, for a query that had predicates",
-			expectedErr: "widen the search to every trace in the time range",
+			expectedErr: "widen the search to everything in the time range",
 		},
 		{
 			name:        "a conjunction of one",
@@ -443,6 +541,7 @@ func TestFindTraces_RefusesAnInvalidInterceptorFilter(t *testing.T) {
 func filterCapableBackend() *tracestore.SearchCapabilities {
 	return &tracestore.SearchCapabilities{
 		WithoutServiceName: true,
+		SpanSearch:         true,
 		Filter: &tracestore.FilterCapabilities{
 			Levels: []expression.Level{expression.LevelSpan, expression.LevelResource},
 			Operators: []expression.Operator{
@@ -496,22 +595,25 @@ func TestFindTraces_LeavesALegacyQueryAloneWhenNothingChangedIt(t *testing.T) {
 
 	t.Run("an interceptor that changes only the envelope", func(t *testing.T) {
 		enableStructuredFilters(t)
+		narrowedEnd := time.Date(2026, 8, 18, 0, 0, 0, 0, time.UTC)
 		next := &fakeReader{batch: tracesWith("k", "v")}
 		next.capabilities = filterCapableBackend()
 		qs := interceptedService(next, fakeInterceptor{
-			onQuery: func(q queryinterceptor.Query) (queryinterceptor.Query, error) {
-				q.SearchDepth = 7
+			onQuery: func(q queryinterceptor.TraceQuery) (queryinterceptor.TraceQuery, error) {
+				q.StartTimeMax = narrowedEnd
 				return q, nil
 			},
 		})
 
 		_, err := collectTraces(qs.FindTraces(t.Context(), searchQuery(tracestore.TraceQueryParams{
 			ServiceName: "cart",
+			SearchDepth: 7,
 		})))
 		require.NoError(t, err)
 		assert.Nil(t, next.gotQuery.Filter, "the predicates are still the legacy ones")
 		assert.Equal(t, "cart", next.gotQuery.ServiceName)
-		assert.Equal(t, 7, next.gotQuery.SearchDepth, "the envelope change survives")
+		assert.Equal(t, narrowedEnd, next.gotQuery.StartTimeMax, "the envelope change survives")
+		assert.Equal(t, 7, next.gotQuery.SearchDepth, "the result bound is not the interceptor's to change")
 	})
 
 	t.Run("a caller's own filter is unaffected by the rule", func(t *testing.T) {
@@ -530,6 +632,44 @@ func TestFindTraces_LeavesALegacyQueryAloneWhenNothingChangedIt(t *testing.T) {
 		require.NoError(t, err)
 		require.NotNil(t, next.gotQuery.Filter, "a filter the caller sent stays a filter")
 	})
+
+	t.Run("an interceptor's rewrite keeps the result bound", func(t *testing.T) {
+		enableStructuredFilters(t)
+		next := &fakeReader{batch: tracesWith("k", "v")}
+		next.capabilities = filterCapableBackend()
+		qs := interceptedService(next, fakeInterceptor{onQuery: narrowTo(serviceFilter("gated"))})
+
+		_, err := collectTraces(qs.FindTraces(t.Context(), searchQuery(tracestore.TraceQueryParams{
+			Filter:      serviceFilter("original"),
+			SearchDepth: 7,
+			Pagination:  tracestore.Pagination{PageSize: 3, PageToken: "next"},
+		})))
+		require.NoError(t, err)
+		assert.Equal(t, serviceFilter("gated"), next.gotQuery.Filter)
+		assert.Equal(t, 7, next.gotQuery.SearchDepth, "the interceptor never saw the search depth")
+		assert.Equal(t, tracestore.Pagination{PageSize: 3, PageToken: "next"}, next.gotQuery.Pagination,
+			"the interceptor never saw the pagination")
+	})
+}
+
+// TestFindTraces_RefusesAFilterALaterInterceptorDrops pins that the nil rule holds across the
+// chain, not only between the query's first and last shape. A legacy query with no predicates
+// gains a restriction from the first interceptor; the second returns no filter. Comparing only the
+// ends would see nil on both and send the query to storage in its original, unrestricted shape.
+func TestFindTraces_RefusesAFilterALaterInterceptorDrops(t *testing.T) {
+	enableStructuredFilters(t)
+	next := &fakeReader{batch: tracesWith("k", "v")}
+	next.capabilities = filterCapableBackend()
+	qs := interceptedService(next,
+		fakeInterceptor{onQuery: narrowTo(serviceFilter("gated"))},
+		fakeInterceptor{onQuery: narrowTo(nil)},
+	)
+
+	_, err := collectTraces(qs.FindTraces(t.Context(), searchQuery(tracestore.TraceQueryParams{})))
+	require.ErrorIs(t, err, ErrInterceptorFilter)
+	require.ErrorContains(t, err, "widen the search")
+	assert.False(t, next.findCalled, "storage must not be queried")
+	assert.False(t, IsBadRequest(err), "the caller's request was fine")
 }
 
 // TestFindTraces_FinalizesAnInterceptorFilter pins that a predicate an interceptor adds reaches
@@ -641,9 +781,9 @@ func TestFindTraces_RefusesAnInterceptorConstantThatWillNotParse(t *testing.T) {
 // has widened nothing and the search proceeds.
 func TestFindTraces_AllowsNoFilterForAPredicatelessQuery(t *testing.T) {
 	next := &fakeReader{batch: tracesWith("k", "v")}
-	var seen queryinterceptor.Query
+	var seen queryinterceptor.TraceQuery
 	qs := interceptedService(next, fakeInterceptor{
-		onQuery: func(q queryinterceptor.Query) (queryinterceptor.Query, error) {
+		onQuery: func(q queryinterceptor.TraceQuery) (queryinterceptor.TraceQuery, error) {
 			seen = q
 			return q, nil
 		},
@@ -660,7 +800,7 @@ func TestFindTraces_QueryRejectionSkipsStorage(t *testing.T) {
 	sentinel := errors.New("denied")
 	next := &fakeReader{batch: tracesWith("k", "v")}
 	qs := interceptedService(next, fakeInterceptor{
-		onQuery: func(q queryinterceptor.Query) (queryinterceptor.Query, error) { return q, sentinel },
+		onQuery: func(q queryinterceptor.TraceQuery) (queryinterceptor.TraceQuery, error) { return q, sentinel },
 	})
 
 	_, err := collectTraces(qs.FindTraces(t.Context(), searchQuery(tracestore.TraceQueryParams{})))
@@ -727,8 +867,8 @@ func TestGetTraces_ContinuesAfterError(t *testing.T) {
 	assert.Equal(t, 1, batches)
 }
 
-// assertResultErrorStops verifies that an OnResult failure aborts the stream: even a consumer
-// that keeps ranging after the error must never receive a later batch, and OnResult must not run
+// assertResultErrorStops verifies that an OnTraceResult failure aborts the stream: even a consumer
+// that keeps ranging after the error must never receive a later batch, and OnTraceResult must not run
 // again. This guards the redaction/authorization use case, where emitting a later batch after a
 // failed sanitize would leak data.
 func assertResultErrorStops(t *testing.T, call func(*QueryService) iter.Seq2[[]ptrace.Traces, error]) {
@@ -755,8 +895,8 @@ func assertResultErrorStops(t *testing.T, call func(*QueryService) iter.Seq2[[]p
 		batches++
 	}
 	assert.Equal(t, 1, errs, "exactly one error, then the stream aborts")
-	assert.Zero(t, batches, "no batch may be delivered after an OnResult error")
-	assert.Equal(t, 1, onResultCalls, "OnResult must not run on batches after it fails")
+	assert.Zero(t, batches, "no batch may be delivered after an OnTraceResult error")
+	assert.Equal(t, 1, onResultCalls, "OnTraceResult must not run on batches after it fails")
 }
 
 func TestFindTraces_ResultErrorStopsIteration(t *testing.T) {
@@ -778,7 +918,7 @@ func TestGetTraces_ResultErrorStopsIteration(t *testing.T) {
 // range loop breaks, yield returns false and the interception must return rather than pull the
 // next batch.
 func TestInterceptedSearch_EarlyStop(t *testing.T) {
-	t.Run("on a batch", func(t *testing.T) {
+	t.Run("FindTraces: on a batch", func(t *testing.T) {
 		next := &multiBatchReader{
 			fakeReader: &fakeReader{},
 			batches:    [][]ptrace.Traces{tracesWith("k", "1"), tracesWith("k", "2")},
@@ -797,6 +937,25 @@ func TestInterceptedSearch_EarlyStop(t *testing.T) {
 		assert.Equal(t, 1, onResultCalls, "the second batch must never be fetched")
 	})
 
+	t.Run("FindSpans: on a batch", func(t *testing.T) {
+		next := &multiBatchReader{
+			fakeReader: &fakeReader{},
+			batches:    [][]ptrace.Traces{tracesWith("k", "1"), tracesWith("k", "2")},
+		}
+		onResultCalls := 0
+		qs := interceptedService(next, fakeInterceptor{
+			onResultCtx: func(ctx context.Context) context.Context {
+				onResultCalls++
+				return ctx
+			},
+		})
+
+		for range qs.FindSpans(t.Context(), searchSpansQuery(tracestore.SpanQueryParams{})) {
+			break
+		}
+		assert.Equal(t, 1, onResultCalls, "the second batch must never be fetched")
+	})
+
 	t.Run("on an error", func(t *testing.T) {
 		next := &fakeReader{leadingErr: assert.AnError, batch: tracesWith("k", "v")}
 		qs := interceptedService(next, fakeInterceptor{})
@@ -809,17 +968,27 @@ func TestInterceptedSearch_EarlyStop(t *testing.T) {
 			break
 		}
 	})
+
+	t.Run("FindSpans: on an error", func(t *testing.T) {
+		next := &fakeReader{leadingErr: assert.AnError, batch: tracesWith("k", "v")}
+		qs := interceptedService(next, fakeInterceptor{})
+
+		for _, err := range qs.FindSpans(t.Context(), searchSpansQuery(tracestore.SpanQueryParams{})) {
+			require.ErrorIs(t, err, assert.AnError)
+			break
+		}
+	})
 }
 
 func TestFindTraces_ChainAppliesInOrder(t *testing.T) {
 	next := &fakeReader{batch: tracesWith("v", "0")}
 	var order []string
-	first := fakeInterceptor{onQuery: func(q queryinterceptor.Query) (queryinterceptor.Query, error) {
+	first := fakeInterceptor{onQuery: func(q queryinterceptor.TraceQuery) (queryinterceptor.TraceQuery, error) {
 		order = append(order, "first")
 		q.Filter = serviceFilter("first")
 		return q, nil
 	}}
-	second := fakeInterceptor{onQuery: func(q queryinterceptor.Query) (queryinterceptor.Query, error) {
+	second := fakeInterceptor{onQuery: func(q queryinterceptor.TraceQuery) (queryinterceptor.TraceQuery, error) {
 		order = append(order, "second")
 		assert.Equal(t, serviceFilter("first"), q.Filter, "each interceptor sees the previous one's query")
 		return q, nil
@@ -848,11 +1017,11 @@ func TestFindTraces_ThreadsQueryContextToStorageAndResult(t *testing.T) {
 
 	_, err := collectTraces(qs.FindTraces(t.Context(), searchQuery(tracestore.TraceQueryParams{})))
 	require.NoError(t, err)
-	assert.Equal(t, "from-onquery", next.gotCtx.Value(ctxKey{}), "the storage reader must see the context OnQuery returned")
-	assert.Equal(t, "from-onquery", resultSaw, "OnResult must see the context OnQuery returned")
+	assert.Equal(t, "from-onquery", next.gotCtx.Value(ctxKey{}), "the storage reader must see the context OnTraceQuery returned")
+	assert.Equal(t, "from-onquery", resultSaw, "OnTraceResult must see the context OnTraceQuery returned")
 }
 
-// countingResultCtx records the value each OnResult call is given and increments it, so a test can
+// countingResultCtx records the value each OnTraceResult call is given and increments it, so a test can
 // assert the context threads from one batch to the next.
 func countingResultCtx(seen *[]int) func(context.Context) context.Context {
 	return func(ctx context.Context) context.Context {
@@ -872,7 +1041,527 @@ func TestFindTraces_ThreadsResultContextAcrossBatches(t *testing.T) {
 
 	_, err := collectTraces(qs.FindTraces(t.Context(), searchQuery(tracestore.TraceQueryParams{})))
 	require.NoError(t, err)
-	assert.Equal(t, []int{0, 1}, seen, "OnResult's returned context must thread into the next batch")
+	assert.Equal(t, []int{0, 1}, seen, "OnTraceResult's returned context must thread into the next batch")
+}
+
+func TestFindSpans_AppliesQueryAndResultHooks(t *testing.T) {
+	enableStructuredFilters(t)
+	narrowedEnd := time.Date(2026, 8, 18, 0, 0, 0, 0, time.UTC)
+	next := &fakeReader{batch: tracesWith("secret", "value"), nextPageToken: "next"}
+	next.capabilities = filterCapableBackend()
+	qs := interceptedService(next, fakeInterceptor{
+		onSpanQuery: func(q queryinterceptor.SpanQuery) (queryinterceptor.SpanQuery, error) {
+			q.Filter = serviceFilter("gated")
+			q.StartTimeMax = narrowedEnd
+			return q, nil
+		},
+		onSpanResult: redactSpanResult("secret"),
+	})
+
+	out, err := collectSpans(qs.FindSpans(t.Context(), SpanQueryParams{SpanQueryParams: tracestore.SpanQueryParams{
+		Filter:       serviceFilter("original"),
+		StartTimeMin: narrowedEnd.Add(-time.Hour),
+	}}))
+	require.NoError(t, err)
+	assert.Equal(t, serviceFilter("gated"), next.gotSpanQuery.Filter, "pre-query hook must reach storage")
+	assert.Equal(t, narrowedEnd, next.gotSpanQuery.StartTimeMax, "the narrowed time range must reach storage")
+	assert.Equal(t, narrowedEnd.Add(-time.Hour), next.gotSpanQuery.StartTimeMin, "the untouched bound survives the round trip")
+	require.Len(t, out, 1)
+	assert.Equal(t, "REDACTED", firstSpanAttr(t, []ptrace.Traces{out[0].Results}, "secret"), "result hook must redact")
+	assert.Equal(t, "next", out[0].NextPageToken, "the page token is not the interceptor's to touch")
+}
+
+func TestFindSpans_OnErrorInResponse(t *testing.T) {
+	enableStructuredFilters(t)
+	onResultCalled := 0
+	next := &fakeReader{batch: tracesWith("secret", "value"), err: errors.New("failure")}
+	next.capabilities = filterCapableBackend()
+	qs := interceptedService(next, fakeInterceptor{
+		onSpanResult: func(spans ptrace.Traces) (ptrace.Traces, error) {
+			onResultCalled++
+			return spans, nil
+		},
+	})
+
+	_, err := collectSpans(qs.FindSpans(t.Context(), SpanQueryParams{SpanQueryParams: tracestore.SpanQueryParams{
+		Filter: serviceFilter("original"),
+	}}))
+	require.Error(t, err)
+	assert.Equal(t, 0, onResultCalled)
+}
+
+// TestFindSpans_HandsTheFilterToTheInterceptorAndStorage pins that the caller's filter reaches
+// the interceptor verbatim, level qualifiers included, and then reaches a backend that evaluates
+// filters unchanged. There is no shape to convert, so nothing is lost on either hop.
+func TestFindSpans_HandsTheFilterToTheInterceptorAndStorage(t *testing.T) {
+	enableStructuredFilters(t)
+	sent := routeFilter()
+	var seen queryinterceptor.SpanQuery
+	next := &fakeReader{batch: tracesWith("k", "v")}
+	next.capabilities = &tracestore.SearchCapabilities{
+		SpanSearch: true,
+		Filter: &tracestore.FilterCapabilities{
+			Levels:    []expression.Level{expression.LevelSpan},
+			Operators: []expression.Operator{expression.OpEq},
+		},
+	}
+	qs := interceptedService(next, fakeInterceptor{
+		onSpanQuery: func(q queryinterceptor.SpanQuery) (queryinterceptor.SpanQuery, error) {
+			seen = q
+			return q, nil
+		},
+	})
+
+	_, err := collectSpans(qs.FindSpans(t.Context(), searchSpansQuery(tracestore.SpanQueryParams{
+		Filter: sent,
+	})))
+	require.NoError(t, err)
+	assert.Equal(t, sent, seen.Filter, "the caller's filter reaches the interceptor verbatim")
+	assert.Equal(t, sent, next.gotSpanQuery.Filter, "a reader that evaluates filters keeps one")
+	assert.Equal(t, 1, next.capabilityReads, "the capabilities are read once per search")
+}
+
+// TestFindSpans_RefusesAFilterTheBackendDoesNotEvaluate pins the case a trace search never has:
+// a reader that serves span searches but declares no filter support. A trace search would be
+// rewritten into the legacy fields; a span search has no such shape, so the filter is refused
+// rather than sent to a reader that never said it could evaluate it.
+func TestFindSpans_RefusesAFilterTheBackendDoesNotEvaluate(t *testing.T) {
+	enableStructuredFilters(t)
+	next := &fakeReader{batch: tracesWith("k", "v")}
+	next.capabilities = &tracestore.SearchCapabilities{SpanSearch: true}
+	qs := interceptedService(next)
+
+	_, err := collectSpans(qs.FindSpans(t.Context(), searchSpansQuery(tracestore.SpanQueryParams{
+		Filter: serviceFilter("cart"),
+	})))
+	require.ErrorIs(t, err, tracestore.ErrFilterUnsupported)
+	assert.True(t, IsBadRequest(err))
+	assert.False(t, next.findCalled, "storage must not be queried")
+}
+
+// TestFindSpans_RefusesAPredicateTheBackendCannotServe pins that the capability check applies to
+// the interceptor's output and not only to what the caller sent: the check runs after OnSpanQuery,
+// so a predicate an interceptor added is refused on the same terms as the caller's own.
+func TestFindSpans_RefusesAPredicateTheBackendCannotServe(t *testing.T) {
+	enableStructuredFilters(t)
+	spanPredicate := routeFilter()
+	next := &fakeReader{batch: tracesWith("k", "v")}
+	next.capabilities = &tracestore.SearchCapabilities{
+		WithoutServiceName: true,
+		SpanSearch:         true,
+		Filter: &tracestore.FilterCapabilities{
+			Levels:    []expression.Level{expression.LevelSpan},
+			Operators: []expression.Operator{expression.OpAnd, expression.OpEq},
+		},
+	}
+	qs := interceptedService(next, fakeInterceptor{
+		onSpanQuery: narrowSpansTo(&expression.Call{Op: expression.OpAnd, Args: []expression.Expression{
+			spanPredicate, serviceFilter("gated"),
+		}}),
+	})
+
+	_, err := collectSpans(qs.FindSpans(t.Context(), searchSpansQuery(tracestore.SpanQueryParams{
+		Filter: spanPredicate,
+	})))
+	require.ErrorIs(t, err, tracestore.ErrFilterUnsupported)
+	require.ErrorContains(t, err, `does not index the "resource" level`)
+	assert.False(t, next.findCalled, "storage must not be queried")
+}
+
+// TestFindSpans_RefusesACallerFilterTheDeploymentDoesNotAccept covers the two refusals that
+// depend on nothing the backend declared: the feature gate, and a filter that does not finalize.
+// Both are the caller's to fix, so both read as a bad request, and neither reaches storage.
+func TestFindSpans_RefusesACallerFilterTheDeploymentDoesNotAccept(t *testing.T) {
+	t.Run("with the filter gate off", func(t *testing.T) {
+		setStructuredFilters(t, false)
+		next := &fakeReader{batch: tracesWith("k", "v")}
+		qs := interceptedService(next)
+
+		_, err := collectSpans(qs.FindSpans(t.Context(), searchSpansQuery(tracestore.SpanQueryParams{
+			Filter: serviceFilter("cart"),
+		})))
+		require.ErrorIs(t, err, ErrFilterDisabled)
+		assert.True(t, IsBadRequest(err))
+		assert.False(t, next.findCalled, "storage must not be queried")
+	})
+
+	t.Run("with the filter gate off and no filter", func(t *testing.T) {
+		setStructuredFilters(t, false)
+		next := &fakeReader{batch: tracesWith("k", "v")}
+		qs := interceptedService(next)
+
+		out, err := collectSpans(qs.FindSpans(t.Context(), searchSpansQuery(tracestore.SpanQueryParams{})))
+		require.NoError(t, err, "the gate governs filters, and this search sent none")
+		assert.Len(t, out, 1)
+	})
+
+	t.Run("a filter that does not finalize", func(t *testing.T) {
+		enableStructuredFilters(t)
+		next := &fakeReader{batch: tracesWith("k", "v")}
+		qs := interceptedService(next)
+
+		_, err := collectSpans(qs.FindSpans(t.Context(), searchSpansQuery(tracestore.SpanQueryParams{
+			Filter: &expression.Call{Op: expression.OpAnd, Args: []expression.Expression{serviceFilter("cart")}},
+		})))
+		require.ErrorIs(t, err, tracestore.ErrFilterInvalid)
+		require.ErrorContains(t, err, `operator "and" takes at least two arguments`)
+		assert.True(t, IsBadRequest(err))
+		assert.False(t, next.findCalled, "storage must not be queried")
+	})
+}
+
+// TestFindSpans_RefusesAnInvalidInterceptorFilter covers what an interceptor can return that
+// storage must not see. Nothing here is the caller's fault, so none of it reads as a bad request,
+// and none of it reaches storage — which would answer the malformed trees by matching nothing and
+// the missing one by matching everything, silently undoing the narrowing an access-control
+// interceptor exists to apply.
+func TestFindSpans_RefusesAnInvalidInterceptorFilter(t *testing.T) {
+	tests := []struct {
+		name        string
+		filter      *expression.Call
+		expectedErr string
+	}{
+		{
+			name:        "a conjunction of one",
+			filter:      &expression.Call{Op: expression.OpAnd, Args: []expression.Expression{serviceFilter("gated")}},
+			expectedErr: `operator "and" takes at least two arguments`,
+		},
+		{
+			name: "an operator this build does not define",
+			filter: &expression.Call{Op: "matches", Args: []expression.Expression{
+				&expression.AttributeRef{Key: "a"}, &expression.AnyValue{Value: "b"},
+			}},
+			expectedErr: `unknown filter operator "matches"`,
+		},
+		{
+			name: "a comparison missing an operand",
+			filter: &expression.Call{Op: expression.OpEq, Args: []expression.Expression{
+				&expression.AnyValue{Value: "a"},
+			}},
+			expectedErr: `operator "eq" takes`,
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			enableStructuredFilters(t)
+			next := &fakeReader{batch: tracesWith("k", "v")}
+			qs := interceptedService(next, fakeInterceptor{onSpanQuery: narrowSpansTo(test.filter)})
+
+			_, err := collectSpans(qs.FindSpans(t.Context(), searchSpansQuery(tracestore.SpanQueryParams{
+				Filter: serviceFilter("original"),
+			})))
+			require.ErrorIs(t, err, ErrInterceptorFilter)
+			require.ErrorContains(t, err, test.expectedErr)
+			assert.False(t, next.findCalled, "storage must not be queried")
+			assert.False(t, IsBadRequest(err), "the caller's request was fine")
+		})
+	}
+}
+
+// TestFindSpans_RefusesAFilterALaterInterceptorDrops pins that the nil rule holds across the
+// chain: a predicate the first interceptor adds is a restriction the second cannot remove, even
+// though the query had no filter when the chain started.
+func TestFindSpans_RefusesAFilterALaterInterceptorDrops(t *testing.T) {
+	enableStructuredFilters(t)
+	next := &fakeReader{batch: tracesWith("k", "v")}
+	next.capabilities = filterCapableBackend()
+	qs := interceptedService(next,
+		fakeInterceptor{onSpanQuery: narrowSpansTo(serviceFilter("gated"))},
+		fakeInterceptor{onSpanQuery: narrowSpansTo(nil)},
+	)
+
+	_, err := collectSpans(qs.FindSpans(t.Context(), searchSpansQuery(tracestore.SpanQueryParams{})))
+	require.ErrorIs(t, err, ErrInterceptorFilter)
+	require.ErrorContains(t, err, "widen the search")
+	assert.False(t, next.findCalled, "storage must not be queried")
+}
+
+// TestFindSpans_FinalizesAnInterceptorFilter pins that a predicate an interceptor adds reaches
+// storage in the same shape as one a caller sent: its constants read against the fields they are
+// compared to, and its comparisons turned so the reference comes first. Only checking the structure
+// would hand a backend an unread string where it expects a length of time.
+func TestFindSpans_FinalizesAnInterceptorFilter(t *testing.T) {
+	tests := []struct {
+		name     string
+		returned *expression.Call
+		expected *expression.Call
+	}{
+		{
+			name: "a duration compared against the field that holds one",
+			returned: &expression.Call{Op: expression.OpGt, Args: []expression.Expression{
+				&expression.FieldRef{Name: expression.SpanFieldDuration, Level: expression.LevelSpan},
+				&expression.AnyValue{Value: "2s"},
+			}},
+			expected: &expression.Call{Op: expression.OpGt, Args: []expression.Expression{
+				&expression.FieldRef{Name: expression.SpanFieldDuration, Level: expression.LevelSpan},
+				&expression.DurationValue{Value: 2 * time.Second},
+			}},
+		},
+		{
+			name: "an instant compared against a timestamp field",
+			returned: &expression.Call{Op: expression.OpLt, Args: []expression.Expression{
+				&expression.FieldRef{Name: expression.SpanFieldStartTime, Level: expression.LevelSpan},
+				&expression.AnyValue{Value: "2026-08-18T00:00:00Z"},
+			}},
+			expected: &expression.Call{Op: expression.OpLt, Args: []expression.Expression{
+				&expression.FieldRef{Name: expression.SpanFieldStartTime, Level: expression.LevelSpan},
+				&expression.TimestampValue{Value: time.Date(2026, 8, 18, 0, 0, 0, 0, time.UTC)},
+			}},
+		},
+		{
+			name: "a comparison written with the constant on the left",
+			returned: &expression.Call{Op: expression.OpGt, Args: []expression.Expression{
+				&expression.AnyValue{Value: "2s"},
+				&expression.FieldRef{Name: expression.SpanFieldDuration, Level: expression.LevelSpan},
+			}},
+			expected: &expression.Call{Op: expression.OpLt, Args: []expression.Expression{
+				&expression.FieldRef{Name: expression.SpanFieldDuration, Level: expression.LevelSpan},
+				&expression.DurationValue{Value: 2 * time.Second},
+			}},
+		},
+		{
+			name: "a typed list against an attribute",
+			returned: &expression.Call{Op: expression.OpIn, Args: []expression.Expression{
+				&expression.AttributeRef{Key: "http.status_code"},
+				&expression.List{Values: []string{"500", "503"}, Type: expression.ValueTypeInt},
+			}},
+			expected: &expression.Call{Op: expression.OpIn, Args: []expression.Expression{
+				&expression.AttributeRef{Key: "http.status_code"},
+				&expression.List{Values: []string{"500", "503"}, Type: expression.ValueTypeInt},
+			}},
+		},
+		{
+			name: "a word one of the closed sets holds",
+			returned: &expression.Call{Op: expression.OpEq, Args: []expression.Expression{
+				&expression.FieldRef{Name: expression.SpanFieldKind, Level: expression.LevelSpan},
+				&expression.AnyValue{Value: "server"},
+			}},
+			expected: &expression.Call{Op: expression.OpEq, Args: []expression.Expression{
+				&expression.FieldRef{Name: expression.SpanFieldKind, Level: expression.LevelSpan},
+				&expression.StringValue{Value: "server"},
+			}},
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			enableStructuredFilters(t)
+			next := &fakeReader{batch: tracesWith("k", "v")}
+			next.capabilities = filterCapableBackend()
+			qs := interceptedService(next, fakeInterceptor{onSpanQuery: narrowSpansTo(test.returned)})
+
+			_, err := collectSpans(qs.FindSpans(t.Context(), searchSpansQuery(tracestore.SpanQueryParams{
+				Filter: serviceFilter("original"),
+			})))
+			require.NoError(t, err)
+			assert.Equal(t, test.expected, next.gotSpanQuery.Filter)
+		})
+	}
+}
+
+// TestFindSpans_RefusesAnInterceptorConstantThatWillNotParse is the other half: finalizing an
+// interceptor's filter can refuse it for the same reason a caller's is refused, and the caller is
+// told the interceptor was at fault rather than blamed for its own request.
+func TestFindSpans_RefusesAnInterceptorConstantThatWillNotParse(t *testing.T) {
+	enableStructuredFilters(t)
+	next := &fakeReader{batch: tracesWith("k", "v")}
+	next.capabilities = filterCapableBackend()
+	returned := &expression.Call{Op: expression.OpGt, Args: []expression.Expression{
+		&expression.FieldRef{Name: expression.SpanFieldDuration, Level: expression.LevelSpan},
+		&expression.AnyValue{Value: "banana"},
+	}}
+	qs := interceptedService(next, fakeInterceptor{onSpanQuery: narrowSpansTo(returned)})
+
+	_, err := collectSpans(qs.FindSpans(t.Context(), searchSpansQuery(tracestore.SpanQueryParams{
+		Filter: serviceFilter("original"),
+	})))
+	require.ErrorIs(t, err, ErrInterceptorFilter)
+	require.ErrorContains(t, err, `cannot compare span.duration against "banana"`)
+	assert.False(t, next.findCalled, "storage must not be queried")
+	assert.False(t, IsBadRequest(err), "the caller's request was fine")
+}
+
+// TestFindSpans_AllowsNoFilterForAPredicatelessQuery is the other side of the nil rule: a search
+// of the time range alone has no filter to begin with, so an interceptor that leaves it that way
+// has widened nothing and the search proceeds.
+func TestFindSpans_AllowsNoFilterForAPredicatelessQuery(t *testing.T) {
+	next := &fakeReader{batch: tracesWith("k", "v")}
+	var seen queryinterceptor.SpanQuery
+	qs := interceptedService(next, fakeInterceptor{
+		onSpanQuery: func(q queryinterceptor.SpanQuery) (queryinterceptor.SpanQuery, error) {
+			seen = q
+			return q, nil
+		},
+	})
+
+	out, err := collectSpans(qs.FindSpans(t.Context(), searchSpansQuery(tracestore.SpanQueryParams{})))
+	require.NoError(t, err)
+	assert.Len(t, out, 1)
+	assert.Nil(t, seen.Filter, "there were no predicates to show")
+	assert.True(t, next.findCalled)
+}
+
+// TestFindSpans_RefusedByATraceOnlyInterceptor pins the fail-closed mixin end to end: an
+// interceptor that embeds queryinterceptor.UnsupportedSpanSearch makes the query service refuse
+// a span search before storage sees it, and the refusal is a deployment fault, not a bad request.
+// The interceptor package's ErrSpanSearchUnsupported is a different sentinel from this package's,
+// which names a backend that cannot serve the search and is a bad request.
+func TestFindSpans_RefusedByATraceOnlyInterceptor(t *testing.T) {
+	next := &fakeReader{batch: tracesWith("k", "v")}
+	qs := interceptedService(next, traceOnlyInterceptor{})
+
+	_, err := collectSpans(qs.FindSpans(t.Context(), searchSpansQuery(tracestore.SpanQueryParams{})))
+	require.ErrorIs(t, err, queryinterceptor.ErrSpanSearchUnsupported)
+	require.NotErrorIs(t, err, ErrSpanSearchUnsupported, "the backend was not the one refusing")
+	assert.False(t, IsBadRequest(err), "the caller's request was fine")
+	assert.False(t, next.findCalled, "storage must not be queried")
+}
+
+// traceOnlyInterceptor is the shape of an implementation written before span search existed: it
+// gates trace searches and embeds the mixin for the rest.
+type traceOnlyInterceptor struct {
+	queryinterceptor.UnsupportedSpanSearch
+}
+
+func (traceOnlyInterceptor) OnTraceQuery(ctx context.Context, q queryinterceptor.TraceQuery) (context.Context, queryinterceptor.TraceQuery, error) {
+	return ctx, q, nil
+}
+
+func (traceOnlyInterceptor) OnTraceResult(ctx context.Context, t []ptrace.Traces) (context.Context, []ptrace.Traces, error) {
+	return ctx, t, nil
+}
+
+func TestFindSpans_QueryRejectionSkipsStorage(t *testing.T) {
+	sentinel := errors.New("denied")
+	next := &fakeReader{batch: tracesWith("k", "v")}
+	qs := interceptedService(next, fakeInterceptor{
+		onSpanQuery: func(q queryinterceptor.SpanQuery) (queryinterceptor.SpanQuery, error) { return q, sentinel },
+	})
+
+	_, err := collectSpans(qs.FindSpans(t.Context(), searchSpansQuery(tracestore.SpanQueryParams{})))
+	require.ErrorIs(t, err, sentinel)
+	assert.False(t, next.findCalled, "storage must not be queried when the query is rejected")
+}
+
+func TestFindSpans_ResultErrorAborts(t *testing.T) {
+	sentinel := errors.New("sanitize failed")
+	next := &fakeReader{batch: tracesWith("k", "v")}
+	qs := interceptedService(next, fakeInterceptor{
+		onSpanResult: func(ptrace.Traces) (ptrace.Traces, error) { return ptrace.Traces{}, sentinel },
+	})
+
+	_, err := collectSpans(qs.FindSpans(t.Context(), searchSpansQuery(tracestore.SpanQueryParams{})))
+	require.ErrorIs(t, err, sentinel)
+}
+
+// TestFindSpans_PassesAReaderErrorThrough pins that an error the reader yields is handed to the
+// caller as it arrived, and that a caller who reads past it still gets the chunks that follow.
+func TestFindSpans_PassesAReaderErrorThrough(t *testing.T) {
+	next := &fakeReader{leadingErr: assert.AnError, batch: tracesWith("k", "v")}
+	qs := interceptedService(next, fakeInterceptor{})
+
+	var errs, chunks int
+	for _, err := range qs.FindSpans(t.Context(), searchSpansQuery(tracestore.SpanQueryParams{})) {
+		if err != nil {
+			require.ErrorIs(t, err, assert.AnError)
+			errs++
+			continue
+		}
+		chunks++
+	}
+	assert.Equal(t, 1, errs)
+	assert.Equal(t, 1, chunks, "the chunk after the error is still delivered")
+}
+
+func TestFindSpans_ResultErrorStopsIteration(t *testing.T) {
+	sentinel := errors.New("sanitize failed")
+	next := &multiBatchReader{
+		fakeReader: &fakeReader{},
+		batches:    [][]ptrace.Traces{tracesWith("k", "1"), tracesWith("k", "2")},
+	}
+	onResultCalls := 0
+	qs := interceptedService(next, fakeInterceptor{
+		onSpanResult: func(ptrace.Traces) (ptrace.Traces, error) {
+			onResultCalls++
+			return ptrace.Traces{}, sentinel
+		},
+	})
+
+	var errs, chunks int
+	for _, err := range qs.FindSpans(t.Context(), searchSpansQuery(tracestore.SpanQueryParams{})) {
+		if err != nil {
+			require.ErrorIs(t, err, sentinel)
+			errs++
+			continue
+		}
+		chunks++
+	}
+	assert.Equal(t, 1, errs, "exactly one error, then the stream aborts")
+	assert.Zero(t, chunks, "no chunk may be delivered after an OnSpanResult error")
+	assert.Equal(t, 1, onResultCalls, "OnSpanResult must not run on chunks after it fails")
+}
+
+func TestFindSpans_ChainAppliesInOrder(t *testing.T) {
+	next := &fakeReader{batch: tracesWith("v", "0")}
+	next.capabilities = filterCapableBackend()
+	var order []string
+	first := fakeInterceptor{onSpanQuery: func(q queryinterceptor.SpanQuery) (queryinterceptor.SpanQuery, error) {
+		order = append(order, "first")
+		q.Filter = serviceFilter("first")
+		return q, nil
+	}}
+	second := fakeInterceptor{onSpanQuery: func(q queryinterceptor.SpanQuery) (queryinterceptor.SpanQuery, error) {
+		order = append(order, "second")
+		assert.Equal(t, serviceFilter("first"), q.Filter, "each interceptor sees the previous one's query")
+		return q, nil
+	}}
+	qs := interceptedService(next, first, second)
+
+	_, err := collectSpans(qs.FindSpans(t.Context(), searchSpansQuery(tracestore.SpanQueryParams{})))
+	require.NoError(t, err)
+	assert.Equal(t, []string{"first", "second"}, order)
+}
+
+func TestFindSpans_ThreadsQueryContextToStorageAndResult(t *testing.T) {
+	next := &fakeReader{batch: tracesWith("k", "v")}
+	var resultSaw any
+	qs := interceptedService(next, fakeInterceptor{
+		onQueryCtx: func(ctx context.Context) context.Context {
+			return context.WithValue(ctx, ctxKey{}, "from-onquery")
+		},
+		onResultCtx: func(ctx context.Context) context.Context {
+			resultSaw = ctx.Value(ctxKey{})
+			return ctx
+		},
+	})
+
+	_, err := collectSpans(qs.FindSpans(t.Context(), searchSpansQuery(tracestore.SpanQueryParams{})))
+	require.NoError(t, err)
+	assert.Equal(t, "from-onquery", next.gotCtx.Value(ctxKey{}), "the storage reader must see the context OnSpanQuery returned")
+	assert.Equal(t, "from-onquery", resultSaw, "OnSpanResult must see the context OnSpanQuery returned")
+}
+
+func TestFindSpans_ThreadsResultContextAcrossBatches(t *testing.T) {
+	next := &multiBatchReader{
+		fakeReader: &fakeReader{},
+		batches:    [][]ptrace.Traces{tracesWith("k", "1"), tracesWith("k", "2")},
+	}
+	var seen []int
+	qs := interceptedService(next, fakeInterceptor{onResultCtx: countingResultCtx(&seen)})
+
+	_, err := collectSpans(qs.FindSpans(t.Context(), searchSpansQuery(tracestore.SpanQueryParams{})))
+	require.NoError(t, err)
+	assert.Equal(t, []int{0, 1}, seen, "OnSpanResult's returned context must thread into the next batch")
+}
+
+func collectSpans(it iter.Seq2[tracestore.PageChunk[ptrace.Traces], error]) ([]tracestore.PageChunk[ptrace.Traces], error) {
+	var out []tracestore.PageChunk[ptrace.Traces]
+	for batch, err := range it {
+		if err != nil {
+			return out, err
+		}
+		out = append(out, batch)
+	}
+	return out, nil
 }
 
 func TestGetTraces_ThreadsResultContextAcrossBatches(t *testing.T) {
@@ -888,7 +1577,7 @@ func TestGetTraces_ThreadsResultContextAcrossBatches(t *testing.T) {
 		RawTraces: true,
 	}))
 	require.NoError(t, err)
-	assert.Equal(t, []int{0, 1}, seen, "OnResult's returned context must thread into the next batch")
+	assert.Equal(t, []int{0, 1}, seen, "OnTraceResult's returned context must thread into the next batch")
 }
 
 func TestFindTraceSummaries_AppliesQueryHook(t *testing.T) {
@@ -896,11 +1585,11 @@ func TestFindTraceSummaries_AppliesQueryHook(t *testing.T) {
 	qs := interceptedService(next, fakeInterceptor{onQuery: narrowTo(serviceFilter("gated"))})
 
 	var got [][]tracestore.TraceSummary
-	for s, err := range qs.FindTraceSummaries(t.Context(), searchQuery(tracestore.TraceQueryParams{
+	for chunk, err := range qs.FindTraceSummaries(t.Context(), searchQuery(tracestore.TraceQueryParams{
 		ServiceName: "original",
 	})) {
 		require.NoError(t, err)
-		got = append(got, s)
+		got = append(got, chunk.Results)
 	}
 	assert.Equal(t, "gated", next.gotSummaryQuery.ServiceName, "pre-query hook must reach storage")
 	require.Len(t, got, 1)
@@ -912,7 +1601,7 @@ func TestFindTraceSummaries_QueryRejectionSkipsStorage(t *testing.T) {
 	sentinel := errors.New("denied")
 	next := &fakeReader{summaries: []tracestore.TraceSummary{{}}}
 	qs := interceptedService(next, fakeInterceptor{
-		onQuery: func(q queryinterceptor.Query) (queryinterceptor.Query, error) { return q, sentinel },
+		onQuery: func(q queryinterceptor.TraceQuery) (queryinterceptor.TraceQuery, error) { return q, sentinel },
 	})
 
 	var err error
@@ -934,7 +1623,7 @@ func TestFindTraceSummaries_FallbackAppliesResultHook(t *testing.T) {
 	}
 	onQueryCalls := 0
 	qs := interceptedService(next, fakeInterceptor{
-		onQuery: func(q queryinterceptor.Query) (queryinterceptor.Query, error) {
+		onQuery: func(q queryinterceptor.TraceQuery) (queryinterceptor.TraceQuery, error) {
 			onQueryCalls++
 			return q, nil
 		},
@@ -945,7 +1634,7 @@ func TestFindTraceSummaries_FallbackAppliesResultHook(t *testing.T) {
 	for _, e := range qs.FindTraceSummaries(t.Context(), searchQuery(tracestore.TraceQueryParams{})) {
 		err = e
 	}
-	require.ErrorIs(t, err, assert.AnError, "the fallback's traces pass through OnResult")
+	require.ErrorIs(t, err, assert.AnError, "the fallback's traces pass through OnTraceResult")
 	assert.Equal(t, 1, onQueryCalls, "the fallback reuses the query the interceptor already saw")
 }
 
@@ -958,10 +1647,10 @@ func TestFindTraceSummaries_FallbackAppliesResultHook(t *testing.T) {
 func TestInterceptorRunsWithTheFilterGateOff(t *testing.T) {
 	setStructuredFilters(t, false)
 
-	var seen queryinterceptor.Query
+	var seen queryinterceptor.TraceQuery
 	next := &fakeReader{batch: tracesWith("k", "v")}
 	qs := interceptedService(next, fakeInterceptor{
-		onQuery: func(q queryinterceptor.Query) (queryinterceptor.Query, error) {
+		onQuery: func(q queryinterceptor.TraceQuery) (queryinterceptor.TraceQuery, error) {
 			seen = q
 			q.Filter = serviceFilter("gated")
 			return q, nil

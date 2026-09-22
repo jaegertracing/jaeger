@@ -18,6 +18,9 @@ var _ tracestore.Reader = (*TraceReader)(nil)
 
 // TraceReader is a wrapper around core.Reader which returns the output parallel to OTLP Models
 type TraceReader struct {
+	// SpanSearch is unsupported in ElasticSearch for now.
+	tracestore.UnsupportedSpanSearch
+
 	spanReader core.Reader
 }
 
@@ -109,25 +112,26 @@ func (r *TraceReader) FindTraces(ctx context.Context, query tracestore.TraceQuer
 	}
 }
 
-func (r *TraceReader) FindTraceIDs(ctx context.Context, query tracestore.TraceQueryParams) iter.Seq2[[]tracestore.FoundTraceID, error] {
-	return func(yield func([]tracestore.FoundTraceID, error) bool) {
+func (r *TraceReader) FindTraceIDs(ctx context.Context, query tracestore.TraceQueryParams) iter.Seq2[tracestore.PageChunk[[]tracestore.FoundTraceID], error] {
+	return func(yield func(tracestore.PageChunk[[]tracestore.FoundTraceID], error) bool) {
 		traceIds, err := r.spanReader.FindTraceIDs(ctx, toDBTraceQueryParams(query))
 		if err != nil {
-			yield(nil, err)
+			yield(tracestore.PageChunk[[]tracestore.FoundTraceID]{}, err)
 			return
 		}
 		otelTraceIds := make([]tracestore.FoundTraceID, 0, len(traceIds))
 		for _, traceId := range traceIds {
 			dbTraceId, err := convertTraceIDFromDB(traceId)
 			if err != nil {
-				yield(nil, err)
+				yield(tracestore.PageChunk[[]tracestore.FoundTraceID]{}, err)
 				return
 			}
 			otelTraceIds = append(otelTraceIds, tracestore.FoundTraceID{
 				TraceID: dbTraceId,
 			})
 		}
-		yield(otelTraceIds, nil)
+		// TODO: Populate NextPageToken when Elasticsearch supports RFC 0014 pagination.
+		yield(tracestore.PageChunk[[]tracestore.FoundTraceID]{Results: otelTraceIds}, nil)
 	}
 }
 

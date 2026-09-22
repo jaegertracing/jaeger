@@ -96,6 +96,146 @@ func TestEnsureFilterStandsAlone(t *testing.T) {
 	}
 }
 
+// TestDecodePagination covers the wire-scalar decode both api_v3 and storage/v2 share: a
+// present-but-zero page_size is refused rather than read as "no Pagination", and a page_size over
+// MaxPageSize is clamped down rather than refused (RFC 0014 §4).
+func TestDecodePagination(t *testing.T) {
+	tests := []struct {
+		name       string
+		pageSize   uint32
+		pageToken  string
+		want       Pagination
+		wantErrMsg string
+	}{
+		{
+			name:     "a page size alone",
+			pageSize: 50,
+			want:     Pagination{PageSize: 50},
+		},
+		{
+			name:      "a page size with a continuation token",
+			pageSize:  50,
+			pageToken: "cursor",
+			want:      Pagination{PageSize: 50, PageToken: "cursor"},
+		},
+		{
+			name:       "zero page size is refused",
+			pageSize:   0,
+			pageToken:  "cursor",
+			wantErrMsg: "page_size is required whenever pagination is present",
+		},
+		{
+			name:     "a page size over the maximum is clamped",
+			pageSize: MaxPageSize + 1,
+			want:     Pagination{PageSize: MaxPageSize},
+		},
+		{
+			name:     "a page size at the maximum is untouched",
+			pageSize: MaxPageSize,
+			want:     Pagination{PageSize: MaxPageSize},
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			got, err := DecodePagination(test.pageSize, test.pageToken)
+			if test.wantErrMsg != "" {
+				require.ErrorIs(t, err, ErrPaginationInvalid)
+				require.ErrorContains(t, err, test.wantErrMsg)
+				return
+			}
+			require.NoError(t, err)
+			assert.Equal(t, test.want, got)
+		})
+	}
+}
+
+// TestEnsurePaginationStandsAlone covers the mutual exclusion Pagination owes a Reader: page_size
+// replaces search_depth rather than falling back to it, so a query carries one bound or the
+// other, never both, and a Pagination with no page_size does not describe a page.
+func TestEnsurePaginationStandsAlone(t *testing.T) {
+	tests := []struct {
+		name    string
+		query   TraceQueryParams
+		wantMsg string
+	}{
+		{
+			name:  "no pagination",
+			query: TraceQueryParams{SearchDepth: 100},
+		},
+		{
+			name:  "pagination alone",
+			query: TraceQueryParams{Pagination: Pagination{PageSize: 50}},
+		},
+		{
+			name:    "pagination beside search_depth",
+			query:   TraceQueryParams{SearchDepth: 100, Pagination: Pagination{PageSize: 50}},
+			wantMsg: "cannot be combined with search_depth",
+		},
+		{
+			name:    "pagination with no page_size",
+			query:   TraceQueryParams{Pagination: Pagination{PageToken: "cursor"}},
+			wantMsg: "page_size is required",
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			err := test.query.EnsurePaginationStandsAlone()
+			if test.wantMsg == "" {
+				require.NoError(t, err)
+				return
+			}
+			require.ErrorIs(t, err, ErrPaginationInvalid)
+			require.ErrorContains(t, err, test.wantMsg)
+		})
+	}
+}
+
+// TestEnsureNoPaginationOnFindTraces covers the one check that cannot live in the shared
+// prepareSearchQuery path: FindTraces streams whole traces with no field to carry a
+// continuation token, so it refuses Pagination outright rather than silently dropping it.
+func TestEnsureNoPaginationOnFindTraces(t *testing.T) {
+	t.Run("no pagination", func(t *testing.T) {
+		require.NoError(t, TraceQueryParams{}.EnsureNoPaginationOnFindTraces())
+	})
+
+	t.Run("pagination present", func(t *testing.T) {
+		err := TraceQueryParams{Pagination: Pagination{PageSize: 50}}.EnsureNoPaginationOnFindTraces()
+		require.ErrorIs(t, err, ErrPaginationUnsupportedByFindTraces)
+	})
+}
+
+// TestPaginationForCapabilities covers the capability-based degradation: a Reader that declares
+// Paginated gets Pagination as sent, one that does not gets PageSize folded into SearchDepth and
+// a PageToken refused outright, since it cannot have minted a token it cannot interpret.
+func TestPaginationForCapabilities(t *testing.T) {
+	t.Run("no pagination is left alone", func(t *testing.T) {
+		query := TraceQueryParams{ServiceName: "cart"}
+		applied, err := query.PaginationForCapabilities(SearchCapabilities{})
+		require.NoError(t, err)
+		assert.Equal(t, query, applied)
+	})
+
+	t.Run("a paginating reader gets pagination as sent", func(t *testing.T) {
+		query := TraceQueryParams{Pagination: Pagination{PageSize: 50, PageToken: "cursor"}}
+		applied, err := query.PaginationForCapabilities(SearchCapabilities{Paginated: true})
+		require.NoError(t, err)
+		assert.Equal(t, query, applied)
+	})
+
+	t.Run("a non-paginating reader gets page_size folded into search_depth", func(t *testing.T) {
+		query := TraceQueryParams{Pagination: Pagination{PageSize: 50}}
+		applied, err := query.PaginationForCapabilities(SearchCapabilities{})
+		require.NoError(t, err)
+		assert.Equal(t, TraceQueryParams{SearchDepth: 50}, applied)
+	})
+
+	t.Run("a page token against a non-paginating reader is refused", func(t *testing.T) {
+		query := TraceQueryParams{Pagination: Pagination{PageSize: 50, PageToken: "cursor"}}
+		_, err := query.PaginationForCapabilities(SearchCapabilities{})
+		require.ErrorIs(t, err, ErrPaginationUnsupported)
+	})
+}
+
 // TestForCapabilities covers the choice between the two filtering models: a Reader that declared
 // filter support is given the filter, and one that declared none is given the legacy fields it does
 // understand, or a refusal where they cannot carry the filter.

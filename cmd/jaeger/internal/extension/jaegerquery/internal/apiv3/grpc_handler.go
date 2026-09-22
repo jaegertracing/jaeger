@@ -84,28 +84,19 @@ func (h *Handler) internalFindTraces(
 	return receiveTraces(findTracesIter, streamSend)
 }
 
-// traceQueryParams converts a proto TraceQueryParameters to querysvc.TraceQueryParams,
-// validating that the required time range fields are present. An unset (or
-// non-positive) search_depth defaults to defaultSearchDepth, mirroring the
-// HTTP gateway: proto3 cannot distinguish an omitted field from 0, and a
-// literal 0 is rejected by some storage backends (e.g. the in-memory store).
+// traceQueryParams translates a proto TraceQueryParameters into the query service's shape.
+// What the query must satisfy is the query service's decision, so nothing is checked here
+// beyond what the translation itself needs.
 func traceQueryParams(query *api_v3.TraceQueryParameters) (querysvc.TraceQueryParams, error) {
 	if query == nil {
 		return querysvc.TraceQueryParams{}, status.Error(codes.InvalidArgument, "missing query")
-	}
-	if query.GetStartTimeMin().IsZero() || query.GetStartTimeMax().IsZero() {
-		return querysvc.TraceQueryParams{}, status.Error(codes.InvalidArgument, "start time min and max are required parameters")
-	}
-	searchDepth := int(query.GetSearchDepth())
-	if searchDepth <= 0 {
-		searchDepth = defaultSearchDepth
 	}
 	queryParams := querysvc.TraceQueryParams{
 		TraceQueryParams: tracestore.TraceQueryParams{
 			ServiceName:   query.GetServiceName(),
 			OperationName: query.GetOperationName(),
 			Attributes:    jptrace.PlainMapToPcommonMap(query.GetAttributes()),
-			SearchDepth:   searchDepth,
+			SearchDepth:   int(query.GetSearchDepth()),
 			StartTimeMin:  query.GetStartTimeMin(),
 			StartTimeMax:  query.GetStartTimeMax(),
 			DurationMin:   query.GetDurationMin(),
@@ -129,11 +120,15 @@ func (h *Handler) FindTraceSummaries(request *api_v3.FindTraceSummariesRequest, 
 		return err
 	}
 
-	for summaries, err := range h.QueryService.FindTraceSummaries(stream.Context(), queryParams) {
+	for chunk, err := range h.QueryService.FindTraceSummaries(stream.Context(), queryParams) {
 		if err != nil {
 			return asStatusError(err)
 		}
-		if err := stream.Send(&api_v3.FindTraceSummariesResponse{Summaries: toProtoTraceSummaries(summaries)}); err != nil {
+		response := &api_v3.FindTraceSummariesResponse{
+			Summaries:     toProtoTraceSummaries(chunk.Results),
+			NextPageToken: chunk.NextPageToken,
+		}
+		if err := stream.Send(response); err != nil {
 			return status.Errorf(codes.Internal, "failed to send response stream chunk to client: %v", err)
 		}
 	}
