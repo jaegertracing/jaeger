@@ -127,6 +127,55 @@ func TestOnTraceQuery_CachesRoleForOnResult(t *testing.T) {
 	assert.Equal(t, "secret", prompt.Str(), "OnTraceResult must reuse the role OnTraceQuery cached in the context")
 }
 
+// TestOnSpanQuery_AppliesTheSameAdmissionRule pins that a denied attribute is denied on a span
+// search as it is on a trace search, so a caller cannot reach it by choosing the other endpoint.
+func TestOnSpanQuery_AppliesTheSameAdmissionRule(t *testing.T) {
+	i := newInterceptor(restrictedCfg(), zap.NewNop())
+	denied := queryinterceptor.SpanQuery{Filter: queryWithAttr("prompt", "x").Filter}
+
+	_, _, err := i.OnSpanQuery(ctxWithRole(t, "viewer"), denied)
+	require.ErrorContains(t, err, `filtering on attribute "prompt" is not permitted`)
+
+	_, got, err := i.OnSpanQuery(ctxWithRole(t, "admin"), denied)
+	require.NoError(t, err)
+	assert.Equal(t, denied, got, "the privileged caller's query is admitted unchanged")
+
+	benign := queryinterceptor.SpanQuery{Filter: queryWithAttr("service", "checkout").Filter}
+	_, got, err = i.OnSpanQuery(ctxWithRole(t, "viewer"), benign)
+	require.NoError(t, err)
+	assert.Equal(t, benign, got)
+}
+
+// TestOnSpanResult_RedactsForRestrictedCallerOnly pins the redaction of a span page, which holds
+// spans from many traces in one ptrace.Traces rather than a batch of whole traces.
+func TestOnSpanResult_RedactsForRestrictedCallerOnly(t *testing.T) {
+	i := newInterceptor(restrictedCfg(), zap.NewNop())
+	page := func() ptrace.Traces {
+		td := ptrace.NewTraces()
+		spans := td.ResourceSpans().AppendEmpty().ScopeSpans().AppendEmpty().Spans()
+		spans.AppendEmpty().Attributes().PutStr("prompt", "first secret")
+		spans.AppendEmpty().Attributes().PutStr("prompt", "second secret")
+		return td
+	}
+	promptOf := func(td ptrace.Traces, i int) string {
+		v, _ := td.ResourceSpans().At(0).ScopeSpans().At(0).Spans().At(i).Attributes().Get("prompt")
+		return v.Str()
+	}
+
+	_, out, err := i.OnSpanResult(ctxWithRole(t, "viewer"), page())
+	require.NoError(t, err)
+	assert.Equal(t, redactedPlaceholder, promptOf(out, 0), "every span in the page is redacted")
+	assert.Equal(t, redactedPlaceholder, promptOf(out, 1))
+
+	_, out, err = i.OnSpanResult(ctxWithRole(t, "admin"), page())
+	require.NoError(t, err)
+	assert.Equal(t, "first secret", promptOf(out, 0), "the privileged caller sees the values unredacted")
+
+	_, out, err = newInterceptor(&Config{}, zap.NewNop()).OnSpanResult(t.Context(), page())
+	require.NoError(t, err)
+	assert.Equal(t, "first secret", promptOf(out, 0), "no redaction is configured")
+}
+
 func TestOnTraceResult_NoConfigIsPassThrough(t *testing.T) {
 	i := newInterceptor(&Config{}, zap.NewNop())
 	batch := tracesWithSpanAttrs(map[string]string{"prompt": "kept"})
