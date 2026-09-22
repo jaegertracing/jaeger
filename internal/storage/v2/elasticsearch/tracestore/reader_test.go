@@ -302,7 +302,7 @@ func Test_NewTraceReader(t *testing.T) {
 }
 
 func fromDBTraceId(t *testing.T, traceID dbmodel.TraceID) tracestore.FoundTraceID {
-	traceId, err := convertTraceIDFromDB(traceID)
+	traceId, err := traceID.ToOTEL()
 	require.NoError(t, err)
 	return tracestore.FoundTraceID{
 		TraceID: traceId,

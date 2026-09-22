@@ -71,7 +71,7 @@ func TestTraceReader_FindTraceSummaries(t *testing.T) {
 	require.Len(t, got, 1)
 
 	s := got[0]
-	expectedID, idErr := convertTraceIDFromDB("00000000000000000000000000000001")
+	expectedID, idErr := dbmodel.TraceID("00000000000000000000000000000001").ToOTEL()
 	require.NoError(t, idErr)
 	assert.Equal(t, expectedID, s.TraceID)
 	assert.Equal(t, "svcA", s.RootServiceName)

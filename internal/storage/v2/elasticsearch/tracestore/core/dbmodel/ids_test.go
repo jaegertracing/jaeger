@@ -12,29 +12,105 @@ import (
 )
 
 func TestTraceID_ToOTEL(t *testing.T) {
-	id, err := TraceID("1").ToOTEL()
-	require.NoError(t, err)
-	assert.Equal(t, pcommon.TraceID([16]byte{15: 1}), id, "a short id is left-padded")
+	tests := []struct {
+		name     string
+		input    TraceID
+		expected pcommon.TraceID
+		errMsg   string
+	}{
+		{
+			name:  "128-bit trace ID (32 hex chars)",
+			input: "0102030405060708090a0b0c0d0e0f10",
+			expected: pcommon.TraceID(
+				[16]byte{
+					0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08,
+					0x09, 0x0a, 0x0b, 0x0c, 0x0d, 0x0e, 0x0f, 0x10,
+				},
+			),
+		},
+		{
+			name:  "64-bit trace ID (16 hex chars) right-aligned",
+			input: "090a0b0c0d0e0f10",
+			expected: pcommon.TraceID(
+				[16]byte{
+					0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+					0x09, 0x0a, 0x0b, 0x0c, 0x0d, 0x0e, 0x0f, 0x10,
+				},
+			),
+		},
+		{
+			name:     "invalid hex string",
+			input:    "xyz",
+			expected: pcommon.TraceID{},
+			errMsg:   "encoding/hex: invalid byte",
+		},
+		{
+			name:     "trace ID too long",
+			input:    "0102030405060708090a0b0c0d0e0f1011",
+			expected: pcommon.TraceID{},
+			errMsg:   "trace ID from DB is too long",
+		},
+	}
 
-	id, err = TraceID("0102030405060708090a0b0c0d0e0f10").ToOTEL()
-	require.NoError(t, err)
-	assert.Equal(t, pcommon.TraceID([16]byte{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16}), id)
-
-	_, err = TraceID("0102030405060708090a0b0c0d0e0f1011").ToOTEL()
-	require.ErrorContains(t, err, "too long")
-
-	_, err = TraceID("zz").ToOTEL()
-	require.Error(t, err, "non-hex is rejected")
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := tt.input.ToOTEL()
+			if tt.errMsg != "" {
+				require.Error(t, err)
+				assert.Contains(t, err.Error(), tt.errMsg)
+			} else {
+				require.NoError(t, err)
+				assert.Equal(t, tt.expected, got)
+			}
+		})
+	}
 }
 
 func TestSpanID_ToOTEL(t *testing.T) {
-	id, err := SpanID("a").ToOTEL()
-	require.NoError(t, err)
-	assert.Equal(t, pcommon.SpanID([8]byte{7: 0xa}), id, "a short id is left-padded")
+	tests := []struct {
+		name     string
+		input    SpanID
+		expected pcommon.SpanID
+		errMsg   string
+	}{
+		{
+			name:  "full 64-bit span ID (16 hex chars)",
+			input: "0102030405060708",
+			expected: pcommon.SpanID(
+				[8]byte{0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08},
+			),
+		},
+		{
+			name:  "shorter span ID right-aligned",
+			input: "05060708",
+			expected: pcommon.SpanID(
+				[8]byte{0x00, 0x00, 0x00, 0x00, 0x05, 0x06, 0x07, 0x08},
+			),
+		},
+		{
+			name:     "invalid hex string",
+			input:    "xyz",
+			expected: pcommon.SpanID{},
+			errMsg:   "encoding/hex: invalid byte",
+		},
+		{
+			name:     "span ID too long",
+			input:    "010203040506070809",
+			expected: pcommon.SpanID{},
+			errMsg:   "span ID from DB is too long",
+		},
+	}
 
-	_, err = SpanID("0102030405060708ff").ToOTEL()
-	require.ErrorContains(t, err, "too long")
-
-	_, err = SpanID("zz").ToOTEL()
-	require.Error(t, err, "non-hex is rejected")
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := tt.input.ToOTEL()
+			if tt.errMsg != "" {
+				require.Error(t, err)
+				assert.Contains(t, err.Error(), tt.errMsg)
+			} else {
+				require.NoError(t, err)
+				assert.Equal(t, tt.expected, got)
+			}
+		})
+	}
 }

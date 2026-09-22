@@ -371,7 +371,7 @@ func TestSpanWriter_RejectedSpansError(t *testing.T) {
 		err := writer.WriteSpans(context.Background(), []dbmodel.Span{spanA})
 		require.ErrorIs(t, err, sentinel)
 		var rejected *tracestore.RejectedSpansError
-		assert.False(t, errors.As(err, &rejected))
+		assert.NotErrorAs(t, err, &rejected)
 	})
 }
 

@@ -4,18 +4,8 @@
 package tracestore
 
 import (
-	"go.opentelemetry.io/collector/pdata/pcommon"
-
 	"github.com/jaegertracing/jaeger/internal/storage/v2/elasticsearch/tracestore/core/dbmodel"
 )
-
-func convertTraceIDFromDB(dbTraceId dbmodel.TraceID) (pcommon.TraceID, error) {
-	return dbTraceId.ToOTEL()
-}
-
-func fromDbSpanId(dbSpanId dbmodel.SpanID) (pcommon.SpanID, error) {
-	return dbSpanId.ToOTEL()
-}
 
 func getParentSpanId(dbSpan *dbmodel.Span) dbmodel.SpanID {
 	if dbSpan.ParentSpanID != "" {
