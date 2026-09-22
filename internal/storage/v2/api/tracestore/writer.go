@@ -65,7 +65,8 @@ type RejectedSpansError struct {
 
 func (e *RejectedSpansError) Error() string {
 	if e.Err == nil {
-		return fmt.Sprintf("%d spans rejected by the storage", len(e.Spans))
+		return fmt.Sprintf("storage rejected %d spans terminally and %d unidentified documents (transient failures: %t)",
+			len(e.Spans), e.Unidentified, e.Transient)
 	}
 	return e.Err.Error()
 }

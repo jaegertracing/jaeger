@@ -22,7 +22,8 @@ func TestRejectedSpansError(t *testing.T) {
 	assert.Equal(t, "2 of 3 bulk items rejected", rejected.Error(), "the message is the backend's")
 	require.ErrorIs(t, err, backend, "the backend error stays reachable")
 
-	bare := &RejectedSpansError{Spans: []RejectedSpan{{}, {}}}
-	assert.Equal(t, "2 spans rejected by the storage", bare.Error(), "no backend error to defer to")
+	bare := &RejectedSpansError{Spans: []RejectedSpan{{}, {}}, Unidentified: 1, Transient: true}
+	assert.Equal(t, "storage rejected 2 spans terminally and 1 unidentified documents (transient failures: true)", bare.Error(),
+		"no backend error to defer to")
 	require.NoError(t, bare.Unwrap())
 }

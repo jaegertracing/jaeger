@@ -9,7 +9,6 @@ import (
 	"encoding/json"
 	"errors"
 	"hash/fnv"
-	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -152,10 +151,17 @@ func (s *SpanWriter) attributeRejections(err error, items []esclient.BulkItem, s
 	if !errors.As(err, &bulkErr) {
 		return err
 	}
+	// Index the batch once, on this error path only, so attributing a batch
+	// that was mostly rejected stays linear.
+	type docKey struct{ index, id string }
+	position := make(map[docKey]int, len(items))
+	for i, sent := range items {
+		position[docKey{sent.Index, sent.ID}] = i
+	}
 	rejected := &tracestore.RejectedSpansError{Transient: bulkErr.Transient, Err: err}
 	for _, item := range bulkErr.Terminal {
-		pos := slices.IndexFunc(items, func(sent esclient.BulkItem) bool { return sent.ID == item.ID })
-		if pos < 0 {
+		pos, ok := position[docKey{item.Index, item.ID}]
+		if !ok {
 			rejected.Unidentified++
 			continue
 		}

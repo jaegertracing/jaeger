@@ -11,9 +11,12 @@ import (
 // RejectedItem describes one document a synchronous _bulk write rejected
 // terminally — a poison pill (a 4xx the backend rejects identically on replay:
 // mapping conflict, malformed field, oversized field). It carries just enough for
-// a caller to route the document to a dead-letter pipeline: ID is the document's
-// deterministic _id (traceID_spanID_hash, RFC 0007 §4.7), which maps the rejection
-// back to its source span, and Index/Status/Reason explain why it was rejected.
+// a caller to route the document to a dead-letter pipeline: Index and ID name the
+// document as it was sent, so the writer that assigned the ids can map the
+// rejection back to its source (a span document's _id is traceID_spanID_hash, RFC
+// 0007 §4.7; a service:operation lookup document's is the pair's hash), and
+// Status/Reason explain why it was rejected. Callers match on the ids rather than
+// parse them.
 type RejectedItem struct {
 	Index  string
 	ID     string
@@ -73,7 +76,7 @@ func (e *BulkWriteError) merge(o *BulkWriteError) {
 	e.Transient = e.Transient || o.Transient
 	e.rejected += o.rejected
 	e.total += o.total
-	room := maxReportedFailures - len(e.sample)
+	room := max(maxReportedFailures-len(e.sample), 0)
 	add := o.sample
 	if len(add) > room {
 		add = add[:room]

@@ -331,7 +331,8 @@ func TestSpanWriter_RejectedSpansError(t *testing.T) {
 		var rejected *tracestore.RejectedSpansError
 		require.ErrorAs(t, writer.WriteSpans(context.Background(), []dbmodel.Span{spanA, spanB}), &rejected)
 		assert.True(t, rejected.Transient)
-		assert.Len(t, rejected.Spans, 1)
+		require.Len(t, rejected.Spans, 1)
+		assert.Equal(t, pcommon.TraceID([16]byte{15: 1}), rejected.Spans[0].TraceID, "position 1 of the batch is spanA's document")
 	})
 
 	t.Run("rejected lookup document is logged and the batch succeeds", func(t *testing.T) {
