@@ -7,8 +7,6 @@ import (
 	"errors"
 
 	"go.opentelemetry.io/collector/featuregate"
-
-	"github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore"
 )
 
 // PaginationGate admits the RFC 0014 Pagination field on a trace search. No Reader returns a
@@ -26,23 +24,3 @@ var PaginationGate = featuregate.GlobalRegistry().MustRegister(
 
 // ErrPaginationDisabled is returned for a query carrying Pagination while PaginationGate is off.
 var ErrPaginationDisabled = errors.New("pagination is disabled")
-
-// paginationForCapabilities is the Pagination half of forCapabilities. A reader that declares
-// Paginated gets Pagination as sent. One that does not has no field to read PageSize from, so
-// PageSize is folded into SearchDepth and Pagination is cleared, which keeps the search bounded.
-// A PageToken is never folded: a reader that cannot paginate cannot have minted it, so the query
-// is refused (RFC 0014 §6.2) rather than restarted as a new search.
-func paginationForCapabilities(
-	query tracestore.TraceQueryParams,
-	caps tracestore.SearchCapabilities,
-) (tracestore.TraceQueryParams, error) {
-	if query.Pagination == (tracestore.Pagination{}) || caps.Paginated {
-		return query, nil
-	}
-	if query.Pagination.PageToken != "" {
-		return tracestore.TraceQueryParams{}, tracestore.ErrPaginationUnsupported
-	}
-	query.SearchDepth = query.Pagination.PageSize
-	query.Pagination = tracestore.Pagination{}
-	return query, nil
-}

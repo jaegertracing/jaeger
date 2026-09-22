@@ -36,18 +36,27 @@ var StructuredFiltersGate = featuregate.GlobalRegistry().MustRegister(
 // ignored, because dropping a predicate would answer with every trace in the time range.
 var ErrFilterDisabled = errors.New("the structured query filter is disabled")
 
-// forCapabilities gives the reader Pagination and Filter each in whichever shape it declared it
-// can honor, immediately before dispatch. A reader that declares filter support gets the filter
-// itself, once every level and operator it uses is one the reader listed. A reader that declares
-// none gets the filter rewritten into the legacy predicate fields (ToLegacyShape), or a refusal
-// where they cannot carry it.
-func forCapabilities(
+// toReaderShape returns the query in the shape the reader declared it can serve, immediately
+// before dispatch.
+//
+// A reader that cannot paginate has no field to read PageSize from, so PageSize is folded into
+// SearchDepth and Pagination is cleared, which keeps the search bounded. A PageToken is never
+// folded: a reader that cannot paginate cannot have minted it, so the query is refused
+// (RFC 0014 §6.2) rather than restarted as a new search.
+//
+// A reader that declares filter support gets the filter itself, once every level and operator
+// it uses is one the reader listed. A reader that declares none gets the filter rewritten into
+// the legacy predicate fields (ToLegacyShape), or a refusal where they cannot carry it.
+func toReaderShape(
 	query tracestore.TraceQueryParams,
 	caps tracestore.SearchCapabilities,
 ) (tracestore.TraceQueryParams, error) {
-	query, err := paginationForCapabilities(query, caps)
-	if err != nil {
-		return tracestore.TraceQueryParams{}, err
+	if query.Pagination != (tracestore.Pagination{}) && !caps.Paginated {
+		if query.Pagination.PageToken != "" {
+			return tracestore.TraceQueryParams{}, tracestore.ErrPaginationUnsupported
+		}
+		query.SearchDepth = query.Pagination.PageSize
+		query.Pagination = tracestore.Pagination{}
 	}
 	if query.Filter == nil {
 		return query, nil
