@@ -104,19 +104,13 @@ func TestTraceReader_FindTraceSummaries_PropagatesUnsupported(t *testing.T) {
 	require.ErrorIs(t, err, errors.ErrUnsupported)
 }
 
-func TestTraceReader_FindTraceSummaries_Disabled(t *testing.T) {
-	// With the native-summaries gate disabled the reader does not touch the backend;
-	// it yields errors.ErrUnsupported so the query service falls back to client-side
-	// aggregation.
-	original := nativeTraceSummariesGate.IsEnabled()
-	require.NoError(t, featuregate.GlobalRegistry().Set(nativeTraceSummariesGate.ID(), false))
-	t.Cleanup(func() {
-		require.NoError(t, featuregate.GlobalRegistry().Set(nativeTraceSummariesGate.ID(), original))
-	})
-
-	reader := TraceReader{spanReader: stubSummaryReader{Reader: &mocks.Reader{}}}
-	_, err := collectSummaries(reader.FindTraceSummaries(context.Background(), emptyQuery()))
-	require.ErrorIs(t, err, errors.ErrUnsupported)
+func TestNativeTraceSummariesGate_IsStable(t *testing.T) {
+	// A Stable gate cannot be disabled, so the reader always attempts the native
+	// aggregation and the fallback is decided by the backend alone.
+	assert.Equal(t, featuregate.StageStable, nativeTraceSummariesGate.Stage(),
+		"the gate is Stable: the native aggregation can no longer be turned off")
+	require.Error(t, featuregate.GlobalRegistry().Set(nativeTraceSummariesGate.ID(), false))
+	assert.True(t, nativeTraceSummariesGate.IsEnabled())
 }
 
 func TestTraceReader_FindTraceSummaries_BadTraceID(t *testing.T) {
