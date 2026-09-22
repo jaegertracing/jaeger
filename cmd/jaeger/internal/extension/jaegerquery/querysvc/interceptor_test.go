@@ -539,20 +539,27 @@ func TestFindTraces_LeavesALegacyQueryAloneWhenNothingChangedIt(t *testing.T) {
 	})
 
 	t.Run("an interceptor's rewrite keeps the result bound", func(t *testing.T) {
+		// FindTraceSummaries, not FindTraces: FindTraces refuses any query carrying
+		// Pagination outright (RFC 0014 §4), before the interceptor stage ever runs.
+		// Pagination and SearchDepth are mutually exclusive (EnsurePaginationStandsAlone),
+		// so this only exercises Pagination; SearchDepth preservation is covered above by
+		// "an interceptor that changes only the envelope".
 		enableStructuredFilters(t)
-		next := &fakeReader{batch: tracesWith("k", "v")}
-		next.capabilities = filterCapableBackend()
+		enablePagination(t)
+		next := &fakeReader{summaries: []tracestore.TraceSummary{{RootServiceName: "gated"}}}
+		caps := *filterCapableBackend()
+		caps.Paginated = true
+		next.capabilities = &caps
 		qs := interceptedService(next, fakeInterceptor{onQuery: narrowTo(serviceFilter("gated"))})
 
-		_, err := collectTraces(qs.FindTraces(t.Context(), searchQuery(tracestore.TraceQueryParams{
-			Filter:      serviceFilter("original"),
-			SearchDepth: 7,
-			Pagination:  tracestore.Pagination{PageSize: 3, PageToken: "next"},
-		})))
-		require.NoError(t, err)
-		assert.Equal(t, serviceFilter("gated"), next.gotQuery.Filter)
-		assert.Equal(t, 7, next.gotQuery.SearchDepth, "the interceptor never saw the search depth")
-		assert.Equal(t, tracestore.Pagination{PageSize: 3, PageToken: "next"}, next.gotQuery.Pagination,
+		for _, err := range qs.FindTraceSummaries(t.Context(), searchQuery(tracestore.TraceQueryParams{
+			Filter:     serviceFilter("original"),
+			Pagination: tracestore.Pagination{PageSize: 3, PageToken: "next"},
+		})) {
+			require.NoError(t, err)
+		}
+		assert.Equal(t, serviceFilter("gated"), next.gotSummaryQuery.Filter)
+		assert.Equal(t, tracestore.Pagination{PageSize: 3, PageToken: "next"}, next.gotSummaryQuery.Pagination,
 			"the interceptor never saw the pagination")
 	})
 }
