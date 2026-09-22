@@ -127,16 +127,31 @@ func (s *SpanWriter) WriteSpans(ctx context.Context, spans []dbmodel.Span) error
 		itemIDToSpan[item.ID] = span
 	}
 
-	if err := s.batchWriter.WriteBatch(ctx, items); err != nil {
-		if err := s.attributeRejections(err, itemIDToSpan); err != nil {
-			return err
-		}
+	err := s.batchWriter.WriteBatch(ctx, items)
+	if err != nil {
+		err = s.attributeRejections(err, itemIDToSpan)
 	}
-	// Every span is durable now (or enqueued, in async mode), so the service docs
-	// are cached. That includes a service:operation document that the backend
-	// rejected with a terminal error: sending it again would only fail again.
-	serviceOps.commitToCache()
-	return nil
+	if batchSettled(err) {
+		// The batch will not be written again: every document other than the
+		// reported poison spans is durable (or enqueued, in async mode), so the
+		// service docs are cached. That includes a service:operation document that
+		// the backend rejected with a terminal error: sending it again would only
+		// fail again.
+		serviceOps.commitToCache()
+	}
+	return err
+}
+
+// batchSettled reports whether the batch will not be written again: it succeeded,
+// or its only failures were terminal rejections attributed to spans, which the
+// caller re-routes rather than retries. A transient failure or an unidentified
+// document means a retry, and the service cache waits for it.
+func batchSettled(err error) bool {
+	if err == nil {
+		return true
+	}
+	var rejected *tracestore.RejectedSpansError
+	return errors.As(err, &rejected) && !rejected.Transient && rejected.Unidentified == 0
 }
 
 // attributeRejections turns a batch writer error that lists terminally-rejected

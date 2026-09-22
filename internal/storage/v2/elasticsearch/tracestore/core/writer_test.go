@@ -380,6 +380,28 @@ func TestSpanWriter_RejectedSpansError(t *testing.T) {
 			assert.Len(t, rejected.Spans, 1, "the span is reported")
 			assert.Zero(t, rejected.Unidentified)
 			assert.Contains(t, w.logBuffer.String(), "lookup document rejected by the backend", "the lookup document is logged")
+			require.Len(t, *w.added, 2)
+
+			// The caller re-routes the span rather than retrying the batch, so the
+			// pair is cached and the next span does not re-send the lookup document.
+			w.batchWriter.errFor = nil
+			require.NoError(t, w.writer.WriteSpans(context.Background(), []dbmodel.Span{spanA}))
+			require.Len(t, *w.added, 3, "only the span document is sent")
+		})
+	})
+
+	t.Run("service cache waits for a retry", func(t *testing.T) {
+		withSpanWriter(func(w *spanWriterTest) {
+			// A transient failure alongside the rejected span means the batch is
+			// retried, so nothing is cached yet.
+			w.batchWriter.errFor = rejecting(true, nil, 1)
+			var rejected *tracestore.RejectedSpansError
+			require.ErrorAs(t, w.writer.WriteSpans(context.Background(), []dbmodel.Span{spanA}), &rejected)
+			require.Len(t, *w.added, 2)
+
+			w.batchWriter.errFor = nil
+			require.NoError(t, w.writer.WriteSpans(context.Background(), []dbmodel.Span{spanA}))
+			require.Len(t, *w.added, 4, "the lookup document is re-sent with the retry")
 		})
 	})
 
