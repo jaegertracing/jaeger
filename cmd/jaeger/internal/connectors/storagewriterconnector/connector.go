@@ -143,9 +143,12 @@ func (c *connectorImpl) writeTraces(ctx context.Context, td ptrace.Traces) error
 	poison, unmapped, missing := filterPoisonSpans(td, bulkErr.Terminal)
 	if len(missing) > 0 {
 		// A rejected span _id that names no span in the batch means the writer's
-		// id rendering and this connector's disagree, so the span cannot be
-		// re-routed. Acknowledging the batch would lose it silently; fail instead,
-		// so the batch is retried and the mismatch surfaces in the logs.
+		// id rendering and this connector's disagree, and an item without an _id
+		// cannot be told apart from a span, so neither can be re-routed.
+		// Acknowledging the batch would lose a span silently; fail instead, so the
+		// batch is retried (forever, under the ingester's retry policy) and the
+		// mismatch surfaces in the logs. Only a code or backend fix can clear it,
+		// which is the right escape for a defect rather than a data problem.
 		return fmt.Errorf("%d rejected span documents match no span in the batch (ids %v): %w", len(missing), missing, bulkErr)
 	}
 	if unmapped > 0 {
@@ -178,15 +181,23 @@ func (c *connectorImpl) writeTraces(ctx context.Context, td ptrace.Traces) error
 
 // filterPoisonSpans returns a new ptrace.Traces holding only the spans whose
 // deterministic _id appears in the rejected items, each under a copy of its
-// resource and scope; the number of rejected items that name no span at all; and
-// the span _ids that name a span the batch does not contain. The span _id is
-// traceID_spanID_hash (RFC 0007 §4.7), so its traceID_spanID prefix identifies the
-// source span. A second span in the batch that shares the trace and span id (the
-// shared-span model, §4.7) is re-emitted alongside the poison one, which
-// over-includes a durable span in the dead letter but never loses one.
+// resource and scope; the number of rejected items that are service/operation
+// lookup documents rather than spans; and the identities of rejected items that
+// cannot be resolved to a span in the batch: a span _id the batch does not
+// contain, or an item the response reported without any _id, which could be a
+// span and so must not be acknowledged. The span _id is traceID_spanID_hash
+// (RFC 0007 §4.7), so its traceID_spanID prefix identifies the source span, while
+// a lookup document's _id is a bare hash with no delimiter. A second span in the
+// batch that shares the trace and span id (the shared-span model, §4.7) is
+// re-emitted alongside the poison one, which over-includes a durable span in the
+// dead letter but never loses one.
 func filterPoisonSpans(td ptrace.Traces, rejected []esclient.RejectedItem) (poison ptrace.Traces, unmapped int, missing []string) {
 	want := make(map[string]bool, len(rejected)) // key → matched a span
 	for _, it := range rejected {
+		if it.ID == "" {
+			missing = append(missing, "(no _id in the bulk response)")
+			continue
+		}
 		key, ok := spanKeyFromID(it.ID)
 		if !ok {
 			unmapped++
@@ -196,7 +207,7 @@ func filterPoisonSpans(td ptrace.Traces, rejected []esclient.RejectedItem) (pois
 	}
 	poison = ptrace.NewTraces()
 	if len(want) == 0 {
-		return poison, unmapped, nil
+		return poison, unmapped, missing
 	}
 	for _, rs := range td.ResourceSpans().All() {
 		var outRS ptrace.ResourceSpans
