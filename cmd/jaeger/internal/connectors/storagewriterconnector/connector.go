@@ -159,13 +159,13 @@ func (c *connectorImpl) writeTraces(ctx context.Context, td ptrace.Traces) error
 		if derr := c.next.ConsumeTraces(ctx, poison); derr != nil {
 			// The dead-letter sink refused the spans, so nothing about them is
 			// durable yet: hold the offset and retry the whole batch (§4.8 step 4).
-			// The sink's error is rendered with %v, not wrapped, on purpose: an
+			// The sink's error is rendered as text, not wrapped, on purpose: an
 			// exporter marks a 4xx from its endpoint as consumererror permanent, and
 			// a wrapped permanent error would make this connector's exporterhelper
 			// skip its retries and hand the failure to the receiver, which pauses
 			// the partition. From the storage write's point of view a sink failure
 			// is always worth retrying, whatever the sink thought of it.
-			return fmt.Errorf("dead-letter pipeline rejected %d poison spans: %v", n, derr)
+			return fmt.Errorf("dead-letter pipeline rejected %d poison spans: %s", n, derr.Error())
 		}
 		c.deadLetteredSpans.Inc(int64(n))
 		c.logger.Warn("dead-lettered spans the storage rejected terminally",
