@@ -79,8 +79,7 @@ extensions:
           write_mode: sync
           # fail, not drop: the writer reports the rejected spans to the connector,
           # which dead-letters them. Under drop the writer would discard them itself
-          # and nothing would reach the dead-letter pipeline; the connector refuses
-          # to start against such a storage.
+          # and nothing would reach the dead-letter pipeline.
           poison_pill_handling: fail
           bulk_processing:
             # Per-request byte cap of the synchronous writer; keep queue.batch.max_size
