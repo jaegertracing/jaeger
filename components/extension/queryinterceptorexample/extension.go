@@ -111,6 +111,11 @@ func referencesAttribute(expr expression.Expression, key string) bool {
 	case *expression.AttributeRef:
 		return term.Key == key
 	case *expression.Call:
+		// A search over the time range alone carries a nil filter, which arrives here as a
+		// typed nil.
+		if term == nil {
+			return false
+		}
 		for _, arg := range term.Args {
 			if referencesAttribute(arg, key) {
 				return true

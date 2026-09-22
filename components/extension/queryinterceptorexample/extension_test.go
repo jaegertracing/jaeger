@@ -127,6 +127,18 @@ func TestOnTraceQuery_CachesRoleForOnResult(t *testing.T) {
 	assert.Equal(t, "secret", prompt.Str(), "OnTraceResult must reuse the role OnTraceQuery cached in the context")
 }
 
+// TestAdmission_AllowsATimeRangeOnlySearch pins that a search with no filter, which both hooks
+// receive as a nil Filter, is admitted for a restricted caller rather than tripping the walk.
+func TestAdmission_AllowsATimeRangeOnlySearch(t *testing.T) {
+	i := newInterceptor(restrictedCfg(), zap.NewNop())
+
+	_, _, err := i.OnTraceQuery(ctxWithRole(t, "viewer"), queryinterceptor.TraceQuery{})
+	require.NoError(t, err)
+
+	_, _, err = i.OnSpanQuery(ctxWithRole(t, "viewer"), queryinterceptor.SpanQuery{})
+	require.NoError(t, err)
+}
+
 // TestOnSpanQuery_AppliesTheSameAdmissionRule pins that a denied attribute is denied on a span
 // search as it is on a trace search, so a caller cannot reach it by choosing the other endpoint.
 func TestOnSpanQuery_AppliesTheSameAdmissionRule(t *testing.T) {
