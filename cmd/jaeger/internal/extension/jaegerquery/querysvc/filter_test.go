@@ -32,11 +32,15 @@ func tag(op expression.Operator, key string, value string) *expression.Call {
 	return compare(op, &expression.AttributeRef{Key: key}, &expression.AnyValue{Value: value})
 }
 
+// filterQuery is the search a test sends when its subject is something other than the envelope:
+// a filter, or none, over the shared time window.
 func filterQuery(filter *expression.Call) TraceQueryParams {
 	return TraceQueryParams{
 		TraceQueryParams: tracestore.TraceQueryParams{
-			Attributes: pcommon.NewMap(),
-			Filter:     filter,
+			Attributes:   pcommon.NewMap(),
+			Filter:       filter,
+			StartTimeMin: testWindowStart,
+			StartTimeMax: testWindowEnd,
 		},
 	}
 }

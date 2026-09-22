@@ -437,9 +437,9 @@ func mockFindQueries() (url.Values, tracestore.TraceQueryParams) {
 }
 
 func TestHTTPGatewayFindTracesErrors(t *testing.T) {
-	t.Run("parse error returns 400", func(t *testing.T) {
-		// Detailed parse error cases are covered by TestParseFindTracesQuery.
-		// Here we only verify that any parse error is propagated as HTTP 400.
+	t.Run("missing time range returns 400", func(t *testing.T) {
+		// The refusal comes from the query service, not the parser; the gateway has to report it
+		// as a bad request rather than a server fault.
 		r, err := http.NewRequest(http.MethodGet, "/api/v3/traces", http.NoBody)
 		require.NoError(t, err)
 		w := httptest.NewRecorder()
@@ -447,7 +447,7 @@ func TestHTTPGatewayFindTracesErrors(t *testing.T) {
 		gw := setupHTTPGatewayNoServer(t, "")
 		gw.router.ServeHTTP(w, r)
 		assert.Equal(t, http.StatusBadRequest, w.Code)
-		assert.Contains(t, w.Body.String(), "query.startTimeMin and query.startTimeMax are required")
+		assert.Contains(t, w.Body.String(), "start_time_min and start_time_max are required")
 	})
 	t.Run("span reader error", func(t *testing.T) {
 		q, qp := mockFindQueries()
@@ -485,7 +485,7 @@ func TestHTTPGatewayFindTracesAttributes(t *testing.T) {
 			return qp.ServiceName == "svc" &&
 				qp.StartTimeMin.Equal(tMin) &&
 				qp.StartTimeMax.Equal(tMax) &&
-				qp.SearchDepth == defaultSearchDepth &&
+				qp.SearchDepth == querysvc.DefaultSearchDepth &&
 				qp.Attributes.Len() == 2 &&
 				ok1 && v1.AsString() == "200" &&
 				ok2 && v2.AsString() == "true"
@@ -665,7 +665,7 @@ func TestHTTPGatewayFindTraceSummariesInvalidQuery(t *testing.T) {
 	gw.router.ServeHTTP(w, r)
 
 	assert.Equal(t, http.StatusBadRequest, w.Code)
-	assert.Contains(t, w.Body.String(), "query.startTimeMin and query.startTimeMax are required")
+	assert.Contains(t, w.Body.String(), "start_time_min and start_time_max are required")
 }
 
 func TestTraceIDFromString(t *testing.T) {

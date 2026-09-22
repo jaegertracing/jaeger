@@ -155,8 +155,7 @@ func (g *GRPCHandler) FindTraces(r *api_v2.FindTracesRequest, stream api_v2.Quer
 	findTracesIter := g.queryService.FindTraces(stream.Context(), queryParams)
 	traces, err := v1adapter.V1TracesFromSeq2(findTracesIter)
 	if err != nil {
-		if errors.Is(err, querysvc.ErrServiceNameRequired) {
-			// A well-formed query this deployment's storage cannot serve, not a fault.
+		if querysvc.IsBadRequest(err) {
 			return status.Error(codes.InvalidArgument, err.Error())
 		}
 		g.logger.Error("failed when searching for traces", zap.Error(err))

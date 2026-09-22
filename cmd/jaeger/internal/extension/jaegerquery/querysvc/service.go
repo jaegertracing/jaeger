@@ -25,6 +25,16 @@ import (
 
 var errNoArchiveSpanStorage = errors.New("archive span storage was not configured")
 
+// DefaultSearchDepth bounds a trace search whose caller left SearchDepth unset. It is applied
+// here rather than in each API handler, so a gRPC and an HTTP client get the same bound.
+const DefaultSearchDepth = 100
+
+// ErrQueryInvalid is returned for a trace search whose envelope is malformed on its own terms:
+// a missing or inverted time range, a negative or inverted duration bound, or a search depth
+// outside [0, MaxSearchDepth]. None of these depends on the backend. The API layers map it to
+// InvalidArgument / HTTP 400.
+var ErrQueryInvalid = errors.New("invalid query")
+
 // ErrSpanSearchUnsupported is returned for a span search against a backend whose reader does
 // not declare SpanSearch (RFC 0016 §4.5). It names the backend's limitation, because the same
 // query is valid elsewhere. The interceptor package has a sentinel of the same name for an
@@ -239,6 +249,9 @@ func (qs QueryService) prepareSearchQuery(
 	ctx context.Context,
 	query TraceQueryParams,
 ) (context.Context, TraceQueryParams, error) {
+	if err := query.normalizeEnvelope(); err != nil {
+		return ctx, query, err
+	}
 	if query.Filter != nil {
 		// None of these refusals depends on the backend, so they come before the capability call
 		// rather than after it.
@@ -279,6 +292,31 @@ func (qs QueryService) prepareSearchQuery(
 		return ctx, query, ErrServiceNameRequired
 	}
 	return ctx, query, nil
+}
+
+// normalizeEnvelope checks the fields every trace search carries whichever filtering model it
+// uses, and applies DefaultSearchDepth where the caller left the bound unset. The API handlers
+// only translate their wire shape into this one; what a query must satisfy is decided here, once.
+func (q *TraceQueryParams) normalizeEnvelope() error {
+	if q.StartTimeMin.IsZero() || q.StartTimeMax.IsZero() {
+		return fmt.Errorf("%w: start_time_min and start_time_max are required", ErrQueryInvalid)
+	}
+	if !q.StartTimeMin.Before(q.StartTimeMax) {
+		return fmt.Errorf("%w: start_time_min must be before start_time_max", ErrQueryInvalid)
+	}
+	if q.DurationMin < 0 || q.DurationMax < 0 {
+		return fmt.Errorf("%w: duration_min and duration_max cannot be negative", ErrQueryInvalid)
+	}
+	if q.DurationMin > 0 && q.DurationMax > 0 && q.DurationMax < q.DurationMin {
+		return fmt.Errorf("%w: duration_max cannot be less than duration_min", ErrQueryInvalid)
+	}
+	if q.SearchDepth < 0 || q.SearchDepth > tracestore.MaxSearchDepth {
+		return fmt.Errorf("%w: search_depth must be in [0, %d]", ErrQueryInvalid, tracestore.MaxSearchDepth)
+	}
+	if q.SearchDepth == 0 && q.Pagination == (tracestore.Pagination{}) {
+		q.SearchDepth = DefaultSearchDepth
+	}
+	return nil
 }
 
 // prepareSpanSearchQuery is prepareSearchQuery for a span search (RFC 0016 §4.6): it refuses a

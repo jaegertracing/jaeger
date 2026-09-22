@@ -41,7 +41,8 @@ var ErrFilterDisabled = errors.New("the structured query filter is disabled")
 // Either way it is the caller's problem, so the API layers answer InvalidArgument /
 // HTTP 400 rather than reporting a server fault.
 func IsBadRequest(err error) bool {
-	return errors.Is(err, ErrServiceNameRequired) ||
+	return errors.Is(err, ErrQueryInvalid) ||
+		errors.Is(err, ErrServiceNameRequired) ||
 		errors.Is(err, ErrSpanSearchUnsupported) ||
 		errors.Is(err, ErrFilterDisabled) ||
 		errors.Is(err, tracestore.ErrFilterUnsupported) ||

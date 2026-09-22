@@ -443,6 +443,7 @@ func TestFindTraces_Success(t *testing.T) {
 	queryParams := tracestore.TraceQueryParams{
 		ServiceName:   "service",
 		OperationName: "operation",
+		StartTimeMin:  now.Add(-time.Hour),
 		StartTimeMax:  now,
 		DurationMin:   duration,
 		SearchDepth:   200,
@@ -517,6 +518,7 @@ func TestFindTraces_WithRawTraces_PerformsAdjustment(t *testing.T) {
 			tqs.traceReader.On("FindTraces", mock.Anything, tracestore.TraceQueryParams{
 				ServiceName:   "service",
 				OperationName: "operation",
+				StartTimeMin:  now.Add(-time.Hour),
 				StartTimeMax:  now,
 				DurationMin:   duration,
 				SearchDepth:   200,
@@ -527,6 +529,7 @@ func TestFindTraces_WithRawTraces_PerformsAdjustment(t *testing.T) {
 				TraceQueryParams: tracestore.TraceQueryParams{
 					ServiceName:   "service",
 					OperationName: "operation",
+					StartTimeMin:  now.Add(-time.Hour),
 					StartTimeMax:  now,
 					DurationMin:   duration,
 					SearchDepth:   200,
@@ -653,6 +656,7 @@ func TestFindTraces_WithRawTraces_PerformsAggregation(t *testing.T) {
 			tqs.traceReader.On("FindTraces", mock.Anything, tracestore.TraceQueryParams{
 				ServiceName:   "service",
 				OperationName: "operation",
+				StartTimeMin:  now.Add(-time.Hour),
 				StartTimeMax:  now,
 				DurationMin:   duration,
 				SearchDepth:   200,
@@ -663,6 +667,7 @@ func TestFindTraces_WithRawTraces_PerformsAggregation(t *testing.T) {
 				TraceQueryParams: tracestore.TraceQueryParams{
 					ServiceName:   "service",
 					OperationName: "operation",
+					StartTimeMin:  now.Add(-time.Hour),
 					StartTimeMax:  now,
 					DurationMin:   duration,
 					SearchDepth:   200,
@@ -939,6 +944,104 @@ func TestQueryServiceGetServicesReturnsEmptySlice(t *testing.T) {
 
 // mockSummaryReader is a tracestore.Reader whose FindTraceSummaries computes
 // summaries natively (rather than yielding ErrUnsupported).
+// testWindowStart and testWindowEnd are the time range a search carries when the test is about
+// something other than its envelope.
+var (
+	testWindowEnd   = time.Date(2026, time.January, 1, 12, 0, 0, 0, time.UTC)
+	testWindowStart = testWindowEnd.Add(-time.Hour)
+)
+
+// TestFindTraces_EnvelopeIsSettledOnce covers the checks every trace search shares regardless
+// of which API it arrived on. A refused query never reaches the reader: FindTraces has no
+// expectation, so a call to it would fail the test. The same rules apply to FindTraceSummaries,
+// which shares prepareSearchQuery, so one method stands for both.
+func TestFindTraces_EnvelopeIsSettledOnce(t *testing.T) {
+	// window fills in what a case left unset, so a case about the time range sets its own.
+	window := func(q tracestore.TraceQueryParams) tracestore.TraceQueryParams {
+		q.Attributes = pcommon.NewMap()
+		q.ServiceName = "svc"
+		if q.StartTimeMin.IsZero() && q.StartTimeMax.IsZero() {
+			q.StartTimeMin, q.StartTimeMax = testWindowStart, testWindowEnd
+		}
+		return q
+	}
+	refused := map[string]struct {
+		query   tracestore.TraceQueryParams
+		wantErr string
+	}{
+		"no time range": {
+			query:   tracestore.TraceQueryParams{Attributes: pcommon.NewMap(), ServiceName: "svc"},
+			wantErr: "start_time_min and start_time_max are required",
+		},
+		"no start_time_max": {
+			query:   tracestore.TraceQueryParams{Attributes: pcommon.NewMap(), ServiceName: "svc", StartTimeMin: testWindowStart},
+			wantErr: "start_time_min and start_time_max are required",
+		},
+		"inverted time range": {
+			query:   window(tracestore.TraceQueryParams{StartTimeMin: testWindowEnd, StartTimeMax: testWindowStart}),
+			wantErr: "start_time_min must be before start_time_max",
+		},
+		"empty time range": {
+			query:   window(tracestore.TraceQueryParams{StartTimeMin: testWindowEnd, StartTimeMax: testWindowEnd}),
+			wantErr: "start_time_min must be before start_time_max",
+		},
+		"negative duration_min": {
+			query:   window(tracestore.TraceQueryParams{DurationMin: -time.Second}),
+			wantErr: "cannot be negative",
+		},
+		"negative duration_max": {
+			query:   window(tracestore.TraceQueryParams{DurationMax: -time.Second}),
+			wantErr: "cannot be negative",
+		},
+		"inverted duration bounds": {
+			query:   window(tracestore.TraceQueryParams{DurationMin: 10 * time.Second, DurationMax: 5 * time.Second}),
+			wantErr: "duration_max cannot be less than duration_min",
+		},
+		"negative search depth": {
+			query:   window(tracestore.TraceQueryParams{SearchDepth: -1}),
+			wantErr: "search_depth must be in [0, 10000]",
+		},
+		"search depth above the maximum": {
+			query:   window(tracestore.TraceQueryParams{SearchDepth: tracestore.MaxSearchDepth + 1}),
+			wantErr: "search_depth must be in [0, 10000]",
+		},
+	}
+	for name, test := range refused {
+		t.Run(name, func(t *testing.T) {
+			qs := NewQueryService(new(tracestoremocks.Reader), nil, QueryServiceOptions{})
+			_, err := jiter.FlattenWithErrors(qs.FindTraces(context.Background(), TraceQueryParams{TraceQueryParams: test.query}))
+			require.ErrorIs(t, err, ErrQueryInvalid)
+			require.ErrorContains(t, err, test.wantErr)
+			assert.True(t, IsBadRequest(err), "the caller has to change the query")
+		})
+	}
+
+	dispatched := map[string]struct {
+		depth      int
+		pagination tracestore.Pagination
+		want       int
+	}{
+		"an unset search depth gets the default":   {depth: 0, want: DefaultSearchDepth},
+		"an explicit search depth is kept":         {depth: 42, want: 42},
+		"the maximum search depth is allowed":      {depth: tracestore.MaxSearchDepth, want: tracestore.MaxSearchDepth},
+		"a paginated request is not given one too": {pagination: tracestore.Pagination{PageSize: 20}, want: 0},
+	}
+	for name, test := range dispatched {
+		t.Run(name, func(t *testing.T) {
+			var got tracestore.TraceQueryParams
+			reader := forwardsOneTrace(new(tracestoremocks.Reader), &got)
+			qs := NewQueryService(reader, nil, QueryServiceOptions{})
+			_, err := jiter.FlattenWithErrors(qs.FindTraces(context.Background(), TraceQueryParams{
+				TraceQueryParams: window(tracestore.TraceQueryParams{SearchDepth: test.depth, Pagination: test.pagination}),
+			}))
+			require.NoError(t, err)
+			assert.Equal(t, test.want, got.SearchDepth)
+			// A zero duration bound is "no bound", not a negative one.
+			assert.Zero(t, got.DurationMin)
+		})
+	}
+}
+
 type mockSummaryReader struct {
 	tracestoremocks.Reader
 	summaries     []tracestore.TraceSummary
@@ -980,9 +1083,7 @@ func TestFindTraceSummaries_NativePath(t *testing.T) {
 	depsMock := initializeTestService().depsReader
 	qs := NewQueryService(nativeReader, depsMock, QueryServiceOptions{})
 
-	chunks, err := jiter.CollectWithErrors(qs.FindTraceSummaries(context.Background(), TraceQueryParams{
-		TraceQueryParams: tracestore.TraceQueryParams{Attributes: pcommon.NewMap()},
-	}))
+	chunks, err := jiter.CollectWithErrors(qs.FindTraceSummaries(context.Background(), filterQuery(nil)))
 	require.NoError(t, err)
 	require.Len(t, chunks, 1)
 	assert.Equal(t, want, chunks[0].Results)
@@ -1001,9 +1102,7 @@ func TestFindTraceSummaries_NativeError(t *testing.T) {
 	depsMock := initializeTestService().depsReader
 	qs := NewQueryService(errReader, depsMock, QueryServiceOptions{})
 
-	_, err := flattenPageChunks(qs.FindTraceSummaries(context.Background(), TraceQueryParams{
-		TraceQueryParams: tracestore.TraceQueryParams{Attributes: pcommon.NewMap()},
-	}))
+	_, err := flattenPageChunks(qs.FindTraceSummaries(context.Background(), filterQuery(nil)))
 	require.ErrorIs(t, err, assert.AnError)
 	errReader.AssertNotCalled(t, "FindTraces")
 }
@@ -1025,9 +1124,7 @@ func TestFindTraceSummaries_ErrUnsupported(t *testing.T) {
 	depsMock := initializeTestService().depsReader
 	qs := NewQueryService(unsupportedReader, depsMock, QueryServiceOptions{})
 
-	chunks, err := jiter.CollectWithErrors(qs.FindTraceSummaries(context.Background(), TraceQueryParams{
-		TraceQueryParams: tracestore.TraceQueryParams{Attributes: pcommon.NewMap()},
-	}))
+	chunks, err := jiter.CollectWithErrors(qs.FindTraceSummaries(context.Background(), filterQuery(nil)))
 	require.NoError(t, err)
 	require.Len(t, chunks, 1)
 	assert.Empty(t, chunks[0].NextPageToken)
@@ -1045,9 +1142,7 @@ func TestFindTraceSummaries_NativePath_YieldStopsIteration(t *testing.T) {
 	qs := NewQueryService(nativeReader, depsMock, QueryServiceOptions{})
 
 	var count int
-	for _, err := range qs.FindTraceSummaries(context.Background(), TraceQueryParams{
-		TraceQueryParams: tracestore.TraceQueryParams{Attributes: pcommon.NewMap()},
-	}) {
+	for _, err := range qs.FindTraceSummaries(context.Background(), filterQuery(nil)) {
 		require.NoError(t, err)
 		count++
 		break
@@ -1070,9 +1165,7 @@ func TestFindTraceSummaries_ErrUnsupported_YieldStopsIteration(t *testing.T) {
 	qs := NewQueryService(unsupportedReader, depsMock, QueryServiceOptions{})
 
 	var count int
-	for _, err := range qs.FindTraceSummaries(context.Background(), TraceQueryParams{
-		TraceQueryParams: tracestore.TraceQueryParams{Attributes: pcommon.NewMap()},
-	}) {
+	for _, err := range qs.FindTraceSummaries(context.Background(), filterQuery(nil)) {
 		require.NoError(t, err)
 		count++
 		break
@@ -1085,9 +1178,7 @@ func TestFindTraceSummaries_ErrUnsupported_YieldStopsIteration(t *testing.T) {
 // the rejection happens before storage is touched — FindTraces has no expectation set in
 // the rejecting cases, so a call to it would fail the test.
 func TestFindTraces_ServiceNameRequired(t *testing.T) {
-	serviceless := TraceQueryParams{
-		TraceQueryParams: tracestore.TraceQueryParams{Attributes: pcommon.NewMap()},
-	}
+	serviceless := filterQuery(nil)
 	forwards := func(reader *tracestoremocks.Reader) *tracestoremocks.Reader {
 		reader.On("FindTraces", mock.Anything, mock.AnythingOfType("tracestore.TraceQueryParams")).
 			Return(iter.Seq2[[]ptrace.Traces, error](func(yield func([]ptrace.Traces, error) bool) {
@@ -1146,9 +1237,7 @@ func TestFindTraces_ServiceNameRequired(t *testing.T) {
 // copy of the answer: every service-less search asks the reader again, so a backend that was
 // unreachable at startup is not written off for the life of the process.
 func TestFindTraces_ServiceNameCapabilityAskedEveryTime(t *testing.T) {
-	serviceless := TraceQueryParams{
-		TraceQueryParams: tracestore.TraceQueryParams{Attributes: pcommon.NewMap()},
-	}
+	serviceless := filterQuery(nil)
 	reader := new(tracestoremocks.Reader)
 	reader.On("FindTraces", mock.Anything, mock.AnythingOfType("tracestore.TraceQueryParams")).
 		Return(iter.Seq2[[]ptrace.Traces, error](func(yield func([]ptrace.Traces, error) bool) {
@@ -1193,16 +1282,11 @@ func forwardsOneTrace(reader *tracestoremocks.Reader, dispatched *tracestore.Tra
 // already understands and no filter at all.
 func TestFindTraces_FilterReachesStorageAsLegacyFields(t *testing.T) {
 	enableStructuredFilters(t)
-	query := TraceQueryParams{
-		TraceQueryParams: tracestore.TraceQueryParams{
-			Attributes: pcommon.NewMap(),
-			Filter: compare(expression.OpAnd,
-				compare(expression.OpEq,
-					&expression.FieldRef{Level: expression.LevelResource, Name: expression.ResourceFieldService},
-					&expression.AnyValue{Value: "cart"}),
-				tag(expression.OpEq, "http.status_code", "500")),
-		},
-	}
+	query := filterQuery(compare(expression.OpAnd,
+		compare(expression.OpEq,
+			&expression.FieldRef{Level: expression.LevelResource, Name: expression.ResourceFieldService},
+			&expression.AnyValue{Value: "cart"}),
+		tag(expression.OpEq, "http.status_code", "500")))
 
 	var dispatched tracestore.TraceQueryParams
 	reader := forwardsOneTrace(new(tracestoremocks.Reader), &dispatched)
@@ -1228,12 +1312,7 @@ func TestFindTraces_FilterReachesADeclaringReader(t *testing.T) {
 	filter := compare(expression.OpRegex,
 		&expression.AttributeRef{Key: "http.route", Level: expression.LevelSpan},
 		&expression.AnyValue{Value: "/cart/.*"})
-	query := TraceQueryParams{
-		TraceQueryParams: tracestore.TraceQueryParams{
-			Attributes: pcommon.NewMap(),
-			Filter:     filter,
-		},
-	}
+	query := filterQuery(filter)
 
 	var dispatched tracestore.TraceQueryParams
 	reader := forwardsOneTrace(new(tracestoremocks.Reader), &dispatched)
@@ -1263,11 +1342,6 @@ func TestFindTraces_FilterCanNameTheServiceForABackendThatRequiresOne(t *testing
 			&expression.FieldRef{Level: level, Name: name},
 			&expression.AnyValue{Value: value})
 	}
-	queryWith := func(filter *expression.Call) TraceQueryParams {
-		return TraceQueryParams{
-			TraceQueryParams: tracestore.TraceQueryParams{Attributes: pcommon.NewMap(), Filter: filter},
-		}
-	}
 
 	t.Run("the filter names the service", func(t *testing.T) {
 		var dispatched tracestore.TraceQueryParams
@@ -1276,7 +1350,7 @@ func TestFindTraces_FilterCanNameTheServiceForABackendThatRequiresOne(t *testing
 		qs := NewQueryService(reader, nil, QueryServiceOptions{})
 
 		_, err := jiter.FlattenWithErrors(qs.FindTraces(context.Background(),
-			queryWith(filterOn(expression.LevelResource, expression.ResourceFieldService, "cart"))))
+			filterQuery(filterOn(expression.LevelResource, expression.ResourceFieldService, "cart"))))
 		require.NoError(t, err)
 		assert.Equal(t, "cart", dispatched.ServiceName)
 		reader.AssertExpectations(t)
@@ -1288,7 +1362,7 @@ func TestFindTraces_FilterCanNameTheServiceForABackendThatRequiresOne(t *testing
 		qs := NewQueryService(reader, nil, QueryServiceOptions{})
 
 		attrFilter := tag(expression.OpEq, "http.method", "GET")
-		_, err := jiter.FlattenWithErrors(qs.FindTraces(context.Background(), queryWith(attrFilter)))
+		_, err := jiter.FlattenWithErrors(qs.FindTraces(context.Background(), filterQuery(attrFilter)))
 		require.ErrorIs(t, err, ErrServiceNameRequired)
 	})
 }
@@ -1299,14 +1373,9 @@ func TestFindTraces_FilterCanNameTheServiceForABackendThatRequiresOne(t *testing
 // unreachable backend refuses the same filter.
 func TestFindTraces_UnservableFilterIsRefusedBeforeStorage(t *testing.T) {
 	enableStructuredFilters(t)
-	query := TraceQueryParams{
-		TraceQueryParams: tracestore.TraceQueryParams{
-			Attributes: pcommon.NewMap(),
-			Filter: compare(expression.OpOr,
-				tag(expression.OpEq, "a", "1"),
-				tag(expression.OpEq, "b", "2")),
-		},
-	}
+	query := filterQuery(compare(expression.OpOr,
+		tag(expression.OpEq, "a", "1"),
+		tag(expression.OpEq, "b", "2")))
 	for name, answer := range map[string]struct {
 		caps tracestore.SearchCapabilities
 		err  error
