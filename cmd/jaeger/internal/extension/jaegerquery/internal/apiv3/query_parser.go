@@ -5,6 +5,7 @@ package apiv3
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/url"
 	"strconv"
@@ -38,6 +39,8 @@ const (
 	paramAttributes     = "query.attributes"
 	paramFilter         = "query.filter"
 	paramSpanKind       = "spanKind"
+	paramPageSize       = "query.pagination.pageSize"
+	paramPageToken      = "query.pagination.pageToken"
 
 	// Deprecated snake_case aliases kept for backward compatibility.
 	paramStartTimeDeprecated      = "start_time"
@@ -146,6 +149,50 @@ func parseFindTracesQuery(q url.Values) (*querysvc.TraceQueryParams, error) {
 			return nil, fmt.Errorf("malformed parameter %s: %w", paramName, err)
 		}
 		queryParams.RawTraces = rawTraces
+	}
+	return queryParams, nil
+}
+
+// parseFindSpansQuery parses the query parameters for a span search (RFC 0016 §4.3): the
+// required time range and an optional filter. Pagination is refused rather than silently
+// dropped, matching the gRPC handler: tracestore.SpanQueryParams has no field to carry it yet,
+// so honoring the params would return every match instead of the page the caller asked for.
+func parseFindSpansQuery(q url.Values) (*querysvc.SpanQueryParams, error) {
+	if q.Get(paramPageSize) != "" || q.Get(paramPageToken) != "" {
+		return nil, errors.New("pagination is not yet supported for span search")
+	}
+
+	queryParams := &querysvc.SpanQueryParams{}
+
+	timeMinStr, timeMinParam := getQueryParam(q, paramTimeMin, paramTimeMinDeprecated)
+	timeMaxStr, timeMaxParam := getQueryParam(q, paramTimeMax, paramTimeMaxDeprecated)
+	if timeMinStr == "" || timeMaxStr == "" {
+		return nil, fmt.Errorf("%s and %s are required", paramTimeMin, paramTimeMax)
+	}
+	timeMinParsed, err := time.Parse(time.RFC3339Nano, timeMinStr)
+	if err != nil {
+		return nil, fmt.Errorf("malformed parameter %s: %w", timeMinParam, err)
+	}
+	timeMaxParsed, err := time.Parse(time.RFC3339Nano, timeMaxStr)
+	if err != nil {
+		return nil, fmt.Errorf("malformed parameter %s: %w", timeMaxParam, err)
+	}
+	if !timeMinParsed.Before(timeMaxParsed) {
+		return nil, fmt.Errorf("%s must be before %s", paramTimeMin, paramTimeMax)
+	}
+	queryParams.StartTimeMin = timeMinParsed
+	queryParams.StartTimeMax = timeMaxParsed
+
+	if filterParam := q.Get(paramFilter); filterParam != "" {
+		var call expressionproto.Call
+		if err := jsonpb.Unmarshal(strings.NewReader(filterParam), &call); err != nil {
+			return nil, fmt.Errorf("malformed parameter %s: %w", paramFilter, err)
+		}
+		filter, err := expressionproto.FromProto(&call)
+		if err != nil {
+			return nil, fmt.Errorf("malformed parameter %s: %w", paramFilter, err)
+		}
+		queryParams.Filter = filter
 	}
 	return queryParams, nil
 }

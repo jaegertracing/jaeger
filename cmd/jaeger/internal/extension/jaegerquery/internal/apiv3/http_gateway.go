@@ -33,6 +33,7 @@ const (
 	routeGetTrace      = "/api/v3/traces/{" + paramTraceID + "}"
 	routeFindTraces    = "/api/v3/traces"
 	routeFindSummaries = "/api/v3/trace-summaries"
+	routeFindSpans     = "/api/v3/spans"
 	routeGetServices   = "/api/v3/services"
 	routeGetOperations = "/api/v3/operations"
 )
@@ -50,6 +51,7 @@ func (h *HTTPGateway) RegisterRoutes(router *http.ServeMux) {
 	h.addRoute(router, h.getTrace, routeGetTrace, http.MethodGet)
 	h.addRoute(router, h.findTraces, routeFindTraces, http.MethodGet)
 	h.addRoute(router, h.findTraceSummaries, routeFindSummaries, http.MethodGet)
+	h.addRoute(router, h.findSpans, routeFindSpans, http.MethodGet)
 	h.addRoute(router, h.getServices, routeGetServices, http.MethodGet)
 	h.addRoute(router, h.getOperations, routeGetOperations, http.MethodGet)
 }
@@ -217,6 +219,36 @@ func (h *HTTPGateway) findTraceSummaries(w http.ResponseWriter, r *http.Request)
 	}
 	h.marshalResponse(&api_v3.FindTraceSummariesResponse{
 		Summaries:     toProtoTraceSummaries(summaries),
+		NextPageToken: nextPageToken,
+	}, w)
+}
+
+func (h *HTTPGateway) findSpans(w http.ResponseWriter, r *http.Request) {
+	queryParams, err := parseFindSpansQuery(r.URL.Query())
+	if h.tryHandleError(w, err, http.StatusBadRequest) {
+		return
+	}
+
+	spansIter := h.QueryService.FindSpans(r.Context(), *queryParams)
+	var spans []ptrace.Traces
+	var nextPageToken string
+	for chunk, err := range spansIter {
+		if h.tryHandleError(w, err, http.StatusInternalServerError) {
+			return
+		}
+		spans = append(spans, chunk.Results)
+		nextPageToken = chunk.NextPageToken
+	}
+	combined := ptrace.NewTraces()
+	for _, t := range spans {
+		resources := t.ResourceSpans()
+		for i := 0; i < resources.Len(); i++ {
+			resources.At(i).CopyTo(combined.ResourceSpans().AppendEmpty())
+		}
+	}
+	tracesData := jptrace.TracesData(combined)
+	h.marshalResponse(&api_v3.FindSpansResponse{
+		Spans:         &tracesData,
 		NextPageToken: nextPageToken,
 	}, w)
 }

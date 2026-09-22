@@ -668,6 +668,102 @@ func TestHTTPGatewayFindTraceSummariesInvalidQuery(t *testing.T) {
 	assert.Contains(t, w.Body.String(), "min and max start time are required")
 }
 
+// mockFindSpansQuery builds the query params for a well-formed span search, and the equivalent
+// tracestore.SpanQueryParams the reader should be dispatched.
+func mockFindSpansQuery() (url.Values, tracestore.SpanQueryParams) {
+	tMin := time.Now().Add(-time.Hour).UTC().Truncate(time.Nanosecond)
+	tMax := time.Now().UTC().Truncate(time.Nanosecond)
+	q := url.Values{}
+	q.Set("query.startTimeMin", tMin.Format(time.RFC3339Nano))
+	q.Set("query.startTimeMax", tMax.Format(time.RFC3339Nano))
+
+	return q, tracestore.SpanQueryParams{
+		StartTimeMin: tMin,
+		StartTimeMax: tMax,
+	}
+}
+
+func TestHTTPGatewayFindSpans(t *testing.T) {
+	q, qp := mockFindSpansQuery()
+	gw := setupHTTPGatewayNoServer(t, "")
+	gw.reader.ExpectedCalls = nil
+	gw.reader.On("SearchCapabilities", mock.Anything).
+		Return(tracestore.SearchCapabilities{SpanSearch: true}, nil).Maybe()
+	gw.reader.
+		On("FindSpans", matchContext, qp).
+		Return(iter.Seq2[tracestore.PageChunk[ptrace.Traces], error](func(yield func(tracestore.PageChunk[ptrace.Traces], error) bool) {
+			yield(tracestore.PageChunk[ptrace.Traces]{Results: makeTestTrace()}, nil)
+			yield(tracestore.PageChunk[ptrace.Traces]{Results: ptrace.NewTraces(), NextPageToken: "next-page"}, nil)
+		})).Once()
+
+	r, err := http.NewRequest(http.MethodGet, "/api/v3/spans?"+q.Encode(), http.NoBody)
+	require.NoError(t, err)
+	w := httptest.NewRecorder()
+	gw.router.ServeHTTP(w, r)
+
+	require.Equal(t, http.StatusOK, w.Code)
+	var resp api_v3.FindSpansResponse
+	require.NoError(t, jsonpb.Unmarshal(w.Body, &resp))
+	assert.Equal(t, 1, resp.GetSpans().ToTraces().SpanCount())
+	assert.Equal(t, "next-page", resp.GetNextPageToken())
+}
+
+func TestHTTPGatewayFindSpansError(t *testing.T) {
+	q, qp := mockFindSpansQuery()
+	gw := setupHTTPGatewayNoServer(t, "")
+	gw.reader.ExpectedCalls = nil
+	gw.reader.On("SearchCapabilities", mock.Anything).
+		Return(tracestore.SearchCapabilities{SpanSearch: true}, nil).Maybe()
+	gw.reader.
+		On("FindSpans", matchContext, qp).
+		Return(iter.Seq2[tracestore.PageChunk[ptrace.Traces], error](func(yield func(tracestore.PageChunk[ptrace.Traces], error) bool) {
+			yield(tracestore.PageChunk[ptrace.Traces]{}, assert.AnError)
+		})).Once()
+
+	r, err := http.NewRequest(http.MethodGet, "/api/v3/spans?"+q.Encode(), http.NoBody)
+	require.NoError(t, err)
+	w := httptest.NewRecorder()
+	gw.router.ServeHTTP(w, r)
+	assert.Equal(t, http.StatusInternalServerError, w.Code)
+	assert.Contains(t, w.Body.String(), assert.AnError.Error())
+}
+
+func TestHTTPGatewayFindSpansUnsupported(t *testing.T) {
+	q, _ := mockFindSpansQuery()
+	gw := setupHTTPGatewayNoServer(t, "")
+
+	r, err := http.NewRequest(http.MethodGet, "/api/v3/spans?"+q.Encode(), http.NoBody)
+	require.NoError(t, err)
+	w := httptest.NewRecorder()
+	gw.router.ServeHTTP(w, r)
+	assert.Equal(t, http.StatusBadRequest, w.Code)
+	assert.Contains(t, w.Body.String(), "does not declare span search support")
+}
+
+func TestHTTPGatewayFindSpansInvalidQuery(t *testing.T) {
+	gw := setupHTTPGatewayNoServer(t, "")
+	r := httptest.NewRequest(http.MethodGet, "/api/v3/spans", http.NoBody)
+	w := httptest.NewRecorder()
+
+	gw.router.ServeHTTP(w, r)
+
+	assert.Equal(t, http.StatusBadRequest, w.Code)
+	assert.Contains(t, w.Body.String(), "query.startTimeMin and query.startTimeMax are required")
+}
+
+func TestHTTPGatewayFindSpansPaginationRejected(t *testing.T) {
+	q, _ := mockFindSpansQuery()
+	q.Set("query.pagination.pageSize", "10")
+	gw := setupHTTPGatewayNoServer(t, "")
+
+	r, err := http.NewRequest(http.MethodGet, "/api/v3/spans?"+q.Encode(), http.NoBody)
+	require.NoError(t, err)
+	w := httptest.NewRecorder()
+	gw.router.ServeHTTP(w, r)
+	assert.Equal(t, http.StatusBadRequest, w.Code)
+	assert.Contains(t, w.Body.String(), "pagination is not yet supported for span search")
+}
+
 func TestTraceIDFromString(t *testing.T) {
 	tests := []struct {
 		name    string

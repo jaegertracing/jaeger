@@ -512,14 +512,13 @@ PR-sized milestones with exit bars. Everything here sits behind RFC 0005 M1 and 
 
 ✅ **M1 — Proto foundation (jaeger-idl).** `SpanQueryParameters`, `FindSpansRequest`, `FindSpansResponse` with the span payload and `next_page_token`, and the `FindSpans` RPC on `jaeger.api_v3.QueryService` with its `GET /api/v3/spans` binding and `POST` body; the same RPC on `jaeger.storage.v2.TraceReader`; the `span_search` field on `jaeger.storage.v2.SearchCapabilities`. *Exit:* generated types compile and vendor cleanly; existing api_v3 and storage.v2 callers byte-for-byte unaffected.
 
-🚧 **M2 — Internal interface and query-service plumbing.** `Reader.FindSpans`, `SpanQueryParams`, `UnsupportedSpanSearch`, and `SearchCapabilities.SpanSearch`; every backend embeds the mixin and declares `false`; `querysvc.FindSpans` with validation and the capability refusal; the api_v3 gRPC handler, the HTTP route and the query parameters. *Exit:* a span query against any backend is refused with `InvalidArgument` naming the backend limitation; no existing search changes behavior.
+✅ **M2 — Internal interface and query-service plumbing.** `Reader.FindSpans`, `SpanQueryParams`, `UnsupportedSpanSearch`, and `SearchCapabilities.SpanSearch`; every backend embeds the mixin and declares `false`; `querysvc.FindSpans` with validation and the capability refusal; the api_v3 gRPC handler, the HTTP route and the query parameters. *Exit:* a span query against any backend is refused with `InvalidArgument` naming the backend limitation; no existing search changes behavior.
 
 - ✅ Storage interface: `Reader.FindSpans`, `SpanQueryParams`, `SpanPage`, `UnsupportedSpanSearch`, `SearchCapabilities.SpanSearch`, every backend embedding the mixin, and the `find_spans` read metrics. Delivered in [#9578](https://github.com/jaegertracing/jaeger/pull/9578).
 - ✅ Replace `SpanPage` with RFC 0014's shared `PageChunk[ptrace.Traces]`. Delivered in [#9585](https://github.com/jaegertracing/jaeger/pull/9585).
 - ✅ Interceptor contract (§4.7): `queryinterceptor.SpanQuery`, `OnSpanQuery`, `OnSpanResult` and the `UnsupportedSpanSearch` mixin; the trace view and hooks renamed `TraceQuery`, `OnTraceQuery` and `OnTraceResult`, and `SearchDepth` removed from the view. Delivered in [#9597](https://github.com/jaegertracing/jaeger/pull/9597).
 - ✅ `querysvc.FindSpans` with parameter validation, the capability refusal, and the span interceptor hooks. Delivered in [#9581](https://github.com/jaegertracing/jaeger/pull/9581).
-- The api_v3 gRPC `FindSpans` handler.
-- The `GET /api/v3/spans` HTTP route and its query parameters.
+- ✅ The api_v3 gRPC `FindSpans` handler and the `GET /api/v3/spans` HTTP route and its query parameters. Pagination is decoded and refused rather than wired through: `tracestore.SpanQueryParams` has no field to carry it yet, so honoring it would silently return every match instead of the page the caller asked for; that remains open for a later milestone. Delivered in #TODO.
 
 **M3 — memory backend.** The first reader to declare `SpanSearch=true`, and the cross-backend conformance test that asserts the refusal on the others. *Exit:* an end-to-end span query works in the all-in-one distribution; the conformance test passes on every backend, serving or refusing.
 

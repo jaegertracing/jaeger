@@ -119,6 +119,59 @@ func traceQueryParams(query *api_v3.TraceQueryParameters) (querysvc.TraceQueryPa
 	return queryParams, nil
 }
 
+// FindSpans implements api_v3.QueryServiceServer's FindSpans
+func (h *Handler) FindSpans(request *api_v3.FindSpansRequest, stream api_v3.QueryService_FindSpansServer) error {
+	queryParams, err := spanQueryParams(request.GetQuery())
+	if err != nil {
+		return err
+	}
+
+	for chunk, err := range h.QueryService.FindSpans(stream.Context(), queryParams) {
+		if err != nil {
+			return asStatusError(err)
+		}
+		spans := jptrace.TracesData(chunk.Results)
+		response := &api_v3.FindSpansResponse{
+			Spans:         &spans,
+			NextPageToken: chunk.NextPageToken,
+		}
+		if err := stream.Send(response); err != nil {
+			return status.Errorf(codes.Internal, "failed to send response stream chunk to client: %v", err)
+		}
+	}
+	return nil
+}
+
+// spanQueryParams converts a proto SpanQueryParameters to querysvc.SpanQueryParams, validating
+// that the required time range fields are present. Pagination is refused rather than silently
+// dropped: tracestore.SpanQueryParams has no field to carry it yet, so honoring the proto field
+// would return every match instead of the page the caller asked for.
+func spanQueryParams(query *api_v3.SpanQueryParameters) (querysvc.SpanQueryParams, error) {
+	if query == nil {
+		return querysvc.SpanQueryParams{}, status.Error(codes.InvalidArgument, "missing query")
+	}
+	if query.GetStartTimeMin().IsZero() || query.GetStartTimeMax().IsZero() {
+		return querysvc.SpanQueryParams{}, status.Error(codes.InvalidArgument, "start time min and max are required parameters")
+	}
+	if query.GetPagination() != nil {
+		return querysvc.SpanQueryParams{}, status.Error(codes.InvalidArgument, "pagination is not yet supported for span search")
+	}
+	queryParams := querysvc.SpanQueryParams{
+		SpanQueryParams: tracestore.SpanQueryParams{
+			StartTimeMin: query.GetStartTimeMin(),
+			StartTimeMax: query.GetStartTimeMax(),
+		},
+	}
+	if protoFilter := query.GetFilter(); protoFilter != nil {
+		filter, err := expressionproto.FromProto(protoFilter)
+		if err != nil {
+			return querysvc.SpanQueryParams{}, status.Error(codes.InvalidArgument, err.Error())
+		}
+		queryParams.Filter = filter
+	}
+	return queryParams, nil
+}
+
 // FindTraceSummaries implements api_v3.QueryServiceServer's FindTraceSummaries
 func (h *Handler) FindTraceSummaries(request *api_v3.FindTraceSummariesRequest, stream api_v3.QueryService_FindTraceSummariesServer) error {
 	queryParams, err := traceQueryParams(request.GetQuery())

@@ -307,6 +307,124 @@ func TestParseFindTracesQuery_Filter(t *testing.T) {
 	})
 }
 
+func TestParseFindSpansQuery(t *testing.T) {
+	tMin := time.Now().Add(-time.Hour).UTC().Truncate(time.Nanosecond)
+	tMax := time.Now().UTC().Truncate(time.Nanosecond)
+	goodMin := tMin.Format(time.RFC3339Nano)
+	goodMax := tMax.Format(time.RFC3339Nano)
+
+	t.Run("time range only", func(t *testing.T) {
+		q := url.Values{}
+		q.Set(paramTimeMin, goodMin)
+		q.Set(paramTimeMax, goodMax)
+
+		got, err := parseFindSpansQuery(q)
+		require.NoError(t, err)
+		assert.Equal(t, tMin, got.StartTimeMin)
+		assert.Equal(t, tMax, got.StartTimeMax)
+		assert.Nil(t, got.Filter)
+	})
+
+	t.Run("deprecated snake_case time params", func(t *testing.T) {
+		q := url.Values{}
+		q.Set(paramTimeMinDeprecated, goodMin)
+		q.Set(paramTimeMaxDeprecated, goodMax)
+
+		got, err := parseFindSpansQuery(q)
+		require.NoError(t, err)
+		assert.Equal(t, tMin, got.StartTimeMin)
+		assert.Equal(t, tMax, got.StartTimeMax)
+	})
+
+	t.Run("a filter", func(t *testing.T) {
+		q := url.Values{}
+		q.Set(paramTimeMin, goodMin)
+		q.Set(paramTimeMax, goodMax)
+		q.Set(paramFilter, `{"op":"eq","args":[
+			{"attr":{"key":"http.route","level":"span"}},{"scalar":{"value":"/cart"}}]}`)
+
+		got, err := parseFindSpansQuery(q)
+		require.NoError(t, err)
+		assert.Equal(t, &expression.Call{Op: expression.OpEq, Args: []expression.Expression{
+			&expression.AttributeRef{Key: "http.route", Level: expression.LevelSpan},
+			&expression.AnyValue{Value: "/cart"},
+		}}, got.Filter)
+	})
+
+	t.Run("malformed filter JSON", func(t *testing.T) {
+		q := url.Values{}
+		q.Set(paramTimeMin, goodMin)
+		q.Set(paramTimeMax, goodMax)
+		q.Set(paramFilter, `{"op":"eq",`)
+
+		_, err := parseFindSpansQuery(q)
+		require.ErrorContains(t, err, "malformed parameter query.filter")
+	})
+
+	t.Run("missing time range", func(t *testing.T) {
+		_, err := parseFindSpansQuery(url.Values{})
+		require.ErrorContains(t, err, "query.startTimeMin and query.startTimeMax are required")
+	})
+
+	t.Run("start not before end", func(t *testing.T) {
+		q := url.Values{}
+		q.Set(paramTimeMin, goodMax)
+		q.Set(paramTimeMax, goodMin)
+
+		_, err := parseFindSpansQuery(q)
+		require.ErrorContains(t, err, "query.startTimeMin must be before query.startTimeMax")
+	})
+
+	t.Run("malformed min time", func(t *testing.T) {
+		q := url.Values{}
+		q.Set(paramTimeMin, "not-a-time")
+		q.Set(paramTimeMax, goodMax)
+
+		_, err := parseFindSpansQuery(q)
+		require.ErrorContains(t, err, "malformed parameter query.startTimeMin")
+	})
+
+	t.Run("malformed max time", func(t *testing.T) {
+		q := url.Values{}
+		q.Set(paramTimeMin, goodMin)
+		q.Set(paramTimeMax, "not-a-time")
+
+		_, err := parseFindSpansQuery(q)
+		require.ErrorContains(t, err, "malformed parameter query.startTimeMax")
+	})
+
+	t.Run("undecodable filter", func(t *testing.T) {
+		q := url.Values{}
+		q.Set(paramTimeMin, goodMin)
+		q.Set(paramTimeMax, goodMax)
+		q.Set(paramFilter, `{"op":"eq","args":[{"attr":{"key":"a"}},{}]}`)
+
+		_, err := parseFindSpansQuery(q)
+		require.ErrorContains(t, err, "malformed parameter query.filter")
+		require.ErrorContains(t, err, "filter argument is empty")
+	})
+
+	t.Run("page size rejected", func(t *testing.T) {
+		q := url.Values{}
+		q.Set(paramTimeMin, goodMin)
+		q.Set(paramTimeMax, goodMax)
+		q.Set(paramPageSize, "10")
+
+		_, err := parseFindSpansQuery(q)
+		require.ErrorContains(t, err, "pagination is not yet supported for span search")
+	})
+
+	t.Run("page token rejected", func(t *testing.T) {
+		q := url.Values{}
+		q.Set(paramTimeMin, goodMin)
+		q.Set(paramTimeMax, goodMax)
+		q.Set(paramPageToken, "opaque-cursor")
+
+		_, err := parseFindSpansQuery(q)
+		require.ErrorContains(t, err, "pagination is not yet supported for span search")
+	})
+}
+
 func TestGetQueryParam(t *testing.T) {
 	q := url.Values{}
 	q.Set("canonical", "c-val")
