@@ -135,12 +135,9 @@ func TestPrepareSearchQuery_PageSizeClampedToMax(t *testing.T) {
 	assert.Equal(t, tracestore.MaxPageSize, next.gotSummaryQuery.Pagination.PageSize)
 }
 
-// TestPrepareSearchQuery_PageSizeFoldedIntoSearchDepthWhenUnsupported pins the fix for a real
-// bug Copilot found: a page-size-only request against a reader that cannot paginate used to
-// return before the capability round trip at all, so it reached the reader with SearchDepth == 0
-// and a Pagination field that reader does not consume — effectively unbounded. PageSize is now
-// folded into SearchDepth and Pagination cleared (PaginationForCapabilities), so every reader in
-// the fleet today, which only understands SearchDepth, actually honors the requested bound.
+// TestPrepareSearchQuery_PageSizeFoldedIntoSearchDepthWhenUnsupported checks that a page-size-only
+// request against a reader that cannot paginate still reaches it bounded: PageSize is folded into
+// SearchDepth and Pagination is cleared.
 func TestPrepareSearchQuery_PageSizeFoldedIntoSearchDepthWhenUnsupported(t *testing.T) {
 	enablePagination(t)
 	next := &fakeReader{summaries: []tracestore.TraceSummary{{RootServiceName: "svc"}}}
@@ -217,14 +214,9 @@ func TestPrepareSearchQuery_PageTokenAcceptedWhenSupported(t *testing.T) {
 	assert.Equal(t, 20, next.gotSummaryQuery.Pagination.PageSize)
 }
 
-// TestPagination_SurvivesInterceptorFilterRewrite pins another Copilot finding: onQuery rebuilds
-// TraceQueryParams via fromInterceptorTraceQuery whenever an interceptor's Filter output differs
-// from what went in (or the query already carried a Filter). fromInterceptorTraceQuery carries
-// SearchDepth and Pagination through from the pre-interceptor query rather than from the
-// interceptor's own TraceQuery view — the queryinterceptor contract does not expose either field
-// to an interceptor at all (an interceptor gates what data may be read, not how much of it comes
-// back per page) — so this pins that the carry-through survives the reconstruction rather than
-// silently dropping Pagination the way the pre-fix code did.
+// TestPagination_SurvivesInterceptorFilterRewrite checks that Pagination is carried through when
+// onQuery rebuilds the query around an interceptor's rewritten filter. The interceptor contract
+// does not expose Pagination, so it has to come from the pre-interceptor query.
 func TestPagination_SurvivesInterceptorFilterRewrite(t *testing.T) {
 	enablePagination(t)
 	enableStructuredFilters(t)

@@ -209,9 +209,7 @@ func (qs QueryService) FindTraces(
 	query TraceQueryParams,
 ) iter.Seq2[[]ptrace.Traces, error] {
 	return func(yield func([]ptrace.Traces, error) bool) {
-		// FindTraces streams whole traces with no field to carry a continuation token, so a
-		// Pagination is refused here, before prepareSearchQuery — which FindTraceSummaries
-		// shares and which does admit Pagination — ever sees it (RFC 0014 §4).
+		// The FindTraces response has no field for a continuation token (RFC 0014 §4).
 		if query.Pagination != (tracestore.Pagination{}) {
 			yield(nil, tracestore.ErrPaginationUnsupportedByFindTraces)
 			return
@@ -260,15 +258,11 @@ func (qs QueryService) prepareSearchQuery(
 		return ctx, query, err
 	}
 	if query.Pagination != (tracestore.Pagination{}) {
-		// None of these refusals depends on the backend, so they come before any capability
-		// call. A page size replaces the search depth rather than falling back to it (RFC 0014
-		// §4), so the two bounds have no single honest meaning together; normalizeEnvelope
-		// leaves SearchDepth alone whenever Pagination is set so that a caller who sent only a
-		// page size is not tripped by the default.
 		if !PaginationGate.IsEnabled() {
 			return ctx, query, fmt.Errorf("%w: enable the %q feature gate to use it",
 				ErrPaginationDisabled, PaginationGate.ID())
 		}
+		// A page size replaces the search depth rather than falling back to it (RFC 0014 §4).
 		if query.SearchDepth != 0 {
 			return ctx, query, fmt.Errorf("%w: it cannot be combined with search depth",
 				tracestore.ErrPaginationInvalid)
@@ -277,8 +271,7 @@ func (qs QueryService) prepareSearchQuery(
 			return ctx, query, fmt.Errorf("%w: page size is required whenever pagination is present",
 				tracestore.ErrPaginationInvalid)
 		}
-		// A page size over the maximum is clamped down rather than refused (RFC 0014 §4), the
-		// way AIP-158 prescribes, since the caller loses nothing but has to ask again sooner.
+		// An oversized page is clamped rather than refused (RFC 0014 §4, AIP-158).
 		query.Pagination.PageSize = min(query.Pagination.PageSize, tracestore.MaxPageSize)
 	}
 	if query.Filter != nil {
@@ -306,15 +299,12 @@ func (qs QueryService) prepareSearchQuery(
 			return ctx, query, err
 		}
 	}
-	// Pagination needs the same capability round trip a Filter does, to learn whether this
-	// reader can honor it (RFC 0014 §6.2) — not only when a PageToken is present, but for a
-	// page-size-only request too, since a reader that cannot paginate has no field of its own
-	// to read PageSize from and needs it folded into SearchDepth before dispatch. ForCapabilities
-	// applies both, so this needs one capability fetch and one call rather than one of each.
 	if query.Filter == nil && query.Pagination == (tracestore.Pagination{}) {
 		return ctx, query, qs.checkServiceName(ctx, query)
 	}
 	caps := qs.readerSearchCapabilitiesOrDefault(ctx)
+	// The filter is settled before the service name is checked, because a filter can name the
+	// service itself and rewriting it is what moves that into ServiceName.
 	prepared, err := query.ForCapabilities(caps)
 	if err != nil {
 		return ctx, query, err

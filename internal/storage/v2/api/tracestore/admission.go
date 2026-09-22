@@ -16,20 +16,7 @@ import (
 // declare it can evaluate (RFC 0005 §7). The checks live here, beside the query type and the
 // capability declaration, so each wire runs the same ones rather than its own.
 
-// paginationForCapabilities gives the Reader Pagination in whichever shape it can honor,
-// immediately before dispatch, the way ForCapabilities does for Filter. A Reader that declares
-// Paginated gets Pagination as sent: it has its own field to read PageSize from. A Reader that
-// does not has no such field, so PageSize is folded into SearchDepth, the bound every Reader
-// already reads, and Pagination is cleared, so the query still reaches storage bounded rather
-// than as an unbounded search with SearchDepth left at zero. A PageToken is never folded: a
-// Reader that cannot paginate cannot have minted it, so it is refused (RFC 0014 §6.2) rather
-// than silently started over as a new search.
-//
-// It answers only that question. Whether the request is one this deployment accepts at all,
-// and whether Pagination is well-formed on its own terms, are the query service's to settle
-// first. Unexported: every caller applies it together with the Filter half below, through
-// ForCapabilities, so there is nothing for a caller outside this package to reach it for on
-// its own.
+// paginationForCapabilities is the Pagination half of ForCapabilities.
 func (q TraceQueryParams) paginationForCapabilities(caps SearchCapabilities) (TraceQueryParams, error) {
 	if q.Pagination == (Pagination{}) || caps.Paginated {
 		return q, nil
@@ -72,19 +59,15 @@ func (q TraceQueryParams) EnsureFilterStandsAlone() error {
 		ErrFilterInvalid, set)
 }
 
-// ForCapabilities gives the Reader Pagination and Filter each in whichever shape it can honor,
-// immediately before dispatch. The two live on one method because every caller applies both
-// together, in this order, so two separate calls bought nothing beyond duplicated error handling
-// at each call site.
+// ForCapabilities gives the Reader Pagination and Filter each in whichever shape it declared it
+// can honor, immediately before dispatch.
 //
-// For Pagination: a Reader that declares Paginated gets Pagination as sent, since it has its own
-// field to read PageSize from. A Reader that does not has no such field, so PageSize is folded
-// into SearchDepth, the bound every Reader already reads, and Pagination is cleared, so the query
-// still reaches storage bounded rather than as an unbounded search with SearchDepth left at zero.
-// A PageToken is never folded: a Reader that cannot paginate cannot have minted it, so it is
-// refused (RFC 0014 §6.2) rather than silently started over as a new search.
+// A Reader that declares Paginated gets Pagination as sent. One that does not has no field to
+// read PageSize from, so PageSize is folded into SearchDepth and Pagination is cleared, which
+// keeps the search bounded. A PageToken is never folded: a Reader that cannot paginate cannot
+// have minted it, so the query is refused (RFC 0014 §6.2) rather than restarted as a new search.
 //
-// For Filter: a Reader that declares filter support gets the filter itself, once every level and
+// A Reader that declares filter support gets the filter itself, once every level and
 // operator it uses is one that Reader listed. A Reader that declares none gets the filter rewritten
 // into the legacy predicate fields, which carry the equalities and inclusive duration bounds and
 // nothing else (ToLegacyShape), or a refusal where they cannot carry it.
