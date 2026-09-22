@@ -231,7 +231,12 @@ func interceptedService(next tracestore.Reader, interceptors ...queryinterceptor
 
 // searchQuery asks for raw traces, so that the batches a test asserts on are the ones the reader
 // yielded and the interceptor rewrote, rather than the aggregated traces built from them.
+// searchQuery wraps a reader query for a test about something other than its envelope, so it
+// fills in the time range every search must carry unless the test set one itself.
 func searchQuery(q tracestore.TraceQueryParams) TraceQueryParams {
+	if q.StartTimeMin.IsZero() && q.StartTimeMax.IsZero() {
+		q.StartTimeMin, q.StartTimeMax = testWindowStart, testWindowEnd
+	}
 	return TraceQueryParams{TraceQueryParams: q, RawTraces: true}
 }
 

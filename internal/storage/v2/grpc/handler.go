@@ -125,7 +125,7 @@ func (h *Handler) FindTraces(
 	if req.GetQuery().GetPagination() != nil {
 		return status.Error(codes.InvalidArgument, tracestore.ErrPaginationUnsupportedByFindTraces.Error())
 	}
-	query, err := toTraceQueryParams(req.Query)
+	query, err := h.toTraceQueryParams(req.Query)
 	if err != nil {
 		return err
 	}
@@ -148,7 +148,7 @@ func (h *Handler) FindTraceSummaries(
 	req *storage.FindTraceSummariesRequest,
 	srv storage.TraceReader_FindTraceSummariesServer,
 ) error {
-	query, err := toTraceQueryParams(req.Query)
+	query, err := h.toTraceQueryParams(req.Query)
 	if err != nil {
 		return err
 	}
@@ -202,7 +202,7 @@ func (h *Handler) FindTraceIDs(
 ) (*storage.FindTraceIDsResponse, error) {
 	foundTraceIDs := []*storage.FoundTraceID{}
 	var nextPageToken string
-	query, err := toTraceQueryParams(req.Query)
+	query, err := h.toTraceQueryParams(req.Query)
 	if err != nil {
 		return nil, err
 	}
@@ -298,27 +298,16 @@ func (h *Handler) GetCapabilities(
 	}, nil
 }
 
-// toTraceQueryParams decodes a query a caller sent over the wire into the Go type the reader
-// behind this handler takes. The caller is querysvc.prepareSearchQuery on the other end of this
-// same tracestore.Reader (the grpc client this handler serves is what querysvc's traceReader is,
-// for a deployment that splits query and storage into separate processes), and that is where
-// capability-dependent shaping happens: it already fetched this same reader's SearchCapabilities
-// and ran ForCapabilities before ever serializing the query onto the wire, so Filter and
-// Pagination arrive here already in whichever shape the reader declared it can take, one place
-// deciding rather than every handler its own (ADR-013). Redoing that here, against the same
-// capabilities, would only repeat the answer.
-//
-// What still happens here is translation and structural validation that has to happen wherever a
-// wire message becomes this type, regardless of who sent it: proto decoding validates nothing, so
-// the filter is finalized (RFC 0005 §7) and Pagination's scalars are decoded through
-// DecodePagination; and a query combining a filter or Pagination with something it is mutually
-// exclusive with is refused rather than left for the reader to answer one of them without saying
-// which.
-//
-// A refusal is InvalidArgument, because each is something the caller has to change.
-func toTraceQueryParams(
-	t *storage.TraceQueryParameters,
-) (tracestore.TraceQueryParams, error) {
+// toTraceQueryParams translates a wire query into the reader's shape. It also finalizes the
+// filter, because the decoder only builds the tree and does not validate it, and it decodes
+// Pagination's scalars through DecodePagination; a query that carries a filter or Pagination
+// alongside something either is mutually exclusive with is refused (RFC 0005 §7). Both refusals
+// are InvalidArgument. It does not consult the reader's capabilities: converting a query toward
+// what the reader supports is the query service's job (ADR-013) — querysvc.prepareSearchQuery,
+// on the other end of this same tracestore.Reader, already did that before ever serializing the
+// query onto the wire, so redoing it here against the same capabilities would only repeat the
+// answer.
+func (*Handler) toTraceQueryParams(t *storage.TraceQueryParameters) (tracestore.TraceQueryParams, error) {
 	filter, err := expressionproto.FromProto(t.GetFilter())
 	if err == nil && filter != nil {
 		filter, err = tracestore.FinalizeFilter(filter)

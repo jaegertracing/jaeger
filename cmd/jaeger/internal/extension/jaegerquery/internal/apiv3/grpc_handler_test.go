@@ -298,8 +298,10 @@ func TestTraceQueryParamsSearchDepth(t *testing.T) {
 		searchDepth int32
 		expected    int
 	}{
-		{name: "unset defaults", searchDepth: 0, expected: defaultSearchDepth},
-		{name: "negative defaults", searchDepth: -1, expected: defaultSearchDepth},
+		// The handler translates; the query service applies the default and refuses a negative
+		// value, so both reach it as sent.
+		{name: "unset passes through", searchDepth: 0, expected: 0},
+		{name: "negative passes through", searchDepth: -1, expected: -1},
 		{name: "explicit value preserved", searchDepth: 42, expected: 42},
 	}
 	for _, test := range tests {
@@ -364,7 +366,7 @@ func TestFindTracesDefaultsSearchDepth(t *testing.T) {
 	// gateway. Some backends (e.g. the in-memory store) reject a literal 0.
 	tsc := newTestServerClient(t)
 	tsc.reader.On("FindTraces", matchContext, mock.MatchedBy(func(q tracestore.TraceQueryParams) bool {
-		return q.SearchDepth == defaultSearchDepth
+		return q.SearchDepth == querysvc.DefaultSearchDepth
 	})).
 		Return(iter.Seq2[[]ptrace.Traces, error](func(yield func([]ptrace.Traces, error) bool) {
 			yield([]ptrace.Traces{makeTestTrace()}, nil)
@@ -429,7 +431,7 @@ func TestFindTracesQueryNil(t *testing.T) {
 	})
 	require.NoError(t, err)
 	recv, err = responseStream.Recv()
-	require.ErrorContains(t, err, "start time min and max are required parameters")
+	require.ErrorContains(t, err, "start_time_min and start_time_max are required")
 	assert.Equal(t, codes.InvalidArgument, status.Code(err))
 	assert.Nil(t, recv)
 }
@@ -556,7 +558,7 @@ func TestFindTraceSummariesQueryNil(t *testing.T) {
 	})
 	require.NoError(t, err)
 	recv, err = responseStream.Recv()
-	require.ErrorContains(t, err, "start time min and max are required parameters")
+	require.ErrorContains(t, err, "start_time_min and start_time_max are required")
 	assert.Equal(t, codes.InvalidArgument, status.Code(err))
 	assert.Nil(t, recv)
 }

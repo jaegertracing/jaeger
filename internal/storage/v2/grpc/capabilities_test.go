@@ -17,6 +17,7 @@ import (
 	"github.com/jaegertracing/jaeger/internal/proto-gen/storage/v2"
 	expressionproto "github.com/jaegertracing/jaeger/internal/proto/expression/v1"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore"
+	tracestoremocks "github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore/mocks"
 )
 
 // TestQueryParametersCarryTheFilter pins the filter onto the query parameters themselves,
@@ -32,14 +33,14 @@ func TestQueryParametersCarryTheFilter(t *testing.T) {
 	encoded, err := expressionproto.ToProto(filter)
 	require.NoError(t, err)
 	assert.Equal(t, encoded, sent.GetFilter())
-	decoded, err := toTraceQueryParams(sent)
+	decoded, err := NewHandler(new(tracestoremocks.Reader), nil, nil).toTraceQueryParams(sent)
 	require.NoError(t, err)
 	assert.Equal(t, filter, decoded.Filter)
 
 	noFilter, err := toProtoQueryParameters(tracestore.TraceQueryParams{Attributes: pcommon.NewMap()})
 	require.NoError(t, err)
 	assert.Nil(t, noFilter.GetFilter())
-	decodedNoFilter, err := toTraceQueryParams(noFilter)
+	decodedNoFilter, err := NewHandler(new(tracestoremocks.Reader), nil, nil).toTraceQueryParams(noFilter)
 	require.NoError(t, err)
 	assert.Nil(t, decodedNoFilter.Filter)
 }
@@ -47,7 +48,8 @@ func TestQueryParametersCarryTheFilter(t *testing.T) {
 // TestRemoteIngress_RefusesAMixedQuery pins the mutual exclusion at the remote boundary. A client
 // reaching this server directly bypasses the query service, so the invariant is checked here too:
 // a query carrying both filtering models would otherwise reach the reader, which would answer one of
-// them without saying which.
+// them without saying which. The filter itself is passed on as sent, whatever the reader declared,
+// because converting it toward the reader's capabilities is the query service's job (ADR-013).
 func TestRemoteIngress_RefusesAMixedQuery(t *testing.T) {
 	filter, err := expressionproto.ToProto(&expression.Call{
 		Op: expression.OpEq,
@@ -68,7 +70,7 @@ func TestRemoteIngress_RefusesAMixedQuery(t *testing.T) {
 	}
 	for name, query := range tests {
 		t.Run(name, func(t *testing.T) {
-			_, err := toTraceQueryParams(query)
+			_, err := NewHandler(new(tracestoremocks.Reader), nil, nil).toTraceQueryParams(query)
 			require.Error(t, err)
 			assert.Equal(t, codes.InvalidArgument, status.Code(err))
 			assert.Contains(t, err.Error(), "it cannot be combined with")
@@ -144,7 +146,7 @@ func TestQueryParametersCarryPagination(t *testing.T) {
 	assert.Equal(t, uint32(25), sent.GetPagination().GetPageSize())
 	assert.Equal(t, "opaque-cursor", sent.GetPagination().GetPageToken())
 
-	decoded, err := toTraceQueryParams(sent)
+	decoded, err := NewHandler(new(tracestoremocks.Reader), nil, nil).toTraceQueryParams(sent)
 	require.NoError(t, err)
 	assert.Equal(t, tracestore.Pagination{PageSize: 25, PageToken: "opaque-cursor"}, decoded.Pagination)
 	assert.Zero(t, decoded.SearchDepth, "Pagination replaces search_depth rather than setting it")
@@ -154,7 +156,7 @@ func TestQueryParametersCarryPagination(t *testing.T) {
 // is clamped down rather than refused, the treatment RFC 0014 §4 (and AIP-158) prescribes. This
 // happens in DecodePagination itself, independent of the reader's capabilities.
 func TestToTraceQueryParams_PageSizeClampedToMax(t *testing.T) {
-	decoded, err := toTraceQueryParams(&storage.TraceQueryParameters{
+	decoded, err := NewHandler(new(tracestoremocks.Reader), nil, nil).toTraceQueryParams(&storage.TraceQueryParameters{
 		Pagination: &storage.Pagination{PageSize: tracestore.MaxPageSize + 1000},
 	})
 	require.NoError(t, err)
@@ -164,7 +166,7 @@ func TestToTraceQueryParams_PageSizeClampedToMax(t *testing.T) {
 // TestToTraceQueryParams_RejectsPaginationWithSearchDepth pins RFC 0014 §4's mutual exclusivity
 // at the storage/v2 boundary: a query that sets both has not said how many results it wants.
 func TestToTraceQueryParams_RejectsPaginationWithSearchDepth(t *testing.T) {
-	_, err := toTraceQueryParams(&storage.TraceQueryParameters{
+	_, err := NewHandler(new(tracestoremocks.Reader), nil, nil).toTraceQueryParams(&storage.TraceQueryParameters{
 		SearchDepth: 20,
 		Pagination:  &storage.Pagination{PageSize: 10},
 	})
@@ -180,7 +182,7 @@ func TestToTraceQueryParams_RejectsPaginationWithSearchDepth(t *testing.T) {
 // GetPagination() != nil still distinguishes "sent, empty" from "not sent" — a check on the Go
 // value afterward cannot.
 func TestToTraceQueryParams_RejectsEmptyPagination(t *testing.T) {
-	_, err := toTraceQueryParams(&storage.TraceQueryParameters{
+	_, err := NewHandler(new(tracestoremocks.Reader), nil, nil).toTraceQueryParams(&storage.TraceQueryParameters{
 		Pagination: &storage.Pagination{},
 	})
 	require.Error(t, err)
