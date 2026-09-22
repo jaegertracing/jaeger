@@ -962,7 +962,7 @@ func TestFindTracesRefusedByQueryService_GRPC(t *testing.T) {
 	}{
 		"no time range": {
 			query:   &api_v2.TraceQueryParameters{ServiceName: "service"},
-			wantErr: "start_time_min and start_time_max are required",
+			wantErr: "min and max start time are required",
 		},
 		"negative search depth": {
 			query: &api_v2.TraceQueryParameters{
@@ -971,7 +971,7 @@ func TestFindTracesRefusedByQueryService_GRPC(t *testing.T) {
 				StartTimeMax: time.Now(),
 				SearchDepth:  -1,
 			},
-			wantErr: "search_depth must be in [0, 10000]",
+			wantErr: "search depth must be in [0, 10000]",
 		},
 		"search depth above the maximum": {
 			query: &api_v2.TraceQueryParameters{
@@ -980,7 +980,7 @@ func TestFindTracesRefusedByQueryService_GRPC(t *testing.T) {
 				StartTimeMax: time.Now(),
 				SearchDepth:  tracestore.MaxSearchDepth + 1,
 			},
-			wantErr: "search_depth must be in [0, 10000]",
+			wantErr: "search depth must be in [0, 10000]",
 		},
 	}
 	for name, test := range tests {

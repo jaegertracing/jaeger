@@ -520,12 +520,12 @@ func TestSearchTracesHandler_Handle_EnvelopeRefusedByQueryService(t *testing.T) 
 		{
 			name:    "start_time_max before start_time_min",
 			input:   types.SearchTracesInput{StartTimeMin: "-1h", StartTimeMax: "-2h", ServiceName: "test"},
-			wantErr: "start_time_min must be before start_time_max",
+			wantErr: "min start time must be before max start time",
 		},
 		{
 			name:    "duration_max less than duration_min",
 			input:   types.SearchTracesInput{StartTimeMin: "-1h", ServiceName: "test", DurationMin: "10s", DurationMax: "5s"},
-			wantErr: "duration_max cannot be less than duration_min",
+			wantErr: "max duration cannot be less than min duration",
 		},
 		{
 			name:    "negative duration_min",

@@ -447,7 +447,7 @@ func TestHTTPGatewayFindTracesErrors(t *testing.T) {
 		gw := setupHTTPGatewayNoServer(t, "")
 		gw.router.ServeHTTP(w, r)
 		assert.Equal(t, http.StatusBadRequest, w.Code)
-		assert.Contains(t, w.Body.String(), "start_time_min and start_time_max are required")
+		assert.Contains(t, w.Body.String(), "min and max start time are required")
 	})
 	t.Run("span reader error", func(t *testing.T) {
 		q, qp := mockFindQueries()
@@ -665,7 +665,7 @@ func TestHTTPGatewayFindTraceSummariesInvalidQuery(t *testing.T) {
 	gw.router.ServeHTTP(w, r)
 
 	assert.Equal(t, http.StatusBadRequest, w.Code)
-	assert.Contains(t, w.Body.String(), "start_time_min and start_time_max are required")
+	assert.Contains(t, w.Body.String(), "min and max start time are required")
 }
 
 func TestTraceIDFromString(t *testing.T) {

@@ -971,19 +971,19 @@ func TestFindTraces_EnvelopeIsSettledOnce(t *testing.T) {
 	}{
 		"no time range": {
 			query:   tracestore.TraceQueryParams{Attributes: pcommon.NewMap(), ServiceName: "svc"},
-			wantErr: "start_time_min and start_time_max are required",
+			wantErr: "min and max start time are required",
 		},
 		"no start_time_max": {
 			query:   tracestore.TraceQueryParams{Attributes: pcommon.NewMap(), ServiceName: "svc", StartTimeMin: testWindowStart},
-			wantErr: "start_time_min and start_time_max are required",
+			wantErr: "min and max start time are required",
 		},
 		"inverted time range": {
 			query:   window(tracestore.TraceQueryParams{StartTimeMin: testWindowEnd, StartTimeMax: testWindowStart}),
-			wantErr: "start_time_min must be before start_time_max",
+			wantErr: "min start time must be before max start time",
 		},
 		"empty time range": {
 			query:   window(tracestore.TraceQueryParams{StartTimeMin: testWindowEnd, StartTimeMax: testWindowEnd}),
-			wantErr: "start_time_min must be before start_time_max",
+			wantErr: "min start time must be before max start time",
 		},
 		"negative duration_min": {
 			query:   window(tracestore.TraceQueryParams{DurationMin: -time.Second}),
@@ -995,15 +995,15 @@ func TestFindTraces_EnvelopeIsSettledOnce(t *testing.T) {
 		},
 		"inverted duration bounds": {
 			query:   window(tracestore.TraceQueryParams{DurationMin: 10 * time.Second, DurationMax: 5 * time.Second}),
-			wantErr: "duration_max cannot be less than duration_min",
+			wantErr: "max duration cannot be less than min duration",
 		},
 		"negative search depth": {
 			query:   window(tracestore.TraceQueryParams{SearchDepth: -1}),
-			wantErr: "search_depth must be in [0, 10000]",
+			wantErr: "search depth must be in [0, 10000]",
 		},
 		"search depth above the maximum": {
 			query:   window(tracestore.TraceQueryParams{SearchDepth: tracestore.MaxSearchDepth + 1}),
-			wantErr: "search_depth must be in [0, 10000]",
+			wantErr: "search depth must be in [0, 10000]",
 		},
 	}
 	for name, test := range refused {
