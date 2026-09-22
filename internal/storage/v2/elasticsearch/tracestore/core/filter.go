@@ -293,18 +293,11 @@ func (s *SpanReader) buildComparison(
 	}
 	switch {
 	case ref.isField(expression.LevelSpan, expression.SpanFieldName):
-		return buildTextComparison(operationNameField, op, ref, text)
+		return buildOrderedTextComparison(operationNameField, op, ref, text)
 	case ref.isField(expression.LevelResource, expression.ResourceFieldService):
 		return buildTextComparison(serviceNameField, op, ref, text)
 	case ref.isField(expression.LevelEvent, expression.EventFieldName):
-		// The event name is stored as the "event" entry of logs.fields rather than as a field of
-		// its own, so it shares the attribute lowering below, and with typed indexing on that
-		// lowering would range over the entry's numeric sub-field. The name is a text field in the
-		// query model, so ordering it is refused the way span.name and resource.service are.
-		if ordersValues(op) {
-			return nil, errUnorderedValue(op, ref)
-		}
-		return s.buildAttributeComparison(op, eventNameAsAttribute, text)
+		return s.buildEventNameComparison(op, ref, text)
 	default:
 		return nil, errUnsupportedField(ref)
 	}
@@ -400,6 +393,21 @@ func (s *SpanReader) buildAttributeComparison(
 		return nil, err
 	}
 	return s.attributeQuery(locations, ref.name, match), nil
+}
+
+// buildEventNameComparison compares the event name stored in the nested event attributes. Unlike
+// an attribute, an event name is declared as text, so its keyword representation can be ordered
+// lexicographically.
+func (s *SpanReader) buildEventNameComparison(
+	op expression.Operator,
+	ref reference,
+	value string,
+) (esquery.Query, error) {
+	match, err := textValueMatch(op, ref, value)
+	if err != nil {
+		return nil, err
+	}
+	return s.attributeQuery(attributeLocations[eventNameAsAttribute.level], eventNameKey, match), nil
 }
 
 // attributeQuery matches an attribute in every field its level keeps attributes in.
@@ -552,8 +560,8 @@ func termMatch(value string) valueMatch {
 	return func(field string) esquery.Query { return esquery.NewTermQuery(field, value) }
 }
 
-// buildTextComparison compares a built-in field held as a keyword — an operation name or a
-// service name — which supports equality and patterns but carries no order worth exposing.
+// buildTextComparison compares a built-in field held as a keyword — a service name — which
+// supports equality and patterns but carries no order worth exposing.
 func buildTextComparison(
 	field string,
 	op expression.Operator,
@@ -569,6 +577,42 @@ func buildTextComparison(
 			return nil, err
 		}
 		return match(field), nil
+	default:
+		return nil, errUnorderedValue(op, ref)
+	}
+}
+
+// buildOrderedTextComparison compares a built-in text field held as a keyword. Keyword range
+// queries compare lexicographically, which is the ordered comparison RFC 0005 defines for text.
+func buildOrderedTextComparison(
+	field string,
+	op expression.Operator,
+	ref reference,
+	value string,
+) (esquery.Query, error) {
+	match, err := textValueMatch(op, ref, value)
+	if err != nil {
+		return nil, err
+	}
+	return match(field), nil
+}
+
+// textValueMatch chooses how to compare a built-in text field. Keyword range queries compare
+// lexicographically, which is the ordered comparison RFC 0005 defines for text.
+func textValueMatch(op expression.Operator, ref reference, value string) (valueMatch, error) {
+	switch op {
+	case expression.OpEq:
+		return termMatch(value), nil
+	case expression.OpRegex:
+		return forThisEngine(value)
+	case expression.OpGt:
+		return func(field string) esquery.Query { return esquery.NewRangeQuery(field).Gt(value) }, nil
+	case expression.OpGte:
+		return func(field string) esquery.Query { return esquery.NewRangeQuery(field).Gte(value) }, nil
+	case expression.OpLt:
+		return func(field string) esquery.Query { return esquery.NewRangeQuery(field).Lt(value) }, nil
+	case expression.OpLte:
+		return func(field string) esquery.Query { return esquery.NewRangeQuery(field).Lte(value) }, nil
 	default:
 		return nil, errUnorderedValue(op, ref)
 	}
