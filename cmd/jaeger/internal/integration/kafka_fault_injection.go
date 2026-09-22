@@ -117,7 +117,8 @@ func injectServiceUnavailable(resp *http.Response) {
 }
 
 const (
-	// faultInjectionIndexPrefix is the index_prefix in config-kafka-ingester-sync.yaml.
+	// faultInjectionIndexPrefix is the index_prefix in config-kafka-ingester-sync.yaml
+	// and config-kafka-ingester-dead-letter.yaml.
 	faultInjectionIndexPrefix = "jaeger-main"
 	// faultInjectionSpanIndices matches the span indices the ingester writes.
 	faultInjectionSpanIndices = faultInjectionIndexPrefix + "-jaeger-span-*"
@@ -281,10 +282,7 @@ func (f *faultInjectionSteps) runOutage(t *testing.T, fault esFault, traceIDByte
 	defer f.proxy.setFault(esFaultNone)
 	trace := f.write(t, traceIDByte)
 
-	require.Eventually(t, func() bool {
-		logEnd, err := f.offsets.logEnd()
-		return err == nil && logEnd.advancedPast(logEndBefore)
-	}, time.Minute, time.Second, "the trace never reached Kafka")
+	f.requireInKafka(t, logEndBefore, "the trace never reached Kafka")
 	t.Logf("Trace is in Kafka; holding the fault for %v", outageHoldTime)
 	time.Sleep(outageHoldTime)
 
@@ -311,10 +309,24 @@ func (f *faultInjectionSteps) runOutage(t *testing.T, fault esFault, traceIDByte
 // unconsumed while the first one is retried.
 func (f *faultInjectionSteps) write(t *testing.T, traceIDByte byte) ptrace.Traces {
 	trace := buildFaultInjectionTrace(traceIDByte, MaxChunkSize)
+	f.send(t, trace)
+	return trace
+}
+
+// send hands a trace to the collector.
+func (f *faultInjectionSteps) send(t *testing.T, trace ptrace.Traces) {
 	ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
 	defer cancel()
 	require.NoError(t, f.collector.TraceWriter.WriteTraces(ctx, trace))
-	return trace
+}
+
+// requireInKafka waits until the log end has moved past the offsets read before a
+// write, which means the written record is in Kafka.
+func (f *faultInjectionSteps) requireInKafka(t *testing.T, logEndBefore partitionOffsets, msg string) {
+	require.Eventually(t, func() bool {
+		logEnd, err := f.offsets.logEnd()
+		return err == nil && logEnd.advancedPast(logEndBefore)
+	}, time.Minute, time.Second, msg)
 }
 
 // requireOffsets reads offsets with one of the kafkaOffsets readers and fails the
@@ -343,15 +355,27 @@ func (*faultInjectionSteps) storedSpanCount(t *testing.T, trace ptrace.Traces) i
 // its own _id. Callers invoke it once the offset has caught up, so nothing is still
 // in flight that could add a document after the count.
 func (f *faultInjectionSteps) requireStoredOnce(t *testing.T, trace ptrace.Traces) {
-	expected := trace.SpanCount()
+	f.requireStoredCount(t, trace, trace.SpanCount(), "trace %s must be stored exactly once")
+}
+
+// requireStoredCount waits until at least expected span documents of the trace are
+// indexed and then checks that exactly that many are: no duplicate from a retry,
+// and nothing missing. The message names the trace id.
+func (f *faultInjectionSteps) requireStoredCount(t *testing.T, trace ptrace.Traces, expected int, msg string) {
 	id := singleTraceID(trace)
 	require.Eventually(t, func() bool {
-		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-		defer cancel()
-		count, err := countSpanDocs(ctx, id)
+		count, err := f.countStored(id)
 		return err == nil && count >= expected
-	}, 2*time.Minute, time.Second, "trace %s never became fully indexed", id)
-	assert.Equal(t, expected, f.storedSpanCount(t, trace), "trace %s must be stored exactly once", id)
+	}, 2*time.Minute, time.Second, "trace %s never reached %d indexed spans", id, expected)
+	assert.Equal(t, expected, f.storedSpanCount(t, trace), msg, id)
+}
+
+// countStored counts the trace's span documents with a bounded timeout, for use in
+// a polling loop.
+func (*faultInjectionSteps) countStored(id pcommon.TraceID) (int, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	return countSpanDocs(ctx, id)
 }
 
 // requireOffsetCaughtUp waits until every partition's committed offset equals its

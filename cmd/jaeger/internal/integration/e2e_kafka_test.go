@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/collector/pdata/ptrace"
 
 	"github.com/jaegertracing/jaeger/internal/storage/integration"
@@ -200,5 +201,181 @@ func TestKafkaStorage_SyncElasticsearch_FaultInjection(t *testing.T) {
 		trace := f.write(t, 0x04)
 		f.requireOffsetCaughtUp(t)
 		f.requireStoredOnce(t, trace)
+	})
+}
+
+// TestKafkaStorage_SyncElasticsearch_PoisonDrop proves the RFC 0007 M5 `drop`
+// disposition end-to-end on the same pipeline as TestKafkaStorage_SyncElasticsearch:
+// a batch holding a span Elasticsearch rejects deterministically completes without
+// it, so the Kafka offset advances and the partition does not stall, and every
+// other span of the batch is stored exactly once.
+func TestKafkaStorage_SyncElasticsearch_PoisonDrop(t *testing.T) {
+	integration.SkipUnlessEnv(t, integration.StorageKafka)
+
+	uniqueTopic := fmt.Sprintf("jaeger-spans-sync-es-drop-%d", time.Now().UnixNano())
+	t.Logf("Using unique Kafka topic: %s", uniqueTopic)
+	envVarOverrides := map[string]string{
+		"KAFKA_TOPIC":    uniqueTopic,
+		"KAFKA_ENCODING": "otlp_proto",
+		"KAFKA_BROKER":   kafkaBroker(),
+	}
+
+	collector := &E2EStorageIntegration{
+		BinaryName:         "jaeger-v2-collector",
+		ConfigFile:         "../../config-kafka-collector.yaml",
+		SkipStorageCleaner: true,
+		EnvVarOverrides:    envVarOverrides,
+	}
+	collector.e2eInitialize(t, "kafka")
+	t.Log("Collector initialized")
+
+	ingester := &E2EStorageIntegration{
+		BinaryName:         "jaeger-v2-ingester",
+		ConfigFile:         "../../config-kafka-ingester-sync.yaml",
+		SkipStorageCleaner: true,
+		HealthCheckPort:    14133,
+		EnvVarOverrides:    envVarOverrides,
+	}
+	admin := newESAdmin(t)
+	t.Cleanup(func() { admin.deleteJaegerIndices(t, faultInjectionIndexPrefix+"-") })
+	ingester.e2eInitialize(t, "elasticsearch")
+	t.Log("Ingester initialized")
+
+	offsets := newKafkaOffsets(t, kafkaBroker(), faultInjectionConsumerGroup, uniqueTopic)
+	f := &faultInjectionSteps{collector: collector, offsets: offsets}
+
+	// The first record creates the topic; see writePoison.
+	t.Run("baseline", func(t *testing.T) {
+		trace := f.write(t, 0x01)
+		f.requireOffsetCaughtUp(t)
+		f.requireStoredOnce(t, trace)
+	})
+
+	t.Run("poison_dropped", func(t *testing.T) {
+		trace, _ := f.writePoison(t, 0x02)
+		f.requirePoisonStoredAround(t, trace)
+	})
+
+	t.Run("no_stall", func(t *testing.T) {
+		trace := f.write(t, 0x03)
+		f.requireOffsetCaughtUp(t)
+		f.requireStoredOnce(t, trace)
+	})
+}
+
+// TestKafkaStorage_SyncElasticsearch_DeadLetter proves the RFC 0007 M5 `dead_letter`
+// disposition end-to-end: Collector -> Kafka -> Ingester -> Elasticsearch, where the
+// ingester writes through the jaeger_storage_writer connector and a dead-letter
+// pipeline exports to an OTLP/HTTP endpoint the test runs. A span Elasticsearch
+// rejects deterministically is re-emitted to that endpoint, and only that span; the
+// rest of its batch is stored exactly once and the Kafka offset advances. The
+// fault-injecting proxy from TestKafkaStorage_SyncElasticsearch_FaultInjection then
+// shows the connector holds the offset through a transient outage the same way the
+// exporter does, because it wraps the exporter's sending queue and retry.
+func TestKafkaStorage_SyncElasticsearch_DeadLetter(t *testing.T) {
+	integration.SkipUnlessEnv(t, integration.StorageKafka)
+
+	proxy := newESFaultProxy(t, esBaseURL)
+	t.Logf("Elasticsearch fault proxy listening on %s", proxy.URL())
+	deadLetter := newDeadLetterServer(t)
+	t.Logf("Dead-letter OTLP/HTTP endpoint listening on %s", deadLetter.tracesURL())
+
+	uniqueTopic := fmt.Sprintf("jaeger-spans-sync-es-dead-letter-%d", time.Now().UnixNano())
+	t.Logf("Using unique Kafka topic: %s", uniqueTopic)
+	envVarOverrides := map[string]string{
+		"KAFKA_TOPIC":          uniqueTopic,
+		"KAFKA_ENCODING":       "otlp_proto",
+		"KAFKA_BROKER":         kafkaBroker(),
+		"ES_SERVER_URL":        proxy.URL(),
+		"DEAD_LETTER_ENDPOINT": deadLetter.tracesURL(),
+	}
+
+	collector := &E2EStorageIntegration{
+		BinaryName:         "jaeger-v2-collector",
+		ConfigFile:         "../../config-kafka-collector.yaml",
+		SkipStorageCleaner: true,
+		EnvVarOverrides:    envVarOverrides,
+	}
+	collector.e2eInitialize(t, "kafka")
+	t.Log("Collector initialized")
+
+	ingester := &E2EStorageIntegration{
+		BinaryName:         "jaeger-v2-ingester",
+		ConfigFile:         "../../config-kafka-ingester-dead-letter.yaml",
+		SkipStorageCleaner: true,
+		HealthCheckPort:    14133,
+		EnvVarOverrides:    envVarOverrides,
+	}
+	admin := newESAdmin(t)
+	t.Cleanup(func() { admin.deleteJaegerIndices(t, faultInjectionIndexPrefix+"-") })
+	ingester.e2eInitialize(t, "elasticsearch")
+	t.Log("Ingester initialized")
+
+	offsets := newKafkaOffsets(t, kafkaBroker(), faultInjectionConsumerGroup, uniqueTopic)
+	f := &faultInjectionSteps{collector: collector, proxy: proxy, offsets: offsets}
+
+	t.Run("baseline", func(t *testing.T) {
+		trace := f.write(t, 0x01)
+		f.requireOffsetCaughtUp(t)
+		f.requireStoredOnce(t, trace)
+		assert.Empty(t, deadLetter.received(), "a fully stored batch sends nothing to the dead-letter pipeline")
+	})
+
+	t.Run("poison_to_dead_letter", func(t *testing.T) {
+		receivedBefore := len(deadLetter.received())
+		trace, poisonSpanID := f.writePoison(t, 0x02)
+		f.requirePoisonStoredAround(t, trace)
+		// The connector sends the poison span once per attempt that sees only
+		// terminal rejections, so a transient hiccup in CI can deliver it twice.
+		// At-least-once is the guarantee; what must hold is that nothing but the
+		// poison span ever reaches the sink.
+		received := deadLetter.received()[receivedBefore:]
+		require.NotEmpty(t, received, "the poison span reaches the dead-letter pipeline")
+		for _, span := range received {
+			assert.Equal(t, singleTraceID(trace), span.TraceID())
+			assert.Equal(t, poisonSpanID, span.SpanID(), "only the poison span is re-emitted")
+			assert.Equal(t, poisonSpanFlags, span.Flags(), "the span is re-emitted as received, rejection and all")
+			reason, ok := span.Attributes().Get("jaeger.storage.rejection_reason")
+			require.True(t, ok, "the re-emitted span carries the backend's rejection reason")
+			assert.Contains(t, reason.Str(), "failed to parse field [flags]", "the reason names the field the mapping rejected")
+		}
+	})
+
+	t.Run("backend_down_holds_offset", func(t *testing.T) {
+		before := len(deadLetter.received())
+		f.runOutage(t, esFaultReject, 0x03, func(t *testing.T, trace ptrace.Traces) {
+			assert.Zero(t, f.storedSpanCount(t, trace), "no spans must be stored while _bulk is rejected")
+		})
+		assert.Len(t, deadLetter.received(), before, "a transient outage sends nothing to the dead-letter pipeline")
+	})
+
+	// The behavior only the connector has: a poison span the dead-letter sink will
+	// not take holds the offset (RFC 0007 §4.8 step 4), and lifting the outage lets
+	// the batch complete with the poison span delivered.
+	t.Run("sink_down_holds_offset", func(t *testing.T) {
+		f.requireOffsetCaughtUp(t)
+		committedBefore := requireOffsets(t, f.offsets.committed)
+		receivedBefore := len(deadLetter.received())
+		refusedBefore := deadLetter.refused()
+
+		deadLetter.refuse(true)
+		trace, poisonSpanID := f.writePoison(t, 0x04)
+		t.Logf("Poison trace is in Kafka; the dead-letter sink refuses exports for %v", outageHoldTime)
+		time.Sleep(outageHoldTime)
+
+		assert.Equal(t, committedBefore, requireOffsets(t, f.offsets.committed), "the offset must hold while the dead-letter sink refuses the poison span")
+		assert.Positive(t, deadLetter.refused()-refusedBefore, "the connector must have tried the sink while it refused")
+		assert.Len(t, deadLetter.received(), receivedBefore, "nothing reaches the sink while it refuses")
+		assert.Equal(t, trace.SpanCount()-1, f.storedSpanCount(t, trace), "the storage write came first: only the sink refusal holds the offset")
+
+		deadLetter.refuse(false)
+		t.Log("Dead-letter sink accepting again; waiting for recovery")
+		f.requirePoisonStoredAround(t, trace)
+		delivered := deadLetter.received()[receivedBefore:]
+		require.NotEmpty(t, delivered, "the poison span reaches the sink once it accepts")
+		for _, span := range delivered {
+			assert.Equal(t, singleTraceID(trace), span.TraceID(), "only this trace's poison span, not a late delivery from an earlier step")
+			assert.Equal(t, poisonSpanID, span.SpanID(), "only the poison span is re-emitted")
+		}
 	})
 }

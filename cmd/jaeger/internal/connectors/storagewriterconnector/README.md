@@ -17,7 +17,7 @@ Each span sent to the dead-letter pipeline is a copy of the input span with the 
 
 The named `trace_storage` must report the spans it rejects through `tracestore.RejectedSpansError`: for Elasticsearch/OpenSearch that is `write_mode: sync` with `poison_pill_handling: fail`. Against any other storage the connector writes exactly like `jaeger_storage_exporter` and nothing ever reaches the dead-letter pipeline; under `drop` the writer logs each discarded document instead.
 
-The dead-letter exporter must deliver synchronously (disable its `sending_queue`), otherwise it acknowledges a span the moment it is enqueued and the connector advances the offset before the sink has it.
+The dead-letter exporter must deliver synchronously (disable its `sending_queue`), otherwise it acknowledges a span the moment it is enqueued and the connector advances the offset before the sink has it. It must also refuse what it does not keep: `otlphttp` treats an OTLP partial-success response as success, so its endpoint has to accept a request whole or reject it, as the stock `otlp` receiver does, and a `kafka` exporter acknowledges only what the broker stored.
 
 ```yaml
 service:
@@ -72,3 +72,5 @@ exporters:
 ```
 
 An omitted `queue` field takes its zero value, not the exporterhelper default, so a `queue` block must spell out its sizing as above.
+
+See [`config-kafka-ingester-dead-letter.yaml`](../../../config-kafka-ingester-dead-letter.yaml) for the complete ingester configuration the Kafka end-to-end tests run against.
