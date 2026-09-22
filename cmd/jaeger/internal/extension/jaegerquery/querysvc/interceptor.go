@@ -65,12 +65,11 @@ func (qs QueryService) onTraceQuery(ctx context.Context, query TraceQueryParams)
 		}
 	}
 
-	// A legacy query whose predicates no interceptor touched reaches storage as it arrived, carrying
-	// only the time range one of them may have narrowed. Converting it anyway would
-	// change the answer on a backend that searches a legacy attribute more widely than an unqualified
-	// filter reference — Elasticsearch reads the legacy tag search over the event location too, while
-	// the filter's unqualified default is span-or-resource (RFC 0005 §5.1) — and enabling an
-	// interceptor must not move a result set by itself.
+	// A legacy query whose predicates no interceptor touched reaches storage in its legacy shape,
+	// with only the time range updated in case an interceptor narrowed it. Converting it to the
+	// filter shape anyway would change the answer on some backends: Elasticsearch searches a legacy
+	// tag over the event location too, while an unqualified filter reference defaults to span or
+	// resource only (RFC 0005 §5.1). Enabling an interceptor must not move a result set by itself.
 	if query.Filter == nil && reflect.DeepEqual(queryPostIntercept.Filter, queryPreIntercept.Filter) {
 		query.StartTimeMin = queryPostIntercept.StartTimeMin
 		query.StartTimeMax = queryPostIntercept.StartTimeMax
