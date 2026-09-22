@@ -149,6 +149,50 @@ func TestBuildFilterQuery(t *testing.T) {
 			filter: p.Resource().Service.Eq("cart"),
 		},
 		{
+			name:   "span.traceID is the top-level trace identifier keyword",
+			filter: p.Span().TraceID.Eq("0af7651916cd43dd8448eb211c80319c"),
+		},
+		{
+			name:   "span.spanID is the top-level span identifier keyword",
+			filter: p.Span().SpanID.Eq("b7ad6b7169203331"),
+		},
+		{
+			name:   "a regex on the trace identifier matches the keyword",
+			filter: p.Span().TraceID.Matches("0af7.*"),
+		},
+		{
+			name:   "an uppercase trace identifier is lowered to the hex the write path stores",
+			filter: p.Span().TraceID.Eq("0AF7651916CD43DD8448EB211C80319C"),
+		},
+		{
+			name:   "an uppercase span identifier is lowered in every member of in",
+			filter: p.Span().SpanID.In("B7AD6B7169203331", "00F067AA0BA902B7"),
+		},
+		{
+			name:   "an uppercase pattern on the trace identifier is lowered",
+			filter: p.Span().TraceID.Matches("0AF7[A-F].*"),
+		},
+		{
+			name:   "in on the span identifier is a disjunction of term queries",
+			filter: p.Span().SpanID.In("b7ad6b7169203331", "00f067aa0ba902b7"),
+		},
+		{
+			name:   "not_in on the trace identifier requires the identifier to be present",
+			filter: p.Span().TraceID.NotIn("0af7651916cd43dd8448eb211c80319c"),
+		},
+		{
+			name:   "ne on the span identifier requires the identifier to be present",
+			filter: p.Span().SpanID.Ne("b7ad6b7169203331"),
+		},
+		{
+			name:   "exists on the trace identifier",
+			filter: p.Span().TraceID.Exists(),
+		},
+		{
+			name:   "exists on the span identifier",
+			filter: p.Span().SpanID.Exists(),
+		},
+		{
 			name:   "span.duration compares microseconds against a value carrying its unit",
 			filter: p.Span().Duration.Gt("2s"),
 		},
@@ -461,6 +505,18 @@ func TestBuildFilterQueryRefused(t *testing.T) {
 			filter:  p.Span().Kind.Eq("server"),
 			wantErr: tracestore.ErrFilterUnsupported,
 			wantMsg: `built-in field "kind" of the "span" level`,
+		},
+		{
+			name:    "the trace identifier is a keyword, so it carries no order",
+			filter:  p.Span().TraceID.Gt("0af7651916cd43dd8448eb211c80319c"),
+			wantErr: tracestore.ErrFilterUnsupported,
+			wantMsg: `indexes "traceID" as a keyword rather than a number`,
+		},
+		{
+			name:    "the span identifier is a keyword, so it carries no order",
+			filter:  p.Span().SpanID.Lte("b7ad6b7169203331"),
+			wantErr: tracestore.ErrFilterUnsupported,
+			wantMsg: `indexes "spanID" as a keyword rather than a number`,
 		},
 		{
 			name:    "exists on a built-in field this schema has no field for",
