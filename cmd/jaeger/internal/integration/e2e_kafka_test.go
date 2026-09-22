@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/collector/pdata/ptrace"
 
 	"github.com/jaegertracing/jaeger/internal/storage/integration"
@@ -200,5 +201,142 @@ func TestKafkaStorage_SyncElasticsearch_FaultInjection(t *testing.T) {
 		trace := f.write(t, 0x04)
 		f.requireOffsetCaughtUp(t)
 		f.requireStoredOnce(t, trace)
+	})
+}
+
+// TestKafkaStorage_SyncElasticsearch_PoisonDrop proves the RFC 0007 M5 `drop`
+// disposition end-to-end on the same pipeline as TestKafkaStorage_SyncElasticsearch:
+// a batch holding a span Elasticsearch rejects deterministically completes without
+// it, so the Kafka offset advances and the partition does not stall, and every
+// other span of the batch is stored exactly once.
+func TestKafkaStorage_SyncElasticsearch_PoisonDrop(t *testing.T) {
+	integration.SkipUnlessEnv(t, integration.StorageKafka)
+
+	uniqueTopic := fmt.Sprintf("jaeger-spans-sync-es-drop-%d", time.Now().UnixNano())
+	t.Logf("Using unique Kafka topic: %s", uniqueTopic)
+	envVarOverrides := map[string]string{
+		"KAFKA_TOPIC":    uniqueTopic,
+		"KAFKA_ENCODING": "otlp_proto",
+		"KAFKA_BROKER":   kafkaBroker(),
+	}
+
+	collector := &E2EStorageIntegration{
+		BinaryName:         "jaeger-v2-collector",
+		ConfigFile:         "../../config-kafka-collector.yaml",
+		SkipStorageCleaner: true,
+		EnvVarOverrides:    envVarOverrides,
+	}
+	collector.e2eInitialize(t, "kafka")
+	t.Log("Collector initialized")
+
+	ingester := &E2EStorageIntegration{
+		BinaryName:         "jaeger-v2-ingester",
+		ConfigFile:         "../../config-kafka-ingester-sync.yaml",
+		SkipStorageCleaner: true,
+		HealthCheckPort:    14133,
+		EnvVarOverrides:    envVarOverrides,
+	}
+	admin := newESAdmin(t)
+	t.Cleanup(func() { admin.deleteJaegerIndices(t, faultInjectionIndexPrefix+"-") })
+	ingester.e2eInitialize(t, "elasticsearch")
+	t.Log("Ingester initialized")
+
+	offsets := newKafkaOffsets(t, kafkaBroker(), faultInjectionConsumerGroup, uniqueTopic)
+	f := &faultInjectionSteps{collector: collector, offsets: offsets}
+
+	// Kafka creates the topic on the first record, so the poison step's offset
+	// reads need a record before it.
+	t.Run("baseline", func(t *testing.T) {
+		trace := f.write(t, 0x01)
+		f.requireOffsetCaughtUp(t)
+		f.requireStoredOnce(t, trace)
+	})
+
+	t.Run("poison_dropped", func(t *testing.T) {
+		trace, _ := f.writePoison(t, 0x02)
+		f.requirePoisonStoredAround(t, trace)
+	})
+
+	t.Run("no_stall", func(t *testing.T) {
+		trace := f.write(t, 0x03)
+		f.requireOffsetCaughtUp(t)
+		f.requireStoredOnce(t, trace)
+	})
+}
+
+// TestKafkaStorage_SyncElasticsearch_DeadLetter proves the RFC 0007 M5 `dead_letter`
+// disposition end-to-end: Collector -> Kafka -> Ingester -> Elasticsearch, where the
+// ingester writes through the jaeger_storage_writer connector and a dead-letter
+// pipeline exports to an OTLP/HTTP endpoint the test runs. A span Elasticsearch
+// rejects deterministically is re-emitted to that endpoint, and only that span; the
+// rest of its batch is stored exactly once and the Kafka offset advances. The
+// fault-injecting proxy from TestKafkaStorage_SyncElasticsearch_FaultInjection then
+// shows the connector holds the offset through a transient outage the same way the
+// exporter does, because it wraps the exporter's sending queue and retry.
+func TestKafkaStorage_SyncElasticsearch_DeadLetter(t *testing.T) {
+	integration.SkipUnlessEnv(t, integration.StorageKafka)
+
+	proxy := newESFaultProxy(t, esBaseURL)
+	t.Logf("Elasticsearch fault proxy listening on %s", proxy.URL())
+	deadLetter := newDeadLetterServer(t)
+	t.Logf("Dead-letter OTLP/HTTP endpoint listening on %s", deadLetter.TracesURL())
+
+	uniqueTopic := fmt.Sprintf("jaeger-spans-sync-es-dead-letter-%d", time.Now().UnixNano())
+	t.Logf("Using unique Kafka topic: %s", uniqueTopic)
+	envVarOverrides := map[string]string{
+		"KAFKA_TOPIC":          uniqueTopic,
+		"KAFKA_ENCODING":       "otlp_proto",
+		"KAFKA_BROKER":         kafkaBroker(),
+		"ES_SERVER_URL":        proxy.URL(),
+		"DEAD_LETTER_ENDPOINT": deadLetter.TracesURL(),
+	}
+
+	collector := &E2EStorageIntegration{
+		BinaryName:         "jaeger-v2-collector",
+		ConfigFile:         "../../config-kafka-collector.yaml",
+		SkipStorageCleaner: true,
+		EnvVarOverrides:    envVarOverrides,
+	}
+	collector.e2eInitialize(t, "kafka")
+	t.Log("Collector initialized")
+
+	ingester := &E2EStorageIntegration{
+		BinaryName:         "jaeger-v2-ingester",
+		ConfigFile:         "../../config-kafka-ingester-dead-letter.yaml",
+		SkipStorageCleaner: true,
+		HealthCheckPort:    14133,
+		EnvVarOverrides:    envVarOverrides,
+	}
+	admin := newESAdmin(t)
+	t.Cleanup(func() { admin.deleteJaegerIndices(t, faultInjectionIndexPrefix+"-") })
+	ingester.e2eInitialize(t, "elasticsearch")
+	t.Log("Ingester initialized")
+
+	offsets := newKafkaOffsets(t, kafkaBroker(), faultInjectionConsumerGroup, uniqueTopic)
+	f := &faultInjectionSteps{collector: collector, proxy: proxy, offsets: offsets}
+
+	t.Run("baseline", func(t *testing.T) {
+		trace := f.write(t, 0x01)
+		f.requireOffsetCaughtUp(t)
+		f.requireStoredOnce(t, trace)
+		assert.Empty(t, deadLetter.received(), "a fully stored batch dead-letters nothing")
+	})
+
+	t.Run("poison_dead_lettered", func(t *testing.T) {
+		trace, poisonSpanID := f.writePoison(t, 0x02)
+		f.requirePoisonStoredAround(t, trace)
+		received := deadLetter.received()
+		require.Len(t, received, 1, "exactly the poison span reaches the dead-letter pipeline")
+		assert.Equal(t, singleTraceID(trace), received[0].TraceID())
+		assert.Equal(t, poisonSpanID, received[0].SpanID())
+		assert.Equal(t, poisonSpanFlags, received[0].Flags(), "the span is re-emitted as received, rejection and all")
+	})
+
+	t.Run("backend_down_holds_offset", func(t *testing.T) {
+		before := len(deadLetter.received())
+		f.runOutage(t, esFaultReject, 0x03, func(t *testing.T, trace ptrace.Traces) {
+			assert.Zero(t, f.storedSpanCount(t, trace), "no spans must be stored while _bulk is rejected")
+		})
+		assert.Len(t, deadLetter.received(), before, "a transient outage dead-letters nothing")
 	})
 }

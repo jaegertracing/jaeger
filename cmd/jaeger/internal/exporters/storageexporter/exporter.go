@@ -17,22 +17,30 @@ import (
 	"github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore"
 )
 
-type storageExporter struct {
+// TraceWriter is the write step behind jaeger_storage_exporter: at Start it resolves
+// the configured trace storage from the jaeger_storage extension, and WriteTraces
+// sanitizes each batch and writes it there. The jaeger_storage_writer connector
+// wraps the same TraceWriter to dead-letter the spans the storage rejects, so the
+// two components resolve and write to storage identically.
+type TraceWriter struct {
 	config      *Config
 	logger      *zap.Logger
 	traceWriter tracestore.Writer
 	sanitizer   sanitizer.Func
 }
 
-func newExporter(config *Config, otel component.TelemetrySettings) *storageExporter {
-	return &storageExporter{
+// NewTraceWriter returns a TraceWriter that resolves cfg.TraceStorage at Start.
+func NewTraceWriter(config *Config, otel component.TelemetrySettings) *TraceWriter {
+	return &TraceWriter{
 		config:    config,
 		logger:    otel.Logger,
 		sanitizer: sanitizer.Sanitize,
 	}
 }
 
-func (exp *storageExporter) start(_ context.Context, host component.Host) error {
+// Start resolves the trace storage named in the config from the host's
+// jaeger_storage extension and creates its writer.
+func (exp *TraceWriter) Start(_ context.Context, host component.Host) error {
 	f, err := jaegerstorage.GetTraceStoreFactory(exp.config.TraceStorage, host)
 	if err != nil {
 		return fmt.Errorf("cannot find storage factory: %w", err)
@@ -60,7 +68,7 @@ func (exp *storageExporter) start(_ context.Context, host component.Host) error 
 // redundant re-writes and keeps one request per batch. The check applies only to a
 // byte-sized batch, the only unit comparable to a byte cap; an item- or
 // request-sized batch is skipped and left to documentation.
-func (exp *storageExporter) warnMisalignedSyncBatchSizing(f tracestore.Factory) {
+func (exp *TraceWriter) warnMisalignedSyncBatchSizing(f tracestore.Factory) {
 	sw, ok := f.(tracestore.SyncBulkWriteConfig)
 	if !ok {
 		return
@@ -90,11 +98,13 @@ func (exp *storageExporter) warnMisalignedSyncBatchSizing(f tracestore.Factory) 
 	}
 }
 
-func (*storageExporter) close(_ context.Context) error {
+func (*TraceWriter) close(_ context.Context) error {
 	// span writer is not closable
 	return nil
 }
 
-func (exp *storageExporter) pushTraces(ctx context.Context, td ptrace.Traces) error {
+// WriteTraces sanitizes the batch and writes it to the resolved storage, returning
+// the storage's error verbatim.
+func (exp *TraceWriter) WriteTraces(ctx context.Context, td ptrace.Traces) error {
 	return exp.traceWriter.WriteTraces(ctx, exp.sanitizer(td))
 }

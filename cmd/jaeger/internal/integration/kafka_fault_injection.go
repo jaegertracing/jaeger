@@ -117,7 +117,8 @@ func injectServiceUnavailable(resp *http.Response) {
 }
 
 const (
-	// faultInjectionIndexPrefix is the index_prefix in config-kafka-ingester-sync.yaml.
+	// faultInjectionIndexPrefix is the index_prefix in config-kafka-ingester-sync.yaml
+	// and config-kafka-ingester-dead-letter.yaml.
 	faultInjectionIndexPrefix = "jaeger-main"
 	// faultInjectionSpanIndices matches the span indices the ingester writes.
 	faultInjectionSpanIndices = faultInjectionIndexPrefix + "-jaeger-span-*"
@@ -346,12 +347,18 @@ func (f *faultInjectionSteps) requireStoredOnce(t *testing.T, trace ptrace.Trace
 	expected := trace.SpanCount()
 	id := singleTraceID(trace)
 	require.Eventually(t, func() bool {
-		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-		defer cancel()
-		count, err := countSpanDocs(ctx, id)
+		count, err := f.countStored(id)
 		return err == nil && count >= expected
 	}, 2*time.Minute, time.Second, "trace %s never became fully indexed", id)
 	assert.Equal(t, expected, f.storedSpanCount(t, trace), "trace %s must be stored exactly once", id)
+}
+
+// countStored counts the trace's span documents with a bounded timeout, for use in
+// a polling loop.
+func (*faultInjectionSteps) countStored(id pcommon.TraceID) (int, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	return countSpanDocs(ctx, id)
 }
 
 // requireOffsetCaughtUp waits until every partition's committed offset equals its

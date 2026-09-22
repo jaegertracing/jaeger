@@ -38,16 +38,16 @@ func createDefaultConfig() component.Config {
 
 func createTracesExporter(ctx context.Context, set exporter.Settings, config component.Config) (exporter.Traces, error) {
 	cfg := config.(*Config)
-	ex := newExporter(cfg, set.TelemetrySettings)
+	ex := NewTraceWriter(cfg, set.TelemetrySettings)
 	return exporterhelper.NewTraces(
 		ctx, set, cfg,
-		ex.pushTraces,
+		ex.WriteTraces,
 		exporterhelper.WithCapabilities(consumer.Capabilities{MutatesData: false}),
 		// Disable Timeout
 		exporterhelper.WithTimeout(exporterhelper.TimeoutConfig{Timeout: 0}),
 		exporterhelper.WithRetry(cfg.RetryConfig),
 		exporterhelper.WithQueue(cfg.QueueConfig),
-		exporterhelper.WithStart(ex.start),
+		exporterhelper.WithStart(ex.Start),
 		exporterhelper.WithShutdown(ex.close),
 	)
 }

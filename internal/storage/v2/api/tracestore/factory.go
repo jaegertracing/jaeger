@@ -23,3 +23,16 @@ type SyncBulkWriteConfig interface {
 	// maximum number of bytes the writer puts in a single request.
 	SyncBulkWriteByteCap() (sync bool, maxBytes int)
 }
+
+// PoisonPillReporting is an optional capability of a Factory whose writer, instead
+// of failing or silently dropping a batch that the backend rejected in part, reports
+// the terminally-rejected spans to its caller (e.g. Elasticsearch/OpenSearch
+// write_mode: sync with poison_pill_handling: fail, whose WriteTraces returns a
+// *esclient.BulkWriteError listing them). A component that dead-letters those
+// spans onto another pipeline type-asserts a Factory to this interface at startup
+// to confirm the backend will ever hand it anything to dead-letter (RFC 0007 §4.8).
+type PoisonPillReporting interface {
+	// ReportsPoisonPills reports whether WriteTraces surfaces terminally-rejected
+	// spans to the caller rather than dropping them or retrying them forever.
+	ReportsPoisonPills() bool
+}

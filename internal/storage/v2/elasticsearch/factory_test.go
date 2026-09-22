@@ -129,6 +129,30 @@ func TestSyncBulkWriteByteCap(t *testing.T) {
 	}
 }
 
+func TestReportsPoisonPills(t *testing.T) {
+	tests := []struct {
+		name      string
+		writeMode escfg.WriteMode
+		poison    escfg.PoisonHandling
+		expected  bool
+	}{
+		{name: "sync with fail reports poison pills", writeMode: escfg.WriteModeSync, poison: escfg.PoisonFail, expected: true},
+		{name: "sync with unset poison handling defaults to fail", writeMode: escfg.WriteModeSync, poison: "", expected: true},
+		{name: "sync with drop discards poison pills itself", writeMode: escfg.WriteModeSync, poison: escfg.PoisonDrop, expected: false},
+		{name: "async never reports", writeMode: escfg.WriteModeAsync, poison: escfg.PoisonFail, expected: false},
+		{name: "unset mode defaults to async", writeMode: "", poison: escfg.PoisonFail, expected: false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			f := &Factory{config: escfg.Configuration{
+				WriteMode:          tt.writeMode,
+				PoisonPillHandling: tt.poison,
+			}}
+			require.Equal(t, tt.expected, f.ReportsPoisonPills())
+		})
+	}
+}
+
 // func getTestingFactoryBase(t *testing.T, cfg *escfg.Configuration) *elasticsearch.FactoryBase {
 // 	f := &elasticsearch.FactoryBase{}
 // 	err := elasticsearch.SetFactoryForTest(f, zaptest.NewLogger(t), metrics.NullFactory, cfg)

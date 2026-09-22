@@ -78,6 +78,16 @@ func (f *Factory) SyncBulkWriteByteCap() (sync bool, maxBytes int) {
 	return f.config.EffectiveWriteMode() == escfg.WriteModeSync, f.config.BulkProcessing.MaxBytes
 }
 
+// ReportsPoisonPills implements tracestore.PoisonPillReporting: the synchronous
+// writer in fail mode returns every terminally-rejected span in a typed
+// *esclient.BulkWriteError for the caller to dead-letter (RFC 0007 §4.8). In drop
+// mode the writer discards them itself, and in async mode a write never returns a
+// per-span verdict, so neither reports anything.
+func (f *Factory) ReportsPoisonPills() bool {
+	return f.config.EffectiveWriteMode() == escfg.WriteModeSync &&
+		f.config.EffectivePoisonHandling() == escfg.PoisonFail
+}
+
 func (f *Factory) CreateDependencyReader() (depstore.Reader, error) {
 	params := f.GetDependencyStoreParams()
 	return v2depstore.NewDependencyStoreV2(params), nil
