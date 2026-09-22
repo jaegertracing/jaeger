@@ -121,7 +121,7 @@ func fromInterceptorSpanQuery(q queryinterceptor.SpanQuery) tracestore.SpanQuery
 
 // onSpanQuery runs every interceptor's OnSpanQuery in order, threading the context each returns
 // into the next, as onTraceQuery does for a trace search. The filter the interceptors leave behind
-// is finalized and sent on; a span query has one shape, so nothing is converted back.
+// is finalized and sent on; a span query has one shape, so there is no legacy branch.
 //
 // The nil rule is checked after every hook rather than once at the end, because a predicate one
 // interceptor adds is a restriction the next must not be able to remove: a query that had no

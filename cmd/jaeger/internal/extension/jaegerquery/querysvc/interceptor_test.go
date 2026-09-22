@@ -96,7 +96,9 @@ func (f *fakeReader) FindSpans(ctx context.Context, q tracestore.SpanQueryParams
 			return
 		}
 		for _, spans := range f.batch {
-			yield(tracestore.PageChunk[ptrace.Traces]{Results: spans, NextPageToken: ""}, nil)
+			if !yield(tracestore.PageChunk[ptrace.Traces]{Results: spans}, nil) {
+				return
+			}
 		}
 	}
 }
@@ -1380,6 +1382,37 @@ func TestFindSpans_AllowsNoFilterForAPredicatelessQuery(t *testing.T) {
 	assert.Len(t, out, 1)
 	assert.Nil(t, seen.Filter, "there were no predicates to show")
 	assert.True(t, next.findCalled)
+}
+
+// TestFindSpans_RefusedByATraceOnlyInterceptor pins the fail-closed mixin end to end: an
+// interceptor that embeds queryinterceptor.UnsupportedSpanSearch makes the query service refuse
+// a span search before storage sees it, and the refusal is a deployment fault, not a bad request.
+// The interceptor package's ErrSpanSearchUnsupported is a different sentinel from this package's,
+// which names a backend that cannot serve the search and is a bad request.
+func TestFindSpans_RefusedByATraceOnlyInterceptor(t *testing.T) {
+	enableStructuredFilters(t)
+	next := &fakeReader{batch: tracesWith("k", "v")}
+	qs := interceptedService(next, traceOnlyInterceptor{})
+
+	_, err := collectSpans(qs.FindSpans(t.Context(), searchSpansQuery(tracestore.SpanQueryParams{})))
+	require.ErrorIs(t, err, queryinterceptor.ErrSpanSearchUnsupported)
+	require.NotErrorIs(t, err, ErrSpanSearchUnsupported, "the backend was not the one refusing")
+	assert.False(t, IsBadRequest(err), "the caller's request was fine")
+	assert.False(t, next.findCalled, "storage must not be queried")
+}
+
+// traceOnlyInterceptor is the shape of an implementation written before span search existed: it
+// gates trace searches and embeds the mixin for the rest.
+type traceOnlyInterceptor struct {
+	queryinterceptor.UnsupportedSpanSearch
+}
+
+func (traceOnlyInterceptor) OnTraceQuery(ctx context.Context, q queryinterceptor.TraceQuery) (context.Context, queryinterceptor.TraceQuery, error) {
+	return ctx, q, nil
+}
+
+func (traceOnlyInterceptor) OnTraceResult(ctx context.Context, t []ptrace.Traces) (context.Context, []ptrace.Traces, error) {
+	return ctx, t, nil
 }
 
 func TestFindSpans_QueryRejectionSkipsStorage(t *testing.T) {
