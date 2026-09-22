@@ -11,22 +11,22 @@ import (
 	"github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore"
 )
 
-// StructuredFiltersGate admits the RFC 0005 structured query filter. It is off by default
-// because the filter AST is a public API still moving through that RFC's milestones, so a
-// deployment that has not opted in behaves exactly as it did before the filter existed.
+// StructuredFiltersGate admits the RFC 0005 structured query filter. It is on by default, and
+// a deployment that disables it behaves exactly as it did before the filter existed, so an
+// operator can withhold the filter AST while that RFC's remaining milestones settle it.
 //
 // It admits the filter into the query path; whether a backend evaluates one natively is a
 // separate switch, named jaeger.<backend>.structuredFilters — this gate's leaf with the backend
 // in place of "query" — because the two stabilize on different schedules.
 var StructuredFiltersGate = featuregate.GlobalRegistry().MustRegister(
 	"jaeger.query.structuredFilters",
-	featuregate.StageAlpha,
+	featuregate.StageBeta,
 	featuregate.WithRegisterFromVersion("v2.21.0"),
 	featuregate.WithRegisterDescription(
-		"Accepts the RFC 0005 structured query filter on trace search. The filter AST is not yet "+
-			"stable, so a query that carries one is refused while this is disabled. This admits "+
-			"filters into the query path only; whether a storage backend evaluates one natively is "+
-			"gated separately, by jaeger.<backend>.structuredFilters.",
+		"Accepts the RFC 0005 structured query filter on trace search. A query that carries one "+
+			"is refused while this is disabled. This admits filters into the query path only; "+
+			"whether a storage backend evaluates one natively is gated separately, by "+
+			"jaeger.<backend>.structuredFilters.",
 	),
 	featuregate.WithRegisterReferenceURL("https://github.com/jaegertracing/jaeger/blob/main/docs/rfc/0005-structured-query-filters.md"),
 )
@@ -42,6 +42,7 @@ var ErrFilterDisabled = errors.New("the structured query filter is disabled")
 // HTTP 400 rather than reporting a server fault.
 func IsBadRequest(err error) bool {
 	return errors.Is(err, ErrServiceNameRequired) ||
+		errors.Is(err, ErrSpanSearchUnsupported) ||
 		errors.Is(err, ErrFilterDisabled) ||
 		errors.Is(err, tracestore.ErrFilterUnsupported) ||
 		errors.Is(err, tracestore.ErrFilterInvalid)

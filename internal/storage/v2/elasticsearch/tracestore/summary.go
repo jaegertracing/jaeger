@@ -14,16 +14,17 @@ import (
 	"github.com/jaegertracing/jaeger/internal/storage/v2/elasticsearch/tracestore/core/dbmodel"
 )
 
-// nativeTraceSummariesGate enables computing trace summaries (the metadata shown
-// on the search-results page) natively in Elasticsearch/OpenSearch via a single
-// aggregation query, instead of loading full traces and aggregating them in the
-// query service. Enabled by default; when disabled, FindTraceSummaries yields
-// errors.ErrUnsupported, so the query service transparently falls back to the
-// full-trace path.
+// nativeTraceSummariesGate records that trace summaries (the metadata shown on
+// the search-results page) are computed natively in Elasticsearch/OpenSearch via
+// a single aggregation query, instead of loading full traces and aggregating them
+// in the query service. The gate is Stable and can no longer be disabled; it stays
+// registered only so existing --feature-gates values keep working until it is
+// removed in v2.24.0.
 var nativeTraceSummariesGate = featuregate.GlobalRegistry().MustRegister(
 	"jaeger.es.nativeTraceSummaries",
-	featuregate.StageBeta,
+	featuregate.StageStable,
 	featuregate.WithRegisterFromVersion("v2.20.0"),
+	featuregate.WithRegisterToVersion("v2.24.0"),
 	featuregate.WithRegisterDescription(
 		"Computes trace summaries natively in Elasticsearch/OpenSearch via aggregations "+
 			"instead of loading full traces and aggregating in the query service. Requires "+
@@ -31,15 +32,11 @@ var nativeTraceSummariesGate = featuregate.GlobalRegistry().MustRegister(
 	),
 )
 
-// FindTraceSummaries computes trace summaries via a storage-side aggregation when the
-// native-summaries feature gate is enabled. When it is disabled, or when the backend
-// cannot compute them (e.g. Painless scripting is disabled, which the core reader
-// surfaces as errors.ErrUnsupported), it yields errors.ErrUnsupported so the query
-// service falls back to loading full traces and aggregating client-side.
+// FindTraceSummaries computes trace summaries via a storage-side aggregation. When
+// the backend cannot compute them (e.g. Painless scripting is disabled, which the
+// core reader surfaces as errors.ErrUnsupported), it yields errors.ErrUnsupported so
+// the query service falls back to loading full traces and aggregating client-side.
 func (r *TraceReader) FindTraceSummaries(ctx context.Context, query tracestore.TraceQueryParams) iter.Seq2[tracestore.PageChunk[[]tracestore.TraceSummary], error] {
-	if !nativeTraceSummariesGate.IsEnabled() {
-		return tracestore.UnsupportedTraceSummaries{}.FindTraceSummaries(ctx, query)
-	}
 	return func(yield func(tracestore.PageChunk[[]tracestore.TraceSummary], error) bool) {
 		// The aggregation returns all matching summaries in a single ES response,
 		// so they are materialized and yielded in one batch (allowed by the

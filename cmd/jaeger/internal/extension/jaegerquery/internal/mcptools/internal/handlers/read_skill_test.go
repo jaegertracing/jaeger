@@ -9,6 +9,7 @@ import (
 	"strings"
 	"testing"
 	"testing/fstest"
+	"unicode/utf8"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/stretchr/testify/assert"
@@ -167,4 +168,27 @@ func TestReadSkillHandler_SizeLimitBoundary(t *testing.T) {
 	idx := strings.Index(out.Instructions, "\n\nfile content truncated")
 	require.NotEqual(t, -1, idx)
 	assert.Equal(t, testMaxFileSize, idx)
+}
+
+// A cut landing inside a multi-byte UTF-8 rune must back off to that rune's
+// start rather than split it, so truncation never serves invalid UTF-8.
+func TestReadSkillHandler_TruncationBacksOffToRuneBoundary(t *testing.T) {
+	const maxFileSize = 4
+	// "café" is 5 bytes: "caf" (3 ASCII bytes) + the 2-byte encoding of 'é'.
+	// A 4-byte cut lands on the second byte of 'é'.
+	fsys := fstest.MapFS{
+		"skill.md": &fstest.MapFile{Data: []byte("café")},
+	}
+	h := &readSkillHandler{builtins: fsys, maxFileSize: maxFileSize}
+
+	_, out, err := h.handle(context.Background(), &mcp.CallToolRequest{}, types.ReadSkillInput{Path: "skill.md"})
+	require.NoError(t, err)
+
+	require.True(t, utf8.ValidString(out.Instructions), "output must be valid UTF-8: %q", out.Instructions)
+	idx := strings.Index(out.Instructions, "\n\nfile content truncated")
+	require.NotEqual(t, -1, idx)
+	// The rune straddling byte 4 is dropped entirely rather than split, so the
+	// served content is "caf" (3 bytes), and the notice reports that count.
+	assert.Equal(t, "caf", out.Instructions[:idx])
+	assert.Contains(t, out.Instructions, "truncated after 3 bytes")
 }

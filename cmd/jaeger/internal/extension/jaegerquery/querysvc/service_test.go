@@ -71,6 +71,15 @@ func declaresSearchWithoutServiceName(reader *tracestoremocks.Reader, withoutSer
 	return reader
 }
 
+func initializeBareTestQueryService() testQueryService {
+	tqs := testQueryService{
+		traceReader: &tracestoremocks.Reader{},
+		depsReader:  &depstoremocks.Reader{},
+	}
+	tqs.queryService = NewQueryService(tqs.traceReader, tqs.depsReader, QueryServiceOptions{})
+	return tqs
+}
+
 func initializeTestService(opts ...testOption) *testQueryService {
 	traceReader := declaresSearchWithoutServiceName(&tracestoremocks.Reader{}, true)
 	dependencyStorage := &depstoremocks.Reader{}
@@ -380,6 +389,47 @@ func TestGetOperations(t *testing.T) {
 	actualOperations, err := tqs.queryService.GetOperations(context.Background(), operationQuery)
 	require.NoError(t, err)
 	assert.Equal(t, expected, actualOperations)
+}
+
+func TestFindSpans_Success(t *testing.T) {
+	tqs := initializeBareTestQueryService()
+
+	tqs.traceReader.On("SearchCapabilities", context.Background()).Return(tracestore.SearchCapabilities{SpanSearch: true}, nil)
+
+	expectedSpans := makeTestTrace()
+	responseIter := iter.Seq2[tracestore.PageChunk[ptrace.Traces], error](func(yield func(tracestore.PageChunk[ptrace.Traces], error) bool) {
+		yield(tracestore.PageChunk[ptrace.Traces]{Results: expectedSpans, NextPageToken: ""}, nil)
+	})
+	params := tracestore.SpanQueryParams{}
+	query := SpanQueryParams{params}
+	tqs.traceReader.On("FindSpans", mock.Anything, params).Return(responseIter).Once()
+
+	seq := tqs.queryService.FindSpans(context.Background(), query)
+	result, err := jiter.CollectWithErrors(seq)
+	require.NoError(t, err)
+	require.Len(t, result, 1)
+	require.Equal(t, expectedSpans, result[0].Results)
+	tqs.traceReader.AssertExpectations(t)
+}
+
+func TestFindSpans_WithLegacyBackend_UnsupportedError(t *testing.T) {
+	tqs := initializeBareTestQueryService()
+	tqs.traceReader.On("SearchCapabilities", mock.Anything).Return(tracestore.SearchCapabilities{}, errors.New("unsupported")).Once()
+
+	query := SpanQueryParams{}
+	seq := tqs.queryService.FindSpans(context.Background(), query)
+	_, err := jiter.CollectWithErrors(seq)
+	require.Equal(t, ErrSpanSearchUnsupported, err)
+}
+
+func TestFindSpans_WithUnsupportingBackend_UnsupportedError(t *testing.T) {
+	tqs := initializeBareTestQueryService()
+	tqs.traceReader.On("SearchCapabilities", mock.Anything).Return(tracestore.SearchCapabilities{SpanSearch: false}, nil).Once()
+
+	query := SpanQueryParams{}
+	seq := tqs.queryService.FindSpans(context.Background(), query)
+	_, err := jiter.CollectWithErrors(seq)
+	require.Equal(t, ErrSpanSearchUnsupported, err)
 }
 
 func TestFindTraces_Success(t *testing.T) {
