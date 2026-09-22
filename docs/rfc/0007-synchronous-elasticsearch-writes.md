@@ -3,7 +3,7 @@
 - **Status:** Partially Implemented
 - **Author:** Yuri Shkuro
 - **Created:** 2026-07-06
-- **Last Updated:** 2026-09-21
+- **Last Updated:** 2026-09-22
 - **Issue:** [#8476](https://github.com/jaegertracing/jaeger/issues/8476)
 - **Related:** [RFC 0004 Data Streams](./0004-elasticsearch-data-streams.md) · [RFC 0006 Unified ES Client](./0006-unified-elasticsearch-client.md) · [#7612](https://github.com/jaegertracing/jaeger/issues/7612) · [#2192](https://github.com/jaegertracing/jaeger/issues/2192) · PRs [#8281](https://github.com/jaegertracing/jaeger/pull/8281), [#8651](https://github.com/jaegertracing/jaeger/pull/8651)
 

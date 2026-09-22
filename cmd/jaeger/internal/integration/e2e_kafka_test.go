@@ -322,13 +322,14 @@ func TestKafkaStorage_SyncElasticsearch_DeadLetter(t *testing.T) {
 	})
 
 	t.Run("poison_to_dead_letter", func(t *testing.T) {
+		receivedBefore := len(deadLetter.received())
 		trace, poisonSpanID := f.writePoison(t, 0x02)
 		f.requirePoisonStoredAround(t, trace)
 		// The connector sends the poison span once per attempt that sees only
 		// terminal rejections, so a transient hiccup in CI can deliver it twice.
 		// At-least-once is the guarantee; what must hold is that nothing but the
 		// poison span ever reaches the sink.
-		received := deadLetter.received()
+		received := deadLetter.received()[receivedBefore:]
 		require.NotEmpty(t, received, "the poison span reaches the dead-letter pipeline")
 		for _, span := range received {
 			assert.Equal(t, singleTraceID(trace), span.TraceID())
@@ -365,6 +366,7 @@ func TestKafkaStorage_SyncElasticsearch_DeadLetter(t *testing.T) {
 		assert.Equal(t, committedBefore, requireOffsets(t, f.offsets.committed), "the offset must hold while the dead-letter sink refuses the poison span")
 		assert.Positive(t, deadLetter.refused()-refusedBefore, "the connector must have tried the sink while it refused")
 		assert.Len(t, deadLetter.received(), receivedBefore, "nothing reaches the sink while it refuses")
+		assert.Equal(t, trace.SpanCount()-1, f.storedSpanCount(t, trace), "the storage write came first: only the sink refusal holds the offset")
 
 		deadLetter.refuse(false)
 		t.Log("Dead-letter sink accepting again; waiting for recovery")

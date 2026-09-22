@@ -27,8 +27,8 @@
 # span the sink had not yet accepted. Its retries keep a short sink outage from
 # failing the batch; once they are exhausted the connector returns the error, the
 # offset holds, and the whole batch is retried (idempotently) with the poison. The
-# Kafka e2e suite exercises an outage shorter than these retries; the exhaustion
-# path is covered by the connector's unit tests.
+# Kafka e2e suite exercises an outage shorter than these retries; a sink that
+# returns an error to the connector is covered by the connector's unit tests.
 #
 # The sink must also refuse what it does not keep. otlphttp treats an OTLP
 # partial_success response (HTTP 200 with rejected_spans > 0) as success, so a
