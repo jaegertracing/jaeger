@@ -44,7 +44,7 @@ func (*interceptor) Shutdown(context.Context) error { return nil }
 // cached by an earlier hook is returned as-is (context unchanged); otherwise the
 // role is read from the identity header — which jaeger_query exposes as OTel
 // client metadata (requires http.include_metadata) — and cached in the returned
-// context, so a later hook (e.g. OnResult after OnQuery, or the next result
+// context, so a later hook (e.g. OnTraceResult after OnTraceQuery, or the next result
 // batch) reuses it without re-reading the metadata. The role is "" when the
 // metadata has no value.
 func (i *interceptor) callerRole(ctx context.Context) (context.Context, string) {
@@ -71,10 +71,10 @@ func (i *interceptor) privileged(role string) bool {
 	return false
 }
 
-// OnQuery rejects a non-privileged caller's trace search that filters on a denied
+// OnTraceQuery rejects a non-privileged caller's trace search that filters on a denied
 // attribute — the per-caller, pre-query admission hook. It caches the resolved
-// role in the returned context so OnResult reuses it without re-reading metadata.
-func (i *interceptor) OnQuery(ctx context.Context, query queryinterceptor.TraceQuery) (context.Context, queryinterceptor.TraceQuery, error) {
+// role in the returned context so OnTraceResult reuses it without re-reading metadata.
+func (i *interceptor) OnTraceQuery(ctx context.Context, query queryinterceptor.TraceQuery) (context.Context, queryinterceptor.TraceQuery, error) {
 	ctx, err := i.admitFilter(ctx, query.Filter)
 	return ctx, query, err
 }
@@ -122,9 +122,9 @@ func referencesAttribute(expr expression.Expression, key string) bool {
 	return false
 }
 
-// OnResult redacts the configured attributes from every span for non-privileged
+// OnTraceResult redacts the configured attributes from every span for non-privileged
 // callers — the per-caller, return-path masking hook.
-func (i *interceptor) OnResult(ctx context.Context, traces []ptrace.Traces) (context.Context, []ptrace.Traces, error) {
+func (i *interceptor) OnTraceResult(ctx context.Context, traces []ptrace.Traces) (context.Context, []ptrace.Traces, error) {
 	ctx, role := i.callerRole(ctx)
 	if i.privileged(role) || len(i.cfg.RedactAttributes) == 0 {
 		return ctx, traces, nil

@@ -8,9 +8,9 @@
 // Motivation: sensitive traces — GenAI model prompts and completions, tool-call
 // payloads, PII — must be shown or withheld per user. An interceptor lets a
 // deployment enforce that policy at query time, integrating with an in-house
-// access-control system that cannot live in open-source Jaeger. OnQuery can
+// access-control system that cannot live in open-source Jaeger. OnTraceQuery can
 // reject or scope a search so it cannot match on data the caller may not read
-// (e.g. a full-text search over prompt content); OnResult can drop whole traces
+// (e.g. a full-text search over prompt content); OnTraceResult can drop whole traces
 // or mask sub-attributes on the way out (e.g. redacting PII fields for callers
 // without clearance). See the runnable example extension at
 // github.com/jaegertracing/jaeger/components/extension/queryinterceptorexample.
@@ -18,8 +18,8 @@
 // It is the query-side analogue of the Collector's authenticator extensions:
 // jaeger-query resolves the configured interceptor extensions from the host by
 // component ID and invokes them around every search. A trace search (FindTraces
-// and the summary and trace-ID searches derived from it) runs through OnQuery
-// and OnResult; a span search (FindSpans, RFC 0016) runs through OnSpanQuery and
+// and the summary and trace-ID searches derived from it) runs through OnTraceQuery
+// and OnTraceResult; a span search (FindSpans, RFC 0016) runs through OnSpanQuery and
 // OnSpanResult. Each pre-query hook runs before the search (to reject or
 // constrain it); each result hook runs on every batch or page before it is
 // returned (to drop or redact). The business logic — authorization, redaction —
@@ -55,7 +55,7 @@ var ErrAccessDenied = errors.New("access denied")
 // refuses the search rather than running it past an interceptor that never saw it.
 var ErrSpanSearchUnsupported = errors.New("query interceptor does not support span search")
 
-// TraceQuery is the view of a trace search passed to Interceptor.OnQuery.
+// TraceQuery is the view of a trace search passed to Interceptor.OnTraceQuery.
 //
 // EXPERIMENTAL: this type and the Interceptor contract it belongs to may change or be removed
 // in any release, without a deprecation period. Filter in particular is an RFC 0005 filter AST,
@@ -78,7 +78,7 @@ type TraceQuery struct {
 	// Scoping a query means narrowing this — replacing it, or conjoining a predicate the caller
 	// is permitted — or refusing the query outright by returning an error. Returning nil is not
 	// a way to decline: it asks for every trace in the time range, and is refused as invalid if
-	// the query had predicates when OnQuery received it.
+	// the query had predicates when OnTraceQuery received it.
 	//
 	// jaeger-query decides how to send the search to storage only after the interceptors have
 	// finished with it, so a filter naming a level or an operator the storage backend cannot
@@ -89,12 +89,6 @@ type TraceQuery struct {
 	StartTimeMin time.Time
 	StartTimeMax time.Time
 }
-
-// Query is the former name of TraceQuery, kept so that an implementation written against it
-// keeps compiling.
-//
-// Deprecated: use TraceQuery.
-type Query = TraceQuery
 
 // SpanQuery is the view of a span search (RFC 0016) passed to Interceptor.OnSpanQuery.
 //
@@ -146,23 +140,23 @@ type SpanQuery struct {
 // a policy enforced on FindTraces and absent on FindSpans is a policy a caller can bypass by
 // choosing the other endpoint.
 type Interceptor interface {
-	// OnQuery runs before a trace search executes. Returning an error rejects
+	// OnTraceQuery runs before a trace search executes. Returning an error rejects
 	// the query (the caller sees the error); returning a modified TraceQuery
 	// constrains what the search may match. The returned context is threaded into
-	// the storage reader and OnResult. Return the inbound context and query
+	// the storage reader and OnTraceResult. Return the inbound context and query
 	// unchanged for a no-op.
-	OnQuery(ctx context.Context, query TraceQuery) (context.Context, TraceQuery, error)
+	OnTraceQuery(ctx context.Context, query TraceQuery) (context.Context, TraceQuery, error)
 
-	// OnResult runs on each batch of traces before it is returned to the caller.
+	// OnTraceResult runs on each batch of traces before it is returned to the caller.
 	// The returned batch replaces the input; an implementation may drop whole
 	// traces or redact sub-attributes. The returned context is threaded into the
-	// OnResult call for the next batch, so state can accumulate across a
+	// OnTraceResult call for the next batch, so state can accumulate across a
 	// multi-batch result. Returning an error aborts the stream. Return the inbound
 	// context and traces unchanged for a no-op.
-	OnResult(ctx context.Context, traces []ptrace.Traces) (context.Context, []ptrace.Traces, error)
+	OnTraceResult(ctx context.Context, traces []ptrace.Traces) (context.Context, []ptrace.Traces, error)
 
 	// OnSpanQuery runs before a span search (RFC 0016) executes, with the same
-	// contract as OnQuery: an error rejects the search, a modified SpanQuery
+	// contract as OnTraceQuery: an error rejects the search, a modified SpanQuery
 	// constrains it, and the returned context is threaded into the storage reader
 	// and OnSpanResult.
 	OnSpanQuery(ctx context.Context, query SpanQuery) (context.Context, SpanQuery, error)

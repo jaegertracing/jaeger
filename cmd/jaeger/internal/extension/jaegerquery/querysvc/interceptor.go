@@ -44,9 +44,9 @@ func fromInterceptorTraceQuery(q queryinterceptor.TraceQuery, original tracestor
 	}
 }
 
-// onQuery runs every interceptor's OnQuery in order, threading the context each returns into the
+// onQuery runs every interceptor's OnTraceQuery in order, threading the context each returns into the
 // next. The final context is returned so the caller can pass it to the storage reader and to
-// OnResult, letting an interceptor carry per-query state (a resolved caller identity, say) from
+// OnTraceResult, letting an interceptor carry per-query state (a resolved caller identity, say) from
 // the pre-query hook to the return path.
 //
 // The interceptors are shown the query in filter shape whatever shape it arrived in, because gating
@@ -59,7 +59,7 @@ func (qs QueryService) onQuery(ctx context.Context, query TraceQueryParams) (con
 	queryPostIntercept := queryPreIntercept
 	var err error
 	for _, interceptor := range qs.options.Interceptors {
-		ctx, queryPostIntercept, err = interceptor.OnQuery(ctx, queryPostIntercept)
+		ctx, queryPostIntercept, err = interceptor.OnTraceQuery(ctx, queryPostIntercept)
 		if err != nil {
 			return ctx, query, err
 		}
@@ -111,9 +111,9 @@ func finalizeInterceptorFilter(returned *expression.Call) (*expression.Call, err
 	return finalized, nil
 }
 
-// interceptResults hands every batch of seq to the interceptors' OnResult in order, threading the
+// interceptResults hands every batch of seq to the interceptors' OnTraceResult in order, threading the
 // context each returns into the next so that state can accumulate across a multi-batch result.
-// An OnResult error ends the stream rather than yielding later batches, which could leak results
+// An OnTraceResult error ends the stream rather than yielding later batches, which could leak results
 // the failed sanitize or redaction was meant to withhold.
 //
 // It wraps the batches as storage yielded them, before the query service aggregates and adjusts
@@ -134,7 +134,7 @@ func (qs QueryService) interceptResults(
 				continue
 			}
 			for _, interceptor := range qs.options.Interceptors {
-				ctx, traces, err = interceptor.OnResult(ctx, traces)
+				ctx, traces, err = interceptor.OnTraceResult(ctx, traces)
 				if err != nil {
 					yield(nil, err)
 					return

@@ -44,8 +44,8 @@ type QueryServiceOptions struct {
 	// If a trace has more spans than this limit, it will be truncated and a warning will be added.
 	MaxTraceSize int
 	// Interceptors are the query-interceptor extensions this deployment configured, in the order
-	// it named them. The query service invokes their OnQuery around every trace search and their
-	// OnResult around every batch of loaded traces. Most deployments configure none.
+	// it named them. The query service invokes their OnTraceQuery around every trace search and their
+	// OnTraceResult around every batch of loaded traces. Most deployments configure none.
 	Interceptors []queryinterceptor.Interceptor
 }
 

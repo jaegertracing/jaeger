@@ -145,11 +145,11 @@ type stubQueryInterceptor struct {
 
 func (stubQueryInterceptor) Start(context.Context, component.Host) error { return nil }
 func (stubQueryInterceptor) Shutdown(context.Context) error              { return nil }
-func (stubQueryInterceptor) OnQuery(ctx context.Context, q queryinterceptor.TraceQuery) (context.Context, queryinterceptor.TraceQuery, error) {
+func (stubQueryInterceptor) OnTraceQuery(ctx context.Context, q queryinterceptor.TraceQuery) (context.Context, queryinterceptor.TraceQuery, error) {
 	return ctx, q, nil
 }
 
-func (stubQueryInterceptor) OnResult(ctx context.Context, t []ptrace.Traces) (context.Context, []ptrace.Traces, error) {
+func (stubQueryInterceptor) OnTraceResult(ctx context.Context, t []ptrace.Traces) (context.Context, []ptrace.Traces, error) {
 	return ctx, t, nil
 }
 

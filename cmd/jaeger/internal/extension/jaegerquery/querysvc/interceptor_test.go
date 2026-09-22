@@ -125,7 +125,7 @@ func (r *multiBatchReader) yieldBatches(yield func([]ptrace.Traces, error) bool)
 // fakeInterceptor lets each test supply the hook behavior it needs. It receives the interceptor's
 // TraceQuery, exactly as a real interceptor would. The optional onQueryCtx and onResultCtx hooks
 // transform (and observe) the context, so a test can assert how the query service threads it from
-// OnQuery into the reader and OnResult. It gates trace searches only, which is what the embedded
+// OnTraceQuery into the reader and OnTraceResult. It gates trace searches only, which is what the embedded
 // mixin declares.
 type fakeInterceptor struct {
 	queryinterceptor.UnsupportedSpanSearch
@@ -136,7 +136,7 @@ type fakeInterceptor struct {
 	onResultCtx func(context.Context) context.Context
 }
 
-func (f fakeInterceptor) OnQuery(ctx context.Context, q queryinterceptor.TraceQuery) (context.Context, queryinterceptor.TraceQuery, error) {
+func (f fakeInterceptor) OnTraceQuery(ctx context.Context, q queryinterceptor.TraceQuery) (context.Context, queryinterceptor.TraceQuery, error) {
 	if f.onQueryCtx != nil {
 		ctx = f.onQueryCtx(ctx)
 	}
@@ -147,7 +147,7 @@ func (f fakeInterceptor) OnQuery(ctx context.Context, q queryinterceptor.TraceQu
 	return ctx, q, nil
 }
 
-func (f fakeInterceptor) OnResult(ctx context.Context, t []ptrace.Traces) (context.Context, []ptrace.Traces, error) {
+func (f fakeInterceptor) OnTraceResult(ctx context.Context, t []ptrace.Traces) (context.Context, []ptrace.Traces, error) {
 	if f.onResultCtx != nil {
 		ctx = f.onResultCtx(ctx)
 	}
@@ -346,7 +346,7 @@ func TestFindTraces_ShowsEveryPredicateAsAFilter(t *testing.T) {
 
 // TestFindTraces_RefusesAPredicateTheBackendCannotServe pins that the capability check applies to
 // the interceptor's output and not only to what the caller sent: the query service converts once,
-// after OnQuery, so a predicate an interceptor added is refused on the same terms as the caller's
+// after OnTraceQuery, so a predicate an interceptor added is refused on the same terms as the caller's
 // own.
 func TestFindTraces_RefusesAPredicateTheBackendCannotServe(t *testing.T) {
 	t.Run("the backend evaluates no filter and the fields cannot carry it", func(t *testing.T) {
@@ -734,8 +734,8 @@ func TestGetTraces_ContinuesAfterError(t *testing.T) {
 	assert.Equal(t, 1, batches)
 }
 
-// assertResultErrorStops verifies that an OnResult failure aborts the stream: even a consumer
-// that keeps ranging after the error must never receive a later batch, and OnResult must not run
+// assertResultErrorStops verifies that an OnTraceResult failure aborts the stream: even a consumer
+// that keeps ranging after the error must never receive a later batch, and OnTraceResult must not run
 // again. This guards the redaction/authorization use case, where emitting a later batch after a
 // failed sanitize would leak data.
 func assertResultErrorStops(t *testing.T, call func(*QueryService) iter.Seq2[[]ptrace.Traces, error]) {
@@ -762,8 +762,8 @@ func assertResultErrorStops(t *testing.T, call func(*QueryService) iter.Seq2[[]p
 		batches++
 	}
 	assert.Equal(t, 1, errs, "exactly one error, then the stream aborts")
-	assert.Zero(t, batches, "no batch may be delivered after an OnResult error")
-	assert.Equal(t, 1, onResultCalls, "OnResult must not run on batches after it fails")
+	assert.Zero(t, batches, "no batch may be delivered after an OnTraceResult error")
+	assert.Equal(t, 1, onResultCalls, "OnTraceResult must not run on batches after it fails")
 }
 
 func TestFindTraces_ResultErrorStopsIteration(t *testing.T) {
@@ -855,11 +855,11 @@ func TestFindTraces_ThreadsQueryContextToStorageAndResult(t *testing.T) {
 
 	_, err := collectTraces(qs.FindTraces(t.Context(), searchQuery(tracestore.TraceQueryParams{})))
 	require.NoError(t, err)
-	assert.Equal(t, "from-onquery", next.gotCtx.Value(ctxKey{}), "the storage reader must see the context OnQuery returned")
-	assert.Equal(t, "from-onquery", resultSaw, "OnResult must see the context OnQuery returned")
+	assert.Equal(t, "from-onquery", next.gotCtx.Value(ctxKey{}), "the storage reader must see the context OnTraceQuery returned")
+	assert.Equal(t, "from-onquery", resultSaw, "OnTraceResult must see the context OnTraceQuery returned")
 }
 
-// countingResultCtx records the value each OnResult call is given and increments it, so a test can
+// countingResultCtx records the value each OnTraceResult call is given and increments it, so a test can
 // assert the context threads from one batch to the next.
 func countingResultCtx(seen *[]int) func(context.Context) context.Context {
 	return func(ctx context.Context) context.Context {
@@ -879,7 +879,7 @@ func TestFindTraces_ThreadsResultContextAcrossBatches(t *testing.T) {
 
 	_, err := collectTraces(qs.FindTraces(t.Context(), searchQuery(tracestore.TraceQueryParams{})))
 	require.NoError(t, err)
-	assert.Equal(t, []int{0, 1}, seen, "OnResult's returned context must thread into the next batch")
+	assert.Equal(t, []int{0, 1}, seen, "OnTraceResult's returned context must thread into the next batch")
 }
 
 func TestGetTraces_ThreadsResultContextAcrossBatches(t *testing.T) {
@@ -895,7 +895,7 @@ func TestGetTraces_ThreadsResultContextAcrossBatches(t *testing.T) {
 		RawTraces: true,
 	}))
 	require.NoError(t, err)
-	assert.Equal(t, []int{0, 1}, seen, "OnResult's returned context must thread into the next batch")
+	assert.Equal(t, []int{0, 1}, seen, "OnTraceResult's returned context must thread into the next batch")
 }
 
 func TestFindTraceSummaries_AppliesQueryHook(t *testing.T) {
@@ -952,7 +952,7 @@ func TestFindTraceSummaries_FallbackAppliesResultHook(t *testing.T) {
 	for _, e := range qs.FindTraceSummaries(t.Context(), searchQuery(tracestore.TraceQueryParams{})) {
 		err = e
 	}
-	require.ErrorIs(t, err, assert.AnError, "the fallback's traces pass through OnResult")
+	require.ErrorIs(t, err, assert.AnError, "the fallback's traces pass through OnTraceResult")
 	assert.Equal(t, 1, onQueryCalls, "the fallback reuses the query the interceptor already saw")
 }
 

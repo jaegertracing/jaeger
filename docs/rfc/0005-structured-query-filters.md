@@ -516,7 +516,7 @@ flowchart TB
     checks -->|yes| ic
 
     ic -->|yes| toFilter["express every predicate<br/>as one filter"]
-    toFilter --> onQuery["OnQuery: narrow, or refuse"]
+    toFilter --> onQuery["OnTraceQuery: narrow, or refuse"]
     onQuery --> icOK{"returned a well-formed<br/>filter?"}
     icOK -->|no| refuseIc(["interceptor error"])
 
