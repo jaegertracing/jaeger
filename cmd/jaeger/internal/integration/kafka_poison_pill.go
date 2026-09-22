@@ -50,7 +50,8 @@ type deadLetterServer struct {
 }
 
 func newDeadLetterServer(t *testing.T) *deadLetterServer {
-	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	ctx := context.Background()
+	ln, err := (&net.ListenConfig{}).Listen(ctx, "tcp", "127.0.0.1:0")
 	require.NoError(t, err)
 	d := &deadLetterServer{endpoint: ln.Addr().String(), sink: new(consumertest.TracesSink)}
 	require.NoError(t, ln.Close())
@@ -62,7 +63,6 @@ func newDeadLetterServer(t *testing.T) *deadLetterServer {
 	// paths on the reserved port.
 	cfg.Protocols.HTTP.GetOrInsertDefault().ServerConfig.NetAddr.Endpoint = d.endpoint
 
-	ctx := context.Background()
 	receiver, err := factory.CreateTraces(ctx, receivertest.NewNopSettings(factory.Type()), cfg, d.sink)
 	require.NoError(t, err)
 	require.NoError(t, receiver.Start(ctx, componenttest.NewNopHost()))
