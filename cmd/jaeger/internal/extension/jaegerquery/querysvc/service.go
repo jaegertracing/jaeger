@@ -29,7 +29,7 @@ var errNoArchiveSpanStorage = errors.New("archive span storage was not configure
 // not declare SpanSearch (RFC 0016 §4.5). It names the backend's limitation, because the same
 // query is valid elsewhere. The interceptor package has a sentinel of the same name for an
 // interceptor with no span-search policy; that one is a deployment fault, not a bad request.
-var ErrSpanSearchUnsupported = errors.New("this storage backend does not support span search")
+var ErrSpanSearchUnsupported = errors.New("this storage backend does not declare span search support")
 
 // ErrServiceNameRequired is returned for a search that omits the service name against a
 // backend whose reader does not accept one (RFC 0013 §3.3). It names the backend's
@@ -286,7 +286,7 @@ func (qs QueryService) prepareSearchQuery(
 // their say, and returns the query to dispatch along with the context to dispatch it with. A span
 // query has one shape, so there is no conversion step and no service-name rule.
 //
-// The capabilities are read once. The span-search refusal and the caller's filter validation
+// The capabilities are read once. The caller's filter validation and the span-search refusal
 // come before the interceptors, so an interceptor is never shown a request this deployment or
 // its backend refuses outright; the filter capability check comes after them, so a predicate an
 // interceptor adds is held to the same check as one the caller sent.
@@ -294,12 +294,9 @@ func (qs QueryService) prepareSpanSearchQuery(
 	ctx context.Context,
 	query SpanQueryParams,
 ) (context.Context, SpanQueryParams, error) {
-	caps := qs.readerSearchCapabilitiesOrDefault(ctx)
-	if !caps.SpanSearch {
-		return ctx, query, ErrSpanSearchUnsupported
-	}
 	// A search over the time range alone carries no filter and is the base case of a span query
-	// (RFC 0016 §5.1), so the gate and finalization apply only when the caller sent one.
+	// (RFC 0016 §5.1), so the gate and finalization apply only when the caller sent one. Neither
+	// depends on the backend, so both come before the capability call rather than after it.
 	if query.Filter != nil {
 		if !StructuredFiltersGate.IsEnabled() {
 			return ctx, query, fmt.Errorf("%w: enable the %q feature gate to use it",
@@ -310,6 +307,10 @@ func (qs QueryService) prepareSpanSearchQuery(
 			return ctx, query, fmt.Errorf("%w: %w", tracestore.ErrFilterInvalid, err)
 		}
 		query.Filter = finalized
+	}
+	caps := qs.readerSearchCapabilitiesOrDefault(ctx)
+	if !caps.SpanSearch {
+		return ctx, query, ErrSpanSearchUnsupported
 	}
 	if len(qs.options.Interceptors) > 0 {
 		var err error

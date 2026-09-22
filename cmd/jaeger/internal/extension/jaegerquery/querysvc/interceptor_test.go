@@ -1038,18 +1038,26 @@ func TestFindTraces_ThreadsResultContextAcrossBatches(t *testing.T) {
 
 func TestFindSpans_AppliesQueryAndResultHooks(t *testing.T) {
 	enableStructuredFilters(t)
+	narrowedEnd := time.Date(2026, 8, 18, 0, 0, 0, 0, time.UTC)
 	next := &fakeReader{batch: tracesWith("secret", "value")}
 	next.capabilities = filterCapableBackend()
 	qs := interceptedService(next, fakeInterceptor{
-		onSpanQuery:  narrowSpansTo(serviceFilter("gated")),
+		onSpanQuery: func(q queryinterceptor.SpanQuery) (queryinterceptor.SpanQuery, error) {
+			q.Filter = serviceFilter("gated")
+			q.StartTimeMax = narrowedEnd
+			return q, nil
+		},
 		onSpanResult: redactSpanResult("secret"),
 	})
 
 	out, err := collectSpans(qs.FindSpans(t.Context(), SpanQueryParams{SpanQueryParams: tracestore.SpanQueryParams{
-		Filter: serviceFilter("original"),
+		Filter:       serviceFilter("original"),
+		StartTimeMin: narrowedEnd.Add(-time.Hour),
 	}}))
 	require.NoError(t, err)
 	assert.Equal(t, serviceFilter("gated"), next.gotSpanQuery.Filter, "pre-query hook must reach storage")
+	assert.Equal(t, narrowedEnd, next.gotSpanQuery.StartTimeMax, "the narrowed time range must reach storage")
+	assert.Equal(t, narrowedEnd.Add(-time.Hour), next.gotSpanQuery.StartTimeMin, "the untouched bound survives the round trip")
 	require.Len(t, out, 1)
 	assert.Equal(t, "REDACTED", firstSpanAttr(t, []ptrace.Traces{out[0].Results}, "secret"), "result hook must redact")
 }

@@ -410,6 +410,7 @@ func TestFindSpans_Success(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, result, 1)
 	require.Equal(t, expectedSpans, result[0].Results)
+	tqs.traceReader.AssertExpectations(t)
 }
 
 func TestFindSpans_WithLegacyBackend_UnsupportedError(t *testing.T) {
