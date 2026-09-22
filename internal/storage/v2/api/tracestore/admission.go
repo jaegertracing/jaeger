@@ -65,7 +65,7 @@ func (q TraceQueryParams) EnsureNoPaginationOnFindTraces() error {
 	return ErrPaginationUnsupportedByFindTraces
 }
 
-// PaginationForCapabilities gives the Reader Pagination in whichever shape it can honor,
+// paginationForCapabilities gives the Reader Pagination in whichever shape it can honor,
 // immediately before dispatch, the way ForCapabilities does for Filter. A Reader that declares
 // Paginated gets Pagination as sent: it has its own field to read PageSize from. A Reader that
 // does not has no such field, so PageSize is folded into SearchDepth, the bound every Reader
@@ -76,8 +76,10 @@ func (q TraceQueryParams) EnsureNoPaginationOnFindTraces() error {
 //
 // It answers only that question. Whether the request is one this deployment accepts at all,
 // and whether Pagination is well-formed on its own terms, are the caller's to settle first
-// (EnsurePaginationStandsAlone).
-func (q TraceQueryParams) PaginationForCapabilities(caps SearchCapabilities) (TraceQueryParams, error) {
+// (EnsurePaginationStandsAlone). Unexported: every caller applies it together with the Filter
+// half below, through ForCapabilities, so there is nothing for a caller outside this package to
+// reach it for on its own.
+func (q TraceQueryParams) paginationForCapabilities(caps SearchCapabilities) (TraceQueryParams, error) {
 	if q.Pagination == (Pagination{}) || caps.Paginated {
 		return q, nil
 	}
@@ -119,15 +121,31 @@ func (q TraceQueryParams) EnsureFilterStandsAlone() error {
 		ErrFilterInvalid, set)
 }
 
-// ForCapabilities gives the Reader whichever of the two filtering models it declared it can
-// evaluate. A Reader that declares filter support gets the filter itself, once every level and
+// ForCapabilities gives the Reader Pagination and Filter each in whichever shape it can honor,
+// immediately before dispatch. The two live on one method because every caller applies both
+// together, in this order, so two separate calls bought nothing beyond duplicated error handling
+// at each call site.
+//
+// For Pagination: a Reader that declares Paginated gets Pagination as sent, since it has its own
+// field to read PageSize from. A Reader that does not has no such field, so PageSize is folded
+// into SearchDepth, the bound every Reader already reads, and Pagination is cleared, so the query
+// still reaches storage bounded rather than as an unbounded search with SearchDepth left at zero.
+// A PageToken is never folded: a Reader that cannot paginate cannot have minted it, so it is
+// refused (RFC 0014 §6.2) rather than silently started over as a new search.
+//
+// For Filter: a Reader that declares filter support gets the filter itself, once every level and
 // operator it uses is one that Reader listed. A Reader that declares none gets the filter rewritten
 // into the legacy predicate fields, which carry the equalities and inclusive duration bounds and
 // nothing else (ToLegacyShape), or a refusal where they cannot carry it.
 //
-// It answers only that question. Whether the request is one this deployment accepts at all is the
-// caller's to settle first.
+// It answers only that question. Whether the request is one this deployment accepts at all, and
+// whether Pagination is well-formed on its own terms, are the caller's to settle first
+// (EnsurePaginationStandsAlone).
 func (q TraceQueryParams) ForCapabilities(caps SearchCapabilities) (TraceQueryParams, error) {
+	q, err := q.paginationForCapabilities(caps)
+	if err != nil {
+		return TraceQueryParams{}, err
+	}
 	if q.Filter == nil {
 		return q, nil
 	}

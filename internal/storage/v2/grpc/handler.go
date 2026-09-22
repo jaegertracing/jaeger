@@ -122,15 +122,10 @@ func (h *Handler) FindTraces(
 	req *storage.FindTracesRequest,
 	srv storage.TraceReader_FindTracesServer,
 ) error {
-	// Checked on the raw proto, before toTraceQueryParams, so a Pagination is refused without
-	// ever fetching capabilities for a request already known to be rejected: FindTraces streams
-	// whole traces with no field to carry a continuation token, so this check cannot live in
-	// toTraceQueryParams, which FindTraceIDs and FindTraceSummaries share and which does admit
-	// Pagination (RFC 0014 §4).
 	if req.GetQuery().GetPagination() != nil {
 		return status.Error(codes.InvalidArgument, tracestore.ErrPaginationUnsupportedByFindTraces.Error())
 	}
-	query, err := h.toTraceQueryParams(srv.Context(), req.Query)
+	query, err := toTraceQueryParams(req.Query)
 	if err != nil {
 		return err
 	}
@@ -153,7 +148,7 @@ func (h *Handler) FindTraceSummaries(
 	req *storage.FindTraceSummariesRequest,
 	srv storage.TraceReader_FindTraceSummariesServer,
 ) error {
-	query, err := h.toTraceQueryParams(srv.Context(), req.Query)
+	query, err := toTraceQueryParams(req.Query)
 	if err != nil {
 		return err
 	}
@@ -207,7 +202,7 @@ func (h *Handler) FindTraceIDs(
 ) (*storage.FindTraceIDsResponse, error) {
 	foundTraceIDs := []*storage.FoundTraceID{}
 	var nextPageToken string
-	query, err := h.toTraceQueryParams(ctx, req.Query)
+	query, err := toTraceQueryParams(req.Query)
 	if err != nil {
 		return nil, err
 	}
@@ -303,21 +298,25 @@ func (h *Handler) GetCapabilities(
 	}, nil
 }
 
-// toTraceQueryParams prepares a query a third party sent for the reader behind this handler. The
-// same three things happen to a query arriving on api_v3, and for the same reasons, so they happen
-// through the same checks (RFC 0005 §7):
+// toTraceQueryParams decodes a query a caller sent over the wire into the Go type the reader
+// behind this handler takes. The caller is querysvc.prepareSearchQuery on the other end of this
+// same tracestore.Reader (the grpc client this handler serves is what querysvc's traceReader is,
+// for a deployment that splits query and storage into separate processes), and that is where
+// capability-dependent shaping happens: it already fetched this same reader's SearchCapabilities
+// and ran ForCapabilities before ever serializing the query onto the wire, so Filter and
+// Pagination arrive here already in whichever shape the reader declared it can take, one place
+// deciding rather than every handler its own (ADR-013). Redoing that here, against the same
+// capabilities, would only repeat the answer.
 //
-//   - The filter is finalized, because decoding validates nothing: a reader is owed the same tree
-//     whether the query came from this process or over the wire.
-//   - A query carrying both a filter and the legacy fields it replaces is refused, rather than left
-//     for the reader to answer one of them without saying which.
-//   - The reader gets whichever filtering model it declared. A reader that evaluates no filter is
-//     given the legacy fields instead, which is what keeps a client's filter from reaching one that
-//     would ignore the field and answer with every trace in the range.
+// What still happens here is translation and structural validation that has to happen wherever a
+// wire message becomes this type, regardless of who sent it: proto decoding validates nothing, so
+// the filter is finalized (RFC 0005 §7) and Pagination's scalars are decoded through
+// DecodePagination; and a query combining a filter or Pagination with something it is mutually
+// exclusive with is refused rather than left for the reader to answer one of them without saying
+// which.
 //
 // A refusal is InvalidArgument, because each is something the caller has to change.
-func (h *Handler) toTraceQueryParams(
-	ctx context.Context,
+func toTraceQueryParams(
 	t *storage.TraceQueryParameters,
 ) (tracestore.TraceQueryParams, error) {
 	filter, err := expressionproto.FromProto(t.GetFilter())
@@ -351,31 +350,7 @@ func (h *Handler) toTraceQueryParams(
 	if err := query.EnsurePaginationStandsAlone(); err != nil {
 		return tracestore.TraceQueryParams{}, status.Error(codes.InvalidArgument, err.Error())
 	}
-	if query.Filter == nil && query.Pagination == (tracestore.Pagination{}) {
-		return query, nil
-	}
-	caps, err := h.traceReader.SearchCapabilities(ctx)
-	if err != nil {
-		// A reader that cannot report its capabilities reads as the least capable one, which serves
-		// only the legacy predicate fields and cannot paginate.
-		caps = tracestore.SearchCapabilities{}
-	}
-	if query.Pagination != (tracestore.Pagination{}) {
-		applied, err := query.PaginationForCapabilities(caps)
-		if err != nil {
-			// This reader cannot have minted the token (RFC 0014 §6.2).
-			return tracestore.TraceQueryParams{}, status.Error(codes.InvalidArgument, err.Error())
-		}
-		query = applied
-	}
-	if query.Filter == nil {
-		return query, nil
-	}
-	prepared, err := query.ForCapabilities(caps)
-	if err != nil {
-		return tracestore.TraceQueryParams{}, status.Error(codes.InvalidArgument, err.Error())
-	}
-	return prepared, nil
+	return query, nil
 }
 
 func convertKeyValueListToMap(kvList []*storage.KeyValue) pcommon.Map {

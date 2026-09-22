@@ -285,29 +285,17 @@ func (qs QueryService) prepareSearchQuery(
 	// Pagination needs the same capability round trip a Filter does, to learn whether this
 	// reader can honor it (RFC 0014 §6.2) — not only when a PageToken is present, but for a
 	// page-size-only request too, since a reader that cannot paginate has no field of its own
-	// to read PageSize from and needs it folded into SearchDepth before dispatch
-	// (PaginationForCapabilities). So the two share one capability fetch below rather than
-	// each making its own.
+	// to read PageSize from and needs it folded into SearchDepth before dispatch. ForCapabilities
+	// applies both, so this needs one capability fetch and one call rather than one of each.
 	if query.Filter == nil && query.Pagination == (tracestore.Pagination{}) {
 		return ctx, query, qs.checkServiceName(ctx, query)
 	}
 	caps := qs.readerSearchCapabilitiesOrDefault(ctx)
-	if query.Pagination != (tracestore.Pagination{}) {
-		applied, err := query.PaginationForCapabilities(caps)
-		if err != nil {
-			return ctx, query, err
-		}
-		query.TraceQueryParams = applied
+	prepared, err := query.ForCapabilities(caps)
+	if err != nil {
+		return ctx, query, err
 	}
-	if query.Filter != nil {
-		// The filter is settled before the service name is checked, because a filter can name
-		// the service itself and rewriting it is what moves that into ServiceName.
-		prepared, err := query.ForCapabilities(caps)
-		if err != nil {
-			return ctx, query, err
-		}
-		query.TraceQueryParams = prepared
-	}
+	query.TraceQueryParams = prepared
 	if query.ServiceName == "" && !caps.WithoutServiceName {
 		return ctx, query, ErrServiceNameRequired
 	}

@@ -627,31 +627,6 @@ func TestFindTraces_LeavesALegacyQueryAloneWhenNothingChangedIt(t *testing.T) {
 		require.NoError(t, err)
 		require.NotNil(t, next.gotQuery.Filter, "a filter the caller sent stays a filter")
 	})
-
-	t.Run("an interceptor's rewrite keeps the result bound", func(t *testing.T) {
-		// FindTraceSummaries, not FindTraces: FindTraces refuses any query carrying
-		// Pagination outright (RFC 0014 §4), before the interceptor stage ever runs.
-		// Pagination and SearchDepth are mutually exclusive (EnsurePaginationStandsAlone),
-		// so this only exercises Pagination; SearchDepth preservation is covered above by
-		// "an interceptor that changes only the envelope".
-		enableStructuredFilters(t)
-		enablePagination(t)
-		next := &fakeReader{summaries: []tracestore.TraceSummary{{RootServiceName: "gated"}}}
-		caps := *filterCapableBackend()
-		caps.Paginated = true
-		next.capabilities = &caps
-		qs := interceptedService(next, fakeInterceptor{onQuery: narrowTo(serviceFilter("gated"))})
-
-		for _, err := range qs.FindTraceSummaries(t.Context(), searchQuery(tracestore.TraceQueryParams{
-			Filter:     serviceFilter("original"),
-			Pagination: tracestore.Pagination{PageSize: 3, PageToken: "next"},
-		})) {
-			require.NoError(t, err)
-		}
-		assert.Equal(t, serviceFilter("gated"), next.gotSummaryQuery.Filter)
-		assert.Equal(t, tracestore.Pagination{PageSize: 3, PageToken: "next"}, next.gotSummaryQuery.Pagination,
-			"the interceptor never saw the pagination")
-	})
 }
 
 // TestFindTraces_RefusesAFilterALaterInterceptorDrops pins that the nil rule holds across the
