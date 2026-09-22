@@ -538,6 +538,77 @@ func TestSearchTracesHandler_Handle_DurationMaxLessThanMin(t *testing.T) {
 	assert.Contains(t, err.Error(), "duration_max must be greater than duration_min")
 }
 
+// TestSearchTracesHandler_Handle_NegativeDuration covers the case reported in the issue:
+// a negative duration_min or duration_max bypasses the duration_max < duration_min check
+// (which only fires when both bounds are positive) and reaches the storage backend as an
+// impossible query. Each bound must be rejected on its own, before that comparison runs.
+func TestSearchTracesHandler_Handle_NegativeDuration(t *testing.T) {
+	tests := []struct {
+		name        string
+		durationMin string
+		durationMax string
+		wantErr     string
+	}{
+		{
+			name:        "negative duration_min",
+			durationMin: "-5s",
+			wantErr:     "duration_min cannot be negative",
+		},
+		{
+			name:        "negative duration_max",
+			durationMax: "-10s",
+			wantErr:     "duration_max cannot be negative",
+		},
+		{
+			name:        "both negative",
+			durationMin: "-5s",
+			durationMax: "-10s",
+			wantErr:     "duration_min cannot be negative",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			handler := NewSearchTracesHandler(nil, 100)
+
+			input := types.SearchTracesInput{
+				StartTimeMin: "-1h",
+				ServiceName:  "test",
+				DurationMin:  tt.durationMin,
+				DurationMax:  tt.durationMax,
+			}
+
+			_, _, err := handler(context.Background(), &mcp.CallToolRequest{}, input)
+
+			require.Error(t, err)
+			assert.Contains(t, err.Error(), tt.wantErr)
+		})
+	}
+}
+
+// TestSearchTracesHandler_Handle_ZeroDurationValid covers the boundary the negative check
+// must not overreach: a zero duration is a valid "no lower/upper bound" sentinel elsewhere
+// in this handler (see the durationMin > 0 && durationMax > 0 guard below), so it must still
+// reach the query service rather than being rejected as negative.
+func TestSearchTracesHandler_Handle_ZeroDurationValid(t *testing.T) {
+	want := makeTraceSummary("test", "/test", false)
+	mock := newMockFindTraceSummaries(want)
+
+	handler := &searchTracesHandler{queryService: mock, maxResults: 100}
+
+	input := types.SearchTracesInput{
+		StartTimeMin: "-1h",
+		ServiceName:  "test",
+		DurationMin:  "0s",
+		DurationMax:  "10s",
+	}
+
+	_, output, err := handler.handle(context.Background(), &mcp.CallToolRequest{}, input)
+
+	require.NoError(t, err)
+	require.Len(t, output.Traces, 1)
+}
+
 func TestParseTimeParam(t *testing.T) {
 	tests := []struct {
 		name      string
