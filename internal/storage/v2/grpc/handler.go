@@ -294,21 +294,10 @@ func (h *Handler) GetCapabilities(
 	}, nil
 }
 
-// toTraceQueryParams prepares a query a third party sent for the reader behind this handler. The
-// same two things happen to a query arriving on api_v3, and for the same reasons, so they happen
-// through the same checks (RFC 0005 §7):
-//
-//   - The filter is finalized, because decoding validates nothing: a reader is owed the same tree
-//     whether the query came from this process or over the wire.
-//   - A query carrying both a filter and the legacy fields it replaces is refused, rather than left
-//     for the reader to answer one of them without saying which.
-//
-// Which filtering model the reader receives is not decided here. The query service converts a
-// query toward the capabilities the reader declared (ADR-013), and a client of this server that
-// dispatches its own queries reads the same declaration through the Capabilities service. A
-// second conversion here would express that one decision in two places.
-//
-// A refusal is InvalidArgument, because each is something the caller has to change.
+// toTraceQueryParams translates a wire query into the reader's shape. The filter is finalized
+// because decoding validates nothing, and a query that mixes a filter with the legacy predicate
+// fields is refused (RFC 0005 §7); both are InvalidArgument because the caller has to change them.
+// Which filtering model the reader receives is the query service's decision, not this server's.
 func (*Handler) toTraceQueryParams(t *storage.TraceQueryParameters) (tracestore.TraceQueryParams, error) {
 	filter, err := expressionproto.FromProto(t.GetFilter())
 	if err == nil && filter != nil {

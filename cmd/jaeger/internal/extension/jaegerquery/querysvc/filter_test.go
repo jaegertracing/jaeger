@@ -35,8 +35,10 @@ func tag(op expression.Operator, key string, value string) *expression.Call {
 func filterQuery(filter *expression.Call) TraceQueryParams {
 	return TraceQueryParams{
 		TraceQueryParams: tracestore.TraceQueryParams{
-			Attributes: pcommon.NewMap(),
-			Filter:     filter,
+			Attributes:   pcommon.NewMap(),
+			Filter:       filter,
+			StartTimeMin: testWindowStart,
+			StartTimeMax: testWindowEnd,
 		},
 	}
 }
