@@ -363,12 +363,23 @@ func TestSpanWriter_RejectedSpansError(t *testing.T) {
 			assert.Contains(t, w.logBuffer.String(), "lookup document rejected by the backend")
 			require.Len(t, *w.added, 2)
 
-			// The service cache was not committed, so the next span of the same
-			// service and operation sends the lookup document again.
+			// The batch completed, so the pair is cached and the next span of the
+			// same service and operation does not re-send the rejected document.
 			w.batchWriter.errFor = nil
 			require.NoError(t, w.writer.WriteSpans(context.Background(), []dbmodel.Span{spanA}))
-			require.Len(t, *w.added, 4, "the lookup document and the span are both re-sent")
-			assert.Equal(t, (*w.added)[0].ID, (*w.added)[2].ID, "the same lookup document")
+			require.Len(t, *w.added, 3, "only the span document is sent")
+		})
+	})
+
+	t.Run("rejected lookup document alongside a rejected span", func(t *testing.T) {
+		withSpanWriter(func(w *spanWriterTest) {
+			// Position 0 is spanA's lookup document, position 1 its span document.
+			w.batchWriter.errFor = rejecting(false, nil, 0, 1)
+			var rejected *tracestore.RejectedSpansError
+			require.ErrorAs(t, w.writer.WriteSpans(context.Background(), []dbmodel.Span{spanA}), &rejected)
+			assert.Len(t, rejected.Spans, 1, "the span is reported")
+			assert.Zero(t, rejected.Unidentified)
+			assert.Contains(t, w.logBuffer.String(), "lookup document rejected by the backend", "the lookup document is logged")
 		})
 	})
 

@@ -128,9 +128,13 @@ func (s *SpanWriter) WriteSpans(ctx context.Context, spans []dbmodel.Span) error
 	}
 
 	if err := s.batchWriter.WriteBatch(ctx, items); err != nil {
-		return s.attributeRejections(err, items, spanOf)
+		if err := s.attributeRejections(err, items, spanOf); err != nil {
+			return err
+		}
 	}
-	// Durable now (or enqueued, in async mode): safe to remember the service docs.
+	// Every span is durable now (or enqueued, in async mode), so the service docs
+	// are remembered, including a lookup document the backend rejected terminally:
+	// re-sending it would only be rejected again.
 	serviceOps.commitToCache()
 	return nil
 }
@@ -139,11 +143,10 @@ func (s *SpanWriter) WriteSpans(ctx context.Context, spans []dbmodel.Span) error
 // documents into a tracestore.RejectedSpansError naming the spans concerned, so a
 // caller can re-route them without knowing the document layout. Any other error is
 // returned as is. A rejected service:operation lookup document is logged and not
-// reported: the spans it indexes are stored, and any later span of the same
-// service and operation writes it again, because the service cache is committed
-// only after a fully successful batch (the other lookup documents of a failed
-// batch are re-sent too, which the deterministic ids make harmless). A batch whose
-// only terminal rejections are lookup documents therefore succeeds. A rejected
+// reported: the spans it indexes are stored, and the pair is cached like any other
+// once the batch completes, so the document is not re-sent to be rejected again
+// until the writer restarts. A batch whose only terminal rejections are lookup
+// documents therefore succeeds. A rejected
 // document that matches nothing this batch sent is counted as unidentified,
 // because it could be a span. An error with no terminal rejections (a transport
 // failure, or only transient rejections) is returned as is. items and spanOf are
@@ -181,7 +184,7 @@ func (s *SpanWriter) attributeRejections(err error, items []esclient.BulkItem, s
 			rejected.Spans = append(rejected.Spans, tracestore.RejectedSpan{TraceID: traceID, SpanID: spanID, Reason: item.Reason})
 			continue
 		}
-		s.logger.Warn("service:operation lookup document rejected by the backend; its spans are stored and a later span re-creates it",
+		s.logger.Warn("service:operation lookup document rejected by the backend; its spans are stored and the pair is not re-sent until restart",
 			zap.String("id", item.ID), zap.Int("status", item.Status), zap.String("reason", item.Reason))
 	}
 	if len(rejected.Spans) == 0 && rejected.Unidentified == 0 {

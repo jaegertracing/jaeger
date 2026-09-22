@@ -64,11 +64,12 @@ type RejectedSpansError struct {
 }
 
 func (e *RejectedSpansError) Error() string {
-	if e.Err == nil {
-		return fmt.Sprintf("storage rejected %d spans terminally and %d unidentified documents (transient failures: %t)",
-			len(e.Spans), e.Unidentified, e.Transient)
+	msg := fmt.Sprintf("storage rejected %d spans terminally and %d unidentified documents (transient failures: %t)",
+		len(e.Spans), e.Unidentified, e.Transient)
+	if e.Err != nil {
+		msg += ": " + e.Err.Error()
 	}
-	return e.Err.Error()
+	return msg
 }
 
 func (e *RejectedSpansError) Unwrap() error {
