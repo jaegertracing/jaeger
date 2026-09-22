@@ -139,7 +139,13 @@ func (c *connectorImpl) writeTraces(ctx context.Context, td ptrace.Traces) error
 		// clear it, which is the right escape for a defect rather than a data problem.
 		return fmt.Errorf("%d rejected documents could not be attributed to a span: %w", rejected.Unidentified, err)
 	}
-	poison := selectSpans(td, rejected.Spans)
+	poison, unmatched := selectSpans(td, rejected.Spans)
+	if unmatched > 0 {
+		// The storage named spans this batch does not contain, so they can be
+		// neither re-routed nor acknowledged; fail the batch like an unidentified
+		// document, so the defect surfaces instead of a span disappearing.
+		return fmt.Errorf("%d rejected spans are not in the batch: %w", unmatched, err)
+	}
 	if n := poison.SpanCount(); n > 0 {
 		for _, r := range rejected.Spans {
 			c.logger.Warn("storage rejected span terminally; sending it to the dead-letter pipeline",
@@ -172,10 +178,11 @@ const rejectionReasonAttribute = "jaeger.storage.rejection_reason"
 
 // selectSpans returns a new ptrace.Traces holding only the spans of td that the
 // storage rejected, each under a copy of its resource and scope and tagged with
-// the rejection reason. A second span in the batch that shares the trace and span
-// id (the shared-span model, RFC 0007 §4.7) is selected alongside the rejected one,
-// which over-includes a stored span in the dead letter but never loses one.
-func selectSpans(td ptrace.Traces, rejected []tracestore.RejectedSpan) ptrace.Traces {
+// the rejection reason, and the number of distinct rejected ids that matched no
+// span in td. A second span in the batch that shares the trace and span id (the
+// shared-span model, RFC 0007 §4.7) is selected alongside the rejected one, which
+// over-includes a stored span in the dead letter but never loses one.
+func selectSpans(td ptrace.Traces, rejected []tracestore.RejectedSpan) (out ptrace.Traces, unmatched int) {
 	type spanKey struct {
 		traceID pcommon.TraceID
 		spanID  pcommon.SpanID
@@ -184,10 +191,11 @@ func selectSpans(td ptrace.Traces, rejected []tracestore.RejectedSpan) ptrace.Tr
 	for _, r := range rejected {
 		want[spanKey{r.TraceID, r.SpanID}] = r.Reason
 	}
-	out := ptrace.NewTraces()
+	out = ptrace.NewTraces()
 	if len(want) == 0 {
-		return out
+		return out, 0
 	}
+	matched := make(map[spanKey]struct{}, len(want))
 	for _, rs := range td.ResourceSpans().All() {
 		var outRS ptrace.ResourceSpans
 		rsInit := false
@@ -195,10 +203,12 @@ func selectSpans(td ptrace.Traces, rejected []tracestore.RejectedSpan) ptrace.Tr
 			var outSS ptrace.ScopeSpans
 			ssInit := false
 			for _, span := range ss.Spans().All() {
-				reason, ok := want[spanKey{span.TraceID(), span.SpanID()}]
+				key := spanKey{span.TraceID(), span.SpanID()}
+				reason, ok := want[key]
 				if !ok {
 					continue
 				}
+				matched[key] = struct{}{}
 				if !rsInit {
 					outRS = out.ResourceSpans().AppendEmpty()
 					rs.Resource().CopyTo(outRS.Resource())
@@ -217,5 +227,5 @@ func selectSpans(td ptrace.Traces, rejected []tracestore.RejectedSpan) ptrace.Tr
 			}
 		}
 	}
-	return out
+	return out, len(want) - len(matched)
 }

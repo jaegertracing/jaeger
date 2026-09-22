@@ -329,6 +329,58 @@ func TestConsumeTraces_UnidentifiedRejectionFailsTheBatch(t *testing.T) {
 // TestConsumeTraces_BlockingQueueReturnsWriteVerdict proves the connector wraps the
 // exporter pipeline: with queue.wait_for_result and a batch configured, the
 // caller's ConsumeTraces still returns the storage write's verdict (RFC 0007 §4.2).
+func TestConsumeTraces_RejectedSpanNotInBatchFailsTheBatch(t *testing.T) {
+	sink := new(consumertest.TracesSink)
+	td, ids := makeTraces()
+	stranger := tracestore.RejectedSpan{TraceID: traceID(9), SpanID: spanID(9), Reason: "mapper_parsing_exception"}
+	c := newTestConnector(t, directConfig(), sink, &fakeWriter{err: rejectedErr(false, ids[0], stranger)})
+
+	err := c.ConsumeTraces(context.Background(), td)
+	require.ErrorContains(t, err, "1 rejected spans are not in the batch")
+	assert.False(t, consumererror.IsPermanent(err), "the batch is retried, not dropped")
+	assert.Empty(t, sink.AllTraces(), "nothing is re-routed until every rejected span is accounted for")
+	assert.Zero(t, c.deadLetterSpans(t))
+}
+
+// TestConsumeTraces_BlockingQueueMergesCallers is the README's central claim: two
+// concurrent ConsumeTraces calls are merged into one storage write, each caller
+// gets that write's verdict, and the poison from both is re-routed in one send.
+func TestConsumeTraces_BlockingQueueMergesCallers(t *testing.T) {
+	td1, ids1 := makeTraces()
+	td2 := ptrace.NewTraces()
+	ss := td2.ResourceSpans().AppendEmpty().ScopeSpans().AppendEmpty()
+	_, d := makeSpan(ss, traceID(4), spanID(4), "D")
+	makeSpan(ss, traceID(5), spanID(5), "E")
+
+	queue := exporterhelper.NewDefaultQueueConfig()
+	queue.WaitForResult = true
+	queue.NumConsumers = 1
+	queue.Batch = configoptional.Some(exporterhelper.BatchConfig{
+		Sizer:        exporterhelper.RequestSizerTypeItems,
+		FlushTimeout: 5 * time.Second,
+		MinSize:      int64(td1.SpanCount() + td2.SpanCount()),
+	})
+	cfg := directConfig()
+	cfg.QueueConfig = configoptional.Some(queue)
+
+	sink := new(consumertest.TracesSink)
+	w := &fakeWriter{err: rejectedErr(false, ids1[0], d)}
+	c := newTestConnector(t, cfg, sink, w)
+
+	errs := make(chan error, 2)
+	for _, td := range []ptrace.Traces{td1, td2} {
+		go func() { errs <- c.ConsumeTraces(context.Background(), td) }()
+	}
+	for range 2 {
+		require.NoError(t, <-errs, "each caller gets the merged write's verdict")
+	}
+	assert.Equal(t, 1, w.calls, "both callers were merged into one write")
+	assert.Equal(t, 5, w.lastSpans, "the writer saw the merged batch")
+	require.Len(t, sink.AllTraces(), 1, "poison from both callers goes out in one send")
+	assert.ElementsMatch(t, []string{"A", "D"}, spanNames(sink.AllTraces()[0]))
+	assert.Equal(t, int64(2), c.deadLetterSpans(t))
+}
+
 func TestConsumeTraces_BlockingQueueReturnsWriteVerdict(t *testing.T) {
 	queue := exporterhelper.NewDefaultQueueConfig()
 	queue.WaitForResult = true
@@ -369,7 +421,8 @@ func TestSelectSpans_PreservesResourceAndScope(t *testing.T) {
 	ss2.Scope().SetName("scope2")
 	_, c := makeSpan(ss2, traceID(3), spanID(3), "C")
 
-	out := selectSpans(td, []tracestore.RejectedSpan{a, c})
+	out, unmatched := selectSpans(td, []tracestore.RejectedSpan{a, c})
+	require.Zero(t, unmatched)
 
 	require.Equal(t, 2, out.ResourceSpans().Len(), "both resources are preserved for their rejected spans")
 	got1 := out.ResourceSpans().At(0)
@@ -383,7 +436,9 @@ func TestSelectSpans_PreservesResourceAndScope(t *testing.T) {
 
 func TestSelectSpans_EmptyWhenNothingRejected(t *testing.T) {
 	td, _ := makeTraces()
-	assert.Equal(t, 0, selectSpans(td, nil).SpanCount())
+	out, unmatched := selectSpans(td, nil)
+	assert.Equal(t, 0, out.SpanCount())
+	assert.Zero(t, unmatched)
 }
 
 func TestSelectSpans_SharedSpanIDsAreBothSelected(t *testing.T) {
@@ -395,8 +450,9 @@ func TestSelectSpans_SharedSpanIDsAreBothSelected(t *testing.T) {
 	makeSpan(ss, traceID(1), spanID(1), "server")
 	makeSpan(ss, traceID(2), spanID(2), "other")
 
-	out := selectSpans(td, []tracestore.RejectedSpan{client})
+	out, unmatched := selectSpans(td, []tracestore.RejectedSpan{client})
 	assert.ElementsMatch(t, []string{"client", "server"}, spanNames(out))
+	assert.Zero(t, unmatched, "one rejected id, matched by both spans")
 }
 
 func TestStart_StorageFactoryNotFound(t *testing.T) {

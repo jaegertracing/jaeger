@@ -44,7 +44,7 @@ connectors:
       batch:
         sizer: bytes
         flush_timeout: 200ms
-        min_size: 0
+        min_size: 1048576  # flush at 1 MiB, or when flush_timeout elapses
         max_size: 4194304
 
 extensions:
