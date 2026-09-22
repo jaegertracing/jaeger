@@ -182,11 +182,12 @@ type TraceQueryParams struct {
 	// other reader the query service expresses the filter in the legacy fields instead, or
 	// refuses the query.
 	Filter *expression.Call
-	// Pagination requests a paginated search (RFC 0014). Its zero value means this is not
-	// a paginated request, the same as an absent jaeger.api_v3.Pagination on the wire. When
-	// present it replaces SearchDepth rather than falling back to it — the two are mutually
-	// exclusive, which the query service enforces before a Reader ever sees the query.
-	Pagination Pagination
+	// Pagination requests a paginated search (RFC 0014). nil means this is not a paginated
+	// request, the same as an absent jaeger.api_v3.Pagination on the wire; a pointer keeps
+	// that presence, so a present-but-empty message is still seen as a malformed request.
+	// When present it replaces SearchDepth rather than falling back to it — the two are
+	// mutually exclusive, which the query service enforces before a Reader ever sees the query.
+	Pagination *Pagination
 }
 
 // MaxPageSize is the largest Pagination.PageSize the query service accepts. A larger request

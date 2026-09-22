@@ -386,21 +386,21 @@ func TestQueryToReaderShape(t *testing.T) {
 	}}
 
 	t.Run("a paginating reader gets pagination as sent", func(t *testing.T) {
-		query := tracestore.TraceQueryParams{Pagination: tracestore.Pagination{PageSize: 50, PageToken: "cursor"}}
+		query := tracestore.TraceQueryParams{Pagination: &tracestore.Pagination{PageSize: 50, PageToken: "cursor"}}
 		prepared, err := queryToReaderShape(query, tracestore.SearchCapabilities{Paginated: true})
 		require.NoError(t, err)
 		assert.Equal(t, query, prepared)
 	})
 
 	t.Run("a non-paginating reader gets page size folded into search depth", func(t *testing.T) {
-		query := tracestore.TraceQueryParams{Pagination: tracestore.Pagination{PageSize: 50}}
+		query := tracestore.TraceQueryParams{Pagination: &tracestore.Pagination{PageSize: 50}}
 		prepared, err := queryToReaderShape(query, tracestore.SearchCapabilities{})
 		require.NoError(t, err)
 		assert.Equal(t, tracestore.TraceQueryParams{SearchDepth: 50}, prepared)
 	})
 
 	t.Run("a page token against a non-paginating reader is refused", func(t *testing.T) {
-		query := tracestore.TraceQueryParams{Pagination: tracestore.Pagination{PageSize: 50, PageToken: "cursor"}}
+		query := tracestore.TraceQueryParams{Pagination: &tracestore.Pagination{PageSize: 50, PageToken: "cursor"}}
 		_, err := queryToReaderShape(query, tracestore.SearchCapabilities{})
 		require.ErrorIs(t, err, tracestore.ErrPaginationUnsupported)
 	})
@@ -446,16 +446,16 @@ func TestQueryToReaderShape(t *testing.T) {
 	})
 
 	t.Run("pagination and filter both apply, pagination first", func(t *testing.T) {
-		query := tracestore.TraceQueryParams{Filter: serviceIs("cart"), Pagination: tracestore.Pagination{PageSize: 50}}
+		query := tracestore.TraceQueryParams{Filter: serviceIs("cart"), Pagination: &tracestore.Pagination{PageSize: 50}}
 		prepared, err := queryToReaderShape(query, filterCapable)
 		require.NoError(t, err)
 		assert.Equal(t, serviceIs("cart"), prepared.Filter, "a paginated query still gets its filter evaluated")
 		assert.Equal(t, 50, prepared.SearchDepth, "a reader that declared no Paginated support still gets a bound")
-		assert.Equal(t, tracestore.Pagination{}, prepared.Pagination)
+		assert.Nil(t, prepared.Pagination)
 	})
 
 	t.Run("a page token against a non-paginating reader is refused before the filter is touched", func(t *testing.T) {
-		query := tracestore.TraceQueryParams{Filter: serviceIs("cart"), Pagination: tracestore.Pagination{PageSize: 50, PageToken: "cursor"}}
+		query := tracestore.TraceQueryParams{Filter: serviceIs("cart"), Pagination: &tracestore.Pagination{PageSize: 50, PageToken: "cursor"}}
 		_, err := queryToReaderShape(query, filterCapable)
 		require.ErrorIs(t, err, tracestore.ErrPaginationUnsupported)
 	})

@@ -210,7 +210,7 @@ func (qs QueryService) FindTraces(
 ) iter.Seq2[[]ptrace.Traces, error] {
 	return func(yield func([]ptrace.Traces, error) bool) {
 		// The FindTraces response has no field for a continuation token (RFC 0014 §4).
-		if query.Pagination != (tracestore.Pagination{}) {
+		if query.Pagination != nil {
 			yield(nil, tracestore.ErrPaginationUnsupportedByFindTraces)
 			return
 		}
@@ -257,7 +257,7 @@ func (qs QueryService) prepareSearchQuery(
 	if err := query.normalizeEnvelope(); err != nil {
 		return ctx, query, err
 	}
-	if query.Pagination != (tracestore.Pagination{}) {
+	if query.Pagination != nil {
 		if !PaginationGate.IsEnabled() {
 			return ctx, query, fmt.Errorf("%w: enable the %q feature gate to use it",
 				ErrPaginationDisabled, PaginationGate.ID())
@@ -299,7 +299,7 @@ func (qs QueryService) prepareSearchQuery(
 			return ctx, query, err
 		}
 	}
-	if query.Filter == nil && query.Pagination == (tracestore.Pagination{}) {
+	if query.Filter == nil && query.Pagination == nil {
 		return ctx, query, qs.checkServiceName(ctx, query)
 	}
 	caps := qs.readerSearchCapabilitiesOrDefault(ctx)
@@ -335,7 +335,7 @@ func (q *TraceQueryParams) normalizeEnvelope() error {
 	if q.SearchDepth < 0 || q.SearchDepth > tracestore.MaxSearchDepth {
 		return fmt.Errorf("%w: search_depth must be in [0, %d]", ErrQueryInvalid, tracestore.MaxSearchDepth)
 	}
-	if q.SearchDepth == 0 && q.Pagination == (tracestore.Pagination{}) {
+	if q.SearchDepth == 0 && q.Pagination == nil {
 		q.SearchDepth = DefaultSearchDepth
 	}
 	return nil

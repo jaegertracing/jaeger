@@ -1063,12 +1063,12 @@ func TestFindTraceSummaries_PaginatedRequestLeavesSearchDepthUnset(t *testing.T)
 		TraceQueryParams: tracestore.TraceQueryParams{
 			Attributes:   pcommon.NewMap(),
 			StartTimeMin: testWindowStart, StartTimeMax: testWindowEnd,
-			Pagination: tracestore.Pagination{PageSize: 20},
+			Pagination: &tracestore.Pagination{PageSize: 20},
 		},
 	}))
 	require.NoError(t, err)
 	assert.Zero(t, got.SearchDepth, "the default must not be applied alongside Pagination")
-	assert.Equal(t, tracestore.Pagination{PageSize: 20}, got.Pagination)
+	assert.Equal(t, &tracestore.Pagination{PageSize: 20}, got.Pagination)
 }
 
 type mockSummaryReader struct {

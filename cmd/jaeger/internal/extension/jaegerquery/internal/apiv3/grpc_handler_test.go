@@ -328,17 +328,25 @@ func TestTraceQueryParamsPagination(t *testing.T) {
 	t.Run("absent pagination", func(t *testing.T) {
 		params, err := traceQueryParams(baseQuery())
 		require.NoError(t, err)
-		assert.Equal(t, tracestore.Pagination{}, params.Pagination)
+		assert.Nil(t, params.Pagination)
 	})
 	t.Run("pagination present", func(t *testing.T) {
 		query := baseQuery()
 		query.Pagination = &api_v3.Pagination{PageSize: 25, PageToken: "opaque-cursor"}
 		params, err := traceQueryParams(query)
 		require.NoError(t, err)
-		assert.Equal(t, tracestore.Pagination{PageSize: 25, PageToken: "opaque-cursor"}, params.Pagination)
+		assert.Equal(t, &tracestore.Pagination{PageSize: 25, PageToken: "opaque-cursor"}, params.Pagination)
 		assert.Zero(t, params.SearchDepth,
 			"search_depth must not be defaulted when Pagination is present, or every paginated "+
 				"request would trip the query service's mutual-exclusivity check")
+	})
+	t.Run("present but empty pagination keeps its presence", func(t *testing.T) {
+		query := baseQuery()
+		query.Pagination = &api_v3.Pagination{}
+		params, err := traceQueryParams(query)
+		require.NoError(t, err)
+		assert.Equal(t, &tracestore.Pagination{}, params.Pagination,
+			"the query service refuses this for its missing page size, so it must not read as absent")
 	})
 }
 

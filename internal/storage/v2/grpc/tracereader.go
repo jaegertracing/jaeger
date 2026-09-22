@@ -294,7 +294,7 @@ func toProtoQueryParameters(t tracestore.TraceQueryParams) (*storage.TraceQueryP
 		SearchDepth:   int32(t.SearchDepth),
 		Filter:        filter,
 	}
-	if t.Pagination != (tracestore.Pagination{}) {
+	if t.Pagination != nil {
 		// The query service clamps PageSize to tracestore.MaxPageSize before dispatch, so the
 		// cast cannot overflow.
 		q.Pagination = &storage.Pagination{
