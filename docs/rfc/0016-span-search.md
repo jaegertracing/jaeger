@@ -322,7 +322,7 @@ A deployment that gates trace searches through a [`queryinterceptor.Interceptor`
 
 | Criterion | Reuse the trace hooks | Own hooks on the interface | Own hooks in an optional interface, refuse when absent |
 |---|---|---|---|
-| Room for the span-only clauses of §5 | 🔴 ¹ | 🟢 | 🟢 |
+| Room for the span-only projection of §5 | 🔴 ¹ | 🟢 | 🟢 |
 | Result hook matches the payload | 🔴 ² | 🟢 | 🟢 |
 | Existing interceptors keep compiling | 🟢 | 🔴 ³ | 🟢 |
 | A span search cannot slip past a trace-only policy | 🟢 | 🟢 | 🟡 ⁴ |
@@ -330,13 +330,13 @@ A deployment that gates trace searches through a [`queryinterceptor.Interceptor`
 
 Legend: 🟢 good · 🟡 partial · 🔴 poor
 
-- ¹ A projection or a grouping added to the shared view would be a field every trace search carries empty.
+- ¹ The reference-only projection §5.2 keeps on `FindSpans` has no counterpart in a trace search; on a shared view it would be a field every trace search carries empty. A grouping is out of scope here either way, since it needs the row-returning RPC and would get its own view.
 - ² `OnTraceResult` takes a batch of whole traces and is documented as dropping traces; a span page is one `ptrace.Traces` holding spans from many traces, so the query service would have to wrap it as a batch of one and re-merge whatever comes back.
 - ³ Adding a method to a Go interface breaks every implementation. The contract is marked experimental and shipped in one release, and the break is a one-line fix (see below).
 - ⁴ Fail-closed is a runtime rule the query service enforces by type assertion, with a refusal error and a test to keep it honest.
 - ⁵ Two dispatch paths and a type assertion where the interface could have forced the decision at compile time.
 
-**The span search gets its own hooks on the interface.** `queryinterceptor.SpanQuery` is the view of a span search and `OnSpanQuery` and `OnSpanResult` are its hooks; the trace view and its hooks are renamed `TraceQuery`, `OnTraceQuery` and `OnTraceResult` to match, with no aliases, since the interface change already breaks every implementation. `SpanQuery` carries the same fields as `TraceQuery` today, the filter and the time range, and is a separate type because it is the one that grows the clauses §5 reserves. `OnSpanResult` takes one `ptrace.Traces` per page and is documented as dropping or redacting spans, which is what a page holds. An implementation with no policy for span searches embeds `queryinterceptor.UnsupportedSpanSearch`, whose hooks return `ErrSpanSearchUnsupported` so that the query service refuses the search; that mixin is the one-line fix an existing implementation needs to compile, and it is fail-closed by construction.
+**The span search gets its own hooks on the interface.** `queryinterceptor.SpanQuery` is the view of a span search and `OnSpanQuery` and `OnSpanResult` are its hooks; the trace view and its hooks are renamed `TraceQuery`, `OnTraceQuery` and `OnTraceResult` to match, with no aliases, since the interface change already breaks every implementation. `SpanQuery` carries the same fields as `TraceQuery` today, the filter and the time range, and is a separate type because the two searches are expected to diverge, starting with the projection §5 reserves on the span search. `OnSpanResult` takes one `ptrace.Traces` per page and is documented as dropping or redacting spans, which is what a page holds. An implementation with no policy for span searches embeds `queryinterceptor.UnsupportedSpanSearch`, whose hooks return `ErrSpanSearchUnsupported` so that the query service refuses the search; that mixin is the one-line fix an existing implementation needs to compile, and it is fail-closed by construction.
 
 The result bound leaves the interceptor view at the same time. `TraceQuery` carried `search_depth`, which an interceptor could rewrite; it does not carry RFC 0014's page size, so on a paginated search the field read zero and a cap written through it was silently lost. A result bound selects how much of the result to return, not which data may be read, so it is not the interceptor's to change on either search, and neither view carries one.
 

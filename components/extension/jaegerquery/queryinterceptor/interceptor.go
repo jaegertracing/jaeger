@@ -95,12 +95,10 @@ type TraceQuery struct {
 // EXPERIMENTAL: see TraceQuery.
 //
 // It is a separate type from TraceQuery, although the two carry the same fields today,
-// because the span query is the request model that RFC 0016 §5 reserves the result-shaping
-// and aggregation clauses on: a projection over plain references that FindSpans itself can
-// serve as sparse spans, and a computed projection or a grouping that a later row-returning
-// RPC serves over the same request. Neither has a counterpart in a trace search. An
-// interceptor that gates what a caller may read has to see those clauses when they arrive,
-// and they belong on this type rather than on every search.
+// because the two searches are expected to diverge. RFC 0016 §5 reserves a projection on the
+// span search, which FindSpans can serve as spans with only the selected fields populated,
+// and a trace search has no counterpart for it. An interceptor that gates what a caller may
+// read has to see such a clause when it arrives, and it belongs on this type alone.
 type SpanQuery struct {
 	// Filter has the meaning TraceQuery.Filter documents, over spans rather than traces:
 	// nil asks for every span in the time range, and an interceptor that returns nil for a
