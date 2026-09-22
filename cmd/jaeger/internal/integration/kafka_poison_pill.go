@@ -9,19 +9,20 @@ package integration
 // in for the dead-letter sink and records what the pipeline sends it.
 
 import (
-	"compress/gzip"
 	"context"
-	"io"
-	"net/http"
-	"net/http/httptest"
-	"sync"
+	"net"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/require"
+	"go.opentelemetry.io/collector/component/componenttest"
+	"go.opentelemetry.io/collector/config/configgrpc"
+	"go.opentelemetry.io/collector/config/configoptional"
+	"go.opentelemetry.io/collector/consumer/consumertest"
 	"go.opentelemetry.io/collector/pdata/pcommon"
 	"go.opentelemetry.io/collector/pdata/ptrace"
-	"go.opentelemetry.io/collector/pdata/ptrace/ptraceotlp"
+	"go.opentelemetry.io/collector/receiver/otlpreceiver"
+	"go.opentelemetry.io/collector/receiver/receivertest"
 )
 
 // poisonSpanFlags is a span flags value outside the range of the `flags` field's
@@ -40,71 +41,50 @@ func buildPoisonTrace(traceIDByte byte, spanCount int) (ptrace.Traces, pcommon.S
 	return trace, poison.SpanID()
 }
 
-// deadLetterServer is an OTLP/HTTP traces endpoint that records every span the
-// dead-letter pipeline exports to it.
+// deadLetterServer is an OTLP/HTTP traces endpoint, the stock otlp receiver in
+// front of a consumertest sink, that records every span the dead-letter pipeline
+// exports to it.
 type deadLetterServer struct {
-	server *httptest.Server
-	mu     sync.Mutex
-	spans  []ptrace.Span
+	endpoint string
+	sink     *consumertest.TracesSink
 }
 
 func newDeadLetterServer(t *testing.T) *deadLetterServer {
-	d := &deadLetterServer{}
-	d.server = httptest.NewServer(http.HandlerFunc(d.handle))
-	t.Cleanup(d.server.Close)
+	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	require.NoError(t, err)
+	d := &deadLetterServer{endpoint: ln.Addr().String(), sink: new(consumertest.TracesSink)}
+	require.NoError(t, ln.Close())
+
+	factory := otlpreceiver.NewFactory()
+	cfg := factory.CreateDefaultConfig().(*otlpreceiver.Config)
+	cfg.Protocols.GRPC = configoptional.None[configgrpc.ServerConfig]()
+	// The HTTP protocol is off until materialized; enable it with its default URL
+	// paths on the reserved port.
+	cfg.Protocols.HTTP.GetOrInsertDefault().ServerConfig.NetAddr.Endpoint = d.endpoint
+
+	ctx := context.Background()
+	receiver, err := factory.CreateTraces(ctx, receivertest.NewNopSettings(factory.Type()), cfg, d.sink)
+	require.NoError(t, err)
+	require.NoError(t, receiver.Start(ctx, componenttest.NewNopHost()))
+	t.Cleanup(func() { require.NoError(t, receiver.Shutdown(ctx)) })
 	return d
 }
 
 // TracesURL is the endpoint for an otlphttp exporter's traces_endpoint.
-func (d *deadLetterServer) TracesURL() string { return d.server.URL + "/v1/traces" }
+func (d *deadLetterServer) TracesURL() string { return "http://" + d.endpoint + "/v1/traces" }
 
-func (d *deadLetterServer) handle(w http.ResponseWriter, r *http.Request) {
-	body := io.Reader(r.Body)
-	if r.Header.Get("Content-Encoding") == "gzip" {
-		gz, err := gzip.NewReader(r.Body)
-		if err != nil {
-			http.Error(w, err.Error(), http.StatusBadRequest)
-			return
-		}
-		defer gz.Close()
-		body = gz
-	}
-	raw, err := io.ReadAll(body)
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
-		return
-	}
-	req := ptraceotlp.NewExportRequest()
-	if err := req.UnmarshalProto(raw); err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
-		return
-	}
-	d.mu.Lock()
-	for _, rs := range req.Traces().ResourceSpans().All() {
-		for _, ss := range rs.ScopeSpans().All() {
-			for _, span := range ss.Spans().All() {
-				copied := ptrace.NewSpan()
-				span.CopyTo(copied)
-				d.spans = append(d.spans, copied)
+// received returns every span received so far.
+func (d *deadLetterServer) received() []ptrace.Span {
+	var out []ptrace.Span
+	for _, td := range d.sink.AllTraces() {
+		for _, rs := range td.ResourceSpans().All() {
+			for _, ss := range rs.ScopeSpans().All() {
+				for _, span := range ss.Spans().All() {
+					out = append(out, span)
+				}
 			}
 		}
 	}
-	d.mu.Unlock()
-	resp, err := ptraceotlp.NewExportResponse().MarshalProto()
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
-	w.Header().Set("Content-Type", "application/x-protobuf")
-	_, _ = w.Write(resp)
-}
-
-// spans returns a copy of every span received so far.
-func (d *deadLetterServer) received() []ptrace.Span {
-	d.mu.Lock()
-	defer d.mu.Unlock()
-	out := make([]ptrace.Span, len(d.spans))
-	copy(out, d.spans)
 	return out
 }
 

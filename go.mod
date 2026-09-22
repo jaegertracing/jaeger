@@ -305,7 +305,7 @@ require (
 	go.opentelemetry.io/collector/processor/processorhelper/xprocessorhelper v0.160.0 // indirect
 	go.opentelemetry.io/collector/processor/xprocessor v0.160.0 // indirect
 	go.opentelemetry.io/collector/receiver/receiverhelper v0.160.0 // indirect
-	go.opentelemetry.io/collector/receiver/receivertest v0.160.0 // indirect
+	go.opentelemetry.io/collector/receiver/receivertest v0.160.0
 	go.opentelemetry.io/collector/receiver/xreceiver v0.160.0 // indirect
 	go.opentelemetry.io/collector/service/hostcapabilities v0.160.0 // indirect
 	go.opentelemetry.io/contrib/bridges/otelzap v0.20.0 // indirect
