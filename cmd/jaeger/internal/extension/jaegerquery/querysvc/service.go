@@ -305,7 +305,7 @@ func (qs QueryService) prepareSearchQuery(
 	caps := qs.readerSearchCapabilitiesOrDefault(ctx)
 	// The filter is settled before the service name is checked, because a filter can name the
 	// service itself and rewriting it is what moves that into ServiceName.
-	prepared, err := toReaderShape(query.TraceQueryParams, caps)
+	prepared, err := queryToReaderShape(query.TraceQueryParams, caps)
 	if err != nil {
 		return ctx, query, err
 	}

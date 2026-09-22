@@ -36,7 +36,7 @@ var StructuredFiltersGate = featuregate.GlobalRegistry().MustRegister(
 // ignored, because dropping a predicate would answer with every trace in the time range.
 var ErrFilterDisabled = errors.New("the structured query filter is disabled")
 
-// toReaderShape returns the query in the shape the reader declared it can serve, immediately
+// queryToReaderShape returns the query in the shape the reader declared it can serve, immediately
 // before dispatch.
 //
 // A reader that cannot paginate has no field to read PageSize from, so PageSize is folded into
@@ -47,7 +47,7 @@ var ErrFilterDisabled = errors.New("the structured query filter is disabled")
 // A reader that declares filter support gets the filter itself, once every level and operator
 // it uses is one the reader listed. A reader that declares none gets the filter rewritten into
 // the legacy predicate fields (ToLegacyShape), or a refusal where they cannot carry it.
-func toReaderShape(
+func queryToReaderShape(
 	query tracestore.TraceQueryParams,
 	caps tracestore.SearchCapabilities,
 ) (tracestore.TraceQueryParams, error) {
