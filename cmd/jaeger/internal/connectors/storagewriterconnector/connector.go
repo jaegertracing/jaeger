@@ -139,10 +139,7 @@ func (c *connectorImpl) writeTraces(ctx context.Context, td ptrace.Traces) error
 		// clear it, which is the right escape for a defect rather than a data problem.
 		return fmt.Errorf("%d rejected documents could not be attributed to a span: %w", rejected.Unidentified, err)
 	}
-	// A storage may report the same span more than once; the first report wins for
-	// both the attribute on the copy and the log line, so the two agree.
-	unique := dedupeRejections(rejected.Spans)
-	poison, unmatched := selectSpans(td, unique)
+	poison, unique, unmatched := selectSpans(td, rejected.Spans)
 	if unmatched > 0 {
 		// The storage named spans this batch does not contain, so they can be
 		// neither re-routed nor acknowledged; fail the batch like an unidentified
@@ -181,22 +178,6 @@ type spanKey struct {
 	spanID  pcommon.SpanID
 }
 
-// dedupeRejections returns the rejections with one entry per span, keeping the
-// first report of a span the storage named more than once.
-func dedupeRejections(rejected []tracestore.RejectedSpan) []tracestore.RejectedSpan {
-	seen := make(map[spanKey]struct{}, len(rejected))
-	unique := make([]tracestore.RejectedSpan, 0, len(rejected))
-	for _, r := range rejected {
-		key := spanKey{r.TraceID, r.SpanID}
-		if _, dup := seen[key]; dup {
-			continue
-		}
-		seen[key] = struct{}{}
-		unique = append(unique, r)
-	}
-	return unique
-}
-
 // rejectionReasonAttribute is the attribute set on every span the connector sends
 // to the dead-letter pipeline, carrying the storage's reason for rejecting it
 // (RFC 0007 §4.8: each terminal item is re-emitted with its reason attached). The
@@ -205,21 +186,28 @@ const rejectionReasonAttribute = "jaeger.storage.rejection_reason"
 
 // selectSpans returns a new ptrace.Traces holding only the spans of td that the
 // storage rejected, each under a copy of its resource and scope and tagged with
-// the rejection reason, and the number of distinct rejected ids that matched no
+// the rejection reason; the rejections with one entry per span, the first report
+// winning when the storage named a span more than once, so the attribute and the
+// caller's log agree; and the number of distinct rejected ids that matched no
 // span in td. A second span in the batch that shares the trace and span id (the
 // shared-span model, RFC 0007 §4.7) is selected alongside the rejected one, which
 // over-includes a stored span in the dead letter but never loses one; that sibling
 // carries the rejected span's reason, the only one the storage reported. td is the
 // batch as the caller sent it; the sanitizers the writer applies never change trace
 // or span ids, so the storage's ids match it.
-func selectSpans(td ptrace.Traces, rejected []tracestore.RejectedSpan) (out ptrace.Traces, unmatched int) {
+func selectSpans(td ptrace.Traces, rejected []tracestore.RejectedSpan) (out ptrace.Traces, unique []tracestore.RejectedSpan, unmatched int) {
 	want := make(map[spanKey]string, len(rejected))
 	for _, r := range rejected {
-		want[spanKey{r.TraceID, r.SpanID}] = r.Reason
+		key := spanKey{r.TraceID, r.SpanID}
+		if _, dup := want[key]; dup {
+			continue
+		}
+		want[key] = r.Reason
+		unique = append(unique, r)
 	}
 	out = ptrace.NewTraces()
 	if len(want) == 0 {
-		return out, 0
+		return out, unique, 0
 	}
 	matched := make(map[spanKey]struct{}, len(want))
 	for _, rs := range td.ResourceSpans().All() {
@@ -253,5 +241,5 @@ func selectSpans(td ptrace.Traces, rejected []tracestore.RejectedSpan) (out ptra
 			}
 		}
 	}
-	return out, len(want) - len(matched)
+	return out, unique, len(want) - len(matched)
 }

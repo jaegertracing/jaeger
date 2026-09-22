@@ -444,7 +444,7 @@ func TestSelectSpans_PreservesResourceAndScope(t *testing.T) {
 	ss2.Scope().SetName("scope2")
 	_, c := makeSpan(ss2, traceID(3), spanID(3), "C")
 
-	out, unmatched := selectSpans(td, []tracestore.RejectedSpan{a, c})
+	out, _, unmatched := selectSpans(td, []tracestore.RejectedSpan{a, c})
 	require.Zero(t, unmatched)
 
 	require.Equal(t, 2, out.ResourceSpans().Len(), "both resources are preserved for their rejected spans")
@@ -459,7 +459,7 @@ func TestSelectSpans_PreservesResourceAndScope(t *testing.T) {
 
 func TestSelectSpans_EmptyWhenNothingRejected(t *testing.T) {
 	td, _ := makeTraces()
-	out, unmatched := selectSpans(td, nil)
+	out, _, unmatched := selectSpans(td, nil)
 	assert.Equal(t, 0, out.SpanCount())
 	assert.Zero(t, unmatched)
 }
@@ -473,7 +473,8 @@ func TestSelectSpans_SharedSpanIDsAreBothSelected(t *testing.T) {
 	makeSpan(ss, traceID(1), spanID(1), "server")
 	makeSpan(ss, traceID(2), spanID(2), "other")
 
-	out, unmatched := selectSpans(td, []tracestore.RejectedSpan{client})
+	out, unique, unmatched := selectSpans(td, []tracestore.RejectedSpan{client, client})
+	assert.Len(t, unique, 1, "a span reported twice is one rejection")
 	assert.ElementsMatch(t, []string{"client", "server"}, spanNames(out))
 	assert.Zero(t, unmatched, "one rejected id, matched by both spans")
 }
