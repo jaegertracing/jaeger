@@ -640,6 +640,26 @@ func TestFindTraces_LeavesALegacyQueryAloneWhenNothingChangedIt(t *testing.T) {
 	})
 }
 
+// TestFindTraces_RefusesAFilterALaterInterceptorDrops pins that the nil rule holds across the
+// chain, not only between the query's first and last shape. A legacy query with no predicates
+// gains a restriction from the first interceptor; the second returns no filter. Comparing only the
+// ends would see nil on both and send the query to storage in its original, unrestricted shape.
+func TestFindTraces_RefusesAFilterALaterInterceptorDrops(t *testing.T) {
+	enableStructuredFilters(t)
+	next := &fakeReader{batch: tracesWith("k", "v")}
+	next.capabilities = filterCapableBackend()
+	qs := interceptedService(next,
+		fakeInterceptor{onQuery: narrowTo(serviceFilter("gated"))},
+		fakeInterceptor{onQuery: narrowTo(nil)},
+	)
+
+	_, err := collectTraces(qs.FindTraces(t.Context(), searchQuery(tracestore.TraceQueryParams{})))
+	require.ErrorIs(t, err, ErrInterceptorFilter)
+	require.ErrorContains(t, err, "widen the search")
+	assert.False(t, next.findCalled, "storage must not be queried")
+	assert.False(t, IsBadRequest(err), "the caller's request was fine")
+}
+
 // TestFindTraces_FinalizesAnInterceptorFilter pins that a predicate an interceptor adds reaches
 // storage in the same shape as one a caller sent: its constants read against the fields they are
 // compared to, and its comparisons turned so the reference comes first. Only checking the structure
