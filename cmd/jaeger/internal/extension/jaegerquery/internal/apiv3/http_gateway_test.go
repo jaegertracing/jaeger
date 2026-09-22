@@ -748,7 +748,7 @@ func TestHTTPGatewayFindSpansInvalidQuery(t *testing.T) {
 	gw.router.ServeHTTP(w, r)
 
 	assert.Equal(t, http.StatusBadRequest, w.Code)
-	assert.Contains(t, w.Body.String(), "query.startTimeMin and query.startTimeMax are required")
+	assert.Contains(t, w.Body.String(), "start_time_min and start_time_max are required")
 }
 
 func TestHTTPGatewayFindSpansPaginationRejected(t *testing.T) {

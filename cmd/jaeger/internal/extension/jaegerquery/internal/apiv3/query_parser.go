@@ -153,10 +153,12 @@ func parseFindTracesQuery(q url.Values) (*querysvc.TraceQueryParams, error) {
 	return queryParams, nil
 }
 
-// parseFindSpansQuery parses the query parameters for a span search (RFC 0016 §4.3): the
-// required time range and an optional filter. Pagination is refused rather than silently
-// dropped, matching the gRPC handler: tracestore.SpanQueryParams has no field to carry it yet,
-// so honoring the params would return every match instead of the page the caller asked for.
+// parseFindSpansQuery parses the query parameters for a span search (RFC 0016 §4.3). The parser
+// reads each parameter and reports one it cannot read under its own name; whether the query as a
+// whole is acceptable (a present and ordered time range) is the query service's decision
+// (prepareSpanSearchQuery), so it is not repeated here. Pagination is the one exception: it is
+// refused here rather than silently dropped, because tracestore.SpanQueryParams has no field to
+// carry it yet, so there is nowhere further down the pipeline this could be decided instead.
 func parseFindSpansQuery(q url.Values) (*querysvc.SpanQueryParams, error) {
 	if q.Get(paramPageSize) != "" || q.Get(paramPageToken) != "" {
 		return nil, errors.New("pagination is not yet supported for span search")
@@ -164,24 +166,20 @@ func parseFindSpansQuery(q url.Values) (*querysvc.SpanQueryParams, error) {
 
 	queryParams := &querysvc.SpanQueryParams{}
 
-	timeMinStr, timeMinParam := getQueryParam(q, paramTimeMin, paramTimeMinDeprecated)
-	timeMaxStr, timeMaxParam := getQueryParam(q, paramTimeMax, paramTimeMaxDeprecated)
-	if timeMinStr == "" || timeMaxStr == "" {
-		return nil, fmt.Errorf("%s and %s are required", paramTimeMin, paramTimeMax)
+	if s, paramName := getQueryParam(q, paramTimeMin, paramTimeMinDeprecated); s != "" {
+		parsed, err := time.Parse(time.RFC3339Nano, s)
+		if err != nil {
+			return nil, fmt.Errorf("malformed parameter %s: %w", paramName, err)
+		}
+		queryParams.StartTimeMin = parsed
 	}
-	timeMinParsed, err := time.Parse(time.RFC3339Nano, timeMinStr)
-	if err != nil {
-		return nil, fmt.Errorf("malformed parameter %s: %w", timeMinParam, err)
+	if s, paramName := getQueryParam(q, paramTimeMax, paramTimeMaxDeprecated); s != "" {
+		parsed, err := time.Parse(time.RFC3339Nano, s)
+		if err != nil {
+			return nil, fmt.Errorf("malformed parameter %s: %w", paramName, err)
+		}
+		queryParams.StartTimeMax = parsed
 	}
-	timeMaxParsed, err := time.Parse(time.RFC3339Nano, timeMaxStr)
-	if err != nil {
-		return nil, fmt.Errorf("malformed parameter %s: %w", timeMaxParam, err)
-	}
-	if !timeMinParsed.Before(timeMaxParsed) {
-		return nil, fmt.Errorf("%s must be before %s", paramTimeMin, paramTimeMax)
-	}
-	queryParams.StartTimeMin = timeMinParsed
-	queryParams.StartTimeMax = timeMaxParsed
 
 	if filterParam := q.Get(paramFilter); filterParam != "" {
 		var call expressionproto.Call

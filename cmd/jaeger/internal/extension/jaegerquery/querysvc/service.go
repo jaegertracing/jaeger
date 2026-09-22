@@ -347,7 +347,9 @@ func (q *TraceQueryParams) normalizeEnvelope() error {
 // prepareSpanSearchQuery is prepareSearchQuery for a span search (RFC 0016 §4.6): it refuses a
 // request this deployment or its backend does not accept, gives the configured query interceptors
 // their say, and returns the query to dispatch along with the context to dispatch it with. A span
-// query has one shape, so there is no conversion step and no service-name rule.
+// query has one shape, so there is no conversion step and no service-name rule. The API handlers
+// only translate their wire shape into this one; what a query must satisfy is decided here, once
+// (the same reasoning as normalizeEnvelope, for the one field a span query's envelope has).
 //
 // The capabilities are read once. The caller's filter validation and the span-search refusal
 // come before the interceptors, so an interceptor is never shown a request this deployment or
@@ -357,6 +359,12 @@ func (qs QueryService) prepareSpanSearchQuery(
 	ctx context.Context,
 	query SpanQueryParams,
 ) (context.Context, SpanQueryParams, error) {
+	if query.StartTimeMin.IsZero() || query.StartTimeMax.IsZero() {
+		return ctx, query, fmt.Errorf("%w: start_time_min and start_time_max are required", ErrQueryInvalid)
+	}
+	if !query.StartTimeMin.Before(query.StartTimeMax) {
+		return ctx, query, fmt.Errorf("%w: start_time_min must be before start_time_max", ErrQueryInvalid)
+	}
 	// A search over the time range alone carries no filter and is the base case of a span query
 	// (RFC 0016 §5.1), so the gate and finalization apply only when the caller sent one. Neither
 	// depends on the backend, so both come before the capability call rather than after it.

@@ -361,18 +361,18 @@ func TestParseFindSpansQuery(t *testing.T) {
 		require.ErrorContains(t, err, "malformed parameter query.filter")
 	})
 
-	t.Run("missing time range", func(t *testing.T) {
-		_, err := parseFindSpansQuery(url.Values{})
-		require.ErrorContains(t, err, "query.startTimeMin and query.startTimeMax are required")
-	})
+	t.Run("an absent or inverted time range is left for the query service to refuse", func(t *testing.T) {
+		got, err := parseFindSpansQuery(url.Values{})
+		require.NoError(t, err)
+		assert.True(t, got.StartTimeMin.IsZero())
+		assert.True(t, got.StartTimeMax.IsZero())
 
-	t.Run("start not before end", func(t *testing.T) {
 		q := url.Values{}
 		q.Set(paramTimeMin, goodMax)
 		q.Set(paramTimeMax, goodMin)
-
-		_, err := parseFindSpansQuery(q)
-		require.ErrorContains(t, err, "query.startTimeMin must be before query.startTimeMax")
+		got, err = parseFindSpansQuery(q)
+		require.NoError(t, err)
+		assert.True(t, got.StartTimeMax.Before(got.StartTimeMin))
 	})
 
 	t.Run("malformed min time", func(t *testing.T) {

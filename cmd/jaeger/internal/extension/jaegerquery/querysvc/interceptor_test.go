@@ -240,7 +240,12 @@ func searchQuery(q tracestore.TraceQueryParams) TraceQueryParams {
 	return TraceQueryParams{TraceQueryParams: q, RawTraces: true}
 }
 
+// searchSpansQuery wraps a reader query for a test about something other than its envelope, so
+// it fills in the time range every search must carry unless the test set one itself.
 func searchSpansQuery(q tracestore.SpanQueryParams) SpanQueryParams {
+	if q.StartTimeMin.IsZero() && q.StartTimeMax.IsZero() {
+		q.StartTimeMin, q.StartTimeMax = testWindowStart, testWindowEnd
+	}
 	return SpanQueryParams{SpanQueryParams: q}
 }
 
@@ -1043,6 +1048,7 @@ func TestFindSpans_AppliesQueryAndResultHooks(t *testing.T) {
 	out, err := collectSpans(qs.FindSpans(t.Context(), SpanQueryParams{SpanQueryParams: tracestore.SpanQueryParams{
 		Filter:       serviceFilter("original"),
 		StartTimeMin: narrowedEnd.Add(-time.Hour),
+		StartTimeMax: narrowedEnd.Add(time.Hour),
 	}}))
 	require.NoError(t, err)
 	assert.Equal(t, serviceFilter("gated"), next.gotSpanQuery.Filter, "pre-query hook must reach storage")

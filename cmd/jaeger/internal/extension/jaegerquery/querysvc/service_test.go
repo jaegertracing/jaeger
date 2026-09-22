@@ -400,7 +400,7 @@ func TestFindSpans_Success(t *testing.T) {
 	responseIter := iter.Seq2[tracestore.PageChunk[ptrace.Traces], error](func(yield func(tracestore.PageChunk[ptrace.Traces], error) bool) {
 		yield(tracestore.PageChunk[ptrace.Traces]{Results: expectedSpans, NextPageToken: ""}, nil)
 	})
-	params := tracestore.SpanQueryParams{}
+	params := tracestore.SpanQueryParams{StartTimeMin: testWindowStart, StartTimeMax: testWindowEnd}
 	query := SpanQueryParams{params}
 	tqs.traceReader.On("FindSpans", mock.Anything, params).Return(responseIter).Once()
 
@@ -412,11 +412,24 @@ func TestFindSpans_Success(t *testing.T) {
 	tqs.traceReader.AssertExpectations(t)
 }
 
+// TestFindSpans_RejectsInvertedTimeRange pins the other half of the envelope check
+// prepareSpanSearchQuery settles for a span search: a present but inverted range is refused the
+// same as an absent one, before the reader is ever asked anything.
+func TestFindSpans_RejectsInvertedTimeRange(t *testing.T) {
+	tqs := initializeBareTestQueryService()
+
+	query := SpanQueryParams{tracestore.SpanQueryParams{StartTimeMin: testWindowEnd, StartTimeMax: testWindowStart}}
+	seq := tqs.queryService.FindSpans(context.Background(), query)
+	_, err := jiter.CollectWithErrors(seq)
+	require.ErrorIs(t, err, ErrQueryInvalid)
+	require.ErrorContains(t, err, "start_time_min must be before start_time_max")
+}
+
 func TestFindSpans_WithLegacyBackend_UnsupportedError(t *testing.T) {
 	tqs := initializeBareTestQueryService()
 	tqs.traceReader.On("SearchCapabilities", mock.Anything).Return(tracestore.SearchCapabilities{}, errors.New("unsupported")).Once()
 
-	query := SpanQueryParams{}
+	query := SpanQueryParams{tracestore.SpanQueryParams{StartTimeMin: testWindowStart, StartTimeMax: testWindowEnd}}
 	seq := tqs.queryService.FindSpans(context.Background(), query)
 	_, err := jiter.CollectWithErrors(seq)
 	require.Equal(t, ErrSpanSearchUnsupported, err)
@@ -426,7 +439,7 @@ func TestFindSpans_WithUnsupportingBackend_UnsupportedError(t *testing.T) {
 	tqs := initializeBareTestQueryService()
 	tqs.traceReader.On("SearchCapabilities", mock.Anything).Return(tracestore.SearchCapabilities{SpanSearch: false}, nil).Once()
 
-	query := SpanQueryParams{}
+	query := SpanQueryParams{tracestore.SpanQueryParams{StartTimeMin: testWindowStart, StartTimeMax: testWindowEnd}}
 	seq := tqs.queryService.FindSpans(context.Background(), query)
 	_, err := jiter.CollectWithErrors(seq)
 	require.Equal(t, ErrSpanSearchUnsupported, err)

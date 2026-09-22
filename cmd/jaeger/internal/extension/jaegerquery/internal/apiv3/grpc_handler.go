@@ -142,16 +142,14 @@ func (h *Handler) FindSpans(request *api_v3.FindSpansRequest, stream api_v3.Quer
 	return nil
 }
 
-// spanQueryParams converts a proto SpanQueryParameters to querysvc.SpanQueryParams, validating
-// that the required time range fields are present. Pagination is refused rather than silently
-// dropped: tracestore.SpanQueryParams has no field to carry it yet, so honoring the proto field
-// would return every match instead of the page the caller asked for.
+// spanQueryParams translates a proto SpanQueryParameters into the query service's shape. What
+// the query must satisfy is the query service's decision (prepareSpanSearchQuery), so nothing is
+// checked here beyond what the translation itself needs. Pagination is the one exception: it is
+// refused here rather than silently dropped, because tracestore.SpanQueryParams has no field to
+// carry it yet, so there is nowhere further down the pipeline this could be decided instead.
 func spanQueryParams(query *api_v3.SpanQueryParameters) (querysvc.SpanQueryParams, error) {
 	if query == nil {
 		return querysvc.SpanQueryParams{}, status.Error(codes.InvalidArgument, "missing query")
-	}
-	if query.GetStartTimeMin().IsZero() || query.GetStartTimeMax().IsZero() {
-		return querysvc.SpanQueryParams{}, status.Error(codes.InvalidArgument, "start time min and max are required parameters")
 	}
 	if query.GetPagination() != nil {
 		return querysvc.SpanQueryParams{}, status.Error(codes.InvalidArgument, "pagination is not yet supported for span search")
