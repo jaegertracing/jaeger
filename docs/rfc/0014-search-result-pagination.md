@@ -211,12 +211,12 @@ For the UI this costs nothing: the search-results list is populated from `FindTr
 type TraceQueryParams struct {
     // ... existing fields ...
     SearchDepth int
-    Pagination  Pagination // zero value: not a paginated request
+    Pagination  *Pagination // nil: not a paginated request
 }
 
 // Pagination mirrors the proto message of the same name.
 type Pagination struct {
-    PageSize  int    // page bound; zero means this is not a paginated request
+    PageSize  int    // page bound; required whenever Pagination is present
     PageToken string // opaque continuation cursor; empty starts a new search
 }
 ```
