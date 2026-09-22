@@ -355,7 +355,37 @@ func TestConsumeTraces_RejectedIDWithoutSpanFailsTheBatch(t *testing.T) {
 	require.ErrorIs(t, err, bulkErr)
 	require.ErrorContains(t, err, "1 rejected span documents match no span in the batch")
 	require.ErrorContains(t, err, traceID(9).String()+"_"+spanID(9).String())
+	assert.False(t, consumererror.IsPermanent(err), "the batch is retried, not dropped by the pipeline")
 	assert.Empty(t, sink.AllTraces())
+}
+
+func TestConsumeTraces_RejectedItemWithoutIDFailsTheBatch(t *testing.T) {
+	sink := new(consumertest.TracesSink)
+	td, _ := makeTraces()
+	// A bulk response item without an _id could be a span, so it is neither a
+	// lookup document to discard nor a span to dead-letter: the batch must fail.
+	bulkErr := &esclient.BulkWriteError{Terminal: []esclient.RejectedItem{{Index: "jaeger-span", Status: 400}}}
+	c := newTestConnector(t, directConfig(), sink, &fakeWriter{err: bulkErr})
+
+	err := c.ConsumeTraces(context.Background(), td)
+	require.ErrorIs(t, err, bulkErr)
+	require.ErrorContains(t, err, "(no _id in the bulk response)")
+	assert.Empty(t, sink.AllTraces())
+}
+
+func TestFilterPoisonSpans_SharedSpanIDsAreBothReEmitted(t *testing.T) {
+	// Two spans share trace and span id (a client and a server span); only one is
+	// poison, but the prefix cannot tell them apart, so both are re-emitted.
+	td := ptrace.NewTraces()
+	ss := td.ResourceSpans().AppendEmpty().ScopeSpans().AppendEmpty()
+	_, id := makeSpan(ss, traceID(1), spanID(1), "client")
+	makeSpan(ss, traceID(1), spanID(1), "server")
+	makeSpan(ss, traceID(2), spanID(2), "other")
+
+	out, unmapped, missing := filterPoisonSpans(td, []esclient.RejectedItem{rejected(id)})
+	assert.Zero(t, unmapped)
+	assert.Empty(t, missing)
+	assert.ElementsMatch(t, []string{"client", "server"}, spanNames(out))
 }
 
 func TestSpanKeyFromID(t *testing.T) {
