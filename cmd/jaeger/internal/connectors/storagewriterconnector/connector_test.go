@@ -28,14 +28,13 @@ import (
 	"go.uber.org/zap/zaptest/observer"
 
 	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerstorage"
-	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/esclient"
 	"github.com/jaegertracing/jaeger/internal/storage/v1"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore"
 	tracestoremocks "github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore/mocks"
 )
 
 // fakeWriter records the traces written and returns a configured error, standing in
-// for the real synchronous ES writer that returns *esclient.BulkWriteError.
+// for a synchronous writer that returns *tracestore.RejectedSpansError.
 type fakeWriter struct {
 	err   error
 	calls int
@@ -86,13 +85,13 @@ type testConnector struct {
 	reader *sdkmetric.ManualReader
 }
 
-// deadLettered reads the connector's dead_lettered_spans counter.
-func (c testConnector) deadLettered(t *testing.T) int64 {
+// deadLetterSpans reads the connector's dead_letter_spans counter.
+func (c testConnector) deadLetterSpans(t *testing.T) int64 {
 	var rm metricdata.ResourceMetrics
 	require.NoError(t, c.reader.Collect(context.Background(), &rm))
 	for _, sm := range rm.ScopeMetrics {
 		for _, m := range sm.Metrics {
-			if m.Name != "jaeger_storage_writer_dead_lettered_spans" {
+			if m.Name != "jaeger_storage_writer_dead_letter_spans" {
 				continue
 			}
 			sum, ok := m.Data.(metricdata.Sum[int64])
@@ -129,19 +128,19 @@ func directConfig() *Config {
 func traceID(b byte) pcommon.TraceID { return pcommon.TraceID([16]byte{b}) }
 func spanID(b byte) pcommon.SpanID   { return pcommon.SpanID([8]byte{b}) }
 
-// makeSpan appends a span with the given ids/name to ss and returns the poison _id
-// (traceID_spanID_hash) the writer would report for it.
-func makeSpan(ss ptrace.ScopeSpans, tid pcommon.TraceID, sid pcommon.SpanID, name string) (span ptrace.Span, docID string) {
+// makeSpan appends a span with the given ids/name to ss and returns it along with
+// the rejection a writer would report for it.
+func makeSpan(ss ptrace.ScopeSpans, tid pcommon.TraceID, sid pcommon.SpanID, name string) (span ptrace.Span, rejection tracestore.RejectedSpan) {
 	span = ss.Spans().AppendEmpty()
 	span.SetTraceID(tid)
 	span.SetSpanID(sid)
 	span.SetName(name)
-	return span, tid.String() + "_" + sid.String() + "_deadbeef"
+	return span, tracestore.RejectedSpan{TraceID: tid, SpanID: sid, Reason: "mapper_parsing_exception"}
 }
 
 // makeTraces builds a batch with one resource/scope holding three spans (A, B, C) and
-// returns the traces plus the three spans' poison _ids in order.
-func makeTraces() (td ptrace.Traces, ids [3]string) {
+// returns the traces plus the three spans' rejections in order.
+func makeTraces() (td ptrace.Traces, ids [3]tracestore.RejectedSpan) {
 	td = ptrace.NewTraces()
 	rs := td.ResourceSpans().AppendEmpty()
 	rs.Resource().Attributes().PutStr("service.name", "svc")
@@ -152,8 +151,9 @@ func makeTraces() (td ptrace.Traces, ids [3]string) {
 	return td, ids
 }
 
-func rejected(id string) esclient.RejectedItem {
-	return esclient.RejectedItem{Index: "jaeger-span", ID: id, Status: 400, Reason: "mapper_parsing_exception"}
+// rejectedErr builds the error a writer returns for the given rejected spans.
+func rejectedErr(transient bool, spans ...tracestore.RejectedSpan) *tracestore.RejectedSpansError {
+	return &tracestore.RejectedSpansError{Spans: spans, Transient: transient, Err: errors.New("2 of 3 bulk items rejected")}
 }
 
 func spanNames(td ptrace.Traces) []string {
@@ -176,7 +176,7 @@ func TestConsumeTraces_Success(t *testing.T) {
 
 	require.NoError(t, c.ConsumeTraces(context.Background(), td))
 	assert.Equal(t, 1, w.calls)
-	assert.Empty(t, sink.AllTraces(), "a fully successful write dead-letters nothing")
+	assert.Empty(t, sink.AllTraces(), "a fully successful write sends nothing to the dead-letter pipeline")
 }
 
 func TestConsumeTraces_NonBulkErrorRetries(t *testing.T) {
@@ -187,53 +187,48 @@ func TestConsumeTraces_NonBulkErrorRetries(t *testing.T) {
 
 	err := c.ConsumeTraces(context.Background(), td)
 	require.ErrorIs(t, err, sentinel, "a transport error is returned so the offset is held")
-	assert.Empty(t, sink.AllTraces(), "a non-poison error dead-letters nothing")
+	assert.Empty(t, sink.AllTraces(), "a non-poison error sends nothing to the dead-letter pipeline")
 }
 
-func TestConsumeTraces_TerminalOnlyDeadLetteredAndAdvances(t *testing.T) {
+func TestConsumeTraces_TerminalOnlyGoesToDeadLetterAndAdvances(t *testing.T) {
 	sink := new(consumertest.TracesSink)
 	td, ids := makeTraces()
 	// A and C are poison; B succeeded. No transient failures.
-	bulkErr := &esclient.BulkWriteError{Terminal: []esclient.RejectedItem{rejected(ids[0]), rejected(ids[2])}}
-	c := newTestConnector(t, directConfig(), sink, &fakeWriter{err: bulkErr})
+	c := newTestConnector(t, directConfig(), sink, &fakeWriter{err: rejectedErr(false, ids[0], ids[2])})
 
 	err := c.ConsumeTraces(context.Background(), td)
-	require.NoError(t, err, "all failures were terminal and dead-lettered, so the offset advances")
+	require.NoError(t, err, "all failures were terminal and re-routed, so the offset advances")
 
 	require.Len(t, sink.AllTraces(), 1)
 	got := sink.AllTraces()[0]
 	assert.Equal(t, 2, got.SpanCount(), "only the two poison spans are emitted")
 	assert.ElementsMatch(t, []string{"A", "C"}, spanNames(got), "exactly the poison spans, not B")
 	require.Equal(t, 1, c.logs.Len())
-	assert.Equal(t, "dead-lettered spans the storage rejected terminally", c.logs.All()[0].Message)
-	assert.Equal(t, int64(2), c.deadLettered(t), "the counter reports the two dead-lettered spans")
+	assert.Equal(t, "sent spans the storage rejected terminally to the dead-letter pipeline", c.logs.All()[0].Message)
+	assert.Equal(t, int64(2), c.deadLetterSpans(t), "the counter reports the two re-routed spans")
 }
 
-func TestConsumeTraces_TransientPresentRetriesWithoutDeadLettering(t *testing.T) {
+func TestConsumeTraces_TransientPresentRetriesWithoutReRouting(t *testing.T) {
 	sink := new(consumertest.TracesSink)
 	td, ids := makeTraces()
-	bulkErr := &esclient.BulkWriteError{
-		Terminal:  []esclient.RejectedItem{rejected(ids[0])},
-		Transient: true,
-	}
-	c := newTestConnector(t, directConfig(), sink, &fakeWriter{err: bulkErr})
+	rejected := rejectedErr(true, ids[0])
+	c := newTestConnector(t, directConfig(), sink, &fakeWriter{err: rejected})
 
 	err := c.ConsumeTraces(context.Background(), td)
-	require.ErrorIs(t, err, bulkErr, "a transient failure holds the offset for retry")
-	// The poison is not dead-lettered yet: the batch will be retried, and it is
-	// dead-lettered once a retry sees only terminal failures, so a retry storm never
-	// re-emits the same span to the dead-letter sink.
+	require.ErrorIs(t, err, rejected, "a transient failure holds the offset for retry")
+	// The poison is not re-routed yet: the batch will be retried, and the poison goes
+	// to the dead-letter pipeline once a retry sees only terminal failures, so a
+	// retry storm never sends the same span there twice.
 	assert.Empty(t, sink.AllTraces())
 }
 
 func TestConsumeTraces_DeadLetterSinkFailureHoldsOffset(t *testing.T) {
 	td, ids := makeTraces()
-	bulkErr := &esclient.BulkWriteError{Terminal: []esclient.RejectedItem{rejected(ids[0])}}
 	// The sink's exporter classifies a 4xx from its endpoint as permanent; the
 	// connector must still return a retryable error, or its exporterhelper would
 	// skip retries and the receiver would pause the partition.
 	sinkErr := consumererror.NewPermanent(errors.New("dead-letter endpoint returned 401"))
-	c := newTestConnector(t, directConfig(), consumertest.NewErr(sinkErr), &fakeWriter{err: bulkErr})
+	c := newTestConnector(t, directConfig(), consumertest.NewErr(sinkErr), &fakeWriter{err: rejectedErr(false, ids[0])})
 
 	err := c.ConsumeTraces(context.Background(), td)
 	require.Error(t, err, "if the dead-letter sink rejects, hold the offset")
@@ -241,30 +236,43 @@ func TestConsumeTraces_DeadLetterSinkFailureHoldsOffset(t *testing.T) {
 	assert.False(t, consumererror.IsPermanent(err), "a sink failure is retryable for the storage write")
 }
 
-func TestConsumeTraces_TransientBulkErrorNoTerminals(t *testing.T) {
-	// drop mode returns a BulkWriteError with Transient=true and no Terminal items:
-	// nothing to dead-letter, but the batch must still be retried.
+func TestConsumeTraces_TransientRejectionWithoutSpans(t *testing.T) {
+	// drop mode returns a RejectedSpansError with Transient=true and no spans:
+	// nothing to re-route, but the batch must still be retried.
 	sink := new(consumertest.TracesSink)
-	bulkErr := &esclient.BulkWriteError{Transient: true}
-	c := newTestConnector(t, directConfig(), sink, &fakeWriter{err: bulkErr})
+	rejected := rejectedErr(true)
+	c := newTestConnector(t, directConfig(), sink, &fakeWriter{err: rejected})
 	td, _ := makeTraces()
 
-	require.ErrorIs(t, c.ConsumeTraces(context.Background(), td), bulkErr)
-	assert.Empty(t, sink.AllTraces(), "no terminal items means nothing is dead-lettered")
+	require.ErrorIs(t, c.ConsumeTraces(context.Background(), td), rejected)
+	assert.Empty(t, sink.AllTraces(), "no rejected spans means nothing goes to the dead-letter pipeline")
 }
 
-func TestConsumeTraces_UnmappedRejectionIsLoggedAndAdvances(t *testing.T) {
+func TestConsumeTraces_NoSpansRejectedAdvances(t *testing.T) {
+	// The storage handled every rejected document itself (a lookup document it
+	// logged): nothing to re-route, and the batch is complete.
 	sink := new(consumertest.TracesSink)
-	// A service:operation document has no span _id, so it maps to no span.
-	bulkErr := &esclient.BulkWriteError{Terminal: []esclient.RejectedItem{{Index: "jaeger-service", ID: "1234abcd", Status: 400}}}
-	c := newTestConnector(t, directConfig(), sink, &fakeWriter{err: bulkErr})
+	c := newTestConnector(t, directConfig(), sink, &fakeWriter{err: rejectedErr(false)})
 	td, _ := makeTraces()
 
-	require.NoError(t, c.ConsumeTraces(context.Background(), td), "a rejected lookup document must not stall the batch")
+	require.NoError(t, c.ConsumeTraces(context.Background(), td))
 	assert.Empty(t, sink.AllTraces())
-	require.Equal(t, 1, c.logs.Len())
-	assert.Equal(t, "rejected documents that are not spans cannot be dead-lettered and were discarded", c.logs.All()[0].Message)
-	assert.Equal(t, int64(1), c.logs.All()[0].ContextMap()["count"])
+	assert.Zero(t, c.logs.Len())
+}
+
+func TestConsumeTraces_UnidentifiedRejectionFailsTheBatch(t *testing.T) {
+	sink := new(consumertest.TracesSink)
+	td, _ := makeTraces()
+	// The storage rejected a document it could not attribute to a span; it could be
+	// a span, so acknowledging would lose it silently.
+	rejected := &tracestore.RejectedSpansError{Unidentified: 1, Err: errors.New("1 of 3 bulk items rejected")}
+	c := newTestConnector(t, directConfig(), sink, &fakeWriter{err: rejected})
+
+	err := c.ConsumeTraces(context.Background(), td)
+	require.ErrorIs(t, err, rejected)
+	require.ErrorContains(t, err, "1 rejected documents could not be attributed to a span")
+	assert.False(t, consumererror.IsPermanent(err), "the batch is retried, not dropped by the pipeline")
+	assert.Empty(t, sink.AllTraces())
 }
 
 // TestConsumeTraces_BlockingQueueReturnsWriteVerdict proves the connector wraps the
@@ -283,9 +291,8 @@ func TestConsumeTraces_BlockingQueueReturnsWriteVerdict(t *testing.T) {
 	cfg.QueueConfig = configoptional.Some(queue)
 
 	td, ids := makeTraces()
-	bulkErr := &esclient.BulkWriteError{Terminal: []esclient.RejectedItem{rejected(ids[1])}}
 	sink := new(consumertest.TracesSink)
-	c := newTestConnector(t, cfg, sink, &fakeWriter{err: bulkErr})
+	c := newTestConnector(t, cfg, sink, &fakeWriter{err: rejectedErr(false, ids[1])})
 
 	require.NoError(t, c.ConsumeTraces(context.Background(), td), "the caller is unblocked with the batch's verdict")
 	require.Len(t, sink.AllTraces(), 1)
@@ -296,26 +303,24 @@ func TestConsumeTraces_BlockingQueueReturnsWriteVerdict(t *testing.T) {
 	require.ErrorIs(t, c2.ConsumeTraces(context.Background(), td), sentinel, "the caller sees the write's error, not an enqueue ack")
 }
 
-func TestFilterPoisonSpans_PreservesResourceAndScope(t *testing.T) {
+func TestSelectSpans_PreservesResourceAndScope(t *testing.T) {
 	td := ptrace.NewTraces()
 	rs1 := td.ResourceSpans().AppendEmpty()
 	rs1.Resource().Attributes().PutStr("service.name", "svc1")
 	ss1 := rs1.ScopeSpans().AppendEmpty()
 	ss1.Scope().SetName("scope1")
-	_, idA := makeSpan(ss1, traceID(1), spanID(1), "A")
-	makeSpan(ss1, traceID(2), spanID(2), "B") // not poison
+	_, a := makeSpan(ss1, traceID(1), spanID(1), "A")
+	makeSpan(ss1, traceID(2), spanID(2), "B") // not rejected
 
 	rs2 := td.ResourceSpans().AppendEmpty()
 	rs2.Resource().Attributes().PutStr("service.name", "svc2")
 	ss2 := rs2.ScopeSpans().AppendEmpty()
 	ss2.Scope().SetName("scope2")
-	_, idC := makeSpan(ss2, traceID(3), spanID(3), "C")
+	_, c := makeSpan(ss2, traceID(3), spanID(3), "C")
 
-	out, unmapped, missing := filterPoisonSpans(td, []esclient.RejectedItem{rejected(idA), rejected(idC), {ID: "servicedoc"}})
+	out := selectSpans(td, []tracestore.RejectedSpan{a, c})
 
-	assert.Equal(t, 1, unmapped)
-	assert.Empty(t, missing)
-	require.Equal(t, 2, out.ResourceSpans().Len(), "both resources are preserved for their poison spans")
+	require.Equal(t, 2, out.ResourceSpans().Len(), "both resources are preserved for their rejected spans")
 	got1 := out.ResourceSpans().At(0)
 	svc, _ := got1.Resource().Attributes().Get("service.name")
 	assert.Equal(t, "svc1", svc.AsString())
@@ -325,70 +330,22 @@ func TestFilterPoisonSpans_PreservesResourceAndScope(t *testing.T) {
 	assert.Equal(t, "C", got2.ScopeSpans().At(0).Spans().At(0).Name())
 }
 
-func TestFilterPoisonSpans_EmptyWhenNoMappableIDs(t *testing.T) {
+func TestSelectSpans_EmptyWhenNothingRejected(t *testing.T) {
 	td, _ := makeTraces()
-	out, unmapped, missing := filterPoisonSpans(td, []esclient.RejectedItem{{ID: "serviceoperationdoc"}})
-	assert.Equal(t, 0, out.SpanCount())
-	assert.Equal(t, 1, unmapped)
-	assert.Empty(t, missing)
+	assert.Equal(t, 0, selectSpans(td, nil).SpanCount())
 }
 
-func TestConsumeTraces_RejectedIDWithoutSpanFailsTheBatch(t *testing.T) {
-	sink := new(consumertest.TracesSink)
-	td, _ := makeTraces()
-	// A well-formed span _id that names no span in the batch: nothing can be
-	// dead-lettered, and acknowledging would lose the span silently.
-	stray := traceID(9).String() + "_" + spanID(9).String() + "_deadbeef"
-	bulkErr := &esclient.BulkWriteError{Terminal: []esclient.RejectedItem{rejected(stray)}}
-	c := newTestConnector(t, directConfig(), sink, &fakeWriter{err: bulkErr})
-
-	err := c.ConsumeTraces(context.Background(), td)
-	require.ErrorIs(t, err, bulkErr)
-	require.ErrorContains(t, err, "1 rejected span documents match no span in the batch")
-	require.ErrorContains(t, err, traceID(9).String()+"_"+spanID(9).String())
-	assert.False(t, consumererror.IsPermanent(err), "the batch is retried, not dropped by the pipeline")
-	assert.Empty(t, sink.AllTraces())
-}
-
-func TestConsumeTraces_RejectedItemWithoutIDFailsTheBatch(t *testing.T) {
-	sink := new(consumertest.TracesSink)
-	td, _ := makeTraces()
-	// A bulk response item without an _id could be a span, so it is neither a
-	// lookup document to discard nor a span to dead-letter: the batch must fail.
-	bulkErr := &esclient.BulkWriteError{Terminal: []esclient.RejectedItem{{Index: "jaeger-span", Status: 400}}}
-	c := newTestConnector(t, directConfig(), sink, &fakeWriter{err: bulkErr})
-
-	err := c.ConsumeTraces(context.Background(), td)
-	require.ErrorIs(t, err, bulkErr)
-	require.ErrorContains(t, err, "(no _id in the bulk response)")
-	assert.Empty(t, sink.AllTraces())
-}
-
-func TestFilterPoisonSpans_SharedSpanIDsAreBothReEmitted(t *testing.T) {
+func TestSelectSpans_SharedSpanIDsAreBothSelected(t *testing.T) {
 	// Two spans share trace and span id (a client and a server span); only one is
-	// poison, but the prefix cannot tell them apart, so both are re-emitted.
+	// poison, but the ids cannot tell them apart, so both are re-routed.
 	td := ptrace.NewTraces()
 	ss := td.ResourceSpans().AppendEmpty().ScopeSpans().AppendEmpty()
-	_, id := makeSpan(ss, traceID(1), spanID(1), "client")
+	_, client := makeSpan(ss, traceID(1), spanID(1), "client")
 	makeSpan(ss, traceID(1), spanID(1), "server")
 	makeSpan(ss, traceID(2), spanID(2), "other")
 
-	out, unmapped, missing := filterPoisonSpans(td, []esclient.RejectedItem{rejected(id)})
-	assert.Zero(t, unmapped)
-	assert.Empty(t, missing)
+	out := selectSpans(td, []tracestore.RejectedSpan{client})
 	assert.ElementsMatch(t, []string{"client", "server"}, spanNames(out))
-}
-
-func TestSpanKeyFromID(t *testing.T) {
-	key, ok := spanKeyFromID("aabb_ccdd_deadbeef")
-	require.True(t, ok)
-	assert.Equal(t, "aabb_ccdd", key)
-
-	_, ok = spanKeyFromID("noseparators")
-	assert.False(t, ok)
-
-	_, ok = spanKeyFromID("only_one")
-	assert.False(t, ok, "a service doc id with a single underscore is not a span id")
 }
 
 func TestStart_StorageFactoryNotFound(t *testing.T) {

@@ -137,7 +137,7 @@ func (b builders) build() (otelcol.Factories, error) {
 		forwardconnector.NewFactory(),
 		// add-ons
 		spanmetricsconnector.NewFactory(),
-		storagewriterconnector.NewFactory(), // storage write that dead-letters rejected spans (RFC 0007)
+		storagewriterconnector.NewFactory(), // storage write with a dead-letter output for rejected spans (RFC 0007)
 	)
 	if err != nil {
 		return otelcol.Factories{}, err

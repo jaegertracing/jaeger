@@ -7,21 +7,20 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"slices"
-	"strings"
 
 	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/connector"
 	"go.opentelemetry.io/collector/consumer"
 	"go.opentelemetry.io/collector/exporter"
 	"go.opentelemetry.io/collector/exporter/exporterhelper"
+	"go.opentelemetry.io/collector/pdata/pcommon"
 	"go.opentelemetry.io/collector/pdata/ptrace"
 	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/exporters/storageexporter"
 	"github.com/jaegertracing/jaeger/internal/metrics"
 	"github.com/jaegertracing/jaeger/internal/metrics/otelmetrics"
-	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/esclient"
+	"github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore"
 )
 
 // connectorImpl is the traces→traces connector that writes each batch to storage
@@ -42,16 +41,16 @@ import (
 //     pipeline; if the sink accepts them → nil, the offset advances;
 //     if the sink rejects them → an error, the offset held (§4.8 step 4).
 //   - terminal and transient together  → the error; the whole batch is retried, and
-//     the poison is dead-lettered once the transient failures clear, so a retry
-//     never dead-letters the same span twice.
+//     the poison goes to the dead-letter pipeline once the transient failures
+//     clear, so a retry never sends the same span there twice.
 type connectorImpl struct {
 	config   *Config
 	logger   *zap.Logger
 	writer   *storageexporter.TraceWriter
 	exporter exporter.Traces // the queue/batch/retry pipeline in front of writeTraces
 	next     consumer.Traces // the dead-letter pipeline
-	// deadLetteredSpans counts the spans handed to the dead-letter pipeline.
-	deadLetteredSpans metrics.Counter
+	// deadLetterSpans counts the spans handed to the dead-letter pipeline.
+	deadLetterSpans metrics.Counter
 }
 
 func newConnector(ctx context.Context, set connector.Settings, cfg *Config, next consumer.Traces) (*connectorImpl, error) {
@@ -60,11 +59,11 @@ func newConnector(ctx context.Context, set connector.Settings, cfg *Config, next
 		logger: set.Logger,
 		writer: storageexporter.NewTraceWriter(cfg, set.TelemetrySettings),
 		next:   next,
-		deadLetteredSpans: otelmetrics.NewFactory(set.MeterProvider).
+		deadLetterSpans: otelmetrics.NewFactory(set.MeterProvider).
 			Namespace(metrics.NSOptions{Name: "jaeger_storage_writer"}).
 			Counter(metrics.Options{
-				Name: "dead_lettered_spans",
-				Help: "Spans the storage rejected terminally that were re-emitted onto the dead-letter pipeline",
+				Name: "dead_letter_spans",
+				Help: "Spans the storage rejected terminally that were sent to the dead-letter pipeline",
 			}),
 	}
 	exp, err := exporterhelper.NewTraces(
@@ -101,14 +100,15 @@ func (c *connectorImpl) Capabilities() consumer.Capabilities {
 
 // ConsumeTraces hands the batch to the exporter pipeline and returns the write's
 // verdict once the pipeline has one; with queue.wait_for_result that is after the
-// batch it was merged into has been written (or dead-lettered).
+// batch it was merged into has been written (or sent to the dead-letter pipeline).
 func (c *connectorImpl) ConsumeTraces(ctx context.Context, td ptrace.Traces) error {
 	return c.exporter.ConsumeTraces(ctx, td)
 }
 
 // startWriter resolves the storage writer. The storage has to be one whose
-// writer reports the spans it rejects terminally through *esclient.BulkWriteError
-// (for Elasticsearch/OpenSearch: write_mode: sync with poison_pill_handling: fail);
+// writer reports the spans it rejects terminally through a
+// *tracestore.RejectedSpansError (for Elasticsearch/OpenSearch: write_mode: sync
+// with poison_pill_handling: fail);
 // against any other storage the connector still writes correctly but nothing ever
 // reaches the dead-letter pipeline, so that requirement is documented rather than
 // checked, as are the other settings of the at-least-once topology (RFC 0007 §4.5).
@@ -117,38 +117,29 @@ func (c *connectorImpl) startWriter(ctx context.Context, host component.Host) er
 }
 
 // writeTraces is the exporter pipeline's push function: it writes the batch and
-// dead-letters the terminally-rejected spans. See connectorImpl for how its return
-// value maps to the offset.
+// sends the terminally-rejected spans to the dead-letter pipeline. See
+// connectorImpl for how its return value maps to the offset.
 func (c *connectorImpl) writeTraces(ctx context.Context, td ptrace.Traces) error {
 	err := c.writer.WriteTraces(ctx, td)
 	if err == nil {
 		return nil
 	}
-	var bulkErr *esclient.BulkWriteError
-	if !errors.As(err, &bulkErr) || bulkErr.Transient {
-		// Either nothing was rejected per item (transport failure, backend down) or
-		// some items failed transiently: the batch has to be retried. Poison items
-		// ride along and are dead-lettered once a retry sees only terminal failures.
+	var rejected *tracestore.RejectedSpansError
+	if !errors.As(err, &rejected) || rejected.Transient {
+		// Either the storage reports no per-span verdict (transport failure, backend
+		// down) or some spans failed transiently: the batch has to be retried. Poison
+		// spans ride along and are re-routed once a retry sees only terminal failures.
 		return err
 	}
-	poison, unmapped, missing := filterPoisonSpans(td, bulkErr.Terminal)
-	if len(missing) > 0 {
-		// A rejected span _id that names no span in the batch means the writer's
-		// id rendering and this connector's disagree, and an item without an _id
-		// cannot be told apart from a span, so neither can be re-routed.
-		// Acknowledging the batch would lose a span silently; fail instead, so the
-		// batch is retried (forever, under the ingester's retry policy) and the
-		// mismatch surfaces in the logs. Only a code or backend fix can clear it,
-		// which is the right escape for a defect rather than a data problem.
-		return fmt.Errorf("%d rejected span documents match no span in the batch (ids %v): %w", len(missing), missing, bulkErr)
+	if rejected.Unidentified > 0 {
+		// The storage rejected documents it could not attribute to a span, so they
+		// cannot be re-routed. Acknowledging the batch could lose a span silently;
+		// fail instead, so the batch is retried (forever, under the ingester's retry
+		// policy) and the defect surfaces in the logs. Only a code or backend fix can
+		// clear it, which is the right escape for a defect rather than a data problem.
+		return fmt.Errorf("%d rejected documents could not be attributed to a span: %w", rejected.Unidentified, err)
 	}
-	if unmapped > 0 {
-		// A rejected document without a span _id is a service/operation lookup
-		// document; it has no span to re-emit. Its spans are durable and any later
-		// span of the same service and operation re-emits it, so it is only logged.
-		c.logger.Warn("rejected documents that are not spans cannot be dead-lettered and were discarded",
-			zap.Int("count", unmapped), zap.Error(bulkErr))
-	}
+	poison := selectSpans(td, rejected.Spans)
 	if n := poison.SpanCount(); n > 0 {
 		if derr := c.next.ConsumeTraces(ctx, poison); derr != nil {
 			// The dead-letter sink refused the spans, so nothing about them is
@@ -161,44 +152,33 @@ func (c *connectorImpl) writeTraces(ctx context.Context, td ptrace.Traces) error
 			// is always worth retrying, whatever the sink thought of it.
 			return fmt.Errorf("dead-letter pipeline rejected %d poison spans: %s", n, derr.Error())
 		}
-		c.deadLetteredSpans.Inc(int64(n))
-		c.logger.Warn("dead-lettered spans the storage rejected terminally",
-			zap.Int("spans", n), zap.Error(bulkErr))
+		c.deadLetterSpans.Inc(int64(n))
+		c.logger.Warn("sent spans the storage rejected terminally to the dead-letter pipeline",
+			zap.Int("spans", n), zap.Error(err))
 	}
-	// Every rejected item was terminal and is now either dead-lettered or logged:
-	// the batch is complete, so the offset advances and the partition never blocks.
+	// Every rejected document was a span and is now in the dead-letter pipeline, or
+	// the storage handled it itself: the batch is complete, so the offset advances
+	// and the partition never blocks.
 	return nil
 }
 
-// filterPoisonSpans returns a new ptrace.Traces holding only the spans whose
-// deterministic _id appears in the rejected items, each under a copy of its
-// resource and scope; the number of rejected items that are service/operation
-// lookup documents rather than spans; and the identities of rejected items that
-// cannot be resolved to a span in the batch: a span _id the batch does not
-// contain, or an item the response reported without any _id, which could be a
-// span and so must not be acknowledged. The span _id is traceID_spanID_hash
-// (RFC 0007 §4.7), so its traceID_spanID prefix identifies the source span, while
-// a lookup document's _id is a bare hash with no delimiter. A second span in the
-// batch that shares the trace and span id (the shared-span model, §4.7) is
-// re-emitted alongside the poison one, which over-includes a durable span in the
-// dead letter but never loses one.
-func filterPoisonSpans(td ptrace.Traces, rejected []esclient.RejectedItem) (poison ptrace.Traces, unmapped int, missing []string) {
-	want := make(map[string]bool, len(rejected)) // key → matched a span
-	for _, it := range rejected {
-		if it.ID == "" {
-			missing = append(missing, "(no _id in the bulk response)")
-			continue
-		}
-		key, ok := spanKeyFromID(it.ID)
-		if !ok {
-			unmapped++
-			continue
-		}
-		want[key] = false
+// selectSpans returns a new ptrace.Traces holding only the spans of td that the
+// storage rejected, each under a copy of its resource and scope. A second span in
+// the batch that shares the trace and span id (the shared-span model, RFC 0007
+// §4.7) is selected alongside the rejected one, which over-includes a stored span
+// in the dead letter but never loses one.
+func selectSpans(td ptrace.Traces, rejected []tracestore.RejectedSpan) ptrace.Traces {
+	type spanKey struct {
+		traceID pcommon.TraceID
+		spanID  pcommon.SpanID
 	}
-	poison = ptrace.NewTraces()
+	want := make(map[spanKey]struct{}, len(rejected))
+	for _, r := range rejected {
+		want[spanKey{r.TraceID, r.SpanID}] = struct{}{}
+	}
+	out := ptrace.NewTraces()
 	if len(want) == 0 {
-		return poison, unmapped, missing
+		return out
 	}
 	for _, rs := range td.ResourceSpans().All() {
 		var outRS ptrace.ResourceSpans
@@ -207,13 +187,11 @@ func filterPoisonSpans(td ptrace.Traces, rejected []esclient.RejectedItem) (pois
 			var outSS ptrace.ScopeSpans
 			ssInit := false
 			for _, span := range ss.Spans().All() {
-				key := span.TraceID().String() + "_" + span.SpanID().String()
-				if _, ok := want[key]; !ok {
+				if _, ok := want[spanKey{span.TraceID(), span.SpanID()}]; !ok {
 					continue
 				}
-				want[key] = true
 				if !rsInit {
-					outRS = poison.ResourceSpans().AppendEmpty()
+					outRS = out.ResourceSpans().AppendEmpty()
 					rs.Resource().CopyTo(outRS.Resource())
 					outRS.SetSchemaUrl(rs.SchemaUrl())
 					rsInit = true
@@ -228,23 +206,5 @@ func filterPoisonSpans(td ptrace.Traces, rejected []esclient.RejectedItem) (pois
 			}
 		}
 	}
-	for key, matched := range want {
-		if !matched {
-			missing = append(missing, key)
-		}
-	}
-	slices.Sort(missing)
-	return poison, unmapped, missing
-}
-
-// spanKeyFromID returns the traceID_spanID prefix of a span _id
-// (traceID_spanID_hash), cut at the last delimiter because the hash holds none.
-// It reports false for an id without both delimiters, such as a
-// service:operation document's, which names no span.
-func spanKeyFromID(id string) (string, bool) {
-	last := strings.LastIndexByte(id, '_')
-	if last < 0 || !strings.Contains(id[:last], "_") {
-		return "", false
-	}
-	return id[:last], true
+	return out
 }
