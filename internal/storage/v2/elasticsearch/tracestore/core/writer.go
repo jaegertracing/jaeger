@@ -95,10 +95,10 @@ func NewSpanWriter(p SpanWriterParams) *SpanWriter {
 func (s *SpanWriter) WriteSpans(ctx context.Context, spans []dbmodel.Span) error {
 	items := make([]esclient.BulkItem, 0, len(spans))
 	serviceOps := newServiceOperationBatch(s.serviceOp)
-	// spanOf runs parallel to items: the span behind each span document, nil for a
+	// docIndexToSpan maps each position in items to the span behind that document, nil for a
 	// service:operation lookup document. It lets a per-document rejection reported
 	// by the batch writer be attributed back to the span it concerns (RFC 0007 §4.8).
-	spanOf := make([]*dbmodel.Span, 0, len(spans))
+	docIndexToSpan := make([]*dbmodel.Span, 0, len(spans))
 	for i := range spans {
 		span := &spans[i]
 		s.writerMetrics.Attempts.Inc(1)
@@ -107,7 +107,7 @@ func (s *SpanWriter) WriteSpans(ctx context.Context, spans []dbmodel.Span) error
 		// Service:operation pair doc, deduped to one doc per batch unless already cached.
 		if item, ok := serviceOps.toUpsertItem(s.serviceRotation.WriteTarget(spanStartTime), span); ok {
 			items = append(items, item)
-			spanOf = append(spanOf, nil)
+			docIndexToSpan = append(docIndexToSpan, nil)
 		}
 
 		// Span doc.
@@ -124,11 +124,11 @@ func (s *SpanWriter) WriteSpans(ctx context.Context, spans []dbmodel.Span) error
 			continue
 		}
 		items = append(items, item)
-		spanOf = append(spanOf, span)
+		docIndexToSpan = append(docIndexToSpan, span)
 	}
 
 	if err := s.batchWriter.WriteBatch(ctx, items); err != nil {
-		if err := s.attributeRejections(err, items, spanOf); err != nil {
+		if err := s.attributeRejections(err, items, docIndexToSpan); err != nil {
 			return err
 		}
 	}
@@ -149,9 +149,9 @@ func (s *SpanWriter) WriteSpans(ctx context.Context, spans []dbmodel.Span) error
 // documents therefore succeeds. A rejected
 // document that matches nothing this batch sent is counted as unidentified,
 // because it could be a span. An error with no terminal rejections (a transport
-// failure, or only transient rejections) is returned as is. items and spanOf are
+// failure, or only transient rejections) is returned as is. items and docIndexToSpan are
 // the batch as sent, aligned.
-func (s *SpanWriter) attributeRejections(err error, items []esclient.BulkItem, spanOf []*dbmodel.Span) error {
+func (s *SpanWriter) attributeRejections(err error, items []esclient.BulkItem, docIndexToSpan []*dbmodel.Span) error {
 	var bulkErr *esclient.BulkWriteError
 	if !errors.As(err, &bulkErr) || len(bulkErr.Terminal) == 0 {
 		return err
@@ -172,7 +172,7 @@ func (s *SpanWriter) attributeRejections(err error, items []esclient.BulkItem, s
 			rejected.Unidentified++
 			continue
 		}
-		if span := spanOf[pos]; span != nil {
+		if span := docIndexToSpan[pos]; span != nil {
 			traceID, terr := span.TraceID.ToOTEL()
 			spanID, serr := span.SpanID.ToOTEL()
 			if terr != nil || serr != nil {
