@@ -302,7 +302,10 @@ func TestConsumeTraces_DuplicateRejectionLoggedOnce(t *testing.T) {
 	require.NoError(t, c.ConsumeTraces(context.Background(), td))
 	require.Len(t, sink.AllTraces(), 1)
 	assert.Equal(t, []string{"A"}, spanNames(sink.AllTraces()[0]), "the span is re-emitted once")
-	assert.Equal(t, 1, c.logs.Len(), "and logged once")
+	reason, _ := spansOf(sink.AllTraces()[0])[0].Attributes().Get(rejectionReasonAttribute)
+	assert.Equal(t, ids[0].Reason, reason.Str(), "the first report's reason is attached")
+	require.Equal(t, 1, c.logs.Len(), "and logged once")
+	assert.Equal(t, ids[0].Reason, c.logs.All()[0].ContextMap()["reason"], "with the same reason")
 	assert.Equal(t, int64(1), c.deadLetterSpans(t))
 }
 
@@ -345,9 +348,6 @@ func TestConsumeTraces_UnidentifiedRejectionFailsTheBatch(t *testing.T) {
 	assert.Empty(t, sink.AllTraces())
 }
 
-// TestConsumeTraces_BlockingQueueReturnsWriteVerdict proves the connector wraps the
-// exporter pipeline: with queue.wait_for_result and a batch configured, the
-// caller's ConsumeTraces still returns the storage write's verdict (RFC 0007 §4.2).
 func TestConsumeTraces_RejectedSpanNotInBatchFailsTheBatch(t *testing.T) {
 	sink := new(consumertest.TracesSink)
 	td, ids := makeTraces()
@@ -398,8 +398,12 @@ func TestConsumeTraces_BlockingQueueMergesCallers(t *testing.T) {
 	require.Len(t, sink.AllTraces(), 1, "poison from both callers goes out in one send")
 	assert.ElementsMatch(t, []string{"A", "D"}, spanNames(sink.AllTraces()[0]))
 	assert.Equal(t, int64(2), c.deadLetterSpans(t))
+	assert.True(t, c.Capabilities().MutatesData, "the batcher moves spans out of the caller's input, and the connector reports the pipeline's capabilities")
 }
 
+// TestConsumeTraces_BlockingQueueReturnsWriteVerdict proves the connector wraps the
+// exporter pipeline: with queue.wait_for_result and a batch configured, the
+// caller's ConsumeTraces still returns the storage write's verdict (RFC 0007 §4.2).
 func TestConsumeTraces_BlockingQueueReturnsWriteVerdict(t *testing.T) {
 	queue := exporterhelper.NewDefaultQueueConfig()
 	queue.WaitForResult = true
