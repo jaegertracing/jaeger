@@ -95,10 +95,10 @@ func NewSpanWriter(p SpanWriterParams) *SpanWriter {
 func (s *SpanWriter) WriteSpans(ctx context.Context, spans []dbmodel.Span) error {
 	items := make([]esclient.BulkItem, 0, len(spans))
 	serviceOps := newServiceOperationBatch(s.serviceOp)
-	// docIndexToSpan maps each position in items to the span behind that document, nil for a
+	// itemIDToSpan maps each document's _id to the span behind it, nil for a
 	// service:operation lookup document. It lets a per-document rejection reported
 	// by the batch writer be attributed back to the span it concerns (RFC 0007 §4.8).
-	docIndexToSpan := make([]*dbmodel.Span, 0, len(spans))
+	itemIDToSpan := make(map[string]*dbmodel.Span, len(spans))
 	for i := range spans {
 		span := &spans[i]
 		s.writerMetrics.Attempts.Inc(1)
@@ -107,7 +107,7 @@ func (s *SpanWriter) WriteSpans(ctx context.Context, spans []dbmodel.Span) error
 		// Service:operation pair doc, deduped to one doc per batch unless already cached.
 		if item, ok := serviceOps.toUpsertItem(s.serviceRotation.WriteTarget(spanStartTime), span); ok {
 			items = append(items, item)
-			docIndexToSpan = append(docIndexToSpan, nil)
+			itemIDToSpan[item.ID] = nil
 		}
 
 		// Span doc.
@@ -124,11 +124,11 @@ func (s *SpanWriter) WriteSpans(ctx context.Context, spans []dbmodel.Span) error
 			continue
 		}
 		items = append(items, item)
-		docIndexToSpan = append(docIndexToSpan, span)
+		itemIDToSpan[item.ID] = span
 	}
 
 	if err := s.batchWriter.WriteBatch(ctx, items); err != nil {
-		if err := s.attributeRejections(err, items, docIndexToSpan); err != nil {
+		if err := s.attributeRejections(err, itemIDToSpan); err != nil {
 			return err
 		}
 	}
@@ -146,33 +146,28 @@ func (s *SpanWriter) WriteSpans(ctx context.Context, spans []dbmodel.Span) error
 // reported: the spans it indexes are stored, and the pair is cached like any other
 // once the batch completes, so the document is not re-sent to be rejected again
 // until the writer restarts. A batch whose only terminal rejections are lookup
-// documents therefore succeeds. A rejected
-// document that matches nothing this batch sent is counted as unidentified,
-// because it could be a span. An error with no terminal rejections (a transport
-// failure, or only transient rejections) is returned as is. items and docIndexToSpan are
-// the batch as sent, aligned.
-func (s *SpanWriter) attributeRejections(err error, items []esclient.BulkItem, docIndexToSpan []*dbmodel.Span) error {
+// documents therefore succeeds. A rejected document whose _id is not in
+// itemIDToSpan is counted as unidentified, because it could be a span. An error
+// with no terminal rejections (a transport failure, or only transient rejections)
+// is returned as is.
+//
+// Documents are matched by _id alone: the bulk response names the concrete backing
+// index behind a write alias or data stream, not the index the item was sent to,
+// and ids cannot collide across the two document kinds (a span's is
+// traceID_spanID_hash, a lookup's a hash).
+func (s *SpanWriter) attributeRejections(err error, itemIDToSpan map[string]*dbmodel.Span) error {
 	var bulkErr *esclient.BulkWriteError
 	if !errors.As(err, &bulkErr) || len(bulkErr.Terminal) == 0 {
 		return err
 	}
-	// Index the batch once, on this error path only, so attributing a batch that
-	// was mostly rejected stays linear. Documents are matched by _id alone: the
-	// bulk response names the concrete backing index behind a write alias or data
-	// stream, not the index the item was sent to, and ids cannot collide across
-	// the two document kinds (a span's is traceID_spanID_hash, a lookup's a hash).
-	position := make(map[string]int, len(items))
-	for i, sent := range items {
-		position[sent.ID] = i
-	}
 	rejected := &tracestore.RejectedSpansError{Transient: bulkErr.Transient, Err: err}
 	for _, item := range bulkErr.Terminal {
-		pos, ok := position[item.ID]
+		span, ok := itemIDToSpan[item.ID]
 		if !ok {
 			rejected.Unidentified++
 			continue
 		}
-		if span := docIndexToSpan[pos]; span != nil {
+		if span != nil {
 			traceID, terr := span.TraceID.ToOTEL()
 			spanID, serr := span.SpanID.ToOTEL()
 			if terr != nil || serr != nil {
