@@ -5,6 +5,7 @@ package tracestore
 
 import (
 	"context"
+	"fmt"
 
 	"go.opentelemetry.io/collector/pdata/pcommon"
 	"go.opentelemetry.io/collector/pdata/ptrace"
@@ -58,11 +59,14 @@ type RejectedSpansError struct {
 	// Unidentified counts rejected documents the Writer could not attribute to a
 	// span. Any of them could be a span, so the batch must not be acknowledged.
 	Unidentified int
-	// Err is the backend's own error, kept for its message.
+	// Err is the backend's own error, kept for its message; it may be nil.
 	Err error
 }
 
 func (e *RejectedSpansError) Error() string {
+	if e.Err == nil {
+		return fmt.Sprintf("%d spans rejected by the storage", len(e.Spans))
+	}
 	return e.Err.Error()
 }
 

@@ -20,5 +20,9 @@ func TestRejectedSpansError(t *testing.T) {
 	require.ErrorAs(t, err, &rejected, "the type survives wrapping")
 	assert.Equal(t, 1, rejected.Unidentified)
 	assert.Equal(t, "2 of 3 bulk items rejected", rejected.Error(), "the message is the backend's")
-	assert.ErrorIs(t, err, backend, "the backend error stays reachable")
+	require.ErrorIs(t, err, backend, "the backend error stays reachable")
+
+	bare := &RejectedSpansError{Spans: []RejectedSpan{{}, {}}}
+	assert.Equal(t, "2 spans rejected by the storage", bare.Error(), "no backend error to defer to")
+	require.NoError(t, bare.Unwrap())
 }

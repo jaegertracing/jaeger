@@ -340,6 +340,14 @@ func TestSpanWriter_RejectedSpansError(t *testing.T) {
 			require.NoError(t, w.writer.WriteSpans(context.Background(), []dbmodel.Span{spanA}),
 				"every span is stored, so nothing remains for the caller to retry or re-route")
 			assert.Contains(t, w.logBuffer.String(), "lookup document rejected by the backend")
+			require.Len(t, *w.added, 2)
+
+			// The service cache was not committed, so the next span of the same
+			// service and operation sends the lookup document again.
+			w.batchWriter.errFor = nil
+			require.NoError(t, w.writer.WriteSpans(context.Background(), []dbmodel.Span{spanA}))
+			require.Len(t, *w.added, 4, "the lookup document and the span are both re-sent")
+			assert.Equal(t, (*w.added)[0].ID, (*w.added)[2].ID, "the same lookup document")
 		})
 	})
 

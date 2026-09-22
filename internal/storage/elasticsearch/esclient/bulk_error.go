@@ -27,9 +27,9 @@ type RejectedItem struct {
 // connector (RFC 0007 §4.8) — can recover the terminally-rejected "poison" documents
 // with errors.As and re-emit them onto a separate pipeline.
 //
-// The type survives the writer's own errors.Join across chunks and the pass-through
-// up WriteSpans/WriteTraces (both return the writer's error unwrapped), so errors.As
-// at the connector still finds it. WriteBatch aggregates every chunk's rejections
+// The type survives the writer's own errors.Join across chunks and the wrapping the
+// ES span writer applies (a tracestore.RejectedSpansError that unwraps to it), so
+// errors.As still finds it. WriteBatch aggregates every chunk's rejections
 // into a single BulkWriteError rather than joining one per chunk, so the connector
 // sees the whole batch's poison in one place.
 //
