@@ -313,10 +313,7 @@ func (q *TraceQueryParams) normalizeEnvelope() error {
 	if q.SearchDepth < 0 || q.SearchDepth > tracestore.MaxSearchDepth {
 		return fmt.Errorf("%w: search_depth must be in [0, %d]", ErrQueryInvalid, tracestore.MaxSearchDepth)
 	}
-	// The default stands in for a bound the caller did not express. A request that bounds its
-	// results another way, such as a page size (RFC 0014), must not have it applied, because
-	// the two bounds are mutually exclusive and the caller sent only one.
-	if q.SearchDepth == 0 {
+	if q.SearchDepth == 0 && q.Pagination == (tracestore.Pagination{}) {
 		q.SearchDepth = DefaultSearchDepth
 	}
 	return nil

@@ -1017,20 +1017,23 @@ func TestFindTraces_EnvelopeIsSettledOnce(t *testing.T) {
 	}
 
 	dispatched := map[string]struct {
-		depth int
-		want  int
+		depth      int
+		pagination tracestore.Pagination
+		want       int
 	}{
-		"an unset search depth gets the default": {depth: 0, want: DefaultSearchDepth},
-		"an explicit search depth is kept":       {depth: 42, want: 42},
-		"the maximum search depth is allowed":    {depth: tracestore.MaxSearchDepth, want: tracestore.MaxSearchDepth},
+		"an unset search depth gets the default":   {depth: 0, want: DefaultSearchDepth},
+		"an explicit search depth is kept":         {depth: 42, want: 42},
+		"the maximum search depth is allowed":      {depth: tracestore.MaxSearchDepth, want: tracestore.MaxSearchDepth},
+		"a paginated request is not given one too": {pagination: tracestore.Pagination{PageSize: 20}, want: 0},
 	}
 	for name, test := range dispatched {
 		t.Run(name, func(t *testing.T) {
 			var got tracestore.TraceQueryParams
 			reader := forwardsOneTrace(new(tracestoremocks.Reader), &got)
 			qs := NewQueryService(reader, nil, QueryServiceOptions{})
-			_, err := jiter.FlattenWithErrors(qs.FindTraces(context.Background(),
-				TraceQueryParams{TraceQueryParams: window(tracestore.TraceQueryParams{SearchDepth: test.depth})}))
+			_, err := jiter.FlattenWithErrors(qs.FindTraces(context.Background(), TraceQueryParams{
+				TraceQueryParams: window(tracestore.TraceQueryParams{SearchDepth: test.depth, Pagination: test.pagination}),
+			}))
 			require.NoError(t, err)
 			assert.Equal(t, test.want, got.SearchDepth)
 			// A zero duration bound is "no bound", not a negative one.
