@@ -41,8 +41,8 @@ func ctxWithRole(t *testing.T, role string) context.Context {
 
 // queryWithAttr builds the query a caller asking for one attribute arrives with: every
 // predicate is in the filter, so the equality is a predicate rather than a map entry.
-func queryWithAttr(key, val string) queryinterceptor.Query {
-	return queryinterceptor.Query{Filter: &expression.Call{
+func queryWithAttr(key, val string) queryinterceptor.TraceQuery {
+	return queryinterceptor.TraceQuery{Filter: &expression.Call{
 		Op: expression.OpAnd,
 		Args: []expression.Expression{
 			&expression.Call{Op: expression.OpEq, Args: []expression.Expression{

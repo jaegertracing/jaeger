@@ -139,11 +139,13 @@ func (fakeStorageExt) Shutdown(context.Context) error {
 
 // stubQueryInterceptor is an extension that also implements
 // queryinterceptor.Interceptor, used to exercise the server's interceptor wiring.
-type stubQueryInterceptor struct{}
+type stubQueryInterceptor struct {
+	queryinterceptor.UnsupportedSpanSearch
+}
 
 func (stubQueryInterceptor) Start(context.Context, component.Host) error { return nil }
 func (stubQueryInterceptor) Shutdown(context.Context) error              { return nil }
-func (stubQueryInterceptor) OnQuery(ctx context.Context, q queryinterceptor.Query) (context.Context, queryinterceptor.Query, error) {
+func (stubQueryInterceptor) OnQuery(ctx context.Context, q queryinterceptor.TraceQuery) (context.Context, queryinterceptor.TraceQuery, error) {
 	return ctx, q, nil
 }
 

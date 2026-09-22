@@ -23,25 +23,27 @@ import (
 // caller's request was fine, and the fault is in the extension this deployment configured.
 var ErrInterceptorFilter = errors.New("query interceptor returned an invalid filter")
 
-// toPublicQuery and fromPublicQuery convert at the contract boundary, so the internal query type
-// never crosses it. Only the envelope and the filter survive the round trip, which is all the
-// public Query carries: onQuery hands over a query whose predicate fields are already empty.
-func toPublicQuery(q tracestore.TraceQueryParams) queryinterceptor.Query {
-	return queryinterceptor.Query{
+// toInterceptorTraceQuery and fromInterceptorTraceQuery convert at the contract boundary, so the
+// internal query type never crosses it. Only the time range and the filter cross it, which is all
+// the interceptor's TraceQuery carries: onQuery hands over a query whose predicate fields are
+// already empty, and the result bound stays on the internal query, which is why the reverse
+// conversion takes the original as well.
+func toInterceptorTraceQuery(q tracestore.TraceQueryParams) queryinterceptor.TraceQuery {
+	return queryinterceptor.TraceQuery{
 		Filter:       q.Filter,
 		StartTimeMin: q.StartTimeMin,
 		StartTimeMax: q.StartTimeMax,
-		SearchDepth:  q.SearchDepth,
 	}
 }
 
-func fromPublicQuery(q queryinterceptor.Query) tracestore.TraceQueryParams {
+func fromInterceptorTraceQuery(q queryinterceptor.TraceQuery, original tracestore.TraceQueryParams) tracestore.TraceQueryParams {
 	return tracestore.TraceQueryParams{
 		Attributes:   pcommon.NewMap(),
 		Filter:       q.Filter,
 		StartTimeMin: q.StartTimeMin,
 		StartTimeMax: q.StartTimeMax,
-		SearchDepth:  q.SearchDepth,
+		SearchDepth:  original.SearchDepth,
+		Pagination:   original.Pagination,
 	}
 }
 
@@ -56,7 +58,7 @@ func fromPublicQuery(q queryinterceptor.Query) tracestore.TraceQueryParams {
 // chooses the outgoing shape from what the reader declared, and a predicate an interceptor added is
 // held to the same capability check as one the caller sent.
 func (qs QueryService) onQuery(ctx context.Context, query TraceQueryParams) (context.Context, TraceQueryParams, error) {
-	queryPreIntercept := toPublicQuery(query.ToFilterShape())
+	queryPreIntercept := toInterceptorTraceQuery(query.ToFilterShape())
 	queryPostIntercept := queryPreIntercept
 	var err error
 	for _, interceptor := range qs.options.Interceptors {
@@ -67,7 +69,7 @@ func (qs QueryService) onQuery(ctx context.Context, query TraceQueryParams) (con
 	}
 
 	// A legacy query whose predicates no interceptor touched reaches storage as it arrived, carrying
-	// only the time range or search depth one of them may have narrowed. Converting it anyway would
+	// only the time range one of them may have narrowed. Converting it anyway would
 	// change the answer on a backend that searches a legacy attribute more widely than an unqualified
 	// filter reference — Elasticsearch reads the legacy tag search over the event location too, while
 	// the filter's unqualified default is span-or-resource (RFC 0005 §5.1) — and enabling an
@@ -75,7 +77,6 @@ func (qs QueryService) onQuery(ctx context.Context, query TraceQueryParams) (con
 	if query.Filter == nil && reflect.DeepEqual(queryPostIntercept.Filter, queryPreIntercept.Filter) {
 		query.StartTimeMin = queryPostIntercept.StartTimeMin
 		query.StartTimeMax = queryPostIntercept.StartTimeMax
-		query.SearchDepth = queryPostIntercept.SearchDepth
 		return ctx, query, nil
 	}
 
@@ -85,7 +86,7 @@ func (qs QueryService) onQuery(ctx context.Context, query TraceQueryParams) (con
 	if err != nil {
 		return ctx, query, err
 	}
-	query.TraceQueryParams = fromPublicQuery(queryPostIntercept)
+	query.TraceQueryParams = fromInterceptorTraceQuery(queryPostIntercept, query.TraceQueryParams)
 	return ctx, query, nil
 }
 

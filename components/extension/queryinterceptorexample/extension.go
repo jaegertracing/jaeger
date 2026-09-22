@@ -71,22 +71,36 @@ func (i *interceptor) privileged(role string) bool {
 	return false
 }
 
-// OnQuery rejects a non-privileged caller's query that filters on a denied
+// OnQuery rejects a non-privileged caller's trace search that filters on a denied
 // attribute — the per-caller, pre-query admission hook. It caches the resolved
 // role in the returned context so OnResult reuses it without re-reading metadata.
-func (i *interceptor) OnQuery(ctx context.Context, query queryinterceptor.Query) (context.Context, queryinterceptor.Query, error) {
+func (i *interceptor) OnQuery(ctx context.Context, query queryinterceptor.TraceQuery) (context.Context, queryinterceptor.TraceQuery, error) {
+	ctx, err := i.admitFilter(ctx, query.Filter)
+	return ctx, query, err
+}
+
+// OnSpanQuery applies the same admission rule to a span search. The predicates are the same
+// filter AST, so a denied attribute is denied whichever endpoint the caller chose.
+func (i *interceptor) OnSpanQuery(ctx context.Context, query queryinterceptor.SpanQuery) (context.Context, queryinterceptor.SpanQuery, error) {
+	ctx, err := i.admitFilter(ctx, query.Filter)
+	return ctx, query, err
+}
+
+// admitFilter refuses a filter that reads a denied attribute unless the caller is privileged,
+// and returns a context carrying the resolved role.
+func (i *interceptor) admitFilter(ctx context.Context, filter *expression.Call) (context.Context, error) {
 	ctx, role := i.callerRole(ctx)
 	if i.privileged(role) {
-		return ctx, query, nil
+		return ctx, nil
 	}
 	for _, key := range i.cfg.DenyQueryAttributes {
-		if referencesAttribute(query.Filter, key) {
+		if referencesAttribute(filter, key) {
 			i.logger.Debug("rejecting query that filters on a forbidden attribute",
 				zap.String("attribute", key), zap.String("caller_role", role))
-			return ctx, query, fmt.Errorf("query interceptor: filtering on attribute %q is not permitted", key)
+			return ctx, fmt.Errorf("query interceptor: filtering on attribute %q is not permitted", key)
 		}
 	}
-	return ctx, query, nil
+	return ctx, nil
 }
 
 // referencesAttribute reports whether the filter reads the named attribute anywhere in its
@@ -116,21 +130,36 @@ func (i *interceptor) OnResult(ctx context.Context, traces []ptrace.Traces) (con
 		return ctx, traces, nil
 	}
 	for _, td := range traces {
-		resourceSpans := td.ResourceSpans()
-		for ri := 0; ri < resourceSpans.Len(); ri++ {
-			scopeSpans := resourceSpans.At(ri).ScopeSpans()
-			for si := 0; si < scopeSpans.Len(); si++ {
-				spans := scopeSpans.At(si).Spans()
-				for spi := 0; spi < spans.Len(); spi++ {
-					attrs := spans.At(spi).Attributes()
-					for _, key := range i.cfg.RedactAttributes {
-						if _, ok := attrs.Get(key); ok {
-							attrs.PutStr(key, redactedPlaceholder)
-						}
+		i.redactSpans(td)
+	}
+	return ctx, traces, nil
+}
+
+// OnSpanResult redacts a page of spans the same way. Redaction is per span, so the page holding
+// spans from many traces needs no different treatment from a batch of whole traces.
+func (i *interceptor) OnSpanResult(ctx context.Context, spans ptrace.Traces) (context.Context, ptrace.Traces, error) {
+	ctx, role := i.callerRole(ctx)
+	if i.privileged(role) || len(i.cfg.RedactAttributes) == 0 {
+		return ctx, spans, nil
+	}
+	i.redactSpans(spans)
+	return ctx, spans, nil
+}
+
+func (i *interceptor) redactSpans(td ptrace.Traces) {
+	resourceSpans := td.ResourceSpans()
+	for ri := 0; ri < resourceSpans.Len(); ri++ {
+		scopeSpans := resourceSpans.At(ri).ScopeSpans()
+		for si := 0; si < scopeSpans.Len(); si++ {
+			spans := scopeSpans.At(si).Spans()
+			for spi := 0; spi < spans.Len(); spi++ {
+				attrs := spans.At(spi).Attributes()
+				for _, key := range i.cfg.RedactAttributes {
+					if _, ok := attrs.Get(key); ok {
+						attrs.PutStr(key, redactedPlaceholder)
 					}
 				}
 			}
 		}
 	}
-	return ctx, traces, nil
 }

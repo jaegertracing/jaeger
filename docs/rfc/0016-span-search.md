@@ -3,7 +3,7 @@
 - **Status:** Draft
 - **Author:** Yuri Shkuro
 - **Created:** 2026-08-18
-- **Last Updated:** 2026-09-20
+- **Last Updated:** 2026-09-21
 - **Related:** [RFC 0005 (structured query filters)](0005-structured-query-filters.md) · [RFC 0011 (trace summary API)](0011-trace-summary-api.md) · [RFC 0014 (search result pagination)](0014-search-result-pagination.md) · [RFC 0001 (GenAI data layer)](0001-genai-data-layer.md) · [ADR-010](../adr/010-trace-summary-api.md) · [ADR-013 (storage capability declaration)](../adr/013-storage-capability-declaration.md)
 
 ---
@@ -316,6 +316,30 @@ The remote-storage protocol gets the matching `FindSpans` RPC on `jaeger.storage
 
 The HTTP route is `GET /api/v3/spans`, alongside `/api/v3/traces` and `/api/v3/trace-summaries`, with `query.filter` as RFC 0005 defines it and RFC 0014's page-size and page-token parameters. A filter naming many spans is long for a URL, so the `POST` binding the gRPC-gateway wrapper already provides for `FindTraces` matters more here than it does there. As with the other endpoints, the HTTP handler buffers a page through `jiter.FlattenWithErrors` while gRPC streams it; a page is a bounded unit, which is what makes buffering acceptable here.
 
+### 4.7 Query interceptors
+
+A deployment that gates trace searches through a [`queryinterceptor.Interceptor`](../../components/extension/jaegerquery/queryinterceptor/interceptor.go) must gate span searches too, because a policy enforced on `FindTraces` and absent on `FindSpans` is a policy a caller bypasses by choosing the other endpoint. The question is whether the span search reuses the trace hooks or gets its own.
+
+| Criterion | Reuse `OnQuery` and `OnResult` | Own hooks on the interface | Own hooks in an optional interface, refuse when absent |
+|---|---|---|---|
+| Room for the span-only clauses of §5 | 🔴 ¹ | 🟢 | 🟢 |
+| Result hook matches the payload | 🔴 ² | 🟢 | 🟢 |
+| Existing interceptors keep compiling | 🟢 | 🔴 ³ | 🟢 |
+| A span search cannot slip past a trace-only policy | 🟢 | 🟢 | 🟡 ⁴ |
+| Query-service complexity | 🟡 | 🟢 | 🔴 ⁵ |
+
+Legend: 🟢 good · 🟡 partial · 🔴 poor
+
+- ¹ A projection or a grouping added to the shared view would be a field every trace search carries empty.
+- ² `OnResult` takes a batch of whole traces and is documented as dropping traces; a span page is one `ptrace.Traces` holding spans from many traces, so the query service would have to wrap it as a batch of one and re-merge whatever comes back.
+- ³ Adding a method to a Go interface breaks every implementation. The contract is marked experimental and shipped in one release, and the break is a one-line fix (see below).
+- ⁴ Fail-closed is a runtime rule the query service enforces by type assertion, with a refusal error and a test to keep it honest.
+- ⁵ Two dispatch paths and a type assertion where the interface could have forced the decision at compile time.
+
+**The span search gets its own hooks on the interface.** `queryinterceptor.SpanQuery` is the view of a span search, `OnSpanQuery` and `OnSpanResult` are its hooks, and the trace view is renamed `TraceQuery` with `Query` kept as a deprecated alias. `SpanQuery` carries the same fields as `TraceQuery` today, the filter and the time range, and is a separate type because it is the one that grows the clauses §5 reserves. `OnSpanResult` takes one `ptrace.Traces` per page and is documented as dropping or redacting spans, which is what a page holds. An implementation with no policy for span searches embeds `queryinterceptor.UnsupportedSpanSearch`, whose hooks return `ErrSpanSearchUnsupported` so that the query service refuses the search; that mixin is the one-line fix an existing implementation needs to compile, and it is fail-closed by construction.
+
+The result bound leaves the interceptor view at the same time. `TraceQuery` carried `search_depth`, which an interceptor could rewrite; it does not carry RFC 0014's page size, so on a paginated search the field read zero and a cap written through it was silently lost. A result bound selects how much of the result to return, not which data may be read, so it is not the interceptor's to change on either search, and neither view carries one.
+
 ---
 
 ## 5. Provisioning for `SELECT` and `GROUP BY`
@@ -492,7 +516,8 @@ PR-sized milestones with exit bars. Everything here sits behind RFC 0005 M1 and 
 
 - ✅ Storage interface: `Reader.FindSpans`, `SpanQueryParams`, `SpanPage`, `UnsupportedSpanSearch`, `SearchCapabilities.SpanSearch`, every backend embedding the mixin, and the `find_spans` read metrics. Delivered in [#9578](https://github.com/jaegertracing/jaeger/pull/9578).
 - Replace `SpanPage` with RFC 0014's shared `PageChunk[ptrace.Traces]` when RFC 0014 M2 adds the pagination envelope to the other reader methods.
-- `querysvc.FindSpans` with parameter validation and the capability refusal.
+- ✅ Interceptor contract (§4.7): `queryinterceptor.SpanQuery`, `OnSpanQuery`, `OnSpanResult` and the `UnsupportedSpanSearch` mixin; `Query` renamed `TraceQuery` and stripped of the result bound. Delivered in [#9597](https://github.com/jaegertracing/jaeger/pull/9597).
+- `querysvc.FindSpans` with parameter validation, the capability refusal, and the span interceptor hooks.
 - The api_v3 gRPC `FindSpans` handler.
 - The `GET /api/v3/spans` HTTP route and its query parameters.
 
