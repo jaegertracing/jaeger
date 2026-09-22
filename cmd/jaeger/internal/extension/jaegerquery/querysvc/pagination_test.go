@@ -258,3 +258,35 @@ func TestPrepareSearchQuery_PaginationZeroValueSkipsGate(t *testing.T) {
 	require.NoError(t, err)
 	assert.True(t, next.findCalled)
 }
+
+// TestPaginationForCapabilities covers the capability-based degradation: a reader that declares
+// Paginated gets Pagination as sent, one that does not gets PageSize folded into SearchDepth and
+// a PageToken refused outright, since it cannot have minted a token it cannot interpret.
+func TestPaginationForCapabilities(t *testing.T) {
+	t.Run("no pagination is left alone", func(t *testing.T) {
+		query := tracestore.TraceQueryParams{ServiceName: "cart"}
+		applied, err := paginationForCapabilities(query, tracestore.SearchCapabilities{})
+		require.NoError(t, err)
+		assert.Equal(t, query, applied)
+	})
+
+	t.Run("a paginating reader gets pagination as sent", func(t *testing.T) {
+		query := tracestore.TraceQueryParams{Pagination: tracestore.Pagination{PageSize: 50, PageToken: "cursor"}}
+		applied, err := paginationForCapabilities(query, tracestore.SearchCapabilities{Paginated: true})
+		require.NoError(t, err)
+		assert.Equal(t, query, applied)
+	})
+
+	t.Run("a non-paginating reader gets page size folded into search depth", func(t *testing.T) {
+		query := tracestore.TraceQueryParams{Pagination: tracestore.Pagination{PageSize: 50}}
+		applied, err := paginationForCapabilities(query, tracestore.SearchCapabilities{})
+		require.NoError(t, err)
+		assert.Equal(t, tracestore.TraceQueryParams{SearchDepth: 50}, applied)
+	})
+
+	t.Run("a page token against a non-paginating reader is refused", func(t *testing.T) {
+		query := tracestore.TraceQueryParams{Pagination: tracestore.Pagination{PageSize: 50, PageToken: "cursor"}}
+		_, err := paginationForCapabilities(query, tracestore.SearchCapabilities{})
+		require.ErrorIs(t, err, tracestore.ErrPaginationUnsupported)
+	})
+}

@@ -36,6 +36,28 @@ var StructuredFiltersGate = featuregate.GlobalRegistry().MustRegister(
 // ignored, because dropping a predicate would answer with every trace in the time range.
 var ErrFilterDisabled = errors.New("the structured query filter is disabled")
 
+// forCapabilities gives the reader Pagination and Filter each in whichever shape it declared it
+// can honor, immediately before dispatch. A reader that declares filter support gets the filter
+// itself, once every level and operator it uses is one the reader listed. A reader that declares
+// none gets the filter rewritten into the legacy predicate fields (ToLegacyShape), or a refusal
+// where they cannot carry it.
+func forCapabilities(
+	query tracestore.TraceQueryParams,
+	caps tracestore.SearchCapabilities,
+) (tracestore.TraceQueryParams, error) {
+	query, err := paginationForCapabilities(query, caps)
+	if err != nil {
+		return tracestore.TraceQueryParams{}, err
+	}
+	if query.Filter == nil {
+		return query, nil
+	}
+	if caps.Filter.IsEmpty() {
+		return query.ToLegacyShape()
+	}
+	return query, caps.Filter.EnsureSupported(query.Filter)
+}
+
 // IsBadRequest reports whether err means the caller must change the query, either
 // because its shape is wrong or because this deployment's storage cannot serve it.
 // Either way it is the caller's problem, so the API layers answer InvalidArgument /
