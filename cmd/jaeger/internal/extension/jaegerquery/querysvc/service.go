@@ -209,6 +209,11 @@ func (qs QueryService) FindTraces(
 	query TraceQueryParams,
 ) iter.Seq2[[]ptrace.Traces, error] {
 	return func(yield func([]ptrace.Traces, error) bool) {
+		// The FindTraces response has no field for a continuation token (RFC 0014 §4).
+		if query.Pagination != nil {
+			yield(nil, tracestore.ErrPaginationUnsupportedByFindTraces)
+			return
+		}
 		ctx, query, err := qs.prepareSearchQuery(ctx, query)
 		if err != nil {
 			yield(nil, err)
@@ -252,6 +257,23 @@ func (qs QueryService) prepareSearchQuery(
 	if err := query.normalizeEnvelope(); err != nil {
 		return ctx, query, err
 	}
+	if query.Pagination != nil {
+		if !PaginationGate.IsEnabled() {
+			return ctx, query, fmt.Errorf("%w: enable the %q feature gate to use it",
+				ErrPaginationDisabled, PaginationGate.ID())
+		}
+		// A page size replaces the search depth rather than falling back to it (RFC 0014 §4).
+		if query.SearchDepth != 0 {
+			return ctx, query, fmt.Errorf("%w: it cannot be combined with search depth",
+				tracestore.ErrPaginationInvalid)
+		}
+		if query.Pagination.PageSize <= 0 {
+			return ctx, query, fmt.Errorf("%w: page size is required whenever pagination is present",
+				tracestore.ErrPaginationInvalid)
+		}
+		// An oversized page is clamped rather than refused (RFC 0014 §4, AIP-158).
+		query.Pagination.PageSize = min(query.Pagination.PageSize, tracestore.MaxPageSize)
+	}
 	if query.Filter != nil {
 		// None of these refusals depends on the backend, so they come before the capability call
 		// rather than after it.
@@ -277,13 +299,13 @@ func (qs QueryService) prepareSearchQuery(
 			return ctx, query, err
 		}
 	}
-	if query.Filter == nil {
+	if query.Filter == nil && query.Pagination == nil {
 		return ctx, query, qs.checkServiceName(ctx, query)
 	}
 	caps := qs.readerSearchCapabilitiesOrDefault(ctx)
 	// The filter is settled before the service name is checked, because a filter can name the
 	// service itself and rewriting it is what moves that into ServiceName.
-	prepared, err := query.ForCapabilities(caps)
+	prepared, err := queryToReaderShape(query.TraceQueryParams, caps)
 	if err != nil {
 		return ctx, query, err
 	}
@@ -313,7 +335,7 @@ func (q *TraceQueryParams) normalizeEnvelope() error {
 	if q.SearchDepth < 0 || q.SearchDepth > tracestore.MaxSearchDepth {
 		return fmt.Errorf("%w: search depth must be in [0, %d]", ErrQueryInvalid, tracestore.MaxSearchDepth)
 	}
-	if q.SearchDepth == 0 && q.Pagination == (tracestore.Pagination{}) {
+	if q.SearchDepth == 0 && q.Pagination == nil {
 		q.SearchDepth = DefaultSearchDepth
 	}
 	return nil

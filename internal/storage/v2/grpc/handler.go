@@ -290,6 +290,7 @@ func (h *Handler) GetCapabilities(
 			WithoutServiceName:  caps.WithoutServiceName,
 			SameSpanConjunction: caps.SameSpanConjunction,
 			Filter:              toProtoFilterCapabilities(caps.Filter),
+			Paginated:           caps.Paginated,
 		},
 	}, nil
 }
@@ -297,8 +298,8 @@ func (h *Handler) GetCapabilities(
 // toTraceQueryParams translates a wire query into the reader's shape. It also finalizes the
 // filter, because the decoder only builds the tree and does not validate it, and it refuses a
 // query that carries both a filter and the legacy predicate fields (RFC 0005 §7). Both refusals
-// are InvalidArgument. It does not consult the reader's capabilities: converting a query toward
-// what the reader supports is the query service's job.
+// are InvalidArgument. It does not validate Pagination or consult the reader's capabilities:
+// converting a query toward what the reader supports is the query service's job (ADR-013).
 func (*Handler) toTraceQueryParams(t *storage.TraceQueryParameters) (tracestore.TraceQueryParams, error) {
 	filter, err := expressionproto.FromProto(t.GetFilter())
 	if err == nil && filter != nil {
@@ -317,6 +318,12 @@ func (*Handler) toTraceQueryParams(t *storage.TraceQueryParameters) (tracestore.
 		DurationMax:   t.DurationMax,
 		SearchDepth:   int(t.SearchDepth),
 		Filter:        filter,
+	}
+	if pagination := t.GetPagination(); pagination != nil {
+		query.Pagination = &tracestore.Pagination{
+			PageSize:  int(pagination.GetPageSize()),
+			PageToken: pagination.GetPageToken(),
+		}
 	}
 	if err := query.EnsureFilterStandsAlone(); err != nil {
 		return tracestore.TraceQueryParams{}, status.Error(codes.InvalidArgument, err.Error())

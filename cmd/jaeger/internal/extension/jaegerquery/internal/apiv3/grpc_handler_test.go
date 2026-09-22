@@ -315,6 +315,41 @@ func TestTraceQueryParamsSearchDepth(t *testing.T) {
 	}
 }
 
+// TestTraceQueryParamsPagination pins that an api_v3.Pagination on the wire reaches
+// querysvc.TraceQueryParams unchanged, and that an absent one leaves the zero value, which
+// prepareSearchQuery reads as "not a paginated request" (RFC 0014 §4).
+func TestTraceQueryParamsPagination(t *testing.T) {
+	baseQuery := func() *api_v3.TraceQueryParameters {
+		return &api_v3.TraceQueryParameters{
+			StartTimeMin: time.Now().Add(-2 * time.Hour),
+			StartTimeMax: time.Now(),
+		}
+	}
+	t.Run("absent pagination", func(t *testing.T) {
+		params, err := traceQueryParams(baseQuery())
+		require.NoError(t, err)
+		assert.Nil(t, params.Pagination)
+	})
+	t.Run("pagination present", func(t *testing.T) {
+		query := baseQuery()
+		query.Pagination = &api_v3.Pagination{PageSize: 25, PageToken: "opaque-cursor"}
+		params, err := traceQueryParams(query)
+		require.NoError(t, err)
+		assert.Equal(t, &tracestore.Pagination{PageSize: 25, PageToken: "opaque-cursor"}, params.Pagination)
+		assert.Zero(t, params.SearchDepth,
+			"search_depth must not be defaulted when Pagination is present, or every paginated "+
+				"request would trip the query service's mutual-exclusivity check")
+	})
+	t.Run("present but empty pagination keeps its presence", func(t *testing.T) {
+		query := baseQuery()
+		query.Pagination = &api_v3.Pagination{}
+		params, err := traceQueryParams(query)
+		require.NoError(t, err)
+		assert.Equal(t, &tracestore.Pagination{}, params.Pagination,
+			"the query service refuses this for its missing page size, so it must not read as absent")
+	})
+}
+
 func TestFindTracesDefaultsSearchDepth(t *testing.T) {
 	// A FindTraces request without search_depth (proto3 default 0) reaches the storage
 	// backend with the default the query service applies. Some backends (e.g. the in-memory

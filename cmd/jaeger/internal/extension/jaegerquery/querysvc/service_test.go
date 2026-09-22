@@ -1017,14 +1017,12 @@ func TestFindTraces_EnvelopeIsSettledOnce(t *testing.T) {
 	}
 
 	dispatched := map[string]struct {
-		depth      int
-		pagination tracestore.Pagination
-		want       int
+		depth int
+		want  int
 	}{
-		"an unset search depth gets the default":   {depth: 0, want: DefaultSearchDepth},
-		"an explicit search depth is kept":         {depth: 42, want: 42},
-		"the maximum search depth is allowed":      {depth: tracestore.MaxSearchDepth, want: tracestore.MaxSearchDepth},
-		"a paginated request is not given one too": {pagination: tracestore.Pagination{PageSize: 20}, want: 0},
+		"an unset search depth gets the default": {depth: 0, want: DefaultSearchDepth},
+		"an explicit search depth is kept":       {depth: 42, want: 42},
+		"the maximum search depth is allowed":    {depth: tracestore.MaxSearchDepth, want: tracestore.MaxSearchDepth},
 	}
 	for name, test := range dispatched {
 		t.Run(name, func(t *testing.T) {
@@ -1032,7 +1030,7 @@ func TestFindTraces_EnvelopeIsSettledOnce(t *testing.T) {
 			reader := forwardsOneTrace(new(tracestoremocks.Reader), &got)
 			qs := NewQueryService(reader, nil, QueryServiceOptions{})
 			_, err := jiter.FlattenWithErrors(qs.FindTraces(context.Background(), TraceQueryParams{
-				TraceQueryParams: window(tracestore.TraceQueryParams{SearchDepth: test.depth, Pagination: test.pagination}),
+				TraceQueryParams: window(tracestore.TraceQueryParams{SearchDepth: test.depth}),
 			}))
 			require.NoError(t, err)
 			assert.Equal(t, test.want, got.SearchDepth)
@@ -1040,6 +1038,37 @@ func TestFindTraces_EnvelopeIsSettledOnce(t *testing.T) {
 			assert.Zero(t, got.DurationMin)
 		})
 	}
+}
+
+// TestFindTraceSummaries_PaginatedRequestLeavesSearchDepthUnset covers the other half of
+// normalizeEnvelope's defaulting: FindTraceSummaries shares prepareSearchQuery with FindTraces
+// but does admit Pagination (RFC 0014 §4), so a paginated request must not also get
+// DefaultSearchDepth — the two bounds are mutually exclusive, and the caller sent only one.
+func TestFindTraceSummaries_PaginatedRequestLeavesSearchDepthUnset(t *testing.T) {
+	enablePagination(t)
+	var got tracestore.TraceQueryParams
+	reader := new(tracestoremocks.Reader)
+	reader.On("SearchCapabilities", mock.Anything).
+		Return(tracestore.SearchCapabilities{WithoutServiceName: true, Paginated: true}, nil)
+	reader.On("FindTraceSummaries", mock.Anything, mock.AnythingOfType("tracestore.TraceQueryParams")).
+		Run(func(args mock.Arguments) {
+			got = args.Get(1).(tracestore.TraceQueryParams)
+		}).
+		Return(iter.Seq2[tracestore.PageChunk[[]tracestore.TraceSummary], error](func(yield func(tracestore.PageChunk[[]tracestore.TraceSummary], error) bool) {
+			yield(tracestore.PageChunk[[]tracestore.TraceSummary]{Results: []tracestore.TraceSummary{{RootServiceName: "svc"}}}, nil)
+		})).Once()
+	qs := NewQueryService(reader, nil, QueryServiceOptions{})
+
+	_, err := flattenPageChunks(qs.FindTraceSummaries(context.Background(), TraceQueryParams{
+		TraceQueryParams: tracestore.TraceQueryParams{
+			Attributes:   pcommon.NewMap(),
+			StartTimeMin: testWindowStart, StartTimeMax: testWindowEnd,
+			Pagination: &tracestore.Pagination{PageSize: 20},
+		},
+	}))
+	require.NoError(t, err)
+	assert.Zero(t, got.SearchDepth, "the default must not be applied alongside Pagination")
+	assert.Equal(t, &tracestore.Pagination{PageSize: 20}, got.Pagination)
 }
 
 type mockSummaryReader struct {

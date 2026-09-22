@@ -132,3 +132,28 @@ func TestFilterCapabilitiesRoundTrip(t *testing.T) {
 		})
 	}
 }
+
+// TestQueryParametersCarryPagination pins Pagination onto the query parameters the same way
+// TestQueryParametersCarryTheFilter pins Filter: encoded by toProtoQueryParameters, decoded by
+// toTraceQueryParams.
+func TestQueryParametersCarryPagination(t *testing.T) {
+	sent, err := toProtoQueryParameters(tracestore.TraceQueryParams{
+		Attributes: pcommon.NewMap(),
+		Pagination: &tracestore.Pagination{PageSize: 25, PageToken: "opaque-cursor"},
+	})
+	require.NoError(t, err)
+	require.NotNil(t, sent.GetPagination())
+	assert.Equal(t, uint32(25), sent.GetPagination().GetPageSize())
+	assert.Equal(t, "opaque-cursor", sent.GetPagination().GetPageToken())
+
+	decoded, err := NewHandler(new(tracestoremocks.Reader), nil, nil).toTraceQueryParams(sent)
+	require.NoError(t, err)
+	assert.Equal(t, &tracestore.Pagination{PageSize: 25, PageToken: "opaque-cursor"}, decoded.Pagination)
+	assert.Zero(t, decoded.SearchDepth, "Pagination replaces search_depth rather than setting it")
+
+	decoded, err = NewHandler(new(tracestoremocks.Reader), nil, nil).toTraceQueryParams(&storage.TraceQueryParameters{
+		Pagination: &storage.Pagination{},
+	})
+	require.NoError(t, err)
+	assert.Equal(t, &tracestore.Pagination{}, decoded.Pagination, "a present but empty message keeps its presence")
+}
