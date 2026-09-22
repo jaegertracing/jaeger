@@ -1121,35 +1121,32 @@ func TestFindSpans_RefusesAFilterTheBackendDoesNotEvaluate(t *testing.T) {
 }
 
 // TestFindSpans_RefusesAPredicateTheBackendCannotServe pins that the capability check applies to
-// the interceptor's output and not only to what the caller sent: the query service converts once,
-// after OnSpanQuery, so a predicate an interceptor added is refused on the same terms as the caller's
-// own.
+// the interceptor's output and not only to what the caller sent: the check runs after OnSpanQuery,
+// so a predicate an interceptor added is refused on the same terms as the caller's own.
 func TestFindSpans_RefusesAPredicateTheBackendCannotServe(t *testing.T) {
-	t.Run("the backend evaluates filters but not this level", func(t *testing.T) {
-		enableStructuredFilters(t)
-		spanPredicate := routeFilter()
-		next := &fakeReader{batch: tracesWith("k", "v")}
-		next.capabilities = &tracestore.SearchCapabilities{
-			WithoutServiceName: true,
-			SpanSearch:         true,
-			Filter: &tracestore.FilterCapabilities{
-				Levels:    []expression.Level{expression.LevelSpan},
-				Operators: []expression.Operator{expression.OpAnd, expression.OpEq},
-			},
-		}
-		qs := interceptedService(next, fakeInterceptor{
-			onSpanQuery: narrowSpansTo(&expression.Call{Op: expression.OpAnd, Args: []expression.Expression{
-				spanPredicate, serviceFilter("gated"),
-			}}),
-		})
-
-		_, err := collectSpans(qs.FindSpans(t.Context(), searchSpansQuery(tracestore.SpanQueryParams{
-			Filter: spanPredicate,
-		})))
-		require.ErrorIs(t, err, tracestore.ErrFilterUnsupported)
-		require.ErrorContains(t, err, `does not index the "resource" level`)
-		assert.False(t, next.findCalled, "storage must not be queried")
+	enableStructuredFilters(t)
+	spanPredicate := routeFilter()
+	next := &fakeReader{batch: tracesWith("k", "v")}
+	next.capabilities = &tracestore.SearchCapabilities{
+		WithoutServiceName: true,
+		SpanSearch:         true,
+		Filter: &tracestore.FilterCapabilities{
+			Levels:    []expression.Level{expression.LevelSpan},
+			Operators: []expression.Operator{expression.OpAnd, expression.OpEq},
+		},
+	}
+	qs := interceptedService(next, fakeInterceptor{
+		onSpanQuery: narrowSpansTo(&expression.Call{Op: expression.OpAnd, Args: []expression.Expression{
+			spanPredicate, serviceFilter("gated"),
+		}}),
 	})
+
+	_, err := collectSpans(qs.FindSpans(t.Context(), searchSpansQuery(tracestore.SpanQueryParams{
+		Filter: spanPredicate,
+	})))
+	require.ErrorIs(t, err, tracestore.ErrFilterUnsupported)
+	require.ErrorContains(t, err, `does not index the "resource" level`)
+	assert.False(t, next.findCalled, "storage must not be queried")
 }
 
 // TestFindSpans_RefusesACallerFilterTheDeploymentDoesNotAccept covers the two refusals that

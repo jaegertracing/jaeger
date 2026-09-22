@@ -286,10 +286,10 @@ func (qs QueryService) prepareSearchQuery(
 // their say, and returns the query to dispatch along with the context to dispatch it with. A span
 // query has one shape, so there is no conversion step and no service-name rule.
 //
-// The interceptors run after the caller's request is validated and before the backend's
-// capabilities are consulted. So an interceptor is never shown a request jaeger-query was going
-// to refuse anyway, and a predicate an interceptor adds is held to the same capability check as
-// one the caller sent.
+// The capabilities are read once. The span-search refusal comes first, so an interceptor is
+// never shown a request jaeger-query was going to refuse anyway; the filter check comes after
+// the interceptors, so a predicate an interceptor adds is held to the same check as one the
+// caller sent.
 func (qs QueryService) prepareSpanSearchQuery(
 	ctx context.Context,
 	query SpanQueryParams,
