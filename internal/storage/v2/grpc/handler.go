@@ -294,10 +294,11 @@ func (h *Handler) GetCapabilities(
 	}, nil
 }
 
-// toTraceQueryParams translates a wire query into the reader's shape. The filter is finalized
-// because decoding validates nothing, and a query that mixes a filter with the legacy predicate
-// fields is refused (RFC 0005 §7); both are InvalidArgument because the caller has to change them.
-// Which filtering model the reader receives is the query service's decision, not this server's.
+// toTraceQueryParams translates a wire query into the reader's shape. It also finalizes the
+// filter, because the decoder only builds the tree and does not validate it, and it refuses a
+// query that carries both a filter and the legacy predicate fields (RFC 0005 §7). Both refusals
+// are InvalidArgument. It does not consult the reader's capabilities: converting a query toward
+// what the reader supports is the query service's job.
 func (*Handler) toTraceQueryParams(t *storage.TraceQueryParameters) (tracestore.TraceQueryParams, error) {
 	filter, err := expressionproto.FromProto(t.GetFilter())
 	if err == nil && filter != nil {
