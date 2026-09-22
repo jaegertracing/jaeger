@@ -28,10 +28,10 @@ func NewFactory() connector.Factory {
 	)
 }
 
-// createDefaultConfig returns jaeger_storage_exporter's defaults, so the two
+// createDefaultConfig wraps jaeger_storage_exporter's defaults, so the two
 // components behave the same when configured the same.
 func createDefaultConfig() component.Config {
-	return storageexporter.NewFactory().CreateDefaultConfig()
+	return &Config{Config: *storageexporter.NewFactory().CreateDefaultConfig().(*storageexporter.Config)}
 }
 
 func createTracesToTraces(ctx context.Context, set connector.Settings, cfg component.Config, next consumer.Traces) (connector.Traces, error) {

@@ -57,7 +57,7 @@ func newConnector(ctx context.Context, set connector.Settings, cfg *Config, next
 	c := &connectorImpl{
 		config: cfg,
 		logger: set.Logger,
-		writer: storageexporter.NewTraceWriter(cfg, set.TelemetrySettings),
+		writer: storageexporter.NewTraceWriter(&cfg.Config, set.TelemetrySettings),
 		next:   next,
 		deadLetterSpans: otelmetrics.NewFactory(set.MeterProvider).
 			Namespace(metrics.NSOptions{Name: "jaeger_storage_writer"}).

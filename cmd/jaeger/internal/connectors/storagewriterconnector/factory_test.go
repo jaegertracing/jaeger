@@ -22,7 +22,7 @@ func TestNewFactory_CreatesTracesToTraces(t *testing.T) {
 
 	cfg := f.CreateDefaultConfig()
 	require.NoError(t, componenttest.CheckConfigStruct(cfg))
-	assert.Equal(t, storageexporter.NewFactory().CreateDefaultConfig(), cfg,
+	assert.Equal(t, storageexporter.NewFactory().CreateDefaultConfig(), &cfg.(*Config).Config,
 		"the connector shares jaeger_storage_exporter's defaults")
 
 	// The default config is missing the required trace_storage, so it is invalid.
