@@ -161,6 +161,18 @@ func TestBuildFilterQuery(t *testing.T) {
 			filter: p.Span().TraceID.Matches("0af7.*"),
 		},
 		{
+			name:   "an uppercase trace identifier is lowered to the hex the write path stores",
+			filter: p.Span().TraceID.Eq("0AF7651916CD43DD8448EB211C80319C"),
+		},
+		{
+			name:   "an uppercase span identifier is lowered in every member of in",
+			filter: p.Span().SpanID.In("B7AD6B7169203331", "00F067AA0BA902B7"),
+		},
+		{
+			name:   "an uppercase pattern on the trace identifier is lowered",
+			filter: p.Span().TraceID.Matches("0AF7[A-F].*"),
+		},
+		{
 			name:   "in on the span identifier is a disjunction of term queries",
 			filter: p.Span().SpanID.In("b7ad6b7169203331", "00f067aa0ba902b7"),
 		},

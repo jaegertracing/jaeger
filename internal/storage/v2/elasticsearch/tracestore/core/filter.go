@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"math"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/jaegertracing/jaeger-idl/model/v1"
@@ -296,10 +297,13 @@ func (s *SpanReader) buildComparison(
 		return buildOrderedTextComparison(operationNameField, op, ref, text)
 	case ref.isField(expression.LevelResource, expression.ResourceFieldService):
 		return buildTextComparison(serviceNameField, op, ref, text)
+	// The identifiers are keywords holding the lowercase hex that pcommon.TraceID.String() and
+	// pcommon.SpanID.String() write, so an uppercase constant is lowered to match them rather
+	// than to a term that finds nothing. Hex carries no order worth exposing.
 	case ref.isField(expression.LevelSpan, expression.SpanFieldTraceID):
-		return buildTextComparison(traceIDField, op, ref, text)
+		return buildTextComparison(traceIDField, op, ref, strings.ToLower(text))
 	case ref.isField(expression.LevelSpan, expression.SpanFieldSpanID):
-		return buildTextComparison(spanIDField, op, ref, text)
+		return buildTextComparison(spanIDField, op, ref, strings.ToLower(text))
 	case ref.isField(expression.LevelEvent, expression.EventFieldName):
 		return s.buildEventNameComparison(op, ref, text)
 	default:
