@@ -25,7 +25,7 @@ type Config struct {
 	// QueryInterceptors lists extension IDs that implement
 	// queryinterceptor.Interceptor. jaeger-query resolves them from the
 	// collector host and applies them, in order, around every trace query:
-	// OnQuery before the search executes, OnResult on the returned traces.
+	// OnTraceQuery before the search executes, OnTraceResult on the returned traces.
 	// Empty by default, in which case the read path is unchanged.
 	//
 	// These IDs are also reported from Dependencies(), so the collector starts

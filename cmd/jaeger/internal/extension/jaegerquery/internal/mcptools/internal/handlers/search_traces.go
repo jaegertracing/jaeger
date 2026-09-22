@@ -138,10 +138,8 @@ func (h *searchTracesHandler) buildQuery(input types.SearchTracesInput) (querysv
 		maxStartTime = time.Now()
 	}
 
-	if !maxStartTime.IsZero() && maxStartTime.Before(minStartTime) {
-		return querysvc.TraceQueryParams{}, errors.New("start_time_max must be after start_time_min")
-	}
-
+	// Whether the time range and the duration bounds are ordered is the query service's
+	// decision, so only what this tool cannot hand over unparsed is checked here.
 	var durationMin, durationMax time.Duration
 	if input.DurationMin != "" {
 		durationMin, err = time.ParseDuration(input.DurationMin)
@@ -156,10 +154,7 @@ func (h *searchTracesHandler) buildQuery(input types.SearchTracesInput) (querysv
 		}
 	}
 
-	if durationMin > 0 && durationMax > 0 && durationMax < durationMin {
-		return querysvc.TraceQueryParams{}, errors.New("duration_max must be greater than duration_min")
-	}
-
+	// An agent reads small pages, so the tool's own default is lower than the query service's.
 	const defaultSearchDepth = 10
 	searchDepth := input.SearchDepth
 	if searchDepth <= 0 {

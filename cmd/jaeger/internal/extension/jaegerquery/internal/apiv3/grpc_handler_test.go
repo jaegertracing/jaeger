@@ -298,8 +298,10 @@ func TestTraceQueryParamsSearchDepth(t *testing.T) {
 		searchDepth int32
 		expected    int
 	}{
-		{name: "unset defaults", searchDepth: 0, expected: defaultSearchDepth},
-		{name: "negative defaults", searchDepth: -1, expected: defaultSearchDepth},
+		// The handler translates; the query service applies the default and refuses a negative
+		// value, so both reach it as sent.
+		{name: "unset passes through", searchDepth: 0, expected: 0},
+		{name: "negative passes through", searchDepth: -1, expected: -1},
 		{name: "explicit value preserved", searchDepth: 42, expected: 42},
 	}
 	for _, test := range tests {
@@ -314,12 +316,12 @@ func TestTraceQueryParamsSearchDepth(t *testing.T) {
 }
 
 func TestFindTracesDefaultsSearchDepth(t *testing.T) {
-	// A FindTraces request without search_depth (proto3 default 0) must reach
-	// the storage backend with the default search depth, matching the HTTP
-	// gateway. Some backends (e.g. the in-memory store) reject a literal 0.
+	// A FindTraces request without search_depth (proto3 default 0) reaches the storage
+	// backend with the default the query service applies. Some backends (e.g. the in-memory
+	// store) reject a literal 0.
 	tsc := newTestServerClient(t)
 	tsc.reader.On("FindTraces", matchContext, mock.MatchedBy(func(q tracestore.TraceQueryParams) bool {
-		return q.SearchDepth == defaultSearchDepth
+		return q.SearchDepth == querysvc.DefaultSearchDepth
 	})).
 		Return(iter.Seq2[[]ptrace.Traces, error](func(yield func([]ptrace.Traces, error) bool) {
 			yield([]ptrace.Traces{makeTestTrace()}, nil)
@@ -370,6 +372,34 @@ func TestFindTracesSendError(t *testing.T) {
 	require.ErrorContains(t, err, "failed to send response")
 }
 
+// TestFindTracesRefusesSearchDepthOutOfRange pins that a negative search_depth, which this
+// handler used to replace with the default, and one above the maximum, which it used to
+// forward, are both InvalidArgument end to end. No FindTraces expectation is set, so a request
+// reaching storage aborts the test.
+func TestFindTracesRefusesSearchDepthOutOfRange(t *testing.T) {
+	for name, depth := range map[string]int32{
+		"negative":          -1,
+		"above the maximum": tracestore.MaxSearchDepth + 1,
+	} {
+		t.Run(name, func(t *testing.T) {
+			tsc := newTestServerClient(t)
+			responseStream, err := tsc.client.FindTraces(context.Background(), &api_v3.FindTracesRequest{
+				Query: &api_v3.TraceQueryParameters{
+					ServiceName:  "myservice",
+					StartTimeMin: time.Now().Add(-2 * time.Hour),
+					StartTimeMax: time.Now(),
+					SearchDepth:  depth,
+				},
+			})
+			require.NoError(t, err)
+			recv, err := responseStream.Recv()
+			require.ErrorContains(t, err, "search_depth must be in [0, 10000]")
+			assert.Equal(t, codes.InvalidArgument, status.Code(err))
+			assert.Nil(t, recv)
+		})
+	}
+}
+
 func TestFindTracesQueryNil(t *testing.T) {
 	tsc := newTestServerClient(t)
 	responseStream, err := tsc.client.FindTraces(context.Background(), &api_v3.FindTracesRequest{})
@@ -384,7 +414,7 @@ func TestFindTracesQueryNil(t *testing.T) {
 	})
 	require.NoError(t, err)
 	recv, err = responseStream.Recv()
-	require.ErrorContains(t, err, "start time min and max are required parameters")
+	require.ErrorContains(t, err, "start_time_min and start_time_max are required")
 	assert.Equal(t, codes.InvalidArgument, status.Code(err))
 	assert.Nil(t, recv)
 }
@@ -511,7 +541,7 @@ func TestFindTraceSummariesQueryNil(t *testing.T) {
 	})
 	require.NoError(t, err)
 	recv, err = responseStream.Recv()
-	require.ErrorContains(t, err, "start time min and max are required parameters")
+	require.ErrorContains(t, err, "start_time_min and start_time_max are required")
 	assert.Equal(t, codes.InvalidArgument, status.Code(err))
 	assert.Nil(t, recv)
 }
