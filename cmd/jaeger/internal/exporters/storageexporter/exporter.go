@@ -19,17 +19,17 @@ import (
 
 // TraceWriter is the write step behind jaeger_storage_exporter: at Start it resolves
 // the configured trace storage from the jaeger_storage extension, and WriteTraces
-// sanitizes each batch and writes it there. The jaeger_storage_writer connector
-// wraps the same TraceWriter to send the spans the storage rejects to a dead-letter pipeline, so the
-// two components resolve and write to storage identically.
+// sanitizes each batch and writes it there. It is exported so that a component
+// which needs the same write path, such as a connector that re-routes the spans the
+// storage rejects, resolves and writes to storage exactly as the exporter does.
 type TraceWriter struct {
-	config      *Config
-	logger      *zap.Logger
-	traceWriter tracestore.Writer
-	sanitizer   sanitizer.Func
+	config    *Config
+	logger    *zap.Logger
+	storage   tracestore.Writer
+	sanitizer sanitizer.Func
 }
 
-// NewTraceWriter returns a TraceWriter that resolves cfg.TraceStorage at Start.
+// NewTraceWriter returns a TraceWriter that resolves config.TraceStorage at Start.
 func NewTraceWriter(config *Config, otel component.TelemetrySettings) *TraceWriter {
 	return &TraceWriter{
 		config:    config,
@@ -40,15 +40,15 @@ func NewTraceWriter(config *Config, otel component.TelemetrySettings) *TraceWrit
 
 // Start resolves the trace storage named in the config from the host's
 // jaeger_storage extension and creates its writer.
-func (exp *TraceWriter) Start(_ context.Context, host component.Host) error {
-	f, err := jaegerstorage.GetTraceStoreFactory(exp.config.TraceStorage, host)
+func (w *TraceWriter) Start(_ context.Context, host component.Host) error {
+	f, err := jaegerstorage.GetTraceStoreFactory(w.config.TraceStorage, host)
 	if err != nil {
 		return fmt.Errorf("cannot find storage factory: %w", err)
 	}
 
-	exp.warnMisalignedSyncBatchSizing(f)
+	w.warnMisalignedSyncBatchSizing(f)
 
-	if exp.traceWriter, err = f.CreateTraceWriter(); err != nil {
+	if w.storage, err = f.CreateTraceWriter(); err != nil {
 		return fmt.Errorf("cannot create trace writer: %w", err)
 	}
 
@@ -68,16 +68,16 @@ func (exp *TraceWriter) Start(_ context.Context, host component.Host) error {
 // redundant re-writes and keeps one request per batch. The check applies only to a
 // byte-sized batch, the only unit comparable to a byte cap; an item- or
 // request-sized batch is skipped and left to documentation.
-func (exp *TraceWriter) warnMisalignedSyncBatchSizing(f tracestore.Factory) {
+func (w *TraceWriter) warnMisalignedSyncBatchSizing(f tracestore.Factory) {
 	sw, ok := f.(tracestore.SyncBulkWriteConfig)
 	if !ok {
 		return
 	}
 	sync, maxBytes := sw.SyncBulkWriteByteCap()
-	if !sync || maxBytes <= 0 || !exp.config.QueueConfig.HasValue() {
+	if !sync || maxBytes <= 0 || !w.config.QueueConfig.HasValue() {
 		return
 	}
-	queue := exp.config.QueueConfig.Get()
+	queue := w.config.QueueConfig.Get()
 	if !queue.Batch.HasValue() {
 		return
 	}
@@ -86,7 +86,7 @@ func (exp *TraceWriter) warnMisalignedSyncBatchSizing(f tracestore.Factory) {
 		return
 	}
 	if batch.MaxSize <= 0 || batch.MaxSize > int64(maxBytes) {
-		exp.logger.Warn(
+		w.logger.Warn(
 			"queue.batch.max_size is not aligned with the storage's bulk_processing.max_bytes; "+
 				"with write_mode: sync the writer will split oversized batches into multiple _bulk "+
 				"requests. Writes stay correct — retries are idempotent via the deterministic span _id "+
@@ -105,6 +105,6 @@ func (*TraceWriter) close(_ context.Context) error {
 
 // WriteTraces sanitizes the batch and writes it to the resolved storage, returning
 // the storage's error verbatim.
-func (exp *TraceWriter) WriteTraces(ctx context.Context, td ptrace.Traces) error {
-	return exp.traceWriter.WriteTraces(ctx, exp.sanitizer(td))
+func (w *TraceWriter) WriteTraces(ctx context.Context, td ptrace.Traces) error {
+	return w.storage.WriteTraces(ctx, w.sanitizer(td))
 }
