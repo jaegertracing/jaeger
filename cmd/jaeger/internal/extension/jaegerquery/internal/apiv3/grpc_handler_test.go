@@ -316,9 +316,9 @@ func TestTraceQueryParamsSearchDepth(t *testing.T) {
 }
 
 func TestFindTracesDefaultsSearchDepth(t *testing.T) {
-	// A FindTraces request without search_depth (proto3 default 0) must reach
-	// the storage backend with the default search depth, matching the HTTP
-	// gateway. Some backends (e.g. the in-memory store) reject a literal 0.
+	// A FindTraces request without search_depth (proto3 default 0) reaches the storage
+	// backend with the default the query service applies. Some backends (e.g. the in-memory
+	// store) reject a literal 0.
 	tsc := newTestServerClient(t)
 	tsc.reader.On("FindTraces", matchContext, mock.MatchedBy(func(q tracestore.TraceQueryParams) bool {
 		return q.SearchDepth == querysvc.DefaultSearchDepth
@@ -370,6 +370,34 @@ func TestFindTracesSendError(t *testing.T) {
 	)
 	require.ErrorContains(t, err, assert.AnError.Error())
 	require.ErrorContains(t, err, "failed to send response")
+}
+
+// TestFindTracesRefusesSearchDepthOutOfRange pins that a negative search_depth, which this
+// handler used to replace with the default, and one above the maximum, which it used to
+// forward, are both InvalidArgument end to end. No FindTraces expectation is set, so reaching
+// storage would fail the test.
+func TestFindTracesRefusesSearchDepthOutOfRange(t *testing.T) {
+	for name, depth := range map[string]int32{
+		"negative":          -1,
+		"above the maximum": tracestore.MaxSearchDepth + 1,
+	} {
+		t.Run(name, func(t *testing.T) {
+			tsc := newTestServerClient(t)
+			responseStream, err := tsc.client.FindTraces(context.Background(), &api_v3.FindTracesRequest{
+				Query: &api_v3.TraceQueryParameters{
+					ServiceName:  "myservice",
+					StartTimeMin: time.Now().Add(-2 * time.Hour),
+					StartTimeMax: time.Now(),
+					SearchDepth:  depth,
+				},
+			})
+			require.NoError(t, err)
+			recv, err := responseStream.Recv()
+			require.ErrorContains(t, err, "search_depth must be in [0, 10000]")
+			assert.Equal(t, codes.InvalidArgument, status.Code(err))
+			assert.Nil(t, recv)
+		})
+	}
 }
 
 func TestFindTracesQueryNil(t *testing.T) {
