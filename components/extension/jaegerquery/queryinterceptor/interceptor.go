@@ -17,13 +17,16 @@
 //
 // It is the query-side analogue of the Collector's authenticator extensions:
 // jaeger-query resolves the configured interceptor extensions from the host by
-// component ID and invokes them around every search. A trace search (FindTraces
-// and the summary and trace-ID searches derived from it) runs through OnTraceQuery
-// and OnTraceResult; a span search (FindSpans, RFC 0016) runs through OnSpanQuery and
-// OnSpanResult. Each pre-query hook runs before the search (to reject or
-// constrain it); each result hook runs on every batch or page before it is
-// returned (to drop or redact). The business logic — authorization, redaction —
-// lives entirely in the extension.
+// component ID and invokes them on the read path. OnTraceQuery runs before every
+// trace search, FindTraces and FindTraceSummaries alike, to reject or constrain it.
+// OnTraceResult runs on every batch of whole traces before it is returned: the
+// batches of FindTraces and GetTraces, and of the FindTraces fallback that serves
+// FindTraceSummaries when the reader cannot compute summaries natively. A summary
+// the reader computes itself carries no trace and does not pass through it, so a
+// policy that must hold on summaries has to be expressed in OnTraceQuery. A span
+// search (FindSpans, RFC 0016) runs through OnSpanQuery and OnSpanResult the same
+// way. The business logic — authorization, redaction — lives entirely in the
+// extension.
 //
 // The types here depend only on public packages (OTel pdata, and the filter AST from
 // jaeger-idl), so custom OCB builds and third-party extensions implement this contract
@@ -129,7 +132,7 @@ type SpanQuery struct {
 // Every method also *returns* a context. jaeger-query threads a pre-query hook's
 // returned context into the storage reader and into the matching result hook, and
 // threads a result hook's returned context into its call for the next batch or
-// page of a multi-batch result. This lets an implementation do expensive per-query
+// chunk of a streamed result. This lets an implementation do expensive per-query
 // work once — resolve the caller's identity against a policy system in the
 // pre-query hook — and stash the result (via context.WithValue) for the return
 // path to reuse, rather than repeating it on every batch. Return the inbound
@@ -161,12 +164,14 @@ type Interceptor interface {
 	// and OnSpanResult.
 	OnSpanQuery(ctx context.Context, query SpanQuery) (context.Context, SpanQuery, error)
 
-	// OnSpanResult runs on each page of a span search before it is returned to
-	// the caller. Unlike a batch of traces, a page holds spans from many traces
-	// in one ptrace.Traces, so an implementation drops or redacts spans rather
-	// than traces. The returned page replaces the input; the returned context is
-	// threaded into the OnSpanResult call for the next page. Returning an error
-	// aborts the stream. Return the inbound context and page unchanged for a no-op.
+	// OnSpanResult runs on each chunk of a span search's result before it is
+	// returned to the caller. A page of results may be streamed as several
+	// chunks, so one call does not see a whole page. Unlike a batch of traces, a
+	// chunk holds spans from many traces in one ptrace.Traces, so an
+	// implementation drops or redacts spans rather than traces. The returned
+	// chunk replaces the input; the returned context is threaded into the
+	// OnSpanResult call for the next chunk. Returning an error aborts the stream.
+	// Return the inbound context and chunk unchanged for a no-op.
 	OnSpanResult(ctx context.Context, spans ptrace.Traces) (context.Context, ptrace.Traces, error)
 }
 
