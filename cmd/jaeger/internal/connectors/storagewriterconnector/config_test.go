@@ -7,7 +7,6 @@ import (
 	"context"
 	"os"
 	"regexp"
-	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -81,5 +80,5 @@ func TestConfig_ReadmeExampleIsValid(t *testing.T) {
 	require.NoError(t, sub.Unmarshal(cfg))
 	require.NoError(t, cfg.Validate())
 	assert.True(t, cfg.QueueConfig.Get().WaitForResult)
-	assert.True(t, strings.HasPrefix(cfg.TraceStorage, "some_storage"))
+	assert.Equal(t, "some_storage", cfg.TraceStorage)
 }

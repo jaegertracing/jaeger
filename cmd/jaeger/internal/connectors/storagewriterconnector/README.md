@@ -63,6 +63,12 @@ exporters:
       topic: jaeger-spans-dead-letter
     sending_queue:
       enabled: false
+    # The exporter sends a batch's rejected spans as one record. A record larger
+    # than the producer's limit (1,000,000 bytes by default) fails on every retry
+    # and holds the offset, so allow at least the connector's queue.batch.max_size
+    # plus the reason attributes, and raise the broker's message.max.bytes to match.
+    producer:
+      max_message_bytes: 8388608
 ```
 
 An omitted `queue` field takes its zero value, not the exporterhelper default, so a `queue` block must spell out its sizing as above.

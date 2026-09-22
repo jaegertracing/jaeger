@@ -232,7 +232,7 @@ func TestConsumeTraces_TerminalOnlyGoesToDeadLetterAndAdvances(t *testing.T) {
 	assert.False(t, tagged, "the reason is set on the copy, not on the input span")
 	require.Equal(t, 2, c.logs.Len(), "one log per poison span")
 	for _, entry := range c.logs.All() {
-		assert.Equal(t, "storage rejected span terminally; sending it to the dead-letter pipeline", entry.Message)
+		assert.Equal(t, "storage rejected span terminally; sent it to the dead-letter pipeline", entry.Message)
 		assert.Equal(t, "mapper_parsing_exception", entry.ContextMap()["reason"])
 	}
 	assert.Equal(t, int64(2), c.deadLetterSpans(t), "the counter reports the two re-routed spans")
@@ -285,6 +285,25 @@ func TestConsumeTraces_DeadLetterSinkFailureHoldsOffset(t *testing.T) {
 	require.Error(t, err, "if the dead-letter sink rejects, hold the offset")
 	require.ErrorContains(t, err, "dead-letter pipeline rejected 1 poison spans: Permanent error: dead-letter endpoint returned 401")
 	assert.False(t, consumererror.IsPermanent(err), "a sink failure is retryable for the storage write")
+	for _, entry := range c.logs.All() {
+		assert.NotEqual(t, "storage rejected span terminally; sent it to the dead-letter pipeline", entry.Message,
+			"nothing is logged as sent until the sink accepts")
+	}
+	assert.Zero(t, c.deadLetterSpans(t))
+}
+
+func TestConsumeTraces_DuplicateRejectionLoggedOnce(t *testing.T) {
+	sink := new(consumertest.TracesSink)
+	td, ids := makeTraces()
+	twice := ids[0]
+	twice.Reason = "another reason for the same span"
+	c := newTestConnector(t, directConfig(), sink, &fakeWriter{err: rejectedErr(false, ids[0], twice)})
+
+	require.NoError(t, c.ConsumeTraces(context.Background(), td))
+	require.Len(t, sink.AllTraces(), 1)
+	assert.Equal(t, []string{"A"}, spanNames(sink.AllTraces()[0]), "the span is re-emitted once")
+	assert.Equal(t, 1, c.logs.Len(), "and logged once")
+	assert.Equal(t, int64(1), c.deadLetterSpans(t))
 }
 
 func TestConsumeTraces_TransientRejectionWithoutSpans(t *testing.T) {
