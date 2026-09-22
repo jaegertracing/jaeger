@@ -521,7 +521,10 @@ PR-sized milestones with exit bars. Everything here sits behind RFC 0005 M1 and 
 - The api_v3 gRPC `FindSpans` handler.
 - The `GET /api/v3/spans` HTTP route and its query parameters.
 
-**M3 — memory backend.** The first reader to declare `SpanSearch=true`, and the cross-backend conformance test that asserts the refusal on the others. *Exit:* an end-to-end span query works in the all-in-one distribution; the conformance test passes on every backend, serving or refusing.
+🚧 **M3 — memory backend.** The first reader to declare `SpanSearch=true`, and the cross-backend conformance test that asserts the refusal on the others. *Exit:* an end-to-end span query works in the all-in-one distribution; the conformance test passes on every backend, serving or refusing.
+
+- ✅ The memory backend's `FindSpans`, evaluating the full RFC 0005 filter AST (every level and operator) over every span in the store, and `SearchCapabilities.SpanSearch = true` with the matching `FilterCapabilities`. `FindTraces` on the same backend gained structured-filter support as a consequence: `SearchCapabilities.Filter` is one capability shared by both RPCs, so declaring it activates the filter path for trace search too, not span search alone. The cross-backend refusal is structural rather than a new test: every other backend still embeds `UnsupportedSpanSearch` without overriding `FindSpans`, and `TestUnsupportedSpanSearch_FindSpans` already pins that shared behavior once for all of them.
+- The api_v3 gRPC `FindSpans` handler and the `GET /api/v3/spans` HTTP route from M2 above are what an end-to-end query in the all-in-one distribution still needs; this milestone's exit bar is not met until those land.
 
 **M4 — Elasticsearch/OpenSearch.** Documents instead of the `terms` aggregation, the sort key of §6, `search_after`, and recognition of an identity filter as a bool query on the two keyword fields; `SpanSearch=true`. Sequenced with [RFC 0014](0014-search-result-pagination.md) M3, which builds the same query with a `collapse` clause. *Exit:* both filter shapes return the matching spans with a working cursor; existing trace-search snapshots byte-identical.
 

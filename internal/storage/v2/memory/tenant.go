@@ -147,6 +147,57 @@ func (t *Tenant) findTraceAndIds(query tracestore.TraceQueryParams) ([]traceAndI
 	return traceAndIds, nil
 }
 
+// findSpans returns a fresh ptrace.Traces holding every span across every
+// trace the store holds whose start time falls within
+// [query.StartTimeMin, query.StartTimeMax] (either bound may be zero,
+// meaning unbounded) and which query.Filter matches. Each match gets its own
+// ResourceSpans/ScopeSpans pair, copied from where the span actually lives,
+// since a caller can hold spans from many different traces and resources in
+// one result (RFC 0016).
+//
+// The returned Traces shares backing storage with the tenant's own copy;
+// callers must clone before handing it to a reader, as with findTraceAndIds.
+func (t *Tenant) findSpans(query tracestore.SpanQueryParams) ptrace.Traces {
+	t.mu.RLock()
+	defer t.mu.RUnlock()
+	result := ptrace.NewTraces()
+	for i := range t.traces {
+		entry := t.traces[i]
+		if entry.id.IsEmpty() {
+			continue
+		}
+		for _, resourceSpan := range entry.trace.ResourceSpans().All() {
+			for _, scopeSpan := range resourceSpan.ScopeSpans().All() {
+				for _, span := range scopeSpan.Spans().All() {
+					if !spanStartsWithin(span, query.StartTimeMin, query.StartTimeMax) {
+						continue
+					}
+					if !matchesFilter(query.Filter, resourceSpan.Resource(), scopeSpan.Scope(), span) {
+						continue
+					}
+					rs := result.ResourceSpans().AppendEmpty()
+					resourceSpan.Resource().CopyTo(rs.Resource())
+					ss := rs.ScopeSpans().AppendEmpty()
+					scopeSpan.Scope().CopyTo(ss.Scope())
+					span.CopyTo(ss.Spans().AppendEmpty())
+				}
+			}
+		}
+	}
+	return result
+}
+
+func spanStartsWithin(span ptrace.Span, startTimeMin, startTimeMax time.Time) bool {
+	startTime := span.StartTimestamp().AsTime()
+	if !startTimeMin.IsZero() && startTime.Before(startTimeMin) {
+		return false
+	}
+	if !startTimeMax.IsZero() && startTime.After(startTimeMax) {
+		return false
+	}
+	return true
+}
+
 // getTraces returns references to the traces the store holds, not copies; see
 // findTraceAndIds. Callers must clone before handing them to a reader.
 func (t *Tenant) getTraces(traceIds ...tracestore.GetTraceParams) []ptrace.Traces {
@@ -224,12 +275,16 @@ func findServiceNameWithSpanId(trace ptrace.Traces, spanId pcommon.SpanID) (stri
 
 func validTrace(td ptrace.Traces, query tracestore.TraceQueryParams) bool {
 	for _, resourceSpan := range td.ResourceSpans().All() {
+		// query.ServiceName is always empty when query.Filter is set (the two are
+		// mutually exclusive, enforced before a Reader ever sees the query), so this
+		// resource pre-check is a no-op for a filter query rather than something
+		// validSpan's filter branch needs to duplicate.
 		if !validResource(resourceSpan.Resource(), query) {
 			continue
 		}
 		for _, scopeSpan := range resourceSpan.ScopeSpans().All() {
 			for _, span := range scopeSpan.Spans().All() {
-				if validSpan(resourceSpan.Resource().Attributes(), scopeSpan.Scope(), span, query) {
+				if validSpan(resourceSpan.Resource(), scopeSpan.Scope(), span, query) {
 					return true
 				}
 			}
@@ -242,7 +297,19 @@ func validResource(resource pcommon.Resource, query tracestore.TraceQueryParams)
 	return query.ServiceName == "" || query.ServiceName == getServiceNameFromResource(resource)
 }
 
-func validSpan(resourceAttributes pcommon.Map, scope pcommon.InstrumentationScope, span ptrace.Span, query tracestore.TraceQueryParams) bool {
+func validSpan(resource pcommon.Resource, scope pcommon.InstrumentationScope, span ptrace.Span, query tracestore.TraceQueryParams) bool {
+	if query.Filter != nil {
+		// The structured filter is a complete alternative to every predicate field
+		// below it (ServiceName, OperationName, Attributes, the duration bounds), not
+		// one more thing to combine with them (enforced by EnsureFilterStandsAlone
+		// before a Reader ever sees the query), so it fully replaces this function's
+		// legacy path rather than adding to it. The time range stays a query-level
+		// bound on FindTraces regardless of which predicate model is in play.
+		return spanStartsWithin(span, query.StartTimeMin, query.StartTimeMax) &&
+			matchesFilter(query.Filter, resource, scope, span)
+	}
+
+	resourceAttributes := resource.Attributes()
 	if query.OperationName != "" && query.OperationName != span.Name() {
 		return false
 	}

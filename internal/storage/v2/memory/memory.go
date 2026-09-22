@@ -14,6 +14,7 @@ import (
 	"go.opentelemetry.io/collector/pdata/ptrace"
 
 	"github.com/jaegertracing/jaeger-idl/model/v1"
+	expression "github.com/jaegertracing/jaeger-idl/query/expression/v1"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/api/depstore"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore"
 	conventions "github.com/jaegertracing/jaeger/internal/telemetry/otelsemconv"
@@ -29,8 +30,6 @@ type Store struct {
 	// The in-memory store does not compute trace summaries natively; fall back to
 	// FindTraces + client-side aggregation.
 	tracestore.UnsupportedTraceSummaries
-	// The in-memory store does not serve span search yet (RFC 0016); unsupported.
-	tracestore.UnsupportedSpanSearch
 
 	mu sync.RWMutex
 	// Each tenant gets a copy of default config.
@@ -109,7 +108,41 @@ func (*Store) SearchCapabilities(context.Context) (tracestore.SearchCapabilities
 		// The span matcher treats an empty query service name as "match any", so an
 		// omitted name spans every service in the store.
 		WithoutServiceName: true,
+		// The reference store evaluates every level and operator the filter AST
+		// defines (see filter.go), so it declares the full vocabulary rather than a
+		// subset the way a real backend limited by its indexing would.
+		Filter: &tracestore.FilterCapabilities{
+			Levels:    expression.Levels(),
+			Operators: expression.Operators(),
+		},
+		// FindSpans below evaluates the same filter engine as FindTraces, over
+		// every span in the store rather than per matched trace (RFC 0016).
+		SpanSearch: true,
 	}, nil
+}
+
+// FindSpans returns every span in the store matching query, across however
+// many traces they belong to (RFC 0016). Unlike FindTraces, which finds
+// traces containing at least one matching span, FindSpans's result holds
+// exactly the matching spans and nothing else: two matching spans that
+// happen to share a trace do not pull in the rest of that trace's spans, and
+// a matching span always keeps its own resource and scope, not its trace's
+// other spans' resources.
+//
+// The in-memory store has no pagination, so this yields everything in a
+// single chunk; RFC 0014 pagination for FindSpans is future work, tracked
+// alongside SpanQueryParams' own TODO for it.
+func (st *Store) FindSpans(ctx context.Context, query tracestore.SpanQueryParams) iter.Seq2[tracestore.PageChunk[ptrace.Traces], error] {
+	m := st.getTenant(tenancy.GetTenant(ctx))
+	return func(yield func(tracestore.PageChunk[ptrace.Traces], error) bool) {
+		matched := m.findSpans(query)
+		cloned, err := cloneTrace(matched)
+		if err != nil {
+			yield(tracestore.PageChunk[ptrace.Traces]{}, err)
+			return
+		}
+		yield(tracestore.PageChunk[ptrace.Traces]{Results: cloned}, nil)
+	}
 }
 
 func (st *Store) FindTraces(ctx context.Context, query tracestore.TraceQueryParams) iter.Seq2[[]ptrace.Traces, error] {
