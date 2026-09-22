@@ -8,7 +8,6 @@ import (
 	"errors"
 	"fmt"
 
-	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/connector"
 	"go.opentelemetry.io/collector/consumer"
 	"go.opentelemetry.io/collector/exporter"
@@ -22,6 +21,8 @@ import (
 	"github.com/jaegertracing/jaeger/internal/metrics/otelmetrics"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore"
 )
+
+var _ connector.Traces = (*connectorImpl)(nil)
 
 // connectorImpl is the traces→traces connector that writes each batch to storage
 // and re-emits the spans the storage rejected terminally ("poison pills") onto its
@@ -43,12 +44,19 @@ import (
 //   - terminal and transient together  → the error; the whole batch is retried, and
 //     the poison goes to the dead-letter pipeline once the transient failures
 //     clear, so a retry never sends the same span there twice.
+//
+// The collector drives it through the embedded exporter.Traces, the exporterhelper
+// pipeline (queue, batch, retry) in front of writeTraces: the service graph calls
+// Start and Shutdown, reads Capabilities while wiring the pipeline, and the
+// upstream receiver calls ConsumeTraces, which with queue.wait_for_result returns
+// only once the batch it was merged into has been written or sent to the
+// dead-letter pipeline.
 type connectorImpl struct {
-	config   *Config
-	logger   *zap.Logger
-	writer   *storageexporter.TraceWriter
-	exporter exporter.Traces // the queue/batch/retry pipeline in front of writeTraces
-	next     consumer.Traces // the dead-letter pipeline
+	exporter.Traces
+	config *Config
+	logger *zap.Logger
+	writer *storageexporter.TraceWriter
+	next   consumer.Traces // the dead-letter pipeline
 	// deadLetterSpans counts the spans handed to the dead-letter pipeline.
 	deadLetterSpans metrics.Counter
 }
@@ -75,45 +83,21 @@ func newConnector(ctx context.Context, set connector.Settings, cfg *Config, next
 		exporterhelper.WithTimeout(exporterhelper.TimeoutConfig{Timeout: 0}),
 		exporterhelper.WithRetry(cfg.RetryConfig),
 		exporterhelper.WithQueue(cfg.QueueConfig),
-		exporterhelper.WithStart(c.startWriter),
+		// Start resolves the storage writer. The storage has to be one whose
+		// writer reports the spans it rejects through a
+		// *tracestore.RejectedSpansError (for Elasticsearch/OpenSearch:
+		// write_mode: sync with poison_pill_handling: fail); against any other
+		// storage the connector still writes correctly but nothing ever reaches
+		// the dead-letter pipeline, so that requirement is documented rather than
+		// checked, as are the other settings of the at-least-once topology (RFC
+		// 0007 §4.5).
+		exporterhelper.WithStart(c.writer.Start),
 	)
 	if err != nil {
 		return nil, err
 	}
-	c.exporter = exp
+	c.Traces = exp
 	return c, nil
-}
-
-// Start starts the exporter pipeline, which resolves the storage through startWriter.
-func (c *connectorImpl) Start(ctx context.Context, host component.Host) error {
-	return c.exporter.Start(ctx, host)
-}
-
-// Shutdown drains and stops the exporter pipeline.
-func (c *connectorImpl) Shutdown(ctx context.Context) error {
-	return c.exporter.Shutdown(ctx)
-}
-
-func (c *connectorImpl) Capabilities() consumer.Capabilities {
-	return c.exporter.Capabilities()
-}
-
-// ConsumeTraces hands the batch to the exporter pipeline and returns the write's
-// verdict once the pipeline has one; with queue.wait_for_result that is after the
-// batch it was merged into has been written (or sent to the dead-letter pipeline).
-func (c *connectorImpl) ConsumeTraces(ctx context.Context, td ptrace.Traces) error {
-	return c.exporter.ConsumeTraces(ctx, td)
-}
-
-// startWriter resolves the storage writer. The storage has to be one whose
-// writer reports the spans it rejects terminally through a
-// *tracestore.RejectedSpansError (for Elasticsearch/OpenSearch: write_mode: sync
-// with poison_pill_handling: fail);
-// against any other storage the connector still writes correctly but nothing ever
-// reaches the dead-letter pipeline, so that requirement is documented rather than
-// checked, as are the other settings of the at-least-once topology (RFC 0007 §4.5).
-func (c *connectorImpl) startWriter(ctx context.Context, host component.Host) error {
-	return c.writer.Start(ctx, host)
 }
 
 // writeTraces is the exporter pipeline's push function: it writes the batch and
