@@ -168,6 +168,13 @@ func (w *SyncBulkWriter) WriteBatch(ctx context.Context, items []BulkItem) error
 	w.metrics.Inserts.Inc(int64(succeeded))
 	w.metrics.Errors.Inc(int64(len(items) - succeeded))
 	if bulkErr != nil {
+		// A chunk that failed as a whole (transport, non-2xx, malformed response) is
+		// a transient failure of the batch, and its documents are not durable, so
+		// the verdict must say the batch needs a retry even when the item-level
+		// rejections of the other chunks were all terminal. Otherwise a caller that
+		// dead-letters terminal items and treats the rest as written would advance
+		// the offset over the failed chunk.
+		bulkErr.Transient = bulkErr.Transient || len(errs) > 0
 		errs = append(errs, bulkErr)
 	}
 	return errors.Join(errs...)

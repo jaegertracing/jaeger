@@ -7,6 +7,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"slices"
 	"strings"
 
 	"go.opentelemetry.io/collector/component"
@@ -139,7 +140,14 @@ func (c *connectorImpl) writeTraces(ctx context.Context, td ptrace.Traces) error
 		// ride along and are dead-lettered once a retry sees only terminal failures.
 		return err
 	}
-	poison, unmapped := filterPoisonSpans(td, bulkErr.Terminal)
+	poison, unmapped, missing := filterPoisonSpans(td, bulkErr.Terminal)
+	if len(missing) > 0 {
+		// A rejected span _id that names no span in the batch means the writer's
+		// id rendering and this connector's disagree, so the span cannot be
+		// re-routed. Acknowledging the batch would lose it silently; fail instead,
+		// so the batch is retried and the mismatch surfaces in the logs.
+		return fmt.Errorf("%d rejected span documents match no span in the batch (ids %v): %w", len(missing), missing, bulkErr)
+	}
 	if unmapped > 0 {
 		// A rejected document without a span _id is a service/operation lookup
 		// document; it has no span to re-emit. Its spans are durable and any later
@@ -151,7 +159,13 @@ func (c *connectorImpl) writeTraces(ctx context.Context, td ptrace.Traces) error
 		if derr := c.next.ConsumeTraces(ctx, poison); derr != nil {
 			// The dead-letter sink refused the spans, so nothing about them is
 			// durable yet: hold the offset and retry the whole batch (§4.8 step 4).
-			return fmt.Errorf("dead-letter pipeline rejected %d poison spans: %w", n, derr)
+			// The sink's error is rendered with %v, not wrapped, on purpose: an
+			// exporter marks a 4xx from its endpoint as consumererror permanent, and
+			// a wrapped permanent error would make this connector's exporterhelper
+			// skip its retries and hand the failure to the receiver, which pauses
+			// the partition. From the storage write's point of view a sink failure
+			// is always worth retrying, whatever the sink thought of it.
+			return fmt.Errorf("dead-letter pipeline rejected %d poison spans: %v", n, derr)
 		}
 		c.deadLetteredSpans.Inc(int64(n))
 		c.logger.Warn("dead-lettered spans the storage rejected terminally",
@@ -164,24 +178,25 @@ func (c *connectorImpl) writeTraces(ctx context.Context, td ptrace.Traces) error
 
 // filterPoisonSpans returns a new ptrace.Traces holding only the spans whose
 // deterministic _id appears in the rejected items, each under a copy of its
-// resource and scope, plus the number of rejected items that name no span. The
-// span _id is traceID_spanID_hash (RFC 0007 §4.7), so its traceID_spanID prefix
-// identifies the source span. A second span in the batch that shares the trace
-// and span id (the shared-span model, §4.7) is re-emitted alongside the poison
-// one, which over-includes a durable span in the dead letter but never loses one.
-func filterPoisonSpans(td ptrace.Traces, rejected []esclient.RejectedItem) (poison ptrace.Traces, unmapped int) {
-	want := make(map[string]struct{}, len(rejected))
+// resource and scope; the number of rejected items that name no span at all; and
+// the span _ids that name a span the batch does not contain. The span _id is
+// traceID_spanID_hash (RFC 0007 §4.7), so its traceID_spanID prefix identifies the
+// source span. A second span in the batch that shares the trace and span id (the
+// shared-span model, §4.7) is re-emitted alongside the poison one, which
+// over-includes a durable span in the dead letter but never loses one.
+func filterPoisonSpans(td ptrace.Traces, rejected []esclient.RejectedItem) (poison ptrace.Traces, unmapped int, missing []string) {
+	want := make(map[string]bool, len(rejected)) // key → matched a span
 	for _, it := range rejected {
 		key, ok := spanKeyFromID(it.ID)
 		if !ok {
 			unmapped++
 			continue
 		}
-		want[key] = struct{}{}
+		want[key] = false
 	}
 	poison = ptrace.NewTraces()
 	if len(want) == 0 {
-		return poison, unmapped
+		return poison, unmapped, nil
 	}
 	for _, rs := range td.ResourceSpans().All() {
 		var outRS ptrace.ResourceSpans
@@ -194,6 +209,7 @@ func filterPoisonSpans(td ptrace.Traces, rejected []esclient.RejectedItem) (pois
 				if _, ok := want[key]; !ok {
 					continue
 				}
+				want[key] = true
 				if !rsInit {
 					outRS = poison.ResourceSpans().AppendEmpty()
 					rs.Resource().CopyTo(outRS.Resource())
@@ -210,21 +226,23 @@ func filterPoisonSpans(td ptrace.Traces, rejected []esclient.RejectedItem) (pois
 			}
 		}
 	}
-	return poison, unmapped
+	for key, matched := range want {
+		if !matched {
+			missing = append(missing, key)
+		}
+	}
+	slices.Sort(missing)
+	return poison, unmapped, missing
 }
 
 // spanKeyFromID returns the traceID_spanID prefix of a span _id
-// (traceID_spanID_hash). It reports false for an id without both delimiters, such
-// as a service:operation document's, which names no span.
+// (traceID_spanID_hash), cut at the last delimiter because the hash holds none.
+// It reports false for an id without both delimiters, such as a
+// service:operation document's, which names no span.
 func spanKeyFromID(id string) (string, bool) {
-	first := strings.IndexByte(id, '_')
-	if first < 0 {
+	last := strings.LastIndexByte(id, '_')
+	if last < 0 || !strings.Contains(id[:last], "_") {
 		return "", false
 	}
-	rest := id[first+1:]
-	second := strings.IndexByte(rest, '_')
-	if second < 0 {
-		return "", false
-	}
-	return id[:first+1+second], true
+	return id[:last], true
 }

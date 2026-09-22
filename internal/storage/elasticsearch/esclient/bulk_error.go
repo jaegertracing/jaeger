@@ -40,8 +40,9 @@ type RejectedItem struct {
 type BulkWriteError struct {
 	// Terminal lists the poison documents to dead-letter. Empty in drop mode.
 	Terminal []RejectedItem
-	// Transient is true if the batch also had transient (429/5xx/malformed-result)
-	// failures. The caller must retry the whole batch when it is set; a re-sent
+	// Transient is true if the batch also had transient failures: items rejected
+	// with 429/5xx or a malformed result, or a whole chunk that failed in transport.
+	// The caller must retry the whole batch when it is set; a re-sent
 	// already-durable span is a no-op via its deterministic _id (§4.7).
 	Transient bool
 

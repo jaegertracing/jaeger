@@ -16,10 +16,13 @@ import (
 	"go.opentelemetry.io/collector/config/configoptional"
 	"go.opentelemetry.io/collector/connector/connectortest"
 	"go.opentelemetry.io/collector/consumer"
+	"go.opentelemetry.io/collector/consumer/consumererror"
 	"go.opentelemetry.io/collector/consumer/consumertest"
 	"go.opentelemetry.io/collector/exporter/exporterhelper"
 	"go.opentelemetry.io/collector/pdata/pcommon"
 	"go.opentelemetry.io/collector/pdata/ptrace"
+	sdkmetric "go.opentelemetry.io/otel/sdk/metric"
+	"go.opentelemetry.io/otel/sdk/metric/metricdata"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 	"go.uber.org/zap/zaptest/observer"
@@ -88,21 +91,42 @@ func hostWith(name string, f tracestore.Factory) component.Host {
 
 type testConnector struct {
 	*connectorImpl
-	logs *observer.ObservedLogs
+	logs   *observer.ObservedLogs
+	reader *sdkmetric.ManualReader
+}
+
+// deadLettered reads the connector's dead_lettered_spans counter.
+func (c testConnector) deadLettered(t *testing.T) int64 {
+	var rm metricdata.ResourceMetrics
+	require.NoError(t, c.reader.Collect(context.Background(), &rm))
+	for _, sm := range rm.ScopeMetrics {
+		for _, m := range sm.Metrics {
+			if m.Name != "jaeger_storage_writer_dead_lettered_spans" {
+				continue
+			}
+			sum, ok := m.Data.(metricdata.Sum[int64])
+			require.True(t, ok)
+			require.Len(t, sum.DataPoints, 1)
+			return sum.DataPoints[0].Value
+		}
+	}
+	return 0
 }
 
 // newTestConnector builds a connector on cfg, starts it against a host serving a
 // poison-reporting factory that hands out w, and stops it when the test ends.
 func newTestConnector(t *testing.T, cfg *Config, next consumer.Traces, w tracestore.Writer) testConnector {
 	core, logs := observer.New(zapcore.WarnLevel)
+	reader := sdkmetric.NewManualReader()
 	set := connectortest.NewNopSettings(componentType)
 	set.Logger = zap.New(core)
+	set.MeterProvider = sdkmetric.NewMeterProvider(sdkmetric.WithReader(reader))
 	conn, err := createTracesToTraces(context.Background(), set, cfg, next)
 	require.NoError(t, err)
 	c := conn.(*connectorImpl)
 	require.NoError(t, c.Start(context.Background(), hostWith(cfg.TraceStorage, reportingFactory{Factory: writerFactory(w), reports: true})))
 	t.Cleanup(func() { require.NoError(t, c.Shutdown(context.Background())) })
-	return testConnector{connectorImpl: c, logs: logs}
+	return testConnector{connectorImpl: c, logs: logs, reader: reader}
 }
 
 func directConfig() *Config {
@@ -191,6 +215,7 @@ func TestConsumeTraces_TerminalOnlyDeadLetteredAndAdvances(t *testing.T) {
 	assert.ElementsMatch(t, []string{"A", "C"}, spanNames(got), "exactly the poison spans, not B")
 	require.Equal(t, 1, c.logs.Len())
 	assert.Equal(t, "dead-lettered spans the storage rejected terminally", c.logs.All()[0].Message)
+	assert.Equal(t, int64(2), c.deadLettered(t), "the counter reports the two dead-lettered spans")
 }
 
 func TestConsumeTraces_TransientPresentRetriesWithoutDeadLettering(t *testing.T) {
@@ -211,14 +236,18 @@ func TestConsumeTraces_TransientPresentRetriesWithoutDeadLettering(t *testing.T)
 }
 
 func TestConsumeTraces_DeadLetterSinkFailureHoldsOffset(t *testing.T) {
-	sinkErr := errors.New("kafka DLQ unavailable")
 	td, ids := makeTraces()
 	bulkErr := &esclient.BulkWriteError{Terminal: []esclient.RejectedItem{rejected(ids[0])}}
+	// The sink's exporter classifies a 4xx from its endpoint as permanent; the
+	// connector must still return a retryable error, or its exporterhelper would
+	// skip retries and the receiver would pause the partition.
+	sinkErr := consumererror.NewPermanent(errors.New("dead-letter endpoint returned 401"))
 	c := newTestConnector(t, directConfig(), consumertest.NewErr(sinkErr), &fakeWriter{err: bulkErr})
 
 	err := c.ConsumeTraces(context.Background(), td)
-	require.ErrorIs(t, err, sinkErr, "if the dead-letter sink rejects, hold the offset")
-	require.ErrorContains(t, err, "dead-letter pipeline rejected 1 poison spans")
+	require.Error(t, err, "if the dead-letter sink rejects, hold the offset")
+	require.ErrorContains(t, err, "dead-letter pipeline rejected 1 poison spans: Permanent error: dead-letter endpoint returned 401")
+	assert.False(t, consumererror.IsPermanent(err), "a sink failure is retryable for the storage write")
 }
 
 func TestConsumeTraces_TransientBulkErrorNoTerminals(t *testing.T) {
@@ -291,9 +320,10 @@ func TestFilterPoisonSpans_PreservesResourceAndScope(t *testing.T) {
 	ss2.Scope().SetName("scope2")
 	_, idC := makeSpan(ss2, traceID(3), spanID(3), "C")
 
-	out, unmapped := filterPoisonSpans(td, []esclient.RejectedItem{rejected(idA), rejected(idC), {ID: "servicedoc"}})
+	out, unmapped, missing := filterPoisonSpans(td, []esclient.RejectedItem{rejected(idA), rejected(idC), {ID: "servicedoc"}})
 
 	assert.Equal(t, 1, unmapped)
+	assert.Empty(t, missing)
 	require.Equal(t, 2, out.ResourceSpans().Len(), "both resources are preserved for their poison spans")
 	got1 := out.ResourceSpans().At(0)
 	svc, _ := got1.Resource().Attributes().Get("service.name")
@@ -306,9 +336,26 @@ func TestFilterPoisonSpans_PreservesResourceAndScope(t *testing.T) {
 
 func TestFilterPoisonSpans_EmptyWhenNoMappableIDs(t *testing.T) {
 	td, _ := makeTraces()
-	out, unmapped := filterPoisonSpans(td, []esclient.RejectedItem{{ID: "serviceoperationdoc"}})
+	out, unmapped, missing := filterPoisonSpans(td, []esclient.RejectedItem{{ID: "serviceoperationdoc"}})
 	assert.Equal(t, 0, out.SpanCount())
 	assert.Equal(t, 1, unmapped)
+	assert.Empty(t, missing)
+}
+
+func TestConsumeTraces_RejectedIDWithoutSpanFailsTheBatch(t *testing.T) {
+	sink := new(consumertest.TracesSink)
+	td, _ := makeTraces()
+	// A well-formed span _id that names no span in the batch: nothing can be
+	// dead-lettered, and acknowledging would lose the span silently.
+	stray := traceID(9).String() + "_" + spanID(9).String() + "_deadbeef"
+	bulkErr := &esclient.BulkWriteError{Terminal: []esclient.RejectedItem{rejected(stray)}}
+	c := newTestConnector(t, directConfig(), sink, &fakeWriter{err: bulkErr})
+
+	err := c.ConsumeTraces(context.Background(), td)
+	require.ErrorIs(t, err, bulkErr)
+	require.ErrorContains(t, err, "1 rejected span documents match no span in the batch")
+	require.ErrorContains(t, err, traceID(9).String()+"_"+spanID(9).String())
+	assert.Empty(t, sink.AllTraces())
 }
 
 func TestSpanKeyFromID(t *testing.T) {

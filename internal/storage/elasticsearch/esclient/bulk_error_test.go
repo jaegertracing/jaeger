@@ -99,6 +99,36 @@ func TestBulkWriteError_AggregatesAcrossChunks(t *testing.T) {
 	assert.Contains(t, be.Error(), "2 of 2 bulk items rejected")
 }
 
+// TestBulkWriteError_ChunkTransportFailureIsTransient checks that when one chunk
+// is rejected as a whole (a 503) while another chunk reports only terminal items,
+// the aggregated error still says the batch must be retried: the failed chunk's
+// documents are not durable, so a caller must not acknowledge the batch after
+// dead-lettering the terminal items.
+func TestBulkWriteError_ChunkTransportFailureIsTransient(t *testing.T) {
+	var call int
+	_, url := bulkServer(t, func(w http.ResponseWriter) {
+		call++
+		if call == 1 {
+			w.Write([]byte(`{"items":[{"index":{"_index":"idx","_id":"t_s_1","status":400,"error":{"reason":"x"}}}]}`))
+			return
+		}
+		w.WriteHeader(http.StatusServiceUnavailable)
+	})
+	w := newSyncWriter(t, url, 20, metrics.NullFactory, zap.NewNop())
+
+	err := w.WriteBatch(context.Background(), []BulkItem{
+		{Index: "idx", Body: map[string]any{"a": 1}},
+		{Index: "idx", Body: map[string]any{"b": 2}},
+	})
+	require.Error(t, err)
+
+	var be *BulkWriteError
+	require.ErrorAs(t, err, &be)
+	assert.Equal(t, []string{"t_s_1"}, []string{be.Terminal[0].ID})
+	assert.True(t, be.Transient, "a chunk that failed in transport makes the batch transient")
+	assert.ErrorContains(t, err, "bulk request failed")
+}
+
 // TestBulkWriteError_TransientHasNoTerminalItems checks that a purely transient
 // failure (429) sets Transient and carries no poison to dead-letter.
 func TestBulkWriteError_TransientHasNoTerminalItems(t *testing.T) {
