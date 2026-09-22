@@ -9,7 +9,7 @@ The connector runs the storage write inside the same `exporterhelper` pipeline a
 
 ## Configuration
 
-The named `trace_storage` must report the spans it rejects: for Elasticsearch/OpenSearch that is `write_mode: sync` with `poison_pill_handling: fail`. The connector refuses to start against any other storage, because nothing would ever reach the dead-letter pipeline.
+The named `trace_storage` must report the spans it rejects: for Elasticsearch/OpenSearch that is `write_mode: sync` with `poison_pill_handling: fail`. Against any other storage the connector writes exactly like `jaeger_storage_exporter` and nothing ever reaches the dead-letter pipeline; under `drop` the writer logs each discarded document instead.
 
 The dead-letter exporter must deliver synchronously (disable its `sending_queue`), otherwise it acknowledges a span the moment it is enqueued and the connector advances the offset before the sink has it.
 

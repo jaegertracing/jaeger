@@ -11,8 +11,8 @@ import "github.com/jaegertracing/jaeger/cmd/jaeger/internal/exporters/storageexp
 // bolted on: the same sending queue, blocking batcher, and retry policy apply to
 // the storage write (RFC 0007 §4.2, §4.5).
 //
-// The named trace storage must report the spans it rejects terminally
-// (tracestore.PoisonPillReporting): for Elasticsearch/OpenSearch that is
-// write_mode: sync with poison_pill_handling: fail. Start refuses any other
-// backend, because nothing would ever reach the dead-letter pipeline.
+// The named trace storage must report the spans it rejects terminally through a
+// *esclient.BulkWriteError: for Elasticsearch/OpenSearch that is write_mode: sync
+// with poison_pill_handling: fail. Against any other storage the connector writes
+// like the exporter and nothing ever reaches the dead-letter pipeline.
 type Config = storageexporter.Config

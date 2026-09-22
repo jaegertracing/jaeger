@@ -19,11 +19,9 @@ import (
 	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/exporters/storageexporter"
-	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerstorage"
 	"github.com/jaegertracing/jaeger/internal/metrics"
 	"github.com/jaegertracing/jaeger/internal/metrics/otelmetrics"
 	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/esclient"
-	"github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore"
 )
 
 // connectorImpl is the traces→traces connector that writes each batch to storage
@@ -108,20 +106,13 @@ func (c *connectorImpl) ConsumeTraces(ctx context.Context, td ptrace.Traces) err
 	return c.exporter.ConsumeTraces(ctx, td)
 }
 
-// startWriter resolves the storage writer and refuses a storage that will never report a
-// poison pill: with such a backend the connector would silently degrade to
-// jaeger_storage_exporter and the dead-letter pipeline would never receive a span.
+// startWriter resolves the storage writer. The storage has to be one whose
+// writer reports the spans it rejects terminally through *esclient.BulkWriteError
+// (for Elasticsearch/OpenSearch: write_mode: sync with poison_pill_handling: fail);
+// against any other storage the connector still writes correctly but nothing ever
+// reaches the dead-letter pipeline, so that requirement is documented rather than
+// checked, as are the other settings of the at-least-once topology (RFC 0007 §4.5).
 func (c *connectorImpl) startWriter(ctx context.Context, host component.Host) error {
-	f, err := jaegerstorage.GetTraceStoreFactory(c.config.TraceStorage, host)
-	if err != nil {
-		return fmt.Errorf("cannot find storage factory: %w", err)
-	}
-	reporting, ok := f.(tracestore.PoisonPillReporting)
-	if !ok || !reporting.ReportsPoisonPills() {
-		return fmt.Errorf("trace storage %q does not report rejected spans, so %s would never dead-letter anything; "+
-			"it requires an Elasticsearch/OpenSearch backend with write_mode: sync and poison_pill_handling: fail (RFC 0007 §4.8)",
-			c.config.TraceStorage, componentType)
-	}
 	return c.writer.Start(ctx, host)
 }
 

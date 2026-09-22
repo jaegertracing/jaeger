@@ -69,15 +69,6 @@ func (*mockStorageExt) MetricStorageFactory(string) (storage.MetricStoreFactory,
 	return nil, errors.New("metric storage not found")
 }
 
-// reportingFactory is a trace-store factory that also implements
-// tracestore.PoisonPillReporting, as the ES factory does.
-type reportingFactory struct {
-	tracestore.Factory
-	reports bool
-}
-
-func (f reportingFactory) ReportsPoisonPills() bool { return f.reports }
-
 // writerFactory returns a factory whose CreateTraceWriter yields w.
 func writerFactory(w tracestore.Writer) *tracestoremocks.Factory {
 	f := new(tracestoremocks.Factory)
@@ -124,7 +115,7 @@ func newTestConnector(t *testing.T, cfg *Config, next consumer.Traces, w tracest
 	conn, err := createTracesToTraces(context.Background(), set, cfg, next)
 	require.NoError(t, err)
 	c := conn.(*connectorImpl)
-	require.NoError(t, c.Start(context.Background(), hostWith(cfg.TraceStorage, reportingFactory{Factory: writerFactory(w), reports: true})))
+	require.NoError(t, c.Start(context.Background(), hostWith(cfg.TraceStorage, writerFactory(w))))
 	t.Cleanup(func() { require.NoError(t, c.Shutdown(context.Background())) })
 	return testConnector{connectorImpl: c, logs: logs, reader: reader}
 }
@@ -412,30 +403,11 @@ func TestStart_CreateTraceWriterError(t *testing.T) {
 	factory.On("CreateTraceWriter").Return(nil, errors.New("boom"))
 	conn, err := createTracesToTraces(context.Background(), connectortest.NewNopSettings(componentType), directConfig(), consumertest.NewNop())
 	require.NoError(t, err)
-	err = conn.Start(context.Background(), hostWith("somestore", reportingFactory{Factory: factory, reports: true}))
+	err = conn.Start(context.Background(), hostWith("somestore", factory))
 	require.ErrorContains(t, err, "cannot create trace writer")
 }
 
-func TestStart_RefusesStorageThatDoesNotReportPoisonPills(t *testing.T) {
-	tests := []struct {
-		name    string
-		factory tracestore.Factory
-	}{
-		{name: "factory without the capability", factory: writerFactory(&fakeWriter{})},
-		{name: "factory that does not report (drop or async)", factory: reportingFactory{Factory: writerFactory(&fakeWriter{}), reports: false}},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			conn, err := createTracesToTraces(context.Background(), connectortest.NewNopSettings(componentType), directConfig(), consumertest.NewNop())
-			require.NoError(t, err)
-			err = conn.Start(context.Background(), hostWith("somestore", tt.factory))
-			require.ErrorContains(t, err, `trace storage "somestore" does not report rejected spans`)
-			require.ErrorContains(t, err, "poison_pill_handling: fail")
-		})
-	}
-}
-
-func TestStart_AcceptsReportingStorage(t *testing.T) {
+func TestStart_ResolvesWriter(t *testing.T) {
 	c := newTestConnector(t, directConfig(), consumertest.NewNop(), &fakeWriter{})
 	assert.False(t, c.Capabilities().MutatesData)
 }
