@@ -299,19 +299,19 @@ func (qs QueryService) prepareSearchQuery(
 // only translate their wire shape into this one; what a query must satisfy is decided here, once.
 func (q *TraceQueryParams) normalizeEnvelope() error {
 	if q.StartTimeMin.IsZero() || q.StartTimeMax.IsZero() {
-		return fmt.Errorf("%w: start_time_min and start_time_max are required", ErrQueryInvalid)
+		return fmt.Errorf("%w: min and max start time are required", ErrQueryInvalid)
 	}
 	if !q.StartTimeMin.Before(q.StartTimeMax) {
-		return fmt.Errorf("%w: start_time_min must be before start_time_max", ErrQueryInvalid)
+		return fmt.Errorf("%w: min start time must be before max start time", ErrQueryInvalid)
 	}
 	if q.DurationMin < 0 || q.DurationMax < 0 {
-		return fmt.Errorf("%w: duration_min and duration_max cannot be negative", ErrQueryInvalid)
+		return fmt.Errorf("%w: min and max duration cannot be negative", ErrQueryInvalid)
 	}
 	if q.DurationMin > 0 && q.DurationMax > 0 && q.DurationMax < q.DurationMin {
-		return fmt.Errorf("%w: duration_max cannot be less than duration_min", ErrQueryInvalid)
+		return fmt.Errorf("%w: max duration cannot be less than min duration", ErrQueryInvalid)
 	}
 	if q.SearchDepth < 0 || q.SearchDepth > tracestore.MaxSearchDepth {
-		return fmt.Errorf("%w: search_depth must be in [0, %d]", ErrQueryInvalid, tracestore.MaxSearchDepth)
+		return fmt.Errorf("%w: search depth must be in [0, %d]", ErrQueryInvalid, tracestore.MaxSearchDepth)
 	}
 	if q.SearchDepth == 0 && q.Pagination == (tracestore.Pagination{}) {
 		q.SearchDepth = DefaultSearchDepth

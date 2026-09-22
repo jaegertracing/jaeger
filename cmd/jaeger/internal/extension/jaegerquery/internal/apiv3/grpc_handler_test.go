@@ -393,7 +393,7 @@ func TestFindTracesRefusesSearchDepthOutOfRange(t *testing.T) {
 			})
 			require.NoError(t, err)
 			recv, err := responseStream.Recv()
-			require.ErrorContains(t, err, "search_depth must be in [0, 10000]")
+			require.ErrorContains(t, err, "search depth must be in [0, 10000]")
 			assert.Equal(t, codes.InvalidArgument, status.Code(err))
 			assert.Nil(t, recv)
 		})
@@ -414,7 +414,7 @@ func TestFindTracesQueryNil(t *testing.T) {
 	})
 	require.NoError(t, err)
 	recv, err = responseStream.Recv()
-	require.ErrorContains(t, err, "start_time_min and start_time_max are required")
+	require.ErrorContains(t, err, "min and max start time are required")
 	assert.Equal(t, codes.InvalidArgument, status.Code(err))
 	assert.Nil(t, recv)
 }
@@ -541,7 +541,7 @@ func TestFindTraceSummariesQueryNil(t *testing.T) {
 	})
 	require.NoError(t, err)
 	recv, err = responseStream.Recv()
-	require.ErrorContains(t, err, "start_time_min and start_time_max are required")
+	require.ErrorContains(t, err, "min and max start time are required")
 	assert.Equal(t, codes.InvalidArgument, status.Code(err))
 	assert.Nil(t, recv)
 }
