@@ -23,31 +23,30 @@ import (
 // caller's request was fine, and the fault is in the extension this deployment configured.
 var ErrInterceptorFilter = errors.New("query interceptor returned an invalid filter")
 
-// toPublicQuery and fromPublicQuery convert at the contract boundary, so the internal query type
-// never crosses it. Only the envelope and the filter survive the round trip, which is all the
-// public Query carries: onQuery hands over a query whose predicate fields are already empty.
-func toPublicQuery(q tracestore.TraceQueryParams) queryinterceptor.Query {
-	return queryinterceptor.Query{
+// toInterceptorTraceQuery and fromInterceptorTraceQuery convert at the contract boundary, so the
+// internal query type never crosses it.
+func toInterceptorTraceQuery(q tracestore.TraceQueryParams) queryinterceptor.TraceQuery {
+	return queryinterceptor.TraceQuery{
 		Filter:       q.Filter,
 		StartTimeMin: q.StartTimeMin,
 		StartTimeMax: q.StartTimeMax,
-		SearchDepth:  q.SearchDepth,
 	}
 }
 
-func fromPublicQuery(q queryinterceptor.Query) tracestore.TraceQueryParams {
+func fromInterceptorTraceQuery(q queryinterceptor.TraceQuery, original tracestore.TraceQueryParams) tracestore.TraceQueryParams {
 	return tracestore.TraceQueryParams{
 		Attributes:   pcommon.NewMap(),
 		Filter:       q.Filter,
 		StartTimeMin: q.StartTimeMin,
 		StartTimeMax: q.StartTimeMax,
-		SearchDepth:  q.SearchDepth,
+		SearchDepth:  original.SearchDepth,
+		Pagination:   original.Pagination,
 	}
 }
 
-// onQuery runs every interceptor's OnQuery in order, threading the context each returns into the
+// onTraceQuery runs every interceptor's OnTraceQuery in order, threading the context each returns into the
 // next. The final context is returned so the caller can pass it to the storage reader and to
-// OnResult, letting an interceptor carry per-query state (a resolved caller identity, say) from
+// OnTraceResult, letting an interceptor carry per-query state (a resolved caller identity, say) from
 // the pre-query hook to the return path.
 //
 // The interceptors are shown the query in filter shape whatever shape it arrived in, because gating
@@ -55,27 +54,25 @@ func fromPublicQuery(q queryinterceptor.Query) tracestore.TraceQueryParams {
 // them in two places. A filter one of them leaves behind is not converted back: the query service
 // chooses the outgoing shape from what the reader declared, and a predicate an interceptor added is
 // held to the same capability check as one the caller sent.
-func (qs QueryService) onQuery(ctx context.Context, query TraceQueryParams) (context.Context, TraceQueryParams, error) {
-	queryPreIntercept := toPublicQuery(query.ToFilterShape())
+func (qs QueryService) onTraceQuery(ctx context.Context, query TraceQueryParams) (context.Context, TraceQueryParams, error) {
+	queryPreIntercept := toInterceptorTraceQuery(query.ToFilterShape())
 	queryPostIntercept := queryPreIntercept
 	var err error
 	for _, interceptor := range qs.options.Interceptors {
-		ctx, queryPostIntercept, err = interceptor.OnQuery(ctx, queryPostIntercept)
+		ctx, queryPostIntercept, err = interceptor.OnTraceQuery(ctx, queryPostIntercept)
 		if err != nil {
 			return ctx, query, err
 		}
 	}
 
-	// A legacy query whose predicates no interceptor touched reaches storage as it arrived, carrying
-	// only the time range or search depth one of them may have narrowed. Converting it anyway would
-	// change the answer on a backend that searches a legacy attribute more widely than an unqualified
-	// filter reference — Elasticsearch reads the legacy tag search over the event location too, while
-	// the filter's unqualified default is span-or-resource (RFC 0005 §5.1) — and enabling an
-	// interceptor must not move a result set by itself.
+	// A legacy query whose predicates no interceptor touched reaches storage in its legacy shape,
+	// with only the time range updated in case an interceptor narrowed it. Converting it to the
+	// filter shape anyway would change the answer on some backends: Elasticsearch searches a legacy
+	// tag over the event location too, while an unqualified filter reference defaults to span or
+	// resource only (RFC 0005 §5.1). Enabling an interceptor must not move a result set by itself.
 	if query.Filter == nil && reflect.DeepEqual(queryPostIntercept.Filter, queryPreIntercept.Filter) {
 		query.StartTimeMin = queryPostIntercept.StartTimeMin
 		query.StartTimeMax = queryPostIntercept.StartTimeMax
-		query.SearchDepth = queryPostIntercept.SearchDepth
 		return ctx, query, nil
 	}
 
@@ -85,7 +82,7 @@ func (qs QueryService) onQuery(ctx context.Context, query TraceQueryParams) (con
 	if err != nil {
 		return ctx, query, err
 	}
-	query.TraceQueryParams = fromPublicQuery(queryPostIntercept)
+	query.TraceQueryParams = fromInterceptorTraceQuery(queryPostIntercept, query.TraceQueryParams)
 	return ctx, query, nil
 }
 
@@ -113,14 +110,14 @@ func finalizeInterceptorFilter(returned *expression.Call) (*expression.Call, err
 	return finalized, nil
 }
 
-// interceptResults hands every batch of seq to the interceptors' OnResult in order, threading the
+// interceptTraceResults hands every batch of seq to the interceptors' OnTraceResult in order, threading the
 // context each returns into the next so that state can accumulate across a multi-batch result.
-// An OnResult error ends the stream rather than yielding later batches, which could leak results
+// An OnTraceResult error ends the stream rather than yielding later batches, which could leak results
 // the failed sanitize or redaction was meant to withhold.
 //
 // It wraps the batches as storage yielded them, before the query service aggregates and adjusts
 // them, so an interceptor rewrites the traces the reader actually returned.
-func (qs QueryService) interceptResults(
+func (qs QueryService) interceptTraceResults(
 	ctx context.Context,
 	seq iter.Seq2[[]ptrace.Traces, error],
 ) iter.Seq2[[]ptrace.Traces, error] {
@@ -136,7 +133,7 @@ func (qs QueryService) interceptResults(
 				continue
 			}
 			for _, interceptor := range qs.options.Interceptors {
-				ctx, traces, err = interceptor.OnResult(ctx, traces)
+				ctx, traces, err = interceptor.OnTraceResult(ctx, traces)
 				if err != nil {
 					yield(nil, err)
 					return
