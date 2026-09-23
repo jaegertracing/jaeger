@@ -11,7 +11,6 @@ import (
 	"fmt"
 	"net/http"
 	"strconv"
-	"time"
 
 	"github.com/gogo/protobuf/jsonpb"
 	"github.com/gogo/protobuf/proto"
@@ -176,15 +175,15 @@ func (h *HTTPGateway) getTrace(w http.ResponseWriter, r *http.Request) {
 	}
 	q := r.URL.Query()
 	if startTime, paramName := getQueryParam(q, paramStartTime, paramStartTimeDeprecated); startTime != "" {
-		timeParsed, err := time.Parse(time.RFC3339Nano, startTime)
-		if h.tryParamError(w, err, paramName) {
+		timeParsed, err := parseTimeQueryParam(startTime, paramName)
+		if h.tryHandleError(w, err, http.StatusBadRequest) {
 			return
 		}
 		request.TraceIDs[0].Start = timeParsed.UTC()
 	}
 	if endTime, paramName := getQueryParam(q, paramEndTime, paramEndTimeDeprecated); endTime != "" {
-		timeParsed, err := time.Parse(time.RFC3339Nano, endTime)
-		if h.tryParamError(w, err, paramName) {
+		timeParsed, err := parseTimeQueryParam(endTime, paramName)
+		if h.tryHandleError(w, err, http.StatusBadRequest) {
 			return
 		}
 		request.TraceIDs[0].End = timeParsed.UTC()
@@ -242,23 +241,16 @@ func (h *HTTPGateway) findSpans(w http.ResponseWriter, r *http.Request) {
 	}
 
 	spansIter := h.QueryService.FindSpans(r.Context(), *queryParams)
-	var spans []ptrace.Traces
+	// TODO: the response should be streamed back to the client
+	// https://github.com/jaegertracing/jaeger/issues/6467
+	combined := ptrace.NewTraces()
 	var nextPageToken string
 	for chunk, err := range spansIter {
 		if h.tryHandleError(w, err, http.StatusInternalServerError) {
 			return
 		}
-		spans = append(spans, chunk.Results)
+		jptrace.MergeTraces(combined, chunk.Results)
 		nextPageToken = chunk.NextPageToken
-	}
-	// TODO: the response should be streamed back to the client
-	// https://github.com/jaegertracing/jaeger/issues/6467
-	combined := ptrace.NewTraces()
-	for _, t := range spans {
-		resources := t.ResourceSpans()
-		for i := 0; i < resources.Len(); i++ {
-			resources.At(i).CopyTo(combined.ResourceSpans().AppendEmpty())
-		}
 	}
 	tracesData := jptrace.TracesData(combined)
 	h.marshalResultWrappedResponse(&api_v3.FindSpansResponse{
