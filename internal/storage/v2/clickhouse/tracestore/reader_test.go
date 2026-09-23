@@ -1146,6 +1146,34 @@ func TestFindTraceIDs_DecodeErrorStopsIteration(t *testing.T) {
 	require.ErrorContains(t, err, "failed to decode trace ID")
 }
 
+func TestFindTraceIDs_ShortTraceIDIsAnError(t *testing.T) {
+	// A trace_id column that is valid hex but shorter than 16 bytes must be
+	// reported as a decode error rather than panic in the array conversion.
+	conn := &clickhousetest.Driver{
+		QueryResponses: map[string]*clickhousetest.QueryResponse{
+			sql.SearchTraceIDsBase: {
+				Rows: &clickhousetest.Rows[[]any]{
+					Data: [][]any{
+						{
+							"0001",
+							time.Now().Add(-2 * time.Hour),
+							time.Now().Add(-2 * time.Minute),
+						},
+					},
+					ScanFn: scanTraceIDFn(),
+				},
+			},
+		},
+	}
+
+	reader := NewReader(conn, ReaderConfig{})
+	iter := reader.FindTraceIDs(context.Background(), tracestore.TraceQueryParams{
+		Attributes: pcommon.NewMap(),
+	})
+	_, err := flattenPageChunks(iter)
+	require.ErrorContains(t, err, "failed to decode trace ID")
+}
+
 func TestFindTraceIDs_ErrorCases(t *testing.T) {
 	tests := []struct {
 		name        string
