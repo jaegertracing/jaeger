@@ -29,7 +29,7 @@ The storage error is only half of the guarantee. **The pipeline between the rece
 
 `esclient.SyncBulkWriter` implements the same `esclient.BatchWriter` interface as the asynchronous `esutil.BulkIndexer`, so `core.Writer.WriteSpans` assembles a batch's documents once and the factory chooses the sink from `write_mode`. The synchronous writer sends the documents in chunks bounded by `bulk_processing.max_bytes` (5 MB when unset), each chunk one `_bulk` round trip, and parses the per-item results of every response. In sync mode the other `bulk_processing` settings, `flush_interval` and `workers`, no longer affect span writes; they still configure the asynchronous indexer that the dependency and sampling writers use in every mode.
 
-Elasticsearch acknowledges a `_bulk` request only after the translog is committed on the primary and every in-sync replica, so a `2xx` item means the document is durable. It does not mean the document is searchable, which follows the index refresh interval; the writer does not request a refresh, because forcing one would cost indexing throughput for no durability benefit.
+Under the default `index.translog.durability: request`, Elasticsearch acknowledges a `_bulk` request only after the translog is committed on the primary and every in-sync replica, so a `2xx` item means the document is durable. An index configured with `durability: async` acknowledges before the fsync, and the guarantee described here does not hold for it. It does not mean the document is searchable, which follows the index refresh interval; the writer does not request a refresh, because forcing one would cost indexing throughput for no durability benefit.
 
 ### Idempotent documents
 
