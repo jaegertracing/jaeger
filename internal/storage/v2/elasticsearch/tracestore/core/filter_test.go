@@ -231,6 +231,44 @@ func TestBuildFilterQuery(t *testing.T) {
 			filter: p.Span().Duration.Gt(&expression.DurationValue{Value: 2 * time.Second}),
 		},
 		{
+			name:   "span.startTime compares the microseconds since the epoch the span starts at",
+			filter: p.Span().StartTime.Gte("2026-01-02T15:04:05Z"),
+		},
+		{
+			// Resolving produces a typed constant, and the stored value has microsecond precision,
+			// so the nanoseconds below it do not take part in the comparison.
+			name:   "a timestamp constant is read at the microsecond the span start is stored at",
+			filter: p.Span().StartTime.Lt(&expression.TimestampValue{Value: time.Date(2026, 1, 2, 15, 4, 5, 123456789, time.UTC)}),
+		},
+		{
+			name:   "eq on the start time is a term on the stored microsecond",
+			filter: p.Span().StartTime.Eq("2026-01-02T15:04:05.000001Z"),
+		},
+		{
+			name:   "an instant before the epoch stays below every stored start time",
+			filter: p.Span().StartTime.Gt("1969-12-31T23:59:59Z"),
+		},
+		{
+			name:   "not_in on the start time requires it to be present",
+			filter: p.Span().StartTime.NotIn("2026-01-02T15:04:05Z", "2026-01-02T15:04:06Z"),
+		},
+		{
+			name:   "exists on the start time",
+			filter: p.Span().StartTime.Exists(),
+		},
+		{
+			name:   "event.time is a range over the nested log timestamps",
+			filter: p.Event().Time.Gt("2026-01-02T15:04:05Z"),
+		},
+		{
+			name:   "in on the event time matches any event at one of the instants",
+			filter: p.Event().Time.In("2026-01-02T15:04:05Z", "2026-01-02T15:04:06Z"),
+		},
+		{
+			name:   "exists on the event time",
+			filter: p.Event().Time.Exists(),
+		},
+		{
 			name:   "regex matches anywhere in the value, which this engine needs told",
 			filter: p.Span().Name.Matches("GET .*"),
 		},
@@ -585,6 +623,18 @@ func TestBuildFilterQueryRefused(t *testing.T) {
 			wantMsg: "that operand declares a type",
 		},
 		{
+			name:    "a timestamp constant carrying nothing, which a finalized filter never holds",
+			filter:  p.Span().StartTime.Gt((*expression.TimestampValue)(nil)),
+			wantErr: tracestore.ErrFilterUnsupported,
+			wantMsg: "a timestamp constant declares a type",
+		},
+		{
+			name:    "an untyped constant carrying nothing beside the start time",
+			filter:  p.Span().StartTime.Gt((*expression.AnyValue)(nil)),
+			wantErr: tracestore.ErrFilterUnsupported,
+			wantMsg: "that operand declares a type",
+		},
+		{
 			name:    "a list where a comparison takes one value",
 			filter:  p.Span().Attr("http.route").Eq(&expression.List{Values: []string{"/cart"}}),
 			wantErr: tracestore.ErrFilterUnsupported,
@@ -603,10 +653,34 @@ func TestBuildFilterQueryRefused(t *testing.T) {
 			wantMsg: "a boolean constant declares a type",
 		},
 		{
-			name:    "a timestamp constant, which no field here holds",
-			filter:  p.Span().StartTime.Gt(&expression.TimestampValue{Value: time.Unix(0, 0).UTC()}),
+			name:    "a timestamp constant where text belongs",
+			filter:  p.Span().Name.Eq(&expression.TimestampValue{Value: time.Unix(0, 0).UTC()}),
 			wantErr: tracestore.ErrFilterUnsupported,
 			wantMsg: "a timestamp constant declares a type",
+		},
+		{
+			name:    "a pattern over the start time, which is a number",
+			filter:  p.Span().StartTime.Matches("2026.*"),
+			wantErr: tracestore.ErrFilterUnsupported,
+			wantMsg: `operator "regex" on a timestamp`,
+		},
+		{
+			name:    "a duration where the event time belongs",
+			filter:  p.Event().Time.Gt(&expression.DurationValue{Value: time.Second}),
+			wantErr: tracestore.ErrFilterUnsupported,
+			wantMsg: "a duration constant declares a type",
+		},
+		{
+			name:    "a start time that is not RFC 3339",
+			filter:  p.Span().StartTime.Gt("yesterday"),
+			wantErr: tracestore.ErrFilterInvalid,
+			wantMsg: `"yesterday" is not an RFC 3339 timestamp`,
+		},
+		{
+			name:    "a list member that is not a timestamp",
+			filter:  p.Event().Time.In("2026-01-02T15:04:05Z", "later"),
+			wantErr: tracestore.ErrFilterInvalid,
+			wantMsg: `"later"`,
 		},
 		{
 			name:    "a boolean where the duration belongs",
