@@ -121,7 +121,7 @@ func (r *TraceReader) FindTraceIDs(ctx context.Context, query tracestore.TraceQu
 		}
 		otelTraceIds := make([]tracestore.FoundTraceID, 0, len(traceIds))
 		for _, traceId := range traceIds {
-			dbTraceId, err := convertTraceIDFromDB(traceId)
+			dbTraceId, err := traceId.ToOTEL()
 			if err != nil {
 				yield(tracestore.PageChunk[[]tracestore.FoundTraceID]{}, err)
 				return

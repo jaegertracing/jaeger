@@ -916,6 +916,7 @@ func TestHandler_GetCapabilities(t *testing.T) {
 					Levels:    []expression.Level{expression.LevelSpan, expression.LevelResource},
 					Operators: []expression.Operator{expression.OpAnd, expression.OpEq, expression.OpRegex},
 				},
+				Paginated: true,
 			},
 			expected: &storage.SearchCapabilities{
 				WithoutServiceName:  true,
@@ -924,6 +925,7 @@ func TestHandler_GetCapabilities(t *testing.T) {
 					Levels:    []string{"span", "resource"},
 					Operators: []string{"and", "eq", "regex"},
 				},
+				Paginated: true,
 			},
 		},
 		{

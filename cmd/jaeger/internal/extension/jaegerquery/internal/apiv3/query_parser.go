@@ -21,8 +21,6 @@ import (
 )
 
 const (
-	defaultSearchDepth = 100
-
 	paramTraceID = "trace_id" // path parameter
 
 	// Canonical camelCase query params matching proto3 JSON encoding.
@@ -97,24 +95,23 @@ func parseFindTracesQuery(q url.Values) (*querysvc.TraceQueryParams, error) {
 		queryParams.Filter = filter
 	}
 
-	timeMinStr, timeMinParam := getQueryParam(q, paramTimeMin, paramTimeMinDeprecated)
-	timeMaxStr, timeMaxParam := getQueryParam(q, paramTimeMax, paramTimeMaxDeprecated)
-	if timeMinStr == "" || timeMaxStr == "" {
-		return nil, fmt.Errorf("%s and %s are required", paramTimeMin, paramTimeMax)
+	// The parser reads each parameter and reports one it cannot read under its own name. Whether
+	// the query as a whole is acceptable (a present and ordered time range, a bounded search
+	// depth) is the query service's decision, so it is not repeated here.
+	if s, paramName := getQueryParam(q, paramTimeMin, paramTimeMinDeprecated); s != "" {
+		parsed, err := time.Parse(time.RFC3339Nano, s)
+		if err != nil {
+			return nil, fmt.Errorf("malformed parameter %s: %w", paramName, err)
+		}
+		queryParams.StartTimeMin = parsed
 	}
-	timeMinParsed, err := time.Parse(time.RFC3339Nano, timeMinStr)
-	if err != nil {
-		return nil, fmt.Errorf("malformed parameter %s: %w", timeMinParam, err)
+	if s, paramName := getQueryParam(q, paramTimeMax, paramTimeMaxDeprecated); s != "" {
+		parsed, err := time.Parse(time.RFC3339Nano, s)
+		if err != nil {
+			return nil, fmt.Errorf("malformed parameter %s: %w", paramName, err)
+		}
+		queryParams.StartTimeMax = parsed
 	}
-	timeMaxParsed, err := time.Parse(time.RFC3339Nano, timeMaxStr)
-	if err != nil {
-		return nil, fmt.Errorf("malformed parameter %s: %w", timeMaxParam, err)
-	}
-	if !timeMinParsed.Before(timeMaxParsed) {
-		return nil, fmt.Errorf("%s must be before %s", paramTimeMin, paramTimeMax)
-	}
-	queryParams.StartTimeMin = timeMinParsed
-	queryParams.StartTimeMax = timeMaxParsed
 
 	n, searchDepthParam := getQueryParam(q, paramSearchDepth, paramSearchDepthDeprecated)
 	if n == "" {
@@ -126,12 +123,7 @@ func parseFindTracesQuery(q url.Values) (*querysvc.TraceQueryParams, error) {
 		if err != nil {
 			return nil, fmt.Errorf("malformed parameter %s: %w", searchDepthParam, err)
 		}
-		if searchDepth < 0 || searchDepth > int64(tracestore.MaxSearchDepth) {
-			return nil, fmt.Errorf("malformed parameter %s: search depth must be in [0, %d]", searchDepthParam, tracestore.MaxSearchDepth)
-		}
 		queryParams.SearchDepth = int(searchDepth)
-	} else {
-		queryParams.SearchDepth = defaultSearchDepth
 	}
 
 	if d, paramName := getQueryParam(q, paramDurationMin, paramDurationMinDeprecated); d != "" {

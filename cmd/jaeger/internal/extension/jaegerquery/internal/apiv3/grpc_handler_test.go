@@ -298,8 +298,10 @@ func TestTraceQueryParamsSearchDepth(t *testing.T) {
 		searchDepth int32
 		expected    int
 	}{
-		{name: "unset defaults", searchDepth: 0, expected: defaultSearchDepth},
-		{name: "negative defaults", searchDepth: -1, expected: defaultSearchDepth},
+		// The handler translates; the query service applies the default and refuses a negative
+		// value, so both reach it as sent.
+		{name: "unset passes through", searchDepth: 0, expected: 0},
+		{name: "negative passes through", searchDepth: -1, expected: -1},
 		{name: "explicit value preserved", searchDepth: 42, expected: 42},
 	}
 	for _, test := range tests {
@@ -313,13 +315,48 @@ func TestTraceQueryParamsSearchDepth(t *testing.T) {
 	}
 }
 
+// TestTraceQueryParamsPagination pins that an api_v3.Pagination on the wire reaches
+// querysvc.TraceQueryParams unchanged, and that an absent one leaves the zero value, which
+// prepareSearchQuery reads as "not a paginated request" (RFC 0014 §4).
+func TestTraceQueryParamsPagination(t *testing.T) {
+	baseQuery := func() *api_v3.TraceQueryParameters {
+		return &api_v3.TraceQueryParameters{
+			StartTimeMin: time.Now().Add(-2 * time.Hour),
+			StartTimeMax: time.Now(),
+		}
+	}
+	t.Run("absent pagination", func(t *testing.T) {
+		params, err := traceQueryParams(baseQuery())
+		require.NoError(t, err)
+		assert.Nil(t, params.Pagination)
+	})
+	t.Run("pagination present", func(t *testing.T) {
+		query := baseQuery()
+		query.Pagination = &api_v3.Pagination{PageSize: 25, PageToken: "opaque-cursor"}
+		params, err := traceQueryParams(query)
+		require.NoError(t, err)
+		assert.Equal(t, &tracestore.Pagination{PageSize: 25, PageToken: "opaque-cursor"}, params.Pagination)
+		assert.Zero(t, params.SearchDepth,
+			"search_depth must not be defaulted when Pagination is present, or every paginated "+
+				"request would trip the query service's mutual-exclusivity check")
+	})
+	t.Run("present but empty pagination keeps its presence", func(t *testing.T) {
+		query := baseQuery()
+		query.Pagination = &api_v3.Pagination{}
+		params, err := traceQueryParams(query)
+		require.NoError(t, err)
+		assert.Equal(t, &tracestore.Pagination{}, params.Pagination,
+			"the query service refuses this for its missing page size, so it must not read as absent")
+	})
+}
+
 func TestFindTracesDefaultsSearchDepth(t *testing.T) {
-	// A FindTraces request without search_depth (proto3 default 0) must reach
-	// the storage backend with the default search depth, matching the HTTP
-	// gateway. Some backends (e.g. the in-memory store) reject a literal 0.
+	// A FindTraces request without search_depth (proto3 default 0) reaches the storage
+	// backend with the default the query service applies. Some backends (e.g. the in-memory
+	// store) reject a literal 0.
 	tsc := newTestServerClient(t)
 	tsc.reader.On("FindTraces", matchContext, mock.MatchedBy(func(q tracestore.TraceQueryParams) bool {
-		return q.SearchDepth == defaultSearchDepth
+		return q.SearchDepth == querysvc.DefaultSearchDepth
 	})).
 		Return(iter.Seq2[[]ptrace.Traces, error](func(yield func([]ptrace.Traces, error) bool) {
 			yield([]ptrace.Traces{makeTestTrace()}, nil)
@@ -370,6 +407,34 @@ func TestFindTracesSendError(t *testing.T) {
 	require.ErrorContains(t, err, "failed to send response")
 }
 
+// TestFindTracesRefusesSearchDepthOutOfRange pins that a negative search_depth, which this
+// handler used to replace with the default, and one above the maximum, which it used to
+// forward, are both InvalidArgument end to end. No FindTraces expectation is set, so a request
+// reaching storage aborts the test.
+func TestFindTracesRefusesSearchDepthOutOfRange(t *testing.T) {
+	for name, depth := range map[string]int32{
+		"negative":          -1,
+		"above the maximum": tracestore.MaxSearchDepth + 1,
+	} {
+		t.Run(name, func(t *testing.T) {
+			tsc := newTestServerClient(t)
+			responseStream, err := tsc.client.FindTraces(context.Background(), &api_v3.FindTracesRequest{
+				Query: &api_v3.TraceQueryParameters{
+					ServiceName:  "myservice",
+					StartTimeMin: time.Now().Add(-2 * time.Hour),
+					StartTimeMax: time.Now(),
+					SearchDepth:  depth,
+				},
+			})
+			require.NoError(t, err)
+			recv, err := responseStream.Recv()
+			require.ErrorContains(t, err, "search depth must be in [0, 10000]")
+			assert.Equal(t, codes.InvalidArgument, status.Code(err))
+			assert.Nil(t, recv)
+		})
+	}
+}
+
 func TestFindTracesQueryNil(t *testing.T) {
 	tsc := newTestServerClient(t)
 	responseStream, err := tsc.client.FindTraces(context.Background(), &api_v3.FindTracesRequest{})
@@ -384,7 +449,7 @@ func TestFindTracesQueryNil(t *testing.T) {
 	})
 	require.NoError(t, err)
 	recv, err = responseStream.Recv()
-	require.ErrorContains(t, err, "start time min and max are required parameters")
+	require.ErrorContains(t, err, "min and max start time are required")
 	assert.Equal(t, codes.InvalidArgument, status.Code(err))
 	assert.Nil(t, recv)
 }
@@ -511,7 +576,7 @@ func TestFindTraceSummariesQueryNil(t *testing.T) {
 	})
 	require.NoError(t, err)
 	recv, err = responseStream.Recv()
-	require.ErrorContains(t, err, "start time min and max are required parameters")
+	require.ErrorContains(t, err, "min and max start time are required")
 	assert.Equal(t, codes.InvalidArgument, status.Code(err))
 	assert.Nil(t, recv)
 }

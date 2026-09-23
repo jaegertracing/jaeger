@@ -507,81 +507,52 @@ func TestSearchTracesHandler_Handle_InvalidDurationMax(t *testing.T) {
 	assert.Contains(t, err.Error(), "invalid duration_max")
 }
 
-func TestSearchTracesHandler_Handle_StartTimeMaxBeforeMin(t *testing.T) {
-	handler := NewSearchTracesHandler(nil, 100)
-
-	input := types.SearchTracesInput{
-		StartTimeMin: "-1h",
-		StartTimeMax: "-2h",
-		ServiceName:  "test",
-	}
-
-	_, _, err := handler(context.Background(), &mcp.CallToolRequest{}, input)
-
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "start_time_max must be after start_time_min")
-}
-
-func TestSearchTracesHandler_Handle_DurationMaxLessThanMin(t *testing.T) {
-	handler := NewSearchTracesHandler(nil, 100)
-
-	input := types.SearchTracesInput{
-		StartTimeMin: "-1h",
-		ServiceName:  "test",
-		DurationMin:  "10s",
-		DurationMax:  "5s",
-	}
-
-	_, _, err := handler(context.Background(), &mcp.CallToolRequest{}, input)
-
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "duration_max must be greater than duration_min")
-}
-
-// TestSearchTracesHandler_Handle_NegativeDuration covers the case reported in the issue:
-// a negative duration_min or duration_max bypasses the duration_max < duration_min check
-// (which only fires when both bounds are positive) and reaches the storage backend as an
-// impossible query. Each bound must be rejected on its own, before that comparison runs.
-func TestSearchTracesHandler_Handle_NegativeDuration(t *testing.T) {
+// TestSearchTracesHandler_Handle_EnvelopeRefusedByQueryService covers the checks this tool no
+// longer makes itself: an inverted time range and a negative or inverted duration bound are the
+// query service's to refuse, and its refusal is what the agent reads. Nothing is returned, so
+// the answer names the refusal rather than calling the results partial.
+func TestSearchTracesHandler_Handle_EnvelopeRefusedByQueryService(t *testing.T) {
 	tests := []struct {
-		name        string
-		durationMin string
-		durationMax string
-		wantErr     string
+		name    string
+		input   types.SearchTracesInput
+		wantErr string
 	}{
 		{
-			name:        "negative duration_min",
-			durationMin: "-5s",
-			wantErr:     "duration_min cannot be negative",
+			name:    "start_time_max before start_time_min",
+			input:   types.SearchTracesInput{StartTimeMin: "-1h", StartTimeMax: "-2h", ServiceName: "test"},
+			wantErr: "min start time must be before max start time",
 		},
 		{
-			name:        "negative duration_max",
-			durationMax: "-10s",
-			wantErr:     "duration_max cannot be negative",
+			name:    "duration_max less than duration_min",
+			input:   types.SearchTracesInput{StartTimeMin: "-1h", ServiceName: "test", DurationMin: "10s", DurationMax: "5s"},
+			wantErr: "max duration cannot be less than min duration",
 		},
 		{
-			name:        "both negative",
-			durationMin: "-5s",
-			durationMax: "-10s",
-			wantErr:     "duration_min cannot be negative",
+			name:    "negative duration_min",
+			input:   types.SearchTracesInput{StartTimeMin: "-1h", ServiceName: "test", DurationMin: "-5s"},
+			wantErr: "cannot be negative",
+		},
+		{
+			name:    "negative duration_max",
+			input:   types.SearchTracesInput{StartTimeMin: "-1h", ServiceName: "test", DurationMax: "-10s"},
+			wantErr: "cannot be negative",
 		},
 	}
-
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			handler := NewSearchTracesHandler(nil, 100)
-
-			input := types.SearchTracesInput{
-				StartTimeMin: "-1h",
-				ServiceName:  "test",
-				DurationMin:  tt.durationMin,
-				DurationMax:  tt.durationMax,
+			store, err := memory.NewStore(memory.Configuration{MaxTraces: 10})
+			require.NoError(t, err)
+			handler := &searchTracesHandler{
+				queryService: querysvc.NewQueryService(store, store, querysvc.QueryServiceOptions{}),
+				maxResults:   100,
 			}
 
-			_, _, err := handler(context.Background(), &mcp.CallToolRequest{}, input)
+			_, output, err := handler.handle(context.Background(), &mcp.CallToolRequest{}, tt.input)
 
-			require.Error(t, err)
-			assert.Contains(t, err.Error(), tt.wantErr)
+			require.NoError(t, err)
+			assert.Empty(t, output.Traces)
+			assert.Contains(t, output.Error, tt.wantErr)
+			assert.NotContains(t, output.Error, "partial results")
 		})
 	}
 }

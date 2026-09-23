@@ -231,7 +231,12 @@ func interceptedService(next tracestore.Reader, interceptors ...queryinterceptor
 
 // searchQuery asks for raw traces, so that the batches a test asserts on are the ones the reader
 // yielded and the interceptor rewrote, rather than the aggregated traces built from them.
+// searchQuery wraps a reader query for a test about something other than its envelope, so it
+// fills in the time range every search must carry unless the test set one itself.
 func searchQuery(q tracestore.TraceQueryParams) TraceQueryParams {
+	if q.StartTimeMin.IsZero() && q.StartTimeMax.IsZero() {
+		q.StartTimeMin, q.StartTimeMax = testWindowStart, testWindowEnd
+	}
 	return TraceQueryParams{TraceQueryParams: q, RawTraces: true}
 }
 
@@ -626,24 +631,6 @@ func TestFindTraces_LeavesALegacyQueryAloneWhenNothingChangedIt(t *testing.T) {
 		})))
 		require.NoError(t, err)
 		require.NotNil(t, next.gotQuery.Filter, "a filter the caller sent stays a filter")
-	})
-
-	t.Run("an interceptor's rewrite keeps the result bound", func(t *testing.T) {
-		enableStructuredFilters(t)
-		next := &fakeReader{batch: tracesWith("k", "v")}
-		next.capabilities = filterCapableBackend()
-		qs := interceptedService(next, fakeInterceptor{onQuery: narrowTo(serviceFilter("gated"))})
-
-		_, err := collectTraces(qs.FindTraces(t.Context(), searchQuery(tracestore.TraceQueryParams{
-			Filter:      serviceFilter("original"),
-			SearchDepth: 7,
-			Pagination:  tracestore.Pagination{PageSize: 3, PageToken: "next"},
-		})))
-		require.NoError(t, err)
-		assert.Equal(t, serviceFilter("gated"), next.gotQuery.Filter)
-		assert.Equal(t, 7, next.gotQuery.SearchDepth, "the interceptor never saw the search depth")
-		assert.Equal(t, tracestore.Pagination{PageSize: 3, PageToken: "next"}, next.gotQuery.Pagination,
-			"the interceptor never saw the pagination")
 	})
 }
 

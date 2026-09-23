@@ -74,8 +74,10 @@ require (
 	go.opentelemetry.io/collector/confmap/provider/httpsprovider v1.66.0
 	go.opentelemetry.io/collector/confmap/provider/yamlprovider v1.66.0
 	go.opentelemetry.io/collector/connector v0.160.0
+	go.opentelemetry.io/collector/connector/connectortest v0.160.0
 	go.opentelemetry.io/collector/connector/forwardconnector v0.160.0
 	go.opentelemetry.io/collector/consumer v1.66.0
+	go.opentelemetry.io/collector/consumer/consumererror v0.160.0
 	go.opentelemetry.io/collector/consumer/consumertest v0.160.0
 	go.opentelemetry.io/collector/exporter v1.66.0
 	go.opentelemetry.io/collector/exporter/debugexporter v0.160.0
@@ -101,6 +103,7 @@ require (
 	go.opentelemetry.io/collector/receiver v1.66.0
 	go.opentelemetry.io/collector/receiver/nopreceiver v0.160.0
 	go.opentelemetry.io/collector/receiver/otlpreceiver v0.160.0
+	go.opentelemetry.io/collector/receiver/receivertest v0.160.0
 	go.opentelemetry.io/collector/service v0.160.0
 	go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc v0.71.0
 	go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp v0.71.0
@@ -284,9 +287,7 @@ require (
 	go.opentelemetry.io/collector v0.160.0 // indirect
 	go.opentelemetry.io/collector/config/configcompression v1.66.0 // indirect
 	go.opentelemetry.io/collector/confmap/xconfmap v0.160.0 // indirect
-	go.opentelemetry.io/collector/connector/connectortest v0.160.0 // indirect
 	go.opentelemetry.io/collector/connector/xconnector v0.160.0 // indirect
-	go.opentelemetry.io/collector/consumer/consumererror v0.160.0 // indirect
 	go.opentelemetry.io/collector/consumer/consumererror/xconsumererror v0.160.0 // indirect
 	go.opentelemetry.io/collector/consumer/xconsumer v0.160.0 // indirect
 	go.opentelemetry.io/collector/exporter/exporterhelper/xexporterhelper v0.160.0 // indirect
@@ -305,7 +306,6 @@ require (
 	go.opentelemetry.io/collector/processor/processorhelper/xprocessorhelper v0.160.0 // indirect
 	go.opentelemetry.io/collector/processor/xprocessor v0.160.0 // indirect
 	go.opentelemetry.io/collector/receiver/receiverhelper v0.160.0 // indirect
-	go.opentelemetry.io/collector/receiver/receivertest v0.160.0 // indirect
 	go.opentelemetry.io/collector/receiver/xreceiver v0.160.0 // indirect
 	go.opentelemetry.io/collector/service/hostcapabilities v0.160.0 // indirect
 	go.opentelemetry.io/contrib/bridges/otelzap v0.20.0 // indirect

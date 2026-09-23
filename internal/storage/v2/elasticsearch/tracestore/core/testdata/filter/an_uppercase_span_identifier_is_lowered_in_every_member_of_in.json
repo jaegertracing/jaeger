@@ -1,0 +1,16 @@
+{
+  "bool": {
+    "should": [
+      {
+        "term": {
+          "spanID": "b7ad6b7169203331"
+        }
+      },
+      {
+        "term": {
+          "spanID": "00f067aa0ba902b7"
+        }
+      }
+    ]
+  }
+}

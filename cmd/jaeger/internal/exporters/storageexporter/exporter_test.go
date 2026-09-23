@@ -143,11 +143,11 @@ func TestWarnMisalignedSyncBatchSizing(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			core, logs := observer.New(zapcore.WarnLevel)
-			exp := &storageExporter{
+			w := &TraceWriter{
 				config: &Config{QueueConfig: tt.queue},
 				logger: zap.New(core),
 			}
-			exp.warnMisalignedSyncBatchSizing(tt.factory)
+			w.warnMisalignedSyncBatchSizing(tt.factory)
 			if !tt.wantWarn {
 				require.Zero(t, logs.Len())
 				return
@@ -168,14 +168,14 @@ func TestExporterStartWarnsButSucceedsOnMisalignedSyncBatch(t *testing.T) {
 		name:    "es",
 		factory: fakeSyncFactory{Factory: factory, sync: true, maxBytes: 1000},
 	})
-	exp := &storageExporter{
+	w := &TraceWriter{
 		config: &Config{
 			TraceStorage: "es",
 			QueueConfig:  byteBatchQueue(2000),
 		},
 		logger: zap.New(core),
 	}
-	err := exp.start(context.Background(), host)
+	err := w.Start(context.Background(), host)
 	require.NoError(t, err, "misaligned batch sizing must not fail startup")
 	require.Equal(t, 1, logs.Len())
 	require.Contains(t, logs.All()[0].Message, "not aligned with the storage's")
@@ -185,12 +185,12 @@ func TestExporterStartBadNameError(t *testing.T) {
 	host := storagetest.NewStorageHost()
 	host.WithExtension(jaegerstorage.ID, &mockStorageExt{name: "foo"})
 
-	exp := &storageExporter{
+	w := &TraceWriter{
 		config: &Config{
 			TraceStorage: "bar",
 		},
 	}
-	err := exp.start(context.Background(), host)
+	err := w.Start(context.Background(), host)
 	require.ErrorContains(t, err, "cannot find storage factory")
 }
 
@@ -204,12 +204,12 @@ func TestExporterStartBadSpanstoreError(t *testing.T) {
 		factory: factory,
 	})
 
-	exp := &storageExporter{
+	w := &TraceWriter{
 		config: &Config{
 			TraceStorage: "foo",
 		},
 	}
-	err := exp.start(context.Background(), host)
+	err := w.Start(context.Background(), host)
 	require.ErrorIs(t, err, assert.AnError)
 }
 

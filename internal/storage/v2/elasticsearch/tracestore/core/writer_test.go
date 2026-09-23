@@ -15,6 +15,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.opentelemetry.io/collector/pdata/pcommon"
 	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger-idl/model/v1"
@@ -25,6 +26,7 @@ import (
 	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/esclient"
 	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/indices"
 	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/snapshottest"
+	"github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/elasticsearch/tracestore/core/dbmodel"
 	"github.com/jaegertracing/jaeger/internal/testutils"
 )
@@ -36,11 +38,17 @@ type fakeBatchWriter struct {
 	items   []esclient.BulkItem
 	batches int
 	err     error
+	// errFor, when set, derives the error from the batch it receives, for tests
+	// that reject specific documents by the _id the writer assigned them.
+	errFor func(items []esclient.BulkItem) error
 }
 
 func (f *fakeBatchWriter) WriteBatch(_ context.Context, items []esclient.BulkItem) error {
 	f.batches++
 	f.items = append(f.items, items...)
+	if f.errFor != nil {
+		return f.errFor(items)
+	}
 	return f.err
 }
 
@@ -277,6 +285,153 @@ func TestSpanWriter_BatchWrite(t *testing.T) {
 		// not durable (RFC 0007 §4.3) — it was not cached.
 		assert.Equal(t, 1, countServiceDocs(fake.items[firstBatchItems:]),
 			"service doc re-sent after a failed write")
+	})
+}
+
+// rejecting returns an errFor that rejects, terminally, the documents whose index
+// in the batch is listed, plus any extra ids, with the given transient flag.
+func rejecting(transient bool, extraIDs []string, positions ...int) func([]esclient.BulkItem) error {
+	return func(items []esclient.BulkItem) error {
+		var terminal []esclient.RejectedItem
+		for _, i := range positions {
+			// The backend reports the concrete backing index, which differs from the
+			// write alias or data stream the item was sent to.
+			terminal = append(terminal, esclient.RejectedItem{Index: ".ds-" + items[i].Index + "-000001", ID: items[i].ID, Status: 400, Reason: "mapper_parsing_exception"})
+		}
+		for _, id := range extraIDs {
+			terminal = append(terminal, esclient.RejectedItem{ID: id, Status: 400})
+		}
+		return &esclient.BulkWriteError{Terminal: terminal, Transient: transient}
+	}
+}
+
+func TestSpanWriter_RejectedSpansError(t *testing.T) {
+	spanA := dbmodel.Span{TraceID: "1", SpanID: "a", OperationName: "op", Process: dbmodel.Process{ServiceName: "svc"}}
+	spanB := dbmodel.Span{TraceID: "2", SpanID: "b", OperationName: "op", Process: dbmodel.Process{ServiceName: "svc"}}
+	// Items: [service doc for svc/op, span A, span B]; the service doc is deduped.
+
+	t.Run("rejected span documents are attributed to their spans", func(t *testing.T) {
+		fake := &fakeBatchWriter{errFor: rejecting(false, nil, 2)}
+		writer := newSpanWriterWith(fake)
+		err := writer.WriteSpans(context.Background(), []dbmodel.Span{spanA, spanB})
+
+		var rejected *tracestore.RejectedSpansError
+		require.ErrorAs(t, err, &rejected)
+		require.Len(t, rejected.Spans, 1)
+		assert.Equal(t, pcommon.TraceID([16]byte{15: 2}), rejected.Spans[0].TraceID)
+		assert.Equal(t, pcommon.SpanID([8]byte{7: 0xb}), rejected.Spans[0].SpanID)
+		assert.Equal(t, "mapper_parsing_exception", rejected.Spans[0].Reason)
+		assert.False(t, rejected.Transient)
+		assert.Zero(t, rejected.Unidentified)
+		var bulkErr *esclient.BulkWriteError
+		assert.ErrorAs(t, err, &bulkErr, "the backend's error stays reachable for its message")
+	})
+
+	t.Run("transient flag is carried", func(t *testing.T) {
+		fake := &fakeBatchWriter{errFor: rejecting(true, nil, 1)}
+		writer := newSpanWriterWith(fake)
+		var rejected *tracestore.RejectedSpansError
+		require.ErrorAs(t, writer.WriteSpans(context.Background(), []dbmodel.Span{spanA, spanB}), &rejected)
+		assert.True(t, rejected.Transient)
+		require.Len(t, rejected.Spans, 1)
+		assert.Equal(t, pcommon.TraceID([16]byte{15: 1}), rejected.Spans[0].TraceID, "position 1 of the batch is spanA's document")
+	})
+
+	t.Run("transient rejections without terminal ones pass through", func(t *testing.T) {
+		fake := &fakeBatchWriter{errFor: rejecting(true, nil)}
+		writer := newSpanWriterWith(fake)
+		err := writer.WriteSpans(context.Background(), []dbmodel.Span{spanA})
+		require.Error(t, err)
+		var rejected *tracestore.RejectedSpansError
+		assert.NotErrorAs(t, err, &rejected, "nothing to re-route, so the writer's own error is returned")
+	})
+
+	t.Run("rejected lookup document with transient failures returns the writer's error", func(t *testing.T) {
+		fake := &fakeBatchWriter{errFor: rejecting(true, nil, 0)}
+		writer := newSpanWriterWith(fake)
+		err := writer.WriteSpans(context.Background(), []dbmodel.Span{spanA})
+		require.Error(t, err)
+		var rejected *tracestore.RejectedSpansError
+		assert.NotErrorAs(t, err, &rejected)
+	})
+
+	t.Run("rejected lookup document is logged and the batch succeeds", func(t *testing.T) {
+		withSpanWriter(func(w *spanWriterTest) {
+			w.batchWriter.errFor = rejecting(false, nil, 0)
+			require.NoError(t, w.writer.WriteSpans(context.Background(), []dbmodel.Span{spanA}),
+				"every span is stored, so nothing remains for the caller to retry or re-route")
+			assert.Contains(t, w.logBuffer.String(), "lookup document rejected by the backend")
+			require.Len(t, *w.added, 2)
+
+			// The batch completed, so the pair is cached and the next span of the
+			// same service and operation does not re-send the rejected document.
+			w.batchWriter.errFor = nil
+			require.NoError(t, w.writer.WriteSpans(context.Background(), []dbmodel.Span{spanA}))
+			require.Len(t, *w.added, 3, "only the span document is sent")
+		})
+	})
+
+	t.Run("rejected lookup document alongside a rejected span", func(t *testing.T) {
+		withSpanWriter(func(w *spanWriterTest) {
+			// Position 0 is spanA's lookup document, position 1 its span document.
+			w.batchWriter.errFor = rejecting(false, nil, 0, 1)
+			var rejected *tracestore.RejectedSpansError
+			require.ErrorAs(t, w.writer.WriteSpans(context.Background(), []dbmodel.Span{spanA}), &rejected)
+			assert.Len(t, rejected.Spans, 1, "the span is reported")
+			assert.Zero(t, rejected.Unidentified)
+			assert.Contains(t, w.logBuffer.String(), "lookup document rejected by the backend", "the lookup document is logged")
+			require.Len(t, *w.added, 2)
+
+			// The caller re-routes the span rather than retrying the batch, so the
+			// pair is cached and the next span does not re-send the lookup document.
+			w.batchWriter.errFor = nil
+			require.NoError(t, w.writer.WriteSpans(context.Background(), []dbmodel.Span{spanA}))
+			require.Len(t, *w.added, 3, "only the span document is sent")
+		})
+	})
+
+	t.Run("service cache waits for a retry", func(t *testing.T) {
+		withSpanWriter(func(w *spanWriterTest) {
+			// A transient failure alongside the rejected span means the batch is
+			// retried, so nothing is cached yet.
+			w.batchWriter.errFor = rejecting(true, nil, 1)
+			var rejected *tracestore.RejectedSpansError
+			require.ErrorAs(t, w.writer.WriteSpans(context.Background(), []dbmodel.Span{spanA}), &rejected)
+			require.Len(t, *w.added, 2)
+
+			w.batchWriter.errFor = nil
+			require.NoError(t, w.writer.WriteSpans(context.Background(), []dbmodel.Span{spanA}))
+			require.Len(t, *w.added, 4, "the lookup document is re-sent with the retry")
+		})
+	})
+
+	t.Run("rejected document matching nothing sent is unidentified", func(t *testing.T) {
+		fake := &fakeBatchWriter{errFor: rejecting(false, []string{"", "stray_id_1"})}
+		writer := newSpanWriterWith(fake)
+		var rejected *tracestore.RejectedSpansError
+		require.ErrorAs(t, writer.WriteSpans(context.Background(), []dbmodel.Span{spanA}), &rejected)
+		assert.Empty(t, rejected.Spans)
+		assert.Equal(t, 2, rejected.Unidentified)
+	})
+
+	t.Run("span with undecodable ids is unidentified", func(t *testing.T) {
+		bad := dbmodel.Span{TraceID: "not-hex", SpanID: "a", OperationName: "op", Process: dbmodel.Process{ServiceName: "svc"}}
+		fake := &fakeBatchWriter{errFor: rejecting(false, nil, 1)}
+		writer := newSpanWriterWith(fake)
+		var rejected *tracestore.RejectedSpansError
+		require.ErrorAs(t, writer.WriteSpans(context.Background(), []dbmodel.Span{bad}), &rejected)
+		assert.Empty(t, rejected.Spans)
+		assert.Equal(t, 1, rejected.Unidentified)
+	})
+
+	t.Run("other errors pass through", func(t *testing.T) {
+		sentinel := errors.New("connection refused")
+		fake := &fakeBatchWriter{err: sentinel}
+		writer := newSpanWriterWith(fake)
+		err := writer.WriteSpans(context.Background(), []dbmodel.Span{spanA})
+		require.ErrorIs(t, err, sentinel)
+		var rejected *tracestore.RejectedSpansError
+		assert.NotErrorAs(t, err, &rejected)
 	})
 }
 
