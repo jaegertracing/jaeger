@@ -132,6 +132,30 @@ func TestParseFindTracesQuery(t *testing.T) {
 		assert.Equal(t, want.AsRaw(), got.Attributes.AsRaw())
 	})
 
+	t.Run("pagination is decoded as sent, presence included", func(t *testing.T) {
+		// Whether a trace search may be paginated, and what an incomplete Pagination means, is
+		// the query service's decision (prepareSearchQuery); the parser only preserves presence.
+		q := url.Values{}
+		q.Set(paramTimeMin, goodMin)
+		q.Set(paramTimeMax, goodMax)
+
+		got, err := parseFindTracesQuery(q)
+		require.NoError(t, err)
+		assert.Nil(t, got.Pagination, "no pagination parameters means not a paginated request")
+
+		q.Set(paramPageSize, "10")
+		q.Set(paramPageToken, "opaque-cursor")
+		got, err = parseFindTracesQuery(q)
+		require.NoError(t, err)
+		assert.Equal(t, &tracestore.Pagination{PageSize: 10, PageToken: "opaque-cursor"}, got.Pagination)
+
+		q.Del(paramPageSize)
+		got, err = parseFindTracesQuery(q)
+		require.NoError(t, err)
+		assert.Equal(t, &tracestore.Pagination{PageToken: "opaque-cursor"}, got.Pagination,
+			"a token alone is still a paginated request; the missing page size is the query service's refusal")
+	})
+
 	t.Run("no attributes gives empty map", func(t *testing.T) {
 		q := url.Values{}
 		q.Set(paramTimeMin, goodMin)
@@ -216,6 +240,11 @@ func TestParseFindTracesQuery(t *testing.T) {
 			name:    "bad attributes json",
 			params:  map[string]string{paramTimeMin: goodMin, paramTimeMax: goodMax, paramAttributes: "not-valid-json"},
 			wantErr: "malformed parameter " + paramAttributes,
+		},
+		{
+			name:    "bad page size",
+			params:  map[string]string{paramTimeMin: goodMin, paramTimeMax: goodMax, paramPageSize: "-1"},
+			wantErr: "malformed parameter " + paramPageSize,
 		},
 	}
 	for _, tc := range errorCases {
@@ -325,16 +354,16 @@ func TestParseFindSpansQuery(t *testing.T) {
 		assert.Nil(t, got.Filter)
 	})
 
-	t.Run("deprecated snake_case time params are not honored", func(t *testing.T) {
-		// This is a new endpoint with no callers to keep the deprecated aliases for.
+	t.Run("time range via the deprecated snake_case aliases", func(t *testing.T) {
+		// The time range is read by the same helper as a trace search's, aliases included.
 		q := url.Values{}
 		q.Set(paramTimeMinDeprecated, goodMin)
 		q.Set(paramTimeMaxDeprecated, goodMax)
 
 		got, err := parseFindSpansQuery(q)
 		require.NoError(t, err)
-		assert.True(t, got.StartTimeMin.IsZero())
-		assert.True(t, got.StartTimeMax.IsZero())
+		assert.Equal(t, tMin, got.StartTimeMin)
+		assert.Equal(t, tMax, got.StartTimeMax)
 	})
 
 	t.Run("a filter", func(t *testing.T) {
