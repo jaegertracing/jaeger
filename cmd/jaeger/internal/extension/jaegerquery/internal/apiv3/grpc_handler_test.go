@@ -61,54 +61,23 @@ type testServerClient struct {
 	client     api_v3.QueryServiceClient
 }
 
-type sendErrorTraceSummariesStream struct {
+// fakeStream records the last response the handler sends, or fails the send with sendErr when
+// one is set. It stands in for the grpc.ServerStream a handler streams a response over, for
+// whichever response message type T the RPC under test uses.
+type fakeStream[T any] struct {
 	grpc.ServerStream
+	response *T
+	sendErr  error
 }
 
-func (*sendErrorTraceSummariesStream) Context() context.Context {
+func (*fakeStream[T]) Context() context.Context {
 	return context.Background()
 }
 
-func (*sendErrorTraceSummariesStream) Send(*api_v3.FindTraceSummariesResponse) error {
-	return assert.AnError
-}
-
-type captureTraceSummariesStream struct {
-	grpc.ServerStream
-	response *api_v3.FindTraceSummariesResponse
-}
-
-func (*captureTraceSummariesStream) Context() context.Context {
-	return context.Background()
-}
-
-func (s *captureTraceSummariesStream) Send(response *api_v3.FindTraceSummariesResponse) error {
-	s.response = response
-	return nil
-}
-
-type sendErrorSpansStream struct {
-	grpc.ServerStream
-}
-
-func (*sendErrorSpansStream) Context() context.Context {
-	return context.Background()
-}
-
-func (*sendErrorSpansStream) Send(*api_v3.FindSpansResponse) error {
-	return assert.AnError
-}
-
-type captureSpansStream struct {
-	grpc.ServerStream
-	response *api_v3.FindSpansResponse
-}
-
-func (*captureSpansStream) Context() context.Context {
-	return context.Background()
-}
-
-func (s *captureSpansStream) Send(response *api_v3.FindSpansResponse) error {
+func (s *fakeStream[T]) Send(response *T) error {
+	if s.sendErr != nil {
+		return s.sendErr
+	}
 	s.response = response
 	return nil
 }
@@ -573,7 +542,7 @@ func TestFindTraceSummariesPreservesNextPageToken(t *testing.T) {
 		&dependencystoremocks.Reader{},
 		querysvc.QueryServiceOptions{},
 	)}
-	stream := &captureTraceSummariesStream{}
+	stream := &fakeStream[api_v3.FindTraceSummariesResponse]{}
 
 	err := handler.FindTraceSummaries(&api_v3.FindTraceSummariesRequest{
 		Query: &api_v3.TraceQueryParameters{
@@ -646,7 +615,7 @@ func TestFindTraceSummariesSendError(t *testing.T) {
 			StartTimeMin: time.Now().Add(-time.Hour),
 			StartTimeMax: time.Now(),
 		},
-	}, &sendErrorTraceSummariesStream{})
+	}, &fakeStream[api_v3.FindTraceSummariesResponse]{sendErr: assert.AnError})
 	require.ErrorContains(t, err, "failed to send response stream chunk")
 	require.ErrorContains(t, err, assert.AnError.Error())
 	reader.AssertExpectations(t)
@@ -687,7 +656,7 @@ func TestFindSpansPreservesNextPageToken(t *testing.T) {
 		&dependencystoremocks.Reader{},
 		querysvc.QueryServiceOptions{},
 	)}
-	stream := &captureSpansStream{}
+	stream := &fakeStream[api_v3.FindSpansResponse]{}
 
 	err := handler.FindSpans(&api_v3.FindSpansRequest{
 		Query: &api_v3.SpanQueryParameters{
@@ -723,8 +692,8 @@ func TestFindSpansQueryNil(t *testing.T) {
 }
 
 // TestFindSpansPaginationRejected pins that pagination is refused rather than silently dropped:
-// tracestore.SpanQueryParams has no field to carry it yet, so honoring it would return every
-// match instead of the page the caller asked for.
+// no Reader honors it yet. The handler decodes it (spanQueryParams) and the query service is
+// where it is actually refused (prepareSpanSearchQuery), so this exercises both.
 func TestFindSpansPaginationRejected(t *testing.T) {
 	tsc := newTestServerClientWithCapabilities(t, tracestore.SearchCapabilities{SpanSearch: true})
 
@@ -738,6 +707,25 @@ func TestFindSpansPaginationRejected(t *testing.T) {
 	require.NoError(t, err)
 	_, err = responseStream.Recv()
 	require.ErrorContains(t, err, "pagination is not yet supported for span search")
+	assert.Equal(t, codes.InvalidArgument, status.Code(err))
+}
+
+// TestFindSpansMalformedPagination pins the handler's own decode-time refusal: a present but
+// empty Pagination message (page_size unset) is malformed on its own terms, caught by
+// DecodePagination before the query service ever sees it.
+func TestFindSpansMalformedPagination(t *testing.T) {
+	tsc := newTestServerClientWithCapabilities(t, tracestore.SearchCapabilities{SpanSearch: true})
+
+	responseStream, err := tsc.client.FindSpans(context.Background(), &api_v3.FindSpansRequest{
+		Query: &api_v3.SpanQueryParameters{
+			StartTimeMin: time.Now().Add(-2 * time.Hour),
+			StartTimeMax: time.Now(),
+			Pagination:   &api_v3.Pagination{},
+		},
+	})
+	require.NoError(t, err)
+	_, err = responseStream.Recv()
+	require.ErrorContains(t, err, "page_size is required")
 	assert.Equal(t, codes.InvalidArgument, status.Code(err))
 }
 
@@ -797,7 +785,7 @@ func TestFindSpansSendError(t *testing.T) {
 			StartTimeMin: time.Now().Add(-time.Hour),
 			StartTimeMax: time.Now(),
 		},
-	}, &sendErrorSpansStream{})
+	}, &fakeStream[api_v3.FindSpansResponse]{sendErr: assert.AnError})
 	require.ErrorContains(t, err, "failed to send response stream chunk")
 	require.ErrorContains(t, err, assert.AnError.Error())
 	reader.AssertExpectations(t)

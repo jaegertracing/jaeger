@@ -365,6 +365,12 @@ func (qs QueryService) prepareSpanSearchQuery(
 	if !query.StartTimeMin.Before(query.StartTimeMax) {
 		return ctx, query, fmt.Errorf("%w: start_time_min must be before start_time_max", ErrQueryInvalid)
 	}
+	// Pagination is decoded from the wire (tracestore.SpanQueryParams carries the field) but no
+	// Reader honors it yet, so it is refused here rather than silently dropped or reinvented as
+	// an ad hoc check in each API handler.
+	if query.Pagination != (tracestore.Pagination{}) {
+		return ctx, query, fmt.Errorf("%w: pagination is not yet supported for span search", ErrQueryInvalid)
+	}
 	// A search over the time range alone carries no filter and is the base case of a span query
 	// (RFC 0016 §5.1), so the gate and finalization apply only when the caller sent one. Neither
 	// depends on the backend, so both come before the capability call rather than after it.

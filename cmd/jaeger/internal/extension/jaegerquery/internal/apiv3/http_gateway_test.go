@@ -702,8 +702,14 @@ func TestHTTPGatewayFindSpans(t *testing.T) {
 	gw.router.ServeHTTP(w, r)
 
 	require.Equal(t, http.StatusOK, w.Code)
+	// RFC 0018 §6.1: FindSpans has no proto message typed to carry it as GRPCGatewayWrapper.Result
+	// does for the trace endpoints, so the buffered response is wrapped at the JSON level.
+	var wrapper struct {
+		Result json.RawMessage `json:"result"`
+	}
+	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &wrapper))
 	var resp api_v3.FindSpansResponse
-	require.NoError(t, jsonpb.Unmarshal(w.Body, &resp))
+	require.NoError(t, jsonpb.Unmarshal(bytes.NewReader(wrapper.Result), &resp))
 	assert.Equal(t, 1, resp.GetSpans().ToTraces().SpanCount())
 	assert.Equal(t, "next-page", resp.GetNextPageToken())
 }
@@ -749,6 +755,23 @@ func TestHTTPGatewayFindSpansInvalidQuery(t *testing.T) {
 
 	assert.Equal(t, http.StatusBadRequest, w.Code)
 	assert.Contains(t, w.Body.String(), "start_time_min and start_time_max are required")
+}
+
+// TestHTTPGatewayFindSpansMalformedQuery pins the parser's own 400, as distinct from a
+// querysvc-level refusal (TestHTTPGatewayFindSpansInvalidQuery): a query string the parser
+// itself cannot read never reaches the query service at all.
+func TestHTTPGatewayFindSpansMalformedQuery(t *testing.T) {
+	q, _ := mockFindSpansQuery()
+	q.Set("query.filter", `{"op":"eq",`)
+	gw := setupHTTPGatewayNoServer(t, "")
+
+	r := httptest.NewRequest(http.MethodGet, "/api/v3/spans?"+q.Encode(), http.NoBody)
+	w := httptest.NewRecorder()
+
+	gw.router.ServeHTTP(w, r)
+
+	assert.Equal(t, http.StatusBadRequest, w.Code)
+	assert.Contains(t, w.Body.String(), "malformed parameter query.filter")
 }
 
 func TestHTTPGatewayFindSpansPaginationRejected(t *testing.T) {

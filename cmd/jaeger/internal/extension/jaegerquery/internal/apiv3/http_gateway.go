@@ -4,6 +4,7 @@
 package apiv3
 
 import (
+	"bytes"
 	"encoding/base64"
 	"encoding/json"
 	"errors"
@@ -149,6 +150,17 @@ func (*HTTPGateway) marshalResponse(response proto.Message, w http.ResponseWrite
 	_ = new(jsonpb.Marshaler).Marshal(w, response)
 }
 
+// marshalResultWrappedResponse writes response as jsonpb, wrapped in {"result": …} at the JSON
+// level rather than the proto level: unlike the trace endpoints, whose GRPCGatewayWrapper types
+// its result field as TracesData, there is no proto message typed to carry this RPC's response
+// as a wrapped result, so the envelope is applied to the marshaled bytes directly (RFC 0018 §6.1).
+func (*HTTPGateway) marshalResultWrappedResponse(response proto.Message, w http.ResponseWriter) {
+	var buf bytes.Buffer
+	_ = new(jsonpb.Marshaler).Marshal(&buf, response)
+	w.Header().Set("Content-Type", "application/json")
+	fmt.Fprintf(w, `{"result":%s}`, buf.String())
+}
+
 func (h *HTTPGateway) getTrace(w http.ResponseWriter, r *http.Request) {
 	traceIDVar := r.PathValue(paramTraceID)
 	traceID, err := TraceIDFromString(traceIDVar)
@@ -249,7 +261,7 @@ func (h *HTTPGateway) findSpans(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	tracesData := jptrace.TracesData(combined)
-	h.marshalResponse(&api_v3.FindSpansResponse{
+	h.marshalResultWrappedResponse(&api_v3.FindSpansResponse{
 		Spans:         &tracesData,
 		NextPageToken: nextPageToken,
 	}, w)

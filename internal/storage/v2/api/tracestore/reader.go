@@ -145,7 +145,11 @@ type SpanQueryParams struct {
 	StartTimeMin time.Time
 	StartTimeMax time.Time
 	Filter       *expression.Call // RFC 0005
-	// TODO add pagination after RFC 0014 lands
+	// Pagination is decoded from the wire but not yet honored by any Reader: no backend
+	// implementation reads it, and the query service refuses a query that sets it rather than
+	// silently ignoring it. The field exists so that refusal has one place to happen
+	// (querysvc.prepareSpanSearchQuery) instead of being reinvented per API handler.
+	Pagination Pagination // RFC 0014
 }
 
 // UnsupportedSpanSearch provides a Reader.FindSpans implementation for backends that

@@ -405,24 +405,38 @@ func TestParseFindSpansQuery(t *testing.T) {
 		require.ErrorContains(t, err, "filter argument is empty")
 	})
 
-	t.Run("page size rejected", func(t *testing.T) {
+	t.Run("pagination is decoded, not rejected here", func(t *testing.T) {
+		// Whether pagination is acceptable at all is the query service's decision
+		// (prepareSpanSearchQuery); the parser's job is only to decode the scalars.
 		q := url.Values{}
 		q.Set(paramTimeMin, goodMin)
 		q.Set(paramTimeMax, goodMax)
 		q.Set(paramPageSize, "10")
+		q.Set(paramPageToken, "opaque-cursor")
 
-		_, err := parseFindSpansQuery(q)
-		require.ErrorContains(t, err, "pagination is not yet supported for span search")
+		got, err := parseFindSpansQuery(q)
+		require.NoError(t, err)
+		assert.Equal(t, tracestore.Pagination{PageSize: 10, PageToken: "opaque-cursor"}, got.Pagination)
 	})
 
-	t.Run("page token rejected", func(t *testing.T) {
+	t.Run("page token without page size is rejected", func(t *testing.T) {
 		q := url.Values{}
 		q.Set(paramTimeMin, goodMin)
 		q.Set(paramTimeMax, goodMax)
 		q.Set(paramPageToken, "opaque-cursor")
 
 		_, err := parseFindSpansQuery(q)
-		require.ErrorContains(t, err, "pagination is not yet supported for span search")
+		require.ErrorContains(t, err, "page_size is required")
+	})
+
+	t.Run("malformed page size", func(t *testing.T) {
+		q := url.Values{}
+		q.Set(paramTimeMin, goodMin)
+		q.Set(paramTimeMax, goodMax)
+		q.Set(paramPageSize, "not-a-number")
+
+		_, err := parseFindSpansQuery(q)
+		require.ErrorContains(t, err, "malformed parameter query.pagination.pageSize")
 	})
 }
 

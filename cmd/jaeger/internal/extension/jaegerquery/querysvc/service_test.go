@@ -425,6 +425,22 @@ func TestFindSpans_RejectsInvertedTimeRange(t *testing.T) {
 	require.ErrorContains(t, err, "start_time_min must be before start_time_max")
 }
 
+// TestFindSpans_RejectsPagination pins that Pagination is refused centrally, here, rather than
+// by each API handler that decodes it: no Reader honors it yet, so a query that sets it is
+// refused before the reader is ever asked anything.
+func TestFindSpans_RejectsPagination(t *testing.T) {
+	tqs := initializeBareTestQueryService()
+
+	query := SpanQueryParams{tracestore.SpanQueryParams{
+		StartTimeMin: testWindowStart, StartTimeMax: testWindowEnd,
+		Pagination: tracestore.Pagination{PageSize: 10},
+	}}
+	seq := tqs.queryService.FindSpans(context.Background(), query)
+	_, err := jiter.CollectWithErrors(seq)
+	require.ErrorIs(t, err, ErrQueryInvalid)
+	require.ErrorContains(t, err, "pagination is not yet supported for span search")
+}
+
 func TestFindSpans_WithLegacyBackend_UnsupportedError(t *testing.T) {
 	tqs := initializeBareTestQueryService()
 	tqs.traceReader.On("SearchCapabilities", mock.Anything).Return(tracestore.SearchCapabilities{}, errors.New("unsupported")).Once()

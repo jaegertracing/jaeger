@@ -144,15 +144,12 @@ func (h *Handler) FindSpans(request *api_v3.FindSpansRequest, stream api_v3.Quer
 
 // spanQueryParams translates a proto SpanQueryParameters into the query service's shape. What
 // the query must satisfy is the query service's decision (prepareSpanSearchQuery), so nothing is
-// checked here beyond what the translation itself needs. Pagination is the one exception: it is
-// refused here rather than silently dropped, because tracestore.SpanQueryParams has no field to
-// carry it yet, so there is nowhere further down the pipeline this could be decided instead.
+// checked here beyond what the translation itself needs — including whether Pagination is
+// acceptable at all: it is decoded here because decoding is translation, but the query service
+// is where it is refused.
 func spanQueryParams(query *api_v3.SpanQueryParameters) (querysvc.SpanQueryParams, error) {
 	if query == nil {
 		return querysvc.SpanQueryParams{}, status.Error(codes.InvalidArgument, "missing query")
-	}
-	if query.GetPagination() != nil {
-		return querysvc.SpanQueryParams{}, status.Error(codes.InvalidArgument, "pagination is not yet supported for span search")
 	}
 	queryParams := querysvc.SpanQueryParams{
 		SpanQueryParams: tracestore.SpanQueryParams{
@@ -166,6 +163,13 @@ func spanQueryParams(query *api_v3.SpanQueryParameters) (querysvc.SpanQueryParam
 			return querysvc.SpanQueryParams{}, status.Error(codes.InvalidArgument, err.Error())
 		}
 		queryParams.Filter = filter
+	}
+	if pagination := query.GetPagination(); pagination != nil {
+		p, err := tracestore.DecodePagination(pagination.GetPageSize(), pagination.GetPageToken())
+		if err != nil {
+			return querysvc.SpanQueryParams{}, status.Error(codes.InvalidArgument, err.Error())
+		}
+		queryParams.Pagination = p
 	}
 	return queryParams, nil
 }

@@ -5,7 +5,6 @@ package apiv3
 
 import (
 	"encoding/json"
-	"errors"
 	"fmt"
 	"net/url"
 	"strconv"
@@ -58,6 +57,20 @@ const (
 	paramSpanKindDeprecated       = "span_kind"
 )
 
+// parseTimeQueryParam parses value, already resolved from a query parameter, as RFC3339Nano,
+// reporting a malformed value under paramName. An empty value is not an error: it returns the
+// zero time, so a caller can assign the result unconditionally.
+func parseTimeQueryParam(value, paramName string) (time.Time, error) {
+	if value == "" {
+		return time.Time{}, nil
+	}
+	parsed, err := time.Parse(time.RFC3339Nano, value)
+	if err != nil {
+		return time.Time{}, fmt.Errorf("malformed parameter %s: %w", paramName, err)
+	}
+	return parsed, nil
+}
+
 // getQueryParam returns the value and effective param name, preferring the canonical name
 // and falling back to the deprecated alias.
 func getQueryParam(q url.Values, canonical, deprecated string) (value string, paramName string) {
@@ -101,20 +114,18 @@ func parseFindTracesQuery(q url.Values) (*querysvc.TraceQueryParams, error) {
 	// The parser reads each parameter and reports one it cannot read under its own name. Whether
 	// the query as a whole is acceptable (a present and ordered time range, a bounded search
 	// depth) is the query service's decision, so it is not repeated here.
-	if s, paramName := getQueryParam(q, paramTimeMin, paramTimeMinDeprecated); s != "" {
-		parsed, err := time.Parse(time.RFC3339Nano, s)
-		if err != nil {
-			return nil, fmt.Errorf("malformed parameter %s: %w", paramName, err)
-		}
-		queryParams.StartTimeMin = parsed
+	minStr, minParam := getQueryParam(q, paramTimeMin, paramTimeMinDeprecated)
+	startTimeMin, err := parseTimeQueryParam(minStr, minParam)
+	if err != nil {
+		return nil, err
 	}
-	if s, paramName := getQueryParam(q, paramTimeMax, paramTimeMaxDeprecated); s != "" {
-		parsed, err := time.Parse(time.RFC3339Nano, s)
-		if err != nil {
-			return nil, fmt.Errorf("malformed parameter %s: %w", paramName, err)
-		}
-		queryParams.StartTimeMax = parsed
+	queryParams.StartTimeMin = startTimeMin
+	maxStr, maxParam := getQueryParam(q, paramTimeMax, paramTimeMaxDeprecated)
+	startTimeMax, err := parseTimeQueryParam(maxStr, maxParam)
+	if err != nil {
+		return nil, err
 	}
+	queryParams.StartTimeMax = startTimeMax
 
 	n, searchDepthParam := getQueryParam(q, paramSearchDepth, paramSearchDepthDeprecated)
 	if n == "" {
@@ -155,33 +166,23 @@ func parseFindTracesQuery(q url.Values) (*querysvc.TraceQueryParams, error) {
 
 // parseFindSpansQuery parses the query parameters for a span search (RFC 0016 §4.3). The parser
 // reads each parameter and reports one it cannot read under its own name; whether the query as a
-// whole is acceptable (a present and ordered time range) is the query service's decision
-// (prepareSpanSearchQuery), so it is not repeated here. Pagination is the one exception: it is
-// refused here rather than silently dropped, because tracestore.SpanQueryParams has no field to
-// carry it yet, so there is nowhere further down the pipeline this could be decided instead.
+// whole is acceptable (a present and ordered time range, pagination) is the query service's
+// decision (prepareSpanSearchQuery), so it is not repeated here.
 func parseFindSpansQuery(q url.Values) (*querysvc.SpanQueryParams, error) {
-	if q.Get(paramPageSize) != "" || q.Get(paramPageToken) != "" {
-		return nil, errors.New("pagination is not yet supported for span search")
-	}
-
 	queryParams := &querysvc.SpanQueryParams{}
 
 	// This is a new endpoint with no callers to keep the deprecated snake_case aliases for, so
 	// it reads only the canonical camelCase params.
-	if s := q.Get(paramTimeMin); s != "" {
-		parsed, err := time.Parse(time.RFC3339Nano, s)
-		if err != nil {
-			return nil, fmt.Errorf("malformed parameter %s: %w", paramTimeMin, err)
-		}
-		queryParams.StartTimeMin = parsed
+	startTimeMin, err := parseTimeQueryParam(q.Get(paramTimeMin), paramTimeMin)
+	if err != nil {
+		return nil, err
 	}
-	if s := q.Get(paramTimeMax); s != "" {
-		parsed, err := time.Parse(time.RFC3339Nano, s)
-		if err != nil {
-			return nil, fmt.Errorf("malformed parameter %s: %w", paramTimeMax, err)
-		}
-		queryParams.StartTimeMax = parsed
+	queryParams.StartTimeMin = startTimeMin
+	startTimeMax, err := parseTimeQueryParam(q.Get(paramTimeMax), paramTimeMax)
+	if err != nil {
+		return nil, err
 	}
+	queryParams.StartTimeMax = startTimeMax
 
 	if filterParam := q.Get(paramFilter); filterParam != "" {
 		var call expressionproto.Call
@@ -193,6 +194,22 @@ func parseFindSpansQuery(q url.Values) (*querysvc.SpanQueryParams, error) {
 			return nil, fmt.Errorf("malformed parameter %s: %w", paramFilter, err)
 		}
 		queryParams.Filter = filter
+	}
+
+	if pageSizeStr := q.Get(paramPageSize); pageSizeStr != "" || q.Get(paramPageToken) != "" {
+		var pageSize uint64
+		if pageSizeStr != "" {
+			var err error
+			pageSize, err = strconv.ParseUint(pageSizeStr, 10, 32)
+			if err != nil {
+				return nil, fmt.Errorf("malformed parameter %s: %w", paramPageSize, err)
+			}
+		}
+		p, err := tracestore.DecodePagination(uint32(pageSize), q.Get(paramPageToken))
+		if err != nil {
+			return nil, err
+		}
+		queryParams.Pagination = p
 	}
 	return queryParams, nil
 }
