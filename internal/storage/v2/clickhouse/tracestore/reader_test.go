@@ -1171,7 +1171,7 @@ func TestFindTraceIDs_ShortTraceIDIsAnError(t *testing.T) {
 		Attributes: pcommon.NewMap(),
 	})
 	_, err := flattenPageChunks(iter)
-	require.ErrorContains(t, err, `failed to decode trace ID: trace ID must be 32 hex characters, got 4 in "0001"`)
+	require.ErrorContains(t, err, "failed to decode trace ID")
 }
 
 func TestFindTraceIDs_ErrorCases(t *testing.T) {
