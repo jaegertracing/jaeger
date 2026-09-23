@@ -127,13 +127,18 @@ connectors:
       max_elapsed_time: 0
     queue:
       wait_for_result: true
+      # A full queue waits for room instead of failing the record: the failure
+      # would otherwise reach the receiver before any retry and pause the partition.
+      block_on_overflow: true
       sizer: bytes
       num_consumers: 1
       queue_size: 104857600 # 100 MiB of buffered spans
       batch:
         sizer: bytes
         flush_timeout: 200ms
-        min_size: 0 # flush as soon as flush_timeout elapses; keeps the e2e latency low
+        # min_size must be positive: at 0 the batcher flushes every record as it
+        # arrives and merges nothing. Below 1 MiB the batch waits for flush_timeout.
+        min_size: 1048576
         max_size: 4194304 # 4 MiB, kept <= bulk_processing.max_bytes above
 
 exporters:
