@@ -85,19 +85,15 @@ func newConnector(ctx context.Context, set connector.Settings, cfg *Config, next
 		exporter.Settings{ID: set.ID, TelemetrySettings: set.TelemetrySettings, BuildInfo: set.BuildInfo},
 		cfg,
 		c.writeTraces,
-		exporterhelper.WithCapabilities(consumer.Capabilities{MutatesData: false}),
-		exporterhelper.WithTimeout(exporterhelper.TimeoutConfig{Timeout: 0}),
-		exporterhelper.WithRetry(cfg.RetryConfig),
-		exporterhelper.WithQueue(cfg.QueueConfig),
-		// Start resolves the storage writer. The storage has to be one whose
-		// writer reports the spans it rejects through a
+		// The pipeline's start step resolves the storage writer. The storage has to
+		// be one whose writer reports the spans it rejects through a
 		// *tracestore.RejectedSpansError (for Elasticsearch/OpenSearch:
 		// write_mode: sync with poison_pill_handling: fail); against any other
 		// storage the connector still writes correctly but nothing ever reaches
 		// the dead-letter pipeline, so that requirement is documented rather than
 		// checked, as are the other settings of the at-least-once topology (RFC
 		// 0007 §4.5).
-		exporterhelper.WithStart(c.writer.Start),
+		cfg.pipelineOptions(c.writer)...,
 	)
 	if err != nil {
 		return nil, err

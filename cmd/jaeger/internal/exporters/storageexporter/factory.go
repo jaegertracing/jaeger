@@ -46,17 +46,21 @@ func createDefaultConfig() component.Config {
 func createTracesExporter(ctx context.Context, set exporter.Settings, config component.Config) (exporter.Traces, error) {
 	cfg := config.(*Config)
 	ex := NewTraceWriter(cfg, set.TelemetrySettings)
-	return exporterhelper.NewTraces(
-		ctx, set, cfg,
-		ex.WriteTraces,
+	return exporterhelper.NewTraces(ctx, set, cfg, ex.WriteTraces, cfg.pipelineOptions(ex)...)
+}
+
+// pipelineOptions returns the exporterhelper options both forms of
+// jaeger_storage_exporter build their pipeline with: the configured queue and
+// retry policy, no timeout, and a start step that resolves w's storage writer.
+func (cfg *Config) pipelineOptions(w *TraceWriter) []exporterhelper.Option {
+	return []exporterhelper.Option{
 		exporterhelper.WithCapabilities(consumer.Capabilities{MutatesData: false}),
-		// Disable Timeout
 		exporterhelper.WithTimeout(exporterhelper.TimeoutConfig{Timeout: 0}),
 		exporterhelper.WithRetry(cfg.RetryConfig),
 		exporterhelper.WithQueue(cfg.QueueConfig),
-		exporterhelper.WithStart(ex.Start),
-		exporterhelper.WithShutdown(ex.close),
-	)
+		exporterhelper.WithStart(w.Start),
+		exporterhelper.WithShutdown(w.close),
+	}
 }
 
 // NewConnectorFactory creates the connector factory for jaeger_storage_exporter:
