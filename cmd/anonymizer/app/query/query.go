@@ -8,22 +8,22 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"strings"
 	"time"
 
+	"go.opentelemetry.io/collector/pdata/pcommon"
+	"go.opentelemetry.io/collector/pdata/ptrace"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/grpc/status"
 
-	"github.com/jaegertracing/jaeger-idl/model/v1"
-	"github.com/jaegertracing/jaeger-idl/proto-gen/api_v2"
-	_ "github.com/jaegertracing/jaeger/internal/gogocodec" // force gogo codec registration
+	"github.com/jaegertracing/jaeger/internal/proto/api_v3"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/api/spanstore"
 )
 
 // Query represents a jaeger-query's query for trace-id
 type Query struct {
-	client api_v2.QueryServiceClient
+	client api_v3.QueryServiceClient
 	conn   *grpc.ClientConn
 }
 
@@ -35,48 +35,73 @@ func New(addr string) (*Query, error) {
 	}
 
 	return &Query{
-		client: api_v2.NewQueryServiceClient(conn),
+		client: api_v3.NewQueryServiceClient(conn),
 		conn:   conn,
 	}, nil
 }
 
 // unwrapNotFoundErr is a conversion function
 func unwrapNotFoundErr(err error) error {
-	if s, _ := status.FromError(err); s != nil {
-		if strings.Contains(s.Message(), spanstore.ErrTraceNotFound.Error()) {
-			return spanstore.ErrTraceNotFound
-		}
+	if status.Code(err) == codes.NotFound {
+		return spanstore.ErrTraceNotFound
 	}
 	return err
 }
 
-// QueryTrace queries for a trace and returns all spans inside it
-func (q *Query) QueryTrace(traceID string, startTime time.Time, endTime time.Time) ([]model.Span, error) {
-	mTraceID, err := model.TraceIDFromString(traceID)
-	if err != nil {
-		return nil, fmt.Errorf("failed to convert the provided trace id: %w", err)
-	}
+// QueryTrace queries for a trace and returns it as one ptrace.Traces. A positive maxSpans stops
+// reading the stream once that many spans have arrived and drops the ones beyond it, so a very
+// large trace is never held in memory in full.
+func (q *Query) QueryTrace(
+	traceID pcommon.TraceID,
+	startTime time.Time,
+	endTime time.Time,
+	maxSpans int,
+) (ptrace.Traces, error) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
 
-	request := api_v2.GetTraceRequest{
-		TraceID:   mTraceID,
+	request := api_v3.GetTraceRequest{
+		TraceId:   traceID.String(),
 		StartTime: startTime,
 		EndTime:   endTime,
 	}
 
-	stream, err := q.client.GetTrace(context.Background(), &request)
+	stream, err := q.client.GetTrace(ctx, &request)
 	if err != nil {
-		return nil, unwrapNotFoundErr(err)
+		return ptrace.Traces{}, unwrapNotFoundErr(err)
 	}
 
-	var spans []model.Span
-	for received, err := stream.Recv(); !errors.Is(err, io.EOF); received, err = stream.Recv() {
-		if err != nil {
-			return nil, unwrapNotFoundErr(err)
+	trace := ptrace.NewTraces()
+	for {
+		chunk, err := stream.Recv()
+		if errors.Is(err, io.EOF) {
+			return trace, nil
 		}
-		spans = append(spans, received.Spans...)
+		if err != nil {
+			return ptrace.Traces{}, unwrapNotFoundErr(err)
+		}
+		chunk.ToTraces().ResourceSpans().MoveAndAppendTo(trace.ResourceSpans())
+		if maxSpans > 0 && trace.SpanCount() >= maxSpans {
+			truncate(trace, maxSpans)
+			return trace, nil
+		}
 	}
+}
 
-	return spans, nil
+// truncate keeps the first maxSpans spans of the trace in stream order, and drops the scope and
+// resource entries left without spans.
+func truncate(trace ptrace.Traces, maxSpans int) {
+	kept := 0
+	trace.ResourceSpans().RemoveIf(func(rs ptrace.ResourceSpans) bool {
+		rs.ScopeSpans().RemoveIf(func(ss ptrace.ScopeSpans) bool {
+			ss.Spans().RemoveIf(func(ptrace.Span) bool {
+				kept++
+				return kept > maxSpans
+			})
+			return ss.Spans().Len() == 0
+		})
+		return rs.ScopeSpans().Len() == 0
+	})
 }
 
 // Close closes the grpc client connection
