@@ -37,13 +37,16 @@ func (td *TracesData) MarshalTo(buf []byte) (n int, err error) {
 	return td.MarshalToSizedBuffer(buf)
 }
 
-// MarshalToSizedBuffer is used by Gogo.
+// MarshalToSizedBuffer is used by Gogo. The buffer is sized exactly to what Size() reports, and
+// a caller marshaling a parent message writes fields back-to-front, decrementing its own cursor
+// by the size this call reports; the copy has to land at the tail of buf, not the head, or it
+// clobbers whatever the parent already wrote after this field's position.
 func (td *TracesData) MarshalToSizedBuffer(buf []byte) (int, error) {
 	data, err := td.Marshal()
 	if err != nil {
 		return 0, err
 	}
-	n := copy(buf, data)
+	n := copy(buf[len(buf)-len(data):], data)
 	return n, nil
 }
 
