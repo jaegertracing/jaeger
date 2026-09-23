@@ -3,7 +3,7 @@
 - **Status:** Draft
 - **Author:** Yuri Shkuro
 - **Created:** 2026-08-12
-- **Last Updated:** 2026-09-20
+- **Last Updated:** 2026-09-23
 - **Related:** [RFC 0005 (structured query filters)](0005-structured-query-filters.md), [RFC 0011 (trace summary API)](0011-trace-summary-api.md), [ADR-013 (storage capability declaration)](../adr/013-storage-capability-declaration.md)
 
 ---
@@ -424,14 +424,14 @@ The pagination-model comparison (offset vs. keyset vs. opaque token) is the §3 
 
 PR-sized milestones with explicit exit bars, grouped by layer, bottom-up so each rests on the one before. The proto and interface stages are additive and change no behavior; the ES/OS stage is where the correctness fix and the user-visible capability land.
 
-**✅ M1 — Proto foundation (jaeger-idl).** Delivered by [jaeger-idl#213](https://github.com/jaegertracing/jaeger-idl/pull/213). Add the `Pagination` message and a `pagination` field on `TraceQueryParameters` in both api_v3 and storage/v2; add `next_page_token` to `FindTraceIDsResponse` and `FindTraceSummariesResponse`; add the `paginated` field to `storage.v2.SearchCapabilities`. Legacy fields untouched; field numbers coordinated with RFC 0005. *Exit:* generated types compile and vendor cleanly; existing api_v3/storage callers byte-for-byte unaffected.
+✅ **M1 — Proto foundation (jaeger-idl).** Delivered by [jaeger-idl#213](https://github.com/jaegertracing/jaeger-idl/pull/213). Add the `Pagination` message and a `pagination` field on `TraceQueryParameters` in both api_v3 and storage/v2; add `next_page_token` to `FindTraceIDsResponse` and `FindTraceSummariesResponse`; add the `paginated` field to `storage.v2.SearchCapabilities`. Legacy fields untouched; field numbers coordinated with RFC 0005. *Exit:* generated types compile and vendor cleanly; existing api_v3/storage callers byte-for-byte unaffected.
 
 🚧 **M2 — Internal interface and query-service plumbing.** Extend `TraceQueryParams` with the nested `Pagination` struct (§5); add the generic `PageChunk[T]` envelope and use it for `FindTraceIDs`, `FindTraceSummaries`, and `FindSpans` (§5); add `Paginated` to `SearchCapabilities`; implement token minting, fingerprint binding (§3.2), the page_size maximum (§4), and the degradation rules (§6.2) centrally in the query service. No backend paginates yet — every reader declares `Paginated = false`, so the query service serves one capped page and reports it. *Exit:* a request with no token returns today's results; a token against a non-paginating backend is rejected; the capability is reported to the UI.
 
-- ✅ Storage contract: the `Pagination` struct on `TraceQueryParams`, `SearchCapabilities.Paginated`, the `MaxPageSize` clamp and the admission errors. Delivered in [#9570](https://github.com/jaegertracing/jaeger/pull/9570).
+- ✅ Storage contract: the `Pagination` struct on `TraceQueryParams`, `SearchCapabilities.Paginated`, the `MaxPageSize` constant and the admission errors. Delivered in [#9570](https://github.com/jaegertracing/jaeger/pull/9570).
 - ✅ Request-side admission in the query service: the `jaeger.query.pagination` feature gate, the §4 refusals (`pagination` beside `search_depth`, a zero `page_size`, `pagination` on `FindTraces`), and the §6.2 rule that clears `Pagination` for a reader declaring `Paginated = false` and rejects a `page_token` presented to one. Delivered in [#9450](https://github.com/jaegertracing/jaeger/pull/9450), with the clamp corrected in [#9617](https://github.com/jaegertracing/jaeger/pull/9617) and [#9618](https://github.com/jaegertracing/jaeger/pull/9618).
 - ✅ Response side: the generic `PageChunk[T]` envelope returned by `FindTraceIDs`, `FindTraceSummaries` and `FindSpans`, with `next_page_token` carried through the query service and both gRPC surfaces. Delivered in [#9585](https://github.com/jaegertracing/jaeger/pull/9585).
-- The token format of §3.2, its query fingerprint and the check on continuation, and the `paginated` entry in the capabilities the UI reads. These arrive with the first paginating backend (M3), which is the first reader that mints a token.
+- Still open: the token format of §3.2 with its query fingerprint and the check on continuation, and the `paginated` entry in the capabilities the UI reads. The fingerprint check has nothing to verify until a reader mints a token, so it lands together with the first paginating backend (M3); the capabilities entry has no such dependency and can be added now.
 
 **M3 — Elasticsearch/OpenSearch.** Add a `collapse` clause to `esquery`; replace the terms aggregation in `FindTraceIDs` with the collapse + `search_after` scheme (§7); mint/decode the result cursor (§7.4); keep the intra-trace span cursor separate (§7.3); declare `Paginated = true`. This also fixes the cross-shard ordering approximation of §1.2. *Exit:* start-to-finish paging over a fixed dataset visits every matching trace exactly once in most-recent-first order; a shard-count-varying integration test asserts completeness; a test writes a late span that raises an already-returned trace's maximum `startTime` mid-traversal and asserts the trace is not returned a second time (§3.4); unqualified single-page results match today's within the ordering fix.
 
