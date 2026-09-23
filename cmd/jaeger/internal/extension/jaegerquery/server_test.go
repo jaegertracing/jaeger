@@ -10,6 +10,7 @@ import (
 	"io"
 	"iter"
 	"net/http"
+	"strings"
 	"testing"
 	"time"
 
@@ -23,6 +24,7 @@ import (
 	"go.opentelemetry.io/collector/config/confighttp"
 	"go.opentelemetry.io/collector/config/confignet"
 	"go.opentelemetry.io/collector/config/configoptional"
+	"go.opentelemetry.io/collector/featuregate"
 	"go.opentelemetry.io/collector/pdata/pcommon"
 	"go.opentelemetry.io/collector/pdata/ptrace"
 	noopmetric "go.opentelemetry.io/otel/metric/noop"
@@ -49,10 +51,11 @@ import (
 
 type fakeFactory struct {
 	name string
-	// searchWithoutServiceName is what the reader this factory builds declares, and
-	// capabilitiesErr makes that reader unable to answer, so a test can drive both inputs
-	// server.Start takes from storage.
+	// searchWithoutServiceName and paginated are what the reader this factory builds
+	// declares, and capabilitiesErr makes that reader unable to answer, so a test can drive
+	// every input server.Start takes from storage.
 	searchWithoutServiceName bool
+	paginated                bool
 	capabilitiesErr          error
 }
 
@@ -70,7 +73,10 @@ func (ff fakeFactory) CreateTraceReader() (tracestore.Reader, error) {
 	reader := &tracestoremocks.Reader{}
 	reader.On("SearchCapabilities", mock.Anything).
 		Return(
-			tracestore.SearchCapabilities{WithoutServiceName: ff.searchWithoutServiceName},
+			tracestore.SearchCapabilities{
+				WithoutServiceName: ff.searchWithoutServiceName,
+				Paginated:          ff.paginated,
+			},
 			ff.capabilitiesErr,
 		).
 		Maybe()
@@ -116,6 +122,8 @@ func (fakeStorageExt) TraceStorageFactory(name string) (tracestore.Factory, erro
 		return nil, errors.New("test-error")
 	case "serviceless-search-store":
 		return fakeFactory{name: name, searchWithoutServiceName: true}, nil
+	case "paginated-search-store":
+		return fakeFactory{name: name, paginated: true}, nil
 	case "unknowable-capabilities-store":
 		return fakeFactory{name: name, capabilitiesErr: errors.New("cannot ask the backend")}, nil
 	}
@@ -589,17 +597,29 @@ func TestBuildAIHealthChecker(t *testing.T) {
 	}
 }
 
+// enablePaginationGate opts the deployment into RFC 0014 pagination for one test.
+func enablePaginationGate(t *testing.T) {
+	original := querysvc.PaginationGate.IsEnabled()
+	require.NoError(t, featuregate.GlobalRegistry().Set(querysvc.PaginationGate.ID(), true))
+	t.Cleanup(func() {
+		require.NoError(t, featuregate.GlobalRegistry().Set(querysvc.PaginationGate.ID(), original))
+	})
+}
+
 // TestServerReportsSearchCapabilityToUI covers the other half of the wiring: what the SPA is
 // told. A backend that declares the capability has it injected; one that cannot be asked is
 // reported as the least capable, and says why in the log, which is the only place an operator
 // can find out that the missing "All Services" option is a reachability problem rather than a
-// backend limitation.
+// backend limitation. Pagination is injected only when the jaeger.query.pagination gate admits
+// it as well, since the UI must not offer a continuation the query service would refuse
+// (RFC 0014 §6.2).
 func TestServerReportsSearchCapabilityToUI(t *testing.T) {
 	tests := []struct {
-		name        string
-		store       string
-		expected    string
-		expectedLog string
+		name           string
+		store          string
+		paginationGate bool // opt the deployment into RFC 0014 pagination
+		expected       string
+		expectedLog    string
 	}{
 		{
 			name:     "declared capability reaches the UI",
@@ -617,9 +637,30 @@ func TestServerReportsSearchCapabilityToUI(t *testing.T) {
 			expected:    `"searchWithoutServiceName":false`,
 			expectedLog: "Storage did not report its search capabilities",
 		},
+		{
+			name:           "declared pagination reaches the UI once the gate admits it",
+			store:          "paginated-search-store",
+			paginationGate: true,
+			expected:       `"searchPaginated":true`,
+		},
+		{
+			name:     "declared pagination is withheld while the gate is off",
+			store:    "paginated-search-store",
+			expected: `"searchPaginated":false`,
+		},
+		{
+			name:           "a backend that cannot be asked is logged once, not once per flag",
+			store:          "unknowable-capabilities-store",
+			paginationGate: true,
+			expected:       `"searchPaginated":false`,
+			expectedLog:    "Storage did not report its search capabilities",
+		},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
+			if test.paginationGate {
+				enablePaginationGate(t)
+			}
 			logger, logBuf := testutils.NewLogger()
 			host := storagetest.NewStorageHost().WithExtension(jaegerstorage.ID, fakeStorageExt{})
 			srv := newServer(&Config{
@@ -659,6 +700,8 @@ func TestServerReportsSearchCapabilityToUI(t *testing.T) {
 			if test.expectedLog != "" {
 				assert.Contains(t, logBuf.String(), test.expectedLog)
 				assert.Contains(t, logBuf.String(), "cannot ask the backend", "the reader's reason must survive")
+				assert.Equal(t, 1, strings.Count(logBuf.String(), test.expectedLog),
+					"the reader is asked for each flag, but a failure is logged once")
 			} else {
 				assert.NotContains(t, logBuf.String(), "Storage did not report")
 			}

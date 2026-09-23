@@ -81,7 +81,7 @@ func TestRegisterStaticHandler(t *testing.T) {
 			logAccess:                   true,
 			UIConfigPath:                "",
 			expectedUIConfig:            "JAEGER_CONFIG=DEFAULT_CONFIG;",
-			expectedBackendCapabilities: `JAEGER_BACKEND_CAPABILITIES = {"archiveStorage":false,"metricsStorage":false,"searchWithoutServiceName":false,"aiAssistant":false};`,
+			expectedBackendCapabilities: `JAEGER_BACKEND_CAPABILITIES = {"archiveStorage":false,"metricsStorage":false,"searchWithoutServiceName":false,"searchPaginated":false,"aiAssistant":false};`,
 		},
 		{
 			basePath:                    "/",
@@ -89,7 +89,7 @@ func TestRegisterStaticHandler(t *testing.T) {
 			archiveStorage:              false,
 			UIConfigPath:                "fixture/ui-config.json",
 			expectedUIConfig:            `JAEGER_CONFIG = {"x":"y"};`,
-			expectedBackendCapabilities: `JAEGER_BACKEND_CAPABILITIES = {"archiveStorage":false,"metricsStorage":false,"searchWithoutServiceName":false,"aiAssistant":false};`,
+			expectedBackendCapabilities: `JAEGER_BACKEND_CAPABILITIES = {"archiveStorage":false,"metricsStorage":false,"searchWithoutServiceName":false,"searchPaginated":false,"aiAssistant":false};`,
 		},
 		{
 			basePath:                    "/jaeger",
@@ -98,7 +98,7 @@ func TestRegisterStaticHandler(t *testing.T) {
 			archiveStorage:              true,
 			UIConfigPath:                "fixture/ui-config.js",
 			expectedUIConfig:            "function UIConfig(){",
-			expectedBackendCapabilities: `JAEGER_BACKEND_CAPABILITIES = {"archiveStorage":true,"metricsStorage":false,"searchWithoutServiceName":false,"aiAssistant":false};`,
+			expectedBackendCapabilities: `JAEGER_BACKEND_CAPABILITIES = {"archiveStorage":true,"metricsStorage":false,"searchWithoutServiceName":false,"searchPaginated":false,"aiAssistant":false};`,
 		},
 		{
 			basePath:                    "/metrics",
@@ -107,7 +107,7 @@ func TestRegisterStaticHandler(t *testing.T) {
 			metricsStorage:              true,
 			UIConfigPath:                "fixture/ui-config.js",
 			expectedUIConfig:            "function UIConfig(){",
-			expectedBackendCapabilities: `JAEGER_BACKEND_CAPABILITIES = {"archiveStorage":false,"metricsStorage":true,"searchWithoutServiceName":false,"aiAssistant":false};`,
+			expectedBackendCapabilities: `JAEGER_BACKEND_CAPABILITIES = {"archiveStorage":false,"metricsStorage":true,"searchWithoutServiceName":false,"searchPaginated":false,"aiAssistant":false};`,
 		},
 	}
 	httpClient = &http.Client{
@@ -188,6 +188,7 @@ func TestStaticHandlerInjectsBackendCapabilities(t *testing.T) {
 				ArchiveStorage:           true,
 				MetricsStorage:           true,
 				SearchWithoutServiceName: true,
+				SearchPaginated:          true,
 				AIAssistant:              true,
 			},
 		},
@@ -211,9 +212,9 @@ func TestStaticHandlerInjectsBackendCapabilities(t *testing.T) {
 			body := rr.Body.String()
 
 			expected := fmt.Sprintf(
-				`JAEGER_BACKEND_CAPABILITIES = {"archiveStorage":%t,"metricsStorage":%t,"searchWithoutServiceName":%t,"aiAssistant":%t};`,
+				`JAEGER_BACKEND_CAPABILITIES = {"archiveStorage":%t,"metricsStorage":%t,"searchWithoutServiceName":%t,"searchPaginated":%t,"aiAssistant":%t};`,
 				tt.caps.ArchiveStorage, tt.caps.MetricsStorage,
-				tt.caps.SearchWithoutServiceName, tt.caps.AIAssistant,
+				tt.caps.SearchWithoutServiceName, tt.caps.SearchPaginated, tt.caps.AIAssistant,
 			)
 			assert.Contains(t, body, expected, "backend capabilities injection mismatch")
 		})

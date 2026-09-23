@@ -122,10 +122,14 @@ func (s *server) Start(ctx context.Context, host component.Host) error {
 			telset.Logger.Info("Storage did not report its search capabilities; assuming baseline",
 				zap.Error(err))
 		}
+		// The same reader answers this one, so a failure was logged just above and reads
+		// as the baseline the method already returns.
+		searchPaginated, _ := qs.SearchPaginated(ctx)
 		return queryapp.BackendCapabilities{
 			ArchiveStorage:           archiveStorage,
 			MetricsStorage:           metricsStorage,
 			SearchWithoutServiceName: searchWithoutServiceName,
+			SearchPaginated:          searchPaginated,
 			AIAssistant:              s.aiHealth != nil && s.aiHealth.Current(),
 		}
 	}
