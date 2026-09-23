@@ -4,12 +4,14 @@
 package anonymizer
 
 import (
+	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"hash/fnv"
 	"os"
 	"path/filepath"
+	"sync"
+	"time"
 
 	"go.opentelemetry.io/collector/pdata/pcommon"
 	"go.opentelemetry.io/collector/pdata/ptrace"
@@ -18,8 +20,6 @@ import (
 	"github.com/jaegertracing/jaeger/internal/telemetry/otelsemconv"
 )
 
-// allowedTags are the span attributes kept by default, because they describe the shape of a request
-// rather than anything specific to the site that produced it.
 var allowedTags = map[string]bool{
 	"error":            true,
 	"http.method":      true,
@@ -45,8 +45,11 @@ type mapping struct {
 type Anonymizer struct {
 	mappingFile string
 	logger      *zap.Logger
+	lock        sync.Mutex
 	mapping     mapping
 	options     Options
+	cancel      context.CancelFunc
+	wg          sync.WaitGroup
 }
 
 // Options represents the various options with which the anonymizer can be configured.
@@ -59,8 +62,8 @@ type Options struct {
 
 // New creates new Anonymizer. The mappingFile stores the mapping from original to
 // obfuscated strings, in case later investigations require looking at the original traces.
-// A mapping left by an earlier run is loaded, so the same name hashes the same way across runs.
-func New(mappingFile string, options Options, logger *zap.Logger) (*Anonymizer, error) {
+func New(mappingFile string, options Options, logger *zap.Logger) *Anonymizer {
+	ctx, cancel := context.WithCancel(context.Background())
 	a := &Anonymizer{
 		mappingFile: mappingFile,
 		logger:      logger,
@@ -69,31 +72,53 @@ func New(mappingFile string, options Options, logger *zap.Logger) (*Anonymizer, 
 			Operations: make(map[string]string),
 		},
 		options: options,
+		cancel:  cancel,
 	}
-	dat, err := os.ReadFile(filepath.Clean(mappingFile))
-	switch {
-	case errors.Is(err, os.ErrNotExist):
-		return a, nil
-	case err != nil:
-		return nil, fmt.Errorf("cannot load previous mapping: %w", err)
+	if _, err := os.Stat(filepath.Clean(mappingFile)); err == nil {
+		dat, err := os.ReadFile(filepath.Clean(mappingFile))
+		if err != nil {
+			logger.Fatal("Cannot load previous mapping", zap.Error(err))
+		}
+		if err := json.Unmarshal(dat, &a.mapping); err != nil {
+			logger.Fatal("Cannot unmarshal previous mapping", zap.Error(err))
+		}
 	}
-	if err := json.Unmarshal(dat, &a.mapping); err != nil {
-		return nil, fmt.Errorf("cannot unmarshal previous mapping: %w", err)
-	}
-	return a, nil
+	a.wg.Go(func() {
+		ticker := time.NewTicker(10 * time.Second)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-ticker.C:
+				a.SaveMapping()
+			case <-ctx.Done():
+				return
+			}
+		}
+	})
+	return a
 }
 
-// SaveMapping writes the mapping from hashed names to original names to the file.
-func (a *Anonymizer) SaveMapping() error {
+func (a *Anonymizer) Stop() {
+	a.cancel()
+	a.wg.Wait()
+}
+
+// SaveMapping writes the mapping from original to obfuscated strings to a file.
+// It is called by the anonymizer itself periodically, and should be called at
+// the end of the extraction run.
+func (a *Anonymizer) SaveMapping() {
+	a.lock.Lock()
+	defer a.lock.Unlock()
 	dat, err := json.Marshal(a.mapping)
 	if err != nil {
-		return fmt.Errorf("failed to marshal mapping file: %w", err)
+		a.logger.Error("Failed to marshal mapping file", zap.Error(err))
+		return
 	}
 	if err := os.WriteFile(filepath.Clean(a.mappingFile), dat, PermUserRW); err != nil {
-		return fmt.Errorf("failed to write mapping file: %w", err)
+		a.logger.Error("Failed to write mapping file", zap.Error(err))
+		return
 	}
 	a.logger.Sugar().Infof("Saved mapping file %s: %s", a.mappingFile, string(dat))
-	return nil
 }
 
 func (a *Anonymizer) mapServiceName(service string) string {
@@ -105,7 +130,9 @@ func (a *Anonymizer) mapOperationName(service, operation string) string {
 	return a.mapString(v, a.mapping.Operations)
 }
 
-func (*Anonymizer) mapString(v string, m map[string]string) string {
+func (a *Anonymizer) mapString(v string, m map[string]string) string {
+	a.lock.Lock()
+	defer a.lock.Unlock()
 	if s, ok := m[v]; ok {
 		return s
 	}
@@ -127,18 +154,20 @@ func hash(value string) string {
 //     the rest are hashed with HashCustomTags, otherwise dropped;
 //   - span events, the v1 logs: name and attributes hashed with HashLogs, otherwise dropped.
 //
-// OTLP carries some text v1 had no place for: the instrumentation scope, link attributes and the
-// span status message. Each can hold site-specific strings, so each is treated as a custom
+// OTLP carries some text v1 had no place for: schema URLs, the instrumentation scope, link
+// attributes and the span status message. Each can hold site-specific strings, so each is treated as a custom
 // attribute. The trace state, which v1 did not keep, is cleared. The span kind and status code are
 // enumerations rather than text, so they are kept as they are.
 func (a *Anonymizer) AnonymizeTraces(traces ptrace.Traces) {
 	for _, rs := range traces.ResourceSpans().All() {
+		rs.SetSchemaUrl(a.customText(rs.SchemaUrl()))
 		service, hasService := rs.Resource().Attributes().Get(string(otelsemconv.ServiceNameKey))
 		serviceName := ""
 		if hasService {
 			serviceName = service.AsString()
 		}
 		for _, ss := range rs.ScopeSpans().All() {
+			ss.SetSchemaUrl(a.customText(ss.SchemaUrl()))
 			a.anonymizeScope(ss.Scope())
 			for _, span := range ss.Spans().All() {
 				a.anonymizeSpan(serviceName, span)

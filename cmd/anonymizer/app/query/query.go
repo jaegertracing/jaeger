@@ -10,7 +10,6 @@ import (
 	"io"
 	"time"
 
-	"go.opentelemetry.io/collector/pdata/pcommon"
 	"go.opentelemetry.io/collector/pdata/ptrace"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
@@ -48,60 +47,28 @@ func unwrapNotFoundErr(err error) error {
 	return err
 }
 
-// QueryTrace queries for a trace and returns it as one ptrace.Traces. A positive maxSpans stops
-// reading the stream once that many spans have arrived and drops the ones beyond it, so a very
-// large trace is never held in memory in full.
-func (q *Query) QueryTrace(
-	traceID pcommon.TraceID,
-	startTime time.Time,
-	endTime time.Time,
-	maxSpans int,
-) (ptrace.Traces, error) {
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-
+// QueryTrace queries for a trace and returns it, with the chunks of the stream merged into one
+func (q *Query) QueryTrace(traceID string, startTime time.Time, endTime time.Time) (ptrace.Traces, error) {
 	request := api_v3.GetTraceRequest{
-		TraceId:   traceID.String(),
+		TraceId:   traceID,
 		StartTime: startTime,
 		EndTime:   endTime,
 	}
 
-	stream, err := q.client.GetTrace(ctx, &request)
+	stream, err := q.client.GetTrace(context.Background(), &request)
 	if err != nil {
 		return ptrace.Traces{}, unwrapNotFoundErr(err)
 	}
 
 	trace := ptrace.NewTraces()
-	for {
-		chunk, err := stream.Recv()
-		if errors.Is(err, io.EOF) {
-			return trace, nil
-		}
+	for received, err := stream.Recv(); !errors.Is(err, io.EOF); received, err = stream.Recv() {
 		if err != nil {
 			return ptrace.Traces{}, unwrapNotFoundErr(err)
 		}
-		chunk.ToTraces().ResourceSpans().MoveAndAppendTo(trace.ResourceSpans())
-		if maxSpans > 0 && trace.SpanCount() >= maxSpans {
-			truncate(trace, maxSpans)
-			return trace, nil
-		}
+		received.ToTraces().ResourceSpans().MoveAndAppendTo(trace.ResourceSpans())
 	}
-}
 
-// truncate keeps the first maxSpans spans of the trace in stream order, and drops the scope and
-// resource entries left without spans.
-func truncate(trace ptrace.Traces, maxSpans int) {
-	kept := 0
-	trace.ResourceSpans().RemoveIf(func(rs ptrace.ResourceSpans) bool {
-		rs.ScopeSpans().RemoveIf(func(ss ptrace.ScopeSpans) bool {
-			ss.Spans().RemoveIf(func(ptrace.Span) bool {
-				kept++
-				return kept > maxSpans
-			})
-			return ss.Spans().Len() == 0
-		})
-		return rs.ScopeSpans().Len() == 0
-	})
+	return trace, nil
 }
 
 // Close closes the grpc client connection

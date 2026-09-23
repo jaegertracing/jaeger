@@ -19,10 +19,12 @@ import (
 func newTrace() ptrace.Traces {
 	traces := ptrace.NewTraces()
 	rs := traces.ResourceSpans().AppendEmpty()
+	rs.SetSchemaUrl("https://schemas.example.com/resource")
 	rs.Resource().Attributes().PutStr("service.name", "api")
 	rs.Resource().Attributes().PutStr("host.name", "prod-db-7")
 
 	ss := rs.ScopeSpans().AppendEmpty()
+	ss.SetSchemaUrl("https://schemas.example.com/scope")
 	ss.Scope().SetName("com.example.client")
 	ss.Scope().SetVersion("1.2.3")
 	ss.Scope().Attributes().PutStr("team", "payments")
@@ -56,8 +58,8 @@ func firstSpan(traces ptrace.Traces) (pcommon.Resource, ptrace.ScopeSpans, ptrac
 }
 
 func newAnonymizer(t *testing.T, options Options) *Anonymizer {
-	a, err := New(filepath.Join(t.TempDir(), "mapping.json"), options, zap.NewNop())
-	require.NoError(t, err)
+	a := New(filepath.Join(t.TempDir(), "mapping.json"), options, zap.NewNop())
+	t.Cleanup(a.Stop)
 	return a
 }
 
@@ -69,8 +71,8 @@ func TestNew(t *testing.T) {
 			"operations": {"[api]:delete": "hashed_api_delete"}
 		}`), PermUserRW))
 
-		a, err := New(mappingFile, Options{}, zap.NewNop())
-		require.NoError(t, err)
+		a := New(mappingFile, Options{}, zap.NewNop())
+		defer a.Stop()
 		assert.Equal(t, "hashed_api", a.mapServiceName("api"))
 		assert.Equal(t, "hashed_api_delete", a.mapOperationName("api", "delete"))
 	})
@@ -79,31 +81,21 @@ func TestNew(t *testing.T) {
 		a := newAnonymizer(t, Options{})
 		assert.Empty(t, a.mapping.Services)
 	})
-
-	t.Run("refuses a mapping it cannot parse", func(t *testing.T) {
-		mappingFile := filepath.Join(t.TempDir(), "mapping.json")
-		require.NoError(t, os.WriteFile(mappingFile, []byte("not json"), PermUserRW))
-		_, err := New(mappingFile, Options{}, zap.NewNop())
-		require.ErrorContains(t, err, "cannot unmarshal previous mapping")
-	})
-
-	t.Run("refuses a mapping it cannot read", func(t *testing.T) {
-		_, err := New(t.TempDir(), Options{}, zap.NewNop())
-		require.ErrorContains(t, err, "cannot load previous mapping")
-	})
 }
 
 func TestSaveMapping(t *testing.T) {
 	a := newAnonymizer(t, Options{})
 	a.mapServiceName("api")
-	require.NoError(t, a.SaveMapping())
+	a.SaveMapping()
 
-	reloaded, err := New(a.mappingFile, Options{}, zap.NewNop())
-	require.NoError(t, err)
+	reloaded := New(a.mappingFile, Options{}, zap.NewNop())
+	defer reloaded.Stop()
 	assert.Equal(t, map[string]string{"api": hash("api")}, reloaded.mapping.Services)
 
-	a.mappingFile = t.TempDir() // a directory cannot be written as a file
-	require.ErrorContains(t, a.SaveMapping(), "failed to write mapping file")
+	t.Run("fail to write mapping file", func(_ *testing.T) {
+		broken := Anonymizer{logger: zap.NewNop(), mappingFile: t.TempDir()}
+		broken.SaveMapping() // logs the error
+	})
 }
 
 func TestHash(t *testing.T) {
@@ -133,6 +125,8 @@ func TestAnonymizeTracesAllFalse(t *testing.T) {
 	}, span.Attributes().AsRaw())
 	assert.Equal(t, 0, span.Events().Len())
 
+	assert.Empty(t, traces.ResourceSpans().At(0).SchemaUrl())
+	assert.Empty(t, ss.SchemaUrl())
 	assert.Empty(t, ss.Scope().Name())
 	assert.Empty(t, ss.Scope().Version())
 	assert.Equal(t, 0, ss.Scope().Attributes().Len())
@@ -173,6 +167,8 @@ func TestAnonymizeTracesAllTrue(t *testing.T) {
 	assert.Equal(t, hash("exception"), event.Name())
 	assert.Equal(t, map[string]any{hash("exception.message"): hash("row 42 locked")}, event.Attributes().AsRaw())
 
+	assert.Equal(t, hash("https://schemas.example.com/resource"), traces.ResourceSpans().At(0).SchemaUrl())
+	assert.Equal(t, hash("https://schemas.example.com/scope"), ss.SchemaUrl())
 	assert.Equal(t, hash("com.example.client"), ss.Scope().Name())
 	assert.Equal(t, hash("1.2.3"), ss.Scope().Version())
 	assert.Equal(t, map[string]any{hash("team"): hash("payments")}, ss.Scope().Attributes().AsRaw())

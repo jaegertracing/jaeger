@@ -26,6 +26,8 @@ import (
 
 var mockTraceID = pcommon.TraceID([16]byte{15: 0x40})
 
+const mockTraceIDStr = "40"
+
 // chunk builds one streamed chunk holding a span per name, under a single resource and scope.
 func chunk(names ...string) ptrace.Traces {
 	traces := ptrace.NewTraces()
@@ -144,40 +146,22 @@ func TestQueryTrace(t *testing.T) {
 		s := newTestServer(t)
 		s.handler.chunks = []ptrace.Traces{chunk("a", "b"), chunk("c")}
 
-		traces, err := newQuery(t, s).QueryTrace(mockTraceID, startTime, endTime, 0)
+		traces, err := newQuery(t, s).QueryTrace(mockTraceIDStr, startTime, endTime)
 		require.NoError(t, err)
 		assert.Equal(t, []string{"a", "b", "c"}, spanNames(traces))
 		assert.Equal(t, 2, traces.ResourceSpans().Len())
 
-		// The ID is sent in the one spelling the server and the files share.
-		assert.Equal(t, "00000000000000000000000000000040", s.handler.request.GetTraceId())
+		// The ID is sent as given; parsing it is the server's job.
+		assert.Equal(t, mockTraceIDStr, s.handler.request.GetTraceId())
 		assert.Equal(t, startTime, s.handler.request.GetStartTime())
 		assert.Equal(t, endTime, s.handler.request.GetEndTime())
-	})
-
-	t.Run("max spans stops at the limit", func(t *testing.T) {
-		s := newTestServer(t)
-		s.handler.chunks = []ptrace.Traces{chunk("a"), chunk("b", "c"), chunk("d")}
-
-		traces, err := newQuery(t, s).QueryTrace(mockTraceID, time.Time{}, time.Time{}, 2)
-		require.NoError(t, err)
-		assert.Equal(t, []string{"a", "b"}, spanNames(traces))
-	})
-
-	t.Run("max spans above the trace size keeps it whole", func(t *testing.T) {
-		s := newTestServer(t)
-		s.handler.chunks = []ptrace.Traces{chunk("a", "b")}
-
-		traces, err := newQuery(t, s).QueryTrace(mockTraceID, time.Time{}, time.Time{}, 5)
-		require.NoError(t, err)
-		assert.Equal(t, []string{"a", "b"}, spanNames(traces))
 	})
 
 	t.Run("trace not found", func(t *testing.T) {
 		s := newTestServer(t)
 		s.handler.err = status.Error(codes.NotFound, "trace not found")
 
-		_, err := newQuery(t, s).QueryTrace(mockTraceID, time.Time{}, time.Time{}, 0)
+		_, err := newQuery(t, s).QueryTrace(mockTraceIDStr, time.Time{}, time.Time{})
 		require.ErrorIs(t, err, spanstore.ErrTraceNotFound)
 	})
 
@@ -186,7 +170,7 @@ func TestQueryTrace(t *testing.T) {
 		s.handler.chunks = []ptrace.Traces{chunk("a")}
 		s.handler.err = status.Error(codes.Internal, "storage is down")
 
-		_, err := newQuery(t, s).QueryTrace(mockTraceID, time.Time{}, time.Time{}, 0)
+		_, err := newQuery(t, s).QueryTrace(mockTraceIDStr, time.Time{}, time.Time{})
 		require.ErrorContains(t, err, "storage is down")
 		require.NotErrorIs(t, err, spanstore.ErrTraceNotFound)
 	})
@@ -202,18 +186,8 @@ func (failingQueryClient) GetTrace(context.Context, *api_v3.GetTraceRequest, ...
 
 func TestQueryTraceStartError(t *testing.T) {
 	q := &Query{client: failingQueryClient{}}
-	_, err := q.QueryTrace(mockTraceID, time.Time{}, time.Time{}, 0)
+	_, err := q.QueryTrace(mockTraceIDStr, time.Time{}, time.Time{})
 	require.ErrorIs(t, err, spanstore.ErrTraceNotFound)
-}
-
-func TestTruncateDropsEmptyContainers(t *testing.T) {
-	traces := chunk("a", "b")
-	chunk("c").ResourceSpans().MoveAndAppendTo(traces.ResourceSpans())
-
-	truncate(traces, 1)
-
-	assert.Equal(t, []string{"a"}, spanNames(traces))
-	assert.Equal(t, 1, traces.ResourceSpans().Len())
 }
 
 func TestUnwrapNotFoundErr(t *testing.T) {
