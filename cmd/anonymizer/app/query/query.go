@@ -16,6 +16,7 @@ import (
 	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/grpc/status"
 
+	"github.com/jaegertracing/jaeger/internal/jptrace"
 	"github.com/jaegertracing/jaeger/internal/proto/api_v3"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/api/spanstore"
 )
@@ -49,8 +50,13 @@ func unwrapNotFoundErr(err error) error {
 
 // QueryTrace queries for a trace and returns it, with the chunks of the stream merged into one
 func (q *Query) QueryTrace(traceID string, startTime time.Time, endTime time.Time) (ptrace.Traces, error) {
+	pTraceID, err := jptrace.TraceIDFromString(traceID)
+	if err != nil {
+		return ptrace.Traces{}, fmt.Errorf("failed to convert the provided trace id: %w", err)
+	}
+
 	request := api_v3.GetTraceRequest{
-		TraceId:   traceID,
+		TraceId:   pTraceID.String(),
 		StartTime: startTime,
 		EndTime:   endTime,
 	}

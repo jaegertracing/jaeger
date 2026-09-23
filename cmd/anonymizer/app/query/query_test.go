@@ -26,7 +26,7 @@ import (
 
 var mockTraceID = pcommon.TraceID([16]byte{15: 0x40})
 
-const mockTraceIDStr = "40"
+const mockTraceIDStr = "00000000000000000000000000000040"
 
 // chunk builds one streamed chunk holding a span per name, under a single resource and scope.
 func chunk(names ...string) ptrace.Traces {
@@ -151,10 +151,17 @@ func TestQueryTrace(t *testing.T) {
 		assert.Equal(t, []string{"a", "b", "c"}, spanNames(traces))
 		assert.Equal(t, 2, traces.ResourceSpans().Len())
 
-		// The ID is sent as given; parsing it is the server's job.
 		assert.Equal(t, mockTraceIDStr, s.handler.request.GetTraceId())
 		assert.Equal(t, startTime, s.handler.request.GetStartTime())
 		assert.Equal(t, endTime, s.handler.request.GetEndTime())
+	})
+
+	t.Run("invalid trace ID", func(t *testing.T) {
+		s := newTestServer(t)
+
+		_, err := newQuery(t, s).QueryTrace("not-a-trace-id", time.Time{}, time.Time{})
+		require.ErrorContains(t, err, "failed to convert the provided trace id")
+		assert.Nil(t, s.handler.request)
 	})
 
 	t.Run("trace not found", func(t *testing.T) {
