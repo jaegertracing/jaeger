@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/collector/featuregate"
 
@@ -277,4 +278,39 @@ func TestPrepareSearchQuery_PaginationZeroValueSkipsGate(t *testing.T) {
 	_, err := jiter.FlattenWithErrors(qs.FindTraces(context.Background(), query))
 	require.NoError(t, err)
 	assert.True(t, next.findCalled)
+}
+
+// TestSearchPaginated pins what the UI is told about "load more": the reader's declaration and
+// the query-side gate together, since either alone would have the UI offer a continuation this
+// deployment refuses (RFC 0014 §6.2).
+func TestSearchPaginated(t *testing.T) {
+	t.Run("gate off is reported without asking the reader", func(t *testing.T) {
+		setPagination(t, false)
+		reader := &fakeReader{capabilities: &tracestore.SearchCapabilities{Paginated: true}}
+
+		paginated, err := interceptedService(reader).SearchPaginated(context.Background())
+		require.NoError(t, err)
+		assert.False(t, paginated, "a declaration the gate does not admit must not reach the UI")
+		assert.Zero(t, reader.capabilityReads)
+	})
+	t.Run("gate on reports the reader's declaration", func(t *testing.T) {
+		enablePagination(t)
+		for _, declared := range []bool{true, false} {
+			reader := &fakeReader{capabilities: &tracestore.SearchCapabilities{Paginated: declared}}
+
+			paginated, err := interceptedService(reader).SearchPaginated(context.Background())
+			require.NoError(t, err)
+			assert.Equal(t, declared, paginated)
+		}
+	})
+	t.Run("a reader that cannot say is the least capable", func(t *testing.T) {
+		enablePagination(t)
+		tqs := initializeBareTestQueryService()
+		tqs.traceReader.On("SearchCapabilities", mock.Anything).
+			Return(tracestore.SearchCapabilities{}, assert.AnError).Once()
+
+		paginated, err := tqs.queryService.SearchPaginated(context.Background())
+		require.ErrorIs(t, err, assert.AnError)
+		assert.False(t, paginated)
+	})
 }

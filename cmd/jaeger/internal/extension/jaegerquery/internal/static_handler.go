@@ -42,11 +42,12 @@ var uiConfigReloadInterval = 10 * time.Second
 // BackendCapabilities is the JSON shape injected into index.html via the
 // JAEGER_BACKEND_CAPABILITIES search-replace pattern. It tells the UI which surfaces to
 // offer: the archive and metrics screens, the "All Services" search option (RFC 0013),
-// and the AI chat panel.
+// "load more" on the search results (RFC 0014), and the AI chat panel.
 type BackendCapabilities struct {
 	ArchiveStorage           bool `json:"archiveStorage"`
 	MetricsStorage           bool `json:"metricsStorage"`
 	SearchWithoutServiceName bool `json:"searchWithoutServiceName"`
+	SearchPaginated          bool `json:"searchPaginated"`
 	AIAssistant              bool `json:"aiAssistant"`
 }
 

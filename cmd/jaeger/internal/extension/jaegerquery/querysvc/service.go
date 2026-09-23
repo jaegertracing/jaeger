@@ -240,6 +240,27 @@ func (qs QueryService) SearchWithoutServiceName(ctx context.Context) (bool, erro
 	return caps.WithoutServiceName, nil
 }
 
+// SearchPaginated reports whether a trace search may ask for a page and resume past it
+// (RFC 0014): the reader declares Paginated and this deployment admits the field through
+// PaginationGate. Neither alone is enough. A deployment with the gate off refuses every
+// Pagination before the reader is consulted, and a reader that cannot paginate is served a
+// single capped page (§6.2), so the UI is told the conjunction and never offers a
+// continuation that would be refused. The reader is asked every time, for the reason
+// SearchWithoutServiceName gives.
+//
+// A reader that cannot say returns an error, which callers read as the least capable
+// backend.
+func (qs QueryService) SearchPaginated(ctx context.Context) (bool, error) {
+	if !PaginationGate.IsEnabled() {
+		return false, nil
+	}
+	caps, err := qs.traceReader.SearchCapabilities(ctx)
+	if err != nil {
+		return false, err
+	}
+	return caps.Paginated, nil
+}
+
 // prepareSearchQuery settles a search before it is dispatched: it refuses a request this
 // deployment does not accept, gives the configured query interceptors their say, and returns the
 // query to dispatch in the shape the backend understands, along with the context to dispatch it
