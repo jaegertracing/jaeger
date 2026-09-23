@@ -35,14 +35,14 @@ func SpanIDFromString(s string) (pcommon.SpanID, error) {
 
 // decodeHexID fills dst from the hex string s and fails unless the decoded
 // bytes fill dst exactly, so a corrupted or truncated ID cannot slip through.
+// Both error paths name the expected shape because the message reaches API
+// callers who need to know what to send.
 func decodeHexID(s string, dst []byte, kind string) error {
-	b, err := hex.DecodeString(s)
-	if err != nil {
-		return err
+	if len(s) != hex.EncodedLen(len(dst)) {
+		return fmt.Errorf("%s ID must be %d hex characters, got %d in %q", kind, hex.EncodedLen(len(dst)), len(s), s)
 	}
-	if len(b) != len(dst) {
-		return fmt.Errorf("invalid length %d of decoded %s ID %q, expected %d bytes", len(b), kind, s, len(dst))
+	if _, err := hex.Decode(dst, []byte(s)); err != nil {
+		return fmt.Errorf("%s ID %q is not valid hex: %w", kind, s, err)
 	}
-	copy(dst, b)
 	return nil
 }

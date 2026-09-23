@@ -4,6 +4,7 @@
 package jptrace
 
 import (
+	"encoding/hex"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -17,6 +18,8 @@ func TestTraceIDFromString(t *testing.T) {
 		input   string
 		want    pcommon.TraceID
 		wantErr string
+		// wantHexErr expects the stdlib decoding error to be wrapped, not replaced.
+		wantHexErr bool
 	}{
 		{
 			name:  "valid",
@@ -36,34 +39,38 @@ func TestTraceIDFromString(t *testing.T) {
 		{
 			name:    "empty",
 			input:   "",
-			wantErr: `invalid length 0 of decoded trace ID "", expected 16 bytes`,
+			wantErr: `trace ID must be 32 hex characters, got 0 in ""`,
 		},
 		{
 			name:    "too short",
 			input:   "0001",
-			wantErr: `invalid length 2 of decoded trace ID "0001", expected 16 bytes`,
+			wantErr: `trace ID must be 32 hex characters, got 4 in "0001"`,
 		},
 		{
 			name:    "too long",
 			input:   "000100010001000100010001000100010001",
-			wantErr: `invalid length 18 of decoded trace ID "000100010001000100010001000100010001", expected 16 bytes`,
+			wantErr: `trace ID must be 32 hex characters, got 36 in "000100010001000100010001000100010001"`,
 		},
 		{
 			name:    "odd length",
 			input:   "abc",
-			wantErr: "encoding/hex: odd length hex string",
+			wantErr: `trace ID must be 32 hex characters, got 3 in "abc"`,
 		},
 		{
-			name:    "non-hex characters",
-			input:   "ZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZ",
-			wantErr: "encoding/hex: invalid byte: U+005A 'Z'",
+			name:       "non-hex characters",
+			input:      "ZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZ",
+			wantErr:    `trace ID "ZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZ" is not valid hex`,
+			wantHexErr: true,
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			got, err := TraceIDFromString(tt.input)
 			if tt.wantErr != "" {
-				require.EqualError(t, err, tt.wantErr)
+				require.ErrorContains(t, err, tt.wantErr)
+				if tt.wantHexErr {
+					require.ErrorAs(t, err, new(hex.InvalidByteError))
+				}
 				assert.Equal(t, pcommon.TraceID{}, got)
 				return
 			}
@@ -79,6 +86,8 @@ func TestSpanIDFromString(t *testing.T) {
 		input   string
 		want    pcommon.SpanID
 		wantErr string
+		// wantHexErr expects the stdlib decoding error to be wrapped, not replaced.
+		wantHexErr bool
 	}{
 		{
 			name:  "valid",
@@ -93,29 +102,33 @@ func TestSpanIDFromString(t *testing.T) {
 		{
 			name:    "empty",
 			input:   "",
-			wantErr: `invalid length 0 of decoded span ID "", expected 8 bytes`,
+			wantErr: `span ID must be 16 hex characters, got 0 in ""`,
 		},
 		{
 			name:    "too short",
 			input:   "0001",
-			wantErr: `invalid length 2 of decoded span ID "0001", expected 8 bytes`,
+			wantErr: `span ID must be 16 hex characters, got 4 in "0001"`,
 		},
 		{
 			name:    "too long",
 			input:   "000100010001000100",
-			wantErr: `invalid length 9 of decoded span ID "000100010001000100", expected 8 bytes`,
+			wantErr: `span ID must be 16 hex characters, got 18 in "000100010001000100"`,
 		},
 		{
-			name:    "non-hex characters",
-			input:   "ZZZZZZZZZZZZZZZZ",
-			wantErr: "encoding/hex: invalid byte: U+005A 'Z'",
+			name:       "non-hex characters",
+			input:      "ZZZZZZZZZZZZZZZZ",
+			wantErr:    `span ID "ZZZZZZZZZZZZZZZZ" is not valid hex`,
+			wantHexErr: true,
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			got, err := SpanIDFromString(tt.input)
 			if tt.wantErr != "" {
-				require.EqualError(t, err, tt.wantErr)
+				require.ErrorContains(t, err, tt.wantErr)
+				if tt.wantHexErr {
+					require.ErrorAs(t, err, new(hex.InvalidByteError))
+				}
 				assert.Equal(t, pcommon.SpanID{}, got)
 				return
 			}

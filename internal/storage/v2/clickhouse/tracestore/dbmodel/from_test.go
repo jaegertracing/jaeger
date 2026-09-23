@@ -37,7 +37,7 @@ func TestFromRow_DecodeID(t *testing.T) {
 			arg: &SpanRow{
 				TraceID: "0x",
 			},
-			want: "failed to decode trace ID: encoding/hex: invalid byte: U+0078 'x'",
+			want: `failed to decode trace ID: trace ID must be 32 hex characters, got 2 in "0x"`,
 		},
 		{
 			name: "decode span id failed",
@@ -45,7 +45,7 @@ func TestFromRow_DecodeID(t *testing.T) {
 				TraceID: "00010001000100010001000100010001",
 				ID:      "0x",
 			},
-			want: "failed to decode span ID: encoding/hex: invalid byte: U+0078 'x'",
+			want: `failed to decode span ID: span ID must be 16 hex characters, got 2 in "0x"`,
 		},
 		{
 			name: "decode span parent id failed",
@@ -54,7 +54,7 @@ func TestFromRow_DecodeID(t *testing.T) {
 				ID:           "0001000100010001",
 				ParentSpanID: "0x",
 			},
-			want: "failed to decode parent span ID: encoding/hex: invalid byte: U+0078 'x'",
+			want: `failed to decode parent span ID: span ID must be 16 hex characters, got 2 in "0x"`,
 		},
 		{
 			name: "decode link trace id failed",
@@ -64,7 +64,7 @@ func TestFromRow_DecodeID(t *testing.T) {
 				ParentSpanID: "0001000100010001",
 				LinkTraceIDs: []string{"0x"},
 			},
-			want: "failed to decode link trace ID: encoding/hex: invalid byte: U+0078 'x'",
+			want: `failed to decode link trace ID: trace ID must be 32 hex characters, got 2 in "0x"`,
 		},
 		{
 			name: "decode link span id failed",
@@ -75,28 +75,28 @@ func TestFromRow_DecodeID(t *testing.T) {
 				LinkTraceIDs: []string{"00010001000100010001000100010001"},
 				LinkSpanIDs:  []string{"0x"},
 			},
-			want: "failed to decode link span ID: encoding/hex: invalid byte: U+0078 'x'",
+			want: `failed to decode link span ID: span ID must be 16 hex characters, got 2 in "0x"`,
 		},
 		{
 			name: "empty trace id",
 			arg: &SpanRow{
 				TraceID: "",
 			},
-			want: `failed to decode trace ID: invalid length 0 of decoded trace ID "", expected 16 bytes`,
+			want: `failed to decode trace ID: trace ID must be 32 hex characters, got 0 in ""`,
 		},
 		{
 			name: "too short trace id",
 			arg: &SpanRow{
 				TraceID: "0001",
 			},
-			want: `failed to decode trace ID: invalid length 2 of decoded trace ID "0001", expected 16 bytes`,
+			want: `failed to decode trace ID: trace ID must be 32 hex characters, got 4 in "0001"`,
 		},
 		{
 			name: "too long trace id",
 			arg: &SpanRow{
 				TraceID: "000100010001000100010001000100010001",
 			},
-			want: `failed to decode trace ID: invalid length 18 of decoded trace ID "000100010001000100010001000100010001", expected 16 bytes`,
+			want: `failed to decode trace ID: trace ID must be 32 hex characters, got 36 in "000100010001000100010001000100010001"`,
 		},
 		{
 			name: "empty span id",
@@ -104,7 +104,7 @@ func TestFromRow_DecodeID(t *testing.T) {
 				TraceID: "00010001000100010001000100010001",
 				ID:      "",
 			},
-			want: `failed to decode span ID: invalid length 0 of decoded span ID "", expected 8 bytes`,
+			want: `failed to decode span ID: span ID must be 16 hex characters, got 0 in ""`,
 		},
 		{
 			name: "too short span id",
@@ -112,7 +112,7 @@ func TestFromRow_DecodeID(t *testing.T) {
 				TraceID: "00010001000100010001000100010001",
 				ID:      "0001",
 			},
-			want: `failed to decode span ID: invalid length 2 of decoded span ID "0001", expected 8 bytes`,
+			want: `failed to decode span ID: span ID must be 16 hex characters, got 4 in "0001"`,
 		},
 		{
 			name: "too short parent span id",
@@ -121,7 +121,7 @@ func TestFromRow_DecodeID(t *testing.T) {
 				ID:           "0001000100010001",
 				ParentSpanID: "0001",
 			},
-			want: `failed to decode parent span ID: invalid length 2 of decoded span ID "0001", expected 8 bytes`,
+			want: `failed to decode parent span ID: span ID must be 16 hex characters, got 4 in "0001"`,
 		},
 		{
 			name: "empty link trace id",
@@ -131,7 +131,7 @@ func TestFromRow_DecodeID(t *testing.T) {
 				ParentSpanID: "0001000100010001",
 				LinkTraceIDs: []string{""},
 			},
-			want: `failed to decode link trace ID: invalid length 0 of decoded trace ID "", expected 16 bytes`,
+			want: `failed to decode link trace ID: trace ID must be 32 hex characters, got 0 in ""`,
 		},
 		{
 			name: "too short link trace id",
@@ -141,7 +141,7 @@ func TestFromRow_DecodeID(t *testing.T) {
 				ParentSpanID: "0001000100010001",
 				LinkTraceIDs: []string{"0001"},
 			},
-			want: `failed to decode link trace ID: invalid length 2 of decoded trace ID "0001", expected 16 bytes`,
+			want: `failed to decode link trace ID: trace ID must be 32 hex characters, got 4 in "0001"`,
 		},
 		{
 			name: "empty link span id",
@@ -152,7 +152,7 @@ func TestFromRow_DecodeID(t *testing.T) {
 				LinkTraceIDs: []string{"00010001000100010001000100010001"},
 				LinkSpanIDs:  []string{""},
 			},
-			want: `failed to decode link span ID: invalid length 0 of decoded span ID "", expected 8 bytes`,
+			want: `failed to decode link span ID: span ID must be 16 hex characters, got 0 in ""`,
 		},
 		{
 			name: "too short link span id",
@@ -163,7 +163,7 @@ func TestFromRow_DecodeID(t *testing.T) {
 				LinkTraceIDs: []string{"00010001000100010001000100010001"},
 				LinkSpanIDs:  []string{"0001"},
 			},
-			want: `failed to decode link span ID: invalid length 2 of decoded span ID "0001", expected 8 bytes`,
+			want: `failed to decode link span ID: span ID must be 16 hex characters, got 4 in "0001"`,
 		},
 	}
 

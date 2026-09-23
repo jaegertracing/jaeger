@@ -576,7 +576,7 @@ func TestGetSpanDetailsHandler_Handle_InvalidSpanID(t *testing.T) {
 
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), `invalid span_id "abc"`)
-	assert.Contains(t, err.Error(), "encoding/hex: odd length hex string")
+	assert.Contains(t, err.Error(), `span ID must be 16 hex characters, got 3 in "abc"`)
 }
 
 func TestParseSpanID(t *testing.T) {
