@@ -42,10 +42,12 @@ type linkConfig struct {
 	spanID  string
 }
 
-// mockQueryService is a unified mock implementation for both GetTraces and FindTraceSummaries
+// mockQueryService is a unified mock implementation for GetTraces, FindTraceSummaries and
+// FindSpans.
 type mockQueryService struct {
 	getTracesFunc          func(ctx context.Context, params querysvc.GetTraceParams) iter.Seq2[[]ptrace.Traces, error]
 	findTraceSummariesFunc func(ctx context.Context, query querysvc.TraceQueryParams) iter.Seq2[[]tracestore.TraceSummary, error]
+	findSpansFunc          func(ctx context.Context, query querysvc.SpanQueryParams) iter.Seq2[tracestore.PageChunk[ptrace.Traces], error]
 }
 
 func (m *mockQueryService) GetTraces(ctx context.Context, params querysvc.GetTraceParams) iter.Seq2[[]ptrace.Traces, error] {
@@ -53,6 +55,18 @@ func (m *mockQueryService) GetTraces(ctx context.Context, params querysvc.GetTra
 		return m.getTracesFunc(ctx, params)
 	}
 	return func(_ func([]ptrace.Traces, error) bool) {}
+}
+
+// FindSpans defaults to reporting the backend as not supporting span search, so a test that
+// never sets findSpansFunc exercises get_span_details' pre-RFC-0016 GetTraces fallback
+// unchanged, the same as before this mock grew a FindSpans method.
+func (m *mockQueryService) FindSpans(ctx context.Context, query querysvc.SpanQueryParams) iter.Seq2[tracestore.PageChunk[ptrace.Traces], error] {
+	if m.findSpansFunc != nil {
+		return m.findSpansFunc(ctx, query)
+	}
+	return func(yield func(tracestore.PageChunk[ptrace.Traces], error) bool) {
+		yield(tracestore.PageChunk[ptrace.Traces]{}, querysvc.ErrSpanSearchUnsupported)
+	}
 }
 
 func (m *mockQueryService) FindTraceSummaries(ctx context.Context, query querysvc.TraceQueryParams) iter.Seq2[querysvc.PageChunk[[]tracestore.TraceSummary], error] {

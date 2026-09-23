@@ -14,22 +14,31 @@ import (
 	"go.opentelemetry.io/collector/pdata/pcommon"
 	"go.opentelemetry.io/collector/pdata/ptrace"
 
+	expression "github.com/jaegertracing/jaeger-idl/query/expression/v1"
 	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerquery/internal/mcptools/internal/types"
 	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerquery/querysvc"
 	"github.com/jaegertracing/jaeger/internal/jptrace"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore"
 )
 
-// queryServiceGetTracesInterface defines the interface we need from QueryService for get_span_details
+// queryServiceGetTracesInterface defines the interface we need from QueryService for
+// get_trace_errors and get_trace_topology.
 type queryServiceGetTracesInterface interface {
 	GetTraces(ctx context.Context, params querysvc.GetTraceParams) iter.Seq2[[]ptrace.Traces, error]
+}
+
+// spanDetailsQueryService defines the interface we need from QueryService for get_span_details:
+// GetTraces for the whole-trace fallback, FindSpans for the identity-filter fast path.
+type spanDetailsQueryService interface {
+	queryServiceGetTracesInterface
+	FindSpans(ctx context.Context, query querysvc.SpanQueryParams) iter.Seq2[tracestore.PageChunk[ptrace.Traces], error]
 }
 
 // getSpanDetailsHandler implements the get_span_details MCP tool.
 // This tool fetches full OTLP details (attributes, events, links, status) for specific spans
 // within a trace, allowing deep inspection of individual span data for debugging and analysis.
 type getSpanDetailsHandler struct {
-	queryService             queryServiceGetTracesInterface
+	queryService             spanDetailsQueryService
 	maxSpanDetailsPerRequest int
 }
 
@@ -58,6 +67,7 @@ func (h *getSpanDetailsHandler) handle(
 	if err != nil {
 		return nil, types.GetSpanDetailsOutput{}, err
 	}
+	traceID := params.TraceIDs[0].TraceID
 
 	// Create span ID set for efficient lookup
 	spanIDSet := make(map[string]struct{}, len(canonicalSpanIDs))
@@ -65,38 +75,17 @@ func (h *getSpanDetailsHandler) handle(
 		spanIDSet[spanID] = struct{}{}
 	}
 
-	tracesIter := h.queryService.GetTraces(ctx, params)
-
-	// Wrap with AggregateTraces to ensure each ptrace.Traces contains a complete trace
-	aggregatedIter := jptrace.AggregateTraces(tracesIter)
-
-	// Collect spans matching the requested span IDs
-	var spanDetails []types.SpanDetail
-	traceFound := false
-
-	for trace, err := range aggregatedIter {
-		if err != nil {
-			// For singular lookups, return error directly
-			return nil, types.GetSpanDetailsOutput{}, fmt.Errorf("failed to get trace: %w", err)
-		}
-
-		traceFound = true
-
-		// Iterate through all spans in the trace
-		for pos, span := range jptrace.SpanIter(trace) {
-			spanIDStr := span.SpanID().String()
-
-			// Check if this span ID is in the requested set
-			if _, found := spanIDSet[spanIDStr]; found {
-				detail := buildSpanDetail(pos, span)
-				spanDetails = append(spanDetails, detail)
-
-				// Remove from set to track which spans we've found
-				delete(spanIDSet, spanIDStr)
-			}
-		}
+	// The identity-filter fast path (RFC 0016 §4.3) errors out before touching spanIDSet
+	// whenever it cannot run at all (ErrSpanSearchUnsupported/ErrFilterDisabled), so falling
+	// back to the whole-trace path afterward is safe: nothing has been marked found yet.
+	spanDetails, err := h.fetchViaFindSpans(ctx, traceID, canonicalSpanIDs, spanIDSet)
+	traceFound := true
+	if errors.Is(err, querysvc.ErrSpanSearchUnsupported) || errors.Is(err, querysvc.ErrFilterDisabled) {
+		spanDetails, traceFound, err = h.fetchViaGetTraces(ctx, params, spanIDSet)
 	}
-
+	if err != nil {
+		return nil, types.GetSpanDetailsOutput{}, err
+	}
 	if !traceFound {
 		return nil, types.GetSpanDetailsOutput{}, errors.New("trace not found")
 	}
@@ -116,6 +105,103 @@ func (h *getSpanDetailsHandler) handle(
 	}
 
 	return nil, output, nil
+}
+
+// fetchViaFindSpans tries the identity-filter fast path (RFC 0016 §4.3): a backend that
+// declares SpanSearch answers with exactly the matching spans, not whole traces. It uses the
+// widest possible time range because the tool's input carries no time hint to narrow it with,
+// and a span search requires one regardless of the filter (RFC 0016 §4.5, "a caller that knows
+// only trace IDs supplies a range wide enough to contain them").
+//
+// A backend that cannot take this path reports querysvc.ErrSpanSearchUnsupported or
+// querysvc.ErrFilterDisabled unchanged, so handle falls back to fetchViaGetTraces. That path's
+// "trace not found" distinction is not available here: a filter that matches nothing is
+// indistinguishable from a trace that does not exist, and telling the two apart would mean
+// paying for the whole-trace read this path exists to avoid. handle folds an empty result here
+// into the same "spans not found" report a partial match gets, rather than a hard error.
+func (h *getSpanDetailsHandler) fetchViaFindSpans(
+	ctx context.Context,
+	traceID pcommon.TraceID,
+	canonicalSpanIDs []string,
+	spanIDSet map[string]struct{},
+) ([]types.SpanDetail, error) {
+	query := querysvc.SpanQueryParams{SpanQueryParams: tracestore.SpanQueryParams{
+		StartTimeMin: time.Unix(0, 0),
+		StartTimeMax: time.Now(),
+		Filter:       buildIdentityFilter(traceID, canonicalSpanIDs),
+	}}
+
+	var spanDetails []types.SpanDetail
+	for chunk, err := range h.queryService.FindSpans(ctx, query) {
+		if err != nil {
+			return nil, err
+		}
+		for pos, span := range jptrace.SpanIter(chunk.Results) {
+			spanIDStr := span.SpanID().String()
+			if _, found := spanIDSet[spanIDStr]; found {
+				spanDetails = append(spanDetails, buildSpanDetail(pos, span))
+				delete(spanIDSet, spanIDStr)
+			}
+		}
+	}
+	return spanDetails, nil
+}
+
+// fetchViaGetTraces is the pre-RFC-0016 path: fetch the whole trace and pick the requested
+// spans out of it in memory. Every backend supports it, so it is what a backend that does not
+// declare SpanSearch falls back to.
+func (h *getSpanDetailsHandler) fetchViaGetTraces(
+	ctx context.Context,
+	params querysvc.GetTraceParams,
+	spanIDSet map[string]struct{},
+) ([]types.SpanDetail, bool, error) {
+	tracesIter := h.queryService.GetTraces(ctx, params)
+
+	// Wrap with AggregateTraces to ensure each ptrace.Traces contains a complete trace
+	aggregatedIter := jptrace.AggregateTraces(tracesIter)
+
+	var spanDetails []types.SpanDetail
+	traceFound := false
+	for trace, err := range aggregatedIter {
+		if err != nil {
+			return nil, false, fmt.Errorf("failed to get trace: %w", err)
+		}
+		traceFound = true
+		for pos, span := range jptrace.SpanIter(trace) {
+			spanIDStr := span.SpanID().String()
+			if _, found := spanIDSet[spanIDStr]; found {
+				spanDetails = append(spanDetails, buildSpanDetail(pos, span))
+				delete(spanIDSet, spanIDStr)
+			}
+		}
+	}
+	return spanDetails, traceFound, nil
+}
+
+// buildIdentityFilter names the requested spans as a predicate (RFC 0016 §4.3): trace ID and
+// span ID are intrinsic span fields, so naming a span is comparing two of its own fields. Every
+// requested span shares the one trace ID this tool takes, so this is a single conjunction
+// rather than the OR-of-ANDs a filter naming spans across several traces would need.
+func buildIdentityFilter(traceID pcommon.TraceID, spanIDs []string) *expression.Call {
+	return &expression.Call{
+		Op: expression.OpAnd,
+		Args: []expression.Expression{
+			&expression.Call{
+				Op: expression.OpEq,
+				Args: []expression.Expression{
+					&expression.FieldRef{Level: expression.LevelSpan, Name: expression.SpanFieldTraceID},
+					&expression.StringValue{Value: traceID.String()},
+				},
+			},
+			&expression.Call{
+				Op: expression.OpIn,
+				Args: []expression.Expression{
+					&expression.FieldRef{Level: expression.LevelSpan, Name: expression.SpanFieldSpanID},
+					&expression.List{Type: expression.ValueTypeString, Values: spanIDs},
+				},
+			},
+		},
+	}
 }
 
 // buildQuery converts GetSpanDetailsInput to querysvc.GetTraceParams and returns
