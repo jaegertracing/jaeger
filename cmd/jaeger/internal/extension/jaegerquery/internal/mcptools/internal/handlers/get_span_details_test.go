@@ -587,7 +587,7 @@ func TestParseSpanID(t *testing.T) {
 		require.NoError(t, err)
 		assert.Equal(t, pcommon.SpanID{0, 0, 0, 0, 0, 0, 0, 1}, result)
 	})
-	t.Run("parser error is passed through", func(t *testing.T) {
+	t.Run("malformed span ID is rejected", func(t *testing.T) {
 		_, err := parseSpanID("abc")
 		require.Error(t, err)
 	})

@@ -39,22 +39,22 @@ func TestTraceIDFromString(t *testing.T) {
 		{
 			name:    "empty",
 			input:   "",
-			wantErr: `trace ID must be 32 hex characters, got 0 in ""`,
+			wantErr: `trace ID must be 32 hex characters, got 0`,
 		},
 		{
 			name:    "too short",
 			input:   "0001",
-			wantErr: `trace ID must be 32 hex characters, got 4 in "0001"`,
+			wantErr: `trace ID must be 32 hex characters, got 4`,
 		},
 		{
 			name:    "too long",
 			input:   "000100010001000100010001000100010001",
-			wantErr: `trace ID must be 32 hex characters, got 36 in "000100010001000100010001000100010001"`,
+			wantErr: `trace ID must be 32 hex characters, got 36`,
 		},
 		{
 			name:    "odd length",
 			input:   "abc",
-			wantErr: `trace ID must be 32 hex characters, got 3 in "abc"`,
+			wantErr: `trace ID must be 32 hex characters, got 3`,
 		},
 		{
 			name:       "non-hex characters",
@@ -102,17 +102,17 @@ func TestSpanIDFromString(t *testing.T) {
 		{
 			name:    "empty",
 			input:   "",
-			wantErr: `span ID must be 16 hex characters, got 0 in ""`,
+			wantErr: `span ID must be 16 hex characters, got 0`,
 		},
 		{
 			name:    "too short",
 			input:   "0001",
-			wantErr: `span ID must be 16 hex characters, got 4 in "0001"`,
+			wantErr: `span ID must be 16 hex characters, got 4`,
 		},
 		{
 			name:    "too long",
 			input:   "000100010001000100",
-			wantErr: `span ID must be 16 hex characters, got 18 in "000100010001000100"`,
+			wantErr: `span ID must be 16 hex characters, got 18`,
 		},
 		{
 			name:       "non-hex characters",
