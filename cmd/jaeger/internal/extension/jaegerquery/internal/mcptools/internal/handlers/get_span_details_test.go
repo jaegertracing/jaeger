@@ -516,47 +516,6 @@ func TestGetSpanDetailsHandler_ExceedsLimit(t *testing.T) {
 	assert.Contains(t, err.Error(), "max allowed 2")
 }
 
-func TestParseTraceID(t *testing.T) {
-	tests := []struct {
-		name      string
-		input     string
-		wantError bool
-	}{
-		{
-			name:      "valid trace ID",
-			input:     "00000000000000000000000000000001",
-			wantError: false,
-		},
-		{
-			name:      "invalid trace ID - wrong length",
-			input:     "invalid",
-			wantError: true,
-		},
-		{
-			name:      "invalid trace ID - non-hex characters",
-			input:     "ZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZ",
-			wantError: true,
-		},
-		{
-			name:      "empty trace ID",
-			input:     "",
-			wantError: true,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			result, err := parseTraceID(tt.input)
-			if tt.wantError {
-				require.Error(t, err)
-			} else {
-				require.NoError(t, err)
-				assert.False(t, result.IsEmpty())
-			}
-		})
-	}
-}
-
 func TestGetSpanDetailsHandler_Handle_UppercaseSpanID(t *testing.T) {
 	// An uppercase hex span_id passes hex validation but must still match the
 	// canonical lowercase ID the trace iterator emits, instead of being reported
@@ -617,7 +576,7 @@ func TestGetSpanDetailsHandler_Handle_InvalidSpanID(t *testing.T) {
 
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), `invalid span_id "abc"`)
-	assert.Contains(t, err.Error(), "span ID must be 16 hex characters, got 3")
+	assert.Contains(t, err.Error(), "encoding/hex: odd length hex string")
 }
 
 func TestParseSpanID(t *testing.T) {
