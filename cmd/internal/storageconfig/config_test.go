@@ -156,6 +156,18 @@ func TestTraceBackendUnmarshal(t *testing.T) {
 			},
 		},
 		{
+			name: "memory backend rejects zero max traces",
+			configMap: map[string]any{
+				"memory": map[string]any{
+					"max_traces": 0,
+				},
+			},
+			expectError: false,
+			validateFunc: func(t *testing.T, tb *TraceBackend) {
+				require.ErrorContains(t, confmap.Validate(tb), "max traces must be greater than zero")
+			},
+		},
+		{
 			name: "badger backend with defaults",
 			configMap: map[string]any{
 				"badger": map[string]any{
