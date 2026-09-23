@@ -18,11 +18,10 @@ from opentelemetry.semconv._incubating.attributes.gen_ai_attributes import (
 )
 from opentelemetry.trace import Status, StatusCode
 from ws_commands import ws_to_client_writer, client_reader_to_ws
-from mcp_bridge import JaegerMCPBridge
+from gateway_mcp_client import GatewayMCPClient
 from sidecar_config import SidecarConfig
 from sidecar_helpers import (
-    _build_gemini_contextual_tool,
-    _extract_contextual_tools,
+    _announced_mcp_endpoint,
     _to_tool_text,
     _truncate_for_span,
     _validate_function_call,
@@ -38,7 +37,6 @@ from acp import (
     text_block,
     update_agent_message,
 )
-from acp.helpers import start_tool_call, tool_content, update_tool_call
 from acp.interfaces import Client
 from acp.schema import (
     AgentCapabilities,
@@ -46,18 +44,11 @@ from acp.schema import (
     Implementation,
     ListSessionsResponse,
     LoadSessionResponse,
+    McpCapabilities,
     NewSessionResponse,
-    SessionCapabilities,
-    SessionCloseCapabilities,
 )
 
 logger = logging.getLogger(__name__)
-
-# EXT_METHOD_JAEGER_TOOL_CALL is the ACP extension method the sidecar
-# invokes when Gemini requests a contextual (frontend-supplied) tool. The
-# Python ACP runtime prepends a single "_", so we drop the leading "_" we
-# share with the Go side (Go const "_meta/jaegertracing.io/tools/call").
-EXT_METHOD_JAEGER_TOOL_CALL = "meta/jaegertracing.io/tools/call"
 
 
 class JaegerSidecarAgent(Agent):
@@ -68,15 +59,14 @@ class JaegerSidecarAgent(Agent):
         config.validate()
         self._conn: Client | None = None
         self._gemini = genai.Client(api_key=config.gemini_api_key)
-        self._mcp = JaegerMCPBridge(config.mcp_url, config.mcp_discovery_timeout_sec)
+        self._mcp_discovery_timeout_sec = config.mcp_discovery_timeout_sec
         self._next_session_id = 1
         self._next_tool_call_id = 1
-        # Per-session AG-UI tool snapshot pulled from NewSessionRequest._meta.
-        # Each entry is the raw tool definition dict the frontend supplied
-        # (shape: {name, description?, parameters?}). The agentic loop uses
-        # the names to decide whether a Gemini function_call dispatches via
-        # MCP (built-in) or via the ACP extension method (contextual).
-        self._contextual_tools: dict[str, list[dict[str, Any]]] = {}
+        # Per-session MCP client, built from the endpoint the gateway announced in
+        # session/new and opened lazily on the first prompt. The gateway serves
+        # every tool for the turn there — telemetry and the browser's UI tools
+        # alike — so this is the sidecar's only tool egress.
+        self._mcp_clients: dict[str, GatewayMCPClient] = {}
 
     def _new_tool_call_id(self, tool_name: str) -> str:
         call_id = f"{tool_name}-{self._next_tool_call_id}"
@@ -118,8 +108,13 @@ class JaegerSidecarAgent(Agent):
         logger.info("Agent initialized with protocol version %s", protocol_version)
         return InitializeResponse(
             protocol_version=PROTOCOL_VERSION,
+            # mcp_capabilities.http is what makes the gateway announce the
+            # turn-scoped endpoint at all: ACP requires an agent to opt into each
+            # McpServer variant, and the gateway announces nothing to an agent
+            # that did not. Without this the sidecar gets no mcpServers and the
+            # turn runs with zero tools.
             agent_capabilities=AgentCapabilities(
-                session_capabilities=SessionCapabilities(close=SessionCloseCapabilities()),
+                mcp_capabilities=McpCapabilities(http=True),
             ),
             agent_info=Implementation(name="jaeger-gemini-sidecar", title="Jaeger AI", version="0.1.0"),
         )
@@ -136,26 +131,53 @@ class JaegerSidecarAgent(Agent):
         Invoked by ACP runtime dispatch (not direct app code) to allocate a new
         session id that the client will use for subsequent prompt calls.
 
-        Reads the optional contextual tools snapshot the gateway attaches via
-        NewSessionRequest._meta and stashes it per-session so the agentic loop
-        can merge those tools into the Gemini chat config. The Python ACP
-        router spreads ``_meta``'s inner keys into this handler's ``**kwargs``,
-        so ``kwargs`` itself is the meta dict to look up the namespaced key in.
+        Records the turn-scoped MCP endpoint the gateway announced in
+        ``mcpServers``. That announcement is the only thing telling this sidecar
+        where to dial — it holds no Jaeger address of its own — and it carries
+        the headers the endpoint requires (under multi-tenancy, the turn's tenant),
+        so both are kept together. A turn announcing no HTTP endpoint gets no MCP
+        client, and the prompt runs with no tools rather than failing.
         """
         session_id = f"sess-{self._next_session_id}"
         self._next_session_id += 1
 
-        contextual = _extract_contextual_tools(kwargs)
-        if contextual:
-            self._contextual_tools[session_id] = contextual
-            logger.info(
-                "Registered %d contextual tool(s) for session %s: %s",
-                len(contextual),
+        endpoint = _announced_mcp_endpoint(mcp_servers)
+        if endpoint is None:
+            logger.warning(
+                "Session %s announced no HTTP MCP endpoint; the turn will run with no tools",
                 session_id,
-                [t.get("name") for t in contextual],
+            )
+        else:
+            url, headers = endpoint
+            self._mcp_clients[session_id] = GatewayMCPClient(
+                url, headers, self._mcp_discovery_timeout_sec
+            )
+            logger.info(
+                "Session %s will use the gateway MCP endpoint %s (%d announced header(s))",
+                session_id,
+                url,
+                len(headers),
             )
 
         return NewSessionResponse(session_id=session_id)
+
+    async def aclose(self) -> None:
+        """Release every MCP client this agent still holds.
+
+        ``prompt`` closes the turn's client in its ``finally``, which covers the
+        normal path. This covers the gap: a session the gateway opened but never
+        prompted (client disconnected in between) is never seen by ``prompt``, and
+        the ``session/close`` capability is deliberately not advertised — the
+        Python ACP SDK marks that RPC unstable — so nothing else would reap it.
+        Called once per connection in ``handle_websocket``.
+        """
+        clients, self._mcp_clients = self._mcp_clients, {}
+        for session_id, client in clients.items():
+            logger.info("Releasing MCP client for unfinished session %s", session_id)
+            try:
+                await client.aclose()
+            except Exception as exc:  # pragma: no cover - best-effort teardown
+                logger.warning("Error closing MCP client for %s: %s", session_id, exc)
 
     async def close_session(self, session_id: str, **kwargs: Any) -> CloseSessionResponse:
         """Handle ACP `session/close` RPC.
@@ -165,10 +187,9 @@ class JaegerSidecarAgent(Agent):
         bookkeeping the agent holds. ``pop(..., None)`` is idempotent so
         sessions that never registered contextual tools — or that were
         already cleaned up by ``prompt``'s ``finally`` block — are safe to
-        close again. Capability is advertised in ``initialize`` via
-        ``SessionCapabilities.close``.
+        close again.
         """
-        self._contextual_tools.pop(session_id, None)
+        self._mcp_clients.pop(session_id, None)
         logger.info("Closed session %s", session_id)
         return CloseSessionResponse()
 
@@ -198,84 +219,14 @@ class JaegerSidecarAgent(Agent):
         """
         return ListSessionsResponse(sessions=[])
 
-    async def _execute_contextual_tool(
-        self,
-        session_id: str,
-        tool_name: str,
-        args: dict[str, Any],
-        tool_call_id: str,
-    ) -> Any:
-        """Dispatch a contextual (frontend-supplied) tool call back to the
-        gateway via the ACP extension method, fire-and-forget.
-
-        Two surfaces are involved and must not be conflated:
-
-        1. **AG-UI wire (browser):** the parallel ``session_update``
-           notifications below become ``TOOL_CALL_START`` /
-           ``TOOL_CALL_ARGS`` / ``TOOL_CALL_END`` SSE events. The browser
-           matches the tool name to its registered AG-UI tool and runs
-           ``execute(args)`` locally — *that* is the actual execution.
-           We deliberately do NOT populate ``raw_output`` / ``content`` on
-           the completion update: doing so would cause the streaming
-           client to emit ``TOOL_CALL_RESULT``, which tricks assistant-ui
-           into thinking the server already produced a result and skips
-           the local ``execute()``.
-
-        2. **LLM loop (Gemini):** the ext_method returns the gateway's
-           synthetic ``{"acknowledged": true}`` ack, which we feed back
-           into the agentic loop as the function response so Gemini
-           produces a final text answer. We never wait for the browser to
-           confirm — that's the "forget" half of fire-and-forget.
-        """
-        with tracer().start_as_current_span("sidecar.execute_contextual_tool", attributes={
-            GEN_AI_TOOL_NAME: tool_name,
-            GEN_AI_TOOL_CALL_ID: tool_call_id,
-            GEN_AI_CONVERSATION_ID: session_id,
-            GEN_AI_TOOL_CALL_ARGUMENTS: _truncate_for_span(_to_tool_text(args)),
-        }) as span:
-            try:
-                _validate_function_call(tool_name, args, tool_call_id)
-                conn = self._require_conn()
-                # raw_input carries the LLM-generated arguments onto the
-                # AG-UI wire as TOOL_CALL_ARGS so the browser knows what
-                # to highlight / render / etc.
-                await conn.session_update(
-                    session_id,
-                    start_tool_call(
-                        tool_call_id,
-                        tool_name,
-                        kind="other",
-                        status="in_progress",
-                        raw_input=args,
-                    ),
-                )
-
-                response = await conn.ext_method(
-                    EXT_METHOD_JAEGER_TOOL_CALL,
-                    {"sessionId": session_id, "name": tool_name, "args": args},
-                )
-                # response is the gateway's synthetic ack, not the tool's actual
-                # output (see docstring: fire-and-forget, real result never
-                # comes back here) — so gen_ai.tool.call.result is deliberately
-                # not set for this path to avoid mislabeling the ack as a result.
-
-                # Status=completed alone fires TOOL_CALL_END (no RESULT)
-                # because raw_output is intentionally absent — see the
-                # method docstring for why.
-                await conn.session_update(
-                    session_id,
-                    update_tool_call(
-                        tool_call_id,
-                        status="completed",
-                    ),
-                )
-                return response
-            except Exception as e:
-                span.record_exception(e)
-                span.set_status(Status(StatusCode.ERROR, description=str(e)))
-                raise
-
     async def _execute_tool(self, session_id: str, tool_name: str, args: dict[str, Any], tool_call_id: str) -> Any:
+        """Dispatch one Gemini function call to the gateway's MCP endpoint.
+
+        No ``session_update`` notifications are emitted around the call. Every
+        tool now runs through the gateway, which is already the source of the
+        ``TOOL_CALL_*`` SSE the browser renders; emitting from here as well
+        would double each event on the AG-UI wire.
+        """
         with tracer().start_as_current_span("sidecar.execute_tool", attributes={
             GEN_AI_TOOL_NAME: tool_name,
             GEN_AI_TOOL_CALL_ID: tool_call_id,
@@ -284,36 +235,28 @@ class JaegerSidecarAgent(Agent):
         }) as span:
             try:
                 _validate_function_call(tool_name, args, tool_call_id)
-                conn = self._require_conn()
-                await conn.session_update(
-                    session_id,
-                    start_tool_call(
-                        tool_call_id,
-                        tool_name,
-                        kind="search",
-                        status="in_progress",
-                    ),
+                tool_output = await self._mcp_for(session_id).call_tool(tool_name, args)
+                span.set_attribute(
+                    GEN_AI_TOOL_CALL_RESULT, _truncate_for_span(_to_tool_text(tool_output))
                 )
-
-                tool_output = await self._mcp.call_tool(tool_name, args)
-                output_text = _to_tool_text(tool_output)
-                span.set_attribute(GEN_AI_TOOL_CALL_RESULT, _truncate_for_span(output_text))
-
-                await conn.session_update(
-                    session_id,
-                    update_tool_call(
-                        tool_call_id,
-                        status="completed",
-                        content=[tool_content(text_block(output_text))],
-                        raw_output={"content": tool_output},
-                    ),
-                )
-
                 return tool_output
             except Exception as e:
                 span.record_exception(e)
                 span.set_status(Status(StatusCode.ERROR, description=str(e)))
                 raise
+
+    def _mcp_for(self, session_id: str) -> GatewayMCPClient:
+        """Return the turn's MCP client, or fail loudly.
+
+        A missing client means session/new announced no endpoint, so there are
+        no tools to call — and Gemini should not have been offered any.
+        """
+        client = self._mcp_clients.get(session_id)
+        if client is None:
+            raise RuntimeError(
+                f"no MCP endpoint was announced for session {session_id}; cannot call tools"
+            )
+        return client
 
     async def _run_agentic_gemini_loop(self, session_id: str, user_text: str) -> str:
         with tracer().start_as_current_span("sidecar.agentic_loop", attributes={
@@ -331,25 +274,18 @@ class JaegerSidecarAgent(Agent):
                 "After tool calls, provide a concise answer with: findings, probable cause, and next debugging steps."
             )
 
-            mcp_tools = await self._mcp.get_gemini_tools()
-            mcp_tool_names: set[str] = set()
-            for tool in mcp_tools:
+            # One tool surface: whatever the gateway's turn-scoped endpoint
+            # advertises. It merges Jaeger's telemetry tools with the browser's
+            # UI tools for this turn, so the sidecar no longer decides where a
+            # call is routed — it just calls the tool it was offered.
+            client = self._mcp_clients.get(session_id)
+            tools_for_gemini: list[Any] = list(await client.get_gemini_tools()) if client else []
+
+            tool_names: set[str] = set()
+            for tool in tools_for_gemini:
                 if tool.function_declarations:
-                    mcp_tool_names.update(fd.name for fd in tool.function_declarations if fd.name)
-
-            contextual_tools = self._contextual_tools.get(session_id, [])
-            contextual_tool_names = {t["name"] for t in contextual_tools if t.get("name")}
-            contextual_gemini_tool = _build_gemini_contextual_tool(contextual_tools)
-
-            tools_for_gemini: list[Any] = list(mcp_tools)
-            if contextual_gemini_tool is not None:
-                tools_for_gemini.append(contextual_gemini_tool)
-
-            logger.info(
-                "Passing tools to Gemini: mcp=%s contextual=%s",
-                sorted(mcp_tool_names),
-                sorted(contextual_tool_names),
-            )
+                    tool_names.update(fd.name for fd in tool.function_declarations if fd.name)
+            logger.info("Passing tools to Gemini: %s", sorted(tool_names))
 
             chat = self._gemini.chats.create(
                 model="gemini-2.5-flash",
@@ -376,12 +312,8 @@ class JaegerSidecarAgent(Agent):
                     name = function_call.name or ""
                     args = function_call.args or dict[str, Any]()
                     call_id = function_call.id or self._new_tool_call_id(name or "unnamed")
-                    if name in contextual_tool_names:
-                        logger.info("Gemini requested contextual tool call: %s (call_id=%s)", name, call_id)
-                        tool_output = await self._execute_contextual_tool(session_id, name, args, call_id)
-                    else:
-                        logger.info("Gemini requested MCP tool call: %s (call_id=%s)", name, call_id)
-                        tool_output = await self._execute_tool(session_id, name, args, call_id)
+                    logger.info("Gemini requested tool call: %s (call_id=%s)", name, call_id)
+                    tool_output = await self._execute_tool(session_id, name, args, call_id)
                     function_responses.append(
                         types.Part.from_function_response(name=name, response={"result": tool_output})
                     )
@@ -440,14 +372,16 @@ class JaegerSidecarAgent(Agent):
                     update_agent_message(text_block(f"\n[Error: {str(e)}]"))
                 )
             finally:
-                # Drop the per-session contextual tools snapshot now that
-                # the prompt has finished. The Jaeger AI gateway opens one
-                # ACP session per chat request and never reuses the
-                # session_id, so without this cleanup the dict would grow
-                # unbounded over the sidecar's lifetime. pop(..., None)
-                # is idempotent — safe even if no entry exists for this
-                # session (which is the common PR1 case).
-                self._contextual_tools.pop(session_id, None)
+                # Close the turn's MCP session and drop it. The gateway opens one
+                # ACP session per chat request and never reuses the session_id, so
+                # without this the clients would accumulate — each holding an open
+                # HTTP connection — for the sidecar's lifetime. Closing here rather
+                # than in close_session covers turns the gateway never closes
+                # (client disconnect mid-stream); pop is idempotent, so the later
+                # close_session is still safe.
+                client = self._mcp_clients.pop(session_id, None)
+                if client is not None:
+                    await client.aclose()
 
             return PromptResponse(stop_reason="end_turn")
 
@@ -461,6 +395,7 @@ async def handle_websocket(websocket: Any, agent_factory: Callable[[], Agent] | 
     asock, csock = socket.socketpair()
     agent_writer = None
     client_writer = None
+    agent: Agent | None = None
     tasks: list[asyncio.Task[Any]] = []
 
     try:
@@ -534,5 +469,10 @@ async def handle_websocket(websocket: Any, agent_factory: Callable[[], Agent] | 
             task.cancel()
         if lingering:
             await asyncio.gather(*lingering, return_exceptions=True)
+
+        # Release any MCP client left on a session the gateway opened but never
+        # prompted; see JaegerSidecarAgent.aclose.
+        if isinstance(agent, JaegerSidecarAgent):
+            await agent.aclose()
 
         logger.info("Websocket connection closed")

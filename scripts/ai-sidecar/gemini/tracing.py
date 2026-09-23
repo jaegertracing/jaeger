@@ -50,8 +50,8 @@ def extract_trace_context(meta: Any) -> otel_context.Context:
     """Extract a parent trace context from an ACP request's _meta dict.
 
     The Python ACP router spreads _meta into the handler's **kwargs by inner
-    key, so callers pass the handler kwargs dict directly (same convention
-    _extract_contextual_tools uses). Returns the current context unchanged
+    key, so callers pass the handler kwargs dict directly. Returns the current
+    context unchanged
     when meta is absent or carries no recognizable trace context, so a prompt
     with no injected context still gets a (disconnected) root span instead of
     raising.
