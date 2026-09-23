@@ -1,7 +1,7 @@
 // Copyright (c) 2026 The Jaeger Authors.
 // SPDX-License-Identifier: Apache-2.0
 
-package storagewriterconnector
+package storageexporter
 
 import (
 	"context"
@@ -12,18 +12,16 @@ import (
 	"go.opentelemetry.io/collector/component/componenttest"
 	"go.opentelemetry.io/collector/connector/connectortest"
 	"go.opentelemetry.io/collector/consumer/consumertest"
-
-	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/exporters/storageexporter"
 )
 
-func TestNewFactory_CreatesTracesToTraces(t *testing.T) {
-	f := NewFactory()
+func TestNewConnectorFactory_CreatesTracesToTraces(t *testing.T) {
+	f := NewConnectorFactory()
 	assert.Equal(t, componentType, f.Type())
 
 	cfg := f.CreateDefaultConfig()
 	require.NoError(t, componenttest.CheckConfigStruct(cfg))
-	assert.Equal(t, storageexporter.NewFactory().CreateDefaultConfig(), &cfg.(*Config).Config,
-		"the connector shares jaeger_storage_exporter's defaults")
+	assert.Equal(t, NewFactory().CreateDefaultConfig(), cfg,
+		"the connector form shares the exporter's defaults")
 
 	// The default config is missing the required trace_storage, so it is invalid.
 	require.Error(t, cfg.(*Config).Validate())

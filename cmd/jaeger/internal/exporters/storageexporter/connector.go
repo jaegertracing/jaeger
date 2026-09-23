@@ -1,7 +1,7 @@
 // Copyright (c) 2026 The Jaeger Authors.
 // SPDX-License-Identifier: Apache-2.0
 
-package storagewriterconnector
+package storageexporter
 
 import (
 	"context"
@@ -16,13 +16,19 @@ import (
 	"go.opentelemetry.io/collector/pdata/ptrace"
 	"go.uber.org/zap"
 
-	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/exporters/storageexporter"
 	"github.com/jaegertracing/jaeger/internal/metrics"
 	"github.com/jaegertracing/jaeger/internal/metrics/otelmetrics"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore"
 )
 
 var _ connector.Traces = (*connectorImpl)(nil)
+
+// errQueueWithoutResult rejects a queue that acknowledges spans on enqueue. The
+// connector form exists to return the storage write's verdict to its caller, so an
+// enabled queue must block the caller until the write completes. The check lives
+// in the connector factory rather than in Config.Validate because the same Config
+// serves the exporter form, where a queue that acknowledges on enqueue is allowed.
+var errQueueWithoutResult = errors.New("queue.wait_for_result must be true: the connector returns the storage write's result to its caller, and a queue that acknowledges on enqueue would advance the receiver before the storage has the spans")
 
 // connectorImpl is the traces→traces connector that writes each batch to storage
 // and re-emits the spans the storage rejected terminally ("poison pills") onto its
@@ -55,7 +61,7 @@ type connectorImpl struct {
 	exporter.Traces
 	config *Config
 	logger *zap.Logger
-	writer *storageexporter.TraceWriter
+	writer *TraceWriter
 	next   consumer.Traces // the dead-letter pipeline
 	// deadLetterSpans counts the spans handed to the dead-letter pipeline.
 	deadLetterSpans metrics.Counter
@@ -65,7 +71,7 @@ func newConnector(ctx context.Context, set connector.Settings, cfg *Config, next
 	c := &connectorImpl{
 		config: cfg,
 		logger: set.Logger,
-		writer: storageexporter.NewTraceWriter(&cfg.Config, set.TelemetrySettings),
+		writer: NewTraceWriter(cfg, set.TelemetrySettings),
 		next:   next,
 		deadLetterSpans: otelmetrics.NewFactory(set.MeterProvider).
 			Namespace(metrics.NSOptions{Name: "jaeger_storage_exporter"}).

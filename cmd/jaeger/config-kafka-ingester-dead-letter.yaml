@@ -6,8 +6,8 @@
 #
 # This is config-kafka-ingester-sync.yaml with these changes: jaeger_storage_exporter
 # is declared under connectors instead of exporters, which gives it an output
-# pipeline for the spans the storage rejects, the
-# storage runs with poison_pill_handling: fail instead of drop, and a
+# pipeline for the spans the storage rejects; the storage runs with
+# poison_pill_handling: fail instead of drop; and a
 # traces/dead_letter pipeline feeds an otlphttp exporter. A span the backend
 # rejects terminally (a "poison pill": a document that fails identically on every
 # retry, such as a mapping conflict) is then re-emitted onto the traces/dead_letter
