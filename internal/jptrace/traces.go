@@ -42,7 +42,7 @@ func (td *TracesData) MarshalTo(buf []byte) (n int, err error) {
 // its fields back to front, hands each nested field the still-unused prefix of its buffer, and
 // takes the field's length from the return value. Writing at the head of buf instead would leave
 // the slot the parent reserved at the tail empty, and the parent would then encode its remaining
-// fields, and this field's own tag and length, over the bytes written at the head.
+// fields, including this field's own tag and length, over what we would have written.
 func (td *TracesData) MarshalToSizedBuffer(buf []byte) (int, error) {
 	data, err := td.Marshal()
 	if err != nil {
