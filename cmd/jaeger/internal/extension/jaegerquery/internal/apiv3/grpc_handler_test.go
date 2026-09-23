@@ -61,28 +61,23 @@ type testServerClient struct {
 	client     api_v3.QueryServiceClient
 }
 
-type sendErrorTraceSummariesStream struct {
+// fakeStream records the last response the handler sends, or fails the send with sendErr when
+// one is set. It stands in for the grpc.ServerStream a handler streams a response over, for
+// whichever response message type T the RPC under test uses.
+type fakeStream[T any] struct {
 	grpc.ServerStream
+	response *T
+	sendErr  error
 }
 
-func (*sendErrorTraceSummariesStream) Context() context.Context {
+func (*fakeStream[T]) Context() context.Context {
 	return context.Background()
 }
 
-func (*sendErrorTraceSummariesStream) Send(*api_v3.FindTraceSummariesResponse) error {
-	return assert.AnError
-}
-
-type captureTraceSummariesStream struct {
-	grpc.ServerStream
-	response *api_v3.FindTraceSummariesResponse
-}
-
-func (*captureTraceSummariesStream) Context() context.Context {
-	return context.Background()
-}
-
-func (s *captureTraceSummariesStream) Send(response *api_v3.FindTraceSummariesResponse) error {
+func (s *fakeStream[T]) Send(response *T) error {
+	if s.sendErr != nil {
+		return s.sendErr
+	}
 	s.response = response
 	return nil
 }
@@ -547,7 +542,7 @@ func TestFindTraceSummariesPreservesNextPageToken(t *testing.T) {
 		&dependencystoremocks.Reader{},
 		querysvc.QueryServiceOptions{},
 	)}
-	stream := &captureTraceSummariesStream{}
+	stream := &fakeStream[api_v3.FindTraceSummariesResponse]{}
 
 	err := handler.FindTraceSummaries(&api_v3.FindTraceSummariesRequest{
 		Query: &api_v3.TraceQueryParameters{
@@ -620,10 +615,247 @@ func TestFindTraceSummariesSendError(t *testing.T) {
 			StartTimeMin: time.Now().Add(-time.Hour),
 			StartTimeMax: time.Now(),
 		},
-	}, &sendErrorTraceSummariesStream{})
+	}, &fakeStream[api_v3.FindTraceSummariesResponse]{sendErr: assert.AnError})
 	require.ErrorContains(t, err, "failed to send response stream chunk")
 	require.ErrorContains(t, err, assert.AnError.Error())
 	reader.AssertExpectations(t)
+}
+
+// TestFindSpans covers the success path: a backend that declares SpanSearch is asked for spans
+// through the handler's spanQueryParams conversion, and the result comes back as a single chunk.
+func TestFindSpans(t *testing.T) {
+	tsc := newTestServerClientWithCapabilities(t, tracestore.SearchCapabilities{SpanSearch: true})
+	tsc.reader.On("FindSpans", matchContext, mock.AnythingOfType("tracestore.SpanQueryParams")).
+		Return(iter.Seq2[tracestore.PageChunk[ptrace.Traces], error](func(yield func(tracestore.PageChunk[ptrace.Traces], error) bool) {
+			yield(tracestore.PageChunk[ptrace.Traces]{Results: makeTestTrace()}, nil)
+		})).Once()
+
+	responseStream, err := tsc.client.FindSpans(context.Background(), &api_v3.FindSpansRequest{
+		Query: &api_v3.SpanQueryParameters{
+			StartTimeMin: time.Now().Add(-2 * time.Hour),
+			StartTimeMax: time.Now(),
+		},
+	})
+	require.NoError(t, err)
+	recv, err := responseStream.Recv()
+	require.NoError(t, err)
+	require.Equal(t, 1, recv.GetSpans().ToTraces().SpanCount())
+}
+
+// TestFindSpansPreservesNextPageToken pins that the page token on the final chunk reaches the
+// caller unchanged; the handler does not read or interpret it.
+func TestFindSpansPreservesNextPageToken(t *testing.T) {
+	reader := &tracestoremocks.Reader{}
+	reader.On("SearchCapabilities", mock.Anything).Return(tracestore.SearchCapabilities{SpanSearch: true}, nil)
+	reader.On("FindSpans", mock.Anything, mock.Anything).
+		Return(iter.Seq2[tracestore.PageChunk[ptrace.Traces], error](func(yield func(tracestore.PageChunk[ptrace.Traces], error) bool) {
+			yield(tracestore.PageChunk[ptrace.Traces]{Results: ptrace.NewTraces(), NextPageToken: "next-page"}, nil)
+		})).Once()
+	handler := &Handler{QueryService: querysvc.NewQueryService(
+		reader,
+		&dependencystoremocks.Reader{},
+		querysvc.QueryServiceOptions{},
+	)}
+	stream := &fakeStream[api_v3.FindSpansResponse]{}
+
+	err := handler.FindSpans(&api_v3.FindSpansRequest{
+		Query: &api_v3.SpanQueryParameters{
+			StartTimeMin: time.Now().Add(-time.Hour),
+			StartTimeMax: time.Now(),
+		},
+	}, stream)
+
+	require.NoError(t, err)
+	require.NotNil(t, stream.response)
+	assert.Equal(t, "next-page", stream.response.GetNextPageToken())
+}
+
+// TestFindSpansQueryNil pins the two structural refusals a query has to pass before it ever
+// reaches the query service: a missing query, and a missing time range.
+func TestFindSpansQueryNil(t *testing.T) {
+	tsc := newTestServerClientWithCapabilities(t, tracestore.SearchCapabilities{SpanSearch: true})
+	responseStream, err := tsc.client.FindSpans(context.Background(), &api_v3.FindSpansRequest{})
+	require.NoError(t, err)
+	recv, err := responseStream.Recv()
+	require.ErrorContains(t, err, "missing query")
+	assert.Equal(t, codes.InvalidArgument, status.Code(err))
+	assert.Nil(t, recv)
+
+	responseStream, err = tsc.client.FindSpans(context.Background(), &api_v3.FindSpansRequest{
+		Query: &api_v3.SpanQueryParameters{},
+	})
+	require.NoError(t, err)
+	recv, err = responseStream.Recv()
+	require.ErrorContains(t, err, "start_time_min and start_time_max are required")
+	assert.Equal(t, codes.InvalidArgument, status.Code(err))
+	assert.Nil(t, recv)
+}
+
+// TestSpanQueryParamsPagination pins that an api_v3.Pagination on the wire reaches the query
+// service as sent: the handler translates and decides nothing, the same as traceQueryParams. An
+// absent message and an empty one are the same request, one the query service bounds itself.
+func TestSpanQueryParamsPagination(t *testing.T) {
+	query := &api_v3.SpanQueryParameters{
+		StartTimeMin: time.Now().Add(-2 * time.Hour),
+		StartTimeMax: time.Now(),
+	}
+	t.Run("absent", func(t *testing.T) {
+		params, err := spanQueryParams(query)
+		require.NoError(t, err)
+		assert.Zero(t, params.Pagination)
+	})
+	t.Run("present", func(t *testing.T) {
+		query.Pagination = &api_v3.Pagination{PageSize: 25, PageToken: "opaque-cursor"}
+		params, err := spanQueryParams(query)
+		require.NoError(t, err)
+		assert.Equal(t, tracestore.Pagination{PageSize: 25, PageToken: "opaque-cursor"}, params.Pagination)
+	})
+}
+
+// TestFindSpansUnsupported pins the refusal for a backend that does not declare SpanSearch
+// (RFC 0016 §4.5): the request is well-formed, so it is InvalidArgument rather than the
+// Unknown a bare error would produce.
+func TestFindSpansUnsupported(t *testing.T) {
+	tsc := newTestServerClient(t)
+
+	responseStream, err := tsc.client.FindSpans(context.Background(), &api_v3.FindSpansRequest{
+		Query: &api_v3.SpanQueryParameters{
+			StartTimeMin: time.Now().Add(-2 * time.Hour),
+			StartTimeMax: time.Now(),
+		},
+	})
+	require.NoError(t, err)
+	_, err = responseStream.Recv()
+	require.ErrorContains(t, err, "does not declare span search support")
+	assert.Equal(t, codes.InvalidArgument, status.Code(err))
+}
+
+func TestFindSpansStorageError(t *testing.T) {
+	tsc := newTestServerClientWithCapabilities(t, tracestore.SearchCapabilities{SpanSearch: true})
+	tsc.reader.On("FindSpans", matchContext, mock.AnythingOfType("tracestore.SpanQueryParams")).
+		Return(iter.Seq2[tracestore.PageChunk[ptrace.Traces], error](func(yield func(tracestore.PageChunk[ptrace.Traces], error) bool) {
+			yield(tracestore.PageChunk[ptrace.Traces]{}, assert.AnError)
+		})).Once()
+
+	responseStream, err := tsc.client.FindSpans(context.Background(), &api_v3.FindSpansRequest{
+		Query: &api_v3.SpanQueryParameters{
+			StartTimeMin: time.Now().Add(-2 * time.Hour),
+			StartTimeMax: time.Now(),
+		},
+	})
+	require.NoError(t, err)
+	recv, err := responseStream.Recv()
+	require.ErrorContains(t, err, assert.AnError.Error())
+	assert.Nil(t, recv)
+}
+
+func TestFindSpansSendError(t *testing.T) {
+	reader := new(tracestoremocks.Reader)
+	reader.On("SearchCapabilities", mock.Anything).Return(tracestore.SearchCapabilities{SpanSearch: true}, nil)
+	reader.On("FindSpans", mock.Anything, mock.Anything).
+		Return(iter.Seq2[tracestore.PageChunk[ptrace.Traces], error](func(yield func(tracestore.PageChunk[ptrace.Traces], error) bool) {
+			yield(tracestore.PageChunk[ptrace.Traces]{Results: makeTestTrace()}, nil)
+		})).Once()
+	h := &Handler{
+		QueryService: querysvc.NewQueryService(
+			reader,
+			new(dependencystoremocks.Reader),
+			querysvc.QueryServiceOptions{},
+		),
+	}
+	err := h.FindSpans(&api_v3.FindSpansRequest{
+		Query: &api_v3.SpanQueryParameters{
+			StartTimeMin: time.Now().Add(-time.Hour),
+			StartTimeMax: time.Now(),
+		},
+	}, &fakeStream[api_v3.FindSpansResponse]{sendErr: assert.AnError})
+	require.ErrorContains(t, err, "failed to send response stream chunk")
+	require.ErrorContains(t, err, assert.AnError.Error())
+	reader.AssertExpectations(t)
+}
+
+// TestFindSpansWithFilter covers what the handler contributes to the filter plumbing: it
+// decodes the proto filter into the AST and hands it to the query service.
+func TestFindSpansWithFilter(t *testing.T) {
+	enableStructuredFilters(t)
+	tsc := newTestServerClientWithCapabilities(t, tracestore.SearchCapabilities{
+		SpanSearch: true,
+		Filter: &tracestore.FilterCapabilities{
+			Levels:    []expression.Level{expression.LevelSpan},
+			Operators: []expression.Operator{expression.OpEq},
+		},
+	})
+	var dispatched tracestore.SpanQueryParams
+	tsc.reader.On("FindSpans", matchContext, mock.AnythingOfType("tracestore.SpanQueryParams")).
+		Run(func(args mock.Arguments) {
+			dispatched = args.Get(1).(tracestore.SpanQueryParams)
+		}).
+		Return(iter.Seq2[tracestore.PageChunk[ptrace.Traces], error](func(yield func(tracestore.PageChunk[ptrace.Traces], error) bool) {
+			yield(tracestore.PageChunk[ptrace.Traces]{Results: makeTestTrace()}, nil)
+		})).Once()
+
+	responseStream, err := tsc.client.FindSpans(context.Background(), &api_v3.FindSpansRequest{
+		Query: &api_v3.SpanQueryParameters{
+			StartTimeMin: time.Now().Add(-2 * time.Hour),
+			StartTimeMax: time.Now(),
+			Filter: &expressionproto.Call{Op: "eq", Args: []*expressionproto.Expression{
+				{Term: &expressionproto.Expression_Attr{Attr: &expressionproto.AttributeReference{Key: "http.route", Level: "span"}}},
+				{Term: &expressionproto.Expression_Scalar{Scalar: &expressionproto.Scalar{Value: "/cart"}}},
+			}},
+		},
+	})
+	require.NoError(t, err)
+	recv, err := responseStream.Recv()
+	require.NoError(t, err)
+	require.Equal(t, 1, recv.GetSpans().ToTraces().SpanCount())
+
+	assert.Equal(t, &expression.Call{Op: expression.OpEq, Args: []expression.Expression{
+		&expression.AttributeRef{Key: "http.route", Level: expression.LevelSpan},
+		&expression.AnyValue{Value: "/cart"},
+	}}, dispatched.Filter)
+}
+
+// TestFindSpansMalformedFilter pins that a filter this build cannot make sense of reaches the
+// caller as InvalidArgument rather than as an unknown error.
+func TestFindSpansMalformedFilter(t *testing.T) {
+	enableStructuredFilters(t)
+	tsc := newTestServerClient(t)
+
+	responseStream, err := tsc.client.FindSpans(context.Background(), &api_v3.FindSpansRequest{
+		Query: &api_v3.SpanQueryParameters{
+			StartTimeMin: time.Now().Add(-2 * time.Hour),
+			StartTimeMax: time.Now(),
+			Filter:       &expressionproto.Call{Op: "matches"},
+		},
+	})
+	require.NoError(t, err)
+
+	_, err = responseStream.Recv()
+	require.ErrorContains(t, err, `unknown filter operator "matches"`)
+	assert.Equal(t, codes.InvalidArgument, status.Code(err))
+}
+
+// TestFindSpansUndecodableFilter covers the refusal the handler makes itself, on a filter the
+// AST has no node for: the request never reaches the query service, so the reader here has no
+// expectations and a call to it would fail the test.
+func TestFindSpansUndecodableFilter(t *testing.T) {
+	tsc := newTestServerClient(t)
+
+	responseStream, err := tsc.client.FindSpans(context.Background(), &api_v3.FindSpansRequest{
+		Query: &api_v3.SpanQueryParameters{
+			StartTimeMin: time.Now().Add(-2 * time.Hour),
+			StartTimeMax: time.Now(),
+			Filter: &expressionproto.Call{Op: "eq", Args: []*expressionproto.Expression{
+				{Term: &expressionproto.Expression_Attr{Attr: &expressionproto.AttributeReference{Key: "a"}}},
+				{},
+			}},
+		},
+	})
+	require.NoError(t, err)
+
+	_, err = responseStream.Recv()
+	require.ErrorContains(t, err, "filter argument is empty")
+	assert.Equal(t, codes.InvalidArgument, status.Code(err))
 }
 
 func TestGetOperationsStorageError(t *testing.T) {

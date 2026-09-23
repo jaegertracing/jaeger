@@ -240,7 +240,12 @@ func searchQuery(q tracestore.TraceQueryParams) TraceQueryParams {
 	return TraceQueryParams{TraceQueryParams: q, RawTraces: true}
 }
 
+// searchSpansQuery wraps a reader query for a test about something other than its envelope, so
+// it fills in the time range every search must carry unless the test set one itself.
 func searchSpansQuery(q tracestore.SpanQueryParams) SpanQueryParams {
+	if q.StartTimeMin.IsZero() && q.StartTimeMax.IsZero() {
+		q.StartTimeMin, q.StartTimeMax = testWindowStart, testWindowEnd
+	}
 	return SpanQueryParams{SpanQueryParams: q}
 }
 
@@ -1043,6 +1048,7 @@ func TestFindSpans_AppliesQueryAndResultHooks(t *testing.T) {
 	out, err := collectSpans(qs.FindSpans(t.Context(), SpanQueryParams{SpanQueryParams: tracestore.SpanQueryParams{
 		Filter:       serviceFilter("original"),
 		StartTimeMin: narrowedEnd.Add(-time.Hour),
+		StartTimeMax: narrowedEnd.Add(time.Hour),
 	}}))
 	require.NoError(t, err)
 	assert.Equal(t, serviceFilter("gated"), next.gotSpanQuery.Filter, "pre-query hook must reach storage")
@@ -1051,6 +1057,28 @@ func TestFindSpans_AppliesQueryAndResultHooks(t *testing.T) {
 	require.Len(t, out, 1)
 	assert.Equal(t, "REDACTED", firstSpanAttr(t, []ptrace.Traces{out[0].Results}, "secret"), "result hook must redact")
 	assert.Equal(t, "next", out[0].NextPageToken, "the page token is not the interceptor's to touch")
+}
+
+// TestFindSpans_PaginationSurvivesTheInterceptors pins that Pagination is not part of the view an
+// interceptor sees and is carried past the hooks unchanged: an interceptor shapes what is
+// searched, not how the result is paged.
+func TestFindSpans_PaginationSurvivesTheInterceptors(t *testing.T) {
+	enablePagination(t)
+	next := &fakeReader{batch: tracesWith("k", "v")}
+	next.capabilities = filterCapableBackend()
+	qs := interceptedService(next, fakeInterceptor{
+		onSpanQuery: func(q queryinterceptor.SpanQuery) (queryinterceptor.SpanQuery, error) {
+			return q, nil
+		},
+	})
+
+	_, err := collectSpans(qs.FindSpans(t.Context(), SpanQueryParams{SpanQueryParams: tracestore.SpanQueryParams{
+		StartTimeMin: testWindowStart,
+		StartTimeMax: testWindowEnd,
+		Pagination:   tracestore.Pagination{PageSize: 10},
+	}}))
+	require.NoError(t, err)
+	assert.Equal(t, tracestore.Pagination{PageSize: 10}, next.gotSpanQuery.Pagination, "the page size must reach storage")
 }
 
 func TestFindSpans_OnErrorInResponse(t *testing.T) {
