@@ -94,7 +94,7 @@ For the Kafka ingester, batch size is bounded by the partitions the ingester con
 
 * `WriteTraces` honors the `tracestore.Writer` contract in sync mode, and the Kafka ingester can commit an offset only after the spans it covers are durable, verified end to end by the Kafka e2e suite with a fault-injecting proxy.
 * Retries are idempotent in both modes because of the content-hash `_id`, which also removed duplicate-on-retry from the async path.
-* Poison documents never stall a pipeline unattended: `drop` discards them, the connector preserves them out of band, and either way the batch completes.
+* Poison documents that Elasticsearch rejects per item never stall a pipeline unattended: `drop` discards them, the connector preserves them out of band, and either way the batch completes. A document that makes the whole `_bulk` request fail, such as one larger than `http.max_content_length` (HTTP 413), is not covered: the writer sends an oversized document in a chunk of its own, the request-level error returns before any per-item classification, and the batch is retried until an operator removes the record or raises the limit.
 * Direct-ingest clients receive a retryable OTLP error on a storage outage, which lets SDK and agent buffers provide back-pressure and retry within their own retry budget instead of the collector absorbing the loss.
 * The dead-letter sink is any standard exporter; Jaeger carries no sink code.
 
