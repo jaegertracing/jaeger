@@ -22,3 +22,45 @@ func TestUnsupportedSpanSearch_FindSpans(t *testing.T) {
 	}
 	assert.Equal(t, 1, iterations, "expected exactly one yield carrying ErrUnsupported")
 }
+
+func TestDecodePagination(t *testing.T) {
+	tests := []struct {
+		name       string
+		pageSize   uint32
+		pageToken  string
+		want       Pagination
+		wantErrMsg string
+	}{
+		{
+			name:      "page size and token",
+			pageSize:  10,
+			pageToken: "opaque-cursor",
+			want:      Pagination{PageSize: 10, PageToken: "opaque-cursor"},
+		},
+		{
+			name:     "page size without token",
+			pageSize: 10,
+			want:     Pagination{PageSize: 10},
+		},
+		{
+			name:       "page size missing",
+			pageToken:  "opaque-cursor",
+			wantErrMsg: "page_size is required",
+		},
+		{
+			name:       "both missing",
+			wantErrMsg: "page_size is required",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := DecodePagination(tt.pageSize, tt.pageToken)
+			if tt.wantErrMsg != "" {
+				require.ErrorContains(t, err, tt.wantErrMsg)
+				return
+			}
+			require.NoError(t, err)
+			assert.Equal(t, tt.want, got)
+		})
+	}
+}

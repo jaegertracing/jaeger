@@ -216,6 +216,16 @@ type Pagination struct {
 	PageToken string
 }
 
+// DecodePagination validates a wire-level page size and token and turns them into a Pagination.
+// PageSize is required whenever a Pagination is present at all (see Pagination.PageSize); a
+// pageSize of 0 is rejected here rather than left for a Reader or the query service to notice.
+func DecodePagination(pageSize uint32, pageToken string) (Pagination, error) {
+	if pageSize == 0 {
+		return Pagination{}, errors.New("page_size is required")
+	}
+	return Pagination{PageSize: int(pageSize), PageToken: pageToken}, nil
+}
+
 // FoundTraceID is a wrapper around trace ID returned from FindTraceIDs
 // with an optional time range that may be used in GetTraces calls.
 //
