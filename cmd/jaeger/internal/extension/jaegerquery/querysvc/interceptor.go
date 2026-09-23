@@ -102,7 +102,8 @@ func (qs QueryService) onTraceQuery(ctx context.Context, query TraceQueryParams)
 }
 
 // toInterceptorSpanQuery and fromInterceptorSpanQuery are the span search's converters at the
-// same boundary. A span query has one shape, so nothing stays behind on the internal query.
+// same boundary. A span query has one shape, so only Pagination stays behind on the internal
+// query: an interceptor shapes what is searched, not how the result is paged.
 func toInterceptorSpanQuery(q tracestore.SpanQueryParams) queryinterceptor.SpanQuery {
 	return queryinterceptor.SpanQuery{
 		Filter:       q.Filter,
@@ -111,11 +112,12 @@ func toInterceptorSpanQuery(q tracestore.SpanQueryParams) queryinterceptor.SpanQ
 	}
 }
 
-func fromInterceptorSpanQuery(q queryinterceptor.SpanQuery) tracestore.SpanQueryParams {
+func fromInterceptorSpanQuery(q queryinterceptor.SpanQuery, original tracestore.SpanQueryParams) tracestore.SpanQueryParams {
 	return tracestore.SpanQueryParams{
 		Filter:       q.Filter,
 		StartTimeMin: q.StartTimeMin,
 		StartTimeMax: q.StartTimeMax,
+		Pagination:   original.Pagination,
 	}
 }
 
@@ -146,7 +148,7 @@ func (qs QueryService) onSpanQuery(ctx context.Context, query SpanQueryParams) (
 			return ctx, query, err
 		}
 	}
-	query.SpanQueryParams = fromInterceptorSpanQuery(queryPostIntercept)
+	query.SpanQueryParams = fromInterceptorSpanQuery(queryPostIntercept, query.SpanQueryParams)
 	return ctx, query, nil
 }
 

@@ -4,11 +4,11 @@
 package apiv3
 
 import (
-	"bytes"
 	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"net/http"
 	"strconv"
 
@@ -154,10 +154,10 @@ func (*HTTPGateway) marshalResponse(response proto.Message, w http.ResponseWrite
 // its result field as TracesData, there is no proto message typed to carry this RPC's response
 // as a wrapped result, so the envelope is applied to the marshaled bytes directly (RFC 0018 §6.1).
 func (*HTTPGateway) marshalResultWrappedResponse(response proto.Message, w http.ResponseWriter) {
-	var buf bytes.Buffer
-	_ = new(jsonpb.Marshaler).Marshal(&buf, response)
 	w.Header().Set("Content-Type", "application/json")
-	fmt.Fprintf(w, `{"result":%s}`, buf.String())
+	_, _ = io.WriteString(w, `{"result":`)
+	_ = new(jsonpb.Marshaler).Marshal(w, response)
+	_, _ = io.WriteString(w, `}`)
 }
 
 func (h *HTTPGateway) getTrace(w http.ResponseWriter, r *http.Request) {

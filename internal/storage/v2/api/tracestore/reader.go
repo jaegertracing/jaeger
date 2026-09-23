@@ -145,11 +145,12 @@ type SpanQueryParams struct {
 	StartTimeMin time.Time
 	StartTimeMax time.Time
 	Filter       *expression.Call // RFC 0005
-	// Pagination is decoded from the wire but not yet honored by any Reader: no backend
-	// implementation reads it, and the query service refuses a query that sets it rather than
-	// silently ignoring it. The field exists so that refusal has one place to happen
-	// (querysvc.prepareSpanSearchQuery) instead of being reinvented per API handler.
-	Pagination Pagination // RFC 0014
+	// Pagination is the only bound on the result, since a span query has no SearchDepth
+	// (RFC 0016 §6), so PageSize is always set: the query service fills in a default when the
+	// caller left it unset. A Reader whose SearchCapabilities.Paginated is false still receives
+	// PageSize as that bound but never a PageToken, which the query service refuses on its
+	// behalf before dispatching (RFC 0014 §6.2).
+	Pagination Pagination
 }
 
 // UnsupportedSpanSearch provides a Reader.FindSpans implementation for backends that
@@ -203,10 +204,11 @@ const MaxPageSize = 10000
 // previous page stopped. It mirrors jaeger.api_v3.Pagination and jaeger.storage.v2.Pagination
 // (RFC 0014 §4, §6).
 type Pagination struct {
-	// PageSize bounds the number of results in one page. It replaces SearchDepth as the page
-	// bound rather than falling back to it, so it is required whenever Pagination is present:
-	// a Pagination that leaves PageSize at zero does not describe a page, and the query
-	// service refuses it before a Reader ever sees the query (RFC 0014 §4).
+	// PageSize bounds the number of results in one page. In a trace search it replaces
+	// SearchDepth as the page bound rather than falling back to it, so it is required whenever
+	// Pagination is present, and the query service refuses a zero PageSize before a Reader ever
+	// sees the query (RFC 0014 §4). A span search has no other bound, so there the query
+	// service fills in a default instead (see SpanQueryParams.Pagination).
 	PageSize int
 	// PageToken continues a previous search. Empty starts a new one. A Reader that
 	// receives a non-empty PageToken MUST treat it as an uninterpreted cursor it minted
@@ -214,21 +216,6 @@ type Pagination struct {
 	// produce, since the query service rejects a PageToken against a Reader whose
 	// SearchCapabilities.Paginated is false before dispatching (RFC 0014 §6.2).
 	PageToken string
-}
-
-// DecodePagination validates a wire-level page size and token and turns them into a Pagination.
-// PageSize is required whenever a Pagination is present at all (see Pagination.PageSize); a
-// pageSize of 0 is rejected here rather than left for a Reader or the query service to notice.
-// A pageSize above MaxPageSize is clamped rather than refused (see MaxPageSize), which also
-// keeps the uint32-to-int conversion below always in range.
-func DecodePagination(pageSize uint32, pageToken string) (Pagination, error) {
-	if pageSize == 0 {
-		return Pagination{}, errors.New("page_size is required")
-	}
-	if pageSize > MaxPageSize {
-		pageSize = MaxPageSize
-	}
-	return Pagination{PageSize: int(pageSize), PageToken: pageToken}, nil
 }
 
 // FoundTraceID is a wrapper around trace ID returned from FindTraceIDs

@@ -419,14 +419,24 @@ func TestParseFindSpansQuery(t *testing.T) {
 		assert.Equal(t, tracestore.Pagination{PageSize: 10, PageToken: "opaque-cursor"}, got.Pagination)
 	})
 
-	t.Run("page token without page size is rejected", func(t *testing.T) {
+	t.Run("pagination parameters are optional", func(t *testing.T) {
 		q := url.Values{}
 		q.Set(paramTimeMin, goodMin)
 		q.Set(paramTimeMax, goodMax)
-		q.Set(paramPageToken, "opaque-cursor")
+
+		got, err := parseFindSpansQuery(q)
+		require.NoError(t, err)
+		assert.Zero(t, got.Pagination, "the bound is the query service's to fill in")
+	})
+
+	t.Run("negative page size", func(t *testing.T) {
+		q := url.Values{}
+		q.Set(paramTimeMin, goodMin)
+		q.Set(paramTimeMax, goodMax)
+		q.Set(paramPageSize, "-1")
 
 		_, err := parseFindSpansQuery(q)
-		require.ErrorContains(t, err, "page_size is required")
+		require.ErrorContains(t, err, "malformed parameter query.pagination.pageSize")
 	})
 
 	t.Run("malformed page size", func(t *testing.T) {

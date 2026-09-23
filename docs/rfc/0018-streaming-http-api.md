@@ -150,7 +150,7 @@ The extra level under `result` for the paginated RPCs (`spans`, `summaries`) is 
 The buffered shapes are treated differently by endpoint:
 
 - **`GetTrace`, `FindTraces`:** already wrapped. The per-line schema of the stream is the buffered schema, so a client's parser and Zod schema serve both modes.
-- **`FindSpans`:** its HTTP handler is still under review in [#9613](https://github.com/jaegertracing/jaeger/pull/9613), so nothing has shipped and there is no reason for the new endpoint to differ from the trace endpoints. The PR currently writes the `FindSpansResponse` unwrapped; this RFC asks it to wrap the buffered response as `{"result":{"spans":…,"nextPageToken":"…"}}` before it merges, so the endpoint never ships an unwrapped form.
+- **`FindSpans`:** wrapped from the start. Its HTTP handler ([#9613](https://github.com/jaegertracing/jaeger/pull/9613)) writes the buffered response as `{"result":{"spans":…,"nextPageToken":"…"}}`, so the endpoint never shipped an unwrapped form and there is no reason for it to differ from the trace endpoints.
 - **`FindTraceSummaries`:** shipped unwrapped, and changing it would break its clients, so its buffered response stays as it is. Only its streaming form is wrapped. This is the one asymmetry between modes, and it is documented as such in the OpenAPI document (§10).
 
 The proto `GRPCGatewayWrapper` types its `result` as `TracesData`, so it can carry only the trace endpoints' payload. The gateway writes the envelope for the other RPCs at the JSON level, marshalling the response message with `jsonpb` and wrapping the bytes in `{"result":…}`; no new proto message is needed for that.

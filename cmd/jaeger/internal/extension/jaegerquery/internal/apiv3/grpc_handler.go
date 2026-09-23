@@ -165,11 +165,10 @@ func spanQueryParams(query *api_v3.SpanQueryParameters) (querysvc.SpanQueryParam
 		queryParams.Filter = filter
 	}
 	if pagination := query.GetPagination(); pagination != nil {
-		p, err := tracestore.DecodePagination(pagination.GetPageSize(), pagination.GetPageToken())
-		if err != nil {
-			return querysvc.SpanQueryParams{}, status.Error(codes.InvalidArgument, err.Error())
+		queryParams.Pagination = tracestore.Pagination{
+			PageSize:  int(pagination.GetPageSize()),
+			PageToken: pagination.GetPageToken(),
 		}
-		queryParams.Pagination = p
 	}
 	return queryParams, nil
 }

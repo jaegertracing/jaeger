@@ -196,20 +196,13 @@ func parseFindSpansQuery(q url.Values) (*querysvc.SpanQueryParams, error) {
 		queryParams.Filter = filter
 	}
 
-	if pageSizeStr := q.Get(paramPageSize); pageSizeStr != "" || q.Get(paramPageToken) != "" {
-		var pageSize uint64
-		if pageSizeStr != "" {
-			var err error
-			pageSize, err = strconv.ParseUint(pageSizeStr, 10, 32)
-			if err != nil {
-				return nil, fmt.Errorf("malformed parameter %s: %w", paramPageSize, err)
-			}
+	queryParams.Pagination.PageToken = q.Get(paramPageToken)
+	if pageSizeStr := q.Get(paramPageSize); pageSizeStr != "" {
+		pageSize, err := strconv.Atoi(pageSizeStr)
+		if err != nil || pageSize < 0 {
+			return nil, fmt.Errorf("malformed parameter %s: %s", paramPageSize, pageSizeStr)
 		}
-		p, err := tracestore.DecodePagination(uint32(pageSize), q.Get(paramPageToken))
-		if err != nil {
-			return nil, err
-		}
-		queryParams.Pagination = p
+		queryParams.Pagination.PageSize = pageSize
 	}
 	return queryParams, nil
 }

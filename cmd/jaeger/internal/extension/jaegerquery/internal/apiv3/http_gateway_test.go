@@ -669,7 +669,8 @@ func TestHTTPGatewayFindTraceSummariesInvalidQuery(t *testing.T) {
 }
 
 // mockFindSpansQuery builds the query params for a well-formed span search, and the equivalent
-// tracestore.SpanQueryParams the reader should be dispatched.
+// tracestore.SpanQueryParams the reader should be dispatched: the caller sent no pagination, so
+// the query service fills in the default page size on the way through.
 func mockFindSpansQuery() (url.Values, tracestore.SpanQueryParams) {
 	tMin := time.Now().Add(-time.Hour).UTC().Truncate(time.Nanosecond)
 	tMax := time.Now().UTC().Truncate(time.Nanosecond)
@@ -680,6 +681,7 @@ func mockFindSpansQuery() (url.Values, tracestore.SpanQueryParams) {
 	return q, tracestore.SpanQueryParams{
 		StartTimeMin: tMin,
 		StartTimeMax: tMax,
+		Pagination:   tracestore.Pagination{PageSize: querysvc.DefaultPageSize},
 	}
 }
 
@@ -774,9 +776,11 @@ func TestHTTPGatewayFindSpansMalformedQuery(t *testing.T) {
 	assert.Contains(t, w.Body.String(), "malformed parameter query.filter")
 }
 
-func TestHTTPGatewayFindSpansPaginationRejected(t *testing.T) {
+// TestHTTPGatewayFindSpansPaginationRefusal pins that a pagination refusal decided in the query
+// service (here, the feature gate) reaches the HTTP caller as a 400, not a 500.
+func TestHTTPGatewayFindSpansPaginationRefusal(t *testing.T) {
 	q, _ := mockFindSpansQuery()
-	q.Set("query.pagination.pageSize", "10")
+	q.Set("query.pagination.pageToken", "opaque-cursor")
 	gw := setupHTTPGatewayNoServer(t, "")
 
 	r, err := http.NewRequest(http.MethodGet, "/api/v3/spans?"+q.Encode(), http.NoBody)
@@ -784,7 +788,7 @@ func TestHTTPGatewayFindSpansPaginationRejected(t *testing.T) {
 	w := httptest.NewRecorder()
 	gw.router.ServeHTTP(w, r)
 	assert.Equal(t, http.StatusBadRequest, w.Code)
-	assert.Contains(t, w.Body.String(), "pagination is not yet supported for span search")
+	assert.Contains(t, w.Body.String(), querysvc.PaginationGate.ID())
 }
 
 func TestTraceIDFromString(t *testing.T) {

@@ -1059,6 +1059,28 @@ func TestFindSpans_AppliesQueryAndResultHooks(t *testing.T) {
 	assert.Equal(t, "next", out[0].NextPageToken, "the page token is not the interceptor's to touch")
 }
 
+// TestFindSpans_PaginationSurvivesTheInterceptors pins that Pagination is not part of the view an
+// interceptor sees and is carried past the hooks unchanged: an interceptor shapes what is
+// searched, not how the result is paged.
+func TestFindSpans_PaginationSurvivesTheInterceptors(t *testing.T) {
+	enablePagination(t)
+	next := &fakeReader{batch: tracesWith("k", "v")}
+	next.capabilities = filterCapableBackend()
+	qs := interceptedService(next, fakeInterceptor{
+		onSpanQuery: func(q queryinterceptor.SpanQuery) (queryinterceptor.SpanQuery, error) {
+			return q, nil
+		},
+	})
+
+	_, err := collectSpans(qs.FindSpans(t.Context(), SpanQueryParams{SpanQueryParams: tracestore.SpanQueryParams{
+		StartTimeMin: testWindowStart,
+		StartTimeMax: testWindowEnd,
+		Pagination:   tracestore.Pagination{PageSize: 10},
+	}}))
+	require.NoError(t, err)
+	assert.Equal(t, tracestore.Pagination{PageSize: 10}, next.gotSpanQuery.Pagination, "the page size must reach storage")
+}
+
 func TestFindSpans_OnErrorInResponse(t *testing.T) {
 	enableStructuredFilters(t)
 	onResultCalled := 0

@@ -649,7 +649,7 @@ func TestFindSpansPreservesNextPageToken(t *testing.T) {
 	reader.On("SearchCapabilities", mock.Anything).Return(tracestore.SearchCapabilities{SpanSearch: true}, nil)
 	reader.On("FindSpans", mock.Anything, mock.Anything).
 		Return(iter.Seq2[tracestore.PageChunk[ptrace.Traces], error](func(yield func(tracestore.PageChunk[ptrace.Traces], error) bool) {
-			yield(tracestore.PageChunk[ptrace.Traces]{NextPageToken: "next-page"}, nil)
+			yield(tracestore.PageChunk[ptrace.Traces]{Results: ptrace.NewTraces(), NextPageToken: "next-page"}, nil)
 		})).Once()
 	handler := &Handler{QueryService: querysvc.NewQueryService(
 		reader,
@@ -691,42 +691,25 @@ func TestFindSpansQueryNil(t *testing.T) {
 	assert.Nil(t, recv)
 }
 
-// TestFindSpansPaginationRejected pins that pagination is refused rather than silently dropped:
-// no Reader honors it yet. The handler decodes it (spanQueryParams) and the query service is
-// where it is actually refused (prepareSpanSearchQuery), so this exercises both.
-func TestFindSpansPaginationRejected(t *testing.T) {
-	tsc := newTestServerClientWithCapabilities(t, tracestore.SearchCapabilities{SpanSearch: true})
-
-	responseStream, err := tsc.client.FindSpans(context.Background(), &api_v3.FindSpansRequest{
-		Query: &api_v3.SpanQueryParameters{
-			StartTimeMin: time.Now().Add(-2 * time.Hour),
-			StartTimeMax: time.Now(),
-			Pagination:   &api_v3.Pagination{PageSize: 10},
-		},
+// TestSpanQueryParamsPagination pins that an api_v3.Pagination on the wire reaches the query
+// service as sent: the handler translates and decides nothing, the same as traceQueryParams. An
+// absent message and an empty one are the same request, one the query service bounds itself.
+func TestSpanQueryParamsPagination(t *testing.T) {
+	query := &api_v3.SpanQueryParameters{
+		StartTimeMin: time.Now().Add(-2 * time.Hour),
+		StartTimeMax: time.Now(),
+	}
+	t.Run("absent", func(t *testing.T) {
+		params, err := spanQueryParams(query)
+		require.NoError(t, err)
+		assert.Zero(t, params.Pagination)
 	})
-	require.NoError(t, err)
-	_, err = responseStream.Recv()
-	require.ErrorContains(t, err, "pagination is not yet supported for span search")
-	assert.Equal(t, codes.InvalidArgument, status.Code(err))
-}
-
-// TestFindSpansMalformedPagination pins the handler's own decode-time refusal: a present but
-// empty Pagination message (page_size unset) is malformed on its own terms, caught by
-// DecodePagination before the query service ever sees it.
-func TestFindSpansMalformedPagination(t *testing.T) {
-	tsc := newTestServerClientWithCapabilities(t, tracestore.SearchCapabilities{SpanSearch: true})
-
-	responseStream, err := tsc.client.FindSpans(context.Background(), &api_v3.FindSpansRequest{
-		Query: &api_v3.SpanQueryParameters{
-			StartTimeMin: time.Now().Add(-2 * time.Hour),
-			StartTimeMax: time.Now(),
-			Pagination:   &api_v3.Pagination{},
-		},
+	t.Run("present", func(t *testing.T) {
+		query.Pagination = &api_v3.Pagination{PageSize: 25, PageToken: "opaque-cursor"}
+		params, err := spanQueryParams(query)
+		require.NoError(t, err)
+		assert.Equal(t, tracestore.Pagination{PageSize: 25, PageToken: "opaque-cursor"}, params.Pagination)
 	})
-	require.NoError(t, err)
-	_, err = responseStream.Recv()
-	require.ErrorContains(t, err, "page_size is required")
-	assert.Equal(t, codes.InvalidArgument, status.Code(err))
 }
 
 // TestFindSpansUnsupported pins the refusal for a backend that does not declare SpanSearch
