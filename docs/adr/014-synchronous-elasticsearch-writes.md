@@ -19,15 +19,15 @@ The implementation lives in:
 
 ## Decision
 
-The Elasticsearch/OpenSearch writer has two modes, selected by `write_mode`. The default `async` keeps the buffered behavior. `sync` writes each batch handed to the storage as one blocking `_bulk` request and returns an error when any span was not persisted. Every span carries a deterministic content-hash `_id`, so a retried batch overwrites rather than duplicates. In sync mode, per-item `_bulk` failures are classified into transient and terminal; a transient failure fails the batch, and a terminal one is either reported as an error (`poison_pill_handling: fail`, the default) or discarded (`drop`). A reported rejection becomes a dead-letter span only when the write goes through the `jaeger_storage_writer` connector, which forwards the rejected spans to a separate pipeline.
+The Elasticsearch/OpenSearch writer has two modes, selected by `write_mode`. The default `async` keeps the buffered behavior. `sync` writes each batch handed to the storage as one blocking `_bulk` request and returns an error when any span was not persisted. Every span carries a deterministic content-hash `_id`, so a retried batch overwrites rather than duplicates. In sync mode, per-item `_bulk` results are classified into transient failures, terminal failures, and `409` conflicts that count as already stored; a transient failure fails the batch, and a terminal one is either reported as an error (`poison_pill_handling: fail`, the default) or discarded (`drop`). A reported rejection becomes a dead-letter span only when the write goes through the `jaeger_storage_writer` connector, which forwards the rejected spans to a separate pipeline.
 
-The storage error is only half of the guarantee. **The pipeline between the receiver and the storage must block on the write result**, which means no `batch` processor and either no exporter queue or a queue with `wait_for_result: true`. Jaeger ships Kafka ingester configurations that satisfy this, and the recommended shapes for both topologies are tabulated below; it does not pick the mode for the operator, because both the write mode and the pipeline shape are the operator's settings.
+The storage error is only half of the guarantee. **The pipeline between the receiver and the storage must block on the write result**, which means no `batch` processor and either no exporter queue or a queue with `wait_for_result: true`. Jaeger ships Kafka ingester configurations that satisfy this, and the recommended shapes for both topologies are tabulated below; Jaeger does not pick the mode for the operator, because both the write mode and the pipeline shape are the operator's settings.
 
 ## Architecture
 
 ### The synchronous writer
 
-`esclient.SyncBulkWriter` implements the same `esclient.BatchWriter` interface as the asynchronous `esclient.BulkIndexer` (a wrapper over `esutil.BulkIndexer`), so `core.Writer.WriteSpans` assembles a batch's documents once and the factory chooses the sink from `write_mode`. The synchronous writer sends the documents in chunks bounded by `bulk_processing.max_bytes` (5 MiB when unset), each chunk one `_bulk` round trip, and parses the per-item results of every response. In sync mode the other `bulk_processing` settings, `flush_interval` and `workers`, no longer affect span writes; they still configure the asynchronous indexer that the dependency and sampling writers use in every mode.
+`esclient.SyncBulkWriter` implements the same `esclient.BatchWriter` interface as the asynchronous `esclient.BulkIndexer` (a wrapper over `esutil.BulkIndexer`), so `core.SpanWriter.WriteSpans` assembles a batch's documents once and the factory chooses the sink from `write_mode`. The synchronous writer sends the documents in chunks bounded by `bulk_processing.max_bytes` (5 MiB when unset), each chunk one `_bulk` round trip, and parses the per-item results of every response. In sync mode the other `bulk_processing` settings, `flush_interval` and `workers`, no longer affect span writes; they still configure the asynchronous indexer that the dependency and sampling writers use in every mode.
 
 Under the default `index.translog.durability: request`, Elasticsearch acknowledges a `_bulk` request only after the translog is committed on the primary and every in-sync replica, so a `2xx` item means the document is durable. An index configured with `durability: async` acknowledges before the fsync, and the guarantee described here does not hold for it. It does not mean the document is searchable, which follows the index refresh interval; the writer does not request a refresh, because forcing one would cost indexing throughput for no durability benefit.
 
@@ -52,7 +52,7 @@ In `fail` mode the writer returns a `*tracestore.RejectedSpansError` that names 
 
 `jaeger_storage_writer` is a traces-to-traces connector that replaces `jaeger_storage_exporter` in the pipeline. It embeds the same `exporterhelper` traces pipeline the exporter is built on, with its own write-and-forward function as the push step, so it takes the exporter's `queue` and `retry_on_failure` settings unchanged; an enabled `queue` must set `wait_for_result: true`, and the connector rejects a configuration that does not. When the writer returns a `RejectedSpansError` with no transient failures and no unattributed documents, the connector copies the named spans (and, under the shared-span model, a second span in the batch with the same trace and span id, which over-includes a stored span rather than risk losing one), sets `jaeger.storage.rejection_reason` on each copy, and sends them to its output pipeline, which ends in any standard exporter. If that exporter returns an error, the connector returns it, so the batch is retried and the offset held. The connector logs each forwarded span at warning level and counts them in `jaeger_storage_writer_dead_letter_spans`; the counter has no reason label because Elasticsearch reasons embed document ids.
 
-The dead-letter exporter must deliver synchronously, so its `sending_queue` is disabled, and it must refuse what it does not keep. A `kafka` exporter acknowledges only what the broker stored. An `otlphttp` exporter treats an OTLP partial-success response as success, so its endpoint must accept a request whole or reject it, as the stock `otlp` receiver does.
+The dead-letter exporter must deliver synchronously, so its `sending_queue` is disabled, and it must refuse what it does not keep. A `kafka` exporter acknowledges only what the broker stored, although its default `required_acks: WaitForLocal` means stored on the leader only, and `required_acks: all` is needed for a replicated acknowledgement. An `otlphttp` exporter treats an OTLP partial-success response as success, so its endpoint must accept a request whole or reject it, as the stock `otlp` receiver does.
 
 ### What makes a pipeline lossless
 
@@ -70,7 +70,7 @@ Once the error reaches the receiver, the receiver's behavior decides the guarant
 
 ### Recommended configurations
 
-Two topologies, two shapes. Both drop the `batch` processor and block on the write result through the exporter queue; they differ in who retries and how poison spans are disposed of.
+The two topologies need two different shapes. Both drop the `batch` processor and block on the write result through the exporter queue; they differ in who retries and how poison spans are disposed of.
 
 | Setting | Direct ingest (OTLP clients → collector) | Kafka ingester |
 |---|---|---|
@@ -114,4 +114,4 @@ For the Kafka ingester, batch size is bounded by the partitions the ingester con
 * Issue [#8476](https://github.com/jaegertracing/jaeger/issues/8476).
 * [ADR-012](012-unified-elasticsearch-client.md) — the `esclient` transport the synchronous writer runs on.
 * [`storagewriterconnector/README.md`](../../cmd/jaeger/internal/connectors/storagewriterconnector/README.md) — the connector's configuration reference.
-* OpenTelemetry Collector v0.160.0: `processor/batchprocessor/batch_processor.go`, `exporter/exporterhelper/internal/queue/memory_queue.go`, `exporter/exporterhelper/internal/queuebatch/partition_batcher.go`, `receiver/otlpreceiver/internal/errors/errors.go`; contrib `receiver/kafkareceiver/config.go`.
+* OpenTelemetry Collector v0.160.0: `processor/batchprocessor/batch_processor.go`, `exporter/exporterhelper/internal/queue/memory_queue.go`, `exporter/exporterhelper/internal/queuebatch/partition_batcher.go`, `receiver/otlpreceiver/internal/errors/errors.go`; contrib `receiver/kafkareceiver/config.go`, `partition_worker.go`, and `consumer_franz.go`.
