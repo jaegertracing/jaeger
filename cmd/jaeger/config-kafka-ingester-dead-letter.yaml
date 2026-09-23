@@ -4,8 +4,9 @@
 # At-least-once Kafka ingester with synchronous Elasticsearch writes and a
 # dead-letter pipeline for poison spans (RFC 0007 §4.8).
 #
-# This is config-kafka-ingester-sync.yaml with these changes: the storage write is
-# the jaeger_storage_writer connector instead of jaeger_storage_exporter, the
+# This is config-kafka-ingester-sync.yaml with these changes: jaeger_storage_exporter
+# is declared under connectors instead of exporters, which gives it an output
+# pipeline for the spans the storage rejects, the
 # storage runs with poison_pill_handling: fail instead of drop, and a
 # traces/dead_letter pipeline feeds an otlphttp exporter. A span the backend
 # rejects terminally (a "poison pill": a document that fails identically on every
@@ -44,11 +45,11 @@ service:
       # No `batch` processor: batching happens in the connector's sending queue so
       # the Kafka offset stays coupled to the write result.
       processors: []
-      exporters: [jaeger_storage_writer]
+      exporters: [jaeger_storage_exporter]
     # Poison spans the storage rejected. The connector is this pipeline's source;
     # attach whichever exporter should keep them.
     traces/dead_letter:
-      receivers: [jaeger_storage_writer]
+      receivers: [jaeger_storage_exporter]
       processors: []
       exporters: [otlphttp/dead_letter]
   telemetry:
@@ -115,7 +116,7 @@ receivers:
 processors:
 
 connectors:
-  jaeger_storage_writer:
+  jaeger_storage_exporter:
     trace_storage: some_storage
     # Same retry and queue settings as jaeger_storage_exporter in
     # config-kafka-ingester-sync.yaml; see the comments there.

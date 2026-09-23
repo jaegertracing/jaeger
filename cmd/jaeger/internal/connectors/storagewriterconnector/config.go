@@ -17,7 +17,7 @@ var (
 	_ confmap.Validator = (*Config)(nil)
 )
 
-// Config configures the jaeger_storage_writer connector. It embeds the
+// Config configures the connector form of jaeger_storage_exporter. It embeds the
 // jaeger_storage_exporter configuration (trace_storage, queue, retry_on_failure),
 // because the connector is that exporter's write path with a dead-letter output
 // added: the same sending queue, blocking batcher, and retry policy apply to

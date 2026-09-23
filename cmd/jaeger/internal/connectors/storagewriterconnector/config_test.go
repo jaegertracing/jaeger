@@ -73,7 +73,7 @@ func TestConfig_ReadmeExampleIsValid(t *testing.T) {
 	require.NoError(t, err)
 	conf, err := resolver.Resolve(context.Background())
 	require.NoError(t, err)
-	sub, err := conf.Sub("connectors::jaeger_storage_writer")
+	sub, err := conf.Sub("connectors::jaeger_storage_exporter")
 	require.NoError(t, err)
 
 	cfg := createDefaultConfig().(*Config)

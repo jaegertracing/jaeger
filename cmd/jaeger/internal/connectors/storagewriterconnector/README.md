@@ -1,6 +1,6 @@
-# jaeger_storage_writer
+# jaeger_storage_exporter (connector)
 
-This module implements a traces→traces `connector.Traces` that writes spans into a Jaeger trace storage, obtained from the [jaeger_storage](../../extension/jaegerstorage/) extension exactly as [jaeger_storage_exporter](../../exporters/storageexporter/) does, and re-emits the spans the storage rejected terminally onto its output pipeline. Wire that pipeline to any standard exporter to get a dead-letter queue for poison spans without a custom sink (RFC 0007 §4.8).
+This module implements the connector form of `jaeger_storage_exporter`: a traces→traces `connector.Traces` that writes spans into a Jaeger trace storage, obtained from the [jaeger_storage](../../extension/jaegerstorage/) extension exactly as the [exporter](../../exporters/storageexporter/) does, and re-emits the spans the storage rejected terminally onto its output pipeline. The two share one component type. The collector resolves a pipeline entry as a connector only when it is declared under `connectors:`, so `exporters: { jaeger_storage_exporter: ... }` is the plain storage write and `connectors: { jaeger_storage_exporter: ... }` is the same write with a dead-letter output. Wire that pipeline to any standard exporter to get a dead-letter queue for poison spans without a custom sink (RFC 0007 §4.8).
 
 The connector runs the storage write inside the same `exporterhelper` pipeline as the exporter, so its `queue` and `retry_on_failure` blocks are the exporter's and mean the same thing.
 
@@ -11,7 +11,7 @@ The outcome of each batch:
 - The write succeeds, or every rejected span was terminal and the dead-letter pipeline accepted them: the connector returns success, so a Kafka receiver with `message_marking.after: true` advances its offset.
 - The write fails as a whole, some spans failed transiently, or the dead-letter pipeline rejected the spans: the connector returns the error, so the batch is retried and the offset held. Poison spans go to the dead-letter pipeline only once a retry sees no transient failures, so a retry never sends the same span there twice.
 
-Each span sent to the dead-letter pipeline is a copy of the input span with the attribute `jaeger.storage.rejection_reason` holding the storage's reason, and is logged at warn level with its trace id, span id, and reason. The counter `jaeger_storage_writer_dead_letter_spans` counts them; it carries no reason label because Elasticsearch reasons embed document ids and would make the label unbounded. The queue and send metrics are the exporter ones (`otelcol_exporter_queue_size`, `otelcol_exporter_sent_spans`, …) labelled `exporter="jaeger_storage_writer"`.
+Each span sent to the dead-letter pipeline is a copy of the input span with the attribute `jaeger.storage.rejection_reason` holding the storage's reason, and is logged at warn level with its trace id, span id, and reason. The counter `jaeger_storage_exporter_dead_letter_spans` counts them; it carries no reason label because Elasticsearch reasons embed document ids and would make the label unbounded. The queue and send metrics are the exporter ones (`otelcol_exporter_queue_size`, `otelcol_exporter_sent_spans`, …) labelled `exporter="jaeger_storage_exporter"`.
 
 ## Configuration
 
@@ -25,13 +25,13 @@ service:
     traces:
       receivers: [kafka]
       processors: []
-      exporters: [jaeger_storage_writer]
+      exporters: [jaeger_storage_exporter]
     traces/dead_letter:
-      receivers: [jaeger_storage_writer]
+      receivers: [jaeger_storage_exporter]
       exporters: [kafka/dead_letter]
 
 connectors:
-  jaeger_storage_writer:
+  jaeger_storage_exporter:
     trace_storage: some_storage
     retry_on_failure:
       enabled: true

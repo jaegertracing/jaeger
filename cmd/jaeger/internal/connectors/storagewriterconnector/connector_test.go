@@ -102,7 +102,7 @@ func (c testConnector) deadLetterSpans(t *testing.T) int64 {
 	require.NoError(t, c.reader.Collect(context.Background(), &rm))
 	for _, sm := range rm.ScopeMetrics {
 		for _, m := range sm.Metrics {
-			if m.Name != "jaeger_storage_writer_dead_letter_spans" {
+			if m.Name != "jaeger_storage_exporter_dead_letter_spans" {
 				continue
 			}
 			sum, ok := m.Data.(metricdata.Sum[int64])

@@ -265,7 +265,7 @@ func TestKafkaStorage_SyncElasticsearch_PoisonDrop(t *testing.T) {
 
 // TestKafkaStorage_SyncElasticsearch_DeadLetter proves the RFC 0007 M5 `dead_letter`
 // disposition end-to-end: Collector -> Kafka -> Ingester -> Elasticsearch, where the
-// ingester writes through the jaeger_storage_writer connector and a dead-letter
+// ingester declares jaeger_storage_exporter as a connector and a dead-letter
 // pipeline exports to an OTLP/HTTP endpoint the test runs. A span Elasticsearch
 // rejects deterministically is re-emitted to that endpoint, and only that span; the
 // rest of its batch is stored exactly once and the Kafka offset advances. The

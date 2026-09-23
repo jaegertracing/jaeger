@@ -68,7 +68,7 @@ func newConnector(ctx context.Context, set connector.Settings, cfg *Config, next
 		writer: storageexporter.NewTraceWriter(&cfg.Config, set.TelemetrySettings),
 		next:   next,
 		deadLetterSpans: otelmetrics.NewFactory(set.MeterProvider).
-			Namespace(metrics.NSOptions{Name: "jaeger_storage_writer"}).
+			Namespace(metrics.NSOptions{Name: "jaeger_storage_exporter"}).
 			Counter(metrics.Options{
 				Name: "dead_letter_spans",
 				Help: "Spans the storage rejected terminally that were sent to the dead-letter pipeline",

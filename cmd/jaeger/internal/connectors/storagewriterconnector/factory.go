@@ -13,13 +13,18 @@ import (
 	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/exporters/storageexporter"
 )
 
-// componentType is the name of this connector in configuration.
-var componentType = component.MustNewType("jaeger_storage_writer")
+// componentType is the name of this connector in configuration. It is the same
+// type as the jaeger_storage_exporter exporter on purpose: the collector keeps
+// exporter and connector factories in separate maps and resolves a pipeline entry
+// as a connector only when the operator declared it under `connectors:`, so the
+// section an operator puts `jaeger_storage_exporter` in selects the plain
+// storage write or the write with a dead-letter output (RFC 0007 §4.8).
+var componentType = component.MustNewType("jaeger_storage_exporter")
 
 // ID is the identifier of this connector.
 var ID = component.NewID(componentType)
 
-// NewFactory creates a factory for the jaeger_storage_writer connector.
+// NewFactory creates the connector factory for jaeger_storage_exporter.
 func NewFactory() connector.Factory {
 	return connector.NewFactory(
 		componentType,
