@@ -28,7 +28,6 @@ import (
 	"go.uber.org/zap/zaptest/observer"
 
 	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerstorage"
-	"github.com/jaegertracing/jaeger/internal/storage/v1"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore"
 	tracestoremocks "github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore/mocks"
 )
@@ -56,30 +55,6 @@ func (f *fakeWriter) WriteTraces(_ context.Context, td ptrace.Traces) error {
 	return f.errs[len(f.errs)-1]
 }
 
-// connectorStorageExt is a minimal jaeger_storage extension serving one named
-// trace-store factory, so start resolves the writer through a real host without a
-// backend.
-type connectorStorageExt struct {
-	name    string
-	factory tracestore.Factory
-}
-
-var _ jaegerstorage.Extension = (*connectorStorageExt)(nil)
-
-func (*connectorStorageExt) Start(context.Context, component.Host) error { return nil }
-func (*connectorStorageExt) Shutdown(context.Context) error              { return nil }
-
-func (m *connectorStorageExt) TraceStorageFactory(name string) (tracestore.Factory, error) {
-	if m.name == name {
-		return m.factory, nil
-	}
-	return nil, errors.New("storage not found")
-}
-
-func (*connectorStorageExt) MetricStorageFactory(string) (storage.MetricStoreFactory, error) {
-	return nil, errors.New("metric storage not found")
-}
-
 // writerFactory returns a factory whose CreateTraceWriter yields w.
 func writerFactory(w tracestore.Writer) *tracestoremocks.Factory {
 	f := new(tracestoremocks.Factory)
@@ -87,8 +62,10 @@ func writerFactory(w tracestore.Writer) *tracestoremocks.Factory {
 	return f
 }
 
-func hostWith(name string, f tracestore.Factory) component.Host {
-	return storagetest.NewStorageHost().WithExtension(jaegerstorage.ID, &connectorStorageExt{name: name, factory: f})
+// hostWith returns a host whose jaeger_storage extension serves f under name, so
+// Start resolves the writer through a real host without a backend.
+func hostWith(name string, f *tracestoremocks.Factory) component.Host {
+	return storagetest.NewStorageHost().WithExtension(jaegerstorage.ID, &mockStorageExt{name: name, factory: f})
 }
 
 type testConnector struct {
