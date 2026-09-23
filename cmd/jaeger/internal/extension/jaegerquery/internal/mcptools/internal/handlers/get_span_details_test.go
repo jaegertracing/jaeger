@@ -580,47 +580,19 @@ func TestGetSpanDetailsHandler_Handle_InvalidSpanID(t *testing.T) {
 }
 
 func TestParseSpanID(t *testing.T) {
-	tests := []struct {
-		name      string
-		input     string
-		wantError bool
-	}{
-		{
-			name:      "valid span ID",
-			input:     "0000000000000001",
-			wantError: false,
-		},
-		{
-			name:      "invalid span ID - wrong length",
-			input:     "abc",
-			wantError: true,
-		},
-		{
-			name:      "invalid span ID - non-hex characters",
-			input:     "ZZZZZZZZZZZZZZZZ",
-			wantError: true,
-		},
-		{
-			name:      "empty span ID",
-			input:     "",
-			wantError: true,
-		},
-		{
-			name:      "invalid span ID - all zero",
-			input:     "0000000000000000",
-			wantError: true,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			result, err := parseSpanID(tt.input)
-			if tt.wantError {
-				require.Error(t, err)
-			} else {
-				require.NoError(t, err)
-				assert.False(t, result.IsEmpty())
-			}
-		})
-	}
+	// Hex parsing is covered by jptrace; this test only checks what the
+	// wrapper adds on top of it.
+	t.Run("valid span ID", func(t *testing.T) {
+		result, err := parseSpanID("0000000000000001")
+		require.NoError(t, err)
+		assert.Equal(t, pcommon.SpanID{0, 0, 0, 0, 0, 0, 0, 1}, result)
+	})
+	t.Run("parser error is passed through", func(t *testing.T) {
+		_, err := parseSpanID("abc")
+		require.Error(t, err)
+	})
+	t.Run("all-zero span ID is rejected", func(t *testing.T) {
+		_, err := parseSpanID("0000000000000000")
+		require.EqualError(t, err, "span ID must not be all zero")
+	})
 }
