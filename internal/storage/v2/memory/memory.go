@@ -266,6 +266,7 @@ func reshuffleResourceSpans(resourceSpanSlice ptrace.ResourceSpansSlice) map[pco
 		for traceId, scopeSpansSlice := range scopeSpansByTraceId {
 			resourceSpanByTraceId := ptrace.NewResourceSpans()
 			resourceSpan.Resource().CopyTo(resourceSpanByTraceId.Resource())
+			resourceSpanByTraceId.SetSchemaUrl(resourceSpan.SchemaUrl())
 			scopeSpansSlice.MoveAndAppendTo(resourceSpanByTraceId.ScopeSpans())
 			resourceSpansSlice, ok := resourceSpansByTraceId[traceId]
 			if !ok {
@@ -290,6 +291,7 @@ func reshuffleScopeSpans(scopeSpanSlice ptrace.ScopeSpansSlice) map[pcommon.Trac
 		for traceId, spansSlice := range spansByTraceId {
 			scopeSpanByTraceId := ptrace.NewScopeSpans()
 			scopeSpan.Scope().CopyTo(scopeSpanByTraceId.Scope())
+			scopeSpanByTraceId.SetSchemaUrl(scopeSpan.SchemaUrl())
 			spansSlice.MoveAndAppendTo(scopeSpanByTraceId.Spans())
 			scopeSpansSlice, ok := scopeSpansByTraceId[traceId]
 			if !ok {

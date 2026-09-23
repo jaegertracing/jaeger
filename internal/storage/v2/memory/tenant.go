@@ -172,13 +172,16 @@ func (t *Tenant) findSpans(query tracestore.SpanQueryParams) ptrace.Traces {
 					if !spanStartsWithin(span, query.StartTimeMin, query.StartTimeMax) {
 						continue
 					}
-					if !matchesFilter(query.Filter, resourceSpan.Resource(), scopeSpan.Scope(), span) {
+					if !matchesFilter(query.Filter, resourceSpan.Resource(), scopeSpan.Scope(), span,
+						resourceSpan.SchemaUrl(), scopeSpan.SchemaUrl()) {
 						continue
 					}
 					rs := result.ResourceSpans().AppendEmpty()
 					resourceSpan.Resource().CopyTo(rs.Resource())
+					rs.SetSchemaUrl(resourceSpan.SchemaUrl())
 					ss := rs.ScopeSpans().AppendEmpty()
 					scopeSpan.Scope().CopyTo(ss.Scope())
+					ss.SetSchemaUrl(scopeSpan.SchemaUrl())
 					span.CopyTo(ss.Spans().AppendEmpty())
 				}
 			}
@@ -284,7 +287,8 @@ func validTrace(td ptrace.Traces, query tracestore.TraceQueryParams) bool {
 		}
 		for _, scopeSpan := range resourceSpan.ScopeSpans().All() {
 			for _, span := range scopeSpan.Spans().All() {
-				if validSpan(resourceSpan.Resource(), scopeSpan.Scope(), span, query) {
+				if validSpan(resourceSpan.Resource(), scopeSpan.Scope(), span, query,
+					resourceSpan.SchemaUrl(), scopeSpan.SchemaUrl()) {
 					return true
 				}
 			}
@@ -297,7 +301,10 @@ func validResource(resource pcommon.Resource, query tracestore.TraceQueryParams)
 	return query.ServiceName == "" || query.ServiceName == getServiceNameFromResource(resource)
 }
 
-func validSpan(resource pcommon.Resource, scope pcommon.InstrumentationScope, span ptrace.Span, query tracestore.TraceQueryParams) bool {
+func validSpan(
+	resource pcommon.Resource, scope pcommon.InstrumentationScope, span ptrace.Span, query tracestore.TraceQueryParams,
+	resourceSchemaURL, scopeSchemaURL string,
+) bool {
 	if query.Filter != nil {
 		// The structured filter is a complete alternative to every predicate field
 		// below it (ServiceName, OperationName, Attributes, the duration bounds), not
@@ -306,7 +313,7 @@ func validSpan(resource pcommon.Resource, scope pcommon.InstrumentationScope, sp
 		// legacy path rather than adding to it. The time range stays a query-level
 		// bound on FindTraces regardless of which predicate model is in play.
 		return spanStartsWithin(span, query.StartTimeMin, query.StartTimeMax) &&
-			matchesFilter(query.Filter, resource, scope, span)
+			matchesFilter(query.Filter, resource, scope, span, resourceSchemaURL, scopeSchemaURL)
 	}
 
 	resourceAttributes := resource.Attributes()

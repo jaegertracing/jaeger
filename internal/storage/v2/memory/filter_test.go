@@ -20,9 +20,11 @@ import (
 // filter tests below to exercise every level and operator without each test
 // constructing its own trace from scratch.
 type filterFixture struct {
-	resource pcommon.Resource
-	scope    pcommon.InstrumentationScope
-	span     ptrace.Span
+	resource          pcommon.Resource
+	scope             pcommon.InstrumentationScope
+	span              ptrace.Span
+	resourceSchemaURL string
+	scopeSchemaURL    string
 }
 
 func newFilterFixture(t *testing.T) filterFixture {
@@ -70,7 +72,7 @@ func newFilterFixture(t *testing.T) filterFixture {
 }
 
 func (f filterFixture) matches(filter *expression.Call) bool {
-	return matchesFilter(filter, f.resource, f.scope, f.span)
+	return matchesFilter(filter, f.resource, f.scope, f.span, f.resourceSchemaURL, f.scopeSchemaURL)
 }
 
 func call(op expression.Operator, args ...expression.Expression) *expression.Call {
@@ -195,6 +197,8 @@ func TestMatchesFilter_InAndNotIn(t *testing.T) {
 	f := newFilterFixture(t)
 	list := &expression.List{Values: []string{"GET /cart", "POST /cart"}, Type: expression.ValueTypeString}
 	assert.True(t, f.matches(call(expression.OpIn, fieldRef(expression.LevelSpan, expression.SpanFieldName), list)))
+	// not_in is false when the value is found in the list, same list that made in true.
+	assert.False(t, f.matches(call(expression.OpNotIn, fieldRef(expression.LevelSpan, expression.SpanFieldName), list)))
 
 	otherList := &expression.List{Values: []string{"GET /cart"}, Type: expression.ValueTypeString}
 	assert.False(t, f.matches(call(expression.OpIn, fieldRef(expression.LevelSpan, expression.SpanFieldName), otherList)))
@@ -203,6 +207,17 @@ func TestMatchesFilter_InAndNotIn(t *testing.T) {
 	// not_in on an absent reference is false, same as every other leaf comparison;
 	// only a boolean `not` around it would make an absent reference match.
 	assert.False(t, f.matches(call(expression.OpNotIn, fieldRef(expression.LevelSpan, expression.SpanFieldParentSpanID), otherList)))
+}
+
+func TestMatchesFilter_GteLte(t *testing.T) {
+	f := newFilterFixture(t)
+	assert.True(t, f.matches(call(expression.OpGte, fieldRef(expression.LevelSpan, expression.SpanFieldDuration), dur(150*time.Millisecond))))
+	assert.True(t, f.matches(call(expression.OpGte, fieldRef(expression.LevelSpan, expression.SpanFieldDuration), dur(100*time.Millisecond))))
+	assert.False(t, f.matches(call(expression.OpGte, fieldRef(expression.LevelSpan, expression.SpanFieldDuration), dur(200*time.Millisecond))))
+
+	assert.True(t, f.matches(call(expression.OpLte, fieldRef(expression.LevelSpan, expression.SpanFieldDuration), dur(150*time.Millisecond))))
+	assert.True(t, f.matches(call(expression.OpLte, fieldRef(expression.LevelSpan, expression.SpanFieldDuration), dur(200*time.Millisecond))))
+	assert.False(t, f.matches(call(expression.OpLte, fieldRef(expression.LevelSpan, expression.SpanFieldDuration), dur(100*time.Millisecond))))
 }
 
 func TestMatchesFilter_AbsentReferenceLeafComparisonsAreFalse(t *testing.T) {
@@ -309,13 +324,37 @@ func TestMatchesFilter_ResourceAndScopeMissingFields(t *testing.T) {
 	span := ss.Spans().AppendEmpty()
 	f := filterFixture{resource: rs.Resource(), scope: ss.Scope(), span: span}
 
-	// No service.name resource attribute, no scope name/version, and neither
-	// level has a schemaURL field this store can populate.
+	// No service.name resource attribute, no scope name/version, and this
+	// fixture's ResourceSpans/ScopeSpans carry no schema URL either.
 	assert.False(t, f.matches(call(expression.OpExists, fieldRef(expression.LevelResource, expression.ResourceFieldService))))
 	assert.False(t, f.matches(call(expression.OpExists, fieldRef(expression.LevelResource, expression.ResourceFieldSchemaURL))))
 	assert.False(t, f.matches(call(expression.OpExists, fieldRef(expression.LevelScope, expression.ScopeFieldName))))
 	assert.False(t, f.matches(call(expression.OpExists, fieldRef(expression.LevelScope, expression.ScopeFieldVersion))))
 	assert.False(t, f.matches(call(expression.OpExists, fieldRef(expression.LevelScope, expression.ScopeFieldSchemaURL))))
+}
+
+// TestMatchesFilter_SchemaURL pins that resource.schemaURL and scope.schemaURL actually
+// resolve when the enclosing ResourceSpans/ScopeSpans carry one: pcommon.Resource and
+// pcommon.InstrumentationScope have no schema URL field of their own to read it from, so
+// matchesFilter's caller has to supply it separately.
+func TestMatchesFilter_SchemaURL(t *testing.T) {
+	traces := ptrace.NewTraces()
+	rs := traces.ResourceSpans().AppendEmpty()
+	rs.SetSchemaUrl("https://opentelemetry.io/schemas/1.9.0")
+	ss := rs.ScopeSpans().AppendEmpty()
+	ss.SetSchemaUrl("https://opentelemetry.io/schemas/1.4.0")
+	span := ss.Spans().AppendEmpty()
+	f := filterFixture{
+		resource: rs.Resource(), scope: ss.Scope(), span: span,
+		resourceSchemaURL: rs.SchemaUrl(), scopeSchemaURL: ss.SchemaUrl(),
+	}
+
+	assert.True(t, f.matches(call(expression.OpEq,
+		fieldRef(expression.LevelResource, expression.ResourceFieldSchemaURL), str("https://opentelemetry.io/schemas/1.9.0"))))
+	assert.False(t, f.matches(call(expression.OpEq,
+		fieldRef(expression.LevelResource, expression.ResourceFieldSchemaURL), str("other"))))
+	assert.True(t, f.matches(call(expression.OpEq,
+		fieldRef(expression.LevelScope, expression.ScopeFieldSchemaURL), str("https://opentelemetry.io/schemas/1.4.0"))))
 }
 
 func TestMatchesFilter_EventTimeField(t *testing.T) {
@@ -366,12 +405,73 @@ func TestMatchesFilter_SomeWithNonNestedRefCollectionDoesNotMatch(t *testing.T) 
 	)))
 }
 
-func TestMatchesFilter_CompareValuesFallsBackToStringOnMixedTypes(t *testing.T) {
-	// compareValues only has to order operands the query boundary already
-	// confirmed are the same kind; asked to compare a bool against a number
-	// anyway (which cannot happen through the public evaluator entry points),
-	// it falls back to string comparison rather than panicking.
-	assert.NotEqual(t, 0, compareValues(evalValue{isBool: true, boolean: true}, evalValue{isNumber: true, num: 1}))
+// TestMatchesFilter_ExplicitlyTypedConstantDoesNotCrossKind pins that a constant with an
+// explicit type (StringValue, IntValue, BoolValue, ...) only ever matches an attribute of the
+// same kind: RFC 0005 §5.4's "the query boundary intentionally leaves attribute types for
+// storage to resolve" does not mean an explicitly typed string should match a numeric
+// attribute that happens to render the same digits.
+func TestMatchesFilter_ExplicitlyTypedConstantDoesNotCrossKind(t *testing.T) {
+	f := newFilterFixture(t)
+	// http.status_code is stored as an int attribute (500).
+	assert.False(t, f.matches(call(expression.OpEq, attrRef(expression.LevelSpan, "http.status_code"), str("500"))))
+	assert.True(t, f.matches(call(expression.OpNe, attrRef(expression.LevelSpan, "http.status_code"), str("500"))),
+		"present but a different kind, so ne is true rather than the leaf-absence false")
+}
+
+// TestMatchesFilter_UntypedConstantResolvesAgainstAttributeKind pins the other half of the
+// same fix: an AnyValue constant (the caller wrote no type) resolves against whichever kind
+// the paired attribute actually turns out to hold, rather than being read as a string.
+func TestMatchesFilter_UntypedConstantResolvesAgainstAttributeKind(t *testing.T) {
+	f := newFilterFixture(t)
+	// http.status_code (int 500) and retry (bool false) beside an untyped "500"/"false".
+	assert.True(t, f.matches(call(expression.OpEq, attrRef(expression.LevelSpan, "http.status_code"), &expression.AnyValue{Value: "500"})))
+	assert.True(t, f.matches(call(expression.OpEq, attrRef(expression.LevelSpan, "retry"), &expression.AnyValue{Value: "false"})))
+	// An untyped value that cannot be read as the attribute's kind matches nothing.
+	assert.False(t, f.matches(call(expression.OpEq, attrRef(expression.LevelSpan, "http.status_code"), &expression.AnyValue{Value: "not-a-number"})))
+}
+
+// TestMatchesFilter_OpaqueAttributeExistsButNeverCompares pins OpExists to presence alone: a
+// bytes-valued attribute has no scalar reading, but it is still present, so exists must be
+// true while eq/gt/lt, which need a scalar, never match it — and ne, which only needs presence
+// and non-equality, is true.
+func TestMatchesFilter_OpaqueAttributeExistsButNeverCompares(t *testing.T) {
+	f := newFilterFixture(t)
+	f.span.Attributes().PutEmptyBytes("payload").FromRaw([]byte{1, 2, 3})
+
+	assert.True(t, f.matches(call(expression.OpExists, attrRef(expression.LevelSpan, "payload"))))
+	assert.False(t, f.matches(call(expression.OpEq, attrRef(expression.LevelSpan, "payload"), str("anything"))))
+	assert.True(t, f.matches(call(expression.OpNe, attrRef(expression.LevelSpan, "payload"), str("anything"))))
+}
+
+// TestMatchesFilter_IntPrecisionAtNanosecondTimestamps pins that comparing timestamps does
+// not go through float64: two adjacent current-era nanosecond timestamps would collapse to the
+// same float64 and compare equal if evalValue carried them as a double.
+func TestMatchesFilter_IntPrecisionAtNanosecondTimestamps(t *testing.T) {
+	traces := ptrace.NewTraces()
+	rs := traces.ResourceSpans().AppendEmpty()
+	ss := rs.ScopeSpans().AppendEmpty()
+	span := ss.Spans().AppendEmpty()
+	const nanos = int64(1700000000000000001)
+	span.SetStartTimestamp(pcommon.Timestamp(nanos))
+	span.SetEndTimestamp(pcommon.Timestamp(nanos))
+	f := filterFixture{resource: rs.Resource(), scope: ss.Scope(), span: span}
+
+	assert.True(t, f.matches(call(expression.OpEq, fieldRef(expression.LevelSpan, expression.SpanFieldStartTime), intVal(nanos))))
+	assert.False(t, f.matches(call(expression.OpEq, fieldRef(expression.LevelSpan, expression.SpanFieldStartTime), intVal(nanos-1))))
+}
+
+// TestMatchesFilter_ListTypeIsAuthoritative pins RFC 0005 §5.4: a typed list matches only
+// values of its declared kind, so a numeric attribute does not match a string-typed list that
+// happens to contain its digits, and vice versa.
+func TestMatchesFilter_ListTypeIsAuthoritative(t *testing.T) {
+	f := newFilterFixture(t)
+	// http.status_code is an int attribute (500).
+	stringList := &expression.List{Values: []string{"500"}, Type: expression.ValueTypeString}
+	assert.False(t, f.matches(call(expression.OpIn, attrRef(expression.LevelSpan, "http.status_code"), stringList)))
+
+	// http.method is a string attribute ("POST"), never matches an int-typed list.
+	intList := &expression.List{Values: []string{"500"}, Type: expression.ValueTypeInt}
+	assert.False(t, f.matches(call(expression.OpIn, attrRef(expression.LevelSpan, "http.method"), intList)))
 }
 
 func TestMatchesFilter_TraceStateAndEndTime(t *testing.T) {
@@ -403,13 +503,97 @@ func TestCompareValues_BoolOrdering(t *testing.T) {
 	assert.Positive(t, compareValues(trueVal, falseVal))
 }
 
-func TestAttrToEvalValue_UnsupportedTypeIsSkipped(t *testing.T) {
+func TestEvalValueKind(t *testing.T) {
+	assert.Equal(t, kindString, evalValue{isString: true}.kind())
+	assert.Equal(t, kindBool, evalValue{isBool: true}.kind())
+	assert.Equal(t, kindNumber, evalValue{isInt: true}.kind())
+	assert.Equal(t, kindNumber, evalValue{isNumber: true}.kind())
+	assert.Equal(t, kindNone, evalValue{isOpaque: true}.kind())
+	assert.Equal(t, kindNone, evalValue{isUntyped: true, str: "x"}.kind())
+}
+
+func TestCoerceUntyped(t *testing.T) {
+	tests := []struct {
+		name    string
+		v       evalValue
+		other   evalValue
+		wantOK  bool
+		wantVal evalValue
+	}{
+		{"reads as bool", evalValue{isUntyped: true, str: "true"}, evalValue{isBool: true}, true, evalValue{isBool: true, boolean: true}},
+		{"not a bool", evalValue{isUntyped: true, str: "nope"}, evalValue{isBool: true}, false, evalValue{}},
+		{"reads as int", evalValue{isUntyped: true, str: "500"}, evalValue{isInt: true}, true, evalValue{isInt: true, numInt: 500}},
+		{"reads as double when not an exact int", evalValue{isUntyped: true, str: "1.5"}, evalValue{isNumber: true}, true, evalValue{isNumber: true, num: 1.5}},
+		{"not a number", evalValue{isUntyped: true, str: "nope"}, evalValue{isInt: true}, false, evalValue{}},
+		{"reads as string against a string", evalValue{isUntyped: true, str: "hi"}, evalValue{isString: true}, true, evalValue{isString: true, str: "hi"}},
+		{"reads as string against another untyped value", evalValue{isUntyped: true, str: "hi"}, evalValue{isUntyped: true, str: "hi"}, true, evalValue{isString: true, str: "hi"}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, ok := coerceUntyped(tt.v, tt.other)
+			assert.Equal(t, tt.wantOK, ok)
+			if ok {
+				assert.Equal(t, tt.wantVal, got)
+			}
+		})
+	}
+}
+
+func TestResolveComparable(t *testing.T) {
+	t.Run("opaque on either side is never comparable", func(t *testing.T) {
+		_, _, ok := resolveComparable(evalValue{isOpaque: true}, evalValue{isString: true, str: "x"})
+		assert.False(t, ok)
+		_, _, ok = resolveComparable(evalValue{isString: true, str: "x"}, evalValue{isOpaque: true})
+		assert.False(t, ok)
+	})
+	t.Run("untyped left resolves against typed right", func(t *testing.T) {
+		a, b, ok := resolveComparable(evalValue{isUntyped: true, str: "500"}, evalValue{isInt: true, numInt: 500})
+		require.True(t, ok)
+		assert.Equal(t, evalValue{isInt: true, numInt: 500}, a)
+		assert.Equal(t, evalValue{isInt: true, numInt: 500}, b)
+	})
+	t.Run("untyped right resolves against typed left", func(t *testing.T) {
+		a, b, ok := resolveComparable(evalValue{isBool: true, boolean: true}, evalValue{isUntyped: true, str: "true"})
+		require.True(t, ok)
+		assert.Equal(t, evalValue{isBool: true, boolean: true}, a)
+		assert.Equal(t, evalValue{isBool: true, boolean: true}, b)
+	})
+	t.Run("untyped left fails to coerce", func(t *testing.T) {
+		_, _, ok := resolveComparable(evalValue{isUntyped: true, str: "nope"}, evalValue{isBool: true})
+		assert.False(t, ok)
+	})
+	t.Run("untyped right fails to coerce", func(t *testing.T) {
+		_, _, ok := resolveComparable(evalValue{isInt: true}, evalValue{isUntyped: true, str: "nope"})
+		assert.False(t, ok)
+	})
+	t.Run("mismatched kinds are never comparable", func(t *testing.T) {
+		_, _, ok := resolveComparable(evalValue{isString: true, str: "x"}, evalValue{isBool: true})
+		assert.False(t, ok)
+	})
+}
+
+func TestValueInList_EmptyTypeInfersFromOperand(t *testing.T) {
+	assert.True(t, valueInList(evalValue{isInt: true, numInt: 500}, &expression.List{Values: []string{"500"}}))
+	assert.True(t, valueInList(evalValue{isNumber: true, num: 1.5}, &expression.List{Values: []string{"1.5"}}))
+	assert.True(t, valueInList(evalValue{isBool: true, boolean: true}, &expression.List{Values: []string{"true"}}))
+	assert.False(t, valueInList(evalValue{isOpaque: true}, &expression.List{Values: []string{"anything"}}),
+		"opaque has no kind to infer, so it never matches an untyped list")
+}
+
+func TestValueInList_ExplicitDoubleType(t *testing.T) {
+	list := &expression.List{Values: []string{"1.5", "2.5"}, Type: expression.ValueTypeDouble}
+	assert.True(t, valueInList(evalValue{isNumber: true, num: 1.5}, list))
+	assert.False(t, valueInList(evalValue{isNumber: true, num: 3.5}, list))
+	assert.False(t, valueInList(evalValue{isInt: true, numInt: 1}, list), "a typed double list does not fall back to int")
+}
+
+func TestAttrToEvalValue_UnsupportedTypeIsOpaque(t *testing.T) {
 	m := pcommon.NewMap()
 	m.PutEmptyBytes("payload").FromRaw([]byte{1, 2, 3})
 	v, ok := m.Get("payload")
 	require.True(t, ok)
-	_, resolved := attrToEvalValue(v)
-	assert.False(t, resolved, "a bytes-valued attribute has no scalar reading to compare against")
+	resolved := attrToEvalValue(v)
+	assert.True(t, resolved.isOpaque, "a bytes-valued attribute has no scalar reading, but is still present")
 }
 
 func TestResolveOperand_NestedRefResolvesToNothingOutsideSome(t *testing.T) {

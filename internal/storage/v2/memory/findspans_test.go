@@ -171,6 +171,48 @@ func TestFindSpans_ResultIsIndependentOfStore(t *testing.T) {
 	assert.NotContains(t, spanNames(second), "mutated")
 }
 
+// TestFindSpans_PreservesSchemaURLs pins that findSpans' result-copy path carries the schema
+// URLs from the source ResourceSpans/ScopeSpans, not only the inner Resource/Scope: a match
+// filtered on resource.schemaURL or scope.schemaURL, and a caller reading the field back off
+// the result, both depend on it surviving the copy.
+func TestFindSpans_PreservesSchemaURLs(t *testing.T) {
+	store, err := NewStore(Configuration{MaxTraces: 10})
+	require.NoError(t, err)
+
+	traces := ptrace.NewTraces()
+	rs := traces.ResourceSpans().AppendEmpty()
+	rs.SetSchemaUrl("https://opentelemetry.io/schemas/1.9.0")
+	rs.Resource().Attributes().PutStr("service.name", "checkout")
+	ss := rs.ScopeSpans().AppendEmpty()
+	ss.SetSchemaUrl("https://opentelemetry.io/schemas/1.4.0")
+	span := ss.Spans().AppendEmpty()
+	span.SetTraceID(pcommon.TraceID{1})
+	span.SetSpanID(pcommon.SpanID{1})
+	span.SetName("checkout-span")
+
+	require.NoError(t, store.WriteTraces(context.Background(), traces))
+
+	filter := &expression.Call{
+		Op: expression.OpEq,
+		Args: []expression.Expression{
+			&expression.FieldRef{Level: expression.LevelResource, Name: expression.ResourceFieldSchemaURL},
+			&expression.StringValue{Value: "https://opentelemetry.io/schemas/1.9.0"},
+		},
+	}
+
+	var results []ptrace.Traces
+	for chunk, err := range store.FindSpans(context.Background(), tracestore.SpanQueryParams{Filter: filter}) {
+		require.NoError(t, err)
+		results = append(results, chunk.Results)
+	}
+	require.Len(t, results, 1)
+	require.Equal(t, 1, results[0].ResourceSpans().Len())
+	resultRS := results[0].ResourceSpans().At(0)
+	assert.Equal(t, "https://opentelemetry.io/schemas/1.9.0", resultRS.SchemaUrl())
+	require.Equal(t, 1, resultRS.ScopeSpans().Len())
+	assert.Equal(t, "https://opentelemetry.io/schemas/1.4.0", resultRS.ScopeSpans().At(0).SchemaUrl())
+}
+
 func TestFindSpans_UnsupportedWithoutSpanSearchCapability(t *testing.T) {
 	store, err := NewStore(Configuration{MaxTraces: 10})
 	require.NoError(t, err)
