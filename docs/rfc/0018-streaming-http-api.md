@@ -19,9 +19,9 @@ This RFC proposes one streaming convention for every server-streaming method of 
 
 ### 1.1 The gateway buffers what the rest of the system streams
 
-The storage API v2 reader returns traces as `iter.Seq2[[]ptrace.Traces, error]` (`internal/storage/v2/api/tracestore/reader.go`), with the rule that a chunk never mixes traces but a large trace may be split across consecutive chunks. The query service preserves that shape, and by default aggregates the chunks back into whole traces before adjusting them (`QueryService.receiveTraces` in `cmd/jaeger/internal/extension/jaegerquery/querysvc/service.go`). The gRPC handler then sends one message per `ptrace.Traces` element it receives (`receiveTraces` in `internal/apiv3/grpc_handler.go`), so a gRPC client starts receiving the first trace while the backend is still fetching the last one.
+The storage API v2 reader returns traces as `iter.Seq2[[]ptrace.Traces, error]` (`internal/storage/v2/api/tracestore/reader.go`), with the rule that a chunk never mixes traces but a large trace may be split across consecutive chunks. The query service preserves that shape, and by default aggregates the chunks back into whole traces before adjusting them (`QueryService.receiveTraces` in `cmd/jaeger/internal/extension/jaegerquery/querysvc/service.go`). The gRPC handler then sends one message per `ptrace.Traces` element it receives (`receiveTraces` in `cmd/jaeger/internal/extension/jaegerquery/internal/apiv3/grpc_handler.go`), so a gRPC client starts receiving the first trace while the backend is still fetching the last one.
 
-The HTTP gateway (`internal/apiv3/http_gateway.go`) sits on the same query service but calls `jiter.FlattenWithErrors` on the iterator, which collects every chunk into a slice and returns the first error, if any, in place of all of it. `returnTraces` then copies every trace's `ResourceSpans` into one `ptrace.Traces` and marshals it once. The consequences are the ones the issue lists:
+The HTTP gateway (`cmd/jaeger/internal/extension/jaegerquery/internal/apiv3/http_gateway.go`, called `http_gateway.go` below) sits on the same query service but calls `jiter.FlattenWithErrors` on the iterator, which collects every chunk into a slice and returns the first error, if any, in place of all of it. `returnTraces` then copies every trace's `ResourceSpans` into one `ptrace.Traces` and marshals it once. The consequences are the ones the issue lists:
 
 - **Server memory.** The whole result, plus its merged copy, plus its JSON encoding, is held at once. A `FindTraces` for a busy service with a generous limit, or a `GetTrace` for a trace with tens of thousands of spans, allocates all of it before the first byte leaves the process.
 - **Client latency.** Time to first byte equals time to last byte. Jaeger UI, which is in the middle of moving from the legacy `/api/` endpoints to `/api/v3`, cannot render anything until the entire document has arrived and been parsed.
@@ -53,7 +53,7 @@ An [ADR draft posted on the issue](https://github.com/jaegertracing/jaeger/issue
 
 - Changing the gRPC service or its proto definitions.
 - Adding HTTP/2 without TLS (h2c) or any other transport the query server does not offer today.
-- Registering the `POST /api/v3/traces` route that the proto declares but the handwritten gateway does not serve.
+- Registering the routes the proto declares but the handwritten gateway does not serve: the `POST` bindings of `/api/v3/traces`, `/api/v3/trace-summaries` and `/api/v3/spans`, and `GET /api/v3/dependencies`.
 - Changing how the query service aggregates or adjusts traces.
 
 ## 3. Current state
@@ -62,17 +62,17 @@ An [ADR draft posted on the issue](https://github.com/jaegertracing/jaeger/issue
 | --- | --- |
 | HTTP routes | `GET` only, on a stdlib `http.ServeMux`: `/api/v3/traces/{trace_id}`, `/api/v3/traces`, `/api/v3/trace-summaries`, `/api/v3/services`, `/api/v3/operations`; `/api/v3/spans` is added by [#9613](https://github.com/jaegertracing/jaeger/pull/9613). |
 | Success body | For the trace endpoints, one `GRPCGatewayWrapper` object, `{"result": {"resourceSpans": […]}}`, marshalled with gogo `jsonpb`; the inner OTLP JSON comes from `ptrace.JSONMarshaler`. For `/trace-summaries`, the `FindTraceSummariesResponse` as the top-level object with no `result` wrapper (§6.1). `Content-Type: application/json`. |
-| Error body | `{"error": {"httpCode": N, "message": "…"}}` written through `http.Error`, so with `Content-Type: text/plain`. 404 for a missing trace and, unlike the gRPC handler and the other search endpoints, for an empty `FindTraces` result; 400 for bad parameters, 403 for tenancy denial, 500 otherwise. |
+| Error body | `{"error": {"httpCode": N, "message": "…"}}` written through `http.Error`, so with `Content-Type: text/plain`. 404 for a missing trace and, unlike the gRPC handler and the other search endpoints, for an empty `FindTraces` result; 400 for bad parameters, 403 when a query interceptor denies access (`queryinterceptor.ErrAccessDenied`), 500 otherwise. Tenancy failures are answered with `401` by the tenancy middleware before the gateway runs. |
 | Content negotiation | None. The `Accept` header is ignored. |
-| Response compression | None. `confighttp.ServerConfig` (collector v0.160.0) only decompresses request bodies; nothing in the `jaegerquery` handler chain compresses responses. The UI's static assets are pre-gzipped by `internal/gzipfs` and served with `Content-Encoding` already set. |
+| Response compression | None. `confighttp.ServerConfig` (collector v0.160.0) only decompresses request bodies; nothing in the `jaegerquery` handler chain compresses responses. The UI's static assets are embedded gzipped and `internal/gzipfs` decompresses them when opened, so `http.FileServer` serves them as plain bytes with no `Content-Encoding`. |
 | Transport | HTTP/1.1 in plaintext. With TLS, `confighttp` advertises `h2` and `http/1.1` via ALPN, so an HTTP/2-capable client gets HTTP/2. There is no h2c. |
-| Timeouts | `write_timeout` and `idle_timeout` are operator-configurable and unset by default. |
-| Streaming elsewhere | The AI assistant chat endpoint (`internal/jaegerai/endpoint_chat.go`) streams AG-UI events as SSE and the UI consumes them through `@ag-ui/client`. That format is specific to AG-UI and is not reusable for query results. |
+| Timeouts | `write_timeout` and `idle_timeout` are operator-configurable and the query extension's default configuration leaves them unset. `confighttp.NewDefaultServerConfig` sets `write_timeout` to 30 seconds, so the extension must keep building its own default rather than adopt that constructor, or every stream longer than 30 seconds would be cut. |
+| Streaming elsewhere | The AI assistant chat endpoint (`cmd/jaeger/internal/extension/jaegerquery/internal/jaegerai/endpoint_chat.go`) streams AG-UI events as SSE and the UI consumes them through `@ag-ui/client`. That format is specific to AG-UI and is not reusable for query results. |
 | UI consumers | `jaeger-ui/packages/jaeger-ui/src/api/v3/client.ts` calls `/services`, `/operations` and `/trace-summaries` with `fetch` plus `response.json()` and Zod validation. Nothing in the UI calls `/api/v3/traces` yet; trace loading still uses the legacy API. |
 
 ## 4. Opting in: content negotiation on `Accept`
 
-A client requests a streaming response by naming the streaming media type in the `Accept` request header. The gateway serves a stream when, and only when, that type is present; a missing `Accept`, `*/*`, or `application/json` produces the buffered response exactly as today. The response carries the streaming media type in `Content-Type` so a client can confirm which form it received.
+A client requests a streaming response by naming the streaming media type in the `Accept` request header. The gateway serves a stream when, and only when, `application/x-ndjson` is listed explicitly with a non-zero quality value, whatever its position relative to other types; a missing `Accept`, a wildcard such as `*/*` or `application/*`, `application/json`, or `application/x-ndjson;q=0` produces the buffered response exactly as today. Wildcards never select streaming, because a client that sends `*/*` is asking for whatever the server prefers, and the server prefers the format existing clients parse. The response carries the streaming media type in `Content-Type` so a client can confirm which form it received. Both representations of a streaming-capable endpoint carry `Vary: Accept` (alongside the `Accept-Encoding` value that compression adds in §8), so that a browser or intermediary cache never serves a stored NDJSON body to a client that asked for `application/json`, or the reverse.
 
 ```http
 GET /api/v3/traces?query.serviceName=frontend HTTP/1.1
@@ -80,6 +80,7 @@ Accept: application/x-ndjson
 
 HTTP/1.1 200 OK
 Content-Type: application/x-ndjson
+Vary: Accept
 Transfer-Encoding: chunked
 ```
 
@@ -98,7 +99,7 @@ The criteria come from the goals. All three preserve gRPC message boundaries, so
 | Criterion | NDJSON | SSE | gRPC-Web |
 | --- | --- | --- | --- |
 | Consumable with `fetch` + `JSON.parse`, or `net/http` + `json.Decoder`, with no library | 🟢 | 🟡¹ | 🔴² |
-| Works with the `Accept`-header opt-in of §4 | 🟢 | 🟡³ | 🟢 |
+| Works with the `Accept`-header opt-in of §4 | 🟢 | 🟢³ | 🟢 |
 | Transparent stream-level gzip (§8) | 🟢 | 🟢 | 🟡⁴ |
 | Unambiguous end and error signalling | 🟢⁵ | 🟡⁶ | 🟢 |
 | New npm or Go dependencies for the UI and tests | 🟢 none | 🟢 none⁷ | 🔴⁸ |
@@ -108,7 +109,7 @@ Legend: 🟢 meets the criterion · 🟡 meets it with a caveat · 🔴 does not
 
 - ¹ A browser can read SSE from `fetch` through a `ReadableStream`, but the client must implement the field parser (`data:`, `event:`, `id:`, multi-line `data:` joining, comment lines) rather than splitting on `\n` and calling `JSON.parse`. Go has no SSE decoder in the standard library.
 - ² A 5-byte binary header per message means byte-level parsing in the browser and in Go, and the JSON variant of gRPC-Web is served by few implementations, so tooling assumes protobuf.
-- ³ SSE works with `Accept` only when the client uses `fetch`. The native `EventSource` API, which is the reason to pick SSE at all, is `GET`-only and cannot set request headers, so it would force a query-parameter opt-in.
+- ³ Both a `fetch` client and the native `EventSource` API can negotiate: `EventSource` cannot set arbitrary request headers, but it sends `Accept: text/event-stream` on its own, which the gateway could recognise. `EventSource` is nonetheless not the client to design for, because it reconnects on end of stream (⁶) and is `GET`-only.
 - ⁴ gRPC-Web carries its own per-message compression flag. HTTP-level gzip also works, but a client library that expects the flag may not expect both.
 - ⁵ In-band `{"error": …}` and `{"end": true}` objects terminate every stream; §6.5 analyses truncation detection.
 - ⁶ SSE has no standard end marker either, and the `EventSource` reconnect behaviour turns a normal end of stream into a retry loop unless the client closes on an application-defined terminal event; the terminal event is mandatory for SSE where it is a design choice for NDJSON.
@@ -131,7 +132,7 @@ GET /api/v3/trace-summaries  {"summaries":[…],"nextPageToken":"…"}
 
 Errors on every endpoint use a third shape, `GRPCGatewayError`: `{"error":{"httpCode":404,"message":"…"}}`.
 
-**Streaming lines are normalized to the wrapped shape for every RPC.** Each line is an object with exactly one of three keys: `result`, holding one gRPC response message of the RPC in its usual JSON form; `error`, holding the `GRPCGatewayError` details; or `end`, marking the successful end of the stream (§6.5):
+**Streaming lines are normalized to the wrapped shape for every RPC.** Each line is an object with exactly one of three discriminator keys, and no other top-level key that discriminates: `result`, holding one gRPC response message of the RPC in its usual JSON form; `error`, holding the `GRPCGatewayError` details; or `end`, marking the successful end of the stream (§6.5):
 
 ```
 GetTrace, FindTraces  {"result":{"resourceSpans":[…]}}
@@ -173,7 +174,9 @@ Parameter errors, tenancy denials, and storage errors raised before any result h
 
 ### 6.4 Errors after the first line
 
-Once the gateway has written the `200` status and the first line, the status code cannot change. A storage or context error surfaced by the iterator is written as a final `{"error": …}` line in place of the `{"end": true}` line, the gateway flushes it, and returns from the handler, which ends the body. The `httpCode` is the code `tryHandleError` would have chosen for the same error before streaming, so the mapping of errors to codes is defined once. A client treats an error line as the failure of the whole request; the lines already received are a partial result and the client decides whether to keep them.
+Once the gateway has written the `200` status and the first line, the status code cannot change. A storage or context error surfaced by the iterator is written as a final `{"error": …}` line in place of the `{"end": true}` line, the gateway flushes it, and returns from the handler, which ends the body. The `httpCode` is the code `tryHandleError` would have chosen for the same error before streaming, so the mapping of errors to codes is defined once. A client treats an error line as the failure of the whole request; the lines already received are a partial result and the client decides whether to keep them. The gateway logs an in-stream error the way `tryHandleError` logs a `500` today.
+
+A failed `Write` or `Flush` means the client has gone away. The handler then stops pulling from the iterator, which ends the `range` and lets the storage backend release its cursor, and it writes nothing more; there is no one to send an error line to, and the disconnect is logged at debug level at most because the client caused it.
 
 ### 6.5 End of stream and truncation
 
@@ -209,9 +212,9 @@ Both trace endpoints return `404 No traces found` today when the iterator yields
 - **`GetTrace`** asks for one identified resource, and a trace that does not exist is the textbook `404`. The gRPC handler agrees and returns `NotFound`. The UI's error handling for a trace page keys off that code.
 - **`FindTraces`** is a search, and a search that matches nothing is a successful search with an empty result, the same as `FindTraceSummaries` and `FindSpans`, which already return `200` with an empty list. The gRPC `FindTraces` handler agrees too: it ends an empty stream with `OK`, so the HTTP `404` is a divergence between the two transports of one RPC.
 
-**Decision.** `FindTraces` returns `200` with an empty result in both modes: `{"result":{"resourceSpans":[]}}` buffered, and a `200` followed directly by `{"end": true}` when streaming. `GetTrace` keeps its `404`. Changing the buffered `FindTraces` response is a behaviour change for clients that treat `404` as "no matches", and it is accepted here because it aligns the HTTP response with the gRPC one and with the other two search endpoints, and because a client that reads the `resourceSpans` array handles an empty one without new code.
+**Decision.** `FindTraces` returns `200` with an empty result in both modes: `{"result":{}}` buffered, and a `200` followed directly by `{"end": true}` when streaming. The buffered body is `{"result":{}}` rather than `{"result":{"resourceSpans":[]}}` because the OTLP JSON mapping omits empty repeated fields, which every OTLP JSON consumer already has to accept as "no elements". `GetTrace` keeps its `404`. Changing the buffered `FindTraces` response is a behaviour change for clients that treat `404` as "no matches", and it is accepted here because it aligns the HTTP response with the gRPC one and with the other two search endpoints, and because a client that follows the OTLP JSON mapping treats an absent `resourceSpans` as empty already.
 
-The `404` for `GetTrace` still has to be decided before the status line is written, and a streaming handler cannot drain the iterator first the way `returnTraces` does today. It takes the same decision one step earlier, after the first pull from the iterator rather than after the last:
+The `404` for `GetTrace` still has to be decided before the status line is written, and a streaming handler cannot drain the iterator first the way `returnTraces` does today. It takes the same decision one step earlier, after the first pull from the iterator rather than after the last. A "chunk" here is a non-empty `ptrace.Traces`: the iterator yields slices, and a slice or an element with no spans produces no gRPC message, so the gateway skips it wherever it appears in the stream rather than writing a `{"result":{}}` line for it:
 
 - The first pull yields a chunk: write `200` and the streaming `Content-Type`, then that chunk and the rest of the stream.
 - The iterator ends without a chunk: write the `404` exactly as today.
@@ -249,13 +252,13 @@ The issue asks how streaming interacts with compression. The query HTTP server c
 - ³ Each `Flush()` on a gzip writer emits a sync block and costs a few bytes plus a small loss of compression ratio relative to one uninterrupted stream. The message-level payloads are large enough (spans with attributes) that the ratio stays high.
 - ⁴ `github.com/gorilla/handlers`, already a direct dependency, provides `CompressHandler`. Its `compressResponseWriter.Flush` flushes the gzip writer and then the underlying `http.Flusher`, which is exactly the per-message behaviour required.
 
-**Decision.** Whole-stream gzip negotiated by `Accept-Encoding`, applied by `handlers.CompressHandler` in the `jaegerquery` HTTP handler chain in `internal/server.go`, next to the recovery handler, so it covers every API v3 response and not only streams. The client controls it: the handler compresses only when the request carries `Accept-Encoding: gzip`, and a client that wants plain bytes omits the header. No server-side option is added, because that would express the same decision in two places. The gateway's `Flush()` call after each line then flushes the compressor and the socket together. The `confighttp` `middlewares` extension point was considered and rejected because it requires an OpenTelemetry middleware extension and operator configuration, and the collector ships no compression middleware. The pre-gzipped UI assets served by `internal/gzipfs` already set `Content-Encoding`, and the handler must be verified not to compress them a second time; that is an implementation detail of milestone M2.
+**Decision.** Whole-stream gzip negotiated by `Accept-Encoding`, applied by `handlers.CompressHandler` in the `jaegerquery` HTTP handler chain in `cmd/jaeger/internal/extension/jaegerquery/internal/server.go`, next to the recovery handler. That chain serves everything on the query port, so the handler compresses the API v3 responses, the legacy `/api/` endpoints, the UI assets, and the SSE chat endpoint alike; `CompressHandler` flushes the compressor on every `Flush()`, so the SSE endpoint keeps streaming. The client controls it: the handler compresses only when the request carries `Accept-Encoding: gzip`, and a client that wants plain bytes omits the header. No server-side option is added, because that would express the same decision in two places. The gateway's `Flush()` call after each line then flushes the compressor and the socket together. The `confighttp` `middlewares` extension point was considered and rejected because it requires an OpenTelemetry middleware extension and operator configuration, and the collector ships no compression middleware. The UI assets are served decompressed today (§3), so compressing them on the way out is a gain, not a double encoding.
 
 ## 9. Clients
 
 ### 9.1 Go
 
-A Go consumer wraps `resp.Body` in a `json.Decoder` and calls `Decode` into a struct with `Result *jptrace.TracesData`, `Error *GRPCGatewayErrorDetails` and `End bool` fields until it has seen a terminal object. `jptrace.TracesData` already implements `UnmarshalJSONPB` through `ptrace.JSONUnmarshaler`. An `io.EOF` or `io.ErrUnexpectedEOF` before a terminal object is a truncated stream. This decoder is the client side of the gateway's tests, which must consume the response as a client would rather than assert on substrings of the recorded body.
+A Go consumer wraps `resp.Body` in a `json.Decoder` and calls `Decode` into a struct with `Result json.RawMessage`, `Error *GRPCGatewayErrorDetails` and `End bool` fields until it has seen a terminal object. The `result` bytes are then decoded with `ptrace.JSONUnmarshaler` (or, for the paginated RPCs, with `jsonpb` into the response message). `encoding/json` does not call the gogo `UnmarshalJSONPB` method that `jptrace.TracesData` implements, so decoding `result` straight into that type would silently drop the spans; the `json.RawMessage` step is what keeps the two libraries apart. An `io.EOF` or `io.ErrUnexpectedEOF` before a terminal object is a truncated stream. This decoder is the client side of the gateway's tests, which must consume the response as a client would rather than assert on substrings of the recorded body.
 
 ### 9.2 Jaeger UI
 
@@ -263,11 +266,11 @@ The UI reads the stream with `fetch` and `response.body.getReader()`. Each `read
 
 ## 10. API specification
 
-The API v3 OpenAPI document lives in `jaeger-idl` (`swagger/api_v3/query_service.openapi.yaml`), and the UI generates its Zod schemas from it. The streaming methods gain a second response media type, `application/x-ndjson`, whose per-line schema is a union of `{"result": <that method's response message>}` and `GRPCGatewayError`; for the trace endpoints that union is the existing `GRPCGatewayWrapper` / `GRPCGatewayError` pair. The comment on `GRPCGatewayWrapper` in `proto/api_v3/query_service.proto`, which currently describes the future in the conditional, is rewritten to describe the convention as it stands. No message or RPC definition changes.
+The API v3 OpenAPI document lives in `jaeger-idl` (`swagger/api_v3/query_service.openapi.yaml`), and the UI generates its Zod schemas from it. The streaming methods gain a second response media type, `application/x-ndjson`, whose per-line schema is a union of three branches: `{"result": <that method's response message>}`, `GRPCGatewayError`, and the `{"end": true}` terminator of §6.5; for the trace endpoints the first two are the existing `GRPCGatewayWrapper` and `GRPCGatewayError` messages. The `Vary: Accept` header of §4 is documented on both representations. The comment on `GRPCGatewayWrapper` in `proto/api_v3/query_service.proto`, which currently describes the future in the conditional, is rewritten to describe the convention as it stands. No message or RPC definition changes.
 
 ## 11. Backward compatibility
 
-- A client that sends no `Accept`, `*/*`, or `application/json` receives byte-for-byte the response it receives today, with one exception: an empty `FindTraces` search returns `200` with an empty `resourceSpans` array instead of `404` (§6.6).
+- A client that sends no `Accept`, `*/*`, or `application/json` receives byte-for-byte the response it receives today, with one exception: an empty `FindTraces` search returns `200` with `{"result":{}}` instead of `404` (§6.6).
 - A client that sends `Accept: application/x-ndjson` to a unary endpoint receives the buffered `application/json` document; content negotiation for streaming applies only to server-streaming RPCs.
 - Adding `Accept-Encoding`-negotiated gzip to the server changes nothing for clients that do not send `Accept-Encoding`, and every HTTP client library decodes gzip transparently for those that do.
 - The gRPC service is untouched.
@@ -278,7 +281,7 @@ The API v3 OpenAPI document lives in `jaeger-idl` (`swagger/api_v3/query_service
 - **Always stream, no opt-in.** Breaks every existing client. Rejected by G2.
 - **Deployment feature gate as the opt-in.** Per-deployment rather than per-request, and still a breaking change for whichever clients have not moved. Rejected in favour of `Accept` (§4).
 - **Trace-level granularity enforced by the gateway.** Undoes `raw_traces=true` and forces whole-trace parsing on the client. Rejected (§6.2).
-- **Native `EventSource` as the browser client.** `GET`-only, cannot send `Accept`, reconnects on end of stream. Rejected; `fetch` with a `ReadableStream` is the browser model (§5, §9.2).
+- **Native `EventSource` as the browser client.** It negotiates with its own `Accept: text/event-stream`, but it is `GET`-only, reconnects on end of stream unless the client closes on an application-defined terminal event, and ties the API to SSE. Rejected; `fetch` with a `ReadableStream` is the browser model (§5, §9.2).
 - **HTTP trailers for the final status.** Correct on HTTP/2, but `fetch` cannot read trailers in browsers and HTTP/1.1 trailers require the client to announce `TE: trailers`. Rejected in favour of the in-band terminal objects (§6.4, §6.5).
 - **Compress the whole content, then apply chunked coding.** Suggested on the issue. The client can decode nothing until the last byte, which defeats streaming. Rejected (§8).
 
@@ -287,7 +290,7 @@ The API v3 OpenAPI document lives in `jaeger-idl` (`swagger/api_v3/query_service
 Each milestone is one PR and is independently shippable.
 
 - **M1 — Streaming `GetTrace` and `FindTraces` (jaeger).** `Accept: application/x-ndjson` negotiation in `http_gateway.go`; first-message pull before committing the status and `200` for an empty `FindTraces` (§6.6); one flushed line per gRPC message; terminal `end` or `error` line; buffered path otherwise unchanged. Tests include a Go NDJSON client (§9.1) that consumes the recorded stream, an in-stream error case, a truncation case (body closed before the terminal object), an empty-result case, and a `raw_traces=true` case where a trace spans lines.
-- **M2 — Response compression on the query HTTP server (jaeger).** `handlers.CompressHandler` in the `internal/server.go` chain; a test that streams through gzip and shows the client decoding each line before the stream ends; verification that pre-gzipped UI assets are not re-encoded.
+- **M2 — Response compression on the query HTTP server (jaeger).** `handlers.CompressHandler` in the `cmd/jaeger/internal/extension/jaegerquery/internal/server.go` chain; a test that streams through gzip and shows the client decoding each line before the stream ends; a check that the SSE chat endpoint still streams through the compressor.
 - **M3 — API specification (jaeger-idl).** The `application/x-ndjson` response for streaming methods in the OpenAPI document, and the rewritten `GRPCGatewayWrapper` comment.
 - **M4 — Streaming `FindTraceSummaries` and `FindSpans` (jaeger).** Apply the §6 convention to the remaining server-streaming RPCs; the `FindSpans` HTTP route lands in [#9613](https://github.com/jaegertracing/jaeger/pull/9613).
 - **M5 — Jaeger UI consumption (jaeger-ui).** An NDJSON reader in `src/api/v3/client.ts` and a `fetchTrace` on the v3 client that yields `TracesData` chunks; adoption by the trace page follows the UI's own v3 migration.
