@@ -219,9 +219,14 @@ type Pagination struct {
 // DecodePagination validates a wire-level page size and token and turns them into a Pagination.
 // PageSize is required whenever a Pagination is present at all (see Pagination.PageSize); a
 // pageSize of 0 is rejected here rather than left for a Reader or the query service to notice.
+// A pageSize above MaxPageSize is clamped rather than refused (see MaxPageSize), which also
+// keeps the uint32-to-int conversion below always in range.
 func DecodePagination(pageSize uint32, pageToken string) (Pagination, error) {
 	if pageSize == 0 {
 		return Pagination{}, errors.New("page_size is required")
+	}
+	if pageSize > MaxPageSize {
+		pageSize = MaxPageSize
 	}
 	return Pagination{PageSize: int(pageSize), PageToken: pageToken}, nil
 }

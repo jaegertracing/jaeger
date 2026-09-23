@@ -6,6 +6,7 @@ package tracestore
 import (
 	"context"
 	"errors"
+	"math"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -50,6 +51,18 @@ func TestDecodePagination(t *testing.T) {
 		{
 			name:       "both missing",
 			wantErrMsg: "page_size is required",
+		},
+		{
+			name:      "page size above max is clamped",
+			pageSize:  MaxPageSize + 1,
+			pageToken: "opaque-cursor",
+			want:      Pagination{PageSize: MaxPageSize, PageToken: "opaque-cursor"},
+		},
+		{
+			name:      "page size at max uint32 is clamped",
+			pageSize:  math.MaxUint32,
+			pageToken: "opaque-cursor",
+			want:      Pagination{PageSize: MaxPageSize, PageToken: "opaque-cursor"},
 		},
 	}
 	for _, tt := range tests {
