@@ -7,7 +7,7 @@
 
 The `tracestore.Writer` contract says `WriteTraces` returns an error when spans were not persisted. The Elasticsearch/OpenSearch writer did not honor it: spans went into a client-side bulk buffer and the call returned before anything reached the backend, so a failed flush was logged and lost while every component upstream believed the spans were stored. Behind a Kafka ingester this turned a backend outage into silent data loss, because the receiver committed offsets for records the storage never wrote.
 
-[RFC 0007](../rfc/0007-synchronous-elasticsearch-writes.md) analyzes the problem and lays out the design; it was delivered across milestones M1–M6 (issue [#8476](https://github.com/jaegertracing/jaeger/issues/8476)). **This ADR records the resulting architecture and the pipeline configurations that make it lossless.** The RFC holds the motivation, the alternatives, and the milestone history.
+[RFC 0007](../rfc/0007-synchronous-elasticsearch-writes.md) analyzes the problem and lays out the design; it was delivered across milestones M1–M7 (issue [#8476](https://github.com/jaegertracing/jaeger/issues/8476)), with the optional M8 deferred. **This ADR records the resulting architecture and the pipeline configurations that make it lossless.** The RFC holds the motivation, the alternatives, and the milestone history.
 
 The implementation lives in:
 
