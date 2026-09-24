@@ -17,3 +17,7 @@ jobs:
   ai-sidecar-gemini:
     uses: ./.github/workflows/ci-ai-sidecar-gemini.yml
     secrets: inherit
+
+  ai-sidecar-ollama:
+    uses: ./.github/workflows/ci-ai-sidecar-ollama.yml
+    secrets: inherit
