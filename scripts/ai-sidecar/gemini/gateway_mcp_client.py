@@ -10,6 +10,7 @@ from google.genai import types
 import httpx
 from mcp import ClientSession
 from mcp.client.streamable_http import streamable_http_client
+from mcp.shared._httpx_utils import MCP_DEFAULT_SSE_READ_TIMEOUT, create_mcp_http_client
 from opentelemetry.semconv._incubating.attributes.gen_ai_attributes import GEN_AI_TOOL_NAME
 from opentelemetry.semconv.attributes.url_attributes import URL_FULL
 from opentelemetry.trace import Status, StatusCode
@@ -19,12 +20,6 @@ from tracing import tracer
 
 
 logger = logging.getLogger(__name__)
-
-# SSE_READ_TIMEOUT_SEC bounds how long a streamable-HTTP read may sit idle. MCP
-# replies arrive as SSE, so an idle gap is normal while a tool runs; this exists
-# to eventually free a stream the gateway abandoned, not to bound tool work. It
-# matches the default the MCP SDK applies to its own client.
-SSE_READ_TIMEOUT_SEC = 300.0
 
 
 class GatewayMCPClient:
@@ -54,22 +49,20 @@ class GatewayMCPClient:
         self._tools_by_name: dict[str, Any] = {}
         self._gemini_tools: list[types.Tool] = []
 
-    def _httpx_timeout(self) -> httpx.Timeout:
-        """Timeouts for the MCP transport.
+    def _new_http_client(self) -> httpx.AsyncClient:
+        """Build the HTTP client the MCP transport runs over.
 
-        httpx defaults every phase to 5s, which is wrong here twice over: it caps
-        the configured connect budget below mcp_discovery_timeout_sec, so that knob
-        could never be honoured, and it applies the same 5s to reads — but MCP
-        streamable HTTP answers over SSE, where a stream legitimately sits idle
-        between events while the gateway is still working. The read budget is
-        therefore generous and the handshake is bounded by asyncio.wait_for below,
-        which is what the caller actually configured.
+        streamable_http_client takes no headers of its own — they ride on a
+        caller-supplied client — so this is built with the SDK's own factory,
+        the way its ClientSessionGroup does, rather than by hand. That keeps the
+        SDK's transport defaults (redirects, the idle-read allowance for SSE) in
+        the SDK: the read timeout is its MCP_DEFAULT_SSE_READ_TIMEOUT, not a copy
+        of it. The other phases take the configured discovery budget so the
+        transport never undercuts the asyncio.wait_for that enforces it.
         """
-        return httpx.Timeout(
-            connect=self._timeout_sec,
-            read=SSE_READ_TIMEOUT_SEC,
-            write=self._timeout_sec,
-            pool=self._timeout_sec,
+        return create_mcp_http_client(
+            headers=self._headers,
+            timeout=httpx.Timeout(self._timeout_sec, read=MCP_DEFAULT_SSE_READ_TIMEOUT),
         )
 
     async def initialize(self) -> None:
@@ -87,18 +80,10 @@ class GatewayMCPClient:
             )
             stack = AsyncExitStack()
             try:
-                # streamable_http_client takes no headers of its own — headers ride
-                # on a caller-supplied httpx client, which it deliberately does not
-                # close (its `client_provided` branch), so it goes on the stack to be
-                # released with everything else. follow_redirects mirrors the SDK's
-                # own default for MCP clients.
-                http_client = await stack.enter_async_context(
-                    httpx.AsyncClient(
-                        headers=self._headers,
-                        follow_redirects=True,
-                        timeout=self._httpx_timeout(),
-                    )
-                )
+                # The transport does not close a client it was handed (its
+                # `client_provided` branch), so it goes on the stack to be released
+                # with everything else.
+                http_client = await stack.enter_async_context(self._new_http_client())
                 read, write, _ = await stack.enter_async_context(
                     streamable_http_client(url=self._url, http_client=http_client)
                 )

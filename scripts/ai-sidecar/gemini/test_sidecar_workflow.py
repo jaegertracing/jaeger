@@ -515,14 +515,23 @@ def test_aclose_releases_clients_for_unfinished_sessions() -> None:
     assert agent._mcp_clients == {}
 
 
-def test_gateway_client_timeouts_do_not_inherit_httpx_default() -> None:
-    """httpx defaults every phase to 5s, which would cap the configured connect
-    budget and, worse, time out an idle SSE read while the gateway is still working.
-    Both are set explicitly instead."""
-    from gateway_mcp_client import SSE_READ_TIMEOUT_SEC, GatewayMCPClient
+def test_gateway_http_client_uses_sdk_transport_defaults() -> None:
+    """The client is built with the MCP SDK's own factory, so its transport
+    defaults stay the SDK's. httpx alone would default every phase to 5s — capping
+    the configured connect budget and timing out an idle SSE read while the
+    gateway is still working — so both must be set, and the idle-read allowance
+    must be the SDK's value rather than a copy of it."""
+    from mcp.shared._httpx_utils import MCP_DEFAULT_SSE_READ_TIMEOUT
 
-    timeout = GatewayMCPClient("http://x/", {}, 15.0)._httpx_timeout()
+    from gateway_mcp_client import GatewayMCPClient
 
-    assert timeout.connect == 15.0, "the configured budget must reach the connect phase"
-    assert timeout.read == SSE_READ_TIMEOUT_SEC, "an idle SSE read must not die at 5s"
-    assert timeout.read is not None and timeout.read > 5.0
+    client = GatewayMCPClient("http://x/", {"x-tenant": "acme"}, 15.0)._new_http_client()
+    try:
+        assert client.timeout.connect == 15.0, "the configured budget must reach the connect phase"
+        assert client.timeout.read == MCP_DEFAULT_SSE_READ_TIMEOUT, (
+            "the idle-read allowance is the SDK's, not a hand-copied constant"
+        )
+        assert client.headers["x-tenant"] == "acme", "announced headers must ride on the client"
+        assert client.follow_redirects, "the SDK factory's defaults are kept"
+    finally:
+        asyncio.run(client.aclose())
