@@ -7,6 +7,19 @@ import (
 	"go.opentelemetry.io/collector/pdata/pcommon"
 )
 
+// deleteWithDescendants deletes a span and all of its descendants from the spanMap.
+// This prevents orphaned grandchildren when a parent span is dropped.
+func deleteWithDescendants(spanMap map[pcommon.SpanID]CPSpan, spanID pcommon.SpanID) {
+	span, ok := spanMap[spanID]
+	if !ok {
+		return
+	}
+	for _, childID := range span.ChildSpanIDs {
+		deleteWithDescendants(spanMap, childID)
+	}
+	delete(spanMap, spanID)
+}
+
 // removeOverflowingChildren removes or adjusts child spans that overflow their parent's time range.
 // An overflowing child span is one whose time range falls outside its parent span's time range.
 // The function adjusts the start time and duration of overflowing child spans
@@ -37,10 +50,10 @@ func removeOverflowingChildren(spanMap map[pcommon.SpanID]CPSpan) map[pcommon.Sp
 
 		if span.StartTime >= parentSpan.StartTime {
 			if span.StartTime >= parentEndTime {
-				// child outside of parent range => drop the child span
+				// child outside of parent range => drop the child span and all its descendants
 				//      |----parent----|
 				//                        |----child--|
-				delete(spanMap, span.SpanID)
+				deleteWithDescendants(spanMap, span.SpanID)
 
 				// Remove the childSpanId from its parent span
 				filteredChildren := make([]pcommon.SpanID, 0, len(parentSpan.ChildSpanIDs))
@@ -69,10 +82,10 @@ func removeOverflowingChildren(spanMap map[pcommon.SpanID]CPSpan) map[pcommon.Sp
 
 		switch {
 		case childEndTime <= parentSpan.StartTime:
-			// child outside of parent range => drop the child span
+			// child outside of parent range => drop the child span and all its descendants
 			//                      |----parent----|
 			//       |----child--|
-			delete(spanMap, span.SpanID)
+			deleteWithDescendants(spanMap, span.SpanID)
 
 			// Remove the childSpanId from its parent span
 			filteredChildren := make([]pcommon.SpanID, 0, len(parentSpan.ChildSpanIDs))
