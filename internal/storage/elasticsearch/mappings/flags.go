@@ -4,9 +4,11 @@
 package mappings
 
 import (
+	"flag"
 	"fmt"
 
 	"github.com/spf13/cobra"
+	"go.opentelemetry.io/collector/featuregate"
 
 	es "github.com/jaegertracing/jaeger/internal/storage/elasticsearch"
 )
@@ -106,6 +108,13 @@ func (o *Options) AddFlags(command *cobra.Command) {
 		"jaeger-ilm-policy",
 		"The name of the ILM policy to use if ILM is active",
 	)
+
+	// Some feature gates change the rendered template, so the generator has to be
+	// able to set them the same way the collector binary does. RegisterFlags writes
+	// straight into the global registry, so there is no Options field to carry.
+	goFlags := flag.NewFlagSet("", flag.ContinueOnError)
+	featuregate.GlobalRegistry().RegisterFlags(goFlags)
+	command.Flags().AddGoFlagSet(goFlags)
 
 	// mark mapping flag as mandatory
 	command.MarkFlagRequired(mappingFlag)

@@ -74,6 +74,10 @@ type IndexOptions struct {
 	Shards int64 `mapstructure:"shards"`
 	// Replicas is the number of replicas per index in Elasticsearch.
 	Replicas *int64 `mapstructure:"replicas"`
+	// TotalFieldsLimit sets index.mapping.total_fields.limit on the span index
+	// template (the maximum number of fields an index mapping may have). Left
+	// unset, no limit is set on the index and Elasticsearch's own default applies.
+	TotalFieldsLimit *int64 `mapstructure:"total_fields_limit"`
 	// RolloverFrequency contains the rollover frequency setting used to fetch
 	// indices from elasticsearch.
 	// Valid configuration options are: [hour, day].

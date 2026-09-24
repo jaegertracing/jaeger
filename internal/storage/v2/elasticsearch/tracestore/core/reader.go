@@ -44,7 +44,10 @@ const (
 	nestedLogFieldsField   = "logs.fields"
 	tagKeyField            = "key"
 	tagValueField          = "value"
-	errorTag               = "error"
+	// numberSubField is the sub-field the typed-attribute mapping indexes a numeric
+	// attribute value in, beside the keyword the same value is indexed as (RFC 0015).
+	numberSubField = "number"
+	errorTag       = "error"
 
 	defaultSearchDepth = 100
 
@@ -608,14 +611,14 @@ func (*SpanReader) buildNestedQuery(field string, k string, v string) esquery.Qu
 	keyField := fmt.Sprintf("%s.%s", field, tagKeyField)
 	valueField := fmt.Sprintf("%s.%s", field, tagValueField)
 	keyQuery := esquery.NewMatchQuery(keyField, k)
-	valueQuery := esquery.NewRegexpQuery(valueField, v)
+	valueQuery := esquery.NewRegexpQuery(valueField, v).Flags("NONE")
 	tagBoolQuery := esquery.NewBoolQuery().Must(keyQuery, valueQuery)
 	return esquery.NewNestedQuery(field, tagBoolQuery)
 }
 
 func (*SpanReader) buildObjectQuery(field string, k string, v string) esquery.Query {
 	keyField := fmt.Sprintf("%s.%s", field, k)
-	keyQuery := esquery.NewRegexpQuery(keyField, v)
+	keyQuery := esquery.NewRegexpQuery(keyField, v).Flags("NONE")
 	return esquery.NewBoolQuery().Must(keyQuery)
 }
 

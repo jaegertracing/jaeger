@@ -139,15 +139,17 @@ func (fakeStorageExt) Shutdown(context.Context) error {
 
 // stubQueryInterceptor is an extension that also implements
 // queryinterceptor.Interceptor, used to exercise the server's interceptor wiring.
-type stubQueryInterceptor struct{}
+type stubQueryInterceptor struct {
+	queryinterceptor.UnsupportedSpanSearch
+}
 
 func (stubQueryInterceptor) Start(context.Context, component.Host) error { return nil }
 func (stubQueryInterceptor) Shutdown(context.Context) error              { return nil }
-func (stubQueryInterceptor) OnQuery(ctx context.Context, q queryinterceptor.Query) (context.Context, queryinterceptor.Query, error) {
+func (stubQueryInterceptor) OnTraceQuery(ctx context.Context, q queryinterceptor.TraceQuery) (context.Context, queryinterceptor.TraceQuery, error) {
 	return ctx, q, nil
 }
 
-func (stubQueryInterceptor) OnResult(ctx context.Context, t []ptrace.Traces) (context.Context, []ptrace.Traces, error) {
+func (stubQueryInterceptor) OnTraceResult(ctx context.Context, t []ptrace.Traces) (context.Context, []ptrace.Traces, error) {
 	return ctx, t, nil
 }
 
@@ -707,7 +709,11 @@ func TestServerStartWiresSearchCapability(t *testing.T) {
 			t.Cleanup(func() { require.NoError(t, srv.Shutdown(t.Context())) })
 
 			_, err := jiter.FlattenWithErrors(srv.QueryService().FindTraces(t.Context(), querysvc.TraceQueryParams{
-				TraceQueryParams: tracestore.TraceQueryParams{Attributes: pcommon.NewMap()},
+				TraceQueryParams: tracestore.TraceQueryParams{
+					Attributes:   pcommon.NewMap(),
+					StartTimeMin: time.Now().Add(-time.Hour),
+					StartTimeMax: time.Now(),
+				},
 			}))
 			if test.expectError != nil {
 				require.ErrorIs(t, err, test.expectError)

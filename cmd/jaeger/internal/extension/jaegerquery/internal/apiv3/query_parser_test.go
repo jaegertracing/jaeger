@@ -5,6 +5,7 @@ package apiv3
 
 import (
 	"net/url"
+	"strconv"
 	"testing"
 	"time"
 
@@ -13,6 +14,7 @@ import (
 	"go.opentelemetry.io/collector/pdata/pcommon"
 
 	expression "github.com/jaegertracing/jaeger-idl/query/expression/v1"
+	"github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore"
 )
 
 func TestParseFindTracesQuery(t *testing.T) {
@@ -68,14 +70,28 @@ func TestParseFindTracesQuery(t *testing.T) {
 		assert.True(t, got.RawTraces)
 	})
 
-	t.Run("default search depth", func(t *testing.T) {
+	t.Run("unset search depth is left for the query service to default", func(t *testing.T) {
 		q := url.Values{}
 		q.Set(paramTimeMin, goodMin)
 		q.Set(paramTimeMax, goodMax)
 
 		got, err := parseFindTracesQuery(q)
 		require.NoError(t, err)
-		assert.Equal(t, defaultSearchDepth, got.SearchDepth)
+		assert.Equal(t, 0, got.SearchDepth)
+	})
+
+	t.Run("an absent or inverted time range is left for the query service to refuse", func(t *testing.T) {
+		got, err := parseFindTracesQuery(url.Values{})
+		require.NoError(t, err)
+		assert.True(t, got.StartTimeMin.IsZero())
+		assert.True(t, got.StartTimeMax.IsZero())
+
+		q := url.Values{}
+		q.Set(paramTimeMin, goodMax)
+		q.Set(paramTimeMax, goodMin)
+		got, err = parseFindTracesQuery(q)
+		require.NoError(t, err)
+		assert.True(t, got.StartTimeMax.Before(got.StartTimeMin))
 	})
 
 	t.Run("search depth via num_traces alias", func(t *testing.T) {
@@ -87,6 +103,19 @@ func TestParseFindTracesQuery(t *testing.T) {
 		got, err := parseFindTracesQuery(q)
 		require.NoError(t, err)
 		assert.Equal(t, 7, got.SearchDepth)
+	})
+
+	t.Run("search depth at zero and max", func(t *testing.T) {
+		for _, depth := range []int{0, tracestore.MaxSearchDepth} {
+			q := url.Values{}
+			q.Set(paramTimeMin, goodMin)
+			q.Set(paramTimeMax, goodMax)
+			q.Set(paramSearchDepth, strconv.Itoa(depth))
+
+			got, err := parseFindTracesQuery(q)
+			require.NoError(t, err)
+			assert.Equal(t, depth, got.SearchDepth)
+		}
 	})
 
 	t.Run("attributes", func(t *testing.T) {
@@ -101,6 +130,30 @@ func TestParseFindTracesQuery(t *testing.T) {
 		want.PutStr("http.status_code", "200")
 		want.PutStr("error", "true")
 		assert.Equal(t, want.AsRaw(), got.Attributes.AsRaw())
+	})
+
+	t.Run("pagination is decoded as sent, presence included", func(t *testing.T) {
+		// Whether a trace search may be paginated, and what an incomplete Pagination means, is
+		// the query service's decision (prepareSearchQuery); the parser only preserves presence.
+		q := url.Values{}
+		q.Set(paramTimeMin, goodMin)
+		q.Set(paramTimeMax, goodMax)
+
+		got, err := parseFindTracesQuery(q)
+		require.NoError(t, err)
+		assert.Nil(t, got.Pagination, "no pagination parameters means not a paginated request")
+
+		q.Set(paramPageSize, "10")
+		q.Set(paramPageToken, "opaque-cursor")
+		got, err = parseFindTracesQuery(q)
+		require.NoError(t, err)
+		assert.Equal(t, &tracestore.Pagination{PageSize: 10, PageToken: "opaque-cursor"}, got.Pagination)
+
+		q.Del(paramPageSize)
+		got, err = parseFindTracesQuery(q)
+		require.NoError(t, err)
+		assert.Equal(t, &tracestore.Pagination{PageToken: "opaque-cursor"}, got.Pagination,
+			"a token alone is still a paginated request; the missing page size is the query service's refusal")
 	})
 
 	t.Run("no attributes gives empty map", func(t *testing.T) {
@@ -118,30 +171,6 @@ func TestParseFindTracesQuery(t *testing.T) {
 		params  map[string]string
 		wantErr string
 	}{
-		{
-			name:    "no time range",
-			wantErr: "query.startTimeMin and query.startTimeMax are required",
-		},
-		{
-			name:    "no max time",
-			params:  map[string]string{paramTimeMin: goodMin},
-			wantErr: "query.startTimeMin and query.startTimeMax are required",
-		},
-		{
-			name:    "no min time",
-			params:  map[string]string{paramTimeMax: goodMax},
-			wantErr: "query.startTimeMin and query.startTimeMax are required",
-		},
-		{
-			name:    "startTimeMin not before startTimeMax",
-			params:  map[string]string{paramTimeMin: goodMax, paramTimeMax: goodMin},
-			wantErr: paramTimeMin + " must be before " + paramTimeMax,
-		},
-		{
-			name:    "startTimeMin equals startTimeMax",
-			params:  map[string]string{paramTimeMin: goodMin, paramTimeMax: goodMin},
-			wantErr: paramTimeMin + " must be before " + paramTimeMax,
-		},
 		{
 			name:    "bad startTimeMin (canonical)",
 			params:  map[string]string{paramTimeMin: "NaN", paramTimeMax: goodMax},
@@ -211,6 +240,11 @@ func TestParseFindTracesQuery(t *testing.T) {
 			name:    "bad attributes json",
 			params:  map[string]string{paramTimeMin: goodMin, paramTimeMax: goodMax, paramAttributes: "not-valid-json"},
 			wantErr: "malformed parameter " + paramAttributes,
+		},
+		{
+			name:    "bad page size",
+			params:  map[string]string{paramTimeMin: goodMin, paramTimeMax: goodMax, paramPageSize: "-1"},
+			wantErr: "malformed parameter " + paramPageSize,
 		},
 	}
 	for _, tc := range errorCases {
@@ -299,6 +333,149 @@ func TestParseFindTracesQuery_Filter(t *testing.T) {
 
 		_, err := parseFindTracesQuery(q)
 		require.ErrorContains(t, err, "malformed parameter query.filter")
+	})
+}
+
+func TestParseFindSpansQuery(t *testing.T) {
+	tMin := time.Now().Add(-time.Hour).UTC().Truncate(time.Nanosecond)
+	tMax := time.Now().UTC().Truncate(time.Nanosecond)
+	goodMin := tMin.Format(time.RFC3339Nano)
+	goodMax := tMax.Format(time.RFC3339Nano)
+
+	t.Run("time range only", func(t *testing.T) {
+		q := url.Values{}
+		q.Set(paramTimeMin, goodMin)
+		q.Set(paramTimeMax, goodMax)
+
+		got, err := parseFindSpansQuery(q)
+		require.NoError(t, err)
+		assert.Equal(t, tMin, got.StartTimeMin)
+		assert.Equal(t, tMax, got.StartTimeMax)
+		assert.Nil(t, got.Filter)
+	})
+
+	t.Run("time range via the deprecated snake_case aliases", func(t *testing.T) {
+		// The time range is read by the same helper as a trace search's, aliases included.
+		q := url.Values{}
+		q.Set(paramTimeMinDeprecated, goodMin)
+		q.Set(paramTimeMaxDeprecated, goodMax)
+
+		got, err := parseFindSpansQuery(q)
+		require.NoError(t, err)
+		assert.Equal(t, tMin, got.StartTimeMin)
+		assert.Equal(t, tMax, got.StartTimeMax)
+	})
+
+	t.Run("a filter", func(t *testing.T) {
+		q := url.Values{}
+		q.Set(paramTimeMin, goodMin)
+		q.Set(paramTimeMax, goodMax)
+		q.Set(paramFilter, `{"op":"eq","args":[
+			{"attr":{"key":"http.route","level":"span"}},{"scalar":{"value":"/cart"}}]}`)
+
+		got, err := parseFindSpansQuery(q)
+		require.NoError(t, err)
+		assert.Equal(t, &expression.Call{Op: expression.OpEq, Args: []expression.Expression{
+			&expression.AttributeRef{Key: "http.route", Level: expression.LevelSpan},
+			&expression.AnyValue{Value: "/cart"},
+		}}, got.Filter)
+	})
+
+	t.Run("malformed filter JSON", func(t *testing.T) {
+		q := url.Values{}
+		q.Set(paramTimeMin, goodMin)
+		q.Set(paramTimeMax, goodMax)
+		q.Set(paramFilter, `{"op":"eq",`)
+
+		_, err := parseFindSpansQuery(q)
+		require.ErrorContains(t, err, "malformed parameter query.filter")
+	})
+
+	t.Run("an absent or inverted time range is left for the query service to refuse", func(t *testing.T) {
+		got, err := parseFindSpansQuery(url.Values{})
+		require.NoError(t, err)
+		assert.True(t, got.StartTimeMin.IsZero())
+		assert.True(t, got.StartTimeMax.IsZero())
+
+		q := url.Values{}
+		q.Set(paramTimeMin, goodMax)
+		q.Set(paramTimeMax, goodMin)
+		got, err = parseFindSpansQuery(q)
+		require.NoError(t, err)
+		assert.True(t, got.StartTimeMax.Before(got.StartTimeMin))
+	})
+
+	t.Run("malformed min time", func(t *testing.T) {
+		q := url.Values{}
+		q.Set(paramTimeMin, "not-a-time")
+		q.Set(paramTimeMax, goodMax)
+
+		_, err := parseFindSpansQuery(q)
+		require.ErrorContains(t, err, "malformed parameter query.startTimeMin")
+	})
+
+	t.Run("malformed max time", func(t *testing.T) {
+		q := url.Values{}
+		q.Set(paramTimeMin, goodMin)
+		q.Set(paramTimeMax, "not-a-time")
+
+		_, err := parseFindSpansQuery(q)
+		require.ErrorContains(t, err, "malformed parameter query.startTimeMax")
+	})
+
+	t.Run("undecodable filter", func(t *testing.T) {
+		q := url.Values{}
+		q.Set(paramTimeMin, goodMin)
+		q.Set(paramTimeMax, goodMax)
+		q.Set(paramFilter, `{"op":"eq","args":[{"attr":{"key":"a"}},{}]}`)
+
+		_, err := parseFindSpansQuery(q)
+		require.ErrorContains(t, err, "malformed parameter query.filter")
+		require.ErrorContains(t, err, "filter argument is empty")
+	})
+
+	t.Run("pagination is decoded, not rejected here", func(t *testing.T) {
+		// Whether pagination is acceptable at all is the query service's decision
+		// (prepareSpanSearchQuery); the parser's job is only to decode the scalars.
+		q := url.Values{}
+		q.Set(paramTimeMin, goodMin)
+		q.Set(paramTimeMax, goodMax)
+		q.Set(paramPageSize, "10")
+		q.Set(paramPageToken, "opaque-cursor")
+
+		got, err := parseFindSpansQuery(q)
+		require.NoError(t, err)
+		assert.Equal(t, tracestore.Pagination{PageSize: 10, PageToken: "opaque-cursor"}, got.Pagination)
+	})
+
+	t.Run("pagination parameters are optional", func(t *testing.T) {
+		q := url.Values{}
+		q.Set(paramTimeMin, goodMin)
+		q.Set(paramTimeMax, goodMax)
+
+		got, err := parseFindSpansQuery(q)
+		require.NoError(t, err)
+		assert.Zero(t, got.Pagination, "the bound is the query service's to fill in")
+	})
+
+	t.Run("negative page size", func(t *testing.T) {
+		q := url.Values{}
+		q.Set(paramTimeMin, goodMin)
+		q.Set(paramTimeMax, goodMax)
+		q.Set(paramPageSize, "-1")
+
+		_, err := parseFindSpansQuery(q)
+		require.ErrorContains(t, err, "malformed parameter query.pagination.pageSize")
+	})
+
+	t.Run("malformed page size", func(t *testing.T) {
+		q := url.Values{}
+		q.Set(paramTimeMin, goodMin)
+		q.Set(paramTimeMax, goodMax)
+		q.Set(paramPageSize, "not-a-number")
+
+		_, err := parseFindSpansQuery(q)
+		require.ErrorContains(t, err, "malformed parameter query.pagination.pageSize")
 	})
 }
 

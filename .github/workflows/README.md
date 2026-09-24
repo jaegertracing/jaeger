@@ -152,7 +152,7 @@ The following workflows operate independently and are **not** part of the orches
 - **dco_merge_group.yml** - DCO verification for merge groups
 
 ### Opt-in Checks
-- **ci-backward-compatibility.yml** - Writes the integration corpus with a Jaeger built from `main` and reads it back with the one built from the pull request. A backend joins by adding a matrix entry carrying the command that stands its storage up; Elasticsearch and OpenSearch are there today, Cassandra and ClickHouse are still to come. Each job builds a second Jaeger and stands up a storage backend, so the workflow runs only on a pull request labelled `ci:backward-compat`, and it gates nothing.
+- **ci-backward-compatibility.yml** - Writes the integration corpus with a Jaeger built from `main` and reads it back with the one built from the pull request. A backend joins by adding a matrix entry carrying the command that stands its storage up. Each job builds a second Jaeger and stands up a storage backend, so the workflow runs only on a pull request labelled `ci:backward-compat`, and it gates nothing.
 
 ### Scheduled Maintenance
 - **stale.yml** - Marks and closes stale issues/PRs

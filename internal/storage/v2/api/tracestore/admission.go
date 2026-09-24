@@ -12,9 +12,9 @@ import (
 )
 
 // A filter arrives over two wires — an api_v3 request and the remote-storage protocol — and both
-// owe a Reader the same query: one filtering model rather than two, and nothing the Reader did not
-// declare it can evaluate (RFC 0005 §7). The checks live here, beside the query type and the
-// capability declaration, so each wire runs the same ones rather than its own.
+// owe a Reader one filtering model rather than two (RFC 0005 §7). The check lives here, beside the
+// query type, so each wire runs the same one rather than its own. Converting a query toward what
+// a Reader declared it can evaluate is the query service's job.
 
 // EnsureFilterStandsAlone rejects a query that carries both a filter and one of the predicate
 // fields the filter replaces. The two express the same things — a service, an operation name, a
@@ -44,24 +44,6 @@ func (q TraceQueryParams) EnsureFilterStandsAlone() error {
 	}
 	return fmt.Errorf("%w: it cannot be combined with %v; express those predicates in the filter instead",
 		ErrFilterInvalid, set)
-}
-
-// ForCapabilities gives the Reader whichever of the two filtering models it declared it can
-// evaluate. A Reader that declares filter support gets the filter itself, once every level and
-// operator it uses is one that Reader listed. A Reader that declares none gets the filter rewritten
-// into the legacy predicate fields, which carry the equalities and inclusive duration bounds and
-// nothing else (ToLegacyShape), or a refusal where they cannot carry it.
-//
-// It answers only that question. Whether the request is one this deployment accepts at all is the
-// caller's to settle first.
-func (q TraceQueryParams) ForCapabilities(caps SearchCapabilities) (TraceQueryParams, error) {
-	if q.Filter == nil {
-		return q, nil
-	}
-	if caps.Filter.IsEmpty() {
-		return q.ToLegacyShape()
-	}
-	return q, caps.Filter.EnsureSupported(q.Filter)
 }
 
 // EnsureSupported walks the filter and refuses the first predicate the Reader did not declare it

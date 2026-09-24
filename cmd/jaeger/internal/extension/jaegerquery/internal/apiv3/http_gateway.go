@@ -8,9 +8,9 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"net/http"
 	"strconv"
-	"time"
 
 	"github.com/gogo/protobuf/jsonpb"
 	"github.com/gogo/protobuf/proto"
@@ -33,6 +33,7 @@ const (
 	routeGetTrace      = "/api/v3/traces/{" + paramTraceID + "}"
 	routeFindTraces    = "/api/v3/traces"
 	routeFindSummaries = "/api/v3/trace-summaries"
+	routeFindSpans     = "/api/v3/spans"
 	routeGetServices   = "/api/v3/services"
 	routeGetOperations = "/api/v3/operations"
 )
@@ -50,6 +51,7 @@ func (h *HTTPGateway) RegisterRoutes(router *http.ServeMux) {
 	h.addRoute(router, h.getTrace, routeGetTrace, http.MethodGet)
 	h.addRoute(router, h.findTraces, routeFindTraces, http.MethodGet)
 	h.addRoute(router, h.findTraceSummaries, routeFindSummaries, http.MethodGet)
+	h.addRoute(router, h.findSpans, routeFindSpans, http.MethodGet)
 	h.addRoute(router, h.getServices, routeGetServices, http.MethodGet)
 	h.addRoute(router, h.getOperations, routeGetOperations, http.MethodGet)
 }
@@ -147,6 +149,17 @@ func (*HTTPGateway) marshalResponse(response proto.Message, w http.ResponseWrite
 	_ = new(jsonpb.Marshaler).Marshal(w, response)
 }
 
+// marshalResultWrappedResponse writes response as jsonpb, wrapped in {"result": …} at the JSON
+// level rather than the proto level: unlike the trace endpoints, whose GRPCGatewayWrapper types
+// its result field as TracesData, there is no proto message typed to carry this RPC's response
+// as a wrapped result, so the envelope is applied to the marshaled bytes directly (RFC 0018 §6.1).
+func (*HTTPGateway) marshalResultWrappedResponse(response proto.Message, w http.ResponseWriter) {
+	w.Header().Set("Content-Type", "application/json")
+	_, _ = io.WriteString(w, `{"result":`)
+	_ = new(jsonpb.Marshaler).Marshal(w, response)
+	_, _ = io.WriteString(w, `}`)
+}
+
 func (h *HTTPGateway) getTrace(w http.ResponseWriter, r *http.Request) {
 	traceIDVar := r.PathValue(paramTraceID)
 	traceID, err := TraceIDFromString(traceIDVar)
@@ -162,15 +175,15 @@ func (h *HTTPGateway) getTrace(w http.ResponseWriter, r *http.Request) {
 	}
 	q := r.URL.Query()
 	if startTime, paramName := getQueryParam(q, paramStartTime, paramStartTimeDeprecated); startTime != "" {
-		timeParsed, err := time.Parse(time.RFC3339Nano, startTime)
-		if h.tryParamError(w, err, paramName) {
+		timeParsed, err := parseTimeQueryParam(startTime, paramName)
+		if h.tryHandleError(w, err, http.StatusBadRequest) {
 			return
 		}
 		request.TraceIDs[0].Start = timeParsed.UTC()
 	}
 	if endTime, paramName := getQueryParam(q, paramEndTime, paramEndTimeDeprecated); endTime != "" {
-		timeParsed, err := time.Parse(time.RFC3339Nano, endTime)
-		if h.tryParamError(w, err, paramName) {
+		timeParsed, err := parseTimeQueryParam(endTime, paramName)
+		if h.tryHandleError(w, err, http.StatusBadRequest) {
 			return
 		}
 		request.TraceIDs[0].End = timeParsed.UTC()
@@ -206,12 +219,43 @@ func (h *HTTPGateway) findTraceSummaries(w http.ResponseWriter, r *http.Request)
 	// Summaries always use adjusted, aggregated data; raw_traces has no effect here.
 	queryParams.RawTraces = false
 	summariesIter := h.QueryService.FindTraceSummaries(r.Context(), *queryParams)
-	summaries, err := jiter.FlattenWithErrors(summariesIter)
-	if h.tryHandleError(w, err, http.StatusInternalServerError) {
-		return
+	var summaries []tracestore.TraceSummary
+	var nextPageToken string
+	for chunk, err := range summariesIter {
+		if h.tryHandleError(w, err, http.StatusInternalServerError) {
+			return
+		}
+		summaries = append(summaries, chunk.Results...)
+		nextPageToken = chunk.NextPageToken
 	}
 	h.marshalResponse(&api_v3.FindTraceSummariesResponse{
-		Summaries: toProtoTraceSummaries(summaries),
+		Summaries:     toProtoTraceSummaries(summaries),
+		NextPageToken: nextPageToken,
+	}, w)
+}
+
+func (h *HTTPGateway) findSpans(w http.ResponseWriter, r *http.Request) {
+	queryParams, err := parseFindSpansQuery(r.URL.Query())
+	if h.tryHandleError(w, err, http.StatusBadRequest) {
+		return
+	}
+
+	spansIter := h.QueryService.FindSpans(r.Context(), *queryParams)
+	// TODO: the response should be streamed back to the client
+	// https://github.com/jaegertracing/jaeger/issues/6467
+	combined := ptrace.NewTraces()
+	var nextPageToken string
+	for chunk, err := range spansIter {
+		if h.tryHandleError(w, err, http.StatusInternalServerError) {
+			return
+		}
+		jptrace.MergeTraces(combined, chunk.Results)
+		nextPageToken = chunk.NextPageToken
+	}
+	tracesData := jptrace.TracesData(combined)
+	h.marshalResultWrappedResponse(&api_v3.FindSpansResponse{
+		Spans:         &tracesData,
+		NextPageToken: nextPageToken,
 	}, w)
 }
 

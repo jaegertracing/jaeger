@@ -26,6 +26,9 @@ import (
 var _ tracestore.Reader = (*TraceReader)(nil)
 
 type TraceReader struct {
+	// SpanSearch is unsupported for now.
+	tracestore.UnsupportedSpanSearch
+
 	client       storage.TraceReaderClient
 	capabilities storage.CapabilitiesClient
 
@@ -68,6 +71,7 @@ func (tr *TraceReader) SearchCapabilities(ctx context.Context) (tracestore.Searc
 		WithoutServiceName:  resp.GetSearch().GetWithoutServiceName(),
 		SameSpanConjunction: resp.GetSearch().GetSameSpanConjunction(),
 		Filter:              fromProtoFilterCapabilities(resp.GetSearch().GetFilter()),
+		Paginated:           resp.GetSearch().GetPaginated(),
 	}
 	tr.cachedCaps.Store(&caps)
 	return caps, nil
@@ -164,16 +168,16 @@ func (tr *TraceReader) FindTraces(
 func (tr *TraceReader) FindTraceIDs(
 	ctx context.Context,
 	params tracestore.TraceQueryParams,
-) iter.Seq2[[]tracestore.FoundTraceID, error] {
-	return func(yield func([]tracestore.FoundTraceID, error) bool) {
+) iter.Seq2[tracestore.PageChunk[[]tracestore.FoundTraceID], error] {
+	return func(yield func(tracestore.PageChunk[[]tracestore.FoundTraceID], error) bool) {
 		query, err := toProtoQueryParameters(params)
 		if err != nil {
-			yield(nil, err)
+			yield(tracestore.PageChunk[[]tracestore.FoundTraceID]{}, err)
 			return
 		}
 		resp, err := tr.client.FindTraceIDs(ctx, &storage.FindTraceIDsRequest{Query: query})
 		if err != nil {
-			yield(nil, fmt.Errorf("failed to execute FindTraceIDs: %w", err))
+			yield(tracestore.PageChunk[[]tracestore.FoundTraceID]{}, fmt.Errorf("failed to execute FindTraceIDs: %w", err))
 			return
 		}
 		foundTraceIDs := make([]tracestore.FoundTraceID, len(resp.TraceIds))
@@ -187,29 +191,32 @@ func (tr *TraceReader) FindTraceIDs(
 				End:     foundTraceID.End,
 			}
 		}
-		yield(foundTraceIDs, nil)
+		yield(tracestore.PageChunk[[]tracestore.FoundTraceID]{
+			Results:       foundTraceIDs,
+			NextPageToken: resp.GetNextPageToken(),
+		}, nil)
 	}
 }
 
 func (tr *TraceReader) FindTraceSummaries(
 	ctx context.Context,
 	params tracestore.TraceQueryParams,
-) iter.Seq2[[]tracestore.TraceSummary, error] {
+) iter.Seq2[tracestore.PageChunk[[]tracestore.TraceSummary], error] {
 	maybeNotImplemented := func(err error, msg string) error {
 		if status.Code(err) == codes.Unimplemented || errors.Is(err, errors.ErrUnsupported) {
 			return fmt.Errorf("remote server does not support FindTraceSummaries: %w", errors.ErrUnsupported)
 		}
 		return fmt.Errorf("%s: %w", msg, err)
 	}
-	return func(yield func([]tracestore.TraceSummary, error) bool) {
+	return func(yield func(tracestore.PageChunk[[]tracestore.TraceSummary], error) bool) {
 		query, err := toProtoQueryParameters(params)
 		if err != nil {
-			yield(nil, err)
+			yield(tracestore.PageChunk[[]tracestore.TraceSummary]{}, err)
 			return
 		}
 		stream, err := tr.client.FindTraceSummaries(ctx, &storage.FindTraceSummariesRequest{Query: query})
 		if err != nil {
-			yield(nil, maybeNotImplemented(err, "failed to execute FindTraceSummaries"))
+			yield(tracestore.PageChunk[[]tracestore.TraceSummary]{}, maybeNotImplemented(err, "failed to execute FindTraceSummaries"))
 			return
 		}
 		for {
@@ -218,10 +225,14 @@ func (tr *TraceReader) FindTraceSummaries(
 				return
 			}
 			if err != nil {
-				yield(nil, maybeNotImplemented(err, "received error from grpc stream"))
+				yield(tracestore.PageChunk[[]tracestore.TraceSummary]{}, maybeNotImplemented(err, "received error from grpc stream"))
 				return
 			}
-			if !yield(convertSummaryBatch(resp.GetSummaries()), nil) {
+			chunk := tracestore.PageChunk[[]tracestore.TraceSummary]{
+				Results:       convertSummaryBatch(resp.GetSummaries()),
+				NextPageToken: resp.GetNextPageToken(),
+			}
+			if !yield(chunk, nil) {
 				return
 			}
 		}
@@ -265,7 +276,14 @@ func toProtoQueryParameters(t tracestore.TraceQueryParams) (*storage.TraceQueryP
 	if err != nil {
 		return nil, fmt.Errorf("cannot send the query filter: %w", err)
 	}
-	return &storage.TraceQueryParameters{
+	// The HTTP query parser already refuses a SearchDepth outside this range,
+	// but other callers (MCP, gRPC query, tests) can set it without going
+	// through that parser. This client still has to refuse values that will
+	// not encode cleanly as a protobuf search window.
+	if t.SearchDepth < 0 || t.SearchDepth > tracestore.MaxSearchDepth {
+		return nil, fmt.Errorf("SearchDepth must be in [0, %d]", tracestore.MaxSearchDepth)
+	}
+	q := &storage.TraceQueryParameters{
 		ServiceName:   t.ServiceName,
 		OperationName: t.OperationName,
 		Attributes:    convertMapToKeyValueList(t.Attributes),
@@ -273,9 +291,18 @@ func toProtoQueryParameters(t tracestore.TraceQueryParams) (*storage.TraceQueryP
 		StartTimeMax:  t.StartTimeMax,
 		DurationMin:   t.DurationMin,
 		DurationMax:   t.DurationMax,
-		SearchDepth:   int32(t.SearchDepth), //nolint:gosec // G115
+		SearchDepth:   int32(t.SearchDepth),
 		Filter:        filter,
-	}, nil
+	}
+	if t.Pagination != nil {
+		// The query service clamps PageSize to tracestore.MaxPageSize before dispatch, so the
+		// cast cannot overflow.
+		q.Pagination = &storage.Pagination{
+			PageSize:  uint32(t.Pagination.PageSize), //nolint:gosec // G115
+			PageToken: t.Pagination.PageToken,
+		}
+	}
+	return q, nil
 }
 
 func convertMapToKeyValueList(m pcommon.Map) []*storage.KeyValue {
