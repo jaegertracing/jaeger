@@ -499,11 +499,12 @@ func (s *SpanReader) findTraceIDsFromQuery(ctx context.Context, traceQuery dbmod
 }
 
 func (s *SpanReader) buildTraceIDAggregation(numOfTraces uint32) esquery.Aggregation {
-	if numOfTraces > tracestore.MaxSearchDepth {
-		numOfTraces = tracestore.MaxSearchDepth
+	size := int(tracestore.MaxSearchDepth)
+	if numOfTraces <= tracestore.MaxSearchDepth {
+		size = int(numOfTraces)
 	}
 	return esquery.NewTermsAggregation(traceIDField).
-		Size(int(numOfTraces)).
+		Size(size).
 		Order(startTimeField, esquery.Descending).
 		SubAggregation(startTimeField, s.buildTraceIDSubAggregation())
 }
