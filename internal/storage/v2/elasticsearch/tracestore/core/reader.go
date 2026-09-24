@@ -22,6 +22,7 @@ import (
 	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/esclient"
 	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/indices"
 	esquery "github.com/jaegertracing/jaeger/internal/storage/elasticsearch/query"
+	"github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/elasticsearch/tracestore/core/dbmodel"
 )
 
@@ -498,6 +499,9 @@ func (s *SpanReader) findTraceIDsFromQuery(ctx context.Context, traceQuery dbmod
 }
 
 func (s *SpanReader) buildTraceIDAggregation(numOfTraces uint32) esquery.Aggregation {
+	if numOfTraces > tracestore.MaxSearchDepth {
+		numOfTraces = tracestore.MaxSearchDepth
+	}
 	return esquery.NewTermsAggregation(traceIDField).
 		Size(int(numOfTraces)).
 		Order(startTimeField, esquery.Descending).
