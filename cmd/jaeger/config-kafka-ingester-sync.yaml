@@ -75,7 +75,7 @@ extensions:
             # Per-request byte cap of the synchronous writer, measured on the NDJSON
             # _bulk body, which is 1.3x to 3.6x the batch's protobuf size that
             # queue.batch.max_size below is measured in. Keep max_size at most half of
-            # this so a batch is one _bulk request in the common case (see #PRNUM).
+            # this so a batch is one _bulk request in the common case (see #9645).
             max_bytes: 10000000
           indices:
             index_prefix: "jaeger-main"
