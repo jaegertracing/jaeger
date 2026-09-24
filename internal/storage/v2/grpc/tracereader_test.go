@@ -1031,7 +1031,7 @@ func TestTraceReader_RefusesUnencodableFilter(t *testing.T) {
 
 func TestToProtoQueryParameters_SearchDepth(t *testing.T) {
 	t.Run("zero and max encode as-is", func(t *testing.T) {
-		for _, depth := range []int{0, 1, tracestore.MaxSearchDepth} {
+		for _, depth := range []uint32{0, 1, tracestore.MaxSearchDepth} {
 			got, err := toProtoQueryParameters(tracestore.TraceQueryParams{
 				Attributes:  pcommon.NewMap(),
 				SearchDepth: depth,
@@ -1041,8 +1041,8 @@ func TestToProtoQueryParameters_SearchDepth(t *testing.T) {
 		}
 	})
 
-	t.Run("negative and above max are refused", func(t *testing.T) {
-		for _, depth := range []int{-1, tracestore.MaxSearchDepth + 1} {
+	t.Run("above max is refused", func(t *testing.T) {
+		for _, depth := range []uint32{tracestore.MaxSearchDepth + 1} {
 			_, err := toProtoQueryParameters(tracestore.TraceQueryParams{
 				Attributes:  pcommon.NewMap(),
 				SearchDepth: depth,
@@ -1050,5 +1050,15 @@ func TestToProtoQueryParameters_SearchDepth(t *testing.T) {
 			require.Error(t, err)
 			assert.ErrorContains(t, err, "SearchDepth must be in [0,")
 		}
+	})
+
+	t.Run("oversized page size is refused", func(t *testing.T) {
+		_, err := toProtoQueryParameters(tracestore.TraceQueryParams{
+			Attributes: pcommon.NewMap(),
+			Pagination: &tracestore.Pagination{
+				PageSize: tracestore.MaxPageSize + 1,
+			},
+		})
+		require.ErrorContains(t, err, "PageSize must be in [0,")
 	})
 }

@@ -127,7 +127,7 @@ type GetTraceParams struct {
 // client accept. It matches ClickHouse's default MaxSearchDepth (10000): a
 // search window, not an int32 bound. 0 is valid and means "backend default" on
 // several stores.
-const MaxSearchDepth = 10000
+const MaxSearchDepth uint32 = 10000
 
 // PageChunk carries one streamed chunk of a page. A page may span several chunks
 // to satisfy transport message limits without changing the page boundary.
@@ -178,7 +178,7 @@ type TraceQueryParams struct {
 	StartTimeMax time.Time
 	DurationMin  time.Duration
 	DurationMax  time.Duration
-	SearchDepth  int
+	SearchDepth  uint32
 	// Filter is the structured query filter (RFC 0005): a boolean-valued Call over
 	// level-qualified attributes and built-in fields. It is mutually exclusive with the
 	// predicate fields above — ServiceName, OperationName, Attributes and the duration
@@ -198,7 +198,7 @@ type TraceQueryParams struct {
 // MaxPageSize is the largest Pagination.PageSize the query service accepts. A larger request
 // is clamped down to this value rather than refused, the treatment AIP-158 prescribes for a
 // page-size field (RFC 0014 §4).
-const MaxPageSize = 10000
+const MaxPageSize uint32 = 10000
 
 // Pagination asks for one page of a search result and, on continuation, says where the
 // previous page stopped. It mirrors jaeger.api_v3.Pagination and jaeger.storage.v2.Pagination
@@ -209,7 +209,7 @@ type Pagination struct {
 	// Pagination is present, and the query service refuses a zero PageSize before a Reader ever
 	// sees the query (RFC 0014 §4). A span search has no other bound, so there the query
 	// service fills in a default instead (see SpanQueryParams.Pagination).
-	PageSize int
+	PageSize uint32
 	// PageToken continues a previous search. Empty starts a new one. A Reader that
 	// receives a non-empty PageToken MUST treat it as an uninterpreted cursor it minted
 	// itself for the same query — a Reader is never asked to interpret a token it did not

@@ -66,6 +66,9 @@ func (sr *SpanReader) FindTraces(
 	ctx context.Context,
 	query *spanstore.TraceQueryParameters,
 ) ([]*model.Trace, error) {
+	if query.NumTraces < 0 {
+		return nil, errors.New("search depth cannot be negative")
+	}
 	getTracesIter := sr.traceReader.FindTraces(ctx, tracestore.TraceQueryParams{
 		ServiceName:   query.ServiceName,
 		OperationName: query.OperationName,
@@ -74,7 +77,7 @@ func (sr *SpanReader) FindTraces(
 		StartTimeMax:  query.StartTimeMax,
 		DurationMin:   query.DurationMin,
 		DurationMax:   query.DurationMax,
-		SearchDepth:   query.NumTraces,
+		SearchDepth:   uint32(query.NumTraces),
 	})
 	return V1TracesFromSeq2(getTracesIter)
 }
@@ -83,6 +86,9 @@ func (sr *SpanReader) FindTraceIDs(
 	ctx context.Context,
 	query *spanstore.TraceQueryParameters,
 ) ([]model.TraceID, error) {
+	if query.NumTraces < 0 {
+		return nil, errors.New("search depth cannot be negative")
+	}
 	traceIDsIter := sr.traceReader.FindTraceIDs(ctx, tracestore.TraceQueryParams{
 		ServiceName:   query.ServiceName,
 		OperationName: query.OperationName,
@@ -91,7 +97,7 @@ func (sr *SpanReader) FindTraceIDs(
 		StartTimeMax:  query.StartTimeMax,
 		DurationMin:   query.DurationMin,
 		DurationMax:   query.DurationMax,
-		SearchDepth:   query.NumTraces,
+		SearchDepth:   uint32(query.NumTraces),
 	})
 	return V1TraceIDsFromSeq2(traceIDsIter)
 }

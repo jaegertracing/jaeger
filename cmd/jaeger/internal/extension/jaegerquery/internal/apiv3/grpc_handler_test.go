@@ -291,12 +291,10 @@ func TestTraceQueryParamsSearchDepth(t *testing.T) {
 	tests := []struct {
 		name        string
 		searchDepth int32
-		expected    int
+		expected    uint32
 	}{
-		// The handler translates; the query service applies the default and refuses a negative
-		// value, so both reach it as sent.
+		// The handler translates; the query service applies the default.
 		{name: "unset passes through", searchDepth: 0, expected: 0},
-		{name: "negative passes through", searchDepth: -1, expected: -1},
 		{name: "explicit value preserved", searchDepth: 42, expected: 42},
 	}
 	for _, test := range tests {
@@ -308,6 +306,11 @@ func TestTraceQueryParamsSearchDepth(t *testing.T) {
 			assert.Equal(t, test.expected, params.SearchDepth)
 		})
 	}
+
+	query := baseQuery()
+	query.SearchDepth = -1
+	_, err := traceQueryParams(query)
+	require.ErrorContains(t, err, "search depth cannot be negative")
 }
 
 // TestTraceQueryParamsPagination pins that an api_v3.Pagination on the wire reaches
@@ -407,9 +410,12 @@ func TestFindTracesSendError(t *testing.T) {
 // forward, are both InvalidArgument end to end. No FindTraces expectation is set, so a request
 // reaching storage aborts the test.
 func TestFindTracesRefusesSearchDepthOutOfRange(t *testing.T) {
-	for name, depth := range map[string]int32{
-		"negative":          -1,
-		"above the maximum": tracestore.MaxSearchDepth + 1,
+	for name, test := range map[string]struct {
+		depth   int32
+		wantErr string
+	}{
+		"negative":          {depth: -1, wantErr: "search depth cannot be negative"},
+		"above the maximum": {depth: int32(tracestore.MaxSearchDepth + 1), wantErr: "search depth must be in [0, 10000]"},
 	} {
 		t.Run(name, func(t *testing.T) {
 			tsc := newTestServerClient(t)
@@ -418,12 +424,12 @@ func TestFindTracesRefusesSearchDepthOutOfRange(t *testing.T) {
 					ServiceName:  "myservice",
 					StartTimeMin: time.Now().Add(-2 * time.Hour),
 					StartTimeMax: time.Now(),
-					SearchDepth:  depth,
+					SearchDepth:  test.depth,
 				},
 			})
 			require.NoError(t, err)
 			recv, err := responseStream.Recv()
-			require.ErrorContains(t, err, "search depth must be in [0, 10000]")
+			require.ErrorContains(t, err, test.wantErr)
 			assert.Equal(t, codes.InvalidArgument, status.Code(err))
 			assert.Nil(t, recv)
 		})

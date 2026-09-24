@@ -357,7 +357,7 @@ func TestToFilterShape(t *testing.T) {
 	assert.Zero(t, got.DurationMin)
 	assert.Zero(t, got.DurationMax)
 	assert.Equal(t, 0, got.Attributes.Len())
-	assert.Equal(t, 20, got.SearchDepth, "the envelope is not a predicate")
+	assert.Equal(t, uint32(20), got.SearchDepth, "the envelope is not a predicate")
 
 	require.NotNil(t, got.Filter)
 	assert.Equal(t, expression.OpAnd, got.Filter.Op)

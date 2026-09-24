@@ -225,6 +225,16 @@ func TestSpanReader_GetOperations(t *testing.T) {
 	}
 }
 
+func TestSpanReader_RefusesNegativeSearchDepth(t *testing.T) {
+	reader := SpanReader{}
+	query := &spanstore.TraceQueryParameters{NumTraces: -1}
+
+	_, err := reader.FindTraces(t.Context(), query)
+	require.ErrorContains(t, err, "search depth cannot be negative")
+	_, err = reader.FindTraceIDs(t.Context(), query)
+	require.ErrorContains(t, err, "search depth cannot be negative")
+}
+
 func TestSpanReader_FindTraces(t *testing.T) {
 	tests := []struct {
 		name           string

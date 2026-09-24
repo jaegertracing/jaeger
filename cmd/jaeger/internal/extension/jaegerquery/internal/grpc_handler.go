@@ -139,6 +139,9 @@ func (g *GRPCHandler) FindTraces(r *api_v2.FindTracesRequest, stream api_v2.Quer
 	if query == nil {
 		return status.Errorf(codes.InvalidArgument, "missing query")
 	}
+	if query.SearchDepth < 0 {
+		return status.Errorf(codes.InvalidArgument, "search depth cannot be negative")
+	}
 	queryParams := querysvc.TraceQueryParams{
 		TraceQueryParams: tracestore.TraceQueryParams{
 			ServiceName:   query.ServiceName,
@@ -148,7 +151,7 @@ func (g *GRPCHandler) FindTraces(r *api_v2.FindTracesRequest, stream api_v2.Quer
 			StartTimeMax:  query.StartTimeMax,
 			DurationMin:   query.DurationMin,
 			DurationMax:   query.DurationMax,
-			SearchDepth:   int(query.SearchDepth),
+			SearchDepth:   uint32(query.SearchDepth),
 		},
 		RawTraces: query.RawTraces,
 	}

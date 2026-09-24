@@ -157,3 +157,11 @@ func TestQueryParametersCarryPagination(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, &tracestore.Pagination{}, decoded.Pagination, "a present but empty message keeps its presence")
 }
+
+func TestRemoteIngressRefusesNegativeSearchDepth(t *testing.T) {
+	_, err := NewHandler(new(tracestoremocks.Reader), nil, nil).toTraceQueryParams(&storage.TraceQueryParameters{
+		SearchDepth: -1,
+	})
+	require.ErrorContains(t, err, "search depth cannot be negative")
+	assert.Equal(t, codes.InvalidArgument, status.Code(err))
+}

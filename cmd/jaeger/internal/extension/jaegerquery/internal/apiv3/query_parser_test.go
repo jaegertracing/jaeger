@@ -41,7 +41,7 @@ func TestParseFindTracesQuery(t *testing.T) {
 		assert.Equal(t, "op", got.OperationName)
 		assert.Equal(t, tMin, got.StartTimeMin)
 		assert.Equal(t, tMax, got.StartTimeMax)
-		assert.Equal(t, 20, got.SearchDepth)
+		assert.Equal(t, uint32(20), got.SearchDepth)
 		assert.Equal(t, time.Second, got.DurationMin)
 		assert.Equal(t, 2*time.Second, got.DurationMax)
 		assert.True(t, got.RawTraces)
@@ -64,7 +64,7 @@ func TestParseFindTracesQuery(t *testing.T) {
 		assert.Equal(t, "op", got.OperationName)
 		assert.Equal(t, tMin, got.StartTimeMin)
 		assert.Equal(t, tMax, got.StartTimeMax)
-		assert.Equal(t, 5, got.SearchDepth)
+		assert.Equal(t, uint32(5), got.SearchDepth)
 		assert.Equal(t, 500*time.Millisecond, got.DurationMin)
 		assert.Equal(t, time.Second, got.DurationMax)
 		assert.True(t, got.RawTraces)
@@ -77,7 +77,7 @@ func TestParseFindTracesQuery(t *testing.T) {
 
 		got, err := parseFindTracesQuery(q)
 		require.NoError(t, err)
-		assert.Equal(t, 0, got.SearchDepth)
+		assert.Equal(t, uint32(0), got.SearchDepth)
 	})
 
 	t.Run("an absent or inverted time range is left for the query service to refuse", func(t *testing.T) {
@@ -102,15 +102,15 @@ func TestParseFindTracesQuery(t *testing.T) {
 
 		got, err := parseFindTracesQuery(q)
 		require.NoError(t, err)
-		assert.Equal(t, 7, got.SearchDepth)
+		assert.Equal(t, uint32(7), got.SearchDepth)
 	})
 
 	t.Run("search depth at zero and max", func(t *testing.T) {
-		for _, depth := range []int{0, tracestore.MaxSearchDepth} {
+		for _, depth := range []uint32{0, tracestore.MaxSearchDepth} {
 			q := url.Values{}
 			q.Set(paramTimeMin, goodMin)
 			q.Set(paramTimeMax, goodMax)
-			q.Set(paramSearchDepth, strconv.Itoa(depth))
+			q.Set(paramSearchDepth, strconv.FormatUint(uint64(depth), 10))
 
 			got, err := parseFindTracesQuery(q)
 			require.NoError(t, err)

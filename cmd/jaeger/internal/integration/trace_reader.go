@@ -138,7 +138,7 @@ func toProtoQuery(query tracestore.TraceQueryParams) (*api_v3.TraceQueryParamete
 		StartTimeMax:  query.StartTimeMax,
 		DurationMin:   query.DurationMin,
 		DurationMax:   query.DurationMax,
-		SearchDepth:   int32(query.SearchDepth), //nolint:gosec // G115 - bounds checked above
+		SearchDepth:   int32(query.SearchDepth),
 	}
 	if query.Filter != nil {
 		filter, err := expressionproto.ToProto(query.Filter)
