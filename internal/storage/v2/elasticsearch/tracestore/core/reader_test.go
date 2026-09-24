@@ -961,7 +961,7 @@ func TestSpanReader_buildTraceIDAggregation(t *testing.T) {
 
 		expected := make(map[string]any)
 		json.Unmarshal([]byte(expectedStr), &expected)
-		expected["terms"].(map[string]any)["size"] = 123
+		expected["terms"].(map[string]any)["size"] = uint32(123)
 		expected["terms"].(map[string]any)["order"] = []any{map[string]string{"startTime": "desc"}}
 		assert.EqualValues(t, expected, actual)
 

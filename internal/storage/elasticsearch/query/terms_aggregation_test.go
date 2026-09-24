@@ -19,6 +19,14 @@ func TestTermsAggregationSource(t *testing.T) {
 	assert.JSONEq(t, `{"terms":{"field":"operationName","size":10}}`, string(b))
 }
 
+func TestTermsAggregationSourceWithUint32Size(t *testing.T) {
+	src, err := NewTermsAggregation("operationName").SizeUint32(10).Source()
+	require.NoError(t, err)
+	b, err := json.Marshal(src)
+	require.NoError(t, err)
+	assert.JSONEq(t, `{"terms":{"field":"operationName","size":10}}`, string(b))
+}
+
 func TestTermsAggregationOmitsUnsetSize(t *testing.T) {
 	src, err := NewTermsAggregation("operationName").Source()
 	require.NoError(t, err)

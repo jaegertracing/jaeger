@@ -503,7 +503,7 @@ func (s *SpanReader) buildTraceIDAggregation(numOfTraces uint32) esquery.Aggrega
 		numOfTraces = tracestore.MaxSearchDepth
 	}
 	return esquery.NewTermsAggregation(traceIDField).
-		Size(int(numOfTraces)).
+		SizeUint32(numOfTraces).
 		Order(startTimeField, esquery.Descending).
 		SubAggregation(startTimeField, s.buildTraceIDSubAggregation())
 }

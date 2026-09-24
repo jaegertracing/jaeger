@@ -8,10 +8,11 @@ package query
 // and sibling "aggregations" (sub-aggregations) — matching the shape the storage
 // layer previously produced.
 type TermsAggregation struct {
-	field   string
-	size    int
-	order   []map[string]string
-	subAggs map[string]Aggregation
+	field        string
+	size         int
+	unsignedSize uint32
+	order        []map[string]string
+	subAggs      map[string]Aggregation
 }
 
 // NewTermsAggregation creates a TermsAggregation on the given field.
@@ -22,6 +23,12 @@ func NewTermsAggregation(field string) *TermsAggregation {
 // Size bounds the number of distinct buckets returned.
 func (a *TermsAggregation) Size(size int) *TermsAggregation {
 	a.size = size
+	return a
+}
+
+// SizeUint32 bounds the number of distinct buckets returned using an unsigned size.
+func (a *TermsAggregation) SizeUint32(size uint32) *TermsAggregation {
+	a.unsignedSize = size
 	return a
 }
 
@@ -46,6 +53,8 @@ func (a *TermsAggregation) Source() (any, error) {
 	terms := map[string]any{"field": a.field}
 	if a.size > 0 {
 		terms["size"] = a.size
+	} else if a.unsignedSize > 0 {
+		terms["size"] = a.unsignedSize
 	}
 	if len(a.order) > 0 {
 		order := make([]any, len(a.order))
