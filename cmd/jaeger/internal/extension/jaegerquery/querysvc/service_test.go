@@ -400,9 +400,10 @@ func TestFindSpans_Success(t *testing.T) {
 	responseIter := iter.Seq2[tracestore.PageChunk[ptrace.Traces], error](func(yield func(tracestore.PageChunk[ptrace.Traces], error) bool) {
 		yield(tracestore.PageChunk[ptrace.Traces]{Results: expectedSpans, NextPageToken: ""}, nil)
 	})
-	params := tracestore.SpanQueryParams{}
-	query := SpanQueryParams{params}
-	tqs.traceReader.On("FindSpans", mock.Anything, params).Return(responseIter).Once()
+	query := SpanQueryParams{SpanQueryParams: tracestore.SpanQueryParams{StartTimeMin: testWindowStart, StartTimeMax: testWindowEnd}}
+	bounded := query.SpanQueryParams
+	bounded.Pagination = tracestore.Pagination{PageSize: DefaultPageSize}
+	tqs.traceReader.On("FindSpans", mock.Anything, bounded).Return(responseIter).Once()
 
 	seq := tqs.queryService.FindSpans(context.Background(), query)
 	result, err := jiter.CollectWithErrors(seq)
@@ -412,11 +413,89 @@ func TestFindSpans_Success(t *testing.T) {
 	tqs.traceReader.AssertExpectations(t)
 }
 
+// TestFindSpans_RejectsInvertedTimeRange pins the other half of the envelope check
+// prepareSpanSearchQuery settles for a span search: a present but inverted range is refused the
+// same as an absent one, before the reader is ever asked anything.
+func TestFindSpans_RejectsInvertedTimeRange(t *testing.T) {
+	tqs := initializeBareTestQueryService()
+
+	query := SpanQueryParams{SpanQueryParams: tracestore.SpanQueryParams{StartTimeMin: testWindowEnd, StartTimeMax: testWindowStart}}
+	seq := tqs.queryService.FindSpans(context.Background(), query)
+	_, err := jiter.CollectWithErrors(seq)
+	require.ErrorIs(t, err, ErrQueryInvalid)
+	require.ErrorContains(t, err, "start_time_min must be before start_time_max")
+}
+
+// TestFindSpans_Pagination pins how a span search is bounded and paged, decided here rather than
+// by the API handlers that decode it: the page size is the only bound, so an unset one gets the
+// default and an oversized one is clamped; a page token is what the feature gate governs; and a
+// reader that cannot paginate is never sent a token (RFC 0014 §6.2).
+func TestFindSpans_Pagination(t *testing.T) {
+	spanQuery := func(p tracestore.Pagination) tracestore.SpanQueryParams {
+		return tracestore.SpanQueryParams{StartTimeMin: testWindowStart, StartTimeMax: testWindowEnd, Pagination: p}
+	}
+	findSpans := func(tqs testQueryService, query tracestore.SpanQueryParams) error {
+		_, err := jiter.CollectWithErrors(tqs.queryService.FindSpans(context.Background(), SpanQueryParams{query}))
+		return err
+	}
+	expectDispatch := func(tqs testQueryService, caps tracestore.SearchCapabilities, want tracestore.SpanQueryParams) {
+		tqs.traceReader.On("SearchCapabilities", mock.Anything).Return(caps, nil)
+		tqs.traceReader.On("FindSpans", mock.Anything, want).Return(emptySpanPage()).Once()
+	}
+	spanSearch := tracestore.SearchCapabilities{SpanSearch: true}
+	paginating := tracestore.SearchCapabilities{SpanSearch: true, Paginated: true}
+
+	t.Run("unset page size gets the default, gate or not", func(t *testing.T) {
+		setPagination(t, false)
+		tqs := initializeBareTestQueryService()
+		expectDispatch(tqs, spanSearch, spanQuery(tracestore.Pagination{PageSize: DefaultPageSize}))
+		require.NoError(t, findSpans(tqs, spanQuery(tracestore.Pagination{})))
+		tqs.traceReader.AssertExpectations(t)
+	})
+
+	t.Run("oversized page size is clamped", func(t *testing.T) {
+		tqs := initializeBareTestQueryService()
+		expectDispatch(tqs, spanSearch, spanQuery(tracestore.Pagination{PageSize: tracestore.MaxPageSize}))
+		require.NoError(t, findSpans(tqs, spanQuery(tracestore.Pagination{PageSize: tracestore.MaxPageSize + 1})))
+		tqs.traceReader.AssertExpectations(t)
+	})
+
+	t.Run("token refused while the gate is disabled", func(t *testing.T) {
+		setPagination(t, false)
+		tqs := initializeBareTestQueryService()
+		err := findSpans(tqs, spanQuery(tracestore.Pagination{PageSize: 10, PageToken: "opaque-cursor"}))
+		require.ErrorIs(t, err, ErrPaginationDisabled)
+	})
+
+	t.Run("token refused when the reader cannot paginate", func(t *testing.T) {
+		enablePagination(t)
+		tqs := initializeBareTestQueryService()
+		tqs.traceReader.On("SearchCapabilities", mock.Anything).Return(spanSearch, nil)
+		err := findSpans(tqs, spanQuery(tracestore.Pagination{PageSize: 10, PageToken: "opaque-cursor"}))
+		require.ErrorIs(t, err, tracestore.ErrPaginationUnsupported)
+		tqs.traceReader.AssertNotCalled(t, "FindSpans", mock.Anything, mock.Anything)
+	})
+
+	t.Run("token with an unset page size reaches a paginating reader with the default", func(t *testing.T) {
+		enablePagination(t)
+		tqs := initializeBareTestQueryService()
+		expectDispatch(tqs, paginating, spanQuery(tracestore.Pagination{PageSize: DefaultPageSize, PageToken: "opaque-cursor"}))
+		require.NoError(t, findSpans(tqs, spanQuery(tracestore.Pagination{PageToken: "opaque-cursor"})))
+		tqs.traceReader.AssertExpectations(t)
+	})
+}
+
+func emptySpanPage() iter.Seq2[tracestore.PageChunk[ptrace.Traces], error] {
+	return func(yield func(tracestore.PageChunk[ptrace.Traces], error) bool) {
+		yield(tracestore.PageChunk[ptrace.Traces]{Results: ptrace.NewTraces()}, nil)
+	}
+}
+
 func TestFindSpans_WithLegacyBackend_UnsupportedError(t *testing.T) {
 	tqs := initializeBareTestQueryService()
 	tqs.traceReader.On("SearchCapabilities", mock.Anything).Return(tracestore.SearchCapabilities{}, errors.New("unsupported")).Once()
 
-	query := SpanQueryParams{}
+	query := SpanQueryParams{SpanQueryParams: tracestore.SpanQueryParams{StartTimeMin: testWindowStart, StartTimeMax: testWindowEnd}}
 	seq := tqs.queryService.FindSpans(context.Background(), query)
 	_, err := jiter.CollectWithErrors(seq)
 	require.Equal(t, ErrSpanSearchUnsupported, err)
@@ -426,7 +505,7 @@ func TestFindSpans_WithUnsupportingBackend_UnsupportedError(t *testing.T) {
 	tqs := initializeBareTestQueryService()
 	tqs.traceReader.On("SearchCapabilities", mock.Anything).Return(tracestore.SearchCapabilities{SpanSearch: false}, nil).Once()
 
-	query := SpanQueryParams{}
+	query := SpanQueryParams{SpanQueryParams: tracestore.SpanQueryParams{StartTimeMin: testWindowStart, StartTimeMax: testWindowEnd}}
 	seq := tqs.queryService.FindSpans(context.Background(), query)
 	_, err := jiter.CollectWithErrors(seq)
 	require.Equal(t, ErrSpanSearchUnsupported, err)

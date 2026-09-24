@@ -392,7 +392,7 @@ The analytics tier will also be a per-backend capability, like everything else h
 
 **The forward-traversal guarantee is stronger here than for traces.** RFC 0014 accepts that a forward traversal may skip a trace, because a trace's max-keyed sort position rises as new spans arrive. A span's key never changes after it is written, so a span search skips nothing; a span written into an already-passed position is missed, which is the ordinary property of paging a time-ordered index backwards from now.
 
-**The page size is capped by the server.** `search_depth` does not carry over (§4.3), so the page size is the only bound, and it needs a maximum for the same reason ClickHouse already rejects a `SearchDepth` above `MaxSearchDepth` and the query service already truncates oversized traces at `MaxTraceSize`.
+**The page size is capped by the server, and defaulted.** `search_depth` does not carry over (§4.3), so the page size is the only bound, and it needs a maximum for the same reason ClickHouse already rejects a `SearchDepth` above `MaxSearchDepth` and the query service already truncates oversized traces at `MaxTraceSize`. Because it is the only bound, an unset page size is not refused the way RFC 0014 §4 refuses a zero `page_size` beside a `search_depth`: the query service fills in `DefaultPageSize` (100, the same as the default search depth), as `normalizeEnvelope` does for a trace search that leaves `search_depth` unset, so a backend never receives an unbounded span query. Only a `page_token` makes the request a paginated one, and only that is subject to the pagination feature gate.
 
 **A backend that declares `Paginated=false`** serves one capped page with an empty token, and refuses a token with `InvalidArgument` — RFC 0014 §6.2's three-way degradation, unchanged.
 
@@ -512,14 +512,13 @@ PR-sized milestones with exit bars. Everything here sits behind RFC 0005 M1 and 
 
 ✅ **M1 — Proto foundation (jaeger-idl).** `SpanQueryParameters`, `FindSpansRequest`, `FindSpansResponse` with the span payload and `next_page_token`, and the `FindSpans` RPC on `jaeger.api_v3.QueryService` with its `GET /api/v3/spans` binding and `POST` body; the same RPC on `jaeger.storage.v2.TraceReader`; the `span_search` field on `jaeger.storage.v2.SearchCapabilities`. *Exit:* generated types compile and vendor cleanly; existing api_v3 and storage.v2 callers byte-for-byte unaffected.
 
-🚧 **M2 — Internal interface and query-service plumbing.** `Reader.FindSpans`, `SpanQueryParams`, `UnsupportedSpanSearch`, and `SearchCapabilities.SpanSearch`; every backend embeds the mixin and declares `false`; `querysvc.FindSpans` with validation and the capability refusal; the api_v3 gRPC handler, the HTTP route and the query parameters. *Exit:* a span query against any backend is refused with `InvalidArgument` naming the backend limitation; no existing search changes behavior.
+✅ **M2 — Internal interface and query-service plumbing.** `Reader.FindSpans`, `SpanQueryParams`, `UnsupportedSpanSearch`, and `SearchCapabilities.SpanSearch`; every backend embeds the mixin and declares `false`; `querysvc.FindSpans` with validation and the capability refusal; the api_v3 gRPC handler, the HTTP route and the query parameters. *Exit:* a span query against any backend is refused with `InvalidArgument` naming the backend limitation; no existing search changes behavior.
 
 - ✅ Storage interface: `Reader.FindSpans`, `SpanQueryParams`, `SpanPage`, `UnsupportedSpanSearch`, `SearchCapabilities.SpanSearch`, every backend embedding the mixin, and the `find_spans` read metrics. Delivered in [#9578](https://github.com/jaegertracing/jaeger/pull/9578).
 - ✅ Replace `SpanPage` with RFC 0014's shared `PageChunk[ptrace.Traces]`. Delivered in [#9585](https://github.com/jaegertracing/jaeger/pull/9585).
 - ✅ Interceptor contract (§4.7): `queryinterceptor.SpanQuery`, `OnSpanQuery`, `OnSpanResult` and the `UnsupportedSpanSearch` mixin; the trace view and hooks renamed `TraceQuery`, `OnTraceQuery` and `OnTraceResult`, and `SearchDepth` removed from the view. Delivered in [#9597](https://github.com/jaegertracing/jaeger/pull/9597).
 - ✅ `querysvc.FindSpans` with parameter validation, the capability refusal, and the span interceptor hooks. Delivered in [#9581](https://github.com/jaegertracing/jaeger/pull/9581).
-- The api_v3 gRPC `FindSpans` handler.
-- The `GET /api/v3/spans` HTTP route and its query parameters.
+- ✅ The api_v3 gRPC `FindSpans` handler and the `GET /api/v3/spans` HTTP route and its query parameters, with the page size defaulted and clamped in the query service (§6) and a `page_token` refused against a backend that declares no pagination (RFC 0014 §6.2). Delivered in [#9613](https://github.com/jaegertracing/jaeger/pull/9613).
 
 **M3 — memory backend.** The first reader to declare `SpanSearch=true`, and the cross-backend conformance test that asserts the refusal on the others. *Exit:* an end-to-end span query works in the all-in-one distribution; the conformance test passes on every backend, serving or refusing.
 

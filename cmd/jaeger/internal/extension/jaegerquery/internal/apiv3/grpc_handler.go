@@ -119,6 +119,60 @@ func traceQueryParams(query *api_v3.TraceQueryParameters) (querysvc.TraceQueryPa
 	return queryParams, nil
 }
 
+// FindSpans implements api_v3.QueryServiceServer's FindSpans
+func (h *Handler) FindSpans(request *api_v3.FindSpansRequest, stream api_v3.QueryService_FindSpansServer) error {
+	queryParams, err := spanQueryParams(request.GetQuery())
+	if err != nil {
+		return err
+	}
+
+	for chunk, err := range h.QueryService.FindSpans(stream.Context(), queryParams) {
+		if err != nil {
+			return asStatusError(err)
+		}
+		spans := jptrace.TracesData(chunk.Results)
+		response := &api_v3.FindSpansResponse{
+			Spans:         &spans,
+			NextPageToken: chunk.NextPageToken,
+		}
+		if err := stream.Send(response); err != nil {
+			return status.Errorf(codes.Internal, "failed to send response stream chunk to client: %v", err)
+		}
+	}
+	return nil
+}
+
+// spanQueryParams translates a proto SpanQueryParameters into the query service's shape. What
+// the query must satisfy is the query service's decision (prepareSpanSearchQuery), so nothing is
+// checked here beyond what the translation itself needs — including whether Pagination is
+// acceptable at all: it is decoded here because decoding is translation, but the query service
+// is where it is refused.
+func spanQueryParams(query *api_v3.SpanQueryParameters) (querysvc.SpanQueryParams, error) {
+	if query == nil {
+		return querysvc.SpanQueryParams{}, status.Error(codes.InvalidArgument, "missing query")
+	}
+	queryParams := querysvc.SpanQueryParams{
+		SpanQueryParams: tracestore.SpanQueryParams{
+			StartTimeMin: query.GetStartTimeMin(),
+			StartTimeMax: query.GetStartTimeMax(),
+		},
+	}
+	if protoFilter := query.GetFilter(); protoFilter != nil {
+		filter, err := expressionproto.FromProto(protoFilter)
+		if err != nil {
+			return querysvc.SpanQueryParams{}, status.Error(codes.InvalidArgument, err.Error())
+		}
+		queryParams.Filter = filter
+	}
+	if pagination := query.GetPagination(); pagination != nil {
+		queryParams.Pagination = tracestore.Pagination{
+			PageSize:  int(pagination.GetPageSize()),
+			PageToken: pagination.GetPageToken(),
+		}
+	}
+	return queryParams, nil
+}
+
 // FindTraceSummaries implements api_v3.QueryServiceServer's FindTraceSummaries
 func (h *Handler) FindTraceSummaries(request *api_v3.FindTraceSummariesRequest, stream api_v3.QueryService_FindTraceSummariesServer) error {
 	queryParams, err := traceQueryParams(request.GetQuery())
