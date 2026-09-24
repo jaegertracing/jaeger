@@ -72,9 +72,11 @@ extensions:
           # Drop poison spans so a malformed document can't stall the partition.
           poison_pill_handling: drop
           bulk_processing:
-            # Per-request byte cap of the synchronous writer; keep queue.batch.max_size
-            # below at or under this so a batch is one atomic _bulk request.
-            max_bytes: 5000000
+            # Per-request byte cap of the synchronous writer, measured on the NDJSON
+            # _bulk body, which is 1.3x to 3.6x the batch's protobuf size that
+            # queue.batch.max_size below is measured in. Keep max_size at most half of
+            # this so a batch is one _bulk request in the common case (see #PRNUM).
+            max_bytes: 10000000
           indices:
             index_prefix: "jaeger-main"
 
@@ -124,4 +126,4 @@ exporters:
         # min_size must be positive: at 0 the batcher flushes every record as it
         # arrives and merges nothing. Below 1 MiB the batch waits for flush_timeout.
         min_size: 1048576
-        max_size: 4194304 # 4 MiB, kept <= bulk_processing.max_bytes above
+        max_size: 4194304 # 4 MiB, at most half of bulk_processing.max_bytes above
