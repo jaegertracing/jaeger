@@ -122,7 +122,13 @@ func NewSession(c *config.Configuration) (cassandra.Session, error) {
 // CreateDependencyReader creates a dependencystore.Reader.
 func (f *Factory) CreateDependencyReader() (dependencystore.Reader, error) {
 	version := cdepstore.GetDependencyVersion(f.session)
-	return cdepstore.NewDependencyStore(f.session, f.metricsFactory, f.logger, version)
+	return cdepstore.NewDependencyStore(
+		f.session,
+		f.metricsFactory,
+		f.logger,
+		version,
+		cdepstore.WithTimeBucket(f.config.Schema.DependenciesTimeBucket),
+	)
 }
 
 // CreateLock implements storage.SamplingStoreFactory
