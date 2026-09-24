@@ -213,6 +213,26 @@ func TestFindSpans_PreservesSchemaURLs(t *testing.T) {
 	assert.Equal(t, "https://opentelemetry.io/schemas/1.4.0", resultRS.ScopeSpans().At(0).SchemaUrl())
 }
 
+// TestFindSpans_InvalidFilterShapeReturnsError pins that a malformed filter is refused rather
+// than silently under-matching: the query service already validates a filter's shape before a
+// Reader ever sees it, but a remote-storage client can reach this store without that check.
+func TestFindSpans_InvalidFilterShapeReturnsError(t *testing.T) {
+	store, _ := writeTwoTraceStore(t)
+
+	filter := &expression.Call{Op: expression.OpAnd} // and requires at least one argument
+
+	var sawError bool
+	for chunk, err := range store.FindSpans(context.Background(), tracestore.SpanQueryParams{Filter: filter}) {
+		if err != nil {
+			sawError = true
+			require.ErrorIs(t, err, tracestore.ErrFilterInvalid)
+			continue
+		}
+		t.Fatalf("expected no successful chunk, got %d resource spans", chunk.Results.ResourceSpans().Len())
+	}
+	assert.True(t, sawError, "FindSpans must yield the shape error rather than an empty, error-free result")
+}
+
 func TestFindSpans_UnsupportedWithoutSpanSearchCapability(t *testing.T) {
 	store, err := NewStore(Configuration{MaxTraces: 10})
 	require.NoError(t, err)

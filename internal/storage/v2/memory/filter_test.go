@@ -13,6 +13,7 @@ import (
 	"go.opentelemetry.io/collector/pdata/ptrace"
 
 	expression "github.com/jaegertracing/jaeger-idl/query/expression/v1"
+	"github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore"
 )
 
 // newFilterFixture builds a span, in the context of a resource and scope,
@@ -655,4 +656,129 @@ func TestMatchesFilter_ErrorVirtualAttribute(t *testing.T) {
 	resourceErrorFixture.resource.Attributes().PutBool(errorAttribute, true)
 	assert.True(t, resourceErrorFixture.matches(call(expression.OpEq, attrRef(expression.LevelResource, errorAttribute), boolean(true))),
 		"resource-level error is a literal attribute, not the span-status virtual one")
+}
+
+// TestValidateFilterShape_Valid pins that every operator this evaluator supports, given the
+// argument count and shape it expects, passes shape validation.
+func TestValidateFilterShape_Valid(t *testing.T) {
+	nameRef := fieldRef(expression.LevelSpan, expression.SpanFieldName)
+	tests := []struct {
+		name   string
+		filter *expression.Call
+	}{
+		{"nil filter", nil},
+		{"and with one arg", call(expression.OpAnd, call(expression.OpExists, nameRef))},
+		{"or with several args", call(expression.OpOr,
+			call(expression.OpExists, nameRef), call(expression.OpEq, nameRef, str("x")))},
+		{"not", call(expression.OpNot, call(expression.OpExists, nameRef))},
+		{"exists", call(expression.OpExists, nameRef)},
+		{"eq", call(expression.OpEq, nameRef, str("x"))},
+		{"regex", call(expression.OpRegex, nameRef, str("^x$"))},
+		{"in", call(expression.OpIn, nameRef, &expression.List{Values: []string{"x"}})},
+		{"some over events", call(expression.OpSome,
+			&expression.NestedRef{Level: expression.LevelEvent},
+			call(expression.OpExists, fieldRef(expression.LevelEvent, "name")))},
+		{"nested and/or/not", call(expression.OpAnd,
+			call(expression.OpOr, call(expression.OpExists, nameRef)),
+			call(expression.OpNot, call(expression.OpExists, nameRef)))},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.NoError(t, validateFilterShape(tt.filter))
+		})
+	}
+}
+
+// TestValidateFilterShape_Invalid pins that a filter a remote-storage client could send without
+// going through the query service's own shape validation (RFC 0005 §7) is refused here too,
+// rather than silently under-matching or panicking on an out-of-range argument index.
+func TestValidateFilterShape_Invalid(t *testing.T) {
+	nameRef := fieldRef(expression.LevelSpan, expression.SpanFieldName)
+	tests := []struct {
+		name       string
+		filter     *expression.Call
+		wantErrIs  error
+		wantErrMsg string
+	}{
+		{
+			name:      "unsupported operator",
+			filter:    call("bogus"),
+			wantErrIs: tracestore.ErrFilterUnsupported,
+		},
+		{
+			name:      "and with no args",
+			filter:    call(expression.OpAnd),
+			wantErrIs: tracestore.ErrFilterInvalid,
+		},
+		{
+			name:       "and given a value instead of a predicate",
+			filter:     call(expression.OpAnd, str("x")),
+			wantErrIs:  tracestore.ErrFilterInvalid,
+			wantErrMsg: "combines predicates, not values",
+		},
+		{
+			name:      "not with two args",
+			filter:    call(expression.OpNot, call(expression.OpExists, nameRef), call(expression.OpExists, nameRef)),
+			wantErrIs: tracestore.ErrFilterInvalid,
+		},
+		{
+			name:       "not given a value instead of a predicate",
+			filter:     call(expression.OpNot, str("x")),
+			wantErrIs:  tracestore.ErrFilterInvalid,
+			wantErrMsg: "negates a predicate, not a value",
+		},
+		{
+			name:      "exists with two args",
+			filter:    call(expression.OpExists, nameRef, nameRef),
+			wantErrIs: tracestore.ErrFilterInvalid,
+		},
+		{
+			name:      "eq with one arg",
+			filter:    call(expression.OpEq, nameRef),
+			wantErrIs: tracestore.ErrFilterInvalid,
+		},
+		{
+			name:      "eq with three args",
+			filter:    call(expression.OpEq, nameRef, str("x"), str("y")),
+			wantErrIs: tracestore.ErrFilterInvalid,
+		},
+		{
+			name:      "in with one arg",
+			filter:    call(expression.OpIn, nameRef),
+			wantErrIs: tracestore.ErrFilterInvalid,
+		},
+		{
+			name:      "some with one arg",
+			filter:    call(expression.OpSome, &expression.NestedRef{Level: expression.LevelEvent}),
+			wantErrIs: tracestore.ErrFilterInvalid,
+		},
+		{
+			name:       "some with a non-collection first arg",
+			filter:     call(expression.OpSome, nameRef, call(expression.OpExists, nameRef)),
+			wantErrIs:  tracestore.ErrFilterInvalid,
+			wantErrMsg: "quantifies over an event or link collection",
+		},
+		{
+			name:       "some quantifying a value instead of a predicate",
+			filter:     call(expression.OpSome, &expression.NestedRef{Level: expression.LevelEvent}, str("x")),
+			wantErrIs:  tracestore.ErrFilterInvalid,
+			wantErrMsg: "quantifies a predicate, not a value",
+		},
+		{
+			name:       "invalid shape nested under a valid combinator",
+			filter:     call(expression.OpAnd, call(expression.OpExists, nameRef), call(expression.OpNot)),
+			wantErrIs:  tracestore.ErrFilterInvalid,
+			wantErrMsg: `"not" cannot take 0 arguments`,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := validateFilterShape(tt.filter)
+			require.Error(t, err)
+			require.ErrorIs(t, err, tt.wantErrIs)
+			if tt.wantErrMsg != "" {
+				assert.ErrorContains(t, err, tt.wantErrMsg)
+			}
+		})
+	}
 }

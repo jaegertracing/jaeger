@@ -4,6 +4,7 @@
 package memory
 
 import (
+	"fmt"
 	"regexp"
 	"slices"
 	"strconv"
@@ -12,6 +13,7 @@ import (
 	"go.opentelemetry.io/collector/pdata/ptrace"
 
 	expression "github.com/jaegertracing/jaeger-idl/query/expression/v1"
+	"github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore"
 )
 
 // filterCtx carries what a filter predicate is evaluated against: a span in
@@ -104,6 +106,79 @@ func (v evalValue) kind() evalKind {
 		// isOpaque, or isUntyped not yet resolved against anything.
 		return kindNone
 	}
+}
+
+// validateFilterShape checks a filter's shape once, before any span is evaluated against it: an
+// unsupported operator, an operator given the wrong number of arguments, or a boolean combinator
+// (and/or/not) or some's quantified predicate given something other than a nested predicate.
+// Nothing dynamic is checked here — a value's actual type, or whether a reference resolves to
+// anything, stays evalPredicate's per-span job (RFC 0005 §5.3 makes those questions the data's to
+// answer, not the filter's own). This is a static property of the filter alone, the same
+// separation the elasticsearch backend's buildFilterQuery draws by lowering to its query once
+// rather than per span.
+//
+// The query service already validates a filter's shape (RFC 0005 §7) before a Reader ever sees
+// it, but a remote-storage client can reach this reader without that check, so this refuses the
+// same shapes again rather than assuming they were already ruled out — the same reasoning
+// buildFilterQuery's own doc comment gives for repeating its refusals.
+func validateFilterShape(filter *expression.Call) error {
+	if filter == nil {
+		return nil
+	}
+	switch filter.Op {
+	case expression.OpAnd, expression.OpOr:
+		if len(filter.Args) == 0 {
+			return errArity(filter)
+		}
+		for _, arg := range filter.Args {
+			call, ok := arg.(*expression.Call)
+			if !ok {
+				return fmt.Errorf("%w: %q combines predicates, not values", tracestore.ErrFilterInvalid, filter.Op)
+			}
+			if err := validateFilterShape(call); err != nil {
+				return err
+			}
+		}
+	case expression.OpNot:
+		if len(filter.Args) != 1 {
+			return errArity(filter)
+		}
+		call, ok := filter.Args[0].(*expression.Call)
+		if !ok {
+			return fmt.Errorf("%w: %q negates a predicate, not a value", tracestore.ErrFilterInvalid, filter.Op)
+		}
+		return validateFilterShape(call)
+	case expression.OpExists:
+		if len(filter.Args) != 1 {
+			return errArity(filter)
+		}
+	case expression.OpEq, expression.OpNe, expression.OpGt, expression.OpLt,
+		expression.OpGte, expression.OpLte, expression.OpRegex, expression.OpIn, expression.OpNotIn:
+		if len(filter.Args) != 2 {
+			return errArity(filter)
+		}
+	case expression.OpSome:
+		if len(filter.Args) != 2 {
+			return errArity(filter)
+		}
+		if _, ok := filter.Args[0].(*expression.NestedRef); !ok {
+			return fmt.Errorf("%w: %q quantifies over an event or link collection",
+				tracestore.ErrFilterInvalid, filter.Op)
+		}
+		call, ok := filter.Args[1].(*expression.Call)
+		if !ok {
+			return fmt.Errorf("%w: %q quantifies a predicate, not a value", tracestore.ErrFilterInvalid, filter.Op)
+		}
+		return validateFilterShape(call)
+	default:
+		return fmt.Errorf("%w: it does not support the operator %q", tracestore.ErrFilterUnsupported, filter.Op)
+	}
+	return nil
+}
+
+func errArity(filter *expression.Call) error {
+	return fmt.Errorf("%w: %q cannot take %d arguments",
+		tracestore.ErrFilterInvalid, filter.Op, len(filter.Args))
 }
 
 // matchesFilter reports whether a span, in the context of its resource and

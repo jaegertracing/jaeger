@@ -155,9 +155,16 @@ func (t *Tenant) findTraceAndIds(query tracestore.TraceQueryParams) ([]traceAndI
 // since a caller can hold spans from many different traces and resources in
 // one result (RFC 0016).
 //
+// query.Filter's shape is checked once, before any span is visited, rather
+// than per span: an unsupported operator or a wrong argument count is a
+// static property of the filter, not something that can vary span to span.
+//
 // The returned Traces shares backing storage with the tenant's own copy;
 // callers must clone before handing it to a reader, as with findTraceAndIds.
-func (t *Tenant) findSpans(query tracestore.SpanQueryParams) ptrace.Traces {
+func (t *Tenant) findSpans(query tracestore.SpanQueryParams) (ptrace.Traces, error) {
+	if err := validateFilterShape(query.Filter); err != nil {
+		return ptrace.Traces{}, err
+	}
 	t.mu.RLock()
 	defer t.mu.RUnlock()
 	result := ptrace.NewTraces()
@@ -187,7 +194,7 @@ func (t *Tenant) findSpans(query tracestore.SpanQueryParams) ptrace.Traces {
 			}
 		}
 	}
-	return result
+	return result, nil
 }
 
 func spanStartsWithin(span ptrace.Span, startTimeMin, startTimeMax time.Time) bool {
