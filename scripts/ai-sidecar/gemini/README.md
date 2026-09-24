@@ -27,6 +27,14 @@ export GEMINI_API_KEY="your_api_key_here"
 
 Without this key, the sidecar cannot create the Gemini client.
 
+Optional Gemini model override:
+
+```bash
+export GEMINI_MODEL_NAME="gemini-1.5-pro"
+```
+
+If unset, the sidecar defaults to `gemini-flash-latest`, an alias Google points at their current recommended Flash model. Use this to switch to a more capable or more cost-effective model without editing `sidecar.py`. We use an alias rather than a pinned version (e.g. `gemini-2.5-flash`) because pinned model names can be retired for new API keys without warning, which would break the sidecar out of the box; see [#8751](https://github.com/jaegertracing/jaeger/issues/8751) for details. The sidecar checks that the model name is listed in the Gemini model catalog at startup and refuses to start if it isn't — note this confirms the name is *known*, not that your API key is authorized to *call* it, so a model that's been deprecated for new keys can still pass this check and then fail on the first prompt.
+
 Optional MCP endpoint override:
 
 ```bash
@@ -53,6 +61,7 @@ Traces are exported over OTLP/gRPC. The default target (`http://localhost:4317`)
 | --- | --- | --- | --- |
 | `--otlp-endpoint` | `OTEL_EXPORTER_OTLP_ENDPOINT` | `http://localhost:4317` | OTLP/gRPC collector endpoint |
 | `--otlp-insecure` / `--no-otlp-insecure` | `OTEL_EXPORTER_OTLP_INSECURE` | `true` | Skip TLS when exporting (set to false + provide TLS at the collector for production) |
+| `--gemini-model-name` | `GEMINI_MODEL_NAME` | `gemini-flash-latest` | Gemini model to use for trace analysis; also recorded as the `gen_ai.request.model` span attribute |
 
 Example pointing at a remote collector with TLS:
 
@@ -111,7 +120,8 @@ uv run python main.py \
   --host localhost --port 16688 \
   --mcp-url http://127.0.0.1:16687/mcp \
   --mcp-discovery-timeout-sec 15 \
-  --otlp-endpoint http://localhost:4317 --otlp-insecure
+  --otlp-endpoint http://localhost:4317 --otlp-insecure \
+  --gemini-model-name gemini-1.5-pro
 ```
 
 ## Code Layout
@@ -140,7 +150,7 @@ graph LR
     end
 
     subgraph External
-        Gemini[Gemini API<br/>gemini-2.5-flash]
+        Gemini[Gemini API<br/>gemini-flash-latest (configurable)]
     end
 
     GW <-- "WebSocket (ACP)<br/>incl. _meta/jaegertracing.io/tools/call" --> WS
