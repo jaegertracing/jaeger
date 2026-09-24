@@ -11,12 +11,13 @@ import httpx
 from mcp import ClientSession
 from mcp.client.streamable_http import streamable_http_client
 from mcp.shared._httpx_utils import MCP_DEFAULT_SSE_READ_TIMEOUT, create_mcp_http_client
+from mcp.types import PaginatedRequestParams
 from opentelemetry.semconv._incubating.attributes.gen_ai_attributes import GEN_AI_TOOL_NAME
 from opentelemetry.semconv.attributes.url_attributes import URL_FULL
 from opentelemetry.trace import Status, StatusCode
 
 from sidecar_helpers import _to_jsonable
-from tracing import tracer
+from tracing import inject_trace_context, tracer
 
 
 logger = logging.getLogger(__name__)
@@ -89,7 +90,12 @@ class GatewayMCPClient:
                 )
                 session = await stack.enter_async_context(ClientSession(read, write))
                 await asyncio.wait_for(session.initialize(), timeout=self._timeout_sec)
-                listed = await asyncio.wait_for(session.list_tools(), timeout=self._timeout_sec)
+                # initialize() takes no _meta, so tools/list is the first request
+                # that can carry this span's context to the gateway.
+                list_params = PaginatedRequestParams.model_validate({"_meta": inject_trace_context()})
+                listed = await asyncio.wait_for(
+                    session.list_tools(params=list_params), timeout=self._timeout_sec
+                )
             except asyncio.CancelledError:
                 await stack.aclose()
                 span.set_status(Status(StatusCode.ERROR, description="cancelled"))
@@ -135,7 +141,7 @@ class GatewayMCPClient:
                 raise RuntimeError("MCP session is not initialized")
 
             try:
-                result = await session.call_tool(name, args or {})
+                result = await session.call_tool(name, args or {}, meta=inject_trace_context())
                 return _to_jsonable(result)
             except Exception as e:
                 span.record_exception(e)

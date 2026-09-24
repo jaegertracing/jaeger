@@ -5,6 +5,8 @@ from __future__ import annotations
 
 import asyncio
 import json
+from collections.abc import AsyncIterator
+from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Any
 from functools import partial
@@ -18,7 +20,9 @@ from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanE
 from acp import Agent, PROTOCOL_VERSION
 from acp.schema import AgentCapabilities, Implementation, ListSessionsResponse, LoadSessionResponse, NewSessionResponse, PromptResponse
 from acp.helpers import text_block, update_agent_message
+from mcp.types import CallToolResult, ListToolsResult, PaginatedRequestParams, Tool
 
+import gateway_mcp_client
 import sidecar
 from sidecar_config import SidecarConfig
 
@@ -309,6 +313,7 @@ def span_exporter(monkeypatch: pytest.MonkeyPatch) -> InMemorySpanExporter:
     provider.add_span_processor(SimpleSpanProcessor(exporter))
     test_tracer = provider.get_tracer("test")
     monkeypatch.setattr(sidecar, "tracer", lambda: test_tracer)
+    monkeypatch.setattr(gateway_mcp_client, "tracer", lambda: test_tracer)
     return exporter
 
 
@@ -535,3 +540,64 @@ def test_gateway_http_client_uses_sdk_transport_defaults() -> None:
         assert client.follow_redirects, "the SDK factory's defaults are kept"
     finally:
         asyncio.run(client.aclose())
+
+
+class RecordingSession:
+    """Stand-in for the MCP ClientSession that records the _meta each request
+    carried to the gateway."""
+
+    def __init__(self) -> None:
+        self.list_meta: dict[str, Any] | None = None
+        self.call_meta: dict[str, Any] | None = None
+
+    async def __aenter__(self) -> RecordingSession:
+        return self
+
+    async def __aexit__(self, *exc: object) -> None:
+        return None
+
+    async def initialize(self) -> None:
+        return None
+
+    async def list_tools(self, *, params: PaginatedRequestParams | None = None) -> ListToolsResult:
+        meta = params.meta if params else None
+        self.list_meta = meta.model_dump(exclude_none=True) if meta else None
+        return ListToolsResult(tools=[Tool(name="get_services", inputSchema={"type": "object"})])
+
+    async def call_tool(
+        self, name: str, arguments: dict[str, Any] | None = None, *, meta: dict[str, Any] | None = None
+    ) -> CallToolResult:
+        self.call_meta = meta
+        return CallToolResult(content=[])
+
+
+@asynccontextmanager
+async def _fake_streamable_http_client(**_: Any) -> AsyncIterator[tuple[None, None, None]]:
+    yield None, None, None
+
+
+def test_mcp_requests_carry_the_span_that_sent_them(
+    span_exporter: InMemorySpanExporter, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The gateway's MCP middleware parents each method span on the trace context
+    in the request's _meta. Without it the gateway starts a trace of its own, and
+    the turn's trace shows the sidecar calling a tool but never the tool running."""
+    session = RecordingSession()
+    monkeypatch.setattr(gateway_mcp_client, "streamable_http_client", _fake_streamable_http_client)
+    monkeypatch.setattr(gateway_mcp_client, "ClientSession", lambda read, write: session)
+    client = gateway_mcp_client.GatewayMCPClient("http://x/", {}, 1.0)
+
+    async def turn() -> None:
+        try:
+            await client.call_tool("get_services", {})
+        finally:
+            await client.aclose()
+
+    asyncio.run(turn())
+
+    def traceparent(span_name: str) -> str:
+        ctx = _find_span(span_exporter, span_name).context
+        return f"00-{ctx.trace_id:032x}-{ctx.span_id:016x}-{ctx.trace_flags:02x}"
+
+    assert session.list_meta == {"traceparent": traceparent("mcp.discover_tools")}
+    assert session.call_meta == {"traceparent": traceparent("mcp.call_tool")}

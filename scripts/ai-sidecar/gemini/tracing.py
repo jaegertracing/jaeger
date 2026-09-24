@@ -59,3 +59,16 @@ def extract_trace_context(meta: Any) -> otel_context.Context:
     if not isinstance(meta, dict):
         return otel_context.get_current()
     return _meta_propagator.extract(carrier=meta)
+
+
+def inject_trace_context() -> dict[str, str]:
+    """Return the current trace context as _meta entries for an MCP request.
+
+    The gateway's MCP tracing middleware takes each method span's parent from
+    the request's _meta, so a request carrying these entries lands under the
+    span that sent it. Without them the gateway starts a trace of its own, and
+    a turn's trace shows the sidecar calling a tool but never the tool running.
+    """
+    carrier: dict[str, str] = {}
+    _meta_propagator.inject(carrier)
+    return carrier

@@ -41,7 +41,7 @@ endpoint and listing its tools.
 
 ## Tracing
 
-The sidecar emits OpenTelemetry traces under service name `jaeger-gemini-sidecar`. Spans cover prompt handling, the agentic Gemini loop, connecting to the announced MCP endpoint, and MCP tool calls. Gemini calls are auto-instrumented via `opentelemetry-instrumentation-google-generativeai` and use the OTel GenAI semantic conventions.
+The sidecar emits OpenTelemetry traces under service name `jaeger-gemini-sidecar`. Spans cover prompt handling, the agentic Gemini loop, connecting to the announced MCP endpoint, and MCP tool calls. Each MCP request carries the current trace context in its `_meta`, so the gateway's `tools/list` and `tools/call` spans appear under the sidecar spans that sent them, in the same trace. Gemini calls are auto-instrumented via `opentelemetry-instrumentation-google-generativeai` and use the OTel GenAI semantic conventions.
 
 Traces are exported over OTLP/gRPC. The default target (`http://localhost:4317`) matches the Jaeger all-in-one OTLP receiver, which makes the sidecar appear as its own service in the Jaeger UI.
 
