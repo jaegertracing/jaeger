@@ -41,7 +41,9 @@ const (
 	objectProcessTagsField = "process.tag"
 	nestedTagsField        = "tags"
 	nestedProcessTagsField = "process.tags"
+	nestedLogsField        = "logs"
 	nestedLogFieldsField   = "logs.fields"
+	eventTimeField         = "logs.timestamp"
 	tagKeyField            = "key"
 	tagValueField          = "value"
 	// numberSubField is the sub-field the typed-attribute mapping indexes a numeric
