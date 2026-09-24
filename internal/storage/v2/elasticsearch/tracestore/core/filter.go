@@ -302,10 +302,9 @@ func (s *SpanReader) buildComparison(
 	}
 	switch {
 	case ref.isField(expression.LevelSpan, expression.SpanFieldName):
-		return buildTextComparison(operationNameField, op, ref, text)
+		return buildOrderedTextComparison(operationNameField, op, ref, text)
 	case ref.isField(expression.LevelSpan, expression.SpanFieldKind):
 		return s.buildAttributeComparison(op, spanKindAsAttribute, text)
-		return buildOrderedTextComparison(operationNameField, op, ref, text)
 	case ref.isField(expression.LevelResource, expression.ResourceFieldService):
 		return buildTextComparison(serviceNameField, op, ref, text)
 	// The identifiers are keywords holding the lowercase hex that pcommon.TraceID.String() and
