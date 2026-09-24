@@ -172,7 +172,7 @@ func TestPrepareSearchQuery_PageSizeFoldedIntoSearchDepthWhenUnsupported(t *test
 	}
 	assert.True(t, next.summaryCalled)
 	assert.Nil(t, next.gotSummaryQuery.Pagination, "cleared once folded")
-	assert.Equal(t, 15, next.gotSummaryQuery.SearchDepth)
+	assert.Equal(t, uint32(15), next.gotSummaryQuery.SearchDepth)
 }
 
 // TestPrepareSearchQuery_PageSizeOnlyKeepsPaginationWhenSupported covers the other side: a
@@ -231,7 +231,7 @@ func TestPrepareSearchQuery_PageTokenAcceptedWhenSupported(t *testing.T) {
 	}
 	assert.True(t, next.summaryCalled)
 	assert.Equal(t, "opaque-cursor", next.gotSummaryQuery.Pagination.PageToken)
-	assert.Equal(t, 20, next.gotSummaryQuery.Pagination.PageSize)
+	assert.Equal(t, uint32(20), next.gotSummaryQuery.Pagination.PageSize)
 }
 
 // TestPagination_SurvivesInterceptorFilterRewrite checks that Pagination is carried through when

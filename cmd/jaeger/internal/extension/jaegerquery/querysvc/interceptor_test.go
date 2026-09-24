@@ -618,7 +618,7 @@ func TestFindTraces_LeavesALegacyQueryAloneWhenNothingChangedIt(t *testing.T) {
 		assert.Nil(t, next.gotQuery.Filter, "the predicates are still the legacy ones")
 		assert.Equal(t, "cart", next.gotQuery.ServiceName)
 		assert.Equal(t, narrowedEnd, next.gotQuery.StartTimeMax, "the envelope change survives")
-		assert.Equal(t, 7, next.gotQuery.SearchDepth, "the result bound is not the interceptor's to change")
+		assert.Equal(t, uint32(7), next.gotQuery.SearchDepth, "the result bound is not the interceptor's to change")
 	})
 
 	t.Run("a caller's own filter is unaffected by the rule", func(t *testing.T) {

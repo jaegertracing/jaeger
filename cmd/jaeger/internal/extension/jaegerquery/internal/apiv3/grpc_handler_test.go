@@ -291,12 +291,13 @@ func TestTraceQueryParamsSearchDepth(t *testing.T) {
 	tests := []struct {
 		name        string
 		searchDepth int32
-		expected    int
+		expected    uint32
+		wantErr     bool
 	}{
 		// The handler translates; the query service applies the default and refuses a negative
 		// value, so both reach it as sent.
 		{name: "unset passes through", searchDepth: 0, expected: 0},
-		{name: "negative passes through", searchDepth: -1, expected: -1},
+		{name: "negative rejected", searchDepth: -1, wantErr: true},
 		{name: "explicit value preserved", searchDepth: 42, expected: 42},
 	}
 	for _, test := range tests {
@@ -304,6 +305,11 @@ func TestTraceQueryParamsSearchDepth(t *testing.T) {
 			query := baseQuery()
 			query.SearchDepth = test.searchDepth
 			params, err := traceQueryParams(query)
+			if test.wantErr {
+				require.Error(t, err)
+				assert.Equal(t, codes.InvalidArgument, status.Code(err))
+				return
+			}
 			require.NoError(t, err)
 			assert.Equal(t, test.expected, params.SearchDepth)
 		})
@@ -409,7 +415,7 @@ func TestFindTracesSendError(t *testing.T) {
 func TestFindTracesRefusesSearchDepthOutOfRange(t *testing.T) {
 	for name, depth := range map[string]int32{
 		"negative":          -1,
-		"above the maximum": tracestore.MaxSearchDepth + 1,
+		"above the maximum": int32(tracestore.MaxSearchDepth + 1),
 	} {
 		t.Run(name, func(t *testing.T) {
 			tsc := newTestServerClient(t)

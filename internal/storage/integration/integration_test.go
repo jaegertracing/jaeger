@@ -21,7 +21,7 @@ import (
 // maxSearchDepth is the tightest ceiling the suite's backends put on SearchDepth: the memory
 // store refuses a depth above its MaxTraces, which every memory-backed harness sets to 10000,
 // and ClickHouse refuses one above its own MaxSearchDepth, which defaults to the same number.
-const maxSearchDepth = 10_000
+const maxSearchDepth uint32 = 10_000
 
 // TestGetServicesUnexpectedServiceDiagnostic drives testGetServices into the branch that only
 // runs when the backend reports more services than the corpus wrote, which is where the
