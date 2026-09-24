@@ -280,11 +280,13 @@ func (s *SpanReader) FindTraceIDs(ctx context.Context, traceQuery *tracestore.Tr
 	}
 
 	var traceIDs []dbmodel.TraceID
+	var traceCount uint32
 	for t := range dbTraceIDs {
-		if uint32(len(traceIDs)) >= traceQuery.SearchDepth {
+		if traceCount >= traceQuery.SearchDepth {
 			break
 		}
 		traceIDs = append(traceIDs, t)
+		traceCount++
 	}
 	return traceIDs, nil
 }
@@ -354,6 +356,7 @@ func (s *SpanReader) queryByDuration(ctx context.Context, traceQuery *tracestore
 	defer span.End()
 
 	results := dbmodel.UniqueTraceIDs{}
+	var resultCount uint32
 
 	minDurationMicros := traceQuery.DurationMin.Nanoseconds() / int64(time.Microsecond/time.Nanosecond)
 	maxDurationMicros := (time.Hour * 24).Nanoseconds() / int64(time.Microsecond/time.Nanosecond)
@@ -385,8 +388,12 @@ func (s *SpanReader) queryByDuration(ctx context.Context, traceQuery *tracestore
 		}
 
 		for traceID := range t {
+			if _, exists := results[traceID]; exists {
+				continue
+			}
 			results.Add(traceID)
-			if uint32(len(results)) == traceQuery.SearchDepth {
+			resultCount++
+			if resultCount == traceQuery.SearchDepth {
 				break
 			}
 		}
