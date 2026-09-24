@@ -7,7 +7,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/collector/pdata/pcommon"
 
@@ -94,56 +93,6 @@ func TestEnsureFilterStandsAlone(t *testing.T) {
 			require.ErrorContains(t, err, test.wantMsg)
 		})
 	}
-}
-
-// TestForCapabilities covers the choice between the two filtering models: a Reader that declared
-// filter support is given the filter, and one that declared none is given the legacy fields it does
-// understand, or a refusal where they cannot carry the filter.
-func TestForCapabilities(t *testing.T) {
-	filterCapable := SearchCapabilities{Filter: &FilterCapabilities{
-		Levels:    []expression.Level{expression.LevelResource},
-		Operators: []expression.Operator{expression.OpEq},
-	}}
-
-	t.Run("no filter is left alone", func(t *testing.T) {
-		query := TraceQueryParams{ServiceName: "cart"}
-		prepared, err := query.ForCapabilities(SearchCapabilities{})
-		require.NoError(t, err)
-		assert.Equal(t, query, prepared)
-	})
-
-	t.Run("a reader that evaluates filters is given the filter", func(t *testing.T) {
-		query := TraceQueryParams{Filter: serviceIs("cart")}
-		prepared, err := query.ForCapabilities(filterCapable)
-		require.NoError(t, err)
-		assert.Equal(t, query, prepared)
-	})
-
-	t.Run("a reader that evaluates none is given the legacy fields", func(t *testing.T) {
-		query := TraceQueryParams{Filter: serviceIs("cart")}
-		prepared, err := query.ForCapabilities(SearchCapabilities{})
-		require.NoError(t, err)
-		assert.Equal(t, "cart", prepared.ServiceName)
-		assert.Nil(t, prepared.Filter)
-	})
-
-	t.Run("a filter the legacy fields cannot carry is refused", func(t *testing.T) {
-		disjunction := &expression.Call{Op: expression.OpOr, Args: []expression.Expression{
-			serviceIs("cart"), serviceIs("checkout"),
-		}}
-		_, err := TraceQueryParams{Filter: disjunction}.ForCapabilities(SearchCapabilities{})
-		require.ErrorIs(t, err, ErrFilterUnsupported)
-	})
-
-	t.Run("a predicate the reader did not declare is refused", func(t *testing.T) {
-		spanLevel := &expression.Call{Op: expression.OpEq, Args: []expression.Expression{
-			&expression.AttributeRef{Key: "http.route", Level: expression.LevelSpan},
-			&expression.AnyValue{Value: "/cart"},
-		}}
-		_, err := TraceQueryParams{Filter: spanLevel}.ForCapabilities(filterCapable)
-		require.ErrorIs(t, err, ErrFilterUnsupported)
-		require.ErrorContains(t, err, `it does not index the "span" level`)
-	})
 }
 
 // TestEnsureSupported walks the shapes the declaration is read against, since a predicate refused

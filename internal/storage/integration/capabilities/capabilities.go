@@ -6,13 +6,25 @@ package capabilities
 const (
 	scopeAttributesTest    = "Scope_Attributes"
 	linkAttributesTest     = "Link_Attributes"
-	FindTraceSummariesTest = "FindTraceSummaries"
+	findTraceSummariesTest = "FindTraceSummaries"
+	structuredFilterTest   = "FindTracesWithFilter"
+
+	// The battery pairs these two: ordering an attribute is answered where the index carries the
+	// typed-attribute mapping (RFC 0015) and refused where it does not, so exactly one of them runs
+	// for any deployment. Elasticsearch and OpenSearch skip the refusal, because the suites that
+	// run the battery enable the mapping; WithoutTypedAttributeIndexing swaps them back.
+	attributeOrderingTest = "ordering_compares_a_numeric_attribute_as_a_number"
+	attributeRefusedTest  = "ordering_an_attribute_is_refused_where_it_is_indexed_as_text"
 )
 
 // Capabilities records what a storage backend *cannot* do in the integration suite. Every
 // field is an opt-out: the zero value runs the whole battery, and a backend lists only the
 // tests or behaviors it cannot satisfy. New fields must keep that polarity, so a backend
 // added later gets full coverage until someone deliberately excuses it from something.
+//
+// A value is an opt-out claim, exactly the opposite of the opt-in storage capability mechanism of
+// ADR-013. An e2e suite may claim more than its direct counterpart, because jaeger-query satisfies
+// tests the backend's own reader would fail.
 type Capabilities struct {
 	// TODO: remove this after all storage backends return spanKind from GetOperations
 	getOperationsMissingSpanKind bool
@@ -46,10 +58,25 @@ func (c Capabilities) SkipList() []string {
 	return c.skipList
 }
 
+// WithoutTypedAttributeIndexing declares a deployment whose indices were created without the
+// typed-attribute mapping (RFC 0015), so that ordering an attribute is refused rather than answered.
+// It swaps which of the battery's two paired ordering cases runs. A suite that runs with the gate
+// off uses it; the ordinary e2e suites enable the gate and do not.
+func (c Capabilities) WithoutTypedAttributeIndexing() Capabilities {
+	swapped := make([]string, 0, len(c.skipList)+1)
+	for _, test := range c.skipList {
+		if test != attributeRefusedTest {
+			swapped = append(swapped, test)
+		}
+	}
+	c.skipList = append(swapped, attributeOrderingTest)
+	return c
+}
+
 // Memory returns the capabilities for the in-process memory storage backend.
 func Memory() Capabilities {
 	return Capabilities{
-		skipList: []string{FindTraceSummariesTest},
+		skipList: []string{findTraceSummariesTest, structuredFilterTest},
 	}
 }
 
@@ -58,7 +85,7 @@ func Memory() Capabilities {
 // summaries natively; the test backend (memory) does not yet.
 func GRPC() Capabilities {
 	return Capabilities{
-		skipList: []string{FindTraceSummariesTest},
+		skipList: []string{findTraceSummariesTest, structuredFilterTest},
 	}
 }
 
@@ -76,7 +103,8 @@ func Cassandra() Capabilities {
 			"Multiple_Traces",
 			scopeAttributesTest,
 			linkAttributesTest,
-			FindTraceSummariesTest,
+			findTraceSummariesTest,
+			structuredFilterTest,
 		},
 	}
 }
@@ -84,7 +112,7 @@ func Cassandra() Capabilities {
 // ClickHouse returns the capabilities for the ClickHouse storage backend.
 func ClickHouse() Capabilities {
 	return Capabilities{
-		skipList: []string{"GetThroughput", "GetLatestProbability", FindTraceSummariesTest},
+		skipList: []string{"GetThroughput", "GetLatestProbability", findTraceSummariesTest, structuredFilterTest},
 	}
 }
 
@@ -94,7 +122,7 @@ func Badger() Capabilities {
 		searchRequiresServiceName: true,
 		// TODO: remove this once Badger supports returning spanKind from GetOperations
 		getOperationsMissingSpanKind: true,
-		skipList:                     []string{scopeAttributesTest, linkAttributesTest, FindTraceSummariesTest},
+		skipList:                     []string{scopeAttributesTest, linkAttributesTest, findTraceSummariesTest, structuredFilterTest},
 	}
 }
 
@@ -104,7 +132,10 @@ func Elasticsearch() Capabilities {
 		// TODO: remove this flag after ES supports returning spanKind
 		//  Issue https://github.com/jaegertracing/jaeger/issues/1923
 		getOperationsMissingSpanKind: true,
-		skipList:                     []string{scopeAttributesTest, linkAttributesTest},
+		// The suite runs with typed attribute indexing enabled (RFC 0015), so an attribute value is
+		// indexed as a number beside the keyword and ordering one is answered rather than refused.
+		// That makes the battery's paired refusal case the one to skip.
+		skipList: []string{scopeAttributesTest, linkAttributesTest, attributeRefusedTest},
 	}
 }
 
@@ -116,6 +147,7 @@ func ElasticsearchSmokeTest() Capabilities {
 		skipList: []string{
 			scopeAttributesTest,
 			linkAttributesTest,
+			structuredFilterTest,
 			"GetLargeTrace",
 			"GetTraceWithDuplicateSpans",
 		},
@@ -126,7 +158,8 @@ func ElasticsearchSmokeTest() Capabilities {
 func OpenSearch() Capabilities {
 	return Capabilities{
 		getOperationsMissingSpanKind: true,
-		skipList:                     []string{scopeAttributesTest, linkAttributesTest},
+		// Same mapping and same gate as Elasticsearch; see the note there.
+		skipList: []string{scopeAttributesTest, linkAttributesTest, attributeRefusedTest},
 	}
 }
 
@@ -135,6 +168,14 @@ func Kafka() Capabilities {
 	return Capabilities{
 		searchRequiresServiceName:    true,
 		getDependenciesMissingSource: true,
-		skipList:                     []string{scopeAttributesTest, linkAttributesTest, FindTraceSummariesTest},
+		skipList:                     []string{scopeAttributesTest, linkAttributesTest, findTraceSummariesTest, structuredFilterTest},
+	}
+}
+
+// E2EWithoutNativeFilters is for an e2e suite whose backend does not evaluate a structured filter
+// itself: the query service rewrites one for it, so the battery is all such a suite excuses.
+func E2EWithoutNativeFilters() Capabilities {
+	return Capabilities{
+		skipList: []string{structuredFilterTest},
 	}
 }

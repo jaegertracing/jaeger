@@ -5,17 +5,16 @@ package tracestore
 
 import (
 	"context"
-	"encoding/hex"
 	"errors"
 	"fmt"
 	"iter"
 	"time"
 
 	"github.com/ClickHouse/clickhouse-go/v2/lib/driver"
-	"go.opentelemetry.io/collector/pdata/pcommon"
 	"go.opentelemetry.io/collector/pdata/ptrace"
 
 	"github.com/jaegertracing/jaeger/internal/cache"
+	"github.com/jaegertracing/jaeger/internal/jptrace"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/clickhouse/sql"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/clickhouse/tracestore/dbmodel"
@@ -40,6 +39,8 @@ type Reader struct {
 	// ClickHouse does not compute trace summaries natively yet; fall back to
 	// FindTraces + client-side aggregation.
 	tracestore.UnsupportedTraceSummaries
+	// SpanSearch is unsupported in ClickHouse for now.
+	tracestore.UnsupportedSpanSearch
 
 	conn          driver.Conn
 	config        ReaderConfig
@@ -229,13 +230,13 @@ func readRowIntoTraceID(rows driver.Rows) ([]tracestore.FoundTraceID, error) {
 		return nil, fmt.Errorf("failed to scan row: %w", err)
 	}
 
-	b, err := hex.DecodeString(traceIDHex)
+	id, err := jptrace.TraceIDFromString(traceIDHex)
 	if err != nil {
 		return nil, fmt.Errorf("failed to decode trace ID: %w", err)
 	}
 
 	traceID := tracestore.FoundTraceID{
-		TraceID: pcommon.TraceID(b),
+		TraceID: id,
 	}
 
 	if !start.IsZero() {
@@ -253,20 +254,21 @@ func readRowIntoTraceID(rows driver.Rows) ([]tracestore.FoundTraceID, error) {
 func (r *Reader) FindTraceIDs(
 	ctx context.Context,
 	query tracestore.TraceQueryParams,
-) iter.Seq2[[]tracestore.FoundTraceID, error] {
-	return func(yield func([]tracestore.FoundTraceID, error) bool) {
+) iter.Seq2[tracestore.PageChunk[[]tracestore.FoundTraceID], error] {
+	return func(yield func(tracestore.PageChunk[[]tracestore.FoundTraceID], error) bool) {
 		q, args, err := r.buildFindTraceIDsQuery(ctx, query)
 		if err != nil {
-			yield(nil, fmt.Errorf("failed to build query: %w", err))
+			yield(tracestore.PageChunk[[]tracestore.FoundTraceID]{}, fmt.Errorf("failed to build query: %w", err))
 			return
 		}
 
 		rows, err := r.conn.Query(ctx, q, args...)
 		if err != nil {
-			yield(nil, fmt.Errorf("failed to query trace IDs: %w", err))
+			yield(tracestore.PageChunk[[]tracestore.FoundTraceID]{}, fmt.Errorf("failed to query trace IDs: %w", err))
 			return
 		}
 
+		// TODO: Populate NextPageToken when ClickHouse supports RFC 0014 pagination.
 		var errs []error
 		for rows.Next() {
 			traceID, scanErr := readRowIntoTraceID(rows)
@@ -274,7 +276,7 @@ func (r *Reader) FindTraceIDs(
 				errs = append(errs, scanErr)
 				break
 			}
-			if !yield(traceID, nil) {
+			if !yield(tracestore.PageChunk[[]tracestore.FoundTraceID]{Results: traceID}, nil) {
 				_ = rows.Close()
 				return
 			}
@@ -286,7 +288,7 @@ func (r *Reader) FindTraceIDs(
 			errs = append(errs, fmt.Errorf("failed to close rows: %w", closeErr))
 		}
 		if err := errors.Join(errs...); err != nil {
-			yield(nil, err)
+			yield(tracestore.PageChunk[[]tracestore.FoundTraceID]{}, err)
 		}
 	}
 }

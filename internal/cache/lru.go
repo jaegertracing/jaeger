@@ -144,6 +144,21 @@ func (c *LRU) Delete(key string) {
 	}
 }
 
+// Clear deletes every key, value pair in the cache
+func (c *LRU) Clear() {
+	c.mux.Lock()
+	defer c.mux.Unlock()
+
+	if c.onEvict != nil {
+		for _, elt := range c.byKey {
+			entry := elt.Value.(*cacheEntry)
+			c.onEvict(entry.key, entry.value)
+		}
+	}
+	c.byAccess.Init()
+	c.byKey = make(map[string]*list.Element)
+}
+
 // Size returns the number of entries currently in the lru, useful if cache is not full
 func (c *LRU) Size() int {
 	c.mux.Lock()

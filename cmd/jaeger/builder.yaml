@@ -101,6 +101,8 @@ connectors:
     import: github.com/jaegertracing/jaeger/components/ext/connector/forwardconnector
   - gomod: github.com/jaegertracing/jaeger v0.0.0
     import: github.com/jaegertracing/jaeger/components/ext/connector/spanmetricsconnector
+  - gomod: github.com/jaegertracing/jaeger v0.0.0
+    import: github.com/jaegertracing/jaeger/components/connector/storageexporter
 
 replaces:
   - github.com/jaegertracing/jaeger v0.0.0 => ../../../

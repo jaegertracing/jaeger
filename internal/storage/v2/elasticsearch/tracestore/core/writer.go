@@ -7,6 +7,7 @@ package core
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"hash/fnv"
 	"strconv"
 	"strings"
@@ -19,12 +20,8 @@ import (
 	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/esclient"
 	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/indices"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/api/spanstore/spanstoremetrics"
+	"github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/elasticsearch/tracestore/core/dbmodel"
-)
-
-const (
-	serviceCacheTTLDefault = 12 * time.Hour
-	indexCacheTTLDefault   = 48 * time.Hour
 )
 
 // SpanWriter writes spans and their service:operation pairs through an
@@ -56,26 +53,23 @@ type Writer interface {
 
 // SpanWriterParams holds constructor parameters for NewSpanWriter. BatchWriter is
 // the destination for assembled documents; the factory supplies the async or
-// synchronous implementation, so the writer stays mode-agnostic.
+// synchronous implementation, so the writer stays mode-agnostic. ServiceOperations
+// carries the service:operation dedup cache and is owned by the factory rather than
+// the writer, so that Purge can clear it.
 type SpanWriterParams struct {
 	BatchWriter       esclient.BatchWriter
 	Logger            *zap.Logger
 	MetricsFactory    metrics.Factory
+	ServiceOperations *ServiceOperationStorage
 	AllTagsAsFields   bool
 	TagKeysAsFields   []string
 	TagDotReplacement string
-	ServiceCacheTTL   time.Duration
 	SpanRotation      indices.Rotation
 	ServiceRotation   indices.Rotation
 }
 
 // NewSpanWriter creates a new SpanWriter for use
 func NewSpanWriter(p SpanWriterParams) *SpanWriter {
-	serviceCacheTTL := p.ServiceCacheTTL
-	if p.ServiceCacheTTL == 0 {
-		serviceCacheTTL = serviceCacheTTLDefault
-	}
-
 	tags := map[string]bool{}
 	for _, k := range p.TagKeysAsFields {
 		tags[k] = true
@@ -83,7 +77,7 @@ func NewSpanWriter(p SpanWriterParams) *SpanWriter {
 
 	return &SpanWriter{
 		batchWriter:       p.BatchWriter,
-		serviceOp:         NewServiceOperationStorage(nil, p.Logger, serviceCacheTTL), // write-only: no searcher
+		serviceOp:         p.ServiceOperations,
 		logger:            p.Logger,
 		writerMetrics:     spanstoremetrics.NewWriter(p.MetricsFactory, "spans"),
 		spanRotation:      p.SpanRotation,
@@ -101,6 +95,10 @@ func NewSpanWriter(p SpanWriterParams) *SpanWriter {
 func (s *SpanWriter) WriteSpans(ctx context.Context, spans []dbmodel.Span) error {
 	items := make([]esclient.BulkItem, 0, len(spans))
 	serviceOps := newServiceOperationBatch(s.serviceOp)
+	// itemIDToSpan maps each document's _id to the span behind it, nil for a
+	// service:operation lookup document. It lets a per-document rejection reported
+	// by the batch writer be attributed back to the span it concerns (RFC 0007 §4.8).
+	itemIDToSpan := make(map[string]*dbmodel.Span, len(spans))
 	for i := range spans {
 		span := &spans[i]
 		s.writerMetrics.Attempts.Inc(1)
@@ -109,6 +107,7 @@ func (s *SpanWriter) WriteSpans(ctx context.Context, spans []dbmodel.Span) error
 		// Service:operation pair doc, deduped to one doc per batch unless already cached.
 		if item, ok := serviceOps.toUpsertItem(s.serviceRotation.WriteTarget(spanStartTime), span); ok {
 			items = append(items, item)
+			itemIDToSpan[item.ID] = nil
 		}
 
 		// Span doc.
@@ -125,14 +124,88 @@ func (s *SpanWriter) WriteSpans(ctx context.Context, spans []dbmodel.Span) error
 			continue
 		}
 		items = append(items, item)
+		itemIDToSpan[item.ID] = span
 	}
 
-	if err := s.batchWriter.WriteBatch(ctx, items); err != nil {
+	err := s.batchWriter.WriteBatch(ctx, items)
+	if err != nil {
+		err = s.attributeRejections(err, itemIDToSpan)
+	}
+	if batchSettled(err) {
+		// The batch will not be written again: every document other than the
+		// reported poison spans is durable (or enqueued, in async mode), so the
+		// service docs are cached. That includes a service:operation document that
+		// the backend rejected with a terminal error: sending it again would only
+		// fail again.
+		serviceOps.commitToCache()
+	}
+	return err
+}
+
+// batchSettled reports whether the batch will not be written again: it succeeded,
+// or its only failures were terminal rejections attributed to spans, which the
+// caller re-routes rather than retries. A transient failure or an unidentified
+// document means a retry, and the service cache waits for it.
+func batchSettled(err error) bool {
+	if err == nil {
+		return true
+	}
+	var rejected *tracestore.RejectedSpansError
+	return errors.As(err, &rejected) && !rejected.Transient && rejected.Unidentified == 0
+}
+
+// attributeRejections turns a batch writer error that lists terminally-rejected
+// documents into a tracestore.RejectedSpansError naming the spans concerned, so a
+// caller can re-route them without knowing the document layout. Any other error is
+// returned as is. A rejected service:operation lookup document is logged and not
+// reported: the spans it indexes are stored, and the pair is cached like any other
+// once the batch completes, so the document is not re-sent to be rejected again
+// until the writer restarts. A batch whose only terminal rejections are lookup
+// documents therefore succeeds. A rejected document whose _id is not in
+// itemIDToSpan is counted as unidentified, because it could be a span. An error
+// with no terminal rejections (a transport failure, or only transient rejections)
+// is returned as is.
+//
+// Documents are matched by _id alone: the bulk response names the concrete backing
+// index behind a write alias or data stream, not the index the item was sent to,
+// and ids cannot collide across the two document kinds (a span's is
+// traceID_spanID_hash, a lookup's a hash).
+func (s *SpanWriter) attributeRejections(err error, itemIDToSpan map[string]*dbmodel.Span) error {
+	var bulkErr *esclient.BulkWriteError
+	if !errors.As(err, &bulkErr) || len(bulkErr.Terminal) == 0 {
 		return err
 	}
-	// Durable now (or enqueued, in async mode): safe to remember the service docs.
-	serviceOps.commitToCache()
-	return nil
+	rejected := &tracestore.RejectedSpansError{Transient: bulkErr.Transient, Err: err}
+	for _, item := range bulkErr.Terminal {
+		span, ok := itemIDToSpan[item.ID]
+		if !ok {
+			rejected.Unidentified++
+			continue
+		}
+		if span != nil {
+			traceID, terr := span.TraceID.ToOTEL()
+			spanID, serr := span.SpanID.ToOTEL()
+			if terr != nil || serr != nil {
+				// Spans produced by ToDBModel carry valid hex ids, so this should not
+				// happen; treat it as unidentified rather than lose the span.
+				rejected.Unidentified++
+				continue
+			}
+			rejected.Spans = append(rejected.Spans, tracestore.RejectedSpan{TraceID: traceID, SpanID: spanID, Reason: item.Reason})
+			continue
+		}
+		s.logger.Warn("service:operation lookup document rejected by the backend; its spans are stored and the pair is not re-sent until restart",
+			zap.String("id", item.ID), zap.Int("status", item.Status), zap.String("reason", item.Reason))
+	}
+	if len(rejected.Spans) == 0 && rejected.Unidentified == 0 {
+		// The only terminal rejections were lookup documents. Every span is stored, so
+		// the batch is complete unless transient failures still call for a retry.
+		if rejected.Transient {
+			return err
+		}
+		return nil
+	}
+	return rejected
 }
 
 func (s *SpanWriter) convertNestedTagsToFieldTags(span *dbmodel.Span) {

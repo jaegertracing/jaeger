@@ -25,6 +25,7 @@ import (
 	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerquery/querysvc"
+	"github.com/jaegertracing/jaeger/components/extension/jaegerquery/queryinterceptor"
 	"github.com/jaegertracing/jaeger/internal/proto/api_v3"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/api/spanstore"
 	dependencystoremocks "github.com/jaegertracing/jaeger/internal/storage/v2/api/depstore/mocks"
@@ -43,8 +44,8 @@ func setupHTTPGatewayNoServer(
 	// The mock reader models a backend without native trace summaries: FindTraceSummaries
 	// yields ErrUnsupported so the query service falls back to FindTraces + aggregation.
 	gw.reader.On("FindTraceSummaries", mock.Anything, mock.Anything).
-		Return(iter.Seq2[[]tracestore.TraceSummary, error](func(yield func([]tracestore.TraceSummary, error) bool) {
-			yield(nil, fmt.Errorf("unsupported: %w", errors.ErrUnsupported))
+		Return(iter.Seq2[tracestore.PageChunk[[]tracestore.TraceSummary], error](func(yield func(tracestore.PageChunk[[]tracestore.TraceSummary], error) bool) {
+			yield(tracestore.PageChunk[[]tracestore.TraceSummary]{}, fmt.Errorf("unsupported: %w", errors.ErrUnsupported))
 		})).Maybe()
 
 	// The baseline: a backend that requires a service name. Only service-less searches ask.
@@ -114,6 +115,10 @@ func TestHTTPGatewayTryHandleError(t *testing.T) {
 	assert.True(t, gw.tryHandleError(w, querysvc.ErrServiceNameRequired, http.StatusInternalServerError))
 	assert.Equal(t, http.StatusBadRequest, w.Code, "sets status code to 400")
 	assert.Contains(t, w.Body.String(), "requires a service name", "explains the limitation")
+
+	w = httptest.NewRecorder()
+	assert.True(t, gw.tryHandleError(w, fmt.Errorf("denied: %w", queryinterceptor.ErrAccessDenied), http.StatusInternalServerError))
+	assert.Equal(t, http.StatusForbidden, w.Code, "ErrAccessDenied maps to 403")
 
 	logger, log := testutils.NewLogger()
 	gw.Logger = logger
@@ -432,9 +437,9 @@ func mockFindQueries() (url.Values, tracestore.TraceQueryParams) {
 }
 
 func TestHTTPGatewayFindTracesErrors(t *testing.T) {
-	t.Run("parse error returns 400", func(t *testing.T) {
-		// Detailed parse error cases are covered by TestParseFindTracesQuery.
-		// Here we only verify that any parse error is propagated as HTTP 400.
+	t.Run("missing time range returns 400", func(t *testing.T) {
+		// The refusal comes from the query service, not the parser; the gateway has to report it
+		// as a bad request rather than a server fault.
 		r, err := http.NewRequest(http.MethodGet, "/api/v3/traces", http.NoBody)
 		require.NoError(t, err)
 		w := httptest.NewRecorder()
@@ -442,7 +447,7 @@ func TestHTTPGatewayFindTracesErrors(t *testing.T) {
 		gw := setupHTTPGatewayNoServer(t, "")
 		gw.router.ServeHTTP(w, r)
 		assert.Equal(t, http.StatusBadRequest, w.Code)
-		assert.Contains(t, w.Body.String(), "query.startTimeMin and query.startTimeMax are required")
+		assert.Contains(t, w.Body.String(), "min and max start time are required")
 	})
 	t.Run("span reader error", func(t *testing.T) {
 		q, qp := mockFindQueries()
@@ -480,7 +485,7 @@ func TestHTTPGatewayFindTracesAttributes(t *testing.T) {
 			return qp.ServiceName == "svc" &&
 				qp.StartTimeMin.Equal(tMin) &&
 				qp.StartTimeMax.Equal(tMax) &&
-				qp.SearchDepth == defaultSearchDepth &&
+				qp.SearchDepth == querysvc.DefaultSearchDepth &&
 				qp.Attributes.Len() == 2 &&
 				ok1 && v1.AsString() == "200" &&
 				ok2 && v2.AsString() == "true"
@@ -594,19 +599,26 @@ func TestJSONPBFixed64AsDecimalString(t *testing.T) {
 func TestHTTPGatewayFindTraceSummaries(t *testing.T) {
 	q, qp := mockFindQueries()
 	gw := setupHTTPGatewayNoServer(t, "")
-
-	trace := makeTestTrace()
-	// Ensure the trace has a root span (no parent) so summarizeTrace populates root fields.
-	rs := trace.ResourceSpans().At(0)
-	rs.Resource().Attributes().PutStr("service.name", "frontend")
-	span := rs.ScopeSpans().At(0).Spans().At(0)
-	span.SetName("HTTP GET /")
-	span.SetParentSpanID(pcommon.SpanID{}) // explicit root
+	gw.reader.ExpectedCalls = nil
 
 	gw.reader.
-		On("FindTraces", matchContext, qp).
-		Return(iter.Seq2[[]ptrace.Traces, error](func(yield func([]ptrace.Traces, error) bool) {
-			yield([]ptrace.Traces{trace}, nil)
+		On("FindTraceSummaries", matchContext, qp).
+		Return(iter.Seq2[tracestore.PageChunk[[]tracestore.TraceSummary], error](func(yield func(tracestore.PageChunk[[]tracestore.TraceSummary], error) bool) {
+			yield(tracestore.PageChunk[[]tracestore.TraceSummary]{
+				Results: []tracestore.TraceSummary{{
+					RootServiceName:   "frontend",
+					RootOperationName: "HTTP GET /",
+					SpanCount:         1,
+				}},
+			}, nil)
+			yield(tracestore.PageChunk[[]tracestore.TraceSummary]{
+				Results: []tracestore.TraceSummary{{
+					RootServiceName:   "backend",
+					RootOperationName: "SELECT",
+					SpanCount:         2,
+				}},
+				NextPageToken: "next-page",
+			}, nil)
 		})).Once()
 
 	r, err := http.NewRequest(http.MethodGet, "/api/v3/trace-summaries?"+q.Encode(), http.NoBody)
@@ -617,10 +629,14 @@ func TestHTTPGatewayFindTraceSummaries(t *testing.T) {
 	require.Equal(t, http.StatusOK, w.Code)
 	var resp api_v3.FindTraceSummariesResponse
 	require.NoError(t, jsonpb.Unmarshal(w.Body, &resp))
-	require.Len(t, resp.Summaries, 1)
+	require.Len(t, resp.Summaries, 2)
 	assert.Equal(t, "frontend", resp.Summaries[0].RootServiceName)
 	assert.Equal(t, "HTTP GET /", resp.Summaries[0].RootOperationName)
 	assert.Equal(t, int32(1), resp.Summaries[0].SpanCount)
+	assert.Equal(t, "backend", resp.Summaries[1].RootServiceName)
+	assert.Equal(t, "SELECT", resp.Summaries[1].RootOperationName)
+	assert.Equal(t, int32(2), resp.Summaries[1].SpanCount)
+	assert.Equal(t, "next-page", resp.GetNextPageToken())
 }
 
 func TestHTTPGatewayFindTraceSummariesError(t *testing.T) {
@@ -649,7 +665,130 @@ func TestHTTPGatewayFindTraceSummariesInvalidQuery(t *testing.T) {
 	gw.router.ServeHTTP(w, r)
 
 	assert.Equal(t, http.StatusBadRequest, w.Code)
-	assert.Contains(t, w.Body.String(), "query.startTimeMin and query.startTimeMax are required")
+	assert.Contains(t, w.Body.String(), "min and max start time are required")
+}
+
+// mockFindSpansQuery builds the query params for a well-formed span search, and the equivalent
+// tracestore.SpanQueryParams the reader should be dispatched: the caller sent no pagination, so
+// the query service fills in the default page size on the way through.
+func mockFindSpansQuery() (url.Values, tracestore.SpanQueryParams) {
+	tMin := time.Now().Add(-time.Hour).UTC().Truncate(time.Nanosecond)
+	tMax := time.Now().UTC().Truncate(time.Nanosecond)
+	q := url.Values{}
+	q.Set("query.startTimeMin", tMin.Format(time.RFC3339Nano))
+	q.Set("query.startTimeMax", tMax.Format(time.RFC3339Nano))
+
+	return q, tracestore.SpanQueryParams{
+		StartTimeMin: tMin,
+		StartTimeMax: tMax,
+		Pagination:   tracestore.Pagination{PageSize: querysvc.DefaultPageSize},
+	}
+}
+
+func TestHTTPGatewayFindSpans(t *testing.T) {
+	q, qp := mockFindSpansQuery()
+	gw := setupHTTPGatewayNoServer(t, "")
+	gw.reader.ExpectedCalls = nil
+	gw.reader.On("SearchCapabilities", mock.Anything).
+		Return(tracestore.SearchCapabilities{SpanSearch: true}, nil).Maybe()
+	gw.reader.
+		On("FindSpans", matchContext, qp).
+		Return(iter.Seq2[tracestore.PageChunk[ptrace.Traces], error](func(yield func(tracestore.PageChunk[ptrace.Traces], error) bool) {
+			yield(tracestore.PageChunk[ptrace.Traces]{Results: makeTestTrace()}, nil)
+			yield(tracestore.PageChunk[ptrace.Traces]{Results: ptrace.NewTraces(), NextPageToken: "next-page"}, nil)
+		})).Once()
+
+	r, err := http.NewRequest(http.MethodGet, "/api/v3/spans?"+q.Encode(), http.NoBody)
+	require.NoError(t, err)
+	w := httptest.NewRecorder()
+	gw.router.ServeHTTP(w, r)
+
+	require.Equal(t, http.StatusOK, w.Code)
+	// RFC 0018 §6.1: FindSpans has no proto message typed to carry it as GRPCGatewayWrapper.Result
+	// does for the trace endpoints, so the buffered response is wrapped at the JSON level.
+	var wrapper struct {
+		Result json.RawMessage `json:"result"`
+	}
+	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &wrapper))
+	var resp api_v3.FindSpansResponse
+	require.NoError(t, jsonpb.Unmarshal(bytes.NewReader(wrapper.Result), &resp))
+	assert.Equal(t, 1, resp.GetSpans().ToTraces().SpanCount())
+	assert.Equal(t, "next-page", resp.GetNextPageToken())
+}
+
+func TestHTTPGatewayFindSpansError(t *testing.T) {
+	q, qp := mockFindSpansQuery()
+	gw := setupHTTPGatewayNoServer(t, "")
+	gw.reader.ExpectedCalls = nil
+	gw.reader.On("SearchCapabilities", mock.Anything).
+		Return(tracestore.SearchCapabilities{SpanSearch: true}, nil).Maybe()
+	gw.reader.
+		On("FindSpans", matchContext, qp).
+		Return(iter.Seq2[tracestore.PageChunk[ptrace.Traces], error](func(yield func(tracestore.PageChunk[ptrace.Traces], error) bool) {
+			yield(tracestore.PageChunk[ptrace.Traces]{}, assert.AnError)
+		})).Once()
+
+	r, err := http.NewRequest(http.MethodGet, "/api/v3/spans?"+q.Encode(), http.NoBody)
+	require.NoError(t, err)
+	w := httptest.NewRecorder()
+	gw.router.ServeHTTP(w, r)
+	assert.Equal(t, http.StatusInternalServerError, w.Code)
+	assert.Contains(t, w.Body.String(), assert.AnError.Error())
+}
+
+func TestHTTPGatewayFindSpansUnsupported(t *testing.T) {
+	q, _ := mockFindSpansQuery()
+	gw := setupHTTPGatewayNoServer(t, "")
+
+	r, err := http.NewRequest(http.MethodGet, "/api/v3/spans?"+q.Encode(), http.NoBody)
+	require.NoError(t, err)
+	w := httptest.NewRecorder()
+	gw.router.ServeHTTP(w, r)
+	assert.Equal(t, http.StatusBadRequest, w.Code)
+	assert.Contains(t, w.Body.String(), "does not declare span search support")
+}
+
+func TestHTTPGatewayFindSpansInvalidQuery(t *testing.T) {
+	gw := setupHTTPGatewayNoServer(t, "")
+	r := httptest.NewRequest(http.MethodGet, "/api/v3/spans", http.NoBody)
+	w := httptest.NewRecorder()
+
+	gw.router.ServeHTTP(w, r)
+
+	assert.Equal(t, http.StatusBadRequest, w.Code)
+	assert.Contains(t, w.Body.String(), "start_time_min and start_time_max are required")
+}
+
+// TestHTTPGatewayFindSpansMalformedQuery pins the parser's own 400, as distinct from a
+// querysvc-level refusal (TestHTTPGatewayFindSpansInvalidQuery): a query string the parser
+// itself cannot read never reaches the query service at all.
+func TestHTTPGatewayFindSpansMalformedQuery(t *testing.T) {
+	q, _ := mockFindSpansQuery()
+	q.Set("query.filter", `{"op":"eq",`)
+	gw := setupHTTPGatewayNoServer(t, "")
+
+	r := httptest.NewRequest(http.MethodGet, "/api/v3/spans?"+q.Encode(), http.NoBody)
+	w := httptest.NewRecorder()
+
+	gw.router.ServeHTTP(w, r)
+
+	assert.Equal(t, http.StatusBadRequest, w.Code)
+	assert.Contains(t, w.Body.String(), "malformed parameter query.filter")
+}
+
+// TestHTTPGatewayFindSpansPaginationRefusal pins that a pagination refusal decided in the query
+// service (here, the feature gate) reaches the HTTP caller as a 400, not a 500.
+func TestHTTPGatewayFindSpansPaginationRefusal(t *testing.T) {
+	q, _ := mockFindSpansQuery()
+	q.Set("query.pagination.pageToken", "opaque-cursor")
+	gw := setupHTTPGatewayNoServer(t, "")
+
+	r, err := http.NewRequest(http.MethodGet, "/api/v3/spans?"+q.Encode(), http.NoBody)
+	require.NoError(t, err)
+	w := httptest.NewRecorder()
+	gw.router.ServeHTTP(w, r)
+	assert.Equal(t, http.StatusBadRequest, w.Code)
+	assert.Contains(t, w.Body.String(), querysvc.PaginationGate.ID())
 }
 
 func TestTraceIDFromString(t *testing.T) {

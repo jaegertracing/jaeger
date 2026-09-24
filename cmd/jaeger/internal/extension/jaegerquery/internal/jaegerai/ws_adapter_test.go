@@ -15,6 +15,7 @@ import (
 	"github.com/gorilla/websocket"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.opentelemetry.io/collector/config/configopaque"
 	"go.uber.org/zap"
 )
 
@@ -148,7 +149,7 @@ func TestDialWsAdapterSuccess(t *testing.T) {
 	defer server.Close()
 
 	wsURL := "ws" + strings.TrimPrefix(server.URL, "http")
-	adapter, err := DialWsAdapter(context.Background(), wsURL, zap.NewNop())
+	adapter, err := DialWsAdapter(context.Background(), wsURL, nil, zap.NewNop())
 	require.NoError(t, err, "DialWsAdapter should succeed")
 	require.NoError(t, adapter.Close(), "close should succeed")
 }
@@ -156,7 +157,7 @@ func TestDialWsAdapterSuccess(t *testing.T) {
 func TestDialWsAdapterFailure(t *testing.T) {
 	t.Parallel()
 
-	_, err := DialWsAdapter(context.Background(), "ws://127.0.0.1:1", zap.NewNop())
+	_, err := DialWsAdapter(context.Background(), "ws://127.0.0.1:1", nil, zap.NewNop())
 	require.Error(t, err, "DialWsAdapter should fail for unreachable host")
 }
 
@@ -171,7 +172,7 @@ func TestDialWsAdapterHTTPErrorLogsResponse(t *testing.T) {
 	defer server.Close()
 
 	wsURL := "ws" + strings.TrimPrefix(server.URL, "http")
-	_, err := DialWsAdapter(context.Background(), wsURL, zap.NewNop())
+	_, err := DialWsAdapter(context.Background(), wsURL, nil, zap.NewNop())
 	require.Error(t, err, "DialWsAdapter should fail when server rejects upgrade")
 	require.Contains(t, err.Error(), "websocket dial")
 }
@@ -508,4 +509,64 @@ func TestWsReadWriteCloserFragmentedMessageIsOneLine(t *testing.T) {
 
 	assert.Greater(t, reads, 1, "a fragmented message must span multiple Read calls")
 	assert.Equal(t, payload+"\n", got.String())
+}
+
+// Agents that require authentication name their own header, so whatever is
+// configured must reach the upgrade request verbatim.
+func TestDialWsAdapterSendsConfiguredHeaders(t *testing.T) {
+	t.Parallel()
+
+	gotHeaders := make(chan http.Header, 1)
+	upgrader := websocket.Upgrader{CheckOrigin: func(*http.Request) bool { return true }}
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotHeaders <- r.Header.Clone()
+		conn, err := upgrader.Upgrade(w, r, nil)
+		if err != nil {
+			return
+		}
+		defer conn.Close()
+		_, _, _ = conn.ReadMessage()
+	}))
+	defer server.Close()
+
+	var headers configopaque.MapList
+	headers.Set("X-Secret-Key", "s3cret")
+	headers.Set("Authorization", "Bearer t0ken")
+
+	wsURL := "ws" + strings.TrimPrefix(server.URL, "http")
+	adapter, err := DialWsAdapter(context.Background(), wsURL, headers, zap.NewNop())
+	require.NoError(t, err, "dial should succeed")
+	defer adapter.Close()
+
+	received := <-gotHeaders
+	assert.Equal(t, "s3cret", received.Get("X-Secret-Key"))
+	assert.Equal(t, "Bearer t0ken", received.Get("Authorization"))
+}
+
+// The common deployment configures nothing, so an empty config must dial
+// exactly as before rather than sending an empty header block.
+func TestDialWsAdapterWithoutHeaders(t *testing.T) {
+	t.Parallel()
+
+	gotHeaders := make(chan http.Header, 1)
+	upgrader := websocket.Upgrader{CheckOrigin: func(*http.Request) bool { return true }}
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotHeaders <- r.Header.Clone()
+		conn, err := upgrader.Upgrade(w, r, nil)
+		if err != nil {
+			return
+		}
+		defer conn.Close()
+		_, _, _ = conn.ReadMessage()
+	}))
+	defer server.Close()
+
+	wsURL := "ws" + strings.TrimPrefix(server.URL, "http")
+	adapter, err := DialWsAdapter(context.Background(), wsURL, nil, zap.NewNop())
+	require.NoError(t, err, "dial should succeed")
+	defer adapter.Close()
+
+	received := <-gotHeaders
+	assert.Empty(t, received.Get("X-Secret-Key"))
+	assert.Empty(t, received.Get("Authorization"))
 }

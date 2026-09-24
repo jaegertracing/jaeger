@@ -6,6 +6,7 @@ package grpc
 import (
 	"context"
 	"errors"
+	"iter"
 	"net"
 	"testing"
 	"time"
@@ -27,17 +28,29 @@ import (
 	"github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore"
 )
 
+func flattenPageChunks[T any](seq iter.Seq2[tracestore.PageChunk[[]T], error]) ([]T, error) {
+	var results []T
+	for chunk, err := range seq {
+		if err != nil {
+			return nil, err
+		}
+		results = append(results, chunk.Results...)
+	}
+	return results, nil
+}
+
 // testServer implements the storage.TraceReaderServer interface
 // to simulate responses for testing.
 type testServer struct {
 	storage.UnimplementedTraceReaderServer
 
-	traces     []*jptrace.TracesData
-	services   []string
-	operations []*storage.Operation
-	traceIDs   []*storage.FoundTraceID
-	summaries  []*storage.TraceSummary
-	err        error
+	traces        []*jptrace.TracesData
+	services      []string
+	operations    []*storage.Operation
+	traceIDs      []*storage.FoundTraceID
+	summaries     []*storage.TraceSummary
+	nextPageToken string
+	err           error
 }
 
 func (ts *testServer) GetTraces(_ *storage.GetTracesRequest, s storage.TraceReader_GetTracesServer) error {
@@ -80,7 +93,8 @@ func (ts *testServer) FindTraceIDs(
 	*storage.FindTraceIDsRequest,
 ) (*storage.FindTraceIDsResponse, error) {
 	return &storage.FindTraceIDsResponse{
-		TraceIds: ts.traceIDs,
+		TraceIds:      ts.traceIDs,
+		NextPageToken: ts.nextPageToken,
 	}, ts.err
 }
 
@@ -92,7 +106,10 @@ func (ts *testServer) FindTraceSummaries(
 		return ts.err
 	}
 	if len(ts.summaries) > 0 {
-		return s.Send(&storage.FindTraceSummariesResponse{Summaries: ts.summaries})
+		return s.Send(&storage.FindTraceSummariesResponse{
+			Summaries:     ts.summaries,
+			NextPageToken: ts.nextPageToken,
+		})
 	}
 	return nil
 }
@@ -471,6 +488,7 @@ func TestTraceReader_FindTraceIDs(t *testing.T) {
 		{
 			name: "success",
 			testServer: &testServer{
+				nextPageToken: "next-page",
 				traceIDs: []*storage.FoundTraceID{
 					{
 						TraceId: []byte{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16},
@@ -554,14 +572,17 @@ func TestTraceReader_FindTraceIDs(t *testing.T) {
 
 			reader := NewTraceReader(conn)
 
-			foundIDsIter := reader.FindTraceIDs(context.Background(), test.queryParams)
-			foundIDs, err := jiter.FlattenWithErrors(foundIDsIter)
+			chunks, err := jiter.CollectWithErrors(reader.FindTraceIDs(context.Background(), test.queryParams))
 
 			if test.expectedError != "" {
 				require.ErrorContains(t, err, test.expectedError)
 			} else {
 				require.NoError(t, err)
-				require.Equal(t, test.expectedIDs, foundIDs)
+				require.Len(t, chunks, 1)
+				require.Equal(t, test.expectedIDs, chunks[0].Results)
+				if test.name == "success" {
+					assert.Equal(t, "next-page", chunks[0].NextPageToken)
+				}
 			}
 		})
 	}
@@ -738,16 +759,17 @@ func TestTraceReader_FindTraceSummaries_Success(t *testing.T) {
 			},
 		},
 	}
-	ts := &testServer{summaries: wantSummaries}
+	ts := &testServer{summaries: wantSummaries, nextPageToken: "next-page"}
 	conn := startTestServer(t, ts)
 	reader := NewTraceReader(conn)
 
 	var got []tracestore.TraceSummary
-	for batch, err := range reader.FindTraceSummaries(context.Background(), tracestore.TraceQueryParams{
+	for chunk, err := range reader.FindTraceSummaries(context.Background(), tracestore.TraceQueryParams{
 		Attributes: pcommon.NewMap(),
 	}) {
 		require.NoError(t, err)
-		got = append(got, batch...)
+		assert.Equal(t, "next-page", chunk.NextPageToken)
+		got = append(got, chunk.Results...)
 	}
 	require.Len(t, got, 1)
 	assert.Equal(t, pcommon.TraceID([16]byte{1}), got[0].TraceID)
@@ -867,6 +889,7 @@ func TestTraceReader_SearchCapabilities(t *testing.T) {
 								Levels:    []string{"span", "resource"},
 								Operators: []string{"and", "eq", "regex"},
 							},
+							Paginated: true,
 						},
 					},
 				})
@@ -878,6 +901,7 @@ func TestTraceReader_SearchCapabilities(t *testing.T) {
 					Levels:    []expression.Level{expression.LevelSpan, expression.LevelResource},
 					Operators: []expression.Operator{expression.OpAnd, expression.OpEq, expression.OpRegex},
 				},
+				Paginated: true,
 			},
 		},
 		{
@@ -982,14 +1006,14 @@ func TestTraceReader_RefusesUnencodableFilter(t *testing.T) {
 		{
 			name: "FindTraceIDs",
 			call: func() error {
-				_, err := jiter.FlattenWithErrors(reader.FindTraceIDs(context.Background(), params))
+				_, err := flattenPageChunks(reader.FindTraceIDs(context.Background(), params))
 				return err
 			},
 		},
 		{
 			name: "FindTraceSummaries",
 			call: func() error {
-				_, err := jiter.FlattenWithErrors(reader.FindTraceSummaries(context.Background(), params))
+				_, err := flattenPageChunks(reader.FindTraceSummaries(context.Background(), params))
 				return err
 			},
 		},
@@ -1003,4 +1027,28 @@ func TestTraceReader_RefusesUnencodableFilter(t *testing.T) {
 			assert.ErrorContains(t, err, "cannot send the query filter")
 		})
 	}
+}
+
+func TestToProtoQueryParameters_SearchDepth(t *testing.T) {
+	t.Run("zero and max encode as-is", func(t *testing.T) {
+		for _, depth := range []int{0, 1, tracestore.MaxSearchDepth} {
+			got, err := toProtoQueryParameters(tracestore.TraceQueryParams{
+				Attributes:  pcommon.NewMap(),
+				SearchDepth: depth,
+			})
+			require.NoError(t, err)
+			assert.Equal(t, int32(depth), got.GetSearchDepth())
+		}
+	})
+
+	t.Run("negative and above max are refused", func(t *testing.T) {
+		for _, depth := range []int{-1, tracestore.MaxSearchDepth + 1} {
+			_, err := toProtoQueryParameters(tracestore.TraceQueryParams{
+				Attributes:  pcommon.NewMap(),
+				SearchDepth: depth,
+			})
+			require.Error(t, err)
+			assert.ErrorContains(t, err, "SearchDepth must be in [0,")
+		}
+	})
 }

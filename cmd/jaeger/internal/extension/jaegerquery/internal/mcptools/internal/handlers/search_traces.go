@@ -21,7 +21,7 @@ import (
 
 // queryServiceInterface defines the interface we need from QueryService for testing.
 type queryServiceInterface interface {
-	FindTraceSummaries(ctx context.Context, query querysvc.TraceQueryParams) iter.Seq2[[]tracestore.TraceSummary, error]
+	FindTraceSummaries(ctx context.Context, query querysvc.TraceQueryParams) iter.Seq2[querysvc.PageChunk[[]tracestore.TraceSummary], error]
 }
 
 // searchTracesHandler implements the search_traces MCP tool.
@@ -60,13 +60,13 @@ func (h *searchTracesHandler) handle(
 	var processErrs []error
 
 outer:
-	for batch, err := range h.queryService.FindTraceSummaries(ctx, query) {
+	for chunk, err := range h.queryService.FindTraceSummaries(ctx, query) {
 		if err != nil {
 			processErrs = append(processErrs, err)
 			break
 		}
-		for i := range batch {
-			summaries = append(summaries, toMCPTraceSummary(batch[i]))
+		for i := range chunk.Results {
+			summaries = append(summaries, toMCPTraceSummary(chunk.Results[i]))
 			if h.maxResults > 0 && len(summaries) >= h.maxResults {
 				break outer
 			}
@@ -138,10 +138,8 @@ func (h *searchTracesHandler) buildQuery(input types.SearchTracesInput) (querysv
 		maxStartTime = time.Now()
 	}
 
-	if !maxStartTime.IsZero() && maxStartTime.Before(minStartTime) {
-		return querysvc.TraceQueryParams{}, errors.New("start_time_max must be after start_time_min")
-	}
-
+	// Whether the time range and the duration bounds are ordered is the query service's
+	// decision, so only what this tool cannot hand over unparsed is checked here.
 	var durationMin, durationMax time.Duration
 	if input.DurationMin != "" {
 		durationMin, err = time.ParseDuration(input.DurationMin)
@@ -156,16 +154,13 @@ func (h *searchTracesHandler) buildQuery(input types.SearchTracesInput) (querysv
 		}
 	}
 
-	if durationMin > 0 && durationMax > 0 && durationMax < durationMin {
-		return querysvc.TraceQueryParams{}, errors.New("duration_max must be greater than duration_min")
-	}
-
+	// An agent reads small pages, so the tool's own default is lower than the query service's.
 	const defaultSearchDepth = 10
 	searchDepth := input.SearchDepth
 	if searchDepth <= 0 {
 		searchDepth = defaultSearchDepth
 	}
-	if searchDepth > h.maxResults {
+	if h.maxResults > 0 && searchDepth > h.maxResults {
 		searchDepth = h.maxResults
 	}
 

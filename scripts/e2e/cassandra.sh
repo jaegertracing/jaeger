@@ -16,7 +16,7 @@ export CASSANDRA_CREATE_SCHEMA=${SKIP_APPLY_SCHEMA}
 
 usage() {
   echo $"Usage: $0 <cassandra_version> <schema_version> <storage_test>"
-  echo "  storage_test: direct | e2e"
+  echo "  storage_test: direct | e2e | compat"
   exit 1
 }
 
@@ -112,8 +112,10 @@ run_integration_test() {
     STORAGE=cassandra make storage-integration-test
   elif [ "${storageTest}" == "e2e" ]; then
     STORAGE=cassandra make jaeger-v2-storage-integration-test
+  elif [ "${storageTest}" == "compat" ]; then
+    STORAGE=cassandra make jaeger-v2-backward-compatibility-test
   else
-    echo "Unknown storage_test value $storageTest. Valid options are direct or e2e"
+    echo "Unknown storage_test value $storageTest. Valid options are direct, e2e or compat"
     exit 1
   fi
   success="true"

@@ -11,6 +11,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	expression "github.com/jaegertracing/jaeger-idl/query/expression/v1"
+	"github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore"
 )
 
 // mustFromProto decodes a filter that is expected to be well formed.
@@ -152,7 +153,7 @@ func TestTimeConstantsTravelUnhinted(t *testing.T) {
 			decoded := mustFromProto(t, encoded)
 			assert.Equal(t, test.decoded, decoded.Args[1])
 
-			resolved, err := expression.ResolveConstants(decoded)
+			resolved, err := tracestore.ResolveFilterConstants(decoded)
 			require.NoError(t, err)
 			assert.Equal(t, filter, resolved)
 		})

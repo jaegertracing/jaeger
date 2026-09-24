@@ -343,12 +343,14 @@ func TestHandler_FindTraceIDs(t *testing.T) {
 	tests := []struct {
 		name             string
 		traceIDs         []tracestore.FoundTraceID
+		nextPageToken    string
 		expectedTraceIDs []*storage.FoundTraceID
 		findTraceIDsErr  error
 		expectedErr      error
 	}{
 		{
-			name: "success",
+			name:          "success",
+			nextPageToken: "next-page",
 			traceIDs: []tracestore.FoundTraceID{
 				{
 					TraceID: traceIDA,
@@ -391,8 +393,11 @@ func TestHandler_FindTraceIDs(t *testing.T) {
 		writer := new(tracestoremocks.Writer)
 		depReader := new(depstoremocks.Reader)
 		reader.On("FindTraceIDs", mock.Anything, query).
-			Return(iter.Seq2[[]tracestore.FoundTraceID, error](func(yield func([]tracestore.FoundTraceID, error) bool) {
-				yield(test.traceIDs, test.findTraceIDsErr)
+			Return(iter.Seq2[tracestore.PageChunk[[]tracestore.FoundTraceID], error](func(yield func(tracestore.PageChunk[[]tracestore.FoundTraceID], error) bool) {
+				yield(tracestore.PageChunk[[]tracestore.FoundTraceID]{
+					Results:       test.traceIDs,
+					NextPageToken: test.nextPageToken,
+				}, test.findTraceIDsErr)
 			})).Once()
 		server := NewHandler(reader, writer, depReader)
 
@@ -407,8 +412,40 @@ func TestHandler_FindTraceIDs(t *testing.T) {
 		} else {
 			require.NoError(t, err)
 			require.Equal(t, test.expectedTraceIDs, response.TraceIds)
+			require.Equal(t, test.nextPageToken, response.NextPageToken)
 		}
 	}
+}
+
+func TestHandler_FindTraceIDsUsesFinalChunkNextPageToken(t *testing.T) {
+	query := tracestore.TraceQueryParams{
+		ServiceName: "service",
+		Attributes:  pcommon.NewMap(),
+	}
+	firstID := pcommon.TraceID([16]byte{1})
+	secondID := pcommon.TraceID([16]byte{2})
+	reader := new(tracestoremocks.Reader)
+	reader.On("FindTraceIDs", mock.Anything, query).
+		Return(iter.Seq2[tracestore.PageChunk[[]tracestore.FoundTraceID], error](func(yield func(tracestore.PageChunk[[]tracestore.FoundTraceID], error) bool) {
+			yield(tracestore.PageChunk[[]tracestore.FoundTraceID]{
+				Results: []tracestore.FoundTraceID{{TraceID: firstID}},
+			}, nil)
+			yield(tracestore.PageChunk[[]tracestore.FoundTraceID]{
+				Results:       []tracestore.FoundTraceID{{TraceID: secondID}},
+				NextPageToken: "next-page",
+			}, nil)
+		})).Once()
+	server := NewHandler(reader, new(tracestoremocks.Writer), new(depstoremocks.Reader))
+
+	response, err := server.FindTraceIDs(context.Background(), &storage.FindTraceIDsRequest{
+		Query: &storage.TraceQueryParameters{ServiceName: "service"},
+	})
+
+	require.NoError(t, err)
+	require.Len(t, response.TraceIds, 2)
+	assert.Equal(t, firstID[:], response.TraceIds[0].GetTraceId())
+	assert.Equal(t, secondID[:], response.TraceIds[1].GetTraceId())
+	assert.Equal(t, "next-page", response.GetNextPageToken())
 }
 
 func TestHandler_Export(t *testing.T) {
@@ -760,8 +797,8 @@ func TestHandler_FindTraceSummaries_NotImplemented(t *testing.T) {
 	// the handler must translate that into gRPC Unimplemented.
 	reader := new(tracestoremocks.Reader)
 	reader.On("FindTraceSummaries", mock.Anything, mock.Anything).
-		Return(iter.Seq2[[]tracestore.TraceSummary, error](func(yield func([]tracestore.TraceSummary, error) bool) {
-			yield(nil, fmt.Errorf("bare reader: %w", errors.ErrUnsupported))
+		Return(iter.Seq2[tracestore.PageChunk[[]tracestore.TraceSummary], error](func(yield func(tracestore.PageChunk[[]tracestore.TraceSummary], error) bool) {
+			yield(tracestore.PageChunk[[]tracestore.TraceSummary]{}, fmt.Errorf("bare reader: %w", errors.ErrUnsupported))
 		})).Once()
 	handler := NewHandler(reader, new(tracestoremocks.Writer), new(depstoremocks.Reader))
 
@@ -793,8 +830,11 @@ func TestHandler_FindTraceSummaries_Success(t *testing.T) {
 	}
 	reader := new(tracestoremocks.Reader)
 	reader.On("FindTraceSummaries", mock.Anything, mock.Anything).
-		Return(iter.Seq2[[]tracestore.TraceSummary, error](func(yield func([]tracestore.TraceSummary, error) bool) {
-			yield(want, nil)
+		Return(iter.Seq2[tracestore.PageChunk[[]tracestore.TraceSummary], error](func(yield func(tracestore.PageChunk[[]tracestore.TraceSummary], error) bool) {
+			yield(tracestore.PageChunk[[]tracestore.TraceSummary]{
+				Results:       want,
+				NextPageToken: "next-page",
+			}, nil)
 		})).Once()
 
 	handler := NewHandler(reader, new(tracestoremocks.Writer), new(depstoremocks.Reader))
@@ -805,6 +845,7 @@ func TestHandler_FindTraceSummaries_Success(t *testing.T) {
 	}, stream)
 	require.NoError(t, err)
 	require.Len(t, stream.sent, 1)
+	assert.Equal(t, "next-page", stream.sent[0].GetNextPageToken())
 	got := stream.sent[0].GetSummaries()
 	require.Len(t, got, 1)
 	assert.Equal(t, want[0].TraceID[:], got[0].GetTraceId())
@@ -820,8 +861,8 @@ func TestHandler_FindTraceSummaries_Success(t *testing.T) {
 func TestHandler_FindTraceSummaries_StorageError(t *testing.T) {
 	reader := new(tracestoremocks.Reader)
 	reader.On("FindTraceSummaries", mock.Anything, mock.Anything).
-		Return(iter.Seq2[[]tracestore.TraceSummary, error](func(yield func([]tracestore.TraceSummary, error) bool) {
-			yield(nil, assert.AnError)
+		Return(iter.Seq2[tracestore.PageChunk[[]tracestore.TraceSummary], error](func(yield func(tracestore.PageChunk[[]tracestore.TraceSummary], error) bool) {
+			yield(tracestore.PageChunk[[]tracestore.TraceSummary]{}, assert.AnError)
 		})).Once()
 
 	handler := NewHandler(reader, new(tracestoremocks.Writer), new(depstoremocks.Reader))
@@ -835,8 +876,8 @@ func TestHandler_FindTraceSummaries_StorageError(t *testing.T) {
 func TestHandler_FindTraceSummaries_SendError(t *testing.T) {
 	reader := new(tracestoremocks.Reader)
 	reader.On("FindTraceSummaries", mock.Anything, mock.Anything).
-		Return(iter.Seq2[[]tracestore.TraceSummary, error](func(yield func([]tracestore.TraceSummary, error) bool) {
-			yield([]tracestore.TraceSummary{{TraceID: pcommon.TraceID([16]byte{1})}}, nil)
+		Return(iter.Seq2[tracestore.PageChunk[[]tracestore.TraceSummary], error](func(yield func(tracestore.PageChunk[[]tracestore.TraceSummary], error) bool) {
+			yield(tracestore.PageChunk[[]tracestore.TraceSummary]{Results: []tracestore.TraceSummary{{TraceID: pcommon.TraceID([16]byte{1})}}}, nil)
 		})).Once()
 
 	handler := NewHandler(reader, new(tracestoremocks.Writer), new(depstoremocks.Reader))
@@ -875,6 +916,7 @@ func TestHandler_GetCapabilities(t *testing.T) {
 					Levels:    []expression.Level{expression.LevelSpan, expression.LevelResource},
 					Operators: []expression.Operator{expression.OpAnd, expression.OpEq, expression.OpRegex},
 				},
+				Paginated: true,
 			},
 			expected: &storage.SearchCapabilities{
 				WithoutServiceName:  true,
@@ -883,6 +925,7 @@ func TestHandler_GetCapabilities(t *testing.T) {
 					Levels:    []string{"span", "resource"},
 					Operators: []string{"and", "eq", "regex"},
 				},
+				Paginated: true,
 			},
 		},
 		{

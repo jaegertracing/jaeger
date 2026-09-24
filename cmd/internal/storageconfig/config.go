@@ -16,8 +16,8 @@ import (
 	"github.com/jaegertracing/jaeger/internal/storage/metricstore/prometheus"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/badger"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/cassandra"
-	es "github.com/jaegertracing/jaeger/internal/storage/v1/elasticsearch"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/clickhouse"
+	es "github.com/jaegertracing/jaeger/internal/storage/v2/elasticsearch"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/grpc"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/memory"
 )

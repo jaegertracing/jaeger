@@ -2,17 +2,18 @@
 // SPDX-License-Identifier: Apache-2.0
 
 // Package mcptools provides the Jaeger telemetry MCP tools as a reusable
-// library. The tools wrap a *querysvc.QueryService. NewServer returns an
-// *mcp.Server with the tools registered; WrapHTTP serves a given *mcp.Server as
-// an http.Handler over streamable HTTP; and NewHandler composes the two for the
-// common session-free case — so any component holding a QueryService can expose
-// the Jaeger telemetry tools over MCP (optionally layering its own tools or
-// receiving middleware on the server first) without re-implementing the
-// handlers.
+// library. The tools wrap a *querysvc.QueryService. NewHandler returns a
+// closeable Handler serving them over streamable HTTP, so any component holding a
+// QueryService can expose the Jaeger telemetry tools over MCP without
+// re-implementing the handlers; a component that needs the server to dispatch more
+// than the built-in tools (e.g. the AI gateway's per-turn UI tools) layers its own
+// receiving middleware on with Handler.AddReceivingMiddleware.
 package mcptools
 
 import (
 	"embed"
+	"errors"
+	"io"
 	"io/fs"
 	"net/http"
 
@@ -36,19 +37,13 @@ var serverInstructions string
 //go:embed all:skills
 var skillsEmbedFS embed.FS
 
-// NewServer builds an *mcp.Server with the Jaeger telemetry tools and the
+// newServer builds an *mcp.Server with the Jaeger telemetry tools and the
 // tracing/metrics middleware registered. It takes *querysvc.QueryService
 // directly (rather than fetching it from the component host), which keeps it
 // dependency-free of the jaegerquery extension package and avoids the import
 // cycle a host-based lookup would create now that the tools live under
 // jaegerquery/internal.
-//
-// Callers that only need the session-free telemetry endpoint should use
-// NewHandler. Callers that need to layer additional behaviour on top (e.g. a
-// session-scoped endpoint that advertises per-session UI tools via receiving
-// middleware) build a server here, add their middleware, and serve it with
-// WrapHTTP.
-func NewServer(telset telemetry.Settings, queryAPI *querysvc.QueryService, cfg Config) *mcp.Server {
+func newServer(telset telemetry.Settings, queryAPI *querysvc.QueryService, cfg Config) *mcp.Server {
 	server := mcp.NewServer(
 		&mcp.Implementation{
 			Name:    cfg.ServerName,
@@ -73,16 +68,53 @@ func NewServer(telset telemetry.Settings, queryAPI *querysvc.QueryService, cfg C
 	return server
 }
 
-// WrapHTTP serves an *mcp.Server as an http.Handler over streamable HTTP, with
-// tenancy extraction and OTel HTTP instrumentation. It is the transport shell
-// shared by the session-free endpoint and the session-scoped endpoint (which
-// layers per-session UI tools onto the server via receiving middleware before
-// wrapping it). The same server instance is reused for every session — with
-// Stateless: false the SDK builds one ServerSession per MCP session and reuses
-// it for that session's requests. It binds no listener of its own — the caller
-// mounts the returned handler on an existing mux.
-func WrapHTTP(server *mcp.Server, tenancyMgr *tenancy.Manager, telset telemetry.Settings) http.Handler {
-	mcpHandler := mcp.NewStreamableHTTPHandler(
+// Handler serves an *mcp.Server over HTTP and owns that server's teardown: Close
+// reaps the sessions still bound to it, so a mount gets its teardown from
+// construction instead of from whoever remembers to reach for the server. Mounting
+// one Handler at several paths — jaeger-query serves it at /api/ai/mcp/, and the AI
+// gateway serves it again under the turn-scoped routes — gives those paths one
+// server and one session map, so a session established through either resolves on
+// both.
+type Handler struct {
+	http.Handler
+	server *mcp.Server
+}
+
+var _ io.Closer = (*Handler)(nil)
+
+// Close reaps every session still bound to the server. The SDK reaps a session
+// only when it goes idle (see StreamableHTTPOptions.SessionTimeout), so without
+// this a live session would outlive the server. Sessions() yields a snapshot (it
+// clones under lock), so closing each one mid-iteration — which deregisters it —
+// is safe.
+func (h *Handler) Close() error {
+	var errs []error
+	for session := range h.server.Sessions() {
+		errs = append(errs, session.Close())
+	}
+	return errors.Join(errs...)
+}
+
+// AddReceivingMiddleware layers middleware onto the wrapped server after it has
+// been built, so a caller that did not construct the server can still extend what
+// it dispatches — the AI gateway uses this to add its per-turn UI tools to the
+// shared telemetry server. The HTTP shell captures the server by pointer, so
+// middleware added here applies to every later request; call it during startup,
+// before the HTTP server begins serving.
+func (h *Handler) AddReceivingMiddleware(middleware ...mcp.Middleware) {
+	h.server.AddReceivingMiddleware(middleware...)
+}
+
+// NewHandler builds a closeable Handler that serves the Jaeger telemetry MCP tools
+// over streamable HTTP, backed by the given QueryService — the shared endpoint at
+// jaeger-query's /api/ai/mcp/. One *mcp.Server is reused for every session: with
+// Stateless: false the SDK builds one ServerSession per MCP session and reuses it
+// for that session's requests. It binds no listener of its own — the caller mounts
+// the returned handler on an existing mux and closes it at shutdown so its MCP
+// sessions are reaped.
+func NewHandler(telset telemetry.Settings, queryAPI *querysvc.QueryService, tenancyMgr *tenancy.Manager, cfg Config) *Handler {
+	server := newServer(telset, queryAPI, cfg)
+	streamable := mcp.NewStreamableHTTPHandler(
 		func(*http.Request) *mcp.Server { return server },
 		&mcp.StreamableHTTPOptions{
 			JSONResponse:   false, // Use SSE for streamed events
@@ -90,20 +122,15 @@ func WrapHTTP(server *mcp.Server, tenancyMgr *tenancy.Manager, telset telemetry.
 			SessionTimeout: mcpSessionTimeout,
 		},
 	)
-	tenantHandler := tenancy.ExtractTenantHTTPHandler(tenancyMgr, mcpHandler)
-	return otelhttp.NewHandler(
-		tenantHandler,
-		"jaeger_mcp",
-		otelhttp.WithTracerProvider(telset.TracerProvider),
-	)
-}
-
-// NewHandler builds an http.Handler that serves the Jaeger telemetry MCP tools
-// over streamable HTTP, backed by the given QueryService — the session-free
-// endpoint (e.g. jaeger-query at /api/ai/mcp/). It is a thin composition of
-// NewServer and WrapHTTP around a single shared server.
-func NewHandler(telset telemetry.Settings, queryAPI *querysvc.QueryService, tenancyMgr *tenancy.Manager, cfg Config) http.Handler {
-	return WrapHTTP(NewServer(telset, queryAPI, cfg), tenancyMgr, telset)
+	tenantHandler := tenancy.ExtractTenantHTTPHandler(tenancyMgr, streamable)
+	return &Handler{
+		Handler: otelhttp.NewHandler(
+			tenantHandler,
+			"jaeger_mcp",
+			otelhttp.WithTracerProvider(telset.TracerProvider),
+		),
+		server: server,
+	}
 }
 
 // RegisterTools registers all Jaeger telemetry MCP tools on the given server,

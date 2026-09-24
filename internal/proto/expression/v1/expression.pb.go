@@ -395,18 +395,18 @@ func (m *Scalar) GetType() string {
 	return ""
 }
 
-// List is a homogeneous list constant, the right arg of in/not_in. Every element is read as
-// one type, and that type is always known: either type declares it, or the built-in field the
-// list is compared against supplies it. A list compared against an attribute must declare it,
-// since an attribute declares nothing itself. A list is not a legacy predicate — the legacy
-// fields have no form for membership — so nothing has to accept an element type nobody stated.
+// List is a homogeneous list constant, the right arg of in/not_in. Every element is read as one
+// type, and that type comes from one of two places: either the type field below declares it, or the
+// built-in field the list is compared against supplies it. Compared against an attribute neither
+// place has a type to give, so the elements are matched at whatever type they were stored, the same
+// way an untyped scalar beside an attribute is matched (§5.4).
 type List struct {
 	// values must have at least one element: membership in nothing matches nothing.
 	Values []string `protobuf:"bytes,1,rep,name=values,proto3" json:"values,omitempty"`
 	// type is the type every element is read as, and a list matches only values of that type. It is
-	// OPTIONAL only where the field opposite it declares one (see Scalar.type) — a condition on the
-	// enclosing call that this schema cannot state, which is why the empty value is listed here and
-	// the validator checks the rest.
+	// OPTIONAL. Left empty, it means one of two things: the built-in field the list is compared
+	// against supplies the type, or the list sits beside an attribute, where nothing supplies one and
+	// the elements are under no type constraint at all (see Scalar.type).
 	Type                 string   `protobuf:"bytes,2,opt,name=type,proto3" json:"type,omitempty"`
 	XXX_NoUnkeyedLiteral struct{} `json:"-"`
 	XXX_unrecognized     []byte   `json:"-"`

@@ -10,6 +10,7 @@ import (
 	"io"
 	"io/fs"
 	"strings"
+	"unicode/utf8"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 
@@ -56,9 +57,20 @@ func (h *readSkillHandler) handle(
 	if err != nil && !errors.Is(err, io.ErrUnexpectedEOF) && !errors.Is(err, io.EOF) {
 		return nil, types.ReadSkillOutput{}, fmt.Errorf("cannot read %q: %w", input.Path, err)
 	}
-	content := string(buf[:n])
-	if n > int(h.maxFileSize) {
-		content += fmt.Sprintf("\n\nfile content truncated after %d bytes\n", h.maxFileSize)
+	// The buffer is maxFileSize+1 so that an oversize file is detectable; the
+	// served content is capped at exactly maxFileSize bytes.
+	maxSize := int(h.maxFileSize)
+	cut := min(n, maxSize)
+	// Skill files are arbitrary UTF-8 text, so a cut exactly at maxSize can land
+	// inside a multi-byte rune. Back off to the start of that rune, if any, the
+	// same way truncateForSpan does in the mcptools package, so truncation never
+	// serves invalid UTF-8.
+	for cut > 0 && !utf8.RuneStart(buf[cut]) {
+		cut--
+	}
+	content := string(buf[:cut])
+	if n > maxSize {
+		content += fmt.Sprintf("\n\nfile content truncated after %d bytes\n", cut)
 	}
 
 	return &mcp.CallToolResult{
