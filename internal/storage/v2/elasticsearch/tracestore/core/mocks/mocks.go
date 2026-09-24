@@ -12,6 +12,7 @@ package mocks
 import (
 	"context"
 
+	"github.com/jaegertracing/jaeger/internal/storage/v2/elasticsearch/tracestore/core"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/elasticsearch/tracestore/core/dbmodel"
 	mock "github.com/stretchr/testify/mock"
 )
@@ -44,24 +45,22 @@ func (_m *Reader) EXPECT() *Reader_Expecter {
 }
 
 // FindTraceIDs provides a mock function for the type Reader
-func (_mock *Reader) FindTraceIDs(ctx context.Context, traceQuery dbmodel.TraceQueryParameters) ([]dbmodel.TraceID, error) {
+func (_mock *Reader) FindTraceIDs(ctx context.Context, traceQuery dbmodel.TraceQueryParameters) (core.TraceIDPage, error) {
 	ret := _mock.Called(ctx, traceQuery)
 
 	if len(ret) == 0 {
 		panic("no return value specified for FindTraceIDs")
 	}
 
-	var r0 []dbmodel.TraceID
+	var r0 core.TraceIDPage
 	var r1 error
-	if returnFunc, ok := ret.Get(0).(func(context.Context, dbmodel.TraceQueryParameters) ([]dbmodel.TraceID, error)); ok {
+	if returnFunc, ok := ret.Get(0).(func(context.Context, dbmodel.TraceQueryParameters) (core.TraceIDPage, error)); ok {
 		return returnFunc(ctx, traceQuery)
 	}
-	if returnFunc, ok := ret.Get(0).(func(context.Context, dbmodel.TraceQueryParameters) []dbmodel.TraceID); ok {
+	if returnFunc, ok := ret.Get(0).(func(context.Context, dbmodel.TraceQueryParameters) core.TraceIDPage); ok {
 		r0 = returnFunc(ctx, traceQuery)
 	} else {
-		if ret.Get(0) != nil {
-			r0 = ret.Get(0).([]dbmodel.TraceID)
-		}
+		r0 = ret.Get(0).(core.TraceIDPage)
 	}
 	if returnFunc, ok := ret.Get(1).(func(context.Context, dbmodel.TraceQueryParameters) error); ok {
 		r1 = returnFunc(ctx, traceQuery)
@@ -101,12 +100,12 @@ func (_c *Reader_FindTraceIDs_Call) Run(run func(ctx context.Context, traceQuery
 	return _c
 }
 
-func (_c *Reader_FindTraceIDs_Call) Return(traceIDs []dbmodel.TraceID, err error) *Reader_FindTraceIDs_Call {
-	_c.Call.Return(traceIDs, err)
+func (_c *Reader_FindTraceIDs_Call) Return(traceIDPage core.TraceIDPage, err error) *Reader_FindTraceIDs_Call {
+	_c.Call.Return(traceIDPage, err)
 	return _c
 }
 
-func (_c *Reader_FindTraceIDs_Call) RunAndReturn(run func(ctx context.Context, traceQuery dbmodel.TraceQueryParameters) ([]dbmodel.TraceID, error)) *Reader_FindTraceIDs_Call {
+func (_c *Reader_FindTraceIDs_Call) RunAndReturn(run func(ctx context.Context, traceQuery dbmodel.TraceQueryParameters) (core.TraceIDPage, error)) *Reader_FindTraceIDs_Call {
 	_c.Call.Return(run)
 	return _c
 }

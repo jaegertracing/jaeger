@@ -18,6 +18,11 @@ import (
 // aggregations, the number of documents to return, and the sort / search_after /
 // track_total_hits controls the paginated trace read needs. The storage layer
 // builds it from the owned query AST, so no driver type crosses this boundary.
+// Collapse fields by field name.
+type Collapse struct {
+	Field string `json:"field"`
+}
+
 type SearchRequest struct {
 	Query          query.Query
 	Aggregations   map[string]query.Aggregation
@@ -25,6 +30,7 @@ type SearchRequest struct {
 	Sort           []SortOrder
 	SearchAfter    []any
 	TrackTotalHits bool
+	Collapse       *Collapse
 }
 
 // SortOrder sorts hits by a field. It renders to {field: {"order": order}} where
@@ -67,6 +73,9 @@ func (r SearchRequest) body() ([]byte, error) {
 	if r.TrackTotalHits {
 		m["track_total_hits"] = true
 	}
+	if r.Collapse != nil && r.Collapse.Field != "" {
+		m["collapse"] = map[string]any{"field": r.Collapse.Field}
+	}
 	return json.Marshal(m)
 }
 
@@ -108,6 +117,7 @@ type HitsResult struct {
 // client never knows what a span or throughput document is.
 type SearchHit struct {
 	Source json.RawMessage `json:"_source"`
+	Sort   []any           `json:"sort,omitempty"`
 }
 
 // TotalHits is the number of matching documents. Elasticsearch reports it either

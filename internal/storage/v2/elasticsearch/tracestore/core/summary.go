@@ -49,11 +49,11 @@ func (s *SpanReader) FindTraceSummaries(
 	// Phase 1: discover the trace IDs matching the full query filter. FindTraceIDs
 	// validates the query and applies the default search depth, exactly as the
 	// FindTraces path does, so neither is duplicated here.
-	traceIDs, err := s.FindTraceIDs(ctx, traceQuery)
+	page, err := s.FindTraceIDs(ctx, traceQuery)
 	if err != nil {
 		return nil, err
 	}
-	if len(traceIDs) == 0 {
+	if len(page.TraceIDs) == 0 {
 		return []dbmodel.TraceSummary{}, nil
 	}
 
@@ -63,8 +63,8 @@ func (s *SpanReader) FindTraceSummaries(
 	// FindTraces-based fallback. The aggregation is sized to the matched trace
 	// count, since phase 2 only aggregates over those traces.
 	const aggName = "trace_summaries"
-	aggregation := s.buildTraceSummariesAggregation(len(traceIDs))
-	boolQuery := s.buildTraceSummariesByIDsQuery(traceIDs, traceQuery.StartTimeMin, traceQuery.StartTimeMax)
+	aggregation := s.buildTraceSummariesAggregation(len(page.TraceIDs))
+	boolQuery := s.buildTraceSummariesByIDsQuery(page.TraceIDs, traceQuery.StartTimeMin, traceQuery.StartTimeMax)
 	jaegerIndices := s.spanRotation.ReadTargets(
 		traceQuery.StartTimeMin.Add(-s.maxTraceDuration),
 		traceQuery.StartTimeMax.Add(s.maxTraceDuration),

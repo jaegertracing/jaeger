@@ -11,6 +11,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -823,7 +824,9 @@ func testSpans(t *testing.T, expectedSpan []byte, actualSpan dbmodel.Span) {
 	enc := json.NewEncoder(buf)
 	enc.SetIndent("", "  ")
 	require.NoError(t, enc.Encode(actualSpan))
-	if !assert.Equal(t, string(expectedSpan), buf.String()) {
+	expected := strings.ReplaceAll(string(expectedSpan), "\r\n", "\n")
+	actual := strings.ReplaceAll(buf.String(), "\r\n", "\n")
+	if !assert.Equal(t, expected, actual) {
 		writeActualData(t, "spans", buf.Bytes())
 	}
 }

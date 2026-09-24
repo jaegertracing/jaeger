@@ -42,6 +42,7 @@ func (*TraceReader) SearchCapabilities(context.Context) (tracestore.SearchCapabi
 		// same document, so a conjunction is satisfied within one span rather than across a
 		// trace.
 		SameSpanConjunction: true,
+		Paginated:           true,
 		Filter:              &filter,
 	}, nil
 }
@@ -114,13 +115,13 @@ func (r *TraceReader) FindTraces(ctx context.Context, query tracestore.TraceQuer
 
 func (r *TraceReader) FindTraceIDs(ctx context.Context, query tracestore.TraceQueryParams) iter.Seq2[tracestore.PageChunk[[]tracestore.FoundTraceID], error] {
 	return func(yield func(tracestore.PageChunk[[]tracestore.FoundTraceID], error) bool) {
-		traceIds, err := r.spanReader.FindTraceIDs(ctx, toDBTraceQueryParams(query))
+		page, err := r.spanReader.FindTraceIDs(ctx, toDBTraceQueryParams(query))
 		if err != nil {
 			yield(tracestore.PageChunk[[]tracestore.FoundTraceID]{}, err)
 			return
 		}
-		otelTraceIds := make([]tracestore.FoundTraceID, 0, len(traceIds))
-		for _, traceId := range traceIds {
+		otelTraceIds := make([]tracestore.FoundTraceID, 0, len(page.TraceIDs))
+		for _, traceId := range page.TraceIDs {
 			dbTraceId, err := traceId.ToOTEL()
 			if err != nil {
 				yield(tracestore.PageChunk[[]tracestore.FoundTraceID]{}, err)
@@ -130,8 +131,10 @@ func (r *TraceReader) FindTraceIDs(ctx context.Context, query tracestore.TraceQu
 				TraceID: dbTraceId,
 			})
 		}
-		// TODO: Populate NextPageToken when Elasticsearch supports RFC 0014 pagination.
-		yield(tracestore.PageChunk[[]tracestore.FoundTraceID]{Results: otelTraceIds}, nil)
+		yield(tracestore.PageChunk[[]tracestore.FoundTraceID]{
+			Results:       otelTraceIds,
+			NextPageToken: page.NextPageToken,
+		}, nil)
 	}
 }
 
@@ -139,6 +142,10 @@ func toDBTraceQueryParams(query tracestore.TraceQueryParams) dbmodel.TraceQueryP
 	tags := make(map[string]string)
 	for key, val := range query.Attributes.All() {
 		tags[key] = val.AsString()
+	}
+	var pageToken string
+	if query.Pagination != nil {
+		pageToken = query.Pagination.PageToken
 	}
 	return dbmodel.TraceQueryParameters{
 		ServiceName:   query.ServiceName,
@@ -150,5 +157,6 @@ func toDBTraceQueryParams(query tracestore.TraceQueryParams) dbmodel.TraceQueryP
 		DurationMin:   query.DurationMin,
 		DurationMax:   query.DurationMax,
 		Filter:        query.Filter,
+		PageToken:     pageToken,
 	}
 }

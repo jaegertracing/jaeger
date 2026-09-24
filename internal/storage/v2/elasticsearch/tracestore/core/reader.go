@@ -7,6 +7,7 @@ package core
 import (
 	"bytes"
 	"context"
+	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -267,31 +268,26 @@ func (s *SpanReader) FindTraces(ctx context.Context, traceQuery dbmodel.TraceQue
 	ctx, span := s.tracer.Start(ctx, "FindTraces")
 	defer span.End()
 
-	uniqueTraceIDs, err := s.FindTraceIDs(ctx, traceQuery)
+	page, err := s.FindTraceIDs(ctx, traceQuery)
 	if err != nil {
 		return nil, err
 	}
-	return s.multiRead(ctx, uniqueTraceIDs, traceQuery.StartTimeMin, traceQuery.StartTimeMax)
+	return s.multiRead(ctx, page.TraceIDs, traceQuery.StartTimeMin, traceQuery.StartTimeMax)
 }
 
 // FindTraceIDs retrieves traces IDs that match the traceQuery
-func (s *SpanReader) FindTraceIDs(ctx context.Context, traceQuery dbmodel.TraceQueryParameters) ([]dbmodel.TraceID, error) {
+func (s *SpanReader) FindTraceIDs(ctx context.Context, traceQuery dbmodel.TraceQueryParameters) (TraceIDPage, error) {
 	ctx, span := s.tracer.Start(ctx, "FindTraceIDs")
 	defer span.End()
 
 	if err := validateQuery(traceQuery); err != nil {
-		return nil, err
+		return TraceIDPage{}, err
 	}
 	if traceQuery.SearchDepth == 0 {
 		traceQuery.SearchDepth = defaultSearchDepth
 	}
 
-	esTraceIDs, err := s.findTraceIDsFromQuery(ctx, traceQuery)
-	if err != nil {
-		return nil, err
-	}
-
-	return esTraceIDs, nil
+	return s.findTraceIDsFromQuery(ctx, traceQuery)
 }
 
 func (s *SpanReader) multiRead(ctx context.Context, traceIDs []dbmodel.TraceID, startTime, endTime time.Time) ([]dbmodel.Trace, error) {
@@ -408,104 +404,106 @@ func validateQuery(p dbmodel.TraceQueryParameters) error {
 	return nil
 }
 
-func (s *SpanReader) findTraceIDsFromQuery(ctx context.Context, traceQuery dbmodel.TraceQueryParameters) ([]dbmodel.TraceID, error) {
+func (s *SpanReader) findTraceIDsFromQuery(ctx context.Context, traceQuery dbmodel.TraceQueryParameters) (TraceIDPage, error) {
 	ctx, childSpan := s.tracer.Start(ctx, "findTraceIDs")
 	defer childSpan.End()
-	//  Below is the JSON body to our HTTP GET request to ElasticSearch. This function creates this.
-	// {
-	//      "size": 0,
-	//      "query": {
-	//        "bool": {
-	//          "must": [
-	//            { "match": { "operationName":   "op1"      }},
-	//            { "match": { "process.serviceName": "service1" }},
-	//            { "range":  { "startTime": { "gte": 0, "lte": 90000000000000000 }}},
-	//            { "range":  { "duration": { "gte": 0, "lte": 90000000000000000 }}},
-	//            { "should": [
-	//                   { "nested" : {
-	//                      "path" : "tags",
-	//                      "query" : {
-	//                          "bool" : {
-	//                              "must" : [
-	//                              { "match" : {"tags.key" : "tag3"} },
-	//                              { "match" : {"tags.value" : "xyz"} }
-	//                              ]
-	//                          }}}},
-	//                   { "nested" : {
-	//                          "path" : "process.tags",
-	//                          "query" : {
-	//                              "bool" : {
-	//                                  "must" : [
-	//                                  { "match" : {"tags.key" : "tag3"} },
-	//                                  { "match" : {"tags.value" : "xyz"} }
-	//                                  ]
-	//                              }}}},
-	//                   { "nested" : {
-	//                          "path" : "logs.fields",
-	//                          "query" : {
-	//                              "bool" : {
-	//                                  "must" : [
-	//                                  { "match" : {"tags.key" : "tag3"} },
-	//                                  { "match" : {"tags.value" : "xyz"} }
-	//                                  ]
-	//                              }}}},
-	//                   { "bool":{
-	//                           "must": {
-	//                               "match":{ "tags.bat":{ "query":"spook" }}
-	//                           }}},
-	//                   { "bool":{
-	//                           "must": {
-	//                               "match":{ "tag.bat":{ "query":"spook" }}
-	//                           }}}
-	//                ]
-	//              }
-	//          ]
-	//        }
-	//      },
-	//      "aggs": { "traceIDs" : { "terms" : {"size": 100,"field": "traceID" }}}
-	//  }
-	aggregation := s.buildTraceIDAggregation(traceQuery.SearchDepth)
+
 	boolQuery, err := s.buildFindTraceIDsQuery(traceQuery)
 	if err != nil {
-		return nil, err
+		return TraceIDPage{}, err
 	}
 	jaegerIndices := s.spanRotation.ReadTargets(traceQuery.StartTimeMin, traceQuery.StartTimeMax)
 
-	searchResult, err := s.searcher.Search(ctx, jaegerIndices, esclient.SearchRequest{
-		Size:  0, // set to 0 because we don't want actual documents.
+	searchReq := esclient.SearchRequest{
+		Size:  traceQuery.SearchDepth,
 		Query: boolQuery,
-		Aggregations: map[string]esquery.Aggregation{
-			traceIDAggregation: aggregation,
+		Collapse: &esclient.Collapse{
+			Field: traceIDField,
 		},
-	})
+		Sort: []esclient.SortOrder{
+			{Field: startTimeField, Order: esquery.Descending},
+			{Field: traceIDField, Order: esquery.Ascending},
+		},
+	}
+
+	if traceQuery.PageToken != "" {
+		cursor, err := decodeTraceCursor(traceQuery.PageToken)
+		if err != nil {
+			return TraceIDPage{}, err
+		}
+		searchReq.SearchAfter = []any{cursor.StartTime, cursor.TraceID}
+	}
+
+	searchResult, err := s.searcher.Search(ctx, jaegerIndices, searchReq)
 	if err != nil {
 		s.logger.Info("es search services failed", zap.Any("traceQuery", traceQuery), zap.Error(err))
-		return nil, fmt.Errorf("search services failed: %w", err)
-	}
-	if searchResult.Aggregations == nil {
-		return []dbmodel.TraceID{}, nil
-	}
-	bucket, found := searchResult.Aggregations.Terms(traceIDAggregation)
-	if !found {
-		return nil, ErrUnableToFindTraceIDAggregation
+		return TraceIDPage{}, fmt.Errorf("search services failed: %w", err)
 	}
 
-	traceIDs := make([]dbmodel.TraceID, len(bucket.Buckets))
-	for i, b := range bucket.Buckets {
-		traceIDs[i] = dbmodel.TraceID(b.Key)
+	hits := searchResult.Hits.Hits
+	traceIDs := make([]dbmodel.TraceID, 0, len(hits))
+	for _, hit := range hits {
+		var src struct {
+			TraceID string `json:"traceID"`
+		}
+		if err := json.Unmarshal(hit.Source, &src); err == nil && src.TraceID != "" {
+			traceIDs = append(traceIDs, dbmodel.TraceID(src.TraceID))
+		}
 	}
-	return traceIDs, nil
+
+	var nextPageToken string
+	if len(hits) > 0 && len(hits[len(hits)-1].Sort) >= 2 {
+		lastHit := hits[len(hits)-1]
+		var startTime uint64
+		switch v := lastHit.Sort[0].(type) {
+		case float64:
+			startTime = uint64(v)
+		case json.Number:
+			if n, err := v.Int64(); err == nil {
+				startTime = uint64(n)
+			}
+		}
+		var traceID string
+		if tid, ok := lastHit.Sort[1].(string); ok {
+			traceID = tid
+		}
+		if traceID != "" {
+			nextPageToken = encodeTraceCursor(traceCursor{
+				StartTime: startTime,
+				TraceID:   traceID,
+			})
+		}
+	}
+
+	return TraceIDPage{
+		TraceIDs:      traceIDs,
+		NextPageToken: nextPageToken,
+	}, nil
 }
 
-func (s *SpanReader) buildTraceIDAggregation(numOfTraces int) esquery.Aggregation {
-	return esquery.NewTermsAggregation(traceIDField).
-		Size(numOfTraces).
-		Order(startTimeField, esquery.Descending).
-		SubAggregation(startTimeField, s.buildTraceIDSubAggregation())
+type traceCursor struct {
+	StartTime uint64 `json:"st"`
+	TraceID   string `json:"tid"`
 }
 
-func (*SpanReader) buildTraceIDSubAggregation() esquery.Aggregation {
-	return esquery.NewMaxAggregation(startTimeField)
+func encodeTraceCursor(c traceCursor) string {
+	b, _ := json.Marshal(c)
+	return base64.RawURLEncoding.EncodeToString(b)
+}
+
+func decodeTraceCursor(token string) (traceCursor, error) {
+	b, err := base64.RawURLEncoding.DecodeString(token)
+	if err != nil {
+		return traceCursor{}, fmt.Errorf("invalid page token: %w", err)
+	}
+	var c traceCursor
+	if err := json.Unmarshal(b, &c); err != nil {
+		return traceCursor{}, fmt.Errorf("invalid page token: %w", err)
+	}
+	if c.TraceID == "" {
+		return traceCursor{}, fmt.Errorf("invalid page token: missing trace ID")
+	}
+	return c, nil
 }
 
 func (s *SpanReader) buildFindTraceIDsQuery(traceQuery dbmodel.TraceQueryParameters) (esquery.Query, error) {
