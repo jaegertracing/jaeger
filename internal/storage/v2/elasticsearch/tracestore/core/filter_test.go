@@ -115,6 +115,8 @@ func TestBuildFilterQuery(t *testing.T) {
 		{
 			name:   "span.kind reads the attribute the write path stores",
 			filter: p.Span().Kind.Eq(p.Text("server")),
+		},
+		{
 			name:   "gt on the span name compares lexicographically",
 			filter: p.Span().Name.Gt("m"),
 		},
