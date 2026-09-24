@@ -6,6 +6,7 @@ package v1adapter
 import (
 	"context"
 	"iter"
+	"math"
 	"testing"
 	"time"
 
@@ -233,6 +234,16 @@ func TestSpanReader_RefusesNegativeSearchDepth(t *testing.T) {
 	require.ErrorContains(t, err, "search depth cannot be negative")
 	_, err = reader.FindTraceIDs(t.Context(), query)
 	require.ErrorContains(t, err, "search depth cannot be negative")
+}
+
+func TestSpanReader_RefusesSearchDepthLargerThanUint32(t *testing.T) {
+	reader := SpanReader{}
+	query := &spanstore.TraceQueryParameters{NumTraces: math.MaxUint32 + 1}
+
+	_, err := reader.FindTraces(t.Context(), query)
+	require.ErrorContains(t, err, "search depth exceeds the maximum value")
+	_, err = reader.FindTraceIDs(t.Context(), query)
+	require.ErrorContains(t, err, "search depth exceeds the maximum value")
 }
 
 func TestSpanReader_FindTraces(t *testing.T) {

@@ -14,12 +14,12 @@ import (
 )
 
 const (
-	defaultProtocol                      = "native"
-	defaultDatabase                      = "jaeger"
-	defaultSearchDepth                   = 1000
-	defaultMaxSearchDepth                = 10000
-	defaultAttributeMetadataCacheTTL     = time.Hour
-	defaultAttributeMetadataCacheMaxSize = 1000
+	defaultProtocol                             = "native"
+	defaultDatabase                             = "jaeger"
+	defaultSearchDepth                   uint32 = 1000
+	defaultMaxSearchDepth                uint32 = 10000
+	defaultAttributeMetadataCacheTTL            = time.Hour
+	defaultAttributeMetadataCacheMaxSize        = 1000
 )
 
 type Configuration struct {
@@ -41,10 +41,10 @@ type Configuration struct {
 	// DefaultSearchDepth is the default search depth for queries.
 	// This is the maximum number of trace IDs that will be returned when searching for traces
 	// if a limit is not specified in the query.
-	DefaultSearchDepth int `mapstructure:"default_search_depth"`
+	DefaultSearchDepth uint32 `mapstructure:"default_search_depth"`
 	// MaxSearchDepth is the maximum allowed search depth for queries.
 	// This limits the number of trace IDs that can be returned when searching for traces.
-	MaxSearchDepth int `mapstructure:"max_search_depth"`
+	MaxSearchDepth uint32 `mapstructure:"max_search_depth"`
 	// AttributeMetadataCacheTTL is the time-to-live for cached attribute metadata entries.
 	// Attribute metadata maps attribute keys to their stored types and levels,
 	// which is needed to build type-correct queries for querying attributes.
@@ -85,12 +85,11 @@ func (cfg *Configuration) Validate() error {
 	if cfg.TTL > 0 && cfg.TTL%time.Second != 0 {
 		return errors.New("ttl must be a whole number of seconds")
 	}
-	// A search depth of zero would make every trace search return nothing, and a
-	// negative one is meaningless, so reject both rather than querying with them.
-	if cfg.DefaultSearchDepth <= 0 {
+	// A search depth of zero would make every trace search return nothing.
+	if cfg.DefaultSearchDepth == 0 {
 		return errors.New("default_search_depth must be a positive number")
 	}
-	if cfg.MaxSearchDepth <= 0 {
+	if cfg.MaxSearchDepth == 0 {
 		return errors.New("max_search_depth must be a positive number")
 	}
 	if cfg.AttributeMetadataCacheTTL < 0 {

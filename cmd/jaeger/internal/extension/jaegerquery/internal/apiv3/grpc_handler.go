@@ -91,7 +91,8 @@ func traceQueryParams(query *api_v3.TraceQueryParameters) (querysvc.TraceQueryPa
 	if query == nil {
 		return querysvc.TraceQueryParams{}, status.Error(codes.InvalidArgument, "missing query")
 	}
-	if query.GetSearchDepth() < 0 {
+	searchDepth := query.GetSearchDepth()
+	if searchDepth < 0 {
 		return querysvc.TraceQueryParams{}, status.Error(codes.InvalidArgument, "search depth cannot be negative")
 	}
 	queryParams := querysvc.TraceQueryParams{
@@ -99,7 +100,7 @@ func traceQueryParams(query *api_v3.TraceQueryParameters) (querysvc.TraceQueryPa
 			ServiceName:   query.GetServiceName(),
 			OperationName: query.GetOperationName(),
 			Attributes:    jptrace.PlainMapToPcommonMap(query.GetAttributes()),
-			SearchDepth:   uint32(query.GetSearchDepth()),
+			SearchDepth:   uint32(searchDepth),
 			StartTimeMin:  query.GetStartTimeMin(),
 			StartTimeMax:  query.GetStartTimeMax(),
 			DurationMin:   query.GetDurationMin(),
