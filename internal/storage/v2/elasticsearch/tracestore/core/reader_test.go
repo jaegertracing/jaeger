@@ -954,7 +954,7 @@ func TestSpanReader_buildTraceIDAggregation(t *testing.T) {
             "startTime" : { "max": {"field": "startTime"}}
          }}`
 	withSpanReader(t, func(r *spanReaderTest) {
-		traceIDAggregation := r.reader.buildTraceIDAggregation(123)
+		traceIDAggregation := r.reader.buildTraceIDAggregation(uint32(123))
 		actual, err := traceIDAggregation.Source()
 		require.NoError(t, err)
 

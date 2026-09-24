@@ -281,7 +281,7 @@ func (s *SpanReader) FindTraceIDs(ctx context.Context, traceQuery *tracestore.Tr
 
 	var traceIDs []dbmodel.TraceID
 	for t := range dbTraceIDs {
-		if len(traceIDs) >= traceQuery.SearchDepth {
+		if uint32(len(traceIDs)) >= traceQuery.SearchDepth {
 			break
 		}
 		traceIDs = append(traceIDs, t)
@@ -386,7 +386,7 @@ func (s *SpanReader) queryByDuration(ctx context.Context, traceQuery *tracestore
 
 		for traceID := range t {
 			results.Add(traceID)
-			if len(results) == traceQuery.SearchDepth {
+			if uint32(len(results)) == traceQuery.SearchDepth {
 				break
 			}
 		}
