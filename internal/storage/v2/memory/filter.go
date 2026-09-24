@@ -510,7 +510,24 @@ func attrToEvalValue(v pcommon.Value) evalValue {
 	}
 }
 
+// errorVirtualAttribute reports the "error" tag's value at the span or unqualified level, the one
+// attribute this store never reads out of a span's own attribute map. It is derived from the
+// span's status instead (RFC 0005 does not define a built-in status-derived field, but every
+// other backend accepts "error" as if it were an attribute, so this store does too, the same way
+// the legacy Attributes-based search and the elasticsearch backend's asErrorTagEquality both do):
+// error=true is exactly Status().Code() == Error, and error=false is every other status,
+// including Unset, which is by far the common case and would otherwise be excluded. Resolving
+// through the general evalValue machinery, rather than special-casing just OpEq the way the
+// elasticsearch backend does, means exists (always true), ne, in and not_in all get the right
+// answer for free rather than each needing their own case.
+func errorVirtualAttribute(span ptrace.Span) []evalValue {
+	return []evalValue{{isBool: true, boolean: span.Status().Code() == ptrace.StatusCodeError}}
+}
+
 func resolveAttributeRef(ref expression.AttributeRef, ctx filterCtx) []evalValue {
+	if ref.Key == errorAttribute && (ref.Level == "" || ref.Level == expression.LevelSpan) {
+		return errorVirtualAttribute(ctx.span)
+	}
 	var maps []pcommon.Map
 	switch ref.Level {
 	case expression.LevelSpan:

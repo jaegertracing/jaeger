@@ -603,3 +603,56 @@ func TestResolveOperand_NestedRefResolvesToNothingOutsideSome(t *testing.T) {
 	})
 	assert.Empty(t, values)
 }
+
+// TestMatchesFilter_ErrorVirtualAttribute pins that error is derived from the span's status
+// rather than read as a literal attribute, at both the unqualified and span level, matching the
+// legacy Attributes-based search and the elasticsearch backend's own error-tag special case.
+func TestMatchesFilter_ErrorVirtualAttribute(t *testing.T) {
+	traces := ptrace.NewTraces()
+	rs := traces.ResourceSpans().AppendEmpty()
+	ss := rs.ScopeSpans().AppendEmpty()
+
+	errorSpan := ss.Spans().AppendEmpty()
+	errorSpan.Status().SetCode(ptrace.StatusCodeError)
+	errorFixture := filterFixture{resource: rs.Resource(), scope: ss.Scope(), span: errorSpan}
+
+	okSpan := ss.Spans().AppendEmpty()
+	okSpan.Status().SetCode(ptrace.StatusCodeOk)
+	okFixture := filterFixture{resource: rs.Resource(), scope: ss.Scope(), span: okSpan}
+
+	unsetSpan := ss.Spans().AppendEmpty()
+	unsetFixture := filterFixture{resource: rs.Resource(), scope: ss.Scope(), span: unsetSpan}
+
+	for _, level := range []expression.Level{"", expression.LevelSpan} {
+		assert.True(t, errorFixture.matches(call(expression.OpEq, attrRef(level, errorAttribute), boolean(true))),
+			"level=%q: an Error-status span matches error=true", level)
+		assert.False(t, errorFixture.matches(call(expression.OpEq, attrRef(level, errorAttribute), boolean(false))),
+			"level=%q: an Error-status span does not match error=false", level)
+		// error=false is the complement of error=true, not "tag absent": Unset is by far the
+		// common case and must match it, the same way the legacy search treats it.
+		assert.True(t, okFixture.matches(call(expression.OpEq, attrRef(level, errorAttribute), boolean(false))),
+			"level=%q: an Ok-status span matches error=false", level)
+		assert.True(t, unsetFixture.matches(call(expression.OpEq, attrRef(level, errorAttribute), boolean(false))),
+			"level=%q: an Unset-status span matches error=false, not just Ok", level)
+		assert.True(t, errorFixture.matches(call(expression.OpExists, attrRef(level, errorAttribute))),
+			"level=%q: error always exists, whether or not the span carries the attribute literally", level)
+		assert.True(t, okFixture.matches(call(expression.OpNe, attrRef(level, errorAttribute), boolean(true))),
+			"level=%q: ne is the leaf-present complement, same as any other attribute", level)
+	}
+
+	// A literal "error" attribute set on the span is shadowed by the virtual one: the span's
+	// actual status still decides, not whatever the attribute map happens to hold.
+	shadowed := ss.Spans().AppendEmpty()
+	shadowed.Status().SetCode(ptrace.StatusCodeOk)
+	shadowed.Attributes().PutBool(errorAttribute, true)
+	shadowedFixture := filterFixture{resource: rs.Resource(), scope: ss.Scope(), span: shadowed}
+	assert.True(t, shadowedFixture.matches(call(expression.OpEq, attrRef("", errorAttribute), boolean(false))),
+		"the literal attribute value is shadowed by the status-derived one")
+
+	// At any other level, "error" is an ordinary attribute lookup, not the virtual field: the
+	// special case is specific to the span's own status.
+	resourceErrorFixture := newFilterFixture(t)
+	resourceErrorFixture.resource.Attributes().PutBool(errorAttribute, true)
+	assert.True(t, resourceErrorFixture.matches(call(expression.OpEq, attrRef(expression.LevelResource, errorAttribute), boolean(true))),
+		"resource-level error is a literal attribute, not the span-status virtual one")
+}
