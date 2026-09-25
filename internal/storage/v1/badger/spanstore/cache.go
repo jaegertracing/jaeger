@@ -122,8 +122,9 @@ func (c *CacheStore) GetServices() ([]string, error) {
 		if v > t {
 			services = append(services, k)
 		} else {
-			// Service has expired, remove it
+			// Service has expired, remove it along with its operations
 			delete(c.services, k)
+			delete(c.operations, k)
 		}
 	}
 	c.cacheLock.Unlock()
