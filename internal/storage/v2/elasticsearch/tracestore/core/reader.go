@@ -77,6 +77,13 @@ var (
 	nestedTagFieldList = []string{nestedTagsField, nestedProcessTagsField, nestedLogFieldsField}
 
 	_ Reader = (*SpanReader)(nil) // check API conformance
+
+	// Default sort order for FindSpans. When we add caller provided ordering, it will be overrideable.
+	defaultSpanSortOrder = []esclient.SortOrder{
+		{Field: startTimeField, Order: esquery.Ascending},
+		{Field: traceIDField, Order: esquery.Ascending},
+		{Field: spanIDField, Order: esquery.Ascending},
+	}
 )
 
 // Time-range design (referenced as "timeRangeDesign" in comments below):
@@ -170,6 +177,10 @@ type traceReadCursor struct {
 	spanID    string
 }
 
+// spanReadCursor is whatever is returned as the sort field of each span.
+// This leaves open the potential to allow the caller to define sort ordering later.
+type spanReadCursor []json.RawMessage
+
 // buildTraceReadRequest builds the per-trace search body multiRead pages through:
 // the trace's query, ordered by (startTime, spanID) ascending, with track_total_hits
 // so the loop knows when a trace is fully fetched. The first page passes a nil
@@ -188,6 +199,23 @@ func (s *SpanReader) buildTraceReadRequest(q esquery.Query, cursor *traceReadCur
 	}
 	if cursor != nil {
 		req.SearchAfter = []any{cursor.startTime, cursor.spanID}
+	}
+	return req
+}
+
+func (s *SpanReader) buildSpanReadRequest(q esquery.Query, cursor *spanReadCursor) esclient.SearchRequest {
+	req := esclient.SearchRequest{
+		Query:          q,
+		Size:           s.maxDocCount,
+		Sort:           defaultSpanSortOrder,
+		TrackTotalHits: true,
+	}
+	if cursor != nil {
+		searchAfter := make([]any, len(*cursor))
+		for _, c := range *cursor {
+			searchAfter = append(searchAfter, c)
+		}
+		req.SearchAfter = searchAfter
 	}
 	return req
 }
@@ -260,6 +288,61 @@ func (s *SpanReader) GetOperations(
 		})
 	}
 	return result, err
+}
+
+// TODO adjust return type to support carrying pagination information back to caller
+func (s *SpanReader) FindSpans(ctx context.Context, spanQuery dbmodel.SpanQueryParameters) ([]dbmodel.Span, error) {
+	ctx, span := s.tracer.Start(ctx, "FindSpans")
+	defer span.End()
+
+	err := validateSpanQuery(spanQuery)
+	if err != nil {
+		return nil, err
+	}
+	filterQuery, err := s.buildFilterQuery(spanQuery.Filter)
+	if err != nil {
+		return nil, err
+	}
+
+	boolQuery := esquery.NewBoolQuery()
+	startTimeQuery := s.buildStartTimeQuery(spanQuery.StartTimeMin, spanQuery.StartTimeMax)
+	boolQuery.Must(startTimeQuery)
+	boolQuery.Must(filterQuery)
+
+	jaegerIndices := s.spanRotation.ReadTargets(spanQuery.StartTimeMin, spanQuery.StartTimeMax)
+	var spans []dbmodel.Span
+	var totalDocumentsFetched int
+	var searchAfter spanReadCursor
+	searchAfter = nil
+	requests := 1
+	for requests > 0 {
+		requests = 0
+		searchRequest := s.buildSpanReadRequest(boolQuery, &searchAfter)
+
+		searchResult, err := s.searcher.Search(ctx, jaegerIndices, searchRequest)
+		if err != nil {
+			s.logger.Info("es search services failed", zap.Any("spanQuery", spanQuery), zap.Error(err))
+			logErrorToSpan(span, err)
+			return nil, fmt.Errorf("search services failed: %w", err)
+		}
+		if len(searchResult.Hits.Hits) == 0 {
+			break
+		}
+		totalDocumentsFetched += len(searchResult.Hits.Hits)
+
+		currentResultSpans, err := s.collectSpans(searchResult.Hits.Hits)
+		spans = append(spans, currentResultSpans...)
+		if err != nil {
+			logErrorToSpan(span, err)
+			return nil, err
+		}
+		if totalDocumentsFetched < searchResult.Hits.Total.Value {
+			requests = 1
+			searchAfter = searchResult.Hits.Hits[len(searchResult.Hits.Hits)-1].Sort
+			s.logger.Debug("search searchAfter created as", zap.Any("searchAfter", searchAfter))
+		}
+	}
+	return spans, nil
 }
 
 // FindTraces retrieves traces that match the traceQuery
@@ -404,6 +487,15 @@ func validateQuery(p dbmodel.TraceQueryParameters) error {
 	}
 	if p.DurationMin != 0 && p.DurationMax != 0 && p.DurationMin > p.DurationMax {
 		return ErrDurationMinGreaterThanMax
+	}
+	return nil
+}
+func validateSpanQuery(p dbmodel.SpanQueryParameters) error {
+	if p.StartTimeMin.IsZero() || p.StartTimeMax.IsZero() {
+		return ErrStartAndEndTimeNotSet
+	}
+	if p.StartTimeMax.Before(p.StartTimeMin) {
+		return ErrStartTimeMinGreaterThanMax
 	}
 	return nil
 }
