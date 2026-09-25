@@ -44,9 +44,11 @@ const (
 	nestedLogFieldsField   = "logs.fields"
 	tagKeyField            = "key"
 	tagValueField          = "value"
-	// numberSubField is the sub-field the typed-attribute mapping indexes a numeric
-	// attribute value in, beside the keyword the same value is indexed as (RFC 0015).
+	// numberSubField and textSubField are the multi-field sub-fields the mapping
+	// indexes beside the keyword: number for typed numeric queries (RFC 0015),
+	// text for full-text search.
 	numberSubField = "number"
+	textSubField   = "text"
 	errorTag       = "error"
 
 	defaultSearchDepth = 100
