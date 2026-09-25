@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"iter"
+	"math"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"go.opentelemetry.io/collector/pdata/ptrace"
@@ -120,7 +121,7 @@ func (*getCriticalPathHandler) buildOutput(
 
 	// Build a map of span ID to service name
 	serviceMap := make(map[string]string)
-	var traceStartTime uint64
+	traceStartTime := uint64(math.MaxUint64)
 	var traceEndTime uint64
 
 	for i := 0; i < trace.ResourceSpans().Len(); i++ {
@@ -140,7 +141,7 @@ func (*getCriticalPathHandler) buildOutput(
 				startTime := uint64(span.StartTimestamp()) / 1000 // Convert to microseconds
 				endTime := uint64(span.EndTimestamp()) / 1000
 
-				if traceStartTime == 0 || startTime < traceStartTime {
+				if startTime < traceStartTime {
 					traceStartTime = startTime
 				}
 				if endTime > traceEndTime {
@@ -148,6 +149,10 @@ func (*getCriticalPathHandler) buildOutput(
 				}
 			}
 		}
+	}
+
+	if traceStartTime == math.MaxUint64 {
+		traceStartTime = 0
 	}
 
 	// Convert critical path sections to output format
