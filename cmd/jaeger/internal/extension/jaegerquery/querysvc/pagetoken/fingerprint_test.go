@@ -83,12 +83,16 @@ func TestTraceQuery_EverySelectingFieldCounts(t *testing.T) {
 		"operation":     func(q *tracestore.TraceQueryParams) { q.OperationName = "pay" },
 		"attribute":     func(q *tracestore.TraceQueryParams) { q.Attributes = attrs("a", "1", "b", "3") },
 		"no attributes": func(q *tracestore.TraceQueryParams) { q.Attributes = pcommon.Map{} },
-		"start":         func(q *tracestore.TraceQueryParams) { q.StartTimeMin = windowStart.Add(-time.Minute) },
-		"end":           func(q *tracestore.TraceQueryParams) { q.StartTimeMax = windowEnd.Add(time.Minute) },
-		"zero end":      func(q *tracestore.TraceQueryParams) { q.StartTimeMax = time.Time{} },
-		"min duration":  func(q *tracestore.TraceQueryParams) { q.DurationMin = 2 * time.Millisecond },
-		"max duration":  func(q *tracestore.TraceQueryParams) { q.DurationMax = 2 * time.Second },
-		"filter":        func(q *tracestore.TraceQueryParams) { q.Filter = serviceIs("cart") },
+		"attribute type": func(q *tracestore.TraceQueryParams) {
+			q.Attributes = attrs("a", "1")
+			q.Attributes.PutInt("b", 2)
+		},
+		"start":        func(q *tracestore.TraceQueryParams) { q.StartTimeMin = windowStart.Add(-time.Minute) },
+		"end":          func(q *tracestore.TraceQueryParams) { q.StartTimeMax = windowEnd.Add(time.Minute) },
+		"zero end":     func(q *tracestore.TraceQueryParams) { q.StartTimeMax = time.Time{} },
+		"min duration": func(q *tracestore.TraceQueryParams) { q.DurationMin = 2 * time.Millisecond },
+		"max duration": func(q *tracestore.TraceQueryParams) { q.DurationMax = 2 * time.Second },
+		"filter":       func(q *tracestore.TraceQueryParams) { q.Filter = serviceIs("cart") },
 	}
 	for name, change := range changes {
 		t.Run(name, func(t *testing.T) {

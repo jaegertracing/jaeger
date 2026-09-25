@@ -9,8 +9,11 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.opentelemetry.io/collector/pdata/pcommon"
 
+	expression "github.com/jaegertracing/jaeger-idl/query/expression/v1"
 	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerquery/querysvc/pagetoken"
+	"github.com/jaegertracing/jaeger/components/extension/jaegerquery/queryinterceptor"
 	"github.com/jaegertracing/jaeger/internal/jiter"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore"
 )
@@ -142,6 +145,107 @@ func TestFindTraceSummaries_PageTokenBoundToQuery(t *testing.T) {
 	})))
 	require.ErrorIs(t, err, tracestore.ErrPaginationInvalid)
 	assert.False(t, next.summaryCalled)
+}
+
+// TestFindTraceSummaries_PageTokenBoundToTheDispatchedQuery pins that the fingerprint is taken
+// over the query as the reader is dispatched it, after an interceptor's rewrite: a token minted
+// on page one continues page two of the same request, and a token minted for the caller's own
+// query, which the interceptor never lets through, is refused (RFC 0014 §3.2).
+func TestFindTraceSummaries_PageTokenBoundToTheDispatchedQuery(t *testing.T) {
+	enablePagination(t)
+	enableStructuredFilters(t)
+	next := &fakeReader{summaries: []tracestore.TraceSummary{{RootServiceName: "svc"}}, nextPageToken: "reader-cursor"}
+	next.capabilities = filterCapableBackend()
+	next.capabilities.Paginated = true
+	qs := interceptedService(next, fakeInterceptor{
+		onQuery: func(q queryinterceptor.TraceQuery) (queryinterceptor.TraceQuery, error) {
+			q.Filter = serviceFilter("gated")
+			return q, nil
+		},
+	})
+	request := func(token string) TraceQueryParams {
+		return searchQuery(tracestore.TraceQueryParams{
+			Filter:     serviceFilter("original"),
+			Pagination: &tracestore.Pagination{PageSize: 10, PageToken: token},
+		})
+	}
+
+	first, err := jiter.CollectWithErrors(qs.FindTraceSummaries(context.Background(), request("")))
+	require.NoError(t, err)
+	require.Len(t, first, 1)
+	assert.Equal(t, serviceFilter("gated"), next.gotSummaryQuery.Filter, "the interceptor's rewrite reached the reader")
+
+	_, err = jiter.CollectWithErrors(qs.FindTraceSummaries(context.Background(), request(first[0].NextPageToken)))
+	require.NoError(t, err)
+	assert.Equal(t, "reader-cursor", next.gotSummaryQuery.Pagination.PageToken)
+
+	original := searchQuery(tracestore.TraceQueryParams{Filter: serviceFilter("original")})
+	_, err = jiter.CollectWithErrors(qs.FindTraceSummaries(context.Background(),
+		request(tracePageToken(t, "", original.TraceQueryParams, "reader-cursor"))))
+	require.ErrorIs(t, err, tracestore.ErrPaginationInvalid)
+}
+
+// TestFindTraceSummaries_PageTokenSurvivesAttributeOrder pins that a request listing the same
+// tags in another order is the same query: the API layers fill Attributes from a Go map, so a
+// client re-sending one request can present it in any order, and an interceptor that adds a
+// predicate turns the tags into a filter whose predicate order would otherwise follow the map.
+func TestFindTraceSummaries_PageTokenSurvivesAttributeOrder(t *testing.T) {
+	enablePagination(t)
+	next := &fakeReader{summaries: []tracestore.TraceSummary{{RootServiceName: "svc"}}, nextPageToken: "reader-cursor"}
+	next.capabilities = filterCapableBackend()
+	next.capabilities.Paginated = true
+	next.capabilities.Filter.Operators = append(next.capabilities.Filter.Operators, expression.OpAnd)
+	qs := interceptedService(next, fakeInterceptor{
+		onQuery: func(q queryinterceptor.TraceQuery) (queryinterceptor.TraceQuery, error) {
+			q.Filter = &expression.Call{Op: expression.OpAnd, Args: []expression.Expression{q.Filter, serviceFilter("gated")}}
+			return q, nil
+		},
+	})
+	request := func(token string, kv ...string) TraceQueryParams {
+		attrs := pcommon.NewMap()
+		for i := 0; i < len(kv); i += 2 {
+			attrs.PutStr(kv[i], kv[i+1])
+		}
+		return searchQuery(tracestore.TraceQueryParams{
+			Attributes: attrs,
+			Pagination: &tracestore.Pagination{PageSize: 10, PageToken: token},
+		})
+	}
+
+	first, err := jiter.CollectWithErrors(qs.FindTraceSummaries(context.Background(), request("", "a", "1", "b", "2", "c", "3")))
+	require.NoError(t, err)
+	require.Len(t, first, 1)
+
+	_, err = jiter.CollectWithErrors(qs.FindTraceSummaries(context.Background(), request(first[0].NextPageToken, "c", "3", "b", "2", "a", "1")))
+	require.NoError(t, err)
+	assert.Equal(t, "reader-cursor", next.gotSummaryQuery.Pagination.PageToken)
+}
+
+// TestFindTraceSummaries_PageTokenRoundTripOnLegacyReader pins the round trip for a reader that
+// evaluates no filter: the caller's filter is rewritten into the legacy fields before dispatch,
+// and the fingerprint is taken over that rewrite on both pages, so the token still matches.
+func TestFindTraceSummaries_PageTokenRoundTripOnLegacyReader(t *testing.T) {
+	enablePagination(t)
+	enableStructuredFilters(t)
+	next := &fakeReader{summaries: []tracestore.TraceSummary{{RootServiceName: "svc"}}, nextPageToken: "reader-cursor"}
+	next.capabilities = &tracestore.SearchCapabilities{WithoutServiceName: true, Paginated: true}
+	qs := NewQueryService(next, nil, QueryServiceOptions{})
+	request := func(token string) TraceQueryParams {
+		return searchQuery(tracestore.TraceQueryParams{
+			Filter:     serviceFilter("cart"),
+			Pagination: &tracestore.Pagination{PageSize: 10, PageToken: token},
+		})
+	}
+
+	first, err := jiter.CollectWithErrors(qs.FindTraceSummaries(context.Background(), request("")))
+	require.NoError(t, err)
+	require.Len(t, first, 1)
+	assert.Equal(t, "cart", next.gotSummaryQuery.ServiceName, "the filter reached the reader as the legacy field")
+	assert.Nil(t, next.gotSummaryQuery.Filter)
+
+	_, err = jiter.CollectWithErrors(qs.FindTraceSummaries(context.Background(), request(first[0].NextPageToken)))
+	require.NoError(t, err)
+	assert.Equal(t, "reader-cursor", next.gotSummaryQuery.Pagination.PageToken)
 }
 
 // TestFindTraceSummaries_UnpaginatedSearchGetsNoToken pins that a search which did not ask for a

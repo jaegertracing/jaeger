@@ -107,6 +107,7 @@ func (h hasher) attributes(attrs pcommon.Map) {
 	for _, k := range keys {
 		v, _ := attrs.Get(k)
 		h.string(k)
+		h.string(v.Type().String())
 		h.string(v.AsString())
 	}
 }
