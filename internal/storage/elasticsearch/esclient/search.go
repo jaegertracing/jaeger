@@ -107,7 +107,8 @@ type HitsResult struct {
 // unparsed so the storage layer unmarshals it into its own dbmodel type — the
 // client never knows what a span or throughput document is.
 type SearchHit struct {
-	Source json.RawMessage `json:"_source"`
+	Source json.RawMessage   `json:"_source"`
+	Sort   []json.RawMessage `json:"sort"`
 }
 
 // TotalHits is the number of matching documents. Elasticsearch reports it either
