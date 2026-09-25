@@ -108,6 +108,42 @@ func TestFindSpans_PageTokenRefused(t *testing.T) {
 	}
 }
 
+// TestFindSpans_PageTokenBoundToTheDispatchedQuery is the span-search counterpart of
+// TestFindTraceSummaries_PageTokenBoundToTheDispatchedQuery: the fingerprint is taken after an
+// interceptor's rewrite, so page two of the same request continues and a token minted for the
+// caller's own query is refused.
+func TestFindSpans_PageTokenBoundToTheDispatchedQuery(t *testing.T) {
+	enablePagination(t)
+	enableStructuredFilters(t)
+	next := &fakeReader{batch: tracesWith("k", "v"), nextPageToken: "reader-cursor"}
+	next.capabilities = filterCapableBackend()
+	next.capabilities.Paginated = true
+	qs := interceptedService(next, fakeInterceptor{
+		onSpanQuery: func(q queryinterceptor.SpanQuery) (queryinterceptor.SpanQuery, error) {
+			q.Filter = serviceFilter("gated")
+			return q, nil
+		},
+	})
+	request := func(token string) SpanQueryParams {
+		q := pagedSpanQuery(tracestore.Pagination{PageSize: 10, PageToken: token})
+		q.Filter = serviceFilter("original")
+		return searchSpansQuery(q)
+	}
+
+	first, err := collectSpans(qs.FindSpans(context.Background(), request("")))
+	require.NoError(t, err)
+	require.Len(t, first, 1)
+	assert.Equal(t, serviceFilter("gated"), next.gotSpanQuery.Filter, "the interceptor's rewrite reached the reader")
+
+	_, err = collectSpans(qs.FindSpans(context.Background(), request(first[0].NextPageToken)))
+	require.NoError(t, err)
+	assert.Equal(t, "reader-cursor", next.gotSpanQuery.Pagination.PageToken)
+
+	original := request("").SpanQueryParams
+	_, err = collectSpans(qs.FindSpans(context.Background(), request(spanPageToken(t, "", original, "reader-cursor"))))
+	require.ErrorIs(t, err, tracestore.ErrPaginationInvalid)
+}
+
 // TestFindSpans_NoTokenWhereNoneCanBeResumed pins that a span search mints a token only where
 // the query service would accept it back: with the gate off, or against a reader that cannot
 // paginate, the reader's cursor is dropped and the page carries no token, since a token the

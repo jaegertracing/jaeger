@@ -107,6 +107,10 @@ type TraceQuery struct {
 // span search, which FindSpans can serve as spans with only the selected fields populated,
 // and a trace search has no counterpart for it. An interceptor that gates what a caller may
 // read has to see such a clause when it arrives, and it belongs on this type alone.
+//
+// A span search is paginated from its first release, so the rule TraceQuery.Filter states for
+// a page token applies to every field here: a rewrite of the filter or of the time range has
+// to be a pure function of the request, or no continuation of the search will be accepted.
 type SpanQuery struct {
 	// Filter has the meaning TraceQuery.Filter documents, over spans rather than traces:
 	// nil asks for every span in the time range, and an interceptor that returns nil for a
