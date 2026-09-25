@@ -5,6 +5,7 @@ package metricstore
 
 import (
 	"context"
+	"fmt"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -24,6 +25,7 @@ import (
 	"go.opentelemetry.io/otel/sdk/trace/tracetest"
 	"go.opentelemetry.io/otel/trace"
 	"go.uber.org/zap"
+	"go.uber.org/zap/zaptest/observer"
 
 	"github.com/jaegertracing/jaeger/internal/auth/bearertoken"
 	config "github.com/jaegertracing/jaeger/internal/config/promcfg"
@@ -1049,6 +1051,131 @@ func TestNewMetricsReaderWithHTTPAuth(t *testing.T) {
 
 			if tt.httpAuth != nil {
 				assert.Equal(t, "Bearer sigv4-token", authHeaderReceived)
+			}
+		})
+	}
+}
+
+func TestGetAttributeValues(t *testing.T) {
+	for _, tc := range []struct {
+		name                string
+		labelName           string
+		serviceName         string
+		wantPromQuery       string
+		wantValues          []string
+		responsePayloadFile string
+		wantError           bool
+		errorStatus         int
+		wantWarnings        bool
+	}{
+		{
+			name:                "get span_kind values for a specific service",
+			labelName:           "span_kind",
+			serviceName:         "emailservice",
+			wantPromQuery:       `attribute_name(span_kind)`,
+			wantValues:          []string{"SPAN_KIND_SERVER", "SPAN_KIND_CLIENT", "SPAN_KIND_PRODUCER", "SPAN_KIND_CONSUMER"},
+			responsePayloadFile: "testdata/attribute_key_values_response.json",
+			wantError:           false,
+			wantWarnings:        true,
+		},
+		{
+			name:          "handle server error",
+			labelName:     "operation_name",
+			serviceName:   "frontend",
+			wantPromQuery: `attribute_name(operation_name)`,
+			wantError:     true,
+			errorStatus:   http.StatusInternalServerError,
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			tracer, exp, closer := tracerProvider(t)
+			defer closer()
+
+			var logger *zap.Logger
+			var logObserver *observer.ObservedLogs
+			if tc.wantWarnings {
+				zapCore, obs := observer.New(zap.WarnLevel)
+				logger = zap.New(zapCore)
+				logObserver = obs
+			} else {
+				logger = zap.NewNop()
+			}
+
+			mockPrometheus := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				body, _ := io.ReadAll(r.Body)
+				defer r.Body.Close()
+
+				u, err := url.Parse("http://" + r.Host + r.RequestURI + "?" + string(body))
+				assert.NoError(t, err)
+
+				if strings.Contains(r.URL.Path, "/api/v1/label") {
+					expectedPath := fmt.Sprintf("/api/v1/label/%s/values", tc.labelName)
+					assert.Equal(t, expectedPath, r.URL.Path)
+
+					q := u.Query()
+					matches := q["match[]"]
+
+					if tc.serviceName != "" {
+						t.Logf("Expected service name: %q", tc.serviceName)
+						t.Logf("Got matches: %v", matches)
+						assert.NotEmpty(t, matches)
+					} else {
+						assert.Empty(t, matches)
+					}
+
+					if tc.wantError {
+						w.WriteHeader(tc.errorStatus)
+						w.Write([]byte("server error"))
+						return
+					}
+
+					sendResponse(t, w, tc.responsePayloadFile)
+					return
+				}
+
+				t.Errorf("Unexpected request to %s", r.URL.Path)
+				w.WriteHeader(http.StatusNotFound)
+			}))
+			defer mockPrometheus.Close()
+
+			address := mockPrometheus.Listener.Addr().String()
+
+			cfg := defaultConfig
+			cfg.ServerURL = "http://" + address
+			cfg.ConnectTimeout = defaultTimeout
+
+			reader, err := NewMetricsReader(cfg, logger, tracer, nil)
+			require.NoError(t, err)
+			defer mockPrometheus.Close()
+
+			params := &metricstore.AttributeValuesQueryParameters{
+				AttributeKey: tc.labelName,
+				ServiceName:  tc.serviceName,
+			}
+
+			values, err := reader.GetAttributeValues(context.Background(), params)
+
+			if tc.wantError {
+				require.Error(t, err)
+				require.Nil(t, values)
+				assert.Contains(t, err.Error(), "failed querying label values")
+
+				require.Len(t, exp.GetSpans(), 1, "HTTP request was traced and span reported")
+				assert.Equal(t, codes.Error, exp.GetSpans()[0].Status.Code)
+			} else {
+				require.NoError(t, err)
+				assert.Equal(t, tc.wantValues, values)
+				assert.Len(t, exp.GetSpans(), 1, "HTTP request was traced and span reported")
+
+				if tc.wantWarnings {
+					require.NotNil(t, logObserver)
+					logs := logObserver.FilterMessage("Prometheus label values query returned warnings")
+					require.Len(t, logs.All(), 1, "Expected warning log message")
+
+					logEntry := logs.All()[0]
+					assert.Equal(t, tc.labelName, logEntry.ContextMap()["label"])
+					assert.Equal(t, []any{"warning0", "warning1"}, logEntry.ContextMap()["warnings"])
+				}
 			}
 		})
 	}

@@ -5,6 +5,7 @@ package elasticsearch
 
 import (
 	"context"
+	"fmt"
 	"strconv"
 	"strings"
 	"time"
@@ -15,6 +16,7 @@ import (
 	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/indices"
 	esquery "github.com/jaegertracing/jaeger/internal/storage/elasticsearch/query"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/api/metricstore"
+	"github.com/jaegertracing/jaeger/internal/storage/v2/elasticsearch/tracestore/core"
 )
 
 // These constants define the specific names of aggregations used within Elasticsearch
@@ -105,6 +107,34 @@ func (*QueryBuilder) buildTimeSeriesAggQuery(params metricstore.BaseQueryParamet
 			SubAggregation(dateHistAggName, dateHistAgg)
 	}
 	return dateHistAgg
+}
+
+// BuildAttributeValuesQuery builds an Elasticsearch query to fetch unique values for a specified attribute (tag),
+// optionally filtered by a service name.
+func (*QueryBuilder) BuildAttributeValuesQuery(params *metricstore.AttributeValuesQueryParameters) (esquery.Query, esquery.Aggregation) {
+	boolQuery := esquery.NewBoolQuery()
+	if params.ServiceName != "" {
+		boolQuery.Filter(esquery.NewTermQuery("process.serviceName", params.ServiceName))
+	}
+
+	globalAgg := esquery.NewGlobalAggregation()
+
+	for i, path := range core.NestedTagFieldList {
+		valuesAgg := esquery.NewTermsAggregation(path + ".value").
+			Size(10000)
+
+		filterAgg := esquery.NewFilterAggregation(
+			esquery.NewTermQuery(path+".key", params.AttributeKey),
+		)
+		filterAgg.SubAggregation("values", valuesAgg)
+
+		nestedAgg := esquery.NewNestedAggregation(path)
+		nestedAgg.SubAggregation("filtered_by_key", filterAgg)
+
+		globalAgg.SubAggregation(fmt.Sprintf("path_%d", i), nestedAgg)
+	}
+
+	return boolQuery, globalAgg
 }
 
 // Execute runs the Elasticsearch search with the provided bool and aggregation queries.
