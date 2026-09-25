@@ -206,13 +206,19 @@ FROM
 
 const SelectSpansByTraceID = SelectSpansQuery + " WHERE s.trace_id = ?"
 
-// SearchTraceIDsBase is the inner SQL fragment for finding distinct trace IDs.
+// SearchTraceIDsBase is the inner SQL fragment for finding trace IDs.
+// Deduplication and ordering are applied in the query builder via
+// GROUP BY s.trace_id ORDER BY max(s.start_time) DESC. The max(s.start_time)
+// aggregate is surfaced as start_time so the outer query can order by it
+// independently of the trace_id_timestamps view (whose end column is
+// non-nullable and defaults to the epoch when the JOIN misses).
 //
 // The query begins with a no-op predicate (`WHERE 1=1`) so that additional
 // filters can be appended unconditionally using `AND` without needing to check
 // whether this is the first WHERE clause.
-const SearchTraceIDsBase = `SELECT DISTINCT
-    s.trace_id
+const SearchTraceIDsBase = `SELECT
+    s.trace_id,
+    max(s.start_time) AS start_time
 FROM spans s
 WHERE 1=1`
 
@@ -229,7 +235,8 @@ FROM (
 %s
 ) l
 LEFT JOIN trace_id_timestamps t ON l.trace_id = t.trace_id
-GROUP BY l.trace_id`
+GROUP BY l.trace_id
+ORDER BY l.start_time DESC, l.trace_id`
 
 const SelectServices = `
 SELECT
