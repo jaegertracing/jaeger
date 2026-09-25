@@ -414,7 +414,7 @@ func TestFindSpans_Success(t *testing.T) {
 }
 
 // TestFindSpans_RejectsInvertedTimeRange pins the other half of the envelope check
-// prepareSpanSearchQuery settles for a span search: a present but inverted range is refused the
+// prepareAndInterceptSpanSearchQuery settles for a span search: a present but inverted range is refused the
 // same as an absent one, before the reader is ever asked anything.
 func TestFindSpans_RejectsInvertedTimeRange(t *testing.T) {
 	tqs := initializeBareTestQueryService()
@@ -1034,7 +1034,7 @@ var (
 // TestFindTraces_EnvelopeIsSettledOnce covers the checks every trace search shares regardless
 // of which API it arrived on. A refused query never reaches the reader: FindTraces has no
 // expectation, so a call to it would fail the test. The same rules apply to FindTraceSummaries,
-// which shares prepareSearchQuery, so one method stands for both.
+// which shares prepareAndInterceptSearchQuery, so one method stands for both.
 func TestFindTraces_EnvelopeIsSettledOnce(t *testing.T) {
 	// window fills in what a case left unset, so a case about the time range sets its own.
 	window := func(q tracestore.TraceQueryParams) tracestore.TraceQueryParams {
@@ -1121,7 +1121,7 @@ func TestFindTraces_EnvelopeIsSettledOnce(t *testing.T) {
 }
 
 // TestFindTraceSummaries_PaginatedRequestLeavesSearchDepthUnset covers the other half of
-// normalizeEnvelope's defaulting: FindTraceSummaries shares prepareSearchQuery with FindTraces
+// normalizeEnvelope's defaulting: FindTraceSummaries shares prepareAndInterceptSearchQuery with FindTraces
 // but does admit Pagination (RFC 0014 §4), so a paginated request must not also get
 // DefaultSearchDepth — the two bounds are mutually exclusive, and the caller sent only one.
 func TestFindTraceSummaries_PaginatedRequestLeavesSearchDepthUnset(t *testing.T) {

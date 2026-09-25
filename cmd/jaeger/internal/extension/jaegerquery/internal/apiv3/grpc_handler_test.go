@@ -313,7 +313,7 @@ func TestTraceQueryParamsSearchDepth(t *testing.T) {
 
 // TestTraceQueryParamsPagination pins that an api_v3.Pagination on the wire reaches
 // querysvc.TraceQueryParams unchanged, and that an absent one leaves the zero value, which
-// prepareSearchQuery reads as "not a paginated request" (RFC 0014 §4).
+// prepareAndInterceptSearchQuery reads as "not a paginated request" (RFC 0014 §4).
 func TestTraceQueryParamsPagination(t *testing.T) {
 	baseQuery := func() *api_v3.TraceQueryParameters {
 		return &api_v3.TraceQueryParameters{

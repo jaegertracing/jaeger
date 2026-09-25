@@ -210,7 +210,7 @@ func parseFindTracesQuery(q url.Values) (*querysvc.TraceQueryParams, error) {
 // parseFindSpansQuery parses the query parameters for a span search (RFC 0016 §4.3), the subset
 // of a trace search's that a span query has: the time range, the filter and the pagination. The
 // parser reads each parameter and reports one it cannot read under its own name; whether the
-// query as a whole is acceptable is the query service's decision (prepareSpanSearchQuery).
+// query as a whole is acceptable is the query service's decision (prepareAndInterceptSpanSearchQuery).
 func parseFindSpansQuery(q url.Values) (*querysvc.SpanQueryParams, error) {
 	queryParams := &querysvc.SpanQueryParams{}
 	var err error

@@ -16,7 +16,6 @@ import (
 	"github.com/jaegertracing/jaeger-idl/model/v1"
 	expression "github.com/jaegertracing/jaeger-idl/query/expression/v1"
 	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerquery/internal/adjuster"
-	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerquery/querysvc/pagetoken"
 	"github.com/jaegertracing/jaeger/components/extension/jaegerquery/queryinterceptor"
 	"github.com/jaegertracing/jaeger/internal/jptrace"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/api/spanstore"
@@ -188,35 +187,21 @@ func (qs QueryService) FindSpans(
 	query SpanQueryParams,
 ) iter.Seq2[tracestore.PageChunk[ptrace.Traces], error] {
 	return func(yield func(tracestore.PageChunk[ptrace.Traces], error) bool) {
-		ctx, prepared, err := qs.prepareSpanSearchQuery(ctx, query)
+		ctx, prepared, err := qs.prepareAndInterceptSpanSearchQuery(ctx, query)
 		if err != nil {
 			yield(tracestore.PageChunk[ptrace.Traces]{}, err)
 			return
 		}
 		query = prepared.query
-		// A search that mints no token has none to resume either: any token it carried was
-		// refused during preparation.
-		var fingerprint []byte
-		if prepared.paginates {
-			fingerprint, err = pagetoken.SpanQuery(query.SpanQueryParams)
-			if err != nil {
-				yield(tracestore.PageChunk[ptrace.Traces]{}, err)
-				return
-			}
-			query.Pagination.PageToken, err = resumeCursor(query.Pagination.PageToken, fingerprint)
-			if err != nil {
-				yield(tracestore.PageChunk[ptrace.Traces]{}, err)
-				return
-			}
+		tokens, err := resumeSpanSearch(&query.SpanQueryParams, prepared.paginates)
+		if err != nil {
+			yield(tracestore.PageChunk[ptrace.Traces]{}, err)
+			return
 		}
 		spans := qs.traceReader.FindSpans(ctx, query.SpanQueryParams)
 		for chunk, err := range qs.interceptSpanResults(ctx, spans) {
 			if err == nil {
-				if prepared.paginates {
-					chunk.NextPageToken = nextPageToken(chunk.NextPageToken, fingerprint)
-				} else {
-					chunk.NextPageToken = ""
-				}
+				chunk.NextPageToken = tokens.seal(chunk.NextPageToken)
 			}
 			if !yield(chunk, err) {
 				return
@@ -246,7 +231,7 @@ func (qs QueryService) FindTraces(
 			yield(nil, tracestore.ErrPaginationUnsupportedByFindTraces)
 			return
 		}
-		ctx, query, err := qs.prepareSearchQuery(ctx, query)
+		ctx, query, err := qs.prepareAndInterceptSearchQuery(ctx, query)
 		if err != nil {
 			yield(nil, err)
 			return
@@ -272,17 +257,17 @@ func (qs QueryService) SearchWithoutServiceName(ctx context.Context) (bool, erro
 	return caps.WithoutServiceName, nil
 }
 
-// prepareSearchQuery settles a search before it is dispatched: it refuses a request this
-// deployment does not accept, gives the configured query interceptors their say, and returns the
-// query to dispatch in the shape the backend understands, along with the context to dispatch it
-// with. One place decides, so that every caller gets the same answer instead of each backend's
-// own (ADR-013).
+// prepareAndInterceptSearchQuery settles a search before it is dispatched: it refuses a request
+// this deployment does not accept, runs the configured query interceptors (OnTraceQuery) over it,
+// and returns the query to dispatch in the shape the backend understands, along with the context
+// the interceptors returned. One place decides, so that every caller gets the same answer instead
+// of each backend's own (ADR-013).
 //
 // The interceptors run after the caller's request is validated and before the backend's
 // capabilities are consulted. So an interceptor is never shown a request jaeger-query was going
 // to refuse anyway, and a predicate an interceptor adds is held to the same capability check as
 // one the caller sent.
-func (qs QueryService) prepareSearchQuery(
+func (qs QueryService) prepareAndInterceptSearchQuery(
 	ctx context.Context,
 	query TraceQueryParams,
 ) (context.Context, TraceQueryParams, error) {
@@ -376,7 +361,7 @@ func (q *TraceQueryParams) normalizeEnvelope() error {
 	return nil
 }
 
-// preparedSpanSearch is a span search settled for dispatch by prepareSpanSearchQuery.
+// preparedSpanSearch is a span search settled for dispatch by prepareAndInterceptSpanSearchQuery.
 type preparedSpanSearch struct {
 	query SpanQueryParams
 	// paginates says a page token is minted for this search, which is only where the query
@@ -386,10 +371,11 @@ type preparedSpanSearch struct {
 	paginates bool
 }
 
-// prepareSpanSearchQuery is prepareSearchQuery for a span search (RFC 0016 §4.6): it refuses a
-// request this deployment or its backend does not accept, gives the configured query interceptors
-// their say, and returns the query to dispatch along with the context to dispatch it with. A span
-// query has one shape, so there is no conversion step and no service-name rule. The API handlers
+// prepareAndInterceptSpanSearchQuery is prepareAndInterceptSearchQuery for a span search (RFC 0016
+// §4.6): it refuses a request this deployment or its backend does not accept, runs the configured
+// query interceptors (OnSpanQuery) over it, and returns the query to dispatch along with the context
+// the interceptors returned. A span query has one shape, so there is no conversion step and no
+// service-name rule. The API handlers
 // only translate their wire shape into this one; what a query must satisfy is decided here, once
 // (the same reasoning as normalizeEnvelope, for the one field a span query's envelope has).
 //
@@ -397,7 +383,7 @@ type preparedSpanSearch struct {
 // come before the interceptors, so an interceptor is never shown a request this deployment or
 // its backend refuses outright; the filter capability check comes after them, so a predicate an
 // interceptor adds is held to the same check as one the caller sent.
-func (qs QueryService) prepareSpanSearchQuery(
+func (qs QueryService) prepareAndInterceptSpanSearchQuery(
 	ctx context.Context,
 	query SpanQueryParams,
 ) (context.Context, preparedSpanSearch, error) {
@@ -507,27 +493,17 @@ func (qs QueryService) FindTraceSummaries(
 	query TraceQueryParams,
 ) iter.Seq2[PageChunk[[]tracestore.TraceSummary], error] {
 	return func(yield func(PageChunk[[]tracestore.TraceSummary], error) bool) {
-		ctx, query, err := qs.prepareSearchQuery(ctx, query)
+		ctx, query, err := qs.prepareAndInterceptSearchQuery(ctx, query)
 		if err != nil {
 			yield(PageChunk[[]tracestore.TraceSummary]{}, err)
 			return
 		}
 		// A reader that cannot paginate has had its Pagination cleared by now; one that can is
 		// handed the cursor its token wraps.
-		var fingerprint []byte
-		if query.Pagination != nil {
-			fingerprint, err = pagetoken.TraceQuery(query.TraceQueryParams)
-			if err != nil {
-				yield(PageChunk[[]tracestore.TraceSummary]{}, err)
-				return
-			}
-			resumed := *query.Pagination
-			resumed.PageToken, err = resumeCursor(resumed.PageToken, fingerprint)
-			if err != nil {
-				yield(PageChunk[[]tracestore.TraceSummary]{}, err)
-				return
-			}
-			query.Pagination = &resumed
+		tokens, err := resumeTraceSearch(&query.TraceQueryParams)
+		if err != nil {
+			yield(PageChunk[[]tracestore.TraceSummary]{}, err)
+			return
 		}
 		for chunk, err := range qs.traceReader.FindTraceSummaries(ctx, query.TraceQueryParams) {
 			if err != nil {
@@ -552,11 +528,9 @@ func (qs QueryService) FindTraceSummaries(
 				yield(PageChunk[[]tracestore.TraceSummary]{}, err)
 				return
 			}
-			result := PageChunk[[]tracestore.TraceSummary]{Results: chunk.Results}
-			// A search that did not ask for a page is answered with one page and no token,
-			// whatever the reader returned (RFC 0014 §4).
-			if query.Pagination != nil {
-				result.NextPageToken = nextPageToken(chunk.NextPageToken, fingerprint)
+			result := PageChunk[[]tracestore.TraceSummary]{
+				Results:       chunk.Results,
+				NextPageToken: tokens.seal(chunk.NextPageToken),
 			}
 			if !yield(result, nil) {
 				return

@@ -143,7 +143,7 @@ func (h *Handler) FindSpans(request *api_v3.FindSpansRequest, stream api_v3.Quer
 }
 
 // spanQueryParams translates a proto SpanQueryParameters into the query service's shape. What
-// the query must satisfy is the query service's decision (prepareSpanSearchQuery), so nothing is
+// the query must satisfy is the query service's decision (prepareAndInterceptSpanSearchQuery), so nothing is
 // checked here beyond what the translation itself needs — including whether Pagination is
 // acceptable at all: it is decoded here because decoding is translation, but the query service
 // is where it is refused.

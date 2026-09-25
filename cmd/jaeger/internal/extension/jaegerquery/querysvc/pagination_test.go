@@ -34,7 +34,7 @@ func TestPaginationGate_IsAlpha(t *testing.T) {
 }
 
 // TestFindTraces_RejectsPagination pins that FindTraces refuses any query carrying Pagination
-// outright, before prepareSearchQuery — which FindTraceSummaries shares and which does admit
+// outright, before prepareAndInterceptSearchQuery — which FindTraceSummaries shares and which does admit
 // Pagination — ever sees it. FindTraces streams whole traces with no field to carry a
 // continuation token (RFC 0014 §4).
 func TestFindTraces_RejectsPagination(t *testing.T) {

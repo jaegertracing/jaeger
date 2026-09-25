@@ -134,7 +134,7 @@ func TestParseFindTracesQuery(t *testing.T) {
 
 	t.Run("pagination is decoded as sent, presence included", func(t *testing.T) {
 		// Whether a trace search may be paginated, and what an incomplete Pagination means, is
-		// the query service's decision (prepareSearchQuery); the parser only preserves presence.
+		// the query service's decision (prepareAndInterceptSearchQuery); the parser only preserves presence.
 		q := url.Values{}
 		q.Set(paramTimeMin, goodMin)
 		q.Set(paramTimeMax, goodMax)
@@ -436,7 +436,7 @@ func TestParseFindSpansQuery(t *testing.T) {
 
 	t.Run("pagination is decoded, not rejected here", func(t *testing.T) {
 		// Whether pagination is acceptable at all is the query service's decision
-		// (prepareSpanSearchQuery); the parser's job is only to decode the scalars.
+		// (prepareAndInterceptSpanSearchQuery); the parser's job is only to decode the scalars.
 		q := url.Values{}
 		q.Set(paramTimeMin, goodMin)
 		q.Set(paramTimeMax, goodMax)
