@@ -35,7 +35,6 @@ var ErrPaginationDisabled = errors.New("pagination is disabled")
 // query was prepared.
 type pageTokens struct {
 	fingerprint []byte
-	paginates   bool
 }
 
 // resumeSpanSearch exchanges the page token in query for the reader's cursor, in place, and returns
@@ -49,7 +48,7 @@ func resumeSpanSearch(query *tracestore.SpanQueryParams, paginates bool) (pageTo
 	if err != nil {
 		return pageTokens{}, err
 	}
-	tokens := pageTokens{fingerprint: fingerprint, paginates: true}
+	tokens := pageTokens{fingerprint: fingerprint}
 	query.Pagination.PageToken, err = tokens.resume(query.Pagination.PageToken)
 	return tokens, err
 }
@@ -65,7 +64,7 @@ func resumeTraceSearch(query *tracestore.TraceQueryParams) (pageTokens, error) {
 	if err != nil {
 		return pageTokens{}, err
 	}
-	tokens := pageTokens{fingerprint: fingerprint, paginates: true}
+	tokens := pageTokens{fingerprint: fingerprint}
 	resumed := *query.Pagination
 	resumed.PageToken, err = tokens.resume(resumed.PageToken)
 	query.Pagination = &resumed
@@ -94,7 +93,7 @@ func (p pageTokens) resume(token string) (string, error) {
 // receives. An empty cursor means the last page and stays empty, and a search that paginates
 // nothing is answered with no token whatever the reader returned (RFC 0014 §4, §6.2).
 func (p pageTokens) seal(cursor string) string {
-	if !p.paginates || cursor == "" {
+	if len(p.fingerprint) == 0 || cursor == "" {
 		return ""
 	}
 	return pagetoken.Seal(pagetoken.Token{Fingerprint: p.fingerprint, Cursor: cursor})

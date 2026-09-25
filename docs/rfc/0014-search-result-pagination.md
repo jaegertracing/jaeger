@@ -254,6 +254,27 @@ This changes the element types of internal iterators, which is acceptable becaus
 
 The query service is the single place that mints and validates tokens end to end: it builds the reader's `Pagination` from the api_v3 request, checks the fingerprint (§3.2), calls the reader, and relays `next_page_token` back — the same central-enforcement posture ADR-013 uses for capabilities. A reader therefore never sees the client's token. The `PageToken` a reader receives is the cursor it returned in `PageChunk.NextPageToken` on the previous page, in whatever form the reader resumes from — a `search_after` array for Elasticsearch, a keyset boundary for ClickHouse — and the query service wraps that cursor into the token of §3.1 on the way out and unwraps it on the way back. The `jaeger.storage.v2` wire (§6) carries the reader's cursor for the same reason: a remote backend is a reader behind a gRPC client, and the wrapping happens in front of it. A search that did not ask for a page gets no token whatever the reader returned, so a client that does not know about pagination sees the single-page behavior it always did.
 
+Minting the envelope in the query service is a choice against two alternatives that put it in the readers: a shared helper that every reader calls to seal its cursor into the §3.1 token and to open the one it receives, with the query service passing the string through; and the same helper with `PageChunk.NextPageToken` and `Pagination.PageToken` typed as a token struct in the Go interface, so a reader cannot return a bare cursor, with the string form produced only at the api_v3 and `jaeger.storage.v2` boundaries. The three differ on where the protection is enforced and on whom it protects:
+
+| Criterion | Query service mints | Readers mint, string | Readers mint, typed |
+| --- | --- | --- | --- |
+| Direct callers of the `jaeger.storage.v2` API get the query-binding check | ❌ ¹ | 🟢 | 🟢 |
+| A reader cannot forget to mint the envelope | 🟢 | ❌ | 🟢 |
+| A reader cannot forget to verify the fingerprint | 🟢 | ❌ | 🟨 ² |
+| Enforcement and its tests live in one place | 🟢 | ❌ | 🟨 ³ |
+| No duplicate wrapping across a remote-storage hop | 🟢 | 🟢 | 🟢 |
+| A `jaeger.storage.v2` server outside this repository needs nothing new | 🟢 | 🟨 ⁴ | 🟨 ⁴ |
+| Cost of adopting pagination in a reader | 🟢 | 🟨 | 🟨 |
+
+🟢 good · 🟨 partial · ❌ poor
+
+- ¹ Such a caller sends the reader's own cursor. A reader refuses a cursor it cannot interpret with `ErrPaginationInvalid` (§5), so a garbled or foreign cursor is still answered as a bad request, but a valid cursor sent with a different query is not detected.
+- ² The struct forces the mint side at compile time; the verify side is forced only if the struct's sole cursor accessor takes the query it is being resumed for.
+- ³ The envelope and fingerprint have one implementation, but each reader needs its own resume round-trip test.
+- ⁴ The wire contract would become "`page_token` is a sealed envelope", which a server in another language has to produce; the fingerprint bytes are opaque and self-consistent per implementation, so such a server may leave them empty and lose only the mismatched-query check.
+
+The query service mints. The row it loses, the direct `jaeger.storage.v2` caller, is a client error answered with a bad request rather than a failure of the system, and the reader's own refusal of an uninterpretable cursor already covers the malformed case. The rows it wins are the ones that keep the mechanism honest over time: one implementation, one place a reader can be wrong, and nothing a backend outside this repository has to learn. That is the same centralization argument ADR-013 makes for capabilities.
+
 ---
 
 ## 6. Remote Storage gRPC (storage/v2) and capability declaration
@@ -380,7 +401,7 @@ The span cursor stays internal by choice, not because exposing it would be hard 
 
 ### 7.4 Cursor encoding on ES/OS
 
-The ES/OS reader's cursor is the `sort` array Elasticsearch returns on the last collapsed hit of the page — the `(startTime, traceID)` pair, serialized as Elasticsearch wrote it — which is exactly what the next request's `search_after` clause takes. The reader returns that array as its `NextPageToken` and, on continuation, places the array it receives back into `search_after`; the query fingerprint and storage name of §3.2 are the query service's to add and check (§5), not the reader's. Carrying the hit's sort values rather than named span fields keeps the cursor's shape independent of the sort key, so a caller-chosen ordering (§12) changes what the array holds and not the code that handles it. Because `traceID` is a sortable keyword in the ES mapping (it already backs the term queries the reader builds) and `startTime` is a numeric field, both are valid `search_after` values with no mapping change. The collapse field `traceID` is likewise already a keyword, so collapse needs no new mapping either — only a new `collapse` clause in the query builder.
+The ES/OS reader's cursor is the `sort` array Elasticsearch returns on the last collapsed hit of the page — the `(startTime, traceID)` pair, serialized as Elasticsearch wrote it — which is exactly what the next request's `search_after` clause takes. The reader returns that array as its `NextPageToken` and, on continuation, places the array it receives back into `search_after`; the query fingerprint of §3.2 is the query service's to add and check (§5), not the reader's. Carrying the hit's sort values rather than named span fields keeps the cursor's shape independent of the sort key, so a caller-chosen ordering (§12) changes what the array holds and not the code that handles it. Because `traceID` is a sortable keyword in the ES mapping (it already backs the term queries the reader builds) and `startTime` is a numeric field, both are valid `search_after` values with no mapping change. The collapse field `traceID` is likewise already a keyword, so collapse needs no new mapping either — only a new `collapse` clause in the query builder.
 
 ### 7.5 Cost and correctness notes
 

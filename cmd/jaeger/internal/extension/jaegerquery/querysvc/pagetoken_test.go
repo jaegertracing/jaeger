@@ -51,7 +51,7 @@ func pagedSpanQuery(p tracestore.Pagination) tracestore.SpanQueryParams {
 }
 
 // TestFindSpans_PageTokenRoundTrip walks a span search through two pages the way a client does:
-// the reader's cursor comes back sealed in a token bound to the storage and the query, and the
+// the reader's cursor comes back sealed in a token bound to the query, and the
 // same token sent back reaches the reader as the cursor it minted (RFC 0014 §3, §5).
 func TestFindSpans_PageTokenRoundTrip(t *testing.T) {
 	enablePagination(t)
@@ -205,7 +205,25 @@ func TestFindTraceSummaries_PageTokenBoundToQuery(t *testing.T) {
 		Pagination:  &tracestore.Pagination{PageSize: 10, PageToken: tracePageToken(t, minted.TraceQueryParams, "reader-cursor")},
 	})))
 	require.ErrorIs(t, err, tracestore.ErrPaginationInvalid)
+	assert.True(t, IsBadRequest(err))
 	assert.False(t, next.summaryCalled)
+}
+
+// TestFindTraceSummaries_LastPageCarriesNoToken pins that a reader's empty cursor on the last
+// page reaches the client as an empty token, not as a sealed envelope around nothing.
+func TestFindTraceSummaries_LastPageCarriesNoToken(t *testing.T) {
+	enablePagination(t)
+	next := &fakeReader{summaries: []tracestore.TraceSummary{{RootServiceName: "svc"}}}
+	next.capabilities = &tracestore.SearchCapabilities{Paginated: true}
+	qs := NewQueryService(next, nil, QueryServiceOptions{})
+
+	chunks, err := jiter.CollectWithErrors(qs.FindTraceSummaries(context.Background(), searchQuery(tracestore.TraceQueryParams{
+		ServiceName: "cart",
+		Pagination:  &tracestore.Pagination{PageSize: 10},
+	})))
+	require.NoError(t, err)
+	require.Len(t, chunks, 1)
+	assert.Empty(t, chunks[0].NextPageToken)
 }
 
 // TestFindTraceSummaries_PageTokenBoundToTheDispatchedQuery pins that the fingerprint is taken
