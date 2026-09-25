@@ -178,7 +178,7 @@ type TraceQueryParams struct {
 	StartTimeMax time.Time
 	DurationMin  time.Duration
 	DurationMax  time.Duration
-	SearchDepth  int
+	SearchDepth  uint
 	// Filter is the structured query filter (RFC 0005): a boolean-valued Call over
 	// level-qualified attributes and built-in fields. It is mutually exclusive with the
 	// predicate fields above — ServiceName, OperationName, Attributes and the duration
@@ -209,7 +209,7 @@ type Pagination struct {
 	// Pagination is present, and the query service refuses a zero PageSize before a Reader ever
 	// sees the query (RFC 0014 §4). A span search has no other bound, so there the query
 	// service fills in a default instead (see SpanQueryParams.Pagination).
-	PageSize int
+	PageSize uint
 	// PageToken continues a previous search. Empty starts a new one. A Reader that
 	// receives a non-empty PageToken MUST treat it as an uninterpreted cursor it minted
 	// itself for the same query — a Reader is never asked to interpret a token it did not

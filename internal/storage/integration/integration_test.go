@@ -70,7 +70,7 @@ func TestGetServicesUnexpectedServiceDiagnostic(t *testing.T) {
 	require.Len(t, queries, 2, "the diagnostic searches once per reported service")
 	for _, query := range queries {
 		assert.Positive(t, query.SearchDepth, "the memory store rejects a non-positive search depth")
-		assert.LessOrEqual(t, query.SearchDepth, maxSearchDepth, "the search depth must stay under every backend's ceiling")
+		assert.LessOrEqual(t, query.SearchDepth, uint(maxSearchDepth), "the search depth must stay under every backend's ceiling")
 	}
 	assert.Equal(t, []string{corpusService, unexpectedService},
 		[]string{queries[0].ServiceName, queries[1].ServiceName})

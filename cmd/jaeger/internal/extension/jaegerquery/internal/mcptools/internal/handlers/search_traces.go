@@ -181,7 +181,7 @@ func (h *searchTracesHandler) buildQuery(input types.SearchTracesInput) (querysv
 			StartTimeMax:  maxStartTime,
 			DurationMin:   durationMin,
 			DurationMax:   durationMax,
-			SearchDepth:   searchDepth,
+			SearchDepth:   uint(searchDepth),
 		},
 		RawTraces: false,
 	}, nil

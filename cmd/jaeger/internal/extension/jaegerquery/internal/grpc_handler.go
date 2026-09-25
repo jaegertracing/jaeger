@@ -148,7 +148,7 @@ func (g *GRPCHandler) FindTraces(r *api_v2.FindTracesRequest, stream api_v2.Quer
 			StartTimeMax:  query.StartTimeMax,
 			DurationMin:   query.DurationMin,
 			DurationMax:   query.DurationMax,
-			SearchDepth:   int(query.SearchDepth),
+			SearchDepth:   uint(query.SearchDepth),
 		},
 		RawTraces: query.RawTraces,
 	}

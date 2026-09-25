@@ -125,9 +125,9 @@ func (r *Reader) buildFindTraceIDsQuery(
 ) (string, []any, error) {
 	limit := query.SearchDepth
 	if limit == 0 {
-		limit = r.config.DefaultSearchDepth
+		limit = uint(r.config.DefaultSearchDepth)
 	}
-	if limit > r.config.MaxSearchDepth {
+	if limit > uint(r.config.MaxSearchDepth) {
 		return "", nil, fmt.Errorf("search depth %d exceeds maximum allowed %d", limit, r.config.MaxSearchDepth)
 	}
 

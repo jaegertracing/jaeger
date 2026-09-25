@@ -133,6 +133,6 @@ func GetV1QueryParameters(query tracestore.TraceQueryParams) *spanstore.TraceQue
 		StartTimeMax:  query.StartTimeMax,
 		DurationMin:   query.DurationMin,
 		DurationMax:   query.DurationMax,
-		NumTraces:     query.SearchDepth,
+		NumTraces:     int(query.SearchDepth),
 	}
 }

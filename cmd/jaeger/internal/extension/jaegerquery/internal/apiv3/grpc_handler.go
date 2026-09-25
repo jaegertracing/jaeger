@@ -96,7 +96,7 @@ func traceQueryParams(query *api_v3.TraceQueryParameters) (querysvc.TraceQueryPa
 			ServiceName:   query.GetServiceName(),
 			OperationName: query.GetOperationName(),
 			Attributes:    jptrace.PlainMapToPcommonMap(query.GetAttributes()),
-			SearchDepth:   int(query.GetSearchDepth()),
+			SearchDepth:   uint(query.GetSearchDepth()),
 			StartTimeMin:  query.GetStartTimeMin(),
 			StartTimeMax:  query.GetStartTimeMax(),
 			DurationMin:   query.GetDurationMin(),
@@ -112,7 +112,7 @@ func traceQueryParams(query *api_v3.TraceQueryParameters) (querysvc.TraceQueryPa
 	}
 	if pagination := query.GetPagination(); pagination != nil {
 		queryParams.Pagination = &tracestore.Pagination{
-			PageSize:  int(pagination.GetPageSize()),
+			PageSize:  uint(pagination.GetPageSize()),
 			PageToken: pagination.GetPageToken(),
 		}
 	}
@@ -166,7 +166,7 @@ func spanQueryParams(query *api_v3.SpanQueryParameters) (querysvc.SpanQueryParam
 	}
 	if pagination := query.GetPagination(); pagination != nil {
 		queryParams.Pagination = tracestore.Pagination{
-			PageSize:  int(pagination.GetPageSize()),
+			PageSize:  uint(pagination.GetPageSize()),
 			PageToken: pagination.GetPageToken(),
 		}
 	}

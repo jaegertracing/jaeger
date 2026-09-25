@@ -151,7 +151,7 @@ func TestPrepareSearchQuery_PageSizeClampedToMax(t *testing.T) {
 	assert.True(t, next.summaryCalled)
 	assert.Equal(t, &tracestore.Pagination{PageSize: tracestore.MaxPageSize, PageToken: "cursor"},
 		next.gotSummaryQuery.Pagination)
-	assert.Equal(t, tracestore.MaxPageSize+1000, sent.PageSize,
+	assert.Equal(t, uint(tracestore.MaxPageSize+1000), sent.PageSize,
 		"the caller's request is left as sent; the clamp lands on a copy")
 }
 
@@ -172,7 +172,7 @@ func TestPrepareSearchQuery_PageSizeFoldedIntoSearchDepthWhenUnsupported(t *test
 	}
 	assert.True(t, next.summaryCalled)
 	assert.Nil(t, next.gotSummaryQuery.Pagination, "cleared once folded")
-	assert.Equal(t, 15, next.gotSummaryQuery.SearchDepth)
+	assert.Equal(t, uint(15), next.gotSummaryQuery.SearchDepth)
 }
 
 // TestPrepareSearchQuery_PageSizeOnlyKeepsPaginationWhenSupported covers the other side: a
@@ -231,7 +231,7 @@ func TestPrepareSearchQuery_PageTokenAcceptedWhenSupported(t *testing.T) {
 	}
 	assert.True(t, next.summaryCalled)
 	assert.Equal(t, "opaque-cursor", next.gotSummaryQuery.Pagination.PageToken)
-	assert.Equal(t, 20, next.gotSummaryQuery.Pagination.PageSize)
+	assert.Equal(t, uint(20), next.gotSummaryQuery.Pagination.PageSize)
 }
 
 // TestPagination_SurvivesInterceptorFilterRewrite checks that Pagination is carried through when

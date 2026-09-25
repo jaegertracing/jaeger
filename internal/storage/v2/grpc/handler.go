@@ -316,12 +316,12 @@ func (*Handler) toTraceQueryParams(t *storage.TraceQueryParameters) (tracestore.
 		StartTimeMax:  t.StartTimeMax,
 		DurationMin:   t.DurationMin,
 		DurationMax:   t.DurationMax,
-		SearchDepth:   int(t.SearchDepth),
+		SearchDepth:   uint(t.SearchDepth),
 		Filter:        filter,
 	}
 	if pagination := t.GetPagination(); pagination != nil {
 		query.Pagination = &tracestore.Pagination{
-			PageSize:  int(pagination.GetPageSize()),
+			PageSize:  uint(pagination.GetPageSize()),
 			PageToken: pagination.GetPageToken(),
 		}
 	}

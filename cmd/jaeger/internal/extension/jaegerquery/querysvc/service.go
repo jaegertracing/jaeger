@@ -272,7 +272,7 @@ func (qs QueryService) prepareSearchQuery(
 			return ctx, query, fmt.Errorf("%w: it cannot be combined with search depth",
 				tracestore.ErrPaginationInvalid)
 		}
-		if query.Pagination.PageSize <= 0 {
+		if query.Pagination.PageSize == 0 {
 			return ctx, query, fmt.Errorf("%w: page size is required whenever pagination is present",
 				tracestore.ErrPaginationInvalid)
 		}
@@ -340,7 +340,7 @@ func (q *TraceQueryParams) normalizeEnvelope() error {
 	if q.DurationMin > 0 && q.DurationMax > 0 && q.DurationMax < q.DurationMin {
 		return fmt.Errorf("%w: max duration cannot be less than min duration", ErrQueryInvalid)
 	}
-	if q.SearchDepth < 0 || q.SearchDepth > tracestore.MaxSearchDepth {
+	if q.SearchDepth > tracestore.MaxSearchDepth {
 		return fmt.Errorf("%w: search depth must be in [0, %d]", ErrQueryInvalid, tracestore.MaxSearchDepth)
 	}
 	if q.SearchDepth == 0 && q.Pagination == nil {
