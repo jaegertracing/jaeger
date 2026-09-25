@@ -4,6 +4,7 @@
 package pagetoken
 
 import (
+	"bytes"
 	"crypto/sha256"
 	"encoding/binary"
 	"fmt"
@@ -112,25 +113,95 @@ func (h hasher) attributes(attrs pcommon.Map) {
 	}
 }
 
-// filter hashes the filter's wire encoding, which is the one canonical form a finalized filter
-// already has; the generated message has no maps, so its encoding is deterministic. Every
-// filter reaching a reader has passed tracestore.FinalizeFilter, so an encoding failure here is
-// a term the wire cannot carry and is reported rather than hashed.
+// filter hashes the wire encoding of the filter's canonical form: the tree with the operands
+// of every commutative operator, and the values of every list, in a fixed order. Two filters
+// that differ only in such an order select the same spans, and the same request can arrive
+// with its predicates permuted, because the attributes it was expanded from have no order on
+// the wire. Every filter reaching a reader has passed tracestore.FinalizeFilter, so an
+// encoding failure here is a term the wire cannot carry and is reported rather than hashed.
 func (h hasher) filter(filter *expression.Call) error {
 	if filter == nil {
 		h.int64(0)
 		return nil
 	}
-	msg, err := exprproto.ToProto(filter)
-	if err != nil {
-		return fmt.Errorf("cannot fingerprint the query filter: %w", err)
-	}
-	b, err := msg.Marshal()
+	b, err := encodeCanonical(filter)
 	if err != nil {
 		return fmt.Errorf("cannot fingerprint the query filter: %w", err)
 	}
 	h.bytes(b)
 	return nil
+}
+
+// encodeCanonical returns the wire encoding of the call's canonical form. The generated
+// message has no maps, so the encoding of a given tree is deterministic.
+func encodeCanonical(call *expression.Call) ([]byte, error) {
+	canonical, err := canonicalize(call)
+	if err != nil {
+		return nil, err
+	}
+	msg, err := exprproto.ToProto(canonical)
+	if err != nil {
+		return nil, err
+	}
+	return msg.Marshal()
+}
+
+// canonicalize returns a copy of the call with the operands of `and` and `or`, and the values
+// of every list, sorted by their own canonical encodings. Operands of every other operator
+// keep their order, since it is part of the operator's meaning.
+func canonicalize(call *expression.Call) (*expression.Call, error) {
+	out := &expression.Call{Op: call.Op, Args: make([]expression.Expression, len(call.Args))}
+	for i, arg := range call.Args {
+		switch term := arg.(type) {
+		case *expression.Call:
+			if term == nil {
+				out.Args[i] = arg
+				continue
+			}
+			nested, err := canonicalize(term)
+			if err != nil {
+				return nil, err
+			}
+			out.Args[i] = nested
+		case *expression.List:
+			if term == nil {
+				out.Args[i] = arg
+				continue
+			}
+			values := slices.Clone(term.Values)
+			slices.Sort(values)
+			out.Args[i] = &expression.List{Values: values, Type: term.Type}
+		default:
+			out.Args[i] = arg
+		}
+	}
+	if call.Op != expression.OpAnd && call.Op != expression.OpOr {
+		return out, nil
+	}
+	// Each operand is ordered by its own encoding, which is well defined for a canonical
+	// subtree and for a leaf alike; wrapping a leaf in a call is what gives it one.
+	keys := make([][]byte, len(out.Args))
+	for i, arg := range out.Args {
+		wrapped := &expression.Call{Args: []expression.Expression{arg}}
+		msg, err := exprproto.ToProto(wrapped)
+		if err != nil {
+			return nil, err
+		}
+		if keys[i], err = msg.Marshal(); err != nil {
+			return nil, err
+		}
+	}
+	order := make([]int, len(out.Args))
+	for i := range order {
+		order[i] = i
+	}
+	slices.SortStableFunc(order, func(a, b int) int { return bytes.Compare(keys[a], keys[b]) })
+	sorted := make([]expression.Expression, len(out.Args))
+	for i, from := range order {
+		sorted[i] = out.Args[from]
+	}
+	out.Args = sorted
+	return out, nil
 }
 
 func (h hasher) sum() []byte {

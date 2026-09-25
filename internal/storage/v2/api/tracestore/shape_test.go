@@ -370,28 +370,6 @@ func TestToFilterShape(t *testing.T) {
 	}, got.Filter.Args)
 }
 
-// TestToFilterShape_AttributesInKeyOrder pins that the tags become predicates in key order
-// whatever order the map lists them in, so that one request always converts to one filter.
-func TestToFilterShape_AttributesInKeyOrder(t *testing.T) {
-	forward := pcommon.NewMap()
-	forward.PutStr("a", "1")
-	forward.PutStr("b", "2")
-	forward.PutStr("c", "3")
-	backward := pcommon.NewMap()
-	backward.PutStr("c", "3")
-	backward.PutStr("b", "2")
-	backward.PutStr("a", "1")
-
-	got := TraceQueryParams{Attributes: backward}.ToFilterShape()
-
-	assert.Equal(t, TraceQueryParams{Attributes: forward}.ToFilterShape().Filter, got.Filter)
-	assert.Equal(t, []expression.Expression{
-		tag(expression.OpEq, "a", "1"),
-		tag(expression.OpEq, "b", "2"),
-		tag(expression.OpEq, "c", "3"),
-	}, got.Filter.Args)
-}
-
 // TestToFilterShape_NeedsNoResolution pins that the predicates it writes already carry the type
 // their field declares, so the filter an interceptor is shown is one it can read straight off
 // rather than one still waiting to be resolved.

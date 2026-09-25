@@ -5,7 +5,6 @@ package tracestore
 
 import (
 	"fmt"
-	"slices"
 
 	"go.opentelemetry.io/collector/pdata/pcommon"
 
@@ -63,23 +62,14 @@ func (q TraceQueryParams) ToFilterShape() TraceQueryParams {
 	// zero value used to reach storage unharmed, and converting shape must not be what turns
 	// that into a panic. The zero Map holds no slice to range over.
 	if q.Attributes != (pcommon.Map{}) {
-		// The map keeps insertion order, and the API layers fill it from a Go map, so the same
-		// request can list its tags in a different order each time. The predicates are written
-		// in key order so that one request always becomes one filter, which is what lets a page
-		// token be bound to the query it was minted for (RFC 0014 §3.2).
-		keys := make([]string, 0, q.Attributes.Len())
-		for key := range q.Attributes.All() {
-			keys = append(keys, key)
-		}
-		slices.Sort(keys)
-		for _, key := range keys {
-			value, _ := q.Attributes.Get(key)
+		q.Attributes.Range(func(key string, value pcommon.Value) bool {
 			// A tag carries no type, so the equality it becomes declares none either and matches
 			// the attribute in whatever form it was stored (RFC 0005 §5.4).
 			compare(expression.OpEq,
 				&expression.AttributeRef{Key: key},
 				&expression.AnyValue{Value: value.AsString()})
-		}
+			return true
+		})
 	}
 	if q.DurationMin != 0 {
 		compare(expression.OpGte,

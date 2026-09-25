@@ -148,6 +148,99 @@ func TestSpanQuery(t *testing.T) {
 	assert.NotEqual(t, unfiltered, trace, "a span search and a trace search over the same window are different queries")
 }
 
+func spanQueryWith(filter *expression.Call) tracestore.SpanQueryParams {
+	return tracestore.SpanQueryParams{StartTimeMin: windowStart, StartTimeMax: windowEnd, Filter: filter}
+}
+
+func tagIs(key, value string) *expression.Call {
+	return &expression.Call{Op: expression.OpEq, Args: []expression.Expression{
+		&expression.AttributeRef{Key: key, Level: expression.LevelSpan},
+		&expression.AnyValue{Value: value},
+	}}
+}
+
+func call(op expression.Operator, args ...expression.Expression) *expression.Call {
+	return &expression.Call{Op: op, Args: args}
+}
+
+func fingerprintOf(t *testing.T, filter *expression.Call) []byte {
+	fp, err := SpanQuery(spanQueryWith(filter))
+	require.NoError(t, err)
+	return fp
+}
+
+// TestFilter_InvariantUnderEquivalentPermutations pins that two filters selecting the same
+// spans fingerprint alike however their commutative operands and list values are ordered,
+// nested or not, while a permutation that changes the meaning does not.
+func TestFilter_InvariantUnderEquivalentPermutations(t *testing.T) {
+	a, b, c := tagIs("a", "1"), tagIs("b", "2"), tagIs("c", "3")
+	in := func(values ...string) *expression.Call {
+		return call(expression.OpIn,
+			&expression.AttributeRef{Key: "k", Level: expression.LevelSpan},
+			&expression.List{Values: values, Type: expression.ValueTypeString})
+	}
+
+	same := []struct {
+		name string
+		x, y *expression.Call
+	}{
+		{"and operands", call(expression.OpAnd, a, b, c), call(expression.OpAnd, c, a, b)},
+		{"or operands", call(expression.OpOr, a, b), call(expression.OpOr, b, a)},
+		{"nested", call(expression.OpAnd, call(expression.OpOr, a, b), c), call(expression.OpAnd, c, call(expression.OpOr, b, a))},
+		{"list values", in("x", "y", "z"), in("z", "x", "y")},
+	}
+	for _, tc := range same {
+		t.Run(tc.name, func(t *testing.T) {
+			assert.Equal(t, fingerprintOf(t, tc.x), fingerprintOf(t, tc.y))
+		})
+	}
+
+	duration := &expression.FieldRef{Level: expression.LevelSpan, Name: "duration"}
+	second := &expression.DurationValue{Value: time.Second}
+	different := []struct {
+		name string
+		x, y *expression.Call
+	}{
+		{"and versus or", call(expression.OpAnd, a, b), call(expression.OpOr, a, b)},
+		{"different operand", call(expression.OpAnd, a, b), call(expression.OpAnd, a, c)},
+		{"operand count", call(expression.OpAnd, a, b), call(expression.OpAnd, a, b, c)},
+		{"comparison operands", call(expression.OpGt, duration, second), call(expression.OpGt, second, duration)},
+		{"list versus other list", in("x", "y"), in("x", "z")},
+	}
+	for _, tc := range different {
+		t.Run(tc.name, func(t *testing.T) {
+			assert.NotEqual(t, fingerprintOf(t, tc.x), fingerprintOf(t, tc.y))
+		})
+	}
+}
+
+// TestCanonicalize_LeavesTheInputAlone pins that canonicalization works on a copy, since the
+// filter it is given is the one the reader is about to be dispatched.
+func TestCanonicalize_LeavesTheInputAlone(t *testing.T) {
+	a, b := tagIs("b", "2"), tagIs("a", "1")
+	list := &expression.List{Values: []string{"z", "x"}, Type: expression.ValueTypeString}
+	filter := call(expression.OpAnd, a, b, call(expression.OpIn, &expression.AttributeRef{Key: "k", Level: expression.LevelSpan}, list))
+
+	_, err := canonicalize(filter)
+	require.NoError(t, err)
+
+	assert.Same(t, a, filter.Args[0])
+	assert.Same(t, b, filter.Args[1])
+	assert.Equal(t, []string{"z", "x"}, list.Values)
+}
+
+// TestCanonicalize_NilTerms pins that a nil call or list operand is carried through rather
+// than dereferenced; the encoder is what refuses it.
+func TestCanonicalize_NilTerms(t *testing.T) {
+	filter := call(expression.OpAnd, (*expression.Call)(nil), (*expression.List)(nil))
+	_, err := encodeCanonical(filter)
+	require.ErrorIs(t, err, exprproto.ErrTermNotEncodable)
+
+	nested := call(expression.OpAnd, call(expression.OpAnd, (*expression.Call)(nil)), tagIs("a", "1"))
+	_, err = encodeCanonical(nested)
+	require.ErrorIs(t, err, exprproto.ErrTermNotEncodable)
+}
+
 // TestFilterNotEncodable pins that a filter the wire cannot carry is reported rather than hashed
 // as something else. Every filter reaching the query service has been finalized, so this is the
 // one way the fingerprint can fail.
