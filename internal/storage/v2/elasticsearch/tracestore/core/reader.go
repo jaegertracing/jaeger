@@ -295,6 +295,10 @@ func (s *SpanReader) FindSpans(ctx context.Context, spanQuery dbmodel.SpanQueryP
 	ctx, span := s.tracer.Start(ctx, "FindSpans")
 	defer span.End()
 
+	err := validateSpanQuery(spanQuery)
+	if err != nil {
+		return nil, err
+	}
 	filterQuery, err := s.buildFilterQuery(spanQuery.Filter)
 	if err != nil {
 		return nil, err
@@ -483,6 +487,15 @@ func validateQuery(p dbmodel.TraceQueryParameters) error {
 	}
 	if p.DurationMin != 0 && p.DurationMax != 0 && p.DurationMin > p.DurationMax {
 		return ErrDurationMinGreaterThanMax
+	}
+	return nil
+}
+func validateSpanQuery(p dbmodel.SpanQueryParameters) error {
+	if p.StartTimeMin.IsZero() || p.StartTimeMax.IsZero() {
+		return ErrStartAndEndTimeNotSet
+	}
+	if p.StartTimeMax.Before(p.StartTimeMin) {
+		return ErrStartTimeMinGreaterThanMax
 	}
 	return nil
 }
