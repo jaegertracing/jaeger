@@ -280,7 +280,7 @@ func toProtoQueryParameters(t tracestore.TraceQueryParams) (*storage.TraceQueryP
 	// but other callers (MCP, gRPC query, tests) can set it without going
 	// through that parser. This client still has to refuse values that will
 	// not encode cleanly as a protobuf search window.
-	if t.SearchDepth < 0 || t.SearchDepth > tracestore.MaxSearchDepth {
+	if t.SearchDepth > tracestore.MaxSearchDepth {
 		return nil, fmt.Errorf("SearchDepth must be in [0, %d]", tracestore.MaxSearchDepth)
 	}
 	q := &storage.TraceQueryParameters{
@@ -295,10 +295,11 @@ func toProtoQueryParameters(t tracestore.TraceQueryParams) (*storage.TraceQueryP
 		Filter:        filter,
 	}
 	if t.Pagination != nil {
-		// The query service clamps PageSize to tracestore.MaxPageSize before dispatch, so the
-		// cast cannot overflow.
+		if t.Pagination.PageSize > tracestore.MaxPageSize {
+			return nil, fmt.Errorf("PageSize must be in [0, %d]", tracestore.MaxPageSize)
+		}
 		q.Pagination = &storage.Pagination{
-			PageSize:  uint32(t.Pagination.PageSize), //nolint:gosec // G115
+			PageSize:  t.Pagination.PageSize,
 			PageToken: t.Pagination.PageToken,
 		}
 	}

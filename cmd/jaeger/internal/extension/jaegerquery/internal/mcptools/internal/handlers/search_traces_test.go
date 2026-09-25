@@ -95,7 +95,7 @@ func TestSearchTracesHandler_Handle_FullWorkflow(t *testing.T) {
 		findTraceSummariesFunc: func(_ context.Context, query querysvc.TraceQueryParams) iter.Seq2[[]tracestore.TraceSummary, error] {
 			assert.Equal(t, "cart-service", query.ServiceName)
 			assert.Equal(t, "/get-cart", query.OperationName)
-			assert.Equal(t, 10, query.SearchDepth)
+			assert.Equal(t, uint32(10), query.SearchDepth)
 			return func(yield func([]tracestore.TraceSummary, error) bool) {
 				yield([]tracestore.TraceSummary{want}, nil)
 			}
@@ -266,7 +266,7 @@ func TestSearchTracesHandler_Handle_SearchDepthDefault(t *testing.T) {
 
 	mock := &mockQueryService{
 		findTraceSummariesFunc: func(_ context.Context, query querysvc.TraceQueryParams) iter.Seq2[[]tracestore.TraceSummary, error] {
-			assert.Equal(t, 10, query.SearchDepth)
+			assert.Equal(t, uint32(10), query.SearchDepth)
 			return func(yield func([]tracestore.TraceSummary, error) bool) {
 				yield([]tracestore.TraceSummary{want}, nil)
 			}
@@ -290,7 +290,7 @@ func TestSearchTracesHandler_Handle_SearchDepthMax(t *testing.T) {
 
 	mock := &mockQueryService{
 		findTraceSummariesFunc: func(_ context.Context, query querysvc.TraceQueryParams) iter.Seq2[[]tracestore.TraceSummary, error] {
-			assert.Equal(t, 100, query.SearchDepth)
+			assert.Equal(t, uint32(100), query.SearchDepth)
 			return func(yield func([]tracestore.TraceSummary, error) bool) {
 				yield([]tracestore.TraceSummary{want}, nil)
 			}
@@ -314,7 +314,7 @@ func TestSearchTracesHandler_Handle_SearchDepthUnlimitedMaxResults(t *testing.T)
 
 	mock := &mockQueryService{
 		findTraceSummariesFunc: func(_ context.Context, query querysvc.TraceQueryParams) iter.Seq2[[]tracestore.TraceSummary, error] {
-			assert.Equal(t, 25, query.SearchDepth)
+			assert.Equal(t, uint32(25), query.SearchDepth)
 			return func(yield func([]tracestore.TraceSummary, error) bool) {
 				yield([]tracestore.TraceSummary{want}, nil)
 			}
@@ -332,6 +332,15 @@ func TestSearchTracesHandler_Handle_SearchDepthUnlimitedMaxResults(t *testing.T)
 
 	_, _, err := handler.handle(context.Background(), &mcp.CallToolRequest{}, input)
 	require.NoError(t, err)
+}
+
+func TestSearchTracesHandler_BuildQueryRefusesSearchDepthAboveMaximum(t *testing.T) {
+	handler := &searchTracesHandler{maxResults: 0}
+	_, err := handler.buildQuery(types.SearchTracesInput{
+		StartTimeMin: "-1h",
+		SearchDepth:  int(tracestore.MaxSearchDepth + 1),
+	})
+	require.ErrorContains(t, err, "search depth must not exceed")
 }
 
 func TestSearchTracesHandler_Handle_QueryError(t *testing.T) {

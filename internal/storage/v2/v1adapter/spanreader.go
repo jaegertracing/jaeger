@@ -6,6 +6,7 @@ package v1adapter
 import (
 	"context"
 	"errors"
+	"math"
 
 	"github.com/jaegertracing/jaeger-idl/model/v1"
 	"github.com/jaegertracing/jaeger/internal/jptrace"
@@ -66,6 +67,13 @@ func (sr *SpanReader) FindTraces(
 	ctx context.Context,
 	query *spanstore.TraceQueryParameters,
 ) ([]*model.Trace, error) {
+	numTraces := query.NumTraces
+	if numTraces < 0 {
+		return nil, errors.New("search depth cannot be negative")
+	}
+	if uint64(numTraces) > math.MaxUint32 {
+		return nil, errors.New("search depth exceeds the maximum value")
+	}
 	getTracesIter := sr.traceReader.FindTraces(ctx, tracestore.TraceQueryParams{
 		ServiceName:   query.ServiceName,
 		OperationName: query.OperationName,
@@ -74,7 +82,7 @@ func (sr *SpanReader) FindTraces(
 		StartTimeMax:  query.StartTimeMax,
 		DurationMin:   query.DurationMin,
 		DurationMax:   query.DurationMax,
-		SearchDepth:   query.NumTraces,
+		SearchDepth:   uint32(numTraces),
 	})
 	return V1TracesFromSeq2(getTracesIter)
 }
@@ -83,6 +91,13 @@ func (sr *SpanReader) FindTraceIDs(
 	ctx context.Context,
 	query *spanstore.TraceQueryParameters,
 ) ([]model.TraceID, error) {
+	numTraces := query.NumTraces
+	if numTraces < 0 {
+		return nil, errors.New("search depth cannot be negative")
+	}
+	if uint64(numTraces) > math.MaxUint32 {
+		return nil, errors.New("search depth exceeds the maximum value")
+	}
 	traceIDsIter := sr.traceReader.FindTraceIDs(ctx, tracestore.TraceQueryParams{
 		ServiceName:   query.ServiceName,
 		OperationName: query.OperationName,
@@ -91,7 +106,7 @@ func (sr *SpanReader) FindTraceIDs(
 		StartTimeMax:  query.StartTimeMax,
 		DurationMin:   query.DurationMin,
 		DurationMax:   query.DurationMax,
-		SearchDepth:   query.NumTraces,
+		SearchDepth:   uint32(numTraces),
 	})
 	return V1TraceIDsFromSeq2(traceIDsIter)
 }

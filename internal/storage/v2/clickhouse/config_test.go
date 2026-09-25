@@ -65,8 +65,8 @@ func TestValidate(t *testing.T) {
 			wantErr: "default_search_depth must be a positive number",
 		},
 		{
-			name:    "negative max search depth",
-			mutate:  func(cfg *Configuration) { cfg.MaxSearchDepth = -1 },
+			name:    "zero max search depth",
+			mutate:  func(cfg *Configuration) { cfg.MaxSearchDepth = 0 },
 			wantErr: "max_search_depth must be a positive number",
 		},
 		{

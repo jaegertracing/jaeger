@@ -450,7 +450,7 @@ func TestQueryToReaderShape(t *testing.T) {
 		prepared, err := queryToReaderShape(query, filterCapable)
 		require.NoError(t, err)
 		assert.Equal(t, serviceIs("cart"), prepared.Filter, "a paginated query still gets its filter evaluated")
-		assert.Equal(t, 50, prepared.SearchDepth, "a reader that declared no Paginated support still gets a bound")
+		assert.Equal(t, uint32(50), prepared.SearchDepth, "a reader that declared no Paginated support still gets a bound")
 		assert.Nil(t, prepared.Pagination)
 	})
 

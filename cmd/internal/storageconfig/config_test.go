@@ -126,10 +126,11 @@ func TestConfigValidate(t *testing.T) {
 
 func TestTraceBackendUnmarshal(t *testing.T) {
 	tests := []struct {
-		name         string
-		configMap    map[string]any
-		expectError  bool
-		validateFunc func(*testing.T, *TraceBackend)
+		name          string
+		configMap     map[string]any
+		expectError   bool
+		errorContains string
+		validateFunc  func(*testing.T, *TraceBackend)
 	}{
 		{
 			name: "memory backend with defaults",
@@ -241,17 +242,15 @@ func TestTraceBackendUnmarshal(t *testing.T) {
 			},
 		},
 		{
-			name: "clickhouse backend rejects a non-positive search depth",
+			name: "clickhouse backend rejects a negative search depth",
 			configMap: map[string]any{
 				"clickhouse": map[string]any{
 					"addresses":            []any{"localhost:9000"},
 					"default_search_depth": -1,
 				},
 			},
-			expectError: false,
-			validateFunc: func(t *testing.T, tb *TraceBackend) {
-				require.ErrorContains(t, confmap.Validate(tb), "default_search_depth must be a positive number")
-			},
+			expectError:   true,
+			errorContains: "cannot parse value as 'uint32'",
 		},
 		{
 			name: "clickhouse backend keeps an explicitly configured zero",
@@ -280,6 +279,9 @@ func TestTraceBackendUnmarshal(t *testing.T) {
 
 			if tt.expectError {
 				require.Error(t, err)
+				if tt.errorContains != "" {
+					require.ErrorContains(t, err, tt.errorContains)
+				}
 			} else {
 				require.NoError(t, err)
 				if tt.validateFunc != nil {

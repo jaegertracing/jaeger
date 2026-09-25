@@ -971,14 +971,14 @@ func TestFindTracesRefusedByQueryService_GRPC(t *testing.T) {
 				StartTimeMax: time.Now(),
 				SearchDepth:  -1,
 			},
-			wantErr: "search depth must be in [0, 10000]",
+			wantErr: "search depth cannot be negative",
 		},
 		"search depth above the maximum": {
 			query: &api_v2.TraceQueryParameters{
 				ServiceName:  "service",
 				StartTimeMin: time.Now().Add(-10 * time.Minute),
 				StartTimeMax: time.Now(),
-				SearchDepth:  tracestore.MaxSearchDepth + 1,
+				SearchDepth:  int32(tracestore.MaxSearchDepth + 1),
 			},
 			wantErr: "search depth must be in [0, 10000]",
 		},

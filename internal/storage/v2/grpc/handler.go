@@ -301,6 +301,10 @@ func (h *Handler) GetCapabilities(
 // are InvalidArgument. It does not validate Pagination or consult the reader's capabilities:
 // converting a query toward what the reader supports is the query service's job (ADR-013).
 func (*Handler) toTraceQueryParams(t *storage.TraceQueryParameters) (tracestore.TraceQueryParams, error) {
+	searchDepth := t.GetSearchDepth()
+	if searchDepth < 0 {
+		return tracestore.TraceQueryParams{}, status.Error(codes.InvalidArgument, "search depth cannot be negative")
+	}
 	filter, err := expressionproto.FromProto(t.GetFilter())
 	if err == nil && filter != nil {
 		filter, err = tracestore.FinalizeFilter(filter)
@@ -316,12 +320,12 @@ func (*Handler) toTraceQueryParams(t *storage.TraceQueryParameters) (tracestore.
 		StartTimeMax:  t.StartTimeMax,
 		DurationMin:   t.DurationMin,
 		DurationMax:   t.DurationMax,
-		SearchDepth:   int(t.SearchDepth),
+		SearchDepth:   uint32(searchDepth),
 		Filter:        filter,
 	}
 	if pagination := t.GetPagination(); pagination != nil {
 		query.Pagination = &tracestore.Pagination{
-			PageSize:  int(pagination.GetPageSize()),
+			PageSize:  pagination.GetPageSize(),
 			PageToken: pagination.GetPageToken(),
 		}
 	}

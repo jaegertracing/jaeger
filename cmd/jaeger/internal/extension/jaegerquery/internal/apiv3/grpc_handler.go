@@ -85,18 +85,22 @@ func (h *Handler) internalFindTraces(
 }
 
 // traceQueryParams translates a proto TraceQueryParameters into the query service's shape.
-// What the query must satisfy is the query service's decision, so nothing is checked here
-// beyond what the translation itself needs.
+// What the query must satisfy is the query service's decision, except that the legacy signed
+// wire search depth must be non-negative before it can be represented internally.
 func traceQueryParams(query *api_v3.TraceQueryParameters) (querysvc.TraceQueryParams, error) {
 	if query == nil {
 		return querysvc.TraceQueryParams{}, status.Error(codes.InvalidArgument, "missing query")
+	}
+	searchDepth := query.GetSearchDepth()
+	if searchDepth < 0 {
+		return querysvc.TraceQueryParams{}, status.Error(codes.InvalidArgument, "search depth cannot be negative")
 	}
 	queryParams := querysvc.TraceQueryParams{
 		TraceQueryParams: tracestore.TraceQueryParams{
 			ServiceName:   query.GetServiceName(),
 			OperationName: query.GetOperationName(),
 			Attributes:    jptrace.PlainMapToPcommonMap(query.GetAttributes()),
-			SearchDepth:   int(query.GetSearchDepth()),
+			SearchDepth:   uint32(searchDepth),
 			StartTimeMin:  query.GetStartTimeMin(),
 			StartTimeMax:  query.GetStartTimeMax(),
 			DurationMin:   query.GetDurationMin(),
@@ -112,7 +116,7 @@ func traceQueryParams(query *api_v3.TraceQueryParameters) (querysvc.TraceQueryPa
 	}
 	if pagination := query.GetPagination(); pagination != nil {
 		queryParams.Pagination = &tracestore.Pagination{
-			PageSize:  int(pagination.GetPageSize()),
+			PageSize:  pagination.GetPageSize(),
 			PageToken: pagination.GetPageToken(),
 		}
 	}
@@ -166,7 +170,7 @@ func spanQueryParams(query *api_v3.SpanQueryParameters) (querysvc.SpanQueryParam
 	}
 	if pagination := query.GetPagination(); pagination != nil {
 		queryParams.Pagination = tracestore.Pagination{
-			PageSize:  int(pagination.GetPageSize()),
+			PageSize:  pagination.GetPageSize(),
 			PageToken: pagination.GetPageToken(),
 		}
 	}

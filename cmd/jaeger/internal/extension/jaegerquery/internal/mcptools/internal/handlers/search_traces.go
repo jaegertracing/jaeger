@@ -163,6 +163,9 @@ func (h *searchTracesHandler) buildQuery(input types.SearchTracesInput) (querysv
 	if h.maxResults > 0 && searchDepth > h.maxResults {
 		searchDepth = h.maxResults
 	}
+	if searchDepth > int(tracestore.MaxSearchDepth) {
+		return querysvc.TraceQueryParams{}, fmt.Errorf("search depth must not exceed %d", tracestore.MaxSearchDepth)
+	}
 
 	attributes := pcommon.NewMap()
 	for key, value := range input.Attributes {
@@ -181,7 +184,7 @@ func (h *searchTracesHandler) buildQuery(input types.SearchTracesInput) (querysv
 			StartTimeMax:  maxStartTime,
 			DurationMin:   durationMin,
 			DurationMax:   durationMax,
-			SearchDepth:   searchDepth,
+			SearchDepth:   uint32(searchDepth),
 		},
 		RawTraces: false,
 	}, nil

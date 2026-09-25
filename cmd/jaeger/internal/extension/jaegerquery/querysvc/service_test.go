@@ -1076,10 +1076,6 @@ func TestFindTraces_EnvelopeIsSettledOnce(t *testing.T) {
 			query:   window(tracestore.TraceQueryParams{DurationMin: 10 * time.Second, DurationMax: 5 * time.Second}),
 			wantErr: "max duration cannot be less than min duration",
 		},
-		"negative search depth": {
-			query:   window(tracestore.TraceQueryParams{SearchDepth: -1}),
-			wantErr: "search depth must be in [0, 10000]",
-		},
 		"search depth above the maximum": {
 			query:   window(tracestore.TraceQueryParams{SearchDepth: tracestore.MaxSearchDepth + 1}),
 			wantErr: "search depth must be in [0, 10000]",
@@ -1096,8 +1092,8 @@ func TestFindTraces_EnvelopeIsSettledOnce(t *testing.T) {
 	}
 
 	dispatched := map[string]struct {
-		depth int
-		want  int
+		depth uint32
+		want  uint32
 	}{
 		"an unset search depth gets the default": {depth: 0, want: DefaultSearchDepth},
 		"an explicit search depth is kept":       {depth: 42, want: 42},
