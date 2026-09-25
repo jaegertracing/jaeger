@@ -29,6 +29,11 @@ var errNoArchiveSpanStorage = errors.New("archive span storage was not configure
 // here rather than in each API handler, so a gRPC and an HTTP client get the same bound.
 const DefaultSearchDepth = 100
 
+// DefaultPageSize bounds a span search whose caller left the page size unset. A span query has
+// no SearchDepth, so the page size is its only bound (RFC 0016 §6), and a Reader never receives
+// a query without one. It is applied here for the same reason as DefaultSearchDepth.
+const DefaultPageSize = DefaultSearchDepth
+
 // ErrQueryInvalid is returned for a trace search whose envelope is malformed on its own terms:
 // a missing or inverted time range, a negative or inverted duration bound, or a search depth
 // outside [0, MaxSearchDepth]. None of these depends on the backend. The API layers map it to
@@ -347,7 +352,9 @@ func (q *TraceQueryParams) normalizeEnvelope() error {
 // prepareSpanSearchQuery is prepareSearchQuery for a span search (RFC 0016 §4.6): it refuses a
 // request this deployment or its backend does not accept, gives the configured query interceptors
 // their say, and returns the query to dispatch along with the context to dispatch it with. A span
-// query has one shape, so there is no conversion step and no service-name rule.
+// query has one shape, so there is no conversion step and no service-name rule. The API handlers
+// only translate their wire shape into this one; what a query must satisfy is decided here, once
+// (the same reasoning as normalizeEnvelope, for the one field a span query's envelope has).
 //
 // The capabilities are read once. The caller's filter validation and the span-search refusal
 // come before the interceptors, so an interceptor is never shown a request this deployment or
@@ -357,6 +364,23 @@ func (qs QueryService) prepareSpanSearchQuery(
 	ctx context.Context,
 	query SpanQueryParams,
 ) (context.Context, SpanQueryParams, error) {
+	if query.StartTimeMin.IsZero() || query.StartTimeMax.IsZero() {
+		return ctx, query, fmt.Errorf("%w: start_time_min and start_time_max are required", ErrQueryInvalid)
+	}
+	if !query.StartTimeMin.Before(query.StartTimeMax) {
+		return ctx, query, fmt.Errorf("%w: start_time_min must be before start_time_max", ErrQueryInvalid)
+	}
+	// A page token is what makes this a paginated request, and that is what the feature gate
+	// governs. The page size is only the bound (RFC 0016 §6): unset means the default, as an
+	// omitted size does on Elasticsearch, and an oversized one is clamped (RFC 0014 §4).
+	if query.Pagination.PageToken != "" && !PaginationGate.IsEnabled() {
+		return ctx, query, fmt.Errorf("%w: enable the %q feature gate to use it",
+			ErrPaginationDisabled, PaginationGate.ID())
+	}
+	if query.Pagination.PageSize == 0 {
+		query.Pagination.PageSize = DefaultPageSize
+	}
+	query.Pagination.PageSize = min(query.Pagination.PageSize, tracestore.MaxPageSize)
 	// A search over the time range alone carries no filter and is the base case of a span query
 	// (RFC 0016 §5.1), so the gate and finalization apply only when the caller sent one. Neither
 	// depends on the backend, so both come before the capability call rather than after it.
@@ -382,7 +406,21 @@ func (qs QueryService) prepareSpanSearchQuery(
 			return ctx, query, err
 		}
 	}
+	if err := ensureSpanPaginationSupported(caps, query.Pagination); err != nil {
+		return ctx, query, err
+	}
 	return ctx, query, ensureSpanFilterSupported(caps, query.Filter)
+}
+
+// ensureSpanPaginationSupported is RFC 0014 §6.2 for a span search. A reader that cannot paginate
+// still serves one page bounded by PageSize, since a span query has no other bound to fold it
+// into, but it cannot have minted a PageToken, so a query carrying one is refused rather than
+// restarted as a new search.
+func ensureSpanPaginationSupported(caps tracestore.SearchCapabilities, pagination tracestore.Pagination) error {
+	if pagination.PageToken != "" && !caps.Paginated {
+		return tracestore.ErrPaginationUnsupported
+	}
+	return nil
 }
 
 // readerSearchCapabilitiesOrDefault reads what the reader declares. A reader that cannot report
