@@ -5,7 +5,9 @@
 package app
 
 import (
+	"archive/tar"
 	"bytes"
+	"compress/gzip"
 	"context"
 	"encoding/json"
 	"errors"
@@ -14,6 +16,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"path/filepath"
 	"strings"
 	"sync/atomic"
 	"testing"
@@ -41,6 +44,223 @@ func TestNotExistingUiConfig(t *testing.T) {
 	)
 	require.ErrorContains(t, err, "no such file or directory")
 	assert.Nil(t, handler)
+}
+
+// getViaAssetsPath spins up a static handler backed by assetsPath and
+// returns the response body for route. Used to compare a directory-backed
+// deployment against an archive-backed one serving the same bundle.
+func getViaAssetsPath(t *testing.T, assetsPath, route string) string {
+	t.Helper()
+	r := http.NewServeMux()
+	closer := RegisterStaticHandler(
+		r, zap.NewNop(),
+		&QueryOptions{UIConfig: UIConfig{AssetsPath: assetsPath}},
+		nilBackendCaps,
+	)
+	defer closer.Close()
+
+	server := httptest.NewServer(r)
+	defer server.Close()
+
+	resp, err := http.Get(server.URL + route)
+	require.NoError(t, err)
+	defer resp.Body.Close()
+	require.Equal(t, http.StatusOK, resp.StatusCode)
+
+	body, err := io.ReadAll(resp.Body)
+	require.NoError(t, err)
+	return string(body)
+}
+
+// TestAssetsFSTarGzServesSameContentAsDirectory covers the archive path's
+// main promise: assets_path pointed at fixture.tar.gz must serve the exact
+// same bytes as assets_path pointed at the unpacked fixture directory it was
+// built from (see fixture.tar.gz's construction, mirroring fixture/).
+func TestAssetsFSTarGzServesSameContentAsDirectory(t *testing.T) {
+	for _, route := range []string{"/", "/static/asset.txt"} {
+		t.Run(route, func(t *testing.T) {
+			dirBody := getViaAssetsPath(t, "fixture", route)
+			archiveBody := getViaAssetsPath(t, "fixture.tar.gz", route)
+			assert.Equal(t, dirBody, archiveBody)
+		})
+	}
+}
+
+// TestAssetsFSTgzSuffix covers the shorter .tgz spelling of the same
+// gzip+tar format.
+func TestAssetsFSTgzSuffix(t *testing.T) {
+	data, err := os.ReadFile("fixture.tar.gz")
+	require.NoError(t, err)
+	tgzPath := filepath.Join(t.TempDir(), "assets.tgz")
+	require.NoError(t, os.WriteFile(tgzPath, data, 0o600))
+
+	fsys, err := newAssetsFS(tgzPath)
+	require.NoError(t, err)
+	f, err := fsys.Open("/index.html")
+	require.NoError(t, err)
+	require.NoError(t, f.Close())
+}
+
+func TestAssetsFSUnsupportedFileSuffix(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "assets.zip")
+	require.NoError(t, os.WriteFile(path, []byte("not an archive"), 0o600))
+
+	_, err := newAssetsFS(path)
+	require.ErrorContains(t, err, "not a .tar.gz or .tgz archive")
+}
+
+func TestAssetsFSCorruptedArchive(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "assets.tar.gz")
+	require.NoError(t, os.WriteFile(path, []byte("not actually gzip"), 0o600))
+
+	_, err := newAssetsFS(path)
+	require.ErrorContains(t, err, "cannot read assets archive")
+}
+
+// TestArchiveAssetsFSOpenError covers the case where the archive is removed
+// (or otherwise becomes unreadable) between newAssetsFS's os.Stat and the
+// actual open — exercised directly since newAssetsFS's own stat prevents
+// reaching this path through the public entry point with a merely
+// nonexistent file.
+func TestArchiveAssetsFSOpenError(t *testing.T) {
+	_, err := archiveAssetsFS(filepath.Join(t.TempDir(), "gone.tar.gz"))
+	require.ErrorContains(t, err, "cannot open assets archive")
+}
+
+// TestAssetsFSMalformedTarHeader covers a stream that gzip decodes cleanly
+// but that archive/tar rejects: a 512-byte block that is not a valid tar
+// header (and not the all-zero end-of-archive marker either).
+func TestAssetsFSMalformedTarHeader(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "assets.tar.gz")
+	f, err := os.Create(path)
+	require.NoError(t, err)
+	gz := gzip.NewWriter(f)
+	garbage := bytes.Repeat([]byte("X"), 512) // non-zero, fails the tar header checksum
+	_, err = gz.Write(garbage)
+	require.NoError(t, err)
+	require.NoError(t, gz.Close())
+	require.NoError(t, f.Close())
+
+	_, err = newAssetsFS(path)
+	require.ErrorContains(t, err, "cannot read assets archive")
+}
+
+// TestAssetsFSSkipsNonRegularEntries covers a directory entry alongside a
+// regular file: the directory is skipped rather than added to the served
+// tree (fstest.MapFS synthesizes directories from file paths on its own).
+func TestAssetsFSSkipsNonRegularEntries(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "assets.tar.gz")
+	f, err := os.Create(path)
+	require.NoError(t, err)
+	gz := gzip.NewWriter(f)
+	tw := tar.NewWriter(gz)
+	require.NoError(t, tw.WriteHeader(&tar.Header{
+		Name:     "static/",
+		Typeflag: tar.TypeDir,
+		Mode:     0o755,
+	}))
+	content := []byte("some asset")
+	require.NoError(t, tw.WriteHeader(&tar.Header{
+		Name: "static/asset.txt",
+		Mode: 0o644,
+		Size: int64(len(content)),
+	}))
+	_, err = tw.Write(content)
+	require.NoError(t, err)
+	require.NoError(t, tw.Close())
+	require.NoError(t, gz.Close())
+	require.NoError(t, f.Close())
+
+	fsys, err := newAssetsFS(path)
+	require.NoError(t, err)
+
+	_, err = fsys.Open("/static/")
+	assert.Error(t, err, "the directory entry itself must not become a servable file")
+
+	hf, err := fsys.Open("/static/asset.txt")
+	require.NoError(t, err)
+	defer hf.Close()
+	data, err := io.ReadAll(hf)
+	require.NoError(t, err)
+	assert.Equal(t, content, data)
+}
+
+// TestAssetsFSTruncatedEntryBody covers a header that parses correctly but
+// whose declared Size promises more bytes than the archive actually
+// contains, e.g. from a truncated download.
+func TestAssetsFSTruncatedEntryBody(t *testing.T) {
+	var raw bytes.Buffer
+	tw := tar.NewWriter(&raw)
+	content := []byte("this content will never actually be written to the archive")
+	require.NoError(t, tw.WriteHeader(&tar.Header{
+		Name: "index.html",
+		Mode: 0o644,
+		Size: int64(len(content)),
+	}))
+	// Deliberately not calling tw.Write: the header promises len(content)
+	// bytes that never follow, simulating a stream cut short after the
+	// header block.
+	headerOnly := raw.Bytes()
+	require.NotEmpty(t, headerOnly)
+
+	path := filepath.Join(t.TempDir(), "assets.tar.gz")
+	f, err := os.Create(path)
+	require.NoError(t, err)
+	gz := gzip.NewWriter(f)
+	_, err = gz.Write(headerOnly)
+	require.NoError(t, err)
+	require.NoError(t, gz.Close())
+	require.NoError(t, f.Close())
+
+	_, err = newAssetsFS(path)
+	require.ErrorContains(t, err, "cannot read index.html from assets archive")
+}
+
+func TestAssetsFSEmptyArchive(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "empty.tar.gz")
+	f, err := os.Create(path)
+	require.NoError(t, err)
+	gz := gzip.NewWriter(f)
+	tw := tar.NewWriter(gz)
+	require.NoError(t, tw.Close())
+	require.NoError(t, gz.Close())
+	require.NoError(t, f.Close())
+
+	_, err = newAssetsFS(path)
+	require.ErrorContains(t, err, "contains no files")
+}
+
+// TestAssetsFSSanitizesTraversalNames confirms an archive entry name that
+// climbs above the root (e.g. from a maliciously or accidentally built
+// archive) is neutralized to a path under the served tree rather than
+// escaping it or erroring out.
+func TestAssetsFSSanitizesTraversalNames(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "assets.tar.gz")
+	f, err := os.Create(path)
+	require.NoError(t, err)
+	gz := gzip.NewWriter(f)
+	tw := tar.NewWriter(gz)
+	content := []byte("hi")
+	require.NoError(t, tw.WriteHeader(&tar.Header{
+		Name: "../../etc/passwd",
+		Mode: 0o644,
+		Size: int64(len(content)),
+	}))
+	_, err = tw.Write(content)
+	require.NoError(t, err)
+	require.NoError(t, tw.Close())
+	require.NoError(t, gz.Close())
+	require.NoError(t, f.Close())
+
+	fsys, err := newAssetsFS(path)
+	require.NoError(t, err)
+
+	hf, err := fsys.Open("/etc/passwd")
+	require.NoError(t, err)
+	defer hf.Close()
+	data, err := io.ReadAll(hf)
+	require.NoError(t, err)
+	assert.Equal(t, content, data)
 }
 
 func TestRegisterStaticHandlerPanic(t *testing.T) {

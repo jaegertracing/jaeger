@@ -5,17 +5,22 @@
 package app
 
 import (
+	"archive/tar"
 	"bytes"
+	"compress/gzip"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
 	"os"
+	"path"
 	"path/filepath"
 	"regexp"
 	"strings"
 	"sync"
+	"testing/fstest"
 	"time"
 
 	"go.uber.org/zap"
@@ -105,7 +110,11 @@ func newStaticAssetsHandler(
 ) (*staticAssetsHandler, error) {
 	assetsFS := ui.GetStaticFiles(logger)
 	if qOpts.UIConfig.AssetsPath != "" {
-		assetsFS = http.Dir(qOpts.UIConfig.AssetsPath)
+		fsys, err := newAssetsFS(qOpts.UIConfig.AssetsPath)
+		if err != nil {
+			return nil, err
+		}
+		assetsFS = fsys
 	}
 	raw, err := loadIndexHTML(assetsFS.Open)
 	if err != nil {
@@ -133,6 +142,69 @@ func newStaticAssetsHandler(
 		logger.Info("Using UI configuration", zap.String("path", h.uiConfigFile))
 	}
 	return h, nil
+}
+
+// newAssetsFS builds the http.FileSystem that serves the Jaeger UI bundle
+// from assetsPath. A directory is served as-is, matching the historical
+// behavior. A .tar.gz or .tgz file is unpacked into memory and served from
+// there instead, so a custom distribution can point assets_path directly at
+// the published assets.tar.gz without unpacking it into the image first.
+func newAssetsFS(assetsPath string) (http.FileSystem, error) {
+	info, err := os.Stat(assetsPath)
+	if err != nil {
+		return nil, fmt.Errorf("cannot access assets_path %v: %w", assetsPath, err)
+	}
+	if info.IsDir() {
+		return http.Dir(assetsPath), nil
+	}
+	lower := strings.ToLower(assetsPath)
+	if !strings.HasSuffix(lower, ".tar.gz") && !strings.HasSuffix(lower, ".tgz") {
+		return nil, fmt.Errorf("assets_path %v is a file but not a .tar.gz or .tgz archive", assetsPath)
+	}
+	return archiveAssetsFS(assetsPath)
+}
+
+// archiveAssetsFS unpacks the gzip-compressed tar archive at assetsPath into
+// an in-memory fs.FS and adapts it to http.FileSystem. Entry names are
+// cleaned against a synthetic root before being used as map keys, so a path
+// like "../../etc/passwd" inside the archive cannot escape the served tree.
+func archiveAssetsFS(assetsPath string) (http.FileSystem, error) {
+	f, err := os.Open(assetsPath)
+	if err != nil {
+		return nil, fmt.Errorf("cannot open assets archive %v: %w", assetsPath, err)
+	}
+	defer f.Close()
+
+	gzr, err := gzip.NewReader(f)
+	if err != nil {
+		return nil, fmt.Errorf("cannot read assets archive %v: %w", assetsPath, err)
+	}
+	defer gzr.Close()
+
+	fsys := fstest.MapFS{}
+	tr := tar.NewReader(gzr)
+	for {
+		hdr, err := tr.Next()
+		if errors.Is(err, io.EOF) {
+			break
+		}
+		if err != nil {
+			return nil, fmt.Errorf("cannot read assets archive %v: %w", assetsPath, err)
+		}
+		if hdr.Typeflag != tar.TypeReg {
+			continue
+		}
+		name := strings.TrimPrefix(path.Clean("/"+hdr.Name), "/")
+		data, err := io.ReadAll(tr)
+		if err != nil {
+			return nil, fmt.Errorf("cannot read %v from assets archive %v: %w", hdr.Name, assetsPath, err)
+		}
+		fsys[name] = &fstest.MapFile{Data: data, Mode: 0o444, ModTime: hdr.ModTime}
+	}
+	if len(fsys) == 0 {
+		return nil, fmt.Errorf("assets archive %v contains no files", assetsPath)
+	}
+	return http.FS(fsys), nil
 }
 
 // getUIConfig returns the cached parsed UI config, re-reading it from disk
