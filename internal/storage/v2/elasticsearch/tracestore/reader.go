@@ -19,7 +19,7 @@ var _ tracestore.Reader = (*TraceReader)(nil)
 // TraceReader is a wrapper around core.Reader which returns the output parallel to OTLP Models
 type TraceReader struct {
 	// SpanSearch is unsupported in ElasticSearch for now.
-	tracestore.UnsupportedSpanSearch
+	// tracestore.UnsupportedSpanSearch
 
 	spanReader core.Reader
 }
@@ -112,6 +112,24 @@ func (r *TraceReader) FindTraces(ctx context.Context, query tracestore.TraceQuer
 	}
 }
 
+func (r *TraceReader) FindSpans(ctx context.Context, query tracestore.SpanQueryParams) iter.Seq2[tracestore.PageChunk[ptrace.Traces], error] {
+	return func(yield func(tracestore.PageChunk[ptrace.Traces], error) bool) {
+		spans, err := r.spanReader.FindSpans(ctx, toDBSpanQueryParams(query))
+		if err != nil {
+			yield(tracestore.PageChunk[ptrace.Traces]{}, err)
+			return
+		}
+		td, err := FromDBModel(spans)
+		if err != nil {
+			yield(tracestore.PageChunk[ptrace.Traces]{}, err)
+			return
+		}
+		if !yield(tracestore.PageChunk[ptrace.Traces]{Results: td}, nil) {
+			return
+		}
+	}
+}
+
 func (r *TraceReader) FindTraceIDs(ctx context.Context, query tracestore.TraceQueryParams) iter.Seq2[tracestore.PageChunk[[]tracestore.FoundTraceID], error] {
 	return func(yield func(tracestore.PageChunk[[]tracestore.FoundTraceID], error) bool) {
 		traceIds, err := r.spanReader.FindTraceIDs(ctx, toDBTraceQueryParams(query))
@@ -150,5 +168,13 @@ func toDBTraceQueryParams(query tracestore.TraceQueryParams) dbmodel.TraceQueryP
 		DurationMin:   query.DurationMin,
 		DurationMax:   query.DurationMax,
 		Filter:        query.Filter,
+	}
+}
+
+func toDBSpanQueryParams(query tracestore.SpanQueryParams) dbmodel.SpanQueryParameters {
+	return dbmodel.SpanQueryParameters{
+		StartTimeMin: query.StartTimeMin,
+		StartTimeMax: query.StartTimeMax,
+		Filter:       query.Filter,
 	}
 }

@@ -77,6 +77,12 @@ var (
 	nestedTagFieldList = []string{nestedTagsField, nestedProcessTagsField, nestedLogFieldsField}
 
 	_ Reader = (*SpanReader)(nil) // check API conformance
+
+	defaultSortOrder = []esclient.SortOrder{
+		{Field: traceIDField, Order: esquery.Ascending},
+		{Field: startTimeField, Order: esquery.Ascending},
+		{Field: spanIDField, Order: esquery.Ascending},
+	}
 )
 
 // Time-range design (referenced as "timeRangeDesign" in comments below):
@@ -166,6 +172,7 @@ func NewSpanReader(p SpanReaderParams) *SpanReader {
 // unique tie-breaker field for a correct search_after; spanID is unique within a
 // trace and stored as a sortable keyword.
 type traceReadCursor struct {
+	traceID   string
 	startTime uint64
 	spanID    string
 }
@@ -178,16 +185,13 @@ type traceReadCursor struct {
 // resume. See traceReadCursor for why the spanID tie-breaker is required.
 func (s *SpanReader) buildTraceReadRequest(q esquery.Query, cursor *traceReadCursor) esclient.SearchRequest {
 	req := esclient.SearchRequest{
-		Query: q,
-		Size:  s.maxDocCount,
-		Sort: []esclient.SortOrder{
-			{Field: startTimeField, Order: esquery.Ascending},
-			{Field: spanIDField, Order: esquery.Ascending},
-		},
+		Query:          q,
+		Size:           s.maxDocCount,
+		Sort:           defaultSortOrder,
 		TrackTotalHits: true,
 	}
 	if cursor != nil {
-		req.SearchAfter = []any{cursor.startTime, cursor.spanID}
+		req.SearchAfter = []any{cursor.traceID, cursor.startTime, cursor.spanID}
 	}
 	return req
 }
@@ -260,6 +264,54 @@ func (s *SpanReader) GetOperations(
 		})
 	}
 	return result, err
+}
+
+// hm. Might be wrong actually. because the return type needs to carry with it info to build pagination
+func (s *SpanReader) FindSpans(ctx context.Context, spanQuery dbmodel.SpanQueryParameters) ([]dbmodel.Span, error) {
+	ctx, span := s.tracer.Start(ctx, "FindSpans")
+	defer span.End()
+
+	boolQuery := esquery.NewBoolQuery()
+	startTimeQuery := s.buildStartTimeQuery(spanQuery.StartTimeMin, spanQuery.StartTimeMax)
+	boolQuery.Must(startTimeQuery)
+
+	filterQuery, err := s.buildFilterQuery(spanQuery.Filter)
+	if err != nil {
+		return nil, err
+	}
+	boolQuery.Must(filterQuery)
+
+	jaegerIndices := s.spanRotation.ReadTargets(spanQuery.StartTimeMin, spanQuery.StartTimeMax)
+	searchResult, err := s.searcher.Search(ctx, jaegerIndices, esclient.SearchRequest{
+		Size:  s.maxDocCount, // TODO use pagination here
+		Sort:  defaultSortOrder,
+		Query: boolQuery,
+	})
+	if err != nil {
+		s.logger.Info("es search services failed", zap.Any("spanQuery", spanQuery), zap.Error(err))
+		logErrorToSpan(span, err)
+		return nil, fmt.Errorf("search services failed: %w", err)
+	}
+	if len(searchResult.Hits.Hits) == 0 {
+		return nil, nil // or something
+	}
+
+	spans, err := s.collectSpans(searchResult.Hits.Hits)
+	if err != nil {
+		logErrorToSpan(span, err)
+		return nil, err
+	}
+	lastSpan := spans[len(spans)-1]
+	totalDocumentsFetched := len(searchResult.Hits.Hits)
+	if totalDocumentsFetched < searchResult.Hits.Total.Value {
+		searchAfter := traceReadCursor{
+			traceID:   string(lastSpan.TraceID),
+			startTime: lastSpan.StartTime,
+			spanID:    string(lastSpan.SpanID),
+		}
+		s.logger.Debug("search cursor created as", zap.Any("searchAfter", searchAfter))
+	}
+	return spans, nil
 }
 
 // FindTraces retrieves traces that match the traceQuery

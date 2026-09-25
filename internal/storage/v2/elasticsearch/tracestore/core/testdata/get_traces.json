@@ -29,6 +29,11 @@
       "size": 100,
       "sort": [
         {
+          "traceID": {
+            "order": "asc"
+          }
+        },
+        {
           "startTime": {
             "order": "asc"
           }
