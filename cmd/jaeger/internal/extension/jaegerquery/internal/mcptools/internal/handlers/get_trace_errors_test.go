@@ -402,4 +402,33 @@ func TestGetTraceErrorsHandler_Handle_LimitEnforced(t *testing.T) {
 	assert.Equal(t, 5, output.TotalErrorCount)
 	// Returned Spans are capped at exactly the limit (5 errors, limit=3 → exactly 3 spans).
 	assert.Len(t, output.Spans, 3)
+	// Truncated should be true since not all error spans were returned.
+	assert.True(t, output.Truncated)
 }
+
+func TestGetTraceErrorsHandler_Handle_NotTruncatedWhenWithinLimit(t *testing.T) {
+	traceID := testTraceID
+
+	spanConfigs := []spanConfig{
+		{spanID: "span001", operation: "/api/error1", hasError: true, errorMessage: "err1"},
+		{spanID: "span002", operation: "/api/error2", hasError: true, errorMessage: "err2"},
+	}
+
+	testTrace := createTestTraceWithSpans(traceID, spanConfigs)
+	mock := newMockYieldingTraces(testTrace)
+
+	// Limit is higher than the number of error spans — nothing should be truncated.
+	handler := &getTraceErrorsHandler{
+		queryService:             mock,
+		maxSpanDetailsPerRequest: 10,
+	}
+
+	input := types.GetTraceErrorsInput{TraceID: traceID}
+	_, output, err := handler.handle(context.Background(), &mcp.CallToolRequest{}, input)
+
+	require.NoError(t, err)
+	assert.Equal(t, 2, output.TotalErrorCount)
+	assert.Len(t, output.Spans, 2)
+	assert.False(t, output.Truncated)
+}
+
