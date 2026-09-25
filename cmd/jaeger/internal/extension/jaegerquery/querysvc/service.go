@@ -216,10 +216,10 @@ func (qs QueryService) FindSpans(
 		spans := qs.traceReader.FindSpans(ctx, query.SpanQueryParams)
 		for chunk, err := range qs.interceptSpanResults(ctx, spans) {
 			if err == nil {
-				cursor := chunk.NextPageToken
-				chunk.NextPageToken = ""
 				if prepared.paginates {
-					chunk.NextPageToken = qs.nextPageToken(cursor, fingerprint)
+					chunk.NextPageToken = qs.nextPageToken(chunk.NextPageToken, fingerprint)
+				} else {
+					chunk.NextPageToken = ""
 				}
 			}
 			if !yield(chunk, err) {
@@ -406,16 +406,16 @@ func (qs QueryService) prepareSpanSearchQuery(
 	query SpanQueryParams,
 ) (context.Context, preparedSpanSearch, error) {
 	if query.StartTimeMin.IsZero() || query.StartTimeMax.IsZero() {
-		return ctx, preparedSpanSearch{query: query}, fmt.Errorf("%w: start_time_min and start_time_max are required", ErrQueryInvalid)
+		return ctx, preparedSpanSearch{}, fmt.Errorf("%w: start_time_min and start_time_max are required", ErrQueryInvalid)
 	}
 	if !query.StartTimeMin.Before(query.StartTimeMax) {
-		return ctx, preparedSpanSearch{query: query}, fmt.Errorf("%w: start_time_min must be before start_time_max", ErrQueryInvalid)
+		return ctx, preparedSpanSearch{}, fmt.Errorf("%w: start_time_min must be before start_time_max", ErrQueryInvalid)
 	}
 	// A page token is what makes this a paginated request, and that is what the feature gate
 	// governs. The page size is only the bound (RFC 0016 §6): unset means the default, as an
 	// omitted size does on Elasticsearch, and an oversized one is clamped (RFC 0014 §4).
 	if query.Pagination.PageToken != "" && !PaginationGate.IsEnabled() {
-		return ctx, preparedSpanSearch{query: query}, fmt.Errorf("%w: enable the %q feature gate to use it",
+		return ctx, preparedSpanSearch{}, fmt.Errorf("%w: enable the %q feature gate to use it",
 			ErrPaginationDisabled, PaginationGate.ID())
 	}
 	if query.Pagination.PageSize == 0 {
@@ -427,28 +427,28 @@ func (qs QueryService) prepareSpanSearchQuery(
 	// depends on the backend, so both come before the capability call rather than after it.
 	if query.Filter != nil {
 		if !StructuredFiltersGate.IsEnabled() {
-			return ctx, preparedSpanSearch{query: query}, fmt.Errorf("%w: enable the %q feature gate to use it",
+			return ctx, preparedSpanSearch{}, fmt.Errorf("%w: enable the %q feature gate to use it",
 				ErrFilterDisabled, StructuredFiltersGate.ID())
 		}
 		finalized, err := tracestore.FinalizeFilter(query.Filter)
 		if err != nil {
-			return ctx, preparedSpanSearch{query: query}, fmt.Errorf("%w: %w", tracestore.ErrFilterInvalid, err)
+			return ctx, preparedSpanSearch{}, fmt.Errorf("%w: %w", tracestore.ErrFilterInvalid, err)
 		}
 		query.Filter = finalized
 	}
 	caps := qs.readerSearchCapabilitiesOrDefault(ctx)
 	if !caps.SpanSearch {
-		return ctx, preparedSpanSearch{query: query}, ErrSpanSearchUnsupported
+		return ctx, preparedSpanSearch{}, ErrSpanSearchUnsupported
 	}
 	if len(qs.options.Interceptors) > 0 {
 		var err error
 		ctx, query, err = qs.onSpanQuery(ctx, query)
 		if err != nil {
-			return ctx, preparedSpanSearch{query: query}, err
+			return ctx, preparedSpanSearch{}, err
 		}
 	}
 	if err := ensureSpanPaginationSupported(caps, query.Pagination); err != nil {
-		return ctx, preparedSpanSearch{query: query}, err
+		return ctx, preparedSpanSearch{}, err
 	}
 	prepared := preparedSpanSearch{query: query, paginates: PaginationGate.IsEnabled() && caps.Paginated}
 	return ctx, prepared, ensureSpanFilterSupported(caps, query.Filter)

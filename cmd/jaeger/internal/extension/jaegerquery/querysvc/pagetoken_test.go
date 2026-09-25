@@ -157,22 +157,34 @@ func TestFindTraceSummaries_PageTokenRoundTrip(t *testing.T) {
 	assert.Equal(t, first[0].NextPageToken, sent.PageToken, "the caller's request is left as sent")
 }
 
-// TestFindTraceSummaries_PageTokenBoundToQuery pins that a summary token continues only the query
-// it was returned for: the same cursor sent with a different service is refused.
-func TestFindTraceSummaries_PageTokenBoundToQuery(t *testing.T) {
+// TestFindTraceSummaries_PageTokenBound pins that a summary token continues only the query it
+// was returned for, on the storage that returned it: the same cursor sent with a different
+// service, or sealed for a different storage, is refused.
+func TestFindTraceSummaries_PageTokenBound(t *testing.T) {
 	enablePagination(t)
-	next := &fakeReader{summaries: []tracestore.TraceSummary{{RootServiceName: "svc"}}}
-	next.capabilities = &tracestore.SearchCapabilities{WithoutServiceName: true, Paginated: true}
-	qs := NewQueryService(next, nil, QueryServiceOptions{})
 	minted := searchQuery(tracestore.TraceQueryParams{ServiceName: "cart"})
-	token := tracePageToken(t, "", minted.TraceQueryParams, "reader-cursor")
+	cases := []struct {
+		name    string
+		service string
+		token   string
+	}{
+		{name: "another query", service: "checkout", token: tracePageToken(t, "primary", minted.TraceQueryParams, "reader-cursor")},
+		{name: "another storage", service: "cart", token: tracePageToken(t, "archive", minted.TraceQueryParams, "reader-cursor")},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			next := &fakeReader{summaries: []tracestore.TraceSummary{{RootServiceName: "svc"}}}
+			next.capabilities = &tracestore.SearchCapabilities{WithoutServiceName: true, Paginated: true}
+			qs := NewQueryService(next, nil, QueryServiceOptions{TraceStorageName: "primary"})
 
-	_, err := jiter.CollectWithErrors(qs.FindTraceSummaries(context.Background(), searchQuery(tracestore.TraceQueryParams{
-		ServiceName: "checkout",
-		Pagination:  &tracestore.Pagination{PageSize: 10, PageToken: token},
-	})))
-	require.ErrorIs(t, err, tracestore.ErrPaginationInvalid)
-	assert.False(t, next.summaryCalled)
+			_, err := jiter.CollectWithErrors(qs.FindTraceSummaries(context.Background(), searchQuery(tracestore.TraceQueryParams{
+				ServiceName: tc.service,
+				Pagination:  &tracestore.Pagination{PageSize: 10, PageToken: tc.token},
+			})))
+			require.ErrorIs(t, err, tracestore.ErrPaginationInvalid)
+			assert.False(t, next.summaryCalled)
+		})
+	}
 }
 
 // TestFindTraceSummaries_PageTokenBoundToTheDispatchedQuery pins that the fingerprint is taken
