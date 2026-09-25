@@ -70,10 +70,6 @@ type QueryServiceOptions struct {
 	// it named them. The query service invokes their OnTraceQuery around every trace search and their
 	// OnTraceResult around every batch of loaded traces. Most deployments configure none.
 	Interceptors []queryinterceptor.Interceptor
-	// TraceStorageName is the configured name of the storage the trace reader fronts. A page
-	// token is bound to it, so a token minted against one storage is refused by another
-	// (RFC 0014 §3.2). A deployment with one trace storage can leave it empty.
-	TraceStorageName string
 }
 
 // QueryService provides methods to query data from the storage.
@@ -207,7 +203,7 @@ func (qs QueryService) FindSpans(
 				yield(tracestore.PageChunk[ptrace.Traces]{}, err)
 				return
 			}
-			query.Pagination.PageToken, err = qs.resumeCursor(query.Pagination.PageToken, fingerprint)
+			query.Pagination.PageToken, err = resumeCursor(query.Pagination.PageToken, fingerprint)
 			if err != nil {
 				yield(tracestore.PageChunk[ptrace.Traces]{}, err)
 				return
@@ -217,7 +213,7 @@ func (qs QueryService) FindSpans(
 		for chunk, err := range qs.interceptSpanResults(ctx, spans) {
 			if err == nil {
 				if prepared.paginates {
-					chunk.NextPageToken = qs.nextPageToken(chunk.NextPageToken, fingerprint)
+					chunk.NextPageToken = nextPageToken(chunk.NextPageToken, fingerprint)
 				} else {
 					chunk.NextPageToken = ""
 				}
@@ -526,7 +522,7 @@ func (qs QueryService) FindTraceSummaries(
 				return
 			}
 			resumed := *query.Pagination
-			resumed.PageToken, err = qs.resumeCursor(resumed.PageToken, fingerprint)
+			resumed.PageToken, err = resumeCursor(resumed.PageToken, fingerprint)
 			if err != nil {
 				yield(PageChunk[[]tracestore.TraceSummary]{}, err)
 				return
@@ -560,7 +556,7 @@ func (qs QueryService) FindTraceSummaries(
 			// A search that did not ask for a page is answered with one page and no token,
 			// whatever the reader returned (RFC 0014 §4).
 			if query.Pagination != nil {
-				result.NextPageToken = qs.nextPageToken(chunk.NextPageToken, fingerprint)
+				result.NextPageToken = nextPageToken(chunk.NextPageToken, fingerprint)
 			}
 			if !yield(result, nil) {
 				return

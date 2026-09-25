@@ -28,10 +28,10 @@ var PaginationGate = featuregate.GlobalRegistry().MustRegister(
 var ErrPaginationDisabled = errors.New("pagination is disabled")
 
 // resumeCursor exchanges the page token a client sent for the reader's cursor it wraps. The
-// token is refused when a different storage minted it or when it continues a different query
-// than the one it arrived with, since its cursor is a position in that query's ordering alone
-// (RFC 0014 §3.2). An empty token starts a new search and passes through unchanged.
-func (qs QueryService) resumeCursor(token string, fingerprint []byte) (string, error) {
+// token is refused when it continues a different query than the one it arrived with, since its
+// cursor is a position in that query's ordering alone (RFC 0014 §3.2). An empty token starts a
+// new search and passes through unchanged.
+func resumeCursor(token string, fingerprint []byte) (string, error) {
 	if token == "" {
 		return "", nil
 	}
@@ -39,7 +39,7 @@ func (qs QueryService) resumeCursor(token string, fingerprint []byte) (string, e
 	if err != nil {
 		return "", err
 	}
-	if err := opened.Verify(qs.options.TraceStorageName, fingerprint); err != nil {
+	if err := opened.Verify(fingerprint); err != nil {
 		return "", err
 	}
 	return opened.Cursor, nil
@@ -47,13 +47,9 @@ func (qs QueryService) resumeCursor(token string, fingerprint []byte) (string, e
 
 // nextPageToken wraps the cursor a reader returned on a page's final chunk into the token the
 // client receives. An empty cursor means the last page and stays empty.
-func (qs QueryService) nextPageToken(cursor string, fingerprint []byte) string {
+func nextPageToken(cursor string, fingerprint []byte) string {
 	if cursor == "" {
 		return ""
 	}
-	return pagetoken.Seal(pagetoken.Token{
-		Storage:     qs.options.TraceStorageName,
-		Fingerprint: fingerprint,
-		Cursor:      cursor,
-	})
+	return pagetoken.Seal(pagetoken.Token{Fingerprint: fingerprint, Cursor: cursor})
 }

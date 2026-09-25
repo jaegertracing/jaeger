@@ -479,7 +479,7 @@ func TestFindSpans_Pagination(t *testing.T) {
 	t.Run("token with an unset page size reaches a paginating reader with the default", func(t *testing.T) {
 		enablePagination(t)
 		tqs := initializeBareTestQueryService()
-		token := spanPageToken(t, "", spanQuery(tracestore.Pagination{}), "opaque-cursor")
+		token := spanPageToken(t, spanQuery(tracestore.Pagination{}), "opaque-cursor")
 		expectDispatch(tqs, paginating, spanQuery(tracestore.Pagination{PageSize: DefaultPageSize, PageToken: "opaque-cursor"}))
 		require.NoError(t, findSpans(tqs, spanQuery(tracestore.Pagination{PageToken: token})))
 		tqs.traceReader.AssertExpectations(t)

@@ -96,7 +96,6 @@ func (s *server) Start(ctx context.Context, host component.Host) error {
 		MaxClockSkewAdjust: s.config.MaxClockSkewAdjust,
 		MaxTraceSize:       s.config.MaxTraceSize,
 		Interceptors:       interceptors,
-		TraceStorageName:   s.config.Storage.TracesPrimary,
 	}
 	if err := s.addArchiveStorage(&opts, host); err != nil {
 		return err

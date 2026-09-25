@@ -16,7 +16,7 @@ import (
 )
 
 func TestSealOpenRoundTrip(t *testing.T) {
-	want := Token{Storage: "primary", Fingerprint: []byte{1, 2, 3}, Cursor: `[1727280000000000,"trace","span"]`}
+	want := Token{Fingerprint: []byte{1, 2, 3}, Cursor: `[1727280000000000,"trace","span"]`}
 	sealed := Seal(want)
 	assert.NotContains(t, sealed, "=", "the token is URL-safe without padding")
 
@@ -28,7 +28,6 @@ func TestSealOpenRoundTrip(t *testing.T) {
 func TestSealOpenEmptyFields(t *testing.T) {
 	got, err := Open(Seal(Token{}))
 	require.NoError(t, err)
-	assert.Empty(t, got.Storage)
 	assert.Empty(t, got.Fingerprint)
 	assert.Empty(t, got.Cursor)
 }
@@ -58,7 +57,7 @@ func TestOpenRefusals(t *testing.T) {
 	wrongVersion = protowire.AppendTag(wrongVersion, fieldVersion, protowire.VarintType)
 	wrongVersion = protowire.AppendVarint(wrongVersion, Version+1)
 	var badTag []byte
-	badTag = protowire.AppendVarint(badTag, uint64(protowire.EncodeTag(fieldStorage, 7)))
+	badTag = protowire.AppendVarint(badTag, uint64(protowire.EncodeTag(fieldCursor, 7)))
 
 	cases := []struct {
 		name  string
@@ -82,20 +81,13 @@ func TestOpenRefusals(t *testing.T) {
 }
 
 func TestVerify(t *testing.T) {
-	token := Token{Storage: "primary", Fingerprint: []byte{1, 2, 3}}
+	token := Token{Fingerprint: []byte{1, 2, 3}}
 
-	require.NoError(t, token.Verify("primary", []byte{1, 2, 3}))
+	require.NoError(t, token.Verify([]byte{1, 2, 3}))
 
-	err := token.Verify("archive", []byte{1, 2, 3})
-	require.ErrorIs(t, err, tracestore.ErrPaginationInvalid)
-	require.ErrorContains(t, err, "different storage")
-
-	err = token.Verify("primary", []byte{4, 5, 6})
+	err := token.Verify([]byte{4, 5, 6})
 	require.ErrorIs(t, err, tracestore.ErrPaginationInvalid)
 	require.ErrorContains(t, err, "different query")
-
-	err = Token{Storage: "archive", Fingerprint: []byte{4}}.Verify("primary", []byte{1})
-	require.ErrorContains(t, err, "different storage", "the storage is checked before the query")
 }
 
 func TestMain(m *testing.M) {

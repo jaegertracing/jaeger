@@ -215,10 +215,11 @@ type Pagination struct {
 	// PageToken continues a previous search. Empty starts a new one. It is the cursor the
 	// Reader itself returned in PageChunk.NextPageToken for the same query, not the token the
 	// client holds: the query service wraps a Reader's cursor into the client's token and
-	// unwraps it on the way back, binding it to the query and the storage it came from
-	// (RFC 0014 §3.2). A Reader is never asked to interpret a cursor it did not produce, since
-	// the query service refuses a token against a Reader whose SearchCapabilities.Paginated is
-	// false before dispatching (RFC 0014 §6.2).
+	// unwraps it on the way back, binding it to the query it was minted for (RFC 0014 §3.2).
+	// The query service refuses a token against a Reader whose SearchCapabilities.Paginated
+	// is false before dispatching (RFC 0014 §6.2), but the token is not signed, so a Reader
+	// MUST refuse a cursor it cannot interpret with ErrPaginationInvalid rather than send it
+	// to its backend.
 	PageToken string
 }
 

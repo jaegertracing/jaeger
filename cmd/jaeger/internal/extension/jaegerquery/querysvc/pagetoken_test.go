@@ -20,15 +20,15 @@ import (
 
 // spanPageToken is the token a client holds after a first page of the span search q: the
 // reader's cursor sealed for the query the service dispatches, whose pagination plays no part.
-func spanPageToken(t *testing.T, storage string, q tracestore.SpanQueryParams, cursor string) string {
+func spanPageToken(t *testing.T, q tracestore.SpanQueryParams, cursor string) string {
 	fingerprint, err := pagetoken.SpanQuery(q)
 	require.NoError(t, err)
-	return pagetoken.Seal(pagetoken.Token{Storage: storage, Fingerprint: fingerprint, Cursor: cursor})
+	return pagetoken.Seal(pagetoken.Token{Fingerprint: fingerprint, Cursor: cursor})
 }
 
 // tracePageToken is spanPageToken for a trace search. The filter is finalized first, since that
 // is the form the service fingerprints.
-func tracePageToken(t *testing.T, storage string, q tracestore.TraceQueryParams, cursor string) string {
+func tracePageToken(t *testing.T, q tracestore.TraceQueryParams, cursor string) string {
 	if q.Filter != nil {
 		finalized, err := tracestore.FinalizeFilter(q.Filter)
 		require.NoError(t, err)
@@ -36,7 +36,7 @@ func tracePageToken(t *testing.T, storage string, q tracestore.TraceQueryParams,
 	}
 	fingerprint, err := pagetoken.TraceQuery(q)
 	require.NoError(t, err)
-	return pagetoken.Seal(pagetoken.Token{Storage: storage, Fingerprint: fingerprint, Cursor: cursor})
+	return pagetoken.Seal(pagetoken.Token{Fingerprint: fingerprint, Cursor: cursor})
 }
 
 // openCursor returns the reader's cursor a token the service handed out wraps.
@@ -57,14 +57,13 @@ func TestFindSpans_PageTokenRoundTrip(t *testing.T) {
 	enablePagination(t)
 	next := &fakeReader{batch: tracesWith("k", "v"), nextPageToken: "reader-cursor"}
 	next.capabilities = &tracestore.SearchCapabilities{SpanSearch: true, Paginated: true}
-	qs := NewQueryService(next, nil, QueryServiceOptions{TraceStorageName: "primary"})
+	qs := NewQueryService(next, nil, QueryServiceOptions{})
 
 	first, err := collectSpans(qs.FindSpans(context.Background(), searchSpansQuery(pagedSpanQuery(tracestore.Pagination{PageSize: 10}))))
 	require.NoError(t, err)
 	require.Len(t, first, 1)
 	token, err := pagetoken.Open(first[0].NextPageToken)
 	require.NoError(t, err)
-	assert.Equal(t, "primary", token.Storage)
 	assert.Equal(t, "reader-cursor", token.Cursor)
 	assert.NotEmpty(t, token.Fingerprint)
 
@@ -75,8 +74,8 @@ func TestFindSpans_PageTokenRoundTrip(t *testing.T) {
 }
 
 // TestFindSpans_PageTokenRefused pins the tokens the service does not exchange for a cursor: one
-// that does not decode, one another storage minted, and one minted for a different query. Each
-// is the caller's mistake, so it is a bad request, and the reader is never asked (RFC 0014 §3.2).
+// that does not decode and one minted for a different query. Each is the caller's mistake, so it
+// is a bad request, and the reader is never asked (RFC 0014 §3.2).
 func TestFindSpans_PageTokenRefused(t *testing.T) {
 	enablePagination(t)
 	query := pagedSpanQuery(tracestore.Pagination{PageSize: 10})
@@ -88,14 +87,13 @@ func TestFindSpans_PageTokenRefused(t *testing.T) {
 		want  string
 	}{
 		{name: "malformed", token: "not-a-token!", want: "not valid base64"},
-		{name: "another storage", token: spanPageToken(t, "archive", query, "c"), want: "different storage"},
-		{name: "another query", token: spanPageToken(t, "primary", other, "c"), want: "different query"},
+		{name: "another query", token: spanPageToken(t, other, "c"), want: "different query"},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			next := &fakeReader{}
 			next.capabilities = &tracestore.SearchCapabilities{SpanSearch: true, Paginated: true}
-			qs := NewQueryService(next, nil, QueryServiceOptions{TraceStorageName: "primary"})
+			qs := NewQueryService(next, nil, QueryServiceOptions{})
 			paged := query
 			paged.Pagination.PageToken = tc.token
 
@@ -140,7 +138,7 @@ func TestFindSpans_PageTokenBoundToTheDispatchedQuery(t *testing.T) {
 	assert.Equal(t, "reader-cursor", next.gotSpanQuery.Pagination.PageToken)
 
 	original := request("").SpanQueryParams
-	_, err = collectSpans(qs.FindSpans(context.Background(), request(spanPageToken(t, "", original, "reader-cursor"))))
+	_, err = collectSpans(qs.FindSpans(context.Background(), request(spanPageToken(t, original, "reader-cursor"))))
 	require.ErrorIs(t, err, tracestore.ErrPaginationInvalid)
 }
 
@@ -178,7 +176,7 @@ func TestFindTraceSummaries_PageTokenRoundTrip(t *testing.T) {
 	enablePagination(t)
 	next := &fakeReader{summaries: []tracestore.TraceSummary{{RootServiceName: "svc"}}, nextPageToken: "reader-cursor"}
 	next.capabilities = &tracestore.SearchCapabilities{WithoutServiceName: true, Paginated: true}
-	qs := NewQueryService(next, nil, QueryServiceOptions{TraceStorageName: "primary"})
+	qs := NewQueryService(next, nil, QueryServiceOptions{})
 
 	first, err := jiter.CollectWithErrors(qs.FindTraceSummaries(context.Background(),
 		searchQuery(tracestore.TraceQueryParams{Pagination: &tracestore.Pagination{PageSize: 10}})))
@@ -193,34 +191,21 @@ func TestFindTraceSummaries_PageTokenRoundTrip(t *testing.T) {
 	assert.Equal(t, first[0].NextPageToken, sent.PageToken, "the caller's request is left as sent")
 }
 
-// TestFindTraceSummaries_PageTokenBound pins that a summary token continues only the query it
-// was returned for, on the storage that returned it: the same cursor sent with a different
-// service, or sealed for a different storage, is refused.
-func TestFindTraceSummaries_PageTokenBound(t *testing.T) {
+// TestFindTraceSummaries_PageTokenBoundToQuery pins that a summary token continues only the
+// query it was returned for: the same cursor sent with a different service is refused.
+func TestFindTraceSummaries_PageTokenBoundToQuery(t *testing.T) {
 	enablePagination(t)
 	minted := searchQuery(tracestore.TraceQueryParams{ServiceName: "cart"})
-	cases := []struct {
-		name    string
-		service string
-		token   string
-	}{
-		{name: "another query", service: "checkout", token: tracePageToken(t, "primary", minted.TraceQueryParams, "reader-cursor")},
-		{name: "another storage", service: "cart", token: tracePageToken(t, "archive", minted.TraceQueryParams, "reader-cursor")},
-	}
-	for _, tc := range cases {
-		t.Run(tc.name, func(t *testing.T) {
-			next := &fakeReader{summaries: []tracestore.TraceSummary{{RootServiceName: "svc"}}}
-			next.capabilities = &tracestore.SearchCapabilities{WithoutServiceName: true, Paginated: true}
-			qs := NewQueryService(next, nil, QueryServiceOptions{TraceStorageName: "primary"})
+	next := &fakeReader{summaries: []tracestore.TraceSummary{{RootServiceName: "svc"}}}
+	next.capabilities = &tracestore.SearchCapabilities{WithoutServiceName: true, Paginated: true}
+	qs := NewQueryService(next, nil, QueryServiceOptions{})
 
-			_, err := jiter.CollectWithErrors(qs.FindTraceSummaries(context.Background(), searchQuery(tracestore.TraceQueryParams{
-				ServiceName: tc.service,
-				Pagination:  &tracestore.Pagination{PageSize: 10, PageToken: tc.token},
-			})))
-			require.ErrorIs(t, err, tracestore.ErrPaginationInvalid)
-			assert.False(t, next.summaryCalled)
-		})
-	}
+	_, err := jiter.CollectWithErrors(qs.FindTraceSummaries(context.Background(), searchQuery(tracestore.TraceQueryParams{
+		ServiceName: "checkout",
+		Pagination:  &tracestore.Pagination{PageSize: 10, PageToken: tracePageToken(t, minted.TraceQueryParams, "reader-cursor")},
+	})))
+	require.ErrorIs(t, err, tracestore.ErrPaginationInvalid)
+	assert.False(t, next.summaryCalled)
 }
 
 // TestFindTraceSummaries_PageTokenBoundToTheDispatchedQuery pins that the fingerprint is taken
@@ -257,7 +242,7 @@ func TestFindTraceSummaries_PageTokenBoundToTheDispatchedQuery(t *testing.T) {
 
 	original := searchQuery(tracestore.TraceQueryParams{Filter: serviceFilter("original")})
 	_, err = jiter.CollectWithErrors(qs.FindTraceSummaries(context.Background(),
-		request(tracePageToken(t, "", original.TraceQueryParams, "reader-cursor"))))
+		request(tracePageToken(t, original.TraceQueryParams, "reader-cursor"))))
 	require.ErrorIs(t, err, tracestore.ErrPaginationInvalid)
 }
 

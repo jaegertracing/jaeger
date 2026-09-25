@@ -143,7 +143,7 @@ func TestPrepareSearchQuery_PageSizeClampedToMax(t *testing.T) {
 	next.capabilities = &tracestore.SearchCapabilities{WithoutServiceName: true, Paginated: true}
 	qs := interceptedService(next, fakeInterceptor{})
 	query := searchQuery(tracestore.TraceQueryParams{})
-	sent := &tracestore.Pagination{PageSize: tracestore.MaxPageSize + 1000, PageToken: tracePageToken(t, "", query.TraceQueryParams, "cursor")}
+	sent := &tracestore.Pagination{PageSize: tracestore.MaxPageSize + 1000, PageToken: tracePageToken(t, query.TraceQueryParams, "cursor")}
 	query.Pagination = sent
 
 	for _, err := range qs.FindTraceSummaries(context.Background(), query) {
@@ -225,7 +225,7 @@ func TestPrepareSearchQuery_PageTokenAcceptedWhenSupported(t *testing.T) {
 	next.capabilities = &tracestore.SearchCapabilities{WithoutServiceName: true, Paginated: true}
 	qs := interceptedService(next, fakeInterceptor{})
 	query := searchQuery(tracestore.TraceQueryParams{})
-	query.Pagination = &tracestore.Pagination{PageSize: 20, PageToken: tracePageToken(t, "", query.TraceQueryParams, "opaque-cursor")}
+	query.Pagination = &tracestore.Pagination{PageSize: 20, PageToken: tracePageToken(t, query.TraceQueryParams, "opaque-cursor")}
 
 	for _, err := range qs.FindTraceSummaries(context.Background(), query) {
 		require.NoError(t, err)
@@ -253,7 +253,7 @@ func TestPagination_SurvivesInterceptorFilterRewrite(t *testing.T) {
 	}
 	qs := interceptedService(next, fakeInterceptor{})
 	query := searchQuery(tracestore.TraceQueryParams{Filter: filter})
-	query.Pagination = &tracestore.Pagination{PageSize: 10, PageToken: tracePageToken(t, "", query.TraceQueryParams, "opaque-cursor")}
+	query.Pagination = &tracestore.Pagination{PageSize: 10, PageToken: tracePageToken(t, query.TraceQueryParams, "opaque-cursor")}
 
 	for _, err := range qs.FindTraceSummaries(context.Background(), query) {
 		require.NoError(t, err)
