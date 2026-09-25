@@ -133,6 +133,8 @@ const MaxSearchDepth = 10000
 // to satisfy transport message limits without changing the page boundary.
 // NextPageToken is set only on the final chunk: an empty token there means
 // no later page, while an empty token on an earlier chunk says nothing about pagination.
+// It is the Reader's own cursor, in whatever form the Reader resumes from; the query
+// service wraps it into the token a client receives (see Pagination.PageToken).
 type PageChunk[T any] struct {
 	Results       T
 	NextPageToken string
@@ -210,11 +212,13 @@ type Pagination struct {
 	// sees the query (RFC 0014 §4). A span search has no other bound, so there the query
 	// service fills in a default instead (see SpanQueryParams.Pagination).
 	PageSize int
-	// PageToken continues a previous search. Empty starts a new one. A Reader that
-	// receives a non-empty PageToken MUST treat it as an uninterpreted cursor it minted
-	// itself for the same query — a Reader is never asked to interpret a token it did not
-	// produce, since the query service rejects a PageToken against a Reader whose
-	// SearchCapabilities.Paginated is false before dispatching (RFC 0014 §6.2).
+	// PageToken continues a previous search. Empty starts a new one. It is the cursor the
+	// Reader itself returned in PageChunk.NextPageToken for the same query, not the token the
+	// client holds: the query service wraps a Reader's cursor into the client's token and
+	// unwraps it on the way back, binding it to the query and the storage it came from
+	// (RFC 0014 §3.2). A Reader is never asked to interpret a cursor it did not produce, since
+	// the query service refuses a token against a Reader whose SearchCapabilities.Paginated is
+	// false before dispatching (RFC 0014 §6.2).
 	PageToken string
 }
 

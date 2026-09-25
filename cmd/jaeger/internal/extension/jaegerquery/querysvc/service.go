@@ -16,6 +16,7 @@ import (
 	"github.com/jaegertracing/jaeger-idl/model/v1"
 	expression "github.com/jaegertracing/jaeger-idl/query/expression/v1"
 	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerquery/internal/adjuster"
+	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerquery/querysvc/pagetoken"
 	"github.com/jaegertracing/jaeger/components/extension/jaegerquery/queryinterceptor"
 	"github.com/jaegertracing/jaeger/internal/jptrace"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/api/spanstore"
@@ -69,6 +70,10 @@ type QueryServiceOptions struct {
 	// it named them. The query service invokes their OnTraceQuery around every trace search and their
 	// OnTraceResult around every batch of loaded traces. Most deployments configure none.
 	Interceptors []queryinterceptor.Interceptor
+	// TraceStorageName is the configured name of the storage the trace reader fronts. A page
+	// token is bound to it, so a token minted against one storage is refused by another
+	// (RFC 0014 §3.2). A deployment with one trace storage can leave it empty.
+	TraceStorageName string
 }
 
 // QueryService provides methods to query data from the storage.
@@ -192,9 +197,25 @@ func (qs QueryService) FindSpans(
 			yield(tracestore.PageChunk[ptrace.Traces]{}, err)
 			return
 		}
+		fingerprint, err := pagetoken.SpanQuery(query.SpanQueryParams)
+		if err != nil {
+			yield(tracestore.PageChunk[ptrace.Traces]{}, err)
+			return
+		}
+		query.Pagination.PageToken, err = qs.resumeCursor(query.Pagination.PageToken, fingerprint)
+		if err != nil {
+			yield(tracestore.PageChunk[ptrace.Traces]{}, err)
+			return
+		}
 		spans := qs.traceReader.FindSpans(ctx, query.SpanQueryParams)
-		spansIter := qs.interceptSpanResults(ctx, spans)
-		spansIter(yield)
+		for chunk, err := range qs.interceptSpanResults(ctx, spans) {
+			if err == nil {
+				chunk.NextPageToken = qs.nextPageToken(chunk.NextPageToken, fingerprint)
+			}
+			if !yield(chunk, err) {
+				return
+			}
+		}
 	}
 }
 
@@ -474,6 +495,23 @@ func (qs QueryService) FindTraceSummaries(
 			yield(PageChunk[[]tracestore.TraceSummary]{}, err)
 			return
 		}
+		// A reader that cannot paginate has had its Pagination cleared by now; one that can is
+		// handed the cursor its token wraps.
+		var fingerprint []byte
+		if query.Pagination != nil {
+			fingerprint, err = pagetoken.TraceQuery(query.TraceQueryParams)
+			if err != nil {
+				yield(PageChunk[[]tracestore.TraceSummary]{}, err)
+				return
+			}
+			resumed := *query.Pagination
+			resumed.PageToken, err = qs.resumeCursor(resumed.PageToken, fingerprint)
+			if err != nil {
+				yield(PageChunk[[]tracestore.TraceSummary]{}, err)
+				return
+			}
+			query.Pagination = &resumed
+		}
 		for chunk, err := range qs.traceReader.FindTraceSummaries(ctx, query.TraceQueryParams) {
 			if err != nil {
 				if errors.Is(err, errors.ErrUnsupported) {
@@ -497,9 +535,11 @@ func (qs QueryService) FindTraceSummaries(
 				yield(PageChunk[[]tracestore.TraceSummary]{}, err)
 				return
 			}
-			result := PageChunk[[]tracestore.TraceSummary]{
-				Results:       chunk.Results,
-				NextPageToken: chunk.NextPageToken,
+			result := PageChunk[[]tracestore.TraceSummary]{Results: chunk.Results}
+			// A search that did not ask for a page is answered with one page and no token,
+			// whatever the reader returned (RFC 0014 §4).
+			if query.Pagination != nil {
+				result.NextPageToken = qs.nextPageToken(chunk.NextPageToken, fingerprint)
 			}
 			if !yield(result, nil) {
 				return

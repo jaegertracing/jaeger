@@ -142,8 +142,9 @@ func TestPrepareSearchQuery_PageSizeClampedToMax(t *testing.T) {
 	next := &fakeReader{summaries: []tracestore.TraceSummary{{RootServiceName: "svc"}}}
 	next.capabilities = &tracestore.SearchCapabilities{WithoutServiceName: true, Paginated: true}
 	qs := interceptedService(next, fakeInterceptor{})
-	sent := &tracestore.Pagination{PageSize: tracestore.MaxPageSize + 1000, PageToken: "cursor"}
-	query := searchQuery(tracestore.TraceQueryParams{Pagination: sent})
+	query := searchQuery(tracestore.TraceQueryParams{})
+	sent := &tracestore.Pagination{PageSize: tracestore.MaxPageSize + 1000, PageToken: tracePageToken(t, "", query.TraceQueryParams, "cursor")}
+	query.Pagination = sent
 
 	for _, err := range qs.FindTraceSummaries(context.Background(), query) {
 		require.NoError(t, err)
@@ -222,9 +223,8 @@ func TestPrepareSearchQuery_PageTokenAcceptedWhenSupported(t *testing.T) {
 	next := &fakeReader{summaries: []tracestore.TraceSummary{{RootServiceName: "svc"}}}
 	next.capabilities = &tracestore.SearchCapabilities{WithoutServiceName: true, Paginated: true}
 	qs := interceptedService(next, fakeInterceptor{})
-	query := searchQuery(tracestore.TraceQueryParams{
-		Pagination: &tracestore.Pagination{PageSize: 20, PageToken: "opaque-cursor"},
-	})
+	query := searchQuery(tracestore.TraceQueryParams{})
+	query.Pagination = &tracestore.Pagination{PageSize: 20, PageToken: tracePageToken(t, "", query.TraceQueryParams, "opaque-cursor")}
 
 	for _, err := range qs.FindTraceSummaries(context.Background(), query) {
 		require.NoError(t, err)
@@ -251,10 +251,8 @@ func TestPagination_SurvivesInterceptorFilterRewrite(t *testing.T) {
 		},
 	}
 	qs := interceptedService(next, fakeInterceptor{})
-	query := searchQuery(tracestore.TraceQueryParams{
-		Filter:     filter,
-		Pagination: &tracestore.Pagination{PageSize: 10, PageToken: "opaque-cursor"},
-	})
+	query := searchQuery(tracestore.TraceQueryParams{Filter: filter})
+	query.Pagination = &tracestore.Pagination{PageSize: 10, PageToken: tracePageToken(t, "", query.TraceQueryParams, "opaque-cursor")}
 
 	for _, err := range qs.FindTraceSummaries(context.Background(), query) {
 		require.NoError(t, err)

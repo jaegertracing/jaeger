@@ -25,6 +25,7 @@ import (
 	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerquery/querysvc"
+	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerquery/querysvc/pagetoken"
 	"github.com/jaegertracing/jaeger/components/extension/jaegerquery/queryinterceptor"
 	"github.com/jaegertracing/jaeger/internal/proto/api_v3"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/api/spanstore"
@@ -597,9 +598,16 @@ func TestJSONPBFixed64AsDecimalString(t *testing.T) {
 }
 
 func TestHTTPGatewayFindTraceSummaries(t *testing.T) {
+	enablePagination(t)
 	q, qp := mockFindQueries()
+	// A paginated search, so that the cursor the reader returns comes back as a page token.
+	q.Del("query.searchDepth")
+	q.Set("query.pagination.pageSize", "25")
+	qp.SearchDepth = 0
+	qp.Pagination = &tracestore.Pagination{PageSize: 25}
 	gw := setupHTTPGatewayNoServer(t, "")
 	gw.reader.ExpectedCalls = nil
+	gw.reader.On("SearchCapabilities", mock.Anything).Return(tracestore.SearchCapabilities{Paginated: true}, nil)
 
 	gw.reader.
 		On("FindTraceSummaries", matchContext, qp).
@@ -636,7 +644,9 @@ func TestHTTPGatewayFindTraceSummaries(t *testing.T) {
 	assert.Equal(t, "backend", resp.Summaries[1].RootServiceName)
 	assert.Equal(t, "SELECT", resp.Summaries[1].RootOperationName)
 	assert.Equal(t, int32(2), resp.Summaries[1].SpanCount)
-	assert.Equal(t, "next-page", resp.GetNextPageToken())
+	token, err := pagetoken.Open(resp.GetNextPageToken())
+	require.NoError(t, err)
+	assert.Equal(t, "next-page", token.Cursor)
 }
 
 func TestHTTPGatewayFindTraceSummariesError(t *testing.T) {
@@ -713,7 +723,9 @@ func TestHTTPGatewayFindSpans(t *testing.T) {
 	var resp api_v3.FindSpansResponse
 	require.NoError(t, jsonpb.Unmarshal(bytes.NewReader(wrapper.Result), &resp))
 	assert.Equal(t, 1, resp.GetSpans().ToTraces().SpanCount())
-	assert.Equal(t, "next-page", resp.GetNextPageToken())
+	token, err := pagetoken.Open(resp.GetNextPageToken())
+	require.NoError(t, err)
+	assert.Equal(t, "next-page", token.Cursor)
 }
 
 func TestHTTPGatewayFindSpansError(t *testing.T) {

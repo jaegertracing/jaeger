@@ -479,8 +479,9 @@ func TestFindSpans_Pagination(t *testing.T) {
 	t.Run("token with an unset page size reaches a paginating reader with the default", func(t *testing.T) {
 		enablePagination(t)
 		tqs := initializeBareTestQueryService()
+		token := spanPageToken(t, "", spanQuery(tracestore.Pagination{}), "opaque-cursor")
 		expectDispatch(tqs, paginating, spanQuery(tracestore.Pagination{PageSize: DefaultPageSize, PageToken: "opaque-cursor"}))
-		require.NoError(t, findSpans(tqs, spanQuery(tracestore.Pagination{PageToken: "opaque-cursor"})))
+		require.NoError(t, findSpans(tqs, spanQuery(tracestore.Pagination{PageToken: token})))
 		tqs.traceReader.AssertExpectations(t)
 	})
 }
@@ -1195,7 +1196,7 @@ func TestFindTraceSummaries_NativePath(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, chunks, 1)
 	assert.Equal(t, want, chunks[0].Results)
-	assert.Equal(t, "next-page", chunks[0].NextPageToken)
+	assert.Empty(t, chunks[0].NextPageToken, "an unpaginated search is answered with no token, whatever the reader returned")
 	// FindTraces should NOT have been called on the native reader.
 	nativeReader.AssertNotCalled(t, "FindTraces")
 }

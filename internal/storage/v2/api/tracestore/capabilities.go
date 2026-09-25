@@ -35,7 +35,9 @@ var ErrPaginationUnsupported = errors.New("this storage backend cannot resume a 
 // ErrPaginationInvalid is returned for a query whose Pagination is malformed on its own
 // terms, independent of any backend: one that also sets SearchDepth, since the two bounds
 // have no single honest meaning together, or one that leaves PageSize at zero, since a
-// Pagination with no page size does not describe a page (RFC 0014 §4).
+// Pagination with no page size does not describe a page (RFC 0014 §4). It is also returned
+// for a page token that does not decode, or that was minted for a different query or by a
+// different storage than the one it is presented to (RFC 0014 §3.2).
 var ErrPaginationInvalid = errors.New("invalid pagination")
 
 // ErrPaginationUnsupportedByFindTraces is returned for a FindTraces query that carries

@@ -26,6 +26,7 @@ import (
 	"github.com/jaegertracing/jaeger-idl/model/v1"
 	expression "github.com/jaegertracing/jaeger-idl/query/expression/v1"
 	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerquery/querysvc"
+	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerquery/querysvc/pagetoken"
 	"github.com/jaegertracing/jaeger/components/extension/jaegerquery/queryinterceptor"
 	_ "github.com/jaegertracing/jaeger/internal/gogocodec" // force gogo codec registration
 	"github.com/jaegertracing/jaeger/internal/jptrace"
@@ -531,8 +532,13 @@ func TestFindTraceSummaries(t *testing.T) {
 	assert.Equal(t, traceID.String(), recv.GetSummaries()[0].GetTraceId())
 }
 
+// TestFindTraceSummariesPreservesNextPageToken pins that the cursor a reader returns on the final
+// chunk reaches the caller inside the query service's page token; the handler does not read or
+// interpret it.
 func TestFindTraceSummariesPreservesNextPageToken(t *testing.T) {
+	enablePagination(t)
 	reader := &tracestoremocks.Reader{}
+	reader.On("SearchCapabilities", mock.Anything).Return(tracestore.SearchCapabilities{Paginated: true}, nil)
 	reader.On("FindTraceSummaries", mock.Anything, mock.Anything).
 		Return(iter.Seq2[tracestore.PageChunk[[]tracestore.TraceSummary], error](func(yield func(tracestore.PageChunk[[]tracestore.TraceSummary], error) bool) {
 			yield(tracestore.PageChunk[[]tracestore.TraceSummary]{NextPageToken: "next-page"}, nil)
@@ -549,12 +555,15 @@ func TestFindTraceSummariesPreservesNextPageToken(t *testing.T) {
 			ServiceName:  "service-a",
 			StartTimeMin: time.Now().Add(-time.Hour),
 			StartTimeMax: time.Now(),
+			Pagination:   &api_v3.Pagination{PageSize: 25},
 		},
 	}, stream)
 
 	require.NoError(t, err)
 	require.NotNil(t, stream.response)
-	assert.Equal(t, "next-page", stream.response.GetNextPageToken())
+	token, err := pagetoken.Open(stream.response.GetNextPageToken())
+	require.NoError(t, err)
+	assert.Equal(t, "next-page", token.Cursor)
 }
 
 func TestFindTraceSummariesQueryNil(t *testing.T) {
@@ -642,8 +651,9 @@ func TestFindSpans(t *testing.T) {
 	require.Equal(t, 1, recv.GetSpans().ToTraces().SpanCount())
 }
 
-// TestFindSpansPreservesNextPageToken pins that the page token on the final chunk reaches the
-// caller unchanged; the handler does not read or interpret it.
+// TestFindSpansPreservesNextPageToken pins that the cursor a reader returns on the final chunk
+// reaches the caller inside the query service's page token; the handler does not read or
+// interpret it.
 func TestFindSpansPreservesNextPageToken(t *testing.T) {
 	reader := &tracestoremocks.Reader{}
 	reader.On("SearchCapabilities", mock.Anything).Return(tracestore.SearchCapabilities{SpanSearch: true}, nil)
@@ -667,7 +677,9 @@ func TestFindSpansPreservesNextPageToken(t *testing.T) {
 
 	require.NoError(t, err)
 	require.NotNil(t, stream.response)
-	assert.Equal(t, "next-page", stream.response.GetNextPageToken())
+	token, err := pagetoken.Open(stream.response.GetNextPageToken())
+	require.NoError(t, err)
+	assert.Equal(t, "next-page", token.Cursor)
 }
 
 // TestFindSpansQueryNil pins the two structural refusals a query has to pass before it ever
@@ -950,6 +962,16 @@ func TestGetDependencies_InvalidArguments(t *testing.T) {
 // held; a test needs it only when it dispatches far enough to reach that check.
 func enableStructuredFilters(t *testing.T) {
 	gate := querysvc.StructuredFiltersGate
+	original := gate.IsEnabled()
+	require.NoError(t, featuregate.GlobalRegistry().Set(gate.ID(), true))
+	t.Cleanup(func() {
+		require.NoError(t, featuregate.GlobalRegistry().Set(gate.ID(), original))
+	})
+}
+
+// enablePagination is enableStructuredFilters for the pagination gate.
+func enablePagination(t *testing.T) {
+	gate := querysvc.PaginationGate
 	original := gate.IsEnabled()
 	require.NoError(t, featuregate.GlobalRegistry().Set(gate.ID(), true))
 	t.Cleanup(func() {
