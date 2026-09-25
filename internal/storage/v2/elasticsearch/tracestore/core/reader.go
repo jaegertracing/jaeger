@@ -78,9 +78,10 @@ var (
 
 	_ Reader = (*SpanReader)(nil) // check API conformance
 
-	defaultSortOrder = []esclient.SortOrder{
-		{Field: traceIDField, Order: esquery.Ascending},
+	// Default sort order for FindSpans. When we add caller provided ordering, it will be overrideable.
+	defaultSpanSortOrder = []esclient.SortOrder{
 		{Field: startTimeField, Order: esquery.Ascending},
+		{Field: traceIDField, Order: esquery.Ascending},
 		{Field: spanIDField, Order: esquery.Ascending},
 	}
 )
@@ -172,10 +173,13 @@ func NewSpanReader(p SpanReaderParams) *SpanReader {
 // unique tie-breaker field for a correct search_after; spanID is unique within a
 // trace and stored as a sortable keyword.
 type traceReadCursor struct {
-	traceID   string
 	startTime uint64
 	spanID    string
 }
+
+// spanReadCursor is whatever is returned as the sort field of each span.
+// This leaves open the potential to allow the caller to define sort ordering later.
+type spanReadCursor []json.RawMessage
 
 // buildTraceReadRequest builds the per-trace search body multiRead pages through:
 // the trace's query, ordered by (startTime, spanID) ascending, with track_total_hits
@@ -185,13 +189,33 @@ type traceReadCursor struct {
 // resume. See traceReadCursor for why the spanID tie-breaker is required.
 func (s *SpanReader) buildTraceReadRequest(q esquery.Query, cursor *traceReadCursor) esclient.SearchRequest {
 	req := esclient.SearchRequest{
-		Query:          q,
-		Size:           s.maxDocCount,
-		Sort:           defaultSortOrder,
+		Query: q,
+		Size:  s.maxDocCount,
+		Sort: []esclient.SortOrder{
+			{Field: startTimeField, Order: esquery.Ascending},
+			{Field: spanIDField, Order: esquery.Ascending},
+		},
 		TrackTotalHits: true,
 	}
 	if cursor != nil {
-		req.SearchAfter = []any{cursor.traceID, cursor.startTime, cursor.spanID}
+		req.SearchAfter = []any{cursor.startTime, cursor.spanID}
+	}
+	return req
+}
+
+func (s *SpanReader) buildSpanReadRequest(q esquery.Query, cursor *spanReadCursor) esclient.SearchRequest {
+	req := esclient.SearchRequest{
+		Query:          q,
+		Size:           s.maxDocCount,
+		Sort:           defaultSpanSortOrder,
+		TrackTotalHits: true,
+	}
+	if cursor != nil {
+		searchAfter := make([]any, len(*cursor))
+		for _, c := range *cursor {
+			searchAfter = append(searchAfter, c)
+		}
+		req.SearchAfter = searchAfter
 	}
 	return req
 }
@@ -266,50 +290,53 @@ func (s *SpanReader) GetOperations(
 	return result, err
 }
 
-// hm. Might be wrong actually. because the return type needs to carry with it info to build pagination
+// TODO adjust return type to support carrying pagination information back to caller
 func (s *SpanReader) FindSpans(ctx context.Context, spanQuery dbmodel.SpanQueryParameters) ([]dbmodel.Span, error) {
 	ctx, span := s.tracer.Start(ctx, "FindSpans")
 	defer span.End()
-
-	boolQuery := esquery.NewBoolQuery()
-	startTimeQuery := s.buildStartTimeQuery(spanQuery.StartTimeMin, spanQuery.StartTimeMax)
-	boolQuery.Must(startTimeQuery)
 
 	filterQuery, err := s.buildFilterQuery(spanQuery.Filter)
 	if err != nil {
 		return nil, err
 	}
+
+	boolQuery := esquery.NewBoolQuery()
+	startTimeQuery := s.buildStartTimeQuery(spanQuery.StartTimeMin, spanQuery.StartTimeMax)
+	boolQuery.Must(startTimeQuery)
 	boolQuery.Must(filterQuery)
 
 	jaegerIndices := s.spanRotation.ReadTargets(spanQuery.StartTimeMin, spanQuery.StartTimeMax)
-	searchResult, err := s.searcher.Search(ctx, jaegerIndices, esclient.SearchRequest{
-		Size:  s.maxDocCount, // TODO use pagination here
-		Sort:  defaultSortOrder,
-		Query: boolQuery,
-	})
-	if err != nil {
-		s.logger.Info("es search services failed", zap.Any("spanQuery", spanQuery), zap.Error(err))
-		logErrorToSpan(span, err)
-		return nil, fmt.Errorf("search services failed: %w", err)
-	}
-	if len(searchResult.Hits.Hits) == 0 {
-		return nil, nil // or something
-	}
+	var spans []dbmodel.Span
+	var totalDocumentsFetched int
+	var searchAfter spanReadCursor
+	searchAfter = nil
+	requests := 1
+	for requests > 0 {
+		requests = 0
+		searchRequest := s.buildSpanReadRequest(boolQuery, &searchAfter)
 
-	spans, err := s.collectSpans(searchResult.Hits.Hits)
-	if err != nil {
-		logErrorToSpan(span, err)
-		return nil, err
-	}
-	lastSpan := spans[len(spans)-1]
-	totalDocumentsFetched := len(searchResult.Hits.Hits)
-	if totalDocumentsFetched < searchResult.Hits.Total.Value {
-		searchAfter := traceReadCursor{
-			traceID:   string(lastSpan.TraceID),
-			startTime: lastSpan.StartTime,
-			spanID:    string(lastSpan.SpanID),
+		searchResult, err := s.searcher.Search(ctx, jaegerIndices, searchRequest)
+		if err != nil {
+			s.logger.Info("es search services failed", zap.Any("spanQuery", spanQuery), zap.Error(err))
+			logErrorToSpan(span, err)
+			return nil, fmt.Errorf("search services failed: %w", err)
 		}
-		s.logger.Debug("search cursor created as", zap.Any("searchAfter", searchAfter))
+		if len(searchResult.Hits.Hits) == 0 {
+			break
+		}
+		totalDocumentsFetched += len(searchResult.Hits.Hits)
+
+		currentResultSpans, err := s.collectSpans(searchResult.Hits.Hits)
+		spans = append(spans, currentResultSpans...)
+		if err != nil {
+			logErrorToSpan(span, err)
+			return nil, err
+		}
+		if totalDocumentsFetched < searchResult.Hits.Total.Value {
+			requests = 1
+			searchAfter = searchResult.Hits.Hits[len(searchResult.Hits.Hits)-1].Sort
+			s.logger.Debug("search searchAfter created as", zap.Any("searchAfter", searchAfter))
+		}
 	}
 	return spans, nil
 }
