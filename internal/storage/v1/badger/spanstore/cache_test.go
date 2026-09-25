@@ -17,6 +17,7 @@ import (
 */
 
 func TestExpiredItems(t *testing.T) {
+	t.Parallel()
 	runWithBadger(t, func(store *badger.DB, t *testing.T) {
 		cache := NewCacheStore(store, time.Duration(-1*time.Hour))
 
