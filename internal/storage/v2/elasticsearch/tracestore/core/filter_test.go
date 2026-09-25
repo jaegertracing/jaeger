@@ -60,6 +60,7 @@ func TestFilterCapabilities(t *testing.T) {
 		expression.OpEq, expression.OpNe, expression.OpGt, expression.OpLt,
 		expression.OpGte, expression.OpLte, expression.OpRegex, expression.OpExists,
 		expression.OpIn, expression.OpNotIn,
+		tracestore.OpMatch,
 	} {
 		assert.True(t, caps.SupportsOperator(op), "expected %q to be declared", op)
 	}
@@ -398,6 +399,14 @@ func TestBuildFilterQuery(t *testing.T) {
 			name:            "a fractional bound is compared as written",
 			filter:          p.Span().Attr("sampler.param").Gt("0.001"),
 			typedAttributes: true,
+		},
+		{
+			name:   "match on a span attribute searches the text sub-field",
+			filter: call(tracestore.OpMatch, spanAttr("input"), scalar("refund policy")),
+		},
+		{
+			name:   "match on an unqualified attribute searches every location",
+			filter: call(tracestore.OpMatch, &expression.AttributeRef{Key: "output"}, scalar("cancellation")),
 		},
 	}
 	claimed := make(map[string]bool, len(tests))
@@ -754,6 +763,12 @@ func TestBuildFilterQueryRefused(t *testing.T) {
 			wantErr:         tracestore.ErrFilterUnsupported,
 			wantMsg:         "an integer constant declares a type",
 			typedAttributes: true,
+		},
+		{
+			name:    "match on a built-in field, which is not text-analyzed",
+			filter:  call(tracestore.OpMatch, &expression.FieldRef{Name: expression.SpanFieldName, Level: expression.LevelSpan}, scalar("checkout")),
+			wantErr: tracestore.ErrFilterUnsupported,
+			wantMsg: `"match" is only supported on attributes`,
 		},
 	}
 	withSpanReader(t, func(r *spanReaderTest) {

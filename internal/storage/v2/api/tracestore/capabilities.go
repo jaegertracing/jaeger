@@ -10,6 +10,10 @@ import (
 	expression "github.com/jaegertracing/jaeger-idl/query/expression/v1"
 )
 
+// OpMatch is the full-text search operator. It lives here until jaeger-idl
+// publishes it; the wire sends op: "match" and the validator accepts it
+const OpMatch expression.Operator = "match"
+
 // ErrFilterUnsupported is returned for a well-formed query filter that the storage cannot
 // serve — a level it does not index, an operator it has not implemented, or a boolean
 // structure a flat index cannot evaluate (RFC 0005 §7). The query is refused rather than

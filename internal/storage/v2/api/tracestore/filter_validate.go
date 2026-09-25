@@ -77,6 +77,17 @@ func validateCall(call *expression.Call, quantified []expression.Level, depth in
 			return fmt.Errorf("operator %q takes a list with at least one element", call.Op)
 		}
 		return validateValueType(list.Type)
+	case OpMatch:
+		if err := wantArgs(call, 2); err != nil {
+			return err
+		}
+		if err := validateSubject(call.Op, call.Args[0], quantified); err != nil {
+			return err
+		}
+		if _, ok := patternText(call.Args[1]); !ok {
+			return fmt.Errorf("operator %q takes a constant string as its search text, got %s", call.Op, termName(call.Args[1]))
+		}
+		return nil
 	case expression.OpRegex:
 		if err := wantArgs(call, 2); err != nil {
 			return err

@@ -125,6 +125,7 @@ func FilterCapabilities() tracestore.FilterCapabilities {
 			expression.OpExists,
 			expression.OpIn,
 			expression.OpNotIn,
+			tracestore.OpMatch,
 		},
 	}
 }
@@ -159,6 +160,13 @@ func (s *SpanReader) buildFilterQuery(predicate *expression.Call) (esquery.Query
 			return nil, err
 		}
 		return esquery.NewBoolQuery().MustNot(args[0]), nil
+
+	case tracestore.OpMatch:
+		ref, value, err := refAndConstantArgs(predicate)
+		if err != nil {
+			return nil, err
+		}
+		return s.buildMatchQuery(ref, value)
 
 	case expression.OpEq, expression.OpRegex,
 		expression.OpGt, expression.OpLt, expression.OpGte, expression.OpLte:
@@ -309,6 +317,27 @@ func (s *SpanReader) buildComparison(
 	default:
 		return nil, errUnsupportedField(ref)
 	}
+}
+
+// buildMatchQuery lowers the match operator to an OpenSearch match query on the .text sub-field
+// of an attribute. Only attributes are searchable this way; built-in fields are not text-analyzed.
+func (s *SpanReader) buildMatchQuery(ref reference, value expression.Expression) (esquery.Query, error) {
+	if !ref.attribute {
+		return nil, fmt.Errorf("%w: %q is only supported on attributes, not built-in fields",
+			tracestore.ErrFilterUnsupported, tracestore.OpMatch)
+	}
+	text, err := constantText(value)
+	if err != nil {
+		return nil, err
+	}
+	locations, ok := attributeLocations[ref.level]
+	if !ok {
+		return nil, errUnsupportedLevel(ref.level)
+	}
+	matchOnText := func(field string) esquery.Query {
+		return esquery.NewMatchQuery(nestedField(field, textSubField), text)
+	}
+	return s.attributeQuery(locations, ref.name, matchOnText), nil
 }
 
 // constantText returns the text that a constant contributes to a comparison. It accepts an untyped

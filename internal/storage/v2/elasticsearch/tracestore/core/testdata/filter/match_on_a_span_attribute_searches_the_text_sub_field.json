@@ -1,0 +1,36 @@
+{
+  "bool": {
+    "should": [
+      {
+        "match": {
+          "tag.input.text": {
+            "query": "refund policy"
+          }
+        }
+      },
+      {
+        "nested": {
+          "path": "tags",
+          "query": {
+            "bool": {
+              "must": [
+                {
+                  "term": {
+                    "tags.key": "input"
+                  }
+                },
+                {
+                  "match": {
+                    "tags.value.text": {
+                      "query": "refund policy"
+                    }
+                  }
+                }
+              ]
+            }
+          }
+        }
+      }
+    ]
+  }
+}

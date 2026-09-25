@@ -182,6 +182,19 @@ func TestValidateFilter_Accepts(t *testing.T) {
 				}},
 			}},
 		},
+		{
+			name: "match on an attribute",
+			filter: &expression.Call{Op: OpMatch, Args: []expression.Expression{
+				attr("input"), &expression.AnyValue{Value: "refund policy"},
+			}},
+		},
+		{
+			name: "match with a string constant",
+			filter: &expression.Call{Op: OpMatch, Args: []expression.Expression{
+				&expression.AttributeRef{Key: "output", Level: expression.LevelSpan},
+				&expression.StringValue{Value: "cancellation"},
+			}},
+		},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
@@ -572,6 +585,21 @@ func TestValidateFilter_Rejects(t *testing.T) {
 				&expression.Call{Op: "matches", Args: []expression.Expression{attr("a")}},
 				&expression.List{Values: []string{"1"}},
 			}},
+		},
+		{
+			name:        "match with wrong arity",
+			expectedErr: `operator "match" takes 2 argument(s), got 1`,
+			filter:      &expression.Call{Op: OpMatch, Args: []expression.Expression{attr("input")}},
+		},
+		{
+			name:        "match with a non-string constant",
+			expectedErr: `operator "match" takes a constant string as its search text, got an integer constant`,
+			filter:      &expression.Call{Op: OpMatch, Args: []expression.Expression{attr("input"), &expression.IntValue{Value: 42}}},
+		},
+		{
+			name:        "match with a non-reference subject",
+			expectedErr: `operator "match" takes a reference, got an untyped constant`,
+			filter:      &expression.Call{Op: OpMatch, Args: []expression.Expression{&expression.AnyValue{Value: "input"}, &expression.AnyValue{Value: "refund"}}},
 		},
 	}
 	for _, test := range tests {
