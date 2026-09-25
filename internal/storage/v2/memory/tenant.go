@@ -62,6 +62,13 @@ func (t *Tenant) storeTraces(tracesById map[pcommon.TraceID]ptrace.ResourceSpans
 	t.mu.Lock()
 	defer t.mu.Unlock()
 	for traceId, sameTraceIDResourceSpan := range tracesById {
+		if traceId.IsEmpty() {
+			// An all-zero trace ID is invalid and would collide with the
+			// ring buffer's empty-slot sentinel: findTraceAndIds treats an
+			// empty-ID slot as the end of stored traces, and the eviction
+			// cleanup above skips empty IDs, leaving a stale ids entry.
+			continue
+		}
 		var startTime time.Time
 		var endTime time.Time
 		for _, resourceSpan := range sameTraceIDResourceSpan.All() {
