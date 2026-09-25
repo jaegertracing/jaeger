@@ -161,15 +161,16 @@ func TestPrepareSearchQuery_PageSizeClampedToMax(t *testing.T) {
 // SearchDepth and Pagination is cleared.
 func TestPrepareSearchQuery_PageSizeFoldedIntoSearchDepthWhenUnsupported(t *testing.T) {
 	enablePagination(t)
-	next := &fakeReader{summaries: []tracestore.TraceSummary{{RootServiceName: "svc"}}}
+	next := &fakeReader{summaries: []tracestore.TraceSummary{{RootServiceName: "svc"}}, nextPageToken: "reader-cursor"}
 	next.capabilities = &tracestore.SearchCapabilities{WithoutServiceName: true, Paginated: false}
 	qs := interceptedService(next, fakeInterceptor{})
 	query := searchQuery(tracestore.TraceQueryParams{
 		Pagination: &tracestore.Pagination{PageSize: 15},
 	})
 
-	for _, err := range qs.FindTraceSummaries(context.Background(), query) {
+	for chunk, err := range qs.FindTraceSummaries(context.Background(), query) {
 		require.NoError(t, err)
+		assert.Empty(t, chunk.NextPageToken, "a reader that cannot paginate has no cursor a token could carry")
 	}
 	assert.True(t, next.summaryCalled)
 	assert.Nil(t, next.gotSummaryQuery.Pagination, "cleared once folded")

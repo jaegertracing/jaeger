@@ -198,15 +198,20 @@ func (qs QueryService) FindSpans(
 			return
 		}
 		query = prepared.query
-		fingerprint, err := pagetoken.SpanQuery(query.SpanQueryParams)
-		if err != nil {
-			yield(tracestore.PageChunk[ptrace.Traces]{}, err)
-			return
-		}
-		query.Pagination.PageToken, err = qs.resumeCursor(query.Pagination.PageToken, fingerprint)
-		if err != nil {
-			yield(tracestore.PageChunk[ptrace.Traces]{}, err)
-			return
+		// A search that mints no token has none to resume either: any token it carried was
+		// refused during preparation.
+		var fingerprint []byte
+		if prepared.paginates {
+			fingerprint, err = pagetoken.SpanQuery(query.SpanQueryParams)
+			if err != nil {
+				yield(tracestore.PageChunk[ptrace.Traces]{}, err)
+				return
+			}
+			query.Pagination.PageToken, err = qs.resumeCursor(query.Pagination.PageToken, fingerprint)
+			if err != nil {
+				yield(tracestore.PageChunk[ptrace.Traces]{}, err)
+				return
+			}
 		}
 		spans := qs.traceReader.FindSpans(ctx, query.SpanQueryParams)
 		for chunk, err := range qs.interceptSpanResults(ctx, spans) {
