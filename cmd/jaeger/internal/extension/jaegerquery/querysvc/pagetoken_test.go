@@ -108,6 +108,34 @@ func TestFindSpans_PageTokenRefused(t *testing.T) {
 	}
 }
 
+// TestFindSpans_NoTokenWhereNoneCanBeResumed pins that a span search mints a token only where
+// the query service would accept it back: with the gate off, or against a reader that cannot
+// paginate, the reader's cursor is dropped and the page carries no token, since a token the
+// server would refuse on the next request is worse than none (RFC 0014 §6.2).
+func TestFindSpans_NoTokenWhereNoneCanBeResumed(t *testing.T) {
+	cases := []struct {
+		name string
+		gate bool
+		caps tracestore.SearchCapabilities
+	}{
+		{name: "gate off", gate: false, caps: tracestore.SearchCapabilities{SpanSearch: true, Paginated: true}},
+		{name: "reader cannot paginate", gate: true, caps: tracestore.SearchCapabilities{SpanSearch: true}},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			setPagination(t, tc.gate)
+			next := &fakeReader{batch: tracesWith("k", "v"), nextPageToken: "reader-cursor"}
+			next.capabilities = &tc.caps
+			qs := NewQueryService(next, nil, QueryServiceOptions{})
+
+			out, err := collectSpans(qs.FindSpans(context.Background(), searchSpansQuery(pagedSpanQuery(tracestore.Pagination{PageSize: 10}))))
+			require.NoError(t, err)
+			require.Len(t, out, 1)
+			assert.Empty(t, out[0].NextPageToken)
+		})
+	}
+}
+
 // TestFindTraceSummaries_PageTokenRoundTrip is TestFindSpans_PageTokenRoundTrip for the summary
 // search, which is the paginated surface the UI's results list consumes (RFC 0014 §4).
 func TestFindTraceSummaries_PageTokenRoundTrip(t *testing.T) {

@@ -1033,9 +1033,11 @@ func TestFindTraces_ThreadsResultContextAcrossBatches(t *testing.T) {
 
 func TestFindSpans_AppliesQueryAndResultHooks(t *testing.T) {
 	enableStructuredFilters(t)
+	enablePagination(t)
 	narrowedEnd := time.Date(2026, 8, 18, 0, 0, 0, 0, time.UTC)
 	next := &fakeReader{batch: tracesWith("secret", "value"), nextPageToken: "next"}
 	next.capabilities = filterCapableBackend()
+	next.capabilities.Paginated = true
 	qs := interceptedService(next, fakeInterceptor{
 		onSpanQuery: func(q queryinterceptor.SpanQuery) (queryinterceptor.SpanQuery, error) {
 			q.Filter = serviceFilter("gated")

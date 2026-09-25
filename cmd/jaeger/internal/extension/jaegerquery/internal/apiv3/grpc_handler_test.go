@@ -655,8 +655,9 @@ func TestFindSpans(t *testing.T) {
 // reaches the caller inside the query service's page token; the handler does not read or
 // interpret it.
 func TestFindSpansPreservesNextPageToken(t *testing.T) {
+	enablePagination(t)
 	reader := &tracestoremocks.Reader{}
-	reader.On("SearchCapabilities", mock.Anything).Return(tracestore.SearchCapabilities{SpanSearch: true}, nil)
+	reader.On("SearchCapabilities", mock.Anything).Return(tracestore.SearchCapabilities{SpanSearch: true, Paginated: true}, nil)
 	reader.On("FindSpans", mock.Anything, mock.Anything).
 		Return(iter.Seq2[tracestore.PageChunk[ptrace.Traces], error](func(yield func(tracestore.PageChunk[ptrace.Traces], error) bool) {
 			yield(tracestore.PageChunk[ptrace.Traces]{Results: ptrace.NewTraces(), NextPageToken: "next-page"}, nil)

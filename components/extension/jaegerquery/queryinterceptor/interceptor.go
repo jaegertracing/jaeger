@@ -87,6 +87,11 @@ type TraceQuery struct {
 	// finished with it, so a filter naming a level or an operator the storage backend cannot
 	// serve is refused on the same terms whether the caller wrote that predicate or an
 	// interceptor added it.
+	//
+	// A page token is bound to the query as it leaves the interceptors (RFC 0014 §3.2), so a
+	// rewrite has to be a pure function of the request it is given: a predicate that changes
+	// between two identical requests, such as a bound derived from the current time, makes
+	// every continuation look like a different query and be refused.
 	Filter *expression.Call
 
 	StartTimeMin time.Time
