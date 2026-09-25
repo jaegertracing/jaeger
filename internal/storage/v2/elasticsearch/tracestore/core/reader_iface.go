@@ -13,6 +13,8 @@ import (
 type Reader interface {
 	// FindTraceIDs retrieves traces IDs that match the traceQuery
 	FindTraceIDs(ctx context.Context, traceQuery dbmodel.TraceQueryParameters) ([]dbmodel.TraceID, error)
+	// FindSpans retrieves spans that match the spanQuery
+	FindSpans(ctx context.Context, spanQuery dbmodel.SpanQueryParameters) ([]dbmodel.Span, error)
 	// FindTraces retrieves traces that match the traceQuery
 	FindTraces(ctx context.Context, traceQuery dbmodel.TraceQueryParameters) ([]dbmodel.Trace, error)
 	// GetOperations returns all operations for a specific service traced by Jaeger

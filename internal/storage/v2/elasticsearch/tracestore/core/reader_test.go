@@ -331,9 +331,10 @@ func TestSpanReader_multiRead_followUp_query(t *testing.T) {
 		// hits. The first page carries no search_after; the follow-up resumes from the
 		// last span's (startTime, spanID).
 		hasSort := func(s esclient.SearchRequest) bool {
-			return len(s.Sort) == 2 &&
-				s.Sort[0] == esclient.SortOrder{Field: startTimeField, Order: esquery.Ascending} &&
-				s.Sort[1] == esclient.SortOrder{Field: spanIDField, Order: esquery.Ascending} &&
+			return len(s.Sort) == 3 &&
+				s.Sort[0] == esclient.SortOrder{Field: traceIDField, Order: esquery.Ascending} &&
+				s.Sort[1] == esclient.SortOrder{Field: startTimeField, Order: esquery.Ascending} &&
+				s.Sort[2] == esclient.SortOrder{Field: spanIDField, Order: esquery.Ascending} &&
 				s.TrackTotalHits
 		}
 		firstPage := func(req esclient.MultiSearchRequest) bool {
@@ -342,8 +343,8 @@ func TestSpanReader_multiRead_followUp_query(t *testing.T) {
 		paginates := func(req esclient.MultiSearchRequest, wantTime uint64, wantSpanID string) bool {
 			s := req.Search
 			return hasSort(s) &&
-				len(s.SearchAfter) == 2 &&
-				s.SearchAfter[0] == any(wantTime) && s.SearchAfter[1] == any(wantSpanID)
+				len(s.SearchAfter) == 3 &&
+				s.SearchAfter[1] == any(wantTime) && s.SearchAfter[2] == any(wantSpanID)
 		}
 
 		r.searcher.On("MultiSearch", mock.Anything, mock.MatchedBy(func(reqs []esclient.MultiSearchRequest) bool {
@@ -393,13 +394,13 @@ func (f *searchAfterFake) page(req esclient.SearchRequest) esclient.SearchRespon
 	// The request declares whether spanID is a sort key; page accordingly so the
 	// fake models both the fixed and the pre-fix behavior faithfully. The first
 	// page carries no search_after, so it starts from the beginning of the corpus.
-	tieBreak := len(req.Sort) > 1 && req.Sort[1].Field == spanIDField
+	tieBreak := len(req.Sort) > 1 && req.Sort[len(req.Sort)-1].Field == spanIDField
 	var afterTime uint64
 	afterSpanID := ""
 	if len(req.SearchAfter) > 0 {
-		afterTime, _ = req.SearchAfter[0].(uint64)
+		afterTime, _ = req.SearchAfter[1].(uint64)
 		if tieBreak && len(req.SearchAfter) > 1 {
-			afterSpanID, _ = req.SearchAfter[1].(string)
+			afterSpanID, _ = req.SearchAfter[2].(string)
 		}
 	}
 	var hits []esclient.SearchHit

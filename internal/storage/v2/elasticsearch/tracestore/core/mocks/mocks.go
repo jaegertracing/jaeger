@@ -43,6 +43,74 @@ func (_m *Reader) EXPECT() *Reader_Expecter {
 	return &Reader_Expecter{mock: &_m.Mock}
 }
 
+// FindSpans provides a mock function for the type Reader
+func (_mock *Reader) FindSpans(ctx context.Context, spanQuery dbmodel.SpanQueryParameters) ([]dbmodel.Span, error) {
+	ret := _mock.Called(ctx, spanQuery)
+
+	if len(ret) == 0 {
+		panic("no return value specified for FindSpans")
+	}
+
+	var r0 []dbmodel.Span
+	var r1 error
+	if returnFunc, ok := ret.Get(0).(func(context.Context, dbmodel.SpanQueryParameters) ([]dbmodel.Span, error)); ok {
+		return returnFunc(ctx, spanQuery)
+	}
+	if returnFunc, ok := ret.Get(0).(func(context.Context, dbmodel.SpanQueryParameters) []dbmodel.Span); ok {
+		r0 = returnFunc(ctx, spanQuery)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).([]dbmodel.Span)
+		}
+	}
+	if returnFunc, ok := ret.Get(1).(func(context.Context, dbmodel.SpanQueryParameters) error); ok {
+		r1 = returnFunc(ctx, spanQuery)
+	} else {
+		r1 = ret.Error(1)
+	}
+	return r0, r1
+}
+
+// Reader_FindSpans_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'FindSpans'
+type Reader_FindSpans_Call struct {
+	*mock.Call
+}
+
+// FindSpans is a helper method to define mock.On call
+//   - ctx context.Context
+//   - spanQuery dbmodel.SpanQueryParameters
+func (_e *Reader_Expecter) FindSpans(ctx interface{}, spanQuery interface{}) *Reader_FindSpans_Call {
+	return &Reader_FindSpans_Call{Call: _e.mock.On("FindSpans", ctx, spanQuery)}
+}
+
+func (_c *Reader_FindSpans_Call) Run(run func(ctx context.Context, spanQuery dbmodel.SpanQueryParameters)) *Reader_FindSpans_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		var arg0 context.Context
+		if args[0] != nil {
+			arg0 = args[0].(context.Context)
+		}
+		var arg1 dbmodel.SpanQueryParameters
+		if args[1] != nil {
+			arg1 = args[1].(dbmodel.SpanQueryParameters)
+		}
+		run(
+			arg0,
+			arg1,
+		)
+	})
+	return _c
+}
+
+func (_c *Reader_FindSpans_Call) Return(spans []dbmodel.Span, err error) *Reader_FindSpans_Call {
+	_c.Call.Return(spans, err)
+	return _c
+}
+
+func (_c *Reader_FindSpans_Call) RunAndReturn(run func(ctx context.Context, spanQuery dbmodel.SpanQueryParameters) ([]dbmodel.Span, error)) *Reader_FindSpans_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // FindTraceIDs provides a mock function for the type Reader
 func (_mock *Reader) FindTraceIDs(ctx context.Context, traceQuery dbmodel.TraceQueryParameters) ([]dbmodel.TraceID, error) {
 	ret := _mock.Called(ctx, traceQuery)

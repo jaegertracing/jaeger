@@ -176,3 +176,14 @@ type TraceQueryParameters struct {
 	// nothing.
 	Filter *expression.Call
 }
+
+// SpanQueryParameters contains parameters of a span query.
+type SpanQueryParameters struct {
+	StartTimeMin time.Time
+	StartTimeMax time.Time
+	// Filter is the structured query filter (RFC 0005). It is the storage
+	// API's own expression tree rather than a translation of it, because the tree is what the
+	// reader lowers into the Elasticsearch query and a second encoding of it would earn
+	// nothing.
+	Filter *expression.Call
+}
