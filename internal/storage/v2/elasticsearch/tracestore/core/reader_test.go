@@ -15,6 +15,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/jaegertracing/jaeger/internal/expression"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
@@ -876,6 +877,113 @@ func TestSpanReader_FindTracesSpanCollectionFailure(t *testing.T) {
 		}
 
 		traces, err := r.reader.FindTraces(context.Background(), traceQuery)
+		require.NotEmpty(t, r.traceBuffer.GetSpans(), "Spans recorded")
+		require.Error(t, err)
+		assert.Empty(t, traces)
+	})
+}
+
+func TestSpanReader_FindSpans(t *testing.T) {
+	hits := []esclient.SearchHit{{Source: exampleESSpan}}
+
+	withSpanReader(t, func(r *spanReaderTest) {
+		// bulk read spans
+		mockSearchService(r).Return(&esclient.SearchResponse{Hits: esclient.HitsResult{Hits: hits, Total: esclient.TotalHits{Value: 2}}}, nil)
+		mockSearchService(r).Return(&esclient.SearchResponse{Hits: esclient.HitsResult{Hits: hits, Total: esclient.TotalHits{Value: 2}}}, nil)
+		var p expression.Predicate
+		traceQuery := dbmodel.SpanQueryParameters{
+			StartTimeMin: time.Now().Add(-1 * time.Hour),
+			StartTimeMax: time.Now(),
+			Filter: p.And(p.Attr("serviceName").Eq(serviceName),
+				p.Attr("hello").Eq("world")),
+		}
+
+		spans, err := r.reader.FindSpans(context.Background(), traceQuery)
+		require.NotEmpty(t, r.traceBuffer.GetSpans(), "Spans recorded")
+		require.NoError(t, err)
+		assert.Len(t, spans, 2)
+
+		expectedSpans, err := r.reader.collectSpans(hits)
+		require.NoError(t, err)
+
+		assert.Equal(t, spans[0], expectedSpans[0])
+	})
+}
+
+// TestSpanReader_FindTracesRejectsQueryBeforeSearching covers the FindTraces side of
+// validation: a query that validateQuery rejects — here an unset time range — returns
+// the validation error without a round trip to the cluster. TestTraceQueryParameterValidation
+// covers which queries are rejected; this covers that rejection short-circuits the search.
+func TestSpanReader_FindSpansRejectsQueryBeforeSearching(t *testing.T) {
+	withSpanReader(t, func(r *spanReaderTest) {
+		var p expression.Predicate
+		spanQuery := dbmodel.SpanQueryParameters{
+			Filter: p.And(p.Attr("serviceName").Eq(serviceName), p.Attr("hello").Eq("world")),
+		}
+
+		traces, err := r.reader.FindSpans(context.Background(), spanQuery)
+		require.ErrorIs(t, err, ErrStartAndEndTimeNotSet)
+		assert.Nil(t, traces)
+		r.searcher.AssertNotCalled(t, "Search")
+		require.NotEmpty(t, r.traceBuffer.GetSpans(), "the attempt is still traced")
+	})
+}
+
+func TestSpanReader_FindSpansNoHits(t *testing.T) {
+	withSpanReader(t, func(r *spanReaderTest) {
+		mockSearchService(r).Return(
+			&esclient.SearchResponse{Hits: esclient.HitsResult{Hits: []esclient.SearchHit{}, Total: esclient.TotalHits{Value: 0}}},
+			nil,
+		)
+		var p expression.Predicate
+		spanQuery := dbmodel.SpanQueryParameters{
+			Filter:       p.And(p.Attr("serviceName").Eq(serviceName), p.Attr("hello").Eq("world")),
+			StartTimeMin: time.Now().Add(-1 * time.Hour),
+			StartTimeMax: time.Now(),
+		}
+
+		traces, err := r.reader.FindSpans(context.Background(), spanQuery)
+		require.NotEmpty(t, r.traceBuffer.GetSpans(), "Spans recorded")
+		require.NoError(t, err)
+		assert.Empty(t, traces)
+	})
+}
+
+func TestSpanReader_FindSpansReadTraceFailure(t *testing.T) {
+	withSpanReader(t, func(r *spanReaderTest) {
+		mockSearchService(r).Return(nil, errors.New("read error"))
+		var p expression.Predicate
+		spanQuery := dbmodel.SpanQueryParameters{
+			Filter:       p.And(p.Attr("serviceName").Eq(serviceName), p.Attr("hello").Eq("world")),
+			StartTimeMin: time.Now().Add(-1 * time.Hour),
+			StartTimeMax: time.Now(),
+		}
+
+		traces, err := r.reader.FindSpans(context.Background(), spanQuery)
+		require.NotEmpty(t, r.traceBuffer.GetSpans(), "Spans recorded")
+		require.EqualError(t, err, "read error")
+		assert.Empty(t, traces)
+	})
+}
+
+func TestSpanReader_FindSpansSpanCollectionFailure(t *testing.T) {
+	badSpan := []byte(`{"TraceID": "123"asjlgajdfhilqghi[adfvca} bad json`)
+	badHits := []esclient.SearchHit{{Source: badSpan}}
+
+	withSpanReader(t, func(r *spanReaderTest) {
+		mockSearchService(r).Return(esclient.SearchResponse{
+			Hits: esclient.HitsResult{Hits: badHits},
+		}, nil)
+
+		var p expression.Predicate
+		spanQuery := dbmodel.SpanQueryParameters{
+			Filter: p.And(p.Attr("serviceName").Eq(serviceName), p.Attr("hello").Eq("world")),
+
+			StartTimeMin: time.Now().Add(-1 * time.Hour),
+			StartTimeMax: time.Now(),
+		}
+
+		traces, err := r.reader.FindSpans(context.Background(), spanQuery)
 		require.NotEmpty(t, r.traceBuffer.GetSpans(), "Spans recorded")
 		require.Error(t, err)
 		assert.Empty(t, traces)
