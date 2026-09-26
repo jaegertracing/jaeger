@@ -119,7 +119,7 @@ func parseFilterParam(q url.Values) (*expression.Call, error) {
 func parsePaginationParams(q url.Values) (pagination tracestore.Pagination, present bool, err error) {
 	pageSizeStr, pageToken := q.Get(paramPageSize), q.Get(paramPageToken)
 	present = pageSizeStr != "" || pageToken != ""
-	pagination.PageToken = pageToken
+	pagination.PageToken = pageTokenBytes(pageToken)
 	if pageSizeStr != "" {
 		pageSize, err := strconv.Atoi(pageSizeStr)
 		if err != nil || pageSize < 0 {
@@ -229,4 +229,14 @@ func parseFindSpansQuery(q url.Values) (*querysvc.SpanQueryParams, error) {
 		return nil, err
 	}
 	return queryParams, nil
+}
+
+// pageTokenBytes carries the client's token into the query as the bytes the storage API
+// declares for a cursor (tracestore.Pagination.PageToken). An absent token stays nil, so a
+// request that sent none reads as none downstream.
+func pageTokenBytes(token string) []byte {
+	if token == "" {
+		return nil
+	}
+	return []byte(token)
 }

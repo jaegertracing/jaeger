@@ -139,7 +139,7 @@ func TestFilterCapabilitiesRoundTrip(t *testing.T) {
 func TestQueryParametersCarryPagination(t *testing.T) {
 	sent, err := toProtoQueryParameters(tracestore.TraceQueryParams{
 		Attributes: pcommon.NewMap(),
-		Pagination: &tracestore.Pagination{PageSize: 25, PageToken: "opaque-cursor"},
+		Pagination: &tracestore.Pagination{PageSize: 25, PageToken: []byte("opaque-cursor")},
 	})
 	require.NoError(t, err)
 	require.NotNil(t, sent.GetPagination())
@@ -148,7 +148,7 @@ func TestQueryParametersCarryPagination(t *testing.T) {
 
 	decoded, err := NewHandler(new(tracestoremocks.Reader), nil, nil).toTraceQueryParams(sent)
 	require.NoError(t, err)
-	assert.Equal(t, &tracestore.Pagination{PageSize: 25, PageToken: "opaque-cursor"}, decoded.Pagination)
+	assert.Equal(t, &tracestore.Pagination{PageSize: 25, PageToken: []byte("opaque-cursor")}, decoded.Pagination)
 	assert.Zero(t, decoded.SearchDepth, "Pagination replaces search_depth rather than setting it")
 
 	decoded, err = NewHandler(new(tracestoremocks.Reader), nil, nil).toTraceQueryParams(&storage.TraceQueryParameters{

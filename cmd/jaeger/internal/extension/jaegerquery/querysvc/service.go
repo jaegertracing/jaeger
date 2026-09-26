@@ -102,9 +102,10 @@ type TraceQueryParams struct {
 }
 
 // PageChunk carries one streamed chunk of a page without exposing the storage
-// API's result container to query-service consumers. NextPageToken is set only on
-// the final chunk; an empty token there means no later page, while an empty token
-// on an earlier chunk says nothing about pagination.
+// API's result container to query-service consumers. NextPageToken is the token a
+// client sends back to continue, not the reader's cursor (RFC 0014 §3.1). It is set
+// only on the final chunk; an empty token there means no later page, while an empty
+// token on an earlier chunk says nothing about pagination.
 type PageChunk[T any] struct {
 	Results       T
 	NextPageToken string
@@ -185,24 +186,25 @@ func (qs QueryService) GetOperations(
 func (qs QueryService) FindSpans(
 	ctx context.Context,
 	query SpanQueryParams,
-) iter.Seq2[tracestore.PageChunk[ptrace.Traces], error] {
-	return func(yield func(tracestore.PageChunk[ptrace.Traces], error) bool) {
+) iter.Seq2[PageChunk[ptrace.Traces], error] {
+	return func(yield func(PageChunk[ptrace.Traces], error) bool) {
 		ctx, query, err := qs.prepareAndInterceptSpanSearchQuery(ctx, query)
 		if err != nil {
-			yield(tracestore.PageChunk[ptrace.Traces]{}, err)
+			yield(PageChunk[ptrace.Traces]{}, err)
 			return
 		}
 		minter, err := resumeSpanSearch(&query.SpanQueryParams)
 		if err != nil {
-			yield(tracestore.PageChunk[ptrace.Traces]{}, err)
+			yield(PageChunk[ptrace.Traces]{}, err)
 			return
 		}
 		spans := qs.traceReader.FindSpans(ctx, query.SpanQueryParams)
 		for chunk, err := range qs.interceptSpanResults(ctx, spans) {
+			result := PageChunk[ptrace.Traces]{Results: chunk.Results}
 			if err == nil {
-				chunk.NextPageToken, err = minter.mint(chunk.NextPageToken)
+				result.NextPageToken, err = minter.mint(chunk.NextPageToken)
 			}
-			if !yield(chunk, err) {
+			if !yield(result, err) {
 				return
 			}
 		}
@@ -385,7 +387,7 @@ func (qs QueryService) prepareAndInterceptSpanSearchQuery(
 	// A page token is what makes this a paginated request, and that is what the feature gate
 	// governs. The page size is only the bound (RFC 0016 §6): unset means the default, as an
 	// omitted size does on Elasticsearch, and an oversized one is clamped (RFC 0014 §4).
-	if query.Pagination.PageToken != "" && !PaginationGate.IsEnabled() {
+	if len(query.Pagination.PageToken) != 0 && !PaginationGate.IsEnabled() {
 		return ctx, query, fmt.Errorf("%w: enable the %q feature gate to use it",
 			ErrPaginationDisabled, PaginationGate.ID())
 	}
@@ -429,7 +431,7 @@ func (qs QueryService) prepareAndInterceptSpanSearchQuery(
 // into, but it cannot have minted a PageToken, so a query carrying one is refused rather than
 // restarted as a new search.
 func ensureSpanPaginationSupported(caps tracestore.SearchCapabilities, pagination tracestore.Pagination) error {
-	if pagination.PageToken != "" && !caps.Paginated {
+	if len(pagination.PageToken) != 0 && !caps.Paginated {
 		return tracestore.ErrPaginationUnsupported
 	}
 	return nil

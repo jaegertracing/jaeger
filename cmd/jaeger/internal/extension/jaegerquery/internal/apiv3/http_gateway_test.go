@@ -625,7 +625,7 @@ func TestHTTPGatewayFindTraceSummaries(t *testing.T) {
 					RootOperationName: "SELECT",
 					SpanCount:         2,
 				}},
-				NextPageToken: "next-page",
+				NextPageToken: []byte("next-page"),
 			}, nil)
 		})).Once()
 
@@ -706,7 +706,7 @@ func TestHTTPGatewayFindSpans(t *testing.T) {
 		On("FindSpans", matchContext, qp).
 		Return(iter.Seq2[tracestore.PageChunk[ptrace.Traces], error](func(yield func(tracestore.PageChunk[ptrace.Traces], error) bool) {
 			yield(tracestore.PageChunk[ptrace.Traces]{Results: makeTestTrace()}, nil)
-			yield(tracestore.PageChunk[ptrace.Traces]{Results: ptrace.NewTraces(), NextPageToken: "next-page"}, nil)
+			yield(tracestore.PageChunk[ptrace.Traces]{Results: ptrace.NewTraces(), NextPageToken: []byte("next-page")}, nil)
 		})).Once()
 
 	r, err := http.NewRequest(http.MethodGet, "/api/v3/spans?"+q.Encode(), http.NoBody)

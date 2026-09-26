@@ -61,7 +61,7 @@ func flattenPageChunks[T any](seq stditer.Seq2[tracestore.PageChunk[[]T], error]
 		if err != nil {
 			return nil, err
 		}
-		if chunk.NextPageToken != "" {
+		if len(chunk.NextPageToken) != 0 {
 			return nil, errors.New("unexpected next page token")
 		}
 		results = append(results, chunk.Results...)

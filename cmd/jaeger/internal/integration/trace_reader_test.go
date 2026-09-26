@@ -70,5 +70,5 @@ func TestTraceReaderFindTraceSummariesPreservesNextPageToken(t *testing.T) {
 	}
 
 	require.Len(t, chunks, 1)
-	assert.Equal(t, "next-page", chunks[0].NextPageToken)
+	assert.Equal(t, []byte("next-page"), chunks[0].NextPageToken)
 }

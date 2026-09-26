@@ -113,7 +113,7 @@ func traceQueryParams(query *api_v3.TraceQueryParameters) (querysvc.TraceQueryPa
 	if pagination := query.GetPagination(); pagination != nil {
 		queryParams.Pagination = &tracestore.Pagination{
 			PageSize:  int(pagination.GetPageSize()),
-			PageToken: pagination.GetPageToken(),
+			PageToken: pageTokenBytes(pagination.GetPageToken()),
 		}
 	}
 	return queryParams, nil
@@ -167,7 +167,7 @@ func spanQueryParams(query *api_v3.SpanQueryParameters) (querysvc.SpanQueryParam
 	if pagination := query.GetPagination(); pagination != nil {
 		queryParams.Pagination = tracestore.Pagination{
 			PageSize:  int(pagination.GetPageSize()),
-			PageToken: pagination.GetPageToken(),
+			PageToken: pageTokenBytes(pagination.GetPageToken()),
 		}
 	}
 	return queryParams, nil

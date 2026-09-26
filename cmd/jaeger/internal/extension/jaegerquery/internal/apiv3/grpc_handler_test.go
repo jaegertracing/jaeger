@@ -331,7 +331,7 @@ func TestTraceQueryParamsPagination(t *testing.T) {
 		query.Pagination = &api_v3.Pagination{PageSize: 25, PageToken: "opaque-cursor"}
 		params, err := traceQueryParams(query)
 		require.NoError(t, err)
-		assert.Equal(t, &tracestore.Pagination{PageSize: 25, PageToken: "opaque-cursor"}, params.Pagination)
+		assert.Equal(t, &tracestore.Pagination{PageSize: 25, PageToken: []byte("opaque-cursor")}, params.Pagination)
 		assert.Zero(t, params.SearchDepth,
 			"search_depth must not be defaulted when Pagination is present, or every paginated "+
 				"request would trip the query service's mutual-exclusivity check")
@@ -541,7 +541,7 @@ func TestFindTraceSummariesPreservesNextPageToken(t *testing.T) {
 	reader.On("SearchCapabilities", mock.Anything).Return(tracestore.SearchCapabilities{Paginated: true}, nil)
 	reader.On("FindTraceSummaries", mock.Anything, mock.Anything).
 		Return(iter.Seq2[tracestore.PageChunk[[]tracestore.TraceSummary], error](func(yield func(tracestore.PageChunk[[]tracestore.TraceSummary], error) bool) {
-			yield(tracestore.PageChunk[[]tracestore.TraceSummary]{NextPageToken: "next-page"}, nil)
+			yield(tracestore.PageChunk[[]tracestore.TraceSummary]{NextPageToken: []byte("next-page")}, nil)
 		})).Once()
 	handler := &Handler{QueryService: querysvc.NewQueryService(
 		reader,
@@ -660,7 +660,7 @@ func TestFindSpansPreservesNextPageToken(t *testing.T) {
 	reader.On("SearchCapabilities", mock.Anything).Return(tracestore.SearchCapabilities{SpanSearch: true, Paginated: true}, nil)
 	reader.On("FindSpans", mock.Anything, mock.Anything).
 		Return(iter.Seq2[tracestore.PageChunk[ptrace.Traces], error](func(yield func(tracestore.PageChunk[ptrace.Traces], error) bool) {
-			yield(tracestore.PageChunk[ptrace.Traces]{Results: ptrace.NewTraces(), NextPageToken: "next-page"}, nil)
+			yield(tracestore.PageChunk[ptrace.Traces]{Results: ptrace.NewTraces(), NextPageToken: []byte("next-page")}, nil)
 		})).Once()
 	handler := &Handler{QueryService: querysvc.NewQueryService(
 		reader,
@@ -721,7 +721,7 @@ func TestSpanQueryParamsPagination(t *testing.T) {
 		query.Pagination = &api_v3.Pagination{PageSize: 25, PageToken: "opaque-cursor"}
 		params, err := spanQueryParams(query)
 		require.NoError(t, err)
-		assert.Equal(t, tracestore.Pagination{PageSize: 25, PageToken: "opaque-cursor"}, params.Pagination)
+		assert.Equal(t, tracestore.Pagination{PageSize: 25, PageToken: []byte("opaque-cursor")}, params.Pagination)
 	})
 }
 

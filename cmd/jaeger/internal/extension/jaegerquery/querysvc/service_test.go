@@ -398,7 +398,7 @@ func TestFindSpans_Success(t *testing.T) {
 
 	expectedSpans := makeTestTrace()
 	responseIter := iter.Seq2[tracestore.PageChunk[ptrace.Traces], error](func(yield func(tracestore.PageChunk[ptrace.Traces], error) bool) {
-		yield(tracestore.PageChunk[ptrace.Traces]{Results: expectedSpans, NextPageToken: ""}, nil)
+		yield(tracestore.PageChunk[ptrace.Traces]{Results: expectedSpans, NextPageToken: []byte("")}, nil)
 	})
 	query := SpanQueryParams{SpanQueryParams: tracestore.SpanQueryParams{StartTimeMin: testWindowStart, StartTimeMax: testWindowEnd}}
 	bounded := query.SpanQueryParams
@@ -463,7 +463,7 @@ func TestFindSpans_Pagination(t *testing.T) {
 	t.Run("token refused while the gate is disabled", func(t *testing.T) {
 		setPagination(t, false)
 		tqs := initializeBareTestQueryService()
-		err := findSpans(tqs, spanQuery(tracestore.Pagination{PageSize: 10, PageToken: "opaque-cursor"}))
+		err := findSpans(tqs, spanQuery(tracestore.Pagination{PageSize: 10, PageToken: []byte("opaque-cursor")}))
 		require.ErrorIs(t, err, ErrPaginationDisabled)
 	})
 
@@ -471,7 +471,7 @@ func TestFindSpans_Pagination(t *testing.T) {
 		enablePagination(t)
 		tqs := initializeBareTestQueryService()
 		tqs.traceReader.On("SearchCapabilities", mock.Anything).Return(spanSearch, nil)
-		err := findSpans(tqs, spanQuery(tracestore.Pagination{PageSize: 10, PageToken: "opaque-cursor"}))
+		err := findSpans(tqs, spanQuery(tracestore.Pagination{PageSize: 10, PageToken: []byte("opaque-cursor")}))
 		require.ErrorIs(t, err, tracestore.ErrPaginationUnsupported)
 		tqs.traceReader.AssertNotCalled(t, "FindSpans", mock.Anything, mock.Anything)
 	})
@@ -480,8 +480,8 @@ func TestFindSpans_Pagination(t *testing.T) {
 		enablePagination(t)
 		tqs := initializeBareTestQueryService()
 		token := spanPageToken(t, spanQuery(tracestore.Pagination{}), "opaque-cursor")
-		expectDispatch(tqs, paginating, spanQuery(tracestore.Pagination{PageSize: DefaultPageSize, PageToken: "opaque-cursor"}))
-		require.NoError(t, findSpans(tqs, spanQuery(tracestore.Pagination{PageToken: token})))
+		expectDispatch(tqs, paginating, spanQuery(tracestore.Pagination{PageSize: DefaultPageSize, PageToken: []byte("opaque-cursor")}))
+		require.NoError(t, findSpans(tqs, spanQuery(tracestore.Pagination{PageToken: []byte(token)})))
 		tqs.traceReader.AssertExpectations(t)
 	})
 }
@@ -1154,7 +1154,7 @@ func TestFindTraceSummaries_PaginatedRequestLeavesSearchDepthUnset(t *testing.T)
 type mockSummaryReader struct {
 	tracestoremocks.Reader
 	summaries     []tracestore.TraceSummary
-	nextPageToken string
+	nextPageToken []byte
 	err           error
 }
 
@@ -1186,7 +1186,7 @@ func flattenPageChunks[T any](seq iter.Seq2[PageChunk[[]T], error]) ([]T, error)
 
 func TestFindTraceSummaries_NativePath(t *testing.T) {
 	want := []tracestore.TraceSummary{{RootServiceName: "native"}}
-	nativeReader := &mockSummaryReader{summaries: want, nextPageToken: "next-page"}
+	nativeReader := &mockSummaryReader{summaries: want, nextPageToken: []byte("next-page")}
 	declaresSearchWithoutServiceName(&nativeReader.Reader, true)
 
 	depsMock := initializeTestService().depsReader

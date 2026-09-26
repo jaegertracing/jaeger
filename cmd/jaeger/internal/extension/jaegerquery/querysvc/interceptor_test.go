@@ -37,7 +37,7 @@ type fakeReader struct {
 	summaryErr      error
 	capabilities    *tracestore.SearchCapabilities
 	capabilityReads int
-	nextPageToken   string
+	nextPageToken   []byte
 }
 
 // SearchCapabilities answers for a backend that searches every service and evaluates no filter
@@ -1035,7 +1035,7 @@ func TestFindSpans_AppliesQueryAndResultHooks(t *testing.T) {
 	enableStructuredFilters(t)
 	enablePagination(t)
 	narrowedEnd := time.Date(2026, 8, 18, 0, 0, 0, 0, time.UTC)
-	next := &fakeReader{batch: tracesWith("secret", "value"), nextPageToken: "next"}
+	next := &fakeReader{batch: tracesWith("secret", "value"), nextPageToken: []byte("next")}
 	next.capabilities = filterCapableBackend()
 	next.capabilities.Paginated = true
 	qs := interceptedService(next, fakeInterceptor{
@@ -1565,8 +1565,8 @@ func TestFindSpans_ThreadsResultContextAcrossBatches(t *testing.T) {
 	assert.Equal(t, []int{0, 1}, seen, "OnSpanResult's returned context must thread into the next batch")
 }
 
-func collectSpans(it iter.Seq2[tracestore.PageChunk[ptrace.Traces], error]) ([]tracestore.PageChunk[ptrace.Traces], error) {
-	var out []tracestore.PageChunk[ptrace.Traces]
+func collectSpans(it iter.Seq2[PageChunk[ptrace.Traces], error]) ([]PageChunk[ptrace.Traces], error) {
+	var out []PageChunk[ptrace.Traces]
 	for batch, err := range it {
 		if err != nil {
 			return out, err

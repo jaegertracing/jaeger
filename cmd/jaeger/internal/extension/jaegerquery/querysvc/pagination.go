@@ -59,8 +59,8 @@ func resumeSpanSearch(query *tracestore.SpanQueryParams) (pageTokenMinter, error
 }
 
 // resumeTraceSearch is resumeSpanSearch for a trace search, which paginates whenever Pagination is
-// present. The exchange lands on a copy of Pagination so the caller's request is not rewritten
-// through the shared pointer.
+// present. Pagination is the copy prepareAndInterceptSearchQuery clamped, so the exchange does not
+// rewrite the caller's request.
 func resumeTraceSearch(query *tracestore.TraceQueryParams) (pageTokenMinter, error) {
 	if query.Pagination == nil {
 		return pageTokenMinter{}, nil
@@ -70,9 +70,7 @@ func resumeTraceSearch(query *tracestore.TraceQueryParams) (pageTokenMinter, err
 		return pageTokenMinter{}, err
 	}
 	minter := pageTokenMinter{template: minted}
-	resumed := *query.Pagination
-	resumed.PageToken, err = minter.resume(resumed.PageToken)
-	query.Pagination = &resumed
+	query.Pagination.PageToken, err = minter.resume(query.Pagination.PageToken)
 	return minter, err
 }
 
@@ -80,30 +78,30 @@ func resumeTraceSearch(query *tracestore.TraceQueryParams) (pageTokenMinter, err
 // refused when it continues a different query than the one it arrived with, since its cursor is a
 // position in that query's ordering alone. An empty token starts a new search and passes through
 // unchanged.
-func (m pageTokenMinter) resume(token string) (string, error) {
-	if token == "" {
-		return "", nil
+func (m pageTokenMinter) resume(token []byte) ([]byte, error) {
+	if len(token) == 0 {
+		return nil, nil
 	}
-	received, err := pagetoken.DecodeString(token)
+	received, err := pagetoken.DecodeString(string(token))
 	if err != nil {
-		return "", err
+		return nil, err
 	}
 	if err := received.Verify(m.template.Fingerprint); err != nil {
-		return "", err
+		return nil, err
 	}
-	return string(received.Cursor), nil
+	return received.Cursor, nil
 }
 
 // mint turns the cursor a reader returned on a page's final chunk into the token the client
 // receives. An empty cursor means the last page and stays empty, and a search that paginates
 // nothing is answered with no token whatever the reader returned (RFC 0014 §4, §6.2).
-func (m pageTokenMinter) mint(cursor string) (string, error) {
-	if m.template == nil || cursor == "" {
+func (m pageTokenMinter) mint(cursor []byte) (string, error) {
+	if m.template == nil || len(cursor) == 0 {
 		return "", nil
 	}
 	return pagetoken.EncodeToString(&pagetoken.PageToken{
 		Version:     m.template.Version,
 		Fingerprint: m.template.Fingerprint,
-		Cursor:      []byte(cursor),
+		Cursor:      cursor,
 	})
 }

@@ -219,7 +219,7 @@ type TraceQueryParams struct {
 // Pagination mirrors the proto message of the same name.
 type Pagination struct {
     PageSize  int    // page bound; required whenever Pagination is present
-    PageToken string // opaque continuation cursor; empty starts a new search
+    PageToken []byte // the reader's own opaque cursor; empty starts a new search
 }
 ```
 
@@ -232,7 +232,7 @@ The outbound token needs a home on the return path. `FindTraceIDs`, `FindTraceSu
 // the page's terminal chunk; an empty value there means the last page.
 type PageChunk[T any] struct {
     Results       T
-    NextPageToken string
+    NextPageToken []byte
 }
 
 FindTraceIDs(ctx context.Context, query TraceQueryParams) iter.Seq2[PageChunk[[]FoundTraceID], error]
@@ -252,7 +252,7 @@ This changes the element types of internal iterators, which is acceptable becaus
 
 `FindTraces` at this interface keeps returning `iter.Seq2[[]ptrace.Traces, error]` with no token, for the same reason as §4: whole-trace streaming has nowhere to carry one, and `FindTraces` is not a paginated call. A backend implements the cursor logic once, in its ID and summary search, and the query service refuses a `FindTraces` request that asks to paginate before it reaches the reader.
 
-The query service is the single place that mints and validates tokens end to end: it builds the reader's `Pagination` from the api_v3 request, checks the fingerprint (§3.2), calls the reader, and relays `next_page_token` back — the same central-enforcement posture ADR-013 uses for capabilities. A reader therefore never sees the client's token. The `PageToken` a reader receives is the cursor it returned in `PageChunk.NextPageToken` on the previous page, in whatever form the reader resumes from — a `search_after` array for Elasticsearch, a keyset boundary for ClickHouse — and the query service wraps that cursor into the token of §3.1 on the way out and unwraps it on the way back. The `jaeger.storage.v2` wire (§6) carries the reader's cursor for the same reason: a remote backend is a reader behind a gRPC client, and the wrapping happens in front of it. A search that did not ask for a page gets no token whatever the reader returned, so a client that does not know about pagination sees the single-page behavior it always did.
+The query service is the single place that mints and validates tokens end to end: it builds the reader's `Pagination` from the api_v3 request, checks the fingerprint (§3.2), calls the reader, and relays `next_page_token` back — the same central-enforcement posture ADR-013 uses for capabilities. A reader therefore never sees the client's token. The `PageToken` a reader receives is the cursor it returned in `PageChunk.NextPageToken` on the previous page, in whatever form the reader resumes from — a `search_after` array for Elasticsearch, a keyset boundary for ClickHouse — and the query service wraps that cursor into the token of §3.1 on the way out and unwraps it on the way back. The `jaeger.storage.v2` wire (§6) carries the reader's cursor for the same reason: a remote backend is a reader behind a gRPC client, and the wrapping happens in front of it. The cursor is bytes on the Go interface and on that wire, since a backend's cursor need not be text: an Elasticsearch `search_after` array happens to be JSON, a ClickHouse keyset need not be, and a proto3 `string` would oblige every backend to encode its cursor as UTF-8 first. A search that did not ask for a page gets no token whatever the reader returned, so a client that does not know about pagination sees the single-page behavior it always did.
 
 Minting the envelope in the query service is a choice against two alternatives that put it in the readers: a shared helper that every reader calls to seal its cursor into the §3.1 token and to open the one it receives, with the query service passing the string through; and the same helper with `PageChunk.NextPageToken` and `Pagination.PageToken` typed as a token struct in the Go interface, so a reader cannot return a bare cursor, with the string form produced only at the api_v3 and `jaeger.storage.v2` boundaries. The three differ on where the protection is enforced and on whom it protects:
 

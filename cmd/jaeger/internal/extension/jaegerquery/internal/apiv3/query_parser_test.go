@@ -147,12 +147,12 @@ func TestParseFindTracesQuery(t *testing.T) {
 		q.Set(paramPageToken, "opaque-cursor")
 		got, err = parseFindTracesQuery(q)
 		require.NoError(t, err)
-		assert.Equal(t, &tracestore.Pagination{PageSize: 10, PageToken: "opaque-cursor"}, got.Pagination)
+		assert.Equal(t, &tracestore.Pagination{PageSize: 10, PageToken: []byte("opaque-cursor")}, got.Pagination)
 
 		q.Del(paramPageSize)
 		got, err = parseFindTracesQuery(q)
 		require.NoError(t, err)
-		assert.Equal(t, &tracestore.Pagination{PageToken: "opaque-cursor"}, got.Pagination,
+		assert.Equal(t, &tracestore.Pagination{PageToken: []byte("opaque-cursor")}, got.Pagination,
 			"a token alone is still a paginated request; the missing page size is the query service's refusal")
 	})
 
@@ -445,7 +445,7 @@ func TestParseFindSpansQuery(t *testing.T) {
 
 		got, err := parseFindSpansQuery(q)
 		require.NoError(t, err)
-		assert.Equal(t, tracestore.Pagination{PageSize: 10, PageToken: "opaque-cursor"}, got.Pagination)
+		assert.Equal(t, tracestore.Pagination{PageSize: 10, PageToken: []byte("opaque-cursor")}, got.Pagination)
 	})
 
 	t.Run("pagination parameters are optional", func(t *testing.T) {

@@ -39,7 +39,7 @@ func collectSummaries(seq iter.Seq2[tracestore.PageChunk[[]tracestore.TraceSumma
 			return nil, err
 		}
 		out = append(out, chunk.Results...)
-		if chunk.NextPageToken != "" {
+		if len(chunk.NextPageToken) != 0 {
 			return nil, errors.New("unexpected next page token")
 		}
 	}

@@ -64,7 +64,7 @@ func sampleTraceQuery() tracestore.TraceQueryParams {
 		DurationMin:   time.Millisecond,
 		DurationMax:   time.Second,
 		SearchDepth:   20,
-		Pagination:    &tracestore.Pagination{PageSize: 10, PageToken: "cursor"},
+		Pagination:    &tracestore.Pagination{PageSize: 10, PageToken: []byte("cursor")},
 	}
 }
 
@@ -143,7 +143,7 @@ func TestFromSpanQuery(t *testing.T) {
 		StartTimeMin: windowStart,
 		StartTimeMax: windowEnd,
 		Filter:       serviceIs("cart"),
-		Pagination:   tracestore.Pagination{PageSize: 10, PageToken: "cursor"},
+		Pagination:   tracestore.Pagination{PageSize: 10, PageToken: []byte("cursor")},
 	}
 	base, err := fingerprintOfSpan(q)
 	require.NoError(t, err)

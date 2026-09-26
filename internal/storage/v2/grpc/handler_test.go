@@ -396,7 +396,7 @@ func TestHandler_FindTraceIDs(t *testing.T) {
 			Return(iter.Seq2[tracestore.PageChunk[[]tracestore.FoundTraceID], error](func(yield func(tracestore.PageChunk[[]tracestore.FoundTraceID], error) bool) {
 				yield(tracestore.PageChunk[[]tracestore.FoundTraceID]{
 					Results:       test.traceIDs,
-					NextPageToken: test.nextPageToken,
+					NextPageToken: []byte(test.nextPageToken),
 				}, test.findTraceIDsErr)
 			})).Once()
 		server := NewHandler(reader, writer, depReader)
@@ -432,7 +432,7 @@ func TestHandler_FindTraceIDsUsesFinalChunkNextPageToken(t *testing.T) {
 			}, nil)
 			yield(tracestore.PageChunk[[]tracestore.FoundTraceID]{
 				Results:       []tracestore.FoundTraceID{{TraceID: secondID}},
-				NextPageToken: "next-page",
+				NextPageToken: []byte("next-page"),
 			}, nil)
 		})).Once()
 	server := NewHandler(reader, new(tracestoremocks.Writer), new(depstoremocks.Reader))
@@ -833,7 +833,7 @@ func TestHandler_FindTraceSummaries_Success(t *testing.T) {
 		Return(iter.Seq2[tracestore.PageChunk[[]tracestore.TraceSummary], error](func(yield func(tracestore.PageChunk[[]tracestore.TraceSummary], error) bool) {
 			yield(tracestore.PageChunk[[]tracestore.TraceSummary]{
 				Results:       want,
-				NextPageToken: "next-page",
+				NextPageToken: []byte("next-page"),
 			}, nil)
 		})).Once()
 

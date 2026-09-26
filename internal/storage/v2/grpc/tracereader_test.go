@@ -581,7 +581,7 @@ func TestTraceReader_FindTraceIDs(t *testing.T) {
 				require.Len(t, chunks, 1)
 				require.Equal(t, test.expectedIDs, chunks[0].Results)
 				if test.name == "success" {
-					assert.Equal(t, "next-page", chunks[0].NextPageToken)
+					assert.Equal(t, []byte("next-page"), chunks[0].NextPageToken)
 				}
 			}
 		})
@@ -768,7 +768,7 @@ func TestTraceReader_FindTraceSummaries_Success(t *testing.T) {
 		Attributes: pcommon.NewMap(),
 	}) {
 		require.NoError(t, err)
-		assert.Equal(t, "next-page", chunk.NextPageToken)
+		assert.Equal(t, []byte("next-page"), chunk.NextPageToken)
 		got = append(got, chunk.Results...)
 	}
 	require.Len(t, got, 1)

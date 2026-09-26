@@ -133,11 +133,11 @@ const MaxSearchDepth = 10000
 // to satisfy transport message limits without changing the page boundary.
 // NextPageToken is set only on the final chunk: an empty token there means
 // no later page, while an empty token on an earlier chunk says nothing about pagination.
-// It is the Reader's own cursor, in whatever form the Reader resumes from; the query
-// service wraps it into the token a client receives (see Pagination.PageToken).
+// It is the Reader's own cursor, opaque bytes in whatever form the Reader resumes from; the
+// query service wraps it into the token a client receives (see Pagination.PageToken).
 type PageChunk[T any] struct {
 	Results       T
-	NextPageToken string
+	NextPageToken []byte
 }
 
 // SpanQueryParams contains query parameters to find spans. For a more detailed
@@ -219,8 +219,8 @@ type Pagination struct {
 	// The query service refuses a token against a Reader whose SearchCapabilities.Paginated
 	// is false before dispatching (RFC 0014 §6.2), but the token is not signed, so a Reader
 	// MUST refuse a cursor it cannot interpret with ErrPaginationInvalid rather than send it
-	// to its backend.
-	PageToken string
+	// to its backend. The cursor is opaque bytes and need not be text.
+	PageToken []byte
 }
 
 // FoundTraceID is a wrapper around trace ID returned from FindTraceIDs

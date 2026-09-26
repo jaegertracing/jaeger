@@ -52,7 +52,7 @@ func queryToReaderShape(
 	caps tracestore.SearchCapabilities,
 ) (tracestore.TraceQueryParams, error) {
 	if query.Pagination != nil && !caps.Paginated {
-		if query.Pagination.PageToken != "" {
+		if len(query.Pagination.PageToken) != 0 {
 			return tracestore.TraceQueryParams{}, tracestore.ErrPaginationUnsupported
 		}
 		query.SearchDepth = query.Pagination.PageSize

@@ -105,7 +105,7 @@ func TestPrepareSearchQuery_PageSizeRequiredWhenPaginationPresent(t *testing.T) 
 	qs := interceptedService(next, fakeInterceptor{})
 	query := searchQuery(tracestore.TraceQueryParams{
 		ServiceName: "svc",
-		Pagination:  &tracestore.Pagination{PageToken: "opaque-cursor"},
+		Pagination:  &tracestore.Pagination{PageToken: []byte("opaque-cursor")},
 	})
 
 	for _, err := range qs.FindTraceSummaries(context.Background(), query) {
@@ -143,14 +143,14 @@ func TestPrepareSearchQuery_PageSizeClampedToMax(t *testing.T) {
 	next.capabilities = &tracestore.SearchCapabilities{WithoutServiceName: true, Paginated: true}
 	qs := interceptedService(next, fakeInterceptor{})
 	query := searchQuery(tracestore.TraceQueryParams{})
-	sent := &tracestore.Pagination{PageSize: tracestore.MaxPageSize + 1000, PageToken: tracePageToken(t, query.TraceQueryParams, "cursor")}
+	sent := &tracestore.Pagination{PageSize: tracestore.MaxPageSize + 1000, PageToken: []byte(tracePageToken(t, query.TraceQueryParams, "cursor"))}
 	query.Pagination = sent
 
 	for _, err := range qs.FindTraceSummaries(context.Background(), query) {
 		require.NoError(t, err)
 	}
 	assert.True(t, next.summaryCalled)
-	assert.Equal(t, &tracestore.Pagination{PageSize: tracestore.MaxPageSize, PageToken: "cursor"},
+	assert.Equal(t, &tracestore.Pagination{PageSize: tracestore.MaxPageSize, PageToken: []byte("cursor")},
 		next.gotSummaryQuery.Pagination)
 	assert.Equal(t, tracestore.MaxPageSize+1000, sent.PageSize,
 		"the caller's request is left as sent; the clamp lands on a copy")
@@ -161,7 +161,7 @@ func TestPrepareSearchQuery_PageSizeClampedToMax(t *testing.T) {
 // SearchDepth and Pagination is cleared.
 func TestPrepareSearchQuery_PageSizeFoldedIntoSearchDepthWhenUnsupported(t *testing.T) {
 	enablePagination(t)
-	next := &fakeReader{summaries: []tracestore.TraceSummary{{RootServiceName: "svc"}}, nextPageToken: "reader-cursor"}
+	next := &fakeReader{summaries: []tracestore.TraceSummary{{RootServiceName: "svc"}}, nextPageToken: []byte("reader-cursor")}
 	next.capabilities = &tracestore.SearchCapabilities{WithoutServiceName: true, Paginated: false}
 	qs := interceptedService(next, fakeInterceptor{})
 	query := searchQuery(tracestore.TraceQueryParams{
@@ -206,7 +206,7 @@ func TestPrepareSearchQuery_PageTokenRejectedWhenUnsupported(t *testing.T) {
 	next.capabilities = &tracestore.SearchCapabilities{WithoutServiceName: true, Paginated: false}
 	qs := interceptedService(next, fakeInterceptor{})
 	query := searchQuery(tracestore.TraceQueryParams{
-		Pagination: &tracestore.Pagination{PageSize: 20, PageToken: "opaque-cursor"},
+		Pagination: &tracestore.Pagination{PageSize: 20, PageToken: []byte("opaque-cursor")},
 	})
 
 	for _, err := range qs.FindTraceSummaries(context.Background(), query) {
@@ -225,13 +225,13 @@ func TestPrepareSearchQuery_PageTokenAcceptedWhenSupported(t *testing.T) {
 	next.capabilities = &tracestore.SearchCapabilities{WithoutServiceName: true, Paginated: true}
 	qs := interceptedService(next, fakeInterceptor{})
 	query := searchQuery(tracestore.TraceQueryParams{})
-	query.Pagination = &tracestore.Pagination{PageSize: 20, PageToken: tracePageToken(t, query.TraceQueryParams, "opaque-cursor")}
+	query.Pagination = &tracestore.Pagination{PageSize: 20, PageToken: []byte(tracePageToken(t, query.TraceQueryParams, "opaque-cursor"))}
 
 	for _, err := range qs.FindTraceSummaries(context.Background(), query) {
 		require.NoError(t, err)
 	}
 	assert.True(t, next.summaryCalled)
-	assert.Equal(t, "opaque-cursor", next.gotSummaryQuery.Pagination.PageToken)
+	assert.Equal(t, []byte("opaque-cursor"), next.gotSummaryQuery.Pagination.PageToken)
 	assert.Equal(t, 20, next.gotSummaryQuery.Pagination.PageSize)
 }
 
@@ -253,13 +253,13 @@ func TestPagination_SurvivesInterceptorFilterRewrite(t *testing.T) {
 	}
 	qs := interceptedService(next, fakeInterceptor{})
 	query := searchQuery(tracestore.TraceQueryParams{Filter: filter})
-	query.Pagination = &tracestore.Pagination{PageSize: 10, PageToken: tracePageToken(t, query.TraceQueryParams, "opaque-cursor")}
+	query.Pagination = &tracestore.Pagination{PageSize: 10, PageToken: []byte(tracePageToken(t, query.TraceQueryParams, "opaque-cursor"))}
 
 	for _, err := range qs.FindTraceSummaries(context.Background(), query) {
 		require.NoError(t, err)
 	}
 	assert.True(t, next.summaryCalled)
-	assert.Equal(t, &tracestore.Pagination{PageSize: 10, PageToken: "opaque-cursor"}, next.gotSummaryQuery.Pagination,
+	assert.Equal(t, &tracestore.Pagination{PageSize: 10, PageToken: []byte("opaque-cursor")}, next.gotSummaryQuery.Pagination,
 		"Pagination must not be dropped by the interceptor round trip")
 }
 
