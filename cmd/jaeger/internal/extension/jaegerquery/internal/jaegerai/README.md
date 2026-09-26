@@ -20,7 +20,7 @@ flowchart TB
 
     subgraph jaeger["Jaeger Process"]
         direction LR
-        MCP["MCP Server<br>:16687/mcp"]
+        MCP["MCP Server<br>:16686/api/ai/mcp/"]
         subgraph handler["ChatHandler"]
             direction TB
             ACPCONN["acp.Connection<br>(custom dispatcher)"]
