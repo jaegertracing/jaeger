@@ -36,13 +36,19 @@ func tag(op expression.Operator, key string, value string) *expression.Call {
 // a filter, or none, over the shared time window.
 func filterQuery(filter *expression.Call) TraceQueryParams {
 	return TraceQueryParams{
-		TraceQueryParams: tracestore.TraceQueryParams{
-			Attributes:   pcommon.NewMap(),
-			Filter:       filter,
-			StartTimeMin: testWindowStart,
-			StartTimeMax: testWindowEnd,
-		},
+		Attributes:   pcommon.NewMap(),
+		Filter:       filter,
+		StartTimeMin: testWindowStart,
+		StartTimeMax: testWindowEnd,
 	}
+}
+
+// readerQuery is the reader-side shape of a request, for tests whose subject is the capability
+// shaping that runs after the request has been converted.
+func readerQuery(t *testing.T, q TraceQueryParams) tracestore.TraceQueryParams {
+	query, err := q.toReaderQuery()
+	require.NoError(t, err)
+	return query
 }
 
 // TestPrepareFilteredQuery_PassesFilterToADeclaringReader covers a backend that evaluates the
@@ -69,11 +75,11 @@ func TestPrepareFilteredQuery_PassesFilterToADeclaringReader(t *testing.T) {
 			compare(expression.OpEq,
 				&expression.FieldRef{Level: expression.LevelEvent, Name: expression.EventFieldName},
 				&expression.StringValue{Value: "exception"})))
-	query := filterQuery(filter)
+	query := readerQuery(t, filterQuery(filter))
 
-	got, err := queryToReaderShape(query.TraceQueryParams, caps)
+	got, err := queryToReaderShape(query, caps)
 	require.NoError(t, err)
-	assert.Equal(t, query.TraceQueryParams, got)
+	assert.Equal(t, query, got)
 }
 
 // TestPrepareFilteredQuery_RefusesWhatAReaderDidNotDeclare covers the refusal gates: a level or an
@@ -169,7 +175,7 @@ func TestPrepareFilteredQuery_RefusesWhatAReaderDidNotDeclare(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			caps := tracestore.SearchCapabilities{Filter: &test.caps}
-			_, err := queryToReaderShape(filterQuery(test.filter).TraceQueryParams, caps)
+			_, err := queryToReaderShape(readerQuery(t, filterQuery(test.filter)), caps)
 			require.ErrorIs(t, err, tracestore.ErrFilterUnsupported)
 			assert.Contains(t, err.Error(), test.expectedErr)
 		})
@@ -359,7 +365,7 @@ func TestPrepareFilteredQuery_EmptyDeclarationIsNoDeclaration(t *testing.T) {
 		"empty declaration": {Filter: &tracestore.FilterCapabilities{}},
 	} {
 		t.Run(name, func(t *testing.T) {
-			got, err := queryToReaderShape(filterQuery(filter).TraceQueryParams, caps)
+			got, err := queryToReaderShape(readerQuery(t, filterQuery(filter)), caps)
 			require.NoError(t, err)
 			assert.Nil(t, got.Filter, "the filter is rewritten, not sent down")
 			value, ok := got.Attributes.Get("http.method")
