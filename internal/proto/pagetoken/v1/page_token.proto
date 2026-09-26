@@ -25,16 +25,12 @@ message PageToken {
   // version the query service does not know is refused.
   uint32 version = 1;
 
-  // Field 2 once carried the name of the storage that minted the token and is
-  // kept unassigned so an old token cannot be misread (RFC 0014 §3.2).
-  reserved 2;
-
   // fingerprint binds the token to the query it was minted for; the query
   // service refuses the token against any other query (RFC 0014 §3.2).
-  bytes fingerprint = 3;
+  bytes fingerprint = 2;
 
   // cursor is the storage reader's own position in the result, in whatever
   // form that reader resumes from. It is opaque here: the reader that minted
   // it is the only one that interprets it.
-  bytes cursor = 4;
+  bytes cursor = 3;
 }

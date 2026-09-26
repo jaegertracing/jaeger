@@ -18,7 +18,7 @@ import (
 // Field numbers of page_token.proto, for building tokens by hand.
 const (
 	fieldVersion protowire.Number = 1
-	fieldCursor  protowire.Number = 4
+	fieldCursor  protowire.Number = 3
 )
 
 func TestEncodeDecodeRoundTrip(t *testing.T) {
