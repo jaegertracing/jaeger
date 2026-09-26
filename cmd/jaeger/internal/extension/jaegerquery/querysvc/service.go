@@ -528,18 +528,18 @@ func (qs QueryService) FindTraceSummaries(
 	query TraceQueryParams,
 ) iter.Seq2[PageChunk[[]tracestore.TraceSummary], error] {
 	return func(yield func(PageChunk[[]tracestore.TraceSummary], error) bool) {
-		ctx, query, err := qs.prepareSearchQuery(ctx, query)
+		ctx, readerQuery, err := qs.prepareSearchQuery(ctx, query)
 		if err != nil {
 			yield(PageChunk[[]tracestore.TraceSummary]{}, err)
 			return
 		}
-		for chunk, err := range qs.traceReader.FindTraceSummaries(ctx, query) {
+		for chunk, err := range qs.traceReader.FindTraceSummaries(ctx, readerQuery) {
 			if err != nil {
 				if errors.Is(err, errors.ErrUnsupported) {
 					// Fall back to FindTraces + aggregation. The fallback loads whole traces, so
 					// the interceptors get the same say over them as on a FindTraces search; the
 					// summaries computed from them carry no spans and have no hook of their own.
-					traces := qs.interceptTraceResults(ctx, qs.traceReader.FindTraces(ctx, query))
+					traces := qs.interceptTraceResults(ctx, qs.traceReader.FindTraces(ctx, readerQuery))
 					for b, e := range computeSummaries(traces, qs.adjuster) {
 						// FindTraces does not return pagination metadata, so fallback results cannot
 						// supply a next-page token.
