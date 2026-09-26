@@ -58,9 +58,7 @@ func (q TraceQueryParams) ToFilterShape() TraceQueryParams {
 			field(expression.LevelSpan, expression.SpanFieldName),
 			&expression.StringValue{Value: q.OperationName})
 	}
-	// Attributes is documented as needing pcommon.NewMap(), but a caller that left it at its
-	// zero value used to reach storage unharmed, and converting shape must not be what turns
-	// that into a panic. The zero Map holds no slice to range over.
+	// Protect against uninitialized pcommon.Map which panics in all accessors.
 	if q.Attributes != (pcommon.Map{}) {
 		q.Attributes.Range(func(key string, value pcommon.Value) bool {
 			// A tag carries no type, so the equality it becomes declares none either and matches

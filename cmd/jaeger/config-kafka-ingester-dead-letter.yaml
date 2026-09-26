@@ -4,9 +4,10 @@
 # At-least-once Kafka ingester with synchronous Elasticsearch writes and a
 # dead-letter pipeline for poison spans (RFC 0007 §4.8).
 #
-# This is config-kafka-ingester-sync.yaml with these changes: the storage write is
-# the jaeger_storage_writer connector instead of jaeger_storage_exporter, the
-# storage runs with poison_pill_handling: fail instead of drop, and a
+# This is config-kafka-ingester-sync.yaml with these changes: jaeger_storage_exporter
+# is declared under connectors instead of exporters, which gives it an output
+# pipeline for the spans the storage rejects; the storage runs with
+# poison_pill_handling: fail instead of drop; and a
 # traces/dead_letter pipeline feeds an otlphttp exporter. A span the backend
 # rejects terminally (a "poison pill": a document that fails identically on every
 # retry, such as a mapping conflict) is then re-emitted onto the traces/dead_letter
@@ -44,11 +45,11 @@ service:
       # No `batch` processor: batching happens in the connector's sending queue so
       # the Kafka offset stays coupled to the write result.
       processors: []
-      exporters: [jaeger_storage_writer]
+      exporters: [jaeger_storage_exporter]
     # Poison spans the storage rejected. The connector is this pipeline's source;
     # attach whichever exporter should keep them.
     traces/dead_letter:
-      receivers: [jaeger_storage_writer]
+      receivers: [jaeger_storage_exporter]
       processors: []
       exporters: [otlphttp/dead_letter]
   telemetry:
@@ -91,9 +92,11 @@ extensions:
           # and nothing would reach the dead-letter pipeline.
           poison_pill_handling: fail
           bulk_processing:
-            # Per-request byte cap of the synchronous writer; keep queue.batch.max_size
-            # below at or under this so a batch is one atomic _bulk request.
-            max_bytes: 5000000
+            # Per-request byte cap of the synchronous writer, measured on the NDJSON
+            # _bulk body, which is 1.3x to 3.6x the batch's protobuf size that
+            # queue.batch.max_size below is measured in. Keep max_size at most half of
+            # this so a batch is one _bulk request in the common case (see #9645).
+            max_bytes: 10000000
           indices:
             index_prefix: "jaeger-main"
 
@@ -115,7 +118,7 @@ receivers:
 processors:
 
 connectors:
-  jaeger_storage_writer:
+  jaeger_storage_exporter:
     trace_storage: some_storage
     # Same retry and queue settings as jaeger_storage_exporter in
     # config-kafka-ingester-sync.yaml; see the comments there.
@@ -126,14 +129,19 @@ connectors:
       max_elapsed_time: 0
     queue:
       wait_for_result: true
+      # A full queue waits for room instead of failing the record: the failure
+      # would otherwise reach the receiver before any retry and pause the partition.
+      block_on_overflow: true
       sizer: bytes
       num_consumers: 1
       queue_size: 104857600 # 100 MiB of buffered spans
       batch:
         sizer: bytes
         flush_timeout: 200ms
-        min_size: 0 # flush as soon as flush_timeout elapses; keeps the e2e latency low
-        max_size: 4194304 # 4 MiB, kept <= bulk_processing.max_bytes above
+        # min_size must be positive: at 0 the batcher flushes every record as it
+        # arrives and merges nothing. Below 1 MiB the batch waits for flush_timeout.
+        min_size: 1048576
+        max_size: 4194304 # 4 MiB, at most half of bulk_processing.max_bytes above
 
 exporters:
   otlphttp/dead_letter:

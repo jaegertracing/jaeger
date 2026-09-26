@@ -396,7 +396,7 @@ func TestHandler_FindTraceIDs(t *testing.T) {
 			Return(iter.Seq2[tracestore.PageChunk[[]tracestore.FoundTraceID], error](func(yield func(tracestore.PageChunk[[]tracestore.FoundTraceID], error) bool) {
 				yield(tracestore.PageChunk[[]tracestore.FoundTraceID]{
 					Results:       test.traceIDs,
-					NextPageToken: test.nextPageToken,
+					NextPageToken: tracestore.PageToken(test.nextPageToken),
 				}, test.findTraceIDsErr)
 			})).Once()
 		server := NewHandler(reader, writer, depReader)

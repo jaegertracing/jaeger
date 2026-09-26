@@ -8,18 +8,25 @@ import (
 
 	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/config/configretry"
+	"go.opentelemetry.io/collector/connector"
 	"go.opentelemetry.io/collector/consumer"
 	"go.opentelemetry.io/collector/exporter"
 	"go.opentelemetry.io/collector/exporter/exporterhelper"
 )
 
-// componentType is the name of this extension in configuration.
+// componentType is the name of this component in configuration. The same type
+// is registered as an exporter (NewFactory) and as a connector
+// (NewConnectorFactory): the collector keeps the two kinds in separate factory
+// maps and resolves a pipeline entry as a connector only when it is declared
+// under `connectors:`, so the section an operator puts jaeger_storage_exporter in
+// selects the plain storage write or the write with a dead-letter output for the
+// spans the storage rejects (RFC 0007 §4.8).
 var componentType = component.MustNewType("jaeger_storage_exporter")
 
-// ID is the identifier of this extension.
+// ID is the identifier of this component.
 var ID = component.NewID(componentType)
 
-// NewFactory creates a factory for jaeger_storage_exporter.
+// NewFactory creates the exporter factory for jaeger_storage_exporter.
 func NewFactory() exporter.Factory {
 	return exporter.NewFactory(
 		componentType,
@@ -39,15 +46,39 @@ func createDefaultConfig() component.Config {
 func createTracesExporter(ctx context.Context, set exporter.Settings, config component.Config) (exporter.Traces, error) {
 	cfg := config.(*Config)
 	ex := NewTraceWriter(cfg, set.TelemetrySettings)
-	return exporterhelper.NewTraces(
-		ctx, set, cfg,
-		ex.WriteTraces,
+	return exporterhelper.NewTraces(ctx, set, cfg, ex.WriteTraces, cfg.pipelineOptions(ex)...)
+}
+
+// pipelineOptions returns the exporterhelper options both forms of
+// jaeger_storage_exporter build their pipeline with: the configured queue and
+// retry policy, no timeout, and a start step that resolves w's storage writer.
+func (cfg *Config) pipelineOptions(w *TraceWriter) []exporterhelper.Option {
+	return []exporterhelper.Option{
 		exporterhelper.WithCapabilities(consumer.Capabilities{MutatesData: false}),
-		// Disable Timeout
 		exporterhelper.WithTimeout(exporterhelper.TimeoutConfig{Timeout: 0}),
 		exporterhelper.WithRetry(cfg.RetryConfig),
 		exporterhelper.WithQueue(cfg.QueueConfig),
-		exporterhelper.WithStart(ex.Start),
-		exporterhelper.WithShutdown(ex.close),
+		exporterhelper.WithStart(w.Start),
+		exporterhelper.WithShutdown(w.close),
+	}
+}
+
+// NewConnectorFactory creates the connector factory for jaeger_storage_exporter:
+// the same storage write with an output pipeline for the spans the storage
+// rejected terminally (RFC 0007 §4.8). It shares Config and defaults with the
+// exporter, so the two forms behave the same when configured the same.
+func NewConnectorFactory() connector.Factory {
+	return connector.NewFactory(
+		componentType,
+		createDefaultConfig,
+		connector.WithTracesToTraces(createTracesToTraces, component.StabilityLevelDevelopment),
 	)
+}
+
+func createTracesToTraces(ctx context.Context, set connector.Settings, config component.Config, next consumer.Traces) (connector.Traces, error) {
+	cfg := config.(*Config)
+	if cfg.QueueConfig.HasValue() && !cfg.QueueConfig.Get().WaitForResult {
+		return nil, errQueueWithoutResult
+	}
+	return newConnector(ctx, set, cfg, next)
 }

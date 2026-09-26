@@ -3,7 +3,7 @@
 - **Status:** Draft
 - **Author:** Yuri Shkuro
 - **Created:** 2026-08-12
-- **Last Updated:** 2026-09-20
+- **Last Updated:** 2026-09-23
 - **Related:** [RFC 0005 (structured query filters)](0005-structured-query-filters.md), [RFC 0011 (trace summary API)](0011-trace-summary-api.md), [ADR-013 (storage capability declaration)](../adr/013-storage-capability-declaration.md)
 
 ---
@@ -96,11 +96,32 @@ Between the raw keyset cursor and the opaque token, the execution is identical; 
 
 ### 3.1 The token is stateless, not a server session
 
-The token is **self-describing**: it encodes the cursor, so the server keeps no per-session state. This is decisive operationally. Jaeger-query runs behind a load balancer and restarts freely; a stateful cursor (a server-held scroll or point-in-time handle keyed by a session ID) would pin a paging session to one process and one moment, break across a restart or a rebalanced request, and require eviction policy and memory for abandoned sessions. A stateless token has none of that: any replica can serve any page, and an abandoned paging session costs nothing because nothing was allocated. The proposed encoding is `base64(proto{ cursor bytes, query fingerprint, backend tag, version })`.
+The token is **self-describing**: it encodes the cursor, so the server keeps no per-session state. This is decisive operationally. Jaeger-query runs behind a load balancer and restarts freely; a stateful cursor (a server-held scroll or point-in-time handle keyed by a session ID) would pin a paging session to one process and one moment, break across a restart or a rebalanced request, and require eviction policy and memory for abandoned sessions. A stateless token has none of that: any replica can serve any page, and an abandoned paging session costs nothing because nothing was allocated. The encoding is URL-safe base64, without padding, over the `PageToken` message of `internal/proto/pagetoken/v1/page_token.proto`: the format version, the query fingerprint of §3.2, and the backend's cursor bytes. The message lives in this repository rather than in jaeger-idl because it never crosses a wire as a message, only as the string a client echoes back; the `tracestore.PageToken` type holds the string encoding, `NewPageToken` builds one from a fingerprint and a cursor, `Cursor` reads one back, and the proto with its generated code is its serialization detail. Unknown fields are skipped on decode, so a field can be added without a version change; the version changes only when a token that still decodes would mean something else, such as after the sort order behind a cursor changes.
 
 ### 3.2 Binding the token to its query
 
-A keyset token is only meaningful against the query that produced it — its cursor is a position in *that* query's ordering. The token therefore embeds a **fingerprint** (a hash) of the request's matching parameters (service, operation, time range, duration bounds, filter). On continuation the query service recomputes the fingerprint from the incoming request and compares; a mismatch is rejected as `InvalidArgument` rather than silently returning nonsense from a cursor that means something else. The `version` byte lets the token format evolve, and the `backend tag` lets the query service reject a token replayed against a different storage backend.
+A keyset token is only meaningful against the query that produced it — its cursor is a position in *that* query's ordering. The token therefore embeds a **fingerprint** (a hash) of the request's matching parameters: for a trace search the service, operation, attributes, time range, duration bounds and filter; for a span search the time range and filter. The page size and the token itself are excluded, since neither changes which results the cursor is a position among. The fingerprint is the same for two spellings of one query: attributes are hashed in key order, and the filter is hashed in a canonical form with the operands of `and` and `or`, and the values of a list, sorted, and time constants in one spelling, an instant in UTC and a duration in Go's form, because the same request can arrive with those permuted or spelled differently and selects the same results either way. The reader that returns the token takes the fingerprint over the query it receives, which is the query as the query service dispatched it: after the filter is finalized, the interceptors have had their say, and a filter has been rewritten into the legacy fields where the reader evaluates none. On continuation the reader recomputes the fingerprint from the query it receives and compares; a mismatch is refused with `ErrPaginationInvalid`, which the API layers answer as `InvalidArgument`, rather than silently returning nonsense from a cursor that means something else. The version lets the token format evolve.
+
+Fingerprinting the dispatched query rather than the caller's request is a choice. What can change between two pages of one search falls into three cases: the caller changed the query; the caller changed nothing but the interceptor's rewrite did, because the caller's identity or the deployment's policy changed or the rewrite is not a pure function of the request; or the caller re-sent the same query in another spelling, which the canonical form above makes identical under either choice.
+
+| Criterion | Request, before transforms | Dispatched query, after transforms |
+| --- | --- | --- |
+| A changed query is refused | 🟢 | 🟢 |
+| A changed interceptor rewrite is detected | ❌ ¹ | 🟢 |
+| Feedback to the caller when the rewrite changed | ❌ silent wrong page ¹ | 🟨 refused as a different query ² |
+| A cursor cannot be resumed under another interceptor scope | ❌ | 🟢 |
+| An interceptor whose rewrite is not a pure function of the request | 🟢 | ❌ ³ |
+| The fingerprint can be taken where the request is decoded | 🟢 | ❌ the reader is the first place that has the settled query |
+
+🟢 good · 🟨 partial · ❌ poor
+
+- ¹ The cursor is a position in the result set of the query the reader ran. If the interceptor now dispatches a different query, the reader resumes from a position in another ordering: the page is well-formed and wrong, with no signal to the caller, and a scoped caller's cursor replays under a broader scope.
+- ² The caller changed nothing and sees the token refused. The remedy is the same as for a changed query, start the search again, so the cost is one extra request.
+- ³ A rewrite that injects the current time or a nonce dispatches a different query on every call, so no token ever resumes. The interceptor contract therefore requires a rewrite to be a pure function of the request.
+
+The dispatched query wins on the rows that matter: the interceptor exists to change what is searched, and a token that ignores that change resumes the wrong result set with no error, which is the failure the fingerprint exists to prevent. The row it loses protects a class of interceptor the contract already forbids.
+
+The token carries no tag naming the backend that minted the cursor. Such a tag was considered, so that a cursor in one backend's format is never handed to another, and left out: a jaeger-query instance has one trace reader, so a token crosses backends only when a deployment swaps its storage mid-session or a client carries a token between deployments, and in both cases the tag would add nothing the reader does not already need. The token is not signed, so a client can present any token it likes, and the reader has to refuse a cursor it cannot interpret with `ErrPaginationInvalid` regardless. A cursor from another backend is one more such cursor. The token guards against a client's mistake, not against a client's intent.
 
 ### 3.3 Stable total ordering and the tie-breaker
 
@@ -217,7 +238,7 @@ type TraceQueryParams struct {
 // Pagination mirrors the proto message of the same name.
 type Pagination struct {
     PageSize  int    // page bound; required whenever Pagination is present
-    PageToken string // opaque continuation cursor; empty starts a new search
+    PageToken PageToken // the reader's own opaque token; empty starts a new search
 }
 ```
 
@@ -230,7 +251,7 @@ The outbound token needs a home on the return path. `FindTraceIDs`, `FindTraceSu
 // the page's terminal chunk; an empty value there means the last page.
 type PageChunk[T any] struct {
     Results       T
-    NextPageToken string
+    NextPageToken PageToken
 }
 
 FindTraceIDs(ctx context.Context, query TraceQueryParams) iter.Seq2[PageChunk[[]FoundTraceID], error]
@@ -250,7 +271,28 @@ This changes the element types of internal iterators, which is acceptable becaus
 
 `FindTraces` at this interface keeps returning `iter.Seq2[[]ptrace.Traces, error]` with no token, for the same reason as §4: whole-trace streaming has nowhere to carry one, and `FindTraces` is not a paginated call. A backend implements the cursor logic once, in its ID and summary search, and the query service refuses a `FindTraces` request that asks to paginate before it reaches the reader.
 
-The query service is the single place that mints and validates tokens end to end: it builds the reader's `Pagination` from the api_v3 request, checks the fingerprint (§3.2), calls the reader, and relays `next_page_token` back — the same central-enforcement posture ADR-013 uses for capabilities.
+The token is the reader's. The query service copies the request's `Pagination` into the reader's query field for field, refuses what §4 and §6.2 refuse before dispatch, calls the reader, and relays `next_page_token` back unchanged, so the same string travels from the reader to the client and back to the reader. The `jaeger.storage.v2` wire (§6) carries it the same way: a remote backend is a reader behind a gRPC client, and the token it returns is its own. A reader that declares `Paginated` builds the token of §3.1 with `tracestore.NewPageToken` from its cursor, in whatever form it resumes from — a `search_after` array for Elasticsearch, a keyset boundary for ClickHouse — and the fingerprint of §3.2, which is the query's own `Fingerprint()`, and on continuation calls `Cursor` on the token it receives with the fingerprint of the query it received, which refuses a token of a different query and returns the cursor to resume from. A backend whose storage already validates an opaque continuation token of its own may return that token instead; the contract asks only that a reader refuse a token it cannot honor with `ErrPaginationInvalid`.
+
+Placing the token in the readers is a choice against two alternatives that put it in the query service: the query service wraps the reader's cursor into the §3.1 token on the way out and unwraps it on the way back, with the reader's `PageToken` typed as its bare cursor; or the same, with the reader-facing fields typed as a token struct so that the string form exists only at the api_v3 and `jaeger.storage.v2` boundaries. The three differ on where the protection is enforced and on what the layers above the reader have to know:
+
+| Criterion | Readers, opaque string | Query service wraps | Query service wraps, typed |
+| --- | --- | --- | --- |
+| The request the caller sent and the query the reader receives are the same field for field | 🟢 | ❌ ¹ | ❌ ¹ |
+| A backend with its own validated continuation token needs no envelope | 🟢 | ❌ | ❌ |
+| Direct callers of the `jaeger.storage.v2` API get the query-binding check | 🟢 | ❌ ² | ❌ ² |
+| A reader cannot forget to wrap its cursor or to verify the fingerprint | ❌ ³ | 🟢 | 🟢 |
+| One implementation of the envelope and the fingerprint | 🟢 | 🟢 | 🟢 |
+| A `jaeger.storage.v2` server outside this repository needs nothing new | 🟢 ⁴ | 🟢 | 🟨 |
+| Cost of adopting pagination in a reader | 🟨 | 🟢 | 🟨 |
+
+🟢 good · 🟨 partial · ❌ poor
+
+- ¹ The reader's `PageToken` field holds a cursor while the request's holds a token, so the conversion from the request to the reader's query has to drop the token and something after the conversion has to supply the cursor. The two fields with one name and two meanings is what the request and reader types were separated to avoid.
+- ² Such a caller sends the reader's bare cursor. A reader refuses a cursor it cannot interpret with `ErrPaginationInvalid`, so a garbled or foreign cursor is still answered as a bad request, but a valid cursor sent with a different query is not detected.
+- ³ A reader that returns a bare cursor accepts it back unchecked. M3 adds a pagination test to the storage integration suite that runs the round trip against every reader declaring `Paginated`, which is where such a reader is caught.
+- ⁴ The token is opaque on the wire, so a remote server returns whatever token it validates, with or without the envelope.
+
+The readers own the token. The rows that decide it are the first two: the query service's request type and the reader's query type carry the same `Pagination` with the same meaning, so the conversion between them is a plain copy, and a backend that already has a validated continuation token is a first-class reader rather than a special case. The row it loses, a reader that forgets the envelope, is a defect in that reader, caught by the integration pagination test M3 adds for every paginating reader, and the envelope itself still has one implementation, the `tracestore.PageToken` type.
 
 ---
 
@@ -282,6 +324,8 @@ message FindTraceSummariesResponse {   // streamed; final chunk sets the token
 
 The storage-layer `FindTraces` RPC — a stream of OTLP `TracesData` — gains no token, matching §4 and §5: a remote backend exposes its cursor through `FindTraceIDs` and `FindTraceSummaries`, and a `FindTraces` request that sets `pagination` is refused with `InvalidArgument`.
 
+A remote reader's `ErrPaginationInvalid` has to keep its meaning across the wire. The storage/v2 server returns reader errors without a status code today, so the client receives `Unknown` and the query service answers a bad token as a server error. The server maps `ErrPaginationInvalid` to `InvalidArgument` and the client maps `InvalidArgument` on a paginated call back to `ErrPaginationInvalid`; this lands with the first paginating reader (M3), which is when the error first crosses the wire.
+
 ### 6.1 Declaring the capability
 
 A plain additive `page_token` would be a silent gap at the remote boundary. A plugin that predates the field ignores the unknown `page_token`, always answers page one, and returns an empty `next_page_token` — indistinguishable, to the client, from a genuine last page. The client would conclude "no more results" when in truth the backend never understood the request. This is the exact failure ADR-013 was built to prevent, so pagination plugs into the same mechanism rather than inventing its own.
@@ -311,7 +355,7 @@ A boolean suffices for the first cut because the honest keyset scheme is the onl
 The query service reads the declaration before it dispatches and behaves like this:
 
 - **Backend declares `Paginated = true`.** Pass the `Pagination` message through; relay `next_page_token`. Full pagination.
-- **Backend declares `Paginated = false`, request has no `page_token`.** Serve a single page capped at whichever bound the request carried, `page_size` or `search_depth`, and return an **empty** `next_page_token`. This is a *reported degradation*, not an error: the query service still surfaces the truncation honestly through the capability the UI already reads (ADR-013's reporting path), so the client can show "results may be incomplete" rather than mistaking a short list for the whole answer.
+- **Backend declares `Paginated = false`, request has no `page_token`.** Serve a single page capped at whichever bound the request carried, `page_size` or `search_depth`. Such a backend returns no token, so the client receives an **empty** `next_page_token`; the query service does not second-guess a backend that returns one anyway, and the request that brings it back is rejected under the next rule. This is a *reported degradation*, not an error: the query service still surfaces the truncation honestly through the capability the UI already reads (ADR-013's reporting path), so the client can show "results may be incomplete" rather than mistaking a short list for the whole answer.
 - **Backend declares `Paginated = false`, request carries a `page_token`.** Reject with `InvalidArgument`. A backend that cannot paginate cannot have minted a valid cursor, so any token presented to it is either forged or stale, and answering it would be a lie.
 
 Three further rejections do not depend on the backend and are enforced in the same place, before dispatch: a request that sets both `pagination` and `search_depth`, a `pagination` whose `page_size` is zero, and a `FindTraces` request that sets `pagination` at all (all three from §4). Each is `InvalidArgument`, on the principle this section already applies — a request the service cannot answer as asked is refused rather than answered approximately.
@@ -378,7 +422,7 @@ The span cursor stays internal by choice, not because exposing it would be hard 
 
 ### 7.4 Cursor encoding on ES/OS
 
-The ES/OS reader mints the opaque token from the `search_after` values of the last collapsed hit on the page — the `(startTime, traceID)` pair — together with the query fingerprint and backend tag of §3.2. On continuation it decodes the pair back into the `search_after` clause. Because `traceID` is a sortable keyword in the ES mapping (it already backs the term queries the reader builds) and `startTime` is a numeric field, both are valid `search_after` values with no mapping change. The collapse field `traceID` is likewise already a keyword, so collapse needs no new mapping either — only a new `collapse` clause in the query builder.
+The ES/OS reader's cursor is the `sort` array Elasticsearch returns on the last collapsed hit of the page — the `(startTime, traceID)` pair, serialized as Elasticsearch wrote it — which is exactly what the next request's `search_after` clause takes. The reader wraps that array, with the query fingerprint of §3.2, into the token of §3.1 with `tracestore.NewPageToken`, and on continuation takes the array back from `Cursor` and places it into `search_after`. Carrying the hit's sort values rather than named span fields keeps the cursor's shape independent of the sort key, so a caller-chosen ordering (§12) changes what the array holds and not the code that handles it. Because `traceID` is a sortable keyword in the ES mapping (it already backs the term queries the reader builds) and `startTime` is a numeric field, both are valid `search_after` values with no mapping change. The collapse field `traceID` is likewise already a keyword, so collapse needs no new mapping either — only a new `collapse` clause in the query builder.
 
 ### 7.5 Cost and correctness notes
 
@@ -424,9 +468,16 @@ The pagination-model comparison (offset vs. keyset vs. opaque token) is the §3 
 
 PR-sized milestones with explicit exit bars, grouped by layer, bottom-up so each rests on the one before. The proto and interface stages are additive and change no behavior; the ES/OS stage is where the correctness fix and the user-visible capability land.
 
-**✅ M1 — Proto foundation (jaeger-idl).** Delivered by [jaeger-idl#213](https://github.com/jaegertracing/jaeger-idl/pull/213). Add the `Pagination` message and a `pagination` field on `TraceQueryParameters` in both api_v3 and storage/v2; add `next_page_token` to `FindTraceIDsResponse` and `FindTraceSummariesResponse`; add the `paginated` field to `storage.v2.SearchCapabilities`. Legacy fields untouched; field numbers coordinated with RFC 0005. *Exit:* generated types compile and vendor cleanly; existing api_v3/storage callers byte-for-byte unaffected.
+✅ **M1 — Proto foundation (jaeger-idl).** Delivered by [jaeger-idl#213](https://github.com/jaegertracing/jaeger-idl/pull/213). Add the `Pagination` message and a `pagination` field on `TraceQueryParameters` in both api_v3 and storage/v2; add `next_page_token` to `FindTraceIDsResponse` and `FindTraceSummariesResponse`; add the `paginated` field to `storage.v2.SearchCapabilities`. Legacy fields untouched; field numbers coordinated with RFC 0005. *Exit:* generated types compile and vendor cleanly; existing api_v3/storage callers byte-for-byte unaffected.
 
-**M2 — Internal interface and query-service plumbing.** Extend `TraceQueryParams` with the nested `Pagination` struct (§5); add the generic `PageChunk[T]` envelope and use it for `FindTraceIDs`, `FindTraceSummaries`, and `FindSpans` (§5); add `Paginated` to `SearchCapabilities`; implement token minting, fingerprint binding (§3.2), the page_size maximum (§4), and the degradation rules (§6.2) centrally in the query service. No backend paginates yet — every reader declares `Paginated = false`, so the query service serves one capped page and reports it. *Exit:* a request with no token returns today's results; a token against a non-paginating backend is rejected; the capability is reported to the UI.
+🚧 **M2 — Internal interface and query-service plumbing.** Extend `TraceQueryParams` with the nested `Pagination` struct (§5); add the generic `PageChunk[T]` envelope and use it for `FindTraceIDs`, `FindTraceSummaries`, and `FindSpans` (§5); add `Paginated` to `SearchCapabilities`; define the token format and its fingerprint binding (§3.2) for readers to use, and implement the page_size maximum (§4) and the degradation rules (§6.2) centrally in the query service. No backend paginates yet — every reader declares `Paginated = false`, so the query service serves one capped page and reports it. *Exit:* a request with no token returns today's results; a token against a non-paginating backend is rejected; the capability is reported to the UI.
+
+- ✅ Storage contract: the `Pagination` struct on `TraceQueryParams`, `SearchCapabilities.Paginated`, the `MaxPageSize` constant and the admission errors. Delivered in [#9570](https://github.com/jaegertracing/jaeger/pull/9570).
+- ✅ Request-side admission in the query service: the `jaeger.query.pagination` feature gate, the §4 refusals (`pagination` beside `search_depth`, a zero `page_size`, `pagination` on `FindTraces`), and the §6.2 rule that, for a reader declaring `Paginated = false`, folds the page size into the search depth and clears `Pagination`, and rejects a `page_token` presented to one. Delivered in [#9450](https://github.com/jaegertracing/jaeger/pull/9450), with the clamp corrected in [#9617](https://github.com/jaegertracing/jaeger/pull/9617) and [#9618](https://github.com/jaegertracing/jaeger/pull/9618).
+- ✅ Response side: the generic `PageChunk[T]` envelope returned by `FindTraceIDs`, `FindTraceSummaries` and `FindSpans`, with `next_page_token` carried through the query service and both gRPC surfaces. Delivered in [#9585](https://github.com/jaegertracing/jaeger/pull/9585).
+- ✅ HTTP surface: `query.pagination.pageSize` and `query.pagination.pageToken` on `GET /api/v3/traces` and `GET /api/v3/trace-summaries`, decoded by the same parser helper as the span search's and settled by the query service. Delivered in [#9613](https://github.com/jaegertracing/jaeger/pull/9613).
+- ✅ The token of §3.1 and its binding of §3.2: the `tracestore.PageToken` type builds a reader's token from its cursor, the format version and the query fingerprint, and reads one back on continuation; a reader that declares `Paginated` uses it (§5), and the query service passes the token through unchanged. Delivered in [#9655](https://github.com/jaegertracing/jaeger/pull/9655).
+- Still open: the `paginated` entry in the capabilities the UI reads.
 
 **M3 — Elasticsearch/OpenSearch.** Add a `collapse` clause to `esquery`; replace the terms aggregation in `FindTraceIDs` with the collapse + `search_after` scheme (§7); mint/decode the result cursor (§7.4); keep the intra-trace span cursor separate (§7.3); declare `Paginated = true`. This also fixes the cross-shard ordering approximation of §1.2. *Exit:* start-to-finish paging over a fixed dataset visits every matching trace exactly once in most-recent-first order; a shard-count-varying integration test asserts completeness; a test writes a late span that raises an already-returned trace's maximum `startTime` mid-traversal and asserts the trace is not returned a second time (§3.4); unqualified single-page results match today's within the ordering fix.
 

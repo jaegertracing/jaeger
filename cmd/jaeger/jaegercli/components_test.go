@@ -37,7 +37,7 @@ func TestComponents(t *testing.T) {
 		"memory_limiter", "tail_sampling",
 	}, keys(factories.Processors))
 	assert.Equal(t, []string{
-		"forward", "jaeger_storage_writer", "span_metrics", "spanmetrics",
+		"forward", "jaeger_storage_exporter", "span_metrics", "spanmetrics",
 	}, keys(factories.Connectors))
 	assert.NotNil(t, factories.Telemetry)
 }

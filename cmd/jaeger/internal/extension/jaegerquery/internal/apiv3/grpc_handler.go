@@ -92,16 +92,14 @@ func traceQueryParams(query *api_v3.TraceQueryParameters) (querysvc.TraceQueryPa
 		return querysvc.TraceQueryParams{}, status.Error(codes.InvalidArgument, "missing query")
 	}
 	queryParams := querysvc.TraceQueryParams{
-		TraceQueryParams: tracestore.TraceQueryParams{
-			ServiceName:   query.GetServiceName(),
-			OperationName: query.GetOperationName(),
-			Attributes:    jptrace.PlainMapToPcommonMap(query.GetAttributes()),
-			SearchDepth:   int(query.GetSearchDepth()),
-			StartTimeMin:  query.GetStartTimeMin(),
-			StartTimeMax:  query.GetStartTimeMax(),
-			DurationMin:   query.GetDurationMin(),
-			DurationMax:   query.GetDurationMax(),
-		},
+		ServiceName:   query.GetServiceName(),
+		OperationName: query.GetOperationName(),
+		Attributes:    jptrace.PlainMapToPcommonMap(query.GetAttributes()),
+		SearchDepth:   int(query.GetSearchDepth()),
+		StartTimeMin:  query.GetStartTimeMin(),
+		StartTimeMax:  query.GetStartTimeMax(),
+		DurationMin:   query.GetDurationMin(),
+		DurationMax:   query.GetDurationMax(),
 	}
 	if protoFilter := query.GetFilter(); protoFilter != nil {
 		filter, err := expressionproto.FromProto(protoFilter)
@@ -111,7 +109,59 @@ func traceQueryParams(query *api_v3.TraceQueryParameters) (querysvc.TraceQueryPa
 		queryParams.Filter = filter
 	}
 	if pagination := query.GetPagination(); pagination != nil {
-		queryParams.Pagination = &tracestore.Pagination{
+		queryParams.Pagination = &querysvc.Pagination{
+			PageSize:  int(pagination.GetPageSize()),
+			PageToken: pagination.GetPageToken(),
+		}
+	}
+	return queryParams, nil
+}
+
+// FindSpans implements api_v3.QueryServiceServer's FindSpans
+func (h *Handler) FindSpans(request *api_v3.FindSpansRequest, stream api_v3.QueryService_FindSpansServer) error {
+	queryParams, err := spanQueryParams(request.GetQuery())
+	if err != nil {
+		return err
+	}
+
+	for chunk, err := range h.QueryService.FindSpans(stream.Context(), queryParams) {
+		if err != nil {
+			return asStatusError(err)
+		}
+		spans := jptrace.TracesData(chunk.Results)
+		response := &api_v3.FindSpansResponse{
+			Spans:         &spans,
+			NextPageToken: string(chunk.NextPageToken),
+		}
+		if err := stream.Send(response); err != nil {
+			return status.Errorf(codes.Internal, "failed to send response stream chunk to client: %v", err)
+		}
+	}
+	return nil
+}
+
+// spanQueryParams translates a proto SpanQueryParameters into the query service's shape. What
+// the query must satisfy is the query service's decision (prepareSpanSearchQuery), so nothing is
+// checked here beyond what the translation itself needs — including whether Pagination is
+// acceptable at all: it is decoded here because decoding is translation, but the query service
+// is where it is refused.
+func spanQueryParams(query *api_v3.SpanQueryParameters) (querysvc.SpanQueryParams, error) {
+	if query == nil {
+		return querysvc.SpanQueryParams{}, status.Error(codes.InvalidArgument, "missing query")
+	}
+	queryParams := querysvc.SpanQueryParams{
+		StartTimeMin: query.GetStartTimeMin(),
+		StartTimeMax: query.GetStartTimeMax(),
+	}
+	if protoFilter := query.GetFilter(); protoFilter != nil {
+		filter, err := expressionproto.FromProto(protoFilter)
+		if err != nil {
+			return querysvc.SpanQueryParams{}, status.Error(codes.InvalidArgument, err.Error())
+		}
+		queryParams.Filter = filter
+	}
+	if pagination := query.GetPagination(); pagination != nil {
+		queryParams.Pagination = querysvc.Pagination{
 			PageSize:  int(pagination.GetPageSize()),
 			PageToken: pagination.GetPageToken(),
 		}

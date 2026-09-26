@@ -5,7 +5,6 @@ package integration
 
 import (
 	"context"
-	"encoding/hex"
 	"errors"
 	"fmt"
 	"io"
@@ -13,7 +12,6 @@ import (
 	"math"
 	"strings"
 
-	"go.opentelemetry.io/collector/pdata/pcommon"
 	"go.opentelemetry.io/collector/pdata/ptrace"
 	"go.uber.org/zap"
 	"google.golang.org/grpc"
@@ -204,7 +202,7 @@ func (r *traceReader) FindTraceSummaries(
 			}
 			batch := make([]tracestore.TraceSummary, len(resp.GetSummaries()))
 			for i, ps := range resp.GetSummaries() {
-				traceID, parseErr := traceIDFromHex(ps.GetTraceId())
+				traceID, parseErr := jptrace.TraceIDFromString(ps.GetTraceId())
 				if parseErr != nil {
 					yield(tracestore.PageChunk[[]tracestore.TraceSummary]{}, parseErr)
 					return
@@ -231,7 +229,7 @@ func (r *traceReader) FindTraceSummaries(
 			}
 			chunk := tracestore.PageChunk[[]tracestore.TraceSummary]{
 				Results:       batch,
-				NextPageToken: resp.GetNextPageToken(),
+				NextPageToken: tracestore.PageToken(resp.GetNextPageToken()),
 			}
 			if !yield(chunk, nil) {
 				return
@@ -285,16 +283,4 @@ func unwrapNotFoundErr(err error) error {
 		}
 	}
 	return err
-}
-
-// traceIDFromHex parses a 32-character hex string into a pcommon.TraceID.
-func traceIDFromHex(s string) (pcommon.TraceID, error) {
-	b, err := hex.DecodeString(s)
-	if err != nil {
-		return pcommon.TraceID{}, fmt.Errorf("invalid trace ID %q: %w", s, err)
-	}
-	if len(b) != 16 {
-		return pcommon.TraceID{}, fmt.Errorf("trace ID must be 16 bytes, got %d", len(b))
-	}
-	return pcommon.TraceID(b), nil
 }
