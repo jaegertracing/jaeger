@@ -223,6 +223,45 @@ func TestSearchTracesHandler_Handle_WithErrorsFilter(t *testing.T) {
 	assert.True(t, output.Traces[0].HasErrors)
 }
 
+func TestSearchTracesHandler_WithErrors_Conflict(t *testing.T) {
+	mock := &mockQueryService{}
+	handler := &searchTracesHandler{queryService: mock, maxResults: 100}
+
+	// 1. Conflict: error=false in Attributes, WithErrors=true
+	_, _, err := handler.handle(
+		context.Background(), &mcp.CallToolRequest{},
+		types.SearchTracesInput{
+			ServiceName: "svc",
+			Attributes:  map[string]string{"error": "false"},
+			WithErrors:  true,
+		},
+	)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "conflicting filters: with_errors=true but attributes[\"error\"]=\"false\"")
+
+	// 2. Non-conflict: error=true in Attributes, WithErrors=true
+	var capturedAttrs pcommon.Map
+	mockWithCapture := &mockQueryService{
+		findTraceSummariesFunc: func(_ context.Context, q querysvc.TraceQueryParams) iter.Seq2[[]tracestore.TraceSummary, error] {
+			capturedAttrs = q.Attributes
+			return func(_ func([]tracestore.TraceSummary, error) bool) {}
+		},
+	}
+	handlerWithCapture := &searchTracesHandler{queryService: mockWithCapture, maxResults: 100}
+	_, _, err = handlerWithCapture.handle(
+		context.Background(), &mcp.CallToolRequest{},
+		types.SearchTracesInput{
+			ServiceName: "svc",
+			Attributes:  map[string]string{"error": "true"},
+			WithErrors:  true,
+		},
+	)
+	require.NoError(t, err)
+	v, ok := capturedAttrs.Get("error")
+	require.True(t, ok)
+	assert.Equal(t, "true", v.Str())
+}
+
 func TestSearchTracesHandler_Handle_WithErrorsFilter_UsingMemoryStore(t *testing.T) {
 	store, err := memory.NewStore(memory.Configuration{MaxTraces: 10})
 	require.NoError(t, err)
