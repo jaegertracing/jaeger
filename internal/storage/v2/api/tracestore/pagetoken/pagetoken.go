@@ -2,9 +2,9 @@
 // SPDX-License-Identifier: Apache-2.0
 
 // Package pagetoken is the page token a paginating storage Reader returns with a page and
-// reads back on continuation (RFC 0014 §3). The PageToken message is generated from
-// page_token.proto beside this file; this file adds the string form a client sees and the
-// fingerprint that binds a token to the query it was returned for.
+// reads back on continuation (RFC 0014 §3): the string form a client sees and the fingerprint
+// that binds a token to the query it was returned for. The token's wire form is the PageToken
+// message of internal/proto/pagetoken/v1, which is where its proto and generated code live.
 //
 // The token wraps the Reader's cursor with the facts that make it safe to honor later: the
 // format version and a fingerprint of the query the cursor is a position in. The query service
@@ -19,6 +19,7 @@ import (
 	"encoding/base64"
 	"fmt"
 
+	pb "github.com/jaegertracing/jaeger/internal/proto/pagetoken/v1"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore"
 )
 
@@ -32,7 +33,7 @@ const Version = 1
 // on the next request: a PageToken with the current Version, the fingerprint of the query, and the
 // cursor, as its protobuf encoding in URL-safe base64 without padding.
 func EncodeFingerprint(fingerprint, cursor []byte) (string, error) {
-	t := &PageToken{Version: Version, Fingerprint: fingerprint, Cursor: cursor}
+	t := &pb.PageToken{Version: Version, Fingerprint: fingerprint, Cursor: cursor}
 	raw, err := t.Marshal()
 	if err != nil {
 		return "", fmt.Errorf("page token cannot be encoded: %w", err)
@@ -51,7 +52,7 @@ func DecodeFingerprint(token string) (fingerprint, cursor []byte, err error) {
 	if err != nil {
 		return nil, nil, fmt.Errorf("%w: page token is not valid base64", tracestore.ErrPaginationInvalid)
 	}
-	t := &PageToken{}
+	t := &pb.PageToken{}
 	if err := t.Unmarshal(raw); err != nil {
 		return nil, nil, fmt.Errorf("%w: page token is malformed: %w", tracestore.ErrPaginationInvalid, err)
 	}

@@ -10,6 +10,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	pb "github.com/jaegertracing/jaeger/internal/proto/pagetoken/v1"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore"
 	"github.com/jaegertracing/jaeger/internal/testutils"
 )
@@ -32,7 +33,7 @@ func TestEncodeDecodeRoundTrip(t *testing.T) {
 // added to the message later is skipped by a decoder that predates it, so adding one needs no
 // version bump (RFC 0014 §3.1).
 func TestDecode_SkipsAnUnknownField(t *testing.T) {
-	raw, err := (&PageToken{Version: Version, Fingerprint: []byte{1}, Cursor: []byte("c")}).Marshal()
+	raw, err := (&pb.PageToken{Version: Version, Fingerprint: []byte{1}, Cursor: []byte("c")}).Marshal()
 	require.NoError(t, err)
 	// Field 4, wire type 0 (varint), value 7: a field this version of the message does not have.
 	raw = append(raw, 0x20, 0x07)
@@ -44,7 +45,7 @@ func TestDecode_SkipsAnUnknownField(t *testing.T) {
 }
 
 func TestDecodeRefusals(t *testing.T) {
-	encoded := func(token *PageToken) string {
+	encoded := func(token *pb.PageToken) string {
 		raw, err := token.Marshal()
 		require.NoError(t, err)
 		return base64.RawURLEncoding.EncodeToString(raw)
@@ -56,9 +57,9 @@ func TestDecodeRefusals(t *testing.T) {
 	}{
 		{name: "not base64", token: "not-a-token!", want: "not valid base64"},
 		{name: "not a message", token: base64.RawURLEncoding.EncodeToString([]byte{0x1a}), want: "malformed"},
-		{name: "no version", token: encoded(&PageToken{}), want: "version 0 is not supported"},
-		{name: "future version", token: encoded(&PageToken{Version: Version + 1}), want: "version 2 is not supported"},
-		{name: "no cursor", token: encoded(&PageToken{Version: Version, Fingerprint: []byte{1}}), want: "carries no cursor"},
+		{name: "no version", token: encoded(&pb.PageToken{}), want: "version 0 is not supported"},
+		{name: "future version", token: encoded(&pb.PageToken{Version: Version + 1}), want: "version 2 is not supported"},
+		{name: "no cursor", token: encoded(&pb.PageToken{Version: Version, Fingerprint: []byte{1}}), want: "carries no cursor"},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
