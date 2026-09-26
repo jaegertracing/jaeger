@@ -356,24 +356,10 @@ func (qs QueryService) prepareSpanSearchQuery(
 	ctx context.Context,
 	request SpanQueryParams,
 ) (context.Context, tracestore.SpanQueryParams, error) {
-	query := request.toReaderQuery()
-	if query.StartTimeMin.IsZero() || query.StartTimeMax.IsZero() {
-		return ctx, query, fmt.Errorf("%w: start_time_min and start_time_max are required", ErrQueryInvalid)
+	query, err := request.toReaderQuery()
+	if err != nil {
+		return ctx, query, err
 	}
-	if !query.StartTimeMin.Before(query.StartTimeMax) {
-		return ctx, query, fmt.Errorf("%w: start_time_min must be before start_time_max", ErrQueryInvalid)
-	}
-	// A page token is what makes this a paginated request, and that is what the feature gate
-	// governs. The page size is only the bound (RFC 0016 §6): unset means the default, as an
-	// omitted size does on Elasticsearch, and an oversized one is clamped (RFC 0014 §4).
-	if query.Pagination.PageToken != "" && !PaginationGate.IsEnabled() {
-		return ctx, query, fmt.Errorf("%w: enable the %q feature gate to use it",
-			ErrPaginationDisabled, PaginationGate.ID())
-	}
-	if query.Pagination.PageSize == 0 {
-		query.Pagination.PageSize = DefaultPageSize
-	}
-	query.Pagination.PageSize = min(query.Pagination.PageSize, tracestore.MaxPageSize)
 	// A search over the time range alone carries no filter and is the base case of a span query
 	// (RFC 0016 §5.1), so the gate and finalization apply only when the caller sent one. Neither
 	// depends on the backend, so both come before the capability call rather than after it.

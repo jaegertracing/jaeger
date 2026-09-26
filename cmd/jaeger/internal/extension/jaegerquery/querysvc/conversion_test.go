@@ -106,6 +106,7 @@ func TestTraceQueryParams_EveryFieldReachesTheReader(t *testing.T) {
 }
 
 func TestSpanQueryParams_EveryFieldReachesTheReader(t *testing.T) {
+	enablePagination(t)
 	requestType := reflect.TypeOf(SpanQueryParams{})
 	readerType := reflect.TypeOf(tracestore.SpanQueryParams{})
 
@@ -115,7 +116,8 @@ func TestSpanQueryParams_EveryFieldReachesTheReader(t *testing.T) {
 			request := SpanQueryParams{StartTimeMin: testWindowStart, StartTimeMax: testWindowEnd}
 			reflect.ValueOf(&request).Elem().Field(i).Set(distinctValue(t, field))
 
-			query := request.toReaderQuery()
+			query, err := request.toReaderQuery()
+			require.NoError(t, err)
 			got := reflect.ValueOf(query).FieldByName(field.Name)
 			require.True(t, got.IsValid(), "the reader's query has no field %s", field.Name)
 			assertCarried(t, field, reflect.ValueOf(request).Field(i), got)

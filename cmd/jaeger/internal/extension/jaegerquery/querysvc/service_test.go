@@ -1129,7 +1129,7 @@ func TestFindTraces_EnvelopeIsSettledOnce(t *testing.T) {
 }
 
 // TestFindTraceSummaries_PaginatedRequestLeavesSearchDepthUnset covers the other half of
-// normalizeEnvelope's defaulting: FindTraceSummaries shares prepareSearchQuery with FindTraces
+// the search-depth default: FindTraceSummaries shares prepareSearchQuery with FindTraces
 // but does admit Pagination (RFC 0014 §4), so a paginated request must not also get
 // DefaultSearchDepth — the two bounds are mutually exclusive, and the caller sent only one.
 func TestFindTraceSummaries_PaginatedRequestLeavesSearchDepthUnset(t *testing.T) {
