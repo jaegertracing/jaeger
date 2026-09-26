@@ -530,6 +530,9 @@ PR-sized milestones with exit bars. Everything here sits behind RFC 0005 M1 and 
 
 **M7 — MCP.** A `find_spans` tool, and `get_span_details` rewired onto an identity filter where the backend declares support. *Exit:* an agent retrieves spans across traces in one call; `get_span_details` stops fetching whole traces on a declaring backend and is unchanged elsewhere.
 
+- ✅ `find_spans`, translating flat service/name/attribute/duration/error parameters into an RFC 0005 filter rather than exposing the AST to the model directly. Delivered in [#9643](https://github.com/jaegertracing/jaeger/pull/9643).
+- `get_span_details` rewired onto an identity filter. In progress: [#9623](https://github.com/jaegertracing/jaeger/pull/9623).
+
 **Out of scope (future, this design enables):**
 - A response envelope for the four RPCs that return bare `TracesData` in api_v3 and `jaeger.storage.v2` (§4.4). It would give a trace search somewhere to put a page token, and truncation somewhere to be reported other than a warning attribute on the first span. It is a breaking change to both published protocols, so it needs its own proposal; what this RFC settles is only that the span RPC does not join them.
 - A capability model that can declare predicate *shapes* rather than whole operators, which is what would let Cassandra and Badger serve an identity filter from their primary span storage, and Cassandra serve a tag-only conjunction through `tag_index` at `(trace_id, span_id)` granularity (§9). It bears on RFC 0005's `FilterCapabilities` and on its `same_span_conjunction`, so it belongs there rather than here.
