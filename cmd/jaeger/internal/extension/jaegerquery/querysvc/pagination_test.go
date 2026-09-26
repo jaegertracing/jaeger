@@ -152,7 +152,7 @@ func TestPrepareSearchQuery_PageSizeClampedToMax(t *testing.T) {
 	assert.Equal(t, &tracestore.Pagination{PageSize: tracestore.MaxPageSize, PageToken: "cursor"},
 		next.gotSummaryQuery.Pagination)
 	assert.Equal(t, tracestore.MaxPageSize+1000, sent.PageSize,
-		"the caller's request is left as sent; the clamp lands on a copy")
+		"the caller's request is left as sent; the clamp lands on the reader's query")
 }
 
 // TestPrepareSearchQuery_PageSizeFoldedIntoSearchDepthWhenUnsupported checks that a page-size-only

@@ -99,9 +99,9 @@ type Pagination struct {
 	PageToken string
 }
 
-// SpanQueryParams is a span search as the caller sent it (RFC 0016). prepareSpanSearchQuery
-// turns it into the tracestore.SpanQueryParams the reader is dispatched, so a request and the
-// query storage receives are different types and cannot be confused.
+// SpanQueryParams is a span search as the caller sent it (RFC 0016). toReaderQuery turns it into
+// the tracestore.SpanQueryParams the reader receives, so a request and the query storage receives
+// are different types and cannot be confused.
 type SpanQueryParams struct {
 	StartTimeMin time.Time
 	StartTimeMax time.Time
