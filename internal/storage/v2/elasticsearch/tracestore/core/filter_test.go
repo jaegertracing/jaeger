@@ -790,7 +790,7 @@ func TestBuildFindTraceIDsQueryWithFilter(t *testing.T) {
 	withSpanReader(t, func(r *spanReaderTest) {
 		start := time.Time{}
 		end := time.Time{}.Add(time.Second)
-		query, err := r.reader.buildFindTraceIDsQuery(dbmodel.TraceQueryParameters{
+		query, err := r.reader.buildFindTraceIDsBoolQuery(dbmodel.TraceQueryParameters{
 			StartTimeMin: start,
 			StartTimeMax: end,
 			Filter:       p.Resource().Service.Eq("cart"),

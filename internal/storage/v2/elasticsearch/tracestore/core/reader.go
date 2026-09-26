@@ -404,15 +404,67 @@ func validateQuery(p dbmodel.TraceQueryParameters) error {
 	return nil
 }
 
+// buildCursorFilter converts a traceCursor into a query-level boolean filter
+// that encodes keyset semantics for the sort order (startTime DESC, traceID ASC).
+//
+// ES/OS prohibits multi-field sort when collapse and search_after are combined:
+// the engine requires the sort to contain only the collapse field, so search_after
+// cannot serve as the cursor here. Instead we express the same semantics as a
+// query filter:
+//
+//	(startTime < T)
+//	OR (startTime == T AND traceID > X)
+//
+// which is exactly the set of documents that come after position (T, X) in
+// (startTime DESC, traceID ASC) order. The filter is applied to individual span
+// documents before collapse, which is correct: a trace whose latest-starting span
+// (its collapse representative) satisfies the condition appears on the next page;
+// a trace whose latest span predates or ties at T with traceID ≤ X is excluded.
+// Traces that have a span at time T (so their representative could be T) but whose
+// traceID ≤ X are filtered on that span yet may still contribute a span below T
+// that passes the first clause. Those potential duplicates are caught by the
+// SeenIDs exclusion list encoded in the cursor (see findTraceIDsFromQuery).
+func buildCursorFilter(c traceCursor) esquery.Query {
+	// Clause 1: any span strictly before the cursor time.
+	beforeCursor := esquery.NewRangeQuery(startTimeField).Lt(c.StartTime)
+	// Clause 2: span at exactly the cursor time but with a later traceID.
+	atCursorTime := esquery.NewTermQuery(startTimeField, c.StartTime)
+	afterCursorID := esquery.NewRangeQuery(traceIDField).Gt(c.TraceID)
+	atBoundary := esquery.NewBoolQuery().Must(atCursorTime, afterCursorID)
+	return esquery.NewBoolQuery().Should(beforeCursor, atBoundary)
+}
+
 func (s *SpanReader) findTraceIDsFromQuery(ctx context.Context, traceQuery dbmodel.TraceQueryParameters) (TraceIDPage, error) {
 	ctx, childSpan := s.tracer.Start(ctx, "findTraceIDs")
 	defer childSpan.End()
 
-	boolQuery, err := s.buildFindTraceIDsQuery(traceQuery)
+	boolQuery, err := s.buildFindTraceIDsBoolQuery(traceQuery)
 	if err != nil {
 		return TraceIDPage{}, err
 	}
 	jaegerIndices := s.spanRotation.ReadTargets(traceQuery.StartTimeMin, traceQuery.StartTimeMax)
+
+	// seenIDs is the set of traceIDs from the previous page that share the cursor's
+	// startTime. The cursor filter's span-level "startTime < T" clause may surface
+	// a span of such a trace at a time below T, causing collapse to include it with
+	// a lower representative — duplicating it across pages. We remove those here.
+	var seenIDs map[string]struct{}
+
+	if traceQuery.PageToken != "" {
+		cursor, err := decodeTraceCursor(traceQuery.PageToken)
+		if err != nil {
+			return TraceIDPage{}, err
+		}
+		// Inject the keyset cursor as a query filter instead of search_after.
+		// See buildCursorFilter for the rationale.
+		boolQuery.Must(buildCursorFilter(cursor))
+		if len(cursor.SeenIDs) > 0 {
+			seenIDs = make(map[string]struct{}, len(cursor.SeenIDs))
+			for _, id := range cursor.SeenIDs {
+				seenIDs[id] = struct{}{}
+			}
+		}
+	}
 
 	searchReq := esclient.SearchRequest{
 		Size:  traceQuery.SearchDepth,
@@ -424,14 +476,6 @@ func (s *SpanReader) findTraceIDsFromQuery(ctx context.Context, traceQuery dbmod
 			{Field: startTimeField, Order: esquery.Descending},
 			{Field: traceIDField, Order: esquery.Ascending},
 		},
-	}
-
-	if traceQuery.PageToken != "" {
-		cursor, err := decodeTraceCursor(traceQuery.PageToken)
-		if err != nil {
-			return TraceIDPage{}, err
-		}
-		searchReq.SearchAfter = []any{cursor.StartTime, cursor.TraceID}
 	}
 
 	searchResult, err := s.searcher.Search(ctx, jaegerIndices, searchReq)
@@ -446,31 +490,47 @@ func (s *SpanReader) findTraceIDsFromQuery(ctx context.Context, traceQuery dbmod
 		var src struct {
 			TraceID string `json:"traceID"`
 		}
-		if err := json.Unmarshal(hit.Source, &src); err == nil && src.TraceID != "" {
-			traceIDs = append(traceIDs, dbmodel.TraceID(src.TraceID))
+		if err := json.Unmarshal(hit.Source, &src); err != nil || src.TraceID == "" {
+			continue
 		}
+		// Drop any trace that appeared on the previous page at the cursor's
+		// startTime boundary; see buildCursorFilter for why this is necessary.
+		if _, dup := seenIDs[src.TraceID]; dup {
+			continue
+		}
+		traceIDs = append(traceIDs, dbmodel.TraceID(src.TraceID))
 	}
 
 	var nextPageToken string
 	if len(hits) > 0 && len(hits[len(hits)-1].Sort) >= 2 {
 		lastHit := hits[len(hits)-1]
-		var startTime uint64
+		var lastStartTime uint64
 		switch v := lastHit.Sort[0].(type) {
 		case float64:
-			startTime = uint64(v)
+			lastStartTime = uint64(v)
 		case json.Number:
 			if n, err := v.Int64(); err == nil {
-				startTime = uint64(n)
+				lastStartTime = uint64(n)
 			}
 		}
-		var traceID string
+		var lastTraceID string
 		if tid, ok := lastHit.Sort[1].(string); ok {
-			traceID = tid
+			lastTraceID = tid
 		}
-		if traceID != "" {
+		if lastTraceID != "" {
+			// Collect all traceIDs on this page that share the last hit's startTime.
+			// These are candidates for appearing on the next page via a lower-time
+			// span after the cursor filter is applied, and must be excluded there.
+			var boundary []string
+			for _, tid := range traceIDs {
+				if sortTimeForTraceID(hits, string(tid)) == lastStartTime {
+					boundary = append(boundary, string(tid))
+				}
+			}
 			nextPageToken = encodeTraceCursor(traceCursor{
-				StartTime: startTime,
-				TraceID:   traceID,
+				StartTime: lastStartTime,
+				TraceID:   lastTraceID,
+				SeenIDs:   boundary,
 			})
 		}
 	}
@@ -481,9 +541,39 @@ func (s *SpanReader) findTraceIDsFromQuery(ctx context.Context, traceQuery dbmod
 	}, nil
 }
 
+// sortTimeForTraceID returns the sort startTime value of the hit whose traceID
+// matches tid, or 0 if not found.
+func sortTimeForTraceID(hits []esclient.SearchHit, tid string) uint64 {
+	for _, h := range hits {
+		if len(h.Sort) < 2 {
+			continue
+		}
+		hitTID, ok := h.Sort[1].(string)
+		if !ok || hitTID != tid {
+			continue
+		}
+		switch v := h.Sort[0].(type) {
+		case float64:
+			return uint64(v)
+		case json.Number:
+			if n, err := v.Int64(); err == nil {
+				return uint64(n)
+			}
+		}
+	}
+	return 0
+}
+
+// traceCursor is the keyset cursor for FindTraceIDs pagination.
+// StartTime and TraceID define the (startTime DESC, traceID ASC) position of
+// the last result on the previous page. SeenIDs is the set of traceIDs from
+// that page that share StartTime exactly; they are excluded from the next page
+// to prevent duplicates that can arise when the cursor filter is applied at the
+// individual-span level rather than the trace-representative level.
 type traceCursor struct {
-	StartTime uint64 `json:"st"`
-	TraceID   string `json:"tid"`
+	StartTime uint64   `json:"st"`
+	TraceID   string   `json:"tid"`
+	SeenIDs   []string `json:"seen,omitempty"`
 }
 
 func encodeTraceCursor(c traceCursor) string {
@@ -506,7 +596,7 @@ func decodeTraceCursor(token string) (traceCursor, error) {
 	return c, nil
 }
 
-func (s *SpanReader) buildFindTraceIDsQuery(traceQuery dbmodel.TraceQueryParameters) (esquery.Query, error) {
+func (s *SpanReader) buildFindTraceIDsBoolQuery(traceQuery dbmodel.TraceQueryParameters) (*esquery.BoolQuery, error) {
 	boolQuery := esquery.NewBoolQuery()
 
 	// add duration query

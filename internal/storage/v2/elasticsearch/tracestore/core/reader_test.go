@@ -967,7 +967,7 @@ func TestSpanReader_buildFindTraceIDsQuery(t *testing.T) {
 			},
 		}
 
-		actualQuery, err := r.reader.buildFindTraceIDsQuery(traceQuery)
+		actualQuery, err := r.reader.buildFindTraceIDsBoolQuery(traceQuery)
 		require.NoError(t, err)
 		actual, err := actualQuery.Source()
 		require.NoError(t, err)
@@ -999,7 +999,7 @@ func TestSpanReader_buildFindTraceIDsQueryWithoutServiceName(t *testing.T) {
 			},
 		}
 
-		actualQuery, err := r.reader.buildFindTraceIDsQuery(traceQuery)
+		actualQuery, err := r.reader.buildFindTraceIDsBoolQuery(traceQuery)
 		require.NoError(t, err)
 		actual, err := actualQuery.Source()
 		require.NoError(t, err)
@@ -1056,7 +1056,7 @@ func TestSpanReader_buildFindTraceIDsQuery_errorTag(t *testing.T) {
 			{"2", wantSource(base().Must(r.reader.buildTagQuery("error", "2")))},
 		} {
 			t.Run("error="+tt.value, func(t *testing.T) {
-				query, err := r.reader.buildFindTraceIDsQuery(dbmodel.TraceQueryParameters{
+				query, err := r.reader.buildFindTraceIDsBoolQuery(dbmodel.TraceQueryParameters{
 					StartTimeMin: start,
 					StartTimeMax: end,
 					Tags:         map[string]string{"error": tt.value},
