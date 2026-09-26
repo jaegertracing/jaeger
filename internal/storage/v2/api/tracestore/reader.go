@@ -133,6 +133,10 @@ const MaxSearchDepth = 10000
 // to satisfy transport message limits without changing the page boundary.
 // NextPageToken is set only on the final chunk: an empty token there means
 // no later page, while an empty token on an earlier chunk says nothing about pagination.
+// The token is the Reader's own: the query service and the jaeger.storage.v2 wire pass it to
+// the client and back unchanged. A Reader that declares SearchCapabilities.Paginated builds
+// it from its cursor with the pagetoken package (RFC 0014 §3), which binds the token to the
+// query it was returned for.
 type PageChunk[T any] struct {
 	Results       T
 	NextPageToken string
@@ -210,11 +214,13 @@ type Pagination struct {
 	// sees the query (RFC 0014 §4). A span search has no other bound, so there the query
 	// service fills in a default instead (see SpanQueryParams.Pagination).
 	PageSize int
-	// PageToken continues a previous search. Empty starts a new one. A Reader that
-	// receives a non-empty PageToken MUST treat it as an uninterpreted cursor it minted
-	// itself for the same query — a Reader is never asked to interpret a token it did not
-	// produce, since the query service rejects a PageToken against a Reader whose
-	// SearchCapabilities.Paginated is false before dispatching (RFC 0014 §6.2).
+	// PageToken continues a previous search. Empty starts a new one. It is the token the
+	// Reader itself returned in PageChunk.NextPageToken, and the Reader MUST validate it: a
+	// token it did not produce, or produced for a different query, is refused with
+	// ErrPaginationInvalid rather than sent to the backend (RFC 0014 §3.2). The pagetoken
+	// package does both checks for a Reader that builds its token with it. The query service
+	// refuses a PageToken against a Reader whose SearchCapabilities.Paginated is false before
+	// dispatching (RFC 0014 §6.2), so such a Reader never sees one.
 	PageToken string
 }
 
