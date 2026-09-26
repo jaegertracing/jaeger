@@ -146,8 +146,9 @@ func encodeCanonical(call *expression.Call) ([]byte, error) {
 }
 
 // canonicalize returns a copy of the call with the operands of `and` and `or`, and the values
-// of every list, sorted by their own canonical encodings. Operands of every other operator
-// keep their order, since it is part of the operator's meaning.
+// of every list, sorted by their own canonical encodings, and every timestamp constant in UTC,
+// since the wire spells an instant with whatever offset the client used. Operands of every
+// other operator keep their order, since it is part of the operator's meaning.
 func canonicalize(call *expression.Call) (*expression.Call, error) {
 	out := &expression.Call{Op: call.Op, Args: make([]expression.Expression, len(call.Args))}
 	for i, arg := range call.Args {
@@ -170,6 +171,12 @@ func canonicalize(call *expression.Call) (*expression.Call, error) {
 			values := slices.Clone(term.Values)
 			slices.Sort(values)
 			out.Args[i] = &expression.List{Values: values, Type: term.Type}
+		case *expression.TimestampValue:
+			if term == nil {
+				out.Args[i] = arg
+				continue
+			}
+			out.Args[i] = &expression.TimestampValue{Value: term.Value.UTC()}
 		default:
 			out.Args[i] = arg
 		}

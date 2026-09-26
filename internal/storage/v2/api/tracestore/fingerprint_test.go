@@ -219,6 +219,7 @@ func fingerprintOf(t *testing.T, filter *expression.Call) []byte {
 // nested or not, while a permutation that changes the meaning does not.
 func TestFilter_InvariantUnderEquivalentPermutations(t *testing.T) {
 	a, b, c := tagIs("a", "1"), tagIs("b", "2"), tagIs("c", "3")
+	start := &expression.FieldRef{Level: expression.LevelSpan, Name: "start_time"}
 	in := func(values ...string) *expression.Call {
 		return call(expression.OpIn,
 			&expression.AttributeRef{Key: "k", Level: expression.LevelSpan},
@@ -233,6 +234,11 @@ func TestFilter_InvariantUnderEquivalentPermutations(t *testing.T) {
 		{"or operands", call(expression.OpOr, a, b), call(expression.OpOr, b, a)},
 		{"nested", call(expression.OpAnd, call(expression.OpOr, a, b), c), call(expression.OpAnd, c, call(expression.OpOr, b, a))},
 		{"list values", in("x", "y", "z"), in("z", "x", "y")},
+		{
+			"timestamp offset",
+			call(expression.OpGt, start, &expression.TimestampValue{Value: windowStart}),
+			call(expression.OpGt, start, &expression.TimestampValue{Value: windowStart.In(time.FixedZone("east", 2*3600))}),
+		},
 	}
 	for _, tc := range same {
 		t.Run(tc.name, func(t *testing.T) {
