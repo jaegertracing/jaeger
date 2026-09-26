@@ -509,7 +509,7 @@ func (qs QueryService) summarizeTraceIDPages(
 		if len(ids.Results) > 0 {
 			params := make([]tracestore.GetTraceParams, len(ids.Results))
 			for i, id := range ids.Results {
-				params[i] = tracestore.GetTraceParams{TraceID: id.TraceID, Start: id.Start, End: id.End}
+				params[i] = tracestore.GetTraceParams(id)
 			}
 			traces := qs.interceptTraceResults(ctx, qs.traceReader.GetTraces(ctx, params...))
 			for batch, err := range computeSummaries(traces, qs.adjuster) {
