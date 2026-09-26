@@ -224,12 +224,12 @@ func (qs QueryService) FindSpans(
 	query SpanQueryParams,
 ) iter.Seq2[tracestore.PageChunk[ptrace.Traces], error] {
 	return func(yield func(tracestore.PageChunk[ptrace.Traces], error) bool) {
-		ctx, dispatched, err := qs.prepareSpanSearchQuery(ctx, query)
+		ctx, readerQuery, err := qs.prepareSpanSearchQuery(ctx, query)
 		if err != nil {
 			yield(tracestore.PageChunk[ptrace.Traces]{}, err)
 			return
 		}
-		spans := qs.traceReader.FindSpans(ctx, dispatched)
+		spans := qs.traceReader.FindSpans(ctx, readerQuery)
 		spansIter := qs.interceptSpanResults(ctx, spans)
 		spansIter(yield)
 	}
@@ -256,12 +256,12 @@ func (qs QueryService) FindTraces(
 			yield(nil, tracestore.ErrPaginationUnsupportedByFindTraces)
 			return
 		}
-		ctx, dispatched, err := qs.prepareSearchQuery(ctx, query)
+		ctx, readerQuery, err := qs.prepareSearchQuery(ctx, query)
 		if err != nil {
 			yield(nil, err)
 			return
 		}
-		tracesIter := qs.interceptTraceResults(ctx, qs.traceReader.FindTraces(ctx, dispatched))
+		tracesIter := qs.interceptTraceResults(ctx, qs.traceReader.FindTraces(ctx, readerQuery))
 		qs.receiveTraces(tracesIter, yield, query.RawTraces)
 	}
 }
