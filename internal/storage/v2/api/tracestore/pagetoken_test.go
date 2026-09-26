@@ -19,14 +19,12 @@ func TestEncodeDecodeRoundTrip(t *testing.T) {
 	require.NoError(t, err)
 	assert.NotContains(t, string(encoded), "=", "the token is URL-safe without padding")
 
-	gotFingerprint, gotCursor, err := encoded.Decode()
+	gotFingerprint, gotCursor, err := encoded.decode()
 	require.NoError(t, err)
 	assert.Equal(t, fingerprint, gotFingerprint)
 	assert.Equal(t, cursor, gotCursor)
 }
 
-// TestDecodeRefusals covers what Decode adds over the generated Unmarshal: the base64
-// framing, the version check, and every failure reading as a bad request.
 // TestDecode_SkipsAnUnknownField pins the forward compatibility PageTokenVersion relies on: a field
 // added to the message later is skipped by a decoder that predates it, so adding one needs no
 // version bump (RFC 0014 §3.1).
@@ -36,13 +34,13 @@ func TestDecode_SkipsAnUnknownField(t *testing.T) {
 	// Field 4, wire type 0 (varint), value 7: a field this version of the message does not have.
 	raw = append(raw, 0x20, 0x07)
 
-	fingerprint, cursor, err := PageToken(base64.RawURLEncoding.EncodeToString(raw)).Decode()
+	fingerprint, cursor, err := PageToken(base64.RawURLEncoding.EncodeToString(raw)).decode()
 	require.NoError(t, err)
 	assert.Equal(t, []byte{1}, fingerprint)
 	assert.Equal(t, []byte("c"), cursor)
 }
 
-// TestCursor pins the one check Cursor adds over Decode: the token has to belong to the query
+// TestCursor pins the one check Cursor adds over decode: the token has to belong to the query
 // it is resumed for.
 func TestCursor(t *testing.T) {
 	token, err := NewPageToken([]byte{1, 2, 3}, []byte("cursor"))
@@ -60,6 +58,8 @@ func TestCursor(t *testing.T) {
 	require.ErrorIs(t, err, ErrPaginationInvalid, "a token that does not decode is refused before the comparison")
 }
 
+// TestDecodeRefusals covers what decode adds over the generated Unmarshal: the base64
+// framing, the version check, and every failure reading as a bad request.
 func TestDecodeRefusals(t *testing.T) {
 	encoded := func(token *pb.PageToken) string {
 		raw, err := token.Marshal()
@@ -79,7 +79,7 @@ func TestDecodeRefusals(t *testing.T) {
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			_, _, err := PageToken(tc.token).Decode()
+			_, _, err := PageToken(tc.token).decode()
 			require.ErrorIs(t, err, ErrPaginationInvalid)
 			assert.ErrorContains(t, err, tc.want)
 		})
