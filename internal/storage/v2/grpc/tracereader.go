@@ -165,6 +165,16 @@ func (tr *TraceReader) FindTraces(
 	}
 }
 
+// paginationError turns the InvalidArgument status that the storage server gives a rejected
+// page request back into tracestore.ErrPaginationInvalid (RFC 0014 §6). Only a paginated
+// request is mapped, because InvalidArgument on any other request says nothing about a token.
+func paginationError(err error, params tracestore.TraceQueryParams) error {
+	if params.Pagination != nil && status.Code(err) == codes.InvalidArgument {
+		return fmt.Errorf("%w: %s", tracestore.ErrPaginationInvalid, status.Convert(err).Message())
+	}
+	return err
+}
+
 func (tr *TraceReader) FindTraceIDs(
 	ctx context.Context,
 	params tracestore.TraceQueryParams,
@@ -177,7 +187,7 @@ func (tr *TraceReader) FindTraceIDs(
 		}
 		resp, err := tr.client.FindTraceIDs(ctx, &storage.FindTraceIDsRequest{Query: query})
 		if err != nil {
-			yield(tracestore.PageChunk[[]tracestore.FoundTraceID]{}, fmt.Errorf("failed to execute FindTraceIDs: %w", err))
+			yield(tracestore.PageChunk[[]tracestore.FoundTraceID]{}, fmt.Errorf("failed to execute FindTraceIDs: %w", paginationError(err, params)))
 			return
 		}
 		foundTraceIDs := make([]tracestore.FoundTraceID, len(resp.TraceIds))
@@ -206,7 +216,7 @@ func (tr *TraceReader) FindTraceSummaries(
 		if status.Code(err) == codes.Unimplemented || errors.Is(err, errors.ErrUnsupported) {
 			return fmt.Errorf("remote server does not support FindTraceSummaries: %w", errors.ErrUnsupported)
 		}
-		return fmt.Errorf("%s: %w", msg, err)
+		return fmt.Errorf("%s: %w", msg, paginationError(err, params))
 	}
 	return func(yield func(tracestore.PageChunk[[]tracestore.TraceSummary], error) bool) {
 		query, err := toProtoQueryParameters(params)

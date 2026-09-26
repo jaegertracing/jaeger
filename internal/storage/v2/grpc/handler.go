@@ -157,7 +157,7 @@ func (h *Handler) FindTraceSummaries(
 			if errors.Is(err, errors.ErrUnsupported) {
 				return status.Errorf(codes.Unimplemented, "method FindTraceSummaries not implemented: %v", err)
 			}
-			return err
+			return readerStatus(err)
 		}
 		batch := make([]*storage.TraceSummary, len(chunk.Results))
 		for i := range chunk.Results {
@@ -193,6 +193,16 @@ func (h *Handler) FindTraceSummaries(
 	return nil
 }
 
+// readerStatus gives a rejected page token the InvalidArgument status, which the storage
+// client turns back into tracestore.ErrPaginationInvalid (RFC 0014 §6). Other reader errors
+// keep whatever status they carry.
+func readerStatus(err error) error {
+	if errors.Is(err, tracestore.ErrPaginationInvalid) {
+		return status.Error(codes.InvalidArgument, err.Error())
+	}
+	return err
+}
+
 func (h *Handler) FindTraceIDs(
 	ctx context.Context,
 	req *storage.FindTraceIDsRequest,
@@ -205,7 +215,7 @@ func (h *Handler) FindTraceIDs(
 	}
 	for chunk, err := range h.traceReader.FindTraceIDs(ctx, query) {
 		if err != nil {
-			return nil, err
+			return nil, readerStatus(err)
 		}
 		for _, traceID := range chunk.Results {
 			foundTraceIDs = append(foundTraceIDs, &storage.FoundTraceID{

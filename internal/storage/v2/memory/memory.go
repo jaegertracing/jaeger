@@ -153,12 +153,7 @@ func (st *Store) FindSpans(ctx context.Context, query tracestore.SpanQueryParams
 			yield(tracestore.PageChunk[ptrace.Traces]{}, err)
 			return
 		}
-		cloned, err := cloneTrace(matched)
-		if err != nil {
-			yield(tracestore.PageChunk[ptrace.Traces]{}, err)
-			return
-		}
-		chunk := tracestore.PageChunk[ptrace.Traces]{Results: cloned}
+		chunk := tracestore.PageChunk[ptrace.Traces]{Results: matched}
 		if last != nil {
 			if chunk.NextPageToken, err = tracestore.NewPageToken(fingerprint, last.encode()); err != nil {
 				yield(tracestore.PageChunk[ptrace.Traces]{}, err)

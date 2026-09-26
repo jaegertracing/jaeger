@@ -5,6 +5,7 @@ package memory
 
 import (
 	"fmt"
+	"math"
 	"regexp"
 	"slices"
 	"strconv"
@@ -254,7 +255,7 @@ func evalPredicate(expr expression.Expression, ctx filterCtx) bool {
 			return false
 		}
 		for _, v := range values {
-			if valueInList(v, list) {
+			if inList(call.Args[0], v, list) {
 				return false
 			}
 		}
@@ -353,6 +354,10 @@ func resolveComparable(a, b evalValue) (resolvedA, resolvedB evalValue, ok bool)
 	if a.kind() == kindNone || a.kind() != b.kind() {
 		return evalValue{}, evalValue{}, false
 	}
+	// NaN is neither below, above nor equal to anything, so it cannot be compared at all.
+	if (a.isNumber && math.IsNaN(a.num)) || (b.isNumber && math.IsNaN(b.num)) {
+		return evalValue{}, evalValue{}, false
+	}
 	return a, b, true
 }
 
@@ -392,8 +397,10 @@ func evalRegex(ref, pattern expression.Expression, ctx filterCtx) bool {
 	if len(values) == 0 {
 		return false
 	}
+	// The pattern may arrive typed as a string or untyped, since the wire type is
+	// optional and FinalizeFilter leaves regex operands as written.
 	patternValues := resolveOperand(pattern, ctx)
-	if len(patternValues) != 1 || !patternValues[0].isString {
+	if len(patternValues) != 1 || (!patternValues[0].isString && !patternValues[0].isUntyped) {
 		return false
 	}
 	re, err := regexp.Compile(patternValues[0].str)
@@ -421,11 +428,50 @@ func evalIn(ref, listExpr expression.Expression, ctx filterCtx) bool {
 		return false
 	}
 	for _, v := range values {
-		if valueInList(v, list) {
+		if inList(ref, v, list) {
 			return true
 		}
 	}
 	return false
+}
+
+// inList reports whether v matches one of list's elements. Beside a duration or
+// timestamp field the elements are read as that field's type, since a list carries
+// its elements as text and has no type of its own for them (tracestore.ReadFilterElement);
+// everywhere else valueInList applies.
+func inList(ref expression.Expression, v evalValue, list *expression.List) bool {
+	fieldType, ok := timeFieldType(ref)
+	if !ok {
+		return valueInList(v, list)
+	}
+	for _, elem := range list.Values {
+		typed, err := tracestore.ReadFilterElement(list, fieldType, elem)
+		if err != nil {
+			continue
+		}
+		for _, e := range resolveOperand(typed, filterCtx{}) {
+			if a, b, ok := resolveComparable(v, e); ok && compareValues(a, b) == 0 {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+// timeFieldType returns the type of the built-in field ref names when that is a
+// duration or a timestamp, the two types whose constants travel as text.
+func timeFieldType(ref expression.Expression) (expression.FieldType, bool) {
+	r, ok := ref.(*expression.FieldRef)
+	if !ok || r == nil {
+		return "", false
+	}
+	// An unknown field has no type and falls through; it also resolves to no value, so
+	// the caller never reaches the list.
+	field, _ := expression.LookupField(r.Level, r.Name)
+	if field.Type == expression.FieldTypeDuration || field.Type == expression.FieldTypeTimestamp {
+		return field.Type, true
+	}
+	return "", false
 }
 
 // valueInList reports whether v matches one of list's elements. list.Type,
@@ -691,7 +737,13 @@ func resolveSpanField(name string, span ptrace.Span) []evalValue {
 	case expression.SpanFieldName:
 		return []evalValue{{isString: true, str: span.Name()}}
 	case expression.SpanFieldKind:
-		return []evalValue{{isString: true, str: fromOTELSpanKind(span.Kind())}}
+		// fromOTELSpanKind returns "" for an unspecified kind, which the legacy search
+		// uses to mean "no kind"; the filter vocabulary names it (expression.SpanKinds).
+		kind := fromOTELSpanKind(span.Kind())
+		if kind == "" {
+			kind = expression.SpanKinds()[0]
+		}
+		return []evalValue{{isString: true, str: kind}}
 	case expression.SpanFieldStartTime:
 		return []evalValue{{isInt: true, numInt: int64(span.StartTimestamp())}} //nolint:gosec // G115
 	case expression.SpanFieldEndTime:

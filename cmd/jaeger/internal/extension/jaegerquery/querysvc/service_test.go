@@ -1248,6 +1248,117 @@ func TestFindTraceSummaries_ErrUnsupported(t *testing.T) {
 	assert.Equal(t, trace.SpanCount(), chunks[0].Results[0].SpanCount)
 }
 
+// paginatedUnsupportedReader is a reader that paginates but cannot compute summaries, which is
+// the shape of the in-memory backend. FindTraceIDs serves one page ending in nextPageToken.
+func paginatedUnsupportedReader(t *testing.T, ids []tracestore.FoundTraceID, nextPageToken string) *mockSummaryReader {
+	t.Helper()
+	reader := &mockSummaryReader{err: fmt.Errorf("not supported: %w", errors.ErrUnsupported)}
+	reader.On("SearchCapabilities", mock.Anything).
+		Return(tracestore.SearchCapabilities{WithoutServiceName: true, Paginated: true}, nil)
+	reader.On("FindTraceIDs", mock.Anything, mock.Anything).
+		Return(iter.Seq2[tracestore.PageChunk[[]tracestore.FoundTraceID], error](func(yield func(tracestore.PageChunk[[]tracestore.FoundTraceID], error) bool) {
+			yield(tracestore.PageChunk[[]tracestore.FoundTraceID]{
+				Results:       ids,
+				NextPageToken: tracestore.PageToken(nextPageToken),
+			}, nil)
+		}))
+	return reader
+}
+
+func paginatedQuery(pageSize int) TraceQueryParams {
+	query := filterQuery(nil)
+	query.Pagination = &Pagination{PageSize: pageSize}
+	return query
+}
+
+// TestFindTraceSummaries_ErrUnsupported_Paginated pins that a paginated query against a reader
+// that paginates but cannot compute summaries still gets a page token: the fallback pages
+// through FindTraceIDs and loads the page's traces with GetTraces, because FindTraces cannot
+// carry a token.
+func TestFindTraceSummaries_ErrUnsupported_Paginated(t *testing.T) {
+	enablePagination(t)
+	trace := makeTestTrace()
+	traceID := trace.ResourceSpans().At(0).ScopeSpans().At(0).Spans().At(0).TraceID()
+	start := time.Unix(100, 0)
+	end := time.Unix(200, 0)
+	reader := paginatedUnsupportedReader(t,
+		[]tracestore.FoundTraceID{{TraceID: traceID, Start: start, End: end}}, "next-page")
+	reader.On("GetTraces", mock.Anything, []tracestore.GetTraceParams{{TraceID: traceID, Start: start, End: end}}).
+		Return(iter.Seq2[[]ptrace.Traces, error](func(yield func([]ptrace.Traces, error) bool) {
+			yield([]ptrace.Traces{trace}, nil)
+		})).Once()
+
+	qs := NewQueryService(reader, initializeTestService().depsReader, QueryServiceOptions{})
+
+	chunks, err := jiter.CollectWithErrors(qs.FindTraceSummaries(context.Background(), paginatedQuery(1)))
+	require.NoError(t, err)
+	require.Len(t, chunks, 1)
+	assert.Equal(t, "next-page", chunks[0].NextPageToken)
+	require.Len(t, chunks[0].Results, 1)
+	assert.Equal(t, trace.SpanCount(), chunks[0].Results[0].SpanCount)
+	reader.AssertExpectations(t)
+}
+
+// TestFindTraceSummaries_ErrUnsupported_PaginatedEmptyPage pins that an empty page of trace IDs
+// yields an empty page of summaries without calling GetTraces, so the caller still sees the
+// page token that ends the search.
+func TestFindTraceSummaries_ErrUnsupported_PaginatedEmptyPage(t *testing.T) {
+	enablePagination(t)
+	reader := paginatedUnsupportedReader(t, nil, "")
+
+	qs := NewQueryService(reader, initializeTestService().depsReader, QueryServiceOptions{})
+
+	chunks, err := jiter.CollectWithErrors(qs.FindTraceSummaries(context.Background(), paginatedQuery(1)))
+	require.NoError(t, err)
+	require.Len(t, chunks, 1)
+	assert.Empty(t, chunks[0].Results)
+	assert.Empty(t, chunks[0].NextPageToken)
+	reader.AssertNotCalled(t, "GetTraces", mock.Anything, mock.Anything)
+}
+
+func TestFindTraceSummaries_ErrUnsupported_PaginatedErrors(t *testing.T) {
+	traceID := pcommon.TraceID([16]byte{1})
+	t.Run("FindTraceIDs fails", func(t *testing.T) {
+		enablePagination(t)
+		reader := &mockSummaryReader{err: fmt.Errorf("not supported: %w", errors.ErrUnsupported)}
+		reader.On("SearchCapabilities", mock.Anything).
+			Return(tracestore.SearchCapabilities{WithoutServiceName: true, Paginated: true}, nil)
+		reader.On("FindTraceIDs", mock.Anything, mock.Anything).
+			Return(iter.Seq2[tracestore.PageChunk[[]tracestore.FoundTraceID], error](func(yield func(tracestore.PageChunk[[]tracestore.FoundTraceID], error) bool) {
+				yield(tracestore.PageChunk[[]tracestore.FoundTraceID]{}, assert.AnError)
+			}))
+		qs := NewQueryService(reader, initializeTestService().depsReader, QueryServiceOptions{})
+
+		_, err := jiter.CollectWithErrors(qs.FindTraceSummaries(context.Background(), paginatedQuery(1)))
+		require.ErrorIs(t, err, assert.AnError)
+	})
+	t.Run("GetTraces fails", func(t *testing.T) {
+		enablePagination(t)
+		reader := paginatedUnsupportedReader(t, []tracestore.FoundTraceID{{TraceID: traceID}}, "")
+		reader.On("GetTraces", mock.Anything, mock.Anything).
+			Return(iter.Seq2[[]ptrace.Traces, error](func(yield func([]ptrace.Traces, error) bool) {
+				yield(nil, assert.AnError)
+			}))
+		qs := NewQueryService(reader, initializeTestService().depsReader, QueryServiceOptions{})
+
+		_, err := jiter.CollectWithErrors(qs.FindTraceSummaries(context.Background(), paginatedQuery(1)))
+		require.ErrorIs(t, err, assert.AnError)
+	})
+	t.Run("yield stops iteration", func(t *testing.T) {
+		enablePagination(t)
+		reader := paginatedUnsupportedReader(t, nil, "next-page")
+		qs := NewQueryService(reader, initializeTestService().depsReader, QueryServiceOptions{})
+
+		var count int
+		for _, err := range qs.FindTraceSummaries(context.Background(), paginatedQuery(1)) {
+			require.NoError(t, err)
+			count++
+			break
+		}
+		assert.Equal(t, 1, count)
+	})
+}
+
 func TestFindTraceSummaries_NativePath_YieldStopsIteration(t *testing.T) {
 	want := []tracestore.TraceSummary{{RootServiceName: "native"}}
 	nativeReader := &mockSummaryReader{summaries: want}

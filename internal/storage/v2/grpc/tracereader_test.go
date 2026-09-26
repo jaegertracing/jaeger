@@ -588,6 +588,38 @@ func TestTraceReader_FindTraceIDs(t *testing.T) {
 	}
 }
 
+// TestTraceReader_InvalidArgumentBecomesPaginationInvalid pins the client half of the wire
+// mapping (RFC 0014 §6): InvalidArgument on a paginated request is ErrPaginationInvalid again,
+// and InvalidArgument on an unpaginated request is left alone.
+func TestTraceReader_InvalidArgumentBecomesPaginationInvalid(t *testing.T) {
+	paginated := tracestore.TraceQueryParams{
+		Attributes: pcommon.NewMap(),
+		Pagination: &tracestore.Pagination{PageSize: 10, PageToken: "stale"},
+	}
+	unpaginated := tracestore.TraceQueryParams{Attributes: pcommon.NewMap()}
+	conn := startTestServer(t, &testServer{err: status.Error(codes.InvalidArgument, "page token does not match the query")})
+	reader := NewTraceReader(conn)
+
+	t.Run("FindTraceIDs", func(t *testing.T) {
+		_, err := jiter.CollectWithErrors(reader.FindTraceIDs(context.Background(), paginated))
+		require.ErrorIs(t, err, tracestore.ErrPaginationInvalid)
+		require.ErrorContains(t, err, "page token does not match the query")
+
+		_, err = jiter.CollectWithErrors(reader.FindTraceIDs(context.Background(), unpaginated))
+		require.NotErrorIs(t, err, tracestore.ErrPaginationInvalid)
+		require.Equal(t, codes.InvalidArgument, status.Code(err))
+	})
+	t.Run("FindTraceSummaries", func(t *testing.T) {
+		_, err := jiter.CollectWithErrors(reader.FindTraceSummaries(context.Background(), paginated))
+		require.ErrorIs(t, err, tracestore.ErrPaginationInvalid)
+		require.ErrorContains(t, err, "page token does not match the query")
+
+		_, err = jiter.CollectWithErrors(reader.FindTraceSummaries(context.Background(), unpaginated))
+		require.NotErrorIs(t, err, tracestore.ErrPaginationInvalid)
+		require.Equal(t, codes.InvalidArgument, status.Code(err))
+	})
+}
+
 func TestConvertMapToKeyValueList(t *testing.T) {
 	tests := []struct {
 		name       string

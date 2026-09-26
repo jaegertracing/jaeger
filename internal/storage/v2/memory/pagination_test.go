@@ -72,14 +72,28 @@ func TestFindSpans_PagesWithinTheTimeRange(t *testing.T) {
 	assert.Empty(t, chunk.NextPageToken, "nothing in the range follows the page")
 }
 
-func TestFindSpans_CloneFailurePropagates(t *testing.T) {
-	store, _ := writeTwoTraceStore(t)
-	orig := marshalTraces
-	marshalTraces = func(ptrace.Traces) ([]byte, error) { return nil, assert.AnError }
-	t.Cleanup(func() { marshalTraces = orig })
-	chunk, err := findSpansPage(t, store, tracestore.SpanQueryParams{})
-	require.ErrorIs(t, err, assert.AnError)
-	assert.Zero(t, chunk)
+// TestFindSpans_CursorSurvivesWritesBetweenPages pins that a page resumes after the cursor's
+// key even when the store changed since: a span written later, and later-starting, is not
+// pulled into the continuation, and nothing is repeated or skipped (RFC 0014 §3.4).
+func TestFindSpans_CursorSurvivesWritesBetweenPages(t *testing.T) {
+	store, base := writeTwoTraceStore(t)
+	query := tracestore.SpanQueryParams{Pagination: tracestore.Pagination{PageSize: 1}}
+	first, err := findSpansPage(t, store, query)
+	require.NoError(t, err)
+	assert.Equal(t, []string{"handle-request"}, spanNames(first.Results))
+
+	newer := ptrace.NewTraces()
+	span := newer.ResourceSpans().AppendEmpty().ScopeSpans().AppendEmpty().Spans().AppendEmpty()
+	span.SetTraceID(pcommon.TraceID{7})
+	span.SetSpanID(pcommon.SpanID{7})
+	span.SetName("written-later")
+	span.SetStartTimestamp(pcommon.NewTimestampFromTime(base.Add(48 * time.Hour)))
+	require.NoError(t, store.WriteTraces(context.Background(), newer))
+
+	query.Pagination.PageToken = first.NextPageToken
+	second, err := findSpansPage(t, store, query)
+	require.NoError(t, err)
+	assert.Equal(t, []string{"call-backend"}, spanNames(second.Results))
 }
 
 func TestFindSpans_PageThatEndsExactlyCarriesNoToken(t *testing.T) {
@@ -179,7 +193,29 @@ func TestFindSpans_FilterThatCannotBeFingerprintedIsRefused(t *testing.T) {
 	}
 	chunk, err := findSpansPage(t, store, query)
 	require.Error(t, err)
+	require.NotErrorIs(t, err, tracestore.ErrPaginationInvalid, "the filter is refused, not the token")
 	assert.Zero(t, chunk)
+}
+
+func TestFindSpans_MalformedFilterIsRefusedOnEveryPath(t *testing.T) {
+	store, _ := writeTwoTraceStore(t)
+	malformed := &expression.Call{Op: expression.OpNot}
+
+	chunk, err := findSpansPage(t, store, tracestore.SpanQueryParams{Filter: malformed})
+	require.ErrorIs(t, err, tracestore.ErrFilterInvalid)
+	assert.Zero(t, chunk)
+
+	ids, err := findTraceIDsPage(t, store, tracestore.TraceQueryParams{Filter: malformed, SearchDepth: 10})
+	require.ErrorIs(t, err, tracestore.ErrFilterInvalid)
+	assert.Zero(t, ids)
+
+	ids, err = findTraceIDsPage(t, store, tracestore.TraceQueryParams{Filter: malformed, Pagination: &tracestore.Pagination{PageSize: 10}})
+	require.ErrorIs(t, err, tracestore.ErrFilterInvalid)
+	assert.Zero(t, ids)
+
+	for _, err := range store.FindTraces(context.Background(), tracestore.TraceQueryParams{Filter: malformed, SearchDepth: 10}) {
+		require.ErrorIs(t, err, tracestore.ErrFilterInvalid)
+	}
 }
 
 // writeTracesStartingAt writes n single-span traces whose start times increase with their
@@ -327,7 +363,27 @@ func TestFindTraceIDs_FilterThatCannotBeFingerprintedIsRefused(t *testing.T) {
 	}
 	chunk, err := findTraceIDsPage(t, store, query)
 	require.Error(t, err)
+	require.NotErrorIs(t, err, tracestore.ErrPaginationInvalid, "the filter is refused, not the token")
 	assert.Zero(t, chunk)
+}
+
+// TestFindTraceIDs_CursorSurvivesWritesBetweenPages is TestFindSpans_CursorSurvivesWritesBetweenPages
+// for a trace search.
+func TestFindTraceIDs_CursorSurvivesWritesBetweenPages(t *testing.T) {
+	store, err := NewStore(Configuration{MaxTraces: 10})
+	require.NoError(t, err)
+	base := time.Date(2026, 3, 1, 12, 0, 0, 0, time.UTC)
+	writeTracesStartingAt(t, store, 3, base)
+	query := tracestore.TraceQueryParams{ServiceName: "svc", Attributes: pcommon.NewMap(), Pagination: &tracestore.Pagination{PageSize: 1}}
+	first, err := findTraceIDsPage(t, store, query)
+	require.NoError(t, err)
+	assert.Equal(t, []byte{3}, traceIDBytes(first.Results))
+
+	writeTracesStartingAt(t, store, 9, base) // rewrites 1..3 unchanged and adds 4..9, all newer
+	query.Pagination.PageToken = first.NextPageToken
+	second, err := findTraceIDsPage(t, store, query)
+	require.NoError(t, err)
+	assert.Equal(t, []byte{2}, traceIDBytes(second.Results), "continues after trace 3, unaffected by the newer traces")
 }
 
 func TestSearchCapabilities_DeclaresPaginated(t *testing.T) {

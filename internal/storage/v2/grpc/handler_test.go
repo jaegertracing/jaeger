@@ -417,6 +417,41 @@ func TestHandler_FindTraceIDs(t *testing.T) {
 	}
 }
 
+// TestHandler_PaginationInvalidBecomesInvalidArgument pins the wire mapping of a rejected page
+// token (RFC 0014 §6): the reader's ErrPaginationInvalid leaves the server as InvalidArgument,
+// so a remote client can tell a bad token from a failing backend.
+func TestHandler_PaginationInvalidBecomesInvalidArgument(t *testing.T) {
+	readerErr := fmt.Errorf("%w: page token does not match the query", tracestore.ErrPaginationInvalid)
+	t.Run("FindTraceIDs", func(t *testing.T) {
+		reader := new(tracestoremocks.Reader)
+		reader.On("FindTraceIDs", mock.Anything, mock.Anything).
+			Return(iter.Seq2[tracestore.PageChunk[[]tracestore.FoundTraceID], error](func(yield func(tracestore.PageChunk[[]tracestore.FoundTraceID], error) bool) {
+				yield(tracestore.PageChunk[[]tracestore.FoundTraceID]{}, readerErr)
+			})).Once()
+		handler := NewHandler(reader, new(tracestoremocks.Writer), new(depstoremocks.Reader))
+
+		_, err := handler.FindTraceIDs(context.Background(), &storage.FindTraceIDsRequest{
+			Query: &storage.TraceQueryParameters{},
+		})
+		require.Equal(t, codes.InvalidArgument, status.Code(err))
+		assert.Contains(t, status.Convert(err).Message(), "page token does not match the query")
+	})
+	t.Run("FindTraceSummaries", func(t *testing.T) {
+		reader := new(tracestoremocks.Reader)
+		reader.On("FindTraceSummaries", mock.Anything, mock.Anything).
+			Return(iter.Seq2[tracestore.PageChunk[[]tracestore.TraceSummary], error](func(yield func(tracestore.PageChunk[[]tracestore.TraceSummary], error) bool) {
+				yield(tracestore.PageChunk[[]tracestore.TraceSummary]{}, readerErr)
+			})).Once()
+		handler := NewHandler(reader, new(tracestoremocks.Writer), new(depstoremocks.Reader))
+
+		err := handler.FindTraceSummaries(&storage.FindTraceSummariesRequest{
+			Query: &storage.TraceQueryParameters{},
+		}, &summaryStream{})
+		require.Equal(t, codes.InvalidArgument, status.Code(err))
+		assert.Contains(t, status.Convert(err).Message(), "page token does not match the query")
+	})
+}
+
 func TestHandler_FindTraceIDsUsesFinalChunkNextPageToken(t *testing.T) {
 	query := tracestore.TraceQueryParams{
 		ServiceName: "service",

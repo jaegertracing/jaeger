@@ -456,6 +456,10 @@ func (qs QueryService) FindTraceSummaries(
 		for chunk, err := range qs.traceReader.FindTraceSummaries(ctx, readerQuery) {
 			if err != nil {
 				if errors.Is(err, errors.ErrUnsupported) {
+					if readerQuery.Pagination != nil {
+						qs.summarizeTraceIDPages(ctx, readerQuery, yield)
+						return
+					}
 					// Fall back to FindTraces + aggregation. The fallback loads whole traces, so
 					// the interceptors get the same say over them as on a FindTraces search; the
 					// summaries computed from them carry no spans and have no hook of their own.
@@ -483,6 +487,45 @@ func (qs QueryService) FindTraceSummaries(
 			if !yield(result, nil) {
 				return
 			}
+		}
+	}
+}
+
+// summarizeTraceIDPages is the FindTraceSummaries fallback for a paginated query. FindTraces
+// refuses pagination, so the fallback pages through FindTraceIDs instead, loads each page's
+// traces with GetTraces, and passes the page token through unchanged. The loaded traces go
+// through the interceptors as they do on the unpaginated fallback.
+func (qs QueryService) summarizeTraceIDPages(
+	ctx context.Context,
+	query tracestore.TraceQueryParams,
+	yield func(PageChunk[[]tracestore.TraceSummary], error) bool,
+) {
+	for ids, err := range qs.traceReader.FindTraceIDs(ctx, query) {
+		if err != nil {
+			yield(PageChunk[[]tracestore.TraceSummary]{}, err)
+			return
+		}
+		var summaries []tracestore.TraceSummary
+		if len(ids.Results) > 0 {
+			params := make([]tracestore.GetTraceParams, len(ids.Results))
+			for i, id := range ids.Results {
+				params[i] = tracestore.GetTraceParams{TraceID: id.TraceID, Start: id.Start, End: id.End}
+			}
+			traces := qs.interceptTraceResults(ctx, qs.traceReader.GetTraces(ctx, params...))
+			for batch, err := range computeSummaries(traces, qs.adjuster) {
+				if err != nil {
+					yield(PageChunk[[]tracestore.TraceSummary]{}, err)
+					return
+				}
+				summaries = append(summaries, batch...)
+			}
+		}
+		page := PageChunk[[]tracestore.TraceSummary]{
+			Results:       summaries,
+			NextPageToken: string(ids.NextPageToken),
+		}
+		if !yield(page, nil) {
+			return
 		}
 	}
 }

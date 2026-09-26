@@ -141,6 +141,9 @@ func (t *Tenant) findTraceAndIds(query tracestore.TraceQueryParams) ([]traceAndI
 	if query.SearchDepth <= 0 || query.SearchDepth > t.config.MaxTraces {
 		return nil, errInvalidSearchDepth
 	}
+	if err := validateFilterShape(query.Filter); err != nil {
+		return nil, err
+	}
 	t.mu.RLock()
 	defer t.mu.RUnlock()
 	traceAndIds := make([]traceAndId, 0, query.SearchDepth)
@@ -167,17 +170,16 @@ func (t *Tenant) findTraceAndIds(query tracestore.TraceQueryParams) ([]traceAndI
 // within [query.StartTimeMin, query.StartTimeMax] (a zero bound is unbounded)
 // and match query.Filter. Matches are sorted by spanKey; the page starts after
 // the key `after` (at the beginning when nil) and holds at most
-// query.Pagination.PageSize spans when that is positive. The returned key is
-// the last span's if more matches remain, and nil otherwise. Each span is
-// copied with its own resource and scope, since one result can hold spans from
-// many traces and resources (RFC 0016).
+// query.Pagination.PageSize spans when that is positive. A zero PageSize
+// returns every match; the query service always sets one (RFC 0016 §6). The
+// returned key is the last span's if more matches remain, and nil otherwise.
+// Each span is copied with its own resource and scope, since one result can
+// hold spans from many traces and resources (RFC 0016), so the result shares
+// nothing with the store.
 //
 // query.Filter's shape is checked once, before any span is visited, rather
 // than per span: an unsupported operator or a wrong argument count is a
 // static property of the filter, not something that can vary span to span.
-//
-// The returned Traces shares backing storage with the tenant's own copy;
-// callers must clone before handing it to a reader, as with findTraceAndIds.
 func (t *Tenant) findSpans(query tracestore.SpanQueryParams, after *spanKey) (ptrace.Traces, *spanKey, error) {
 	if err := validateFilterShape(query.Filter); err != nil {
 		return ptrace.Traces{}, nil, err
@@ -228,6 +230,9 @@ func (t *Tenant) findSpans(query tracestore.SpanQueryParams, after *spanKey) (pt
 func (t *Tenant) findTraceAndIdsPage(query tracestore.TraceQueryParams, after *traceKey) ([]traceAndId, *traceKey, error) {
 	if query.Pagination.PageSize <= 0 {
 		return nil, nil, fmt.Errorf("%w: page size must be greater than 0", tracestore.ErrPaginationInvalid)
+	}
+	if err := validateFilterShape(query.Filter); err != nil {
+		return nil, nil, err
 	}
 	t.mu.RLock()
 	defer t.mu.RUnlock()
