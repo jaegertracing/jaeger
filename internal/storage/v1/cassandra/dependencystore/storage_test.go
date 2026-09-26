@@ -254,6 +254,93 @@ func TestGetBuckets(t *testing.T) {
 		}
 	)
 	assert.Equal(t, expected, getBuckets(start, end))
+
+	// Test custom bucket width
+	expectedCustom := []time.Time{
+		time.Date(2017, time.January, 24, 0, 0, 0, 0, time.UTC),
+		time.Date(2017, time.January, 24, 12, 0, 0, 0, time.UTC),
+		time.Date(2017, time.January, 25, 0, 0, 0, 0, time.UTC),
+		time.Date(2017, time.January, 25, 12, 0, 0, 0, time.UTC),
+		time.Date(2017, time.January, 26, 0, 0, 0, 0, time.UTC),
+	}
+	assert.Equal(t, expectedCustom, getBuckets(start, end, 12*time.Hour))
+}
+
+func TestWithTimeBucket(t *testing.T) {
+	session := &mocks.Session{}
+	store, err := NewDependencyStore(session, metrics.NullFactory, zap.NewNop(), V2, WithTimeBucket(12*time.Hour))
+	require.NoError(t, err)
+	assert.Equal(t, 12*time.Hour, store.tsBucket)
+
+	// Zero or negative bucket should not override default
+	storeDefault, err := NewDependencyStore(session, metrics.NullFactory, zap.NewNop(), V2, WithTimeBucket(0))
+	require.NoError(t, err)
+	assert.Equal(t, defaultTsBucket, storeDefault.tsBucket)
+}
+
+func TestDependencyStoreWrite_CustomTimeBucket(t *testing.T) {
+	session := &mocks.Session{}
+	query := &mocks.Query{}
+	query.On("Exec").Return(nil)
+
+	var args []any
+	captureArgs := mock.MatchedBy(func(v []any) bool {
+		args = v
+		return true
+	})
+	session.On("Query", mock.AnythingOfType("string"), captureArgs).Return(query)
+
+	store, err := NewDependencyStore(session, metrics.NullFactory, zap.NewNop(), V2, WithTimeBucket(2*time.Hour))
+	require.NoError(t, err)
+
+	ts := time.Date(2017, time.January, 24, 11, 15, 17, 12345, time.UTC)
+	dependencies := []model.DependencyLink{
+		{Parent: "a", Child: "b", CallCount: 1, Source: model.JaegerDependencyLinkSource},
+	}
+	err = store.WriteDependencies(ts, dependencies)
+	require.NoError(t, err)
+
+	require.Len(t, args, 3)
+	// Truncated to 2-hour boundary: 11:15:17 -> 10:00:00
+	expectedBucket := time.Date(2017, time.January, 24, 10, 0, 0, 0, time.UTC)
+	assert.Equal(t, expectedBucket, args[1])
+}
+
+func TestDependencyStoreGetDependencies_CustomTimeBucket(t *testing.T) {
+	session := &mocks.Session{}
+	iter := &mocks.Iterator{}
+	iter.On("Scan", matchEverything()).Return(false)
+	iter.On("Close").Return(nil)
+
+	query := &mocks.Query{}
+	query.On("Consistency", cassandra.One).Return(query)
+	query.On("Iter").Return(iter)
+
+	var capturedBuckets []time.Time
+	captureArgs := mock.MatchedBy(func(v []any) bool {
+		if len(v) > 0 {
+			if buckets, ok := v[0].([]time.Time); ok {
+				capturedBuckets = buckets
+			}
+		}
+		return true
+	})
+	session.On("Query", mock.AnythingOfType("string"), captureArgs).Return(query)
+
+	store, err := NewDependencyStore(session, metrics.NullFactory, zap.NewNop(), V2, WithTimeBucket(6*time.Hour))
+	require.NoError(t, err)
+
+	endTs := time.Date(2017, time.January, 24, 15, 0, 0, 0, time.UTC)
+	_, err = store.GetDependencies(context.Background(), endTs, 12*time.Hour)
+	require.NoError(t, err)
+
+	// startTs = 03:00:00, truncated to 6h bucket -> 00:00:00, then 06:00:00, 12:00:00
+	expectedBuckets := []time.Time{
+		time.Date(2017, time.January, 24, 0, 0, 0, 0, time.UTC),
+		time.Date(2017, time.January, 24, 6, 0, 0, 0, time.UTC),
+		time.Date(2017, time.January, 24, 12, 0, 0, 0, time.UTC),
+	}
+	assert.Equal(t, expectedBuckets, capturedBuckets)
 }
 
 func matchEverything() any {
