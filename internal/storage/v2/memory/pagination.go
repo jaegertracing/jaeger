@@ -107,9 +107,11 @@ func cursorOf[K any](token tracestore.PageToken, fingerprint []byte, decode func
 	return &key, nil
 }
 
-// page returns the elements that follow the key after (all elements when after is nil), at most
-// size of them when size is positive. If elements remain beyond the page, it also returns the
-// key of the page's last element, the next page's cursor.
+// page returns the elements that follow the key after (all elements when after is nil), size of
+// them when size is positive. If elements remain beyond the page, it also returns the key of the
+// page's last element, the next page's cursor. Elements that share that key stay on the page,
+// since the cursor cannot resume between them: a span stored twice is returned twice rather than
+// skipped (RFC 0016 §6), so the page grows past size by the number of duplicates.
 func page[T any, K any](sorted []T, keyOf func(T) K, compare func(K, K) int, after *K, size int) ([]T, *K) {
 	start := 0
 	if after != nil {
@@ -120,5 +122,12 @@ func page[T any, K any](sorted []T, keyOf func(T) K, compare func(K, K) int, aft
 		return rest, nil
 	}
 	last := keyOf(rest[size-1])
-	return rest[:size], &last
+	end := size
+	for end < len(rest) && compare(keyOf(rest[end]), last) == 0 {
+		end++
+	}
+	if end == len(rest) {
+		return rest, nil
+	}
+	return rest[:end], &last
 }

@@ -580,6 +580,9 @@ func TestValueInList_EmptyTypeInfersFromOperand(t *testing.T) {
 	assert.True(t, valueInList(evalValue{isBool: true, boolean: true}, &expression.List{Values: []string{"true"}}))
 	assert.False(t, valueInList(evalValue{isOpaque: true}, &expression.List{Values: []string{"anything"}}),
 		"opaque has no kind to infer, so it never matches an untyped list")
+	assert.True(t, valueInList(evalValue{isInt: true, numInt: 500}, &expression.List{Values: []string{"500.0"}}),
+		"an untyped list matches whatever an untyped eq matches, and eq reads 500.0 against an int attribute as a number")
+	assert.False(t, valueInList(evalValue{isInt: true, numInt: 500}, &expression.List{Values: []string{"five hundred"}}))
 }
 
 func TestValueInList_ExplicitDoubleType(t *testing.T) {

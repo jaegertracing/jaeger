@@ -96,6 +96,29 @@ func TestFindSpans_CursorSurvivesWritesBetweenPages(t *testing.T) {
 	assert.Equal(t, []string{"call-backend"}, spanNames(second.Results))
 }
 
+// TestFindSpans_DuplicateSpansStayOnOnePage pins RFC 0016 §6's promise that a span stored
+// twice is returned twice rather than skipped. The two copies share the whole sort key, so a
+// cursor cannot resume between them, and the page keeps both instead of ending on the first.
+func TestFindSpans_DuplicateSpansStayOnOnePage(t *testing.T) {
+	store, err := NewStore(Configuration{MaxTraces: 10})
+	require.NoError(t, err)
+	base := time.Date(2026, 3, 1, 12, 0, 0, 0, time.UTC)
+	writeTracesStartingAt(t, store, 2, base)
+	writeTracesStartingAt(t, store, 2, base) // stores every span a second time
+	query := tracestore.SpanQueryParams{Pagination: tracestore.Pagination{PageSize: 1}}
+
+	first, err := findSpansPage(t, store, query)
+	require.NoError(t, err)
+	assert.Equal(t, 2, first.Results.SpanCount(), "both copies of the newest span, though the page asked for one")
+	require.NotEmpty(t, first.NextPageToken)
+
+	query.Pagination.PageToken = first.NextPageToken
+	second, err := findSpansPage(t, store, query)
+	require.NoError(t, err)
+	assert.Equal(t, 2, second.Results.SpanCount(), "both copies of the older span")
+	assert.Empty(t, second.NextPageToken, "nothing follows the duplicates, so no token")
+}
+
 func TestFindSpans_PageThatEndsExactlyCarriesNoToken(t *testing.T) {
 	store, _ := writeTwoTraceStore(t)
 	chunk, err := findSpansPage(t, store, tracestore.SpanQueryParams{Pagination: tracestore.Pagination{PageSize: 3}})
@@ -379,7 +402,7 @@ func TestFindTraceIDs_CursorSurvivesWritesBetweenPages(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, []byte{3}, traceIDBytes(first.Results))
 
-	writeTracesStartingAt(t, store, 9, base) // rewrites 1..3 unchanged and adds 4..9, all newer
+	writeTracesStartingAt(t, store, 9, base) // appends a copy of 1..3's spans and adds 4..9, all newer
 	query.Pagination.PageToken = first.NextPageToken
 	second, err := findTraceIDsPage(t, store, query)
 	require.NoError(t, err)

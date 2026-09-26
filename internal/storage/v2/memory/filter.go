@@ -479,28 +479,23 @@ func timeFieldType(ref expression.Expression) (expression.FieldType, bool) {
 // kind may match, and each element is parsed as that kind — a numeric
 // attribute does not match a string-typed list containing its digits, and a
 // string attribute does not match an int-typed list the same way. An empty
-// Type means the elements are read at whatever kind v itself resolved to,
-// the same way an untyped scalar beside an attribute is (coerceUntyped):
-// neither the list nor an attribute reference has a static type to supply
-// one otherwise.
+// Type means each element is read against v the way an untyped scalar beside
+// an attribute is (resolveComparable): neither the list nor an attribute
+// reference has a static type to supply one otherwise.
 func valueInList(v evalValue, list *expression.List) bool {
-	kind := list.Type
-	if kind == "" {
-		switch {
-		case v.isString:
-			kind = expression.ValueTypeString
-		case v.isInt:
-			kind = expression.ValueTypeInt
-		case v.isNumber:
-			kind = expression.ValueTypeDouble
-		case v.isBool:
-			kind = expression.ValueTypeBool
-		default:
-			// Opaque or still-untyped: nothing to match at any kind.
-			return false
+	if list.Type == "" {
+		// An untyped list is a disjunction of untyped equalities (RFC 0005 §5.4), so each
+		// element is read against v exactly as an untyped scalar beside v is, and `in`
+		// matches whatever `eq` would.
+		for _, elem := range list.Values {
+			a, b, ok := resolveComparable(v, evalValue{isUntyped: true, str: elem})
+			if ok && compareValues(a, b) == 0 {
+				return true
+			}
 		}
+		return false
 	}
-	switch kind {
+	switch list.Type {
 	case expression.ValueTypeString:
 		return v.isString && slices.Contains(list.Values, v.str)
 	case expression.ValueTypeInt:
