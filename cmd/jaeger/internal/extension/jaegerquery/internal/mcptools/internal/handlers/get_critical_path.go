@@ -121,6 +121,7 @@ func (*getCriticalPathHandler) buildOutput(
 	// Build a map of span ID to service name
 	serviceMap := make(map[string]string)
 	var traceStartTime uint64
+	haveStartTime := false
 	var traceEndTime uint64
 
 	for i := 0; i < trace.ResourceSpans().Len(); i++ {
@@ -140,8 +141,9 @@ func (*getCriticalPathHandler) buildOutput(
 				startTime := uint64(span.StartTimestamp()) / 1000 // Convert to microseconds
 				endTime := uint64(span.EndTimestamp()) / 1000
 
-				if traceStartTime == 0 || startTime < traceStartTime {
+				if !haveStartTime || startTime < traceStartTime {
 					traceStartTime = startTime
+					haveStartTime = true
 				}
 				if endTime > traceEndTime {
 					traceEndTime = endTime
