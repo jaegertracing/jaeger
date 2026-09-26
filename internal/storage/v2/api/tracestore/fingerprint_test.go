@@ -104,6 +104,20 @@ func TestTraceQueryFingerprint_AttributeOrderDoesNotMatter(t *testing.T) {
 	assert.Equal(t, base, reordered)
 }
 
+// TestTraceQueryFingerprint_LocationDoesNotMatter pins that the same instant fingerprints alike
+// whatever location its time.Time carries, since the gRPC handler decodes timestamps in UTC and
+// the HTTP gateway may not, and one query can arrive over either on consecutive pages.
+func TestTraceQueryFingerprint_LocationDoesNotMatter(t *testing.T) {
+	q := sampleTraceQuery()
+	q.StartTimeMin = windowStart.In(time.FixedZone("east", 5*3600))
+	q.StartTimeMax = windowEnd.Local()
+	relocated, err := q.Fingerprint()
+	require.NoError(t, err)
+	base, err := sampleTraceQuery().Fingerprint()
+	require.NoError(t, err)
+	assert.Equal(t, base, relocated)
+}
+
 // TestTraceQueryFingerprint_EverySelectingFieldCounts changes each selecting field in turn and expects a
 // different fingerprint, since each one changes which results the cursor is a position among.
 func TestTraceQueryFingerprint_EverySelectingFieldCounts(t *testing.T) {
