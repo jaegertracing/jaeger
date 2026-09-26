@@ -35,7 +35,8 @@ var ErrPaginationUnsupported = errors.New("this storage backend cannot resume a 
 // ErrPaginationInvalid is returned for a query whose Pagination is malformed on its own
 // terms, independent of any backend: one that also sets SearchDepth, since the two bounds
 // have no single honest meaning together, or one that leaves PageSize at zero, since a
-// Pagination with no page size does not describe a page (RFC 0014 §4).
+// Pagination with no page size does not describe a page (RFC 0014 §4). A Reader returns it
+// for a PageToken it did not produce or produced for a different query (RFC 0014 §3.2).
 var ErrPaginationInvalid = errors.New("invalid pagination")
 
 // ErrPaginationUnsupportedByFindTraces is returned for a FindTraces query that carries
@@ -82,10 +83,10 @@ type SearchCapabilities struct {
 
 	// Paginated is true when FindTraceIDs and FindTraceSummaries honor
 	// TraceQueryParams.Pagination and let a caller resume a search past its first page
-	// (RFC 0014). False, the zero value, means the reader cannot paginate: the query
-	// service serves a single page capped at Pagination.PageSize or SearchDepth and
-	// rejects a query that carries a PageToken, since a reader that cannot paginate
-	// cannot have minted a valid one.
+	// (RFC 0014). False, the zero value, means the reader cannot paginate: it returns an
+	// empty PageChunk.NextPageToken, the query service serves a single page capped at
+	// Pagination.PageSize or SearchDepth, and it rejects a query that carries a PageToken,
+	// since a reader that cannot paginate cannot have produced a valid one.
 	Paginated bool
 
 	// SpanSearch is true when FindSpans is supported by the backend. False means that the

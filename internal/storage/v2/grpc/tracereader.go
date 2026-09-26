@@ -193,7 +193,7 @@ func (tr *TraceReader) FindTraceIDs(
 		}
 		yield(tracestore.PageChunk[[]tracestore.FoundTraceID]{
 			Results:       foundTraceIDs,
-			NextPageToken: resp.GetNextPageToken(),
+			NextPageToken: tracestore.PageToken(resp.GetNextPageToken()),
 		}, nil)
 	}
 }
@@ -230,7 +230,7 @@ func (tr *TraceReader) FindTraceSummaries(
 			}
 			chunk := tracestore.PageChunk[[]tracestore.TraceSummary]{
 				Results:       convertSummaryBatch(resp.GetSummaries()),
-				NextPageToken: resp.GetNextPageToken(),
+				NextPageToken: tracestore.PageToken(resp.GetNextPageToken()),
 			}
 			if !yield(chunk, nil) {
 				return
@@ -299,7 +299,7 @@ func toProtoQueryParameters(t tracestore.TraceQueryParams) (*storage.TraceQueryP
 		// cast cannot overflow.
 		q.Pagination = &storage.Pagination{
 			PageSize:  uint32(t.Pagination.PageSize), //nolint:gosec // G115
-			PageToken: t.Pagination.PageToken,
+			PageToken: string(t.Pagination.PageToken),
 		}
 	}
 	return q, nil
