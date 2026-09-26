@@ -44,8 +44,8 @@ def test_extract_trace_context_with_empty_meta_returns_current_context() -> None
 
 
 def test_extract_trace_context_ignores_unrelated_meta_keys() -> None:
-    # Same dict shape _extract_contextual_tools reads from — must not choke
-    # on sibling keys it doesn't recognize.
+    # _meta can carry namespaced keys from other concerns — extraction must not
+    # choke on siblings it doesn't recognize.
     meta = {
         "jaegertracing.io/contextual-tools": {"tools": []},
         "traceparent": _traceparent(),

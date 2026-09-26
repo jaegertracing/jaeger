@@ -5,10 +5,9 @@ This folder contains the Python ACP sidecar used by the Jaeger AI gateway.
 The sidecar:
 - Listens on `ws://localhost:16688` by default
 - Runs a Gemini-backed ACP agent
-- Uses Jaeger MCP tools from `http://127.0.0.1:16687/mcp`
-- Registers per-turn **contextual (AG-UI) tools** the gateway attaches via
-  `NewSessionRequest._meta`, and dispatches their invocations back to the
-  gateway over an ACP **extension method** (`_meta/jaegertracing.io/tools/call`)
+- Calls every tool through the gateway's turn-scoped MCP endpoint, whose URL the
+  gateway announces in `session/new` — telemetry tools and the browser's per-turn
+  UI tools arrive as one flat tool set, over one connection
 
 ## Prerequisites
 
@@ -27,25 +26,22 @@ export GEMINI_API_KEY="your_api_key_here"
 
 Without this key, the sidecar cannot create the Gemini client.
 
-Optional MCP endpoint override:
+There is no MCP endpoint to configure. The gateway announces the URL of the
+turn-scoped MCP endpoint in every `session/new`, and the sidecar dials what it
+was given — so the sidecar holds no Jaeger address of its own.
 
-```bash
-export JAEGER_MCP_URL="http://127.0.0.1:16687/mcp"
-```
-
-If unset, the sidecar defaults to `http://127.0.0.1:16687/mcp`.
-
-Optional MCP discovery timeout override:
+Optional MCP connect timeout override:
 
 ```bash
 export JAEGER_MCP_DISCOVERY_TIMEOUT_SEC="15"
 ```
 
-This controls the timeout for a single MCP tool discovery attempt.
+This controls how long the sidecar waits when connecting to the announced
+endpoint and listing its tools.
 
 ## Tracing
 
-The sidecar emits OpenTelemetry traces under service name `jaeger-gemini-sidecar`. Spans cover prompt handling, the agentic Gemini loop, MCP tool discovery, MCP tool calls, and contextual tool dispatches. Gemini calls are auto-instrumented via `opentelemetry-instrumentation-google-generativeai` and use the OTel GenAI semantic conventions.
+The sidecar emits OpenTelemetry traces under service name `jaeger-gemini-sidecar`. Spans cover prompt handling, the agentic Gemini loop, connecting to the announced MCP endpoint, and MCP tool calls. Each MCP request carries the current trace context in its `_meta`, so the gateway's `tools/list` and `tools/call` spans appear under the sidecar spans that sent them, in the same trace. Gemini calls are auto-instrumented via `opentelemetry-instrumentation-google-generativeai` and use the OTel GenAI semantic conventions.
 
 Traces are exported over OTLP/gRPC. The default target (`http://localhost:4317`) matches the Jaeger all-in-one OTLP receiver, which makes the sidecar appear as its own service in the Jaeger UI.
 
@@ -109,7 +105,6 @@ Useful runtime flags:
 ```bash
 uv run python main.py \
   --host localhost --port 16688 \
-  --mcp-url http://127.0.0.1:16687/mcp \
   --mcp-discovery-timeout-sec 15 \
   --otlp-endpoint http://localhost:4317 --otlp-insecure
 ```
@@ -117,40 +112,44 @@ uv run python main.py \
 ## Code Layout
 
 - `main.py`: entrypoint, CLI/env parsing, WebSocket server bootstrap.
-- `sidecar.py`: ACP agent handlers, contextual-tool routing, WebSocket transport bridge.
-- `mcp_bridge.py`: MCP discovery/call bridge used by the agent.
+- `sidecar.py`: ACP agent handlers, Gemini agentic loop, WebSocket transport bridge.
+- `gateway_mcp_client.py`: per-turn MCP client for the endpoint the gateway announced.
 - `sidecar_config.py`: validated runtime configuration model.
-- `sidecar_helpers.py`: tool serialization/declaration helper functions.
+- `sidecar_helpers.py`: announcement parsing and tool serialization helpers.
 
 ## Architecture
+
+Every tool the agent can call is served by the gateway, at one turn-scoped MCP
+endpoint whose URL arrives in `session/new`. The sidecar has a single tool
+egress and no Jaeger address of its own — it cannot reach past the gateway, and
+the gateway sees every call.
 
 ```mermaid
 graph LR
     subgraph Jaeger Process
         GW[Jaeger AI Gateway]
-        MCP[MCP Server<br/>:16687/mcp]
+        MCP["Turn-scoped MCP endpoint<br/>/api/ai/mcp/&lt;turn&gt;/<br/>telemetry + this turn's UI tools"]
+        GW --- MCP
     end
 
     subgraph Agent Sidecar
         WS[WebSocket Server<br/>:16688]
         ACP[ACP Handler]
         Loop[Gemini Loop]
-        Bridge[MCP Client]
-        CTX[Per-session<br/>contextual tool snapshot]
+        Client["GatewayMCPClient<br/>(one per turn)"]
     end
 
     subgraph External
         Gemini[Gemini API<br/>gemini-2.5-flash]
     end
 
-    GW <-- "WebSocket (ACP)<br/>incl. _meta/jaegertracing.io/tools/call" --> WS
+    GW <-- "WebSocket (ACP)" --> WS
     WS <--> ACP
+    ACP -- "announced URL + headers<br/>from session/new" --> Client
     ACP <--> Loop
-    ACP -- "_meta on NewSession" --> CTX
-    Loop --> Bridge
-    Bridge -- "HTTP<br/>(MCP tools)" --> MCP
+    Loop --> Client
+    Client -- "HTTP (MCP)" --> MCP
     Loop -- "HTTPS<br/>(prompts + function calls)" --> Gemini
-    CTX -.-> Loop
 ```
 
 ### Sequence Diagram
@@ -159,13 +158,13 @@ graph LR
 sequenceDiagram
     box Jaeger Process
         participant GW as Jaeger AI Gateway
-        participant JMCP as MCP Server
+        participant JMCP as Turn-scoped MCP endpoint
     end
     box Agent Sidecar
         participant HW as WebSocket Server
         participant ACP as ACP Handler
         participant GL as Gemini Loop
-        participant MCP as MCP Client
+        participant MCP as GatewayMCPClient
     end
     box Gemini API
         participant GEM as Gemini
@@ -173,83 +172,60 @@ sequenceDiagram
 
     GW->>HW: WebSocket connect
     HW->>ACP: forward incoming ACP messages
-    ACP->>ACP: NewSession — stash contextual tools from _meta
+    ACP->>ACP: session/new — record announced URL + headers
     ACP->>GL: initialize/new_session/prompt
 
     GL->>MCP: get_gemini_tools()
-    MCP->>JMCP: discover tools
-    JMCP-->>MCP: tool metadata
+    MCP->>JMCP: connect (announced headers) + list tools
+    JMCP-->>MCP: telemetry tools + this turn's UI tools
     MCP-->>GL: declarations
-    GL->>GL: merge MCP + contextual declarations
 
-    GL->>GEM: send user prompt (mcp + contextual tools)
+    GL->>GEM: send user prompt (one tool set)
     GEM-->>GL: function_calls or final text
 
     loop For each function call
-        alt Built-in MCP tool
-            GL->>MCP: call_tool(name,args)
-            MCP->>JMCP: execute tool
-            JMCP-->>MCP: tool output
-            MCP-->>GL: tool result
-        else Contextual (frontend-supplied) tool
-            GL->>GW: ext_method "_meta/jaegertracing.io/tools/call"<br/>{sessionId, name, args}
-            GW-->>GL: AG-UI tool call result
-        end
+        GL->>MCP: call_tool(name,args)
+        MCP->>JMCP: execute tool
+        note over GW,JMCP: a UI tool is dispatched by the gateway<br/>to the browser over the turn's SSE stream
+        JMCP-->>MCP: tool output
+        MCP-->>GL: tool result
         GL->>GEM: send function response
         GEM-->>GL: next function_calls or final text
     end
 
     GL-->>ACP: final text + session_update + end_turn
     ACP-->>GW: streamed updates + response
-    ACP->>ACP: drop contextual snapshot for this session_id
+    ACP->>ACP: close the turn's MCP client
 
     GW->>HW: close
     HW->>HW: cancel tasks + close streams/sockets
 ```
 
-## Contextual Tools
+## UI Tools
 
-In addition to the built-in Jaeger MCP tools, the sidecar supports
-**contextual tools** that the Jaeger UI attaches per chat turn. The flow:
+The Jaeger UI can attach its own tools to a chat turn — "UI tools", which run in
+the browser rather than on the server. The sidecar needs no special handling for
+them, and that is the point of this design:
 
-1. **Receive snapshot.** When the gateway calls `NewSession`, it may include
-   `_meta` (parsed by the Python ACP runtime as `field_meta`) containing the
-   namespaced key `jaegertracing.io/contextual-tools` with shape:
-   ```json
-   { "tools": [ { "name": "...", "description": "...", "parameters": { ... } } ] }
-   ```
-   The sidecar stashes this list per `session_id` in
-   `JaegerSidecarAgent._contextual_tools`.
+1. **The gateway merges them in.** The turn-scoped MCP endpoint advertises the
+   built-in telemetry tools *plus* whatever UI tools the frontend declared for
+   that turn. The sidecar lists tools once and sees one flat set.
 
-2. **Register with Gemini.** During `prompt`, the sidecar builds a Gemini
-   `Tool` from the contextual snapshot's `FunctionDeclaration`s and merges it
-   with the discovered MCP tools before passing them to `chats.create()`.
+2. **The sidecar calls them like any other tool.** When Gemini emits a
+   `function_call`, the sidecar dispatches it to the MCP endpoint. It does not
+   inspect the name or choose a route — there is only one route.
 
-3. **Route on call.** When Gemini emits a `function_call`, the sidecar checks
-   the name against the contextual set:
-   - **MCP name** → call the Jaeger MCP server directly (existing path).
-   - **Contextual name** → dispatch the ACP extension method
-     `_meta/jaegertracing.io/tools/call` back to the gateway with
-     `{sessionId, name, args}`. The Python ACP runtime adds the leading
-     underscore at send-time, so the constant in `sidecar.py` reads
-     `meta/jaegertracing.io/tools/call`.
+3. **The gateway dispatches to the browser.** For a UI tool, the gateway
+   forwards the call over the turn's SSE stream as `TOOL_CALL_*` AG-UI events;
+   the browser executes it locally. The sidecar emits no `session_update` of its
+   own, because the gateway is the single source of those events — emitting from
+   both sides would double every event on the wire.
 
-4. **Stream progress.** The sidecar emits `session_update` events
-   (`start_tool_call` then `update_tool_call`) so the gateway can render
-   tool progress in the chat stream just like it does for MCP tools.
-
-5. **Cleanup.** After `prompt` returns (success or error), the sidecar
-   `pop`s the snapshot for the session_id so the per-session dict does not
-   grow unboundedly. The gateway opens one ACP session per chat request and
-   never reuses the session_id, so the cleanup is unconditional.
-
-The gateway treats contextual tool dispatches as **fire-and-forget side
-effects**: it acknowledges immediately with `{result: {acknowledged: true},
-isError: false}` so Gemini's agentic loop continues with a real function
-response and produces a final answer in the same turn. The browser sees the
-`TOOL_CALL_*` AG-UI events on its SSE stream and performs the side effect
-locally (navigate, render, etc.) without sending a tool-result back. UI tools
-are commands rather than queries, so this matches the natural semantics.
+Earlier revisions of this sidecar dispatched UI tools back through the ACP
+extension method `_meta/jaegertracing.io/tools/call` and kept a per-session
+snapshot of the frontend's tools. Both are gone: the extension method was a
+second dispatch path that the gateway could not observe uniformly, which is the
+inversion-of-control problem RFC 0008 set out to remove.
 
 ## End-to-End Test
 
