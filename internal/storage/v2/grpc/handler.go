@@ -184,7 +184,7 @@ func (h *Handler) FindTraceSummaries(
 		}
 		response := &storage.FindTraceSummariesResponse{
 			Summaries:     batch,
-			NextPageToken: string(chunk.NextPageToken),
+			NextPageToken: chunk.NextPageToken,
 		}
 		if err := srv.Send(response); err != nil {
 			return err
@@ -218,7 +218,7 @@ func (h *Handler) FindTraceIDs(
 	}
 	return &storage.FindTraceIDsResponse{
 		TraceIds:      foundTraceIDs,
-		NextPageToken: string(nextPageToken),
+		NextPageToken: nextPageToken,
 	}, nil
 }
 
@@ -322,7 +322,7 @@ func (*Handler) toTraceQueryParams(t *storage.TraceQueryParameters) (tracestore.
 	if pagination := t.GetPagination(); pagination != nil {
 		query.Pagination = &tracestore.Pagination{
 			PageSize:  int(pagination.GetPageSize()),
-			PageToken: cursorBytes(pagination.GetPageToken()),
+			PageToken: pagination.GetPageToken(),
 		}
 	}
 	if err := query.EnsureFilterStandsAlone(); err != nil {

@@ -343,14 +343,14 @@ func TestHandler_FindTraceIDs(t *testing.T) {
 	tests := []struct {
 		name             string
 		traceIDs         []tracestore.FoundTraceID
-		nextPageToken    string
+		nextPageToken    []byte
 		expectedTraceIDs []*storage.FoundTraceID
 		findTraceIDsErr  error
 		expectedErr      error
 	}{
 		{
 			name:          "success",
-			nextPageToken: "next-page",
+			nextPageToken: []byte("next-page"),
 			traceIDs: []tracestore.FoundTraceID{
 				{
 					TraceID: traceIDA,
@@ -396,7 +396,7 @@ func TestHandler_FindTraceIDs(t *testing.T) {
 			Return(iter.Seq2[tracestore.PageChunk[[]tracestore.FoundTraceID], error](func(yield func(tracestore.PageChunk[[]tracestore.FoundTraceID], error) bool) {
 				yield(tracestore.PageChunk[[]tracestore.FoundTraceID]{
 					Results:       test.traceIDs,
-					NextPageToken: []byte(test.nextPageToken),
+					NextPageToken: test.nextPageToken,
 				}, test.findTraceIDsErr)
 			})).Once()
 		server := NewHandler(reader, writer, depReader)
@@ -445,7 +445,7 @@ func TestHandler_FindTraceIDsUsesFinalChunkNextPageToken(t *testing.T) {
 	require.Len(t, response.TraceIds, 2)
 	assert.Equal(t, firstID[:], response.TraceIds[0].GetTraceId())
 	assert.Equal(t, secondID[:], response.TraceIds[1].GetTraceId())
-	assert.Equal(t, "next-page", response.GetNextPageToken())
+	assert.Equal(t, []byte("next-page"), response.GetNextPageToken())
 }
 
 func TestHandler_Export(t *testing.T) {
@@ -845,7 +845,7 @@ func TestHandler_FindTraceSummaries_Success(t *testing.T) {
 	}, stream)
 	require.NoError(t, err)
 	require.Len(t, stream.sent, 1)
-	assert.Equal(t, "next-page", stream.sent[0].GetNextPageToken())
+	assert.Equal(t, []byte("next-page"), stream.sent[0].GetNextPageToken())
 	got := stream.sent[0].GetSummaries()
 	require.Len(t, got, 1)
 	assert.Equal(t, want[0].TraceID[:], got[0].GetTraceId())

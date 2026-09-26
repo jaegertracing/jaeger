@@ -144,7 +144,7 @@ func TestQueryParametersCarryPagination(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, sent.GetPagination())
 	assert.Equal(t, uint32(25), sent.GetPagination().GetPageSize())
-	assert.Equal(t, "opaque-cursor", sent.GetPagination().GetPageToken())
+	assert.Equal(t, []byte("opaque-cursor"), sent.GetPagination().GetPageToken())
 
 	decoded, err := NewHandler(new(tracestoremocks.Reader), nil, nil).toTraceQueryParams(sent)
 	require.NoError(t, err)

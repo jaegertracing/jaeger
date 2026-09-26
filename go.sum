@@ -359,8 +359,8 @@ github.com/inconshreveable/mousetrap v1.1.0 h1:wN+x4NVGpMsO7ErUn/mUI3vEoE6Jt13X2
 github.com/inconshreveable/mousetrap v1.1.0/go.mod h1:vpF70FUmC8bwa3OWnCshd2FqLfsEA9PFc4w1p2J65bw=
 github.com/ionos-cloud/sdk-go/v6 v6.3.11 h1:m4mX03vflm631znIPutojJxLZvxD5Mt3xv/soy0kLIc=
 github.com/ionos-cloud/sdk-go/v6 v6.3.11/go.mod h1:nUGHP4kZHAZngCVr4v6C8nuargFrtvt7GrzH/hqn7c4=
-github.com/jaegertracing/jaeger-idl v0.12.0 h1:FDk3ezIqKk7n9/gzxG9NNjDWzZZLh0GiCxhF4H1LRNU=
-github.com/jaegertracing/jaeger-idl v0.12.0/go.mod h1:wWzFftH47XtPRkOM25NPNZ7zBhREWB5HtZBsWj25eW0=
+github.com/jaegertracing/jaeger-idl v0.13.0 h1:LHL0tUJ3njS1kMD7CD6Zw66pwjrtkgvhViCB9H7PRFQ=
+github.com/jaegertracing/jaeger-idl v0.13.0/go.mod h1:XGC1/asZXDZTJdN5ZUooZROTlAc6tsbW6sxtF0PNODk=
 github.com/jcmturner/aescts/v2 v2.0.0 h1:9YKLH6ey7H4eDBXW8khjYslgyqG2xZikXP0EQFKrle8=
 github.com/jcmturner/aescts/v2 v2.0.0/go.mod h1:AiaICIRyfYg35RUkr8yESTqvSy7csK90qZ5xfvvsoNs=
 github.com/jcmturner/dnsutils/v2 v2.0.0 h1:lltnkeZGL0wILNvrNiVCR6Ro5PGU/SeBvVO/8c/iPbo=

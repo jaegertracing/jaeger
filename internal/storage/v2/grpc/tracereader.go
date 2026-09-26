@@ -193,7 +193,7 @@ func (tr *TraceReader) FindTraceIDs(
 		}
 		yield(tracestore.PageChunk[[]tracestore.FoundTraceID]{
 			Results:       foundTraceIDs,
-			NextPageToken: cursorBytes(resp.GetNextPageToken()),
+			NextPageToken: resp.GetNextPageToken(),
 		}, nil)
 	}
 }
@@ -230,7 +230,7 @@ func (tr *TraceReader) FindTraceSummaries(
 			}
 			chunk := tracestore.PageChunk[[]tracestore.TraceSummary]{
 				Results:       convertSummaryBatch(resp.GetSummaries()),
-				NextPageToken: cursorBytes(resp.GetNextPageToken()),
+				NextPageToken: resp.GetNextPageToken(),
 			}
 			if !yield(chunk, nil) {
 				return
@@ -299,7 +299,7 @@ func toProtoQueryParameters(t tracestore.TraceQueryParams) (*storage.TraceQueryP
 		// cast cannot overflow.
 		q.Pagination = &storage.Pagination{
 			PageSize:  uint32(t.Pagination.PageSize), //nolint:gosec // G115
-			PageToken: string(t.Pagination.PageToken),
+			PageToken: t.Pagination.PageToken,
 		}
 	}
 	return q, nil
@@ -375,13 +375,4 @@ func convertValueToAnyValue(v pcommon.Value) *storage.AnyValue {
 	default:
 		return nil
 	}
-}
-
-// cursorBytes carries a cursor from the storage/v2 wire, where it is still a string, into
-// the Go API's bytes. An absent cursor stays nil rather than becoming an empty slice.
-func cursorBytes(cursor string) []byte {
-	if cursor == "" {
-		return nil
-	}
-	return []byte(cursor)
 }

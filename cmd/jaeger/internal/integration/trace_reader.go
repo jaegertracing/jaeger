@@ -229,7 +229,7 @@ func (r *traceReader) FindTraceSummaries(
 			}
 			chunk := tracestore.PageChunk[[]tracestore.TraceSummary]{
 				Results:       batch,
-				NextPageToken: cursorBytes(resp.GetNextPageToken()),
+				NextPageToken: []byte(resp.GetNextPageToken()),
 			}
 			if !yield(chunk, nil) {
 				return
@@ -283,13 +283,4 @@ func unwrapNotFoundErr(err error) error {
 		}
 	}
 	return err
-}
-
-// cursorBytes carries a cursor from the storage/v2 wire, where it is still a string, into
-// the Go API's bytes. An absent cursor stays nil rather than becoming an empty slice.
-func cursorBytes(cursor string) []byte {
-	if cursor == "" {
-		return nil
-	}
-	return []byte(cursor)
 }

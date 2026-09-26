@@ -49,7 +49,7 @@ type testServer struct {
 	operations    []*storage.Operation
 	traceIDs      []*storage.FoundTraceID
 	summaries     []*storage.TraceSummary
-	nextPageToken string
+	nextPageToken []byte
 	err           error
 }
 
@@ -488,7 +488,7 @@ func TestTraceReader_FindTraceIDs(t *testing.T) {
 		{
 			name: "success",
 			testServer: &testServer{
-				nextPageToken: "next-page",
+				nextPageToken: []byte("next-page"),
 				traceIDs: []*storage.FoundTraceID{
 					{
 						TraceId: []byte{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16},
@@ -759,7 +759,7 @@ func TestTraceReader_FindTraceSummaries_Success(t *testing.T) {
 			},
 		},
 	}
-	ts := &testServer{summaries: wantSummaries, nextPageToken: "next-page"}
+	ts := &testServer{summaries: wantSummaries, nextPageToken: []byte("next-page")}
 	conn := startTestServer(t, ts)
 	reader := NewTraceReader(conn)
 
