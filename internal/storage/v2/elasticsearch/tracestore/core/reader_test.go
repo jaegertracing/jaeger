@@ -703,26 +703,30 @@ func returnSearchFunc(typ string, r *spanReaderTest) (any, error) {
 			dbmodel.OperationQueryParameters{ServiceName: "someService"},
 		)
 	case traceIDAggregation:
-		return r.reader.findTraceIDsFromQuery(context.Background(), dbmodel.TraceQueryParameters{})
+		page, err := r.reader.findTraceIDsFromQuery(context.Background(), dbmodel.TraceQueryParameters{})
+		return page.TraceIDs, err
 	default:
 		return nil, errors.New("Specify services, operations, traceIDs only")
 	}
 }
 
-// TestSpanReader_findTraceIDsMultipleBuckets asserts every terms-aggregation
-// bucket key is returned as a trace ID, in order.
-func TestSpanReader_findTraceIDsMultipleBuckets(t *testing.T) {
+// TestSpanReader_findTraceIDsHits asserts hit traceIDs are returned in order with nextPageToken.
+func TestSpanReader_findTraceIDsHits(t *testing.T) {
 	withSpanReader(t, func(r *spanReaderTest) {
-		resp := &esclient.SearchResponse{Aggregations: termsAggregations(map[string]esclient.AggregationResult{
-			traceIDAggregation: {Buckets: []esclient.AggregationBucket{
-				{Key: "hello"}, {Key: "world"}, {Key: "2"},
-			}},
-		})}
+		resp := &esclient.SearchResponse{
+			Hits: esclient.HitsResult{
+				Hits: []esclient.SearchHit{
+					{Source: []byte(`{"traceID":"hello"}`), Sort: []any{1000.0, "hello"}},
+					{Source: []byte(`{"traceID":"world"}`), Sort: []any{2000.0, "world"}},
+				},
+			},
+		}
 		mockSearchService(r).Return(resp, nil)
 
 		actual, err := r.reader.findTraceIDsFromQuery(context.Background(), dbmodel.TraceQueryParameters{})
 		require.NoError(t, err)
-		assert.Equal(t, []dbmodel.TraceID{"hello", "world", "2"}, actual)
+		assert.Equal(t, []dbmodel.TraceID{"hello", "world"}, actual.TraceIDs)
+		assert.NotEmpty(t, actual.NextPageToken)
 	})
 }
 
@@ -730,10 +734,16 @@ func TestSpanReader_FindTraces(t *testing.T) {
 	hits := []esclient.SearchHit{{Source: exampleESSpan}}
 
 	withSpanReader(t, func(r *spanReaderTest) {
-		// find trace IDs
-		mockSearchService(r).Return(&esclient.SearchResponse{Aggregations: termsAggregations(map[string]esclient.AggregationResult{
-			traceIDAggregation: {Buckets: []esclient.AggregationBucket{{Key: "1"}, {Key: "2"}, {Key: "3"}}},
-		})}, nil)
+		// find trace IDs via field collapse hits
+		mockSearchService(r).Return(&esclient.SearchResponse{
+			Hits: esclient.HitsResult{
+				Hits: []esclient.SearchHit{
+					{Source: []byte(`{"traceID":"1"}`)},
+					{Source: []byte(`{"traceID":"2"}`)},
+					{Source: []byte(`{"traceID":"3"}`)},
+				},
+			},
+		}, nil)
 		// bulk read traces
 		mockMultiSearchService(r).Return([]esclient.SearchResponse{
 			{Hits: esclient.HitsResult{Hits: hits}},
@@ -785,34 +795,11 @@ func TestSpanReader_FindTracesRejectsQueryBeforeSearching(t *testing.T) {
 	})
 }
 
-func TestSpanReader_FindTracesAggregationFailure(t *testing.T) {
-	withSpanReader(t, func(r *spanReaderTest) {
-		// Aggregations present but without the traceIDs bucket → aggregation error.
-		mockSearchService(r).Return(&esclient.SearchResponse{
-			Aggregations: termsAggregations(map[string]esclient.AggregationResult{}),
-		}, nil)
-
-		traceQuery := dbmodel.TraceQueryParameters{
-			ServiceName: serviceName,
-			Tags: map[string]string{
-				"hello": "world",
-			},
-			StartTimeMin: time.Now().Add(-1 * time.Hour),
-			StartTimeMax: time.Now(),
-		}
-
-		traces, err := r.reader.FindTraces(context.Background(), traceQuery)
-		require.NotEmpty(t, r.traceBuffer.GetSpans(), "Spans recorded")
-		require.Error(t, err)
-		assert.Nil(t, traces)
-	})
-}
-
 func TestSpanReader_FindTracesNoTraceIDs(t *testing.T) {
 	withSpanReader(t, func(r *spanReaderTest) {
-		mockSearchService(r).Return(&esclient.SearchResponse{Aggregations: termsAggregations(map[string]esclient.AggregationResult{
-			traceIDAggregation: {Buckets: []esclient.AggregationBucket{}},
-		})}, nil)
+		mockSearchService(r).Return(&esclient.SearchResponse{
+			Hits: esclient.HitsResult{Hits: nil},
+		}, nil)
 
 		traceQuery := dbmodel.TraceQueryParameters{
 			ServiceName: serviceName,
@@ -832,9 +819,14 @@ func TestSpanReader_FindTracesNoTraceIDs(t *testing.T) {
 
 func TestSpanReader_FindTracesReadTraceFailure(t *testing.T) {
 	withSpanReader(t, func(r *spanReaderTest) {
-		mockSearchService(r).Return(&esclient.SearchResponse{Aggregations: termsAggregations(map[string]esclient.AggregationResult{
-			traceIDAggregation: {Buckets: []esclient.AggregationBucket{{Key: "1"}, {Key: "2"}}},
-		})}, nil)
+		mockSearchService(r).Return(&esclient.SearchResponse{
+			Hits: esclient.HitsResult{
+				Hits: []esclient.SearchHit{
+					{Source: []byte(`{"traceID":"1"}`)},
+					{Source: []byte(`{"traceID":"2"}`)},
+				},
+			},
+		}, nil)
 		mockMultiSearchService(r).Return(nil, errors.New("read error"))
 
 		traceQuery := dbmodel.TraceQueryParameters{
@@ -858,9 +850,14 @@ func TestSpanReader_FindTracesSpanCollectionFailure(t *testing.T) {
 	badHits := []esclient.SearchHit{{Source: badSpan}}
 
 	withSpanReader(t, func(r *spanReaderTest) {
-		mockSearchService(r).Return(&esclient.SearchResponse{Aggregations: termsAggregations(map[string]esclient.AggregationResult{
-			traceIDAggregation: {Buckets: []esclient.AggregationBucket{{Key: "1"}, {Key: "2"}}},
-		})}, nil)
+		mockSearchService(r).Return(&esclient.SearchResponse{
+			Hits: esclient.HitsResult{
+				Hits: []esclient.SearchHit{
+					{Source: []byte(`{"traceID":"1"}`)},
+					{Source: []byte(`{"traceID":"2"}`)},
+				},
+			},
+		}, nil)
 		mockMultiSearchService(r).Return([]esclient.SearchResponse{
 			{Hits: esclient.HitsResult{Hits: badHits}},
 			{Hits: esclient.HitsResult{Hits: badHits}},
@@ -883,9 +880,7 @@ func TestSpanReader_FindTracesSpanCollectionFailure(t *testing.T) {
 }
 
 func TestFindTraceIDs(t *testing.T) {
-	// Services/operations reads are covered by TestSpanReader_GetServices/
-	// GetOperations; findTraceIDs runs over the esclient searcher exercised here.
-	testGet(traceIDAggregation, t)
+	TestSpanReader_findTraceIDsHits(t)
 }
 
 func TestReturnSearchFunc_DefaultCase(t *testing.T) {
@@ -942,28 +937,20 @@ func TestTraceQueryParameterValidation(t *testing.T) {
 	require.EqualError(t, err, ErrDurationMinGreaterThanMax.Error())
 }
 
-func TestSpanReader_buildTraceIDAggregation(t *testing.T) {
-	expectedStr := `{ "terms":{
-            "field":"traceID",
-            "size":123,
-            "order":{
-               "startTime":"desc"
-            }
-         },
-         "aggregations": {
-            "startTime" : { "max": {"field": "startTime"}}
-         }}`
-	withSpanReader(t, func(r *spanReaderTest) {
-		traceIDAggregation := r.reader.buildTraceIDAggregation(123)
-		actual, err := traceIDAggregation.Source()
-		require.NoError(t, err)
+func TestSpanReader_TraceCursor(t *testing.T) {
+	c := traceCursor{
+		StartTime: 123456789,
+		TraceID:   "1234567890abcdef",
+	}
+	token := encodeTraceCursor(c)
+	require.NotEmpty(t, token)
 
-		expected := make(map[string]any)
-		json.Unmarshal([]byte(expectedStr), &expected)
-		expected["terms"].(map[string]any)["size"] = 123
-		expected["terms"].(map[string]any)["order"] = []any{map[string]string{"startTime": "desc"}}
-		assert.EqualValues(t, expected, actual)
-	})
+	decoded, err := decodeTraceCursor(token)
+	require.NoError(t, err)
+	assert.Equal(t, c, decoded)
+
+	_, err = decodeTraceCursor("invalid-token-!!!")
+	require.Error(t, err)
 }
 
 func TestSpanReader_buildFindTraceIDsQuery(t *testing.T) {
@@ -980,7 +967,7 @@ func TestSpanReader_buildFindTraceIDsQuery(t *testing.T) {
 			},
 		}
 
-		actualQuery, err := r.reader.buildFindTraceIDsQuery(traceQuery)
+		actualQuery, err := r.reader.buildFindTraceIDsBoolQuery(traceQuery)
 		require.NoError(t, err)
 		actual, err := actualQuery.Source()
 		require.NoError(t, err)
@@ -1012,7 +999,7 @@ func TestSpanReader_buildFindTraceIDsQueryWithoutServiceName(t *testing.T) {
 			},
 		}
 
-		actualQuery, err := r.reader.buildFindTraceIDsQuery(traceQuery)
+		actualQuery, err := r.reader.buildFindTraceIDsBoolQuery(traceQuery)
 		require.NoError(t, err)
 		actual, err := actualQuery.Source()
 		require.NoError(t, err)
@@ -1069,7 +1056,7 @@ func TestSpanReader_buildFindTraceIDsQuery_errorTag(t *testing.T) {
 			{"2", wantSource(base().Must(r.reader.buildTagQuery("error", "2")))},
 		} {
 			t.Run("error="+tt.value, func(t *testing.T) {
-				query, err := r.reader.buildFindTraceIDsQuery(dbmodel.TraceQueryParameters{
+				query, err := r.reader.buildFindTraceIDsBoolQuery(dbmodel.TraceQueryParameters{
 					StartTimeMin: start,
 					StartTimeMax: end,
 					Tags:         map[string]string{"error": tt.value},
