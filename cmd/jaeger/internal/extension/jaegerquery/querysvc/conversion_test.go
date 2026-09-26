@@ -72,7 +72,7 @@ func assertCarried(t *testing.T, field reflect.StructField, want, got reflect.Va
 	want, got = reflect.Indirect(want), reflect.Indirect(got)
 	require.True(t, got.IsValid(), "Pagination reached the reader as nil")
 	assert.Equal(t, want.FieldByName("PageSize").Interface(), got.FieldByName("PageSize").Interface())
-	assert.Equal(t, want.FieldByName("PageToken").Interface(), got.FieldByName("PageToken").Interface())
+	assert.Equal(t, want.FieldByName("PageToken").Interface(), got.FieldByName("PageToken").String())
 }
 
 func TestTraceQueryParams_EveryFieldReachesTheReader(t *testing.T) {

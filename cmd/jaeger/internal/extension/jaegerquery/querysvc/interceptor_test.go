@@ -99,7 +99,7 @@ func (f *fakeReader) FindSpans(ctx context.Context, q tracestore.SpanQueryParams
 		for i, spans := range f.batch {
 			chunk := tracestore.PageChunk[ptrace.Traces]{Results: spans}
 			if i == len(f.batch)-1 {
-				chunk.NextPageToken = f.nextPageToken
+				chunk.NextPageToken = tracestore.PageToken(f.nextPageToken)
 			}
 			if !yield(chunk, nil) {
 				return
@@ -1057,7 +1057,7 @@ func TestFindSpans_AppliesQueryAndResultHooks(t *testing.T) {
 	assert.Equal(t, narrowedEnd.Add(-time.Hour), next.gotSpanQuery.StartTimeMin, "the untouched bound survives the round trip")
 	require.Len(t, out, 1)
 	assert.Equal(t, "REDACTED", firstSpanAttr(t, []ptrace.Traces{out[0].Results}, "secret"), "result hook must redact")
-	assert.Equal(t, "next", out[0].NextPageToken, "the page token is not the interceptor's to touch")
+	assert.Equal(t, tracestore.PageToken("next"), out[0].NextPageToken, "the page token is not the interceptor's to touch")
 }
 
 // TestFindSpans_PaginationSurvivesTheInterceptors pins that Pagination is not part of the view an

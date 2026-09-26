@@ -1,7 +1,7 @@
 // Copyright (c) 2026 The Jaeger Authors.
 // SPDX-License-Identifier: Apache-2.0
 
-package pagetoken
+package tracestore
 
 import (
 	"bytes"
@@ -16,7 +16,6 @@ import (
 
 	expression "github.com/jaegertracing/jaeger-idl/query/expression/v1"
 	exprproto "github.com/jaegertracing/jaeger/internal/proto/expression/v1"
-	"github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore"
 )
 
 // fingerprintSize is how much of the hash a token carries. The fingerprint tells a token minted
@@ -24,12 +23,12 @@ import (
 // and keeps the token short.
 const fingerprintSize = 16
 
-// TraceQueryFingerprint hashes the parameters of a trace search that select and order its
-// results, which is every field except the page bound and the cursor. A token continues the
-// ordering of exactly one query, and these fields are what define it (RFC 0014 §3.2). The query
-// is the one the Reader receives, after the query service has settled it, so a predicate an
-// interceptor added is part of what the token is bound to.
-func TraceQueryFingerprint(q tracestore.TraceQueryParams) ([]byte, error) {
+// Fingerprint hashes the parameters of the search that select and order its results, which is
+// every field except the page bound and the token. A PageToken continues the ordering of exactly
+// one query, and these fields are what define it (RFC 0014 §3.2). The query is the one the Reader
+// receives, after the query service has settled it, so a predicate an interceptor added is part
+// of what the token is bound to.
+func (q TraceQueryParams) Fingerprint() ([]byte, error) {
 	h := newHasher("trace")
 	h.string(q.ServiceName)
 	h.string(q.OperationName)
@@ -44,9 +43,9 @@ func TraceQueryFingerprint(q tracestore.TraceQueryParams) ([]byte, error) {
 	return h.sum(), nil
 }
 
-// SpanQueryFingerprint is TraceQueryFingerprint for a span search, whose selecting parameters
-// are the time range and the filter (RFC 0016 §4.3).
-func SpanQueryFingerprint(q tracestore.SpanQueryParams) ([]byte, error) {
+// Fingerprint is TraceQueryParams.Fingerprint for a span search, whose selecting parameters are
+// the time range and the filter (RFC 0016 §4.3).
+func (q SpanQueryParams) Fingerprint() ([]byte, error) {
 	h := newHasher("span")
 	h.time(q.StartTimeMin)
 	h.time(q.StartTimeMax)
@@ -117,7 +116,7 @@ func (h hasher) attributes(attrs pcommon.Map) {
 // of every commutative operator, and the values of every list, in a fixed order. Two filters
 // that differ only in such an order select the same spans, and the same request can arrive
 // with its predicates permuted, because the attributes it was expanded from have no order on
-// the wire. Every filter reaching a reader has passed tracestore.FinalizeFilter, so an
+// the wire. Every filter reaching a reader has passed FinalizeFilter, so an
 // encoding failure here is a term the wire cannot carry and is reported rather than hashed.
 func (h hasher) filter(filter *expression.Call) error {
 	if filter == nil {
