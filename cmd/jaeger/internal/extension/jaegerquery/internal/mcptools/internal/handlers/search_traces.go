@@ -173,17 +173,15 @@ func (h *searchTracesHandler) buildQuery(input types.SearchTracesInput) (querysv
 	}
 
 	return querysvc.TraceQueryParams{
-		TraceQueryParams: tracestore.TraceQueryParams{
-			ServiceName:   input.ServiceName,
-			OperationName: input.SpanName,
-			Attributes:    attributes,
-			StartTimeMin:  minStartTime,
-			StartTimeMax:  maxStartTime,
-			DurationMin:   durationMin,
-			DurationMax:   durationMax,
-			SearchDepth:   searchDepth,
-		},
-		RawTraces: false,
+		ServiceName:   input.ServiceName,
+		OperationName: input.SpanName,
+		Attributes:    attributes,
+		StartTimeMin:  minStartTime,
+		StartTimeMax:  maxStartTime,
+		DurationMin:   durationMin,
+		DurationMax:   durationMax,
+		SearchDepth:   searchDepth,
+		RawTraces:     false,
 	}, nil
 }
 

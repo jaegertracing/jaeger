@@ -5,14 +5,24 @@ package remotesampling
 
 import (
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/collector/config/configoptional"
 	"go.opentelemetry.io/collector/confmap"
+
+	"github.com/jaegertracing/jaeger/internal/sampling/samplingstrategy/adaptive"
 )
 
 func Test_Validate(t *testing.T) {
+	adaptiveOptions := func(modify func(*adaptive.Options)) adaptive.Options {
+		opts := adaptive.DefaultOptions()
+		if modify != nil {
+			modify(&opts)
+		}
+		return opts
+	}
 	tests := []struct {
 		name        string
 		config      *Config
@@ -41,7 +51,10 @@ func Test_Validate(t *testing.T) {
 		{
 			name: "Only Adaptive provider specified",
 			config: &Config{
-				Adaptive: configoptional.Some(AdaptiveConfig{SamplingStore: "test-store"}),
+				Adaptive: configoptional.Some(AdaptiveConfig{
+					SamplingStore: "test-store",
+					Options:       adaptiveOptions(nil),
+				}),
 			},
 			expectedErr: "",
 		},
@@ -76,9 +89,52 @@ func Test_Validate(t *testing.T) {
 		{
 			name: "Invalid Adaptive provider",
 			config: &Config{
-				Adaptive: configoptional.Some(AdaptiveConfig{SamplingStore: ""}),
+				Adaptive: configoptional.Some(AdaptiveConfig{
+					SamplingStore: "",
+					Options:       adaptiveOptions(nil),
+				}),
 			},
 			expectedErr: "SamplingStore: non zero value required",
+		},
+		{
+			name: "Adaptive provider has zero leader lease refresh interval",
+			config: &Config{
+				Adaptive: configoptional.Some(AdaptiveConfig{
+					SamplingStore: "test-store",
+					Options:       adaptiveOptions(func(o *adaptive.Options) { o.LeaderLeaseRefreshInterval = 0 }),
+				}),
+			},
+			expectedErr: "leader_lease_refresh_interval must be a positive value",
+		},
+		{
+			name: "Adaptive provider has negative leader lease refresh interval",
+			config: &Config{
+				Adaptive: configoptional.Some(AdaptiveConfig{
+					SamplingStore: "test-store",
+					Options:       adaptiveOptions(func(o *adaptive.Options) { o.LeaderLeaseRefreshInterval = -time.Second }),
+				}),
+			},
+			expectedErr: "leader_lease_refresh_interval must be a positive value",
+		},
+		{
+			name: "Adaptive provider has zero follower lease refresh interval",
+			config: &Config{
+				Adaptive: configoptional.Some(AdaptiveConfig{
+					SamplingStore: "test-store",
+					Options:       adaptiveOptions(func(o *adaptive.Options) { o.FollowerLeaseRefreshInterval = 0 }),
+				}),
+			},
+			expectedErr: "follower_lease_refresh_interval must be a positive value",
+		},
+		{
+			name: "Adaptive provider has negative follower lease refresh interval",
+			config: &Config{
+				Adaptive: configoptional.Some(AdaptiveConfig{
+					SamplingStore: "test-store",
+					Options:       adaptiveOptions(func(o *adaptive.Options) { o.FollowerLeaseRefreshInterval = -time.Second }),
+				}),
+			},
+			expectedErr: "follower_lease_refresh_interval must be a positive value",
 		},
 	}
 

@@ -229,7 +229,7 @@ func (r *traceReader) FindTraceSummaries(
 			}
 			chunk := tracestore.PageChunk[[]tracestore.TraceSummary]{
 				Results:       batch,
-				NextPageToken: resp.GetNextPageToken(),
+				NextPageToken: tracestore.PageToken(resp.GetNextPageToken()),
 			}
 			if !yield(chunk, nil) {
 				return

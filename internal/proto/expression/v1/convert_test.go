@@ -11,7 +11,6 @@ import (
 	"github.com/stretchr/testify/require"
 
 	expression "github.com/jaegertracing/jaeger-idl/query/expression/v1"
-	"github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore"
 )
 
 // mustFromProto decodes a filter that is expected to be well formed.
@@ -117,8 +116,8 @@ func TestFilterRoundTrip(t *testing.T) {
 }
 
 // TestTimeConstantsTravelUnhinted covers the two constants the wire has no type for. They are
-// written in the syntax the field they are compared against is written in and come back untyped,
-// which is the constant expression.ResolveConstants reads as that field's type again.
+// written in the syntax the field they are compared against is written in and come back untyped.
+// Reading them back as that field's type is tracestore.ResolveFilterConstants's job, tested there.
 func TestTimeConstantsTravelUnhinted(t *testing.T) {
 	tests := []struct {
 		name    string
@@ -152,10 +151,6 @@ func TestTimeConstantsTravelUnhinted(t *testing.T) {
 
 			decoded := mustFromProto(t, encoded)
 			assert.Equal(t, test.decoded, decoded.Args[1])
-
-			resolved, err := tracestore.ResolveFilterConstants(decoded)
-			require.NoError(t, err)
-			assert.Equal(t, filter, resolved)
 		})
 	}
 }
