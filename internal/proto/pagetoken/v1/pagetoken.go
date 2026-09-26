@@ -1,16 +1,18 @@
 // Copyright (c) 2026 The Jaeger Authors.
 // SPDX-License-Identifier: Apache-2.0
 
-// Package pagetoken is the page token the query service hands to a client and reads back on
-// continuation (RFC 0014 §3). The PageToken message is generated from page_token.proto beside
-// this file; this file adds what a token carries besides its fields: the string form a client
-// sees, the fingerprint that binds a token to its query, and the check of that binding.
+// Package pagetoken is the page token a paginating storage Reader returns with a page and
+// reads back on continuation (RFC 0014 §3). The PageToken message is generated from
+// page_token.proto beside this file; this file adds the string form a client sees and the
+// fingerprint that binds a token to the query it was returned for.
 //
-// The token wraps the cursor a storage reader returned with the facts that make it safe to
-// honor later: the format version and a fingerprint of the query the cursor is a position in.
-// A reader only ever sees its own cursor; the wrapping and the checks belong to the query
-// service. The token is not signed, so a reader still has to refuse a cursor it cannot
-// interpret: the token guards against a client's mistake, not against a client's intent.
+// The token wraps the Reader's cursor with the facts that make it safe to honor later: the
+// format version and a fingerprint of the query the cursor is a position in. The query service
+// passes the token through unchanged, so a Reader that declares SearchCapabilities.Paginated
+// builds its token here and, on continuation, compares the fingerprint DecodeFingerprint
+// returns with that of the query it receives; the comparison is the Reader's. The token is not
+// signed, so a Reader still has to refuse a cursor it cannot interpret: the token guards
+// against a client's mistake, not against a client's intent.
 package pagetoken
 
 import (

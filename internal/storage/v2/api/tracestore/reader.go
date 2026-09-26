@@ -217,8 +217,9 @@ type Pagination struct {
 	// PageToken continues a previous search. Empty starts a new one. It is the token the
 	// Reader itself returned in PageChunk.NextPageToken, and the Reader MUST validate it: a
 	// token it did not produce, or produced for a different query, is refused with
-	// ErrPaginationInvalid rather than sent to the backend (RFC 0014 §3.2). The pagetoken
-	// package does both checks for a Reader that builds its token with it. The query service
+	// ErrPaginationInvalid rather than sent to the backend (RFC 0014 §3.2). A Reader that
+	// builds its token with the pagetoken package decodes it there and compares the query
+	// fingerprint itself. The query service
 	// refuses a PageToken against a Reader whose SearchCapabilities.Paginated is false before
 	// dispatching (RFC 0014 §6.2), so such a Reader never sees one.
 	PageToken string

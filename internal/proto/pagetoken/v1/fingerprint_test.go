@@ -4,6 +4,7 @@
 package pagetoken
 
 import (
+	"encoding/hex"
 	"testing"
 	"time"
 
@@ -66,6 +67,22 @@ func TestTraceQueryFingerprint_IgnoresTheBoundAndTheCursor(t *testing.T) {
 // TestTraceQueryFingerprint_ZeroAndEmptyAttributesAreTheSame pins that a request with no attributes
 // fingerprints the same whether the API layer left the map at its zero value or built an empty
 // one, since either form can arrive on either page.
+// TestFingerprint_Golden pins the fingerprints of two fixed queries. A token outlives the
+// process that returned it, so a change to the hashing, its framing, the canonical form, or a
+// field number of the expression proto the filter is hashed through would refuse every token
+// still held by a client. A deliberate change of this kind bumps Version and updates these values.
+func TestFingerprint_Golden(t *testing.T) {
+	trace, err := TraceQueryFingerprint(sampleTraceQuery())
+	require.NoError(t, err)
+	assert.Equal(t, "fe2deb1b5cda9ebbd876297368b28e7d", hex.EncodeToString(trace))
+
+	span, err := SpanQueryFingerprint(tracestore.SpanQueryParams{
+		StartTimeMin: windowStart, StartTimeMax: windowEnd, Filter: serviceIs("cart"),
+	})
+	require.NoError(t, err)
+	assert.Equal(t, "da96d67bbd0ae4347baaec8e3b29f00a", hex.EncodeToString(span))
+}
+
 func TestTraceQueryFingerprint_ZeroAndEmptyAttributesAreTheSame(t *testing.T) {
 	zero := sampleTraceQuery()
 	zero.Attributes = pcommon.Map{}

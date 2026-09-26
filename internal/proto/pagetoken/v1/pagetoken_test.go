@@ -28,6 +28,21 @@ func TestEncodeDecodeRoundTrip(t *testing.T) {
 
 // TestDecodeRefusals covers what DecodeFingerprint adds over the generated Unmarshal: the base64
 // framing, the version check, and every failure reading as a bad request.
+// TestDecode_SkipsAnUnknownField pins the forward compatibility Version relies on: a field
+// added to the message later is skipped by a decoder that predates it, so adding one needs no
+// version bump (RFC 0014 §3.1).
+func TestDecode_SkipsAnUnknownField(t *testing.T) {
+	raw, err := (&PageToken{Version: Version, Fingerprint: []byte{1}, Cursor: []byte("c")}).Marshal()
+	require.NoError(t, err)
+	// Field 4, wire type 0 (varint), value 7: a field this version of the message does not have.
+	raw = append(raw, 0x20, 0x07)
+
+	fingerprint, cursor, err := DecodeFingerprint(base64.RawURLEncoding.EncodeToString(raw))
+	require.NoError(t, err)
+	assert.Equal(t, []byte{1}, fingerprint)
+	assert.Equal(t, []byte("c"), cursor)
+}
+
 func TestDecodeRefusals(t *testing.T) {
 	encoded := func(token *PageToken) string {
 		raw, err := token.Marshal()
