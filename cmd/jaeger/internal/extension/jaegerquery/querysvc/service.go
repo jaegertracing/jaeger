@@ -341,64 +341,6 @@ func (qs QueryService) prepareSearchQuery(
 	return ctx, query, nil
 }
 
-// toReaderQuery checks the fields every trace search carries whichever filtering model it uses,
-// and returns the query in the reader's shape with DefaultSearchDepth applied where the caller
-// left the bound unset and an oversized page clamped rather than refused (RFC 0014 §4, AIP-158).
-// The API handlers only translate their wire shape into the request; what a query must satisfy
-// is decided here, once.
-func (q TraceQueryParams) toReaderQuery() (tracestore.TraceQueryParams, error) {
-	query := tracestore.TraceQueryParams{
-		ServiceName:   q.ServiceName,
-		OperationName: q.OperationName,
-		Attributes:    q.Attributes,
-		StartTimeMin:  q.StartTimeMin,
-		StartTimeMax:  q.StartTimeMax,
-		DurationMin:   q.DurationMin,
-		DurationMax:   q.DurationMax,
-		SearchDepth:   q.SearchDepth,
-		Filter:        q.Filter,
-	}
-	if q.StartTimeMin.IsZero() || q.StartTimeMax.IsZero() {
-		return query, fmt.Errorf("%w: min and max start time are required", ErrQueryInvalid)
-	}
-	if !q.StartTimeMin.Before(q.StartTimeMax) {
-		return query, fmt.Errorf("%w: min start time must be before max start time", ErrQueryInvalid)
-	}
-	if q.DurationMin < 0 || q.DurationMax < 0 {
-		return query, fmt.Errorf("%w: min and max duration cannot be negative", ErrQueryInvalid)
-	}
-	if q.DurationMin > 0 && q.DurationMax > 0 && q.DurationMax < q.DurationMin {
-		return query, fmt.Errorf("%w: max duration cannot be less than min duration", ErrQueryInvalid)
-	}
-	if q.SearchDepth < 0 || q.SearchDepth > tracestore.MaxSearchDepth {
-		return query, fmt.Errorf("%w: search depth must be in [0, %d]", ErrQueryInvalid, tracestore.MaxSearchDepth)
-	}
-	if q.Pagination == nil {
-		if q.SearchDepth == 0 {
-			query.SearchDepth = DefaultSearchDepth
-		}
-		return query, nil
-	}
-	if !PaginationGate.IsEnabled() {
-		return query, fmt.Errorf("%w: enable the %q feature gate to use it",
-			ErrPaginationDisabled, PaginationGate.ID())
-	}
-	// A page size replaces the search depth rather than falling back to it (RFC 0014 §4).
-	if q.SearchDepth != 0 {
-		return query, fmt.Errorf("%w: it cannot be combined with search depth",
-			tracestore.ErrPaginationInvalid)
-	}
-	if q.Pagination.PageSize <= 0 {
-		return query, fmt.Errorf("%w: page size is required whenever pagination is present",
-			tracestore.ErrPaginationInvalid)
-	}
-	query.Pagination = &tracestore.Pagination{
-		PageSize:  min(q.Pagination.PageSize, tracestore.MaxPageSize),
-		PageToken: q.Pagination.PageToken,
-	}
-	return query, nil
-}
-
 // prepareSpanSearchQuery is prepareSearchQuery for a span search (RFC 0016 §4.6): it refuses a
 // request this deployment or its backend does not accept, gives the configured query interceptors
 // their say, and returns the query to dispatch along with the context to dispatch it with. A span
@@ -461,21 +403,6 @@ func (qs QueryService) prepareSpanSearchQuery(
 		return ctx, query, err
 	}
 	return ctx, query, ensureSpanFilterSupported(caps, query.Filter)
-}
-
-// toReaderQuery is the span-search counterpart of TraceQueryParams.toReaderQuery. It is the field
-// copy alone: a span query has one shape, and its checks depend on the gate and on the reader's
-// capabilities, which prepareSpanSearchQuery applies to the copy.
-func (q SpanQueryParams) toReaderQuery() tracestore.SpanQueryParams {
-	return tracestore.SpanQueryParams{
-		StartTimeMin: q.StartTimeMin,
-		StartTimeMax: q.StartTimeMax,
-		Filter:       q.Filter,
-		Pagination: tracestore.Pagination{
-			PageSize:  q.Pagination.PageSize,
-			PageToken: q.Pagination.PageToken,
-		},
-	}
 }
 
 // ensureSpanPaginationSupported is RFC 0014 §6.2 for a span search. A reader that cannot paginate
