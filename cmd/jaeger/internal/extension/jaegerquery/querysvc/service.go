@@ -414,15 +414,7 @@ func (qs QueryService) prepareSpanSearchQuery(
 	ctx context.Context,
 	request SpanQueryParams,
 ) (context.Context, tracestore.SpanQueryParams, error) {
-	query := tracestore.SpanQueryParams{
-		StartTimeMin: request.StartTimeMin,
-		StartTimeMax: request.StartTimeMax,
-		Filter:       request.Filter,
-		Pagination: tracestore.Pagination{
-			PageSize:  request.Pagination.PageSize,
-			PageToken: request.Pagination.PageToken,
-		},
-	}
+	query := request.toReaderQuery()
 	if query.StartTimeMin.IsZero() || query.StartTimeMax.IsZero() {
 		return ctx, query, fmt.Errorf("%w: start_time_min and start_time_max are required", ErrQueryInvalid)
 	}
@@ -469,6 +461,21 @@ func (qs QueryService) prepareSpanSearchQuery(
 		return ctx, query, err
 	}
 	return ctx, query, ensureSpanFilterSupported(caps, query.Filter)
+}
+
+// toReaderQuery is the span-search counterpart of TraceQueryParams.toReaderQuery. It is the field
+// copy alone: a span query has one shape, and its checks depend on the gate and on the reader's
+// capabilities, which prepareSpanSearchQuery applies to the copy.
+func (q SpanQueryParams) toReaderQuery() tracestore.SpanQueryParams {
+	return tracestore.SpanQueryParams{
+		StartTimeMin: q.StartTimeMin,
+		StartTimeMax: q.StartTimeMax,
+		Filter:       q.Filter,
+		Pagination: tracestore.Pagination{
+			PageSize:  q.Pagination.PageSize,
+			PageToken: q.Pagination.PageToken,
+		},
+	}
 }
 
 // ensureSpanPaginationSupported is RFC 0014 §6.2 for a span search. A reader that cannot paginate
