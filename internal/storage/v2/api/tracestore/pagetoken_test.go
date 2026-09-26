@@ -54,7 +54,7 @@ func TestCursor(t *testing.T) {
 
 	_, err = token.Cursor([]byte{4, 5, 6})
 	require.ErrorIs(t, err, ErrPaginationInvalid)
-	assert.ErrorContains(t, err, "different query")
+	require.ErrorContains(t, err, "different query")
 
 	_, err = PageToken("not-a-token!").Cursor([]byte{1, 2, 3})
 	require.ErrorIs(t, err, ErrPaginationInvalid, "a token that does not decode is refused before the comparison")
