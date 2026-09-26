@@ -23,20 +23,21 @@ var _ = math.Inf
 // proto package needs to be updated.
 const _ = proto.GoGoProtoPackageIsVersion3 // please upgrade the proto package
 
-// PageToken is the continuation token the query service hands a client on a
-// paginated search and receives back on the next request (RFC 0014 §3.1). It
-// travels as the URL-safe base64 encoding of this message, with no padding.
-// It is not signed: it guards a client against resuming the wrong query by
-// mistake, not against a client that forges one.
+// PageToken is the continuation token a paginating storage reader returns
+// with a page and receives back on the next request (RFC 0014 §3.1). The query
+// service passes it through unchanged. It travels as the URL-safe base64
+// encoding of this message, with no padding. It is not signed: it guards a
+// client against resuming the wrong query by mistake, not against a client
+// that forges one.
 type PageToken struct {
 	// version says how the fingerprint and cursor are to be read. A token whose
-	// version the query service does not know is refused.
+	// version the reader does not know is refused.
 	Version uint32 `protobuf:"varint,1,opt,name=version,proto3" json:"version,omitempty"`
-	// fingerprint binds the token to the query it was minted for; the query
-	// service refuses the token against any other query (RFC 0014 §3.2).
+	// fingerprint binds the token to the query it was built for; the reader
+	// refuses the token against any other query (RFC 0014 §3.2).
 	Fingerprint []byte `protobuf:"bytes,2,opt,name=fingerprint,proto3" json:"fingerprint,omitempty"`
 	// cursor is the storage reader's own position in the result, in whatever
-	// form that reader resumes from. It is opaque here: the reader that minted
+	// form that reader resumes from. It is opaque here: the reader that built
 	// it is the only one that interprets it.
 	Cursor               []byte   `protobuf:"bytes,3,opt,name=cursor,proto3" json:"cursor,omitempty"`
 	XXX_NoUnkeyedLiteral struct{} `json:"-"`

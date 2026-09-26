@@ -6,6 +6,7 @@ package tracestore
 import (
 	"bytes"
 	"encoding/base64"
+	"errors"
 	"fmt"
 
 	pb "github.com/jaegertracing/jaeger/internal/proto/pagetoken/v1"
@@ -35,7 +36,12 @@ const PageTokenVersion = 1
 
 // NewPageToken wraps a Reader's cursor with the current PageTokenVersion and the fingerprint of
 // the query, as the protobuf encoding of the token message in URL-safe base64 without padding.
+// An empty cursor is refused, since a Reader that has no more pages returns an empty PageToken
+// rather than a token around nothing, and Cursor would refuse such a token on the next request.
 func NewPageToken(fingerprint, cursor []byte) (PageToken, error) {
+	if len(cursor) == 0 {
+		return "", errors.New("page token needs a cursor; the last page returns an empty token instead")
+	}
 	t := &pb.PageToken{Version: PageTokenVersion, Fingerprint: fingerprint, Cursor: cursor}
 	raw, err := t.Marshal()
 	if err != nil {

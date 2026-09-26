@@ -238,7 +238,7 @@ type TraceQueryParams struct {
 // Pagination mirrors the proto message of the same name.
 type Pagination struct {
     PageSize  int    // page bound; required whenever Pagination is present
-    PageToken string // the reader's own opaque token; empty starts a new search
+    PageToken PageToken // the reader's own opaque token; empty starts a new search
 }
 ```
 
@@ -251,7 +251,7 @@ The outbound token needs a home on the return path. `FindTraceIDs`, `FindTraceSu
 // the page's terminal chunk; an empty value there means the last page.
 type PageChunk[T any] struct {
     Results       T
-    NextPageToken string
+    NextPageToken PageToken
 }
 
 FindTraceIDs(ctx context.Context, query TraceQueryParams) iter.Seq2[PageChunk[[]FoundTraceID], error]

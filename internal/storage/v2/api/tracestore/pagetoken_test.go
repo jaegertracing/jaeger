@@ -58,6 +58,13 @@ func TestCursor(t *testing.T) {
 	require.ErrorIs(t, err, ErrPaginationInvalid, "a token that does not decode is refused before the comparison")
 }
 
+func TestNewPageToken_RefusesAnEmptyCursor(t *testing.T) {
+	_, err := NewPageToken([]byte{1, 2, 3}, nil)
+	require.ErrorContains(t, err, "needs a cursor")
+	_, err = NewPageToken([]byte{1, 2, 3}, []byte{})
+	require.ErrorContains(t, err, "needs a cursor")
+}
+
 // TestDecodeRefusals covers what decode adds over the generated Unmarshal: the base64
 // framing, the version check, and every failure reading as a bad request.
 func TestDecodeRefusals(t *testing.T) {
