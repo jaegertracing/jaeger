@@ -53,6 +53,7 @@ func TestFilterCapabilities(t *testing.T) {
 	assert.Equal(t, []expression.Level{
 		expression.LevelSpan,
 		expression.LevelResource,
+		expression.LevelScope,
 		expression.LevelEvent,
 	}, caps.Levels)
 	for _, op := range []expression.Operator{
@@ -65,7 +66,7 @@ func TestFilterCapabilities(t *testing.T) {
 	}
 	assert.False(t, caps.SupportsOperator(expression.OpSome),
 		"correlated matching over a span's events is not implemented")
-	assert.False(t, caps.SupportsLevel(expression.LevelScope))
+	assert.True(t, caps.SupportsLevel(expression.LevelScope))
 	assert.False(t, caps.SupportsLevel(expression.LevelLink))
 }
 
@@ -191,6 +192,54 @@ func TestBuildFilterQuery(t *testing.T) {
 		{
 			name:   "exists on the span identifier",
 			filter: p.Span().SpanID.Exists(),
+		},
+		{
+			name:   "scope.name reads the span tag the write path folds the scope into",
+			filter: p.Scope().Name.Eq("io.opentelemetry.contrib.cart"),
+		},
+		{
+			name:   "scope.version reads the tag beside it",
+			filter: p.Scope().Version.Eq("1.2.0"),
+		},
+		{
+			name:   "a regex on the scope name",
+			filter: p.Scope().Name.Matches(`io\.opentelemetry.*`),
+		},
+		{
+			name:   "gt on the scope name compares lexicographically",
+			filter: p.Scope().Name.Gt("io.opentelemetry"),
+		},
+		{
+			name:   "gte on the scope version compares lexicographically",
+			filter: p.Scope().Version.Gte("1.0.0"),
+		},
+		{
+			name:   "lt on the scope name compares lexicographically",
+			filter: p.Scope().Name.Lt("io.opentelemetry.z"),
+		},
+		{
+			name:   "lte on the scope version compares lexicographically",
+			filter: p.Scope().Version.Lte("2.0.0"),
+		},
+		{
+			name:   "exists on the scope name",
+			filter: p.Scope().Name.Exists(),
+		},
+		{
+			name:   "exists on the scope version",
+			filter: p.Scope().Version.Exists(),
+		},
+		{
+			name:   "ne on the scope name guards on the tag holding it",
+			filter: p.Scope().Name.Ne("io.opentelemetry.contrib.cart"),
+		},
+		{
+			name:   "in on the scope name is a disjunction of term queries",
+			filter: p.Scope().Name.In("io.opentelemetry.contrib.cart", "io.opentelemetry.contrib.order"),
+		},
+		{
+			name:   "not_in on the scope name requires the tag to be present",
+			filter: p.Scope().Name.NotIn("io.opentelemetry.contrib.cart", "io.opentelemetry.contrib.order"),
 		},
 		{
 			name:   "span.duration compares microseconds against a value carrying its unit",
@@ -492,13 +541,19 @@ func TestBuildFilterQueryRefused(t *testing.T) {
 			name:    "the scope level is folded into the span's own tags",
 			filter:  p.Scope().Attr("otel.scope.name").Eq("lib"),
 			wantErr: tracestore.ErrFilterUnsupported,
-			wantMsg: `does not index the "scope" level`,
+			wantMsg: `does not index the attributes of the "scope" level`,
 		},
 		{
 			name:    "link attributes are not indexed at all",
 			filter:  p.Link().Attr("k").Eq("v"),
 			wantErr: tracestore.ErrFilterUnsupported,
-			wantMsg: `does not index the "link" level`,
+			wantMsg: `does not index the attributes of the "link" level`,
+		},
+		{
+			name:    "an unsupported built-in field of the scope level",
+			filter:  p.Scope().SchemaURL.Eq("http://example.com"),
+			wantErr: tracestore.ErrFilterUnsupported,
+			wantMsg: `built-in field "schemaURL" of the "scope" level`,
 		},
 		{
 			name:    "a built-in field this schema has no field for",
@@ -557,6 +612,12 @@ func TestBuildFilterQueryRefused(t *testing.T) {
 		{
 			name:    "a pattern using a Perl shorthand, which this engine reads as a letter",
 			filter:  p.Span().Attr("http.status_code").Matches(`\d+`),
+			wantErr: tracestore.ErrFilterUnsupported,
+			wantMsg: `it reads "\\d" as the literal character`,
+		},
+		{
+			name:    "a pattern using a Perl shorthand on scope name",
+			filter:  p.Scope().Name.Matches(`\d+`),
 			wantErr: tracestore.ErrFilterUnsupported,
 			wantMsg: `it reads "\\d" as the literal character`,
 		},
@@ -843,7 +904,7 @@ func TestBuildFilterQueryRefusalFromWithin(t *testing.T) {
 			query, err := r.reader.buildFilterQuery(filter)
 			assert.Nil(t, query)
 			require.ErrorIs(t, err, tracestore.ErrFilterUnsupported)
-			assert.Contains(t, err.Error(), `does not index the "link" level`)
+			assert.Contains(t, err.Error(), `does not index the attributes of the "link" level`)
 		})
 	}
 }

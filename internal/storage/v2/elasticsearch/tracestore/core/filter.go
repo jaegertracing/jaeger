@@ -15,6 +15,7 @@ import (
 	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/esclient"
 	esquery "github.com/jaegertracing/jaeger/internal/storage/elasticsearch/query"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore"
+	"github.com/jaegertracing/jaeger/internal/telemetry/otelsemconv"
 )
 
 // eventNameKey is the logs.fields key the write path stores a span event's name under
@@ -28,6 +29,22 @@ var eventNameAsAttribute = reference{
 	level:     expression.LevelEvent,
 	attribute: true,
 }
+
+// scopeNameAsAttribute and scopeVersionAsAttribute read scope.name and scope.version as the span tags
+// the write path stores them in (getTagsFromInstrumentationLibrary in to_dbmodel.go), which makes
+// the built-in fields readable without a dedicated scope index.
+var (
+	scopeNameAsAttribute = reference{
+		name:      otelsemconv.AttributeOtelScopeName,
+		level:     expression.LevelSpan,
+		attribute: true,
+	}
+	scopeVersionAsAttribute = reference{
+		name:      otelsemconv.AttributeOtelScopeVersion,
+		level:     expression.LevelSpan,
+		attribute: true,
+	}
+)
 
 // reference is what a lowering needs to know about a reference term: the level it names, the key or
 // field name under it, and whether it is an attribute. The AST has a distinct type per kind
@@ -99,16 +116,17 @@ type attributeLocation struct {
 type valueMatch func(field string) esquery.Query
 
 // FilterCapabilities declares the part of the RFC 0005 filter model this reader evaluates.
-// It omits the scope and link levels, which the schema does not index separately,
+// It omits the link level, which the schema does not index separately,
 // and the `some` quantifier, whose correlated matching over a span's events is not
-// implemented yet. Which built-in fields are served is not declarable — a field name is
-// indistinguishable from an attribute key — so buildFilterQuery refuses the ones this
+// implemented yet. Which built-in fields are served is not declarable - a field name is
+// indistinguishable from an attribute key - so buildFilterQuery refuses the ones this
 // schema has no field for.
 func FilterCapabilities() tracestore.FilterCapabilities {
 	return tracestore.FilterCapabilities{
 		Levels: []expression.Level{
 			expression.LevelSpan,
 			expression.LevelResource,
+			expression.LevelScope,
 			expression.LevelEvent,
 		},
 		Operators: []expression.Operator{
@@ -304,6 +322,10 @@ func (s *SpanReader) buildComparison(
 		return buildTextComparison(traceIDField, op, ref, strings.ToLower(text))
 	case ref.isField(expression.LevelSpan, expression.SpanFieldSpanID):
 		return buildTextComparison(spanIDField, op, ref, strings.ToLower(text))
+	case ref.isField(expression.LevelScope, expression.ScopeFieldName):
+		return s.buildScopeFieldComparison(op, ref, scopeNameAsAttribute, text)
+	case ref.isField(expression.LevelScope, expression.ScopeFieldVersion):
+		return s.buildScopeFieldComparison(op, ref, scopeVersionAsAttribute, text)
 	case ref.isField(expression.LevelEvent, expression.EventFieldName):
 		return s.buildEventNameComparison(op, ref, text)
 	default:
@@ -373,6 +395,10 @@ func (s *SpanReader) buildExists(ref reference) (esquery.Query, error) {
 		return esquery.NewExistsQuery(traceIDField), nil
 	case ref.isField(expression.LevelSpan, expression.SpanFieldSpanID):
 		return esquery.NewExistsQuery(spanIDField), nil
+	case ref.isField(expression.LevelScope, expression.ScopeFieldName):
+		return s.buildAttributeExists(scopeNameAsAttribute)
+	case ref.isField(expression.LevelScope, expression.ScopeFieldVersion):
+		return s.buildAttributeExists(scopeVersionAsAttribute)
 	case ref.isField(expression.LevelEvent, expression.EventFieldName):
 		return s.buildAttributeExists(eventNameAsAttribute)
 	default:
@@ -420,6 +446,22 @@ func (s *SpanReader) buildEventNameComparison(
 		return nil, err
 	}
 	return s.attributeQuery(attributeLocations[eventNameAsAttribute.level], eventNameKey, match), nil
+}
+
+// buildScopeFieldComparison compares the scope name or version stored in the span tags. Like
+// an event name, a scope field is declared as text, so its keyword representation can be ordered
+// lexicographically.
+func (s *SpanReader) buildScopeFieldComparison(
+	op expression.Operator,
+	ref reference,
+	attrRef reference,
+	value string,
+) (esquery.Query, error) {
+	match, err := textValueMatch(op, ref, value)
+	if err != nil {
+		return nil, err
+	}
+	return s.attributeQuery(attributeLocations[attrRef.level], attrRef.name, match), nil
 }
 
 // attributeQuery matches an attribute in every field its level keeps attributes in.
@@ -760,7 +802,8 @@ func errRefAgainstConstant(predicate *expression.Call) error {
 }
 
 func errUnsupportedLevel(level expression.Level) error {
-	return fmt.Errorf("%w: it does not index the %q level", tracestore.ErrFilterUnsupported, level)
+	return fmt.Errorf("%w: it does not index the attributes of the %q level",
+		tracestore.ErrFilterUnsupported, level)
 }
 
 func errUnsupportedField(ref reference) error {
