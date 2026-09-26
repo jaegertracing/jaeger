@@ -528,7 +528,9 @@ PR-sized milestones with exit bars. Everything here sits behind RFC 0005 M1 and 
 
 **M6 — Remote-storage gRPC.** Client and server for the new RPC, and capability forwarding. *Exit:* a remote backend that declares support serves a span query end to end; one that does not, or that predates the declaration, is refused before dispatch.
 
-**M7 — MCP.** A `find_spans` tool, and `get_span_details` rewired onto an identity filter where the backend declares support. *Exit:* an agent retrieves spans across traces in one call; `get_span_details` stops fetching whole traces on a declaring backend and is unchanged elsewhere.
+🚧 **M7 — MCP.** A `find_spans` tool, and `get_span_details` rewired onto an identity filter where the backend declares support. *Exit:* an agent retrieves spans across traces in one call; `get_span_details` stops fetching whole traces on a declaring backend and is unchanged elsewhere.
+
+- ✅ `get_span_details` rewired onto the identity filter of RFC 0016 §4.3 (`traceID` equality and an `IN` over the requested `spanID`s, since every span the tool takes shares one trace ID) on a backend that declares `SpanSearch`, falling back to the pre-existing whole-trace `GetTraces` path on `ErrSpanSearchUnsupported` or `ErrFilterDisabled`. The `find_spans` tool itself remains open.
 
 **Out of scope (future, this design enables):**
 - A response envelope for the four RPCs that return bare `TracesData` in api_v3 and `jaeger.storage.v2` (§4.4). It would give a trace search somewhere to put a page token, and truncation somewhere to be reported other than a warning attribute on the first span. It is a breaking change to both published protocols, so it needs its own proposal; what this RFC settles is only that the span RPC does not join them.
