@@ -411,3 +411,10 @@ func TestSpanReader_FindTraceIDs(t *testing.T) {
 		require.Equal(t, test.expectedTraceIDs, traceIDs)
 	}
 }
+
+func TestBoundedSearchDepth(t *testing.T) {
+	assert.Equal(t, uint32(0), boundedSearchDepth(0))
+	assert.Equal(t, uint32(0), boundedSearchDepth(-1))
+	assert.Equal(t, uint32(42), boundedSearchDepth(42))
+	assert.Equal(t, tracestore.MaxSearchDepth, boundedSearchDepth(int(tracestore.MaxSearchDepth)+10))
+}

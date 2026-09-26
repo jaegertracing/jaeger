@@ -123,12 +123,12 @@ func (r *Reader) buildFindTraceIDsQuery(
 	ctx context.Context,
 	query tracestore.TraceQueryParams,
 ) (string, []any, error) {
-	limit := query.SearchDepth
+	if query.SearchDepth > tracestore.MaxSearchDepth || int(query.SearchDepth) > r.config.MaxSearchDepth {
+		return "", nil, fmt.Errorf("search depth %d exceeds maximum allowed %d", query.SearchDepth, r.config.MaxSearchDepth)
+	}
+	limit := int(query.SearchDepth)
 	if limit == 0 {
 		limit = r.config.DefaultSearchDepth
-	}
-	if limit > r.config.MaxSearchDepth {
-		return "", nil, fmt.Errorf("search depth %d exceeds maximum allowed %d", limit, r.config.MaxSearchDepth)
 	}
 
 	// Build the inner subquery that finds distinct trace IDs from spans.

@@ -408,7 +408,7 @@ func TestSpanReaderFindTraces(t *testing.T) {
 					Attributes:   pcommon.NewMap(),
 				}
 
-				queryParams.SearchDepth = testCase.numTraces
+				queryParams.SearchDepth = uint32(testCase.numTraces)
 				if testCase.queryTags {
 					queryParams.Attributes.PutStr("x", "y")
 				}

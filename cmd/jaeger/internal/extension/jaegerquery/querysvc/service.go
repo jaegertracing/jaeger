@@ -27,12 +27,12 @@ var errNoArchiveSpanStorage = errors.New("archive span storage was not configure
 
 // DefaultSearchDepth bounds a trace search whose caller left SearchDepth unset. It is applied
 // here rather than in each API handler, so a gRPC and an HTTP client get the same bound.
-const DefaultSearchDepth = 100
+const DefaultSearchDepth uint32 = 100
 
 // DefaultPageSize bounds a span search whose caller left the page size unset. A span query has
 // no SearchDepth, so the page size is its only bound (RFC 0016 §6), and a Reader never receives
 // a query without one. It is applied here for the same reason as DefaultSearchDepth.
-const DefaultPageSize = DefaultSearchDepth
+const DefaultPageSize uint32 = DefaultSearchDepth
 
 // ErrQueryInvalid is returned for a trace search whose envelope is malformed on its own terms:
 // a missing or inverted time range, a negative or inverted duration bound, or a search depth
@@ -272,7 +272,7 @@ func (qs QueryService) prepareSearchQuery(
 			return ctx, query, fmt.Errorf("%w: it cannot be combined with search depth",
 				tracestore.ErrPaginationInvalid)
 		}
-		if query.Pagination.PageSize <= 0 {
+		if query.Pagination.PageSize == 0 {
 			return ctx, query, fmt.Errorf("%w: page size is required whenever pagination is present",
 				tracestore.ErrPaginationInvalid)
 		}
@@ -340,7 +340,7 @@ func (q *TraceQueryParams) normalizeEnvelope() error {
 	if q.DurationMin > 0 && q.DurationMax > 0 && q.DurationMax < q.DurationMin {
 		return fmt.Errorf("%w: max duration cannot be less than min duration", ErrQueryInvalid)
 	}
-	if q.SearchDepth < 0 || q.SearchDepth > tracestore.MaxSearchDepth {
+	if q.SearchDepth > tracestore.MaxSearchDepth {
 		return fmt.Errorf("%w: search depth must be in [0, %d]", ErrQueryInvalid, tracestore.MaxSearchDepth)
 	}
 	if q.SearchDepth == 0 && q.Pagination == nil {

@@ -1009,3 +1009,65 @@ func TestHandler_RefusesUnusableFilter(t *testing.T) {
 		})
 	}
 }
+
+func TestHandler_SearchDepthValidation(t *testing.T) {
+	tests := []struct {
+		name        string
+		searchDepth int32
+		expectedErr bool
+		expectedVal uint32
+	}{
+		{
+			name:        "negative search depth",
+			searchDepth: -1,
+			expectedErr: true,
+		},
+		{
+			name:        "exceeding max search depth",
+			searchDepth: int32(tracestore.MaxSearchDepth) + 1,
+			expectedErr: true,
+		},
+		{
+			name:        "valid positive search depth",
+			searchDepth: 50,
+			expectedErr: false,
+			expectedVal: 50,
+		},
+		{
+			name:        "zero search depth",
+			searchDepth: 0,
+			expectedErr: false,
+			expectedVal: 0,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			reader := new(tracestoremocks.Reader)
+			handler := NewHandler(reader, new(tracestoremocks.Writer), new(depstoremocks.Reader))
+
+			if !tt.expectedErr {
+				reader.On("FindTraces", mock.Anything, mock.MatchedBy(func(p tracestore.TraceQueryParams) bool {
+					return p.SearchDepth == tt.expectedVal
+				})).Return(iter.Seq2[[]ptrace.Traces, error](func(_ func([]ptrace.Traces, error) bool) {
+					// empty iter
+				})).Once()
+			}
+
+			err := handler.FindTraces(&storage.FindTracesRequest{
+				Query: &storage.TraceQueryParameters{
+					ServiceName: "service",
+					SearchDepth: tt.searchDepth,
+				},
+			}, &testStream{})
+
+			if tt.expectedErr {
+				require.Error(t, err)
+				assert.Equal(t, codes.InvalidArgument, status.Code(err))
+				assert.Contains(t, err.Error(), "SearchDepth must be in")
+			} else {
+				require.NoError(t, err)
+			}
+		})
+	}
+}

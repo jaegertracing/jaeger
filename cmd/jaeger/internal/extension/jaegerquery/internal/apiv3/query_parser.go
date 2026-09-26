@@ -121,11 +121,11 @@ func parsePaginationParams(q url.Values) (pagination tracestore.Pagination, pres
 	present = pageSizeStr != "" || pageToken != ""
 	pagination.PageToken = pageToken
 	if pageSizeStr != "" {
-		pageSize, err := strconv.Atoi(pageSizeStr)
-		if err != nil || pageSize < 0 {
+		pageSize, err := strconv.ParseUint(pageSizeStr, 10, 32)
+		if err != nil {
 			return tracestore.Pagination{}, present, fmt.Errorf("malformed parameter %s: %s", paramPageSize, pageSizeStr)
 		}
-		pagination.PageSize = pageSize
+		pagination.PageSize = uint32(pageSize)
 	}
 	return pagination, present, nil
 }
@@ -176,11 +176,11 @@ func parseFindTracesQuery(q url.Values) (*querysvc.TraceQueryParams, error) {
 		searchDepthParam = paramNumTraces
 	}
 	if n != "" {
-		searchDepth, err := strconv.ParseInt(n, 10, 32)
+		searchDepth, err := strconv.ParseUint(n, 10, 32)
 		if err != nil {
 			return nil, fmt.Errorf("malformed parameter %s: %w", searchDepthParam, err)
 		}
-		queryParams.SearchDepth = int(searchDepth)
+		queryParams.SearchDepth = uint32(searchDepth)
 	}
 
 	if d, paramName := getQueryParam(q, paramDurationMin, paramDurationMinDeprecated); d != "" {

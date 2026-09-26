@@ -534,12 +534,8 @@ func TestFindTraceIds_NegativeSearchDepth(t *testing.T) {
 func testInvalidSearchDepth(t *testing.T, fxn func(store *Store, params tracestore.TraceQueryParams)) {
 	tests := []struct {
 		name        string
-		searchDepth int
+		searchDepth uint32
 	}{
-		{
-			name:        "negative search depth",
-			searchDepth: -1,
-		},
 		{
 			name:        "zero search depth",
 			searchDepth: 0,

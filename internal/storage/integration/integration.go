@@ -126,6 +126,15 @@ func (q *Query) ToTraceQueryParams(t *testing.T) *tracestore.TraceQueryParams {
 		}
 	}
 
+	var searchDepth uint32
+	if q.NumTraces > 0 {
+		if q.NumTraces > int(tracestore.MaxSearchDepth) {
+			searchDepth = tracestore.MaxSearchDepth
+		} else {
+			searchDepth = uint32(q.NumTraces)
+		}
+	}
+
 	return &tracestore.TraceQueryParams{
 		ServiceName:   q.ServiceName,
 		OperationName: q.OperationName,
@@ -134,7 +143,7 @@ func (q *Query) ToTraceQueryParams(t *testing.T) *tracestore.TraceQueryParams {
 		StartTimeMax:  q.StartTimeMax,
 		DurationMin:   q.DurationMin,
 		DurationMax:   q.DurationMax,
-		SearchDepth:   q.NumTraces,
+		SearchDepth:   searchDepth,
 	}
 }
 
