@@ -84,10 +84,10 @@ type SearchCapabilities struct {
 
 	// Paginated is true when FindTraceIDs and FindTraceSummaries honor
 	// TraceQueryParams.Pagination and let a caller resume a search past its first page
-	// (RFC 0014). False, the zero value, means the reader cannot paginate: the query
-	// service serves a single page capped at Pagination.PageSize or SearchDepth and
-	// rejects a query that carries a PageToken, since a reader that cannot paginate
-	// cannot have minted a valid one.
+	// (RFC 0014). False, the zero value, means the reader cannot paginate: it MUST return
+	// an empty PageChunk.NextPageToken, the query service serves a single page capped at
+	// Pagination.PageSize or SearchDepth, and it rejects a query that carries a PageToken,
+	// since a reader that cannot paginate cannot have minted a valid one.
 	Paginated bool
 
 	// SpanSearch is true when FindSpans is supported by the backend. False means that the

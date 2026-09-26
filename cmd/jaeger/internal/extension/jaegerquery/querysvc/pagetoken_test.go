@@ -154,27 +154,34 @@ func TestFindSpans_PageTokenBoundToTheDispatchedQuery(t *testing.T) {
 // paginate, the reader's cursor is dropped and the page carries no token, since a token the
 // server would refuse on the next request is worse than none (RFC 0014 §6.2).
 func TestFindSpans_NoTokenWhereNoneCanBeResumed(t *testing.T) {
-	cases := []struct {
-		name string
-		gate bool
-		caps tracestore.SearchCapabilities
-	}{
-		{name: "gate off", gate: false, caps: tracestore.SearchCapabilities{SpanSearch: true, Paginated: true}},
-		{name: "reader cannot paginate", gate: true, caps: tracestore.SearchCapabilities{SpanSearch: true}},
-	}
-	for _, tc := range cases {
-		t.Run(tc.name, func(t *testing.T) {
-			setPagination(t, tc.gate)
-			next := &fakeReader{batch: tracesWith("k", "v"), nextPageToken: "reader-cursor"}
-			next.capabilities = &tc.caps
-			qs := NewQueryService(next, nil, QueryServiceOptions{})
+	setPagination(t, false)
+	next := &fakeReader{batch: tracesWith("k", "v"), nextPageToken: "reader-cursor"}
+	next.capabilities = &tracestore.SearchCapabilities{SpanSearch: true, Paginated: true}
+	qs := NewQueryService(next, nil, QueryServiceOptions{})
 
-			out, err := collectSpans(qs.FindSpans(context.Background(), searchSpansQuery(pagedSpanQuery(tracestore.Pagination{PageSize: 10}))))
-			require.NoError(t, err)
-			require.Len(t, out, 1)
-			assert.Empty(t, out[0].NextPageToken)
-		})
-	}
+	out, err := collectSpans(qs.FindSpans(context.Background(), searchSpansQuery(pagedSpanQuery(tracestore.Pagination{PageSize: 10}))))
+	require.NoError(t, err)
+	require.Len(t, out, 1)
+	assert.Empty(t, out[0].NextPageToken)
+}
+
+// TestFindSpans_CursorFromReaderThatCannotPaginate pins that a reader contradicting its own
+// Paginated declaration is not second-guessed: the cursor it returns is wrapped like any other,
+// and the request that brings it back is refused, as any token against such a reader is
+// (RFC 0014 §6.2).
+func TestFindSpans_CursorFromReaderThatCannotPaginate(t *testing.T) {
+	enablePagination(t)
+	next := &fakeReader{batch: tracesWith("k", "v"), nextPageToken: "reader-cursor"}
+	next.capabilities = &tracestore.SearchCapabilities{SpanSearch: true}
+	qs := NewQueryService(next, nil, QueryServiceOptions{})
+
+	first, err := collectSpans(qs.FindSpans(context.Background(), searchSpansQuery(pagedSpanQuery(tracestore.Pagination{PageSize: 10}))))
+	require.NoError(t, err)
+	require.Len(t, first, 1)
+	assert.Equal(t, "reader-cursor", openCursor(t, first[0].NextPageToken))
+
+	_, err = collectSpans(qs.FindSpans(context.Background(), searchSpansQuery(pagedSpanQuery(tracestore.Pagination{PageSize: 10, PageToken: first[0].NextPageToken}))))
+	require.ErrorIs(t, err, tracestore.ErrPaginationUnsupported)
 }
 
 // TestFindTraceSummaries_PageTokenRoundTrip is TestFindSpans_PageTokenRoundTrip for the summary

@@ -40,10 +40,13 @@ type pageTokens struct {
 }
 
 // resumeSpanSearch exchanges the page token in query for the reader's cursor, in place, and returns
-// the pageTokens that wrap the reader's next cursor. paginates says whether the search mints a
-// token at all; where it does not, the query is left alone.
-func resumeSpanSearch(query *tracestore.SpanQueryParams, paginates bool) (pageTokens, error) {
-	if !paginates {
+// the pageTokens that wrap the reader's next cursor. A span search paginates whenever the gate is
+// on; with the gate off the query is left alone, since any token it carried was refused while the
+// query was prepared, and no token is minted. Whether the reader can paginate plays no part: a
+// reader declaring Paginated false returns no cursor (SearchCapabilities.Paginated), and a cursor
+// it returns anyway is wrapped like any other and refused on the next request (RFC 0014 §6.2).
+func resumeSpanSearch(query *tracestore.SpanQueryParams) (pageTokens, error) {
+	if !PaginationGate.IsEnabled() {
 		return pageTokens{}, nil
 	}
 	minted, err := pagetoken.FromSpanQuery(*query)

@@ -187,13 +187,12 @@ func (qs QueryService) FindSpans(
 	query SpanQueryParams,
 ) iter.Seq2[tracestore.PageChunk[ptrace.Traces], error] {
 	return func(yield func(tracestore.PageChunk[ptrace.Traces], error) bool) {
-		ctx, prepared, err := qs.prepareAndInterceptSpanSearchQuery(ctx, query)
+		ctx, query, err := qs.prepareAndInterceptSpanSearchQuery(ctx, query)
 		if err != nil {
 			yield(tracestore.PageChunk[ptrace.Traces]{}, err)
 			return
 		}
-		query = prepared.query
-		tokens, err := resumeSpanSearch(&query.SpanQueryParams, prepared.paginates)
+		tokens, err := resumeSpanSearch(&query.SpanQueryParams)
 		if err != nil {
 			yield(tracestore.PageChunk[ptrace.Traces]{}, err)
 			return
@@ -361,16 +360,6 @@ func (q *TraceQueryParams) normalizeEnvelope() error {
 	return nil
 }
 
-// preparedSpanSearch is a span search settled for dispatch by prepareAndInterceptSpanSearchQuery.
-type preparedSpanSearch struct {
-	query SpanQueryParams
-	// paginates says a page token is minted for this search, which is only where the query
-	// service would accept it back: the gate is on and the reader can resume from its own
-	// cursor. Otherwise the reader still serves one page bounded by PageSize and the search
-	// is answered with no token (RFC 0014 §6.2).
-	paginates bool
-}
-
 // prepareAndInterceptSpanSearchQuery is prepareAndInterceptSearchQuery for a span search (RFC 0016
 // §4.6): it refuses a request this deployment or its backend does not accept, runs the configured
 // query interceptors (OnSpanQuery) over it, and returns the query to dispatch along with the context
@@ -386,18 +375,18 @@ type preparedSpanSearch struct {
 func (qs QueryService) prepareAndInterceptSpanSearchQuery(
 	ctx context.Context,
 	query SpanQueryParams,
-) (context.Context, preparedSpanSearch, error) {
+) (context.Context, SpanQueryParams, error) {
 	if query.StartTimeMin.IsZero() || query.StartTimeMax.IsZero() {
-		return ctx, preparedSpanSearch{}, fmt.Errorf("%w: start_time_min and start_time_max are required", ErrQueryInvalid)
+		return ctx, query, fmt.Errorf("%w: start_time_min and start_time_max are required", ErrQueryInvalid)
 	}
 	if !query.StartTimeMin.Before(query.StartTimeMax) {
-		return ctx, preparedSpanSearch{}, fmt.Errorf("%w: start_time_min must be before start_time_max", ErrQueryInvalid)
+		return ctx, query, fmt.Errorf("%w: start_time_min must be before start_time_max", ErrQueryInvalid)
 	}
 	// A page token is what makes this a paginated request, and that is what the feature gate
 	// governs. The page size is only the bound (RFC 0016 §6): unset means the default, as an
 	// omitted size does on Elasticsearch, and an oversized one is clamped (RFC 0014 §4).
 	if query.Pagination.PageToken != "" && !PaginationGate.IsEnabled() {
-		return ctx, preparedSpanSearch{}, fmt.Errorf("%w: enable the %q feature gate to use it",
+		return ctx, query, fmt.Errorf("%w: enable the %q feature gate to use it",
 			ErrPaginationDisabled, PaginationGate.ID())
 	}
 	if query.Pagination.PageSize == 0 {
@@ -409,31 +398,30 @@ func (qs QueryService) prepareAndInterceptSpanSearchQuery(
 	// depends on the backend, so both come before the capability call rather than after it.
 	if query.Filter != nil {
 		if !StructuredFiltersGate.IsEnabled() {
-			return ctx, preparedSpanSearch{}, fmt.Errorf("%w: enable the %q feature gate to use it",
+			return ctx, query, fmt.Errorf("%w: enable the %q feature gate to use it",
 				ErrFilterDisabled, StructuredFiltersGate.ID())
 		}
 		finalized, err := tracestore.FinalizeFilter(query.Filter)
 		if err != nil {
-			return ctx, preparedSpanSearch{}, fmt.Errorf("%w: %w", tracestore.ErrFilterInvalid, err)
+			return ctx, query, fmt.Errorf("%w: %w", tracestore.ErrFilterInvalid, err)
 		}
 		query.Filter = finalized
 	}
 	caps := qs.readerSearchCapabilitiesOrDefault(ctx)
 	if !caps.SpanSearch {
-		return ctx, preparedSpanSearch{}, ErrSpanSearchUnsupported
+		return ctx, query, ErrSpanSearchUnsupported
 	}
 	if len(qs.options.Interceptors) > 0 {
 		var err error
 		ctx, query, err = qs.onSpanQuery(ctx, query)
 		if err != nil {
-			return ctx, preparedSpanSearch{}, err
+			return ctx, query, err
 		}
 	}
 	if err := ensureSpanPaginationSupported(caps, query.Pagination); err != nil {
-		return ctx, preparedSpanSearch{}, err
+		return ctx, query, err
 	}
-	prepared := preparedSpanSearch{query: query, paginates: PaginationGate.IsEnabled() && caps.Paginated}
-	return ctx, prepared, ensureSpanFilterSupported(caps, query.Filter)
+	return ctx, query, ensureSpanFilterSupported(caps, query.Filter)
 }
 
 // ensureSpanPaginationSupported is RFC 0014 §6.2 for a span search. A reader that cannot paginate
