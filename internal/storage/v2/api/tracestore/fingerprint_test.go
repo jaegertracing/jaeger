@@ -5,6 +5,7 @@ package tracestore
 
 import (
 	"encoding/hex"
+	"reflect"
 	"testing"
 	"time"
 
@@ -162,6 +163,30 @@ func TestTraceQueryFingerprint_FieldBoundariesCount(t *testing.T) {
 	assert.NotEqual(t, fa, fb)
 }
 
+// TestFingerprint_EveryFieldIsAccountedFor pins the field lists of the two query types, so that a
+// field added later, such as the caller-chosen ordering of RFC 0014 §12, fails here and forces
+// the decision whether the fingerprint covers it. Fingerprint hashes every field except the two
+// named as excluded: the page bound and the token do not select or order the results.
+func TestFingerprint_EveryFieldIsAccountedFor(t *testing.T) {
+	fields := func(v any) []string {
+		rt := reflect.TypeOf(v)
+		names := make([]string, 0, rt.NumField())
+		for i := range rt.NumField() {
+			names = append(names, rt.Field(i).Name)
+		}
+		return names
+	}
+	assert.Equal(t, []string{
+		"ServiceName", "OperationName", "Attributes", "StartTimeMin", "StartTimeMax",
+		"DurationMin", "DurationMax", "SearchDepth", "Filter",
+		"Pagination", // excluded, with SearchDepth: the page bound and the token
+	}, fields(TraceQueryParams{}))
+	assert.Equal(t, []string{
+		"StartTimeMin", "StartTimeMax", "Filter",
+		"Pagination", // excluded
+	}, fields(SpanQueryParams{}))
+}
+
 func TestSpanQueryFingerprint(t *testing.T) {
 	q := SpanQueryParams{
 		StartTimeMin: windowStart,
@@ -219,11 +244,15 @@ func fingerprintOf(t *testing.T, filter *expression.Call) []byte {
 // nested or not, while a permutation that changes the meaning does not.
 func TestFilter_InvariantUnderEquivalentPermutations(t *testing.T) {
 	a, b, c := tagIs("a", "1"), tagIs("b", "2"), tagIs("c", "3")
-	start := &expression.FieldRef{Level: expression.LevelSpan, Name: "start_time"}
+	start := &expression.FieldRef{Level: expression.LevelSpan, Name: expression.SpanFieldStartTime}
+	duration := &expression.FieldRef{Level: expression.LevelSpan, Name: expression.SpanFieldDuration}
 	in := func(values ...string) *expression.Call {
 		return call(expression.OpIn,
 			&expression.AttributeRef{Key: "k", Level: expression.LevelSpan},
 			&expression.List{Values: values, Type: expression.ValueTypeString})
+	}
+	inField := func(field *expression.FieldRef, values ...string) *expression.Call {
+		return call(expression.OpIn, field, &expression.List{Values: values})
 	}
 
 	same := []struct {
@@ -239,6 +268,12 @@ func TestFilter_InvariantUnderEquivalentPermutations(t *testing.T) {
 			call(expression.OpGt, start, &expression.TimestampValue{Value: windowStart}),
 			call(expression.OpGt, start, &expression.TimestampValue{Value: windowStart.In(time.FixedZone("east", 2*3600))}),
 		},
+		{
+			"timestamp list offset",
+			inField(start, "2026-09-25T10:00:00Z", "2026-09-25T11:00:00Z"),
+			inField(start, "2026-09-25T13:00:00+02:00", "2026-09-25T12:00:00+02:00"),
+		},
+		{"duration list unit", inField(duration, "1s", "1.5s"), inField(duration, "1500ms", "1000ms")},
 	}
 	for _, tc := range same {
 		t.Run(tc.name, func(t *testing.T) {
@@ -246,7 +281,6 @@ func TestFilter_InvariantUnderEquivalentPermutations(t *testing.T) {
 		})
 	}
 
-	duration := &expression.FieldRef{Level: expression.LevelSpan, Name: "duration"}
 	second := &expression.DurationValue{Value: time.Second}
 	different := []struct {
 		name string
@@ -257,6 +291,8 @@ func TestFilter_InvariantUnderEquivalentPermutations(t *testing.T) {
 		{"operand count", call(expression.OpAnd, a, b), call(expression.OpAnd, a, b, c)},
 		{"comparison operands", call(expression.OpGt, duration, second), call(expression.OpGt, second, duration)},
 		{"list versus other list", in("x", "y"), in("x", "z")},
+		{"timestamp list versus other instant", inField(start, "2026-09-25T10:00:00Z"), inField(start, "2026-09-25T10:00:01Z")},
+		{"attribute list keeps its spelling", in("1s"), in("1000ms")},
 	}
 	for _, tc := range different {
 		t.Run(tc.name, func(t *testing.T) {

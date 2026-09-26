@@ -145,10 +145,42 @@ func encodeCanonical(call *expression.Call) ([]byte, error) {
 	return msg.Marshal()
 }
 
+// canonicalElements returns a copy of a list's elements with each one that is compared against a
+// time field respelled the way its typed constant is encoded: an instant in UTC and a duration
+// in Go's own form. A list has no typed node, so its elements stay text (see checkMembership),
+// and one that does not parse is kept as it is, since a finalized filter has none.
+func canonicalElements(call *expression.Call, list *expression.List) []string {
+	values := slices.Clone(list.Values)
+	ref, ok := call.Args[0].(*expression.FieldRef)
+	if !ok || ref == nil {
+		return values
+	}
+	field, ok := expression.LookupField(ref.Level, ref.Name)
+	if !ok {
+		return values
+	}
+	for i, element := range values {
+		switch field.Type {
+		case expression.FieldTypeTimestamp:
+			if v, err := time.Parse(time.RFC3339Nano, element); err == nil {
+				values[i] = v.UTC().Format(time.RFC3339Nano)
+			}
+		case expression.FieldTypeDuration:
+			if v, err := time.ParseDuration(element); err == nil {
+				values[i] = v.String()
+			}
+		default:
+			// Every other field type has one spelling per value already.
+		}
+	}
+	return values
+}
+
 // canonicalize returns a copy of the call with the operands of `and` and `or`, and the values
-// of every list, sorted by their own canonical encodings, and every timestamp constant in UTC,
-// since the wire spells an instant with whatever offset the client used. Operands of every
-// other operator keep their order, since it is part of the operator's meaning.
+// of every list, sorted by their own canonical encodings, and every time constant in one
+// spelling, since the wire carries an instant with whatever offset the client used and a
+// duration in whatever unit. Operands of every other operator keep their order, since it is
+// part of the operator's meaning.
 func canonicalize(call *expression.Call) (*expression.Call, error) {
 	out := &expression.Call{Op: call.Op, Args: make([]expression.Expression, len(call.Args))}
 	for i, arg := range call.Args {
@@ -168,7 +200,7 @@ func canonicalize(call *expression.Call) (*expression.Call, error) {
 				out.Args[i] = arg
 				continue
 			}
-			values := slices.Clone(term.Values)
+			values := canonicalElements(call, term)
 			slices.Sort(values)
 			out.Args[i] = &expression.List{Values: values, Type: term.Type}
 		case *expression.TimestampValue:

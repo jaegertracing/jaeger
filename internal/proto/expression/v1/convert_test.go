@@ -116,8 +116,8 @@ func TestFilterRoundTrip(t *testing.T) {
 }
 
 // TestTimeConstantsTravelUnhinted covers the two constants the wire has no type for. They are
-// written in the syntax the field they are compared against is written in and come back untyped,
-// which is the constant tracestore.ResolveFilterConstants reads as that field's type again.
+// written in the syntax the field they are compared against is written in and come back untyped.
+// Reading them back as that field's type is tracestore.ResolveFilterConstants's job, tested there.
 func TestTimeConstantsTravelUnhinted(t *testing.T) {
 	tests := []struct {
 		name    string
