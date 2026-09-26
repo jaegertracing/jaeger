@@ -28,59 +28,59 @@ var PaginationGate = featuregate.GlobalRegistry().MustRegister(
 // ErrPaginationDisabled is returned for a query carrying Pagination while PaginationGate is off.
 var ErrPaginationDisabled = errors.New("pagination is disabled")
 
-// pageTokens binds the page tokens of one search to the query as dispatched (RFC 0014 §3.2): the
-// token a client sent is exchanged for the reader's cursor it wraps, and the cursor the reader
-// returns is wrapped into the token the client receives. The zero value belongs to a search that
-// paginates nothing, which mints no token; any token such a search carried was refused while the
-// query was prepared.
-type pageTokens struct {
-	// minted is the token every page of this search is minted from, with the cursor left empty;
-	// nil for a search that paginates nothing.
-	minted *pagetoken.PageToken
+// pageTokenMinter mints the page tokens of one search and checks the one that comes back, so both
+// are bound to the query as dispatched (RFC 0014 §3.2): the token a client sent is exchanged for
+// the reader's cursor it wraps, and the cursor the reader returns is minted into the token the
+// client receives. The zero value belongs to a search that paginates nothing, which mints no token;
+// any token such a search carried was refused while the query was prepared.
+type pageTokenMinter struct {
+	// template is the token every page of this search is minted from, with the cursor left
+	// empty; nil for a search that paginates nothing.
+	template *pagetoken.PageToken
 }
 
 // resumeSpanSearch exchanges the page token in query for the reader's cursor, in place, and returns
-// the pageTokens that wrap the reader's next cursor. A span search paginates whenever the gate is
+// the minter of the reader's next cursor. A span search paginates whenever the gate is
 // on; with the gate off the query is left alone, since any token it carried was refused while the
 // query was prepared, and no token is minted. Whether the reader can paginate plays no part: a
 // reader declaring Paginated false returns no cursor (SearchCapabilities.Paginated), and a cursor
 // it returns anyway is wrapped like any other and refused on the next request (RFC 0014 §6.2).
-func resumeSpanSearch(query *tracestore.SpanQueryParams) (pageTokens, error) {
+func resumeSpanSearch(query *tracestore.SpanQueryParams) (pageTokenMinter, error) {
 	if !PaginationGate.IsEnabled() {
-		return pageTokens{}, nil
+		return pageTokenMinter{}, nil
 	}
 	minted, err := pagetoken.FromSpanQuery(*query)
 	if err != nil {
-		return pageTokens{}, err
+		return pageTokenMinter{}, err
 	}
-	tokens := pageTokens{minted: minted}
-	query.Pagination.PageToken, err = tokens.resume(query.Pagination.PageToken)
-	return tokens, err
+	minter := pageTokenMinter{template: minted}
+	query.Pagination.PageToken, err = minter.resume(query.Pagination.PageToken)
+	return minter, err
 }
 
 // resumeTraceSearch is resumeSpanSearch for a trace search, which paginates whenever Pagination is
 // present. The exchange lands on a copy of Pagination so the caller's request is not rewritten
 // through the shared pointer.
-func resumeTraceSearch(query *tracestore.TraceQueryParams) (pageTokens, error) {
+func resumeTraceSearch(query *tracestore.TraceQueryParams) (pageTokenMinter, error) {
 	if query.Pagination == nil {
-		return pageTokens{}, nil
+		return pageTokenMinter{}, nil
 	}
 	minted, err := pagetoken.FromTraceQuery(*query)
 	if err != nil {
-		return pageTokens{}, err
+		return pageTokenMinter{}, err
 	}
-	tokens := pageTokens{minted: minted}
+	minter := pageTokenMinter{template: minted}
 	resumed := *query.Pagination
-	resumed.PageToken, err = tokens.resume(resumed.PageToken)
+	resumed.PageToken, err = minter.resume(resumed.PageToken)
 	query.Pagination = &resumed
-	return tokens, err
+	return minter, err
 }
 
 // resume exchanges the page token a client sent for the reader's cursor it wraps. The token is
 // refused when it continues a different query than the one it arrived with, since its cursor is a
 // position in that query's ordering alone. An empty token starts a new search and passes through
 // unchanged.
-func (p pageTokens) resume(token string) (string, error) {
+func (m pageTokenMinter) resume(token string) (string, error) {
 	if token == "" {
 		return "", nil
 	}
@@ -88,22 +88,22 @@ func (p pageTokens) resume(token string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	if err := received.Verify(p.minted.Fingerprint); err != nil {
+	if err := received.Verify(m.template.Fingerprint); err != nil {
 		return "", err
 	}
 	return string(received.Cursor), nil
 }
 
-// wrap turns the cursor a reader returned on a page's final chunk into the token the client
+// mint turns the cursor a reader returned on a page's final chunk into the token the client
 // receives. An empty cursor means the last page and stays empty, and a search that paginates
 // nothing is answered with no token whatever the reader returned (RFC 0014 §4, §6.2).
-func (p pageTokens) wrap(cursor string) (string, error) {
-	if p.minted == nil || cursor == "" {
+func (m pageTokenMinter) mint(cursor string) (string, error) {
+	if m.template == nil || cursor == "" {
 		return "", nil
 	}
 	return pagetoken.EncodeToString(&pagetoken.PageToken{
-		Version:     p.minted.Version,
-		Fingerprint: p.minted.Fingerprint,
+		Version:     m.template.Version,
+		Fingerprint: m.template.Fingerprint,
 		Cursor:      []byte(cursor),
 	})
 }

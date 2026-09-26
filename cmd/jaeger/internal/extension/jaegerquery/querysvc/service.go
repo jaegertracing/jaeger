@@ -192,7 +192,7 @@ func (qs QueryService) FindSpans(
 			yield(tracestore.PageChunk[ptrace.Traces]{}, err)
 			return
 		}
-		tokens, err := resumeSpanSearch(&query.SpanQueryParams)
+		minter, err := resumeSpanSearch(&query.SpanQueryParams)
 		if err != nil {
 			yield(tracestore.PageChunk[ptrace.Traces]{}, err)
 			return
@@ -200,7 +200,7 @@ func (qs QueryService) FindSpans(
 		spans := qs.traceReader.FindSpans(ctx, query.SpanQueryParams)
 		for chunk, err := range qs.interceptSpanResults(ctx, spans) {
 			if err == nil {
-				chunk.NextPageToken, err = tokens.wrap(chunk.NextPageToken)
+				chunk.NextPageToken, err = minter.mint(chunk.NextPageToken)
 			}
 			if !yield(chunk, err) {
 				return
@@ -488,7 +488,7 @@ func (qs QueryService) FindTraceSummaries(
 		}
 		// A reader that cannot paginate has had its Pagination cleared by now; one that can is
 		// handed the cursor its token wraps.
-		tokens, err := resumeTraceSearch(&query.TraceQueryParams)
+		minter, err := resumeTraceSearch(&query.TraceQueryParams)
 		if err != nil {
 			yield(PageChunk[[]tracestore.TraceSummary]{}, err)
 			return
@@ -517,7 +517,7 @@ func (qs QueryService) FindTraceSummaries(
 				return
 			}
 			result := PageChunk[[]tracestore.TraceSummary]{Results: chunk.Results}
-			result.NextPageToken, err = tokens.wrap(chunk.NextPageToken)
+			result.NextPageToken, err = minter.mint(chunk.NextPageToken)
 			if !yield(result, err) {
 				return
 			}
