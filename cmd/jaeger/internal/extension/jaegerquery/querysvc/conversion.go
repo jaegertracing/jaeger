@@ -66,7 +66,7 @@ func (q TraceQueryParams) toReaderQuery() (tracestore.TraceQueryParams, error) {
 	}
 	query.Pagination = &tracestore.Pagination{
 		PageSize:  min(q.Pagination.PageSize, tracestore.MaxPageSize),
-		PageToken: q.Pagination.PageToken,
+		PageToken: tracestore.PageToken(q.Pagination.PageToken),
 	}
 	return query, nil
 }
@@ -84,7 +84,7 @@ func (q SpanQueryParams) toReaderQuery() (tracestore.SpanQueryParams, error) {
 		Filter:       q.Filter,
 		Pagination: tracestore.Pagination{
 			PageSize:  q.Pagination.PageSize,
-			PageToken: q.Pagination.PageToken,
+			PageToken: tracestore.PageToken(q.Pagination.PageToken),
 		},
 	}
 	if q.StartTimeMin.IsZero() || q.StartTimeMax.IsZero() {

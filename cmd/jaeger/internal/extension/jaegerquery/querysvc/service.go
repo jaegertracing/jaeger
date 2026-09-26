@@ -478,7 +478,7 @@ func (qs QueryService) FindTraceSummaries(
 			}
 			result := PageChunk[[]tracestore.TraceSummary]{
 				Results:       chunk.Results,
-				NextPageToken: chunk.NextPageToken,
+				NextPageToken: string(chunk.NextPageToken),
 			}
 			if !yield(result, nil) {
 				return

@@ -131,7 +131,7 @@ func (h *Handler) FindSpans(request *api_v3.FindSpansRequest, stream api_v3.Quer
 		spans := jptrace.TracesData(chunk.Results)
 		response := &api_v3.FindSpansResponse{
 			Spans:         &spans,
-			NextPageToken: chunk.NextPageToken,
+			NextPageToken: string(chunk.NextPageToken),
 		}
 		if err := stream.Send(response); err != nil {
 			return status.Errorf(codes.Internal, "failed to send response stream chunk to client: %v", err)

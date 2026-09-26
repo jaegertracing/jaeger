@@ -230,7 +230,7 @@ func TestPrepareSearchQuery_PageTokenAcceptedWhenSupported(t *testing.T) {
 		require.NoError(t, err)
 	}
 	assert.True(t, next.summaryCalled)
-	assert.Equal(t, "opaque-cursor", next.gotSummaryQuery.Pagination.PageToken)
+	assert.Equal(t, tracestore.PageToken("opaque-cursor"), next.gotSummaryQuery.Pagination.PageToken)
 	assert.Equal(t, 20, next.gotSummaryQuery.Pagination.PageSize)
 }
 

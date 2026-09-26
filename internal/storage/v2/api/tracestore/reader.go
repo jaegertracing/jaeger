@@ -135,7 +135,7 @@ const MaxSearchDepth = 10000
 // no later page, while an empty token on an earlier chunk says nothing about pagination.
 type PageChunk[T any] struct {
 	Results       T
-	NextPageToken string
+	NextPageToken PageToken
 }
 
 // SpanQueryParams contains query parameters to find spans. For a more detailed
@@ -210,12 +210,12 @@ type Pagination struct {
 	// sees the query (RFC 0014 §4). A span search has no other bound, so there the query
 	// service fills in a default instead (see SpanQueryParams.Pagination).
 	PageSize int
-	// PageToken continues a previous search. Empty starts a new one. A Reader that
-	// receives a non-empty PageToken MUST treat it as an uninterpreted cursor it minted
-	// itself for the same query — a Reader is never asked to interpret a token it did not
-	// produce, since the query service rejects a PageToken against a Reader whose
-	// SearchCapabilities.Paginated is false before dispatching (RFC 0014 §6.2).
-	PageToken string
+	// PageToken continues a previous search. Empty starts a new one. It is the token the
+	// Reader itself returned in PageChunk.NextPageToken; the PageToken type says what the
+	// Reader has to do with it. The query service refuses a PageToken against a Reader whose
+	// SearchCapabilities.Paginated is false before dispatching (RFC 0014 §6.2), so such a
+	// Reader never sees one.
+	PageToken PageToken
 }
 
 // FoundTraceID is a wrapper around trace ID returned from FindTraceIDs

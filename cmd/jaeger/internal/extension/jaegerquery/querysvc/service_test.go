@@ -441,7 +441,7 @@ func TestFindSpans_Pagination(t *testing.T) {
 		request := SpanQueryParams{
 			StartTimeMin: query.StartTimeMin,
 			StartTimeMax: query.StartTimeMax,
-			Pagination:   Pagination{PageSize: query.Pagination.PageSize, PageToken: query.Pagination.PageToken},
+			Pagination:   Pagination{PageSize: query.Pagination.PageSize, PageToken: string(query.Pagination.PageToken)},
 		}
 		_, err := jiter.CollectWithErrors(tqs.queryService.FindSpans(context.Background(), request))
 		return err
@@ -1173,7 +1173,7 @@ func (m *mockSummaryReader) FindTraceSummaries(_ context.Context, _ tracestore.T
 		if len(m.summaries) > 0 {
 			yield(tracestore.PageChunk[[]tracestore.TraceSummary]{
 				Results:       m.summaries,
-				NextPageToken: m.nextPageToken,
+				NextPageToken: tracestore.PageToken(m.nextPageToken),
 			}, nil)
 		}
 	}
