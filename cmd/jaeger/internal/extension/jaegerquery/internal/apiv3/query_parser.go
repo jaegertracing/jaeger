@@ -18,7 +18,6 @@ import (
 	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerquery/querysvc"
 	"github.com/jaegertracing/jaeger/internal/jptrace"
 	expressionproto "github.com/jaegertracing/jaeger/internal/proto/expression/v1"
-	"github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore"
 )
 
 const (
@@ -116,14 +115,14 @@ func parseFilterParam(q url.Values) (*expression.Call, error) {
 // parsePaginationParams reads the pagination parameters (RFC 0014 §4). present reports whether
 // the caller sent either of them; what an absent or zero page size means is the query service's
 // decision, and it differs between a trace search and a span search.
-func parsePaginationParams(q url.Values) (pagination tracestore.Pagination, present bool, err error) {
+func parsePaginationParams(q url.Values) (pagination querysvc.Pagination, present bool, err error) {
 	pageSizeStr, pageToken := q.Get(paramPageSize), q.Get(paramPageToken)
 	present = pageSizeStr != "" || pageToken != ""
 	pagination.PageToken = pageToken
 	if pageSizeStr != "" {
 		pageSize, err := strconv.Atoi(pageSizeStr)
 		if err != nil || pageSize < 0 {
-			return tracestore.Pagination{}, present, fmt.Errorf("malformed parameter %s: %s", paramPageSize, pageSizeStr)
+			return querysvc.Pagination{}, present, fmt.Errorf("malformed parameter %s: %s", paramPageSize, pageSizeStr)
 		}
 		pagination.PageSize = pageSize
 	}
@@ -135,11 +134,9 @@ func parseFindTracesQuery(q url.Values) (*querysvc.TraceQueryParams, error) {
 	operationName, _ := getQueryParam(q, paramOperationName, paramOperationNameDeprecated)
 
 	queryParams := &querysvc.TraceQueryParams{
-		TraceQueryParams: tracestore.TraceQueryParams{
-			ServiceName:   serviceName,
-			OperationName: operationName,
-			Attributes:    pcommon.NewMap(),
-		},
+		ServiceName:   serviceName,
+		OperationName: operationName,
+		Attributes:    pcommon.NewMap(),
 	}
 	if attrsParam := q.Get(paramAttributes); attrsParam != "" {
 		var attrsMap map[string]string
