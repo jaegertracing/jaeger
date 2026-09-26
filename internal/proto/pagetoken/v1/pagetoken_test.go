@@ -15,26 +15,37 @@ import (
 	"github.com/jaegertracing/jaeger/internal/testutils"
 )
 
-func TestSealOpenRoundTrip(t *testing.T) {
-	want := Token{Fingerprint: []byte{1, 2, 3}, Cursor: `[1727280000000000,"trace","span"]`}
-	sealed := Seal(want)
-	assert.NotContains(t, sealed, "=", "the token is URL-safe without padding")
+// Field numbers of page_token.proto, for building tokens by hand.
+const (
+	fieldVersion protowire.Number = 1
+	fieldCursor  protowire.Number = 4
+)
 
-	got, err := Open(sealed)
+func TestEncodeDecodeRoundTrip(t *testing.T) {
+	want := &PageToken{Version: Version, Fingerprint: []byte{1, 2, 3}, Cursor: []byte(`[1727280000000000,"trace","span"]`)}
+	encoded, err := EncodeToString(want)
 	require.NoError(t, err)
-	assert.Equal(t, want, got)
+	assert.NotContains(t, encoded, "=", "the token is URL-safe without padding")
+
+	got, err := DecodeString(encoded)
+	require.NoError(t, err)
+	assert.Equal(t, want.Version, got.Version)
+	assert.Equal(t, want.Fingerprint, got.Fingerprint)
+	assert.Equal(t, want.Cursor, got.Cursor)
 }
 
-func TestSealOpenEmptyFields(t *testing.T) {
-	got, err := Open(Seal(Token{}))
+func TestEncodeDecodeEmptyFields(t *testing.T) {
+	encoded, err := EncodeToString(&PageToken{Version: Version})
+	require.NoError(t, err)
+	got, err := DecodeString(encoded)
 	require.NoError(t, err)
 	assert.Empty(t, got.Fingerprint)
 	assert.Empty(t, got.Cursor)
 }
 
-// TestOpenSkipsUnknownFields pins the additive evolution path: a field this version does not
+// TestDecodeSkipsUnknownFields pins the additive evolution path: a field this version does not
 // know is skipped rather than refused, so a field can be added without a version bump.
-func TestOpenSkipsUnknownFields(t *testing.T) {
+func TestDecodeSkipsUnknownFields(t *testing.T) {
 	var b []byte
 	b = protowire.AppendTag(b, fieldVersion, protowire.VarintType)
 	b = protowire.AppendVarint(b, Version)
@@ -45,12 +56,12 @@ func TestOpenSkipsUnknownFields(t *testing.T) {
 	b = protowire.AppendTag(b, fieldCursor, protowire.BytesType)
 	b = protowire.AppendString(b, "cursor")
 
-	got, err := Open(base64.RawURLEncoding.EncodeToString(b))
+	got, err := DecodeString(base64.RawURLEncoding.EncodeToString(b))
 	require.NoError(t, err)
-	assert.Equal(t, "cursor", got.Cursor)
+	assert.Equal(t, []byte("cursor"), got.Cursor)
 }
 
-func TestOpenRefusals(t *testing.T) {
+func TestDecodeRefusals(t *testing.T) {
 	encode := func(b []byte) string { return base64.RawURLEncoding.EncodeToString(b) }
 	truncated := encode(protowire.AppendTag(nil, fieldCursor, protowire.BytesType))
 	var wrongVersion []byte
@@ -73,7 +84,7 @@ func TestOpenRefusals(t *testing.T) {
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			_, err := Open(tc.token)
+			_, err := DecodeString(tc.token)
 			require.ErrorIs(t, err, tracestore.ErrPaginationInvalid)
 			assert.ErrorContains(t, err, tc.want)
 		})
@@ -81,7 +92,7 @@ func TestOpenRefusals(t *testing.T) {
 }
 
 func TestVerify(t *testing.T) {
-	token := Token{Fingerprint: []byte{1, 2, 3}}
+	token := &PageToken{Fingerprint: []byte{1, 2, 3}}
 
 	require.NoError(t, token.Verify([]byte{1, 2, 3}))
 

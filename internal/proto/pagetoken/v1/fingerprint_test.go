@@ -36,6 +36,24 @@ func attrs(kv ...string) pcommon.Map {
 	return m
 }
 
+// fingerprintOfTrace and fingerprintOfSpan return what the tests compare: the fingerprint of
+// the token a query is minted from.
+func fingerprintOfTrace(q tracestore.TraceQueryParams) ([]byte, error) {
+	token, err := FromTraceQuery(q)
+	if err != nil {
+		return nil, err
+	}
+	return token.Fingerprint, nil
+}
+
+func fingerprintOfSpan(q tracestore.SpanQueryParams) ([]byte, error) {
+	token, err := FromSpanQuery(q)
+	if err != nil {
+		return nil, err
+	}
+	return token.Fingerprint, nil
+}
+
 func sampleTraceQuery() tracestore.TraceQueryParams {
 	return tracestore.TraceQueryParams{
 		ServiceName:   "cart",
@@ -50,33 +68,36 @@ func sampleTraceQuery() tracestore.TraceQueryParams {
 	}
 }
 
-func TestTraceQuery_IgnoresTheBoundAndTheCursor(t *testing.T) {
-	base, err := TraceQuery(sampleTraceQuery())
+func TestFromTraceQuery_IgnoresTheBoundAndTheCursor(t *testing.T) {
+	minted, err := FromTraceQuery(sampleTraceQuery())
 	require.NoError(t, err)
+	assert.Equal(t, uint32(Version), minted.Version)
+	assert.Empty(t, minted.Cursor, "the cursor belongs to the page, not to the query")
+	base := minted.Fingerprint
 	assert.Len(t, base, fingerprintSize)
 
 	q := sampleTraceQuery()
 	q.SearchDepth = 0
 	q.Pagination = nil
-	same, err := TraceQuery(q)
+	same, err := fingerprintOfTrace(q)
 	require.NoError(t, err)
 	assert.Equal(t, base, same, "the page bound and the cursor are not part of what selects the results")
 }
 
-func TestTraceQuery_AttributeOrderDoesNotMatter(t *testing.T) {
+func TestFromTraceQuery_AttributeOrderDoesNotMatter(t *testing.T) {
 	q := sampleTraceQuery()
 	q.Attributes = attrs("b", "2", "a", "1")
-	reordered, err := TraceQuery(q)
+	reordered, err := fingerprintOfTrace(q)
 	require.NoError(t, err)
-	base, err := TraceQuery(sampleTraceQuery())
+	base, err := fingerprintOfTrace(sampleTraceQuery())
 	require.NoError(t, err)
 	assert.Equal(t, base, reordered)
 }
 
 // TestTraceQuery_EverySelectingFieldCounts changes each selecting field in turn and expects a
 // different fingerprint, since each one changes which results the cursor is a position among.
-func TestTraceQuery_EverySelectingFieldCounts(t *testing.T) {
-	base, err := TraceQuery(sampleTraceQuery())
+func TestFromTraceQuery_EverySelectingFieldCounts(t *testing.T) {
+	base, err := fingerprintOfTrace(sampleTraceQuery())
 	require.NoError(t, err)
 	changes := map[string]func(*tracestore.TraceQueryParams){
 		"service":       func(q *tracestore.TraceQueryParams) { q.ServiceName = "checkout" },
@@ -98,7 +119,7 @@ func TestTraceQuery_EverySelectingFieldCounts(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			q := sampleTraceQuery()
 			change(&q)
-			changed, err := TraceQuery(q)
+			changed, err := fingerprintOfTrace(q)
 			require.NoError(t, err)
 			assert.NotEqual(t, base, changed)
 		})
@@ -107,43 +128,43 @@ func TestTraceQuery_EverySelectingFieldCounts(t *testing.T) {
 
 // TestTraceQuery_FieldBoundariesCount pins that the fields are hashed with their lengths: moving
 // the boundary between two adjacent strings is a different query.
-func TestTraceQuery_FieldBoundariesCount(t *testing.T) {
+func TestFromTraceQuery_FieldBoundariesCount(t *testing.T) {
 	a := tracestore.TraceQueryParams{ServiceName: "ab", OperationName: "c"}
 	b := tracestore.TraceQueryParams{ServiceName: "a", OperationName: "bc"}
-	fa, err := TraceQuery(a)
+	fa, err := fingerprintOfTrace(a)
 	require.NoError(t, err)
-	fb, err := TraceQuery(b)
+	fb, err := fingerprintOfTrace(b)
 	require.NoError(t, err)
 	assert.NotEqual(t, fa, fb)
 }
 
-func TestSpanQuery(t *testing.T) {
+func TestFromSpanQuery(t *testing.T) {
 	q := tracestore.SpanQueryParams{
 		StartTimeMin: windowStart,
 		StartTimeMax: windowEnd,
 		Filter:       serviceIs("cart"),
 		Pagination:   tracestore.Pagination{PageSize: 10, PageToken: "cursor"},
 	}
-	base, err := SpanQuery(q)
+	base, err := fingerprintOfSpan(q)
 	require.NoError(t, err)
 	assert.Len(t, base, fingerprintSize)
 
 	q.Pagination = tracestore.Pagination{}
-	same, err := SpanQuery(q)
+	same, err := fingerprintOfSpan(q)
 	require.NoError(t, err)
 	assert.Equal(t, base, same, "pagination is not part of what selects the results")
 
 	q.Filter = serviceIs("checkout")
-	other, err := SpanQuery(q)
+	other, err := fingerprintOfSpan(q)
 	require.NoError(t, err)
 	assert.NotEqual(t, base, other)
 
 	q.Filter = nil
-	unfiltered, err := SpanQuery(q)
+	unfiltered, err := fingerprintOfSpan(q)
 	require.NoError(t, err)
 	assert.NotEqual(t, other, unfiltered)
 
-	trace, err := TraceQuery(tracestore.TraceQueryParams{StartTimeMin: windowStart, StartTimeMax: windowEnd})
+	trace, err := fingerprintOfTrace(tracestore.TraceQueryParams{StartTimeMin: windowStart, StartTimeMax: windowEnd})
 	require.NoError(t, err)
 	assert.NotEqual(t, unfiltered, trace, "a span search and a trace search over the same window are different queries")
 }
@@ -164,7 +185,7 @@ func call(op expression.Operator, args ...expression.Expression) *expression.Cal
 }
 
 func fingerprintOf(t *testing.T, filter *expression.Call) []byte {
-	fp, err := SpanQuery(spanQueryWith(filter))
+	fp, err := fingerprintOfSpan(spanQueryWith(filter))
 	require.NoError(t, err)
 	return fp
 }
@@ -247,9 +268,9 @@ func TestCanonicalize_NilTerms(t *testing.T) {
 func TestFilterNotEncodable(t *testing.T) {
 	broken := &expression.Call{Op: expression.OpEq, Args: []expression.Expression{(*expression.AttributeRef)(nil)}}
 
-	_, err := TraceQuery(tracestore.TraceQueryParams{Filter: broken})
+	_, err := fingerprintOfTrace(tracestore.TraceQueryParams{Filter: broken})
 	require.ErrorIs(t, err, exprproto.ErrTermNotEncodable)
 
-	_, err = SpanQuery(tracestore.SpanQueryParams{Filter: broken})
+	_, err = fingerprintOfSpan(tracestore.SpanQueryParams{Filter: broken})
 	require.ErrorIs(t, err, exprproto.ErrTermNotEncodable)
 }

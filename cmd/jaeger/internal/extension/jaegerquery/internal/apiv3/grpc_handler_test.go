@@ -26,12 +26,12 @@ import (
 	"github.com/jaegertracing/jaeger-idl/model/v1"
 	expression "github.com/jaegertracing/jaeger-idl/query/expression/v1"
 	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerquery/querysvc"
-	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerquery/querysvc/pagetoken"
 	"github.com/jaegertracing/jaeger/components/extension/jaegerquery/queryinterceptor"
 	_ "github.com/jaegertracing/jaeger/internal/gogocodec" // force gogo codec registration
 	"github.com/jaegertracing/jaeger/internal/jptrace"
 	"github.com/jaegertracing/jaeger/internal/proto/api_v3"
 	expressionproto "github.com/jaegertracing/jaeger/internal/proto/expression/v1"
+	pagetoken "github.com/jaegertracing/jaeger/internal/proto/pagetoken/v1"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/api/depstore"
 	dependencystoremocks "github.com/jaegertracing/jaeger/internal/storage/v2/api/depstore/mocks"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore"
@@ -561,9 +561,9 @@ func TestFindTraceSummariesPreservesNextPageToken(t *testing.T) {
 
 	require.NoError(t, err)
 	require.NotNil(t, stream.response)
-	token, err := pagetoken.Open(stream.response.GetNextPageToken())
+	token, err := pagetoken.DecodeString(stream.response.GetNextPageToken())
 	require.NoError(t, err)
-	assert.Equal(t, "next-page", token.Cursor)
+	assert.Equal(t, "next-page", string(token.Cursor))
 }
 
 func TestFindTraceSummariesQueryNil(t *testing.T) {
@@ -678,9 +678,9 @@ func TestFindSpansPreservesNextPageToken(t *testing.T) {
 
 	require.NoError(t, err)
 	require.NotNil(t, stream.response)
-	token, err := pagetoken.Open(stream.response.GetNextPageToken())
+	token, err := pagetoken.DecodeString(stream.response.GetNextPageToken())
 	require.NoError(t, err)
-	assert.Equal(t, "next-page", token.Cursor)
+	assert.Equal(t, "next-page", string(token.Cursor))
 }
 
 // TestFindSpansQueryNil pins the two structural refusals a query has to pass before it ever

@@ -24,12 +24,13 @@ import (
 // and keeps the token short.
 const fingerprintSize = 16
 
-// TraceQuery fingerprints the parameters of a trace search that select and order its results,
-// which is every field except the page bound and the cursor: a token continues the ordering of
-// exactly one query, and these fields are what define it (RFC 0014 §3.2). The query is the one
-// the reader is dispatched, after the query service has settled it, so a predicate an interceptor
-// added is part of what the token is bound to.
-func TraceQuery(q tracestore.TraceQueryParams) ([]byte, error) {
+// FromTraceQuery is the token every page of a trace search is minted from: the current Version
+// and a Fingerprint of the parameters that select and order the results, which is every field
+// except the page bound and the cursor. A token continues the ordering of exactly one query, and
+// these fields are what define it (RFC 0014 §3.2). The query is the one the reader is dispatched,
+// after the query service has settled it, so a predicate an interceptor added is part of what
+// the token is bound to. The Cursor is left for the page that mints the token.
+func FromTraceQuery(q tracestore.TraceQueryParams) (*PageToken, error) {
 	h := newHasher("trace")
 	h.string(q.ServiceName)
 	h.string(q.OperationName)
@@ -41,19 +42,19 @@ func TraceQuery(q tracestore.TraceQueryParams) ([]byte, error) {
 	if err := h.filter(q.Filter); err != nil {
 		return nil, err
 	}
-	return h.sum(), nil
+	return h.token(), nil
 }
 
-// SpanQuery is TraceQuery for a span search, whose selecting parameters are the time range and
-// the filter (RFC 0016 §4.3).
-func SpanQuery(q tracestore.SpanQueryParams) ([]byte, error) {
+// FromSpanQuery is FromTraceQuery for a span search, whose selecting parameters are the time
+// range and the filter (RFC 0016 §4.3).
+func FromSpanQuery(q tracestore.SpanQueryParams) (*PageToken, error) {
 	h := newHasher("span")
 	h.time(q.StartTimeMin)
 	h.time(q.StartTimeMax)
 	if err := h.filter(q.Filter); err != nil {
 		return nil, err
 	}
-	return h.sum(), nil
+	return h.token(), nil
 }
 
 // hasher writes each field as its length followed by its bytes, so that two queries whose
@@ -202,6 +203,10 @@ func canonicalize(call *expression.Call) (*expression.Call, error) {
 	}
 	out.Args = sorted
 	return out, nil
+}
+
+func (h hasher) token() *PageToken {
+	return &PageToken{Version: Version, Fingerprint: h.sum()}
 }
 
 func (h hasher) sum() []byte {

@@ -201,7 +201,7 @@ func (qs QueryService) FindSpans(
 		spans := qs.traceReader.FindSpans(ctx, query.SpanQueryParams)
 		for chunk, err := range qs.interceptSpanResults(ctx, spans) {
 			if err == nil {
-				chunk.NextPageToken = tokens.seal(chunk.NextPageToken)
+				chunk.NextPageToken, err = tokens.wrap(chunk.NextPageToken)
 			}
 			if !yield(chunk, err) {
 				return
@@ -528,11 +528,9 @@ func (qs QueryService) FindTraceSummaries(
 				yield(PageChunk[[]tracestore.TraceSummary]{}, err)
 				return
 			}
-			result := PageChunk[[]tracestore.TraceSummary]{
-				Results:       chunk.Results,
-				NextPageToken: tokens.seal(chunk.NextPageToken),
-			}
-			if !yield(result, nil) {
+			result := PageChunk[[]tracestore.TraceSummary]{Results: chunk.Results}
+			result.NextPageToken, err = tokens.wrap(chunk.NextPageToken)
+			if !yield(result, err) {
 				return
 			}
 		}

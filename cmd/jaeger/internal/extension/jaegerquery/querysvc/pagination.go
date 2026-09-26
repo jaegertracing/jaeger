@@ -8,7 +8,7 @@ import (
 
 	"go.opentelemetry.io/collector/featuregate"
 
-	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerquery/querysvc/pagetoken"
+	pagetoken "github.com/jaegertracing/jaeger/internal/proto/pagetoken/v1"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore"
 )
 
@@ -30,25 +30,27 @@ var ErrPaginationDisabled = errors.New("pagination is disabled")
 
 // pageTokens binds the page tokens of one search to the query as dispatched (RFC 0014 §3.2): the
 // token a client sent is exchanged for the reader's cursor it wraps, and the cursor the reader
-// returns is sealed into the token the client receives. The zero value belongs to a search that
-// paginates nothing, which seals no token; any token such a search carried was refused while the
+// returns is wrapped into the token the client receives. The zero value belongs to a search that
+// paginates nothing, which mints no token; any token such a search carried was refused while the
 // query was prepared.
 type pageTokens struct {
-	fingerprint []byte
+	// minted is the token every page of this search is minted from, with the cursor left empty;
+	// nil for a search that paginates nothing.
+	minted *pagetoken.PageToken
 }
 
 // resumeSpanSearch exchanges the page token in query for the reader's cursor, in place, and returns
-// the pageTokens that seal the reader's next cursor. paginates says whether the search mints a
+// the pageTokens that wrap the reader's next cursor. paginates says whether the search mints a
 // token at all; where it does not, the query is left alone.
 func resumeSpanSearch(query *tracestore.SpanQueryParams, paginates bool) (pageTokens, error) {
 	if !paginates {
 		return pageTokens{}, nil
 	}
-	fingerprint, err := pagetoken.SpanQuery(*query)
+	minted, err := pagetoken.FromSpanQuery(*query)
 	if err != nil {
 		return pageTokens{}, err
 	}
-	tokens := pageTokens{fingerprint: fingerprint}
+	tokens := pageTokens{minted: minted}
 	query.Pagination.PageToken, err = tokens.resume(query.Pagination.PageToken)
 	return tokens, err
 }
@@ -60,11 +62,11 @@ func resumeTraceSearch(query *tracestore.TraceQueryParams) (pageTokens, error) {
 	if query.Pagination == nil {
 		return pageTokens{}, nil
 	}
-	fingerprint, err := pagetoken.TraceQuery(*query)
+	minted, err := pagetoken.FromTraceQuery(*query)
 	if err != nil {
 		return pageTokens{}, err
 	}
-	tokens := pageTokens{fingerprint: fingerprint}
+	tokens := pageTokens{minted: minted}
 	resumed := *query.Pagination
 	resumed.PageToken, err = tokens.resume(resumed.PageToken)
 	query.Pagination = &resumed
@@ -79,22 +81,26 @@ func (p pageTokens) resume(token string) (string, error) {
 	if token == "" {
 		return "", nil
 	}
-	opened, err := pagetoken.Open(token)
+	received, err := pagetoken.DecodeString(token)
 	if err != nil {
 		return "", err
 	}
-	if err := opened.Verify(p.fingerprint); err != nil {
+	if err := received.Verify(p.minted.Fingerprint); err != nil {
 		return "", err
 	}
-	return opened.Cursor, nil
+	return string(received.Cursor), nil
 }
 
-// seal wraps the cursor a reader returned on a page's final chunk into the token the client
+// wrap turns the cursor a reader returned on a page's final chunk into the token the client
 // receives. An empty cursor means the last page and stays empty, and a search that paginates
 // nothing is answered with no token whatever the reader returned (RFC 0014 §4, §6.2).
-func (p pageTokens) seal(cursor string) string {
-	if len(p.fingerprint) == 0 || cursor == "" {
-		return ""
+func (p pageTokens) wrap(cursor string) (string, error) {
+	if p.minted == nil || cursor == "" {
+		return "", nil
 	}
-	return pagetoken.Seal(pagetoken.Token{Fingerprint: p.fingerprint, Cursor: cursor})
+	return pagetoken.EncodeToString(&pagetoken.PageToken{
+		Version:     p.minted.Version,
+		Fingerprint: p.minted.Fingerprint,
+		Cursor:      []byte(cursor),
+	})
 }

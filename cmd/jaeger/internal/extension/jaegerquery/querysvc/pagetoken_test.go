@@ -12,18 +12,25 @@ import (
 	"go.opentelemetry.io/collector/pdata/pcommon"
 
 	expression "github.com/jaegertracing/jaeger-idl/query/expression/v1"
-	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerquery/querysvc/pagetoken"
 	"github.com/jaegertracing/jaeger/components/extension/jaegerquery/queryinterceptor"
 	"github.com/jaegertracing/jaeger/internal/jiter"
+	pagetoken "github.com/jaegertracing/jaeger/internal/proto/pagetoken/v1"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore"
 )
 
 // spanPageToken is the token a client holds after a first page of the span search q: the
-// reader's cursor sealed for the query the service dispatches, whose pagination plays no part.
+// reader's cursor wrapped for the query the service dispatches, whose pagination plays no part.
 func spanPageToken(t *testing.T, q tracestore.SpanQueryParams, cursor string) string {
-	fingerprint, err := pagetoken.SpanQuery(q)
+	minted, err := pagetoken.FromSpanQuery(q)
 	require.NoError(t, err)
-	return pagetoken.Seal(pagetoken.Token{Fingerprint: fingerprint, Cursor: cursor})
+	return encodeToken(t, minted, cursor)
+}
+
+func encodeToken(t *testing.T, minted *pagetoken.PageToken, cursor string) string {
+	minted.Cursor = []byte(cursor)
+	token, err := pagetoken.EncodeToString(minted)
+	require.NoError(t, err)
+	return token
 }
 
 // tracePageToken is spanPageToken for a trace search. The filter is finalized first, since that
@@ -34,16 +41,16 @@ func tracePageToken(t *testing.T, q tracestore.TraceQueryParams, cursor string) 
 		require.NoError(t, err)
 		q.Filter = finalized
 	}
-	fingerprint, err := pagetoken.TraceQuery(q)
+	minted, err := pagetoken.FromTraceQuery(q)
 	require.NoError(t, err)
-	return pagetoken.Seal(pagetoken.Token{Fingerprint: fingerprint, Cursor: cursor})
+	return encodeToken(t, minted, cursor)
 }
 
 // openCursor returns the reader's cursor a token the service handed out wraps.
 func openCursor(t *testing.T, token string) string {
-	opened, err := pagetoken.Open(token)
+	decoded, err := pagetoken.DecodeString(token)
 	require.NoError(t, err)
-	return opened.Cursor
+	return string(decoded.Cursor)
 }
 
 func pagedSpanQuery(p tracestore.Pagination) tracestore.SpanQueryParams {
@@ -62,9 +69,9 @@ func TestFindSpans_PageTokenRoundTrip(t *testing.T) {
 	first, err := collectSpans(qs.FindSpans(context.Background(), searchSpansQuery(pagedSpanQuery(tracestore.Pagination{PageSize: 10}))))
 	require.NoError(t, err)
 	require.Len(t, first, 1)
-	token, err := pagetoken.Open(first[0].NextPageToken)
+	token, err := pagetoken.DecodeString(first[0].NextPageToken)
 	require.NoError(t, err)
-	assert.Equal(t, "reader-cursor", token.Cursor)
+	assert.Equal(t, "reader-cursor", string(token.Cursor))
 	assert.NotEmpty(t, token.Fingerprint)
 
 	_, err = collectSpans(qs.FindSpans(context.Background(), searchSpansQuery(pagedSpanQuery(tracestore.Pagination{PageSize: 10, PageToken: first[0].NextPageToken}))))
