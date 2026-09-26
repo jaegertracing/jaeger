@@ -1,0 +1,8 @@
+{
+  "repo": "jaegertracing/jaeger",
+  "number": 9370,
+  "base": "main",
+  "head": "docs/e2e-integration-assumptions",
+  "fork": "VedantMadane/jaeger",
+  "title": "docs: document e2e integration test assumptions"
+}

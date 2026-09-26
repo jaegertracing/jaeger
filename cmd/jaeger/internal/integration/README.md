@@ -35,7 +35,7 @@ flowchart LR
     end
 ```
 
-Integration tests require cleaning up the data in the storage between tests to produce independent results. This is achieved with a `storagecleaner` extension. The configuration for this extension is auto-injected into standard collector configs located in `/cmd/jaeger/`. The extension opens an HTTP endpoint (`POST /purge`) in the collector which retrieves the storage factory from the `jaegerstorage` extension and if the factory implements the `Purger` interface it calls the `purge()` function.
+Integration tests require cleaning up the data in the storage between tests to produce independent results. This is achieved with a `storagecleaner` extension. Note: injection is skipped when `SkipStorageCleaner` is set (query, gRPC collector, and Kafka collector tests). The configuration for this extension is auto-injected into standard collector configs located in `/cmd/jaeger/`. The extension opens an HTTP endpoint (`POST /purge`) in the collector which retrieves the storage factory from the `jaegerstorage` extension and if the factory implements the `Purger` interface it calls the `purge()` function.
 
 Because that endpoint deletes all trace data and has no authentication, the extension is not part of the standard component set. The tests therefore run `jaeger-e2e` (`./jaeger-e2e`), which is the standard set plus `storagecleaner`, rather than the `jaeger` binary that ships to users.
 
@@ -154,6 +154,11 @@ subgraph Remote Storage Backend
 end
 ```
 
+## Assumptions
+
+Integration defaults below apply when a storage test does not set `SkipStorageCleaner` and does not override ports. Query, gRPC collector and Kafka collector tests set `SkipStorageCleaner`, so they do not expose `/purge`.
+
+
 ## Running tests locally
 
 You can run integration tests locally with the following command:
@@ -170,3 +175,6 @@ where the storage name can be one of the following:
 * kafka
 * memory_v2
 * query
+
+CI also exercises these flows via the `ci-e2e-*.yml` workflows under
+`.github/workflows/`. Shell helpers used by some jobs live in `scripts/e2e/`.
