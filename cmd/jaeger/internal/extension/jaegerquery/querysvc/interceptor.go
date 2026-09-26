@@ -64,7 +64,7 @@ func fromInterceptorTraceQuery(q queryinterceptor.TraceQuery, original tracestor
 // interceptor adds is a restriction the next must not be able to remove: a query that had no
 // filter, gained one, and lost it again would otherwise pass as the untouched legacy query it
 // started as.
-func (qs QueryService) onTraceQuery(ctx context.Context, query TraceQueryParams) (context.Context, TraceQueryParams, error) {
+func (qs QueryService) onTraceQuery(ctx context.Context, query tracestore.TraceQueryParams) (context.Context, tracestore.TraceQueryParams, error) {
 	queryPreIntercept := toInterceptorTraceQuery(query.ToFilterShape())
 	queryPostIntercept := queryPreIntercept
 	hadPredicates := queryPreIntercept.Filter != nil
@@ -97,8 +97,7 @@ func (qs QueryService) onTraceQuery(ctx context.Context, query TraceQueryParams)
 	if err != nil {
 		return ctx, query, err
 	}
-	query.TraceQueryParams = fromInterceptorTraceQuery(queryPostIntercept, query.TraceQueryParams)
-	return ctx, query, nil
+	return ctx, fromInterceptorTraceQuery(queryPostIntercept, query), nil
 }
 
 // toInterceptorSpanQuery and fromInterceptorSpanQuery are the span search's converters at the
@@ -128,8 +127,8 @@ func fromInterceptorSpanQuery(q queryinterceptor.SpanQuery, original tracestore.
 // The nil rule is checked after every hook rather than once at the end, because a predicate one
 // interceptor adds is a restriction the next must not be able to remove: a query that had no
 // filter, gained one, and lost it again would otherwise pass as the time-range search it started as.
-func (qs QueryService) onSpanQuery(ctx context.Context, query SpanQueryParams) (context.Context, SpanQueryParams, error) {
-	queryPostIntercept := toInterceptorSpanQuery(query.SpanQueryParams)
+func (qs QueryService) onSpanQuery(ctx context.Context, query tracestore.SpanQueryParams) (context.Context, tracestore.SpanQueryParams, error) {
+	queryPostIntercept := toInterceptorSpanQuery(query)
 	hadPredicates := queryPostIntercept.Filter != nil
 	var err error
 	for _, interceptor := range qs.options.Interceptors {
@@ -148,8 +147,7 @@ func (qs QueryService) onSpanQuery(ctx context.Context, query SpanQueryParams) (
 			return ctx, query, err
 		}
 	}
-	query.SpanQueryParams = fromInterceptorSpanQuery(queryPostIntercept, query.SpanQueryParams)
-	return ctx, query, nil
+	return ctx, fromInterceptorSpanQuery(queryPostIntercept, query), nil
 }
 
 // finalizeInterceptorFilter finalizes the filter an interceptor returned and rejects what it must

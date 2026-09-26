@@ -330,7 +330,7 @@ func TestTraceQueryParamsPagination(t *testing.T) {
 		query.Pagination = &api_v3.Pagination{PageSize: 25, PageToken: "opaque-cursor"}
 		params, err := traceQueryParams(query)
 		require.NoError(t, err)
-		assert.Equal(t, &tracestore.Pagination{PageSize: 25, PageToken: "opaque-cursor"}, params.Pagination)
+		assert.Equal(t, &querysvc.Pagination{PageSize: 25, PageToken: "opaque-cursor"}, params.Pagination)
 		assert.Zero(t, params.SearchDepth,
 			"search_depth must not be defaulted when Pagination is present, or every paginated "+
 				"request would trip the query service's mutual-exclusivity check")
@@ -340,7 +340,7 @@ func TestTraceQueryParamsPagination(t *testing.T) {
 		query.Pagination = &api_v3.Pagination{}
 		params, err := traceQueryParams(query)
 		require.NoError(t, err)
-		assert.Equal(t, &tracestore.Pagination{}, params.Pagination,
+		assert.Equal(t, &querysvc.Pagination{}, params.Pagination,
 			"the query service refuses this for its missing page size, so it must not read as absent")
 	})
 }
@@ -708,7 +708,7 @@ func TestSpanQueryParamsPagination(t *testing.T) {
 		query.Pagination = &api_v3.Pagination{PageSize: 25, PageToken: "opaque-cursor"}
 		params, err := spanQueryParams(query)
 		require.NoError(t, err)
-		assert.Equal(t, tracestore.Pagination{PageSize: 25, PageToken: "opaque-cursor"}, params.Pagination)
+		assert.Equal(t, querysvc.Pagination{PageSize: 25, PageToken: "opaque-cursor"}, params.Pagination)
 	})
 }
 
