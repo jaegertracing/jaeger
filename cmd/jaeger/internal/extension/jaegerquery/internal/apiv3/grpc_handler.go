@@ -91,15 +91,11 @@ func traceQueryParams(query *api_v3.TraceQueryParameters) (querysvc.TraceQueryPa
 	if query == nil {
 		return querysvc.TraceQueryParams{}, status.Error(codes.InvalidArgument, "missing query")
 	}
-	var searchDepth uint32
-	if depth := query.GetSearchDepth(); depth > 0 {
-		if depth > int32(tracestore.MaxSearchDepth) {
-			return querysvc.TraceQueryParams{}, status.Errorf(codes.InvalidArgument, "%s: search depth must be in [0, %d]", querysvc.ErrQueryInvalid, tracestore.MaxSearchDepth)
-		}
-		searchDepth = uint32(depth)
-	} else if depth < 0 {
+	depth := query.GetSearchDepth()
+	if depth < 0 || depth > int32(tracestore.MaxSearchDepth) {
 		return querysvc.TraceQueryParams{}, status.Errorf(codes.InvalidArgument, "%s: search depth must be in [0, %d]", querysvc.ErrQueryInvalid, tracestore.MaxSearchDepth)
 	}
+	searchDepth := uint32(depth)
 	queryParams := querysvc.TraceQueryParams{
 		ServiceName:   query.GetServiceName(),
 		OperationName: query.GetOperationName(),

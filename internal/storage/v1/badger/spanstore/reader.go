@@ -66,7 +66,7 @@ type executionPlan struct {
 	startTimeMin []byte
 	startTimeMax []byte
 
-	limit int
+	limit uint32
 
 	// mergeOuter is the result of merge-join of inner and outer result sets
 	mergeOuter [][]byte
@@ -215,8 +215,8 @@ func (r *TraceReader) scanTimeRange(plan *executionPlan) ([]model.TraceID, error
 	})
 
 	sizeCount := len(traceKeys)
-	if plan.limit > 0 && plan.limit < sizeCount {
-		sizeCount = plan.limit
+	if plan.limit > 0 && uint64(plan.limit) < uint64(sizeCount) {
+		sizeCount = int(plan.limit)
 	}
 	traceIDs := make([]model.TraceID, sizeCount)
 
@@ -253,7 +253,7 @@ func (r *TraceReader) GetOperations(
 
 // setQueryDefaults alters the query with defaults if certain parameters are not set
 func setQueryDefaults(query *spanstore.TraceQueryParameters) {
-	if query.NumTraces <= 0 {
+	if query.NumTraces == 0 {
 		query.NumTraces = defaultNumTraces
 	}
 }
@@ -338,7 +338,7 @@ func (r *TraceReader) indexSeeksToTraceIDs(plan *executionPlan, indexSeeks [][]b
 func filterIDs(plan *executionPlan, innerIDs [][]byte) []model.TraceID {
 	traces := make([]model.TraceID, 0)
 
-	items := 0
+	var items uint32
 	for i := range innerIDs {
 		trID := bytesToTraceID(innerIDs[i])
 

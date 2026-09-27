@@ -1262,7 +1262,7 @@ func paginatedUnsupportedReader(t *testing.T, ids []tracestore.FoundTraceID, nex
 	return reader
 }
 
-func paginatedQuery(pageSize int) TraceQueryParams {
+func paginatedQuery(pageSize uint32) TraceQueryParams {
 	query := filterQuery(nil)
 	query.Pagination = &Pagination{PageSize: pageSize}
 	return query

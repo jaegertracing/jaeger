@@ -770,7 +770,7 @@ func TestWriteTraces_WriteTraceWithTwoResourceSpans(t *testing.T) {
 }
 
 func TestNewStore_TracesLimit(t *testing.T) {
-	maxTraces := 8
+	const maxTraces = 8
 	store, err := NewStore(Configuration{
 		MaxTraces: maxTraces,
 	})
@@ -783,7 +783,7 @@ func TestNewStore_TracesLimit(t *testing.T) {
 }
 
 func TestNewStore_ReverseChronologicalOrder(t *testing.T) {
-	maxTraces := 8
+	const maxTraces = 8
 	store, err := NewStore(Configuration{
 		MaxTraces: maxTraces,
 	})

@@ -40,7 +40,7 @@ type Store struct {
 
 // NewStore creates an in-memory store
 func NewStore(cfg Configuration) (*Store, error) {
-	if cfg.MaxTraces <= 0 {
+	if cfg.MaxTraces == 0 {
 		return nil, errInvalidMaxTraces
 	}
 	return &Store{

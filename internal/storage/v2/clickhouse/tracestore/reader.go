@@ -25,10 +25,10 @@ var _ tracestore.Reader = (*Reader)(nil)
 type ReaderConfig struct {
 	// DefaultSearchDepth is the default number of trace IDs to return when searching for traces.
 	// This value is used when the SearchDepth field in TraceQueryParams is not set.
-	DefaultSearchDepth int
+	DefaultSearchDepth uint32
 	// MaxSearchDepth is the maximum number of trace IDs that can be returned when searching for traces.
 	// This value is used to limit the SearchDepth field in TraceQueryParams.
-	MaxSearchDepth int
+	MaxSearchDepth uint32
 	// AttributeMetadataCacheTTL is the time-to-live for cached attribute metadata entries.
 	AttributeMetadataCacheTTL time.Duration
 	// AttributeMetadataCacheMaxSize is the maximum number of entries in the attribute metadata cache.

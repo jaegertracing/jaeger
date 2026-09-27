@@ -123,10 +123,10 @@ func (r *Reader) buildFindTraceIDsQuery(
 	ctx context.Context,
 	query tracestore.TraceQueryParams,
 ) (string, []any, error) {
-	if query.SearchDepth > tracestore.MaxSearchDepth || int(query.SearchDepth) > r.config.MaxSearchDepth {
+	if query.SearchDepth > r.config.MaxSearchDepth {
 		return "", nil, fmt.Errorf("search depth %d exceeds maximum allowed %d", query.SearchDepth, r.config.MaxSearchDepth)
 	}
-	limit := int(query.SearchDepth)
+	limit := query.SearchDepth
 	if limit == 0 {
 		limit = r.config.DefaultSearchDepth
 	}

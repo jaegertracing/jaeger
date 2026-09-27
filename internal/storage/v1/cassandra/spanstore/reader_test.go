@@ -199,7 +199,7 @@ func TestSpanReaderFindTracesBadRequest(t *testing.T) {
 func TestSpanReaderFindTraces(t *testing.T) {
 	testCases := []struct {
 		caption                           string
-		numTraces                         int
+		numTraces                         uint32
 		queryTags                         bool
 		queryOperation                    bool
 		queryDuration                     bool
@@ -408,7 +408,7 @@ func TestSpanReaderFindTraces(t *testing.T) {
 					Attributes:   pcommon.NewMap(),
 				}
 
-				queryParams.SearchDepth = uint32(testCase.numTraces)
+				queryParams.SearchDepth = testCase.numTraces
 				if testCase.queryTags {
 					queryParams.Attributes.PutStr("x", "y")
 				}

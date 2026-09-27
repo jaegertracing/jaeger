@@ -75,3 +75,8 @@ func TestGetServicesUnexpectedServiceDiagnostic(t *testing.T) {
 	assert.Equal(t, []string{corpusService, unexpectedService},
 		[]string{queries[0].ServiceName, queries[1].ServiceName})
 }
+
+func TestQueryToTraceQueryParamsPreservesSearchDepth(t *testing.T) {
+	query := Query{NumTraces: tracestore.MaxSearchDepth + 1}
+	assert.Equal(t, tracestore.MaxSearchDepth+1, query.ToTraceQueryParams(t).SearchDepth)
+}

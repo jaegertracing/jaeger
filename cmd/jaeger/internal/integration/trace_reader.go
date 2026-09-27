@@ -138,11 +138,8 @@ func toProtoQuery(query tracestore.TraceQueryParams) (*api_v3.TraceQueryParamete
 		SearchDepth:   int32(query.SearchDepth),
 	}
 	if query.Pagination != nil {
-		if query.Pagination.PageSize < 0 || query.Pagination.PageSize > math.MaxUint32 {
-			return nil, fmt.Errorf("PageSize must be in [0, %d]", math.MaxUint32)
-		}
 		protoQuery.Pagination = &api_v3.Pagination{
-			PageSize:  uint32(query.Pagination.PageSize),
+			PageSize:  query.Pagination.PageSize,
 			PageToken: string(query.Pagination.PageToken),
 		}
 	}
@@ -181,11 +178,6 @@ func (*traceReader) FindTraceIDs(
 
 func (r *traceReader) FindSpans(ctx context.Context, query tracestore.SpanQueryParams) iter.Seq2[tracestore.PageChunk[ptrace.Traces], error] {
 	return func(yield func(tracestore.PageChunk[ptrace.Traces], error) bool) {
-		// The uint32 wire field cannot represent every int; reject values that would wrap before reaching the backend.
-		if query.Pagination.PageSize < 0 || query.Pagination.PageSize > math.MaxUint32 {
-			yield(tracestore.PageChunk[ptrace.Traces]{}, fmt.Errorf("PageSize must be in [0, %d]", math.MaxUint32))
-			return
-		}
 		filter, err := expressionproto.ToProto(query.Filter)
 		if err != nil {
 			yield(tracestore.PageChunk[ptrace.Traces]{}, err)
@@ -196,7 +188,7 @@ func (r *traceReader) FindSpans(ctx context.Context, query tracestore.SpanQueryP
 			StartTimeMax: query.StartTimeMax,
 			Filter:       filter,
 			Pagination: &api_v3.Pagination{
-				PageSize:  uint32(query.Pagination.PageSize),
+				PageSize:  query.Pagination.PageSize,
 				PageToken: string(query.Pagination.PageToken),
 			},
 		}})

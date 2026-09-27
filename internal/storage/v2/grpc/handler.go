@@ -329,15 +329,11 @@ func (*Handler) toTraceQueryParams(t *storage.TraceQueryParameters) (tracestore.
 	if err != nil {
 		return tracestore.TraceQueryParams{}, status.Error(codes.InvalidArgument, err.Error())
 	}
-	var searchDepth uint32
-	if t.SearchDepth > 0 {
-		if t.SearchDepth > int32(tracestore.MaxSearchDepth) {
-			return tracestore.TraceQueryParams{}, status.Errorf(codes.InvalidArgument, "SearchDepth must be in [0, %d]", tracestore.MaxSearchDepth)
-		}
-		searchDepth = uint32(t.SearchDepth)
-	} else if t.SearchDepth < 0 {
+	depth := t.SearchDepth
+	if depth < 0 || depth > int32(tracestore.MaxSearchDepth) {
 		return tracestore.TraceQueryParams{}, status.Errorf(codes.InvalidArgument, "SearchDepth must be in [0, %d]", tracestore.MaxSearchDepth)
 	}
+	searchDepth := uint32(depth)
 	query := tracestore.TraceQueryParams{
 		ServiceName:   t.ServiceName,
 		OperationName: t.OperationName,

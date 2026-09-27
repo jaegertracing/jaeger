@@ -139,7 +139,7 @@ func TestTraceBackendUnmarshal(t *testing.T) {
 			expectError: false,
 			validateFunc: func(t *testing.T, tb *TraceBackend) {
 				require.NotNil(t, tb.Memory)
-				assert.Equal(t, 1_000_000, tb.Memory.MaxTraces)
+				assert.EqualValues(t, 1_000_000, tb.Memory.MaxTraces)
 			},
 		},
 		{
@@ -152,7 +152,7 @@ func TestTraceBackendUnmarshal(t *testing.T) {
 			expectError: false,
 			validateFunc: func(t *testing.T, tb *TraceBackend) {
 				require.NotNil(t, tb.Memory)
-				assert.Equal(t, 50000, tb.Memory.MaxTraces)
+				assert.EqualValues(t, 50000, tb.Memory.MaxTraces)
 			},
 		},
 		{
@@ -241,17 +241,14 @@ func TestTraceBackendUnmarshal(t *testing.T) {
 			},
 		},
 		{
-			name: "clickhouse backend rejects a non-positive search depth",
+			name: "clickhouse backend rejects a negative search depth",
 			configMap: map[string]any{
 				"clickhouse": map[string]any{
 					"addresses":            []any{"localhost:9000"},
 					"default_search_depth": -1,
 				},
 			},
-			expectError: false,
-			validateFunc: func(t *testing.T, tb *TraceBackend) {
-				require.ErrorContains(t, confmap.Validate(tb), "default_search_depth must be a positive number")
-			},
+			expectError: true,
 		},
 		{
 			name: "clickhouse backend keeps an explicitly configured zero",
