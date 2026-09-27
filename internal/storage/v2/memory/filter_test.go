@@ -920,8 +920,32 @@ func TestMatchesFilter_TypedListMismatches(t *testing.T) {
 	assert.False(t, f.matches(call(expression.OpIn, status, &expression.List{Values: []string{"500"}, Type: "no-such-type"})))
 }
 
-func TestMatchesFilter_IntAgainstDoubleOrdering(t *testing.T) {
+// TestMatchesFilter_MixedNumericKinds pins RFC 0005 §5.4 for numbers: an untyped constant
+// compares with an attribute of either numeric type, while a typed int or double constant
+// matches only an attribute stored as that type, as a typed list already does.
+func TestMatchesFilter_MixedNumericKinds(t *testing.T) {
 	f := newFilterFixture(t)
-	assert.True(t, f.matches(call(expression.OpGt, attrRef(expression.LevelSpan, "duration_ms"), intVal(100))), "double 150.5 > int 100")
-	assert.True(t, f.matches(call(expression.OpLt, attrRef(expression.LevelSpan, "http.status_code"), dbl(600.5))), "int 500 < double 600.5")
+	durationMs := attrRef(expression.LevelSpan, "duration_ms")  // double 150.5
+	status := attrRef(expression.LevelSpan, "http.status_code") // int 500
+	assert.True(t, f.matches(call(expression.OpGt, durationMs, &expression.AnyValue{Value: "100"})), "double 150.5 > untyped 100")
+	assert.True(t, f.matches(call(expression.OpLt, status, &expression.AnyValue{Value: "600.5"})), "int 500 < untyped 600.5")
+	assert.True(t, f.matches(call(expression.OpEq, status, &expression.AnyValue{Value: "500.0"})), "int 500 == untyped 500.0")
+
+	assert.False(t, f.matches(call(expression.OpGt, durationMs, intVal(100))), "a typed int matches no double attribute")
+	assert.False(t, f.matches(call(expression.OpLt, status, dbl(600.5))), "a typed double matches no int attribute")
+	assert.False(t, f.matches(call(expression.OpEq, status, dbl(500))), "not even one holding the same number")
+	assert.True(t, f.matches(call(expression.OpEq, status, intVal(500))))
+	assert.True(t, f.matches(call(expression.OpEq, durationMs, dbl(150.5))))
+}
+
+// TestCompareValues_IntKeepsPrecisionAgainstIntegralDouble pins that an int64 above 2^53 is not
+// rounded to float64 when the double it compares with is itself an integer.
+func TestCompareValues_IntKeepsPrecisionAgainstIntegralDouble(t *testing.T) {
+	big := evalValue{isInt: true, numInt: 1<<53 + 1}
+	rounded := evalValue{isNumber: true, num: 1 << 53}
+	assert.Positive(t, compareValues(big, rounded))
+	assert.Negative(t, compareValues(rounded, big))
+	assert.Equal(t, 0, compareValues(evalValue{isInt: true, numInt: 1 << 53}, rounded))
+	assert.Negative(t, compareValues(evalValue{isInt: true, numInt: 1}, evalValue{isNumber: true, num: 1.5}), "a fractional double compares in floating point")
+	assert.Negative(t, compareValues(evalValue{isInt: true, numInt: math.MaxInt64}, evalValue{isNumber: true, num: 1e19}), "a double beyond int64 compares in floating point")
 }

@@ -14,6 +14,7 @@ import (
 	"go.opentelemetry.io/collector/pdata/ptrace"
 
 	expression "github.com/jaegertracing/jaeger-idl/query/expression/v1"
+	"github.com/jaegertracing/jaeger/internal/jiter"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore"
 )
 
@@ -169,6 +170,35 @@ func TestFindSpans_ResultIsIndependentOfStore(t *testing.T) {
 		break
 	}
 	assert.NotContains(t, spanNames(second), "mutated")
+}
+
+// TestFindSpans_BytesAttributeIsIndependentOfStore pins the one field pdata's CopyTo shares with
+// its source: a caller rewriting a bytes-valued attribute in a FindSpans result must not rewrite
+// the stored span.
+func TestFindSpans_BytesAttributeIsIndependentOfStore(t *testing.T) {
+	store, err := NewStore(Configuration{MaxTraces: 10})
+	require.NoError(t, err)
+	traces := ptrace.NewTraces()
+	rs := traces.ResourceSpans().AppendEmpty()
+	rs.Resource().Attributes().PutStr("service.name", "checkout")
+	span := rs.ScopeSpans().AppendEmpty().Spans().AppendEmpty()
+	span.SetTraceID(pcommon.TraceID{1})
+	span.SetSpanID(pcommon.SpanID{1})
+	span.Attributes().PutEmptyBytes("payload").FromRaw([]byte{1, 2, 3})
+	require.NoError(t, store.WriteTraces(context.Background(), traces))
+
+	payloadOf := func(td ptrace.Traces) pcommon.ByteSlice {
+		v, ok := td.ResourceSpans().At(0).ScopeSpans().At(0).Spans().At(0).Attributes().Get("payload")
+		require.True(t, ok)
+		return v.Bytes()
+	}
+	first, err := jiter.CollectWithErrors(store.FindSpans(context.Background(), tracestore.SpanQueryParams{}))
+	require.NoError(t, err)
+	payloadOf(first[0].Results).SetAt(0, 9)
+
+	second, err := jiter.CollectWithErrors(store.FindSpans(context.Background(), tracestore.SpanQueryParams{}))
+	require.NoError(t, err)
+	assert.Equal(t, []byte{1, 2, 3}, payloadOf(second[0].Results).AsRaw())
 }
 
 // TestFindSpans_PreservesSchemaURLs pins that findSpans' result-copy path carries the schema

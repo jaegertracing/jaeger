@@ -82,25 +82,72 @@ func TestFindSpans_CursorSurvivesWritesBetweenPages(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, []string{"handle-request"}, spanNames(first.Results))
 
-	newer := ptrace.NewTraces()
-	span := newer.ResourceSpans().AppendEmpty().ScopeSpans().AppendEmpty().Spans().AppendEmpty()
-	span.SetTraceID(pcommon.TraceID{7})
-	span.SetSpanID(pcommon.SpanID{7})
-	span.SetName("written-later")
-	span.SetStartTimestamp(pcommon.NewTimestampFromTime(base.Add(48 * time.Hour)))
-	require.NoError(t, store.WriteTraces(context.Background(), newer))
+	// A span newer than the cursor sorts before it and stays off the following pages; one older
+	// than the cursor sorts after it and appears on the page where its start time falls.
+	writeSpan := func(id byte, name string, start time.Time) {
+		td := ptrace.NewTraces()
+		span := td.ResourceSpans().AppendEmpty().ScopeSpans().AppendEmpty().Spans().AppendEmpty()
+		span.SetTraceID(pcommon.TraceID{id})
+		span.SetSpanID(pcommon.SpanID{id})
+		span.SetName(name)
+		span.SetStartTimestamp(pcommon.NewTimestampFromTime(start))
+		require.NoError(t, store.WriteTraces(context.Background(), td))
+	}
+	writeSpan(7, "written-later-newer", base.Add(48*time.Hour))
+	writeSpan(8, "written-later-older", base.Add(-time.Hour))
 
 	query.Pagination.PageToken = first.NextPageToken
 	second, err := findSpansPage(t, store, query)
 	require.NoError(t, err)
 	assert.Equal(t, []string{"call-backend"}, spanNames(second.Results))
+
+	query.Pagination.PageSize = 10
+	query.Pagination.PageToken = second.NextPageToken
+	rest, err := findSpansPage(t, store, query)
+	require.NoError(t, err)
+	assert.Equal(t, []string{"GET /", "written-later-older"}, spanNames(rest.Results))
+	assert.Empty(t, rest.NextPageToken)
 }
 
-// TestFindSpans_DuplicateSpansStayOnOnePage pins RFC 0016 §6's promise that a span stored
-// twice is returned twice rather than skipped. The two copies share the whole sort key, so a
-// cursor cannot resume between them, and the page keeps both instead of ending on the first.
-func TestFindSpans_DuplicateSpansStayOnOnePage(t *testing.T) {
+// TestFindSpans_DuplicateSpansAreEachReturned pins RFC 0016 §6's promise that a span stored
+// twice is returned twice rather than skipped, with PageSize still bounding every page: the
+// copies share the whole sort key, and the cursor counts how many of them earlier pages returned.
+func TestFindSpans_DuplicateSpansAreEachReturned(t *testing.T) {
 	store, err := NewStore(Configuration{MaxTraces: 10})
+	require.NoError(t, err)
+	base := time.Date(2026, 3, 1, 12, 0, 0, 0, time.UTC)
+	writeTracesStartingAt(t, store, 2, base)
+	writeTracesStartingAt(t, store, 2, base) // stores every span a second time
+	query := tracestore.SpanQueryParams{Pagination: tracestore.Pagination{PageSize: 1}}
+
+	var traceIDs []byte
+	for range 4 {
+		chunk, err := findSpansPage(t, store, query)
+		require.NoError(t, err)
+		require.Equal(t, 1, chunk.Results.SpanCount(), "the page size stays the bound")
+		traceIDs = append(traceIDs, chunk.Results.ResourceSpans().At(0).ScopeSpans().At(0).Spans().At(0).TraceID()[0])
+		query.Pagination.PageToken = chunk.NextPageToken
+	}
+	assert.Equal(t, []byte{2, 2, 1, 1}, traceIDs, "both copies of the newer span, then both copies of the older")
+	assert.Empty(t, query.Pagination.PageToken, "nothing follows the last copy")
+
+	// A page of several spans that ends inside a run of copies counts the copies it returned.
+	query = tracestore.SpanQueryParams{Pagination: tracestore.Pagination{PageSize: 3}}
+	first, err := findSpansPage(t, store, query)
+	require.NoError(t, err)
+	require.Equal(t, 3, first.Results.SpanCount())
+	query.Pagination.PageToken = first.NextPageToken
+	second, err := findSpansPage(t, store, query)
+	require.NoError(t, err)
+	assert.Equal(t, 1, second.Results.SpanCount(), "the second copy of the older span")
+	assert.Empty(t, second.NextPageToken)
+}
+
+// TestFindSpans_CursorPastEvictedCopiesResumesAtNextKey pins the cursor's behavior when the
+// copies it counted are gone: the store evicted the trace between pages, so the next page
+// resumes at the first key after the cursor's rather than skipping unrelated spans.
+func TestFindSpans_CursorPastEvictedCopiesResumesAtNextKey(t *testing.T) {
+	store, err := NewStore(Configuration{MaxTraces: 2})
 	require.NoError(t, err)
 	base := time.Date(2026, 3, 1, 12, 0, 0, 0, time.UTC)
 	writeTracesStartingAt(t, store, 2, base)
@@ -109,14 +156,16 @@ func TestFindSpans_DuplicateSpansStayOnOnePage(t *testing.T) {
 
 	first, err := findSpansPage(t, store, query)
 	require.NoError(t, err)
-	assert.Equal(t, 2, first.Results.SpanCount(), "both copies of the newest span, though the page asked for one")
-	require.NotEmpty(t, first.NextPageToken)
+	require.Equal(t, 1, first.Results.SpanCount())
 
+	// Two newer traces evict traces 1 and 2 from the two-trace ring buffer; they sort before the
+	// cursor, so they do not appear, and nothing with the cursor's key remains.
+	writeTracesStartingAt(t, store, 4, base.Add(time.Hour))
 	query.Pagination.PageToken = first.NextPageToken
 	second, err := findSpansPage(t, store, query)
 	require.NoError(t, err)
-	assert.Equal(t, 2, second.Results.SpanCount(), "both copies of the older span")
-	assert.Empty(t, second.NextPageToken, "nothing follows the duplicates, so no token")
+	assert.Equal(t, 0, second.Results.SpanCount())
+	assert.Empty(t, second.NextPageToken)
 }
 
 func TestFindSpans_PageThatEndsExactlyCarriesNoToken(t *testing.T) {

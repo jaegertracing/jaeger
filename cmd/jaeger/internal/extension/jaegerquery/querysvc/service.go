@@ -495,12 +495,17 @@ func (qs QueryService) FindTraceSummaries(
 // FindTraces has no field for a page token and the query service refuses to paginate it, so the
 // fallback pages through FindTraceIDs instead, loads each page's traces with GetTraces, and
 // passes the page token through unchanged. The loaded traces go through the interceptors as
-// they do on the unpaginated fallback.
+// they do on the unpaginated fallback, with one interceptor chain for the whole stream so that
+// the context OnTraceResult returns carries from one chunk of trace IDs to the next.
 func (qs QueryService) summarizeTraceIDPages(
 	ctx context.Context,
 	query tracestore.TraceQueryParams,
 	yield func(PageChunk[[]tracestore.TraceSummary], error) bool,
 ) {
+	var intercept func([]ptrace.Traces) ([]ptrace.Traces, error)
+	if len(qs.options.Interceptors) > 0 {
+		intercept = qs.traceResultInterceptor(ctx)
+	}
 	for ids, err := range qs.traceReader.FindTraceIDs(ctx, query) {
 		if err != nil {
 			yield(PageChunk[[]tracestore.TraceSummary]{}, err)
@@ -512,7 +517,10 @@ func (qs QueryService) summarizeTraceIDPages(
 			for i, id := range ids.Results {
 				params[i] = tracestore.GetTraceParams(id)
 			}
-			traces := qs.interceptTraceResults(ctx, qs.traceReader.GetTraces(ctx, params...))
+			traces := qs.traceReader.GetTraces(ctx, params...)
+			if intercept != nil {
+				traces = interceptBatches(traces, intercept)
+			}
 			for batch, err := range computeSummaries(traces, qs.adjuster) {
 				if err != nil {
 					yield(PageChunk[[]tracestore.TraceSummary]{}, err)

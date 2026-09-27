@@ -143,7 +143,7 @@ func (st *Store) FindSpans(ctx context.Context, query tracestore.SpanQueryParams
 			yield(tracestore.PageChunk[ptrace.Traces]{}, err)
 			return
 		}
-		after, err := cursorOf(query.Pagination.PageToken, fingerprint, decodeSpanKey)
+		after, err := cursorOf(query.Pagination.PageToken, fingerprint, decodeSpanCursor)
 		if err != nil {
 			yield(tracestore.PageChunk[ptrace.Traces]{}, err)
 			return
@@ -210,12 +210,12 @@ func (st *Store) FindTraceIDs(ctx context.Context, query tracestore.TraceQueryPa
 				fail(err)
 				return
 			}
-			after, err := cursorOf(query.Pagination.PageToken, fingerprint, decodeTraceKey)
+			after, err := cursorOf(query.Pagination.PageToken, fingerprint, decodeTraceCursor)
 			if err != nil {
 				fail(err)
 				return
 			}
-			var last *traceKey
+			var last *cursor[traceKey]
 			if traceAndIds, last, err = m.findTraceAndIdsPage(query, after); err != nil {
 				fail(err)
 				return

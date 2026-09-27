@@ -170,10 +170,10 @@ func (t *Tenant) findTraceAndIds(query tracestore.TraceQueryParams) ([]traceAndI
 // findSpans returns one page of the spans, across all traces, that start
 // within [query.StartTimeMin, query.StartTimeMax] (a zero bound is unbounded)
 // and match query.Filter. Matches are sorted by spanKey; the page starts after
-// the key `after` (at the beginning when nil) and holds at most
+// the cursor `after` (at the beginning when nil) and holds at most
 // query.Pagination.PageSize spans when that is positive. A zero PageSize
 // returns every match; the query service always sets one (RFC 0016 §6). The
-// returned key is the last span's if more matches remain, and nil otherwise.
+// returned cursor ends the page if more matches remain, and is nil otherwise.
 // Each span is copied with its own resource and scope, since one result can
 // hold spans from many traces and resources (RFC 0016), so the result shares
 // nothing with the store.
@@ -181,7 +181,7 @@ func (t *Tenant) findTraceAndIds(query tracestore.TraceQueryParams) ([]traceAndI
 // query.Filter is prepared once, before any span is visited, rather than per
 // span: its shape and its regular expressions are static properties of the
 // filter, not something that can vary span to span.
-func (t *Tenant) findSpans(query tracestore.SpanQueryParams, after *spanKey) (ptrace.Traces, *spanKey, error) {
+func (t *Tenant) findSpans(query tracestore.SpanQueryParams, after *cursor[spanKey]) (ptrace.Traces, *cursor[spanKey], error) {
 	filter, err := prepareFilter(query.Filter)
 	if err != nil {
 		return ptrace.Traces{}, nil, err
@@ -221,15 +221,21 @@ func (t *Tenant) findSpans(query tracestore.SpanQueryParams, after *spanKey) (pt
 		ss.SetSchemaUrl(m.scopeSpan.SchemaUrl())
 		m.span.CopyTo(ss.Spans().AppendEmpty())
 	}
+	// CopyTo shares bytes-valued attributes with the store (see cloneTrace), so the assembled
+	// result is deep-copied before a caller may modify it.
+	result, err = cloneTrace(result)
+	if err != nil {
+		return ptrace.Traces{}, nil, err
+	}
 	return result, last, nil
 }
 
 // findTraceAndIdsPage is findTraceAndIds for a query with Pagination: the
-// matching traces sorted by traceKey, starting after the key `after` (at the
-// beginning when nil), at most PageSize of them. The returned key is the last
-// trace's if more matches remain, and nil otherwise. Like findTraceAndIds it
-// returns references, not copies.
-func (t *Tenant) findTraceAndIdsPage(query tracestore.TraceQueryParams, after *traceKey) ([]traceAndId, *traceKey, error) {
+// matching traces sorted by traceKey, starting after the cursor `after` (at
+// the beginning when nil), at most PageSize of them. The returned cursor ends
+// the page if more matches remain, and is nil otherwise. Like findTraceAndIds
+// it returns references, not copies.
+func (t *Tenant) findTraceAndIdsPage(query tracestore.TraceQueryParams, after *cursor[traceKey]) ([]traceAndId, *cursor[traceKey], error) {
 	if query.Pagination.PageSize <= 0 {
 		return nil, nil, fmt.Errorf("%w: page size must be greater than 0", tracestore.ErrPaginationInvalid)
 	}

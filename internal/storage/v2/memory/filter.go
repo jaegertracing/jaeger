@@ -4,6 +4,7 @@
 package memory
 
 import (
+	"cmp"
 	"fmt"
 	"math"
 	"regexp"
@@ -78,10 +79,14 @@ type evalValue struct {
 	isBool    bool
 	isOpaque  bool
 	isUntyped bool
-	str       string
-	numInt    int64
-	num       float64
-	boolean   bool
+	// isTyped marks an IntValue or DoubleValue constant. Its declared type is authoritative
+	// (RFC 0005 §5.4), so it matches only an attribute stored as that numeric type, while two
+	// attributes of different numeric types still compare with each other.
+	isTyped bool
+	str     string
+	numInt  int64
+	num     float64
+	boolean bool
 }
 
 // evalKind is the comparable shape a resolved evalValue has, once isUntyped
@@ -300,20 +305,7 @@ func evalPredicate(expr expression.Expression, ctx filterCtx) bool {
 	case expression.OpIn:
 		return evalIn(call.Args[0], call.Args[1], ctx)
 	case expression.OpNotIn:
-		values := resolveOperand(call.Args[0], ctx)
-		if len(values) == 0 {
-			return false
-		}
-		list, ok := call.Args[1].(*expression.List)
-		if !ok {
-			return false
-		}
-		for _, v := range values {
-			if inList(call.Args[0], v, list) {
-				return false
-			}
-		}
-		return true
+		return evalNotIn(call.Args[0], call.Args[1], ctx)
 	case expression.OpSome:
 		return evalSome(call.Args[0], call.Args[1], ctx)
 	default:
@@ -420,6 +412,9 @@ func resolveComparable(a, b evalValue) (resolvedA, resolvedB evalValue, ok bool)
 	if a.kind() == kindNone || a.kind() != b.kind() {
 		return evalValue{}, evalValue{}, false
 	}
+	if (a.isTyped || b.isTyped) && a.isInt != b.isInt {
+		return evalValue{}, evalValue{}, false
+	}
 	// NaN is neither below, above nor equal to anything, so it cannot be compared at all.
 	if (a.isNumber && math.IsNaN(a.num)) || (b.isNumber && math.IsNaN(b.num)) {
 		return evalValue{}, evalValue{}, false
@@ -458,6 +453,11 @@ func coerceUntyped(v, other evalValue) (evalValue, bool) {
 	}
 }
 
+// isIntegral reports whether v is a double that an int64 holds exactly.
+func isIntegral(v evalValue) bool {
+	return v.isNumber && v.num == math.Trunc(v.num) && v.num >= -(1<<63) && v.num < 1<<63
+}
+
 func evalRegex(call *expression.Call, ctx filterCtx) bool {
 	values := resolveOperand(call.Args[0], ctx)
 	if len(values) == 0 {
@@ -473,11 +473,7 @@ func evalRegex(call *expression.Call, ctx filterCtx) bool {
 }
 
 func evalIn(ref, listExpr expression.Expression, ctx filterCtx) bool {
-	values := resolveOperand(ref, ctx)
-	if len(values) == 0 {
-		return false
-	}
-	list, ok := listExpr.(*expression.List)
+	values, list, ok := resolveMembership(ref, listExpr, ctx)
 	if !ok {
 		return false
 	}
@@ -487,6 +483,36 @@ func evalIn(ref, listExpr expression.Expression, ctx filterCtx) bool {
 		}
 	}
 	return false
+}
+
+// evalNotIn is the negated leaf beside evalIn, as leafPresentAndNoPairMatches is beside
+// anyPairMatches: it holds only when the reference is present and none of its values is in
+// the list (RFC 0005 §5.3).
+func evalNotIn(ref, listExpr expression.Expression, ctx filterCtx) bool {
+	values, list, ok := resolveMembership(ref, listExpr, ctx)
+	if !ok {
+		return false
+	}
+	for _, v := range values {
+		if inList(ref, v, list) {
+			return false
+		}
+	}
+	return true
+}
+
+// resolveMembership resolves the operands of in and not_in, reporting false when the
+// reference is absent or the right operand is not a list.
+func resolveMembership(ref, listExpr expression.Expression, ctx filterCtx) ([]evalValue, *expression.List, bool) {
+	values := resolveOperand(ref, ctx)
+	if len(values) == 0 {
+		return nil, nil, false
+	}
+	list, ok := listExpr.(*expression.List)
+	if !ok {
+		return nil, nil, false
+	}
+	return values, list, true
 }
 
 // inList reports whether v matches one of list's elements. Beside a duration or
@@ -636,9 +662,9 @@ func resolveOperand(expr expression.Expression, ctx filterCtx) []evalValue {
 	case *expression.StringValue:
 		return []evalValue{{isString: true, str: e.Value}}
 	case *expression.IntValue:
-		return []evalValue{{isInt: true, numInt: e.Value}}
+		return []evalValue{{isInt: true, isTyped: true, numInt: e.Value}}
 	case *expression.DoubleValue:
-		return []evalValue{{isNumber: true, num: e.Value}}
+		return []evalValue{{isNumber: true, isTyped: true, num: e.Value}}
 	case *expression.BoolValue:
 		return []evalValue{{isBool: true, boolean: e.Value}}
 	case *expression.DurationValue:
@@ -927,10 +953,15 @@ func compareValues(a, b evalValue) int {
 			return 0
 		}
 	default:
-		// A double on one or both sides. An exact int64 compared against a
-		// double loses precision only here, which is inherent to comparing
-		// an integer against a floating-point value at all, not something
-		// this function can avoid while still comparing the two at all.
+		// A double on one or both sides. An integral double within int64's
+		// range compares as an integer, so an int64 above 2^53 keeps its
+		// precision; any other double compares in floating point.
+		if a.isInt && isIntegral(b) {
+			return cmp.Compare(a.numInt, int64(b.num))
+		}
+		if b.isInt && isIntegral(a) {
+			return cmp.Compare(int64(a.num), b.numInt)
+		}
 		af, bf := a.num, b.num
 		if a.isInt {
 			af = float64(a.numInt)

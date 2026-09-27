@@ -1370,6 +1370,52 @@ func TestFindTraceSummaries_ErrUnsupported_PaginatedAppliesResultHook(t *testing
 	require.ErrorIs(t, err, assert.AnError)
 }
 
+// resultCountKey is the context key under which countingInterceptor carries the number of
+// batches it has seen, so a test can tell whether one context threaded through a whole stream.
+type resultCountKey struct{}
+
+type countingInterceptor struct {
+	fakeInterceptor
+	batches *int
+}
+
+func (c countingInterceptor) OnTraceResult(ctx context.Context, traces []ptrace.Traces) (context.Context, []ptrace.Traces, error) {
+	seen, _ := ctx.Value(resultCountKey{}).(int)
+	seen++
+	*c.batches = seen
+	return context.WithValue(ctx, resultCountKey{}, seen), traces, nil
+}
+
+// TestFindTraceSummaries_ErrUnsupported_PaginatedThreadsInterceptorContext pins that the
+// paginated fallback runs one interceptor chain over the whole stream: the context OnTraceResult
+// returns for the traces of one chunk of IDs is the context it receives for the next chunk's.
+func TestFindTraceSummaries_ErrUnsupported_PaginatedThreadsInterceptorContext(t *testing.T) {
+	enablePagination(t)
+	traceID := pcommon.TraceID([16]byte{1})
+	reader := &mockSummaryReader{err: fmt.Errorf("not supported: %w", errors.ErrUnsupported)}
+	reader.On("SearchCapabilities", mock.Anything).
+		Return(tracestore.SearchCapabilities{WithoutServiceName: true, Paginated: true}, nil)
+	reader.On("FindTraceIDs", mock.Anything, mock.Anything).
+		Return(iter.Seq2[tracestore.PageChunk[[]tracestore.FoundTraceID], error](func(yield func(tracestore.PageChunk[[]tracestore.FoundTraceID], error) bool) {
+			for range 2 {
+				if !yield(tracestore.PageChunk[[]tracestore.FoundTraceID]{Results: []tracestore.FoundTraceID{{TraceID: traceID}}}, nil) {
+					return
+				}
+			}
+		}))
+	reader.On("GetTraces", mock.Anything, mock.Anything).
+		Return(iter.Seq2[[]ptrace.Traces, error](func(yield func([]ptrace.Traces, error) bool) {
+			yield([]ptrace.Traces{makeTestTrace()}, nil)
+		}))
+	batches := 0
+	qs := interceptedService(reader, countingInterceptor{batches: &batches})
+
+	chunks, err := jiter.CollectWithErrors(qs.FindTraceSummaries(context.Background(), paginatedQuery(1)))
+	require.NoError(t, err)
+	require.Len(t, chunks, 2)
+	assert.Equal(t, 2, batches, "the second chunk's context carried the count from the first")
+}
+
 func TestFindTraceSummaries_ErrUnsupported_PaginatedErrors(t *testing.T) {
 	traceID := pcommon.TraceID([16]byte{1})
 	t.Run("FindTraceIDs fails", func(t *testing.T) {

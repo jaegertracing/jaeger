@@ -16,8 +16,22 @@ import (
 	"github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore"
 )
 
+// key is a sort key that a cursor can carry: spanKey or traceKey.
+type key interface {
+	encode() []byte
+}
+
+// cursor is where a page ended: the key of its last element and how many elements with that key
+// the pages so far have returned. A span stored twice shares its whole key with its copy, so
+// the count is what lets the next page resume at the second copy rather than skip it (RFC 0016
+// §6) while PageSize stays the bound on every page. Encoded, it is the cursor inside a page token.
+type cursor[K key] struct {
+	key  K
+	seen uint32
+}
+
 // spanKey sorts spans by start time descending, then trace ID and span ID ascending (RFC 0016
-// §6). Encoded, it is the cursor inside a page token.
+// §6).
 type spanKey struct {
 	startTime pcommon.Timestamp
 	traceID   pcommon.TraceID
@@ -27,7 +41,7 @@ type spanKey struct {
 const spanKeySize = 8 + 16 + 8
 
 // traceKey sorts traces by the latest start time among their matching spans descending, then
-// trace ID ascending (RFC 0014 §3.3). Encoded, it is the cursor inside a page token.
+// trace ID ascending (RFC 0014 §3.3).
 type traceKey struct {
 	startTime pcommon.Timestamp
 	traceID   pcommon.TraceID
@@ -56,15 +70,16 @@ func (k spanKey) encode() []byte {
 	return append(buf, k.spanID[:]...)
 }
 
-func decodeSpanKey(raw []byte) (spanKey, error) {
-	if len(raw) != spanKeySize {
-		return spanKey{}, fmt.Errorf("%w: page token does not carry a span position", tracestore.ErrPaginationInvalid)
-	}
+func decodeSpanKey(raw []byte) spanKey {
 	var k spanKey
 	k.startTime = pcommon.Timestamp(binary.BigEndian.Uint64(raw))
 	copy(k.traceID[:], raw[8:24])
 	copy(k.spanID[:], raw[24:])
-	return k, nil
+	return k
+}
+
+func decodeSpanCursor(raw []byte) (cursor[spanKey], error) {
+	return decodeCursor(raw, spanKeySize, decodeSpanKey, "span")
 }
 
 func compareTraceKeys(a, b traceKey) int {
@@ -80,19 +95,33 @@ func (k traceKey) encode() []byte {
 	return append(buf, k.traceID[:]...)
 }
 
-func decodeTraceKey(raw []byte) (traceKey, error) {
-	if len(raw) != traceKeySize {
-		return traceKey{}, fmt.Errorf("%w: page token does not carry a trace position", tracestore.ErrPaginationInvalid)
-	}
+func decodeTraceKey(raw []byte) traceKey {
 	var k traceKey
 	k.startTime = pcommon.Timestamp(binary.BigEndian.Uint64(raw))
 	copy(k.traceID[:], raw[8:])
-	return k, nil
+	return k
 }
 
-// cursorOf decodes the key carried by the page token, or returns nil for an empty token. The
+func decodeTraceCursor(raw []byte) (cursor[traceKey], error) {
+	return decodeCursor(raw, traceKeySize, decodeTraceKey, "trace")
+}
+
+func (c cursor[K]) encode() []byte {
+	return binary.BigEndian.AppendUint32(c.key.encode(), c.seen)
+}
+
+// decodeCursor reads a cursor whose key takes keySize bytes; what names the kind of key for the
+// error a token of another shape gets.
+func decodeCursor[K key](raw []byte, keySize int, decodeKey func([]byte) K, what string) (cursor[K], error) {
+	if len(raw) != keySize+4 {
+		return cursor[K]{}, fmt.Errorf("%w: page token does not carry a %s position", tracestore.ErrPaginationInvalid, what)
+	}
+	return cursor[K]{key: decodeKey(raw[:keySize]), seen: binary.BigEndian.Uint32(raw[keySize:])}, nil
+}
+
+// cursorOf decodes the cursor carried by the page token, or returns nil for an empty token. The
 // token must have been returned for the same query.
-func cursorOf[K any](token tracestore.PageToken, fingerprint []byte, decode func([]byte) (K, error)) (*K, error) {
+func cursorOf[K key](token tracestore.PageToken, fingerprint []byte, decode func([]byte) (cursor[K], error)) (*cursor[K], error) {
 	if token == "" {
 		return nil, nil
 	}
@@ -100,34 +129,37 @@ func cursorOf[K any](token tracestore.PageToken, fingerprint []byte, decode func
 	if err != nil {
 		return nil, err
 	}
-	key, err := decode(raw)
+	c, err := decode(raw)
 	if err != nil {
 		return nil, err
 	}
-	return &key, nil
+	return &c, nil
 }
 
-// page returns the elements that follow the key after (all elements when after is nil), size of
-// them when size is positive. If elements remain beyond the page, it also returns the key of the
-// page's last element, the next page's cursor. Elements that share that key stay on the page,
-// since the cursor cannot resume between them: a span stored twice is returned twice rather than
-// skipped (RFC 0016 §6), so the page grows past size by the number of duplicates.
-func page[T any, K any](sorted []T, keyOf func(T) K, compare func(K, K) int, after *K, size int) ([]T, *K) {
+// page returns the elements that follow the cursor after (all elements when after is nil), at
+// most size of them when size is positive. If elements remain beyond the page, it also returns
+// the next page's cursor: the key of the page's last element, and how many elements with that
+// key have been returned so far.
+func page[T any, K key](sorted []T, keyOf func(T) K, compare func(K, K) int, after *cursor[K], size int) ([]T, *cursor[K]) {
 	start := 0
 	if after != nil {
-		start = sort.Search(len(sorted), func(i int) bool { return compare(keyOf(sorted[i]), *after) > 0 })
+		// Resume at the first element with the cursor's key and skip the copies of it already
+		// returned. If fewer copies remain than were returned, the skip stops at the next key.
+		start = sort.Search(len(sorted), func(i int) bool { return compare(keyOf(sorted[i]), after.key) >= 0 })
+		for skipped := uint32(0); skipped < after.seen && start < len(sorted) && compare(keyOf(sorted[start]), after.key) == 0; skipped++ {
+			start++
+		}
 	}
 	rest := sorted[start:]
 	if size <= 0 || len(rest) <= size {
 		return rest, nil
 	}
-	last := keyOf(rest[size-1])
-	end := size
-	for end < len(rest) && compare(keyOf(rest[end]), last) == 0 {
-		end++
+	next := cursor[K]{key: keyOf(rest[size-1])}
+	for i := size - 1; i >= 0 && compare(keyOf(rest[i]), next.key) == 0; i-- {
+		next.seen++
 	}
-	if end == len(rest) {
-		return rest, nil
+	if after != nil && compare(next.key, after.key) == 0 {
+		next.seen += after.seen
 	}
-	return rest[:end], &last
+	return rest[:size], &next
 }
