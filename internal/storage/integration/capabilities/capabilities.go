@@ -92,7 +92,11 @@ func (c Capabilities) WithoutTypedAttributeIndexing() Capabilities {
 // Memory returns the capabilities for the in-process memory storage backend.
 func Memory() Capabilities {
 	return Capabilities{
-		skipList: []string{summaryPaginationTest, findTraceSummariesTest, structuredFilterTest},
+		skipList: []string{
+			summaryPaginationTest,
+			findTraceSummariesTest,
+			structuredFilterTest,
+		},
 	}
 }
 
@@ -101,7 +105,11 @@ func Memory() Capabilities {
 // summaries natively; the test backend (memory) does not yet.
 func GRPC() Capabilities {
 	return Capabilities{
-		skipList: []string{summaryPaginationTest, findTraceSummariesTest, structuredFilterTest},
+		skipList: []string{
+			summaryPaginationTest,
+			findTraceSummariesTest,
+			structuredFilterTest,
+		},
 	}
 }
 
@@ -129,7 +137,13 @@ func Cassandra() Capabilities {
 // ClickHouse returns the capabilities for the ClickHouse storage backend.
 func ClickHouse() Capabilities {
 	return Capabilities{
-		skipList: []string{paginationTest, "GetThroughput", "GetLatestProbability", findTraceSummariesTest, structuredFilterTest},
+		skipList: []string{
+			paginationTest,
+			"GetThroughput",
+			"GetLatestProbability",
+			findTraceSummariesTest,
+			structuredFilterTest,
+		},
 	}
 }
 
@@ -139,7 +153,13 @@ func Badger() Capabilities {
 		searchRequiresServiceName: true,
 		// TODO: remove this once Badger supports returning spanKind from GetOperations
 		getOperationsMissingSpanKind: true,
-		skipList:                     []string{paginationTest, scopeAttributesTest, linkAttributesTest, findTraceSummariesTest, structuredFilterTest},
+		skipList: []string{
+			paginationTest,
+			scopeAttributesTest,
+			linkAttributesTest,
+			findTraceSummariesTest,
+			structuredFilterTest,
+		},
 	}
 }
 
@@ -152,7 +172,12 @@ func Elasticsearch() Capabilities {
 		// The suite runs with typed attribute indexing enabled (RFC 0015), so an attribute value is
 		// indexed as a number beside the keyword and ordering one is answered rather than refused.
 		// That makes the battery's paired refusal case the one to skip.
-		skipList: []string{paginationTest, scopeAttributesTest, linkAttributesTest, attributeRefusedTest},
+		skipList: []string{
+			paginationTest,
+			scopeAttributesTest,
+			linkAttributesTest,
+			attributeRefusedTest,
+		},
 	}
 }
 
@@ -177,7 +202,12 @@ func OpenSearch() Capabilities {
 	return Capabilities{
 		getOperationsMissingSpanKind: true,
 		// Same mapping and same gate as Elasticsearch; see the note there.
-		skipList: []string{paginationTest, scopeAttributesTest, linkAttributesTest, attributeRefusedTest},
+		skipList: []string{
+			paginationTest,
+			scopeAttributesTest,
+			linkAttributesTest,
+			attributeRefusedTest,
+		},
 	}
 }
 
@@ -186,7 +216,12 @@ func Kafka() Capabilities {
 	return Capabilities{
 		searchRequiresServiceName:    true,
 		getDependenciesMissingSource: true,
-		skipList:                     []string{scopeAttributesTest, linkAttributesTest, findTraceSummariesTest, structuredFilterTest},
+		skipList: []string{
+			scopeAttributesTest,
+			linkAttributesTest,
+			findTraceSummariesTest,
+			structuredFilterTest,
+		},
 	}
 }
 
@@ -194,6 +229,8 @@ func Kafka() Capabilities {
 // itself: the query service rewrites one for it, so the battery is all such a suite excuses.
 func E2EWithoutNativeFilters() Capabilities {
 	return Capabilities{
-		skipList: []string{structuredFilterTest},
+		skipList: []string{
+			structuredFilterTest,
+		},
 	}
 }
