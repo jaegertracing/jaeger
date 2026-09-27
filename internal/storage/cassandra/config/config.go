@@ -121,55 +121,6 @@ func DefaultConfiguration() Configuration {
 	}
 }
 
-// ApplyDefaults copies settings from source unless its own value is non-zero.
-func (c *Configuration) ApplyDefaults(source *Configuration) {
-	if c.Schema.Keyspace == "" {
-		c.Schema.Keyspace = source.Schema.Keyspace
-	}
-
-	if c.Schema.Datacenter == "" {
-		c.Schema.Datacenter = source.Schema.Datacenter
-	}
-
-	if c.Schema.TraceTTL == 0 {
-		c.Schema.TraceTTL = source.Schema.TraceTTL
-	}
-
-	if c.Schema.DependenciesTTL == 0 {
-		c.Schema.DependenciesTTL = source.Schema.DependenciesTTL
-	}
-
-	if c.Schema.ReplicationFactor == 0 {
-		c.Schema.ReplicationFactor = source.Schema.ReplicationFactor
-	}
-
-	if c.Schema.CompactionWindow == 0 {
-		c.Schema.CompactionWindow = source.Schema.CompactionWindow
-	}
-
-	if c.Connection.ConnectionsPerHost == 0 {
-		c.Connection.ConnectionsPerHost = source.Connection.ConnectionsPerHost
-	}
-	if c.Connection.ReconnectInterval == 0 {
-		c.Connection.ReconnectInterval = source.Connection.ReconnectInterval
-	}
-	if c.Connection.Port == 0 {
-		c.Connection.Port = source.Connection.Port
-	}
-	if c.Connection.ProtoVersion == 0 {
-		c.Connection.ProtoVersion = source.Connection.ProtoVersion
-	}
-	if c.Connection.SocketKeepAlive == 0 {
-		c.Connection.SocketKeepAlive = source.Connection.SocketKeepAlive
-	}
-	if c.Query.MaxRetryAttempts == 0 {
-		c.Query.MaxRetryAttempts = source.Query.MaxRetryAttempts
-	}
-	if c.Query.Timeout == 0 {
-		c.Query.Timeout = source.Query.Timeout
-	}
-}
-
 // NewCluster creates a new gocql cluster from the configuration
 func (c *Configuration) NewCluster() (*gocql.ClusterConfig, error) {
 	cluster := gocql.NewCluster(c.Connection.Servers...)

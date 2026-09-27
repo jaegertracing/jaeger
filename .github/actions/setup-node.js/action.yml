@@ -8,7 +8,7 @@ runs:
   steps:
     # pnpm must be installed before setup-node. The pnpm version is read from the
     # "packageManager" field in jaeger-ui's package.json, keeping it deterministic.
-    - uses: pnpm/action-setup@0ebf47130e4866e96fce0953f49152a61190b271 # v6.0.9
+    - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
       with:
         package_json_file: jaeger-ui/package.json
 
@@ -16,7 +16,7 @@ runs:
     # No dependency cache: the UI build usually downloads prebuilt release assets
     # (see rebuild-ui.sh) and never runs `pnpm install`, so there is no pnpm store
     # to cache, and a cache-save step would fail on the missing path.
-    - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
+    - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
       with:
         node-version-file: jaeger-ui/package.json
 

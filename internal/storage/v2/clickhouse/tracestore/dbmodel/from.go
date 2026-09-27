@@ -5,7 +5,6 @@ package dbmodel
 
 import (
 	"encoding/base64"
-	"encoding/hex"
 	"fmt"
 	"strings"
 	"time"
@@ -66,51 +65,21 @@ func convertScope(sr *SpanRow, spanForWarnings ptrace.Span) pcommon.Instrumentat
 	return scope
 }
 
-// decodeTraceID decodes a hex string into a pcommon.TraceID, validating that
-// it contains exactly 16 bytes so the conversion cannot panic on corrupted rows.
-func decodeTraceID(s string) (pcommon.TraceID, error) {
-	var id pcommon.TraceID
-	b, err := hex.DecodeString(s)
-	if err != nil {
-		return id, err
-	}
-	if len(b) != len(id) {
-		return id, fmt.Errorf("invalid length %d of decoded trace ID %q, expected %d bytes", len(b), s, len(id))
-	}
-	copy(id[:], b)
-	return id, nil
-}
-
-// decodeSpanID decodes a hex string into a pcommon.SpanID, validating that
-// it contains exactly 8 bytes so the conversion cannot panic on corrupted rows.
-func decodeSpanID(s string) (pcommon.SpanID, error) {
-	var id pcommon.SpanID
-	b, err := hex.DecodeString(s)
-	if err != nil {
-		return id, err
-	}
-	if len(b) != len(id) {
-		return id, fmt.Errorf("invalid length %d of decoded span ID %q, expected %d bytes", len(b), s, len(id))
-	}
-	copy(id[:], b)
-	return id, nil
-}
-
 func convertSpan(sr *SpanRow) (ptrace.Span, error) {
 	span := ptrace.NewSpan()
 	span.SetStartTimestamp(pcommon.NewTimestampFromTime(sr.StartTime))
-	traceId, err := decodeTraceID(sr.TraceID)
+	traceId, err := jptrace.TraceIDFromString(sr.TraceID)
 	if err != nil {
 		return span, fmt.Errorf("failed to decode trace ID: %w", err)
 	}
 	span.SetTraceID(traceId)
-	spanId, err := decodeSpanID(sr.ID)
+	spanId, err := jptrace.SpanIDFromString(sr.ID)
 	if err != nil {
 		return span, fmt.Errorf("failed to decode span ID: %w", err)
 	}
 	span.SetSpanID(spanId)
 	if sr.ParentSpanID != "" {
-		parentSpanId, err := decodeSpanID(sr.ParentSpanID)
+		parentSpanId, err := jptrace.SpanIDFromString(sr.ParentSpanID)
 		if err != nil {
 			return span, fmt.Errorf("failed to decode parent span ID: %w", err)
 		}
@@ -138,13 +107,13 @@ func convertSpan(sr *SpanRow) (ptrace.Span, error) {
 
 	for i, l := range sr.LinkTraceIDs {
 		link := span.Links().AppendEmpty()
-		traceID, err := decodeTraceID(l)
+		traceID, err := jptrace.TraceIDFromString(l)
 		if err != nil {
 			jptrace.AddWarnings(span, fmt.Sprintf("failed to decode link trace ID: %v", err))
 			continue
 		}
 		link.SetTraceID(traceID)
-		spanID, err := decodeSpanID(sr.LinkSpanIDs[i])
+		spanID, err := jptrace.SpanIDFromString(sr.LinkSpanIDs[i])
 		if err != nil {
 			jptrace.AddWarnings(span, fmt.Sprintf("failed to decode link span ID: %v", err))
 			continue

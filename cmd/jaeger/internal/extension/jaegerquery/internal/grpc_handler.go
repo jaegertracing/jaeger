@@ -140,23 +140,20 @@ func (g *GRPCHandler) FindTraces(r *api_v2.FindTracesRequest, stream api_v2.Quer
 		return status.Errorf(codes.InvalidArgument, "missing query")
 	}
 	queryParams := querysvc.TraceQueryParams{
-		TraceQueryParams: tracestore.TraceQueryParams{
-			ServiceName:   query.ServiceName,
-			OperationName: query.OperationName,
-			Attributes:    convertTagsToAttributes(query.Tags),
-			StartTimeMin:  query.StartTimeMin,
-			StartTimeMax:  query.StartTimeMax,
-			DurationMin:   query.DurationMin,
-			DurationMax:   query.DurationMax,
-			SearchDepth:   int(query.SearchDepth),
-		},
-		RawTraces: query.RawTraces,
+		ServiceName:   query.ServiceName,
+		OperationName: query.OperationName,
+		Attributes:    convertTagsToAttributes(query.Tags),
+		StartTimeMin:  query.StartTimeMin,
+		StartTimeMax:  query.StartTimeMax,
+		DurationMin:   query.DurationMin,
+		DurationMax:   query.DurationMax,
+		SearchDepth:   int(query.SearchDepth),
+		RawTraces:     query.RawTraces,
 	}
 	findTracesIter := g.queryService.FindTraces(stream.Context(), queryParams)
 	traces, err := v1adapter.V1TracesFromSeq2(findTracesIter)
 	if err != nil {
-		if errors.Is(err, querysvc.ErrServiceNameRequired) {
-			// A well-formed query this deployment's storage cannot serve, not a fault.
+		if querysvc.IsBadRequest(err) {
 			return status.Error(codes.InvalidArgument, err.Error())
 		}
 		g.logger.Error("failed when searching for traces", zap.Error(err))

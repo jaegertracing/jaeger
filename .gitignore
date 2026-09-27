@@ -10,7 +10,6 @@ go.work.sum
 .fmt.log
 .import.log
 .lint.log
-cover.html
 .envrc
 .idea/
 .vscode/
@@ -53,6 +52,5 @@ test-results.json
 build.log
 sidecar.py.orig
 
-# binary coverage artifacts from e2e legs
-cover-binary.out
-.cover-binary/
+# every coverage artifact: profiles, the HTML report, and the counter directories
+.cover/

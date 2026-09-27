@@ -15,8 +15,10 @@ import (
 
 	"github.com/jaegertracing/jaeger-idl/model/v1"
 	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerquery/querysvc"
+	"github.com/jaegertracing/jaeger/components/extension/jaegerquery/queryinterceptor"
 	"github.com/jaegertracing/jaeger/internal/jptrace"
 	"github.com/jaegertracing/jaeger/internal/proto/api_v3"
+	expressionproto "github.com/jaegertracing/jaeger/internal/proto/expression/v1"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/v1adapter"
 )
@@ -82,26 +84,87 @@ func (h *Handler) internalFindTraces(
 	return receiveTraces(findTracesIter, streamSend)
 }
 
-// traceQueryParams converts a proto TraceQueryParameters to querysvc.TraceQueryParams,
-// validating that the required time range fields are present.
+// traceQueryParams translates a proto TraceQueryParameters into the query service's shape.
+// What the query must satisfy is the query service's decision, so nothing is checked here
+// beyond what the translation itself needs.
 func traceQueryParams(query *api_v3.TraceQueryParameters) (querysvc.TraceQueryParams, error) {
 	if query == nil {
 		return querysvc.TraceQueryParams{}, status.Error(codes.InvalidArgument, "missing query")
 	}
-	if query.GetStartTimeMin().IsZero() || query.GetStartTimeMax().IsZero() {
-		return querysvc.TraceQueryParams{}, status.Error(codes.InvalidArgument, "start time min and max are required parameters")
-	}
 	queryParams := querysvc.TraceQueryParams{
-		TraceQueryParams: tracestore.TraceQueryParams{
-			ServiceName:   query.GetServiceName(),
-			OperationName: query.GetOperationName(),
-			Attributes:    jptrace.PlainMapToPcommonMap(query.GetAttributes()),
-			SearchDepth:   int(query.GetSearchDepth()),
-			StartTimeMin:  query.GetStartTimeMin(),
-			StartTimeMax:  query.GetStartTimeMax(),
-			DurationMin:   query.GetDurationMin(),
-			DurationMax:   query.GetDurationMax(),
-		},
+		ServiceName:   query.GetServiceName(),
+		OperationName: query.GetOperationName(),
+		Attributes:    jptrace.PlainMapToPcommonMap(query.GetAttributes()),
+		SearchDepth:   int(query.GetSearchDepth()),
+		StartTimeMin:  query.GetStartTimeMin(),
+		StartTimeMax:  query.GetStartTimeMax(),
+		DurationMin:   query.GetDurationMin(),
+		DurationMax:   query.GetDurationMax(),
+	}
+	if protoFilter := query.GetFilter(); protoFilter != nil {
+		filter, err := expressionproto.FromProto(protoFilter)
+		if err != nil {
+			return querysvc.TraceQueryParams{}, status.Error(codes.InvalidArgument, err.Error())
+		}
+		queryParams.Filter = filter
+	}
+	if pagination := query.GetPagination(); pagination != nil {
+		queryParams.Pagination = &querysvc.Pagination{
+			PageSize:  int(pagination.GetPageSize()),
+			PageToken: pagination.GetPageToken(),
+		}
+	}
+	return queryParams, nil
+}
+
+// FindSpans implements api_v3.QueryServiceServer's FindSpans
+func (h *Handler) FindSpans(request *api_v3.FindSpansRequest, stream api_v3.QueryService_FindSpansServer) error {
+	queryParams, err := spanQueryParams(request.GetQuery())
+	if err != nil {
+		return err
+	}
+
+	for chunk, err := range h.QueryService.FindSpans(stream.Context(), queryParams) {
+		if err != nil {
+			return asStatusError(err)
+		}
+		spans := jptrace.TracesData(chunk.Results)
+		response := &api_v3.FindSpansResponse{
+			Spans:         &spans,
+			NextPageToken: string(chunk.NextPageToken),
+		}
+		if err := stream.Send(response); err != nil {
+			return status.Errorf(codes.Internal, "failed to send response stream chunk to client: %v", err)
+		}
+	}
+	return nil
+}
+
+// spanQueryParams translates a proto SpanQueryParameters into the query service's shape. What
+// the query must satisfy is the query service's decision (prepareSpanSearchQuery), so nothing is
+// checked here beyond what the translation itself needs — including whether Pagination is
+// acceptable at all: it is decoded here because decoding is translation, but the query service
+// is where it is refused.
+func spanQueryParams(query *api_v3.SpanQueryParameters) (querysvc.SpanQueryParams, error) {
+	if query == nil {
+		return querysvc.SpanQueryParams{}, status.Error(codes.InvalidArgument, "missing query")
+	}
+	queryParams := querysvc.SpanQueryParams{
+		StartTimeMin: query.GetStartTimeMin(),
+		StartTimeMax: query.GetStartTimeMax(),
+	}
+	if protoFilter := query.GetFilter(); protoFilter != nil {
+		filter, err := expressionproto.FromProto(protoFilter)
+		if err != nil {
+			return querysvc.SpanQueryParams{}, status.Error(codes.InvalidArgument, err.Error())
+		}
+		queryParams.Filter = filter
+	}
+	if pagination := query.GetPagination(); pagination != nil {
+		queryParams.Pagination = querysvc.Pagination{
+			PageSize:  int(pagination.GetPageSize()),
+			PageToken: pagination.GetPageToken(),
+		}
 	}
 	return queryParams, nil
 }
@@ -113,11 +176,15 @@ func (h *Handler) FindTraceSummaries(request *api_v3.FindTraceSummariesRequest, 
 		return err
 	}
 
-	for summaries, err := range h.QueryService.FindTraceSummaries(stream.Context(), queryParams) {
+	for chunk, err := range h.QueryService.FindTraceSummaries(stream.Context(), queryParams) {
 		if err != nil {
 			return asStatusError(err)
 		}
-		if err := stream.Send(&api_v3.FindTraceSummariesResponse{Summaries: toProtoTraceSummaries(summaries)}); err != nil {
+		response := &api_v3.FindTraceSummariesResponse{
+			Summaries:     toProtoTraceSummaries(chunk.Results),
+			NextPageToken: chunk.NextPageToken,
+		}
+		if err := stream.Send(response); err != nil {
 			return status.Errorf(codes.Internal, "failed to send response stream chunk to client: %v", err)
 		}
 	}
@@ -221,8 +288,11 @@ func (h *Handler) GetDependencies(ctx context.Context, request *api_v3.GetDepend
 // a server fault, and without this it would reach the client as Unknown. Other errors pass
 // through unchanged.
 func asStatusError(err error) error {
-	if errors.Is(err, querysvc.ErrServiceNameRequired) {
+	if querysvc.IsBadRequest(err) {
 		return status.Error(codes.InvalidArgument, err.Error())
+	}
+	if errors.Is(err, queryinterceptor.ErrAccessDenied) {
+		return status.Error(codes.PermissionDenied, err.Error())
 	}
 	return err
 }

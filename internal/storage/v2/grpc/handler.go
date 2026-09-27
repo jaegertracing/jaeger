@@ -17,6 +17,7 @@ import (
 
 	"github.com/jaegertracing/jaeger/internal/jptrace"
 	"github.com/jaegertracing/jaeger/internal/proto-gen/storage/v2"
+	expressionproto "github.com/jaegertracing/jaeger/internal/proto/expression/v1"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/api/depstore"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore"
 )
@@ -24,12 +25,14 @@ import (
 var (
 	_ storage.TraceReaderServer      = (*Handler)(nil)
 	_ storage.DependencyReaderServer = (*Handler)(nil)
+	_ storage.CapabilitiesServer     = (*Handler)(nil)
 	_ ptraceotlp.GRPCServer          = (*Handler)(nil)
 )
 
 type Handler struct {
 	storage.UnimplementedTraceReaderServer
 	storage.UnimplementedDependencyReaderServer
+	storage.UnimplementedCapabilitiesServer
 	ptraceotlp.UnimplementedGRPCServer
 
 	traceReader tracestore.Reader
@@ -119,7 +122,11 @@ func (h *Handler) FindTraces(
 	req *storage.FindTracesRequest,
 	srv storage.TraceReader_FindTracesServer,
 ) error {
-	for traces, err := range h.traceReader.FindTraces(srv.Context(), toTraceQueryParams(req.Query)) {
+	query, err := h.toTraceQueryParams(req.Query)
+	if err != nil {
+		return err
+	}
+	for traces, err := range h.traceReader.FindTraces(srv.Context(), query) {
 		if err != nil {
 			return err
 		}
@@ -138,7 +145,11 @@ func (h *Handler) FindTraceSummaries(
 	req *storage.FindTraceSummariesRequest,
 	srv storage.TraceReader_FindTraceSummariesServer,
 ) error {
-	for summaries, err := range h.traceReader.FindTraceSummaries(srv.Context(), toTraceQueryParams(req.Query)) {
+	query, err := h.toTraceQueryParams(req.Query)
+	if err != nil {
+		return err
+	}
+	for chunk, err := range h.traceReader.FindTraceSummaries(srv.Context(), query) {
 		if err != nil {
 			// A backend that cannot compute summaries natively signals this with
 			// errors.ErrUnsupported; surface it as gRPC Unimplemented so the remote
@@ -148,9 +159,9 @@ func (h *Handler) FindTraceSummaries(
 			}
 			return err
 		}
-		batch := make([]*storage.TraceSummary, len(summaries))
-		for i := range summaries {
-			s := &summaries[i]
+		batch := make([]*storage.TraceSummary, len(chunk.Results))
+		for i := range chunk.Results {
+			s := &chunk.Results[i]
 			svcs := make([]*storage.ServiceSummary, len(s.Services))
 			for j := range s.Services {
 				svcs[j] = &storage.ServiceSummary{
@@ -171,7 +182,11 @@ func (h *Handler) FindTraceSummaries(
 				Services:             svcs,
 			}
 		}
-		if err := srv.Send(&storage.FindTraceSummariesResponse{Summaries: batch}); err != nil {
+		response := &storage.FindTraceSummariesResponse{
+			Summaries:     batch,
+			NextPageToken: string(chunk.NextPageToken),
+		}
+		if err := srv.Send(response); err != nil {
 			return err
 		}
 	}
@@ -183,20 +198,27 @@ func (h *Handler) FindTraceIDs(
 	req *storage.FindTraceIDsRequest,
 ) (*storage.FindTraceIDsResponse, error) {
 	foundTraceIDs := []*storage.FoundTraceID{}
-	for traceIDs, err := range h.traceReader.FindTraceIDs(ctx, toTraceQueryParams(req.Query)) {
+	var nextPageToken string
+	query, err := h.toTraceQueryParams(req.Query)
+	if err != nil {
+		return nil, err
+	}
+	for chunk, err := range h.traceReader.FindTraceIDs(ctx, query) {
 		if err != nil {
 			return nil, err
 		}
-		for _, traceID := range traceIDs {
+		for _, traceID := range chunk.Results {
 			foundTraceIDs = append(foundTraceIDs, &storage.FoundTraceID{
 				TraceId: traceID.TraceID[:],
 				Start:   traceID.Start,
 				End:     traceID.End,
 			})
 		}
+		nextPageToken = string(chunk.NextPageToken)
 	}
 	return &storage.FindTraceIDsResponse{
-		TraceIds: foundTraceIDs,
+		TraceIds:      foundTraceIDs,
+		NextPageToken: nextPageToken,
 	}, nil
 }
 
@@ -239,15 +261,54 @@ func (h *Handler) GetDependencies(
 func (h *Handler) Register(ss *grpc.Server, hs *health.Server) {
 	storage.RegisterTraceReaderServer(ss, h)
 	storage.RegisterDependencyReaderServer(ss, h)
+	storage.RegisterCapabilitiesServer(ss, h)
 	ptraceotlp.RegisterGRPCServer(ss, h)
 
 	hs.SetServingStatus("jaeger.storage.v2.TraceReader", grpc_health_v1.HealthCheckResponse_SERVING)
 	hs.SetServingStatus("jaeger.storage.v2.DependencyReader", grpc_health_v1.HealthCheckResponse_SERVING)
 	hs.SetServingStatus("jaeger.storage.v2.TraceWriter", grpc_health_v1.HealthCheckResponse_SERVING)
+	hs.SetServingStatus("jaeger.storage.v2.Capabilities", grpc_health_v1.HealthCheckResponse_SERVING)
 }
 
-func toTraceQueryParams(t *storage.TraceQueryParameters) tracestore.TraceQueryParams {
-	return tracestore.TraceQueryParams{
+// GetCapabilities answers for the reader this handler fronts, so a client can learn what the
+// store behind the remote supports. A reader that cannot determine its own capabilities is
+// reported as UNIMPLEMENTED, which clients read as "unknown" rather than as a declaration
+// that nothing is supported.
+func (h *Handler) GetCapabilities(
+	ctx context.Context,
+	_ *storage.GetCapabilitiesRequest,
+) (*storage.GetCapabilitiesResponse, error) {
+	caps, err := h.traceReader.SearchCapabilities(ctx)
+	if err != nil {
+		if errors.Is(err, errors.ErrUnsupported) {
+			return nil, status.Error(codes.Unimplemented, err.Error())
+		}
+		return nil, status.Error(codes.Internal, err.Error())
+	}
+	return &storage.GetCapabilitiesResponse{
+		Search: &storage.SearchCapabilities{
+			WithoutServiceName:  caps.WithoutServiceName,
+			SameSpanConjunction: caps.SameSpanConjunction,
+			Filter:              toProtoFilterCapabilities(caps.Filter),
+			Paginated:           caps.Paginated,
+		},
+	}, nil
+}
+
+// toTraceQueryParams translates a wire query into the reader's shape. It also finalizes the
+// filter, because the decoder only builds the tree and does not validate it, and it refuses a
+// query that carries both a filter and the legacy predicate fields (RFC 0005 §7). Both refusals
+// are InvalidArgument. It does not validate Pagination or consult the reader's capabilities:
+// converting a query toward what the reader supports is the query service's job (ADR-013).
+func (*Handler) toTraceQueryParams(t *storage.TraceQueryParameters) (tracestore.TraceQueryParams, error) {
+	filter, err := expressionproto.FromProto(t.GetFilter())
+	if err == nil && filter != nil {
+		filter, err = tracestore.FinalizeFilter(filter)
+	}
+	if err != nil {
+		return tracestore.TraceQueryParams{}, status.Error(codes.InvalidArgument, err.Error())
+	}
+	query := tracestore.TraceQueryParams{
 		ServiceName:   t.ServiceName,
 		OperationName: t.OperationName,
 		Attributes:    convertKeyValueListToMap(t.Attributes),
@@ -256,7 +317,18 @@ func toTraceQueryParams(t *storage.TraceQueryParameters) tracestore.TraceQueryPa
 		DurationMin:   t.DurationMin,
 		DurationMax:   t.DurationMax,
 		SearchDepth:   int(t.SearchDepth),
+		Filter:        filter,
 	}
+	if pagination := t.GetPagination(); pagination != nil {
+		query.Pagination = &tracestore.Pagination{
+			PageSize:  int(pagination.GetPageSize()),
+			PageToken: tracestore.PageToken(pagination.GetPageToken()),
+		}
+	}
+	if err := query.EnsureFilterStandsAlone(); err != nil {
+		return tracestore.TraceQueryParams{}, status.Error(codes.InvalidArgument, err.Error())
+	}
+	return query, nil
 }
 
 func convertKeyValueListToMap(kvList []*storage.KeyValue) pcommon.Map {

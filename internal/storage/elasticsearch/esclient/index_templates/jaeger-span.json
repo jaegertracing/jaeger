@@ -1,3 +1,10 @@
+{{- define "typedAttributeSubFields" -}}
+{{- if .TypedAttributes }},
+  "fields": {
+    "number": { "type": "double", "coerce": false, "ignore_malformed": true }
+  }
+{{- end }}
+{{- end -}}
 {
   {{- if .UseILM}}
     "aliases": {
@@ -9,6 +16,9 @@
       "index.number_of_replicas": {{ .Replicas }},
       "index.mapping.nested_fields.limit": 50,
       "index.requests.cache.enable": true
+      {{- if .TotalFieldsLimit }},
+      "index.mapping.total_fields.limit": {{ .TotalFieldsLimit }}
+      {{- end }}
       {{- if .UseILM }},
       {{- if .IsOpenSearch }}
       "plugins.index_state_management.rollover_alias": "{{ .IndexPrefix }}jaeger-span-write"
@@ -27,6 +37,7 @@
             "mapping": {
               "type": "keyword",
               "ignore_above": 256
+              {{- template "typedAttributeSubFields" . }}
             },
             "path_match": "tag.*"
           }
@@ -36,6 +47,7 @@
             "mapping": {
               "type": "keyword",
               "ignore_above": 256
+              {{- template "typedAttributeSubFields" . }}
             },
             "path_match": "process.tag.*"
           }
@@ -98,6 +110,7 @@
                 "value": {
                   "type": "keyword",
                   "ignore_above": 256
+                  {{- template "typedAttributeSubFields" . }}
                 },
                 "type": {
                   "type": "keyword",
@@ -127,6 +140,7 @@
                 "value": {
                   "type": "keyword",
                   "ignore_above": 256
+                  {{- template "typedAttributeSubFields" . }}
                 },
                 "type": {
                   "type": "keyword",
@@ -193,6 +207,7 @@
             "value": {
               "type": "keyword",
               "ignore_above": 256
+              {{- template "typedAttributeSubFields" . }}
             },
             "type": {
               "type": "keyword",

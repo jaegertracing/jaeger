@@ -18,6 +18,7 @@ import (
 	"go.opentelemetry.io/collector/pdata/ptrace"
 
 	"github.com/jaegertracing/jaeger-idl/model/v1"
+	expression "github.com/jaegertracing/jaeger-idl/query/expression/v1"
 	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerquery/internal/adjuster"
 	"github.com/jaegertracing/jaeger/internal/jiter"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/api/spanstore"
@@ -62,11 +63,28 @@ func withArchiveTraceWriter() testOption {
 	}
 }
 
+// declaresSearchWithoutServiceName sets the answer a reader gives when asked whether it can
+// serve a search with no service name. Only service-less searches ask, so it is optional.
+func declaresSearchWithoutServiceName(reader *tracestoremocks.Reader, withoutServiceName bool) *tracestoremocks.Reader {
+	reader.On("SearchCapabilities", mock.Anything).
+		Return(tracestore.SearchCapabilities{WithoutServiceName: withoutServiceName}, nil).Maybe()
+	return reader
+}
+
+func initializeBareTestQueryService() testQueryService {
+	tqs := testQueryService{
+		traceReader: &tracestoremocks.Reader{},
+		depsReader:  &depstoremocks.Reader{},
+	}
+	tqs.queryService = NewQueryService(tqs.traceReader, tqs.depsReader, QueryServiceOptions{})
+	return tqs
+}
+
 func initializeTestService(opts ...testOption) *testQueryService {
-	traceReader := &tracestoremocks.Reader{}
+	traceReader := declaresSearchWithoutServiceName(&tracestoremocks.Reader{}, true)
 	dependencyStorage := &depstoremocks.Reader{}
 
-	options := QueryServiceOptions{SearchCapabilities: tracestore.SearchCapabilities{WithoutServiceName: true}}
+	options := QueryServiceOptions{}
 
 	tqs := testQueryService{
 		traceReader: traceReader,
@@ -373,6 +391,134 @@ func TestGetOperations(t *testing.T) {
 	assert.Equal(t, expected, actualOperations)
 }
 
+func TestFindSpans_Success(t *testing.T) {
+	tqs := initializeBareTestQueryService()
+
+	tqs.traceReader.On("SearchCapabilities", context.Background()).Return(tracestore.SearchCapabilities{SpanSearch: true}, nil)
+
+	expectedSpans := makeTestTrace()
+	responseIter := iter.Seq2[tracestore.PageChunk[ptrace.Traces], error](func(yield func(tracestore.PageChunk[ptrace.Traces], error) bool) {
+		yield(tracestore.PageChunk[ptrace.Traces]{Results: expectedSpans, NextPageToken: ""}, nil)
+	})
+	query := SpanQueryParams{StartTimeMin: testWindowStart, StartTimeMax: testWindowEnd}
+	bounded := tracestore.SpanQueryParams{
+		StartTimeMin: testWindowStart,
+		StartTimeMax: testWindowEnd,
+		Pagination:   tracestore.Pagination{PageSize: DefaultPageSize},
+	}
+	tqs.traceReader.On("FindSpans", mock.Anything, bounded).Return(responseIter).Once()
+
+	seq := tqs.queryService.FindSpans(context.Background(), query)
+	result, err := jiter.CollectWithErrors(seq)
+	require.NoError(t, err)
+	require.Len(t, result, 1)
+	require.Equal(t, expectedSpans, result[0].Results)
+	tqs.traceReader.AssertExpectations(t)
+}
+
+// TestFindSpans_RejectsInvertedTimeRange pins the other half of the envelope check
+// prepareSpanSearchQuery settles for a span search: a present but inverted range is refused the
+// same as an absent one, before the reader is ever asked anything.
+func TestFindSpans_RejectsInvertedTimeRange(t *testing.T) {
+	tqs := initializeBareTestQueryService()
+
+	query := SpanQueryParams{StartTimeMin: testWindowEnd, StartTimeMax: testWindowStart}
+	seq := tqs.queryService.FindSpans(context.Background(), query)
+	_, err := jiter.CollectWithErrors(seq)
+	require.ErrorIs(t, err, ErrQueryInvalid)
+	require.ErrorContains(t, err, "start_time_min must be before start_time_max")
+}
+
+// TestFindSpans_Pagination pins how a span search is bounded and paged, decided here rather than
+// by the API handlers that decode it: the page size is the only bound, so an unset one gets the
+// default and an oversized one is clamped; a page token is what the feature gate governs; and a
+// reader that cannot paginate is never sent a token (RFC 0014 §6.2).
+func TestFindSpans_Pagination(t *testing.T) {
+	spanQuery := func(p tracestore.Pagination) tracestore.SpanQueryParams {
+		return tracestore.SpanQueryParams{StartTimeMin: testWindowStart, StartTimeMax: testWindowEnd, Pagination: p}
+	}
+	findSpans := func(tqs testQueryService, query tracestore.SpanQueryParams) error {
+		request := SpanQueryParams{
+			StartTimeMin: query.StartTimeMin,
+			StartTimeMax: query.StartTimeMax,
+			Pagination:   Pagination{PageSize: query.Pagination.PageSize, PageToken: string(query.Pagination.PageToken)},
+		}
+		_, err := jiter.CollectWithErrors(tqs.queryService.FindSpans(context.Background(), request))
+		return err
+	}
+	expectDispatch := func(tqs testQueryService, caps tracestore.SearchCapabilities, want tracestore.SpanQueryParams) {
+		tqs.traceReader.On("SearchCapabilities", mock.Anything).Return(caps, nil)
+		tqs.traceReader.On("FindSpans", mock.Anything, want).Return(emptySpanPage()).Once()
+	}
+	spanSearch := tracestore.SearchCapabilities{SpanSearch: true}
+	paginating := tracestore.SearchCapabilities{SpanSearch: true, Paginated: true}
+
+	t.Run("unset page size gets the default, gate or not", func(t *testing.T) {
+		setPagination(t, false)
+		tqs := initializeBareTestQueryService()
+		expectDispatch(tqs, spanSearch, spanQuery(tracestore.Pagination{PageSize: DefaultPageSize}))
+		require.NoError(t, findSpans(tqs, spanQuery(tracestore.Pagination{})))
+		tqs.traceReader.AssertExpectations(t)
+	})
+
+	t.Run("oversized page size is clamped", func(t *testing.T) {
+		tqs := initializeBareTestQueryService()
+		expectDispatch(tqs, spanSearch, spanQuery(tracestore.Pagination{PageSize: tracestore.MaxPageSize}))
+		require.NoError(t, findSpans(tqs, spanQuery(tracestore.Pagination{PageSize: tracestore.MaxPageSize + 1})))
+		tqs.traceReader.AssertExpectations(t)
+	})
+
+	t.Run("token refused while the gate is disabled", func(t *testing.T) {
+		setPagination(t, false)
+		tqs := initializeBareTestQueryService()
+		err := findSpans(tqs, spanQuery(tracestore.Pagination{PageSize: 10, PageToken: "opaque-cursor"}))
+		require.ErrorIs(t, err, ErrPaginationDisabled)
+	})
+
+	t.Run("token refused when the reader cannot paginate", func(t *testing.T) {
+		enablePagination(t)
+		tqs := initializeBareTestQueryService()
+		tqs.traceReader.On("SearchCapabilities", mock.Anything).Return(spanSearch, nil)
+		err := findSpans(tqs, spanQuery(tracestore.Pagination{PageSize: 10, PageToken: "opaque-cursor"}))
+		require.ErrorIs(t, err, tracestore.ErrPaginationUnsupported)
+		tqs.traceReader.AssertNotCalled(t, "FindSpans", mock.Anything, mock.Anything)
+	})
+
+	t.Run("token with an unset page size reaches a paginating reader with the default", func(t *testing.T) {
+		enablePagination(t)
+		tqs := initializeBareTestQueryService()
+		expectDispatch(tqs, paginating, spanQuery(tracestore.Pagination{PageSize: DefaultPageSize, PageToken: "opaque-cursor"}))
+		require.NoError(t, findSpans(tqs, spanQuery(tracestore.Pagination{PageToken: "opaque-cursor"})))
+		tqs.traceReader.AssertExpectations(t)
+	})
+}
+
+func emptySpanPage() iter.Seq2[tracestore.PageChunk[ptrace.Traces], error] {
+	return func(yield func(tracestore.PageChunk[ptrace.Traces], error) bool) {
+		yield(tracestore.PageChunk[ptrace.Traces]{Results: ptrace.NewTraces()}, nil)
+	}
+}
+
+func TestFindSpans_WithLegacyBackend_UnsupportedError(t *testing.T) {
+	tqs := initializeBareTestQueryService()
+	tqs.traceReader.On("SearchCapabilities", mock.Anything).Return(tracestore.SearchCapabilities{}, errors.New("unsupported")).Once()
+
+	query := SpanQueryParams{StartTimeMin: testWindowStart, StartTimeMax: testWindowEnd}
+	seq := tqs.queryService.FindSpans(context.Background(), query)
+	_, err := jiter.CollectWithErrors(seq)
+	require.Equal(t, ErrSpanSearchUnsupported, err)
+}
+
+func TestFindSpans_WithUnsupportingBackend_UnsupportedError(t *testing.T) {
+	tqs := initializeBareTestQueryService()
+	tqs.traceReader.On("SearchCapabilities", mock.Anything).Return(tracestore.SearchCapabilities{SpanSearch: false}, nil).Once()
+
+	query := SpanQueryParams{StartTimeMin: testWindowStart, StartTimeMax: testWindowEnd}
+	seq := tqs.queryService.FindSpans(context.Background(), query)
+	_, err := jiter.CollectWithErrors(seq)
+	require.Equal(t, ErrSpanSearchUnsupported, err)
+}
+
 func TestFindTraces_Success(t *testing.T) {
 	tqs := initializeTestService()
 	responseIter := iter.Seq2[[]ptrace.Traces, error](func(yield func([]ptrace.Traces, error) bool) {
@@ -384,13 +530,21 @@ func TestFindTraces_Success(t *testing.T) {
 	queryParams := tracestore.TraceQueryParams{
 		ServiceName:   "service",
 		OperationName: "operation",
+		StartTimeMin:  now.Add(-time.Hour),
 		StartTimeMax:  now,
 		DurationMin:   duration,
 		SearchDepth:   200,
 	}
 	tqs.traceReader.On("FindTraces", mock.Anything, queryParams).Return(responseIter).Once()
 
-	query := TraceQueryParams{TraceQueryParams: queryParams}
+	query := TraceQueryParams{
+		ServiceName:   "service",
+		OperationName: "operation",
+		StartTimeMin:  now.Add(-time.Hour),
+		StartTimeMax:  now,
+		DurationMin:   duration,
+		SearchDepth:   200,
+	}
 	getTracesIter := tqs.queryService.FindTraces(context.Background(), query)
 	gotTraces, err := jiter.FlattenWithErrors(getTracesIter)
 	require.NoError(t, err)
@@ -458,6 +612,7 @@ func TestFindTraces_WithRawTraces_PerformsAdjustment(t *testing.T) {
 			tqs.traceReader.On("FindTraces", mock.Anything, tracestore.TraceQueryParams{
 				ServiceName:   "service",
 				OperationName: "operation",
+				StartTimeMin:  now.Add(-time.Hour),
 				StartTimeMax:  now,
 				DurationMin:   duration,
 				SearchDepth:   200,
@@ -465,14 +620,13 @@ func TestFindTraces_WithRawTraces_PerformsAdjustment(t *testing.T) {
 				Return(responseIter).Once()
 
 			query := TraceQueryParams{
-				TraceQueryParams: tracestore.TraceQueryParams{
-					ServiceName:   "service",
-					OperationName: "operation",
-					StartTimeMax:  now,
-					DurationMin:   duration,
-					SearchDepth:   200,
-				},
-				RawTraces: test.rawTraces,
+				ServiceName:   "service",
+				OperationName: "operation",
+				StartTimeMin:  now.Add(-time.Hour),
+				StartTimeMax:  now,
+				DurationMin:   duration,
+				SearchDepth:   200,
+				RawTraces:     test.rawTraces,
 			}
 			getTracesIter := tqs.queryService.FindTraces(context.Background(), query)
 			gotTraces, err := jiter.FlattenWithErrors(getTracesIter)
@@ -594,6 +748,7 @@ func TestFindTraces_WithRawTraces_PerformsAggregation(t *testing.T) {
 			tqs.traceReader.On("FindTraces", mock.Anything, tracestore.TraceQueryParams{
 				ServiceName:   "service",
 				OperationName: "operation",
+				StartTimeMin:  now.Add(-time.Hour),
 				StartTimeMax:  now,
 				DurationMin:   duration,
 				SearchDepth:   200,
@@ -601,14 +756,13 @@ func TestFindTraces_WithRawTraces_PerformsAggregation(t *testing.T) {
 				Return(responseIter).Once()
 
 			query := TraceQueryParams{
-				TraceQueryParams: tracestore.TraceQueryParams{
-					ServiceName:   "service",
-					OperationName: "operation",
-					StartTimeMax:  now,
-					DurationMin:   duration,
-					SearchDepth:   200,
-				},
-				RawTraces: test.rawTraces,
+				ServiceName:   "service",
+				OperationName: "operation",
+				StartTimeMin:  now.Add(-time.Hour),
+				StartTimeMax:  now,
+				DurationMin:   duration,
+				SearchDepth:   200,
+				RawTraces:     test.rawTraces,
 			}
 			getTracesIter := tqs.queryService.FindTraces(context.Background(), query)
 			gotTraces, err := jiter.FlattenWithErrors(getTracesIter)
@@ -704,6 +858,23 @@ func TestArchiveTrace(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestArchiveTrace_ArchiveOnlyTraceNotFound(t *testing.T) {
+	query := tracestore.GetTraceParams{TraceID: testTraceID}
+	tqs := initializeTestService(withArchiveTraceReader(), withArchiveTraceWriter())
+	// mocks.Reader.GetTraces packs variadic params into a single slice argument.
+	tqs.traceReader.On("GetTraces", mock.Anything, []tracestore.GetTraceParams{query}).
+		Return(iter.Seq2[[]ptrace.Traces, error](func(yield func([]ptrace.Traces, error) bool) {
+			yield(nil, nil)
+		})).Once()
+
+	err := tqs.queryService.ArchiveTrace(t.Context(), query)
+
+	require.ErrorIs(t, err, spanstore.ErrTraceNotFound)
+	tqs.traceReader.AssertExpectations(t)
+	tqs.archiveTraceReader.AssertNotCalled(t, "GetTraces")
+	tqs.archiveTraceWriter.AssertNotCalled(t, "WriteTraces")
 }
 
 func TestGetDependencies(t *testing.T) {
@@ -852,7 +1023,7 @@ func TestQueryServiceGetServicesReturnsEmptySlice(t *testing.T) {
 		On("GetServices", mock.Anything).
 		Return(nil, nil).Once()
 
-	qs := NewQueryService(reader, nil, QueryServiceOptions{SearchCapabilities: tracestore.SearchCapabilities{WithoutServiceName: true}})
+	qs := NewQueryService(reader, nil, QueryServiceOptions{})
 
 	services, err := qs.GetServices(context.Background())
 
@@ -863,36 +1034,175 @@ func TestQueryServiceGetServicesReturnsEmptySlice(t *testing.T) {
 
 // mockSummaryReader is a tracestore.Reader whose FindTraceSummaries computes
 // summaries natively (rather than yielding ErrUnsupported).
-type mockSummaryReader struct {
-	tracestoremocks.Reader
-	summaries []tracestore.TraceSummary
-	err       error
+// testWindowStart and testWindowEnd are the time range a search carries when the test is about
+// something other than its envelope.
+var (
+	testWindowEnd   = time.Date(2026, time.January, 1, 12, 0, 0, 0, time.UTC)
+	testWindowStart = testWindowEnd.Add(-time.Hour)
+)
+
+// TestFindTraces_EnvelopeIsSettledOnce covers the checks every trace search shares regardless
+// of which API it arrived on. A refused query never reaches the reader: FindTraces has no
+// expectation, so a call to it would fail the test. The same rules apply to FindTraceSummaries,
+// which shares prepareSearchQuery, so one method stands for both.
+func TestFindTraces_EnvelopeIsSettledOnce(t *testing.T) {
+	// window fills in what a case left unset, so a case about the time range sets its own.
+	window := func(q TraceQueryParams) TraceQueryParams {
+		q.Attributes = pcommon.NewMap()
+		q.ServiceName = "svc"
+		if q.StartTimeMin.IsZero() && q.StartTimeMax.IsZero() {
+			q.StartTimeMin, q.StartTimeMax = testWindowStart, testWindowEnd
+		}
+		return q
+	}
+	refused := map[string]struct {
+		query   TraceQueryParams
+		wantErr string
+	}{
+		"no time range": {
+			query:   TraceQueryParams{Attributes: pcommon.NewMap(), ServiceName: "svc"},
+			wantErr: "min and max start time are required",
+		},
+		"no start_time_max": {
+			query:   TraceQueryParams{Attributes: pcommon.NewMap(), ServiceName: "svc", StartTimeMin: testWindowStart},
+			wantErr: "min and max start time are required",
+		},
+		"inverted time range": {
+			query:   window(TraceQueryParams{StartTimeMin: testWindowEnd, StartTimeMax: testWindowStart}),
+			wantErr: "min start time must be before max start time",
+		},
+		"empty time range": {
+			query:   window(TraceQueryParams{StartTimeMin: testWindowEnd, StartTimeMax: testWindowEnd}),
+			wantErr: "min start time must be before max start time",
+		},
+		"negative duration_min": {
+			query:   window(TraceQueryParams{DurationMin: -time.Second}),
+			wantErr: "cannot be negative",
+		},
+		"negative duration_max": {
+			query:   window(TraceQueryParams{DurationMax: -time.Second}),
+			wantErr: "cannot be negative",
+		},
+		"inverted duration bounds": {
+			query:   window(TraceQueryParams{DurationMin: 10 * time.Second, DurationMax: 5 * time.Second}),
+			wantErr: "max duration cannot be less than min duration",
+		},
+		"negative search depth": {
+			query:   window(TraceQueryParams{SearchDepth: -1}),
+			wantErr: "search depth must be in [0, 10000]",
+		},
+		"search depth above the maximum": {
+			query:   window(TraceQueryParams{SearchDepth: tracestore.MaxSearchDepth + 1}),
+			wantErr: "search depth must be in [0, 10000]",
+		},
+	}
+	for name, test := range refused {
+		t.Run(name, func(t *testing.T) {
+			qs := NewQueryService(new(tracestoremocks.Reader), nil, QueryServiceOptions{})
+			_, err := jiter.FlattenWithErrors(qs.FindTraces(context.Background(), test.query))
+			require.ErrorIs(t, err, ErrQueryInvalid)
+			require.ErrorContains(t, err, test.wantErr)
+			assert.True(t, IsBadRequest(err), "the caller has to change the query")
+		})
+	}
+
+	dispatched := map[string]struct {
+		depth int
+		want  int
+	}{
+		"an unset search depth gets the default": {depth: 0, want: DefaultSearchDepth},
+		"an explicit search depth is kept":       {depth: 42, want: 42},
+		"the maximum search depth is allowed":    {depth: tracestore.MaxSearchDepth, want: tracestore.MaxSearchDepth},
+	}
+	for name, test := range dispatched {
+		t.Run(name, func(t *testing.T) {
+			var got tracestore.TraceQueryParams
+			reader := forwardsOneTrace(new(tracestoremocks.Reader), &got)
+			qs := NewQueryService(reader, nil, QueryServiceOptions{})
+			_, err := jiter.FlattenWithErrors(qs.FindTraces(context.Background(), window(TraceQueryParams{SearchDepth: test.depth})))
+			require.NoError(t, err)
+			assert.Equal(t, test.want, got.SearchDepth)
+			// A zero duration bound is "no bound", not a negative one.
+			assert.Zero(t, got.DurationMin)
+		})
+	}
 }
 
-func (m *mockSummaryReader) FindTraceSummaries(_ context.Context, _ tracestore.TraceQueryParams) iter.Seq2[[]tracestore.TraceSummary, error] {
-	return func(yield func([]tracestore.TraceSummary, error) bool) {
+// TestFindTraceSummaries_PaginatedRequestLeavesSearchDepthUnset covers the other half of
+// the search-depth default: FindTraceSummaries shares prepareSearchQuery with FindTraces
+// but does admit Pagination (RFC 0014 §4), so a paginated request must not also get
+// DefaultSearchDepth — the two bounds are mutually exclusive, and the caller sent only one.
+func TestFindTraceSummaries_PaginatedRequestLeavesSearchDepthUnset(t *testing.T) {
+	enablePagination(t)
+	var got tracestore.TraceQueryParams
+	reader := new(tracestoremocks.Reader)
+	reader.On("SearchCapabilities", mock.Anything).
+		Return(tracestore.SearchCapabilities{WithoutServiceName: true, Paginated: true}, nil)
+	reader.On("FindTraceSummaries", mock.Anything, mock.AnythingOfType("tracestore.TraceQueryParams")).
+		Run(func(args mock.Arguments) {
+			got = args.Get(1).(tracestore.TraceQueryParams)
+		}).
+		Return(iter.Seq2[tracestore.PageChunk[[]tracestore.TraceSummary], error](func(yield func(tracestore.PageChunk[[]tracestore.TraceSummary], error) bool) {
+			yield(tracestore.PageChunk[[]tracestore.TraceSummary]{Results: []tracestore.TraceSummary{{RootServiceName: "svc"}}}, nil)
+		})).Once()
+	qs := NewQueryService(reader, nil, QueryServiceOptions{})
+
+	_, err := flattenPageChunks(qs.FindTraceSummaries(context.Background(), TraceQueryParams{
+		Attributes:   pcommon.NewMap(),
+		StartTimeMin: testWindowStart, StartTimeMax: testWindowEnd,
+		Pagination: &Pagination{PageSize: 20},
+	}))
+	require.NoError(t, err)
+	assert.Zero(t, got.SearchDepth, "the default must not be applied alongside Pagination")
+	assert.Equal(t, &tracestore.Pagination{PageSize: 20}, got.Pagination)
+}
+
+type mockSummaryReader struct {
+	tracestoremocks.Reader
+	summaries     []tracestore.TraceSummary
+	nextPageToken string
+	err           error
+}
+
+func (m *mockSummaryReader) FindTraceSummaries(_ context.Context, _ tracestore.TraceQueryParams) iter.Seq2[tracestore.PageChunk[[]tracestore.TraceSummary], error] {
+	return func(yield func(tracestore.PageChunk[[]tracestore.TraceSummary], error) bool) {
 		if m.err != nil {
-			yield(nil, m.err)
+			yield(tracestore.PageChunk[[]tracestore.TraceSummary]{}, m.err)
 			return
 		}
 		if len(m.summaries) > 0 {
-			yield(m.summaries, nil)
+			yield(tracestore.PageChunk[[]tracestore.TraceSummary]{
+				Results:       m.summaries,
+				NextPageToken: tracestore.PageToken(m.nextPageToken),
+			}, nil)
 		}
 	}
 }
 
+func flattenPageChunks[T any](seq iter.Seq2[PageChunk[[]T], error]) ([]T, error) {
+	var results []T
+	for chunk, err := range seq {
+		if err != nil {
+			return nil, err
+		}
+		results = append(results, chunk.Results...)
+	}
+	return results, nil
+}
+
 func TestFindTraceSummaries_NativePath(t *testing.T) {
 	want := []tracestore.TraceSummary{{RootServiceName: "native"}}
-	nativeReader := &mockSummaryReader{summaries: want}
+	nativeReader := &mockSummaryReader{summaries: want, nextPageToken: "next-page"}
+	declaresSearchWithoutServiceName(&nativeReader.Reader, true)
 
 	depsMock := initializeTestService().depsReader
-	qs := NewQueryService(nativeReader, depsMock, QueryServiceOptions{SearchCapabilities: tracestore.SearchCapabilities{WithoutServiceName: true}})
+	qs := NewQueryService(nativeReader, depsMock, QueryServiceOptions{})
 
-	got, err := jiter.FlattenWithErrors(qs.FindTraceSummaries(context.Background(), TraceQueryParams{
-		TraceQueryParams: tracestore.TraceQueryParams{Attributes: pcommon.NewMap()},
-	}))
+	chunks, err := jiter.CollectWithErrors(qs.FindTraceSummaries(context.Background(), filterQuery(nil)))
 	require.NoError(t, err)
-	assert.Equal(t, want, got)
+	require.Len(t, chunks, 1)
+	assert.Equal(t, want, chunks[0].Results)
+	assert.Equal(t, "next-page", chunks[0].NextPageToken)
 	// FindTraces should NOT have been called on the native reader.
 	nativeReader.AssertNotCalled(t, "FindTraces")
 }
@@ -903,12 +1213,11 @@ func TestFindTraceSummaries_NativeError(t *testing.T) {
 	errReader := &mockSummaryReader{
 		err: assert.AnError,
 	}
+	declaresSearchWithoutServiceName(&errReader.Reader, true)
 	depsMock := initializeTestService().depsReader
-	qs := NewQueryService(errReader, depsMock, QueryServiceOptions{SearchCapabilities: tracestore.SearchCapabilities{WithoutServiceName: true}})
+	qs := NewQueryService(errReader, depsMock, QueryServiceOptions{})
 
-	_, err := jiter.FlattenWithErrors(qs.FindTraceSummaries(context.Background(), TraceQueryParams{
-		TraceQueryParams: tracestore.TraceQueryParams{Attributes: pcommon.NewMap()},
-	}))
+	_, err := flattenPageChunks(qs.FindTraceSummaries(context.Background(), filterQuery(nil)))
 	require.ErrorIs(t, err, assert.AnError)
 	errReader.AssertNotCalled(t, "FindTraces")
 }
@@ -920,6 +1229,7 @@ func TestFindTraceSummaries_ErrUnsupported(t *testing.T) {
 	unsupportedReader := &mockSummaryReader{
 		err: fmt.Errorf("remote storage does not support FindTraceSummaries: %w", errors.ErrUnsupported),
 	}
+	declaresSearchWithoutServiceName(&unsupportedReader.Reader, true)
 	trace := makeTestTrace()
 	unsupportedReader.On("FindTraces", mock.Anything, mock.Anything).
 		Return(iter.Seq2[[]ptrace.Traces, error](func(yield func([]ptrace.Traces, error) bool) {
@@ -927,28 +1237,27 @@ func TestFindTraceSummaries_ErrUnsupported(t *testing.T) {
 		})).Once()
 
 	depsMock := initializeTestService().depsReader
-	qs := NewQueryService(unsupportedReader, depsMock, QueryServiceOptions{SearchCapabilities: tracestore.SearchCapabilities{WithoutServiceName: true}})
+	qs := NewQueryService(unsupportedReader, depsMock, QueryServiceOptions{})
 
-	got, err := jiter.FlattenWithErrors(qs.FindTraceSummaries(context.Background(), TraceQueryParams{
-		TraceQueryParams: tracestore.TraceQueryParams{Attributes: pcommon.NewMap()},
-	}))
+	chunks, err := jiter.CollectWithErrors(qs.FindTraceSummaries(context.Background(), filterQuery(nil)))
 	require.NoError(t, err)
-	require.Len(t, got, 1, "expected one summary from fallback aggregation")
+	require.Len(t, chunks, 1)
+	assert.Empty(t, chunks[0].NextPageToken)
+	require.Len(t, chunks[0].Results, 1, "expected one summary from fallback aggregation")
 	// Verify the fallback produced a real summary from the trace data.
-	assert.Equal(t, trace.SpanCount(), got[0].SpanCount)
+	assert.Equal(t, trace.SpanCount(), chunks[0].Results[0].SpanCount)
 }
 
 func TestFindTraceSummaries_NativePath_YieldStopsIteration(t *testing.T) {
 	want := []tracestore.TraceSummary{{RootServiceName: "native"}}
 	nativeReader := &mockSummaryReader{summaries: want}
+	declaresSearchWithoutServiceName(&nativeReader.Reader, true)
 
 	depsMock := initializeTestService().depsReader
-	qs := NewQueryService(nativeReader, depsMock, QueryServiceOptions{SearchCapabilities: tracestore.SearchCapabilities{WithoutServiceName: true}})
+	qs := NewQueryService(nativeReader, depsMock, QueryServiceOptions{})
 
 	var count int
-	for _, err := range qs.FindTraceSummaries(context.Background(), TraceQueryParams{
-		TraceQueryParams: tracestore.TraceQueryParams{Attributes: pcommon.NewMap()},
-	}) {
+	for _, err := range qs.FindTraceSummaries(context.Background(), filterQuery(nil)) {
 		require.NoError(t, err)
 		count++
 		break
@@ -960,6 +1269,7 @@ func TestFindTraceSummaries_ErrUnsupported_YieldStopsIteration(t *testing.T) {
 	unsupportedReader := &mockSummaryReader{
 		err: fmt.Errorf("not supported: %w", errors.ErrUnsupported),
 	}
+	declaresSearchWithoutServiceName(&unsupportedReader.Reader, true)
 	trace := makeTestTrace()
 	unsupportedReader.On("FindTraces", mock.Anything, mock.Anything).
 		Return(iter.Seq2[[]ptrace.Traces, error](func(yield func([]ptrace.Traces, error) bool) {
@@ -967,12 +1277,10 @@ func TestFindTraceSummaries_ErrUnsupported_YieldStopsIteration(t *testing.T) {
 		})).Once()
 
 	depsMock := initializeTestService().depsReader
-	qs := NewQueryService(unsupportedReader, depsMock, QueryServiceOptions{SearchCapabilities: tracestore.SearchCapabilities{WithoutServiceName: true}})
+	qs := NewQueryService(unsupportedReader, depsMock, QueryServiceOptions{})
 
 	var count int
-	for _, err := range qs.FindTraceSummaries(context.Background(), TraceQueryParams{
-		TraceQueryParams: tracestore.TraceQueryParams{Attributes: pcommon.NewMap()},
-	}) {
+	for _, err := range qs.FindTraceSummaries(context.Background(), filterQuery(nil)) {
 		require.NoError(t, err)
 		count++
 		break
@@ -981,33 +1289,45 @@ func TestFindTraceSummaries_ErrUnsupported_YieldStopsIteration(t *testing.T) {
 }
 
 // TestFindTraces_ServiceNameRequired covers the boundary RFC 0013 §3.3 puts here: a search
-// that omits the service name is rejected unless the reader declared it can serve one, and
-// the rejection happens before storage is touched — the reader has no expectation set, so
-// a call to it would fail the test.
+// that omits the service name is rejected unless the reader declares it can serve one, and
+// the rejection happens before storage is touched — FindTraces has no expectation set in
+// the rejecting cases, so a call to it would fail the test.
 func TestFindTraces_ServiceNameRequired(t *testing.T) {
-	serviceless := TraceQueryParams{
-		TraceQueryParams: tracestore.TraceQueryParams{Attributes: pcommon.NewMap()},
-	}
-
-	t.Run("rejected when the backend requires a service name", func(t *testing.T) {
-		qs := NewQueryService(new(tracestoremocks.Reader), nil, QueryServiceOptions{})
-
-		_, err := jiter.FlattenWithErrors(qs.FindTraces(context.Background(), serviceless))
-		require.ErrorIs(t, err, ErrServiceNameRequired)
-
-		_, err = jiter.FlattenWithErrors(qs.FindTraceSummaries(context.Background(), serviceless))
-		require.ErrorIs(t, err, ErrServiceNameRequired)
-	})
-
-	t.Run("forwarded when the backend accepts it", func(t *testing.T) {
-		reader := new(tracestoremocks.Reader)
+	serviceless := filterQuery(nil)
+	forwards := func(reader *tracestoremocks.Reader) *tracestoremocks.Reader {
 		reader.On("FindTraces", mock.Anything, mock.AnythingOfType("tracestore.TraceQueryParams")).
 			Return(iter.Seq2[[]ptrace.Traces, error](func(yield func([]ptrace.Traces, error) bool) {
 				yield([]ptrace.Traces{makeTestTrace()}, nil)
 			})).Once()
-		qs := NewQueryService(reader, nil, QueryServiceOptions{
-			SearchCapabilities: tracestore.SearchCapabilities{WithoutServiceName: true},
+		return reader
+	}
+
+	// A reader that declares nothing, one that cannot say, and one whose backend is
+	// unreachable are all treated the same: the least capable backend.
+	for name, answer := range map[string]struct {
+		caps tracestore.SearchCapabilities
+		err  error
+	}{
+		"the backend requires a service name": {},
+		"the reader cannot say":               {err: errors.ErrUnsupported},
+		"the backend is unreachable":          {err: assert.AnError},
+	} {
+		t.Run("rejected when "+name, func(t *testing.T) {
+			reader := new(tracestoremocks.Reader)
+			reader.On("SearchCapabilities", mock.Anything).Return(answer.caps, answer.err)
+			qs := NewQueryService(reader, nil, QueryServiceOptions{})
+
+			_, err := jiter.FlattenWithErrors(qs.FindTraces(context.Background(), serviceless))
+			require.ErrorIs(t, err, ErrServiceNameRequired)
+
+			_, err = flattenPageChunks(qs.FindTraceSummaries(context.Background(), serviceless))
+			require.ErrorIs(t, err, ErrServiceNameRequired)
 		})
+	}
+
+	t.Run("forwarded when the backend accepts it", func(t *testing.T) {
+		reader := declaresSearchWithoutServiceName(forwards(new(tracestoremocks.Reader)), true)
+		qs := NewQueryService(reader, nil, QueryServiceOptions{})
 
 		got, err := jiter.FlattenWithErrors(qs.FindTraces(context.Background(), serviceless))
 		require.NoError(t, err)
@@ -1015,17 +1335,179 @@ func TestFindTraces_ServiceNameRequired(t *testing.T) {
 		reader.AssertExpectations(t)
 	})
 
-	t.Run("a named service is accepted either way", func(t *testing.T) {
-		reader := new(tracestoremocks.Reader)
-		reader.On("FindTraces", mock.Anything, mock.AnythingOfType("tracestore.TraceQueryParams")).
-			Return(iter.Seq2[[]ptrace.Traces, error](func(yield func([]ptrace.Traces, error) bool) {
-				yield([]ptrace.Traces{makeTestTrace()}, nil)
-			})).Once()
+	// No expectation for SearchCapabilities: a named service must not provoke the check.
+	t.Run("a named service is accepted without asking", func(t *testing.T) {
+		reader := forwards(new(tracestoremocks.Reader))
 		qs := NewQueryService(reader, nil, QueryServiceOptions{})
 
 		named := serviceless
 		named.ServiceName = "svc"
 		_, err := jiter.FlattenWithErrors(qs.FindTraces(context.Background(), named))
 		require.NoError(t, err)
+		reader.AssertExpectations(t)
 	})
+}
+
+// TestFindTraces_ServiceNameCapabilityAskedEveryTime pins that the query service keeps no
+// copy of the answer: every service-less search asks the reader again, so a backend that was
+// unreachable at startup is not written off for the life of the process.
+func TestFindTraces_ServiceNameCapabilityAskedEveryTime(t *testing.T) {
+	serviceless := filterQuery(nil)
+	reader := new(tracestoremocks.Reader)
+	reader.On("FindTraces", mock.Anything, mock.AnythingOfType("tracestore.TraceQueryParams")).
+		Return(iter.Seq2[[]ptrace.Traces, error](func(yield func([]ptrace.Traces, error) bool) {
+			yield([]ptrace.Traces{makeTestTrace()}, nil)
+		})).Maybe()
+	// The backend is unreachable, then comes up and declares the capability.
+	unreachable := reader.On("SearchCapabilities", mock.Anything).
+		Return(tracestore.SearchCapabilities{}, assert.AnError).Once()
+	reader.On("SearchCapabilities", mock.Anything).
+		Return(tracestore.SearchCapabilities{WithoutServiceName: true}, nil).
+		Times(3).NotBefore(unreachable)
+
+	qs := NewQueryService(reader, nil, QueryServiceOptions{})
+
+	_, err := jiter.FlattenWithErrors(qs.FindTraces(context.Background(), serviceless))
+	require.ErrorIs(t, err, ErrServiceNameRequired, "nothing has vouched for the query yet")
+
+	for range 3 {
+		got, err := jiter.FlattenWithErrors(qs.FindTraces(context.Background(), serviceless))
+		require.NoError(t, err)
+		assert.NotEmpty(t, got)
+	}
+	// Four expectations consumed: the reader was asked once per search, never cached here.
+	reader.AssertExpectations(t)
+}
+
+// forwardsOneTrace sets the reader up to answer a search with a single trace, recording the
+// query it was dispatched with.
+func forwardsOneTrace(reader *tracestoremocks.Reader, dispatched *tracestore.TraceQueryParams) *tracestoremocks.Reader {
+	reader.On("FindTraces", mock.Anything, mock.AnythingOfType("tracestore.TraceQueryParams")).
+		Run(func(args mock.Arguments) {
+			*dispatched = args.Get(1).(tracestore.TraceQueryParams)
+		}).
+		Return(iter.Seq2[[]ptrace.Traces, error](func(yield func([]ptrace.Traces, error) bool) {
+			yield([]ptrace.Traces{makeTestTrace()}, nil)
+		})).Once()
+	return reader
+}
+
+// TestFindTraces_FilterReachesStorageAsLegacyFields covers the end of the plumbing for the
+// backends that do not evaluate a filter yet: the reader receives the predicate fields it
+// already understands and no filter at all.
+func TestFindTraces_FilterReachesStorageAsLegacyFields(t *testing.T) {
+	enableStructuredFilters(t)
+	query := filterQuery(compare(expression.OpAnd,
+		compare(expression.OpEq,
+			&expression.FieldRef{Level: expression.LevelResource, Name: expression.ResourceFieldService},
+			&expression.AnyValue{Value: "cart"}),
+		tag(expression.OpEq, "http.status_code", "500")))
+
+	var dispatched tracestore.TraceQueryParams
+	reader := forwardsOneTrace(new(tracestoremocks.Reader), &dispatched)
+	reader.On("SearchCapabilities", mock.Anything).Return(tracestore.SearchCapabilities{}, nil).Maybe()
+
+	qs := NewQueryService(reader, nil, QueryServiceOptions{})
+	got, err := jiter.FlattenWithErrors(qs.FindTraces(context.Background(), query))
+	require.NoError(t, err)
+	assert.NotEmpty(t, got)
+
+	assert.Equal(t, "cart", dispatched.ServiceName)
+	assert.Nil(t, dispatched.Filter)
+	value, ok := dispatched.Attributes.Get("http.status_code")
+	require.True(t, ok)
+	assert.Equal(t, "500", value.Str())
+	reader.AssertExpectations(t)
+}
+
+// TestFindTraces_FilterReachesADeclaringReader covers the other branch: a reader that
+// declares filter support gets the filter itself.
+func TestFindTraces_FilterReachesADeclaringReader(t *testing.T) {
+	enableStructuredFilters(t)
+	filter := compare(expression.OpRegex,
+		&expression.AttributeRef{Key: "http.route", Level: expression.LevelSpan},
+		&expression.AnyValue{Value: "/cart/.*"})
+	query := filterQuery(filter)
+
+	var dispatched tracestore.TraceQueryParams
+	reader := forwardsOneTrace(new(tracestoremocks.Reader), &dispatched)
+	reader.On("SearchCapabilities", mock.Anything).Return(tracestore.SearchCapabilities{
+		WithoutServiceName: true,
+		Filter: &tracestore.FilterCapabilities{
+			Levels:    []expression.Level{expression.LevelSpan},
+			Operators: []expression.Operator{expression.OpRegex},
+		},
+	}, nil)
+
+	qs := NewQueryService(reader, nil, QueryServiceOptions{})
+	_, err := jiter.FlattenWithErrors(qs.FindTraces(context.Background(), query))
+	require.NoError(t, err)
+	assert.Equal(t, filter, dispatched.Filter)
+	reader.AssertExpectations(t)
+}
+
+// TestFindTraces_FilterCanNameTheServiceForABackendThatRequiresOne pins the ordering: the
+// filter is rewritten before the service name is checked, so a backend that cannot search
+// every service is satisfied by a filter that names one — and still refuses a filter that
+// does not.
+func TestFindTraces_FilterCanNameTheServiceForABackendThatRequiresOne(t *testing.T) {
+	enableStructuredFilters(t)
+	filterOn := func(level expression.Level, name, value string) *expression.Call {
+		return compare(expression.OpEq,
+			&expression.FieldRef{Level: level, Name: name},
+			&expression.AnyValue{Value: value})
+	}
+
+	t.Run("the filter names the service", func(t *testing.T) {
+		var dispatched tracestore.TraceQueryParams
+		reader := forwardsOneTrace(new(tracestoremocks.Reader), &dispatched)
+		declaresSearchWithoutServiceName(reader, false)
+		qs := NewQueryService(reader, nil, QueryServiceOptions{})
+
+		_, err := jiter.FlattenWithErrors(qs.FindTraces(context.Background(),
+			filterQuery(filterOn(expression.LevelResource, expression.ResourceFieldService, "cart"))))
+		require.NoError(t, err)
+		assert.Equal(t, "cart", dispatched.ServiceName)
+		reader.AssertExpectations(t)
+	})
+
+	// No expectation for FindTraces: a call to it would fail the test.
+	t.Run("the filter does not name the service", func(t *testing.T) {
+		reader := declaresSearchWithoutServiceName(new(tracestoremocks.Reader), false)
+		qs := NewQueryService(reader, nil, QueryServiceOptions{})
+
+		attrFilter := tag(expression.OpEq, "http.method", "GET")
+		_, err := jiter.FlattenWithErrors(qs.FindTraces(context.Background(), filterQuery(attrFilter)))
+		require.ErrorIs(t, err, ErrServiceNameRequired)
+	})
+}
+
+// TestFindTraces_UnservableFilterIsRefusedBeforeStorage pins that a refused filter never
+// reaches the reader: FindTraces has no expectation, so a call to it would fail the test. A
+// reader that cannot report its capabilities reads as the least capable one, which is why an
+// unreachable backend refuses the same filter.
+func TestFindTraces_UnservableFilterIsRefusedBeforeStorage(t *testing.T) {
+	enableStructuredFilters(t)
+	query := filterQuery(compare(expression.OpOr,
+		tag(expression.OpEq, "a", "1"),
+		tag(expression.OpEq, "b", "2")))
+	for name, answer := range map[string]struct {
+		caps tracestore.SearchCapabilities
+		err  error
+	}{
+		"the backend declares no filter support": {},
+		"the backend is unreachable":             {err: assert.AnError},
+	} {
+		t.Run(name, func(t *testing.T) {
+			reader := new(tracestoremocks.Reader)
+			reader.On("SearchCapabilities", mock.Anything).Return(answer.caps, answer.err)
+			qs := NewQueryService(reader, nil, QueryServiceOptions{})
+
+			_, err := jiter.FlattenWithErrors(qs.FindTraces(context.Background(), query))
+			require.ErrorIs(t, err, tracestore.ErrFilterUnsupported)
+
+			_, err = flattenPageChunks(qs.FindTraceSummaries(context.Background(), query))
+			require.ErrorIs(t, err, tracestore.ErrFilterUnsupported)
+		})
+	}
 }

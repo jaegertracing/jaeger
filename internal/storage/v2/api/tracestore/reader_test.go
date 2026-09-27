@@ -1,21 +1,24 @@
-// Copyright (c) 2024 The Jaeger Authors.
+// Copyright (c) 2026 The Jaeger Authors.
 // SPDX-License-Identifier: Apache-2.0
 
 package tracestore
 
 import (
-	"reflect"
+	"context"
+	"errors"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	"go.opentelemetry.io/collector/pdata/ptrace"
 )
 
-// TestSearchCapabilities_FieldCount is a tripwire rather than a property. The decorators
-// that wrap a Reader are tested by enumerating every permutation of these fields, so a
-// field added here without extending those tables would leave the new capability's
-// forwarding unproven. Update the count with those tables.
-func TestSearchCapabilities_FieldCount(t *testing.T) {
-	assert.Equal(t, 1, reflect.TypeOf(SearchCapabilities{}).NumField(),
-		"extend the permutation tables in the tracestoremetrics and queryinterceptor "+
-			"reader-decorator tests, then update this count")
+func TestUnsupportedSpanSearch_FindSpans(t *testing.T) {
+	iterations := 0
+	for batch, err := range (UnsupportedSpanSearch{}).FindSpans(context.Background(), SpanQueryParams{}) {
+		iterations++
+		assert.Equal(t, PageChunk[ptrace.Traces]{}, batch)
+		require.ErrorIs(t, err, errors.ErrUnsupported)
+	}
+	assert.Equal(t, 1, iterations, "expected exactly one yield carrying ErrUnsupported")
 }

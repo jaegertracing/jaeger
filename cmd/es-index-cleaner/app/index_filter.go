@@ -33,15 +33,18 @@ func (i *IndexFilter) Filter(indices []esclient.Index) []esclient.Index {
 }
 
 func (i *IndexFilter) filterByPattern(indices []esclient.Index) []esclient.Index {
+	// The prefix is user input and may carry characters that are legal in an
+	// index name but meaningful in a regular expression ('.', '+', '(' ...).
+	prefix := regexp.QuoteMeta(i.IndexPrefix)
 	var reg *regexp.Regexp
 	switch {
 	case i.Archive:
 		// archive works only for rollover
-		reg, _ = regexp.Compile(fmt.Sprintf("^%sjaeger-span-archive-\\d{6}", i.IndexPrefix))
+		reg = regexp.MustCompile(fmt.Sprintf("^%sjaeger-span-archive-\\d{6}", prefix))
 	case i.Rollover:
-		reg, _ = regexp.Compile(fmt.Sprintf("^%sjaeger-(span|service|dependencies|sampling)-\\d{6}", i.IndexPrefix))
+		reg = regexp.MustCompile(fmt.Sprintf("^%sjaeger-(span|service|dependencies|sampling)-\\d{6}", prefix))
 	default:
-		reg, _ = regexp.Compile(fmt.Sprintf("^%sjaeger-(span|service|dependencies|sampling)-\\d{4}%s\\d{2}%s\\d{2}", i.IndexPrefix, i.IndexDateSeparator, i.IndexDateSeparator))
+		reg = regexp.MustCompile(fmt.Sprintf("^%sjaeger-(span|service|dependencies|sampling)-\\d{4}%s\\d{2}%s\\d{2}", prefix, i.IndexDateSeparator, i.IndexDateSeparator))
 	}
 
 	var filtered []esclient.Index

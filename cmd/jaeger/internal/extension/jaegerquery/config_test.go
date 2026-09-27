@@ -9,7 +9,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/collector/config/configoptional"
-	"go.opentelemetry.io/collector/confmap/xconfmap"
+	"go.opentelemetry.io/collector/confmap"
 
 	queryapp "github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerquery/internal"
 )
@@ -93,7 +93,7 @@ func Test_Validate(t *testing.T) {
 	}
 }
 
-// The collector validates a component's config with xconfmap.Validate, which
+// The collector validates a component's config with confmap.Validate, which
 // recurses into nested Validate methods — that recursion, not Config.Validate,
 // is what carries ai.mcp's own rules in production. Asserting it here keeps
 // MCPConfig.Validate from becoming a method nothing ever calls.
@@ -108,7 +108,7 @@ func TestValidateRecursesIntoMCPConfig(t *testing.T) {
 		MCP:                configoptional.Some(queryapp.MCPConfig{BaseURL: "not-a-url"}),
 	})
 
-	err := xconfmap.Validate(cfg)
+	err := confmap.Validate(cfg)
 	// "mcp:" names the block at fault; Config.Validate alone reports nothing here.
 	require.ErrorContains(t, err, "mcp: ai.mcp.base_url must be an absolute URL")
 	require.NoError(t, cfg.Validate())

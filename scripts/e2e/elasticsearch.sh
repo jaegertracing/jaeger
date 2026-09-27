@@ -14,7 +14,7 @@ usage() {
   echo "Usage: $0 <backend> <backend_version> <storage_test>"
   echo "  backend:         elasticsearch | opensearch"
   echo "  backend_version: major version, e.g. 7.x"
-  echo "  storage_test:    direct | e2e"
+  echo "  storage_test:    direct | e2e | compat"
   exit 1
 }
 
@@ -136,6 +136,8 @@ main() {
   bring_up_storage "${distro}" "${es_version}"
   if [[ "${storage_test}" == "e2e" ]]; then
     STORAGE=${distro} SPAN_STORAGE_TYPE=${distro} make jaeger-v2-storage-integration-test
+  elif [[ "${storage_test}" == "compat" ]]; then
+    STORAGE=${distro} SPAN_STORAGE_TYPE=${distro} make jaeger-v2-backward-compatibility-test
   elif [[ "${storage_test}" == "direct" ]]; then
     build_local_img
     echo "::group::⬇️ Pre-pull test docker images"
@@ -144,7 +146,7 @@ main() {
     echo "::endgroup::"
     STORAGE=${distro} make storage-integration-test
   else
-    echo "ERROR: Invalid argument value storage_test=${storage_test}, expecting direct or e2e"
+    echo "ERROR: Invalid argument value storage_test=${storage_test}, expecting direct, e2e or compat"
     exit 1
   fi
   success="true"

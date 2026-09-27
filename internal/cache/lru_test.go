@@ -117,6 +117,37 @@ func TestLRUWithTTL(t *testing.T) {
 	assert.Equal(t, 0, cache.Size())
 }
 
+func TestLRUClear(t *testing.T) {
+	var evicted []string
+	cache := NewLRUWithOptions(5, &Options{
+		OnEvict: func(key string, _ any) {
+			evicted = append(evicted, key)
+		},
+	})
+	cache.Put("A", "foo")
+	cache.Put("B", "bar")
+
+	cache.Clear()
+
+	assert.Equal(t, 0, cache.Size())
+	assert.Nil(t, cache.Get("A"))
+	assert.Nil(t, cache.Get("B"))
+	assert.ElementsMatch(t, []string{"A", "B"}, evicted)
+
+	// The cache is still usable, and eviction still bounds it by maxSize.
+	cache.Put("C", "baz")
+	assert.Equal(t, "baz", cache.Get("C"))
+	assert.Equal(t, 1, cache.Size())
+}
+
+func TestLRUClearWithoutOnEvict(t *testing.T) {
+	cache := NewLRUWithOptions(5, nil)
+	cache.Put("A", "foo")
+	cache.Clear()
+	assert.Equal(t, 0, cache.Size())
+	assert.Nil(t, cache.Get("A"))
+}
+
 func TestDefaultClock(t *testing.T) {
 	cache := NewLRUWithOptions(5, &Options{
 		TTL: time.Millisecond * 1,

@@ -4,7 +4,16 @@
 
 package dbmodel
 
-import "time"
+import (
+	"encoding/hex"
+	"fmt"
+	"strings"
+	"time"
+
+	"go.opentelemetry.io/collector/pdata/pcommon"
+
+	expression "github.com/jaegertracing/jaeger-idl/query/expression/v1"
+)
 
 // ReferenceType is the reference type of one span to another
 type ReferenceType string
@@ -14,6 +23,44 @@ type TraceID string
 
 // SpanID is the id of a span
 type SpanID string
+
+// ToOTEL decodes the hex trace ID into its pdata form, left-padding a shorter
+// (e.g. 64-bit) id with zeros.
+func (t TraceID) ToOTEL() (pcommon.TraceID, error) {
+	var traceID [16]byte
+	traceIDHex := string(t)
+	if len(traceIDHex) > 32 {
+		return pcommon.TraceID{}, fmt.Errorf("trace ID from DB is too long: %d chars", len(traceIDHex))
+	}
+	if len(traceIDHex) < 32 {
+		traceIDHex = strings.Repeat("0", 32-len(traceIDHex)) + traceIDHex
+	}
+	traceBytes, err := hex.DecodeString(traceIDHex)
+	if err != nil {
+		return pcommon.TraceID{}, err
+	}
+	copy(traceID[:], traceBytes)
+	return traceID, nil
+}
+
+// ToOTEL decodes the hex span ID into its pdata form, left-padding a shorter id
+// with zeros.
+func (s SpanID) ToOTEL() (pcommon.SpanID, error) {
+	var spanID [8]byte
+	spanIDHex := string(s)
+	if len(spanIDHex) > 16 {
+		return pcommon.SpanID{}, fmt.Errorf("span ID from DB is too long: %d chars", len(spanIDHex))
+	}
+	if len(spanIDHex) < 16 {
+		spanIDHex = strings.Repeat("0", 16-len(spanIDHex)) + spanIDHex
+	}
+	spanIDBytes, err := hex.DecodeString(spanIDHex)
+	if err != nil {
+		return pcommon.SpanID{}, err
+	}
+	copy(spanID[:], spanIDBytes)
+	return spanID, nil
+}
 
 // ValueType is the type of a value stored in KeyValue struct.
 type ValueType string
@@ -60,9 +107,9 @@ type Span struct {
 	Tag     map[string]any `json:"tag,omitempty"`
 	Logs    []Log          `json:"logs"`
 	Process Process        `json:"process"`
-	// Timestamp is epoch nanoseconds as a decimal string, written only for data
-	// streams (mapped as date_nanos). Using a string avoids JSON float64 truncation
-	// of large int64 nanosecond values; legacy strategies leave it empty.
+	// Timestamp is the span's start time as an RFC 3339 string, written only on the
+	// data stream path; other rotation strategies leave it empty. It has to be the
+	// string form rather than a number (RFC 0004 §3.3).
 	Timestamp string `json:"@timestamp,omitempty"`
 }
 
@@ -122,4 +169,10 @@ type TraceQueryParameters struct {
 	DurationMin   time.Duration
 	DurationMax   time.Duration
 	SearchDepth   int
+	// Filter is the structured query filter (RFC 0005), which carries the same kinds of
+	// predicate as the fields above and is mutually exclusive with them. It is the storage
+	// API's own expression tree rather than a translation of it, because the tree is what the
+	// reader lowers into the Elasticsearch query and a second encoding of it would earn
+	// nothing.
+	Filter *expression.Call
 }

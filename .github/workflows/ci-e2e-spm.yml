@@ -28,7 +28,7 @@ jobs:
 
     steps:
     - name: Harden Runner
-      uses: step-security/harden-runner@a5ad31d6a139d249332a2605b85202e8c0b78450 # v2.19.1
+      uses: step-security/harden-runner@05e31511f85b41b11d1cf0ef85d0992719546e2c # v2.21.0
       with:
         egress-policy: audit # TODO: change to 'egress-policy: block' after couple of runs
 
@@ -41,8 +41,6 @@ jobs:
         git fetch --prune --unshallow --tags
 
     - uses: ./.github/actions/setup-go
-      with:
-        go-version: 1.26.x
 
     - name: Setup Node.js version
       uses: ./.github/actions/setup-node.js

@@ -5,11 +5,15 @@ package tracestore
 
 import (
 	"context"
+	"errors"
+	"fmt"
 	"iter"
 	"time"
 
 	"go.opentelemetry.io/collector/pdata/pcommon"
 	"go.opentelemetry.io/collector/pdata/ptrace"
+
+	expression "github.com/jaegertracing/jaeger-idl/query/expression/v1"
 )
 
 // Reader finds and loads traces and other data from storage.
@@ -44,6 +48,17 @@ type Reader interface {
 	// known to the backend from spans within its retention period.
 	GetOperations(ctx context.Context, query OperationQueryParams) ([]Operation, error)
 
+	// FindSpans returns an iterator over pages of spans matching the query.
+	//
+	// Unlike FindTraces, a yielded ptrace.Traces may hold spans from many traces:
+	// the result is a set of spans, not a set of traces. Spans are returned as
+	// stored, with no query-time adjustment (RFC 0016 §7).
+	//
+	// A reader that cannot serve span queries yields errors.ErrUnsupported (wrapped
+	// with %w) as the first error before any page; such readers embed
+	// UnsupportedSpanSearch.
+	FindSpans(ctx context.Context, query SpanQueryParams) iter.Seq2[PageChunk[ptrace.Traces], error]
+
 	// FindTraces returns an iterator that retrieves traces matching query parameters.
 	// The iterator is single-use: once consumed, it cannot be used again.
 	//
@@ -67,7 +82,7 @@ type Reader interface {
 	// of matching trace IDs. This is useful in some contexts, such as batch jobs, where a
 	// large list of trace IDs may be queried first and then the full traces are loaded
 	// in batches.
-	FindTraceIDs(ctx context.Context, query TraceQueryParams) iter.Seq2[[]FoundTraceID, error]
+	FindTraceIDs(ctx context.Context, query TraceQueryParams) iter.Seq2[PageChunk[[]FoundTraceID], error]
 
 	// FindTraceSummaries returns an iterator over lightweight summaries of the traces
 	// matching the query parameters (the metadata shown in search-result lists). The
@@ -82,7 +97,7 @@ type Reader interface {
 	// The iterator streams result batches; each yielded batch may contain one or more
 	// summaries, and implementations may yield incrementally rather than buffering all
 	// results first.
-	FindTraceSummaries(ctx context.Context, query TraceQueryParams) iter.Seq2[[]TraceSummary, error]
+	FindTraceSummaries(ctx context.Context, query TraceQueryParams) iter.Seq2[PageChunk[[]TraceSummary], error]
 
 	// SearchCapabilities reports how this reader's search methods behave; see
 	// SearchCapabilities for what it describes.
@@ -96,31 +111,6 @@ type Reader interface {
 	SearchCapabilities(ctx context.Context) (SearchCapabilities, error)
 }
 
-// SearchCapabilities describes how a Reader's search methods behave where backends
-// differ: which TraceQueryParams fields may be omitted, which are honored exactly
-// rather than approximated, and which combinations a backend cannot serve. Its zero
-// value is the least capable reader, so a field added here leaves every existing
-// implementation declaring the new capability unsupported.
-//
-// Fields to expect over time, each of which is a real divergence today:
-//
-//   - Whether SearchDepth is an exact limit or a hint. The API contract already warns
-//     that "some implementations might not support precise limits" (`search_depth` in
-//     jaeger.api_v3's TraceQueryParameters), which leaves callers unable to tell
-//     whether a short result set means "no more matches".
-//   - Which duration-query combinations hold. Cassandra serves DurationMin/DurationMax
-//     from a separate duration_index whose partition key it cannot intersect with tags
-//     (docs/adr/001-cassandra-find-traces-duration.md), and it rejects the combination
-//     outright; the restriction was lifted at the API layer in
-//     https://github.com/jaegertracing/jaeger/issues/1047 without the storage
-//     limitation going away.
-type SearchCapabilities struct {
-	// WithoutServiceName is true when FindTraces, FindTraceIDs and FindTraceSummaries
-	// accept a TraceQueryParams whose ServiceName is empty and read it as "any
-	// service", rather than as an error or an empty result.
-	WithoutServiceName bool
-}
-
 // GetTraceParams contains single-trace parameters for a GetTraces request.
 // Some storage backends (e.g. Tempo) perform GetTraces much more efficiently
 // if they know the approximate time range of the trace.
@@ -131,6 +121,49 @@ type GetTraceParams struct {
 	Start time.Time
 	// End of the time interval to search for trace ID. Optional.
 	End time.Time
+}
+
+// MaxSearchDepth is the largest SearchDepth the query API and the gRPC storage
+// client accept. It matches ClickHouse's default MaxSearchDepth (10000): a
+// search window, not an int32 bound. 0 is valid and means "backend default" on
+// several stores.
+const MaxSearchDepth = 10000
+
+// PageChunk carries one streamed chunk of a page. A page may span several chunks
+// to satisfy transport message limits without changing the page boundary.
+// NextPageToken is set only on the final chunk: an empty token there means
+// no later page, while an empty token on an earlier chunk says nothing about pagination.
+type PageChunk[T any] struct {
+	Results       T
+	NextPageToken PageToken
+}
+
+// SpanQueryParams contains query parameters to find spans. For a more detailed
+// definition of each field in this message, refer to `SpanQueryParameters` in `jaeger.api_v3`
+// (https://github.com/jaegertracing/jaeger-idl/blob/main/proto/api_v3/query_service.proto).
+type SpanQueryParams struct {
+	StartTimeMin time.Time
+	StartTimeMax time.Time
+	Filter       *expression.Call // RFC 0005
+	// Pagination is the only bound on the result, since a span query has no SearchDepth
+	// (RFC 0016 §6), so PageSize is always set: the query service fills in a default when the
+	// caller left it unset. A Reader whose SearchCapabilities.Paginated is false still receives
+	// PageSize as that bound but never a PageToken, which the query service refuses on its
+	// behalf before dispatching (RFC 0014 §6.2).
+	Pagination Pagination
+}
+
+// UnsupportedSpanSearch provides a Reader.FindSpans implementation for backends that
+// cannot serve span queries. It yields errors.ErrUnsupported as its first (and only)
+// error, before any page. Embed it in a Reader to opt into that behavior without
+// writing the method by hand; pair it with a SearchCapabilities.SpanSearch of false
+// so the query service refuses the query before dispatch (RFC 0016 §4.5).
+type UnsupportedSpanSearch struct{}
+
+func (UnsupportedSpanSearch) FindSpans(context.Context, SpanQueryParams) iter.Seq2[PageChunk[ptrace.Traces], error] {
+	return func(yield func(PageChunk[ptrace.Traces], error) bool) {
+		yield(PageChunk[ptrace.Traces]{}, fmt.Errorf("this storage backend does not support span search: %w", errors.ErrUnsupported))
+	}
 }
 
 // TraceQueryParams contains query parameters to find traces. For a detailed
@@ -146,6 +179,43 @@ type TraceQueryParams struct {
 	DurationMin  time.Duration
 	DurationMax  time.Duration
 	SearchDepth  int
+	// Filter is the structured query filter (RFC 0005): a boolean-valued Call over
+	// level-qualified attributes and built-in fields. It is mutually exclusive with the
+	// predicate fields above — ServiceName, OperationName, Attributes and the duration
+	// bounds — so a reader sees one filtering model, not a mix of the two. A reader only
+	// receives a Filter whose levels and operators its SearchCapabilities declare; for any
+	// other reader the query service expresses the filter in the legacy fields instead, or
+	// refuses the query.
+	Filter *expression.Call
+	// Pagination requests a paginated search (RFC 0014). nil means this is not a paginated
+	// request, the same as an absent jaeger.api_v3.Pagination on the wire; a pointer keeps
+	// that presence, so a present-but-empty message is still seen as a malformed request.
+	// When present it replaces SearchDepth rather than falling back to it — the two are
+	// mutually exclusive, which the query service enforces before a Reader ever sees the query.
+	Pagination *Pagination
+}
+
+// MaxPageSize is the largest Pagination.PageSize the query service accepts. A larger request
+// is clamped down to this value rather than refused, the treatment AIP-158 prescribes for a
+// page-size field (RFC 0014 §4).
+const MaxPageSize = 10000
+
+// Pagination asks for one page of a search result and, on continuation, says where the
+// previous page stopped. It mirrors jaeger.api_v3.Pagination and jaeger.storage.v2.Pagination
+// (RFC 0014 §4, §6).
+type Pagination struct {
+	// PageSize bounds the number of results in one page. In a trace search it replaces
+	// SearchDepth as the page bound rather than falling back to it, so it is required whenever
+	// Pagination is present, and the query service refuses a zero PageSize before a Reader ever
+	// sees the query (RFC 0014 §4). A span search has no other bound, so there the query
+	// service fills in a default instead (see SpanQueryParams.Pagination).
+	PageSize int
+	// PageToken continues a previous search. Empty starts a new one. It is the token the
+	// Reader itself returned in PageChunk.NextPageToken; the PageToken type says what the
+	// Reader has to do with it. The query service refuses a PageToken against a Reader whose
+	// SearchCapabilities.Paginated is false before dispatching (RFC 0014 §6.2), so such a
+	// Reader never sees one.
+	PageToken PageToken
 }
 
 // FoundTraceID is a wrapper around trace ID returned from FindTraceIDs
