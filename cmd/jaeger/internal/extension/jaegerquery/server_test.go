@@ -709,11 +709,9 @@ func TestServerStartWiresSearchCapability(t *testing.T) {
 			t.Cleanup(func() { require.NoError(t, srv.Shutdown(t.Context())) })
 
 			_, err := jiter.FlattenWithErrors(srv.QueryService().FindTraces(t.Context(), querysvc.TraceQueryParams{
-				TraceQueryParams: tracestore.TraceQueryParams{
-					Attributes:   pcommon.NewMap(),
-					StartTimeMin: time.Now().Add(-time.Hour),
-					StartTimeMax: time.Now(),
-				},
+				Attributes:   pcommon.NewMap(),
+				StartTimeMin: time.Now().Add(-time.Hour),
+				StartTimeMax: time.Now(),
 			}))
 			if test.expectError != nil {
 				require.ErrorIs(t, err, test.expectError)

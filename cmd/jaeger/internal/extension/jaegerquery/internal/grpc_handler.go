@@ -143,17 +143,15 @@ func (g *GRPCHandler) FindTraces(r *api_v2.FindTracesRequest, stream api_v2.Quer
 		return status.Errorf(codes.InvalidArgument, "%s: search depth must be in [0, %d]", querysvc.ErrQueryInvalid, tracestore.MaxSearchDepth)
 	}
 	queryParams := querysvc.TraceQueryParams{
-		TraceQueryParams: tracestore.TraceQueryParams{
-			ServiceName:   query.ServiceName,
-			OperationName: query.OperationName,
-			Attributes:    convertTagsToAttributes(query.Tags),
-			StartTimeMin:  query.StartTimeMin,
-			StartTimeMax:  query.StartTimeMax,
-			DurationMin:   query.DurationMin,
-			DurationMax:   query.DurationMax,
-			SearchDepth:   uint32(query.SearchDepth),
-		},
-		RawTraces: query.RawTraces,
+		ServiceName:   query.ServiceName,
+		OperationName: query.OperationName,
+		Attributes:    convertTagsToAttributes(query.Tags),
+		StartTimeMin:  query.StartTimeMin,
+		StartTimeMax:  query.StartTimeMax,
+		DurationMin:   query.DurationMin,
+		DurationMax:   query.DurationMax,
+		SearchDepth:   uint32(query.SearchDepth),
+		RawTraces:     query.RawTraces,
 	}
 	findTracesIter := g.queryService.FindTraces(stream.Context(), queryParams)
 	traces, err := v1adapter.V1TracesFromSeq2(findTracesIter)

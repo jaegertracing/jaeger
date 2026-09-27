@@ -101,16 +101,14 @@ func traceQueryParams(query *api_v3.TraceQueryParameters) (querysvc.TraceQueryPa
 		return querysvc.TraceQueryParams{}, status.Errorf(codes.InvalidArgument, "%s: search depth must be in [0, %d]", querysvc.ErrQueryInvalid, tracestore.MaxSearchDepth)
 	}
 	queryParams := querysvc.TraceQueryParams{
-		TraceQueryParams: tracestore.TraceQueryParams{
-			ServiceName:   query.GetServiceName(),
-			OperationName: query.GetOperationName(),
-			Attributes:    jptrace.PlainMapToPcommonMap(query.GetAttributes()),
-			SearchDepth:   searchDepth,
-			StartTimeMin:  query.GetStartTimeMin(),
-			StartTimeMax:  query.GetStartTimeMax(),
-			DurationMin:   query.GetDurationMin(),
-			DurationMax:   query.GetDurationMax(),
-		},
+		ServiceName:   query.GetServiceName(),
+		OperationName: query.GetOperationName(),
+		Attributes:    jptrace.PlainMapToPcommonMap(query.GetAttributes()),
+		SearchDepth:   searchDepth,
+		StartTimeMin:  query.GetStartTimeMin(),
+		StartTimeMax:  query.GetStartTimeMax(),
+		DurationMin:   query.GetDurationMin(),
+		DurationMax:   query.GetDurationMax(),
 	}
 	if protoFilter := query.GetFilter(); protoFilter != nil {
 		filter, err := expressionproto.FromProto(protoFilter)
@@ -120,7 +118,7 @@ func traceQueryParams(query *api_v3.TraceQueryParameters) (querysvc.TraceQueryPa
 		queryParams.Filter = filter
 	}
 	if pagination := query.GetPagination(); pagination != nil {
-		queryParams.Pagination = &tracestore.Pagination{
+		queryParams.Pagination = &querysvc.Pagination{
 			PageSize:  pagination.GetPageSize(),
 			PageToken: pagination.GetPageToken(),
 		}
@@ -142,7 +140,7 @@ func (h *Handler) FindSpans(request *api_v3.FindSpansRequest, stream api_v3.Quer
 		spans := jptrace.TracesData(chunk.Results)
 		response := &api_v3.FindSpansResponse{
 			Spans:         &spans,
-			NextPageToken: chunk.NextPageToken,
+			NextPageToken: string(chunk.NextPageToken),
 		}
 		if err := stream.Send(response); err != nil {
 			return status.Errorf(codes.Internal, "failed to send response stream chunk to client: %v", err)
@@ -161,10 +159,8 @@ func spanQueryParams(query *api_v3.SpanQueryParameters) (querysvc.SpanQueryParam
 		return querysvc.SpanQueryParams{}, status.Error(codes.InvalidArgument, "missing query")
 	}
 	queryParams := querysvc.SpanQueryParams{
-		SpanQueryParams: tracestore.SpanQueryParams{
-			StartTimeMin: query.GetStartTimeMin(),
-			StartTimeMax: query.GetStartTimeMax(),
-		},
+		StartTimeMin: query.GetStartTimeMin(),
+		StartTimeMax: query.GetStartTimeMax(),
 	}
 	if protoFilter := query.GetFilter(); protoFilter != nil {
 		filter, err := expressionproto.FromProto(protoFilter)
@@ -174,7 +170,7 @@ func spanQueryParams(query *api_v3.SpanQueryParameters) (querysvc.SpanQueryParam
 		queryParams.Filter = filter
 	}
 	if pagination := query.GetPagination(); pagination != nil {
-		queryParams.Pagination = tracestore.Pagination{
+		queryParams.Pagination = querysvc.Pagination{
 			PageSize:  pagination.GetPageSize(),
 			PageToken: pagination.GetPageToken(),
 		}

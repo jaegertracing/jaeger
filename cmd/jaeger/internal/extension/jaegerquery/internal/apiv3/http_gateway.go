@@ -250,7 +250,7 @@ func (h *HTTPGateway) findSpans(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		jptrace.MergeTraces(combined, chunk.Results)
-		nextPageToken = chunk.NextPageToken
+		nextPageToken = string(chunk.NextPageToken)
 	}
 	tracesData := jptrace.TracesData(combined)
 	h.marshalResultWrappedResponse(&api_v3.FindSpansResponse{

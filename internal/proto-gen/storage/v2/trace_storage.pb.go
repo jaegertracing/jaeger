@@ -729,9 +729,8 @@ type TraceQueryParameters struct {
 	// Mutually exclusive with the legacy predicate fields (service_name,
 	// operation_name, duration_min/max, attributes).
 	//
-	// Experimental. A filter reaches a remote backend only when Jaeger's query service
-	// has the `jaeger.query.structuredFilters` feature gate enabled (Alpha, off by
-	// default) and the backend declares support via SearchCapabilities.filter.
+	// Experimental. A filter reaches a remote backend only when the backend declares
+	// support via SearchCapabilities.filter; the query service refuses it otherwise.
 	Filter *v1.Call `protobuf:"bytes,9,opt,name=filter,proto3" json:"filter,omitempty"`
 	// pagination requests a paginated search, see comments for Pagination.
 	// Mutually exclusive with search_depth. When this field is absent the search

@@ -35,6 +35,12 @@ PATCHED_OTEL_PROTO_DIR = $(PROTO_GEN)/.patched-otel-proto
 EXPRESSION_ROOT=internal/proto
 EXPRESSION_PATH=$(EXPRESSION_ROOT)/expression/v1
 
+# The page token of RFC 0014 is a local proto: it never crosses a wire as a message, only as
+# the base64 string a client echoes back, so it has no home in jaeger-idl. It sits under
+# internal/proto for the same reason expression/v1 does: the fingerprint and the string
+# encoding are hand-written beside the generated type.
+PAGETOKEN_PROTO=$(EXPRESSION_ROOT)/pagetoken/v1/page_token.proto
+
 PROTO_INCLUDES := \
 	-Iidl/proto/api_v2 \
 	-Iinternal/proto/metrics \
@@ -98,6 +104,7 @@ endef
 .PHONY: proto
 proto: \
 	proto-expression \
+	proto-pagetoken \
 	proto-storage-v2 \
 	proto-hotrod \
 	proto-zipkin \
@@ -122,6 +129,11 @@ proto-expression:
 	# output directory, so the output root is $(EXPRESSION_ROOT), not $(EXPRESSION_PATH).
 	$(call proto_compile, $(EXPRESSION_ROOT), $(EXPRESSION_PATCHED), -I$(PROTO_GEN)/.patched -I/gnostic -I/gnostic/gnostic,, $(PROTOC_WITH_GNOSTIC))
 
+.PHONY: proto-pagetoken
+proto-pagetoken:
+	# protoc appends the file's path relative to its include root, pagetoken/v1/, to the
+	# output directory, so the output root is $(EXPRESSION_ROOT), as for expression/v1.
+	$(call proto_compile, $(EXPRESSION_ROOT), $(PAGETOKEN_PROTO), -I$(EXPRESSION_ROOT))
 
 API_V2_PATCHED_DIR=$(PROTO_GEN)/.patched/api_v2
 .PHONY: patch-api-v2

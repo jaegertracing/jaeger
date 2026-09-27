@@ -208,7 +208,7 @@ func TestReadMetricsDecorator_FindTraceSummaries(t *testing.T) {
 	for chunk, err := range d.FindTraceSummaries(context.Background(), tracestore.TraceQueryParams{}) {
 		require.NoError(t, err)
 		got = append(got, chunk.Results...)
-		assert.Equal(t, "next-page", chunk.NextPageToken)
+		assert.Equal(t, tracestore.PageToken("next-page"), chunk.NextPageToken)
 	}
 	assert.Len(t, got, len(summaries))
 
@@ -233,7 +233,7 @@ func TestReadMetricsDecorator_FindTraceIDsPreservesNextPageToken(t *testing.T) {
 	}
 
 	require.Len(t, chunks, 1)
-	assert.Equal(t, "next-page", chunks[0].NextPageToken)
+	assert.Equal(t, tracestore.PageToken("next-page"), chunks[0].NextPageToken)
 }
 
 func TestReadMetricsDecorator_FindTraceSummaries_Error(t *testing.T) {
@@ -342,7 +342,7 @@ func TestReadMetricsDecorator_FindSpans(t *testing.T) {
 	}
 	require.Len(t, got, len(pages))
 	assert.Empty(t, got[0].NextPageToken)
-	assert.Equal(t, "next-page", got[1].NextPageToken)
+	assert.Equal(t, tracestore.PageToken("next-page"), got[1].NextPageToken)
 
 	counters, _ := mf.Snapshot()
 	assert.Equal(t, int64(1), counters["requests|operation=find_spans|result=ok"])
