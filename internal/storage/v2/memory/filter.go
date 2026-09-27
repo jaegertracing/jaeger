@@ -324,7 +324,7 @@ func evalPredicate(expr expression.Expression, ctx filterCtx) bool {
 // being incomparable (an opaque attribute, or a type mismatch), makes the
 // predicate false, since a leaf comparison other than a boolean `not` never
 // turns absence or incomparability into a match.
-func anyPairMatches(left, right expression.Expression, ctx filterCtx, test func(cmp int) bool) bool {
+func anyPairMatches(left, right expression.Expression, ctx filterCtx, test func(c int) bool) bool {
 	return anyComparablePair(left, right, ctx, func(a, b evalValue) bool { return test(compareValues(a, b)) })
 }
 
@@ -332,7 +332,7 @@ func anyPairMatches(left, right expression.Expression, ctx filterCtx, test func(
 // order (RFC 0005 §5.3); the query boundary refuses ordering a boolean built-in
 // field, but an attribute's type is known only here, so a boolean pair is
 // refused here rather than ordered.
-func orderedPairMatches(left, right expression.Expression, ctx filterCtx, test func(cmp int) bool) bool {
+func orderedPairMatches(left, right expression.Expression, ctx filterCtx, test func(c int) bool) bool {
 	return anyComparablePair(left, right, ctx, func(a, b evalValue) bool { return !a.isBool && test(compareValues(a, b)) })
 }
 
@@ -360,7 +360,7 @@ func anyComparablePair(left, right expression.Expression, ctx filterCtx, test fu
 // so a present-but-opaque attribute (bytes, slice, map) still counts as
 // present: it is definitely not equal to anything scalar, which is a `ne`
 // match, not an absence.
-func leafPresentAndNoPairMatches(left, right expression.Expression, ctx filterCtx, test func(cmp int) bool) bool {
+func leafPresentAndNoPairMatches(left, right expression.Expression, ctx filterCtx, test func(c int) bool) bool {
 	lv := resolveOperand(left, ctx)
 	rv := resolveOperand(right, ctx)
 	if len(lv) == 0 || len(rv) == 0 {
