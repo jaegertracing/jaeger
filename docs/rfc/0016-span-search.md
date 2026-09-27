@@ -3,14 +3,14 @@
 - **Status:** Draft
 - **Author:** Yuri Shkuro
 - **Created:** 2026-08-18
-- **Last Updated:** 2026-09-21
+- **Last Updated:** 2026-09-27
 - **Related:** [RFC 0005 (structured query filters)](0005-structured-query-filters.md) · [RFC 0011 (trace summary API)](0011-trace-summary-api.md) · [RFC 0014 (search result pagination)](0014-search-result-pagination.md) · [RFC 0001 (GenAI data layer)](0001-genai-data-layer.md) · [ADR-010](../adr/010-trace-summary-api.md) · [ADR-013 (storage capability declaration)](../adr/013-storage-capability-declaration.md)
 
 ---
 
 ## Abstract
 
-Every trace search in Jaeger is already a span search. The api_v3 contract says so — "Fields are matched against individual spans, not the trace level" — and each backend implements it that way: it finds the spans that match, then throws away which spans those were and answers with trace identity. This RFC proposes **`FindSpans`**, a search that keeps them. Its request is a time range, [RFC 0005](0005-structured-query-filters.md)'s filter, and a page cursor — nothing else. A caller that already holds a span's identity is served by the same filter rather than by a second mechanism, because trace ID and span ID are intrinsic span fields: naming a span is comparing two of its fields. That needs one additive extension to RFC 0005, which lists span-level `spanID` but puts `traceID` only at the link level.
+Every trace search in Jaeger is already a span search. The api_v3 contract says so — "Fields are matched against individual spans, not the trace level" — and each backend implements it that way: it finds the spans that match, then throws away which spans those were and answers with trace identity. This RFC proposes **`FindSpans`**, a search that keeps them. Its request carries a time range, [RFC 0005](0005-structured-query-filters.md)'s filter, a page cursor, and an optional ordering of the matching spans. A caller that already holds a span's identity is served by the same filter rather than by a second mechanism, because trace ID and span ID are intrinsic span fields: naming a span is comparing two of its fields. That needs one additive extension to RFC 0005, which lists span-level `spanID` but puts `traceID` only at the link level.
 
 The immediate consumer is a GenAI evaluation UI that shows one row per experiment and needs the entry span of each experiment's trace, not the trace. What it can ask depends on what the evaluation harness recorded: a harness that stored the entry span's ID names the span, while one that stored only the trace ID searches within the trace for whatever attribute marks it. Both are filters over the same fields, so the API does not distinguish them — but backends do, and §9 sets out which storage structure each shape lands on.
 
@@ -163,7 +163,7 @@ The span query is a new message rather than a reuse of `TraceQueryParameters`. T
 
 **It also does not carry the legacy scalar predicate fields.** `service_name`, `operation_name`, `attributes`, `duration_min` and `duration_max` exist on `TraceQueryParameters` because callers depend on them. `FindSpans` has no callers, so putting them here would import RFC 0005 §7's mutual-exclusion rule and its two-way conversion into a surface that never needed either, and would leave the project maintaining two filtering models on a message that could have started with one. So the predicates are the `filter` and nothing else, which makes this the first Jaeger query surface with a single filtering model.
 
-**And it carries no span selector.** Everything a caller wants to say about which spans it means is a predicate, including a span's own identity, so the message is a time range, a filter and a cursor.
+**And it carries no span selector.** Everything a caller wants to say about which spans it means is a predicate, including a span's own identity, so identity selection stays in the filter. The optional `order_by` clause controls the order of the matching spans (§6).
 
 ```protobuf
 // Query parameters to find spans. Field numbers are illustrative.
@@ -177,14 +177,16 @@ message SpanQueryParameters {
   google.protobuf.Timestamp start_time_max = 2;
 
   // The predicates (RFC 0005): a single boolean-valued Call.
-  jaeger.query.expression.v1.Call filter = 3;
+  jaeger.expression.v1.Call filter = 3;
 
   // The page size and cursor (RFC 0014). There is no search_depth: a span search
   // is bounded by its page size, and the server caps that.
   Pagination pagination = 4;
 
-  // 5 to 15 are reserved for the result-shaping and aggregation clauses of
-  // RFC 0016 §5: projection, group_by, having, order_by.
+  // The order_by field lists the sort terms from highest to lowest precedence (§6.2).
+  repeated SpanSortOrder order_by = 5;
+
+  // Fields 6 to 15 remain available for projection, group_by and having.
 }
 
 message FindSpansRequest {
@@ -355,10 +357,10 @@ RFC 0005 built the `WHERE` clause and mapped what lies beyond it: L3 result shap
 | `SELECT` | `projection`: a list of expressions with optional aliases | reserved (§4.3 field 6+) — reference-only on `FindSpans`; computed needs rows (§5.2) |
 | `GROUP BY` | `group_by`: a list of expressions | reserved — needs rows |
 | `HAVING` | `having`: a `Call` over aggregates | reserved — needs rows |
-| `ORDER BY` | `order_by`: expressions with a direction | partly delivered — a fixed sort order the cursor depends on (§6); a caller-chosen order is reserved |
+| `ORDER BY` | `order_by`: expressions with a direction | default order delivered by M3–M6; caller-selected ordering specified in §6.2–§6.5 and delivered separately by M8–M12 |
 | `LIMIT` / cursor | `pagination.page_size` and `pagination.page_token` | delivered |
 
-Every reserved clause is a list of `Expression`s, which is the term RFC 0005 §6.1 designed to be reusable: "the expression is the one reusable term a future projection, grouping, or named function would operate on". Aggregate functions need no new message either — `count`, `sum`, `avg`, `min`, `max` and `quantile` are further `op` values on the same `Call` node, which is the extension path RFC 0005 §6.1 reserves for named functions.
+The reserved expression-bearing clauses use lists of `Expression`s, which is the term RFC 0005 §6.1 designed to be reusable: "the expression is the one reusable term a future projection, grouping, or named function would operate on". Aggregate functions need no new message either — `count`, `sum`, `avg`, `min`, `max` and `quantile` are further `op` values on the same `Call` node, which is the extension path RFC 0005 §6.1 reserves for named functions.
 
 ### 5.2 Only aggregation needs a new result shape, and that is the RPC boundary
 
@@ -382,19 +384,121 @@ The analytics tier will also be a per-backend capability, like everything else h
 
 ## 6. Ordering and pagination
 
-**The sort key is `(startTime desc, traceID asc, spanID asc)`.** RFC 0014 sorts traces by `(startTime desc, traceID asc)`, where the trace's `startTime` is the maximum among its matching spans — a definition that exists only because a trace has no single start time. A span has one, so the span key needs no such reconciliation, and the two ID components are the tie-breaker that makes the key unique. Neither ID alone suffices: span IDs are not unique across traces, and a client and server span in the same trace can legitimately share one, which is what `DeduplicateClientServerSpanIDs` exists to repair. Genuine duplicates — the same span written twice, which `DeduplicateSpans` exists for because ES archival produces them — collide on all three components and are returned twice rather than skipped, which is benign and worth documenting.
+### 6.1 The default order and page contract
 
-**The cursor is already implemented on ES/OS.** `buildTraceReadRequest` sets `SearchAfter = []any{cursor.startTime, cursor.spanID}` to page the spans of one oversized trace ([`core/reader.go:170`](../../internal/storage/v2/elasticsearch/tracestore/core/reader.go)). A span search is that same `search_after`, over the result set instead of within one trace, with the trace ID added to the key. This is the piece of RFC 0014's ES design that does not need the field collapse: RFC 0014 collapses on `traceID` because it wants one row per trace, and a span search wants the rows themselves. The two milestones build the same query and differ by one clause.
+**The default sort key is `(startTime desc, traceID asc, spanID asc)`.** RFC 0014 sorts traces by `(startTime desc, traceID asc)`, where the trace's `startTime` is the maximum among its matching spans — a definition that exists only because a trace has no single start time. A span has one, so the span key needs no such reconciliation, and the two ID components break ties between different span identities. This key is not unique for duplicate stored spans. Neither ID alone suffices: span IDs are not unique across traces, and a client and server span in the same trace can legitimately share one, which is what `DeduplicateClientServerSpanIDs` exists to repair. Genuine duplicates — the same span written twice, which `DeduplicateSpans` exists for because ES archival produces them — collide on all three components and must be returned twice rather than skipped, including across a page boundary (§6.4).
 
-**The token is RFC 0014's token.** Opaque, base64 over a proto carrying the cursor, a fingerprint of the query, a backend tag and a version; a token presented against a different query is refused with `InvalidArgument`. Reusing it rather than defining a span-specific cursor is the point — one token format, one place that encodes and validates it.
+**ES/OS already uses `search_after` for trace reads.** `buildTraceReadRequest` sets `SearchAfter = []any{cursor.startTime, cursor.spanID}` to page the spans of one oversized trace ([`core/reader.go:170`](../../internal/storage/v2/elasticsearch/tracestore/core/reader.go)). A span search is that same `search_after`, over the result set instead of within one trace, with the trace ID added to the key. This is the piece of RFC 0014's ES design that does not need the field collapse: RFC 0014 collapses on `traceID` because it wants one row per trace, and a span search wants the rows themselves. The two milestones build the same query and differ by one clause.
+
+**The token is RFC 0014's token.** Opaque, base64 over a proto carrying the cursor, a fingerprint of the query and a version; a token presented against a different query is refused with `InvalidArgument`. Reusing it rather than defining a span-specific cursor is the point — one token format, one place that encodes and validates it.
 
 **A filter that names its spans is self-bounding,** since it can match at most one span per `(traceID, spanID)` pair, so such a query normally completes in one page with an empty token. That is a property of the predicate rather than a mode of the API: the page size still applies, and what a caller needs in exchange is a bound on how large a filter may be, which is the same limit MCP's `get_span_details` states as advice today and should state as a rule.
 
-**The forward-traversal guarantee is stronger here than for traces.** RFC 0014 accepts that a forward traversal may skip a trace, because a trace's max-keyed sort position rises as new spans arrive. A span's key never changes after it is written, so a span search skips nothing; a span written into an already-passed position is missed, which is the ordinary property of paging a time-ordered index backwards from now.
+**For immutable stored spans, the forward-traversal guarantee is stronger here than for traces.** RFC 0014 accepts that a forward traversal may skip a trace, because a trace's max-keyed sort position rises as new spans arrive. A span's key never changes after it is written, so a span search skips nothing; a span written into an already-passed position is missed, which is the ordinary property of paging a time-ordered index backwards from now.
 
 **The page size is capped by the server, and defaulted.** `search_depth` does not carry over (§4.3), so the page size is the only bound, and it needs a maximum for the same reason ClickHouse already rejects a `SearchDepth` above `MaxSearchDepth` and the query service already truncates oversized traces at `MaxTraceSize`. Because it is the only bound, an unset page size is not refused the way RFC 0014 §4 refuses a zero `page_size` beside a `search_depth`: the query service fills in `DefaultPageSize` (100, the same as the default search depth), as the query service does for a trace search that leaves `search_depth` unset, so a backend never receives an unbounded span query. Only a `page_token` makes the request a paginated one, and only that is subject to the pagination feature gate.
 
 **A backend that declares `Paginated=false`** serves one capped page with an empty token, and refuses a token with `InvalidArgument` — RFC 0014 §6.2's three-way degradation, unchanged.
+
+
+### 6.2 Caller-selected ordering and the IDL shape
+
+**Ordering is specific to `FindSpans`.** No `order_by` field is added to `TraceQueryParameters`, and `FindTraces`, `FindTraceIDs` and `FindTraceSummaries` retain their existing order. Sorting spans by start time answers “newest matching spans across traces”; sorting by trace ID and then start time keeps each trace's matching spans together; sorting by duration answers “slowest matching spans.” No one order serves all three questions. The default in §6.1 supplies predictable traversal when the caller has no preference, not a trace grouping or a reconstruction of a trace tree.
+
+The request carries a list of sort terms in priority order. The IDL shape has three plausible representations:
+
+| Criterion | Field-name string | `FieldReference` | `Expression` |
+|---|---|---|---|
+| Reuses the filter's field vocabulary | 🟨 requires parsing | 🟢 | 🟢 |
+| Restricts the wire shape to built-in fields | ❌ | 🟢 | 🟨 validation restricts it |
+| Accommodates a later attribute or computed sort | 🟨 needs a grammar | ❌ needs another arm | 🟢 |
+| Fits the expression model reserved for result shaping in §5 | ❌ | 🟨 only built-in fields | 🟢 |
+
+Legend: 🟢 good · 🟨 partial · ❌ poor.
+
+**Decision: use `Expression` plus a direction.** The expression vocabulary already distinguishes a field from an attribute or a function, so the sort clause does not introduce another parser or another field-name language. This wire shape permits later extension; it does not authorize every expression today. §6.3 defines the accepted subset.
+
+The following message is proposed in both `jaeger.api_v3` and `jaeger.storage.v2`, alongside each protocol's `SpanQueryParameters`, as their existing pagination messages are. Both reuse `jaeger.expression.v1.Expression`; neither protocol imports the other. `SpanQueryParameters.order_by` uses field 5 on both surfaces (§4.3).
+
+```protobuf
+// SpanSortOrder orders matching spans by one expression.
+message SpanSortOrder {
+  // Expression selects the value to compare; §6.3 defines the supported terms.
+  jaeger.expression.v1.Expression expression = 1;
+
+  // Direction accepts "asc" and "desc"; an empty value means "asc".
+  string direction = 2;
+}
+```
+
+`direction` follows RFC 0005 §6.2's string-enumeration convention: generated OpenAPI declares `""`, `"asc"` and `"desc"`, Go exposes typed string constants, and runtime validation rejects every other value. A proto enum would introduce a different JSON convention for a clause built from the same expression model. The sketches omit OpenAPI annotations, which the IDL milestone must supply.
+
+For example, the JSON fragment for descending duration is:
+
+```json
+{
+  "orderBy": [
+    {
+      "expression": {"field": {"level": "span", "name": "duration"}},
+      "direction": "desc"
+    }
+  ]
+}
+```
+
+The api_v3 POST binding accepts this field inside its query object. GET accepts the same array, URL-encoded as `query.order_by`; the HTTP decoder translates it to the same message before validation. This extension adds no sort shorthand or MCP argument. The internal `tracestore.SpanQueryParams` gains the matching ordered terms, and the API and remote-storage converters preserve their order and direction.
+
+### 6.3 Supported values, defaults and validation
+
+The initial accepted expression is a built-in field reference at level `span`, with one of four names:
+
+| Field | Comparison | Example use |
+|---|---|---|
+| `startTime` | Chronological, at the precision retained by storage | Latest matching spans |
+| `duration` | Numeric elapsed duration, in the backend's stored precision | Slowest matching spans |
+| `traceID` | Unsigned bytewise order of the full 128-bit ID | Matching spans grouped by trace |
+| `spanID` | Unsigned bytewise order of the 64-bit ID | Stable ordering within a trace |
+
+Both directions and any sequence of distinct fields from this table are supported by a backend declaring the sorting capability (§6.5). IDs represented as text must be compared in a fixed-width canonical form equivalent to their bytewise order. A backend must not sort durations lexicographically or claim precision it did not retain. These fields have numeric or ID values in the stored span model: zero is an ordinary value, including for an unset OTLP timestamp. This milestone defines no null-placement option. A legacy document missing a physical sort field must receive the same logical value as the span decoder would return, or the backend must refuse the query rather than silently use its engine's null ordering.
+
+An empty `order_by` selects §6.1's default. For a non-empty list, omitted directions normalize to `asc`, then the server appends the missing fields from `(startTime desc, traceID asc, spanID asc)` in that order. A field already present is not appended or given a second direction. Thus `duration desc` becomes `(duration desc, startTime desc, traceID asc, spanID asc)`, while `(traceID asc, startTime asc)` becomes `(traceID asc, startTime asc, spanID asc)`.
+
+Validation rejects a missing expression, an unknown direction, repeated fields, and expressions outside the table, including attributes, constants, calls, nested event/link references, and other built-in fields. At most four explicit terms can therefore be valid. The query service validates and normalizes once before dispatch; shared validation also serves the storage RPC boundary. The API returns `InvalidArgument` / HTTP 400 for an invalid or unsupported ordering, naming the offending term or backend limitation. It never drops a term or substitutes the default.
+
+Sorting changes which spans fall into a bounded page, but not which spans match the predicate. Query interceptors continue to receive the time range and filter; this extension does not add ordering to their policy view. Result interceptors may drop or redact spans while preserving the relative order of the retained spans. Their filtering can shorten a page without changing its storage continuation token.
+
+### 6.4 Pagination, duplicate keys and result encoding
+
+**The cursor resumes the effective order.** `SpanQueryParams.Fingerprint` includes the normalized terms, their priority and direction, and the appended tie-breakers. Equivalent omitted and explicit default orders have the same fingerprint. Changing a field, its priority or direction invalidates a token; changing only page size remains allowed under RFC 0014. The ordering list is never sorted during fingerprint canonicalization because its position carries meaning.
+
+The shared `PageToken` envelope remains unchanged. ES/OS retains the last hit's raw sort values as an opaque array and passes them back as `search_after`, rather than reconstructing them from the decoded span. Other readers encode the values needed by their own comparator. Each reader must validate that its cursor belongs to the effective order and has a usable shape before executing a continuation. Introducing order binding may invalidate tokens issued before this extension; the reader refuses those tokens with `InvalidArgument` and the caller restarts the search. Trace-search fingerprints and tokens remain unchanged.
+
+**A public sort key is not a unique document identity.** A duplicate write, or a client/server pair sharing IDs and start time, can tie on all appended fields. The reader must preserve every stored occurrence across page boundaries without exceeding `page_size`. It may use a stable storage-specific discriminator after the public terms, or track the number of consumed occurrences of a tied key and resume within that tie. A bare `search_after` on the public fields skips the remaining occurrences and does not meet the contract. The relative order of otherwise tied occurrences is unspecified, but continuation over an unchanged dataset must neither skip nor repeat an occurrence.
+
+The contract does not promise a snapshot across requests. Inserts into an already-passed position can be missed, and updates to a sort value or deletion of tied occurrences can affect traversal. For unchanged data, a complete traversal returns each stored occurrence exactly once. Caller-selected sorting must happen before the page is selected; sorting only a fetched page produces the wrong results.
+
+**The OTLP envelope must preserve the sort order.** Results are ordered by flattening chunks in delivery order, then each chunk's `ResourceSpans`, `ScopeSpans` and spans in their encoded order. A serializer must not merge nonadjacent spans into a shared resource or scope group if that changes this traversal order. Adjacent spans with identical resource/scope metadata may share an envelope. The same rule applies to buffered HTTP responses, streaming RPCs and storage adapters; a timestamp sort that alternates services must remain alternating after conversion.
+
+### 6.5 Capability declaration and rollout
+
+Sorting support is separate from both `SpanSearch` and `Paginated`: existing span-search implementations can serve the default order before they implement explicit ordering. There are two reasonable capability shapes:
+
+| Criterion | `SpanSorting` boolean | List of sortable fields |
+|---|---|---|
+| Expresses the fixed four-field contract | 🟢 | 🟢 |
+| Expresses partial support | ❌ | 🟢 |
+| Defines supported combinations and directions without more metadata | 🟢 all combinations, both directions | 🟨 a field list alone cannot |
+| Keeps this bounded extension small | 🟢 | 🟨 more validation and wire surface |
+
+Legend: 🟢 good · 🟨 partial · ❌ poor.
+
+**Decision: add `SearchCapabilities.SpanSorting` and storage.v2 `span_sorting = 6`.** A true value promises every combination and direction in §6.3, including correct paging when `Paginated` is true. It requires `SpanSearch=true`, applies only to `FindSpans`, and does not imply trace sorting or pagination. A later expansion to attributes or functions needs an explicit capability extension; the boolean never silently grows to promise those.
+
+An absent or false capability accepts an omitted order and refuses every explicit `order_by`, even one spelling the default. The internal `OrderBy` list remains empty when the caller omitted it; normalization resolves directions in explicit terms, while a shared effective-order helper supplies the default and tie-breakers for comparison and fingerprinting. The query service and remote-storage client can therefore check for an explicit order without adding a second presence flag. A client must consult remote capabilities before sending an explicit order to a plugin: older protobuf servers ignore unknown fields, so merely forwarding the new field can silently return the default order. The storage server validates it too, and capability forwarding preserves the least-capable default when a peer predates this field.
+
+New clients requesting explicit sorting require a query-service version that implements this contract. An older public API server can ignore an unknown protobuf field; adding a field cannot retroactively make that server reject it. Requests without an order keep their existing behavior. No new feature gate is introduced for sorting; existing filter and pagination gates retain their current meanings.
+
+M8–M12 deliver this extension independently of M0–M7. In particular, the ES/OS default-order implementation in M4 does not wait for an ordering field in the IDL, and it does not advertise `SpanSorting` until M11 is complete.
 
 ---
 
@@ -526,7 +630,7 @@ PR-sized milestones with exit bars. Everything here sits behind RFC 0005 M1 and 
 - ✅ Pagination of the memory backend's `FindSpans` (§6): the matching spans are ordered by `(startTime desc, traceID asc, spanID asc)`, the page is bounded by `page_size`, and the cursor inside [RFC 0014](0014-search-result-pagination.md)'s token is the last span's key with a count of the copies of that key returned so far, so a span stored twice is returned twice without the page growing past `page_size`. The backend declares `SearchCapabilities.Paginated = true`, which is one capability for both searches, so its `FindTraceIDs` pages the same way by RFC 0014 §3.3's key. Delivered in [#9611](https://github.com/jaegertracing/jaeger/pull/9611).
 - The exit bar still needs the end-to-end check: a span query through the all-in-one distribution, over the api_v3 handler and route M2 delivered.
 
-**M4 — Elasticsearch/OpenSearch.** Documents instead of the `terms` aggregation, the sort key of §6, `search_after`, and recognition of an identity filter as a bool query on the two keyword fields; `SpanSearch=true`. Sequenced with [RFC 0014](0014-search-result-pagination.md) M3, which builds the same query with a `collapse` clause. *Exit:* both filter shapes return the matching spans with a working cursor; existing trace-search snapshots byte-identical.
+**M4 — Elasticsearch/OpenSearch.** Documents instead of the `terms` aggregation, the default sort key of §6.1, `search_after`, and recognition of an identity filter as a bool query on the two keyword fields; `SpanSearch=true`. Sequenced with [RFC 0014](0014-search-result-pagination.md) M3, which builds the same query with a `collapse` clause. *Exit:* both filter shapes return the matching spans with a working cursor; existing trace-search snapshots byte-identical.
 
 **M5 — ClickHouse.** `SelectSpansQuery` with the existing predicate construction and the keyset cursor, and an identity filter lowered onto the `trace_id` skip index. *Exit:* the SQL snapshot tests cover the new query shapes; existing snapshots byte-identical.
 
@@ -534,12 +638,24 @@ PR-sized milestones with exit bars. Everything here sits behind RFC 0005 M1 and 
 
 **M7 — MCP.** A `find_spans` tool, and `get_span_details` rewired onto an identity filter where the backend declares support. *Exit:* an agent retrieves spans across traces in one call; `get_span_details` stops fetching whole traces on a declaring backend and is unchanged elsewhere.
 
+**Caller-selected ordering has its own milestones.** M0–M7 retain their default-order exit criteria and do not depend on M8–M12. These milestones extend only `FindSpans`; trace-search ordering is out of scope.
+
+**M8 — Ordering IDL (jaeger-idl).** Add `SpanSortOrder` and `SpanQueryParameters.order_by = 5` to api_v3 and storage.v2, and `SearchCapabilities.span_sorting = 6` to storage.v2 (§6.2, §6.5). Add the documented string-enumeration schema and generate the Go and OpenAPI outputs. *Exit:* both protocols round-trip ordered terms and directions; old requests remain unchanged and an absent capability decodes as false. No backend support is implied by generated types.
+
+**M9 — Shared ordering contract and API plumbing.** Add the internal terms and `SpanSorting` capability, central validation/defaulting, order-sensitive span fingerprints, api_v3 gRPC and HTTP decoding, and storage gRPC request/capability forwarding. All backends initially declare false. Preserve the distinction between an omitted order and an explicit default for refusal against older readers (§6.5). *Exit:* invalid terms and unsupported explicit ordering return `InvalidArgument` / HTTP 400 before storage search; an old remote peer never receives a silently ignored explicit order; equivalent effective orders have equal fingerprints and changed orders reject tokens. Existing default-order and trace-search behavior remains covered.
+
+**M10 — Memory ordering and shared conformance.** Implement the effective comparator and duplicate-aware cursor in memory, then declare `SpanSorting=true`. Extend `StorageIntegration.AssertCorpus` and its direct/e2e adapters with sort assertions; unsupported backends explicitly opt out of the new sorting assertions while retaining default-pagination coverage. *Exit:* every field works in both directions; multi-key precedence, appended tie-breakers, ties across pages, genuine duplicate occurrences, empty results and changed-order tokens are covered. An alternating-resource corpus proves that OTLP grouping and HTTP buffering preserve order end to end. A failing comparator or a dropped transport field must fail the corpus.
+
+**M11 — Elasticsearch/OpenSearch ordering.** After M4 and M9–M10, lower effective sort terms to ES/OS fields, retain native sort values in the cursor, implement occurrence-safe continuation, and declare `SpanSorting=true` only when the whole four-field contract passes. *Exit:* query snapshots cover directions and precedence; the shared corpus passes in direct and e2e modes on supported ES/OS versions, including duplicate keys and missing-field handling (§6.3); existing trace-search snapshots stay unchanged.
+
+**M12 — ClickHouse ordering.** After M5 and M9–M10, build the `ORDER BY` and lexicographic continuation predicate from the same effective terms, respecting mixed directions and duplicate occurrences, then declare `SpanSorting=true`. *Exit:* SQL snapshots and the shared direct/e2e corpus cover the same contract as memory and ES/OS; a non-default sort selects the correct spans before applying the page limit. Trace-search SQL stays unchanged.
+
 **Out of scope (future, this design enables):**
 - A response envelope for the four RPCs that return bare `TracesData` in api_v3 and `jaeger.storage.v2` (§4.4). It would give a trace search somewhere to put a page token, and truncation somewhere to be reported other than a warning attribute on the first span. It is a breaking change to both published protocols, so it needs its own proposal; what this RFC settles is only that the span RPC does not join them.
 - A capability model that can declare predicate *shapes* rather than whole operators, which is what would let Cassandra and Badger serve an identity filter from their primary span storage, and Cassandra serve a tag-only conjunction through `tag_index` at `(trace_id, span_id)` granularity (§9). It bears on RFC 0005's `FilterCapabilities` and on its `same_span_conjunction`, so it belongs there rather than here.
 - The row-returning RPC and the `projection`, `group_by` and `having` clauses (§5), including the value encoding, the column metadata and the aggregate operator set a row result needs, and the RPC's own name. It shares `SpanQueryParameters` with `FindSpans`, so what it adds is a response type, not a query model.
 - Sparse spans: a reference-only projection returning spans with only the requested fields (§5.2), which needs no new result type and so belongs on `FindSpans` itself.
-- A caller-chosen `order_by`, which the fixed cursor sort order currently precludes.
+- Ordering outside `FindSpans`, and sorting by attributes, computed expressions, or fields outside §6.3. These require their own semantics and capability extension rather than broadening `SpanSorting` implicitly.
 - An in-memory expression evaluator, which would turn the search refusal into a fallback on Cassandra and Badger (§9).
 - A `span_id` column on RFC 0001's evaluation records, so a harness records the entry span rather than searching for it (§8).
 - A UI span-results view.
