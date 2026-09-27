@@ -91,11 +91,16 @@ func traceQueryParams(query *api_v3.TraceQueryParameters) (querysvc.TraceQueryPa
 	if query == nil {
 		return querysvc.TraceQueryParams{}, status.Error(codes.InvalidArgument, "missing query")
 	}
+	depth := query.GetSearchDepth()
+	if depth < 0 || depth > int32(tracestore.MaxSearchDepth) {
+		return querysvc.TraceQueryParams{}, status.Errorf(codes.InvalidArgument, "%s: search depth must be in [0, %d]", querysvc.ErrQueryInvalid, tracestore.MaxSearchDepth)
+	}
+	searchDepth := uint32(depth)
 	queryParams := querysvc.TraceQueryParams{
 		ServiceName:   query.GetServiceName(),
 		OperationName: query.GetOperationName(),
 		Attributes:    jptrace.PlainMapToPcommonMap(query.GetAttributes()),
-		SearchDepth:   int(query.GetSearchDepth()),
+		SearchDepth:   searchDepth,
 		StartTimeMin:  query.GetStartTimeMin(),
 		StartTimeMax:  query.GetStartTimeMax(),
 		DurationMin:   query.GetDurationMin(),
@@ -110,7 +115,7 @@ func traceQueryParams(query *api_v3.TraceQueryParameters) (querysvc.TraceQueryPa
 	}
 	if pagination := query.GetPagination(); pagination != nil {
 		queryParams.Pagination = &querysvc.Pagination{
-			PageSize:  int(pagination.GetPageSize()),
+			PageSize:  pagination.GetPageSize(),
 			PageToken: pagination.GetPageToken(),
 		}
 	}
@@ -162,7 +167,7 @@ func spanQueryParams(query *api_v3.SpanQueryParameters) (querysvc.SpanQueryParam
 	}
 	if pagination := query.GetPagination(); pagination != nil {
 		queryParams.Pagination = querysvc.Pagination{
-			PageSize:  int(pagination.GetPageSize()),
+			PageSize:  pagination.GetPageSize(),
 			PageToken: pagination.GetPageToken(),
 		}
 	}

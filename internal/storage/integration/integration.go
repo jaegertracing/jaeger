@@ -101,7 +101,7 @@ type Query struct {
 	StartTimeMax  time.Time
 	DurationMin   time.Duration
 	DurationMax   time.Duration
-	NumTraces     int
+	NumTraces     uint32
 }
 
 func (q *Query) ToTraceQueryParams(t *testing.T) *tracestore.TraceQueryParams {

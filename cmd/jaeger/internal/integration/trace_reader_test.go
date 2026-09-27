@@ -146,12 +146,13 @@ func TestTraceReaderFindTraceSummariesPreservesPagination(t *testing.T) {
 	assert.Equal(t, tracestore.PageToken("next-page"), chunks[0].NextPageToken)
 }
 
-func TestToProtoQueryPaginationBounds(t *testing.T) {
-	for _, size := range []int{-1, math.MaxUint32 + 1} {
-		_, err := toProtoQuery(tracestore.TraceQueryParams{
+func TestToProtoQueryPreservesPageSize(t *testing.T) {
+	for _, size := range []uint32{0, math.MaxUint32} {
+		query, err := toProtoQuery(tracestore.TraceQueryParams{
 			Attributes: pcommon.NewMap(), Pagination: &tracestore.Pagination{PageSize: size},
 		})
-		require.ErrorContains(t, err, "PageSize must be in")
+		require.NoError(t, err)
+		assert.Equal(t, size, query.Pagination.PageSize)
 	}
 	query, err := toProtoQuery(tracestore.TraceQueryParams{Attributes: pcommon.NewMap()})
 	require.NoError(t, err)

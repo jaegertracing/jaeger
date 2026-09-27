@@ -1087,10 +1087,7 @@ func TestFindTraces_EnvelopeIsSettledOnce(t *testing.T) {
 			query:   window(TraceQueryParams{DurationMin: 10 * time.Second, DurationMax: 5 * time.Second}),
 			wantErr: "max duration cannot be less than min duration",
 		},
-		"negative search depth": {
-			query:   window(TraceQueryParams{SearchDepth: -1}),
-			wantErr: "search depth must be in [0, 10000]",
-		},
+
 		"search depth above the maximum": {
 			query:   window(TraceQueryParams{SearchDepth: tracestore.MaxSearchDepth + 1}),
 			wantErr: "search depth must be in [0, 10000]",
@@ -1107,8 +1104,8 @@ func TestFindTraces_EnvelopeIsSettledOnce(t *testing.T) {
 	}
 
 	dispatched := map[string]struct {
-		depth int
-		want  int
+		depth uint32
+		want  uint32
 	}{
 		"an unset search depth gets the default": {depth: 0, want: DefaultSearchDepth},
 		"an explicit search depth is kept":       {depth: 42, want: 42},
@@ -1265,7 +1262,7 @@ func paginatedUnsupportedReader(t *testing.T, ids []tracestore.FoundTraceID, nex
 	return reader
 }
 
-func paginatedQuery(pageSize int) TraceQueryParams {
+func paginatedQuery(pageSize uint32) TraceQueryParams {
 	query := filterQuery(nil)
 	query.Pagination = &Pagination{PageSize: pageSize}
 	return query

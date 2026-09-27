@@ -96,13 +96,14 @@ func (s *StorageIntegration) assertPagination(t *testing.T, search paginationSea
 	traces := s.Corpus.Pagination
 	var want []pcommon.TraceID
 	// The tied traces straddle the first page boundary, with the lower trace ID first.
-	for _, name := range []string{
+	names := [...]string{
 		"newest",
 		"tied-lower-id",
 		"tied-higher-id",
 		"second-oldest",
 		"oldest",
-	} {
+	}
+	for _, name := range names {
 		want = append(want, jptrace.GetTraceID(traces[name]))
 	}
 	first := traces["oldest"].ResourceSpans().At(0).ScopeSpans().At(0).Spans().At(0)
@@ -110,7 +111,7 @@ func (s *StorageIntegration) assertPagination(t *testing.T, search paginationSea
 		ServiceName: "pagination-service", Attributes: pcommon.NewMap(),
 		StartTimeMin: first.StartTimestamp().AsTime().Add(-time.Minute),
 		StartTimeMax: first.StartTimestamp().AsTime().Add(time.Minute),
-		Pagination:   &tracestore.Pagination{PageSize: len(want)},
+		Pagination:   &tracestore.Pagination{PageSize: uint32(len(names))},
 	}
 	ctx := context.Background()
 	require.True(t, s.waitForCondition(t, func(t *testing.T) bool {
@@ -122,12 +123,13 @@ func (s *StorageIntegration) assertPagination(t *testing.T, search paginationSea
 		return len(ids) == len(want)
 	}), "the pagination corpus must be searchable before paging begins")
 
-	query.Pagination.PageSize = 2
+	const pageSize = 2
+	query.Pagination.PageSize = pageSize
 	var firstToken tracestore.PageToken
-	for offset := 0; offset < len(want); offset += query.Pagination.PageSize {
+	for offset := 0; offset < len(want); offset += pageSize {
 		ids, token, err := search(ctx, query)
 		require.NoError(t, err)
-		require.Equal(t, want[offset:min(offset+query.Pagination.PageSize, len(want))], ids)
+		require.Equal(t, want[offset:min(offset+pageSize, len(want))], ids)
 		if offset == 0 {
 			firstToken = token
 		}

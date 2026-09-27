@@ -231,13 +231,13 @@ For the UI this costs nothing: the search-results list is populated from `FindTr
 ```go
 type TraceQueryParams struct {
     // ... existing fields ...
-    SearchDepth int
+    SearchDepth uint32
     Pagination  *Pagination // nil: not a paginated request
 }
 
 // Pagination mirrors the proto message of the same name.
 type Pagination struct {
-    PageSize  int    // page bound; required whenever Pagination is present
+    PageSize  uint32    // page bound; required whenever Pagination is present
     PageToken PageToken // the reader's own opaque token; empty starts a new search
 }
 ```

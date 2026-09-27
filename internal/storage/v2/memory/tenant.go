@@ -118,7 +118,7 @@ func (t *Tenant) storeTraces(tracesById map[pcommon.TraceID]ptrace.ResourceSpans
 		}
 		traces := ptrace.NewTraces()
 		sameTraceIDResourceSpan.MoveAndAppendTo(traces.ResourceSpans())
-		t.mostRecent = (t.mostRecent + 1) % t.config.MaxTraces
+		t.mostRecent = (t.mostRecent + 1) % len(t.traces)
 		// if there is already a trace in lastEvicted position, remove its ID from ids map
 		if !t.traces[t.mostRecent].id.IsEmpty() {
 			delete(t.ids, t.traces[t.mostRecent].id)
@@ -138,7 +138,7 @@ func (t *Tenant) storeTraces(tracesById map[pcommon.TraceID]ptrace.ResourceSpans
 // so that FindTraceIDs pays nothing for trace data it discards. Anything that
 // hands the traces to a reader must pass them through cloneTrace first.
 func (t *Tenant) findTraceAndIds(query tracestore.TraceQueryParams) ([]traceAndId, error) {
-	if query.SearchDepth <= 0 || query.SearchDepth > t.config.MaxTraces {
+	if query.SearchDepth == 0 || query.SearchDepth > t.config.MaxTraces {
 		return nil, errInvalidSearchDepth
 	}
 	filter, err := prepareFilter(query.Filter)
@@ -150,7 +150,7 @@ func (t *Tenant) findTraceAndIds(query tracestore.TraceQueryParams) ([]traceAndI
 	traceAndIds := make([]traceAndId, 0, query.SearchDepth)
 	n := len(t.traces)
 	for i := range t.traces {
-		if len(traceAndIds) == query.SearchDepth {
+		if uint64(len(traceAndIds)) == uint64(query.SearchDepth) {
 			break
 		}
 		index := (t.mostRecent - i + n) % n

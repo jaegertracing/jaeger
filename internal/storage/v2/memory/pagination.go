@@ -140,7 +140,7 @@ func cursorOf[K key](token tracestore.PageToken, fingerprint []byte, decode func
 // most size of them when size is positive. If elements remain beyond the page, it also returns
 // the next page's cursor: the key of the page's last element, and how many elements with that
 // key have been returned so far.
-func page[T any, K key](sorted []T, keyOf func(T) K, compare func(K, K) int, after *cursor[K], size int) ([]T, *cursor[K]) {
+func page[T any, K key](sorted []T, keyOf func(T) K, compare func(K, K) int, after *cursor[K], size uint32) ([]T, *cursor[K]) {
 	start := 0
 	if after != nil {
 		// Resume at the first element with the cursor's key and skip the copies of it already
@@ -151,11 +151,11 @@ func page[T any, K key](sorted []T, keyOf func(T) K, compare func(K, K) int, aft
 		}
 	}
 	rest := sorted[start:]
-	if size <= 0 || len(rest) <= size {
+	if size == 0 || uint64(len(rest)) <= uint64(size) {
 		return rest, nil
 	}
 	next := cursor[K]{key: keyOf(rest[size-1])}
-	for i := size - 1; i >= 0 && compare(keyOf(rest[i]), next.key) == 0; i-- {
+	for i := size; i > 0 && compare(keyOf(rest[i-1]), next.key) == 0; i-- {
 		next.seen++
 	}
 	if after != nil && compare(next.key, after.key) == 0 {

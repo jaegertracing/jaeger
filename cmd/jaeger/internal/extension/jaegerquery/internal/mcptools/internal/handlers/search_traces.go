@@ -30,13 +30,13 @@ type queryServiceInterface interface {
 // browsing and filtering large result sets.
 type searchTracesHandler struct {
 	queryService queryServiceInterface
-	maxResults   int
+	maxResults   uint32
 }
 
 // NewSearchTracesHandler creates a new search_traces handler and returns the handler function.
 func NewSearchTracesHandler(
 	queryService *querysvc.QueryService,
-	maxResults int,
+	maxResults uint32,
 ) mcp.ToolHandlerFor[types.SearchTracesInput, types.SearchTracesOutput] {
 	h := &searchTracesHandler{
 		queryService: queryService,
@@ -67,7 +67,7 @@ outer:
 		}
 		for i := range chunk.Results {
 			summaries = append(summaries, toMCPTraceSummary(chunk.Results[i]))
-			if h.maxResults > 0 && len(summaries) >= h.maxResults {
+			if h.maxResults > 0 && uint64(len(summaries)) >= uint64(h.maxResults) {
 				break outer
 			}
 		}
@@ -157,7 +157,7 @@ func (h *searchTracesHandler) buildQuery(input types.SearchTracesInput) (querysv
 	// An agent reads small pages, so the tool's own default is lower than the query service's.
 	const defaultSearchDepth = 10
 	searchDepth := input.SearchDepth
-	if searchDepth <= 0 {
+	if searchDepth == 0 {
 		searchDepth = defaultSearchDepth
 	}
 	if h.maxResults > 0 && searchDepth > h.maxResults {

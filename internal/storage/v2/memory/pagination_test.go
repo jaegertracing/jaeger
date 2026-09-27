@@ -262,7 +262,7 @@ func TestPage(t *testing.T) {
 	tests := []struct {
 		name  string
 		after *cursor[intKey]
-		size  int
+		size  uint32
 		want  []intKey
 		next  *cursor[intKey]
 	}{
