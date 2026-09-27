@@ -941,14 +941,7 @@ func statusToWord(code ptrace.StatusCode) string {
 func compareValues(a, b evalValue) int {
 	switch {
 	case a.isInt && b.isInt:
-		switch {
-		case a.numInt < b.numInt:
-			return -1
-		case a.numInt > b.numInt:
-			return 1
-		default:
-			return 0
-		}
+		return cmp.Compare(a.numInt, b.numInt)
 	case a.isBool && b.isBool:
 		if a.boolean == b.boolean {
 			return 0
@@ -958,14 +951,7 @@ func compareValues(a, b evalValue) int {
 		}
 		return 1
 	case a.isString && b.isString:
-		switch {
-		case a.str < b.str:
-			return -1
-		case a.str > b.str:
-			return 1
-		default:
-			return 0
-		}
+		return cmp.Compare(a.str, b.str)
 	default:
 		// A double on one or both sides. A double beyond int64's range is
 		// beyond every integer; an integral double within it compares as an

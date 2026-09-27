@@ -466,10 +466,29 @@ func TestFindTraceIDs_CursorSurvivesWritesBetweenPages(t *testing.T) {
 	assert.Equal(t, []byte{3}, traceIDBytes(first.Results))
 
 	writeTracesStartingAt(t, store, 9, base) // appends a copy of 1..3's spans and adds 4..9, all newer
+	// A later span raises trace 3's latest start time, which moves its key before the cursor
+	// (RFC 0014 §3.4): the trace was already returned and must not come back on a later page.
+	later := ptrace.NewTraces()
+	rs := later.ResourceSpans().AppendEmpty()
+	rs.Resource().Attributes().PutStr("service.name", "svc")
+	span := rs.ScopeSpans().AppendEmpty().Spans().AppendEmpty()
+	span.SetTraceID(pcommon.TraceID{3})
+	span.SetSpanID(pcommon.SpanID{2})
+	span.SetName("op")
+	span.SetStartTimestamp(pcommon.NewTimestampFromTime(base.Add(time.Hour)))
+	require.NoError(t, store.WriteTraces(context.Background(), later))
+
 	query.Pagination.PageToken = first.NextPageToken
 	second, err := findTraceIDsPage(t, store, query)
 	require.NoError(t, err)
 	assert.Equal(t, []byte{2}, traceIDBytes(second.Results), "continues after trace 3, unaffected by the newer traces")
+
+	query.Pagination.PageSize = 10
+	query.Pagination.PageToken = second.NextPageToken
+	rest, err := findTraceIDsPage(t, store, query)
+	require.NoError(t, err)
+	assert.Equal(t, []byte{1}, traceIDBytes(rest.Results), "trace 3 moved before the cursor and is not returned again")
+	assert.Empty(t, rest.NextPageToken)
 }
 
 func TestSearchCapabilities_DeclaresPaginated(t *testing.T) {

@@ -511,7 +511,9 @@ func (qs QueryService) summarizeTraceIDPages(
 			yield(PageChunk[[]tracestore.TraceSummary]{}, err)
 			return
 		}
-		var summaries []tracestore.TraceSummary
+		// Each batch computeSummaries yields is its own chunk, as on the unpaginated fallback,
+		// so a page of summaries never travels as one message; the token rides on the last.
+		page := PageChunk[[]tracestore.TraceSummary]{NextPageToken: string(ids.NextPageToken)}
 		if len(ids.Results) > 0 {
 			params := make([]tracestore.GetTraceParams, len(ids.Results))
 			for i, id := range ids.Results {
@@ -526,12 +528,11 @@ func (qs QueryService) summarizeTraceIDPages(
 					yield(PageChunk[[]tracestore.TraceSummary]{}, err)
 					return
 				}
-				summaries = append(summaries, batch...)
+				if page.Results != nil && !yield(PageChunk[[]tracestore.TraceSummary]{Results: page.Results}, nil) {
+					return
+				}
+				page.Results = batch
 			}
-		}
-		page := PageChunk[[]tracestore.TraceSummary]{
-			Results:       summaries,
-			NextPageToken: string(ids.NextPageToken),
 		}
 		if !yield(page, nil) {
 			return
