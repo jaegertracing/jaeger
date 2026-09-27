@@ -10,6 +10,7 @@ import (
 	"regexp"
 	"slices"
 	"strconv"
+	"strings"
 
 	"go.opentelemetry.io/collector/pdata/pcommon"
 	"go.opentelemetry.io/collector/pdata/ptrace"
@@ -436,8 +437,12 @@ func coerceUntyped(v, other evalValue) (evalValue, bool) {
 		}
 		return evalValue{isBool: true, boolean: b}, true
 	case kindNumber:
-		if n, err := strconv.ParseInt(v.str, 10, 64); err == nil {
-			return evalValue{isInt: true, numInt: n}, true
+		// The text takes the other side's numeric type, so that beside a double it is a
+		// double even when it is written without a fraction.
+		if other.isInt {
+			if n, err := strconv.ParseInt(v.str, 10, 64); err == nil {
+				return evalValue{isInt: true, numInt: n}, true
+			}
 		}
 		f, err := strconv.ParseFloat(v.str, 64)
 		if err != nil {
@@ -738,6 +743,7 @@ func resolveAttributeRef(ref expression.AttributeRef, ctx filterCtx) []evalValue
 			return resolveFieldRef(expression.FieldRef{Level: expression.LevelScope, Name: expression.ScopeFieldVersion}, ctx)
 		}
 	}
+	key := ref.Key
 	var maps []pcommon.Map
 	switch ref.Level {
 	case expression.LevelSpan:
@@ -763,12 +769,19 @@ func resolveAttributeRef(ref expression.AttributeRef, ctx filterCtx) []evalValue
 			}
 		}
 	default:
-		// Empty level: the unqualified span-or-resource search (RFC 0005 §5.1).
-		maps = []pcommon.Map{ctx.span.Attributes(), ctx.resource.Attributes()}
+		// Empty level: the unqualified span-or-resource search (RFC 0005 §5.1). The legacy
+		// predicate fields spell a resource attribute with a "resource." prefix, which
+		// ToFilterShape keeps, so the prefix reads the resource's attribute as validSpan does.
+		if resourceKey, ok := strings.CutPrefix(key, "resource."); ok {
+			key = resourceKey
+			maps = []pcommon.Map{ctx.resource.Attributes()}
+		} else {
+			maps = []pcommon.Map{ctx.span.Attributes(), ctx.resource.Attributes()}
+		}
 	}
 	var values []evalValue
 	for _, m := range maps {
-		if raw, ok := m.Get(ref.Key); ok {
+		if raw, ok := m.Get(key); ok {
 			values = append(values, attrToEvalValue(raw))
 		}
 	}

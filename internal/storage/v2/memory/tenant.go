@@ -225,8 +225,9 @@ func (t *Tenant) findSpans(query tracestore.SpanQueryParams, after *cursor[spanK
 		ss.SetSchemaUrl(m.scopeSpan.SchemaUrl())
 		m.span.CopyTo(ss.Spans().AppendEmpty())
 	}
-	// CopyTo shares bytes-valued attributes with the store (see cloneTrace), so the assembled
-	// result is deep-copied before a caller may modify it.
+	// CopyTo assembles the page but shares bytes-valued attributes with the store (see
+	// cloneTrace), so the assembled page is copied a second time, deeply, before a caller
+	// may modify it.
 	result, err = cloneTrace(result)
 	if err != nil {
 		return ptrace.Traces{}, nil, err

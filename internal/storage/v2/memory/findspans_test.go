@@ -201,6 +201,16 @@ func TestFindSpans_BytesAttributeIsIndependentOfStore(t *testing.T) {
 	assert.Equal(t, []byte{1, 2, 3}, payloadOf(second[0].Results).AsRaw())
 }
 
+func TestFindSpans_CloneFailureIsReturned(t *testing.T) {
+	store, _ := writeTwoTraceStore(t)
+	orig := marshalTraces
+	marshalTraces = func(ptrace.Traces) ([]byte, error) { return nil, assert.AnError }
+	t.Cleanup(func() { marshalTraces = orig })
+
+	_, err := jiter.CollectWithErrors(store.FindSpans(context.Background(), tracestore.SpanQueryParams{}))
+	require.ErrorIs(t, err, assert.AnError)
+}
+
 // TestFindSpans_PreservesSchemaURLs pins that findSpans' result-copy path carries the schema
 // URLs from the source ResourceSpans/ScopeSpans, not only the inner Resource/Scope: a match
 // filtered on resource.schemaURL or scope.schemaURL, and a caller reading the field back off

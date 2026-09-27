@@ -939,6 +939,30 @@ func TestMatchesFilter_LegacySyntheticTags(t *testing.T) {
 		"only a span-level or unqualified reference is the legacy spelling")
 }
 
+// TestMatchesFilter_LegacyResourcePrefix pins that an unqualified attribute reference whose key
+// starts with "resource." reads the resource's attribute, as the legacy predicate fields do, so
+// a legacy query an interceptor turned into a filter still matches on a backend that declares
+// filter support. A span-level reference is not the legacy spelling and reads the literal key.
+func TestMatchesFilter_LegacyResourcePrefix(t *testing.T) {
+	f := newFilterFixture(t)
+	assert.True(t, f.matches(call(expression.OpEq, attrRef("", "resource.deployment.environment"), &expression.AnyValue{Value: "prod"})))
+	assert.False(t, f.matches(call(expression.OpEq, attrRef("", "resource.deployment.environment"), &expression.AnyValue{Value: "staging"})))
+	assert.False(t, f.matches(call(expression.OpExists, attrRef(expression.LevelSpan, "resource.deployment.environment"))))
+	assert.False(t, f.matches(call(expression.OpExists, attrRef("", "resource.http.status_code"))), "a span attribute is not behind the prefix")
+}
+
+// TestMatchesFilter_UntypedConstantBesideTypedConstant pins that an untyped constant beside a
+// typed one takes the typed one's numeric type, so a comparison of two constants that the query
+// boundary accepts (RFC 0005 §5.4) has its arithmetic meaning.
+func TestMatchesFilter_UntypedConstantBesideTypedConstant(t *testing.T) {
+	f := newFilterFixture(t)
+	assert.True(t, f.matches(call(expression.OpEq, &expression.AnyValue{Value: "1"}, dbl(1))))
+	assert.True(t, f.matches(call(expression.OpEq, &expression.AnyValue{Value: "1"}, intVal(1))))
+	assert.True(t, f.matches(call(expression.OpLt, &expression.AnyValue{Value: "0.5"}, dbl(1))))
+	assert.False(t, f.matches(call(expression.OpLt, &expression.AnyValue{Value: "0.5"}, intVal(1))),
+		"a typed int is authoritative, and 0.5 is not an int")
+}
+
 // TestMatchesFilter_MixedNumericKinds pins RFC 0005 §5.4 for numbers: an untyped constant
 // compares with an attribute of either numeric type, while a typed int or double constant
 // matches only an attribute stored as that type, as a typed list already does.
@@ -966,6 +990,7 @@ func TestCompareValues_IntKeepsPrecisionAgainstIntegralDouble(t *testing.T) {
 	assert.Negative(t, compareValues(rounded, big))
 	assert.Equal(t, 0, compareValues(evalValue{isInt: true, numInt: 1 << 53}, rounded))
 	assert.Negative(t, compareValues(evalValue{isInt: true, numInt: 1}, evalValue{isNumber: true, num: 1.5}), "a fractional double compares in floating point")
+	assert.Positive(t, compareValues(evalValue{isNumber: true, num: 1.5}, evalValue{isInt: true, numInt: 1}))
 	assert.Negative(t, compareValues(evalValue{isInt: true, numInt: math.MaxInt64}, evalValue{isNumber: true, num: 1e19}), "a double beyond int64 is beyond every integer")
 	assert.Negative(t, compareValues(evalValue{isInt: true, numInt: math.MaxInt64}, evalValue{isNumber: true, num: 1 << 63}),
 		"2^63 rounds to the same float64 as MaxInt64, but is beyond it")
