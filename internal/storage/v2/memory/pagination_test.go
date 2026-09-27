@@ -4,6 +4,7 @@
 package memory
 
 import (
+	"cmp"
 	"context"
 	"fmt"
 	"testing"
@@ -222,6 +223,64 @@ func TestFindSpans_TieBreaksOnTraceAndSpanID(t *testing.T) {
 		query.Pagination.PageToken = chunk.NextPageToken
 	}
 	assert.Equal(t, []string{"t1/s1", "t1/s2", "t2/s1"}, names)
+}
+
+// TestFindSpans_PagesAFilteredSearch pins that a structured filter takes part in paging: the
+// pages hold only the spans the filter selects, and the token is bound to that filter, so a
+// search with another filter refuses it.
+func TestFindSpans_PagesAFilteredSearch(t *testing.T) {
+	store, _ := writeTwoTraceStore(t)
+	service := fieldRef(expression.LevelResource, expression.ResourceFieldService)
+	query := tracestore.SpanQueryParams{
+		Filter:     call(expression.OpEq, service, str("frontend")),
+		Pagination: tracestore.Pagination{PageSize: 1},
+	}
+	first, err := findSpansPage(t, store, query)
+	require.NoError(t, err)
+	assert.Equal(t, []string{"call-backend"}, spanNames(first.Results))
+	require.NotEmpty(t, first.NextPageToken)
+
+	query.Pagination.PageToken = first.NextPageToken
+	second, err := findSpansPage(t, store, query)
+	require.NoError(t, err)
+	assert.Equal(t, []string{"GET /"}, spanNames(second.Results))
+	assert.Empty(t, second.NextPageToken, "handle-request belongs to another service")
+
+	query.Filter = call(expression.OpEq, service, str("backend"))
+	_, err = findSpansPage(t, store, query)
+	require.ErrorIs(t, err, tracestore.ErrPaginationInvalid, "the token was minted for the frontend filter")
+}
+
+// intKey lets the page helper be tested over plain integers.
+type intKey int
+
+func (intKey) encode() []byte { return nil }
+
+func TestPage(t *testing.T) {
+	keyOf := func(k intKey) intKey { return k }
+	sorted := []intKey{1, 2, 2, 2, 3}
+	tests := []struct {
+		name  string
+		after *cursor[intKey]
+		size  int
+		want  []intKey
+		next  *cursor[intKey]
+	}{
+		{name: "everything when unpaginated", size: 0, want: sorted},
+		{name: "first page counts the copies it ends inside", size: 3, want: []intKey{1, 2, 2}, next: &cursor[intKey]{key: 2, seen: 2}},
+		{name: "resumes at the copy not yet returned", after: &cursor[intKey]{key: 2, seen: 2}, size: 1, want: []intKey{2}, next: &cursor[intKey]{key: 2, seen: 3}},
+		{name: "a page that is all copies adds the earlier count", after: &cursor[intKey]{key: 2, seen: 1}, size: 1, want: []intKey{2}, next: &cursor[intKey]{key: 2, seen: 2}},
+		{name: "fewer copies than counted resumes at the next key", after: &cursor[intKey]{key: 2, seen: 5}, size: 1, want: []intKey{3}},
+		{name: "a cursor past the end", after: &cursor[intKey]{key: 9, seen: 1}, size: 1, want: []intKey{}},
+		{name: "the last page carries no cursor", after: &cursor[intKey]{key: 2, seen: 3}, size: 5, want: []intKey{3}},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			got, next := page(sorted, keyOf, cmp.Compare[intKey], tc.after, tc.size)
+			assert.Equal(t, tc.want, got)
+			assert.Equal(t, tc.next, next)
+		})
+	}
 }
 
 func TestFindSpans_RefusesATokenItDidNotReturnForThisQuery(t *testing.T) {
