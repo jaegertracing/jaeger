@@ -14,12 +14,14 @@ import (
 func TestMemoryStorage(t *testing.T) {
 	integration.SkipUnlessEnv(t, integration.StorageMemoryV2)
 
+	featureGates := append([]string{},
+		querysvc.StructuredFiltersGate.ID(),
+	)
+	featureGates = append(featureGates, paginationGates...)
+
 	s := &E2EStorageIntegration{
-		ConfigFile: "../../config.yaml",
-		FeatureGates: append(
-			[]string{querysvc.StructuredFiltersGate.ID()},
-			paginationGates...,
-		),
+		ConfigFile:   "../../config.yaml",
+		FeatureGates: featureGates,
 		StorageIntegration: integration.StorageIntegration{
 			CleanUp:      purge,
 			Capabilities: capabilities.E2EWithoutNativeFilters(),
