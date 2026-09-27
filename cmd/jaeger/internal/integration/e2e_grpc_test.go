@@ -7,6 +7,7 @@ import (
 	"os"
 	"testing"
 
+	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerquery/querysvc"
 	"github.com/jaegertracing/jaeger/internal/storage/integration"
 	"github.com/jaegertracing/jaeger/internal/storage/integration/capabilities"
 )
@@ -30,6 +31,7 @@ func TestGRPCStorage(t *testing.T) {
 	}
 
 	collector := &E2EStorageIntegration{
+		FeatureGates:       []string{querysvc.PaginationGate.ID()},
 		ConfigFile:         "../../config-remote-storage.yaml",
 		SkipStorageCleaner: true,
 		StorageIntegration: integration.StorageIntegration{
@@ -43,6 +45,13 @@ func TestGRPCStorage(t *testing.T) {
 	}
 	collector.e2eInitialize(t, "grpc")
 	t.Log("Collector initialized")
+
+	t.Run("Pagination", func(t *testing.T) {
+		if os.Getenv("CUSTOM_STORAGE") == "true" {
+			t.Skip("Pagination requires the built-in memory backend.")
+		}
+		testRemotePagination(t, collector)
+	})
 
 	collector.RunSpanStoreTests(t)
 }
