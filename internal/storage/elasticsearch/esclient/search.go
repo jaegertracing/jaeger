@@ -80,20 +80,42 @@ type SearchResponse struct {
 	Error  json.RawMessage `json:"error,omitempty"`
 	Status int             `json:"status,omitempty"`
 
+	// Shards reports how many of the searched shards failed; see Err.
+	Shards ShardsInfo `json:"_shards"`
+
 	Hits         HitsResult   `json:"hits"`
 	Aggregations Aggregations `json:"aggregations"`
 }
 
+// ShardsInfo is the _shards section of a search response. Elasticsearch and
+// OpenSearch allow partial search results by default: when some (but not all)
+// shards fail, the search still returns HTTP 200 with whatever the healthy shards
+// matched and lists the failed shards here.
+type ShardsInfo struct {
+	Total    int             `json:"total"`
+	Failed   int             `json:"failed"`
+	Failures json.RawMessage `json:"failures,omitempty"`
+}
+
 // Err returns the response's server-reported failure, or nil if it succeeded.
-// Only a MultiSearch item can fail this way: _msearch reports a failed item as
-// {"error": ..., "status": N} with no hits inside an overall HTTP 200, so
-// without this check a failed item is indistinguishable from empty hits. (A
-// failed single Search surfaces as a transport-level error instead.)
+// A response fails this way in two cases that both arrive inside an HTTP 200:
+//   - a MultiSearch item reported as {"error": ..., "status": N} with no hits;
+//   - a search on which some shards failed, reported in _shards. Its hits and
+//     aggregations cover only the shards that succeeded, so returning them would
+//     silently drop every document held by the failed shards (e.g. an index whose
+//     mapping cannot serve the query).
+//
+// Without this check either case is indistinguishable from an empty or complete
+// result. (A search on which every shard failed surfaces as a transport-level
+// error instead.)
 func (r *SearchResponse) Err() error {
-	if len(r.Error) == 0 || bytes.Equal(r.Error, []byte("null")) {
-		return nil
+	if len(r.Error) != 0 && !bytes.Equal(r.Error, []byte("null")) {
+		return fmt.Errorf("search failed with status %d: %s", r.Status, r.Error)
 	}
-	return fmt.Errorf("search failed with status %d: %s", r.Status, r.Error)
+	if r.Shards.Failed > 0 {
+		return fmt.Errorf("search failed on %d of %d shards: %s", r.Shards.Failed, r.Shards.Total, r.Shards.Failures)
+	}
+	return nil
 }
 
 // HitsResult holds the documents a search matched and, when the request asked for
@@ -171,6 +193,9 @@ func (s SearchClient) Search(ctx context.Context, indices []string, req SearchRe
 	if err := json.Unmarshal(raw, &resp); err != nil {
 		return nil, err
 	}
+	if err := resp.Err(); err != nil {
+		return nil, err
+	}
 	return &resp, nil
 }
 
@@ -219,10 +244,11 @@ func (s SearchClient) MultiSearch(ctx context.Context, reqs []MultiSearchRequest
 	if err != nil {
 		return nil, err
 	}
-	// A per-sub-response error (an item carrying an "error"/non-2xx "status" while
-	// the overall _msearch is HTTP 200) is decoded into the item's Error/Status
-	// fields; callers must check Err() per item, because a failed item carries no
-	// hits and would otherwise be indistinguishable from an empty result.
+	// A per-sub-response error (an item carrying an "error"/non-2xx "status", or
+	// failed shards, while the overall _msearch is HTTP 200) is decoded into the
+	// item's Error/Status/Shards fields; callers must check Err() per item, because
+	// a failed item's hits are missing or partial and would otherwise be
+	// indistinguishable from a complete result.
 	var resp struct {
 		Responses []SearchResponse `json:"responses"`
 	}
