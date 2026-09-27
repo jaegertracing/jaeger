@@ -75,9 +75,9 @@ func (s *E2EStorageIntegration) args(configFile string) []string {
 	return args
 }
 
-// structuredFilterGates enables the RFC 0005 filter, which is alpha and off by default. Only the
-// suites whose searches carry one need it: the filter battery, where the backend evaluates a filter,
-// and the rewrite test, where it does not.
+// structuredFilterGates names the RFC 0005 filter gate. It is beta and on by default, and it is
+// still passed explicitly so that the suites whose searches carry a filter, the filter battery and the
+// rewrite test, do not depend on the default and keep working against a binary that pins it off.
 var structuredFilterGates = []string{querysvc.StructuredFiltersGate.ID()}
 
 // elasticsearchFilterGates are the gates the Elasticsearch and OpenSearch e2e suites run with:

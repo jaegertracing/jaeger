@@ -254,10 +254,10 @@ type TraceQueryParameters struct {
 	// mutually exclusive with the legacy predicate fields (service_name,
 	// operation_name, duration_min/max, attributes).
 	//
-	// Experimental. In Jaeger, the query service admits this field only when the
-	// `jaeger.query.structuredFilters` feature gate is enabled (Alpha, off by default);
-	// with the gate off a request carrying it is refused. The field is never ignored,
-	// because dropping a predicate would answer with more traces than were asked for.
+	// Experimental. A server that does not admit this field refuses the request rather
+	// than ignoring the field, because dropping a predicate would answer with more traces
+	// than were asked for. Jaeger controls admission with the `jaeger.query.structuredFilters`
+	// feature gate.
 	//
 	// Over the HTTP GET binding it is a URL-encoded JSON object; in a request body
 	// it is the structured Call. For example, the filter http.status_code == 500 is

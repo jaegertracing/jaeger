@@ -1,7 +1,7 @@
 // Copyright (c) 2025 The Jaeger Authors.
 // SPDX-License-Identifier: Apache-2.0
 
-package tracestore
+package dbmodel
 
 import (
 	"testing"
@@ -9,14 +9,12 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/collector/pdata/pcommon"
-
-	"github.com/jaegertracing/jaeger/internal/storage/v2/elasticsearch/tracestore/core/dbmodel"
 )
 
-func TestConvertTraceIDFromDB(t *testing.T) {
+func TestTraceID_ToOTEL(t *testing.T) {
 	tests := []struct {
 		name     string
-		input    dbmodel.TraceID
+		input    TraceID
 		expected pcommon.TraceID
 		errMsg   string
 	}{
@@ -56,7 +54,7 @@ func TestConvertTraceIDFromDB(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got, err := convertTraceIDFromDB(tt.input)
+			got, err := tt.input.ToOTEL()
 			if tt.errMsg != "" {
 				require.Error(t, err)
 				assert.Contains(t, err.Error(), tt.errMsg)
@@ -68,10 +66,10 @@ func TestConvertTraceIDFromDB(t *testing.T) {
 	}
 }
 
-func TestFromDbSpanId(t *testing.T) {
+func TestSpanID_ToOTEL(t *testing.T) {
 	tests := []struct {
 		name     string
-		input    dbmodel.SpanID
+		input    SpanID
 		expected pcommon.SpanID
 		errMsg   string
 	}{
@@ -105,7 +103,7 @@ func TestFromDbSpanId(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got, err := fromDbSpanId(tt.input)
+			got, err := tt.input.ToOTEL()
 			if tt.errMsg != "" {
 				require.Error(t, err)
 				assert.Contains(t, err.Error(), tt.errMsg)

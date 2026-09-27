@@ -950,3 +950,49 @@ func TestFindTracesServiceNameRequired_GRPC(t *testing.T) {
 		assert.Nil(t, spanResChunk)
 	})
 }
+
+// TestFindTracesRefusedByQueryService_GRPC pins that api_v2 answers InvalidArgument for a search
+// the query service refuses on its envelope: one with no time range, which this handler used to
+// forward to storage, and one whose search depth is out of range, which it used to pass through.
+// No FindTraces expectation is set, so a request reaching storage aborts the test.
+func TestFindTracesRefusedByQueryService_GRPC(t *testing.T) {
+	tests := map[string]struct {
+		query   *api_v2.TraceQueryParameters
+		wantErr string
+	}{
+		"no time range": {
+			query:   &api_v2.TraceQueryParameters{ServiceName: "service"},
+			wantErr: "min and max start time are required",
+		},
+		"negative search depth": {
+			query: &api_v2.TraceQueryParameters{
+				ServiceName:  "service",
+				StartTimeMin: time.Now().Add(-10 * time.Minute),
+				StartTimeMax: time.Now(),
+				SearchDepth:  -1,
+			},
+			wantErr: "search depth must be in [0, 10000]",
+		},
+		"search depth above the maximum": {
+			query: &api_v2.TraceQueryParameters{
+				ServiceName:  "service",
+				StartTimeMin: time.Now().Add(-10 * time.Minute),
+				StartTimeMax: time.Now(),
+				SearchDepth:  tracestore.MaxSearchDepth + 1,
+			},
+			wantErr: "search depth must be in [0, 10000]",
+		},
+	}
+	for name, test := range tests {
+		t.Run(name, func(t *testing.T) {
+			withServerAndClient(t, func(_ *grpcServer, client *grpcClient) {
+				res, err := client.FindTraces(context.Background(), &api_v2.FindTracesRequest{Query: test.query})
+				require.NoError(t, err)
+
+				spanResChunk, err := res.Recv()
+				assertGRPCError(t, err, codes.InvalidArgument, test.wantErr)
+				assert.Nil(t, spanResChunk)
+			})
+		})
+	}
+}

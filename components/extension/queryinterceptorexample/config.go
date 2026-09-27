@@ -16,10 +16,10 @@ type Config struct {
 	// (they see unredacted results and may filter on any attribute).
 	PrivilegedRoles []string `mapstructure:"privileged_roles"`
 	// DenyQueryAttributes lists attribute keys a non-privileged caller may not
-	// filter on. If such a query references any of them, OnQuery rejects it —
+	// filter on. If such a query references any of them, OnTraceQuery rejects it —
 	// demonstrating per-caller query-time admission (the pre-query hook).
 	DenyQueryAttributes []string `mapstructure:"deny_query_attributes"`
-	// RedactAttributes lists span attribute keys whose values OnResult replaces
+	// RedactAttributes lists span attribute keys whose values OnTraceResult replaces
 	// with a placeholder for non-privileged callers — demonstrating per-caller
 	// return-path masking (the post hook).
 	RedactAttributes []string `mapstructure:"redact_attributes"`
