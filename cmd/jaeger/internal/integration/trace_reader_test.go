@@ -6,6 +6,7 @@ package integration
 import (
 	"context"
 	"io"
+	"math"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -21,13 +22,15 @@ import (
 type traceSummariesClient struct {
 	api_v3.QueryServiceClient
 	response *api_v3.FindTraceSummariesResponse
+	request  *api_v3.FindTraceSummariesRequest
 }
 
 func (c *traceSummariesClient) FindTraceSummaries(
-	context.Context,
-	*api_v3.FindTraceSummariesRequest,
-	...grpc.CallOption,
+	_ context.Context,
+	request *api_v3.FindTraceSummariesRequest,
+	_ ...grpc.CallOption,
 ) (api_v3.QueryService_FindTraceSummariesClient, error) {
+	c.request = request
 	return &traceSummariesStream{response: c.response}, nil
 }
 
@@ -53,7 +56,7 @@ func TestTraceReaderFindTraceIDsPreservesNextPageToken(t *testing.T) {
 	t.Skip("The API v3 query service does not expose FindTraceIDs.")
 }
 
-func TestTraceReaderFindTraceSummariesPreservesNextPageToken(t *testing.T) {
+func TestTraceReaderFindTraceSummariesPreservesPagination(t *testing.T) {
 	reader := &traceReader{
 		logger: zap.NewNop(),
 		client: &traceSummariesClient{response: &api_v3.FindTraceSummariesResponse{
@@ -64,11 +67,28 @@ func TestTraceReaderFindTraceSummariesPreservesNextPageToken(t *testing.T) {
 	var chunks []tracestore.PageChunk[[]tracestore.TraceSummary]
 	for chunk, err := range reader.FindTraceSummaries(context.Background(), tracestore.TraceQueryParams{
 		Attributes: pcommon.NewMap(),
+		Pagination: &tracestore.Pagination{PageSize: 2, PageToken: "current-page"},
 	}) {
 		require.NoError(t, err)
 		chunks = append(chunks, chunk)
 	}
 
+	request := reader.client.(*traceSummariesClient).request
+	require.NotNil(t, request.Query.Pagination)
+	assert.EqualValues(t, 2, request.Query.Pagination.PageSize)
+	assert.Equal(t, "current-page", request.Query.Pagination.PageToken)
 	require.Len(t, chunks, 1)
 	assert.Equal(t, tracestore.PageToken("next-page"), chunks[0].NextPageToken)
+}
+
+func TestToProtoQueryPaginationBounds(t *testing.T) {
+	for _, size := range []int{-1, math.MaxUint32 + 1} {
+		_, err := toProtoQuery(tracestore.TraceQueryParams{
+			Attributes: pcommon.NewMap(), Pagination: &tracestore.Pagination{PageSize: size},
+		})
+		require.ErrorContains(t, err, "PageSize must be in")
+	}
+	query, err := toProtoQuery(tracestore.TraceQueryParams{Attributes: pcommon.NewMap()})
+	require.NoError(t, err)
+	assert.Nil(t, query.Pagination)
 }

@@ -43,6 +43,9 @@ type Corpus struct {
 	// RFC 0013 search that carries no service name.
 	CrossService []ptrace.Traces
 
+	// Pagination holds five traces under a dedicated service, including a start-time tie.
+	Pagination []ptrace.Traces
+
 	// Queries are the search cases, and QueryTraces the traces they expect, by fixture name.
 	Queries     []*QueryFixtures
 	QueryTraces map[string]ptrace.Traces
@@ -119,6 +122,7 @@ func BuildCorpus(t *testing.T, suiteFixtures []*QueryFixtures, caps capabilities
 		c.Duplicates = buildSyntheticTrace(t, duplicateTraceSpans, duplicateSpanFrequency, duplicateSpansService, 0xD1)
 	}
 	c.CrossService = buildCrossServiceTraces()
+	c.Pagination = buildPaginationTraces()
 
 	return c
 }
@@ -187,6 +191,25 @@ func buildCrossServiceTraces() []ptrace.Traces {
 	return traces
 }
 
+func buildPaginationTraces() []ptrace.Traces {
+	base := time.Now().Add(-time.Hour).Truncate(time.Second)
+	var traces []ptrace.Traces
+	for i, seconds := range []int{1, 2, 3, 3, 4} {
+		trace := ptrace.NewTraces()
+		rs := trace.ResourceSpans().AppendEmpty()
+		rs.Resource().Attributes().PutStr(otelsemconv.ServiceNameKey, "pagination-service")
+		span := rs.ScopeSpans().AppendEmpty().Spans().AppendEmpty()
+		span.SetTraceID(pcommon.TraceID{0xE1, byte(i + 1)})
+		span.SetSpanID(pcommon.SpanID{1})
+		span.SetName("pagination-operation")
+		start := base.Add(time.Duration(seconds) * time.Second)
+		span.SetStartTimestamp(pcommon.NewTimestampFromTime(start))
+		span.SetEndTimestamp(pcommon.NewTimestampFromTime(start.Add(time.Millisecond)))
+		traces = append(traces, trace)
+	}
+	return traces
+}
+
 // All returns every trace in the corpus, in the order the write phase writes them.
 func (c *Corpus) All() []ptrace.Traces {
 	all := []ptrace.Traces{c.Example}
@@ -197,6 +220,7 @@ func (c *Corpus) All() []ptrace.Traces {
 		all = append(all, c.Duplicates)
 	}
 	all = append(all, c.CrossService...)
+	all = append(all, c.Pagination...)
 	for _, name := range slices.Sorted(maps(c.QueryTraces)) {
 		all = append(all, c.QueryTraces[name])
 	}

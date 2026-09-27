@@ -140,6 +140,15 @@ func toProtoQuery(query tracestore.TraceQueryParams) (*api_v3.TraceQueryParamete
 		DurationMax:   query.DurationMax,
 		SearchDepth:   int32(query.SearchDepth), //nolint:gosec // G115 - bounds checked above
 	}
+	if query.Pagination != nil {
+		if query.Pagination.PageSize < 0 || query.Pagination.PageSize > math.MaxUint32 {
+			return nil, fmt.Errorf("PageSize must be in [0, %d]", math.MaxUint32)
+		}
+		protoQuery.Pagination = &api_v3.Pagination{
+			PageSize:  uint32(query.Pagination.PageSize),
+			PageToken: string(query.Pagination.PageToken),
+		}
+	}
 	if query.Filter != nil {
 		filter, err := expressionproto.ToProto(query.Filter)
 		if err != nil {

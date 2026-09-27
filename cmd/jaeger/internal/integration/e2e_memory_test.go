@@ -6,6 +6,7 @@ package integration
 import (
 	"testing"
 
+	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerquery/querysvc"
 	"github.com/jaegertracing/jaeger/internal/storage/integration"
 	"github.com/jaegertracing/jaeger/internal/storage/integration/capabilities"
 )
@@ -15,7 +16,7 @@ func TestMemoryStorage(t *testing.T) {
 
 	s := &E2EStorageIntegration{
 		ConfigFile:   "../../config.yaml",
-		FeatureGates: structuredFilterGates,
+		FeatureGates: []string{querysvc.StructuredFiltersGate.ID(), querysvc.PaginationGate.ID()},
 		StorageIntegration: integration.StorageIntegration{
 			CleanUp:      purge,
 			Capabilities: capabilities.E2EWithoutNativeFilters(),
