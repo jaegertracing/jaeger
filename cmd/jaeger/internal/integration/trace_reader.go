@@ -181,6 +181,7 @@ func (*traceReader) FindTraceIDs(
 
 func (r *traceReader) FindSpans(ctx context.Context, query tracestore.SpanQueryParams) iter.Seq2[tracestore.PageChunk[ptrace.Traces], error] {
 	return func(yield func(tracestore.PageChunk[ptrace.Traces], error) bool) {
+		// The uint32 wire field cannot represent every int; reject values that would wrap before reaching the backend.
 		if query.Pagination.PageSize < 0 || query.Pagination.PageSize > math.MaxUint32 {
 			yield(tracestore.PageChunk[ptrace.Traces]{}, fmt.Errorf("PageSize must be in [0, %d]", math.MaxUint32))
 			return
