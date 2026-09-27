@@ -214,12 +214,10 @@ func (r *TraceReader) scanTimeRange(plan *executionPlan) ([]model.TraceID, error
 		return bytes.Compare(b[sizeOfTraceID+1:sizeOfTraceID+1+8], a[sizeOfTraceID+1:sizeOfTraceID+1+8])
 	})
 
-	sizeCount := len(traceKeys)
-	if plan.limit > 0 && plan.limit <= math.MaxInt32 {
-		if limit := int(plan.limit); limit < sizeCount {
-			sizeCount = limit
-		}
+	if plan.limit > 0 && uint64(plan.limit) < uint64(len(traceKeys)) {
+		traceKeys = traceKeys[:plan.limit]
 	}
+	sizeCount := len(traceKeys)
 	traceIDs := make([]model.TraceID, sizeCount)
 
 	for i := 0; i < sizeCount; i++ {
