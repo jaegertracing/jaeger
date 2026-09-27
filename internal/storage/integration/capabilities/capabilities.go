@@ -75,8 +75,8 @@ func (c Capabilities) WithoutTraceIDPagination() Capabilities {
 	return c
 }
 
-// WithoutSpanPagination skips span pagination for readers that do not support FindSpans.
-func (c Capabilities) WithoutSpanPagination() Capabilities {
+// WithoutSpanSearch skips span-search assertions for readers that do not implement FindSpans.
+func (c Capabilities) WithoutSpanSearch() Capabilities {
 	c.skipList = append(append([]string(nil), c.skipList...), spanPaginationTest)
 	return c
 }
