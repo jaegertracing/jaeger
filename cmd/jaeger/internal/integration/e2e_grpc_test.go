@@ -14,7 +14,7 @@ import (
 func TestGRPCStorage(t *testing.T) {
 	integration.SkipUnlessEnv(t, integration.StorageGRPC)
 
-	if os.Getenv("CUSTOM_STORAGE") != "true" {
+	if os.Getenv("SKIP_STARTING_BACKEND") != "true" {
 		remoteBackend := &E2EStorageIntegration{
 			ConfigFile:      "../../config-remote-storage-backend.yaml",
 			HealthCheckPort: 12133,
@@ -26,7 +26,7 @@ func TestGRPCStorage(t *testing.T) {
 		remoteBackend.e2eInitialize(t, "memory")
 		t.Log("Remote backend initialized")
 	} else {
-		t.Log("Skipping remote backend initialization; CUSTOM_STORAGE is enabled")
+		t.Log("Skipping remote backend initialization; SKIP_STARTING_BACKEND is enabled")
 	}
 
 	collector := &E2EStorageIntegration{
@@ -42,14 +42,9 @@ func TestGRPCStorage(t *testing.T) {
 			"REMOTE_STORAGE_WRITER_ENDPOINT",
 		},
 	}
-	if os.Getenv("CUSTOM_STORAGE") == "true" {
-		collector.Capabilities = collector.Capabilities.WithoutPagination()
-	}
 	collector.e2eInitialize(t, "grpc")
 	t.Log("Collector initialized")
 
 	collector.RunSpanStoreTests(t)
-	if os.Getenv("CUSTOM_STORAGE") != "true" {
-		t.Run("PaginationErrorStatus", func(t *testing.T) { testPaginationErrorStatus(t, collector) })
-	}
+	t.Run("PaginationErrorStatus", func(t *testing.T) { testPaginationErrorStatus(t, collector) })
 }
