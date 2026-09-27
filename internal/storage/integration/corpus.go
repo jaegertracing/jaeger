@@ -44,7 +44,7 @@ type Corpus struct {
 	CrossService []ptrace.Traces
 
 	// Pagination holds five traces under a dedicated service, including a start-time tie.
-	Pagination []ptrace.Traces
+	Pagination map[string]ptrace.Traces
 
 	// Queries are the search cases, and QueryTraces the traces they expect, by fixture name.
 	Queries     []*QueryFixtures
@@ -191,21 +191,31 @@ func buildCrossServiceTraces() []ptrace.Traces {
 	return traces
 }
 
-func buildPaginationTraces() []ptrace.Traces {
+func buildPaginationTraces() map[string]ptrace.Traces {
 	base := time.Now().Add(-time.Hour).Truncate(time.Second)
-	var traces []ptrace.Traces
-	for i, seconds := range []int{1, 2, 3, 3, 4} {
+	traces := make(map[string]ptrace.Traces)
+	for _, fixture := range []struct {
+		name    string
+		seconds int
+		traceID byte
+	}{
+		{name: "oldest", seconds: 1, traceID: 1},
+		{name: "second-oldest", seconds: 2, traceID: 2},
+		{name: "tied-lower-id", seconds: 3, traceID: 3},
+		{name: "tied-higher-id", seconds: 3, traceID: 4},
+		{name: "newest", seconds: 4, traceID: 5},
+	} {
 		trace := ptrace.NewTraces()
 		rs := trace.ResourceSpans().AppendEmpty()
 		rs.Resource().Attributes().PutStr(otelsemconv.ServiceNameKey, "pagination-service")
 		span := rs.ScopeSpans().AppendEmpty().Spans().AppendEmpty()
-		span.SetTraceID(pcommon.TraceID{0xE1, byte(i + 1)})
+		span.SetTraceID(pcommon.TraceID{0xE1, fixture.traceID})
 		span.SetSpanID(pcommon.SpanID{1})
 		span.SetName("pagination-operation")
-		start := base.Add(time.Duration(seconds) * time.Second)
+		start := base.Add(time.Duration(fixture.seconds) * time.Second)
 		span.SetStartTimestamp(pcommon.NewTimestampFromTime(start))
 		span.SetEndTimestamp(pcommon.NewTimestampFromTime(start.Add(time.Millisecond)))
-		traces = append(traces, trace)
+		traces[fixture.name] = trace
 	}
 	return traces
 }
@@ -220,7 +230,9 @@ func (c *Corpus) All() []ptrace.Traces {
 		all = append(all, c.Duplicates)
 	}
 	all = append(all, c.CrossService...)
-	all = append(all, c.Pagination...)
+	for _, name := range slices.Sorted(maps(c.Pagination)) {
+		all = append(all, c.Pagination[name])
+	}
 	for _, name := range slices.Sorted(maps(c.QueryTraces)) {
 		all = append(all, c.QueryTraces[name])
 	}

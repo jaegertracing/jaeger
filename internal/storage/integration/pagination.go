@@ -95,11 +95,17 @@ func (s *StorageIntegration) findPaginatedSummaryIDs(ctx context.Context, query 
 func (s *StorageIntegration) assertPagination(t *testing.T, search paginationSearch) {
 	traces := s.Corpus.Pagination
 	var want []pcommon.TraceID
-	// Corpus entries 2 and 3 share a start time, so their IDs break the tie across the first page boundary.
-	for _, i := range []int{4, 2, 3, 1, 0} {
-		want = append(want, jptrace.GetTraceID(traces[i]))
+	// The tied traces straddle the first page boundary, with the lower trace ID first.
+	for _, name := range []string{
+		"newest",
+		"tied-lower-id",
+		"tied-higher-id",
+		"second-oldest",
+		"oldest",
+	} {
+		want = append(want, jptrace.GetTraceID(traces[name]))
 	}
-	first := traces[0].ResourceSpans().At(0).ScopeSpans().At(0).Spans().At(0)
+	first := traces["oldest"].ResourceSpans().At(0).ScopeSpans().At(0).Spans().At(0)
 	query := tracestore.TraceQueryParams{
 		ServiceName: "pagination-service", Attributes: pcommon.NewMap(),
 		StartTimeMin: first.StartTimestamp().AsTime().Add(-time.Minute),
