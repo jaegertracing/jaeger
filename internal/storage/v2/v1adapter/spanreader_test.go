@@ -238,6 +238,20 @@ func TestSpanReader_FindTraces(t *testing.T) {
 		{
 			name: "error finding traces",
 			query: &spanstore.TraceQueryParameters{
+				NumTraces:   10,
+				ServiceName: "service1",
+			},
+			expectedQuery: tracestore.TraceQueryParams{
+				SearchDepth: 10,
+				ServiceName: "service1",
+				Attributes:  pcommon.NewMap(),
+			},
+			err:         assert.AnError,
+			expectedErr: assert.AnError,
+		},
+		{
+			name: "preserves search depth without clamping",
+			query: &spanstore.TraceQueryParameters{
 				NumTraces:   tracestore.MaxSearchDepth + 1,
 				ServiceName: "service1",
 			},
@@ -246,8 +260,6 @@ func TestSpanReader_FindTraces(t *testing.T) {
 				ServiceName: "service1",
 				Attributes:  pcommon.NewMap(),
 			},
-			err:         assert.AnError,
-			expectedErr: assert.AnError,
 		},
 		{
 			name: "no traces found",
