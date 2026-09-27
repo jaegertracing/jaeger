@@ -16,7 +16,7 @@ func TestMemoryStorage(t *testing.T) {
 
 	s := &E2EStorageIntegration{
 		ConfigFile:   "../../config.yaml",
-		FeatureGates: []string{querysvc.StructuredFiltersGate.ID(), querysvc.PaginationGate.ID()},
+		FeatureGates: append([]string{querysvc.StructuredFiltersGate.ID()}, paginationGates...),
 		StorageIntegration: integration.StorageIntegration{
 			CleanUp:      purge,
 			Capabilities: capabilities.E2EWithoutNativeFilters(),
