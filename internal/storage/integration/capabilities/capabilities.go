@@ -67,7 +67,8 @@ func (c Capabilities) WithoutPagination() Capabilities {
 	return c
 }
 
-// WithoutTraceIDPagination excuses transports that do not expose a trace-ID search endpoint.
+// WithoutTraceIDPagination skips trace-ID pagination tests for the e2e adapter,
+// which uses Query API v3 and cannot call the storage API's FindTraceIDs method.
 func (c Capabilities) WithoutTraceIDPagination() Capabilities {
 	c.skipList = append(append([]string(nil), c.skipList...), traceIDPaginationTest)
 	return c
