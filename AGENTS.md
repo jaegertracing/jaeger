@@ -81,6 +81,10 @@ New files get the standard header (but with current year):
 - Do not weaken assertions (e.g. replacing exact checks with `assert.NotNil`) just to make a flaky test pass.
 - Every package must have at least one `*_test.go` file (enforced by `make nocover`). If no tests are possible (e.g. a package that only defines types), create an empty `empty_test.go`.
 
+## Storage Integration Tests
+
+Storage behavior belongs in the shared `internal/storage/integration` corpus and `StorageIntegration.AssertCorpus`, which run in both direct and e2e modes. New assertions run for every backend by default; unsupported backends must explicitly opt out in `internal/storage/integration/capabilities`. Extend the e2e reader/writer adapters when the shared tests need new API fields, and keep transport-specific assertions in the e2e package. Read [the integration architecture](cmd/jaeger/internal/integration/README.md) before adding tests.
+
 ## Scope Discipline
 
 - Do not reformat, rename, or restructure code outside the scope of the requested change.

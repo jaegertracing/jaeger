@@ -181,6 +181,29 @@ func (qs QueryService) interceptTraceResults(
 	if len(qs.options.Interceptors) == 0 {
 		return seq
 	}
+	return interceptBatches(seq, qs.traceResultInterceptor(ctx))
+}
+
+// traceResultInterceptor returns the function that hands one batch to every interceptor's
+// OnTraceResult in order. The context each returns feeds the next call, across every batch the
+// function is given, so one function serves a whole result stream however it is chunked.
+func (qs QueryService) traceResultInterceptor(ctx context.Context) func([]ptrace.Traces) ([]ptrace.Traces, error) {
+	return func(traces []ptrace.Traces) ([]ptrace.Traces, error) {
+		var err error
+		for _, interceptor := range qs.options.Interceptors {
+			ctx, traces, err = interceptor.OnTraceResult(ctx, traces)
+			if err != nil {
+				return nil, err
+			}
+		}
+		return traces, nil
+	}
+}
+
+func interceptBatches(
+	seq iter.Seq2[[]ptrace.Traces, error],
+	intercept func([]ptrace.Traces) ([]ptrace.Traces, error),
+) iter.Seq2[[]ptrace.Traces, error] {
 	return func(yield func([]ptrace.Traces, error) bool) {
 		for traces, err := range seq {
 			if err != nil {
@@ -189,12 +212,10 @@ func (qs QueryService) interceptTraceResults(
 				}
 				continue
 			}
-			for _, interceptor := range qs.options.Interceptors {
-				ctx, traces, err = interceptor.OnTraceResult(ctx, traces)
-				if err != nil {
-					yield(nil, err)
-					return
-				}
+			traces, err = intercept(traces)
+			if err != nil {
+				yield(nil, err)
+				return
 			}
 			if !yield(traces, nil) {
 				return

@@ -9,6 +9,7 @@ import (
 
 	"go.opentelemetry.io/collector/pdata/pcommon"
 	"go.opentelemetry.io/collector/pdata/ptrace/ptraceotlp"
+	"google.golang.org/genproto/googleapis/rpc/errdetails"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/health"
@@ -157,7 +158,7 @@ func (h *Handler) FindTraceSummaries(
 			if errors.Is(err, errors.ErrUnsupported) {
 				return status.Errorf(codes.Unimplemented, "method FindTraceSummaries not implemented: %v", err)
 			}
-			return err
+			return readerStatus(err)
 		}
 		batch := make([]*storage.TraceSummary, len(chunk.Results))
 		for i := range chunk.Results {
@@ -193,6 +194,26 @@ func (h *Handler) FindTraceSummaries(
 	return nil
 }
 
+// paginationInvalidReason is the ErrorInfo reason on the InvalidArgument status that carries a
+// rejected page request. The server answers InvalidArgument to other malformed requests too, so
+// the client needs the reason, not the code, to restore tracestore.ErrPaginationInvalid.
+const paginationInvalidReason = "PAGINATION_INVALID"
+
+// readerStatus gives a rejected page request the InvalidArgument status, marked with
+// paginationInvalidReason so the storage client turns it back into
+// tracestore.ErrPaginationInvalid (RFC 0014 §6). Other reader errors keep whatever status
+// they carry.
+func readerStatus(err error) error {
+	if !errors.Is(err, tracestore.ErrPaginationInvalid) {
+		return err
+	}
+	st := status.New(codes.InvalidArgument, err.Error())
+	if detailed, detailErr := st.WithDetails(&errdetails.ErrorInfo{Reason: paginationInvalidReason, Domain: "jaeger.storage.v2"}); detailErr == nil {
+		st = detailed
+	}
+	return st.Err()
+}
+
 func (h *Handler) FindTraceIDs(
 	ctx context.Context,
 	req *storage.FindTraceIDsRequest,
@@ -205,7 +226,7 @@ func (h *Handler) FindTraceIDs(
 	}
 	for chunk, err := range h.traceReader.FindTraceIDs(ctx, query) {
 		if err != nil {
-			return nil, err
+			return nil, readerStatus(err)
 		}
 		for _, traceID := range chunk.Results {
 			foundTraceIDs = append(foundTraceIDs, &storage.FoundTraceID{

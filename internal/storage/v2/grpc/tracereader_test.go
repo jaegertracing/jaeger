@@ -15,6 +15,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/collector/pdata/pcommon"
 	"go.opentelemetry.io/collector/pdata/ptrace"
+	"google.golang.org/genproto/googleapis/rpc/errdetails"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/credentials/insecure"
@@ -584,6 +585,42 @@ func TestTraceReader_FindTraceIDs(t *testing.T) {
 					assert.Equal(t, tracestore.PageToken("next-page"), chunks[0].NextPageToken)
 				}
 			}
+		})
+	}
+}
+
+// TestTraceReader_InvalidArgumentBecomesPaginationInvalid pins the client half of the wire
+// mapping (RFC 0014 §6): an InvalidArgument status marked with the pagination reason is
+// ErrPaginationInvalid again, and an InvalidArgument without the reason, which the server gives
+// a malformed filter, is left alone.
+func TestTraceReader_InvalidArgumentBecomesPaginationInvalid(t *testing.T) {
+	query := tracestore.TraceQueryParams{
+		Attributes: pcommon.NewMap(),
+		Pagination: &tracestore.Pagination{PageSize: 10, PageToken: "stale"},
+	}
+	marked, err := status.New(codes.InvalidArgument, "page token does not match the query").
+		WithDetails(&errdetails.ErrorInfo{Reason: paginationInvalidReason})
+	require.NoError(t, err)
+	unmarked := status.Error(codes.InvalidArgument, "filter is malformed")
+
+	for name, find := range map[string]func(*TraceReader) error{
+		"FindTraceIDs": func(reader *TraceReader) error {
+			_, err := jiter.CollectWithErrors(reader.FindTraceIDs(context.Background(), query))
+			return err
+		},
+		"FindTraceSummaries": func(reader *TraceReader) error {
+			_, err := jiter.CollectWithErrors(reader.FindTraceSummaries(context.Background(), query))
+			return err
+		},
+	} {
+		t.Run(name, func(t *testing.T) {
+			err := find(NewTraceReader(startTestServer(t, &testServer{err: marked.Err()})))
+			require.ErrorIs(t, err, tracestore.ErrPaginationInvalid)
+			require.ErrorContains(t, err, "page token does not match the query")
+
+			err = find(NewTraceReader(startTestServer(t, &testServer{err: unmarked})))
+			require.NotErrorIs(t, err, tracestore.ErrPaginationInvalid)
+			require.Equal(t, codes.InvalidArgument, status.Code(err))
 		})
 	}
 }
