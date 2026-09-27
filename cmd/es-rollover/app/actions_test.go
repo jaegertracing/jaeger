@@ -24,11 +24,11 @@ import (
 var errActionTest = errors.New("action error")
 
 type dummyAction struct {
-	TestFn func() error
+	TestFn func(ctx context.Context) error
 }
 
-func (a *dummyAction) Do() error {
-	return a.TestFn()
+func (a *dummyAction) Do(ctx context.Context) error {
+	return a.TestFn(ctx)
 }
 
 func TestExecuteAction(t *testing.T) {
@@ -84,13 +84,13 @@ func TestExecuteAction(t *testing.T) {
 			cmdLine := append([]string{"--es.tls.enabled=true"}, test.flags...)
 			require.NoError(t, command.ParseFlags(cmdLine))
 			executedAction := false
-			err := ExecuteAction(ActionExecuteOptions{
+			err := ExecuteAction(context.Background(), ActionExecuteOptions{
 				Args:   args,
 				Viper:  v,
 				Logger: logger,
 			}, func(_ *esclient.Client, _ Config) Action {
 				return &dummyAction{
-					TestFn: func() error {
+					TestFn: func(_ context.Context) error {
 						executedAction = true
 						return test.expectedError
 					},
@@ -117,13 +117,13 @@ func TestExecuteAction_ConfigError(t *testing.T) {
 		"https://localhost:9300",
 	}
 
-	err := ExecuteAction(ActionExecuteOptions{
+	err := ExecuteAction(context.Background(), ActionExecuteOptions{
 		Args:   args,
 		Viper:  v,
 		Logger: logger,
 	}, func(_ *esclient.Client, _ Config) Action {
 		return &dummyAction{
-			TestFn: func() error {
+			TestFn: func(_ context.Context) error {
 				return nil
 			},
 		}
@@ -217,7 +217,7 @@ func TestNewESClient_VersionDetectionError(t *testing.T) {
 func TestExecuteAction_ClientError(t *testing.T) {
 	v, command := config.Viperize(AddFlags)
 	require.NoError(t, command.ParseFlags(nil))
-	err := ExecuteAction(ActionExecuteOptions{
+	err := ExecuteAction(context.Background(), ActionExecuteOptions{
 		Args:   []string{"not-a-valid-url"}, // no scheme -> esclient.NewClient rejects it
 		Viper:  v,
 		Logger: zap.NewNop(),
