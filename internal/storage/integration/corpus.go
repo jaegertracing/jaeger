@@ -43,6 +43,9 @@ type Corpus struct {
 	// RFC 0013 search that carries no service name.
 	CrossService []ptrace.Traces
 
+	// Pagination holds five traces under a dedicated service, including a start-time tie.
+	Pagination map[string]ptrace.Traces
+
 	// Queries are the search cases, and QueryTraces the traces they expect, by fixture name.
 	Queries     []*QueryFixtures
 	QueryTraces map[string]ptrace.Traces
@@ -119,6 +122,7 @@ func BuildCorpus(t *testing.T, suiteFixtures []*QueryFixtures, caps capabilities
 		c.Duplicates = buildSyntheticTrace(t, duplicateTraceSpans, duplicateSpanFrequency, duplicateSpansService, 0xD1)
 	}
 	c.CrossService = buildCrossServiceTraces()
+	c.Pagination = buildPaginationTraces()
 
 	return c
 }
@@ -187,6 +191,35 @@ func buildCrossServiceTraces() []ptrace.Traces {
 	return traces
 }
 
+func buildPaginationTraces() map[string]ptrace.Traces {
+	base := time.Now().Add(-time.Hour).Truncate(time.Second)
+	traces := make(map[string]ptrace.Traces)
+	for _, fixture := range []struct {
+		name    string
+		seconds int
+		traceID byte
+	}{
+		{name: "oldest", seconds: 1, traceID: 1},
+		{name: "second-oldest", seconds: 2, traceID: 2},
+		{name: "tied-lower-id", seconds: 3, traceID: 3},
+		{name: "tied-higher-id", seconds: 3, traceID: 4},
+		{name: "newest", seconds: 4, traceID: 5},
+	} {
+		trace := ptrace.NewTraces()
+		rs := trace.ResourceSpans().AppendEmpty()
+		rs.Resource().Attributes().PutStr(otelsemconv.ServiceNameKey, "pagination-service")
+		span := rs.ScopeSpans().AppendEmpty().Spans().AppendEmpty()
+		span.SetTraceID(pcommon.TraceID{0xE1, fixture.traceID})
+		span.SetSpanID(pcommon.SpanID{1})
+		span.SetName("pagination-operation")
+		start := base.Add(time.Duration(fixture.seconds) * time.Second)
+		span.SetStartTimestamp(pcommon.NewTimestampFromTime(start))
+		span.SetEndTimestamp(pcommon.NewTimestampFromTime(start.Add(time.Millisecond)))
+		traces[fixture.name] = trace
+	}
+	return traces
+}
+
 // All returns every trace in the corpus, in the order the write phase writes them.
 func (c *Corpus) All() []ptrace.Traces {
 	all := []ptrace.Traces{c.Example}
@@ -197,6 +230,9 @@ func (c *Corpus) All() []ptrace.Traces {
 		all = append(all, c.Duplicates)
 	}
 	all = append(all, c.CrossService...)
+	for _, name := range slices.Sorted(maps(c.Pagination)) {
+		all = append(all, c.Pagination[name])
+	}
 	for _, name := range slices.Sorted(maps(c.QueryTraces)) {
 		all = append(all, c.QueryTraces[name])
 	}
