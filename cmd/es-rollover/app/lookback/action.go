@@ -25,11 +25,10 @@ type Action struct {
 }
 
 // Do the lookback action
-func (a *Action) Do() error {
+func (a *Action) Do(ctx context.Context) error {
 	if a.UnitCount <= 0 {
 		return fmt.Errorf("unit-count must be greater than 0, got %d", a.UnitCount)
 	}
-	ctx := context.TODO()
 	rolloverIndices := app.RolloverIndices(a.Config.Archive, a.Config.SkipDependencies, a.Config.AdaptiveSampling, a.Config.IndexPrefix)
 	for _, indexName := range rolloverIndices {
 		if err := a.lookback(ctx, indexName); err != nil {
