@@ -215,8 +215,10 @@ func (r *TraceReader) scanTimeRange(plan *executionPlan) ([]model.TraceID, error
 	})
 
 	sizeCount := len(traceKeys)
-	if plan.limit > 0 && uint64(plan.limit) < uint64(sizeCount) {
-		sizeCount = int(plan.limit)
+	if plan.limit > 0 && plan.limit <= math.MaxInt32 {
+		if limit := int(plan.limit); limit < sizeCount {
+			sizeCount = limit
+		}
 	}
 	traceIDs := make([]model.TraceID, sizeCount)
 
