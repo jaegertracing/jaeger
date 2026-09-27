@@ -15,6 +15,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/collector/pdata/pcommon"
 	"go.opentelemetry.io/collector/pdata/ptrace"
+	"google.golang.org/genproto/googleapis/rpc/errdetails"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/credentials/insecure"
@@ -589,35 +590,43 @@ func TestTraceReader_FindTraceIDs(t *testing.T) {
 }
 
 // TestTraceReader_InvalidArgumentBecomesPaginationInvalid pins the client half of the wire
-// mapping (RFC 0014 §6): InvalidArgument on a paginated request is ErrPaginationInvalid again,
-// and InvalidArgument on an unpaginated request is left alone.
+// mapping (RFC 0014 §6): an InvalidArgument status marked with the pagination reason is
+// ErrPaginationInvalid again, and an InvalidArgument without the reason, which the server gives
+// a malformed filter, is left alone.
 func TestTraceReader_InvalidArgumentBecomesPaginationInvalid(t *testing.T) {
-	paginated := tracestore.TraceQueryParams{
+	query := tracestore.TraceQueryParams{
 		Attributes: pcommon.NewMap(),
 		Pagination: &tracestore.Pagination{PageSize: 10, PageToken: "stale"},
 	}
-	unpaginated := tracestore.TraceQueryParams{Attributes: pcommon.NewMap()}
-	conn := startTestServer(t, &testServer{err: status.Error(codes.InvalidArgument, "page token does not match the query")})
-	reader := NewTraceReader(conn)
+	marked, err := status.New(codes.InvalidArgument, "page token does not match the query").
+		WithDetails(&errdetails.ErrorInfo{Reason: paginationInvalidReason})
+	require.NoError(t, err)
+	unmarked := status.Error(codes.InvalidArgument, "filter is malformed")
 
-	t.Run("FindTraceIDs", func(t *testing.T) {
-		_, err := jiter.CollectWithErrors(reader.FindTraceIDs(context.Background(), paginated))
-		require.ErrorIs(t, err, tracestore.ErrPaginationInvalid)
-		require.ErrorContains(t, err, "page token does not match the query")
+	for name, find := range map[string]func(*TraceReader) func(error) error{
+		"FindTraceIDs": func(reader *TraceReader) func(error) error {
+			return func(error) error {
+				_, err := jiter.CollectWithErrors(reader.FindTraceIDs(context.Background(), query))
+				return err
+			}
+		},
+		"FindTraceSummaries": func(reader *TraceReader) func(error) error {
+			return func(error) error {
+				_, err := jiter.CollectWithErrors(reader.FindTraceSummaries(context.Background(), query))
+				return err
+			}
+		},
+	} {
+		t.Run(name, func(t *testing.T) {
+			err := find(NewTraceReader(startTestServer(t, &testServer{err: marked.Err()})))(nil)
+			require.ErrorIs(t, err, tracestore.ErrPaginationInvalid)
+			require.ErrorContains(t, err, "page token does not match the query")
 
-		_, err = jiter.CollectWithErrors(reader.FindTraceIDs(context.Background(), unpaginated))
-		require.NotErrorIs(t, err, tracestore.ErrPaginationInvalid)
-		require.Equal(t, codes.InvalidArgument, status.Code(err))
-	})
-	t.Run("FindTraceSummaries", func(t *testing.T) {
-		_, err := jiter.CollectWithErrors(reader.FindTraceSummaries(context.Background(), paginated))
-		require.ErrorIs(t, err, tracestore.ErrPaginationInvalid)
-		require.ErrorContains(t, err, "page token does not match the query")
-
-		_, err = jiter.CollectWithErrors(reader.FindTraceSummaries(context.Background(), unpaginated))
-		require.NotErrorIs(t, err, tracestore.ErrPaginationInvalid)
-		require.Equal(t, codes.InvalidArgument, status.Code(err))
-	})
+			err = find(NewTraceReader(startTestServer(t, &testServer{err: unmarked})))(nil)
+			require.NotErrorIs(t, err, tracestore.ErrPaginationInvalid)
+			require.Equal(t, codes.InvalidArgument, status.Code(err))
+		})
+	}
 }
 
 func TestConvertMapToKeyValueList(t *testing.T) {

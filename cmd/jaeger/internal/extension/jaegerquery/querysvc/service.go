@@ -491,10 +491,11 @@ func (qs QueryService) FindTraceSummaries(
 	}
 }
 
-// summarizeTraceIDPages is the FindTraceSummaries fallback for a paginated query. FindTraces
-// refuses pagination, so the fallback pages through FindTraceIDs instead, loads each page's
-// traces with GetTraces, and passes the page token through unchanged. The loaded traces go
-// through the interceptors as they do on the unpaginated fallback.
+// summarizeTraceIDPages is the FindTraceSummaries fallback for a paginated query. A reader's
+// FindTraces has no field for a page token and the query service refuses to paginate it, so the
+// fallback pages through FindTraceIDs instead, loads each page's traces with GetTraces, and
+// passes the page token through unchanged. The loaded traces go through the interceptors as
+// they do on the unpaginated fallback.
 func (qs QueryService) summarizeTraceIDPages(
 	ctx context.Context,
 	query tracestore.TraceQueryParams,

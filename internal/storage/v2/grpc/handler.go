@@ -9,6 +9,7 @@ import (
 
 	"go.opentelemetry.io/collector/pdata/pcommon"
 	"go.opentelemetry.io/collector/pdata/ptrace/ptraceotlp"
+	"google.golang.org/genproto/googleapis/rpc/errdetails"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/health"
@@ -193,14 +194,24 @@ func (h *Handler) FindTraceSummaries(
 	return nil
 }
 
-// readerStatus gives a rejected page token the InvalidArgument status, which the storage
-// client turns back into tracestore.ErrPaginationInvalid (RFC 0014 §6). Other reader errors
-// keep whatever status they carry.
+// paginationInvalidReason is the ErrorInfo reason on the InvalidArgument status that carries a
+// rejected page request. The server answers InvalidArgument to other malformed requests too, so
+// the client needs the reason, not the code, to restore tracestore.ErrPaginationInvalid.
+const paginationInvalidReason = "PAGINATION_INVALID"
+
+// readerStatus gives a rejected page request the InvalidArgument status, marked with
+// paginationInvalidReason so the storage client turns it back into
+// tracestore.ErrPaginationInvalid (RFC 0014 §6). Other reader errors keep whatever status
+// they carry.
 func readerStatus(err error) error {
-	if errors.Is(err, tracestore.ErrPaginationInvalid) {
-		return status.Error(codes.InvalidArgument, err.Error())
+	if !errors.Is(err, tracestore.ErrPaginationInvalid) {
+		return err
 	}
-	return err
+	st := status.New(codes.InvalidArgument, err.Error())
+	if detailed, err := st.WithDetails(&errdetails.ErrorInfo{Reason: paginationInvalidReason, Domain: "jaeger.storage.v2"}); err == nil {
+		st = detailed
+	}
+	return st.Err()
 }
 
 func (h *Handler) FindTraceIDs(

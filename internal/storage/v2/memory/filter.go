@@ -38,6 +38,8 @@ type filterCtx struct {
 
 	boundEvent *ptrace.SpanEvent
 	boundLink  *ptrace.SpanLink
+
+	regexps map[*expression.Call]*regexp.Regexp
 }
 
 // evalValue is a resolved operand: a constant from the filter or a value read
@@ -182,23 +184,75 @@ func errArity(filter *expression.Call) error {
 		tracestore.ErrFilterInvalid, filter.Op, len(filter.Args))
 }
 
+// preparedFilter is a filter whose shape has been validated and whose regular
+// expressions have been compiled, once per search rather than once per span.
+type preparedFilter struct {
+	call    *expression.Call
+	regexps map[*expression.Call]*regexp.Regexp
+}
+
+// prepareFilter validates the filter's shape and compiles the pattern of every
+// regex predicate. A nil filter prepares to one that matches every span.
+func prepareFilter(filter *expression.Call) (preparedFilter, error) {
+	if err := validateFilterShape(filter); err != nil {
+		return preparedFilter{}, err
+	}
+	p := preparedFilter{call: filter, regexps: map[*expression.Call]*regexp.Regexp{}}
+	if err := p.compileRegexps(filter); err != nil {
+		return preparedFilter{}, err
+	}
+	return p, nil
+}
+
+func (p preparedFilter) compileRegexps(filter *expression.Call) error {
+	if filter == nil {
+		return nil
+	}
+	if filter.Op == expression.OpRegex {
+		var pattern string
+		switch v := filter.Args[1].(type) {
+		case *expression.StringValue:
+			pattern = v.Value
+		case *expression.AnyValue:
+			pattern = v.Value
+		default:
+			return fmt.Errorf("%w: %q takes a constant pattern", tracestore.ErrFilterInvalid, filter.Op)
+		}
+		re, err := regexp.Compile(pattern)
+		if err != nil {
+			return fmt.Errorf("%w: %q takes a pattern in RE2 syntax: %w", tracestore.ErrFilterInvalid, filter.Op, err)
+		}
+		p.regexps[filter] = re
+		return nil
+	}
+	for _, arg := range filter.Args {
+		if call, ok := arg.(*expression.Call); ok {
+			if err := p.compileRegexps(call); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
+}
+
 // matchesFilter reports whether a span, in the context of its resource and
-// scope, satisfies filter. A nil filter matches every span.
+// scope, satisfies filter.
 func matchesFilter(
-	filter *expression.Call,
+	filter preparedFilter,
 	resource pcommon.Resource,
 	scope pcommon.InstrumentationScope,
 	span ptrace.Span,
 	resourceSchemaURL, scopeSchemaURL string,
 ) bool {
-	if filter == nil {
+	if filter.call == nil {
 		return true
 	}
 	ctx := filterCtx{
 		resource: resource, scope: scope, span: span,
 		resourceSchemaURL: resourceSchemaURL, scopeSchemaURL: scopeSchemaURL,
+		regexps: filter.regexps,
 	}
-	return evalPredicate(filter, ctx)
+	return evalPredicate(filter.call, ctx)
 }
 
 // evalPredicate evaluates a boolean-valued expression: a Call applying one of
@@ -234,15 +288,15 @@ func evalPredicate(expr expression.Expression, ctx filterCtx) bool {
 	case expression.OpNe:
 		return leafPresentAndNoPairMatches(call.Args[0], call.Args[1], ctx, func(c int) bool { return c == 0 })
 	case expression.OpGt:
-		return anyPairMatches(call.Args[0], call.Args[1], ctx, func(c int) bool { return c > 0 })
+		return orderedPairMatches(call.Args[0], call.Args[1], ctx, func(c int) bool { return c > 0 })
 	case expression.OpLt:
-		return anyPairMatches(call.Args[0], call.Args[1], ctx, func(c int) bool { return c < 0 })
+		return orderedPairMatches(call.Args[0], call.Args[1], ctx, func(c int) bool { return c < 0 })
 	case expression.OpGte:
-		return anyPairMatches(call.Args[0], call.Args[1], ctx, func(c int) bool { return c >= 0 })
+		return orderedPairMatches(call.Args[0], call.Args[1], ctx, func(c int) bool { return c >= 0 })
 	case expression.OpLte:
-		return anyPairMatches(call.Args[0], call.Args[1], ctx, func(c int) bool { return c <= 0 })
+		return orderedPairMatches(call.Args[0], call.Args[1], ctx, func(c int) bool { return c <= 0 })
 	case expression.OpRegex:
-		return evalRegex(call.Args[0], call.Args[1], ctx)
+		return evalRegex(call, ctx)
 	case expression.OpIn:
 		return evalIn(call.Args[0], call.Args[1], ctx)
 	case expression.OpNotIn:
@@ -279,12 +333,24 @@ func evalPredicate(expr expression.Expression, ctx filterCtx) bool {
 // predicate false, since a leaf comparison other than a boolean `not` never
 // turns absence or incomparability into a match.
 func anyPairMatches(left, right expression.Expression, ctx filterCtx, test func(cmp int) bool) bool {
+	return anyComparablePair(left, right, ctx, func(a, b evalValue) bool { return test(compareValues(a, b)) })
+}
+
+// orderedPairMatches is anyPairMatches for gt, lt, gte and lte. A boolean has no
+// order (RFC 0005 §5.3); the query boundary refuses ordering a boolean built-in
+// field, but an attribute's type is known only here, so a boolean pair is
+// refused here rather than ordered.
+func orderedPairMatches(left, right expression.Expression, ctx filterCtx, test func(cmp int) bool) bool {
+	return anyComparablePair(left, right, ctx, func(a, b evalValue) bool { return !a.isBool && test(compareValues(a, b)) })
+}
+
+func anyComparablePair(left, right expression.Expression, ctx filterCtx, test func(a, b evalValue) bool) bool {
 	lv := resolveOperand(left, ctx)
 	rv := resolveOperand(right, ctx)
 	for _, a := range lv {
 		for _, b := range rv {
 			ca, cb, ok := resolveComparable(a, b)
-			if ok && test(compareValues(ca, cb)) {
+			if ok && test(ca, cb) {
 				return true
 			}
 		}
@@ -392,24 +458,12 @@ func coerceUntyped(v, other evalValue) (evalValue, bool) {
 	}
 }
 
-func evalRegex(ref, pattern expression.Expression, ctx filterCtx) bool {
-	values := resolveOperand(ref, ctx)
+func evalRegex(call *expression.Call, ctx filterCtx) bool {
+	values := resolveOperand(call.Args[0], ctx)
 	if len(values) == 0 {
 		return false
 	}
-	// The pattern may arrive typed as a string or untyped, since the wire type is
-	// optional and FinalizeFilter leaves regex operands as written.
-	patternValues := resolveOperand(pattern, ctx)
-	if len(patternValues) != 1 || (!patternValues[0].isString && !patternValues[0].isUntyped) {
-		return false
-	}
-	re, err := regexp.Compile(patternValues[0].str)
-	if err != nil {
-		// The query boundary parses the pattern before a backend ever sees it
-		// (RFC 0005 §5.3), so this is unreached in practice; refusing to match
-		// is the safe fallback if it somehow is not.
-		return false
-	}
+	re := ctx.regexps[call]
 	for _, v := range values {
 		if v.isString && re.MatchString(v.str) {
 			return true

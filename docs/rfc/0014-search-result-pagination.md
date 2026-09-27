@@ -324,7 +324,7 @@ message FindTraceSummariesResponse {   // streamed; final chunk sets the token
 
 The storage-layer `FindTraces` RPC — a stream of OTLP `TracesData` — gains no token, matching §4 and §5: a remote backend exposes its cursor through `FindTraceIDs` and `FindTraceSummaries`, and a `FindTraces` request that sets `pagination` is refused with `InvalidArgument`.
 
-A remote reader's `ErrPaginationInvalid` keeps its meaning across the wire. The storage/v2 server maps `ErrPaginationInvalid` to `InvalidArgument`, and the client maps `InvalidArgument` on a paginated call back to `ErrPaginationInvalid`, so the query service answers a bad token sent to a remote reader as a bad request rather than a server error. An unpaginated call is not mapped, because `InvalidArgument` on it says nothing about a token.
+A remote reader's `ErrPaginationInvalid` keeps its meaning across the wire. The storage/v2 server maps `ErrPaginationInvalid` to `InvalidArgument` carrying a `google.rpc.ErrorInfo` detail with the reason `PAGINATION_INVALID`, and the client maps a status with that reason back to `ErrPaginationInvalid`, so the query service answers a bad token sent to a remote reader as a bad request rather than a server error. The reason is what the client keys on, because the server also answers `InvalidArgument` to a malformed filter.
 
 ### 6.1 Declaring the capability
 

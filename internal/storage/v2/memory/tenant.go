@@ -141,7 +141,8 @@ func (t *Tenant) findTraceAndIds(query tracestore.TraceQueryParams) ([]traceAndI
 	if query.SearchDepth <= 0 || query.SearchDepth > t.config.MaxTraces {
 		return nil, errInvalidSearchDepth
 	}
-	if err := validateFilterShape(query.Filter); err != nil {
+	filter, err := prepareFilter(query.Filter)
+	if err != nil {
 		return nil, err
 	}
 	t.mu.RLock()
@@ -159,7 +160,7 @@ func (t *Tenant) findTraceAndIds(query tracestore.TraceQueryParams) ([]traceAndI
 			// that has not yet been filled with traces.
 			break
 		}
-		if validTrace(traceById.trace, query) {
+		if validTrace(traceById.trace, query, filter) {
 			traceAndIds = append(traceAndIds, traceById)
 		}
 	}
@@ -177,11 +178,12 @@ func (t *Tenant) findTraceAndIds(query tracestore.TraceQueryParams) ([]traceAndI
 // hold spans from many traces and resources (RFC 0016), so the result shares
 // nothing with the store.
 //
-// query.Filter's shape is checked once, before any span is visited, rather
-// than per span: an unsupported operator or a wrong argument count is a
-// static property of the filter, not something that can vary span to span.
+// query.Filter is prepared once, before any span is visited, rather than per
+// span: its shape and its regular expressions are static properties of the
+// filter, not something that can vary span to span.
 func (t *Tenant) findSpans(query tracestore.SpanQueryParams, after *spanKey) (ptrace.Traces, *spanKey, error) {
-	if err := validateFilterShape(query.Filter); err != nil {
+	filter, err := prepareFilter(query.Filter)
+	if err != nil {
 		return ptrace.Traces{}, nil, err
 	}
 	t.mu.RLock()
@@ -198,7 +200,7 @@ func (t *Tenant) findSpans(query tracestore.SpanQueryParams, after *spanKey) (pt
 					if !spanStartsWithin(span, query.StartTimeMin, query.StartTimeMax) {
 						continue
 					}
-					if !matchesFilter(query.Filter, resourceSpan.Resource(), scopeSpan.Scope(), span,
+					if !matchesFilter(filter, resourceSpan.Resource(), scopeSpan.Scope(), span,
 						resourceSpan.SchemaUrl(), scopeSpan.SchemaUrl()) {
 						continue
 					}
@@ -231,7 +233,8 @@ func (t *Tenant) findTraceAndIdsPage(query tracestore.TraceQueryParams, after *t
 	if query.Pagination.PageSize <= 0 {
 		return nil, nil, fmt.Errorf("%w: page size must be greater than 0", tracestore.ErrPaginationInvalid)
 	}
-	if err := validateFilterShape(query.Filter); err != nil {
+	filter, err := prepareFilter(query.Filter)
+	if err != nil {
 		return nil, nil, err
 	}
 	t.mu.RLock()
@@ -242,7 +245,7 @@ func (t *Tenant) findTraceAndIdsPage(query tracestore.TraceQueryParams, after *t
 		if entry.id.IsEmpty() {
 			continue
 		}
-		startTime, ok := latestMatchingSpanStart(entry.trace, query)
+		startTime, ok := latestMatchingSpanStart(entry.trace, query, filter)
 		if !ok {
 			continue
 		}
@@ -344,9 +347,9 @@ func findServiceNameWithSpanId(trace ptrace.Traces, spanId pcommon.SpanID) (stri
 }
 
 // validTrace reports whether any span of the trace matches the query.
-func validTrace(td ptrace.Traces, query tracestore.TraceQueryParams) bool {
+func validTrace(td ptrace.Traces, query tracestore.TraceQueryParams, filter preparedFilter) bool {
 	matched := false
-	forEachMatchingSpan(td, query, func(ptrace.Span) bool {
+	forEachMatchingSpan(td, query, filter, func(ptrace.Span) bool {
 		matched = true
 		return false
 	})
@@ -355,10 +358,10 @@ func validTrace(td ptrace.Traces, query tracestore.TraceQueryParams) bool {
 
 // latestMatchingSpanStart returns the latest start time among the trace's
 // matching spans, and false if none matches.
-func latestMatchingSpanStart(td ptrace.Traces, query tracestore.TraceQueryParams) (pcommon.Timestamp, bool) {
+func latestMatchingSpanStart(td ptrace.Traces, query tracestore.TraceQueryParams, filter preparedFilter) (pcommon.Timestamp, bool) {
 	var latest pcommon.Timestamp
 	matched := false
-	forEachMatchingSpan(td, query, func(span ptrace.Span) bool {
+	forEachMatchingSpan(td, query, filter, func(span ptrace.Span) bool {
 		matched = true
 		latest = max(latest, span.StartTimestamp())
 		return true
@@ -368,7 +371,7 @@ func latestMatchingSpanStart(td ptrace.Traces, query tracestore.TraceQueryParams
 
 // forEachMatchingSpan calls visit on each span of the trace that matches the
 // query, stopping when visit returns false.
-func forEachMatchingSpan(td ptrace.Traces, query tracestore.TraceQueryParams, visit func(ptrace.Span) bool) {
+func forEachMatchingSpan(td ptrace.Traces, query tracestore.TraceQueryParams, filter preparedFilter, visit func(ptrace.Span) bool) {
 	for _, resourceSpan := range td.ResourceSpans().All() {
 		// query.ServiceName is always empty when query.Filter is set (the two are
 		// mutually exclusive, enforced before a Reader ever sees the query), so this
@@ -379,7 +382,7 @@ func forEachMatchingSpan(td ptrace.Traces, query tracestore.TraceQueryParams, vi
 		}
 		for _, scopeSpan := range resourceSpan.ScopeSpans().All() {
 			for _, span := range scopeSpan.Spans().All() {
-				if validSpan(resourceSpan.Resource(), scopeSpan.Scope(), span, query,
+				if validSpan(resourceSpan.Resource(), scopeSpan.Scope(), span, query, filter,
 					resourceSpan.SchemaUrl(), scopeSpan.SchemaUrl()) && !visit(span) {
 					return
 				}
@@ -394,7 +397,7 @@ func validResource(resource pcommon.Resource, query tracestore.TraceQueryParams)
 
 func validSpan(
 	resource pcommon.Resource, scope pcommon.InstrumentationScope, span ptrace.Span, query tracestore.TraceQueryParams,
-	resourceSchemaURL, scopeSchemaURL string,
+	filter preparedFilter, resourceSchemaURL, scopeSchemaURL string,
 ) bool {
 	if query.Filter != nil {
 		// The structured filter is a complete alternative to every predicate field
@@ -404,7 +407,7 @@ func validSpan(
 		// legacy path rather than adding to it. The time range stays a query-level
 		// bound on FindTraces regardless of which predicate model is in play.
 		return spanStartsWithin(span, query.StartTimeMin, query.StartTimeMax) &&
-			matchesFilter(query.Filter, resource, scope, span, resourceSchemaURL, scopeSchemaURL)
+			matchesFilter(filter, resource, scope, span, resourceSchemaURL, scopeSchemaURL)
 	}
 
 	resourceAttributes := resource.Attributes()
@@ -412,14 +415,10 @@ func validSpan(
 		return false
 	}
 
-	startTime := span.StartTimestamp().AsTime()
-	if !query.StartTimeMin.IsZero() && startTime.Before(query.StartTimeMin) {
+	if !spanStartsWithin(span, query.StartTimeMin, query.StartTimeMax) {
 		return false
 	}
-	if !query.StartTimeMax.IsZero() && startTime.After(query.StartTimeMax) {
-		return false
-	}
-	duration := span.EndTimestamp().AsTime().Sub(startTime)
+	duration := span.EndTimestamp().AsTime().Sub(span.StartTimestamp().AsTime())
 	if query.DurationMin != 0 && duration < query.DurationMin {
 		return false
 	}
