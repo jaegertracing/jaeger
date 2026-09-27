@@ -208,7 +208,7 @@ func readerStatus(err error) error {
 		return err
 	}
 	st := status.New(codes.InvalidArgument, err.Error())
-	if detailed, err := st.WithDetails(&errdetails.ErrorInfo{Reason: paginationInvalidReason, Domain: "jaeger.storage.v2"}); err == nil {
+	if detailed, detailErr := st.WithDetails(&errdetails.ErrorInfo{Reason: paginationInvalidReason, Domain: "jaeger.storage.v2"}); detailErr == nil {
 		st = detailed
 	}
 	return st.Err()

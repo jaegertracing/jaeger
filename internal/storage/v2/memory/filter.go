@@ -721,8 +721,22 @@ func errorVirtualAttribute(span ptrace.Span) []evalValue {
 }
 
 func resolveAttributeRef(ref expression.AttributeRef, ctx filterCtx) []evalValue {
-	if ref.Key == errorAttribute && (ref.Level == "" || ref.Level == expression.LevelSpan) {
-		return errorVirtualAttribute(ctx.span)
+	if ref.Level == "" || ref.Level == expression.LevelSpan {
+		// The legacy predicate fields spell span kind, span status and the scope's name and
+		// version as attributes, and ToFilterShape carries them into a filter as attribute
+		// references unchanged, so the evaluator reads them off the span the way validSpan does.
+		switch ref.Key {
+		case errorAttribute:
+			return errorVirtualAttribute(ctx.span)
+		case "span.kind":
+			return resolveFieldRef(expression.FieldRef{Level: expression.LevelSpan, Name: expression.SpanFieldKind}, ctx)
+		case "span.status":
+			return resolveFieldRef(expression.FieldRef{Level: expression.LevelSpan, Name: expression.SpanFieldStatus}, ctx)
+		case "scope.name":
+			return resolveFieldRef(expression.FieldRef{Level: expression.LevelScope, Name: expression.ScopeFieldName}, ctx)
+		case "scope.version":
+			return resolveFieldRef(expression.FieldRef{Level: expression.LevelScope, Name: expression.ScopeFieldVersion}, ctx)
+		}
 	}
 	var maps []pcommon.Map
 	switch ref.Level {
@@ -953,9 +967,16 @@ func compareValues(a, b evalValue) int {
 			return 0
 		}
 	default:
-		// A double on one or both sides. An integral double within int64's
-		// range compares as an integer, so an int64 above 2^53 keeps its
-		// precision; any other double compares in floating point.
+		// A double on one or both sides. A double beyond int64's range is
+		// beyond every integer; an integral double within it compares as an
+		// integer, so an int64 above 2^53 keeps its precision; any other
+		// double compares in floating point.
+		if a.isInt && b.isNumber && (b.num >= 1<<63 || b.num < -(1<<63)) {
+			return -int(math.Copysign(1, b.num))
+		}
+		if b.isInt && a.isNumber && (a.num >= 1<<63 || a.num < -(1<<63)) {
+			return int(math.Copysign(1, a.num))
+		}
 		if a.isInt && isIntegral(b) {
 			return cmp.Compare(a.numInt, int64(b.num))
 		}

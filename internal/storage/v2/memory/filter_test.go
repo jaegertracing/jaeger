@@ -920,6 +920,25 @@ func TestMatchesFilter_TypedListMismatches(t *testing.T) {
 	assert.False(t, f.matches(call(expression.OpIn, status, &expression.List{Values: []string{"500"}, Type: "no-such-type"})))
 }
 
+// TestMatchesFilter_LegacySyntheticTags pins that the attribute names the legacy predicate
+// fields use for span kind, span status and the scope's name and version read the span's own
+// fields, as validSpan reads them, so a legacy query an interceptor turned into a filter still
+// matches on a backend that declares filter support.
+func TestMatchesFilter_LegacySyntheticTags(t *testing.T) {
+	f := newFilterFixture(t)
+	f.span.SetKind(ptrace.SpanKindServer)
+	f.span.Status().SetCode(ptrace.StatusCodeError)
+	for _, level := range []expression.Level{"", expression.LevelSpan} {
+		assert.True(t, f.matches(call(expression.OpEq, attrRef(level, "span.kind"), &expression.AnyValue{Value: "server"})))
+		assert.False(t, f.matches(call(expression.OpEq, attrRef(level, "span.kind"), &expression.AnyValue{Value: "client"})))
+		assert.True(t, f.matches(call(expression.OpEq, attrRef(level, "span.status"), &expression.AnyValue{Value: "error"})))
+		assert.True(t, f.matches(call(expression.OpEq, attrRef(level, "scope.name"), &expression.AnyValue{Value: "otelgrpc"})))
+		assert.True(t, f.matches(call(expression.OpEq, attrRef(level, "scope.version"), &expression.AnyValue{Value: "1.2.3"})))
+	}
+	assert.False(t, f.matches(call(expression.OpExists, attrRef(expression.LevelResource, "span.kind"))),
+		"only a span-level or unqualified reference is the legacy spelling")
+}
+
 // TestMatchesFilter_MixedNumericKinds pins RFC 0005 §5.4 for numbers: an untyped constant
 // compares with an attribute of either numeric type, while a typed int or double constant
 // matches only an attribute stored as that type, as a typed list already does.
@@ -947,5 +966,9 @@ func TestCompareValues_IntKeepsPrecisionAgainstIntegralDouble(t *testing.T) {
 	assert.Negative(t, compareValues(rounded, big))
 	assert.Equal(t, 0, compareValues(evalValue{isInt: true, numInt: 1 << 53}, rounded))
 	assert.Negative(t, compareValues(evalValue{isInt: true, numInt: 1}, evalValue{isNumber: true, num: 1.5}), "a fractional double compares in floating point")
-	assert.Negative(t, compareValues(evalValue{isInt: true, numInt: math.MaxInt64}, evalValue{isNumber: true, num: 1e19}), "a double beyond int64 compares in floating point")
+	assert.Negative(t, compareValues(evalValue{isInt: true, numInt: math.MaxInt64}, evalValue{isNumber: true, num: 1e19}), "a double beyond int64 is beyond every integer")
+	assert.Negative(t, compareValues(evalValue{isInt: true, numInt: math.MaxInt64}, evalValue{isNumber: true, num: 1 << 63}),
+		"2^63 rounds to the same float64 as MaxInt64, but is beyond it")
+	assert.Positive(t, compareValues(evalValue{isNumber: true, num: 1 << 63}, evalValue{isInt: true, numInt: math.MaxInt64}))
+	assert.Positive(t, compareValues(evalValue{isInt: true, numInt: math.MinInt64}, evalValue{isNumber: true, num: -1e19}))
 }

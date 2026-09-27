@@ -263,7 +263,7 @@ func TestFindSpans_InvalidFilterShapeReturnsError(t *testing.T) {
 	assert.True(t, sawError, "FindSpans must yield the shape error rather than an empty, error-free result")
 }
 
-func TestFindSpans_UnsupportedWithoutSpanSearchCapability(t *testing.T) {
+func TestSearchCapabilities_DeclareSpanSearchAndFilter(t *testing.T) {
 	store, err := NewStore(Configuration{MaxTraces: 10})
 	require.NoError(t, err)
 	caps, err := store.SearchCapabilities(context.Background())

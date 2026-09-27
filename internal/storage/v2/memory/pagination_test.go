@@ -144,28 +144,42 @@ func TestFindSpans_DuplicateSpansAreEachReturned(t *testing.T) {
 }
 
 // TestFindSpans_CursorPastEvictedCopiesResumesAtNextKey pins the cursor's behavior when the
-// copies it counted are gone: the store evicted the trace between pages, so the next page
+// copies it counted are gone: the store evicted that trace between pages, so the next page
 // resumes at the first key after the cursor's rather than skipping unrelated spans.
 func TestFindSpans_CursorPastEvictedCopiesResumesAtNextKey(t *testing.T) {
 	store, err := NewStore(Configuration{MaxTraces: 2})
 	require.NoError(t, err)
 	base := time.Date(2026, 3, 1, 12, 0, 0, 0, time.UTC)
-	writeTracesStartingAt(t, store, 2, base)
-	writeTracesStartingAt(t, store, 2, base) // stores every span a second time
+	writeSpan := func(id byte, start time.Time) {
+		td := ptrace.NewTraces()
+		rs := td.ResourceSpans().AppendEmpty()
+		rs.Resource().Attributes().PutStr("service.name", "svc")
+		span := rs.ScopeSpans().AppendEmpty().Spans().AppendEmpty()
+		span.SetTraceID(pcommon.TraceID{id})
+		span.SetSpanID(pcommon.SpanID{1})
+		span.SetStartTimestamp(pcommon.NewTimestampFromTime(start))
+		require.NoError(t, store.WriteTraces(context.Background(), td))
+	}
+	// The ring buffer evicts the trace written first, so the newest-starting trace is written
+	// first to be the one evicted. Each span is stored twice.
+	for range 2 {
+		writeSpan(2, base.Add(2*time.Minute))
+		writeSpan(1, base.Add(time.Minute))
+	}
 	query := tracestore.SpanQueryParams{Pagination: tracestore.Pagination{PageSize: 1}}
 
 	first, err := findSpansPage(t, store, query)
 	require.NoError(t, err)
-	require.Equal(t, 1, first.Results.SpanCount())
+	require.Equal(t, byte(2), first.Results.ResourceSpans().At(0).ScopeSpans().At(0).Spans().At(0).TraceID()[0])
 
-	// Two newer traces evict traces 1 and 2 from the two-trace ring buffer; they sort before the
-	// cursor, so they do not appear, and nothing with the cursor's key remains.
-	writeTracesStartingAt(t, store, 4, base.Add(time.Hour))
+	writeSpan(3, base.Add(-time.Hour)) // evicts trace 2, and sorts after everything
 	query.Pagination.PageToken = first.NextPageToken
 	second, err := findSpansPage(t, store, query)
 	require.NoError(t, err)
-	assert.Equal(t, 0, second.Results.SpanCount())
-	assert.Empty(t, second.NextPageToken)
+	require.Equal(t, 1, second.Results.SpanCount())
+	assert.Equal(t, byte(1), second.Results.ResourceSpans().At(0).ScopeSpans().At(0).Spans().At(0).TraceID()[0],
+		"the cursor's copies are gone, so the page resumes at the next key")
+	require.NotEmpty(t, second.NextPageToken)
 }
 
 func TestFindSpans_PageThatEndsExactlyCarriesNoToken(t *testing.T) {

@@ -603,26 +603,22 @@ func TestTraceReader_InvalidArgumentBecomesPaginationInvalid(t *testing.T) {
 	require.NoError(t, err)
 	unmarked := status.Error(codes.InvalidArgument, "filter is malformed")
 
-	for name, find := range map[string]func(*TraceReader) func(error) error{
-		"FindTraceIDs": func(reader *TraceReader) func(error) error {
-			return func(error) error {
-				_, err := jiter.CollectWithErrors(reader.FindTraceIDs(context.Background(), query))
-				return err
-			}
+	for name, find := range map[string]func(*TraceReader) error{
+		"FindTraceIDs": func(reader *TraceReader) error {
+			_, err := jiter.CollectWithErrors(reader.FindTraceIDs(context.Background(), query))
+			return err
 		},
-		"FindTraceSummaries": func(reader *TraceReader) func(error) error {
-			return func(error) error {
-				_, err := jiter.CollectWithErrors(reader.FindTraceSummaries(context.Background(), query))
-				return err
-			}
+		"FindTraceSummaries": func(reader *TraceReader) error {
+			_, err := jiter.CollectWithErrors(reader.FindTraceSummaries(context.Background(), query))
+			return err
 		},
 	} {
 		t.Run(name, func(t *testing.T) {
-			err := find(NewTraceReader(startTestServer(t, &testServer{err: marked.Err()})))(nil)
+			err := find(NewTraceReader(startTestServer(t, &testServer{err: marked.Err()})))
 			require.ErrorIs(t, err, tracestore.ErrPaginationInvalid)
 			require.ErrorContains(t, err, "page token does not match the query")
 
-			err = find(NewTraceReader(startTestServer(t, &testServer{err: unmarked})))(nil)
+			err = find(NewTraceReader(startTestServer(t, &testServer{err: unmarked})))
 			require.NotErrorIs(t, err, tracestore.ErrPaginationInvalid)
 			require.Equal(t, codes.InvalidArgument, status.Code(err))
 		})
