@@ -17,6 +17,7 @@ import (
 	"go.opentelemetry.io/collector/pdata/pcommon"
 	"go.opentelemetry.io/collector/pdata/ptrace"
 	"go.opentelemetry.io/collector/pdata/ptrace/ptraceotlp"
+	"google.golang.org/genproto/googleapis/rpc/errdetails"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -415,6 +416,50 @@ func TestHandler_FindTraceIDs(t *testing.T) {
 			require.Equal(t, test.nextPageToken, response.NextPageToken)
 		}
 	}
+}
+
+// TestHandler_PaginationInvalidBecomesInvalidArgument pins the wire mapping of a rejected page
+// token (RFC 0014 §6): the reader's ErrPaginationInvalid leaves the server as InvalidArgument
+// carrying the pagination reason, so a remote client can tell a bad token from any other
+// refusal and from a failing backend.
+func TestHandler_PaginationInvalidBecomesInvalidArgument(t *testing.T) {
+	readerErr := fmt.Errorf("%w: page token does not match the query", tracestore.ErrPaginationInvalid)
+	assertPaginationStatus := func(t *testing.T, err error) {
+		t.Helper()
+		st := status.Convert(err)
+		require.Equal(t, codes.InvalidArgument, st.Code())
+		assert.Contains(t, st.Message(), "page token does not match the query")
+		require.Len(t, st.Details(), 1)
+		info, ok := st.Details()[0].(*errdetails.ErrorInfo)
+		require.True(t, ok)
+		assert.Equal(t, paginationInvalidReason, info.GetReason())
+	}
+	t.Run("FindTraceIDs", func(t *testing.T) {
+		reader := new(tracestoremocks.Reader)
+		reader.On("FindTraceIDs", mock.Anything, mock.Anything).
+			Return(iter.Seq2[tracestore.PageChunk[[]tracestore.FoundTraceID], error](func(yield func(tracestore.PageChunk[[]tracestore.FoundTraceID], error) bool) {
+				yield(tracestore.PageChunk[[]tracestore.FoundTraceID]{}, readerErr)
+			})).Once()
+		handler := NewHandler(reader, new(tracestoremocks.Writer), new(depstoremocks.Reader))
+
+		_, err := handler.FindTraceIDs(context.Background(), &storage.FindTraceIDsRequest{
+			Query: &storage.TraceQueryParameters{},
+		})
+		assertPaginationStatus(t, err)
+	})
+	t.Run("FindTraceSummaries", func(t *testing.T) {
+		reader := new(tracestoremocks.Reader)
+		reader.On("FindTraceSummaries", mock.Anything, mock.Anything).
+			Return(iter.Seq2[tracestore.PageChunk[[]tracestore.TraceSummary], error](func(yield func(tracestore.PageChunk[[]tracestore.TraceSummary], error) bool) {
+				yield(tracestore.PageChunk[[]tracestore.TraceSummary]{}, readerErr)
+			})).Once()
+		handler := NewHandler(reader, new(tracestoremocks.Writer), new(depstoremocks.Reader))
+
+		err := handler.FindTraceSummaries(&storage.FindTraceSummariesRequest{
+			Query: &storage.TraceQueryParameters{},
+		}, &summaryStream{})
+		assertPaginationStatus(t, err)
+	})
 }
 
 func TestHandler_FindTraceIDsUsesFinalChunkNextPageToken(t *testing.T) {
