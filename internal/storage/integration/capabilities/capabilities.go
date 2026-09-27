@@ -10,6 +10,7 @@ const (
 	structuredFilterTest   = "FindTracesWithFilter"
 	paginationTest         = "Pagination"
 	traceIDPaginationTest  = "Pagination/TraceIDs"
+	spanPaginationTest     = "Pagination/Spans"
 	summaryPaginationTest  = "Pagination/TraceSummaries"
 
 	// The battery pairs these two: ordering an attribute is answered where the index carries the
@@ -74,6 +75,12 @@ func (c Capabilities) WithoutTraceIDPagination() Capabilities {
 	return c
 }
 
+// WithoutSpanPagination skips span pagination for readers that do not support FindSpans.
+func (c Capabilities) WithoutSpanPagination() Capabilities {
+	c.skipList = append(append([]string(nil), c.skipList...), spanPaginationTest)
+	return c
+}
+
 // WithoutTypedAttributeIndexing declares a deployment whose indices were created without the
 // typed-attribute mapping (RFC 0015), so that ordering an attribute is refused rather than answered.
 // It swaps which of the battery's two paired ordering cases runs. A suite that runs with the gate
@@ -106,6 +113,7 @@ func Memory() Capabilities {
 func GRPC() Capabilities {
 	return Capabilities{
 		skipList: []string{
+			spanPaginationTest,
 			summaryPaginationTest,
 			findTraceSummariesTest,
 			structuredFilterTest,

@@ -12,6 +12,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/collector/pdata/pcommon"
 
+	builder "github.com/jaegertracing/jaeger/internal/expression"
 	"github.com/jaegertracing/jaeger/internal/jptrace"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore"
 )
@@ -21,6 +22,7 @@ type paginationSearch func(context.Context, tracestore.TraceQueryParams) ([]pcom
 func (s *StorageIntegration) testPagination(t *testing.T) {
 	s.skipIfNeeded(t)
 	for name, search := range map[string]paginationSearch{
+		"Spans":          s.findPaginatedSpanTraceIDs,
 		"TraceIDs":       s.findPaginatedTraceIDs,
 		"TraceSummaries": s.findPaginatedSummaryIDs,
 	} {
@@ -29,6 +31,35 @@ func (s *StorageIntegration) testPagination(t *testing.T) {
 			s.assertPagination(t, search)
 		})
 	}
+}
+
+func (s *StorageIntegration) findPaginatedSpanTraceIDs(ctx context.Context, query tracestore.TraceQueryParams) ([]pcommon.TraceID, tracestore.PageToken, error) {
+	p := builder.Predicate{}
+	filter := p.Resource().Service.Eq(query.ServiceName)
+	if query.OperationName != "" {
+		filter = p.And(filter, p.Span().Name.Eq(query.OperationName))
+	}
+	var ids []pcommon.TraceID
+	var token tracestore.PageToken
+	for chunk, err := range s.TraceReader.FindSpans(ctx, tracestore.SpanQueryParams{
+		StartTimeMin: query.StartTimeMin,
+		StartTimeMax: query.StartTimeMax,
+		Filter:       filter,
+		Pagination:   *query.Pagination,
+	}) {
+		if err != nil {
+			return ids, token, err
+		}
+		for _, rs := range chunk.Results.ResourceSpans().All() {
+			for _, ss := range rs.ScopeSpans().All() {
+				for _, span := range ss.Spans().All() {
+					ids = append(ids, span.TraceID())
+				}
+			}
+		}
+		token = chunk.NextPageToken
+	}
+	return ids, token, nil
 }
 
 func (s *StorageIntegration) findPaginatedTraceIDs(ctx context.Context, query tracestore.TraceQueryParams) ([]pcommon.TraceID, tracestore.PageToken, error) {

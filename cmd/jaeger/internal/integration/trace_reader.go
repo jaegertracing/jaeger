@@ -35,9 +35,6 @@ var (
 
 // traceReader retrieves trace data from the jaeger-v2 query service through the api_v2.QueryServiceClient.
 type traceReader struct {
-	// SpanSearch is unsupported for now.
-	tracestore.UnsupportedSpanSearch
-
 	logger     *zap.Logger
 	clientConn *grpc.ClientConn
 	client     api_v3.QueryServiceClient
@@ -180,6 +177,50 @@ func (*traceReader) FindTraceIDs(
 	_ tracestore.TraceQueryParams,
 ) iter.Seq2[tracestore.PageChunk[[]tracestore.FoundTraceID], error] {
 	panic("not implemented")
+}
+
+func (r *traceReader) FindSpans(ctx context.Context, query tracestore.SpanQueryParams) iter.Seq2[tracestore.PageChunk[ptrace.Traces], error] {
+	return func(yield func(tracestore.PageChunk[ptrace.Traces], error) bool) {
+		if query.Pagination.PageSize < 0 || query.Pagination.PageSize > math.MaxUint32 {
+			yield(tracestore.PageChunk[ptrace.Traces]{}, fmt.Errorf("PageSize must be in [0, %d]", math.MaxUint32))
+			return
+		}
+		filter, err := expressionproto.ToProto(query.Filter)
+		if err != nil {
+			yield(tracestore.PageChunk[ptrace.Traces]{}, err)
+			return
+		}
+		stream, err := r.client.FindSpans(ctx, &api_v3.FindSpansRequest{Query: &api_v3.SpanQueryParameters{
+			StartTimeMin: query.StartTimeMin,
+			StartTimeMax: query.StartTimeMax,
+			Filter:       filter,
+			Pagination: &api_v3.Pagination{
+				PageSize:  uint32(query.Pagination.PageSize),
+				PageToken: string(query.Pagination.PageToken),
+			},
+		}})
+		if err != nil {
+			yield(tracestore.PageChunk[ptrace.Traces]{}, err)
+			return
+		}
+		for {
+			response, err := stream.Recv()
+			if errors.Is(err, io.EOF) {
+				return
+			}
+			if err != nil {
+				yield(tracestore.PageChunk[ptrace.Traces]{}, err)
+				return
+			}
+			spans := ptrace.NewTraces()
+			if response.Spans != nil {
+				spans = response.Spans.ToTraces()
+			}
+			if !yield(tracestore.PageChunk[ptrace.Traces]{Results: spans, NextPageToken: tracestore.PageToken(response.NextPageToken)}, nil) {
+				return
+			}
+		}
+	}
 }
 
 func (r *traceReader) FindTraceSummaries(
