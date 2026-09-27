@@ -9,10 +9,16 @@ import (
 	"github.com/jaegertracing/jaeger/internal/storage/v2/elasticsearch/tracestore/core/dbmodel"
 )
 
+// TraceIDPage is a page of trace IDs and an optional next page token (RFC 0014 M3).
+type TraceIDPage struct {
+	TraceIDs      []dbmodel.TraceID
+	NextPageToken string
+}
+
 // Reader is a DB-Level abstraction which directly deals with database level operations
 type Reader interface {
 	// FindTraceIDs retrieves traces IDs that match the traceQuery
-	FindTraceIDs(ctx context.Context, traceQuery dbmodel.TraceQueryParameters) ([]dbmodel.TraceID, error)
+	FindTraceIDs(ctx context.Context, traceQuery dbmodel.TraceQueryParameters) (TraceIDPage, error)
 	// FindTraces retrieves traces that match the traceQuery
 	FindTraces(ctx context.Context, traceQuery dbmodel.TraceQueryParameters) ([]dbmodel.Trace, error)
 	// GetOperations returns all operations for a specific service traced by Jaeger

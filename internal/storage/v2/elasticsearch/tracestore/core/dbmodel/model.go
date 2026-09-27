@@ -175,4 +175,6 @@ type TraceQueryParameters struct {
 	// reader lowers into the Elasticsearch query and a second encoding of it would earn
 	// nothing.
 	Filter *expression.Call
+	// PageToken is the opaque cursor for resuming search result traversals (RFC 0014 M3).
+	PageToken string
 }

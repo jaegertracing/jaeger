@@ -36,6 +36,7 @@ func TestTraceReader_SearchCapabilities(t *testing.T) {
 	assert.Equal(t, tracestore.SearchCapabilities{
 		WithoutServiceName:  true,
 		SameSpanConjunction: true,
+		Paginated:           true,
 		Filter:              &filter,
 	}, caps)
 }
@@ -198,7 +199,7 @@ func TestTraceReader_FindTraceIDs(t *testing.T) {
 	for _, dbTraceID := range dbTraceIDs {
 		expected = append(expected, fromDBTraceId(t, dbTraceID))
 	}
-	coreReader.On("FindTraceIDs", mock.Anything, mock.Anything).Return(dbTraceIDs, nil)
+	coreReader.On("FindTraceIDs", mock.Anything, mock.Anything).Return(core.TraceIDPage{TraceIDs: dbTraceIDs}, nil)
 	for chunk, err := range reader.FindTraceIDs(context.Background(), tracestore.TraceQueryParams{
 		Attributes: pcommon.NewMap(),
 	}) {
@@ -252,7 +253,7 @@ func TestTraceReader_FindTraceIDs_Error(t *testing.T) {
 				DurationMax:   1 * time.Hour,
 				SearchDepth:   10,
 			}
-			coreReader.On("FindTraceIDs", mock.Anything, dbTraceQueryParams).Return(test.traceIdsFromCoreReader, test.errFromCoreReader)
+			coreReader.On("FindTraceIDs", mock.Anything, dbTraceQueryParams).Return(core.TraceIDPage{TraceIDs: test.traceIdsFromCoreReader}, test.errFromCoreReader)
 			reader := TraceReader{spanReader: coreReader}
 			for chunk, err := range reader.FindTraceIDs(context.Background(), traceQueryParams) {
 				require.ErrorContains(t, err, test.expectedErr)
@@ -281,7 +282,7 @@ func TestTraceReader_FindTraceIDs_Filter(t *testing.T) {
 		StartTimeMin: ts,
 		StartTimeMax: ts.Add(time.Hour),
 		Filter:       filter,
-	}).Return([]dbmodel.TraceID{}, nil)
+	}).Return(core.TraceIDPage{TraceIDs: []dbmodel.TraceID{}}, nil)
 	reader := TraceReader{spanReader: coreReader}
 	for _, err := range reader.FindTraceIDs(context.Background(), tracestore.TraceQueryParams{
 		Attributes:   pcommon.NewMap(),

@@ -10,25 +10,8 @@
     ]
   },
   "body": {
-    "aggregations": {
-      "traceIDs": {
-        "aggregations": {
-          "startTime": {
-            "max": {
-              "field": "startTime"
-            }
-          }
-        },
-        "terms": {
-          "field": "traceID",
-          "order": [
-            {
-              "startTime": "desc"
-            }
-          ],
-          "size": 20
-        }
-      }
+    "collapse": {
+      "field": "traceID"
     },
     "query": {
       "bool": {
@@ -174,6 +157,18 @@
         ]
       }
     },
-    "size": 0
+    "size": 20,
+    "sort": [
+      {
+        "startTime": {
+          "order": "desc"
+        }
+      },
+      {
+        "traceID": {
+          "order": "asc"
+        }
+      }
+    ]
   }
 }
