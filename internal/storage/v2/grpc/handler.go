@@ -322,7 +322,7 @@ func (h *Handler) GetCapabilities(
 // are InvalidArgument. It does not validate Pagination or consult the reader's capabilities:
 // converting a query toward what the reader supports is the query service's job (ADR-013).
 func (*Handler) toTraceQueryParams(t *storage.TraceQueryParameters) (tracestore.TraceQueryParams, error) {
-	filter, err := expressionproto.FromProto(t.GetFilter())
+	filter, err := expressionproto.CallFromProto(t.GetFilter())
 	if err == nil && filter != nil {
 		filter, err = tracestore.FinalizeFilter(filter)
 	}

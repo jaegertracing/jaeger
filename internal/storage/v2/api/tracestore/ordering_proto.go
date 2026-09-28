@@ -20,7 +20,7 @@ func SpanOrderFromProto[T interface {
 	}
 	order := make([]SpanSortOrder, len(terms))
 	for i, term := range terms {
-		expr, err := expressionproto.TermFromProto(term.GetExpression())
+		expr, err := expressionproto.FromProto(term.GetExpression())
 		if err != nil {
 			return nil, fmt.Errorf("cannot decode order_by[%d]: %w", i, err)
 		}

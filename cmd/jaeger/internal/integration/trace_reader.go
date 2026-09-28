@@ -144,7 +144,7 @@ func toProtoQuery(query tracestore.TraceQueryParams) (*api_v3.TraceQueryParamete
 		}
 	}
 	if query.Filter != nil {
-		filter, err := expressionproto.ToProto(query.Filter)
+		filter, err := expressionproto.CallToProto(query.Filter)
 		if err != nil {
 			return nil, fmt.Errorf("cannot encode the query filter: %w", err)
 		}
@@ -178,7 +178,7 @@ func (*traceReader) FindTraceIDs(
 
 func (r *traceReader) FindSpans(ctx context.Context, query tracestore.SpanQueryParams) iter.Seq2[tracestore.PageChunk[ptrace.Traces], error] {
 	return func(yield func(tracestore.PageChunk[ptrace.Traces], error) bool) {
-		filter, err := expressionproto.ToProto(query.Filter)
+		filter, err := expressionproto.CallToProto(query.Filter)
 		if err != nil {
 			yield(tracestore.PageChunk[ptrace.Traces]{}, err)
 			return

@@ -146,7 +146,7 @@ func encodeCanonical(call *expression.Call) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	msg, err := exprproto.ToProto(canonical)
+	msg, err := exprproto.CallToProto(canonical)
 	if err != nil {
 		return nil, err
 	}
@@ -229,7 +229,7 @@ func canonicalize(call *expression.Call) (*expression.Call, error) {
 	keys := make([][]byte, len(out.Args))
 	for i, arg := range out.Args {
 		wrapped := &expression.Call{Args: []expression.Expression{arg}}
-		msg, err := exprproto.ToProto(wrapped)
+		msg, err := exprproto.CallToProto(wrapped)
 		if err != nil {
 			return nil, err
 		}

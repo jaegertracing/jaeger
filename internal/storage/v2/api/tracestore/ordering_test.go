@@ -122,7 +122,7 @@ func TestSpanOrderProto(t *testing.T) {
 		{Expression: &expression.IntValue{Value: 42}},
 		{Expression: &expression.Call{Op: "custom", Args: []expression.Expression{&expression.StringValue{Value: "a"}}}},
 	} {
-		encoded, err := expressionproto.TermToProto(term.Expression)
+		encoded, err := expressionproto.ToProto(term.Expression)
 		require.NoError(t, err)
 		wire := &api_v3.SpanSortOrder{Expression: encoded, Direction: string(term.Direction)}
 		got, err = SpanOrderFromProto([]*api_v3.SpanSortOrder{wire, wire})

@@ -104,7 +104,7 @@ func TestTraceReaderFindSpansPreservesPagination(t *testing.T) {
 	query := client.request.Query
 	assert.Equal(t, start, query.StartTimeMin)
 	assert.Equal(t, end, query.StartTimeMax)
-	decoded, err := expressionproto.FromProto(query.Filter)
+	decoded, err := expressionproto.CallFromProto(query.Filter)
 	require.NoError(t, err)
 	assert.Equal(t, filter, decoded)
 	require.NotNil(t, query.Pagination)

@@ -107,7 +107,7 @@ func traceQueryParams(query *api_v3.TraceQueryParameters) (querysvc.TraceQueryPa
 		DurationMax:   query.GetDurationMax(),
 	}
 	if protoFilter := query.GetFilter(); protoFilter != nil {
-		filter, err := expressionproto.FromProto(protoFilter)
+		filter, err := expressionproto.CallFromProto(protoFilter)
 		if err != nil {
 			return querysvc.TraceQueryParams{}, status.Error(codes.InvalidArgument, err.Error())
 		}
@@ -159,7 +159,7 @@ func spanQueryParams(query *api_v3.SpanQueryParameters) (querysvc.SpanQueryParam
 		StartTimeMax: query.GetStartTimeMax(),
 	}
 	if protoFilter := query.GetFilter(); protoFilter != nil {
-		filter, err := expressionproto.FromProto(protoFilter)
+		filter, err := expressionproto.CallFromProto(protoFilter)
 		if err != nil {
 			return querysvc.SpanQueryParams{}, status.Error(codes.InvalidArgument, err.Error())
 		}
