@@ -10,7 +10,8 @@ import (
 	expressionproto "github.com/jaegertracing/jaeger/internal/proto/expression/v1"
 )
 
-// SpanOrderFromProto decodes either API's sort terms and validates the shared ordering contract.
+// SpanOrderFromProto decodes API v3 or storage v2 SpanSortOrder messages and validates the shared
+// ordering contract. The type parameter lets both generated protobuf types use the same decoder.
 func SpanOrderFromProto[T interface {
 	GetExpression() *expressionproto.Expression
 	GetDirection() string
