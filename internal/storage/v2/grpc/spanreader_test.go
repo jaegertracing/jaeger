@@ -163,7 +163,6 @@ func TestSpanQueryConversion(t *testing.T) {
 		nil,
 		{OrderBy: []*storage.SpanSortOrder{nil}},
 		{Filter: &expressionproto.Call{Args: []*expressionproto.Expression{nil}}},
-		{Filter: &expressionproto.Call{Op: "bad"}},
 	} {
 		_, err := toSpanQueryParams(wire)
 		assert.Equal(t, codes.InvalidArgument, status.Code(err))
@@ -200,4 +199,30 @@ func TestSpanClientCannotStartStream(t *testing.T) {
 	reader := &TraceReader{client: failingSpanClient{}}
 	_, err := jiter.CollectWithErrors(reader.FindSpans(t.Context(), tracestore.SpanQueryParams{}))
 	assert.Equal(t, codes.Unavailable, status.Code(err))
+}
+
+func TestSpanQueryConversionDoesNotValidate(t *testing.T) {
+	query := tracestore.SpanQueryParams{
+		Filter:  &expression.Call{Op: "custom", Args: []expression.Expression{}},
+		OrderBy: []tracestore.SpanSortOrder{{Expression: &expression.AttributeRef{Level: expression.LevelSpan, Key: "priority"}, Direction: "custom"}},
+	}
+	wire, err := toProtoSpanQuery(query)
+	require.NoError(t, err)
+	got, err := toSpanQueryParams(wire)
+	require.NoError(t, err)
+	assert.Equal(t, query, got)
+}
+
+func TestSpanHandlerValidatesBeforeStorage(t *testing.T) {
+	for _, query := range []tracestore.SpanQueryParams{
+		{Filter: &expression.Call{Op: "bad"}},
+		{OrderBy: []tracestore.SpanSortOrder{{Expression: &expression.AttributeRef{Level: expression.LevelSpan, Key: "priority"}}}},
+	} {
+		wire, err := toProtoSpanQuery(query)
+		require.NoError(t, err)
+		reader := new(tracestoremocks.Reader)
+		err = NewHandler(reader, nil, nil).FindSpans(&storage.FindSpansRequest{Query: wire}, &spanStream{})
+		assert.Equal(t, codes.InvalidArgument, status.Code(err))
+		reader.AssertNotCalled(t, "FindSpans", mock.Anything, mock.Anything)
+	}
 }

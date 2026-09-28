@@ -72,10 +72,6 @@ func spanReaderError(err error) error {
 }
 
 func toProtoSpanQuery(params tracestore.SpanQueryParams) (*storage.SpanQueryParameters, error) {
-	order, err := tracestore.NormalizeSpanOrder(params.OrderBy)
-	if err != nil {
-		return nil, err
-	}
 	filter, err := expressionproto.ToProto(params.Filter)
 	if err != nil {
 		return nil, err
@@ -84,7 +80,7 @@ func toProtoSpanQuery(params tracestore.SpanQueryParams) (*storage.SpanQueryPara
 		StartTimeMin: params.StartTimeMin, StartTimeMax: params.StartTimeMax, Filter: filter,
 		Pagination: &storage.Pagination{PageSize: params.Pagination.PageSize, PageToken: string(params.Pagination.PageToken)},
 	}
-	for _, term := range order {
+	for _, term := range params.OrderBy {
 		encoded, err := expressionproto.TermToProto(term.Expression)
 		if err != nil {
 			return nil, err
@@ -103,9 +99,6 @@ func toSpanQueryParams(wire *storage.SpanQueryParameters) (tracestore.SpanQueryP
 		return tracestore.SpanQueryParams{}, status.Error(codes.InvalidArgument, err.Error())
 	}
 	filter, err := expressionproto.FromProto(wire.Filter)
-	if err == nil && filter != nil {
-		filter, err = tracestore.FinalizeFilter(filter)
-	}
 	if err != nil {
 		return tracestore.SpanQueryParams{}, status.Error(codes.InvalidArgument, err.Error())
 	}
@@ -119,6 +112,16 @@ func (h *Handler) FindSpans(req *storage.FindSpansRequest, srv storage.TraceRead
 	query, err := toSpanQueryParams(req.GetQuery())
 	if err != nil {
 		return err
+	}
+	if query.Filter != nil {
+		query.Filter, err = tracestore.FinalizeFilter(query.Filter)
+		if err != nil {
+			return status.Error(codes.InvalidArgument, err.Error())
+		}
+	}
+	query.OrderBy, err = tracestore.NormalizeSpanOrder(query.OrderBy)
+	if err != nil {
+		return readerStatus(err)
 	}
 	if len(query.OrderBy) > 0 {
 		caps, err := h.traceReader.SearchCapabilities(srv.Context())
