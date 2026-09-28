@@ -44,77 +44,82 @@ type filterCtx struct {
 	regexps map[*expression.Call]*regexp.Regexp
 }
 
-// evalValue is a resolved operand: a constant from the filter or a value read
-// off the span. Exactly one of isString, isInt, isNumber, isBool, isOpaque or
-// isUntyped is set, except that isUntyped is resolved away (into one of the
-// others) before compareValues or valueInList ever sees it — see
-// resolveComparable and coerceUntyped.
+// evalKind is the kind of value an evalValue holds. The order of the kinds is part of the
+// contract: a sorting key encodes the kind as its first byte, so spans without a value come
+// first, then booleans, integers, doubles and strings.
+type evalKind uint8
+
+const (
+	// kindNone is the zero value and means no value, as when an operand resolves to nothing.
+	kindNone evalKind = iota
+	kindBool
+	kindInt
+	kindDouble
+	kindString
+	// kindOpaque marks a present attribute (bytes, slice or map — the OTLP types a filter
+	// predicate has no scalar reading for) that resolveAttributeRef still has to report as
+	// present, since OpExists checks presence rather than comparability. It is never comparable:
+	// resolveComparable refuses any pair that includes one.
+	kindOpaque
+	// kindUntyped marks an AnyValue constant, which the caller wrote under no type constraint
+	// (RFC 0005 §5.4). Its str field holds the raw text as written; resolveComparable resolves
+	// that text against the paired operand's actual kind before a comparison runs, rather than
+	// treating it as a string, which is what made an untyped `"500"` fail to match a numeric or
+	// boolean attribute that happened to hold that value.
+	kindUntyped
+)
+
+// evalValue is a resolved operand: a constant from the filter or a value read off the span. The
+// kind says which payload field holds the value. A kindUntyped value is resolved into one of the
+// other kinds before compareValues or valueInList ever sees it — see resolveComparable and
+// coerceUntyped.
 //
-// isInt and isNumber are kept apart, rather than folded into one float64
-// field, because an integer read as float64 loses precision once it passes
-// 2^53: two adjacent current-era nanosecond timestamps, a millisecond apart
-// in wall-clock terms but one nanosecond apart in their stored int64, would
-// otherwise compare equal. isInt carries every exact integer — an IntValue
-// constant, a Duration or Timestamp constant resolved to nanoseconds, an
-// int-valued attribute, and every span/event time or duration field — at
-// full int64 precision. isNumber is only ever a DoubleValue constant or a
-// double-valued attribute, which are floating-point by nature and have no
-// exact form to preserve.
-//
-// isOpaque marks a present attribute (bytes, slice or map — the OTLP types a
-// filter predicate has no scalar reading for) that resolveAttributeRef still
-// has to report as present, since OpExists checks presence rather than
-// comparability. It is never comparable: resolveComparable refuses any pair
-// that includes one.
-//
-// isUntyped marks an AnyValue constant, which the caller wrote under no type
-// constraint (RFC 0005 §5.4). Its str field holds the raw text as written;
-// resolveComparable resolves that text against the paired operand's actual
-// kind before a comparison runs, rather than treating it as a string, which
-// is what made an untyped `"500"` fail to match a numeric or boolean
-// attribute that happened to hold that value.
+// kindInt and kindDouble are kept apart, rather than folded into one float64 field, because an
+// integer read as float64 loses precision once it passes 2^53: two adjacent current-era
+// nanosecond timestamps, a millisecond apart in wall-clock terms but one nanosecond apart in
+// their stored int64, would otherwise compare equal. kindInt carries every exact integer — an
+// IntValue constant, a Duration or Timestamp constant resolved to nanoseconds, an int-valued
+// attribute, and every span/event time or duration field — at full int64 precision. kindDouble
+// is only ever a DoubleValue constant or a double-valued attribute, which are floating-point by
+// nature and have no exact form to preserve.
 type evalValue struct {
-	isString  bool
-	isInt     bool
-	isNumber  bool
-	isBool    bool
-	isOpaque  bool
-	isUntyped bool
-	// isTyped marks an IntValue or DoubleValue constant. Its declared type is authoritative
+	kind evalKind
+	// typed marks an IntValue or DoubleValue constant. Its declared type is authoritative
 	// (RFC 0005 §5.4), so it matches only an attribute stored as that numeric type, while two
 	// attributes of different numeric types still compare with each other.
-	isTyped bool
+	typed   bool
 	str     string
 	numInt  int64
 	num     float64
 	boolean bool
 }
 
-// evalKind is the comparable shape a resolved evalValue has, once isUntyped
-// is resolved away. Two values compare only when they share a kind:
-// kindNumber covers both isInt and isNumber, since an int and a double are
-// still the same broad kind of thing to compare, unlike a string or a bool.
-type evalKind int
+func stringValue(s string) evalValue  { return evalValue{kind: kindString, str: s} }
+func intValue(n int64) evalValue      { return evalValue{kind: kindInt, numInt: n} }
+func doubleValue(f float64) evalValue { return evalValue{kind: kindDouble, num: f} }
+func boolValue(b bool) evalValue      { return evalValue{kind: kindBool, boolean: b} }
+func untypedValue(s string) evalValue { return evalValue{kind: kindUntyped, str: s} }
 
-const (
-	kindNone evalKind = iota
-	kindString
-	kindNumber
-	kindBool
-)
+// typed marks a numeric constant whose type the filter declared.
+func typed(v evalValue) evalValue {
+	v.typed = true
+	return v
+}
 
-func (v evalValue) kind() evalKind {
-	switch {
-	case v.isString:
-		return kindString
-	case v.isBool:
-		return kindBool
-	case v.isInt || v.isNumber:
-		return kindNumber
-	default:
-		// isOpaque, or isUntyped not yet resolved against anything.
-		return kindNone
+// isNumeric reports whether v is an integer or a double. The two compare with each other, since
+// an int and a double are still the same broad kind of thing to compare, unlike a string or a
+// bool.
+func (v evalValue) isNumeric() bool {
+	return v.kind == kindInt || v.kind == kindDouble
+}
+
+// comparableKinds reports whether two resolved values can be compared at all: both numeric, or
+// both strings, or both booleans. An opaque or still-untyped value compares with nothing.
+func comparableKinds(a, b evalValue) bool {
+	if a.isNumeric() && b.isNumeric() {
+		return true
 	}
+	return a.kind == b.kind && (a.kind == kindString || a.kind == kindBool)
 }
 
 // validateFilterShape checks a filter's shape once, before any span is evaluated against it: an
@@ -334,7 +339,7 @@ func anyPairMatches(left, right expression.Expression, ctx filterCtx, test func(
 // field, but an attribute's type is known only here, so a boolean pair is
 // refused here rather than ordered.
 func orderedPairMatches(left, right expression.Expression, ctx filterCtx, test func(c int) bool) bool {
-	return anyComparablePair(left, right, ctx, func(a, b evalValue) bool { return !a.isBool && test(compareValues(a, b)) })
+	return anyComparablePair(left, right, ctx, func(a, b evalValue) bool { return a.kind != kindBool && test(compareValues(a, b)) })
 }
 
 func anyComparablePair(left, right expression.Expression, ctx filterCtx, test func(a, b evalValue) bool) bool {
@@ -379,7 +384,7 @@ func leafPresentAndNoPairMatches(left, right expression.Expression, ctx filterCt
 }
 
 // resolveComparable prepares a pair of resolved operands for compareValues.
-// It resolves either side's isUntyped value (an AnyValue) against the
+// It resolves either side's untyped value (an AnyValue) against the
 // other's actual kind, and reports ok=false when the pair cannot be
 // meaningfully compared at all: one side is opaque, the untyped text does
 // not parse as the other side's kind, or, once resolved, the two sides are
@@ -393,31 +398,31 @@ func leafPresentAndNoPairMatches(left, right expression.Expression, ctx filterCt
 // check having already run, and this function is what actually enforces it
 // for that case.
 func resolveComparable(a, b evalValue) (resolvedA, resolvedB evalValue, ok bool) {
-	if a.isOpaque || b.isOpaque {
+	if a.kind == kindOpaque || b.kind == kindOpaque {
 		return evalValue{}, evalValue{}, false
 	}
-	if a.isUntyped {
+	if a.kind == kindUntyped {
 		resolved, ok := coerceUntyped(a, b)
 		if !ok {
 			return evalValue{}, evalValue{}, false
 		}
 		a = resolved
 	}
-	if b.isUntyped {
+	if b.kind == kindUntyped {
 		resolved, ok := coerceUntyped(b, a)
 		if !ok {
 			return evalValue{}, evalValue{}, false
 		}
 		b = resolved
 	}
-	if a.kind() == kindNone || a.kind() != b.kind() {
+	if !comparableKinds(a, b) {
 		return evalValue{}, evalValue{}, false
 	}
-	if (a.isTyped || b.isTyped) && a.isInt != b.isInt {
+	if (a.typed || b.typed) && a.kind != b.kind {
 		return evalValue{}, evalValue{}, false
 	}
 	// NaN is neither below, above nor equal to anything, so it cannot be compared at all.
-	if (a.isNumber && math.IsNaN(a.num)) || (b.isNumber && math.IsNaN(b.num)) {
+	if (a.kind == kindDouble && math.IsNaN(a.num)) || (b.kind == kindDouble && math.IsNaN(b.num)) {
 		return evalValue{}, evalValue{}, false
 	}
 	return a, b, true
@@ -429,38 +434,37 @@ func resolveComparable(a, b evalValue) (resolvedA, resolvedB evalValue, ok bool)
 // AnyValue) takes v.str as-is. It reports ok=false only when other calls for
 // a numeric or boolean reading and v.str cannot be read that way.
 func coerceUntyped(v, other evalValue) (evalValue, bool) {
-	switch other.kind() {
-	case kindBool:
+	switch {
+	case other.kind == kindBool:
 		b, err := strconv.ParseBool(v.str)
 		if err != nil {
 			return evalValue{}, false
 		}
-		return evalValue{isBool: true, boolean: b}, true
-	case kindNumber:
+		return boolValue(b), true
+	case other.isNumeric():
 		// The text takes the other side's numeric type, so that beside a double it is a
 		// double even when it is written without a fraction.
-		if other.isInt {
+		if other.kind == kindInt {
 			if n, err := strconv.ParseInt(v.str, 10, 64); err == nil {
-				return evalValue{isInt: true, numInt: n}, true
+				return intValue(n), true
 			}
 		}
 		f, err := strconv.ParseFloat(v.str, 64)
 		if err != nil {
 			return evalValue{}, false
 		}
-		return evalValue{isNumber: true, num: f}, true
+		return doubleValue(f), true
 	default:
-		// kindString, or kindNone (other is itself opaque — excluded by
-		// resolveComparable before this is called — or still untyped, in
-		// which case it resolves against v's own text next and the pair
-		// ends up compared as raw strings).
-		return evalValue{isString: true, str: v.str}, true
+		// A string, or an operand that is itself still untyped (a second AnyValue), in which
+		// case it resolves against v's own text next and the pair ends up compared as raw
+		// strings. An opaque other is excluded by resolveComparable before this is called.
+		return stringValue(v.str), true
 	}
 }
 
 // isIntegral reports whether v is a double that an int64 holds exactly.
 func isIntegral(v evalValue) bool {
-	return v.isNumber && v.num == math.Trunc(v.num) && v.num >= -(1<<63) && v.num < 1<<63
+	return v.kind == kindDouble && v.num == math.Trunc(v.num) && v.num >= -(1<<63) && v.num < 1<<63
 }
 
 func evalRegex(call *expression.Call, ctx filterCtx) bool {
@@ -470,7 +474,7 @@ func evalRegex(call *expression.Call, ctx filterCtx) bool {
 	}
 	re := ctx.regexps[call]
 	for _, v := range values {
-		if v.isString && re.MatchString(v.str) {
+		if v.kind == kindString && re.MatchString(v.str) {
 			return true
 		}
 	}
@@ -573,7 +577,7 @@ func valueInList(v evalValue, list *expression.List) bool {
 		// element is read against v exactly as an untyped scalar beside v is, and `in`
 		// matches whatever `eq` would.
 		for _, elem := range list.Values {
-			a, b, ok := resolveComparable(v, evalValue{isUntyped: true, str: elem})
+			a, b, ok := resolveComparable(v, untypedValue(elem))
 			if ok && compareValues(a, b) == 0 {
 				return true
 			}
@@ -582,9 +586,9 @@ func valueInList(v evalValue, list *expression.List) bool {
 	}
 	switch list.Type {
 	case expression.ValueTypeString:
-		return v.isString && slices.Contains(list.Values, v.str)
+		return v.kind == kindString && slices.Contains(list.Values, v.str)
 	case expression.ValueTypeInt:
-		if !v.isInt {
+		if v.kind != kindInt {
 			return false
 		}
 		for _, elem := range list.Values {
@@ -594,7 +598,7 @@ func valueInList(v evalValue, list *expression.List) bool {
 		}
 		return false
 	case expression.ValueTypeDouble:
-		if !v.isNumber {
+		if v.kind != kindDouble {
 			return false
 		}
 		for _, elem := range list.Values {
@@ -604,7 +608,7 @@ func valueInList(v evalValue, list *expression.List) bool {
 		}
 		return false
 	case expression.ValueTypeBool:
-		if !v.isBool {
+		if v.kind != kindBool {
 			return false
 		}
 		for _, elem := range list.Values {
@@ -665,19 +669,19 @@ func evalSome(collectionExpr, pred expression.Expression, ctx filterCtx) bool {
 func resolveOperand(expr expression.Expression, ctx filterCtx) []evalValue {
 	switch e := expr.(type) {
 	case *expression.StringValue:
-		return []evalValue{{isString: true, str: e.Value}}
+		return []evalValue{stringValue(e.Value)}
 	case *expression.IntValue:
-		return []evalValue{{isInt: true, isTyped: true, numInt: e.Value}}
+		return []evalValue{typed(intValue(e.Value))}
 	case *expression.DoubleValue:
-		return []evalValue{{isNumber: true, isTyped: true, num: e.Value}}
+		return []evalValue{typed(doubleValue(e.Value))}
 	case *expression.BoolValue:
-		return []evalValue{{isBool: true, boolean: e.Value}}
+		return []evalValue{boolValue(e.Value)}
 	case *expression.DurationValue:
-		return []evalValue{{isInt: true, numInt: e.Value.Nanoseconds()}}
+		return []evalValue{intValue(e.Value.Nanoseconds())}
 	case *expression.TimestampValue:
-		return []evalValue{{isInt: true, numInt: e.Value.UnixNano()}}
+		return []evalValue{intValue(e.Value.UnixNano())}
 	case *expression.AnyValue:
-		return []evalValue{{isUntyped: true, str: e.Value}}
+		return []evalValue{untypedValue(e.Value)}
 	case *expression.FieldRef:
 		return resolveFieldRef(*e, ctx)
 	case *expression.AttributeRef:
@@ -699,15 +703,15 @@ func resolveOperand(expr expression.Expression, ctx filterCtx) []evalValue {
 func attrToEvalValue(v pcommon.Value) evalValue {
 	switch v.Type() {
 	case pcommon.ValueTypeStr:
-		return evalValue{isString: true, str: v.Str()}
+		return stringValue(v.Str())
 	case pcommon.ValueTypeInt:
-		return evalValue{isInt: true, numInt: v.Int()}
+		return intValue(v.Int())
 	case pcommon.ValueTypeDouble:
-		return evalValue{isNumber: true, num: v.Double()}
+		return doubleValue(v.Double())
 	case pcommon.ValueTypeBool:
-		return evalValue{isBool: true, boolean: v.Bool()}
+		return boolValue(v.Bool())
 	default:
-		return evalValue{isOpaque: true}
+		return evalValue{kind: kindOpaque}
 	}
 }
 
@@ -722,7 +726,7 @@ func attrToEvalValue(v pcommon.Value) evalValue {
 // elasticsearch backend does, means exists (always true), ne, in and not_in all get the right
 // answer for free rather than each needing their own case.
 func errorVirtualAttribute(span ptrace.Span) []evalValue {
-	return []evalValue{{isBool: true, boolean: span.Status().Code() == ptrace.StatusCodeError}}
+	return []evalValue{boolValue(span.Status().Code() == ptrace.StatusCodeError)}
 }
 
 func resolveAttributeRef(ref expression.AttributeRef, ctx filterCtx) []evalValue {
@@ -822,22 +826,22 @@ func resolveFieldRef(ref expression.FieldRef, ctx filterCtx) []evalValue {
 func resolveSpanField(name string, span ptrace.Span) []evalValue {
 	switch name {
 	case expression.SpanFieldTraceID:
-		return []evalValue{{isString: true, str: span.TraceID().String()}}
+		return []evalValue{stringValue(span.TraceID().String())}
 	case expression.SpanFieldSpanID:
-		return []evalValue{{isString: true, str: span.SpanID().String()}}
+		return []evalValue{stringValue(span.SpanID().String())}
 	case expression.SpanFieldParentSpanID:
 		if span.ParentSpanID().IsEmpty() {
 			return nil
 		}
-		return []evalValue{{isString: true, str: span.ParentSpanID().String()}}
+		return []evalValue{stringValue(span.ParentSpanID().String())}
 	case expression.SpanFieldTraceState:
 		state := span.TraceState().AsRaw()
 		if state == "" {
 			return nil
 		}
-		return []evalValue{{isString: true, str: state}}
+		return []evalValue{stringValue(state)}
 	case expression.SpanFieldName:
-		return []evalValue{{isString: true, str: span.Name()}}
+		return []evalValue{stringValue(span.Name())}
 	case expression.SpanFieldKind:
 		// fromOTELSpanKind returns "" for an unspecified kind, which the legacy search
 		// uses to mean "no kind"; the filter vocabulary names it (expression.SpanKinds).
@@ -845,21 +849,21 @@ func resolveSpanField(name string, span ptrace.Span) []evalValue {
 		if kind == "" {
 			kind = expression.SpanKinds()[0]
 		}
-		return []evalValue{{isString: true, str: kind}}
+		return []evalValue{stringValue(kind)}
 	case expression.SpanFieldStartTime:
-		return []evalValue{{isInt: true, numInt: int64(span.StartTimestamp())}} //nolint:gosec // G115
+		return []evalValue{intValue(int64(span.StartTimestamp()))} //nolint:gosec // G115
 	case expression.SpanFieldEndTime:
-		return []evalValue{{isInt: true, numInt: int64(span.EndTimestamp())}} //nolint:gosec // G115
+		return []evalValue{intValue(int64(span.EndTimestamp()))} //nolint:gosec // G115
 	case expression.SpanFieldDuration:
 		dur := span.EndTimestamp().AsTime().Sub(span.StartTimestamp().AsTime())
-		return []evalValue{{isInt: true, numInt: dur.Nanoseconds()}}
+		return []evalValue{intValue(dur.Nanoseconds())}
 	case expression.SpanFieldStatus:
-		return []evalValue{{isString: true, str: statusToWord(span.Status().Code())}}
+		return []evalValue{stringValue(statusToWord(span.Status().Code()))}
 	case expression.SpanFieldStatusMessage:
 		if span.Status().Message() == "" {
 			return nil
 		}
-		return []evalValue{{isString: true, str: span.Status().Message()}}
+		return []evalValue{stringValue(span.Status().Message())}
 	default:
 		return nil
 	}
@@ -872,12 +876,12 @@ func resolveResourceField(name string, resource pcommon.Resource, schemaURL stri
 		if svc == "" {
 			return nil
 		}
-		return []evalValue{{isString: true, str: svc}}
+		return []evalValue{stringValue(svc)}
 	case expression.ResourceFieldSchemaURL:
 		if schemaURL == "" {
 			return nil
 		}
-		return []evalValue{{isString: true, str: schemaURL}}
+		return []evalValue{stringValue(schemaURL)}
 	default:
 		return nil
 	}
@@ -889,17 +893,17 @@ func resolveScopeField(name string, scope pcommon.InstrumentationScope, schemaUR
 		if scope.Name() == "" {
 			return nil
 		}
-		return []evalValue{{isString: true, str: scope.Name()}}
+		return []evalValue{stringValue(scope.Name())}
 	case expression.ScopeFieldVersion:
 		if scope.Version() == "" {
 			return nil
 		}
-		return []evalValue{{isString: true, str: scope.Version()}}
+		return []evalValue{stringValue(scope.Version())}
 	case expression.ScopeFieldSchemaURL:
 		if schemaURL == "" {
 			return nil
 		}
-		return []evalValue{{isString: true, str: schemaURL}}
+		return []evalValue{stringValue(schemaURL)}
 	default:
 		return nil
 	}
@@ -908,12 +912,12 @@ func resolveScopeField(name string, scope pcommon.InstrumentationScope, schemaUR
 func resolveEventField(name string, event ptrace.SpanEvent, span ptrace.Span) []evalValue {
 	switch name {
 	case expression.EventFieldName:
-		return []evalValue{{isString: true, str: event.Name()}}
+		return []evalValue{stringValue(event.Name())}
 	case expression.EventFieldTime:
-		return []evalValue{{isInt: true, numInt: int64(event.Timestamp())}} //nolint:gosec // G115
+		return []evalValue{intValue(int64(event.Timestamp()))} //nolint:gosec // G115
 	case expression.EventFieldTimeSinceStart:
 		offset := event.Timestamp().AsTime().Sub(span.StartTimestamp().AsTime())
-		return []evalValue{{isInt: true, numInt: offset.Nanoseconds()}}
+		return []evalValue{intValue(offset.Nanoseconds())}
 	default:
 		return nil
 	}
@@ -922,15 +926,15 @@ func resolveEventField(name string, event ptrace.SpanEvent, span ptrace.Span) []
 func resolveLinkField(name string, link ptrace.SpanLink) []evalValue {
 	switch name {
 	case expression.LinkFieldTraceID:
-		return []evalValue{{isString: true, str: link.TraceID().String()}}
+		return []evalValue{stringValue(link.TraceID().String())}
 	case expression.LinkFieldSpanID:
-		return []evalValue{{isString: true, str: link.SpanID().String()}}
+		return []evalValue{stringValue(link.SpanID().String())}
 	case expression.LinkFieldTraceState:
 		state := link.TraceState().AsRaw()
 		if state == "" {
 			return nil
 		}
-		return []evalValue{{isString: true, str: state}}
+		return []evalValue{stringValue(state)}
 	default:
 		return nil
 	}
@@ -947,15 +951,14 @@ func statusToWord(code ptrace.StatusCode) string {
 	}
 }
 
-// compareValues orders a and b. Every caller reaches it through
-// resolveComparable, which guarantees a.kind() == b.kind() and neither side
-// is opaque or still untyped — so the only case this itself has to split
-// beyond isInt/isInt is a mix of isInt and isNumber, both being kindNumber.
+// compareValues orders a and b. Every caller reaches it through resolveComparable, which
+// guarantees comparableKinds(a, b) and that neither side is opaque or still untyped, so the only
+// case this itself has to split beyond two integers is a mix of an integer and a double.
 func compareValues(a, b evalValue) int {
 	switch {
-	case a.isInt && b.isInt:
+	case a.kind == kindInt && b.kind == kindInt:
 		return cmp.Compare(a.numInt, b.numInt)
-	case a.isBool && b.isBool:
+	case a.kind == kindBool && b.kind == kindBool:
 		if a.boolean == b.boolean {
 			return 0
 		}
@@ -963,30 +966,30 @@ func compareValues(a, b evalValue) int {
 			return -1
 		}
 		return 1
-	case a.isString && b.isString:
+	case a.kind == kindString && b.kind == kindString:
 		return cmp.Compare(a.str, b.str)
 	default:
 		// A double on one or both sides. A double beyond int64's range is
 		// beyond every integer; an integral double within it compares as an
 		// integer, so an int64 above 2^53 keeps its precision; any other
 		// double compares in floating point.
-		if a.isInt && b.isNumber && (b.num >= 1<<63 || b.num < -(1<<63)) {
+		if a.kind == kindInt && b.kind == kindDouble && (b.num >= 1<<63 || b.num < -(1<<63)) {
 			return -int(math.Copysign(1, b.num))
 		}
-		if b.isInt && a.isNumber && (a.num >= 1<<63 || a.num < -(1<<63)) {
+		if b.kind == kindInt && a.kind == kindDouble && (a.num >= 1<<63 || a.num < -(1<<63)) {
 			return int(math.Copysign(1, a.num))
 		}
-		if a.isInt && isIntegral(b) {
+		if a.kind == kindInt && isIntegral(b) {
 			return cmp.Compare(a.numInt, int64(b.num))
 		}
-		if b.isInt && isIntegral(a) {
+		if b.kind == kindInt && isIntegral(a) {
 			return cmp.Compare(int64(a.num), b.numInt)
 		}
 		af, bf := a.num, b.num
-		if a.isInt {
+		if a.kind == kindInt {
 			af = float64(a.numInt)
 		}
-		if b.isInt {
+		if b.kind == kindInt {
 			bf = float64(b.numInt)
 		}
 		switch {
