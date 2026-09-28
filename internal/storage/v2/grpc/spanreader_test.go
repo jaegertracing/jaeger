@@ -81,7 +81,7 @@ func TestSpanRemoteRoundTrip(t *testing.T) {
 	}
 }
 
-func TestSpanRemoteRefusesUnsupportedOrdering(t *testing.T) {
+func TestSpanServerRefusesUnsupportedOrdering(t *testing.T) {
 	for _, caps := range []tracestore.SearchCapabilities{{}, {SpanSearch: true}, {SpanSorting: true}} {
 		reader := new(tracestoremocks.Reader)
 		reader.On("SearchCapabilities", mock.Anything).Return(caps, nil)
@@ -92,7 +92,7 @@ func TestSpanRemoteRefusesUnsupportedOrdering(t *testing.T) {
 	}
 	remote := NewTraceReader(startTestServer(t, &testServer{}))
 	_, err := jiter.CollectWithErrors(remote.FindSpans(t.Context(), tracestore.SpanQueryParams{OrderBy: spanOrder()}))
-	require.ErrorIs(t, err, tracestore.ErrSpanOrderInvalid)
+	require.ErrorIs(t, err, errors.ErrUnsupported)
 	_, err = jiter.CollectWithErrors(remote.FindSpans(t.Context(), tracestore.SpanQueryParams{}))
 	require.ErrorIs(t, err, errors.ErrUnsupported)
 }
@@ -225,4 +225,34 @@ func TestSpanHandlerValidatesBeforeStorage(t *testing.T) {
 		assert.Equal(t, codes.InvalidArgument, status.Code(err))
 		reader.AssertNotCalled(t, "FindSpans", mock.Anything, mock.Anything)
 	}
+}
+
+type spanProxyServer struct {
+	storage.UnimplementedTraceReaderServer
+	requests chan *storage.FindSpansRequest
+}
+
+func (s *spanProxyServer) FindSpans(req *storage.FindSpansRequest, stream storage.TraceReader_FindSpansServer) error {
+	s.requests <- req
+	return stream.Send(&storage.FindSpansResponse{NextPageToken: "next"})
+}
+
+func TestFindSpansProxiesWithoutCapabilities(t *testing.T) {
+	server := grpc.NewServer()
+	peer := &spanProxyServer{requests: make(chan *storage.FindSpansRequest, 1)}
+	storage.RegisterTraceReaderServer(server, peer)
+	listener, err := net.Listen("tcp", "127.0.0.1:0")
+	require.NoError(t, err)
+	reader := NewTraceReader(startServer(t, server, listener))
+	query := tracestore.SpanQueryParams{
+		OrderBy:    []tracestore.SpanSortOrder{{Expression: &expression.AttributeRef{Level: expression.LevelSpan, Key: "priority"}, Direction: "custom"}},
+		Pagination: tracestore.Pagination{PageSize: 2, PageToken: "current"},
+	}
+	chunks, err := jiter.CollectWithErrors(reader.FindSpans(t.Context(), query))
+	require.NoError(t, err)
+	require.Len(t, chunks, 1)
+	assert.Equal(t, tracestore.PageToken("next"), chunks[0].NextPageToken)
+	forwarded, err := toSpanQueryParams((<-peer.requests).Query)
+	require.NoError(t, err)
+	assert.Equal(t, query, forwarded)
 }

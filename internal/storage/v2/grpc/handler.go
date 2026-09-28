@@ -142,6 +142,63 @@ func (h *Handler) FindTraces(
 	return nil
 }
 
+func (h *Handler) FindSpans(req *storage.FindSpansRequest, srv storage.TraceReader_FindSpansServer) error {
+	query, err := toSpanQueryParams(req.GetQuery())
+	if err != nil {
+		return err
+	}
+	if query.Filter != nil {
+		query.Filter, err = tracestore.FinalizeFilter(query.Filter)
+		if err != nil {
+			return status.Error(codes.InvalidArgument, err.Error())
+		}
+	}
+	query.OrderBy, err = tracestore.NormalizeSpanOrder(query.OrderBy)
+	if err != nil {
+		return readerStatus(err)
+	}
+	if len(query.OrderBy) > 0 {
+		caps, err := h.traceReader.SearchCapabilities(srv.Context())
+		if err != nil && !errors.Is(err, errors.ErrUnsupported) {
+			return err
+		}
+		if err := caps.ValidateSpanSorting(query.OrderBy); err != nil {
+			return readerStatus(err)
+		}
+	}
+	for chunk, err := range h.traceReader.FindSpans(srv.Context(), query) {
+		if err != nil {
+			if errors.Is(err, errors.ErrUnsupported) {
+				return status.Error(codes.Unimplemented, err.Error())
+			}
+			return readerStatus(err)
+		}
+		data := jptrace.TracesData(chunk.Results)
+		if err := srv.Send(&storage.FindSpansResponse{Spans: &data, NextPageToken: string(chunk.NextPageToken)}); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func toSpanQueryParams(wire *storage.SpanQueryParameters) (tracestore.SpanQueryParams, error) {
+	if wire == nil {
+		return tracestore.SpanQueryParams{}, status.Error(codes.InvalidArgument, "missing query")
+	}
+	order, err := tracestore.SpanOrderFromProto(wire.OrderBy)
+	if err != nil {
+		return tracestore.SpanQueryParams{}, status.Error(codes.InvalidArgument, err.Error())
+	}
+	filter, err := expressionproto.CallFromProto(wire.Filter)
+	if err != nil {
+		return tracestore.SpanQueryParams{}, status.Error(codes.InvalidArgument, err.Error())
+	}
+	return tracestore.SpanQueryParams{
+		StartTimeMin: wire.StartTimeMin, StartTimeMax: wire.StartTimeMax, Filter: filter, OrderBy: order,
+		Pagination: tracestore.Pagination{PageSize: wire.GetPagination().GetPageSize(), PageToken: tracestore.PageToken(wire.GetPagination().GetPageToken())},
+	}, nil
+}
+
 func (h *Handler) FindTraceSummaries(
 	req *storage.FindTraceSummariesRequest,
 	srv storage.TraceReader_FindTraceSummariesServer,

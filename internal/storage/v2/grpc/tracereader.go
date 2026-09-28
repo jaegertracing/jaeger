@@ -214,6 +214,65 @@ func (tr *TraceReader) FindTraceIDs(
 	}
 }
 
+func (tr *TraceReader) FindSpans(ctx context.Context, params tracestore.SpanQueryParams) iter.Seq2[tracestore.PageChunk[ptrace.Traces], error] {
+	return func(yield func(tracestore.PageChunk[ptrace.Traces], error) bool) {
+		query, err := toProtoSpanQuery(params)
+		if err != nil {
+			yield(tracestore.PageChunk[ptrace.Traces]{}, err)
+			return
+		}
+		stream, err := tr.client.FindSpans(ctx, &storage.FindSpansRequest{Query: query})
+		if err != nil {
+			yield(tracestore.PageChunk[ptrace.Traces]{}, fmt.Errorf("failed to execute FindSpans: %w", spanReaderError(err)))
+			return
+		}
+		for {
+			resp, err := stream.Recv()
+			if errors.Is(err, io.EOF) {
+				return
+			}
+			if err != nil {
+				yield(tracestore.PageChunk[ptrace.Traces]{}, spanReaderError(err))
+				return
+			}
+			traces := ptrace.NewTraces()
+			if resp.Spans != nil {
+				traces = resp.Spans.ToTraces()
+			}
+			if !yield(tracestore.PageChunk[ptrace.Traces]{Results: traces, NextPageToken: tracestore.PageToken(resp.NextPageToken)}, nil) {
+				return
+			}
+		}
+	}
+}
+
+func spanReaderError(err error) error {
+	err = readerError(err)
+	if status.Code(err) == codes.Unimplemented {
+		return fmt.Errorf("FindSpans: %w", errors.ErrUnsupported)
+	}
+	return err
+}
+
+func toProtoSpanQuery(params tracestore.SpanQueryParams) (*storage.SpanQueryParameters, error) {
+	filter, err := expressionproto.CallToProto(params.Filter)
+	if err != nil {
+		return nil, err
+	}
+	query := &storage.SpanQueryParameters{
+		StartTimeMin: params.StartTimeMin, StartTimeMax: params.StartTimeMax, Filter: filter,
+		Pagination: &storage.Pagination{PageSize: params.Pagination.PageSize, PageToken: string(params.Pagination.PageToken)},
+	}
+	for _, term := range params.OrderBy {
+		encoded, err := expressionproto.ToProto(term.Expression)
+		if err != nil {
+			return nil, err
+		}
+		query.OrderBy = append(query.OrderBy, &storage.SpanSortOrder{Expression: encoded, Direction: string(term.Direction)})
+	}
+	return query, nil
+}
+
 func (tr *TraceReader) FindTraceSummaries(
 	ctx context.Context,
 	params tracestore.TraceQueryParams,
