@@ -14,8 +14,11 @@ import (
 
 // The ErrorInfo reasons that mark a reader refusal on a status. The status code carries only the
 // refusal's family (RefusalCode), and a gRPC server answers the same codes to other failures too,
-// so a client needs the reason, not the code, to restore the matching reader error.
+// so a client needs the reason, not the code, to restore the matching reader error. A refusal
+// that carries a reason names a problem with the query itself, as opposed to a bare
+// errors.ErrUnsupported, which says only that the reader lacks the method.
 const (
+	FilterUnsupportedReason    = "FILTER_UNSUPPORTED"
 	PaginationInvalidReason    = "PAGINATION_INVALID"
 	SpanOrderInvalidReason     = "ORDERING_INVALID"
 	SpanOrderUnsupportedReason = "ORDERING_UNSUPPORTED"
@@ -23,6 +26,7 @@ const (
 
 // reasonErrors pairs each reason with the reader error it names.
 var reasonErrors = map[string]error{
+	FilterUnsupportedReason:    ErrFilterUnsupported,
 	PaginationInvalidReason:    ErrPaginationInvalid,
 	SpanOrderInvalidReason:     ErrSpanOrderInvalid,
 	SpanOrderUnsupportedReason: ErrSpanOrderUnsupported,

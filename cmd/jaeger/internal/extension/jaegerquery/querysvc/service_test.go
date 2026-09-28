@@ -1220,6 +1220,22 @@ func TestFindTraceSummaries_NativeError(t *testing.T) {
 	errReader.AssertNotCalled(t, "FindTraces")
 }
 
+// TestFindTraceSummaries_CapabilityRefusalIsNotAFallback pins that a reader refusing the
+// query for a capability it lacks, which also matches errors.ErrUnsupported, reaches the
+// caller rather than triggering the FindTraces fallback that would only be refused again.
+func TestFindTraceSummaries_CapabilityRefusalIsNotAFallback(t *testing.T) {
+	refusingReader := &mockSummaryReader{
+		err: fmt.Errorf("%w: level scope", tracestore.ErrFilterUnsupported),
+	}
+	declaresSearchWithoutServiceName(&refusingReader.Reader, true)
+	depsMock := initializeTestService().depsReader
+	qs := NewQueryService(refusingReader, depsMock, QueryServiceOptions{})
+
+	_, err := flattenPageChunks(qs.FindTraceSummaries(context.Background(), filterQuery(nil)))
+	require.ErrorIs(t, err, tracestore.ErrFilterUnsupported)
+	refusingReader.AssertNotCalled(t, "FindTraces")
+}
+
 // TestFindTraceSummaries_ErrUnsupported verifies that when FindTraceSummaries yields
 // errors.ErrUnsupported as the first error, QueryService transparently falls back
 // to FindTraces + computeSummaries rather than propagating the error to the caller.

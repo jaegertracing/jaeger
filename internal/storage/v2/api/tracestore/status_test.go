@@ -23,6 +23,7 @@ func TestRefusalStatus_RoundTrip(t *testing.T) {
 		reason string
 		code   codes.Code
 	}{
+		{err: ErrFilterUnsupported, reason: FilterUnsupportedReason, code: codes.Unimplemented},
 		{err: ErrPaginationInvalid, reason: PaginationInvalidReason, code: codes.InvalidArgument},
 		{err: ErrSpanOrderInvalid, reason: SpanOrderInvalidReason, code: codes.InvalidArgument},
 		{err: ErrSpanOrderUnsupported, reason: SpanOrderUnsupportedReason, code: codes.Unimplemented},
@@ -59,7 +60,6 @@ func TestRefusalStatus_PassesOtherErrorsThrough(t *testing.T) {
 func TestRefusalStatus_UnsupportedWithoutReason(t *testing.T) {
 	for _, err := range []error{
 		fmt.Errorf("bare reader: %w", errors.ErrUnsupported),
-		ErrFilterUnsupported,
 		ErrPaginationUnsupported,
 	} {
 		st := status.Convert(RefusalStatus(err, testDomain))

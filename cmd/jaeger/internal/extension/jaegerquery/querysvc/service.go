@@ -449,7 +449,10 @@ func (qs QueryService) checkServiceName(ctx context.Context, query tracestore.Tr
 // of lightweight summary information. It calls the trace reader's FindTraceSummaries;
 // readers that cannot compute summaries natively yield errors.ErrUnsupported (wrapped
 // with %w) as the first error, in which case FindTraceSummaries transparently falls
-// back to FindTraces and computes summaries from the full trace data.
+// back to FindTraces and computes summaries from the full trace data. A refusal that
+// carries a tracestore.ErrorReason also matches errors.ErrUnsupported when the backend
+// lacks a capability the query needs, but it names a problem with the query, which the
+// fallback would only hit again, so it is returned to the caller instead.
 //
 // The iterator is single-use: once consumed, it cannot be used again.
 func (qs QueryService) FindTraceSummaries(
@@ -464,7 +467,7 @@ func (qs QueryService) FindTraceSummaries(
 		}
 		for chunk, err := range qs.traceReader.FindTraceSummaries(ctx, readerQuery) {
 			if err != nil {
-				if errors.Is(err, errors.ErrUnsupported) {
+				if errors.Is(err, errors.ErrUnsupported) && tracestore.ErrorReason(err) == "" {
 					if readerQuery.Pagination != nil {
 						qs.summarizeTraceIDPages(ctx, readerQuery, yield)
 						return

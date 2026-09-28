@@ -1144,8 +1144,14 @@ func TestAsStatusError(t *testing.T) {
 			wantCode: codes.Unimplemented,
 		},
 		{
-			name:     "filter the backend cannot evaluate maps to Unimplemented",
-			err:      fmt.Errorf("%w: level scope", tracestore.ErrFilterUnsupported),
+			name:       "filter the backend cannot evaluate is Unimplemented and retains its reason",
+			err:        fmt.Errorf("%w: level scope", tracestore.ErrFilterUnsupported),
+			wantCode:   codes.Unimplemented,
+			wantReason: tracestore.FilterUnsupportedReason,
+		},
+		{
+			name:     "filter gate off maps to Unimplemented",
+			err:      fmt.Errorf("%w: enable the gate", querysvc.ErrFilterDisabled),
 			wantCode: codes.Unimplemented,
 		},
 		{

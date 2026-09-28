@@ -1143,7 +1143,7 @@ func TestTraceReader_FindSpans_Unimplemented(t *testing.T) {
 }
 
 func TestSpanRemoteErrors(t *testing.T) {
-	for _, backendErr := range []error{errors.ErrUnsupported, tracestore.ErrPaginationInvalid, tracestore.ErrSpanOrderInvalid, tracestore.ErrSpanOrderUnsupported, status.Error(codes.Internal, "broken")} {
+	for _, backendErr := range []error{errors.ErrUnsupported, tracestore.ErrFilterUnsupported, tracestore.ErrPaginationInvalid, tracestore.ErrSpanOrderInvalid, tracestore.ErrSpanOrderUnsupported, status.Error(codes.Internal, "broken")} {
 		reader := new(tracestoremocks.Reader)
 		reader.On("FindSpans", mock.Anything, mock.Anything).Return(spanSequence(nil, backendErr))
 		_, err := jiter.CollectWithErrors(spanRemote(t, reader).FindSpans(t.Context(), tracestore.SpanQueryParams{}))
@@ -1161,11 +1161,11 @@ func TestSpanRemoteErrors(t *testing.T) {
 // with the server's message, so the caller reads it as a missing capability, not a bad request.
 func TestSpanRemoteErrors_CapabilityWithoutReason(t *testing.T) {
 	reader := new(tracestoremocks.Reader)
-	reader.On("FindSpans", mock.Anything, mock.Anything).Return(spanSequence(nil, tracestore.ErrFilterUnsupported))
+	reader.On("FindSpans", mock.Anything, mock.Anything).Return(spanSequence(nil, tracestore.ErrPaginationUnsupported))
 	_, err := jiter.CollectWithErrors(spanRemote(t, reader).FindSpans(t.Context(), tracestore.SpanQueryParams{}))
 	require.ErrorIs(t, err, errors.ErrUnsupported)
 	require.NotErrorIs(t, err, tracestore.ErrSpanOrderUnsupported)
-	assert.ErrorContains(t, err, "cannot serve this query filter")
+	assert.ErrorContains(t, err, "cannot resume a paginated search")
 }
 
 func TestSpanQueryConversion(t *testing.T) {
@@ -1281,6 +1281,7 @@ func TestReaderErrorDetails(t *testing.T) {
 		reason string
 		code   codes.Code
 	}{
+		{tracestore.ErrFilterUnsupported, "FILTER_UNSUPPORTED", codes.Unimplemented},
 		{tracestore.ErrSpanOrderInvalid, "ORDERING_INVALID", codes.InvalidArgument},
 		{tracestore.ErrSpanOrderUnsupported, "ORDERING_UNSUPPORTED", codes.Unimplemented},
 		{tracestore.ErrPaginationInvalid, "PAGINATION_INVALID", codes.InvalidArgument},
