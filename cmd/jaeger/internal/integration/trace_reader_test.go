@@ -17,6 +17,7 @@ import (
 	"go.uber.org/zap"
 	"google.golang.org/grpc"
 
+	expression "github.com/jaegertracing/jaeger-idl/query/expression/v1"
 	builder "github.com/jaegertracing/jaeger/internal/expression"
 	"github.com/jaegertracing/jaeger/internal/jptrace"
 	"github.com/jaegertracing/jaeger/internal/proto/api_v3"
@@ -92,16 +93,21 @@ func TestTraceReaderFindSpansPreservesPagination(t *testing.T) {
 	filter := (builder.Predicate{}).Resource().Service.Eq("service-a")
 	start := time.Now().Add(-time.Hour)
 	end := start.Add(time.Minute)
+	order := []tracestore.SpanSortOrder{{Expression: &expression.FieldRef{Level: expression.LevelSpan, Name: "duration"}, Direction: tracestore.SortDescending}}
 	var chunks []tracestore.PageChunk[ptrace.Traces]
 	for chunk, err := range reader.FindSpans(context.Background(), tracestore.SpanQueryParams{
 		StartTimeMin: start, StartTimeMax: end, Filter: filter,
 		Pagination: tracestore.Pagination{PageSize: 2, PageToken: "current-page"},
+		OrderBy:    order,
 	}) {
 		require.NoError(t, err)
 		chunks = append(chunks, chunk)
 	}
 	require.NotNil(t, client.request)
 	query := client.request.Query
+	decodedOrder, err := tracestore.SpanOrderFromProto(query.OrderBy)
+	require.NoError(t, err)
+	assert.Equal(t, order, decodedOrder)
 	assert.Equal(t, start, query.StartTimeMin)
 	assert.Equal(t, end, query.StartTimeMax)
 	decoded, err := expressionproto.CallFromProto(query.Filter)

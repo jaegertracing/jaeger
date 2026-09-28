@@ -9,6 +9,7 @@ const (
 	findTraceSummariesTest = "FindTraceSummaries"
 	structuredFilterTest   = "FindTracesWithFilter"
 	paginationTest         = "Pagination"
+	spanOrderingTest       = "SpanOrdering"
 	traceIDPaginationTest  = "Pagination/TraceIDs"
 	spanPaginationTest     = "Pagination/Spans"
 	summaryPaginationTest  = "Pagination/TraceSummaries"
@@ -77,7 +78,13 @@ func (c Capabilities) WithoutTraceIDPagination() Capabilities {
 
 // WithoutSpanSearch skips span-search assertions for readers that do not implement FindSpans.
 func (c Capabilities) WithoutSpanSearch() Capabilities {
-	c.skipList = append(append([]string(nil), c.skipList...), spanPaginationTest)
+	c.skipList = append(append([]string(nil), c.skipList...), spanPaginationTest, spanOrderingTest)
+	return c
+}
+
+// WithoutSpanSorting excuses readers that cannot execute caller-selected span ordering.
+func (c Capabilities) WithoutSpanSorting() Capabilities {
+	c.skipList = append(append([]string(nil), c.skipList...), spanOrderingTest)
 	return c
 }
 
@@ -113,7 +120,6 @@ func Memory() Capabilities {
 func GRPC() Capabilities {
 	return Capabilities{
 		skipList: []string{
-			spanPaginationTest,
 			summaryPaginationTest,
 			findTraceSummariesTest,
 			structuredFilterTest,
@@ -127,6 +133,7 @@ func Cassandra() Capabilities {
 		searchRequiresServiceName:    true,
 		getDependenciesMissingSource: true,
 		skipList: []string{
+			spanOrderingTest,
 			paginationTest,
 			"Tags_+_Operation_name_+_Duration_range",
 			"Tags_+_Duration_range",
@@ -146,6 +153,7 @@ func Cassandra() Capabilities {
 func ClickHouse() Capabilities {
 	return Capabilities{
 		skipList: []string{
+			spanOrderingTest,
 			paginationTest,
 			"GetThroughput",
 			"GetLatestProbability",
@@ -162,6 +170,7 @@ func Badger() Capabilities {
 		// TODO: remove this once Badger supports returning spanKind from GetOperations
 		getOperationsMissingSpanKind: true,
 		skipList: []string{
+			spanOrderingTest,
 			paginationTest,
 			scopeAttributesTest,
 			linkAttributesTest,
@@ -181,6 +190,7 @@ func Elasticsearch() Capabilities {
 		// indexed as a number beside the keyword and ordering one is answered rather than refused.
 		// That makes the battery's paired refusal case the one to skip.
 		skipList: []string{
+			spanOrderingTest,
 			paginationTest,
 			scopeAttributesTest,
 			linkAttributesTest,
@@ -195,6 +205,7 @@ func ElasticsearchSmokeTest() Capabilities {
 	return Capabilities{
 		getOperationsMissingSpanKind: true,
 		skipList: []string{
+			spanOrderingTest,
 			paginationTest,
 			scopeAttributesTest,
 			linkAttributesTest,
@@ -211,6 +222,7 @@ func OpenSearch() Capabilities {
 		getOperationsMissingSpanKind: true,
 		// Same mapping and same gate as Elasticsearch; see the note there.
 		skipList: []string{
+			spanOrderingTest,
 			paginationTest,
 			scopeAttributesTest,
 			linkAttributesTest,
@@ -225,6 +237,7 @@ func Kafka() Capabilities {
 		searchRequiresServiceName:    true,
 		getDependenciesMissingSource: true,
 		skipList: []string{
+			spanOrderingTest,
 			scopeAttributesTest,
 			linkAttributesTest,
 			findTraceSummariesTest,
