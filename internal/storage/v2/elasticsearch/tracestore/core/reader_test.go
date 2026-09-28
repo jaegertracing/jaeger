@@ -105,14 +105,6 @@ func tracerProvider(t *testing.T) (trace.TracerProvider, *tracetest.InMemoryExpo
 	return tp, exporter, closer
 }
 
-func traceParamsOf(traceIDs ...dbmodel.TraceID) []dbmodel.GetTraceParams {
-	params := make([]dbmodel.GetTraceParams, len(traceIDs))
-	for i, traceID := range traceIDs {
-		params[i] = dbmodel.GetTraceParams{TraceID: traceID}
-	}
-	return params
-}
-
 func withSpanReader(t *testing.T, fn func(r *spanReaderTest)) {
 	searcher := esclientmocks.NewSearcher(t)
 	tracer, exp, closer := tracerProvider(t)
@@ -282,8 +274,8 @@ func TestSpanReader_GetTrace(t *testing.T) {
 		mockMultiSearchService(r).Return([]esclient.SearchResponse{
 			{Hits: esclient.HitsResult{Hits: hits}},
 		}, nil)
-		query := traceParamsOf(dbmodel.TraceID(testingTraceId))
-		trace, err := r.reader.GetTraces(context.Background(), query)
+		query := []dbmodel.TraceID{dbmodel.TraceID(testingTraceId)}
+		trace, err := r.reader.GetTraces(context.Background(), query, "")
 		require.NotEmpty(t, r.traceBuffer.GetSpans(), "Spans recorded")
 		require.NoError(t, err)
 		require.NotNil(t, trace)
@@ -296,9 +288,9 @@ func TestSpanReader_GetTrace(t *testing.T) {
 	})
 }
 
-// TestSpanReader_GetTrace_ReadAliasOverride verifies that a GetTraceParams.ReadAlias
-// override replaces the rotation-resolved read targets for that trace's search
-// request — the mechanism a per-request read alias override on the query API relies on.
+// TestSpanReader_GetTrace_ReadAliasOverride verifies that a GetTraces readAlias
+// override replaces the rotation-resolved read targets for the call — the
+// mechanism a per-request read alias override on the query API relies on.
 func TestSpanReader_GetTrace_ReadAliasOverride(t *testing.T) {
 	withSpanReader(t, func(r *spanReaderTest) {
 		hits := []esclient.SearchHit{{Source: exampleESSpan}}
@@ -308,10 +300,8 @@ func TestSpanReader_GetTrace_ReadAliasOverride(t *testing.T) {
 			{Hits: esclient.HitsResult{Hits: hits}},
 		}, nil)
 
-		query := []dbmodel.GetTraceParams{
-			{TraceID: dbmodel.TraceID(testingTraceId), ReadAlias: "jaeger-span-archive-read"},
-		}
-		trace, err := r.reader.GetTraces(context.Background(), query)
+		query := []dbmodel.TraceID{dbmodel.TraceID(testingTraceId)}
+		trace, err := r.reader.GetTraces(context.Background(), query, "jaeger-span-archive-read")
 		require.NoError(t, err)
 		require.Len(t, trace, 1)
 	})
@@ -383,7 +373,7 @@ func TestSpanReader_multiRead_followUp_query(t *testing.T) {
 			return len(reqs) == 1 && paginates(reqs[0], spanID1.StartTime, string(spanID1.SpanID))
 		})).Return(secondRound, nil).Once()
 
-		traces, err := r.reader.multiRead(context.Background(), traceParamsOf(traceID1, traceID2), date, date)
+		traces, err := r.reader.multiRead(context.Background(), []dbmodel.TraceID{traceID1, traceID2}, "", date, date)
 		require.NotEmpty(t, r.traceBuffer.GetSpans(), "Spans recorded")
 		require.NoError(t, err)
 		require.NotNil(t, traces)
@@ -483,7 +473,7 @@ func TestSpanReader_multiRead_tieBreakerAvoidsSpanLoss(t *testing.T) {
 		ServiceRotation:  indices.NewAliasedRotation("jaeger-service-write-000001", "jaeger-service-read"),
 	})
 
-	traces, err := reader.multiRead(context.Background(), traceParamsOf(traceID), base, base.Add(time.Hour))
+	traces, err := reader.multiRead(context.Background(), []dbmodel.TraceID{traceID}, "", base, base.Add(time.Hour))
 	require.NoError(t, err)
 	require.Len(t, traces, 1)
 
@@ -508,8 +498,8 @@ func TestSpanReader_SearchAfter(t *testing.T) {
 		}
 		mockMultiSearchService(r).Return(resp, nil).Times(2)
 
-		query := traceParamsOf(dbmodel.TraceID("testing-id"))
-		trace, err := r.reader.GetTraces(context.Background(), query)
+		query := []dbmodel.TraceID{dbmodel.TraceID("testing-id")}
+		trace, err := r.reader.GetTraces(context.Background(), query, "")
 		require.NotEmpty(t, r.traceBuffer.GetSpans(), "Spans recorded")
 		require.NoError(t, err)
 		require.NotNil(t, trace)
@@ -525,8 +515,8 @@ func TestSpanReader_GetTraceQueryError(t *testing.T) {
 	withSpanReader(t, func(r *spanReaderTest) {
 		// An empty _msearch response set ends multiRead without producing traces.
 		mockMultiSearchService(r).Return([]esclient.SearchResponse{}, nil)
-		query := traceParamsOf(dbmodel.TraceID("testing-id"))
-		trace, err := r.reader.GetTraces(context.Background(), query)
+		query := []dbmodel.TraceID{dbmodel.TraceID("testing-id")}
+		trace, err := r.reader.GetTraces(context.Background(), query, "")
 		require.NoError(t, err)
 		require.NotEmpty(t, r.traceBuffer.GetSpans(), "Spans recorded")
 		require.Empty(t, trace)
@@ -539,8 +529,8 @@ func TestSpanReader_GetTraceNilHits(t *testing.T) {
 			{Hits: esclient.HitsResult{}},
 		}, nil)
 
-		query := traceParamsOf(dbmodel.TraceID(testingTraceId))
-		trace, err := r.reader.GetTraces(context.Background(), query)
+		query := []dbmodel.TraceID{dbmodel.TraceID(testingTraceId)}
+		trace, err := r.reader.GetTraces(context.Background(), query, "")
 		require.NoError(t, err)
 		require.NotEmpty(t, r.traceBuffer.GetSpans(), "Spans recorded")
 		require.Empty(t, trace)
@@ -561,8 +551,8 @@ func TestSpanReader_GetTraceMultiSearchItemError(t *testing.T) {
 			},
 		}, nil)
 
-		query := traceParamsOf(dbmodel.TraceID(testingTraceId))
-		trace, err := r.reader.GetTraces(context.Background(), query)
+		query := []dbmodel.TraceID{dbmodel.TraceID(testingTraceId)}
+		trace, err := r.reader.GetTraces(context.Background(), query, "")
 		require.NotEmpty(t, r.traceBuffer.GetSpans(), "Spans recorded")
 		require.ErrorContains(t, err, "status 503")
 		require.Nil(t, trace)
@@ -576,8 +566,8 @@ func TestSpanReader_GetTraceInvalidSpanError(t *testing.T) {
 			{Hits: esclient.HitsResult{Hits: []esclient.SearchHit{{Source: data}}}},
 		}, nil)
 
-		query := traceParamsOf(dbmodel.TraceID(testingTraceId))
-		trace, err := r.reader.GetTraces(context.Background(), query)
+		query := []dbmodel.TraceID{dbmodel.TraceID(testingTraceId)}
+		trace, err := r.reader.GetTraces(context.Background(), query, "")
 		require.NotEmpty(t, r.traceBuffer.GetSpans(), "Spans recorded")
 		require.Error(t, err, "invalid span")
 		require.Nil(t, trace)
@@ -1332,8 +1322,8 @@ func TestSpanReader_ArchiveTraces(t *testing.T) {
 			withArchiveSpanReader(t, tc.useAliases, tc.suffix, func(r *spanReaderTest) {
 				// An empty trace-ID list short-circuits multiRead before any search,
 				// so no searcher call is expected regardless of the rotation config.
-				query := traceParamsOf()
-				trace, err := r.reader.GetTraces(context.Background(), query)
+				query := []dbmodel.TraceID{}
+				trace, err := r.reader.GetTraces(context.Background(), query, "")
 				require.NoError(t, err)
 				require.NotEmpty(t, r.traceBuffer.GetSpans(), "Spans recorded")
 				require.Empty(t, trace)
@@ -1464,7 +1454,7 @@ func TestReaderRequestSnapshots(t *testing.T) {
 		DurationMax:   time.Minute,
 		SearchDepth:   20,
 	}
-	traceIDs := traceParamsOf(dbmodel.TraceID("1234567890abcdef"))
+	traceIDs := []dbmodel.TraceID{dbmodel.TraceID("1234567890abcdef")}
 
 	findTraceIDs := map[es.BackendVersion]string{}
 	getTraces := map[es.BackendVersion]string{}
@@ -1485,7 +1475,7 @@ func TestReaderRequestSnapshots(t *testing.T) {
 		findTraceIDs[version] = rec.Marshal(t)
 
 		rec.Reset()
-		_, err = reader.multiRead(ctx, traceIDs, start, end)
+		_, err = reader.multiRead(ctx, traceIDs, "", start, end)
 		require.NoError(t, err)
 		getTraces[version] = rec.Marshal(t)
 	}
