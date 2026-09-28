@@ -24,6 +24,7 @@ import (
 
 	"github.com/jaegertracing/jaeger-idl/model/v1"
 	expression "github.com/jaegertracing/jaeger-idl/query/expression/v1"
+	"github.com/jaegertracing/jaeger/internal/jiter"
 	"github.com/jaegertracing/jaeger/internal/jptrace"
 	"github.com/jaegertracing/jaeger/internal/proto-gen/storage/v2"
 	expressionproto "github.com/jaegertracing/jaeger/internal/proto/expression/v1"
@@ -1114,5 +1115,84 @@ func TestHandler_SearchDepthValidation(t *testing.T) {
 				require.NoError(t, err)
 			}
 		})
+	}
+}
+
+func spanSequence(chunks []tracestore.PageChunk[ptrace.Traces], err error) iter.Seq2[tracestore.PageChunk[ptrace.Traces], error] {
+	return func(yield func(tracestore.PageChunk[ptrace.Traces], error) bool) {
+		for _, chunk := range chunks {
+			if !yield(chunk, nil) {
+				return
+			}
+		}
+		if err != nil {
+			yield(tracestore.PageChunk[ptrace.Traces]{}, err)
+		}
+	}
+}
+
+func TestSpanServerRefusesUnsupportedOrdering(t *testing.T) {
+	for _, caps := range []tracestore.SearchCapabilities{{}, {SpanSearch: true}, {SpanSorting: true}} {
+		reader := new(tracestoremocks.Reader)
+		reader.On("SearchCapabilities", mock.Anything).Return(caps, nil)
+		remote := spanRemote(t, reader)
+		_, err := jiter.CollectWithErrors(remote.FindSpans(t.Context(), tracestore.SpanQueryParams{OrderBy: spanOrder()}))
+		require.ErrorIs(t, err, tracestore.ErrSpanOrderInvalid)
+		reader.AssertNotCalled(t, "FindSpans", mock.Anything, mock.Anything)
+	}
+	remote := NewTraceReader(startTestServer(t, &testServer{}))
+	_, err := jiter.CollectWithErrors(remote.FindSpans(t.Context(), tracestore.SpanQueryParams{OrderBy: spanOrder()}))
+	require.ErrorIs(t, err, errors.ErrUnsupported)
+	_, err = jiter.CollectWithErrors(remote.FindSpans(t.Context(), tracestore.SpanQueryParams{}))
+	require.ErrorIs(t, err, errors.ErrUnsupported)
+}
+
+type spanStream struct {
+	grpc.ServerStream
+	sent []*storage.FindSpansResponse
+	err  error
+}
+
+func (*spanStream) Context() context.Context { return context.Background() }
+func (s *spanStream) Send(resp *storage.FindSpansResponse) error {
+	s.sent = append(s.sent, resp)
+	return s.err
+}
+
+func TestSpanServerRefusals(t *testing.T) {
+	for _, capsErr := range []error{nil, errors.ErrUnsupported, errors.New("offline")} {
+		reader := new(tracestoremocks.Reader)
+		reader.On("SearchCapabilities", mock.Anything).Return(tracestore.SearchCapabilities{}, capsErr)
+		wire, err := toProtoSpanQuery(tracestore.SpanQueryParams{OrderBy: spanOrder()})
+		require.NoError(t, err)
+		err = NewHandler(reader, nil, nil).FindSpans(&storage.FindSpansRequest{Query: wire}, &spanStream{})
+		if capsErr != nil && !errors.Is(capsErr, errors.ErrUnsupported) {
+			require.ErrorIs(t, err, capsErr)
+		} else {
+			assert.Equal(t, codes.InvalidArgument, status.Code(err))
+		}
+		reader.AssertNotCalled(t, "FindSpans", mock.Anything, mock.Anything)
+	}
+	reader := new(tracestoremocks.Reader)
+	handler := NewHandler(reader, nil, nil)
+	err := handler.FindSpans(&storage.FindSpansRequest{}, &spanStream{})
+	assert.Equal(t, codes.InvalidArgument, status.Code(err))
+	reader.On("FindSpans", mock.Anything, mock.Anything).Return(spanSequence([]tracestore.PageChunk[ptrace.Traces]{{Results: makeTestTrace()}}, nil))
+	sendErr := errors.New("send failed")
+	err = handler.FindSpans(&storage.FindSpansRequest{Query: &storage.SpanQueryParameters{}}, &spanStream{err: sendErr})
+	require.ErrorIs(t, err, sendErr)
+}
+
+func TestSpanHandlerValidatesBeforeStorage(t *testing.T) {
+	for _, query := range []tracestore.SpanQueryParams{
+		{Filter: &expression.Call{Op: "bad"}},
+		{OrderBy: []tracestore.SpanSortOrder{{Expression: &expression.AttributeRef{Level: expression.LevelSpan, Key: "priority"}}}},
+	} {
+		wire, err := toProtoSpanQuery(query)
+		require.NoError(t, err)
+		reader := new(tracestoremocks.Reader)
+		err = NewHandler(reader, nil, nil).FindSpans(&storage.FindSpansRequest{Query: wire}, &spanStream{})
+		assert.Equal(t, codes.InvalidArgument, status.Code(err))
+		reader.AssertNotCalled(t, "FindSpans", mock.Anything, mock.Anything)
 	}
 }
