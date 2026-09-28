@@ -154,7 +154,12 @@ func spanQueryParams(query *api_v3.SpanQueryParameters) (querysvc.SpanQueryParam
 	if query == nil {
 		return querysvc.SpanQueryParams{}, status.Error(codes.InvalidArgument, "missing query")
 	}
+	order, err := tracestore.SpanOrderFromProto(query.GetOrderBy())
+	if err != nil {
+		return querysvc.SpanQueryParams{}, status.Error(codes.InvalidArgument, err.Error())
+	}
 	queryParams := querysvc.SpanQueryParams{
+		OrderBy:      order,
 		StartTimeMin: query.GetStartTimeMin(),
 		StartTimeMax: query.GetStartTimeMax(),
 	}

@@ -52,6 +52,7 @@ func (h *HTTPGateway) RegisterRoutes(router *http.ServeMux) {
 	h.addRoute(router, h.findTraces, routeFindTraces, http.MethodGet)
 	h.addRoute(router, h.findTraceSummaries, routeFindSummaries, http.MethodGet)
 	h.addRoute(router, h.findSpans, routeFindSpans, http.MethodGet)
+	h.addRoute(router, h.findSpans, routeFindSpans, http.MethodPost)
 	h.addRoute(router, h.getServices, routeGetServices, http.MethodGet)
 	h.addRoute(router, h.getOperations, routeGetOperations, http.MethodGet)
 }
@@ -235,7 +236,19 @@ func (h *HTTPGateway) findTraceSummaries(w http.ResponseWriter, r *http.Request)
 }
 
 func (h *HTTPGateway) findSpans(w http.ResponseWriter, r *http.Request) {
-	queryParams, err := parseFindSpansQuery(r.URL.Query())
+	var queryParams *querysvc.SpanQueryParams
+	var err error
+	if r.Method == http.MethodPost {
+		var request api_v3.FindSpansRequest
+		err = jsonpb.Unmarshal(r.Body, &request)
+		if err == nil {
+			var query querysvc.SpanQueryParams
+			query, err = spanQueryParams(request.Query)
+			queryParams = &query
+		}
+	} else {
+		queryParams, err = parseFindSpansQuery(r.URL.Query())
+	}
 	if h.tryHandleError(w, err, http.StatusBadRequest) {
 		return
 	}

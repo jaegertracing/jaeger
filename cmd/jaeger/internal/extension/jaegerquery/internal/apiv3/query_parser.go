@@ -17,7 +17,9 @@ import (
 	expression "github.com/jaegertracing/jaeger-idl/query/expression/v1"
 	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerquery/querysvc"
 	"github.com/jaegertracing/jaeger/internal/jptrace"
+	"github.com/jaegertracing/jaeger/internal/proto/api_v3"
 	expressionproto "github.com/jaegertracing/jaeger/internal/proto/expression/v1"
+	"github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore"
 )
 
 const (
@@ -204,12 +206,20 @@ func parseFindTracesQuery(q url.Values) (*querysvc.TraceQueryParams, error) {
 	return queryParams, nil
 }
 
-// parseFindSpansQuery parses the query parameters for a span search (RFC 0016 §4.3), the subset
-// of a trace search's that a span query has: the time range, the filter and the pagination. The
-// parser reads each parameter and reports one it cannot read under its own name; whether the
-// query as a whole is acceptable is the query service's decision (prepareSpanSearchQuery).
+// parseFindSpansQuery reads the time range, filter, pagination and ordering of a span search.
 func parseFindSpansQuery(q url.Values) (*querysvc.SpanQueryParams, error) {
 	queryParams := &querysvc.SpanQueryParams{}
+	if raw, name := getQueryParam(q, "query.orderBy", "query.order_by"); raw != "" {
+		var wire api_v3.SpanQueryParameters
+		if err := jsonpb.UnmarshalString(`{"orderBy":`+raw+`}`, &wire); err != nil {
+			return nil, fmt.Errorf("malformed parameter %s: %w", name, err)
+		}
+		order, err := tracestore.SpanOrderFromProto(wire.OrderBy)
+		if err != nil {
+			return nil, err
+		}
+		queryParams.OrderBy = order
+	}
 	var err error
 	queryParams.StartTimeMin, queryParams.StartTimeMax, err = parseTimeRangeParams(q)
 	if err != nil {

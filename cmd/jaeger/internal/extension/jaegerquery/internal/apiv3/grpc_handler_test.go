@@ -10,6 +10,7 @@ import (
 	"io"
 	"iter"
 	"net"
+	"strconv"
 	"testing"
 	"time"
 
@@ -1127,6 +1128,31 @@ func TestAsStatusError(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			got := asStatusError(tt.err)
 			assert.Equal(t, tt.wantCode, status.Code(got))
+		})
+	}
+}
+
+func TestFindSpansGRPCOrdering(t *testing.T) {
+	for _, supported := range []bool{false, true} {
+		t.Run(strconv.FormatBool(supported), func(t *testing.T) {
+			tsc := newTestServerClientWithCapabilities(t, tracestore.SearchCapabilities{SpanSearch: true, SpanSorting: supported})
+			order := []tracestore.SpanSortOrder{{Expression: &expression.FieldRef{Level: expression.LevelSpan, Name: "duration"}, Direction: tracestore.SortDescending}}
+			start, end := time.Now().Add(-time.Hour).UTC(), time.Now().UTC()
+			if supported {
+				tsc.reader.On("FindSpans", matchContext, tracestore.SpanQueryParams{StartTimeMin: start, StartTimeMax: end, Pagination: tracestore.Pagination{PageSize: querysvc.DefaultPageSize}, OrderBy: order}).Return(iter.Seq2[tracestore.PageChunk[ptrace.Traces], error](func(yield func(tracestore.PageChunk[ptrace.Traces], error) bool) {
+					yield(tracestore.PageChunk[ptrace.Traces]{Results: makeTestTrace()}, nil)
+				})).Once()
+			}
+			stream, err := tsc.client.FindSpans(t.Context(), &api_v3.FindSpansRequest{Query: &api_v3.SpanQueryParameters{StartTimeMin: start, StartTimeMax: end, OrderBy: []*api_v3.SpanSortOrder{{Expression: tracestore.SpanOrderExpression(order[0]), Direction: "desc"}}}})
+			require.NoError(t, err)
+			response, err := stream.Recv()
+			if supported {
+				require.NoError(t, err)
+				assert.Equal(t, 1, response.Spans.ToTraces().SpanCount())
+			} else {
+				assert.Equal(t, codes.InvalidArgument, status.Code(err))
+				tsc.reader.AssertNotCalled(t, "FindSpans", mock.Anything, mock.Anything)
+			}
 		})
 	}
 }
