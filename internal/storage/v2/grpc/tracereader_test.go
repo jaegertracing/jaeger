@@ -601,7 +601,7 @@ func TestTraceReader_InvalidArgumentBecomesPaginationInvalid(t *testing.T) {
 		Pagination: &tracestore.Pagination{PageSize: 10, PageToken: "stale"},
 	}
 	marked, err := status.New(codes.InvalidArgument, "page token does not match the query").
-		WithDetails(&errdetails.ErrorInfo{Reason: paginationInvalidReason, Domain: "jaeger.storage.v2"})
+		WithDetails(&errdetails.ErrorInfo{Reason: tracestore.PaginationInvalidReason, Domain: errorInfoDomain})
 	require.NoError(t, err)
 	unmarked := status.Error(codes.InvalidArgument, "filter is malformed")
 
@@ -1278,7 +1278,7 @@ func TestReaderErrorDetails(t *testing.T) {
 		require.Len(t, st.Details(), 1)
 		info, ok := st.Details()[0].(*errdetails.ErrorInfo)
 		require.True(t, ok)
-		assert.Equal(t, "jaeger.storage.v2", info.GetDomain())
+		assert.Equal(t, errorInfoDomain, info.GetDomain())
 		assert.Equal(t, tc.reason, info.GetReason())
 		require.ErrorIs(t, readerError(wire), tc.err)
 		foreign, err := status.New(codes.InvalidArgument, "foreign error").WithDetails(&errdetails.ErrorInfo{Domain: "another.service", Reason: tc.reason})

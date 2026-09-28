@@ -432,7 +432,7 @@ func TestHandler_PaginationInvalidBecomesInvalidArgument(t *testing.T) {
 		require.Len(t, st.Details(), 1)
 		info, ok := st.Details()[0].(*errdetails.ErrorInfo)
 		require.True(t, ok)
-		assert.Equal(t, paginationInvalidReason, info.GetReason())
+		assert.Equal(t, tracestore.PaginationInvalidReason, info.GetReason())
 	}
 	t.Run("FindTraceIDs", func(t *testing.T) {
 		reader := new(tracestoremocks.Reader)

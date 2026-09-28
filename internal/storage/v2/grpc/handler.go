@@ -9,7 +9,6 @@ import (
 
 	"go.opentelemetry.io/collector/pdata/pcommon"
 	"go.opentelemetry.io/collector/pdata/ptrace/ptraceotlp"
-	"google.golang.org/genproto/googleapis/rpc/errdetails"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/health"
@@ -23,14 +22,9 @@ import (
 	"github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore"
 )
 
-// The ErrorInfo reasons that readerStatus attaches to an InvalidArgument status. The server
-// answers InvalidArgument to other malformed requests too, so the storage client needs the
-// reason, not the code, to restore the matching tracestore error.
-const (
-	paginationInvalidReason    = "PAGINATION_INVALID"
-	spanOrderInvalidReason     = "ORDERING_INVALID"
-	spanOrderUnsupportedReason = "ORDERING_UNSUPPORTED"
-)
+// errorInfoDomain is the ErrorInfo domain under which the storage server reports reader
+// refusals, so the storage client restores only the reasons this server attached.
+const errorInfoDomain = "jaeger.storage.v2"
 
 var (
 	_ storage.TraceReaderServer      = (*Handler)(nil)
@@ -247,22 +241,7 @@ func readerStatus(err error) error {
 	if errors.Is(err, errors.ErrUnsupported) {
 		return status.Errorf(codes.Unimplemented, "not implemented by the storage backend: %v", err)
 	}
-	var reason string
-	switch {
-	case errors.Is(err, tracestore.ErrSpanOrderInvalid):
-		reason = spanOrderInvalidReason
-	case errors.Is(err, tracestore.ErrSpanOrderUnsupported):
-		reason = spanOrderUnsupportedReason
-	case errors.Is(err, tracestore.ErrPaginationInvalid):
-		reason = paginationInvalidReason
-	default:
-		return err
-	}
-	st := status.New(codes.InvalidArgument, err.Error())
-	if detailed, detailErr := st.WithDetails(&errdetails.ErrorInfo{Reason: reason, Domain: "jaeger.storage.v2"}); detailErr == nil {
-		st = detailed
-	}
-	return st.Err()
+	return tracestore.InvalidArgumentStatus(err, errorInfoDomain)
 }
 
 func (h *Handler) FindTraceIDs(

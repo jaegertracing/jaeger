@@ -13,7 +13,6 @@ import (
 
 	"go.opentelemetry.io/collector/pdata/pcommon"
 	"go.opentelemetry.io/collector/pdata/ptrace"
-	"google.golang.org/genproto/googleapis/rpc/errdetails"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -167,20 +166,7 @@ func (tr *TraceReader) FindTraces(
 
 // readerError restores the error types marked by readerStatus at the storage boundary.
 func readerError(err error) error {
-	st := status.Convert(err)
-	for _, detail := range st.Details() {
-		if info, ok := detail.(*errdetails.ErrorInfo); ok && info.GetDomain() == "jaeger.storage.v2" {
-			switch info.GetReason() {
-			case paginationInvalidReason:
-				return fmt.Errorf("%w: %s", tracestore.ErrPaginationInvalid, st.Message())
-			case spanOrderInvalidReason:
-				return fmt.Errorf("%w: %s", tracestore.ErrSpanOrderInvalid, st.Message())
-			case spanOrderUnsupportedReason:
-				return fmt.Errorf("%w: %s", tracestore.ErrSpanOrderUnsupported, st.Message())
-			}
-		}
-	}
-	return err
+	return tracestore.ErrorFromStatus(err, errorInfoDomain)
 }
 
 func (tr *TraceReader) FindTraceIDs(
