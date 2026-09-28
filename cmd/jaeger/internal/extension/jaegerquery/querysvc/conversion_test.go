@@ -39,6 +39,8 @@ func distinctValue(t *testing.T, field reflect.StructField) reflect.Value {
 		return reflect.ValueOf(field.Name)
 	case reflect.TypeOf(0):
 		return reflect.ValueOf(7)
+	case reflect.TypeOf(uint32(0)):
+		return reflect.ValueOf(uint32(7))
 	case reflect.TypeOf(true):
 		return reflect.ValueOf(true)
 	case reflect.TypeOf(time.Duration(0)):

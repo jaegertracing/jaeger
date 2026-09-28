@@ -101,7 +101,7 @@ type Query struct {
 	StartTimeMax  time.Time
 	DurationMin   time.Duration
 	DurationMax   time.Duration
-	NumTraces     int
+	NumTraces     uint32
 }
 
 func (q *Query) ToTraceQueryParams(t *testing.T) *tracestore.TraceQueryParams {
@@ -748,5 +748,6 @@ func (s *StorageIntegration) AssertCorpus(t *testing.T) {
 	t.Run("FindTraces", s.testFindTraces)
 	t.Run("FindTracesWithFilter", s.testFindTracesWithFilter)
 	t.Run("FindTraceSummaries", s.testFindTraceSummaries)
+	t.Run("Pagination", s.testPagination)
 	t.Run("FindTracesWithoutServiceName", s.testFindTracesWithoutServiceName)
 }

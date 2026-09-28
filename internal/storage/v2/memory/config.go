@@ -10,7 +10,7 @@ type Configuration struct {
 	// MaxTraces is the maximum amount of traces to store in memory.
 	// If multi-tenancy is enabled, this limit applies per tenant.
 	// Zero value (default) means no limit (Warning: memory usage will be unbounded).
-	MaxTraces int `mapstructure:"max_traces"`
+	MaxTraces uint32 `mapstructure:"max_traces"`
 }
 
 func (c *Configuration) Validate() error {

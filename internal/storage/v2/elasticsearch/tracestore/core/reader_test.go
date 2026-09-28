@@ -33,6 +33,7 @@ import (
 	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/indices"
 	esquery "github.com/jaegertracing/jaeger/internal/storage/elasticsearch/query"
 	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/snapshottest"
+	"github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/elasticsearch/tracestore/core/dbmodel"
 	"github.com/jaegertracing/jaeger/internal/testutils"
 )
@@ -960,7 +961,19 @@ func TestSpanReader_buildTraceIDAggregation(t *testing.T) {
 
 		expected := make(map[string]any)
 		json.Unmarshal([]byte(expectedStr), &expected)
-		expected["terms"].(map[string]any)["size"] = 123
+		expected["terms"].(map[string]any)["size"] = uint64(123)
+		expected["terms"].(map[string]any)["order"] = []any{map[string]string{"startTime": "desc"}}
+		assert.EqualValues(t, expected, actual)
+	})
+
+	withSpanReader(t, func(r *spanReaderTest) {
+		traceIDAggregation := r.reader.buildTraceIDAggregation(tracestore.MaxSearchDepth + 1)
+		actual, err := traceIDAggregation.Source()
+		require.NoError(t, err)
+
+		expected := make(map[string]any)
+		json.Unmarshal([]byte(expectedStr), &expected)
+		expected["terms"].(map[string]any)["size"] = uint64(tracestore.MaxSearchDepth + 1)
 		expected["terms"].(map[string]any)["order"] = []any{map[string]string{"startTime": "desc"}}
 		assert.EqualValues(t, expected, actual)
 	})

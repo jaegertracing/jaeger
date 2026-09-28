@@ -13,6 +13,7 @@ import (
 
 	"go.opentelemetry.io/collector/pdata/pcommon"
 	"go.opentelemetry.io/collector/pdata/ptrace"
+	"google.golang.org/genproto/googleapis/rpc/errdetails"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -165,6 +166,19 @@ func (tr *TraceReader) FindTraces(
 	}
 }
 
+// paginationError turns the status that the storage server gives a rejected page request back
+// into tracestore.ErrPaginationInvalid (RFC 0014 §6). The server marks that status with
+// paginationInvalidReason, since InvalidArgument alone also answers other malformed requests.
+func paginationError(err error) error {
+	st := status.Convert(err)
+	for _, detail := range st.Details() {
+		if info, ok := detail.(*errdetails.ErrorInfo); ok && info.GetReason() == paginationInvalidReason {
+			return fmt.Errorf("%w: %s", tracestore.ErrPaginationInvalid, st.Message())
+		}
+	}
+	return err
+}
+
 func (tr *TraceReader) FindTraceIDs(
 	ctx context.Context,
 	params tracestore.TraceQueryParams,
@@ -177,7 +191,7 @@ func (tr *TraceReader) FindTraceIDs(
 		}
 		resp, err := tr.client.FindTraceIDs(ctx, &storage.FindTraceIDsRequest{Query: query})
 		if err != nil {
-			yield(tracestore.PageChunk[[]tracestore.FoundTraceID]{}, fmt.Errorf("failed to execute FindTraceIDs: %w", err))
+			yield(tracestore.PageChunk[[]tracestore.FoundTraceID]{}, fmt.Errorf("failed to execute FindTraceIDs: %w", paginationError(err)))
 			return
 		}
 		foundTraceIDs := make([]tracestore.FoundTraceID, len(resp.TraceIds))
@@ -206,7 +220,7 @@ func (tr *TraceReader) FindTraceSummaries(
 		if status.Code(err) == codes.Unimplemented || errors.Is(err, errors.ErrUnsupported) {
 			return fmt.Errorf("remote server does not support FindTraceSummaries: %w", errors.ErrUnsupported)
 		}
-		return fmt.Errorf("%s: %w", msg, err)
+		return fmt.Errorf("%s: %w", msg, paginationError(err))
 	}
 	return func(yield func(tracestore.PageChunk[[]tracestore.TraceSummary], error) bool) {
 		query, err := toProtoQueryParameters(params)
@@ -280,7 +294,7 @@ func toProtoQueryParameters(t tracestore.TraceQueryParams) (*storage.TraceQueryP
 	// but other callers (MCP, gRPC query, tests) can set it without going
 	// through that parser. This client still has to refuse values that will
 	// not encode cleanly as a protobuf search window.
-	if t.SearchDepth < 0 || t.SearchDepth > tracestore.MaxSearchDepth {
+	if t.SearchDepth > tracestore.MaxSearchDepth {
 		return nil, fmt.Errorf("SearchDepth must be in [0, %d]", tracestore.MaxSearchDepth)
 	}
 	q := &storage.TraceQueryParameters{
@@ -295,10 +309,8 @@ func toProtoQueryParameters(t tracestore.TraceQueryParams) (*storage.TraceQueryP
 		Filter:        filter,
 	}
 	if t.Pagination != nil {
-		// The query service clamps PageSize to tracestore.MaxPageSize before dispatch, so the
-		// cast cannot overflow.
 		q.Pagination = &storage.Pagination{
-			PageSize:  uint32(t.Pagination.PageSize), //nolint:gosec // G115
+			PageSize:  t.Pagination.PageSize,
 			PageToken: string(t.Pagination.PageToken),
 		}
 	}

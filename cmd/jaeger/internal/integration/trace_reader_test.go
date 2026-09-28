@@ -6,28 +6,36 @@ package integration
 import (
 	"context"
 	"io"
+	"math"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/collector/pdata/pcommon"
+	"go.opentelemetry.io/collector/pdata/ptrace"
 	"go.uber.org/zap"
 	"google.golang.org/grpc"
 
+	builder "github.com/jaegertracing/jaeger/internal/expression"
+	"github.com/jaegertracing/jaeger/internal/jptrace"
 	"github.com/jaegertracing/jaeger/internal/proto/api_v3"
+	expressionproto "github.com/jaegertracing/jaeger/internal/proto/expression/v1"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore"
 )
 
 type traceSummariesClient struct {
 	api_v3.QueryServiceClient
 	response *api_v3.FindTraceSummariesResponse
+	request  *api_v3.FindTraceSummariesRequest
 }
 
 func (c *traceSummariesClient) FindTraceSummaries(
-	context.Context,
-	*api_v3.FindTraceSummariesRequest,
-	...grpc.CallOption,
+	_ context.Context,
+	request *api_v3.FindTraceSummariesRequest,
+	_ ...grpc.CallOption,
 ) (api_v3.QueryService_FindTraceSummariesClient, error) {
+	c.request = request
 	return &traceSummariesStream{response: c.response}, nil
 }
 
@@ -45,15 +53,75 @@ func (s *traceSummariesStream) Recv() (*api_v3.FindTraceSummariesResponse, error
 	return response, nil
 }
 
-func TestTraceReaderFindSpansPreservesNextPageToken(t *testing.T) {
-	t.Skip("The integration trace reader does not implement FindSpans yet.")
+type spansClient struct {
+	api_v3.QueryServiceClient
+	request   *api_v3.FindSpansRequest
+	responses []*api_v3.FindSpansResponse
+}
+
+func (c *spansClient) FindSpans(_ context.Context, request *api_v3.FindSpansRequest, _ ...grpc.CallOption) (api_v3.QueryService_FindSpansClient, error) {
+	c.request = request
+	return &spansStream{responses: c.responses}, nil
+}
+
+type spansStream struct {
+	grpc.ClientStream
+	responses []*api_v3.FindSpansResponse
+}
+
+func (s *spansStream) Recv() (*api_v3.FindSpansResponse, error) {
+	if len(s.responses) == 0 {
+		return nil, io.EOF
+	}
+	response := s.responses[0]
+	s.responses = s.responses[1:]
+	return response, nil
+}
+
+func TestTraceReaderFindSpansPreservesPagination(t *testing.T) {
+	spans := ptrace.NewTraces()
+	span := spans.ResourceSpans().AppendEmpty().ScopeSpans().AppendEmpty().Spans().AppendEmpty()
+	span.SetTraceID(pcommon.TraceID{1})
+	span.SetSpanID(pcommon.SpanID{2})
+	data := jptrace.TracesData(spans)
+	client := &spansClient{responses: []*api_v3.FindSpansResponse{
+		{Spans: &data},
+		{NextPageToken: "next-page"},
+	}}
+	reader := &traceReader{client: client}
+	filter := (builder.Predicate{}).Resource().Service.Eq("service-a")
+	start := time.Now().Add(-time.Hour)
+	end := start.Add(time.Minute)
+	var chunks []tracestore.PageChunk[ptrace.Traces]
+	for chunk, err := range reader.FindSpans(context.Background(), tracestore.SpanQueryParams{
+		StartTimeMin: start, StartTimeMax: end, Filter: filter,
+		Pagination: tracestore.Pagination{PageSize: 2, PageToken: "current-page"},
+	}) {
+		require.NoError(t, err)
+		chunks = append(chunks, chunk)
+	}
+	require.NotNil(t, client.request)
+	query := client.request.Query
+	assert.Equal(t, start, query.StartTimeMin)
+	assert.Equal(t, end, query.StartTimeMax)
+	decoded, err := expressionproto.FromProto(query.Filter)
+	require.NoError(t, err)
+	assert.Equal(t, filter, decoded)
+	require.NotNil(t, query.Pagination)
+	assert.EqualValues(t, 2, query.Pagination.PageSize)
+	assert.Equal(t, "current-page", query.Pagination.PageToken)
+	require.Len(t, chunks, 2)
+	assert.Equal(t, spans, chunks[0].Results)
+	assert.Empty(t, chunks[0].NextPageToken)
+	assert.Zero(t, chunks[1].Results.SpanCount())
+	assert.Equal(t, tracestore.PageToken("next-page"), chunks[1].NextPageToken)
 }
 
 func TestTraceReaderFindTraceIDsPreservesNextPageToken(t *testing.T) {
 	t.Skip("The API v3 query service does not expose FindTraceIDs.")
 }
 
-func TestTraceReaderFindTraceSummariesPreservesNextPageToken(t *testing.T) {
+func TestTraceReaderFindTraceSummariesPreservesPagination(t *testing.T) {
 	reader := &traceReader{
 		logger: zap.NewNop(),
 		client: &traceSummariesClient{response: &api_v3.FindTraceSummariesResponse{
@@ -64,11 +132,29 @@ func TestTraceReaderFindTraceSummariesPreservesNextPageToken(t *testing.T) {
 	var chunks []tracestore.PageChunk[[]tracestore.TraceSummary]
 	for chunk, err := range reader.FindTraceSummaries(context.Background(), tracestore.TraceQueryParams{
 		Attributes: pcommon.NewMap(),
+		Pagination: &tracestore.Pagination{PageSize: 2, PageToken: "current-page"},
 	}) {
 		require.NoError(t, err)
 		chunks = append(chunks, chunk)
 	}
 
+	request := reader.client.(*traceSummariesClient).request
+	require.NotNil(t, request.Query.Pagination)
+	assert.EqualValues(t, 2, request.Query.Pagination.PageSize)
+	assert.Equal(t, "current-page", request.Query.Pagination.PageToken)
 	require.Len(t, chunks, 1)
 	assert.Equal(t, tracestore.PageToken("next-page"), chunks[0].NextPageToken)
+}
+
+func TestToProtoQueryPreservesPageSize(t *testing.T) {
+	for _, size := range []uint32{0, math.MaxUint32} {
+		query, err := toProtoQuery(tracestore.TraceQueryParams{
+			Attributes: pcommon.NewMap(), Pagination: &tracestore.Pagination{PageSize: size},
+		})
+		require.NoError(t, err)
+		assert.Equal(t, size, query.Pagination.PageSize)
+	}
+	query, err := toProtoQuery(tracestore.TraceQueryParams{Attributes: pcommon.NewMap()})
+	require.NoError(t, err)
+	assert.Nil(t, query.Pagination)
 }

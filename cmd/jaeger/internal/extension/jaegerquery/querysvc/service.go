@@ -27,12 +27,12 @@ var errNoArchiveSpanStorage = errors.New("archive span storage was not configure
 
 // DefaultSearchDepth bounds a trace search whose caller left SearchDepth unset. It is applied
 // here rather than in each API handler, so a gRPC and an HTTP client get the same bound.
-const DefaultSearchDepth = 100
+const DefaultSearchDepth uint32 = 100
 
 // DefaultPageSize bounds a span search whose caller left the page size unset. A span query has
 // no SearchDepth, so the page size is its only bound (RFC 0016 §6), and a Reader never receives
 // a query without one. It is applied here for the same reason as DefaultSearchDepth.
-const DefaultPageSize = DefaultSearchDepth
+const DefaultPageSize uint32 = DefaultSearchDepth
 
 // ErrQueryInvalid is returned for a trace search whose envelope is malformed on its own terms:
 // a missing or inverted time range, a negative or inverted duration bound, or a search depth
@@ -94,7 +94,7 @@ type GetTraceParams struct {
 // its backend cannot honor.
 type Pagination struct {
 	// PageSize bounds the number of results in one page.
-	PageSize int
+	PageSize uint32
 	// PageToken continues a previous search. Empty starts a new one.
 	PageToken string
 }
@@ -126,7 +126,7 @@ type TraceQueryParams struct {
 	DurationMin  time.Duration
 	DurationMax  time.Duration
 	// SearchDepth bounds an unpaginated search; zero means DefaultSearchDepth.
-	SearchDepth int
+	SearchDepth uint32
 	// Filter is the structured query filter (RFC 0005). It is mutually exclusive with the
 	// predicate fields above; the query service refuses a request that carries both.
 	Filter *expression.Call
@@ -456,6 +456,10 @@ func (qs QueryService) FindTraceSummaries(
 		for chunk, err := range qs.traceReader.FindTraceSummaries(ctx, readerQuery) {
 			if err != nil {
 				if errors.Is(err, errors.ErrUnsupported) {
+					if readerQuery.Pagination != nil {
+						qs.summarizeTraceIDPages(ctx, readerQuery, yield)
+						return
+					}
 					// Fall back to FindTraces + aggregation. The fallback loads whole traces, so
 					// the interceptors get the same say over them as on a FindTraces search; the
 					// summaries computed from them carry no spans and have no hook of their own.
@@ -483,6 +487,55 @@ func (qs QueryService) FindTraceSummaries(
 			if !yield(result, nil) {
 				return
 			}
+		}
+	}
+}
+
+// summarizeTraceIDPages is the FindTraceSummaries fallback for a paginated query. A reader's
+// FindTraces has no field for a page token and the query service refuses to paginate it, so the
+// fallback pages through FindTraceIDs instead, loads each page's traces with GetTraces, and
+// passes the page token through unchanged. The loaded traces go through the interceptors as
+// they do on the unpaginated fallback, with one interceptor chain for the whole stream so that
+// the context OnTraceResult returns carries from one chunk of trace IDs to the next.
+func (qs QueryService) summarizeTraceIDPages(
+	ctx context.Context,
+	query tracestore.TraceQueryParams,
+	yield func(PageChunk[[]tracestore.TraceSummary], error) bool,
+) {
+	var intercept func([]ptrace.Traces) ([]ptrace.Traces, error)
+	if len(qs.options.Interceptors) > 0 {
+		intercept = qs.traceResultInterceptor(ctx)
+	}
+	for ids, err := range qs.traceReader.FindTraceIDs(ctx, query) {
+		if err != nil {
+			yield(PageChunk[[]tracestore.TraceSummary]{}, err)
+			return
+		}
+		// Each batch computeSummaries yields is its own chunk, as on the unpaginated fallback,
+		// so a page of summaries never travels as one message; the token rides on the last.
+		page := PageChunk[[]tracestore.TraceSummary]{NextPageToken: string(ids.NextPageToken)}
+		if len(ids.Results) > 0 {
+			params := make([]tracestore.GetTraceParams, len(ids.Results))
+			for i, id := range ids.Results {
+				params[i] = tracestore.GetTraceParams(id)
+			}
+			traces := qs.traceReader.GetTraces(ctx, params...)
+			if intercept != nil {
+				traces = interceptBatches(traces, intercept)
+			}
+			for batch, err := range computeSummaries(traces, qs.adjuster) {
+				if err != nil {
+					yield(PageChunk[[]tracestore.TraceSummary]{}, err)
+					return
+				}
+				if page.Results != nil && !yield(PageChunk[[]tracestore.TraceSummary]{Results: page.Results}, nil) {
+					return
+				}
+				page.Results = batch
+			}
+		}
+		if !yield(page, nil) {
+			return
 		}
 	}
 }

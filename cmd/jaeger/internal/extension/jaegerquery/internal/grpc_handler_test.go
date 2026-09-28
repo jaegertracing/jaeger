@@ -978,7 +978,7 @@ func TestFindTracesRefusedByQueryService_GRPC(t *testing.T) {
 				ServiceName:  "service",
 				StartTimeMin: time.Now().Add(-10 * time.Minute),
 				StartTimeMax: time.Now(),
-				SearchDepth:  tracestore.MaxSearchDepth + 1,
+				SearchDepth:  int32(tracestore.MaxSearchDepth + 1),
 			},
 			wantErr: "search depth must be in [0, 10000]",
 		},
