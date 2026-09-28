@@ -4,76 +4,10 @@
 package tracestore
 
 import (
-	"errors"
 	"slices"
 
 	expression "github.com/jaegertracing/jaeger-idl/query/expression/v1"
 )
-
-// ErrInvalidQuery is the root of every refusal of a query that is malformed on its own terms,
-// so the caller must change it wherever it is sent. Each such sentinel wraps it, and the API
-// layers answer InvalidArgument / HTTP 400 to anything that matches it. The other root is
-// errors.ErrUnsupported, which every refusal for a capability this backend lacks wraps; the
-// API layers answer Unimplemented / HTTP 501 to those (ADR-013).
-var ErrInvalidQuery = errors.New("invalid query")
-
-// refusal is a sentinel that belongs to one family through Unwrap without repeating the root's
-// text in its message, so a caller reads "invalid pagination" rather than "invalid pagination:
-// invalid query".
-type refusal struct {
-	msg  string
-	root error
-}
-
-func (r refusal) Error() string { return r.msg }
-func (r refusal) Unwrap() error { return r.root }
-
-// InvalidQuery returns a sentinel for a query that is malformed wherever it is sent; it matches
-// ErrInvalidQuery.
-func InvalidQuery(msg string) error {
-	return refusal{msg: msg, root: ErrInvalidQuery}
-}
-
-// Unsupported returns a sentinel for a query that this backend lacks a capability to serve; it
-// matches errors.ErrUnsupported.
-func Unsupported(msg string) error {
-	return refusal{msg: msg, root: errors.ErrUnsupported}
-}
-
-// ErrFilterUnsupported is returned for a well-formed query filter that the storage cannot
-// serve — a level it does not index, an operator it has not implemented, or a boolean
-// structure a flat index cannot evaluate (RFC 0005 §7). The query is refused rather than
-// approximated, so a caller never reads a narrower answer as the whole one. The query
-// service returns it for the limits a Reader declared through FilterCapabilities, and a
-// Reader returns it for the ones that declaration is too coarse to express — a built-in
-// field of a level it serves but does not store, or an operator it serves on some
-// references and not others. It is a capability refusal, so it matches errors.ErrUnsupported.
-var ErrFilterUnsupported = Unsupported("this storage backend cannot serve this query filter")
-
-// ErrFilterInvalid is returned for a query filter whose value does not fit the field it
-// compares — the kind of mistake a structural check cannot catch, because the filter AST
-// deliberately does not carry types (RFC 0005 §6.1).
-var ErrFilterInvalid = InvalidQuery("invalid query filter")
-
-// ErrPaginationUnsupported is returned for a query carrying a Pagination.PageToken to a
-// Reader whose SearchCapabilities.Paginated is false. The query is refused rather than
-// treated as a new search, because a Reader that cannot paginate cannot have minted the
-// token, so honoring it as if it started a fresh search would silently reinterpret what
-// the caller sent (RFC 0014 §6.2). It is a capability refusal, so it matches errors.ErrUnsupported.
-var ErrPaginationUnsupported = Unsupported("this storage backend cannot resume a paginated search")
-
-// ErrPaginationInvalid is returned for a query whose Pagination is malformed on its own
-// terms, independent of any backend: one that also sets SearchDepth, since the two bounds
-// have no single honest meaning together, or one that leaves PageSize at zero, since a
-// Pagination with no page size does not describe a page (RFC 0014 §4). A Reader returns it
-// for a PageToken it did not produce or produced for a different query (RFC 0014 §3.2).
-var ErrPaginationInvalid = InvalidQuery("invalid pagination")
-
-// ErrPaginationUnsupportedByFindTraces is returned for a FindTraces query that carries
-// Pagination. FindTraces streams whole traces with no field to carry a continuation token,
-// so honoring the request would accept a paging request and never hand back a cursor,
-// leaving the caller unable to tell a bounded page from the last one (RFC 0014 §4).
-var ErrPaginationUnsupportedByFindTraces = InvalidQuery("FindTraces cannot be paginated: its response has no field to carry a continuation token")
 
 // SearchCapabilities describes how a Reader's search methods behave where backends
 // differ: which TraceQueryParams fields may be omitted, which are honored exactly
