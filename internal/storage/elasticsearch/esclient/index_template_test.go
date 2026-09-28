@@ -110,6 +110,39 @@ func setTypedAttributeIndexing(t *testing.T, enabled bool) {
 	})
 }
 
+// setPrefixedLegacyTemplates flips the gate for the duration of a test.
+func setPrefixedLegacyTemplates(t *testing.T, enabled bool) {
+	original := PrefixedLegacyTemplatesGate.IsEnabled()
+	require.NoError(t, featuregate.GlobalRegistry().Set(PrefixedLegacyTemplatesGate.ID(), enabled))
+	t.Cleanup(func() {
+		require.NoError(t, featuregate.GlobalRegistry().Set(PrefixedLegacyTemplatesGate.ID(), original))
+	})
+}
+
+func TestLegacyIndexPattern(t *testing.T) {
+	tests := []struct {
+		name        string
+		mapping     MappingType
+		gateEnabled bool
+		expected    string
+	}{
+		{"span always prefixed, gate enabled", SpanMapping, true, "*test-jaeger-span-*"},
+		{"span always prefixed, gate disabled", SpanMapping, false, "*test-jaeger-span-*"},
+		{"service always prefixed, gate enabled", ServiceMapping, true, "*test-jaeger-service-*"},
+		{"service always prefixed, gate disabled", ServiceMapping, false, "*test-jaeger-service-*"},
+		{"dependencies prefixed when gate enabled", DependencyMapping, true, "*test-jaeger-dependencies-*"},
+		{"dependencies unprefixed when gate disabled", DependencyMapping, false, "*jaeger-dependencies-*"},
+		{"sampling prefixed when gate enabled", SamplingMapping, true, "*test-jaeger-sampling-*"},
+		{"sampling unprefixed when gate disabled", SamplingMapping, false, "*jaeger-sampling-*"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			setPrefixedLegacyTemplates(t, tt.gateEnabled)
+			assert.Equal(t, tt.expected, tt.mapping.legacyIndexPattern("test-"))
+		})
+	}
+}
+
 // dig walks a rendered template by dot-separated path, where a numeric segment
 // indexes into an array.
 func dig(t *testing.T, doc any, path string) any {
