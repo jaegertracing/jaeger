@@ -72,7 +72,7 @@ func spanReaderError(err error) error {
 }
 
 func toProtoSpanQuery(params tracestore.SpanQueryParams) (*storage.SpanQueryParameters, error) {
-	filter, err := expressionproto.ToProto(params.Filter)
+	filter, err := expressionproto.CallToProto(params.Filter)
 	if err != nil {
 		return nil, err
 	}
@@ -81,7 +81,7 @@ func toProtoSpanQuery(params tracestore.SpanQueryParams) (*storage.SpanQueryPara
 		Pagination: &storage.Pagination{PageSize: params.Pagination.PageSize, PageToken: string(params.Pagination.PageToken)},
 	}
 	for _, term := range params.OrderBy {
-		encoded, err := expressionproto.TermToProto(term.Expression)
+		encoded, err := expressionproto.ToProto(term.Expression)
 		if err != nil {
 			return nil, err
 		}
@@ -98,7 +98,7 @@ func toSpanQueryParams(wire *storage.SpanQueryParameters) (tracestore.SpanQueryP
 	if err != nil {
 		return tracestore.SpanQueryParams{}, status.Error(codes.InvalidArgument, err.Error())
 	}
-	filter, err := expressionproto.FromProto(wire.Filter)
+	filter, err := expressionproto.CallFromProto(wire.Filter)
 	if err != nil {
 		return tracestore.SpanQueryParams{}, status.Error(codes.InvalidArgument, err.Error())
 	}
