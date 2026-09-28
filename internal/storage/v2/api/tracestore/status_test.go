@@ -51,6 +51,27 @@ func TestRefusalStatus_RoundTrip(t *testing.T) {
 	}
 }
 
+// TestErrorFromStatus_DoesNotRepeatTheSentinel pins the message a caller reads after the round
+// trip: RefusalStatus puts the error's own text in the status message, so the restored error
+// starts with the sentinel's text exactly once.
+func TestErrorFromStatus_DoesNotRepeatTheSentinel(t *testing.T) {
+	sent := fmt.Errorf("%w: token belongs to another query", ErrPaginationInvalid)
+	restored := ErrorFromStatus(RefusalStatus(sent, testDomain), testDomain)
+	require.ErrorIs(t, restored, ErrPaginationInvalid)
+	assert.Equal(t, sent.Error(), restored.Error())
+	assert.Equal(t, "invalid pagination: token belongs to another query", restored.Error(),
+		"the sentinel carries no root text of its own")
+}
+
+// TestFamilySentinelMessages pins that a family sentinel reads as its own message: the root it
+// unwraps to decides the status code and never appears in the text a caller sees.
+func TestFamilySentinelMessages(t *testing.T) {
+	assert.Equal(t, "invalid query filter", ErrFilterInvalid.Error())
+	require.ErrorIs(t, ErrFilterInvalid, ErrInvalidQuery)
+	assert.Equal(t, "this storage backend cannot serve this query filter", ErrFilterUnsupported.Error())
+	require.ErrorIs(t, ErrFilterUnsupported, errors.ErrUnsupported)
+}
+
 func TestRefusalStatus_PassesOtherErrorsThrough(t *testing.T) {
 	assert.Empty(t, ErrorReason(assert.AnError))
 	assert.Same(t, assert.AnError, RefusalStatus(assert.AnError, testDomain))

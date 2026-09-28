@@ -4,9 +4,6 @@
 package querysvc
 
 import (
-	"errors"
-	"fmt"
-
 	"go.opentelemetry.io/collector/featuregate"
 
 	"github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore"
@@ -36,7 +33,7 @@ var StructuredFiltersGate = featuregate.GlobalRegistry().MustRegister(
 // enabled StructuredFiltersGate. The query is refused rather than served with the filter
 // ignored, because dropping a predicate would answer with every trace in the time range. The
 // same query is valid on a deployment with the gate on, so it matches errors.ErrUnsupported.
-var ErrFilterDisabled = fmt.Errorf("the structured query filter is disabled: %w", errors.ErrUnsupported)
+var ErrFilterDisabled = tracestore.Unsupported("the structured query filter is disabled")
 
 // queryToReaderCapabilities returns the query in the shape the reader declared it can serve, immediately
 // before dispatch.

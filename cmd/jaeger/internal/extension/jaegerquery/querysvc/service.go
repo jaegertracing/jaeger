@@ -39,15 +39,14 @@ const DefaultPageSize uint32 = DefaultSearchDepth
 // query is valid elsewhere, and so matches errors.ErrUnsupported, which the API layers map to
 // Unimplemented / HTTP 501. The interceptor package has a sentinel of the same name for an
 // interceptor with no span-search policy; that one is a deployment fault, not a refusal.
-var ErrSpanSearchUnsupported = fmt.Errorf("this storage backend does not declare span search support: %w", errors.ErrUnsupported)
+var ErrSpanSearchUnsupported = tracestore.Unsupported("this storage backend does not declare span search support")
 
 // ErrServiceNameRequired is returned for a search that omits the service name against a
 // backend whose reader does not accept one (RFC 0013 §3.3). It names the backend's
 // limitation rather than the missing field, because the same query is valid elsewhere, and
 // so matches errors.ErrUnsupported, which the API layers map to Unimplemented / HTTP 501.
-var ErrServiceNameRequired = fmt.Errorf(
-	"this storage backend requires a service name to search; searching all services is not supported: %w",
-	errors.ErrUnsupported,
+var ErrServiceNameRequired = tracestore.Unsupported(
+	"this storage backend requires a service name to search; searching all services is not supported",
 )
 
 // QueryServiceOptions holds the configuration options for the query service.

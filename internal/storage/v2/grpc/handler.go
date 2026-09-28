@@ -232,12 +232,8 @@ func (h *Handler) FindTraceSummaries(
 	return nil
 }
 
-// readerStatus converts the reader errors that the storage client must recognize into gRPC
-// statuses. A backend that cannot serve the request, whether it lacks the method or a capability
-// the query needs, signals errors.ErrUnsupported, which becomes Unimplemented so the client can
-// fall back or report the missing capability. A malformed query becomes InvalidArgument. Pagination
-// and ordering refusals carry a reason on either code so the client can restore their error
-// types. Other errors keep whatever status they carry.
+// readerStatus converts a reader refusal into the status tracestore.RefusalStatus defines, in
+// this server's ErrorInfo domain, and leaves any other error unchanged.
 func readerStatus(err error) error {
 	return tracestore.RefusalStatus(err, errorInfoDomain)
 }

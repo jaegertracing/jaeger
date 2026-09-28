@@ -4,10 +4,9 @@
 package querysvc
 
 import (
-	"errors"
-	"fmt"
-
 	"go.opentelemetry.io/collector/featuregate"
+
+	"github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore"
 )
 
 // PaginationGate admits the RFC 0014 Pagination field on a trace search. No Reader returns a
@@ -25,4 +24,4 @@ var PaginationGate = featuregate.GlobalRegistry().MustRegister(
 
 // ErrPaginationDisabled is returned for a query carrying Pagination while PaginationGate is off.
 // The same query is valid on a deployment with the gate on, so it matches errors.ErrUnsupported.
-var ErrPaginationDisabled = fmt.Errorf("pagination is disabled: %w", errors.ErrUnsupported)
+var ErrPaginationDisabled = tracestore.Unsupported("pagination is disabled")

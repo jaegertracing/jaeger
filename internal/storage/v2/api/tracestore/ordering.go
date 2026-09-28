@@ -4,7 +4,6 @@
 package tracestore
 
 import (
-	"errors"
 	"fmt"
 
 	expression "github.com/jaegertracing/jaeger-idl/query/expression/v1"
@@ -20,10 +19,10 @@ const (
 var (
 	// ErrSpanOrderInvalid is returned for an ordering that is malformed on its own terms,
 	// independent of any backend (RFC 0016 §6.3).
-	ErrSpanOrderInvalid = fmt.Errorf("invalid span ordering: %w", ErrInvalidQuery)
+	ErrSpanOrderInvalid = InvalidQuery("invalid span ordering")
 	// ErrSpanOrderUnsupported is returned for a valid explicit ordering that this backend does
 	// not declare (RFC 0016 §6.5). It is a capability refusal, so it matches errors.ErrUnsupported.
-	ErrSpanOrderUnsupported = fmt.Errorf("unsupported span ordering: %w", errors.ErrUnsupported)
+	ErrSpanOrderUnsupported = Unsupported("unsupported span ordering")
 )
 
 // SpanSortOrder selects a span field and its direction, in query precedence order.
