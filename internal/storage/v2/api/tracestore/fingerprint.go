@@ -51,7 +51,7 @@ func (q SpanQueryParams) Fingerprint() ([]byte, error) {
 	if err := h.filter(q.Filter); err != nil {
 		return nil, err
 	}
-	order := effectiveSpanOrder(q.OrderBy)
+	order := EffectiveSpanOrder(q.OrderBy)
 	h.int64(int64(len(order)))
 	for i, term := range order {
 		encoded, err := encodeCanonical(&expression.Call{Args: []expression.Expression{term.Expression}})

@@ -54,8 +54,6 @@ func TestNormalizeSpanOrder(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			_, err := NormalizeSpanOrder(order)
 			require.ErrorIs(t, err, ErrSpanOrderInvalid)
-			_, err = EffectiveSpanOrder(order)
-			require.ErrorIs(t, err, ErrSpanOrderInvalid)
 		})
 	}
 }
@@ -63,8 +61,7 @@ func TestNormalizeSpanOrder(t *testing.T) {
 func TestEffectiveSpanOrderAndFingerprint(t *testing.T) {
 	defaults := []SpanSortOrder{sortTerm("startTime", "desc"), sortTerm("traceID", "asc"), sortTerm("spanID", "asc")}
 	for _, order := range [][]SpanSortOrder{nil, defaults, {sortTerm("startTime", "desc")}} {
-		got, err := EffectiveSpanOrder(order)
-		require.NoError(t, err)
+		got := EffectiveSpanOrder(order)
 		assert.Equal(t, defaults, got)
 		fp, err := (SpanQueryParams{OrderBy: order}).Fingerprint()
 		require.NoError(t, err)
@@ -73,8 +70,7 @@ func TestEffectiveSpanOrderAndFingerprint(t *testing.T) {
 		assert.Equal(t, want, fp)
 	}
 	duration := []SpanSortOrder{sortTerm("duration", "desc")}
-	effective, err := EffectiveSpanOrder(duration)
-	require.NoError(t, err)
+	effective := EffectiveSpanOrder(duration)
 	assert.Equal(t, append(duration, defaults...), effective)
 	orders := [][]SpanSortOrder{
 		nil,
@@ -95,8 +91,7 @@ func TestEffectiveSpanOrderAndFingerprint(t *testing.T) {
 		same, err := query.Fingerprint()
 		require.NoError(t, err)
 		assert.Equal(t, fp, same)
-		effective, err := EffectiveSpanOrder(order)
-		require.NoError(t, err)
+		effective := EffectiveSpanOrder(order)
 		normalized, err := (SpanQueryParams{OrderBy: effective}).Fingerprint()
 		require.NoError(t, err)
 		assert.Equal(t, fp, normalized)
@@ -135,8 +130,7 @@ func TestSpanOrderBindsContinuationToken(t *testing.T) {
 	require.NoError(t, err)
 	token, err := NewPageToken(fingerprint, []byte("cursor"))
 	require.NoError(t, err)
-	effective, err := EffectiveSpanOrder(query.OrderBy)
-	require.NoError(t, err)
+	effective := EffectiveSpanOrder(query.OrderBy)
 	query.OrderBy = effective
 	query.Pagination.PageSize = 10
 	fingerprint, err = query.Fingerprint()

@@ -60,39 +60,31 @@ func NormalizeSpanOrder(order []SpanSortOrder) ([]SpanSortOrder, error) {
 	return out, nil
 }
 
-// EffectiveSpanOrder includes the default ordering and any missing deterministic tie-breakers.
-func EffectiveSpanOrder(order []SpanSortOrder) ([]SpanSortOrder, error) {
-	out, err := NormalizeSpanOrder(order)
-	if err != nil {
-		return nil, err
-	}
-	return effectiveSpanOrder(out), nil
-}
-
-// effectiveSpanOrder adds defaults without restricting the expressions a fingerprint can encode.
-func effectiveSpanOrder(order []SpanSortOrder) []SpanSortOrder {
+// EffectiveSpanOrder copies the terms, defaults their directions, and appends missing tie-breakers.
+// Execution support is validated separately by NormalizeSpanOrder.
+func EffectiveSpanOrder(order []SpanSortOrder) []SpanSortOrder {
 	out := slices.Clone(order)
-	for i := range out {
-		if out[i].Direction == "" {
+	seen := make(map[string]bool, len(order))
+	for i, term := range out {
+		if term.Direction == "" {
 			out[i].Direction = SortAscending
 		}
+		if ref, ok := term.Expression.(*expression.FieldRef); ok && ref != nil && ref.Level == expression.LevelSpan {
+			seen[ref.Name] = true
+		}
 	}
-	for _, fallback := range []struct {
-		name      string
-		direction SortDirection
-	}{
-		{"startTime", SortDescending}, {"traceID", SortAscending}, {"spanID", SortAscending},
-	} {
-		found := false
-		for _, term := range out {
-			if ref, ok := term.Expression.(*expression.FieldRef); ok && ref != nil && ref.Level == expression.LevelSpan && ref.Name == fallback.name {
-				found = true
-				break
-			}
+	for _, field := range []string{"startTime", "traceID", "spanID"} {
+		if seen[field] {
+			continue
 		}
-		if !found {
-			out = append(out, SpanSortOrder{Expression: &expression.FieldRef{Level: expression.LevelSpan, Name: fallback.name}, Direction: fallback.direction})
+		direction := SortAscending
+		if field == "startTime" {
+			direction = SortDescending
 		}
+		out = append(out, SpanSortOrder{
+			Expression: &expression.FieldRef{Level: expression.LevelSpan, Name: field},
+			Direction:  direction,
+		})
 	}
 	return out
 }
