@@ -113,7 +113,7 @@ func traceQueryParams(query *api_v3.TraceQueryParameters) (querysvc.TraceQueryPa
 	if protoFilter := query.GetFilter(); protoFilter != nil {
 		filter, err := expressionproto.CallFromProto(protoFilter)
 		if err != nil {
-			return querysvc.TraceQueryParams{}, status.Error(codes.InvalidArgument, err.Error())
+			return querysvc.TraceQueryParams{}, fmt.Errorf("%w: %w", tracestore.ErrInvalidQuery, err)
 		}
 		queryParams.Filter = filter
 	}
@@ -130,7 +130,7 @@ func traceQueryParams(query *api_v3.TraceQueryParameters) (querysvc.TraceQueryPa
 func (h *Handler) FindSpans(request *api_v3.FindSpansRequest, stream api_v3.QueryService_FindSpansServer) error {
 	queryParams, err := spanQueryParams(request.GetQuery())
 	if err != nil {
-		return err
+		return asStatusError(err)
 	}
 
 	for chunk, err := range h.QueryService.FindSpans(stream.Context(), queryParams) {
@@ -165,13 +165,13 @@ func spanQueryParams(query *api_v3.SpanQueryParameters) (querysvc.SpanQueryParam
 	if protoFilter := query.GetFilter(); protoFilter != nil {
 		filter, err := expressionproto.CallFromProto(protoFilter)
 		if err != nil {
-			return querysvc.SpanQueryParams{}, status.Error(codes.InvalidArgument, err.Error())
+			return querysvc.SpanQueryParams{}, fmt.Errorf("%w: %w", tracestore.ErrInvalidQuery, err)
 		}
 		queryParams.Filter = filter
 	}
 	order, err := tracestore.SpanOrderFromProto(query.GetOrderBy())
 	if err != nil {
-		return querysvc.SpanQueryParams{}, asStatusError(fmt.Errorf("%w: %w", tracestore.ErrSpanOrderInvalid, err))
+		return querysvc.SpanQueryParams{}, fmt.Errorf("%w: %w", tracestore.ErrSpanOrderInvalid, err)
 	}
 	queryParams.OrderBy = order
 	if pagination := query.GetPagination(); pagination != nil {

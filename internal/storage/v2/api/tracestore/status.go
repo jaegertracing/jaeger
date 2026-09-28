@@ -99,7 +99,8 @@ func ErrorFromStatus(err error, domain string) error {
 		}
 	}
 	if st.Code() == codes.Unimplemented {
-		return fmt.Errorf("remote server: %s: %w", st.Message(), errors.ErrUnsupported)
+		msg, _ := strings.CutSuffix(st.Message(), ": "+errors.ErrUnsupported.Error())
+		return fmt.Errorf("remote server: %s: %w", msg, errors.ErrUnsupported)
 	}
 	return err
 }

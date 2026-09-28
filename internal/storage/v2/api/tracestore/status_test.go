@@ -58,9 +58,25 @@ func TestErrorFromStatus_DoesNotRepeatTheSentinel(t *testing.T) {
 	sent := fmt.Errorf("%w: token belongs to another query", ErrPaginationInvalid)
 	restored := ErrorFromStatus(RefusalStatus(sent, testDomain), testDomain)
 	require.ErrorIs(t, restored, ErrPaginationInvalid)
-	assert.Equal(t, sent.Error(), restored.Error())
 	assert.Equal(t, "invalid pagination: token belongs to another query", restored.Error(),
 		"the sentinel carries no root text of its own")
+
+	// A reader that lacks the method wraps errors.ErrUnsupported itself, so its text already
+	// ends in the root's; the restored error carries that text once.
+	bare := fmt.Errorf("no native summaries: %w", errors.ErrUnsupported)
+	restored = ErrorFromStatus(RefusalStatus(bare, testDomain), testDomain)
+	require.ErrorIs(t, restored, errors.ErrUnsupported)
+	assert.Equal(t, "remote server: no native summaries: unsupported operation", restored.Error())
+}
+
+// TestEveryUnsupportedReaderSentinelHasAReason guards the rule the query service's summaries
+// fallback depends on: a capability refusal a reader can return crosses the storage boundary
+// with a reason, so the client never mistakes it for a reader that lacks the method.
+func TestEveryUnsupportedReaderSentinelHasAReason(t *testing.T) {
+	for _, err := range []error{ErrFilterUnsupported, ErrPaginationUnsupported, ErrSpanOrderUnsupported} {
+		require.ErrorIs(t, err, errors.ErrUnsupported)
+		assert.NotEmpty(t, ErrorReason(err), err.Error())
+	}
 }
 
 // TestFamilySentinelMessages pins that a family sentinel reads as its own message: the root it
