@@ -145,13 +145,13 @@ type SpanQueryParams struct {
 	StartTimeMin time.Time
 	StartTimeMax time.Time
 	Filter       *expression.Call // RFC 0005
+	OrderBy      []SpanSortOrder
 	// Pagination is the only bound on the result, since a span query has no SearchDepth
 	// (RFC 0016 §6), so PageSize is always set: the query service fills in a default when the
 	// caller left it unset. A Reader whose SearchCapabilities.Paginated is false still receives
 	// PageSize as that bound but never a PageToken, which the query service refuses on its
 	// behalf before dispatching (RFC 0014 §6.2).
 	Pagination Pagination
-	OrderBy    []SpanSortOrder
 }
 
 // UnsupportedSpanSearch provides a Reader.FindSpans implementation for backends that

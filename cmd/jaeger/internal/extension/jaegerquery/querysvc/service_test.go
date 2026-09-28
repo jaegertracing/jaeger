@@ -1768,8 +1768,8 @@ func TestFindSpansOrdering(t *testing.T) {
 			if supported {
 				expected := tracestore.SpanQueryParams{
 					StartTimeMin: testWindowStart, StartTimeMax: testWindowEnd,
-					Pagination: tracestore.Pagination{PageSize: DefaultPageSize},
 					OrderBy:    []tracestore.SpanSortOrder{{Expression: &expression.FieldRef{Level: expression.LevelSpan, Name: "duration"}, Direction: tracestore.SortAscending}},
+					Pagination: tracestore.Pagination{PageSize: DefaultPageSize},
 				}
 				tqs.traceReader.On("FindSpans", mock.Anything, expected).Return(iter.Seq2[tracestore.PageChunk[ptrace.Traces], error](func(func(tracestore.PageChunk[ptrace.Traces], error) bool) {})).Once()
 			}

@@ -106,10 +106,10 @@ type SpanQueryParams struct {
 	StartTimeMin time.Time
 	StartTimeMax time.Time
 	// Filter is the structured query filter (RFC 0005), the only predicate a span search takes.
-	Filter *expression.Call
+	Filter  *expression.Call
+	OrderBy []tracestore.SpanSortOrder
 	// Pagination is the only bound on the result (RFC 0016 §6): a zero PageSize means the default.
 	Pagination Pagination
-	OrderBy    []tracestore.SpanSortOrder
 }
 
 // TraceQueryParams is a trace search as the caller sent it. prepareSearchQuery turns it into the

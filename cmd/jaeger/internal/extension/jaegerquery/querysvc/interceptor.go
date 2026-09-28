@@ -113,11 +113,11 @@ func toInterceptorSpanQuery(q tracestore.SpanQueryParams) queryinterceptor.SpanQ
 
 func fromInterceptorSpanQuery(q queryinterceptor.SpanQuery, original tracestore.SpanQueryParams) tracestore.SpanQueryParams {
 	return tracestore.SpanQueryParams{
-		Filter:       q.Filter,
 		StartTimeMin: q.StartTimeMin,
 		StartTimeMax: q.StartTimeMax,
-		Pagination:   original.Pagination,
+		Filter:       q.Filter,
 		OrderBy:      original.OrderBy,
+		Pagination:   original.Pagination,
 	}
 }
 

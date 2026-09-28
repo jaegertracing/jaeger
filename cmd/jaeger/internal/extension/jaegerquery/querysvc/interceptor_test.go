@@ -1078,8 +1078,8 @@ func TestFindSpans_PaginationSurvivesTheInterceptors(t *testing.T) {
 	_, err := collectSpans(qs.FindSpans(t.Context(), SpanQueryParams{
 		StartTimeMin: testWindowStart,
 		StartTimeMax: testWindowEnd,
-		Pagination:   Pagination{PageSize: 10},
 		OrderBy:      order,
+		Pagination:   Pagination{PageSize: 10},
 	}))
 	require.NoError(t, err)
 	assert.Equal(t, order, next.gotSpanQuery.OrderBy)

@@ -86,11 +86,11 @@ func (q SpanQueryParams) toReaderQuery() (tracestore.SpanQueryParams, error) {
 		StartTimeMin: q.StartTimeMin,
 		StartTimeMax: q.StartTimeMax,
 		Filter:       q.Filter,
+		OrderBy:      order,
 		Pagination: tracestore.Pagination{
 			PageSize:  q.Pagination.PageSize,
 			PageToken: tracestore.PageToken(q.Pagination.PageToken),
 		},
-		OrderBy: order,
 	}
 	if q.StartTimeMin.IsZero() || q.StartTimeMax.IsZero() {
 		return query, fmt.Errorf("%w: start_time_min and start_time_max are required", ErrQueryInvalid)

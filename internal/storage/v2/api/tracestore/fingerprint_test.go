@@ -183,8 +183,8 @@ func TestFingerprint_EveryFieldIsAccountedFor(t *testing.T) {
 	}, fields(TraceQueryParams{}))
 	assert.Equal(t, []string{
 		"StartTimeMin", "StartTimeMax", "Filter",
-		"Pagination", // excluded
 		"OrderBy",
+		"Pagination", // excluded
 	}, fields(SpanQueryParams{}))
 }
 
