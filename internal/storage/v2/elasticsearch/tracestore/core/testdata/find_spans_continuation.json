@@ -22,6 +22,14 @@
             }
           },
           {
+            "range": {
+              "startTime": {
+                "gte": 1577934245000000,
+                "lte": 1577937845000000
+              }
+            }
+          },
+          {
             "term": {
               "process.serviceName": "test-service"
             }

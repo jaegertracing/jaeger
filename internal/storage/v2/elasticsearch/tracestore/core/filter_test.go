@@ -217,6 +217,14 @@ func TestBuildFilterQuery(t *testing.T) {
 			filter: p.Span().StartTime.Gt("2020-01-02T03:04:05Z"),
 		},
 		{
+			name:   "ne on the start time asks for spans that hold another start time",
+			filter: p.Span().StartTime.Ne("2020-01-02T03:04:05Z"),
+		},
+		{
+			name:   "exists on the start time",
+			filter: p.Span().StartTime.Exists(),
+		},
+		{
 			name:   "lte on the start time with a timestamp constant, which is what a finalized filter carries",
 			filter: p.Span().StartTime.Lte(&expression.TimestampValue{Value: time.Date(2020, 1, 2, 3, 4, 5, 0, time.UTC)}),
 		},

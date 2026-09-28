@@ -11,6 +11,7 @@ import (
 
 	"go.uber.org/zap"
 
+	"github.com/jaegertracing/jaeger-idl/model/v1"
 	expression "github.com/jaegertracing/jaeger-idl/query/expression/v1"
 	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/esclient"
 	esquery "github.com/jaegertracing/jaeger/internal/storage/elasticsearch/query"
@@ -129,7 +130,14 @@ func (s *SpanReader) buildSpanSearchRequest(
 	after *spanCursor,
 	fetch int,
 ) (esclient.SearchRequest, error) {
-	boolQuery := esquery.NewBoolQuery().Must(s.buildStartTimeQuery(query.StartTimeMin, query.StartTimeMax))
+	// The millisecond range prunes shards; the microsecond range is the bound itself, since the
+	// span's stored start time tells apart spans the millisecond field does not.
+	boolQuery := esquery.NewBoolQuery().Must(
+		s.buildStartTimeQuery(query.StartTimeMin, query.StartTimeMax),
+		esquery.NewRangeQuery(startTimeField).
+			Gte(model.TimeAsEpochMicroseconds(query.StartTimeMin)).
+			Lte(model.TimeAsEpochMicroseconds(query.StartTimeMax)),
+	)
 	if query.Filter != nil {
 		filterQuery, err := s.buildFilterQuery(query.Filter)
 		if err != nil {
@@ -235,7 +243,8 @@ func decodeSpanCursor(raw []byte, order []tracestore.SpanSortOrder) (*spanCursor
 		default:
 			want = new(json.Number)
 		}
-		if err := json.Unmarshal(c.Sort[i], want); err != nil {
+		// A JSON null decodes into either target without error, so it is refused on its own.
+		if err := json.Unmarshal(c.Sort[i], want); err != nil || bytes.Equal(bytes.TrimSpace(c.Sort[i]), []byte("null")) {
 			return nil, fmt.Errorf("%w: page token does not carry a span position", tracestore.ErrPaginationInvalid)
 		}
 	}

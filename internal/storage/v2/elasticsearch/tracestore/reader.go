@@ -206,7 +206,8 @@ func (r *TraceReader) FindTraceIDs(ctx context.Context, query tracestore.TraceQu
 // paginationAsDepth is RFC 0014 §6.2 applied inside this reader for the trace searches, which
 // do not page yet while the Paginated capability, declared for FindSpans, covers them too. The
 // page size bounds the search as its depth, and a token is refused, because these searches
-// cannot have produced one.
+// cannot have produced one. The query service applies the same rule, in queryToReaderCapabilities,
+// to a reader that declares no pagination at all.
 func paginationAsDepth(query tracestore.TraceQueryParams) (tracestore.TraceQueryParams, error) {
 	if query.Pagination == nil {
 		return query, nil

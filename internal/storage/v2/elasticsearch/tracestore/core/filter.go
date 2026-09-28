@@ -397,6 +397,8 @@ func (s *SpanReader) buildExists(ref reference) (esquery.Query, error) {
 		return esquery.NewExistsQuery(serviceNameField), nil
 	case ref.isField(expression.LevelSpan, expression.SpanFieldDuration):
 		return esquery.NewExistsQuery(durationField), nil
+	case ref.isField(expression.LevelSpan, expression.SpanFieldStartTime):
+		return esquery.NewExistsQuery(startTimeField), nil
 	case ref.isField(expression.LevelSpan, expression.SpanFieldTraceID):
 		return esquery.NewExistsQuery(traceIDField), nil
 	case ref.isField(expression.LevelSpan, expression.SpanFieldSpanID):

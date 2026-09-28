@@ -196,9 +196,10 @@ func Elasticsearch() Capabilities {
 		//  Issue https://github.com/jaegertracing/jaeger/issues/1923
 		getOperationsMissingSpanKind: true,
 		// The suite runs with typed attribute indexing enabled (RFC 0015), so an attribute value is
-		// indexed as a number beside the keyword and ordering one is answered rather than refused.
-		// That makes the battery's paired refusal case the one to skip. FindSpans pages and
-		// orders (RFC 0016 M4, M11); the trace searches do not page yet (RFC 0014 M3).
+		// indexed as a number beside the keyword and a range filter over one is answered rather
+		// than refused. That makes the battery's paired refusal case the one to skip. FindSpans
+		// pages and orders by the built-in fields (RFC 0016 M4, M11), not yet by an attribute; the
+		// trace searches do not page yet (RFC 0014 M3).
 		skipList: []string{
 			spanAttributeOrderingTest,
 			traceIDPaginationTest,

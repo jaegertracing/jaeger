@@ -154,6 +154,7 @@ func TestSpanReader_FindSpans_Continuation(t *testing.T) {
 			// and a returned one is not.
 			assert.Contains(t, string(body), `"must_not":[{"bool":{"must":[{"term":{"_index":"jaeger-span-2020-01-01"}},{"ids":{"values":["d3"]}}]}},{"bool":{"must":[{"term":{"_index":"jaeger-span-2020-01-02"}},{"ids":{"values":["d2"]}}]}}]`)
 			assert.Contains(t, string(body), `"range":{"startTime":{"lt":10}}`)
+			assert.Contains(t, string(body), `"range":{"startTime":{"gte":1577934245000000,"lte":1577937845000000}}`)
 			assert.Contains(t, string(body), `"range":{"spanID":{"gt":"s2"}}`)
 		}).Return(&esclient.SearchResponse{Hits: esclient.HitsResult{Hits: []esclient.SearchHit{
 			spanHit("d3", "t1", "s2", 10), spanHit("d4", "t1", "s2", 10), spanHit("d5", "t2", "s1", 5),
@@ -248,6 +249,9 @@ func TestSpanReader_FindSpans_RefusedBeforeSearching(t *testing.T) {
 		{"CursorWithoutDocuments", func(q *dbmodel.SpanQueryParameters) { q.Cursor = []byte(`{"sort":[1,"t","s"]}`) }, tracestore.ErrPaginationInvalid},
 		{"CursorWithObjectForTime", func(q *dbmodel.SpanQueryParameters) {
 			q.Cursor = []byte(`{"sort":[{},"t","s"],"docs":[{"index":"i","id":"d"}]}`)
+		}, tracestore.ErrPaginationInvalid},
+		{"CursorWithNullForID", func(q *dbmodel.SpanQueryParameters) {
+			q.Cursor = []byte(`{"sort":[1,"t",null],"docs":[{"index":"i","id":"d"}]}`)
 		}, tracestore.ErrPaginationInvalid},
 		{"CursorWithNumberForID", func(q *dbmodel.SpanQueryParameters) {
 			q.Cursor = []byte(`{"sort":[1,2,"s"],"docs":[{"index":"i","id":"d"}]}`)
