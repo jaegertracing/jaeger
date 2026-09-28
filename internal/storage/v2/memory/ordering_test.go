@@ -73,8 +73,7 @@ func TestFindSpansOrdering(t *testing.T) {
 func TestSpanOrderingCursorValues(t *testing.T) {
 	key := spanKey{startTime: pcommon.Timestamp(42), endTime: pcommon.Timestamp(17), traceID: pcommon.TraceID{0xff}, spanID: pcommon.SpanID{0xfe}}
 	assert.Equal(t, key, decodeSpanKey(key.encode()))
-	order, err := tracestore.EffectiveSpanOrder([]tracestore.SpanSortOrder{{Expression: &expression.FieldRef{Level: expression.LevelSpan, Name: "duration"}}})
-	require.NoError(t, err)
+	order := tracestore.EffectiveSpanOrder([]tracestore.SpanSortOrder{{Expression: &expression.FieldRef{Level: expression.LevelSpan, Name: "duration"}}})
 	compare := compareSpanKeys(order)
 	assert.Negative(t, compare(key, spanKey{}), "a negative duration sorts before zero")
 	later := key
