@@ -50,7 +50,6 @@ func TestNormalizeSpanOrder(t *testing.T) {
 		"unknown field": {sortTerm("name", "")},
 		"direction":     {sortTerm("duration", "ASC")},
 		"duplicate":     {sortTerm("duration", "asc"), sortTerm("duration", "desc")},
-		"too many":      {{}, {}, {}, {}, {}},
 	} {
 		t.Run(name, func(t *testing.T) {
 			_, err := NormalizeSpanOrder(order)

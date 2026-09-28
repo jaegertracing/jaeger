@@ -31,9 +31,6 @@ func NormalizeSpanOrder(order []SpanSortOrder) ([]SpanSortOrder, error) {
 	if len(order) == 0 {
 		return nil, nil
 	}
-	if len(order) > 4 {
-		return nil, fmt.Errorf("%w: order_by accepts at most four terms", ErrSpanOrderInvalid)
-	}
 	out := make([]SpanSortOrder, len(order))
 	seen := make(map[string]bool, len(order))
 	for i, term := range order {
