@@ -353,3 +353,5 @@ require (
 	sigs.k8s.io/structured-merge-diff/v6 v6.4.2 // indirect
 	sigs.k8s.io/yaml v1.6.0 // indirect
 )
+
+replace github.com/jaegertracing/jaeger-idl => github.com/ysh-bot/jaeger-idl v0.9.1-0.20260927223913-4f8aa0a66987
