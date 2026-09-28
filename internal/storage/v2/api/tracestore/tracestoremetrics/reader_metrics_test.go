@@ -311,6 +311,8 @@ func TestReadMetricsDecorator_SearchCapabilities(t *testing.T) {
 		{Paginated: true},
 		{SpanSearch: false},
 		{SpanSearch: true},
+		{SpanSorting: false},
+		{SpanSorting: true},
 	} {
 		t.Run(fmt.Sprintf("%+v", caps), func(t *testing.T) {
 			inner := &mocks.Reader{}

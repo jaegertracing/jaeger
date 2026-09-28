@@ -286,7 +286,7 @@ func convertSummaryBatch(protos []*storage.TraceSummary) []tracestore.TraceSumma
 // one place: the alternative is sending a query whose filter went missing, which reads to the server
 // as a search with no predicates.
 func toProtoQueryParameters(t tracestore.TraceQueryParams) (*storage.TraceQueryParameters, error) {
-	filter, err := expressionproto.ToProto(t.Filter)
+	filter, err := expressionproto.CallToProto(t.Filter)
 	if err != nil {
 		return nil, fmt.Errorf("cannot send the query filter: %w", err)
 	}
