@@ -13,7 +13,6 @@ import (
 
 	"go.opentelemetry.io/collector/pdata/pcommon"
 	"go.opentelemetry.io/collector/pdata/ptrace"
-	"google.golang.org/genproto/googleapis/rpc/errdetails"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -27,9 +26,6 @@ import (
 var _ tracestore.Reader = (*TraceReader)(nil)
 
 type TraceReader struct {
-	// SpanSearch is unsupported for now.
-	tracestore.UnsupportedSpanSearch
-
 	client       storage.TraceReaderClient
 	capabilities storage.CapabilitiesClient
 
@@ -73,6 +69,8 @@ func (tr *TraceReader) SearchCapabilities(ctx context.Context) (tracestore.Searc
 		SameSpanConjunction: resp.GetSearch().GetSameSpanConjunction(),
 		Filter:              fromProtoFilterCapabilities(resp.GetSearch().GetFilter()),
 		Paginated:           resp.GetSearch().GetPaginated(),
+		SpanSearch:          resp.GetSearch().GetSpanSearch(),
+		SpanSorting:         resp.GetSearch().GetSpanSorting(),
 	}
 	tr.cachedCaps.Store(&caps)
 	return caps, nil
@@ -166,17 +164,9 @@ func (tr *TraceReader) FindTraces(
 	}
 }
 
-// paginationError turns the status that the storage server gives a rejected page request back
-// into tracestore.ErrPaginationInvalid (RFC 0014 §6). The server marks that status with
-// paginationInvalidReason, since InvalidArgument alone also answers other malformed requests.
-func paginationError(err error) error {
-	st := status.Convert(err)
-	for _, detail := range st.Details() {
-		if info, ok := detail.(*errdetails.ErrorInfo); ok && info.GetReason() == paginationInvalidReason {
-			return fmt.Errorf("%w: %s", tracestore.ErrPaginationInvalid, st.Message())
-		}
-	}
-	return err
+// readerError restores the error types marked by readerStatus at the storage boundary.
+func readerError(err error) error {
+	return tracestore.ErrorFromStatus(err, errorInfoDomain)
 }
 
 func (tr *TraceReader) FindTraceIDs(
@@ -191,7 +181,7 @@ func (tr *TraceReader) FindTraceIDs(
 		}
 		resp, err := tr.client.FindTraceIDs(ctx, &storage.FindTraceIDsRequest{Query: query})
 		if err != nil {
-			yield(tracestore.PageChunk[[]tracestore.FoundTraceID]{}, fmt.Errorf("failed to execute FindTraceIDs: %w", paginationError(err)))
+			yield(tracestore.PageChunk[[]tracestore.FoundTraceID]{}, fmt.Errorf("failed to execute FindTraceIDs: %w", readerError(err)))
 			return
 		}
 		foundTraceIDs := make([]tracestore.FoundTraceID, len(resp.TraceIds))
@@ -212,6 +202,66 @@ func (tr *TraceReader) FindTraceIDs(
 	}
 }
 
+func (tr *TraceReader) FindSpans(ctx context.Context, params tracestore.SpanQueryParams) iter.Seq2[tracestore.PageChunk[ptrace.Traces], error] {
+	return func(yield func(tracestore.PageChunk[ptrace.Traces], error) bool) {
+		query, err := toProtoSpanQuery(params)
+		if err != nil {
+			yield(tracestore.PageChunk[ptrace.Traces]{}, err)
+			return
+		}
+		rpcCtx, cancel := context.WithCancel(ctx)
+		defer cancel()
+		stream, err := tr.client.FindSpans(rpcCtx, &storage.FindSpansRequest{Query: query})
+		if err != nil {
+			yield(tracestore.PageChunk[ptrace.Traces]{}, spanReaderError(err, "failed to execute FindSpans"))
+			return
+		}
+		for {
+			resp, err := stream.Recv()
+			if errors.Is(err, io.EOF) {
+				return
+			}
+			if err != nil {
+				yield(tracestore.PageChunk[ptrace.Traces]{}, spanReaderError(err, "received error from grpc stream"))
+				return
+			}
+			traces := ptrace.NewTraces()
+			if resp.Spans != nil {
+				traces = resp.Spans.ToTraces()
+			}
+			if !yield(tracestore.PageChunk[ptrace.Traces]{Results: traces, NextPageToken: tracestore.PageToken(resp.NextPageToken)}, nil) {
+				return
+			}
+		}
+	}
+}
+
+func spanReaderError(err error, message string) error {
+	if status.Code(err) == codes.Unimplemented {
+		return fmt.Errorf("remote server does not support FindSpans: %w", errors.ErrUnsupported)
+	}
+	return fmt.Errorf("%s: %w", message, readerError(err))
+}
+
+func toProtoSpanQuery(params tracestore.SpanQueryParams) (*storage.SpanQueryParameters, error) {
+	filter, err := expressionproto.CallToProto(params.Filter)
+	if err != nil {
+		return nil, err
+	}
+	query := &storage.SpanQueryParameters{
+		StartTimeMin: params.StartTimeMin, StartTimeMax: params.StartTimeMax, Filter: filter,
+		Pagination: &storage.Pagination{PageSize: params.Pagination.PageSize, PageToken: string(params.Pagination.PageToken)},
+	}
+	for _, term := range params.OrderBy {
+		encoded, err := expressionproto.ToProto(term.Expression)
+		if err != nil {
+			return nil, err
+		}
+		query.OrderBy = append(query.OrderBy, &storage.SpanSortOrder{Expression: encoded, Direction: string(term.Direction)})
+	}
+	return query, nil
+}
+
 func (tr *TraceReader) FindTraceSummaries(
 	ctx context.Context,
 	params tracestore.TraceQueryParams,
@@ -220,7 +270,7 @@ func (tr *TraceReader) FindTraceSummaries(
 		if status.Code(err) == codes.Unimplemented || errors.Is(err, errors.ErrUnsupported) {
 			return fmt.Errorf("remote server does not support FindTraceSummaries: %w", errors.ErrUnsupported)
 		}
-		return fmt.Errorf("%s: %w", msg, paginationError(err))
+		return fmt.Errorf("%s: %w", msg, readerError(err))
 	}
 	return func(yield func(tracestore.PageChunk[[]tracestore.TraceSummary], error) bool) {
 		query, err := toProtoQueryParameters(params)

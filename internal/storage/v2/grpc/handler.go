@@ -9,7 +9,6 @@ import (
 
 	"go.opentelemetry.io/collector/pdata/pcommon"
 	"go.opentelemetry.io/collector/pdata/ptrace/ptraceotlp"
-	"google.golang.org/genproto/googleapis/rpc/errdetails"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/health"
@@ -22,6 +21,10 @@ import (
 	"github.com/jaegertracing/jaeger/internal/storage/v2/api/depstore"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore"
 )
+
+// errorInfoDomain is the ErrorInfo domain under which the storage server reports reader
+// refusals, so the storage client restores only the reasons this server attached.
+const errorInfoDomain = "jaeger.storage.v2"
 
 var (
 	_ storage.TraceReaderServer      = (*Handler)(nil)
@@ -142,6 +145,47 @@ func (h *Handler) FindTraces(
 	return nil
 }
 
+func (h *Handler) FindSpans(req *storage.FindSpansRequest, srv storage.TraceReader_FindSpansServer) error {
+	query, err := toSpanQueryParams(req.GetQuery())
+	if err != nil {
+		return err
+	}
+	for chunk, err := range h.traceReader.FindSpans(srv.Context(), query) {
+		if err != nil {
+			return readerStatus(err)
+		}
+		data := jptrace.TracesData(chunk.Results)
+		if err := srv.Send(&storage.FindSpansResponse{Spans: &data, NextPageToken: string(chunk.NextPageToken)}); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func toSpanQueryParams(wire *storage.SpanQueryParameters) (tracestore.SpanQueryParams, error) {
+	if wire == nil {
+		return tracestore.SpanQueryParams{}, status.Error(codes.InvalidArgument, "missing query")
+	}
+	filter, err := expressionproto.CallFromProto(wire.Filter)
+	if err != nil {
+		return tracestore.SpanQueryParams{}, status.Error(codes.InvalidArgument, err.Error())
+	}
+	order, err := tracestore.SpanOrderFromProto(wire.OrderBy)
+	if err != nil {
+		return tracestore.SpanQueryParams{}, status.Error(codes.InvalidArgument, err.Error())
+	}
+	return tracestore.SpanQueryParams{
+		StartTimeMin: wire.StartTimeMin,
+		StartTimeMax: wire.StartTimeMax,
+		Filter:       filter,
+		OrderBy:      order,
+		Pagination: tracestore.Pagination{
+			PageSize:  wire.GetPagination().GetPageSize(),
+			PageToken: tracestore.PageToken(wire.GetPagination().GetPageToken()),
+		},
+	}, nil
+}
+
 func (h *Handler) FindTraceSummaries(
 	req *storage.FindTraceSummariesRequest,
 	srv storage.TraceReader_FindTraceSummariesServer,
@@ -152,12 +196,6 @@ func (h *Handler) FindTraceSummaries(
 	}
 	for chunk, err := range h.traceReader.FindTraceSummaries(srv.Context(), query) {
 		if err != nil {
-			// A backend that cannot compute summaries natively signals this with
-			// errors.ErrUnsupported; surface it as gRPC Unimplemented so the remote
-			// client falls back to loading full traces and aggregating client-side.
-			if errors.Is(err, errors.ErrUnsupported) {
-				return status.Errorf(codes.Unimplemented, "method FindTraceSummaries not implemented: %v", err)
-			}
 			return readerStatus(err)
 		}
 		batch := make([]*storage.TraceSummary, len(chunk.Results))
@@ -194,24 +232,16 @@ func (h *Handler) FindTraceSummaries(
 	return nil
 }
 
-// paginationInvalidReason is the ErrorInfo reason on the InvalidArgument status that carries a
-// rejected page request. The server answers InvalidArgument to other malformed requests too, so
-// the client needs the reason, not the code, to restore tracestore.ErrPaginationInvalid.
-const paginationInvalidReason = "PAGINATION_INVALID"
-
-// readerStatus gives a rejected page request the InvalidArgument status, marked with
-// paginationInvalidReason so the storage client turns it back into
-// tracestore.ErrPaginationInvalid (RFC 0014 §6). Other reader errors keep whatever status
-// they carry.
+// readerStatus converts the reader errors that the storage client must recognize into gRPC
+// statuses. A backend that cannot serve the request natively signals errors.ErrUnsupported, which
+// becomes Unimplemented so the client can fall back or report the missing capability. Pagination
+// and ordering refusals become InvalidArgument marked with a reason so the client can restore
+// their error types. Other errors keep whatever status they carry.
 func readerStatus(err error) error {
-	if !errors.Is(err, tracestore.ErrPaginationInvalid) {
-		return err
+	if errors.Is(err, errors.ErrUnsupported) {
+		return status.Errorf(codes.Unimplemented, "not implemented by the storage backend: %v", err)
 	}
-	st := status.New(codes.InvalidArgument, err.Error())
-	if detailed, detailErr := st.WithDetails(&errdetails.ErrorInfo{Reason: paginationInvalidReason, Domain: "jaeger.storage.v2"}); detailErr == nil {
-		st = detailed
-	}
-	return st.Err()
+	return tracestore.InvalidArgumentStatus(err, errorInfoDomain)
 }
 
 func (h *Handler) FindTraceIDs(
@@ -312,6 +342,8 @@ func (h *Handler) GetCapabilities(
 			SameSpanConjunction: caps.SameSpanConjunction,
 			Filter:              toProtoFilterCapabilities(caps.Filter),
 			Paginated:           caps.Paginated,
+			SpanSearch:          caps.SpanSearch,
+			SpanSorting:         caps.SpanSorting,
 		},
 	}, nil
 }
