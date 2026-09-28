@@ -49,8 +49,8 @@ const traceKeySize = 8 + 16
 // and encodes each value so that byte order is sort order.
 func makeSortingKey(ctx filterCtx, order []tracestore.SpanSortOrder) sortingKey {
 	key := make(sortingKey, len(order))
-	for i, term := range order {
-		key[i] = encodeSortValue(resolveOperand(term.Expression, ctx))
+	for i, expr := range order {
+		key[i] = encodeSortValue(resolveOperand(expr.Expression, ctx))
 	}
 	return key
 }
