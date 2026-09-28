@@ -392,7 +392,10 @@ func (qs QueryService) prepareSpanSearchQuery(
 	if err := caps.ValidateSpanSorting(query.OrderBy); err != nil {
 		return ctx, query, err
 	}
-	return ctx, query, ensureSpanPaginationSupported(caps, query.Pagination)
+	if err := ensureSpanPaginationSupported(caps, query.Pagination); err != nil {
+		return ctx, query, err
+	}
+	return ctx, query, nil
 }
 
 // ensureSpanPaginationSupported is RFC 0014 §6.2 for a span search. A reader that cannot paginate
