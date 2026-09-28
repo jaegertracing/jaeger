@@ -290,6 +290,7 @@ func TestFindSpans_RefusesATokenItDidNotReturnForThisQuery(t *testing.T) {
 	require.NoError(t, err)
 	require.NotEmpty(t, first.NextPageToken)
 
+	paged.OrderBy = tracestore.EffectiveSpanOrder(paged.OrderBy)
 	fingerprint, err := paged.Fingerprint()
 	require.NoError(t, err)
 	notASpanPosition, err := tracestore.NewPageToken(fingerprint, []byte{1, 2, 3})

@@ -139,6 +139,12 @@ func (*Store) SearchCapabilities(context.Context) (tracestore.SearchCapabilities
 func (st *Store) FindSpans(ctx context.Context, query tracestore.SpanQueryParams) iter.Seq2[tracestore.PageChunk[ptrace.Traces], error] {
 	m := st.getTenant(tenancy.GetTenant(ctx))
 	return func(yield func(tracestore.PageChunk[ptrace.Traces], error) bool) {
+		order, err := tracestore.NormalizeSpanOrder(query.OrderBy)
+		if err != nil {
+			yield(tracestore.PageChunk[ptrace.Traces]{}, err)
+			return
+		}
+		query.OrderBy = tracestore.EffectiveSpanOrder(order)
 		fingerprint, err := query.Fingerprint()
 		if err != nil {
 			yield(tracestore.PageChunk[ptrace.Traces]{}, err)

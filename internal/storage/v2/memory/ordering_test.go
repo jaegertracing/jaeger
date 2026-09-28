@@ -106,6 +106,6 @@ func TestFindSpansOrderedDuplicatesAndChangedToken(t *testing.T) {
 	query.OrderBy[0].Direction = tracestore.SortDescending
 	_, err = findSpansPage(t, store, query)
 	require.ErrorIs(t, err, tracestore.ErrPaginationInvalid)
-	_, _, err = store.getTenant("").findSpans(tracestore.SpanQueryParams{OrderBy: []tracestore.SpanSortOrder{{}}}, nil)
+	_, err = findSpansPage(t, store, tracestore.SpanQueryParams{OrderBy: []tracestore.SpanSortOrder{{}}})
 	require.ErrorIs(t, err, tracestore.ErrSpanOrderInvalid)
 }
