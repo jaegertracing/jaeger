@@ -10,7 +10,6 @@ import (
 	"iter"
 
 	"go.opentelemetry.io/collector/pdata/ptrace"
-	"google.golang.org/genproto/googleapis/rpc/errdetails"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 
@@ -294,26 +293,21 @@ func (h *Handler) GetDependencies(ctx context.Context, request *api_v3.GetDepend
 	return &api_v3.DependenciesResponse{Dependencies: links}, nil
 }
 
+// errorInfoDomain is the ErrorInfo domain under which the API v3 server marks ordering and
+// pagination refusals, so a client can tell them apart from other InvalidArgument answers.
+const errorInfoDomain = "jaeger.api_v3"
+
 // asStatusError maps a query-service error to a gRPC status code. A query this
 // deployment's storage cannot serve is the caller's problem (InvalidArgument) rather than
-// a server fault, and without this it would reach the client as Unknown. Other errors pass
-// through unchanged.
+// a server fault, and without this it would reach the client as Unknown. Ordering and
+// pagination refusals keep their reason so the client can restore the error type. Other
+// errors pass through unchanged.
 func asStatusError(err error) error {
 	if querysvc.IsBadRequest(err) {
-		st := status.New(codes.InvalidArgument, err.Error())
-		var reason string
-		switch {
-		case errors.Is(err, tracestore.ErrSpanOrderInvalid):
-			reason = "ORDERING_INVALID"
-		case errors.Is(err, tracestore.ErrSpanOrderUnsupported):
-			reason = "ORDERING_UNSUPPORTED"
-		default:
-			return st.Err()
+		if tracestore.ErrorReason(err) != "" {
+			return tracestore.InvalidArgumentStatus(err, errorInfoDomain)
 		}
-		if detailed, detailErr := st.WithDetails(&errdetails.ErrorInfo{Reason: reason, Domain: "jaeger.api_v3"}); detailErr == nil {
-			st = detailed
-		}
-		return st.Err()
+		return status.Error(codes.InvalidArgument, err.Error())
 	}
 	if errors.Is(err, queryinterceptor.ErrAccessDenied) {
 		return status.Error(codes.PermissionDenied, err.Error())

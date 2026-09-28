@@ -1114,13 +1114,19 @@ func TestAsStatusError(t *testing.T) {
 			name:       "invalid ordering retains its reason",
 			err:        fmt.Errorf("invalid: %w", tracestore.ErrSpanOrderInvalid),
 			wantCode:   codes.InvalidArgument,
-			wantReason: "ORDERING_INVALID",
+			wantReason: tracestore.SpanOrderInvalidReason,
 		},
 		{
 			name:       "unsupported ordering retains its reason",
 			err:        fmt.Errorf("unsupported: %w", tracestore.ErrSpanOrderUnsupported),
 			wantCode:   codes.InvalidArgument,
-			wantReason: "ORDERING_UNSUPPORTED",
+			wantReason: tracestore.SpanOrderUnsupportedReason,
+		},
+		{
+			name:       "invalid pagination retains its reason",
+			err:        fmt.Errorf("token: %w", tracestore.ErrPaginationInvalid),
+			wantCode:   codes.InvalidArgument,
+			wantReason: tracestore.PaginationInvalidReason,
 		},
 		{
 			name:     "access denied maps to PermissionDenied",
@@ -1149,7 +1155,7 @@ func TestAsStatusError(t *testing.T) {
 				require.Len(t, details, 1)
 				info, ok := details[0].(*errdetails.ErrorInfo)
 				require.True(t, ok)
-				assert.Equal(t, "jaeger.api_v3", info.GetDomain())
+				assert.Equal(t, errorInfoDomain, info.GetDomain())
 				assert.Equal(t, tt.wantReason, info.GetReason())
 			}
 		})
@@ -1181,8 +1187,8 @@ func TestFindSpansGRPCOrdering(t *testing.T) {
 				require.Len(t, st.Details(), 1)
 				info, ok := st.Details()[0].(*errdetails.ErrorInfo)
 				require.True(t, ok)
-				assert.Equal(t, "jaeger.api_v3", info.GetDomain())
-				assert.Equal(t, "ORDERING_UNSUPPORTED", info.GetReason())
+				assert.Equal(t, errorInfoDomain, info.GetDomain())
+				assert.Equal(t, tracestore.SpanOrderUnsupportedReason, info.GetReason())
 				tsc.reader.AssertNotCalled(t, "FindSpans", mock.Anything, mock.Anything)
 			}
 		})
@@ -1201,7 +1207,7 @@ func TestFindSpansGRPCMissingOrderExpression(t *testing.T) {
 	require.Len(t, st.Details(), 1)
 	info, ok := st.Details()[0].(*errdetails.ErrorInfo)
 	require.True(t, ok)
-	assert.Equal(t, "jaeger.api_v3", info.GetDomain())
-	assert.Equal(t, "ORDERING_INVALID", info.GetReason())
+	assert.Equal(t, errorInfoDomain, info.GetDomain())
+	assert.Equal(t, tracestore.SpanOrderInvalidReason, info.GetReason())
 	tsc.reader.AssertNotCalled(t, "FindSpans", mock.Anything, mock.Anything)
 }
