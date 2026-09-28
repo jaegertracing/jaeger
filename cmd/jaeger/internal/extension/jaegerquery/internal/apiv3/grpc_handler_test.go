@@ -19,6 +19,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/collector/featuregate"
 	"go.opentelemetry.io/collector/pdata/ptrace"
+	"google.golang.org/genproto/googleapis/rpc/errdetails"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/credentials/insecure"
@@ -1104,10 +1105,23 @@ func TestFindTraceSummariesServiceNameRequired(t *testing.T) {
 
 func TestAsStatusError(t *testing.T) {
 	tests := []struct {
-		name     string
-		err      error
-		wantCode codes.Code
+		name       string
+		err        error
+		wantCode   codes.Code
+		wantReason string
 	}{
+		{
+			name:       "invalid ordering retains its reason",
+			err:        fmt.Errorf("invalid: %w", tracestore.ErrSpanOrderInvalid),
+			wantCode:   codes.InvalidArgument,
+			wantReason: "ORDERING_INVALID",
+		},
+		{
+			name:       "unsupported ordering retains its reason",
+			err:        fmt.Errorf("unsupported: %w", tracestore.ErrSpanOrderUnsupported),
+			wantCode:   codes.InvalidArgument,
+			wantReason: "ORDERING_UNSUPPORTED",
+		},
 		{
 			name:     "access denied maps to PermissionDenied",
 			err:      fmt.Errorf("acl: denied: %w", queryinterceptor.ErrAccessDenied),
@@ -1128,6 +1142,16 @@ func TestAsStatusError(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			got := asStatusError(tt.err)
 			assert.Equal(t, tt.wantCode, status.Code(got))
+			details := status.Convert(got).Details()
+			if tt.wantReason == "" {
+				assert.Empty(t, details)
+			} else {
+				require.Len(t, details, 1)
+				info, ok := details[0].(*errdetails.ErrorInfo)
+				require.True(t, ok)
+				assert.Equal(t, "jaeger.api_v3", info.GetDomain())
+				assert.Equal(t, tt.wantReason, info.GetReason())
+			}
 		})
 	}
 }

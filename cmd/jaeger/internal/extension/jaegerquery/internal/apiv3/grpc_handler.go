@@ -10,6 +10,7 @@ import (
 	"iter"
 
 	"go.opentelemetry.io/collector/pdata/ptrace"
+	"google.golang.org/genproto/googleapis/rpc/errdetails"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 
@@ -299,7 +300,20 @@ func (h *Handler) GetDependencies(ctx context.Context, request *api_v3.GetDepend
 // through unchanged.
 func asStatusError(err error) error {
 	if querysvc.IsBadRequest(err) {
-		return status.Error(codes.InvalidArgument, err.Error())
+		st := status.New(codes.InvalidArgument, err.Error())
+		var reason string
+		switch {
+		case errors.Is(err, tracestore.ErrSpanOrderInvalid):
+			reason = "ORDERING_INVALID"
+		case errors.Is(err, tracestore.ErrSpanOrderUnsupported):
+			reason = "ORDERING_UNSUPPORTED"
+		default:
+			return st.Err()
+		}
+		if detailed, detailErr := st.WithDetails(&errdetails.ErrorInfo{Reason: reason, Domain: "jaeger.api_v3"}); detailErr == nil {
+			st = detailed
+		}
+		return st.Err()
 	}
 	if errors.Is(err, queryinterceptor.ErrAccessDenied) {
 		return status.Error(codes.PermissionDenied, err.Error())
