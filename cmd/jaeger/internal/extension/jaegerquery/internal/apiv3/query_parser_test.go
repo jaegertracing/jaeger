@@ -35,6 +35,7 @@ func TestParseFindTracesQuery(t *testing.T) {
 		q.Set(paramDurationMin, "1s")
 		q.Set(paramDurationMax, "2s")
 		q.Set(paramQueryRawTraces, "true")
+		q.Set(paramReadAlias, "jaeger-span-archive-read")
 
 		got, err := parseFindTracesQuery(q)
 		require.NoError(t, err)
@@ -46,6 +47,13 @@ func TestParseFindTracesQuery(t *testing.T) {
 		assert.Equal(t, time.Second, got.DurationMin)
 		assert.Equal(t, 2*time.Second, got.DurationMax)
 		assert.True(t, got.RawTraces)
+		assert.Equal(t, "jaeger-span-archive-read", got.ReadAlias)
+	})
+
+	t.Run("readAlias omitted defaults to empty", func(t *testing.T) {
+		got, err := parseFindTracesQuery(url.Values{})
+		require.NoError(t, err)
+		assert.Empty(t, got.ReadAlias)
 	})
 
 	t.Run("all params (deprecated snake_case)", func(t *testing.T) {

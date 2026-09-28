@@ -22,6 +22,7 @@ const (
 	endTimeParam     = "end"
 	prettyPrintParam = "prettyPrint"
 	rawParam         = "raw"
+	readAliasParam   = "readAlias"
 )
 
 type (

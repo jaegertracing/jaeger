@@ -175,6 +175,14 @@ func TestHTTPGatewayGetTrace(t *testing.T) {
 				TraceID: traceID,
 			},
 		},
+		{
+			name:   "read alias",
+			params: map[string]string{"readAlias": "jaeger-span-archive-read"},
+			expectedQuery: tracestore.GetTraceParams{
+				TraceID:   traceID,
+				ReadAlias: "jaeger-span-archive-read",
+			},
+		},
 	}
 
 	testUri := "/api/v3/traces/1"

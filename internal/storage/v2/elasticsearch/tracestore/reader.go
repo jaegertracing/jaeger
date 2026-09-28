@@ -48,11 +48,14 @@ func (*TraceReader) SearchCapabilities(context.Context) (tracestore.SearchCapabi
 
 func (r *TraceReader) GetTraces(ctx context.Context, params ...tracestore.GetTraceParams) iter.Seq2[[]ptrace.Traces, error] {
 	return func(yield func([]ptrace.Traces, error) bool) {
-		dbTraceIds := make([]dbmodel.TraceID, 0, len(params))
+		dbTraceParams := make([]dbmodel.GetTraceParams, 0, len(params))
 		for _, id := range params {
-			dbTraceIds = append(dbTraceIds, dbmodel.TraceID(id.TraceID.String()))
+			dbTraceParams = append(dbTraceParams, dbmodel.GetTraceParams{
+				TraceID:   dbmodel.TraceID(id.TraceID.String()),
+				ReadAlias: id.ReadAlias,
+			})
 		}
-		dbTraces, err := r.spanReader.GetTraces(ctx, dbTraceIds)
+		dbTraces, err := r.spanReader.GetTraces(ctx, dbTraceParams)
 		if err != nil {
 			yield(nil, err)
 			return
@@ -150,5 +153,6 @@ func toDBTraceQueryParams(query tracestore.TraceQueryParams) dbmodel.TraceQueryP
 		DurationMin:   query.DurationMin,
 		DurationMax:   query.DurationMax,
 		Filter:        query.Filter,
+		ReadAlias:     query.ReadAlias,
 	}
 }

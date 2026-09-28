@@ -20,7 +20,7 @@ type Reader interface {
 	// GetServices returns all services traced by Jaeger, ordered by frequency
 	GetServices(ctx context.Context) ([]string, error)
 	// GetTraces takes a traceID and returns a Trace associated with that traceID
-	GetTraces(ctx context.Context, query []dbmodel.TraceID) ([]dbmodel.Trace, error)
+	GetTraces(ctx context.Context, query []dbmodel.GetTraceParams) ([]dbmodel.Trace, error)
 	// FindTraceSummaries natively computes per-trace summaries for traces matching
 	// the query. It returns errors.ErrUnsupported when the backend cannot compute
 	// them (e.g. Painless scripting is disabled).

@@ -21,6 +21,16 @@ type ReferenceType string
 // TraceID is the shared trace ID of all spans in the trace.
 type TraceID string
 
+// GetTraceParams carries per-trace parameters for a GetTraces lookup.
+type GetTraceParams struct {
+	// TraceID is the ID of the trace to retrieve.
+	TraceID TraceID
+	// ReadAlias, if non-empty, overrides the read targets that the configured
+	// index rotation would otherwise resolve, and is used as the sole index/alias
+	// this trace is looked up in.
+	ReadAlias string
+}
+
 // SpanID is the id of a span
 type SpanID string
 
@@ -175,4 +185,8 @@ type TraceQueryParameters struct {
 	// reader lowers into the Elasticsearch query and a second encoding of it would earn
 	// nothing.
 	Filter *expression.Call
+	// ReadAlias, if non-empty, overrides the read targets that the configured index
+	// rotation would otherwise resolve, and is used as the sole index/alias for both
+	// the trace-ID search and the full-trace/summary reads that follow it.
+	ReadAlias string
 }

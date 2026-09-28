@@ -84,12 +84,18 @@ var (
 // There are two read operations with different time-range semantics:
 //
 //  1. FindTraceIDs: the user always supplies [StartTimeMin, StartTimeMax]. No adjustment needed.
+//     A caller may set dbmodel.TraceQueryParameters.ReadAlias to search a specific index/alias
+//     instead of what ReadTargets would resolve; FindTraces and FindTraceSummaries carry the
+//     same override into the reads that follow (see resolveReadTargets).
 //
 //  2. GetTraces (by trace ID): no time range is known. The reader uses [now-maxSpanAge, now].
 //     - Periodic indices: maxSpanAge should match data retention (e.g., 7d). ReadTargets generates
 //       only existing indices within that window.
 //     - Alias indices: a single alias covers all data. The factory overrides maxSpanAge to
 //       DawnOfTimeSpanAge (50 years) so the time-range filter doesn't exclude old traces.
+//     - A caller may set dbmodel.GetTraceParams.ReadAlias to look up a specific trace in an
+//       index/alias other than what ReadTargets would otherwise resolve, bypassing spanRotation
+//       for that trace only; the time-range filter above still applies.
 //
 // multiRead always adds a time-range filter to the ES query for shard pruning (helps ES skip
 // irrelevant shards). This is harmless for periodic indices and essential for aliases.
@@ -193,7 +199,7 @@ func (s *SpanReader) buildTraceReadRequest(q esquery.Query, cursor *traceReadCur
 }
 
 // GetTraces takes a traceID and returns a Trace associated with that traceID
-func (s *SpanReader) GetTraces(ctx context.Context, query []dbmodel.TraceID) ([]dbmodel.Trace, error) {
+func (s *SpanReader) GetTraces(ctx context.Context, query []dbmodel.GetTraceParams) ([]dbmodel.Trace, error) {
 	ctx, span := s.tracer.Start(ctx, "GetTrace")
 	defer span.End()
 	currentTime := time.Now()
@@ -271,7 +277,11 @@ func (s *SpanReader) FindTraces(ctx context.Context, traceQuery dbmodel.TraceQue
 	if err != nil {
 		return nil, err
 	}
-	return s.multiRead(ctx, uniqueTraceIDs, traceQuery.StartTimeMin, traceQuery.StartTimeMax)
+	traceParams := make([]dbmodel.GetTraceParams, len(uniqueTraceIDs))
+	for i, traceID := range uniqueTraceIDs {
+		traceParams[i] = dbmodel.GetTraceParams{TraceID: traceID, ReadAlias: traceQuery.ReadAlias}
+	}
+	return s.multiRead(ctx, traceParams, traceQuery.StartTimeMin, traceQuery.StartTimeMax)
 }
 
 // FindTraceIDs retrieves traces IDs that match the traceQuery
@@ -294,9 +304,29 @@ func (s *SpanReader) FindTraceIDs(ctx context.Context, traceQuery dbmodel.TraceQ
 	return esTraceIDs, nil
 }
 
-func (s *SpanReader) multiRead(ctx context.Context, traceIDs []dbmodel.TraceID, startTime, endTime time.Time) ([]dbmodel.Trace, error) {
+// resolveReadTargets returns readAlias as the sole read target when set, else the
+// rotation-resolved targets for [start, end]. It centralizes the ReadAlias override
+// for the read paths — findTraceIDsFromQuery and FindTraceSummaries — that search a
+// single index list rather than multiRead's per-trace-ID list.
+func (s *SpanReader) resolveReadTargets(readAlias string, start, end time.Time) []string {
+	if readAlias != "" {
+		return []string{readAlias}
+	}
+	return s.spanRotation.ReadTargets(start, end)
+}
+
+func (s *SpanReader) multiRead(ctx context.Context, traceParams []dbmodel.GetTraceParams, startTime, endTime time.Time) ([]dbmodel.Trace, error) {
 	ctx, childSpan := s.tracer.Start(ctx, "multiRead")
 	defer childSpan.End()
+
+	traceIDs := make([]dbmodel.TraceID, len(traceParams))
+	readAliasOverrides := make(map[dbmodel.TraceID]string, len(traceParams))
+	for i, p := range traceParams {
+		traceIDs[i] = p.TraceID
+		if p.ReadAlias != "" {
+			readAliasOverrides[p.TraceID] = p.ReadAlias
+		}
+	}
 
 	if childSpan.IsRecording() {
 		tracesIDs := make([]string, len(traceIDs))
@@ -333,8 +363,12 @@ func (s *SpanReader) multiRead(ctx context.Context, traceIDs []dbmodel.TraceID, 
 				cursor = &val
 			}
 
+			targets := idxList
+			if override, ok := readAliasOverrides[traceID]; ok {
+				targets = []string{override}
+			}
 			searchRequests[i] = esclient.MultiSearchRequest{
-				Indices: idxList,
+				Indices: targets,
 				Search:  s.buildTraceReadRequest(query, cursor),
 			}
 		}
@@ -469,7 +503,7 @@ func (s *SpanReader) findTraceIDsFromQuery(ctx context.Context, traceQuery dbmod
 	if err != nil {
 		return nil, err
 	}
-	jaegerIndices := s.spanRotation.ReadTargets(traceQuery.StartTimeMin, traceQuery.StartTimeMax)
+	jaegerIndices := s.resolveReadTargets(traceQuery.ReadAlias, traceQuery.StartTimeMin, traceQuery.StartTimeMax)
 
 	searchResult, err := s.searcher.Search(ctx, jaegerIndices, esclient.SearchRequest{
 		Size:  0, // set to 0 because we don't want actual documents.

@@ -107,6 +107,28 @@ func TestTraceReader_GetTraces(t *testing.T) {
 	}
 }
 
+// TestTraceReader_GetTraces_ReadAlias verifies that a caller-supplied ReadAlias
+// override on tracestore.GetTraceParams is forwarded to the core reader as the
+// matching dbmodel.GetTraceParams field, so a per-request read alias override
+// actually reaches the Elasticsearch query.
+func TestTraceReader_GetTraces_ReadAlias(t *testing.T) {
+	coreReader := &mocks.Reader{}
+	reader := TraceReader{spanReader: coreReader}
+	traceID := pcommon.TraceID([16]byte{1})
+	coreReader.On("GetTraces", mock.Anything, []dbmodel.GetTraceParams{
+		{TraceID: dbmodel.TraceID(traceID.String()), ReadAlias: "jaeger-span-archive-read"},
+	}).Return(nil, nil)
+
+	traces := reader.GetTraces(context.Background(), tracestore.GetTraceParams{
+		TraceID:   traceID,
+		ReadAlias: "jaeger-span-archive-read",
+	})
+	for range traces {
+		t.Fatal("expected no traces")
+	}
+	coreReader.AssertExpectations(t)
+}
+
 func testTraceReaderGetTracesAndFindTracesErrors(t *testing.T, fxnName string, actualTraces func(r TraceReader) iter.Seq2[[]ptrace.Traces, error]) {
 	tests := []struct {
 		name        string
@@ -176,6 +198,26 @@ func TestTraceReader_FindTraces(t *testing.T) {
 		testTraces(t, tracesStr, td[0])
 		break
 	}
+}
+
+// TestTraceReader_FindTraces_ReadAlias verifies that a caller-supplied ReadAlias
+// override on tracestore.TraceQueryParams is forwarded to the core reader as the
+// matching dbmodel.TraceQueryParameters field.
+func TestTraceReader_FindTraces_ReadAlias(t *testing.T) {
+	coreReader := &mocks.Reader{}
+	reader := TraceReader{spanReader: coreReader}
+	coreReader.On("FindTraces", mock.Anything, mock.MatchedBy(func(q dbmodel.TraceQueryParameters) bool {
+		return q.ReadAlias == "jaeger-span-archive-read"
+	})).Return(nil, nil)
+
+	traces := reader.FindTraces(context.Background(), tracestore.TraceQueryParams{
+		Attributes: pcommon.NewMap(),
+		ReadAlias:  "jaeger-span-archive-read",
+	})
+	for range traces {
+		t.Fatal("expected no traces")
+	}
+	coreReader.AssertExpectations(t)
 }
 
 func TestTraceReader_FindTraces_Errors(t *testing.T) {
