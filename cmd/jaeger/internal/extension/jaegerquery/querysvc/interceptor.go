@@ -5,7 +5,6 @@ package querysvc
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"iter"
 	"reflect"
@@ -17,16 +16,6 @@ import (
 	"github.com/jaegertracing/jaeger/components/extension/jaegerquery/queryinterceptor"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore"
 )
-
-// ErrInterceptorFilter reports that a query interceptor returned a filter jaeger-query will not
-// send to storage. It is deliberately not one of the errors the API layers answer 400 for: the
-// caller's request was fine, and the fault is in the extension this deployment configured.
-var ErrInterceptorFilter = errors.New("query interceptor returned an invalid filter")
-
-// errInterceptorDroppedFilter is the one interceptor mistake that fails open: a search that had
-// predicates and leaves with none asks for everything in the time range.
-var errInterceptorDroppedFilter = fmt.Errorf("%w: it returned no filter for a query that had predicates, which "+
-	"would widen the search to everything in the time range", ErrInterceptorFilter)
 
 // toInterceptorTraceQuery and fromInterceptorTraceQuery convert at the contract boundary, so the
 // internal query type never crosses it.

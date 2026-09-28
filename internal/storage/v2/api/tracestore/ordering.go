@@ -4,7 +4,6 @@
 package tracestore
 
 import (
-	"errors"
 	"fmt"
 
 	expression "github.com/jaegertracing/jaeger-idl/query/expression/v1"
@@ -15,11 +14,6 @@ type SortDirection string
 const (
 	SortAscending  SortDirection = "asc"
 	SortDescending SortDirection = "desc"
-)
-
-var (
-	ErrSpanOrderInvalid     = errors.New("invalid span ordering")
-	ErrSpanOrderUnsupported = errors.New("unsupported span ordering")
 )
 
 // SpanSortOrder selects a span field and its direction, in query precedence order.

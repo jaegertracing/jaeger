@@ -308,8 +308,8 @@ func TestTraceQueryParamsSearchDepth(t *testing.T) {
 			query.SearchDepth = test.searchDepth
 			params, err := traceQueryParams(query)
 			if test.wantErr {
-				require.Error(t, err)
-				assert.Equal(t, codes.InvalidArgument, status.Code(err))
+				require.ErrorIs(t, err, tracestore.ErrInvalidQuery)
+				assert.Equal(t, codes.InvalidArgument, status.Code(asStatusError(err)))
 				return
 			}
 			require.NoError(t, err)
@@ -721,8 +721,8 @@ func TestSpanQueryParamsPagination(t *testing.T) {
 }
 
 // TestFindSpansUnsupported pins the refusal for a backend that does not declare SpanSearch
-// (RFC 0016 §4.5): the request is well-formed, so it is InvalidArgument rather than the
-// Unknown a bare error would produce.
+// (RFC 0016 §4.5): the request is well-formed but this deployment cannot serve it, so it is
+// Unimplemented rather than InvalidArgument or the Unknown a bare error would produce.
 func TestFindSpansUnsupported(t *testing.T) {
 	tsc := newTestServerClient(t)
 
@@ -735,7 +735,7 @@ func TestFindSpansUnsupported(t *testing.T) {
 	require.NoError(t, err)
 	_, err = responseStream.Recv()
 	require.ErrorContains(t, err, "does not declare span search support")
-	assert.Equal(t, codes.InvalidArgument, status.Code(err))
+	assert.Equal(t, codes.Unimplemented, status.Code(err))
 }
 
 func TestFindSpansStorageError(t *testing.T) {
@@ -1069,8 +1069,8 @@ func TestFindTracesUndecodableFilter(t *testing.T) {
 }
 
 // TestFindTracesServiceNameRequired pins the status code for a query this deployment's
-// storage cannot serve: the request is well-formed, so it is InvalidArgument rather than
-// the Unknown a bare error would produce (RFC 0013 §3.3).
+// storage cannot serve: the request is well-formed, so it is Unimplemented rather than
+// InvalidArgument or the Unknown a bare error would produce (RFC 0013 §3.3).
 func TestFindTracesServiceNameRequired(t *testing.T) {
 	tsc := newTestServerClient(t)
 
@@ -1084,7 +1084,7 @@ func TestFindTracesServiceNameRequired(t *testing.T) {
 
 	_, err = responseStream.Recv()
 	require.ErrorContains(t, err, "requires a service name")
-	assert.Equal(t, codes.InvalidArgument, status.Code(err))
+	assert.Equal(t, codes.Unimplemented, status.Code(err))
 }
 
 func TestFindTraceSummariesServiceNameRequired(t *testing.T) {
@@ -1100,7 +1100,7 @@ func TestFindTraceSummariesServiceNameRequired(t *testing.T) {
 
 	_, err = responseStream.Recv()
 	require.ErrorContains(t, err, "requires a service name")
-	assert.Equal(t, codes.InvalidArgument, status.Code(err))
+	assert.Equal(t, codes.Unimplemented, status.Code(err))
 }
 
 func TestAsStatusError(t *testing.T) {
@@ -1117,9 +1117,9 @@ func TestAsStatusError(t *testing.T) {
 			wantReason: tracestore.SpanOrderInvalidReason,
 		},
 		{
-			name:       "unsupported ordering retains its reason",
+			name:       "unsupported ordering is Unimplemented and retains its reason",
 			err:        fmt.Errorf("unsupported: %w", tracestore.ErrSpanOrderUnsupported),
-			wantCode:   codes.InvalidArgument,
+			wantCode:   codes.Unimplemented,
 			wantReason: tracestore.SpanOrderUnsupportedReason,
 		},
 		{
@@ -1134,9 +1134,25 @@ func TestAsStatusError(t *testing.T) {
 			wantCode: codes.PermissionDenied,
 		},
 		{
-			name:     "bad request maps to InvalidArgument",
-			err:      querysvc.ErrServiceNameRequired,
+			name:     "malformed query maps to InvalidArgument",
+			err:      fmt.Errorf("%w: search depth", tracestore.ErrInvalidQuery),
 			wantCode: codes.InvalidArgument,
+		},
+		{
+			name:     "capability the deployment lacks maps to Unimplemented",
+			err:      querysvc.ErrServiceNameRequired,
+			wantCode: codes.Unimplemented,
+		},
+		{
+			name:       "filter the backend cannot evaluate is Unimplemented and retains its reason",
+			err:        fmt.Errorf("%w: level scope", tracestore.ErrFilterUnsupported),
+			wantCode:   codes.Unimplemented,
+			wantReason: tracestore.FilterUnsupportedReason,
+		},
+		{
+			name:     "filter gate off maps to Unimplemented",
+			err:      fmt.Errorf("%w: enable the gate", querysvc.ErrFilterDisabled),
+			wantCode: codes.Unimplemented,
 		},
 		{
 			name:     "generic error passes through",
@@ -1183,7 +1199,7 @@ func TestFindSpansGRPCOrdering(t *testing.T) {
 				assert.Equal(t, 1, response.Spans.ToTraces().SpanCount())
 			} else {
 				st := status.Convert(err)
-				assert.Equal(t, codes.InvalidArgument, st.Code())
+				assert.Equal(t, codes.Unimplemented, st.Code())
 				require.Len(t, st.Details(), 1)
 				info, ok := st.Details()[0].(*errdetails.ErrorInfo)
 				require.True(t, ok)
