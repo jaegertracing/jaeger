@@ -282,7 +282,7 @@ func TestToProto_RefusesATermItCannotWrite(t *testing.T) {
 	}
 	for name, term := range terms {
 		t.Run(name, func(t *testing.T) {
-			encoded, err := ExpressionToProto(term)
+			encoded, err := TermToProto(term)
 			require.ErrorIs(t, err, ErrTermNotEncodable)
 			assert.Nil(t, encoded)
 		})

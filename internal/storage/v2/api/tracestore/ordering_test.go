@@ -115,7 +115,7 @@ func TestSpanOrderProto(t *testing.T) {
 	require.NoError(t, err)
 	assert.Nil(t, got)
 	term := sortTerm("duration", "asc")
-	encoded, err := expressionproto.ExpressionToProto(term.Expression)
+	encoded, err := expressionproto.TermToProto(term.Expression)
 	require.NoError(t, err)
 	got, err = SpanOrderFromProto([]*api_v3.SpanSortOrder{{Expression: encoded}})
 	require.NoError(t, err)

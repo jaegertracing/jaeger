@@ -141,7 +141,7 @@ func ToProto(filter *expression.Call) (*Call, error) {
 	}
 	args := make([]*Expression, 0, len(filter.Args))
 	for _, arg := range filter.Args {
-		encoded, err := ExpressionToProto(arg)
+		encoded, err := TermToProto(arg)
 		if err != nil {
 			return nil, err
 		}
@@ -153,8 +153,8 @@ func ToProto(filter *expression.Call) (*Call, error) {
 	}, nil
 }
 
-// ExpressionToProto encodes one expression using the same wire representation as filter operands.
-func ExpressionToProto(expr expression.Expression) (*Expression, error) {
+// TermToProto encodes one expression using the same wire representation as filter operands.
+func TermToProto(expr expression.Expression) (*Expression, error) {
 	switch term := expr.(type) {
 	case *expression.AttributeRef:
 		if term == nil {
