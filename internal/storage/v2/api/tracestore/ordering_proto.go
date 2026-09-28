@@ -29,9 +29,3 @@ func SpanOrderFromProto[T interface {
 	}
 	return NormalizeSpanOrder(order)
 }
-
-// SpanOrderExpression encodes a normalized sort term for either storage or API v3.
-func SpanOrderExpression(term SpanSortOrder) *expressionproto.Expression {
-	ref := term.Expression.(*expression.FieldRef)
-	return &expressionproto.Expression{Term: &expressionproto.Expression_Field{Field: &expressionproto.FieldReference{Level: string(ref.Level), Name: ref.Name}}}
-}

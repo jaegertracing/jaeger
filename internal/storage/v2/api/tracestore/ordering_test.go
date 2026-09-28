@@ -115,10 +115,12 @@ func TestSpanOrderProto(t *testing.T) {
 	require.NoError(t, err)
 	assert.Nil(t, got)
 	term := sortTerm("duration", "asc")
-	got, err = SpanOrderFromProto([]*api_v3.SpanSortOrder{{Expression: SpanOrderExpression(term)}})
+	encoded, err := expressionproto.ExpressionToProto(term.Expression)
+	require.NoError(t, err)
+	got, err = SpanOrderFromProto([]*api_v3.SpanSortOrder{{Expression: encoded}})
 	require.NoError(t, err)
 	assert.Equal(t, []SpanSortOrder{term}, got)
-	for _, wire := range []*api_v3.SpanSortOrder{nil, {}, {Expression: &expressionproto.Expression{}}, {Expression: SpanOrderExpression(term), Direction: "bad"}} {
+	for _, wire := range []*api_v3.SpanSortOrder{nil, {}, {Expression: &expressionproto.Expression{}}, {Expression: encoded, Direction: "bad"}} {
 		_, err := SpanOrderFromProto([]*api_v3.SpanSortOrder{wire})
 		require.ErrorIs(t, err, ErrSpanOrderInvalid)
 	}
