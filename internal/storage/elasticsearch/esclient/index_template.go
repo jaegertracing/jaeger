@@ -113,17 +113,15 @@ func (m MappingType) String() string {
 	return m.indexBase()
 }
 
-// legacyIndexPattern returns the ES7 `_template` index pattern. It preserves a
-// pre-M4b quirk verbatim: the span/service templates include the configured
-// prefix, while dependencies/sampling omit it — both still match prefixed
-// indices through the leading "*".
+// legacyIndexPattern returns the ES7 `_template` index pattern, scoped to the
+// configured prefix like the template's own name and aliases. Dependencies and
+// sampling templates used to omit the prefix here (a pre-M4b quirk carried
+// forward verbatim), which the leading "*" masked as long as a cluster ran a
+// single prefix: every prefix's dependencies/sampling indices matched every
+// prefix's template, so a multi-prefix deployment had them stomp on each
+// other's settings.
 func (m MappingType) legacyIndexPattern(prefix string) string {
-	switch m {
-	case DependencyMapping, SamplingMapping:
-		return "*" + m.indexBase() + "-*"
-	default:
-		return "*" + prefix + m.indexBase() + "-*"
-	}
+	return "*" + prefix + m.indexBase() + "-*"
 }
 
 // options returns the per-type index options (shards/replicas/priority).
