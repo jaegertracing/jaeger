@@ -22,16 +22,16 @@ func buildSpanOrderingTraces() []ptrace.Traces {
 	base := time.Now().Add(-time.Hour).Truncate(time.Second)
 	var traces []ptrace.Traces
 	for _, f := range []struct {
-		name, service   string
-		trace, span     byte
-		start, duration int
+		name, service         string
+		trace, span           byte
+		start, duration, rank int
 	}{
-		{"a", "ordering-a", 2, 3, 1, 4},
-		{"b", "ordering-b", 1, 2, 3, 2},
-		{"c", "ordering-a", 2, 1, 2, 3},
-		{"d", "ordering-a", 1, 1, 3, 1},
-		{"e", "ordering-b", 3, 1, 4, 0},
-		{"a", "ordering-a", 2, 3, 1, 4},
+		{"a", "ordering-a", 2, 3, 1, 4, 5},
+		{"b", "ordering-b", 1, 2, 3, 2, 2},
+		{"c", "ordering-a", 2, 1, 2, 3, 4},
+		{"d", "ordering-a", 1, 1, 3, 1, 1},
+		{"e", "ordering-b", 3, 1, 4, 0, 3},
+		{"a", "ordering-a", 2, 3, 1, 4, 5},
 	} {
 		trace := ptrace.NewTraces()
 		resource := trace.ResourceSpans().AppendEmpty()
@@ -43,6 +43,9 @@ func buildSpanOrderingTraces() []ptrace.Traces {
 		span.SetStartTimestamp(pcommon.NewTimestampFromTime(base.Add(time.Duration(f.start) * time.Second)))
 		span.SetEndTimestamp(pcommon.NewTimestampFromTime(base.Add(time.Duration(f.start+f.duration) * time.Second)))
 		span.Attributes().PutStr("ordering-corpus", "yes")
+		// The rank orders the corpus differently from every intrinsic field, so ordering by it
+		// cannot pass by accident.
+		span.Attributes().PutInt("ordering-rank", int64(f.rank))
 		traces = append(traces, trace)
 	}
 	return traces
@@ -52,9 +55,16 @@ func orderingTerm(field string, direction tracestore.SortDirection) tracestore.S
 	return tracestore.SpanSortOrder{Expression: &expression.FieldRef{Level: expression.LevelSpan, Name: field}, Direction: direction}
 }
 
-func (s *StorageIntegration) testSpanOrdering(t *testing.T) {
-	s.skipIfNeeded(t)
-	first := s.Corpus.SpanOrdering[0].ResourceSpans().At(0).ScopeSpans().At(0).Spans().At(0)
+// spanOrderingFirstSpan returns the first span of the ordering corpus, whose start time anchors
+// the corpus queries.
+func (s *StorageIntegration) spanOrderingFirstSpan() ptrace.Span {
+	return s.Corpus.SpanOrdering[0].ResourceSpans().At(0).ScopeSpans().At(0).Spans().At(0)
+}
+
+// spanOrderingSearch returns the query that selects the whole ordering corpus, and a function that
+// runs one such query and returns the found span names in result order with the next page token.
+func (s *StorageIntegration) spanOrderingSearch(t *testing.T) (tracestore.SpanQueryParams, func(tracestore.SpanQueryParams) ([]string, tracestore.PageToken, error)) {
+	first := s.spanOrderingFirstSpan()
 	query := tracestore.SpanQueryParams{
 		StartTimeMin: first.StartTimestamp().AsTime().Add(-time.Minute),
 		StartTimeMax: first.StartTimestamp().AsTime().Add(time.Minute),
@@ -75,6 +85,12 @@ func (s *StorageIntegration) testSpanOrdering(t *testing.T) {
 		}
 		return names, token, nil
 	}
+	return query, search
+}
+
+func (s *StorageIntegration) testSpanOrdering(t *testing.T) {
+	s.skipIfNeeded(t)
+	query, search := s.spanOrderingSearch(t)
 	require.True(t, s.waitForCondition(t, func(t *testing.T) bool {
 		names, _, err := search(query)
 		if err != nil {
@@ -83,6 +99,16 @@ func (s *StorageIntegration) testSpanOrdering(t *testing.T) {
 		}
 		return len(names) == 6
 	}), "the ordering corpus must be searchable before paging")
+	t.Run("Basic", s.testSpanOrderingBasic)
+	t.Run("Attributes", s.testSpanOrderingAttributes)
+}
+
+// testSpanOrderingBasic covers the ordering contract as it stands: the four intrinsic span fields
+// in both directions, their combinations, and paging through every order.
+func (s *StorageIntegration) testSpanOrderingBasic(t *testing.T) {
+	s.skipIfNeeded(t)
+	first := s.spanOrderingFirstSpan()
+	query, search := s.spanOrderingSearch(t)
 	cases := []struct {
 		name  string
 		order []tracestore.SpanSortOrder
@@ -171,4 +197,22 @@ func (s *StorageIntegration) testSpanOrdering(t *testing.T) {
 		assert.Empty(t, names)
 		assert.Empty(t, token)
 	})
+}
+
+// testSpanOrderingAttributes orders spans by an attribute, which the ordering contract does not
+// admit yet: NormalizeSpanOrder accepts only the four intrinsic span fields. Every backend
+// therefore excuses itself from this case in the capabilities package, and that skip list is
+// where the gap is recorded. The case starts failing the moment a backend stops excusing itself
+// without implementing attribute ordering.
+func (s *StorageIntegration) testSpanOrderingAttributes(t *testing.T) {
+	s.skipIfNeeded(t)
+	query, search := s.spanOrderingSearch(t)
+	query.OrderBy = []tracestore.SpanSortOrder{{
+		Expression: &expression.AttributeRef{Level: expression.LevelSpan, Key: "ordering-rank"},
+		Direction:  tracestore.SortAscending,
+	}}
+	names, token, err := search(query)
+	require.NoError(t, err)
+	assert.Equal(t, []string{"d", "b", "e", "c", "a", "a"}, names)
+	assert.Empty(t, token)
 }
