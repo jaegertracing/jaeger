@@ -24,7 +24,6 @@ import (
 
 	"github.com/jaegertracing/jaeger-idl/model/v1"
 	expression "github.com/jaegertracing/jaeger-idl/query/expression/v1"
-	"github.com/jaegertracing/jaeger/internal/jiter"
 	"github.com/jaegertracing/jaeger/internal/jptrace"
 	"github.com/jaegertracing/jaeger/internal/proto-gen/storage/v2"
 	expressionproto "github.com/jaegertracing/jaeger/internal/proto/expression/v1"
@@ -1129,14 +1128,6 @@ func spanSequence(chunks []tracestore.PageChunk[ptrace.Traces], err error) iter.
 			yield(tracestore.PageChunk[ptrace.Traces]{}, err)
 		}
 	}
-}
-
-func TestSpanServerUnimplemented(t *testing.T) {
-	remote := NewTraceReader(startTestServer(t, &testServer{}))
-	_, err := jiter.CollectWithErrors(remote.FindSpans(t.Context(), tracestore.SpanQueryParams{OrderBy: spanOrder()}))
-	require.ErrorIs(t, err, errors.ErrUnsupported)
-	_, err = jiter.CollectWithErrors(remote.FindSpans(t.Context(), tracestore.SpanQueryParams{}))
-	require.ErrorIs(t, err, errors.ErrUnsupported)
 }
 
 type spanStream struct {

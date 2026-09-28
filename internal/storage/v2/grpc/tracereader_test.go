@@ -1134,6 +1134,14 @@ func TestSpanRemoteRoundTrip(t *testing.T) {
 	}
 }
 
+func TestTraceReader_FindSpans_Unimplemented(t *testing.T) {
+	remote := NewTraceReader(startTestServer(t, &testServer{}))
+	_, err := jiter.CollectWithErrors(remote.FindSpans(t.Context(), tracestore.SpanQueryParams{OrderBy: spanOrder()}))
+	require.ErrorIs(t, err, errors.ErrUnsupported)
+	_, err = jiter.CollectWithErrors(remote.FindSpans(t.Context(), tracestore.SpanQueryParams{}))
+	require.ErrorIs(t, err, errors.ErrUnsupported)
+}
+
 func TestSpanRemoteErrors(t *testing.T) {
 	for _, backendErr := range []error{errors.ErrUnsupported, tracestore.ErrPaginationInvalid, tracestore.ErrSpanOrderInvalid, tracestore.ErrSpanOrderUnsupported, status.Error(codes.Internal, "broken")} {
 		reader := new(tracestoremocks.Reader)
@@ -1141,6 +1149,7 @@ func TestSpanRemoteErrors(t *testing.T) {
 		_, err := jiter.CollectWithErrors(spanRemote(t, reader).FindSpans(t.Context(), tracestore.SpanQueryParams{}))
 		if status.Code(backendErr) == codes.Internal {
 			assert.Equal(t, codes.Internal, status.Code(err))
+			assert.ErrorContains(t, err, "received error from grpc stream")
 		} else {
 			require.ErrorIs(t, err, backendErr)
 		}
@@ -1209,6 +1218,7 @@ func TestSpanClientCannotStartStream(t *testing.T) {
 	reader := &TraceReader{client: failingSpanClient{}}
 	_, err := jiter.CollectWithErrors(reader.FindSpans(t.Context(), tracestore.SpanQueryParams{}))
 	assert.Equal(t, codes.Unavailable, status.Code(err))
+	assert.ErrorContains(t, err, "failed to execute FindSpans")
 }
 
 func TestSpanQueryConversionDoesNotValidate(t *testing.T) {
@@ -1253,13 +1263,14 @@ func TestFindSpansProxiesWithoutCapabilities(t *testing.T) {
 	assert.Equal(t, query, forwarded)
 }
 
-func TestSpanOrderingErrorDetails(t *testing.T) {
+func TestReaderErrorDetails(t *testing.T) {
 	for _, tc := range []struct {
 		err    error
 		reason string
 	}{
 		{tracestore.ErrSpanOrderInvalid, "ORDERING_INVALID"},
 		{tracestore.ErrSpanOrderUnsupported, "ORDERING_UNSUPPORTED"},
+		{tracestore.ErrPaginationInvalid, "PAGINATION_INVALID"},
 	} {
 		wire := readerStatus(tc.err)
 		st := status.Convert(wire)

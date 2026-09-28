@@ -227,7 +227,7 @@ func (tr *TraceReader) FindSpans(ctx context.Context, params tracestore.SpanQuer
 		defer cancel()
 		stream, err := tr.client.FindSpans(rpcCtx, &storage.FindSpansRequest{Query: query})
 		if err != nil {
-			yield(tracestore.PageChunk[ptrace.Traces]{}, fmt.Errorf("failed to execute FindSpans: %w", spanReaderError(err)))
+			yield(tracestore.PageChunk[ptrace.Traces]{}, spanReaderError(err, "failed to execute FindSpans"))
 			return
 		}
 		for {
@@ -236,7 +236,7 @@ func (tr *TraceReader) FindSpans(ctx context.Context, params tracestore.SpanQuer
 				return
 			}
 			if err != nil {
-				yield(tracestore.PageChunk[ptrace.Traces]{}, spanReaderError(err))
+				yield(tracestore.PageChunk[ptrace.Traces]{}, spanReaderError(err, "received error from grpc stream"))
 				return
 			}
 			traces := ptrace.NewTraces()
@@ -250,12 +250,11 @@ func (tr *TraceReader) FindSpans(ctx context.Context, params tracestore.SpanQuer
 	}
 }
 
-func spanReaderError(err error) error {
-	err = readerError(err)
+func spanReaderError(err error, message string) error {
 	if status.Code(err) == codes.Unimplemented {
-		return fmt.Errorf("FindSpans: %w", errors.ErrUnsupported)
+		return fmt.Errorf("remote server does not support FindSpans: %w", errors.ErrUnsupported)
 	}
-	return err
+	return fmt.Errorf("%s: %w", message, readerError(err))
 }
 
 func toProtoSpanQuery(params tracestore.SpanQueryParams) (*storage.SpanQueryParameters, error) {
