@@ -168,7 +168,7 @@ func spanQueryParams(query *api_v3.SpanQueryParameters) (querysvc.SpanQueryParam
 	}
 	order, err := tracestore.SpanOrderFromProto(query.GetOrderBy())
 	if err != nil {
-		return querysvc.SpanQueryParams{}, status.Error(codes.InvalidArgument, err.Error())
+		return querysvc.SpanQueryParams{}, asStatusError(fmt.Errorf("%w: %w", tracestore.ErrSpanOrderInvalid, err))
 	}
 	queryParams.OrderBy = order
 	if pagination := query.GetPagination(); pagination != nil {

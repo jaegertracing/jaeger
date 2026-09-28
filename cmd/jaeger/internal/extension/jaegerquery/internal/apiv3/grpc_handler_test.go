@@ -1182,3 +1182,20 @@ func TestFindSpansGRPCOrdering(t *testing.T) {
 		})
 	}
 }
+
+func TestFindSpansGRPCMissingOrderExpression(t *testing.T) {
+	tsc := newTestServerClientWithCapabilities(t, tracestore.SearchCapabilities{SpanSearch: true, SpanSorting: true})
+	stream, err := tsc.client.FindSpans(t.Context(), &api_v3.FindSpansRequest{Query: &api_v3.SpanQueryParameters{
+		OrderBy: []*api_v3.SpanSortOrder{{}},
+	}})
+	require.NoError(t, err)
+	_, err = stream.Recv()
+	st := status.Convert(err)
+	assert.Equal(t, codes.InvalidArgument, st.Code())
+	require.Len(t, st.Details(), 1)
+	info, ok := st.Details()[0].(*errdetails.ErrorInfo)
+	require.True(t, ok)
+	assert.Equal(t, "jaeger.api_v3", info.GetDomain())
+	assert.Equal(t, "ORDERING_INVALID", info.GetReason())
+	tsc.reader.AssertNotCalled(t, "FindSpans", mock.Anything, mock.Anything)
+}
