@@ -206,20 +206,9 @@ func parseFindTracesQuery(q url.Values) (*querysvc.TraceQueryParams, error) {
 	return queryParams, nil
 }
 
-// parseFindSpansQuery reads the time range, filter, pagination and ordering of a span search.
+// parseFindSpansQuery reads the time range, filter, ordering and pagination of a span search.
 func parseFindSpansQuery(q url.Values) (*querysvc.SpanQueryParams, error) {
 	queryParams := &querysvc.SpanQueryParams{}
-	if raw, name := getQueryParam(q, "query.orderBy", "query.order_by"); raw != "" {
-		var wire api_v3.SpanQueryParameters
-		if err := jsonpb.UnmarshalString(`{"orderBy":`+raw+`}`, &wire); err != nil {
-			return nil, fmt.Errorf("malformed parameter %s: %w", name, err)
-		}
-		order, err := tracestore.SpanOrderFromProto(wire.OrderBy)
-		if err != nil {
-			return nil, err
-		}
-		queryParams.OrderBy = order
-	}
 	var err error
 	queryParams.StartTimeMin, queryParams.StartTimeMax, err = parseTimeRangeParams(q)
 	if err != nil {
@@ -228,6 +217,17 @@ func parseFindSpansQuery(q url.Values) (*querysvc.SpanQueryParams, error) {
 	queryParams.Filter, err = parseFilterParam(q)
 	if err != nil {
 		return nil, err
+	}
+	if raw := q.Get("query.orderBy"); raw != "" {
+		var wire api_v3.SpanQueryParameters
+		if err := jsonpb.UnmarshalString(`{"orderBy":`+raw+`}`, &wire); err != nil {
+			return nil, fmt.Errorf("malformed parameter query.orderBy: %w", err)
+		}
+		order, err := tracestore.SpanOrderFromProto(wire.OrderBy)
+		if err != nil {
+			return nil, err
+		}
+		queryParams.OrderBy = order
 	}
 	// A span search is always bounded by its page size, so the value is taken whether or not
 	// the caller sent one; the query service fills in the default (RFC 0016 §6).

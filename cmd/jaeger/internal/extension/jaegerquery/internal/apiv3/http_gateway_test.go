@@ -900,7 +900,7 @@ func TestHTTPGatewayFindSpansOrdering(t *testing.T) {
 					}
 				})).Once()
 			}
-			q.Set("query.order_by", terms)
+			q.Set("query.orderBy", terms)
 			r := httptest.NewRequest(http.MethodGet, "/api/v3/spans?"+q.Encode(), http.NoBody)
 
 			w := httptest.NewRecorder()
