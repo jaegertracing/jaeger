@@ -172,8 +172,14 @@ func toSpanQueryParams(wire *storage.SpanQueryParameters) (tracestore.SpanQueryP
 		return tracestore.SpanQueryParams{}, status.Error(codes.InvalidArgument, err.Error())
 	}
 	return tracestore.SpanQueryParams{
-		StartTimeMin: wire.StartTimeMin, StartTimeMax: wire.StartTimeMax, Filter: filter, OrderBy: order,
-		Pagination: tracestore.Pagination{PageSize: wire.GetPagination().GetPageSize(), PageToken: tracestore.PageToken(wire.GetPagination().GetPageToken())},
+		StartTimeMin: wire.StartTimeMin,
+		StartTimeMax: wire.StartTimeMax,
+		Filter:       filter,
+		OrderBy:      order,
+		Pagination: tracestore.Pagination{
+			PageSize:  wire.GetPagination().GetPageSize(),
+			PageToken: tracestore.PageToken(wire.GetPagination().GetPageToken()),
+		},
 	}, nil
 }
 
