@@ -4,6 +4,8 @@
 package memory
 
 import (
+	"bytes"
+	"math"
 	"testing"
 	"time"
 
@@ -71,8 +73,8 @@ func TestFindSpansOrdering(t *testing.T) {
 }
 
 func TestSpanOrderingCursorValues(t *testing.T) {
-	key := spanKey{[]byte("priority"), {0xff}, {}, []byte("region"), {0, 1, 2}}
-	original := cursor[spanKey]{key: key, seen: 3}
+	key := sortingKey{[]byte("priority"), {0xff}, {}, []byte("region"), {0, 1, 2}}
+	original := cursor[sortingKey]{key: key, seen: 3}
 	decoded, err := decodeSpanCursor(original.encode(), len(key))
 	require.NoError(t, err)
 	assert.Equal(t, original, decoded)
@@ -81,10 +83,10 @@ func TestSpanOrderingCursorValues(t *testing.T) {
 		{Expression: &expression.AttributeRef{Level: expression.LevelSpan, Key: "priority"}, Direction: tracestore.SortAscending},
 		{Expression: &expression.AttributeRef{Level: expression.LevelResource, Key: "region"}, Direction: tracestore.SortDescending},
 	}
-	compare := compareSpanKeys(order)
-	assert.Negative(t, compare(spanKey{[]byte("a"), []byte("a")}, spanKey{[]byte("b"), []byte("z")}))
-	assert.Positive(t, compare(spanKey{[]byte("a"), []byte("a")}, spanKey{[]byte("a"), []byte("z")}))
-	assert.Zero(t, compare(spanKey{[]byte("a"), []byte("z")}, spanKey{[]byte("a"), []byte("z")}))
+	compare := compareSortingKeys(order)
+	assert.Negative(t, compare(sortingKey{[]byte("a"), []byte("a")}, sortingKey{[]byte("b"), []byte("z")}))
+	assert.Positive(t, compare(sortingKey{[]byte("a"), []byte("a")}, sortingKey{[]byte("a"), []byte("z")}))
+	assert.Zero(t, compare(sortingKey{[]byte("a"), []byte("z")}, sortingKey{[]byte("a"), []byte("z")}))
 }
 
 func TestSpanOrderingDuration(t *testing.T) {
@@ -92,11 +94,11 @@ func TestSpanOrderingDuration(t *testing.T) {
 	span := ptrace.NewSpan()
 	span.SetStartTimestamp(42)
 	span.SetEndTimestamp(17)
-	negative := spanKeyOf(span, order)
-	zero := spanKeyOf(ptrace.NewSpan(), order)
+	negative := makeSortingKey(filterCtx{span: span}, order)
+	zero := makeSortingKey(filterCtx{span: ptrace.NewSpan()}, order)
 	span.SetEndTimestamp(43)
-	positive := spanKeyOf(span, order)
-	compare := compareSpanKeys(order)
+	positive := makeSortingKey(filterCtx{span: span}, order)
+	compare := compareSortingKeys(order)
 	assert.Negative(t, compare(negative, zero))
 	assert.Positive(t, compare(positive, zero))
 }
@@ -112,7 +114,7 @@ func TestDecodeSpanCursorMalformed(t *testing.T) {
 		_, err := decodeSpanCursor(raw, 1)
 		require.ErrorIs(t, err, tracestore.ErrPaginationInvalid)
 	}
-	encoded := (cursor[spanKey]{key: spanKey{{1}, {2}}, seen: 1}).encode()
+	encoded := (cursor[sortingKey]{key: sortingKey{{1}, {2}}, seen: 1}).encode()
 	for _, terms := range []int{1, 3} {
 		_, err := decodeSpanCursor(encoded, terms)
 		require.ErrorIs(t, err, tracestore.ErrPaginationInvalid)
@@ -146,4 +148,53 @@ func TestFindSpansOrderedDuplicatesAndChangedToken(t *testing.T) {
 	require.ErrorIs(t, err, tracestore.ErrPaginationInvalid)
 	_, err = findSpansPage(t, store, tracestore.SpanQueryParams{OrderBy: []tracestore.SpanSortOrder{{}}})
 	require.ErrorIs(t, err, tracestore.ErrSpanOrderInvalid)
+}
+
+func TestEncodeSortValueOrder(t *testing.T) {
+	// Encodings compare as the values do, within a kind and between kinds.
+	ordered := [][]evalValue{
+		nil,
+		{{isBool: true, boolean: false}},
+		{{isBool: true, boolean: true}},
+		{{isInt: true, numInt: math.MinInt64}},
+		{{isInt: true, numInt: -1}},
+		{{isInt: true, numInt: 0}},
+		{{isInt: true, numInt: math.MaxInt64}},
+		{{isNumber: true, num: math.Inf(-1)}},
+		{{isNumber: true, num: -2.5}},
+		{{isNumber: true, num: -0.0}},
+		{{isNumber: true, num: 0.5}},
+		{{isNumber: true, num: math.Inf(1)}},
+		{{isString: true, str: ""}},
+		{{isString: true, str: "a"}},
+		{{isString: true, str: "ab"}},
+		{{isString: true, str: "b"}},
+	}
+	for i := 1; i < len(ordered); i++ {
+		assert.Negative(t, bytes.Compare(encodeSortValue(ordered[i-1]), encodeSortValue(ordered[i])), "%v before %v", ordered[i-1], ordered[i])
+	}
+	// Only the first resolved value orders a span that carries several.
+	many := []evalValue{{isString: true, str: "first"}, {isString: true, str: "second"}}
+	assert.Equal(t, encodeSortValue(many[:1]), encodeSortValue(many))
+}
+
+func TestMakeSortingKeyResolvesAttributes(t *testing.T) {
+	// The key resolves whatever the filter evaluator can, so an attribute at any level orders spans
+	// once the contract admits it.
+	order := []tracestore.SpanSortOrder{
+		{Expression: &expression.AttributeRef{Level: expression.LevelSpan, Key: "priority"}},
+		{Expression: &expression.AttributeRef{Level: expression.LevelResource, Key: "region"}},
+		{Expression: &expression.FieldRef{Level: expression.LevelResource, Name: expression.ResourceFieldService}},
+	}
+	resource := pcommon.NewResource()
+	resource.Attributes().PutStr("region", "eu")
+	resource.Attributes().PutStr("service.name", "svc")
+	span := ptrace.NewSpan()
+	span.Attributes().PutInt("priority", 7)
+	key := makeSortingKey(filterCtx{resource: resource, span: span}, order)
+	require.Len(t, key, 3)
+	assert.Equal(t, encodeSortValue([]evalValue{{isInt: true, numInt: 7}}), key[0])
+	assert.Equal(t, append([]byte{sortTagString}, "eu"...), key[1])
+	assert.Equal(t, append([]byte{sortTagString}, "svc"...), key[2])
+	assert.Equal(t, []byte{sortTagAbsent}, makeSortingKey(filterCtx{resource: pcommon.NewResource(), span: ptrace.NewSpan()}, order)[0])
 }

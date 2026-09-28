@@ -133,7 +133,7 @@ func (*Store) SearchCapabilities(context.Context) (tracestore.SearchCapabilities
 // a matching span always keeps its own resource and scope, not its trace's
 // other spans' resources.
 //
-// The result is one page, sorted by spanKey and bounded by
+// The result is one page, sorted by sortingKey and bounded by
 // query.Pagination.PageSize when that is positive. The chunk carries the next
 // page's token if more spans match (RFC 0014).
 func (st *Store) FindSpans(ctx context.Context, query tracestore.SpanQueryParams) iter.Seq2[tracestore.PageChunk[ptrace.Traces], error] {
@@ -153,7 +153,7 @@ func (st *Store) FindSpans(ctx context.Context, query tracestore.SpanQueryParams
 			yield(tracestore.PageChunk[ptrace.Traces]{}, err)
 			return
 		}
-		after, err := cursorOf(query.Pagination.PageToken, fingerprint, func(raw []byte) (cursor[spanKey], error) {
+		after, err := cursorOf(query.Pagination.PageToken, fingerprint, func(raw []byte) (cursor[sortingKey], error) {
 			return decodeSpanCursor(raw, len(query.OrderBy))
 		})
 		if err != nil {
