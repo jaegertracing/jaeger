@@ -63,9 +63,9 @@ func TestEffectiveSpanOrderAndFingerprint(t *testing.T) {
 	for _, order := range [][]SpanSortOrder{nil, defaults, {sortTerm("startTime", "desc")}} {
 		got := EffectiveSpanOrder(order)
 		assert.Equal(t, defaults, got)
-		fp, err := (SpanQueryParams{OrderBy: order}).Fingerprint()
+		fp, err := (SpanQueryParams{OrderBy: got}).Fingerprint()
 		require.NoError(t, err)
-		want, err := (SpanQueryParams{}).Fingerprint()
+		want, err := (SpanQueryParams{OrderBy: defaults}).Fingerprint()
 		require.NoError(t, err)
 		assert.Equal(t, want, fp)
 	}
@@ -82,7 +82,7 @@ func TestEffectiveSpanOrderAndFingerprint(t *testing.T) {
 	}
 	seen := map[string]bool{}
 	for _, order := range orders {
-		query := SpanQueryParams{OrderBy: order}
+		query := SpanQueryParams{OrderBy: EffectiveSpanOrder(order)}
 		fp, err := query.Fingerprint()
 		require.NoError(t, err)
 		assert.False(t, seen[string(fp)])
@@ -127,7 +127,7 @@ func TestSpanOrderProto(t *testing.T) {
 }
 
 func TestSpanOrderBindsContinuationToken(t *testing.T) {
-	query := SpanQueryParams{OrderBy: []SpanSortOrder{sortTerm("duration", "desc")}}
+	query := SpanQueryParams{OrderBy: EffectiveSpanOrder([]SpanSortOrder{sortTerm("duration", "desc")})}
 	fingerprint, err := query.Fingerprint()
 	require.NoError(t, err)
 	token, err := NewPageToken(fingerprint, []byte("cursor"))

@@ -43,7 +43,7 @@ func (q TraceQueryParams) Fingerprint() ([]byte, error) {
 	return h.sum(), nil
 }
 
-// Fingerprint binds span continuation tokens to the time range, filter and effective ordering.
+// Fingerprint binds span continuation tokens to the time range, filter and supplied ordering.
 func (q SpanQueryParams) Fingerprint() ([]byte, error) {
 	h := newHasher("span")
 	h.time(q.StartTimeMin)
@@ -51,9 +51,8 @@ func (q SpanQueryParams) Fingerprint() ([]byte, error) {
 	if err := h.filter(q.Filter); err != nil {
 		return nil, err
 	}
-	order := EffectiveSpanOrder(q.OrderBy)
-	h.int64(int64(len(order)))
-	for i, term := range order {
+	h.int64(int64(len(q.OrderBy)))
+	for i, term := range q.OrderBy {
 		encoded, err := encodeCanonical(&expression.Call{Args: []expression.Expression{term.Expression}})
 		if err != nil {
 			return nil, fmt.Errorf("cannot fingerprint order_by[%d]: %w", i, err)

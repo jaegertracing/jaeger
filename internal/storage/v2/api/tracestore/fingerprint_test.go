@@ -77,7 +77,7 @@ func TestFingerprint_Golden(t *testing.T) {
 		StartTimeMin: windowStart, StartTimeMax: windowEnd, Filter: serviceAttributeIs("cart"),
 	}).Fingerprint()
 	require.NoError(t, err)
-	assert.Equal(t, "359022ba89dd3bbabc1817cca39d15a9", hex.EncodeToString(span))
+	assert.Equal(t, "fa91ee1c00d264c2792f151b1584001c", hex.EncodeToString(span))
 }
 
 // TestTraceQueryFingerprint_ZeroAndEmptyAttributesAreTheSame pins that a request with no attributes
@@ -371,7 +371,7 @@ func TestSpanQueryFingerprint_SortExpressions(t *testing.T) {
 		q.OrderBy[0].Direction = SortAscending
 		explicit, err := q.Fingerprint()
 		require.NoError(t, err)
-		assert.Equal(t, fp, explicit)
+		assert.NotEqual(t, fp, explicit)
 		q.OrderBy[0].Direction = SortDescending
 		descending, err := q.Fingerprint()
 		require.NoError(t, err)
@@ -407,4 +407,19 @@ func TestSpanQueryFingerprint_UnencodableSortExpression(t *testing.T) {
 		require.ErrorIs(t, err, exprproto.ErrTermNotEncodable)
 		assert.ErrorContains(t, err, "cannot fingerprint order_by[0]")
 	}
+}
+
+func TestSpanQueryFingerprint_DoesNotDefaultOrdering(t *testing.T) {
+	query := SpanQueryParams{}
+	omitted, err := query.Fingerprint()
+	require.NoError(t, err)
+	query.OrderBy = []SpanSortOrder{sortTerm("startTime", "desc")}
+	explicit, err := query.Fingerprint()
+	require.NoError(t, err)
+	query.OrderBy = EffectiveSpanOrder(query.OrderBy)
+	withTieBreakers, err := query.Fingerprint()
+	require.NoError(t, err)
+	assert.NotEqual(t, omitted, explicit)
+	assert.NotEqual(t, explicit, withTieBreakers)
+	assert.NotEqual(t, omitted, withTieBreakers)
 }
