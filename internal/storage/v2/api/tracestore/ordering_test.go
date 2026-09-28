@@ -105,7 +105,8 @@ func TestSpanSortingCapability(t *testing.T) {
 		if caps.SpanSearch && caps.SpanSorting {
 			require.NoError(t, err)
 		} else {
-			require.ErrorIs(t, err, ErrSpanOrderInvalid)
+			require.ErrorIs(t, err, ErrSpanOrderUnsupported)
+			require.NotErrorIs(t, err, ErrSpanOrderInvalid)
 		}
 	}
 }

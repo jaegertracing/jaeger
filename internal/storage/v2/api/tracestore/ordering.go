@@ -18,7 +18,10 @@ const (
 	SortDescending SortDirection = "desc"
 )
 
-var ErrSpanOrderInvalid = errors.New("invalid span ordering")
+var (
+	ErrSpanOrderInvalid     = errors.New("invalid span ordering")
+	ErrSpanOrderUnsupported = errors.New("unsupported span ordering")
+)
 
 // SpanSortOrder selects a span field and its direction, in query precedence order.
 type SpanSortOrder struct {
@@ -92,7 +95,7 @@ func EffectiveSpanOrder(order []SpanSortOrder) []SpanSortOrder {
 // ValidateSpanSorting refuses explicit ordering unless the reader supports the complete contract.
 func (c SearchCapabilities) ValidateSpanSorting(order []SpanSortOrder) error {
 	if len(order) > 0 && (!c.SpanSearch || !c.SpanSorting) {
-		return fmt.Errorf("%w: this storage backend does not support explicit span ordering", ErrSpanOrderInvalid)
+		return fmt.Errorf("%w: this storage backend does not support explicit span ordering", ErrSpanOrderUnsupported)
 	}
 	return nil
 }
