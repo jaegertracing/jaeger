@@ -117,6 +117,7 @@ func fromInterceptorSpanQuery(q queryinterceptor.SpanQuery, original tracestore.
 		StartTimeMin: q.StartTimeMin,
 		StartTimeMax: q.StartTimeMax,
 		Pagination:   original.Pagination,
+		OrderBy:      original.OrderBy,
 	}
 }
 

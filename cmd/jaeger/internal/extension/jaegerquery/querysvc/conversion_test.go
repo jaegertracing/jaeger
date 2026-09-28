@@ -56,6 +56,8 @@ func distinctValue(t *testing.T, field reflect.StructField) reflect.Value {
 		return reflect.ValueOf(serviceIs("cart"))
 	case reflect.TypeOf((*Pagination)(nil)):
 		return reflect.ValueOf(&Pagination{PageSize: 7, PageToken: "token"})
+	case reflect.TypeOf([]tracestore.SpanSortOrder{}):
+		return reflect.ValueOf([]tracestore.SpanSortOrder{{Expression: &expression.FieldRef{Level: expression.LevelSpan, Name: "duration"}, Direction: tracestore.SortDescending}})
 	case reflect.TypeOf(Pagination{}):
 		return reflect.ValueOf(Pagination{PageSize: 7, PageToken: "token"})
 	}

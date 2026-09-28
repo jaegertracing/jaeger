@@ -72,7 +72,7 @@ func queryToReaderCapabilities(
 // Either way it is the caller's problem, so the API layers answer InvalidArgument /
 // HTTP 400 rather than reporting a server fault.
 func IsBadRequest(err error) bool {
-	return errors.Is(err, ErrQueryInvalid) ||
+	return errors.Is(err, tracestore.ErrSpanOrderInvalid) || errors.Is(err, ErrQueryInvalid) ||
 		errors.Is(err, ErrServiceNameRequired) ||
 		errors.Is(err, ErrSpanSearchUnsupported) ||
 		errors.Is(err, ErrFilterDisabled) ||

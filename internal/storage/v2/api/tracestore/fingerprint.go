@@ -43,10 +43,17 @@ func (q TraceQueryParams) Fingerprint() ([]byte, error) {
 	return h.sum(), nil
 }
 
-// Fingerprint is TraceQueryParams.Fingerprint for a span search, whose selecting parameters are
-// the time range and the filter (RFC 0016 §4.3).
+// Fingerprint binds span continuation tokens to the time range, filter and effective ordering.
 func (q SpanQueryParams) Fingerprint() ([]byte, error) {
+	order, err := EffectiveSpanOrder(q.OrderBy)
+	if err != nil {
+		return nil, err
+	}
 	h := newHasher("span")
+	for _, term := range order {
+		h.string(term.Expression.(*expression.FieldRef).Name)
+		h.string(string(term.Direction))
+	}
 	h.time(q.StartTimeMin)
 	h.time(q.StartTimeMax)
 	if err := h.filter(q.Filter); err != nil {

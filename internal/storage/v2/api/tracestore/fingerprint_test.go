@@ -77,7 +77,7 @@ func TestFingerprint_Golden(t *testing.T) {
 		StartTimeMin: windowStart, StartTimeMax: windowEnd, Filter: serviceAttributeIs("cart"),
 	}).Fingerprint()
 	require.NoError(t, err)
-	assert.Equal(t, "da96d67bbd0ae4347baaec8e3b29f00a", hex.EncodeToString(span))
+	assert.Equal(t, "f46b894284670f6a5277fd0ddfc2c43d", hex.EncodeToString(span))
 }
 
 // TestTraceQueryFingerprint_ZeroAndEmptyAttributesAreTheSame pins that a request with no attributes
@@ -184,6 +184,7 @@ func TestFingerprint_EveryFieldIsAccountedFor(t *testing.T) {
 	assert.Equal(t, []string{
 		"StartTimeMin", "StartTimeMax", "Filter",
 		"Pagination", // excluded
+		"OrderBy",
 	}, fields(SpanQueryParams{}))
 }
 

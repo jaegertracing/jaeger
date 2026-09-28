@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"iter"
+	"strconv"
 	"testing"
 	"time"
 
@@ -1753,4 +1754,38 @@ func TestFindTraces_UnservableFilterIsRefusedBeforeStorage(t *testing.T) {
 			require.ErrorIs(t, err, tracestore.ErrFilterUnsupported)
 		})
 	}
+}
+
+func TestFindSpansOrdering(t *testing.T) {
+	for _, supported := range []bool{false, true} {
+		t.Run(strconv.FormatBool(supported), func(t *testing.T) {
+			tqs := initializeBareTestQueryService()
+			tqs.traceReader.On("SearchCapabilities", mock.Anything).Return(tracestore.SearchCapabilities{SpanSearch: true, SpanSorting: supported}, nil)
+			query := SpanQueryParams{
+				StartTimeMin: testWindowStart, StartTimeMax: testWindowEnd,
+				OrderBy: []tracestore.SpanSortOrder{{Expression: &expression.FieldRef{Level: expression.LevelSpan, Name: "duration"}}},
+			}
+			if supported {
+				expected := tracestore.SpanQueryParams{
+					StartTimeMin: testWindowStart, StartTimeMax: testWindowEnd,
+					Pagination: tracestore.Pagination{PageSize: DefaultPageSize},
+					OrderBy:    []tracestore.SpanSortOrder{{Expression: &expression.FieldRef{Level: expression.LevelSpan, Name: "duration"}, Direction: tracestore.SortAscending}},
+				}
+				tqs.traceReader.On("FindSpans", mock.Anything, expected).Return(iter.Seq2[tracestore.PageChunk[ptrace.Traces], error](func(func(tracestore.PageChunk[ptrace.Traces], error) bool) {})).Once()
+			}
+			_, err := jiter.CollectWithErrors(tqs.queryService.FindSpans(t.Context(), query))
+			if supported {
+				require.NoError(t, err)
+			} else {
+				require.ErrorIs(t, err, tracestore.ErrSpanOrderInvalid)
+				assert.True(t, IsBadRequest(err))
+			}
+			assert.Empty(t, query.OrderBy[0].Direction)
+			tqs.traceReader.AssertExpectations(t)
+		})
+	}
+	tqs := initializeBareTestQueryService()
+	_, err := jiter.CollectWithErrors(tqs.queryService.FindSpans(t.Context(), SpanQueryParams{OrderBy: []tracestore.SpanSortOrder{{}}}))
+	require.ErrorIs(t, err, tracestore.ErrSpanOrderInvalid)
+	tqs.traceReader.AssertNotCalled(t, "FindSpans", mock.Anything, mock.Anything)
 }

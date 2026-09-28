@@ -109,6 +109,7 @@ type SpanQueryParams struct {
 	Filter *expression.Call
 	// Pagination is the only bound on the result (RFC 0016 §6): a zero PageSize means the default.
 	Pagination Pagination
+	OrderBy    []tracestore.SpanSortOrder
 }
 
 // TraceQueryParams is a trace search as the caller sent it. prepareSearchQuery turns it into the
@@ -375,6 +376,9 @@ func (qs QueryService) prepareSpanSearchQuery(
 		query.Filter = finalized
 	}
 	caps := qs.readerSearchCapabilitiesOrDefault(ctx)
+	if err := caps.ValidateSpanSorting(query.OrderBy); err != nil {
+		return ctx, query, err
+	}
 	if !caps.SpanSearch {
 		return ctx, query, ErrSpanSearchUnsupported
 	}

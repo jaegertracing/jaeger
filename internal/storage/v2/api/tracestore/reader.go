@@ -151,6 +151,7 @@ type SpanQueryParams struct {
 	// PageSize as that bound but never a PageToken, which the query service refuses on its
 	// behalf before dispatching (RFC 0014 §6.2).
 	Pagination Pagination
+	OrderBy    []SpanSortOrder
 }
 
 // UnsupportedSpanSearch provides a Reader.FindSpans implementation for backends that
