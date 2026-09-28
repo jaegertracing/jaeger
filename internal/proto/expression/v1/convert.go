@@ -56,6 +56,11 @@ func decodeCall(filter *Call, depth int) (*expression.Call, error) {
 	}, nil
 }
 
+// TermFromProto decodes one expression without validating its operators, fields, or types for execution.
+func TermFromProto(expr *Expression) (expression.Expression, error) {
+	return toFilterExpression(expr, 0)
+}
+
 func toFilterExpression(expr *Expression, depth int) (expression.Expression, error) {
 	switch term := expr.GetTerm().(type) {
 	case *Expression_Attr:

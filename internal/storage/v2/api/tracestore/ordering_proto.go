@@ -6,12 +6,11 @@ package tracestore
 import (
 	"fmt"
 
-	expression "github.com/jaegertracing/jaeger-idl/query/expression/v1"
 	expressionproto "github.com/jaegertracing/jaeger/internal/proto/expression/v1"
 )
 
-// SpanOrderFromProto decodes API v3 or storage v2 SpanSortOrder messages and validates the shared
-// ordering contract. The type parameter lets both generated protobuf types use the same decoder.
+// SpanOrderFromProto converts API v3 or storage v2 SpanSortOrder messages without validation or defaulting.
+// The type parameter lets both generated protobuf types use the same decoder.
 func SpanOrderFromProto[T interface {
 	GetExpression() *expressionproto.Expression
 	GetDirection() string
@@ -21,11 +20,11 @@ func SpanOrderFromProto[T interface {
 	}
 	order := make([]SpanSortOrder, len(terms))
 	for i, term := range terms {
-		field := term.GetExpression().GetField()
-		if field == nil {
-			return nil, fmt.Errorf("%w: order_by[%d] must reference a built-in span field", ErrSpanOrderInvalid, i)
+		expr, err := expressionproto.TermFromProto(term.GetExpression())
+		if err != nil {
+			return nil, fmt.Errorf("cannot decode order_by[%d]: %w", i, err)
 		}
-		order[i] = SpanSortOrder{Expression: &expression.FieldRef{Level: expression.Level(field.GetLevel()), Name: field.GetName()}, Direction: SortDirection(term.GetDirection())}
+		order[i] = SpanSortOrder{Expression: expr, Direction: SortDirection(term.GetDirection())}
 	}
-	return NormalizeSpanOrder(order)
+	return order, nil
 }

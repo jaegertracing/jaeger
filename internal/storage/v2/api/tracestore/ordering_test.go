@@ -114,15 +114,24 @@ func TestSpanOrderProto(t *testing.T) {
 	got, err := SpanOrderFromProto([]*api_v3.SpanSortOrder(nil))
 	require.NoError(t, err)
 	assert.Nil(t, got)
-	term := sortTerm("duration", "asc")
-	encoded, err := expressionproto.TermToProto(term.Expression)
-	require.NoError(t, err)
-	got, err = SpanOrderFromProto([]*api_v3.SpanSortOrder{{Expression: encoded}})
-	require.NoError(t, err)
-	assert.Equal(t, []SpanSortOrder{term}, got)
-	for _, wire := range []*api_v3.SpanSortOrder{nil, {}, {Expression: &expressionproto.Expression{}}, {Expression: encoded, Direction: "bad"}} {
+	for _, term := range []SpanSortOrder{
+		sortTerm("duration", ""),
+		sortTerm("unknown", "custom-direction"),
+		{Expression: &expression.AttributeRef{Level: expression.LevelSpan, Key: "priority"}},
+		{Expression: &expression.NestedRef{Level: expression.LevelEvent}},
+		{Expression: &expression.IntValue{Value: 42}},
+		{Expression: &expression.Call{Op: "custom", Args: []expression.Expression{&expression.StringValue{Value: "a"}}}},
+	} {
+		encoded, err := expressionproto.TermToProto(term.Expression)
+		require.NoError(t, err)
+		wire := &api_v3.SpanSortOrder{Expression: encoded, Direction: string(term.Direction)}
+		got, err = SpanOrderFromProto([]*api_v3.SpanSortOrder{wire, wire})
+		require.NoError(t, err)
+		assert.Equal(t, []SpanSortOrder{term, term}, got)
+	}
+	for _, wire := range []*api_v3.SpanSortOrder{nil, {}, {Expression: &expressionproto.Expression{}}} {
 		_, err := SpanOrderFromProto([]*api_v3.SpanSortOrder{wire})
-		require.ErrorIs(t, err, ErrSpanOrderInvalid)
+		require.ErrorContains(t, err, "cannot decode order_by[0]")
 	}
 }
 
