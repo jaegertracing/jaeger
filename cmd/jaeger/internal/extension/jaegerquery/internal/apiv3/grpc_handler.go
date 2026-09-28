@@ -155,14 +155,9 @@ func spanQueryParams(query *api_v3.SpanQueryParameters) (querysvc.SpanQueryParam
 	if query == nil {
 		return querysvc.SpanQueryParams{}, status.Error(codes.InvalidArgument, "missing query")
 	}
-	order, err := tracestore.SpanOrderFromProto(query.GetOrderBy())
-	if err != nil {
-		return querysvc.SpanQueryParams{}, status.Error(codes.InvalidArgument, err.Error())
-	}
 	queryParams := querysvc.SpanQueryParams{
 		StartTimeMin: query.GetStartTimeMin(),
 		StartTimeMax: query.GetStartTimeMax(),
-		OrderBy:      order,
 	}
 	if protoFilter := query.GetFilter(); protoFilter != nil {
 		filter, err := expressionproto.CallFromProto(protoFilter)
@@ -171,6 +166,11 @@ func spanQueryParams(query *api_v3.SpanQueryParameters) (querysvc.SpanQueryParam
 		}
 		queryParams.Filter = filter
 	}
+	order, err := tracestore.SpanOrderFromProto(query.GetOrderBy())
+	if err != nil {
+		return querysvc.SpanQueryParams{}, status.Error(codes.InvalidArgument, err.Error())
+	}
+	queryParams.OrderBy = order
 	if pagination := query.GetPagination(); pagination != nil {
 		queryParams.Pagination = querysvc.Pagination{
 			PageSize:  pagination.GetPageSize(),
