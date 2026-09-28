@@ -935,6 +935,9 @@ func TestHTTPGatewayFindSpansMalformedOrder(t *testing.T) {
 		{`[`, "malformed parameter query.orderBy"},
 		{`[null]`, "malformed parameter query.orderBy"},
 		{`[{}]`, "malformed parameter query.orderBy"},
+		// Valid JSON that is not a list of sort terms fails protobuf decoding rather than json.Valid.
+		{`{"not":"an array"}`, "malformed parameter query.orderBy"},
+		{`[{"bogus":true}]`, "malformed parameter query.orderBy"},
 		// Content after the array would otherwise be spliced into the wrapper object unnoticed.
 		{`[]}{"garbage":true}`, "not a single JSON value"},
 		{`[{"expression":{"field":{"level":"span","name":"duration"}}}],"orderBy":[]`, "not a single JSON value"},
