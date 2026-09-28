@@ -206,7 +206,7 @@ func (t *Tenant) findSpans(query tracestore.SpanQueryParams, after *cursor[spanK
 						resourceSpan.SchemaUrl(), scopeSpan.SchemaUrl()) {
 						continue
 					}
-					matches = append(matches, matchedSpan{key: spanKeyOf(span), resourceSpan: resourceSpan, scopeSpan: scopeSpan, span: span})
+					matches = append(matches, matchedSpan{key: spanKeyOf(span, query.OrderBy), resourceSpan: resourceSpan, scopeSpan: scopeSpan, span: span})
 				}
 			}
 		}

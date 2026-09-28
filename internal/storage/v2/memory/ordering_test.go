@@ -71,14 +71,52 @@ func TestFindSpansOrdering(t *testing.T) {
 }
 
 func TestSpanOrderingCursorValues(t *testing.T) {
-	key := spanKey{startTime: pcommon.Timestamp(42), endTime: pcommon.Timestamp(17), traceID: pcommon.TraceID{0xff}, spanID: pcommon.SpanID{0xfe}}
-	assert.Equal(t, key, decodeSpanKey(key.encode()))
-	order := tracestore.EffectiveSpanOrder([]tracestore.SpanSortOrder{{Expression: &expression.FieldRef{Level: expression.LevelSpan, Name: "duration"}}})
+	key := spanKey{[]byte("priority"), {0xff}, {}, []byte("region"), {0, 1, 2}}
+	original := cursor[spanKey]{key: key, seen: 3}
+	decoded, err := decodeSpanCursor(original.encode(), len(key))
+	require.NoError(t, err)
+	assert.Equal(t, original, decoded)
+
+	order := []tracestore.SpanSortOrder{
+		{Expression: &expression.AttributeRef{Level: expression.LevelSpan, Key: "priority"}, Direction: tracestore.SortAscending},
+		{Expression: &expression.AttributeRef{Level: expression.LevelResource, Key: "region"}, Direction: tracestore.SortDescending},
+	}
 	compare := compareSpanKeys(order)
-	assert.Negative(t, compare(key, spanKey{}), "a negative duration sorts before zero")
-	later := key
-	later.endTime = pcommon.NewTimestampFromTime(key.startTime.AsTime().Add(time.Second))
-	assert.Positive(t, compare(later, key))
+	assert.Negative(t, compare(spanKey{[]byte("a"), []byte("a")}, spanKey{[]byte("b"), []byte("z")}))
+	assert.Positive(t, compare(spanKey{[]byte("a"), []byte("a")}, spanKey{[]byte("a"), []byte("z")}))
+	assert.Zero(t, compare(spanKey{[]byte("a"), []byte("z")}, spanKey{[]byte("a"), []byte("z")}))
+}
+
+func TestSpanOrderingDuration(t *testing.T) {
+	order := []tracestore.SpanSortOrder{{Expression: &expression.FieldRef{Level: expression.LevelSpan, Name: "duration"}, Direction: tracestore.SortAscending}}
+	span := ptrace.NewSpan()
+	span.SetStartTimestamp(42)
+	span.SetEndTimestamp(17)
+	negative := spanKeyOf(span, order)
+	zero := spanKeyOf(ptrace.NewSpan(), order)
+	span.SetEndTimestamp(43)
+	positive := spanKeyOf(span, order)
+	compare := compareSpanKeys(order)
+	assert.Negative(t, compare(negative, zero))
+	assert.Positive(t, compare(positive, zero))
+}
+
+func TestDecodeSpanCursorMalformed(t *testing.T) {
+	for _, raw := range [][]byte{
+		nil,
+		{0x80},
+		{5, 1, 2},
+		{1, 2},
+		{1, 2, 0, 0, 0, 1, 0},
+	} {
+		_, err := decodeSpanCursor(raw, 1)
+		require.ErrorIs(t, err, tracestore.ErrPaginationInvalid)
+	}
+	encoded := (cursor[spanKey]{key: spanKey{{1}, {2}}, seen: 1}).encode()
+	for _, terms := range []int{1, 3} {
+		_, err := decodeSpanCursor(encoded, terms)
+		require.ErrorIs(t, err, tracestore.ErrPaginationInvalid)
+	}
 }
 
 func TestFindSpansOrderedDuplicatesAndChangedToken(t *testing.T) {
