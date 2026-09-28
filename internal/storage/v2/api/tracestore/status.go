@@ -99,7 +99,12 @@ func ErrorFromStatus(err error, domain string) error {
 		}
 	}
 	if st.Code() == codes.Unimplemented {
-		msg, _ := strings.CutSuffix(st.Message(), ": "+errors.ErrUnsupported.Error())
+		// A reader that wraps errors.ErrUnsupported itself already ends its message with the
+		// root's text, and one that returns the bare root has nothing else to say.
+		msg := strings.TrimSuffix(strings.TrimSuffix(st.Message(), errors.ErrUnsupported.Error()), ": ")
+		if msg == "" {
+			return fmt.Errorf("remote server: %w", errors.ErrUnsupported)
+		}
 		return fmt.Errorf("remote server: %s: %w", msg, errors.ErrUnsupported)
 	}
 	return err

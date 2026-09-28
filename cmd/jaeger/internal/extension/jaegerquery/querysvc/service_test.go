@@ -1098,9 +1098,8 @@ func TestFindTraces_EnvelopeIsSettledOnce(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			qs := NewQueryService(new(tracestoremocks.Reader), nil, QueryServiceOptions{})
 			_, err := jiter.FlattenWithErrors(qs.FindTraces(context.Background(), test.query))
-			require.ErrorIs(t, err, tracestore.ErrInvalidQuery)
-			require.ErrorContains(t, err, test.wantErr)
 			require.ErrorIs(t, err, tracestore.ErrInvalidQuery, "the caller has to change the query")
+			require.ErrorContains(t, err, test.wantErr)
 		})
 	}
 

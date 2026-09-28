@@ -67,6 +67,11 @@ func TestErrorFromStatus_DoesNotRepeatTheSentinel(t *testing.T) {
 	restored = ErrorFromStatus(RefusalStatus(bare, testDomain), testDomain)
 	require.ErrorIs(t, restored, errors.ErrUnsupported)
 	assert.Equal(t, "remote server: no native summaries: unsupported operation", restored.Error())
+
+	restored = ErrorFromStatus(RefusalStatus(errors.ErrUnsupported, testDomain), testDomain)
+	require.ErrorIs(t, restored, errors.ErrUnsupported)
+	assert.Equal(t, "remote server: unsupported operation", restored.Error(),
+		"the bare root has nothing to say beyond itself")
 }
 
 // TestEveryUnsupportedReaderSentinelHasAReason guards the rule the query service's summaries

@@ -58,9 +58,7 @@ The query service refuses a query whose shape the backend cannot serve, before i
 
 A refusal belongs to one of two families, and the status code carries which. A query that is malformed on its own terms, such as an inverted time range, an operator the filter grammar does not define, or a forged page token, is the caller's mistake wherever it is sent; every such error wraps `tracestore.ErrInvalidQuery`, and the API layers answer `InvalidArgument` / HTTP 400 to anything that matches it. A query that is well formed but names a capability this deployment lacks, such as a search without a service name against Cassandra, a filter level the backend does not index, or an explicit span ordering the backend does not declare, is answered `Unimplemented` / HTTP 501; every such error wraps `errors.ErrUnsupported`, the same sentinel a reader returns when it lacks a method altogether, so a caller with an alternative can fall back on the status code alone rather than on the message.
 
-Two roots, one per family, mean that no layer keeps a list of the individual sentinels: a new refusal joins a family by wrapping its root, and every mapping follows.
-
-Both families were answered `InvalidArgument` before the split. That left a caller unable to tell a bad query from a missing capability without parsing the message, and left every call site that wanted to fall back enumerating the capability sentinels by hand.
+Two roots, one per family, mean that no layer keeps a list of the individual sentinels: a new refusal joins a family by wrapping its root, and every mapping follows. A single `InvalidArgument` for both, which is what the mechanism first shipped with, left a caller parsing the message to tell them apart.
 
 The remote-storage gRPC boundary uses the same two codes on every search RPC, and adds an `ErrorInfo` reason to each typed refusal a reader can return, because the code alone names only the family and the client restores the reader error from the reason.
 
