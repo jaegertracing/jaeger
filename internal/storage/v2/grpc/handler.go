@@ -149,9 +149,6 @@ func (h *Handler) FindSpans(req *storage.FindSpansRequest, srv storage.TraceRead
 	}
 	for chunk, err := range h.traceReader.FindSpans(srv.Context(), query) {
 		if err != nil {
-			if errors.Is(err, errors.ErrUnsupported) {
-				return status.Error(codes.Unimplemented, err.Error())
-			}
 			return readerStatus(err)
 		}
 		data := jptrace.TracesData(chunk.Results)
@@ -190,12 +187,6 @@ func (h *Handler) FindTraceSummaries(
 	}
 	for chunk, err := range h.traceReader.FindTraceSummaries(srv.Context(), query) {
 		if err != nil {
-			// A backend that cannot compute summaries natively signals this with
-			// errors.ErrUnsupported; surface it as gRPC Unimplemented so the remote
-			// client falls back to loading full traces and aggregating client-side.
-			if errors.Is(err, errors.ErrUnsupported) {
-				return status.Errorf(codes.Unimplemented, "method FindTraceSummaries not implemented: %v", err)
-			}
 			return readerStatus(err)
 		}
 		batch := make([]*storage.TraceSummary, len(chunk.Results))
@@ -242,8 +233,15 @@ const (
 	spanOrderUnsupportedReason = "ORDERING_UNSUPPORTED"
 )
 
-// readerStatus marks pagination and ordering refusals so the client can restore their error types.
+// readerStatus converts the reader errors that the storage client must recognize into gRPC
+// statuses. A backend that cannot serve the request natively signals errors.ErrUnsupported, which
+// becomes Unimplemented so the client can fall back or report the missing capability. Pagination
+// and ordering refusals become InvalidArgument marked with a reason so the client can restore
+// their error types. Other errors keep whatever status they carry.
 func readerStatus(err error) error {
+	if errors.Is(err, errors.ErrUnsupported) {
+		return status.Errorf(codes.Unimplemented, "not implemented by the storage backend: %v", err)
+	}
 	var reason string
 	switch {
 	case errors.Is(err, tracestore.ErrSpanOrderInvalid):
