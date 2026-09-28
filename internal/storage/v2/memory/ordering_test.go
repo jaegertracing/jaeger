@@ -154,27 +154,28 @@ func TestEncodeSortValueOrder(t *testing.T) {
 	// Encodings compare as the values do, within a kind and between kinds.
 	ordered := [][]evalValue{
 		nil,
-		{{isBool: true, boolean: false}},
-		{{isBool: true, boolean: true}},
-		{{isInt: true, numInt: math.MinInt64}},
-		{{isInt: true, numInt: -1}},
-		{{isInt: true, numInt: 0}},
-		{{isInt: true, numInt: math.MaxInt64}},
-		{{isNumber: true, num: math.Inf(-1)}},
-		{{isNumber: true, num: -2.5}},
-		{{isNumber: true, num: -0.0}},
-		{{isNumber: true, num: 0.5}},
-		{{isNumber: true, num: math.Inf(1)}},
-		{{isString: true, str: ""}},
-		{{isString: true, str: "a"}},
-		{{isString: true, str: "ab"}},
-		{{isString: true, str: "b"}},
+		{boolValue(false)},
+		{boolValue(true)},
+		{intValue(math.MinInt64)},
+		{intValue(-1)},
+		{intValue(0)},
+		{intValue(math.MaxInt64)},
+		{doubleValue(math.Inf(-1))},
+		{doubleValue(-2.5)},
+		{doubleValue(math.Copysign(0, -1))},
+		{doubleValue(0.5)},
+		{doubleValue(math.Inf(1))},
+		{stringValue("")},
+		{stringValue("a")},
+		{stringValue("ab")},
+		{stringValue("b")},
+		{{kind: kindOpaque}},
 	}
 	for i := 1; i < len(ordered); i++ {
 		assert.Negative(t, bytes.Compare(encodeSortValue(ordered[i-1]), encodeSortValue(ordered[i])), "%v before %v", ordered[i-1], ordered[i])
 	}
 	// Only the first resolved value orders a span that carries several.
-	many := []evalValue{{isString: true, str: "first"}, {isString: true, str: "second"}}
+	many := []evalValue{stringValue("first"), stringValue("second")}
 	assert.Equal(t, encodeSortValue(many[:1]), encodeSortValue(many))
 }
 
@@ -193,8 +194,8 @@ func TestMakeSortingKeyResolvesAttributes(t *testing.T) {
 	span.Attributes().PutInt("priority", 7)
 	key := makeSortingKey(filterCtx{resource: resource, span: span}, order)
 	require.Len(t, key, 3)
-	assert.Equal(t, encodeSortValue([]evalValue{{isInt: true, numInt: 7}}), key[0])
-	assert.Equal(t, append([]byte{sortTagString}, "eu"...), key[1])
-	assert.Equal(t, append([]byte{sortTagString}, "svc"...), key[2])
-	assert.Equal(t, []byte{sortTagAbsent}, makeSortingKey(filterCtx{resource: pcommon.NewResource(), span: ptrace.NewSpan()}, order)[0])
+	assert.Equal(t, encodeSortValue([]evalValue{intValue(7)}), key[0])
+	assert.Equal(t, append([]byte{byte(kindString)}, "eu"...), key[1])
+	assert.Equal(t, append([]byte{byte(kindString)}, "svc"...), key[2])
+	assert.Equal(t, []byte{byte(kindNone)}, makeSortingKey(filterCtx{resource: pcommon.NewResource(), span: ptrace.NewSpan()}, order)[0])
 }

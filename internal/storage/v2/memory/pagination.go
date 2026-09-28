@@ -55,43 +55,38 @@ func makeSortingKey(ctx filterCtx, order []tracestore.SpanSortOrder) sortingKey 
 	return key
 }
 
-// A sort value starts with a tag byte so that values of different kinds keep a fixed relative
-// order: a span without the value sorts first, then booleans, integers, doubles, and strings.
-const (
-	sortTagAbsent byte = iota
-	sortTagBool
-	sortTagInt
-	sortTagDouble
-	sortTagString
-)
-
 // encodeSortValue encodes the first resolved value so that bytes.Compare orders encodings as the
-// values themselves are ordered. Integers get their sign bit flipped; doubles get their sign bit
-// flipped when positive and every bit flipped when negative, which is the standard order-preserving
-// encoding of IEEE 754 floats; strings are their own bytes.
+// values themselves are ordered. The kind is the leading byte, so values of different kinds keep
+// the fixed relative order evalKind declares, with a span that lacks the value first. Integers get
+// their sign bit flipped; doubles get their sign bit flipped when positive and every bit flipped
+// when negative, which is the standard order-preserving encoding of IEEE 754 floats; strings are
+// their own bytes; opaque values carry only their kind.
 func encodeSortValue(values []evalValue) []byte {
 	if len(values) == 0 {
-		return []byte{sortTagAbsent}
+		return []byte{byte(kindNone)}
 	}
 	v := values[0]
-	switch {
-	case v.isBool:
+	tag := []byte{byte(v.kind)}
+	switch v.kind {
+	case kindBool:
 		if v.boolean {
-			return []byte{sortTagBool, 1}
+			return append(tag, 1)
 		}
-		return []byte{sortTagBool, 0}
-	case v.isInt:
-		return binary.BigEndian.AppendUint64([]byte{sortTagInt}, uint64(v.numInt)^(1<<63)) //nolint:gosec // G115: This bit cast preserves the signed order.
-	case v.isNumber:
+		return append(tag, 0)
+	case kindInt:
+		return binary.BigEndian.AppendUint64(tag, uint64(v.numInt)^(1<<63)) //nolint:gosec // G115: This bit cast preserves the signed order.
+	case kindDouble:
 		bits := math.Float64bits(v.num)
 		if bits&(1<<63) != 0 {
 			bits = ^bits
 		} else {
 			bits |= 1 << 63
 		}
-		return binary.BigEndian.AppendUint64([]byte{sortTagDouble}, bits)
+		return binary.BigEndian.AppendUint64(tag, bits)
+	case kindString, kindUntyped:
+		return append(tag, v.str...)
 	default:
-		return append([]byte{sortTagString}, v.str...)
+		return tag
 	}
 }
 
