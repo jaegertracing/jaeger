@@ -303,13 +303,10 @@ func (h *Handler) GetDependencies(ctx context.Context, request *api_v3.GetDepend
 // client as Unknown. Typed refusals keep their reason so the client can restore the error
 // type. Other errors pass through unchanged.
 func asStatusError(err error) error {
-	if tracestore.IsRefusal(err) {
-		return tracestore.RefusalStatus(err, errorInfoDomain)
-	}
 	if errors.Is(err, queryinterceptor.ErrAccessDenied) {
 		return status.Error(codes.PermissionDenied, err.Error())
 	}
-	return err
+	return tracestore.RefusalStatus(err, errorInfoDomain)
 }
 
 func receiveTraces(

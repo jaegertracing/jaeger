@@ -27,22 +27,26 @@ const (
 	SpanOrderUnsupportedReason  = "ORDERING_UNSUPPORTED"
 )
 
-// reasonErrors pairs each reason with the reader error it names.
-var reasonErrors = map[string]error{
-	FilterInvalidReason:         ErrFilterInvalid,
-	FilterUnsupportedReason:     ErrFilterUnsupported,
-	PaginationInvalidReason:     ErrPaginationInvalid,
-	PaginationUnsupportedReason: ErrPaginationUnsupported,
-	SpanOrderInvalidReason:      ErrSpanOrderInvalid,
-	SpanOrderUnsupportedReason:  ErrSpanOrderUnsupported,
+// reasonErrors pairs each reason with the reader error it names, in the order ErrorReason
+// consults them.
+var reasonErrors = []struct {
+	reason string
+	err    error
+}{
+	{FilterInvalidReason, ErrFilterInvalid},
+	{FilterUnsupportedReason, ErrFilterUnsupported},
+	{PaginationInvalidReason, ErrPaginationInvalid},
+	{PaginationUnsupportedReason, ErrPaginationUnsupported},
+	{SpanOrderInvalidReason, ErrSpanOrderInvalid},
+	{SpanOrderUnsupportedReason, ErrSpanOrderUnsupported},
 }
 
 // ErrorReason returns the ErrorInfo reason for a reader refusal, or an empty string when err is
 // not one.
 func ErrorReason(err error) string {
-	for reason, target := range reasonErrors {
-		if errors.Is(err, target) {
-			return reason
+	for _, entry := range reasonErrors {
+		if errors.Is(err, entry.err) {
+			return entry.reason
 		}
 	}
 	return ""
@@ -94,8 +98,10 @@ func ErrorFromStatus(err error, domain string) error {
 		if !ok || info.GetDomain() != domain {
 			continue
 		}
-		if target, known := reasonErrors[info.GetReason()]; known {
-			return restore(target, st.Message())
+		for _, entry := range reasonErrors {
+			if entry.reason == info.GetReason() {
+				return restore(entry.err, st.Message())
+			}
 		}
 	}
 	if st.Code() == codes.Unimplemented {
