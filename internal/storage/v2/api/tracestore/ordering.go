@@ -6,7 +6,6 @@ package tracestore
 import (
 	"errors"
 	"fmt"
-	"slices"
 
 	expression "github.com/jaegertracing/jaeger-idl/query/expression/v1"
 )
@@ -63,18 +62,18 @@ func NormalizeSpanOrder(order []SpanSortOrder) ([]SpanSortOrder, error) {
 	return out, nil
 }
 
-// EffectiveSpanOrder copies the terms, defaults their directions, and appends missing tie-breakers.
-// Execution support is validated separately by NormalizeSpanOrder.
-func EffectiveSpanOrder(order []SpanSortOrder) []SpanSortOrder {
-	out := slices.Clone(order)
-	seen := make(map[string]bool, len(order))
-	for i, term := range out {
-		if term.Direction == "" {
-			out[i].Direction = SortAscending
-		}
-		if ref, ok := term.Expression.(*expression.FieldRef); ok && ref != nil && ref.Level == expression.LevelSpan {
-			seen[ref.Name] = true
-		}
+// EffectiveSpanOrder is the order a storage backend executes: the explicit terms, validated by
+// NormalizeSpanOrder, followed by the tie-breakers the terms leave out. Passing its own result
+// back returns the same order, so a backend can call it whether or not the query service already
+// settled the terms.
+func EffectiveSpanOrder(order []SpanSortOrder) ([]SpanSortOrder, error) {
+	out, err := NormalizeSpanOrder(order)
+	if err != nil {
+		return nil, err
+	}
+	seen := make(map[string]bool, len(out))
+	for _, term := range out {
+		seen[term.Expression.(*expression.FieldRef).Name] = true
 	}
 	for _, field := range []string{"startTime", "traceID", "spanID"} {
 		if seen[field] {
@@ -89,7 +88,7 @@ func EffectiveSpanOrder(order []SpanSortOrder) []SpanSortOrder {
 			Direction:  direction,
 		})
 	}
-	return out
+	return out, nil
 }
 
 // ValidateSpanSorting refuses explicit ordering unless the reader supports the complete contract.
