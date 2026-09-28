@@ -221,7 +221,9 @@ func (tr *TraceReader) FindSpans(ctx context.Context, params tracestore.SpanQuer
 			yield(tracestore.PageChunk[ptrace.Traces]{}, err)
 			return
 		}
-		stream, err := tr.client.FindSpans(ctx, &storage.FindSpansRequest{Query: query})
+		rpcCtx, cancel := context.WithCancel(ctx)
+		defer cancel()
+		stream, err := tr.client.FindSpans(rpcCtx, &storage.FindSpansRequest{Query: query})
 		if err != nil {
 			yield(tracestore.PageChunk[ptrace.Traces]{}, fmt.Errorf("failed to execute FindSpans: %w", spanReaderError(err)))
 			return

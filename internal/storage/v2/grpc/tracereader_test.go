@@ -1175,7 +1175,15 @@ func TestSpanQueryConversion(t *testing.T) {
 
 func TestSpanRemoteEarlyExit(t *testing.T) {
 	reader := new(tracestoremocks.Reader)
-	reader.On("FindSpans", mock.Anything, mock.Anything).Return(spanSequence([]tracestore.PageChunk[ptrace.Traces]{{Results: makeTestTrace()}, {Results: makeTestTrace()}}, nil))
+	canceled := make(chan struct{})
+	var rpcCtx context.Context
+	reader.On("FindSpans", mock.Anything, mock.Anything).
+		Run(func(args mock.Arguments) { rpcCtx = args.Get(0).(context.Context) }).
+		Return(iter.Seq2[tracestore.PageChunk[ptrace.Traces], error](func(yield func(tracestore.PageChunk[ptrace.Traces], error) bool) {
+			yield(tracestore.PageChunk[ptrace.Traces]{Results: makeTestTrace()}, nil)
+			<-rpcCtx.Done()
+			close(canceled)
+		})).Once()
 	count := 0
 	for _, err := range spanRemote(t, reader).FindSpans(t.Context(), tracestore.SpanQueryParams{}) {
 		require.NoError(t, err)
@@ -1183,6 +1191,12 @@ func TestSpanRemoteEarlyExit(t *testing.T) {
 		break
 	}
 	assert.Equal(t, 1, count)
+	select {
+	case <-canceled:
+	case <-time.After(5 * time.Second):
+		t.Fatal("the remote reader did not receive cancellation")
+	}
+	reader.AssertExpectations(t)
 }
 
 type failingSpanClient struct{ storage.TraceReaderClient }
