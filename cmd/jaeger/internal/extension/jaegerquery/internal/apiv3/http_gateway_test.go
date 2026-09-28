@@ -929,13 +929,25 @@ func TestHTTPGatewayFindSpansOrdering(t *testing.T) {
 }
 
 func TestHTTPGatewayFindSpansMalformedOrder(t *testing.T) {
-	for _, raw := range []string{`[`, `[null]`, `[{}]`, `[{"expression":{"field":{"level":"span","name":"duration"}},"direction":"sideways"}]`} {
-		q, _ := mockFindSpansQuery()
-		q.Set("query.orderBy", raw)
-		gw := setupHTTPGatewayNoServer(t, "")
-		w := httptest.NewRecorder()
-		gw.router.ServeHTTP(w, httptest.NewRequest(http.MethodGet, "/api/v3/spans?"+q.Encode(), http.NoBody))
-		assert.Equal(t, http.StatusBadRequest, w.Code)
-		gw.reader.AssertNotCalled(t, "FindSpans", mock.Anything, mock.Anything)
+	for _, tc := range []struct {
+		raw, want string
+	}{
+		{`[`, "malformed parameter query.orderBy"},
+		{`[null]`, "malformed parameter query.orderBy"},
+		{`[{}]`, "malformed parameter query.orderBy"},
+		{`[{"expression":{"field":{"level":"span","name":"duration"}},"direction":"sideways"}]`, `direction \"sideways\" is unsupported`},
+	} {
+		t.Run(tc.raw, func(t *testing.T) {
+			q, _ := mockFindSpansQuery()
+			q.Set("query.orderBy", tc.raw)
+			gw := setupHTTPGatewayNoServer(t, "")
+			gw.reader.ExpectedCalls = nil
+			gw.reader.On("SearchCapabilities", mock.Anything).Return(tracestore.SearchCapabilities{SpanSearch: true, SpanSorting: true}, nil)
+			w := httptest.NewRecorder()
+			gw.router.ServeHTTP(w, httptest.NewRequest(http.MethodGet, "/api/v3/spans?"+q.Encode(), http.NoBody))
+			assert.Equal(t, http.StatusBadRequest, w.Code)
+			assert.Contains(t, w.Body.String(), tc.want)
+			gw.reader.AssertNotCalled(t, "FindSpans", mock.Anything, mock.Anything)
+		})
 	}
 }

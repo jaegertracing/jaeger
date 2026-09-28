@@ -1176,7 +1176,13 @@ func TestFindSpansGRPCOrdering(t *testing.T) {
 				require.NoError(t, err)
 				assert.Equal(t, 1, response.Spans.ToTraces().SpanCount())
 			} else {
-				assert.Equal(t, codes.InvalidArgument, status.Code(err))
+				st := status.Convert(err)
+				assert.Equal(t, codes.InvalidArgument, st.Code())
+				require.Len(t, st.Details(), 1)
+				info, ok := st.Details()[0].(*errdetails.ErrorInfo)
+				require.True(t, ok)
+				assert.Equal(t, "jaeger.api_v3", info.GetDomain())
+				assert.Equal(t, "ORDERING_UNSUPPORTED", info.GetReason())
 				tsc.reader.AssertNotCalled(t, "FindSpans", mock.Anything, mock.Anything)
 			}
 		})

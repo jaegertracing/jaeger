@@ -40,6 +40,7 @@ const (
 	paramAttributes     = "query.attributes"
 	paramFilter         = "query.filter"
 	paramSpanKind       = "spanKind"
+	paramOrderBy        = "query.orderBy"
 	paramPageSize       = "query.pagination.pageSize"
 	paramPageToken      = "query.pagination.pageToken"
 
@@ -218,14 +219,14 @@ func parseFindSpansQuery(q url.Values) (*querysvc.SpanQueryParams, error) {
 	if err != nil {
 		return nil, err
 	}
-	if raw := q.Get("query.orderBy"); raw != "" {
+	if raw := q.Get(paramOrderBy); raw != "" {
 		var wire api_v3.SpanQueryParameters
 		if err := jsonpb.UnmarshalString(`{"orderBy":`+raw+`}`, &wire); err != nil {
-			return nil, fmt.Errorf("malformed parameter query.orderBy: %w", err)
+			return nil, fmt.Errorf("malformed parameter %s: %w", paramOrderBy, err)
 		}
 		order, err := tracestore.SpanOrderFromProto(wire.OrderBy)
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("malformed parameter %s: %w", paramOrderBy, err)
 		}
 		queryParams.OrderBy = order
 	}
