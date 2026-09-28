@@ -23,8 +23,6 @@ import (
 	"github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore"
 )
 
-var errNoArchiveSpanStorage = errors.New("archive span storage was not configured")
-
 // DefaultSearchDepth bounds a trace search whose caller left SearchDepth unset. It is applied
 // here rather than in each API handler, so a gRPC and an HTTP client get the same bound.
 const DefaultSearchDepth uint32 = 100
@@ -33,21 +31,6 @@ const DefaultSearchDepth uint32 = 100
 // no SearchDepth, so the page size is its only bound (RFC 0016 §6), and a Reader never receives
 // a query without one. It is applied here for the same reason as DefaultSearchDepth.
 const DefaultPageSize uint32 = DefaultSearchDepth
-
-// ErrSpanSearchUnsupported is returned for a span search against a backend whose reader does
-// not declare SpanSearch (RFC 0016 §4.5). It names the backend's limitation, because the same
-// query is valid elsewhere, and so matches errors.ErrUnsupported, which the API layers map to
-// Unimplemented / HTTP 501. The interceptor package has a sentinel of the same name for an
-// interceptor with no span-search policy; that one is a deployment fault, not a refusal.
-var ErrSpanSearchUnsupported = tracestore.Unsupported("this storage backend does not declare span search support")
-
-// ErrServiceNameRequired is returned for a search that omits the service name against a
-// backend whose reader does not accept one (RFC 0013 §3.3). It names the backend's
-// limitation rather than the missing field, because the same query is valid elsewhere, and
-// so matches errors.ErrUnsupported, which the API layers map to Unimplemented / HTTP 501.
-var ErrServiceNameRequired = tracestore.Unsupported(
-	"this storage backend requires a service name to search; searching all services is not supported",
-)
 
 // QueryServiceOptions holds the configuration options for the query service.
 type QueryServiceOptions struct {

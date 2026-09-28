@@ -29,12 +29,6 @@ var StructuredFiltersGate = featuregate.GlobalRegistry().MustRegister(
 	featuregate.WithRegisterReferenceURL("https://github.com/jaegertracing/jaeger/blob/main/docs/rfc/0005-structured-query-filters.md"),
 )
 
-// ErrFilterDisabled is returned for a query carrying a filter to a deployment that has not
-// enabled StructuredFiltersGate. The query is refused rather than served with the filter
-// ignored, because dropping a predicate would answer with every trace in the time range. The
-// same query is valid on a deployment with the gate on, so it matches errors.ErrUnsupported.
-var ErrFilterDisabled = tracestore.Unsupported("the structured query filter is disabled")
-
 // queryToReaderCapabilities returns the query in the shape the reader declared it can serve, immediately
 // before dispatch.
 //
