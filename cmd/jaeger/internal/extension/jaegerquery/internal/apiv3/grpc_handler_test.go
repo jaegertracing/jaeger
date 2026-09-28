@@ -308,8 +308,8 @@ func TestTraceQueryParamsSearchDepth(t *testing.T) {
 			query.SearchDepth = test.searchDepth
 			params, err := traceQueryParams(query)
 			if test.wantErr {
-				require.Error(t, err)
-				assert.Equal(t, codes.InvalidArgument, status.Code(err))
+				require.ErrorIs(t, err, tracestore.ErrInvalidQuery)
+				assert.Equal(t, codes.InvalidArgument, status.Code(asStatusError(err)))
 				return
 			}
 			require.NoError(t, err)

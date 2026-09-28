@@ -6,6 +6,7 @@ package app
 import (
 	"context"
 	"errors"
+	"fmt"
 	"time"
 
 	"go.uber.org/zap"
@@ -140,7 +141,8 @@ func (g *GRPCHandler) FindTraces(r *api_v2.FindTracesRequest, stream api_v2.Quer
 		return status.Errorf(codes.InvalidArgument, "missing query")
 	}
 	if query.SearchDepth < 0 || query.SearchDepth > int32(tracestore.MaxSearchDepth) {
-		return status.Errorf(codes.InvalidArgument, "%s: search depth must be in [0, %d]", tracestore.ErrInvalidQuery, tracestore.MaxSearchDepth)
+		err := fmt.Errorf("%w: search depth must be in [0, %d]", tracestore.ErrInvalidQuery, tracestore.MaxSearchDepth)
+		return status.Error(tracestore.RefusalCode(err), err.Error())
 	}
 	queryParams := querysvc.TraceQueryParams{
 		ServiceName:   query.ServiceName,

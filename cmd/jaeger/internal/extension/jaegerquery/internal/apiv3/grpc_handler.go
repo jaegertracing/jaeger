@@ -81,7 +81,7 @@ func (h *Handler) internalFindTraces(
 ) error {
 	queryParams, err := traceQueryParams(request.GetQuery())
 	if err != nil {
-		return err
+		return asStatusError(err)
 	}
 	queryParams.RawTraces = request.GetQuery().GetRawTraces()
 	findTracesIter := h.QueryService.FindTraces(ctx, queryParams)
@@ -97,7 +97,7 @@ func traceQueryParams(query *api_v3.TraceQueryParameters) (querysvc.TraceQueryPa
 	}
 	depth := query.GetSearchDepth()
 	if depth < 0 || depth > int32(tracestore.MaxSearchDepth) {
-		return querysvc.TraceQueryParams{}, status.Errorf(codes.InvalidArgument, "%s: search depth must be in [0, %d]", tracestore.ErrInvalidQuery, tracestore.MaxSearchDepth)
+		return querysvc.TraceQueryParams{}, fmt.Errorf("%w: search depth must be in [0, %d]", tracestore.ErrInvalidQuery, tracestore.MaxSearchDepth)
 	}
 	searchDepth := uint32(depth)
 	queryParams := querysvc.TraceQueryParams{
@@ -187,7 +187,7 @@ func spanQueryParams(query *api_v3.SpanQueryParameters) (querysvc.SpanQueryParam
 func (h *Handler) FindTraceSummaries(request *api_v3.FindTraceSummariesRequest, stream api_v3.QueryService_FindTraceSummariesServer) error {
 	queryParams, err := traceQueryParams(request.GetQuery())
 	if err != nil {
-		return err
+		return asStatusError(err)
 	}
 
 	for chunk, err := range h.QueryService.FindTraceSummaries(stream.Context(), queryParams) {
