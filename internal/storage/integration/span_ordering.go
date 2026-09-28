@@ -123,6 +123,29 @@ func (s *StorageIntegration) testSpanOrdering(t *testing.T) {
 			}
 		})
 	}
+	for _, tc := range []struct {
+		name, field string
+		value       expression.Expression
+		want        []string
+	}{
+		{"DurationFilter", expression.SpanFieldDuration, &expression.DurationValue{Value: 2 * time.Second}, []string{"a", "a", "c"}},
+		{"TimestampFilter", expression.SpanFieldStartTime, &expression.TimestampValue{Value: first.StartTimestamp().AsTime()}, []string{"c", "b", "d", "e"}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			q := query
+			q.Filter = &expression.Call{Op: expression.OpAnd, Args: []expression.Expression{
+				query.Filter,
+				&expression.Call{Op: expression.OpGt, Args: []expression.Expression{
+					&expression.FieldRef{Level: expression.LevelSpan, Name: tc.field}, tc.value,
+				}},
+			}}
+			q.OrderBy = []tracestore.SpanSortOrder{orderingTerm("duration", "desc")}
+			names, token, err := search(q)
+			require.NoError(t, err)
+			assert.Equal(t, tc.want, names)
+			assert.Empty(t, token)
+		})
+	}
 	t.Run("EquivalentAndChangedOrderTokens", func(t *testing.T) {
 		q := query
 		q.Pagination.PageSize = 1
