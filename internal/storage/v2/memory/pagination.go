@@ -53,11 +53,12 @@ func spanKeyOf(span ptrace.Span, order []tracestore.SpanSortOrder) spanKey {
 		case "duration":
 			duration := span.EndTimestamp().AsTime().Sub(span.StartTimestamp().AsTime())
 			// Flipping the sign bit makes signed durations sort in byte order.
-			key[i] = binary.BigEndian.AppendUint64(nil, uint64(duration)^(1<<63))
+			key[i] = binary.BigEndian.AppendUint64(nil, uint64(duration)^(1<<63)) //nolint:gosec // G115: This bit cast preserves signed duration ordering.
 		case "traceID":
 			id := span.TraceID()
 			key[i] = id[:]
-		case "spanID":
+		default:
+			// Normalization restricts the remaining field to spanID.
 			id := span.SpanID()
 			key[i] = id[:]
 		}
@@ -93,11 +94,15 @@ func decodeSpanCursor(raw []byte, terms int) (cursor[spanKey], error) {
 	var key spanKey
 	for range terms {
 		size, n := binary.Uvarint(raw)
-		if n <= 0 || size > uint64(len(raw)-n) {
+		if n <= 0 {
 			return cursor[spanKey]{}, fmt.Errorf("%w: page token does not carry a span position", tracestore.ErrPaginationInvalid)
 		}
-		key = append(key, raw[n:n+int(size)])
-		raw = raw[n+int(size):]
+		raw = raw[n:]
+		if size > uint64(len(raw)) {
+			return cursor[spanKey]{}, fmt.Errorf("%w: page token does not carry a span position", tracestore.ErrPaginationInvalid)
+		}
+		key = append(key, raw[:size])
+		raw = raw[size:]
 	}
 	if len(raw) != 4 {
 		return cursor[spanKey]{}, fmt.Errorf("%w: page token does not carry a span position", tracestore.ErrPaginationInvalid)
