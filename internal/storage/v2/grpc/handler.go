@@ -132,7 +132,7 @@ func (h *Handler) FindTraces(
 	}
 	for traces, err := range h.traceReader.FindTraces(srv.Context(), query) {
 		if err != nil {
-			return err
+			return readerStatus(err)
 		}
 		for _, trace := range traces {
 			td := jptrace.TracesData(trace)

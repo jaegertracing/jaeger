@@ -23,8 +23,10 @@ func TestRefusalStatus_RoundTrip(t *testing.T) {
 		reason string
 		code   codes.Code
 	}{
+		{err: ErrFilterInvalid, reason: FilterInvalidReason, code: codes.InvalidArgument},
 		{err: ErrFilterUnsupported, reason: FilterUnsupportedReason, code: codes.Unimplemented},
 		{err: ErrPaginationInvalid, reason: PaginationInvalidReason, code: codes.InvalidArgument},
+		{err: ErrPaginationUnsupported, reason: PaginationUnsupportedReason, code: codes.Unimplemented},
 		{err: ErrSpanOrderInvalid, reason: SpanOrderInvalidReason, code: codes.InvalidArgument},
 		{err: ErrSpanOrderUnsupported, reason: SpanOrderUnsupportedReason, code: codes.Unimplemented},
 	}
@@ -55,18 +57,14 @@ func TestRefusalStatus_PassesOtherErrorsThrough(t *testing.T) {
 	assert.Same(t, assert.AnError, ErrorFromStatus(assert.AnError, testDomain))
 }
 
-// TestRefusalStatus_UnsupportedWithoutReason covers a capability refusal that has no reason of
-// its own: the code alone tells the client that the backend cannot serve the query.
+// TestRefusalStatus_UnsupportedWithoutReason covers a reader that lacks the method altogether,
+// which has no reason of its own: the code alone tells the client the backend cannot serve it.
 func TestRefusalStatus_UnsupportedWithoutReason(t *testing.T) {
-	for _, err := range []error{
-		fmt.Errorf("bare reader: %w", errors.ErrUnsupported),
-		ErrPaginationUnsupported,
-	} {
-		st := status.Convert(RefusalStatus(err, testDomain))
-		assert.Equal(t, codes.Unimplemented, st.Code())
-		assert.Empty(t, st.Details())
-		assert.Equal(t, err.Error(), st.Message())
-	}
+	err := fmt.Errorf("bare reader: %w", errors.ErrUnsupported)
+	st := status.Convert(RefusalStatus(err, testDomain))
+	assert.Equal(t, codes.Unimplemented, st.Code())
+	assert.Empty(t, st.Details())
+	assert.Equal(t, err.Error(), st.Message())
 }
 
 func TestRefusalCode(t *testing.T) {

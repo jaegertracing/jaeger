@@ -18,18 +18,22 @@ import (
 // that carries a reason names a problem with the query itself, as opposed to a bare
 // errors.ErrUnsupported, which says only that the reader lacks the method.
 const (
-	FilterUnsupportedReason    = "FILTER_UNSUPPORTED"
-	PaginationInvalidReason    = "PAGINATION_INVALID"
-	SpanOrderInvalidReason     = "ORDERING_INVALID"
-	SpanOrderUnsupportedReason = "ORDERING_UNSUPPORTED"
+	FilterInvalidReason         = "FILTER_INVALID"
+	FilterUnsupportedReason     = "FILTER_UNSUPPORTED"
+	PaginationInvalidReason     = "PAGINATION_INVALID"
+	PaginationUnsupportedReason = "PAGINATION_UNSUPPORTED"
+	SpanOrderInvalidReason      = "ORDERING_INVALID"
+	SpanOrderUnsupportedReason  = "ORDERING_UNSUPPORTED"
 )
 
 // reasonErrors pairs each reason with the reader error it names.
 var reasonErrors = map[string]error{
-	FilterUnsupportedReason:    ErrFilterUnsupported,
-	PaginationInvalidReason:    ErrPaginationInvalid,
-	SpanOrderInvalidReason:     ErrSpanOrderInvalid,
-	SpanOrderUnsupportedReason: ErrSpanOrderUnsupported,
+	FilterInvalidReason:         ErrFilterInvalid,
+	FilterUnsupportedReason:     ErrFilterUnsupported,
+	PaginationInvalidReason:     ErrPaginationInvalid,
+	PaginationUnsupportedReason: ErrPaginationUnsupported,
+	SpanOrderInvalidReason:      ErrSpanOrderInvalid,
+	SpanOrderUnsupportedReason:  ErrSpanOrderUnsupported,
 }
 
 // ErrorReason returns the ErrorInfo reason for a reader refusal, or an empty string when err is

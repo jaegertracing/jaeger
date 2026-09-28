@@ -1143,7 +1143,7 @@ func TestTraceReader_FindSpans_Unimplemented(t *testing.T) {
 }
 
 func TestSpanRemoteErrors(t *testing.T) {
-	for _, backendErr := range []error{errors.ErrUnsupported, tracestore.ErrFilterUnsupported, tracestore.ErrPaginationInvalid, tracestore.ErrSpanOrderInvalid, tracestore.ErrSpanOrderUnsupported, status.Error(codes.Internal, "broken")} {
+	for _, backendErr := range []error{errors.ErrUnsupported, tracestore.ErrFilterInvalid, tracestore.ErrFilterUnsupported, tracestore.ErrPaginationInvalid, tracestore.ErrPaginationUnsupported, tracestore.ErrSpanOrderInvalid, tracestore.ErrSpanOrderUnsupported, status.Error(codes.Internal, "broken")} {
 		reader := new(tracestoremocks.Reader)
 		reader.On("FindSpans", mock.Anything, mock.Anything).Return(spanSequence(nil, backendErr))
 		_, err := jiter.CollectWithErrors(spanRemote(t, reader).FindSpans(t.Context(), tracestore.SpanQueryParams{}))
@@ -1156,16 +1156,23 @@ func TestSpanRemoteErrors(t *testing.T) {
 	}
 }
 
-// TestSpanRemoteErrors_CapabilityWithoutReason covers a capability refusal that carries no
-// reason of its own: it crosses the wire as Unimplemented and arrives as errors.ErrUnsupported
-// with the server's message, so the caller reads it as a missing capability, not a bad request.
-func TestSpanRemoteErrors_CapabilityWithoutReason(t *testing.T) {
-	reader := new(tracestoremocks.Reader)
-	reader.On("FindSpans", mock.Anything, mock.Anything).Return(spanSequence(nil, tracestore.ErrPaginationUnsupported))
-	_, err := jiter.CollectWithErrors(spanRemote(t, reader).FindSpans(t.Context(), tracestore.SpanQueryParams{}))
-	require.ErrorIs(t, err, errors.ErrUnsupported)
-	require.NotErrorIs(t, err, tracestore.ErrSpanOrderUnsupported)
-	assert.ErrorContains(t, err, "cannot resume a paginated search")
+// TestFindTracesRemoteErrors pins that a reader refusal from FindTraces keeps its type across
+// the storage boundary the same way the paginated RPCs do, and that any other error keeps its
+// status.
+func TestFindTracesRemoteErrors(t *testing.T) {
+	for _, backendErr := range []error{errors.ErrUnsupported, tracestore.ErrFilterUnsupported, tracestore.ErrFilterInvalid, status.Error(codes.Internal, "broken")} {
+		reader := new(tracestoremocks.Reader)
+		reader.On("FindTraces", mock.Anything, mock.Anything).Return(iter.Seq2[[]ptrace.Traces, error](func(yield func([]ptrace.Traces, error) bool) {
+			yield(nil, backendErr)
+		}))
+		_, err := jiter.CollectWithErrors(spanRemote(t, reader).FindTraces(t.Context(), tracestore.TraceQueryParams{ServiceName: "svc", Attributes: pcommon.NewMap()}))
+		if status.Code(backendErr) == codes.Internal {
+			assert.Equal(t, codes.Internal, status.Code(err))
+			assert.ErrorContains(t, err, "received error from grpc stream")
+		} else {
+			require.ErrorIs(t, err, backendErr)
+		}
+	}
 }
 
 func TestSpanQueryConversion(t *testing.T) {
@@ -1281,10 +1288,12 @@ func TestReaderErrorDetails(t *testing.T) {
 		reason string
 		code   codes.Code
 	}{
+		{tracestore.ErrFilterInvalid, "FILTER_INVALID", codes.InvalidArgument},
 		{tracestore.ErrFilterUnsupported, "FILTER_UNSUPPORTED", codes.Unimplemented},
 		{tracestore.ErrSpanOrderInvalid, "ORDERING_INVALID", codes.InvalidArgument},
 		{tracestore.ErrSpanOrderUnsupported, "ORDERING_UNSUPPORTED", codes.Unimplemented},
 		{tracestore.ErrPaginationInvalid, "PAGINATION_INVALID", codes.InvalidArgument},
+		{tracestore.ErrPaginationUnsupported, "PAGINATION_UNSUPPORTED", codes.Unimplemented},
 	} {
 		wire := readerStatus(tc.err)
 		st := status.Convert(wire)

@@ -149,12 +149,12 @@ func (tr *TraceReader) FindTraces(
 		}
 		stream, err := tr.client.FindTraces(ctx, &storage.FindTracesRequest{Query: query})
 		if err != nil {
-			yield(nil, fmt.Errorf("failed to execute FindTraces: %w", err))
+			yield(nil, fmt.Errorf("failed to execute FindTraces: %w", readerError(err)))
 			return
 		}
 		for received, err := stream.Recv(); !errors.Is(err, io.EOF); received, err = stream.Recv() {
 			if err != nil {
-				yield(nil, fmt.Errorf("received error from grpc stream: %w", err))
+				yield(nil, fmt.Errorf("received error from grpc stream: %w", readerError(err)))
 				return
 			}
 			if !yield([]ptrace.Traces{received.ToTraces()}, nil) {
