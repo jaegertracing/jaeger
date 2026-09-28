@@ -88,7 +88,7 @@ func TestFindSpansOrderedDuplicatesAndChangedToken(t *testing.T) {
 	base := time.Date(2026, 3, 1, 12, 0, 0, 0, time.UTC)
 	writeTracesStartingAt(t, store, 2, base)
 	writeTracesStartingAt(t, store, 2, base)
-	query := tracestore.SpanQueryParams{Pagination: tracestore.Pagination{PageSize: 1}, OrderBy: []tracestore.SpanSortOrder{{Expression: &expression.FieldRef{Level: expression.LevelSpan, Name: "traceID"}, Direction: tracestore.SortAscending}}}
+	query := tracestore.SpanQueryParams{OrderBy: []tracestore.SpanSortOrder{{Expression: &expression.FieldRef{Level: expression.LevelSpan, Name: "traceID"}, Direction: tracestore.SortAscending}}, Pagination: tracestore.Pagination{PageSize: 1}}
 	var ids []byte
 	var firstToken tracestore.PageToken
 	for range 4 {
