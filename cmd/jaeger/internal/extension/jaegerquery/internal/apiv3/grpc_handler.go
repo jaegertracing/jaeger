@@ -23,6 +23,10 @@ import (
 	"github.com/jaegertracing/jaeger/internal/storage/v2/v1adapter"
 )
 
+// errorInfoDomain is the ErrorInfo domain under which the API v3 server marks ordering and
+// pagination refusals, so a client can tell them apart from other InvalidArgument answers.
+const errorInfoDomain = "jaeger.api_v3"
+
 // Handler implements api_v3.QueryServiceServer
 type Handler struct {
 	api_v3.UnimplementedQueryServiceServer
@@ -292,10 +296,6 @@ func (h *Handler) GetDependencies(ctx context.Context, request *api_v3.GetDepend
 	}
 	return &api_v3.DependenciesResponse{Dependencies: links}, nil
 }
-
-// errorInfoDomain is the ErrorInfo domain under which the API v3 server marks ordering and
-// pagination refusals, so a client can tell them apart from other InvalidArgument answers.
-const errorInfoDomain = "jaeger.api_v3"
 
 // asStatusError maps a query-service error to a gRPC status code. A query this
 // deployment's storage cannot serve is the caller's problem (InvalidArgument) rather than
