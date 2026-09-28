@@ -285,12 +285,18 @@ func TestPage(t *testing.T) {
 
 func TestFindSpans_RefusesATokenItDidNotReturnForThisQuery(t *testing.T) {
 	store, base := writeTwoTraceStore(t)
-	paged := tracestore.SpanQueryParams{Pagination: tracestore.Pagination{PageSize: 1}}
+	paged := tracestore.SpanQueryParams{
+		OrderBy: []tracestore.SpanSortOrder{
+			{Expression: &expression.FieldRef{Level: expression.LevelSpan, Name: "startTime"}, Direction: tracestore.SortDescending},
+			{Expression: &expression.FieldRef{Level: expression.LevelSpan, Name: "traceID"}, Direction: tracestore.SortAscending},
+			{Expression: &expression.FieldRef{Level: expression.LevelSpan, Name: "spanID"}, Direction: tracestore.SortAscending},
+		},
+		Pagination: tracestore.Pagination{PageSize: 1},
+	}
 	first, err := findSpansPage(t, store, paged)
 	require.NoError(t, err)
 	require.NotEmpty(t, first.NextPageToken)
 
-	paged.OrderBy = tracestore.EffectiveSpanOrder(paged.OrderBy)
 	fingerprint, err := paged.Fingerprint()
 	require.NoError(t, err)
 	notASpanPosition, err := tracestore.NewPageToken(fingerprint, []byte{1, 2, 3})
@@ -316,7 +322,7 @@ func TestFindSpans_RefusesATokenItDidNotReturnForThisQuery(t *testing.T) {
 		},
 		{
 			name:  "a cursor that is not a span position",
-			query: tracestore.SpanQueryParams{Pagination: tracestore.Pagination{PageSize: 1, PageToken: notASpanPosition}},
+			query: tracestore.SpanQueryParams{OrderBy: paged.OrderBy, Pagination: tracestore.Pagination{PageSize: 1, PageToken: notASpanPosition}},
 			want:  "span position",
 		},
 	}
