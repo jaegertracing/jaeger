@@ -190,7 +190,12 @@ func (r *traceReader) FindSpans(ctx context.Context, query tracestore.SpanQueryP
 		}
 		var terms []*api_v3.SpanSortOrder
 		for _, term := range order {
-			terms = append(terms, &api_v3.SpanSortOrder{Expression: tracestore.SpanOrderExpression(term), Direction: string(term.Direction)})
+			encoded, err := expressionproto.ExpressionToProto(term.Expression)
+			if err != nil {
+				yield(tracestore.PageChunk[ptrace.Traces]{}, err)
+				return
+			}
+			terms = append(terms, &api_v3.SpanSortOrder{Expression: encoded, Direction: string(term.Direction)})
 		}
 		stream, err := r.client.FindSpans(ctx, &api_v3.FindSpansRequest{Query: &api_v3.SpanQueryParameters{
 			StartTimeMin: query.StartTimeMin,
