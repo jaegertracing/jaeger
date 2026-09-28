@@ -35,7 +35,7 @@ storage:
 				assert.Equal(t, ":17271", cfg.GRPC.NetAddr.Endpoint)
 				assert.Len(t, cfg.Storage.TraceBackends, 1)
 				assert.NotNil(t, cfg.Storage.TraceBackends["default-storage"].Memory)
-				assert.Equal(t, 50000, cfg.Storage.TraceBackends["default-storage"].Memory.MaxTraces)
+				assert.EqualValues(t, 50000, cfg.Storage.TraceBackends["default-storage"].Memory.MaxTraces)
 				assert.Equal(t, "default-storage", cfg.GetStorageName())
 			},
 		},
