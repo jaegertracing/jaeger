@@ -1131,15 +1131,7 @@ func spanSequence(chunks []tracestore.PageChunk[ptrace.Traces], err error) iter.
 	}
 }
 
-func TestSpanServerRefusesUnsupportedOrdering(t *testing.T) {
-	for _, caps := range []tracestore.SearchCapabilities{{}, {SpanSearch: true}, {SpanSorting: true}} {
-		reader := new(tracestoremocks.Reader)
-		reader.On("SearchCapabilities", mock.Anything).Return(caps, nil)
-		remote := spanRemote(t, reader)
-		_, err := jiter.CollectWithErrors(remote.FindSpans(t.Context(), tracestore.SpanQueryParams{OrderBy: spanOrder()}))
-		require.ErrorIs(t, err, tracestore.ErrSpanOrderInvalid)
-		reader.AssertNotCalled(t, "FindSpans", mock.Anything, mock.Anything)
-	}
+func TestSpanServerUnimplemented(t *testing.T) {
 	remote := NewTraceReader(startTestServer(t, &testServer{}))
 	_, err := jiter.CollectWithErrors(remote.FindSpans(t.Context(), tracestore.SpanQueryParams{OrderBy: spanOrder()}))
 	require.ErrorIs(t, err, errors.ErrUnsupported)
@@ -1160,19 +1152,6 @@ func (s *spanStream) Send(resp *storage.FindSpansResponse) error {
 }
 
 func TestSpanServerRefusals(t *testing.T) {
-	for _, capsErr := range []error{nil, errors.ErrUnsupported, errors.New("offline")} {
-		reader := new(tracestoremocks.Reader)
-		reader.On("SearchCapabilities", mock.Anything).Return(tracestore.SearchCapabilities{}, capsErr)
-		wire, err := toProtoSpanQuery(tracestore.SpanQueryParams{OrderBy: spanOrder()})
-		require.NoError(t, err)
-		err = NewHandler(reader, nil, nil).FindSpans(&storage.FindSpansRequest{Query: wire}, &spanStream{})
-		if capsErr != nil && !errors.Is(capsErr, errors.ErrUnsupported) {
-			require.ErrorIs(t, err, capsErr)
-		} else {
-			assert.Equal(t, codes.InvalidArgument, status.Code(err))
-		}
-		reader.AssertNotCalled(t, "FindSpans", mock.Anything, mock.Anything)
-	}
 	reader := new(tracestoremocks.Reader)
 	handler := NewHandler(reader, nil, nil)
 	err := handler.FindSpans(&storage.FindSpansRequest{}, &spanStream{})
@@ -1183,16 +1162,23 @@ func TestSpanServerRefusals(t *testing.T) {
 	require.ErrorIs(t, err, sendErr)
 }
 
-func TestSpanHandlerValidatesBeforeStorage(t *testing.T) {
-	for _, query := range []tracestore.SpanQueryParams{
-		{Filter: &expression.Call{Op: "bad"}},
-		{OrderBy: []tracestore.SpanSortOrder{{Expression: &expression.AttributeRef{Level: expression.LevelSpan, Key: "priority"}}}},
-	} {
-		wire, err := toProtoSpanQuery(query)
-		require.NoError(t, err)
-		reader := new(tracestoremocks.Reader)
-		err = NewHandler(reader, nil, nil).FindSpans(&storage.FindSpansRequest{Query: wire}, &spanStream{})
-		assert.Equal(t, codes.InvalidArgument, status.Code(err))
-		reader.AssertNotCalled(t, "FindSpans", mock.Anything, mock.Anything)
+func TestHandler_FindSpansPreservesQuery(t *testing.T) {
+	query := tracestore.SpanQueryParams{
+		StartTimeMin: time.Unix(10, 0).UTC(),
+		StartTimeMax: time.Unix(20, 0).UTC(),
+		Filter:       &expression.Call{Op: "custom", Args: []expression.Expression{}},
+		OrderBy: []tracestore.SpanSortOrder{
+			{Expression: &expression.AttributeRef{Level: expression.LevelSpan, Key: "priority"}},
+			{Expression: &expression.FieldRef{Level: expression.LevelSpan, Name: "custom"}, Direction: "custom"},
+		},
+		Pagination: tracestore.Pagination{PageSize: 5, PageToken: "cursor"},
 	}
+	wire, err := toProtoSpanQuery(query)
+	require.NoError(t, err)
+	reader := new(tracestoremocks.Reader)
+	reader.On("FindSpans", mock.Anything, query).Return(spanSequence(nil, nil)).Once()
+	err = NewHandler(reader, nil, nil).FindSpans(&storage.FindSpansRequest{Query: wire}, &spanStream{})
+	require.NoError(t, err)
+	reader.AssertExpectations(t)
+	reader.AssertNotCalled(t, "SearchCapabilities", mock.Anything)
 }

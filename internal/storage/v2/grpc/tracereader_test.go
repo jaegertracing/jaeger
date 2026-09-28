@@ -1145,11 +1145,6 @@ func TestSpanRemoteErrors(t *testing.T) {
 			require.ErrorIs(t, err, backendErr)
 		}
 	}
-	reader := new(tracestoremocks.Reader)
-	reader.On("SearchCapabilities", mock.Anything).Return(tracestore.SearchCapabilities{}, errors.New("offline"))
-	_, err := jiter.CollectWithErrors(spanRemote(t, reader).FindSpans(t.Context(), tracestore.SpanQueryParams{OrderBy: spanOrder()}))
-	require.ErrorContains(t, err, "offline")
-	reader.AssertNotCalled(t, "FindSpans", mock.Anything, mock.Anything)
 }
 
 func TestSpanQueryConversion(t *testing.T) {

@@ -147,25 +147,6 @@ func (h *Handler) FindSpans(req *storage.FindSpansRequest, srv storage.TraceRead
 	if err != nil {
 		return err
 	}
-	if query.Filter != nil {
-		query.Filter, err = tracestore.FinalizeFilter(query.Filter)
-		if err != nil {
-			return status.Error(codes.InvalidArgument, err.Error())
-		}
-	}
-	query.OrderBy, err = tracestore.NormalizeSpanOrder(query.OrderBy)
-	if err != nil {
-		return readerStatus(err)
-	}
-	if len(query.OrderBy) > 0 {
-		caps, err := h.traceReader.SearchCapabilities(srv.Context())
-		if err != nil && !errors.Is(err, errors.ErrUnsupported) {
-			return err
-		}
-		if err := caps.ValidateSpanSorting(query.OrderBy); err != nil {
-			return readerStatus(err)
-		}
-	}
 	for chunk, err := range h.traceReader.FindSpans(srv.Context(), query) {
 		if err != nil {
 			if errors.Is(err, errors.ErrUnsupported) {
@@ -185,11 +166,11 @@ func toSpanQueryParams(wire *storage.SpanQueryParameters) (tracestore.SpanQueryP
 	if wire == nil {
 		return tracestore.SpanQueryParams{}, status.Error(codes.InvalidArgument, "missing query")
 	}
-	order, err := tracestore.SpanOrderFromProto(wire.OrderBy)
+	filter, err := expressionproto.CallFromProto(wire.Filter)
 	if err != nil {
 		return tracestore.SpanQueryParams{}, status.Error(codes.InvalidArgument, err.Error())
 	}
-	filter, err := expressionproto.CallFromProto(wire.Filter)
+	order, err := tracestore.SpanOrderFromProto(wire.OrderBy)
 	if err != nil {
 		return tracestore.SpanQueryParams{}, status.Error(codes.InvalidArgument, err.Error())
 	}
