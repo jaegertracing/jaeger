@@ -13,11 +13,11 @@ import (
 // (ADR-013): ErrInvalidQuery for a query that is malformed on its own terms, so the caller must
 // change it wherever it is sent, and errors.ErrUnsupported for a well-formed query that this
 // backend lacks a capability to serve, which is also what a Reader returns when it lacks a
-// method altogether. The API layers
-// answer InvalidArgument / HTTP 400 to the first family and Unimplemented / HTTP 501 to the
-// second, and decide by the root alone. Every Unsupported sentinel a Reader can return also has an
-// ErrorInfo reason in status.go, because the query service reads a bare errors.ErrUnsupported
-// from a Reader as a missing method and falls back to another one.
+// method altogether. The API layers answer InvalidArgument / HTTP 400 to the first family and
+// Unimplemented / HTTP 501 to the second, and decide by the root alone. Every Unsupported
+// sentinel a Reader can return also has an ErrorInfo reason in status.go, because the query
+// service reads a bare errors.ErrUnsupported from a Reader as a missing method and falls back
+// to another one.
 
 // ErrInvalidQuery is the root of every refusal of a query that is malformed on its own terms.
 var ErrInvalidQuery = errors.New("invalid query")
