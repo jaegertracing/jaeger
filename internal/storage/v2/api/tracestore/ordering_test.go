@@ -36,6 +36,13 @@ func TestNormalizeSpanOrder(t *testing.T) {
 			})
 		}
 	}
+	t.Run("multiple terms", func(t *testing.T) {
+		input := []SpanSortOrder{sortTerm("duration", SortDescending), sortTerm("startTime", ""), sortTerm("spanID", SortAscending)}
+		got, err := NormalizeSpanOrder(input)
+		require.NoError(t, err)
+		assert.Equal(t, []SpanSortOrder{sortTerm("duration", SortDescending), sortTerm("startTime", SortAscending), sortTerm("spanID", SortAscending)}, got)
+		assert.Equal(t, SortDirection(""), input[1].Direction)
+	})
 	got, err := NormalizeSpanOrder(nil)
 	require.NoError(t, err)
 	assert.Nil(t, got)
@@ -58,31 +65,29 @@ func TestNormalizeSpanOrder(t *testing.T) {
 	}
 }
 
-func TestEffectiveSpanOrderAndFingerprint(t *testing.T) {
+func TestEffectiveSpanOrder(t *testing.T) {
 	defaults := []SpanSortOrder{sortTerm("startTime", "desc"), sortTerm("traceID", "asc"), sortTerm("spanID", "asc")}
 	for _, order := range [][]SpanSortOrder{nil, defaults, {sortTerm("startTime", "desc")}} {
 		got := EffectiveSpanOrder(order)
 		assert.Equal(t, defaults, got)
-		fp, err := (SpanQueryParams{OrderBy: got}).Fingerprint()
-		require.NoError(t, err)
-		want, err := (SpanQueryParams{OrderBy: defaults}).Fingerprint()
-		require.NoError(t, err)
-		assert.Equal(t, want, fp)
 	}
 	duration := []SpanSortOrder{sortTerm("duration", "desc")}
 	effective := EffectiveSpanOrder(duration)
 	assert.Equal(t, append(duration, defaults...), effective)
+}
+
+func TestSpanOrderFingerprint(t *testing.T) {
 	orders := [][]SpanSortOrder{
 		nil,
 		{sortTerm("startTime", "asc")},
-		duration,
+		{sortTerm("duration", "desc")},
 		{sortTerm("duration", "asc")},
 		{sortTerm("traceID", "asc"), sortTerm("duration", "desc")},
 		{sortTerm("duration", "desc"), sortTerm("traceID", "asc")},
 	}
 	seen := map[string]bool{}
 	for _, order := range orders {
-		query := SpanQueryParams{OrderBy: EffectiveSpanOrder(order)}
+		query := SpanQueryParams{OrderBy: order}
 		fp, err := query.Fingerprint()
 		require.NoError(t, err)
 		assert.False(t, seen[string(fp)])
@@ -91,10 +96,6 @@ func TestEffectiveSpanOrderAndFingerprint(t *testing.T) {
 		same, err := query.Fingerprint()
 		require.NoError(t, err)
 		assert.Equal(t, fp, same)
-		effective := EffectiveSpanOrder(order)
-		normalized, err := (SpanQueryParams{OrderBy: effective}).Fingerprint()
-		require.NoError(t, err)
-		assert.Equal(t, fp, normalized)
 	}
 }
 
@@ -137,13 +138,11 @@ func TestSpanOrderProto(t *testing.T) {
 }
 
 func TestSpanOrderBindsContinuationToken(t *testing.T) {
-	query := SpanQueryParams{OrderBy: EffectiveSpanOrder([]SpanSortOrder{sortTerm("duration", "desc")})}
+	query := SpanQueryParams{OrderBy: []SpanSortOrder{sortTerm("duration", "desc")}}
 	fingerprint, err := query.Fingerprint()
 	require.NoError(t, err)
 	token, err := NewPageToken(fingerprint, []byte("cursor"))
 	require.NoError(t, err)
-	effective := EffectiveSpanOrder(query.OrderBy)
-	query.OrderBy = effective
 	query.Pagination.PageSize = 10
 	fingerprint, err = query.Fingerprint()
 	require.NoError(t, err)
