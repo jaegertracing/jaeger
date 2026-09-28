@@ -13,6 +13,7 @@ import (
 	"go.opentelemetry.io/collector/pdata/pcommon"
 	"go.opentelemetry.io/collector/pdata/ptrace"
 
+	expression "github.com/jaegertracing/jaeger-idl/query/expression/v1"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore"
 )
 
@@ -30,15 +31,15 @@ type cursor[K key] struct {
 	seen uint32
 }
 
-// spanKey sorts spans by start time descending, then trace ID and span ID ascending (RFC 0016
-// §6).
+// spanKey carries the values needed by every supported span ordering.
 type spanKey struct {
+	endTime   pcommon.Timestamp
 	startTime pcommon.Timestamp
 	traceID   pcommon.TraceID
 	spanID    pcommon.SpanID
 }
 
-const spanKeySize = 8 + 16 + 8
+const spanKeySize = 8 + 16 + 8 + 8
 
 // traceKey sorts traces by the latest start time among their matching spans descending, then
 // trace ID ascending (RFC 0014 §3.3).
@@ -50,31 +51,49 @@ type traceKey struct {
 const traceKeySize = 8 + 16
 
 func spanKeyOf(span ptrace.Span) spanKey {
-	return spanKey{startTime: span.StartTimestamp(), traceID: span.TraceID(), spanID: span.SpanID()}
+	return spanKey{endTime: span.EndTimestamp(), startTime: span.StartTimestamp(), traceID: span.TraceID(), spanID: span.SpanID()}
 }
 
-func compareSpanKeys(a, b spanKey) int {
-	if c := cmp.Compare(b.startTime, a.startTime); c != 0 {
-		return c
+func compareSpanKeys(order []tracestore.SpanSortOrder) func(spanKey, spanKey) int {
+	return func(a, b spanKey) int {
+		for _, term := range order {
+			var result int
+			switch term.Expression.(*expression.FieldRef).Name {
+			case "startTime":
+				result = cmp.Compare(a.startTime, b.startTime)
+			case "duration":
+				result = cmp.Compare(a.endTime.AsTime().Sub(a.startTime.AsTime()), b.endTime.AsTime().Sub(b.startTime.AsTime()))
+			case "traceID":
+				result = bytes.Compare(a.traceID[:], b.traceID[:])
+			default:
+				// Normalization restricts the remaining field to spanID.
+				result = bytes.Compare(a.spanID[:], b.spanID[:])
+			}
+			if term.Direction == tracestore.SortDescending {
+				result = -result
+			}
+			if result != 0 {
+				return result
+			}
+		}
+		return 0
 	}
-	if c := bytes.Compare(a.traceID[:], b.traceID[:]); c != 0 {
-		return c
-	}
-	return bytes.Compare(a.spanID[:], b.spanID[:])
 }
 
 func (k spanKey) encode() []byte {
 	buf := make([]byte, 0, spanKeySize)
 	buf = binary.BigEndian.AppendUint64(buf, uint64(k.startTime))
 	buf = append(buf, k.traceID[:]...)
-	return append(buf, k.spanID[:]...)
+	buf = append(buf, k.spanID[:]...)
+	return binary.BigEndian.AppendUint64(buf, uint64(k.endTime))
 }
 
 func decodeSpanKey(raw []byte) spanKey {
 	var k spanKey
 	k.startTime = pcommon.Timestamp(binary.BigEndian.Uint64(raw))
 	copy(k.traceID[:], raw[8:24])
-	copy(k.spanID[:], raw[24:])
+	copy(k.spanID[:], raw[24:32])
+	k.endTime = pcommon.Timestamp(binary.BigEndian.Uint64(raw[32:]))
 	return k
 }
 

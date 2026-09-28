@@ -213,8 +213,13 @@ func (t *Tenant) findSpans(query tracestore.SpanQueryParams, after *cursor[spanK
 	}
 	// The sort is stable so that copies of one span, which share a key, keep the order they
 	// were written in across searches, which the cursor's count of returned copies relies on.
-	slices.SortStableFunc(matches, func(a, b matchedSpan) int { return compareSpanKeys(a.key, b.key) })
-	matches, last := page(matches, func(m matchedSpan) spanKey { return m.key }, compareSpanKeys, after, query.Pagination.PageSize)
+	order, err := tracestore.EffectiveSpanOrder(query.OrderBy)
+	if err != nil {
+		return ptrace.Traces{}, nil, err
+	}
+	compare := compareSpanKeys(order)
+	slices.SortStableFunc(matches, func(a, b matchedSpan) int { return compare(a.key, b.key) })
+	matches, last := page(matches, func(m matchedSpan) spanKey { return m.key }, compare, after, query.Pagination.PageSize)
 	result := ptrace.NewTraces()
 	for _, m := range matches {
 		rs := result.ResourceSpans().AppendEmpty()

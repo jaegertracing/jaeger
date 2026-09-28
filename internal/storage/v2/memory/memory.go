@@ -117,7 +117,8 @@ func (*Store) SearchCapabilities(context.Context) (tracestore.SearchCapabilities
 		},
 		// FindSpans below evaluates the same filter engine as FindTraces, over
 		// every span in the store rather than per matched trace (RFC 0016).
-		SpanSearch: true,
+		SpanSearch:  true,
+		SpanSorting: true,
 		// FindTraceIDs and FindSpans sort their results and page through them with a
 		// keyset cursor (pagination.go).
 		Paginated: true,
