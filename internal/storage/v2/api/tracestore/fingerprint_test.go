@@ -416,7 +416,8 @@ func TestSpanQueryFingerprint_DoesNotDefaultOrdering(t *testing.T) {
 	query.OrderBy = []SpanSortOrder{sortTerm("startTime", "desc")}
 	explicit, err := query.Fingerprint()
 	require.NoError(t, err)
-	query.OrderBy = EffectiveSpanOrder(query.OrderBy)
+	query.OrderBy, err = EffectiveSpanOrder(query.OrderBy)
+	require.NoError(t, err)
 	withTieBreakers, err := query.Fingerprint()
 	require.NoError(t, err)
 	assert.NotEqual(t, omitted, explicit)

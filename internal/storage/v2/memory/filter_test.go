@@ -856,7 +856,7 @@ func TestMatchesFilter_MembershipOnTimeFields(t *testing.T) {
 	assert.True(t, f.matches(call(expression.OpIn, start, starts)))
 	assert.False(t, f.matches(call(expression.OpIn, duration, others)))
 	assert.True(t, f.matches(call(expression.OpNotIn, duration, others)))
-	assert.False(t, f.matches(call(expression.OpIn, duration, &expression.List{Values: []string{"not a duration"}})))
+	assert.False(t, f.evaluates(call(expression.OpIn, duration, &expression.List{Values: []string{"not a duration"}})))
 	assert.False(t, f.matches(call(expression.OpIn, fieldRef(expression.LevelSpan, "no.such.field"), others)), "an unknown field resolves to nothing")
 }
 
@@ -866,7 +866,7 @@ func TestMatchesFilter_UnspecifiedSpanKind(t *testing.T) {
 	kind := fieldRef(expression.LevelSpan, expression.SpanFieldKind)
 	assert.True(t, f.matches(call(expression.OpEq, kind, str("unspecified"))))
 	assert.True(t, f.matches(call(expression.OpIn, kind, &expression.List{Values: []string{"unspecified", "server"}})))
-	assert.False(t, f.matches(call(expression.OpEq, kind, str(""))))
+	assert.False(t, f.evaluates(call(expression.OpEq, kind, str(""))))
 }
 
 func TestMatchesFilter_NaNNeverCompares(t *testing.T) {

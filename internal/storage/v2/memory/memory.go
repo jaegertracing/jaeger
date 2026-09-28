@@ -117,7 +117,8 @@ func (*Store) SearchCapabilities(context.Context) (tracestore.SearchCapabilities
 		},
 		// FindSpans below evaluates the same filter engine as FindTraces, over
 		// every span in the store rather than per matched trace (RFC 0016).
-		SpanSearch: true,
+		SpanSearch:  true,
+		SpanSorting: true,
 		// FindTraceIDs and FindSpans sort their results and page through them with a
 		// keyset cursor (pagination.go).
 		Paginated: true,
@@ -132,18 +133,29 @@ func (*Store) SearchCapabilities(context.Context) (tracestore.SearchCapabilities
 // a matching span always keeps its own resource and scope, not its trace's
 // other spans' resources.
 //
-// The result is one page, sorted by spanKey and bounded by
+// The result is one page, sorted by sortingKey and bounded by
 // query.Pagination.PageSize when that is positive. The chunk carries the next
 // page's token if more spans match (RFC 0014).
 func (st *Store) FindSpans(ctx context.Context, query tracestore.SpanQueryParams) iter.Seq2[tracestore.PageChunk[ptrace.Traces], error] {
 	m := st.getTenant(tenancy.GetTenant(ctx))
 	return func(yield func(tracestore.PageChunk[ptrace.Traces], error) bool) {
+		// The query service settles the order before calling a reader, but a reader reached
+		// directly must still refuse terms it cannot execute, and the settled order is the one
+		// the fingerprint and the sort must agree on.
+		order, err := tracestore.EffectiveSpanOrder(query.OrderBy)
+		if err != nil {
+			yield(tracestore.PageChunk[ptrace.Traces]{}, err)
+			return
+		}
+		query.OrderBy = order
 		fingerprint, err := query.Fingerprint()
 		if err != nil {
 			yield(tracestore.PageChunk[ptrace.Traces]{}, err)
 			return
 		}
-		after, err := cursorOf(query.Pagination.PageToken, fingerprint, decodeSpanCursor)
+		after, err := cursorOf(query.Pagination.PageToken, fingerprint, func(raw []byte) (cursor[sortingKey], error) {
+			return decodeSpanCursor(raw, len(query.OrderBy))
+		})
 		if err != nil {
 			yield(tracestore.PageChunk[ptrace.Traces]{}, err)
 			return

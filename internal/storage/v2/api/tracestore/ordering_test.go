@@ -68,12 +68,27 @@ func TestNormalizeSpanOrder(t *testing.T) {
 func TestEffectiveSpanOrder(t *testing.T) {
 	defaults := []SpanSortOrder{sortTerm("startTime", "desc"), sortTerm("traceID", "asc"), sortTerm("spanID", "asc")}
 	for _, order := range [][]SpanSortOrder{nil, defaults, {sortTerm("startTime", "desc")}} {
-		got := EffectiveSpanOrder(order)
+		got, err := EffectiveSpanOrder(order)
+		require.NoError(t, err)
 		assert.Equal(t, defaults, got)
 	}
 	duration := []SpanSortOrder{sortTerm("duration", "desc")}
-	effective := EffectiveSpanOrder(duration)
+	effective, err := EffectiveSpanOrder(duration)
+	require.NoError(t, err)
 	assert.Equal(t, append(duration, defaults...), effective)
+
+	// The result is a fixed point, so a backend may settle an order the query service already settled.
+	again, err := EffectiveSpanOrder(effective)
+	require.NoError(t, err)
+	assert.Equal(t, effective, again)
+
+	// An omitted direction is defaulted before the tie-breakers are chosen.
+	settled, err := EffectiveSpanOrder([]SpanSortOrder{sortTerm("traceID", "")})
+	require.NoError(t, err)
+	assert.Equal(t, []SpanSortOrder{sortTerm("traceID", "asc"), sortTerm("startTime", "desc"), sortTerm("spanID", "asc")}, settled)
+
+	_, err = EffectiveSpanOrder([]SpanSortOrder{sortTerm("name", "asc")})
+	require.ErrorIs(t, err, ErrSpanOrderInvalid)
 }
 
 func TestSpanOrderFingerprint(t *testing.T) {

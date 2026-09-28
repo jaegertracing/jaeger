@@ -208,6 +208,13 @@ func prepareFilter(filter *expression.Call) (preparedFilter, error) {
 	if err := validateFilterShape(filter); err != nil {
 		return preparedFilter{}, err
 	}
+	if filter != nil {
+		resolved, err := tracestore.ResolveFilterConstants(filter)
+		if err != nil {
+			return preparedFilter{}, fmt.Errorf("%w: %w", tracestore.ErrFilterInvalid, err)
+		}
+		filter = resolved
+	}
 	p := preparedFilter{call: filter, regexps: map[*expression.Call]*regexp.Regexp{}}
 	if err := p.compileRegexps(filter); err != nil {
 		return preparedFilter{}, err
