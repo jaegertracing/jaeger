@@ -1143,7 +1143,7 @@ func TestFindSpansGRPCOrdering(t *testing.T) {
 					yield(tracestore.PageChunk[ptrace.Traces]{Results: makeTestTrace()}, nil)
 				})).Once()
 			}
-			encoded, err := expressionproto.TermToProto(order[0].Expression)
+			encoded, err := expressionproto.ToProto(order[0].Expression)
 			require.NoError(t, err)
 			stream, err := tsc.client.FindSpans(t.Context(), &api_v3.FindSpansRequest{Query: &api_v3.SpanQueryParameters{StartTimeMin: start, StartTimeMax: end, OrderBy: []*api_v3.SpanSortOrder{{Expression: encoded, Direction: "desc"}}}})
 			require.NoError(t, err)
