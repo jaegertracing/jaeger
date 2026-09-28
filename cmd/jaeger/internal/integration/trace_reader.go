@@ -190,7 +190,7 @@ func (r *traceReader) FindSpans(ctx context.Context, query tracestore.SpanQueryP
 		}
 		var terms []*api_v3.SpanSortOrder
 		for _, term := range order {
-			encoded, err := expressionproto.ExpressionToProto(term.Expression)
+			encoded, err := expressionproto.TermToProto(term.Expression)
 			if err != nil {
 				yield(tracestore.PageChunk[ptrace.Traces]{}, err)
 				return
