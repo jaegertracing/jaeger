@@ -15,8 +15,11 @@ func TestClickHouseStorage(t *testing.T) {
 	s := &E2EStorageIntegration{
 		ConfigFile: "../../config-clickhouse.yaml",
 		StorageIntegration: integration.StorageIntegration{
-			CleanUp:      purge,
-			Capabilities: capabilities.E2EWithoutNativeFilters().WithoutPagination(),
+			CleanUp: purge,
+			Capabilities: capabilities.
+				E2EWithoutNativeFilters().
+				WithoutPagination().
+				WithoutSpanSorting(),
 		},
 	}
 	s.e2eInitialize(t, "clickhouse")
@@ -28,7 +31,10 @@ func TestClickHouseStorage_BackwardCompatibility(t *testing.T) {
 	runBackwardCompatibilityTests(t, "clickhouse", E2EStorageIntegration{
 		ConfigFile: "../../config-clickhouse.yaml",
 	}, compatScenario{
-		Name:         "feature gates disabled on both old writer and new reader",
-		Capabilities: capabilities.E2EWithoutNativeFilters().WithoutPagination(),
+		Name: "feature gates disabled on both old writer and new reader",
+		Capabilities: capabilities.
+			E2EWithoutNativeFilters().
+			WithoutPagination().
+			WithoutSpanSorting(),
 	})
 }
