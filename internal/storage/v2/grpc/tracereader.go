@@ -169,12 +169,14 @@ func (tr *TraceReader) FindTraces(
 func readerError(err error) error {
 	st := status.Convert(err)
 	for _, detail := range st.Details() {
-		if info, ok := detail.(*errdetails.ErrorInfo); ok {
+		if info, ok := detail.(*errdetails.ErrorInfo); ok && info.GetDomain() == "jaeger.storage.v2" {
 			switch info.GetReason() {
 			case paginationInvalidReason:
 				return fmt.Errorf("%w: %s", tracestore.ErrPaginationInvalid, st.Message())
 			case spanOrderInvalidReason:
 				return fmt.Errorf("%w: %s", tracestore.ErrSpanOrderInvalid, st.Message())
+			case spanOrderUnsupportedReason:
+				return fmt.Errorf("%w: %s", tracestore.ErrSpanOrderUnsupported, st.Message())
 			}
 		}
 	}

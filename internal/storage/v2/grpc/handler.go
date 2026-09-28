@@ -237,14 +237,22 @@ func (h *Handler) FindTraceSummaries(
 // the client needs the reason, not the code, to restore tracestore.ErrPaginationInvalid.
 const paginationInvalidReason = "PAGINATION_INVALID"
 
-const spanOrderInvalidReason = "SPAN_ORDER_INVALID"
+const (
+	spanOrderInvalidReason     = "ORDERING_INVALID"
+	spanOrderUnsupportedReason = "ORDERING_UNSUPPORTED"
+)
 
 // readerStatus marks pagination and ordering refusals so the client can restore their error types.
 func readerStatus(err error) error {
-	reason := paginationInvalidReason
-	if errors.Is(err, tracestore.ErrSpanOrderInvalid) {
+	var reason string
+	switch {
+	case errors.Is(err, tracestore.ErrSpanOrderInvalid):
 		reason = spanOrderInvalidReason
-	} else if !errors.Is(err, tracestore.ErrPaginationInvalid) {
+	case errors.Is(err, tracestore.ErrSpanOrderUnsupported):
+		reason = spanOrderUnsupportedReason
+	case errors.Is(err, tracestore.ErrPaginationInvalid):
+		reason = paginationInvalidReason
+	default:
 		return err
 	}
 	st := status.New(codes.InvalidArgument, err.Error())

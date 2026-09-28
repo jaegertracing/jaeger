@@ -601,7 +601,7 @@ func TestTraceReader_InvalidArgumentBecomesPaginationInvalid(t *testing.T) {
 		Pagination: &tracestore.Pagination{PageSize: 10, PageToken: "stale"},
 	}
 	marked, err := status.New(codes.InvalidArgument, "page token does not match the query").
-		WithDetails(&errdetails.ErrorInfo{Reason: paginationInvalidReason})
+		WithDetails(&errdetails.ErrorInfo{Reason: paginationInvalidReason, Domain: "jaeger.storage.v2"})
 	require.NoError(t, err)
 	unmarked := status.Error(codes.InvalidArgument, "filter is malformed")
 
@@ -1135,7 +1135,7 @@ func TestSpanRemoteRoundTrip(t *testing.T) {
 }
 
 func TestSpanRemoteErrors(t *testing.T) {
-	for _, backendErr := range []error{errors.ErrUnsupported, tracestore.ErrPaginationInvalid, tracestore.ErrSpanOrderInvalid, status.Error(codes.Internal, "broken")} {
+	for _, backendErr := range []error{errors.ErrUnsupported, tracestore.ErrPaginationInvalid, tracestore.ErrSpanOrderInvalid, tracestore.ErrSpanOrderUnsupported, status.Error(codes.Internal, "broken")} {
 		reader := new(tracestoremocks.Reader)
 		reader.On("FindSpans", mock.Anything, mock.Anything).Return(spanSequence(nil, backendErr))
 		_, err := jiter.CollectWithErrors(spanRemote(t, reader).FindSpans(t.Context(), tracestore.SpanQueryParams{}))
@@ -1251,4 +1251,27 @@ func TestFindSpansProxiesWithoutCapabilities(t *testing.T) {
 	forwarded, err := toSpanQueryParams((<-peer.requests).Query)
 	require.NoError(t, err)
 	assert.Equal(t, query, forwarded)
+}
+
+func TestSpanOrderingErrorDetails(t *testing.T) {
+	for _, tc := range []struct {
+		err    error
+		reason string
+	}{
+		{tracestore.ErrSpanOrderInvalid, "ORDERING_INVALID"},
+		{tracestore.ErrSpanOrderUnsupported, "ORDERING_UNSUPPORTED"},
+	} {
+		wire := readerStatus(tc.err)
+		st := status.Convert(wire)
+		assert.Equal(t, codes.InvalidArgument, st.Code())
+		require.Len(t, st.Details(), 1)
+		info, ok := st.Details()[0].(*errdetails.ErrorInfo)
+		require.True(t, ok)
+		assert.Equal(t, "jaeger.storage.v2", info.GetDomain())
+		assert.Equal(t, tc.reason, info.GetReason())
+		require.ErrorIs(t, readerError(wire), tc.err)
+		foreign, err := status.New(codes.InvalidArgument, "foreign error").WithDetails(&errdetails.ErrorInfo{Domain: "another.service", Reason: tc.reason})
+		require.NoError(t, err)
+		require.NotErrorIs(t, readerError(foreign.Err()), tc.err)
+	}
 }
