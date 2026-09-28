@@ -137,6 +137,9 @@ type TraceQueryParams struct {
 	// RawTraces indicates whether to retrieve raw traces.
 	// If set to false, the traces will be adjusted using QueryServiceOptions.Adjuster.
 	RawTraces bool
+	// ReadAlias, if set, overrides the read alias/index the backend would otherwise resolve
+	// this search against. Only the Elasticsearch backend honors it.
+	ReadAlias string
 }
 
 // PageChunk carries one streamed chunk of a page without exposing the storage
@@ -524,7 +527,12 @@ func (qs QueryService) summarizeTraceIDPages(
 		if len(ids.Results) > 0 {
 			params := make([]tracestore.GetTraceParams, len(ids.Results))
 			for i, id := range ids.Results {
-				params[i] = tracestore.GetTraceParams(id)
+				params[i] = tracestore.GetTraceParams{
+					TraceID:   id.TraceID,
+					Start:     id.Start,
+					End:       id.End,
+					ReadAlias: query.ReadAlias,
+				}
 			}
 			traces := qs.traceReader.GetTraces(ctx, params...)
 			if intercept != nil {
