@@ -43,3 +43,65 @@ func TestAttributeOrderingOutcome(t *testing.T) {
 		})
 	}
 }
+
+func TestFilterRefusalOptOuts(t *testing.T) {
+	t.Run("WithoutUnindexedLevelRefusal", func(t *testing.T) {
+		caps := Capabilities{}.WithoutUnindexedLevelRefusal()
+		assert.Contains(t, caps.SkipList(), levelRefusedTest)
+	})
+
+	t.Run("WithoutLevelRefusal", func(t *testing.T) {
+		caps := Capabilities{}.WithoutLevelRefusal()
+		assert.Contains(t, caps.SkipList(), levelRefusedTest)
+	})
+
+	t.Run("WithoutUnevaluatedOperatorRefusal", func(t *testing.T) {
+		caps := Capabilities{}.WithoutUnevaluatedOperatorRefusal()
+		assert.Contains(t, caps.SkipList(), operatorRefusedTest)
+	})
+
+	t.Run("WithoutOperatorRefusal", func(t *testing.T) {
+		caps := Capabilities{}.WithoutOperatorRefusal()
+		assert.Contains(t, caps.SkipList(), operatorRefusedTest)
+	})
+
+	t.Run("WithoutTextAttributeOrderingRefusal", func(t *testing.T) {
+		caps := Capabilities{}.WithoutTextAttributeOrderingRefusal()
+		assert.Contains(t, caps.SkipList(), attributeRefusedTest)
+	})
+
+	t.Run("WithoutAttributeRefusal", func(t *testing.T) {
+		caps := Capabilities{}.WithoutAttributeRefusal()
+		assert.Contains(t, caps.SkipList(), attributeRefusedTest)
+	})
+
+	t.Run("WithoutFilterRefusals", func(t *testing.T) {
+		caps := Capabilities{}.WithoutFilterRefusals()
+		assert.Contains(t, caps.SkipList(), levelRefusedTest)
+		assert.Contains(t, caps.SkipList(), operatorRefusedTest)
+		assert.Contains(t, caps.SkipList(), attributeRefusedTest)
+	})
+
+	t.Run("WithoutSpanAttributeOrdering", func(t *testing.T) {
+		caps := Capabilities{}.WithoutSpanAttributeOrdering()
+		assert.Contains(t, caps.SkipList(), spanAttributeOrderingTest)
+	})
+
+	t.Run("Memory capabilities", func(t *testing.T) {
+		caps := Memory()
+		assert.NotContains(t, caps.SkipList(), structuredFilterTest)
+		assert.Contains(t, caps.SkipList(), levelRefusedTest)
+		assert.Contains(t, caps.SkipList(), operatorRefusedTest)
+		assert.Contains(t, caps.SkipList(), attributeRefusedTest)
+		assert.Contains(t, caps.SkipList(), findTraceSummariesTest)
+	})
+
+	t.Run("GRPC capabilities", func(t *testing.T) {
+		caps := GRPC()
+		assert.NotContains(t, caps.SkipList(), structuredFilterTest)
+		assert.Contains(t, caps.SkipList(), levelRefusedTest)
+		assert.Contains(t, caps.SkipList(), operatorRefusedTest)
+		assert.Contains(t, caps.SkipList(), attributeRefusedTest)
+		assert.Contains(t, caps.SkipList(), findTraceSummariesTest)
+	})
+}
