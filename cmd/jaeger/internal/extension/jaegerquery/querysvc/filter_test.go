@@ -17,6 +17,7 @@ import (
 	"go.opentelemetry.io/collector/pdata/pcommon"
 
 	expression "github.com/jaegertracing/jaeger-idl/query/expression/v1"
+	"github.com/jaegertracing/jaeger/components/extension/jaegerquery/queryinterceptor"
 	"github.com/jaegertracing/jaeger/internal/jiter"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore"
 	tracestoremocks "github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore/mocks"
@@ -374,7 +375,16 @@ func TestRefusalFamilies(t *testing.T) {
 			require.NotErrorIs(t, err, tracestore.ErrInvalidQuery)
 		})
 	}
-	assert.False(t, tracestore.IsRefusal(errors.New("storage is down")), "a server fault is neither")
+	// A deployment fault is neither: the caller's request was fine, so it reaches the client
+	// as a server error rather than as either refusal.
+	for _, err := range []error{
+		errors.New("storage is down"),
+		ErrInterceptorFilter,
+		queryinterceptor.ErrSpanSearchUnsupported,
+		queryinterceptor.ErrAccessDenied,
+	} {
+		assert.False(t, tracestore.IsRefusal(err), err.Error())
+	}
 	assert.False(t, tracestore.IsRefusal(nil))
 }
 

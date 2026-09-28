@@ -536,7 +536,7 @@ func TestFindTraces_RefusesAnInvalidInterceptorFilter(t *testing.T) {
 			require.ErrorIs(t, err, ErrInterceptorFilter)
 			require.ErrorContains(t, err, test.expectedErr)
 			assert.False(t, next.findCalled, "storage must not be queried")
-			require.NotErrorIs(t, err, tracestore.ErrInvalidQuery, "the caller's request was fine")
+			require.False(t, tracestore.IsRefusal(err), "the caller's request was fine, so this is a server fault")
 		})
 	}
 }
@@ -657,7 +657,7 @@ func TestFindTraces_RefusesAFilterALaterInterceptorDrops(t *testing.T) {
 	require.ErrorIs(t, err, ErrInterceptorFilter)
 	require.ErrorContains(t, err, "widen the search")
 	assert.False(t, next.findCalled, "storage must not be queried")
-	require.NotErrorIs(t, err, tracestore.ErrInvalidQuery, "the caller's request was fine")
+	require.False(t, tracestore.IsRefusal(err), "the caller's request was fine, so this is a server fault")
 }
 
 // TestFindTraces_FinalizesAnInterceptorFilter pins that a predicate an interceptor adds reaches
@@ -761,7 +761,7 @@ func TestFindTraces_RefusesAnInterceptorConstantThatWillNotParse(t *testing.T) {
 	require.ErrorIs(t, err, ErrInterceptorFilter)
 	require.ErrorContains(t, err, `cannot compare span.duration against "banana"`)
 	assert.False(t, next.findCalled, "storage must not be queried")
-	require.NotErrorIs(t, err, tracestore.ErrInvalidQuery, "the caller's request was fine")
+	require.False(t, tracestore.IsRefusal(err), "the caller's request was fine, so this is a server fault")
 }
 
 // TestFindTraces_AllowsNoFilterForAPredicatelessQuery is the other side of the nil rule: a search
@@ -1268,7 +1268,7 @@ func TestFindSpans_RefusesAnInvalidInterceptorFilter(t *testing.T) {
 			require.ErrorIs(t, err, ErrInterceptorFilter)
 			require.ErrorContains(t, err, test.expectedErr)
 			assert.False(t, next.findCalled, "storage must not be queried")
-			require.NotErrorIs(t, err, tracestore.ErrInvalidQuery, "the caller's request was fine")
+			require.False(t, tracestore.IsRefusal(err), "the caller's request was fine, so this is a server fault")
 		})
 	}
 }
@@ -1392,7 +1392,7 @@ func TestFindSpans_RefusesAnInterceptorConstantThatWillNotParse(t *testing.T) {
 	require.ErrorIs(t, err, ErrInterceptorFilter)
 	require.ErrorContains(t, err, `cannot compare span.duration against "banana"`)
 	assert.False(t, next.findCalled, "storage must not be queried")
-	require.NotErrorIs(t, err, tracestore.ErrInvalidQuery, "the caller's request was fine")
+	require.False(t, tracestore.IsRefusal(err), "the caller's request was fine, so this is a server fault")
 }
 
 // TestFindSpans_AllowsNoFilterForAPredicatelessQuery is the other side of the nil rule: a search
@@ -1427,7 +1427,7 @@ func TestFindSpans_RefusedByATraceOnlyInterceptor(t *testing.T) {
 	_, err := collectSpans(qs.FindSpans(t.Context(), searchSpansQuery(SpanQueryParams{})))
 	require.ErrorIs(t, err, queryinterceptor.ErrSpanSearchUnsupported)
 	require.NotErrorIs(t, err, ErrSpanSearchUnsupported, "the backend was not the one refusing")
-	require.NotErrorIs(t, err, tracestore.ErrInvalidQuery, "the caller's request was fine")
+	require.False(t, tracestore.IsRefusal(err), "the caller's request was fine, so this is a server fault")
 	assert.False(t, next.findCalled, "storage must not be queried")
 }
 

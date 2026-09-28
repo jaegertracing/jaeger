@@ -7,8 +7,9 @@ import (
 	"errors"
 )
 
-// This file holds every error a Reader or the query service uses to refuse a search. A refusal
-// belongs to one of two families, and each family has one root (ADR-013): ErrInvalidQuery for
+// This file holds every error the storage API defines for refusing a search; the query service
+// builds its own refusals for the gates and capabilities it checks before dispatch with the same
+// constructors. A refusal belongs to one of two families, and each family has one root (ADR-013): ErrInvalidQuery for
 // a query that is malformed on its own terms, so the caller must change it wherever it is sent,
 // and errors.ErrUnsupported for a well-formed query that this backend lacks a capability to
 // serve, which is also what a Reader returns when it lacks a method altogether. The API layers
