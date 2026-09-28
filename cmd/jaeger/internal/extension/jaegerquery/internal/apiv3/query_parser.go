@@ -220,6 +220,12 @@ func parseFindSpansQuery(q url.Values) (*querysvc.SpanQueryParams, error) {
 		return nil, err
 	}
 	if raw := q.Get(paramOrderBy); raw != "" {
+		// The parameter is spliced into a JSON object below, so it must be exactly one JSON value.
+		// With trailing content or a second member the protobuf decoder would read something other
+		// than the array the caller sent, such as a duplicate orderBy member that wins over the first.
+		if !json.Valid([]byte(raw)) {
+			return nil, fmt.Errorf("malformed parameter %s: not a single JSON value", paramOrderBy)
+		}
 		var wire api_v3.SpanQueryParameters
 		if err := jsonpb.UnmarshalString(`{"orderBy":`+raw+`}`, &wire); err != nil {
 			return nil, fmt.Errorf("malformed parameter %s: %w", paramOrderBy, err)

@@ -935,6 +935,9 @@ func TestHTTPGatewayFindSpansMalformedOrder(t *testing.T) {
 		{`[`, "malformed parameter query.orderBy"},
 		{`[null]`, "malformed parameter query.orderBy"},
 		{`[{}]`, "malformed parameter query.orderBy"},
+		// Content after the array would otherwise be spliced into the wrapper object unnoticed.
+		{`[]}{"garbage":true}`, "not a single JSON value"},
+		{`[{"expression":{"field":{"level":"span","name":"duration"}}}],"orderBy":[]`, "not a single JSON value"},
 		{`[{"expression":{"field":{"level":"span","name":"duration"}},"direction":"sideways"}]`, `direction \"sideways\" is unsupported`},
 	} {
 		t.Run(tc.raw, func(t *testing.T) {
