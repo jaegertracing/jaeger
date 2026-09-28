@@ -21,7 +21,7 @@ require (
 	github.com/google/uuid v1.6.0
 	github.com/gorilla/handlers v1.5.2
 	github.com/gorilla/websocket v1.5.4-0.20250319132907-e064f32e3674
-	github.com/jaegertracing/jaeger-idl v0.13.1
+	github.com/jaegertracing/jaeger-idl v0.13.2
 	github.com/kr/pretty v0.3.1
 	github.com/modelcontextprotocol/go-sdk v1.6.1
 	github.com/open-telemetry/opentelemetry-collector-contrib/connector/spanmetricsconnector v0.160.0
@@ -353,5 +353,3 @@ require (
 	sigs.k8s.io/structured-merge-diff/v6 v6.4.2 // indirect
 	sigs.k8s.io/yaml v1.6.0 // indirect
 )
-
-replace github.com/jaegertracing/jaeger-idl => github.com/ysh-bot/jaeger-idl v0.9.1-0.20260927223913-4f8aa0a66987
