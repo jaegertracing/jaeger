@@ -193,10 +193,10 @@ func (r *traceReader) FindSpans(ctx context.Context, query tracestore.SpanQueryP
 			terms = append(terms, &api_v3.SpanSortOrder{Expression: tracestore.SpanOrderExpression(term), Direction: string(term.Direction)})
 		}
 		stream, err := r.client.FindSpans(ctx, &api_v3.FindSpansRequest{Query: &api_v3.SpanQueryParameters{
-			OrderBy:      terms,
 			StartTimeMin: query.StartTimeMin,
 			StartTimeMax: query.StartTimeMax,
 			Filter:       filter,
+			OrderBy:      terms,
 			Pagination: &api_v3.Pagination{
 				PageSize:  query.Pagination.PageSize,
 				PageToken: string(query.Pagination.PageToken),

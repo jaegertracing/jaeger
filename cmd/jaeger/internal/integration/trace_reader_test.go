@@ -97,22 +97,23 @@ func TestTraceReaderFindSpansPreservesPagination(t *testing.T) {
 	var chunks []tracestore.PageChunk[ptrace.Traces]
 	for chunk, err := range reader.FindSpans(context.Background(), tracestore.SpanQueryParams{
 		StartTimeMin: start, StartTimeMax: end, Filter: filter,
-		Pagination: tracestore.Pagination{PageSize: 2, PageToken: "current-page"},
 		OrderBy:    order,
+		Pagination: tracestore.Pagination{PageSize: 2, PageToken: "current-page"},
 	}) {
 		require.NoError(t, err)
 		chunks = append(chunks, chunk)
 	}
 	require.NotNil(t, client.request)
 	query := client.request.Query
-	decodedOrder, err := tracestore.SpanOrderFromProto(query.OrderBy)
-	require.NoError(t, err)
-	assert.Equal(t, order, decodedOrder)
 	assert.Equal(t, start, query.StartTimeMin)
 	assert.Equal(t, end, query.StartTimeMax)
 	decoded, err := expressionproto.CallFromProto(query.Filter)
 	require.NoError(t, err)
 	assert.Equal(t, filter, decoded)
+	decodedOrder, err := tracestore.SpanOrderFromProto(query.OrderBy)
+	require.NoError(t, err)
+	assert.Equal(t, order, decodedOrder)
+
 	require.NotNil(t, query.Pagination)
 	assert.EqualValues(t, 2, query.Pagination.PageSize)
 	assert.Equal(t, "current-page", query.Pagination.PageToken)
