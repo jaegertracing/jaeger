@@ -8,15 +8,15 @@ import (
 	"cmp"
 	"encoding/binary"
 	"fmt"
+	"math"
 	"sort"
 
 	"go.opentelemetry.io/collector/pdata/pcommon"
-	"go.opentelemetry.io/collector/pdata/ptrace"
 
 	"github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore"
 )
 
-// key is a sort key that a cursor can carry: spanKey or traceKey.
+// key is a sort key that a cursor can carry: sortingKey or traceKey.
 type key interface {
 	encode() []byte
 }
@@ -30,15 +30,10 @@ type cursor[K key] struct {
 	seen uint32
 }
 
-// spanKey sorts spans by start time descending, then trace ID and span ID ascending (RFC 0016
-// §6).
-type spanKey struct {
-	startTime pcommon.Timestamp
-	traceID   pcommon.TraceID
-	spanID    pcommon.SpanID
-}
-
-const spanKeySize = 8 + 16 + 8
+// sortingKey holds one encoded value per ordering term, in query precedence order. Each value's
+// byte order matches its ascending sort order, so comparing and encoding a key depends on how
+// many terms the query has and never on which fields they name.
+type sortingKey [][]byte
 
 // traceKey sorts traces by the latest start time among their matching spans descending, then
 // trace ID ascending (RFC 0014 §3.3).
@@ -49,37 +44,94 @@ type traceKey struct {
 
 const traceKeySize = 8 + 16
 
-func spanKeyOf(span ptrace.Span) spanKey {
-	return spanKey{startTime: span.StartTimestamp(), traceID: span.TraceID(), spanID: span.SpanID()}
-}
-
-func compareSpanKeys(a, b spanKey) int {
-	if c := cmp.Compare(b.startTime, a.startTime); c != 0 {
-		return c
+// makeSortingKey resolves each ordering term's expression against the span the way the filter
+// evaluator resolves an operand, so any field or attribute the evaluator knows can order spans,
+// and encodes each value so that byte order is sort order.
+func makeSortingKey(ctx filterCtx, order []tracestore.SpanSortOrder) sortingKey {
+	key := make(sortingKey, len(order))
+	for i, expr := range order {
+		key[i] = encodeSortValue(resolveOperand(expr.Expression, ctx))
 	}
-	if c := bytes.Compare(a.traceID[:], b.traceID[:]); c != 0 {
-		return c
+	return key
+}
+
+// encodeSortValue encodes the first resolved value so that bytes.Compare orders encodings as the
+// values themselves are ordered. The kind is the leading byte, so values of different kinds keep
+// the fixed relative order evalKind declares, with a span that lacks the value first. Integers get
+// their sign bit flipped; doubles get their sign bit flipped when positive and every bit flipped
+// when negative, which is the standard order-preserving encoding of IEEE 754 floats; strings are
+// their own bytes; opaque values carry only their kind.
+func encodeSortValue(values []evalValue) []byte {
+	if len(values) == 0 {
+		return []byte{byte(kindNone)}
 	}
-	return bytes.Compare(a.spanID[:], b.spanID[:])
+	v := values[0]
+	tag := []byte{byte(v.kind)}
+	switch v.kind {
+	case kindBool:
+		if v.boolean {
+			return append(tag, 1)
+		}
+		return append(tag, 0)
+	case kindInt:
+		return binary.BigEndian.AppendUint64(tag, uint64(v.numInt)^(1<<63)) //nolint:gosec // G115: This bit cast preserves the signed order.
+	case kindDouble:
+		bits := math.Float64bits(v.num)
+		if bits&(1<<63) != 0 {
+			bits = ^bits
+		} else {
+			bits |= 1 << 63
+		}
+		return binary.BigEndian.AppendUint64(tag, bits)
+	case kindString, kindUntyped:
+		return append(tag, v.str...)
+	default:
+		return tag
+	}
 }
 
-func (k spanKey) encode() []byte {
-	buf := make([]byte, 0, spanKeySize)
-	buf = binary.BigEndian.AppendUint64(buf, uint64(k.startTime))
-	buf = append(buf, k.traceID[:]...)
-	return append(buf, k.spanID[:]...)
+func compareSortingKeys(order []tracestore.SpanSortOrder) func(sortingKey, sortingKey) int {
+	return func(a, b sortingKey) int {
+		for i, term := range order {
+			result := bytes.Compare(a[i], b[i])
+			if term.Direction == tracestore.SortDescending {
+				result = -result
+			}
+			if result != 0 {
+				return result
+			}
+		}
+		return 0
+	}
 }
 
-func decodeSpanKey(raw []byte) spanKey {
-	var k spanKey
-	k.startTime = pcommon.Timestamp(binary.BigEndian.Uint64(raw))
-	copy(k.traceID[:], raw[8:24])
-	copy(k.spanID[:], raw[24:])
-	return k
+func (k sortingKey) encode() []byte {
+	var buf []byte
+	for _, value := range k {
+		buf = binary.AppendUvarint(buf, uint64(len(value)))
+		buf = append(buf, value...)
+	}
+	return buf
 }
 
-func decodeSpanCursor(raw []byte) (cursor[spanKey], error) {
-	return decodeCursor(raw, spanKeySize, decodeSpanKey, "span")
+func decodeSpanCursor(raw []byte, terms int) (cursor[sortingKey], error) {
+	var key sortingKey
+	for range terms {
+		size, n := binary.Uvarint(raw)
+		if n <= 0 {
+			return cursor[sortingKey]{}, fmt.Errorf("%w: page token does not carry a span position", tracestore.ErrPaginationInvalid)
+		}
+		raw = raw[n:]
+		if size > uint64(len(raw)) {
+			return cursor[sortingKey]{}, fmt.Errorf("%w: page token does not carry a span position", tracestore.ErrPaginationInvalid)
+		}
+		key = append(key, raw[:size])
+		raw = raw[size:]
+	}
+	if len(raw) != 4 {
+		return cursor[sortingKey]{}, fmt.Errorf("%w: page token does not carry a span position", tracestore.ErrPaginationInvalid)
+	}
+	return cursor[sortingKey]{key: key, seen: binary.BigEndian.Uint32(raw)}, nil
 }
 
 func compareTraceKeys(a, b traceKey) int {

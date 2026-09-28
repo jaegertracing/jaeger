@@ -510,20 +510,20 @@ func TestMatchesFilter_TraceStateAndEndTime(t *testing.T) {
 }
 
 func TestCompareValues_BoolOrdering(t *testing.T) {
-	trueVal := evalValue{isBool: true, boolean: true}
-	falseVal := evalValue{isBool: true, boolean: false}
+	trueVal := boolValue(true)
+	falseVal := boolValue(false)
 	assert.Equal(t, 0, compareValues(trueVal, trueVal))
 	assert.Negative(t, compareValues(falseVal, trueVal))
 	assert.Positive(t, compareValues(trueVal, falseVal))
 }
 
 func TestEvalValueKind(t *testing.T) {
-	assert.Equal(t, kindString, evalValue{isString: true}.kind())
-	assert.Equal(t, kindBool, evalValue{isBool: true}.kind())
-	assert.Equal(t, kindNumber, evalValue{isInt: true}.kind())
-	assert.Equal(t, kindNumber, evalValue{isNumber: true}.kind())
-	assert.Equal(t, kindNone, evalValue{isOpaque: true}.kind())
-	assert.Equal(t, kindNone, evalValue{isUntyped: true, str: "x"}.kind())
+	assert.True(t, comparableKinds(evalValue{kind: kindString}, evalValue{kind: kindString}))
+	assert.True(t, comparableKinds(evalValue{kind: kindBool}, evalValue{kind: kindBool}))
+	assert.True(t, comparableKinds(evalValue{kind: kindInt}, evalValue{kind: kindDouble}))
+	assert.False(t, comparableKinds(evalValue{kind: kindString}, evalValue{kind: kindBool}))
+	assert.False(t, comparableKinds(evalValue{kind: kindOpaque}, evalValue{kind: kindOpaque}))
+	assert.False(t, comparableKinds(untypedValue("x"), untypedValue("x")))
 }
 
 func TestCoerceUntyped(t *testing.T) {
@@ -534,13 +534,13 @@ func TestCoerceUntyped(t *testing.T) {
 		wantOK  bool
 		wantVal evalValue
 	}{
-		{"reads as bool", evalValue{isUntyped: true, str: "true"}, evalValue{isBool: true}, true, evalValue{isBool: true, boolean: true}},
-		{"not a bool", evalValue{isUntyped: true, str: "nope"}, evalValue{isBool: true}, false, evalValue{}},
-		{"reads as int", evalValue{isUntyped: true, str: "500"}, evalValue{isInt: true}, true, evalValue{isInt: true, numInt: 500}},
-		{"reads as double when not an exact int", evalValue{isUntyped: true, str: "1.5"}, evalValue{isNumber: true}, true, evalValue{isNumber: true, num: 1.5}},
-		{"not a number", evalValue{isUntyped: true, str: "nope"}, evalValue{isInt: true}, false, evalValue{}},
-		{"reads as string against a string", evalValue{isUntyped: true, str: "hi"}, evalValue{isString: true}, true, evalValue{isString: true, str: "hi"}},
-		{"reads as string against another untyped value", evalValue{isUntyped: true, str: "hi"}, evalValue{isUntyped: true, str: "hi"}, true, evalValue{isString: true, str: "hi"}},
+		{"reads as bool", untypedValue("true"), evalValue{kind: kindBool}, true, boolValue(true)},
+		{"not a bool", untypedValue("nope"), evalValue{kind: kindBool}, false, evalValue{}},
+		{"reads as int", untypedValue("500"), evalValue{kind: kindInt}, true, intValue(500)},
+		{"reads as double when not an exact int", untypedValue("1.5"), evalValue{kind: kindDouble}, true, doubleValue(1.5)},
+		{"not a number", untypedValue("nope"), evalValue{kind: kindInt}, false, evalValue{}},
+		{"reads as string against a string", untypedValue("hi"), evalValue{kind: kindString}, true, stringValue("hi")},
+		{"reads as string against another untyped value", untypedValue("hi"), untypedValue("hi"), true, stringValue("hi")},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -555,53 +555,53 @@ func TestCoerceUntyped(t *testing.T) {
 
 func TestResolveComparable(t *testing.T) {
 	t.Run("opaque on either side is never comparable", func(t *testing.T) {
-		_, _, ok := resolveComparable(evalValue{isOpaque: true}, evalValue{isString: true, str: "x"})
+		_, _, ok := resolveComparable(evalValue{kind: kindOpaque}, stringValue("x"))
 		assert.False(t, ok)
-		_, _, ok = resolveComparable(evalValue{isString: true, str: "x"}, evalValue{isOpaque: true})
+		_, _, ok = resolveComparable(stringValue("x"), evalValue{kind: kindOpaque})
 		assert.False(t, ok)
 	})
 	t.Run("untyped left resolves against typed right", func(t *testing.T) {
-		a, b, ok := resolveComparable(evalValue{isUntyped: true, str: "500"}, evalValue{isInt: true, numInt: 500})
+		a, b, ok := resolveComparable(untypedValue("500"), intValue(500))
 		require.True(t, ok)
-		assert.Equal(t, evalValue{isInt: true, numInt: 500}, a)
-		assert.Equal(t, evalValue{isInt: true, numInt: 500}, b)
+		assert.Equal(t, intValue(500), a)
+		assert.Equal(t, intValue(500), b)
 	})
 	t.Run("untyped right resolves against typed left", func(t *testing.T) {
-		a, b, ok := resolveComparable(evalValue{isBool: true, boolean: true}, evalValue{isUntyped: true, str: "true"})
+		a, b, ok := resolveComparable(boolValue(true), untypedValue("true"))
 		require.True(t, ok)
-		assert.Equal(t, evalValue{isBool: true, boolean: true}, a)
-		assert.Equal(t, evalValue{isBool: true, boolean: true}, b)
+		assert.Equal(t, boolValue(true), a)
+		assert.Equal(t, boolValue(true), b)
 	})
 	t.Run("untyped left fails to coerce", func(t *testing.T) {
-		_, _, ok := resolveComparable(evalValue{isUntyped: true, str: "nope"}, evalValue{isBool: true})
+		_, _, ok := resolveComparable(untypedValue("nope"), evalValue{kind: kindBool})
 		assert.False(t, ok)
 	})
 	t.Run("untyped right fails to coerce", func(t *testing.T) {
-		_, _, ok := resolveComparable(evalValue{isInt: true}, evalValue{isUntyped: true, str: "nope"})
+		_, _, ok := resolveComparable(evalValue{kind: kindInt}, untypedValue("nope"))
 		assert.False(t, ok)
 	})
 	t.Run("mismatched kinds are never comparable", func(t *testing.T) {
-		_, _, ok := resolveComparable(evalValue{isString: true, str: "x"}, evalValue{isBool: true})
+		_, _, ok := resolveComparable(stringValue("x"), evalValue{kind: kindBool})
 		assert.False(t, ok)
 	})
 }
 
 func TestValueInList_EmptyTypeInfersFromOperand(t *testing.T) {
-	assert.True(t, valueInList(evalValue{isInt: true, numInt: 500}, &expression.List{Values: []string{"500"}}))
-	assert.True(t, valueInList(evalValue{isNumber: true, num: 1.5}, &expression.List{Values: []string{"1.5"}}))
-	assert.True(t, valueInList(evalValue{isBool: true, boolean: true}, &expression.List{Values: []string{"true"}}))
-	assert.False(t, valueInList(evalValue{isOpaque: true}, &expression.List{Values: []string{"anything"}}),
+	assert.True(t, valueInList(intValue(500), &expression.List{Values: []string{"500"}}))
+	assert.True(t, valueInList(doubleValue(1.5), &expression.List{Values: []string{"1.5"}}))
+	assert.True(t, valueInList(boolValue(true), &expression.List{Values: []string{"true"}}))
+	assert.False(t, valueInList(evalValue{kind: kindOpaque}, &expression.List{Values: []string{"anything"}}),
 		"opaque has no kind to infer, so it never matches an untyped list")
-	assert.True(t, valueInList(evalValue{isInt: true, numInt: 500}, &expression.List{Values: []string{"500.0"}}),
+	assert.True(t, valueInList(intValue(500), &expression.List{Values: []string{"500.0"}}),
 		"an untyped list matches whatever an untyped eq matches, and eq reads 500.0 against an int attribute as a number")
-	assert.False(t, valueInList(evalValue{isInt: true, numInt: 500}, &expression.List{Values: []string{"five hundred"}}))
+	assert.False(t, valueInList(intValue(500), &expression.List{Values: []string{"five hundred"}}))
 }
 
 func TestValueInList_ExplicitDoubleType(t *testing.T) {
 	list := &expression.List{Values: []string{"1.5", "2.5"}, Type: expression.ValueTypeDouble}
-	assert.True(t, valueInList(evalValue{isNumber: true, num: 1.5}, list))
-	assert.False(t, valueInList(evalValue{isNumber: true, num: 3.5}, list))
-	assert.False(t, valueInList(evalValue{isInt: true, numInt: 1}, list), "a typed double list does not fall back to int")
+	assert.True(t, valueInList(doubleValue(1.5), list))
+	assert.False(t, valueInList(doubleValue(3.5), list))
+	assert.False(t, valueInList(intValue(1), list), "a typed double list does not fall back to int")
 }
 
 func TestAttrToEvalValue_UnsupportedTypeIsOpaque(t *testing.T) {
@@ -610,7 +610,7 @@ func TestAttrToEvalValue_UnsupportedTypeIsOpaque(t *testing.T) {
 	v, ok := m.Get("payload")
 	require.True(t, ok)
 	resolved := attrToEvalValue(v)
-	assert.True(t, resolved.isOpaque, "a bytes-valued attribute has no scalar reading, but is still present")
+	assert.Equal(t, kindOpaque, resolved.kind, "a bytes-valued attribute has no scalar reading, but is still present")
 }
 
 func TestResolveOperand_NestedRefResolvesToNothingOutsideSome(t *testing.T) {
@@ -856,7 +856,7 @@ func TestMatchesFilter_MembershipOnTimeFields(t *testing.T) {
 	assert.True(t, f.matches(call(expression.OpIn, start, starts)))
 	assert.False(t, f.matches(call(expression.OpIn, duration, others)))
 	assert.True(t, f.matches(call(expression.OpNotIn, duration, others)))
-	assert.False(t, f.matches(call(expression.OpIn, duration, &expression.List{Values: []string{"not a duration"}})))
+	assert.False(t, f.evaluates(call(expression.OpIn, duration, &expression.List{Values: []string{"not a duration"}})))
 	assert.False(t, f.matches(call(expression.OpIn, fieldRef(expression.LevelSpan, "no.such.field"), others)), "an unknown field resolves to nothing")
 }
 
@@ -866,7 +866,7 @@ func TestMatchesFilter_UnspecifiedSpanKind(t *testing.T) {
 	kind := fieldRef(expression.LevelSpan, expression.SpanFieldKind)
 	assert.True(t, f.matches(call(expression.OpEq, kind, str("unspecified"))))
 	assert.True(t, f.matches(call(expression.OpIn, kind, &expression.List{Values: []string{"unspecified", "server"}})))
-	assert.False(t, f.matches(call(expression.OpEq, kind, str(""))))
+	assert.False(t, f.evaluates(call(expression.OpEq, kind, str(""))))
 }
 
 func TestMatchesFilter_NaNNeverCompares(t *testing.T) {
@@ -984,16 +984,16 @@ func TestMatchesFilter_MixedNumericKinds(t *testing.T) {
 // TestCompareValues_IntKeepsPrecisionAgainstIntegralDouble pins that an int64 above 2^53 is not
 // rounded to float64 when the double it compares with is itself an integer.
 func TestCompareValues_IntKeepsPrecisionAgainstIntegralDouble(t *testing.T) {
-	big := evalValue{isInt: true, numInt: 1<<53 + 1}
-	rounded := evalValue{isNumber: true, num: 1 << 53}
+	big := intValue(1<<53 + 1)
+	rounded := doubleValue(1 << 53)
 	assert.Positive(t, compareValues(big, rounded))
 	assert.Negative(t, compareValues(rounded, big))
-	assert.Equal(t, 0, compareValues(evalValue{isInt: true, numInt: 1 << 53}, rounded))
-	assert.Negative(t, compareValues(evalValue{isInt: true, numInt: 1}, evalValue{isNumber: true, num: 1.5}), "a fractional double compares in floating point")
-	assert.Positive(t, compareValues(evalValue{isNumber: true, num: 1.5}, evalValue{isInt: true, numInt: 1}))
-	assert.Negative(t, compareValues(evalValue{isInt: true, numInt: math.MaxInt64}, evalValue{isNumber: true, num: 1e19}), "a double beyond int64 is beyond every integer")
-	assert.Negative(t, compareValues(evalValue{isInt: true, numInt: math.MaxInt64}, evalValue{isNumber: true, num: 1 << 63}),
+	assert.Equal(t, 0, compareValues(intValue(1<<53), rounded))
+	assert.Negative(t, compareValues(intValue(1), doubleValue(1.5)), "a fractional double compares in floating point")
+	assert.Positive(t, compareValues(doubleValue(1.5), intValue(1)))
+	assert.Negative(t, compareValues(intValue(math.MaxInt64), doubleValue(1e19)), "a double beyond int64 is beyond every integer")
+	assert.Negative(t, compareValues(intValue(math.MaxInt64), doubleValue(1<<63)),
 		"2^63 rounds to the same float64 as MaxInt64, but is beyond it")
-	assert.Positive(t, compareValues(evalValue{isNumber: true, num: 1 << 63}, evalValue{isInt: true, numInt: math.MaxInt64}))
-	assert.Positive(t, compareValues(evalValue{isInt: true, numInt: math.MinInt64}, evalValue{isNumber: true, num: -1e19}))
+	assert.Positive(t, compareValues(doubleValue(1<<63), intValue(math.MaxInt64)))
+	assert.Positive(t, compareValues(intValue(math.MinInt64), doubleValue(-1e19)))
 }

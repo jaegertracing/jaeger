@@ -106,7 +106,8 @@ type SpanQueryParams struct {
 	StartTimeMin time.Time
 	StartTimeMax time.Time
 	// Filter is the structured query filter (RFC 0005), the only predicate a span search takes.
-	Filter *expression.Call
+	Filter  *expression.Call
+	OrderBy []tracestore.SpanSortOrder
 	// Pagination is the only bound on the result (RFC 0016 §6): a zero PageSize means the default.
 	Pagination Pagination
 }
@@ -385,10 +386,16 @@ func (qs QueryService) prepareSpanSearchQuery(
 			return ctx, query, err
 		}
 	}
+	if err := ensureSpanFilterSupported(caps, query.Filter); err != nil {
+		return ctx, query, err
+	}
+	if err := caps.ValidateSpanSorting(query.OrderBy); err != nil {
+		return ctx, query, err
+	}
 	if err := ensureSpanPaginationSupported(caps, query.Pagination); err != nil {
 		return ctx, query, err
 	}
-	return ctx, query, ensureSpanFilterSupported(caps, query.Filter)
+	return ctx, query, nil
 }
 
 // ensureSpanPaginationSupported is RFC 0014 §6.2 for a span search. A reader that cannot paginate
