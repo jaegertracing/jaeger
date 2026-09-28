@@ -159,9 +159,9 @@ func spanQueryParams(query *api_v3.SpanQueryParameters) (querysvc.SpanQueryParam
 		return querysvc.SpanQueryParams{}, status.Error(codes.InvalidArgument, err.Error())
 	}
 	queryParams := querysvc.SpanQueryParams{
-		OrderBy:      order,
 		StartTimeMin: query.GetStartTimeMin(),
 		StartTimeMax: query.GetStartTimeMax(),
+		OrderBy:      order,
 	}
 	if protoFilter := query.GetFilter(); protoFilter != nil {
 		filter, err := expressionproto.CallFromProto(protoFilter)
