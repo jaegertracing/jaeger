@@ -1224,16 +1224,26 @@ func TestFindTraceSummaries_NativeError(t *testing.T) {
 // query for a capability it lacks, which also matches errors.ErrUnsupported, reaches the
 // caller rather than triggering the FindTraces fallback that would only be refused again.
 func TestFindTraceSummaries_CapabilityRefusalIsNotAFallback(t *testing.T) {
-	refusingReader := &mockSummaryReader{
-		err: fmt.Errorf("%w: level scope", tracestore.ErrFilterUnsupported),
-	}
-	declaresSearchWithoutServiceName(&refusingReader.Reader, true)
-	depsMock := initializeTestService().depsReader
-	qs := NewQueryService(refusingReader, depsMock, QueryServiceOptions{})
+	enablePagination(t)
+	for name, query := range map[string]TraceQueryParams{
+		"unpaginated": filterQuery(nil),
+		"paginated":   paginatedQuery(10),
+	} {
+		t.Run(name, func(t *testing.T) {
+			refusingReader := &mockSummaryReader{
+				err: fmt.Errorf("%w: level scope", tracestore.ErrFilterUnsupported),
+			}
+			refusingReader.On("SearchCapabilities", mock.Anything).
+				Return(tracestore.SearchCapabilities{WithoutServiceName: true, Paginated: true}, nil)
+			depsMock := initializeTestService().depsReader
+			qs := NewQueryService(refusingReader, depsMock, QueryServiceOptions{})
 
-	_, err := flattenPageChunks(qs.FindTraceSummaries(context.Background(), filterQuery(nil)))
-	require.ErrorIs(t, err, tracestore.ErrFilterUnsupported)
-	refusingReader.AssertNotCalled(t, "FindTraces")
+			_, err := flattenPageChunks(qs.FindTraceSummaries(context.Background(), query))
+			require.ErrorIs(t, err, tracestore.ErrFilterUnsupported)
+			refusingReader.AssertNotCalled(t, "FindTraces")
+			refusingReader.AssertNotCalled(t, "FindTraceIDs")
+		})
+	}
 }
 
 // TestFindTraceSummaries_ErrUnsupported verifies that when FindTraceSummaries yields
