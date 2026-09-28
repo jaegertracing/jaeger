@@ -1067,6 +1067,8 @@ func TestFindSpans_PaginationSurvivesTheInterceptors(t *testing.T) {
 	enablePagination(t)
 	next := &fakeReader{batch: tracesWith("k", "v")}
 	next.capabilities = filterCapableBackend()
+	next.capabilities.SpanSorting = true
+	order := []tracestore.SpanSortOrder{{Expression: &expression.FieldRef{Level: expression.LevelSpan, Name: "duration"}, Direction: tracestore.SortDescending}}
 	qs := interceptedService(next, fakeInterceptor{
 		onSpanQuery: func(q queryinterceptor.SpanQuery) (queryinterceptor.SpanQuery, error) {
 			return q, nil
@@ -1076,9 +1078,11 @@ func TestFindSpans_PaginationSurvivesTheInterceptors(t *testing.T) {
 	_, err := collectSpans(qs.FindSpans(t.Context(), SpanQueryParams{
 		StartTimeMin: testWindowStart,
 		StartTimeMax: testWindowEnd,
+		OrderBy:      order,
 		Pagination:   Pagination{PageSize: 10},
 	}))
 	require.NoError(t, err)
+	assert.Equal(t, order, next.gotSpanQuery.OrderBy)
 	assert.Equal(t, tracestore.Pagination{PageSize: 10}, next.gotSpanQuery.Pagination, "the page size must reach storage")
 }
 

@@ -10,6 +10,7 @@ import (
 	"io"
 	"iter"
 	"net"
+	"strconv"
 	"testing"
 	"time"
 
@@ -18,6 +19,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/collector/featuregate"
 	"go.opentelemetry.io/collector/pdata/ptrace"
+	"google.golang.org/genproto/googleapis/rpc/errdetails"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/credentials/insecure"
@@ -1103,10 +1105,29 @@ func TestFindTraceSummariesServiceNameRequired(t *testing.T) {
 
 func TestAsStatusError(t *testing.T) {
 	tests := []struct {
-		name     string
-		err      error
-		wantCode codes.Code
+		name       string
+		err        error
+		wantCode   codes.Code
+		wantReason string
 	}{
+		{
+			name:       "invalid ordering retains its reason",
+			err:        fmt.Errorf("invalid: %w", tracestore.ErrSpanOrderInvalid),
+			wantCode:   codes.InvalidArgument,
+			wantReason: tracestore.SpanOrderInvalidReason,
+		},
+		{
+			name:       "unsupported ordering retains its reason",
+			err:        fmt.Errorf("unsupported: %w", tracestore.ErrSpanOrderUnsupported),
+			wantCode:   codes.InvalidArgument,
+			wantReason: tracestore.SpanOrderUnsupportedReason,
+		},
+		{
+			name:       "invalid pagination retains its reason",
+			err:        fmt.Errorf("token: %w", tracestore.ErrPaginationInvalid),
+			wantCode:   codes.InvalidArgument,
+			wantReason: tracestore.PaginationInvalidReason,
+		},
 		{
 			name:     "access denied maps to PermissionDenied",
 			err:      fmt.Errorf("acl: denied: %w", queryinterceptor.ErrAccessDenied),
@@ -1127,6 +1148,66 @@ func TestAsStatusError(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			got := asStatusError(tt.err)
 			assert.Equal(t, tt.wantCode, status.Code(got))
+			details := status.Convert(got).Details()
+			if tt.wantReason == "" {
+				assert.Empty(t, details)
+			} else {
+				require.Len(t, details, 1)
+				info, ok := details[0].(*errdetails.ErrorInfo)
+				require.True(t, ok)
+				assert.Equal(t, errorInfoDomain, info.GetDomain())
+				assert.Equal(t, tt.wantReason, info.GetReason())
+			}
 		})
 	}
+}
+
+func TestFindSpansGRPCOrdering(t *testing.T) {
+	for _, supported := range []bool{false, true} {
+		t.Run(strconv.FormatBool(supported), func(t *testing.T) {
+			tsc := newTestServerClientWithCapabilities(t, tracestore.SearchCapabilities{SpanSearch: true, SpanSorting: supported})
+			order := []tracestore.SpanSortOrder{{Expression: &expression.FieldRef{Level: expression.LevelSpan, Name: "duration"}, Direction: tracestore.SortDescending}}
+			start, end := time.Now().Add(-time.Hour).UTC(), time.Now().UTC()
+			if supported {
+				tsc.reader.On("FindSpans", matchContext, tracestore.SpanQueryParams{StartTimeMin: start, StartTimeMax: end, OrderBy: order, Pagination: tracestore.Pagination{PageSize: querysvc.DefaultPageSize}}).Return(iter.Seq2[tracestore.PageChunk[ptrace.Traces], error](func(yield func(tracestore.PageChunk[ptrace.Traces], error) bool) {
+					yield(tracestore.PageChunk[ptrace.Traces]{Results: makeTestTrace()}, nil)
+				})).Once()
+			}
+			encoded, err := expressionproto.ToProto(order[0].Expression)
+			require.NoError(t, err)
+			stream, err := tsc.client.FindSpans(t.Context(), &api_v3.FindSpansRequest{Query: &api_v3.SpanQueryParameters{StartTimeMin: start, StartTimeMax: end, OrderBy: []*api_v3.SpanSortOrder{{Expression: encoded, Direction: "desc"}}}})
+			require.NoError(t, err)
+			response, err := stream.Recv()
+			if supported {
+				require.NoError(t, err)
+				assert.Equal(t, 1, response.Spans.ToTraces().SpanCount())
+			} else {
+				st := status.Convert(err)
+				assert.Equal(t, codes.InvalidArgument, st.Code())
+				require.Len(t, st.Details(), 1)
+				info, ok := st.Details()[0].(*errdetails.ErrorInfo)
+				require.True(t, ok)
+				assert.Equal(t, errorInfoDomain, info.GetDomain())
+				assert.Equal(t, tracestore.SpanOrderUnsupportedReason, info.GetReason())
+				tsc.reader.AssertNotCalled(t, "FindSpans", mock.Anything, mock.Anything)
+			}
+		})
+	}
+}
+
+func TestFindSpansGRPCMissingOrderExpression(t *testing.T) {
+	tsc := newTestServerClientWithCapabilities(t, tracestore.SearchCapabilities{SpanSearch: true, SpanSorting: true})
+	stream, err := tsc.client.FindSpans(t.Context(), &api_v3.FindSpansRequest{Query: &api_v3.SpanQueryParameters{
+		OrderBy: []*api_v3.SpanSortOrder{{}},
+	}})
+	require.NoError(t, err)
+	_, err = stream.Recv()
+	st := status.Convert(err)
+	assert.Equal(t, codes.InvalidArgument, st.Code())
+	require.Len(t, st.Details(), 1)
+	info, ok := st.Details()[0].(*errdetails.ErrorInfo)
+	require.True(t, ok)
+	assert.Equal(t, errorInfoDomain, info.GetDomain())
+	assert.Equal(t, tracestore.SpanOrderInvalidReason, info.GetReason())
+	tsc.reader.AssertNotCalled(t, "FindSpans", mock.Anything, mock.Anything)
 }

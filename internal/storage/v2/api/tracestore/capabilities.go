@@ -92,6 +92,8 @@ type SearchCapabilities struct {
 	// SpanSearch is true when FindSpans is supported by the backend. False means that the
 	// backend does not support that capability. See RFC 0016 for details.
 	SpanSearch bool
+	// SpanSorting promises all four built-in span sort fields in either direction and requires SpanSearch.
+	SpanSorting bool
 }
 
 // FilterCapabilities declares how much of a structured filter a Reader evaluates, by naming

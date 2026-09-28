@@ -78,10 +78,15 @@ func (q TraceQueryParams) toReaderQuery() (tracestore.TraceQueryParams, error) {
 // Elasticsearch, and an oversized one is clamped rather than refused (RFC 0014 §4). The filter
 // and the reader's capabilities are prepareSpanSearchQuery's, since they depend on the backend.
 func (q SpanQueryParams) toReaderQuery() (tracestore.SpanQueryParams, error) {
+	order, err := tracestore.NormalizeSpanOrder(q.OrderBy)
+	if err != nil {
+		return tracestore.SpanQueryParams{}, err
+	}
 	query := tracestore.SpanQueryParams{
 		StartTimeMin: q.StartTimeMin,
 		StartTimeMax: q.StartTimeMax,
 		Filter:       q.Filter,
+		OrderBy:      order,
 		Pagination: tracestore.Pagination{
 			PageSize:  q.Pagination.PageSize,
 			PageToken: tracestore.PageToken(q.Pagination.PageToken),
