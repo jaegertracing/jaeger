@@ -376,9 +376,6 @@ func (qs QueryService) prepareSpanSearchQuery(
 		query.Filter = finalized
 	}
 	caps := qs.readerSearchCapabilitiesOrDefault(ctx)
-	if err := caps.ValidateSpanSorting(query.OrderBy); err != nil {
-		return ctx, query, err
-	}
 	if !caps.SpanSearch {
 		return ctx, query, ErrSpanSearchUnsupported
 	}
@@ -389,10 +386,13 @@ func (qs QueryService) prepareSpanSearchQuery(
 			return ctx, query, err
 		}
 	}
-	if err := ensureSpanPaginationSupported(caps, query.Pagination); err != nil {
+	if err := ensureSpanFilterSupported(caps, query.Filter); err != nil {
 		return ctx, query, err
 	}
-	return ctx, query, ensureSpanFilterSupported(caps, query.Filter)
+	if err := caps.ValidateSpanSorting(query.OrderBy); err != nil {
+		return ctx, query, err
+	}
+	return ctx, query, ensureSpanPaginationSupported(caps, query.Pagination)
 }
 
 // ensureSpanPaginationSupported is RFC 0014 §6.2 for a span search. A reader that cannot paginate
