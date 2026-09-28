@@ -23,6 +23,10 @@ import (
 	"github.com/jaegertracing/jaeger/internal/storage/v2/v1adapter"
 )
 
+// errorInfoDomain is the ErrorInfo domain under which the API v3 server marks ordering and
+// pagination refusals, so a client can tell them apart from other InvalidArgument answers.
+const errorInfoDomain = "jaeger.api_v3"
+
 // Handler implements api_v3.QueryServiceServer
 type Handler struct {
 	api_v3.UnimplementedQueryServiceServer
@@ -165,6 +169,11 @@ func spanQueryParams(query *api_v3.SpanQueryParameters) (querysvc.SpanQueryParam
 		}
 		queryParams.Filter = filter
 	}
+	order, err := tracestore.SpanOrderFromProto(query.GetOrderBy())
+	if err != nil {
+		return querysvc.SpanQueryParams{}, asStatusError(fmt.Errorf("%w: %w", tracestore.ErrSpanOrderInvalid, err))
+	}
+	queryParams.OrderBy = order
 	if pagination := query.GetPagination(); pagination != nil {
 		queryParams.Pagination = querysvc.Pagination{
 			PageSize:  pagination.GetPageSize(),
@@ -290,10 +299,14 @@ func (h *Handler) GetDependencies(ctx context.Context, request *api_v3.GetDepend
 
 // asStatusError maps a query-service error to a gRPC status code. A query this
 // deployment's storage cannot serve is the caller's problem (InvalidArgument) rather than
-// a server fault, and without this it would reach the client as Unknown. Other errors pass
-// through unchanged.
+// a server fault, and without this it would reach the client as Unknown. Ordering and
+// pagination refusals keep their reason so the client can restore the error type. Other
+// errors pass through unchanged.
 func asStatusError(err error) error {
 	if querysvc.IsBadRequest(err) {
+		if tracestore.ErrorReason(err) != "" {
+			return tracestore.InvalidArgumentStatus(err, errorInfoDomain)
+		}
 		return status.Error(codes.InvalidArgument, err.Error())
 	}
 	if errors.Is(err, queryinterceptor.ErrAccessDenied) {
