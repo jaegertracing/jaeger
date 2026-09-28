@@ -56,8 +56,6 @@ func TestNormalizeSpanOrder(t *testing.T) {
 			require.ErrorIs(t, err, ErrSpanOrderInvalid)
 			_, err = EffectiveSpanOrder(order)
 			require.ErrorIs(t, err, ErrSpanOrderInvalid)
-			_, err = (SpanQueryParams{OrderBy: order}).Fingerprint()
-			require.ErrorIs(t, err, ErrSpanOrderInvalid)
 		})
 	}
 }

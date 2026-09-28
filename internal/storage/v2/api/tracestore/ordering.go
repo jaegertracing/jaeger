@@ -6,6 +6,7 @@ package tracestore
 import (
 	"errors"
 	"fmt"
+	"slices"
 
 	expression "github.com/jaegertracing/jaeger-idl/query/expression/v1"
 )
@@ -65,6 +66,17 @@ func EffectiveSpanOrder(order []SpanSortOrder) ([]SpanSortOrder, error) {
 	if err != nil {
 		return nil, err
 	}
+	return effectiveSpanOrder(out), nil
+}
+
+// effectiveSpanOrder adds defaults without restricting the expressions a fingerprint can encode.
+func effectiveSpanOrder(order []SpanSortOrder) []SpanSortOrder {
+	out := slices.Clone(order)
+	for i := range out {
+		if out[i].Direction == "" {
+			out[i].Direction = SortAscending
+		}
+	}
 	for _, fallback := range []struct {
 		name      string
 		direction SortDirection
@@ -73,7 +85,7 @@ func EffectiveSpanOrder(order []SpanSortOrder) ([]SpanSortOrder, error) {
 	} {
 		found := false
 		for _, term := range out {
-			if term.Expression.(*expression.FieldRef).Name == fallback.name {
+			if ref, ok := term.Expression.(*expression.FieldRef); ok && ref != nil && ref.Level == expression.LevelSpan && ref.Name == fallback.name {
 				found = true
 				break
 			}
@@ -82,7 +94,7 @@ func EffectiveSpanOrder(order []SpanSortOrder) ([]SpanSortOrder, error) {
 			out = append(out, SpanSortOrder{Expression: &expression.FieldRef{Level: expression.LevelSpan, Name: fallback.name}, Direction: fallback.direction})
 		}
 	}
-	return out, nil
+	return out
 }
 
 // ValidateSpanSorting refuses explicit ordering unless the reader supports the complete contract.
