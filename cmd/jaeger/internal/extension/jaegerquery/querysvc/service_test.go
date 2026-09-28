@@ -426,7 +426,7 @@ func TestFindSpans_RejectsInvertedTimeRange(t *testing.T) {
 	query := SpanQueryParams{StartTimeMin: testWindowEnd, StartTimeMax: testWindowStart}
 	seq := tqs.queryService.FindSpans(context.Background(), query)
 	_, err := jiter.CollectWithErrors(seq)
-	require.ErrorIs(t, err, ErrQueryInvalid)
+	require.ErrorIs(t, err, tracestore.ErrInvalidQuery)
 	require.ErrorContains(t, err, "start_time_min must be before start_time_max")
 }
 
@@ -1098,9 +1098,9 @@ func TestFindTraces_EnvelopeIsSettledOnce(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			qs := NewQueryService(new(tracestoremocks.Reader), nil, QueryServiceOptions{})
 			_, err := jiter.FlattenWithErrors(qs.FindTraces(context.Background(), test.query))
-			require.ErrorIs(t, err, ErrQueryInvalid)
+			require.ErrorIs(t, err, tracestore.ErrInvalidQuery)
 			require.ErrorContains(t, err, test.wantErr)
-			assert.True(t, IsBadRequest(err), "the caller has to change the query")
+			require.ErrorIs(t, err, tracestore.ErrInvalidQuery, "the caller has to change the query")
 		})
 	}
 

@@ -1135,7 +1135,7 @@ func TestAsStatusError(t *testing.T) {
 		},
 		{
 			name:     "malformed query maps to InvalidArgument",
-			err:      fmt.Errorf("%w: search depth", querysvc.ErrQueryInvalid),
+			err:      fmt.Errorf("%w: search depth", tracestore.ErrInvalidQuery),
 			wantCode: codes.InvalidArgument,
 		},
 		{

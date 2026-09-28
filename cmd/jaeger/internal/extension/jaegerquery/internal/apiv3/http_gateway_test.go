@@ -121,7 +121,7 @@ func TestHTTPGatewayTryHandleError(t *testing.T) {
 
 	// A malformed query is the caller's mistake wherever it is sent, so it is 400.
 	w = httptest.NewRecorder()
-	assert.True(t, gw.tryHandleError(w, fmt.Errorf("%w: search depth", querysvc.ErrQueryInvalid), http.StatusInternalServerError))
+	assert.True(t, gw.tryHandleError(w, fmt.Errorf("%w: search depth", tracestore.ErrInvalidQuery), http.StatusInternalServerError))
 	assert.Equal(t, http.StatusBadRequest, w.Code, "sets status code to 400")
 
 	w = httptest.NewRecorder()

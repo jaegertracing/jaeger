@@ -164,18 +164,9 @@ func (tr *TraceReader) FindTraces(
 	}
 }
 
-// readerError restores the error types marked by readerStatus at the storage boundary. A
-// refusal that carries a reason becomes the reader error it names. Any other Unimplemented
-// status, whether the server lacks the method or a capability the query needs, becomes
-// errors.ErrUnsupported, so the caller reads both as one missing capability.
+// readerError restores the error types marked by readerStatus at the storage boundary.
 func readerError(err error) error {
-	if restored := tracestore.ErrorFromStatus(err, errorInfoDomain); tracestore.ErrorReason(restored) != "" {
-		return restored
-	}
-	if status.Code(err) == codes.Unimplemented {
-		return fmt.Errorf("remote server: %s: %w", status.Convert(err).Message(), errors.ErrUnsupported)
-	}
-	return err
+	return tracestore.ErrorFromStatus(err, errorInfoDomain)
 }
 
 func (tr *TraceReader) FindTraceIDs(
@@ -222,7 +213,7 @@ func (tr *TraceReader) FindSpans(ctx context.Context, params tracestore.SpanQuer
 		defer cancel()
 		stream, err := tr.client.FindSpans(rpcCtx, &storage.FindSpansRequest{Query: query})
 		if err != nil {
-			yield(tracestore.PageChunk[ptrace.Traces]{}, spanReaderError(err, "failed to execute FindSpans"))
+			yield(tracestore.PageChunk[ptrace.Traces]{}, fmt.Errorf("%s: %w", "failed to execute FindSpans", readerError(err)))
 			return
 		}
 		for {
@@ -231,7 +222,7 @@ func (tr *TraceReader) FindSpans(ctx context.Context, params tracestore.SpanQuer
 				return
 			}
 			if err != nil {
-				yield(tracestore.PageChunk[ptrace.Traces]{}, spanReaderError(err, "received error from grpc stream"))
+				yield(tracestore.PageChunk[ptrace.Traces]{}, fmt.Errorf("%s: %w", "received error from grpc stream", readerError(err)))
 				return
 			}
 			traces := ptrace.NewTraces()
@@ -243,10 +234,6 @@ func (tr *TraceReader) FindSpans(ctx context.Context, params tracestore.SpanQuer
 			}
 		}
 	}
-}
-
-func spanReaderError(err error, message string) error {
-	return fmt.Errorf("%s: %w", message, readerError(err))
 }
 
 func toProtoSpanQuery(params tracestore.SpanQueryParams) (*storage.SpanQueryParameters, error) {
@@ -272,9 +259,6 @@ func (tr *TraceReader) FindTraceSummaries(
 	ctx context.Context,
 	params tracestore.TraceQueryParams,
 ) iter.Seq2[tracestore.PageChunk[[]tracestore.TraceSummary], error] {
-	maybeNotImplemented := func(err error, msg string) error {
-		return fmt.Errorf("%s: %w", msg, readerError(err))
-	}
 	return func(yield func(tracestore.PageChunk[[]tracestore.TraceSummary], error) bool) {
 		query, err := toProtoQueryParameters(params)
 		if err != nil {
@@ -283,7 +267,7 @@ func (tr *TraceReader) FindTraceSummaries(
 		}
 		stream, err := tr.client.FindTraceSummaries(ctx, &storage.FindTraceSummariesRequest{Query: query})
 		if err != nil {
-			yield(tracestore.PageChunk[[]tracestore.TraceSummary]{}, maybeNotImplemented(err, "failed to execute FindTraceSummaries"))
+			yield(tracestore.PageChunk[[]tracestore.TraceSummary]{}, fmt.Errorf("%s: %w", "failed to execute FindTraceSummaries", readerError(err)))
 			return
 		}
 		for {
@@ -292,7 +276,7 @@ func (tr *TraceReader) FindTraceSummaries(
 				return
 			}
 			if err != nil {
-				yield(tracestore.PageChunk[[]tracestore.TraceSummary]{}, maybeNotImplemented(err, "received error from grpc stream"))
+				yield(tracestore.PageChunk[[]tracestore.TraceSummary]{}, fmt.Errorf("%s: %w", "received error from grpc stream", readerError(err)))
 				return
 			}
 			chunk := tracestore.PageChunk[[]tracestore.TraceSummary]{

@@ -269,7 +269,7 @@ func TestPrepareSearchQuery_RefusesAMalformedFilter(t *testing.T) {
 	_, err := jiter.FlattenWithErrors(qs.FindTraces(context.Background(), query))
 	require.ErrorIs(t, err, tracestore.ErrFilterInvalid)
 	require.ErrorContains(t, err, `unknown filter operator "matches"`)
-	assert.True(t, IsBadRequest(err), "the API layers answer 400")
+	require.ErrorIs(t, err, tracestore.ErrInvalidQuery, "the API layers answer 400")
 	reader.AssertExpectations(t)
 }
 
@@ -307,7 +307,7 @@ func TestPrepareSearchQuery_RefusesAConstantThatDoesNotFitItsField(t *testing.T)
 			_, err := jiter.FlattenWithErrors(qs.FindTraces(context.Background(), filterQuery(test.filter)))
 			require.ErrorIs(t, err, tracestore.ErrFilterInvalid)
 			require.ErrorContains(t, err, test.expectedErr)
-			assert.True(t, IsBadRequest(err), "the API layers answer 400")
+			require.ErrorIs(t, err, tracestore.ErrInvalidQuery, "the API layers answer 400")
 			reader.AssertExpectations(t)
 		})
 	}
@@ -340,12 +340,12 @@ func TestStructuredFiltersGate_IsBeta(t *testing.T) {
 }
 
 // TestRefusalFamilies pins every query-service refusal to exactly one of the two families the
-// API layers map: a malformed query (IsBadRequest, InvalidArgument / 400) or a query this
-// deployment cannot serve (errors.ErrUnsupported, Unimplemented / 501). A refusal in neither
-// family would reach the client as a server fault, and one in both would be mapped twice.
+// API layers map: a malformed query (tracestore.ErrInvalidQuery, InvalidArgument / 400) or a
+// query this deployment cannot serve (errors.ErrUnsupported, Unimplemented / 501). A refusal in
+// neither family would reach the client as a server fault, and one in both would be mapped twice.
 func TestRefusalFamilies(t *testing.T) {
 	malformed := []error{
-		ErrQueryInvalid,
+		tracestore.ErrInvalidQuery,
 		tracestore.ErrFilterInvalid,
 		tracestore.ErrSpanOrderInvalid,
 		tracestore.ErrPaginationInvalid,
@@ -362,8 +362,8 @@ func TestRefusalFamilies(t *testing.T) {
 	}
 	for _, err := range malformed {
 		t.Run(err.Error(), func(t *testing.T) {
-			assert.True(t, IsBadRequest(err))
-			assert.True(t, IsBadRequest(fmt.Errorf("%w: nested", err)))
+			require.ErrorIs(t, err, tracestore.ErrInvalidQuery)
+			require.ErrorIs(t, fmt.Errorf("%w: nested", err), tracestore.ErrInvalidQuery)
 			require.NotErrorIs(t, err, errors.ErrUnsupported)
 		})
 	}
@@ -371,11 +371,11 @@ func TestRefusalFamilies(t *testing.T) {
 		t.Run(err.Error(), func(t *testing.T) {
 			require.ErrorIs(t, err, errors.ErrUnsupported)
 			require.ErrorIs(t, fmt.Errorf("%w: nested", err), errors.ErrUnsupported)
-			assert.False(t, IsBadRequest(err))
+			require.NotErrorIs(t, err, tracestore.ErrInvalidQuery)
 		})
 	}
-	assert.False(t, IsBadRequest(errors.New("storage is down")))
-	assert.False(t, IsBadRequest(nil))
+	assert.False(t, tracestore.IsRefusal(errors.New("storage is down")), "a server fault is neither")
+	assert.False(t, tracestore.IsRefusal(nil))
 }
 
 // TestPrepareFilteredQuery_EmptyDeclarationIsNoDeclaration pins that a reader naming nothing reads as

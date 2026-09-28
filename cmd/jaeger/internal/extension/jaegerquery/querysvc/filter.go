@@ -68,18 +68,3 @@ func queryToReaderCapabilities(
 	}
 	return query, caps.Filter.EnsureSupported(query.Filter)
 }
-
-// IsBadRequest reports whether err means the query is malformed on its own terms, so the
-// caller must change it wherever it is sent. The API layers answer InvalidArgument / HTTP 400.
-//
-// A query that is well formed but that this deployment cannot serve is the other family of
-// refusal: every such error matches errors.ErrUnsupported, and the API layers answer
-// Unimplemented / HTTP 501 so a caller can tell a missing capability from a mistake and fall
-// back to a query the deployment does serve.
-func IsBadRequest(err error) bool {
-	return errors.Is(err, ErrQueryInvalid) ||
-		errors.Is(err, tracestore.ErrFilterInvalid) ||
-		errors.Is(err, tracestore.ErrSpanOrderInvalid) ||
-		errors.Is(err, tracestore.ErrPaginationInvalid) ||
-		errors.Is(err, tracestore.ErrPaginationUnsupportedByFindTraces)
-}

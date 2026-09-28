@@ -1152,6 +1152,7 @@ func TestSpanRemoteErrors(t *testing.T) {
 			assert.ErrorContains(t, err, "received error from grpc stream")
 		} else {
 			require.ErrorIs(t, err, backendErr)
+			assert.Equal(t, tracestore.ErrorReason(backendErr), tracestore.ErrorReason(err), "a typed refusal keeps its reason and a bare ErrUnsupported has none")
 		}
 	}
 }
@@ -1171,6 +1172,7 @@ func TestFindTracesRemoteErrors(t *testing.T) {
 			assert.ErrorContains(t, err, "received error from grpc stream")
 		} else {
 			require.ErrorIs(t, err, backendErr)
+			assert.Equal(t, tracestore.ErrorReason(backendErr), tracestore.ErrorReason(err), "a typed refusal keeps its reason and a bare ErrUnsupported has none")
 		}
 	}
 }

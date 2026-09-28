@@ -67,6 +67,14 @@ func TestRefusalStatus_UnsupportedWithoutReason(t *testing.T) {
 	assert.Equal(t, err.Error(), st.Message())
 }
 
+func TestIsRefusal(t *testing.T) {
+	assert.True(t, IsRefusal(fmt.Errorf("%w: page size", ErrPaginationInvalid)))
+	assert.True(t, IsRefusal(fmt.Errorf("%w: level scope", ErrFilterUnsupported)))
+	assert.True(t, IsRefusal(fmt.Errorf("no such method: %w", errors.ErrUnsupported)))
+	assert.False(t, IsRefusal(assert.AnError), "a server fault is not a refusal")
+	assert.False(t, IsRefusal(nil))
+}
+
 func TestRefusalCode(t *testing.T) {
 	assert.Equal(t, codes.Unimplemented, RefusalCode(ErrFilterUnsupported))
 	assert.Equal(t, codes.Unimplemented, RefusalCode(ErrPaginationUnsupported))

@@ -34,12 +34,6 @@ const DefaultSearchDepth uint32 = 100
 // a query without one. It is applied here for the same reason as DefaultSearchDepth.
 const DefaultPageSize uint32 = DefaultSearchDepth
 
-// ErrQueryInvalid is returned for a trace search whose envelope is malformed on its own terms:
-// a missing or inverted time range, a negative or inverted duration bound, or a search depth
-// outside [0, MaxSearchDepth]. None of these depends on the backend. The API layers map it to
-// InvalidArgument / HTTP 400.
-var ErrQueryInvalid = errors.New("invalid query")
-
 // ErrSpanSearchUnsupported is returned for a span search against a backend whose reader does
 // not declare SpanSearch (RFC 0016 §4.5). It names the backend's limitation, because the same
 // query is valid elsewhere, and so matches errors.ErrUnsupported, which the API layers map to

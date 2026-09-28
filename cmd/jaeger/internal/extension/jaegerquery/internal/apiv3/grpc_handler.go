@@ -97,7 +97,7 @@ func traceQueryParams(query *api_v3.TraceQueryParameters) (querysvc.TraceQueryPa
 	}
 	depth := query.GetSearchDepth()
 	if depth < 0 || depth > int32(tracestore.MaxSearchDepth) {
-		return querysvc.TraceQueryParams{}, status.Errorf(codes.InvalidArgument, "%s: search depth must be in [0, %d]", querysvc.ErrQueryInvalid, tracestore.MaxSearchDepth)
+		return querysvc.TraceQueryParams{}, status.Errorf(codes.InvalidArgument, "%s: search depth must be in [0, %d]", tracestore.ErrInvalidQuery, tracestore.MaxSearchDepth)
 	}
 	searchDepth := uint32(depth)
 	queryParams := querysvc.TraceQueryParams{
@@ -300,14 +300,11 @@ func (h *Handler) GetDependencies(ctx context.Context, request *api_v3.GetDepend
 // asStatusError maps a query-service error to a gRPC status code. A malformed query is
 // InvalidArgument, and a query this deployment's storage cannot serve is Unimplemented, so a
 // caller can tell a mistake from a missing capability; without this either would reach the
-// client as Unknown. Ordering and pagination refusals keep their reason so the client can
-// restore the error type. Other errors pass through unchanged.
+// client as Unknown. Typed refusals keep their reason so the client can restore the error
+// type. Other errors pass through unchanged.
 func asStatusError(err error) error {
-	if querysvc.IsBadRequest(err) || errors.Is(err, errors.ErrUnsupported) {
-		if tracestore.ErrorReason(err) != "" {
-			return tracestore.RefusalStatus(err, errorInfoDomain)
-		}
-		return status.Error(tracestore.RefusalCode(err), err.Error())
+	if tracestore.IsRefusal(err) {
+		return tracestore.RefusalStatus(err, errorInfoDomain)
 	}
 	if errors.Is(err, queryinterceptor.ErrAccessDenied) {
 		return status.Error(codes.PermissionDenied, err.Error())

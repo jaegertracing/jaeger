@@ -11,6 +11,13 @@ import (
 	expression "github.com/jaegertracing/jaeger-idl/query/expression/v1"
 )
 
+// ErrInvalidQuery is the root of every refusal of a query that is malformed on its own terms,
+// so the caller must change it wherever it is sent. Each such sentinel wraps it, and the API
+// layers answer InvalidArgument / HTTP 400 to anything that matches it. The other root is
+// errors.ErrUnsupported, which every refusal for a capability this backend lacks wraps; the
+// API layers answer Unimplemented / HTTP 501 to those (ADR-013).
+var ErrInvalidQuery = errors.New("invalid query")
+
 // ErrFilterUnsupported is returned for a well-formed query filter that the storage cannot
 // serve — a level it does not index, an operator it has not implemented, or a boolean
 // structure a flat index cannot evaluate (RFC 0005 §7). The query is refused rather than
@@ -24,7 +31,7 @@ var ErrFilterUnsupported = fmt.Errorf("this storage backend cannot serve this qu
 // ErrFilterInvalid is returned for a query filter whose value does not fit the field it
 // compares — the kind of mistake a structural check cannot catch, because the filter AST
 // deliberately does not carry types (RFC 0005 §6.1).
-var ErrFilterInvalid = errors.New("invalid query filter")
+var ErrFilterInvalid = fmt.Errorf("invalid query filter: %w", ErrInvalidQuery)
 
 // ErrPaginationUnsupported is returned for a query carrying a Pagination.PageToken to a
 // Reader whose SearchCapabilities.Paginated is false. The query is refused rather than
@@ -38,13 +45,13 @@ var ErrPaginationUnsupported = fmt.Errorf("this storage backend cannot resume a 
 // have no single honest meaning together, or one that leaves PageSize at zero, since a
 // Pagination with no page size does not describe a page (RFC 0014 §4). A Reader returns it
 // for a PageToken it did not produce or produced for a different query (RFC 0014 §3.2).
-var ErrPaginationInvalid = errors.New("invalid pagination")
+var ErrPaginationInvalid = fmt.Errorf("invalid pagination: %w", ErrInvalidQuery)
 
 // ErrPaginationUnsupportedByFindTraces is returned for a FindTraces query that carries
 // Pagination. FindTraces streams whole traces with no field to carry a continuation token,
 // so honoring the request would accept a paging request and never hand back a cursor,
 // leaving the caller unable to tell a bounded page from the last one (RFC 0014 §4).
-var ErrPaginationUnsupportedByFindTraces = errors.New("FindTraces cannot be paginated: its response has no field to carry a continuation token")
+var ErrPaginationUnsupportedByFindTraces = fmt.Errorf("FindTraces cannot be paginated: its response has no field to carry a continuation token: %w", ErrInvalidQuery)
 
 // SearchCapabilities describes how a Reader's search methods behave where backends
 // differ: which TraceQueryParams fields may be omitted, which are honored exactly

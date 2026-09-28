@@ -79,7 +79,7 @@ func (h *HTTPGateway) tryHandleError(w http.ResponseWriter, err error, statusCod
 	if errors.Is(err, spanstore.ErrTraceNotFound) {
 		statusCode = http.StatusNotFound
 	}
-	if querysvc.IsBadRequest(err) {
+	if errors.Is(err, tracestore.ErrInvalidQuery) {
 		statusCode = http.StatusBadRequest
 	}
 	if errors.Is(err, errors.ErrUnsupported) {
