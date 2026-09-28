@@ -139,14 +139,44 @@
             }
           }
         ],
-        "must_not": {
-          "ids": {
-            "values": [
-              "doc-1",
-              "doc-2"
-            ]
+        "must_not": [
+          {
+            "bool": {
+              "must": [
+                {
+                  "term": {
+                    "_index": "jaeger-span-2020-01-01"
+                  }
+                },
+                {
+                  "ids": {
+                    "values": [
+                      "doc-1"
+                    ]
+                  }
+                }
+              ]
+            }
+          },
+          {
+            "bool": {
+              "must": [
+                {
+                  "term": {
+                    "_index": "jaeger-span-2020-01-02"
+                  }
+                },
+                {
+                  "ids": {
+                    "values": [
+                      "doc-2"
+                    ]
+                  }
+                }
+              ]
+            }
           }
-        }
+        ]
       }
     },
     "size": 3,

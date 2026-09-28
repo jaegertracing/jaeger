@@ -58,6 +58,7 @@ func spanHit(id string, traceID, spanID string, startTime uint64) esclient.Searc
 		panic(err)
 	}
 	return esclient.SearchHit{
+		Index:  "jaeger-span-2020-01-02",
 		ID:     id,
 		Source: src,
 		Sort:   []json.RawMessage{json.RawMessage(strconv.FormatUint(startTime, 10)), json.RawMessage(`"` + traceID + `"`), json.RawMessage(`"` + spanID + `"`)},
@@ -128,15 +129,17 @@ func TestSpanReader_FindSpans_CursorCarriesTiedIDs(t *testing.T) {
 		var cursor spanCursor
 		require.NoError(t, json.Unmarshal(page.NextCursor, &cursor))
 		assert.Equal(t, []json.RawMessage{json.RawMessage(`10`), json.RawMessage(`"t1"`), json.RawMessage(`"s2"`)}, cursor.Sort)
-		assert.Equal(t, []string{"d2"}, cursor.IDs)
+		assert.Equal(t, []spanDoc{{Index: "jaeger-span-2020-01-02", ID: "d2"}}, cursor.Docs)
 	})
 }
 
 func TestSpanReader_FindSpans_Continuation(t *testing.T) {
 	withSpanReader(t, func(r *spanReaderTest) {
+		// The cursor names a copy stored in an older index under the same id as one of this
+		// page's hits, which is what a retry after a rollover leaves behind; both are occurrences.
 		before := spanCursor{
 			Sort: []json.RawMessage{json.RawMessage(`10`), json.RawMessage(`"t1"`), json.RawMessage(`"s2"`)},
-			IDs:  []string{"d2"},
+			Docs: []spanDoc{{Index: "jaeger-span-2020-01-01", ID: "d3"}, {Index: "jaeger-span-2020-01-02", ID: "d2"}},
 		}
 		cursor, err := json.Marshal(before)
 		require.NoError(t, err)
@@ -147,8 +150,9 @@ func TestSpanReader_FindSpans_Continuation(t *testing.T) {
 			body, err := json.Marshal(src)
 			require.NoError(t, err)
 			// The continuation selects the keys at or after the cursor and leaves out the
-			// documents the cursor names, so a tied copy is returned and a returned one is not.
-			assert.Contains(t, string(body), `"ids":{"values":["d2"]}`)
+			// documents the cursor names, each within its own index, so a tied copy is returned
+			// and a returned one is not.
+			assert.Contains(t, string(body), `"must_not":[{"bool":{"must":[{"term":{"_index":"jaeger-span-2020-01-01"}},{"ids":{"values":["d3"]}}]}},{"bool":{"must":[{"term":{"_index":"jaeger-span-2020-01-02"}},{"ids":{"values":["d2"]}}]}}]`)
 			assert.Contains(t, string(body), `"range":{"startTime":{"lt":10}}`)
 			assert.Contains(t, string(body), `"range":{"spanID":{"gt":"s2"}}`)
 		}).Return(&esclient.SearchResponse{Hits: esclient.HitsResult{Hits: []esclient.SearchHit{
@@ -161,10 +165,50 @@ func TestSpanReader_FindSpans_Continuation(t *testing.T) {
 		assert.Equal(t, []string{"s2", "s2"}, spanIDs(page.Spans))
 		var next spanCursor
 		require.NoError(t, json.Unmarshal(page.NextCursor, &next))
-		// The page did not move past the cursor's key, so the ids accumulate.
+		// The page did not move past the cursor's key, so the named documents accumulate.
 		assert.Equal(t, before.Sort, next.Sort)
-		assert.Equal(t, []string{"d3", "d4", "d2"}, next.IDs)
+		assert.Equal(t, append([]spanDoc{{Index: "jaeger-span-2020-01-02", ID: "d3"}, {Index: "jaeger-span-2020-01-02", ID: "d4"}}, before.Docs...), next.Docs)
 	})
+}
+
+func TestSpanReader_FindSpans_ContinuationPastCursorKey(t *testing.T) {
+	withSpanReader(t, func(r *spanReaderTest) {
+		cursor, err := json.Marshal(spanCursor{
+			Sort: []json.RawMessage{json.RawMessage(`10`), json.RawMessage(`"t1"`), json.RawMessage(`"s2"`)},
+			Docs: []spanDoc{{Index: "jaeger-span-2020-01-02", ID: "d2"}},
+		})
+		require.NoError(t, err)
+		mockSearchService(r).Return(&esclient.SearchResponse{Hits: esclient.HitsResult{Hits: []esclient.SearchHit{
+			spanHit("d5", "t2", "s1", 5), spanHit("d6", "t2", "s2", 5), spanHit("d7", "t3", "s1", 1),
+		}}}, nil)
+		query := spanSearchQuery()
+		query.Cursor = cursor
+		page, err := r.reader.FindSpans(context.Background(), query)
+		require.NoError(t, err)
+		var next spanCursor
+		require.NoError(t, json.Unmarshal(page.NextCursor, &next))
+		// The page moved past the cursor's key, so the documents it named are dropped: they
+		// no longer tie with the new last hit and excluding them would be needless.
+		assert.Equal(t, []json.RawMessage{json.RawMessage(`5`), json.RawMessage(`"t2"`), json.RawMessage(`"s2"`)}, next.Sort)
+		assert.Equal(t, []spanDoc{{Index: "jaeger-span-2020-01-02", ID: "d6"}}, next.Docs)
+	})
+}
+
+// TestSpanReader_FindSpans_OneDocumentLimit covers a max_doc_count of one, which cannot tell a
+// full page from the end of the results and so is raised to two.
+func TestSpanReader_FindSpans_OneDocumentLimit(t *testing.T) {
+	searcher := esclientmocks.NewSearcher(t)
+	reader := newSnapshotReader(searcher)
+	reader.maxDocCount = 1
+	searcher.On("Search", mock.Anything, mock.Anything, mock.MatchedBy(func(req esclient.SearchRequest) bool {
+		return req.Size == 2
+	})).Return(&esclient.SearchResponse{Hits: esclient.HitsResult{Hits: []esclient.SearchHit{
+		spanHit("d1", "t1", "s1", 20), spanHit("d2", "t1", "s2", 10),
+	}}}, nil)
+	page, err := reader.FindSpans(context.Background(), spanSearchQuery())
+	require.NoError(t, err)
+	assert.Equal(t, []string{"s1"}, spanIDs(page.Spans))
+	assert.NotEmpty(t, page.NextCursor)
 }
 
 func TestSpanReader_FindSpans_ExplicitOrder(t *testing.T) {
@@ -189,7 +233,7 @@ func TestSpanReader_FindSpans_ExplicitOrder(t *testing.T) {
 }
 
 func TestSpanReader_FindSpans_RefusedBeforeSearching(t *testing.T) {
-	validCursor, err := json.Marshal(spanCursor{Sort: []json.RawMessage{json.RawMessage(`1`), json.RawMessage(`"t"`), json.RawMessage(`"s"`)}, IDs: []string{"d"}})
+	validCursor, err := json.Marshal(spanCursor{Sort: []json.RawMessage{json.RawMessage(`1`), json.RawMessage(`"t"`), json.RawMessage(`"s"`)}, Docs: []spanDoc{{Index: "i", ID: "d"}}})
 	require.NoError(t, err)
 	for _, tc := range []struct {
 		name  string
@@ -201,7 +245,13 @@ func TestSpanReader_FindSpans_RefusedBeforeSearching(t *testing.T) {
 		{"NoPageSize", func(q *dbmodel.SpanQueryParameters) { q.PageSize = 0 }, tracestore.ErrPaginationInvalid},
 		{"UnknownOrderField", func(q *dbmodel.SpanQueryParameters) { q.OrderBy = orderBy("name", "asc") }, tracestore.ErrSpanOrderInvalid},
 		{"MalformedCursor", func(q *dbmodel.SpanQueryParameters) { q.Cursor = []byte("not json") }, tracestore.ErrPaginationInvalid},
-		{"CursorWithoutIDs", func(q *dbmodel.SpanQueryParameters) { q.Cursor = []byte(`{"sort":[1,"t","s"]}`) }, tracestore.ErrPaginationInvalid},
+		{"CursorWithoutDocuments", func(q *dbmodel.SpanQueryParameters) { q.Cursor = []byte(`{"sort":[1,"t","s"]}`) }, tracestore.ErrPaginationInvalid},
+		{"CursorWithObjectForTime", func(q *dbmodel.SpanQueryParameters) {
+			q.Cursor = []byte(`{"sort":[{},"t","s"],"docs":[{"index":"i","id":"d"}]}`)
+		}, tracestore.ErrPaginationInvalid},
+		{"CursorWithNumberForID", func(q *dbmodel.SpanQueryParameters) {
+			q.Cursor = []byte(`{"sort":[1,2,"s"],"docs":[{"index":"i","id":"d"}]}`)
+		}, tracestore.ErrPaginationInvalid},
 		{"CursorOfAnotherOrder", func(q *dbmodel.SpanQueryParameters) {
 			q.OrderBy = orderBy("duration", "desc")
 			q.Cursor = validCursor
@@ -250,6 +300,10 @@ func TestSpanReader_FindSpans_SearchErrors(t *testing.T) {
 	})
 }
 
+func TestSortFieldRefusesAnEscapedTerm(t *testing.T) {
+	assert.Panics(t, func() { sortField(orderBy("name", "asc")[0]) })
+}
+
 func TestSameSortValues(t *testing.T) {
 	raw := func(values ...string) []json.RawMessage {
 		out := make([]json.RawMessage, len(values))
@@ -274,7 +328,7 @@ func TestSpanSearchRequestSnapshots(t *testing.T) {
 	continuation.OrderBy = orderBy("duration", "desc", "traceID", "asc")
 	cursor, err := json.Marshal(spanCursor{
 		Sort: []json.RawMessage{json.RawMessage(`2000000`), json.RawMessage(`"000000000000000000000000000000ab"`), json.RawMessage(`1577934245000000`), json.RawMessage(`"00000000000000cd"`)},
-		IDs:  []string{"doc-1", "doc-2"},
+		Docs: []spanDoc{{Index: "jaeger-span-2020-01-01", ID: "doc-1"}, {Index: "jaeger-span-2020-01-02", ID: "doc-2"}},
 	})
 	require.NoError(t, err)
 	continuation.Cursor = cursor

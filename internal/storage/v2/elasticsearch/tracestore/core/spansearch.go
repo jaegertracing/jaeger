@@ -30,15 +30,22 @@ var spanSortFields = map[string]string{
 }
 
 // spanCursor is where a page of a span search ended: the sort values of the page's last hit,
-// as the engine returned them, and the ids of the documents already returned that share those
-// values. A continuation asks for the documents whose sort key is at or after the values and
-// excludes the ids, so a stored duplicate that ties with the last hit on every sort field is
+// as the engine returned them, and the documents already returned that share those values. A
+// continuation asks for the documents whose sort key is at or after the values and excludes
+// those documents, so a stored duplicate that ties with the last hit on every sort field is
 // still returned on the next page rather than skipped, which a bare search_after would do
-// (RFC 0016 §6.4). The ids are what make the count of returned copies unnecessary: the engine
-// does not promise a repeatable order among tied hits, but the ids name them exactly.
+// (RFC 0016 §6.4). Naming the documents is what makes a count of returned copies unnecessary:
+// the engine does not promise a repeatable order among tied hits, but the names are exact.
 type spanCursor struct {
 	Sort []json.RawMessage `json:"sort"`
-	IDs  []string          `json:"ids"`
+	Docs []spanDoc         `json:"docs"`
+}
+
+// spanDoc names one stored document. The id alone does not: a span retried after a rollover
+// can be stored under the same id in two backing indices, and both are occurrences.
+type spanDoc struct {
+	Index string `json:"index"`
+	ID    string `json:"id"`
 }
 
 // FindSpans returns one page of the spans matching the query, in the query's effective
@@ -58,11 +65,13 @@ func (s *SpanReader) FindSpans(ctx context.Context, query dbmodel.SpanQueryParam
 	if err := validateSpanQuery(query); err != nil {
 		return dbmodel.SpanPage{}, err
 	}
-	after, err := decodeSpanCursor(query.Cursor, len(order))
+	after, err := decodeSpanCursor(query.Cursor, order)
 	if err != nil {
 		return dbmodel.SpanPage{}, err
 	}
-	fetch := min(query.PageSize+1, s.maxDocCount)
+	// A fetch of one hit could not tell a full page from the end of the results, so the
+	// configured limit is raised to two where it is lower.
+	fetch := min(query.PageSize+1, max(s.maxDocCount, 2))
 	req, err := s.buildSpanSearchRequest(query, order, after, fetch)
 	if err != nil {
 		return dbmodel.SpanPage{}, err
@@ -130,17 +139,45 @@ func (s *SpanReader) buildSpanSearchRequest(
 	}
 	if after != nil {
 		boolQuery.Must(keysetAtOrAfter(order, after.Sort))
-		boolQuery.MustNot(esquery.NewIdsQuery(after.IDs...))
+		boolQuery.MustNot(returnedDocs(after.Docs)...)
 	}
 	sort := make([]esclient.SortOrder, len(order))
 	for i, term := range order {
-		sort[i] = esclient.SortOrder{Field: spanSortFields[term.Expression.(*expression.FieldRef).Name], Order: sortDirection(term.Direction)}
+		sort[i] = esclient.SortOrder{Field: sortField(term), Order: sortDirection(term.Direction)}
 	}
 	return esclient.SearchRequest{
 		Query: boolQuery,
 		Size:  fetch,
 		Sort:  sort,
 	}, nil
+}
+
+// sortField is the document field an ordering term sorts on. The order arrives settled by
+// tracestore.EffectiveSpanOrder, which admits only the fields spanSortFields maps.
+func sortField(term tracestore.SpanSortOrder) string {
+	ref, ok := term.Expression.(*expression.FieldRef)
+	if !ok || spanSortFields[ref.Name] == "" {
+		panic(fmt.Sprintf("ordering term %v escaped tracestore.EffectiveSpanOrder", term.Expression))
+	}
+	return spanSortFields[ref.Name]
+}
+
+// returnedDocs selects the documents a cursor names, one ids query per backing index, since
+// an id identifies a document only together with its index.
+func returnedDocs(docs []spanDoc) []esquery.Query {
+	byIndex := make(map[string][]string)
+	var indices []string
+	for _, doc := range docs {
+		if _, seen := byIndex[doc.Index]; !seen {
+			indices = append(indices, doc.Index)
+		}
+		byIndex[doc.Index] = append(byIndex[doc.Index], doc.ID)
+	}
+	queries := make([]esquery.Query, len(indices))
+	for i, index := range indices {
+		queries[i] = esquery.NewBoolQuery().Must(esquery.NewTermQuery("_index", index), esquery.NewIdsQuery(byIndex[index]...))
+	}
+	return queries
 }
 
 func sortDirection(direction tracestore.SortDirection) esquery.SortDirection {
@@ -158,8 +195,7 @@ func sortDirection(direction tracestore.SortDirection) esquery.SortDirection {
 func keysetAtOrAfter(order []tracestore.SpanSortOrder, key []json.RawMessage) esquery.Query {
 	alternatives := make([]esquery.Query, 0, len(order)+1)
 	for i, term := range order {
-		field := spanSortFields[term.Expression.(*expression.FieldRef).Name]
-		past := esquery.NewRangeQuery(field)
+		past := esquery.NewRangeQuery(sortField(term))
 		if term.Direction == tracestore.SortDescending {
 			past.Lt(key[i])
 		} else {
@@ -174,28 +210,41 @@ func keysetAtOrAfter(order []tracestore.SpanSortOrder, key []json.RawMessage) es
 func keysetEquals(order []tracestore.SpanSortOrder, key []json.RawMessage) []esquery.Query {
 	equals := make([]esquery.Query, len(order))
 	for i, term := range order {
-		equals[i] = esquery.NewTermQuery(spanSortFields[term.Expression.(*expression.FieldRef).Name], key[i])
+		equals[i] = esquery.NewTermQuery(sortField(term), key[i])
 	}
 	return equals
 }
 
 // decodeSpanCursor reads the cursor a token carried, or returns nil for none. A cursor is
-// refused unless it holds one sort value per term of the order and at least one id, since
-// the reader never returns one shaped otherwise.
-func decodeSpanCursor(raw []byte, terms int) (*spanCursor, error) {
+// refused unless it holds one sort value per term of the order, each a number for a long field
+// and a string for a keyword field, and names at least one document, since the reader never
+// returns one shaped otherwise and the engine would reject the query built from it.
+func decodeSpanCursor(raw []byte, order []tracestore.SpanSortOrder) (*spanCursor, error) {
 	if len(raw) == 0 {
 		return nil, nil
 	}
 	var c spanCursor
-	if err := json.Unmarshal(raw, &c); err != nil || len(c.Sort) != terms || len(c.IDs) == 0 {
+	if err := json.Unmarshal(raw, &c); err != nil || len(c.Sort) != len(order) || len(c.Docs) == 0 {
 		return nil, fmt.Errorf("%w: page token does not carry a span position", tracestore.ErrPaginationInvalid)
+	}
+	for i, term := range order {
+		var want any
+		switch sortField(term) {
+		case traceIDField, spanIDField:
+			want = new(string)
+		default:
+			want = new(json.Number)
+		}
+		if err := json.Unmarshal(c.Sort[i], want); err != nil {
+			return nil, fmt.Errorf("%w: page token does not carry a span position", tracestore.ErrPaginationInvalid)
+		}
 	}
 	return &c, nil
 }
 
 // nextSpanCursor is the cursor that resumes after the page's last hit: its sort values, with
-// the ids of every hit on the page that shares them, and the ids the previous cursor carried
-// when the page did not move past its key.
+// every hit on the page that shares them, and the documents the previous cursor named when the
+// page did not move past its key.
 func nextSpanCursor(page []esclient.SearchHit, after *spanCursor, terms int) (*spanCursor, error) {
 	last := page[len(page)-1]
 	if len(last.Sort) != terms {
@@ -204,11 +253,11 @@ func nextSpanCursor(page []esclient.SearchHit, after *spanCursor, terms int) (*s
 	next := &spanCursor{Sort: last.Sort}
 	for _, hit := range page {
 		if sameSortValues(hit.Sort, last.Sort) {
-			next.IDs = append(next.IDs, hit.ID)
+			next.Docs = append(next.Docs, spanDoc{Index: hit.Index, ID: hit.ID})
 		}
 	}
 	if after != nil && sameSortValues(after.Sort, last.Sort) {
-		next.IDs = append(next.IDs, after.IDs...)
+		next.Docs = append(next.Docs, after.Docs...)
 	}
 	return next, nil
 }
