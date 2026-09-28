@@ -197,10 +197,12 @@ func Elasticsearch() Capabilities {
 		getOperationsMissingSpanKind: true,
 		// The suite runs with typed attribute indexing enabled (RFC 0015), so an attribute value is
 		// indexed as a number beside the keyword and ordering one is answered rather than refused.
-		// That makes the battery's paired refusal case the one to skip.
+		// That makes the battery's paired refusal case the one to skip. FindSpans pages and
+		// orders (RFC 0016 M4, M11); the trace searches do not page yet (RFC 0014 M3).
 		skipList: []string{
-			spanOrderingTest,
-			paginationTest,
+			spanAttributeOrderingTest,
+			traceIDPaginationTest,
+			summaryPaginationTest,
 			scopeAttributesTest,
 			linkAttributesTest,
 			attributeRefusedTest,
@@ -229,10 +231,11 @@ func ElasticsearchSmokeTest() Capabilities {
 func OpenSearch() Capabilities {
 	return Capabilities{
 		getOperationsMissingSpanKind: true,
-		// Same mapping and same gate as Elasticsearch; see the note there.
+		// Same mapping, same gate and same search support as Elasticsearch; see the notes there.
 		skipList: []string{
-			spanOrderingTest,
-			paginationTest,
+			spanAttributeOrderingTest,
+			traceIDPaginationTest,
+			summaryPaginationTest,
 			scopeAttributesTest,
 			linkAttributesTest,
 			attributeRefusedTest,
