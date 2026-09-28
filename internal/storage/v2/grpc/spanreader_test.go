@@ -153,7 +153,7 @@ func TestSpanServerRefusals(t *testing.T) {
 
 func TestSpanQueryConversion(t *testing.T) {
 	filter := &expression.Call{Op: expression.OpEq, Args: []expression.Expression{&expression.FieldRef{Level: expression.LevelSpan, Name: "name"}, &expression.StringValue{Value: "operation"}}}
-	query := tracestore.SpanQueryParams{OrderBy: spanOrder(), Filter: filter}
+	query := tracestore.SpanQueryParams{Filter: filter, OrderBy: spanOrder()}
 	wire, err := toProtoSpanQuery(query)
 	require.NoError(t, err)
 	got, err := toSpanQueryParams(wire)
