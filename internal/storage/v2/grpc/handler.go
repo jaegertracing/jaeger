@@ -233,15 +233,13 @@ func (h *Handler) FindTraceSummaries(
 }
 
 // readerStatus converts the reader errors that the storage client must recognize into gRPC
-// statuses. A backend that cannot serve the request natively signals errors.ErrUnsupported, which
-// becomes Unimplemented so the client can fall back or report the missing capability. Pagination
-// and ordering refusals become InvalidArgument marked with a reason so the client can restore
-// their error types. Other errors keep whatever status they carry.
+// statuses. A backend that cannot serve the request, whether it lacks the method or a capability
+// the query needs, signals errors.ErrUnsupported, which becomes Unimplemented so the client can
+// fall back or report the missing capability. A malformed query becomes InvalidArgument. Pagination
+// and ordering refusals carry a reason on either code so the client can restore their error
+// types. Other errors keep whatever status they carry.
 func readerStatus(err error) error {
-	if errors.Is(err, errors.ErrUnsupported) {
-		return status.Errorf(codes.Unimplemented, "not implemented by the storage backend: %v", err)
-	}
-	return tracestore.InvalidArgumentStatus(err, errorInfoDomain)
+	return tracestore.RefusalStatus(err, errorInfoDomain)
 }
 
 func (h *Handler) FindTraceIDs(

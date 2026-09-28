@@ -1150,7 +1150,7 @@ func TestFindSpans_RefusesAFilterTheBackendDoesNotEvaluate(t *testing.T) {
 		Filter: serviceFilter("cart"),
 	})))
 	require.ErrorIs(t, err, tracestore.ErrFilterUnsupported)
-	assert.True(t, IsBadRequest(err))
+	require.ErrorIs(t, err, errors.ErrUnsupported)
 	assert.False(t, next.findCalled, "storage must not be queried")
 }
 
@@ -1196,7 +1196,7 @@ func TestFindSpans_RefusesACallerFilterTheDeploymentDoesNotAccept(t *testing.T) 
 			Filter: serviceFilter("cart"),
 		})))
 		require.ErrorIs(t, err, ErrFilterDisabled)
-		assert.True(t, IsBadRequest(err))
+		require.ErrorIs(t, err, errors.ErrUnsupported)
 		assert.False(t, next.findCalled, "storage must not be queried")
 	})
 

@@ -5,6 +5,7 @@ package querysvc
 
 import (
 	"errors"
+	"fmt"
 
 	"go.opentelemetry.io/collector/featuregate"
 )
@@ -23,4 +24,5 @@ var PaginationGate = featuregate.GlobalRegistry().MustRegister(
 )
 
 // ErrPaginationDisabled is returned for a query carrying Pagination while PaginationGate is off.
-var ErrPaginationDisabled = errors.New("pagination is disabled")
+// The same query is valid on a deployment with the gate on, so it matches errors.ErrUnsupported.
+var ErrPaginationDisabled = fmt.Errorf("pagination is disabled: %w", errors.ErrUnsupported)

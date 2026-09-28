@@ -18,8 +18,12 @@ const (
 )
 
 var (
-	ErrSpanOrderInvalid     = errors.New("invalid span ordering")
-	ErrSpanOrderUnsupported = errors.New("unsupported span ordering")
+	// ErrSpanOrderInvalid is returned for an ordering that is malformed on its own terms,
+	// independent of any backend (RFC 0016 §6.3).
+	ErrSpanOrderInvalid = errors.New("invalid span ordering")
+	// ErrSpanOrderUnsupported is returned for a valid explicit ordering that this backend does
+	// not declare (RFC 0016 §6.5). It is a capability refusal, so it matches errors.ErrUnsupported.
+	ErrSpanOrderUnsupported = fmt.Errorf("unsupported span ordering: %w", errors.ErrUnsupported)
 )
 
 // SpanSortOrder selects a span field and its direction, in query precedence order.

@@ -12,9 +12,9 @@ import (
 	"google.golang.org/grpc/status"
 )
 
-// The ErrorInfo reasons that mark a reader refusal on an InvalidArgument status. A gRPC server
-// answers InvalidArgument to other malformed requests too, so a client needs the reason, not the
-// code, to restore the matching reader error.
+// The ErrorInfo reasons that mark a reader refusal on a status. The status code carries only the
+// refusal's family (RefusalCode), and a gRPC server answers the same codes to other failures too,
+// so a client needs the reason, not the code, to restore the matching reader error.
 const (
 	PaginationInvalidReason    = "PAGINATION_INVALID"
 	SpanOrderInvalidReason     = "ORDERING_INVALID"
@@ -39,22 +39,37 @@ func ErrorReason(err error) string {
 	return ""
 }
 
-// InvalidArgumentStatus converts a reader refusal into an InvalidArgument status that carries
-// the refusal's reason in the given ErrorInfo domain. Any other error is returned unchanged.
-func InvalidArgumentStatus(err error, domain string) error {
+// RefusalCode returns the gRPC code for a query the reader refused. A refusal that matches
+// errors.ErrUnsupported names a capability this backend lacks, so the same query is valid
+// elsewhere and the caller may fall back; that is Unimplemented. Every other refusal means the
+// query is malformed on its own terms and is InvalidArgument.
+func RefusalCode(err error) codes.Code {
+	if errors.Is(err, errors.ErrUnsupported) {
+		return codes.Unimplemented
+	}
+	return codes.InvalidArgument
+}
+
+// RefusalStatus converts a reader refusal into a status whose code is RefusalCode and which
+// carries the refusal's reason, when it has one, in the given ErrorInfo domain. An error that
+// neither matches errors.ErrUnsupported nor carries a reason is returned unchanged.
+func RefusalStatus(err error, domain string) error {
 	reason := ErrorReason(err)
-	if reason == "" {
+	if reason == "" && !errors.Is(err, errors.ErrUnsupported) {
 		return err
 	}
-	st := status.New(codes.InvalidArgument, err.Error())
+	st := status.New(RefusalCode(err), err.Error())
+	if reason == "" {
+		return st.Err()
+	}
 	if detailed, detailErr := st.WithDetails(&errdetails.ErrorInfo{Reason: reason, Domain: domain}); detailErr == nil {
 		st = detailed
 	}
 	return st.Err()
 }
 
-// ErrorFromStatus restores the reader error that a status produced by InvalidArgumentStatus in
-// the given domain carries. Any other error is returned unchanged.
+// ErrorFromStatus restores the reader error that a status produced by RefusalStatus in the
+// given domain carries. Any other error is returned unchanged.
 func ErrorFromStatus(err error, domain string) error {
 	st := status.Convert(err)
 	for _, detail := range st.Details() {

@@ -1156,6 +1156,18 @@ func TestSpanRemoteErrors(t *testing.T) {
 	}
 }
 
+// TestSpanRemoteErrors_CapabilityWithoutReason covers a capability refusal that carries no
+// reason of its own: it crosses the wire as Unimplemented and arrives as errors.ErrUnsupported
+// with the server's message, so the caller reads it as a missing capability, not a bad request.
+func TestSpanRemoteErrors_CapabilityWithoutReason(t *testing.T) {
+	reader := new(tracestoremocks.Reader)
+	reader.On("FindSpans", mock.Anything, mock.Anything).Return(spanSequence(nil, tracestore.ErrFilterUnsupported))
+	_, err := jiter.CollectWithErrors(spanRemote(t, reader).FindSpans(t.Context(), tracestore.SpanQueryParams{}))
+	require.ErrorIs(t, err, errors.ErrUnsupported)
+	require.NotErrorIs(t, err, tracestore.ErrSpanOrderUnsupported)
+	assert.ErrorContains(t, err, "cannot serve this query filter")
+}
+
 func TestSpanQueryConversion(t *testing.T) {
 	filter := &expression.Call{Op: expression.OpEq, Args: []expression.Expression{&expression.FieldRef{Level: expression.LevelSpan, Name: "name"}, &expression.StringValue{Value: "operation"}}}
 	query := tracestore.SpanQueryParams{Filter: filter, OrderBy: spanOrder()}
@@ -1267,14 +1279,15 @@ func TestReaderErrorDetails(t *testing.T) {
 	for _, tc := range []struct {
 		err    error
 		reason string
+		code   codes.Code
 	}{
-		{tracestore.ErrSpanOrderInvalid, "ORDERING_INVALID"},
-		{tracestore.ErrSpanOrderUnsupported, "ORDERING_UNSUPPORTED"},
-		{tracestore.ErrPaginationInvalid, "PAGINATION_INVALID"},
+		{tracestore.ErrSpanOrderInvalid, "ORDERING_INVALID", codes.InvalidArgument},
+		{tracestore.ErrSpanOrderUnsupported, "ORDERING_UNSUPPORTED", codes.Unimplemented},
+		{tracestore.ErrPaginationInvalid, "PAGINATION_INVALID", codes.InvalidArgument},
 	} {
 		wire := readerStatus(tc.err)
 		st := status.Convert(wire)
-		assert.Equal(t, codes.InvalidArgument, st.Code())
+		assert.Equal(t, tc.code, st.Code())
 		require.Len(t, st.Details(), 1)
 		info, ok := st.Details()[0].(*errdetails.ErrorInfo)
 		require.True(t, ok)

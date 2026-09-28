@@ -159,6 +159,9 @@ func (g *GRPCHandler) FindTraces(r *api_v2.FindTracesRequest, stream api_v2.Quer
 		if querysvc.IsBadRequest(err) {
 			return status.Error(codes.InvalidArgument, err.Error())
 		}
+		if errors.Is(err, errors.ErrUnsupported) {
+			return status.Error(codes.Unimplemented, err.Error())
+		}
 		g.logger.Error("failed when searching for traces", zap.Error(err))
 		return status.Errorf(codes.Internal, "failed when searching for traces: %v", err)
 	}

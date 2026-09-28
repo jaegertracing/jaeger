@@ -5,6 +5,7 @@ package tracestore
 
 import (
 	"errors"
+	"fmt"
 	"slices"
 
 	expression "github.com/jaegertracing/jaeger-idl/query/expression/v1"
@@ -17,8 +18,8 @@ import (
 // service returns it for the limits a Reader declared through FilterCapabilities, and a
 // Reader returns it for the ones that declaration is too coarse to express — a built-in
 // field of a level it serves but does not store, or an operator it serves on some
-// references and not others.
-var ErrFilterUnsupported = errors.New("this storage backend cannot serve this query filter")
+// references and not others. It is a capability refusal, so it matches errors.ErrUnsupported.
+var ErrFilterUnsupported = fmt.Errorf("this storage backend cannot serve this query filter: %w", errors.ErrUnsupported)
 
 // ErrFilterInvalid is returned for a query filter whose value does not fit the field it
 // compares — the kind of mistake a structural check cannot catch, because the filter AST
@@ -29,8 +30,8 @@ var ErrFilterInvalid = errors.New("invalid query filter")
 // Reader whose SearchCapabilities.Paginated is false. The query is refused rather than
 // treated as a new search, because a Reader that cannot paginate cannot have minted the
 // token, so honoring it as if it started a fresh search would silently reinterpret what
-// the caller sent (RFC 0014 §6.2).
-var ErrPaginationUnsupported = errors.New("this storage backend cannot resume a paginated search")
+// the caller sent (RFC 0014 §6.2). It is a capability refusal, so it matches errors.ErrUnsupported.
+var ErrPaginationUnsupported = fmt.Errorf("this storage backend cannot resume a paginated search: %w", errors.ErrUnsupported)
 
 // ErrPaginationInvalid is returned for a query whose Pagination is malformed on its own
 // terms, independent of any backend: one that also sets SearchDepth, since the two bounds

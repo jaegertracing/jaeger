@@ -297,17 +297,17 @@ func (h *Handler) GetDependencies(ctx context.Context, request *api_v3.GetDepend
 	return &api_v3.DependenciesResponse{Dependencies: links}, nil
 }
 
-// asStatusError maps a query-service error to a gRPC status code. A query this
-// deployment's storage cannot serve is the caller's problem (InvalidArgument) rather than
-// a server fault, and without this it would reach the client as Unknown. Ordering and
-// pagination refusals keep their reason so the client can restore the error type. Other
-// errors pass through unchanged.
+// asStatusError maps a query-service error to a gRPC status code. A malformed query is
+// InvalidArgument, and a query this deployment's storage cannot serve is Unimplemented, so a
+// caller can tell a mistake from a missing capability; without this either would reach the
+// client as Unknown. Ordering and pagination refusals keep their reason so the client can
+// restore the error type. Other errors pass through unchanged.
 func asStatusError(err error) error {
-	if querysvc.IsBadRequest(err) {
+	if querysvc.IsBadRequest(err) || errors.Is(err, errors.ErrUnsupported) {
 		if tracestore.ErrorReason(err) != "" {
-			return tracestore.InvalidArgumentStatus(err, errorInfoDomain)
+			return tracestore.RefusalStatus(err, errorInfoDomain)
 		}
-		return status.Error(codes.InvalidArgument, err.Error())
+		return status.Error(tracestore.RefusalCode(err), err.Error())
 	}
 	if errors.Is(err, queryinterceptor.ErrAccessDenied) {
 		return status.Error(codes.PermissionDenied, err.Error())

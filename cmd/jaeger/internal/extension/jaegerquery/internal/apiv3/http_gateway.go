@@ -80,8 +80,11 @@ func (h *HTTPGateway) tryHandleError(w http.ResponseWriter, err error, statusCod
 		statusCode = http.StatusNotFound
 	}
 	if querysvc.IsBadRequest(err) {
-		// Either the query needs changing, or this deployment's storage cannot serve it.
 		statusCode = http.StatusBadRequest
+	}
+	if errors.Is(err, errors.ErrUnsupported) {
+		// The query is well formed, but this deployment's storage cannot serve it.
+		statusCode = http.StatusNotImplemented
 	}
 	if errors.Is(err, queryinterceptor.ErrAccessDenied) {
 		statusCode = http.StatusForbidden

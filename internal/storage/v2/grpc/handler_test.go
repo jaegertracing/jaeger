@@ -852,7 +852,7 @@ func TestHandler_FindTraceSummaries_NotImplemented(t *testing.T) {
 	}, &summaryStream{})
 	require.Error(t, err)
 	require.Equal(t, codes.Unimplemented, status.Code(err))
-	require.Contains(t, err.Error(), "not implemented")
+	require.Contains(t, err.Error(), "bare reader")
 }
 
 func TestHandler_FindTraceSummaries_Success(t *testing.T) {

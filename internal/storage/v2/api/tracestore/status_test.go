@@ -17,23 +17,24 @@ import (
 
 const testDomain = "jaeger.test"
 
-func TestInvalidArgumentStatus_RoundTrip(t *testing.T) {
+func TestRefusalStatus_RoundTrip(t *testing.T) {
 	tests := []struct {
 		err    error
 		reason string
+		code   codes.Code
 	}{
-		{err: ErrPaginationInvalid, reason: PaginationInvalidReason},
-		{err: ErrSpanOrderInvalid, reason: SpanOrderInvalidReason},
-		{err: ErrSpanOrderUnsupported, reason: SpanOrderUnsupportedReason},
+		{err: ErrPaginationInvalid, reason: PaginationInvalidReason, code: codes.InvalidArgument},
+		{err: ErrSpanOrderInvalid, reason: SpanOrderInvalidReason, code: codes.InvalidArgument},
+		{err: ErrSpanOrderUnsupported, reason: SpanOrderUnsupportedReason, code: codes.Unimplemented},
 	}
 	for _, test := range tests {
 		t.Run(test.reason, func(t *testing.T) {
 			wrapped := fmt.Errorf("reader said: %w", test.err)
 			assert.Equal(t, test.reason, ErrorReason(wrapped))
 
-			wire := InvalidArgumentStatus(wrapped, testDomain)
+			wire := RefusalStatus(wrapped, testDomain)
 			st := status.Convert(wire)
-			require.Equal(t, codes.InvalidArgument, st.Code())
+			require.Equal(t, test.code, st.Code())
 			require.Len(t, st.Details(), 1)
 			info, ok := st.Details()[0].(*errdetails.ErrorInfo)
 			require.True(t, ok)
@@ -47,10 +48,36 @@ func TestInvalidArgumentStatus_RoundTrip(t *testing.T) {
 	}
 }
 
-func TestInvalidArgumentStatus_PassesOtherErrorsThrough(t *testing.T) {
+func TestRefusalStatus_PassesOtherErrorsThrough(t *testing.T) {
 	assert.Empty(t, ErrorReason(assert.AnError))
-	assert.Same(t, assert.AnError, InvalidArgumentStatus(assert.AnError, testDomain))
+	assert.Same(t, assert.AnError, RefusalStatus(assert.AnError, testDomain))
 	assert.Same(t, assert.AnError, ErrorFromStatus(assert.AnError, testDomain))
+}
+
+// TestRefusalStatus_UnsupportedWithoutReason covers a capability refusal that has no reason of
+// its own: the code alone tells the client that the backend cannot serve the query.
+func TestRefusalStatus_UnsupportedWithoutReason(t *testing.T) {
+	for _, err := range []error{
+		fmt.Errorf("bare reader: %w", errors.ErrUnsupported),
+		ErrFilterUnsupported,
+		ErrPaginationUnsupported,
+	} {
+		st := status.Convert(RefusalStatus(err, testDomain))
+		assert.Equal(t, codes.Unimplemented, st.Code())
+		assert.Empty(t, st.Details())
+		assert.Equal(t, err.Error(), st.Message())
+	}
+}
+
+func TestRefusalCode(t *testing.T) {
+	assert.Equal(t, codes.Unimplemented, RefusalCode(ErrFilterUnsupported))
+	assert.Equal(t, codes.Unimplemented, RefusalCode(ErrPaginationUnsupported))
+	assert.Equal(t, codes.Unimplemented, RefusalCode(ErrSpanOrderUnsupported))
+	assert.Equal(t, codes.InvalidArgument, RefusalCode(ErrFilterInvalid))
+	assert.Equal(t, codes.InvalidArgument, RefusalCode(ErrPaginationInvalid))
+	assert.Equal(t, codes.InvalidArgument, RefusalCode(ErrSpanOrderInvalid))
+	assert.Equal(t, codes.InvalidArgument, RefusalCode(ErrPaginationUnsupportedByFindTraces),
+		"FindTraces cannot be paginated anywhere, so the caller must change the query")
 }
 
 func TestErrorFromStatus_IgnoresForeignDetails(t *testing.T) {

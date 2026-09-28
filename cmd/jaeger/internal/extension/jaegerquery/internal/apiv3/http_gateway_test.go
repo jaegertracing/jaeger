@@ -111,12 +111,18 @@ func TestHTTPGatewayTryHandleError(t *testing.T) {
 	assert.True(t, gw.tryHandleError(w, spanstore.ErrTraceNotFound, 0), "returns true if error")
 	assert.Equal(t, http.StatusNotFound, w.Code, "sets status code to 404")
 
-	// A well-formed query this deployment's storage cannot serve is the caller's problem,
-	// not a server fault, so it must not arrive as a 500 (RFC 0013 §3.3).
+	// A well-formed query this deployment's storage cannot serve is a missing capability, not
+	// a server fault and not a malformed request, so it is 501 rather than 500 or 400
+	// (RFC 0013 §3.3).
 	w = httptest.NewRecorder()
 	assert.True(t, gw.tryHandleError(w, querysvc.ErrServiceNameRequired, http.StatusInternalServerError))
-	assert.Equal(t, http.StatusBadRequest, w.Code, "sets status code to 400")
+	assert.Equal(t, http.StatusNotImplemented, w.Code, "sets status code to 501")
 	assert.Contains(t, w.Body.String(), "requires a service name", "explains the limitation")
+
+	// A malformed query is the caller's mistake wherever it is sent, so it is 400.
+	w = httptest.NewRecorder()
+	assert.True(t, gw.tryHandleError(w, fmt.Errorf("%w: search depth", querysvc.ErrQueryInvalid), http.StatusInternalServerError))
+	assert.Equal(t, http.StatusBadRequest, w.Code, "sets status code to 400")
 
 	w = httptest.NewRecorder()
 	assert.True(t, gw.tryHandleError(w, fmt.Errorf("denied: %w", queryinterceptor.ErrAccessDenied), http.StatusInternalServerError))
@@ -746,7 +752,7 @@ func TestHTTPGatewayFindSpansUnsupported(t *testing.T) {
 	require.NoError(t, err)
 	w := httptest.NewRecorder()
 	gw.router.ServeHTTP(w, r)
-	assert.Equal(t, http.StatusBadRequest, w.Code)
+	assert.Equal(t, http.StatusNotImplemented, w.Code)
 	assert.Contains(t, w.Body.String(), "does not declare span search support")
 }
 
@@ -779,7 +785,8 @@ func TestHTTPGatewayFindSpansMalformedQuery(t *testing.T) {
 }
 
 // TestHTTPGatewayFindSpansPaginationRefusal pins that a pagination refusal decided in the query
-// service (here, the feature gate) reaches the HTTP caller as a 400, not a 500.
+// service (here, the feature gate) reaches the HTTP caller as a 501, since another deployment
+// serves the same query, and not as a 500.
 func TestHTTPGatewayFindSpansPaginationRefusal(t *testing.T) {
 	q, _ := mockFindSpansQuery()
 	q.Set("query.pagination.pageToken", "opaque-cursor")
@@ -789,7 +796,7 @@ func TestHTTPGatewayFindSpansPaginationRefusal(t *testing.T) {
 	require.NoError(t, err)
 	w := httptest.NewRecorder()
 	gw.router.ServeHTTP(w, r)
-	assert.Equal(t, http.StatusBadRequest, w.Code)
+	assert.Equal(t, http.StatusNotImplemented, w.Code)
 	assert.Contains(t, w.Body.String(), querysvc.PaginationGate.ID())
 }
 
@@ -906,7 +913,7 @@ func TestHTTPGatewayFindSpansOrdering(t *testing.T) {
 			w := httptest.NewRecorder()
 			gw.router.ServeHTTP(w, r)
 			if !supported {
-				assert.Equal(t, http.StatusBadRequest, w.Code)
+				assert.Equal(t, http.StatusNotImplemented, w.Code)
 				assert.Contains(t, w.Body.String(), "does not support explicit span ordering")
 				return
 			}

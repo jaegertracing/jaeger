@@ -164,9 +164,18 @@ func (tr *TraceReader) FindTraces(
 	}
 }
 
-// readerError restores the error types marked by readerStatus at the storage boundary.
+// readerError restores the error types marked by readerStatus at the storage boundary. A
+// refusal that carries a reason becomes the reader error it names. Any other Unimplemented
+// status, whether the server lacks the method or a capability the query needs, becomes
+// errors.ErrUnsupported, so the caller reads both as one missing capability.
 func readerError(err error) error {
-	return tracestore.ErrorFromStatus(err, errorInfoDomain)
+	if restored := tracestore.ErrorFromStatus(err, errorInfoDomain); tracestore.ErrorReason(restored) != "" {
+		return restored
+	}
+	if status.Code(err) == codes.Unimplemented {
+		return fmt.Errorf("remote server: %s: %w", status.Convert(err).Message(), errors.ErrUnsupported)
+	}
+	return err
 }
 
 func (tr *TraceReader) FindTraceIDs(
@@ -237,9 +246,6 @@ func (tr *TraceReader) FindSpans(ctx context.Context, params tracestore.SpanQuer
 }
 
 func spanReaderError(err error, message string) error {
-	if status.Code(err) == codes.Unimplemented {
-		return fmt.Errorf("remote server does not support FindSpans: %w", errors.ErrUnsupported)
-	}
 	return fmt.Errorf("%s: %w", message, readerError(err))
 }
 
@@ -267,9 +273,6 @@ func (tr *TraceReader) FindTraceSummaries(
 	params tracestore.TraceQueryParams,
 ) iter.Seq2[tracestore.PageChunk[[]tracestore.TraceSummary], error] {
 	maybeNotImplemented := func(err error, msg string) error {
-		if status.Code(err) == codes.Unimplemented || errors.Is(err, errors.ErrUnsupported) {
-			return fmt.Errorf("remote server does not support FindTraceSummaries: %w", errors.ErrUnsupported)
-		}
 		return fmt.Errorf("%s: %w", msg, readerError(err))
 	}
 	return func(yield func(tracestore.PageChunk[[]tracestore.TraceSummary], error) bool) {

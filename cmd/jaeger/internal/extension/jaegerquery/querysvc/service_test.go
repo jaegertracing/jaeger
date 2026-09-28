@@ -1778,7 +1778,7 @@ func TestFindSpansOrdering(t *testing.T) {
 				require.NoError(t, err)
 			} else {
 				require.ErrorIs(t, err, tracestore.ErrSpanOrderUnsupported)
-				assert.True(t, IsBadRequest(err))
+				require.ErrorIs(t, err, errors.ErrUnsupported)
 			}
 			assert.Empty(t, query.OrderBy[0].Direction)
 			tqs.traceReader.AssertExpectations(t)

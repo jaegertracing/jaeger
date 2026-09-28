@@ -5,6 +5,7 @@ package querysvc
 
 import (
 	"errors"
+	"fmt"
 
 	"go.opentelemetry.io/collector/featuregate"
 
@@ -33,8 +34,9 @@ var StructuredFiltersGate = featuregate.GlobalRegistry().MustRegister(
 
 // ErrFilterDisabled is returned for a query carrying a filter to a deployment that has not
 // enabled StructuredFiltersGate. The query is refused rather than served with the filter
-// ignored, because dropping a predicate would answer with every trace in the time range.
-var ErrFilterDisabled = errors.New("the structured query filter is disabled")
+// ignored, because dropping a predicate would answer with every trace in the time range. The
+// same query is valid on a deployment with the gate on, so it matches errors.ErrUnsupported.
+var ErrFilterDisabled = fmt.Errorf("the structured query filter is disabled: %w", errors.ErrUnsupported)
 
 // queryToReaderCapabilities returns the query in the shape the reader declared it can serve, immediately
 // before dispatch.
@@ -67,21 +69,17 @@ func queryToReaderCapabilities(
 	return query, caps.Filter.EnsureSupported(query.Filter)
 }
 
-// IsBadRequest reports whether err means the caller must change the query, either
-// because its shape is wrong or because this deployment's storage cannot serve it.
-// Either way it is the caller's problem, so the API layers answer InvalidArgument /
-// HTTP 400 rather than reporting a server fault.
+// IsBadRequest reports whether err means the query is malformed on its own terms, so the
+// caller must change it wherever it is sent. The API layers answer InvalidArgument / HTTP 400.
+//
+// A query that is well formed but that this deployment cannot serve is the other family of
+// refusal: every such error matches errors.ErrUnsupported, and the API layers answer
+// Unimplemented / HTTP 501 so a caller can tell a missing capability from a mistake and fall
+// back to a query the deployment does serve.
 func IsBadRequest(err error) bool {
 	return errors.Is(err, ErrQueryInvalid) ||
-		errors.Is(err, ErrServiceNameRequired) ||
-		errors.Is(err, ErrSpanSearchUnsupported) ||
-		errors.Is(err, ErrFilterDisabled) ||
-		errors.Is(err, tracestore.ErrFilterUnsupported) ||
 		errors.Is(err, tracestore.ErrFilterInvalid) ||
 		errors.Is(err, tracestore.ErrSpanOrderInvalid) ||
-		errors.Is(err, tracestore.ErrSpanOrderUnsupported) ||
-		errors.Is(err, ErrPaginationDisabled) ||
-		errors.Is(err, tracestore.ErrPaginationUnsupported) ||
 		errors.Is(err, tracestore.ErrPaginationInvalid) ||
 		errors.Is(err, tracestore.ErrPaginationUnsupportedByFindTraces)
 }

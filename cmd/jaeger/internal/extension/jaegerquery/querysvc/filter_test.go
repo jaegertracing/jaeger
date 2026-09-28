@@ -252,7 +252,7 @@ func TestPrepareSearchQuery_FilterDisabled(t *testing.T) {
 	_, err := jiter.FlattenWithErrors(qs.FindTraces(context.Background(), query))
 	require.ErrorIs(t, err, ErrFilterDisabled)
 	require.ErrorContains(t, err, "jaeger.query.structuredFilters")
-	assert.True(t, IsBadRequest(err), "the API layers answer 400")
+	require.ErrorIs(t, err, errors.ErrUnsupported, "the API layers answer 501")
 	reader.AssertExpectations(t)
 }
 
@@ -339,20 +339,41 @@ func TestStructuredFiltersGate_IsBeta(t *testing.T) {
 		"Beta is what makes the filter available unless a deployment turns it off")
 }
 
-func TestIsBadRequest(t *testing.T) {
-	assert.True(t, IsBadRequest(ErrServiceNameRequired))
-	assert.True(t, IsBadRequest(tracestore.ErrFilterUnsupported))
-	assert.True(t, IsBadRequest(tracestore.ErrFilterInvalid))
-	assert.True(t, IsBadRequest(ErrFilterDisabled))
-	assert.True(t, IsBadRequest(fmt.Errorf("%w: nested", tracestore.ErrFilterUnsupported)))
-	assert.True(t, IsBadRequest(tracestore.ErrSpanOrderInvalid))
-	assert.True(t, IsBadRequest(tracestore.ErrSpanOrderUnsupported))
-	assert.True(t, IsBadRequest(fmt.Errorf("%w: nested", tracestore.ErrSpanOrderInvalid)))
-	assert.True(t, IsBadRequest(fmt.Errorf("%w: nested", tracestore.ErrSpanOrderUnsupported)))
-	assert.True(t, IsBadRequest(ErrPaginationDisabled))
-	assert.True(t, IsBadRequest(tracestore.ErrPaginationUnsupported))
-	assert.True(t, IsBadRequest(tracestore.ErrPaginationInvalid))
-	assert.True(t, IsBadRequest(tracestore.ErrPaginationUnsupportedByFindTraces))
+// TestRefusalFamilies pins every query-service refusal to exactly one of the two families the
+// API layers map: a malformed query (IsBadRequest, InvalidArgument / 400) or a query this
+// deployment cannot serve (errors.ErrUnsupported, Unimplemented / 501). A refusal in neither
+// family would reach the client as a server fault, and one in both would be mapped twice.
+func TestRefusalFamilies(t *testing.T) {
+	malformed := []error{
+		ErrQueryInvalid,
+		tracestore.ErrFilterInvalid,
+		tracestore.ErrSpanOrderInvalid,
+		tracestore.ErrPaginationInvalid,
+		tracestore.ErrPaginationUnsupportedByFindTraces,
+	}
+	unsupported := []error{
+		ErrServiceNameRequired,
+		ErrSpanSearchUnsupported,
+		ErrFilterDisabled,
+		tracestore.ErrFilterUnsupported,
+		tracestore.ErrSpanOrderUnsupported,
+		ErrPaginationDisabled,
+		tracestore.ErrPaginationUnsupported,
+	}
+	for _, err := range malformed {
+		t.Run(err.Error(), func(t *testing.T) {
+			assert.True(t, IsBadRequest(err))
+			assert.True(t, IsBadRequest(fmt.Errorf("%w: nested", err)))
+			require.NotErrorIs(t, err, errors.ErrUnsupported)
+		})
+	}
+	for _, err := range unsupported {
+		t.Run(err.Error(), func(t *testing.T) {
+			require.ErrorIs(t, err, errors.ErrUnsupported)
+			require.ErrorIs(t, fmt.Errorf("%w: nested", err), errors.ErrUnsupported)
+			assert.False(t, IsBadRequest(err))
+		})
+	}
 	assert.False(t, IsBadRequest(errors.New("storage is down")))
 	assert.False(t, IsBadRequest(nil))
 }
