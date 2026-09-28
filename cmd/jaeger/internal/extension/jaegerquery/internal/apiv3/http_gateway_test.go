@@ -12,6 +12,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"strconv"
 	"testing"
 	"time"
 
@@ -881,7 +882,7 @@ func TestTraceIDFromString(t *testing.T) {
 func TestHTTPGatewayFindSpansOrdering(t *testing.T) {
 	const terms = `[{"expression":{"field":{"level":"span","name":"duration"}},"direction":"desc"},{"expression":{"field":{"level":"span","name":"traceID"}}}]`
 	for _, supported := range []bool{false, true} {
-		t.Run(fmt.Sprintf("%t", supported), func(t *testing.T) {
+		t.Run(strconv.FormatBool(supported), func(t *testing.T) {
 			q, qp := mockFindSpansQuery()
 			gw := setupHTTPGatewayNoServer(t, "")
 			gw.reader.ExpectedCalls = nil
@@ -937,5 +938,4 @@ func TestHTTPGatewayFindSpansMalformedOrder(t *testing.T) {
 		assert.Equal(t, http.StatusBadRequest, w.Code)
 		gw.reader.AssertNotCalled(t, "FindSpans", mock.Anything, mock.Anything)
 	}
-
 }
