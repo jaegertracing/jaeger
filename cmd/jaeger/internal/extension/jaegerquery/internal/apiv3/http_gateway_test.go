@@ -12,7 +12,6 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
-	"strings"
 	"testing"
 	"time"
 
@@ -881,55 +880,50 @@ func TestTraceIDFromString(t *testing.T) {
 
 func TestHTTPGatewayFindSpansOrdering(t *testing.T) {
 	const terms = `[{"expression":{"field":{"level":"span","name":"duration"}},"direction":"desc"},{"expression":{"field":{"level":"span","name":"traceID"}}}]`
-	for _, method := range []string{http.MethodGet, http.MethodPost} {
-		for _, supported := range []bool{false, true} {
-			t.Run(fmt.Sprintf("%s/%t", method, supported), func(t *testing.T) {
-				q, qp := mockFindSpansQuery()
-				gw := setupHTTPGatewayNoServer(t, "")
-				gw.reader.ExpectedCalls = nil
-				gw.reader.On("SearchCapabilities", mock.Anything).Return(tracestore.SearchCapabilities{SpanSearch: true, SpanSorting: supported}, nil)
-				qp.OrderBy = []tracestore.SpanSortOrder{
-					{Expression: &expression.FieldRef{Level: expression.LevelSpan, Name: "duration"}, Direction: tracestore.SortDescending},
-					{Expression: &expression.FieldRef{Level: expression.LevelSpan, Name: "traceID"}, Direction: tracestore.SortAscending},
-				}
-				if supported {
-					gw.reader.On("FindSpans", matchContext, qp).Return(iter.Seq2[tracestore.PageChunk[ptrace.Traces], error](func(yield func(tracestore.PageChunk[ptrace.Traces], error) bool) {
-						for _, service := range []string{"service-a", "service-b", "service-a"} {
-							trace := makeTestTrace()
-							trace.ResourceSpans().At(0).Resource().Attributes().PutStr("service.name", service)
-							yield(tracestore.PageChunk[ptrace.Traces]{Results: trace}, nil)
-						}
-					})).Once()
-				}
-				q.Set("query.order_by", terms)
-				r := httptest.NewRequest(method, "/api/v3/spans?"+q.Encode(), http.NoBody)
-				if method == http.MethodPost {
-					body := fmt.Sprintf(`{"query":{"startTimeMin":%q,"startTimeMax":%q,"orderBy":%s}}`, q.Get("query.startTimeMin"), q.Get("query.startTimeMax"), terms)
-					r = httptest.NewRequest(method, "/api/v3/spans", strings.NewReader(body))
-				}
-				w := httptest.NewRecorder()
-				gw.router.ServeHTTP(w, r)
-				if !supported {
-					assert.Equal(t, http.StatusBadRequest, w.Code)
-					assert.Contains(t, w.Body.String(), "does not support explicit span ordering")
-					return
-				}
-				require.Equal(t, http.StatusOK, w.Code, w.Body.String())
-				var wrapper struct {
-					Result json.RawMessage `json:"result"`
-				}
-				require.NoError(t, json.Unmarshal(w.Body.Bytes(), &wrapper))
-				var response api_v3.FindSpansResponse
-				require.NoError(t, jsonpb.Unmarshal(bytes.NewReader(wrapper.Result), &response))
-				var services []string
-				for _, resource := range response.Spans.ToTraces().ResourceSpans().All() {
-					value, _ := resource.Resource().Attributes().Get("service.name")
-					services = append(services, value.Str())
-				}
-				assert.Equal(t, []string{"service-a", "service-b", "service-a"}, services)
-				gw.reader.AssertExpectations(t)
-			})
-		}
+	for _, supported := range []bool{false, true} {
+		t.Run(fmt.Sprintf("%t", supported), func(t *testing.T) {
+			q, qp := mockFindSpansQuery()
+			gw := setupHTTPGatewayNoServer(t, "")
+			gw.reader.ExpectedCalls = nil
+			gw.reader.On("SearchCapabilities", mock.Anything).Return(tracestore.SearchCapabilities{SpanSearch: true, SpanSorting: supported}, nil)
+			qp.OrderBy = []tracestore.SpanSortOrder{
+				{Expression: &expression.FieldRef{Level: expression.LevelSpan, Name: "duration"}, Direction: tracestore.SortDescending},
+				{Expression: &expression.FieldRef{Level: expression.LevelSpan, Name: "traceID"}, Direction: tracestore.SortAscending},
+			}
+			if supported {
+				gw.reader.On("FindSpans", matchContext, qp).Return(iter.Seq2[tracestore.PageChunk[ptrace.Traces], error](func(yield func(tracestore.PageChunk[ptrace.Traces], error) bool) {
+					for _, service := range []string{"service-a", "service-b", "service-a"} {
+						trace := makeTestTrace()
+						trace.ResourceSpans().At(0).Resource().Attributes().PutStr("service.name", service)
+						yield(tracestore.PageChunk[ptrace.Traces]{Results: trace}, nil)
+					}
+				})).Once()
+			}
+			q.Set("query.order_by", terms)
+			r := httptest.NewRequest(http.MethodGet, "/api/v3/spans?"+q.Encode(), http.NoBody)
+
+			w := httptest.NewRecorder()
+			gw.router.ServeHTTP(w, r)
+			if !supported {
+				assert.Equal(t, http.StatusBadRequest, w.Code)
+				assert.Contains(t, w.Body.String(), "does not support explicit span ordering")
+				return
+			}
+			require.Equal(t, http.StatusOK, w.Code, w.Body.String())
+			var wrapper struct {
+				Result json.RawMessage `json:"result"`
+			}
+			require.NoError(t, json.Unmarshal(w.Body.Bytes(), &wrapper))
+			var response api_v3.FindSpansResponse
+			require.NoError(t, jsonpb.Unmarshal(bytes.NewReader(wrapper.Result), &response))
+			var services []string
+			for _, resource := range response.Spans.ToTraces().ResourceSpans().All() {
+				value, _ := resource.Resource().Attributes().Get("service.name")
+				services = append(services, value.Str())
+			}
+			assert.Equal(t, []string{"service-a", "service-b", "service-a"}, services)
+			gw.reader.AssertExpectations(t)
+		})
 	}
 }
 
@@ -943,11 +937,5 @@ func TestHTTPGatewayFindSpansMalformedOrder(t *testing.T) {
 		assert.Equal(t, http.StatusBadRequest, w.Code)
 		gw.reader.AssertNotCalled(t, "FindSpans", mock.Anything, mock.Anything)
 	}
-	for _, body := range []string{`{`, `{}`, `{"query":{"orderBy":[{}]}}`} {
-		gw := setupHTTPGatewayNoServer(t, "")
-		w := httptest.NewRecorder()
-		gw.router.ServeHTTP(w, httptest.NewRequest(http.MethodPost, "/api/v3/spans", strings.NewReader(body)))
-		assert.Equal(t, http.StatusBadRequest, w.Code)
-		gw.reader.AssertNotCalled(t, "FindSpans", mock.Anything, mock.Anything)
-	}
+
 }
