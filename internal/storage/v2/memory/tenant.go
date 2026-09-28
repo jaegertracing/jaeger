@@ -44,7 +44,7 @@ type traceAndId struct {
 
 // matchedSpan is a matching span with its resource and scope.
 type matchedSpan struct {
-	key          spanKey
+	key          sortingKey
 	resourceSpan ptrace.ResourceSpans
 	scopeSpan    ptrace.ScopeSpans
 	span         ptrace.Span
@@ -169,7 +169,7 @@ func (t *Tenant) findTraceAndIds(query tracestore.TraceQueryParams) ([]traceAndI
 
 // findSpans returns one page of the spans, across all traces, that start
 // within [query.StartTimeMin, query.StartTimeMax] (a zero bound is unbounded)
-// and match query.Filter. Matches are sorted by spanKey; the page starts after
+// and match query.Filter. Matches are sorted by sortingKey; the page starts after
 // the cursor `after` (at the beginning when nil) and holds at most
 // query.Pagination.PageSize spans when that is positive. A zero PageSize
 // returns every match: SpanQueryParams carries Pagination by value, so a zero
@@ -183,7 +183,7 @@ func (t *Tenant) findTraceAndIds(query tracestore.TraceQueryParams) ([]traceAndI
 // query.Filter is prepared once, before any span is visited, rather than per
 // span: its shape and its regular expressions are static properties of the
 // filter, not something that can vary span to span.
-func (t *Tenant) findSpans(query tracestore.SpanQueryParams, after *cursor[spanKey]) (ptrace.Traces, *cursor[spanKey], error) {
+func (t *Tenant) findSpans(query tracestore.SpanQueryParams, after *cursor[sortingKey]) (ptrace.Traces, *cursor[sortingKey], error) {
 	filter, err := prepareFilter(query.Filter)
 	if err != nil {
 		return ptrace.Traces{}, nil, err
@@ -206,15 +206,28 @@ func (t *Tenant) findSpans(query tracestore.SpanQueryParams, after *cursor[spanK
 						resourceSpan.SchemaUrl(), scopeSpan.SchemaUrl()) {
 						continue
 					}
-					matches = append(matches, matchedSpan{key: spanKeyOf(span), resourceSpan: resourceSpan, scopeSpan: scopeSpan, span: span})
+					ctx := filterCtx{
+						resource:          resourceSpan.Resource(),
+						scope:             scopeSpan.Scope(),
+						span:              span,
+						resourceSchemaURL: resourceSpan.SchemaUrl(),
+						scopeSchemaURL:    scopeSpan.SchemaUrl(),
+					}
+					matches = append(matches, matchedSpan{
+						key:          makeSortingKey(ctx, query.OrderBy),
+						resourceSpan: resourceSpan,
+						scopeSpan:    scopeSpan,
+						span:         span,
+					})
 				}
 			}
 		}
 	}
 	// The sort is stable so that copies of one span, which share a key, keep the order they
 	// were written in across searches, which the cursor's count of returned copies relies on.
-	slices.SortStableFunc(matches, func(a, b matchedSpan) int { return compareSpanKeys(a.key, b.key) })
-	matches, last := page(matches, func(m matchedSpan) spanKey { return m.key }, compareSpanKeys, after, query.Pagination.PageSize)
+	compare := compareSortingKeys(query.OrderBy)
+	slices.SortStableFunc(matches, func(a, b matchedSpan) int { return compare(a.key, b.key) })
+	matches, last := page(matches, func(m matchedSpan) sortingKey { return m.key }, compare, after, query.Pagination.PageSize)
 	result := ptrace.NewTraces()
 	for _, m := range matches {
 		rs := result.ResourceSpans().AppendEmpty()
