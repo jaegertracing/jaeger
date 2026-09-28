@@ -199,16 +199,18 @@ func (h *Handler) FindTraceSummaries(
 // the client needs the reason, not the code, to restore tracestore.ErrPaginationInvalid.
 const paginationInvalidReason = "PAGINATION_INVALID"
 
-// readerStatus gives a rejected page request the InvalidArgument status, marked with
-// paginationInvalidReason so the storage client turns it back into
-// tracestore.ErrPaginationInvalid (RFC 0014 §6). Other reader errors keep whatever status
-// they carry.
+const spanOrderInvalidReason = "SPAN_ORDER_INVALID"
+
+// readerStatus marks pagination and ordering refusals so the client can restore their error types.
 func readerStatus(err error) error {
-	if !errors.Is(err, tracestore.ErrPaginationInvalid) {
+	reason := paginationInvalidReason
+	if errors.Is(err, tracestore.ErrSpanOrderInvalid) {
+		reason = spanOrderInvalidReason
+	} else if !errors.Is(err, tracestore.ErrPaginationInvalid) {
 		return err
 	}
 	st := status.New(codes.InvalidArgument, err.Error())
-	if detailed, detailErr := st.WithDetails(&errdetails.ErrorInfo{Reason: paginationInvalidReason, Domain: "jaeger.storage.v2"}); detailErr == nil {
+	if detailed, detailErr := st.WithDetails(&errdetails.ErrorInfo{Reason: reason, Domain: "jaeger.storage.v2"}); detailErr == nil {
 		st = detailed
 	}
 	return st.Err()
@@ -312,6 +314,8 @@ func (h *Handler) GetCapabilities(
 			SameSpanConjunction: caps.SameSpanConjunction,
 			Filter:              toProtoFilterCapabilities(caps.Filter),
 			Paginated:           caps.Paginated,
+			SpanSearch:          caps.SpanSearch,
+			SpanSorting:         caps.SpanSorting,
 		},
 	}, nil
 }

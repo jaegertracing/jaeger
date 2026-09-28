@@ -27,9 +27,6 @@ import (
 var _ tracestore.Reader = (*TraceReader)(nil)
 
 type TraceReader struct {
-	// SpanSearch is unsupported for now.
-	tracestore.UnsupportedSpanSearch
-
 	client       storage.TraceReaderClient
 	capabilities storage.CapabilitiesClient
 
@@ -73,6 +70,8 @@ func (tr *TraceReader) SearchCapabilities(ctx context.Context) (tracestore.Searc
 		SameSpanConjunction: resp.GetSearch().GetSameSpanConjunction(),
 		Filter:              fromProtoFilterCapabilities(resp.GetSearch().GetFilter()),
 		Paginated:           resp.GetSearch().GetPaginated(),
+		SpanSearch:          resp.GetSearch().GetSpanSearch(),
+		SpanSorting:         resp.GetSearch().GetSpanSorting(),
 	}
 	tr.cachedCaps.Store(&caps)
 	return caps, nil
@@ -166,14 +165,17 @@ func (tr *TraceReader) FindTraces(
 	}
 }
 
-// paginationError turns the status that the storage server gives a rejected page request back
-// into tracestore.ErrPaginationInvalid (RFC 0014 §6). The server marks that status with
-// paginationInvalidReason, since InvalidArgument alone also answers other malformed requests.
-func paginationError(err error) error {
+// readerError restores the error types marked by readerStatus at the storage boundary.
+func readerError(err error) error {
 	st := status.Convert(err)
 	for _, detail := range st.Details() {
-		if info, ok := detail.(*errdetails.ErrorInfo); ok && info.GetReason() == paginationInvalidReason {
-			return fmt.Errorf("%w: %s", tracestore.ErrPaginationInvalid, st.Message())
+		if info, ok := detail.(*errdetails.ErrorInfo); ok {
+			switch info.GetReason() {
+			case paginationInvalidReason:
+				return fmt.Errorf("%w: %s", tracestore.ErrPaginationInvalid, st.Message())
+			case spanOrderInvalidReason:
+				return fmt.Errorf("%w: %s", tracestore.ErrSpanOrderInvalid, st.Message())
+			}
 		}
 	}
 	return err
@@ -191,7 +193,7 @@ func (tr *TraceReader) FindTraceIDs(
 		}
 		resp, err := tr.client.FindTraceIDs(ctx, &storage.FindTraceIDsRequest{Query: query})
 		if err != nil {
-			yield(tracestore.PageChunk[[]tracestore.FoundTraceID]{}, fmt.Errorf("failed to execute FindTraceIDs: %w", paginationError(err)))
+			yield(tracestore.PageChunk[[]tracestore.FoundTraceID]{}, fmt.Errorf("failed to execute FindTraceIDs: %w", readerError(err)))
 			return
 		}
 		foundTraceIDs := make([]tracestore.FoundTraceID, len(resp.TraceIds))
@@ -220,7 +222,7 @@ func (tr *TraceReader) FindTraceSummaries(
 		if status.Code(err) == codes.Unimplemented || errors.Is(err, errors.ErrUnsupported) {
 			return fmt.Errorf("remote server does not support FindTraceSummaries: %w", errors.ErrUnsupported)
 		}
-		return fmt.Errorf("%s: %w", msg, paginationError(err))
+		return fmt.Errorf("%s: %w", msg, readerError(err))
 	}
 	return func(yield func(tracestore.PageChunk[[]tracestore.TraceSummary], error) bool) {
 		query, err := toProtoQueryParameters(params)
