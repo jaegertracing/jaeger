@@ -334,3 +334,30 @@ func TestFindTraces_StructuredFilterNoMatch(t *testing.T) {
 	}
 	assert.Empty(t, traces)
 }
+
+func TestFindSpans_UnhintedTimeConstants(t *testing.T) {
+	store, base := writeTwoTraceStore(t)
+	for _, tc := range []struct {
+		name, field, value string
+		want               []string
+	}{
+		{"duration", expression.SpanFieldDuration, "9ms", []string{"GET /"}},
+		{"timestamp", expression.SpanFieldStartTime, base.Add(time.Hour).Format(time.RFC3339Nano), []string{"handle-request"}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			query := tracestore.SpanQueryParams{Filter: &expression.Call{Op: expression.OpGt, Args: []expression.Expression{
+				&expression.FieldRef{Level: expression.LevelSpan, Name: tc.field},
+				&expression.AnyValue{Value: tc.value},
+			}}}
+			chunk, err := findSpansPage(t, store, query)
+			require.NoError(t, err)
+			assert.Equal(t, tc.want, spanNames(chunk.Results))
+			assert.IsType(t, &expression.AnyValue{}, query.Filter.Args[1])
+		})
+	}
+	_, err := findSpansPage(t, store, tracestore.SpanQueryParams{Filter: &expression.Call{Op: expression.OpGt, Args: []expression.Expression{
+		&expression.FieldRef{Level: expression.LevelSpan, Name: expression.SpanFieldDuration},
+		&expression.AnyValue{Value: "invalid"},
+	}}})
+	require.ErrorIs(t, err, tracestore.ErrFilterInvalid)
+}
