@@ -85,7 +85,7 @@ func toProtoSpanQuery(params tracestore.SpanQueryParams) (*storage.SpanQueryPara
 		Pagination: &storage.Pagination{PageSize: params.Pagination.PageSize, PageToken: string(params.Pagination.PageToken)},
 	}
 	for _, term := range order {
-		encoded, err := expressionproto.ExpressionToProto(term.Expression)
+		encoded, err := expressionproto.TermToProto(term.Expression)
 		if err != nil {
 			return nil, err
 		}
