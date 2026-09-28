@@ -23,6 +23,15 @@ import (
 	"github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore"
 )
 
+// The ErrorInfo reasons that readerStatus attaches to an InvalidArgument status. The server
+// answers InvalidArgument to other malformed requests too, so the storage client needs the
+// reason, not the code, to restore the matching tracestore error.
+const (
+	paginationInvalidReason    = "PAGINATION_INVALID"
+	spanOrderInvalidReason     = "ORDERING_INVALID"
+	spanOrderUnsupportedReason = "ORDERING_UNSUPPORTED"
+)
+
 var (
 	_ storage.TraceReaderServer      = (*Handler)(nil)
 	_ storage.DependencyReaderServer = (*Handler)(nil)
@@ -228,16 +237,6 @@ func (h *Handler) FindTraceSummaries(
 	}
 	return nil
 }
-
-// paginationInvalidReason is the ErrorInfo reason on the InvalidArgument status that carries a
-// rejected page request. The server answers InvalidArgument to other malformed requests too, so
-// the client needs the reason, not the code, to restore tracestore.ErrPaginationInvalid.
-const paginationInvalidReason = "PAGINATION_INVALID"
-
-const (
-	spanOrderInvalidReason     = "ORDERING_INVALID"
-	spanOrderUnsupportedReason = "ORDERING_UNSUPPORTED"
-)
 
 // readerStatus converts the reader errors that the storage client must recognize into gRPC
 // statuses. A backend that cannot serve the request natively signals errors.ErrUnsupported, which
