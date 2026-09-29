@@ -74,6 +74,15 @@ func TestTraceReader_FindSpans(t *testing.T) {
 	assert.Equal(t, 1, second.Results.ResourceSpans().Len())
 	assert.Empty(t, second.NextPageToken)
 
+	// A page size past the maximum is clamped to it.
+	coreReader.On("FindSpans", mock.Anything, mock.MatchedBy(func(q dbmodel.SpanQueryParameters) bool {
+		return q.PageSize == int(tracestore.MaxPageSize)
+	})).Return(dbmodel.SpanPage{}, nil).Once()
+	oversized := spanQuery()
+	oversized.Pagination.PageSize = tracestore.MaxPageSize + 1
+	_, err = collectSpanPage(t, reader.FindSpans(context.Background(), oversized))
+	require.NoError(t, err)
+
 	// An equivalent explicit default order shares the fingerprint, so the token still applies.
 	query.OrderBy = append(query.OrderBy, tracestore.SpanSortOrder{
 		Expression: &expression.FieldRef{Level: expression.LevelSpan, Name: expression.SpanFieldStartTime},

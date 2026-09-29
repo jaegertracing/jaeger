@@ -80,7 +80,9 @@ var paginationGates = []string{querysvc.PaginationGate.ID()}
 // structuredFilterGates names the RFC 0005 filter gate. It is beta and on by default, and it is
 // still passed explicitly so that the suites whose searches carry a filter, the filter battery and the
 // rewrite test, do not depend on the default and keep working against a binary that pins it off.
-var structuredFilterGates = []string{querysvc.StructuredFiltersGate.ID()}
+// The backward-compatibility scenarios run their new reader with it, together with the pagination
+// gate the span ordering battery pages under.
+var structuredFilterGates = []string{querysvc.StructuredFiltersGate.ID(), querysvc.PaginationGate.ID()}
 
 // elasticsearchFilterGates are the gates the Elasticsearch and OpenSearch e2e suites run with:
 // the structured filter, both typed-attribute gates (RFC 0015), which add the numeric
