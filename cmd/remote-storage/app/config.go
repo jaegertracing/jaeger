@@ -49,7 +49,10 @@ func LoadConfigFile(ctx context.Context, path string) (*Config, error) {
 
 	// The file is decoded over the defaults, so a section it leaves out keeps them. A file
 	// that names a storage section starts from an empty one, because the backend it names
-	// would otherwise sit beside the default memory backend.
+	// would otherwise sit beside the default memory backend. configoptional.Default cannot
+	// express this: it decodes the section over the default value, so the backends map
+	// keeps the memory entry, and an absent section still needs GetOrInsertDefault to
+	// hold the default at all.
 	cfg := DefaultConfig()
 	if conf.IsSet("storage") {
 		cfg = defaultConfigWithoutStorage()
