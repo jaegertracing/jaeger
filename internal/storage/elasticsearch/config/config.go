@@ -293,8 +293,7 @@ type Configuration struct {
 	// AdaptiveSamplingLookback contains the duration to look back for the
 	// latest adaptive sampling probabilities.
 	AdaptiveSamplingLookback time.Duration `mapstructure:"adaptive_sampling_lookback"`
-	// Tags is the top-level spelling of the tags-as-fields settings. It carries no default
-	// of its own, so ResolvedTagsAsFields fills in what it leaves out.
+	// Tags is the top-level spelling of the tags-as-fields settings.
 	//
 	// Deprecated: superseded by indices.spans.tags_as_fields, which ResolvedTagsAsFields
 	// falls back to when this one is not set.

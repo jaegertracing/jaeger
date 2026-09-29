@@ -50,7 +50,7 @@ var RejectLegacyTagsAsFields = featuregate.GlobalRegistry().MustRegister(
 		"When enabled, the deprecated top-level 'tags_as_fields' in the Elasticsearch/OpenSearch "+
 			"storage configuration becomes a validation error; use 'indices.spans.tags_as_fields' instead.",
 	),
-	featuregate.WithRegisterReferenceURL("https://github.com/jaegertracing/jaeger/pull/9693"),
+	featuregate.WithRegisterReferenceURL("https://github.com/jaegertracing/jaeger/issues/9689"),
 )
 
 func (c *Configuration) getUseReadWriteAliases() bool {
@@ -118,18 +118,11 @@ func (c *Configuration) ResolvedSpanRotation() RotationConfig {
 
 // ResolvedTagsAsFields returns the effective tags-as-fields settings: the deprecated
 // top-level tags_as_fields when it is set, and indices.spans.tags_as_fields otherwise.
-// The deprecated spelling carries no default of its own, so a dot replacement it leaves
-// unset comes from indices.spans.tags_as_fields, where the default lives.
 func (c *Configuration) ResolvedTagsAsFields() TagsAsFields {
-	legacy := c.Tags.Get()
-	if legacy == nil {
-		return c.Indices.Spans.Tags
+	if legacy := c.Tags.Get(); legacy != nil {
+		return *legacy
 	}
-	tags := *legacy
-	if tags.DotReplacement == "" {
-		tags.DotReplacement = c.Indices.Spans.Tags.DotReplacement
-	}
-	return tags
+	return c.Indices.Spans.Tags
 }
 
 // ResolvedServiceRotation returns the effective rotation configuration for service indices,

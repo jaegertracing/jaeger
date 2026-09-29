@@ -114,8 +114,7 @@ func TestTagKeysAsFields(t *testing.T) {
 
 // TestResolvedTagsAsFields checks which spelling wins: the deprecated top-level one whenever it
 // is present, since a configuration that still sets it has not been migrated, and the
-// indices.spans one otherwise. The deprecated spelling has no default of its own, so a dot
-// replacement it leaves unset comes from indices.spans.
+// indices.spans one otherwise.
 func TestResolvedTagsAsFields(t *testing.T) {
 	spans := TagsAsFields{Include: "new", DotReplacement: "@"}
 	tests := []struct {
@@ -125,7 +124,6 @@ func TestResolvedTagsAsFields(t *testing.T) {
 	}{
 		{name: "indices.spans alone", want: spans},
 		{name: "deprecated spelling wins", legacy: configoptional.Some(TagsAsFields{Include: "old", DotReplacement: "!"}), want: TagsAsFields{Include: "old", DotReplacement: "!"}},
-		{name: "deprecated spelling borrows the dot replacement", legacy: configoptional.Some(TagsAsFields{Include: "old"}), want: TagsAsFields{Include: "old", DotReplacement: "@"}},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
@@ -217,7 +215,7 @@ func TestValidate(t *testing.T) {
 			},
 		},
 		{
-			name: "tags_as_fields in both places accepted, the deprecated one wins",
+			name: "tags_as_fields in both places accepted",
 			config: &Configuration{
 				Servers: []string{"localhost:8000/dummyserver"},
 				Tags:    configoptional.Some(TagsAsFields{Include: "a"}),

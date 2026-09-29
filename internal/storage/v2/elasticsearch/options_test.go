@@ -139,6 +139,15 @@ func TestTagsAsFieldsUnmarshal(t *testing.T) {
 		assert.Equal(t, want, cfg.ResolvedTagsAsFields())
 	})
 
+	t.Run("deprecated top level keeps an explicitly empty dot replacement", func(t *testing.T) {
+		cfg := DefaultConfig()
+		conf := confmap.NewFromStringMap(map[string]any{
+			"tags_as_fields": map[string]any{"all": true, "dot_replacement": ""},
+		})
+		require.NoError(t, conf.Unmarshal(&cfg))
+		assert.Equal(t, escfg.TagsAsFields{AllAsFields: true}, cfg.ResolvedTagsAsFields())
+	})
+
 	t.Run("neither", func(t *testing.T) {
 		cfg := DefaultConfig()
 		require.NoError(t, confmap.NewFromStringMap(map[string]any{}).Unmarshal(&cfg))
