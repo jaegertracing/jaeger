@@ -12,7 +12,7 @@ import (
 	"go.opentelemetry.io/collector/confmap"
 
 	"github.com/jaegertracing/jaeger/cmd/internal/storageconfig"
-	"github.com/jaegertracing/jaeger/internal/config"
+	"github.com/jaegertracing/jaeger/internal/jconfmap"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/memory"
 	"github.com/jaegertracing/jaeger/internal/tenancy"
 )
@@ -38,7 +38,7 @@ var configSections = []string{"grpc", "multi_tenancy", "storage"}
 func LoadConfigFile(ctx context.Context, path string) (*Config, error) {
 	resolver, err := confmap.NewResolver(confmap.ResolverSettings{
 		URIs:              []string{"file:" + path},
-		ProviderFactories: config.ConfmapProviderFactories(),
+		ProviderFactories: jconfmap.ProviderFactories(),
 	})
 	if err != nil {
 		return nil, fmt.Errorf("failed to create configuration resolver: %w", err)

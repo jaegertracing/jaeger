@@ -16,6 +16,7 @@ import (
 
 	"github.com/jaegertracing/jaeger/cmd/internal/docs"
 	"github.com/jaegertracing/jaeger/internal/config"
+	"github.com/jaegertracing/jaeger/internal/jconfmap"
 	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/mappings"
 	"github.com/jaegertracing/jaeger/internal/version"
 )
@@ -41,7 +42,7 @@ func NewCommand(factories otelcol.Factories) *cobra.Command {
 		Factories: func() (otelcol.Factories, error) { return factories, nil },
 		ConfigProviderSettings: otelcol.ConfigProviderSettings{
 			ResolverSettings: confmap.ResolverSettings{
-				ProviderFactories: config.ConfmapProviderFactories(),
+				ProviderFactories: jconfmap.ProviderFactories(),
 			},
 		},
 	}
