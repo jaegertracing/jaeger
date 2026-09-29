@@ -184,13 +184,13 @@ func (m MappingType) options(indices config.Indices) config.IndexOptions {
 	}
 }
 
-// totalFieldsLimit is the field limit a mapping type's template renders. Only the span
-// index has one to render; the other templates leave the engine's default in place.
-func (m MappingType) totalFieldsLimit(indices config.Indices) *int64 {
-	if m == SpanMapping {
-		return indices.Spans.TotalFieldsLimit
-	}
-	return nil
+// spanParams are the values only the span template interpolates. They stay zero for
+// every other mapping type, whose templates never read them.
+type spanParams struct {
+	// TotalFieldsLimit is left nil when unconfigured, so the template omits
+	// "index.mapping.total_fields.limit" entirely rather than rendering a
+	// default.
+	TotalFieldsLimit *int64
 }
 
 // lifecycleParams decide whether a template hands its indices to a rollover
@@ -209,10 +209,7 @@ type innerParams struct {
 	IndexPrefix string
 	Shards      int64
 	Replicas    int64
-	// TotalFieldsLimit is left nil when unconfigured, so the template omits
-	// "index.mapping.total_fields.limit" entirely rather than rendering a
-	// default.
-	TotalFieldsLimit *int64
+	Span        spanParams
 	// TypedAttributes adds a `number` sub-field beside the keyword each attribute value is
 	// indexed as, in both the nested and the elevated representation (RFC 0015 Option A). The
 	// sub-field is mapped with coerce: false, so it holds only values that arrived as JSON numbers
@@ -237,15 +234,21 @@ func renderBackendNeutralBody(m MappingType, indices config.Indices, lifecycle l
 		return nil, fmt.Errorf("index options for %s have no replica count configured", m)
 	}
 
+	params := innerParams{
+		lifecycleParams: lifecycle,
+		IndexPrefix:     indices.IndexPrefix.Apply(""),
+		Shards:          opts.Shards,
+		Replicas:        *opts.Replicas,
+		TypedAttributes: TypedAttributeIndexingGate.IsEnabled(),
+	}
+	if m == SpanMapping {
+		params.Span = spanParams{
+			TotalFieldsLimit: indices.Spans.TotalFieldsLimit,
+		}
+	}
+
 	var buf bytes.Buffer
-	if err := indexTemplates.ExecuteTemplate(&buf, file, innerParams{
-		lifecycleParams:  lifecycle,
-		IndexPrefix:      indices.IndexPrefix.Apply(""),
-		Shards:           opts.Shards,
-		Replicas:         *opts.Replicas,
-		TotalFieldsLimit: m.totalFieldsLimit(indices),
-		TypedAttributes:  TypedAttributeIndexingGate.IsEnabled(),
-	}); err != nil {
+	if err := indexTemplates.ExecuteTemplate(&buf, file, params); err != nil {
 		return nil, fmt.Errorf("failed to render %s index template: %w", m, err)
 	}
 
