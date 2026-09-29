@@ -80,25 +80,31 @@ var paginationGates = []string{querysvc.PaginationGate.ID()}
 // structuredFilterGates names the RFC 0005 filter gate. It is beta and on by default, and it is
 // still passed explicitly so that the suites whose searches carry a filter, the filter battery and the
 // rewrite test, do not depend on the default and keep working against a binary that pins it off.
-var structuredFilterGates = []string{querysvc.StructuredFiltersGate.ID()}
+// The backward-compatibility scenarios run their new reader with it, together with the pagination
+// gate the span ordering battery pages under.
+var structuredFilterGates = []string{querysvc.StructuredFiltersGate.ID(), querysvc.PaginationGate.ID()}
 
 // elasticsearchFilterGates are the gates the Elasticsearch and OpenSearch e2e suites run with:
-// the structured filter, plus both typed-attribute gates (RFC 0015), which add the numeric
-// sub-field that the battery's ordering case ranges over and let the reader range over it.
+// the structured filter, both typed-attribute gates (RFC 0015), which add the numeric
+// sub-field that the battery's ordering case ranges over and let the reader range over it, and
+// pagination (RFC 0014), which the span search pages with.
 var elasticsearchFilterGates = []string{
 	querysvc.StructuredFiltersGate.ID(),
 	esclient.TypedAttributeIndexingGate.ID(),
 	esclient.TypedAttributeQueryGate.ID(),
+	querysvc.PaginationGate.ID(),
 }
 
 // elasticsearchIndexingGates are the gates of a deployment midway through adopting typed
 // attributes: new indices carry the sub-field, but the query gate stays off until retention has
 // turned over the indices created without it, so the reader still refuses to order an attribute.
 // They are also what the backward-compatibility suite hands its earlier binary, which only writes
-// and so has no use for the query gate.
+// and so has no use for the query gate. The pagination gate is there for the span ordering
+// battery, which pages.
 var elasticsearchIndexingGates = []string{
 	querysvc.StructuredFiltersGate.ID(),
 	esclient.TypedAttributeIndexingGate.ID(),
+	querysvc.PaginationGate.ID(),
 }
 
 // binaryEnv builds the environment for the spawned jaeger binary. The child gets

@@ -266,6 +266,14 @@ type Configuration struct {
 	// ---- jaeger-specific configs ----
 	// MaxDocCount Defines maximum number of results to fetch from storage per query.
 	MaxDocCount int `mapstructure:"max_doc_count"`
+	// SpanSearchTieBreakByID makes a span search (RFC 0016) sort on the document _id after the
+	// caller's ordering terms, which lets a page resume exactly after its last span even when
+	// several stored spans share every other sort value. Sorting on _id needs the cluster
+	// setting indices.id_field_data.enabled, which OpenSearch and Elasticsearch 7 turn on by
+	// default and Elasticsearch 8 and later turn off. When false, a span search sorts on the
+	// ordering terms alone, and spans that tie on all of them and straddle a page boundary can
+	// be skipped by the next page.
+	SpanSearchTieBreakByID bool `mapstructure:"span_search_tie_break_by_id"`
 	// MaxSpanAge configures the maximum lookback on span reads.
 	// For alias-based rotation (manual_rollover/auto_rollover), this should be set
 	// to match the ILM/ISM data retention policy so that GetTraces can find traces

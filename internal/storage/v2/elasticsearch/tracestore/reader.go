@@ -5,6 +5,7 @@ package tracestore
 
 import (
 	"context"
+	"fmt"
 	"iter"
 
 	"go.opentelemetry.io/collector/pdata/ptrace"
@@ -18,9 +19,6 @@ var _ tracestore.Reader = (*TraceReader)(nil)
 
 // TraceReader is a wrapper around core.Reader which returns the output parallel to OTLP Models
 type TraceReader struct {
-	// SpanSearch is unsupported in ElasticSearch for now.
-	tracestore.UnsupportedSpanSearch
-
 	spanReader core.Reader
 }
 
@@ -43,6 +41,14 @@ func (*TraceReader) SearchCapabilities(context.Context) (tracestore.SearchCapabi
 		// trace.
 		SameSpanConjunction: true,
 		Filter:              &filter,
+		// FindSpans reads span documents in the order the caller selects, lowering every
+		// term of the ordering contract to a single-valued document field (RFC 0016 §6).
+		SpanSearch:  true,
+		SpanSorting: true,
+		// FindSpans pages with a keyset cursor over the engine's own sort values. The
+		// capability covers the trace searches as well, which do not page yet: they serve
+		// one page bounded by the page size and refuse a token (see paginationAsDepth).
+		Paginated: true,
 	}, nil
 }
 
@@ -112,8 +118,76 @@ func (r *TraceReader) FindTraces(ctx context.Context, query tracestore.TraceQuer
 	}
 }
 
+// FindSpans returns one page of the spans matching query, in the effective order, with the
+// token that resumes the search (RFC 0016 §6). The core reader owns the cursor inside the
+// token; this layer binds it to the query's fingerprint so that a token returned for one query
+// is refused by every other (RFC 0014 §3.2).
+func (r *TraceReader) FindSpans(ctx context.Context, query tracestore.SpanQueryParams) iter.Seq2[tracestore.PageChunk[ptrace.Traces], error] {
+	return func(yield func(tracestore.PageChunk[ptrace.Traces], error) bool) {
+		// The query service settles the order before calling a reader, but a reader reached
+		// directly must still refuse terms it cannot execute, and the settled order is the one
+		// the fingerprint and the sort must agree on.
+		order, err := tracestore.EffectiveSpanOrder(query.OrderBy)
+		if err != nil {
+			yield(tracestore.PageChunk[ptrace.Traces]{}, err)
+			return
+		}
+		query.OrderBy = order
+		fingerprint, err := query.Fingerprint()
+		if err != nil {
+			yield(tracestore.PageChunk[ptrace.Traces]{}, err)
+			return
+		}
+		var cursor []byte
+		if query.Pagination.PageToken != "" {
+			if cursor, err = query.Pagination.PageToken.Cursor(fingerprint); err != nil {
+				yield(tracestore.PageChunk[ptrace.Traces]{}, err)
+				return
+			}
+		}
+		// The query service clamps the page size (RFC 0014 §4); a caller reaching the reader
+		// directly gets the same bound, and the conversion happens only under it.
+		pageSize := int(tracestore.MaxPageSize)
+		if query.Pagination.PageSize <= tracestore.MaxPageSize {
+			pageSize = int(query.Pagination.PageSize)
+		}
+		page, err := r.spanReader.FindSpans(ctx, dbmodel.SpanQueryParameters{
+			StartTimeMin: query.StartTimeMin,
+			StartTimeMax: query.StartTimeMax,
+			Filter:       query.Filter,
+			OrderBy:      order,
+			PageSize:     pageSize,
+			Cursor:       cursor,
+		})
+		if err != nil {
+			yield(tracestore.PageChunk[ptrace.Traces]{}, err)
+			return
+		}
+		// FromDBModel gives every span its own ResourceSpans, so the page keeps the engine's
+		// order even where consecutive spans alternate between services (RFC 0016 §6.4).
+		td, err := FromDBModel(page.Spans)
+		if err != nil {
+			yield(tracestore.PageChunk[ptrace.Traces]{}, err)
+			return
+		}
+		chunk := tracestore.PageChunk[ptrace.Traces]{Results: td}
+		if len(page.NextCursor) > 0 {
+			if chunk.NextPageToken, err = tracestore.NewPageToken(fingerprint, page.NextCursor); err != nil {
+				yield(tracestore.PageChunk[ptrace.Traces]{}, err)
+				return
+			}
+		}
+		yield(chunk, nil)
+	}
+}
+
 func (r *TraceReader) FindTraceIDs(ctx context.Context, query tracestore.TraceQueryParams) iter.Seq2[tracestore.PageChunk[[]tracestore.FoundTraceID], error] {
 	return func(yield func(tracestore.PageChunk[[]tracestore.FoundTraceID], error) bool) {
+		query, err := paginationAsDepth(query)
+		if err != nil {
+			yield(tracestore.PageChunk[[]tracestore.FoundTraceID]{}, err)
+			return
+		}
 		traceIds, err := r.spanReader.FindTraceIDs(ctx, toDBTraceQueryParams(query))
 		if err != nil {
 			yield(tracestore.PageChunk[[]tracestore.FoundTraceID]{}, err)
@@ -130,9 +204,26 @@ func (r *TraceReader) FindTraceIDs(ctx context.Context, query tracestore.TraceQu
 				TraceID: dbTraceId,
 			})
 		}
-		// TODO: Populate NextPageToken when Elasticsearch supports RFC 0014 pagination.
+		// The trace searches do not page yet (RFC 0014 M3), so the page is the last one.
 		yield(tracestore.PageChunk[[]tracestore.FoundTraceID]{Results: otelTraceIds}, nil)
 	}
+}
+
+// paginationAsDepth is RFC 0014 §6.2 applied inside this reader for the trace searches, which
+// do not page yet while the Paginated capability, declared for FindSpans, covers them too. The
+// page size bounds the search as its depth, and a token is refused, because these searches
+// cannot have produced one. The query service applies the same rule, in queryToReaderCapabilities,
+// to a reader that declares no pagination at all.
+func paginationAsDepth(query tracestore.TraceQueryParams) (tracestore.TraceQueryParams, error) {
+	if query.Pagination == nil {
+		return query, nil
+	}
+	if query.Pagination.PageToken != "" {
+		return tracestore.TraceQueryParams{}, fmt.Errorf("%w: trace searches on this storage backend do not page yet", tracestore.ErrPaginationUnsupported)
+	}
+	query.SearchDepth = query.Pagination.PageSize
+	query.Pagination = nil
+	return query, nil
 }
 
 func toDBTraceQueryParams(query tracestore.TraceQueryParams) dbmodel.TraceQueryParameters {

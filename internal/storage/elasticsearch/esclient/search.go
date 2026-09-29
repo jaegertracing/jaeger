@@ -105,9 +105,13 @@ type HitsResult struct {
 
 // SearchHit is a single matched document. Source is the raw _source JSON, left
 // unparsed so the storage layer unmarshals it into its own dbmodel type — the
-// client never knows what a span or throughput document is.
+// client never knows what a span or throughput document is. Sort holds the hit's
+// value for each sort clause of the request, in request order and as the engine
+// encoded them, so a caller can resume a sorted search after this hit with
+// search_after without reconstructing the values from the document.
 type SearchHit struct {
-	Source json.RawMessage `json:"_source"`
+	Source json.RawMessage   `json:"_source"`
+	Sort   []json.RawMessage `json:"sort"`
 }
 
 // TotalHits is the number of matching documents. Elasticsearch reports it either

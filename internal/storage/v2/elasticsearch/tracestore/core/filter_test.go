@@ -213,6 +213,22 @@ func TestBuildFilterQuery(t *testing.T) {
 			filter: p.Span().Duration.Eq("3s"),
 		},
 		{
+			name:   "span.startTime compares epoch microseconds against a timestamp",
+			filter: p.Span().StartTime.Gt("2020-01-02T03:04:05Z"),
+		},
+		{
+			name:   "ne on the start time asks for spans that hold another start time",
+			filter: p.Span().StartTime.Ne("2020-01-02T03:04:05Z"),
+		},
+		{
+			name:   "exists on the start time",
+			filter: p.Span().StartTime.Exists(),
+		},
+		{
+			name:   "lte on the start time with a timestamp constant, which is what a finalized filter carries",
+			filter: p.Span().StartTime.Lte(&expression.TimestampValue{Value: time.Date(2020, 1, 2, 3, 4, 5, 0, time.UTC)}),
+		},
+		{
 			name:   "a string constant against the operation name, which is what finalizing produces",
 			filter: p.Span().Name.Eq(p.Text("checkout")),
 		},
@@ -617,10 +633,34 @@ func TestBuildFilterQueryRefused(t *testing.T) {
 			wantMsg: "a boolean constant declares a type",
 		},
 		{
-			name:    "a timestamp constant, which no field here holds",
-			filter:  p.Span().StartTime.Gt(&expression.TimestampValue{Value: time.Unix(0, 0).UTC()}),
+			name:    "a timestamp constant against a field holding text",
+			filter:  p.Span().Name.Eq(&expression.TimestampValue{Value: time.Unix(0, 0).UTC()}),
 			wantErr: tracestore.ErrFilterUnsupported,
 			wantMsg: "a timestamp constant declares a type",
+		},
+		{
+			name:    "a pattern over the start time, which is a number",
+			filter:  p.Span().StartTime.Matches("2020.*"),
+			wantErr: tracestore.ErrFilterUnsupported,
+			wantMsg: `operator "regex" on a timestamp`,
+		},
+		{
+			name:    "a timestamp constant carrying nothing, which a finalized filter never holds",
+			filter:  p.Span().StartTime.Gt((*expression.TimestampValue)(nil)),
+			wantErr: tracestore.ErrFilterUnsupported,
+			wantMsg: "a timestamp constant declares a type",
+		},
+		{
+			name:    "an untyped constant carrying nothing where the start time belongs",
+			filter:  p.Span().StartTime.Gt((*expression.AnyValue)(nil)),
+			wantErr: tracestore.ErrFilterUnsupported,
+			wantMsg: "that operand declares a type",
+		},
+		{
+			name:    "a boolean where the start time belongs",
+			filter:  p.Span().StartTime.Gt(&expression.BoolValue{Value: true}),
+			wantErr: tracestore.ErrFilterUnsupported,
+			wantMsg: "a boolean constant declares a type",
 		},
 		{
 			name:    "a boolean where the duration belongs",
@@ -661,6 +701,12 @@ func TestBuildFilterQueryRefused(t *testing.T) {
 				scalar("cart")),
 			wantErr: tracestore.ErrFilterUnsupported,
 			wantMsg: `evaluates "in" against a constant only`,
+		},
+		{
+			name:    "a start time value that is not a timestamp",
+			filter:  p.Span().StartTime.Gt("yesterday"),
+			wantErr: tracestore.ErrFilterInvalid,
+			wantMsg: `"yesterday" is not a timestamp such as`,
 		},
 		{
 			name:    "a duration value with no unit",

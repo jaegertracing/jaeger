@@ -21,7 +21,7 @@ import (
 func buildSpanOrderingTraces() []ptrace.Traces {
 	base := time.Now().Add(-time.Hour).Truncate(time.Second)
 	var traces []ptrace.Traces
-	for _, f := range []struct {
+	for i, f := range []struct {
 		name, service         string
 		trace, span           byte
 		start, duration, rank int
@@ -31,6 +31,10 @@ func buildSpanOrderingTraces() []ptrace.Traces {
 		{"c", "ordering-a", 2, 1, 2, 3, 4},
 		{"d", "ordering-a", 1, 1, 3, 1, 1},
 		{"e", "ordering-b", 3, 1, 4, 0, 3},
+		// The second "a" ties with the first on every sort field, so the two are told apart
+		// only by a stored discriminator, which is what continuation must preserve across a
+		// page boundary. It carries one attribute of its own, because a backend with
+		// idempotent writes stores a byte-identical copy as the same document.
 		{"a", "ordering-a", 2, 3, 1, 4, 5},
 	} {
 		trace := ptrace.NewTraces()
@@ -46,6 +50,7 @@ func buildSpanOrderingTraces() []ptrace.Traces {
 		// The rank orders the corpus differently from every intrinsic field, so ordering by it
 		// cannot pass by accident.
 		span.Attributes().PutInt("ordering-rank", int64(f.rank))
+		span.Attributes().PutInt("ordering-copy", int64(i))
 		traces = append(traces, trace)
 	}
 	return traces
