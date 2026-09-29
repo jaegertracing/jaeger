@@ -2,43 +2,35 @@
 // Copyright (c) 2017 Uber Technologies, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-package metricsbuilder
+package app
 
 import (
-	"flag"
 	"testing"
 
 	"github.com/prometheus/client_golang/prometheus"
-	"github.com/spf13/cobra"
-	"github.com/spf13/viper"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.opentelemetry.io/collector/confmap"
 
 	"github.com/jaegertracing/jaeger/internal/metrics"
-	"github.com/jaegertracing/jaeger/internal/testutils"
 )
 
-func TestAddFlags(t *testing.T) {
-	v := viper.New()
-	command := cobra.Command{}
-	flags := &flag.FlagSet{}
-	AddFlags(flags)
-	command.PersistentFlags().AddGoFlagSet(flags)
-	v.BindPFlags(command.PersistentFlags())
-
-	command.ParseFlags([]string{
-		"--metrics-backend=foo",
-		"--metrics-http-route=bar",
-	})
-
-	b := &Builder{}
-	b.InitFromViper(v)
-
-	assert.Equal(t, "foo", b.Backend)
-	assert.Equal(t, "bar", b.HTTPRoute)
+func TestDefaultMetricsConfig(t *testing.T) {
+	assert.Equal(t, MetricsConfig{Backend: "prometheus", HTTPRoute: "/metrics"}, DefaultMetricsConfig())
 }
 
-func TestBuilder(t *testing.T) {
+func TestMetricsConfigUnmarshal(t *testing.T) {
+	b := DefaultMetricsConfig()
+	conf := confmap.NewFromStringMap(map[string]any{
+		"backend":    "none",
+		"http_route": "/m",
+	})
+	require.NoError(t, conf.Unmarshal(&b))
+	assert.Equal(t, "none", b.Backend)
+	assert.Equal(t, "/m", b.HTTPRoute)
+}
+
+func TestMetricsConfigCreateMetricsFactory(t *testing.T) {
 	assertPromCounter := func() {
 		families, err := prometheus.DefaultGatherer.Gather()
 		require.NoError(t, err)
@@ -78,13 +70,13 @@ func TestBuilder(t *testing.T) {
 
 	for i := range testCases {
 		testCase := testCases[i]
-		b := &Builder{
+		b := &MetricsConfig{
 			Backend:   testCase.backend,
 			HTTPRoute: testCase.route,
 		}
 		mf, err := b.CreateMetricsFactory("foo")
 		if testCase.err != nil {
-			assert.Equal(t, err, testCase.err)
+			require.ErrorIs(t, err, testCase.err)
 			continue
 		}
 		require.NotNil(t, mf)
@@ -96,8 +88,4 @@ func TestBuilder(t *testing.T) {
 			require.NotNil(t, b.Handler())
 		}
 	}
-}
-
-func TestMain(m *testing.M) {
-	testutils.VerifyGoLeaks(m)
 }
