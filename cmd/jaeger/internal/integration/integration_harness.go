@@ -75,6 +75,8 @@ func (s *E2EStorageIntegration) args(configFile string) []string {
 	return args
 }
 
+var paginationGates = []string{querysvc.PaginationGate.ID()}
+
 // structuredFilterGates names the RFC 0005 filter gate. It is beta and on by default, and it is
 // still passed explicitly so that the suites whose searches carry a filter, the filter battery and the
 // rewrite test, do not depend on the default and keep working against a binary that pins it off.
@@ -127,6 +129,8 @@ func (s *E2EStorageIntegration) binaryEnv(lookupEnv func(string) (string, bool))
 // it also initialize the SpanWriter and SpanReader below.
 // This function should be called before any of the tests start.
 func (s *E2EStorageIntegration) e2eInitialize(t *testing.T, storage string) {
+	// API v3 has no FindTraceIDs endpoint.
+	s.Capabilities = s.Capabilities.WithoutTraceIDPagination()
 	logger := zaptest.NewLogger(t, zaptest.WrapOptions(zap.AddCaller()))
 	if s.BinaryName == "" {
 		s.BinaryName = "jaeger-v2"

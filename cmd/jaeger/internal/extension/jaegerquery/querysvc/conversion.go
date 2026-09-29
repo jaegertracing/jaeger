@@ -31,19 +31,19 @@ func (q TraceQueryParams) toReaderQuery() (tracestore.TraceQueryParams, error) {
 		Filter:        q.Filter,
 	}
 	if q.StartTimeMin.IsZero() || q.StartTimeMax.IsZero() {
-		return query, fmt.Errorf("%w: min and max start time are required", ErrQueryInvalid)
+		return query, fmt.Errorf("%w: min and max start time are required", tracestore.ErrInvalidQuery)
 	}
 	if !q.StartTimeMin.Before(q.StartTimeMax) {
-		return query, fmt.Errorf("%w: min start time must be before max start time", ErrQueryInvalid)
+		return query, fmt.Errorf("%w: min start time must be before max start time", tracestore.ErrInvalidQuery)
 	}
 	if q.DurationMin < 0 || q.DurationMax < 0 {
-		return query, fmt.Errorf("%w: min and max duration cannot be negative", ErrQueryInvalid)
+		return query, fmt.Errorf("%w: min and max duration cannot be negative", tracestore.ErrInvalidQuery)
 	}
 	if q.DurationMin > 0 && q.DurationMax > 0 && q.DurationMax < q.DurationMin {
-		return query, fmt.Errorf("%w: max duration cannot be less than min duration", ErrQueryInvalid)
+		return query, fmt.Errorf("%w: max duration cannot be less than min duration", tracestore.ErrInvalidQuery)
 	}
-	if q.SearchDepth < 0 || q.SearchDepth > tracestore.MaxSearchDepth {
-		return query, fmt.Errorf("%w: search depth must be in [0, %d]", ErrQueryInvalid, tracestore.MaxSearchDepth)
+	if q.SearchDepth > tracestore.MaxSearchDepth {
+		return query, fmt.Errorf("%w: search depth must be in [0, %d]", tracestore.ErrInvalidQuery, tracestore.MaxSearchDepth)
 	}
 	if q.Pagination == nil {
 		if q.SearchDepth == 0 {
@@ -60,7 +60,7 @@ func (q TraceQueryParams) toReaderQuery() (tracestore.TraceQueryParams, error) {
 		return query, fmt.Errorf("%w: it cannot be combined with search depth",
 			tracestore.ErrPaginationInvalid)
 	}
-	if q.Pagination.PageSize <= 0 {
+	if q.Pagination.PageSize == 0 {
 		return query, fmt.Errorf("%w: page size is required whenever pagination is present",
 			tracestore.ErrPaginationInvalid)
 	}
@@ -78,20 +78,25 @@ func (q TraceQueryParams) toReaderQuery() (tracestore.TraceQueryParams, error) {
 // Elasticsearch, and an oversized one is clamped rather than refused (RFC 0014 §4). The filter
 // and the reader's capabilities are prepareSpanSearchQuery's, since they depend on the backend.
 func (q SpanQueryParams) toReaderQuery() (tracestore.SpanQueryParams, error) {
+	order, err := tracestore.NormalizeSpanOrder(q.OrderBy)
+	if err != nil {
+		return tracestore.SpanQueryParams{}, err
+	}
 	query := tracestore.SpanQueryParams{
 		StartTimeMin: q.StartTimeMin,
 		StartTimeMax: q.StartTimeMax,
 		Filter:       q.Filter,
+		OrderBy:      order,
 		Pagination: tracestore.Pagination{
 			PageSize:  q.Pagination.PageSize,
 			PageToken: tracestore.PageToken(q.Pagination.PageToken),
 		},
 	}
 	if q.StartTimeMin.IsZero() || q.StartTimeMax.IsZero() {
-		return query, fmt.Errorf("%w: start_time_min and start_time_max are required", ErrQueryInvalid)
+		return query, fmt.Errorf("%w: start_time_min and start_time_max are required", tracestore.ErrInvalidQuery)
 	}
 	if !q.StartTimeMin.Before(q.StartTimeMax) {
-		return query, fmt.Errorf("%w: start_time_min must be before start_time_max", ErrQueryInvalid)
+		return query, fmt.Errorf("%w: start_time_min must be before start_time_max", tracestore.ErrInvalidQuery)
 	}
 	if q.Pagination.PageToken != "" && !PaginationGate.IsEnabled() {
 		return query, fmt.Errorf("%w: enable the %q feature gate to use it",

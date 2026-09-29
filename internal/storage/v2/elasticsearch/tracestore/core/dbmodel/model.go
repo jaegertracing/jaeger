@@ -168,7 +168,7 @@ type TraceQueryParameters struct {
 	StartTimeMax  time.Time
 	DurationMin   time.Duration
 	DurationMax   time.Duration
-	SearchDepth   int
+	SearchDepth   uint32
 	// Filter is the structured query filter (RFC 0005), which carries the same kinds of
 	// predicate as the fields above and is mutually exclusive with them. It is the storage
 	// API's own expression tree rather than a translation of it, because the tree is what the

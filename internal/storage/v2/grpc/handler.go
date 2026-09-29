@@ -22,6 +22,10 @@ import (
 	"github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore"
 )
 
+// errorInfoDomain is the ErrorInfo domain under which the storage server reports reader
+// refusals, so the storage client restores only the reasons this server attached.
+const errorInfoDomain = "jaeger.storage.v2"
+
 var (
 	_ storage.TraceReaderServer      = (*Handler)(nil)
 	_ storage.DependencyReaderServer = (*Handler)(nil)
@@ -128,7 +132,7 @@ func (h *Handler) FindTraces(
 	}
 	for traces, err := range h.traceReader.FindTraces(srv.Context(), query) {
 		if err != nil {
-			return err
+			return readerStatus(err)
 		}
 		for _, trace := range traces {
 			td := jptrace.TracesData(trace)
@@ -141,6 +145,47 @@ func (h *Handler) FindTraces(
 	return nil
 }
 
+func (h *Handler) FindSpans(req *storage.FindSpansRequest, srv storage.TraceReader_FindSpansServer) error {
+	query, err := toSpanQueryParams(req.GetQuery())
+	if err != nil {
+		return err
+	}
+	for chunk, err := range h.traceReader.FindSpans(srv.Context(), query) {
+		if err != nil {
+			return readerStatus(err)
+		}
+		data := jptrace.TracesData(chunk.Results)
+		if err := srv.Send(&storage.FindSpansResponse{Spans: &data, NextPageToken: string(chunk.NextPageToken)}); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func toSpanQueryParams(wire *storage.SpanQueryParameters) (tracestore.SpanQueryParams, error) {
+	if wire == nil {
+		return tracestore.SpanQueryParams{}, status.Error(codes.InvalidArgument, "missing query")
+	}
+	filter, err := expressionproto.CallFromProto(wire.Filter)
+	if err != nil {
+		return tracestore.SpanQueryParams{}, status.Error(codes.InvalidArgument, err.Error())
+	}
+	order, err := tracestore.SpanOrderFromProto(wire.OrderBy)
+	if err != nil {
+		return tracestore.SpanQueryParams{}, status.Error(codes.InvalidArgument, err.Error())
+	}
+	return tracestore.SpanQueryParams{
+		StartTimeMin: wire.StartTimeMin,
+		StartTimeMax: wire.StartTimeMax,
+		Filter:       filter,
+		OrderBy:      order,
+		Pagination: tracestore.Pagination{
+			PageSize:  wire.GetPagination().GetPageSize(),
+			PageToken: tracestore.PageToken(wire.GetPagination().GetPageToken()),
+		},
+	}, nil
+}
+
 func (h *Handler) FindTraceSummaries(
 	req *storage.FindTraceSummariesRequest,
 	srv storage.TraceReader_FindTraceSummariesServer,
@@ -151,13 +196,7 @@ func (h *Handler) FindTraceSummaries(
 	}
 	for chunk, err := range h.traceReader.FindTraceSummaries(srv.Context(), query) {
 		if err != nil {
-			// A backend that cannot compute summaries natively signals this with
-			// errors.ErrUnsupported; surface it as gRPC Unimplemented so the remote
-			// client falls back to loading full traces and aggregating client-side.
-			if errors.Is(err, errors.ErrUnsupported) {
-				return status.Errorf(codes.Unimplemented, "method FindTraceSummaries not implemented: %v", err)
-			}
-			return err
+			return readerStatus(err)
 		}
 		batch := make([]*storage.TraceSummary, len(chunk.Results))
 		for i := range chunk.Results {
@@ -193,6 +232,12 @@ func (h *Handler) FindTraceSummaries(
 	return nil
 }
 
+// readerStatus converts a reader refusal into the status tracestore.RefusalStatus defines, in
+// this server's ErrorInfo domain, and leaves any other error unchanged.
+func readerStatus(err error) error {
+	return tracestore.RefusalStatus(err, errorInfoDomain)
+}
+
 func (h *Handler) FindTraceIDs(
 	ctx context.Context,
 	req *storage.FindTraceIDsRequest,
@@ -205,7 +250,7 @@ func (h *Handler) FindTraceIDs(
 	}
 	for chunk, err := range h.traceReader.FindTraceIDs(ctx, query) {
 		if err != nil {
-			return nil, err
+			return nil, readerStatus(err)
 		}
 		for _, traceID := range chunk.Results {
 			foundTraceIDs = append(foundTraceIDs, &storage.FoundTraceID{
@@ -291,6 +336,8 @@ func (h *Handler) GetCapabilities(
 			SameSpanConjunction: caps.SameSpanConjunction,
 			Filter:              toProtoFilterCapabilities(caps.Filter),
 			Paginated:           caps.Paginated,
+			SpanSearch:          caps.SpanSearch,
+			SpanSorting:         caps.SpanSorting,
 		},
 	}, nil
 }
@@ -301,13 +348,18 @@ func (h *Handler) GetCapabilities(
 // are InvalidArgument. It does not validate Pagination or consult the reader's capabilities:
 // converting a query toward what the reader supports is the query service's job (ADR-013).
 func (*Handler) toTraceQueryParams(t *storage.TraceQueryParameters) (tracestore.TraceQueryParams, error) {
-	filter, err := expressionproto.FromProto(t.GetFilter())
+	filter, err := expressionproto.CallFromProto(t.GetFilter())
 	if err == nil && filter != nil {
 		filter, err = tracestore.FinalizeFilter(filter)
 	}
 	if err != nil {
 		return tracestore.TraceQueryParams{}, status.Error(codes.InvalidArgument, err.Error())
 	}
+	depth := t.SearchDepth
+	if depth < 0 || depth > int32(tracestore.MaxSearchDepth) {
+		return tracestore.TraceQueryParams{}, status.Errorf(codes.InvalidArgument, "SearchDepth must be in [0, %d]", tracestore.MaxSearchDepth)
+	}
+	searchDepth := uint32(depth)
 	query := tracestore.TraceQueryParams{
 		ServiceName:   t.ServiceName,
 		OperationName: t.OperationName,
@@ -316,12 +368,12 @@ func (*Handler) toTraceQueryParams(t *storage.TraceQueryParameters) (tracestore.
 		StartTimeMax:  t.StartTimeMax,
 		DurationMin:   t.DurationMin,
 		DurationMax:   t.DurationMax,
-		SearchDepth:   int(t.SearchDepth),
+		SearchDepth:   searchDepth,
 		Filter:        filter,
 	}
 	if pagination := t.GetPagination(); pagination != nil {
 		query.Pagination = &tracestore.Pagination{
-			PageSize:  int(pagination.GetPageSize()),
+			PageSize:  pagination.GetPageSize(),
 			PageToken: tracestore.PageToken(pagination.GetPageToken()),
 		}
 	}

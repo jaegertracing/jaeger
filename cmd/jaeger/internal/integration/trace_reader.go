@@ -35,9 +35,6 @@ var (
 
 // traceReader retrieves trace data from the jaeger-v2 query service through the api_v2.QueryServiceClient.
 type traceReader struct {
-	// SpanSearch is unsupported for now.
-	tracestore.UnsupportedSpanSearch
-
 	logger     *zap.Logger
 	clientConn *grpc.ClientConn
 	client     api_v3.QueryServiceClient
@@ -138,10 +135,16 @@ func toProtoQuery(query tracestore.TraceQueryParams) (*api_v3.TraceQueryParamete
 		StartTimeMax:  query.StartTimeMax,
 		DurationMin:   query.DurationMin,
 		DurationMax:   query.DurationMax,
-		SearchDepth:   int32(query.SearchDepth), //nolint:gosec // G115 - bounds checked above
+		SearchDepth:   int32(query.SearchDepth),
+	}
+	if query.Pagination != nil {
+		protoQuery.Pagination = &api_v3.Pagination{
+			PageSize:  query.Pagination.PageSize,
+			PageToken: string(query.Pagination.PageToken),
+		}
 	}
 	if query.Filter != nil {
-		filter, err := expressionproto.ToProto(query.Filter)
+		filter, err := expressionproto.CallToProto(query.Filter)
 		if err != nil {
 			return nil, fmt.Errorf("cannot encode the query filter: %w", err)
 		}
@@ -171,6 +174,56 @@ func (*traceReader) FindTraceIDs(
 	_ tracestore.TraceQueryParams,
 ) iter.Seq2[tracestore.PageChunk[[]tracestore.FoundTraceID], error] {
 	panic("not implemented")
+}
+
+func (r *traceReader) FindSpans(ctx context.Context, query tracestore.SpanQueryParams) iter.Seq2[tracestore.PageChunk[ptrace.Traces], error] {
+	return func(yield func(tracestore.PageChunk[ptrace.Traces], error) bool) {
+		filter, err := expressionproto.CallToProto(query.Filter)
+		if err != nil {
+			yield(tracestore.PageChunk[ptrace.Traces]{}, err)
+			return
+		}
+		var terms []*api_v3.SpanSortOrder
+		for _, term := range query.OrderBy {
+			encoded, err := expressionproto.ToProto(term.Expression)
+			if err != nil {
+				yield(tracestore.PageChunk[ptrace.Traces]{}, err)
+				return
+			}
+			terms = append(terms, &api_v3.SpanSortOrder{Expression: encoded, Direction: string(term.Direction)})
+		}
+		stream, err := r.client.FindSpans(ctx, &api_v3.FindSpansRequest{Query: &api_v3.SpanQueryParameters{
+			StartTimeMin: query.StartTimeMin,
+			StartTimeMax: query.StartTimeMax,
+			Filter:       filter,
+			OrderBy:      terms,
+			Pagination: &api_v3.Pagination{
+				PageSize:  query.Pagination.PageSize,
+				PageToken: string(query.Pagination.PageToken),
+			},
+		}})
+		if err != nil {
+			yield(tracestore.PageChunk[ptrace.Traces]{}, err)
+			return
+		}
+		for {
+			response, err := stream.Recv()
+			if errors.Is(err, io.EOF) {
+				return
+			}
+			if err != nil {
+				yield(tracestore.PageChunk[ptrace.Traces]{}, err)
+				return
+			}
+			spans := ptrace.NewTraces()
+			if response.Spans != nil {
+				spans = response.Spans.ToTraces()
+			}
+			if !yield(tracestore.PageChunk[ptrace.Traces]{Results: spans, NextPageToken: tracestore.PageToken(response.NextPageToken)}, nil) {
+				return
+			}
+		}
+	}
 }
 
 func (r *traceReader) FindTraceSummaries(

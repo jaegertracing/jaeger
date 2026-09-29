@@ -534,12 +534,8 @@ func TestFindTraceIds_NegativeSearchDepth(t *testing.T) {
 func testInvalidSearchDepth(t *testing.T, fxn func(store *Store, params tracestore.TraceQueryParams)) {
 	tests := []struct {
 		name        string
-		searchDepth int
+		searchDepth uint32
 	}{
-		{
-			name:        "negative search depth",
-			searchDepth: -1,
-		},
 		{
 			name:        "zero search depth",
 			searchDepth: 0,
@@ -774,7 +770,7 @@ func TestWriteTraces_WriteTraceWithTwoResourceSpans(t *testing.T) {
 }
 
 func TestNewStore_TracesLimit(t *testing.T) {
-	maxTraces := 8
+	const maxTraces = 8
 	store, err := NewStore(Configuration{
 		MaxTraces: maxTraces,
 	})
@@ -787,7 +783,7 @@ func TestNewStore_TracesLimit(t *testing.T) {
 }
 
 func TestNewStore_ReverseChronologicalOrder(t *testing.T) {
-	maxTraces := 8
+	const maxTraces = 8
 	store, err := NewStore(Configuration{
 		MaxTraces: maxTraces,
 	})
