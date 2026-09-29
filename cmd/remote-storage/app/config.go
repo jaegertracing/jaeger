@@ -11,7 +11,6 @@ import (
 	"go.opentelemetry.io/collector/config/confignet"
 	"go.opentelemetry.io/collector/confmap"
 
-	"github.com/jaegertracing/jaeger/cmd/internal/flags"
 	"github.com/jaegertracing/jaeger/cmd/internal/storageconfig"
 	"github.com/jaegertracing/jaeger/internal/jconfmap"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/memory"
@@ -22,7 +21,7 @@ import (
 // Config is the whole configuration file of the remote-storage service.
 type Config struct {
 	// Service holds the admin server, logging and metrics sections.
-	Service flags.ServiceConfig     `mapstructure:",squash"`
+	Service ServiceConfig           `mapstructure:",squash"`
 	GRPC    configgrpc.ServerConfig `mapstructure:"grpc"`
 	Tenancy tenancy.Options         `mapstructure:"multi_tenancy"`
 	// This configuration is the same as of the main `jaeger` binary,
@@ -91,7 +90,7 @@ func (c *Config) GetStorageName() string {
 
 func defaultConfigWithoutStorage() *Config {
 	return &Config{
-		Service: flags.DefaultServiceConfig(ports.RemoteStorageAdminHTTP),
+		Service: DefaultServiceConfig(ports.RemoteStorageAdminHTTP),
 		GRPC: configgrpc.ServerConfig{
 			NetAddr: confignet.AddrConfig{
 				Endpoint:  ports.PortToHostPort(ports.RemoteStorageGRPC),

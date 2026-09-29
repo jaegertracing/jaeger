@@ -1,7 +1,7 @@
 // Copyright (c) 2020 The Jaeger Authors.
 // SPDX-License-Identifier: Apache-2.0
 
-package flags
+package app
 
 import (
 	"context"
@@ -26,8 +26,6 @@ import (
 
 	"github.com/jaegertracing/jaeger/ports"
 )
-
-var testCertKeyLocation = "../../../internal/config/tlscfg/testdata"
 
 func TestAdminServerHealthCheck(t *testing.T) {
 	adminServer := NewAdminServer(":0")

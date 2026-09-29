@@ -2,7 +2,7 @@
 // Copyright (c) 2017 Uber Technologies, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-package metricsbuilder
+package app
 
 import (
 	"errors"
@@ -22,9 +22,9 @@ const (
 
 var errUnknownBackend = errors.New("unknown metrics backend specified")
 
-// Builder is the metrics section of a service's configuration file, and builds the
+// MetricsConfig is the metrics section of the configuration file, and builds the
 // metrics factory it describes.
-type Builder struct {
+type MetricsConfig struct {
 	// Backend is the metrics backend to report to: "prometheus" or "none".
 	Backend string `mapstructure:"backend"`
 	// HTTPRoute is the path the metrics are exposed on for scraping, e.g. /metrics.
@@ -32,10 +32,10 @@ type Builder struct {
 	handler   http.Handler
 }
 
-// Default returns the settings a service reports metrics with unless configured otherwise:
-// Prometheus on /metrics.
-func Default() Builder {
-	return Builder{
+// DefaultMetricsConfig returns the settings the service reports metrics with unless
+// configured otherwise: Prometheus on /metrics.
+func DefaultMetricsConfig() MetricsConfig {
+	return MetricsConfig{
 		Backend:   defaultMetricsBackend,
 		HTTPRoute: defaultMetricsRoute,
 	}
@@ -43,8 +43,8 @@ func Default() Builder {
 
 // CreateMetricsFactory creates a metrics factory based on the configured type of the backend.
 // If the metrics backend supports HTTP endpoint for scraping, it is stored in the builder and
-// can be later added by RegisterHandler function.
-func (b *Builder) CreateMetricsFactory(namespace string) (metrics.Factory, error) {
+// is returned by Handler.
+func (b *MetricsConfig) CreateMetricsFactory(namespace string) (metrics.Factory, error) {
 	if b.Backend == "prometheus" {
 		metricsFactory := jprom.New().Namespace(metrics.NSOptions{Name: namespace, Tags: nil})
 		b.handler = promhttp.HandlerFor(prometheus.DefaultGatherer, promhttp.HandlerOpts{DisableCompression: true})
@@ -57,6 +57,6 @@ func (b *Builder) CreateMetricsFactory(namespace string) (metrics.Factory, error
 }
 
 // Handler returns an http.Handler for the metrics endpoint.
-func (b *Builder) Handler() http.Handler {
+func (b *MetricsConfig) Handler() http.Handler {
 	return b.handler
 }

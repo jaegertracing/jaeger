@@ -17,7 +17,6 @@ import (
 
 	"github.com/jaegertracing/jaeger/cmd/internal/docs"
 	"github.com/jaegertracing/jaeger/cmd/internal/featuregate"
-	"github.com/jaegertracing/jaeger/cmd/internal/flags"
 	"github.com/jaegertracing/jaeger/cmd/internal/printconfig"
 	"github.com/jaegertracing/jaeger/cmd/internal/status"
 	"github.com/jaegertracing/jaeger/cmd/internal/storageconfig"
@@ -36,7 +35,7 @@ const serviceName = "jaeger-remote-storage"
 // loadConfig reads the configuration file named by --config-file, or returns the default
 // configuration when none was given.
 func loadConfig(ctx context.Context, v *viper.Viper) (*app.Config, error) {
-	path := flags.ConfigFile(v)
+	path := app.ConfigFile(v)
 	if path == "" {
 		return app.DefaultConfig(), nil
 	}
@@ -44,7 +43,7 @@ func loadConfig(ctx context.Context, v *viper.Viper) (*app.Config, error) {
 }
 
 func main() {
-	svc := flags.NewService(ports.RemoteStorageAdminHTTP)
+	svc := app.NewService(ports.RemoteStorageAdminHTTP)
 
 	v := viper.New()
 	command := &cobra.Command{
@@ -60,7 +59,7 @@ func main() {
 				return err
 			}
 			logger := svc.Logger
-			if flags.ConfigFile(v) == "" {
+			if app.ConfigFile(v) == "" {
 				logger.Info("No configuration file provided, using default configuration (memory storage on :17271)")
 			}
 			baseFactory := svc.MetricsFactory.Namespace(metrics.NSOptions{Name: "jaeger"})

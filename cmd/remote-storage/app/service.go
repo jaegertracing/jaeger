@@ -1,7 +1,7 @@
 // Copyright (c) 2022 The Jaeger Authors.
 // SPDX-License-Identifier: Apache-2.0
 
-package flags
+package app
 
 import (
 	"expvar"
@@ -19,19 +19,18 @@ import (
 	"google.golang.org/grpc/grpclog"
 
 	"github.com/jaegertracing/jaeger/internal/metrics"
-	"github.com/jaegertracing/jaeger/internal/metrics/metricsbuilder"
 	"github.com/jaegertracing/jaeger/ports"
 )
 
-// ServiceConfig holds the settings every service built on Service reads from its
-// configuration file: the admin server, logging and the metrics backend.
+// ServiceConfig holds the settings of the service itself, as opposed to the storage
+// it serves: the admin server, logging and the metrics backend.
 type ServiceConfig struct {
 	Admin   confighttp.ServerConfig `mapstructure:"admin"`
 	Logging LoggingConfig           `mapstructure:"logging"`
-	Metrics metricsbuilder.Builder  `mapstructure:"metrics"`
+	Metrics MetricsConfig           `mapstructure:"metrics"`
 }
 
-// DefaultServiceConfig returns the settings a service runs with when its configuration
+// DefaultServiceConfig returns the settings the service runs with when its configuration
 // file does not name them: an admin server on adminPort, info-level JSON logs, and
 // Prometheus metrics on /metrics.
 func DefaultServiceConfig(adminPort int) ServiceConfig {
@@ -46,7 +45,7 @@ func DefaultServiceConfig(adminPort int) ServiceConfig {
 			Level:    "info",
 			Encoding: "json",
 		},
-		Metrics: metricsbuilder.Default(),
+		Metrics: DefaultMetricsConfig(),
 	}
 }
 
