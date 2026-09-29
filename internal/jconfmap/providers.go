@@ -14,15 +14,19 @@ import (
 	"go.opentelemetry.io/collector/confmap/provider/yamlprovider"
 )
 
-// ProviderFactories returns the confmap providers every Jaeger binary resolves its
-// configuration with, so that a configuration file is read the same way, with the same
-// `${scheme:...}` references, whichever binary loads it.
-func ProviderFactories() []confmap.ProviderFactory {
-	return []confmap.ProviderFactory{
-		envprovider.NewFactory(),
-		fileprovider.NewFactory(),
-		httpprovider.NewFactory(),
-		httpsprovider.NewFactory(),
-		yamlprovider.NewFactory(),
+// ResolverSettings returns the confmap resolver settings every Jaeger binary reads its
+// configuration with, so that a file is read the same way whichever binary loads it: the
+// same `${scheme:...}` providers, and `${VAR}` with no scheme read from the environment,
+// as the OpenTelemetry Collector does. The caller adds the URIs to read.
+func ResolverSettings() confmap.ResolverSettings {
+	return confmap.ResolverSettings{
+		ProviderFactories: []confmap.ProviderFactory{
+			envprovider.NewFactory(),
+			fileprovider.NewFactory(),
+			httpprovider.NewFactory(),
+			httpsprovider.NewFactory(),
+			yamlprovider.NewFactory(),
+		},
+		DefaultScheme: "env",
 	}
 }

@@ -30,17 +30,18 @@ type Config struct {
 }
 
 // LoadConfigFile reads the configuration file through OpenTelemetry confmap with the same
-// providers the main jaeger binary resolves its configuration with. That is what runs the
+// settings the main jaeger binary resolves its configuration with. That is what runs the
 // backends' Unmarshal hooks, which supply their defaults, decodes configoptional fields,
-// expands ${env:VAR} references, rejects unknown keys, and validates every nested section.
+// expands ${env:VAR} and ${VAR} references, rejects unknown keys, and validates every
+// nested section.
 func LoadConfigFile(ctx context.Context, path string) (*Config, error) {
-	resolver, err := confmap.NewResolver(confmap.ResolverSettings{
-		URIs:              []string{"file:" + path},
-		ProviderFactories: jconfmap.ProviderFactories(),
-	})
+	set := jconfmap.ResolverSettings()
+	set.URIs = []string{"file:" + path}
+	resolver, err := confmap.NewResolver(set)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create configuration resolver: %w", err)
 	}
+	defer resolver.Shutdown(ctx)
 	conf, err := resolver.Resolve(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("failed to read configuration file %s: %w", path, err)
@@ -57,24 +58,17 @@ func LoadConfigFile(ctx context.Context, path string) (*Config, error) {
 		return nil, fmt.Errorf("failed to unmarshal configuration: %w", err)
 	}
 
+	// confmap.Validate reaches every Validate method in the tree, this type's included.
 	if err := confmap.Validate(cfg); err != nil {
-		return nil, fmt.Errorf("invalid configuration: %w", err)
-	}
-	if err := cfg.Validate(); err != nil {
 		return nil, fmt.Errorf("invalid configuration: %w", err)
 	}
 
 	return cfg, nil
 }
 
-// Validate validates the configuration.
+// Validate checks what no nested section can: that only one backend is configured.
+// The sections validate themselves when confmap.Validate walks the tree.
 func (c *Config) Validate() error {
-	// Validate storage configuration
-	if err := c.Storage.Validate(); err != nil {
-		return err
-	}
-
-	// Ensure only one backend is defined for remote-storage
 	if len(c.Storage.TraceBackends) > 1 {
 		return fmt.Errorf("remote-storage only supports a single storage backend, but %d were configured", len(c.Storage.TraceBackends))
 	}

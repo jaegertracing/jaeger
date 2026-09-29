@@ -10,10 +10,12 @@ import (
 	"go.opentelemetry.io/collector/confmap"
 )
 
-func TestProviderFactories(t *testing.T) {
+func TestResolverSettings(t *testing.T) {
+	set := ResolverSettings()
 	var schemes []string
-	for _, factory := range ProviderFactories() {
+	for _, factory := range set.ProviderFactories {
 		schemes = append(schemes, factory.Create(confmap.ProviderSettings{}).Scheme())
 	}
 	assert.Equal(t, []string{"env", "file", "http", "https", "yaml"}, schemes)
+	assert.Equal(t, "env", set.DefaultScheme, "${VAR} without a scheme reads the environment")
 }

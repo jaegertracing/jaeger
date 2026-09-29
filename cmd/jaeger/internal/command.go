@@ -11,7 +11,6 @@ import (
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 	"go.opentelemetry.io/collector/component"
-	"go.opentelemetry.io/collector/confmap"
 	"go.opentelemetry.io/collector/otelcol"
 
 	"github.com/jaegertracing/jaeger/cmd/internal/docs"
@@ -41,9 +40,7 @@ func NewCommand(factories otelcol.Factories) *cobra.Command {
 		BuildInfo: info,
 		Factories: func() (otelcol.Factories, error) { return factories, nil },
 		ConfigProviderSettings: otelcol.ConfigProviderSettings{
-			ResolverSettings: confmap.ResolverSettings{
-				ProviderFactories: jconfmap.ProviderFactories(),
-			},
+			ResolverSettings: jconfmap.ResolverSettings(),
 		},
 	}
 	cmd := otelcol.NewCommand(settings)
