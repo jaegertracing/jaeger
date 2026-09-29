@@ -37,9 +37,6 @@ func TestTraceReader_SearchCapabilities(t *testing.T) {
 		WithoutServiceName:  true,
 		SameSpanConjunction: true,
 		Filter:              &filter,
-		SpanSearch:          true,
-		SpanSorting:         true,
-		Paginated:           true,
 	}, caps)
 }
 
