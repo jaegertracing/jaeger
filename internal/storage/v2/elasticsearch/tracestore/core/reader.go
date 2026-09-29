@@ -117,6 +117,7 @@ type SpanReader struct {
 	spanRotation            indices.Rotation
 	serviceRotation         indices.Rotation
 	maxDocCount             int
+	spanSearchTieBreakByID  bool
 	logger                  *zap.Logger
 	tracer                  trace.Tracer
 	dotReplacer             dbmodel.DotReplacer
@@ -132,11 +133,14 @@ type SpanReaderParams struct {
 	ServicesMaxLookback time.Duration
 	MaxTraceDuration    time.Duration
 	MaxDocCount         int
-	TagDotReplacement   string
-	Logger              *zap.Logger
-	Tracer              trace.Tracer
-	SpanRotation        indices.Rotation
-	ServiceRotation     indices.Rotation
+	// SpanSearchTieBreakByID sorts a span search on _id after the ordering terms; see the
+	// configuration field of the same name.
+	SpanSearchTieBreakByID bool
+	TagDotReplacement      string
+	Logger                 *zap.Logger
+	Tracer                 trace.Tracer
+	SpanRotation           indices.Rotation
+	ServiceRotation        indices.Rotation
 }
 
 // NewSpanReader returns a new SpanReader with a metrics.
@@ -150,6 +154,7 @@ func NewSpanReader(p SpanReaderParams) *SpanReader {
 		spanRotation:            p.SpanRotation,
 		serviceRotation:         p.ServiceRotation,
 		maxDocCount:             p.MaxDocCount,
+		spanSearchTieBreakByID:  p.SpanSearchTieBreakByID,
 		logger:                  p.Logger,
 		tracer:                  p.Tracer,
 		dotReplacer:             dbmodel.NewDotReplacer(p.TagDotReplacement),

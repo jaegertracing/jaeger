@@ -50,19 +50,25 @@ func orderBy(terms ...string) []tracestore.SpanSortOrder {
 	return order
 }
 
-// spanHit is a document of the span search fake: the span, its id, and its sort values in the
-// default order (startTime desc, traceID asc, spanID asc).
+// spanHit is a document of the span search fake: the span and its sort values in the default
+// order with the id tie-breaker (startTime desc, traceID asc, spanID asc, _id asc).
 func spanHit(id string, traceID, spanID string, startTime uint64) esclient.SearchHit {
 	src, err := json.Marshal(dbmodel.Span{TraceID: dbmodel.TraceID(traceID), SpanID: dbmodel.SpanID(spanID), StartTime: startTime})
 	if err != nil {
 		panic(err)
 	}
 	return esclient.SearchHit{
-		Index:  "jaeger-span-2020-01-02",
-		ID:     id,
 		Source: src,
-		Sort:   []json.RawMessage{json.RawMessage(strconv.FormatUint(startTime, 10)), json.RawMessage(`"` + traceID + `"`), json.RawMessage(`"` + spanID + `"`)},
+		Sort:   sortValues(strconv.FormatUint(startTime, 10), `"`+traceID+`"`, `"`+spanID+`"`, `"`+id+`"`),
 	}
+}
+
+func sortValues(values ...string) []json.RawMessage {
+	out := make([]json.RawMessage, len(values))
+	for i, v := range values {
+		out[i] = json.RawMessage(v)
+	}
+	return out
 }
 
 func spanIDs(spans []dbmodel.Span) []string {
@@ -83,6 +89,7 @@ func TestSpanReader_FindSpans_LastPage(t *testing.T) {
 				{Field: startTimeField, Order: "desc"},
 				{Field: traceIDField, Order: "asc"},
 				{Field: spanIDField, Order: "asc"},
+				{Field: idField, Order: "asc"},
 			}, req.Sort)
 			assert.Empty(t, req.SearchAfter)
 		}).Return(&esclient.SearchResponse{Hits: esclient.HitsResult{Hits: []esclient.SearchHit{
@@ -116,83 +123,56 @@ func TestSpanReader_FindSpans_PageCutByResultWindow(t *testing.T) {
 	assert.NotEmpty(t, page.NextCursor)
 }
 
-func TestSpanReader_FindSpans_CursorCarriesTiedIDs(t *testing.T) {
+func TestSpanReader_FindSpans_CursorIsLastSortKey(t *testing.T) {
 	withSpanReader(t, func(r *spanReaderTest) {
-		// The page ends inside a run of hits sharing the whole sort key, as two copies of one
-		// stored span do; the cursor must name the copies already returned.
 		mockSearchService(r).Return(&esclient.SearchResponse{Hits: esclient.HitsResult{Hits: []esclient.SearchHit{
 			spanHit("d1", "t1", "s1", 20), spanHit("d2", "t1", "s2", 10), spanHit("d3", "t1", "s2", 10),
 		}}}, nil)
 		page, err := r.reader.FindSpans(context.Background(), spanSearchQuery())
 		require.NoError(t, err)
 		assert.Equal(t, []string{"s1", "s2"}, spanIDs(page.Spans))
-		var cursor spanCursor
-		require.NoError(t, json.Unmarshal(page.NextCursor, &cursor))
-		assert.Equal(t, []json.RawMessage{json.RawMessage(`10`), json.RawMessage(`"t1"`), json.RawMessage(`"s2"`)}, cursor.Sort)
-		assert.Equal(t, []spanDoc{{Index: "jaeger-span-2020-01-02", ID: "d2"}}, cursor.Docs)
+		// The cursor is the last returned hit's sort values, id included, so the next page
+		// resumes at the tied copy d3 rather than skipping it.
+		assert.JSONEq(t, `[10,"t1","s2","d2"]`, string(page.NextCursor))
 	})
 }
 
 func TestSpanReader_FindSpans_Continuation(t *testing.T) {
 	withSpanReader(t, func(r *spanReaderTest) {
-		// The cursor names a copy stored in an older index under the same id as one of this
-		// page's hits, which is what a retry after a rollover leaves behind; both are occurrences.
-		before := spanCursor{
-			Sort: []json.RawMessage{json.RawMessage(`10`), json.RawMessage(`"t1"`), json.RawMessage(`"s2"`)},
-			Docs: []spanDoc{{Index: "jaeger-span-2020-01-01", ID: "d3"}, {Index: "jaeger-span-2020-01-02", ID: "d2"}},
-		}
-		cursor, err := json.Marshal(before)
-		require.NoError(t, err)
 		mockSearchService(r).Run(func(args mock.Arguments) {
 			req := args.Get(2).(esclient.SearchRequest)
-			src, err := req.Query.Source()
-			require.NoError(t, err)
-			body, err := json.Marshal(src)
-			require.NoError(t, err)
-			// The continuation selects the keys at or after the cursor and leaves out the
-			// documents the cursor names, each within its own index, so a tied copy is returned
-			// and a returned one is not.
-			assert.Contains(t, string(body), `"must_not":[{"bool":{"must":[{"term":{"_index":"jaeger-span-2020-01-01"}},{"ids":{"values":["d3"]}}]}},{"bool":{"must":[{"term":{"_index":"jaeger-span-2020-01-02"}},{"ids":{"values":["d2"]}}]}}]`)
-			assert.Contains(t, string(body), `"range":{"startTime":{"lt":10}}`)
-			assert.Contains(t, string(body), `"range":{"startTime":{"gte":1577934245000000,"lte":1577937845000000}}`)
-			assert.Contains(t, string(body), `"range":{"spanID":{"gt":"s2"}}`)
+			assert.Equal(t, []any{json.RawMessage(`10`), json.RawMessage(`"t1"`), json.RawMessage(`"s2"`), json.RawMessage(`"d2"`)}, req.SearchAfter)
 		}).Return(&esclient.SearchResponse{Hits: esclient.HitsResult{Hits: []esclient.SearchHit{
-			spanHit("d3", "t1", "s2", 10), spanHit("d4", "t1", "s2", 10), spanHit("d5", "t2", "s1", 5),
+			spanHit("d3", "t1", "s2", 10), spanHit("d5", "t2", "s1", 5),
 		}}}, nil)
 		query := spanSearchQuery()
-		query.Cursor = cursor
+		query.Cursor = []byte(`[10,"t1","s2","d2"]`)
 		page, err := r.reader.FindSpans(context.Background(), query)
 		require.NoError(t, err)
-		assert.Equal(t, []string{"s2", "s2"}, spanIDs(page.Spans))
-		var next spanCursor
-		require.NoError(t, json.Unmarshal(page.NextCursor, &next))
-		// The page did not move past the cursor's key, so the named documents accumulate.
-		assert.Equal(t, before.Sort, next.Sort)
-		assert.Equal(t, append([]spanDoc{{Index: "jaeger-span-2020-01-02", ID: "d3"}, {Index: "jaeger-span-2020-01-02", ID: "d4"}}, before.Docs...), next.Docs)
+		assert.Equal(t, []string{"s2", "s1"}, spanIDs(page.Spans))
+		assert.Empty(t, page.NextCursor)
 	})
 }
 
-func TestSpanReader_FindSpans_ContinuationPastCursorKey(t *testing.T) {
-	withSpanReader(t, func(r *spanReaderTest) {
-		cursor, err := json.Marshal(spanCursor{
-			Sort: []json.RawMessage{json.RawMessage(`10`), json.RawMessage(`"t1"`), json.RawMessage(`"s2"`)},
-			Docs: []spanDoc{{Index: "jaeger-span-2020-01-02", ID: "d2"}},
-		})
-		require.NoError(t, err)
-		mockSearchService(r).Return(&esclient.SearchResponse{Hits: esclient.HitsResult{Hits: []esclient.SearchHit{
-			spanHit("d5", "t2", "s1", 5), spanHit("d6", "t2", "s2", 5), spanHit("d7", "t3", "s1", 1),
-		}}}, nil)
-		query := spanSearchQuery()
-		query.Cursor = cursor
-		page, err := r.reader.FindSpans(context.Background(), query)
-		require.NoError(t, err)
-		var next spanCursor
-		require.NoError(t, json.Unmarshal(page.NextCursor, &next))
-		// The page moved past the cursor's key, so the documents it named are dropped: they
-		// no longer tie with the new last hit and excluding them would be needless.
-		assert.Equal(t, []json.RawMessage{json.RawMessage(`5`), json.RawMessage(`"t2"`), json.RawMessage(`"s2"`)}, next.Sort)
-		assert.Equal(t, []spanDoc{{Index: "jaeger-span-2020-01-02", ID: "d6"}}, next.Docs)
-	})
+// TestSpanReader_FindSpans_WithoutIDTieBreak covers the reader configured not to sort on _id:
+// the sort and the cursor carry the ordering terms alone.
+func TestSpanReader_FindSpans_WithoutIDTieBreak(t *testing.T) {
+	searcher := esclientmocks.NewSearcher(t)
+	reader := newSnapshotReader(searcher)
+	reader.spanSearchTieBreakByID = false
+	searcher.On("Search", mock.Anything, mock.Anything, mock.MatchedBy(func(req esclient.SearchRequest) bool {
+		return len(req.Sort) == 3 && len(req.SearchAfter) == 3
+	})).Return(&esclient.SearchResponse{Hits: esclient.HitsResult{Hits: []esclient.SearchHit{
+		{Source: exampleESSpan, Sort: sortValues(`20`, `"t1"`, `"s1"`)},
+		{Source: exampleESSpan, Sort: sortValues(`10`, `"t1"`, `"s2"`)},
+		{Source: exampleESSpan, Sort: sortValues(`10`, `"t1"`, `"s2"`)},
+	}}}, nil)
+	query := spanSearchQuery()
+	query.Cursor = []byte(`[30,"t0","s0"]`)
+	page, err := reader.FindSpans(context.Background(), query)
+	require.NoError(t, err)
+	assert.Len(t, page.Spans, 2)
+	assert.JSONEq(t, `[10,"t1","s2"]`, string(page.NextCursor))
 }
 
 // TestSpanReader_FindSpans_OneDocumentLimit covers a max_doc_count of one, which cannot tell a
@@ -222,6 +202,7 @@ func TestSpanReader_FindSpans_ExplicitOrder(t *testing.T) {
 				{Field: startTimeField, Order: "desc"},
 				{Field: traceIDField, Order: "asc"},
 				{Field: spanIDField, Order: "asc"},
+				{Field: idField, Order: "asc"},
 			}, req.Sort)
 		}).Return(&esclient.SearchResponse{}, nil)
 		query := spanSearchQuery()
@@ -234,8 +215,6 @@ func TestSpanReader_FindSpans_ExplicitOrder(t *testing.T) {
 }
 
 func TestSpanReader_FindSpans_RefusedBeforeSearching(t *testing.T) {
-	validCursor, err := json.Marshal(spanCursor{Sort: []json.RawMessage{json.RawMessage(`1`), json.RawMessage(`"t"`), json.RawMessage(`"s"`)}, Docs: []spanDoc{{Index: "i", ID: "d"}}})
-	require.NoError(t, err)
 	for _, tc := range []struct {
 		name  string
 		query func(q *dbmodel.SpanQueryParameters)
@@ -246,19 +225,13 @@ func TestSpanReader_FindSpans_RefusedBeforeSearching(t *testing.T) {
 		{"NoPageSize", func(q *dbmodel.SpanQueryParameters) { q.PageSize = 0 }, tracestore.ErrPaginationInvalid},
 		{"UnknownOrderField", func(q *dbmodel.SpanQueryParameters) { q.OrderBy = orderBy("name", "asc") }, tracestore.ErrSpanOrderInvalid},
 		{"MalformedCursor", func(q *dbmodel.SpanQueryParameters) { q.Cursor = []byte("not json") }, tracestore.ErrPaginationInvalid},
-		{"CursorWithoutDocuments", func(q *dbmodel.SpanQueryParameters) { q.Cursor = []byte(`{"sort":[1,"t","s"]}`) }, tracestore.ErrPaginationInvalid},
-		{"CursorWithObjectForTime", func(q *dbmodel.SpanQueryParameters) {
-			q.Cursor = []byte(`{"sort":[{},"t","s"],"docs":[{"index":"i","id":"d"}]}`)
-		}, tracestore.ErrPaginationInvalid},
-		{"CursorWithNullForID", func(q *dbmodel.SpanQueryParameters) {
-			q.Cursor = []byte(`{"sort":[1,"t",null],"docs":[{"index":"i","id":"d"}]}`)
-		}, tracestore.ErrPaginationInvalid},
-		{"CursorWithNumberForID", func(q *dbmodel.SpanQueryParameters) {
-			q.Cursor = []byte(`{"sort":[1,2,"s"],"docs":[{"index":"i","id":"d"}]}`)
-		}, tracestore.ErrPaginationInvalid},
+		{"CursorTooShort", func(q *dbmodel.SpanQueryParameters) { q.Cursor = []byte(`[1,"t","s"]`) }, tracestore.ErrPaginationInvalid},
+		{"CursorWithObjectForTime", func(q *dbmodel.SpanQueryParameters) { q.Cursor = []byte(`[{},"t","s","d"]`) }, tracestore.ErrPaginationInvalid},
+		{"CursorWithNullForID", func(q *dbmodel.SpanQueryParameters) { q.Cursor = []byte(`[1,"t",null,"d"]`) }, tracestore.ErrPaginationInvalid},
+		{"CursorWithNumberForID", func(q *dbmodel.SpanQueryParameters) { q.Cursor = []byte(`[1,2,"s","d"]`) }, tracestore.ErrPaginationInvalid},
 		{"CursorOfAnotherOrder", func(q *dbmodel.SpanQueryParameters) {
 			q.OrderBy = orderBy("duration", "desc")
-			q.Cursor = validCursor
+			q.Cursor = []byte(`[1,"t","s","d"]`)
 		}, tracestore.ErrPaginationInvalid},
 		{"UnservableFilter", func(q *dbmodel.SpanQueryParameters) {
 			q.Filter = (builder.Predicate{}).Scope().Attr("x").Eq("y")
@@ -287,7 +260,7 @@ func TestSpanReader_FindSpans_SearchErrors(t *testing.T) {
 	t.Run("MalformedDocument", func(t *testing.T) {
 		withSpanReader(t, func(r *spanReaderTest) {
 			mockSearchService(r).Return(&esclient.SearchResponse{Hits: esclient.HitsResult{Hits: []esclient.SearchHit{
-				{ID: "d1", Source: []byte(`{"traceID": 1 bad json`)},
+				{Source: []byte(`{"traceID": 1 bad json`)},
 			}}}, nil)
 			_, err := r.reader.FindSpans(context.Background(), spanSearchQuery())
 			require.ErrorContains(t, err, "marshalling JSON to span object failed")
@@ -296,10 +269,10 @@ func TestSpanReader_FindSpans_SearchErrors(t *testing.T) {
 	t.Run("MissingSortValues", func(t *testing.T) {
 		withSpanReader(t, func(r *spanReaderTest) {
 			// A full page whose last hit carries no sort values cannot be resumed from.
-			hits := []esclient.SearchHit{spanHit("d1", "t1", "s1", 20), {ID: "d2", Source: exampleESSpan}, spanHit("d3", "t1", "s3", 5)}
+			hits := []esclient.SearchHit{spanHit("d1", "t1", "s1", 20), {Source: exampleESSpan}, spanHit("d3", "t1", "s3", 5)}
 			mockSearchService(r).Return(&esclient.SearchResponse{Hits: esclient.HitsResult{Hits: hits}}, nil)
 			_, err := r.reader.FindSpans(context.Background(), spanSearchQuery())
-			require.ErrorContains(t, err, "returned 0 sort values for 3 sort fields")
+			require.ErrorContains(t, err, "returned 0 sort values for 4 sort fields")
 		})
 	})
 }
@@ -308,34 +281,15 @@ func TestSortFieldRefusesAnEscapedTerm(t *testing.T) {
 	assert.Panics(t, func() { sortField(orderBy("name", "asc")[0]) })
 }
 
-func TestSameSortValues(t *testing.T) {
-	raw := func(values ...string) []json.RawMessage {
-		out := make([]json.RawMessage, len(values))
-		for i, v := range values {
-			out[i] = json.RawMessage(v)
-		}
-		return out
-	}
-	assert.True(t, sameSortValues(raw(`10`, ` "a" `), raw(`10`, `"a"`)), "formatting does not matter")
-	assert.False(t, sameSortValues(raw(`10`), raw(`10`, `"a"`)))
-	assert.False(t, sameSortValues(raw(`10`, `"a"`), raw(`10`, `"b"`)))
-	assert.False(t, sameSortValues(raw(`not json`), raw(`10`)))
-}
-
 // TestSpanSearchRequestSnapshots freezes the wire format of the span search: the first page in
-// the default order, and a continuation in a mixed-direction order whose keyset predicate and
-// id exclusion resume after the previous page. Fixed query times keep the range filters
+// the default order, and a continuation in a mixed-direction order that resumes after the
+// previous page with search_after. Fixed query times keep the range filters
 // deterministic.
 func TestSpanSearchRequestSnapshots(t *testing.T) {
 	firstPage := spanSearchQuery()
 	continuation := spanSearchQuery()
 	continuation.OrderBy = orderBy("duration", "desc", "traceID", "asc")
-	cursor, err := json.Marshal(spanCursor{
-		Sort: []json.RawMessage{json.RawMessage(`2000000`), json.RawMessage(`"000000000000000000000000000000ab"`), json.RawMessage(`1577934245000000`), json.RawMessage(`"00000000000000cd"`)},
-		Docs: []spanDoc{{Index: "jaeger-span-2020-01-01", ID: "doc-1"}, {Index: "jaeger-span-2020-01-02", ID: "doc-2"}},
-	})
-	require.NoError(t, err)
-	continuation.Cursor = cursor
+	continuation.Cursor = []byte(`[2000000,"000000000000000000000000000000ab",1577934245000000,"00000000000000cd","doc-1"]`)
 
 	snapshots := map[string]map[es.BackendVersion]string{"find_spans": {}, "find_spans_continuation": {}}
 	for _, version := range es.AllVersions {

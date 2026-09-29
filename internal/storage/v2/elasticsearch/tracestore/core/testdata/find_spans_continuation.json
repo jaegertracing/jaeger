@@ -33,160 +33,17 @@
             "term": {
               "process.serviceName": "test-service"
             }
-          },
-          {
-            "bool": {
-              "should": [
-                {
-                  "bool": {
-                    "must": {
-                      "range": {
-                        "duration": {
-                          "lt": 2000000
-                        }
-                      }
-                    }
-                  }
-                },
-                {
-                  "bool": {
-                    "must": [
-                      {
-                        "term": {
-                          "duration": 2000000
-                        }
-                      },
-                      {
-                        "range": {
-                          "traceID": {
-                            "gt": "000000000000000000000000000000ab"
-                          }
-                        }
-                      }
-                    ]
-                  }
-                },
-                {
-                  "bool": {
-                    "must": [
-                      {
-                        "term": {
-                          "duration": 2000000
-                        }
-                      },
-                      {
-                        "term": {
-                          "traceID": "000000000000000000000000000000ab"
-                        }
-                      },
-                      {
-                        "range": {
-                          "startTime": {
-                            "lt": 1577934245000000
-                          }
-                        }
-                      }
-                    ]
-                  }
-                },
-                {
-                  "bool": {
-                    "must": [
-                      {
-                        "term": {
-                          "duration": 2000000
-                        }
-                      },
-                      {
-                        "term": {
-                          "traceID": "000000000000000000000000000000ab"
-                        }
-                      },
-                      {
-                        "term": {
-                          "startTime": 1577934245000000
-                        }
-                      },
-                      {
-                        "range": {
-                          "spanID": {
-                            "gt": "00000000000000cd"
-                          }
-                        }
-                      }
-                    ]
-                  }
-                },
-                {
-                  "bool": {
-                    "must": [
-                      {
-                        "term": {
-                          "duration": 2000000
-                        }
-                      },
-                      {
-                        "term": {
-                          "traceID": "000000000000000000000000000000ab"
-                        }
-                      },
-                      {
-                        "term": {
-                          "startTime": 1577934245000000
-                        }
-                      },
-                      {
-                        "term": {
-                          "spanID": "00000000000000cd"
-                        }
-                      }
-                    ]
-                  }
-                }
-              ]
-            }
-          }
-        ],
-        "must_not": [
-          {
-            "bool": {
-              "must": [
-                {
-                  "term": {
-                    "_index": "jaeger-span-2020-01-01"
-                  }
-                },
-                {
-                  "ids": {
-                    "values": [
-                      "doc-1"
-                    ]
-                  }
-                }
-              ]
-            }
-          },
-          {
-            "bool": {
-              "must": [
-                {
-                  "term": {
-                    "_index": "jaeger-span-2020-01-02"
-                  }
-                },
-                {
-                  "ids": {
-                    "values": [
-                      "doc-2"
-                    ]
-                  }
-                }
-              ]
-            }
           }
         ]
       }
     },
+    "search_after": [
+      2000000,
+      "000000000000000000000000000000ab",
+      1577934245000000,
+      "00000000000000cd",
+      "doc-1"
+    ],
     "size": 3,
     "sort": [
       {
@@ -206,6 +63,11 @@
       },
       {
         "spanID": {
+          "order": "asc"
+        }
+      },
+      {
+        "_id": {
           "order": "asc"
         }
       }

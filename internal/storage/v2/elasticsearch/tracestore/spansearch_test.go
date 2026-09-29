@@ -55,7 +55,7 @@ func TestTraceReader_FindSpans(t *testing.T) {
 	coreReader := &mocks.Reader{}
 	coreReader.On("FindSpans", mock.Anything, mock.MatchedBy(func(q dbmodel.SpanQueryParameters) bool {
 		return q.PageSize == 2 && q.Cursor == nil && assert.Equal(t, effective, q.OrderBy) && q.Filter == query.Filter
-	})).Return(dbmodel.SpanPage{Spans: spans, NextCursor: []byte(`{"sort":[1],"docs":[{"index":"i","id":"d"}]}`)}, nil).Once()
+	})).Return(dbmodel.SpanPage{Spans: spans, NextCursor: []byte(`[1,"d"]`)}, nil).Once()
 	reader := TraceReader{spanReader: coreReader}
 
 	first, err := collectSpanPage(t, reader.FindSpans(context.Background(), query))
@@ -66,7 +66,7 @@ func TestTraceReader_FindSpans(t *testing.T) {
 
 	// The token is handed back as the core reader's cursor, and the last page carries none.
 	coreReader.On("FindSpans", mock.Anything, mock.MatchedBy(func(q dbmodel.SpanQueryParameters) bool {
-		return string(q.Cursor) == `{"sort":[1],"docs":[{"index":"i","id":"d"}]}`
+		return string(q.Cursor) == `[1,"d"]`
 	})).Return(dbmodel.SpanPage{Spans: spans[:1]}, nil).Once()
 	query.Pagination.PageToken = first.NextPageToken
 	second, err := collectSpanPage(t, reader.FindSpans(context.Background(), query))
