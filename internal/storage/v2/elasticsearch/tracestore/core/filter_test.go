@@ -405,7 +405,7 @@ func TestBuildFilterQuery(t *testing.T) {
 		for _, test := range tests {
 			t.Run(test.name, func(t *testing.T) {
 				if test.typedAttributes {
-					setTypedAttributeQuery(t, true)
+					setGate(t, esclient.TypedAttributeQueryGate, true)
 				}
 				query, err := r.reader.buildFilterQuery(test.filter)
 				require.NoError(t, err)
@@ -421,13 +421,9 @@ func TestBuildFilterQuery(t *testing.T) {
 	assertEverySnapshotIsClaimed(t, filterSnapshots, claimed)
 }
 
-// setTypedAttributeQuery flips the typed-attribute query gate for the duration of a test. The gate
-// is what tells the reader that every index carries the numeric sub-field, so it is what decides
-// whether ordering an attribute is lowered or refused.
-func setTypedAttributeQuery(t *testing.T, enabled bool) {
-	setGate(t, esclient.TypedAttributeQueryGate, enabled)
-}
-
+// setGate flips a feature gate for the duration of a test. The typed-attribute query gate is the
+// one the cases below flip: it is what tells the reader that every index carries the numeric
+// sub-field, so it is what decides whether ordering an attribute is lowered or refused.
 func setGate(t *testing.T, gate *featuregate.Gate, enabled bool) {
 	original := gate.IsEnabled()
 	require.NoError(t, featuregate.GlobalRegistry().Set(gate.ID(), enabled))
@@ -545,7 +541,7 @@ func TestBuildFilterQueryRefused(t *testing.T) {
 			name:         "ordering an attribute while only the indexing gate is on",
 			filter:       p.Span().Attr("http.response.size").Gt("500"),
 			wantErr:      tracestore.ErrFilterUnsupported,
-			wantMsg:      `indexes "http.response.size" as a keyword rather than a number`,
+			wantMsg:      `indexes "http.response.size" as a keyword rather than a number while the jaeger.es.typedAttributeQuery feature gate is off`,
 			indexingOnly: true,
 		},
 		{
@@ -778,7 +774,7 @@ func TestBuildFilterQueryRefused(t *testing.T) {
 		for _, test := range tests {
 			t.Run(test.name, func(t *testing.T) {
 				if test.typedAttributes {
-					setTypedAttributeQuery(t, true)
+					setGate(t, esclient.TypedAttributeQueryGate, true)
 				}
 				if test.indexingOnly {
 					setGate(t, esclient.TypedAttributeIndexingGate, true)
