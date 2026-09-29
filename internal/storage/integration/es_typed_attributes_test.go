@@ -78,7 +78,7 @@ type leafQuery func(valueField string) query.Query
 // what the discriminator would have been consulted for.
 type representation struct {
 	name string
-	// allTagsAsFields drives elasticsearch.tags_as_fields.all, which is what
+	// allTagsAsFields drives indices.spans.tags_as_fields.all, which is what
 	// decides whether an attribute is elevated out of the nested array.
 	allTagsAsFields bool
 	// wrap applies a leaf predicate to the probe attribute alone.
