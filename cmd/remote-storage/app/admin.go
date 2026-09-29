@@ -32,18 +32,12 @@ type AdminServer struct {
 	hc        *HealthHost
 }
 
-// NewAdminServer creates a new admin server.
-func NewAdminServer(hostPort string) *AdminServer {
+// NewAdminServer creates a new admin server. It listens where configure tells it to.
+func NewAdminServer() *AdminServer {
 	return &AdminServer{
 		logger: zap.NewNop(),
 		mux:    http.NewServeMux(),
-		serverCfg: confighttp.ServerConfig{
-			NetAddr: confignet.AddrConfig{
-				Endpoint:  hostPort,
-				Transport: confignet.TransportTypeTCP,
-			},
-		},
-		hc: NewHealthHost(),
+		hc:     NewHealthHost(),
 	}
 }
 
@@ -59,15 +53,16 @@ func (s *AdminServer) setLogger(logger *zap.Logger) {
 	s.logger = logger
 }
 
-// configure applies the admin section of the configuration file. An empty endpoint keeps
-// the one the server was created with, and the transport is always TCP.
-func (s *AdminServer) configure(cfg confighttp.ServerConfig, logger *zap.Logger) {
+// configure applies the admin section of the configuration file.
+func (s *AdminServer) configure(cfg AdminServerConfig, logger *zap.Logger) {
 	s.setLogger(logger)
-	if cfg.NetAddr.Endpoint == "" {
-		cfg.NetAddr.Endpoint = s.serverCfg.NetAddr.Endpoint
+	s.serverCfg = confighttp.ServerConfig{
+		NetAddr: confignet.AddrConfig{
+			Endpoint:  cfg.Endpoint,
+			Transport: confignet.TransportTypeTCP,
+		},
+		TLS: cfg.TLS,
 	}
-	cfg.NetAddr.Transport = confignet.TransportTypeTCP
-	s.serverCfg = cfg
 }
 
 // Handle adds a new handler to the admin server.

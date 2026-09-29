@@ -5,24 +5,9 @@
 package app
 
 import (
-	"flag"
-
-	"github.com/spf13/viper"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 )
-
-const configFile = "config-file"
-
-// AddConfigFileFlag registers the --config-file flag.
-func AddConfigFileFlag(flagSet *flag.FlagSet) {
-	flagSet.String(configFile, "", "Path to the YAML configuration file (default none).")
-}
-
-// ConfigFile returns the path given with --config-file, or an empty string when none was.
-func ConfigFile(v *viper.Viper) string {
-	return v.GetString(configFile)
-}
 
 // LoggingConfig is the logging section of the configuration file.
 type LoggingConfig struct {

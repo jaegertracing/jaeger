@@ -159,7 +159,7 @@ storage:
         max_traces: 1000
 `,
 			validate: func(t *testing.T, cfg *Config) {
-				assert.Equal(t, ":18270", cfg.Service.Admin.NetAddr.Endpoint)
+				assert.Equal(t, ":18270", cfg.Service.Admin.Endpoint)
 				assert.Equal(t, "debug", cfg.Service.Logging.Level)
 				assert.Equal(t, "json", cfg.Service.Logging.Encoding, "default kept")
 				assert.Equal(t, "none", cfg.Service.Metrics.Backend)
@@ -186,6 +186,23 @@ grpc:
 storage: not-a-mapping
 `,
 			expectError: "storage",
+		},
+		{
+			name: "unknown key inside the admin section is rejected",
+			yamlConfig: `
+admin:
+  endpont: 127.0.0.1:18000
+`,
+			expectError: "endpont",
+		},
+		{
+			name: "environment reference without a scheme reads the environment",
+			yamlConfig: `
+grpc:
+  endpoint: ${REMOTE_STORAGE_TEST_ENDPOINT}
+`,
+			env:      map[string]string{"REMOTE_STORAGE_TEST_ENDPOINT": ":17998"},
+			validate: func(t *testing.T, cfg *Config) { assert.Equal(t, ":17998", cfg.GRPC.NetAddr.Endpoint) },
 		},
 		{
 			name: "storage section without a backend",
@@ -291,7 +308,7 @@ func TestLoadConfigFileMissing(t *testing.T) {
 func TestDefaultConfig(t *testing.T) {
 	cfg := DefaultConfig()
 	require.NotNil(t, cfg)
-	require.Equal(t, ":17270", cfg.Service.Admin.NetAddr.Endpoint)
+	require.Equal(t, ":17270", cfg.Service.Admin.Endpoint)
 	require.Equal(t, "info", cfg.Service.Logging.Level)
 	require.Equal(t, "prometheus", cfg.Service.Metrics.Backend)
 	require.Equal(t, ":17271", cfg.GRPC.NetAddr.Endpoint)

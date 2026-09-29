@@ -76,7 +76,7 @@ func TestMetricsConfigCreateMetricsFactory(t *testing.T) {
 		}
 		mf, err := b.CreateMetricsFactory("foo")
 		if testCase.err != nil {
-			assert.Equal(t, err, testCase.err)
+			require.ErrorIs(t, err, testCase.err)
 			continue
 		}
 		require.NotNil(t, mf)

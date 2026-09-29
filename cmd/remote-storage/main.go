@@ -43,7 +43,7 @@ func loadConfig(ctx context.Context, v *viper.Viper) (*app.Config, error) {
 }
 
 func main() {
-	svc := app.NewService(ports.RemoteStorageAdminHTTP)
+	svc := app.NewService()
 
 	v := viper.New()
 	command := &cobra.Command{

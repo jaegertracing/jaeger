@@ -16,7 +16,6 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"go.opentelemetry.io/collector/config/confighttp"
 	"go.opentelemetry.io/collector/config/confignet"
 	"go.opentelemetry.io/collector/config/configoptional"
 	"go.opentelemetry.io/collector/config/configtls"
@@ -28,11 +27,11 @@ import (
 )
 
 func TestAdminServerHealthCheck(t *testing.T) {
-	adminServer := NewAdminServer(":0")
+	adminServer := NewAdminServer()
 
 	zapCore, logs := observer.New(zap.InfoLevel)
 	logger := zap.New(zapCore)
-	adminServer.configure(confighttp.ServerConfig{}, logger)
+	adminServer.configure(AdminServerConfig{Endpoint: ":0"}, logger)
 	require.NoError(t, adminServer.Serve())
 	defer adminServer.Close()
 
@@ -63,11 +62,11 @@ func TestAdminServerHealthCheck(t *testing.T) {
 }
 
 func TestAdminServerHandlesPortZero(t *testing.T) {
-	adminServer := NewAdminServer(":0")
+	adminServer := NewAdminServer()
 
 	zapCore, logs := observer.New(zap.InfoLevel)
 	logger := zap.New(zapCore)
-	adminServer.configure(confighttp.ServerConfig{}, logger)
+	adminServer.configure(AdminServerConfig{Endpoint: ":0"}, logger)
 
 	require.NoError(t, adminServer.Serve())
 	defer adminServer.Close()
@@ -81,14 +80,12 @@ func TestAdminServerHandlesPortZero(t *testing.T) {
 	assert.Positive(t, port)
 }
 
-func TestAdminServerConfigureKeepsEndpoint(t *testing.T) {
-	adminServer := NewAdminServer(":17270")
-	adminServer.configure(confighttp.ServerConfig{}, zap.NewNop())
-	assert.Equal(t, ":17270", adminServer.serverCfg.NetAddr.Endpoint, "an empty endpoint keeps the one the server was created with")
-	assert.Equal(t, confignet.TransportTypeTCP, adminServer.serverCfg.NetAddr.Transport)
-
-	adminServer.configure(confighttp.ServerConfig{NetAddr: confignet.AddrConfig{Endpoint: ":1"}}, zap.NewNop())
+func TestAdminServerConfigure(t *testing.T) {
+	adminServer := NewAdminServer()
+	adminServer.configure(AdminServerConfig{Endpoint: ":1"}, zap.NewNop())
 	assert.Equal(t, ":1", adminServer.serverCfg.NetAddr.Endpoint)
+	assert.Equal(t, confignet.TransportTypeTCP, adminServer.serverCfg.NetAddr.Transport)
+	assert.False(t, adminServer.serverCfg.TLS.HasValue())
 }
 
 func TestAdminServerTLS(t *testing.T) {
@@ -117,12 +114,13 @@ func TestAdminServerTLS(t *testing.T) {
 
 	for _, test := range testCases {
 		t.Run(test.name, func(t *testing.T) {
-			adminServer := NewAdminServer(fmt.Sprintf(":%d", ports.RemoteStorageAdminHTTP))
-			adminServer.configure(confighttp.ServerConfig{
-				TLS: configoptional.Some(test.serverTLS),
+			adminServer := NewAdminServer()
+			adminServer.configure(AdminServerConfig{
+				Endpoint: fmt.Sprintf(":%d", ports.RemoteStorageAdminHTTP),
+				TLS:      configoptional.Some(test.serverTLS),
 			}, zaptest.NewLogger(t))
 
-			adminServer.Serve()
+			require.NoError(t, adminServer.Serve())
 			defer adminServer.Close()
 
 			clientTLSCfg, err0 := test.clientTLS.LoadTLSConfig(context.Background())

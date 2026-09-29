@@ -16,11 +16,20 @@ import (
 	"go.opentelemetry.io/collector/config/configoptional"
 	"go.opentelemetry.io/collector/config/configtls"
 	"go.opentelemetry.io/collector/confmap"
+
+	"github.com/jaegertracing/jaeger/internal/config"
 )
 
 func TestAddFlags(*testing.T) {
-	s := NewService(0)
+	s := NewService()
 	s.AddFlags(new(flag.FlagSet))
+}
+
+func TestConfigFile(t *testing.T) {
+	v, cmd := config.Viperize(AddConfigFileFlag)
+	assert.Empty(t, ConfigFile(v))
+	require.NoError(t, cmd.ParseFlags([]string{"--config-file=/tmp/config.yaml"}))
+	assert.Equal(t, "/tmp/config.yaml", ConfigFile(v))
 }
 
 func TestDefaultServiceConfigUnmarshal(t *testing.T) {
@@ -31,7 +40,7 @@ func TestDefaultServiceConfigUnmarshal(t *testing.T) {
 		"metrics": map[string]any{"backend": "none"},
 	})
 	require.NoError(t, conf.Unmarshal(&cfg))
-	assert.Equal(t, ":18000", cfg.Admin.NetAddr.Endpoint)
+	assert.Equal(t, ":18000", cfg.Admin.Endpoint)
 	assert.Equal(t, LoggingConfig{Level: "debug", Encoding: "console"}, cfg.Logging)
 	assert.Equal(t, "none", cfg.Metrics.Backend)
 	assert.Equal(t, "/metrics", cfg.Metrics.HTTPRoute, "unnamed settings keep their default")
@@ -64,7 +73,7 @@ func TestStartErrors(t *testing.T) {
 		},
 		{
 			name:   "bad host:port",
-			modify: func(c *ServiceConfig) { c.Admin.NetAddr.Endpoint = "invalid" },
+			modify: func(c *ServiceConfig) { c.Admin.Endpoint = "invalid" },
 			expErr: "cannot start the admin server",
 		},
 		{
@@ -74,7 +83,7 @@ func TestStartErrors(t *testing.T) {
 	}
 	for _, test := range scenarios {
 		t.Run(test.name, func(t *testing.T) {
-			s := NewService( /* default port= */ 0)
+			s := NewService()
 			cfg := DefaultServiceConfig(0)
 			test.modify(&cfg)
 			err := s.Start(cfg)
