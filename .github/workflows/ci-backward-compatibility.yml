@@ -34,34 +34,19 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
+        baseline: [latest-release, main]
         include:
         - backend: elasticsearch
-          baseline: latest-release
-          command: bash scripts/e2e/elasticsearch.sh elasticsearch 9.x compat
-        - backend: elasticsearch
-          baseline: main
           command: bash scripts/e2e/elasticsearch.sh elasticsearch 9.x compat
         - backend: opensearch
-          baseline: latest-release
-          command: bash scripts/e2e/elasticsearch.sh opensearch 3.x compat
-        - backend: opensearch
-          baseline: main
           command: bash scripts/e2e/elasticsearch.sh opensearch 3.x compat
         # Cassandra is the one backend whose schema can come either from the e2e script or from
         # Jaeger itself. The compat job takes the latter, so the earlier revision creates the
         # schema and this revision reads back through whatever that one made, which is the shape
         # a real upgrade has.
         - backend: cassandra
-          baseline: latest-release
-          command: SKIP_APPLY_SCHEMA=true bash scripts/e2e/cassandra.sh 5.x v004 compat
-        - backend: cassandra
-          baseline: main
           command: SKIP_APPLY_SCHEMA=true bash scripts/e2e/cassandra.sh 5.x v004 compat
         - backend: clickhouse
-          baseline: latest-release
-          command: bash scripts/e2e/clickhouse.sh compat
-        - backend: clickhouse
-          baseline: main
           command: bash scripts/e2e/clickhouse.sh compat
     name: ${{ matrix.backend }} (${{ matrix.baseline }})
     steps:
