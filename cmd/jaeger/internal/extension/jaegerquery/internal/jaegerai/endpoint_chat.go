@@ -80,7 +80,15 @@ func (h *chatEndpoint) announceMCP(caps acp.AgentCapabilities, mcpRouteID string
 // for consistency with sibling handlers even though ServeHTTP does not currently
 // read it. mcpBaseURL defaults to the zero value — the announcement stays off until
 // NewHandler enables it — so tests that do not exercise MCP need no extra wiring.
-func newChatEndpoint(logger *zap.Logger, ctxTools *ContextualToolsStore, turns *turnRegistry, sidecarWSURL string, sidecarHeaders configopaque.MapList, basePath string, maxRequestBodySize int64) *chatEndpoint {
+func newChatEndpoint(
+	logger *zap.Logger,
+	ctxTools *ContextualToolsStore,
+	turns *turnRegistry,
+	sidecarWSURL string,
+	sidecarHeaders configopaque.MapList,
+	basePath string,
+	maxRequestBodySize int64,
+) *chatEndpoint {
 	return &chatEndpoint{
 		Logger:             logger,
 		ctxTools:           ctxTools,

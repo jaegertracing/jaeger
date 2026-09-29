@@ -127,10 +127,16 @@ func TestConvertSamplingResponseFromDomain(t *testing.T) {
 	}{
 		{in: &api_v2.SamplingStrategyResponse{StrategyType: 55}, err: "could not convert sampling strategy type"},
 		{
-			in:  &api_v2.SamplingStrategyResponse{StrategyType: api_v2.SamplingStrategyType_PROBABILISTIC, RateLimitingSampling: &api_v2.RateLimitingSamplingStrategy{MaxTracesPerSecond: math.MaxInt32}},
+			in: &api_v2.SamplingStrategyResponse{
+				StrategyType:         api_v2.SamplingStrategyType_PROBABILISTIC,
+				RateLimitingSampling: &api_v2.RateLimitingSamplingStrategy{MaxTracesPerSecond: math.MaxInt32},
+			},
 			err: "maxTracesPerSecond is higher than int16",
 		},
-		{in: &api_v2.SamplingStrategyResponse{StrategyType: api_v2.SamplingStrategyType_PROBABILISTIC}, expected: &sampling.SamplingStrategyResponse{StrategyType: sampling.SamplingStrategyType_PROBABILISTIC}},
+		{
+			in:       &api_v2.SamplingStrategyResponse{StrategyType: api_v2.SamplingStrategyType_PROBABILISTIC},
+			expected: &sampling.SamplingStrategyResponse{StrategyType: sampling.SamplingStrategyType_PROBABILISTIC},
+		},
 	}
 	for _, test := range tests {
 		r, err := ConvertSamplingResponseFromDomain(test.in)

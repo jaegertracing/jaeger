@@ -156,7 +156,12 @@ func (s *SamplingStore) GetLatestProbabilities() (model.ServiceOperationProbabil
 	return retVal, nil
 }
 
-func (s *SamplingStore) createProbabilitiesEntry(hostname string, probabilities model.ServiceOperationProbabilities, qps model.ServiceOperationQPS, startTime uint64) (*badger.Entry, error) {
+func (s *SamplingStore) createProbabilitiesEntry(
+	hostname string,
+	probabilities model.ServiceOperationProbabilities,
+	qps model.ServiceOperationQPS,
+	startTime uint64,
+) (*badger.Entry, error) {
 	pK, pV, err := s.createProbabilitiesKV(hostname, probabilities, qps, startTime)
 	if err != nil {
 		return nil, err
@@ -167,7 +172,12 @@ func (s *SamplingStore) createProbabilitiesEntry(hostname string, probabilities 
 	return e, nil
 }
 
-func (*SamplingStore) createProbabilitiesKV(hostname string, probabilities model.ServiceOperationProbabilities, qps model.ServiceOperationQPS, startTime uint64) (key []byte, bb []byte, err error) {
+func (*SamplingStore) createProbabilitiesKV(
+	hostname string,
+	probabilities model.ServiceOperationProbabilities,
+	qps model.ServiceOperationQPS,
+	startTime uint64,
+) (key []byte, bb []byte, err error) {
 	key = make([]byte, 16)
 	key[0] = probabilitiesKeyPrefix
 	pos := 1

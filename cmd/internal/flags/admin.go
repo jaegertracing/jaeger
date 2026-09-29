@@ -72,7 +72,10 @@ func (s *AdminServer) setLogger(logger *zap.Logger) {
 
 // AddFlags registers CLI flags.
 func (s *AdminServer) AddFlags(flagSet *flag.FlagSet) {
-	flagSet.String(adminHTTPHostPort, s.serverCfg.NetAddr.Endpoint, fmt.Sprintf("The host:port (e.g. 127.0.0.1%s or %s) for the admin server, including health check, /metrics, etc.", s.serverCfg.NetAddr.Endpoint, s.serverCfg.NetAddr.Endpoint))
+	flagSet.String(adminHTTPHostPort, s.serverCfg.NetAddr.Endpoint, fmt.Sprintf(
+		"The host:port (e.g. 127.0.0.1%s or %s) for the admin server, including health check, /metrics, etc.",
+		s.serverCfg.NetAddr.Endpoint, s.serverCfg.NetAddr.Endpoint,
+	))
 	tlsAdminHTTPFlagsConfig.AddFlags(flagSet)
 }
 

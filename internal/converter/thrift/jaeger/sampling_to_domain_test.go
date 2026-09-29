@@ -94,7 +94,10 @@ func TestConvertSamplingResponseToDomain(t *testing.T) {
 		err      string
 	}{
 		{in: &sampling.SamplingStrategyResponse{StrategyType: 55}, err: "could not convert sampling strategy type"},
-		{expected: &api_v2.SamplingStrategyResponse{StrategyType: api_v2.SamplingStrategyType_PROBABILISTIC}, in: &sampling.SamplingStrategyResponse{StrategyType: sampling.SamplingStrategyType_PROBABILISTIC}},
+		{
+			expected: &api_v2.SamplingStrategyResponse{StrategyType: api_v2.SamplingStrategyType_PROBABILISTIC},
+			in:       &sampling.SamplingStrategyResponse{StrategyType: sampling.SamplingStrategyType_PROBABILISTIC},
+		},
 		{},
 	}
 	for _, test := range tests {

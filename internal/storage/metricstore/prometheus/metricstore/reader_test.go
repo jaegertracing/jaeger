@@ -946,7 +946,13 @@ func buildTestBaseQueryParametersFrom(tc metricsTestCase) metricstore.BaseQueryP
 	}
 }
 
-func prepareMetricsReaderAndServer(t *testing.T, cfg config.Configuration, wantPromQlQuery string, wantWarnings []string, tracer trace.TracerProvider) (metricstore.Reader, *httptest.Server) {
+func prepareMetricsReaderAndServer(
+	t *testing.T,
+	cfg config.Configuration,
+	wantPromQlQuery string,
+	wantWarnings []string,
+	tracer trace.TracerProvider,
+) (metricstore.Reader, *httptest.Server) {
 	mockPrometheus := startMockPrometheusServer(t, wantPromQlQuery, wantWarnings)
 
 	logger := zap.NewNop()
