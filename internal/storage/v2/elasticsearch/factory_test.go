@@ -12,13 +12,13 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"go.opentelemetry.io/collector/config/configoptional"
 	"go.opentelemetry.io/collector/pdata/pcommon"
 	"go.opentelemetry.io/collector/pdata/ptrace"
 
 	"github.com/jaegertracing/jaeger-idl/model/v1"
 	escfg "github.com/jaegertracing/jaeger/internal/storage/elasticsearch/config"
 	"github.com/jaegertracing/jaeger/internal/telemetry"
+	"github.com/jaegertracing/jaeger/internal/testutils"
 )
 
 var mockEsServerResponse = []byte(`
@@ -238,16 +238,57 @@ func TestEnsureRequiredFields_AllAsFieldsTrue(t *testing.T) {
 	require.Equal(t, expectedCfg, result)
 }
 
-// TestEnsureRequiredFieldsFoldsLegacyTags checks that the deprecated top-level tags_as_fields
-// ends up under indices.spans, where the factory reads it, and is cleared so that nothing
-// downstream can read the two spellings differently.
-func TestEnsureRequiredFieldsFoldsLegacyTags(t *testing.T) {
-	result := ensureRequiredFields(escfg.Configuration{
-		Tags: configoptional.Some(escfg.TagsAsFields{Include: "custom", DotReplacement: "!"}),
-	})
-	assert.False(t, result.Tags.HasValue())
-	assert.Equal(t, escfg.TagsAsFields{
-		Include:        "custom," + model.SpanKindKey + "," + tagError,
-		DotReplacement: "!",
-	}, result.Indices.Spans.Tags)
+// TestEnsureRequiredFieldsKeepsLegacyTags checks that the deprecated top-level tags_as_fields
+// receives the required keys in place and stays set, so that NewFactoryBase still logs the
+// deprecation warning and every reader resolves the same value.
+func TestEnsureRequiredFieldsKeepsLegacyTags(t *testing.T) {
+	tests := []struct {
+		name   string
+		legacy escfg.TagsAsFields
+		want   escfg.TagsAsFields
+	}{
+		{
+			name:   "include list gains the required keys",
+			legacy: escfg.TagsAsFields{Include: "custom", DotReplacement: "!"},
+			want:   escfg.TagsAsFields{Include: "custom," + model.SpanKindKey + "," + tagError, DotReplacement: "!"},
+		},
+		{
+			name:   "all leaves the include list alone",
+			legacy: escfg.TagsAsFields{AllAsFields: true, DotReplacement: "!"},
+			want:   escfg.TagsAsFields{AllAsFields: true, DotReplacement: "!"},
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			result := ensureRequiredFields(escfg.Configuration{Tags: &test.legacy})
+			require.NotNil(t, result.Tags)
+			assert.Equal(t, test.want, *result.Tags)
+			assert.Equal(t, test.want, result.ResolvedTagsAsFields())
+			assert.Empty(t, result.Indices.Spans.Tags.Include, "indices.spans is left untouched")
+		})
+	}
+}
+
+// TestNewFactoryWarnsAboutLegacyTags checks that the deprecation warning reaches the log on
+// the production trace-storage path, where ensureRequiredFields runs before the warning.
+func TestNewFactoryWarnsAboutLegacyTags(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Write(mockEsServerResponse)
+	}))
+	defer server.Close()
+
+	logger, buf := testutils.NewLogger()
+	telset := telemetry.NoopSettings()
+	telset.Logger = logger
+	cfg := escfg.Configuration{
+		Servers:  []string{server.URL},
+		LogLevel: "error",
+		Tags:     &escfg.TagsAsFields{Include: "custom"},
+	}
+	factory, err := NewFactory(context.Background(), cfg, telset, nil)
+	require.NoError(t, err)
+	defer factory.Close()
+
+	assert.Contains(t, buf.String(), "tags_as_fields")
+	assert.Contains(t, factory.config.ResolvedTagsAsFields().Include, model.SpanKindKey)
 }

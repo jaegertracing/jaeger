@@ -153,7 +153,7 @@ func (f *FactoryBase) GetSpanReaderParams() esspanstore.SpanReaderParams {
 		MaxSpanAge:          maxSpanAge,
 		ServicesMaxLookback: f.config.MaxSpanAge,
 		MaxTraceDuration:    f.config.MaxTraceDuration,
-		TagDotReplacement:   f.config.Indices.Spans.Tags.DotReplacement,
+		TagDotReplacement:   f.config.ResolvedTagsAsFields().DotReplacement,
 		Logger:              f.logger,
 		Tracer:              f.tracer.Tracer("esspanstore.SpanReader"),
 		SpanRotation:        spanRotation,
@@ -178,11 +178,12 @@ func (f *FactoryBase) spanBatchWriter() esclient.BatchWriter {
 // GetSpanWriterParams returns the SpanWriterParams which can be used to initialize the v1 and v2 writers.
 func (f *FactoryBase) GetSpanWriterParams() esspanstore.SpanWriterParams {
 	spanRotation, serviceRotation := f.buildRotations()
+	tags := f.config.ResolvedTagsAsFields()
 	return esspanstore.SpanWriterParams{
 		BatchWriter:       f.spanBatchWriter(),
-		AllTagsAsFields:   f.config.Indices.Spans.Tags.AllAsFields,
+		AllTagsAsFields:   tags.AllAsFields,
 		TagKeysAsFields:   f.tags,
-		TagDotReplacement: f.config.Indices.Spans.Tags.DotReplacement,
+		TagDotReplacement: tags.DotReplacement,
 		Logger:            f.logger,
 		MetricsFactory:    f.metricsFactory,
 		ServiceOperations: f.serviceOperations,

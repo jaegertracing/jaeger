@@ -124,7 +124,7 @@ func TestTagsAsFieldsUnmarshal(t *testing.T) {
 			},
 		})
 		require.NoError(t, conf.Unmarshal(&cfg))
-		assert.False(t, cfg.Tags.HasValue())
+		assert.Nil(t, cfg.Tags)
 		assert.Equal(t, want, cfg.ResolvedTagsAsFields())
 		assert.EqualValues(t, 3, cfg.Indices.Spans.Shards, "the shared options stay flat under indices.spans")
 	})
@@ -135,14 +135,14 @@ func TestTagsAsFieldsUnmarshal(t *testing.T) {
 			"tags_as_fields": map[string]any{"all": true},
 		})
 		require.NoError(t, conf.Unmarshal(&cfg))
-		assert.True(t, cfg.Tags.HasValue())
+		assert.NotNil(t, cfg.Tags)
 		assert.Equal(t, want, cfg.ResolvedTagsAsFields())
 	})
 
 	t.Run("neither", func(t *testing.T) {
 		cfg := DefaultConfig()
 		require.NoError(t, confmap.NewFromStringMap(map[string]any{}).Unmarshal(&cfg))
-		assert.False(t, cfg.Tags.HasValue())
+		assert.Nil(t, cfg.Tags)
 		assert.Equal(t, escfg.TagsAsFields{DotReplacement: "@"}, cfg.ResolvedTagsAsFields())
 	})
 }
@@ -179,12 +179,12 @@ func TestOptionsWithFlags(t *testing.T) {
 			Insecure:           false,
 			InsecureSkipVerify: true,
 		},
-		Tags: configoptional.Some(escfg.TagsAsFields{
+		Tags: &escfg.TagsAsFields{
 			AllAsFields:    true,
 			Include:        "test,tags",
 			File:           "./file.txt",
 			DotReplacement: "!",
-		}),
+		},
 		Indices: escfg.Indices{
 			Spans: escfg.SpanIndexOptions{IndexOptions: escfg.IndexOptions{
 				DateLayout: configoptional.Some("2006010215"), // Go reference time formatted for hourly rollover (yyyy-MM-dd-HH)

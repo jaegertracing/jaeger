@@ -293,11 +293,13 @@ type Configuration struct {
 	// AdaptiveSamplingLookback contains the duration to look back for the
 	// latest adaptive sampling probabilities.
 	AdaptiveSamplingLookback time.Duration `mapstructure:"adaptive_sampling_lookback"`
-	// Tags is the top-level spelling of the tags-as-fields settings.
+	// Tags is the top-level spelling of the tags-as-fields settings. It is a pointer rather
+	// than a configoptional.Optional because jaeger-remote-storage decodes this struct with
+	// viper, which fills a pointer but silently skips an Optional.
 	//
 	// Deprecated: superseded by indices.spans.tags_as_fields. ResolvedTagsAsFields
 	// reads whichever of the two is set.
-	Tags configoptional.Optional[TagsAsFields] `mapstructure:"tags_as_fields"`
+	Tags *TagsAsFields `mapstructure:"tags_as_fields"`
 	// Enabled, if set to true, enables the namespace for storage pointed to by this configuration.
 	Enabled bool `mapstructure:"-"`
 }
@@ -501,7 +503,7 @@ func (c *Configuration) Validate() error {
 		return err
 	}
 
-	if c.Tags.HasValue() && c.Indices.Spans.Tags.selectsTags() {
+	if c.Tags != nil && c.Indices.Spans.Tags.selectsTags() {
 		return errors.New("tags_as_fields is set both at the top level (deprecated) and under indices.spans; keep only indices.spans.tags_as_fields")
 	}
 

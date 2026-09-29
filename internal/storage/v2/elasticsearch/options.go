@@ -34,7 +34,8 @@ type Options struct {
 }
 
 // defaultTagsAsFields stores no attribute as a field and keeps the dot replacement every
-// elevated key needs once one is selected.
+// elevated key needs once one is selected. The deprecated top-level spelling has no default
+// of its own and borrows this dot replacement through ResolvedTagsAsFields.
 var defaultTagsAsFields = config.TagsAsFields{DotReplacement: "@"}
 
 func initDateLayout(rolloverFreq, sep string) string {
@@ -60,9 +61,6 @@ func DefaultConfig() config.Configuration {
 			Workers:       1,
 			FlushInterval: time.Millisecond * 200,
 		},
-		// The deprecated spelling keeps the same default dot replacement, so a configuration
-		// that still uses it is read as it always was.
-		Tags:                 configoptional.Default(defaultTagsAsFields),
 		Enabled:              true,
 		Version:              0,
 		Servers:              []string{"http://127.0.0.1:9200"},

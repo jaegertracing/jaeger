@@ -192,9 +192,9 @@ func TestElasticsearchTagsFileDoNotExist(t *testing.T) {
 	t.Cleanup(server.Close)
 	cfg := escfg.Configuration{
 		Servers: []string{server.URL},
-		Tags: configoptional.Some(escfg.TagsAsFields{
+		Tags: &escfg.TagsAsFields{
 			File: "fixtures/file-does-not-exist.txt",
-		}),
+		},
 		LogLevel: "debug",
 	}
 	f, err := NewFactoryBase(context.Background(), cfg, metrics.NullFactory, zaptest.NewLogger(t), nooptrace.NewTracerProvider(), nil)
@@ -252,10 +252,10 @@ func TestTagKeysAsFields(t *testing.T) {
 
 	for _, test := range tests {
 		cfg := escfg.Configuration{
-			Tags: configoptional.Some(escfg.TagsAsFields{
+			Tags: &escfg.TagsAsFields{
 				File:    test.path,
 				Include: test.include,
-			}),
+			},
 		}
 
 		tags, err := cfg.TagKeysAsFields()
