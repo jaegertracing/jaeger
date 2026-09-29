@@ -220,17 +220,15 @@ func Elasticsearch() Capabilities {
 		//  Issue https://github.com/jaegertracing/jaeger/issues/1923
 		getOperationsMissingSpanKind: true,
 		// The suite configures the typed-attribute mapping (RFC 0015), so an attribute value is
-		// indexed as a number beside the keyword and ordering one is answered. That leaves the
-		// battery's other two ordering outcomes to skip.
+		// indexed as a number beside the keyword and ordering one is answered; orderingOutcome
+		// skips the battery's other two ordering outcomes.
 		skipList: []string{
 			spanOrderingTest,
 			paginationTest,
 			scopeAttributesTest,
 			linkAttributesTest,
-			attributeRefusedTest,
-			attributeUnindexedTest,
 		},
-	}
+	}.orderingOutcome(attributeOrderingTest)
 }
 
 // ElasticsearchSmokeTest defines capabilities for lightweight rotation strategy
@@ -260,10 +258,8 @@ func OpenSearch() Capabilities {
 			paginationTest,
 			scopeAttributesTest,
 			linkAttributesTest,
-			attributeRefusedTest,
-			attributeUnindexedTest,
 		},
-	}
+	}.orderingOutcome(attributeOrderingTest)
 }
 
 // Kafka defines the capabilities for the Kafka storage backend.
