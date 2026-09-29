@@ -13,7 +13,6 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"go.opentelemetry.io/collector/featuregate"
 	"go.opentelemetry.io/collector/pdata/pcommon"
 	"go.opentelemetry.io/collector/pdata/ptrace"
 
@@ -167,28 +166,12 @@ type typedAttributeFixture struct {
 	searcher esclient.SearchClient
 }
 
-// setTypedAttributes turns both typed-attribute gates on or off for the duration of a test. It has
-// to run before the factory that installs the index template, since the indexing gate is what
-// decides whether the mapping carries the numeric sub-field; the query gate is what lets the reader
-// lower an ordering predicate onto it rather than refuse it.
-func setTypedAttributes(t *testing.T, enabled bool) {
-	for _, gate := range []*featuregate.Gate{esclient.TypedAttributeIndexingGate, esclient.TypedAttributeQueryGate} {
-		original := gate.IsEnabled()
-		require.NoError(t, featuregate.GlobalRegistry().Set(gate.ID(), enabled))
-		t.Cleanup(func() {
-			require.NoError(t, featuregate.GlobalRegistry().Set(gate.ID(), original))
-		})
-	}
-}
-
 func newTypedAttributeFixture(t *testing.T, rep representation) *typedAttributeFixture {
 	// The suite's setup deletes the existing indices after the template is installed, so every
-	// span below lands in an index created from the gate-on template.
-	setTypedAttributes(t, true)
-
-	s := &ESStorageIntegration{}
+	// span below lands in an index created from a template that maps the numeric sub-field.
+	s := &ESStorageIntegration{numericAttributes: true}
 	s.initializeES(t, rep.allTagsAsFields)
-	// Leave no gate-on template behind for the tests that run after this one.
+	// Leave no such template behind for the tests that run after this one.
 	t.Cleanup(func() { s.client.cleanTemplates(t, indexPrefix) })
 
 	f := &typedAttributeFixture{

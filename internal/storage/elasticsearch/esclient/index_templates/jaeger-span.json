@@ -1,5 +1,5 @@
 {{- define "typedAttributeSubFields" -}}
-{{- if .TypedAttributes }},
+{{- if .Span.TypedAttributes }},
   "fields": {
     "number": { "type": "double", "coerce": false, "ignore_malformed": true }
   }

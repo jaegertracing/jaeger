@@ -160,9 +160,12 @@ func dig(t *testing.T, doc any, path string) any {
 // renderSpanMapping renders the span template and returns its "mappings" object.
 // The ES7 envelope keeps the rendered body at the top level, and the mapping body
 // itself does not vary by version, so one version is enough to inspect it.
-func renderSpanMapping(t *testing.T) any {
+func renderSpanMapping(t *testing.T, numericAttributes bool) any {
 	t.Helper()
-	indices := config.Indices{Spans: config.SpanIndexOptions{IndexOptions: config.IndexOptions{Shards: 5, Replicas: new(int64)}}}
+	indices := config.Indices{Spans: config.SpanIndexOptions{
+		IndexOptions:      config.IndexOptions{Shards: 5, Replicas: new(int64)},
+		NumericAttributes: numericAttributes,
+	}}
 	rendered, err := RenderIndexTemplate(SpanMapping, indices, false, "", es.ElasticV7)
 	require.NoError(t, err)
 	var doc any
@@ -191,8 +194,7 @@ var untypedAttributeValuePaths = []string{
 }
 
 func TestRenderSpanTemplateTypedAttributesDisabled(t *testing.T) {
-	setGate(t, TypedAttributeIndexingGate, false)
-	mappings := renderSpanMapping(t)
+	mappings := renderSpanMapping(t, false)
 	for _, path := range append(typedAttributeValuePaths, untypedAttributeValuePaths...) {
 		value, ok := dig(t, mappings, path).(map[string]any)
 		require.True(t, ok, path)
@@ -202,8 +204,7 @@ func TestRenderSpanTemplateTypedAttributesDisabled(t *testing.T) {
 }
 
 func TestRenderSpanTemplateTypedAttributesEnabled(t *testing.T) {
-	setGate(t, TypedAttributeIndexingGate, true)
-	mappings := renderSpanMapping(t)
+	mappings := renderSpanMapping(t, true)
 
 	for _, path := range typedAttributeValuePaths {
 		value, ok := dig(t, mappings, path).(map[string]any)
@@ -236,9 +237,11 @@ func TestRenderIndexTemplateTypedAttributesValidForAllVersions(t *testing.T) {
 	// The sub-fields are appended after "ignore_above", so the rendered body's
 	// comma placement is what a malformed conditional would break first, and
 	// RenderIndexTemplate reports that as invalid JSON.
-	setGate(t, TypedAttributeIndexingGate, true)
 	indices := config.Indices{
-		Spans:        config.SpanIndexOptions{IndexOptions: config.IndexOptions{Shards: 5, Replicas: new(int64)}},
+		Spans: config.SpanIndexOptions{
+			IndexOptions:      config.IndexOptions{Shards: 5, Replicas: new(int64)},
+			NumericAttributes: true,
+		},
 		Services:     config.IndexOptions{Shards: 5, Replicas: new(int64)},
 		Dependencies: config.IndexOptions{Shards: 5, Replicas: new(int64)},
 		Sampling:     config.IndexOptions{Shards: 5, Replicas: new(int64)},

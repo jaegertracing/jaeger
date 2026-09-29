@@ -24,9 +24,13 @@ const (
 
 // compatScenario defines an explicit upgrade scenario for backward-compatibility testing.
 type compatScenario struct {
-	Name         string
-	OldGates     []string // Feature gates for the earlier binary (writer)
-	NewGates     []string // Feature gates for the current binary revision (reader)
+	Name     string
+	OldGates []string // Feature gates for the earlier binary (writer)
+	NewGates []string // Feature gates for the current binary revision (reader)
+	// NewEnv is the environment of the current binary revision, for the settings its configuration
+	// file reads from the environment. The earlier binary runs its own revision's configuration
+	// file, which may not read them, so a scenario cannot rely on steering the writer this way.
+	NewEnv       map[string]string
 	Capabilities capabilities.Capabilities
 }
 
@@ -83,6 +87,8 @@ func runBackwardCompatibilityTests(t *testing.T, storage string, suite E2EStorag
 				readPhase := scenarioSuite
 				readPhase.BinaryName = "jaeger-new"
 				readPhase.FeatureGates = scenario.NewGates
+				readPhase.EnvVarOverrides = scenario.NewEnv
+				readPhase.EnvVarOverrides = scenario.NewEnv
 				readPhase.Capabilities = scenario.Capabilities
 				readPhase.e2eInitialize(t, storage)
 				// Registered after e2eInitialize so that it runs before the binary is stopped: cleanups run
