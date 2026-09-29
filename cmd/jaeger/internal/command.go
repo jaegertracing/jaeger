@@ -12,11 +12,6 @@ import (
 	"github.com/spf13/viper"
 	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/confmap"
-	"go.opentelemetry.io/collector/confmap/provider/envprovider"
-	"go.opentelemetry.io/collector/confmap/provider/fileprovider"
-	"go.opentelemetry.io/collector/confmap/provider/httpprovider"
-	"go.opentelemetry.io/collector/confmap/provider/httpsprovider"
-	"go.opentelemetry.io/collector/confmap/provider/yamlprovider"
 	"go.opentelemetry.io/collector/otelcol"
 
 	"github.com/jaegertracing/jaeger/cmd/internal/docs"
@@ -46,13 +41,7 @@ func NewCommand(factories otelcol.Factories) *cobra.Command {
 		Factories: func() (otelcol.Factories, error) { return factories, nil },
 		ConfigProviderSettings: otelcol.ConfigProviderSettings{
 			ResolverSettings: confmap.ResolverSettings{
-				ProviderFactories: []confmap.ProviderFactory{
-					envprovider.NewFactory(),
-					fileprovider.NewFactory(),
-					httpprovider.NewFactory(),
-					httpsprovider.NewFactory(),
-					yamlprovider.NewFactory(),
-				},
+				ProviderFactories: config.ConfmapProviderFactories(),
 			},
 		},
 	}

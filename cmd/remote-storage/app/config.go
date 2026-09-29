@@ -10,10 +10,9 @@ import (
 	"go.opentelemetry.io/collector/config/configgrpc"
 	"go.opentelemetry.io/collector/config/confignet"
 	"go.opentelemetry.io/collector/confmap"
-	"go.opentelemetry.io/collector/confmap/provider/envprovider"
-	"go.opentelemetry.io/collector/confmap/provider/fileprovider"
 
 	"github.com/jaegertracing/jaeger/cmd/internal/storageconfig"
+	"github.com/jaegertracing/jaeger/internal/config"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/memory"
 	"github.com/jaegertracing/jaeger/internal/tenancy"
 )
@@ -32,18 +31,14 @@ type Config struct {
 // reads through viper, so the loader decodes only these sections and leaves the rest alone.
 var configSections = []string{"grpc", "multi_tenancy", "storage"}
 
-// LoadConfigFile reads the configuration file through OpenTelemetry confmap, the same
-// decoder the main jaeger binary uses for the storage section. That is what runs the
+// LoadConfigFile reads the configuration file through OpenTelemetry confmap with the same
+// providers the main jaeger binary resolves its configuration with. That is what runs the
 // backends' Unmarshal hooks, which supply their defaults, decodes configoptional fields,
 // expands ${env:VAR} references, rejects unknown keys, and validates every nested section.
 func LoadConfigFile(ctx context.Context, path string) (*Config, error) {
 	resolver, err := confmap.NewResolver(confmap.ResolverSettings{
-		URIs: []string{"file:" + path},
-		ProviderFactories: []confmap.ProviderFactory{
-			fileprovider.NewFactory(),
-			envprovider.NewFactory(),
-		},
-		DefaultScheme: "env",
+		URIs:              []string{"file:" + path},
+		ProviderFactories: config.ConfmapProviderFactories(),
 	})
 	if err != nil {
 		return nil, fmt.Errorf("failed to create configuration resolver: %w", err)
