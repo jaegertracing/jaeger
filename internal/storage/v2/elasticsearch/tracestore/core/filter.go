@@ -494,7 +494,7 @@ func attributeValueMatch(op expression.Operator, ref reference, value string) (v
 // attribute matches nothing rather than matching the text lexicographically.
 func orderedAttributeMatch(op expression.Operator, ref reference, value string) (valueMatch, error) {
 	if !esclient.TypedAttributeQueryGate.IsEnabled() {
-		return nil, errUnorderedValue(op, ref)
+		return nil, errAttributeOrderingOff(op, ref)
 	}
 	// ParseFloat accepts NaN and the infinities, which no range can be built over and which
 	// the request body cannot even encode, so they are refused with the other non-numbers.
@@ -793,6 +793,14 @@ func errOrderedString(op expression.Operator, ref reference) error {
 func errUnorderedValue(op expression.Operator, ref reference) error {
 	return fmt.Errorf("%w: it indexes %q as a keyword rather than a number, so it cannot evaluate %q on it",
 		tracestore.ErrFilterUnsupported, ref.name, op)
+}
+
+// errAttributeOrderingOff refuses an ordering predicate on an attribute while the query gate is
+// off. It names the gate, because unlike a built-in keyword field an attribute can be ordered once
+// the operator turns it on.
+func errAttributeOrderingOff(op expression.Operator, ref reference) error {
+	return fmt.Errorf("%w: it indexes %q as a keyword rather than a number while the %s feature gate is off, so it cannot evaluate %q on it",
+		tracestore.ErrFilterUnsupported, ref.name, esclient.TypedAttributeQueryGate.ID(), op)
 }
 
 // errNotANumber refuses an ordering predicate whose bound is not a number. The operator asks for a
