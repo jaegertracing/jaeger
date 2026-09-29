@@ -304,6 +304,11 @@ func (s *SpanReader) buildComparison(
 		return buildTextComparison(traceIDField, op, ref, strings.ToLower(text))
 	case ref.isField(expression.LevelSpan, expression.SpanFieldSpanID):
 		return buildTextComparison(spanIDField, op, ref, strings.ToLower(text))
+	case ref.isField(expression.LevelSpan, expression.SpanFieldKind):
+		if ordersValues(op) {
+			return nil, errOrderedString(op, ref)
+		}
+		return s.buildAttributeComparison(op, reference{name: "span.kind", level: expression.LevelSpan, attribute: true}, text)
 	case ref.isField(expression.LevelEvent, expression.EventFieldName):
 		return s.buildEventNameComparison(op, ref, text)
 	default:
@@ -375,6 +380,8 @@ func (s *SpanReader) buildExists(ref reference) (esquery.Query, error) {
 		return esquery.NewExistsQuery(spanIDField), nil
 	case ref.isField(expression.LevelEvent, expression.EventFieldName):
 		return s.buildAttributeExists(eventNameAsAttribute)
+	case ref.isField(expression.LevelSpan, expression.SpanFieldKind):
+		return s.buildAttributeExists(reference{name: "span.kind", level: expression.LevelSpan, attribute: true})
 	default:
 		return nil, errUnsupportedField(ref)
 	}
