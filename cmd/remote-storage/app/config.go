@@ -4,11 +4,14 @@
 package app
 
 import (
+	"context"
 	"fmt"
 
-	"github.com/spf13/viper"
 	"go.opentelemetry.io/collector/config/configgrpc"
 	"go.opentelemetry.io/collector/config/confignet"
+	"go.opentelemetry.io/collector/confmap"
+	"go.opentelemetry.io/collector/confmap/provider/envprovider"
+	"go.opentelemetry.io/collector/confmap/provider/fileprovider"
 
 	"github.com/jaegertracing/jaeger/cmd/internal/storageconfig"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/memory"
@@ -24,16 +27,57 @@ type Config struct {
 	Storage storageconfig.Config `mapstructure:"storage"`
 }
 
-// LoadConfigFromViper loads the configuration from Viper.
-func LoadConfigFromViper(v *viper.Viper) (*Config, error) {
-	cfg := &Config{}
+// configSections are the top-level keys of the configuration file this service reads. The
+// same file also carries the service flags (log level, admin port), which the flags package
+// reads through viper, so the loader decodes only these sections and leaves the rest alone.
+var configSections = []string{"grpc", "multi_tenancy", "storage"}
 
-	// Unmarshal the entire configuration
-	if err := v.Unmarshal(cfg); err != nil {
-		return nil, fmt.Errorf("failed to unmarshal configuration: %w", err)
+// LoadConfigFile reads the configuration file through OpenTelemetry confmap, the same
+// decoder the main jaeger binary uses for the storage section. That is what runs the
+// backends' Unmarshal hooks, which supply their defaults, decodes configoptional fields,
+// expands ${env:VAR} references, rejects unknown keys, and validates every nested section.
+func LoadConfigFile(ctx context.Context, path string) (*Config, error) {
+	resolver, err := confmap.NewResolver(confmap.ResolverSettings{
+		URIs: []string{"file:" + path},
+		ProviderFactories: []confmap.ProviderFactory{
+			fileprovider.NewFactory(),
+			envprovider.NewFactory(),
+		},
+		DefaultScheme: "env",
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to create configuration resolver: %w", err)
+	}
+	conf, err := resolver.Resolve(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read configuration file %s: %w", path, err)
 	}
 
-	// Validate storage configuration
+	// The transport has to be set for the gRPC settings to validate, and the file only ever
+	// names the endpoint, so the default goes in before the file is decoded over it.
+	cfg := &Config{}
+	cfg.GRPC.NetAddr.Transport = confignet.TransportTypeTCP
+	targets := map[string]any{
+		"grpc":          &cfg.GRPC,
+		"multi_tenancy": &cfg.Tenancy,
+		"storage":       &cfg.Storage,
+	}
+	for _, section := range configSections {
+		if !conf.IsSet(section) {
+			continue
+		}
+		sub, err := conf.Sub(section)
+		if err != nil {
+			return nil, fmt.Errorf("failed to read configuration section %q: %w", section, err)
+		}
+		if err := sub.Unmarshal(targets[section]); err != nil {
+			return nil, fmt.Errorf("failed to unmarshal configuration section %q: %w", section, err)
+		}
+	}
+
+	if err := confmap.Validate(cfg); err != nil {
+		return nil, fmt.Errorf("invalid configuration: %w", err)
+	}
 	if err := cfg.Validate(); err != nil {
 		return nil, fmt.Errorf("invalid configuration: %w", err)
 	}

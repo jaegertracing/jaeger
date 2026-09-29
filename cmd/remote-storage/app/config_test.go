@@ -4,19 +4,20 @@
 package app
 
 import (
+	"context"
 	"os"
 	"path/filepath"
 	"testing"
 
-	"github.com/spf13/viper"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
-func TestLoadConfigFromViper(t *testing.T) {
+func TestLoadConfigFile(t *testing.T) {
 	tests := []struct {
 		name        string
 		yamlConfig  string
+		env         map[string]string
 		expectError string
 		validate    func(*testing.T, *Config)
 	}{
@@ -40,7 +41,7 @@ storage:
 			},
 		},
 		{
-			name: "valid memory backend",
+			name: "memory max_traces that is not a number",
 			yamlConfig: `
 grpc:
   endpoint: :17271
@@ -50,7 +51,7 @@ storage:
       memory:
         max_traces: NOT-A-NUMBER
 `,
-			expectError: "memory.max_traces",
+			expectError: "max_traces",
 		},
 		{
 			name: "valid badger backend",
@@ -74,6 +75,102 @@ storage:
 			},
 		},
 		{
+			// The backend's Unmarshal hook supplies its defaults, and a configoptional field is
+			// decoded: neither happened when the file was decoded with viper.
+			name: "elasticsearch backend gets its defaults and optional fields",
+			yamlConfig: `
+grpc:
+  endpoint: :17271
+storage:
+  backends:
+    es-storage:
+      elasticsearch:
+        auth:
+          basic:
+            username: jaeger
+`,
+			validate: func(t *testing.T, cfg *Config) {
+				es := cfg.Storage.TraceBackends["es-storage"].Elasticsearch
+				require.NotNil(t, es)
+				assert.Equal(t, []string{"http://127.0.0.1:9200"}, es.Servers, "default from DefaultConfig")
+				assert.EqualValues(t, 5, es.Indices.Spans.Shards, "default from DefaultConfig")
+				require.True(t, es.Authentication.BasicAuthentication.HasValue())
+				assert.Equal(t, "jaeger", es.Authentication.BasicAuthentication.Get().Username)
+			},
+		},
+		{
+			name: "environment variables are expanded",
+			yamlConfig: `
+grpc:
+  endpoint: ${env:REMOTE_STORAGE_TEST_ENDPOINT}
+storage:
+  backends:
+    default-storage:
+      memory:
+        max_traces: ${env:REMOTE_STORAGE_TEST_MAX_TRACES:-7}
+`,
+			env: map[string]string{"REMOTE_STORAGE_TEST_ENDPOINT": ":17999"},
+			validate: func(t *testing.T, cfg *Config) {
+				assert.Equal(t, ":17999", cfg.GRPC.NetAddr.Endpoint)
+				assert.EqualValues(t, 7, cfg.Storage.TraceBackends["default-storage"].Memory.MaxTraces)
+			},
+		},
+		{
+			// The backend's own Validate runs, as it does in the main binary.
+			name: "backend validation error surfaces",
+			yamlConfig: `
+grpc:
+  endpoint: :17271
+storage:
+  backends:
+    es-storage:
+      elasticsearch:
+        log_level: trace
+`,
+			expectError: `unrecognized log_level "trace"`,
+		},
+		{
+			name: "unknown key rejected",
+			yamlConfig: `
+grpc:
+  endpoint: :17271
+storage:
+  backends:
+    default-storage:
+      memory:
+        max_traces: 1000
+        max_spans: 1000
+`,
+			expectError: "max_spans",
+		},
+		{
+			// The service flags read the same file through viper, so their keys are not this
+			// loader's to reject.
+			name: "service flag keys are left to viper",
+			yamlConfig: `
+log-level: debug
+grpc:
+  endpoint: :17271
+storage:
+  backends:
+    default-storage:
+      memory:
+        max_traces: 1000
+`,
+			validate: func(t *testing.T, cfg *Config) {
+				assert.Equal(t, ":17271", cfg.GRPC.NetAddr.Endpoint)
+			},
+		},
+		{
+			name: "section that is not a mapping",
+			yamlConfig: `
+grpc:
+  endpoint: :17271
+storage: not-a-mapping
+`,
+			expectError: `configuration section "storage"`,
+		},
+		{
 			name: "missing storage backend",
 			yamlConfig: `
 grpc:
@@ -92,7 +189,7 @@ storage:
   backends:
     empty-storage: {}
 `,
-			expectError: "at least one storage backend is required",
+			expectError: "empty configuration",
 		},
 		{
 			name: "multiple backends should fail",
@@ -137,23 +234,16 @@ storage:
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			// Create temporary config file
-			tmpDir := t.TempDir()
-			configFile := filepath.Join(tmpDir, "config.yaml")
-			err := os.WriteFile(configFile, []byte(tt.yamlConfig), 0o600)
-			require.NoError(t, err)
+			for k, v := range tt.env {
+				t.Setenv(k, v)
+			}
+			configFile := filepath.Join(t.TempDir(), "config.yaml")
+			require.NoError(t, os.WriteFile(configFile, []byte(tt.yamlConfig), 0o600))
 
-			// Load config with Viper
-			v := viper.New()
-			v.SetConfigFile(configFile)
-			err = v.ReadInConfig()
-			require.NoError(t, err)
-
-			// Load config from Viper
-			cfg, err := LoadConfigFromViper(v)
+			cfg, err := LoadConfigFile(context.Background(), configFile)
 
 			if tt.expectError != "" {
-				require.Contains(t, err.Error(), tt.expectError)
+				require.ErrorContains(t, err, tt.expectError)
 			} else {
 				require.NoError(t, err)
 				require.NotNil(t, cfg)
@@ -165,6 +255,11 @@ storage:
 	}
 }
 
+func TestLoadConfigFileMissing(t *testing.T) {
+	_, err := LoadConfigFile(context.Background(), filepath.Join(t.TempDir(), "does-not-exist.yaml"))
+	require.ErrorContains(t, err, "does-not-exist.yaml")
+}
+
 func TestDefaultConfig(t *testing.T) {
 	cfg := DefaultConfig()
 	require.NotNil(t, cfg)
@@ -172,4 +267,17 @@ func TestDefaultConfig(t *testing.T) {
 	require.Len(t, cfg.Storage.TraceBackends, 1)
 	require.NotNil(t, cfg.Storage.TraceBackends["memory"].Memory)
 	require.Equal(t, "memory", cfg.GetStorageName())
+}
+
+// TestLoadShippedConfigFiles loads the example files next to the binary, which the README
+// points users at, so that they keep decoding as the loader changes.
+func TestLoadShippedConfigFiles(t *testing.T) {
+	for _, file := range []string{"../config.yaml", "../config-badger.yaml"} {
+		t.Run(filepath.Base(file), func(t *testing.T) {
+			cfg, err := LoadConfigFile(context.Background(), file)
+			require.NoError(t, err)
+			assert.Equal(t, ":17271", cfg.GRPC.NetAddr.Endpoint)
+			assert.Len(t, cfg.Storage.TraceBackends, 1)
+		})
+	}
 }

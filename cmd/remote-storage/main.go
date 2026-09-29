@@ -33,15 +33,16 @@ import (
 
 const serviceName = "jaeger-remote-storage"
 
-// loadConfig loads configuration from viper, or returns default configuration if no config file is provided.
-func loadConfig(v *viper.Viper, logger *zap.Logger) (*app.Config, error) {
-	// If viper config is not provided, use defaults
-	if v.ConfigFileUsed() == "" {
+// loadConfig reads the configuration file named by --config-file, or returns the default
+// configuration when none was given. The service flags have already read the same file
+// through viper, so its path is the one viper recorded.
+func loadConfig(ctx context.Context, v *viper.Viper, logger *zap.Logger) (*app.Config, error) {
+	path := v.ConfigFileUsed()
+	if path == "" {
 		logger.Info("No configuration file provided, using default configuration (memory storage on :17271)")
 		return app.DefaultConfig(), nil
 	}
-
-	return app.LoadConfigFromViper(v)
+	return app.LoadConfigFile(ctx, path)
 }
 
 func main() {
@@ -62,7 +63,7 @@ func main() {
 			version.NewInfoMetrics(metricsFactory)
 
 			// Load configuration from YAML file, or use defaults if not provided
-			cfg, err := loadConfig(v, logger)
+			cfg, err := loadConfig(context.Background(), v, logger)
 			if err != nil {
 				logger.Fatal("Failed to load configuration", zap.Error(err))
 			}

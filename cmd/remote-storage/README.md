@@ -12,6 +12,8 @@ Configure remote-storage using a YAML configuration file with the `--config-file
 ./jaeger-remote-storage --config-file config.yaml
 ```
 
+The file is read the same way the `jaeger` binary reads its configuration, so a value can refer to an environment variable as `${env:VAR}` or `${env:VAR:-default}`, and a key the configuration does not define is rejected.
+
 #### Configuration File Structure
 
 ```yaml
