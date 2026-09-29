@@ -50,9 +50,12 @@ func testSpanRotation() indices.Rotation {
 
 // Test helper functions
 func setupTestQB() *QueryBuilder {
+	indicesCfg := testIndicesConfig
+	indicesCfg.Spans.Tags = config.TagsAsFields{
+		DotReplacement: "_",
+	}
 	return NewQueryBuilder(nil, config.Configuration{
-		Indices: testIndicesConfig,
-		Tags:    configoptional.Some(config.TagsAsFields{DotReplacement: "_"}),
+		Indices: indicesCfg,
 	}, testSpanRotation())
 }
 

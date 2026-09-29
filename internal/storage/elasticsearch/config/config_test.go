@@ -169,8 +169,10 @@ func TestRolloverFrequencyAsNegativeDuration(t *testing.T) {
 func TestValidate(t *testing.T) {
 	// Several cases below configure legacy rotation flags to exercise alias/rotation
 	// validation, which only applies when RejectLegacyRotationFlags is disabled; the
-	// gate is Beta (enabled by default), so disable it for these cases.
+	// gate is Beta (enabled by default), so disable it for these cases. The same goes
+	// for the cases that set the deprecated top-level tags_as_fields.
 	setRejectLegacyRotationFlagsGate(t, false)
+	setGate(t, RejectLegacyTagsAsFields, false)
 
 	tests := []struct {
 		name          string
@@ -851,6 +853,33 @@ func setRejectLegacyRotationFlagsGate(t *testing.T, enabled bool) {
 	t.Cleanup(func() {
 		require.NoError(t, featuregate.GlobalRegistry().Set(RejectLegacyRotationFlags.ID(), original))
 	})
+}
+
+// setGate sets a plain feature gate for the duration of the test and restores its
+// original value on cleanup.
+func setGate(t *testing.T, gate *featuregate.Gate, enabled bool) {
+	original := gate.IsEnabled()
+	require.NoError(t, featuregate.GlobalRegistry().Set(gate.ID(), enabled))
+	t.Cleanup(func() {
+		require.NoError(t, featuregate.GlobalRegistry().Set(gate.ID(), original))
+	})
+}
+
+func TestValidate_RejectLegacyTagsAsFieldsGate(t *testing.T) {
+	cfg := &Configuration{
+		Servers: []string{"localhost:8000/dummyserver"},
+		Tags: &TagsAsFields{
+			AllAsFields: true,
+		},
+	}
+
+	setGate(t, RejectLegacyTagsAsFields, true)
+	err := cfg.Validate()
+	require.ErrorContains(t, err, "top-level tags_as_fields is no longer supported")
+	require.ErrorContains(t, err, RejectLegacyTagsAsFields.ID())
+
+	setGate(t, RejectLegacyTagsAsFields, false)
+	require.NoError(t, cfg.Validate())
 }
 
 func TestValidate_RejectLegacyRotationFlagsGate(t *testing.T) {

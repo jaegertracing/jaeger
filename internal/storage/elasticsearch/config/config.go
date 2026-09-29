@@ -318,12 +318,6 @@ type TagsAsFields struct {
 	Include string `mapstructure:"include"`
 }
 
-// selectsTags reports whether the settings name any attribute to store as a field. The dot
-// replacement alone does not: it has a default and only matters once something is selected.
-func (t TagsAsFields) selectsTags() bool {
-	return t.AllAsFields || t.File != "" || t.Include != ""
-}
-
 // Sniffing sets the sniffing configuration for the ElasticSearch client, which is the process
 // of discovering all the nodes of a cluster by querying one of its members.
 type Sniffing struct {
@@ -503,8 +497,20 @@ func (c *Configuration) Validate() error {
 		return err
 	}
 
-	if c.Tags != nil && c.Indices.Spans.Tags.selectsTags() {
-		return errors.New("tags_as_fields is set both at the top level (deprecated) and under indices.spans; keep only indices.spans.tags_as_fields")
+	if c.Tags != nil {
+		if RejectLegacyTagsAsFields.IsEnabled() {
+			return errors.New(
+				"the top-level tags_as_fields is no longer supported; move it under 'indices.spans.tags_as_fields'; " +
+					"to temporarily disable this check, use --feature-gates=-" + RejectLegacyTagsAsFields.ID(),
+			)
+		}
+		// The dot replacement is left out of the comparison because it carries a default,
+		// so it is set whether or not the configuration named it.
+		spans := c.Indices.Spans.Tags
+		spans.DotReplacement = ""
+		if spans != (TagsAsFields{}) {
+			return errors.New("tags_as_fields is set both at the top level (deprecated) and under indices.spans; keep only indices.spans.tags_as_fields")
+		}
 	}
 
 	if RejectLegacyRotationFlags.IsEnabled() && c.hasAnyLegacyRotationFlags() {
