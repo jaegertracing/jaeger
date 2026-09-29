@@ -75,11 +75,13 @@ func (h *getSpanDetailsHandler) handle(
 	}
 
 	// The identity-filter fast path (RFC 0016 §4.3) errors out before touching spanIDSet
-	// whenever it cannot run at all (ErrSpanSearchUnsupported/ErrFilterDisabled), so falling
-	// back to the whole-trace path afterward is safe: nothing has been marked found yet.
+	// whenever it cannot run at all: any capability this deployment lacks (span search itself,
+	// the filter gate, or the identity filter's specific fields/operators) unwraps to
+	// errors.ErrUnsupported, the one root the capability family shares, so falling back to the
+	// whole-trace path afterward is safe: nothing has been marked found yet.
 	spanDetails, err := h.fetchViaFindSpans(ctx, q.traceID, q.canonicalSpanIDs, spanIDSet)
 	traceFound := true
-	if errors.Is(err, querysvc.ErrSpanSearchUnsupported) || errors.Is(err, querysvc.ErrFilterDisabled) {
+	if errors.Is(err, errors.ErrUnsupported) {
 		spanDetails, traceFound, err = h.fetchViaGetTraces(ctx, q.params, spanIDSet)
 	}
 	if err != nil {

@@ -727,6 +727,41 @@ func TestGetSpanDetailsHandler_Handle_FallsBackOnFilterDisabled(t *testing.T) {
 	assert.Len(t, output.Spans, 1)
 }
 
+// TestGetSpanDetailsHandler_Handle_FallsBackOnFilterUnsupported pins the fallback trigger a
+// literal errors.Is chain over named sentinels used to miss: a backend that declares SpanSearch
+// but not the identity filter's specific fields/operators refuses with ErrFilterUnsupported, a
+// distinct sentinel from ErrSpanSearchUnsupported and ErrFilterDisabled that still unwraps to
+// the shared errors.ErrUnsupported root, so it must fall back the same way the other two do.
+func TestGetSpanDetailsHandler_Handle_FallsBackOnFilterUnsupported(t *testing.T) {
+	traceID := testTraceID
+	spanID := "span001"
+	testTrace := createTestTraceWithSpans(traceID, []spanConfig{{spanID: spanID, operation: "/api/test"}})
+
+	mock := &mockQueryService{
+		getTracesFunc: func(context.Context, querysvc.GetTraceParams) iter.Seq2[[]ptrace.Traces, error] {
+			return func(yield func([]ptrace.Traces, error) bool) {
+				yield([]ptrace.Traces{testTrace}, nil)
+			}
+		},
+		findSpansFunc: func(context.Context, querysvc.SpanQueryParams) iter.Seq2[tracestore.PageChunk[ptrace.Traces], error] {
+			return func(yield func(tracestore.PageChunk[ptrace.Traces], error) bool) {
+				yield(tracestore.PageChunk[ptrace.Traces]{}, tracestore.ErrFilterUnsupported)
+			}
+		},
+	}
+
+	handler := &getSpanDetailsHandler{queryService: mock, maxSpanDetailsPerRequest: 50}
+	input := types.GetSpanDetailsInput{
+		TraceID: traceID,
+		SpanIDs: []string{spanIDToHex(spanID)},
+	}
+
+	_, output, err := handler.handle(context.Background(), &mcp.CallToolRequest{}, input)
+
+	require.NoError(t, err)
+	assert.Len(t, output.Spans, 1)
+}
+
 // TestBuildIdentityFilter pins the filter shape RFC 0016 §4.3 describes: every requested span
 // shares the tool's one trace ID, so it is a single AND of an equality on the trace ID and an
 // IN over the span IDs, not an OR-of-ANDs.
