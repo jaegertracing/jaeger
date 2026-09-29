@@ -146,17 +146,17 @@ func (r *TraceReader) FindSpans(ctx context.Context, query tracestore.SpanQueryP
 			}
 		}
 		// The query service clamps the page size (RFC 0014 §4); a caller reaching the reader
-		// directly gets the same bound.
-		pageSize := query.Pagination.PageSize
-		if pageSize > tracestore.MaxPageSize {
-			pageSize = tracestore.MaxPageSize
+		// directly gets the same bound, and the conversion happens only under it.
+		pageSize := int(tracestore.MaxPageSize)
+		if query.Pagination.PageSize <= tracestore.MaxPageSize {
+			pageSize = int(query.Pagination.PageSize)
 		}
 		page, err := r.spanReader.FindSpans(ctx, dbmodel.SpanQueryParameters{
 			StartTimeMin: query.StartTimeMin,
 			StartTimeMax: query.StartTimeMax,
 			Filter:       query.Filter,
 			OrderBy:      order,
-			PageSize:     int(pageSize),
+			PageSize:     pageSize,
 			Cursor:       cursor,
 		})
 		if err != nil {
