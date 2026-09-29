@@ -484,14 +484,17 @@ func attributeValueMatch(op expression.Operator, ref reference, value string) (v
 // orderedAttributeMatch orders an attribute against a numeric bound, over the sub-field the
 // typed-attribute mapping indexes the value in (RFC 0015). Without that mapping there is nothing
 // numeric to range over, and a range over the keyword would compare lexicographically, where "9"
-// is greater than "10" — so the predicate is refused instead.
+// is greater than "10" — so the predicate is refused instead. The query gate is what says the
+// mapping is in place: the indexing gate reaches only indices created after it was turned on, and
+// a range over an older index would match nothing rather than fail, so the operator turns the
+// query gate on once retention has turned those indices over.
 //
 // The sub-field is mapped with coerce: false, so it holds only values that arrived as numbers. An
 // attribute a service wrote as text is therefore absent from it, and a numeric predicate on that
 // attribute matches nothing rather than matching the text lexicographically.
 func orderedAttributeMatch(op expression.Operator, ref reference, value string) (valueMatch, error) {
-	if !esclient.TypedAttributeIndexingGate.IsEnabled() {
-		return nil, errUnorderedValue(op, ref)
+	if !esclient.TypedAttributeQueryGate.IsEnabled() {
+		return nil, errAttributeOrderingOff(op, ref)
 	}
 	// ParseFloat accepts NaN and the infinities, which no range can be built over and which
 	// the request body cannot even encode, so they are refused with the other non-numbers.
@@ -790,6 +793,14 @@ func errOrderedString(op expression.Operator, ref reference) error {
 func errUnorderedValue(op expression.Operator, ref reference) error {
 	return fmt.Errorf("%w: it indexes %q as a keyword rather than a number, so it cannot evaluate %q on it",
 		tracestore.ErrFilterUnsupported, ref.name, op)
+}
+
+// errAttributeOrderingOff refuses an ordering predicate on an attribute while the query gate is
+// off. It names the gate, because unlike a built-in keyword field an attribute can be ordered once
+// the operator turns it on.
+func errAttributeOrderingOff(op expression.Operator, ref reference) error {
+	return fmt.Errorf("%w: it indexes %q as a keyword rather than a number while the %s feature gate is off, so it cannot evaluate %q on it",
+		tracestore.ErrFilterUnsupported, ref.name, esclient.TypedAttributeQueryGate.ID(), op)
 }
 
 // errNotANumber refuses an ordering predicate whose bound is not a number. The operator asks for a
