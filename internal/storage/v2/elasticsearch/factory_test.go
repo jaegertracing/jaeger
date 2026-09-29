@@ -174,7 +174,11 @@ func TestAlwaysIncludesRequiredTags(t *testing.T) {
 			cfg := escfg.Configuration{
 				Servers:  []string{server.URL},
 				LogLevel: "error",
-				Indices:  escfg.Indices{Spans: escfg.SpanIndexOptions{Tags: tt.tagsConfig}},
+				Indices: escfg.Indices{
+					Spans: escfg.SpanIndexOptions{
+						Tags: tt.tagsConfig,
+					},
+				},
 			}
 			factory, err := NewFactory(context.Background(), cfg, telemetry.NoopSettings(), nil)
 			require.NoError(t, err)
@@ -224,12 +228,15 @@ func TestCreateDependencyReader(t *testing.T) {
 }
 
 func TestEnsureRequiredFields_AllAsFieldsTrue(t *testing.T) {
-	tags := escfg.TagsAsFields{
-		AllAsFields: true,
-		Include:     "custom1,custom2,span.kind,error",
-	}
 	originalCfg := escfg.Configuration{
-		Indices: escfg.Indices{Spans: escfg.SpanIndexOptions{Tags: tags}},
+		Indices: escfg.Indices{
+			Spans: escfg.SpanIndexOptions{
+				Tags: escfg.TagsAsFields{
+					AllAsFields: true,
+					Include:     "custom1,custom2,span.kind,error",
+				},
+			},
+		},
 	}
 
 	// Make an exact copy for comparison
