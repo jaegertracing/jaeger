@@ -56,6 +56,88 @@ func TestSearchEmptyIndicesPath(t *testing.T) {
 	assert.Equal(t, "/_search", rec.Requests()[0].Path)
 }
 
+func TestGetMappings(t *testing.T) {
+	const body = `{
+		"jaeger-span-2026-09-29": {
+			"mappings": {
+				"properties": {
+					"tags": {
+						"properties": {
+							"value": {
+								"type": "keyword",
+								"fields": {"number": {"type": "double"}}
+							}
+						}
+					}
+				}
+			}
+		}
+	}`
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		_, _ = w.Write([]byte(body))
+	}))
+	defer server.Close()
+
+	sc := SearchClient{Client: makeClient(t, server.URL, "", "", es.ElasticV7)}
+	mappings, err := sc.GetMappings(context.Background(), []string{"jaeger-span-2026-09-29"})
+	require.NoError(t, err)
+	value, found := mappings["jaeger-span-2026-09-29"].Mappings.Property("tags.value")
+	require.True(t, found)
+	assert.True(t, value.HasNumericSubfield())
+}
+
+func TestGetMappingsRequestSnapshot(t *testing.T) {
+	rec, url := okServer(t)
+	sc := SearchClient{Client: makeClient(t, url, "", "", es.ElasticV7)}
+	_, err := sc.GetMappings(context.Background(), []string{"jaeger-span-2026-09-28", "jaeger-span-2026-09-29"})
+	require.NoError(t, err)
+	rec.Assert(t, "testdata/get_mappings")
+}
+
+func TestGetMappingsEmptyIndices(t *testing.T) {
+	sc := SearchClient{}
+	mappings, err := sc.GetMappings(context.Background(), nil)
+	require.NoError(t, err)
+	assert.Empty(t, mappings)
+}
+
+func TestGetMappingsFailure(t *testing.T) {
+	for _, tt := range []struct {
+		name string
+		body string
+		code int
+	}{
+		{name: "request error", code: http.StatusInternalServerError},
+		{name: "malformed response", body: "not json", code: http.StatusOK},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+				w.WriteHeader(tt.code)
+				_, _ = w.Write([]byte(tt.body))
+			}))
+			defer server.Close()
+
+			sc := SearchClient{Client: makeClient(t, server.URL, "", "", es.ElasticV7)}
+			_, err := sc.GetMappings(context.Background(), []string{"idx"})
+			require.Error(t, err)
+		})
+	}
+}
+
+func TestMappingPropertyAndNumericSubfield(t *testing.T) {
+	mapping := Mapping{Properties: map[string]Mapping{
+		"tags": {Properties: map[string]Mapping{
+			"value": {Fields: map[string]Mapping{"number": {Type: "long"}}},
+		}},
+	}}
+	value, found := mapping.Property("tags.value")
+	require.True(t, found)
+	assert.True(t, value.HasNumericSubfield())
+	_, found = mapping.Property("tags.missing")
+	assert.False(t, found)
+	assert.False(t, Mapping{Fields: map[string]Mapping{"number": {Type: "keyword"}}}.HasNumericSubfield())
+}
+
 func TestSearchParsesAggregationBuckets(t *testing.T) {
 	const body = `{"aggregations":{"distinct_services":{"buckets":[` +
 		`{"key":"svc-a","doc_count":3},{"key":"svc-b","doc_count":1}]}}}`

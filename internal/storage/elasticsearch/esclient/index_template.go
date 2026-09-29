@@ -27,7 +27,8 @@ import (
 // Off by default for two reasons. It costs mapped fields on the elevated
 // representation, two per key instead of one, which presses hardest on a
 // `tags_as_fields: all` deployment. And it reaches only indices created after
-// it is turned on, so a range query against an older index matches nothing.
+// it is turned on; readers inspect the mappings in a query's time range and
+// refuse an ordered predicate if any of those indices lacks the sub-field.
 var TypedAttributeIndexingGate = featuregate.GlobalRegistry().MustRegister(
 	"jaeger.es.typedAttributeIndexing",
 	featuregate.StageAlpha,

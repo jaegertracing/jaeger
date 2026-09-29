@@ -105,7 +105,8 @@ var (
 
 // SpanReader can query for and load traces from ElasticSearch
 type SpanReader struct {
-	searcher esclient.Searcher
+	searcher    esclient.Searcher
+	getMappings func(context.Context, []string) (map[string]esclient.IndexMapping, error)
 	// maxSpanAge is how far back (in terms of timestamped indices)
 	// we look when loading trace by ID (a query without a time range).
 	maxSpanAge time.Duration
@@ -126,8 +127,11 @@ type SpanReader struct {
 type SpanReaderParams struct {
 	// Searcher is the esclient data-plane search client backing every read path:
 	// service/operation reads, trace-ID and trace lookups, and native summaries.
-	Searcher   esclient.Searcher
-	MaxSpanAge time.Duration
+	Searcher esclient.Searcher
+	// GetMappings reads mappings for the span indices in a query window. It is
+	// called only for an ordered attribute filter.
+	GetMappings func(context.Context, []string) (map[string]esclient.IndexMapping, error)
+	MaxSpanAge  time.Duration
 	// ServicesMaxLookback bounds GetServices/GetOperations.
 	ServicesMaxLookback time.Duration
 	MaxTraceDuration    time.Duration
@@ -143,6 +147,7 @@ type SpanReaderParams struct {
 func NewSpanReader(p SpanReaderParams) *SpanReader {
 	return &SpanReader{
 		searcher:                p.Searcher,
+		getMappings:             p.GetMappings,
 		maxSpanAge:              p.MaxSpanAge,
 		servicesMaxLookback:     p.ServicesMaxLookback,
 		maxTraceDuration:        p.MaxTraceDuration,
@@ -470,6 +475,9 @@ func (s *SpanReader) findTraceIDsFromQuery(ctx context.Context, traceQuery dbmod
 		return nil, err
 	}
 	jaegerIndices := s.spanRotation.ReadTargets(traceQuery.StartTimeMin, traceQuery.StartTimeMax)
+	if err := s.validateOrderedAttributeMappings(ctx, traceQuery.Filter, jaegerIndices); err != nil {
+		return nil, err
+	}
 
 	searchResult, err := s.searcher.Search(ctx, jaegerIndices, esclient.SearchRequest{
 		Size:  0, // set to 0 because we don't want actual documents.

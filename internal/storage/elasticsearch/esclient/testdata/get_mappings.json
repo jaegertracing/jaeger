@@ -1,0 +1,9 @@
+{
+  "method": "GET",
+  "path": "/jaeger-span-2026-09-28,jaeger-span-2026-09-29/_mapping",
+  "query": {
+    "ignore_unavailable": [
+      "true"
+    ]
+  }
+}

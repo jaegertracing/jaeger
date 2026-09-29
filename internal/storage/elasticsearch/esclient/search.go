@@ -146,6 +146,68 @@ type SearchClient struct {
 
 var _ Searcher = SearchClient{}
 
+// Mapping is one node in an index mapping. Properties contains child object
+// fields, while Fields contains multi-fields such as value.number.
+type Mapping struct {
+	Type       string             `json:"type"`
+	Properties map[string]Mapping `json:"properties"`
+	Fields     map[string]Mapping `json:"fields"`
+}
+
+// IndexMapping is the mapping envelope Elasticsearch/OpenSearch returns for
+// one concrete index from the _mapping API.
+type IndexMapping struct {
+	Mappings Mapping `json:"mappings"`
+}
+
+// Property follows an object-field path in a mapping. The path uses the same
+// dot-separated notation as Elasticsearch query fields.
+func (m Mapping) Property(path string) (Mapping, bool) {
+	for _, part := range strings.Split(path, ".") {
+		property, ok := m.Properties[part]
+		if !ok {
+			return Mapping{}, false
+		}
+		m = property
+	}
+	return m, true
+}
+
+// HasNumericSubfield reports whether this field has a numeric multi-field.
+func (m Mapping) HasNumericSubfield() bool {
+	number, ok := m.Fields["number"]
+	if !ok {
+		return false
+	}
+	switch number.Type {
+	case "byte", "short", "integer", "long", "half_float", "float", "double", "scaled_float", "unsigned_long":
+		return true
+	default:
+		return false
+	}
+}
+
+// GetMappings fetches mappings for the requested indices. Elasticsearch and
+// OpenSearch expand aliases in the response, so the result is keyed by the
+// concrete index names that the query would search.
+func (s SearchClient) GetMappings(ctx context.Context, indices []string) (map[string]IndexMapping, error) {
+	if len(indices) == 0 {
+		return map[string]IndexMapping{}, nil
+	}
+	raw, err := s.request(ctx, elasticRequest{
+		endpoint: strings.Join(indices, ",") + "/_mapping?ignore_unavailable=true",
+		method:   http.MethodGet,
+	})
+	if err != nil {
+		return nil, err
+	}
+	var mappings map[string]IndexMapping
+	if err := json.Unmarshal(raw, &mappings); err != nil {
+		return nil, err
+	}
+	return mappings, nil
+}
+
 // Search issues req against the given indices and returns the owned response.
 func (s SearchClient) Search(ctx context.Context, indices []string, req SearchRequest) (*SearchResponse, error) {
 	body, err := req.body()

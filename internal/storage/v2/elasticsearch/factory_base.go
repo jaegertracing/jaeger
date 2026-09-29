@@ -148,7 +148,10 @@ func (f *FactoryBase) GetSpanReaderParams() esspanstore.SpanReaderParams {
 		maxSpanAge = esspanstore.DawnOfTimeSpanAge
 	}
 	return esspanstore.SpanReaderParams{
-		Searcher:            f.searcher,
+		Searcher: f.searcher,
+		GetMappings: esclient.SearchClient{
+			Client: f.esClient,
+		}.GetMappings,
 		MaxDocCount:         f.config.MaxDocCount,
 		MaxSpanAge:          maxSpanAge,
 		ServicesMaxLookback: f.config.MaxSpanAge,
