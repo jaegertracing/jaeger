@@ -13,8 +13,9 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-
-	"github.com/jaegertracing/jaeger/internal/config"
+	"go.opentelemetry.io/collector/config/configoptional"
+	"go.opentelemetry.io/collector/config/configtls"
+	"go.opentelemetry.io/collector/confmap"
 )
 
 func TestAddFlags(*testing.T) {
@@ -22,49 +23,61 @@ func TestAddFlags(*testing.T) {
 	s.AddFlags(new(flag.FlagSet))
 }
 
+func TestDefaultServiceConfigUnmarshal(t *testing.T) {
+	cfg := DefaultServiceConfig(0)
+	conf := confmap.NewFromStringMap(map[string]any{
+		"admin":   map[string]any{"endpoint": ":18000"},
+		"logging": map[string]any{"level": "debug", "encoding": "console"},
+		"metrics": map[string]any{"backend": "none"},
+	})
+	require.NoError(t, conf.Unmarshal(&cfg))
+	assert.Equal(t, ":18000", cfg.Admin.NetAddr.Endpoint)
+	assert.Equal(t, LoggingConfig{Level: "debug", Encoding: "console"}, cfg.Logging)
+	assert.Equal(t, "none", cfg.Metrics.Backend)
+	assert.Equal(t, "/metrics", cfg.Metrics.HTTPRoute, "unnamed settings keep their default")
+}
+
 func TestStartErrors(t *testing.T) {
 	scenarios := []struct {
 		name   string
-		flags  []string
+		modify func(*ServiceConfig)
 		expErr string
 	}{
 		{
-			name:   "bad config",
-			flags:  []string{"--config-file=invalid-file-name"},
-			expErr: "cannot load config file",
-		},
-		{
 			name:   "bad log level",
-			flags:  []string{"--log-level=invalid-log-level"},
+			modify: func(c *ServiceConfig) { c.Logging.Level = "invalid-log-level" },
 			expErr: "cannot create logger",
 		},
 		{
 			name:   "bad metrics backend",
-			flags:  []string{"--metrics-backend=invalid-metrics-backend"},
+			modify: func(c *ServiceConfig) { c.Metrics.Backend = "invalid-metrics-backend" },
 			expErr: "cannot create metrics factory",
 		},
 		{
-			name:   "bad admin TLS",
-			flags:  []string{"--admin.http.tls.enabled=true", "--admin.http.tls.cert=invalid-cert"},
-			expErr: "cannot start the admin server: failed to load TLS config",
-		},
-		{
-			name:   "bad host:port",
-			flags:  []string{"--admin.http.host-port=invalid"},
+			name: "bad admin TLS",
+			modify: func(c *ServiceConfig) {
+				c.Admin.TLS = configoptional.Some(configtls.ServerConfig{
+					Config: configtls.Config{CertFile: "invalid-cert"},
+				})
+			},
 			expErr: "cannot start the admin server",
 		},
 		{
-			name:  "clean start",
-			flags: []string{},
+			name:   "bad host:port",
+			modify: func(c *ServiceConfig) { c.Admin.NetAddr.Endpoint = "invalid" },
+			expErr: "cannot start the admin server",
+		},
+		{
+			name:   "clean start",
+			modify: func(*ServiceConfig) {},
 		},
 	}
 	for _, test := range scenarios {
 		t.Run(test.name, func(t *testing.T) {
 			s := NewService( /* default port= */ 0)
-			v, cmd := config.Viperize(s.AddFlags)
-			err := cmd.ParseFlags(test.flags)
-			require.NoError(t, err)
-			err = s.Start(v)
+			cfg := DefaultServiceConfig(0)
+			test.modify(&cfg)
+			err := s.Start(cfg)
 			if test.expErr != "" {
 				require.ErrorContains(t, err, test.expErr)
 				return

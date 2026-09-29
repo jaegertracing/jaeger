@@ -5,37 +5,30 @@
 package metricsbuilder
 
 import (
-	"flag"
 	"testing"
 
 	"github.com/prometheus/client_golang/prometheus"
-	"github.com/spf13/cobra"
-	"github.com/spf13/viper"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.opentelemetry.io/collector/confmap"
 
 	"github.com/jaegertracing/jaeger/internal/metrics"
 	"github.com/jaegertracing/jaeger/internal/testutils"
 )
 
-func TestAddFlags(t *testing.T) {
-	v := viper.New()
-	command := cobra.Command{}
-	flags := &flag.FlagSet{}
-	AddFlags(flags)
-	command.PersistentFlags().AddGoFlagSet(flags)
-	v.BindPFlags(command.PersistentFlags())
+func TestDefault(t *testing.T) {
+	assert.Equal(t, Builder{Backend: "prometheus", HTTPRoute: "/metrics"}, Default())
+}
 
-	command.ParseFlags([]string{
-		"--metrics-backend=foo",
-		"--metrics-http-route=bar",
+func TestUnmarshal(t *testing.T) {
+	b := Default()
+	conf := confmap.NewFromStringMap(map[string]any{
+		"backend":    "none",
+		"http_route": "/m",
 	})
-
-	b := &Builder{}
-	b.InitFromViper(v)
-
-	assert.Equal(t, "foo", b.Backend)
-	assert.Equal(t, "bar", b.HTTPRoute)
+	require.NoError(t, conf.Unmarshal(&b))
+	assert.Equal(t, "none", b.Backend)
+	assert.Equal(t, "/m", b.HTTPRoute)
 }
 
 func TestBuilder(t *testing.T) {

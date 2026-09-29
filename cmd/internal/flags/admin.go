@@ -6,32 +6,21 @@ package flags
 import (
 	"context"
 	"errors"
-	"flag"
 	"fmt"
 	"net"
 	"net/http"
 	"net/http/pprof"
 	"sync"
 
-	"github.com/spf13/viper"
 	"go.opentelemetry.io/collector/config/confighttp"
 	"go.opentelemetry.io/collector/config/confignet"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 
-	"github.com/jaegertracing/jaeger/internal/config/tlscfg"
 	"github.com/jaegertracing/jaeger/internal/recoveryhandler"
 	"github.com/jaegertracing/jaeger/internal/telemetry"
 	"github.com/jaegertracing/jaeger/internal/version"
 )
-
-const (
-	adminHTTPHostPort = "admin.http.host-port"
-)
-
-var tlsAdminHTTPFlagsConfig = tlscfg.ServerFlagsConfig{
-	Prefix: "admin.http",
-}
 
 // AdminServer runs an HTTP server with admin endpoints, such as /metrics, /debug/pprof, health check, etc.
 type AdminServer struct {
@@ -70,24 +59,15 @@ func (s *AdminServer) setLogger(logger *zap.Logger) {
 	s.logger = logger
 }
 
-// AddFlags registers CLI flags.
-func (s *AdminServer) AddFlags(flagSet *flag.FlagSet) {
-	flagSet.String(adminHTTPHostPort, s.serverCfg.NetAddr.Endpoint, fmt.Sprintf("The host:port (e.g. 127.0.0.1%s or %s) for the admin server, including health check, /metrics, etc.", s.serverCfg.NetAddr.Endpoint, s.serverCfg.NetAddr.Endpoint))
-	tlsAdminHTTPFlagsConfig.AddFlags(flagSet)
-}
-
-// InitFromViper initializes the server with properties retrieved from Viper.
-func (s *AdminServer) initFromViper(v *viper.Viper, logger *zap.Logger) error {
+// configure applies the admin section of the configuration file. An empty endpoint keeps
+// the one the server was created with, and the transport is always TCP.
+func (s *AdminServer) configure(cfg confighttp.ServerConfig, logger *zap.Logger) {
 	s.setLogger(logger)
-
-	tlsAdminHTTP, err := tlsAdminHTTPFlagsConfig.InitFromViper(v)
-	if err != nil {
-		return fmt.Errorf("failed to parse admin server TLS options: %w", err)
+	if cfg.NetAddr.Endpoint == "" {
+		cfg.NetAddr.Endpoint = s.serverCfg.NetAddr.Endpoint
 	}
-
-	s.serverCfg.NetAddr.Endpoint = v.GetString(adminHTTPHostPort)
-	s.serverCfg.TLS = tlsAdminHTTP
-	return nil
+	cfg.NetAddr.Transport = confignet.TransportTypeTCP
+	s.serverCfg = cfg
 }
 
 // Handle adds a new handler to the admin server.

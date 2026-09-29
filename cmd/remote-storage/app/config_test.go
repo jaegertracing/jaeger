@@ -144,13 +144,14 @@ storage:
 			expectError: "max_spans",
 		},
 		{
-			// The service flags read the same file through viper, so their keys are not this
-			// loader's to reject.
-			name: "service flag keys are left to viper",
+			name: "service sections decode over their defaults",
 			yamlConfig: `
-log-level: debug
-grpc:
-  endpoint: :17271
+admin:
+  endpoint: :18270
+logging:
+  level: debug
+metrics:
+  backend: none
 storage:
   backends:
     default-storage:
@@ -158,8 +159,24 @@ storage:
         max_traces: 1000
 `,
 			validate: func(t *testing.T, cfg *Config) {
-				assert.Equal(t, ":17271", cfg.GRPC.NetAddr.Endpoint)
+				assert.Equal(t, ":18270", cfg.Service.Admin.NetAddr.Endpoint)
+				assert.Equal(t, "debug", cfg.Service.Logging.Level)
+				assert.Equal(t, "json", cfg.Service.Logging.Encoding, "default kept")
+				assert.Equal(t, "none", cfg.Service.Metrics.Backend)
+				assert.Equal(t, ":17271", cfg.GRPC.NetAddr.Endpoint, "default kept")
 			},
+		},
+		{
+			name: "unknown top-level key rejected",
+			yamlConfig: `
+log-level: debug
+storage:
+  backends:
+    default-storage:
+      memory:
+        max_traces: 1000
+`,
+			expectError: "log-level",
 		},
 		{
 			name: "section that is not a mapping",
@@ -168,7 +185,7 @@ grpc:
   endpoint: :17271
 storage: not-a-mapping
 `,
-			expectError: `configuration section "storage"`,
+			expectError: "storage",
 		},
 		{
 			name: "missing storage backend",
@@ -263,6 +280,9 @@ func TestLoadConfigFileMissing(t *testing.T) {
 func TestDefaultConfig(t *testing.T) {
 	cfg := DefaultConfig()
 	require.NotNil(t, cfg)
+	require.Equal(t, ":17270", cfg.Service.Admin.NetAddr.Endpoint)
+	require.Equal(t, "info", cfg.Service.Logging.Level)
+	require.Equal(t, "prometheus", cfg.Service.Metrics.Backend)
 	require.Equal(t, ":17271", cfg.GRPC.NetAddr.Endpoint)
 	require.Len(t, cfg.Storage.TraceBackends, 1)
 	require.NotNil(t, cfg.Storage.TraceBackends["memory"].Memory)

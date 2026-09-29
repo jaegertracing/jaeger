@@ -34,12 +34,10 @@ import (
 const serviceName = "jaeger-remote-storage"
 
 // loadConfig reads the configuration file named by --config-file, or returns the default
-// configuration when none was given. The service flags have already read the same file
-// through viper, so its path is the one viper recorded.
-func loadConfig(ctx context.Context, v *viper.Viper, logger *zap.Logger) (*app.Config, error) {
-	path := v.ConfigFileUsed()
+// configuration when none was given.
+func loadConfig(ctx context.Context, v *viper.Viper) (*app.Config, error) {
+	path := flags.ConfigFile(v)
 	if path == "" {
-		logger.Info("No configuration file provided, using default configuration (memory storage on :17271)")
 		return app.DefaultConfig(), nil
 	}
 	return app.LoadConfigFile(ctx, path)
@@ -54,19 +52,20 @@ func main() {
 		Short: serviceName + " allows sharing single-node storage implementations like memstore or Badger.",
 		Long:  serviceName + ` allows sharing single-node storage implementations like memstore or Badger. It implements Jaeger Remote Storage gRPC API.`,
 		RunE: func(_ *cobra.Command, _ /* args */ []string) error {
-			if err := svc.Start(v); err != nil {
+			cfg, err := loadConfig(context.Background(), v)
+			if err != nil {
+				return fmt.Errorf("failed to load configuration: %w", err)
+			}
+			if err := svc.Start(cfg.Service); err != nil {
 				return err
 			}
 			logger := svc.Logger
+			if flags.ConfigFile(v) == "" {
+				logger.Info("No configuration file provided, using default configuration (memory storage on :17271)")
+			}
 			baseFactory := svc.MetricsFactory.Namespace(metrics.NSOptions{Name: "jaeger"})
 			metricsFactory := baseFactory.Namespace(metrics.NSOptions{Name: "remote-storage"})
 			version.NewInfoMetrics(metricsFactory)
-
-			// Load configuration from YAML file, or use defaults if not provided
-			cfg, err := loadConfig(context.Background(), v, logger)
-			if err != nil {
-				logger.Fatal("Failed to load configuration", zap.Error(err))
-			}
 
 			baseTelset := telemetry.Settings{
 				Logger:        svc.Logger,

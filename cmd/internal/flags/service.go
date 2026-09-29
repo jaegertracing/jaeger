@@ -1,4 +1,4 @@
-// Copyright (c) 2019 The Jaeger Authors.
+// Copyright (c) 2022 The Jaeger Authors.
 // SPDX-License-Identifier: Apache-2.0
 
 package flags
@@ -11,7 +11,8 @@ import (
 	"os/signal"
 	"syscall"
 
-	"github.com/spf13/viper"
+	"go.opentelemetry.io/collector/config/confighttp"
+	"go.opentelemetry.io/collector/config/confignet"
 	"go.opentelemetry.io/collector/featuregate"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapgrpc"
@@ -22,6 +23,33 @@ import (
 	"github.com/jaegertracing/jaeger/ports"
 )
 
+// ServiceConfig holds the settings every service built on Service reads from its
+// configuration file: the admin server, logging and the metrics backend.
+type ServiceConfig struct {
+	Admin   confighttp.ServerConfig `mapstructure:"admin"`
+	Logging LoggingConfig           `mapstructure:"logging"`
+	Metrics metricsbuilder.Builder  `mapstructure:"metrics"`
+}
+
+// DefaultServiceConfig returns the settings a service runs with when its configuration
+// file does not name them: an admin server on adminPort, info-level JSON logs, and
+// Prometheus metrics on /metrics.
+func DefaultServiceConfig(adminPort int) ServiceConfig {
+	return ServiceConfig{
+		Admin: confighttp.ServerConfig{
+			NetAddr: confignet.AddrConfig{
+				Endpoint:  ports.PortToHostPort(adminPort),
+				Transport: confignet.TransportTypeTCP,
+			},
+		},
+		Logging: LoggingConfig{
+			Level:    "info",
+			Encoding: "json",
+		},
+		Metrics: metricsbuilder.Default(),
+	}
+}
+
 // Service represents an abstract Jaeger backend component with some basic shared functionality.
 type Service struct {
 	// AdminPort is the HTTP port number for admin server.
@@ -30,7 +58,7 @@ type Service struct {
 	// Admin is the admin server that hosts the health check and metrics endpoints.
 	Admin *AdminServer
 
-	// Logger is initialized after parsing Viper flags like --log-level.
+	// Logger is initialized by Start from the logging configuration.
 	Logger *zap.Logger
 
 	// MetricsFactory is the root factory without a namespace.
@@ -50,25 +78,18 @@ func NewService(adminPort int) *Service {
 	}
 }
 
-// AddFlags registers CLI flags.
-func (s *Service) AddFlags(flagSet *flag.FlagSet) {
+// AddFlags registers the CLI flags: the configuration file, which carries every other
+// setting, and the feature gates.
+func (*Service) AddFlags(flagSet *flag.FlagSet) {
 	AddConfigFileFlag(flagSet)
-	AddLoggingFlags(flagSet)
-	metricsbuilder.AddFlags(flagSet)
-	s.Admin.AddFlags(flagSet)
 	featuregate.GlobalRegistry().RegisterFlags(flagSet)
 }
 
-// Start bootstraps the service and starts the admin server.
-func (s *Service) Start(v *viper.Viper) error {
-	if err := TryLoadConfigFile(v); err != nil {
-		return fmt.Errorf("cannot load config file: %w", err)
-	}
-
-	sFlags := new(SharedFlags).InitFromViper(v)
+// Start bootstraps the service from its configuration and starts the admin server.
+func (s *Service) Start(cfg ServiceConfig) error {
 	newProdConfig := zap.NewProductionConfig()
 	newProdConfig.Sampling = nil
-	logger, err := sFlags.NewLogger(newProdConfig)
+	logger, err := cfg.Logging.NewLogger(newProdConfig)
 	if err != nil {
 		return fmt.Errorf("cannot create logger: %w", err)
 	}
@@ -79,16 +100,14 @@ func (s *Service) Start(v *viper.Viper) error {
 		),
 	))
 
-	metricsBuilder := new(metricsbuilder.Builder).InitFromViper(v)
+	metricsBuilder := cfg.Metrics
 	metricsFactory, err := metricsBuilder.CreateMetricsFactory("")
 	if err != nil {
 		return fmt.Errorf("cannot create metrics factory: %w", err)
 	}
 	s.MetricsFactory = metricsFactory
 
-	if err = s.Admin.initFromViper(v, s.Logger); err != nil {
-		return fmt.Errorf("cannot initialize admin server: %w", err)
-	}
+	s.Admin.configure(cfg.Admin, s.Logger)
 	if h := metricsBuilder.Handler(); h != nil {
 		route := metricsBuilder.HTTPRoute
 		s.Logger.Info("Mounting metrics handler on admin server", zap.String("route", route))

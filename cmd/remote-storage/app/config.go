@@ -11,25 +11,24 @@ import (
 	"go.opentelemetry.io/collector/config/confignet"
 	"go.opentelemetry.io/collector/confmap"
 
+	"github.com/jaegertracing/jaeger/cmd/internal/flags"
 	"github.com/jaegertracing/jaeger/cmd/internal/storageconfig"
 	"github.com/jaegertracing/jaeger/internal/jconfmap"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/memory"
 	"github.com/jaegertracing/jaeger/internal/tenancy"
+	"github.com/jaegertracing/jaeger/ports"
 )
 
-// Config represents the configuration for remote-storage service.
+// Config is the whole configuration file of the remote-storage service.
 type Config struct {
+	// Service holds the admin server, logging and metrics sections.
+	Service flags.ServiceConfig     `mapstructure:",squash"`
 	GRPC    configgrpc.ServerConfig `mapstructure:"grpc"`
 	Tenancy tenancy.Options         `mapstructure:"multi_tenancy"`
 	// This configuration is the same as of the main `jaeger` binary,
 	// but only one backend should be defined.
 	Storage storageconfig.Config `mapstructure:"storage"`
 }
-
-// configSections are the top-level keys of the configuration file this service reads. The
-// same file also carries the service flags (log level, admin port), which the flags package
-// reads through viper, so the loader decodes only these sections and leaves the rest alone.
-var configSections = []string{"grpc", "multi_tenancy", "storage"}
 
 // LoadConfigFile reads the configuration file through OpenTelemetry confmap with the same
 // providers the main jaeger binary resolves its configuration with. That is what runs the
@@ -48,26 +47,12 @@ func LoadConfigFile(ctx context.Context, path string) (*Config, error) {
 		return nil, fmt.Errorf("failed to read configuration file %s: %w", path, err)
 	}
 
-	// The transport has to be set for the gRPC settings to validate, and the file only ever
-	// names the endpoint, so the default goes in before the file is decoded over it.
-	cfg := &Config{}
-	cfg.GRPC.NetAddr.Transport = confignet.TransportTypeTCP
-	targets := map[string]any{
-		"grpc":          &cfg.GRPC,
-		"multi_tenancy": &cfg.Tenancy,
-		"storage":       &cfg.Storage,
-	}
-	for _, section := range configSections {
-		if !conf.IsSet(section) {
-			continue
-		}
-		sub, err := conf.Sub(section)
-		if err != nil {
-			return nil, fmt.Errorf("failed to read configuration section %q: %w", section, err)
-		}
-		if err := sub.Unmarshal(targets[section]); err != nil {
-			return nil, fmt.Errorf("failed to unmarshal configuration section %q: %w", section, err)
-		}
+	// The file is decoded over the defaults, so a section it leaves out keeps them. The
+	// storage section starts empty, because a backend the file names would otherwise sit
+	// beside the default one.
+	cfg := defaultConfigWithoutStorage()
+	if err := conf.Unmarshal(cfg); err != nil {
+		return nil, fmt.Errorf("failed to unmarshal configuration: %w", err)
 	}
 
 	if err := confmap.Validate(cfg); err != nil {
@@ -104,24 +89,30 @@ func (c *Config) GetStorageName() string {
 	return ""
 }
 
-// DefaultConfig returns a default configuration with memory storage.
-// This is used when no configuration file is provided.
-func DefaultConfig() *Config {
+func defaultConfigWithoutStorage() *Config {
 	return &Config{
+		Service: flags.DefaultServiceConfig(ports.RemoteStorageAdminHTTP),
 		GRPC: configgrpc.ServerConfig{
 			NetAddr: confignet.AddrConfig{
-				Endpoint:  ":17271",
+				Endpoint:  ports.PortToHostPort(ports.RemoteStorageGRPC),
 				Transport: confignet.TransportTypeTCP,
 			},
 		},
-		Storage: storageconfig.Config{
-			TraceBackends: map[string]storageconfig.TraceBackend{
-				"memory": {
-					Memory: &memory.Configuration{
-						MaxTraces: 1_000_000,
-					},
+	}
+}
+
+// DefaultConfig returns a default configuration with memory storage.
+// This is used when no configuration file is provided.
+func DefaultConfig() *Config {
+	cfg := defaultConfigWithoutStorage()
+	cfg.Storage = storageconfig.Config{
+		TraceBackends: map[string]storageconfig.TraceBackend{
+			"memory": {
+				Memory: &memory.Configuration{
+					MaxTraces: 1_000_000,
 				},
 			},
 		},
 	}
+	return cfg
 }

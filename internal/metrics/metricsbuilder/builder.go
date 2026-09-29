@@ -6,52 +6,39 @@ package metricsbuilder
 
 import (
 	"errors"
-	"flag"
 	"net/http"
 
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
-	"github.com/spf13/viper"
 
 	"github.com/jaegertracing/jaeger/internal/metrics"
 	jprom "github.com/jaegertracing/jaeger/internal/metrics/prometheus"
 )
 
 const (
-	metricsBackend        = "metrics-backend"
-	metricsHTTPRoute      = "metrics-http-route"
 	defaultMetricsBackend = "prometheus"
 	defaultMetricsRoute   = "/metrics"
 )
 
 var errUnknownBackend = errors.New("unknown metrics backend specified")
 
-// Builder provides command line options to configure metrics backend used by Jaeger executables.
+// Builder is the metrics section of a service's configuration file, and builds the
+// metrics factory it describes.
 type Builder struct {
-	Backend   string
-	HTTPRoute string // endpoint name to expose metrics, e.g. for scraping
+	// Backend is the metrics backend to report to: "prometheus" or "none".
+	Backend string `mapstructure:"backend"`
+	// HTTPRoute is the path the metrics are exposed on for scraping, e.g. /metrics.
+	HTTPRoute string `mapstructure:"http_route"`
 	handler   http.Handler
 }
 
-// AddFlags adds flags for Builder.
-func AddFlags(flags *flag.FlagSet) {
-	flags.String(
-		metricsBackend,
-		defaultMetricsBackend,
-		"Defines which metrics backend to use for metrics reporting: prometheus or none",
-	)
-	flags.String(
-		metricsHTTPRoute,
-		defaultMetricsRoute,
-		"Defines the route of HTTP endpoint for metrics backends that support scraping",
-	)
-}
-
-// InitFromViper initializes Builder with properties retrieved from Viper.
-func (b *Builder) InitFromViper(v *viper.Viper) *Builder {
-	b.Backend = v.GetString(metricsBackend)
-	b.HTTPRoute = v.GetString(metricsHTTPRoute)
-	return b
+// Default returns the settings a service reports metrics with unless configured otherwise:
+// Prometheus on /metrics.
+func Default() Builder {
+	return Builder{
+		Backend:   defaultMetricsBackend,
+		HTTPRoute: defaultMetricsRoute,
+	}
 }
 
 // CreateMetricsFactory creates a metrics factory based on the configured type of the backend.

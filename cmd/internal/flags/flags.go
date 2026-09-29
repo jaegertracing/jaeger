@@ -23,19 +23,12 @@ const (
 
 // AddConfigFileFlag adds flags for ExternalConfFlags
 func AddConfigFileFlag(flagSet *flag.FlagSet) {
-	flagSet.String(configFile, "", "Configuration file in JSON, TOML, YAML, HCL, or Java properties formats (default none). See spf13/viper for precedence.")
+	flagSet.String(configFile, "", "Path to the YAML configuration file (default none).")
 }
 
-// TryLoadConfigFile initializes viper with config file specified as flag
-func TryLoadConfigFile(v *viper.Viper) error {
-	if file := v.GetString(configFile); file != "" {
-		v.SetConfigFile(file)
-		err := v.ReadInConfig()
-		if err != nil {
-			return fmt.Errorf("cannot load config file %s: %w", file, err)
-		}
-	}
-	return nil
+// ConfigFile returns the path given with --config-file, or an empty string when none was.
+func ConfigFile(v *viper.Viper) string {
+	return v.GetString(configFile)
 }
 
 // ParseJaegerTags parses the Jaeger tags string into a map.
@@ -80,40 +73,24 @@ func ParseJaegerTags(jaegerTags string) (map[string]string, error) {
 	return tags, nil
 }
 
-// SharedFlags holds flags configuration
-type SharedFlags struct {
-	// Logging holds logging configuration
-	Logging logging
+// LoggingConfig is the logging section of a service's configuration file.
+type LoggingConfig struct {
+	// Level is the minimal level a log line needs to be emitted; see go.uber.org/zap for the levels.
+	Level string `mapstructure:"level"`
+	// Encoding is the log line format, "json" or "console".
+	Encoding string `mapstructure:"encoding"`
 }
 
-type logging struct {
-	Level    string
-	Encoding string
-}
-
-// AddLoggingFlag adds logging flag for SharedFlags
-func AddLoggingFlags(flagSet *flag.FlagSet) {
-	flagSet.String(logLevel, "info", "Minimal allowed log Level. For more levels see https://github.com/uber-go/zap")
-	flagSet.String(logEncoding, "json", "Log encoding. Supported values are 'json' and 'console'.")
-}
-
-// InitFromViper initializes SharedFlags with properties from viper
-func (flags *SharedFlags) InitFromViper(v *viper.Viper) *SharedFlags {
-	flags.Logging.Level = v.GetString(logLevel)
-	flags.Logging.Encoding = v.GetString(logEncoding)
-	return flags
-}
-
-// NewLogger returns logger based on configuration in SharedFlags
-func (flags *SharedFlags) NewLogger(conf zap.Config, options ...zap.Option) (*zap.Logger, error) {
+// NewLogger returns a logger built from conf with the level and encoding configured here.
+func (c LoggingConfig) NewLogger(conf zap.Config, options ...zap.Option) (*zap.Logger, error) {
 	var level zapcore.Level
-	err := (&level).UnmarshalText([]byte(flags.Logging.Level))
+	err := (&level).UnmarshalText([]byte(c.Level))
 	if err != nil {
 		return nil, err
 	}
 	conf.Level = zap.NewAtomicLevelAt(level)
-	conf.Encoding = flags.Logging.Encoding
-	if flags.Logging.Encoding == "console" {
+	conf.Encoding = c.Encoding
+	if c.Encoding == "console" {
 		conf.EncoderConfig.EncodeTime = zapcore.ISO8601TimeEncoder
 	}
 	return conf.Build(options...)
