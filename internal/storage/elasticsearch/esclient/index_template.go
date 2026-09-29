@@ -40,6 +40,27 @@ var TypedAttributeIndexingGate = featuregate.GlobalRegistry().MustRegister(
 	featuregate.WithRegisterReferenceURL("https://github.com/jaegertracing/jaeger/blob/main/docs/rfc/0015-typed-attribute-indexing-elasticsearch.md"),
 )
 
+// PrefixedLegacyTemplatesGate scopes the ES7/OpenSearch legacy `_template`
+// index pattern of the dependencies and sampling templates by the configured
+// index prefix, as the span and service templates and the composable ES8+
+// template already are. Without the prefix, every prefix's dependencies and
+// sampling indices match every prefix's template, and a multi-prefix cluster
+// has the templates overwrite each other's settings.
+//
+// The gate is enabled by default; disabling it restores the unprefixed pattern.
+var PrefixedLegacyTemplatesGate = featuregate.GlobalRegistry().MustRegister(
+	"jaeger.es.index.prefixedLegacyTemplates",
+	featuregate.StageBeta,
+	featuregate.WithRegisterFromVersion("v2.22.0"),
+	featuregate.WithRegisterDescription(
+		"When enabled (the default), the Elasticsearch/OpenSearch legacy `_template` "+
+			"index pattern for the dependencies and sampling templates includes the "+
+			"configured index prefix, matching the span and service templates. Disable "+
+			"it to restore the old unprefixed pattern.",
+	),
+	featuregate.WithRegisterReferenceURL("https://github.com/jaegertracing/jaeger/issues/9683"),
+)
+
 //go:embed index_templates/*.json
 var indexTemplateFS embed.FS
 
@@ -113,34 +134,10 @@ func (m MappingType) String() string {
 	return m.indexBase()
 }
 
-// PrefixedLegacyTemplatesGate, when enabled, scopes the ES7/OpenSearch legacy
-// `_template` index pattern for the dependencies and sampling templates by the
-// configured prefix, matching the span/service templates and the composable
-// ES8+ template. Dependencies and sampling used to omit the prefix (a pre-M4b
-// quirk carried forward verbatim), which the leading "*" masked as long as a
-// cluster ran a single prefix: every prefix's dependencies/sampling indices
-// matched every prefix's template, so a multi-prefix deployment had them
-// stomp on each other's settings (#9683).
-//
-// The gate is enabled by default; disabling it restores the legacy unprefixed
-// pattern for a deployment relying on the old, buggy scoping.
-var PrefixedLegacyTemplatesGate = featuregate.GlobalRegistry().MustRegister(
-	"jaeger.es.index.prefixedLegacyTemplates",
-	featuregate.StageBeta,
-	featuregate.WithRegisterFromVersion("v2.22.0"),
-	featuregate.WithRegisterDescription(
-		"When enabled (the default), the Elasticsearch/OpenSearch legacy `_template` "+
-			"index pattern for the dependencies and sampling templates includes the "+
-			"configured index prefix, matching the span and service templates. Disable "+
-			"it to restore the old unprefixed pattern.",
-	),
-	featuregate.WithRegisterReferenceURL("https://github.com/jaegertracing/jaeger/issues/9683"),
-)
-
 // legacyIndexPattern returns the ES7 `_template` index pattern, scoped to the
-// configured prefix like the template's own name and aliases — unless
-// PrefixedLegacyTemplatesGate is disabled, in which case dependencies/sampling
-// fall back to the legacy unprefixed pattern. See the gate's doc comment for why.
+// configured prefix like the template's own name and aliases. With
+// PrefixedLegacyTemplatesGate disabled, the dependencies and sampling patterns
+// omit the prefix.
 func (m MappingType) legacyIndexPattern(prefix string) string {
 	if !PrefixedLegacyTemplatesGate.IsEnabled() {
 		switch m {

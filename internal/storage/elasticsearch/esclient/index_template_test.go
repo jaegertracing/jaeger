@@ -101,21 +101,12 @@ func TestRenderIndexTemplateInvalidJSON(t *testing.T) {
 	require.ErrorContains(t, err, "not valid JSON")
 }
 
-// setTypedAttributeIndexing flips the gate for the duration of a test.
-func setTypedAttributeIndexing(t *testing.T, enabled bool) {
-	original := TypedAttributeIndexingGate.IsEnabled()
-	require.NoError(t, featuregate.GlobalRegistry().Set(TypedAttributeIndexingGate.ID(), enabled))
+// setGate flips a feature gate for the duration of a test.
+func setGate(t *testing.T, gate *featuregate.Gate, enabled bool) {
+	original := gate.IsEnabled()
+	require.NoError(t, featuregate.GlobalRegistry().Set(gate.ID(), enabled))
 	t.Cleanup(func() {
-		require.NoError(t, featuregate.GlobalRegistry().Set(TypedAttributeIndexingGate.ID(), original))
-	})
-}
-
-// setPrefixedLegacyTemplates flips the gate for the duration of a test.
-func setPrefixedLegacyTemplates(t *testing.T, enabled bool) {
-	original := PrefixedLegacyTemplatesGate.IsEnabled()
-	require.NoError(t, featuregate.GlobalRegistry().Set(PrefixedLegacyTemplatesGate.ID(), enabled))
-	t.Cleanup(func() {
-		require.NoError(t, featuregate.GlobalRegistry().Set(PrefixedLegacyTemplatesGate.ID(), original))
+		require.NoError(t, featuregate.GlobalRegistry().Set(gate.ID(), original))
 	})
 }
 
@@ -126,10 +117,9 @@ func TestLegacyIndexPattern(t *testing.T) {
 		gateEnabled bool
 		expected    string
 	}{
-		{"span always prefixed, gate enabled", SpanMapping, true, "*test-jaeger-span-*"},
-		{"span always prefixed, gate disabled", SpanMapping, false, "*test-jaeger-span-*"},
-		{"service always prefixed, gate enabled", ServiceMapping, true, "*test-jaeger-service-*"},
-		{"service always prefixed, gate disabled", ServiceMapping, false, "*test-jaeger-service-*"},
+		// The gate leaves the span and service patterns alone.
+		{"span, gate disabled", SpanMapping, false, "*test-jaeger-span-*"},
+		{"service, gate disabled", ServiceMapping, false, "*test-jaeger-service-*"},
 		{"dependencies prefixed when gate enabled", DependencyMapping, true, "*test-jaeger-dependencies-*"},
 		{"dependencies unprefixed when gate disabled", DependencyMapping, false, "*jaeger-dependencies-*"},
 		{"sampling prefixed when gate enabled", SamplingMapping, true, "*test-jaeger-sampling-*"},
@@ -137,7 +127,7 @@ func TestLegacyIndexPattern(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			setPrefixedLegacyTemplates(t, tt.gateEnabled)
+			setGate(t, PrefixedLegacyTemplatesGate, tt.gateEnabled)
 			assert.Equal(t, tt.expected, tt.mapping.legacyIndexPattern("test-"))
 		})
 	}
@@ -197,7 +187,7 @@ var untypedAttributeValuePaths = []string{
 }
 
 func TestRenderSpanTemplateTypedAttributesDisabled(t *testing.T) {
-	setTypedAttributeIndexing(t, false)
+	setGate(t, TypedAttributeIndexingGate, false)
 	mappings := renderSpanMapping(t)
 	for _, path := range append(typedAttributeValuePaths, untypedAttributeValuePaths...) {
 		value, ok := dig(t, mappings, path).(map[string]any)
@@ -208,7 +198,7 @@ func TestRenderSpanTemplateTypedAttributesDisabled(t *testing.T) {
 }
 
 func TestRenderSpanTemplateTypedAttributesEnabled(t *testing.T) {
-	setTypedAttributeIndexing(t, true)
+	setGate(t, TypedAttributeIndexingGate, true)
 	mappings := renderSpanMapping(t)
 
 	for _, path := range typedAttributeValuePaths {
@@ -242,7 +232,7 @@ func TestRenderIndexTemplateTypedAttributesValidForAllVersions(t *testing.T) {
 	// The sub-fields are appended after "ignore_above", so the rendered body's
 	// comma placement is what a malformed conditional would break first, and
 	// RenderIndexTemplate reports that as invalid JSON.
-	setTypedAttributeIndexing(t, true)
+	setGate(t, TypedAttributeIndexingGate, true)
 	indices := config.Indices{
 		Spans:        config.IndexOptions{Shards: 5, Replicas: new(int64)},
 		Services:     config.IndexOptions{Shards: 5, Replicas: new(int64)},
