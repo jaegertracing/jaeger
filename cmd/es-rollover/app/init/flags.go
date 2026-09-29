@@ -7,6 +7,7 @@ import (
 	"flag"
 
 	"github.com/spf13/viper"
+	"go.opentelemetry.io/collector/featuregate"
 
 	"github.com/jaegertracing/jaeger/cmd/es-rollover/app"
 	cfg "github.com/jaegertracing/jaeger/internal/storage/elasticsearch/config"
@@ -38,6 +39,10 @@ func (*Config) AddFlags(flags *flag.FlagSet) {
 	flags.Int(priorityDependenciesTemplate, 0, "Priority of jaeger-dependencies index template (ESv8 only)")
 	flags.Int(prioritySamplingTemplate, 0, "Priority of jaeger-sampling index template (ESv8 only)")
 	flags.Int64(spanTotalFieldsLimit, 0, "Sets index.mapping.total_fields.limit on the jaeger-span index template. If unset, no limit is set and Elasticsearch's own default applies")
+	// init installs the index templates, and a feature gate can change what they contain, so
+	// it takes the same --feature-gates flag as the jaeger binary and esmapping-generator. The
+	// flag writes straight into the global registry, so InitFromViper has nothing to read.
+	featuregate.GlobalRegistry().RegisterFlags(flags)
 }
 
 // InitFromViper initializes config from viper.Viper.

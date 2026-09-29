@@ -11,7 +11,12 @@ import (
 	"github.com/spf13/viper"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.opentelemetry.io/collector/featuregate"
 )
+
+// testGate stands in for any gate that changes a rendered template, so the test does not
+// depend on the default of a real one.
+var testGate = featuregate.GlobalRegistry().MustRegister("jaeger.test.esRolloverInitFlag", featuregate.StageAlpha)
 
 func TestBindFlags(t *testing.T) {
 	v := viper.New()
@@ -59,4 +64,20 @@ func TestBindFlagsTotalFieldsLimitUnset(t *testing.T) {
 
 	c.InitFromViper(v)
 	assert.Nil(t, c.Indices.Spans.TotalFieldsLimit)
+}
+
+func TestFeatureGatesFlag(t *testing.T) {
+	c := &Config{}
+	command := cobra.Command{}
+	flags := &flag.FlagSet{}
+	c.AddFlags(flags)
+	command.PersistentFlags().AddGoFlagSet(flags)
+
+	require.NoError(t, command.ParseFlags([]string{"--feature-gates=" + testGate.ID()}))
+	assert.True(t, testGate.IsEnabled())
+
+	require.NoError(t, command.ParseFlags([]string{"--feature-gates=-" + testGate.ID()}))
+	assert.False(t, testGate.IsEnabled())
+
+	require.ErrorContains(t, command.ParseFlags([]string{"--feature-gates=jaeger.es.noSuchGate"}), "no such feature gate")
 }

@@ -199,7 +199,7 @@ func TestSpanReaderFindTracesBadRequest(t *testing.T) {
 func TestSpanReaderFindTraces(t *testing.T) {
 	testCases := []struct {
 		caption                           string
-		numTraces                         int
+		numTraces                         uint32
 		queryTags                         bool
 		queryOperation                    bool
 		queryDuration                     bool

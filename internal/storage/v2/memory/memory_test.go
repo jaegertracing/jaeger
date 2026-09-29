@@ -86,11 +86,12 @@ func TestNewStore_DefaultConfig(t *testing.T) {
 	}
 	idsIter := store.FindTraceIDs(context.Background(), findTracesParams)
 	i := 0
-	for foundTraceIds, err := range idsIter {
+	for chunk, err := range idsIter {
 		i++
 		require.NoError(t, err)
-		assert.Len(t, foundTraceIds, 1)
-		assert.Equal(t, traceID1, foundTraceIds[0].TraceID)
+		assert.Empty(t, chunk.NextPageToken)
+		assert.Len(t, chunk.Results, 1)
+		assert.Equal(t, traceID1, chunk.Results[0].TraceID)
 	}
 	assert.Equal(t, 1, i)
 	gotIter := store.FindTraces(context.Background(), findTracesParams)
@@ -520,10 +521,11 @@ func TestFindTraceIds_NegativeSearchDepth(t *testing.T) {
 	testInvalidSearchDepth(t, func(store *Store, params tracestore.TraceQueryParams) {
 		gotIter := store.FindTraceIDs(context.Background(), params)
 		iterLength := 0
-		for traces, err := range gotIter {
+		for chunk, err := range gotIter {
 			iterLength++
 			require.ErrorContains(t, err, errInvalidSearchDepth.Error())
-			assert.Nil(t, traces)
+			assert.Empty(t, chunk.Results)
+			assert.Empty(t, chunk.NextPageToken)
 		}
 		assert.Equal(t, 1, iterLength)
 	})
@@ -532,12 +534,8 @@ func TestFindTraceIds_NegativeSearchDepth(t *testing.T) {
 func testInvalidSearchDepth(t *testing.T, fxn func(store *Store, params tracestore.TraceQueryParams)) {
 	tests := []struct {
 		name        string
-		searchDepth int
+		searchDepth uint32
 	}{
-		{
-			name:        "negative search depth",
-			searchDepth: -1,
-		},
 		{
 			name:        "zero search depth",
 			searchDepth: 0,
@@ -772,7 +770,7 @@ func TestWriteTraces_WriteTraceWithTwoResourceSpans(t *testing.T) {
 }
 
 func TestNewStore_TracesLimit(t *testing.T) {
-	maxTraces := 8
+	const maxTraces = 8
 	store, err := NewStore(Configuration{
 		MaxTraces: maxTraces,
 	})
@@ -785,7 +783,7 @@ func TestNewStore_TracesLimit(t *testing.T) {
 }
 
 func TestNewStore_ReverseChronologicalOrder(t *testing.T) {
-	maxTraces := 8
+	const maxTraces = 8
 	store, err := NewStore(Configuration{
 		MaxTraces: maxTraces,
 	})

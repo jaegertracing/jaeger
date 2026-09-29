@@ -11,13 +11,12 @@ import (
 	"github.com/stretchr/testify/require"
 
 	expression "github.com/jaegertracing/jaeger-idl/query/expression/v1"
-	"github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore"
 )
 
 // mustFromProto decodes a filter that is expected to be well formed.
 func mustFromProto(t *testing.T, filter *Call) *expression.Call {
 	t.Helper()
-	got, err := FromProto(filter)
+	got, err := CallFromProto(filter)
 	require.NoError(t, err)
 	return got
 }
@@ -117,8 +116,8 @@ func TestFilterRoundTrip(t *testing.T) {
 }
 
 // TestTimeConstantsTravelUnhinted covers the two constants the wire has no type for. They are
-// written in the syntax the field they are compared against is written in and come back untyped,
-// which is the constant expression.ResolveConstants reads as that field's type again.
+// written in the syntax the field they are compared against is written in and come back untyped.
+// Reading them back as that field's type is tracestore.ResolveFilterConstants's job, tested there.
 func TestTimeConstantsTravelUnhinted(t *testing.T) {
 	tests := []struct {
 		name    string
@@ -152,10 +151,6 @@ func TestTimeConstantsTravelUnhinted(t *testing.T) {
 
 			decoded := mustFromProto(t, encoded)
 			assert.Equal(t, test.decoded, decoded.Args[1])
-
-			resolved, err := tracestore.ResolveFilterConstants(decoded)
-			require.NoError(t, err)
-			assert.Equal(t, filter, resolved)
 		})
 	}
 }
@@ -190,7 +185,7 @@ func TestFromProto_EmptyTerms(t *testing.T) {
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			_, err := FromProto(test.proto)
+			_, err := CallFromProto(test.proto)
 			require.ErrorContains(t, err, "filter argument is empty")
 		})
 	}
@@ -228,7 +223,7 @@ func TestFromProto_ConstantNotOfItsDeclaredType(t *testing.T) {
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			_, err := FromProto(&Call{Op: "eq", Args: []*Expression{
+			_, err := CallFromProto(&Call{Op: "eq", Args: []*Expression{
 				{Term: &Expression_Attr{Attr: &AttributeReference{Key: "a"}}},
 				{Term: &Expression_Scalar{Scalar: test.scalar}},
 			}})
@@ -254,15 +249,15 @@ func TestFromProto_BoundsNesting(t *testing.T) {
 		return filter
 	}
 
-	decoded, err := FromProto(nested(expression.MaxNestingDepth))
+	decoded, err := CallFromProto(nested(expression.MaxNestingDepth))
 	require.NoError(t, err)
 	assert.NotNil(t, decoded)
 
-	_, err = FromProto(nested(expression.MaxNestingDepth + 1))
+	_, err = CallFromProto(nested(expression.MaxNestingDepth + 1))
 	require.ErrorIs(t, err, expression.ErrTooDeeplyNested)
 
 	// A tree far past the bound is refused as quickly as one just past it, rather than walked.
-	_, err = FromProto(nested(5000))
+	_, err = CallFromProto(nested(5000))
 	require.ErrorIs(t, err, expression.ErrTooDeeplyNested)
 }
 
@@ -287,23 +282,23 @@ func TestToProto_RefusesATermItCannotWrite(t *testing.T) {
 	}
 	for name, term := range terms {
 		t.Run(name, func(t *testing.T) {
-			encoded, err := fromFilterExpression(term)
+			encoded, err := ToProto(term)
 			require.ErrorIs(t, err, ErrTermNotEncodable)
 			assert.Nil(t, encoded)
 		})
 	}
 
-	_, err := ToProto(&expression.Call{Op: expression.OpEq, Args: []expression.Expression{
+	_, err := CallToProto(&expression.Call{Op: expression.OpEq, Args: []expression.Expression{
 		&expression.AttributeRef{Key: "a"}, nil,
 	}})
 	require.ErrorIs(t, err, ErrTermNotEncodable)
 
-	// Through ToProto rather than the term encoder, since a constant that holds nothing used to
+	// Through CallToProto rather than the term encoder, since a constant that holds nothing used to
 	// panic here rather than be refused.
 	for name, term := range terms {
-		t.Run("through ToProto: "+name, func(t *testing.T) {
+		t.Run("through CallToProto: "+name, func(t *testing.T) {
 			require.NotPanics(t, func() {
-				_, err := ToProto(&expression.Call{Op: expression.OpEq, Args: []expression.Expression{
+				_, err := CallToProto(&expression.Call{Op: expression.OpEq, Args: []expression.Expression{
 					&expression.AttributeRef{Key: "a"}, term,
 				}})
 				require.ErrorIs(t, err, ErrTermNotEncodable)
@@ -315,7 +310,7 @@ func TestToProto_RefusesATermItCannotWrite(t *testing.T) {
 // mustToProto encodes a filter the test means to be encodable.
 func mustToProto(t *testing.T, filter *expression.Call) *Call {
 	t.Helper()
-	encoded, err := ToProto(filter)
+	encoded, err := CallToProto(filter)
 	require.NoError(t, err)
 	return encoded
 }

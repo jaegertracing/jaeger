@@ -10,8 +10,77 @@ import (
 	"fmt"
 	"text/template"
 
+	"go.opentelemetry.io/collector/featuregate"
+
 	es "github.com/jaegertracing/jaeger/internal/storage/elasticsearch"
 	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/config"
+)
+
+// TypedAttributeIndexingGate adds a numeric sub-field to each attribute value in
+// the span index template, beside the keyword the value is already indexed as.
+// That is what lets a query order on an attribute — `http.response.size > 500`
+// compares lexicographically against a keyword, which makes "9" greater than
+// "10" — and it is the mapping change RFC 0015 proposes. Documents are
+// unaffected: a mapping does not alter _source, so nothing about reading or
+// writing a span changes.
+//
+// Off by default because it costs mapped fields on the elevated representation,
+// two per key instead of one, which presses hardest on a `tags_as_fields: all`
+// deployment. It reaches only indices created after it is turned on, which is
+// why querying the sub-field is a second gate, TypedAttributeQueryGate.
+var TypedAttributeIndexingGate = featuregate.GlobalRegistry().MustRegister(
+	"jaeger.es.typedAttributeIndexing",
+	featuregate.StageAlpha,
+	featuregate.WithRegisterFromVersion("v2.24.0"),
+	featuregate.WithRegisterDescription(
+		"Indexes span, resource, and event attribute values as numbers beside the "+
+			"keyword, so that ordered predicates (gt/lt/gte/lte) can be answered on an "+
+			"attribute. Applies only to indices created after it is enabled; enable "+
+			"jaeger.es.typedAttributeQuery once every index in the retention window has it.",
+	),
+	featuregate.WithRegisterReferenceURL("https://github.com/jaegertracing/jaeger/blob/main/docs/rfc/0015-typed-attribute-indexing-elasticsearch.md"),
+)
+
+// TypedAttributeQueryGate lets the reader answer an ordering predicate on an
+// attribute over the numeric sub-field that TypedAttributeIndexingGate maps.
+// A range query against an index created without the sub-field matches nothing
+// rather than failing, so the reader refuses the predicate until this gate says
+// every index a search can reach carries it. The operator turns on the indexing
+// gate first, waits for retention to turn over the indices created before it,
+// and then turns this one on; the two gates are separate because a single one
+// could not describe a retention window written on both sides of the change.
+var TypedAttributeQueryGate = featuregate.GlobalRegistry().MustRegister(
+	"jaeger.es.typedAttributeQuery",
+	featuregate.StageAlpha,
+	featuregate.WithRegisterFromVersion("v2.24.0"),
+	featuregate.WithRegisterDescription(
+		"Answers ordered predicates (gt/lt/gte/lte) on an attribute over the numeric "+
+			"sub-field that jaeger.es.typedAttributeIndexing adds. Enable it only once every "+
+			"span index in the retention window was created with that gate on, because a "+
+			"range over an older index matches nothing.",
+	),
+	featuregate.WithRegisterReferenceURL("https://github.com/jaegertracing/jaeger/blob/main/docs/rfc/0015-typed-attribute-indexing-elasticsearch.md"),
+)
+
+// PrefixedLegacyTemplatesGate scopes the ES7/OpenSearch legacy `_template`
+// index pattern of the dependencies and sampling templates by the configured
+// index prefix, as the span and service templates and the composable ES8+
+// template already are. Without the prefix, every prefix's dependencies and
+// sampling indices match every prefix's template, and a multi-prefix cluster
+// has the templates overwrite each other's settings.
+//
+// The gate is enabled by default; disabling it restores the unprefixed pattern.
+var PrefixedLegacyTemplatesGate = featuregate.GlobalRegistry().MustRegister(
+	"jaeger.es.index.prefixedLegacyTemplates",
+	featuregate.StageBeta,
+	featuregate.WithRegisterFromVersion("v2.22.0"),
+	featuregate.WithRegisterDescription(
+		"When enabled (the default), the Elasticsearch/OpenSearch legacy `_template` "+
+			"index pattern for the dependencies and sampling templates includes the "+
+			"configured index prefix, matching the span and service templates. Disable "+
+			"it to restore the old unprefixed pattern.",
+	),
+	featuregate.WithRegisterReferenceURL("https://github.com/jaegertracing/jaeger/issues/9683"),
 )
 
 //go:embed index_templates/*.json
@@ -87,17 +156,18 @@ func (m MappingType) String() string {
 	return m.indexBase()
 }
 
-// legacyIndexPattern returns the ES7 `_template` index pattern. It preserves a
-// pre-M4b quirk verbatim: the span/service templates include the configured
-// prefix, while dependencies/sampling omit it — both still match prefixed
-// indices through the leading "*".
+// legacyIndexPattern returns the ES7 `_template` index pattern, scoped to the
+// configured prefix like the template's own name and aliases. With
+// PrefixedLegacyTemplatesGate disabled, the dependencies and sampling patterns
+// omit the prefix.
 func (m MappingType) legacyIndexPattern(prefix string) string {
-	switch m {
-	case DependencyMapping, SamplingMapping:
-		return "*" + m.indexBase() + "-*"
-	default:
-		return "*" + prefix + m.indexBase() + "-*"
+	if !PrefixedLegacyTemplatesGate.IsEnabled() {
+		switch m {
+		case DependencyMapping, SamplingMapping:
+			return "*" + m.indexBase() + "-*"
+		}
 	}
+	return "*" + prefix + m.indexBase() + "-*"
 }
 
 // options returns the per-type index options (shards/replicas/priority).
@@ -134,6 +204,14 @@ type innerParams struct {
 	// "index.mapping.total_fields.limit" entirely rather than rendering a
 	// default.
 	TotalFieldsLimit *int64
+	// TypedAttributes adds a `number` sub-field beside the keyword each attribute value is
+	// indexed as, in both the nested and the elevated representation (RFC 0015 Option A). The
+	// sub-field is mapped with coerce: false, so it holds only values that arrived as JSON numbers
+	// and a numeric string stays out, and with ignore_malformed: true, so a value that does not fit
+	// is skipped rather than costing the document. There is no boolean sub-field: OpenSearch rejects
+	// ignore_malformed on a boolean mapper, and the keyword already answers equality, which is the
+	// only operator a boolean has (RFC 0015 §7, question 7).
+	TypedAttributes bool
 }
 
 // renderBackendNeutralBody executes the embedded template for one mapping type and
@@ -157,6 +235,7 @@ func renderBackendNeutralBody(m MappingType, indices config.Indices, lifecycle l
 		Shards:           opts.Shards,
 		Replicas:         *opts.Replicas,
 		TotalFieldsLimit: opts.TotalFieldsLimit,
+		TypedAttributes:  TypedAttributeIndexingGate.IsEnabled(),
 	}); err != nil {
 		return nil, fmt.Errorf("failed to render %s index template: %w", m, err)
 	}

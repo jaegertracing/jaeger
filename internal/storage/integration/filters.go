@@ -135,8 +135,15 @@ func filterTestCases(p builder.Predicate) []filterCase {
 			// Ordering an attribute needs the value stored as a number. A backend that indexes
 			// attributes as text refuses this instead, and excuses itself from this case — see
 			// its twin among the refusals below.
+			//
+			// The corpus carries retry.count as 9 and 11, and the bound is 10, because those are
+			// the numbers that tell a numeric comparison from a lexicographic one. Numerically
+			// only 11 is greater; as text both are, since "9" sorts after "10". So a backend that
+			// ranged over the keyword would answer with cart_get as well — a superset, which is
+			// the failure this case exists to catch, and one that cannot be mistaken for the
+			// writes not having landed.
 			caption:  "ordering compares a numeric attribute as a number",
-			filter:   p.Span().Attr("retry.count").Gt(3),
+			filter:   p.Span().Attr("retry.count").Gt(10),
 			expected: []string{"cart_post"},
 		},
 		{
@@ -250,7 +257,7 @@ func (s *StorageIntegration) testFindTracesWithFilter(t *testing.T) {
 			// level are both declared and only the pairing is unservable. A backend that orders
 			// attributes natively excuses itself from this case and runs the other.
 			caption: "ordering an attribute is refused where it is indexed as text",
-			filter:  p.Span().Attr("retry.count").Gt(3),
+			filter:  p.Span().Attr("retry.count").Gt(10),
 			names:   "keyword rather than a number",
 		},
 	}

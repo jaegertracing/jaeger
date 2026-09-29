@@ -14,6 +14,7 @@ import (
 	"go.opentelemetry.io/collector/pdata/ptrace"
 
 	"github.com/jaegertracing/jaeger-idl/model/v1"
+	expression "github.com/jaegertracing/jaeger-idl/query/expression/v1"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/api/depstore"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore"
 	conventions "github.com/jaegertracing/jaeger/internal/telemetry/otelsemconv"
@@ -39,7 +40,7 @@ type Store struct {
 
 // NewStore creates an in-memory store
 func NewStore(cfg Configuration) (*Store, error) {
-	if cfg.MaxTraces <= 0 {
+	if cfg.MaxTraces == 0 {
 		return nil, errInvalidMaxTraces
 	}
 	return &Store{
@@ -107,7 +108,72 @@ func (*Store) SearchCapabilities(context.Context) (tracestore.SearchCapabilities
 		// The span matcher treats an empty query service name as "match any", so an
 		// omitted name spans every service in the store.
 		WithoutServiceName: true,
+		// The reference store evaluates every level and operator the filter AST
+		// defines (see filter.go), so it declares the full vocabulary rather than a
+		// subset the way a real backend limited by its indexing would.
+		Filter: &tracestore.FilterCapabilities{
+			Levels:    expression.Levels(),
+			Operators: expression.Operators(),
+		},
+		// FindSpans below evaluates the same filter engine as FindTraces, over
+		// every span in the store rather than per matched trace (RFC 0016).
+		SpanSearch:  true,
+		SpanSorting: true,
+		// FindTraceIDs and FindSpans sort their results and page through them with a
+		// keyset cursor (pagination.go).
+		Paginated: true,
 	}, nil
+}
+
+// FindSpans returns every span in the store matching query, across however
+// many traces they belong to (RFC 0016). Unlike FindTraces, which finds
+// traces containing at least one matching span, FindSpans's result holds
+// exactly the matching spans and nothing else: two matching spans that
+// happen to share a trace do not pull in the rest of that trace's spans, and
+// a matching span always keeps its own resource and scope, not its trace's
+// other spans' resources.
+//
+// The result is one page, sorted by sortingKey and bounded by
+// query.Pagination.PageSize when that is positive. The chunk carries the next
+// page's token if more spans match (RFC 0014).
+func (st *Store) FindSpans(ctx context.Context, query tracestore.SpanQueryParams) iter.Seq2[tracestore.PageChunk[ptrace.Traces], error] {
+	m := st.getTenant(tenancy.GetTenant(ctx))
+	return func(yield func(tracestore.PageChunk[ptrace.Traces], error) bool) {
+		// The query service settles the order before calling a reader, but a reader reached
+		// directly must still refuse terms it cannot execute, and the settled order is the one
+		// the fingerprint and the sort must agree on.
+		order, err := tracestore.EffectiveSpanOrder(query.OrderBy)
+		if err != nil {
+			yield(tracestore.PageChunk[ptrace.Traces]{}, err)
+			return
+		}
+		query.OrderBy = order
+		fingerprint, err := query.Fingerprint()
+		if err != nil {
+			yield(tracestore.PageChunk[ptrace.Traces]{}, err)
+			return
+		}
+		after, err := cursorOf(query.Pagination.PageToken, fingerprint, func(raw []byte) (cursor[sortingKey], error) {
+			return decodeSpanCursor(raw, len(query.OrderBy))
+		})
+		if err != nil {
+			yield(tracestore.PageChunk[ptrace.Traces]{}, err)
+			return
+		}
+		matched, last, err := m.findSpans(query, after)
+		if err != nil {
+			yield(tracestore.PageChunk[ptrace.Traces]{}, err)
+			return
+		}
+		chunk := tracestore.PageChunk[ptrace.Traces]{Results: matched}
+		if last != nil {
+			if chunk.NextPageToken, err = tracestore.NewPageToken(fingerprint, last.encode()); err != nil {
+				yield(tracestore.PageChunk[ptrace.Traces]{}, err)
+				return
+			}
+		}
+		yield(chunk, nil)
+	}
 }
 
 func (st *Store) FindTraces(ctx context.Context, query tracestore.TraceQueryParams) iter.Seq2[[]ptrace.Traces, error] {
@@ -131,19 +197,53 @@ func (st *Store) FindTraces(ctx context.Context, query tracestore.TraceQueryPara
 	}
 }
 
-func (st *Store) FindTraceIDs(ctx context.Context, query tracestore.TraceQueryParams) iter.Seq2[[]tracestore.FoundTraceID, error] {
+// FindTraceIDs without Pagination returns the most recently written matching
+// traces up to SearchDepth, as FindTraces does. With Pagination it sorts the
+// matching traces by traceKey, returns the page that follows the query's
+// token, at most PageSize traces, and carries the next page's token if more
+// traces match.
+func (st *Store) FindTraceIDs(ctx context.Context, query tracestore.TraceQueryParams) iter.Seq2[tracestore.PageChunk[[]tracestore.FoundTraceID], error] {
 	m := st.getTenant(tenancy.GetTenant(ctx))
-	return func(yield func([]tracestore.FoundTraceID, error) bool) {
-		traceAndIds, err := m.findTraceAndIds(query)
-		if err != nil {
-			yield(nil, err)
-			return
+	return func(yield func(tracestore.PageChunk[[]tracestore.FoundTraceID], error) bool) {
+		var chunk tracestore.PageChunk[[]tracestore.FoundTraceID]
+		fail := func(err error) {
+			yield(tracestore.PageChunk[[]tracestore.FoundTraceID]{}, err)
 		}
-		ids := make([]tracestore.FoundTraceID, len(traceAndIds))
+		var traceAndIds []traceAndId
+		if query.Pagination == nil {
+			var err error
+			if traceAndIds, err = m.findTraceAndIds(query); err != nil {
+				fail(err)
+				return
+			}
+		} else {
+			fingerprint, err := query.Fingerprint()
+			if err != nil {
+				fail(err)
+				return
+			}
+			after, err := cursorOf(query.Pagination.PageToken, fingerprint, decodeTraceCursor)
+			if err != nil {
+				fail(err)
+				return
+			}
+			var last *cursor[traceKey]
+			if traceAndIds, last, err = m.findTraceAndIdsPage(query, after); err != nil {
+				fail(err)
+				return
+			}
+			if last != nil {
+				if chunk.NextPageToken, err = tracestore.NewPageToken(fingerprint, last.encode()); err != nil {
+					fail(err)
+					return
+				}
+			}
+		}
+		chunk.Results = make([]tracestore.FoundTraceID, len(traceAndIds))
 		for i := range traceAndIds {
-			ids[i] = tracestore.FoundTraceID{TraceID: traceAndIds[i].id}
+			chunk.Results[i] = tracestore.FoundTraceID{TraceID: traceAndIds[i].id}
 		}
-		yield(ids, nil)
+		yield(chunk, nil)
 	}
 }
 
@@ -230,6 +330,7 @@ func reshuffleResourceSpans(resourceSpanSlice ptrace.ResourceSpansSlice) map[pco
 		for traceId, scopeSpansSlice := range scopeSpansByTraceId {
 			resourceSpanByTraceId := ptrace.NewResourceSpans()
 			resourceSpan.Resource().CopyTo(resourceSpanByTraceId.Resource())
+			resourceSpanByTraceId.SetSchemaUrl(resourceSpan.SchemaUrl())
 			scopeSpansSlice.MoveAndAppendTo(resourceSpanByTraceId.ScopeSpans())
 			resourceSpansSlice, ok := resourceSpansByTraceId[traceId]
 			if !ok {
@@ -254,6 +355,7 @@ func reshuffleScopeSpans(scopeSpanSlice ptrace.ScopeSpansSlice) map[pcommon.Trac
 		for traceId, spansSlice := range spansByTraceId {
 			scopeSpanByTraceId := ptrace.NewScopeSpans()
 			scopeSpan.Scope().CopyTo(scopeSpanByTraceId.Scope())
+			scopeSpanByTraceId.SetSchemaUrl(scopeSpan.SchemaUrl())
 			spansSlice.MoveAndAppendTo(scopeSpanByTraceId.Spans())
 			scopeSpansSlice, ok := scopeSpansByTraceId[traceId]
 			if !ok {

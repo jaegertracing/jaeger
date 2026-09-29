@@ -94,7 +94,7 @@ func (*getCriticalPathHandler) buildQuery(input types.GetCriticalPathInput) (que
 		return querysvc.GetTraceParams{}, errors.New("trace_id is required")
 	}
 
-	traceID, err := parseTraceID(input.TraceID)
+	traceID, err := jptrace.TraceIDFromString(input.TraceID)
 	if err != nil {
 		return querysvc.GetTraceParams{}, fmt.Errorf("invalid trace_id: %w", err)
 	}

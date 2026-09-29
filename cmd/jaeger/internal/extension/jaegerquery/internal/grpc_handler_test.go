@@ -933,7 +933,7 @@ func traceIterator(trace *model.Trace, err error) iter.Seq2[[]ptrace.Traces, err
 // TestFindTracesServiceNameRequired_GRPC pins the status code api_v2 reports for a query
 // this deployment's storage cannot serve. Every other error from the search iterator is
 // wrapped as Internal here, which would make a well-formed request look like a server
-// fault; the API v3 and HTTP layers already answer InvalidArgument / 400 (RFC 0013 §3.3).
+// fault; the API v3 and HTTP layers answer Unimplemented / 501 the same way (RFC 0013 §3.3).
 func TestFindTracesServiceNameRequired_GRPC(t *testing.T) {
 	withServerAndClient(t, func(_ *grpcServer, client *grpcClient) {
 		res, err := client.FindTraces(context.Background(), &api_v2.FindTracesRequest{
@@ -946,7 +946,53 @@ func TestFindTracesServiceNameRequired_GRPC(t *testing.T) {
 
 		spanResChunk, err := res.Recv()
 		require.ErrorContains(t, err, "requires a service name")
-		assert.Equal(t, codes.InvalidArgument, status.Code(err))
+		assert.Equal(t, codes.Unimplemented, status.Code(err))
 		assert.Nil(t, spanResChunk)
 	})
+}
+
+// TestFindTracesRefusedByQueryService_GRPC pins that api_v2 answers InvalidArgument for a search
+// the query service refuses on its envelope: one with no time range, which this handler used to
+// forward to storage, and one whose search depth is out of range, which it used to pass through.
+// No FindTraces expectation is set, so a request reaching storage aborts the test.
+func TestFindTracesRefusedByQueryService_GRPC(t *testing.T) {
+	tests := map[string]struct {
+		query   *api_v2.TraceQueryParameters
+		wantErr string
+	}{
+		"no time range": {
+			query:   &api_v2.TraceQueryParameters{ServiceName: "service"},
+			wantErr: "min and max start time are required",
+		},
+		"negative search depth": {
+			query: &api_v2.TraceQueryParameters{
+				ServiceName:  "service",
+				StartTimeMin: time.Now().Add(-10 * time.Minute),
+				StartTimeMax: time.Now(),
+				SearchDepth:  -1,
+			},
+			wantErr: "search depth must be in [0, 10000]",
+		},
+		"search depth above the maximum": {
+			query: &api_v2.TraceQueryParameters{
+				ServiceName:  "service",
+				StartTimeMin: time.Now().Add(-10 * time.Minute),
+				StartTimeMax: time.Now(),
+				SearchDepth:  int32(tracestore.MaxSearchDepth + 1),
+			},
+			wantErr: "search depth must be in [0, 10000]",
+		},
+	}
+	for name, test := range tests {
+		t.Run(name, func(t *testing.T) {
+			withServerAndClient(t, func(_ *grpcServer, client *grpcClient) {
+				res, err := client.FindTraces(context.Background(), &api_v2.FindTracesRequest{Query: test.query})
+				require.NoError(t, err)
+
+				spanResChunk, err := res.Recv()
+				assertGRPCError(t, err, codes.InvalidArgument, test.wantErr)
+				assert.Nil(t, spanResChunk)
+			})
+		})
+	}
 }

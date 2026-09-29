@@ -44,7 +44,10 @@ const (
 	nestedLogFieldsField   = "logs.fields"
 	tagKeyField            = "key"
 	tagValueField          = "value"
-	errorTag               = "error"
+	// numberSubField is the sub-field the typed-attribute mapping indexes a numeric
+	// attribute value in, beside the keyword the same value is indexed as (RFC 0015).
+	numberSubField = "number"
+	errorTag       = "error"
 
 	defaultSearchDepth = 100
 
@@ -494,9 +497,9 @@ func (s *SpanReader) findTraceIDsFromQuery(ctx context.Context, traceQuery dbmod
 	return traceIDs, nil
 }
 
-func (s *SpanReader) buildTraceIDAggregation(numOfTraces int) esquery.Aggregation {
+func (s *SpanReader) buildTraceIDAggregation(numOfTraces uint32) esquery.Aggregation {
 	return esquery.NewTermsAggregation(traceIDField).
-		Size(numOfTraces).
+		Size(uint64(numOfTraces)).
 		Order(startTimeField, esquery.Descending).
 		SubAggregation(startTimeField, s.buildTraceIDSubAggregation())
 }
