@@ -1,7 +1,7 @@
 # ADR-014: Synchronous Elasticsearch/OpenSearch Writes and Lossless Pipelines
 
 * **Status**: Implemented — graduated from [RFC 0007](../rfc/0007-synchronous-elasticsearch-writes.md)
-* **Date**: 2026-09-22, extended 2026-09-24 with the batch-size headroom rule, extended 2026-09-29 with the Kafka sizing bounds and the RFC 0007 M8/M9 split
+* **Date**: 2026-09-22, extended 2026-09-24 with the batch-size headroom rule, extended 2026-09-29 to state that neither batch nor fetch settings raise the Kafka batch above one record per partition, and to track the RFC 0007 M8/M9 split
 
 ## Context
 
