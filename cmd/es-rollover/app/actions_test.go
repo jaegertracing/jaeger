@@ -27,7 +27,7 @@ type dummyAction struct {
 	TestFn func() error
 }
 
-func (a *dummyAction) Do() error {
+func (a *dummyAction) Do(ctx context.Context) error {
 	return a.TestFn()
 }
 
@@ -85,9 +85,10 @@ func TestExecuteAction(t *testing.T) {
 			require.NoError(t, command.ParseFlags(cmdLine))
 			executedAction := false
 			err := ExecuteAction(ActionExecuteOptions{
-				Args:   args,
-				Viper:  v,
-				Logger: logger,
+				Context: context.Background(),
+				Args:    args,
+				Viper:   v,
+				Logger:  logger,
 			}, func(_ *esclient.Client, _ Config) Action {
 				return &dummyAction{
 					TestFn: func() error {
@@ -118,9 +119,10 @@ func TestExecuteAction_ConfigError(t *testing.T) {
 	}
 
 	err := ExecuteAction(ActionExecuteOptions{
-		Args:   args,
-		Viper:  v,
-		Logger: logger,
+		Context: context.Background(),
+		Args:    args,
+		Viper:   v,
+		Logger:  logger,
 	}, func(_ *esclient.Client, _ Config) Action {
 		return &dummyAction{
 			TestFn: func() error {
@@ -218,9 +220,10 @@ func TestExecuteAction_ClientError(t *testing.T) {
 	v, command := config.Viperize(AddFlags)
 	require.NoError(t, command.ParseFlags(nil))
 	err := ExecuteAction(ActionExecuteOptions{
-		Args:   []string{"not-a-valid-url"}, // no scheme -> esclient.NewClient rejects it
-		Viper:  v,
-		Logger: zap.NewNop(),
+		Context: context.Background(),
+		Args:    []string{"not-a-valid-url"}, // no scheme -> esclient.NewClient rejects it
+		Viper:   v,
+		Logger:  zap.NewNop(),
 	}, func(*esclient.Client, Config) Action {
 		t.Fatal("action must not be created when the client fails")
 		return nil
