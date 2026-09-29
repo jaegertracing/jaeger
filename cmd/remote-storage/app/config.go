@@ -46,10 +46,13 @@ func LoadConfigFile(ctx context.Context, path string) (*Config, error) {
 		return nil, fmt.Errorf("failed to read configuration file %s: %w", path, err)
 	}
 
-	// The file is decoded over the defaults, so a section it leaves out keeps them. The
-	// storage section starts empty, because a backend the file names would otherwise sit
-	// beside the default one.
-	cfg := defaultConfigWithoutStorage()
+	// The file is decoded over the defaults, so a section it leaves out keeps them. A file
+	// that names a storage section starts from an empty one, because the backend it names
+	// would otherwise sit beside the default memory backend.
+	cfg := DefaultConfig()
+	if conf.IsSet("storage") {
+		cfg = defaultConfigWithoutStorage()
+	}
 	if err := conf.Unmarshal(cfg); err != nil {
 		return nil, fmt.Errorf("failed to unmarshal configuration: %w", err)
 	}

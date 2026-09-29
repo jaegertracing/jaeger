@@ -188,7 +188,7 @@ storage: not-a-mapping
 			expectError: "storage",
 		},
 		{
-			name: "missing storage backend",
+			name: "storage section without a backend",
 			yamlConfig: `
 grpc:
   endpoint: :17271
@@ -196,6 +196,17 @@ storage:
   backends: {}
 `,
 			expectError: "at least one storage backend is required",
+		},
+		{
+			name: "file without a storage section keeps the default memory backend",
+			yamlConfig: `
+logging:
+  level: debug
+`,
+			validate: func(t *testing.T, cfg *Config) {
+				assert.Equal(t, "debug", cfg.Service.Logging.Level)
+				assert.Equal(t, DefaultConfig().Storage, cfg.Storage)
+			},
 		},
 		{
 			name: "empty backend configuration",
