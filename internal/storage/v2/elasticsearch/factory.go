@@ -8,6 +8,7 @@ import (
 	"io"
 	"strings"
 
+	"go.opentelemetry.io/collector/config/configoptional"
 	"go.opentelemetry.io/collector/extension/extensionauth"
 
 	"github.com/jaegertracing/jaeger-idl/model/v1"
@@ -95,8 +96,8 @@ func ensureRequiredFields(cfg escfg.Configuration) escfg.Configuration {
 		}
 		tags.Include += model.SpanKindKey + "," + tagError
 	}
-	if cfg.Tags != nil {
-		cfg.Tags = &tags
+	if cfg.Tags.HasValue() {
+		cfg.Tags = configoptional.Some(tags)
 	} else {
 		cfg.Indices.Spans.Tags = tags
 	}

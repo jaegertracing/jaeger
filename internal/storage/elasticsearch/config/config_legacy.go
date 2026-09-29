@@ -121,10 +121,11 @@ func (c *Configuration) ResolvedSpanRotation() RotationConfig {
 // The deprecated spelling carries no default of its own, so a dot replacement it leaves
 // unset comes from indices.spans.tags_as_fields, where the default lives.
 func (c *Configuration) ResolvedTagsAsFields() TagsAsFields {
-	if c.Tags == nil {
+	legacy := c.Tags.Get()
+	if legacy == nil {
 		return c.Indices.Spans.Tags
 	}
-	tags := *c.Tags
+	tags := *legacy
 	if tags.DotReplacement == "" {
 		tags.DotReplacement = c.Indices.Spans.Tags.DotReplacement
 	}
@@ -221,7 +222,7 @@ func (c *Configuration) LogDeprecationWarnings(logger *zap.Logger) {
 		{"span_write_alias", c.SpanWriteAlias.HasValue(), "use 'indices.spans.rotation.manual_rollover.write_alias' instead"},
 		{"service_read_alias", c.ServiceReadAlias.HasValue(), "use 'indices.services.rotation.manual_rollover.read_alias' instead"},
 		{"service_write_alias", c.ServiceWriteAlias.HasValue(), "use 'indices.services.rotation.manual_rollover.write_alias' instead"},
-		{"tags_as_fields", c.Tags != nil, "use 'indices.spans.tags_as_fields' instead"},
+		{"tags_as_fields", c.Tags.HasValue(), "use 'indices.spans.tags_as_fields' instead; it is ignored while the top-level one is set"},
 	}
 	for _, d := range deprecations {
 		if !d.isSet {

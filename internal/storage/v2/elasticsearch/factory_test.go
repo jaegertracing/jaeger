@@ -12,6 +12,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.opentelemetry.io/collector/config/configoptional"
 	"go.opentelemetry.io/collector/pdata/pcommon"
 	"go.opentelemetry.io/collector/pdata/ptrace"
 
@@ -267,9 +268,9 @@ func TestEnsureRequiredFieldsKeepsLegacyTags(t *testing.T) {
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			result := ensureRequiredFields(escfg.Configuration{Tags: &test.legacy})
-			require.NotNil(t, result.Tags)
-			assert.Equal(t, test.want, *result.Tags)
+			result := ensureRequiredFields(escfg.Configuration{Tags: configoptional.Some(test.legacy)})
+			require.True(t, result.Tags.HasValue())
+			assert.Equal(t, test.want, *result.Tags.Get())
 			assert.Equal(t, test.want, result.ResolvedTagsAsFields())
 			assert.Empty(t, result.Indices.Spans.Tags.Include, "indices.spans is left untouched")
 		})
@@ -290,7 +291,7 @@ func TestNewFactoryWarnsAboutLegacyTags(t *testing.T) {
 	cfg := escfg.Configuration{
 		Servers:  []string{server.URL},
 		LogLevel: "error",
-		Tags:     &escfg.TagsAsFields{Include: "custom"},
+		Tags:     configoptional.Some(escfg.TagsAsFields{Include: "custom"}),
 	}
 	factory, err := NewFactory(context.Background(), cfg, telset, nil)
 	require.NoError(t, err)

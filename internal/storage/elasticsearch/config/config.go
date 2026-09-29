@@ -294,11 +294,11 @@ type Configuration struct {
 	// latest adaptive sampling probabilities.
 	AdaptiveSamplingLookback time.Duration `mapstructure:"adaptive_sampling_lookback"`
 	// Tags is the top-level spelling of the tags-as-fields settings. It carries no default
-	// of its own, so nil means unset and ResolvedTagsAsFields fills in what it leaves out.
+	// of its own, so ResolvedTagsAsFields fills in what it leaves out.
 	//
-	// Deprecated: superseded by indices.spans.tags_as_fields. ResolvedTagsAsFields
-	// reads whichever of the two is set.
-	Tags *TagsAsFields `mapstructure:"tags_as_fields"`
+	// Deprecated: superseded by indices.spans.tags_as_fields, which ResolvedTagsAsFields
+	// falls back to when this one is not set.
+	Tags configoptional.Optional[TagsAsFields] `mapstructure:"tags_as_fields"`
 	// Enabled, if set to true, enables the namespace for storage pointed to by this configuration.
 	Enabled bool `mapstructure:"-"`
 }
@@ -496,20 +496,13 @@ func (c *Configuration) Validate() error {
 		return err
 	}
 
-	if c.Tags != nil {
-		if RejectLegacyTagsAsFields.IsEnabled() {
-			return errors.New(
-				"the top-level tags_as_fields is no longer supported; move it under 'indices.spans.tags_as_fields'; " +
-					"to temporarily disable this check, use --feature-gates=-" + RejectLegacyTagsAsFields.ID(),
-			)
-		}
-		// The dot replacement is left out of the comparison because it carries a default,
-		// so it is set whether or not the configuration named it.
-		spans := c.Indices.Spans.Tags
-		spans.DotReplacement = ""
-		if spans != (TagsAsFields{}) {
-			return errors.New("tags_as_fields is set both at the top level (deprecated) and under indices.spans; keep only indices.spans.tags_as_fields")
-		}
+	// When the gate is disabled the deprecated spelling is honored, and NewFactoryBase
+	// logs the deprecation warning through LogDeprecationWarnings.
+	if c.Tags.HasValue() && RejectLegacyTagsAsFields.IsEnabled() {
+		return errors.New(
+			"the top-level tags_as_fields is no longer supported; move it under 'indices.spans.tags_as_fields'; " +
+				"to temporarily disable this check, use --feature-gates=-" + RejectLegacyTagsAsFields.ID(),
+		)
 	}
 
 	if RejectLegacyRotationFlags.IsEnabled() && c.hasAnyLegacyRotationFlags() {

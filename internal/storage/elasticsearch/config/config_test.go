@@ -44,10 +44,10 @@ func TestTagKeysAsFields(t *testing.T) {
 		{
 			name: "deprecated top-level tags_as_fields",
 			config: &Configuration{
-				Tags: &TagsAsFields{
+				Tags: configoptional.Some(TagsAsFields{
 					File:    pwdFile,
 					Include: "",
-				},
+				}),
 			},
 			expectedTags: []string{"tag1", "tag2"},
 			expectError:  false,
@@ -120,12 +120,12 @@ func TestResolvedTagsAsFields(t *testing.T) {
 	spans := TagsAsFields{Include: "new", DotReplacement: "@"}
 	tests := []struct {
 		name   string
-		legacy *TagsAsFields
+		legacy configoptional.Optional[TagsAsFields]
 		want   TagsAsFields
 	}{
 		{name: "indices.spans alone", want: spans},
-		{name: "deprecated spelling wins", legacy: &TagsAsFields{Include: "old", DotReplacement: "!"}, want: TagsAsFields{Include: "old", DotReplacement: "!"}},
-		{name: "deprecated spelling borrows the dot replacement", legacy: &TagsAsFields{Include: "old"}, want: TagsAsFields{Include: "old", DotReplacement: "@"}},
+		{name: "deprecated spelling wins", legacy: configoptional.Some(TagsAsFields{Include: "old", DotReplacement: "!"}), want: TagsAsFields{Include: "old", DotReplacement: "!"}},
+		{name: "deprecated spelling borrows the dot replacement", legacy: configoptional.Some(TagsAsFields{Include: "old"}), want: TagsAsFields{Include: "old", DotReplacement: "@"}},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
@@ -205,25 +205,24 @@ func TestValidate(t *testing.T) {
 			name: "deprecated top-level tags_as_fields accepted on its own",
 			config: &Configuration{
 				Servers: []string{"localhost:8000/dummyserver"},
-				Tags:    &TagsAsFields{Include: "a"},
+				Tags:    configoptional.Some(TagsAsFields{Include: "a"}),
 			},
 		},
 		{
 			name: "top-level tags_as_fields beside a dot replacement under indices.spans accepted",
 			config: &Configuration{
 				Servers: []string{"localhost:8000/dummyserver"},
-				Tags:    &TagsAsFields{Include: "a"},
+				Tags:    configoptional.Some(TagsAsFields{Include: "a"}),
 				Indices: Indices{Spans: SpanIndexOptions{Tags: TagsAsFields{DotReplacement: "@"}}},
 			},
 		},
 		{
-			name: "tags_as_fields in both places rejected",
+			name: "tags_as_fields in both places accepted, the deprecated one wins",
 			config: &Configuration{
 				Servers: []string{"localhost:8000/dummyserver"},
-				Tags:    &TagsAsFields{Include: "a"},
+				Tags:    configoptional.Some(TagsAsFields{Include: "a"}),
 				Indices: Indices{Spans: SpanIndexOptions{Tags: TagsAsFields{Include: "b"}}},
 			},
-			expectedError: "tags_as_fields is set both at the top level (deprecated) and under indices.spans",
 		},
 		{
 			name:          "no valid input are set",
@@ -774,7 +773,7 @@ func TestLogDeprecationWarnings(t *testing.T) {
 		{
 			name: "top-level tags_as_fields",
 			cfg: &Configuration{
-				Tags: &TagsAsFields{AllAsFields: true},
+				Tags: configoptional.Some(TagsAsFields{AllAsFields: true}),
 			},
 			expectedLogs: []string{
 				"Deprecated Elasticsearch configuration flag",
@@ -868,9 +867,9 @@ func setGate(t *testing.T, gate *featuregate.Gate, enabled bool) {
 func TestValidate_RejectLegacyTagsAsFieldsGate(t *testing.T) {
 	cfg := &Configuration{
 		Servers: []string{"localhost:8000/dummyserver"},
-		Tags: &TagsAsFields{
+		Tags: configoptional.Some(TagsAsFields{
 			AllAsFields: true,
-		},
+		}),
 	}
 
 	setGate(t, RejectLegacyTagsAsFields, true)
