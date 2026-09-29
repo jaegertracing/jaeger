@@ -209,7 +209,8 @@ type innerParams struct {
 	IndexPrefix string
 	Shards      int64
 	Replicas    int64
-	Span        spanParams
+	// Span is filled only for the span index; the other templates leave it zero and do not read it.
+	Span spanParams
 	// TypedAttributes adds a `number` sub-field beside the keyword each attribute value is
 	// indexed as, in both the nested and the elevated representation (RFC 0015 Option A). The
 	// sub-field is mapped with coerce: false, so it holds only values that arrived as JSON numbers
