@@ -23,8 +23,6 @@ import (
 	"github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore"
 )
 
-var errNoArchiveSpanStorage = errors.New("archive span storage was not configured")
-
 // DefaultSearchDepth bounds a trace search whose caller left SearchDepth unset. It is applied
 // here rather than in each API handler, so a gRPC and an HTTP client get the same bound.
 const DefaultSearchDepth uint32 = 100
@@ -33,26 +31,6 @@ const DefaultSearchDepth uint32 = 100
 // no SearchDepth, so the page size is its only bound (RFC 0016 §6), and a Reader never receives
 // a query without one. It is applied here for the same reason as DefaultSearchDepth.
 const DefaultPageSize uint32 = DefaultSearchDepth
-
-// ErrQueryInvalid is returned for a trace search whose envelope is malformed on its own terms:
-// a missing or inverted time range, a negative or inverted duration bound, or a search depth
-// outside [0, MaxSearchDepth]. None of these depends on the backend. The API layers map it to
-// InvalidArgument / HTTP 400.
-var ErrQueryInvalid = errors.New("invalid query")
-
-// ErrSpanSearchUnsupported is returned for a span search against a backend whose reader does
-// not declare SpanSearch (RFC 0016 §4.5). It names the backend's limitation, because the same
-// query is valid elsewhere. The interceptor package has a sentinel of the same name for an
-// interceptor with no span-search policy; that one is a deployment fault, not a bad request.
-var ErrSpanSearchUnsupported = errors.New("this storage backend does not declare span search support")
-
-// ErrServiceNameRequired is returned for a search that omits the service name against a
-// backend whose reader does not accept one (RFC 0013 §3.3). It names the backend's
-// limitation rather than the missing field, because the same query is valid elsewhere.
-// The API layers map it to InvalidArgument / HTTP 400.
-var ErrServiceNameRequired = errors.New(
-	"this storage backend requires a service name to search; searching all services is not supported",
-)
 
 // QueryServiceOptions holds the configuration options for the query service.
 type QueryServiceOptions struct {
@@ -450,7 +428,10 @@ func (qs QueryService) checkServiceName(ctx context.Context, query tracestore.Tr
 // of lightweight summary information. It calls the trace reader's FindTraceSummaries;
 // readers that cannot compute summaries natively yield errors.ErrUnsupported (wrapped
 // with %w) as the first error, in which case FindTraceSummaries transparently falls
-// back to FindTraces and computes summaries from the full trace data.
+// back to FindTraces and computes summaries from the full trace data. A refusal that
+// carries a tracestore.ErrorReason also matches errors.ErrUnsupported when the backend
+// lacks a capability the query needs, but it names a problem with the query, which the
+// fallback would only hit again, so it is returned to the caller instead.
 //
 // The iterator is single-use: once consumed, it cannot be used again.
 func (qs QueryService) FindTraceSummaries(
@@ -465,7 +446,7 @@ func (qs QueryService) FindTraceSummaries(
 		}
 		for chunk, err := range qs.traceReader.FindTraceSummaries(ctx, readerQuery) {
 			if err != nil {
-				if errors.Is(err, errors.ErrUnsupported) {
+				if errors.Is(err, errors.ErrUnsupported) && tracestore.ErrorReason(err) == "" {
 					if readerQuery.Pagination != nil {
 						qs.summarizeTraceIDPages(ctx, readerQuery, yield)
 						return

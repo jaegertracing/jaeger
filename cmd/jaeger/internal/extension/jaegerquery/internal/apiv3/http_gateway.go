@@ -79,8 +79,10 @@ func (h *HTTPGateway) tryHandleError(w http.ResponseWriter, err error, statusCod
 	if errors.Is(err, spanstore.ErrTraceNotFound) {
 		statusCode = http.StatusNotFound
 	}
-	if querysvc.IsBadRequest(err) {
-		// Either the query needs changing, or this deployment's storage cannot serve it.
+	if errors.Is(err, errors.ErrUnsupported) {
+		// The query is well formed, but this deployment's storage cannot serve it.
+		statusCode = http.StatusNotImplemented
+	} else if errors.Is(err, tracestore.ErrInvalidQuery) {
 		statusCode = http.StatusBadRequest
 	}
 	if errors.Is(err, queryinterceptor.ErrAccessDenied) {
