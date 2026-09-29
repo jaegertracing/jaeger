@@ -50,7 +50,7 @@ var RejectLegacyTagsAsFields = featuregate.GlobalRegistry().MustRegister(
 		"When enabled, the deprecated top-level 'tags_as_fields' in the Elasticsearch/OpenSearch "+
 			"storage configuration becomes a validation error; use 'indices.spans.tags_as_fields' instead.",
 	),
-	featuregate.WithRegisterReferenceURL("https://github.com/jaegertracing/jaeger/issues/9689"),
+	featuregate.WithRegisterReferenceURL("https://github.com/jaegertracing/jaeger/pull/9693"),
 )
 
 func (c *Configuration) getUseReadWriteAliases() bool {
@@ -215,7 +215,7 @@ func (c *Configuration) LogDeprecationWarnings(logger *zap.Logger) {
 		{"span_write_alias", c.SpanWriteAlias.HasValue(), "use 'indices.spans.rotation.manual_rollover.write_alias' instead"},
 		{"service_read_alias", c.ServiceReadAlias.HasValue(), "use 'indices.services.rotation.manual_rollover.read_alias' instead"},
 		{"service_write_alias", c.ServiceWriteAlias.HasValue(), "use 'indices.services.rotation.manual_rollover.write_alias' instead"},
-		{"tags_as_fields", c.Tags.HasValue(), "use 'indices.spans.tags_as_fields' instead; it is ignored while the top-level one is set"},
+		{"tags_as_fields", c.Tags.HasValue(), "use 'indices.spans.tags_as_fields' instead; the indices.spans one is ignored while this one is set"},
 	}
 	for _, d := range deprecations {
 		if !d.isSet {

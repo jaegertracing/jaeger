@@ -118,8 +118,9 @@ func TestTagsAsFieldsUnmarshal(t *testing.T) {
 		conf := confmap.NewFromStringMap(map[string]any{
 			"indices": map[string]any{
 				"spans": map[string]any{
-					"shards":         3,
-					"tags_as_fields": map[string]any{"all": true},
+					"shards":             3,
+					"total_fields_limit": 2000,
+					"tags_as_fields":     map[string]any{"all": true},
 				},
 			},
 		})
@@ -127,6 +128,7 @@ func TestTagsAsFieldsUnmarshal(t *testing.T) {
 		assert.False(t, cfg.Tags.HasValue())
 		assert.Equal(t, want, cfg.ResolvedTagsAsFields())
 		assert.EqualValues(t, 3, cfg.Indices.Spans.Shards, "the shared options stay flat under indices.spans")
+		assert.Equal(t, configoptional.Some(int64(2000)), cfg.Indices.Spans.TotalFieldsLimit)
 	})
 
 	t.Run("deprecated top level", func(t *testing.T) {
