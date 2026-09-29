@@ -94,6 +94,8 @@ var elasticsearchFilterGates = []string{
 // elasticsearchIndexingGates are the gates of a deployment midway through adopting typed
 // attributes: new indices carry the sub-field, but the query gate stays off until retention has
 // turned over the indices created without it, so the reader still refuses to order an attribute.
+// They are also all the earlier binary of the backward-compatibility suite can take as a writer,
+// since the query gate did not exist in that revision and the writer has no use for it.
 var elasticsearchIndexingGates = []string{
 	querysvc.StructuredFiltersGate.ID(),
 	esclient.TypedAttributeIndexingGate.ID(),

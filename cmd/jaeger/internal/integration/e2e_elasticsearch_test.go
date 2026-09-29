@@ -73,7 +73,7 @@ func TestElasticsearchStorage_BackwardCompatibility(t *testing.T) {
 		},
 		compatScenario{
 			Name:         "feature gates enabled on both old writer and new reader (already enabled)",
-			OldGates:     elasticsearchFilterGates,
+			OldGates:     elasticsearchIndexingGates,
 			NewGates:     elasticsearchFilterGates,
 			Capabilities: capabilities.Elasticsearch(),
 		},
