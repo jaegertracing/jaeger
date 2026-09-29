@@ -24,11 +24,11 @@ import (
 var errActionTest = errors.New("action error")
 
 type dummyAction struct {
-	TestFn func() error
+	TestFn func(context.Context) error
 }
 
 func (a *dummyAction) Do(ctx context.Context) error {
-	return a.TestFn()
+	return a.TestFn(ctx)
 }
 
 func TestExecuteAction(t *testing.T) {
@@ -84,14 +84,19 @@ func TestExecuteAction(t *testing.T) {
 			cmdLine := append([]string{"--es.tls.enabled=true"}, test.flags...)
 			require.NoError(t, command.ParseFlags(cmdLine))
 			executedAction := false
+			
+			ctx, cancel := context.WithCancel(context.Background())
+			defer cancel()
+			
 			err := ExecuteAction(ActionExecuteOptions{
-				Context: context.Background(),
+				Context: ctx,
 				Args:    args,
 				Viper:   v,
 				Logger:  logger,
 			}, func(_ *esclient.Client, _ Config) Action {
 				return &dummyAction{
-					TestFn: func() error {
+					TestFn: func(gotCtx context.Context) error {
+						assert.Equal(t, ctx, gotCtx, "ExecuteAction must pass through the exact context")
 						executedAction = true
 						return test.expectedError
 					},
@@ -125,7 +130,7 @@ func TestExecuteAction_ConfigError(t *testing.T) {
 		Logger:  logger,
 	}, func(_ *esclient.Client, _ Config) Action {
 		return &dummyAction{
-			TestFn: func() error {
+			TestFn: func(_ context.Context) error {
 				return nil
 			},
 		}

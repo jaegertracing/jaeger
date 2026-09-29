@@ -89,6 +89,30 @@ func TestBuildFilterQuery(t *testing.T) {
 		typedAttributes bool
 	}{
 		{
+			name:   "span.kind maps to the span.kind tag",
+			filter: p.Span().Kind.Eq("server"),
+		},
+		{
+			name:   "not_in on span.kind",
+			filter: p.Span().Kind.NotIn("server", "client"),
+		},
+		{
+			name:   "exists on span.kind",
+			filter: p.Span().Kind.Exists(),
+		},
+		{
+			name:   "unspecified span.kind matches spans missing the tag",
+			filter: p.Span().Kind.Eq("unspecified"),
+		},
+		{
+			name:   "not unspecified span.kind matches spans that have the tag",
+			filter: p.Span().Kind.Ne("unspecified"),
+		},
+		{
+			name:   "in on span.kind includes missing tags if unspecified is requested",
+			filter: p.Span().Kind.In("server", "unspecified"),
+		},
+		{
 			name:   "unqualified attribute searches the span and resource levels",
 			filter: p.Attr("http.status_code").Eq("500"),
 		},
@@ -500,12 +524,7 @@ func TestBuildFilterQueryRefused(t *testing.T) {
 			wantErr: tracestore.ErrFilterUnsupported,
 			wantMsg: `does not index the "link" level`,
 		},
-		{
-			name:    "a built-in field this schema has no field for",
-			filter:  p.Span().Kind.Eq("server"),
-			wantErr: tracestore.ErrFilterUnsupported,
-			wantMsg: `built-in field "kind" of the "span" level`,
-		},
+
 		{
 			name:    "the trace identifier is a keyword, so it carries no order",
 			filter:  p.Span().TraceID.Gt("0af7651916cd43dd8448eb211c80319c"),
@@ -518,12 +537,7 @@ func TestBuildFilterQueryRefused(t *testing.T) {
 			wantErr: tracestore.ErrFilterUnsupported,
 			wantMsg: `indexes "spanID" as a keyword rather than a number`,
 		},
-		{
-			name:    "exists on a built-in field this schema has no field for",
-			filter:  p.Link().TraceID.Exists(),
-			wantErr: tracestore.ErrFilterUnsupported,
-			wantMsg: `built-in field "traceID" of the "link" level`,
-		},
+
 		{
 			name:    "ordering an attribute without the typed index",
 			filter:  p.Span().Attr("http.response.size").Gt("500"),
@@ -755,6 +769,12 @@ func TestBuildFilterQueryRefused(t *testing.T) {
 			wantMsg:         "an integer constant declares a type",
 			typedAttributes: true,
 		},
+		{
+			name:    "ordering span.kind is unsupported",
+			filter:  p.Span().Kind.Gt("server"),
+			wantErr: tracestore.ErrFilterUnsupported,
+			wantMsg: `so it cannot evaluate "gt" against a string constant`,
+		},
 	}
 	withSpanReader(t, func(r *spanReaderTest) {
 		for _, test := range tests {
@@ -817,7 +837,7 @@ func TestFindTraceIDsRefusesUnservableFilter(t *testing.T) {
 		_, err := r.reader.FindTraceIDs(context.Background(), dbmodel.TraceQueryParameters{
 			StartTimeMin: now,
 			StartTimeMax: now.Add(time.Hour),
-			Filter:       p.Span().Kind.Eq("server"),
+			Filter:       p.Link().Attr("k").Eq("v"), // Link attributes are not indexed
 		})
 		require.ErrorIs(t, err, tracestore.ErrFilterUnsupported)
 	})
