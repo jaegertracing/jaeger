@@ -34,7 +34,9 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
+        backend: [elasticsearch, opensearch, cassandra, clickhouse]
         baseline: [latest-release, main]
+        # Each entry attaches the command to its backend for both baselines.
         include:
         - backend: elasticsearch
           command: bash scripts/e2e/elasticsearch.sh elasticsearch 9.x compat
