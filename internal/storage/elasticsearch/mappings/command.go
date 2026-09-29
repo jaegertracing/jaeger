@@ -52,7 +52,7 @@ func generateMappings(options Options) (string, error) {
 	}
 	indices := config.Indices{
 		IndexPrefix:  config.IndexPrefix(options.IndexPrefix),
-		Spans:        indexOpts,
+		Spans:        config.SpanIndexOptions{IndexOptions: indexOpts},
 		Services:     indexOpts,
 		Dependencies: indexOpts,
 		Sampling:     indexOpts,

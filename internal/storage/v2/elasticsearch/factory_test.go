@@ -10,7 +10,9 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.opentelemetry.io/collector/config/configoptional"
 	"go.opentelemetry.io/collector/pdata/pcommon"
 	"go.opentelemetry.io/collector/pdata/ptrace"
 
@@ -172,14 +174,14 @@ func TestAlwaysIncludesRequiredTags(t *testing.T) {
 			cfg := escfg.Configuration{
 				Servers:  []string{server.URL},
 				LogLevel: "error",
-				Tags:     tt.tagsConfig,
+				Indices:  escfg.Indices{Spans: escfg.SpanIndexOptions{Tags: tt.tagsConfig}},
 			}
 			factory, err := NewFactory(context.Background(), cfg, telemetry.NoopSettings(), nil)
 			require.NoError(t, err)
 			defer factory.Close()
 
 			// Verify tag behavior based on test expectations
-			includeTags := factory.config.Tags.Include
+			includeTags := factory.config.Indices.Spans.Tags.Include
 
 			require.Contains(t, includeTags, model.SpanKindKey)
 			require.Contains(t, includeTags, tagError)
@@ -222,15 +224,30 @@ func TestCreateDependencyReader(t *testing.T) {
 }
 
 func TestEnsureRequiredFields_AllAsFieldsTrue(t *testing.T) {
+	tags := escfg.TagsAsFields{
+		AllAsFields: true,
+		Include:     "custom1,custom2,span.kind,error",
+	}
 	originalCfg := escfg.Configuration{
-		Tags: escfg.TagsAsFields{
-			AllAsFields: true,
-			Include:     "custom1,custom2,span.kind,error",
-		},
+		Indices: escfg.Indices{Spans: escfg.SpanIndexOptions{Tags: tags}},
 	}
 
 	// Make an exact copy for comparison
 	expectedCfg := originalCfg
 	result := ensureRequiredFields(originalCfg)
 	require.Equal(t, expectedCfg, result)
+}
+
+// TestEnsureRequiredFieldsFoldsLegacyTags checks that the deprecated top-level tags_as_fields
+// ends up under indices.spans, where the factory reads it, and is cleared so that nothing
+// downstream can read the two spellings differently.
+func TestEnsureRequiredFieldsFoldsLegacyTags(t *testing.T) {
+	result := ensureRequiredFields(escfg.Configuration{
+		Tags: configoptional.Some(escfg.TagsAsFields{Include: "custom", DotReplacement: "!"}),
+	})
+	assert.False(t, result.Tags.HasValue())
+	assert.Equal(t, escfg.TagsAsFields{
+		Include:        "custom," + model.SpanKindKey + "," + tagError,
+		DotReplacement: "!",
+	}, result.Indices.Spans.Tags)
 }

@@ -180,8 +180,17 @@ func (m MappingType) options(indices config.Indices) config.IndexOptions {
 	case SamplingMapping:
 		return indices.Sampling
 	default:
-		return indices.Spans
+		return indices.Spans.IndexOptions
 	}
+}
+
+// totalFieldsLimit is the field limit a mapping type's template renders. Only the span
+// index has one to render; the other templates leave the engine's default in place.
+func (m MappingType) totalFieldsLimit(indices config.Indices) *int64 {
+	if m == SpanMapping {
+		return indices.Spans.TotalFieldsLimit
+	}
+	return nil
 }
 
 // lifecycleParams decide whether a template hands its indices to a rollover
@@ -234,7 +243,7 @@ func renderBackendNeutralBody(m MappingType, indices config.Indices, lifecycle l
 		IndexPrefix:      indices.IndexPrefix.Apply(""),
 		Shards:           opts.Shards,
 		Replicas:         *opts.Replicas,
-		TotalFieldsLimit: opts.TotalFieldsLimit,
+		TotalFieldsLimit: m.totalFieldsLimit(indices),
 		TypedAttributes:  TypedAttributeIndexingGate.IsEnabled(),
 	}); err != nil {
 		return nil, fmt.Errorf("failed to render %s index template: %w", m, err)

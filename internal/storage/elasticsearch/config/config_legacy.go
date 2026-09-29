@@ -93,7 +93,16 @@ func (c *Configuration) hasAnyLegacyRotationFlags() bool {
 // ResolvedSpanRotation returns the effective rotation configuration for span indices,
 // resolving legacy flags into the appropriate RotationConfig variant.
 func (c *Configuration) ResolvedSpanRotation() RotationConfig {
-	return c.resolvedRotation(&c.Indices.Spans, c.Indices.IndexPrefix.Apply(SpanIndexName), c.getSpanReadAlias(), c.getSpanWriteAlias())
+	return c.resolvedRotation(&c.Indices.Spans.IndexOptions, c.Indices.IndexPrefix.Apply(SpanIndexName), c.getSpanReadAlias(), c.getSpanWriteAlias())
+}
+
+// ResolvedTagsAsFields returns the effective tags-as-fields settings: the deprecated
+// top-level tags_as_fields when it is set, and indices.spans.tags_as_fields otherwise.
+func (c *Configuration) ResolvedTagsAsFields() TagsAsFields {
+	if legacy := c.Tags.Get(); legacy != nil {
+		return *legacy
+	}
+	return c.Indices.Spans.Tags
 }
 
 // ResolvedServiceRotation returns the effective rotation configuration for service indices,
@@ -186,6 +195,7 @@ func (c *Configuration) LogDeprecationWarnings(logger *zap.Logger) {
 		{"span_write_alias", c.SpanWriteAlias.HasValue(), "use 'indices.spans.rotation.manual_rollover.write_alias' instead"},
 		{"service_read_alias", c.ServiceReadAlias.HasValue(), "use 'indices.services.rotation.manual_rollover.read_alias' instead"},
 		{"service_write_alias", c.ServiceWriteAlias.HasValue(), "use 'indices.services.rotation.manual_rollover.write_alias' instead"},
+		{"tags_as_fields", c.Tags.HasValue(), "use 'indices.spans.tags_as_fields' instead"},
 	}
 	for _, d := range deprecations {
 		if !d.isSet {

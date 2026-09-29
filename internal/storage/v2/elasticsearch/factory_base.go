@@ -153,7 +153,7 @@ func (f *FactoryBase) GetSpanReaderParams() esspanstore.SpanReaderParams {
 		MaxSpanAge:          maxSpanAge,
 		ServicesMaxLookback: f.config.MaxSpanAge,
 		MaxTraceDuration:    f.config.MaxTraceDuration,
-		TagDotReplacement:   f.config.Tags.DotReplacement,
+		TagDotReplacement:   f.config.Indices.Spans.Tags.DotReplacement,
 		Logger:              f.logger,
 		Tracer:              f.tracer.Tracer("esspanstore.SpanReader"),
 		SpanRotation:        spanRotation,
@@ -180,9 +180,9 @@ func (f *FactoryBase) GetSpanWriterParams() esspanstore.SpanWriterParams {
 	spanRotation, serviceRotation := f.buildRotations()
 	return esspanstore.SpanWriterParams{
 		BatchWriter:       f.spanBatchWriter(),
-		AllTagsAsFields:   f.config.Tags.AllAsFields,
+		AllTagsAsFields:   f.config.Indices.Spans.Tags.AllAsFields,
 		TagKeysAsFields:   f.tags,
-		TagDotReplacement: f.config.Tags.DotReplacement,
+		TagDotReplacement: f.config.Indices.Spans.Tags.DotReplacement,
 		Logger:            f.logger,
 		MetricsFactory:    f.metricsFactory,
 		ServiceOperations: f.serviceOperations,

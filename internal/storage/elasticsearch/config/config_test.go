@@ -33,10 +33,21 @@ func TestTagKeysAsFields(t *testing.T) {
 		{
 			name: "File with tags",
 			config: &Configuration{
-				Tags: TagsAsFields{
+				Indices: Indices{Spans: SpanIndexOptions{Tags: TagsAsFields{
 					File:    pwdFile,
 					Include: "",
-				},
+				}}},
+			},
+			expectedTags: []string{"tag1", "tag2"},
+			expectError:  false,
+		},
+		{
+			name: "deprecated top-level tags_as_fields",
+			config: &Configuration{
+				Tags: configoptional.Some(TagsAsFields{
+					File:    pwdFile,
+					Include: "",
+				}),
 			},
 			expectedTags: []string{"tag1", "tag2"},
 			expectError:  false,
@@ -44,10 +55,10 @@ func TestTagKeysAsFields(t *testing.T) {
 		{
 			name: "include with tags",
 			config: &Configuration{
-				Tags: TagsAsFields{
+				Indices: Indices{Spans: SpanIndexOptions{Tags: TagsAsFields{
 					File:    "",
 					Include: "cmdtag1,cmdtag2",
-				},
+				}}},
 			},
 			expectedTags: []string{"cmdtag1", "cmdtag2"},
 			expectError:  false,
@@ -55,10 +66,10 @@ func TestTagKeysAsFields(t *testing.T) {
 		{
 			name: "File and include with tags",
 			config: &Configuration{
-				Tags: TagsAsFields{
+				Indices: Indices{Spans: SpanIndexOptions{Tags: TagsAsFields{
 					File:    pwdFile,
 					Include: "cmdtag1,cmdtag2",
-				},
+				}}},
 			},
 			expectedTags: []string{"tag1", "tag2", "cmdtag1", "cmdtag2"},
 			expectError:  false,
@@ -66,10 +77,10 @@ func TestTagKeysAsFields(t *testing.T) {
 		{
 			name: "File read error",
 			config: &Configuration{
-				Tags: TagsAsFields{
+				Indices: Indices{Spans: SpanIndexOptions{Tags: TagsAsFields{
 					File:    "/invalid/path/to/file.txt",
 					Include: "",
-				},
+				}}},
 			},
 			expectedTags: nil,
 			expectError:  true,
@@ -77,10 +88,10 @@ func TestTagKeysAsFields(t *testing.T) {
 		{
 			name: "Empty file and params",
 			config: &Configuration{
-				Tags: TagsAsFields{
+				Indices: Indices{Spans: SpanIndexOptions{Tags: TagsAsFields{
 					File:    "",
 					Include: "",
-				},
+				}}},
 			},
 			expectedTags: nil,
 			expectError:  false,
@@ -99,6 +110,20 @@ func TestTagKeysAsFields(t *testing.T) {
 			}
 		})
 	}
+}
+
+// TestResolvedTagsAsFields checks which spelling wins: the deprecated top-level one whenever it
+// is present, since a configuration that still sets it has not been migrated, and the
+// indices.spans one otherwise.
+func TestResolvedTagsAsFields(t *testing.T) {
+	spans := TagsAsFields{Include: "new", DotReplacement: "@"}
+	legacy := TagsAsFields{Include: "old", DotReplacement: "!"}
+
+	cfg := &Configuration{Indices: Indices{Spans: SpanIndexOptions{Tags: spans}}}
+	assert.Equal(t, spans, cfg.ResolvedTagsAsFields())
+
+	cfg.Tags = configoptional.Some(legacy)
+	assert.Equal(t, legacy, cfg.ResolvedTagsAsFields())
 }
 
 func TestRolloverFrequencyAsNegativeDuration(t *testing.T) {
@@ -157,6 +182,37 @@ func TestValidate(t *testing.T) {
 			name:          "explicit unsupported version rejected",
 			config:        &Configuration{Servers: []string{"localhost:8000/dummyserver"}, Version: 10},
 			expectedError: "unsupported version 10",
+		},
+		{
+			name: "tags_as_fields under indices.spans accepted",
+			config: &Configuration{
+				Servers: []string{"localhost:8000/dummyserver"},
+				Indices: Indices{Spans: SpanIndexOptions{Tags: TagsAsFields{AllAsFields: true}}},
+			},
+		},
+		{
+			name: "deprecated top-level tags_as_fields accepted on its own",
+			config: &Configuration{
+				Servers: []string{"localhost:8000/dummyserver"},
+				Tags:    configoptional.Some(TagsAsFields{Include: "a"}),
+			},
+		},
+		{
+			name: "top-level tags_as_fields beside a dot replacement under indices.spans accepted",
+			config: &Configuration{
+				Servers: []string{"localhost:8000/dummyserver"},
+				Tags:    configoptional.Some(TagsAsFields{Include: "a"}),
+				Indices: Indices{Spans: SpanIndexOptions{Tags: TagsAsFields{DotReplacement: "@"}}},
+			},
+		},
+		{
+			name: "tags_as_fields in both places rejected",
+			config: &Configuration{
+				Servers: []string{"localhost:8000/dummyserver"},
+				Tags:    configoptional.Some(TagsAsFields{Include: "a"}),
+				Indices: Indices{Spans: SpanIndexOptions{Tags: TagsAsFields{Include: "b"}}},
+			},
+			expectedError: "tags_as_fields is set both at the top level (deprecated) and under indices.spans",
 		},
 		{
 			name:          "no valid input are set",
@@ -659,11 +715,11 @@ func TestValidate_RotationConflictsWithLegacyFlags(t *testing.T) {
 	cfg := &Configuration{
 		Servers: []string{"localhost:8000/dummyserver"},
 		Indices: Indices{
-			Spans: IndexOptions{
+			Spans: SpanIndexOptions{IndexOptions: IndexOptions{
 				Rotation: RotationConfig{
 					Periodic: configoptional.Some(PeriodicRotation{DateLayout: "2006-01-02"}),
 				},
-			},
+			}},
 		},
 		UseReadWriteAliases: configoptional.Some(true),
 	}
@@ -702,6 +758,17 @@ func TestLogDeprecationWarnings(t *testing.T) {
 				"Deprecated Elasticsearch configuration flag",
 				"use_ilm",
 				"auto_rollover",
+			},
+		},
+		{
+			name: "top-level tags_as_fields",
+			cfg: &Configuration{
+				Tags: configoptional.Some(TagsAsFields{AllAsFields: true}),
+			},
+			expectedLogs: []string{
+				"Deprecated Elasticsearch configuration flag",
+				"tags_as_fields",
+				"indices.spans.tags_as_fields",
 			},
 		},
 		{
@@ -820,14 +887,14 @@ func TestResolvedRotation(t *testing.T) {
 			name: "explicit rotation takes precedence",
 			cfg: &Configuration{
 				Indices: Indices{
-					Spans: IndexOptions{
+					Spans: SpanIndexOptions{IndexOptions: IndexOptions{
 						Rotation: RotationConfig{
 							ManualRollover: configoptional.Some(ManualRolloverRotation{
 								ReadAlias:  "custom-read",
 								WriteAlias: "custom-write",
 							}),
 						},
-					},
+					}},
 				},
 			},
 			checkFn: func(t *testing.T, rc RotationConfig) {
@@ -903,9 +970,9 @@ func TestResolvedRotation(t *testing.T) {
 			name: "custom date_layout in legacy field",
 			cfg: &Configuration{
 				Indices: Indices{
-					Spans: IndexOptions{
+					Spans: SpanIndexOptions{IndexOptions: IndexOptions{
 						DateLayout: configoptional.Some("2006010215"),
-					},
+					}},
 				},
 			},
 			checkFn: func(t *testing.T, rc RotationConfig) {
@@ -967,12 +1034,12 @@ func TestValidateRotationConfig_DateLayoutConflict(t *testing.T) {
 	cfg := &Configuration{
 		Servers: []string{"localhost:8000/dummyserver"},
 		Indices: Indices{
-			Spans: IndexOptions{
+			Spans: SpanIndexOptions{IndexOptions: IndexOptions{
 				DateLayout: configoptional.Some("2006010215"),
 				Rotation: RotationConfig{
 					Periodic: configoptional.Some(PeriodicRotation{DateLayout: "2006-01-02"}),
 				},
-			},
+			}},
 		},
 	}
 	err := cfg.Validate()
@@ -984,12 +1051,12 @@ func TestValidateRotationConfig_RolloverFrequencyConflict(t *testing.T) {
 	cfg := &Configuration{
 		Servers: []string{"localhost:8000/dummyserver"},
 		Indices: Indices{
-			Spans: IndexOptions{
+			Spans: SpanIndexOptions{IndexOptions: IndexOptions{
 				RolloverFrequency: configoptional.Some("hour"),
 				Rotation: RotationConfig{
 					Periodic: configoptional.Some(PeriodicRotation{DateLayout: "2006-01-02"}),
 				},
-			},
+			}},
 		},
 	}
 	err := cfg.Validate()

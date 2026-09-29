@@ -12,6 +12,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/collector/config/configoptional"
 	"go.opentelemetry.io/collector/config/configtls"
+	"go.opentelemetry.io/collector/confmap"
 
 	escfg "github.com/jaegertracing/jaeger/internal/storage/elasticsearch/config"
 )
@@ -106,6 +107,46 @@ func TestOptions(t *testing.T) {
 	assert.False(t, primary.DisableHealthCheck.HasValue())
 }
 
+// TestTagsAsFieldsUnmarshal covers the two spellings of tags_as_fields over the defaults: the
+// one under indices.spans, and the deprecated top-level one, which keeps the default dot
+// replacement so that a configuration written against it reads as it always did.
+func TestTagsAsFieldsUnmarshal(t *testing.T) {
+	want := escfg.TagsAsFields{AllAsFields: true, DotReplacement: "@"}
+
+	t.Run("under indices.spans", func(t *testing.T) {
+		cfg := DefaultConfig()
+		conf := confmap.NewFromStringMap(map[string]any{
+			"indices": map[string]any{
+				"spans": map[string]any{
+					"shards":         3,
+					"tags_as_fields": map[string]any{"all": true},
+				},
+			},
+		})
+		require.NoError(t, conf.Unmarshal(&cfg))
+		assert.False(t, cfg.Tags.HasValue())
+		assert.Equal(t, want, cfg.ResolvedTagsAsFields())
+		assert.EqualValues(t, 3, cfg.Indices.Spans.Shards, "the shared options stay flat under indices.spans")
+	})
+
+	t.Run("deprecated top level", func(t *testing.T) {
+		cfg := DefaultConfig()
+		conf := confmap.NewFromStringMap(map[string]any{
+			"tags_as_fields": map[string]any{"all": true},
+		})
+		require.NoError(t, conf.Unmarshal(&cfg))
+		assert.True(t, cfg.Tags.HasValue())
+		assert.Equal(t, want, cfg.ResolvedTagsAsFields())
+	})
+
+	t.Run("neither", func(t *testing.T) {
+		cfg := DefaultConfig()
+		require.NoError(t, confmap.NewFromStringMap(map[string]any{}).Unmarshal(&cfg))
+		assert.False(t, cfg.Tags.HasValue())
+		assert.Equal(t, escfg.TagsAsFields{DotReplacement: "@"}, cfg.ResolvedTagsAsFields())
+	})
+}
+
 func TestOptionsWithFlags(t *testing.T) {
 	primary := escfg.Configuration{
 		Servers: []string{"1.1.1.1", "2.2.2.2"},
@@ -138,16 +179,16 @@ func TestOptionsWithFlags(t *testing.T) {
 			Insecure:           false,
 			InsecureSkipVerify: true,
 		},
-		Tags: escfg.TagsAsFields{
+		Tags: configoptional.Some(escfg.TagsAsFields{
 			AllAsFields:    true,
 			Include:        "test,tags",
 			File:           "./file.txt",
 			DotReplacement: "!",
-		},
+		}),
 		Indices: escfg.Indices{
-			Spans: escfg.IndexOptions{
+			Spans: escfg.SpanIndexOptions{IndexOptions: escfg.IndexOptions{
 				DateLayout: configoptional.Some("2006010215"), // Go reference time formatted for hourly rollover (yyyy-MM-dd-HH)
-			},
+			}},
 			Services: escfg.IndexOptions{
 				DateLayout: configoptional.Some("20060102"), // Go reference time formatted for daily rollover (yyyy-MM-dd)
 			},
@@ -189,10 +230,11 @@ func TestOptionsWithFlags(t *testing.T) {
 	assert.False(t, primary.TLS.Insecure)
 	assert.True(t, primary.TLS.InsecureSkipVerify)
 	// Tags
-	assert.True(t, primary.Tags.AllAsFields)
-	assert.Equal(t, "!", primary.Tags.DotReplacement)
-	assert.Equal(t, "./file.txt", primary.Tags.File)
-	assert.Equal(t, "test,tags", primary.Tags.Include)
+	tags := primary.ResolvedTagsAsFields()
+	assert.True(t, tags.AllAsFields)
+	assert.Equal(t, "!", tags.DotReplacement)
+	assert.Equal(t, "./file.txt", tags.File)
+	assert.Equal(t, "test,tags", tags.Include)
 	// Indices
 	assert.Equal(t, "20060102", primary.Indices.Services.GetDateLayout())
 	assert.Equal(t, "2006010215", primary.Indices.Spans.GetDateLayout())
@@ -712,9 +754,9 @@ func TestIndexDateSeparator(t *testing.T) {
 			name: "empty separator",
 			config: escfg.Configuration{
 				Indices: escfg.Indices{
-					Spans: escfg.IndexOptions{
+					Spans: escfg.SpanIndexOptions{IndexOptions: escfg.IndexOptions{
 						DateLayout: configoptional.Some("20060102"),
-					},
+					}},
 				},
 			},
 			wantDateLayout: "20060102",
@@ -723,9 +765,9 @@ func TestIndexDateSeparator(t *testing.T) {
 			name: "dot separator",
 			config: escfg.Configuration{
 				Indices: escfg.Indices{
-					Spans: escfg.IndexOptions{
+					Spans: escfg.SpanIndexOptions{IndexOptions: escfg.IndexOptions{
 						DateLayout: configoptional.Some("2006.01.02"),
-					},
+					}},
 				},
 			},
 			wantDateLayout: "2006.01.02",
@@ -734,9 +776,9 @@ func TestIndexDateSeparator(t *testing.T) {
 			name: "dash separator",
 			config: escfg.Configuration{
 				Indices: escfg.Indices{
-					Spans: escfg.IndexOptions{
+					Spans: escfg.SpanIndexOptions{IndexOptions: escfg.IndexOptions{
 						DateLayout: configoptional.Some("2006-01-02"),
-					},
+					}},
 				},
 			},
 			wantDateLayout: "2006-01-02",
@@ -745,9 +787,9 @@ func TestIndexDateSeparator(t *testing.T) {
 			name: "slash separator",
 			config: escfg.Configuration{
 				Indices: escfg.Indices{
-					Spans: escfg.IndexOptions{
+					Spans: escfg.SpanIndexOptions{IndexOptions: escfg.IndexOptions{
 						DateLayout: configoptional.Some("2006/01/02"),
-					},
+					}},
 				},
 			},
 			wantDateLayout: "2006/01/02",
@@ -756,9 +798,9 @@ func TestIndexDateSeparator(t *testing.T) {
 			name: "single quote separator",
 			config: escfg.Configuration{
 				Indices: escfg.Indices{
-					Spans: escfg.IndexOptions{
+					Spans: escfg.SpanIndexOptions{IndexOptions: escfg.IndexOptions{
 						DateLayout: configoptional.Some("2006''01''02"),
-					},
+					}},
 				},
 			},
 			wantDateLayout: "2006''01''02",
@@ -792,10 +834,10 @@ func TestIndexRollover(t *testing.T) {
 			name: "hourly spans, daily services",
 			config: escfg.Configuration{
 				Indices: escfg.Indices{
-					Spans: escfg.IndexOptions{
+					Spans: escfg.SpanIndexOptions{IndexOptions: escfg.IndexOptions{
 						DateLayout:        configoptional.Some("2006-01-02-15"),
 						RolloverFrequency: configoptional.Some("hour"),
-					},
+					}},
 					Services: escfg.IndexOptions{
 						DateLayout:        configoptional.Some("2006-01-02"),
 						RolloverFrequency: configoptional.Some("day"),
@@ -811,10 +853,10 @@ func TestIndexRollover(t *testing.T) {
 			name: "daily spans, hourly services",
 			config: escfg.Configuration{
 				Indices: escfg.Indices{
-					Spans: escfg.IndexOptions{
+					Spans: escfg.SpanIndexOptions{IndexOptions: escfg.IndexOptions{
 						DateLayout:        configoptional.Some("2006-01-02"),
 						RolloverFrequency: configoptional.Some("day"),
-					},
+					}},
 					Services: escfg.IndexOptions{
 						DateLayout:        configoptional.Some("2006-01-02-15"),
 						RolloverFrequency: configoptional.Some("hour"),
@@ -830,10 +872,10 @@ func TestIndexRollover(t *testing.T) {
 			name: "invalid rollover frequency defaults to day",
 			config: escfg.Configuration{
 				Indices: escfg.Indices{
-					Spans: escfg.IndexOptions{
+					Spans: escfg.SpanIndexOptions{IndexOptions: escfg.IndexOptions{
 						DateLayout:        configoptional.Some("2006-01-02"),
 						RolloverFrequency: configoptional.Some("hours"),
-					},
+					}},
 					Services: escfg.IndexOptions{
 						DateLayout:        configoptional.Some("2006-01-02"),
 						RolloverFrequency: configoptional.Some("hours"),

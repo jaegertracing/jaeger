@@ -33,6 +33,10 @@ type Options struct {
 	Config config.Configuration `mapstructure:",squash"`
 }
 
+// defaultTagsAsFields stores no attribute as a field and keeps the dot replacement every
+// elevated key needs once one is selected.
+var defaultTagsAsFields = config.TagsAsFields{DotReplacement: "@"}
+
 func initDateLayout(rolloverFreq, sep string) string {
 	// default to daily format
 	indexLayout := "2006" + sep + "01" + sep + "02"
@@ -56,9 +60,9 @@ func DefaultConfig() config.Configuration {
 			Workers:       1,
 			FlushInterval: time.Millisecond * 200,
 		},
-		Tags: config.TagsAsFields{
-			DotReplacement: "@",
-		},
+		// The deprecated spelling keeps the same default dot replacement, so a configuration
+		// that still uses it is read as it always was.
+		Tags:                 configoptional.Default(defaultTagsAsFields),
 		Enabled:              true,
 		Version:              0,
 		Servers:              []string{"http://127.0.0.1:9200"},
@@ -68,7 +72,10 @@ func DefaultConfig() config.Configuration {
 		CreateIndexTemplates: true,
 		HTTPCompression:      true,
 		Indices: config.Indices{
-			Spans:        defaultIndexOptions,
+			Spans: config.SpanIndexOptions{
+				IndexOptions: defaultIndexOptions,
+				Tags:         defaultTagsAsFields,
+			},
 			Services:     defaultIndexOptions,
 			Dependencies: defaultIndexOptions,
 			Sampling:     defaultIndexOptions,
