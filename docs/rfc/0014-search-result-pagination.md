@@ -348,7 +348,7 @@ type SearchCapabilities struct {
 
 The capability is `Paginated`, an adjective describing the reader's behavior, and not `Pagination`, so that it does not collide with the `Pagination` request type of §4/§5 — both live in package `tracestore`, and `caps.Pagination` sitting next to `tracestore.Pagination` would make every mention of either ambiguous.
 
-A boolean suffices for the first cut because the honest keyset scheme is the only kind of pagination on offer; if a backend ever gains a weaker mode (e.g. best-effort paging that cannot promise completeness), this becomes an enum, exactly as ADR-013 anticipates capability fields graduating from bool to richer types.
+A boolean suffices for the first cut because the honest keyset scheme is the only kind of pagination on offer; if a backend ever gains a weaker mode (e.g. best-effort paging that cannot promise completeness), this becomes an enum, exactly as ADR-013 anticipates capability fields graduating from bool to richer types. [RFC 0016](0016-span-search.md) shares this flag with `FindSpans`, so a backend whose span search pages before its trace searches do declares `true` and answers a paginated trace search itself as the non-paginating case of §6.2, until its M3 lands (RFC 0016 §6.1). That interim reading is a milestone gap on one backend, not a weaker mode, and it does not turn the flag into an enum.
 
 ### 6.2 How the query service degrades
 
