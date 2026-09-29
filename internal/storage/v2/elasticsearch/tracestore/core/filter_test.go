@@ -405,7 +405,7 @@ func TestBuildFilterQuery(t *testing.T) {
 		for _, test := range tests {
 			t.Run(test.name, func(t *testing.T) {
 				if test.typedAttributes {
-					setTypedAttributeIndexing(t, true)
+					setTypedAttributeQuery(t, true)
 				}
 				query, err := r.reader.buildFilterQuery(test.filter)
 				require.NoError(t, err)
@@ -421,14 +421,18 @@ func TestBuildFilterQuery(t *testing.T) {
 	assertEverySnapshotIsClaimed(t, filterSnapshots, claimed)
 }
 
-// setTypedAttributeIndexing flips the typed-attribute mapping's gate for the duration of a test.
-// The gate is what tells the reader whether the index carries the numeric sub-field, so it is what
-// decides whether ordering an attribute is lowered or refused.
-func setTypedAttributeIndexing(t *testing.T, enabled bool) {
-	original := esclient.TypedAttributeIndexingGate.IsEnabled()
-	require.NoError(t, featuregate.GlobalRegistry().Set(esclient.TypedAttributeIndexingGate.ID(), enabled))
+// setTypedAttributeQuery flips the typed-attribute query gate for the duration of a test. The gate
+// is what tells the reader that every index carries the numeric sub-field, so it is what decides
+// whether ordering an attribute is lowered or refused.
+func setTypedAttributeQuery(t *testing.T, enabled bool) {
+	setGate(t, esclient.TypedAttributeQueryGate, enabled)
+}
+
+func setGate(t *testing.T, gate *featuregate.Gate, enabled bool) {
+	original := gate.IsEnabled()
+	require.NoError(t, featuregate.GlobalRegistry().Set(gate.ID(), enabled))
 	t.Cleanup(func() {
-		require.NoError(t, featuregate.GlobalRegistry().Set(esclient.TypedAttributeIndexingGate.ID(), original))
+		require.NoError(t, featuregate.GlobalRegistry().Set(gate.ID(), original))
 	})
 }
 
@@ -484,9 +488,12 @@ func TestBuildFilterQueryRefused(t *testing.T) {
 		filter  *expression.Call
 		wantErr error
 		wantMsg string
-		// typedAttributes enables the typed-attribute mapping's feature gate, for a refusal
-		// that only arises once ordering an attribute is servable at all.
+		// typedAttributes enables the typed-attribute query gate, for a refusal that only
+		// arises once ordering an attribute is servable at all.
 		typedAttributes bool
+		// indexingOnly enables the typed-attribute indexing gate alone, which is the state of
+		// a deployment whose newer indices carry the sub-field while older ones do not.
+		indexingOnly bool
 	}{
 		{
 			name:    "the scope level is folded into the span's own tags",
@@ -529,6 +536,17 @@ func TestBuildFilterQueryRefused(t *testing.T) {
 			filter:  p.Span().Attr("http.response.size").Gt("500"),
 			wantErr: tracestore.ErrFilterUnsupported,
 			wantMsg: `indexes "http.response.size" as a keyword rather than a number`,
+		},
+		{
+			// The indexing gate reaches only indices created after it was turned on, and a range
+			// over an older index would match nothing rather than fail, so the indexing gate alone
+			// does not make the predicate servable: the operator turns the query gate on once the
+			// older indices have aged out.
+			name:         "ordering an attribute while only the indexing gate is on",
+			filter:       p.Span().Attr("http.response.size").Gt("500"),
+			wantErr:      tracestore.ErrFilterUnsupported,
+			wantMsg:      `indexes "http.response.size" as a keyword rather than a number`,
+			indexingOnly: true,
 		},
 		{
 			name:    "ordering the service name",
@@ -760,7 +778,10 @@ func TestBuildFilterQueryRefused(t *testing.T) {
 		for _, test := range tests {
 			t.Run(test.name, func(t *testing.T) {
 				if test.typedAttributes {
-					setTypedAttributeIndexing(t, true)
+					setTypedAttributeQuery(t, true)
+				}
+				if test.indexingOnly {
+					setGate(t, esclient.TypedAttributeIndexingGate, true)
 				}
 				query, err := r.reader.buildFilterQuery(test.filter)
 				assert.Nil(t, query)

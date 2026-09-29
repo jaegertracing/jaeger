@@ -484,13 +484,16 @@ func attributeValueMatch(op expression.Operator, ref reference, value string) (v
 // orderedAttributeMatch orders an attribute against a numeric bound, over the sub-field the
 // typed-attribute mapping indexes the value in (RFC 0015). Without that mapping there is nothing
 // numeric to range over, and a range over the keyword would compare lexicographically, where "9"
-// is greater than "10" — so the predicate is refused instead.
+// is greater than "10" — so the predicate is refused instead. The query gate is what says the
+// mapping is in place: the indexing gate reaches only indices created after it was turned on, and
+// a range over an older index would match nothing rather than fail, so the operator turns the
+// query gate on once retention has turned those indices over.
 //
 // The sub-field is mapped with coerce: false, so it holds only values that arrived as numbers. An
 // attribute a service wrote as text is therefore absent from it, and a numeric predicate on that
 // attribute matches nothing rather than matching the text lexicographically.
 func orderedAttributeMatch(op expression.Operator, ref reference, value string) (valueMatch, error) {
-	if !esclient.TypedAttributeIndexingGate.IsEnabled() {
+	if !esclient.TypedAttributeQueryGate.IsEnabled() {
 		return nil, errUnorderedValue(op, ref)
 	}
 	// ParseFloat accepts NaN and the infinities, which no range can be built over and which

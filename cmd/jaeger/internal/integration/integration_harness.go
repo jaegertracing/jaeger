@@ -83,9 +83,18 @@ var paginationGates = []string{querysvc.PaginationGate.ID()}
 var structuredFilterGates = []string{querysvc.StructuredFiltersGate.ID()}
 
 // elasticsearchFilterGates are the gates the Elasticsearch and OpenSearch e2e suites run with:
-// the structured filter, plus typed attribute indexing (RFC 0015), which adds the numeric sub-field
-// that the battery's ordering case ranges over.
+// the structured filter, plus both typed-attribute gates (RFC 0015), which add the numeric
+// sub-field that the battery's ordering case ranges over and let the reader range over it.
 var elasticsearchFilterGates = []string{
+	querysvc.StructuredFiltersGate.ID(),
+	esclient.TypedAttributeIndexingGate.ID(),
+	esclient.TypedAttributeQueryGate.ID(),
+}
+
+// elasticsearchIndexingGates are the gates of a deployment midway through adopting typed
+// attributes: new indices carry the sub-field, but the query gate stays off until retention has
+// turned over the indices created without it, so the reader still refuses to order an attribute.
+var elasticsearchIndexingGates = []string{
 	querysvc.StructuredFiltersGate.ID(),
 	esclient.TypedAttributeIndexingGate.ID(),
 }
