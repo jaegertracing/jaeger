@@ -15,7 +15,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/jaegertracing/jaeger/internal/expression"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
@@ -27,6 +26,7 @@ import (
 	"go.uber.org/zap/zaptest"
 
 	"github.com/jaegertracing/jaeger-idl/model/v1"
+	"github.com/jaegertracing/jaeger/internal/expression"
 	es "github.com/jaegertracing/jaeger/internal/storage/elasticsearch"
 	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/config"
 	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/esclient"
@@ -950,7 +950,7 @@ func TestSpanReader_FindSpansNoHits(t *testing.T) {
 	})
 }
 
-func TestSpanReader_FindSpansReadTraceFailure(t *testing.T) {
+func TestSpanReader_FindSpansReadSpanFailure(t *testing.T) {
 	withSpanReader(t, func(r *spanReaderTest) {
 		mockSearchService(r).Return(nil, errors.New("read error"))
 		var p expression.Predicate
@@ -962,7 +962,7 @@ func TestSpanReader_FindSpansReadTraceFailure(t *testing.T) {
 
 		traces, err := r.reader.FindSpans(context.Background(), spanQuery)
 		require.NotEmpty(t, r.traceBuffer.GetSpans(), "Spans recorded")
-		require.EqualError(t, err, "read error")
+		require.EqualError(t, err, "search services failed: read error")
 		assert.Empty(t, traces)
 	})
 }
@@ -972,7 +972,7 @@ func TestSpanReader_FindSpansSpanCollectionFailure(t *testing.T) {
 	badHits := []esclient.SearchHit{{Source: badSpan}}
 
 	withSpanReader(t, func(r *spanReaderTest) {
-		mockSearchService(r).Return(esclient.SearchResponse{
+		mockSearchService(r).Return(&esclient.SearchResponse{
 			Hits: esclient.HitsResult{Hits: badHits},
 		}, nil)
 

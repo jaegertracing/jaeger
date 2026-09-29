@@ -490,6 +490,7 @@ func validateQuery(p dbmodel.TraceQueryParameters) error {
 	}
 	return nil
 }
+
 func validateSpanQuery(p dbmodel.SpanQueryParameters) error {
 	if p.StartTimeMin.IsZero() || p.StartTimeMax.IsZero() {
 		return ErrStartAndEndTimeNotSet
