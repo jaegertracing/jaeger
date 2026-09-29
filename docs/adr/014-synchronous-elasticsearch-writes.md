@@ -1,7 +1,7 @@
 # ADR-014: Synchronous Elasticsearch/OpenSearch Writes and Lossless Pipelines
 
 * **Status**: Implemented — graduated from [RFC 0007](../rfc/0007-synchronous-elasticsearch-writes.md)
-* **Date**: 2026-09-22, extended 2026-09-24 with the batch-size headroom rule
+* **Date**: 2026-09-22, extended 2026-09-24 with the batch-size headroom rule, extended 2026-09-29 (Kafka sizing: fetch sizes and replicas do not enlarge batches; RFC 0007 M8/M9 split)
 
 ## Context
 
@@ -86,7 +86,7 @@ The two topologies need two different shapes. Both drop the `batch` processor an
 
 For direct ingest, leaving `queue` out entirely is also lossless, with one `_bulk` request per client export request. The blocking queue is recommended because it merges the small requests of many clients into bulks the backend handles efficiently, at the cost of `flush_timeout` of added latency.
 
-For the Kafka ingester, batch size is bounded by the partitions the ingester consumes: the receiver processes each partition serially and partitions concurrently, so at most one record per partition waits in the batcher at a time. Throughput scales with partitions, not with `batch.max_size` or with the receiver's fetch sizes; adding ingester replicas spreads the same partitions over more processes and shrinks each replica's batches.
+For the Kafka ingester, batch size is bounded by the partitions the ingester consumes: the receiver processes each partition serially and partitions concurrently, so at most one record per partition waits in the batcher at a time. The number of concurrent bulks is bounded by the partition count, not by `batch.max_size` or by the receiver's fetch sizes; adding ingester replicas spreads the same partitions over more processes and shrinks each replica's batches.
 
 ## Consequences
 
