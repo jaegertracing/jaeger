@@ -426,7 +426,7 @@ func TestFindSpans_RejectsInvertedTimeRange(t *testing.T) {
 	query := SpanQueryParams{StartTimeMin: testWindowEnd, StartTimeMax: testWindowStart}
 	seq := tqs.queryService.FindSpans(context.Background(), query)
 	_, err := jiter.CollectWithErrors(seq)
-	require.ErrorIs(t, err, ErrQueryInvalid)
+	require.ErrorIs(t, err, tracestore.ErrInvalidQuery)
 	require.ErrorContains(t, err, "start_time_min must be before start_time_max")
 }
 
@@ -1098,9 +1098,8 @@ func TestFindTraces_EnvelopeIsSettledOnce(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			qs := NewQueryService(new(tracestoremocks.Reader), nil, QueryServiceOptions{})
 			_, err := jiter.FlattenWithErrors(qs.FindTraces(context.Background(), test.query))
-			require.ErrorIs(t, err, ErrQueryInvalid)
+			require.ErrorIs(t, err, tracestore.ErrInvalidQuery, "the caller has to change the query")
 			require.ErrorContains(t, err, test.wantErr)
-			assert.True(t, IsBadRequest(err), "the caller has to change the query")
 		})
 	}
 
@@ -1218,6 +1217,32 @@ func TestFindTraceSummaries_NativeError(t *testing.T) {
 	_, err := flattenPageChunks(qs.FindTraceSummaries(context.Background(), filterQuery(nil)))
 	require.ErrorIs(t, err, assert.AnError)
 	errReader.AssertNotCalled(t, "FindTraces")
+}
+
+// TestFindTraceSummaries_CapabilityRefusalIsNotAFallback pins that a reader refusing the
+// query for a capability it lacks, which also matches errors.ErrUnsupported, reaches the
+// caller rather than triggering the FindTraces fallback that would only be refused again.
+func TestFindTraceSummaries_CapabilityRefusalIsNotAFallback(t *testing.T) {
+	enablePagination(t)
+	for name, query := range map[string]TraceQueryParams{
+		"unpaginated": filterQuery(nil),
+		"paginated":   paginatedQuery(10),
+	} {
+		t.Run(name, func(t *testing.T) {
+			refusingReader := &mockSummaryReader{
+				err: fmt.Errorf("%w: level scope", tracestore.ErrFilterUnsupported),
+			}
+			refusingReader.On("SearchCapabilities", mock.Anything).
+				Return(tracestore.SearchCapabilities{WithoutServiceName: true, Paginated: true}, nil)
+			depsMock := initializeTestService().depsReader
+			qs := NewQueryService(refusingReader, depsMock, QueryServiceOptions{})
+
+			_, err := flattenPageChunks(qs.FindTraceSummaries(context.Background(), query))
+			require.ErrorIs(t, err, tracestore.ErrFilterUnsupported)
+			refusingReader.AssertNotCalled(t, "FindTraces")
+			refusingReader.AssertNotCalled(t, "FindTraceIDs")
+		})
+	}
 }
 
 // TestFindTraceSummaries_ErrUnsupported verifies that when FindTraceSummaries yields
@@ -1778,7 +1803,7 @@ func TestFindSpansOrdering(t *testing.T) {
 				require.NoError(t, err)
 			} else {
 				require.ErrorIs(t, err, tracestore.ErrSpanOrderUnsupported)
-				assert.True(t, IsBadRequest(err))
+				require.ErrorIs(t, err, errors.ErrUnsupported)
 			}
 			assert.Empty(t, query.OrderBy[0].Direction)
 			tqs.traceReader.AssertExpectations(t)

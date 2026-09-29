@@ -1143,7 +1143,7 @@ func TestTraceReader_FindSpans_Unimplemented(t *testing.T) {
 }
 
 func TestSpanRemoteErrors(t *testing.T) {
-	for _, backendErr := range []error{errors.ErrUnsupported, tracestore.ErrPaginationInvalid, tracestore.ErrSpanOrderInvalid, tracestore.ErrSpanOrderUnsupported, status.Error(codes.Internal, "broken")} {
+	for _, backendErr := range []error{errors.ErrUnsupported, tracestore.ErrFilterInvalid, tracestore.ErrFilterUnsupported, tracestore.ErrPaginationInvalid, tracestore.ErrPaginationUnsupported, tracestore.ErrSpanOrderInvalid, tracestore.ErrSpanOrderUnsupported, status.Error(codes.Internal, "broken")} {
 		reader := new(tracestoremocks.Reader)
 		reader.On("FindSpans", mock.Anything, mock.Anything).Return(spanSequence(nil, backendErr))
 		_, err := jiter.CollectWithErrors(spanRemote(t, reader).FindSpans(t.Context(), tracestore.SpanQueryParams{}))
@@ -1152,6 +1152,27 @@ func TestSpanRemoteErrors(t *testing.T) {
 			assert.ErrorContains(t, err, "received error from grpc stream")
 		} else {
 			require.ErrorIs(t, err, backendErr)
+			assert.Equal(t, tracestore.ErrorReason(backendErr), tracestore.ErrorReason(err), "a typed refusal keeps its reason and a bare ErrUnsupported has none")
+		}
+	}
+}
+
+// TestFindTracesRemoteErrors pins that a reader refusal from FindTraces keeps its type across
+// the storage boundary the same way the paginated RPCs do, and that any other error keeps its
+// status.
+func TestFindTracesRemoteErrors(t *testing.T) {
+	for _, backendErr := range []error{errors.ErrUnsupported, tracestore.ErrFilterUnsupported, tracestore.ErrFilterInvalid, status.Error(codes.Internal, "broken")} {
+		reader := new(tracestoremocks.Reader)
+		reader.On("FindTraces", mock.Anything, mock.Anything).Return(iter.Seq2[[]ptrace.Traces, error](func(yield func([]ptrace.Traces, error) bool) {
+			yield(nil, backendErr)
+		}))
+		_, err := jiter.CollectWithErrors(spanRemote(t, reader).FindTraces(t.Context(), tracestore.TraceQueryParams{ServiceName: "svc", Attributes: pcommon.NewMap()}))
+		if status.Code(backendErr) == codes.Internal {
+			assert.Equal(t, codes.Internal, status.Code(err))
+			assert.ErrorContains(t, err, "received error from grpc stream")
+		} else {
+			require.ErrorIs(t, err, backendErr)
+			assert.Equal(t, tracestore.ErrorReason(backendErr), tracestore.ErrorReason(err), "a typed refusal keeps its reason and a bare ErrUnsupported has none")
 		}
 	}
 }
@@ -1267,14 +1288,18 @@ func TestReaderErrorDetails(t *testing.T) {
 	for _, tc := range []struct {
 		err    error
 		reason string
+		code   codes.Code
 	}{
-		{tracestore.ErrSpanOrderInvalid, "ORDERING_INVALID"},
-		{tracestore.ErrSpanOrderUnsupported, "ORDERING_UNSUPPORTED"},
-		{tracestore.ErrPaginationInvalid, "PAGINATION_INVALID"},
+		{tracestore.ErrFilterInvalid, "FILTER_INVALID", codes.InvalidArgument},
+		{tracestore.ErrFilterUnsupported, "FILTER_UNSUPPORTED", codes.Unimplemented},
+		{tracestore.ErrSpanOrderInvalid, "ORDERING_INVALID", codes.InvalidArgument},
+		{tracestore.ErrSpanOrderUnsupported, "ORDERING_UNSUPPORTED", codes.Unimplemented},
+		{tracestore.ErrPaginationInvalid, "PAGINATION_INVALID", codes.InvalidArgument},
+		{tracestore.ErrPaginationUnsupported, "PAGINATION_UNSUPPORTED", codes.Unimplemented},
 	} {
 		wire := readerStatus(tc.err)
 		st := status.Convert(wire)
-		assert.Equal(t, codes.InvalidArgument, st.Code())
+		assert.Equal(t, tc.code, st.Code())
 		require.Len(t, st.Details(), 1)
 		info, ok := st.Details()[0].(*errdetails.ErrorInfo)
 		require.True(t, ok)

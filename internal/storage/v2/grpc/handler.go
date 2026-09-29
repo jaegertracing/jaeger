@@ -132,7 +132,7 @@ func (h *Handler) FindTraces(
 	}
 	for traces, err := range h.traceReader.FindTraces(srv.Context(), query) {
 		if err != nil {
-			return err
+			return readerStatus(err)
 		}
 		for _, trace := range traces {
 			td := jptrace.TracesData(trace)
@@ -232,16 +232,10 @@ func (h *Handler) FindTraceSummaries(
 	return nil
 }
 
-// readerStatus converts the reader errors that the storage client must recognize into gRPC
-// statuses. A backend that cannot serve the request natively signals errors.ErrUnsupported, which
-// becomes Unimplemented so the client can fall back or report the missing capability. Pagination
-// and ordering refusals become InvalidArgument marked with a reason so the client can restore
-// their error types. Other errors keep whatever status they carry.
+// readerStatus converts a reader refusal into the status tracestore.RefusalStatus defines, in
+// this server's ErrorInfo domain, and leaves any other error unchanged.
 func readerStatus(err error) error {
-	if errors.Is(err, errors.ErrUnsupported) {
-		return status.Errorf(codes.Unimplemented, "not implemented by the storage backend: %v", err)
-	}
-	return tracestore.InvalidArgumentStatus(err, errorInfoDomain)
+	return tracestore.RefusalStatus(err, errorInfoDomain)
 }
 
 func (h *Handler) FindTraceIDs(
