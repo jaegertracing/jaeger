@@ -1,0 +1,26 @@
+{
+  "bool": {
+    "should": [
+      {
+        "nested": {
+          "path": "logs",
+          "query": {
+            "term": {
+              "logs.timestamp": 1767366245000000
+            }
+          }
+        }
+      },
+      {
+        "nested": {
+          "path": "logs",
+          "query": {
+            "term": {
+              "logs.timestamp": 1767366246000000
+            }
+          }
+        }
+      }
+    ]
+  }
+}

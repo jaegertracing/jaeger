@@ -1,0 +1,10 @@
+{
+  "nested": {
+    "path": "logs",
+    "query": {
+      "exists": {
+        "field": "logs.timestamp"
+      }
+    }
+  }
+}

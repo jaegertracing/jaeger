@@ -1,0 +1,25 @@
+{
+  "bool": {
+    "must": {
+      "exists": {
+        "field": "startTime"
+      }
+    },
+    "must_not": {
+      "bool": {
+        "should": [
+          {
+            "term": {
+              "startTime": 1767366245000000
+            }
+          },
+          {
+            "term": {
+              "startTime": 1767366246000000
+            }
+          }
+        ]
+      }
+    }
+  }
+}
