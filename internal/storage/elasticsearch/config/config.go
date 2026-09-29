@@ -95,7 +95,7 @@ type SpanIndexOptions struct {
 	// TotalFieldsLimit sets index.mapping.total_fields.limit on the span index
 	// template (the maximum number of fields an index mapping may have). Left
 	// unset, no limit is set on the index and Elasticsearch's own default applies.
-	TotalFieldsLimit *int64 `mapstructure:"total_fields_limit"`
+	TotalFieldsLimit configoptional.Optional[int64] `mapstructure:"total_fields_limit"`
 	// Tags decides which span attributes are stored as fields of the span document
 	// rather than in the nested array of key-value objects.
 	Tags TagsAsFields `mapstructure:"tags_as_fields"`

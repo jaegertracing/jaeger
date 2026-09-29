@@ -11,6 +11,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.opentelemetry.io/collector/config/configoptional"
 	"go.opentelemetry.io/collector/featuregate"
 
 	es "github.com/jaegertracing/jaeger/internal/storage/elasticsearch"
@@ -58,20 +59,18 @@ func TestRenderIndexTemplateNilReplicas(t *testing.T) {
 
 func TestRenderIndexTemplateTotalFieldsLimit(t *testing.T) {
 	reps := int64(1)
-	limit := int64(2000)
 	tests := []struct {
 		name             string
-		totalFieldsLimit *int64
+		totalFieldsLimit configoptional.Optional[int64]
 		wantContains     string
 	}{
 		{
 			name:             "configured",
-			totalFieldsLimit: &limit,
+			totalFieldsLimit: configoptional.Some(int64(2000)),
 			wantContains:     `"index.mapping.total_fields.limit":2000`,
 		},
 		{
-			name:             "unconfigured",
-			totalFieldsLimit: nil,
+			name: "unconfigured",
 		},
 	}
 	for _, test := range tests {

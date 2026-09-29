@@ -244,7 +244,7 @@ func renderBackendNeutralBody(m MappingType, indices config.Indices, lifecycle l
 	}
 	if m == SpanMapping {
 		params.Span = spanParams{
-			TotalFieldsLimit: indices.Spans.TotalFieldsLimit,
+			TotalFieldsLimit: indices.Spans.TotalFieldsLimit.Get(),
 		}
 	}
 
