@@ -93,10 +93,12 @@ func (c Capabilities) WithoutSpanSorting() Capabilities {
 	return c
 }
 
-// WithoutTypedAttributeIndexing declares a deployment whose indices were created without the
-// typed-attribute mapping (RFC 0015), so that ordering an attribute is refused rather than answered.
-// It swaps which of the battery's two paired ordering cases runs. A suite that runs with the gate
-// off uses it; the ordinary e2e suites enable the gate and do not.
+// WithoutTypedAttributeIndexing declares a deployment whose reader does not order attributes over
+// the typed-attribute mapping (RFC 0015), so that ordering an attribute is refused rather than
+// answered: either its indices were created without the mapping, or the query gate that lets the
+// reader range over it is still off. It swaps which of the battery's two paired ordering cases
+// runs. A suite that runs with the query gate off uses it; the ordinary e2e suites enable both
+// gates and do not.
 func (c Capabilities) WithoutTypedAttributeIndexing() Capabilities {
 	swapped := make([]string, 0, len(c.skipList)+1)
 	for _, test := range c.skipList {

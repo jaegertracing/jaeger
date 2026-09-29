@@ -24,10 +24,10 @@ import (
 // unaffected: a mapping does not alter _source, so nothing about reading or
 // writing a span changes.
 //
-// Off by default for two reasons. It costs mapped fields on the elevated
-// representation, two per key instead of one, which presses hardest on a
-// `tags_as_fields: all` deployment. And it reaches only indices created after
-// it is turned on, so a range query against an older index matches nothing.
+// Off by default because it costs mapped fields on the elevated representation,
+// two per key instead of one, which presses hardest on a `tags_as_fields: all`
+// deployment. It reaches only indices created after it is turned on, which is
+// why querying the sub-field is a second gate, TypedAttributeQueryGate.
 var TypedAttributeIndexingGate = featuregate.GlobalRegistry().MustRegister(
 	"jaeger.es.typedAttributeIndexing",
 	featuregate.StageAlpha,
@@ -35,7 +35,29 @@ var TypedAttributeIndexingGate = featuregate.GlobalRegistry().MustRegister(
 	featuregate.WithRegisterDescription(
 		"Indexes span, resource, and event attribute values as numbers beside the "+
 			"keyword, so that ordered predicates (gt/lt/gte/lte) can be answered on an "+
-			"attribute. Applies only to indices created after it is enabled.",
+			"attribute. Applies only to indices created after it is enabled; enable "+
+			"jaeger.es.typedAttributeQuery once every index in the retention window has it.",
+	),
+	featuregate.WithRegisterReferenceURL("https://github.com/jaegertracing/jaeger/blob/main/docs/rfc/0015-typed-attribute-indexing-elasticsearch.md"),
+)
+
+// TypedAttributeQueryGate lets the reader answer an ordering predicate on an
+// attribute over the numeric sub-field that TypedAttributeIndexingGate maps.
+// A range query against an index created without the sub-field matches nothing
+// rather than failing, so the reader refuses the predicate until this gate says
+// every index a search can reach carries it. The operator turns on the indexing
+// gate first, waits for retention to turn over the indices created before it,
+// and then turns this one on; the two gates are separate because a single one
+// could not describe a retention window written on both sides of the change.
+var TypedAttributeQueryGate = featuregate.GlobalRegistry().MustRegister(
+	"jaeger.es.typedAttributeQuery",
+	featuregate.StageAlpha,
+	featuregate.WithRegisterFromVersion("v2.24.0"),
+	featuregate.WithRegisterDescription(
+		"Answers ordered predicates (gt/lt/gte/lte) on an attribute over the numeric "+
+			"sub-field that jaeger.es.typedAttributeIndexing adds. Enable it only once every "+
+			"span index in the retention window was created with that gate on, because a "+
+			"range over an older index matches nothing.",
 	),
 	featuregate.WithRegisterReferenceURL("https://github.com/jaegertracing/jaeger/blob/main/docs/rfc/0015-typed-attribute-indexing-elasticsearch.md"),
 )
