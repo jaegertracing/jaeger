@@ -27,9 +27,12 @@ type compatScenario struct {
 	Name     string
 	OldGates []string // Feature gates for the earlier binary (writer)
 	NewGates []string // Feature gates for the current binary revision (reader)
-	// NewEnv is the environment of the current binary revision, for the settings its configuration
-	// file reads from the environment. The earlier binary runs its own revision's configuration
-	// file, which may not read them, so a scenario cannot rely on steering the writer this way.
+	// OldEnv and NewEnv are the environments of the earlier and the current binary, for the
+	// settings their configuration files read from the environment. The earlier binary runs its
+	// own revision's configuration file, which ignores a variable it does not read, so OldEnv
+	// states what the scenario needs of the writer and only takes effect once that revision's
+	// file reads it.
+	OldEnv       map[string]string
 	NewEnv       map[string]string
 	Capabilities capabilities.Capabilities
 }
@@ -76,6 +79,7 @@ func runBackwardCompatibilityTests(t *testing.T, storage string, suite E2EStorag
 				// than to ./cmd/jaeger.
 				writePhase.ConfigFile = filepath.Join(oldConfigDir, filepath.Base(suite.ConfigFile))
 				writePhase.FeatureGates = scenario.OldGates
+				writePhase.EnvVarOverrides = scenario.OldEnv
 				writePhase.Capabilities = scenario.Capabilities
 				writePhase.SkipStorageCleaner = true
 				writePhase.e2eInitialize(t, storage)
@@ -87,7 +91,6 @@ func runBackwardCompatibilityTests(t *testing.T, storage string, suite E2EStorag
 				readPhase := scenarioSuite
 				readPhase.BinaryName = "jaeger-new"
 				readPhase.FeatureGates = scenario.NewGates
-				readPhase.EnvVarOverrides = scenario.NewEnv
 				readPhase.EnvVarOverrides = scenario.NewEnv
 				readPhase.Capabilities = scenario.Capabilities
 				readPhase.e2eInitialize(t, storage)

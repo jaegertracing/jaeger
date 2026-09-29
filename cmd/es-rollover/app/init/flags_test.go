@@ -36,10 +36,12 @@ func TestBindFlags(t *testing.T) {
 		"--priority-dependencies-template=302",
 		"--priority-sampling-template=303",
 		"--span-total-fields-limit=2000",
+		"--span-numeric-attributes=true",
 	})
 	require.NoError(t, err)
 
 	c.InitFromViper(v)
+	assert.True(t, c.Indices.Spans.NumericAttributes)
 	assert.EqualValues(t, 8, c.Indices.Spans.Shards)
 	require.NotNil(t, c.Indices.Spans.Replicas)
 	assert.EqualValues(t, 16, *c.Indices.Spans.Replicas)
@@ -64,6 +66,7 @@ func TestBindFlagsTotalFieldsLimitUnset(t *testing.T) {
 
 	c.InitFromViper(v)
 	assert.False(t, c.Indices.Spans.TotalFieldsLimit.HasValue())
+	assert.False(t, c.Indices.Spans.NumericAttributes)
 }
 
 func TestFeatureGatesFlag(t *testing.T) {

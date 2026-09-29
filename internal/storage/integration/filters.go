@@ -282,6 +282,11 @@ func (s *StorageIntegration) testFindTracesWithFilter(t *testing.T) {
 	// nor falls back to comparing the keyword, which would answer with cart_get as well.
 	t.Run("ordering an attribute finds nothing in indices written before the numeric mapping", func(t *testing.T) {
 		s.skipIfNeeded(t)
+		inScope, err := jiter.CollectWithErrors(jptrace.AggregateTraces(
+			s.TraceReader.FindTraces(context.Background(), *filterQuery(scope, start, end)),
+		))
+		require.NoError(t, err)
+		require.NotEmpty(t, inScope, "the scope alone must match, so that an empty answer below is the range's doing")
 		query := filterQuery(p.And(scope, p.Span().Attr("retry.count").Gt(10)), start, end)
 		actual := s.findTracesByQuery(t, query, nil)
 		require.Empty(t, actual)

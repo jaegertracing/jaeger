@@ -513,7 +513,7 @@ func TestBuildFilterQueryRefused(t *testing.T) {
 			name:    "ordering an attribute without the typed index",
 			filter:  p.Span().Attr("http.response.size").Gt("500"),
 			wantErr: tracestore.ErrFilterUnsupported,
-			wantMsg: `indexes "http.response.size" as a keyword rather than a number, so it cannot evaluate "gt" on it; indices.spans.numeric_attributes`,
+			wantMsg: `indexes "http.response.size" as a keyword rather than a number, so it cannot evaluate "gt" on it; set indices.spans.numeric_attributes`,
 		},
 		{
 			name:    "ordering the service name",

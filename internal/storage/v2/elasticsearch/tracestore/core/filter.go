@@ -798,7 +798,7 @@ func errUnorderedValue(op expression.Operator, ref reference) error {
 // sub-field is not configured. It names the setting, because unlike a built-in keyword field an
 // attribute can be ordered once the operator turns it on.
 func errNumericAttributesOff(op expression.Operator, ref reference) error {
-	return fmt.Errorf("%w: it indexes %q as a keyword rather than a number, so it cannot evaluate %q on it; indices.spans.numeric_attributes indexes attribute values as numbers as well",
+	return fmt.Errorf("%w: it indexes %q as a keyword rather than a number, so it cannot evaluate %q on it; set indices.spans.numeric_attributes to index attribute values as numbers as well",
 		tracestore.ErrFilterUnsupported, ref.name, op)
 }
 

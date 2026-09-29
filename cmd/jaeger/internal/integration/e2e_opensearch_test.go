@@ -98,19 +98,23 @@ func TestOpenSearchStorage_BackwardCompatibility(t *testing.T) {
 			Fixtures: integration.LoadAndParseQueryTestCases(t, "fixtures/queries_es.json"),
 		},
 	},
-		// The earlier binary writes without the numeric attribute mapping in both scenarios: its own
-		// configuration file decides that, and the ordinary e2e suites already cover a reader over
-		// indices this revision created with the mapping. What the scenarios tell apart is the new
-		// binary's setting, which its configuration file reads from the environment.
+		// The earlier binary writes without the numeric attribute mapping in both scenarios. A
+		// revision from before the setting existed never installs it, and a later one reads the
+		// variable from its configuration file, so OldEnv holds either way. The ordinary e2e suites
+		// already cover a reader over indices this revision created with the mapping; what the
+		// scenarios tell apart is the new binary's setting.
 		compatScenario{
 			Name:         "numeric attributes off on the new reader",
 			NewGates:     structuredFilterGates,
+			OldEnv:       map[string]string{numericAttributesEnvVar: "false"},
 			NewEnv:       map[string]string{numericAttributesEnvVar: "false"},
 			Capabilities: capabilities.OpenSearch().WithoutNumericAttributes(),
 		},
 		compatScenario{
 			Name:         "numeric attributes turned on at upgrade, over indices written without them",
 			NewGates:     structuredFilterGates,
+			OldEnv:       map[string]string{numericAttributesEnvVar: "false"},
+			NewEnv:       map[string]string{numericAttributesEnvVar: "true"},
 			Capabilities: capabilities.OpenSearch().WithNumericAttributesNotYetIndexed(),
 		},
 	)

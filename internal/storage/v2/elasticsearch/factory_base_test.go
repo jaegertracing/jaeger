@@ -834,6 +834,22 @@ func TestGetSpanReaderParams_NonPeriodicMaxSpanAge(t *testing.T) {
 	assert.Equal(t, 72*time.Hour, params.ServicesMaxLookback)
 }
 
+// TestGetSpanReaderParams_NumericAttributes checks that indices.spans.numeric_attributes reaches
+// the reader, which is the only place it is read from on the query side.
+func TestGetSpanReaderParams_NumericAttributes(t *testing.T) {
+	for _, enabled := range []bool{false, true} {
+		cfg := escfg.Configuration{
+			Indices: escfg.Indices{
+				Spans: escfg.SpanIndexOptions{
+					NumericAttributes: enabled,
+				},
+			},
+		}
+		f := &FactoryBase{config: &cfg, logger: zap.NewNop(), tracer: otel.GetTracerProvider()}
+		assert.Equal(t, enabled, f.GetSpanReaderParams().NumericAttributes)
+	}
+}
+
 func TestGetSpanReaderParams_MaxTraceDuration(t *testing.T) {
 	cfg := escfg.Configuration{
 		Indices: escfg.Indices{
