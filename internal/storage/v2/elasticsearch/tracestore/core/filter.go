@@ -308,7 +308,15 @@ func (s *SpanReader) buildComparison(
 		if ordersValues(op) {
 			return nil, errOrderedString(op, ref)
 		}
-		return s.buildAttributeComparison(op, reference{name: "span.kind", level: expression.LevelSpan, attribute: true}, text)
+		attrRef := reference{name: "span.kind", level: expression.LevelSpan, attribute: true}
+		if text == "unspecified" && (op == expression.OpEq || op == expression.OpRegex) {
+			exists, err := s.buildAttributeExists(attrRef)
+			if err != nil {
+				return nil, err
+			}
+			return esquery.NewBoolQuery().MustNot(exists), nil
+		}
+		return s.buildAttributeComparison(op, attrRef, text)
 	case ref.isField(expression.LevelEvent, expression.EventFieldName):
 		return s.buildEventNameComparison(op, ref, text)
 	default:
@@ -381,7 +389,8 @@ func (s *SpanReader) buildExists(ref reference) (esquery.Query, error) {
 	case ref.isField(expression.LevelEvent, expression.EventFieldName):
 		return s.buildAttributeExists(eventNameAsAttribute)
 	case ref.isField(expression.LevelSpan, expression.SpanFieldKind):
-		return s.buildAttributeExists(reference{name: "span.kind", level: expression.LevelSpan, attribute: true})
+		// A missing tag models the unspecified value, so the logical field always exists.
+		return esquery.NewExistsQuery(traceIDField), nil
 	default:
 		return nil, errUnsupportedField(ref)
 	}
