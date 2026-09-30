@@ -7,6 +7,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 
 	"go.uber.org/zap"
@@ -49,7 +50,10 @@ func (s *SpanReader) FindSpans(ctx context.Context, query dbmodel.SpanQueryParam
 	if err := validateSpanQuery(query); err != nil {
 		return dbmodel.SpanPage{}, err
 	}
-	sort := s.spanSort(order)
+	sort, err := s.spanSort(order)
+	if err != nil {
+		return dbmodel.SpanPage{}, err
+	}
 	after, err := decodeSpanCursor(query.Cursor, sort)
 	if err != nil {
 		return dbmodel.SpanPage{}, err
@@ -107,22 +111,29 @@ func validateSpanQuery(query dbmodel.SpanQueryParameters) error {
 }
 
 // spanSort lowers the effective order to the engine's sort clauses.
-func (*SpanReader) spanSort(order []tracestore.SpanSortOrder) []esclient.SortOrder {
+func (*SpanReader) spanSort(order []tracestore.SpanSortOrder) ([]esclient.SortOrder, error) {
 	sort := make([]esclient.SortOrder, 0, len(order)+1)
 	for _, term := range order {
-		sort = append(sort, esclient.SortOrder{Field: sortField(term), Order: sortDirection(term.Direction)})
+		field, err := sortField(term)
+		if err != nil {
+			return sort, err
+		}
+		sort = append(sort, esclient.SortOrder{Field: field, Order: sortDirection(term.Direction)})
 	}
-	return sort
+	return sort, nil
 }
 
 // sortField is the document field an ordering term sorts on. The order arrives settled by
 // tracestore.EffectiveSpanOrder, which admits only the fields spanSortFields maps.
-func sortField(term tracestore.SpanSortOrder) string {
+func sortField(term tracestore.SpanSortOrder) (string, error) {
 	ref, ok := term.Expression.(*expression.FieldRef)
-	if !ok || spanSortFields[ref.Name] == "" {
-		panic(fmt.Sprintf("ordering term %v escaped tracestore.EffectiveSpanOrder", term.Expression))
+	if !ok {
+		return "", errors.New("ordering term is not a field ref")
 	}
-	return spanSortFields[ref.Name]
+	if spanSortFields[ref.Name] == "" {
+		return "", fmt.Errorf("unsupported ordering term '%v'", ref.Name)
+	}
+	return spanSortFields[ref.Name], nil
 }
 
 func sortDirection(direction tracestore.SortDirection) esquery.SortDirection {
