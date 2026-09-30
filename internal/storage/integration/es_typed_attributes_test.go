@@ -274,7 +274,7 @@ func (f *typedAttributeFixture) assertDoublePrecision(t *testing.T) {
 // it matches nothing. Two things put it out of reach rather than merely making it
 // a poor trade: OpenSearch rejects `ignore_malformed` on a boolean mapper, and
 // without that parameter a value that is not a boolean costs the whole document.
-// TestRenderSpanTemplateTypedAttributesEnabled asserts the mapping's absence;
+// TestRenderSpanTemplateNumericAttributesEnabled asserts the mapping's absence;
 // this asserts the query behaving as if the field does not exist.
 func (f *typedAttributeFixture) assertNoBooleanSubField(t *testing.T) {
 	assert.Empty(t, f.matches(t, booleanEquals(true)),

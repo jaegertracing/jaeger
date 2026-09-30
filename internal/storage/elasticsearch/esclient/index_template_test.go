@@ -193,7 +193,7 @@ var untypedAttributeValuePaths = []string{
 	"properties.scopeTags.properties.value",
 }
 
-func TestRenderSpanTemplateTypedAttributesDisabled(t *testing.T) {
+func TestRenderSpanTemplateNumericAttributesDisabled(t *testing.T) {
 	mappings := renderSpanMapping(t, false)
 	for _, path := range append(typedAttributeValuePaths, untypedAttributeValuePaths...) {
 		value, ok := dig(t, mappings, path).(map[string]any)
@@ -203,7 +203,7 @@ func TestRenderSpanTemplateTypedAttributesDisabled(t *testing.T) {
 	}
 }
 
-func TestRenderSpanTemplateTypedAttributesEnabled(t *testing.T) {
+func TestRenderSpanTemplateNumericAttributesEnabled(t *testing.T) {
 	mappings := renderSpanMapping(t, true)
 
 	for _, path := range typedAttributeValuePaths {
@@ -233,7 +233,7 @@ func TestRenderSpanTemplateTypedAttributesEnabled(t *testing.T) {
 	}
 }
 
-func TestRenderIndexTemplateTypedAttributesValidForAllVersions(t *testing.T) {
+func TestRenderIndexTemplateNumericAttributesValidForAllVersions(t *testing.T) {
 	// The sub-fields are appended after "ignore_above", so the rendered body's
 	// comma placement is what a malformed conditional would break first, and
 	// RenderIndexTemplate reports that as invalid JSON.

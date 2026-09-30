@@ -4,7 +4,6 @@
 package capabilities
 
 import (
-	"slices"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -29,11 +28,18 @@ func TestAttributeOrderingOutcome(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			skipped := test.caps.SkipList()
 			for _, outcome := range attributeOrderingTests {
-				assert.Equal(t, outcome != test.runs, slices.Contains(skipped, outcome), outcome)
+				count := 0
+				for _, name := range skipped {
+					if name == outcome {
+						count++
+					}
+				}
+				if outcome == test.runs {
+					assert.Zero(t, count, "%s runs", outcome)
+				} else {
+					assert.Equal(t, 1, count, "%s is skipped once", outcome)
+				}
 			}
-			assert.Len(t, skipped, len(slices.DeleteFunc(slices.Clone(skipped), func(s string) bool {
-				return slices.Contains(attributeOrderingTests, s)
-			}))+2, "the ordering cases are listed once each")
 		})
 	}
 }

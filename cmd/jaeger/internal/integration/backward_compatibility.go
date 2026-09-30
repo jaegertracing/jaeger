@@ -31,7 +31,10 @@ type compatScenario struct {
 	// settings their configuration files read from the environment. The earlier binary runs its
 	// own revision's configuration file, which ignores a variable it does not read, so OldEnv
 	// states what the scenario needs of the writer and only takes effect once that revision's
-	// file reads it.
+	// file reads it. The Elasticsearch and OpenSearch scenarios turn the numeric attribute
+	// mapping off for the writer either way: a revision from before the setting existed never
+	// installs it, and the ordinary e2e suites already cover a reader over indices created with
+	// it, so what the scenarios tell apart is the new binary's setting.
 	OldEnv       map[string]string
 	NewEnv       map[string]string
 	Capabilities capabilities.Capabilities

@@ -145,7 +145,7 @@ type spanParams struct {
 	// "index.mapping.total_fields.limit" entirely rather than rendering a
 	// default.
 	TotalFieldsLimit *int64
-	// TypedAttributes adds a `number` sub-field beside the keyword each attribute value is
+	// NumericAttributes adds a `number` sub-field beside the keyword each attribute value is
 	// indexed as, in both the nested and the elevated representation (RFC 0015 Option A). It is
 	// indices.spans.numeric_attributes, which the span template alone reads. The
 	// sub-field is mapped with coerce: false, so it holds only values that arrived as JSON numbers
@@ -153,7 +153,7 @@ type spanParams struct {
 	// is skipped rather than costing the document. There is no boolean sub-field: OpenSearch rejects
 	// ignore_malformed on a boolean mapper, and the keyword already answers equality, which is the
 	// only operator a boolean has (RFC 0015 §7, question 7).
-	TypedAttributes bool
+	NumericAttributes bool
 }
 
 // lifecycleParams decide whether a template hands its indices to a rollover
@@ -198,8 +198,8 @@ func renderBackendNeutralBody(m MappingType, indices config.Indices, lifecycle l
 	}
 	if m == SpanMapping {
 		params.Span = spanParams{
-			TotalFieldsLimit: indices.Spans.TotalFieldsLimit.Get(),
-			TypedAttributes:  indices.Spans.NumericAttributes,
+			TotalFieldsLimit:  indices.Spans.TotalFieldsLimit.Get(),
+			NumericAttributes: indices.Spans.NumericAttributes,
 		}
 	}
 
