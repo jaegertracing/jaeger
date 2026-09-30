@@ -59,6 +59,9 @@ type ESStorageIntegration struct {
 	// writeMode selects the elasticsearch.write_mode for the factories under test
 	// (empty = async default; "sync" exercises the RFC 0007 synchronous path).
 	writeMode escfg.WriteMode
+	// numericAttributes sets indices.spans.numeric_attributes on the factories under test, which
+	// maps the numeric sub-field the filter battery's ordering case ranges over (RFC 0015).
+	numericAttributes bool
 }
 
 func (s *ESStorageIntegration) initializeES(t *testing.T, allTagsAsFields bool) {
@@ -84,7 +87,8 @@ func (s *ESStorageIntegration) initSpanstore(t *testing.T, allTagsAsFields bool)
 		MaxBytes: 1, // flush on essentially every document, for test determinism
 	}
 	cfg.WriteMode = s.writeMode
-	cfg.Tags.AllAsFields = allTagsAsFields
+	cfg.Indices.Spans.Tags.AllAsFields = allTagsAsFields
+	cfg.Indices.Spans.NumericAttributes = s.numericAttributes
 	cfg.Indices.IndexPrefix = indexPrefix
 	var err error
 	f, err := esv2.NewFactory(context.Background(), cfg, telemetry.NoopSettings(), nil)
@@ -97,7 +101,8 @@ func (s *ESStorageIntegration) initSpanstore(t *testing.T, allTagsAsFields bool)
 	acfg.WriteAliasSuffix = archiveAliasSuffix
 	acfg.UseReadWriteAliases = configoptional.Some(true)
 	acfg.WriteMode = s.writeMode
-	acfg.Tags.AllAsFields = allTagsAsFields
+	acfg.Indices.Spans.Tags.AllAsFields = allTagsAsFields
+	acfg.Indices.Spans.NumericAttributes = s.numericAttributes
 	acfg.Indices.IndexPrefix = indexPrefix
 	af, err := esv2.NewFactory(context.Background(), acfg, telemetry.NoopSettings(), nil)
 	require.NoError(t, err)
@@ -136,15 +141,15 @@ func runElasticsearchTest(t *testing.T, allTagsAsFields bool, writeMode escfg.Wr
 	c := getESHttpClient(t)
 	require.NoError(t, healthCheck(c))
 	// The filter battery orders an attribute, which needs the numeric sub-field the typed-attribute
-	// mapping adds (RFC 0015). The gates have to precede the factory, which installs the template,
-	// and capabilities.Elasticsearch declares the battery's paired refusal case skipped to match.
-	setTypedAttributes(t, true)
+	// mapping adds (RFC 0015), and capabilities.Elasticsearch declares the battery's other two
+	// ordering outcomes skipped to match.
 	s := &ESStorageIntegration{
 		StorageIntegration: StorageIntegration{
 			Fixtures:     LoadAndParseQueryTestCases(t, "fixtures/queries_es.json"),
 			Capabilities: capabilities.Elasticsearch(),
 		},
-		writeMode: writeMode,
+		writeMode:         writeMode,
+		numericAttributes: true,
 	}
 	s.initializeES(t, allTagsAsFields)
 	s.RunAll(t)
@@ -226,7 +231,7 @@ func TestElasticsearchStorage_DataStreamTemplates(t *testing.T) {
 		IgnoreUnavailableIndex: true,
 		Indices: escfg.Indices{
 			IndexPrefix: escfg.IndexPrefix(indexPrefix),
-			Spans:       escfg.IndexOptions{Shards: 1, Replicas: &replicas},
+			Spans:       escfg.SpanIndexOptions{IndexOptions: escfg.IndexOptions{Shards: 1, Replicas: &replicas}},
 		},
 	}
 

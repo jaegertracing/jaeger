@@ -15,7 +15,7 @@ func TestElasticsearchStorage(t *testing.T) {
 
 	s := &E2EStorageIntegration{
 		ConfigFile:   "../../config-elasticsearch.yaml",
-		FeatureGates: elasticsearchFilterGates,
+		FeatureGates: structuredFilterGates,
 		StorageIntegration: integration.StorageIntegration{
 			CleanUp:      purge,
 			Fixtures:     integration.LoadAndParseQueryTestCases(t, "fixtures/queries_es.json"),
@@ -60,22 +60,18 @@ func TestElasticsearchStorage_BackwardCompatibility(t *testing.T) {
 		},
 	},
 		compatScenario{
-			Name:         "feature gates disabled on both old writer and new reader",
-			OldGates:     nil,
+			Name:         "numeric attributes off on the new reader",
 			NewGates:     structuredFilterGates,
-			Capabilities: capabilities.Elasticsearch().WithoutTypedAttributeIndexing(),
+			OldEnv:       map[string]string{numericAttributesEnvVar: "false"},
+			NewEnv:       map[string]string{numericAttributesEnvVar: "false"},
+			Capabilities: capabilities.Elasticsearch().WithoutNumericAttributes(),
 		},
 		compatScenario{
-			Name:         "typed indexing enabled on new binary only, query gate still off (enable-on-upgrade)",
-			OldGates:     nil,
-			NewGates:     elasticsearchIndexingGates,
-			Capabilities: capabilities.Elasticsearch().WithoutTypedAttributeIndexing(),
-		},
-		compatScenario{
-			Name:         "feature gates enabled on both old writer and new reader (already enabled)",
-			OldGates:     elasticsearchIndexingGates,
-			NewGates:     elasticsearchFilterGates,
-			Capabilities: capabilities.Elasticsearch(),
+			Name:         "numeric attributes turned on at upgrade, over indices written without them",
+			NewGates:     structuredFilterGates,
+			OldEnv:       map[string]string{numericAttributesEnvVar: "false"},
+			NewEnv:       map[string]string{numericAttributesEnvVar: "true"},
+			Capabilities: capabilities.Elasticsearch().WithNumericAttributesNotYetIndexed(),
 		},
 	)
 }

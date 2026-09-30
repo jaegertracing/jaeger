@@ -24,9 +24,19 @@ const (
 
 // compatScenario defines an explicit upgrade scenario for backward-compatibility testing.
 type compatScenario struct {
-	Name         string
-	OldGates     []string // Feature gates for the earlier binary (writer)
-	NewGates     []string // Feature gates for the current binary revision (reader)
+	Name     string
+	OldGates []string // Feature gates for the earlier binary (writer)
+	NewGates []string // Feature gates for the current binary revision (reader)
+	// OldEnv and NewEnv are the environments of the earlier and the current binary, for the
+	// settings their configuration files read from the environment. The earlier binary runs its
+	// own revision's configuration file, which ignores a variable it does not read, so OldEnv
+	// states what the scenario needs of the writer and only takes effect once that revision's
+	// file reads it. The Elasticsearch and OpenSearch scenarios turn the numeric attribute
+	// mapping off for the writer either way: a revision from before the setting existed never
+	// installs it, and the ordinary e2e suites already cover a reader over indices created with
+	// it, so what the scenarios tell apart is the new binary's setting.
+	OldEnv       map[string]string
+	NewEnv       map[string]string
 	Capabilities capabilities.Capabilities
 }
 
@@ -72,6 +82,7 @@ func runBackwardCompatibilityTests(t *testing.T, storage string, suite E2EStorag
 				// than to ./cmd/jaeger.
 				writePhase.ConfigFile = filepath.Join(oldConfigDir, filepath.Base(suite.ConfigFile))
 				writePhase.FeatureGates = scenario.OldGates
+				writePhase.EnvVarOverrides = scenario.OldEnv
 				writePhase.Capabilities = scenario.Capabilities
 				writePhase.SkipStorageCleaner = true
 				writePhase.e2eInitialize(t, storage)
@@ -83,6 +94,7 @@ func runBackwardCompatibilityTests(t *testing.T, storage string, suite E2EStorag
 				readPhase := scenarioSuite
 				readPhase.BinaryName = "jaeger-new"
 				readPhase.FeatureGates = scenario.NewGates
+				readPhase.EnvVarOverrides = scenario.NewEnv
 				readPhase.Capabilities = scenario.Capabilities
 				readPhase.e2eInitialize(t, storage)
 				// Registered after e2eInitialize so that it runs before the binary is stopped: cleanups run
