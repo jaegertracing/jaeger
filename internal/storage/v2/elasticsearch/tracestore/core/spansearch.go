@@ -20,6 +20,10 @@ import (
 	"github.com/jaegertracing/jaeger/internal/storage/v2/elasticsearch/tracestore/core/dbmodel"
 )
 
+// idField is the document id, which a span search sorts on last so that the sort key names
+// one document (see SpanReaderParams.SpanSearchTieBreakByID).
+const idField = "_id"
+
 // spanSortFields maps an ordering term's built-in span field to the document field that
 // carries it. Every field is a single-valued long or keyword, so its sort order is the
 // contract's order (RFC 0016 §6.3): startTime and duration are microsecond longs, and the
@@ -112,8 +116,11 @@ func validateSpanQuery(query dbmodel.SpanQueryParameters) error {
 	return nil
 }
 
-// spanSort lowers the effective order to the engine's sort clauses.
-func (*SpanReader) spanSort(order []tracestore.SpanSortOrder) ([]esclient.SortOrder, error) {
+// spanSort lowers the effective order to the engine's sort clauses, with the document id
+// appended as the final tie-breaker when the reader is configured to sort on it. Without it,
+// spans that tie on every ordering term and straddle a page boundary are skipped by the next
+// page, since search_after resumes strictly after the cursor's key.
+func (s *SpanReader) spanSort(order []tracestore.SpanSortOrder) ([]esclient.SortOrder, error) {
 	// The extra slot is for the (_index, _id) tie-breaker that RFC 0016 §6.4 appends after
 	// the public terms.
 	sort := make([]esclient.SortOrder, 0, len(order)+1)
@@ -123,6 +130,9 @@ func (*SpanReader) spanSort(order []tracestore.SpanSortOrder) ([]esclient.SortOr
 			return nil, err
 		}
 		sort = append(sort, esclient.SortOrder{Field: field, Order: sortDirection(term.Direction)})
+	}
+	if s.spanSearchTieBreakByID {
+		sort = append(sort, esclient.SortOrder{Field: idField, Order: esquery.Ascending})
 	}
 	return sort, nil
 }
@@ -197,7 +207,7 @@ func decodeSpanCursor(raw []byte, sort []esclient.SortOrder) ([]json.RawMessage,
 	for i, clause := range sort {
 		var want any
 		switch clause.Field {
-		case traceIDField, spanIDField:
+		case traceIDField, spanIDField, idField:
 			want = new(string)
 		default:
 			want = new(json.Number)
