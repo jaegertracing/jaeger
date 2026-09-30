@@ -99,6 +99,13 @@ type SpanIndexOptions struct {
 	// Tags decides which span attributes are stored as fields of the span document
 	// rather than in the nested array of key-value objects.
 	Tags TagsAsFields `mapstructure:"tags_as_fields"`
+	// NumericAttributes indexes every attribute value as a number beside the keyword it is
+	// already indexed as, so that a query can order on an attribute (RFC 0015). The mapping
+	// reaches only indices created after it is turned on, and the reader ranges over it
+	// regardless, so an ordering predicate finds nothing in the indices created before it until
+	// retention has turned them over. Off by default: the sub-field costs a mapped field per
+	// attribute key on the elevated representation.
+	NumericAttributes bool `mapstructure:"numeric_attributes"`
 }
 
 // Indices describes different configuration options for each index type

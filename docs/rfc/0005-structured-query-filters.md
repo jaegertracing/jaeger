@@ -500,6 +500,8 @@ The principles below are what makes two such builders recognisably the same tool
 
 **What a query is on the way down.** A search may change shape twice: once so that a query interceptor sees every predicate in one place, and once so that storage receives the shape it evaluates. Which shape storage finally sees depends on the shape the caller sent, the feature gate, what the backend declared, and whether an interceptor is configured. No combination silently narrows or widens the search — every path either reaches storage in a shape that backend evaluates, or is refused.
 
+**What the contract covers is the predicate, not the data.** A backend refuses a predicate it cannot evaluate; it does not refuse one it can evaluate against data that was written before the storage indexed what the predicate needs. An ordering predicate on an attribute over an Elasticsearch index created before the numeric sub-field was configured finds nothing in that index, in the same way a filter on span links finds nothing in spans stored before links were kept. That is a data gap that closes as retention turns the older indices over, and it is distinct from the approximation this section forbids, which would answer the predicate with a wider or a differently ordered set. A backend therefore refuses where the mapping it needs is not configured at all, and evaluates where it is, whatever each index in the time range happens to carry (RFC 0015 §6).
+
 The gate governs one thing: whether a **caller** may put a filter into Jaeger over api_v3. It is consulted only when the request carries one, so the searches a deployment makes while the gate is off pass it untouched, and it never stands between a query and an interceptor.
 
 ```mermaid

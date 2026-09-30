@@ -14,7 +14,7 @@ func TestOpenSearchStorage(t *testing.T) {
 	integration.SkipUnlessEnv(t, integration.StorageOpenSearch)
 	s := &E2EStorageIntegration{
 		ConfigFile:   "../../config-opensearch.yaml",
-		FeatureGates: elasticsearchFilterGates,
+		FeatureGates: structuredFilterGates,
 		StorageIntegration: integration.StorageIntegration{
 			CleanUp:      purge,
 			Fixtures:     integration.LoadAndParseQueryTestCases(t, "fixtures/queries_es.json"),
@@ -42,7 +42,7 @@ func TestOpenSearchStorage_TwoPhase(t *testing.T) {
 		s := &E2EStorageIntegration{
 			ConfigFile:   "../../config-opensearch.yaml",
 			BinaryName:   binaryName,
-			FeatureGates: elasticsearchFilterGates,
+			FeatureGates: structuredFilterGates,
 			StorageIntegration: integration.StorageIntegration{
 				CleanUp:      func(*testing.T) {},
 				Fixtures:     fixtures,
@@ -99,22 +99,18 @@ func TestOpenSearchStorage_BackwardCompatibility(t *testing.T) {
 		},
 	},
 		compatScenario{
-			Name:         "feature gates disabled on both old writer and new reader",
-			OldGates:     nil,
+			Name:         "numeric attributes off on the new reader",
 			NewGates:     structuredFilterGates,
-			Capabilities: capabilities.OpenSearch().WithoutTypedAttributeIndexing(),
+			OldEnv:       map[string]string{numericAttributesEnvVar: "false"},
+			NewEnv:       map[string]string{numericAttributesEnvVar: "false"},
+			Capabilities: capabilities.OpenSearch().WithoutNumericAttributes(),
 		},
 		compatScenario{
-			Name:         "typed indexing enabled on new binary only, query gate still off (enable-on-upgrade)",
-			OldGates:     nil,
-			NewGates:     elasticsearchIndexingGates,
-			Capabilities: capabilities.OpenSearch().WithoutTypedAttributeIndexing(),
-		},
-		compatScenario{
-			Name:         "feature gates enabled on both old writer and new reader (already enabled)",
-			OldGates:     elasticsearchIndexingGates,
-			NewGates:     elasticsearchFilterGates,
-			Capabilities: capabilities.OpenSearch(),
+			Name:         "numeric attributes turned on at upgrade, over indices written without them",
+			NewGates:     structuredFilterGates,
+			OldEnv:       map[string]string{numericAttributesEnvVar: "false"},
+			NewEnv:       map[string]string{numericAttributesEnvVar: "true"},
+			Capabilities: capabilities.OpenSearch().WithNumericAttributesNotYetIndexed(),
 		},
 	)
 }

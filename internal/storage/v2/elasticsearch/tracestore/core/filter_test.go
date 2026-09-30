@@ -14,11 +14,9 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"go.opentelemetry.io/collector/featuregate"
 
 	expression "github.com/jaegertracing/jaeger-idl/query/expression/v1"
 	builder "github.com/jaegertracing/jaeger/internal/expression"
-	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/esclient"
 	esquery "github.com/jaegertracing/jaeger/internal/storage/elasticsearch/query"
 	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/snapshottest"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore"
@@ -84,9 +82,9 @@ func TestBuildFilterQuery(t *testing.T) {
 	tests := []struct {
 		name   string
 		filter *expression.Call
-		// typedAttributes enables the typed-attribute mapping's feature gate for this case,
-		// which is what makes ordering an attribute servable (RFC 0015).
-		typedAttributes bool
+		// numericAttributes configures the typed-attribute mapping for this case, which is what
+		// makes ordering an attribute servable (RFC 0015).
+		numericAttributes bool
 	}{
 		{
 			name:   "unqualified attribute searches the span and resource levels",
@@ -375,38 +373,36 @@ func TestBuildFilterQuery(t *testing.T) {
 			filter: p.Resource().Attr("error").Eq("false"),
 		},
 		{
-			name:            "ordering an attribute ranges over its numeric sub-field",
-			filter:          p.Span().Attr("http.response.size").Gt("500"),
-			typedAttributes: true,
+			name:              "ordering an attribute ranges over its numeric sub-field",
+			filter:            p.Span().Attr("http.response.size").Gt("500"),
+			numericAttributes: true,
 		},
 		{
-			name:            "ordering an unqualified attribute ranges over every location it lives in",
-			filter:          p.Attr("retry.count").Gte("3"),
-			typedAttributes: true,
+			name:              "ordering an unqualified attribute ranges over every location it lives in",
+			filter:            p.Attr("retry.count").Gte("3"),
+			numericAttributes: true,
 		},
 		{
-			name:            "lt on an attribute",
-			filter:          p.Span().Attr("queue.depth").Lt("10"),
-			typedAttributes: true,
+			name:              "lt on an attribute",
+			filter:            p.Span().Attr("queue.depth").Lt("10"),
+			numericAttributes: true,
 		},
 		{
-			name:            "lte on an attribute",
-			filter:          p.Event().Attr("payload.bytes").Lte("2048"),
-			typedAttributes: true,
+			name:              "lte on an attribute",
+			filter:            p.Event().Attr("payload.bytes").Lte("2048"),
+			numericAttributes: true,
 		},
 		{
-			name:            "a fractional bound is compared as written",
-			filter:          p.Span().Attr("sampler.param").Gt("0.001"),
-			typedAttributes: true,
+			name:              "a fractional bound is compared as written",
+			filter:            p.Span().Attr("sampler.param").Gt("0.001"),
+			numericAttributes: true,
 		},
 	}
 	claimed := make(map[string]bool, len(tests))
 	withSpanReader(t, func(r *spanReaderTest) {
 		for _, test := range tests {
 			t.Run(test.name, func(t *testing.T) {
-				if test.typedAttributes {
-					setGate(t, esclient.TypedAttributeQueryGate, true)
-				}
+				r.reader.numericAttributes = test.numericAttributes
 				query, err := r.reader.buildFilterQuery(test.filter)
 				require.NoError(t, err)
 				source, err := query.Source()
@@ -419,17 +415,6 @@ func TestBuildFilterQuery(t *testing.T) {
 		}
 	})
 	assertEverySnapshotIsClaimed(t, filterSnapshots, claimed)
-}
-
-// setGate flips a feature gate for the duration of a test. The typed-attribute query gate is the
-// one the cases below flip: it is what tells the reader that every index carries the numeric
-// sub-field, so it is what decides whether ordering an attribute is lowered or refused.
-func setGate(t *testing.T, gate *featuregate.Gate, enabled bool) {
-	original := gate.IsEnabled()
-	require.NoError(t, featuregate.GlobalRegistry().Set(gate.ID(), enabled))
-	t.Cleanup(func() {
-		require.NoError(t, featuregate.GlobalRegistry().Set(gate.ID(), original))
-	})
 }
 
 // snapshotName turns a case name into the file name holding its lowered query.
@@ -484,12 +469,9 @@ func TestBuildFilterQueryRefused(t *testing.T) {
 		filter  *expression.Call
 		wantErr error
 		wantMsg string
-		// typedAttributes enables the typed-attribute query gate, for a refusal that only
+		// numericAttributes configures the typed-attribute mapping, for a refusal that only
 		// arises once ordering an attribute is servable at all.
-		typedAttributes bool
-		// indexingOnly enables the typed-attribute indexing gate alone, which is the state of
-		// a deployment whose newer indices carry the sub-field while older ones do not.
-		indexingOnly bool
+		numericAttributes bool
 	}{
 		{
 			name:    "the scope level is folded into the span's own tags",
@@ -531,18 +513,7 @@ func TestBuildFilterQueryRefused(t *testing.T) {
 			name:    "ordering an attribute without the typed index",
 			filter:  p.Span().Attr("http.response.size").Gt("500"),
 			wantErr: tracestore.ErrFilterUnsupported,
-			wantMsg: `indexes "http.response.size" as a keyword rather than a number`,
-		},
-		{
-			// The indexing gate reaches only indices created after it was turned on, and a range
-			// over an older index would match nothing rather than fail, so the indexing gate alone
-			// does not make the predicate servable: the operator turns the query gate on once the
-			// older indices have aged out.
-			name:         "ordering an attribute while only the indexing gate is on",
-			filter:       p.Span().Attr("http.response.size").Gt("500"),
-			wantErr:      tracestore.ErrFilterUnsupported,
-			wantMsg:      `indexes "http.response.size" as a keyword rather than a number while the jaeger.es.typedAttributeQuery feature gate is off`,
-			indexingOnly: true,
+			wantMsg: `indexes "http.response.size" as a keyword rather than a number, so it cannot evaluate "gt" on it; set indices.spans.numeric_attributes`,
 		},
 		{
 			name:    "ordering the service name",
@@ -734,51 +705,46 @@ func TestBuildFilterQueryRefused(t *testing.T) {
 			wantMsg: `"not_in" cannot take 1 arguments`,
 		},
 		{
-			name:            "ordering an attribute against a bound that is not a number",
-			filter:          p.Span().Attr("retry.count").Gt("soon"),
-			wantErr:         tracestore.ErrFilterInvalid,
-			wantMsg:         `"gt" on "retry.count" compares against a number, and "soon" is not one`,
-			typedAttributes: true,
+			name:              "ordering an attribute against a bound that is not a number",
+			filter:            p.Span().Attr("retry.count").Gt("soon"),
+			wantErr:           tracestore.ErrFilterInvalid,
+			wantMsg:           `"gt" on "retry.count" compares against a number, and "soon" is not one`,
+			numericAttributes: true,
 		},
 		{
-			name:            "ordering an attribute against a bound that is not a finite number",
-			filter:          p.Span().Attr("retry.count").Lt("NaN"),
-			wantErr:         tracestore.ErrFilterInvalid,
-			wantMsg:         `"lt" on "retry.count" compares against a number, and "NaN" is not one`,
-			typedAttributes: true,
+			name:              "ordering an attribute against a bound that is not a finite number",
+			filter:            p.Span().Attr("retry.count").Lt("NaN"),
+			wantErr:           tracestore.ErrFilterInvalid,
+			wantMsg:           `"lt" on "retry.count" compares against a number, and "NaN" is not one`,
+			numericAttributes: true,
 		},
 		{
-			name:            "ordering an attribute against an infinite bound",
-			filter:          p.Span().Attr("retry.count").Gte("-Inf"),
-			wantErr:         tracestore.ErrFilterInvalid,
-			wantMsg:         `"gte" on "retry.count" compares against a number, and "-Inf" is not one`,
-			typedAttributes: true,
+			name:              "ordering an attribute against an infinite bound",
+			filter:            p.Span().Attr("retry.count").Gte("-Inf"),
+			wantErr:           tracestore.ErrFilterInvalid,
+			wantMsg:           `"gte" on "retry.count" compares against a number, and "-Inf" is not one`,
+			numericAttributes: true,
 		},
 		{
-			name:            "ordering an attribute against a bound that declares the string type",
-			filter:          p.Span().Attr("retry.count").Gt(p.Text("10")),
-			wantErr:         tracestore.ErrFilterUnsupported,
-			wantMsg:         `orders "retry.count" only as a number, so it cannot evaluate "gt" against a string constant`,
-			typedAttributes: true,
+			name:              "ordering an attribute against a bound that declares the string type",
+			filter:            p.Span().Attr("retry.count").Gt(p.Text("10")),
+			wantErr:           tracestore.ErrFilterUnsupported,
+			wantMsg:           `orders "retry.count" only as a number, so it cannot evaluate "gt" against a string constant`,
+			numericAttributes: true,
 		},
 		{
 			// ne builds the presence test first, so this reaches the comparison behind it.
-			name:            "a negated comparison against a constant this schema cannot type",
-			filter:          p.Span().Attr("retry.count").Ne(&expression.IntValue{Value: 3}),
-			wantErr:         tracestore.ErrFilterUnsupported,
-			wantMsg:         "an integer constant declares a type",
-			typedAttributes: true,
+			name:              "a negated comparison against a constant this schema cannot type",
+			filter:            p.Span().Attr("retry.count").Ne(&expression.IntValue{Value: 3}),
+			wantErr:           tracestore.ErrFilterUnsupported,
+			wantMsg:           "an integer constant declares a type",
+			numericAttributes: true,
 		},
 	}
 	withSpanReader(t, func(r *spanReaderTest) {
 		for _, test := range tests {
 			t.Run(test.name, func(t *testing.T) {
-				if test.typedAttributes {
-					setGate(t, esclient.TypedAttributeQueryGate, true)
-				}
-				if test.indexingOnly {
-					setGate(t, esclient.TypedAttributeIndexingGate, true)
-				}
+				r.reader.numericAttributes = test.numericAttributes
 				query, err := r.reader.buildFilterQuery(test.filter)
 				assert.Nil(t, query)
 				require.ErrorIs(t, err, test.wantErr)
