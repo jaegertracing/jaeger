@@ -6,6 +6,7 @@ package core
 import (
 	"fmt"
 	"math"
+	"regexp"
 	"strconv"
 	"strings"
 	"time"
@@ -309,13 +310,32 @@ func (s *SpanReader) buildComparison(
 			return nil, errOrderedString(op, ref)
 		}
 		attrRef := reference{name: "span.kind", level: expression.LevelSpan, attribute: true}
-		if text == "unspecified" && (op == expression.OpEq || op == expression.OpRegex) {
+
+		matchesUnspecified := false
+		if op == expression.OpEq && text == "unspecified" {
+			matchesUnspecified = true
+		} else if op == expression.OpRegex {
+			if matched, err := regexp.MatchString(text, "unspecified"); err == nil && matched {
+				matchesUnspecified = true
+			}
+		}
+
+		if matchesUnspecified {
 			exists, err := s.buildAttributeExists(attrRef)
 			if err != nil {
 				return nil, err
 			}
-			return esquery.NewBoolQuery().MustNot(exists), nil
+			missingTag := esquery.NewBoolQuery().MustNot(exists)
+			if op == expression.OpEq {
+				return missingTag, nil
+			}
+			attrQuery, err := s.buildAttributeComparison(op, attrRef, text)
+			if err != nil {
+				return nil, err
+			}
+			return esquery.NewBoolQuery().Should(attrQuery, missingTag), nil
 		}
+
 		return s.buildAttributeComparison(op, attrRef, text)
 	case ref.isField(expression.LevelEvent, expression.EventFieldName):
 		return s.buildEventNameComparison(op, ref, text)
