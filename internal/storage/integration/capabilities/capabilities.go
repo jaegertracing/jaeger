@@ -30,6 +30,8 @@ const (
 	attributeOrderingTest  = "ordering_compares_a_numeric_attribute_as_a_number"
 	attributeRefusedTest   = "ordering_an_attribute_is_refused_where_it_is_indexed_as_text"
 	attributeUnindexedTest = "ordering_an_attribute_finds_nothing_in_indices_written_before_the_numeric_mapping"
+	levelRefusedTest       = "a_level_the_backend_does_not_index_is_refused"
+	operatorRefusedTest    = "an_operator_the_backend_does_not_evaluate_is_refused"
 )
 
 // attributeOrderingTests are the three outcomes of ordering an attribute, of which one runs.
@@ -101,6 +103,12 @@ func (c Capabilities) WithoutSpanSorting() Capabilities {
 	return c
 }
 
+// WithoutSpanAttributeOrdering skips ordering spans by an attribute, which no backend supports yet.
+func (c Capabilities) WithoutSpanAttributeOrdering() Capabilities {
+	c.skipList = append(append([]string(nil), c.skipList...), spanAttributeOrderingTest)
+	return c
+}
+
 // WithoutNumericAttributes declares a deployment that does not configure the typed-attribute
 // mapping (RFC 0015), so that ordering an attribute is refused rather than answered. A suite
 // that runs with indices.spans.numeric_attributes off uses it.
@@ -134,6 +142,51 @@ func (c Capabilities) orderingOutcome(runs string) Capabilities {
 	return c
 }
 
+// WithoutUnindexedLevelRefusal skips the refusal assertion for a filter naming an unindexed level.
+// Used for backends that index or evaluate all filter levels (such as memory).
+func (c Capabilities) WithoutUnindexedLevelRefusal() Capabilities {
+	c.skipList = append(append([]string(nil), c.skipList...), levelRefusedTest)
+	return c
+}
+
+// WithoutLevelRefusal is an alias for WithoutUnindexedLevelRefusal.
+func (c Capabilities) WithoutLevelRefusal() Capabilities {
+	return c.WithoutUnindexedLevelRefusal()
+}
+
+// WithoutUnevaluatedOperatorRefusal skips the refusal assertion for a filter using an unevaluated operator.
+// Used for backends that evaluate all filter operators (such as memory).
+func (c Capabilities) WithoutUnevaluatedOperatorRefusal() Capabilities {
+	c.skipList = append(append([]string(nil), c.skipList...), operatorRefusedTest)
+	return c
+}
+
+// WithoutOperatorRefusal is an alias for WithoutUnevaluatedOperatorRefusal.
+func (c Capabilities) WithoutOperatorRefusal() Capabilities {
+	return c.WithoutUnevaluatedOperatorRefusal()
+}
+
+// WithoutTextAttributeOrderingRefusal skips the refusal assertion for numeric ordering on an attribute
+// that is indexed as text. Used for backends that compare numeric attributes natively (such as memory)
+// or whose indices have typed-attribute mapping enabled.
+func (c Capabilities) WithoutTextAttributeOrderingRefusal() Capabilities {
+	return c.orderingOutcome(attributeOrderingTest)
+}
+
+// WithoutAttributeRefusal is an alias for WithoutTextAttributeOrderingRefusal.
+func (c Capabilities) WithoutAttributeRefusal() Capabilities {
+	return c.WithoutTextAttributeOrderingRefusal()
+}
+
+// WithoutFilterRefusals skips all three refusal assertions in the shared filter battery:
+// unindexed level, unevaluated operator, and text-indexed attribute ordering.
+// Used by backends that evaluate all of these features natively rather than refusing them.
+func (c Capabilities) WithoutFilterRefusals() Capabilities {
+	return c.WithoutUnindexedLevelRefusal().
+		WithoutUnevaluatedOperatorRefusal().
+		WithoutTextAttributeOrderingRefusal()
+}
+
 // Memory returns the capabilities for the in-process memory storage backend.
 func Memory() Capabilities {
 	return Capabilities{
@@ -141,9 +194,8 @@ func Memory() Capabilities {
 			spanAttributeOrderingTest,
 			summaryPaginationTest,
 			findTraceSummariesTest,
-			structuredFilterTest,
 		},
-	}
+	}.WithoutFilterRefusals()
 }
 
 // GRPC returns the capabilities for the gRPC remote storage backend.
@@ -155,9 +207,8 @@ func GRPC() Capabilities {
 			spanAttributeOrderingTest,
 			summaryPaginationTest,
 			findTraceSummariesTest,
-			structuredFilterTest,
 		},
-	}
+	}.WithoutFilterRefusals()
 }
 
 // Cassandra returns the capabilities for the Cassandra storage backend.
