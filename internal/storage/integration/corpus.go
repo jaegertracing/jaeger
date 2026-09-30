@@ -46,6 +46,9 @@ type Corpus struct {
 	// Pagination holds five traces under a dedicated service, including a start-time tie.
 	Pagination map[string]ptrace.Traces
 
+	// SpanOrdering holds alternating resources, tied sort fields and duplicate occurrences.
+	SpanOrdering []ptrace.Traces
+
 	// Queries are the search cases, and QueryTraces the traces they expect, by fixture name.
 	Queries     []*QueryFixtures
 	QueryTraces map[string]ptrace.Traces
@@ -123,6 +126,7 @@ func BuildCorpus(t *testing.T, suiteFixtures []*QueryFixtures, caps capabilities
 	}
 	c.CrossService = buildCrossServiceTraces()
 	c.Pagination = buildPaginationTraces()
+	c.SpanOrdering = buildSpanOrderingTraces()
 
 	return c
 }
@@ -230,6 +234,7 @@ func (c *Corpus) All() []ptrace.Traces {
 		all = append(all, c.Duplicates)
 	}
 	all = append(all, c.CrossService...)
+	all = append(all, c.SpanOrdering...)
 	for _, name := range slices.Sorted(maps(c.Pagination)) {
 		all = append(all, c.Pagination[name])
 	}

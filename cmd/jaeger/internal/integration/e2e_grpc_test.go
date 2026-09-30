@@ -18,6 +18,7 @@ import (
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 
+	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerquery/querysvc"
 	"github.com/jaegertracing/jaeger/internal/jiter"
 	"github.com/jaegertracing/jaeger/internal/storage/integration"
 	"github.com/jaegertracing/jaeger/internal/storage/integration/capabilities"
@@ -44,12 +45,12 @@ func TestGRPCStorage(t *testing.T) {
 	}
 
 	collector := &E2EStorageIntegration{
-		FeatureGates:       paginationGates,
+		FeatureGates:       append([]string{querysvc.StructuredFiltersGate.ID()}, paginationGates...),
 		ConfigFile:         "../../config-remote-storage.yaml",
 		SkipStorageCleaner: true,
 		StorageIntegration: integration.StorageIntegration{
 			CleanUp:      purge,
-			Capabilities: capabilities.E2EWithoutNativeFilters().WithoutSpanSearch(),
+			Capabilities: capabilities.Capabilities{}.WithoutFilterRefusals().WithoutSpanAttributeOrdering(),
 		},
 		PropagateEnvVars: []string{
 			"REMOTE_STORAGE_ENDPOINT",

@@ -144,7 +144,7 @@ func toProtoQuery(query tracestore.TraceQueryParams) (*api_v3.TraceQueryParamete
 		}
 	}
 	if query.Filter != nil {
-		filter, err := expressionproto.ToProto(query.Filter)
+		filter, err := expressionproto.CallToProto(query.Filter)
 		if err != nil {
 			return nil, fmt.Errorf("cannot encode the query filter: %w", err)
 		}
@@ -178,15 +178,25 @@ func (*traceReader) FindTraceIDs(
 
 func (r *traceReader) FindSpans(ctx context.Context, query tracestore.SpanQueryParams) iter.Seq2[tracestore.PageChunk[ptrace.Traces], error] {
 	return func(yield func(tracestore.PageChunk[ptrace.Traces], error) bool) {
-		filter, err := expressionproto.ToProto(query.Filter)
+		filter, err := expressionproto.CallToProto(query.Filter)
 		if err != nil {
 			yield(tracestore.PageChunk[ptrace.Traces]{}, err)
 			return
+		}
+		var terms []*api_v3.SpanSortOrder
+		for _, term := range query.OrderBy {
+			encoded, err := expressionproto.ToProto(term.Expression)
+			if err != nil {
+				yield(tracestore.PageChunk[ptrace.Traces]{}, err)
+				return
+			}
+			terms = append(terms, &api_v3.SpanSortOrder{Expression: encoded, Direction: string(term.Direction)})
 		}
 		stream, err := r.client.FindSpans(ctx, &api_v3.FindSpansRequest{Query: &api_v3.SpanQueryParameters{
 			StartTimeMin: query.StartTimeMin,
 			StartTimeMax: query.StartTimeMax,
 			Filter:       filter,
+			OrderBy:      terms,
 			Pagination: &api_v3.Pagination{
 				PageSize:  query.Pagination.PageSize,
 				PageToken: string(query.Pagination.PageToken),

@@ -12,6 +12,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"strconv"
 	"testing"
 	"time"
 
@@ -24,6 +25,7 @@ import (
 	nooptrace "go.opentelemetry.io/otel/trace/noop"
 	"go.uber.org/zap"
 
+	expression "github.com/jaegertracing/jaeger-idl/query/expression/v1"
 	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerquery/querysvc"
 	"github.com/jaegertracing/jaeger/components/extension/jaegerquery/queryinterceptor"
 	"github.com/jaegertracing/jaeger/internal/proto/api_v3"
@@ -109,12 +111,18 @@ func TestHTTPGatewayTryHandleError(t *testing.T) {
 	assert.True(t, gw.tryHandleError(w, spanstore.ErrTraceNotFound, 0), "returns true if error")
 	assert.Equal(t, http.StatusNotFound, w.Code, "sets status code to 404")
 
-	// A well-formed query this deployment's storage cannot serve is the caller's problem,
-	// not a server fault, so it must not arrive as a 500 (RFC 0013 §3.3).
+	// A well-formed query this deployment's storage cannot serve is a missing capability, not
+	// a server fault and not a malformed request, so it is 501 rather than 500 or 400
+	// (RFC 0013 §3.3).
 	w = httptest.NewRecorder()
 	assert.True(t, gw.tryHandleError(w, querysvc.ErrServiceNameRequired, http.StatusInternalServerError))
-	assert.Equal(t, http.StatusBadRequest, w.Code, "sets status code to 400")
+	assert.Equal(t, http.StatusNotImplemented, w.Code, "sets status code to 501")
 	assert.Contains(t, w.Body.String(), "requires a service name", "explains the limitation")
+
+	// A malformed query is the caller's mistake wherever it is sent, so it is 400.
+	w = httptest.NewRecorder()
+	assert.True(t, gw.tryHandleError(w, fmt.Errorf("%w: search depth", tracestore.ErrInvalidQuery), http.StatusInternalServerError))
+	assert.Equal(t, http.StatusBadRequest, w.Code, "sets status code to 400")
 
 	w = httptest.NewRecorder()
 	assert.True(t, gw.tryHandleError(w, fmt.Errorf("denied: %w", queryinterceptor.ErrAccessDenied), http.StatusInternalServerError))
@@ -744,7 +752,7 @@ func TestHTTPGatewayFindSpansUnsupported(t *testing.T) {
 	require.NoError(t, err)
 	w := httptest.NewRecorder()
 	gw.router.ServeHTTP(w, r)
-	assert.Equal(t, http.StatusBadRequest, w.Code)
+	assert.Equal(t, http.StatusNotImplemented, w.Code)
 	assert.Contains(t, w.Body.String(), "does not declare span search support")
 }
 
@@ -777,7 +785,8 @@ func TestHTTPGatewayFindSpansMalformedQuery(t *testing.T) {
 }
 
 // TestHTTPGatewayFindSpansPaginationRefusal pins that a pagination refusal decided in the query
-// service (here, the feature gate) reaches the HTTP caller as a 400, not a 500.
+// service (here, the feature gate) reaches the HTTP caller as a 501, since another deployment
+// serves the same query, and not as a 500.
 func TestHTTPGatewayFindSpansPaginationRefusal(t *testing.T) {
 	q, _ := mockFindSpansQuery()
 	q.Set("query.pagination.pageToken", "opaque-cursor")
@@ -787,7 +796,7 @@ func TestHTTPGatewayFindSpansPaginationRefusal(t *testing.T) {
 	require.NoError(t, err)
 	w := httptest.NewRecorder()
 	gw.router.ServeHTTP(w, r)
-	assert.Equal(t, http.StatusBadRequest, w.Code)
+	assert.Equal(t, http.StatusNotImplemented, w.Code)
 	assert.Contains(t, w.Body.String(), querysvc.PaginationGate.ID())
 }
 
@@ -873,6 +882,85 @@ func TestTraceIDFromString(t *testing.T) {
 			require.NoError(t, err)
 			assert.Equal(t, tc.wantHi, tid.High)
 			assert.Equal(t, tc.wantLo, tid.Low)
+		})
+	}
+}
+
+func TestHTTPGatewayFindSpansOrdering(t *testing.T) {
+	const terms = `[{"expression":{"field":{"level":"span","name":"duration"}},"direction":"desc"},{"expression":{"field":{"level":"span","name":"traceID"}}}]`
+	for _, supported := range []bool{false, true} {
+		t.Run(strconv.FormatBool(supported), func(t *testing.T) {
+			q, qp := mockFindSpansQuery()
+			gw := setupHTTPGatewayNoServer(t, "")
+			gw.reader.ExpectedCalls = nil
+			gw.reader.On("SearchCapabilities", mock.Anything).Return(tracestore.SearchCapabilities{SpanSearch: true, SpanSorting: supported}, nil)
+			qp.OrderBy = []tracestore.SpanSortOrder{
+				{Expression: &expression.FieldRef{Level: expression.LevelSpan, Name: "duration"}, Direction: tracestore.SortDescending},
+				{Expression: &expression.FieldRef{Level: expression.LevelSpan, Name: "traceID"}, Direction: tracestore.SortAscending},
+			}
+			if supported {
+				gw.reader.On("FindSpans", matchContext, qp).Return(iter.Seq2[tracestore.PageChunk[ptrace.Traces], error](func(yield func(tracestore.PageChunk[ptrace.Traces], error) bool) {
+					for _, service := range []string{"service-a", "service-b", "service-a"} {
+						trace := makeTestTrace()
+						trace.ResourceSpans().At(0).Resource().Attributes().PutStr("service.name", service)
+						yield(tracestore.PageChunk[ptrace.Traces]{Results: trace}, nil)
+					}
+				})).Once()
+			}
+			q.Set("query.orderBy", terms)
+			r := httptest.NewRequest(http.MethodGet, "/api/v3/spans?"+q.Encode(), http.NoBody)
+
+			w := httptest.NewRecorder()
+			gw.router.ServeHTTP(w, r)
+			if !supported {
+				assert.Equal(t, http.StatusNotImplemented, w.Code)
+				assert.Contains(t, w.Body.String(), "does not support explicit span ordering")
+				return
+			}
+			require.Equal(t, http.StatusOK, w.Code, w.Body.String())
+			var wrapper struct {
+				Result json.RawMessage `json:"result"`
+			}
+			require.NoError(t, json.Unmarshal(w.Body.Bytes(), &wrapper))
+			var response api_v3.FindSpansResponse
+			require.NoError(t, jsonpb.Unmarshal(bytes.NewReader(wrapper.Result), &response))
+			var services []string
+			for _, resource := range response.Spans.ToTraces().ResourceSpans().All() {
+				value, _ := resource.Resource().Attributes().Get("service.name")
+				services = append(services, value.Str())
+			}
+			assert.Equal(t, []string{"service-a", "service-b", "service-a"}, services)
+			gw.reader.AssertExpectations(t)
+		})
+	}
+}
+
+func TestHTTPGatewayFindSpansMalformedOrder(t *testing.T) {
+	for _, tc := range []struct {
+		raw, want string
+	}{
+		{`[`, "malformed parameter query.orderBy"},
+		{`[null]`, "malformed parameter query.orderBy"},
+		{`[{}]`, "malformed parameter query.orderBy"},
+		// Valid JSON that is not a list of sort terms fails protobuf decoding rather than json.Valid.
+		{`{"not":"an array"}`, "malformed parameter query.orderBy"},
+		{`[{"bogus":true}]`, "malformed parameter query.orderBy"},
+		// Content after the array would otherwise be spliced into the wrapper object unnoticed.
+		{`[]}{"garbage":true}`, "not a single JSON value"},
+		{`[{"expression":{"field":{"level":"span","name":"duration"}}}],"orderBy":[]`, "not a single JSON value"},
+		{`[{"expression":{"field":{"level":"span","name":"duration"}},"direction":"sideways"}]`, `direction \"sideways\" is unsupported`},
+	} {
+		t.Run(tc.raw, func(t *testing.T) {
+			q, _ := mockFindSpansQuery()
+			q.Set("query.orderBy", tc.raw)
+			gw := setupHTTPGatewayNoServer(t, "")
+			gw.reader.ExpectedCalls = nil
+			gw.reader.On("SearchCapabilities", mock.Anything).Return(tracestore.SearchCapabilities{SpanSearch: true, SpanSorting: true}, nil)
+			w := httptest.NewRecorder()
+			gw.router.ServeHTTP(w, httptest.NewRequest(http.MethodGet, "/api/v3/spans?"+q.Encode(), http.NoBody))
+			assert.Equal(t, http.StatusBadRequest, w.Code)
+			assert.Contains(t, w.Body.String(), tc.want)
+			gw.reader.AssertNotCalled(t, "FindSpans", mock.Anything, mock.Anything)
 		})
 	}
 }

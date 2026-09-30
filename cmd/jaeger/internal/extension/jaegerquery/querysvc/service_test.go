@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"iter"
+	"strconv"
 	"testing"
 	"time"
 
@@ -425,7 +426,7 @@ func TestFindSpans_RejectsInvertedTimeRange(t *testing.T) {
 	query := SpanQueryParams{StartTimeMin: testWindowEnd, StartTimeMax: testWindowStart}
 	seq := tqs.queryService.FindSpans(context.Background(), query)
 	_, err := jiter.CollectWithErrors(seq)
-	require.ErrorIs(t, err, ErrQueryInvalid)
+	require.ErrorIs(t, err, tracestore.ErrInvalidQuery)
 	require.ErrorContains(t, err, "start_time_min must be before start_time_max")
 }
 
@@ -1097,9 +1098,8 @@ func TestFindTraces_EnvelopeIsSettledOnce(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			qs := NewQueryService(new(tracestoremocks.Reader), nil, QueryServiceOptions{})
 			_, err := jiter.FlattenWithErrors(qs.FindTraces(context.Background(), test.query))
-			require.ErrorIs(t, err, ErrQueryInvalid)
+			require.ErrorIs(t, err, tracestore.ErrInvalidQuery, "the caller has to change the query")
 			require.ErrorContains(t, err, test.wantErr)
-			assert.True(t, IsBadRequest(err), "the caller has to change the query")
 		})
 	}
 
@@ -1217,6 +1217,32 @@ func TestFindTraceSummaries_NativeError(t *testing.T) {
 	_, err := flattenPageChunks(qs.FindTraceSummaries(context.Background(), filterQuery(nil)))
 	require.ErrorIs(t, err, assert.AnError)
 	errReader.AssertNotCalled(t, "FindTraces")
+}
+
+// TestFindTraceSummaries_CapabilityRefusalIsNotAFallback pins that a reader refusing the
+// query for a capability it lacks, which also matches errors.ErrUnsupported, reaches the
+// caller rather than triggering the FindTraces fallback that would only be refused again.
+func TestFindTraceSummaries_CapabilityRefusalIsNotAFallback(t *testing.T) {
+	enablePagination(t)
+	for name, query := range map[string]TraceQueryParams{
+		"unpaginated": filterQuery(nil),
+		"paginated":   paginatedQuery(10),
+	} {
+		t.Run(name, func(t *testing.T) {
+			refusingReader := &mockSummaryReader{
+				err: fmt.Errorf("%w: level scope", tracestore.ErrFilterUnsupported),
+			}
+			refusingReader.On("SearchCapabilities", mock.Anything).
+				Return(tracestore.SearchCapabilities{WithoutServiceName: true, Paginated: true}, nil)
+			depsMock := initializeTestService().depsReader
+			qs := NewQueryService(refusingReader, depsMock, QueryServiceOptions{})
+
+			_, err := flattenPageChunks(qs.FindTraceSummaries(context.Background(), query))
+			require.ErrorIs(t, err, tracestore.ErrFilterUnsupported)
+			refusingReader.AssertNotCalled(t, "FindTraces")
+			refusingReader.AssertNotCalled(t, "FindTraceIDs")
+		})
+	}
 }
 
 // TestFindTraceSummaries_ErrUnsupported verifies that when FindTraceSummaries yields
@@ -1753,4 +1779,38 @@ func TestFindTraces_UnservableFilterIsRefusedBeforeStorage(t *testing.T) {
 			require.ErrorIs(t, err, tracestore.ErrFilterUnsupported)
 		})
 	}
+}
+
+func TestFindSpansOrdering(t *testing.T) {
+	for _, supported := range []bool{false, true} {
+		t.Run(strconv.FormatBool(supported), func(t *testing.T) {
+			tqs := initializeBareTestQueryService()
+			tqs.traceReader.On("SearchCapabilities", mock.Anything).Return(tracestore.SearchCapabilities{SpanSearch: true, SpanSorting: supported}, nil)
+			query := SpanQueryParams{
+				StartTimeMin: testWindowStart, StartTimeMax: testWindowEnd,
+				OrderBy: []tracestore.SpanSortOrder{{Expression: &expression.FieldRef{Level: expression.LevelSpan, Name: "duration"}}},
+			}
+			if supported {
+				expected := tracestore.SpanQueryParams{
+					StartTimeMin: testWindowStart, StartTimeMax: testWindowEnd,
+					OrderBy:    []tracestore.SpanSortOrder{{Expression: &expression.FieldRef{Level: expression.LevelSpan, Name: "duration"}, Direction: tracestore.SortAscending}},
+					Pagination: tracestore.Pagination{PageSize: DefaultPageSize},
+				}
+				tqs.traceReader.On("FindSpans", mock.Anything, expected).Return(iter.Seq2[tracestore.PageChunk[ptrace.Traces], error](func(func(tracestore.PageChunk[ptrace.Traces], error) bool) {})).Once()
+			}
+			_, err := jiter.CollectWithErrors(tqs.queryService.FindSpans(t.Context(), query))
+			if supported {
+				require.NoError(t, err)
+			} else {
+				require.ErrorIs(t, err, tracestore.ErrSpanOrderUnsupported)
+				require.ErrorIs(t, err, errors.ErrUnsupported)
+			}
+			assert.Empty(t, query.OrderBy[0].Direction)
+			tqs.traceReader.AssertExpectations(t)
+		})
+	}
+	tqs := initializeBareTestQueryService()
+	_, err := jiter.CollectWithErrors(tqs.queryService.FindSpans(t.Context(), SpanQueryParams{OrderBy: []tracestore.SpanSortOrder{{}}}))
+	require.ErrorIs(t, err, tracestore.ErrSpanOrderInvalid)
+	tqs.traceReader.AssertNotCalled(t, "FindSpans", mock.Anything, mock.Anything)
 }

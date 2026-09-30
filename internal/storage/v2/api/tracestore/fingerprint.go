@@ -43,14 +43,22 @@ func (q TraceQueryParams) Fingerprint() ([]byte, error) {
 	return h.sum(), nil
 }
 
-// Fingerprint is TraceQueryParams.Fingerprint for a span search, whose selecting parameters are
-// the time range and the filter (RFC 0016 §4.3).
+// Fingerprint binds span continuation tokens to the time range, filter and supplied ordering.
 func (q SpanQueryParams) Fingerprint() ([]byte, error) {
 	h := newHasher("span")
 	h.time(q.StartTimeMin)
 	h.time(q.StartTimeMax)
 	if err := h.filter(q.Filter); err != nil {
 		return nil, err
+	}
+	h.int64(int64(len(q.OrderBy)))
+	for i, term := range q.OrderBy {
+		encoded, err := encodeCanonical(&expression.Call{Args: []expression.Expression{term.Expression}})
+		if err != nil {
+			return nil, fmt.Errorf("cannot fingerprint order_by[%d]: %w", i, err)
+		}
+		h.bytes(encoded)
+		h.string(string(term.Direction))
 	}
 	return h.sum(), nil
 }
@@ -138,7 +146,7 @@ func encodeCanonical(call *expression.Call) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	msg, err := exprproto.ToProto(canonical)
+	msg, err := exprproto.CallToProto(canonical)
 	if err != nil {
 		return nil, err
 	}
@@ -221,7 +229,7 @@ func canonicalize(call *expression.Call) (*expression.Call, error) {
 	keys := make([][]byte, len(out.Args))
 	for i, arg := range out.Args {
 		wrapped := &expression.Call{Args: []expression.Expression{arg}}
-		msg, err := exprproto.ToProto(wrapped)
+		msg, err := exprproto.CallToProto(wrapped)
 		if err != nil {
 			return nil, err
 		}
