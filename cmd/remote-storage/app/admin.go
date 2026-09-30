@@ -1,37 +1,26 @@
 // Copyright (c) 2019 The Jaeger Authors.
 // SPDX-License-Identifier: Apache-2.0
 
-package flags
+package app
 
 import (
 	"context"
 	"errors"
-	"flag"
 	"fmt"
 	"net"
 	"net/http"
 	"net/http/pprof"
 	"sync"
 
-	"github.com/spf13/viper"
 	"go.opentelemetry.io/collector/config/confighttp"
 	"go.opentelemetry.io/collector/config/confignet"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 
-	"github.com/jaegertracing/jaeger/internal/config/tlscfg"
 	"github.com/jaegertracing/jaeger/internal/recoveryhandler"
 	"github.com/jaegertracing/jaeger/internal/telemetry"
 	"github.com/jaegertracing/jaeger/internal/version"
 )
-
-const (
-	adminHTTPHostPort = "admin.http.host-port"
-)
-
-var tlsAdminHTTPFlagsConfig = tlscfg.ServerFlagsConfig{
-	Prefix: "admin.http",
-}
 
 // AdminServer runs an HTTP server with admin endpoints, such as /metrics, /debug/pprof, health check, etc.
 type AdminServer struct {
@@ -43,18 +32,12 @@ type AdminServer struct {
 	hc        *HealthHost
 }
 
-// NewAdminServer creates a new admin server.
-func NewAdminServer(hostPort string) *AdminServer {
+// NewAdminServer creates a new admin server. It listens where configure tells it to.
+func NewAdminServer() *AdminServer {
 	return &AdminServer{
 		logger: zap.NewNop(),
 		mux:    http.NewServeMux(),
-		serverCfg: confighttp.ServerConfig{
-			NetAddr: confignet.AddrConfig{
-				Endpoint:  hostPort,
-				Transport: confignet.TransportTypeTCP,
-			},
-		},
-		hc: NewHealthHost(),
+		hc:     NewHealthHost(),
 	}
 }
 
@@ -70,24 +53,16 @@ func (s *AdminServer) setLogger(logger *zap.Logger) {
 	s.logger = logger
 }
 
-// AddFlags registers CLI flags.
-func (s *AdminServer) AddFlags(flagSet *flag.FlagSet) {
-	flagSet.String(adminHTTPHostPort, s.serverCfg.NetAddr.Endpoint, fmt.Sprintf("The host:port (e.g. 127.0.0.1%s or %s) for the admin server, including health check, /metrics, etc.", s.serverCfg.NetAddr.Endpoint, s.serverCfg.NetAddr.Endpoint))
-	tlsAdminHTTPFlagsConfig.AddFlags(flagSet)
-}
-
-// InitFromViper initializes the server with properties retrieved from Viper.
-func (s *AdminServer) initFromViper(v *viper.Viper, logger *zap.Logger) error {
+// configure applies the admin section of the configuration file.
+func (s *AdminServer) configure(cfg AdminServerConfig, logger *zap.Logger) {
 	s.setLogger(logger)
-
-	tlsAdminHTTP, err := tlsAdminHTTPFlagsConfig.InitFromViper(v)
-	if err != nil {
-		return fmt.Errorf("failed to parse admin server TLS options: %w", err)
+	s.serverCfg = confighttp.ServerConfig{
+		NetAddr: confignet.AddrConfig{
+			Endpoint:  cfg.Endpoint,
+			Transport: confignet.TransportTypeTCP,
+		},
+		TLS: cfg.TLS,
 	}
-
-	s.serverCfg.NetAddr.Endpoint = v.GetString(adminHTTPHostPort)
-	s.serverCfg.TLS = tlsAdminHTTP
-	return nil
 }
 
 // Handle adds a new handler to the admin server.
