@@ -281,6 +281,9 @@ func (s *SpanReader) buildComparison(
 	if ref.isField(expression.LevelSpan, expression.SpanFieldDuration) {
 		return buildDurationComparison(op, value)
 	}
+	if ref.isField(expression.LevelSpan, expression.SpanFieldStartTime) {
+		return buildStartTimeComparison(op, value)
+	}
 	text, err := constantText(value)
 	if err != nil {
 		return nil, err
@@ -358,6 +361,31 @@ func lengthOfTime(value expression.Expression) (time.Duration, error) {
 	return 0, errTypedConstant(value)
 }
 
+// pointInTime reads the instant a constant carries, the way lengthOfTime reads a duration: a
+// finalized filter carries a timestamp node, and an untyped constant is read as finalizing would.
+func pointInTime(value expression.Expression) (time.Time, error) {
+	switch constant := value.(type) {
+	case *expression.TimestampValue:
+		if constant != nil {
+			return constant.Value, nil
+		}
+	case *expression.AnyValue:
+		if constant == nil {
+			break
+		}
+		read, err := tracestore.ReadFilterConstant(expression.FieldTypeTimestamp, constant.Value)
+		if err != nil {
+			return time.Time{}, fmt.Errorf(`%w: %q is not a timestamp such as "2026-01-02T03:04:05Z": %w`,
+				tracestore.ErrFilterInvalid, constant.Value, err)
+		}
+		if instant, ok := read.(*expression.TimestampValue); ok {
+			return instant.Value, nil
+		}
+	default:
+	}
+	return time.Time{}, errTypedConstant(value)
+}
+
 func (s *SpanReader) buildExists(ref reference) (esquery.Query, error) {
 	switch {
 	case ref.attribute:
@@ -368,6 +396,8 @@ func (s *SpanReader) buildExists(ref reference) (esquery.Query, error) {
 		return esquery.NewExistsQuery(serviceNameField), nil
 	case ref.isField(expression.LevelSpan, expression.SpanFieldDuration):
 		return esquery.NewExistsQuery(durationField), nil
+	case ref.isField(expression.LevelSpan, expression.SpanFieldStartTime):
+		return esquery.NewExistsQuery(startTimeField), nil
 	case ref.isField(expression.LevelSpan, expression.SpanFieldTraceID):
 		return esquery.NewExistsQuery(traceIDField), nil
 	case ref.isField(expression.LevelSpan, expression.SpanFieldSpanID):
@@ -632,23 +662,23 @@ func textValueMatch(op expression.Operator, ref reference, value string) (valueM
 	}
 }
 
-// durationComparisons is how each operator tests the duration field, which is the one
-// ordered value this schema indexes numerically.
-var durationComparisons = map[expression.Operator]func(micros uint64) esquery.Query{
-	expression.OpEq: func(micros uint64) esquery.Query {
-		return esquery.NewTermQuery(durationField, micros)
+// numericComparisons is how each operator tests a field this schema indexes as a number: the
+// duration and the start time, both longs holding microseconds.
+var numericComparisons = map[expression.Operator]func(field string, micros uint64) esquery.Query{
+	expression.OpEq: func(field string, micros uint64) esquery.Query {
+		return esquery.NewTermQuery(field, micros)
 	},
-	expression.OpGt: func(micros uint64) esquery.Query {
-		return esquery.NewRangeQuery(durationField).Gt(micros)
+	expression.OpGt: func(field string, micros uint64) esquery.Query {
+		return esquery.NewRangeQuery(field).Gt(micros)
 	},
-	expression.OpGte: func(micros uint64) esquery.Query {
-		return esquery.NewRangeQuery(durationField).Gte(micros)
+	expression.OpGte: func(field string, micros uint64) esquery.Query {
+		return esquery.NewRangeQuery(field).Gte(micros)
 	},
-	expression.OpLt: func(micros uint64) esquery.Query {
-		return esquery.NewRangeQuery(durationField).Lt(micros)
+	expression.OpLt: func(field string, micros uint64) esquery.Query {
+		return esquery.NewRangeQuery(field).Lt(micros)
 	},
-	expression.OpLte: func(micros uint64) esquery.Query {
-		return esquery.NewRangeQuery(durationField).Lte(micros)
+	expression.OpLte: func(field string, micros uint64) esquery.Query {
+		return esquery.NewRangeQuery(field).Lte(micros)
 	},
 }
 
@@ -656,7 +686,7 @@ var durationComparisons = map[expression.Operator]func(micros uint64) esquery.Qu
 // operator is resolved before the value is read, so an operator the duration has no answer for is
 // refused as that rather than as a value of the wrong kind.
 func buildDurationComparison(op expression.Operator, value expression.Expression) (esquery.Query, error) {
-	compare, ok := durationComparisons[op]
+	compare, ok := numericComparisons[op]
 	if !ok {
 		return nil, fmt.Errorf("%w: it does not support the operator %q on a duration",
 			tracestore.ErrFilterUnsupported, op)
@@ -665,7 +695,22 @@ func buildDurationComparison(op expression.Operator, value expression.Expression
 	if err != nil {
 		return nil, err
 	}
-	return compare(model.DurationAsMicroseconds(duration)), nil
+	return compare(durationField, model.DurationAsMicroseconds(duration)), nil
+}
+
+// buildStartTimeComparison compares the span start time, which the field holds as microseconds
+// since the epoch, against a timestamp constant.
+func buildStartTimeComparison(op expression.Operator, value expression.Expression) (esquery.Query, error) {
+	compare, ok := numericComparisons[op]
+	if !ok {
+		return nil, fmt.Errorf("%w: it does not support the operator %q on a timestamp",
+			tracestore.ErrFilterUnsupported, op)
+	}
+	instant, err := pointInTime(value)
+	if err != nil {
+		return nil, err
+	}
+	return compare(startTimeField, model.TimeAsEpochMicroseconds(instant)), nil
 }
 
 // asErrorTagEquality reports through ok whether a predicate tests the error tag for a
