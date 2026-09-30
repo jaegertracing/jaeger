@@ -363,3 +363,57 @@ def test_execute_tool_truncates_oversized_result_on_span_only(
     assert len(result_attr) <= MAX_SPAN_ATTR_CHARS
     assert result_attr.endswith("chars total]")
 
+
+
+def test_join_prompt_blocks_separates_adjacent_blocks() -> None:
+    from sidecar_helpers import _join_prompt_blocks
+
+    # Reproduces #9510: the user's question directly followed by a
+    # gateway-appended "Active Trace ID: ..." context block used to fuse
+    # into "traceActive Trace ID:\n4bc972776e103118Active Service:" with no
+    # delimiter, corrupting both a word and a hex trace ID.
+    blocks = [
+        text_block("Investigate latency in this trace"),
+        text_block("Active Trace ID:\n4bc972776e103118"),
+        text_block("Active Service:\nfrontend"),
+    ]
+
+    joined = _join_prompt_blocks(blocks)
+
+    assert joined == (
+        "Investigate latency in this trace\n\n"
+        "Active Trace ID:\n4bc972776e103118\n\n"
+        "Active Service:\nfrontend"
+    )
+    assert "traceActive" not in joined
+    assert "4bc972776e103118Active" not in joined
+
+
+def test_join_prompt_blocks_strips_and_drops_empty_blocks() -> None:
+    from sidecar_helpers import _join_prompt_blocks
+
+    blocks = [
+        text_block("  leading and trailing whitespace  "),
+        text_block(""),
+        text_block("   "),
+        text_block("second block"),
+    ]
+
+    assert _join_prompt_blocks(blocks) == "leading and trailing whitespace\n\nsecond block"
+
+
+def test_join_prompt_blocks_ignores_non_text_blocks() -> None:
+    from sidecar_helpers import _join_prompt_blocks
+
+    class NotATextBlock:
+        pass
+
+    blocks = [text_block("only this counts"), NotATextBlock()]
+
+    assert _join_prompt_blocks(blocks) == "only this counts"
+
+
+def test_join_prompt_blocks_empty_input() -> None:
+    from sidecar_helpers import _join_prompt_blocks
+
+    assert _join_prompt_blocks([]) == ""

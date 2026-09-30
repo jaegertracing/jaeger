@@ -123,6 +123,21 @@ def _truncate_for_span(text: str, max_chars: int = MAX_SPAN_ATTR_CHARS) -> str:
     return f"{text[:keep]}{suffix}"
 
 
+def _join_prompt_blocks(prompt: list[Any]) -> str:
+    """Join an ACP prompt's text blocks into one string.
+
+    Each block's text is stripped and blocks are joined with a blank line so
+    that adjacent blocks (e.g. the user's question followed by a
+    "Active Trace ID: ..." context entry appended by the gateway) stay
+    visually and lexically distinct instead of fusing directly into each
+    other's first/last word or, worse, a trace ID's hex digits (see #9510).
+    Blocks with no text, or whose text is empty after stripping, are
+    dropped rather than left as a blank line.
+    """
+    parts = [block.text.strip() for block in prompt if hasattr(block, "text")]
+    return "\n\n".join(part for part in parts if part)
+
+
 def _extract_function_declaration(tool: Any) -> types.FunctionDeclaration | None:
     """Return a Gemini function declaration from an ADK tool.
 
