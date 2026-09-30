@@ -16,8 +16,8 @@
       "index.number_of_replicas": {{ .Replicas }},
       "index.mapping.nested_fields.limit": 50,
       "index.requests.cache.enable": true
-      {{- if .TotalFieldsLimit }},
-      "index.mapping.total_fields.limit": {{ .TotalFieldsLimit }}
+      {{- if .Span.TotalFieldsLimit }},
+      "index.mapping.total_fields.limit": {{ .Span.TotalFieldsLimit }}
       {{- end }}
       {{- if .UseILM }},
       {{- if .IsOpenSearch }}

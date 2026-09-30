@@ -11,6 +11,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.opentelemetry.io/collector/config/configoptional"
 	"go.opentelemetry.io/collector/featuregate"
 
 	es "github.com/jaegertracing/jaeger/internal/storage/elasticsearch"
@@ -58,26 +59,25 @@ func TestRenderIndexTemplateNilReplicas(t *testing.T) {
 
 func TestRenderIndexTemplateTotalFieldsLimit(t *testing.T) {
 	reps := int64(1)
-	limit := int64(2000)
 	tests := []struct {
 		name             string
-		totalFieldsLimit *int64
+		totalFieldsLimit configoptional.Optional[int64]
 		wantContains     string
 	}{
 		{
 			name:             "configured",
-			totalFieldsLimit: &limit,
+			totalFieldsLimit: configoptional.Some(int64(2000)),
 			wantContains:     `"index.mapping.total_fields.limit":2000`,
 		},
 		{
-			name:             "unconfigured",
-			totalFieldsLimit: nil,
+			name: "unconfigured",
 		},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			indices := config.Indices{
-				Spans: config.IndexOptions{Replicas: &reps, TotalFieldsLimit: test.totalFieldsLimit},
+				Spans:    config.SpanIndexOptions{IndexOptions: config.IndexOptions{Replicas: &reps}, TotalFieldsLimit: test.totalFieldsLimit},
+				Services: config.IndexOptions{Replicas: &reps},
 			}
 			rendered, err := RenderIndexTemplate(SpanMapping, indices, false, "", es.ElasticV8)
 			require.NoError(t, err)
@@ -86,6 +86,10 @@ func TestRenderIndexTemplateTotalFieldsLimit(t *testing.T) {
 			} else {
 				assert.NotContains(t, rendered, "index.mapping.total_fields.limit")
 			}
+			// The limit is a span index setting, so the other templates never render it.
+			rendered, err = RenderIndexTemplate(ServiceMapping, indices, false, "", es.ElasticV8)
+			require.NoError(t, err)
+			assert.NotContains(t, rendered, "index.mapping.total_fields.limit")
 		})
 	}
 }
@@ -94,7 +98,7 @@ func TestRenderIndexTemplateInvalidJSON(t *testing.T) {
 	// A prefix carrying a double quote makes the rendered template invalid JSON
 	// (the prefix appears in the ILM alias name), exercising the parse-failure branch.
 	indices := config.Indices{
-		Spans:       config.IndexOptions{Replicas: new(int64)},
+		Spans:       config.SpanIndexOptions{IndexOptions: config.IndexOptions{Replicas: new(int64)}},
 		IndexPrefix: `bad"prefix-`,
 	}
 	_, err := RenderIndexTemplate(SpanMapping, indices, true, "policy", es.ElasticV8)
@@ -158,7 +162,7 @@ func dig(t *testing.T, doc any, path string) any {
 // itself does not vary by version, so one version is enough to inspect it.
 func renderSpanMapping(t *testing.T) any {
 	t.Helper()
-	indices := config.Indices{Spans: config.IndexOptions{Shards: 5, Replicas: new(int64)}}
+	indices := config.Indices{Spans: config.SpanIndexOptions{IndexOptions: config.IndexOptions{Shards: 5, Replicas: new(int64)}}}
 	rendered, err := RenderIndexTemplate(SpanMapping, indices, false, "", es.ElasticV7)
 	require.NoError(t, err)
 	var doc any
@@ -234,7 +238,7 @@ func TestRenderIndexTemplateTypedAttributesValidForAllVersions(t *testing.T) {
 	// RenderIndexTemplate reports that as invalid JSON.
 	setGate(t, TypedAttributeIndexingGate, true)
 	indices := config.Indices{
-		Spans:        config.IndexOptions{Shards: 5, Replicas: new(int64)},
+		Spans:        config.SpanIndexOptions{IndexOptions: config.IndexOptions{Shards: 5, Replicas: new(int64)}},
 		Services:     config.IndexOptions{Shards: 5, Replicas: new(int64)},
 		Dependencies: config.IndexOptions{Shards: 5, Replicas: new(int64)},
 		Sampling:     config.IndexOptions{Shards: 5, Replicas: new(int64)},

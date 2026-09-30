@@ -11,6 +11,7 @@ import (
 	"github.com/spf13/viper"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.opentelemetry.io/collector/config/configoptional"
 	"go.opentelemetry.io/collector/featuregate"
 )
 
@@ -46,8 +47,7 @@ func TestBindFlags(t *testing.T) {
 	assert.EqualValues(t, 301, c.Indices.Services.Priority)
 	assert.EqualValues(t, 302, c.Indices.Dependencies.Priority)
 	assert.EqualValues(t, 303, c.Indices.Sampling.Priority)
-	require.NotNil(t, c.Indices.Spans.TotalFieldsLimit)
-	assert.EqualValues(t, 2000, *c.Indices.Spans.TotalFieldsLimit)
+	assert.Equal(t, configoptional.Some(int64(2000)), c.Indices.Spans.TotalFieldsLimit)
 }
 
 func TestBindFlagsTotalFieldsLimitUnset(t *testing.T) {
@@ -63,7 +63,7 @@ func TestBindFlagsTotalFieldsLimitUnset(t *testing.T) {
 	require.NoError(t, err)
 
 	c.InitFromViper(v)
-	assert.Nil(t, c.Indices.Spans.TotalFieldsLimit)
+	assert.False(t, c.Indices.Spans.TotalFieldsLimit.HasValue())
 }
 
 func TestFeatureGatesFlag(t *testing.T) {

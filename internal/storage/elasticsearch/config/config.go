@@ -74,10 +74,6 @@ type IndexOptions struct {
 	Shards int64 `mapstructure:"shards"`
 	// Replicas is the number of replicas per index in Elasticsearch.
 	Replicas *int64 `mapstructure:"replicas"`
-	// TotalFieldsLimit sets index.mapping.total_fields.limit on the span index
-	// template (the maximum number of fields an index mapping may have). Left
-	// unset, no limit is set on the index and Elasticsearch's own default applies.
-	TotalFieldsLimit *int64 `mapstructure:"total_fields_limit"`
 	// RolloverFrequency contains the rollover frequency setting used to fetch
 	// indices from elasticsearch.
 	// Valid configuration options are: [hour, day].
@@ -90,15 +86,30 @@ type IndexOptions struct {
 	Rotation RotationConfig `mapstructure:"rotation"`
 }
 
+// SpanIndexOptions extends the shared index options with the settings only the span
+// index has, which all concern how a span document and its attributes are mapped.
+// The shared options are flattened into the same configuration block, so a span index
+// is configured under one `indices.spans` key.
+type SpanIndexOptions struct {
+	IndexOptions `mapstructure:",squash"`
+	// TotalFieldsLimit sets index.mapping.total_fields.limit on the span index
+	// template (the maximum number of fields an index mapping may have). Left
+	// unset, no limit is set on the index and Elasticsearch's own default applies.
+	TotalFieldsLimit configoptional.Optional[int64] `mapstructure:"total_fields_limit"`
+	// Tags decides which span attributes are stored as fields of the span document
+	// rather than in the nested array of key-value objects.
+	Tags TagsAsFields `mapstructure:"tags_as_fields"`
+}
+
 // Indices describes different configuration options for each index type
 type Indices struct {
 	// IndexPrefix is an optional prefix to prepend to Jaeger indices.
 	// For example, setting this field to "production" creates "production-jaeger-*".
-	IndexPrefix  IndexPrefix  `mapstructure:"index_prefix"`
-	Spans        IndexOptions `mapstructure:"spans"`
-	Services     IndexOptions `mapstructure:"services"`
-	Dependencies IndexOptions `mapstructure:"dependencies"`
-	Sampling     IndexOptions `mapstructure:"sampling"`
+	IndexPrefix  IndexPrefix      `mapstructure:"index_prefix"`
+	Spans        SpanIndexOptions `mapstructure:"spans"`
+	Services     IndexOptions     `mapstructure:"services"`
+	Dependencies IndexOptions     `mapstructure:"dependencies"`
+	Sampling     IndexOptions     `mapstructure:"sampling"`
 }
 
 type IndexPrefix string
@@ -282,7 +293,11 @@ type Configuration struct {
 	// AdaptiveSamplingLookback contains the duration to look back for the
 	// latest adaptive sampling probabilities.
 	AdaptiveSamplingLookback time.Duration `mapstructure:"adaptive_sampling_lookback"`
-	Tags                     TagsAsFields  `mapstructure:"tags_as_fields"`
+	// Tags is the top-level spelling of the tags-as-fields settings.
+	//
+	// Deprecated: superseded by indices.spans.tags_as_fields, which ResolvedTagsAsFields
+	// falls back to when this one is not set.
+	Tags configoptional.Optional[TagsAsFields] `mapstructure:"tags_as_fields"`
 	// Enabled, if set to true, enables the namespace for storage pointed to by this configuration.
 	Enabled bool `mapstructure:"-"`
 }
@@ -389,10 +404,11 @@ func RolloverFrequencyDuration(frequency string) time.Duration {
 // TagKeysAsFields returns tags from the file and command line merged
 func (c *Configuration) TagKeysAsFields() ([]string, error) {
 	var tags []string
+	tagsAsFields := c.ResolvedTagsAsFields()
 
 	// from file
-	if c.Tags.File != "" {
-		file, err := os.Open(filepath.Clean(c.Tags.File))
+	if tagsAsFields.File != "" {
+		file, err := os.Open(filepath.Clean(tagsAsFields.File))
 		if err != nil {
 			return nil, err
 		}
@@ -410,8 +426,8 @@ func (c *Configuration) TagKeysAsFields() ([]string, error) {
 	}
 
 	// from params
-	if c.Tags.Include != "" {
-		tags = append(tags, strings.Split(c.Tags.Include, ",")...)
+	if tagsAsFields.Include != "" {
+		tags = append(tags, strings.Split(tagsAsFields.Include, ",")...)
 	}
 
 	return tags, nil
@@ -477,6 +493,15 @@ func (c *Configuration) Validate() error {
 	// Validate rotation config for each index type
 	if err := c.validateRotationConfig(); err != nil {
 		return err
+	}
+
+	// When the gate is disabled the deprecated spelling is honored, and NewFactoryBase
+	// logs the deprecation warning through LogDeprecationWarnings.
+	if c.Tags.HasValue() && RejectLegacyTagsAsFields.IsEnabled() {
+		return errors.New(
+			"the top-level tags_as_fields is no longer supported; move it under 'indices.spans.tags_as_fields'; " +
+				"to temporarily disable this check, use --feature-gates=-" + RejectLegacyTagsAsFields.ID(),
+		)
 	}
 
 	if RejectLegacyRotationFlags.IsEnabled() && c.hasAnyLegacyRotationFlags() {

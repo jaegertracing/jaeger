@@ -7,6 +7,7 @@ import (
 	"flag"
 
 	"github.com/spf13/viper"
+	"go.opentelemetry.io/collector/config/configoptional"
 	"go.opentelemetry.io/collector/featuregate"
 
 	"github.com/jaegertracing/jaeger/cmd/es-rollover/app"
@@ -64,7 +65,7 @@ func (c *Config) InitFromViper(v *viper.Viper) {
 	c.Indices.Sampling.Priority = v.GetInt64(prioritySamplingTemplate)
 
 	if v.IsSet(spanTotalFieldsLimit) {
-		c.Indices.Spans.TotalFieldsLimit = new(v.GetInt64(spanTotalFieldsLimit))
+		c.Indices.Spans.TotalFieldsLimit = configoptional.Some(v.GetInt64(spanTotalFieldsLimit))
 	}
 
 	// Config.IndexPrefix supersedes Indices.IndexPrefix: the client renders the

@@ -192,9 +192,9 @@ func TestElasticsearchTagsFileDoNotExist(t *testing.T) {
 	t.Cleanup(server.Close)
 	cfg := escfg.Configuration{
 		Servers: []string{server.URL},
-		Tags: escfg.TagsAsFields{
+		Tags: configoptional.Some(escfg.TagsAsFields{
 			File: "fixtures/file-does-not-exist.txt",
-		},
+		}),
 		LogLevel: "debug",
 	}
 	f, err := NewFactoryBase(context.Background(), cfg, metrics.NullFactory, zaptest.NewLogger(t), nooptrace.NewTracerProvider(), nil)
@@ -252,10 +252,10 @@ func TestTagKeysAsFields(t *testing.T) {
 
 	for _, test := range tests {
 		cfg := escfg.Configuration{
-			Tags: escfg.TagsAsFields{
+			Tags: configoptional.Some(escfg.TagsAsFields{
 				File:    test.path,
 				Include: test.include,
-			},
+			}),
 		}
 
 		tags, err := cfg.TagKeysAsFields()
@@ -307,7 +307,7 @@ func TestCreateTemplates(t *testing.T) {
 				config: &escfg.Configuration{
 					CreateIndexTemplates: true,
 					Indices: escfg.Indices{
-						Spans:    escfg.IndexOptions{Shards: 3, Replicas: new(int64(1))},
+						Spans:    escfg.SpanIndexOptions{IndexOptions: escfg.IndexOptions{Shards: 3, Replicas: new(int64(1))}},
 						Services: escfg.IndexOptions{Shards: 3, Replicas: new(int64(1))},
 					},
 				},
@@ -348,7 +348,7 @@ func TestCreateTemplatesServiceError(t *testing.T) {
 		config: &escfg.Configuration{
 			CreateIndexTemplates: true,
 			Indices: escfg.Indices{
-				Spans:    escfg.IndexOptions{Shards: 3, Replicas: new(int64(1))},
+				Spans:    escfg.SpanIndexOptions{IndexOptions: escfg.IndexOptions{Shards: 3, Replicas: new(int64(1))}},
 				Services: escfg.IndexOptions{Shards: 3, Replicas: new(int64(1))},
 			},
 		},
@@ -419,7 +419,7 @@ func TestESStorageFactoryClosesOnTemplateError(t *testing.T) {
 		CreateIndexTemplates: true,
 		LogLevel:             "error",
 		Indices: escfg.Indices{
-			Spans:    escfg.IndexOptions{Shards: 1, Replicas: new(int64(0)), Priority: 10},
+			Spans:    escfg.SpanIndexOptions{IndexOptions: escfg.IndexOptions{Shards: 1, Replicas: new(int64(0)), Priority: 10}},
 			Services: escfg.IndexOptions{Shards: 1, Replicas: new(int64(0)), Priority: 10},
 		},
 	}
@@ -608,7 +608,7 @@ func TestBuildRotations(t *testing.T) {
 			name: "periodic rotation",
 			cfg: escfg.Configuration{
 				Indices: escfg.Indices{
-					Spans:    escfg.IndexOptions{DateLayout: configoptional.Some(spanDataLayout)},
+					Spans:    escfg.SpanIndexOptions{IndexOptions: escfg.IndexOptions{DateLayout: configoptional.Some(spanDataLayout)}},
 					Services: escfg.IndexOptions{DateLayout: configoptional.Some(serviceDataLayout)},
 				},
 			},
@@ -649,7 +649,7 @@ func TestBuildRotations(t *testing.T) {
 			cfg: escfg.Configuration{
 				Indices: escfg.Indices{
 					IndexPrefix: "foo:",
-					Spans:       escfg.IndexOptions{DateLayout: configoptional.Some(spanDataLayout)},
+					Spans:       escfg.SpanIndexOptions{IndexOptions: escfg.IndexOptions{DateLayout: configoptional.Some(spanDataLayout)}},
 					Services:    escfg.IndexOptions{DateLayout: configoptional.Some(serviceDataLayout)},
 				},
 			},
@@ -660,7 +660,7 @@ func TestBuildRotations(t *testing.T) {
 			name: "with remote clusters",
 			cfg: escfg.Configuration{
 				Indices: escfg.Indices{
-					Spans:    escfg.IndexOptions{DateLayout: configoptional.Some(spanDataLayout)},
+					Spans:    escfg.SpanIndexOptions{IndexOptions: escfg.IndexOptions{DateLayout: configoptional.Some(spanDataLayout)}},
 					Services: escfg.IndexOptions{DateLayout: configoptional.Some(serviceDataLayout)},
 				},
 				RemoteReadClusters: []string{"cluster_one", "cluster_two"},
@@ -679,11 +679,11 @@ func TestBuildRotations(t *testing.T) {
 			name: "rotation config: periodic",
 			cfg: escfg.Configuration{
 				Indices: escfg.Indices{
-					Spans: escfg.IndexOptions{
+					Spans: escfg.SpanIndexOptions{IndexOptions: escfg.IndexOptions{
 						Rotation: escfg.RotationConfig{
 							Periodic: configoptional.Some(escfg.PeriodicRotation{DateLayout: spanDataLayout}),
 						},
-					},
+					}},
 					Services: escfg.IndexOptions{
 						Rotation: escfg.RotationConfig{
 							Periodic: configoptional.Some(escfg.PeriodicRotation{DateLayout: serviceDataLayout}),
@@ -698,14 +698,14 @@ func TestBuildRotations(t *testing.T) {
 			name: "rotation config: manual_rollover",
 			cfg: escfg.Configuration{
 				Indices: escfg.Indices{
-					Spans: escfg.IndexOptions{
+					Spans: escfg.SpanIndexOptions{IndexOptions: escfg.IndexOptions{
 						Rotation: escfg.RotationConfig{
 							ManualRollover: configoptional.Some(escfg.ManualRolloverRotation{
 								ReadAlias:  "my-span-read",
 								WriteAlias: "my-span-write",
 							}),
 						},
-					},
+					}},
 					Services: escfg.IndexOptions{
 						Rotation: escfg.RotationConfig{
 							ManualRollover: configoptional.Some(escfg.ManualRolloverRotation{
@@ -723,11 +723,11 @@ func TestBuildRotations(t *testing.T) {
 			name: "rotation config: auto_rollover with defaults",
 			cfg: escfg.Configuration{
 				Indices: escfg.Indices{
-					Spans: escfg.IndexOptions{
+					Spans: escfg.SpanIndexOptions{IndexOptions: escfg.IndexOptions{
 						Rotation: escfg.RotationConfig{
 							AutoRollover: configoptional.Some(escfg.AutoRolloverRotation{}),
 						},
-					},
+					}},
 					Services: escfg.IndexOptions{
 						Rotation: escfg.RotationConfig{
 							AutoRollover: configoptional.Some(escfg.AutoRolloverRotation{}),
@@ -770,13 +770,13 @@ func TestIndicesClientFromConfig(t *testing.T) {
 			name: "auto_rollover with policy name",
 			cfg: escfg.Configuration{
 				Indices: escfg.Indices{
-					Spans: escfg.IndexOptions{
+					Spans: escfg.SpanIndexOptions{IndexOptions: escfg.IndexOptions{
 						Rotation: escfg.RotationConfig{
 							AutoRollover: configoptional.Some(escfg.AutoRolloverRotation{
 								PolicyName: "my-policy",
 							}),
 						},
-					},
+					}},
 				},
 			},
 			expectedUseILM:     true,
@@ -786,11 +786,11 @@ func TestIndicesClientFromConfig(t *testing.T) {
 			name: "auto_rollover without policy name",
 			cfg: escfg.Configuration{
 				Indices: escfg.Indices{
-					Spans: escfg.IndexOptions{
+					Spans: escfg.SpanIndexOptions{IndexOptions: escfg.IndexOptions{
 						Rotation: escfg.RotationConfig{
 							AutoRollover: configoptional.Some(escfg.AutoRolloverRotation{}),
 						},
-					},
+					}},
 				},
 			},
 			expectedUseILM: false,
@@ -809,14 +809,14 @@ func TestIndicesClientFromConfig(t *testing.T) {
 func TestGetSpanReaderParams_NonPeriodicMaxSpanAge(t *testing.T) {
 	cfg := escfg.Configuration{
 		Indices: escfg.Indices{
-			Spans: escfg.IndexOptions{
+			Spans: escfg.SpanIndexOptions{IndexOptions: escfg.IndexOptions{
 				Rotation: escfg.RotationConfig{
 					ManualRollover: configoptional.Some(escfg.ManualRolloverRotation{
 						ReadAlias:  "span-read",
 						WriteAlias: "span-write",
 					}),
 				},
-			},
+			}},
 			Services: escfg.IndexOptions{
 				Rotation: escfg.RotationConfig{
 					ManualRollover: configoptional.Some(escfg.ManualRolloverRotation{
@@ -837,14 +837,14 @@ func TestGetSpanReaderParams_NonPeriodicMaxSpanAge(t *testing.T) {
 func TestGetSpanReaderParams_MaxTraceDuration(t *testing.T) {
 	cfg := escfg.Configuration{
 		Indices: escfg.Indices{
-			Spans: escfg.IndexOptions{
+			Spans: escfg.SpanIndexOptions{IndexOptions: escfg.IndexOptions{
 				Rotation: escfg.RotationConfig{
 					Periodic: configoptional.Default(escfg.PeriodicRotation{
 						DateLayout:        "2006-01-02",
 						RolloverFrequency: "day",
 					}),
 				},
-			},
+			}},
 			Services: escfg.IndexOptions{
 				Rotation: escfg.RotationConfig{
 					Periodic: configoptional.Default(escfg.PeriodicRotation{

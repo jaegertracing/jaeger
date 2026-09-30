@@ -84,7 +84,7 @@ func (s *ESStorageIntegration) initSpanstore(t *testing.T, allTagsAsFields bool)
 		MaxBytes: 1, // flush on essentially every document, for test determinism
 	}
 	cfg.WriteMode = s.writeMode
-	cfg.Tags.AllAsFields = allTagsAsFields
+	cfg.Indices.Spans.Tags.AllAsFields = allTagsAsFields
 	cfg.Indices.IndexPrefix = indexPrefix
 	var err error
 	f, err := esv2.NewFactory(context.Background(), cfg, telemetry.NoopSettings(), nil)
@@ -97,7 +97,7 @@ func (s *ESStorageIntegration) initSpanstore(t *testing.T, allTagsAsFields bool)
 	acfg.WriteAliasSuffix = archiveAliasSuffix
 	acfg.UseReadWriteAliases = configoptional.Some(true)
 	acfg.WriteMode = s.writeMode
-	acfg.Tags.AllAsFields = allTagsAsFields
+	acfg.Indices.Spans.Tags.AllAsFields = allTagsAsFields
 	acfg.Indices.IndexPrefix = indexPrefix
 	af, err := esv2.NewFactory(context.Background(), acfg, telemetry.NoopSettings(), nil)
 	require.NoError(t, err)
@@ -226,7 +226,7 @@ func TestElasticsearchStorage_DataStreamTemplates(t *testing.T) {
 		IgnoreUnavailableIndex: true,
 		Indices: escfg.Indices{
 			IndexPrefix: escfg.IndexPrefix(indexPrefix),
-			Spans:       escfg.IndexOptions{Shards: 1, Replicas: &replicas},
+			Spans:       escfg.SpanIndexOptions{IndexOptions: escfg.IndexOptions{Shards: 1, Replicas: &replicas}},
 		},
 	}
 
