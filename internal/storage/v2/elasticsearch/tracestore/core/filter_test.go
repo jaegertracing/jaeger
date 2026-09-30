@@ -113,6 +113,10 @@ func TestBuildFilterQuery(t *testing.T) {
 			filter: p.Span().Kind.In("server", "unspecified"),
 		},
 		{
+			name:   "regex on span.kind matching unspecified includes missing tags",
+			filter: p.Span().Kind.Matches("server|unspecified"),
+		},
+		{
 			name:   "unqualified attribute searches the span and resource levels",
 			filter: p.Attr("http.status_code").Eq("500"),
 		},
