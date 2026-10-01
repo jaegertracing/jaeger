@@ -154,11 +154,6 @@ subgraph Remote Storage Backend
 end
 ```
 
-## Assumptions
-
-Integration defaults below apply when a storage test does not set `SkipStorageCleaner` and does not override ports. Query, gRPC collector and Kafka collector tests set `SkipStorageCleaner`, so they do not expose `/purge`.
-
-
 ## Running tests locally
 
 You can run integration tests locally with the following command:
