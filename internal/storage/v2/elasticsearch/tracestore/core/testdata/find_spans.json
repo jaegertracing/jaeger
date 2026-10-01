@@ -55,6 +55,11 @@
         }
       },
       {
+        "_index": {
+          "order": "desc"
+        }
+      },
+      {
         "_id": {
           "order": "asc"
         }
