@@ -143,6 +143,44 @@ func TestHandler_GetTraces(t *testing.T) {
 	}
 }
 
+func TestHandler_GetTraces_EightByteTraceID(t *testing.T) {
+	start := time.Now()
+	end := start.Add(time.Minute)
+	// 8-byte trace ID must be placed in the low 64-bit half, matching model.TraceIDFromBytes semantics.
+	expectedTraceID := pcommon.TraceID([16]byte{0, 0, 0, 0, 0, 0, 0, 0, 1, 2, 3, 4, 5, 6, 7, 8})
+	query := []tracestore.GetTraceParams{
+		{
+			TraceID: expectedTraceID,
+			Start:   start,
+			End:     end,
+		},
+	}
+	trace := makeTestTrace()
+	td := jptrace.TracesData(trace)
+
+	reader := new(tracestoremocks.Reader)
+	writer := new(tracestoremocks.Writer)
+	depReader := new(depstoremocks.Reader)
+	reader.On("GetTraces", mock.Anything, query).
+		Return(iter.Seq2[[]ptrace.Traces, error](func(yield func([]ptrace.Traces, error) bool) {
+			yield([]ptrace.Traces{trace}, nil)
+		})).Once()
+
+	server := NewHandler(reader, writer, depReader)
+	stream := &testStream{}
+	err := server.GetTraces(&storage.GetTracesRequest{
+		Query: []*storage.GetTraceParams{
+			{
+				TraceId:   []byte{1, 2, 3, 4, 5, 6, 7, 8},
+				StartTime: start,
+				EndTime:   end,
+			},
+		},
+	}, stream)
+	require.NoError(t, err)
+	require.Equal(t, []*jptrace.TracesData{&td}, stream.sent)
+}
+
 func TestHandler_GetServices(t *testing.T) {
 	tests := []struct {
 		name             string
