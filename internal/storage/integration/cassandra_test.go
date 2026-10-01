@@ -101,4 +101,10 @@ func TestCassandraStorage(t *testing.T) {
 	s := newCassandraStorageIntegration()
 	s.initializeCassandra(t)
 	s.RunAll(t)
+	// Cassandra's flat tag index cannot run the shared filter battery (testFindTracesWithFilter):
+	// every case there is scoped by a service-name disjunction, an operator outside the
+	// conjunctive eq-only subset FilterCapabilities declares (RFC 0005 M5). RunFilterRewriteTest
+	// is the interim conformance check the RFC calls out for exactly this: a structured filter
+	// and the legacy fields it is equivalent to must answer the same way.
+	s.RunFilterRewriteTest(t)
 }

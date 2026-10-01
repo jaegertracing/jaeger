@@ -26,9 +26,14 @@ type TraceReader struct {
 }
 
 func (*TraceReader) SearchCapabilities(context.Context) (tracestore.SearchCapabilities, error) {
+	filter := FilterCapabilities()
 	return tracestore.SearchCapabilities{
 		// Every Cassandra index is keyed by service name, so a search cannot omit it.
 		WithoutServiceName: false,
+		// queryByTagsAndLogs intersects each tag's own query at trace granularity rather
+		// than evaluating a conjunction within one span (RFC 0005 §7).
+		SameSpanConjunction: false,
+		Filter:              &filter,
 	}, nil
 }
 
@@ -66,6 +71,11 @@ func (r *TraceReader) GetTraces(ctx context.Context, traceIDs ...tracestore.GetT
 
 func (r *TraceReader) FindTraces(ctx context.Context, query tracestore.TraceQueryParams) iter.Seq2[[]ptrace.Traces, error] {
 	return func(yield func([]ptrace.Traces, error) bool) {
+		query, err := lowerFilter(query)
+		if err != nil {
+			yield(nil, err)
+			return
+		}
 		for trace, err := range r.reader.FindTraces(ctx, &query) {
 			if err != nil {
 				yield(nil, err)
@@ -81,6 +91,11 @@ func (r *TraceReader) FindTraces(ctx context.Context, query tracestore.TraceQuer
 
 func (r *TraceReader) FindTraceIDs(ctx context.Context, query tracestore.TraceQueryParams) iter.Seq2[tracestore.PageChunk[[]tracestore.FoundTraceID], error] {
 	return func(yield func(tracestore.PageChunk[[]tracestore.FoundTraceID], error) bool) {
+		query, err := lowerFilter(query)
+		if err != nil {
+			yield(tracestore.PageChunk[[]tracestore.FoundTraceID]{}, err)
+			return
+		}
 		dbIDs, err := r.reader.FindTraceIDs(ctx, &query)
 		if err != nil {
 			yield(tracestore.PageChunk[[]tracestore.FoundTraceID]{}, err)
