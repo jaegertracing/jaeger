@@ -7,6 +7,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"strings"
 	"sync/atomic"
 	"time"
 
@@ -26,13 +27,12 @@ const (
 // as receiving middleware, so it wraps every inbound method and acts on two:
 //
 //   - tools/list — after the shared server lists the built-in telemetry tools,
-//     the calling turn's UI tools are appended so the agent can see them.
-//     A UI tool whose name matches a telemetry tool shadows it (matching
-//     Server.AddTool's replace-by-name semantics), keeping the list free of
-//     duplicate names.
-//   - tools/call — a call to one of the turn's UI tools is dispatched to the
-//     browser over its SSE stream (the browser is the executor) and acked;
-//     everything else falls through to the telemetry handlers.
+//     the calling turn's UI tools are appended under the UIToolPrefix ("ui_")
+//     namespace so the agent can see them without colliding with telemetry tools.
+//   - tools/call — a call to one of the turn's namespaced UI tools (prefixed
+//     with "ui_") has the prefix stripped, is dispatched to the browser over
+//     its SSE stream (the browser is the executor), and is acked; everything
+//     else falls through to the telemetry handlers.
 //
 // The turn is resolved from the request context: ServeHTTP stamps the URL
 // route id before delegating, and the go-sdk propagates the initialize
@@ -76,7 +76,8 @@ func uiToolsMiddleware(turns *turnRegistry, logger *zap.Logger) mcp.Middleware {
 				if turn == nil || !turnDeclaredUITool(turn, call.Params.Name) {
 					return next(ctx, method, req)
 				}
-				return emitUIToolCall(turn.stream, call.Params.Name, call.Params.Arguments), nil
+				toolName := stripUIToolPrefix(call.Params.Name)
+				return emitUIToolCall(turn.stream, toolName, call.Params.Arguments), nil
 
 			default:
 				return next(ctx, method, req)
@@ -86,25 +87,17 @@ func uiToolsMiddleware(turns *turnRegistry, logger *zap.Logger) mcp.Middleware {
 }
 
 // appendUITools returns the telemetry tool list with the turn's UI tools
-// added. Any telemetry tool shadowed by a same-named UI tool is dropped so the
-// result carries a single entry per name (UI wins, mirroring AddTool's
-// replace-by-name behaviour). The input slice is not mutated. Malformed UI tools
-// are skipped and logged.
+// added under the UIToolPrefix namespace. Because UI tools are namespaced,
+// they do not collide with telemetry tools and both remain available without
+// shadowing. The input slice is not mutated. Malformed UI tools are skipped
+// and logged.
 func appendUITools(telemetryTools []*mcp.Tool, turn *turnState, logger *zap.Logger) []*mcp.Tool {
 	uiTools := uiToolDescriptors(turn, logger)
 	if len(uiTools) == 0 {
 		return telemetryTools
 	}
-	shadowed := make(map[string]struct{}, len(uiTools))
-	for _, t := range uiTools {
-		shadowed[t.Name] = struct{}{}
-	}
 	merged := make([]*mcp.Tool, 0, len(telemetryTools)+len(uiTools))
-	for _, t := range telemetryTools {
-		if _, clash := shadowed[t.Name]; !clash {
-			merged = append(merged, t)
-		}
-	}
+	merged = append(merged, telemetryTools...)
 	return append(merged, uiTools...)
 }
 
@@ -120,11 +113,12 @@ type uiToolDef struct {
 // uiToolDescriptors parses the turn's declared UI tools into MCP tool
 // descriptors for advertisement in tools/list, skipping malformed entries
 // (frontend input is untrusted) and collapsing repeated names to their first
-// occurrence so the advertised list has no duplicates. The InputSchema is
-// normalized to a valid JSON-object schema so a frontend typo can't make the
-// agent reject the tool. These descriptors are advertised only, never registered
-// on the server — dispatch is handled by the middleware — so they bypass
-// Server.AddTool's schema validation by design.
+// occurrence so the advertised list has no duplicates. Each tool is advertised
+// under the UIToolPrefix namespace to avoid collisions with telemetry tools.
+// The InputSchema is normalized to a valid JSON-object schema so a frontend typo
+// can't make the agent reject the tool. These descriptors are advertised only,
+// never registered on the server — dispatch is handled by the middleware — so
+// they bypass Server.AddTool's schema validation by design.
 func uiToolDescriptors(turn *turnState, logger *zap.Logger) []*mcp.Tool {
 	descriptors := make([]*mcp.Tool, 0, len(turn.uiTools))
 	seen := make(map[string]struct{}, len(turn.uiTools))
@@ -139,7 +133,7 @@ func uiToolDescriptors(turn *turnState, logger *zap.Logger) []*mcp.Tool {
 		}
 		seen[def.name] = struct{}{}
 		descriptors = append(descriptors, &mcp.Tool{
-			Name:        def.name,
+			Name:        UIToolPrefix + def.name,
 			Description: def.description,
 			InputSchema: def.schema,
 		})
@@ -147,11 +141,15 @@ func uiToolDescriptors(turn *turnState, logger *zap.Logger) []*mcp.Tool {
 	return descriptors
 }
 
-// turnDeclaredUITool reports whether toolName is one of the turn's
-// frontend-declared UI tools. Malformed or unnamed entries never match.
+// turnDeclaredUITool reports whether toolName matches one of the turn's
+// frontend-declared UI tools under the UIToolPrefix namespace. Bare (unprefixed)
+// names, malformed entries, or unnamed entries never match.
 func turnDeclaredUITool(turn *turnState, toolName string) bool {
+	if !strings.HasPrefix(toolName, UIToolPrefix) {
+		return false
+	}
 	for _, raw := range turn.uiTools {
-		if def, ok := parseUITool(raw); ok && def.name == toolName {
+		if def, ok := parseUITool(raw); ok && toolName == UIToolPrefix+def.name {
 			return true
 		}
 	}
