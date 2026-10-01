@@ -128,8 +128,8 @@ func TestSpanReader_FindSpans_CursorIsLastSortKey(t *testing.T) {
 		page, err := r.reader.FindSpans(context.Background(), spanSearchQuery())
 		require.NoError(t, err)
 		assert.Equal(t, []string{"s1", "s2"}, spanIDs(page.Spans))
-		// The cursor is the last returned hit's sort values, id included, so the next page
-		// resumes at the tied copy d3 rather than skipping it.
+		// The cursor is the last returned hit's sort values. The third hit ties with the second
+		// on every sort field, so a continuation from this cursor skips it (RFC 0016 §6.4).
 		assert.JSONEq(t, `[10,"t1","s2"]`, string(page.NextCursor))
 	})
 }

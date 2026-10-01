@@ -37,8 +37,10 @@ var spanSortFields = map[string]string{
 // search_after. The engine sorts and cuts the page, so a page reads one document past what
 // it returns, and that extra hit only tells whether another page exists. The engine returns
 // at most maxDocCount hits, the index's result window, so a page that would need more is cut
-// one short of the window; a page size is a maximum, and the cursor still resumes exactly
-// after the page.
+// one short of the window; a page size is a maximum, and the cursor still resumes after the
+// page. The sort carries the public fields alone, so documents that tie on all of them and
+// straddle a page boundary lose the occurrences after the boundary, short of the contract
+// of RFC 0016 §6.4 until the (_index, _id) tie-breaker is appended.
 func (s *SpanReader) FindSpans(ctx context.Context, query dbmodel.SpanQueryParameters) (dbmodel.SpanPage, error) {
 	ctx, span := s.tracer.Start(ctx, "FindSpans")
 	defer span.End()
@@ -112,11 +114,13 @@ func validateSpanQuery(query dbmodel.SpanQueryParameters) error {
 
 // spanSort lowers the effective order to the engine's sort clauses.
 func (*SpanReader) spanSort(order []tracestore.SpanSortOrder) ([]esclient.SortOrder, error) {
+	// The extra slot is for the (_index, _id) tie-breaker that RFC 0016 §6.4 appends after
+	// the public terms.
 	sort := make([]esclient.SortOrder, 0, len(order)+1)
 	for _, term := range order {
 		field, err := sortField(term)
 		if err != nil {
-			return sort, err
+			return nil, err
 		}
 		sort = append(sort, esclient.SortOrder{Field: field, Order: sortDirection(term.Direction)})
 	}
