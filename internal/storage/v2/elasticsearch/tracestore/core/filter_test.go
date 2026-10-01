@@ -726,6 +726,17 @@ func TestBuildFilterQueryRefused(t *testing.T) {
 			wantMsg: `"and" combines predicates, not values`,
 		},
 		{
+			// A nil *expression.Call still asserts ok as a *expression.Call in a type switch, so
+			// this reaches a different line than the case above despite refusing for the same
+			// reason. ValidateFilter already refuses a filter built this way (TestCombineFlattens
+			// in the builder's own tests), but this reader has to refuse it independently too: its
+			// own doc comment says a remote-storage client can reach it without that check.
+			name:    "a combinator given a nil predicate where a predicate belongs",
+			filter:  call(expression.OpAnd, call(expression.OpEq, spanAttr("k"), scalar("v")), (*expression.Call)(nil)),
+			wantErr: tracestore.ErrFilterInvalid,
+			wantMsg: `"and" combines predicates, not values`,
+		},
+		{
 			name:    "exists given a constant, which reads nothing off the span",
 			filter:  call(expression.OpExists, scalar("k")),
 			wantErr: tracestore.ErrFilterInvalid,
