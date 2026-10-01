@@ -35,6 +35,7 @@ jobs:
     runs-on: jaeger-linux-amd64-32core-1200GB_SSD
     outputs:
       hashes: ${{ steps.hash.outputs.hashes }}
+      tag: ${{ steps.branch.outputs.tag }}
 
     steps:
     - name: Clean up some disk space
@@ -83,11 +84,13 @@ jobs:
       # Many scripts depend on BRANCH variable. We do not want to
       # use ./.github/actions/setup-branch here because it may set
       # BRANCH=main when the workflow is triggered manually.
+      id: branch
       run: |
         BRANCH=$(make echo-version)
         echo Validate that the latest tag ${BRANCH} is in semver format
         echo ${BRANCH} | grep -E '^v[0-9]+.[0-9]+.[0-9]+(-rc[0-9]+)?$'
         echo "BRANCH=${BRANCH}" >> ${GITHUB_ENV}
+        echo "tag=${BRANCH}" >> "$GITHUB_OUTPUT"
 
     - name: Configure GPG Key
       if: ${{ inputs.dry_run != true }}
@@ -185,20 +188,15 @@ jobs:
         tag: ${{ env.BRANCH }}
         repo_token: ${{ secrets.GITHUB_TOKEN }}
 
-  # Temporarily disabled: the SLSA generator reference below points to a
-  # commit SHA that does not exist in slsa-framework/slsa-github-generator,
-  # which makes GitHub reject the whole workflow at startup (no jobs run).
-  # The generator must be referenced by a semver tag (e.g. @v2.1.0), not a
-  # SHA. Re-enable once the reference is pinned to a valid released version.
-  # Tracking: https://github.com/jaegertracing/jaeger/issues/9046
-  # generate-provenance:
-  #   needs: [publish-release]
-  #   if: github.repository == 'jaegertracing/jaeger' && inputs.dry_run != true
-  #   permissions:
-  #     actions: read
-  #     id-token: write
-  #     contents: write
-  #   uses: slsa-framework/slsa-github-generator/.github/workflows/generator_generic_slsa3.yml@bdc1356e7db3e3eb2a2977f6b92cc410dc025a1b
-  #   with:
-  #     base64-subjects: "${{ needs.publish-release.outputs.hashes }}"
-  #     upload-assets: true
+  generate-provenance:
+    needs: [publish-release]
+    if: github.repository == 'jaegertracing/jaeger'
+    permissions:
+      actions: read
+      id-token: write
+      contents: write
+    uses: slsa-framework/slsa-github-generator/.github/workflows/generator_generic_slsa3.yml@v2.1.0
+    with:
+      base64-subjects: "${{ needs.publish-release.outputs.hashes }}"
+      upload-assets: ${{ inputs.dry_run != true }}
+      upload-tag-name: "${{ needs.publish-release.outputs.tag }}"
