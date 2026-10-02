@@ -38,6 +38,7 @@ func TestTraceReader_SearchCapabilities(t *testing.T) {
 		SameSpanConjunction: true,
 		Filter:              &filter,
 	}, caps)
+	assert.True(t, filter.SupportsOperator(tracestore.OpMatchPhrase))
 }
 
 func TestTraceReader_GetServices(t *testing.T) {

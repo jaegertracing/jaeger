@@ -57,7 +57,7 @@ func TestFilterCapabilities(t *testing.T) {
 		expression.OpAnd, expression.OpOr, expression.OpNot,
 		expression.OpEq, expression.OpNe, expression.OpGt, expression.OpLt,
 		expression.OpGte, expression.OpLte, expression.OpRegex, expression.OpExists,
-		expression.OpIn, expression.OpNotIn,
+		expression.OpIn, expression.OpNotIn, tracestore.OpMatchPhrase,
 	} {
 		assert.True(t, caps.SupportsOperator(op), "expected %q to be declared", op)
 	}
@@ -85,6 +85,9 @@ func TestBuildFilterQuery(t *testing.T) {
 		// numericAttributes configures the typed-attribute mapping for this case, which is what
 		// makes ordering an attribute servable (RFC 0015).
 		numericAttributes bool
+		// textSearchableAttributes lists the attribute keys configured for text search in this
+		// case, which is what makes match_phrase servable on those attributes.
+		textSearchableAttributes []string
 	}{
 		{
 			name:   "unqualified attribute searches the span and resource levels",
@@ -413,12 +416,23 @@ func TestBuildFilterQuery(t *testing.T) {
 			filter:            p.Span().Attr("sampler.param").Gt("0.001"),
 			numericAttributes: true,
 		},
+		{
+			name:                     "match_phrase on a span attribute searches the text sub-field",
+			filter:                   call(tracestore.OpMatchPhrase, spanAttr("input"), scalar("refund policy")),
+			textSearchableAttributes: []string{"input", "output"},
+		},
+		{
+			name:                     "match_phrase on an unqualified attribute searches every location",
+			filter:                   call(tracestore.OpMatchPhrase, &expression.AttributeRef{Key: "output"}, scalar("cancellation")),
+			textSearchableAttributes: []string{"input", "output"},
+		},
 	}
 	claimed := make(map[string]bool, len(tests))
 	withSpanReader(t, func(r *spanReaderTest) {
 		for _, test := range tests {
 			t.Run(test.name, func(t *testing.T) {
 				r.reader.numericAttributes = test.numericAttributes
+				r.reader.textSearchableAttributes = toSet(test.textSearchableAttributes)
 				query, err := r.reader.buildFilterQuery(test.filter)
 				require.NoError(t, err)
 				source, err := query.Source()
@@ -488,6 +502,9 @@ func TestBuildFilterQueryRefused(t *testing.T) {
 		// numericAttributes configures the typed-attribute mapping, for a refusal that only
 		// arises once ordering an attribute is servable at all.
 		numericAttributes bool
+		// textSearchableAttributes lists the attribute keys configured for text search in this
+		// case, for a refusal that only arises once match_phrase is servable at all.
+		textSearchableAttributes []string
 	}{
 		{
 			name:    "the scope level is folded into the span's own tags",
@@ -797,11 +814,46 @@ func TestBuildFilterQueryRefused(t *testing.T) {
 			wantMsg:           "an integer constant declares a type",
 			numericAttributes: true,
 		},
+		{
+			name:    "match_phrase when text_searchable_attributes is empty",
+			filter:  call(tracestore.OpMatchPhrase, spanAttr("input"), scalar("refund policy")),
+			wantErr: tracestore.ErrFilterUnsupported,
+			wantMsg: "requires text_searchable_attributes to be configured",
+		},
+		{
+			name:                     "match_phrase on an attribute not in text_searchable_attributes",
+			filter:                   call(tracestore.OpMatchPhrase, spanAttr("unlisted"), scalar("something")),
+			wantErr:                  tracestore.ErrFilterUnsupported,
+			wantMsg:                  "not in text_searchable_attributes",
+			textSearchableAttributes: []string{"input", "output"},
+		},
+		{
+			name:                     "match_phrase on a built-in field, which is not text-analyzed",
+			filter:                   call(tracestore.OpMatchPhrase, &expression.FieldRef{Name: expression.SpanFieldName, Level: expression.LevelSpan}, scalar("checkout")),
+			wantErr:                  tracestore.ErrFilterUnsupported,
+			wantMsg:                  `"match_phrase" is only supported on attributes`,
+			textSearchableAttributes: []string{"input"},
+		},
+		{
+			name:                     "match_phrase with a typed constant, which this schema cannot route",
+			filter:                   call(tracestore.OpMatchPhrase, spanAttr("input"), &expression.IntValue{Value: 42}),
+			wantErr:                  tracestore.ErrFilterUnsupported,
+			wantMsg:                  "an integer constant declares a type",
+			textSearchableAttributes: []string{"input"},
+		},
+		{
+			name:                     "match_phrase on a link attribute, which is not indexed",
+			filter:                   call(tracestore.OpMatchPhrase, &expression.AttributeRef{Key: "k", Level: expression.LevelLink}, scalar("v")),
+			wantErr:                  tracestore.ErrFilterUnsupported,
+			wantMsg:                  `does not index the "link" level`,
+			textSearchableAttributes: []string{"input", "k"},
+		},
 	}
 	withSpanReader(t, func(r *spanReaderTest) {
 		for _, test := range tests {
 			t.Run(test.name, func(t *testing.T) {
 				r.reader.numericAttributes = test.numericAttributes
+				r.reader.textSearchableAttributes = toSet(test.textSearchableAttributes)
 				query, err := r.reader.buildFilterQuery(test.filter)
 				assert.Nil(t, query)
 				require.ErrorIs(t, err, test.wantErr)
@@ -886,4 +938,15 @@ func TestBuildFilterQueryRefusalFromWithin(t *testing.T) {
 			assert.Contains(t, err.Error(), `does not index the "link" level`)
 		})
 	}
+}
+
+func toSet(keys []string) map[string]struct{} {
+	if len(keys) == 0 {
+		return nil
+	}
+	set := make(map[string]struct{}, len(keys))
+	for _, k := range keys {
+		set[k] = struct{}{}
+	}
+	return set
 }
