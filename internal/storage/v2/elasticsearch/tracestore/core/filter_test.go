@@ -818,7 +818,7 @@ func TestBuildFilterQueryRefused(t *testing.T) {
 			name:    "match_phrase when text_searchable_attributes is empty",
 			filter:  call(tracestore.OpMatchPhrase, spanAttr("input"), scalar("refund policy")),
 			wantErr: tracestore.ErrFilterUnsupported,
-			wantMsg: "requires text_searchable_attributes to be configured",
+			wantMsg: "not in text_searchable_attributes",
 		},
 		{
 			name:                     "match_phrase on an attribute not in text_searchable_attributes",
@@ -831,7 +831,7 @@ func TestBuildFilterQueryRefused(t *testing.T) {
 			name:                     "match_phrase on a built-in field, which is not text-analyzed",
 			filter:                   call(tracestore.OpMatchPhrase, &expression.FieldRef{Name: expression.SpanFieldName, Level: expression.LevelSpan}, scalar("checkout")),
 			wantErr:                  tracestore.ErrFilterUnsupported,
-			wantMsg:                  `"match_phrase" is only supported on attributes`,
+			wantMsg:                  `is not supported on "name" because it is a built-in field`,
 			textSearchableAttributes: []string{"input"},
 		},
 		{
