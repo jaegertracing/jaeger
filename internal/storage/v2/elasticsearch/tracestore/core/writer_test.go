@@ -319,7 +319,7 @@ func TestSpanWriter_UnidentifiedSpansError(t *testing.T) {
 		require.ErrorAs(t, err, &rejected)
 		assert.Equal(t, 1, rejected.Unidentified)
 		assert.False(t, rejected.Transient)
-		require.Len(t, rejected.Spans, 0)
+		require.Empty(t, rejected.Spans)
 		var bulkErr *esclient.BulkWriteError
 		assert.ErrorAs(t, err, &bulkErr, "the backend's error stays reachable for its message")
 	})
