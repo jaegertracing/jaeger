@@ -68,6 +68,9 @@ func (tr *TraceReader) SearchCapabilities(ctx context.Context) (tracestore.Searc
 		WithoutServiceName:  resp.GetSearch().GetWithoutServiceName(),
 		SameSpanConjunction: resp.GetSearch().GetSameSpanConjunction(),
 		Filter:              fromProtoFilterCapabilities(resp.GetSearch().GetFilter()),
+		Paginated:           resp.GetSearch().GetPaginated(),
+		SpanSearch:          resp.GetSearch().GetSpanSearch(),
+		SpanSorting:         resp.GetSearch().GetSpanSorting(),
 	}
 	tr.cachedCaps.Store(&caps)
 	return caps, nil
@@ -146,12 +149,12 @@ func (tr *TraceReader) FindTraces(
 		}
 		stream, err := tr.client.FindTraces(ctx, &storage.FindTracesRequest{Query: query})
 		if err != nil {
-			yield(nil, fmt.Errorf("failed to execute FindTraces: %w", err))
+			yield(nil, fmt.Errorf("failed to execute FindTraces: %w", readerError(err)))
 			return
 		}
 		for received, err := stream.Recv(); !errors.Is(err, io.EOF); received, err = stream.Recv() {
 			if err != nil {
-				yield(nil, fmt.Errorf("received error from grpc stream: %w", err))
+				yield(nil, fmt.Errorf("received error from grpc stream: %w", readerError(err)))
 				return
 			}
 			if !yield([]ptrace.Traces{received.ToTraces()}, nil) {
@@ -161,19 +164,24 @@ func (tr *TraceReader) FindTraces(
 	}
 }
 
+// readerError restores the error types marked by readerStatus at the storage boundary.
+func readerError(err error) error {
+	return tracestore.ErrorFromStatus(err, errorInfoDomain)
+}
+
 func (tr *TraceReader) FindTraceIDs(
 	ctx context.Context,
 	params tracestore.TraceQueryParams,
-) iter.Seq2[[]tracestore.FoundTraceID, error] {
-	return func(yield func([]tracestore.FoundTraceID, error) bool) {
+) iter.Seq2[tracestore.PageChunk[[]tracestore.FoundTraceID], error] {
+	return func(yield func(tracestore.PageChunk[[]tracestore.FoundTraceID], error) bool) {
 		query, err := toProtoQueryParameters(params)
 		if err != nil {
-			yield(nil, err)
+			yield(tracestore.PageChunk[[]tracestore.FoundTraceID]{}, err)
 			return
 		}
 		resp, err := tr.client.FindTraceIDs(ctx, &storage.FindTraceIDsRequest{Query: query})
 		if err != nil {
-			yield(nil, fmt.Errorf("failed to execute FindTraceIDs: %w", err))
+			yield(tracestore.PageChunk[[]tracestore.FoundTraceID]{}, fmt.Errorf("failed to execute FindTraceIDs: %w", readerError(err)))
 			return
 		}
 		foundTraceIDs := make([]tracestore.FoundTraceID, len(resp.TraceIds))
@@ -187,29 +195,25 @@ func (tr *TraceReader) FindTraceIDs(
 				End:     foundTraceID.End,
 			}
 		}
-		yield(foundTraceIDs, nil)
+		yield(tracestore.PageChunk[[]tracestore.FoundTraceID]{
+			Results:       foundTraceIDs,
+			NextPageToken: tracestore.PageToken(resp.GetNextPageToken()),
+		}, nil)
 	}
 }
 
-func (tr *TraceReader) FindTraceSummaries(
-	ctx context.Context,
-	params tracestore.TraceQueryParams,
-) iter.Seq2[[]tracestore.TraceSummary, error] {
-	maybeNotImplemented := func(err error, msg string) error {
-		if status.Code(err) == codes.Unimplemented || errors.Is(err, errors.ErrUnsupported) {
-			return fmt.Errorf("remote server does not support FindTraceSummaries: %w", errors.ErrUnsupported)
-		}
-		return fmt.Errorf("%s: %w", msg, err)
-	}
-	return func(yield func([]tracestore.TraceSummary, error) bool) {
-		query, err := toProtoQueryParameters(params)
+func (tr *TraceReader) FindSpans(ctx context.Context, params tracestore.SpanQueryParams) iter.Seq2[tracestore.PageChunk[ptrace.Traces], error] {
+	return func(yield func(tracestore.PageChunk[ptrace.Traces], error) bool) {
+		query, err := toProtoSpanQuery(params)
 		if err != nil {
-			yield(nil, err)
+			yield(tracestore.PageChunk[ptrace.Traces]{}, err)
 			return
 		}
-		stream, err := tr.client.FindTraceSummaries(ctx, &storage.FindTraceSummariesRequest{Query: query})
+		rpcCtx, cancel := context.WithCancel(ctx)
+		defer cancel()
+		stream, err := tr.client.FindSpans(rpcCtx, &storage.FindSpansRequest{Query: query})
 		if err != nil {
-			yield(nil, maybeNotImplemented(err, "failed to execute FindTraceSummaries"))
+			yield(tracestore.PageChunk[ptrace.Traces]{}, fmt.Errorf("failed to execute FindSpans: %w", readerError(err)))
 			return
 		}
 		for {
@@ -218,10 +222,68 @@ func (tr *TraceReader) FindTraceSummaries(
 				return
 			}
 			if err != nil {
-				yield(nil, maybeNotImplemented(err, "received error from grpc stream"))
+				yield(tracestore.PageChunk[ptrace.Traces]{}, fmt.Errorf("received error from grpc stream: %w", readerError(err)))
 				return
 			}
-			if !yield(convertSummaryBatch(resp.GetSummaries()), nil) {
+			traces := ptrace.NewTraces()
+			if resp.Spans != nil {
+				traces = resp.Spans.ToTraces()
+			}
+			if !yield(tracestore.PageChunk[ptrace.Traces]{Results: traces, NextPageToken: tracestore.PageToken(resp.NextPageToken)}, nil) {
+				return
+			}
+		}
+	}
+}
+
+func toProtoSpanQuery(params tracestore.SpanQueryParams) (*storage.SpanQueryParameters, error) {
+	filter, err := expressionproto.CallToProto(params.Filter)
+	if err != nil {
+		return nil, err
+	}
+	query := &storage.SpanQueryParameters{
+		StartTimeMin: params.StartTimeMin, StartTimeMax: params.StartTimeMax, Filter: filter,
+		Pagination: &storage.Pagination{PageSize: params.Pagination.PageSize, PageToken: string(params.Pagination.PageToken)},
+	}
+	for _, term := range params.OrderBy {
+		encoded, err := expressionproto.ToProto(term.Expression)
+		if err != nil {
+			return nil, err
+		}
+		query.OrderBy = append(query.OrderBy, &storage.SpanSortOrder{Expression: encoded, Direction: string(term.Direction)})
+	}
+	return query, nil
+}
+
+func (tr *TraceReader) FindTraceSummaries(
+	ctx context.Context,
+	params tracestore.TraceQueryParams,
+) iter.Seq2[tracestore.PageChunk[[]tracestore.TraceSummary], error] {
+	return func(yield func(tracestore.PageChunk[[]tracestore.TraceSummary], error) bool) {
+		query, err := toProtoQueryParameters(params)
+		if err != nil {
+			yield(tracestore.PageChunk[[]tracestore.TraceSummary]{}, err)
+			return
+		}
+		stream, err := tr.client.FindTraceSummaries(ctx, &storage.FindTraceSummariesRequest{Query: query})
+		if err != nil {
+			yield(tracestore.PageChunk[[]tracestore.TraceSummary]{}, fmt.Errorf("failed to execute FindTraceSummaries: %w", readerError(err)))
+			return
+		}
+		for {
+			resp, err := stream.Recv()
+			if errors.Is(err, io.EOF) {
+				return
+			}
+			if err != nil {
+				yield(tracestore.PageChunk[[]tracestore.TraceSummary]{}, fmt.Errorf("received error from grpc stream: %w", readerError(err)))
+				return
+			}
+			chunk := tracestore.PageChunk[[]tracestore.TraceSummary]{
+				Results:       convertSummaryBatch(resp.GetSummaries()),
+				NextPageToken: tracestore.PageToken(resp.GetNextPageToken()),
+			}
+			if !yield(chunk, nil) {
 				return
 			}
 		}
@@ -261,7 +323,7 @@ func convertSummaryBatch(protos []*storage.TraceSummary) []tracestore.TraceSumma
 // one place: the alternative is sending a query whose filter went missing, which reads to the server
 // as a search with no predicates.
 func toProtoQueryParameters(t tracestore.TraceQueryParams) (*storage.TraceQueryParameters, error) {
-	filter, err := expressionproto.ToProto(t.Filter)
+	filter, err := expressionproto.CallToProto(t.Filter)
 	if err != nil {
 		return nil, fmt.Errorf("cannot send the query filter: %w", err)
 	}
@@ -269,10 +331,10 @@ func toProtoQueryParameters(t tracestore.TraceQueryParams) (*storage.TraceQueryP
 	// but other callers (MCP, gRPC query, tests) can set it without going
 	// through that parser. This client still has to refuse values that will
 	// not encode cleanly as a protobuf search window.
-	if t.SearchDepth < 0 || t.SearchDepth > tracestore.MaxSearchDepth {
+	if t.SearchDepth > tracestore.MaxSearchDepth {
 		return nil, fmt.Errorf("SearchDepth must be in [0, %d]", tracestore.MaxSearchDepth)
 	}
-	return &storage.TraceQueryParameters{
+	q := &storage.TraceQueryParameters{
 		ServiceName:   t.ServiceName,
 		OperationName: t.OperationName,
 		Attributes:    convertMapToKeyValueList(t.Attributes),
@@ -282,7 +344,14 @@ func toProtoQueryParameters(t tracestore.TraceQueryParams) (*storage.TraceQueryP
 		DurationMax:   t.DurationMax,
 		SearchDepth:   int32(t.SearchDepth),
 		Filter:        filter,
-	}, nil
+	}
+	if t.Pagination != nil {
+		q.Pagination = &storage.Pagination{
+			PageSize:  t.Pagination.PageSize,
+			PageToken: string(t.Pagination.PageToken),
+		}
+	}
+	return q, nil
 }
 
 func convertMapToKeyValueList(m pcommon.Map) []*storage.KeyValue {

@@ -32,8 +32,6 @@ jobs:
 
     - uses: ./.github/actions/setup-branch
 
-    - run: make install-ci
-
     - uses: docker/setup-qemu-action@1f40c72289eff860ee54a304f1438e3cff362e0a # v4.3.0
 
     - name: Build only linux/amd64 container images (PR and merge queue)

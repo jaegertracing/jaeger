@@ -47,9 +47,6 @@ jobs:
     - name: Setup Node.js version
       uses: ./.github/actions/setup-node.js
 
-    - name: Install tools
-      run: make install-ci
-
     - name: Build platform binaries
       run: make build-binaries-${{ matrix.os }}-${{ matrix.arch }}
       env:

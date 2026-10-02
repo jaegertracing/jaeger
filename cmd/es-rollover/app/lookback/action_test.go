@@ -121,6 +121,36 @@ func TestLookBackAction(t *testing.T) {
 			},
 			expectedErr: nil,
 		},
+		{
+			name: "zero unit count",
+			setupCallExpectations: func(_ *mocks.IndexAPI) {
+				// No calls to IndexAPI expected when unit-count <= 0
+			},
+			config: Config{
+				Unit:      "days",
+				UnitCount: 0,
+				Config: app.Config{
+					Archive: true,
+					UseILM:  true,
+				},
+			},
+			expectedErr: errors.New("unit-count must be greater than 0, got 0"),
+		},
+		{
+			name: "negative unit count",
+			setupCallExpectations: func(_ *mocks.IndexAPI) {
+				// No calls to IndexAPI expected when unit-count <= 0
+			},
+			config: Config{
+				Unit:      "days",
+				UnitCount: -1,
+				Config: app.Config{
+					Archive: true,
+					UseILM:  true,
+				},
+			},
+			expectedErr: errors.New("unit-count must be greater than 0, got -1"),
+		},
 	}
 
 	logger, _ := zap.NewProduction()

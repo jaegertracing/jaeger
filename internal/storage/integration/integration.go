@@ -101,7 +101,7 @@ type Query struct {
 	StartTimeMax  time.Time
 	DurationMin   time.Duration
 	DurationMax   time.Duration
-	NumTraces     int
+	NumTraces     uint32
 }
 
 func (q *Query) ToTraceQueryParams(t *testing.T) *tracestore.TraceQueryParams {
@@ -213,10 +213,16 @@ func (s *StorageIntegration) testGetServices(t *testing.T) {
 			// If the storage backend returns more services than expected, let's log traces for those
 			t.Log("🛑 Found unexpected services!")
 			for _, service := range actual {
+				// Attributes and SearchDepth are not optional: readers dereference the map
+				// before anything else, where a zero value panics, and the memory store
+				// rejects a non-positive depth. 100 is what Cassandra and Elasticsearch
+				// default to when the field is unset, and it exceeds the whole corpus.
 				iterTraces := s.TraceReader.FindTraces(context.Background(), tracestore.TraceQueryParams{
 					ServiceName:  service,
+					Attributes:   pcommon.NewMap(),
 					StartTimeMin: time.Now().Add(-2 * time.Hour),
 					StartTimeMax: time.Now(),
+					SearchDepth:  100,
 				})
 				for traces, err := range iterTraces {
 					if err != nil {
@@ -432,9 +438,9 @@ func (s *StorageIntegration) testFindTraceSummaries(t *testing.T) {
 		}
 		summary = nil
 		for _, b := range batches {
-			for i := range b {
-				if b[i].TraceID == expectedTraceID {
-					sm := b[i]
+			for i := range b.Results {
+				if b.Results[i].TraceID == expectedTraceID {
+					sm := b.Results[i]
 					summary = &sm
 				}
 			}
@@ -742,5 +748,7 @@ func (s *StorageIntegration) AssertCorpus(t *testing.T) {
 	t.Run("FindTraces", s.testFindTraces)
 	t.Run("FindTracesWithFilter", s.testFindTracesWithFilter)
 	t.Run("FindTraceSummaries", s.testFindTraceSummaries)
+	t.Run("Pagination", s.testPagination)
+	t.Run("SpanOrdering", s.testSpanOrdering)
 	t.Run("FindTracesWithoutServiceName", s.testFindTracesWithoutServiceName)
 }

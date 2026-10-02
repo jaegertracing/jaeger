@@ -12,6 +12,9 @@ services:
       - xpack.security.enabled=false  # Disable security features
       - xpack.security.http.ssl.enabled=false  # Disable HTTPS
       - action.destructive_requires_name=false
+      # The span search sorts on _id by default (span_search_tie_break_by_id), which needs
+      # fielddata on that field; Elasticsearch 8 and later turn it off unless asked.
+      - indices.id_field_data.enabled=true
       - xpack.monitoring.collection.enabled=false  # Disable monitoring features
     ports:
       - "9200:9200"

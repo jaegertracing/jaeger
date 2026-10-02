@@ -17,7 +17,6 @@ import (
 
 	"github.com/jaegertracing/jaeger/cmd/internal/docs"
 	"github.com/jaegertracing/jaeger/cmd/internal/featuregate"
-	"github.com/jaegertracing/jaeger/cmd/internal/flags"
 	"github.com/jaegertracing/jaeger/cmd/internal/printconfig"
 	"github.com/jaegertracing/jaeger/cmd/internal/status"
 	"github.com/jaegertracing/jaeger/cmd/internal/storageconfig"
@@ -33,19 +32,18 @@ import (
 
 const serviceName = "jaeger-remote-storage"
 
-// loadConfig loads configuration from viper, or returns default configuration if no config file is provided.
-func loadConfig(v *viper.Viper, logger *zap.Logger) (*app.Config, error) {
-	// If viper config is not provided, use defaults
-	if v.ConfigFileUsed() == "" {
-		logger.Info("No configuration file provided, using default configuration (memory storage on :17271)")
+// loadConfig reads the configuration file named by --config-file, or returns the default
+// configuration when none was given.
+func loadConfig(ctx context.Context, v *viper.Viper) (*app.Config, error) {
+	path := app.ConfigFile(v)
+	if path == "" {
 		return app.DefaultConfig(), nil
 	}
-
-	return app.LoadConfigFromViper(v)
+	return app.LoadConfigFile(ctx, path)
 }
 
 func main() {
-	svc := flags.NewService(ports.RemoteStorageAdminHTTP)
+	svc := app.NewService()
 
 	v := viper.New()
 	command := &cobra.Command{
@@ -53,19 +51,20 @@ func main() {
 		Short: serviceName + " allows sharing single-node storage implementations like memstore or Badger.",
 		Long:  serviceName + ` allows sharing single-node storage implementations like memstore or Badger. It implements Jaeger Remote Storage gRPC API.`,
 		RunE: func(_ *cobra.Command, _ /* args */ []string) error {
-			if err := svc.Start(v); err != nil {
+			cfg, err := loadConfig(context.Background(), v)
+			if err != nil {
+				return fmt.Errorf("failed to load configuration: %w", err)
+			}
+			if err := svc.Start(cfg.Service); err != nil {
 				return err
 			}
 			logger := svc.Logger
+			if app.ConfigFile(v) == "" {
+				logger.Info("No configuration file provided, using default configuration (memory storage on :17271)")
+			}
 			baseFactory := svc.MetricsFactory.Namespace(metrics.NSOptions{Name: "jaeger"})
 			metricsFactory := baseFactory.Namespace(metrics.NSOptions{Name: "remote-storage"})
 			version.NewInfoMetrics(metricsFactory)
-
-			// Load configuration from YAML file, or use defaults if not provided
-			cfg, err := loadConfig(v, logger)
-			if err != nil {
-				logger.Fatal("Failed to load configuration", zap.Error(err))
-			}
 
 			baseTelset := telemetry.Settings{
 				Logger:        svc.Logger,

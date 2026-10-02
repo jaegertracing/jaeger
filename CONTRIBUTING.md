@@ -46,6 +46,15 @@ make install-tools
 make test
 ```
 
+If you are regenerating protobuf code via `make proto`, you will also need to have Docker installed and running as well
+as `uv` for the Python SDK stubs (see [`sdk/python/README.md`](sdk/python/README.md)).
+
+To install `uv` on macOS, run:
+
+```
+brew install uv
+```
+
 ### Contributing Code
 
 We accept new changes as pull requests on GitHub. Please make sure the following conditions are met before submitting PRs:

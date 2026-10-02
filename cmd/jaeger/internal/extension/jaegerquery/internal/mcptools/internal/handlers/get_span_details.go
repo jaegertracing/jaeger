@@ -5,7 +5,6 @@ package handlers
 
 import (
 	"context"
-	"encoding/hex"
 	"errors"
 	"fmt"
 	"iter"
@@ -140,7 +139,7 @@ func (h *getSpanDetailsHandler) buildQuery(input types.GetSpanDetailsInput) (que
 		)
 	}
 
-	traceID, err := parseTraceID(input.TraceID)
+	traceID, err := jptrace.TraceIDFromString(input.TraceID)
 	if err != nil {
 		return querysvc.GetTraceParams{}, nil, fmt.Errorf("invalid trace_id: %w", err)
 	}
@@ -268,39 +267,14 @@ func convertAttributeValue(v pcommon.Value) any {
 	}
 }
 
-// parseTraceID parses a trace ID string into a pcommon.TraceID.
-func parseTraceID(traceIDStr string) (pcommon.TraceID, error) {
-	// Parse hex string - TraceID is 16 bytes (32 hex characters)
-	if len(traceIDStr) != 32 {
-		return pcommon.TraceID{}, fmt.Errorf("trace ID must be 32 hex characters, got %d", len(traceIDStr))
-	}
-
-	var traceID pcommon.TraceID
-	bytes, err := hex.DecodeString(traceIDStr)
-	if err != nil {
-		return pcommon.TraceID{}, fmt.Errorf("invalid hex string: %w", err)
-	}
-
-	copy(traceID[:], bytes)
-	return traceID, nil
-}
-
-// parseSpanID parses a span ID string into a pcommon.SpanID.
+// parseSpanID parses a span ID string into a pcommon.SpanID and rejects the
+// all-zero ID, which can never identify a real span: SpanID.String() returns
+// "" for it, so it would silently never match in the lookup.
 func parseSpanID(spanIDStr string) (pcommon.SpanID, error) {
-	// Parse hex string - SpanID is 8 bytes (16 hex characters)
-	if len(spanIDStr) != 16 {
-		return pcommon.SpanID{}, fmt.Errorf("span ID must be 16 hex characters, got %d", len(spanIDStr))
-	}
-
-	var spanID pcommon.SpanID
-	bytes, err := hex.DecodeString(spanIDStr)
+	spanID, err := jptrace.SpanIDFromString(spanIDStr)
 	if err != nil {
-		return pcommon.SpanID{}, fmt.Errorf("invalid hex string: %w", err)
+		return pcommon.SpanID{}, err
 	}
-
-	copy(spanID[:], bytes)
-	// The all-zero span ID can never identify a real span: SpanID.String()
-	// returns "" for it, so it would silently never match in the lookup.
 	if spanID.IsEmpty() {
 		return pcommon.SpanID{}, errors.New("span ID must not be all zero")
 	}

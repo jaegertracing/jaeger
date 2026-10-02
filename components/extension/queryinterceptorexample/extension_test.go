@@ -41,8 +41,8 @@ func ctxWithRole(t *testing.T, role string) context.Context {
 
 // queryWithAttr builds the query a caller asking for one attribute arrives with: every
 // predicate is in the filter, so the equality is a predicate rather than a map entry.
-func queryWithAttr(key, val string) queryinterceptor.Query {
-	return queryinterceptor.Query{Filter: &expression.Call{
+func queryWithAttr(key, val string) queryinterceptor.TraceQuery {
+	return queryinterceptor.TraceQuery{Filter: &expression.Call{
 		Op: expression.OpAnd,
 		Args: []expression.Expression{
 			&expression.Call{Op: expression.OpEq, Args: []expression.Expression{
@@ -62,36 +62,36 @@ func tracesWithSpanAttrs(kv map[string]string) []ptrace.Traces {
 	return []ptrace.Traces{td}
 }
 
-func TestOnQuery_DeniesForbiddenAttributeForRestrictedCaller(t *testing.T) {
+func TestOnTraceQuery_DeniesForbiddenAttributeForRestrictedCaller(t *testing.T) {
 	i := newInterceptor(restrictedCfg(), zap.NewNop())
 
 	// Restricted caller (unknown role) is rejected for a forbidden attribute.
-	_, _, err := i.OnQuery(ctxWithRole(t, "viewer"), queryWithAttr("prompt", "x"))
+	_, _, err := i.OnTraceQuery(ctxWithRole(t, "viewer"), queryWithAttr("prompt", "x"))
 	require.ErrorContains(t, err, `filtering on attribute "prompt" is not permitted`)
 
 	// Same query, but the privileged caller is admitted unchanged.
 	allowed := queryWithAttr("prompt", "x")
-	_, got, err := i.OnQuery(ctxWithRole(t, "admin"), allowed)
+	_, got, err := i.OnTraceQuery(ctxWithRole(t, "admin"), allowed)
 	require.NoError(t, err)
 	assert.Equal(t, allowed, got)
 
 	// A query that touches no forbidden attribute is always admitted.
 	benign := queryWithAttr("service", "checkout")
-	_, got, err = i.OnQuery(ctxWithRole(t, "viewer"), benign)
+	_, got, err = i.OnTraceQuery(ctxWithRole(t, "viewer"), benign)
 	require.NoError(t, err)
 	assert.Equal(t, benign, got)
 
 	// A caller with no identity metadata at all is treated as restricted.
-	_, _, err = i.OnQuery(t.Context(), queryWithAttr("prompt", "x"))
+	_, _, err = i.OnTraceQuery(t.Context(), queryWithAttr("prompt", "x"))
 	require.ErrorContains(t, err, `filtering on attribute "prompt" is not permitted`)
 }
 
-func TestOnResult_RedactsForRestrictedCallerOnly(t *testing.T) {
+func TestOnTraceResult_RedactsForRestrictedCallerOnly(t *testing.T) {
 	i := newInterceptor(restrictedCfg(), zap.NewNop())
 
 	// Restricted caller: the configured attribute is redacted, others untouched.
 	restricted := tracesWithSpanAttrs(map[string]string{"prompt": "my secret", "service": "checkout"})
-	_, out, err := i.OnResult(ctxWithRole(t, "viewer"), restricted)
+	_, out, err := i.OnTraceResult(ctxWithRole(t, "viewer"), restricted)
 	require.NoError(t, err)
 	attrs := out[0].ResourceSpans().At(0).ScopeSpans().At(0).Spans().At(0).Attributes()
 	prompt, _ := attrs.Get("prompt")
@@ -101,36 +101,97 @@ func TestOnResult_RedactsForRestrictedCallerOnly(t *testing.T) {
 
 	// Privileged caller: nothing is redacted.
 	privileged := tracesWithSpanAttrs(map[string]string{"prompt": "my secret"})
-	_, out, err = i.OnResult(ctxWithRole(t, "admin"), privileged)
+	_, out, err = i.OnTraceResult(ctxWithRole(t, "admin"), privileged)
 	require.NoError(t, err)
 	attrs = out[0].ResourceSpans().At(0).ScopeSpans().At(0).Spans().At(0).Attributes()
 	prompt, _ = attrs.Get("prompt")
 	assert.Equal(t, "my secret", prompt.Str(), "privileged caller sees the value unredacted")
 }
 
-func TestOnQuery_CachesRoleForOnResult(t *testing.T) {
+func TestOnTraceQuery_CachesRoleForOnResult(t *testing.T) {
 	i := newInterceptor(restrictedCfg(), zap.NewNop())
 
-	// OnQuery resolves the "admin" role from metadata and caches it in the context.
-	cachedCtx, _, err := i.OnQuery(ctxWithRole(t, "admin"), queryWithAttr("service", "checkout"))
+	// OnTraceQuery resolves the "admin" role from metadata and caches it in the context.
+	cachedCtx, _, err := i.OnTraceQuery(ctxWithRole(t, "admin"), queryWithAttr("service", "checkout"))
 	require.NoError(t, err)
 
-	// Overlay conflicting "viewer" metadata on the returned context. OnResult must
-	// honor the role OnQuery cached (admin → no redaction) rather than re-reading
+	// Overlay conflicting "viewer" metadata on the returned context. OnTraceResult must
+	// honor the role OnTraceQuery cached (admin → no redaction) rather than re-reading
 	// the metadata (viewer → would redact), proving the context carries the role.
 	md := client.NewMetadata(map[string][]string{identityHeader: {"viewer"}})
 	mixed := client.NewContext(cachedCtx, client.Info{Metadata: md})
 
-	_, out, err := i.OnResult(mixed, tracesWithSpanAttrs(map[string]string{"prompt": "secret"}))
+	_, out, err := i.OnTraceResult(mixed, tracesWithSpanAttrs(map[string]string{"prompt": "secret"}))
 	require.NoError(t, err)
 	prompt, _ := out[0].ResourceSpans().At(0).ScopeSpans().At(0).Spans().At(0).Attributes().Get("prompt")
-	assert.Equal(t, "secret", prompt.Str(), "OnResult must reuse the role OnQuery cached in the context")
+	assert.Equal(t, "secret", prompt.Str(), "OnTraceResult must reuse the role OnTraceQuery cached in the context")
 }
 
-func TestOnResult_NoConfigIsPassThrough(t *testing.T) {
+// TestAdmission_AllowsATimeRangeOnlySearch pins that a search with no filter, which both hooks
+// receive as a nil Filter, is admitted for a restricted caller rather than tripping the walk.
+func TestAdmission_AllowsATimeRangeOnlySearch(t *testing.T) {
+	i := newInterceptor(restrictedCfg(), zap.NewNop())
+
+	_, _, err := i.OnTraceQuery(ctxWithRole(t, "viewer"), queryinterceptor.TraceQuery{})
+	require.NoError(t, err)
+
+	_, _, err = i.OnSpanQuery(ctxWithRole(t, "viewer"), queryinterceptor.SpanQuery{})
+	require.NoError(t, err)
+}
+
+// TestOnSpanQuery_AppliesTheSameAdmissionRule pins that a denied attribute is denied on a span
+// search as it is on a trace search, so a caller cannot reach it by choosing the other endpoint.
+func TestOnSpanQuery_AppliesTheSameAdmissionRule(t *testing.T) {
+	i := newInterceptor(restrictedCfg(), zap.NewNop())
+	denied := queryinterceptor.SpanQuery{Filter: queryWithAttr("prompt", "x").Filter}
+
+	_, _, err := i.OnSpanQuery(ctxWithRole(t, "viewer"), denied)
+	require.ErrorContains(t, err, `filtering on attribute "prompt" is not permitted`)
+
+	_, got, err := i.OnSpanQuery(ctxWithRole(t, "admin"), denied)
+	require.NoError(t, err)
+	assert.Equal(t, denied, got, "the privileged caller's query is admitted unchanged")
+
+	benign := queryinterceptor.SpanQuery{Filter: queryWithAttr("service", "checkout").Filter}
+	_, got, err = i.OnSpanQuery(ctxWithRole(t, "viewer"), benign)
+	require.NoError(t, err)
+	assert.Equal(t, benign, got)
+}
+
+// TestOnSpanResult_RedactsForRestrictedCallerOnly pins the redaction of a span page, which holds
+// spans from many traces in one ptrace.Traces rather than a batch of whole traces.
+func TestOnSpanResult_RedactsForRestrictedCallerOnly(t *testing.T) {
+	i := newInterceptor(restrictedCfg(), zap.NewNop())
+	page := func() ptrace.Traces {
+		td := ptrace.NewTraces()
+		spans := td.ResourceSpans().AppendEmpty().ScopeSpans().AppendEmpty().Spans()
+		spans.AppendEmpty().Attributes().PutStr("prompt", "first secret")
+		spans.AppendEmpty().Attributes().PutStr("prompt", "second secret")
+		return td
+	}
+	promptOf := func(td ptrace.Traces, i int) string {
+		v, _ := td.ResourceSpans().At(0).ScopeSpans().At(0).Spans().At(i).Attributes().Get("prompt")
+		return v.Str()
+	}
+
+	_, out, err := i.OnSpanResult(ctxWithRole(t, "viewer"), page())
+	require.NoError(t, err)
+	assert.Equal(t, redactedPlaceholder, promptOf(out, 0), "every span in the page is redacted")
+	assert.Equal(t, redactedPlaceholder, promptOf(out, 1))
+
+	_, out, err = i.OnSpanResult(ctxWithRole(t, "admin"), page())
+	require.NoError(t, err)
+	assert.Equal(t, "first secret", promptOf(out, 0), "the privileged caller sees the values unredacted")
+
+	_, out, err = newInterceptor(&Config{}, zap.NewNop()).OnSpanResult(t.Context(), page())
+	require.NoError(t, err)
+	assert.Equal(t, "first secret", promptOf(out, 0), "no redaction is configured")
+}
+
+func TestOnTraceResult_NoConfigIsPassThrough(t *testing.T) {
 	i := newInterceptor(&Config{}, zap.NewNop())
 	batch := tracesWithSpanAttrs(map[string]string{"prompt": "kept"})
-	_, out, err := i.OnResult(t.Context(), batch)
+	_, out, err := i.OnTraceResult(t.Context(), batch)
 	require.NoError(t, err)
 	attrs := out[0].ResourceSpans().At(0).ScopeSpans().At(0).Spans().At(0).Attributes()
 	prompt, _ := attrs.Get("prompt")
