@@ -1359,7 +1359,12 @@ func TestTagsMap(t *testing.T) {
 // newSnapshotReader builds a SpanReader wired to searcher, with aliased (fixed)
 // index names so the recorded request paths are deterministic across runs.
 func newSnapshotReader(searcher esclient.Searcher) *SpanReader {
-	return NewSpanReader(SpanReaderParams{
+	return newSnapshotReaderWithParams(searcher, func(*SpanReaderParams) {})
+}
+
+// newSnapshotReaderWithParams is newSnapshotReader with its parameters adjusted by override.
+func newSnapshotReaderWithParams(searcher esclient.Searcher, override func(*SpanReaderParams)) *SpanReader {
+	params := SpanReaderParams{
 		Searcher:               searcher,
 		MaxSpanAge:             72 * time.Hour,
 		MaxTraceDuration:       24 * time.Hour,
@@ -1369,7 +1374,9 @@ func newSnapshotReader(searcher esclient.Searcher) *SpanReader {
 		Tracer:                 noop.NewTracerProvider().Tracer("test"),
 		SpanRotation:           indices.NewAliasedRotation("jaeger-span-write-000001", "jaeger-span-read"),
 		ServiceRotation:        indices.NewAliasedRotation("jaeger-service-write-000001", "jaeger-service-read"),
-	})
+	}
+	override(&params)
+	return NewSpanReader(params)
 }
 
 // TestReaderRequestSnapshots freezes the wire format of the trace-read path:

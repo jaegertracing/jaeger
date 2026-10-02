@@ -9,6 +9,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"strings"
 
 	"go.uber.org/zap"
 
@@ -20,12 +21,18 @@ import (
 	"github.com/jaegertracing/jaeger/internal/storage/v2/elasticsearch/tracestore/core/dbmodel"
 )
 
-// idField is the document id, which a span search sorts on last so that the sort key names
-// one document (see SpanReaderParams.SpanSearchTieBreakByID).
+// A span search appends the engine's metadata fields to its sort so that the sort key names
+// one document (RFC 0016 §6.4): indexField always, since a document is unique only within its
+// index, and idField when SpanReaderParams.SpanSearchTieBreakByID is set.
 const (
-	idField    = "_id"
 	indexField = "_index"
+	idField    = "_id"
 )
+
+// idFieldDataSetting is the cluster setting that allows sorting on _id. Elasticsearch names it
+// in the error it returns when the setting is off, which is how the reader recognizes that
+// failure.
+const idFieldDataSetting = "indices.id_field_data.enabled"
 
 // spanSortFields maps an ordering term's built-in span field to the document field that
 // carries it. Every field is a single-valued long or keyword, so its sort order is the
@@ -45,9 +52,10 @@ var spanSortFields = map[string]string{
 // it returns, and that extra hit only tells whether another page exists. The engine returns
 // at most maxDocCount hits, the index's result window, so a page that would need more is cut
 // one short of the window; a page size is a maximum, and the cursor still resumes after the
-// page. The sort carries the public fields alone, so documents that tie on all of them and
-// straddle a page boundary lose the occurrences after the boundary, short of the contract
-// of RFC 0016 §6.4 until the (_index, _id) tie-breaker is appended.
+// page. The sort ends in the backing index and, unless the reader is configured otherwise,
+// the document id, so that documents tying on every public field are still returned once
+// each across a page boundary (RFC 0016 §6.4); without the id, the occurrences after the
+// boundary within one index are lost.
 func (s *SpanReader) FindSpans(ctx context.Context, query dbmodel.SpanQueryParameters) (dbmodel.SpanPage, error) {
 	ctx, span := s.tracer.Start(ctx, "FindSpans")
 	defer span.End()
@@ -79,6 +87,11 @@ func (s *SpanReader) FindSpans(ctx context.Context, query dbmodel.SpanQueryParam
 	if err != nil {
 		s.logger.Info("es span search failed", zap.Error(err))
 		logErrorToSpan(span, err)
+		if s.spanSearchTieBreakByID && strings.Contains(err.Error(), idFieldDataSetting) {
+			return dbmodel.SpanPage{}, fmt.Errorf(
+				"span search sorts on the document _id (span_search_tie_break_by_id is on), which this cluster forbids: "+
+					"enable the cluster setting %s or set span_search_tie_break_by_id to false: %w", idFieldDataSetting, err)
+		}
 		return dbmodel.SpanPage{}, fmt.Errorf("span search failed: %w", err)
 	}
 	hits := result.Hits.Hits
@@ -119,13 +132,13 @@ func validateSpanQuery(query dbmodel.SpanQueryParameters) error {
 	return nil
 }
 
-// spanSort lowers the effective order to the engine's sort clauses, with the document id
-// appended as the final tie-breaker when the reader is configured to sort on it. Without it,
-// spans that tie on every ordering term and straddle a page boundary are skipped by the next
-// page, since search_after resumes strictly after the cursor's key.
+// spanSort lowers the effective order to the engine's sort clauses and appends the
+// (_index, _id) tie-breaker of RFC 0016 §6.4, the id only when the reader is configured to
+// sort on it. Without the id, spans that tie on every ordering term within one index and
+// straddle a page boundary are skipped by the next page, since search_after resumes strictly
+// after the cursor's key. The index sorts descending so that, under the default start-time
+// order, the newer of two indices holding the same key comes first.
 func (s *SpanReader) spanSort(order []tracestore.SpanSortOrder) ([]esclient.SortOrder, error) {
-	// The extra slots are for the (_index, _id) tie-breaker that RFC 0016 §6.4 appends after
-	// the public terms.
 	sort := make([]esclient.SortOrder, 0, len(order)+2)
 	for _, term := range order {
 		field, err := sortField(term)
@@ -198,27 +211,33 @@ func (s *SpanReader) buildSpanSearchRequest(
 
 // decodeSpanCursor reads the cursor a token carried, or returns nil for none. A cursor is
 // refused unless it holds one value per sort clause, a number for a long field and a string
-// for a keyword or the id, since the reader never returns one shaped otherwise and the engine
-// would reject the search_after built from it.
+// for a keyword or a metadata field, since the reader never returns one shaped otherwise and
+// the engine would reject the search_after built from it. The two refusals carry distinct
+// messages so that a test of one cannot pass by tripping the other.
 func decodeSpanCursor(raw []byte, sort []esclient.SortOrder) ([]json.RawMessage, error) {
 	if len(raw) == 0 {
 		return nil, nil
 	}
 	var values []json.RawMessage
-	if err := json.Unmarshal(raw, &values); err != nil || len(values) != len(sort) {
+	if err := json.Unmarshal(raw, &values); err != nil {
 		return nil, fmt.Errorf("%w: page token does not carry a span position", tracestore.ErrPaginationInvalid)
+	}
+	if len(values) != len(sort) {
+		return nil, fmt.Errorf("%w: page token carries %d values for %d sort fields", tracestore.ErrPaginationInvalid, len(values), len(sort))
 	}
 	for i, clause := range sort {
 		var want any
+		kind := "number"
 		switch clause.Field {
 		case traceIDField, spanIDField, indexField, idField:
 			want = new(string)
+			kind = "string"
 		default:
 			want = new(json.Number)
 		}
 		// A JSON null decodes into either target without error, so it is refused on its own.
 		if err := json.Unmarshal(values[i], want); err != nil || bytes.Equal(bytes.TrimSpace(values[i]), []byte("null")) {
-			return nil, fmt.Errorf("%w: page token does not carry a span position", tracestore.ErrPaginationInvalid)
+			return nil, fmt.Errorf("%w: page token value %d is not a %s", tracestore.ErrPaginationInvalid, i, kind)
 		}
 	}
 	return values, nil
