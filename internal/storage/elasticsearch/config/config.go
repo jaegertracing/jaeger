@@ -106,6 +106,14 @@ type SpanIndexOptions struct {
 	// retention has turned them over. Off by default: the sub-field costs a mapped field per
 	// attribute key on the elevated representation.
 	NumericAttributes bool `mapstructure:"numeric_attributes"`
+	// TextSearchableAttributes lists the attribute keys whose values are indexed with a text-analyzed
+	// sub-field beside the keyword, so that the match operator can do full-text search on them.
+	// This only applies to hoisted tags_as_fields attributes (the elevated object-path fields like
+	// tag.<key>); the nested representation shares a single field and cannot be selective.
+	// The same list is consumed by both the index template renderer (write side — per-attribute
+	// dynamic template rules before the catch-all) and the query reader (read side — refuses match
+	// on unlisted attributes). An empty list disables match entirely.
+	TextSearchableAttributes []string `mapstructure:"text_searchable_attributes"`
 }
 
 // Indices describes different configuration options for each index type
