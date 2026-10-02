@@ -276,9 +276,7 @@ func Elasticsearch() Capabilities {
 		// FindSpans pages and orders by the built-in fields (RFC 0016 M4, M11), not yet by an attribute;
 		// the trace searches do not page yet (RFC 0014 M3).
 		skipList: []string{
-			// spanOrderingTest,
-			// paginationTest,
-			// spanAttributeOrderingTest,
+			spanAttributeOrderingTest,
 			traceIDPaginationTest,
 			summaryPaginationTest,
 			scopeAttributesTest,
@@ -293,8 +291,7 @@ func ElasticsearchSmokeTest() Capabilities {
 	return Capabilities{
 		getOperationsMissingSpanKind: true,
 		skipList: []string{
-			spanOrderingTest,
-			paginationTest,
+			spanAttributeOrderingTest,
 			scopeAttributesTest,
 			linkAttributesTest,
 			structuredFilterTest,
