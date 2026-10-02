@@ -332,13 +332,9 @@ func (s *SpanReader) buildComparison(
 // on the .text sub-field of an attribute. Only attributes listed in text_searchable_attributes
 // are searchable this way; built-in fields and unlisted attributes are refused.
 func (s *SpanReader) buildMatchPhraseQuery(ref reference, value expression.Expression) (esquery.Query, error) {
-	if len(s.textSearchableAttributes) == 0 {
-		return nil, fmt.Errorf("%w: %q requires text_searchable_attributes to be configured",
-			tracestore.ErrFilterUnsupported, tracestore.OpMatchPhrase)
-	}
 	if !ref.attribute {
-		return nil, fmt.Errorf("%w: %q is only supported on attributes, not built-in fields",
-			tracestore.ErrFilterUnsupported, tracestore.OpMatchPhrase)
+		return nil, fmt.Errorf("%w: %q is not supported on %q because it is a built-in field, not an attribute",
+			tracestore.ErrFilterUnsupported, tracestore.OpMatchPhrase, ref.name)
 	}
 	if _, ok := s.textSearchableAttributes[ref.name]; !ok {
 		return nil, fmt.Errorf("%w: %q on %q is not supported because the attribute is not in text_searchable_attributes",
