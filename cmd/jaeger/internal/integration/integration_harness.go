@@ -85,7 +85,9 @@ const numericAttributesEnvVar = "ES_NUMERIC_ATTRIBUTES"
 // structuredFilterGates names the RFC 0005 filter gate. It is beta and on by default, and it is
 // still passed explicitly so that the suites whose searches carry a filter, the filter battery and the
 // rewrite test, do not depend on the default and keep working against a binary that pins it off.
-var structuredFilterGates = []string{querysvc.StructuredFiltersGate.ID()}
+// The backward-compatibility scenarios run their new reader with it, together with the pagination
+// gate the span ordering battery pages under.
+var structuredFilterGates = []string{querysvc.StructuredFiltersGate.ID(), querysvc.PaginationGate.ID()}
 
 // binaryEnv builds the environment for the spawned jaeger binary. The child gets
 // an explicit environment rather than inheriting the test process's, so anything

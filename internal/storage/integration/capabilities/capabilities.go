@@ -273,9 +273,14 @@ func Elasticsearch() Capabilities {
 		// The suite configures the typed-attribute mapping (RFC 0015), so an attribute value is
 		// indexed as a number beside the keyword and ordering one is answered; orderingOutcome
 		// skips the battery's other two ordering outcomes.
+		// FindSpans pages and orders by the built-in fields (RFC 0016 M4, M11), not yet by an attribute;
+		// the trace searches do not page yet (RFC 0014 M3).
 		skipList: []string{
-			spanOrderingTest,
-			paginationTest,
+			// spanOrderingTest,
+			// paginationTest,
+			// spanAttributeOrderingTest,
+			traceIDPaginationTest,
+			summaryPaginationTest,
 			scopeAttributesTest,
 			linkAttributesTest,
 		},
@@ -303,10 +308,11 @@ func ElasticsearchSmokeTest() Capabilities {
 func OpenSearch() Capabilities {
 	return Capabilities{
 		getOperationsMissingSpanKind: true,
-		// Same mapping and same setting as Elasticsearch; see the note there.
+		// Same mapping and same setting, and same search support as Elasticsearch; see the note there.
 		skipList: []string{
-			spanOrderingTest,
-			paginationTest,
+			spanAttributeOrderingTest,
+			traceIDPaginationTest,
+			summaryPaginationTest,
 			scopeAttributesTest,
 			linkAttributesTest,
 		},
