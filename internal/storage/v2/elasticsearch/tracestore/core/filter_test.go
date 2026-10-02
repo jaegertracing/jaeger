@@ -82,6 +82,9 @@ func TestBuildFilterQuery(t *testing.T) {
 	tests := []struct {
 		name   string
 		filter *expression.Call
+		// numericAttributes configures the typed-attribute mapping for this case, which is what
+		// makes ordering an attribute servable (RFC 0015).
+		numericAttributes bool
 	}{
 		{
 			name:   "unqualified attribute searches the span and resource levels",
@@ -108,8 +111,84 @@ func TestBuildFilterQuery(t *testing.T) {
 			filter: p.Span().Name.Eq("/api/v3/traces"),
 		},
 		{
+			name:   "gt on the span name compares lexicographically",
+			filter: p.Span().Name.Gt("m"),
+		},
+		{
+			name:   "gte on the span name compares lexicographically",
+			filter: p.Span().Name.Gte("m"),
+		},
+		{
+			name:   "lt on the span name compares lexicographically",
+			filter: p.Span().Name.Lt("m"),
+		},
+		{
+			name:   "lte on the span name compares lexicographically",
+			filter: p.Span().Name.Lte("m"),
+		},
+		{
+			name:   "gt on the event name compares lexicographically",
+			filter: p.Event().Name.Gt("m"),
+		},
+		{
+			name:   "gte on the event name compares lexicographically",
+			filter: p.Event().Name.Gte("m"),
+		},
+		{
+			name:   "lt on the event name compares lexicographically",
+			filter: p.Event().Name.Lt("m"),
+		},
+		{
+			name:   "lte on the event name compares lexicographically",
+			filter: p.Event().Name.Lte("m"),
+		},
+		{
 			name:   "resource.service is the service name",
 			filter: p.Resource().Service.Eq("cart"),
+		},
+		{
+			name:   "span.traceID is the top-level trace identifier keyword",
+			filter: p.Span().TraceID.Eq("0af7651916cd43dd8448eb211c80319c"),
+		},
+		{
+			name:   "span.spanID is the top-level span identifier keyword",
+			filter: p.Span().SpanID.Eq("b7ad6b7169203331"),
+		},
+		{
+			name:   "a regex on the trace identifier matches the keyword",
+			filter: p.Span().TraceID.Matches("0af7.*"),
+		},
+		{
+			name:   "an uppercase trace identifier is lowered to the hex the write path stores",
+			filter: p.Span().TraceID.Eq("0AF7651916CD43DD8448EB211C80319C"),
+		},
+		{
+			name:   "an uppercase span identifier is lowered in every member of in",
+			filter: p.Span().SpanID.In("B7AD6B7169203331", "00F067AA0BA902B7"),
+		},
+		{
+			name:   "an uppercase pattern on the trace identifier is lowered",
+			filter: p.Span().TraceID.Matches("0AF7[A-F].*"),
+		},
+		{
+			name:   "in on the span identifier is a disjunction of term queries",
+			filter: p.Span().SpanID.In("b7ad6b7169203331", "00f067aa0ba902b7"),
+		},
+		{
+			name:   "not_in on the trace identifier requires the identifier to be present",
+			filter: p.Span().TraceID.NotIn("0af7651916cd43dd8448eb211c80319c"),
+		},
+		{
+			name:   "ne on the span identifier requires the identifier to be present",
+			filter: p.Span().SpanID.Ne("b7ad6b7169203331"),
+		},
+		{
+			name:   "exists on the trace identifier",
+			filter: p.Span().TraceID.Exists(),
+		},
+		{
+			name:   "exists on the span identifier",
+			filter: p.Span().SpanID.Exists(),
 		},
 		{
 			name:   "span.duration compares microseconds against a value carrying its unit",
@@ -130,6 +209,22 @@ func TestBuildFilterQuery(t *testing.T) {
 		{
 			name:   "eq on the duration",
 			filter: p.Span().Duration.Eq("3s"),
+		},
+		{
+			name:   "span.startTime compares epoch microseconds against a timestamp",
+			filter: p.Span().StartTime.Gt("2020-01-02T03:04:05Z"),
+		},
+		{
+			name:   "ne on the start time asks for spans that hold another start time",
+			filter: p.Span().StartTime.Ne("2020-01-02T03:04:05Z"),
+		},
+		{
+			name:   "exists on the start time",
+			filter: p.Span().StartTime.Exists(),
+		},
+		{
+			name:   "lte on the start time with a timestamp constant, which is what a finalized filter carries",
+			filter: p.Span().StartTime.Lte(&expression.TimestampValue{Value: time.Date(2020, 1, 2, 3, 4, 5, 0, time.UTC)}),
 		},
 		{
 			name:   "a string constant against the operation name, which is what finalizing produces",
@@ -293,11 +388,37 @@ func TestBuildFilterQuery(t *testing.T) {
 			name:   "an error tag at the resource level is an ordinary attribute",
 			filter: p.Resource().Attr("error").Eq("false"),
 		},
+		{
+			name:              "ordering an attribute ranges over its numeric sub-field",
+			filter:            p.Span().Attr("http.response.size").Gt("500"),
+			numericAttributes: true,
+		},
+		{
+			name:              "ordering an unqualified attribute ranges over every location it lives in",
+			filter:            p.Attr("retry.count").Gte("3"),
+			numericAttributes: true,
+		},
+		{
+			name:              "lt on an attribute",
+			filter:            p.Span().Attr("queue.depth").Lt("10"),
+			numericAttributes: true,
+		},
+		{
+			name:              "lte on an attribute",
+			filter:            p.Event().Attr("payload.bytes").Lte("2048"),
+			numericAttributes: true,
+		},
+		{
+			name:              "a fractional bound is compared as written",
+			filter:            p.Span().Attr("sampler.param").Gt("0.001"),
+			numericAttributes: true,
+		},
 	}
 	claimed := make(map[string]bool, len(tests))
 	withSpanReader(t, func(r *spanReaderTest) {
 		for _, test := range tests {
 			t.Run(test.name, func(t *testing.T) {
+				r.reader.numericAttributes = test.numericAttributes
 				query, err := r.reader.buildFilterQuery(test.filter)
 				require.NoError(t, err)
 				source, err := query.Source()
@@ -364,6 +485,9 @@ func TestBuildFilterQueryRefused(t *testing.T) {
 		filter  *expression.Call
 		wantErr error
 		wantMsg string
+		// numericAttributes configures the typed-attribute mapping, for a refusal that only
+		// arises once ordering an attribute is servable at all.
+		numericAttributes bool
 	}{
 		{
 			name:    "the scope level is folded into the span's own tags",
@@ -384,22 +508,34 @@ func TestBuildFilterQueryRefused(t *testing.T) {
 			wantMsg: `built-in field "kind" of the "span" level`,
 		},
 		{
+			name:    "the trace identifier is a keyword, so it carries no order",
+			filter:  p.Span().TraceID.Gt("0af7651916cd43dd8448eb211c80319c"),
+			wantErr: tracestore.ErrFilterUnsupported,
+			wantMsg: `indexes "traceID" as a keyword rather than a number`,
+		},
+		{
+			name:    "the span identifier is a keyword, so it carries no order",
+			filter:  p.Span().SpanID.Lte("b7ad6b7169203331"),
+			wantErr: tracestore.ErrFilterUnsupported,
+			wantMsg: `indexes "spanID" as a keyword rather than a number`,
+		},
+		{
 			name:    "exists on a built-in field this schema has no field for",
 			filter:  p.Link().TraceID.Exists(),
 			wantErr: tracestore.ErrFilterUnsupported,
 			wantMsg: `built-in field "traceID" of the "link" level`,
 		},
 		{
-			name:    "ordering an attribute, which is indexed as a keyword",
+			name:    "ordering an attribute without the typed index",
 			filter:  p.Span().Attr("http.response.size").Gt("500"),
 			wantErr: tracestore.ErrFilterUnsupported,
-			wantMsg: `indexes "http.response.size" as a keyword rather than a number`,
+			wantMsg: `indexes "http.response.size" as a keyword rather than a number, so it cannot evaluate "gt" on it; set indices.spans.numeric_attributes`,
 		},
 		{
-			name:    "ordering the operation name",
-			filter:  p.Span().Name.Lte("m"),
+			name:    "ordering the service name",
+			filter:  p.Resource().Service.Gt("m"),
 			wantErr: tracestore.ErrFilterUnsupported,
-			wantMsg: `indexes "name" as a keyword rather than a number`,
+			wantMsg: `indexes "service" as a keyword rather than a number`,
 		},
 		{
 			name:    "a pattern over the duration, which is a number",
@@ -428,6 +564,12 @@ func TestBuildFilterQueryRefused(t *testing.T) {
 		{
 			name:    "a pattern using a word shorthand",
 			filter:  p.Span().Name.Matches(`GET \w+`),
+			wantErr: tracestore.ErrFilterUnsupported,
+			wantMsg: `it reads "\\w" as the literal character`,
+		},
+		{
+			name:    "an event-name pattern using a word shorthand",
+			filter:  p.Event().Name.Matches(`exception\.\w+`),
 			wantErr: tracestore.ErrFilterUnsupported,
 			wantMsg: `it reads "\\w" as the literal character`,
 		},
@@ -462,10 +604,34 @@ func TestBuildFilterQueryRefused(t *testing.T) {
 			wantMsg: "a boolean constant declares a type",
 		},
 		{
-			name:    "a timestamp constant, which no field here holds",
-			filter:  p.Span().StartTime.Gt(&expression.TimestampValue{Value: time.Unix(0, 0).UTC()}),
+			name:    "a timestamp constant against a field holding text",
+			filter:  p.Span().Name.Eq(&expression.TimestampValue{Value: time.Unix(0, 0).UTC()}),
 			wantErr: tracestore.ErrFilterUnsupported,
 			wantMsg: "a timestamp constant declares a type",
+		},
+		{
+			name:    "a pattern over the start time, which is a number",
+			filter:  p.Span().StartTime.Matches("2020.*"),
+			wantErr: tracestore.ErrFilterUnsupported,
+			wantMsg: `operator "regex" on a timestamp`,
+		},
+		{
+			name:    "a timestamp constant carrying nothing, which a finalized filter never holds",
+			filter:  p.Span().StartTime.Gt((*expression.TimestampValue)(nil)),
+			wantErr: tracestore.ErrFilterUnsupported,
+			wantMsg: "a timestamp constant declares a type",
+		},
+		{
+			name:    "an untyped constant carrying nothing where the start time belongs",
+			filter:  p.Span().StartTime.Gt((*expression.AnyValue)(nil)),
+			wantErr: tracestore.ErrFilterUnsupported,
+			wantMsg: "that operand declares a type",
+		},
+		{
+			name:    "a boolean where the start time belongs",
+			filter:  p.Span().StartTime.Gt(&expression.BoolValue{Value: true}),
+			wantErr: tracestore.ErrFilterUnsupported,
+			wantMsg: "a boolean constant declares a type",
 		},
 		{
 			name:    "a boolean where the duration belongs",
@@ -506,6 +672,12 @@ func TestBuildFilterQueryRefused(t *testing.T) {
 				scalar("cart")),
 			wantErr: tracestore.ErrFilterUnsupported,
 			wantMsg: `evaluates "in" against a constant only`,
+		},
+		{
+			name:    "a start time value that is not a timestamp",
+			filter:  p.Span().StartTime.Gt("yesterday"),
+			wantErr: tracestore.ErrFilterInvalid,
+			wantMsg: `"yesterday" is not a timestamp such as`,
 		},
 		{
 			name:    "a duration value with no unit",
@@ -554,6 +726,17 @@ func TestBuildFilterQueryRefused(t *testing.T) {
 			wantMsg: `"and" combines predicates, not values`,
 		},
 		{
+			// A nil *expression.Call still asserts ok as a *expression.Call in a type switch, so
+			// this reaches a different line than the case above despite refusing for the same
+			// reason. ValidateFilter already refuses a filter built this way (TestCombineFlattens
+			// in the builder's own tests), but this reader has to refuse it independently too: its
+			// own doc comment says a remote-storage client can reach it without that check.
+			name:    "a combinator given a nil predicate where a predicate belongs",
+			filter:  call(expression.OpAnd, call(expression.OpEq, spanAttr("k"), scalar("v")), (*expression.Call)(nil)),
+			wantErr: tracestore.ErrFilterInvalid,
+			wantMsg: `"and" combines predicates, not values`,
+		},
+		{
 			name:    "exists given a constant, which reads nothing off the span",
 			filter:  call(expression.OpExists, scalar("k")),
 			wantErr: tracestore.ErrFilterInvalid,
@@ -578,10 +761,47 @@ func TestBuildFilterQueryRefused(t *testing.T) {
 			wantErr: tracestore.ErrFilterInvalid,
 			wantMsg: `"not_in" cannot take 1 arguments`,
 		},
+		{
+			name:              "ordering an attribute against a bound that is not a number",
+			filter:            p.Span().Attr("retry.count").Gt("soon"),
+			wantErr:           tracestore.ErrFilterInvalid,
+			wantMsg:           `"gt" on "retry.count" compares against a number, and "soon" is not one`,
+			numericAttributes: true,
+		},
+		{
+			name:              "ordering an attribute against a bound that is not a finite number",
+			filter:            p.Span().Attr("retry.count").Lt("NaN"),
+			wantErr:           tracestore.ErrFilterInvalid,
+			wantMsg:           `"lt" on "retry.count" compares against a number, and "NaN" is not one`,
+			numericAttributes: true,
+		},
+		{
+			name:              "ordering an attribute against an infinite bound",
+			filter:            p.Span().Attr("retry.count").Gte("-Inf"),
+			wantErr:           tracestore.ErrFilterInvalid,
+			wantMsg:           `"gte" on "retry.count" compares against a number, and "-Inf" is not one`,
+			numericAttributes: true,
+		},
+		{
+			name:              "ordering an attribute against a bound that declares the string type",
+			filter:            p.Span().Attr("retry.count").Gt(p.Text("10")),
+			wantErr:           tracestore.ErrFilterUnsupported,
+			wantMsg:           `orders "retry.count" only as a number, so it cannot evaluate "gt" against a string constant`,
+			numericAttributes: true,
+		},
+		{
+			// ne builds the presence test first, so this reaches the comparison behind it.
+			name:              "a negated comparison against a constant this schema cannot type",
+			filter:            p.Span().Attr("retry.count").Ne(&expression.IntValue{Value: 3}),
+			wantErr:           tracestore.ErrFilterUnsupported,
+			wantMsg:           "an integer constant declares a type",
+			numericAttributes: true,
+		},
 	}
 	withSpanReader(t, func(r *spanReaderTest) {
 		for _, test := range tests {
 			t.Run(test.name, func(t *testing.T) {
+				r.reader.numericAttributes = test.numericAttributes
 				query, err := r.reader.buildFilterQuery(test.filter)
 				assert.Nil(t, query)
 				require.ErrorIs(t, err, test.wantErr)
@@ -589,6 +809,17 @@ func TestBuildFilterQueryRefused(t *testing.T) {
 			})
 		}
 	})
+}
+
+func TestTextValueMatchRefusesUnsupportedOperator(t *testing.T) {
+	match, err := textValueMatch(
+		expression.OpNe,
+		reference{name: expression.SpanFieldName, level: expression.LevelSpan},
+		"checkout",
+	)
+	assert.Nil(t, match)
+	require.ErrorIs(t, err, tracestore.ErrFilterUnsupported)
+	assert.Contains(t, err.Error(), `cannot evaluate "ne"`)
 }
 
 // TestBuildFindTraceIDsQueryWithFilter checks how the filter joins the search: as one more

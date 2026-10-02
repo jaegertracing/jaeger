@@ -44,7 +44,10 @@ const (
 	nestedLogFieldsField   = "logs.fields"
 	tagKeyField            = "key"
 	tagValueField          = "value"
-	errorTag               = "error"
+	// numberSubField is the sub-field the typed-attribute mapping indexes a numeric
+	// attribute value in, beside the keyword the same value is indexed as (RFC 0015).
+	numberSubField = "number"
+	errorTag       = "error"
 
 	defaultSearchDepth = 100
 
@@ -103,6 +106,9 @@ var (
 // SpanReader can query for and load traces from ElasticSearch
 type SpanReader struct {
 	searcher esclient.Searcher
+	// numericAttributes says the span indices map attribute values as numbers beside the
+	// keyword, which is what an ordering predicate on an attribute ranges over (RFC 0015).
+	numericAttributes bool
 	// maxSpanAge is how far back (in terms of timestamped indices)
 	// we look when loading trace by ID (a query without a time range).
 	maxSpanAge time.Duration
@@ -114,6 +120,7 @@ type SpanReader struct {
 	spanRotation            indices.Rotation
 	serviceRotation         indices.Rotation
 	maxDocCount             int
+	spanSearchTieBreakByID  bool
 	logger                  *zap.Logger
 	tracer                  trace.Tracer
 	dotReplacer             dbmodel.DotReplacer
@@ -123,23 +130,30 @@ type SpanReader struct {
 type SpanReaderParams struct {
 	// Searcher is the esclient data-plane search client backing every read path:
 	// service/operation reads, trace-ID and trace lookups, and native summaries.
-	Searcher   esclient.Searcher
-	MaxSpanAge time.Duration
+	Searcher esclient.Searcher
+	// NumericAttributes is indices.spans.numeric_attributes: whether the span indices carry
+	// the numeric sub-field an ordering predicate on an attribute ranges over.
+	NumericAttributes bool
+	MaxSpanAge        time.Duration
 	// ServicesMaxLookback bounds GetServices/GetOperations.
 	ServicesMaxLookback time.Duration
 	MaxTraceDuration    time.Duration
 	MaxDocCount         int
-	TagDotReplacement   string
-	Logger              *zap.Logger
-	Tracer              trace.Tracer
-	SpanRotation        indices.Rotation
-	ServiceRotation     indices.Rotation
+	// SpanSearchTieBreakByID sorts a span search on _id after the ordering terms; see the
+	// configuration field of the same name.
+	SpanSearchTieBreakByID bool
+	TagDotReplacement      string
+	Logger                 *zap.Logger
+	Tracer                 trace.Tracer
+	SpanRotation           indices.Rotation
+	ServiceRotation        indices.Rotation
 }
 
 // NewSpanReader returns a new SpanReader with a metrics.
 func NewSpanReader(p SpanReaderParams) *SpanReader {
 	return &SpanReader{
 		searcher:                p.Searcher,
+		numericAttributes:       p.NumericAttributes,
 		maxSpanAge:              p.MaxSpanAge,
 		servicesMaxLookback:     p.ServicesMaxLookback,
 		maxTraceDuration:        p.MaxTraceDuration,
@@ -147,6 +161,7 @@ func NewSpanReader(p SpanReaderParams) *SpanReader {
 		spanRotation:            p.SpanRotation,
 		serviceRotation:         p.ServiceRotation,
 		maxDocCount:             p.MaxDocCount,
+		spanSearchTieBreakByID:  p.SpanSearchTieBreakByID,
 		logger:                  p.Logger,
 		tracer:                  p.Tracer,
 		dotReplacer:             dbmodel.NewDotReplacer(p.TagDotReplacement),
@@ -494,9 +509,9 @@ func (s *SpanReader) findTraceIDsFromQuery(ctx context.Context, traceQuery dbmod
 	return traceIDs, nil
 }
 
-func (s *SpanReader) buildTraceIDAggregation(numOfTraces int) esquery.Aggregation {
+func (s *SpanReader) buildTraceIDAggregation(numOfTraces uint32) esquery.Aggregation {
 	return esquery.NewTermsAggregation(traceIDField).
-		Size(numOfTraces).
+		Size(uint64(numOfTraces)).
 		Order(startTimeField, esquery.Descending).
 		SubAggregation(startTimeField, s.buildTraceIDSubAggregation())
 }

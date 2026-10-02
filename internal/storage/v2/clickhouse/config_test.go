@@ -65,8 +65,8 @@ func TestValidate(t *testing.T) {
 			wantErr: "default_search_depth must be a positive number",
 		},
 		{
-			name:    "negative max search depth",
-			mutate:  func(cfg *Configuration) { cfg.MaxSearchDepth = -1 },
+			name:    "zero max search depth",
+			mutate:  func(cfg *Configuration) { cfg.MaxSearchDepth = 0 },
 			wantErr: "max_search_depth must be a positive number",
 		},
 		{
@@ -102,8 +102,8 @@ func TestDefaultConfiguration(t *testing.T) {
 
 	require.Equal(t, defaultProtocol, cfg.Protocol)
 	require.Equal(t, defaultDatabase, cfg.Database)
-	require.Equal(t, defaultSearchDepth, cfg.DefaultSearchDepth)
-	require.Equal(t, defaultMaxSearchDepth, cfg.MaxSearchDepth)
+	require.EqualValues(t, defaultSearchDepth, cfg.DefaultSearchDepth)
+	require.EqualValues(t, defaultMaxSearchDepth, cfg.MaxSearchDepth)
 	require.Equal(t, defaultAttributeMetadataCacheTTL, cfg.AttributeMetadataCacheTTL)
 	require.Equal(t, defaultAttributeMetadataCacheMaxSize, cfg.AttributeMetadataCacheMaxSize)
 }

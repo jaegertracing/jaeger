@@ -199,11 +199,12 @@ func TestTraceReader_FindTraceIDs(t *testing.T) {
 		expected = append(expected, fromDBTraceId(t, dbTraceID))
 	}
 	coreReader.On("FindTraceIDs", mock.Anything, mock.Anything).Return(dbTraceIDs, nil)
-	for traceIds, err := range reader.FindTraceIDs(context.Background(), tracestore.TraceQueryParams{
+	for chunk, err := range reader.FindTraceIDs(context.Background(), tracestore.TraceQueryParams{
 		Attributes: pcommon.NewMap(),
 	}) {
 		require.NoError(t, err)
-		require.Equal(t, expected, traceIds)
+		require.Empty(t, chunk.NextPageToken)
+		require.Equal(t, expected, chunk.Results)
 	}
 }
 
@@ -253,9 +254,10 @@ func TestTraceReader_FindTraceIDs_Error(t *testing.T) {
 			}
 			coreReader.On("FindTraceIDs", mock.Anything, dbTraceQueryParams).Return(test.traceIdsFromCoreReader, test.errFromCoreReader)
 			reader := TraceReader{spanReader: coreReader}
-			for traceIds, err := range reader.FindTraceIDs(context.Background(), traceQueryParams) {
+			for chunk, err := range reader.FindTraceIDs(context.Background(), traceQueryParams) {
 				require.ErrorContains(t, err, test.expectedErr)
-				require.Nil(t, traceIds)
+				require.Empty(t, chunk.Results)
+				require.Empty(t, chunk.NextPageToken)
 			}
 		})
 	}
@@ -300,7 +302,7 @@ func Test_NewTraceReader(t *testing.T) {
 }
 
 func fromDBTraceId(t *testing.T, traceID dbmodel.TraceID) tracestore.FoundTraceID {
-	traceId, err := convertTraceIDFromDB(traceID)
+	traceId, err := traceID.ToOTEL()
 	require.NoError(t, err)
 	return tracestore.FoundTraceID{
 		TraceID: traceId,

@@ -64,7 +64,8 @@ Create a PR "Prepare release vX.Y.Z" against main or maintenance branch ([exampl
   * Update CHANGELOG.md to include:
     * A new section with the header `vX.Y.Z (YYYY-MM-DD)` (copy the template at the top)
     * A curated list of notable changes and links to PRs. Do not simply dump git log, select the changes that affect the users.
-      To obtain the list of all changes run `make changelog`.
+      To obtain the list of all changes run `make changelog`. The script fails when a PR in the release
+      has no `changelog:` label or has more than one; fix the labels on those PRs and rerun it.
     * The section can be split into sub-section if necessary, e.g. UI Changes, Backend Changes, Bug Fixes, etc.
   * Then upgrade the submodule versions and finally commit. For example:
       ```
@@ -119,9 +120,9 @@ Here are the release managers for future versions with the tentative release dat
 
 | Version | Release Manager | Tentative release date    |
 |---------|-----------------|---------------------------|
-| 2.21.0  | @jkowall        | 5 August 2026             |
-| 2.22.0  | @mahadzaryab1   | 2 September 2026          |
-| 2.23.0  | @albertteoh     | 7 October 2026            |
-| 2.24.0  | @pavolloffay    | 4 November 2026           |
-| 2.25.0  | @joe-elliott    | 2 December 2026           |
-| 2.26.0  | @yurishkuro     | 6 January 2027            |
+| 2.22.0  | @mahadzaryab1   | 7 October 2026            |
+| 2.23.0  | @albertteoh     | 4 November 2026           |
+| 2.24.0  | @pavolloffay    | 2 December 2026           |
+| 2.25.0  | @joe-elliott    | 6 January 2027            |
+| 2.26.0  | @yurishkuro     | 3 February 2027           |
+| 2.27.0  | @jkowall        | 3 March 2027              |

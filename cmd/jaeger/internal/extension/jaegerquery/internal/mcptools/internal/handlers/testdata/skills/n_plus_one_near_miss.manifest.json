@@ -1,0 +1,35 @@
+{
+  "fixture": "n-plus-one-near-miss",
+  "skill": "detect-n-plus-one",
+  "pattern_present": false,
+  "label_derived_from": "capture",
+  "source": {
+    "system": "HotROD",
+    "hotrod_image": "jaegertracing/example-hotrod@sha256:69be0c5805c52dd10213cbcf7c846383ae89a8319d5954eadc789cd34e3392e4",
+    "jaeger_image": "jaegertracing/jaeger@sha256:46a886260e04002d8f45e213fc39063fa11a50446048fdaa64786fc0840cb9f8",
+    "endpoint": "GET /dispatch?customer=123",
+    "captured": "2026-08-06"
+  },
+  "trace_id": "66371dd0eafc70e48e4234803fe94d41",
+  "expected": {
+    "parent_span_id": "f3b8606bd90ad122",
+    "service": "frontend",
+    "operation": "HTTP GET",
+    "siblings": 11,
+    "overlapping_pairs": 8,
+    "wall_ms": 1723.3,
+    "sum_of_durations_ms": 1815.7
+  },
+  "why_it_is_not_an_n_plus_one": "frontend/best_eta.go fans FindRoute out across drivers under a sync.WaitGroup: one call per driver is the work itself, not a per-row lookup, and the calls overlap. Their durations sum to more than the elapsed window, which is only possible if they ran concurrently.",
+  "grouping": {
+    "note": "The 11 siblings share the operation name HTTP GET but are not one group: one is a 1,309,571us customer lookup on :8081, the other ten are the route fan-out on :8083. Grouping by operation name alone, as step 2 says, lumps them together.",
+    "all_11": {"sum_ms": 1815.7, "window_ms": 1723.3, "verdict": "overlapped"},
+    "route_calls_only": {"sum_ms": 506.1, "window_ms": 188.8, "verdict": "overlapped"}
+  },
+  "notes": [
+    "This is the adversarial case: 11 identical sibling operations under one parent, which a count-only check flags as an N+1. Only the timing distinguishes it.",
+    "The answer is robust to how the group is drawn: both the all-11 and route-calls-only groupings give sum > window, so either reading reaches 'not an N+1'. Two models independently split off the customer lookup before measuring.",
+    "Concurrency is bounded — HotROD runs these through a small worker pool — so 8 of 10 adjacent pairs overlap rather than all of them. A rule requiring total overlap would also get this wrong.",
+    "Trimmed to the sibling group, its parent, and the ancestry to the trace root. 12 spans."
+  ]
+}

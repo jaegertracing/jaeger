@@ -8,6 +8,7 @@ import (
 	"io"
 	"strings"
 
+	"go.opentelemetry.io/collector/config/configoptional"
 	"go.opentelemetry.io/collector/extension/extensionauth"
 
 	"github.com/jaegertracing/jaeger-idl/model/v1"
@@ -84,17 +85,21 @@ func (f *Factory) CreateDependencyReader() (depstore.Reader, error) {
 }
 
 // ensureRequiredFields adds span.kind and span.status error to tags-as-fields configuration
-// regardless of user settings
+// regardless of user settings. It writes the result back to the spelling in use, so that
+// the deprecated top-level one stays set and NewFactoryBase still warns about it; every
+// reader goes through ResolvedTagsAsFields and sees the same value either way.
 func ensureRequiredFields(cfg escfg.Configuration) escfg.Configuration {
-	if cfg.Tags.AllAsFields {
-		return cfg
+	tags := cfg.ResolvedTagsAsFields()
+	if !tags.AllAsFields {
+		if tags.Include != "" && !strings.HasSuffix(tags.Include, ",") {
+			tags.Include += ","
+		}
+		tags.Include += model.SpanKindKey + "," + tagError
 	}
-
-	// Return new configuration with updated includes
-	if cfg.Tags.Include != "" && !strings.HasSuffix(cfg.Tags.Include, ",") {
-		cfg.Tags.Include += ","
+	if cfg.Tags.HasValue() {
+		cfg.Tags = configoptional.Some(tags)
+	} else {
+		cfg.Indices.Spans.Tags = tags
 	}
-	cfg.Tags.Include += model.SpanKindKey + "," + tagError
-
 	return cfg
 }

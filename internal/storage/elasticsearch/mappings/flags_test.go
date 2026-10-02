@@ -11,9 +11,14 @@ import (
 	"github.com/spf13/cobra"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.opentelemetry.io/collector/featuregate"
 
 	es "github.com/jaegertracing/jaeger/internal/storage/elasticsearch"
 )
+
+// testGate stands in for any gate that changes a rendered template, so the test does not
+// depend on the default of a real one.
+var testGate = featuregate.GlobalRegistry().MustRegister("jaeger.test.esmappingGeneratorFlag", featuregate.StageAlpha)
 
 func TestOptionsWithDefaultFlags(t *testing.T) {
 	o := Options{}
@@ -30,6 +35,7 @@ func TestOptionsWithDefaultFlags(t *testing.T) {
 	assert.Empty(t, o.IndexPrefix)
 	assert.Equal(t, "false", o.UseILM)
 	assert.Equal(t, "jaeger-ilm-policy", o.ILMPolicyName)
+	assert.False(t, o.SpanNumericAttributes)
 }
 
 func TestOptionsWithFlags(t *testing.T) {
@@ -45,14 +51,30 @@ func TestOptionsWithFlags(t *testing.T) {
 		"--index-prefix=test",
 		"--use-ilm=true",
 		"--ilm-policy-name=jaeger-test-policy",
+		"--span-numeric-attributes",
 	})
 	require.NoError(t, err)
+	assert.True(t, o.SpanNumericAttributes)
 	assert.Equal(t, "jaeger-span", o.Mapping)
 	assert.Equal(t, int64(5), o.Shards)
 	assert.Equal(t, int64(1), *o.Replicas)
 	assert.Equal(t, "test", o.IndexPrefix)
 	assert.Equal(t, "true", o.UseILM)
 	assert.Equal(t, "jaeger-test-policy", o.ILMPolicyName)
+}
+
+func TestFeatureGatesFlag(t *testing.T) {
+	o := Options{}
+	c := cobra.Command{}
+	o.AddFlags(&c)
+
+	require.NoError(t, c.ParseFlags([]string{"--feature-gates=" + testGate.ID()}))
+	assert.True(t, testGate.IsEnabled())
+
+	require.NoError(t, c.ParseFlags([]string{"--feature-gates=-" + testGate.ID()}))
+	assert.False(t, testGate.IsEnabled())
+
+	require.ErrorContains(t, c.ParseFlags([]string{"--feature-gates=jaeger.es.noSuchGate"}), "no such feature gate")
 }
 
 func TestResolveBackendVersion(t *testing.T) {

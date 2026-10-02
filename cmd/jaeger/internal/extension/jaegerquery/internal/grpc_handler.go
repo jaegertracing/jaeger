@@ -6,6 +6,7 @@ package app
 import (
 	"context"
 	"errors"
+	"fmt"
 	"time"
 
 	"go.uber.org/zap"
@@ -139,25 +140,26 @@ func (g *GRPCHandler) FindTraces(r *api_v2.FindTracesRequest, stream api_v2.Quer
 	if query == nil {
 		return status.Errorf(codes.InvalidArgument, "missing query")
 	}
+	if query.SearchDepth < 0 || query.SearchDepth > int32(tracestore.MaxSearchDepth) {
+		err := fmt.Errorf("%w: search depth must be in [0, %d]", tracestore.ErrInvalidQuery, tracestore.MaxSearchDepth)
+		return status.Error(tracestore.RefusalCode(err), err.Error())
+	}
 	queryParams := querysvc.TraceQueryParams{
-		TraceQueryParams: tracestore.TraceQueryParams{
-			ServiceName:   query.ServiceName,
-			OperationName: query.OperationName,
-			Attributes:    convertTagsToAttributes(query.Tags),
-			StartTimeMin:  query.StartTimeMin,
-			StartTimeMax:  query.StartTimeMax,
-			DurationMin:   query.DurationMin,
-			DurationMax:   query.DurationMax,
-			SearchDepth:   int(query.SearchDepth),
-		},
-		RawTraces: query.RawTraces,
+		ServiceName:   query.ServiceName,
+		OperationName: query.OperationName,
+		Attributes:    convertTagsToAttributes(query.Tags),
+		StartTimeMin:  query.StartTimeMin,
+		StartTimeMax:  query.StartTimeMax,
+		DurationMin:   query.DurationMin,
+		DurationMax:   query.DurationMax,
+		SearchDepth:   uint32(query.SearchDepth),
+		RawTraces:     query.RawTraces,
 	}
 	findTracesIter := g.queryService.FindTraces(stream.Context(), queryParams)
 	traces, err := v1adapter.V1TracesFromSeq2(findTracesIter)
 	if err != nil {
-		if errors.Is(err, querysvc.ErrServiceNameRequired) {
-			// A well-formed query this deployment's storage cannot serve, not a fault.
-			return status.Error(codes.InvalidArgument, err.Error())
+		if tracestore.IsRefusal(err) {
+			return status.Error(tracestore.RefusalCode(err), err.Error())
 		}
 		g.logger.Error("failed when searching for traces", zap.Error(err))
 		return status.Errorf(codes.Internal, "failed when searching for traces: %v", err)

@@ -5,7 +5,6 @@ package integration
 
 import (
 	"context"
-	"encoding/hex"
 	"errors"
 	"fmt"
 	"io"
@@ -13,7 +12,6 @@ import (
 	"math"
 	"strings"
 
-	"go.opentelemetry.io/collector/pdata/pcommon"
 	"go.opentelemetry.io/collector/pdata/ptrace"
 	"go.uber.org/zap"
 	"google.golang.org/grpc"
@@ -137,10 +135,16 @@ func toProtoQuery(query tracestore.TraceQueryParams) (*api_v3.TraceQueryParamete
 		StartTimeMax:  query.StartTimeMax,
 		DurationMin:   query.DurationMin,
 		DurationMax:   query.DurationMax,
-		SearchDepth:   int32(query.SearchDepth), //nolint:gosec // G115 - bounds checked above
+		SearchDepth:   int32(query.SearchDepth),
+	}
+	if query.Pagination != nil {
+		protoQuery.Pagination = &api_v3.Pagination{
+			PageSize:  query.Pagination.PageSize,
+			PageToken: string(query.Pagination.PageToken),
+		}
 	}
 	if query.Filter != nil {
-		filter, err := expressionproto.ToProto(query.Filter)
+		filter, err := expressionproto.CallToProto(query.Filter)
 		if err != nil {
 			return nil, fmt.Errorf("cannot encode the query filter: %w", err)
 		}
@@ -168,18 +172,68 @@ func (r *traceReader) FindTraces(
 func (*traceReader) FindTraceIDs(
 	_ context.Context,
 	_ tracestore.TraceQueryParams,
-) iter.Seq2[[]tracestore.FoundTraceID, error] {
+) iter.Seq2[tracestore.PageChunk[[]tracestore.FoundTraceID], error] {
 	panic("not implemented")
+}
+
+func (r *traceReader) FindSpans(ctx context.Context, query tracestore.SpanQueryParams) iter.Seq2[tracestore.PageChunk[ptrace.Traces], error] {
+	return func(yield func(tracestore.PageChunk[ptrace.Traces], error) bool) {
+		filter, err := expressionproto.CallToProto(query.Filter)
+		if err != nil {
+			yield(tracestore.PageChunk[ptrace.Traces]{}, err)
+			return
+		}
+		var terms []*api_v3.SpanSortOrder
+		for _, term := range query.OrderBy {
+			encoded, err := expressionproto.ToProto(term.Expression)
+			if err != nil {
+				yield(tracestore.PageChunk[ptrace.Traces]{}, err)
+				return
+			}
+			terms = append(terms, &api_v3.SpanSortOrder{Expression: encoded, Direction: string(term.Direction)})
+		}
+		stream, err := r.client.FindSpans(ctx, &api_v3.FindSpansRequest{Query: &api_v3.SpanQueryParameters{
+			StartTimeMin: query.StartTimeMin,
+			StartTimeMax: query.StartTimeMax,
+			Filter:       filter,
+			OrderBy:      terms,
+			Pagination: &api_v3.Pagination{
+				PageSize:  query.Pagination.PageSize,
+				PageToken: string(query.Pagination.PageToken),
+			},
+		}})
+		if err != nil {
+			yield(tracestore.PageChunk[ptrace.Traces]{}, err)
+			return
+		}
+		for {
+			response, err := stream.Recv()
+			if errors.Is(err, io.EOF) {
+				return
+			}
+			if err != nil {
+				yield(tracestore.PageChunk[ptrace.Traces]{}, err)
+				return
+			}
+			spans := ptrace.NewTraces()
+			if response.Spans != nil {
+				spans = response.Spans.ToTraces()
+			}
+			if !yield(tracestore.PageChunk[ptrace.Traces]{Results: spans, NextPageToken: tracestore.PageToken(response.NextPageToken)}, nil) {
+				return
+			}
+		}
+	}
 }
 
 func (r *traceReader) FindTraceSummaries(
 	ctx context.Context,
 	query tracestore.TraceQueryParams,
-) iter.Seq2[[]tracestore.TraceSummary, error] {
-	return func(yield func([]tracestore.TraceSummary, error) bool) {
+) iter.Seq2[tracestore.PageChunk[[]tracestore.TraceSummary], error] {
+	return func(yield func(tracestore.PageChunk[[]tracestore.TraceSummary], error) bool) {
 		protoQuery, err := toProtoQuery(query)
 		if err != nil {
-			yield(nil, err)
+			yield(tracestore.PageChunk[[]tracestore.TraceSummary]{}, err)
 			return
 		}
 		stream, err := r.client.FindTraceSummaries(ctx, &api_v3.FindTraceSummariesRequest{Query: protoQuery})
@@ -187,7 +241,7 @@ func (r *traceReader) FindTraceSummaries(
 			if status.Code(err) == codes.Unimplemented {
 				err = fmt.Errorf("remote server does not support FindTraceSummaries: %w", errors.ErrUnsupported)
 			}
-			yield(nil, err)
+			yield(tracestore.PageChunk[[]tracestore.TraceSummary]{}, err)
 			return
 		}
 		for {
@@ -196,14 +250,14 @@ func (r *traceReader) FindTraceSummaries(
 				return
 			}
 			if err != nil {
-				yield(nil, err)
+				yield(tracestore.PageChunk[[]tracestore.TraceSummary]{}, err)
 				return
 			}
 			batch := make([]tracestore.TraceSummary, len(resp.GetSummaries()))
 			for i, ps := range resp.GetSummaries() {
-				traceID, parseErr := traceIDFromHex(ps.GetTraceId())
+				traceID, parseErr := jptrace.TraceIDFromString(ps.GetTraceId())
 				if parseErr != nil {
-					yield(nil, parseErr)
+					yield(tracestore.PageChunk[[]tracestore.TraceSummary]{}, parseErr)
 					return
 				}
 				svcs := make([]tracestore.ServiceSummary, len(ps.GetServices()))
@@ -226,7 +280,11 @@ func (r *traceReader) FindTraceSummaries(
 					Services:          svcs,
 				}
 			}
-			if !yield(batch, nil) {
+			chunk := tracestore.PageChunk[[]tracestore.TraceSummary]{
+				Results:       batch,
+				NextPageToken: tracestore.PageToken(resp.GetNextPageToken()),
+			}
+			if !yield(chunk, nil) {
 				return
 			}
 		}
@@ -278,16 +336,4 @@ func unwrapNotFoundErr(err error) error {
 		}
 	}
 	return err
-}
-
-// traceIDFromHex parses a 32-character hex string into a pcommon.TraceID.
-func traceIDFromHex(s string) (pcommon.TraceID, error) {
-	b, err := hex.DecodeString(s)
-	if err != nil {
-		return pcommon.TraceID{}, fmt.Errorf("invalid trace ID %q: %w", s, err)
-	}
-	if len(b) != 16 {
-		return pcommon.TraceID{}, fmt.Errorf("trace ID must be 16 bytes, got %d", len(b))
-	}
-	return pcommon.TraceID(b), nil
 }
