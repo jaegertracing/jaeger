@@ -305,9 +305,29 @@ func rejecting(transient bool, extraIDs []string, positions ...int) func([]escli
 	}
 }
 
-func TestSpanWriter_RejectedSpansError(t *testing.T) {
+func TestSpanWriter_UnidentifiedSpansError(t *testing.T) {
 	spanA := dbmodel.Span{TraceID: "1", SpanID: "a", OperationName: "op", Process: dbmodel.Process{ServiceName: "svc"}}
 	spanB := dbmodel.Span{TraceID: "2", SpanID: "b", OperationName: "op", Process: dbmodel.Process{ServiceName: "svc"}}
+	// Items: [service doc for svc/op, span A, span B]; the service doc is deduped.
+
+	t.Run("rejected span with invalid IDs is unidentified", func(t *testing.T) {
+		fake := &fakeBatchWriter{errFor: rejecting(false, nil, 2)}
+		writer := newSpanWriterWith(fake)
+		err := writer.WriteSpans(context.Background(), []dbmodel.Span{spanA, spanB})
+
+		var rejected *tracestore.RejectedSpansError
+		require.ErrorAs(t, err, &rejected)
+		assert.Equal(t, 1, rejected.Unidentified)
+		assert.False(t, rejected.Transient)
+		require.Len(t, rejected.Spans, 0)
+		var bulkErr *esclient.BulkWriteError
+		assert.ErrorAs(t, err, &bulkErr, "the backend's error stays reachable for its message")
+	})
+}
+
+func TestSpanWriter_RejectedSpansError(t *testing.T) {
+	spanA := dbmodel.Span{TraceID: "00000000000000000000000000000001", SpanID: "000000000000000a", OperationName: "op", Process: dbmodel.Process{ServiceName: "svc"}}
+	spanB := dbmodel.Span{TraceID: "00000000000000000000000000000002", SpanID: "000000000000000b", OperationName: "op", Process: dbmodel.Process{ServiceName: "svc"}}
 	// Items: [service doc for svc/op, span A, span B]; the service doc is deduped.
 
 	t.Run("rejected span documents are attributed to their spans", func(t *testing.T) {
