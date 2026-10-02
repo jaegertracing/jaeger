@@ -724,6 +724,10 @@ func TestMaxSpanAgeSetErrorInArchiveMode(t *testing.T) {
 	t.Skip("Test for flag parsing behavior - no longer applicable with direct config initialization")
 }
 
+func TestSpanSearchTieBreakByIDDefault(t *testing.T) {
+	assert.True(t, DefaultConfig().SpanSearchTieBreakByID)
+}
+
 func TestMaxDocCount(t *testing.T) {
 	testCases := []struct {
 		name            string

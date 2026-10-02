@@ -116,15 +116,16 @@ func withSpanReader(t *testing.T, fn func(r *spanReaderTest)) {
 		logBuffer:   logBuffer,
 		traceBuffer: exp,
 		reader: NewSpanReader(SpanReaderParams{
-			Searcher:          searcher,
-			Logger:            zap.NewNop(),
-			Tracer:            tracer.Tracer("test"),
-			MaxSpanAge:        0,
-			MaxTraceDuration:  24 * time.Hour,
-			TagDotReplacement: "@",
-			MaxDocCount:       defaultMaxDocCount,
-			SpanRotation:      indices.NewPeriodicRotation(config.SpanIndexName, "2006-01-02", 24*time.Hour),
-			ServiceRotation:   indices.NewPeriodicRotation(config.ServiceIndexName, "2006-01-02", 24*time.Hour),
+			Searcher:               searcher,
+			Logger:                 zap.NewNop(),
+			Tracer:                 tracer.Tracer("test"),
+			MaxSpanAge:             0,
+			MaxTraceDuration:       24 * time.Hour,
+			TagDotReplacement:      "@",
+			MaxDocCount:            defaultMaxDocCount,
+			SpanSearchTieBreakByID: true,
+			SpanRotation:           indices.NewPeriodicRotation(config.SpanIndexName, "2006-01-02", 24*time.Hour),
+			ServiceRotation:        indices.NewPeriodicRotation(config.ServiceIndexName, "2006-01-02", 24*time.Hour),
 		}),
 	}
 	fn(r)
@@ -1358,16 +1359,24 @@ func TestTagsMap(t *testing.T) {
 // newSnapshotReader builds a SpanReader wired to searcher, with aliased (fixed)
 // index names so the recorded request paths are deterministic across runs.
 func newSnapshotReader(searcher esclient.Searcher) *SpanReader {
-	return NewSpanReader(SpanReaderParams{
-		Searcher:         searcher,
-		MaxSpanAge:       72 * time.Hour,
-		MaxTraceDuration: 24 * time.Hour,
-		MaxDocCount:      100,
-		Logger:           zap.NewNop(),
-		Tracer:           noop.NewTracerProvider().Tracer("test"),
-		SpanRotation:     indices.NewAliasedRotation("jaeger-span-write-000001", "jaeger-span-read"),
-		ServiceRotation:  indices.NewAliasedRotation("jaeger-service-write-000001", "jaeger-service-read"),
-	})
+	return newSnapshotReaderWithParams(searcher, func(*SpanReaderParams) {})
+}
+
+// newSnapshotReaderWithParams is newSnapshotReader with its parameters adjusted by override.
+func newSnapshotReaderWithParams(searcher esclient.Searcher, override func(*SpanReaderParams)) *SpanReader {
+	params := SpanReaderParams{
+		Searcher:               searcher,
+		MaxSpanAge:             72 * time.Hour,
+		MaxTraceDuration:       24 * time.Hour,
+		MaxDocCount:            100,
+		SpanSearchTieBreakByID: true,
+		Logger:                 zap.NewNop(),
+		Tracer:                 noop.NewTracerProvider().Tracer("test"),
+		SpanRotation:           indices.NewAliasedRotation("jaeger-span-write-000001", "jaeger-span-read"),
+		ServiceRotation:        indices.NewAliasedRotation("jaeger-service-write-000001", "jaeger-service-read"),
+	}
+	override(&params)
+	return NewSpanReader(params)
 }
 
 // TestReaderRequestSnapshots freezes the wire format of the trace-read path:

@@ -53,6 +53,16 @@
         "spanID": {
           "order": "asc"
         }
+      },
+      {
+        "_index": {
+          "order": "desc"
+        }
+      },
+      {
+        "_id": {
+          "order": "asc"
+        }
       }
     ]
   }
