@@ -19,6 +19,8 @@ run `make changelog` to generate content
 
 copy from UI changelog
 
+* Fix(ui): emit canonical 32-character trace IDs in API v1 UI JSON and normalize Jaeger anonymizer trace ID input
+
 </details>
 
 v2.20.0 (2026-07-19)

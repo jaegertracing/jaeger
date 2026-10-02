@@ -22,7 +22,7 @@ func TestModule_TraceSuccess(t *testing.T) {
 	config := Config{
 		CapturedFile: inputFile,
 		UIFile:       outputFile,
-		TraceID:      "2be38093ead7a083",
+		TraceID:      "00000000000000002be38093ead7a083",
 	}
 	err := Extract(config, zap.NewNop())
 	require.NoError(t, err)
@@ -34,6 +34,27 @@ func TestModule_TraceSuccess(t *testing.T) {
 		for j := range trace.Data[i].Spans {
 			assert.Equal(t, model.SpanKindKey, trace.Data[i].Spans[j].Tags[0].Key)
 		}
+	}
+}
+
+func TestModule_TraceIDNormalization(t *testing.T) {
+	legacyTraceID := "2be38093ead7a083"
+	canonicalTraceID := "00000000000000002be38093ead7a083"
+
+	for _, input := range []string{legacyTraceID, canonicalTraceID} {
+		t.Run(input, func(t *testing.T) {
+			outputFile := t.TempDir() + "/trace.json"
+			err := Extract(Config{CapturedFile: "fixtures/trace_success.json", UIFile: outputFile, TraceID: input}, zap.NewNop())
+			require.NoError(t, err)
+
+			var trace UITrace
+			loadJSON(t, outputFile, &trace)
+			require.Len(t, trace.Data, 1)
+			assert.Len(t, trace.Data[0].Spans, 2)
+			output, err := os.ReadFile(outputFile)
+			require.NoError(t, err)
+			assert.Contains(t, string(output), `"traceID":"`+canonicalTraceID+`"`)
+		})
 	}
 }
 

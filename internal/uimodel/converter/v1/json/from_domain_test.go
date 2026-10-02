@@ -68,6 +68,28 @@ func TestFromDomain(t *testing.T) {
 	}
 }
 
+func TestFromDomainFormatsTraceIDsCanonically(t *testing.T) {
+	traceID := model.TraceID{Low: 1}
+	trace := &model.Trace{
+		Spans: []*model.Span{
+			{
+				TraceID: traceID,
+				SpanID:  model.SpanID(2),
+				Process: &model.Process{ServiceName: "test-service"},
+				References: []model.SpanRef{
+					{TraceID: traceID, SpanID: model.SpanID(3)},
+				},
+			},
+		},
+	}
+
+	uiTrace := FromDomain(trace)
+	const expected = "00000000000000000000000000000001"
+	assert.Equal(t, uimodel.TraceID(expected), uiTrace.TraceID)
+	assert.Equal(t, uimodel.TraceID(expected), uiTrace.Spans[0].TraceID)
+	assert.Equal(t, uimodel.TraceID(expected), uiTrace.Spans[0].References[0].TraceID)
+}
+
 func TestFromDomainEmbedProcess(t *testing.T) {
 	for i := 1; i <= NumberOfFixtures; i++ {
 		domainStr, jsonStr := loadFixturesES(t, i)
