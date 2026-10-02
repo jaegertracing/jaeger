@@ -116,16 +116,17 @@ func withSpanReader(t *testing.T, fn func(r *spanReaderTest)) {
 		logBuffer:   logBuffer,
 		traceBuffer: exp,
 		reader: NewSpanReader(SpanReaderParams{
-			Searcher:               searcher,
-			Logger:                 zap.NewNop(),
-			Tracer:                 tracer.Tracer("test"),
-			MaxSpanAge:             0,
-			MaxTraceDuration:       24 * time.Hour,
-			TagDotReplacement:      "@",
-			MaxDocCount:            defaultMaxDocCount,
-			SpanSearchTieBreakByID: true,
-			SpanRotation:           indices.NewPeriodicRotation(config.SpanIndexName, "2006-01-02", 24*time.Hour),
-			ServiceRotation:        indices.NewPeriodicRotation(config.ServiceIndexName, "2006-01-02", 24*time.Hour),
+			Searcher:                         searcher,
+			Logger:                           zap.NewNop(),
+			Tracer:                           tracer.Tracer("test"),
+			MaxSpanAge:                       0,
+			MaxTraceDuration:                 24 * time.Hour,
+			TagDotReplacement:                "@",
+			MaxDocCount:                      defaultMaxDocCount,
+			SpanSearchTieBreakByID:           true,
+			SpanRotation:                     indices.NewPeriodicRotation(config.SpanIndexName, "2006-01-02", 24*time.Hour),
+			ServiceRotation:                  indices.NewPeriodicRotation(config.ServiceIndexName, "2006-01-02", 24*time.Hour),
+			IgnoreUnmappedScopeAndLinkFields: true,
 		}),
 	}
 	fn(r)
@@ -1188,6 +1189,48 @@ func TestSpanReader_buildTagQuery(t *testing.T) {
 	})
 }
 
+func TestSpanReader_buildTagQuery_IgnoreUnmappedScopeAndLinkFields(t *testing.T) {
+	tests := []struct {
+		name           string
+		ignoreUnmapped bool
+		expected       []string // nested paths rendered with ignore_unmapped
+	}{
+		{name: "disabled", ignoreUnmapped: false},
+		{
+			name:           "enabled",
+			ignoreUnmapped: true,
+			expected:       []string{nestedScopeTagsField, nestedReferencesTagsField},
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			reader := NewSpanReader(SpanReaderParams{
+				Logger:                           zap.NewNop(),
+				TagDotReplacement:                "@",
+				IgnoreUnmappedScopeAndLinkFields: test.ignoreUnmapped,
+			})
+			source, err := reader.buildTagQuery("bat.foo", "spook").Source()
+			require.NoError(t, err)
+
+			clauses := source.(map[string]any)["bool"].(map[string]any)["should"].([]any)
+			var paths, ignoring []string
+			for _, clause := range clauses {
+				nested, ok := clause.(map[string]any)["nested"].(map[string]any)
+				if !ok {
+					continue
+				}
+				path := nested["path"].(string)
+				paths = append(paths, path)
+				if ignore, _ := nested["ignore_unmapped"].(bool); ignore {
+					ignoring = append(ignoring, path)
+				}
+			}
+			assert.Equal(t, nestedTagFieldList, paths)
+			assert.Equal(t, test.expected, ignoring)
+		})
+	}
+}
+
 func TestSpanReader_buildTagRegexQuery(t *testing.T) {
 	inStr, err := os.ReadFile("fixtures/query_02.json")
 	require.NoError(t, err)
@@ -1371,15 +1414,16 @@ func newSnapshotReader(searcher esclient.Searcher) *SpanReader {
 // newSnapshotReaderWithParams is newSnapshotReader with its parameters adjusted by override.
 func newSnapshotReaderWithParams(searcher esclient.Searcher, override func(*SpanReaderParams)) *SpanReader {
 	params := SpanReaderParams{
-		Searcher:               searcher,
-		MaxSpanAge:             72 * time.Hour,
-		MaxTraceDuration:       24 * time.Hour,
-		MaxDocCount:            100,
-		SpanSearchTieBreakByID: true,
-		Logger:                 zap.NewNop(),
-		Tracer:                 noop.NewTracerProvider().Tracer("test"),
-		SpanRotation:           indices.NewAliasedRotation("jaeger-span-write-000001", "jaeger-span-read"),
-		ServiceRotation:        indices.NewAliasedRotation("jaeger-service-write-000001", "jaeger-service-read"),
+		Searcher:                         searcher,
+		MaxSpanAge:                       72 * time.Hour,
+		MaxTraceDuration:                 24 * time.Hour,
+		MaxDocCount:                      100,
+		SpanSearchTieBreakByID:           true,
+		Logger:                           zap.NewNop(),
+		Tracer:                           noop.NewTracerProvider().Tracer("test"),
+		SpanRotation:                     indices.NewAliasedRotation("jaeger-span-write-000001", "jaeger-span-read"),
+		ServiceRotation:                  indices.NewAliasedRotation("jaeger-service-write-000001", "jaeger-service-read"),
+		IgnoreUnmappedScopeAndLinkFields: true,
 	}
 	override(&params)
 	return NewSpanReader(params)

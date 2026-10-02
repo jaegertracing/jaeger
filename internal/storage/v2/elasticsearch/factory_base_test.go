@@ -879,6 +879,14 @@ func TestGetSpanReaderParams_MaxTraceDuration(t *testing.T) {
 	assert.Equal(t, 2*time.Hour, params.MaxTraceDuration)
 }
 
+func TestGetSpanReaderParams_IgnoreUnmappedScopeAndLinkFields(t *testing.T) {
+	for _, ignoreUnmapped := range []bool{false, true} {
+		cfg := escfg.Configuration{IgnoreUnmappedScopeAndLinkFields: ignoreUnmapped}
+		f := &FactoryBase{config: &cfg, logger: zap.NewNop(), tracer: otel.GetTracerProvider()}
+		assert.Equal(t, ignoreUnmapped, f.GetSpanReaderParams().IgnoreUnmappedScopeAndLinkFields)
+	}
+}
+
 // mockHTTPAuthenticator implements extensionauth.HTTPClient for testing
 type mockHTTPAuthenticator struct{}
 

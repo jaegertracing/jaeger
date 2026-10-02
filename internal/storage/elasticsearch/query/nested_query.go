@@ -20,8 +20,8 @@ func NewNestedQuery(path string, query Query) *NestedQuery {
 
 // IgnoreUnmapped controls what Elasticsearch does when path is not mapped in an
 // index the search touches. By default the search fails with an error; setting
-// it makes Elasticsearch ignore that error and return no documents from such an
-// index.
+// it makes Elasticsearch ignore that error, and the rest of the search runs
+// against that index as usual.
 func (q *NestedQuery) IgnoreUnmapped(ignoreUnmapped bool) *NestedQuery {
 	q.ignoreUnmapped = ignoreUnmapped
 	return q

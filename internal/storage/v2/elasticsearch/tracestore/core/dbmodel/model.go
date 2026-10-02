@@ -104,7 +104,7 @@ type Span struct {
 	StartTimeMillis uint64     `json:"startTimeMillis"`
 	Duration        uint64     `json:"duration"` // microseconds
 	Tags            []KeyValue `json:"tags"`
-	// Alternative representation of tags for better kibana support
+	// Alternative hoisted representation of tags for better indexing
 	Tag       map[string]any `json:"tag,omitempty"`
 	Logs      []Log          `json:"logs"`
 	Process   Process        `json:"process"`
