@@ -804,62 +804,59 @@ func TestTraceIDFromString(t *testing.T) {
 	tests := []struct {
 		name    string
 		input   string
-		wantHi  uint64
-		wantLo  uint64
+		want    pcommon.TraceID
 		wantErr bool
 	}{
 		{
-			name:   "hex 64-bit",
-			input:  "1",
-			wantLo: 1,
+			name:  "hex 64-bit",
+			input: "1",
+			want:  pcommon.TraceID{0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1},
 		},
 		{
-			name:   "hex 128-bit",
-			input:  "00000000000000010000000000000002",
-			wantHi: 1,
-			wantLo: 2,
+			name:  "hex 128-bit",
+			input: "00000000000000010000000000000002",
+			want:  pcommon.TraceID{0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 2},
 		},
 		{
-			name:   "base64 with padding (128-bit)",
-			input:  "AAAAAAAAAAEAAAAAAAAAAQ==",
-			wantHi: 1,
-			wantLo: 1,
+			name:  "base64 with padding (128-bit)",
+			input: "AAAAAAAAAAEAAAAAAAAAAQ==",
+			want:  pcommon.TraceID{0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 1},
 		},
 		{
-			name:   "base64 without padding (128-bit)",
-			input:  "AAAAAAAAAAEAAAAAAAAAAQ",
-			wantHi: 1,
-			wantLo: 1,
+			name:  "base64 without padding (128-bit)",
+			input: "AAAAAAAAAAEAAAAAAAAAAQ",
+			want:  pcommon.TraceID{0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 1},
 		},
 		{
-			name:   "base64 64-bit",
-			input:  "AAAAAAAAAAAAAAAAAAAAAQ==",
-			wantHi: 0,
-			wantLo: 1,
+			name:  "base64 64-bit",
+			input: "AAAAAAAAAAAAAAAAAAAAAQ==",
+			want:  pcommon.TraceID{0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1},
 		},
 		{
-			name:   "base64 with slash",
-			input:  "AAAAAAAAAP///////////w==",
-			wantHi: 0xFF,
-			wantLo: 0xFFFFFFFFFFFFFFFF,
+			name:  "base64 with slash",
+			input: "AAAAAAAAAP///////////w==",
+			want: pcommon.TraceID{
+				0, 0, 0, 0, 0, 0, 0, 0xFF,
+				0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF,
+			},
 		},
 		{
-			name:   "base64 with plus",
-			input:  "EjRWeJq83vD+3LqYdlQyEA==",
-			wantHi: 0x123456789ABCDEF0,
-			wantLo: 0xFEDCBA9876543210,
+			name:  "base64 with plus",
+			input: "EjRWeJq83vD+3LqYdlQyEA==",
+			want:  pcommon.TraceID{0x12, 0x34, 0x56, 0x78, 0x9A, 0xBC, 0xDE, 0xF0, 0xFE, 0xDC, 0xBA, 0x98, 0x76, 0x54, 0x32, 0x10},
 		},
 		{
-			name:   "url-safe base64 (dash instead of plus)",
-			input:  "EjRWeJq83vD-3LqYdlQyEA==",
-			wantHi: 0x123456789ABCDEF0,
-			wantLo: 0xFEDCBA9876543210,
+			name:  "url-safe base64 (dash instead of plus)",
+			input: "EjRWeJq83vD-3LqYdlQyEA==",
+			want:  pcommon.TraceID{0x12, 0x34, 0x56, 0x78, 0x9A, 0xBC, 0xDE, 0xF0, 0xFE, 0xDC, 0xBA, 0x98, 0x76, 0x54, 0x32, 0x10},
 		},
 		{
-			name:   "url-safe base64 (underscore instead of slash)",
-			input:  "AAAAAAAAAP___________w==",
-			wantHi: 0xFF,
-			wantLo: 0xFFFFFFFFFFFFFFFF,
+			name:  "url-safe base64 (underscore instead of slash)",
+			input: "AAAAAAAAAP___________w==",
+			want: pcommon.TraceID{
+				0, 0, 0, 0, 0, 0, 0, 0xFF,
+				0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF,
+			},
 		},
 		{
 			name:    "invalid string",
@@ -880,8 +877,7 @@ func TestTraceIDFromString(t *testing.T) {
 				return
 			}
 			require.NoError(t, err)
-			assert.Equal(t, tc.wantHi, tid.High)
-			assert.Equal(t, tc.wantLo, tid.Low)
+			assert.Equal(t, tc.want, tid)
 		})
 	}
 }
