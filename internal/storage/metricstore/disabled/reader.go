@@ -45,3 +45,8 @@ func (*MetricsReader) GetCallRates(context.Context, *metricstore.CallRateQueryPa
 func (*MetricsReader) GetErrorRates(context.Context, *metricstore.ErrorRateQueryParameters) (*metrics.MetricFamily, error) {
 	return nil, ErrDisabled
 }
+
+// GetAttributeValues gets the available values for a specific attribute.
+func (*MetricsReader) GetAttributeValues(context.Context, *metricstore.AttributeValuesQueryParameters) ([]string, error) {
+	return nil, ErrDisabled
+}
