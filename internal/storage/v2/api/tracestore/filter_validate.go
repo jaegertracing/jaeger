@@ -77,6 +77,17 @@ func validateCall(call *expression.Call, quantified []expression.Level, depth in
 			return fmt.Errorf("operator %q takes a list with at least one element", call.Op)
 		}
 		return validateValueType(list.Type)
+	case OpMatchPhrase:
+		if err := wantArgs(call, 2); err != nil {
+			return err
+		}
+		if err := validateSubject(call.Op, call.Args[0], quantified); err != nil {
+			return err
+		}
+		if _, ok := searchText(call.Args[1]); !ok {
+			return fmt.Errorf("operator %q takes a constant string as its search text, got %s", call.Op, termName(call.Args[1]))
+		}
+		return nil
 	case expression.OpRegex:
 		if err := wantArgs(call, 2); err != nil {
 			return err
@@ -464,9 +475,9 @@ func checkPortable(re *syntax.Regexp) error {
 	return nil
 }
 
-// patternText returns the text of a constant that can serve as a regular expression. An untyped
-// constant can: a pattern is written as a bare string and carries no wire hint.
-func patternText(e expression.Expression) (string, bool) {
+// searchText returns the text of a string constant. An untyped constant or an explicit string
+// declaration both qualify; any other expression does not.
+func searchText(e expression.Expression) (string, bool) {
 	if isMissing(e) {
 		return "", false
 	}
@@ -477,6 +488,11 @@ func patternText(e expression.Expression) (string, bool) {
 		return value.Value, true
 	}
 	return "", false
+}
+
+// patternText returns the text of a constant that can serve as a regular expression.
+func patternText(e expression.Expression) (string, bool) {
+	return searchText(e)
 }
 
 // isMissing reports whether a term holds nothing: either no term at all, or a nil pointer of one

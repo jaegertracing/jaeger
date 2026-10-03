@@ -44,10 +44,13 @@ const (
 	nestedLogFieldsField   = "logs.fields"
 	tagKeyField            = "key"
 	tagValueField          = "value"
-	// numberSubField is the sub-field the typed-attribute mapping indexes a numeric
-	// attribute value in, beside the keyword the same value is indexed as (RFC 0015).
+	// numberSubField and textSubField are the multi-field sub-fields the mapping
+	// indexes beside the keyword: number for typed numeric queries (RFC 0015),
+	// text for full-text search.
 	numberSubField = "number"
-	errorTag       = "error"
+	textSubField   = "text"
+
+	errorTag = "error"
 
 	defaultSearchDepth = 100
 
@@ -109,6 +112,9 @@ type SpanReader struct {
 	// numericAttributes says the span indices map attribute values as numbers beside the
 	// keyword, which is what an ordering predicate on an attribute ranges over (RFC 0015).
 	numericAttributes bool
+	// textSearchableAttributes is the set of attribute keys whose values carry a text-analyzed
+	// sub-field, which is what the match operator searches. A nil or empty map disables match.
+	textSearchableAttributes map[string]struct{}
 	// maxSpanAge is how far back (in terms of timestamped indices)
 	// we look when loading trace by ID (a query without a time range).
 	maxSpanAge time.Duration
@@ -131,10 +137,13 @@ type SpanReaderParams struct {
 	// Searcher is the esclient data-plane search client backing every read path:
 	// service/operation reads, trace-ID and trace lookups, and native summaries.
 	Searcher esclient.Searcher
-	// NumericAttributes is indices.spans.numeric_attributes: whether the span indices carry
-	// the numeric sub-field an ordering predicate on an attribute ranges over.
+	// NumericAttributes indicates whether the span indices carry the numeric
+	// sub-field an ordering predicate on an attribute ranges over.
 	NumericAttributes bool
-	MaxSpanAge        time.Duration
+	// TextSearchableAttributes defines the attribute keys whose values carry a
+	// text-analyzed sub-field for full-text search.
+	TextSearchableAttributes []string
+	MaxSpanAge               time.Duration
 	// ServicesMaxLookback bounds GetServices/GetOperations.
 	ServicesMaxLookback time.Duration
 	MaxTraceDuration    time.Duration
@@ -151,20 +160,25 @@ type SpanReaderParams struct {
 
 // NewSpanReader returns a new SpanReader with a metrics.
 func NewSpanReader(p SpanReaderParams) *SpanReader {
+	textSet := make(map[string]struct{}, len(p.TextSearchableAttributes))
+	for _, key := range p.TextSearchableAttributes {
+		textSet[key] = struct{}{}
+	}
 	return &SpanReader{
-		searcher:                p.Searcher,
-		numericAttributes:       p.NumericAttributes,
-		maxSpanAge:              p.MaxSpanAge,
-		servicesMaxLookback:     p.ServicesMaxLookback,
-		maxTraceDuration:        p.MaxTraceDuration,
-		serviceOperationStorage: NewServiceOperationStorage(p.Searcher, p.Logger, 0), // read-only; the decorator takes care of metrics
-		spanRotation:            p.SpanRotation,
-		serviceRotation:         p.ServiceRotation,
-		maxDocCount:             p.MaxDocCount,
-		spanSearchTieBreakByID:  p.SpanSearchTieBreakByID,
-		logger:                  p.Logger,
-		tracer:                  p.Tracer,
-		dotReplacer:             dbmodel.NewDotReplacer(p.TagDotReplacement),
+		searcher:                 p.Searcher,
+		numericAttributes:        p.NumericAttributes,
+		textSearchableAttributes: textSet,
+		maxSpanAge:               p.MaxSpanAge,
+		servicesMaxLookback:      p.ServicesMaxLookback,
+		maxTraceDuration:         p.MaxTraceDuration,
+		serviceOperationStorage:  NewServiceOperationStorage(p.Searcher, p.Logger, 0), // read-only; the decorator takes care of metrics
+		spanRotation:             p.SpanRotation,
+		serviceRotation:          p.ServiceRotation,
+		maxDocCount:              p.MaxDocCount,
+		spanSearchTieBreakByID:   p.SpanSearchTieBreakByID,
+		logger:                   p.Logger,
+		tracer:                   p.Tracer,
+		dotReplacer:              dbmodel.NewDotReplacer(p.TagDotReplacement),
 	}
 }
 
