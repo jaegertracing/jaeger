@@ -70,8 +70,8 @@ func (w *SpanWriter) WriteSpan(_ context.Context, span *model.Span) error {
 	entriesToStore = append(
 		entriesToStore,
 		trace,
-		w.createBadgerEntry(createIndexKey(serviceNameIndexKey, []byte(span.Process.ServiceName), startTime, span.TraceID), nil, expireTime),
-		w.createBadgerEntry(createIndexKey(operationNameIndexKey, []byte(span.Process.ServiceName+span.OperationName), startTime, span.TraceID), nil, expireTime),
+		w.createBadgerEntry(createIndexKey(serviceNameIndexKey, encodeIndexFields(span.Process.ServiceName), startTime, span.TraceID), nil, expireTime),
+		w.createBadgerEntry(createIndexKey(operationNameIndexKey, encodeIndexFields(span.Process.ServiceName, span.OperationName), startTime, span.TraceID), nil, expireTime),
 	)
 
 	// It doesn't matter if we overwrite Duration index keys, everything is read at Trace level in any case
@@ -82,16 +82,16 @@ func (w *SpanWriter) WriteSpan(_ context.Context, span *model.Span) error {
 	for _, kv := range span.Tags {
 		// Convert everything to string since queries are done that way also
 		// KEY: it<serviceName><tagsKey><traceId> VALUE: <tagsValue>
-		entriesToStore = append(entriesToStore, w.createBadgerEntry(createIndexKey(tagIndexKey, []byte(span.Process.ServiceName+kv.Key+kv.AsString()), startTime, span.TraceID), nil, expireTime))
+		entriesToStore = append(entriesToStore, w.createBadgerEntry(createIndexKey(tagIndexKey, encodeIndexFields(span.Process.ServiceName, kv.Key, kv.AsString()), startTime, span.TraceID), nil, expireTime))
 	}
 
 	for _, kv := range span.Process.Tags {
-		entriesToStore = append(entriesToStore, w.createBadgerEntry(createIndexKey(tagIndexKey, []byte(span.Process.ServiceName+kv.Key+kv.AsString()), startTime, span.TraceID), nil, expireTime))
+		entriesToStore = append(entriesToStore, w.createBadgerEntry(createIndexKey(tagIndexKey, encodeIndexFields(span.Process.ServiceName, kv.Key, kv.AsString()), startTime, span.TraceID), nil, expireTime))
 	}
 
 	for _, log := range span.Logs {
 		for _, kv := range log.Fields {
-			entriesToStore = append(entriesToStore, w.createBadgerEntry(createIndexKey(tagIndexKey, []byte(span.Process.ServiceName+kv.Key+kv.AsString()), startTime, span.TraceID), nil, expireTime))
+			entriesToStore = append(entriesToStore, w.createBadgerEntry(createIndexKey(tagIndexKey, encodeIndexFields(span.Process.ServiceName, kv.Key, kv.AsString()), startTime, span.TraceID), nil, expireTime))
 		}
 	}
 
