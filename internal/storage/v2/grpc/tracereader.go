@@ -186,11 +186,13 @@ func (tr *TraceReader) FindTraceIDs(
 		}
 		foundTraceIDs := make([]tracestore.FoundTraceID, len(resp.TraceIds))
 		for i, foundTraceID := range resp.TraceIds {
-			var sizedTraceID [16]byte
-			copy(sizedTraceID[:], foundTraceID.TraceId)
-
+			traceID, err := pcommonTraceIDFromBytes(foundTraceID.TraceId)
+			if err != nil {
+				yield(tracestore.PageChunk[[]tracestore.FoundTraceID]{}, fmt.Errorf("failed to parse FindTraceIDs response: %w", err))
+				return
+			}
 			foundTraceIDs[i] = tracestore.FoundTraceID{
-				TraceID: pcommon.TraceID(sizedTraceID),
+				TraceID: traceID,
 				Start:   foundTraceID.Start,
 				End:     foundTraceID.End,
 			}
