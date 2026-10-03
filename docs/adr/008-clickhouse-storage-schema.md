@@ -192,7 +192,7 @@ Two skip indexes are defined on the `spans` table:
 
 The `spans` and `trace_id_timestamps` tables accept an optional TTL on their time columns (`start_time` and `end`, respectively). When configured, ClickHouse automatically deletes rows past the TTL during background merges, so retention has no separate write path.
 
-The remaining tables (`services`, `operations`, `attribute_metadata`, `dependencies`) do not carry a TTL. They are small relative to `spans` — they accumulate at most one row per unique `(service)`, `(service, span_kind)`, or `(attribute_key, type, level)` triple — and `AggregatingMergeTree` deduplicates them in the background, so unbounded growth is not a practical concern in the alpha. If a service or attribute key permanently disappears from the workload, its row in these tables will linger; that is an accepted trade-off for the simpler write path. Adding TTL (or a periodic compaction step) to these tables is something we may revisit if long-running deployments accumulate enough stale entries to hurt query-builder performance.
+The remaining tables (`services`, `operations`, `attribute_metadata`, `dependencies`) do not carry a TTL. They are small relative to `spans` — they accumulate at most one row per unique `(service)`, `(service, span_kind, name)`, or `(attribute_key, type, level)` triple — and `AggregatingMergeTree` deduplicates them in the background, so unbounded growth is not a practical concern in the alpha. If a service or attribute key permanently disappears from the workload, its row in these tables will linger; that is an accepted trade-off for the simpler write path. Adding TTL (or a periodic compaction step) to these tables is something we may revisit if long-running deployments accumulate enough stale entries to hurt query-builder performance.
 
 ---
 
@@ -208,9 +208,51 @@ DDL: [`create_services_table.sql`](../../internal/storage/v2/clickhouse/sql/crea
 
 ### `operations`
 
-Used by `GetOperations`. The composite key `(service_name, span_kind)` covers both query patterns supported by the API: filtering by service alone, or by service + span kind.
+Used by `GetOperations`. The composite key `(service_name, span_kind, name)` deduplicates each unique operation while covering both query patterns supported by the API: filtering by service alone, or by service + span kind.
 
 DDL: [`create_operations_table.sql`](../../internal/storage/v2/clickhouse/sql/create_operations_table.sql), populated by [`create_operations_mv.sql`](../../internal/storage/v2/clickhouse/sql/create_operations_mv.sql).
+
+#### Upgrading Existing Schemas
+
+Schema creation uses `CREATE TABLE IF NOT EXISTS`, so changing the `operations` table definition only affects new ClickHouse deployments. Existing deployments that already created `operations` with the old `(service_name, span_kind)` sorting key must rebuild the derived table and materialized view manually.
+
+Because `operations` is derived entirely from `spans`, the safest upgrade path is to recreate it and backfill from retained span data:
+
+```sql
+DROP VIEW IF EXISTS operations_mv;
+DROP TABLE IF EXISTS operations;
+
+CREATE TABLE IF NOT EXISTS operations (
+    service_name String,
+    name String,
+    span_kind String
+) ENGINE = AggregatingMergeTree
+ORDER BY (service_name, span_kind, name);
+
+CREATE MATERIALIZED VIEW IF NOT EXISTS operations_mv TO operations AS
+SELECT
+    name,
+    kind AS span_kind,
+    service_name
+FROM spans
+GROUP BY
+    service_name,
+    name,
+    kind;
+
+INSERT INTO operations (service_name, name, span_kind)
+SELECT
+    service_name,
+    name,
+    kind AS span_kind
+FROM spans
+GROUP BY
+    service_name,
+    name,
+    kind;
+```
+
+If the source spans have already expired due to TTL, operation names that only existed in expired data cannot be recovered by the backfill.
 
 ### `trace_id_timestamps`
 
