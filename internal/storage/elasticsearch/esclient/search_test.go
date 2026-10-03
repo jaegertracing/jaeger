@@ -240,6 +240,57 @@ func TestSearchResponseErr(t *testing.T) {
 	var nullErr SearchResponse
 	require.NoError(t, json.Unmarshal([]byte(`{"error":null,"status":200}`), &nullErr))
 	require.NoError(t, nullErr.Err())
+
+	var allShards SearchResponse
+	require.NoError(t, json.Unmarshal([]byte(`{"_shards":{"total":2,"successful":2,"skipped":1,"failed":0}}`), &allShards))
+	require.NoError(t, allShards.Err(), "skipped shards are not failures")
+}
+
+// partialShardFailureBody is the HTTP 200 response Elasticsearch returns when one
+// of the searched indices cannot serve the query (here, a traceID mapped as text
+// rejects the terms aggregation) while another can: the healthy shard's results
+// plus the failed shard in _shards.failures.
+const partialShardFailureBody = `{"_shards":{"total":2,"successful":1,"skipped":0,"failed":1,"failures":[` +
+	`{"shard":0,"index":"jaeger-span-2026.09.26","reason":{"type":"illegal_argument_exception",` +
+	`"reason":"Fielddata is disabled on [traceID] in [jaeger-span-2026.09.26]."}}]},` +
+	`"hits":{"total":0,"hits":[]},"aggregations":{"traceIDs":{"buckets":[]}}}`
+
+// TestSearchFailsOnPartialShardFailure is a regression test for #9583: a search on
+// which some shards failed must return an error, not the partial results of the
+// shards that succeeded, which would make the documents on the failed shards look
+// absent.
+func TestSearchFailsOnPartialShardFailure(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Write([]byte(partialShardFailureBody))
+	}))
+	defer server.Close()
+
+	sc := SearchClient{Client: makeClient(t, server.URL, "", "", es.ElasticV7)}
+	resp, err := sc.Search(context.Background(), []string{"jaeger-span-2026.09.26", "jaeger-span-2026.09.27"}, SearchRequest{})
+	require.ErrorContains(t, err, "search failed on 1 of 2 shards")
+	require.ErrorContains(t, err, "Fielddata is disabled on [traceID] in [jaeger-span-2026.09.26]")
+	assert.Nil(t, resp)
+}
+
+func TestMultiSearchDecodesPartialShardFailure(t *testing.T) {
+	const respBody = `{"responses":[` + partialShardFailureBody + `,` +
+		`{"_shards":{"total":1,"successful":1,"failed":0},"hits":{"total":1,"hits":[{"_source":{"traceID":"abc"}}]}}]}`
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Write([]byte(respBody))
+	}))
+	defer server.Close()
+
+	sc := SearchClient{Client: makeClient(t, server.URL, "", "", es.ElasticV7)}
+	resps, err := sc.MultiSearch(context.Background(), []MultiSearchRequest{
+		{Indices: []string{"idx-a"}},
+		{Indices: []string{"idx-b"}},
+	})
+	require.NoError(t, err)
+	require.Len(t, resps, 2)
+
+	require.ErrorContains(t, resps[0].Err(), "search failed on 1 of 2 shards")
+	require.NoError(t, resps[1].Err())
+	assert.Equal(t, 1, resps[1].Hits.Total.Value)
 }
 
 func TestMultiSearchMultipleIndicesRenderAsArray(t *testing.T) {
