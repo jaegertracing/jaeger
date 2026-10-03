@@ -5,10 +5,13 @@
 package app
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
+	"maps"
 	"net/http"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/jaegertracing/jaeger/internal/jptrace"
@@ -22,6 +25,8 @@ const (
 	endTimeParam     = "end"
 	prettyPrintParam = "prettyPrint"
 	rawParam         = "raw"
+	tagParam         = "tag"
+	tagsParam        = "tags"
 )
 
 type (
@@ -132,6 +137,15 @@ func (p *queryParser) parseMetricsQueryParams(r *http.Request) (bqp metricstore.
 	if err != nil {
 		return bqp, err
 	}
+
+	tags, err := p.parseTags(query[tagParam], query[tagsParam])
+	if err != nil {
+		return bqp, err
+	}
+	if len(tags) > 0 {
+		bqp.Tags = tags
+	}
+
 	bqp.EndTime = &endTs
 	bqp.Lookback = &lookback
 	bqp.Step = &step
@@ -224,4 +238,23 @@ func mapSpanKindsToOpenTelemetry(spanKinds []string) ([]string, error) {
 
 func newParseError(err error, paramName string) error {
 	return fmt.Errorf("unable to parse param '%s': %w", paramName, err)
+}
+
+func (*queryParser) parseTags(simpleTags []string, jsonTags []string) (map[string]string, error) {
+	retMe := make(map[string]string)
+	for _, tag := range simpleTags {
+		keyAndValue := strings.Split(tag, ":")
+		if l := len(keyAndValue); l <= 1 {
+			return nil, fmt.Errorf("malformed 'tag' parameter, expecting key:value, received: %s", tag)
+		}
+		retMe[keyAndValue[0]] = strings.Join(keyAndValue[1:], ":")
+	}
+	for _, tags := range jsonTags {
+		var fromJSON map[string]string
+		if err := json.Unmarshal([]byte(tags), &fromJSON); err != nil {
+			return nil, fmt.Errorf("malformed 'tags' parameter, cannot unmarshal JSON: %w", err)
+		}
+		maps.Copy(retMe, fromJSON)
+	}
+	return retMe, nil
 }
