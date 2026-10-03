@@ -136,22 +136,50 @@ func (r *Reader) buildFindTraceIDsQuery(
 	inner.WriteString(sql.SearchTraceIDsBase)
 	args := []any{}
 
-	if query.ServiceName != "" {
-		appendAnd(&inner, "s.service_name = ?")
-		args = append(args, query.ServiceName)
+	if query.Filter != nil {
+		// A query carrying a filter reaches here only once SearchCapabilities.Filter is
+		// declared (querysvc.queryToReaderCapabilities folds it to the legacy fields
+		// otherwise), so the legacy scalar fields below are mutually exclusive with it
+		// rather than combined.
+		// Warm the attribute-metadata cache for every untyped attribute predicate in the
+		// tree in one round trip, so the lowering walk below pays for at most one query
+		// rather than one per untyped predicate on a cold cache (buildUntypedAttributeEq
+		// looks each key up again, but a pre-warmed key is a cache hit there).
+		untypedKeys := pcommon.NewMap()
+		collectUntypedAttributeKeys(query.Filter, untypedKeys)
+		if untypedKeys.Len() > 0 {
+			if _, err := r.getAttributeMetadata(ctx, untypedKeys); err != nil {
+				return "", nil, fmt.Errorf("failed to get attribute metadata: %w", err)
+			}
+		}
+
+		appendAnd(&inner, "(")
+		var err error
+		args, err = r.buildFilterCondition(ctx, &inner, 2, args, query.Filter)
+		if err != nil {
+			return "", nil, err
+		}
+		appendNewlineAndIndent(&inner, 1)
+		inner.WriteString(")")
+	} else {
+		if query.ServiceName != "" {
+			appendAnd(&inner, "s.service_name = ?")
+			args = append(args, query.ServiceName)
+		}
+		if query.OperationName != "" {
+			appendAnd(&inner, "s.name = ?")
+			args = append(args, query.OperationName)
+		}
+		if query.DurationMin > 0 {
+			appendAnd(&inner, "s.duration >= ?")
+			args = append(args, query.DurationMin.Nanoseconds())
+		}
+		if query.DurationMax > 0 {
+			appendAnd(&inner, "s.duration <= ?")
+			args = append(args, query.DurationMax.Nanoseconds())
+		}
 	}
-	if query.OperationName != "" {
-		appendAnd(&inner, "s.name = ?")
-		args = append(args, query.OperationName)
-	}
-	if query.DurationMin > 0 {
-		appendAnd(&inner, "s.duration >= ?")
-		args = append(args, query.DurationMin.Nanoseconds())
-	}
-	if query.DurationMax > 0 {
-		appendAnd(&inner, "s.duration <= ?")
-		args = append(args, query.DurationMax.Nanoseconds())
-	}
+
 	if !query.StartTimeMin.IsZero() {
 		appendAnd(&inner, "s.start_time >= ?")
 		args = append(args, query.StartTimeMin)
@@ -161,14 +189,16 @@ func (r *Reader) buildFindTraceIDsQuery(
 		args = append(args, query.StartTimeMax)
 	}
 
-	attributeMetadata, err := r.getAttributeMetadata(ctx, query.Attributes)
-	if err != nil {
-		return "", nil, fmt.Errorf("failed to get attribute metadata: %w", err)
-	}
+	if query.Filter == nil {
+		attributeMetadata, err := r.getAttributeMetadata(ctx, query.Attributes)
+		if err != nil {
+			return "", nil, fmt.Errorf("failed to get attribute metadata: %w", err)
+		}
 
-	args, err = buildAttributeConditions(&inner, args, query.Attributes, attributeMetadata)
-	if err != nil {
-		return "", nil, err
+		args, err = buildAttributeConditions(&inner, args, query.Attributes, attributeMetadata)
+		if err != nil {
+			return "", nil, err
+		}
 	}
 
 	inner.WriteString("\nLIMIT ?")
