@@ -7,6 +7,9 @@ import (
 	"context"
 	"errors"
 	"iter"
+	"math"
+	"slices"
+	"strconv"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -67,8 +70,151 @@ func createCriticalPathTestTrace() ptrace.Traces {
 
 func TestNewGetCriticalPathHandler(t *testing.T) {
 	// We can pass nil because we only check if it returns a handler function
-	handler := NewGetCriticalPathHandler(nil)
+	handler := NewGetCriticalPathHandler(nil, 20)
 	assert.NotNil(t, handler)
+}
+
+// buildNestedChainTrace returns a strictly nested chain of n+1 spans: span i
+// covers [i ms, (2n+2-i) ms] and is the parent of span i+1, so every child is
+// fully inside its parent. The critical path walk then produces a section on
+// both sides of each child plus the innermost span, more than 2n sections in
+// total, without relying on the sibling-walk behavior of the algorithm.
+func buildNestedChainTrace(n int) ptrace.Traces {
+	traces := ptrace.NewTraces()
+	rs := traces.ResourceSpans().AppendEmpty()
+	rs.Resource().Attributes().PutStr("service.name", "svc")
+	ss := rs.ScopeSpans().AppendEmpty()
+
+	span := ss.Spans().AppendEmpty()
+	span.SetTraceID(pcommon.TraceID([16]byte{1}))
+	span.SetSpanID(pcommon.SpanID([8]byte{0xFF}))
+	span.SetName("root")
+	const base = 1_000_000 // 1ms; a zero start trips buildOutput's traceStartTime==0 guard
+	span.SetStartTimestamp(pcommon.Timestamp(base))
+	span.SetEndTimestamp(pcommon.Timestamp(base + uint64(2*n+2)*1_000_000))
+
+	parentID := span.SpanID()
+	for i := 1; i <= n; i++ {
+		child := ss.Spans().AppendEmpty()
+		child.SetTraceID(span.TraceID())
+		child.SetSpanID(pcommon.SpanID([8]byte{byte(i), 2}))
+		child.SetParentSpanID(parentID)
+		child.SetName("child")
+		child.SetStartTimestamp(pcommon.Timestamp(base + uint64(i)*1_000_000))
+		child.SetEndTimestamp(pcommon.Timestamp(base + uint64(2*n+2-i)*1_000_000))
+		parentID = child.SpanID()
+	}
+	return traces
+}
+
+func TestGetCriticalPathHandler_SegmentCap_KeepsLargestSelfTime(t *testing.T) {
+	const spans, limit = 30, 5
+	mockQS := &mockGetCriticalPathQueryService{
+		traces: []ptrace.Traces{buildNestedChainTrace(spans)},
+	}
+	handler := &getCriticalPathHandler{queryService: mockQS, maxSegments: limit}
+
+	_, output, err := handler.handle(context.Background(), nil, types.GetCriticalPathInput{
+		TraceID: "00000000000000000000000000000001",
+	})
+	require.NoError(t, err)
+
+	require.Len(t, output.Segments, limit)
+	assert.Greater(t, output.TotalSegmentCount, limit,
+		"total must reflect the uncapped path so truncation is detectable")
+
+	// Survivors are the largest-self-time segments: every returned segment must
+	// have self time >= the largest segment that was dropped.
+	uncapped := &getCriticalPathHandler{queryService: mockQS, maxSegments: 0}
+	_, full, err := uncapped.handle(context.Background(), nil, types.GetCriticalPathInput{
+		TraceID: "00000000000000000000000000000001",
+	})
+	require.NoError(t, err)
+	require.Len(t, full.Segments, full.TotalSegmentCount)
+	assert.Equal(t, full.TotalSegmentCount, output.TotalSegmentCount)
+	assert.Equal(t, full.CriticalPathDurationUs, output.CriticalPathDurationUs,
+		"critical path duration must be computed over the full path")
+
+	kept := make(map[string]bool, limit)
+	minKept := uint64(math.MaxUint64)
+	for _, s := range output.Segments {
+		kept[s.SpanID+"/"+strconv.FormatUint(s.StartOffsetUs, 10)] = true
+		if s.SelfTimeUs < minKept {
+			minKept = s.SelfTimeUs
+		}
+	}
+	for _, s := range full.Segments {
+		if !kept[s.SpanID+"/"+strconv.FormatUint(s.StartOffsetUs, 10)] {
+			assert.LessOrEqual(t, s.SelfTimeUs, minKept,
+				"a dropped segment must not out-rank a kept one")
+		}
+	}
+
+	// Returned segments keep the path's native order: trace end first,
+	// matching the uncapped response (see section order in criticalpath tests).
+	for i := 1; i < len(output.Segments); i++ {
+		assert.GreaterOrEqual(t, output.Segments[i-1].StartOffsetUs, output.Segments[i].StartOffsetUs)
+	}
+	for i := 1; i < len(full.Segments); i++ {
+		assert.GreaterOrEqual(t, full.Segments[i-1].StartOffsetUs, full.Segments[i].StartOffsetUs,
+			"uncapped output must have the same ordering the cap preserves")
+	}
+}
+
+func TestCapSegments_DeterministicTiebreaks(t *testing.T) {
+	// Equal self times force the start-offset tiebreak, and equal start offsets
+	// force the span-ID tiebreak, in both sort passes.
+	segs := []types.CriticalPathSegment{
+		{SpanID: "dd", SelfTimeUs: 10, StartOffsetUs: 40},
+		{SpanID: "bb", SelfTimeUs: 10, StartOffsetUs: 20},
+		{SpanID: "aa", SelfTimeUs: 10, StartOffsetUs: 20},
+		{SpanID: "cc", SelfTimeUs: 5, StartOffsetUs: 30},
+	}
+	h := &getCriticalPathHandler{maxSegments: 3}
+
+	got := h.capSegments(slices.Clone(segs))
+
+	// The three self-time-10 segments survive; cc (5us) is dropped. Survivors
+	// keep the native trace-end-first order, with the aa/bb tie at offset 20
+	// broken by span ID.
+	want := []types.CriticalPathSegment{
+		{SpanID: "dd", SelfTimeUs: 10, StartOffsetUs: 40},
+		{SpanID: "aa", SelfTimeUs: 10, StartOffsetUs: 20},
+		{SpanID: "bb", SelfTimeUs: 10, StartOffsetUs: 20},
+	}
+	assert.Equal(t, want, got)
+
+	// Same input in a different order produces the identical result.
+	shuffled := []types.CriticalPathSegment{segs[3], segs[0], segs[2], segs[1]}
+	assert.Equal(t, want, h.capSegments(shuffled))
+}
+
+func TestGetCriticalPathHandler_SegmentCap_ZeroMeansUnlimited(t *testing.T) {
+	mockQS := &mockGetCriticalPathQueryService{
+		traces: []ptrace.Traces{buildNestedChainTrace(30)},
+	}
+	handler := &getCriticalPathHandler{queryService: mockQS, maxSegments: 0}
+
+	_, output, err := handler.handle(context.Background(), nil, types.GetCriticalPathInput{
+		TraceID: "00000000000000000000000000000001",
+	})
+	require.NoError(t, err)
+	assert.Len(t, output.Segments, output.TotalSegmentCount)
+	assert.Greater(t, output.TotalSegmentCount, 20)
+}
+
+func TestGetCriticalPathHandler_SegmentCap_UnderLimitUntouched(t *testing.T) {
+	mockQS := &mockGetCriticalPathQueryService{
+		traces: []ptrace.Traces{createCriticalPathTestTrace()},
+	}
+	handler := &getCriticalPathHandler{queryService: mockQS, maxSegments: 20}
+
+	_, output, err := handler.handle(context.Background(), nil, types.GetCriticalPathInput{
+		TraceID: "00000000000000000000000000000001",
+	})
+	require.NoError(t, err)
+	assert.Len(t, output.Segments, output.TotalSegmentCount)
+	assert.LessOrEqual(t, output.TotalSegmentCount, 20)
 }
 
 func TestGetCriticalPathHandler_Handle_Success(t *testing.T) {
