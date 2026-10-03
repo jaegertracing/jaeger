@@ -20,8 +20,7 @@ type Action struct {
 }
 
 // Do the init action
-func (c Action) Do() error {
-	ctx := context.TODO()
+func (c Action) Do(ctx context.Context) error {
 	if c.Config.UseILM {
 		// Every supported backend provides lifecycle management (ILM on
 		// Elasticsearch, ISM on OpenSearch), so no capability check is needed.
