@@ -89,3 +89,14 @@ func TestNewESClientForwardsAuth(t *testing.T) {
 		})
 	}
 }
+
+func TestNewESClientValidationError(t *testing.T) {
+	cfg := &Config{
+		Username:      "user",
+		Password:      "pass",
+		TokenFilePath: "/tmp/dummy-token",
+	}
+	_, err := NewESClient(context.Background(), "http://localhost:9200", cfg, zap.NewNop())
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "at most one authentication method")
+}
