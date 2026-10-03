@@ -214,7 +214,7 @@ DDL: [`create_operations_table.sql`](../../internal/storage/v2/clickhouse/sql/cr
 
 ### `trace_id_timestamps`
 
-Stores `min(start_time)` and `max(start_time)` per `trace_id`, keyed on `trace_id`.
+Stores `min(start_time)` and `max(start_time + duration)` per `trace_id`, keyed on `trace_id`.
 
 DDL: [`create_trace_id_timestamps_table.sql`](../../internal/storage/v2/clickhouse/sql/create_trace_id_timestamps_table.sql), populated by [`create_trace_id_timestamps_mv.sql`](../../internal/storage/v2/clickhouse/sql/create_trace_id_timestamps_mv.sql).
 
