@@ -667,6 +667,9 @@ PR-sized milestones with exit bars. Everything here sits behind RFC 0005 M1 and 
 
 **M7 — MCP.** A `find_spans` tool, and `get_span_details` rewired onto an identity filter where the backend declares support. *Exit:* an agent retrieves spans across traces in one call; `get_span_details` stops fetching whole traces on a declaring backend and is unchanged elsewhere.
 
+- ✅ `find_spans`, translating flat service/name/attribute/duration/error parameters into an RFC 0005 filter rather than exposing the AST to the model directly. Delivered in [#9643](https://github.com/jaegertracing/jaeger/pull/9643).
+- `get_span_details` rewired onto an identity filter. In progress: [#9623](https://github.com/jaegertracing/jaeger/pull/9623).
+
 **Caller-selected ordering has its own milestones.** M0–M7 retain their default-order exit criteria and do not depend on M8–M12. These milestones extend only `FindSpans`; trace-search ordering is out of scope.
 
 - ✅ **M8 — Ordering IDL (jaeger-idl).** Add `SpanSortOrder` and `SpanQueryParameters.order_by = 5` to api_v3 and storage.v2, and `SearchCapabilities.span_sorting = 6` to storage.v2 (§6.2, §6.5). Add the documented string-enumeration schema and generate the Go and OpenAPI outputs. *Exit:* both protocols round-trip ordered terms and directions; old requests remain unchanged and an absent capability decodes as false. No backend support is implied by generated types. The contract from [jaeger-idl #229](https://github.com/jaegertracing/jaeger-idl/pull/229) is available in v0.13.2, adopted in [#9668](https://github.com/jaegertracing/jaeger/pull/9668).
