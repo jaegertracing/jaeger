@@ -79,6 +79,19 @@ func (c *LRU) CompareAndSwap(key string, oldValue, newValue any) (itemInCache an
 	defer c.mux.Unlock()
 
 	elt := c.byKey[key]
+	if elt != nil {
+		entry := elt.Value.(*cacheEntry)
+		if !entry.expiration.IsZero() && c.TimeNow().After(entry.expiration) {
+			// Entry has expired; evict it and treat the key as absent, same as Get does.
+			if c.onEvict != nil {
+				c.onEvict(entry.key, entry.value)
+			}
+			c.byAccess.Remove(elt)
+			delete(c.byKey, entry.key)
+			elt = nil
+		}
+	}
+
 	// If entry not found, old value should be nil
 	if elt == nil && oldValue != nil {
 		return nil, false
