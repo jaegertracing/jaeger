@@ -117,6 +117,27 @@ func TestLRUWithTTL(t *testing.T) {
 	assert.Equal(t, 0, cache.Size())
 }
 
+func TestCompareAndSwapExpired(t *testing.T) {
+	clk := &simulatedClock{}
+	cache := NewLRUWithOptions(5, &Options{
+		TTL:     time.Millisecond * 100,
+		TimeNow: clk.Now,
+	})
+	cache.Put("A", "Foo")
+	clk.Elapse(time.Millisecond * 200)
+
+	// A is expired but was never Get, so nothing has evicted it yet. CompareAndSwap
+	// has to notice that itself rather than compare against the stale value.
+	item, ok := cache.CompareAndSwap("A", "Foo", "Bar")
+	assert.False(t, ok)
+	assert.Nil(t, item)
+
+	item, ok = cache.CompareAndSwap("A", nil, "Bar")
+	assert.True(t, ok)
+	assert.Equal(t, "Bar", item)
+	assert.Equal(t, "Bar", cache.Get("A"))
+}
+
 func TestLRUClear(t *testing.T) {
 	var evicted []string
 	cache := NewLRUWithOptions(5, &Options{
