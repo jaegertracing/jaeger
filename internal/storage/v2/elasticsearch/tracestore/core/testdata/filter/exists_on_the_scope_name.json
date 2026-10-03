@@ -1,0 +1,21 @@
+{
+  "bool": {
+    "should": [
+      {
+        "exists": {
+          "field": "tag.otel@scope@name"
+        }
+      },
+      {
+        "nested": {
+          "path": "tags",
+          "query": {
+            "term": {
+              "tags.key": "otel.scope.name"
+            }
+          }
+        }
+      }
+    ]
+  }
+}
