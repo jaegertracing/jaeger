@@ -46,10 +46,17 @@ func (*TraceReader) SearchCapabilities(context.Context) (tracestore.SearchCapabi
 func (r *TraceReader) GetTraces(ctx context.Context, params ...tracestore.GetTraceParams) iter.Seq2[[]ptrace.Traces, error] {
 	return func(yield func([]ptrace.Traces, error) bool) {
 		dbTraceIds := make([]dbmodel.TraceID, 0, len(params))
+		// Every caller today requests one trace ID per call, so ReadAlias — like
+		// tracestore.GetTraceParams' other per-element hints — is effectively
+		// call-scoped in practice; the last non-empty value wins if that ever changes.
+		var readAlias string
 		for _, id := range params {
 			dbTraceIds = append(dbTraceIds, dbmodel.TraceID(id.TraceID.String()))
+			if id.ReadAlias != "" {
+				readAlias = id.ReadAlias
+			}
 		}
-		dbTraces, err := r.spanReader.GetTraces(ctx, dbTraceIds)
+		dbTraces, err := r.spanReader.GetTraces(ctx, dbTraceIds, readAlias)
 		if err != nil {
 			yield(nil, err)
 			return
@@ -210,5 +217,6 @@ func toDBTraceQueryParams(query tracestore.TraceQueryParams) dbmodel.TraceQueryP
 		DurationMin:   query.DurationMin,
 		DurationMax:   query.DurationMax,
 		Filter:        query.Filter,
+		ReadAlias:     query.ReadAlias,
 	}
 }

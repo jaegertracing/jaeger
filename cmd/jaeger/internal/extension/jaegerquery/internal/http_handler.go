@@ -320,9 +320,10 @@ func (aH *APIHandler) parseGetTraceParameters(w http.ResponseWriter, r *http.Req
 	}
 	query.TraceIDs = []tracestore.GetTraceParams{
 		{
-			TraceID: v1adapter.FromV1TraceID(traceID),
-			Start:   startTime,
-			End:     endTime,
+			TraceID:   v1adapter.FromV1TraceID(traceID),
+			Start:     startTime,
+			End:       endTime,
+			ReadAlias: r.URL.Query().Get(readAliasParam),
 		},
 	}
 	query.RawTraces = raw

@@ -97,7 +97,7 @@ func TestTraceReader_GetTraces(t *testing.T) {
 	dbTrace := dbmodel.Trace{Spans: []dbmodel.Span{span}}
 	span.TraceID = "00000000000000020000000000000000"
 	dbTrace2 := dbmodel.Trace{Spans: []dbmodel.Span{span}}
-	coreReader.On("GetTraces", mock.Anything, mock.Anything).Return([]dbmodel.Trace{dbTrace, dbTrace2}, nil)
+	coreReader.On("GetTraces", mock.Anything, mock.Anything, mock.Anything).Return([]dbmodel.Trace{dbTrace, dbTrace2}, nil)
 	traces := reader.GetTraces(context.Background(), tracestore.GetTraceParams{})
 	for td, err := range traces {
 		require.NoError(t, err)
@@ -107,7 +107,35 @@ func TestTraceReader_GetTraces(t *testing.T) {
 	}
 }
 
+// TestTraceReader_GetTraces_ReadAlias verifies that a caller-supplied ReadAlias
+// override on tracestore.GetTraceParams is forwarded to the core reader as the
+// readAlias argument, so a per-request read alias override actually reaches the
+// Elasticsearch query.
+func TestTraceReader_GetTraces_ReadAlias(t *testing.T) {
+	coreReader := &mocks.Reader{}
+	reader := TraceReader{spanReader: coreReader}
+	traceID := pcommon.TraceID([16]byte{1})
+	coreReader.On("GetTraces", mock.Anything,
+		[]dbmodel.TraceID{dbmodel.TraceID(traceID.String())},
+		"jaeger-span-archive-read",
+	).Return(nil, nil)
+
+	traces := reader.GetTraces(context.Background(), tracestore.GetTraceParams{
+		TraceID:   traceID,
+		ReadAlias: "jaeger-span-archive-read",
+	})
+	for range traces {
+		t.Fatal("expected no traces")
+	}
+	coreReader.AssertExpectations(t)
+}
+
 func testTraceReaderGetTracesAndFindTracesErrors(t *testing.T, fxnName string, actualTraces func(r TraceReader) iter.Seq2[[]ptrace.Traces, error]) {
+	// GetTraces takes an extra readAlias argument that FindTraces does not.
+	mockArgs := []any{mock.Anything, mock.Anything}
+	if fxnName == "GetTraces" {
+		mockArgs = append(mockArgs, mock.Anything)
+	}
 	tests := []struct {
 		name        string
 		expectedErr string
@@ -117,7 +145,7 @@ func testTraceReaderGetTracesAndFindTracesErrors(t *testing.T, fxnName string, a
 			name:        "some error from core reader",
 			expectedErr: "some error",
 			mockFxn: func(m *mocks.Reader) {
-				m.On(fxnName, mock.Anything, mock.Anything).Return(nil, errors.New("some error"))
+				m.On(fxnName, mockArgs...).Return(nil, errors.New("some error"))
 			},
 		},
 		{
@@ -132,7 +160,7 @@ func testTraceReaderGetTracesAndFindTracesErrors(t *testing.T, fxnName string, a
 						},
 					},
 				}
-				m.On(fxnName, mock.Anything, mock.Anything).Return(dbTraces, nil)
+				m.On(fxnName, mockArgs...).Return(dbTraces, nil)
 			},
 			expectedErr: "encoding/hex: invalid byte: U+0077 'w'",
 		},
@@ -176,6 +204,26 @@ func TestTraceReader_FindTraces(t *testing.T) {
 		testTraces(t, tracesStr, td[0])
 		break
 	}
+}
+
+// TestTraceReader_FindTraces_ReadAlias verifies that a caller-supplied ReadAlias
+// override on tracestore.TraceQueryParams is forwarded to the core reader as the
+// matching dbmodel.TraceQueryParameters field.
+func TestTraceReader_FindTraces_ReadAlias(t *testing.T) {
+	coreReader := &mocks.Reader{}
+	reader := TraceReader{spanReader: coreReader}
+	coreReader.On("FindTraces", mock.Anything, mock.MatchedBy(func(q dbmodel.TraceQueryParameters) bool {
+		return q.ReadAlias == "jaeger-span-archive-read"
+	})).Return(nil, nil)
+
+	traces := reader.FindTraces(context.Background(), tracestore.TraceQueryParams{
+		Attributes: pcommon.NewMap(),
+		ReadAlias:  "jaeger-span-archive-read",
+	})
+	for range traces {
+		t.Fatal("expected no traces")
+	}
+	coreReader.AssertExpectations(t)
 }
 
 func TestTraceReader_FindTraces_Errors(t *testing.T) {

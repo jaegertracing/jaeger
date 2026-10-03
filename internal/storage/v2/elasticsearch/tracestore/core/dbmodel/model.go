@@ -176,6 +176,10 @@ type TraceQueryParameters struct {
 	// reader lowers into the Elasticsearch query and a second encoding of it would earn
 	// nothing.
 	Filter *expression.Call
+	// ReadAlias, if non-empty, overrides the read targets that the configured index
+	// rotation would otherwise resolve, and is used as the sole index/alias for both
+	// the trace-ID search and the full-trace/summary reads that follow it.
+	ReadAlias string
 }
 
 // SpanQueryParameters contains parameters of a span search (RFC 0016). Filter and OrderBy are

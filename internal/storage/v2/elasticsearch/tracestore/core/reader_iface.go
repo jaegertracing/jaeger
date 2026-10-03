@@ -21,8 +21,10 @@ type Reader interface {
 	GetOperations(ctx context.Context, query dbmodel.OperationQueryParameters) ([]dbmodel.Operation, error)
 	// GetServices returns all services traced by Jaeger, ordered by frequency
 	GetServices(ctx context.Context) ([]string, error)
-	// GetTraces takes a traceID and returns a Trace associated with that traceID
-	GetTraces(ctx context.Context, query []dbmodel.TraceID) ([]dbmodel.Trace, error)
+	// GetTraces takes trace IDs and returns the Traces associated with them. readAlias, if
+	// non-empty, overrides the read targets the configured index rotation would otherwise
+	// resolve for the whole call.
+	GetTraces(ctx context.Context, query []dbmodel.TraceID, readAlias string) ([]dbmodel.Trace, error)
 	// FindTraceSummaries natively computes per-trace summaries for traces matching
 	// the query. It returns errors.ErrUnsupported when the backend cannot compute
 	// them (e.g. Painless scripting is disabled).

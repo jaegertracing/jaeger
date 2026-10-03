@@ -266,6 +266,23 @@ func TestGetTraceWithTimeWindowSuccess(t *testing.T) {
 	assert.Empty(t, response.Errors)
 }
 
+func TestGetTraceWithReadAliasSuccess(t *testing.T) {
+	ts := initializeTestServer(t)
+	ts.traceReader.On("GetTraces", mock.Anything, mock.MatchedBy(func(params []tracestore.GetTraceParams) bool {
+		if len(params) != 1 {
+			return false
+		}
+		p := params[0]
+		return p.TraceID == v1adapter.FromV1TraceID(mockTraceID) &&
+			p.ReadAlias == "jaeger-span-archive-read"
+	})).Return(tracesIter(makeMockPTrace())).Once()
+
+	var response structuredResponse
+	err := getJSON(ts.server.URL+`/api/traces/`+mockTraceID.String()+`?readAlias=jaeger-span-archive-read`, &response)
+	require.NoError(t, err)
+	assert.Empty(t, response.Errors)
+}
+
 func TestLogOnServerError(t *testing.T) {
 	zapCore, logs := observer.New(zap.InfoLevel)
 	logger := zap.New(zapCore)

@@ -197,6 +197,7 @@ func (h *HTTPGateway) getTrace(w http.ResponseWriter, r *http.Request) {
 		}
 		request.RawTraces = rawTraces
 	}
+	request.TraceIDs[0].ReadAlias = q.Get(paramGetTraceReadAlias)
 	getTracesIter := h.QueryService.GetTraces(r.Context(), request)
 	trc, err := jiter.FlattenWithErrors(getTracesIter)
 	h.returnTraces(trc, err, w)
