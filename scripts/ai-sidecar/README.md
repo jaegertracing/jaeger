@@ -5,10 +5,21 @@ the gateway doesn't care which model is on the other end. It just speaks
 [ACP](https://agentclientprotocol.com/) over a WebSocket, and whatever process
 answers is the sidecar.
 
-This guide walks through how to build that process. There's a working
-reference implementation in [`gemini/`](./gemini) — most readers will want to
-fork it. If you'd rather build from scratch in another language, there's a
-checklist for that too.
+This guide walks through how to build that process. There are two working
+reference implementations — most readers will want to fork one:
+
+| Sidecar | Model | Credentials | Launch |
+| --- | --- | --- | --- |
+| [`gemini/`](./gemini) | Hosted Gemini API | `GEMINI_API_KEY` | `make run-ai-gemini` |
+| [`ollama/`](./ollama) | Local, via [Ollama](https://ollama.com) | none | `make run-ai-ollama` |
+
+`ollama/` is what [Path A](#path-a-swap-the-llm) looks like when it's finished:
+it is `gemini/` with the four LLM-specific pieces replaced. Diff the two
+directories to see exactly which parts of a sidecar are provider-specific and
+which are boilerplate you can copy unchanged.
+
+If you'd rather build from scratch in another language, there's a checklist for
+that too.
 
 > Already know the contract and want the deep-dive? See
 > [`docs/rfc/0002-ai-gateway-contextual-tools.md`](../../docs/rfc/0002-ai-gateway-contextual-tools.md)
@@ -18,7 +29,8 @@ checklist for that too.
 
 | Your situation                                                  | Go to                                |
 | --------------------------------------------------------------- | ------------------------------------ |
-| "I want to use OpenAI / Anthropic / Ollama / my model instead." | [Path A](#path-a-swap-the-llm)       |
+| "I want to run a local model."                                  | [`ollama/`](./ollama) — already built |
+| "I want to use OpenAI / Anthropic / my model instead."          | [Path A](#path-a-swap-the-llm)       |
 | "I'm writing a sidecar in Go / Rust / Node / something else."   | [Path B](#path-b-build-from-scratch) |
 
 Either way, [Verify It Works](#verify-it-works) at the end is the same.
@@ -30,6 +42,11 @@ Either way, [Verify It Works](#verify-it-works) at the end is the same.
 Fork [`gemini/`](./gemini) and replace four things. Everything else — the
 WebSocket server, the ACP handlers, `_meta` parsing, the MCP bridge, the
 contextual-tool dispatch — already works.
+
+> [`ollama/`](./ollama) is this path, done. If you learn better from a diff
+> than from prose, read those four files (`pyproject.toml`, `llm.py`,
+> `sidecar.py`'s `_run_agentic_loop`, `mcp_bridge.py`) against their `gemini/`
+> counterparts and skip the rest of this section.
 
 ### Step 1 — Copy and rename
 
@@ -307,8 +324,9 @@ Wire-level strings that have to match exactly on both sides:
 
 End-to-end smoke test — works for either path.
 
-> **Shortcut for the Gemini reference sidecar:** steps 1 and 2 collapse
-> into `make run-ai-gemini` (after `export GEMINI_API_KEY=…`). The launcher
+> **Shortcut for the reference sidecars:** steps 1 and 2 collapse into
+> `make run-ai-gemini` (after `export GEMINI_API_KEY=…`) or, for a local
+> model with no key, `make run-ai-ollama`. The launcher
 > handles toolchain bootstrap, starts Jaeger with the example config, and
 > runs the sidecar in the foreground. To add the same one-command UX for
 > your fork, drop a `preflight.sh` and a `run.sh` next to your sidecar's
