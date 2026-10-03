@@ -172,7 +172,8 @@ func registerTools(server *mcp.Server, queryAPI *querysvc.QueryService, cfg Conf
 
 	mcp.AddTool(s.mcpServer, &mcp.Tool{
 		Name: "get_trace_errors",
-		Description: "Get full details for all error-status spans in a trace. " +
+		Description: "List error-status spans in a trace (span id, service, name, status message). " +
+			"Does not include attributes, events, or links; use get_span_details for those. " +
 			"Results may be truncated to the server limit; " +
 			"compare total_error_count with the number of returned spans to detect truncation.",
 	}, handlers.NewGetTraceErrorsHandler(s.queryAPI, s.config.MaxSpanDetailsPerRequest))

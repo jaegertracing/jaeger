@@ -18,8 +18,8 @@ import (
 )
 
 // getTraceErrorsHandler implements the get_trace_errors MCP tool.
-// This tool retrieves all spans with error status from a specific trace, returning full
-// OTLP span details including attributes, events, and links for error analysis.
+// This tool lists error-status spans in a trace (identity + status message).
+// Attributes, events, and links are left to get_span_details.
 type getTraceErrorsHandler struct {
 	queryService             queryServiceGetTracesInterface
 	maxSpanDetailsPerRequest int
@@ -56,7 +56,7 @@ func (h *getTraceErrorsHandler) handle(
 	aggregatedIter := jptrace.AggregateTraces(tracesIter)
 
 	// Collect spans with error status
-	var errorSpans []types.SpanDetail
+	var errorSpans []types.ErrorSpan
 	totalErrors := 0
 	traceFound := false
 
@@ -72,10 +72,9 @@ func (h *getTraceErrorsHandler) handle(
 			// Check if span has error status
 			if span.Status().Code() == ptrace.StatusCodeError {
 				totalErrors++
-				// Only build and collect detail up to the limit
+				// Only build and collect listing rows up to the limit
 				if h.maxSpanDetailsPerRequest == 0 || len(errorSpans) < h.maxSpanDetailsPerRequest {
-					detail := buildSpanDetail(pos, span)
-					errorSpans = append(errorSpans, detail)
+					errorSpans = append(errorSpans, buildErrorSpan(pos, span))
 				}
 			}
 		}
@@ -112,4 +111,22 @@ func (*getTraceErrorsHandler) buildQuery(input types.GetTraceErrorsInput) (query
 		},
 		RawTraces: false, // We want adjusted traces
 	}, nil
+}
+
+func buildErrorSpan(pos jptrace.SpanIterPos, span ptrace.Span) types.ErrorSpan {
+	serviceName := ""
+	if svc, ok := pos.Resource.Resource().Attributes().Get("service.name"); ok {
+		serviceName = svc.Str()
+	}
+	parentSpanID := ""
+	if !span.ParentSpanID().IsEmpty() {
+		parentSpanID = span.ParentSpanID().String()
+	}
+	return types.ErrorSpan{
+		SpanID:        span.SpanID().String(),
+		ParentSpanID:  parentSpanID,
+		Service:       serviceName,
+		SpanName:      span.Name(),
+		StatusMessage: span.Status().Message(),
+	}
 }
