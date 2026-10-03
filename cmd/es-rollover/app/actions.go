@@ -49,14 +49,15 @@ func newESClient(ctx context.Context, endpoint string, cfg *Config, logger *zap.
 
 // Action is an interface that each action (init, rollover and lookback) of the es-rollover should implement
 type Action interface {
-	Do() error
+	Do(context.Context) error
 }
 
 // ActionExecuteOptions are the options passed to the execute action function
 type ActionExecuteOptions struct {
-	Args   []string
-	Viper  *viper.Viper
-	Logger *zap.Logger
+	Context context.Context
+	Args    []string
+	Viper   *viper.Viper
+	Logger  *zap.Logger
 }
 
 // ActionCreatorFunction type is the function type in charge of create the action to be executed
@@ -69,10 +70,10 @@ func ExecuteAction(opts ActionExecuteOptions, createAction ActionCreatorFunction
 		return fmt.Errorf("failed to initialize config: %w", err)
 	}
 
-	esClient, err := newESClient(context.Background(), opts.Args[0], &cfg, opts.Logger)
+	esClient, err := newESClient(opts.Context, opts.Args[0], &cfg, opts.Logger)
 	if err != nil {
 		return fmt.Errorf("failed to create Elasticsearch client: %w", err)
 	}
 	action := createAction(esClient, cfg)
-	return action.Do()
+	return action.Do(opts.Context)
 }

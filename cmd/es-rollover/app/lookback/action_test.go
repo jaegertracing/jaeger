@@ -4,6 +4,7 @@
 package lookback
 
 import (
+	"context"
 	"errors"
 	"testing"
 	"time"
@@ -166,7 +167,7 @@ func TestLookBackAction(t *testing.T) {
 
 			test.setupCallExpectations(indexClient)
 
-			err := lookbackAction.Do()
+			err := lookbackAction.Do(context.Background())
 			if test.expectedErr != nil {
 				require.Error(t, err)
 				assert.Equal(t, test.expectedErr, err)
