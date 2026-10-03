@@ -1,0 +1,36 @@
+# Copyright (c) 2026 The Jaeger Authors.
+# SPDX-License-Identifier: Apache-2.0
+
+# Drafts the GitHub release as soon as the "Prepare release vX.Y.Z" PR
+# (opened by `make prepare-release`) lands on main.
+name: Draft release
+
+on:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+jobs:
+  draft-release:
+    if: |
+      github.repository == 'jaegertracing/jaeger' &&
+      startsWith(github.event.head_commit.message, 'Prepare release v')
+    permissions:
+      # Required to create the draft release.
+      contents: write
+    runs-on: ubuntu-latest
+    steps:
+      - name: Harden Runner
+        uses: step-security/harden-runner@05e31511f85b41b11d1cf0ef85d0992719546e2c # v2.21.0
+        with:
+          egress-policy: audit
+
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+
+      - name: Create draft release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: python3 scripts/release/draft.py --target "${GITHUB_SHA}"
