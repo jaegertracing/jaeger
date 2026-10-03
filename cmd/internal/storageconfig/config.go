@@ -140,6 +140,11 @@ func (cfg *TraceBackend) Validate() error {
 			return fmt.Errorf("memory: %w", err)
 		}
 	}
+	if cfg.ClickHouse != nil {
+		if err := cfg.ClickHouse.Validate(); err != nil {
+			return fmt.Errorf("clickhouse: %w", err)
+		}
+	}
 	return nil
 }
 
@@ -186,6 +191,11 @@ func (cfg *MetricBackend) Validate() error {
 	}
 	if len(backends) > 1 {
 		return fmt.Errorf("multiple backend types found for metric storage: %v", backends)
+	}
+	if cfg.ClickHouse != nil {
+		if err := cfg.ClickHouse.Validate(); err != nil {
+			return fmt.Errorf("clickhouse: %w", err)
+		}
 	}
 	return nil
 }

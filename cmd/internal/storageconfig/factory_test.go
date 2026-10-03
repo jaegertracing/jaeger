@@ -311,13 +311,13 @@ func TestCreateTraceStorageFactory_ClickHouse(t *testing.T) {
 	testServer := clickhousetest.NewServer(clickhousetest.FailureConfig{})
 	t.Cleanup(testServer.Close)
 
+	chCfg := clickhouse.DefaultConfiguration()
+	chCfg.Protocol = "http"
+	chCfg.Addresses = []string{
+		testServer.Listener.Addr().String(),
+	}
 	backend := TraceBackend{
-		ClickHouse: &clickhouse.Configuration{
-			Protocol: "http",
-			Addresses: []string{
-				testServer.Listener.Addr().String(),
-			},
-		},
+		ClickHouse: &chCfg,
 	}
 
 	factory, err := CreateTraceStorageFactory(
