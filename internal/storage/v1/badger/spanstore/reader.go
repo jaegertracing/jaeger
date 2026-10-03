@@ -93,11 +93,11 @@ func NewTraceReader(db *badger.DB, c *CacheStore, prefillCache bool) *TraceReade
 func decodeValue(val []byte, encodeType byte) (*model.Span, error) {
 	sp := model.Span{}
 	switch encodeType {
-	case jsonEncoding:
+	case EncodingJSON:
 		if err := json.Unmarshal(val, &sp); err != nil {
 			return nil, err
 		}
-	case protoEncoding:
+	case EncodingProtobuf:
 		if err := sp.Unmarshal(val); err != nil {
 			return nil, err
 		}
