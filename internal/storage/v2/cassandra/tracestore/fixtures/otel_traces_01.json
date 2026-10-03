@@ -41,15 +41,15 @@
                   }
                 },
                 {
-                  "key": "peer.service",
-                  "value": {
-                    "stringValue": "service-y"
-                  }
-                },
-                {
                   "key": "temperature",
                   "value": {
                     "doubleValue": 72.5
+                  }
+                },
+                {
+                  "key": "peer.service",
+                  "value": {
+                    "stringValue": "service-y"
                   }
                 },
                 {
