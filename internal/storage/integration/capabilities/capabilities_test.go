@@ -115,6 +115,16 @@ func TestFilterRefusalOptOuts(t *testing.T) {
 }
 
 func TestFilterCapabilities(t *testing.T) {
+	ch := ClickHouse().SkipList()
+	assert.NotContains(t, ch, structuredFilterTest, "ClickHouse runs FindTracesWithFilter")
+	assert.Contains(t, ch, filterUnqualifiedEventTest, "its filter uses Exists, an operator this increment does not support yet")
+	assert.Contains(t, ch, filterDurationGtTest)
+	assert.Contains(t, ch, levelRefusedTest)
+	assert.NotContains(t, ch, filterScopeLevelTest, "ClickHouse supports scope level")
+	assert.NotContains(t, ch, filterLinkLevelTest, "ClickHouse supports link level")
+	assert.NotContains(t, ch, filterSpanKindTest, "ClickHouse supports span.kind")
+	assert.NotContains(t, ch, filterSpanStatusTest, "ClickHouse supports span.status")
+
 	es := Elasticsearch().SkipList()
 	assert.NotContains(t, es, structuredFilterTest, "Elasticsearch runs FindTracesWithFilter")
 	assert.Contains(t, es, filterScopeLevelTest)
