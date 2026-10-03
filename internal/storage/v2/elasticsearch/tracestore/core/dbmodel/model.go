@@ -104,10 +104,12 @@ type Span struct {
 	StartTimeMillis uint64     `json:"startTimeMillis"`
 	Duration        uint64     `json:"duration"` // microseconds
 	Tags            []KeyValue `json:"tags"`
-	// Alternative representation of tags for better kibana support
-	Tag     map[string]any `json:"tag,omitempty"`
-	Logs    []Log          `json:"logs"`
-	Process Process        `json:"process"`
+	// Alternative hoisted representation of tags for better indexing
+	Tag       map[string]any `json:"tag,omitempty"`
+	Logs      []Log          `json:"logs"`
+	Process   Process        `json:"process"`
+	ScopeTags []KeyValue     `json:"scopeTags,omitempty"`
+	ScopeTag  map[string]any `json:"scopeTag,omitempty"`
 	// Timestamp is the span's start time as an RFC 3339 string, written only on the
 	// data stream path; other rotation strategies leave it empty. It has to be the
 	// string form rather than a number (RFC 0004 §3.3).
@@ -116,9 +118,12 @@ type Span struct {
 
 // Reference is a reference from one span to another
 type Reference struct {
-	RefType ReferenceType `json:"refType"`
-	TraceID TraceID       `json:"traceID"`
-	SpanID  SpanID        `json:"spanID"`
+	RefType    ReferenceType `json:"refType"`
+	TraceID    TraceID       `json:"traceID"`
+	SpanID     SpanID        `json:"spanID"`
+	TraceState string        `json:"traceState,omitempty"`
+	Flags      uint32        `json:"flags,omitempty"`
+	Tags       []KeyValue    `json:"tags,omitempty"`
 }
 
 // Process is the process emitting a set of spans

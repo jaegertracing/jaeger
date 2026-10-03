@@ -276,8 +276,6 @@ func Elasticsearch() Capabilities {
 		skipList: []string{
 			spanOrderingTest,
 			paginationTest,
-			scopeAttributesTest,
-			linkAttributesTest,
 		},
 	}.orderingOutcome(attributeOrderingTest)
 }
@@ -290,8 +288,6 @@ func ElasticsearchSmokeTest() Capabilities {
 		skipList: []string{
 			spanOrderingTest,
 			paginationTest,
-			scopeAttributesTest,
-			linkAttributesTest,
 			structuredFilterTest,
 			"GetLargeTrace",
 			"GetTraceWithDuplicateSpans",
@@ -307,8 +303,6 @@ func OpenSearch() Capabilities {
 		skipList: []string{
 			spanOrderingTest,
 			paginationTest,
-			scopeAttributesTest,
-			linkAttributesTest,
 		},
 	}.orderingOutcome(attributeOrderingTest)
 }
@@ -337,4 +331,22 @@ func E2EWithoutNativeFilters() Capabilities {
 			structuredFilterTest,
 		},
 	}
+}
+
+// ElasticsearchBackwardCompat is for the suite that writes the corpus with an earlier binary and
+// reads it back with this one. That writer stores no scope or link attributes, so searching for one
+// finds nothing however capable the reader is, and every scenario excuses those two tests. Which
+// attribute-ordering outcome applies is a property of the index instead, so each scenario picks
+// it on top of this.
+func ElasticsearchBackwardCompat() Capabilities {
+	c := Elasticsearch()
+	c.skipList = append(c.skipList, scopeAttributesTest, linkAttributesTest)
+	return c
+}
+
+// OpenSearchBackwardCompat is the OpenSearch counterpart; see the note on ElasticsearchBackwardCompat.
+func OpenSearchBackwardCompat() Capabilities {
+	c := OpenSearch()
+	c.skipList = append(c.skipList, scopeAttributesTest, linkAttributesTest)
+	return c
 }

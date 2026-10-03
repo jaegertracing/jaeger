@@ -84,5 +84,6 @@ func DefaultConfig() config.Configuration {
 			Dependencies: defaultIndexOptions,
 			Sampling:     defaultIndexOptions,
 		},
+		IgnoreUnmappedScopeAndLinkFields: true,
 	}
 }
