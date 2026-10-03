@@ -491,3 +491,128 @@ func TestMetricBackendExclusive(t *testing.T) {
 		}
 	}
 }
+
+func TestTraceBackendValidateClickHouse(t *testing.T) {
+	tests := []struct {
+		name        string
+		configMap   map[string]any
+		expectedErr string
+	}{
+		{
+			name: "valid ClickHouse backend",
+			configMap: map[string]any{
+				"clickhouse": map[string]any{
+					"addresses": []any{"localhost:9000"},
+				},
+			},
+		},
+		{
+			name: "missing addresses",
+			configMap: map[string]any{
+				"clickhouse": map[string]any{},
+			},
+			expectedErr: "clickhouse: Addresses: non zero value required",
+		},
+		{
+			name: "zero default search depth",
+			configMap: map[string]any{
+				"clickhouse": map[string]any{
+					"addresses":            []any{"localhost:9000"},
+					"default_search_depth": 0,
+				},
+			},
+			expectedErr: "clickhouse: default_search_depth must be a positive number",
+		},
+		{
+			name: "negative ttl",
+			configMap: map[string]any{
+				"clickhouse": map[string]any{
+					"addresses": []any{"localhost:9000"},
+					"ttl":       "-1s",
+				},
+			},
+			expectedErr: "clickhouse: ttl must be a non-negative duration",
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			conf := confmap.NewFromStringMap(test.configMap)
+			var tb TraceBackend
+			require.NoError(t, tb.Unmarshal(conf))
+
+			err := tb.Validate()
+			if test.expectedErr == "" {
+				require.NoError(t, err)
+				return
+			}
+			require.ErrorContains(t, err, test.expectedErr)
+		})
+	}
+}
+
+func TestMetricBackendValidateClickHouse(t *testing.T) {
+	tests := []struct {
+		name        string
+		configMap   map[string]any
+		expectedErr string
+	}{
+		{
+			name: "valid ClickHouse metric backend",
+			configMap: map[string]any{
+				"clickhouse": map[string]any{
+					"addresses": []any{"localhost:9000"},
+				},
+			},
+		},
+		{
+			name: "missing addresses",
+			configMap: map[string]any{
+				"clickhouse": map[string]any{},
+			},
+			expectedErr: "clickhouse: Addresses: non zero value required",
+		},
+		{
+			name: "negative ttl",
+			configMap: map[string]any{
+				"clickhouse": map[string]any{
+					"addresses": []any{"localhost:9000"},
+					"ttl":       "-1s",
+				},
+			},
+			expectedErr: "clickhouse: ttl must be a non-negative duration",
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			conf := confmap.NewFromStringMap(test.configMap)
+			var mb MetricBackend
+			require.NoError(t, mb.Unmarshal(conf))
+
+			err := mb.Validate()
+			if test.expectedErr == "" {
+				require.NoError(t, err)
+				return
+			}
+			require.ErrorContains(t, err, test.expectedErr)
+		})
+	}
+}
+
+func TestConfigValidateClickHouse(t *testing.T) {
+	conf := confmap.NewFromStringMap(map[string]any{
+		"clickhouse": map[string]any{
+			"addresses":            []any{"localhost:9000"},
+			"default_search_depth": 0,
+		},
+	})
+	var tb TraceBackend
+	require.NoError(t, tb.Unmarshal(conf))
+
+	cfg := &Config{
+		TraceBackends: map[string]TraceBackend{
+			"some-backend": tb,
+		},
+	}
+	err := cfg.Validate()
+	require.ErrorContains(t, err, "clickhouse: default_search_depth must be a positive number")
+}
