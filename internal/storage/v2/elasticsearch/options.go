@@ -42,6 +42,9 @@ func initDateLayout(rolloverFreq, sep string) string {
 	return indexLayout
 }
 
+// defaultTagDotReplacement stands in for the dots of an attribute key stored as a field.
+const defaultTagDotReplacement = "@"
+
 func DefaultConfig() config.Configuration {
 	return config.Configuration{
 		Authentication: config.Authentication{},
@@ -56,19 +59,27 @@ func DefaultConfig() config.Configuration {
 			Workers:       1,
 			FlushInterval: time.Millisecond * 200,
 		},
-		Tags: config.TagsAsFields{
-			DotReplacement: "@",
-		},
-		Enabled:              true,
-		Version:              0,
-		Servers:              []string{"http://127.0.0.1:9200"},
-		RemoteReadClusters:   []string{},
-		MaxDocCount:          10_000,
-		LogLevel:             "error",
-		CreateIndexTemplates: true,
-		HTTPCompression:      true,
+		// The deprecated top-level spelling decodes over the same dot replacement when a
+		// configuration still uses it, so an explicitly empty one stays empty.
+		Tags:                   configoptional.Default(config.TagsAsFields{DotReplacement: defaultTagDotReplacement}),
+		Enabled:                true,
+		Version:                0,
+		Servers:                []string{"http://127.0.0.1:9200"},
+		RemoteReadClusters:     []string{},
+		MaxDocCount:            10_000,
+		SpanSearchTieBreakByID: true,
+		LogLevel:               "error",
+		CreateIndexTemplates:   true,
+		HTTPCompression:        true,
 		Indices: config.Indices{
-			Spans:        defaultIndexOptions,
+			Spans: config.SpanIndexOptions{
+				IndexOptions: defaultIndexOptions,
+				// No attribute is stored as a field by default, but the dot replacement every
+				// elevated key needs once one is selected is set.
+				Tags: config.TagsAsFields{
+					DotReplacement: defaultTagDotReplacement,
+				},
+			},
 			Services:     defaultIndexOptions,
 			Dependencies: defaultIndexOptions,
 			Sampling:     defaultIndexOptions,

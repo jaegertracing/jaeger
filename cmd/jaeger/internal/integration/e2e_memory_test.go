@@ -24,12 +24,12 @@ func TestMemoryStorage(t *testing.T) {
 		FeatureGates: featureGates,
 		StorageIntegration: integration.StorageIntegration{
 			CleanUp:      purge,
-			Capabilities: capabilities.E2EWithoutNativeFilters(),
+			Capabilities: capabilities.Capabilities{}.WithoutFilterRefusals().WithoutSpanAttributeOrdering(),
 		},
 	}
 	s.e2eInitialize(t, "memory")
 	s.RunAll(t)
-	// The memory reader evaluates no structured filter, so this is where the query service's
-	// rewrite of one into the legacy predicate fields can be checked against a live backend.
+	// Verify that querying via the legacy predicate fields and via the equivalent
+	// structured filter return identical results against a live backend.
 	s.RunFilterRewriteTest(t)
 }

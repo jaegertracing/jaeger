@@ -5,6 +5,7 @@ package querysvc
 
 import (
 	"context"
+	"errors"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -48,7 +49,7 @@ func TestFindTraces_RejectsPagination(t *testing.T) {
 
 	_, err := collectTraces(qs.FindTraces(context.Background(), query))
 	require.ErrorIs(t, err, tracestore.ErrPaginationUnsupportedByFindTraces)
-	assert.True(t, IsBadRequest(err), "the API layers answer 400")
+	require.ErrorIs(t, err, tracestore.ErrInvalidQuery, "the API layers answer 400")
 	assert.False(t, next.findCalled, "storage must not be queried")
 }
 
@@ -70,7 +71,7 @@ func TestPrepareSearchQuery_PaginationDisabled(t *testing.T) {
 	for _, err := range qs.FindTraceSummaries(context.Background(), query) {
 		require.ErrorIs(t, err, ErrPaginationDisabled)
 		require.ErrorContains(t, err, "jaeger.query.pagination")
-		assert.True(t, IsBadRequest(err), "the API layers answer 400")
+		require.ErrorIs(t, err, errors.ErrUnsupported, "the API layers answer 501")
 	}
 	assert.False(t, next.summaryCalled, "storage must not be queried")
 }
@@ -91,7 +92,7 @@ func TestPrepareSearchQuery_PaginationMutuallyExclusiveWithSearchDepth(t *testin
 	for _, err := range qs.FindTraceSummaries(context.Background(), query) {
 		require.ErrorIs(t, err, tracestore.ErrPaginationInvalid)
 		require.ErrorContains(t, err, "search depth")
-		assert.True(t, IsBadRequest(err), "the API layers answer 400")
+		require.ErrorIs(t, err, tracestore.ErrInvalidQuery, "the API layers answer 400")
 	}
 	assert.False(t, next.summaryCalled, "storage must not be queried")
 }
@@ -111,7 +112,7 @@ func TestPrepareSearchQuery_PageSizeRequiredWhenPaginationPresent(t *testing.T) 
 	for _, err := range qs.FindTraceSummaries(context.Background(), query) {
 		require.ErrorIs(t, err, tracestore.ErrPaginationInvalid)
 		require.ErrorContains(t, err, "page size is required")
-		assert.True(t, IsBadRequest(err), "the API layers answer 400")
+		require.ErrorIs(t, err, tracestore.ErrInvalidQuery, "the API layers answer 400")
 	}
 	assert.False(t, next.summaryCalled, "storage must not be queried")
 }
@@ -209,7 +210,7 @@ func TestPrepareSearchQuery_PageTokenRejectedWhenUnsupported(t *testing.T) {
 
 	for _, err := range qs.FindTraceSummaries(context.Background(), query) {
 		require.ErrorIs(t, err, tracestore.ErrPaginationUnsupported)
-		assert.True(t, IsBadRequest(err), "the API layers answer 400")
+		require.ErrorIs(t, err, errors.ErrUnsupported, "the API layers answer 501")
 	}
 	assert.False(t, next.summaryCalled, "storage must not be queried")
 }

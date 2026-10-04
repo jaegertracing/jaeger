@@ -1,0 +1,69 @@
+{
+  "method": "POST",
+  "path": "/jaeger-span-read/_search",
+  "query": {
+    "ignore_unavailable": [
+      "true"
+    ],
+    "rest_total_hits_as_int": [
+      "true"
+    ]
+  },
+  "body": {
+    "query": {
+      "bool": {
+        "must": [
+          {
+            "range": {
+              "startTimeMillis": {
+                "gte": 1577934245000,
+                "lte": 1577937845000
+              }
+            }
+          },
+          {
+            "range": {
+              "startTime": {
+                "gte": 1577934245000000,
+                "lte": 1577937845000000
+              }
+            }
+          },
+          {
+            "term": {
+              "process.serviceName": "test-service"
+            }
+          }
+        ]
+      }
+    },
+    "size": 3,
+    "sort": [
+      {
+        "startTime": {
+          "order": "desc"
+        }
+      },
+      {
+        "traceID": {
+          "order": "asc"
+        }
+      },
+      {
+        "spanID": {
+          "order": "asc"
+        }
+      },
+      {
+        "_index": {
+          "order": "desc"
+        }
+      },
+      {
+        "_id": {
+          "order": "asc"
+        }
+      }
+    ]
+  }
+}

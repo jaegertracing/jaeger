@@ -274,6 +274,31 @@ func (s *StorageIntegration) testFindTracesWithFilter(t *testing.T) {
 			require.ErrorContains(t, err, refusal.names)
 		})
 	}
+
+	// The third outcome of ordering an attribute, beside answered and refused: the reader is
+	// configured to range over the numeric sub-field, but the corpus was written into indices
+	// created before that mapping existed, so the range finds nothing there. RFC 0005 §7 admits
+	// this as a data gap rather than a refusal, and this case pins that the reader neither errors
+	// nor falls back to comparing the keyword, which would answer with cart_get as well.
+	t.Run("ordering an attribute finds nothing in indices written before the numeric mapping", func(t *testing.T) {
+		s.skipIfNeeded(t)
+		// The scope alone must find the whole corpus first, so that the empty answer below is
+		// the range's doing and not an index that has not caught up yet.
+		names := make([]string, 0, len(corpus))
+		for name := range corpus {
+			names = append(names, name)
+		}
+		whole := filterCorpusTraces(t, corpus, names)
+		s.findTracesByQuery(t, filterQuery(scope, start, end), whole)
+		// The reader is asked directly rather than through findTracesByQuery, which retries an
+		// error for the whole wait: a refusal here is wrong at once and should say so.
+		query := filterQuery(p.And(scope, p.Span().Attr("retry.count").Gt(10)), start, end)
+		actual, err := jiter.CollectWithErrors(jptrace.AggregateTraces(
+			s.TraceReader.FindTraces(context.Background(), *query),
+		))
+		require.NoError(t, err, "the range must be evaluated, not refused")
+		require.Empty(t, actual)
+	})
 }
 
 // RunFilterRewriteTest asks one question both ways — through the legacy predicate fields, and as

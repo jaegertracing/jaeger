@@ -1,7 +1,7 @@
 // Copyright (c) 2020 The Jaeger Authors.
 // SPDX-License-Identifier: Apache-2.0
 
-package flags
+package app
 
 import (
 	"context"
@@ -16,24 +16,22 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.opentelemetry.io/collector/config/confignet"
+	"go.opentelemetry.io/collector/config/configoptional"
 	"go.opentelemetry.io/collector/config/configtls"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zaptest"
 	"go.uber.org/zap/zaptest/observer"
 
-	"github.com/jaegertracing/jaeger/internal/config"
 	"github.com/jaegertracing/jaeger/ports"
 )
 
-var testCertKeyLocation = "../../../internal/config/tlscfg/testdata"
-
 func TestAdminServerHealthCheck(t *testing.T) {
-	adminServer := NewAdminServer(":0")
+	adminServer := NewAdminServer()
 
-	v, _ := config.Viperize(adminServer.AddFlags)
 	zapCore, logs := observer.New(zap.InfoLevel)
 	logger := zap.New(zapCore)
-	require.NoError(t, adminServer.initFromViper(v, logger))
+	adminServer.configure(AdminServerConfig{Endpoint: ":0"}, logger)
 	require.NoError(t, adminServer.Serve())
 	defer adminServer.Close()
 
@@ -64,14 +62,11 @@ func TestAdminServerHealthCheck(t *testing.T) {
 }
 
 func TestAdminServerHandlesPortZero(t *testing.T) {
-	adminServer := NewAdminServer(":0")
-
-	v, _ := config.Viperize(adminServer.AddFlags)
+	adminServer := NewAdminServer()
 
 	zapCore, logs := observer.New(zap.InfoLevel)
 	logger := zap.New(zapCore)
-
-	adminServer.initFromViper(v, logger)
+	adminServer.configure(AdminServerConfig{Endpoint: ":0"}, logger)
 
 	require.NoError(t, adminServer.Serve())
 	defer adminServer.Close()
@@ -85,32 +80,27 @@ func TestAdminServerHandlesPortZero(t *testing.T) {
 	assert.Positive(t, port)
 }
 
-func TestAdminWithFailedFlags(t *testing.T) {
-	adminServer := NewAdminServer(fmt.Sprintf(":%d", ports.RemoteStorageAdminHTTP))
-	zapCore, _ := observer.New(zap.InfoLevel)
-	logger := zap.New(zapCore)
-	v, command := config.Viperize(adminServer.AddFlags)
-	err := command.ParseFlags([]string{
-		"--admin.http.tls.enabled=false",
-		"--admin.http.tls.cert=blah", // invalid unless tls.enabled
-	})
-	require.NoError(t, err)
-	err = adminServer.initFromViper(v, logger)
-	assert.ErrorContains(t, err, "failed to parse admin server TLS options")
+func TestAdminServerConfigure(t *testing.T) {
+	adminServer := NewAdminServer()
+	adminServer.configure(AdminServerConfig{Endpoint: ":1"}, zap.NewNop())
+	assert.Equal(t, ":1", adminServer.serverCfg.NetAddr.Endpoint)
+	assert.Equal(t, confignet.TransportTypeTCP, adminServer.serverCfg.NetAddr.Transport)
+	assert.False(t, adminServer.serverCfg.TLS.HasValue())
 }
 
 func TestAdminServerTLS(t *testing.T) {
 	testCases := []struct {
-		name           string
-		serverTLSFlags []string
-		clientTLS      configtls.ClientConfig
+		name      string
+		serverTLS configtls.ServerConfig
+		clientTLS configtls.ClientConfig
 	}{
 		{
 			name: "should pass with TLS client to trusted TLS server with correct hostname",
-			serverTLSFlags: []string{
-				"--admin.http.tls.enabled=true",
-				"--admin.http.tls.cert=" + testCertKeyLocation + "/example-server-cert.pem",
-				"--admin.http.tls.key=" + testCertKeyLocation + "/example-server-key.pem",
+			serverTLS: configtls.ServerConfig{
+				Config: configtls.Config{
+					CertFile: testCertKeyLocation + "/example-server-cert.pem",
+					KeyFile:  testCertKeyLocation + "/example-server-key.pem",
+				},
 			},
 			clientTLS: configtls.ClientConfig{
 				Insecure: false,
@@ -124,16 +114,13 @@ func TestAdminServerTLS(t *testing.T) {
 
 	for _, test := range testCases {
 		t.Run(test.name, func(t *testing.T) {
-			adminServer := NewAdminServer(fmt.Sprintf(":%d", ports.RemoteStorageAdminHTTP))
+			adminServer := NewAdminServer()
+			adminServer.configure(AdminServerConfig{
+				Endpoint: fmt.Sprintf(":%d", ports.RemoteStorageAdminHTTP),
+				TLS:      configoptional.Some(test.serverTLS),
+			}, zaptest.NewLogger(t))
 
-			v, command := config.Viperize(adminServer.AddFlags)
-			err := command.ParseFlags(test.serverTLSFlags)
-			require.NoError(t, err)
-
-			err = adminServer.initFromViper(v, zaptest.NewLogger(t))
-			require.NoError(t, err)
-
-			adminServer.Serve()
+			require.NoError(t, adminServer.Serve())
 			defer adminServer.Close()
 
 			clientTLSCfg, err0 := test.clientTLS.LoadTLSConfig(context.Background())

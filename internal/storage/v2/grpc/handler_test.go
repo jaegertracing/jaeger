@@ -852,7 +852,9 @@ func TestHandler_FindTraceSummaries_NotImplemented(t *testing.T) {
 	}, &summaryStream{})
 	require.Error(t, err)
 	require.Equal(t, codes.Unimplemented, status.Code(err))
-	require.Contains(t, err.Error(), "not implemented")
+	require.Empty(t, status.Convert(err).Details(), "a missing method has no reason to restore")
+	require.ErrorIs(t, tracestore.ErrorFromStatus(err, errorInfoDomain), errors.ErrUnsupported,
+		"the client reads the status back as the missing capability the reader reported")
 }
 
 func TestHandler_FindTraceSummaries_Success(t *testing.T) {

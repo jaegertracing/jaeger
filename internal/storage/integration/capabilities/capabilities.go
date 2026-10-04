@@ -3,6 +3,8 @@
 
 package capabilities
 
+import "slices"
+
 const (
 	scopeAttributesTest    = "Scope_Attributes"
 	linkAttributesTest     = "Link_Attributes"
@@ -19,13 +21,21 @@ const (
 	spanPaginationTest        = "Pagination/Spans"
 	summaryPaginationTest     = "Pagination/TraceSummaries"
 
-	// The battery pairs these two: ordering an attribute is answered where the index carries the
-	// typed-attribute mapping (RFC 0015) and refused where it does not, so exactly one of them runs
-	// for any deployment. Elasticsearch and OpenSearch skip the refusal, because the suites that
-	// run the battery enable the mapping; WithoutTypedAttributeIndexing swaps them back.
-	attributeOrderingTest = "ordering_compares_a_numeric_attribute_as_a_number"
-	attributeRefusedTest  = "ordering_an_attribute_is_refused_where_it_is_indexed_as_text"
+	// The battery has three cases for ordering an attribute, of which exactly one runs for any
+	// deployment: it is answered where the indices carry the typed-attribute mapping (RFC 0015),
+	// refused where the mapping is not configured, and answered with nothing where the mapping is
+	// configured but the indices were created before it. Elasticsearch and OpenSearch run the first
+	// by default, because the suites that run the battery configure the mapping;
+	// WithoutNumericAttributes and WithNumericAttributesNotYetIndexed pick one of the other two.
+	attributeOrderingTest  = "ordering_compares_a_numeric_attribute_as_a_number"
+	attributeRefusedTest   = "ordering_an_attribute_is_refused_where_it_is_indexed_as_text"
+	attributeUnindexedTest = "ordering_an_attribute_finds_nothing_in_indices_written_before_the_numeric_mapping"
+	levelRefusedTest       = "a_level_the_backend_does_not_index_is_refused"
+	operatorRefusedTest    = "an_operator_the_backend_does_not_evaluate_is_refused"
 )
+
+// attributeOrderingTests are the three outcomes of ordering an attribute, of which one runs.
+var attributeOrderingTests = []string{attributeOrderingTest, attributeRefusedTest, attributeUnindexedTest}
 
 // Capabilities records what a storage backend *cannot* do in the integration suite. Every
 // field is an opt-out: the zero value runs the whole battery, and a backend lists only the
@@ -93,19 +103,88 @@ func (c Capabilities) WithoutSpanSorting() Capabilities {
 	return c
 }
 
-// WithoutTypedAttributeIndexing declares a deployment whose indices were created without the
-// typed-attribute mapping (RFC 0015), so that ordering an attribute is refused rather than answered.
-// It swaps which of the battery's two paired ordering cases runs. A suite that runs with the gate
-// off uses it; the ordinary e2e suites enable the gate and do not.
-func (c Capabilities) WithoutTypedAttributeIndexing() Capabilities {
-	swapped := make([]string, 0, len(c.skipList)+1)
+// WithoutSpanAttributeOrdering skips ordering spans by an attribute, which no backend supports yet.
+func (c Capabilities) WithoutSpanAttributeOrdering() Capabilities {
+	c.skipList = append(append([]string(nil), c.skipList...), spanAttributeOrderingTest)
+	return c
+}
+
+// WithoutNumericAttributes declares a deployment that does not configure the typed-attribute
+// mapping (RFC 0015), so that ordering an attribute is refused rather than answered. A suite
+// that runs with indices.spans.numeric_attributes off uses it.
+func (c Capabilities) WithoutNumericAttributes() Capabilities {
+	return c.orderingOutcome(attributeRefusedTest)
+}
+
+// WithNumericAttributesNotYetIndexed declares a deployment that configures the typed-attribute
+// mapping over indices created before it was turned on, so that ordering an attribute is
+// evaluated and finds nothing (RFC 0005 §7). The backward-compatibility suite's enable-on-upgrade
+// scenario is that deployment.
+func (c Capabilities) WithNumericAttributesNotYetIndexed() Capabilities {
+	return c.orderingOutcome(attributeUnindexedTest)
+}
+
+// orderingOutcome makes the named attribute-ordering case the one that runs, skipping the other
+// two whatever the constructor chose.
+func (c Capabilities) orderingOutcome(runs string) Capabilities {
+	kept := make([]string, 0, len(c.skipList)+2)
 	for _, test := range c.skipList {
-		if test != attributeRefusedTest {
-			swapped = append(swapped, test)
+		if !slices.Contains(attributeOrderingTests, test) {
+			kept = append(kept, test)
 		}
 	}
-	c.skipList = append(swapped, attributeOrderingTest)
+	for _, test := range attributeOrderingTests {
+		if test != runs {
+			kept = append(kept, test)
+		}
+	}
+	c.skipList = kept
 	return c
+}
+
+// WithoutUnindexedLevelRefusal skips the refusal assertion for a filter naming an unindexed level.
+// Used for backends that index or evaluate all filter levels (such as memory).
+func (c Capabilities) WithoutUnindexedLevelRefusal() Capabilities {
+	c.skipList = append(append([]string(nil), c.skipList...), levelRefusedTest)
+	return c
+}
+
+// WithoutLevelRefusal is an alias for WithoutUnindexedLevelRefusal.
+func (c Capabilities) WithoutLevelRefusal() Capabilities {
+	return c.WithoutUnindexedLevelRefusal()
+}
+
+// WithoutUnevaluatedOperatorRefusal skips the refusal assertion for a filter using an unevaluated operator.
+// Used for backends that evaluate all filter operators (such as memory).
+func (c Capabilities) WithoutUnevaluatedOperatorRefusal() Capabilities {
+	c.skipList = append(append([]string(nil), c.skipList...), operatorRefusedTest)
+	return c
+}
+
+// WithoutOperatorRefusal is an alias for WithoutUnevaluatedOperatorRefusal.
+func (c Capabilities) WithoutOperatorRefusal() Capabilities {
+	return c.WithoutUnevaluatedOperatorRefusal()
+}
+
+// WithoutTextAttributeOrderingRefusal skips the refusal assertion for numeric ordering on an attribute
+// that is indexed as text. Used for backends that compare numeric attributes natively (such as memory)
+// or whose indices have typed-attribute mapping enabled.
+func (c Capabilities) WithoutTextAttributeOrderingRefusal() Capabilities {
+	return c.orderingOutcome(attributeOrderingTest)
+}
+
+// WithoutAttributeRefusal is an alias for WithoutTextAttributeOrderingRefusal.
+func (c Capabilities) WithoutAttributeRefusal() Capabilities {
+	return c.WithoutTextAttributeOrderingRefusal()
+}
+
+// WithoutFilterRefusals skips all three refusal assertions in the shared filter battery:
+// unindexed level, unevaluated operator, and text-indexed attribute ordering.
+// Used by backends that evaluate all of these features natively rather than refusing them.
+func (c Capabilities) WithoutFilterRefusals() Capabilities {
+	return c.WithoutUnindexedLevelRefusal().
+		WithoutUnevaluatedOperatorRefusal().
+		WithoutTextAttributeOrderingRefusal()
 }
 
 // Memory returns the capabilities for the in-process memory storage backend.
@@ -115,9 +194,8 @@ func Memory() Capabilities {
 			spanAttributeOrderingTest,
 			summaryPaginationTest,
 			findTraceSummariesTest,
-			structuredFilterTest,
 		},
-	}
+	}.WithoutFilterRefusals()
 }
 
 // GRPC returns the capabilities for the gRPC remote storage backend.
@@ -129,9 +207,8 @@ func GRPC() Capabilities {
 			spanAttributeOrderingTest,
 			summaryPaginationTest,
 			findTraceSummariesTest,
-			structuredFilterTest,
 		},
-	}
+	}.WithoutFilterRefusals()
 }
 
 // Cassandra returns the capabilities for the Cassandra storage backend.
@@ -193,17 +270,16 @@ func Elasticsearch() Capabilities {
 		// TODO: remove this flag after ES supports returning spanKind
 		//  Issue https://github.com/jaegertracing/jaeger/issues/1923
 		getOperationsMissingSpanKind: true,
-		// The suite runs with typed attribute indexing enabled (RFC 0015), so an attribute value is
-		// indexed as a number beside the keyword and ordering one is answered rather than refused.
-		// That makes the battery's paired refusal case the one to skip.
+		// The suite configures the typed-attribute mapping (RFC 0015), so an attribute value is
+		// indexed as a number beside the keyword and ordering one is answered; orderingOutcome
+		// skips the battery's other two ordering outcomes.
 		skipList: []string{
 			spanOrderingTest,
 			paginationTest,
 			scopeAttributesTest,
 			linkAttributesTest,
-			attributeRefusedTest,
 		},
-	}
+	}.orderingOutcome(attributeOrderingTest)
 }
 
 // ElasticsearchSmokeTest defines capabilities for lightweight rotation strategy
@@ -227,15 +303,14 @@ func ElasticsearchSmokeTest() Capabilities {
 func OpenSearch() Capabilities {
 	return Capabilities{
 		getOperationsMissingSpanKind: true,
-		// Same mapping and same gate as Elasticsearch; see the note there.
+		// Same mapping and same setting as Elasticsearch; see the note there.
 		skipList: []string{
 			spanOrderingTest,
 			paginationTest,
 			scopeAttributesTest,
 			linkAttributesTest,
-			attributeRefusedTest,
 		},
-	}
+	}.orderingOutcome(attributeOrderingTest)
 }
 
 // Kafka defines the capabilities for the Kafka storage backend.
