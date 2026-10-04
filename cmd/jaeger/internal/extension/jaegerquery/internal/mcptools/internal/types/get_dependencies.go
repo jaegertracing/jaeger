@@ -16,12 +16,12 @@ type GetDependenciesInput struct {
 
 // GetDependenciesOutput defines the output of the get_service_dependencies MCP tool.
 type GetDependenciesOutput struct {
-	Dependencies []DependencyLink `json:"dependencies" jsonschema:"Service-to-service dependency edges with call counts"`
+	Dependencies []DependencyLink `json:"dependencies"`
 }
 
 // DependencyLink represents a dependency between two services.
 type DependencyLink struct {
-	Caller    string `json:"caller" jsonschema:"Calling service name"`
-	Callee    string `json:"callee" jsonschema:"Called service name"`
-	CallCount uint64 `json:"call_count" jsonschema:"Number of calls from caller to callee in the time window"`
+	Caller    string `json:"caller"`
+	Callee    string `json:"callee"`
+	CallCount uint64 `json:"call_count"`
 }
