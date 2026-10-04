@@ -57,9 +57,12 @@ func (w *TraceWriter) Start(_ context.Context, host component.Host) error {
 
 // warnMisalignedSyncBatchSizing logs a warning when a synchronous, byte-capped
 // storage (tracestore.SyncBulkWriteConfig) is paired with an exporter whose
-// byte-sized queue.batch.max_size is unbounded or larger than the writer's
-// per-request cap. The writer then has to split an oversized batch into several
-// _bulk requests (RFC 0007 §4.4).
+// byte-sized queue.batch.max_size is unbounded or larger than half the writer's
+// per-request cap. The two are measured differently: the batcher sizes a batch in
+// OTLP protobuf bytes, while the writer chunks by the NDJSON _bulk body, which is
+// 1.3x to 3.6x larger (hex ids repeated in the action line, the resource copied into
+// every span document, decimal timestamps, repeated keys). Above half the cap the
+// writer has to split most batches into several _bulk requests (RFC 0007 §4.4).
 //
 // This is only an efficiency concern, not a correctness one, so it is a warning
 // rather than a startup error: if a split sub-request fails, the whole batch is
@@ -85,13 +88,14 @@ func (w *TraceWriter) warnMisalignedSyncBatchSizing(f tracestore.Factory) {
 	if batch.Sizer != exporterhelper.RequestSizerTypeBytes {
 		return
 	}
-	if batch.MaxSize <= 0 || batch.MaxSize > int64(maxBytes) {
+	if batch.MaxSize <= 0 || 2*batch.MaxSize > int64(maxBytes) {
 		w.logger.Warn(
 			"queue.batch.max_size is not aligned with the storage's bulk_processing.max_bytes; "+
 				"with write_mode: sync the writer will split oversized batches into multiple _bulk "+
 				"requests. Writes stay correct — retries are idempotent via the deterministic span _id "+
-				"— but this is less efficient; set a byte-sized queue.batch.max_size no larger than "+
-				"max_bytes to keep one request per batch (RFC 0007 §4.5)",
+				"— but this is less efficient; the _bulk body is 1.3x to 3.6x the batch's protobuf "+
+				"size, so set a byte-sized queue.batch.max_size at most half of max_bytes to keep one "+
+				"request per batch (ADR-014)",
 			zap.Int64("queue.batch.max_size", batch.MaxSize),
 			zap.Int("bulk_processing.max_bytes", maxBytes),
 		)

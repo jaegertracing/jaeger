@@ -1,13 +1,13 @@
 # ADR-014: Synchronous Elasticsearch/OpenSearch Writes and Lossless Pipelines
 
 * **Status**: Implemented — graduated from [RFC 0007](../rfc/0007-synchronous-elasticsearch-writes.md)
-* **Date**: 2026-09-22
+* **Date**: 2026-09-22, extended 2026-09-24 with the batch-size headroom rule, extended 2026-09-29 to state that neither batch nor fetch settings raise the Kafka batch above one record per partition, and to track the RFC 0007 M8/M9 split
 
 ## Context
 
 The `tracestore.Writer` contract says `WriteTraces` returns an error when spans were not persisted. The Elasticsearch/OpenSearch writer did not honor it: spans went into a client-side bulk buffer and the call returned before anything reached the backend, so a failed flush was logged and lost while every component upstream believed the spans were stored. Behind a Kafka ingester this turned a backend outage into silent data loss, because the receiver committed offsets for records the storage never wrote.
 
-[RFC 0007](../rfc/0007-synchronous-elasticsearch-writes.md) analyzes the problem and lays out the design; it was delivered across milestones M1–M7 (issue [#8476](https://github.com/jaegertracing/jaeger/issues/8476)), with the optional M8 deferred. **This ADR records the resulting architecture and the pipeline configurations that make it lossless.** The RFC holds the motivation, the alternatives, and the milestone history.
+[RFC 0007](../rfc/0007-synchronous-elasticsearch-writes.md) analyzes the problem and lays out the design; it was delivered across milestones M1–M7 (issue [#8476](https://github.com/jaegertracing/jaeger/issues/8476)), with the optional M8 and M9 deferred. **This ADR records the resulting architecture and the pipeline configurations that make it lossless.** The RFC holds the motivation, the alternatives, and the milestone history.
 
 The implementation lives in:
 
@@ -61,7 +61,7 @@ A write error is useful only when it reaches a component that can act on it. Two
 * **The `batch` processor.** `ConsumeTraces` pushes the data onto a channel and returns nil. A shard goroutine exports the batch later; when that fails, the processor logs `Sender failed` and drops the batch, and no error is returned to the receiver. Jaeger's sample collector configurations, `config.yaml` and `config-elasticsearch.yaml`, include the `batch` processor in their traces pipeline and are therefore lossy.
 * **The exporter queue without `wait_for_result`.** With a `queue` configured, `exporterhelper` enqueues the request, strips cancellation from its context, and returns nil. With `wait_for_result: true` the caller blocks on a done channel and receives the write's result, or its own context error if it gives up first, in which case the queued request is still written; the idempotent `_id` makes that harmless. Without a `queue` block the exporter is synchronous: the caller's request goes through the retry sender to the push function, and its result is returned directly. `jaeger_storage_exporter` ships with no queue and with retries disabled.
 
-The blocking queue is also the batching mechanism. `partitionBatcher` merges queued requests with `MergeSplit` up to `batch.max_size`, exports the merged request once, and `multiDone` fans that one result back to every request that contributed to it. The pipeline therefore gets both properties at once: Elasticsearch sees a large `_bulk` request, and every caller still learns whether its spans were written. `batch.flush_timeout` bounds the latency this adds on a quiet stream, and `batch.min_size` must be positive: at the zero value the batcher flushes every request as it arrives and merges nothing. The two size limits are measured differently: the collector sizes a batch in OTLP protobuf bytes, while the writer chunks by the encoded NDJSON of the `_bulk` body, which includes the action lines and the service documents and is larger. Keeping `batch.max_size` well below `bulk_processing.max_bytes` keeps a batch a single `_bulk` request in the common case; a batch that still exceeds the cap is split into several requests, which is correct but makes the batch's acknowledgement depend on all of them.
+The blocking queue is also the batching mechanism. `partitionBatcher` merges queued requests with `MergeSplit` up to `batch.max_size`, exports the merged request once, and `multiDone` fans that one result back to every request that contributed to it. The pipeline therefore gets both properties at once: Elasticsearch sees a large `_bulk` request, and every caller still learns whether its spans were written. `batch.flush_timeout` bounds the latency this adds on a quiet stream, and `batch.min_size` must be positive: at the zero value the batcher flushes every request as it arrives and merges nothing. The two size limits are measured differently: the collector sizes a batch in OTLP protobuf bytes, while the writer chunks by the encoded NDJSON of the `_bulk` body, which is 1.3x to 3.6x larger. The inflation comes from the hex trace and span ids, twice their protobuf width and repeated in the action line's `_id` with a content hash, from the resource copied into every span document where protobuf carries it once per `ResourceSpans`, and from decimal timestamps and repeated keys; `tags_as_fields` narrows it, since a map entry is shorter than a `{key, type, value}` object, and the ratio falls as spans carry more attributes because the fixed per-span overhead is amortized. Keeping `batch.max_size` at most half of `bulk_processing.max_bytes` keeps a batch a single `_bulk` request in the common case, and the exporter warns at startup when it is not; a batch that still exceeds the cap is split into several requests, which is correct but makes the batch's acknowledgement depend on all of them.
 
 Once the error reaches the receiver, the receiver's behavior decides the guarantee:
 
@@ -77,7 +77,7 @@ The two topologies need two different shapes. Both drop the `batch` processor an
 | `processors` | `[]` | `[]` |
 | `exporters` / `connectors` | `jaeger_storage_exporter` under `exporters:` | `jaeger_storage_exporter` under `exporters:`, or under `connectors:` with a dead-letter pipeline |
 | `queue.wait_for_result` | `true` | `true` |
-| `queue.batch` | `sizer: bytes`, a positive `min_size`, `max_size` well below `bulk_processing.max_bytes`, `flush_timeout` in the low hundreds of milliseconds | same |
+| `queue.batch` | `sizer: bytes`, a positive `min_size`, `max_size` at most half of `bulk_processing.max_bytes`, `flush_timeout` in the low hundreds of milliseconds | same |
 | `retry_on_failure` | disabled: the client retries, and a collector-side retry would only hold the client's request open | `enabled: true`, `max_elapsed_time: 0` |
 | `queue.block_on_overflow` | default `false`: a full queue answers the client with a retryable error, which is the back-pressure signal | `true`: a full queue must wait, not fail the record |
 | receiver | `otlp` with defaults | `kafka` with `message_marking.after: true`, `on_error: false` |
@@ -86,7 +86,7 @@ The two topologies need two different shapes. Both drop the `batch` processor an
 
 For direct ingest, leaving `queue` out entirely is also lossless, with one `_bulk` request per client export request. The blocking queue is recommended because it merges the small requests of many clients into bulks the backend handles efficiently, at the cost of `flush_timeout` of added latency.
 
-For the Kafka ingester, batch size is bounded by the partitions the ingester consumes: the receiver processes each partition serially and partitions concurrently, so at most one record per partition waits in the batcher at a time. Throughput scales with partitions and replicas, not with `batch.max_size`.
+For the Kafka ingester, batch size is bounded by the partitions the ingester consumes: the receiver processes each partition serially and partitions concurrently, so at most one record per partition waits in the batcher at a time. Neither `batch.max_size` nor the receiver's fetch sizes can raise the batch above that, and adding ingester replicas spreads the same partitions over more processes and shrinks each replica's batches.
 
 ## Consequences
 
@@ -103,13 +103,13 @@ For the Kafka ingester, batch size is bounded by the partitions the ingester con
 * A span whose document cannot be JSON-encoded (an attribute holding NaN or infinity) is logged and skipped by the writer without an error, in both modes and under every `poison_pill_handling` value, so it is neither retried nor dead-lettered and the batch is acknowledged without it. This is the one known exception to the `WriteTraces` contract in sync mode.
 * The guarantee depends on settings on three components that must line up: `write_mode: sync` on the storage, `wait_for_result: true` on the exporter queue (or no queue) with no `batch` processor in the pipeline, and on the Kafka ingester `message_marking.after: true` on the receiver plus unbounded `retry_on_failure` on the exporter. The exporter cannot see the pipeline graph, so a `batch` processor left in place is not detected at startup. The documentation carries that burden.
 * Sync mode adds a `_bulk` round trip of latency to each batch, plus `flush_timeout` when the blocking batcher is used.
-* Kafka batch size is capped by partition count. A worker-pool consumer that decouples the two (RFC 0007 M8) is not built.
+* Kafka batch size is capped at one record per partition. Neither receiver-level batching (RFC 0007 M8) nor a worker-pool consumer (RFC 0007 M9) is built.
 * `write_mode` governs only the span writer; dependency and sampling writes remain asynchronous.
 * The default stays `async`, so an operator has to opt in, and Jaeger's sample collector configurations remain lossy until they are changed.
 
 ## References
 
-* [RFC 0007: Synchronous Elasticsearch/OpenSearch Writes](../rfc/0007-synchronous-elasticsearch-writes.md) — the proposal, alternatives, and milestone history (M1–M8).
+* [RFC 0007: Synchronous Elasticsearch/OpenSearch Writes](../rfc/0007-synchronous-elasticsearch-writes.md) — the proposal, alternatives, and milestone history (M1–M9).
 * Issue [#8476](https://github.com/jaegertracing/jaeger/issues/8476).
 * [ADR-012](012-unified-elasticsearch-client.md) — the `esclient` transport the synchronous writer runs on.
 * [`storageexporter/README.md`](../../cmd/jaeger/internal/exporters/storageexporter/README.md) — the configuration reference for both forms.

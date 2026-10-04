@@ -130,6 +130,16 @@ func (cfg *TraceBackend) Validate() error {
 	if len(backends) > 1 {
 		return fmt.Errorf("multiple backend types found for trace storage: %v", backends)
 	}
+	// Validate the selected backend's own configuration. Both callers of
+	// Config.Validate, the Viper path in remote-storage and the jaegerstorage
+	// extension, reach this method, so without this the memory backend's
+	// constraints were only enforced by confmap.Validate and an invalid
+	// max_traces surfaced later, from the store constructor.
+	if cfg.Memory != nil {
+		if err := cfg.Memory.Validate(); err != nil {
+			return fmt.Errorf("memory: %w", err)
+		}
+	}
 	return nil
 }
 

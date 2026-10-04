@@ -17,6 +17,7 @@ import (
 	expression "github.com/jaegertracing/jaeger-idl/query/expression/v1"
 	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerquery/querysvc"
 	"github.com/jaegertracing/jaeger/internal/jptrace"
+	"github.com/jaegertracing/jaeger/internal/proto/api_v3"
 	expressionproto "github.com/jaegertracing/jaeger/internal/proto/expression/v1"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore"
 )
@@ -39,6 +40,7 @@ const (
 	paramAttributes     = "query.attributes"
 	paramFilter         = "query.filter"
 	paramSpanKind       = "spanKind"
+	paramOrderBy        = "query.orderBy"
 	paramPageSize       = "query.pagination.pageSize"
 	paramPageToken      = "query.pagination.pageToken"
 
@@ -106,7 +108,7 @@ func parseFilterParam(q url.Values) (*expression.Call, error) {
 	if err := jsonpb.Unmarshal(strings.NewReader(filterParam), &call); err != nil {
 		return nil, fmt.Errorf("malformed parameter %s: %w", paramFilter, err)
 	}
-	filter, err := expressionproto.FromProto(&call)
+	filter, err := expressionproto.CallFromProto(&call)
 	if err != nil {
 		return nil, fmt.Errorf("malformed parameter %s: %w", paramFilter, err)
 	}
@@ -116,16 +118,16 @@ func parseFilterParam(q url.Values) (*expression.Call, error) {
 // parsePaginationParams reads the pagination parameters (RFC 0014 §4). present reports whether
 // the caller sent either of them; what an absent or zero page size means is the query service's
 // decision, and it differs between a trace search and a span search.
-func parsePaginationParams(q url.Values) (pagination tracestore.Pagination, present bool, err error) {
+func parsePaginationParams(q url.Values) (pagination querysvc.Pagination, present bool, err error) {
 	pageSizeStr, pageToken := q.Get(paramPageSize), q.Get(paramPageToken)
 	present = pageSizeStr != "" || pageToken != ""
 	pagination.PageToken = pageToken
 	if pageSizeStr != "" {
-		pageSize, err := strconv.Atoi(pageSizeStr)
-		if err != nil || pageSize < 0 {
-			return tracestore.Pagination{}, present, fmt.Errorf("malformed parameter %s: %s", paramPageSize, pageSizeStr)
+		pageSize, err := strconv.ParseUint(pageSizeStr, 10, 32)
+		if err != nil {
+			return querysvc.Pagination{}, present, fmt.Errorf("malformed parameter %s: %s", paramPageSize, pageSizeStr)
 		}
-		pagination.PageSize = pageSize
+		pagination.PageSize = uint32(pageSize)
 	}
 	return pagination, present, nil
 }
@@ -135,11 +137,9 @@ func parseFindTracesQuery(q url.Values) (*querysvc.TraceQueryParams, error) {
 	operationName, _ := getQueryParam(q, paramOperationName, paramOperationNameDeprecated)
 
 	queryParams := &querysvc.TraceQueryParams{
-		TraceQueryParams: tracestore.TraceQueryParams{
-			ServiceName:   serviceName,
-			OperationName: operationName,
-			Attributes:    pcommon.NewMap(),
-		},
+		ServiceName:   serviceName,
+		OperationName: operationName,
+		Attributes:    pcommon.NewMap(),
 	}
 	if attrsParam := q.Get(paramAttributes); attrsParam != "" {
 		var attrsMap map[string]string
@@ -176,11 +176,11 @@ func parseFindTracesQuery(q url.Values) (*querysvc.TraceQueryParams, error) {
 		searchDepthParam = paramNumTraces
 	}
 	if n != "" {
-		searchDepth, err := strconv.ParseInt(n, 10, 32)
+		searchDepth, err := strconv.ParseUint(n, 10, 32)
 		if err != nil {
 			return nil, fmt.Errorf("malformed parameter %s: %w", searchDepthParam, err)
 		}
-		queryParams.SearchDepth = int(searchDepth)
+		queryParams.SearchDepth = uint32(searchDepth)
 	}
 
 	if d, paramName := getQueryParam(q, paramDurationMin, paramDurationMinDeprecated); d != "" {
@@ -207,10 +207,7 @@ func parseFindTracesQuery(q url.Values) (*querysvc.TraceQueryParams, error) {
 	return queryParams, nil
 }
 
-// parseFindSpansQuery parses the query parameters for a span search (RFC 0016 §4.3), the subset
-// of a trace search's that a span query has: the time range, the filter and the pagination. The
-// parser reads each parameter and reports one it cannot read under its own name; whether the
-// query as a whole is acceptable is the query service's decision (prepareSpanSearchQuery).
+// parseFindSpansQuery reads the time range, filter, ordering and pagination of a span search.
 func parseFindSpansQuery(q url.Values) (*querysvc.SpanQueryParams, error) {
 	queryParams := &querysvc.SpanQueryParams{}
 	var err error
@@ -221,6 +218,23 @@ func parseFindSpansQuery(q url.Values) (*querysvc.SpanQueryParams, error) {
 	queryParams.Filter, err = parseFilterParam(q)
 	if err != nil {
 		return nil, err
+	}
+	if raw := q.Get(paramOrderBy); raw != "" {
+		// The parameter is spliced into a JSON object below, so it must be exactly one JSON value.
+		// With trailing content or a second member the protobuf decoder would read something other
+		// than the array the caller sent, such as a duplicate orderBy member that wins over the first.
+		if !json.Valid([]byte(raw)) {
+			return nil, fmt.Errorf("malformed parameter %s: not a single JSON value", paramOrderBy)
+		}
+		var wire api_v3.SpanQueryParameters
+		if err := jsonpb.UnmarshalString(`{"orderBy":`+raw+`}`, &wire); err != nil {
+			return nil, fmt.Errorf("malformed parameter %s: %w", paramOrderBy, err)
+		}
+		order, err := tracestore.SpanOrderFromProto(wire.OrderBy)
+		if err != nil {
+			return nil, fmt.Errorf("malformed parameter %s: %w", paramOrderBy, err)
+		}
+		queryParams.OrderBy = order
 	}
 	// A span search is always bounded by its page size, so the value is taken whether or not
 	// the caller sent one; the query service fills in the default (RFC 0016 §6).

@@ -161,7 +161,7 @@ You must handle three inbound methods:
 ### 3. Discover and call Jaeger MCP tools
 
 The sidecar talks to Jaeger's MCP server directly over HTTP (default
-`http://127.0.0.1:16687/mcp`). Use any MCP client library, call `tools/list`
+`http://127.0.0.1:16686/api/ai/mcp/`). Use any MCP client library, call `tools/list`
 once per session, and call `tools/call` when the LLM picks one of those
 names.
 

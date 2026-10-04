@@ -23,36 +23,14 @@ import (
 	"github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore"
 )
 
-var errNoArchiveSpanStorage = errors.New("archive span storage was not configured")
-
 // DefaultSearchDepth bounds a trace search whose caller left SearchDepth unset. It is applied
 // here rather than in each API handler, so a gRPC and an HTTP client get the same bound.
-const DefaultSearchDepth = 100
+const DefaultSearchDepth uint32 = 100
 
 // DefaultPageSize bounds a span search whose caller left the page size unset. A span query has
 // no SearchDepth, so the page size is its only bound (RFC 0016 §6), and a Reader never receives
 // a query without one. It is applied here for the same reason as DefaultSearchDepth.
-const DefaultPageSize = DefaultSearchDepth
-
-// ErrQueryInvalid is returned for a trace search whose envelope is malformed on its own terms:
-// a missing or inverted time range, a negative or inverted duration bound, or a search depth
-// outside [0, MaxSearchDepth]. None of these depends on the backend. The API layers map it to
-// InvalidArgument / HTTP 400.
-var ErrQueryInvalid = errors.New("invalid query")
-
-// ErrSpanSearchUnsupported is returned for a span search against a backend whose reader does
-// not declare SpanSearch (RFC 0016 §4.5). It names the backend's limitation, because the same
-// query is valid elsewhere. The interceptor package has a sentinel of the same name for an
-// interceptor with no span-search policy; that one is a deployment fault, not a bad request.
-var ErrSpanSearchUnsupported = errors.New("this storage backend does not declare span search support")
-
-// ErrServiceNameRequired is returned for a search that omits the service name against a
-// backend whose reader does not accept one (RFC 0013 §3.3). It names the backend's
-// limitation rather than the missing field, because the same query is valid elsewhere.
-// The API layers map it to InvalidArgument / HTTP 400.
-var ErrServiceNameRequired = errors.New(
-	"this storage backend requires a service name to search; searching all services is not supported",
-)
+const DefaultPageSize uint32 = DefaultSearchDepth
 
 // QueryServiceOptions holds the configuration options for the query service.
 type QueryServiceOptions struct {
@@ -88,14 +66,52 @@ type GetTraceParams struct {
 	RawTraces bool
 }
 
-// SpanQueryParams represents the parameters for a span search (RFC 0016).
-type SpanQueryParams struct {
-	tracestore.SpanQueryParams
+// Pagination asks for one page of a search result and, on continuation, says where the previous
+// page stopped (RFC 0014 §4). It is the request as the caller sent it: the query service decides
+// what a zero PageSize means, clamps an oversized one, and refuses a PageToken this deployment or
+// its backend cannot honor.
+type Pagination struct {
+	// PageSize bounds the number of results in one page.
+	PageSize uint32
+	// PageToken continues a previous search. Empty starts a new one.
+	PageToken string
 }
 
-// TraceQueryParams represents the parameters for querying a batch of traces.
+// SpanQueryParams is a span search as the caller sent it (RFC 0016). toReaderQuery turns it into
+// the tracestore.SpanQueryParams the reader receives, so a request and the query storage receives
+// are different types and cannot be confused.
+type SpanQueryParams struct {
+	StartTimeMin time.Time
+	StartTimeMax time.Time
+	// Filter is the structured query filter (RFC 0005), the only predicate a span search takes.
+	Filter  *expression.Call
+	OrderBy []tracestore.SpanSortOrder
+	// Pagination is the only bound on the result (RFC 0016 §6): a zero PageSize means the default.
+	Pagination Pagination
+}
+
+// TraceQueryParams is a trace search as the caller sent it. prepareSearchQuery turns it into the
+// tracestore.TraceQueryParams the reader is dispatched: it fills in the defaults, finalizes the
+// filter, runs the interceptors, and rewrites the query into the shape the reader declared it can
+// serve. Keeping the two as separate types is what makes that conversion the one place where the
+// request and the dispatched query may differ.
 type TraceQueryParams struct {
-	tracestore.TraceQueryParams
+	ServiceName   string
+	OperationName string
+	// Attributes must be initialized with pcommon.NewMap() before use.
+	Attributes   pcommon.Map
+	StartTimeMin time.Time
+	StartTimeMax time.Time
+	DurationMin  time.Duration
+	DurationMax  time.Duration
+	// SearchDepth bounds an unpaginated search; zero means DefaultSearchDepth.
+	SearchDepth uint32
+	// Filter is the structured query filter (RFC 0005). It is mutually exclusive with the
+	// predicate fields above; the query service refuses a request that carries both.
+	Filter *expression.Call
+	// Pagination requests a paginated search (RFC 0014); nil is not a paginated request. It
+	// replaces SearchDepth rather than falling back to it.
+	Pagination *Pagination
 	// RawTraces indicates whether to retrieve raw traces.
 	// If set to false, the traces will be adjusted using QueryServiceOptions.Adjuster.
 	RawTraces bool
@@ -187,12 +203,12 @@ func (qs QueryService) FindSpans(
 	query SpanQueryParams,
 ) iter.Seq2[tracestore.PageChunk[ptrace.Traces], error] {
 	return func(yield func(tracestore.PageChunk[ptrace.Traces], error) bool) {
-		ctx, query, err := qs.prepareSpanSearchQuery(ctx, query)
+		ctx, readerQuery, err := qs.prepareSpanSearchQuery(ctx, query)
 		if err != nil {
 			yield(tracestore.PageChunk[ptrace.Traces]{}, err)
 			return
 		}
-		spans := qs.traceReader.FindSpans(ctx, query.SpanQueryParams)
+		spans := qs.traceReader.FindSpans(ctx, readerQuery)
 		spansIter := qs.interceptSpanResults(ctx, spans)
 		spansIter(yield)
 	}
@@ -219,12 +235,12 @@ func (qs QueryService) FindTraces(
 			yield(nil, tracestore.ErrPaginationUnsupportedByFindTraces)
 			return
 		}
-		ctx, query, err := qs.prepareSearchQuery(ctx, query)
+		ctx, readerQuery, err := qs.prepareSearchQuery(ctx, query)
 		if err != nil {
 			yield(nil, err)
 			return
 		}
-		tracesIter := qs.interceptTraceResults(ctx, qs.traceReader.FindTraces(ctx, query.TraceQueryParams))
+		tracesIter := qs.interceptTraceResults(ctx, qs.traceReader.FindTraces(ctx, readerQuery))
 		qs.receiveTraces(tracesIter, yield, query.RawTraces)
 	}
 }
@@ -249,7 +265,8 @@ func (qs QueryService) SearchWithoutServiceName(ctx context.Context) (bool, erro
 // deployment does not accept, gives the configured query interceptors their say, and returns the
 // query to dispatch in the shape the backend understands, along with the context to dispatch it
 // with. One place decides, so that every caller gets the same answer instead of each backend's
-// own (ADR-013).
+// own (ADR-013). It is also the one place where the caller's request becomes the reader's query:
+// the request is left as sent, and every default, clamp and rewrite lands on the returned value.
 //
 // The interceptors run after the caller's request is validated and before the backend's
 // capabilities are consulted. So an interceptor is never shown a request jaeger-query was going
@@ -257,30 +274,11 @@ func (qs QueryService) SearchWithoutServiceName(ctx context.Context) (bool, erro
 // one the caller sent.
 func (qs QueryService) prepareSearchQuery(
 	ctx context.Context,
-	query TraceQueryParams,
-) (context.Context, TraceQueryParams, error) {
-	if err := query.normalizeEnvelope(); err != nil {
+	request TraceQueryParams,
+) (context.Context, tracestore.TraceQueryParams, error) {
+	query, err := request.toReaderQuery()
+	if err != nil {
 		return ctx, query, err
-	}
-	if query.Pagination != nil {
-		if !PaginationGate.IsEnabled() {
-			return ctx, query, fmt.Errorf("%w: enable the %q feature gate to use it",
-				ErrPaginationDisabled, PaginationGate.ID())
-		}
-		// A page size replaces the search depth rather than falling back to it (RFC 0014 §4).
-		if query.SearchDepth != 0 {
-			return ctx, query, fmt.Errorf("%w: it cannot be combined with search depth",
-				tracestore.ErrPaginationInvalid)
-		}
-		if query.Pagination.PageSize <= 0 {
-			return ctx, query, fmt.Errorf("%w: page size is required whenever pagination is present",
-				tracestore.ErrPaginationInvalid)
-		}
-		// An oversized page is clamped rather than refused (RFC 0014 §4, AIP-158). The clamp
-		// lands on a copy so the caller's request is not rewritten through the shared pointer.
-		clamped := *query.Pagination
-		clamped.PageSize = min(clamped.PageSize, tracestore.MaxPageSize)
-		query.Pagination = &clamped
 	}
 	if query.Filter != nil {
 		// None of these refusals depends on the backend, so they come before the capability call
@@ -301,7 +299,6 @@ func (qs QueryService) prepareSearchQuery(
 		query.Filter = finalized
 	}
 	if len(qs.options.Interceptors) > 0 {
-		var err error
 		ctx, query, err = qs.onTraceQuery(ctx, query)
 		if err != nil {
 			return ctx, query, err
@@ -313,48 +310,22 @@ func (qs QueryService) prepareSearchQuery(
 	caps := qs.readerSearchCapabilitiesOrDefault(ctx)
 	// The filter is settled before the service name is checked, because a filter can name the
 	// service itself and rewriting it is what moves that into ServiceName.
-	prepared, err := queryToReaderShape(query.TraceQueryParams, caps)
+	query, err = queryToReaderCapabilities(query, caps)
 	if err != nil {
 		return ctx, query, err
 	}
-	query.TraceQueryParams = prepared
 	if query.ServiceName == "" && !caps.WithoutServiceName {
 		return ctx, query, ErrServiceNameRequired
 	}
 	return ctx, query, nil
 }
 
-// normalizeEnvelope checks the fields every trace search carries whichever filtering model it
-// uses, and applies DefaultSearchDepth where the caller left the bound unset. The API handlers
-// only translate their wire shape into this one; what a query must satisfy is decided here, once.
-func (q *TraceQueryParams) normalizeEnvelope() error {
-	if q.StartTimeMin.IsZero() || q.StartTimeMax.IsZero() {
-		return fmt.Errorf("%w: min and max start time are required", ErrQueryInvalid)
-	}
-	if !q.StartTimeMin.Before(q.StartTimeMax) {
-		return fmt.Errorf("%w: min start time must be before max start time", ErrQueryInvalid)
-	}
-	if q.DurationMin < 0 || q.DurationMax < 0 {
-		return fmt.Errorf("%w: min and max duration cannot be negative", ErrQueryInvalid)
-	}
-	if q.DurationMin > 0 && q.DurationMax > 0 && q.DurationMax < q.DurationMin {
-		return fmt.Errorf("%w: max duration cannot be less than min duration", ErrQueryInvalid)
-	}
-	if q.SearchDepth < 0 || q.SearchDepth > tracestore.MaxSearchDepth {
-		return fmt.Errorf("%w: search depth must be in [0, %d]", ErrQueryInvalid, tracestore.MaxSearchDepth)
-	}
-	if q.SearchDepth == 0 && q.Pagination == nil {
-		q.SearchDepth = DefaultSearchDepth
-	}
-	return nil
-}
-
 // prepareSpanSearchQuery is prepareSearchQuery for a span search (RFC 0016 §4.6): it refuses a
 // request this deployment or its backend does not accept, gives the configured query interceptors
 // their say, and returns the query to dispatch along with the context to dispatch it with. A span
-// query has one shape, so there is no conversion step and no service-name rule. The API handlers
-// only translate their wire shape into this one; what a query must satisfy is decided here, once
-// (the same reasoning as normalizeEnvelope, for the one field a span query's envelope has).
+// query has one shape, so there is no legacy rewrite and no service-name rule. The API handlers
+// only translate their wire shape into the request; what a query must satisfy is decided here,
+// once (the same reasoning as toReaderQuery, for the one field a span query's envelope has).
 //
 // The capabilities are read once. The caller's filter validation and the span-search refusal
 // come before the interceptors, so an interceptor is never shown a request this deployment or
@@ -362,25 +333,12 @@ func (q *TraceQueryParams) normalizeEnvelope() error {
 // interceptor adds is held to the same check as one the caller sent.
 func (qs QueryService) prepareSpanSearchQuery(
 	ctx context.Context,
-	query SpanQueryParams,
-) (context.Context, SpanQueryParams, error) {
-	if query.StartTimeMin.IsZero() || query.StartTimeMax.IsZero() {
-		return ctx, query, fmt.Errorf("%w: start_time_min and start_time_max are required", ErrQueryInvalid)
+	request SpanQueryParams,
+) (context.Context, tracestore.SpanQueryParams, error) {
+	query, err := request.toReaderQuery()
+	if err != nil {
+		return ctx, query, err
 	}
-	if !query.StartTimeMin.Before(query.StartTimeMax) {
-		return ctx, query, fmt.Errorf("%w: start_time_min must be before start_time_max", ErrQueryInvalid)
-	}
-	// A page token is what makes this a paginated request, and that is what the feature gate
-	// governs. The page size is only the bound (RFC 0016 §6): unset means the default, as an
-	// omitted size does on Elasticsearch, and an oversized one is clamped (RFC 0014 §4).
-	if query.Pagination.PageToken != "" && !PaginationGate.IsEnabled() {
-		return ctx, query, fmt.Errorf("%w: enable the %q feature gate to use it",
-			ErrPaginationDisabled, PaginationGate.ID())
-	}
-	if query.Pagination.PageSize == 0 {
-		query.Pagination.PageSize = DefaultPageSize
-	}
-	query.Pagination.PageSize = min(query.Pagination.PageSize, tracestore.MaxPageSize)
 	// A search over the time range alone carries no filter and is the base case of a span query
 	// (RFC 0016 §5.1), so the gate and finalization apply only when the caller sent one. Neither
 	// depends on the backend, so both come before the capability call rather than after it.
@@ -406,10 +364,16 @@ func (qs QueryService) prepareSpanSearchQuery(
 			return ctx, query, err
 		}
 	}
+	if err := ensureSpanFilterSupported(caps, query.Filter); err != nil {
+		return ctx, query, err
+	}
+	if err := caps.ValidateSpanSorting(query.OrderBy); err != nil {
+		return ctx, query, err
+	}
 	if err := ensureSpanPaginationSupported(caps, query.Pagination); err != nil {
 		return ctx, query, err
 	}
-	return ctx, query, ensureSpanFilterSupported(caps, query.Filter)
+	return ctx, query, nil
 }
 
 // ensureSpanPaginationSupported is RFC 0014 §6.2 for a span search. A reader that cannot paginate
@@ -447,7 +411,7 @@ func ensureSpanFilterSupported(caps tracestore.SearchCapabilities, filter *expre
 	return caps.Filter.EnsureSupported(filter)
 }
 
-func (qs QueryService) checkServiceName(ctx context.Context, query TraceQueryParams) error {
+func (qs QueryService) checkServiceName(ctx context.Context, query tracestore.TraceQueryParams) error {
 	if query.ServiceName != "" {
 		return nil
 	}
@@ -461,7 +425,10 @@ func (qs QueryService) checkServiceName(ctx context.Context, query TraceQueryPar
 // of lightweight summary information. It calls the trace reader's FindTraceSummaries;
 // readers that cannot compute summaries natively yield errors.ErrUnsupported (wrapped
 // with %w) as the first error, in which case FindTraceSummaries transparently falls
-// back to FindTraces and computes summaries from the full trace data.
+// back to FindTraces and computes summaries from the full trace data. A refusal that
+// carries a tracestore.ErrorReason also matches errors.ErrUnsupported when the backend
+// lacks a capability the query needs, but it names a problem with the query, which the
+// fallback would only hit again, so it is returned to the caller instead.
 //
 // The iterator is single-use: once consumed, it cannot be used again.
 func (qs QueryService) FindTraceSummaries(
@@ -469,18 +436,22 @@ func (qs QueryService) FindTraceSummaries(
 	query TraceQueryParams,
 ) iter.Seq2[PageChunk[[]tracestore.TraceSummary], error] {
 	return func(yield func(PageChunk[[]tracestore.TraceSummary], error) bool) {
-		ctx, query, err := qs.prepareSearchQuery(ctx, query)
+		ctx, readerQuery, err := qs.prepareSearchQuery(ctx, query)
 		if err != nil {
 			yield(PageChunk[[]tracestore.TraceSummary]{}, err)
 			return
 		}
-		for chunk, err := range qs.traceReader.FindTraceSummaries(ctx, query.TraceQueryParams) {
+		for chunk, err := range qs.traceReader.FindTraceSummaries(ctx, readerQuery) {
 			if err != nil {
-				if errors.Is(err, errors.ErrUnsupported) {
+				if errors.Is(err, errors.ErrUnsupported) && tracestore.ErrorReason(err) == "" {
+					if readerQuery.Pagination != nil {
+						qs.summarizeTraceIDPages(ctx, readerQuery, yield)
+						return
+					}
 					// Fall back to FindTraces + aggregation. The fallback loads whole traces, so
 					// the interceptors get the same say over them as on a FindTraces search; the
 					// summaries computed from them carry no spans and have no hook of their own.
-					traces := qs.interceptTraceResults(ctx, qs.traceReader.FindTraces(ctx, query.TraceQueryParams))
+					traces := qs.interceptTraceResults(ctx, qs.traceReader.FindTraces(ctx, readerQuery))
 					for b, e := range computeSummaries(traces, qs.adjuster) {
 						// FindTraces does not return pagination metadata, so fallback results cannot
 						// supply a next-page token.
@@ -499,11 +470,60 @@ func (qs QueryService) FindTraceSummaries(
 			}
 			result := PageChunk[[]tracestore.TraceSummary]{
 				Results:       chunk.Results,
-				NextPageToken: chunk.NextPageToken,
+				NextPageToken: string(chunk.NextPageToken),
 			}
 			if !yield(result, nil) {
 				return
 			}
+		}
+	}
+}
+
+// summarizeTraceIDPages is the FindTraceSummaries fallback for a paginated query. A reader's
+// FindTraces has no field for a page token and the query service refuses to paginate it, so the
+// fallback pages through FindTraceIDs instead, loads each page's traces with GetTraces, and
+// passes the page token through unchanged. The loaded traces go through the interceptors as
+// they do on the unpaginated fallback, with one interceptor chain for the whole stream so that
+// the context OnTraceResult returns carries from one chunk of trace IDs to the next.
+func (qs QueryService) summarizeTraceIDPages(
+	ctx context.Context,
+	query tracestore.TraceQueryParams,
+	yield func(PageChunk[[]tracestore.TraceSummary], error) bool,
+) {
+	var intercept func([]ptrace.Traces) ([]ptrace.Traces, error)
+	if len(qs.options.Interceptors) > 0 {
+		intercept = qs.traceResultInterceptor(ctx)
+	}
+	for ids, err := range qs.traceReader.FindTraceIDs(ctx, query) {
+		if err != nil {
+			yield(PageChunk[[]tracestore.TraceSummary]{}, err)
+			return
+		}
+		// Each batch computeSummaries yields is its own chunk, as on the unpaginated fallback,
+		// so a page of summaries never travels as one message; the token rides on the last.
+		page := PageChunk[[]tracestore.TraceSummary]{NextPageToken: string(ids.NextPageToken)}
+		if len(ids.Results) > 0 {
+			params := make([]tracestore.GetTraceParams, len(ids.Results))
+			for i, id := range ids.Results {
+				params[i] = tracestore.GetTraceParams(id)
+			}
+			traces := qs.traceReader.GetTraces(ctx, params...)
+			if intercept != nil {
+				traces = interceptBatches(traces, intercept)
+			}
+			for batch, err := range computeSummaries(traces, qs.adjuster) {
+				if err != nil {
+					yield(PageChunk[[]tracestore.TraceSummary]{}, err)
+					return
+				}
+				if page.Results != nil && !yield(PageChunk[[]tracestore.TraceSummary]{Results: page.Results}, nil) {
+					return
+				}
+				page.Results = batch
+			}
+		}
+		if !yield(page, nil) {
+			return
 		}
 	}
 }

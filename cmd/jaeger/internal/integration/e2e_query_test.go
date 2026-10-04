@@ -16,6 +16,7 @@ func TestJaegerQueryService(t *testing.T) {
 	// Start instance of Jaeger with jaeger_query reading from Remote Storage, which
 	// will be started in GRPCStorageIntegration below
 	query := &E2EStorageIntegration{
+		FeatureGates:       paginationGates,
 		ConfigFile:         "../../config-query.yaml",
 		SkipStorageCleaner: true,
 	}
@@ -29,7 +30,7 @@ func TestJaegerQueryService(t *testing.T) {
 		MetricsPort:     8887,
 		StorageIntegration: integration.StorageIntegration{
 			CleanUp:      purge,
-			Capabilities: capabilities.E2EWithoutNativeFilters(),
+			Capabilities: capabilities.Capabilities{}.WithoutFilterRefusals().WithoutSpanSearch(),
 		},
 	}
 	collector.e2eInitialize(t, "memory")

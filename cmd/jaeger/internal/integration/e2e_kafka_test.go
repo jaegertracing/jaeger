@@ -57,6 +57,7 @@ func TestKafkaStorage(t *testing.T) {
 			t.Log("Collector initialized")
 
 			ingester := &E2EStorageIntegration{
+				FeatureGates:    paginationGates,
 				BinaryName:      "jaeger-v2-ingester",
 				ConfigFile:      "../../config-kafka-ingester.yaml",
 				HealthCheckPort: 14133,
@@ -103,7 +104,7 @@ func TestKafkaStorage_SyncElasticsearch(t *testing.T) {
 	ingester := &E2EStorageIntegration{
 		BinaryName:      "jaeger-v2-ingester",
 		ConfigFile:      "../../config-kafka-ingester-sync.yaml",
-		FeatureGates:    elasticsearchFilterGates,
+		FeatureGates:    structuredFilterGates,
 		HealthCheckPort: 14133,
 		StorageIntegration: integration.StorageIntegration{
 			CleanUp:      purge,

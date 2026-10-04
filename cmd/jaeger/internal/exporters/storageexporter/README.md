@@ -102,6 +102,8 @@ extensions:
           server_urls: [http://localhost:9200]
           write_mode: sync
           poison_pill_handling: fail
+          bulk_processing:
+            max_bytes: 10000000  # at least twice queue.batch.max_size (ADR-014)
 
 exporters:
   kafka/dead_letter:

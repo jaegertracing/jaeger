@@ -622,7 +622,7 @@ func TestClientDeleteAliases(t *testing.T) {
 func testIndices() config.Indices {
 	reps := int64(1)
 	opts := config.IndexOptions{Shards: 5, Replicas: &reps}
-	return config.Indices{Spans: opts, Services: opts, Dependencies: opts, Sampling: opts}
+	return config.Indices{Spans: config.SpanIndexOptions{IndexOptions: opts}, Services: opts, Dependencies: opts, Sampling: opts}
 }
 
 // templateSnapshotIndices returns the index config the CreateTemplate wire
@@ -637,7 +637,7 @@ func templateSnapshotIndices() config.Indices {
 	}
 	return config.Indices{
 		IndexPrefix:  "test-",
-		Spans:        opts(500),
+		Spans:        config.SpanIndexOptions{IndexOptions: opts(500)},
 		Services:     opts(501),
 		Dependencies: opts(502),
 		Sampling:     opts(503),

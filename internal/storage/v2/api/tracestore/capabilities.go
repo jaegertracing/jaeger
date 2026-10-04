@@ -4,45 +4,10 @@
 package tracestore
 
 import (
-	"errors"
 	"slices"
 
 	expression "github.com/jaegertracing/jaeger-idl/query/expression/v1"
 )
-
-// ErrFilterUnsupported is returned for a well-formed query filter that the storage cannot
-// serve — a level it does not index, an operator it has not implemented, or a boolean
-// structure a flat index cannot evaluate (RFC 0005 §7). The query is refused rather than
-// approximated, so a caller never reads a narrower answer as the whole one. The query
-// service returns it for the limits a Reader declared through FilterCapabilities, and a
-// Reader returns it for the ones that declaration is too coarse to express — a built-in
-// field of a level it serves but does not store, or an operator it serves on some
-// references and not others.
-var ErrFilterUnsupported = errors.New("this storage backend cannot serve this query filter")
-
-// ErrFilterInvalid is returned for a query filter whose value does not fit the field it
-// compares — the kind of mistake a structural check cannot catch, because the filter AST
-// deliberately does not carry types (RFC 0005 §6.1).
-var ErrFilterInvalid = errors.New("invalid query filter")
-
-// ErrPaginationUnsupported is returned for a query carrying a Pagination.PageToken to a
-// Reader whose SearchCapabilities.Paginated is false. The query is refused rather than
-// treated as a new search, because a Reader that cannot paginate cannot have minted the
-// token, so honoring it as if it started a fresh search would silently reinterpret what
-// the caller sent (RFC 0014 §6.2).
-var ErrPaginationUnsupported = errors.New("this storage backend cannot resume a paginated search")
-
-// ErrPaginationInvalid is returned for a query whose Pagination is malformed on its own
-// terms, independent of any backend: one that also sets SearchDepth, since the two bounds
-// have no single honest meaning together, or one that leaves PageSize at zero, since a
-// Pagination with no page size does not describe a page (RFC 0014 §4).
-var ErrPaginationInvalid = errors.New("invalid pagination")
-
-// ErrPaginationUnsupportedByFindTraces is returned for a FindTraces query that carries
-// Pagination. FindTraces streams whole traces with no field to carry a continuation token,
-// so honoring the request would accept a paging request and never hand back a cursor,
-// leaving the caller unable to tell a bounded page from the last one (RFC 0014 §4).
-var ErrPaginationUnsupportedByFindTraces = errors.New("FindTraces cannot be paginated: its response has no field to carry a continuation token")
 
 // SearchCapabilities describes how a Reader's search methods behave where backends
 // differ: which TraceQueryParams fields may be omitted, which are honored exactly
@@ -82,15 +47,17 @@ type SearchCapabilities struct {
 
 	// Paginated is true when FindTraceIDs and FindTraceSummaries honor
 	// TraceQueryParams.Pagination and let a caller resume a search past its first page
-	// (RFC 0014). False, the zero value, means the reader cannot paginate: the query
-	// service serves a single page capped at Pagination.PageSize or SearchDepth and
-	// rejects a query that carries a PageToken, since a reader that cannot paginate
-	// cannot have minted a valid one.
+	// (RFC 0014). False, the zero value, means the reader cannot paginate: it returns an
+	// empty PageChunk.NextPageToken, the query service serves a single page capped at
+	// Pagination.PageSize or SearchDepth, and it rejects a query that carries a PageToken,
+	// since a reader that cannot paginate cannot have produced a valid one.
 	Paginated bool
 
 	// SpanSearch is true when FindSpans is supported by the backend. False means that the
 	// backend does not support that capability. See RFC 0016 for details.
 	SpanSearch bool
+	// SpanSorting promises all four built-in span sort fields in either direction and requires SpanSearch.
+	SpanSorting bool
 }
 
 // FilterCapabilities declares how much of a structured filter a Reader evaluates, by naming

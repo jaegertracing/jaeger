@@ -136,7 +136,8 @@ func TestWarnMisalignedSyncBatchSizing(t *testing.T) {
 		{name: "sync without queue is skipped", factory: fakeSyncFactory{sync: true, maxBytes: maxBytes}, queue: configoptional.None[exporterhelper.QueueBatchConfig]()},
 		{name: "sync with queue but no batch is skipped", factory: fakeSyncFactory{sync: true, maxBytes: maxBytes}, queue: configoptional.Some(exporterhelper.QueueBatchConfig{})},
 		{name: "sync with item-sized batch is skipped", factory: fakeSyncFactory{sync: true, maxBytes: maxBytes}, queue: itemBatchQueue},
-		{name: "sync with byte batch within cap is quiet", factory: fakeSyncFactory{sync: true, maxBytes: maxBytes}, queue: byteBatchQueue(maxBytes)},
+		{name: "sync with byte batch at half the cap is quiet", factory: fakeSyncFactory{sync: true, maxBytes: maxBytes}, queue: byteBatchQueue(maxBytes / 2)},
+		{name: "sync with byte batch over half the cap warns", factory: fakeSyncFactory{sync: true, maxBytes: maxBytes}, queue: byteBatchQueue(maxBytes/2 + 1), wantWarn: true},
 		{name: "sync with byte batch over cap warns", factory: fakeSyncFactory{sync: true, maxBytes: maxBytes}, queue: byteBatchQueue(maxBytes + 1), wantWarn: true},
 		{name: "sync with unbounded byte batch warns", factory: fakeSyncFactory{sync: true, maxBytes: maxBytes}, queue: byteBatchQueue(0), wantWarn: true},
 	}

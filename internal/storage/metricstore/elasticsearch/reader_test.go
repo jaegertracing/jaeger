@@ -1095,9 +1095,13 @@ func setupMetricsReaderFromServer(t *testing.T, mockServer *httptest.Server) (*M
 	cfg := config.Configuration{
 		Servers:  []string{mockServer.URL},
 		LogLevel: "debug",
-		Tags: config.TagsAsFields{
-			Include:        "span.kind,error",
-			DotReplacement: "@",
+		Indices: config.Indices{
+			Spans: config.SpanIndexOptions{
+				Tags: config.TagsAsFields{
+					Include:        "span.kind,error",
+					DotReplacement: "@",
+				},
+			},
 		},
 	}
 
@@ -1144,7 +1148,13 @@ func metricsSnapshotConfig(url string, version es.BackendVersion) config.Configu
 		Servers:  []string{url},
 		Version:  uint(version),
 		LogLevel: "info",
-		Tags:     config.TagsAsFields{DotReplacement: "@"},
+		Indices: config.Indices{
+			Spans: config.SpanIndexOptions{
+				Tags: config.TagsAsFields{
+					DotReplacement: "@",
+				},
+			},
+		},
 	}
 }
 

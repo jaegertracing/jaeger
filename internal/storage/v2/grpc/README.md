@@ -33,11 +33,12 @@ cd jaeger
 
 ### Step 2: Run the Integration Tests
 
-Run the integration tests for the gRPC storage backend using the following command:
+Run the integration tests for the gRPC storage backend using the following command.
+`SKIP_STARTING_BACKEND=true` skips launching the built-in memory backend; the suite still runs its tests against the supplied endpoints:
 
 ```bash
 STORAGE=grpc \
-CUSTOM_STORAGE=true \
+SKIP_STARTING_BACKEND=true \
 REMOTE_STORAGE_ENDPOINT=${MY_REMOTE_STORAGE_ENDPOINT} \
 REMOTE_STORAGE_WRITER_ENDPOINT=${MY_REMOTE_STORAGE_WRITER_ENDPOINT} \
 PURGER_ENDPOINT=${MY_PURGER_ENDPOINT} \

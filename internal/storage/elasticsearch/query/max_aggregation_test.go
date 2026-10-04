@@ -28,7 +28,7 @@ func TestTermsAggregationWithOrderAndSubAgg(t *testing.T) {
 	assert.Equal(t, map[string]any{
 		"terms": map[string]any{
 			"field": "traceID",
-			"size":  20,
+			"size":  uint64(20),
 			"order": []any{map[string]string{"startTime": "desc"}},
 		},
 		"aggregations": map[string]any{

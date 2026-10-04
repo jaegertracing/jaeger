@@ -95,7 +95,7 @@ func TestSearchTracesHandler_Handle_FullWorkflow(t *testing.T) {
 		findTraceSummariesFunc: func(_ context.Context, query querysvc.TraceQueryParams) iter.Seq2[[]tracestore.TraceSummary, error] {
 			assert.Equal(t, "cart-service", query.ServiceName)
 			assert.Equal(t, "/get-cart", query.OperationName)
-			assert.Equal(t, 10, query.SearchDepth)
+			assert.EqualValues(t, 10, query.SearchDepth)
 			return func(yield func([]tracestore.TraceSummary, error) bool) {
 				yield([]tracestore.TraceSummary{want}, nil)
 			}
@@ -305,7 +305,7 @@ func TestSearchTracesHandler_Handle_SearchDepthDefault(t *testing.T) {
 
 	mock := &mockQueryService{
 		findTraceSummariesFunc: func(_ context.Context, query querysvc.TraceQueryParams) iter.Seq2[[]tracestore.TraceSummary, error] {
-			assert.Equal(t, 10, query.SearchDepth)
+			assert.EqualValues(t, 10, query.SearchDepth)
 			return func(yield func([]tracestore.TraceSummary, error) bool) {
 				yield([]tracestore.TraceSummary{want}, nil)
 			}
@@ -329,7 +329,7 @@ func TestSearchTracesHandler_Handle_SearchDepthMax(t *testing.T) {
 
 	mock := &mockQueryService{
 		findTraceSummariesFunc: func(_ context.Context, query querysvc.TraceQueryParams) iter.Seq2[[]tracestore.TraceSummary, error] {
-			assert.Equal(t, 100, query.SearchDepth)
+			assert.EqualValues(t, 100, query.SearchDepth)
 			return func(yield func([]tracestore.TraceSummary, error) bool) {
 				yield([]tracestore.TraceSummary{want}, nil)
 			}
@@ -353,7 +353,7 @@ func TestSearchTracesHandler_Handle_SearchDepthUnlimitedMaxResults(t *testing.T)
 
 	mock := &mockQueryService{
 		findTraceSummariesFunc: func(_ context.Context, query querysvc.TraceQueryParams) iter.Seq2[[]tracestore.TraceSummary, error] {
-			assert.Equal(t, 25, query.SearchDepth)
+			assert.EqualValues(t, 25, query.SearchDepth)
 			return func(yield func([]tracestore.TraceSummary, error) bool) {
 				yield([]tracestore.TraceSummary{want}, nil)
 			}

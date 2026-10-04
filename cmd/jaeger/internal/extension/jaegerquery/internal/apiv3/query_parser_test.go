@@ -14,6 +14,7 @@ import (
 	"go.opentelemetry.io/collector/pdata/pcommon"
 
 	expression "github.com/jaegertracing/jaeger-idl/query/expression/v1"
+	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerquery/querysvc"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore"
 )
 
@@ -41,7 +42,7 @@ func TestParseFindTracesQuery(t *testing.T) {
 		assert.Equal(t, "op", got.OperationName)
 		assert.Equal(t, tMin, got.StartTimeMin)
 		assert.Equal(t, tMax, got.StartTimeMax)
-		assert.Equal(t, 20, got.SearchDepth)
+		assert.EqualValues(t, 20, got.SearchDepth)
 		assert.Equal(t, time.Second, got.DurationMin)
 		assert.Equal(t, 2*time.Second, got.DurationMax)
 		assert.True(t, got.RawTraces)
@@ -64,7 +65,7 @@ func TestParseFindTracesQuery(t *testing.T) {
 		assert.Equal(t, "op", got.OperationName)
 		assert.Equal(t, tMin, got.StartTimeMin)
 		assert.Equal(t, tMax, got.StartTimeMax)
-		assert.Equal(t, 5, got.SearchDepth)
+		assert.EqualValues(t, 5, got.SearchDepth)
 		assert.Equal(t, 500*time.Millisecond, got.DurationMin)
 		assert.Equal(t, time.Second, got.DurationMax)
 		assert.True(t, got.RawTraces)
@@ -77,7 +78,7 @@ func TestParseFindTracesQuery(t *testing.T) {
 
 		got, err := parseFindTracesQuery(q)
 		require.NoError(t, err)
-		assert.Equal(t, 0, got.SearchDepth)
+		assert.EqualValues(t, 0, got.SearchDepth)
 	})
 
 	t.Run("an absent or inverted time range is left for the query service to refuse", func(t *testing.T) {
@@ -102,15 +103,15 @@ func TestParseFindTracesQuery(t *testing.T) {
 
 		got, err := parseFindTracesQuery(q)
 		require.NoError(t, err)
-		assert.Equal(t, 7, got.SearchDepth)
+		assert.EqualValues(t, 7, got.SearchDepth)
 	})
 
 	t.Run("search depth at zero and max", func(t *testing.T) {
-		for _, depth := range []int{0, tracestore.MaxSearchDepth} {
+		for _, depth := range []uint32{0, tracestore.MaxSearchDepth} {
 			q := url.Values{}
 			q.Set(paramTimeMin, goodMin)
 			q.Set(paramTimeMax, goodMax)
-			q.Set(paramSearchDepth, strconv.Itoa(depth))
+			q.Set(paramSearchDepth, strconv.FormatUint(uint64(depth), 10))
 
 			got, err := parseFindTracesQuery(q)
 			require.NoError(t, err)
@@ -147,12 +148,12 @@ func TestParseFindTracesQuery(t *testing.T) {
 		q.Set(paramPageToken, "opaque-cursor")
 		got, err = parseFindTracesQuery(q)
 		require.NoError(t, err)
-		assert.Equal(t, &tracestore.Pagination{PageSize: 10, PageToken: "opaque-cursor"}, got.Pagination)
+		assert.Equal(t, &querysvc.Pagination{PageSize: 10, PageToken: "opaque-cursor"}, got.Pagination)
 
 		q.Del(paramPageSize)
 		got, err = parseFindTracesQuery(q)
 		require.NoError(t, err)
-		assert.Equal(t, &tracestore.Pagination{PageToken: "opaque-cursor"}, got.Pagination,
+		assert.Equal(t, &querysvc.Pagination{PageToken: "opaque-cursor"}, got.Pagination,
 			"a token alone is still a paginated request; the missing page size is the query service's refusal")
 	})
 
@@ -205,6 +206,11 @@ func TestParseFindTracesQuery(t *testing.T) {
 			name:    "bad num_traces (deprecated alias)",
 			params:  map[string]string{paramTimeMin: goodMin, paramTimeMax: goodMax, paramNumTraces: "NaN"},
 			wantErr: "malformed parameter " + paramNumTraces,
+		},
+		{
+			name:    "searchDepth negative",
+			params:  map[string]string{paramTimeMin: goodMin, paramTimeMax: goodMax, paramSearchDepth: "-1"},
+			wantErr: "malformed parameter " + paramSearchDepth,
 		},
 		{
 			name:    "bad durationMin (canonical)",
@@ -445,7 +451,7 @@ func TestParseFindSpansQuery(t *testing.T) {
 
 		got, err := parseFindSpansQuery(q)
 		require.NoError(t, err)
-		assert.Equal(t, tracestore.Pagination{PageSize: 10, PageToken: "opaque-cursor"}, got.Pagination)
+		assert.Equal(t, querysvc.Pagination{PageSize: 10, PageToken: "opaque-cursor"}, got.Pagination)
 	})
 
 	t.Run("pagination parameters are optional", func(t *testing.T) {

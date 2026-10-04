@@ -4,8 +4,6 @@
 package querysvc
 
 import (
-	"errors"
-
 	"go.opentelemetry.io/collector/featuregate"
 )
 
@@ -21,6 +19,3 @@ var PaginationGate = featuregate.GlobalRegistry().MustRegister(
 	),
 	featuregate.WithRegisterReferenceURL("https://github.com/jaegertracing/jaeger/blob/main/docs/rfc/0014-search-result-pagination.md"),
 )
-
-// ErrPaginationDisabled is returned for a query carrying Pagination while PaginationGate is off.
-var ErrPaginationDisabled = errors.New("pagination is disabled")

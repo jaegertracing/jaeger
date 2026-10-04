@@ -30,7 +30,7 @@ func TestQueryParametersCarryTheFilter(t *testing.T) {
 
 	sent, err := toProtoQueryParameters(tracestore.TraceQueryParams{Attributes: pcommon.NewMap(), Filter: filter})
 	require.NoError(t, err)
-	encoded, err := expressionproto.ToProto(filter)
+	encoded, err := expressionproto.CallToProto(filter)
 	require.NoError(t, err)
 	assert.Equal(t, encoded, sent.GetFilter())
 	decoded, err := NewHandler(new(tracestoremocks.Reader), nil, nil).toTraceQueryParams(sent)
@@ -51,7 +51,7 @@ func TestQueryParametersCarryTheFilter(t *testing.T) {
 // them without saying which. The filter itself is passed on as sent, whatever the reader declared,
 // because converting it toward the reader's capabilities is the query service's job (ADR-013).
 func TestRemoteIngress_RefusesAMixedQuery(t *testing.T) {
-	filter, err := expressionproto.ToProto(&expression.Call{
+	filter, err := expressionproto.CallToProto(&expression.Call{
 		Op: expression.OpEq,
 		Args: []expression.Expression{
 			&expression.AttributeRef{Key: "http.route", Level: expression.LevelSpan},
