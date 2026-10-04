@@ -12,8 +12,8 @@ import (
 
 // TraceIDFromString decodes a 32-character hex string into a pcommon.TraceID.
 // Unlike model.TraceIDFromString, it rejects shorter strings instead of
-// zero-padding them, so callers that need lenient parsing of user input
-// should go through the v1 model type instead.
+// zero-padding them. The query API endpoints that still accept short IDs
+// widen them before calling this function.
 func TraceIDFromString(s string) (pcommon.TraceID, error) {
 	var id pcommon.TraceID
 	if err := decodeHexID(s, id[:], "trace"); err != nil {

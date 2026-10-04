@@ -13,14 +13,12 @@ import (
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 
-	"github.com/jaegertracing/jaeger-idl/model/v1"
 	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerquery/querysvc"
 	"github.com/jaegertracing/jaeger/components/extension/jaegerquery/queryinterceptor"
 	"github.com/jaegertracing/jaeger/internal/jptrace"
 	"github.com/jaegertracing/jaeger/internal/proto/api_v3"
 	expressionproto "github.com/jaegertracing/jaeger/internal/proto/expression/v1"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore"
-	"github.com/jaegertracing/jaeger/internal/storage/v2/v1adapter"
 )
 
 // errorInfoDomain is the ErrorInfo domain under which the API v3 server marks ordering and
@@ -38,7 +36,7 @@ var _ api_v3.QueryServiceServer = (*Handler)(nil)
 
 // GetTrace implements api_v3.QueryServiceServer's GetTrace
 func (h *Handler) GetTrace(request *api_v3.GetTraceRequest, stream api_v3.QueryService_GetTraceServer) error {
-	traceID, err := model.TraceIDFromString(request.GetTraceId())
+	traceID, err := traceIDFromHex(request.GetTraceId())
 	if err != nil {
 		return fmt.Errorf("malform trace ID: %w", err)
 	}
@@ -46,7 +44,7 @@ func (h *Handler) GetTrace(request *api_v3.GetTraceRequest, stream api_v3.QueryS
 	query := querysvc.GetTraceParams{
 		TraceIDs: []tracestore.GetTraceParams{
 			{
-				TraceID: v1adapter.FromV1TraceID(traceID),
+				TraceID: traceID,
 				Start:   request.GetStartTime(),
 				End:     request.GetEndTime(),
 			},

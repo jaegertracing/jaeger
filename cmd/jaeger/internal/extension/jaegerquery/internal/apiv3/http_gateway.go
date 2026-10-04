@@ -11,9 +11,11 @@ import (
 	"io"
 	"net/http"
 	"strconv"
+	"strings"
 
 	"github.com/gogo/protobuf/jsonpb"
 	"github.com/gogo/protobuf/proto"
+	"go.opentelemetry.io/collector/pdata/pcommon"
 	"go.opentelemetry.io/collector/pdata/ptrace"
 	"go.opentelemetry.io/otel/trace"
 	"go.uber.org/zap"
@@ -26,7 +28,6 @@ import (
 	"github.com/jaegertracing/jaeger/internal/proto/api_v3"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/api/spanstore"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore"
-	"github.com/jaegertracing/jaeger/internal/storage/v2/v1adapter"
 )
 
 const (
@@ -36,6 +37,9 @@ const (
 	routeFindSpans     = "/api/v3/spans"
 	routeGetServices   = "/api/v3/services"
 	routeGetOperations = "/api/v3/operations"
+
+	// traceIDHexLen is the length of the canonical hex form of a trace ID.
+	traceIDHexLen = 32
 )
 
 // HTTPGateway exposes APIv3 HTTP endpoints.
@@ -171,7 +175,7 @@ func (h *HTTPGateway) getTrace(w http.ResponseWriter, r *http.Request) {
 	request := querysvc.GetTraceParams{
 		TraceIDs: []tracestore.GetTraceParams{
 			{
-				TraceID: v1adapter.FromV1TraceID(traceID),
+				TraceID: traceID,
 			},
 		},
 	}
@@ -301,14 +305,17 @@ func (h *HTTPGateway) getOperations(w http.ResponseWriter, r *http.Request) {
 
 // TraceIDFromString parses a trace ID from either a hex string or a base64 string.
 // It supports both standard and URL-safe base64, with or without padding.
-func TraceIDFromString(s string) (model.TraceID, error) {
-	traceID, err := model.TraceIDFromString(s)
+// Short forms (fewer than 32 hex characters, or 8 bytes of base64) are accepted for
+// compatibility with links in the wild and widened here, at the API boundary, so that
+// nothing below the API sees anything but a full pcommon.TraceID.
+func TraceIDFromString(s string) (pcommon.TraceID, error) {
+	traceID, err := traceIDFromHex(s)
 	if err == nil {
 		return traceID, nil
 	}
 	// 128-bit trace ID = 24 base64 chars with padding, 22 without.
 	if len(s) > 24 {
-		return model.TraceID{}, err
+		return pcommon.TraceID{}, err
 	}
 	encodings := []*base64.Encoding{
 		base64.StdEncoding,
@@ -318,8 +325,29 @@ func TraceIDFromString(s string) (model.TraceID, error) {
 	}
 	for _, enc := range encodings {
 		if b, b64Err := enc.DecodeString(s); b64Err == nil {
-			return model.TraceIDFromBytes(b)
+			return traceIDFromBytes(b)
 		}
 	}
-	return model.TraceID{}, err
+	return pcommon.TraceID{}, err
+}
+
+// traceIDFromHex parses a trace ID of up to 32 hex characters, left-padding a shorter
+// one with zeros before handing it to the strict parser.
+func traceIDFromHex(s string) (pcommon.TraceID, error) {
+	if n := len(s); n > 0 && n < traceIDHexLen {
+		s = strings.Repeat("0", traceIDHexLen-n) + s
+	}
+	return jptrace.TraceIDFromString(s)
+}
+
+// traceIDFromBytes builds a trace ID from 16 bytes, or from 8 bytes that become its low half.
+func traceIDFromBytes(b []byte) (pcommon.TraceID, error) {
+	var traceID pcommon.TraceID
+	switch len(b) {
+	case len(traceID), len(traceID) / 2:
+		copy(traceID[len(traceID)-len(b):], b)
+		return traceID, nil
+	default:
+		return pcommon.TraceID{}, fmt.Errorf("trace ID must be 8 or 16 bytes, got %d", len(b))
+	}
 }

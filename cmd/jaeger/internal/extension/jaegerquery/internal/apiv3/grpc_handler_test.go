@@ -253,7 +253,7 @@ func TestGetTraceTraceIDError(t *testing.T) {
 	})
 	require.NoError(t, err)
 	recv, err := getTraceStream.Recv()
-	require.ErrorContains(t, err, "strconv.ParseUint:")
+	require.ErrorContains(t, err, "is not valid hex")
 	assert.Nil(t, recv)
 }
 
