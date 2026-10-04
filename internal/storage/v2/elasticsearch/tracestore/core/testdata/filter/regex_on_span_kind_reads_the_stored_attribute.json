@@ -1,0 +1,38 @@
+{
+  "bool": {
+    "should": [
+      {
+        "regexp": {
+          "tag.span@kind": {
+            "flags": "NONE",
+            "value": ".*(serv.*).*"
+          }
+        }
+      },
+      {
+        "nested": {
+          "path": "tags",
+          "query": {
+            "bool": {
+              "must": [
+                {
+                  "term": {
+                    "tags.key": "span.kind"
+                  }
+                },
+                {
+                  "regexp": {
+                    "tags.value": {
+                      "flags": "NONE",
+                      "value": ".*(serv.*).*"
+                    }
+                  }
+                }
+              ]
+            }
+          }
+        }
+      }
+    ]
+  }
+}
