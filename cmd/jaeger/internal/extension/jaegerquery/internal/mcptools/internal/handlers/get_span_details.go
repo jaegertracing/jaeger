@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"iter"
+	"math"
 	"time"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
@@ -143,7 +144,10 @@ func (h *getSpanDetailsHandler) fetchViaFindSpans(
 	var spanDetails []types.SpanDetail
 	// The default page size is 100 and the caller may name more spans than that, so every page is
 	// read until the token runs out. A repeated token would loop forever, so it ends the read too.
-	pageSize := uint32(len(canonicalSpanIDs))
+	var pageSize uint32
+	if n := len(canonicalSpanIDs); n <= math.MaxUint32 {
+		pageSize = uint32(n)
+	}
 	var pageToken string
 	for {
 		query := querysvc.SpanQueryParams{
