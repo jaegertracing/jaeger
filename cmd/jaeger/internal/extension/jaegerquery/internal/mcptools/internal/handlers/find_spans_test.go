@@ -267,28 +267,28 @@ func TestFindSpansHandler_Handle_ServedByMemoryStore(t *testing.T) {
 
 func TestBuildSearchFilter(t *testing.T) {
 	t.Run("no criteria yields nil", func(t *testing.T) {
-		assert.Nil(t, buildSearchFilter(types.FindSpansInput{}, 0, 0))
+		assert.Nil(t, buildSearchFilter(types.FindSpansInput{}, nil, nil))
 	})
 	t.Run("single criterion is not wrapped in and", func(t *testing.T) {
-		f := buildSearchFilter(types.FindSpansInput{ServiceName: "svc"}, 0, 0)
+		f := buildSearchFilter(types.FindSpansInput{ServiceName: "svc"}, nil, nil)
 		require.NotNil(t, f)
 		assert.Equal(t, expression.OpEq, f.Op)
 	})
 	t.Run("multiple criteria are anded together", func(t *testing.T) {
-		f := buildSearchFilter(types.FindSpansInput{ServiceName: "svc", SpanName: "op"}, 0, 0)
+		f := buildSearchFilter(types.FindSpansInput{ServiceName: "svc", SpanName: "op"}, nil, nil)
 		require.NotNil(t, f)
 		assert.Equal(t, expression.OpAnd, f.Op)
 		assert.Len(t, f.Args, 2)
 	})
 	t.Run("attribute value is untyped so it resolves against the stored kind", func(t *testing.T) {
-		f := buildSearchFilter(types.FindSpansInput{Attributes: map[string]string{"k": "v"}}, 0, 0)
+		f := buildSearchFilter(types.FindSpansInput{Attributes: map[string]string{"k": "v"}}, nil, nil)
 		require.NotNil(t, f)
 		call, ok := f.Args[1].(*expression.AnyValue)
 		require.True(t, ok)
 		assert.Equal(t, "v", call.Value)
 	})
 	t.Run("with_errors reads the error virtual attribute as a bool", func(t *testing.T) {
-		f := buildSearchFilter(types.FindSpansInput{WithErrors: true}, 0, 0)
+		f := buildSearchFilter(types.FindSpansInput{WithErrors: true}, nil, nil)
 		require.NotNil(t, f)
 		ref, ok := f.Args[0].(*expression.AttributeRef)
 		require.True(t, ok)
@@ -298,7 +298,8 @@ func TestBuildSearchFilter(t *testing.T) {
 		assert.True(t, value.Value)
 	})
 	t.Run("duration bounds compare the span duration field", func(t *testing.T) {
-		f := buildSearchFilter(types.FindSpansInput{}, 2*time.Second, 10*time.Second)
+		lo, hi := 2*time.Second, 10*time.Second
+		f := buildSearchFilter(types.FindSpansInput{}, &lo, &hi)
 		require.NotNil(t, f)
 		require.Equal(t, expression.OpAnd, f.Op)
 		require.Len(t, f.Args, 2)
@@ -306,5 +307,12 @@ func TestBuildSearchFilter(t *testing.T) {
 		assert.Equal(t, expression.OpGte, lower.Op)
 		upper := f.Args[1].(*expression.Call)
 		assert.Equal(t, expression.OpLte, upper.Op)
+	})
+	t.Run("an explicit zero upper bound is applied, not dropped", func(t *testing.T) {
+		zero := time.Duration(0)
+		f := buildSearchFilter(types.FindSpansInput{}, nil, &zero)
+		require.NotNil(t, f, "a single bound is the whole filter, not an AND of one")
+		assert.Equal(t, expression.OpLte, f.Op)
+		assert.Equal(t, time.Duration(0), f.Args[1].(*expression.DurationValue).Value)
 	})
 }

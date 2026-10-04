@@ -176,7 +176,7 @@ func registerTools(server *mcp.Server, queryAPI *querysvc.QueryService, cfg Conf
 			"criteria across however many traces, returning full span data in one call. " +
 			"Unlike search_traces, requires an explicit time range and returns spans, not trace " +
 			"summaries. Refused if the storage backend does not support span search.",
-	}, handlers.NewFindSpansHandler(s.queryAPI, s.config.MaxSpanDetailsPerRequest))
+	}, handlers.NewFindSpansHandler(s.queryAPI, int(s.config.MaxSearchResults)))
 
 	mcp.AddTool(s.mcpServer, &mcp.Tool{
 		Name: "get_trace_errors",
