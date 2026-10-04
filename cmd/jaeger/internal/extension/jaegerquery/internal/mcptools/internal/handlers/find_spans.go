@@ -109,18 +109,22 @@ func (h *findSpansHandler) buildQuery(input types.FindSpansInput) (querysvc.Span
 		return querysvc.SpanQueryParams{}, 0, fmt.Errorf("invalid start_time_max: %w", err)
 	}
 
-	var durationMin, durationMax time.Duration
+	// A bound is present whenever the caller sent it, even as "0s": a nil pointer means no bound,
+	// so an explicit zero bound is not mistaken for an absent one.
+	var durationMin, durationMax *time.Duration
 	if input.DurationMin != "" {
-		durationMin, err = time.ParseDuration(input.DurationMin)
+		d, err := time.ParseDuration(input.DurationMin)
 		if err != nil {
 			return querysvc.SpanQueryParams{}, 0, fmt.Errorf("invalid duration_min: %w", err)
 		}
+		durationMin = &d
 	}
 	if input.DurationMax != "" {
-		durationMax, err = time.ParseDuration(input.DurationMax)
+		d, err := time.ParseDuration(input.DurationMax)
 		if err != nil {
 			return querysvc.SpanQueryParams{}, 0, fmt.Errorf("invalid duration_max: %w", err)
 		}
+		durationMax = &d
 	}
 
 	limit := input.MaxResults
@@ -147,7 +151,7 @@ func (h *findSpansHandler) buildQuery(input types.FindSpansInput) (querysvc.Span
 // with_errors reads as the error virtual attribute every backend's filter lowering
 // special-cases (e.g. the elasticsearch backend's asErrorTagEquality), not a stored
 // attribute of that name.
-func buildSearchFilter(input types.FindSpansInput, durationMin, durationMax time.Duration) *expression.Call {
+func buildSearchFilter(input types.FindSpansInput, durationMin, durationMax *time.Duration) *expression.Call {
 	var predicates []expression.Expression
 
 	if input.ServiceName != "" {
@@ -174,21 +178,21 @@ func buildSearchFilter(input types.FindSpansInput, durationMin, durationMax time
 			&expression.BoolValue{Value: true},
 		))
 	}
-	if durationMin != 0 {
+	if durationMin != nil {
 		predicates = append(predicates, &expression.Call{
 			Op: expression.OpGte,
 			Args: []expression.Expression{
 				&expression.FieldRef{Level: expression.LevelSpan, Name: expression.SpanFieldDuration},
-				&expression.DurationValue{Value: durationMin},
+				&expression.DurationValue{Value: *durationMin},
 			},
 		})
 	}
-	if durationMax != 0 {
+	if durationMax != nil {
 		predicates = append(predicates, &expression.Call{
 			Op: expression.OpLte,
 			Args: []expression.Expression{
 				&expression.FieldRef{Level: expression.LevelSpan, Name: expression.SpanFieldDuration},
-				&expression.DurationValue{Value: durationMax},
+				&expression.DurationValue{Value: *durationMax},
 			},
 		})
 	}
