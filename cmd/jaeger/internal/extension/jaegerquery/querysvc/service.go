@@ -204,6 +204,13 @@ func (qs QueryService) AdjustSpans(traces ptrace.Traces) {
 	qs.adjuster.Adjust(traces)
 }
 
+// HasArchiveTraceReader reports whether archive storage is configured. The whole-trace path
+// reads it for traces the primary reader does not have; a span search does not, so a caller
+// must not rely on a span search alone when this is true.
+func (qs QueryService) HasArchiveTraceReader() bool {
+	return qs.options.ArchiveTraceReader != nil
+}
+
 // HasInterceptors reports whether a query interceptor is configured. A caller uses it to decide
 // whether a refusal that comes after the interceptors ran can be retried on another path.
 func (qs QueryService) HasInterceptors() bool {

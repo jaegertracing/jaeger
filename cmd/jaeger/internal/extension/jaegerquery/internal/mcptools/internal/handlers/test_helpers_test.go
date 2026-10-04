@@ -63,6 +63,7 @@ type mockQueryService struct {
 	findSpansFunc          func(ctx context.Context, query querysvc.SpanQueryParams) iter.Seq2[tracestore.PageChunk[ptrace.Traces], error]
 	adjustCalls            int
 	hasInterceptors        bool
+	hasArchive             bool
 }
 
 func (m *mockQueryService) GetTraces(ctx context.Context, params querysvc.GetTraceParams) iter.Seq2[[]ptrace.Traces, error] {
@@ -81,6 +82,9 @@ func (m *mockQueryService) AdjustSpans(ptrace.Traces) { m.adjustCalls++ }
 // HasInterceptors reports whether the mock was given an interceptor; by default it has none, so a
 // refusal may fall back as it did before.
 func (m *mockQueryService) HasInterceptors() bool { return m.hasInterceptors }
+
+// HasArchiveTraceReader reports whether the mock was given archive storage.
+func (m *mockQueryService) HasArchiveTraceReader() bool { return m.hasArchive }
 
 func (m *mockQueryService) FindSpans(ctx context.Context, query querysvc.SpanQueryParams) iter.Seq2[tracestore.PageChunk[ptrace.Traces], error] {
 	if m.findSpansFunc != nil {
