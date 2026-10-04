@@ -35,6 +35,7 @@ type spanDetailsQueryService interface {
 	FindSpans(ctx context.Context, query querysvc.SpanQueryParams) iter.Seq2[tracestore.PageChunk[ptrace.Traces], error]
 	AdjustSpans(traces ptrace.Traces)
 	HasInterceptors() bool
+	HasArchiveTraceReader() bool
 }
 
 // getSpanDetailsHandler implements the get_span_details MCP tool.
@@ -82,10 +83,20 @@ func (h *getSpanDetailsHandler) handle(
 	// the filter gate, or the identity filter's specific fields/operators) unwraps to
 	// errors.ErrUnsupported, the one root the capability family shares, so falling back to the
 	// whole-trace path afterward is safe: nothing has been marked found yet.
-	spanDetails, err := h.fetchViaFindSpans(ctx, q.traceID, q.canonicalSpanIDs, spanIDSet)
+	// With archive storage configured, a span search cannot see archived traces, so the
+	// whole-trace path, which reads the archive, answers instead.
+	var spanDetails []types.SpanDetail
 	traceFound := true
-	if h.canFallBack(err) {
+	if h.queryService.HasArchiveTraceReader() {
 		spanDetails, traceFound, err = h.fetchViaGetTraces(ctx, q.params, spanIDSet)
+	} else {
+		var findErr error
+		spanDetails, findErr = h.fetchViaFindSpans(ctx, q.traceID, q.canonicalSpanIDs, spanIDSet)
+		if h.canFallBack(findErr) {
+			spanDetails, traceFound, err = h.fetchViaGetTraces(ctx, q.params, spanIDSet)
+		} else {
+			err = findErr
+		}
 	}
 	if err != nil {
 		return nil, types.GetSpanDetailsOutput{}, err

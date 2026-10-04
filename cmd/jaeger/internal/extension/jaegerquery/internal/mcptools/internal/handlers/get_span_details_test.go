@@ -895,3 +895,30 @@ func TestGetSpanDetailsHandler_FastPathRegressions(t *testing.T) {
 		require.ErrorIs(t, err, tracestore.ErrFilterUnsupported)
 	})
 }
+
+// TestGetSpanDetailsHandler_ArchiveDisablesFastPath pins that with archive storage configured the
+// span search is not used, since it would miss a trace that exists only in the archive.
+func TestGetSpanDetailsHandler_ArchiveDisablesFastPath(t *testing.T) {
+	spanID := "span001"
+	findCalled := false
+	mock := &mockQueryService{
+		hasArchive: true,
+		findSpansFunc: func(context.Context, querysvc.SpanQueryParams) iter.Seq2[tracestore.PageChunk[ptrace.Traces], error] {
+			findCalled = true
+			return func(func(tracestore.PageChunk[ptrace.Traces], error) bool) {}
+		},
+		getTracesFunc: func(context.Context, querysvc.GetTraceParams) iter.Seq2[[]ptrace.Traces, error] {
+			return func(yield func([]ptrace.Traces, error) bool) {
+				yield([]ptrace.Traces{createTestTraceWithSpans(testTraceID, []spanConfig{{spanID: spanID, operation: "/op"}})}, nil)
+			}
+		},
+	}
+	handler := &getSpanDetailsHandler{queryService: mock, maxSpanDetailsPerRequest: 50}
+	_, output, err := handler.handle(context.Background(), &mcp.CallToolRequest{}, types.GetSpanDetailsInput{
+		TraceID: testTraceID,
+		SpanIDs: []string{spanIDToHex(spanID)},
+	})
+	require.NoError(t, err)
+	assert.False(t, findCalled, "the span search must not run when archive storage is configured")
+	assert.Len(t, output.Spans, 1)
+}
