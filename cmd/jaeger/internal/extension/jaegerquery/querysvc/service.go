@@ -198,6 +198,18 @@ func (qs QueryService) GetOperations(
 
 // FindSpans searches for spans matching the query parameters.
 // The iterator is single-use: once consumed, it cannot be used again.
+// AdjustSpans applies the adjusters the whole-trace path applies. A span search returns stored
+// spans unadjusted, so a caller that reports them the way GetTraces would must adjust them first.
+func (qs QueryService) AdjustSpans(traces ptrace.Traces) {
+	qs.adjuster.Adjust(traces)
+}
+
+// HasInterceptors reports whether a query interceptor is configured. A caller uses it to decide
+// whether a refusal that comes after the interceptors ran can be retried on another path.
+func (qs QueryService) HasInterceptors() bool {
+	return len(qs.options.Interceptors) > 0
+}
+
 func (qs QueryService) FindSpans(
 	ctx context.Context,
 	query SpanQueryParams,

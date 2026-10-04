@@ -791,3 +791,107 @@ func TestBuildIdentityFilter(t *testing.T) {
 	assert.Equal(t, expression.ValueTypeString, list.Type)
 	assert.Equal(t, []string{"aaa", "bbb"}, list.Values)
 }
+
+// TestGetSpanDetailsHandler_FastPathRegressions pins the four fast-path fixes: a match must
+// belong to the requested trace, every page of a long result is read, the spans the fast path
+// reports are adjusted, and an identity-filter refusal falls back only when no interceptor ran.
+func TestGetSpanDetailsHandler_FastPathRegressions(t *testing.T) {
+	spanID := "span001"
+	hexSpanID := spanIDToHex(spanID)
+	otherTraceID := "abcdefabcdefabcdefabcdefabcdefab"
+
+	t.Run("a span with the same ID in another trace is not returned", func(t *testing.T) {
+		other := createTestTraceWithSpans(otherTraceID, []spanConfig{{spanID: spanID, operation: "/other"}})
+		mock := &mockQueryService{
+			findSpansFunc: func(context.Context, querysvc.SpanQueryParams) iter.Seq2[tracestore.PageChunk[ptrace.Traces], error] {
+				return func(yield func(tracestore.PageChunk[ptrace.Traces], error) bool) {
+					yield(tracestore.PageChunk[ptrace.Traces]{Results: other}, nil)
+				}
+			},
+		}
+		handler := &getSpanDetailsHandler{queryService: mock, maxSpanDetailsPerRequest: 50}
+		_, output, err := handler.handle(context.Background(), &mcp.CallToolRequest{}, types.GetSpanDetailsInput{
+			TraceID: testTraceID,
+			SpanIDs: []string{hexSpanID},
+		})
+		require.NoError(t, err)
+		assert.Empty(t, output.Spans)
+		assert.Contains(t, output.Error, "spans not found")
+	})
+
+	t.Run("every page of a long result is read", func(t *testing.T) {
+		page1 := createTestTraceWithSpans(testTraceID, []spanConfig{{spanID: spanID, operation: "/first"}})
+		page2 := createTestTraceWithSpans(testTraceID, []spanConfig{{spanID: "span002", operation: "/second"}})
+		var tokens []string
+		mock := &mockQueryService{
+			findSpansFunc: func(_ context.Context, query querysvc.SpanQueryParams) iter.Seq2[tracestore.PageChunk[ptrace.Traces], error] {
+				tokens = append(tokens, query.Pagination.PageToken)
+				return func(yield func(tracestore.PageChunk[ptrace.Traces], error) bool) {
+					if query.Pagination.PageToken == "" {
+						yield(tracestore.PageChunk[ptrace.Traces]{Results: page1, NextPageToken: "next"}, nil)
+						return
+					}
+					yield(tracestore.PageChunk[ptrace.Traces]{Results: page2}, nil)
+				}
+			},
+		}
+		handler := &getSpanDetailsHandler{queryService: mock, maxSpanDetailsPerRequest: 50}
+		_, output, err := handler.handle(context.Background(), &mcp.CallToolRequest{}, types.GetSpanDetailsInput{
+			TraceID: testTraceID,
+			SpanIDs: []string{hexSpanID, spanIDToHex("span002")},
+		})
+		require.NoError(t, err)
+		assert.Len(t, output.Spans, 2)
+		assert.Equal(t, []string{"", "next"}, tokens)
+	})
+
+	t.Run("the reported spans are adjusted", func(t *testing.T) {
+		trace := createTestTraceWithSpans(testTraceID, []spanConfig{{spanID: spanID, operation: "/op"}})
+		mock := &mockQueryService{
+			findSpansFunc: func(context.Context, querysvc.SpanQueryParams) iter.Seq2[tracestore.PageChunk[ptrace.Traces], error] {
+				return func(yield func(tracestore.PageChunk[ptrace.Traces], error) bool) {
+					yield(tracestore.PageChunk[ptrace.Traces]{Results: trace}, nil)
+				}
+			},
+		}
+		handler := &getSpanDetailsHandler{queryService: mock, maxSpanDetailsPerRequest: 50}
+		_, output, err := handler.handle(context.Background(), &mcp.CallToolRequest{}, types.GetSpanDetailsInput{
+			TraceID: testTraceID,
+			SpanIDs: []string{hexSpanID},
+		})
+		require.NoError(t, err)
+		require.Len(t, output.Spans, 1)
+		assert.Equal(t, 1, mock.adjustCalls)
+	})
+
+	refusal := func() *mockQueryService {
+		return &mockQueryService{
+			findSpansFunc: func(context.Context, querysvc.SpanQueryParams) iter.Seq2[tracestore.PageChunk[ptrace.Traces], error] {
+				return func(yield func(tracestore.PageChunk[ptrace.Traces], error) bool) {
+					yield(tracestore.PageChunk[ptrace.Traces]{}, tracestore.ErrFilterUnsupported)
+				}
+			},
+			getTracesFunc: func(context.Context, querysvc.GetTraceParams) iter.Seq2[[]ptrace.Traces, error] {
+				return func(yield func([]ptrace.Traces, error) bool) {
+					yield([]ptrace.Traces{createTestTraceWithSpans(testTraceID, []spanConfig{{spanID: spanID, operation: "/op"}})}, nil)
+				}
+			},
+		}
+	}
+	input := types.GetSpanDetailsInput{TraceID: testTraceID, SpanIDs: []string{spanIDToHex(spanID)}}
+
+	t.Run("an identity-filter refusal falls back when no interceptor ran", func(t *testing.T) {
+		handler := &getSpanDetailsHandler{queryService: refusal(), maxSpanDetailsPerRequest: 50}
+		_, output, err := handler.handle(context.Background(), &mcp.CallToolRequest{}, input)
+		require.NoError(t, err)
+		assert.Len(t, output.Spans, 1)
+	})
+
+	t.Run("an identity-filter refusal is not retried past an interceptor", func(t *testing.T) {
+		mock := refusal()
+		mock.hasInterceptors = true
+		handler := &getSpanDetailsHandler{queryService: mock, maxSpanDetailsPerRequest: 50}
+		_, _, err := handler.handle(context.Background(), &mcp.CallToolRequest{}, input)
+		require.ErrorIs(t, err, tracestore.ErrFilterUnsupported)
+	})
+}

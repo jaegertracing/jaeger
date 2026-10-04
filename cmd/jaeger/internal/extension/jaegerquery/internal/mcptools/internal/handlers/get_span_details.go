@@ -32,6 +32,8 @@ type queryServiceGetTracesInterface interface {
 type spanDetailsQueryService interface {
 	queryServiceGetTracesInterface
 	FindSpans(ctx context.Context, query querysvc.SpanQueryParams) iter.Seq2[tracestore.PageChunk[ptrace.Traces], error]
+	AdjustSpans(traces ptrace.Traces)
+	HasInterceptors() bool
 }
 
 // getSpanDetailsHandler implements the get_span_details MCP tool.
@@ -81,7 +83,7 @@ func (h *getSpanDetailsHandler) handle(
 	// whole-trace path afterward is safe: nothing has been marked found yet.
 	spanDetails, err := h.fetchViaFindSpans(ctx, q.traceID, q.canonicalSpanIDs, spanIDSet)
 	traceFound := true
-	if errors.Is(err, errors.ErrUnsupported) {
+	if h.canFallBack(err) {
 		spanDetails, traceFound, err = h.fetchViaGetTraces(ctx, q.params, spanIDSet)
 	}
 	if err != nil {
@@ -108,6 +110,18 @@ func (h *getSpanDetailsHandler) handle(
 	return nil, output, nil
 }
 
+// canFallBack reports whether a fast-path error may be answered by the whole-trace path. A
+// refusal before any interceptor runs always may. A refusal of the identity filter itself
+// (ErrFilterUnsupported) comes after OnSpanQuery, which may have narrowed the filter for a
+// policy; falling back then would read the trace without that narrowing, so it is only retried
+// when no interceptor is configured.
+func (h *getSpanDetailsHandler) canFallBack(err error) bool {
+	if errors.Is(err, querysvc.ErrSpanSearchUnsupported) || errors.Is(err, querysvc.ErrFilterDisabled) {
+		return true
+	}
+	return errors.Is(err, tracestore.ErrFilterUnsupported) && !h.queryService.HasInterceptors()
+}
+
 // fetchViaFindSpans tries the identity-filter fast path (RFC 0016 §4.3): a backend that
 // declares SpanSearch answers with exactly the matching spans, not whole traces. It uses the
 // widest possible time range because the tool's input carries no time hint to narrow it with,
@@ -126,26 +140,45 @@ func (h *getSpanDetailsHandler) fetchViaFindSpans(
 	canonicalSpanIDs []string,
 	spanIDSet map[string]struct{},
 ) ([]types.SpanDetail, error) {
-	query := querysvc.SpanQueryParams{
-		StartTimeMin: time.Unix(0, 0),
-		StartTimeMax: time.Now(),
-		Filter:       buildIdentityFilter(traceID, canonicalSpanIDs),
-	}
-
 	var spanDetails []types.SpanDetail
-	for chunk, err := range h.queryService.FindSpans(ctx, query) {
-		if err != nil {
-			return nil, err
+	// The default page size is 100 and the caller may name more spans than that, so every page is
+	// read until the token runs out. A repeated token would loop forever, so it ends the read too.
+	pageSize := uint32(len(canonicalSpanIDs))
+	var pageToken string
+	for {
+		query := querysvc.SpanQueryParams{
+			StartTimeMin: time.Unix(0, 0),
+			StartTimeMax: time.Now(),
+			Filter:       buildIdentityFilter(traceID, canonicalSpanIDs),
+			Pagination:   querysvc.Pagination{PageSize: pageSize, PageToken: pageToken},
 		}
-		for pos, span := range jptrace.SpanIter(chunk.Results) {
-			spanIDStr := span.SpanID().String()
-			if _, found := spanIDSet[spanIDStr]; found {
-				spanDetails = append(spanDetails, buildSpanDetail(pos, span))
-				delete(spanIDSet, spanIDStr)
+		var nextToken string
+		for chunk, err := range h.queryService.FindSpans(ctx, query) {
+			if err != nil {
+				return nil, err
 			}
+			// A span search returns stored spans unadjusted, so apply the same adjusters the
+			// whole-trace path applies before reporting them.
+			h.queryService.AdjustSpans(chunk.Results)
+			for pos, span := range jptrace.SpanIter(chunk.Results) {
+				// Span IDs are unique only within a trace. An interceptor may have rewritten the
+				// filter, so a match must also belong to the trace this tool was asked about.
+				if span.TraceID() != traceID {
+					continue
+				}
+				spanIDStr := span.SpanID().String()
+				if _, found := spanIDSet[spanIDStr]; found {
+					spanDetails = append(spanDetails, buildSpanDetail(pos, span))
+					delete(spanIDSet, spanIDStr)
+				}
+			}
+			nextToken = string(chunk.NextPageToken)
 		}
+		if nextToken == "" || nextToken == pageToken || len(spanIDSet) == 0 {
+			return spanDetails, nil
+		}
+		pageToken = nextToken
 	}
-	return spanDetails, nil
 }
 
 // fetchViaGetTraces is the pre-RFC-0016 path: fetch the whole trace and pick the requested
