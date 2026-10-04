@@ -293,9 +293,9 @@ func TestBuildSearchFilter(t *testing.T) {
 		ref, ok := f.Args[0].(*expression.AttributeRef)
 		require.True(t, ok)
 		assert.Equal(t, "error", ref.Key)
-		value, ok := f.Args[1].(*expression.BoolValue)
-		require.True(t, ok)
-		assert.True(t, value.Value)
+		value, ok := f.Args[1].(*expression.AnyValue)
+		require.True(t, ok, "untyped, so the text lowering can read it")
+		assert.Equal(t, "true", value.Value)
 	})
 	t.Run("duration bounds compare the span duration field", func(t *testing.T) {
 		lo, hi := 2*time.Second, 10*time.Second

@@ -175,7 +175,9 @@ func buildSearchFilter(input types.FindSpansInput, durationMin, durationMax *tim
 	if input.WithErrors {
 		predicates = append(predicates, eq(
 			&expression.AttributeRef{Key: "error"},
-			&expression.BoolValue{Value: true},
+			// Untyped, so every backend's lowering reads it as the text "true" and parses it against
+			// the error tag, rather than refusing a typed boolean on a path that accepts only text.
+			&expression.AnyValue{Value: "true"},
 		))
 	}
 	if durationMin != nil {
