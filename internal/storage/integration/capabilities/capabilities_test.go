@@ -121,7 +121,7 @@ func TestFilterCapabilities(t *testing.T) {
 	assert.Contains(t, es, filterLinkLevelTest)
 	assert.Contains(t, es, filterSpanKindTest)
 	assert.Contains(t, es, filterSpanStatusTest)
-	assert.Contains(t, es, filterStringTypedConstTest)
+	assert.Contains(t, es, filterTraceStateTest)
 
 	os := OpenSearch().SkipList()
 	assert.NotContains(t, os, structuredFilterTest, "OpenSearch runs FindTracesWithFilter")
@@ -129,5 +129,5 @@ func TestFilterCapabilities(t *testing.T) {
 	assert.Contains(t, os, filterLinkLevelTest)
 	assert.Contains(t, os, filterSpanKindTest)
 	assert.Contains(t, os, filterSpanStatusTest)
-	assert.Contains(t, os, filterStringTypedConstTest)
+	assert.Contains(t, os, filterTraceStateTest)
 }

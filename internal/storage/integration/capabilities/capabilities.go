@@ -51,6 +51,7 @@ const (
 	filterSpanKindTest         = "the_span_kind"
 	filterSpanStatusTest       = "the_span_status"
 	filterStringTypedConstTest = "a_string-typed_constant_leaves_out_an_attribute_stored_as_a_number"
+	filterTraceStateTest       = "the_trace_state"
 )
 
 // attributeOrderingTests are the three outcomes of ordering an attribute, of which one runs.
@@ -311,7 +312,7 @@ func Elasticsearch() Capabilities {
 			filterLinkLevelTest,
 			filterSpanKindTest,
 			filterSpanStatusTest,
-			filterStringTypedConstTest,
+			filterTraceStateTest,
 		},
 	}.orderingOutcome(attributeOrderingTest)
 }
@@ -347,7 +348,7 @@ func OpenSearch() Capabilities {
 			filterLinkLevelTest,
 			filterSpanKindTest,
 			filterSpanStatusTest,
-			filterStringTypedConstTest,
+			filterTraceStateTest,
 		},
 	}.orderingOutcome(attributeOrderingTest)
 }

@@ -83,7 +83,8 @@ func filterTestCases(p builder.Predicate) []filterCase {
 		},
 		{
 			// The span-or-resource default of RFC 0005 §5.1, asserted by what it leaves out: the
-			// search trace carries `zone` on an event and nowhere else.
+			// `search` trace carries `zone` on an event and the `worker` trace on its scope and on
+			// a link, and neither is reached.
 			caption:  "an unqualified attribute does not reach the event level",
 			filter:   p.Attr("zone").Exists(),
 			expected: []string{"cart_get", "checkout"},
@@ -112,6 +113,11 @@ func filterTestCases(p builder.Predicate) []filterCase {
 			caption:  "the span status",
 			filter:   p.Span().Status.Eq("error"),
 			expected: []string{"worker"},
+		},
+		{
+			caption:  "the trace state",
+			filter:   p.Span().TraceState.Eq("congo=t61rcWkgMzE"),
+			expected: []string{"search"},
 		},
 		{
 			caption:  "a pattern on the operation name matches anywhere in it",
@@ -162,12 +168,12 @@ func filterTestCases(p builder.Predicate) []filterCase {
 			expected: []string{"cart_post"},
 		},
 		{
-			// cart_get stores retry.count as the integer 9 and worker stores it as the string
-			// "09" (padded so it does not also satisfy "ordering compares a numeric attribute as
-			// a number" below: a backend that falls back to a lexicographic comparison on this
-			// attribute reads unpadded "9" as greater than "10", which "09" is not), so a
-			// constant declaring the string type (RFC 0005 §5.4) matches only worker where the
-			// backend keeps typed attribute columns.
+			// `cart_get` stores `retry.count` as the integer 9 and `worker` as the string "09". A
+			// constant declaring the string type (RFC 0005 §5.4) is compared as text, so it
+			// matches `worker` only; the same value sent untyped would be read as the number 9
+			// and match `cart_get` as well. The value is zero-padded so that a backend comparing
+			// this attribute lexicographically does not also count it as greater than "10" in
+			// "ordering compares a numeric attribute as a number" below.
 			caption:  "a string-typed constant leaves out an attribute stored as a number",
 			filter:   p.Span().Attr("retry.count").Eq(p.Text("09")),
 			expected: []string{"worker"},
