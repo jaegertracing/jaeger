@@ -4,6 +4,7 @@
 package capabilities
 
 import (
+	"slices"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -44,90 +45,68 @@ func TestAttributeOrderingOutcome(t *testing.T) {
 	}
 }
 
-func TestFilterRefusalOptOuts(t *testing.T) {
-	t.Run("WithoutUnindexedLevelRefusal", func(t *testing.T) {
-		caps := Capabilities{}.WithoutUnindexedLevelRefusal()
-		assert.Contains(t, caps.SkipList(), levelRefusedTest)
-	})
-
-	t.Run("WithoutLevelRefusal", func(t *testing.T) {
-		caps := Capabilities{}.WithoutLevelRefusal()
-		assert.Contains(t, caps.SkipList(), levelRefusedTest)
-	})
-
-	t.Run("WithoutUnevaluatedOperatorRefusal", func(t *testing.T) {
-		caps := Capabilities{}.WithoutUnevaluatedOperatorRefusal()
-		assert.Contains(t, caps.SkipList(), operatorRefusedTest)
-	})
-
-	t.Run("WithoutOperatorRefusal", func(t *testing.T) {
-		caps := Capabilities{}.WithoutOperatorRefusal()
-		assert.Contains(t, caps.SkipList(), operatorRefusedTest)
-	})
-
-	t.Run("WithoutUnindexedFieldRefusal", func(t *testing.T) {
-		caps := Capabilities{}.WithoutUnindexedFieldRefusal()
-		assert.Contains(t, caps.SkipList(), fieldRefusedTest)
-	})
-
-	t.Run("WithoutTextAttributeOrderingRefusal", func(t *testing.T) {
-		caps := Capabilities{}.WithoutTextAttributeOrderingRefusal()
-		assert.Contains(t, caps.SkipList(), attributeRefusedTest)
-	})
-
-	t.Run("WithoutAttributeRefusal", func(t *testing.T) {
-		caps := Capabilities{}.WithoutAttributeRefusal()
-		assert.Contains(t, caps.SkipList(), attributeRefusedTest)
-	})
-
-	t.Run("WithoutFilterRefusals", func(t *testing.T) {
-		caps := Capabilities{}.WithoutFilterRefusals()
-		assert.Contains(t, caps.SkipList(), levelRefusedTest)
-		assert.Contains(t, caps.SkipList(), operatorRefusedTest)
-		assert.Contains(t, caps.SkipList(), fieldRefusedTest)
-		assert.Contains(t, caps.SkipList(), attributeRefusedTest)
-	})
-
-	t.Run("WithoutSpanAttributeOrdering", func(t *testing.T) {
-		caps := Capabilities{}.WithoutSpanAttributeOrdering()
-		assert.Contains(t, caps.SkipList(), spanAttributeOrderingTest)
-	})
-
-	t.Run("Memory capabilities", func(t *testing.T) {
-		caps := Memory()
-		assert.NotContains(t, caps.SkipList(), structuredFilterTest)
-		assert.Contains(t, caps.SkipList(), levelRefusedTest)
-		assert.Contains(t, caps.SkipList(), operatorRefusedTest)
-		assert.Contains(t, caps.SkipList(), fieldRefusedTest)
-		assert.Contains(t, caps.SkipList(), attributeRefusedTest)
-		assert.Contains(t, caps.SkipList(), findTraceSummariesTest)
-	})
-
-	t.Run("GRPC capabilities", func(t *testing.T) {
-		caps := GRPC()
-		assert.NotContains(t, caps.SkipList(), structuredFilterTest)
-		assert.Contains(t, caps.SkipList(), levelRefusedTest)
-		assert.Contains(t, caps.SkipList(), operatorRefusedTest)
-		assert.Contains(t, caps.SkipList(), fieldRefusedTest)
-		assert.Contains(t, caps.SkipList(), attributeRefusedTest)
-		assert.Contains(t, caps.SkipList(), findTraceSummariesTest)
-	})
+// optOuts is every exported opt-out, so that each is checked once and called once.
+var optOuts = map[string]func(Capabilities) Capabilities{
+	"WithoutPagination":                   Capabilities.WithoutPagination,
+	"WithoutTraceIDPagination":            Capabilities.WithoutTraceIDPagination,
+	"WithoutSpanSearch":                   Capabilities.WithoutSpanSearch,
+	"WithoutSpanSorting":                  Capabilities.WithoutSpanSorting,
+	"WithoutSpanAttributeOrdering":        Capabilities.WithoutSpanAttributeOrdering,
+	"WithoutNumericAttributes":            Capabilities.WithoutNumericAttributes,
+	"WithNumericAttributesNotYetIndexed":  Capabilities.WithNumericAttributesNotYetIndexed,
+	"WithoutUnindexedLevelRefusal":        Capabilities.WithoutUnindexedLevelRefusal,
+	"WithoutLevelRefusal":                 Capabilities.WithoutLevelRefusal,
+	"WithoutUnevaluatedOperatorRefusal":   Capabilities.WithoutUnevaluatedOperatorRefusal,
+	"WithoutOperatorRefusal":              Capabilities.WithoutOperatorRefusal,
+	"WithoutTextAttributeOrderingRefusal": Capabilities.WithoutTextAttributeOrderingRefusal,
+	"WithoutAttributeRefusal":             Capabilities.WithoutAttributeRefusal,
+	"WithoutUnindexedFieldRefusal":        Capabilities.WithoutUnindexedFieldRefusal,
+	"WithoutFilterRefusals":               Capabilities.WithoutFilterRefusals,
 }
 
-func TestFilterCapabilities(t *testing.T) {
-	es := Elasticsearch().SkipList()
-	assert.NotContains(t, es, structuredFilterTest, "Elasticsearch runs FindTracesWithFilter")
-	assert.Contains(t, es, filterScopeLevelTest)
-	assert.Contains(t, es, filterLinkLevelTest)
-	assert.Contains(t, es, filterSpanKindTest)
-	assert.Contains(t, es, filterSpanStatusTest)
-	assert.Contains(t, es, filterTraceStateTest)
+// backends is every backend's declaration, so that each is checked once and called once.
+var backends = map[string]func() Capabilities{
+	"Memory":                  Memory,
+	"GRPC":                    GRPC,
+	"Cassandra":               Cassandra,
+	"ClickHouse":              ClickHouse,
+	"Badger":                  Badger,
+	"Elasticsearch":           Elasticsearch,
+	"ElasticsearchSmokeTest":  ElasticsearchSmokeTest,
+	"OpenSearch":              OpenSearch,
+	"Kafka":                   Kafka,
+	"E2EWithoutNativeFilters": E2EWithoutNativeFilters,
+}
 
-	os := OpenSearch().SkipList()
-	assert.NotContains(t, os, structuredFilterTest, "OpenSearch runs FindTracesWithFilter")
-	assert.Contains(t, os, filterScopeLevelTest)
-	assert.Contains(t, os, filterLinkLevelTest)
-	assert.Contains(t, os, filterSpanKindTest)
-	assert.Contains(t, os, filterSpanStatusTest)
-	assert.Contains(t, os, filterTraceStateTest)
+func TestOptOutsCopyTheSkipList(t *testing.T) {
+	// An opt-out must add its entries to a copy of the receiver's list. The base is built with
+	// spare capacity, so an opt-out that appended in place would hand the derived value a view
+	// of the base's array, and writing into that spare slot afterwards would show up in it.
+	for name, optOut := range optOuts {
+		t.Run(name, func(t *testing.T) {
+			base := Capabilities{skipList: make([]string, 0, 8)}
+			derived := optOut(base)
+			_ = append(base.skipList, "sentinel")
+			assert.NotContains(t, derived.SkipList(), "sentinel")
+			assert.NotEmpty(t, derived.SkipList(), "the opt-out added nothing")
+		})
+	}
+}
+
+func TestSkipListsHaveNoDuplicates(t *testing.T) {
+	// A repeated entry is harmless to skipIfNeeded but marks a list that was edited without
+	// being read.
+	lists := map[string]Capabilities{}
+	for name, backend := range backends {
+		lists[name] = backend()
+	}
+	for name, optOut := range optOuts {
+		lists[name] = optOut(Capabilities{})
+	}
+	for name, caps := range lists {
+		t.Run(name, func(t *testing.T) {
+			list := caps.SkipList()
+			assert.Len(t, slices.Compact(slices.Sorted(slices.Values(list))), len(list), "duplicate entries in %v", list)
+		})
+	}
 }
