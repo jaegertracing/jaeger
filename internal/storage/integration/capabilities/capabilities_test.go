@@ -4,6 +4,7 @@
 package capabilities
 
 import (
+	"reflect"
 	"slices"
 	"testing"
 
@@ -45,7 +46,7 @@ func TestAttributeOrderingOutcome(t *testing.T) {
 	}
 }
 
-// optOuts is every exported opt-out, so that each is checked once and called once.
+// optOuts is every exported opt-out; TestOptOutsAreAllListed fails when a new one is not added here.
 var optOuts = map[string]func(Capabilities) Capabilities{
 	"WithoutPagination":                   Capabilities.WithoutPagination,
 	"WithoutTraceIDPagination":            Capabilities.WithoutTraceIDPagination,
@@ -64,7 +65,7 @@ var optOuts = map[string]func(Capabilities) Capabilities{
 	"WithoutFilterRefusals":               Capabilities.WithoutFilterRefusals,
 }
 
-// backends is every backend's declaration, so that each is checked once and called once.
+// backends is the backend declarations, so that each is checked once and called once.
 var backends = map[string]func() Capabilities{
 	"Memory":                  Memory,
 	"GRPC":                    GRPC,
@@ -79,33 +80,41 @@ var backends = map[string]func() Capabilities{
 }
 
 func TestOptOutsCopyTheSkipList(t *testing.T) {
-	// An opt-out must add its entries to a copy of the receiver's list. The base is built with
-	// spare capacity, so an opt-out that appended in place would hand the derived value a view
-	// of the base's array, and writing into that spare slot afterwards would show up in it.
+	// An opt-out must add its entries to a copy of the receiver's list, keeping what is already
+	// there. The base is built with spare capacity, so an opt-out that appended in place would
+	// hand the derived value a view of the base's array, and writing into that spare slot
+	// afterwards would show up in it.
 	for name, optOut := range optOuts {
 		t.Run(name, func(t *testing.T) {
-			base := Capabilities{skipList: make([]string, 0, 8)}
+			base := Capabilities{skipList: append(make([]string, 0, 8), "existing")}
 			derived := optOut(base)
-			_ = append(base.skipList, "sentinel")
+			base.skipList = append(base.skipList, "sentinel")
+			assert.Contains(t, derived.SkipList(), "existing")
 			assert.NotContains(t, derived.SkipList(), "sentinel")
-			assert.NotEmpty(t, derived.SkipList(), "the opt-out added nothing")
+			assert.Greater(t, len(derived.SkipList()), 1, "the opt-out left the list as it was")
 		})
 	}
 }
 
-func TestSkipListsHaveNoDuplicates(t *testing.T) {
+func TestOptOutsAreAllListed(t *testing.T) {
+	// A new opt-out that is not in optOuts escapes TestOptOutsCopyTheSkipList, so every exported
+	// method that derives one Capabilities from another has to be listed there.
+	capabilitiesType := reflect.TypeOf(Capabilities{})
+	for i := range capabilitiesType.NumMethod() {
+		method := capabilitiesType.Method(i)
+		isOptOut := method.Type.NumIn() == 1 && method.Type.NumOut() == 1 && method.Type.Out(0) == capabilitiesType
+		if isOptOut {
+			assert.Contains(t, optOuts, method.Name)
+		}
+	}
+}
+
+func TestBackendSkipListsHaveNoDuplicates(t *testing.T) {
 	// A repeated entry is harmless to skipIfNeeded but marks a list that was edited without
 	// being read.
-	lists := map[string]Capabilities{}
 	for name, backend := range backends {
-		lists[name] = backend()
-	}
-	for name, optOut := range optOuts {
-		lists[name] = optOut(Capabilities{})
-	}
-	for name, caps := range lists {
 		t.Run(name, func(t *testing.T) {
-			list := caps.SkipList()
+			list := backend().SkipList()
 			assert.Len(t, slices.Compact(slices.Sorted(slices.Values(list))), len(list), "duplicate entries in %v", list)
 		})
 	}
