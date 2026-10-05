@@ -77,7 +77,7 @@ func validateCall(call *expression.Call, quantified []expression.Level, depth in
 			return fmt.Errorf("operator %q takes a list with at least one element", call.Op)
 		}
 		return validateValueType(list.Type)
-	case OpMatchPhrase:
+	case OpHasPhrase:
 		if err := wantArgs(call, 2); err != nil {
 			return err
 		}

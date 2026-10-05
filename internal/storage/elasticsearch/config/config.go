@@ -107,11 +107,11 @@ type SpanIndexOptions struct {
 	// attribute key on the elevated representation.
 	NumericAttributes bool `mapstructure:"numeric_attributes"`
 	// TextSearchableAttributes lists the attribute keys whose values are indexed with a text-analyzed
-	// sub-field beside the keyword, enabling match_phrase queries on them. Only hoisted
+	// sub-field beside the keyword, enabling phrase-search queries on them. Only hoisted
 	// tags_as_fields attributes (elevated object-path fields like tag.<key>) are eligible; the
 	// nested representation shares a single field and cannot support selective full-text search.
-	// The query reader refuses match_phrase on unlisted attributes. An empty list disables
-	// full-text search operators entirely.
+	// The query reader refuses the has_phrase operator on unlisted attributes. An empty list
+	// disables full-text search operators entirely.
 	TextSearchableAttributes []string `mapstructure:"text_searchable_attributes"`
 }
 

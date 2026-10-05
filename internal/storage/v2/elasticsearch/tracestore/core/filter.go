@@ -104,8 +104,8 @@ type valueMatch func(field string) esquery.Query
 // indistinguishable from an attribute key — so buildFilterQuery refuses the ones this
 // schema has no field for.
 //
-// The match_phrase operator is servable when at least one attribute is configured for
-// text search (indices.spans.text_searchable_attributes is non-empty).
+// The has_phrase operator is servable when at least one attribute is configured
+// for text search (indices.spans.text_searchable_attributes is non-empty).
 func FilterCapabilities() tracestore.FilterCapabilities {
 	return tracestore.FilterCapabilities{
 		Levels: []expression.Level{
@@ -127,7 +127,7 @@ func FilterCapabilities() tracestore.FilterCapabilities {
 			expression.OpExists,
 			expression.OpIn,
 			expression.OpNotIn,
-			tracestore.OpMatchPhrase,
+			tracestore.OpHasPhrase,
 		},
 	}
 }
@@ -163,12 +163,12 @@ func (s *SpanReader) buildFilterQuery(predicate *expression.Call) (esquery.Query
 		}
 		return esquery.NewBoolQuery().MustNot(args[0]), nil
 
-	case tracestore.OpMatchPhrase:
+	case tracestore.OpHasPhrase:
 		ref, value, err := refAndConstantArgs(predicate)
 		if err != nil {
 			return nil, err
 		}
-		return s.buildMatchPhraseQuery(ref, value)
+		return s.buildHasPhraseQuery(ref, value)
 
 	case expression.OpEq, expression.OpRegex,
 		expression.OpGt, expression.OpLt, expression.OpGte, expression.OpLte:
@@ -328,17 +328,18 @@ func (s *SpanReader) buildComparison(
 	}
 }
 
-// buildMatchPhraseQuery lowers the match_phrase operator to an Elasticsearch match_phrase query
-// on the .text sub-field of an attribute. Only attributes listed in text_searchable_attributes
-// are searchable this way; built-in fields and unlisted attributes are refused.
-func (s *SpanReader) buildMatchPhraseQuery(ref reference, value expression.Expression) (esquery.Query, error) {
+// buildHasPhraseQuery lowers the has_phrase operator to an Elasticsearch match_phrase
+// query on the .text sub-field of an attribute. Only attributes listed in
+// text_searchable_attributes are searchable this way; built-in fields and unlisted
+// attributes are refused.
+func (s *SpanReader) buildHasPhraseQuery(ref reference, value expression.Expression) (esquery.Query, error) {
 	if !ref.attribute {
 		return nil, fmt.Errorf("%w: %q is not supported on %q because it is a built-in field, not an attribute",
-			tracestore.ErrFilterUnsupported, tracestore.OpMatchPhrase, ref.name)
+			tracestore.ErrFilterUnsupported, tracestore.OpHasPhrase, ref.name)
 	}
 	if _, ok := s.textSearchableAttributes[ref.name]; !ok {
 		return nil, fmt.Errorf("%w: %q on %q is not supported because the attribute is not in text_searchable_attributes",
-			tracestore.ErrFilterUnsupported, tracestore.OpMatchPhrase, ref.name)
+			tracestore.ErrFilterUnsupported, tracestore.OpHasPhrase, ref.name)
 	}
 	text, err := constantText(value)
 	if err != nil {

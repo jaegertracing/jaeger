@@ -9,14 +9,12 @@ import (
 	expression "github.com/jaegertracing/jaeger-idl/query/expression/v1"
 )
 
-// OpMatchPhrase is the phrase-search operator. The RHS is a plain string that
-// the backend analyzes and matches as an ordered phrase against the text-analyzed
-// sub-field of an attribute — effectively an Elasticsearch match_phrase query.
-// For example, match_phrase(attr("input"), "refund policy") matches an attribute
-// whose analyzed value contains the tokens "refund" and "policy" in that order.
-// It lives here until jaeger-idl publishes it; the wire sends op: "match_phrase"
-// and the validator accepts it.
-const OpMatchPhrase expression.Operator = "match_phrase"
+// OpHasPhrase is the phrase-search operator. The RHS is a plain string that the
+// backend analyzes and matches as an ordered phrase against the text-analyzed
+// sub-field of an attribute. For example, has_phrase(attr("input"), "refund policy")
+// matches an attribute whose analyzed value contains the tokens "refund" and
+// "policy" adjacent and in that order. It lives here until jaeger-idl publishes it.
+const OpHasPhrase expression.Operator = "has_phrase"
 
 // SearchCapabilities describes how a Reader's search methods behave where backends
 // differ: which TraceQueryParams fields may be omitted, which are honored exactly

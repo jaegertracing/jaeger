@@ -183,14 +183,14 @@ func TestValidateFilter_Accepts(t *testing.T) {
 			}},
 		},
 		{
-			name: "match_phrase on an attribute",
-			filter: &expression.Call{Op: OpMatchPhrase, Args: []expression.Expression{
+			name: "has_phrase on an attribute",
+			filter: &expression.Call{Op: OpHasPhrase, Args: []expression.Expression{
 				attr("input"), &expression.AnyValue{Value: "refund policy"},
 			}},
 		},
 		{
-			name: "match_phrase with a string constant",
-			filter: &expression.Call{Op: OpMatchPhrase, Args: []expression.Expression{
+			name: "has_phrase with a string constant",
+			filter: &expression.Call{Op: OpHasPhrase, Args: []expression.Expression{
 				&expression.AttributeRef{Key: "output", Level: expression.LevelSpan},
 				&expression.StringValue{Value: "cancellation"},
 			}},
@@ -587,19 +587,19 @@ func TestValidateFilter_Rejects(t *testing.T) {
 			}},
 		},
 		{
-			name:        "match_phrase with wrong arity",
-			expectedErr: `operator "match_phrase" takes 2 argument(s), got 1`,
-			filter:      &expression.Call{Op: OpMatchPhrase, Args: []expression.Expression{attr("input")}},
+			name:        "has_phrase with wrong arity",
+			expectedErr: `operator "has_phrase" takes 2 argument(s), got 1`,
+			filter:      &expression.Call{Op: OpHasPhrase, Args: []expression.Expression{attr("input")}},
 		},
 		{
-			name:        "match_phrase with a non-string constant",
-			expectedErr: `operator "match_phrase" takes a constant string as its search text, got an integer constant`,
-			filter:      &expression.Call{Op: OpMatchPhrase, Args: []expression.Expression{attr("input"), &expression.IntValue{Value: 42}}},
+			name:        "has_phrase with a non-string constant",
+			expectedErr: `operator "has_phrase" takes a constant string as its search text, got an integer constant`,
+			filter:      &expression.Call{Op: OpHasPhrase, Args: []expression.Expression{attr("input"), &expression.IntValue{Value: 42}}},
 		},
 		{
-			name:        "match_phrase with a non-reference subject",
-			expectedErr: `operator "match_phrase" takes a reference, got an untyped constant`,
-			filter:      &expression.Call{Op: OpMatchPhrase, Args: []expression.Expression{&expression.AnyValue{Value: "input"}, &expression.AnyValue{Value: "refund"}}},
+			name:        "has_phrase with a non-reference subject",
+			expectedErr: `operator "has_phrase" takes a reference, got an untyped constant`,
+			filter:      &expression.Call{Op: OpHasPhrase, Args: []expression.Expression{&expression.AnyValue{Value: "input"}, &expression.AnyValue{Value: "refund"}}},
 		},
 	}
 	for _, test := range tests {

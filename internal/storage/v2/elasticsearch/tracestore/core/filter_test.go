@@ -57,7 +57,7 @@ func TestFilterCapabilities(t *testing.T) {
 		expression.OpAnd, expression.OpOr, expression.OpNot,
 		expression.OpEq, expression.OpNe, expression.OpGt, expression.OpLt,
 		expression.OpGte, expression.OpLte, expression.OpRegex, expression.OpExists,
-		expression.OpIn, expression.OpNotIn, tracestore.OpMatchPhrase,
+		expression.OpIn, expression.OpNotIn, tracestore.OpHasPhrase,
 	} {
 		assert.True(t, caps.SupportsOperator(op), "expected %q to be declared", op)
 	}
@@ -86,7 +86,7 @@ func TestBuildFilterQuery(t *testing.T) {
 		// makes ordering an attribute servable (RFC 0015).
 		numericAttributes bool
 		// textSearchableAttributes lists the attribute keys configured for text search in this
-		// case, which is what makes match_phrase servable on those attributes.
+		// case, which is what makes has_phrase servable on those attributes.
 		textSearchableAttributes []string
 	}{
 		{
@@ -417,13 +417,13 @@ func TestBuildFilterQuery(t *testing.T) {
 			numericAttributes: true,
 		},
 		{
-			name:                     "match_phrase on a span attribute searches the text sub-field",
-			filter:                   call(tracestore.OpMatchPhrase, spanAttr("input"), scalar("refund policy")),
+			name:                     "has_phrase on a span attribute searches the text sub-field",
+			filter:                   call(tracestore.OpHasPhrase, spanAttr("input"), scalar("refund policy")),
 			textSearchableAttributes: []string{"input", "output"},
 		},
 		{
-			name:                     "match_phrase on an unqualified attribute searches every location",
-			filter:                   call(tracestore.OpMatchPhrase, &expression.AttributeRef{Key: "output"}, scalar("cancellation")),
+			name:                     "has_phrase on an unqualified attribute searches every location",
+			filter:                   call(tracestore.OpHasPhrase, &expression.AttributeRef{Key: "output"}, scalar("cancellation")),
 			textSearchableAttributes: []string{"input", "output"},
 		},
 	}
@@ -503,7 +503,7 @@ func TestBuildFilterQueryRefused(t *testing.T) {
 		// arises once ordering an attribute is servable at all.
 		numericAttributes bool
 		// textSearchableAttributes lists the attribute keys configured for text search in this
-		// case, for a refusal that only arises once match_phrase is servable at all.
+		// case, for a refusal that only arises once has_phrase is servable at all.
 		textSearchableAttributes []string
 	}{
 		{
@@ -815,35 +815,35 @@ func TestBuildFilterQueryRefused(t *testing.T) {
 			numericAttributes: true,
 		},
 		{
-			name:    "match_phrase when text_searchable_attributes is empty",
-			filter:  call(tracestore.OpMatchPhrase, spanAttr("input"), scalar("refund policy")),
+			name:    "has_phrase when text_searchable_attributes is empty",
+			filter:  call(tracestore.OpHasPhrase, spanAttr("input"), scalar("refund policy")),
 			wantErr: tracestore.ErrFilterUnsupported,
 			wantMsg: "not in text_searchable_attributes",
 		},
 		{
-			name:                     "match_phrase on an attribute not in text_searchable_attributes",
-			filter:                   call(tracestore.OpMatchPhrase, spanAttr("unlisted"), scalar("something")),
+			name:                     "has_phrase on an attribute not in text_searchable_attributes",
+			filter:                   call(tracestore.OpHasPhrase, spanAttr("unlisted"), scalar("something")),
 			wantErr:                  tracestore.ErrFilterUnsupported,
 			wantMsg:                  "not in text_searchable_attributes",
 			textSearchableAttributes: []string{"input", "output"},
 		},
 		{
-			name:                     "match_phrase on a built-in field, which is not text-analyzed",
-			filter:                   call(tracestore.OpMatchPhrase, &expression.FieldRef{Name: expression.SpanFieldName, Level: expression.LevelSpan}, scalar("checkout")),
+			name:                     "has_phrase on a built-in field, which is not text-analyzed",
+			filter:                   call(tracestore.OpHasPhrase, &expression.FieldRef{Name: expression.SpanFieldName, Level: expression.LevelSpan}, scalar("checkout")),
 			wantErr:                  tracestore.ErrFilterUnsupported,
 			wantMsg:                  `is not supported on "name" because it is a built-in field`,
 			textSearchableAttributes: []string{"input"},
 		},
 		{
-			name:                     "match_phrase with a typed constant, which this schema cannot route",
-			filter:                   call(tracestore.OpMatchPhrase, spanAttr("input"), &expression.IntValue{Value: 42}),
+			name:                     "has_phrase with a typed constant, which this schema cannot route",
+			filter:                   call(tracestore.OpHasPhrase, spanAttr("input"), &expression.IntValue{Value: 42}),
 			wantErr:                  tracestore.ErrFilterUnsupported,
 			wantMsg:                  "an integer constant declares a type",
 			textSearchableAttributes: []string{"input"},
 		},
 		{
-			name:                     "match_phrase on a link attribute, which is not indexed",
-			filter:                   call(tracestore.OpMatchPhrase, &expression.AttributeRef{Key: "k", Level: expression.LevelLink}, scalar("v")),
+			name:                     "has_phrase on a link attribute, which is not indexed",
+			filter:                   call(tracestore.OpHasPhrase, &expression.AttributeRef{Key: "k", Level: expression.LevelLink}, scalar("v")),
 			wantErr:                  tracestore.ErrFilterUnsupported,
 			wantMsg:                  `does not index the "link" level`,
 			textSearchableAttributes: []string{"input", "k"},
