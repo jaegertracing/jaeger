@@ -303,6 +303,13 @@ type Configuration struct {
 	// of a trace are found even if they extend beyond the search window.
 	// Defaults to 24h.
 	MaxTraceDuration time.Duration `mapstructure:"max_trace_duration"`
+	// IgnoreUnmappedScopeAndLinkFields makes tag searches tolerate span indices that have
+	// no mapping for the instrumentation-scope and link attribute fields, such as indices
+	// created before those fields were added to the span template. Without it Elasticsearch
+	// fails the search on such an index; with it the error is ignored and the spans in that
+	// index are still matched on the fields it does map. It can be disabled once such
+	// indices have aged out. Defaults to true.
+	IgnoreUnmappedScopeAndLinkFields bool `mapstructure:"ignore_unmapped_scope_and_link_fields"`
 	// ServiceCacheTTL contains the TTL for the cache of known service names.
 	ServiceCacheTTL time.Duration `mapstructure:"service_cache_ttl"`
 	// AdaptiveSamplingLookback contains the duration to look back for the

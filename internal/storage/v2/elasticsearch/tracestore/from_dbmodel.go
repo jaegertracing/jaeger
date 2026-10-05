@@ -351,6 +351,9 @@ func dbSpanRefsToSpanEvents(refs []dbmodel.Reference, excludeParentID dbmodel.Sp
 		link.SetTraceID(refTraceId)
 		link.SetSpanID(refSpanId)
 		link.Attributes().PutStr(conventions.AttributeOpentracingRefType, dbRefTypeToAttribute(ref.RefType))
+		link.TraceState().FromRaw(ref.TraceState)
+		link.SetFlags(ref.Flags)
+		dbTagsToAttributes(ref.Tags, link.Attributes())
 	}
 	return nil
 }
@@ -372,6 +375,7 @@ func dbSpanToScope(span *dbmodel.Span, scopeSpan ptrace.ScopeSpans) {
 			scopeSpan.Scope().SetVersion(libraryVersion)
 		}
 	}
+	dbTagsToAttributes(span.ScopeTags, scopeSpan.Scope().Attributes())
 }
 
 func getAndDeleteTag(span *dbmodel.Span, key string) (string, bool) {

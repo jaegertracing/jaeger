@@ -64,8 +64,9 @@ func (r reference) isField(level expression.Level, name string) bool {
 // object fields, whose leaf is the attribute key, and the nested key/value arrays. Both are
 // searched because which of the two the write path produced depends on the tags-as-fields
 // setting in force when the span was indexed, and that setting can change over the life of
-// an index. Instrumentation-scope attributes are folded into the span's own tags and link
-// attributes are not indexed at all, so neither level appears here (RFC 0005 §1.6).
+// an index. Instrumentation-scope and link attributes are stored in fields of their own,
+// which only the legacy Tags search reads: the filter does not serve the scope or link
+// level (see FilterCapabilities), so neither appears here (RFC 0005 §1.6).
 var attributeLocations = map[expression.Level]attributeLocation{
 	expression.LevelSpan: {
 		object: []string{objectTagsField},
@@ -82,7 +83,7 @@ var attributeLocations = map[expression.Level]attributeLocation{
 	// deliberately stops short of the event level that the legacy Tags search also covers:
 	// the legacy field keeps its behavior, and the filter follows the documented contract.
 	"": {
-		object: objectTagFieldList,
+		object: []string{objectTagsField, objectProcessTagsField},
 		nested: []string{nestedTagsField, nestedProcessTagsField},
 	},
 }
@@ -98,7 +99,7 @@ type attributeLocation struct {
 type valueMatch func(field string) esquery.Query
 
 // FilterCapabilities declares the part of the RFC 0005 filter model this reader evaluates.
-// It omits the scope and link levels, which the schema does not index separately,
+// It omits the scope and link levels, which the filter does not serve,
 // and the `some` quantifier, whose correlated matching over a span's events is not
 // implemented yet. Which built-in fields are served is not declarable — a field name is
 // indistinguishable from an attribute key — so buildFilterQuery refuses the ones this

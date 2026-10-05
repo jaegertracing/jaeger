@@ -103,14 +103,14 @@ func TestOpenSearchStorage_BackwardCompatibility(t *testing.T) {
 			NewGates:     structuredFilterGates,
 			OldEnv:       map[string]string{numericAttributesEnvVar: "false"},
 			NewEnv:       map[string]string{numericAttributesEnvVar: "false"},
-			Capabilities: capabilities.OpenSearch().WithoutNumericAttributes(),
+			Capabilities: capabilities.OpenSearchBackwardCompat().WithoutNumericAttributes(),
 		},
 		compatScenario{
 			Name:         "numeric attributes turned on at upgrade, over indices written without them",
 			NewGates:     structuredFilterGates,
 			OldEnv:       map[string]string{numericAttributesEnvVar: "false"},
 			NewEnv:       map[string]string{numericAttributesEnvVar: "true"},
-			Capabilities: capabilities.OpenSearch().WithNumericAttributesNotYetIndexed(),
+			Capabilities: capabilities.OpenSearchBackwardCompat().WithNumericAttributesNotYetIndexed(),
 		},
 	)
 }

@@ -49,6 +49,10 @@ const (
 	numberSubField = "number"
 	errorTag       = "error"
 
+	objectScopeTagsField      = "scopeTag"
+	nestedScopeTagsField      = "scopeTags"
+	nestedReferencesTagsField = "references.tags"
+
 	defaultSearchDepth = 100
 
 	DawnOfTimeSpanAge = time.Hour * 24 * 365 * 50
@@ -72,9 +76,9 @@ var (
 
 	defaultMaxDuration = model.DurationAsMicroseconds(time.Hour * 24)
 
-	objectTagFieldList = []string{objectTagsField, objectProcessTagsField}
+	objectTagFieldList = []string{objectTagsField, objectProcessTagsField, objectScopeTagsField}
 
-	nestedTagFieldList = []string{nestedTagsField, nestedProcessTagsField, nestedLogFieldsField}
+	nestedTagFieldList = []string{nestedTagsField, nestedProcessTagsField, nestedLogFieldsField, nestedScopeTagsField, nestedReferencesTagsField}
 
 	_ Reader = (*SpanReader)(nil) // check API conformance
 )
@@ -124,6 +128,10 @@ type SpanReader struct {
 	logger                  *zap.Logger
 	tracer                  trace.Tracer
 	dotReplacer             dbmodel.DotReplacer
+	// ignoreUnmappedScopeAndLinkFields makes tag searches tolerate indices that have no
+	// mapping for the scope and link attribute fields; see
+	// Configuration.IgnoreUnmappedScopeAndLinkFields.
+	ignoreUnmappedScopeAndLinkFields bool
 }
 
 // SpanReaderParams holds constructor params for NewSpanReader
@@ -147,24 +155,28 @@ type SpanReaderParams struct {
 	Tracer                 trace.Tracer
 	SpanRotation           indices.Rotation
 	ServiceRotation        indices.Rotation
+	// IgnoreUnmappedScopeAndLinkFields makes tag searches tolerate indices that have no
+	// mapping for the scope and link attribute fields.
+	IgnoreUnmappedScopeAndLinkFields bool
 }
 
 // NewSpanReader returns a new SpanReader with a metrics.
 func NewSpanReader(p SpanReaderParams) *SpanReader {
 	return &SpanReader{
-		searcher:                p.Searcher,
-		numericAttributes:       p.NumericAttributes,
-		maxSpanAge:              p.MaxSpanAge,
-		servicesMaxLookback:     p.ServicesMaxLookback,
-		maxTraceDuration:        p.MaxTraceDuration,
-		serviceOperationStorage: NewServiceOperationStorage(p.Searcher, p.Logger, 0), // read-only; the decorator takes care of metrics
-		spanRotation:            p.SpanRotation,
-		serviceRotation:         p.ServiceRotation,
-		maxDocCount:             p.MaxDocCount,
-		spanSearchTieBreakByID:  p.SpanSearchTieBreakByID,
-		logger:                  p.Logger,
-		tracer:                  p.Tracer,
-		dotReplacer:             dbmodel.NewDotReplacer(p.TagDotReplacement),
+		searcher:                         p.Searcher,
+		numericAttributes:                p.NumericAttributes,
+		maxSpanAge:                       p.MaxSpanAge,
+		servicesMaxLookback:              p.ServicesMaxLookback,
+		maxTraceDuration:                 p.MaxTraceDuration,
+		serviceOperationStorage:          NewServiceOperationStorage(p.Searcher, p.Logger, 0), // read-only; the decorator takes care of metrics
+		spanRotation:                     p.SpanRotation,
+		serviceRotation:                  p.ServiceRotation,
+		maxDocCount:                      p.MaxDocCount,
+		spanSearchTieBreakByID:           p.SpanSearchTieBreakByID,
+		logger:                           p.Logger,
+		tracer:                           p.Tracer,
+		dotReplacer:                      dbmodel.NewDotReplacer(p.TagDotReplacement),
+		ignoreUnmappedScopeAndLinkFields: p.IgnoreUnmappedScopeAndLinkFields,
 	}
 }
 
@@ -619,13 +631,17 @@ func (s *SpanReader) buildTagQuery(k string, v string) esquery.Query {
 	return esquery.NewBoolQuery().Should(queries...)
 }
 
-func (*SpanReader) buildNestedQuery(field string, k string, v string) esquery.Query {
+func (s *SpanReader) buildNestedQuery(field string, k string, v string) esquery.Query {
 	keyField := fmt.Sprintf("%s.%s", field, tagKeyField)
 	valueField := fmt.Sprintf("%s.%s", field, tagValueField)
 	keyQuery := esquery.NewMatchQuery(keyField, k)
 	valueQuery := esquery.NewRegexpQuery(valueField, v).Flags("NONE")
 	tagBoolQuery := esquery.NewBoolQuery().Must(keyQuery, valueQuery)
-	return esquery.NewNestedQuery(field, tagBoolQuery)
+	query := esquery.NewNestedQuery(field, tagBoolQuery)
+	if s.ignoreUnmappedScopeAndLinkFields && (field == nestedScopeTagsField || field == nestedReferencesTagsField) {
+		return query.IgnoreUnmapped(true)
+	}
+	return query
 }
 
 func (*SpanReader) buildObjectQuery(field string, k string, v string) esquery.Query {
@@ -639,6 +655,8 @@ func (s *SpanReader) mergeAllNestedAndElevatedTagsOfSpan(span *dbmodel.Span) {
 	span.Process.Tags = processTags
 	spanTags := s.mergeNestedAndElevatedTags(span.Tags, span.Tag)
 	span.Tags = spanTags
+	scopeTags := s.mergeNestedAndElevatedTags(span.ScopeTags, span.ScopeTag)
+	span.ScopeTags = scopeTags
 }
 
 func (s *SpanReader) mergeNestedAndElevatedTags(nestedTags []dbmodel.KeyValue, elevatedTags map[string]any) []dbmodel.KeyValue {

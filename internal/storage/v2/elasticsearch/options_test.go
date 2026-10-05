@@ -89,6 +89,7 @@ func TestOptions(t *testing.T) {
 
 	assert.NotEmpty(t, primary.Servers)
 	assert.Empty(t, primary.RemoteReadClusters)
+	assert.True(t, primary.IgnoreUnmappedScopeAndLinkFields)
 	assert.EqualValues(t, 5, primary.Indices.Spans.Shards)
 	assert.EqualValues(t, 5, primary.Indices.Services.Shards)
 	assert.EqualValues(t, 5, primary.Indices.Sampling.Shards)
