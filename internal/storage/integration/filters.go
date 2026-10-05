@@ -46,9 +46,9 @@ type filterCase struct {
 	expected []string
 }
 
-// filterTestCases covers what M4 of RFC 0005 delivered for Elasticsearch and OpenSearch: the three
-// levels those index, the built-in fields they route to a field of their own, every operator they
-// declare, and boolean composition over the lot.
+// filterTestCases covers the RFC 0005 filter model across the backends that evaluate it natively:
+// the five OTLP attribute levels, the built-in fields each backend routes to a column or field of
+// its own, the operators and typed constants they declare, and boolean composition over the lot.
 func filterTestCases(p builder.Predicate) []filterCase {
 	return []filterCase{
 		{
@@ -62,6 +62,11 @@ func filterTestCases(p builder.Predicate) []filterCase {
 			expected: []string{"checkout"},
 		},
 		{
+			caption:  "a scope-level attribute matches the instrumentation scope's attributes only",
+			filter:   p.Scope().Attr("zone").Eq("us-east"),
+			expected: []string{"worker"},
+		},
+		{
 			caption:  "an unqualified attribute matches either the span or the resource",
 			filter:   p.Attr("zone").Eq("us-east"),
 			expected: []string{"cart_get", "checkout"},
@@ -72,8 +77,14 @@ func filterTestCases(p builder.Predicate) []filterCase {
 			expected: []string{"search"},
 		},
 		{
+			caption:  "a link-level attribute matches an attribute of one of the span's links",
+			filter:   p.Link().Attr("zone").Eq("eu-west"),
+			expected: []string{"worker"},
+		},
+		{
 			// The span-or-resource default of RFC 0005 §5.1, asserted by what it leaves out: the
-			// search trace carries `zone` on an event and nowhere else.
+			// `search` trace carries `zone` on an event and the `worker` trace on its scope and on
+			// a link, and neither is reached.
 			caption:  "an unqualified attribute does not reach the event level",
 			filter:   p.Attr("zone").Exists(),
 			expected: []string{"cart_get", "checkout"},
@@ -94,6 +105,21 @@ func filterTestCases(p builder.Predicate) []filterCase {
 			expected: []string{"cart_get"},
 		},
 		{
+			caption:  "the span kind",
+			filter:   p.Span().Kind.Eq("consumer"),
+			expected: []string{"worker"},
+		},
+		{
+			caption:  "the span status",
+			filter:   p.Span().Status.Eq("error"),
+			expected: []string{"worker"},
+		},
+		{
+			caption:  "the trace state",
+			filter:   p.Span().TraceState.Eq("congo=t61rcWkgMzE"),
+			expected: []string{"search"},
+		},
+		{
 			caption:  "a pattern on the operation name matches anywhere in it",
 			filter:   p.Span().Name.Matches("cart"),
 			expected: []string{"cart_get", "cart_post"},
@@ -104,6 +130,11 @@ func filterTestCases(p builder.Predicate) []filterCase {
 			caption:  "the name of one of the span's events",
 			filter:   p.Event().Name.Eq("exception"),
 			expected: []string{"cart_post"},
+		},
+		{
+			caption:  "an exact duration",
+			filter:   p.Span().Duration.Eq(40 * time.Millisecond),
+			expected: []string{"checkout"},
 		},
 		{
 			caption:  "a duration greater than a bound",
@@ -130,6 +161,22 @@ func filterTestCases(p builder.Predicate) []filterCase {
 			caption:  "an attribute inequality leaves out a span that lacks the attribute",
 			filter:   p.Span().Attr("http.status_code").Ne("200"),
 			expected: []string{"cart_post"},
+		},
+		{
+			caption:  "an untyped constant matches an attribute stored as a number",
+			filter:   p.Span().Attr("retry.count").Eq(11),
+			expected: []string{"cart_post"},
+		},
+		{
+			// `cart_get` stores `retry.count` as the integer 9 and `search` as the string "09". A
+			// constant declaring the string type (RFC 0005 §5.4) is compared as text, so it
+			// matches `search` only; the same value sent untyped would be read as the number 9
+			// and match `cart_get` as well. The value is zero-padded so that a backend comparing
+			// this attribute lexicographically does not also count it as greater than "10" in
+			// "ordering compares a numeric attribute as a number" below.
+			caption:  "a string-typed constant leaves out an attribute stored as a number",
+			filter:   p.Span().Attr("retry.count").Eq(p.Text("09")),
+			expected: []string{"search"},
 		},
 		{
 			// Ordering an attribute needs the value stored as a number. A backend that indexes
@@ -212,29 +259,28 @@ func (s *StorageIntegration) testFindTracesWithFilter(t *testing.T) {
 	// The suite's corpus holds far more than these fixtures, and a case's time range covers all of
 	// it, so every case below is scoped to the services only these fixtures use. The scope is
 	// derived from the corpus rather than listed here, so a fixture added to filterCorpusDir is
-	// searched without being named anywhere.
-	scope := p.Resource().Service.In(filterCorpusServices(corpus)...)
+	// searched without being named anywhere, and it is a disjunction of equalities rather than In
+	// so every backend that evaluates a boolean filter can serve it.
+	scope := filterCorpusScope(p, corpus)
 
 	// A deployment that will not serve a filter at all refuses every case below, and a search that
 	// comes back with an error is retried for a minute and a half before it is called a failure —
 	// which for a whole battery is half an hour of a CI run spent on one misconfiguration. So the
 	// first filter goes straight to the reader, whose error says what is actually wrong.
-	s.requireFilterIsServed(t, filterQuery(p.Resource().Service.Exists(), start, end))
+	s.requireFilterIsServed(t, filterQuery(t, scope, start, end))
 
 	for _, testCase := range filterTestCases(p) {
 		t.Run(testCase.caption, func(t *testing.T) {
 			s.skipIfNeeded(t)
 			expected := filterCorpusTraces(t, corpus, testCase.expected)
-			query := filterQuery(p.And(scope, testCase.filter), start, end)
+			query := filterQuery(t, p.And(scope, testCase.filter), start, end)
 			actual := s.findTracesByQuery(t, query, expected)
 			CompareTraceSlices(t, expected, actual)
 		})
 	}
 
 	// RFC 0005 §7 promises that a backend either evaluates a predicate or refuses it, and never
-	// answers a predicate it cannot evaluate with a wider result set. These two are the shapes an
-	// Elasticsearch or OpenSearch reader declares it cannot serve: the scope level, which its
-	// schema does not index apart from the span's own attributes, and the `some` quantifier.
+	// answers a predicate it cannot evaluate with a wider result set.
 	refusals := []struct {
 		caption string
 		filter  *expression.Call
@@ -251,6 +297,11 @@ func (s *StorageIntegration) testFindTracesWithFilter(t *testing.T) {
 			names:   "some",
 		},
 		{
+			caption: "a built-in field the backend does not index is refused",
+			filter:  p.Span().TraceState.Eq("congo=t61rcWkgMzE"),
+			names:   "traceState",
+		},
+		{
 			// The twin of "ordering compares a numeric attribute as a number" above: the same
 			// filter, for a backend whose schema indexes an attribute as text. This one refuses
 			// inside the reader rather than at the capability edge, because the operator and the
@@ -264,7 +315,7 @@ func (s *StorageIntegration) testFindTracesWithFilter(t *testing.T) {
 	for _, refusal := range refusals {
 		t.Run(refusal.caption, func(t *testing.T) {
 			s.skipIfNeeded(t)
-			query := filterQuery(refusal.filter, start, end)
+			query := filterQuery(t, refusal.filter, start, end)
 			_, err := jiter.CollectWithErrors(jptrace.AggregateTraces(
 				s.TraceReader.FindTraces(context.Background(), *query),
 			))
@@ -289,10 +340,10 @@ func (s *StorageIntegration) testFindTracesWithFilter(t *testing.T) {
 			names = append(names, name)
 		}
 		whole := filterCorpusTraces(t, corpus, names)
-		s.findTracesByQuery(t, filterQuery(scope, start, end), whole)
+		s.findTracesByQuery(t, filterQuery(t, scope, start, end), whole)
 		// The reader is asked directly rather than through findTracesByQuery, which retries an
 		// error for the whole wait: a refusal here is wrong at once and should say so.
-		query := filterQuery(p.And(scope, p.Span().Attr("retry.count").Gt(10)), start, end)
+		query := filterQuery(t, p.And(scope, p.Span().Attr("retry.count").Gt(10)), start, end)
 		actual, err := jiter.CollectWithErrors(jptrace.AggregateTraces(
 			s.TraceReader.FindTraces(context.Background(), *query),
 		))
@@ -333,7 +384,7 @@ func (s *StorageIntegration) RunFilterRewriteTest(t *testing.T) {
 			StartTimeMax: end,
 			SearchDepth:  filterSearchDepth,
 		}
-		filter := filterQuery(p.And(
+		filter := filterQuery(t, p.And(
 			p.Resource().Service.Eq("filter-cart"),
 			p.Attr("http.status_code").Eq("500"),
 		), start, end)
@@ -346,13 +397,18 @@ func (s *StorageIntegration) RunFilterRewriteTest(t *testing.T) {
 	})
 }
 
-// filterQuery is a search whose only predicate is the filter. The attributes map is empty rather
-// than unset because a Reader is entitled to read it (it "must be initialized with
-// pcommon.NewMap() before use"), and a filter must arrive alone: a query carrying one beside a
-// service name, an operation name, a tag or a duration bound is refused.
-func filterQuery(filter *expression.Call, start, end time.Time) *tracestore.TraceQueryParams {
+// filterQuery is a search whose only predicate is the filter. The filter is finalized here so a
+// direct suite hands its Reader the same resolved AST the query service and the remote-storage
+// server hand it in production (RFC 0005 §7). The attributes map is empty rather than unset
+// because a Reader is entitled to read it (it "must be initialized with pcommon.NewMap() before
+// use"), and a filter must arrive alone: a query carrying one beside a service name, an operation
+// name, a tag or a duration bound is refused.
+func filterQuery(t *testing.T, filter *expression.Call, start, end time.Time) *tracestore.TraceQueryParams {
+	t.Helper()
+	finalized, err := tracestore.FinalizeFilter(filter)
+	require.NoError(t, err)
 	return &tracestore.TraceQueryParams{
-		Filter:       filter,
+		Filter:       finalized,
 		Attributes:   pcommon.NewMap(),
 		StartTimeMin: start,
 		StartTimeMax: end,
@@ -369,10 +425,10 @@ func (s *StorageIntegration) requireFilterIsServed(t *testing.T, query *tracesto
 	require.NoError(t, err, "this deployment refuses the filter itself, so no case below can pass")
 }
 
-// filterCorpusServices are the services the filter fixtures use, as the values of a membership
-// predicate. Only these fixtures use a "filter-" prefixed service, which is what lets a case be
-// scoped to them.
-func filterCorpusServices(corpus map[string]ptrace.Traces) []any {
+// filterCorpusScope builds the disjunction of service-name equalities that restricts a search to
+// the services the filter fixtures use. Only these fixtures use a "filter-" prefixed service,
+// which is what lets a case be scoped to them.
+func filterCorpusScope(p builder.Predicate, corpus map[string]ptrace.Traces) *expression.Call {
 	seen := make(map[string]struct{})
 	for _, trace := range corpus {
 		for i := 0; i < trace.ResourceSpans().Len(); i++ {
@@ -381,11 +437,11 @@ func filterCorpusServices(corpus map[string]ptrace.Traces) []any {
 			}
 		}
 	}
-	values := make([]any, 0, len(seen))
+	clauses := make([]*expression.Call, 0, len(seen))
 	for _, name := range slices.Sorted(maps(seen)) {
-		values = append(values, name)
+		clauses = append(clauses, p.Resource().Service.Eq(name))
 	}
-	return values
+	return p.Or(clauses...)
 }
 
 // writeFilterCorpus writes every trace in filterCorpusDir and returns them by file name, without
