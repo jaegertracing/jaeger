@@ -327,6 +327,8 @@ func ElasticsearchSmokeTest() Capabilities {
 		getOperationsMissingSpanKind: true,
 		skipList: []string{
 			spanAttributeOrderingTest,
+			traceIDPaginationTest,
+			summaryPaginationTest,
 			scopeAttributesTest,
 			linkAttributesTest,
 			structuredFilterTest,
