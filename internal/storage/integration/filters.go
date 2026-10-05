@@ -30,9 +30,8 @@ import (
 //
 // filterCorpusDir holds every trace the cases search, and all of it is loaded, so a fixture added
 // there is searched without being named anywhere else and none can be left orphaned. The corpus is
-// small and deliberate: the attribute key `zone` sits at the span level in one trace, the resource
-// level in another and the event level in a third, so a reader that ignores the level a predicate
-// names fails here instead of passing with a superset.
+// small and deliberate: the attribute key `zone` sits at different levels on different traces,
+// so a reader that ignores the level a predicate names returns a different set.
 const filterCorpusDir = "fixtures/traces/filter"
 
 // filterSearchDepth is larger than the corpus, so a case's result set is what the filter matched
@@ -54,40 +53,40 @@ func filterTestCases(p builder.Predicate) []filterCase {
 		{
 			caption:  "a span-level attribute matches the span's own attributes only",
 			filter:   p.Span().Attr("zone").Eq("us-east"),
-			expected: []string{"cart_get"},
+			expected: []string{"cart_get", "search"},
 		},
 		{
 			caption:  "a resource-level attribute matches the resource's attributes only",
 			filter:   p.Resource().Attr("zone").Eq("us-east"),
-			expected: []string{"checkout"},
+			expected: []string{"cart_long", "checkout"},
 		},
 		{
 			caption:  "a scope-level attribute matches the instrumentation scope's attributes only",
 			filter:   p.Scope().Attr("zone").Eq("us-east"),
-			expected: []string{"worker"},
+			expected: []string{"scope_peer", "worker"},
 		},
 		{
 			caption:  "an unqualified attribute matches either the span or the resource",
 			filter:   p.Attr("zone").Eq("us-east"),
-			expected: []string{"cart_get", "checkout"},
+			expected: []string{"cart_get", "cart_long", "checkout", "search"},
 		},
 		{
 			caption:  "an event-level attribute matches an attribute of one of the span's events",
 			filter:   p.Event().Attr("zone").Eq("eu-west"),
-			expected: []string{"search"},
+			expected: []string{"search_long"},
 		},
 		{
 			caption:  "a link-level attribute matches an attribute of one of the span's links",
 			filter:   p.Link().Attr("zone").Eq("eu-west"),
-			expected: []string{"worker"},
+			expected: []string{"link_peer"},
 		},
 		{
 			// The span-or-resource default of RFC 0005 §5.1, asserted by what it leaves out: the
-			// `search` trace carries `zone` on an event and the `worker` trace on its scope and on
-			// a link, and neither is reached.
+			// `search_long` carries `zone` only on an event, `worker` and `scope_peer` only
+			// on their scopes, and `link_peer` only on a link; none is returned.
 			caption:  "an unqualified attribute does not reach the event level",
 			filter:   p.Attr("zone").Exists(),
-			expected: []string{"cart_get", "checkout"},
+			expected: []string{"cart_get", "cart_long", "cart_post", "checkout", "search"},
 		},
 		{
 			caption:  "the service name",
@@ -97,17 +96,17 @@ func filterTestCases(p builder.Predicate) []filterCase {
 		{
 			caption:  "the service name against a list of names",
 			filter:   p.Resource().Service.In("filter-checkout", "filter-search"),
-			expected: []string{"checkout", "search"},
+			expected: []string{"checkout", "search", "search_long"},
 		},
 		{
 			caption:  "the operation name",
 			filter:   p.Span().Name.Eq("GET /cart"),
-			expected: []string{"cart_get"},
+			expected: []string{"cart_get", "cart_long"},
 		},
 		{
 			caption:  "the span kind",
 			filter:   p.Span().Kind.Eq("consumer"),
-			expected: []string{"worker"},
+			expected: []string{"search", "worker"},
 		},
 		{
 			caption:  "the span status",
@@ -117,34 +116,34 @@ func filterTestCases(p builder.Predicate) []filterCase {
 		{
 			caption:  "the trace state",
 			filter:   p.Span().TraceState.Eq("congo=t61rcWkgMzE"),
-			expected: []string{"search"},
+			expected: []string{"scope_peer", "search"},
 		},
 		{
 			caption:  "a pattern on the operation name matches anywhere in it",
 			filter:   p.Span().Name.Matches("cart"),
-			expected: []string{"cart_get", "cart_post"},
+			expected: []string{"cart_get", "cart_long", "cart_post"},
 		},
 		{
 			// The write path stores an event's name as an attribute of the event, so this asserts
 			// that a filter naming the field finds what the write path recorded.
 			caption:  "the name of one of the span's events",
 			filter:   p.Event().Name.Eq("exception"),
-			expected: []string{"cart_post"},
+			expected: []string{"cart_get", "cart_post"},
 		},
 		{
 			caption:  "an exact duration",
 			filter:   p.Span().Duration.Eq(40 * time.Millisecond),
-			expected: []string{"checkout"},
+			expected: []string{"cart_get", "checkout"},
 		},
 		{
 			caption:  "a duration greater than a bound",
 			filter:   p.Span().Duration.Gt(time.Second),
-			expected: []string{"cart_post"},
+			expected: []string{"cart_long", "cart_post", "search_long"},
 		},
 		{
 			caption:  "a duration at most a bound",
 			filter:   p.Span().Duration.Lte(5 * time.Millisecond),
-			expected: []string{"cart_get", "search"},
+			expected: []string{"search"},
 		},
 		{
 			caption: "a duration between two bounds",
@@ -152,15 +151,15 @@ func filterTestCases(p builder.Predicate) []filterCase {
 				p.Span().Duration.Gte(5*time.Millisecond),
 				p.Span().Duration.Lte(40*time.Millisecond),
 			),
-			expected: []string{"checkout", "search"},
+			expected: []string{"cart_get", "checkout", "search"},
 		},
 		{
-			// An inequality asks for the spans that hold the attribute and hold something else
-			// (RFC 0005 §5.3), so the search trace, which carries no http.status_code at all, is
+			// An inequality asks for spans that hold the attribute and hold something else
+			// (RFC 0005 §5.3), so the scope and link peers, which lack http.status_code, are
 			// not among them.
 			caption:  "an attribute inequality leaves out a span that lacks the attribute",
 			filter:   p.Span().Attr("http.status_code").Ne("200"),
-			expected: []string{"cart_post"},
+			expected: []string{"cart_long", "cart_post", "checkout", "search"},
 		},
 		{
 			caption:  "an untyped constant matches an attribute stored as a number",
@@ -168,40 +167,39 @@ func filterTestCases(p builder.Predicate) []filterCase {
 			expected: []string{"cart_post"},
 		},
 		{
-			// `cart_get` stores `retry.count` as the integer 9 and `search` as the string "09". A
-			// constant declaring the string type (RFC 0005 §5.4) is compared as text, so it
-			// matches `search` only; the same value sent untyped would be read as the number 9
-			// and match `cart_get` as well. The value is zero-padded so that a backend comparing
-			// this attribute lexicographically does not also count it as greater than "10" in
-			// "ordering compares a numeric attribute as a number" below.
+			// `cart_get` stores `retry.count` as the integer 9, while `checkout` and `search`
+			// store the string "09". A constant declaring the string type (RFC 0005 §5.4) is
+			// compared as text, so it matches those two; the same value sent untyped would
+			// be read as the number 9 and match `cart_get` as well. The padding keeps "09" below
+			// "10" lexicographically, so it cannot hide the ordering error tested below.
 			caption:  "a string-typed constant leaves out an attribute stored as a number",
 			filter:   p.Span().Attr("retry.count").Eq(p.Text("09")),
-			expected: []string{"search"},
+			expected: []string{"checkout", "search"},
 		},
 		{
 			// Ordering an attribute needs the value stored as a number. A backend that indexes
 			// attributes as text refuses this instead, and excuses itself from this case — see
 			// its twin among the refusals below.
 			//
-			// The corpus carries retry.count as 9 and 11, and the bound is 10, because those are
-			// the numbers that tell a numeric comparison from a lexicographic one. Numerically
-			// only 11 is greater; as text both are, since "9" sorts after "10". So a backend that
+			// The corpus carries retry.count as 9, 11 and 12, and the bound is 10, because those
+			// numbers tell a numeric comparison from a lexicographic one. Numerically 11 and 12
+			// are greater; as text 9 is too, since "9" sorts after "10". So a backend that
 			// ranged over the keyword would answer with cart_get as well — a superset, which is
 			// the failure this case exists to catch, and one that cannot be mistaken for the
 			// writes not having landed.
 			caption:  "ordering compares a numeric attribute as a number",
 			filter:   p.Span().Attr("retry.count").Gt(10),
-			expected: []string{"cart_post"},
+			expected: []string{"cart_post", "search_long"},
 		},
 		{
 			caption:  "an attribute exists",
 			filter:   p.Span().Attr("http.status_code").Exists(),
-			expected: []string{"cart_get", "cart_post", "checkout"},
+			expected: []string{"cart_get", "cart_long", "cart_post", "checkout", "search", "search_long"},
 		},
 		{
 			caption:  "a pattern on an attribute value",
 			filter:   p.Span().Attr("http.status_code").Matches("5.."),
-			expected: []string{"cart_post"},
+			expected: []string{"cart_post", "checkout"},
 		},
 		{
 			caption: "a conjunction of a built-in field and a duration",
@@ -209,7 +207,7 @@ func filterTestCases(p builder.Predicate) []filterCase {
 				p.Resource().Service.Eq("filter-cart"),
 				p.Span().Duration.Gt(time.Second),
 			),
-			expected: []string{"cart_post"},
+			expected: []string{"cart_long", "cart_post"},
 		},
 		{
 			caption: "a disjunction",
@@ -217,7 +215,7 @@ func filterTestCases(p builder.Predicate) []filterCase {
 				p.Resource().Service.Eq("filter-search"),
 				p.Span().Name.Eq("GET /cart"),
 			),
-			expected: []string{"cart_get", "search"},
+			expected: []string{"cart_get", "cart_long", "search", "search_long"},
 		},
 		{
 			caption: "a negation narrowing a conjunction",
@@ -225,7 +223,7 @@ func filterTestCases(p builder.Predicate) []filterCase {
 				p.Resource().Attr("deployment.environment").Eq("staging"),
 				p.Not(p.Resource().Service.Eq("filter-search")),
 			),
-			expected: []string{"checkout"},
+			expected: []string{"cart_get", "cart_long", "checkout"},
 		},
 		{
 			caption: "a disjunction nested inside a conjunction",
@@ -236,7 +234,7 @@ func filterTestCases(p builder.Predicate) []filterCase {
 					p.Span().Attr("zone").Eq("us-east"),
 				),
 			),
-			expected: []string{"cart_get", "cart_post"},
+			expected: []string{"cart_post", "search"},
 		},
 	}
 }

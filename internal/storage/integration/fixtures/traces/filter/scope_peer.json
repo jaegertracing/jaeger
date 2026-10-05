@@ -6,7 +6,7 @@
           {
             "key": "service.name",
             "value": {
-              "stringValue": "filter-worker"
+              "stringValue": "filter-scope"
             }
           }
         ]
@@ -14,7 +14,7 @@
       "scopeSpans": [
         {
           "scope": {
-            "name": "worker-scope",
+            "name": "scope-peer",
             "attributes": [
               {
                 "key": "zone",
@@ -26,15 +26,13 @@
           },
           "spans": [
             {
-              "traceId": "00000000000000000000000000000f05",
-              "spanId": "0000000000000f05",
-              "name": "RUN /worker",
-              "kind": 5,
+              "traceId": "00000000000000000000000000000f06",
+              "spanId": "0000000000000f06",
+              "traceState": "congo=t61rcWkgMzE",
+              "name": "RUN /scope",
               "startTimeUnixNano": "1485449191639875000",
               "endTimeUnixNano": "1485449191739875000",
-              "status": {
-                "code": 2
-              }
+              "status": {}
             }
           ]
         }

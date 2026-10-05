@@ -39,6 +39,12 @@
                   "value": {
                     "intValue": "11"
                   }
+                },
+                {
+                  "key": "zone",
+                  "value": {
+                    "stringValue": "eu-central"
+                  }
                 }
               ],
               "events": [

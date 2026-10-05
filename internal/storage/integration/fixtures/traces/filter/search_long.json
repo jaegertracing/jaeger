@@ -12,7 +12,7 @@
           {
             "key": "deployment.environment",
             "value": {
-              "stringValue": "prod"
+              "stringValue": "staging"
             }
           }
         ]
@@ -22,31 +22,37 @@
           "scope": {},
           "spans": [
             {
-              "traceId": "00000000000000000000000000000f04",
-              "spanId": "0000000000000f04",
-              "traceState": "congo=t61rcWkgMzE",
-              "name": "GET /search",
-              "kind": 5,
+              "traceId": "00000000000000000000000000000f09",
+              "spanId": "0000000000000f09",
+              "name": "GET /search/slow",
               "startTimeUnixNano": "1485449191639875000",
-              "endTimeUnixNano": "1485449191644875000",
+              "endTimeUnixNano": "1485449194639875000",
               "attributes": [
-                {
-                  "key": "retry.count",
-                  "value": {
-                    "stringValue": "09"
-                  }
-                },
-                {
-                  "key": "zone",
-                  "value": {
-                    "stringValue": "us-east"
-                  }
-                },
                 {
                   "key": "http.status_code",
                   "value": {
-                    "stringValue": "404"
+                    "stringValue": "200"
                   }
+                },
+                {
+                  "key": "retry.count",
+                  "value": {
+                    "intValue": "12"
+                  }
+                }
+              ],
+              "events": [
+                {
+                  "timeUnixNano": "1485449192639875000",
+                  "name": "cache.miss",
+                  "attributes": [
+                    {
+                      "key": "zone",
+                      "value": {
+                        "stringValue": "eu-west"
+                      }
+                    }
+                  ]
                 }
               ],
               "status": {}
