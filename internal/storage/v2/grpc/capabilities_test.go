@@ -151,9 +151,8 @@ func TestQueryParametersCarryPagination(t *testing.T) {
 	assert.Equal(t, &tracestore.Pagination{PageSize: 25, PageToken: "opaque-cursor"}, decoded.Pagination)
 	assert.Zero(t, decoded.SearchDepth, "Pagination replaces search_depth rather than setting it")
 
-	decoded, err = NewHandler(new(tracestoremocks.Reader), nil, nil).toTraceQueryParams(&storage.TraceQueryParameters{
+	_, err = NewHandler(new(tracestoremocks.Reader), nil, nil).toTraceQueryParams(&storage.TraceQueryParameters{
 		Pagination: &storage.Pagination{},
 	})
-	require.NoError(t, err)
-	assert.Equal(t, &tracestore.Pagination{}, decoded.Pagination, "a present but empty message keeps its presence")
+	require.ErrorContains(t, err, "page size is required", "a present but empty message keeps its presence and is refused")
 }

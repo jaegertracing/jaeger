@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"iter"
+	"math"
 	"testing"
 	"time"
 
@@ -426,13 +427,7 @@ func TestHandler_PaginationInvalidBecomesInvalidArgument(t *testing.T) {
 	readerErr := fmt.Errorf("%w: page token does not match the query", tracestore.ErrPaginationInvalid)
 	assertPaginationStatus := func(t *testing.T, err error) {
 		t.Helper()
-		st := status.Convert(err)
-		require.Equal(t, codes.InvalidArgument, st.Code())
-		assert.Contains(t, st.Message(), "page token does not match the query")
-		require.Len(t, st.Details(), 1)
-		info, ok := st.Details()[0].(*errdetails.ErrorInfo)
-		require.True(t, ok)
-		assert.Equal(t, tracestore.PaginationInvalidReason, info.GetReason())
+		requirePaginationRefusal(t, err, "page token does not match the query")
 	}
 	t.Run("FindTraceIDs", func(t *testing.T) {
 		reader := new(tracestoremocks.Reader)
@@ -1151,8 +1146,81 @@ func TestSpanServerRefusals(t *testing.T) {
 	assert.Equal(t, codes.InvalidArgument, status.Code(err))
 	reader.On("FindSpans", mock.Anything, mock.Anything).Return(spanSequence([]tracestore.PageChunk[ptrace.Traces]{{Results: makeTestTrace()}}, nil))
 	sendErr := errors.New("send failed")
-	err = handler.FindSpans(&storage.FindSpansRequest{Query: &storage.SpanQueryParameters{}}, &spanStream{err: sendErr})
+	err = handler.FindSpans(&storage.FindSpansRequest{Query: &storage.SpanQueryParameters{
+		Pagination: &storage.Pagination{PageSize: 1},
+	}}, &spanStream{err: sendErr})
 	require.ErrorIs(t, err, sendErr)
+}
+
+// requirePaginationRefusal checks the status a refused page bound leaves the server with: the
+// same InvalidArgument and PAGINATION_INVALID reason a reader's own pagination refusal gets.
+func requirePaginationRefusal(t *testing.T, err error, msg string) {
+	t.Helper()
+	st := status.Convert(err)
+	require.Equal(t, codes.InvalidArgument, st.Code())
+	assert.Contains(t, st.Message(), msg)
+	require.Len(t, st.Details(), 1)
+	info, ok := st.Details()[0].(*errdetails.ErrorInfo)
+	require.True(t, ok)
+	assert.Equal(t, tracestore.PaginationInvalidReason, info.GetReason())
+}
+
+// TestHandler_FindSpansBoundsPageSize pins the server-side page bound of a span search: a
+// remote client reaches the Reader without the query service, so the server refuses a missing
+// page size and clamps an oversized one to tracestore.MaxPageSize.
+func TestHandler_FindSpansBoundsPageSize(t *testing.T) {
+	t.Run("missing page size is refused", func(t *testing.T) {
+		reader := new(tracestoremocks.Reader)
+		err := NewHandler(reader, nil, nil).FindSpans(&storage.FindSpansRequest{
+			Query: &storage.SpanQueryParameters{},
+		}, &spanStream{})
+		requirePaginationRefusal(t, err, "page size is required")
+		reader.AssertNotCalled(t, "FindSpans", mock.Anything, mock.Anything)
+	})
+	t.Run("oversized page size is clamped", func(t *testing.T) {
+		reader := new(tracestoremocks.Reader)
+		reader.On("FindSpans", mock.Anything, mock.MatchedBy(func(q tracestore.SpanQueryParams) bool {
+			return q.Pagination.PageSize == tracestore.MaxPageSize
+		})).Return(spanSequence(nil, nil)).Once()
+		err := NewHandler(reader, nil, nil).FindSpans(&storage.FindSpansRequest{
+			Query: &storage.SpanQueryParameters{
+				Pagination: &storage.Pagination{PageSize: math.MaxUint32},
+			},
+		}, &spanStream{})
+		require.NoError(t, err)
+		reader.AssertExpectations(t)
+	})
+}
+
+// TestHandler_TraceSearchBoundsPagination pins the server-side page bound of a trace search,
+// mirroring the query service: a page size is required, replaces the search depth rather than
+// combining with it, and is clamped to tracestore.MaxPageSize.
+func TestHandler_TraceSearchBoundsPagination(t *testing.T) {
+	handler := NewHandler(new(tracestoremocks.Reader), nil, nil)
+
+	query, err := handler.toTraceQueryParams(&storage.TraceQueryParameters{
+		Pagination: &storage.Pagination{PageSize: math.MaxUint32, PageToken: "cursor"},
+	})
+	require.NoError(t, err)
+	assert.Equal(t, &tracestore.Pagination{PageSize: tracestore.MaxPageSize, PageToken: "cursor"}, query.Pagination)
+
+	_, err = handler.toTraceQueryParams(&storage.TraceQueryParameters{
+		Pagination: &storage.Pagination{},
+	})
+	requirePaginationRefusal(t, err, "page size is required")
+
+	_, err = handler.toTraceQueryParams(&storage.TraceQueryParameters{
+		SearchDepth: 10,
+		Pagination:  &storage.Pagination{PageSize: 10},
+	})
+	requirePaginationRefusal(t, err, "cannot be combined with search depth")
+
+	reader := new(tracestoremocks.Reader)
+	_, err = NewHandler(reader, nil, nil).FindTraceIDs(context.Background(), &storage.FindTraceIDsRequest{
+		Query: &storage.TraceQueryParameters{Pagination: &storage.Pagination{}},
+	})
+	requirePaginationRefusal(t, err, "page size is required")
+	reader.AssertNotCalled(t, "FindTraceIDs", mock.Anything, mock.Anything)
 }
 
 func TestHandler_FindSpansPreservesQuery(t *testing.T) {
