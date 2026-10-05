@@ -136,31 +136,38 @@ func (r *Reader) buildFindTraceIDsQuery(
 	inner.WriteString(sql.SearchTraceIDsBase)
 	args := []any{}
 
+	// The time range bounds either shape, so it is appended after the predicates each shape
+	// carries rather than repeated in both branches.
+	appendTimeRange := func() {
+		if !query.StartTimeMin.IsZero() {
+			appendAnd(&inner, "s.start_time >= ?")
+			args = append(args, query.StartTimeMin)
+		}
+		if !query.StartTimeMax.IsZero() {
+			appendAnd(&inner, "s.start_time <= ?")
+			args = append(args, query.StartTimeMax)
+		}
+	}
+
 	if query.Filter != nil {
 		// A query carrying a filter reaches here only once SearchCapabilities.Filter is
 		// declared (querysvc.queryToReaderCapabilities folds it to the legacy fields
-		// otherwise), so the legacy scalar fields below are mutually exclusive with it
-		// rather than combined.
-		// Warm the attribute-metadata cache for every untyped attribute predicate in the
-		// tree in one round trip, so the lowering walk below pays for at most one query
-		// rather than one per untyped predicate on a cold cache (buildUntypedAttributeEq
-		// looks each key up again, but a pre-warmed key is a cache hit there).
-		untypedKeys := pcommon.NewMap()
-		collectUntypedAttributeKeys(query.Filter, untypedKeys)
-		if untypedKeys.Len() > 0 {
-			if _, err := r.getAttributeMetadata(ctx, untypedKeys); err != nil {
-				return "", nil, fmt.Errorf("failed to get attribute metadata: %w", err)
-			}
+		// otherwise), so the legacy scalar fields are mutually exclusive with it rather than
+		// combined. The untyped attribute metadata for the whole tree is looked up once here,
+		// and the lowering reads it from that map.
+		metadata, err := r.lookupUntypedMetadata(ctx, query.Filter)
+		if err != nil {
+			return "", nil, err
 		}
 
 		appendAnd(&inner, "(")
-		var err error
-		args, err = r.buildFilterCondition(ctx, &inner, 2, args, query.Filter)
+		args, err = buildFilterConditionWith(&inner, 2, args, metadata, query.Filter)
 		if err != nil {
 			return "", nil, err
 		}
 		appendNewlineAndIndent(&inner, 1)
 		inner.WriteString(")")
+		appendTimeRange()
 	} else {
 		if query.ServiceName != "" {
 			appendAnd(&inner, "s.service_name = ?")
@@ -178,18 +185,8 @@ func (r *Reader) buildFindTraceIDsQuery(
 			appendAnd(&inner, "s.duration <= ?")
 			args = append(args, query.DurationMax.Nanoseconds())
 		}
-	}
+		appendTimeRange()
 
-	if !query.StartTimeMin.IsZero() {
-		appendAnd(&inner, "s.start_time >= ?")
-		args = append(args, query.StartTimeMin)
-	}
-	if !query.StartTimeMax.IsZero() {
-		appendAnd(&inner, "s.start_time <= ?")
-		args = append(args, query.StartTimeMax)
-	}
-
-	if query.Filter == nil {
 		attributeMetadata, err := r.getAttributeMetadata(ctx, query.Attributes)
 		if err != nil {
 			return "", nil, fmt.Errorf("failed to get attribute metadata: %w", err)

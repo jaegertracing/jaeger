@@ -632,3 +632,39 @@ func TestConstantKind(t *testing.T) {
 		assert.Equal(t, tt.want, constantKind(tt.value))
 	}
 }
+
+// TestBuildFindTraceIDsQuery_OneMetadataQueryForKeysWithNoMetadata pins that keys the metadata
+// does not know still cost one query for the whole filter. Misses are not cached, so a per-predicate
+// lookup would fire a query for each of them.
+func TestBuildFindTraceIDsQuery_OneMetadataQueryForKeysWithNoMetadata(t *testing.T) {
+	driver := &clickhousetest.Driver{
+		QueryResponses: map[string]*clickhousetest.QueryResponse{
+			sql.SelectAttributeMetadata: {
+				Rows: &clickhousetest.Rows[dbmodel.AttributeMetadata]{
+					Data:   []dbmodel.AttributeMetadata{},
+					ScanFn: scanAttributeMetadataFn(),
+				},
+			},
+		},
+	}
+	r := NewReader(driver, testReaderConfig)
+	query := tracestore.TraceQueryParams{
+		Filter: call(expression.OpAnd,
+			call(expression.OpEq, attrRef(expression.LevelSpan, "never.seen.a"), &expression.AnyValue{Value: "1"}),
+			call(expression.OpEq, attrRef(expression.LevelSpan, "never.seen.b"), &expression.AnyValue{Value: "2"}),
+			call(expression.OpEq, attrRef(expression.LevelSpan, "never.seen.c"), &expression.AnyValue{Value: "3"}),
+		),
+		StartTimeMin: time.Unix(0, 0),
+		StartTimeMax: time.Unix(100, 0),
+	}
+	_, _, err := r.buildFindTraceIDsQuery(t.Context(), query)
+	require.NoError(t, err)
+
+	metadataQueries := 0
+	for _, recorded := range driver.RecordedQueries {
+		if strings.Contains(recorded, sql.SelectAttributeMetadata) {
+			metadataQueries++
+		}
+	}
+	assert.Equal(t, 1, metadataQueries, "three unknown keys cost one query, not one each")
+}
