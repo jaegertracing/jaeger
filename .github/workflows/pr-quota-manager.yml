@@ -32,6 +32,12 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
+        with:
+          # The job only needs the default branch's copy of the composite action and
+          # its script. Without an explicit ref, checkout resolves github.sha, which
+          # on the closed event of a merged PR is that PR's merge commit, and
+          # checkout v7 refuses it in a pull_request_target workflow as fork code.
+          ref: ${{ github.event.repository.default_branch }}
 
       - name: Process PR Quota
         uses: ./.github/actions/pr-quota-manager

@@ -12,6 +12,7 @@ import (
 	"go.opentelemetry.io/collector/processor"
 	"go.opentelemetry.io/collector/receiver"
 
+	storageconnector "github.com/jaegertracing/jaeger/components/connector/storageexporter"
 	"github.com/jaegertracing/jaeger/components/exporter/storageexporter"
 	"github.com/jaegertracing/jaeger/components/ext/connector/forwardconnector"
 	"github.com/jaegertracing/jaeger/components/ext/connector/spanmetricsconnector"
@@ -136,6 +137,7 @@ func (b builders) build() (otelcol.Factories, error) {
 		forwardconnector.NewFactory(),
 		// add-ons
 		spanmetricsconnector.NewFactory(),
+		storageconnector.NewFactory(), // jaeger_storage_exporter declared under connectors: the storage write with a dead-letter output for rejected spans (RFC 0007)
 	)
 	if err != nil {
 		return otelcol.Factories{}, err
