@@ -168,15 +168,15 @@ func filterTestCases(p builder.Predicate) []filterCase {
 			expected: []string{"cart_post"},
 		},
 		{
-			// `cart_get` stores `retry.count` as the integer 9 and `worker` as the string "09". A
+			// `cart_get` stores `retry.count` as the integer 9 and `search` as the string "09". A
 			// constant declaring the string type (RFC 0005 §5.4) is compared as text, so it
-			// matches `worker` only; the same value sent untyped would be read as the number 9
+			// matches `search` only; the same value sent untyped would be read as the number 9
 			// and match `cart_get` as well. The value is zero-padded so that a backend comparing
 			// this attribute lexicographically does not also count it as greater than "10" in
 			// "ordering compares a numeric attribute as a number" below.
 			caption:  "a string-typed constant leaves out an attribute stored as a number",
 			filter:   p.Span().Attr("retry.count").Eq(p.Text("09")),
-			expected: []string{"worker"},
+			expected: []string{"search"},
 		},
 		{
 			// Ordering an attribute needs the value stored as a number. A backend that indexes
