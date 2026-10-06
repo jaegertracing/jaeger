@@ -35,9 +35,11 @@ import (
 	"go.uber.org/zap/zaptest"
 	"go.uber.org/zap/zaptest/observer"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/grpc/metadata"
+	"google.golang.org/grpc/status"
 
 	"github.com/jaegertracing/jaeger-idl/model/v1"
 	"github.com/jaegertracing/jaeger-idl/proto-gen/api_v2"
@@ -1062,6 +1064,55 @@ func TestServerGRPC_HeaderForwarding(t *testing.T) {
 		}
 	}
 	assert.Equal(t, "alice", gotUser)
+}
+
+// TestServerGRPC_RecoversFromPanic checks that a panic while serving one call,
+// unary or streaming, fails only that call: without recovery it would terminate
+// the test binary. The tenancy interceptor, which runs after recovery, must still
+// reject a call that carries no tenant.
+func TestServerGRPC_RecoversFromPanic(t *testing.T) {
+	traceReader := &tracestoremocks.Reader{}
+	traceReader.On("GetServices", mock.Anything).Run(func(mock.Arguments) { panic("storage failed") }).Once()
+	traceReader.On("GetServices", mock.Anything).Return([]string{"svc"}, nil)
+	traceReader.On("GetTraces", mock.Anything, mock.Anything).Run(func(mock.Arguments) { panic("storage failed") })
+	qs := querysvc.NewQueryService(traceReader, &depsmocks.Reader{}, querysvc.QueryServiceOptions{})
+
+	opts := &QueryOptions{
+		Tenancy: tenancy.Options{Enabled: true},
+		HTTP:    confighttp.ServerConfig{NetAddr: confignet.AddrConfig{Endpoint: ":0", Transport: confignet.TransportTypeTCP}},
+		GRPC:    configgrpc.ServerConfig{NetAddr: confignet.AddrConfig{Endpoint: ":0", Transport: confignet.TransportTypeTCP}},
+	}
+	tenancyMgr := tenancy.NewManager(&opts.Tenancy)
+	core, logs := observer.New(zap.ErrorLevel)
+	telset := initTelSet(zap.New(core), nooptrace.NewTracerProvider())
+	server, err := NewServer(context.Background(), qs, nil, opts, nilBackendCaps, tenancyMgr, telset)
+	require.NoError(t, err)
+	require.NoError(t, server.Start(context.Background()))
+	t.Cleanup(func() { require.NoError(t, server.Close()) })
+
+	client := newGRPCClient(t, server.GRPCAddr())
+	t.Cleanup(func() { require.NoError(t, client.conn.Close()) })
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	tenantCtx := metadata.NewOutgoingContext(ctx, metadata.Pairs(tenancyMgr.Header, "acme"))
+
+	_, err = client.GetServices(tenantCtx, &api_v2.GetServicesRequest{})
+	assert.Equal(t, codes.Internal, status.Code(err), "unary call that panicked")
+
+	stream, err := client.GetTrace(tenantCtx, &api_v2.GetTraceRequest{TraceID: model.NewTraceID(0, 1)})
+	require.NoError(t, err)
+	_, err = stream.Recv()
+	assert.Equal(t, codes.Internal, status.Code(err), "streaming call that panicked")
+
+	res, err := client.GetServices(tenantCtx, &api_v2.GetServicesRequest{})
+	require.NoError(t, err, "the server must keep serving after a panic")
+	assert.Equal(t, []string{"svc"}, res.Services)
+
+	_, err = client.GetServices(ctx, &api_v2.GetServicesRequest{})
+	assert.Equal(t, codes.Unauthenticated, status.Code(err), "tenancy must still be enforced")
+
+	assert.Equal(t, 2, logs.FilterMessage("Recovered from panic in gRPC handler").Len())
 }
 
 func TestInitRouter_HeaderForwarding(t *testing.T) {

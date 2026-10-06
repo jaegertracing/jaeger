@@ -38,7 +38,7 @@ var serverInstructions string
 var skillsEmbedFS embed.FS
 
 // newServer builds an *mcp.Server with the Jaeger telemetry tools and the
-// tracing/metrics middleware registered. It takes *querysvc.QueryService
+// tracing/metrics/recovery middleware registered. It takes *querysvc.QueryService
 // directly (rather than fetching it from the component host), which keeps it
 // dependency-free of the jaegerquery extension package and avoids the import
 // cycle a host-based lookup would create now that the tools live under
@@ -64,6 +64,8 @@ func newServer(telset telemetry.Settings, queryAPI *querysvc.QueryService, cfg C
 	} else {
 		mw = append(mw, metricsMiddleware)
 	}
+	// Innermost, so tracing and metrics record a recovered panic as a failed call.
+	mw = append(mw, createRecoveryMiddleware(telset.Logger))
 	server.AddReceivingMiddleware(mw...)
 	return server
 }
