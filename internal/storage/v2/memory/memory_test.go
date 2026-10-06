@@ -22,6 +22,7 @@ import (
 	"go.opentelemetry.io/collector/pdata/ptrace"
 
 	"github.com/jaegertracing/jaeger-idl/model/v1"
+	"github.com/jaegertracing/jaeger/internal/jiter"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/api/depstore"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore"
 	conventions "github.com/jaegertracing/jaeger/internal/telemetry/otelsemconv"
@@ -809,6 +810,170 @@ func TestInvalidMaxTracesErr(t *testing.T) {
 	store, err := NewStore(Configuration{})
 	require.ErrorContains(t, err, errInvalidMaxTraces.Error())
 	assert.Nil(t, store)
+}
+
+// TestReadsDoNotCreateTenants checks every read path: a tenant that has written
+// nothing gets empty results, and the read leaves no storage behind for it.
+func TestReadsDoNotCreateTenants(t *testing.T) {
+	store, err := NewStore(Configuration{MaxTraces: 10})
+	require.NoError(t, err)
+	start := time.Date(2026, 3, 1, 12, 0, 0, 0, time.UTC)
+	traceID := pcommon.TraceID{1}
+	td := ptrace.NewTraces()
+	for i, service := range []string{"frontend", "backend"} {
+		resourceSpans := td.ResourceSpans().AppendEmpty()
+		resourceSpans.Resource().Attributes().PutStr(conventions.ServiceNameKey, service)
+		span := resourceSpans.ScopeSpans().AppendEmpty().Spans().AppendEmpty()
+		span.SetTraceID(traceID)
+		span.SetSpanID(pcommon.SpanID{byte(i + 1)})
+		span.SetParentSpanID(pcommon.SpanID{byte(i)})
+		span.SetName("op")
+		span.SetStartTimestamp(pcommon.NewTimestampFromTime(start))
+		span.SetEndTimestamp(pcommon.NewTimestampFromTime(start.Add(time.Second)))
+	}
+	const writer = "writer"
+	require.NoError(t, store.WriteTraces(tenancy.WithTenant(t.Context(), writer), td))
+
+	traceQuery := tracestore.TraceQueryParams{Attributes: pcommon.NewMap(), SearchDepth: 10}
+	pagedQuery := tracestore.TraceQueryParams{Attributes: pcommon.NewMap(), Pagination: &tracestore.Pagination{PageSize: 10}}
+	countTraceIDs := func(chunks []tracestore.PageChunk[[]tracestore.FoundTraceID], err error) (int, error) {
+		n := 0
+		for _, chunk := range chunks {
+			n += len(chunk.Results)
+		}
+		return n, err
+	}
+	tests := []struct {
+		name string
+		read func(ctx context.Context) (int, error)
+	}{
+		{
+			name: "GetServices",
+			read: func(ctx context.Context) (int, error) {
+				services, err := store.GetServices(ctx)
+				return len(services), err
+			},
+		},
+		{
+			name: "GetOperations",
+			read: func(ctx context.Context) (int, error) {
+				operations, err := store.GetOperations(ctx, tracestore.OperationQueryParams{ServiceName: "frontend"})
+				return len(operations), err
+			},
+		},
+		{
+			name: "FindTraces",
+			read: func(ctx context.Context) (int, error) {
+				traces, err := jiter.FlattenWithErrors(store.FindTraces(ctx, traceQuery))
+				return len(traces), err
+			},
+		},
+		{
+			name: "FindTraceIDs",
+			read: func(ctx context.Context) (int, error) {
+				return countTraceIDs(jiter.CollectWithErrors(store.FindTraceIDs(ctx, traceQuery)))
+			},
+		},
+		{
+			name: "FindTraceIDs paginated",
+			read: func(ctx context.Context) (int, error) {
+				return countTraceIDs(jiter.CollectWithErrors(store.FindTraceIDs(ctx, pagedQuery)))
+			},
+		},
+		{
+			name: "FindSpans",
+			read: func(ctx context.Context) (int, error) {
+				chunks, err := jiter.CollectWithErrors(store.FindSpans(ctx, tracestore.SpanQueryParams{}))
+				n := 0
+				for _, chunk := range chunks {
+					n += chunk.Results.SpanCount()
+				}
+				return n, err
+			},
+		},
+		{
+			name: "GetTraces",
+			read: func(ctx context.Context) (int, error) {
+				traces, err := jiter.FlattenWithErrors(store.GetTraces(ctx, tracestore.GetTraceParams{TraceID: traceID}))
+				return len(traces), err
+			},
+		},
+		{
+			name: "GetDependencies",
+			read: func(ctx context.Context) (int, error) {
+				deps, err := store.GetDependencies(ctx, depstore.QueryParameters{StartTime: start.Add(-time.Minute)})
+				return len(deps), err
+			},
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			n, err := test.read(tenancy.WithTenant(t.Context(), writer))
+			require.NoError(t, err)
+			require.Positive(t, n, "the query must match what the writer stored")
+
+			reader := "never-wrote-" + test.name
+			n, err = test.read(tenancy.WithTenant(t.Context(), reader))
+			require.NoError(t, err)
+			assert.Zero(t, n)
+			assert.NotContains(t, store.perTenant, reader)
+		})
+	}
+	assert.Len(t, store.perTenant, 1)
+}
+
+// TestWriteGrowsRingWithTracesStored checks that a tenant's ring holds memory
+// in proportion to the traces written to it rather than to MaxTraces.
+func TestWriteGrowsRingWithTracesStored(t *testing.T) {
+	store, err := NewStore(Configuration{MaxTraces: 1_000_000})
+	require.NoError(t, err)
+	ctx := tenancy.WithTenant(t.Context(), "new-tenant")
+	for i := 1; i <= 9; i++ {
+		td := ptrace.NewTraces()
+		td.ResourceSpans().AppendEmpty().ScopeSpans().AppendEmpty().Spans().AppendEmpty().SetTraceID(pcommon.TraceID{byte(i)})
+		require.NoError(t, store.WriteTraces(ctx, td))
+		tenant := store.perTenant["new-tenant"]
+		require.Len(t, tenant.traces, i)
+		require.LessOrEqual(t, cap(tenant.traces), 2*i)
+	}
+}
+
+// TestRingEvictsOldestOnceFull checks the ring at its boundary: it grows to
+// exactly MaxTraces slots, and from then on each new trace replaces the oldest.
+func TestRingEvictsOldestOnceFull(t *testing.T) {
+	const maxTraces = 5
+	store, err := NewStore(Configuration{MaxTraces: maxTraces})
+	require.NoError(t, err)
+	var written []pcommon.TraceID
+	for i := 1; i <= 2*maxTraces+1; i++ {
+		traceID := pcommon.TraceID{byte(i)}
+		td := ptrace.NewTraces()
+		td.ResourceSpans().AppendEmpty().ScopeSpans().AppendEmpty().Spans().AppendEmpty().SetTraceID(traceID)
+		require.NoError(t, store.WriteTraces(t.Context(), td))
+		written = append(written, traceID)
+
+		held := min(i, maxTraces)
+		tenant := store.perTenant[""]
+		require.Len(t, tenant.traces, held)
+		require.LessOrEqual(t, cap(tenant.traces), maxTraces)
+		require.Len(t, tenant.ids, held)
+		for _, evicted := range written[:i-held] {
+			require.NotContains(t, tenant.ids, evicted)
+		}
+
+		chunks, err := jiter.CollectWithErrors(store.FindTraceIDs(t.Context(),
+			tracestore.TraceQueryParams{Attributes: pcommon.NewMap(), SearchDepth: maxTraces}))
+		require.NoError(t, err)
+		require.Len(t, chunks, 1)
+		var found []pcommon.TraceID
+		for _, result := range chunks[0].Results {
+			found = append(found, result.TraceID)
+		}
+		newestFirst := slices.Clone(written[i-held:])
+		slices.Reverse(newestFirst)
+		require.Equal(t, newestFirst, found, "after writing %d traces", i)
+	}
+	assert.Equal(t, maxTraces, cap(store.perTenant[""].traces))
 }
 
 func TestGetDependencies(t *testing.T) {
