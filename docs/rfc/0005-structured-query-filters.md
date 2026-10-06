@@ -218,7 +218,7 @@ A pattern matches text, so its subject is a string field, one of the word-valued
 *Operands.*
 
 - Both operators take an attribute reference and a `List` of words, one word per element. This is the same `List` term that `in` and `not_in` take (§6.1).
-- The caller splits the words. A space-separated search string would be a small query language, which §2 rules out, and each rule a search engine applies to such a string (connectives, wildcards, quoting) would become a rule this contract has to forbid.
+- The caller splits the words. A space-separated search string would be a small query language, which §2 rules out. It would also invite backend-specific syntax: Elasticsearch, for example, reads `|`, `*` and quotes in some query types as operators, and the contract would then have to say which characters are forbidden.
 - A word is Unicode letters and digits, at most 255 characters, which is the longest token Elasticsearch's `standard` analyzer emits before it splits. Validation refuses an empty list, an element that is empty, longer than that, or contains whitespace or punctuation, and a list that declares a type other than string (§5.4). An undeclared type is read as string.
 - This definition of a word is narrower than some tokenizers. Elasticsearch's `standard` analyzer keeps `don't` and `foo_bar` as one token, so a word with an apostrophe or underscore inside it cannot be searched for. That limit is accepted so that every backend uses the same definition.
 - Built-in text fields are refused at validation. A span or event name is a short identifier that `eq` and `regex` already search.
@@ -234,6 +234,7 @@ A pattern matches text, so its subject is a string field, one of the word-valued
 | Words on either side of a dropped word count as adjacent | backend-specific | not applicable |
 | Punctuation between words (`refund-policy` for `refund policy`) | backend-specific | backend-specific |
 | Unicode word boundaries beyond whitespace | backend-specific | backend-specific |
+| Splitting a stored word longer than 255 characters | backend-specific | backend-specific |
 | Stemming (`refunds` for `refund`) | backend-specific | backend-specific |
 | Stop-word removal (`the`, `no`, `is`); a listed stop word then constrains nothing | backend-specific | backend-specific |
 
