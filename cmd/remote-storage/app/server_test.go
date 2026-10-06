@@ -6,6 +6,9 @@ package app
 import (
 	"context"
 	"errors"
+	"fmt"
+	"iter"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -16,11 +19,18 @@ import (
 	"go.opentelemetry.io/collector/config/confignet"
 	"go.opentelemetry.io/collector/config/configoptional"
 	"go.opentelemetry.io/collector/config/configtls"
+	"go.opentelemetry.io/collector/pdata/pcommon"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zaptest/observer"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/credentials/insecure"
+	"google.golang.org/grpc/encoding"
+	"google.golang.org/grpc/encoding/proto"
+	"google.golang.org/grpc/mem"
+	"google.golang.org/grpc/metadata"
+	"google.golang.org/grpc/status"
 
 	"github.com/jaegertracing/jaeger/internal/grpctest"
 	"github.com/jaegertracing/jaeger/internal/proto-gen/storage/v2"
@@ -296,6 +306,99 @@ func newGRPCClient(t *testing.T, addr string, creds credentials.TransportCredent
 	return &grpcClient{
 		TraceReaderClient: storage.NewTraceReaderClient(conn),
 		conn:              conn,
+	}
+}
+
+// decodeCounter is the stock codec under a content subtype of its own, counting what it decodes.
+// The server finds a codec in the global registry by the subtype the client sends, so a client
+// forcing this subtype gets its requests decoded by serverDecodes.
+type decodeCounter struct {
+	encoding.CodecV2
+
+	decoded atomic.Int64
+}
+
+func (*decodeCounter) Name() string {
+	return "decode-counter"
+}
+
+func (c *decodeCounter) Unmarshal(data mem.BufferSlice, v any) error {
+	c.decoded.Add(1)
+	return c.CodecV2.Unmarshal(data, v)
+}
+
+var serverDecodes = &decodeCounter{CodecV2: encoding.GetCodecV2(proto.Name)}
+
+func init() {
+	encoding.RegisterCodecV2(serverDecodes)
+}
+
+func TestServerChecksTenantBeforeDecodingRequest(t *testing.T) {
+	type traceIDsChunk = tracestore.PageChunk[[]tracestore.FoundTraceID]
+	traceID := pcommon.TraceID{1}
+	reader := new(tracestoremocks.Reader)
+	reader.On("FindTraceIDs", mock.Anything, mock.Anything).Return(
+		func(ctx context.Context, _ tracestore.TraceQueryParams) iter.Seq2[traceIDsChunk, error] {
+			return func(yield func(traceIDsChunk, error) bool) {
+				if tenant := tenancy.GetTenant(ctx); tenant != "acme" {
+					yield(traceIDsChunk{}, fmt.Errorf("reader got tenant %q", tenant))
+					return
+				}
+				yield(traceIDsChunk{Results: []tracestore.FoundTraceID{{TraceID: traceID}}}, nil)
+			}
+		})
+	f := &fakeFactory{reader: reader}
+	tm := tenancy.NewManager(&tenancy.Options{Enabled: true, Tenants: []string{"acme"}})
+	server, err := NewServer(
+		context.Background(),
+		configgrpc.ServerConfig{
+			NetAddr: confignet.AddrConfig{Endpoint: ":0"},
+		},
+		f,
+		f,
+		tm,
+		telemetry.NoopSettings(),
+	)
+	require.NoError(t, err)
+	require.NoError(t, server.Start(context.Background()))
+	defer server.Close()
+	client := newGRPCClient(t, server.GRPCAddr(), nil, tm)
+	defer client.conn.Close()
+
+	tests := []struct {
+		name     string
+		tenants  []string
+		wantCode codes.Code
+	}{
+		{name: "missing tenant", wantCode: codes.Unauthenticated},
+		{name: "unknown tenant", tenants: []string{"megacorp"}, wantCode: codes.PermissionDenied},
+		{name: "extra tenant", tenants: []string{"acme", "megacorp"}, wantCode: codes.PermissionDenied},
+		{name: "valid tenant", tenants: []string{"acme"}, wantCode: codes.OK},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+			defer cancel()
+			if test.tenants != nil {
+				ctx = metadata.NewOutgoingContext(ctx, metadata.MD{tm.Header: test.tenants})
+			}
+			decodedBefore := serverDecodes.decoded.Load()
+			res, err := client.FindTraceIDs(
+				ctx,
+				&storage.FindTraceIDsRequest{Query: &storage.TraceQueryParameters{ServiceName: "service"}},
+				grpc.ForceCodecV2(&decodeCounter{CodecV2: encoding.GetCodecV2(proto.Name)}),
+			)
+			decoded := serverDecodes.decoded.Load() - decodedBefore
+			if test.wantCode != codes.OK {
+				require.Equalf(t, test.wantCode, status.Code(err), "error: %v", err)
+				assert.Zero(t, decoded, "the server decoded a request whose tenant it rejects")
+				return
+			}
+			require.NoError(t, err)
+			assert.Equal(t, int64(1), decoded)
+			require.Len(t, res.TraceIds, 1)
+			assert.Equal(t, traceID[:], res.TraceIds[0].TraceId)
+		})
 	}
 }
 

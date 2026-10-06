@@ -89,11 +89,17 @@ func createGRPCServer(
 	streamInterceptors := []grpc.StreamServerInterceptor{
 		bearertoken.NewStreamServerInterceptor(),
 	}
+	var serverOptions []configgrpc.ToServerOption
 	//nolint:contextcheck // The context is handled by the interceptors
 	if tm.Enabled {
 		unaryInterceptors = append(unaryInterceptors, tenancy.NewGuardingUnaryInterceptor(tm))
 		streamInterceptors = append(streamInterceptors, tenancy.NewGuardingStreamInterceptor(tm))
+		serverOptions = append(serverOptions, configgrpc.WithGrpcServerOption(grpc.InTapHandle(tenancy.NewGuardingTapHandle(tm))))
 	}
+	serverOptions = append(serverOptions,
+		configgrpc.WithGrpcServerOption(grpc.ChainUnaryInterceptor(unaryInterceptors...)),
+		configgrpc.WithGrpcServerOption(grpc.ChainStreamInterceptor(streamInterceptors...)),
+	)
 
 	cfg.NetAddr.Transport = confignet.TransportTypeTCP
 	var extensions map[component.ID]component.Component
@@ -104,8 +110,7 @@ func createGRPCServer(
 		ctx,
 		extensions,
 		telset.ToOtelComponent(),
-		configgrpc.WithGrpcServerOption(grpc.ChainUnaryInterceptor(unaryInterceptors...)),
-		configgrpc.WithGrpcServerOption(grpc.ChainStreamInterceptor(streamInterceptors...)),
+		serverOptions...,
 	)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create gRPC server: %w", err)
