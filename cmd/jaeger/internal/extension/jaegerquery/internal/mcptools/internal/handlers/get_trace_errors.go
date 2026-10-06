@@ -74,7 +74,7 @@ func (h *getTraceErrorsHandler) handle(
 				totalErrors++
 				// Only build and collect detail up to the limit
 				if h.maxSpanDetailsPerRequest == 0 || len(errorSpans) < h.maxSpanDetailsPerRequest {
-					detail := buildSpanDetail(pos.Resource.Resource(), span)
+					detail := buildSpanDetail(pos, span)
 					errorSpans = append(errorSpans, detail)
 				}
 			}

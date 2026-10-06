@@ -13,7 +13,6 @@ import (
 	"go.opentelemetry.io/collector/pdata/ptrace"
 
 	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerquery/querysvc"
-	"github.com/jaegertracing/jaeger/internal/jptrace"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore"
 )
 
@@ -57,10 +56,14 @@ type linkConfig struct {
 }
 
 // mockQueryService is a unified mock implementation for GetTraces, FindTraceSummaries and
-// LookupSpans.
+// FindSpans.
 type mockQueryService struct {
 	getTracesFunc          func(ctx context.Context, params querysvc.GetTraceParams) iter.Seq2[[]ptrace.Traces, error]
 	findTraceSummariesFunc func(ctx context.Context, query querysvc.TraceQueryParams) iter.Seq2[[]tracestore.TraceSummary, error]
+	findSpansFunc          func(ctx context.Context, query querysvc.SpanQueryParams) iter.Seq2[tracestore.PageChunk[ptrace.Traces], error]
+	adjustCalls            int
+	hasInterceptors        bool
+	hasArchive             bool
 }
 
 func (m *mockQueryService) GetTraces(ctx context.Context, params querysvc.GetTraceParams) iter.Seq2[[]ptrace.Traces, error] {
@@ -73,30 +76,23 @@ func (m *mockQueryService) GetTraces(ctx context.Context, params querysvc.GetTra
 // FindSpans defaults to reporting the backend as not supporting span search, so a test that
 // never sets findSpansFunc exercises get_span_details' pre-RFC-0016 GetTraces fallback
 // unchanged, the same as before this mock grew a FindSpans method.
-// LookupSpans answers from getTracesFunc, the whole-trace read, so each test states the trace it asks
-// about. The query service's lookup rules (the identity-filter fast path, archive, interceptors) are
-// tested against the real QueryService in querysvc; this only supplies the answer the handler formats.
-func (m *mockQueryService) LookupSpans(ctx context.Context, params querysvc.SpanLookupParams) (querysvc.SpanLookupResult, error) {
-	pending := make(map[pcommon.SpanID]struct{}, len(params.SpanIDs))
-	for _, spanID := range params.SpanIDs {
-		pending[spanID] = struct{}{}
+// AdjustSpans records the call and leaves spans as the mock returns them.
+func (m *mockQueryService) AdjustSpans(ptrace.Traces) { m.adjustCalls++ }
+
+// HasInterceptors reports whether the mock was given an interceptor; by default it has none, so a
+// refusal may fall back as it did before.
+func (m *mockQueryService) HasInterceptors() bool { return m.hasInterceptors }
+
+// HasArchiveTraceReader reports whether the mock was given archive storage.
+func (m *mockQueryService) HasArchiveTraceReader() bool { return m.hasArchive }
+
+func (m *mockQueryService) FindSpans(ctx context.Context, query querysvc.SpanQueryParams) iter.Seq2[tracestore.PageChunk[ptrace.Traces], error] {
+	if m.findSpansFunc != nil {
+		return m.findSpansFunc(ctx, query)
 	}
-	var result querysvc.SpanLookupResult
-	for traces, err := range jptrace.AggregateTraces(m.GetTraces(ctx, querysvc.GetTraceParams{
-		TraceIDs: []tracestore.GetTraceParams{{TraceID: params.TraceID}},
-	})) {
-		if err != nil {
-			return querysvc.SpanLookupResult{}, err
-		}
-		result.TraceFound = true
-		for pos, span := range jptrace.SpanIter(traces) {
-			if _, found := pending[span.SpanID()]; found {
-				result.Spans = append(result.Spans, querysvc.SpanMatch{Resource: pos.Resource.Resource(), Span: span})
-				delete(pending, span.SpanID())
-			}
-		}
+	return func(yield func(tracestore.PageChunk[ptrace.Traces], error) bool) {
+		yield(tracestore.PageChunk[ptrace.Traces]{}, querysvc.ErrSpanSearchUnsupported)
 	}
-	return result, nil
 }
 
 func (m *mockQueryService) FindTraceSummaries(ctx context.Context, query querysvc.TraceQueryParams) iter.Seq2[querysvc.PageChunk[[]tracestore.TraceSummary], error] {
