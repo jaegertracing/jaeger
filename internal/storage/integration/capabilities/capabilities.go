@@ -283,6 +283,7 @@ func ClickHouse() Capabilities {
 			filterAttributeExistsTest,
 			filterAttributeRegexTest,
 			filterFieldDurationAndTest,
+			filterTraceStateTest,
 			levelRefusedTest,
 			attributeOrderingTest,
 			attributeRefusedTest,
