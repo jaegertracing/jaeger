@@ -10,10 +10,13 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.opentelemetry.io/collector/consumer/consumererror"
 	"go.opentelemetry.io/collector/pdata/ptrace"
 	"go.opentelemetry.io/collector/pdata/ptrace/ptraceotlp"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/credentials/insecure"
+	"google.golang.org/grpc/status"
 )
 
 type testWriterServer struct {
@@ -59,17 +62,33 @@ func startWriterServer(t *testing.T, testServer *testWriterServer) *grpc.ClientC
 
 func TestTraceWriter_WriteTraces(t *testing.T) {
 	tests := []struct {
-		name        string
-		serverErr   error
-		expectedErr string
+		name              string
+		serverErr         error
+		expectedErr       string
+		expectedCode      codes.Code
+		expectedPermanent bool
 	}{
 		{
 			name: "no error",
 		},
 		{
-			name:        "server error",
-			serverErr:   assert.AnError,
-			expectedErr: "failed to export traces",
+			name:         "server error",
+			serverErr:    assert.AnError,
+			expectedErr:  "failed to export traces",
+			expectedCode: codes.Unknown,
+		},
+		{
+			name:         "unavailable",
+			serverErr:    status.Error(codes.Unavailable, "backend down"),
+			expectedErr:  "failed to export traces",
+			expectedCode: codes.Unavailable,
+		},
+		{
+			name:              "invalid argument",
+			serverErr:         status.Error(codes.InvalidArgument, "bad batch"),
+			expectedErr:       "failed to export traces",
+			expectedCode:      codes.InvalidArgument,
+			expectedPermanent: true,
 		},
 	}
 
@@ -84,6 +103,8 @@ func TestTraceWriter_WriteTraces(t *testing.T) {
 				require.NoError(t, err)
 			} else {
 				require.ErrorContains(t, err, test.expectedErr)
+				assert.Equal(t, test.expectedCode, status.Code(err))
+				assert.Equal(t, test.expectedPermanent, consumererror.IsPermanent(err))
 			}
 		})
 	}
