@@ -223,7 +223,7 @@ A pattern matches text, so its subject is a string field, one of the word-valued
 - This definition of a word is narrower than some tokenizers. Elasticsearch's `standard` analyzer keeps `don't` and `foo_bar` as one token, so a word with an apostrophe or underscore inside it cannot be searched for as one word. That limit is accepted so that every backend uses the same definition.
 - Built-in text fields are refused at validation. A span or event name is a short identifier that `eq` and `regex` already search.
 
-*Meaning.* The operators match words, not characters. The backend splits the stored attribute value into words and ignores case, and the operator asks whether the listed words occur among them. The list itself is never split: each element is already one word. `phrase` requires them adjacent and in the listed order, like a quoted web search. `fulltext` requires only that every word is present, like an unquoted web search, so it matches a superset of what `phrase` matches. The table splits the contract into what every backend must do and what a backend may add:
+*Meaning.* The operators match words, not characters. The backend splits the stored attribute value into words and ignores case, and the operator asks whether the listed words occur among them. The list itself is never split: each element is already one word. `phrase` requires them adjacent and in the listed order, like a quoted Google search. `fulltext` requires only that every word is present, like an unquoted Google search, so it matches a superset of what `phrase` matches. The table splits the contract into what every backend must do and what a backend may add:
 
 | Behavior | `phrase` | `fulltext` |
 | --- | --- | --- |
