@@ -53,6 +53,12 @@ func TestTenancyInterceptors(t *testing.T) {
 			errMsg:     "rpc error: code = Unauthenticated desc = missing tenant header",
 		},
 		{
+			name:       "empty tenant header",
+			tenancyMgr: NewManager(&Options{Enabled: true}),
+			ctx:        metadata.NewIncomingContext(context.Background(), map[string][]string{"x-tenant": {""}}),
+			errMsg:     "rpc error: code = Unauthenticated desc = missing tenant header",
+		},
+		{
 			name:       "valid tenant header",
 			tenancyMgr: NewManager(&Options{Enabled: true, Tenants: []string{"acme"}}),
 			ctx:        metadata.NewIncomingContext(context.Background(), map[string][]string{"x-tenant": {"acme"}}),
@@ -95,6 +101,14 @@ func TestTenancyInterceptors(t *testing.T) {
 				Metadata: client.NewMetadata(map[string][]string{"x-tenant": {"acme", "megacorp"}}),
 			}),
 			errMsg: "rpc error: code = PermissionDenied desc = extra tenant header",
+		},
+		{
+			name:       "empty tenant context",
+			tenancyMgr: NewManager(&Options{Enabled: true}),
+			ctx: client.NewContext(context.Background(), client.Info{
+				Metadata: client.NewMetadata(map[string][]string{"x-tenant": {""}}),
+			}),
+			errMsg: "rpc error: code = Unauthenticated desc = missing tenant header",
 		},
 	}
 

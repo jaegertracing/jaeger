@@ -68,6 +68,9 @@ func extractSingleTenant(tenants []string) (string, error) {
 	case 0:
 		return "", status.Errorf(codes.Unauthenticated, "missing tenant header")
 	case 1:
+		if tenants[0] == "" {
+			return "", status.Errorf(codes.Unauthenticated, "missing tenant header")
+		}
 		return tenants[0], nil
 	default:
 		return "", status.Errorf(codes.PermissionDenied, "extra tenant header")

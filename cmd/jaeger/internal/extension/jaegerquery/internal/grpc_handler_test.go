@@ -783,8 +783,8 @@ func TestSearchTenancyGRPCExplicitList(t *testing.T) {
 				tenancyHeader:  tm.Header,
 				tenant:         "",
 				wantErr:        true,
-				failureCode:    codes.PermissionDenied,
-				failureMessage: "unknown tenant",
+				failureCode:    codes.Unauthenticated,
+				failureMessage: "missing tenant header",
 			},
 			{
 				name:           "invalid tenant",
