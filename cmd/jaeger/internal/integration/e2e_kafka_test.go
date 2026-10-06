@@ -104,7 +104,7 @@ func TestKafkaStorage_SyncElasticsearch(t *testing.T) {
 	ingester := &E2EStorageIntegration{
 		BinaryName:      "jaeger-v2-ingester",
 		ConfigFile:      "../../config-kafka-ingester-sync.yaml",
-		FeatureGates:    structuredFilterGates,
+		FeatureGates:    searchGates,
 		HealthCheckPort: 14133,
 		StorageIntegration: integration.StorageIntegration{
 			CleanUp:      purge,
