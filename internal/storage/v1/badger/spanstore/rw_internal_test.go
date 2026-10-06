@@ -76,6 +76,14 @@ func TestEncodingTypes(t *testing.T) {
 
 		_, err = rw.GetTrace(context.Background(), spanstore.GetTraceParameters{TraceID: model.TraceID{Low: 0, High: 1}})
 		require.EqualError(t, err, "unknown encoding type: 0x04")
+
+		_, err = rw.FindTraceIDs(context.Background(), &spanstore.TraceQueryParameters{
+			ServiceName:   testSpan.Process.ServiceName,
+			OperationName: testSpan.OperationName,
+			StartTimeMin:  testSpan.StartTime.Add(-time.Minute),
+			StartTimeMax:  testSpan.StartTime.Add(time.Minute),
+		})
+		require.EqualError(t, err, "unknown encoding type: 0x04")
 	})
 }
 
