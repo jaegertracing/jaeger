@@ -12,6 +12,7 @@ import (
 	"io"
 	"net/http"
 	"os"
+	"path"
 	"path/filepath"
 	"regexp"
 	"strings"
@@ -30,7 +31,35 @@ var (
 	configJsPattern     = regexp.MustCompile(`(?im)^\s*//\s*JAEGER_CONFIG_JS.*\n.*`)
 	versionPattern      = regexp.MustCompile("JAEGER_VERSION *= *DEFAULT_VERSION;")
 	capabilitiesPattern = regexp.MustCompile("JAEGER_BACKEND_CAPABILITIES *= *DEFAULT_BACKEND_CAPABILITIES;")
+	basePattern         = regexp.MustCompile(`(?i)<base\s+[^>]*/?>`)
+	headPattern         = regexp.MustCompile(`(?i)<head[^>]*>`)
 )
+
+var staticAssetExtensions = map[string]struct{}{
+	".js":          {},
+	".mjs":         {},
+	".cjs":         {},
+	".css":         {},
+	".map":         {},
+	".png":         {},
+	".jpg":         {},
+	".jpeg":        {},
+	".gif":         {},
+	".svg":         {},
+	".ico":         {},
+	".webp":        {},
+	".avif":        {},
+	".woff":        {},
+	".woff2":       {},
+	".ttf":         {},
+	".eot":         {},
+	".otf":         {},
+	".json":        {},
+	".txt":         {},
+	".wasm":        {},
+	".xml":         {},
+	".webmanifest": {},
+}
 
 // uiConfigReloadInterval is the TTL on the cached UI config: deriveIndexHTML
 // re-reads the file from disk when the cached value is older than this. A
@@ -79,6 +108,7 @@ func RegisterStaticHandler(
 type staticAssetsHandler struct {
 	assetsFS    http.FileSystem
 	basePath    string
+	baseTag     []byte
 	logAccess   bool
 	backendCaps BackendCapabilityProvider
 	logger      *zap.Logger
@@ -111,9 +141,19 @@ func newStaticAssetsHandler(
 	if err != nil {
 		return nil, fmt.Errorf("cannot load index.html: %w", err)
 	}
+	baseHref := qOpts.BasePath
+	if baseHref == "" {
+		baseHref = "/"
+	}
+	if !strings.HasSuffix(baseHref, "/") {
+		baseHref += "/"
+	}
+	baseTag := fmt.Appendf(nil, `<base href="%s" data-inject-target="BASE_URL" />`, baseHref)
+
 	h := &staticAssetsHandler{
 		assetsFS:     assetsFS,
 		basePath:     qOpts.BasePath,
+		baseTag:      baseTag,
 		logAccess:    qOpts.UIConfig.LogAccess,
 		backendCaps:  backendCaps,
 		logger:       logger,
@@ -171,11 +211,12 @@ func (h *staticAssetsHandler) getUIConfig() *loadedConfig {
 
 // deriveIndexHTML builds the served index.html from the cached raw bytes by
 // applying every substitution on the spot — UI config, version, backend
-// capabilities. Called per request so values that can change at runtime are
+// capabilities, base href. Called per request so values that can change at runtime are
 // always current.
 //
-// The <base href> is not injected here. The UI detects its own mount-point
-// prefix at page-load time via an inline script in index.html (see ADR-009).
+// The literal <base href="..."> is injected server-side so that speculative
+// preload scanners resolve relative asset links against the correct base URL
+// before inline scripts execute.
 func (h *staticAssetsHandler) deriveIndexHTML(ctx context.Context) []byte {
 	out := h.indexHTMLRaw
 	if cfg := h.getUIConfig(); cfg != nil {
@@ -189,6 +230,16 @@ func (h *staticAssetsHandler) deriveIndexHTML(ctx context.Context) []byte {
 	}
 	capsJSON, _ := json.Marshal(caps)
 	out = capabilitiesPattern.ReplaceAll(out, fmt.Appendf(nil, "JAEGER_BACKEND_CAPABILITIES = %s;", capsJSON))
+
+	if basePattern.Match(out) {
+		out = basePattern.ReplaceAllLiteral(out, h.baseTag)
+	} else if headPattern.Match(out) {
+		out = headPattern.ReplaceAllFunc(out, func(m []byte) []byte {
+			res := append([]byte(nil), m...)
+			res = append(res, []byte("\n    ")...)
+			return append(res, h.baseTag...)
+		})
+	}
 	return out
 }
 
@@ -287,7 +338,23 @@ func (h *staticAssetsHandler) registerRoutes(router *http.ServeMux) {
 	router.Handle(catchAllPattern, h.loggingHandler(http.HandlerFunc(h.serveSPA)))
 }
 
+func isStaticAsset(reqPath string) bool {
+	if strings.Contains(reqPath, "/static/") || strings.HasSuffix(reqPath, "/static") {
+		return true
+	}
+	ext := strings.ToLower(path.Ext(reqPath))
+	if ext == "" {
+		return false
+	}
+	_, ok := staticAssetExtensions[ext]
+	return ok
+}
+
 func (h *staticAssetsHandler) serveSPA(w http.ResponseWriter, r *http.Request) {
+	if isStaticAsset(r.URL.Path) {
+		http.NotFound(w, r)
+		return
+	}
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	w.Write(h.deriveIndexHTML(r.Context()))
 }

@@ -152,12 +152,24 @@ func TestRegisterStaticHandler(t *testing.T) {
 			assert.Contains(t, html, testCase.expectedUIConfig, "actual: %v", html)
 			assert.Contains(t, html, testCase.expectedBackendCapabilities, "actual: %v", html)
 			assert.Contains(t, html, `JAEGER_VERSION = {"gitCommit":"","gitVersion":"dev","buildDate":""};`, "actual: %v", html)
-			// Verify the inline base-path script marker is present and the backend
-			// did not rewrite <base href> to a path-specific value (ADR-009).
-			assert.Contains(t, html, `data-inject-target="BASE_URL"`, "<base> tag must carry data-inject-target marker for client-side base-path detection")
-			if testCase.basePath != "" && testCase.basePath != "/" {
-				assert.NotContains(t, html, `<base href="`+testCase.baseURL+`"`, "backend must not inject path-specific <base href>")
-			}
+			// Verify server-side <base href="..."> injection (ADR-009).
+			assert.Contains(t, html, fmt.Sprintf(`<base href=%q data-inject-target="BASE_URL" />`, testCase.baseURL))
+
+			// Verify SPA deep-links serve HTML with 200 OK
+			spaURL := fmt.Sprintf("%s%strace/12345", server.URL, testCase.baseURL)
+			spaResp, err := httpClient.Get(spaURL)
+			require.NoError(t, err)
+			defer spaResp.Body.Close()
+			assert.Equal(t, http.StatusOK, spaResp.StatusCode)
+			assert.Equal(t, "text/html; charset=utf-8", spaResp.Header.Get("Content-Type"))
+
+			// Verify static asset requests via deep link return 404 (and NOT 200 OK with HTML content)
+			missingAssetURL := fmt.Sprintf("%s%strace/12345/static/missing.js", server.URL, testCase.baseURL)
+			missingResp, err := httpClient.Get(missingAssetURL)
+			require.NoError(t, err)
+			defer missingResp.Body.Close()
+			assert.Equal(t, http.StatusNotFound, missingResp.StatusCode)
+			assert.NotEqual(t, "text/html; charset=utf-8", missingResp.Header.Get("Content-Type"))
 
 			asset := httpGet("static/asset.txt")
 			assert.Contains(t, asset, "some asset", "actual: %v", asset)
@@ -499,4 +511,123 @@ func syncWrite(target *os.File, temp *os.File, data []byte) error {
 		return err
 	}
 	return os.Rename(temp.Name(), target.Name())
+}
+
+func TestServeSPAStaticAssetGuard(t *testing.T) {
+	r := http.NewServeMux()
+	closer := RegisterStaticHandler(
+		r, zap.NewNop(),
+		&QueryOptions{UIConfig: UIConfig{AssetsPath: "fixture"}, BasePath: ""},
+		nilBackendCaps,
+	)
+	defer closer.Close()
+
+	tests := []struct {
+		path         string
+		expectedCode int
+		isHTML       bool
+	}{
+		{path: "/trace/12345", expectedCode: http.StatusOK, isHTML: true},
+		{path: "/search", expectedCode: http.StatusOK, isHTML: true},
+		{path: "/trace/12345/static/missing.js", expectedCode: http.StatusNotFound, isHTML: false},
+		{path: "/trace/12345/static/bundle.css", expectedCode: http.StatusNotFound, isHTML: false},
+		{path: "/trace/static/chunk.js", expectedCode: http.StatusNotFound, isHTML: false},
+		{path: "/trace/12345.js", expectedCode: http.StatusNotFound, isHTML: false},
+		{path: "/favicon.ico", expectedCode: http.StatusNotFound, isHTML: false},
+		{path: "/bundle.map", expectedCode: http.StatusNotFound, isHTML: false},
+		{path: "/logo.svg", expectedCode: http.StatusNotFound, isHTML: false},
+		{path: "/trace/12345/static", expectedCode: http.StatusNotFound, isHTML: false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.path, func(t *testing.T) {
+			rr := httptest.NewRecorder()
+			req := httptest.NewRequest(http.MethodGet, tt.path, http.NoBody)
+			r.ServeHTTP(rr, req)
+
+			assert.Equal(t, tt.expectedCode, rr.Code)
+			if tt.isHTML {
+				assert.Equal(t, "text/html; charset=utf-8", rr.Header().Get("Content-Type"))
+				assert.Contains(t, rr.Body.String(), "<!DOCTYPE html>")
+			} else {
+				assert.NotEqual(t, "text/html; charset=utf-8", rr.Header().Get("Content-Type"))
+			}
+		})
+	}
+}
+
+func TestBaseHrefInjectionPriorToAssetLinks(t *testing.T) {
+	tempDir := t.TempDir()
+	indexContent := `<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <base href="/" data-inject-target="BASE_URL" />
+    <link rel="stylesheet" href="./static/main.css">
+    <script type="module" src="./static/main.js"></script>
+</head>
+<body>
+    <div id="root"></div>
+</body>
+</html>`
+	require.NoError(t, os.WriteFile(tempDir+"/index.html", []byte(indexContent), 0o644))
+
+	r := http.NewServeMux()
+	closer := RegisterStaticHandler(
+		r, zap.NewNop(),
+		&QueryOptions{UIConfig: UIConfig{AssetsPath: tempDir}, BasePath: "/jaeger"},
+		nilBackendCaps,
+	)
+	defer closer.Close()
+
+	rr := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, "/jaeger/", http.NoBody)
+	r.ServeHTTP(rr, req)
+
+	require.Equal(t, http.StatusOK, rr.Code)
+	body := rr.Body.String()
+
+	baseIdx := strings.Index(body, `<base href="/jaeger/" data-inject-target="BASE_URL" />`)
+	linkIdx := strings.Index(body, `<link rel="stylesheet"`)
+	scriptIdx := strings.Index(body, `<script type="module"`)
+
+	require.GreaterOrEqual(t, baseIdx, 0, "base tag must be injected")
+	require.Greater(t, linkIdx, baseIdx, "base tag must precede link tags")
+	require.Greater(t, scriptIdx, baseIdx, "base tag must precede script tags")
+}
+
+func TestBaseHrefInjectionWithoutExistingBaseTag(t *testing.T) {
+	tempDir := t.TempDir()
+	indexContent := `<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <link rel="stylesheet" href="./static/main.css">
+</head>
+<body>
+    <div id="root"></div>
+</body>
+</html>`
+	require.NoError(t, os.WriteFile(tempDir+"/index.html", []byte(indexContent), 0o644))
+
+	r := http.NewServeMux()
+	closer := RegisterStaticHandler(
+		r, zap.NewNop(),
+		&QueryOptions{UIConfig: UIConfig{AssetsPath: tempDir}, BasePath: "/custom/prefix"},
+		nilBackendCaps,
+	)
+	defer closer.Close()
+
+	rr := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, "/custom/prefix/", http.NoBody)
+	r.ServeHTTP(rr, req)
+
+	require.Equal(t, http.StatusOK, rr.Code)
+	body := rr.Body.String()
+
+	baseIdx := strings.Index(body, `<base href="/custom/prefix/" data-inject-target="BASE_URL" />`)
+	linkIdx := strings.Index(body, `<link rel="stylesheet"`)
+
+	require.GreaterOrEqual(t, baseIdx, 0, "base tag must be injected right after head")
+	require.Greater(t, linkIdx, baseIdx, "base tag must precede link tags")
 }

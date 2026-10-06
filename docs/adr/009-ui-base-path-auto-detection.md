@@ -1,6 +1,6 @@
 # ADR-009: UI Base-Path Auto-Detection
 
-* **Status**: Implemented
+* **Status**: Implemented (Extended: 2026-10-06)
 * **Date**: 2026-05-12
 
 ## Context
@@ -100,6 +100,30 @@ only controls dynamically-imported chunks loaded later; it cannot fix the initia
 
 This is why the inline script must be placed **before all asset tags** in `index.html`.
 
+### Speculative Preload Scanner Limitation & Static Markup Requirement (2026-10-06 Extension)
+
+While an inline script earlier in document order executes synchronously before parser-encountered
+scripts, modern browser speculative preload scanners (e.g. in Chromium and Firefox) tokenize and
+pre-fetch linked resources ahead of the main execution thread.
+
+When directly opening deep-linked routes such as `/trace/{id}`, the preload scanner speculatively
+discovers asset links (`./static/*`, `<link rel="modulepreload">`, stylesheets) before the inline
+script runs. Without a `<base>` tag in the static HTML markup, the preload scanner resolves these
+relative URLs against `/trace/`, generating redundant requests to `/trace/static/*` that fall through
+to the SPA catch-all handler and return `200 text/html` (`index.html`). Once the client script runs
+and establishes `<base>`, the browser re-requests the assets from the proper base, generating redundant
+traffic and console warnings.
+
+To resolve this issue while preserving prefix autodetection for multi-prefix deployments (UC-2/UC-3):
+1. **Server-Side `<base>` Tag in Initial HTML**: The backend (`static_handler.go`) renders a literal
+   `<base href="...">` directly in `<head>` (matching `query.base_path`, defaulting to `/`).
+2. **Non-Conflicting Inline Script**: The inline script in `index.html` inspects the DOM for an existing
+   `<base>` element and updates its `href` attribute if a different mount prefix is detected, rather
+   than duplicating the tag.
+3. **SPA Catch-All Guard**: The backend's `serveSPA` handler checks request paths and returns a strict
+   `404 Not Found` for static asset patterns (e.g. any path containing `/static/` or bearing static
+   extensions such as `.js`, `.css`, `.png`, `.svg`, `.map`, etc.) rather than serving `index.html`.
+
 ### Key Insight: the Browser Knows the External Prefix
 
 When a browser requests `https://example.com/jaeger/search` and receives an
@@ -151,15 +175,18 @@ The previously proposed `--query.ui-base-path` flag is **not needed**.
 
 ### Backend Changes
 
-1. **Remove the base-path injection** from `static_handler.go`
-   (`loadAndEnrichIndexHTML`).  The `basePathPattern` regexp and the replacement
-   logic are deleted.
+1. **Re-introduce server-side `<base>` tag injection** in `static_handler.go` (`deriveIndexHTML`).
+   The backend injects `<base href="...">` matching `base_path` (defaulting to `/`) into `<head>`
+   so the speculative preload scanner encounters the base URL in the initial markup.
 
-2. **Keep `extensions.jaeger_query.base_path` for API route registration only.**
-   This setting still controls at which prefix the backend registers HTTP routes
-   (e.g. `/baz/api/traces`).  Operators who use a non-root prefix must continue
-   to set it so that API calls land on the correct handler.  For deployments
-   where the ingress strips the prefix before forwarding, it is not needed at all.
+2. **Add static asset guard to `serveSPA`**. Requests targeting static asset patterns (paths containing
+   `/static/` or static file extensions) return `404 Not Found` instead of serving `index.html`.
+
+3. **Keep `extensions.jaeger_query.base_path` for API route registration and default UI base.**
+   This setting controls the prefix for HTTP route registration (e.g. `/baz/api/traces`) and provides
+   the initial `<base href>` injected into `index.html`. Operators who use a non-root prefix must continue
+   to set it so that API calls land on the correct handler. For deployments where the ingress strips
+   the prefix before forwarding, it is not needed.
 
 ### Handling Deep-Link Requests
 
