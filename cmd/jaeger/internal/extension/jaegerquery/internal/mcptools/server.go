@@ -56,7 +56,7 @@ func newServer(telset telemetry.Settings, queryAPI *querysvc.QueryService, cfg C
 	registerTools(server, queryAPI, cfg)
 
 	mw := []mcp.Middleware{
-		createTracingMiddleware(telset.TracerProvider),
+		createTracingMiddleware(telset.TracerProvider, cfg.CaptureContent),
 	}
 	metricsMiddleware, err := createMetricsMiddleware(telset.MeterProvider)
 	if err != nil {

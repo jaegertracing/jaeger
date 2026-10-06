@@ -21,6 +21,7 @@ import (
 	depstoremocks "github.com/jaegertracing/jaeger/internal/storage/v2/api/depstore/mocks"
 	tracestoremocks "github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore/mocks"
 	"github.com/jaegertracing/jaeger/internal/telemetry"
+	"github.com/jaegertracing/jaeger/internal/telemetry/otelsemconv"
 	"github.com/jaegertracing/jaeger/internal/tenancy"
 )
 
@@ -85,6 +86,56 @@ func TestNewHandler_CallTool(t *testing.T) {
 	require.True(t, ok)
 	assert.Contains(t, text.Text, "svc-a")
 	assert.Contains(t, text.Text, "svc-b")
+}
+
+// TestNewHandler_ToolCallSpanContent drives a tools/call through the HTTP stack
+// with the default config and checks that the tool-call span carries the call's
+// arguments and result only when OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT
+// opts in.
+func TestNewHandler_ToolCallSpanContent(t *testing.T) {
+	tests := []struct {
+		name        string
+		envValue    string
+		wantContent bool
+	}{
+		{name: "unset", envValue: "", wantContent: false},
+		{name: "false", envValue: "false", wantContent: false},
+		{name: "true", envValue: "true", wantContent: true},
+		{name: "true, any case", envValue: "TRUE", wantContent: true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Setenv("OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT", tt.envValue)
+
+			reader := &tracestoremocks.Reader{}
+			reader.On("GetServices", mock.Anything).Return([]string{"svc-a", "svc-b"}, nil)
+			svc := querysvc.NewQueryService(reader, &depstoremocks.Reader{}, querysvc.QueryServiceOptions{})
+			capture := newTraceCapture(t)
+			telset := telemetry.NoopSettings()
+			telset.TracerProvider = capture.provider
+			handler := NewHandler(telset, svc, tenancy.NewManager(&tenancy.Options{}), DefaultConfig())
+
+			session := connectTestClient(t, handler)
+			_, err := session.CallTool(context.Background(), &mcp.CallToolParams{
+				Name:      "get_services",
+				Arguments: map[string]any{"pattern": "svc"},
+			})
+			require.NoError(t, err)
+
+			span := capture.spanNamed(t, mcpMethodToolsCall+" get_services")
+			assertHasStringAttribute(t, span.Attributes, string(otelsemconv.GenAIToolName("").Key), "get_services")
+			assertHasStringAttribute(t, span.Attributes, string(otelsemconv.GenAIOperationNameExecuteTool.Key), "execute_tool")
+			argsKey := string(otelsemconv.GenAIToolCallArguments("").Key)
+			resultKey := string(otelsemconv.GenAIToolCallResult("").Key)
+			if !tt.wantContent {
+				assertMissingAttribute(t, span.Attributes, argsKey)
+				assertMissingAttribute(t, span.Attributes, resultKey)
+				return
+			}
+			assertHasStringAttribute(t, span.Attributes, argsKey, `{"pattern":"svc"}`)
+			assert.Contains(t, findAttribute(t, span.Attributes, resultKey).Value.AsString(), "svc-a")
+		})
+	}
 }
 
 // TestNewServerDegradesWithoutMetrics covers the branch where the metrics

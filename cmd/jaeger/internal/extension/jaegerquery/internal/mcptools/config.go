@@ -5,6 +5,8 @@ package mcptools
 
 import (
 	"io/fs"
+	"os"
+	"strings"
 	"time"
 
 	"github.com/jaegertracing/jaeger/internal/version"
@@ -21,6 +23,11 @@ const (
 	// mcpSessionTimeout caps an idle MCP session. The streamable handler keeps
 	// per-MCP-session state for SSE resumption and stream-id correlation.
 	mcpSessionTimeout = 5 * time.Minute
+
+	// captureContentEnvVar is the switch OpenTelemetry GenAI instrumentations
+	// use for recording message and tool-call content, which they leave off
+	// unless it is set to "true".
+	captureContentEnvVar = "OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT"
 )
 
 // Config holds the tunables for the in-process telemetry MCP server. It is the
@@ -38,10 +45,17 @@ type Config struct {
 	// the built-in skills. Nil means none is configured, and only the built-ins
 	// are served.
 	CustomSkillsFS fs.FS
+	// CaptureContent records tool-call arguments and results
+	// (gen_ai.tool.call.arguments and gen_ai.tool.call.result) on the MCP
+	// tool-call spans. It is opt-in because a result is trace data read through
+	// the query service, while those spans go wherever Jaeger exports its own
+	// telemetry, whose readers may not be allowed to see that data.
+	CaptureContent bool
 }
 
 // DefaultConfig returns the Config the standalone jaeger_mcp extension used, so
 // migrating operators see identical tool behaviour on the in-process endpoint.
+// CaptureContent is taken from OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT.
 func DefaultConfig() Config {
 	ver := version.Get().GitVersion
 	if ver == "" {
@@ -53,5 +67,6 @@ func DefaultConfig() Config {
 		MaxSpanDetailsPerRequest: DefaultMaxSpanDetailsPerRequest,
 		MaxSearchResults:         DefaultMaxSearchResults,
 		MaxReadFileSize:          DefaultMaxReadFileSize,
+		CaptureContent:           strings.EqualFold(os.Getenv(captureContentEnvVar), "true"),
 	}
 }

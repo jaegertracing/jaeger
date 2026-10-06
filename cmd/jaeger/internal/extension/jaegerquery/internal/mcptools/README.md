@@ -27,6 +27,20 @@ It serves at `<basePath>/api/ai/mcp/` on the query port, carrying the telemetry
 tools and `read_skill` with the built-in skills. Point an MCP client there, or
 leave it to an AI chat sidecar configured with `ai.agent_url`.
 
+## Tool-call content in Jaeger's own traces
+
+Jaeger traces every tool call it serves as a `tools/call <tool>` span, exported
+wherever Jaeger sends its own telemetry. The span names the tool but does not
+record what it was called with or what it returned: a tool result is trace data,
+and the destination of Jaeger's own telemetry may have different readers than
+the storage the tools read from. To record `gen_ai.tool.call.arguments` and
+`gen_ai.tool.call.result` too, opt in the way OpenTelemetry GenAI
+instrumentations do, by setting this in the Jaeger process's environment:
+
+```sh
+OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT=true
+```
+
 ## Adding installation-specific skills
 
 Point `ai.mcp.skills_dir` at a directory on the query server's disk:

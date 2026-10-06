@@ -31,7 +31,7 @@ import (
 
 func TestTracingMiddlewareToolCallSuccess(t *testing.T) {
 	capture := newTraceCapture(t)
-	middleware := chainMiddleware(createTracingMiddleware(capture.provider))
+	middleware := chainMiddleware(createTracingMiddleware(capture.provider, false))
 
 	wrapped := middleware(func(_ context.Context, _ string, _ mcp.Request) (mcp.Result, error) {
 		return &mcp.CallToolResult{}, nil
@@ -50,7 +50,7 @@ func TestTracingMiddlewareToolCallSuccess(t *testing.T) {
 
 func TestTracingMiddlewareRecordsArgumentsAndResult(t *testing.T) {
 	capture := newTraceCapture(t)
-	middleware := chainMiddleware(createTracingMiddleware(capture.provider))
+	middleware := chainMiddleware(createTracingMiddleware(capture.provider, true))
 
 	wrapped := middleware(func(_ context.Context, _ string, _ mcp.Request) (mcp.Result, error) {
 		return &mcp.CallToolResult{
@@ -70,9 +70,30 @@ func TestTracingMiddlewareRecordsArgumentsAndResult(t *testing.T) {
 	assert.Contains(t, resultAttr.Value.AsString(), "3 services found")
 }
 
+func TestTracingMiddlewareOmitsArgumentsAndResultWithoutCaptureContent(t *testing.T) {
+	capture := newTraceCapture(t)
+	middleware := chainMiddleware(createTracingMiddleware(capture.provider, false))
+
+	wrapped := middleware(func(_ context.Context, _ string, _ mcp.Request) (mcp.Result, error) {
+		return &mcp.CallToolResult{
+			Content: []mcp.Content{&mcp.TextContent{Text: "3 services found"}},
+		}, nil
+	})
+
+	req := newToolCallRequestWithArguments("search_traces", `{"service_name":"frontend"}`)
+	_, err := wrapped(context.Background(), mcpMethodToolsCall, req)
+	require.NoError(t, err)
+
+	spanData := capture.singleSpan(t)
+	assertMissingAttribute(t, spanData.Attributes, string(otelsemconv.GenAIToolCallArguments("").Key))
+	assertMissingAttribute(t, spanData.Attributes, string(otelsemconv.GenAIToolCallResult("").Key))
+	assertHasStringAttribute(t, spanData.Attributes, string(otelsemconv.GenAIToolName("").Key), "search_traces")
+	assertHasStringAttribute(t, spanData.Attributes, string(otelsemconv.GenAIOperationNameExecuteTool.Key), "execute_tool")
+}
+
 func TestTracingMiddlewareOmitsArgumentsWhenEmpty(t *testing.T) {
 	capture := newTraceCapture(t)
-	middleware := chainMiddleware(createTracingMiddleware(capture.provider))
+	middleware := chainMiddleware(createTracingMiddleware(capture.provider, true))
 
 	wrapped := middleware(func(_ context.Context, _ string, _ mcp.Request) (mcp.Result, error) {
 		return &mcp.CallToolResult{}, nil
@@ -87,7 +108,7 @@ func TestTracingMiddlewareOmitsArgumentsWhenEmpty(t *testing.T) {
 
 func TestTracingMiddlewareTruncatesOversizedResult(t *testing.T) {
 	capture := newTraceCapture(t)
-	middleware := chainMiddleware(createTracingMiddleware(capture.provider))
+	middleware := chainMiddleware(createTracingMiddleware(capture.provider, true))
 
 	huge := string(make([]byte, maxSpanAttrChars*2))
 	wrapped := middleware(func(_ context.Context, _ string, _ mcp.Request) (mcp.Result, error) {
@@ -176,7 +197,7 @@ func TestToolArgumentsFromRequestWrongParams(t *testing.T) {
 
 func TestTracingMiddlewareToolCallError(t *testing.T) {
 	capture := newTraceCapture(t)
-	middleware := chainMiddleware(createTracingMiddleware(capture.provider))
+	middleware := chainMiddleware(createTracingMiddleware(capture.provider, false))
 
 	expectedErr := errors.New("trace not found")
 	wrapped := middleware(func(_ context.Context, _ string, _ mcp.Request) (mcp.Result, error) {
@@ -196,7 +217,7 @@ func TestTracingMiddlewareToolCallError(t *testing.T) {
 
 func TestTracingMiddlewareToolCallGenericError(t *testing.T) {
 	capture := newTraceCapture(t)
-	middleware := chainMiddleware(createTracingMiddleware(capture.provider))
+	middleware := chainMiddleware(createTracingMiddleware(capture.provider, false))
 
 	expectedErr := errors.New("storage backend unavailable")
 	wrapped := middleware(func(_ context.Context, _ string, _ mcp.Request) (mcp.Result, error) {
@@ -216,7 +237,7 @@ func TestTracingMiddlewareToolCallGenericError(t *testing.T) {
 
 func TestTracingMiddlewareToolCallResultError(t *testing.T) {
 	capture := newTraceCapture(t)
-	middleware := chainMiddleware(createTracingMiddleware(capture.provider))
+	middleware := chainMiddleware(createTracingMiddleware(capture.provider, false))
 
 	wrapped := middleware(func(_ context.Context, _ string, _ mcp.Request) (mcp.Result, error) {
 		result := &mcp.CallToolResult{}
@@ -238,7 +259,7 @@ func TestTracingMiddlewareToolCallResultError(t *testing.T) {
 
 func TestTracingMiddlewareTracesNonToolMethods(t *testing.T) {
 	capture := newTraceCapture(t)
-	middleware := chainMiddleware(createTracingMiddleware(capture.provider))
+	middleware := chainMiddleware(createTracingMiddleware(capture.provider, false))
 
 	wrapped := middleware(func(_ context.Context, _ string, _ mcp.Request) (mcp.Result, error) {
 		return &mcp.CallToolResult{}, nil
@@ -255,7 +276,7 @@ func TestTracingMiddlewareTracesNonToolMethods(t *testing.T) {
 
 func TestTracingMiddlewareNonToolMethodError(t *testing.T) {
 	capture := newTraceCapture(t)
-	middleware := chainMiddleware(createTracingMiddleware(capture.provider))
+	middleware := chainMiddleware(createTracingMiddleware(capture.provider, false))
 
 	expectedErr := errors.New("initialize failed")
 	wrapped := middleware(func(_ context.Context, _ string, _ mcp.Request) (mcp.Result, error) {
@@ -274,7 +295,7 @@ func TestTracingMiddlewareNonToolMethodError(t *testing.T) {
 
 func TestTracingMiddlewareCreatesChildSpanWhenParentExists(t *testing.T) {
 	capture := newTraceCapture(t)
-	middleware := chainMiddleware(createTracingMiddleware(capture.provider))
+	middleware := chainMiddleware(createTracingMiddleware(capture.provider, false))
 
 	wrapped := middleware(func(_ context.Context, _ string, _ mcp.Request) (mcp.Result, error) {
 		return &mcp.CallToolResult{}, nil
@@ -306,7 +327,7 @@ func TestTracingMiddlewareCreatesChildSpanWhenParentExists(t *testing.T) {
 
 func TestTracingMiddlewareToolCallResultErrorWithoutConcreteError(t *testing.T) {
 	capture := newTraceCapture(t)
-	middleware := chainMiddleware(createTracingMiddleware(capture.provider))
+	middleware := chainMiddleware(createTracingMiddleware(capture.provider, false))
 
 	wrapped := middleware(func(_ context.Context, _ string, _ mcp.Request) (mcp.Result, error) {
 		return &mcp.CallToolResult{IsError: true}, nil
@@ -325,7 +346,7 @@ func TestTracingMiddlewareToolCallResultErrorWithoutConcreteError(t *testing.T) 
 
 func TestTracingMiddlewareUsesTraceContextFromRequestMeta(t *testing.T) {
 	capture := newTraceCapture(t)
-	middleware := chainMiddleware(createTracingMiddleware(capture.provider))
+	middleware := chainMiddleware(createTracingMiddleware(capture.provider, false))
 
 	wrapped := middleware(func(_ context.Context, _ string, _ mcp.Request) (mcp.Result, error) {
 		return &mcp.CallToolResult{}, nil
@@ -528,6 +549,22 @@ func (c *traceCapture) waitForSpanCount(t *testing.T, want int) []tracetest.Span
 	spans := c.exporter.GetSpans()
 	require.Lenf(t, spans, want, "expected %d spans", want)
 	return spans
+}
+
+func (c *traceCapture) spanNamed(t *testing.T, name string) tracetest.SpanStub {
+	t.Helper()
+	var found tracetest.SpanStub
+	require.Eventuallyf(t, func() bool {
+		spans := c.exporter.GetSpans()
+		for i := range spans {
+			if spans[i].Name == name {
+				found = spans[i]
+				return true
+			}
+		}
+		return false
+	}, time.Second, 10*time.Millisecond, "no span named %q", name)
+	return found
 }
 
 func chainMiddleware(middlewares ...mcp.Middleware) mcp.Middleware {
