@@ -223,13 +223,13 @@ A pattern matches text, so its subject is a string field, one of the word-valued
 - This definition of a word is narrower than some tokenizers. Elasticsearch's `standard` analyzer keeps `don't` and `foo_bar` as one token, so a word with an apostrophe or underscore inside it cannot be searched for as one word. That limit is accepted so that every backend uses the same definition.
 - Built-in text fields are refused at validation. A span or event name is a short identifier that `eq` and `regex` already search.
 
-*Meaning.* The operators match words, not characters. The value is split into words, case is ignored, and the operator asks whether the listed words occur among the value's words. `phrase` requires them adjacent and in the listed order, like a quoted web search. `fulltext` requires only that every word is present, like an unquoted web search, so it matches a superset of what `phrase` matches. The table splits the contract into what every backend must do and what a backend may add:
+*Meaning.* The operators match words, not characters. The backend splits the stored attribute value into words and ignores case, and the operator asks whether the listed words occur among them. The list itself is never split: each element is already one word. `phrase` requires them adjacent and in the listed order, like a quoted web search. `fulltext` requires only that every word is present, like an unquoted web search, so it matches a superset of what `phrase` matches. The table splits the contract into what every backend must do and what a backend may add:
 
 | Behavior | `phrase` | `fulltext` |
 | --- | --- | --- |
 | Case-insensitive | required | required |
-| The value is split into words, at least on whitespace | required | required |
-| Every listed word must occur in the value, except one the analyzer drops (stop-word row) | required | required |
+| The stored value is split into words, at least on whitespace | required | required |
+| Every listed word must occur in the stored value, except one the analyzer drops (stop-word row) | required | required |
 | Listed words adjacent and in order | required | not required |
 | Words on either side of a dropped word count as adjacent | backend-specific | not applicable |
 | Punctuation between words (`refund-policy` for `refund policy`) | backend-specific | backend-specific |
@@ -242,7 +242,7 @@ A pattern matches text, so its subject is a string field, one of the word-valued
 - The backend-specific rows let a backend answer a wider question than the required rows ask; a stemming analyzer matches `refunds` where a plain tokenizer does not. Cases for these rows belong in that backend's own suite, because another backend answering differently is not a defect.
 - Both operators share the backend-specific rows because they read the same indexed text. The analyzer runs when a value is written, before either operator sees it, so a deployment that chooses stemming has chosen it for phrase search too. A second unanalyzed sub-field for `phrase` would restore literal phrase matching but index every listed value twice, and these are the largest values a span carries. A deployment that wants literal phrases keeps the plain tokenizer.
 - The default is the plain tokenizer: on Elasticsearch the `standard` analyzer, which lowercases, splits on word boundaries, and neither stems nor drops stop words. The battery runs with it.
-- The shared cases follow two rules so that they stay valid for any tokenizer. They list no stop words, because an analyzer that drops one leaves only the other words and `no refund` then matches `yes refund`. They put no punctuation next to a listed word in the value, because tokenizers disagree on `refund-policy` and on `policy.`.
+- The shared cases follow two rules so that they stay valid for any tokenizer. They list no stop words, because an analyzer that drops one leaves only the other words and `no refund` then matches `yes refund`. They put no punctuation next to a listed word in the stored value, because tokenizers disagree on `refund-policy` and on `policy.`.
 
 *Lowering.* A backend never hands the list to anything that parses query syntax.
 
