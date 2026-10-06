@@ -176,6 +176,10 @@ func TestTurnScopedEndpointDispatchesUIToolToStream(t *testing.T) {
 	assert.Contains(t, rec.Body.String(), `"toolCallName":"show_chart"`)
 	assert.NotContains(t, rec.Body.String(), UIToolPrefix)
 	assert.NotContains(t, rec.Body.String(), UIToolPrefix+"show_chart", "the browser must receive only the bare tool name")
+	events := parseSSEEvents(t, rec.Body.String())
+	require.NotEmpty(t, events)
+	assert.Equal(t, "TOOL_CALL_START", events[0]["type"])
+	assert.Equal(t, "show_chart", events[0]["toolCallName"], "browser receives only the bare tool name")
 }
 
 // TestTurnScopedEndpointIsolatesTurns is the key guarantee of the single
