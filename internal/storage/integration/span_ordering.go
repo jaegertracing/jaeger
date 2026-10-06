@@ -156,12 +156,12 @@ func (s *StorageIntegration) testSpanOrderingBasic(t *testing.T) {
 			assert.Empty(t, token)
 			q.Pagination.PageSize = 1
 			paged := tc.want
-			// When the tied run closes the order, the page holding its first copy sees the
-			// second as its lookahead hit and announces another page, which the cursor cannot
-			// reach, so that page is empty.
 			trailingEmptyPage := false
 			if s.Capabilities.PagingDropsTiedSpans() {
 				paged = withoutRepeats(tc.want)
+				// When the tied run closes the order, the page holding its first copy sees the
+				// second as its lookahead hit and announces another page, which the cursor
+				// cannot reach, so that page is empty.
 				trailingEmptyPage = tc.want[len(tc.want)-1] == tc.want[len(tc.want)-2]
 			}
 			for i, want := range paged {

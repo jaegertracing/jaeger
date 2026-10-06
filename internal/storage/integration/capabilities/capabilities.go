@@ -311,7 +311,9 @@ func Elasticsearch() Capabilities {
 		// TODO: remove this flag after ES supports returning spanKind
 		//  Issue https://github.com/jaegertracing/jaeger/issues/1923
 		getOperationsMissingSpanKind: true,
-		pagingDropsTiedSpans:         true,
+		// The direct-mode suite runs this set against OpenSearch as well, with the reader's
+		// default configuration, so the drop applies there too.
+		pagingDropsTiedSpans: true,
 		// The suite configures the typed-attribute mapping (RFC 0015), so an attribute value is
 		// indexed as a number beside the keyword and ordering one is answered; orderingOutcome
 		// skips the battery's other two ordering outcomes.
