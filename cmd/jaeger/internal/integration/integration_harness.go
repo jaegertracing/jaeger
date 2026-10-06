@@ -82,12 +82,13 @@ var paginationGates = []string{querysvc.PaginationGate.ID()}
 // it to describe the deployment each one stands for.
 const numericAttributesEnvVar = "ES_NUMERIC_ATTRIBUTES"
 
-// structuredFilterGates names the RFC 0005 filter gate. It is beta and on by default, and it is
-// still passed explicitly so that the suites whose searches carry a filter, the filter battery and the
-// rewrite test, do not depend on the default and keep working against a binary that pins it off.
-// The backward-compatibility scenarios run their new reader with it, together with the pagination
-// gate the span ordering battery pages under.
-var structuredFilterGates = []string{querysvc.StructuredFiltersGate.ID(), querysvc.PaginationGate.ID()}
+// searchGates enables the RFC 0005 filter gate and the RFC 0014 pagination gate, for a suite
+// whose backend declares both the filter and pagination capabilities. The filter gate is beta
+// and on by default, and it is still passed explicitly so that the suites whose searches carry a
+// filter, the filter battery and the rewrite test, do not depend on the default and keep working
+// against a binary that pins it off. The pagination gate is off by default, and the pagination
+// and span ordering tests need it on, because they send page tokens through the query service.
+var searchGates = []string{querysvc.StructuredFiltersGate.ID(), querysvc.PaginationGate.ID()}
 
 // binaryEnv builds the environment for the spawned jaeger binary. The child gets
 // an explicit environment rather than inheriting the test process's, so anything

@@ -25,7 +25,7 @@ const (
 func runRotationSmokeTest(t *testing.T, configFile string, storage string, setupFn func(t *testing.T)) {
 	s := &E2EStorageIntegration{
 		ConfigFile:   configFile,
-		FeatureGates: paginationGates,
+		FeatureGates: searchGates,
 		StorageIntegration: integration.StorageIntegration{
 			CleanUp: func(t *testing.T) {
 				purge(t)

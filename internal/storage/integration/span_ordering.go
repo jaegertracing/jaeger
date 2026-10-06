@@ -31,7 +31,8 @@ func buildSpanOrderingTraces() []ptrace.Traces {
 		{"c", "ordering-a", 2, 1, 2, 3, 4},
 		{"d", "ordering-a", 1, 1, 3, 1, 1},
 		{"e", "ordering-b", 3, 1, 4, 0, 3},
-		// Duplicate sort keys: tests that pagination cursor handles ties correctly.
+		// The second copy of "a" ties with the first on every sort key, so paging through the
+		// corpus has to carry both occurrences across a page boundary (RFC 0016 §6.4).
 		{"a", "ordering-a", 2, 3, 1, 4, 5},
 	} {
 		trace := ptrace.NewTraces()
@@ -47,7 +48,10 @@ func buildSpanOrderingTraces() []ptrace.Traces {
 		// The rank orders the corpus differently from every intrinsic field, so ordering by it
 		// cannot pass by accident.
 		span.Attributes().PutInt("ordering-rank", int64(f.rank))
-		span.Attributes().PutInt("ordering-copy", int64(i))
+		// The row index keeps the two copies of "a" from being byte-identical. The Elasticsearch
+		// writer derives a document's _id from the span's content, so identical copies would
+		// collapse onto one document and the corpus would lose its duplicate.
+		span.Attributes().PutInt("ordering-row", int64(i))
 		traces = append(traces, trace)
 	}
 	return traces

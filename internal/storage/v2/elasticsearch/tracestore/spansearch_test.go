@@ -171,10 +171,14 @@ func TestTraceReader_TraceSearchesUnderPagination(t *testing.T) {
 	coreReader.AssertExpectations(t)
 
 	query.Pagination.PageToken = "some-token"
+	var refusals int
 	for _, err := range reader.FindTraceIDs(context.Background(), query) {
 		require.ErrorIs(t, err, tracestore.ErrPaginationUnsupported)
+		refusals++
 	}
 	for _, err := range reader.FindTraceSummaries(context.Background(), query) {
 		require.ErrorIs(t, err, tracestore.ErrPaginationUnsupported)
+		refusals++
 	}
+	assert.Equal(t, 2, refusals, "each trace search must yield the refusal rather than nothing")
 }
