@@ -8,18 +8,15 @@ import (
 	"errors"
 	"fmt"
 	"iter"
-	"math"
 	"time"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"go.opentelemetry.io/collector/pdata/pcommon"
 	"go.opentelemetry.io/collector/pdata/ptrace"
 
-	expression "github.com/jaegertracing/jaeger-idl/query/expression/v1"
 	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerquery/internal/mcptools/internal/types"
 	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerquery/querysvc"
 	"github.com/jaegertracing/jaeger/internal/jptrace"
-	"github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore"
 )
 
 // queryServiceGetTracesInterface defines the interface we need from QueryService for
@@ -28,14 +25,11 @@ type queryServiceGetTracesInterface interface {
 	GetTraces(ctx context.Context, params querysvc.GetTraceParams) iter.Seq2[[]ptrace.Traces, error]
 }
 
-// spanDetailsQueryService defines the interface we need from QueryService for get_span_details:
-// GetTraces for the whole-trace fallback, FindSpans for the identity-filter fast path.
+// spanDetailsQueryService defines the interface we need from QueryService for get_span_details.
+// How the spans are found (the identity-filter fast path, the whole-trace read, archive storage,
+// interceptors) is the query service's concern, not this tool's.
 type spanDetailsQueryService interface {
-	queryServiceGetTracesInterface
-	FindSpans(ctx context.Context, query querysvc.SpanQueryParams) iter.Seq2[tracestore.PageChunk[ptrace.Traces], error]
-	AdjustSpans(traces ptrace.Traces)
-	HasInterceptors() bool
-	HasArchiveTraceReader() bool
+	LookupSpans(ctx context.Context, params querysvc.SpanLookupParams) (querysvc.SpanLookupResult, error)
 }
 
 // getSpanDetailsHandler implements the get_span_details MCP tool.
@@ -64,45 +58,27 @@ func (h *getSpanDetailsHandler) handle(
 	_ *mcp.CallToolRequest,
 	input types.GetSpanDetailsInput,
 ) (*mcp.CallToolResult, types.GetSpanDetailsOutput, error) {
-	// Build query parameters (includes validation). canonicalSpanIDs holds the
-	// requested IDs in the same canonical lowercase hex form span.SpanID().String()
-	// emits, so case-insensitive requests still match.
 	q, err := h.buildQuery(input)
 	if err != nil {
 		return nil, types.GetSpanDetailsOutput{}, err
 	}
 
-	// Create span ID set for efficient lookup
-	spanIDSet := make(map[string]struct{}, len(q.canonicalSpanIDs))
-	for _, spanID := range q.canonicalSpanIDs {
-		spanIDSet[spanID] = struct{}{}
-	}
-
-	// The identity-filter fast path (RFC 0016 §4.3) errors out before touching spanIDSet
-	// whenever it cannot run at all: any capability this deployment lacks (span search itself,
-	// the filter gate, or the identity filter's specific fields/operators) unwraps to
-	// errors.ErrUnsupported, the one root the capability family shares, so falling back to the
-	// whole-trace path afterward is safe: nothing has been marked found yet.
-	// With archive storage configured, a span search cannot see archived traces, so the
-	// whole-trace path, which reads the archive, answers instead.
-	var spanDetails []types.SpanDetail
-	traceFound := true
-	if h.queryService.HasArchiveTraceReader() {
-		spanDetails, traceFound, err = h.fetchViaGetTraces(ctx, q.params, spanIDSet)
-	} else {
-		var findErr error
-		spanDetails, findErr = h.fetchViaFindSpans(ctx, q.traceID, q.canonicalSpanIDs, spanIDSet)
-		if h.canFallBack(findErr) {
-			spanDetails, traceFound, err = h.fetchViaGetTraces(ctx, q.params, spanIDSet)
-		} else {
-			err = findErr
-		}
-	}
+	result, err := h.queryService.LookupSpans(ctx, querysvc.SpanLookupParams{
+		TraceID: q.traceID,
+		SpanIDs: q.spanIDs,
+	})
 	if err != nil {
 		return nil, types.GetSpanDetailsOutput{}, err
 	}
-	if !traceFound {
+	if !result.TraceFound {
 		return nil, types.GetSpanDetailsOutput{}, errors.New("trace not found")
+	}
+
+	var spanDetails []types.SpanDetail
+	found := make(map[pcommon.SpanID]struct{}, len(result.Spans))
+	for _, match := range result.Spans {
+		spanDetails = append(spanDetails, buildSpanDetail(match.Resource, match.Span))
+		found[match.Span.SpanID()] = struct{}{}
 	}
 
 	output := types.GetSpanDetailsOutput{
@@ -110,163 +86,33 @@ func (h *getSpanDetailsHandler) handle(
 		Spans:   spanDetails,
 	}
 
-	// Report any span IDs that were not found
-	if len(spanIDSet) > 0 {
-		missingIDs := make([]string, 0, len(spanIDSet))
-		for spanID := range spanIDSet {
-			missingIDs = append(missingIDs, spanID)
+	// Report the requested span IDs that were not found, in the order they were requested.
+	var missingIDs []string
+	reported := make(map[pcommon.SpanID]struct{}, len(q.spanIDs))
+	for _, spanID := range q.spanIDs {
+		if _, ok := found[spanID]; ok {
+			continue
 		}
+		if _, ok := reported[spanID]; ok {
+			continue
+		}
+		reported[spanID] = struct{}{}
+		missingIDs = append(missingIDs, spanID.String())
+	}
+	if len(missingIDs) > 0 {
 		output.Error = fmt.Sprintf("spans not found: %v", missingIDs)
 	}
 
 	return nil, output, nil
 }
 
-// canFallBack reports whether a fast-path error may be answered by the whole-trace path. A
-// refusal before any interceptor runs always may. A refusal of the identity filter itself
-// (ErrFilterUnsupported) comes after OnSpanQuery, which may have narrowed the filter for a
-// policy; falling back then would read the trace without that narrowing, so it is only retried
-// when no interceptor is configured.
-func (h *getSpanDetailsHandler) canFallBack(err error) bool {
-	if errors.Is(err, querysvc.ErrSpanSearchUnsupported) || errors.Is(err, querysvc.ErrFilterDisabled) {
-		return true
-	}
-	return errors.Is(err, tracestore.ErrFilterUnsupported) && !h.queryService.HasInterceptors()
-}
-
-// fetchViaFindSpans tries the identity-filter fast path (RFC 0016 §4.3): a backend that
-// declares SpanSearch answers with exactly the matching spans, not whole traces. It uses the
-// widest possible time range because the tool's input carries no time hint to narrow it with,
-// and a span search requires one regardless of the filter (RFC 0016 §4.5, "a caller that knows
-// only trace IDs supplies a range wide enough to contain them").
-//
-// A backend that cannot take this path reports querysvc.ErrSpanSearchUnsupported or
-// querysvc.ErrFilterDisabled unchanged, so handle falls back to fetchViaGetTraces. That path's
-// "trace not found" distinction is not available here: a filter that matches nothing is
-// indistinguishable from a trace that does not exist, and telling the two apart would mean
-// paying for the whole-trace read this path exists to avoid. handle folds an empty result here
-// into the same "spans not found" report a partial match gets, rather than a hard error.
-func (h *getSpanDetailsHandler) fetchViaFindSpans(
-	ctx context.Context,
-	traceID pcommon.TraceID,
-	canonicalSpanIDs []string,
-	spanIDSet map[string]struct{},
-) ([]types.SpanDetail, error) {
-	var spanDetails []types.SpanDetail
-	// The default page size is 100 and the caller may name more spans than that, so every page is
-	// read until the token runs out. A repeated token would loop forever, so it ends the read too.
-	var pageSize uint32
-	if n := len(canonicalSpanIDs); n <= math.MaxUint32 {
-		pageSize = uint32(n)
-	}
-	var pageToken string
-	for {
-		query := querysvc.SpanQueryParams{
-			StartTimeMin: time.Unix(0, 0),
-			StartTimeMax: time.Now(),
-			Filter:       buildIdentityFilter(traceID, canonicalSpanIDs),
-			Pagination:   querysvc.Pagination{PageSize: pageSize, PageToken: pageToken},
-		}
-		var nextToken string
-		for chunk, err := range h.queryService.FindSpans(ctx, query) {
-			if err != nil {
-				return nil, err
-			}
-			// A span search returns stored spans unadjusted, so apply the same adjusters the
-			// whole-trace path applies before reporting them.
-			h.queryService.AdjustSpans(chunk.Results)
-			for pos, span := range jptrace.SpanIter(chunk.Results) {
-				// Span IDs are unique only within a trace. An interceptor may have rewritten the
-				// filter, so a match must also belong to the trace this tool was asked about.
-				if span.TraceID() != traceID {
-					continue
-				}
-				spanIDStr := span.SpanID().String()
-				if _, found := spanIDSet[spanIDStr]; found {
-					spanDetails = append(spanDetails, buildSpanDetail(pos, span))
-					delete(spanIDSet, spanIDStr)
-				}
-			}
-			nextToken = string(chunk.NextPageToken)
-		}
-		if nextToken == "" || nextToken == pageToken || len(spanIDSet) == 0 {
-			return spanDetails, nil
-		}
-		pageToken = nextToken
-	}
-}
-
-// fetchViaGetTraces is the pre-RFC-0016 path: fetch the whole trace and pick the requested
-// spans out of it in memory. Every backend supports it, so it is what a backend that does not
-// declare SpanSearch falls back to.
-func (h *getSpanDetailsHandler) fetchViaGetTraces(
-	ctx context.Context,
-	params querysvc.GetTraceParams,
-	spanIDSet map[string]struct{},
-) ([]types.SpanDetail, bool, error) {
-	tracesIter := h.queryService.GetTraces(ctx, params)
-
-	// Wrap with AggregateTraces to ensure each ptrace.Traces contains a complete trace
-	aggregatedIter := jptrace.AggregateTraces(tracesIter)
-
-	var spanDetails []types.SpanDetail
-	traceFound := false
-	for trace, err := range aggregatedIter {
-		if err != nil {
-			return nil, false, fmt.Errorf("failed to get trace: %w", err)
-		}
-		traceFound = true
-		for pos, span := range jptrace.SpanIter(trace) {
-			spanIDStr := span.SpanID().String()
-			if _, found := spanIDSet[spanIDStr]; found {
-				spanDetails = append(spanDetails, buildSpanDetail(pos, span))
-				delete(spanIDSet, spanIDStr)
-			}
-		}
-	}
-	return spanDetails, traceFound, nil
-}
-
-// buildIdentityFilter names the requested spans as a predicate (RFC 0016 §4.3): trace ID and
-// span ID are intrinsic span fields, so naming a span is comparing two of its own fields. Every
-// requested span shares the one trace ID this tool takes, so this is a single conjunction
-// rather than the OR-of-ANDs a filter naming spans across several traces would need.
-func buildIdentityFilter(traceID pcommon.TraceID, spanIDs []string) *expression.Call {
-	return &expression.Call{
-		Op: expression.OpAnd,
-		Args: []expression.Expression{
-			&expression.Call{
-				Op: expression.OpEq,
-				Args: []expression.Expression{
-					&expression.FieldRef{Level: expression.LevelSpan, Name: expression.SpanFieldTraceID},
-					&expression.StringValue{Value: traceID.String()},
-				},
-			},
-			&expression.Call{
-				Op: expression.OpIn,
-				Args: []expression.Expression{
-					&expression.FieldRef{Level: expression.LevelSpan, Name: expression.SpanFieldSpanID},
-					&expression.List{Type: expression.ValueTypeString, Values: spanIDs},
-				},
-			},
-		},
-	}
-}
-
-// spanDetailsQuery is buildQuery's parsed result. traceID is carried alongside params, not just
-// inside it, because the identity-filter fast path (fetchViaFindSpans) needs it directly rather
-// than re-extracted from the single-element TraceIDs slice params.TraceIDs holds for the
-// whole-trace fallback's sake.
+// spanDetailsQuery is buildQuery's parsed result.
 type spanDetailsQuery struct {
-	traceID          pcommon.TraceID
-	params           querysvc.GetTraceParams
-	canonicalSpanIDs []string
+	traceID pcommon.TraceID
+	spanIDs []pcommon.SpanID
 }
 
-// buildQuery converts GetSpanDetailsInput into a spanDetailsQuery: the parsed trace ID, a
-// single-trace querysvc.GetTraceParams (the type is shared with the multi-trace GetTraces
-// callers, but this tool only ever asks for one trace), and the requested span IDs in canonical
-// lowercase hex form for the lookup set.
+// buildQuery validates GetSpanDetailsInput and parses it into a spanDetailsQuery.
 func (h *getSpanDetailsHandler) buildQuery(input types.GetSpanDetailsInput) (spanDetailsQuery, error) {
 	// Validate input
 	if input.TraceID == "" {
@@ -292,35 +138,24 @@ func (h *getSpanDetailsHandler) buildQuery(input types.GetSpanDetailsInput) (spa
 	}
 
 	// Validate every span_id up front so a malformed value fails fast instead of
-	// triggering a backend query that can never match a real span ID. Collect the
-	// canonical lowercase hex form so the lookup set agrees with the ID the trace
-	// iterator emits regardless of the request's casing.
-	canonicalSpanIDs := make([]string, 0, len(input.SpanIDs))
+	// triggering a backend query that can never match a real span ID.
+	spanIDs := make([]pcommon.SpanID, 0, len(input.SpanIDs))
 	for _, spanIDStr := range input.SpanIDs {
 		spanID, err := parseSpanID(spanIDStr)
 		if err != nil {
 			return spanDetailsQuery{}, fmt.Errorf("invalid span_id %q: %w", spanIDStr, err)
 		}
-		canonicalSpanIDs = append(canonicalSpanIDs, spanID.String())
+		spanIDs = append(spanIDs, spanID)
 	}
 
-	return spanDetailsQuery{
-		traceID: traceID,
-		params: querysvc.GetTraceParams{
-			TraceIDs: []tracestore.GetTraceParams{
-				{TraceID: traceID},
-			},
-			RawTraces: false, // We want adjusted traces
-		},
-		canonicalSpanIDs: canonicalSpanIDs,
-	}, nil
+	return spanDetailsQuery{traceID: traceID, spanIDs: spanIDs}, nil
 }
 
-// buildSpanDetail constructs a SpanDetail from a ptrace.Span.
-func buildSpanDetail(pos jptrace.SpanIterPos, span ptrace.Span) types.SpanDetail {
+// buildSpanDetail constructs a SpanDetail from a span and the resource it was reported under.
+func buildSpanDetail(resource pcommon.Resource, span ptrace.Span) types.SpanDetail {
 	// Get service name from resource attributes
 	serviceName := ""
-	if svc, ok := pos.Resource.Resource().Attributes().Get("service.name"); ok {
+	if svc, ok := resource.Attributes().Get("service.name"); ok {
 		serviceName = svc.Str()
 	}
 
