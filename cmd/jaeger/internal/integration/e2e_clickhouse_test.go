@@ -14,7 +14,7 @@ func TestClickHouseStorage(t *testing.T) {
 	integration.SkipUnlessEnv(t, integration.StorageClickHouse)
 	s := &E2EStorageIntegration{
 		ConfigFile:   "../../config-clickhouse.yaml",
-		FeatureGates: structuredFilterGates,
+		FeatureGates: searchGates,
 		StorageIntegration: integration.StorageIntegration{
 			CleanUp:      purge,
 			Capabilities: capabilities.ClickHouse(),
