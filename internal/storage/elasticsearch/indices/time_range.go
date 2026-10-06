@@ -5,12 +5,19 @@
 package indices
 
 import (
+	"strings"
 	"time"
 
 	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/config"
 )
+
+// maxReadPeriods bounds how many dated index names a read enumerates. A wider range
+// reads the whole index family through a wildcard and relies on the query's own
+// time-range filter. 5000 periods is over 13 years of daily or 200 days of hourly
+// indices, beyond realistic retention, so normal queries keep their exact index list.
+const maxReadPeriods = 5000
 
 // TimeRangeIndexFn is a function that returns the list of index names for a given time range.
 type TimeRangeIndexFn func(indexName string, indexDateLayout string, startTime time.Time, endTime time.Time, reduceDuration time.Duration) []string
@@ -74,6 +81,9 @@ func addRemoteReadClusters(fn TimeRangeIndexFn, remoteReadClusters []string) Tim
 
 // timeRangeIndices returns the array of indices that we need to query, based on query params
 func timeRangeIndices(indexName, indexDateLayout string, startTime time.Time, endTime time.Time, reduceDuration time.Duration) []string {
+	if endTime.Sub(startTime) > maxReadPeriods*-reduceDuration {
+		return wideRangeIndices(indexName, indexDateLayout)
+	}
 	var result []string
 	firstIndex := IndexWithDate(indexName, indexDateLayout, startTime)
 	currentIndex := IndexWithDate(indexName, indexDateLayout, endTime)
@@ -86,6 +96,17 @@ func timeRangeIndices(indexName, indexDateLayout string, startTime time.Time, en
 	}
 	result = append(result, firstIndex)
 	return result
+}
+
+// wideRangeIndices matches every dated index of the family. When the layout starts with
+// the year, the patterns also require a date-shaped suffix, so archive indices, aliases
+// and rollover indices that share the prefix (e.g. jaeger-span-archive-000001) are not read.
+func wideRangeIndices(indexName, indexDateLayout string) []string {
+	prefix := indexName + config.IndexSeparator
+	if strings.HasPrefix(indexDateLayout, "2006") {
+		return []string{prefix + "1*", prefix + "2*"}
+	}
+	return []string{prefix + "*"}
 }
 
 // IndexWithDate returns index name with date

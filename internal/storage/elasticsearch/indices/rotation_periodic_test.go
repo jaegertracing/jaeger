@@ -4,10 +4,12 @@
 package indices
 
 import (
+	"math"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	es "github.com/jaegertracing/jaeger/internal/storage/elasticsearch"
 	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/config"
@@ -67,6 +69,70 @@ func TestPeriodicRotation_ReadTargets(t *testing.T) {
 			assert.Equal(t, tt.expected, r.ReadTargets(tt.start, tt.end))
 		})
 	}
+}
+
+func TestPeriodicRotation_ReadTargets_Hourly(t *testing.T) {
+	r := NewPeriodicRotation(config.SpanIndexName, "2006-01-02-15", time.Hour)
+	end := time.Date(2019, time.October, 10, 1, 15, 0, 0, time.UTC)
+	assert.Equal(t, []string{
+		"jaeger-span-2019-10-10-01",
+		"jaeger-span-2019-10-10-00",
+		"jaeger-span-2019-10-09-23",
+	}, r.ReadTargets(end.Add(-2*time.Hour), end))
+}
+
+func TestPeriodicRotation_ReadTargets_WideRange(t *testing.T) {
+	daily := NewPeriodicRotation("prod-jaeger-span", "2006-01-02", 24*time.Hour)
+	hourly := NewPeriodicRotation("prod-jaeger-span", "2006-01-02-15", time.Hour)
+	end := time.Date(2026, time.October, 6, 12, 0, 0, 0, time.UTC)
+
+	t.Run("enumerates up to the bound", func(t *testing.T) {
+		start := end.Add(-maxReadPeriods * time.Hour)
+		targets := hourly.ReadTargets(start, end)
+		require.Len(t, targets, maxReadPeriods+1)
+		assert.Equal(t, "prod-jaeger-span-2026-10-06-12", targets[0])
+		assert.Equal(t, hourly.WriteTarget(start), targets[len(targets)-1])
+	})
+
+	for _, tt := range []struct {
+		name     string
+		rotation *PeriodicRotation
+		start    time.Time
+		end      time.Time
+	}{
+		{
+			name:     "hourly just past the bound",
+			rotation: hourly,
+			start:    end.Add(-(maxReadPeriods + 1) * time.Hour),
+			end:      end,
+		},
+		{
+			name:     "hourly with the longest lookback",
+			rotation: hourly,
+			start:    end.Add(-time.Duration(math.MaxInt64)),
+			end:      end,
+		},
+		{
+			name:     "daily across all four-digit years",
+			rotation: daily,
+			start:    time.Date(1, time.January, 1, 0, 0, 0, 0, time.UTC),
+			end:      time.Date(9999, time.December, 31, 23, 59, 59, 0, time.UTC),
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, []string{"prod-jaeger-span-1*", "prod-jaeger-span-2*"}, tt.rotation.ReadTargets(tt.start, tt.end))
+			allocs := testing.AllocsPerRun(1, func() {
+				tt.rotation.ReadTargets(tt.start, tt.end)
+			})
+			assert.Less(t, allocs, 10.0, "allocations must not grow with the number of periods")
+		})
+	}
+
+	t.Run("layout not starting with the year", func(t *testing.T) {
+		dayFirst := NewPeriodicRotation("prod-jaeger-span", "02-01-2006", 24*time.Hour)
+		start := end.Add(-(maxReadPeriods + 1) * 24 * time.Hour)
+		assert.Equal(t, []string{"prod-jaeger-span-*"}, dayFirst.ReadTargets(start, end))
+	})
 }
 
 func TestPeriodicRotation_WriteOpType(t *testing.T) {

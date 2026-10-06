@@ -93,8 +93,8 @@ func (p *queryParser) parseDependenciesQueryParams(r *http.Request) (dqp depende
 //	service ::= 'service=' strValue
 //	groupByOperation ::= 'groupByOperation=' boolValue
 //	endTs ::= 'endTs=' intValue in unix milliseconds
-//	lookback ::= 'lookback=' intValue duration in milliseconds
-//	step ::= 'step=' intValue duration in milliseconds
+//	lookback ::= 'lookback=' intValue duration in milliseconds, greater than zero
+//	step ::= 'step=' intValue duration in milliseconds, greater than zero
 //	ratePer ::= 'ratePer=' intValue duration in milliseconds
 //	spanKinds ::= spanKind | spanKind '&' spanKinds
 //	spanKind ::= 'spanKind=' spanKindType
@@ -120,11 +120,11 @@ func (p *queryParser) parseMetricsQueryParams(r *http.Request) (bqp metricstore.
 		return bqp, err
 	}
 	parser := newDurationUnitsParser(time.Millisecond)
-	lookback, err := parseDuration(r, lookbackParam, parser, defaultMetricsQueryLookbackDuration)
+	lookback, err := parsePositiveDuration(r, lookbackParam, parser, defaultMetricsQueryLookbackDuration)
 	if err != nil {
 		return bqp, err
 	}
-	step, err := parseDuration(r, stepParam, parser, defaultMetricsQueryStepDuration)
+	step, err := parsePositiveDuration(r, stepParam, parser, defaultMetricsQueryStepDuration)
 	if err != nil {
 		return bqp, err
 	}
@@ -163,6 +163,18 @@ func parseDuration(r *http.Request, paramName string, parse durationParser, defa
 	d, err := parse(formValue)
 	if err != nil {
 		return 0, newParseError(err, paramName)
+	}
+	return d, nil
+}
+
+// parsePositiveDuration is parseDuration for a parameter that must be greater than zero.
+func parsePositiveDuration(r *http.Request, paramName string, parse durationParser, defaultDuration time.Duration) (time.Duration, error) {
+	d, err := parseDuration(r, paramName, parse, defaultDuration)
+	if err != nil {
+		return 0, err
+	}
+	if d <= 0 {
+		return 0, newParseError(errors.New("must be greater than zero"), paramName)
 	}
 	return d, nil
 }

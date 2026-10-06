@@ -156,3 +156,21 @@ func TestParameterErrors(t *testing.T) {
 		})
 	}
 }
+
+func TestParseMetricsQueryParamsRejectsNonPositiveDurations(t *testing.T) {
+	ts := initializeTestServer(t)
+
+	for _, param := range []string{lookbackParam, stepParam} {
+		for _, value := range []string{"0", "-60000"} {
+			t.Run(param+"="+value, func(t *testing.T) {
+				var response metrics.MetricFamily
+				err := getJSON(ts.server.URL+"/api/metrics/calls?service=emailservice&"+param+"="+value, &response)
+
+				var httpErr *HTTPError
+				require.ErrorAs(t, err, &httpErr)
+				assert.Equal(t, http.StatusBadRequest, httpErr.StatusCode)
+				assert.Contains(t, httpErr.Body, "unable to parse param '"+param+"': must be greater than zero")
+			})
+		}
+	}
+}
