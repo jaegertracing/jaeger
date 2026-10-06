@@ -337,7 +337,9 @@ func Elasticsearch() Capabilities {
 func ElasticsearchSmokeTest() Capabilities {
 	return Capabilities{
 		getOperationsMissingSpanKind: true,
-		pagingDropsTiedSpans:         true,
+		// The rotation configurations, for OpenSearch as well as Elasticsearch, leave
+		// span_search_tie_break_by_id at its default.
+		pagingDropsTiedSpans: true,
 		skipList: []string{
 			spanAttributeOrderingTest,
 			traceIDPaginationTest,
@@ -355,8 +357,9 @@ func ElasticsearchSmokeTest() Capabilities {
 func OpenSearch() Capabilities {
 	return Capabilities{
 		getOperationsMissingSpanKind: true,
-		pagingDropsTiedSpans:         true,
 		// Same mapping and same setting, and same search support as Elasticsearch; see the note there.
+		// The e2e configuration turns span_search_tie_break_by_id on, so paging keeps every tied
+		// occurrence and pagingDropsTiedSpans stays unset.
 		skipList: []string{
 			spanAttributeOrderingTest,
 			traceIDPaginationTest,
