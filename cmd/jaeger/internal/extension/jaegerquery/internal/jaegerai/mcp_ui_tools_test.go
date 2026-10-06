@@ -178,6 +178,11 @@ func TestUIDispatchMiddleware(t *testing.T) {
 		assert.False(t, called, "a UI tool must not fall through to the telemetry handlers")
 		assert.False(t, res.(*mcp.CallToolResult).IsError)
 		assert.Contains(t, rec.Body.String(), "show_chart", "tool call lifecycle is emitted to stream with stripped name")
+		assert.NotContains(t, rec.Body.String(), UIToolPrefix+"show_chart", "the browser must not receive the prefixed name")
+		events := parseSSEEvents(t, rec.Body.String())
+		require.NotEmpty(t, events)
+		assert.Equal(t, "TOOL_CALL_START", events[0]["type"])
+		assert.Equal(t, "show_chart", events[0]["toolCallName"], "browser receives only the bare tool name")
 	})
 
 	t.Run("tools/call with bare name matching a telemetry tool routes to telemetry, NOT to the UI tool", func(t *testing.T) {

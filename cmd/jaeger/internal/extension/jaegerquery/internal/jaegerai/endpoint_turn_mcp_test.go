@@ -144,6 +144,11 @@ func TestTurnScopedEndpointDispatchesUIToolToStream(t *testing.T) {
 	// The UI-tool call was dispatched to the browser over the turn's SSE
 	// stream — the recorder should carry the TOOL_CALL_* frames for it with prefix stripped.
 	assert.Contains(t, rec.Body.String(), "show_chart")
+	assert.NotContains(t, rec.Body.String(), UIToolPrefix+"show_chart", "the browser must receive only the bare tool name")
+	events := parseSSEEvents(t, rec.Body.String())
+	require.NotEmpty(t, events)
+	assert.Equal(t, "TOOL_CALL_START", events[0]["type"])
+	assert.Equal(t, "show_chart", events[0]["toolCallName"], "browser receives only the bare tool name")
 }
 
 // TestTurnScopedEndpointIsolatesTurns is the key guarantee of the single
