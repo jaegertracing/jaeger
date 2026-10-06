@@ -73,8 +73,19 @@ type Capabilities struct {
 	// searchRequiresServiceName excuses a backend whose reader rejects a search that omits
 	// the service name — Cassandra and Badger key every index by it (RFC 0013).
 	searchRequiresServiceName bool
+	// pagingDropsTiedSpans excuses a reader whose span search, at its default configuration,
+	// loses the later occurrences of documents that tie on every sort key when they straddle a
+	// page boundary (RFC 0016 §6.4): Elasticsearch and OpenSearch sort on _id only when
+	// span_search_tie_break_by_id is on.
+	pagingDropsTiedSpans bool
 	// List of tests which to be skipped (exact name or substring)
 	skipList []string
+}
+
+// PagingDropsTiedSpans returns true if a span search may skip documents that tie on every sort
+// key across a page boundary.
+func (c Capabilities) PagingDropsTiedSpans() bool {
+	return c.pagingDropsTiedSpans
 }
 
 // SearchRequiresServiceName returns true if the storage backend cannot serve a search that
@@ -300,6 +311,7 @@ func Elasticsearch() Capabilities {
 		// TODO: remove this flag after ES supports returning spanKind
 		//  Issue https://github.com/jaegertracing/jaeger/issues/1923
 		getOperationsMissingSpanKind: true,
+		pagingDropsTiedSpans:         true,
 		// The suite configures the typed-attribute mapping (RFC 0015), so an attribute value is
 		// indexed as a number beside the keyword and ordering one is answered; orderingOutcome
 		// skips the battery's other two ordering outcomes.
@@ -325,6 +337,7 @@ func Elasticsearch() Capabilities {
 func ElasticsearchSmokeTest() Capabilities {
 	return Capabilities{
 		getOperationsMissingSpanKind: true,
+		pagingDropsTiedSpans:         true,
 		skipList: []string{
 			spanAttributeOrderingTest,
 			traceIDPaginationTest,
@@ -342,6 +355,7 @@ func ElasticsearchSmokeTest() Capabilities {
 func OpenSearch() Capabilities {
 	return Capabilities{
 		getOperationsMissingSpanKind: true,
+		pagingDropsTiedSpans:         true,
 		// Same mapping and same setting, and same search support as Elasticsearch; see the note there.
 		skipList: []string{
 			spanAttributeOrderingTest,

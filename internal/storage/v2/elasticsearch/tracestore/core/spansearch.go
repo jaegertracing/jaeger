@@ -52,7 +52,7 @@ var spanSortFields = map[string]string{
 // it returns, and that extra hit only tells whether another page exists. The engine returns
 // at most maxDocCount hits, the index's result window, so a page that would need more is cut
 // one short of the window; a page size is a maximum, and the cursor still resumes after the
-// page. The sort ends in the backing index and, unless the reader is configured otherwise,
+// page. The sort ends in the backing index and, when the reader is configured to sort on it,
 // the document id, so that documents tying on every public field are still returned once
 // each across a page boundary (RFC 0016 §6.4); without the id, the occurrences after the
 // boundary within one index are lost.
@@ -134,7 +134,7 @@ func validateSpanQuery(query dbmodel.SpanQueryParameters) error {
 
 // spanSort lowers the effective order to the engine's sort clauses and appends the
 // (_index, _id) tie-breaker of RFC 0016 §6.4, the id only when the reader is configured to
-// sort on it. Without the id, spans that tie on every ordering term within one index and
+// sort on it, which it is not by default. Without the id, spans that tie on every ordering term within one index and
 // straddle a page boundary are skipped by the next page, since search_after resumes strictly
 // after the cursor's key. The index sorts descending so that, under the default start-time
 // order, the newer of two indices holding the same key comes first.
