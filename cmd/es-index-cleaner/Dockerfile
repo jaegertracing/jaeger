@@ -6,6 +6,7 @@ ARG base_image
 FROM $base_image AS release
 ARG TARGETARCH
 ARG USER_UID=10001
+ARG USER_GID=10001
 COPY es-index-cleaner-linux-$TARGETARCH /go/bin/es-index-cleaner-linux
 ENTRYPOINT ["/go/bin/es-index-cleaner-linux"]
-USER ${USER_UID}
+USER ${USER_UID}:${USER_GID}
