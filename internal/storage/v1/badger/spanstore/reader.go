@@ -487,10 +487,10 @@ func usesCompositeIndex(query *spanstore.TraceQueryParameters) bool {
 // getMatchingTraces loads the candidates in order and returns the first query.NumTraces of them
 // that traceMatchesQuery accepts.
 func (r *TraceReader) getMatchingTraces(query *spanstore.TraceQueryParameters, candidates []model.TraceID) ([]*model.Trace, error) {
-	limit := int(query.NumTraces)
-	traces := make([]*model.Trace, 0, min(limit, len(candidates)))
-	for len(candidates) > 0 && len(traces) < limit {
-		batch := candidates[:min(limit-len(traces), len(candidates))]
+	limit := uint64(query.NumTraces)
+	var traces []*model.Trace
+	for len(candidates) > 0 && uint64(len(traces)) < limit {
+		batch := candidates[:min(limit-uint64(len(traces)), uint64(len(candidates)))]
 		candidates = candidates[len(batch):]
 		loaded, err := r.getTraces(batch)
 		if err != nil {
