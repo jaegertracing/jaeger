@@ -161,7 +161,7 @@ func (r *Reader) buildFindTraceIDsQuery(
 		}
 
 		appendAnd(&inner, "(")
-		args, err = buildFilterConditionWith(&inner, 2, args, metadata, query.Filter)
+		args, err = buildFilterCondition(&inner, 2, args, metadata, query.Filter)
 		if err != nil {
 			return "", nil, err
 		}

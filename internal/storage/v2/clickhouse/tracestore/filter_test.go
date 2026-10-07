@@ -48,6 +48,17 @@ func newTestReader() *Reader {
 	return NewReader(&clickhousetest.Driver{}, testReaderConfig)
 }
 
+// lowerFilter lowers predicate the way buildFindTraceIDsQuery does: one metadata lookup for the
+// whole tree, then the lowering reads from that map.
+func lowerFilter(t *testing.T, r *Reader, q *strings.Builder, predicate *expression.Call) ([]any, error) {
+	t.Helper()
+	metadata, err := r.lookupUntypedMetadata(t.Context(), predicate)
+	if err != nil {
+		return nil, err
+	}
+	return buildFilterCondition(q, 0, nil, metadata, predicate)
+}
+
 func TestBuildFilterCondition_And(t *testing.T) {
 	r := newTestReader()
 	var q strings.Builder
@@ -55,7 +66,7 @@ func TestBuildFilterCondition_And(t *testing.T) {
 		call(expression.OpEq, fieldRef(expression.LevelSpan, expression.SpanFieldName), str("checkout")),
 		call(expression.OpEq, fieldRef(expression.LevelResource, expression.ResourceFieldService), str("cart")),
 	)
-	args, err := r.buildFilterCondition(t.Context(), &q, 0, nil, predicate)
+	args, err := lowerFilter(t, r, &q, predicate)
 	require.NoError(t, err)
 	verifyQuerySnapshot(t, q.String())
 	assert.Equal(t, []any{"checkout", "cart"}, args)
@@ -68,7 +79,7 @@ func TestBuildFilterCondition_Or(t *testing.T) {
 		call(expression.OpEq, fieldRef(expression.LevelSpan, expression.SpanFieldName), str("checkout")),
 		call(expression.OpEq, fieldRef(expression.LevelSpan, expression.SpanFieldName), str("cart")),
 	)
-	_, err := r.buildFilterCondition(t.Context(), &q, 0, nil, predicate)
+	_, err := lowerFilter(t, r, &q, predicate)
 	require.NoError(t, err)
 	verifyQuerySnapshot(t, q.String())
 }
@@ -79,7 +90,7 @@ func TestBuildFilterCondition_Not(t *testing.T) {
 	predicate := call(expression.OpNot,
 		call(expression.OpEq, fieldRef(expression.LevelSpan, expression.SpanFieldName), str("checkout")),
 	)
-	args, err := r.buildFilterCondition(t.Context(), &q, 0, nil, predicate)
+	args, err := lowerFilter(t, r, &q, predicate)
 	require.NoError(t, err)
 	verifyQuerySnapshot(t, q.String())
 	assert.Equal(t, []any{"checkout"}, args)
@@ -97,7 +108,7 @@ func TestBuildFilterCondition_NestedBoolean(t *testing.T) {
 			call(expression.OpEq, fieldRef(expression.LevelResource, expression.ResourceFieldService), str("noisy")),
 		),
 	)
-	_, err := r.buildFilterCondition(t.Context(), &q, 0, nil, predicate)
+	_, err := lowerFilter(t, r, &q, predicate)
 	require.NoError(t, err)
 	verifyQuerySnapshot(t, q.String())
 }
@@ -106,7 +117,7 @@ func TestBuildFilterCondition_UnsupportedOperator(t *testing.T) {
 	r := newTestReader()
 	var q strings.Builder
 	predicate := call(expression.OpGt, fieldRef(expression.LevelSpan, expression.SpanFieldDuration), str("1s"))
-	_, err := r.buildFilterCondition(t.Context(), &q, 0, nil, predicate)
+	_, err := lowerFilter(t, r, &q, predicate)
 	require.ErrorIs(t, err, tracestore.ErrFilterUnsupported)
 }
 
@@ -123,7 +134,7 @@ func TestBuildFilterCondition_ArityErrors(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			var q strings.Builder
-			_, err := r.buildFilterCondition(t.Context(), &q, 0, nil, tt.predicate)
+			_, err := lowerFilter(t, r, &q, tt.predicate)
 			require.ErrorIs(t, err, tracestore.ErrFilterInvalid)
 		})
 	}
@@ -133,7 +144,7 @@ func TestBuildFilterCondition_BooleanCombinatorRejectsNonPredicate(t *testing.T)
 	r := newTestReader()
 	var q strings.Builder
 	predicate := call(expression.OpAnd, str("not a predicate"))
-	_, err := r.buildFilterCondition(t.Context(), &q, 0, nil, predicate)
+	_, err := lowerFilter(t, r, &q, predicate)
 	require.ErrorIs(t, err, tracestore.ErrFilterInvalid)
 	assert.ErrorContains(t, err, "combines predicates, not values")
 }
@@ -142,7 +153,7 @@ func TestBuildFilterCondition_NotRejectsNonPredicate(t *testing.T) {
 	r := newTestReader()
 	var q strings.Builder
 	predicate := call(expression.OpNot, str("not a predicate"))
-	_, err := r.buildFilterCondition(t.Context(), &q, 0, nil, predicate)
+	_, err := lowerFilter(t, r, &q, predicate)
 	require.ErrorIs(t, err, tracestore.ErrFilterInvalid)
 	assert.ErrorContains(t, err, "negates a predicate, not a value")
 }
@@ -151,7 +162,7 @@ func TestBuildComparisonCondition_RejectsValueAgainstValue(t *testing.T) {
 	r := newTestReader()
 	var q strings.Builder
 	predicate := call(expression.OpEq, str("a"), str("b"))
-	_, err := r.buildFilterCondition(t.Context(), &q, 0, nil, predicate)
+	_, err := lowerFilter(t, r, &q, predicate)
 	require.ErrorIs(t, err, tracestore.ErrFilterInvalid)
 }
 
@@ -233,7 +244,7 @@ func TestBuildAttributeComparison_TypedConstants(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			var q strings.Builder
-			args, err := r.buildAttributeComparison(t.Context(), &q, 0, nil, *attrRef(expression.LevelSpan, "k"), tt.value)
+			args, err := lowerFilter(t, r, &q, call(expression.OpEq, attrRef(expression.LevelSpan, "k"), tt.value))
 			require.NoError(t, err)
 			assert.Contains(t, q.String(), "arrayExists")
 			assert.Len(t, args, 2)
@@ -244,15 +255,14 @@ func TestBuildAttributeComparison_TypedConstants(t *testing.T) {
 func TestBuildAttributeComparison_UnsupportedConstantType(t *testing.T) {
 	r := newTestReader()
 	var q strings.Builder
-	_, err := r.buildAttributeComparison(t.Context(), &q, 0, nil, *attrRef(expression.LevelSpan, "k"),
-		&expression.DurationValue{Value: time.Second})
+	_, err := lowerFilter(t, r, &q, call(expression.OpEq, attrRef(expression.LevelSpan, "k"), &expression.DurationValue{Value: time.Second}))
 	require.ErrorIs(t, err, tracestore.ErrFilterUnsupported)
 }
 
 func TestBuildAttributeComparison_UnqualifiedSearchesSpanAndResourceOnly(t *testing.T) {
 	r := newTestReader()
 	var q strings.Builder
-	args, err := r.buildAttributeComparison(t.Context(), &q, 0, nil, *attrRef("", "k"), str("v"))
+	args, err := lowerFilter(t, r, &q, call(expression.OpEq, attrRef("", "k"), str("v")))
 	require.NoError(t, err)
 	query := q.String()
 	assert.Contains(t, query, "s.str_attributes")
@@ -276,7 +286,7 @@ func TestBuildAttributeComparison_QualifiedLevels(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(string(tt.level), func(t *testing.T) {
 			var q strings.Builder
-			_, err := r.buildAttributeComparison(t.Context(), &q, 0, nil, *attrRef(tt.level, "k"), str("v"))
+			_, err := lowerFilter(t, r, &q, call(expression.OpEq, attrRef(tt.level, "k"), str("v")))
 			require.NoError(t, err)
 			assert.Contains(t, q.String(), tt.column)
 		})
@@ -289,7 +299,7 @@ func TestBuildAttributeComparison_NestedLevels(t *testing.T) {
 	for _, level := range levels {
 		t.Run(string(level), func(t *testing.T) {
 			var q strings.Builder
-			_, err := r.buildAttributeComparison(t.Context(), &q, 0, nil, *attrRef(level, "k"), str("v"))
+			_, err := lowerFilter(t, r, &q, call(expression.OpEq, attrRef(level, "k"), str("v")))
 			require.NoError(t, err)
 			verifyQuerySnapshot(t, q.String())
 		})
@@ -299,7 +309,7 @@ func TestBuildAttributeComparison_NestedLevels(t *testing.T) {
 func TestBuildAttributeComparison_UnsupportedLevel(t *testing.T) {
 	r := newTestReader()
 	var q strings.Builder
-	_, err := r.buildAttributeComparison(t.Context(), &q, 0, nil, *attrRef(expression.Level("bogus"), "k"), str("v"))
+	_, err := lowerFilter(t, r, &q, call(expression.OpEq, attrRef(expression.Level("bogus"), "k"), str("v")))
 	require.ErrorIs(t, err, tracestore.ErrFilterUnsupported)
 }
 
@@ -320,8 +330,7 @@ func TestBuildUntypedAttributeEq_ResolvesAgainstMetadata(t *testing.T) {
 	}
 	r := NewReader(driver, testReaderConfig)
 	var q strings.Builder
-	args, err := r.buildAttributeComparison(t.Context(), &q, 0, nil,
-		*attrRef(expression.LevelSpan, "http.status_code"), &expression.AnyValue{Value: "500"})
+	args, err := lowerFilter(t, r, &q, call(expression.OpEq, attrRef(expression.LevelSpan, "http.status_code"), &expression.AnyValue{Value: "500"}))
 	require.NoError(t, err)
 	verifyQuerySnapshot(t, q.String())
 	require.Len(t, args, 2)
@@ -338,8 +347,7 @@ func TestBuildUntypedAttributeEq_NoMetadataFallsBackToString(t *testing.T) {
 	}
 	r := NewReader(driver, testReaderConfig) // metadata query succeeds but reports no rows
 	var q strings.Builder
-	args, err := r.buildAttributeComparison(t.Context(), &q, 0, nil,
-		*attrRef(expression.LevelSpan, "k"), &expression.AnyValue{Value: "v"})
+	args, err := lowerFilter(t, r, &q, call(expression.OpEq, attrRef(expression.LevelSpan, "k"), &expression.AnyValue{Value: "v"}))
 	require.NoError(t, err)
 	assert.Contains(t, q.String(), "s.str_attributes")
 	assert.Equal(t, []any{"k", "v"}, args)
@@ -353,8 +361,7 @@ func TestBuildUntypedAttributeEq_MetadataQueryError(t *testing.T) {
 	}
 	r := NewReader(driver, testReaderConfig)
 	var q strings.Builder
-	_, err := r.buildAttributeComparison(t.Context(), &q, 0, nil,
-		*attrRef(expression.LevelSpan, "k"), &expression.AnyValue{Value: "v"})
+	_, err := lowerFilter(t, r, &q, call(expression.OpEq, attrRef(expression.LevelSpan, "k"), &expression.AnyValue{Value: "v"}))
 	require.ErrorContains(t, err, "failed to get attribute metadata")
 }
 
@@ -388,7 +395,7 @@ func TestBuildFilterCondition_NotPropagatesChildError(t *testing.T) {
 	predicate := call(expression.OpNot,
 		call(expression.OpGt, fieldRef(expression.LevelSpan, expression.SpanFieldDuration), str("1s")),
 	)
-	_, err := r.buildFilterCondition(t.Context(), &q, 0, nil, predicate)
+	_, err := lowerFilter(t, r, &q, predicate)
 	require.ErrorIs(t, err, tracestore.ErrFilterUnsupported)
 }
 
@@ -399,7 +406,7 @@ func TestBuildBooleanCondition_PropagatesChildError(t *testing.T) {
 		call(expression.OpEq, fieldRef(expression.LevelSpan, expression.SpanFieldName), str("checkout")),
 		call(expression.OpGt, fieldRef(expression.LevelSpan, expression.SpanFieldDuration), str("1s")),
 	)
-	_, err := r.buildFilterCondition(t.Context(), &q, 0, nil, predicate)
+	_, err := lowerFilter(t, r, &q, predicate)
 	require.ErrorIs(t, err, tracestore.ErrFilterUnsupported)
 }
 
@@ -410,7 +417,7 @@ func TestBuildFilterCondition_Eq_AttributeRef(t *testing.T) {
 	r := newTestReader()
 	var q strings.Builder
 	predicate := call(expression.OpEq, attrRef(expression.LevelSpan, "http.method"), str("GET"))
-	args, err := r.buildFilterCondition(t.Context(), &q, 0, nil, predicate)
+	args, err := lowerFilter(t, r, &q, predicate)
 	require.NoError(t, err)
 	assert.Contains(t, q.String(), "arrayExists")
 	assert.Equal(t, []any{"http.method", "GET"}, args)
@@ -449,8 +456,7 @@ func TestBuildUntypedAttributeEq_MultipleCandidateTypesAreOred(t *testing.T) {
 	}
 	r := NewReader(driver, testReaderConfig)
 	var q strings.Builder
-	args, err := r.buildAttributeComparison(t.Context(), &q, 0, nil,
-		*attrRef(expression.LevelSpan, "http.status_code"), &expression.AnyValue{Value: "500"})
+	args, err := lowerFilter(t, r, &q, call(expression.OpEq, attrRef(expression.LevelSpan, "http.status_code"), &expression.AnyValue{Value: "500"}))
 	require.NoError(t, err)
 	query := q.String()
 	assert.Contains(t, query, "s.int_attributes")
@@ -470,7 +476,7 @@ func TestBuildUntypedAttributeEq_FallbackAcrossMultipleLevels(t *testing.T) {
 	r := NewReader(driver, testReaderConfig)
 	var q strings.Builder
 	// Unqualified: searches span and resource, so the no-metadata fallback ORs across both.
-	args, err := r.buildAttributeComparison(t.Context(), &q, 0, nil, *attrRef("", "k"), &expression.AnyValue{Value: "v"})
+	args, err := lowerFilter(t, r, &q, call(expression.OpEq, attrRef("", "k"), &expression.AnyValue{Value: "v"}))
 	require.NoError(t, err)
 	query := q.String()
 	assert.Contains(t, query, "s.str_attributes")
@@ -489,8 +495,7 @@ func TestBuildUntypedAttributeEq_FallbackAtNestedLevel(t *testing.T) {
 	}
 	r := NewReader(driver, testReaderConfig)
 	var q strings.Builder
-	args, err := r.buildAttributeComparison(t.Context(), &q, 0, nil,
-		*attrRef(expression.LevelEvent, "exception.type"), &expression.AnyValue{Value: "TimeoutError"})
+	args, err := lowerFilter(t, r, &q, call(expression.OpEq, attrRef(expression.LevelEvent, "exception.type"), &expression.AnyValue{Value: "TimeoutError"}))
 	require.NoError(t, err)
 	assert.Contains(t, q.String(), "s.events")
 	assert.Equal(t, []any{"exception.type", "TimeoutError"}, args)
@@ -511,8 +516,7 @@ func TestBuildUntypedAttributeEq_ResolvedAtNestedLevel(t *testing.T) {
 	}
 	r := NewReader(driver, testReaderConfig)
 	var q strings.Builder
-	args, err := r.buildAttributeComparison(t.Context(), &q, 0, nil,
-		*attrRef(expression.LevelLink, "retry.count"), &expression.AnyValue{Value: "3"})
+	args, err := lowerFilter(t, r, &q, call(expression.OpEq, attrRef(expression.LevelLink, "retry.count"), &expression.AnyValue{Value: "3"}))
 	require.NoError(t, err)
 	assert.Contains(t, q.String(), "s.links")
 	assert.Equal(t, []any{"retry.count", int64(3)}, args)
@@ -535,8 +539,7 @@ func TestBuildUntypedAttributeEq_SkipsCandidateThatCannotParse(t *testing.T) {
 	}
 	r := NewReader(driver, testReaderConfig)
 	var q strings.Builder
-	args, err := r.buildAttributeComparison(t.Context(), &q, 0, nil,
-		*attrRef(expression.LevelSpan, "flag"), &expression.AnyValue{Value: "not-a-bool"})
+	args, err := lowerFilter(t, r, &q, call(expression.OpEq, attrRef(expression.LevelSpan, "flag"), &expression.AnyValue{Value: "not-a-bool"}))
 	require.NoError(t, err)
 	// No candidate parsed, so this falls back to a literal string match instead.
 	assert.Contains(t, q.String(), "s.str_attributes")
@@ -563,8 +566,8 @@ func TestCollectUntypedAttributeKeys_WrongArity(t *testing.T) {
 
 // TestBuildFindTraceIDsQuery_BatchesUntypedAttributeMetadataLookups pins that a filter naming
 // several untyped attributes pays for one attribute_metadata query on a cold cache, not one per
-// predicate: collectUntypedAttributeKeys warms the cache for the whole tree before the lowering
-// walk reaches buildUntypedAttributeEq, which then looks each key up again as a cache hit.
+// predicate: lookupUntypedMetadata collects the keys of the whole tree into one query and the
+// lowering reads the resulting map.
 func TestBuildFindTraceIDsQuery_BatchesUntypedAttributeMetadataLookups(t *testing.T) {
 	driver := &clickhousetest.Driver{
 		QueryResponses: map[string]*clickhousetest.QueryResponse{

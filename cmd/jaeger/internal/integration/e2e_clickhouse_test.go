@@ -17,7 +17,7 @@ func TestClickHouseStorage(t *testing.T) {
 		FeatureGates: searchGates,
 		StorageIntegration: integration.StorageIntegration{
 			CleanUp:      purge,
-			Capabilities: capabilities.ClickHouse(),
+			Capabilities: capabilities.ClickHouseE2E(),
 		},
 	}
 	s.e2eInitialize(t, "clickhouse")

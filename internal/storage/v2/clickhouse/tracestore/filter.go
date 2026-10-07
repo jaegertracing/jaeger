@@ -93,28 +93,13 @@ func (r *Reader) lookupUntypedMetadata(ctx context.Context, predicate *expressio
 }
 
 // buildFilterCondition lowers predicate into the SQL WHERE tree, appended to q at indent, and
-// returns the updated bind arguments. It looks up the untyped attribute metadata for the whole
-// tree once, then lowers it. It mirrors the elasticsearch backend's buildFilterQuery: the filter
+// returns the updated bind arguments. metadata is the untyped attribute metadata already looked
+// up for the whole tree by lookupUntypedMetadata, so no part of the lowering queries
+// attribute_metadata again. It mirrors the elasticsearch backend's buildFilterQuery: the filter
 // arrives already checked against FilterCapabilities when it comes through the query service,
 // but a remote-storage client can reach this reader without that check, so every refusal is
 // made here too rather than assumed.
-func (r *Reader) buildFilterCondition(
-	ctx context.Context,
-	q *strings.Builder,
-	indent int,
-	args []any,
-	predicate *expression.Call,
-) ([]any, error) {
-	metadata, err := r.lookupUntypedMetadata(ctx, predicate)
-	if err != nil {
-		return nil, err
-	}
-	return buildFilterConditionWith(q, indent, args, metadata, predicate)
-}
-
-// buildFilterConditionWith lowers predicate with the untyped attribute metadata already looked up
-// for its whole tree, so no part of the lowering queries attribute_metadata again.
-func buildFilterConditionWith(
+func buildFilterCondition(
 	q *strings.Builder,
 	indent int,
 	args []any,
@@ -123,7 +108,7 @@ func buildFilterConditionWith(
 ) ([]any, error) {
 	switch predicate.Op {
 	case expression.OpAnd, expression.OpOr:
-		return buildBooleanConditionWith(q, indent, args, metadata, predicate)
+		return buildBooleanCondition(q, indent, args, metadata, predicate)
 	case expression.OpNot:
 		if len(predicate.Args) != 1 {
 			return nil, errArity(predicate)
@@ -134,7 +119,7 @@ func buildFilterConditionWith(
 		}
 		appendNewlineAndIndent(q, indent)
 		q.WriteString("NOT (")
-		args, err := buildFilterConditionWith(q, indent+1, args, metadata, child)
+		args, err := buildFilterCondition(q, indent+1, args, metadata, child)
 		if err != nil {
 			return nil, err
 		}
@@ -142,15 +127,15 @@ func buildFilterConditionWith(
 		q.WriteString(")")
 		return args, nil
 	case expression.OpEq:
-		return buildComparisonConditionWith(q, indent, args, metadata, predicate)
+		return buildComparisonCondition(q, indent, args, metadata, predicate)
 	default:
 		return nil, fmt.Errorf("%w: it does not support the operator %q", tracestore.ErrFilterUnsupported, predicate.Op)
 	}
 }
 
-// buildBooleanConditionWith lowers and/or: each argument is itself a predicate, joined by the
+// buildBooleanCondition lowers and/or: each argument is itself a predicate, joined by the
 // operator's SQL keyword and wrapped in parentheses so precedence survives nesting.
-func buildBooleanConditionWith(
+func buildBooleanCondition(
 	q *strings.Builder,
 	indent int,
 	args []any,
@@ -176,7 +161,7 @@ func buildBooleanConditionWith(
 			q.WriteString(sep)
 		}
 		var err error
-		args, err = buildFilterConditionWith(q, indent+1, args, metadata, child)
+		args, err = buildFilterCondition(q, indent+1, args, metadata, child)
 		if err != nil {
 			return nil, err
 		}
@@ -186,9 +171,9 @@ func buildBooleanConditionWith(
 	return args, nil
 }
 
-// buildComparisonConditionWith dispatches eq to the built-in-field or attribute path by the shape
+// buildComparisonCondition dispatches eq to the built-in-field or attribute path by the shape
 // of its first operand; a finalized filter puts the reference first (RFC 0005 §5.3).
-func buildComparisonConditionWith(
+func buildComparisonCondition(
 	q *strings.Builder,
 	indent int,
 	args []any,
@@ -202,7 +187,7 @@ func buildComparisonConditionWith(
 	case *expression.FieldRef:
 		return buildFieldComparison(q, indent, args, *ref, predicate.Args[1])
 	case *expression.AttributeRef:
-		return buildAttributeComparisonWith(q, indent, args, metadata, *ref, predicate.Args[1])
+		return buildAttributeComparison(q, indent, args, metadata, *ref, predicate.Args[1])
 	default:
 		return nil, fmt.Errorf("%w: %q compares a field or attribute against a constant",
 			tracestore.ErrFilterInvalid, predicate.Op)
@@ -300,35 +285,12 @@ func spanStatusColumnValue(word string) (string, error) {
 	}
 }
 
-// buildAttributeComparison lowers an attribute equality, looking up attribute_metadata first
-// when the value is untyped. It is the entry point for a single predicate; a whole filter goes
-// through buildFilterCondition, which looks metadata up once for the tree.
-func (r *Reader) buildAttributeComparison(
-	ctx context.Context,
-	q *strings.Builder,
-	indent int,
-	args []any,
-	ref expression.AttributeRef,
-	valueExpr expression.Expression,
-) ([]any, error) {
-	var metadata attributeMetadata
-	if _, untyped := valueExpr.(*expression.AnyValue); untyped {
-		predicate := &expression.Call{Op: expression.OpEq, Args: []expression.Expression{&ref, valueExpr}}
-		var err error
-		metadata, err = r.lookupUntypedMetadata(ctx, predicate)
-		if err != nil {
-			return nil, err
-		}
-	}
-	return buildAttributeComparisonWith(q, indent, args, metadata, ref, valueExpr)
-}
-
-// buildAttributeComparisonWith lowers an attribute equality against metadata already looked up.
+// buildAttributeComparison lowers an attribute equality against metadata already looked up.
 // An explicitly typed constant (StringValue, IntValue, DoubleValue, BoolValue) matches only that
 // stored type, the same authoritative-type rule RFC 0005 §5.4 states; an untyped AnyValue
 // resolves against whatever type(s) metadata reports the key stored at the requested level(s),
 // falling back to a literal string match when metadata knows nothing about it.
-func buildAttributeComparisonWith(
+func buildAttributeComparison(
 	q *strings.Builder,
 	indent int,
 	args []any,
@@ -419,12 +381,11 @@ func buildAttributeEqAcrossLevels(
 	return args
 }
 
-// collectUntypedAttributeKeys walks predicate and adds every key an untyped (AnyValue)
-// attribute equality names to keys, so a caller can warm the metadata cache for the whole tree
-// in one round trip before lowering walks it a second time and calls buildUntypedAttributeEq
-// once per such predicate. Without this, a filter with several untyped attribute predicates
-// pays one attribute_metadata query per predicate on a cold cache, where the legacy Attributes
-// path already batches every key into one.
+// collectUntypedAttributeKeys walks predicate and adds to keys every key that an untyped
+// (AnyValue) attribute equality names, so lookupUntypedMetadata can fetch the metadata for the
+// whole tree in one query. Without this, a filter with several untyped attribute predicates
+// would pay one attribute_metadata query per predicate on a cold cache, where the legacy
+// Attributes path already batches every key into one.
 func collectUntypedAttributeKeys(predicate *expression.Call, keys pcommon.Map) {
 	switch predicate.Op {
 	case expression.OpAnd, expression.OpOr, expression.OpNot:
@@ -446,7 +407,7 @@ func collectUntypedAttributeKeys(predicate *expression.Call, keys pcommon.Map) {
 		}
 	default:
 		// Every other operator either has no sub-predicates to walk into or names no
-		// attribute this cache-warming pass cares about; buildFilterCondition is what
+		// attribute this collection pass cares about; buildFilterCondition is what
 		// refuses an operator this capability declaration does not cover.
 	}
 }
