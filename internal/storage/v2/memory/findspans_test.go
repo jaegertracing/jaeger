@@ -5,6 +5,7 @@ package memory
 
 import (
 	"context"
+	"slices"
 	"testing"
 	"time"
 
@@ -281,7 +282,29 @@ func TestSearchCapabilities_DeclareSpanSearchAndFilter(t *testing.T) {
 	assert.True(t, caps.SpanSearch)
 	require.NotNil(t, caps.Filter)
 	assert.ElementsMatch(t, expression.Levels(), caps.Filter.Levels)
-	assert.ElementsMatch(t, expression.Operators(), caps.Filter.Operators)
+	assert.ElementsMatch(t, supportedOperators(), caps.Filter.Operators)
+	assert.Subset(t, expression.Operators(), caps.Filter.Operators)
+	for _, op := range unsupportedOperators {
+		assert.NotContains(t, caps.Filter.Operators, op, "the store does not evaluate %q yet", op)
+	}
+}
+
+// TestDeclaredOperatorsAreEvaluated pins that the declared capabilities and the evaluator agree:
+// every operator the store declares has a case in validateFilterShape, and every operator it
+// withholds is the one validateFilterShape refuses as unsupported. An operator with the wrong
+// arguments is enough to tell the two apart, since only an unknown operator is refused that way.
+func TestDeclaredOperatorsAreEvaluated(t *testing.T) {
+	for _, op := range expression.Operators() {
+		t.Run(string(op), func(t *testing.T) {
+			err := validateFilterShape(&expression.Call{Op: op})
+			if slices.Contains(unsupportedOperators, op) {
+				require.ErrorIs(t, err, tracestore.ErrFilterUnsupported)
+				return
+			}
+			assert.NotErrorIs(t, err, tracestore.ErrFilterUnsupported,
+				"operator %q is declared but the store does not evaluate it", op)
+		})
+	}
 }
 
 // TestFindTraces_StructuredFilter pins that a TraceQueryParams.Filter reaches
