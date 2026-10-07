@@ -111,7 +111,7 @@ func TestBulkIndexerEncodeErrorDropped(t *testing.T) {
 }
 
 func TestBulkIndexerSuccessMetrics(t *testing.T) {
-	_, url := bulkServer(t, okBulk)
+	rec, url := bulkServer(t, okBulk)
 	mf := metricstest.NewFactory(time.Second)
 	defer mf.Stop()
 	b, err := NewBulkIndexer(makeClient(t, url, "", "", es.ElasticV7), BulkIndexerConfig{}, mf, zap.NewNop())
@@ -126,6 +126,9 @@ func TestBulkIndexerSuccessMetrics(t *testing.T) {
 	_, gauges := mf.Snapshot()
 	assert.True(t, hasTimer(gauges, "bulk_index.latency-ok"), "successful flush records latency-ok: %v", gauges)
 	assert.False(t, hasTimer(gauges, "bulk_index.latency-err"), "successful flush must not record latency-err: %v", gauges)
+	// The flush records the size of the _bulk body the server received.
+	require.Len(t, rec.Requests(), 1)
+	assertRequestBytes(t, mf, len(rec.Requests()[0].Body))
 }
 
 func TestBulkIndexerFlushError(t *testing.T) {

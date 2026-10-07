@@ -90,7 +90,7 @@ func TestSyncBulkWriter_ChunkSplitByMaxBytes(t *testing.T) {
 func TestSyncBulkWriter_ItemErrorPropagates(t *testing.T) {
 	mf := metricstest.NewFactory(time.Second)
 	defer mf.Stop()
-	_, url := bulkServer(t, func(w http.ResponseWriter) {
+	rec, url := bulkServer(t, func(w http.ResponseWriter) {
 		w.Write([]byte(`{"took":2,"errors":true,"items":[` +
 			`{"index":{"_index":"idx","status":201}},` +
 			`{"index":{"_index":"idx","_id":"bad-1","status":400,"error":{"type":"mapper_parsing_exception","reason":"boom"}}}` +
@@ -118,6 +118,9 @@ func TestSyncBulkWriter_ItemErrorPropagates(t *testing.T) {
 	_, gauges := mf.Snapshot()
 	assert.True(t, hasTimer(gauges, "bulk_index.latency-ok"), "item rejection still records latency-ok: %v", gauges)
 	assert.False(t, hasTimer(gauges, "bulk_index.latency-err"), "item rejection must not record latency-err: %v", gauges)
+	// The chunk records the size of the _bulk body the server received.
+	require.Len(t, rec.Requests(), 1)
+	assertRequestBytes(t, mf, len(rec.Requests()[0].Body))
 }
 
 // TestSyncBulkWriter_ConflictIsIdempotent asserts a 409 version_conflict (op_type:
