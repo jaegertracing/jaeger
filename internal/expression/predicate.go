@@ -270,11 +270,11 @@ func (r Ref) Matches(pattern string) *ast.Call {
 }
 
 // Phrase builds a text search for the words in the attribute's value, one listed word per
-// argument, with the meaning ast.OpPhrase defines.
+// argument, with the meaning defined by the IDL for ast.OpPhrase.
 func (r Ref) Phrase(words ...string) *ast.Call { return r.textSearch(ast.OpPhrase, words) }
 
 // Fulltext builds a text search for the words in the attribute's value, one listed word per
-// argument, with the meaning ast.OpFulltext defines.
+// argument, with the meaning defined by the IDL for ast.OpFulltext.
 func (r Ref) Fulltext(words ...string) *ast.Call { return r.textSearch(ast.OpFulltext, words) }
 
 // Exists builds a test that the reference has a value at all.
