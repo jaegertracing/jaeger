@@ -9,6 +9,7 @@ import (
 	"errors"
 	"net/http"
 	"net/http/httptest"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -129,6 +130,29 @@ func TestBulkIndexerSuccessMetrics(t *testing.T) {
 	// The flush records the size of the _bulk body the server received.
 	require.Len(t, rec.Requests(), 1)
 	assertRequestBytes(t, mf, len(rec.Requests()[0].Body))
+}
+
+// TestBulkIndexerRecordsRequestBytes drives the real esutil → esapi → Perform
+// chain and proves that http.NewRequest sets ContentLength on it: the recorded
+// value equals the length of the _bulk body the server received for a multi-item
+// flush, not merely a positive number.
+func TestBulkIndexerRecordsRequestBytes(t *testing.T) {
+	rec, url := bulkServer(t, func(w http.ResponseWriter) {
+		w.Write([]byte(`{"took":1,"errors":false,"items":[{"index":{"status":201}},{"index":{"status":201}},{"index":{"status":201}}]}`))
+	})
+	mf := metricstest.NewFactory(time.Second)
+	defer mf.Stop()
+	b, err := NewBulkIndexer(makeClient(t, url, "", "", es.ElasticV7), BulkIndexerConfig{}, mf, zap.NewNop())
+	require.NoError(t, err)
+	for i := range 3 {
+		b.Add(BulkItem{Index: "idx", ID: strconv.Itoa(i), Body: map[string]any{"payload": strings.Repeat("x", 100*(i+1))}})
+	}
+	require.NoError(t, b.Close())
+
+	reqs := rec.Requests()
+	require.Len(t, reqs, 1, "all items flush in one _bulk request")
+	assert.Equal(t, 3, strings.Count(string(reqs[0].Body), `"_index":"idx"`))
+	assertRequestBytes(t, mf, len(reqs[0].Body))
 }
 
 func TestBulkIndexerFlushError(t *testing.T) {

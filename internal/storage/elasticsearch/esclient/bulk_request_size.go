@@ -28,22 +28,26 @@ var requestBytesBuckets = []float64{
 }
 
 // newRequestBytesHistogram returns the bulk_index.request-bytes histogram, which
-// both bulk writers record once per _bulk request with the request body size.
-// Its sum and count derive the flushed bytes per second and the requests per
-// second, so there are no separate counters for either.
+// both bulk writers record once per _bulk request with the size of the
+// uncompressed request body, before transport compression. That is the size the
+// flush thresholds (bulk_processing.max_bytes) operate on; with http_compression
+// enabled the bytes on the wire are fewer. Its sum and count derive the flushed
+// bytes per second and the requests per second, so there are no separate counters
+// for either.
 func newRequestBytesHistogram(factory metrics.Factory) metrics.Histogram {
 	return factory.Namespace(metrics.NSOptions{Name: "bulk_index"}).Histogram(metrics.HistogramOptions{
 		Name:    "request-bytes",
-		Help:    "Size in bytes of each _bulk request body sent to Elasticsearch/OpenSearch",
+		Help:    "Size in bytes of the uncompressed body of each _bulk request, before transport compression",
 		Buckets: requestBytesBuckets,
 	})
 }
 
 // requestSizeTransport is the esapi.Transport that esutil.BulkIndexer sends its
-// _bulk requests through. It records each request body's size before delegating
-// to the Client, which measures exactly the bytes that cross the wire per flush.
-// esutil itself exposes no per-flush byte count: its BulkIndexerStats are
-// cumulative across all workers and count documents, not bytes.
+// _bulk requests through. It records the size of each request's uncompressed body
+// before delegating to the Client, whose elastictransport pool applies gzip when
+// http_compression is enabled, so the value is the NDJSON size per flush rather
+// than the bytes on the wire. esutil itself exposes no per-flush byte count: its
+// BulkIndexerStats are cumulative across all workers and count documents, not bytes.
 type requestSizeTransport struct {
 	next         esapi.Transport
 	requestBytes metrics.Histogram
@@ -51,8 +55,9 @@ type requestSizeTransport struct {
 
 func (t *requestSizeTransport) Perform(req *http.Request) (*http.Response, error) {
 	// esutil builds the body from a bytes.Buffer, so http.NewRequest always sets
-	// ContentLength, and never flushes an empty buffer. The guard keeps an unknown
-	// length out of the histogram: net/http reports it as 0 (or -1) with a body set.
+	// ContentLength to the uncompressed body size, and esutil never flushes an empty
+	// buffer. The guard keeps an unknown length out of the histogram: net/http
+	// reports it as 0 (or -1) with a body set.
 	if req.ContentLength > 0 {
 		t.requestBytes.Record(float64(req.ContentLength))
 	}

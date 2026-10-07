@@ -84,11 +84,14 @@ func TestRequestSizeTransportDelegatesError(t *testing.T) {
 }
 
 // assertRequestBytes asserts that bulk_index.request-bytes holds exactly one
-// sample of the given size (metricstest renders a histogram as percentile gauges,
-// which all equal the single sample).
+// sample of the given size. metricstest renders a histogram as percentile gauges,
+// so a single sample shows as every percentile equal to it; a second, different
+// sample would pull P50 and P999 apart.
 func assertRequestBytes(t *testing.T, mf *metricstest.Factory, size int) {
 	t.Helper()
+	require.Positive(t, size)
 	_, gauges := mf.Snapshot()
-	assert.Equal(t, int64(size), gauges["bulk_index.request-bytes.P50"], "gauges: %v", gauges)
-	assert.Equal(t, int64(size), gauges["bulk_index.request-bytes.P99"], "gauges: %v", gauges)
+	for _, p := range []string{"P50", "P75", "P90", "P95", "P99", "P999"} {
+		assert.Equal(t, int64(size), gauges["bulk_index.request-bytes."+p], "gauges: %v", gauges)
+	}
 }

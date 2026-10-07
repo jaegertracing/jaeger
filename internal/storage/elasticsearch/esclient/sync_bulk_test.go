@@ -7,6 +7,7 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -85,6 +86,27 @@ func TestSyncBulkWriter_ChunkSplitByMaxBytes(t *testing.T) {
 	// The snapshot is an array of two single-document _bulk requests, making the
 	// chunk boundary the maxBytes cap forces visible.
 	rec.Assert(t, "testdata/sync_bulk_chunk_split")
+}
+
+// TestSyncBulkWriter_RecordsRequestBytes is the sync peer of
+// TestBulkIndexerRecordsRequestBytes: one multi-item chunk records exactly the
+// length of the _bulk body the server received.
+func TestSyncBulkWriter_RecordsRequestBytes(t *testing.T) {
+	rec, url := bulkServer(t, okBulkN(3))
+	mf := metricstest.NewFactory(time.Second)
+	defer mf.Stop()
+	w := newSyncWriter(t, url, 0, mf, zap.NewNop())
+
+	items := make([]BulkItem, 3)
+	for i := range items {
+		items[i] = BulkItem{Index: "idx", ID: strconv.Itoa(i), Body: map[string]any{"payload": strings.Repeat("x", 100*(i+1))}}
+	}
+	require.NoError(t, w.WriteBatch(context.Background(), items))
+
+	reqs := rec.Requests()
+	require.Len(t, reqs, 1, "the batch fits in one chunk")
+	assert.Equal(t, 3, strings.Count(string(reqs[0].Body), `"_index":"idx"`))
+	assertRequestBytes(t, mf, len(reqs[0].Body))
 }
 
 func TestSyncBulkWriter_ItemErrorPropagates(t *testing.T) {
