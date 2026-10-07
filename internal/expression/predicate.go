@@ -269,13 +269,12 @@ func (r Ref) Matches(pattern string) *ast.Call {
 	return r.compare(ast.OpRegex, pattern)
 }
 
-// Phrase builds a text search for the words, adjacent and in this order, in the attribute's
-// value (RFC 0005 §5.3). The caller lists the words one by one rather than writing a search
-// string, so there is no syntax to escape.
+// Phrase builds a text search for the words in the attribute's value, one listed word per
+// argument, with the meaning ast.OpPhrase defines.
 func (r Ref) Phrase(words ...string) *ast.Call { return r.textSearch(ast.OpPhrase, words) }
 
-// Fulltext builds a text search for every one of the words, in any order, in the attribute's
-// value (RFC 0005 §5.3).
+// Fulltext builds a text search for the words in the attribute's value, one listed word per
+// argument, with the meaning ast.OpFulltext defines.
 func (r Ref) Fulltext(words ...string) *ast.Call { return r.textSearch(ast.OpFulltext, words) }
 
 // Exists builds a test that the reference has a value at all.
