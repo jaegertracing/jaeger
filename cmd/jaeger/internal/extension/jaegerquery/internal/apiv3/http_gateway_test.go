@@ -5,6 +5,7 @@ package apiv3
 
 import (
 	"bytes"
+	"encoding/binary"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -814,6 +815,23 @@ func TestTraceIDFromString(t *testing.T) {
 			wantLo: 1,
 		},
 		{
+			name:   "hex 64-bit, 16 characters",
+			input:  "00000000000000ff",
+			wantLo: 0xFF,
+		},
+		{
+			name:   "hex 128-bit, leading zeros omitted",
+			input:  "10000000000000002",
+			wantHi: 1,
+			wantLo: 2,
+		},
+		{
+			name:   "hex upper case",
+			input:  "00000000000000FF00000000000000AB",
+			wantHi: 0xFF,
+			wantLo: 0xAB,
+		},
+		{
 			name:   "hex 128-bit",
 			input:  "00000000000000010000000000000002",
 			wantHi: 1,
@@ -834,6 +852,12 @@ func TestTraceIDFromString(t *testing.T) {
 		{
 			name:   "base64 64-bit",
 			input:  "AAAAAAAAAAAAAAAAAAAAAQ==",
+			wantHi: 0,
+			wantLo: 1,
+		},
+		{
+			name:   "base64 of 8 bytes goes to the low half",
+			input:  "AAAAAAAAAAE=",
 			wantHi: 0,
 			wantLo: 1,
 		},
@@ -867,6 +891,21 @@ func TestTraceIDFromString(t *testing.T) {
 			wantErr: true,
 		},
 		{
+			name:    "empty string",
+			input:   "",
+			wantErr: true,
+		},
+		{
+			name:    "base64 of neither 8 nor 16 bytes",
+			input:   "AAAAAA==",
+			wantErr: true,
+		},
+		{
+			name:    "hex longer than 32 characters",
+			input:   "000000000000000010000000000000002",
+			wantErr: true,
+		},
+		{
 			name:    "too long for trace ID",
 			input:   "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAlong",
 			wantErr: true,
@@ -880,8 +919,10 @@ func TestTraceIDFromString(t *testing.T) {
 				return
 			}
 			require.NoError(t, err)
-			assert.Equal(t, tc.wantHi, tid.High)
-			assert.Equal(t, tc.wantLo, tid.Low)
+			var want pcommon.TraceID
+			binary.BigEndian.PutUint64(want[:8], tc.wantHi)
+			binary.BigEndian.PutUint64(want[8:], tc.wantLo)
+			assert.Equal(t, want, tid)
 		})
 	}
 }
