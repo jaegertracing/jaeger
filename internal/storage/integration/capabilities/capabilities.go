@@ -288,7 +288,8 @@ var clickHouseSkipList = append([]string{
 	paginationTest,
 	"GetThroughput",
 	"GetLatestProbability",
-	// The spans table has no column for event.name or span.traceState.
+	// The lowering maps five built-in fields; event.name and span.traceState have columns
+	// but are not among them yet.
 	filterEventNameTest,
 	filterTraceStateTest,
 	// The reader indexes all five levels, so there is no level to refuse.

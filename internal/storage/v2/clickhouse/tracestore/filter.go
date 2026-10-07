@@ -45,10 +45,11 @@ type builtinFieldColumn struct {
 	fieldType expression.FieldType
 }
 
-// builtinFieldColumns is the built-in fields this lowering can compare, keyed by level and
-// name. Only span and resource are listed because only their columns exist in this schema
-// today; scope, event and link built-in fields are refused (errUnsupportedField), the same way
-// an attribute reference at an unindexed level would be.
+// builtinFieldColumns is the built-in fields this lowering compares, keyed by level and name.
+// The spans table stores most of the others (trace_state, parent_span_id, status_message,
+// scope_name, scope_version, events.name, links.trace_id and so on), but this first increment
+// maps only these five; a field not listed here is refused (errUnsupportedField) rather than
+// approximated. resource.schemaURL and scope.schemaURL have no column at all.
 var builtinFieldColumns = map[expression.Level]map[string]builtinFieldColumn{
 	expression.LevelSpan: {
 		expression.SpanFieldName: {
