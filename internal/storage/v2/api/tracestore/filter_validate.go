@@ -337,7 +337,7 @@ func validateTextSearch(call *expression.Call) error {
 // caller splits the words; punctuation and symbols because tokenizers disagree on them.
 func validateWord(word string) error {
 	if word == "" {
-		return errors.New("a word is not empty")
+		return errors.New("a word is empty")
 	}
 	units := 0
 	for _, r := range word {

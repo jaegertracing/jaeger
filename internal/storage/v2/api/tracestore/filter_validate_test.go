@@ -343,7 +343,7 @@ func TestValidateFilter_Rejects(t *testing.T) {
 		},
 		{
 			name:        "fulltext of an empty word",
-			expectedErr: `operator "fulltext": a word is not empty`,
+			expectedErr: `operator "fulltext": a word is empty`,
 			filter:      &expression.Call{Op: expression.OpFulltext, Args: []expression.Expression{attr("a"), words("refund", "")}},
 		},
 		{

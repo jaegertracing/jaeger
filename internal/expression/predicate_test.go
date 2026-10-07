@@ -98,6 +98,14 @@ func TestLowering(t *testing.T) {
 			}},
 		},
 		{
+			name:  "fulltext, with the same list shape",
+			built: p.Attr("gen_ai.prompt").Fulltext("refund", "policy"),
+			want: &ast.Call{Op: ast.OpFulltext, Args: []ast.Expression{
+				&ast.AttributeRef{Key: "gen_ai.prompt"},
+				&ast.List{Values: []string{"refund", "policy"}},
+			}},
+		},
+		{
 			name:  "membership",
 			built: p.Resource().Service.In("cart", "checkout"),
 			want: &ast.Call{Op: ast.OpIn, Args: []ast.Expression{

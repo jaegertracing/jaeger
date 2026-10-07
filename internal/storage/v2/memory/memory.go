@@ -398,11 +398,7 @@ var unsupportedOperators = []expression.Operator{expression.OpPhrase, expression
 
 // supportedOperators returns the vocabulary minus the unsupportedOperators list.
 func supportedOperators() []expression.Operator {
-	var ops []expression.Operator
-	for _, op := range expression.Operators() {
-		if !slices.Contains(unsupportedOperators, op) {
-			ops = append(ops, op)
-		}
-	}
-	return ops
+	return slices.DeleteFunc(expression.Operators(), func(op expression.Operator) bool {
+		return slices.Contains(unsupportedOperators, op)
+	})
 }
