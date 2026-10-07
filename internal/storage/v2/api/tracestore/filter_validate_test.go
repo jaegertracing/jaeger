@@ -303,13 +303,23 @@ func TestValidateFilter_Rejects(t *testing.T) {
 		},
 		{
 			name:        "fulltext over a constant",
-			expectedErr: `operator "fulltext" takes an attribute reference as its first argument, got a string constant`,
+			expectedErr: `operator "fulltext" takes a reference, got a string constant`,
 			filter:      &expression.Call{Op: expression.OpFulltext, Args: []expression.Expression{&expression.StringValue{Value: "a"}, words("a")}},
 		},
 		{
 			name:        "fulltext over an attribute with no key",
 			expectedErr: "attribute reference has no key",
 			filter:      &expression.Call{Op: expression.OpFulltext, Args: []expression.Expression{&expression.AttributeRef{}, words("a")}},
+		},
+		{
+			name:        "fulltext over a missing attribute reference",
+			expectedErr: "filter has a missing reference",
+			filter:      &expression.Call{Op: expression.OpFulltext, Args: []expression.Expression{(*expression.AttributeRef)(nil), words("a")}},
+		},
+		{
+			name:        "phrase of a missing list",
+			expectedErr: `operator "phrase" takes a list of words as its second argument, got an empty term`,
+			filter:      &expression.Call{Op: expression.OpPhrase, Args: []expression.Expression{attr("a"), (*expression.List)(nil)}},
 		},
 		{
 			name:        "phrase with one argument",

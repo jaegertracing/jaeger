@@ -308,17 +308,11 @@ const maxWordLength = 255
 // identifier that eq and regex already search. The list declares the string type or none, and
 // every element is one word, so that no element can smuggle in the search syntax of a backend.
 func validateTextSearch(call *expression.Call) error {
-	switch term := call.Args[0].(type) {
-	case *expression.AttributeRef:
-		if err := validateAttributeRef(term); err != nil {
-			return err
-		}
-	case *expression.FieldRef:
+	if err := validateReference(call.Op, call.Args[0]); err != nil {
+		return err
+	}
+	if _, ok := call.Args[0].(*expression.FieldRef); ok {
 		return fmt.Errorf("operator %q searches an attribute, not a built-in field", call.Op)
-	case *expression.NestedRef:
-		return errCollectionOutOfPlace()
-	default:
-		return fmt.Errorf("operator %q takes an attribute reference as its first argument, got %s", call.Op, termName(call.Args[0]))
 	}
 	list, ok := call.Args[1].(*expression.List)
 	if !ok || list == nil {
@@ -345,13 +339,15 @@ func validateWord(word string) error {
 	if word == "" {
 		return errors.New("a word is not empty")
 	}
+	units := 0
 	for _, r := range word {
 		if !unicode.IsLetter(r) && !unicode.IsMark(r) && !unicode.IsDigit(r) {
 			return fmt.Errorf("a word holds letters, marks and digits only, got %q", word)
 		}
+		units += utf16.RuneLen(r)
 	}
-	if n := len(utf16.Encode([]rune(word))); n > maxWordLength {
-		return fmt.Errorf("a word is at most %d UTF-16 code units long, got one of %d", maxWordLength, n)
+	if units > maxWordLength {
+		return fmt.Errorf("a word is at most %d UTF-16 code units long, got one of %d", maxWordLength, units)
 	}
 	return nil
 }

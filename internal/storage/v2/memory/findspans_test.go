@@ -282,8 +282,9 @@ func TestSearchCapabilities_DeclareSpanSearchAndFilter(t *testing.T) {
 	assert.True(t, caps.SpanSearch)
 	require.NotNil(t, caps.Filter)
 	assert.ElementsMatch(t, expression.Levels(), caps.Filter.Levels)
-	assert.ElementsMatch(t, supportedOperators(), caps.Filter.Operators)
 	assert.Subset(t, expression.Operators(), caps.Filter.Operators)
+	assert.Len(t, caps.Filter.Operators, len(expression.Operators())-len(unsupportedOperators),
+		"the store declares the vocabulary minus the operators it withholds")
 	for _, op := range unsupportedOperators {
 		assert.NotContains(t, caps.Filter.Operators, op, "the store does not evaluate %q yet", op)
 	}
