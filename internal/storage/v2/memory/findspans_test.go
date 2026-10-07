@@ -291,8 +291,8 @@ func TestSearchCapabilities_DeclareSpanSearchAndFilter(t *testing.T) {
 }
 
 // TestDeclaredOperatorsAreEvaluated pins that the declared capabilities and the evaluator agree:
-// every operator the store declares has a case in validateFilterShape, and every operator it
-// withholds is the one validateFilterShape refuses as unsupported. An operator with the wrong
+// every operator the store declares has a case in the validateFilterShape function, and every
+// operator it withholds is refused by that function as unsupported. An operator with the wrong
 // arguments is enough to tell the two apart, since only an unknown operator is refused that way.
 func TestDeclaredOperatorsAreEvaluated(t *testing.T) {
 	for _, op := range expression.Operators() {

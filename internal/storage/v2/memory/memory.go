@@ -391,12 +391,12 @@ func getServiceNameFromResource(resource pcommon.Resource) string {
 	return val.Str()
 }
 
-// unsupportedOperators lists the operators the vocabulary defines and filter.go does not evaluate
-// yet. A new operator reaches this store through a jaeger-idl release before the store learns it,
-// and the store must not declare one it would refuse (RFC 0005 §9, M8).
+// unsupportedOperators lists the operators that the vocabulary defines and that filter.go does
+// not evaluate yet. A new operator reaches this store through a jaeger-idl release before the
+// store learns it, and the store must not declare one it would refuse (RFC 0005 §9, M8).
 var unsupportedOperators = []expression.Operator{expression.OpPhrase, expression.OpFulltext}
 
-// supportedOperators returns the vocabulary minus unsupportedOperators.
+// supportedOperators returns the vocabulary minus the unsupportedOperators list.
 func supportedOperators() []expression.Operator {
 	var ops []expression.Operator
 	for _, op := range expression.Operators() {
