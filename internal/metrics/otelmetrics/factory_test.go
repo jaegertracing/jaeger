@@ -148,7 +148,7 @@ func TestHistogram(t *testing.T) {
 	assert.Equal(t, expectedLabels, promLabelsToMap(metricData[0].GetLabel()))
 }
 
-func TestHistogramBuckets(t *testing.T) {
+func TestHistogramCustomBuckets(t *testing.T) {
 	registry := promreg.NewPedanticRegistry()
 	factory := newTestFactory(t, registry)
 	histogram := factory.Histogram(metrics.HistogramOptions{
