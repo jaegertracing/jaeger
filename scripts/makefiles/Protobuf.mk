@@ -49,7 +49,7 @@ PROTO_INCLUDES := \
 
 # Remapping of std types to gogo types (must not contain spaces)
 PROTO_GOGO_MAPPINGS := $(shell echo \
-		Mgoogle/protobuf/descriptor.proto=github.com/gogo/protobuf/types \
+		Mgoogle/protobuf/descriptor.proto=github.com/gogo/protobuf/protoc-gen-gogo/descriptor \
 		Mgoogle/protobuf/timestamp.proto=github.com/gogo/protobuf/types \
 		Mgoogle/protobuf/duration.proto=github.com/gogo/protobuf/types \
 		Mgoogle/protobuf/empty.proto=github.com/gogo/protobuf/types \
@@ -57,6 +57,7 @@ PROTO_GOGO_MAPPINGS := $(shell echo \
 		Mmodel.proto=github.com/jaegertracing/jaeger-idl/model/v1 \
 		Mgnostic/openapiv3/annotations.proto=github.com/google/gnostic-models/openapiv3 \
 		Mexpression/v1/expression.proto=github.com/jaegertracing/jaeger/$(EXPRESSION_PATH) \
+		Mexpression/v1/vocabulary.proto=github.com/jaegertracing/jaeger/$(EXPRESSION_PATH) \
 	| $(SED) 's/  */,/g')
 
 OPENMETRICS_PROTO_FILES=$(wildcard internal/proto/metrics/*.proto)
@@ -127,7 +128,11 @@ proto-expression:
 		> $(EXPRESSION_PATCHED)
 	# protoc appends the file's path relative to its include root, expression/v1/, to the
 	# output directory, so the output root is $(EXPRESSION_ROOT), not $(EXPRESSION_PATH).
-	$(call proto_compile, $(EXPRESSION_ROOT), $(EXPRESSION_PATCHED), -I$(PROTO_GEN)/.patched -I/gnostic -I/gnostic/gnostic,, $(PROTOC_WITH_GNOSTIC))
+	# vocabulary.proto declares the option through which expression.proto defines the
+	# operators; it extends google.protobuf.FieldOptions, which is why descriptor.proto
+	# maps to gogo's descriptor package above. It needs no patch, having no gnostic import.
+	$(call proto_compile, $(EXPRESSION_ROOT), idl/proto/expression/v1/vocabulary.proto, -Iidl/proto)
+	$(call proto_compile, $(EXPRESSION_ROOT), $(EXPRESSION_PATCHED), -I$(PROTO_GEN)/.patched -Iidl/proto -I/gnostic -I/gnostic/gnostic,, $(PROTOC_WITH_GNOSTIC))
 
 .PHONY: proto-pagetoken
 proto-pagetoken:
@@ -170,7 +175,7 @@ patch-storage-v2:
 		idl/proto/storage/v2/capabilities.proto \
 		> $(STORAGE_V2_PATCHED_CAPABILITIES)
 
-STORAGE_V2_INCLUDES=-I$(STORAGE_V2_PATCHED_DIR) -Iinternal/storage/v2/grpc/ -I$(PROTO_GEN)/.patched -I/gnostic -I/gnostic/gnostic
+STORAGE_V2_INCLUDES=-I$(STORAGE_V2_PATCHED_DIR) -Iinternal/storage/v2/grpc/ -I$(PROTO_GEN)/.patched -Iidl/proto -I/gnostic -I/gnostic/gnostic
 
 .PHONY: proto-storage-v2
 proto-storage-v2: patch-storage-v2 proto-expression
@@ -208,7 +213,7 @@ patch-api-v3:
 
 .PHONY: proto-api-v3
 proto-api-v3: patch-api-v3 proto-expression
-	$(call proto_compile, $(API_V3_PATH), $(API_V3_PATCHED), -I$(API_V3_PATCHED_DIR) -I$(PROTO_GEN)/.patched -Iidl/opentelemetry-proto -I/gnostic -I/gnostic/gnostic,, $(PROTOC_WITH_GNOSTIC))
+	$(call proto_compile, $(API_V3_PATH), $(API_V3_PATCHED), -I$(API_V3_PATCHED_DIR) -I$(PROTO_GEN)/.patched -Iidl/proto -Iidl/opentelemetry-proto -I/gnostic -I/gnostic/gnostic,, $(PROTOC_WITH_GNOSTIC))
 	@echo "🏗️  replace first instance of OTEL import with internal type"
 	$(SED) -i '0,/go.opentelemetry.io\/proto\/otlp\/trace\/v1/s|go.opentelemetry.io/proto/otlp/trace/v1|github.com/jaegertracing/jaeger/internal/jptrace|' $(API_V3_PATH)/query_service.pb.go
 	@echo "🏗️  remove all remaining OTEL imports because we're not using any other OTLP types"
@@ -246,7 +251,7 @@ patch-api-v3-python:
 		idl/proto/expression/v1/expression.proto \
 		> $(EXPRESSION_PYTHON_PATCHED)
 	@echo "🏗️  verifying that no annotation survived the patch"
-	@! grep -nE 'google\.api|openapi\.v3|gnostic' $(API_V3_PYTHON_PROTOS) || \
+	@! grep -nE 'google\.api|openapi\.v3|gnostic|jaeger\.expression\.v1\.operators|vocabulary\.proto' $(API_V3_PYTHON_PROTOS) || \
 		(echo "ERROR: $(PROTO_GEN)/patch-python.sed did not remove every annotation"; exit 1)
 
 # protoc comes from grpcio-tools rather than $(PROTOC), because the shared

@@ -269,6 +269,14 @@ func (r Ref) Matches(pattern string) *ast.Call {
 	return r.compare(ast.OpRegex, pattern)
 }
 
+// Phrase builds a text search for the words in the attribute's value, one listed word per
+// argument, with the meaning defined by the IDL for ast.OpPhrase.
+func (r Ref) Phrase(words ...string) *ast.Call { return r.textSearch(ast.OpPhrase, words) }
+
+// Fulltext builds a text search for the words in the attribute's value, one listed word per
+// argument, with the meaning defined by the IDL for ast.OpFulltext.
+func (r Ref) Fulltext(words ...string) *ast.Call { return r.textSearch(ast.OpFulltext, words) }
+
 // Exists builds a test that the reference has a value at all.
 func (r Ref) Exists() *ast.Call {
 	return &ast.Call{Op: ast.OpExists, Args: []ast.Expression{r.ref}}
@@ -286,6 +294,10 @@ func (r Ref) compare(op ast.Operator, value any) *ast.Call {
 
 func (r Ref) member(op ast.Operator, values []any) *ast.Call {
 	return &ast.Call{Op: op, Args: []ast.Expression{r.ref, listOf(values)}}
+}
+
+func (r Ref) textSearch(op ast.Operator, words []string) *ast.Call {
+	return &ast.Call{Op: op, Args: []ast.Expression{r.ref, &ast.List{Values: words}}}
 }
 
 func combine(op ast.Operator, predicates []*ast.Call) *ast.Call {
