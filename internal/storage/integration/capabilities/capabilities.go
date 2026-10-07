@@ -57,20 +57,16 @@ const (
 // attributeOrderingTests are the three outcomes of ordering an attribute, of which one runs.
 var attributeOrderingTests = []string{attributeOrderingTest, attributeRefusedTest, attributeUnindexedTest}
 
-// filterOperatorTests are the battery cases that need an operator other than and, or, not and eq:
-// ne, the ordering comparisons, regex, exists and in. The three attribute-ordering outcomes are
-// among them, since ordering an attribute is a comparison.
+// filterOperatorTests are the battery cases that need ne, regex, exists or in, or that order an
+// attribute, including the three attribute-ordering outcomes. A backend whose lowering evaluates
+// equality on attributes and orders only span.duration skips them as a set.
 var filterOperatorTests = []string{
 	filterUnqualifiedEventTest,
 	filterServiceInListTest,
 	filterOperationRegexTest,
-	filterDurationGtTest,
-	filterDurationLteTest,
-	filterDurationRangeTest,
 	filterAttributeNeTest,
 	filterAttributeExistsTest,
 	filterAttributeRegexTest,
-	filterFieldDurationAndTest,
 	attributeOrderingTest,
 	attributeRefusedTest,
 	attributeUnindexedTest,
@@ -294,7 +290,8 @@ var clickHouseSkipList = append([]string{
 	filterTraceStateTest,
 	// The reader indexes all five levels, so there is no level to refuse.
 	levelRefusedTest,
-	// The lowering evaluates and, or, not and eq only (RFC 0005 M3, first increment).
+	// The lowering evaluates and, or, not and eq, and orders span.duration only (RFC 0005 M3,
+	// first increment).
 }, filterOperatorTests...)
 
 // ClickHouse returns the capabilities for the ClickHouse storage backend read directly.

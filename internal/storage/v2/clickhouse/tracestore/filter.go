@@ -15,12 +15,13 @@ import (
 )
 
 // FilterCapabilities declares the part of the RFC 0005 filter model this reader evaluates
-// natively: the boolean combinators and equality over every level's attributes, plus a handful
-// of built-in fields whose columns already exist (span.name, span.kind, span.status,
-// span.duration, resource.service). Ordering comparisons, regex, exists, in/not_in and the
-// remaining built-in fields are follow-up work; a filter naming any of them is refused here
-// rather than approximated, the same posture the elasticsearch backend takes for what its own
-// lowering does not implement yet.
+// natively: the boolean combinators, equality over every level's attributes, a handful of
+// built-in fields whose columns already exist (span.name, span.kind, span.status, span.duration,
+// resource.service), and the four ordered comparisons on span.duration. The declaration is
+// coarser than the lowering, as the elasticsearch backend's is: an ordered comparison on an
+// attribute or on another built-in field is refused in the lowering, not here. ne, regex,
+// exists, in/not_in and the remaining built-in fields are follow-up work; a filter naming any
+// of them is refused rather than approximated.
 func FilterCapabilities() tracestore.FilterCapabilities {
 	return tracestore.FilterCapabilities{
 		Levels: []expression.Level{
@@ -35,8 +36,22 @@ func FilterCapabilities() tracestore.FilterCapabilities {
 			expression.OpOr,
 			expression.OpNot,
 			expression.OpEq,
+			expression.OpGt,
+			expression.OpLt,
+			expression.OpGte,
+			expression.OpLte,
 		},
 	}
+}
+
+// sqlComparisonOperators maps each comparison operator this lowering evaluates to its SQL
+// spelling. Only span.duration takes the four ordered ones.
+var sqlComparisonOperators = map[expression.Operator]string{
+	expression.OpEq:  "=",
+	expression.OpGt:  ">",
+	expression.OpLt:  "<",
+	expression.OpGte: ">=",
+	expression.OpLte: "<=",
 }
 
 // builtinFieldColumn is one built-in field's SQL column and the type its constant is read as.
@@ -127,7 +142,7 @@ func buildFilterCondition(
 		appendNewlineAndIndent(q, indent)
 		q.WriteString(")")
 		return args, nil
-	case expression.OpEq:
+	case expression.OpEq, expression.OpGt, expression.OpLt, expression.OpGte, expression.OpLte:
 		return buildComparisonCondition(q, indent, args, metadata, predicate)
 	default:
 		return nil, fmt.Errorf("%w: it does not support the operator %q", tracestore.ErrFilterUnsupported, predicate.Op)
@@ -172,8 +187,9 @@ func buildBooleanCondition(
 	return args, nil
 }
 
-// buildComparisonCondition dispatches eq to the built-in-field or attribute path by the shape
-// of its first operand; a finalized filter puts the reference first (RFC 0005 §5.3).
+// buildComparisonCondition dispatches a comparison to the built-in-field or attribute path by
+// the shape of its first operand; a finalized filter puts the reference first (RFC 0005 §5.3)
+// and a constant second.
 func buildComparisonCondition(
 	q *strings.Builder,
 	indent int,
@@ -184,10 +200,19 @@ func buildComparisonCondition(
 	if len(predicate.Args) != 2 {
 		return nil, errArity(predicate)
 	}
+	switch predicate.Args[1].(type) {
+	case *expression.FieldRef, *expression.AttributeRef, *expression.NestedRef:
+		return nil, fmt.Errorf("%w: %q compares a field or attribute against a constant, not another reference",
+			tracestore.ErrFilterInvalid, predicate.Op)
+	}
 	switch ref := predicate.Args[0].(type) {
 	case *expression.FieldRef:
-		return buildFieldComparison(q, indent, args, *ref, predicate.Args[1])
+		return buildFieldComparison(q, indent, args, predicate.Op, *ref, predicate.Args[1])
 	case *expression.AttributeRef:
+		if predicate.Op != expression.OpEq {
+			return nil, fmt.Errorf("%w: it does not order attributes, so it cannot evaluate %q on %q",
+				tracestore.ErrFilterUnsupported, predicate.Op, ref.Key)
+		}
 		return buildAttributeComparison(q, indent, args, metadata, *ref, predicate.Args[1])
 	default:
 		return nil, fmt.Errorf("%w: %q compares a field or attribute against a constant",
@@ -195,11 +220,15 @@ func buildComparisonCondition(
 	}
 }
 
-// buildFieldComparison lowers a built-in-field equality onto its column.
+// buildFieldComparison lowers a comparison of a built-in field onto its column. Equality
+// reaches every mapped field; the ordered comparisons reach span.duration only, since the other
+// mapped fields hold words (span.kind, span.status, which RFC 0005 §5.4 says have no order) or
+// names, whose lexicographic ordering this increment does not lower.
 func buildFieldComparison(
 	q *strings.Builder,
 	indent int,
 	args []any,
+	op expression.Operator,
 	ref expression.FieldRef,
 	valueExpr expression.Expression,
 ) ([]any, error) {
@@ -211,12 +240,16 @@ func buildFieldComparison(
 	if !ok {
 		return nil, errUnsupportedField(ref)
 	}
+	if op != expression.OpEq && mapping.fieldType != expression.FieldTypeDuration {
+		return nil, fmt.Errorf("%w: it does not order the built-in field %q of the %q level, so it cannot evaluate %q on it",
+			tracestore.ErrFilterUnsupported, ref.Name, ref.Level, op)
+	}
 	value, err := builtinFieldValue(mapping.fieldType, valueExpr)
 	if err != nil {
 		return nil, err
 	}
 	appendNewlineAndIndent(q, indent)
-	q.WriteString(mapping.column + " = ?")
+	q.WriteString(mapping.column + " " + sqlComparisonOperators[op] + " ?")
 	return append(args, value), nil
 }
 
@@ -351,8 +384,14 @@ func attributeLocation(level expression.Level) (prefix string, nested bool) {
 	}
 }
 
-// buildAttributeEqAcrossLevels ORs an equality of the same type across every level in levels,
-// appending one arrayExists (or nested arrayExists) per level.
+// attributeCandidate is one (level, typed value) pair an attribute equality is lowered to: one
+// arrayExists over that level's column of that type.
+type attributeCandidate struct {
+	level expression.Level
+	tav   typedAttributeValue
+}
+
+// buildAttributeEqAcrossLevels ORs an equality of one declared type across every level in levels.
 func buildAttributeEqAcrossLevels(
 	q *strings.Builder,
 	indent int,
@@ -362,20 +401,37 @@ func buildAttributeEqAcrossLevels(
 	valueType pcommon.ValueType,
 	value any,
 ) []any {
+	candidates := make([]attributeCandidate, 0, len(levels))
+	for _, level := range levels {
+		candidates = append(candidates, attributeCandidate{
+			level: level,
+			tav: typedAttributeValue{
+				key:       key,
+				value:     value,
+				valueType: valueType,
+			},
+		})
+	}
+	return appendAttributeCandidates(q, indent, args, candidates)
+}
+
+// appendAttributeCandidates ORs one arrayExists (or nested arrayExists) per candidate, wrapped
+// in parentheses so the disjunction survives nesting.
+func appendAttributeCandidates(q *strings.Builder, indent int, args []any, candidates []attributeCandidate) []any {
 	appendNewlineAndIndent(q, indent)
 	q.WriteString("(")
-	for i, level := range levels {
+	for i, c := range candidates {
 		if i > 0 {
 			appendNewlineAndIndent(q, indent+1)
 			q.WriteString("OR")
 		}
-		prefix, nested := attributeLocation(level)
+		prefix, nested := attributeLocation(c.level)
 		if nested {
-			appendNestedArrayExists(q, indent+1, prefix, valueType)
+			appendNestedArrayExists(q, indent+1, prefix, c.tav.valueType)
 		} else {
-			appendArrayExists(q, indent+1, prefix, valueType)
+			appendArrayExists(q, indent+1, prefix, c.tav.valueType)
 		}
-		args = append(args, key, value)
+		args = append(args, c.tav.key, c.tav.value)
 	}
 	appendNewlineAndIndent(q, indent)
 	q.WriteString(")")
@@ -428,18 +484,14 @@ func buildUntypedAttributeEq(
 	attrValue := pcommon.NewValueStr(raw)
 	levelTypes := metadata[key]
 
-	type candidate struct {
-		level expression.Level
-		tav   typedAttributeValue
-	}
-	var candidates []candidate
+	var candidates []attributeCandidate
 	for _, level := range levels {
 		for _, t := range attributeTypesForLevel(levelTypes, level) {
 			tav, parseErr := parseStringToTypedValue(key, attrValue, t)
 			if parseErr != nil {
 				continue
 			}
-			candidates = append(candidates, candidate{level, tav})
+			candidates = append(candidates, attributeCandidate{level, tav})
 		}
 	}
 	if len(candidates) == 0 {
@@ -448,24 +500,7 @@ func buildUntypedAttributeEq(
 		return buildAttributeEqAcrossLevels(q, indent, args, key, levels, pcommon.ValueTypeStr, raw), nil
 	}
 
-	appendNewlineAndIndent(q, indent)
-	q.WriteString("(")
-	for i, c := range candidates {
-		if i > 0 {
-			appendNewlineAndIndent(q, indent+1)
-			q.WriteString("OR")
-		}
-		prefix, nested := attributeLocation(c.level)
-		if nested {
-			appendNestedArrayExists(q, indent+1, prefix, c.tav.valueType)
-		} else {
-			appendArrayExists(q, indent+1, prefix, c.tav.valueType)
-		}
-		args = append(args, c.tav.key, c.tav.value)
-	}
-	appendNewlineAndIndent(q, indent)
-	q.WriteString(")")
-	return args, nil
+	return appendAttributeCandidates(q, indent, args, candidates), nil
 }
 
 func attributeTypesForLevel(lt attrTypes, level expression.Level) []pcommon.ValueType {

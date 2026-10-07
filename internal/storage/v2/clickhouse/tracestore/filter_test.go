@@ -41,6 +41,7 @@ func TestFilterCapabilities(t *testing.T) {
 	}, caps.Levels)
 	assert.ElementsMatch(t, []expression.Operator{
 		expression.OpAnd, expression.OpOr, expression.OpNot, expression.OpEq,
+		expression.OpGt, expression.OpLt, expression.OpGte, expression.OpLte,
 	}, caps.Operators)
 }
 
@@ -116,7 +117,7 @@ func TestBuildFilterCondition_NestedBoolean(t *testing.T) {
 func TestBuildFilterCondition_UnsupportedOperator(t *testing.T) {
 	r := newTestReader()
 	var q strings.Builder
-	predicate := call(expression.OpGt, fieldRef(expression.LevelSpan, expression.SpanFieldDuration), str("1s"))
+	predicate := call(expression.OpRegex, fieldRef(expression.LevelSpan, expression.SpanFieldName), str("check.*"))
 	_, err := lowerFilter(t, r, &q, predicate)
 	require.ErrorIs(t, err, tracestore.ErrFilterUnsupported)
 }
@@ -189,7 +190,7 @@ func TestBuildFieldComparison(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			var q strings.Builder
-			args, err := buildFieldComparison(&q, 0, nil, tt.ref, tt.value)
+			args, err := buildFieldComparison(&q, 0, nil, expression.OpEq, tt.ref, tt.value)
 			require.NoError(t, err)
 			assert.Contains(t, q.String(), tt.wantColumn+" = ?")
 			assert.Equal(t, []any{tt.wantValue}, args)
@@ -199,19 +200,19 @@ func TestBuildFieldComparison(t *testing.T) {
 
 func TestBuildFieldComparison_UnsupportedLevel(t *testing.T) {
 	var q strings.Builder
-	_, err := buildFieldComparison(&q, 0, nil, *fieldRef(expression.LevelEvent, expression.EventFieldName), str("x"))
+	_, err := buildFieldComparison(&q, 0, nil, expression.OpEq, *fieldRef(expression.LevelEvent, expression.EventFieldName), str("x"))
 	require.ErrorIs(t, err, tracestore.ErrFilterUnsupported)
 }
 
 func TestBuildFieldComparison_UnsupportedField(t *testing.T) {
 	var q strings.Builder
-	_, err := buildFieldComparison(&q, 0, nil, *fieldRef(expression.LevelSpan, expression.SpanFieldTraceID), str("x"))
+	_, err := buildFieldComparison(&q, 0, nil, expression.OpEq, *fieldRef(expression.LevelSpan, expression.SpanFieldTraceID), str("x"))
 	require.ErrorIs(t, err, tracestore.ErrFilterUnsupported)
 }
 
 func TestBuildFieldComparison_WrongConstantType(t *testing.T) {
 	var q strings.Builder
-	_, err := buildFieldComparison(&q, 0, nil, *fieldRef(expression.LevelSpan, expression.SpanFieldName),
+	_, err := buildFieldComparison(&q, 0, nil, expression.OpEq, *fieldRef(expression.LevelSpan, expression.SpanFieldName),
 		&expression.IntValue{Value: 1})
 	require.ErrorIs(t, err, tracestore.ErrFilterUnsupported)
 }
@@ -219,6 +220,71 @@ func TestBuildFieldComparison_WrongConstantType(t *testing.T) {
 func TestBuildFieldComparison_UnsupportedFieldType(t *testing.T) {
 	_, err := builtinFieldValue(expression.FieldTypeTimestamp, str("2026-01-01T00:00:00Z"))
 	require.ErrorIs(t, err, tracestore.ErrFilterUnsupported)
+}
+
+func TestBuildFieldComparison_OrdersDuration(t *testing.T) {
+	tests := []struct {
+		op      expression.Operator
+		wantSQL string
+	}{
+		{expression.OpGt, "s.duration > ?"},
+		{expression.OpLt, "s.duration < ?"},
+		{expression.OpGte, "s.duration >= ?"},
+		{expression.OpLte, "s.duration <= ?"},
+	}
+	for _, tt := range tests {
+		t.Run(string(tt.op), func(t *testing.T) {
+			var q strings.Builder
+			args, err := buildFieldComparison(&q, 0, nil, tt.op, *fieldRef(expression.LevelSpan, expression.SpanFieldDuration),
+				&expression.DurationValue{Value: time.Second})
+			require.NoError(t, err)
+			assert.Equal(t, tt.wantSQL, strings.TrimSpace(q.String()))
+			assert.Equal(t, []any{int64(time.Second)}, args)
+		})
+	}
+}
+
+// TestBuildFieldComparison_OrderingReachesDurationOnly pins that the ordered comparisons the
+// capability declaration admits are lowered for span.duration alone: the other mapped fields hold
+// words or names and are refused rather than compared as text.
+func TestBuildFieldComparison_OrderingReachesDurationOnly(t *testing.T) {
+	for _, name := range []string{expression.SpanFieldName, expression.SpanFieldKind, expression.SpanFieldStatus} {
+		t.Run(name, func(t *testing.T) {
+			var q strings.Builder
+			_, err := buildFieldComparison(&q, 0, nil, expression.OpGt, *fieldRef(expression.LevelSpan, name), str("m"))
+			require.ErrorIs(t, err, tracestore.ErrFilterUnsupported)
+			assert.ErrorContains(t, err, "does not order the built-in field")
+		})
+	}
+}
+
+func TestBuildFilterCondition_DurationRange(t *testing.T) {
+	r := newTestReader()
+	var q strings.Builder
+	predicate := call(expression.OpAnd,
+		call(expression.OpGte, fieldRef(expression.LevelSpan, expression.SpanFieldDuration), &expression.DurationValue{Value: 5 * time.Millisecond}),
+		call(expression.OpLte, fieldRef(expression.LevelSpan, expression.SpanFieldDuration), &expression.DurationValue{Value: 40 * time.Millisecond}),
+	)
+	args, err := lowerFilter(t, r, &q, predicate)
+	require.NoError(t, err)
+	verifyQuerySnapshot(t, q.String())
+	assert.Equal(t, []any{int64(5 * time.Millisecond), int64(40 * time.Millisecond)}, args)
+}
+
+func TestBuildComparisonCondition_RefusesOrderingAnAttribute(t *testing.T) {
+	r := newTestReader()
+	var q strings.Builder
+	_, err := lowerFilter(t, r, &q, call(expression.OpGt, attrRef(expression.LevelSpan, "retry.count"), &expression.IntValue{Value: 10}))
+	require.ErrorIs(t, err, tracestore.ErrFilterUnsupported)
+	assert.ErrorContains(t, err, "does not order attributes")
+}
+
+func TestBuildComparisonCondition_RejectsReferenceOperand(t *testing.T) {
+	r := newTestReader()
+	var q strings.Builder
+	_, err := lowerFilter(t, r, &q, call(expression.OpEq, fieldRef(expression.LevelSpan, expression.SpanFieldName), attrRef(expression.LevelSpan, "k")))
+	require.ErrorIs(t, err, tracestore.ErrFilterInvalid)
+	assert.ErrorContains(t, err, "not another reference")
 }
 
 // TestSpanStatusColumnValue_UnrecognizedWord pins that an out-of-set span.status word is
@@ -233,20 +299,21 @@ func TestSpanStatusColumnValue_UnrecognizedWord(t *testing.T) {
 func TestBuildAttributeComparison_TypedConstants(t *testing.T) {
 	r := newTestReader()
 	tests := []struct {
-		name  string
-		value expression.Expression
+		name       string
+		value      expression.Expression
+		wantColumn string
 	}{
-		{"string", str("v")},
-		{"int", &expression.IntValue{Value: 1}},
-		{"double", &expression.DoubleValue{Value: 1.5}},
-		{"bool", &expression.BoolValue{Value: true}},
+		{"string", str("v"), "s.str_attributes"},
+		{"int", &expression.IntValue{Value: 1}, "s.int_attributes"},
+		{"double", &expression.DoubleValue{Value: 1.5}, "s.double_attributes"},
+		{"bool", &expression.BoolValue{Value: true}, "s.bool_attributes"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			var q strings.Builder
 			args, err := lowerFilter(t, r, &q, call(expression.OpEq, attrRef(expression.LevelSpan, "k"), tt.value))
 			require.NoError(t, err)
-			assert.Contains(t, q.String(), "arrayExists")
+			assert.Contains(t, q.String(), tt.wantColumn)
 			assert.Len(t, args, 2)
 		})
 	}
@@ -375,13 +442,29 @@ func TestBuildFindTraceIDsQuery_WithFilter(t *testing.T) {
 	sqlText, args, err := r.buildFindTraceIDsQuery(t.Context(), query)
 	require.NoError(t, err)
 	verifyQuerySnapshot(t, sqlText)
-	assert.Contains(t, args, "cart")
+	assert.Equal(t, []any{"cart", time.Unix(0, 0), time.Unix(100, 0), testReaderConfig.DefaultSearchDepth}, args)
+}
+
+func TestBuildFindTraceIDsQuery_MetadataError(t *testing.T) {
+	driver := &clickhousetest.Driver{
+		QueryResponses: map[string]*clickhousetest.QueryResponse{
+			sql.SelectAttributeMetadata: {Err: assert.AnError},
+		},
+	}
+	r := NewReader(driver, testReaderConfig)
+	query := tracestore.TraceQueryParams{
+		Filter:       call(expression.OpEq, attrRef(expression.LevelSpan, "k"), &expression.AnyValue{Value: "v"}),
+		StartTimeMin: time.Unix(0, 0),
+		StartTimeMax: time.Unix(100, 0),
+	}
+	_, _, err := r.buildFindTraceIDsQuery(t.Context(), query)
+	require.ErrorContains(t, err, "failed to get attribute metadata")
 }
 
 func TestBuildFindTraceIDsQuery_FilterError(t *testing.T) {
 	r := newTestReader()
 	query := tracestore.TraceQueryParams{
-		Filter:       call(expression.OpGt, fieldRef(expression.LevelSpan, expression.SpanFieldDuration), str("1s")),
+		Filter:       call(expression.OpRegex, fieldRef(expression.LevelSpan, expression.SpanFieldName), str("check.*")),
 		StartTimeMin: time.Unix(0, 0),
 		StartTimeMax: time.Unix(100, 0),
 	}
@@ -393,7 +476,7 @@ func TestBuildFilterCondition_NotPropagatesChildError(t *testing.T) {
 	r := newTestReader()
 	var q strings.Builder
 	predicate := call(expression.OpNot,
-		call(expression.OpGt, fieldRef(expression.LevelSpan, expression.SpanFieldDuration), str("1s")),
+		call(expression.OpRegex, fieldRef(expression.LevelSpan, expression.SpanFieldName), str("check.*")),
 	)
 	_, err := lowerFilter(t, r, &q, predicate)
 	require.ErrorIs(t, err, tracestore.ErrFilterUnsupported)
@@ -404,7 +487,7 @@ func TestBuildBooleanCondition_PropagatesChildError(t *testing.T) {
 	var q strings.Builder
 	predicate := call(expression.OpAnd,
 		call(expression.OpEq, fieldRef(expression.LevelSpan, expression.SpanFieldName), str("checkout")),
-		call(expression.OpGt, fieldRef(expression.LevelSpan, expression.SpanFieldDuration), str("1s")),
+		call(expression.OpRegex, fieldRef(expression.LevelSpan, expression.SpanFieldName), str("check.*")),
 	)
 	_, err := lowerFilter(t, r, &q, predicate)
 	require.ErrorIs(t, err, tracestore.ErrFilterUnsupported)
