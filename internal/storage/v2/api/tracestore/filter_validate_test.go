@@ -293,7 +293,7 @@ func TestValidateFilter_Rejects(t *testing.T) {
 		},
 		{
 			name:        "phrase over a built-in field",
-			expectedErr: `operator "phrase" searches an attribute, not a built-in field`,
+			expectedErr: `operator "phrase" searches an attribute, not the built-in field "name" of the "span" level`,
 			filter:      &expression.Call{Op: expression.OpPhrase, Args: []expression.Expression{&expression.FieldRef{Level: expression.LevelSpan, Name: expression.SpanFieldName}, words("a")}},
 		},
 		{

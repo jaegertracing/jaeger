@@ -311,8 +311,8 @@ func validateTextSearch(call *expression.Call) error {
 	if err := validateReference(call.Op, call.Args[0]); err != nil {
 		return err
 	}
-	if _, ok := call.Args[0].(*expression.FieldRef); ok {
-		return fmt.Errorf("operator %q searches an attribute, not a built-in field", call.Op)
+	if field, ok := call.Args[0].(*expression.FieldRef); ok {
+		return fmt.Errorf("operator %q searches an attribute, not the built-in field %q of the %q level", call.Op, field.Name, field.Level)
 	}
 	list, ok := call.Args[1].(*expression.List)
 	if !ok || list == nil {
