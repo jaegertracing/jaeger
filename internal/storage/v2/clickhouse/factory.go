@@ -6,13 +6,21 @@ package clickhouse
 import (
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"io"
+	"os"
 	"text/template"
 	"time"
 
 	"github.com/ClickHouse/clickhouse-go/v2"
 	"github.com/ClickHouse/clickhouse-go/v2/lib/driver"
+	"github.com/cenkalti/backoff/v7"
+	"github.com/golang-migrate/migrate/v4"
+	"github.com/golang-migrate/migrate/v4/database"
+	clickhousemigrate "github.com/golang-migrate/migrate/v4/database/clickhouse"
+	"github.com/golang-migrate/migrate/v4/source"
+	"github.com/golang-migrate/migrate/v4/source/iofs"
 	"go.opentelemetry.io/collector/featuregate"
 
 	"github.com/jaegertracing/jaeger/internal/storage/v1"
@@ -22,7 +30,7 @@ import (
 	"github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore"
 	chdepstore "github.com/jaegertracing/jaeger/internal/storage/v2/clickhouse/depstore"
 	chmetricstore "github.com/jaegertracing/jaeger/internal/storage/v2/clickhouse/metricstore"
-	"github.com/jaegertracing/jaeger/internal/storage/v2/clickhouse/sql"
+	chsql "github.com/jaegertracing/jaeger/internal/storage/v2/clickhouse/sql"
 	chtracestore "github.com/jaegertracing/jaeger/internal/storage/v2/clickhouse/tracestore"
 	"github.com/jaegertracing/jaeger/internal/telemetry"
 )
@@ -62,20 +70,226 @@ type schemaTemplateParams struct {
 	TTLSeconds int64
 }
 
-type schemaStatement struct {
-	name  string
-	query string
-}
+var (
+	newSourceDriver    = iofs.New
+	newDatabaseDriver  = clickhousemigrate.WithInstance
+	newMigrateInstance = migrate.NewWithInstance
+)
 
 type schemaBuilder struct {
-	statements []schemaStatement
+	cfg                    Configuration
+	opts                   *clickhouse.Options
+	backoffInitialInterval time.Duration
+	backoffMaxElapsedTime  time.Duration
 }
 
-func newSchemaBuilder(cfg Configuration) (*schemaBuilder, error) {
+func newSchemaBuilder(ctx context.Context, cfg Configuration, opts ...*clickhouse.Options) (*schemaBuilder, error) {
+	var opt *clickhouse.Options
+	if len(opts) > 0 && opts[0] != nil {
+		opt = opts[0]
+	} else {
+		var err error
+		opt, err = Options(ctx, cfg)
+		if err != nil {
+			return nil, err
+		}
+	}
+	return &schemaBuilder{
+		cfg:                    cfg,
+		opts:                   opt,
+		backoffInitialInterval: 100 * time.Millisecond,
+		backoffMaxElapsedTime:  15 * time.Second,
+	}, nil
+}
+
+type drainingDatabaseDriver struct {
+	database.Driver
+}
+
+func (d *drainingDatabaseDriver) Run(r io.Reader) error {
+	err := d.Driver.Run(r)
+	if err != nil {
+		if closer, ok := r.(io.Closer); ok {
+			_ = closer.Close()
+		}
+		_, _ = io.Copy(io.Discard, r)
+	}
+	return err
+}
+
+func latestBinaryVersion(src source.Driver) (uint, error) {
+	v, err := src.First()
+	if err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			return 0, nil
+		}
+		return 0, err
+	}
+	for {
+		next, err := src.Next(v)
+		if err != nil {
+			if errors.Is(err, os.ErrNotExist) {
+				return v, nil
+			}
+			return 0, err
+		}
+		v = next
+	}
+}
+
+func (b *schemaBuilder) build(ctx context.Context) error {
+	db := clickhouse.OpenDB(b.opts)
+	defer db.Close()
+
+	sourceDriver, err := newSourceDriver(chsql.MigrationFiles, ".")
+	if err != nil {
+		return fmt.Errorf("failed to create migration source driver: %w", err)
+	}
+
+	dbName := b.cfg.Database
+	if dbName == "" {
+		dbName = "default"
+	}
+
+	dbDriver, err := newDatabaseDriver(db, &clickhousemigrate.Config{
+		DatabaseName:          dbName,
+		MultiStatementEnabled: true,
+	})
+	if err != nil {
+		_ = sourceDriver.Close()
+		return fmt.Errorf("failed to create migration database driver: %w", err)
+	}
+
+	wrappedDriver := &drainingDatabaseDriver{Driver: dbDriver}
+	m, err := newMigrateInstance("iofs", sourceDriver, "clickhouse", wrappedDriver)
+	if err != nil {
+		_ = sourceDriver.Close()
+		_ = dbDriver.Close()
+		return fmt.Errorf("failed to create migrate instance: %w", err)
+	}
+	defer m.Close()
+
+	binaryVersion, err := latestBinaryVersion(sourceDriver)
+	if err != nil {
+		return fmt.Errorf("failed to determine binary schema version: %w", err)
+	}
+
+	if b.cfg.CreateSchema {
+		if err := b.applyMigrations(ctx, m); err != nil {
+			return err
+		}
+	} else {
+		dbVersion, _, err := m.Version()
+		if err != nil && !errors.Is(err, migrate.ErrNilVersion) {
+			return fmt.Errorf("failed to read database schema version: %w", err)
+		}
+		if dbVersion > binaryVersion {
+			return fmt.Errorf("database schema version %d is newer than binary version %d", dbVersion, binaryVersion)
+		}
+	}
+
+	return nil
+}
+
+func (b *schemaBuilder) applyMigrations(ctx context.Context, m *migrate.Migrate) error {
+	startTime := time.Now()
+	expBackoff := backoff.NewExponentialBackOff()
+	expBackoff.InitialInterval = b.backoffInitialInterval
+	expBackoff.MaxInterval = 2 * time.Second
+	expBackoff.Reset()
+
+	for {
+		err := m.Up()
+		if err == nil || errors.Is(err, migrate.ErrNoChange) {
+			return nil
+		}
+
+		var dirtyErr migrate.ErrDirty
+		if !errors.As(err, &dirtyErr) {
+			return fmt.Errorf("failed to apply migrations: %w", err)
+		}
+
+		if time.Since(startTime) >= b.backoffMaxElapsedTime {
+			return fmt.Errorf("schema migration dirty after backoff: %w", err)
+		}
+
+		delay := expBackoff.NextBackOff()
+		if delay == backoff.Stop {
+			delay = 2 * time.Second
+		}
+
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-time.After(delay):
+		}
+	}
+}
+
+// Options creates ClickHouse client options from the configuration.
+func Options(ctx context.Context, cfg Configuration) (*clickhouse.Options, error) {
+	opts := &clickhouse.Options{
+		Protocol: getProtocol(cfg.Protocol),
+		Addr:     cfg.Addresses,
+		Auth: clickhouse.Auth{
+			Database: cfg.Database,
+		},
+		DialTimeout: cfg.DialTimeout,
+	}
+	basicAuth := cfg.Auth.Basic.Get()
+	if basicAuth != nil {
+		opts.Auth.Username = basicAuth.Username
+		opts.Auth.Password = string(basicAuth.Password)
+	}
+	if tlsCfg := cfg.TLS.Get(); tlsCfg != nil {
+		loaded, tlsErr := tlsCfg.LoadTLSConfig(ctx)
+		if tlsErr != nil {
+			return nil, fmt.Errorf("failed to load TLS configuration: %w", tlsErr)
+		}
+		opts.TLS = loaded
+	}
+	return opts, nil
+}
+
+// SchemaObjects contains all tables and materialized views defined in the schema.
+var SchemaObjects = []string{
+	"spans",
+	"services",
+	"services_mv",
+	"operations",
+	"operations_mv",
+	"trace_id_timestamps",
+	"trace_id_timestamps_mv",
+	"attribute_metadata",
+	"attribute_metadata_mv",
+	"event_attribute_metadata_mv",
+	"link_attribute_metadata_mv",
+	"dependencies",
+}
+
+// DropSchemaObjectsStatements contains DROP statements in safe dependency order.
+var DropSchemaObjectsStatements = []string{
+	"DROP VIEW IF EXISTS link_attribute_metadata_mv",
+	"DROP VIEW IF EXISTS event_attribute_metadata_mv",
+	"DROP VIEW IF EXISTS attribute_metadata_mv",
+	"DROP VIEW IF EXISTS trace_id_timestamps_mv",
+	"DROP VIEW IF EXISTS operations_mv",
+	"DROP VIEW IF EXISTS services_mv",
+	"DROP TABLE IF EXISTS dependencies",
+	"DROP TABLE IF EXISTS attribute_metadata",
+	"DROP TABLE IF EXISTS trace_id_timestamps",
+	"DROP TABLE IF EXISTS operations",
+	"DROP TABLE IF EXISTS services",
+	"DROP TABLE IF EXISTS spans",
+	"DROP TABLE IF EXISTS schema_migrations",
+}
+
+// BaselineSchemaStatements returns the 12 schema baseline DDL statements without TTL.
+func BaselineSchemaStatements() ([]string, error) {
 	createSpansTableQuery, err := loadTemplate(
 		"create_spans_table",
-		sql.CreateSpansTable,
-		schemaTemplateParams{TTLSeconds: int64(cfg.TTL / time.Second)},
+		chsql.CreateSpansTable,
+		schemaTemplateParams{TTLSeconds: 0},
 	)
 	if err != nil {
 		return nil, err
@@ -83,38 +297,27 @@ func newSchemaBuilder(cfg Configuration) (*schemaBuilder, error) {
 
 	createTraceIDTsTableQuery, err := loadTemplate(
 		"create_trace_id_timestamps_table",
-		sql.CreateTraceIDTimestampsTable,
-		schemaTemplateParams{TTLSeconds: int64(cfg.TTL / time.Second)},
+		chsql.CreateTraceIDTimestampsTable,
+		schemaTemplateParams{TTLSeconds: 0},
 	)
 	if err != nil {
 		return nil, err
 	}
 
-	return &schemaBuilder{
-		statements: []schemaStatement{
-			{"spans table", createSpansTableQuery},
-			{"services table", sql.CreateServicesTable},
-			{"services materialized view", sql.CreateServicesMaterializedView},
-			{"operations table", sql.CreateOperationsTable},
-			{"operations materialized view", sql.CreateOperationsMaterializedView},
-			{"trace id timestamps table", createTraceIDTsTableQuery},
-			{"trace id timestamps materialized view", sql.CreateTraceIDTimestampsMaterializedView},
-			{"attribute metadata table", sql.CreateAttributeMetadataTable},
-			{"attribute metadata materialized view", sql.CreateAttributeMetadataMaterializedView},
-			{"event attribute metadata materialized view", sql.CreateEventAttributeMetadataMaterializedView},
-			{"link attribute metadata materialized view", sql.CreateLinkAttributeMetadataMaterializedView},
-			{"dependencies table", sql.CreateDependenciesTable},
-		},
+	return []string{
+		createSpansTableQuery,
+		chsql.CreateServicesTable,
+		chsql.CreateServicesMaterializedView,
+		chsql.CreateOperationsTable,
+		chsql.CreateOperationsMaterializedView,
+		createTraceIDTsTableQuery,
+		chsql.CreateTraceIDTimestampsMaterializedView,
+		chsql.CreateAttributeMetadataTable,
+		chsql.CreateAttributeMetadataMaterializedView,
+		chsql.CreateEventAttributeMetadataMaterializedView,
+		chsql.CreateLinkAttributeMetadataMaterializedView,
+		chsql.CreateDependenciesTable,
 	}, nil
-}
-
-func (b *schemaBuilder) build(ctx context.Context, conn driver.Conn) error {
-	for _, statement := range b.statements {
-		if err := conn.Exec(ctx, statement.query); err != nil {
-			return fmt.Errorf("failed to create %s: %w", statement.name, err)
-		}
-	}
-	return nil
 }
 
 type Factory struct {
@@ -124,39 +327,21 @@ type Factory struct {
 }
 
 func NewFactory(ctx context.Context, cfg Configuration, telset telemetry.Settings) (*Factory, error) {
-	var builder *schemaBuilder
-	if cfg.CreateSchema {
-		var err error
-		builder, err = newSchemaBuilder(cfg)
-		if err != nil {
-			return nil, err
-		}
+	opts, err := Options(ctx, cfg)
+	if err != nil {
+		return nil, err
+	}
+
+	builder, err := newSchemaBuilder(ctx, cfg, opts)
+	if err != nil {
+		return nil, err
 	}
 
 	f := &Factory{
 		config: cfg,
 		telset: telset,
 	}
-	opts := &clickhouse.Options{
-		Protocol: getProtocol(f.config.Protocol),
-		Addr:     f.config.Addresses,
-		Auth: clickhouse.Auth{
-			Database: f.config.Database,
-		},
-		DialTimeout: f.config.DialTimeout,
-	}
-	basicAuth := f.config.Auth.Basic.Get()
-	if basicAuth != nil {
-		opts.Auth.Username = basicAuth.Username
-		opts.Auth.Password = string(basicAuth.Password)
-	}
-	if tlsCfg := f.config.TLS.Get(); tlsCfg != nil {
-		loaded, tlsErr := tlsCfg.LoadTLSConfig(ctx)
-		if tlsErr != nil {
-			return nil, fmt.Errorf("failed to load TLS configuration: %w", tlsErr)
-		}
-		opts.TLS = loaded
-	}
+
 	conn, err := clickhouse.Open(opts)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create ClickHouse connection: %w", err)
@@ -173,10 +358,8 @@ func NewFactory(ctx context.Context, cfg Configuration, telset telemetry.Setting
 		return nil, fmt.Errorf("failed to ping ClickHouse: %w", err)
 	}
 
-	if builder != nil {
-		if err := builder.build(ctx, conn); err != nil {
-			return nil, err
-		}
+	if err := builder.build(ctx); err != nil {
+		return nil, err
 	}
 
 	success = true
@@ -221,12 +404,12 @@ func (f *Factory) Purge(ctx context.Context) error {
 		name  string
 		query string
 	}{
-		{"spans", sql.TruncateSpans},
-		{"services", sql.TruncateServices},
-		{"operations", sql.TruncateOperations},
-		{"trace_id_timestamps", sql.TruncateTraceIDTimestamps},
-		{"attribute_metadata", sql.TruncateAttributeMetadata},
-		{"dependencies", sql.TruncateDependencies},
+		{"spans", chsql.TruncateSpans},
+		{"services", chsql.TruncateServices},
+		{"operations", chsql.TruncateOperations},
+		{"trace_id_timestamps", chsql.TruncateTraceIDTimestamps},
+		{"attribute_metadata", chsql.TruncateAttributeMetadata},
+		{"dependencies", chsql.TruncateDependencies},
 	}
 
 	for _, table := range tables {
