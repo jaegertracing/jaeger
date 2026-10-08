@@ -221,7 +221,10 @@ func paginationAsDepth(query tracestore.TraceQueryParams) (tracestore.TraceQuery
 	if query.Pagination.PageToken != "" {
 		return tracestore.TraceQueryParams{}, fmt.Errorf("%w: trace searches on this storage backend do not page yet", tracestore.ErrPaginationUnsupported)
 	}
-	query.SearchDepth = query.Pagination.PageSize
+	if query.Pagination.PageSize == 0 {
+		return tracestore.TraceQueryParams{}, fmt.Errorf("%w: page size must be greater than 0", tracestore.ErrPaginationInvalid)
+	}
+	query.SearchDepth = min(query.Pagination.PageSize, tracestore.MaxPageSize)
 	query.Pagination = nil
 	return query, nil
 }

@@ -6,6 +6,7 @@ package tracestore
 import (
 	"context"
 	"errors"
+	"math"
 	"testing"
 	"time"
 
@@ -181,4 +182,42 @@ func TestTraceReader_TraceSearchesUnderPagination(t *testing.T) {
 		refusals++
 	}
 	assert.Equal(t, 2, refusals, "each trace search must yield the refusal rather than nothing")
+}
+
+func TestTraceReader_TraceSearchesBoundThePageSize(t *testing.T) {
+	ts := time.Now()
+	query := tracestore.TraceQueryParams{
+		ServiceName:  "svc",
+		Attributes:   pcommon.NewMap(),
+		StartTimeMin: ts,
+		StartTimeMax: ts.Add(time.Hour),
+		Pagination:   &tracestore.Pagination{PageSize: math.MaxUint32},
+	}
+	coreReader := &mocks.Reader{}
+	coreReader.On("FindTraceIDs", mock.Anything, mock.MatchedBy(func(q dbmodel.TraceQueryParameters) bool {
+		return q.SearchDepth == tracestore.MaxPageSize
+	})).Return([]dbmodel.TraceID{}, nil).Once()
+	coreReader.On("FindTraceSummaries", mock.Anything, mock.MatchedBy(func(q dbmodel.TraceQueryParameters) bool {
+		return q.SearchDepth == tracestore.MaxPageSize
+	})).Return([]dbmodel.TraceSummary{}, nil).Once()
+	reader := TraceReader{spanReader: coreReader}
+	for _, err := range reader.FindTraceIDs(context.Background(), query) {
+		require.NoError(t, err)
+	}
+	for _, err := range reader.FindTraceSummaries(context.Background(), query) {
+		require.NoError(t, err)
+	}
+	coreReader.AssertExpectations(t)
+
+	query.Pagination.PageSize = 0
+	var refusals int
+	for _, err := range reader.FindTraceIDs(context.Background(), query) {
+		require.ErrorIs(t, err, tracestore.ErrPaginationInvalid)
+		refusals++
+	}
+	for _, err := range reader.FindTraceSummaries(context.Background(), query) {
+		require.ErrorIs(t, err, tracestore.ErrPaginationInvalid)
+		refusals++
+	}
+	assert.Equal(t, 2, refusals)
 }
