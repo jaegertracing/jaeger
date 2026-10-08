@@ -82,7 +82,7 @@ The storage integration suite gates capability-dependent tests on its own per-ba
 
 * Adding a capability is a two-line change to the struct plus one honest answer per backend, and the compiler lists the backends. The cost is that all of them must be touched.
 * A backend can be graduated later — Badger stays at `false` today, and applying tag and operation filters inside its time-range scan would flip it — without any caller changing.
-* API clients discover the search capabilities through the api_v3 `Capabilities` service. RFC 0013 §3.7 designed that service and set it aside while no client needed it; the shared storage integration suite's filter battery, which derives its refusal cases from the reader's `FilterCapabilities` and reaches the reader through api_v3 in e2e mode, is the client that did. The response carries only `search`; archive, metrics and AI storage are deployment configuration rather than storage declarations and remain open as a separate addition.
+* API clients discover the search capabilities through the api_v3 `Capabilities` service. RFC 0013 §3.7 designed that service and set it aside while no client needed it; the client that does is the shared storage integration suite in e2e mode, which reaches the reader only through api_v3 and so could not read the declaration a direct suite reads from the reader. The response carries only `search`; archive, metrics and AI storage are deployment configuration rather than storage declarations and remain open as a separate addition.
 * Capabilities are assumed stable for the lifetime of a connection. A backend whose abilities change under a running jaeger-query would not be noticed until the connection is re-established.
 
 ## References

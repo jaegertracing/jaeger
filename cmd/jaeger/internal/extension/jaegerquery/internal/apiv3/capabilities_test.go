@@ -54,7 +54,6 @@ func TestGetCapabilitiesLeastCapable(t *testing.T) {
 	response, err := tsc.caps.GetCapabilities(context.Background(), &api_v3.GetCapabilitiesRequest{})
 	require.NoError(t, err)
 	assert.Equal(t, &api_v3.SearchCapabilities{}, response.GetSearch())
-	assert.Nil(t, response.GetSearch().GetFilter())
 }
 
 func TestGetCapabilitiesReaderErrors(t *testing.T) {
