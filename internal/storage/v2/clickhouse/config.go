@@ -128,8 +128,10 @@ func (e TableEngine) validate(createSchema bool) error {
 		if (r.KeeperPath == "") != (r.ReplicaName == "") {
 			return errors.New("table_engine.replicated must set keeper_path and replica_name together or neither")
 		}
-		if strings.ContainsAny(r.KeeperPath, "'") || strings.ContainsAny(r.ReplicaName, "'") {
-			return errors.New("table_engine.replicated keeper_path and replica_name must not contain a single quote")
+		// Both values are rendered inside single-quoted SQL literals, where a quote ends the
+		// literal and a backslash escapes the character after it.
+		if strings.ContainsAny(r.KeeperPath, `'\`) || strings.ContainsAny(r.ReplicaName, `'\`) {
+			return errors.New("table_engine.replicated keeper_path and replica_name must not contain a single quote or a backslash")
 		}
 	}
 	return nil

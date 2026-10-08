@@ -91,16 +91,18 @@ var localTableEngine = TableEngine{
 	MergeTree: configoptional.Some(MergeTreeEngine{}),
 }
 
-// renderTable renders one of the CREATE TABLE templates under sql/ the way
-// newSchemaBuilder does for localTableEngine and no TTL.
-func renderTable(t *testing.T, tmpl string) string {
-	query, err := loadTemplate("test", tmpl, schemaTemplateParams{
-		TTLSeconds:           0,
-		MergeTree:            "MergeTree",
-		AggregatingMergeTree: "AggregatingMergeTree",
-	})
+// schemaQuery returns the statement newSchemaBuilder renders under the given name for
+// localTableEngine and no TTL, so the tests expect exactly what the factory executes.
+func schemaQuery(t *testing.T, name string) string {
+	builder, err := newSchemaBuilder(Configuration{CreateSchema: true, TableEngine: localTableEngine})
 	require.NoError(t, err)
-	return query
+	for _, stmt := range builder.statements {
+		if stmt.name == name {
+			return stmt.query
+		}
+	}
+	require.Failf(t, "unknown schema statement", "%s", name)
+	return ""
 }
 
 func TestNewFactory_Errors(t *testing.T) {
@@ -119,14 +121,14 @@ func TestNewFactory_Errors(t *testing.T) {
 		{
 			name: "spans table creation error",
 			failureConfig: clickhousetest.FailureConfig{
-				renderTable(t, sql.CreateSpansTable): assert.AnError,
+				schemaQuery(t, "spans table"): assert.AnError,
 			},
 			expectedError: "failed to create spans table",
 		},
 		{
 			name: "services table creation error",
 			failureConfig: clickhousetest.FailureConfig{
-				renderTable(t, sql.CreateServicesTable): assert.AnError,
+				schemaQuery(t, "services table"): assert.AnError,
 			},
 			expectedError: "failed to create services table",
 		},
@@ -140,7 +142,7 @@ func TestNewFactory_Errors(t *testing.T) {
 		{
 			name: "operations table creation error",
 			failureConfig: clickhousetest.FailureConfig{
-				renderTable(t, sql.CreateOperationsTable): assert.AnError,
+				schemaQuery(t, "operations table"): assert.AnError,
 			},
 			expectedError: "failed to create operations table",
 		},
@@ -154,7 +156,7 @@ func TestNewFactory_Errors(t *testing.T) {
 		{
 			name: "trace id timestamps table creation error",
 			failureConfig: clickhousetest.FailureConfig{
-				renderTable(t, sql.CreateTraceIDTimestampsTable): assert.AnError,
+				schemaQuery(t, "trace id timestamps table"): assert.AnError,
 			},
 			expectedError: "failed to create trace id timestamps table",
 		},
@@ -168,7 +170,7 @@ func TestNewFactory_Errors(t *testing.T) {
 		{
 			name: "attribute metadata table creation error",
 			failureConfig: clickhousetest.FailureConfig{
-				renderTable(t, sql.CreateAttributeMetadataTable): assert.AnError,
+				schemaQuery(t, "attribute metadata table"): assert.AnError,
 			},
 			expectedError: "failed to create attribute metadata table",
 		},
@@ -196,7 +198,7 @@ func TestNewFactory_Errors(t *testing.T) {
 		{
 			name: "dependencies table creation error",
 			failureConfig: clickhousetest.FailureConfig{
-				renderTable(t, sql.CreateDependenciesTable): assert.AnError,
+				schemaQuery(t, "dependencies table"): assert.AnError,
 			},
 			expectedError: "failed to create dependencies table",
 		},
@@ -451,7 +453,7 @@ func TestLoadTemplate(t *testing.T) {
 
 func TestCreateSpansTableTemplate(t *testing.T) {
 	t.Run("without TTL", func(t *testing.T) {
-		queryWithoutTTL := renderTable(t, sql.CreateSpansTable)
+		queryWithoutTTL := schemaQuery(t, "spans table")
 		assert.NotContains(t, queryWithoutTTL, "TTL start_time")
 	})
 
@@ -464,7 +466,7 @@ func TestCreateSpansTableTemplate(t *testing.T) {
 
 func TestCreateTraceIDTimestampsTableTemplate(t *testing.T) {
 	t.Run("without TTL", func(t *testing.T) {
-		queryWithoutTTL := renderTable(t, sql.CreateTraceIDTimestampsTable)
+		queryWithoutTTL := schemaQuery(t, "trace id timestamps table")
 		assert.NotContains(t, queryWithoutTTL, "TTL end")
 	})
 

@@ -166,7 +166,18 @@ func TestValidate(t *testing.T) {
 					ReplicaName: "{replica}",
 				})
 			},
-			wantErr: "must not contain a single quote",
+			wantErr: "must not contain a single quote or a backslash",
+		},
+		{
+			name: "replicated replica name with a backslash",
+			mutate: func(cfg *Configuration) {
+				cfg.CreateSchema = true
+				cfg.TableEngine.Replicated = configoptional.Some(ReplicatedEngine{
+					KeeperPath:  "/clickhouse/tables/{shard}/{database}/{table}",
+					ReplicaName: `{replica}\`,
+				})
+			},
+			wantErr: "must not contain a single quote or a backslash",
 		},
 		{
 			name:    "negative attribute metadata cache size",
