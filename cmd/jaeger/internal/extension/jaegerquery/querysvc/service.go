@@ -245,16 +245,21 @@ func (qs QueryService) FindTraces(
 	}
 }
 
-// SearchWithoutServiceName reports whether the trace reader accepts a search that omits the
-// service name and reads it as "any service" (RFC 0013 §3.3). The reader is asked every time
-// rather than once, because a remote backend answers for itself and may not have been
-// reachable when jaeger-query started; a reader for which that costs a round trip caches its
-// own answer.
+// SearchCapabilities reports what the trace reader declares it can search (ADR-013). The
+// reader is asked every time rather than once, because a remote backend answers for itself and
+// may not have been reachable when jaeger-query started; a reader for which that costs a round
+// trip caches its own answer.
 //
-// A reader that cannot say returns an error, which callers read as the least capable
-// backend.
+// A reader that cannot say returns an error wrapping errors.ErrUnsupported, which callers read
+// as the least capable backend.
+func (qs QueryService) SearchCapabilities(ctx context.Context) (tracestore.SearchCapabilities, error) {
+	return qs.traceReader.SearchCapabilities(ctx)
+}
+
+// SearchWithoutServiceName reports whether the trace reader accepts a search that omits the
+// service name and reads it as "any service" (RFC 0013 §3.3).
 func (qs QueryService) SearchWithoutServiceName(ctx context.Context) (bool, error) {
-	caps, err := qs.traceReader.SearchCapabilities(ctx)
+	caps, err := qs.SearchCapabilities(ctx)
 	if err != nil {
 		return false, err
 	}
