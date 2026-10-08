@@ -5,6 +5,7 @@ package integration
 
 import (
 	"context"
+	"errors"
 	"io"
 	"math"
 	"testing"
@@ -16,6 +17,8 @@ import (
 	"go.opentelemetry.io/collector/pdata/ptrace"
 	"go.uber.org/zap"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 
 	expression "github.com/jaegertracing/jaeger-idl/query/expression/v1"
 	builder "github.com/jaegertracing/jaeger/internal/expression"
@@ -164,4 +167,80 @@ func TestToProtoQueryPreservesPageSize(t *testing.T) {
 	query, err := toProtoQuery(tracestore.TraceQueryParams{Attributes: pcommon.NewMap()})
 	require.NoError(t, err)
 	assert.Nil(t, query.Pagination)
+}
+
+type capabilitiesClient struct {
+	response *api_v3.GetCapabilitiesResponse
+	err      error
+}
+
+func (c *capabilitiesClient) GetCapabilities(
+	context.Context,
+	*api_v3.GetCapabilitiesRequest,
+	...grpc.CallOption,
+) (*api_v3.GetCapabilitiesResponse, error) {
+	return c.response, c.err
+}
+
+func TestTraceReaderSearchCapabilities(t *testing.T) {
+	reader := &traceReader{
+		logger: zap.NewNop(),
+		capabilities: &capabilitiesClient{response: &api_v3.GetCapabilitiesResponse{
+			Search: &api_v3.SearchCapabilities{
+				WithoutServiceName:  true,
+				SameSpanConjunction: true,
+				Filter: &api_v3.FilterCapabilities{
+					Levels:    []string{"span", "event"},
+					Operators: []string{"and", "or", "eq"},
+				},
+				Paginated:   true,
+				SpanSearch:  true,
+				SpanSorting: true,
+			},
+		}},
+	}
+
+	caps, err := reader.SearchCapabilities(context.Background())
+	require.NoError(t, err)
+	assert.Equal(t, tracestore.SearchCapabilities{
+		WithoutServiceName:  true,
+		SameSpanConjunction: true,
+		Filter: &tracestore.FilterCapabilities{
+			Levels:    []expression.Level{expression.LevelSpan, expression.LevelEvent},
+			Operators: []expression.Operator{expression.OpAnd, expression.OpOr, expression.OpEq},
+		},
+		Paginated:   true,
+		SpanSearch:  true,
+		SpanSorting: true,
+	}, caps)
+}
+
+func TestTraceReaderSearchCapabilitiesNoFilter(t *testing.T) {
+	reader := &traceReader{
+		logger:       zap.NewNop(),
+		capabilities: &capabilitiesClient{response: &api_v3.GetCapabilitiesResponse{Search: &api_v3.SearchCapabilities{}}},
+	}
+
+	caps, err := reader.SearchCapabilities(context.Background())
+	require.NoError(t, err)
+	assert.Equal(t, tracestore.SearchCapabilities{}, caps)
+}
+
+func TestTraceReaderSearchCapabilitiesErrors(t *testing.T) {
+	t.Run("Unimplemented reads as ErrUnsupported", func(t *testing.T) {
+		reader := &traceReader{
+			logger:       zap.NewNop(),
+			capabilities: &capabilitiesClient{err: status.Error(codes.Unimplemented, "no capabilities")},
+		}
+		_, err := reader.SearchCapabilities(context.Background())
+		require.ErrorIs(t, err, errors.ErrUnsupported)
+	})
+	t.Run("other statuses pass through", func(t *testing.T) {
+		reader := &traceReader{
+			logger:       zap.NewNop(),
+			capabilities: &capabilitiesClient{err: status.Error(codes.Unavailable, "down")},
+		}
+		_, err := reader.SearchCapabilities(context.Background())
+		assert.Equal(t, codes.Unavailable, status.Code(err))
+	})
 }
