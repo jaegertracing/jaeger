@@ -7,6 +7,9 @@ on:
   pull_request_target:  # Runs with write permissions even for fork PRs
     # Label events include the existing stale policy's stale/unstale transitions.
     types: [opened, edited, closed, reopened, synchronize, ready_for_review, converted_to_draft, labeled, unlabeled]
+  schedule:
+    # Sweep all open PRs so a removed issue link cannot leave another PR stale.
+    - cron: '15 2 * * *'
   workflow_dispatch:
     inputs:
       username:

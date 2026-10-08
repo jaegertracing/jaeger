@@ -62,5 +62,6 @@ runs:
             pullRequestNumber: process.env.QUOTA_PER_ISSUE_LIMIT === 'true'
               ? process.env.QUOTA_PR_NUMBER
               : undefined,
+            perIssueLimit: process.env.QUOTA_PER_ISSUE_LIMIT === 'true',
             dryRun: process.env.QUOTA_DRY_RUN === 'true'
           })

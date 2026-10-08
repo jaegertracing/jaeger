@@ -403,6 +403,14 @@ ${references}
 If these are intentionally competing implementations or an umbrella issue, a maintainer can apply the \`${OVERRIDE_LABEL_NAME}\` label to the issue.`;
 }
 
+function issueLimitResolvedComment() {
+  return `${ISSUE_LIMIT_COMMENT_MARKER}
+This pull request is no longer marked as a duplicate by the active-PR policy.`;
+}
+
+const supersededIssueLimitComment =
+  'This automated active-PR policy comment has been superseded by the current policy comment.';
+
 async function listIssueLimitComments(octokit, owner, repo, issueNumber) {
   const comments = [];
   for (let page = 1; ; page++) {
@@ -478,6 +486,21 @@ async function fetchLinkedPullRequests(octokit, owner, repo, issueNumber) {
   return { issue, pullRequests };
 }
 
+async function fetchOpenPullRequestNumbers(octokit, owner, repo) {
+  const numbers = [];
+  for (let page = 1; ; page++) {
+    const { data } = await octokit.rest.pulls.list({
+      owner,
+      repo,
+      state: 'open',
+      per_page: 100,
+      page
+    });
+    numbers.push(...data.map(pr => pr.number));
+    if (data.length < 100) return numbers;
+  }
+}
+
 /**
  * Reconcile the per-issue active PR limit for every same-repository issue
  * canonically linked to a pull request. Reads complete before any mutation so
@@ -548,30 +571,68 @@ async function processIssueLimitForPullRequest(octokit, owner, repo, pullRequest
       await octokit.rest.issues.updateComment({ owner, repo, comment_id: comments[0].id, body });
     }
   }
-  // Remove only labels paired with our marker, never a label applied by a human.
+  const labelsToRemove = [];
+  // Update comments before removing labels. A failed update leaves the previous
+  // duplicate indication intact, rather than removing only part of it.
   for (const [number, pr] of knownPRs) {
     if (desiredDuplicates.has(number)) continue;
     const comments = commentSets.get(number);
     if (comments.length === 0) continue;
-    if (labelNames(pr.labels).includes(DUPLICATE_LABEL_NAME)) {
-      await removeIssueLabel(octokit, owner, repo, number, DUPLICATE_LABEL_NAME);
+    const resolvedBody = issueLimitResolvedComment();
+    if (comments[0].body !== resolvedBody) {
+      await octokit.rest.issues.updateComment({ owner, repo, comment_id: comments[0].id, body: resolvedBody });
     }
-    for (const comment of comments) {
-      await octokit.rest.issues.deleteComment({ owner, repo, comment_id: comment.id });
+    for (const comment of comments.slice(1)) {
+      await octokit.rest.issues.updateComment({
+        owner,
+        repo,
+        comment_id: comment.id,
+        body: supersededIssueLimitComment
+      });
+    }
+    if (labelNames(pr.labels).includes(DUPLICATE_LABEL_NAME)) {
+      labelsToRemove.push(number);
     }
   }
-  // Collapse any historical duplicate bot comments after the desired state is durable.
+  // Collapse historical marker comments without deleting user-visible history.
   for (const [number, comments] of commentSets) {
     if (!desiredDuplicates.has(number)) continue;
     for (const comment of comments.slice(1)) {
-      await octokit.rest.issues.deleteComment({ owner, repo, comment_id: comment.id });
+      await octokit.rest.issues.updateComment({
+        owner,
+        repo,
+        comment_id: comment.id,
+        body: supersededIssueLimitComment
+      });
     }
+  }
+
+  const removedLabels = [];
+  try {
+    for (const number of labelsToRemove) {
+      await removeIssueLabel(octokit, owner, repo, number, DUPLICATE_LABEL_NAME);
+      removedLabels.push(number);
+    }
+  } catch (error) {
+    await Promise.allSettled(removedLabels.map(number =>
+      addIssueLabel(octokit, owner, repo, number, DUPLICATE_LABEL_NAME)
+    ));
+    throw error;
   }
 
   return {
     reconciledIssues: reconciliations.map(issue => issue.number).sort((left, right) => left - right),
     duplicates: [...desiredDuplicates.keys()].sort((left, right) => left - right)
   };
+}
+
+async function processAllIssueLimits(octokit, owner, repo, logger = console, dryRun = false) {
+  const pullRequestNumbers = await fetchOpenPullRequestNumbers(octokit, owner, repo);
+  const results = [];
+  for (const number of pullRequestNumbers) {
+    results.push(await processIssueLimitForPullRequest(octokit, owner, repo, number, logger, dryRun));
+  }
+  return results;
 }
 
 /**
@@ -614,7 +675,7 @@ async function main() {
 }
 
 // GitHub Actions wrapper function
-async function githubActionHandler({github, core, username, owner, repo, pullRequestNumber, dryRun = false}) {
+async function githubActionHandler({github, core, username, owner, repo, pullRequestNumber, perIssueLimit = false, dryRun = false}) {
   if (!owner || !repo) {
     core.setFailed('Owner and repo are required');
     return;
@@ -636,7 +697,11 @@ async function githubActionHandler({github, core, username, owner, repo, pullReq
       core.info(`Reconciled linked issues: ${result.reconciledIssues.join(', ') || 'none'}`);
       core.info(`Duplicate PRs: ${result.duplicates.join(', ') || 'none'}`);
     }
-    if (!username && !pullRequestNumber) {
+    if (perIssueLimit && !pullRequestNumber) {
+      const results = await processAllIssueLimits(github, owner, repo, console, dryRun);
+      core.info(`Reconciled ${results.length} open pull requests.`);
+    }
+    if (!username && !pullRequestNumber && !perIssueLimit) {
       core.setFailed('A username or pull request number is required');
     }
   } catch (error) {
@@ -664,7 +729,10 @@ if (typeof module !== 'undefined' && module.exports) {
   module.exports.isActivePR = isActivePR;
   module.exports.primaryPR = primaryPR;
   module.exports.issueLimitComment = issueLimitComment;
+  module.exports.issueLimitResolvedComment = issueLimitResolvedComment;
+  module.exports.fetchOpenPullRequestNumbers = fetchOpenPullRequestNumbers;
   module.exports.processIssueLimitForPullRequest = processIssueLimitForPullRequest;
+  module.exports.processAllIssueLimits = processAllIssueLimits;
   module.exports.DUPLICATE_LABEL_NAME = DUPLICATE_LABEL_NAME;
   module.exports.OVERRIDE_LABEL_NAME = OVERRIDE_LABEL_NAME;
   module.exports.ISSUE_LIMIT_COMMENT_MARKER = ISSUE_LIMIT_COMMENT_MARKER;

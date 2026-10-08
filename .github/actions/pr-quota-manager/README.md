@@ -234,6 +234,7 @@ If you hit rate limits, wait for the limit to reset or use a different token.
 
 `.github/workflows/pr-quota-manager.yml` calls the action in this directory on:
 - Pull request opened, edited, closed, reopened, pushed to, converted to or from draft, or labelled
+- A daily sweep of open pull requests
 - Manual workflow dispatch, which is also how you process a single user without a command line — pass `username`, and `dryRun` if you only want to see what would happen
 
 The action runs the script through `actions/github-script` with the repository's built-in `GITHUB_TOKEN`. The `pull_request_target` trigger runs in the base repository context, so that token carries the workflow's declared write permissions even for pull requests from forks.
@@ -252,4 +253,7 @@ is primary. The action labels the other active PRs `duplicate` and maintains one
 marker comment on each naming its primary PR. A maintainer can exempt an umbrella
 issue or intentionally competing implementations by applying `allow-multiple-prs`
 to the issue. The workflow serializes repository runs, and it completes all reads
-before removing a duplicate indication if an API call fails.
+before removing a duplicate indication if an API call fails. The daily sweep
+reconciles a remaining PR when another PR removes its issue link. During cleanup,
+the action updates the bot comment before removing a label and restores earlier
+label removals if a later removal fails.
