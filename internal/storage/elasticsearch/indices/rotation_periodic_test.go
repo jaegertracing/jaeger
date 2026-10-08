@@ -5,6 +5,7 @@ package indices
 
 import (
 	"math"
+	"strings"
 	"testing"
 	"time"
 
@@ -86,13 +87,30 @@ func TestPeriodicRotation_ReadTargets_WideRange(t *testing.T) {
 	hourly := NewPeriodicRotation("prod-jaeger-span", "2006-01-02-15", time.Hour)
 	end := time.Date(2026, time.October, 6, 12, 0, 0, 0, time.UTC)
 
-	t.Run("enumerates up to the bound", func(t *testing.T) {
-		start := end.Add(-maxReadPeriods * time.Hour)
-		targets := hourly.ReadTargets(start, end)
-		require.Len(t, targets, maxReadPeriods+1)
-		assert.Equal(t, "prod-jaeger-span-2026-10-06-12", targets[0])
-		assert.Equal(t, hourly.WriteTarget(start), targets[len(targets)-1])
-	})
+	for _, tt := range []struct {
+		name     string
+		rotation *PeriodicRotation
+		period   time.Duration
+	}{
+		{name: "hourly", rotation: hourly, period: time.Hour},
+		{name: "daily", rotation: daily, period: 24 * time.Hour},
+	} {
+		t.Run(tt.name+" enumerates up to the length bound", func(t *testing.T) {
+			maxNames := maxReadTargetsLen / (len(tt.rotation.WriteTarget(end)) + 1)
+			// A range of n periods touches n+1 of them, so this is the longest range that is enumerated.
+			start := end.Add(-time.Duration(maxNames-1) * tt.period)
+
+			targets := tt.rotation.ReadTargets(start, end)
+			require.Len(t, targets, maxNames)
+			assert.Equal(t, tt.rotation.WriteTarget(end), targets[0])
+			assert.Equal(t, tt.rotation.WriteTarget(start), targets[len(targets)-1])
+			assert.LessOrEqual(t, len(strings.Join(targets, ",")), maxReadTargetsLen)
+
+			wildcards := []string{"prod-jaeger-span-1*", "prod-jaeger-span-2*"}
+			assert.Equal(t, wildcards, tt.rotation.ReadTargets(start.Add(-tt.period), end), "one period longer")
+			assert.Equal(t, wildcards, tt.rotation.ReadTargets(start.Add(-time.Nanosecond), end), "one nanosecond longer")
+		})
+	}
 
 	for _, tt := range []struct {
 		name     string
@@ -100,12 +118,6 @@ func TestPeriodicRotation_ReadTargets_WideRange(t *testing.T) {
 		start    time.Time
 		end      time.Time
 	}{
-		{
-			name:     "hourly just past the bound",
-			rotation: hourly,
-			start:    end.Add(-(maxReadPeriods + 1) * time.Hour),
-			end:      end,
-		},
 		{
 			name:     "hourly with the longest lookback",
 			rotation: hourly,
@@ -130,7 +142,7 @@ func TestPeriodicRotation_ReadTargets_WideRange(t *testing.T) {
 
 	t.Run("layout not starting with the year", func(t *testing.T) {
 		dayFirst := NewPeriodicRotation("prod-jaeger-span", "02-01-2006", 24*time.Hour)
-		start := end.Add(-(maxReadPeriods + 1) * 24 * time.Hour)
+		start := end.AddDate(-1, 0, 0)
 		assert.Equal(t, []string{"prod-jaeger-span-*"}, dayFirst.ReadTargets(start, end))
 	})
 }

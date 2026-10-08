@@ -60,6 +60,31 @@ func TestParseDuration(t *testing.T) {
 	assert.Equal(t, time.Second, *mqp.Step)
 }
 
+func TestDurationUnitsParserRange(t *testing.T) {
+	parse := newDurationUnitsParser(time.Millisecond)
+
+	for _, tc := range []struct {
+		input string
+		want  time.Duration
+	}{
+		{input: "9223372036854", want: 9223372036854 * time.Millisecond},
+		{input: "-9223372036854", want: -9223372036854 * time.Millisecond},
+	} {
+		t.Run(tc.input, func(t *testing.T) {
+			d, err := parse(tc.input)
+			require.NoError(t, err)
+			assert.Equal(t, tc.want, d)
+		})
+	}
+
+	for _, input := range []string{"9223372036855", "-9223372036855", "288230376151711745", "-9223372036854775807"} {
+		t.Run(input, func(t *testing.T) {
+			_, err := parse(input)
+			require.EqualError(t, err, "duration out of range: '"+input+"'")
+		})
+	}
+}
+
 func TestParseRepeatedServices(t *testing.T) {
 	request, err := http.NewRequest(http.MethodGet, "x?service=foo&service=bar", http.NoBody)
 	require.NoError(t, err)
@@ -157,19 +182,29 @@ func TestParameterErrors(t *testing.T) {
 	}
 }
 
-func TestParseMetricsQueryParamsRejectsNonPositiveDurations(t *testing.T) {
+func TestParseMetricsQueryParamsRejectsInvalidDurations(t *testing.T) {
 	ts := initializeTestServer(t)
 
 	for _, param := range []string{lookbackParam, stepParam} {
-		for _, value := range []string{"0", "-60000"} {
-			t.Run(param+"="+value, func(t *testing.T) {
+		for _, tc := range []struct {
+			value   string
+			wantErr string
+		}{
+			{value: "0", wantErr: "must be greater than zero"},
+			{value: "-60000", wantErr: "must be greater than zero"},
+			// These overflow time.Duration when converted from milliseconds.
+			{value: "-9223372036854775807", wantErr: "duration out of range: '-9223372036854775807'"},
+			{value: "9223372036855", wantErr: "duration out of range: '9223372036855'"},
+			{value: "288230376151711745", wantErr: "duration out of range: '288230376151711745'"},
+		} {
+			t.Run(param+"="+tc.value, func(t *testing.T) {
 				var response metrics.MetricFamily
-				err := getJSON(ts.server.URL+"/api/metrics/calls?service=emailservice&"+param+"="+value, &response)
+				err := getJSON(ts.server.URL+"/api/metrics/calls?service=emailservice&"+param+"="+tc.value, &response)
 
 				var httpErr *HTTPError
 				require.ErrorAs(t, err, &httpErr)
 				assert.Equal(t, http.StatusBadRequest, httpErr.StatusCode)
-				assert.Contains(t, httpErr.Body, "unable to parse param '"+param+"': must be greater than zero")
+				assert.Contains(t, httpErr.Body, "unable to parse param '"+param+"': "+tc.wantErr)
 			})
 		}
 	}

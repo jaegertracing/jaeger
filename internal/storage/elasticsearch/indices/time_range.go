@@ -13,11 +13,15 @@ import (
 	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/config"
 )
 
-// maxReadPeriods bounds how many dated index names a read enumerates. A wider range
-// reads the whole index family through a wildcard and relies on the query's own
-// time-range filter. 5000 periods is over 13 years of daily or 200 days of hourly
-// indices, beyond realistic retention, so normal queries keep their exact index list.
-const maxReadPeriods = 5000
+// maxReadTargetsLen bounds the length, in bytes, of the comma-joined index list a read
+// enumerates. The list goes into the request line
+// (POST /<indices>/_search?<params> HTTP/1.1), which Elasticsearch and OpenSearch
+// reject when it is longer than http.max_initial_line_length, 4 KB by default. The
+// method, query string and protocol take about 75 bytes of that, and the rest is
+// headroom. With the default span index names this is 115 hourly or 130 daily indices.
+// A range whose list would be longer reads the whole index family through wildcards
+// and relies on the query's own time-range filter.
+const maxReadTargetsLen = 3000
 
 // TimeRangeIndexFn is a function that returns the list of index names for a given time range.
 type TimeRangeIndexFn func(indexName string, indexDateLayout string, startTime time.Time, endTime time.Time, reduceDuration time.Duration) []string
@@ -81,11 +85,20 @@ func addRemoteReadClusters(fn TimeRangeIndexFn, remoteReadClusters []string) Tim
 
 // timeRangeIndices returns the array of indices that we need to query, based on query params
 func timeRangeIndices(indexName, indexDateLayout string, startTime time.Time, endTime time.Time, reduceDuration time.Duration) []string {
-	if endTime.Sub(startTime) > maxReadPeriods*-reduceDuration {
+	firstIndex := IndexWithDate(indexName, indexDateLayout, startTime)
+	// A range spanning n whole or partial periods touches at most n+1 of them, so the
+	// list has at most n+1 names, each adding its length plus a comma. Check that
+	// against the budget before formatting any other name.
+	maxNames := maxReadTargetsLen / (len(firstIndex) + 1)
+	span, period := endTime.Sub(startTime), -reduceDuration
+	periods := int64(span / period)
+	if span%period != 0 {
+		periods++
+	}
+	if periods+1 > int64(maxNames) {
 		return wideRangeIndices(indexName, indexDateLayout)
 	}
 	var result []string
-	firstIndex := IndexWithDate(indexName, indexDateLayout, startTime)
 	currentIndex := IndexWithDate(indexName, indexDateLayout, endTime)
 	for currentIndex != firstIndex && endTime.After(startTime) {
 		if len(result) == 0 || result[len(result)-1] != currentIndex {

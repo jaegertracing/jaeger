@@ -7,6 +7,7 @@ package app
 import (
 	"errors"
 	"fmt"
+	"math"
 	"net/http"
 	"strconv"
 	"time"
@@ -43,6 +44,9 @@ func newDurationUnitsParser(units time.Duration) durationParser {
 		i, err := strconv.ParseInt(s, 10, 64)
 		if err != nil {
 			return 0, err
+		}
+		if i > int64(math.MaxInt64/units) || i < int64(math.MinInt64/units) {
+			return 0, fmt.Errorf("duration out of range: '%s'", s)
 		}
 		return time.Duration(i) * units, nil
 	}
