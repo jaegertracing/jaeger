@@ -18,6 +18,7 @@ import (
 	builder "github.com/jaegertracing/jaeger/internal/expression"
 	"github.com/jaegertracing/jaeger/internal/jiter"
 	"github.com/jaegertracing/jaeger/internal/jptrace"
+	"github.com/jaegertracing/jaeger/internal/storage/integration/capabilities"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore"
 	"github.com/jaegertracing/jaeger/internal/telemetry/otelsemconv"
 )
@@ -115,11 +116,6 @@ func filterTestCases(p builder.Predicate) []filterCase {
 			expected: []string{"worker"},
 		},
 		{
-			caption:  "the trace state",
-			filter:   p.Span().TraceState.Eq("congo=t61rcWkgMzE"),
-			expected: []string{"search"},
-		},
-		{
 			caption:  "a pattern on the operation name matches anywhere in it",
 			filter:   p.Span().Name.Matches("cart"),
 			expected: []string{"cart_get", "cart_post"},
@@ -173,25 +169,10 @@ func filterTestCases(p builder.Predicate) []filterCase {
 			// matches `search` only; the same value sent untyped would be read as the number 9
 			// and match `cart_get` as well. The value is zero-padded so that a backend comparing
 			// this attribute lexicographically does not also count it as greater than "10" in
-			// "ordering compares a numeric attribute as a number" below.
+			// "an ordered comparison on an attribute" below.
 			caption:  "a string-typed constant leaves out an attribute stored as a number",
 			filter:   p.Span().Attr("retry.count").Eq(p.String("09")),
 			expected: []string{"search"},
-		},
-		{
-			// Ordering an attribute needs the value stored as a number. A backend that indexes
-			// attributes as text refuses this instead, and excuses itself from this case — see
-			// its twin among the refusals below.
-			//
-			// The corpus carries retry.count as 9 and 11, and the bound is 10, because those are
-			// the numbers that tell a numeric comparison from a lexicographic one. Numerically
-			// only 11 is greater; as text both are, since "9" sorts after "10". So a backend that
-			// ranged over the keyword would answer with cart_get as well — a superset, which is
-			// the failure this case exists to catch, and one that cannot be mistaken for the
-			// writes not having landed.
-			caption:  "ordering compares a numeric attribute as a number",
-			filter:   p.Span().Attr("retry.count").Gt(10),
-			expected: []string{"cart_post"},
 		},
 		{
 			caption:  "an attribute exists",
@@ -296,21 +277,6 @@ func (s *StorageIntegration) testFindTracesWithFilter(t *testing.T) {
 			filter:  p.Some(p.Event(), p.Event().Name.Eq("exception")),
 			names:   "some",
 		},
-		{
-			caption: "a built-in field the backend does not index is refused",
-			filter:  p.Span().TraceState.Eq("congo=t61rcWkgMzE"),
-			names:   "traceState",
-		},
-		{
-			// The twin of "ordering compares a numeric attribute as a number" above: the same
-			// filter, for a backend whose schema indexes an attribute as text. This one refuses
-			// inside the reader rather than at the capability edge, because the operator and the
-			// level are both declared and only the pairing is unservable. A backend that orders
-			// attributes natively excuses itself from this case and runs the other.
-			caption: "ordering an attribute is refused where it is indexed as text",
-			filter:  p.Span().Attr("retry.count").Gt(10),
-			names:   "keyword rather than a number",
-		},
 	}
 	for _, refusal := range refusals {
 		t.Run(refusal.caption, func(t *testing.T) {
@@ -326,29 +292,75 @@ func (s *StorageIntegration) testFindTracesWithFilter(t *testing.T) {
 		})
 	}
 
-	// The third outcome of ordering an attribute, beside answered and refused: the reader is
-	// configured to range over the numeric sub-field, but the corpus was written into indices
-	// created before that mapping existed, so the range finds nothing there. RFC 0005 §7 admits
-	// this as a data gap rather than a refusal, and this case pins that the reader neither errors
-	// nor falls back to comparing the keyword, which would answer with cart_get as well.
-	t.Run("ordering an attribute finds nothing in indices written before the numeric mapping", func(t *testing.T) {
+	// FilterCapabilities declares levels and operators, not built-in fields, so whether the trace
+	// state is indexed is declared by the deployment through Capabilities.TraceStateRefused
+	// instead, and this case asserts the declared outcome. `worker` carries a trace state with
+	// another value, so a backend that matched the field's presence rather than its value would
+	// answer with both traces and fail.
+	t.Run("the trace state", func(t *testing.T) {
 		s.skipIfNeeded(t)
-		// The scope alone must find the whole corpus first, so that the empty answer below is
-		// the range's doing and not an index that has not caught up yet.
-		names := make([]string, 0, len(corpus))
-		for name := range corpus {
-			names = append(names, name)
+		query := filterQuery(t, p.And(scope, p.Span().TraceState.Eq("congo=t61rcWkgMzE")), start, end)
+		if s.Capabilities.TraceStateRefused() {
+			_, err := jiter.CollectWithErrors(jptrace.AggregateTraces(
+				s.TraceReader.FindTraces(context.Background(), *query),
+			))
+			require.Error(t, err, "the search must be refused rather than answered with a wider result set")
+			require.ErrorContains(t, err, "traceState")
+			return
 		}
-		whole := filterCorpusTraces(t, corpus, names)
-		s.findTracesByQuery(t, filterQuery(t, scope, start, end), whole)
-		// The reader is asked directly rather than through findTracesByQuery, which retries an
-		// error for the whole wait: a refusal here is wrong at once and should say so.
+		expected := filterCorpusTraces(t, corpus, []string{"search"})
+		CompareTraceSlices(t, expected, s.findTracesByQuery(t, query, expected))
+	})
+
+	// An ordered comparison on an attribute needs the value stored as a number, which depends on
+	// the index mapping rather than on anything the reader declares: the operator and the level
+	// are both declared, and only the pairing can be unservable. So the deployment names the
+	// outcome it produces through Capabilities.AttributeComparison, and this case asserts it.
+	//
+	// The corpus carries retry.count as 9 and 11, and the bound is 10, because those are the
+	// numbers that tell a numeric comparison from a lexicographic one. Numerically only 11 is
+	// greater; as text both are, since "9" sorts after "10". So a backend that ranged over the
+	// keyword would answer with cart_get as well — a superset, which is the failure this case
+	// exists to catch, and one that cannot be mistaken for the writes not having landed.
+	t.Run("an ordered comparison on an attribute", func(t *testing.T) {
+		s.skipIfNeeded(t)
 		query := filterQuery(t, p.And(scope, p.Span().Attr("retry.count").Gt(10)), start, end)
-		actual, err := jiter.CollectWithErrors(jptrace.AggregateTraces(
-			s.TraceReader.FindTraces(context.Background(), *query),
-		))
-		require.NoError(t, err, "the range must be evaluated, not refused")
-		require.Empty(t, actual)
+		switch outcome := s.Capabilities.AttributeComparison(); outcome {
+		case capabilities.AttributeComparisonNumeric:
+			expected := filterCorpusTraces(t, corpus, []string{"cart_post"})
+			CompareTraceSlices(t, expected, s.findTracesByQuery(t, query, expected))
+		case capabilities.AttributeComparisonRefused:
+			// The reader refuses inside its lowering rather than at the capability edge, so the
+			// message is the reader's own.
+			_, err := jiter.CollectWithErrors(jptrace.AggregateTraces(
+				s.TraceReader.FindTraces(context.Background(), *query),
+			))
+			require.Error(t, err, "the comparison must be refused rather than answered over the keyword")
+			require.ErrorContains(t, err, "keyword rather than a number")
+		case capabilities.AttributeComparisonNotYetIndexed:
+			// The reader is configured to range over the numeric sub-field, but the corpus was
+			// written into indices created before that mapping existed, so the range finds nothing
+			// there. RFC 0005 §7 admits this as a data gap rather than a refusal, and this case
+			// pins that the reader neither errors nor falls back to comparing the keyword, which
+			// would answer with cart_get as well.
+			//
+			// The scope alone must find the whole corpus first, so that the empty answer below is
+			// the range's doing and not an index that has not caught up yet.
+			names := make([]string, 0, len(corpus))
+			for name := range corpus {
+				names = append(names, name)
+			}
+			s.findTracesByQuery(t, filterQuery(t, scope, start, end), filterCorpusTraces(t, corpus, names))
+			// The reader is asked directly rather than through findTracesByQuery, which retries an
+			// error for the whole wait: a refusal here is wrong at once and should say so.
+			actual, err := jiter.CollectWithErrors(jptrace.AggregateTraces(
+				s.TraceReader.FindTraces(context.Background(), *query),
+			))
+			require.NoError(t, err, "the range must be evaluated, not refused")
+			require.Empty(t, actual)
+		default:
+			t.Fatalf("unknown attribute comparison outcome %d", outcome)
+		}
 	})
 }
 
