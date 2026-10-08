@@ -121,9 +121,11 @@ func TestClickHouseMigrationSmoke(t *testing.T) {
 	dropAll()
 
 	// 2. Apply v001 migration directly
+	migrateDB := clickhouse.OpenDB(opts)
+	defer migrateDB.Close()
 	sourceDriver, err := iofs.New(chsql.MigrationFiles, ".")
 	require.NoError(t, err)
-	dbDriver, err := clickhousemigrate.WithInstance(smokeDB, &clickhousemigrate.Config{
+	dbDriver, err := clickhousemigrate.WithInstance(migrateDB, &clickhousemigrate.Config{
 		DatabaseName:          cfg.Database,
 		MultiStatementEnabled: true,
 	})
@@ -150,10 +152,10 @@ func TestClickHouseMigrationSmoke(t *testing.T) {
 		migratedDDLs[obj] = ddl
 	}
 
-	// 4. Drop all objects
+	// 5. Drop all objects
 	dropAll()
 
-	// 5. Recreate directly with the schema baseline
+	// 6. Recreate directly with the schema baseline
 	baselineStmts, err := ch.BaselineSchemaStatements()
 	require.NoError(t, err)
 	for _, stmt := range baselineStmts {
@@ -161,7 +163,7 @@ func TestClickHouseMigrationSmoke(t *testing.T) {
 		require.NoError(t, err, "failed to execute baseline statement: %s", stmt)
 	}
 
-	// 6. Dump schema DDL using SHOW CREATE TABLE and assert exact match
+	// 7. Dump schema DDL using SHOW CREATE TABLE and assert exact match
 	for _, obj := range ch.SchemaObjects {
 		var baselineDDL string
 		err := smokeDB.QueryRowContext(ctx, "SHOW CREATE TABLE "+obj).Scan(&baselineDDL)
