@@ -150,11 +150,15 @@ func (r *Reader) buildFindTraceIDsQuery(
 	}
 
 	if query.Filter != nil {
-		// A query carrying a filter reaches here only once SearchCapabilities.Filter is
-		// declared (querysvc.queryToReaderCapabilities folds it to the legacy fields
-		// otherwise), so the legacy scalar fields are mutually exclusive with it rather than
-		// combined. The untyped attribute metadata for the whole tree is looked up once here,
-		// and the lowering reads it from that map.
+		// The query service refuses a query that carries both a filter and the legacy
+		// scalar fields (EnsureFilterStandsAlone), so the two shapes are alternatives here
+		// rather than combined. A remote-storage client reaches this reader without that
+		// check, so it is repeated rather than letting the legacy fields be dropped silently.
+		if err := query.EnsureFilterStandsAlone(); err != nil {
+			return "", nil, err
+		}
+		// The untyped attribute metadata for the whole tree is looked up once here, and the
+		// lowering reads it from that map.
 		metadata, err := r.lookupUntypedMetadata(ctx, query.Filter)
 		if err != nil {
 			return "", nil, err

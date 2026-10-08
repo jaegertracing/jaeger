@@ -198,10 +198,14 @@ func TestBuildFieldComparison(t *testing.T) {
 	}
 }
 
-func TestBuildFieldComparison_UnsupportedLevel(t *testing.T) {
+// TestBuildFieldComparison_UnmappedLevelIsAFieldRefusal pins that a built-in field of a level
+// with no mapped fields is refused as an unsupported field: the level itself is indexed and
+// declared, so a message saying otherwise would be false.
+func TestBuildFieldComparison_UnmappedLevelIsAFieldRefusal(t *testing.T) {
 	var q strings.Builder
 	_, err := buildFieldComparison(&q, 0, nil, expression.OpEq, *fieldRef(expression.LevelEvent, expression.EventFieldName), str("x"))
 	require.ErrorIs(t, err, tracestore.ErrFilterUnsupported)
+	assert.ErrorContains(t, err, `does not support the built-in field "name" of the "event" level`)
 }
 
 func TestBuildFieldComparison_UnsupportedField(t *testing.T) {
@@ -302,11 +306,12 @@ func TestBuildAttributeComparison_TypedConstants(t *testing.T) {
 		name       string
 		value      expression.Expression
 		wantColumn string
+		wantArg    any
 	}{
-		{"string", str("v"), "s.str_attributes"},
-		{"int", &expression.IntValue{Value: 1}, "s.int_attributes"},
-		{"double", &expression.DoubleValue{Value: 1.5}, "s.double_attributes"},
-		{"bool", &expression.BoolValue{Value: true}, "s.bool_attributes"},
+		{"string", str("v"), "s.str_attributes", "v"},
+		{"int", &expression.IntValue{Value: 1}, "s.int_attributes", int64(1)},
+		{"double", &expression.DoubleValue{Value: 1.5}, "s.double_attributes", 1.5},
+		{"bool", &expression.BoolValue{Value: true}, "s.bool_attributes", true},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -314,7 +319,7 @@ func TestBuildAttributeComparison_TypedConstants(t *testing.T) {
 			args, err := lowerFilter(t, r, &q, call(expression.OpEq, attrRef(expression.LevelSpan, "k"), tt.value))
 			require.NoError(t, err)
 			assert.Contains(t, q.String(), tt.wantColumn)
-			assert.Len(t, args, 2)
+			assert.Equal(t, []any{"k", tt.wantArg}, args)
 		})
 	}
 }
@@ -443,6 +448,18 @@ func TestBuildFindTraceIDsQuery_WithFilter(t *testing.T) {
 	require.NoError(t, err)
 	verifyQuerySnapshot(t, sqlText)
 	assert.Equal(t, []any{"cart", time.Unix(0, 0), time.Unix(100, 0), testReaderConfig.DefaultSearchDepth}, args)
+}
+
+func TestBuildFindTraceIDsQuery_FilterBesideLegacyFields(t *testing.T) {
+	r := newTestReader()
+	query := tracestore.TraceQueryParams{
+		ServiceName:  "cart",
+		Filter:       call(expression.OpEq, fieldRef(expression.LevelSpan, expression.SpanFieldName), str("checkout")),
+		StartTimeMin: time.Unix(0, 0),
+		StartTimeMax: time.Unix(100, 0),
+	}
+	_, _, err := r.buildFindTraceIDsQuery(t.Context(), query)
+	require.ErrorIs(t, err, tracestore.ErrFilterInvalid)
 }
 
 func TestBuildFindTraceIDsQuery_MetadataError(t *testing.T) {

@@ -232,11 +232,9 @@ func buildFieldComparison(
 	ref expression.FieldRef,
 	valueExpr expression.Expression,
 ) ([]any, error) {
-	levelFields, ok := builtinFieldColumns[ref.Level]
-	if !ok {
-		return nil, errUnsupportedLevel(ref.Level)
-	}
-	mapping, ok := levelFields[ref.Name]
+	// Every level is indexed, so a built-in field with no entry is unsupported as a field,
+	// whichever level it belongs to.
+	mapping, ok := builtinFieldColumns[ref.Level][ref.Name]
 	if !ok {
 		return nil, errUnsupportedField(ref)
 	}

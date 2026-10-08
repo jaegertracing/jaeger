@@ -58,8 +58,10 @@ const (
 var attributeOrderingTests = []string{attributeOrderingTest, attributeRefusedTest, attributeUnindexedTest}
 
 // filterOperatorTests are the battery cases that need ne, regex, exists or in, or that order an
-// attribute, including the three attribute-ordering outcomes. A backend whose lowering evaluates
-// equality on attributes and orders only span.duration skips them as a set.
+// attribute. A backend whose lowering evaluates equality on attributes and orders only
+// span.duration skips them as a set. Of the three attribute-ordering outcomes, attributeRefusedTest
+// is the one such a backend does satisfy in substance, but the case expects the refusal worded
+// the way Elasticsearch words it, so it is skipped with the other two.
 var filterOperatorTests = []string{
 	filterUnqualifiedEventTest,
 	filterServiceInListTest,
