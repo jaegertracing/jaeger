@@ -23,6 +23,7 @@ steps:
 | `token` | yes | — | Token used to label and comment. Needs `issues: write` and `pull-requests: write`. |
 | `username` | no | PR author | Whose quota to process. Only manual runs need to set it. |
 | `dry-run` | no | `false` | Log the intended labels and comments without writing anything. |
+| `per-issue-limit` | no | `false` | For a pull request event, reconcile linked same-repository issues to one active PR. |
 
 Labels and comments on a pull request go through the `/issues/{n}/labels` and `/issues/{n}/comments` endpoints, so the token needs `issues: write` — `pull-requests: write` alone is not enough, and a token missing it fails every write with `403 Resource not accessible`.
 
@@ -232,9 +233,23 @@ If you hit rate limits, wait for the limit to reset or use a different token.
 ## Integration with GitHub Actions
 
 `.github/workflows/pr-quota-manager.yml` calls the action in this directory on:
-- Pull request opened, closed, reopened, or pushed to
+- Pull request opened, edited, closed, reopened, pushed to, converted to or from draft, or labelled
 - Manual workflow dispatch, which is also how you process a single user without a command line — pass `username`, and `dryRun` if you only want to see what would happen
 
 The action runs the script through `actions/github-script` with the repository's built-in `GITHUB_TOKEN`. The `pull_request_target` trigger runs in the base repository context, so that token carries the workflow's declared write permissions even for pull requests from forks.
 
 `jaegertracing/jaeger-ui` calls the same action at a pinned SHA rather than keeping its own copy of the script.
+
+## Per-issue active PR limit
+
+Jaeger enables `per-issue-limit` for its own workflow. The action reads GitHub's
+canonical `closingIssuesReferences` relationship and considers only linked issues
+in the same repository. An open PR with the `stale` label is inactive, matching
+the stale workflow's policy; drafts and PRs from maintainers remain active.
+
+For each linked issue, the oldest active PR (with PR number as the tie-breaker)
+is primary. The action labels the other active PRs `duplicate` and maintains one
+marker comment on each naming its primary PR. A maintainer can exempt an umbrella
+issue or intentionally competing implementations by applying `allow-multiple-prs`
+to the issue. The workflow serializes repository runs, and it completes all reads
+before removing a duplicate indication if an API call fails.

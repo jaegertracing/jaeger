@@ -42,6 +42,20 @@ for an issue to be assigned to them later have a change in priorities and are un
 to find time to finish it, which leaves the issue in limbo.
 So if you have a desire to work on an issue, feel free to mention it in the comment and just submit a PR.
 
+### Link each pull request to an issue
+
+Every pull request must be linked to the issue it addresses. Use a GitHub closing
+keyword in the PR description, for example `Fixes #123`, so GitHub records the
+canonical issue relationship. Do not rely on an issue number mentioned only in a
+title, commit message, or comment.
+
+Only one active PR may normally be linked to an issue. Drafts and maintainer PRs
+count. If another active PR is already linked, coordinate with its author and
+maintainers instead of starting duplicate work. The repository may label a
+duplicate PR and point to the primary PR; this does not close the PR. For umbrella
+issues or intentionally competing implementations, a maintainer may apply the
+`allow-multiple-prs` label to the issue.
+
 ### Creating a pull request
 
 If you are new to GitHub's contribution workflow, we recommend the following setup:
@@ -88,7 +102,7 @@ Each PR should have:
   * Capitalize the title
   * Do not end the title with a period
   * Use the imperative mood in the title
-* A description of the problem it is solving. It could be simply a reference to the corresponding issue, e.g. `Resolves #123`.
+* A description of the problem it is solving, including the required canonical link to the corresponding issue, e.g. `Resolves #123`.
 * A summary of changes made to solve the problem. Explain _what_ and _why_ instead of _how_.
 
 ## AI Usage Policy

@@ -22,6 +22,10 @@ inputs:
     description: 'Log the intended labels and comments without writing anything.'
     required: false
     default: 'false'
+  per-issue-limit:
+    description: 'Reconcile the one-active-PR-per-linked-issue policy for the event PR.'
+    required: false
+    default: 'false'
 
 runs:
   using: composite
@@ -37,6 +41,8 @@ runs:
         # body, so an author-controlled username cannot inject JavaScript.
         QUOTA_USERNAME: ${{ inputs.username }}
         QUOTA_DRY_RUN: ${{ inputs.dry-run }}
+        QUOTA_PER_ISSUE_LIMIT: ${{ inputs.per-issue-limit }}
+        QUOTA_PR_NUMBER: ${{ github.event.pull_request.number }}
       with:
         github-token: ${{ inputs.token }}
         script: |
@@ -53,5 +59,8 @@ runs:
             username,
             owner: context.repo.owner,
             repo: context.repo.repo,
+            pullRequestNumber: process.env.QUOTA_PER_ISSUE_LIMIT === 'true'
+              ? process.env.QUOTA_PR_NUMBER
+              : undefined,
             dryRun: process.env.QUOTA_DRY_RUN === 'true'
           })
