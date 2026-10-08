@@ -12,7 +12,7 @@
           {
             "key": "deployment.environment",
             "value": {
-              "stringValue": "prod"
+              "stringValue": "staging"
             }
           }
         ]
@@ -26,7 +26,7 @@
               "spanId": "0000000000000f01",
               "name": "GET /cart",
               "startTimeUnixNano": "1485449191639875000",
-              "endTimeUnixNano": "1485449191640875000",
+              "endTimeUnixNano": "1485449191679875000",
               "attributes": [
                 {
                   "key": "http.status_code",
@@ -45,6 +45,20 @@
                   "value": {
                     "intValue": "9"
                   }
+                }
+              ],
+              "events": [
+                {
+                  "timeUnixNano": "1485449191642875000",
+                  "name": "exception",
+                  "attributes": [
+                    {
+                      "key": "exception.type",
+                      "value": {
+                        "stringValue": "TimeoutError"
+                      }
+                    }
+                  ]
                 }
               ],
               "status": {}
