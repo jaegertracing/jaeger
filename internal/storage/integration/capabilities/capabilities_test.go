@@ -119,3 +119,13 @@ func TestBackendSkipListsHaveNoDuplicates(t *testing.T) {
 		})
 	}
 }
+
+func TestPagingDropsTiedSpans(t *testing.T) {
+	// Only a backend whose span search runs without the _id tie-breaker declares the drop, and a
+	// constructor that chains an opt-out must carry the flag through.
+	assert.True(t, Elasticsearch().PagingDropsTiedSpans())
+	assert.True(t, Elasticsearch().WithoutNumericAttributes().PagingDropsTiedSpans())
+	assert.True(t, ElasticsearchSmokeTest().PagingDropsTiedSpans())
+	assert.False(t, OpenSearch().PagingDropsTiedSpans())
+	assert.False(t, Memory().PagingDropsTiedSpans())
+}
