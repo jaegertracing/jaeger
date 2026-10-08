@@ -328,11 +328,12 @@ func (s *StorageIntegration) testFindTracesWithFilter(t *testing.T) {
 			CompareTraceSlices(t, expected, s.findTracesByQuery(t, query, expected))
 		case capabilities.AttributeComparisonRefused:
 			// The reader refuses inside its lowering rather than at the capability edge, so the
-			// message is the reader's own.
+			// message is the reader's own; what every reader's message has in common is the
+			// attribute it refuses to compare.
 			_, err := jiter.CollectWithErrors(jptrace.AggregateTraces(
 				s.TraceReader.FindTraces(context.Background(), *query),
 			))
-			requireRefusal(t, err, "keyword rather than a number")
+			requireRefusal(t, err, "retry.count")
 		case capabilities.AttributeComparisonMissesOlderIndices:
 			// The reader ranges over the numeric sub-field, but the corpus was written into indices
 			// created before the mapping was turned on, so the range finds nothing there. RFC 0005
