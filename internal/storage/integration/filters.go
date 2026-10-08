@@ -278,6 +278,7 @@ func (s *StorageIntegration) testFindTracesWithFilter(t *testing.T) {
 			CompareTraceSlices(t, expected, actual)
 		})
 	}
+	s.testSchemaURLFilters(t)
 
 	// RFC 0005 §7 promises that a backend either evaluates a predicate or refuses it, and never
 	// answers a predicate it cannot evaluate with a wider result set.
@@ -350,6 +351,45 @@ func (s *StorageIntegration) testFindTracesWithFilter(t *testing.T) {
 		require.NoError(t, err, "the range must be evaluated, not refused")
 		require.Empty(t, actual)
 	})
+}
+
+// testSchemaURLFilters uses the ClickHouse suite's OTLP round-trip fixture. Other suites do not
+// load it because their storage formats do not all preserve these fields yet.
+func (s *StorageIntegration) testSchemaURLFilters(t *testing.T) {
+	_, ok := s.Corpus.QueryTraces["otlp_fields_trace"]
+	if !ok {
+		return
+	}
+	// Earlier comparisons normalize corpus traces in place, so reload the fixture to read its
+	// schema URLs before building the filters.
+	trace := getTraceFixture(t, "otlp_fields_trace")
+	resourceSpans := trace.ResourceSpans().At(0)
+	scopeSpans := resourceSpans.ScopeSpans().At(0)
+	service, ok := resourceSpans.Resource().Attributes().Get(otelsemconv.ServiceNameKey)
+	require.True(t, ok)
+	resourceURL := resourceSpans.SchemaUrl()
+	scopeURL := scopeSpans.SchemaUrl()
+	require.NotEmpty(t, resourceURL)
+	require.NotEmpty(t, scopeURL)
+	start, end := filterCorpusTimeRange(map[string]ptrace.Traces{"otlp_fields_trace": trace})
+	var p builder.Predicate
+	tests := []struct {
+		name     string
+		filter   *expression.Call
+		expected []ptrace.Traces
+	}{
+		{"resource schema URL", p.Resource().SchemaURL.Eq(resourceURL), []ptrace.Traces{trace}},
+		{"resource schema URL mismatch", p.Resource().SchemaURL.Eq(resourceURL + "/other"), nil},
+		{"scope schema URL", p.Scope().SchemaURL.Eq(scopeURL), []ptrace.Traces{trace}},
+		{"scope schema URL mismatch", p.Scope().SchemaURL.Eq(scopeURL + "/other"), nil},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			query := filterQuery(t, p.And(p.Resource().Service.Eq(service.Str()), tt.filter), start, end)
+			actual := s.findTracesByQuery(t, query, tt.expected)
+			CompareTraceSlices(t, tt.expected, actual)
+		})
+	}
 }
 
 // RunFilterRewriteTest asks one question both ways — through the legacy predicate fields, and as

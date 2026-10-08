@@ -186,6 +186,8 @@ func TestBuildFieldComparison(t *testing.T) {
 			&expression.DurationValue{Value: 2 * time.Second}, "s.duration", int64(2 * time.Second),
 		},
 		{"resource service", *fieldRef(expression.LevelResource, expression.ResourceFieldService), str("cart"), "s.service_name", "cart"},
+		{"resource schema URL", *fieldRef(expression.LevelResource, expression.ResourceFieldSchemaURL), str("https://example.com/resource"), "s.resource_schema_url", "https://example.com/resource"},
+		{"scope schema URL", *fieldRef(expression.LevelScope, expression.ScopeFieldSchemaURL), str("https://example.com/scope"), "s.scope_schema_url", "https://example.com/scope"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -252,10 +254,16 @@ func TestBuildFieldComparison_OrdersDuration(t *testing.T) {
 // capability declaration admits are lowered for span.duration alone: the other mapped fields hold
 // words or names and are refused rather than compared as text.
 func TestBuildFieldComparison_OrderingReachesDurationOnly(t *testing.T) {
-	for _, name := range []string{expression.SpanFieldName, expression.SpanFieldKind, expression.SpanFieldStatus} {
-		t.Run(name, func(t *testing.T) {
+	for _, ref := range []*expression.FieldRef{
+		fieldRef(expression.LevelSpan, expression.SpanFieldName),
+		fieldRef(expression.LevelSpan, expression.SpanFieldKind),
+		fieldRef(expression.LevelSpan, expression.SpanFieldStatus),
+		fieldRef(expression.LevelResource, expression.ResourceFieldSchemaURL),
+		fieldRef(expression.LevelScope, expression.ScopeFieldSchemaURL),
+	} {
+		t.Run(string(ref.Level)+"/"+ref.Name, func(t *testing.T) {
 			var q strings.Builder
-			_, err := buildFieldComparison(&q, 0, nil, expression.OpGt, *fieldRef(expression.LevelSpan, name), str("m"))
+			_, err := buildFieldComparison(&q, 0, nil, expression.OpGt, *ref, str("m"))
 			require.ErrorIs(t, err, tracestore.ErrFilterUnsupported)
 			assert.ErrorContains(t, err, "does not order the built-in field")
 		})
