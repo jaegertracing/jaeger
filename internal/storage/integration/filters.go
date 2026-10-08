@@ -175,7 +175,7 @@ func filterTestCases(p builder.Predicate) []filterCase {
 			// this attribute lexicographically does not also count it as greater than "10" in
 			// "ordering compares a numeric attribute as a number" below.
 			caption:  "a string-typed constant leaves out an attribute stored as a number",
-			filter:   p.Span().Attr("retry.count").Eq(p.Text("09")),
+			filter:   p.Span().Attr("retry.count").Eq(p.String("09")),
 			expected: []string{"search"},
 		},
 		{

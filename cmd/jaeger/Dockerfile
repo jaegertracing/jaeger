@@ -9,6 +9,7 @@ ARG debug_image
 FROM $base_image AS release
 ARG TARGETARCH
 ARG USER_UID=10001
+ARG USER_GID=10001
 
 ENV JAEGER_LISTEN_HOST=0.0.0.0
 
@@ -47,13 +48,14 @@ COPY sampling-strategies.json /cmd/jaeger/sampling-strategies.json
 
 VOLUME ["/tmp"]
 ENTRYPOINT ["/cmd/jaeger/jaeger-linux"]
-USER ${USER_UID}
+USER ${USER_UID}:${USER_GID}
 
 # ------------- Begin DEBUG image -------------
 
 FROM $debug_image AS debug
 ARG TARGETARCH=amd64
 ARG USER_UID=10001
+ARG USER_GID=10001
 
 ENV JAEGER_LISTEN_HOST=0.0.0.0
 
@@ -96,4 +98,4 @@ COPY sampling-strategies.json /cmd/jaeger/sampling-strategies.json
 VOLUME ["/tmp"]
 # Launch Jaeger under Delve debugger in headless mode but without pausing on start (--continue).
 ENTRYPOINT ["/go/bin/dlv", "exec", "/cmd/jaeger/jaeger-linux", "--continue", "--headless", "--listen=:12345", "--api-version=2", "--accept-multiclient", "--log", "--"]
-USER ${USER_UID}
+USER ${USER_UID}:${USER_GID}

@@ -13,13 +13,11 @@ import (
 func TestClickHouseStorage(t *testing.T) {
 	integration.SkipUnlessEnv(t, integration.StorageClickHouse)
 	s := &E2EStorageIntegration{
-		ConfigFile: "../../config-clickhouse.yaml",
+		ConfigFile:   "../../config-clickhouse.yaml",
+		FeatureGates: searchGates,
 		StorageIntegration: integration.StorageIntegration{
-			CleanUp: purge,
-			Capabilities: capabilities.
-				E2EWithoutNativeFilters().
-				WithoutPagination().
-				WithoutSpanSorting(),
+			CleanUp:      purge,
+			Capabilities: capabilities.ClickHouseE2E(),
 		},
 	}
 	s.e2eInitialize(t, "clickhouse")

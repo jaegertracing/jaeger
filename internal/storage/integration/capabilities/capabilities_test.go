@@ -71,6 +71,7 @@ var backends = map[string]func() Capabilities{
 	"GRPC":                    GRPC,
 	"Cassandra":               Cassandra,
 	"ClickHouse":              ClickHouse,
+	"ClickHouseE2E":           ClickHouseE2E,
 	"Badger":                  Badger,
 	"Elasticsearch":           Elasticsearch,
 	"ElasticsearchSmokeTest":  ElasticsearchSmokeTest,
@@ -118,4 +119,14 @@ func TestBackendSkipListsHaveNoDuplicates(t *testing.T) {
 			assert.Len(t, slices.Compact(slices.Sorted(slices.Values(list))), len(list), "duplicate entries in %v", list)
 		})
 	}
+}
+
+func TestPagingDropsTiedSpans(t *testing.T) {
+	// Only a backend whose span search runs without the _id tie-breaker declares the drop, and a
+	// constructor that chains an opt-out must carry the flag through.
+	assert.True(t, Elasticsearch().PagingDropsTiedSpans())
+	assert.True(t, Elasticsearch().WithoutNumericAttributes().PagingDropsTiedSpans())
+	assert.True(t, ElasticsearchSmokeTest().PagingDropsTiedSpans())
+	assert.False(t, OpenSearch().PagingDropsTiedSpans())
+	assert.False(t, Memory().PagingDropsTiedSpans())
 }
