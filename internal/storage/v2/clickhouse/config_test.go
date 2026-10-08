@@ -131,14 +131,17 @@ func TestValidate(t *testing.T) {
 			},
 		},
 		{
-			name: "table_engine ignored without create_schema",
+			name: "table_engine not validated without create_schema",
 			mutate: func(cfg *Configuration) {
 				cfg.CreateSchema = false
+				cfg.TableEngine.MergeTree = configoptional.Some(MergeTreeEngine{})
+				cfg.TableEngine.Replicated = configoptional.Some(ReplicatedEngine{KeeperPath: "it's"})
 			},
 		},
 		{
 			name: "both table_engine variants",
 			mutate: func(cfg *Configuration) {
+				cfg.CreateSchema = true
 				cfg.TableEngine.MergeTree = configoptional.Some(MergeTreeEngine{})
 				cfg.TableEngine.Replicated = configoptional.Some(ReplicatedEngine{})
 			},
@@ -147,6 +150,7 @@ func TestValidate(t *testing.T) {
 		{
 			name: "replicated keeper path without replica name",
 			mutate: func(cfg *Configuration) {
+				cfg.CreateSchema = true
 				cfg.TableEngine.Replicated = configoptional.Some(ReplicatedEngine{
 					KeeperPath: "/clickhouse/tables/{shard}/{database}/{table}",
 				})
@@ -156,6 +160,7 @@ func TestValidate(t *testing.T) {
 		{
 			name: "replicated keeper path with a quote",
 			mutate: func(cfg *Configuration) {
+				cfg.CreateSchema = true
 				cfg.TableEngine.Replicated = configoptional.Some(ReplicatedEngine{
 					KeeperPath:  "/clickhouse/tables/it's",
 					ReplicaName: "{replica}",
@@ -187,12 +192,15 @@ func TestValidate(t *testing.T) {
 }
 
 // TestTableEngine_Unmarshal checks that each variant is selected by its key the way the
-// collector's confmap unmarshals an optional block, including the empty merge_tree: {}.
+// collector's confmap unmarshals an optional block, including the empty merge_tree: {},
+// and that the two likely mistakes, an empty block and a misspelled key, are rejected.
 func TestTableEngine_Unmarshal(t *testing.T) {
 	tests := []struct {
-		name string
-		yaml map[string]any
-		want TableEngine
+		name             string
+		yaml             map[string]any
+		want             TableEngine
+		wantUnmarshalErr string
+		wantValidateErr  string
 	}{
 		{
 			name: "merge_tree",
@@ -215,6 +223,16 @@ func TestTableEngine_Unmarshal(t *testing.T) {
 				ReplicaName: "{replica}",
 			})},
 		},
+		{
+			name:            "empty block",
+			yaml:            map[string]any{},
+			wantValidateErr: "create_schema requires table_engine",
+		},
+		{
+			name:             "unknown variant",
+			yaml:             map[string]any{"mergetree": map[string]any{}},
+			wantUnmarshalErr: "mergetree",
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -224,10 +242,20 @@ func TestTableEngine_Unmarshal(t *testing.T) {
 				"create_schema": true,
 				"table_engine":  tt.yaml,
 			})
-			require.NoError(t, conf.Unmarshal(&cfg))
+			err := conf.Unmarshal(&cfg)
+			if tt.wantUnmarshalErr != "" {
+				require.ErrorContains(t, err, tt.wantUnmarshalErr)
+				return
+			}
+			require.NoError(t, err)
 			require.True(t, cfg.CreateSchema)
 			require.Equal(t, tt.want, cfg.TableEngine)
-			require.NoError(t, cfg.Validate())
+			err = cfg.Validate()
+			if tt.wantValidateErr != "" {
+				require.ErrorContains(t, err, tt.wantValidateErr)
+				return
+			}
+			require.NoError(t, err)
 		})
 	}
 }

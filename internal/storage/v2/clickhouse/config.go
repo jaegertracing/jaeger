@@ -111,12 +111,15 @@ func (e TableEngine) engineClause(family string) string {
 }
 
 func (e TableEngine) validate(createSchema bool) error {
+	if !createSchema {
+		return nil
+	}
 	hasMergeTree := e.MergeTree.HasValue()
 	hasReplicated := e.Replicated.HasValue()
 	if hasMergeTree && hasReplicated {
 		return errors.New("table_engine must set only one of merge_tree or replicated")
 	}
-	if createSchema && !hasMergeTree && !hasReplicated {
+	if !hasMergeTree && !hasReplicated {
 		return errors.New("create_schema requires table_engine with exactly one of merge_tree or replicated: " +
 			"use merge_tree for a single-node server, replicated for a cluster with more than one replica, " +
 			"or set create_schema: false and manage the tables yourself")

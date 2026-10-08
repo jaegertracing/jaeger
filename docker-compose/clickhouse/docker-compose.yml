@@ -13,7 +13,7 @@ services:
       - "8123:8123"
       - "9000:9000"
     volumes:
-      - ./keeper.xml:/etc/clickhouse-server/config.d/keeper.xml:ro
+      - ./keeper.yaml:/etc/clickhouse-server/config.d/keeper.yaml:ro
     healthcheck:
       test: ["CMD", "clickhouse-client", "--query=SELECT 1"]
       interval: 10s
