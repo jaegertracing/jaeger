@@ -527,8 +527,7 @@ func TestHTTPGatewayGetServicesErrors(t *testing.T) {
 // TestHTTPGatewayGetCapabilities pins the JSON shape of a full declaration, which is what a
 // client or the UI reads; the harness baseline in runGatewayTests pins the empty one.
 func TestHTTPGatewayGetCapabilities(t *testing.T) {
-	gw := setupHTTPGateway(t, "/")
-	gw.setupRequest = func(*http.Request) {}
+	gw := setupHTTPGatewayNoServer(t, "")
 	gw.reader.ExpectedCalls = nil
 	gw.reader.On("SearchCapabilities", mock.Anything).Return(tracestore.SearchCapabilities{
 		WithoutServiceName:  true,
@@ -542,9 +541,12 @@ func TestHTTPGatewayGetCapabilities(t *testing.T) {
 		SpanSorting: true,
 	}, nil).Once()
 
-	body, statusCode := gw.execRequest(t, "/api/v3/capabilities")
-	require.Equal(t, http.StatusOK, statusCode)
-	gw.verifySnapshot(t, body)
+	r, err := http.NewRequest(http.MethodGet, "/api/v3/capabilities", http.NoBody)
+	require.NoError(t, err)
+	w := httptest.NewRecorder()
+	gw.router.ServeHTTP(w, r)
+	require.Equal(t, http.StatusOK, w.Code)
+	gw.verifySnapshot(t, w.Body.Bytes())
 	gw.reader.AssertExpectations(t)
 }
 
