@@ -284,8 +284,6 @@ func Cassandra() Capabilities {
 var clickHouseSkipList = append([]string{
 	spanOrderingTest,
 	paginationTest,
-	"GetThroughput",
-	"GetLatestProbability",
 	// The lowering maps five built-in fields; event.name and span.traceState have columns
 	// but are not among them yet.
 	filterEventNameTest,
@@ -303,6 +301,9 @@ func ClickHouse() Capabilities {
 			// The ClickHouse reader does not support FindTraceSummaries. They are tested in
 			// the e2e suite because the query service falls back to FindTraces.
 			findTraceSummariesTest,
+			// The direct suite has no sampling store for ClickHouse.
+			"GetThroughput",
+			"GetLatestProbability",
 		}, clickHouseSkipList...),
 	}
 }

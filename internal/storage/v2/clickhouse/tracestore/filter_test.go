@@ -285,10 +285,17 @@ func TestBuildComparisonCondition_RefusesOrderingAnAttribute(t *testing.T) {
 
 func TestBuildComparisonCondition_RejectsReferenceOperand(t *testing.T) {
 	r := newTestReader()
-	var q strings.Builder
-	_, err := lowerFilter(t, r, &q, call(expression.OpEq, fieldRef(expression.LevelSpan, expression.SpanFieldName), attrRef(expression.LevelSpan, "k")))
-	require.ErrorIs(t, err, tracestore.ErrFilterInvalid)
-	assert.ErrorContains(t, err, "not another reference")
+	for name, operand := range map[string]expression.Expression{
+		"attribute": attrRef(expression.LevelSpan, "k"),
+		"predicate": call(expression.OpEq, fieldRef(expression.LevelSpan, expression.SpanFieldName), str("x")),
+	} {
+		t.Run(name, func(t *testing.T) {
+			var q strings.Builder
+			_, err := lowerFilter(t, r, &q, call(expression.OpEq, fieldRef(expression.LevelSpan, expression.SpanFieldName), operand))
+			require.ErrorIs(t, err, tracestore.ErrFilterInvalid)
+			assert.ErrorContains(t, err, "not another reference or predicate")
+		})
+	}
 }
 
 // TestSpanStatusColumnValue_UnrecognizedWord pins that an out-of-set span.status word is
@@ -319,7 +326,26 @@ func TestBuildAttributeComparison_TypedConstants(t *testing.T) {
 			args, err := lowerFilter(t, r, &q, call(expression.OpEq, attrRef(expression.LevelSpan, "k"), tt.value))
 			require.NoError(t, err)
 			assert.Contains(t, q.String(), tt.wantColumn)
+			assert.Equal(t, 1, strings.Count(q.String(), "arrayExists"), "a typed constant matches its own column only")
 			assert.Equal(t, []any{"k", tt.wantArg}, args)
+		})
+	}
+}
+
+// TestBuildFilterCondition_NilChildIsRefused pins that a nil *expression.Call inside a
+// combinator is refused as invalid rather than dereferenced: the type assertion alone passes
+// for it, so each site checks the pointer too.
+func TestBuildFilterCondition_NilChildIsRefused(t *testing.T) {
+	r := newTestReader()
+	var nilCall *expression.Call
+	for _, predicate := range []*expression.Call{
+		call(expression.OpAnd, call(expression.OpEq, fieldRef(expression.LevelSpan, expression.SpanFieldName), str("a")), nilCall),
+		call(expression.OpNot, nilCall),
+	} {
+		t.Run(string(predicate.Op), func(t *testing.T) {
+			var q strings.Builder
+			_, err := lowerFilter(t, r, &q, predicate)
+			require.ErrorIs(t, err, tracestore.ErrFilterInvalid)
 		})
 	}
 }
@@ -358,9 +384,11 @@ func TestBuildAttributeComparison_QualifiedLevels(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(string(tt.level), func(t *testing.T) {
 			var q strings.Builder
-			_, err := lowerFilter(t, r, &q, call(expression.OpEq, attrRef(tt.level, "k"), str("v")))
+			args, err := lowerFilter(t, r, &q, call(expression.OpEq, attrRef(tt.level, "k"), str("v")))
 			require.NoError(t, err)
 			assert.Contains(t, q.String(), tt.column)
+			assert.Equal(t, 1, strings.Count(q.String(), "arrayExists"), "a qualified level searches that level only")
+			assert.Equal(t, []any{"k", "v"}, args)
 		})
 	}
 }
@@ -448,6 +476,42 @@ func TestBuildFindTraceIDsQuery_WithFilter(t *testing.T) {
 	require.NoError(t, err)
 	verifyQuerySnapshot(t, sqlText)
 	assert.Equal(t, []any{"cart", time.Unix(0, 0), time.Unix(100, 0), testReaderConfig.DefaultSearchDepth}, args)
+}
+
+// TestBuildFindTraceIDsQuery_WithNestedFilter snapshots the whole query for a boolean tree with
+// an untyped attribute resolved through metadata, so the indentation and parenthesis placement
+// under the outer AND are pinned for the path a real query takes, not only for a single leaf.
+func TestBuildFindTraceIDsQuery_WithNestedFilter(t *testing.T) {
+	driver := &clickhousetest.Driver{
+		QueryResponses: map[string]*clickhousetest.QueryResponse{
+			sql.SelectAttributeMetadata: {
+				Rows: &clickhousetest.Rows[dbmodel.AttributeMetadata]{
+					Data: []dbmodel.AttributeMetadata{
+						{AttributeKey: "http.status_code", Type: "int", Level: "span"},
+					},
+					ScanFn: scanAttributeMetadataFn(),
+				},
+			},
+		},
+	}
+	r := NewReader(driver, testReaderConfig)
+	query := tracestore.TraceQueryParams{
+		Filter: call(expression.OpAnd,
+			call(expression.OpOr,
+				call(expression.OpEq, fieldRef(expression.LevelSpan, expression.SpanFieldName), str("checkout")),
+				call(expression.OpEq, attrRef(expression.LevelSpan, "http.status_code"), &expression.AnyValue{Value: "500"}),
+			),
+			call(expression.OpNot,
+				call(expression.OpGt, fieldRef(expression.LevelSpan, expression.SpanFieldDuration), &expression.DurationValue{Value: time.Second}),
+			),
+		),
+		StartTimeMin: time.Unix(0, 0),
+		StartTimeMax: time.Unix(100, 0),
+	}
+	sqlText, args, err := r.buildFindTraceIDsQuery(t.Context(), query)
+	require.NoError(t, err)
+	verifyQuerySnapshot(t, sqlText)
+	assert.Equal(t, []any{"checkout", "http.status_code", int64(500), int64(time.Second), time.Unix(0, 0), time.Unix(100, 0), testReaderConfig.DefaultSearchDepth}, args)
 }
 
 func TestBuildFindTraceIDsQuery_FilterBesideLegacyFields(t *testing.T) {

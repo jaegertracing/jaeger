@@ -129,8 +129,10 @@ func buildFilterCondition(
 		if len(predicate.Args) != 1 {
 			return nil, errArity(predicate)
 		}
+		// A nil *expression.Call still asserts ok, since only the pointer is nil, so it is
+		// checked separately or the recursion dereferences it instead of refusing.
 		child, ok := predicate.Args[0].(*expression.Call)
-		if !ok {
+		if !ok || child == nil {
 			return nil, fmt.Errorf("%w: %q negates a predicate, not a value", tracestore.ErrFilterInvalid, predicate.Op)
 		}
 		appendNewlineAndIndent(q, indent)
@@ -169,7 +171,7 @@ func buildBooleanCondition(
 	q.WriteString("(")
 	for i, arg := range predicate.Args {
 		child, ok := arg.(*expression.Call)
-		if !ok {
+		if !ok || child == nil {
 			return nil, fmt.Errorf("%w: %q combines predicates, not values", tracestore.ErrFilterInvalid, predicate.Op)
 		}
 		if i > 0 {
@@ -201,8 +203,8 @@ func buildComparisonCondition(
 		return nil, errArity(predicate)
 	}
 	switch predicate.Args[1].(type) {
-	case *expression.FieldRef, *expression.AttributeRef, *expression.NestedRef:
-		return nil, fmt.Errorf("%w: %q compares a field or attribute against a constant, not another reference",
+	case *expression.FieldRef, *expression.AttributeRef, *expression.NestedRef, *expression.Call:
+		return nil, fmt.Errorf("%w: %q compares a field or attribute against a constant, not another reference or predicate",
 			tracestore.ErrFilterInvalid, predicate.Op)
 	}
 	switch ref := predicate.Args[0].(type) {
@@ -445,7 +447,7 @@ func collectUntypedAttributeKeys(predicate *expression.Call, keys pcommon.Map) {
 	switch predicate.Op {
 	case expression.OpAnd, expression.OpOr, expression.OpNot:
 		for _, arg := range predicate.Args {
-			if child, ok := arg.(*expression.Call); ok {
+			if child, ok := arg.(*expression.Call); ok && child != nil {
 				collectUntypedAttributeKeys(child, keys)
 			}
 		}
