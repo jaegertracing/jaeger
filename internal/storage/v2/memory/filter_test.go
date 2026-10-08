@@ -209,12 +209,12 @@ func TestMatchesFilter_Regex(t *testing.T) {
 
 func TestMatchesFilter_InAndNotIn(t *testing.T) {
 	f := newFilterFixture(t)
-	list := &expression.List{Values: []string{"GET /cart", "POST /cart"}, Type: expression.ValueTypeString}
+	list := p.List(expression.ValueTypeString, "GET /cart", "POST /cart")
 	assert.True(t, f.matches(p.Span().Name.In(list)))
 	// not_in is false when the value is found in the list, same list that made in true.
 	assert.False(t, f.matches(p.Span().Name.NotIn(list)))
 
-	otherList := &expression.List{Values: []string{"GET /cart"}, Type: expression.ValueTypeString}
+	otherList := p.List(expression.ValueTypeString, "GET /cart")
 	assert.False(t, f.matches(p.Span().Name.In(otherList)))
 	assert.True(t, f.matches(p.Span().Name.NotIn(otherList)))
 
@@ -390,10 +390,10 @@ func TestMatchesFilter_InAndNotInAgainstNonList(t *testing.T) {
 
 func TestMatchesFilter_InNumericAndBoolList(t *testing.T) {
 	f := newFilterFixture(t)
-	numList := &expression.List{Values: []string{"500", "404"}, Type: expression.ValueTypeInt}
+	numList := p.List(expression.ValueTypeInt, 500, 404)
 	assert.True(t, f.matches(p.Span().Attr("http.status_code").In(numList)))
 
-	boolList := &expression.List{Values: []string{"false"}, Type: expression.ValueTypeBool}
+	boolList := p.List(expression.ValueTypeBool, false)
 	assert.True(t, f.matches(p.Span().Attr("retry").In(boolList)))
 }
 
@@ -480,11 +480,11 @@ func TestMatchesFilter_IntPrecisionAtNanosecondTimestamps(t *testing.T) {
 func TestMatchesFilter_ListTypeIsAuthoritative(t *testing.T) {
 	f := newFilterFixture(t)
 	// http.status_code is an int attribute (500).
-	stringList := &expression.List{Values: []string{"500"}, Type: expression.ValueTypeString}
+	stringList := p.List(expression.ValueTypeString, "500")
 	assert.False(t, f.matches(p.Span().Attr("http.status_code").In(stringList)))
 
 	// http.method is a string attribute ("POST"), never matches an int-typed list.
-	intList := &expression.List{Values: []string{"500"}, Type: expression.ValueTypeInt}
+	intList := p.List(expression.ValueTypeInt, 500)
 	assert.False(t, f.matches(p.Span().Attr("http.method").In(intList)))
 }
 
@@ -849,17 +849,13 @@ func TestMatchesFilter_MembershipOnTimeFields(t *testing.T) {
 	f := newFilterFixture(t)
 	duration := p.Span().Duration
 	start := p.Span().StartTime
-	durations := &expression.List{Values: []string{"100ms", "150ms"}}
-	starts := &expression.List{Values: []string{"2026-01-01T00:00:00Z"}}
-	others := &expression.List{Values: []string{"1s"}}
-
-	assert.True(t, f.matches(duration.In(durations)))
-	assert.False(t, f.matches(duration.NotIn(durations)))
-	assert.True(t, f.matches(start.In(starts)))
-	assert.False(t, f.matches(duration.In(others)))
-	assert.True(t, f.matches(duration.NotIn(others)))
-	assert.False(t, f.evaluates(duration.In(&expression.List{Values: []string{"not a duration"}})))
-	assert.False(t, f.matches(p.Span().Field("no.such.field").In(others)), "an unknown field resolves to nothing")
+	assert.True(t, f.matches(duration.In(100*time.Millisecond, 150*time.Millisecond)))
+	assert.False(t, f.matches(duration.NotIn(100*time.Millisecond, 150*time.Millisecond)))
+	assert.True(t, f.matches(start.In(time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC))))
+	assert.False(t, f.matches(duration.In(time.Second)))
+	assert.True(t, f.matches(duration.NotIn(time.Second)))
+	assert.False(t, f.evaluates(duration.In("not a duration")))
+	assert.False(t, f.matches(p.Span().Field("no.such.field").In(time.Second)), "an unknown field resolves to nothing")
 }
 
 func TestMatchesFilter_UnspecifiedSpanKind(t *testing.T) {
@@ -867,7 +863,7 @@ func TestMatchesFilter_UnspecifiedSpanKind(t *testing.T) {
 	f.span.SetKind(ptrace.SpanKindUnspecified)
 	kind := p.Span().Kind
 	assert.True(t, f.matches(kind.Eq("unspecified")))
-	assert.True(t, f.matches(kind.In(&expression.List{Values: []string{"unspecified", "server"}})))
+	assert.True(t, f.matches(kind.In("unspecified", "server")))
 	assert.False(t, f.evaluates(kind.Eq("")))
 }
 
@@ -915,10 +911,10 @@ func TestMatchesFilter_TypedListMismatches(t *testing.T) {
 	status := p.Span().Attr("http.status_code") // int 500
 	method := p.Span().Attr("http.method")      // string
 	retry := p.Span().Attr("retry")             // bool false
-	assert.False(t, f.matches(status.In(&expression.List{Values: []string{"404"}, Type: expression.ValueTypeInt})))
-	assert.False(t, f.matches(method.In(&expression.List{Values: []string{"true"}, Type: expression.ValueTypeBool})))
-	assert.False(t, f.matches(retry.In(&expression.List{Values: []string{"true"}, Type: expression.ValueTypeBool})))
-	assert.False(t, f.matches(status.In(&expression.List{Values: []string{"500"}, Type: "no-such-type"})))
+	assert.False(t, f.matches(status.In(p.List(expression.ValueTypeInt, 404))))
+	assert.False(t, f.matches(method.In(p.List(expression.ValueTypeBool, true))))
+	assert.False(t, f.matches(retry.In(p.List(expression.ValueTypeBool, true))))
+	assert.False(t, f.matches(status.In(p.List("no-such-type", 500))))
 }
 
 // TestMatchesFilter_LegacySyntheticTags pins that the attribute names the legacy predicate
