@@ -36,7 +36,7 @@ func (w *Writer) WriteTraces(ctx context.Context, td ptrace.Traces) error {
 	for _, rs := range td.ResourceSpans().All() {
 		for _, ss := range rs.ScopeSpans().All() {
 			for _, span := range ss.Spans().All() {
-				sr := dbmodel.ToRow(rs.Resource(), ss.Scope(), span)
+				sr := dbmodel.ToRow(rs.Resource(), rs.SchemaUrl(), ss.Scope(), ss.SchemaUrl(), span)
 				err = batch.Append(
 					sr.ID,
 					sr.TraceID,
@@ -96,6 +96,16 @@ func (w *Writer) WriteTraces(ctx context.Context, td ptrace.Traces) error {
 					sr.ScopeAttributes.StrValues,
 					sr.ScopeAttributes.ComplexKeys,
 					sr.ScopeAttributes.ComplexValues,
+					sr.Flags,
+					sr.DroppedAttributesCount,
+					sr.DroppedEventsCount,
+					sr.DroppedLinksCount,
+					sr.EventDroppedAttributesCount,
+					sr.LinkDroppedAttributesCount,
+					sr.LinkFlags,
+					sr.ResourceSchemaURL,
+					sr.ScopeSchemaURL,
+					sr.ScopeDroppedAttributesCount,
 				)
 				if err != nil {
 					return fmt.Errorf("failed to append span to batch: %w", err)
