@@ -43,6 +43,7 @@ func TestTracingMiddlewareToolCallSuccess(t *testing.T) {
 
 	spanData := capture.singleSpan(t)
 	assert.Equal(t, mcpMethodToolsCall+" get_services", spanData.Name)
+	assertHasStringAttribute(t, spanData.Attributes, string(otelsemconv.McpMethodName("").Key), mcpMethodToolsCall)
 	assertHasStringAttribute(t, spanData.Attributes, string(otelsemconv.GenAIToolName("").Key), "get_services")
 	assertHasStringAttribute(t, spanData.Attributes, string(otelsemconv.GenAIOperationNameExecuteTool.Key), "execute_tool")
 	assert.Equal(t, codes.Unset, spanData.Status.Code)

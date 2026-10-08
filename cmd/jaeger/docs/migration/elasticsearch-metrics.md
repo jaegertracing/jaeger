@@ -8,6 +8,7 @@
 | jaeger_bulk_index_inserts_total | N/A | jaeger_bulk_index_inserts_total | N/A |
 | jaeger_bulk_index_latency_err | N/A | jaeger_bulk_index_latency_err | N/A |
 | jaeger_bulk_index_latency_ok | N/A | jaeger_bulk_index_latency_ok | N/A |
+| N/A | N/A | jaeger_bulk_index_request_bytes | N/A |
 | jaeger_index_create_attempts_total | N/A | jaeger_index_create_attempts_total | N/A |
 | jaeger_index_create_errors_total | N/A | jaeger_index_create_errors_total | N/A |
 | jaeger_index_create_inserts_total | N/A | jaeger_index_create_inserts_total | N/A |

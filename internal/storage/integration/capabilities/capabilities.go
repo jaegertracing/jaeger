@@ -57,6 +57,23 @@ const (
 // attributeOrderingTests are the three outcomes of ordering an attribute, of which one runs.
 var attributeOrderingTests = []string{attributeOrderingTest, attributeRefusedTest, attributeUnindexedTest}
 
+// filterOperatorTests are the battery cases that need ne, regex, exists or in, or that order an
+// attribute. A backend whose lowering evaluates equality on attributes and orders only
+// span.duration skips them as a set. Of the three attribute-ordering outcomes, attributeRefusedTest
+// is the one such a backend does satisfy in substance, but the case expects the refusal worded
+// the way Elasticsearch words it, so it is skipped with the other two.
+var filterOperatorTests = []string{
+	filterUnqualifiedEventTest,
+	filterServiceInListTest,
+	filterOperationRegexTest,
+	filterAttributeNeTest,
+	filterAttributeExistsTest,
+	filterAttributeRegexTest,
+	attributeOrderingTest,
+	attributeRefusedTest,
+	attributeUnindexedTest,
+}
+
 // Capabilities records what a storage backend *cannot* do in the integration suite. Every
 // field is an opt-out: the zero value runs the whole battery, and a backend lists only the
 // tests or behaviors it cannot satisfy. New fields must keep that polarity, so a backend
@@ -73,8 +90,19 @@ type Capabilities struct {
 	// searchRequiresServiceName excuses a backend whose reader rejects a search that omits
 	// the service name — Cassandra and Badger key every index by it (RFC 0013).
 	searchRequiresServiceName bool
+	// pagingDropsTiedSpans excuses a reader whose span search, at its default configuration,
+	// loses the later occurrences of documents that tie on every sort key when they straddle a
+	// page boundary (RFC 0016 §6.4): Elasticsearch and OpenSearch sort on _id only when
+	// span_search_tie_break_by_id is on.
+	pagingDropsTiedSpans bool
 	// List of tests which to be skipped (exact name or substring)
 	skipList []string
+}
+
+// PagingDropsTiedSpans returns true if a span search may skip documents that tie on every sort
+// key across a page boundary.
+func (c Capabilities) PagingDropsTiedSpans() bool {
+	return c.pagingDropsTiedSpans
 }
 
 // SearchRequiresServiceName returns true if the storage backend cannot serve a search that
@@ -263,17 +291,39 @@ func Cassandra() Capabilities {
 	}
 }
 
-// ClickHouse returns the capabilities for the ClickHouse storage backend.
+// clickHouseSkipList is what the ClickHouse reader does not satisfy in either mode.
+var clickHouseSkipList = append([]string{
+	spanOrderingTest,
+	paginationTest,
+	// The lowering maps five built-in fields; event.name and span.traceState have columns
+	// but are not among them yet.
+	filterEventNameTest,
+	filterTraceStateTest,
+	// The reader indexes all five levels, so there is no level to refuse.
+	levelRefusedTest,
+	// The lowering evaluates and, or, not and eq, and orders span.duration only (RFC 0005 M3,
+	// first increment).
+}, filterOperatorTests...)
+
+// ClickHouse returns the capabilities for the ClickHouse storage backend read directly.
 func ClickHouse() Capabilities {
 	return Capabilities{
-		skipList: []string{
-			spanOrderingTest,
-			paginationTest,
+		skipList: append([]string{
+			// The ClickHouse reader does not support FindTraceSummaries. They are tested in
+			// the e2e suite because the query service falls back to FindTraces.
+			findTraceSummariesTest,
+			// The direct suite has no sampling store for ClickHouse.
 			"GetThroughput",
 			"GetLatestProbability",
-			findTraceSummariesTest,
-			structuredFilterTest,
-		},
+		}, clickHouseSkipList...),
+	}
+}
+
+// ClickHouseE2E returns the capabilities for the ClickHouse e2e suite, which reaches the reader
+// through jaeger-query.
+func ClickHouseE2E() Capabilities {
+	return Capabilities{
+		skipList: clickHouseSkipList,
 	}
 }
 
@@ -300,12 +350,18 @@ func Elasticsearch() Capabilities {
 		// TODO: remove this flag after ES supports returning spanKind
 		//  Issue https://github.com/jaegertracing/jaeger/issues/1923
 		getOperationsMissingSpanKind: true,
+		// The direct-mode suite runs this set against OpenSearch as well, with the reader's
+		// default configuration, so the drop applies there too.
+		pagingDropsTiedSpans: true,
 		// The suite configures the typed-attribute mapping (RFC 0015), so an attribute value is
 		// indexed as a number beside the keyword and ordering one is answered; orderingOutcome
 		// skips the battery's other two ordering outcomes.
+		// FindSpans pages and orders by the built-in fields (RFC 0016 M4, M11), not yet by an attribute;
+		// the trace searches do not page yet (RFC 0014 M3).
 		skipList: []string{
-			spanOrderingTest,
-			paginationTest,
+			spanAttributeOrderingTest,
+			traceIDPaginationTest,
+			summaryPaginationTest,
 			scopeAttributesTest,
 			linkAttributesTest,
 			filterScopeLevelTest,
@@ -322,9 +378,13 @@ func Elasticsearch() Capabilities {
 func ElasticsearchSmokeTest() Capabilities {
 	return Capabilities{
 		getOperationsMissingSpanKind: true,
+		// The rotation configurations, for OpenSearch as well as Elasticsearch, leave
+		// span_search_tie_break_by_id at its default.
+		pagingDropsTiedSpans: true,
 		skipList: []string{
-			spanOrderingTest,
-			paginationTest,
+			spanAttributeOrderingTest,
+			traceIDPaginationTest,
+			summaryPaginationTest,
 			scopeAttributesTest,
 			linkAttributesTest,
 			structuredFilterTest,
@@ -338,10 +398,13 @@ func ElasticsearchSmokeTest() Capabilities {
 func OpenSearch() Capabilities {
 	return Capabilities{
 		getOperationsMissingSpanKind: true,
-		// Same mapping and same setting as Elasticsearch; see the note there.
+		// Same mapping and same setting, and same search support as Elasticsearch; see the note there.
+		// The e2e configuration turns span_search_tie_break_by_id on, so paging keeps every tied
+		// occurrence and pagingDropsTiedSpans stays unset.
 		skipList: []string{
-			spanOrderingTest,
-			paginationTest,
+			spanAttributeOrderingTest,
+			traceIDPaginationTest,
+			summaryPaginationTest,
 			scopeAttributesTest,
 			linkAttributesTest,
 			filterScopeLevelTest,

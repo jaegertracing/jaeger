@@ -62,7 +62,11 @@ func (f *otelFactory) Gauge(opts metrics.Options) metrics.Gauge {
 
 func (f *otelFactory) Histogram(opts metrics.HistogramOptions) metrics.Histogram {
 	name := f.subScope(opts.Name)
-	histogram, err := f.meter.Float64Histogram(name)
+	var histogramOpts []metric.Float64HistogramOption
+	if len(opts.Buckets) > 0 {
+		histogramOpts = append(histogramOpts, metric.WithExplicitBucketBoundaries(opts.Buckets...))
+	}
+	histogram, err := f.meter.Float64Histogram(name, histogramOpts...)
 	if err != nil {
 		log.Printf("Error creating OTEL histogram: %v", err)
 		return metrics.NullHistogram
