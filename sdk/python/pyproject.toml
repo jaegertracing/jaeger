@@ -23,7 +23,7 @@ dependencies = []
 # with the version that generated it. Regenerating with newer tooling raises both
 # floors, so they have to move with `make proto-api-v3-python`.
 [project.optional-dependencies]
-grpc = ["grpcio>=1.83.0", "protobuf>=7.35.1", "opentelemetry-proto>=1.20"]
+grpc = ["grpcio>=1.83.1", "protobuf>=7.35.1", "opentelemetry-proto>=1.20"]
 
 # grpcio-tools is here rather than in the grpc extra because it is only needed to
 # regenerate the stubs, which the repository's proto-api-v3-python target drives

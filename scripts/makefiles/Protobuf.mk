@@ -295,6 +295,6 @@ proto-api-v3-python: patch-api-v3-python
 	@# on PyPI already ships them, and a second copy would register the same protos
 	@# twice in the descriptor pool. So the generated modules must import them, and
 	@# must import nothing from the stripped annotations.
-	@! grep -qE '^from (google\.api|gnostic|openapiv3) ' $(PYTHON_SDK_PATH)/api_v3/query_service_pb2.py || \
+	@! grep -qE '^from (google\.api|gnostic|openapiv3) ' $(PYTHON_SDK_PATH)/api_v3/*_pb2.py || \
 		(echo "ERROR: an annotation import survived into the generated Python"; exit 1)
 	@echo "🏗️  OK: generated Python imports only the protobuf runtime and opentelemetry-proto"
