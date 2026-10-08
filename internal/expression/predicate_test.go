@@ -253,6 +253,7 @@ func TestConstantLeavesTheTypeOpen(t *testing.T) {
 		{"integer asked for explicitly", p.Attr("size").Eq(p.Int(500)), &ast.IntValue{Value: 500}},
 		{"double asked for explicitly", p.Attr("ratio").Eq(p.Double(1.5)), &ast.DoubleValue{Value: 1.5}},
 		{"boolean asked for explicitly", p.Attr("ok").Eq(p.Bool(true)), &ast.BoolValue{Value: true}},
+		{"duration asked for explicitly", p.Attr("d").Gt(p.Duration(time.Second)), &ast.DurationValue{Value: time.Second}},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {

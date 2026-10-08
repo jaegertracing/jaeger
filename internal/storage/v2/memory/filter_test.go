@@ -18,9 +18,10 @@ import (
 	"github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore"
 )
 
-// p builds the filters under test. The builder holds no state, so one value serves every test;
-// the call, fieldRef and attrRef helpers below remain for the trees the builder cannot express,
-// such as a malformed shape or a constant on the left of a comparison.
+// p builds the filters under test. The builder holds no state, so one value serves every test.
+// The call, fieldRef and attrRef helpers below remain where the hand-built tree is the point: a
+// malformed shape, a constant on the left of a comparison, or a reference read back by level
+// and name.
 var p builder.Predicate
 
 // newFilterFixture builds a span, in the context of a resource and scope,
@@ -149,8 +150,8 @@ func TestMatchesFilter_SpanFields(t *testing.T) {
 		pred *expression.Call
 		want bool
 	}{
-		{"traceID eq", p.Span().TraceID.Eq(p.Text(f.span.TraceID().String())), true},
-		{"spanID eq", p.Span().SpanID.Eq(p.Text(f.span.SpanID().String())), true},
+		{"traceID eq", p.Span().TraceID.Eq(f.span.TraceID().String()), true},
+		{"spanID eq", p.Span().SpanID.Eq(f.span.SpanID().String()), true},
 		{"parentSpanID absent", p.Span().ParentSpanID.Exists(), false},
 		{"name eq", p.Span().Name.Eq("POST /cart"), true},
 		{"name ne no match", p.Span().Name.Ne("POST /cart"), false},
@@ -160,6 +161,7 @@ func TestMatchesFilter_SpanFields(t *testing.T) {
 		{"statusMessage eq", p.Span().StatusMessage.Eq("boom"), true},
 		{"duration gt", p.Span().Duration.Gt(100 * time.Millisecond), true},
 		{"duration lt", p.Span().Duration.Lt(100 * time.Millisecond), false},
+		{"duration gt, typed", p.Span().Duration.Gt(p.Duration(100 * time.Millisecond)), true},
 		{"startTime exists", p.Span().StartTime.Exists(), true},
 	}
 	for _, tt := range tests {
@@ -199,8 +201,10 @@ func TestMatchesFilter_UnqualifiedAttributeSearchesSpanAndResource(t *testing.T)
 
 func TestMatchesFilter_Regex(t *testing.T) {
 	f := newFilterFixture(t)
-	assert.True(t, f.matches(p.Span().Name.Matches("cart$")))
-	assert.False(t, f.matches(p.Span().Name.Matches("^cart")))
+	// A typed pattern, which the evaluator compiles through its own branch; Matches builds an
+	// untyped one, covered by TestMatchesFilter_RegexAcceptsAnUntypedPattern.
+	assert.True(t, f.matches(p.Compare(expression.OpRegex, p.Span().Name, p.Text("cart$"))))
+	assert.False(t, f.matches(p.Compare(expression.OpRegex, p.Span().Name, p.Text("^cart"))))
 }
 
 func TestMatchesFilter_InAndNotIn(t *testing.T) {
@@ -307,8 +311,8 @@ func TestMatchesFilter_NonCallExpressionDoesNotMatch(t *testing.T) {
 func TestMatchesFilter_LinkFields(t *testing.T) {
 	f := newFilterFixture(t)
 	link := f.span.Links().At(0)
-	assert.True(t, f.matches(p.Link().TraceID.Eq(p.Text(link.TraceID().String()))))
-	assert.True(t, f.matches(p.Link().SpanID.Eq(p.Text(link.SpanID().String()))))
+	assert.True(t, f.matches(p.Link().TraceID.Eq(link.TraceID().String())))
+	assert.True(t, f.matches(p.Link().SpanID.Eq(link.SpanID().String())))
 	assert.False(t, f.matches(p.Link().TraceState.Exists()))
 }
 
@@ -806,14 +810,16 @@ func TestMatchesFilter_RegexAcceptsAnUntypedPattern(t *testing.T) {
 // prepared, and that a pattern the search could not compile ahead of the scan is refused there.
 func TestPrepareFilter_Regex(t *testing.T) {
 	nameRef := p.Span().Name
-	nested := p.And(p.Not(nameRef.Matches("^x")))
+	// The builder collapses a one-argument And, so each tree has a second predicate to keep the
+	// pattern nested.
+	nested := p.And(nameRef.Exists(), p.Not(nameRef.Matches("^x")))
 	prepared, err := prepareFilter(nested)
 	require.NoError(t, err)
 	assert.Len(t, prepared.regexps, 1, "the pattern under and/not is compiled")
 
 	_, err = prepareFilter(nameRef.Matches("("))
 	require.ErrorIs(t, err, tracestore.ErrFilterInvalid, "a pattern that does not compile")
-	_, err = prepareFilter(p.And(nameRef.Matches("(")))
+	_, err = prepareFilter(p.And(nameRef.Exists(), nameRef.Matches("(")))
 	require.ErrorIs(t, err, tracestore.ErrFilterInvalid, "the same pattern nested under and")
 
 	prepared, err = prepareFilter(nil)
@@ -860,9 +866,9 @@ func TestMatchesFilter_UnspecifiedSpanKind(t *testing.T) {
 	f := newFilterFixture(t)
 	f.span.SetKind(ptrace.SpanKindUnspecified)
 	kind := p.Span().Kind
-	assert.True(t, f.matches(kind.Eq(p.Text("unspecified"))))
+	assert.True(t, f.matches(kind.Eq("unspecified")))
 	assert.True(t, f.matches(kind.In(&expression.List{Values: []string{"unspecified", "server"}})))
-	assert.False(t, f.evaluates(kind.Eq(p.Text(""))))
+	assert.False(t, f.evaluates(kind.Eq("")))
 }
 
 func TestMatchesFilter_NaNNeverCompares(t *testing.T) {
@@ -895,8 +901,7 @@ func TestMatchesFilter_AbsentAndUnknownFieldsResolveToNothing(t *testing.T) {
 	}
 
 	f.span.SetParentSpanID(pcommon.SpanID{9})
-	parent := fieldRef(expression.LevelSpan, expression.SpanFieldParentSpanID)
-	assert.True(t, f.matches(call(expression.OpEq, parent, p.Text(pcommon.SpanID{9}.String()))))
+	assert.True(t, f.matches(p.Span().ParentSpanID.Eq(pcommon.SpanID{9}.String())))
 }
 
 func TestMatchesFilter_LinkAttributeOutsideSome(t *testing.T) {
