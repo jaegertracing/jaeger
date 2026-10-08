@@ -9,6 +9,7 @@ import (
 	"net"
 	"net/http"
 	"net/url"
+	"regexp"
 	"strings"
 	"time"
 	"unicode"
@@ -300,8 +301,14 @@ func (m MetricsReader) buildPromQuery(metricsParams metricsQueryParams) string {
 	if len(metricsParams.SpanKinds) > 0 {
 		spanKindFilter = fmt.Sprintf(`span_kind =~ %q`, strings.Join(metricsParams.SpanKinds, "|"))
 	}
+	// Service names are literals, but the =~ matcher that ORs them together
+	// would read regex metacharacters in a name ('.', '(', '\' ...) as syntax.
+	serviceNames := make([]string, len(metricsParams.ServiceNames))
+	for i, name := range metricsParams.ServiceNames {
+		serviceNames[i] = regexp.QuoteMeta(name)
+	}
 	promParams := promQueryParams{
-		serviceFilter:  strings.Join(metricsParams.ServiceNames, "|"),
+		serviceFilter:  strings.Join(serviceNames, "|"),
 		spanKindFilter: spanKindFilter,
 		rate:           promqlDurationString(metricsParams.RatePer),
 		groupBy:        strings.Join(groupBy, ","),

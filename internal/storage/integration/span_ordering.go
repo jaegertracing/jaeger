@@ -21,7 +21,7 @@ import (
 func buildSpanOrderingTraces() []ptrace.Traces {
 	base := time.Now().Add(-time.Hour).Truncate(time.Second)
 	var traces []ptrace.Traces
-	for _, f := range []struct {
+	for i, f := range []struct {
 		name, service         string
 		trace, span           byte
 		start, duration, rank int
@@ -31,6 +31,8 @@ func buildSpanOrderingTraces() []ptrace.Traces {
 		{"c", "ordering-a", 2, 1, 2, 3, 4},
 		{"d", "ordering-a", 1, 1, 3, 1, 1},
 		{"e", "ordering-b", 3, 1, 4, 0, 3},
+		// The second copy of "a" ties with the first on every sort key, so paging through the
+		// corpus has to carry both occurrences across a page boundary (RFC 0016 §6.4).
 		{"a", "ordering-a", 2, 3, 1, 4, 5},
 	} {
 		trace := ptrace.NewTraces()
@@ -46,9 +48,26 @@ func buildSpanOrderingTraces() []ptrace.Traces {
 		// The rank orders the corpus differently from every intrinsic field, so ordering by it
 		// cannot pass by accident.
 		span.Attributes().PutInt("ordering-rank", int64(f.rank))
+		// The row index keeps the two copies of "a" from being byte-identical. The Elasticsearch
+		// writer derives a document's _id from the span's content, so identical copies would
+		// collapse onto one document and the corpus would lose its duplicate.
+		span.Attributes().PutInt("ordering-row", int64(i))
 		traces = append(traces, trace)
 	}
 	return traces
+}
+
+// withoutRepeats is the expected page sequence for a reader that drops the later occurrences of
+// a tied run at a page boundary: the two copies of "a" tie on every sort key, so only the first
+// comes back when each page holds one span.
+func withoutRepeats(names []string) []string {
+	out := make([]string, 0, len(names))
+	for i, name := range names {
+		if i == 0 || name != names[i-1] {
+			out = append(out, name)
+		}
+	}
+	return out
 }
 
 func orderingTerm(field string, direction tracestore.SortDirection) tracestore.SpanSortOrder {
@@ -136,17 +155,31 @@ func (s *StorageIntegration) testSpanOrderingBasic(t *testing.T) {
 			assert.Equal(t, tc.want, names)
 			assert.Empty(t, token)
 			q.Pagination.PageSize = 1
-			for i, want := range tc.want {
+			paged := tc.want
+			trailingEmptyPage := false
+			if s.Capabilities.PagingDropsTiedSpans() {
+				paged = withoutRepeats(tc.want)
+				// When the tied run closes the order, the page holding its first copy sees the
+				// second as its lookahead hit and announces another page, which the cursor
+				// cannot reach, so that page is empty.
+				trailingEmptyPage = tc.want[len(tc.want)-1] == tc.want[len(tc.want)-2]
+			}
+			for i, want := range paged {
 				names, token, err = search(q)
 				require.NoError(t, err)
 				require.Equal(t, []string{want}, names)
-				if i == len(tc.want)-1 {
-					require.Empty(t, token)
-				} else {
+				if i < len(paged)-1 {
 					require.NotEmpty(t, token)
+				} else if trailingEmptyPage {
+					require.NotEmpty(t, token)
+					q.Pagination.PageToken = token
+					names, token, err = search(q)
+					require.NoError(t, err)
+					require.Empty(t, names)
 				}
 				q.Pagination.PageToken = token
 			}
+			require.Empty(t, token)
 		})
 	}
 	for _, tc := range []struct {

@@ -148,6 +148,24 @@ func TestHistogram(t *testing.T) {
 	assert.Equal(t, expectedLabels, promLabelsToMap(metricData[0].GetLabel()))
 }
 
+func TestHistogramCustomBuckets(t *testing.T) {
+	registry := promreg.NewPedanticRegistry()
+	factory := newTestFactory(t, registry)
+	histogram := factory.Histogram(metrics.HistogramOptions{
+		Name:    "test_histogram_buckets",
+		Buckets: []float64{10, 100},
+	})
+	histogram.Record(50)
+
+	metricData := findMetric(t, registry, "test_histogram_buckets").GetMetric()
+	buckets := metricData[0].GetHistogram().GetBucket()
+	require.Len(t, buckets, 2, "the explicit boundaries replace the SDK defaults")
+	assert.InDelta(t, float64(10), buckets[0].GetUpperBound(), 0.01)
+	assert.Equal(t, uint64(0), buckets[0].GetCumulativeCount())
+	assert.InDelta(t, float64(100), buckets[1].GetUpperBound(), 0.01)
+	assert.Equal(t, uint64(1), buckets[1].GetCumulativeCount())
+}
+
 func TestTimer(t *testing.T) {
 	registry := promreg.NewPedanticRegistry()
 	factory := newTestFactory(t, registry)
