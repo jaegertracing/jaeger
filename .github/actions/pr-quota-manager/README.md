@@ -232,10 +232,14 @@ If you hit rate limits, wait for the limit to reset or use a different token.
 
 ## Integration with GitHub Actions
 
-`.github/workflows/pr-quota-manager.yml` calls the action in this directory on:
-- Pull request opened, edited, closed, reopened, pushed to, converted to or from draft, or labelled
-- A daily sweep of open pull requests
-- Manual workflow dispatch, which is also how you process a single user without a command line — pass `username`, and `dryRun` if you only want to see what would happen
+`.github/workflows/pr-quota-manager.yml` calls the action for the existing
+author quota on pull request opened, closed, reopened, or pushed events, and on
+manual workflow dispatch. Manual runs pass `username`, and optionally `dryRun`.
+
+`.github/workflows/pr-per-issue-manager.yml` separately enables the per-issue
+policy on pull request lifecycle events, the `allow-multiple-prs` issue-label
+override, and a daily sweep. The stale workflow uses `GITHUB_TOKEN`, so its label
+changes cannot trigger another workflow; the daily sweep observes those changes.
 
 The action runs the script through `actions/github-script` with the repository's built-in `GITHUB_TOKEN`. The `pull_request_target` trigger runs in the base repository context, so that token carries the workflow's declared write permissions even for pull requests from forks.
 
@@ -252,8 +256,10 @@ For each linked issue, the oldest active PR (with PR number as the tie-breaker)
 is primary. The action labels the other active PRs `duplicate` and maintains one
 marker comment on each naming its primary PR. A maintainer can exempt an umbrella
 issue or intentionally competing implementations by applying `allow-multiple-prs`
-to the issue. The workflow serializes repository runs, and it completes all reads
-before removing a duplicate indication if an API call fails. The daily sweep
-reconciles a remaining PR when another PR removes its issue link. During cleanup,
-the action updates the bot comment before removing a label and restores earlier
-label removals if a later removal fails.
+to the issue. The policy workflow serializes repository runs separately from the
+author-quota workflow. It reads the complete, paginated graph of open PRs and
+their canonical links before mutations, so a PR linked to multiple issues keeps
+its full duplicate state. The daily sweep reconciles a remaining PR when another
+PR removes its issue link. Only comments authored by `github-actions[bot]` with
+the policy marker control label cleanup; resolved comments drop the marker so a
+later human-applied `duplicate` label is left alone.

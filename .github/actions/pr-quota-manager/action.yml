@@ -23,7 +23,7 @@ inputs:
     required: false
     default: 'false'
   per-issue-limit:
-    description: 'Reconcile the one-active-PR-per-linked-issue policy for the event PR.'
+    description: 'Reconcile the one-active-PR-per-linked-issue policy across open PRs.'
     required: false
     default: 'false'
 
@@ -49,7 +49,8 @@ runs:
           const handler = require(process.env.QUOTA_SCRIPT)
           // For pull request events, use the PR author; a manual run passes the name in.
           const username = context.payload.pull_request?.user?.login || process.env.QUOTA_USERNAME
-          if (!username) {
+          const perIssueLimit = process.env.QUOTA_PER_ISSUE_LIMIT === 'true'
+          if (!username && !perIssueLimit) {
             core.setFailed('Unable to determine username for quota processing. Aborting.')
             return
           }
@@ -59,9 +60,9 @@ runs:
             username,
             owner: context.repo.owner,
             repo: context.repo.repo,
-            pullRequestNumber: process.env.QUOTA_PER_ISSUE_LIMIT === 'true'
+            pullRequestNumber: perIssueLimit
               ? process.env.QUOTA_PR_NUMBER
               : undefined,
-            perIssueLimit: process.env.QUOTA_PER_ISSUE_LIMIT === 'true',
+            perIssueLimit,
             dryRun: process.env.QUOTA_DRY_RUN === 'true'
           })

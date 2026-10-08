@@ -5,11 +5,7 @@ name: PR Quota Manager
 
 on:
   pull_request_target:  # Runs with write permissions even for fork PRs
-    # Label events include the existing stale policy's stale/unstale transitions.
-    types: [opened, edited, closed, reopened, synchronize, ready_for_review, converted_to_draft, labeled, unlabeled]
-  schedule:
-    # Sweep all open PRs so a removed issue link cannot leave another PR stale.
-    - cron: '15 2 * * *'
+    types: [opened, closed, reopened, synchronize]  # synchronize = new commits pushed
   workflow_dispatch:
     inputs:
       username:
@@ -27,9 +23,7 @@ permissions:
   issues: write
 
 concurrency:
-  # A PR can share an issue with PRs from other authors, so author-scoped
-  # locking cannot prevent conflicting reconciliations.
-  group: pr-policy-${{ github.repository }}
+  group: quota-${{ github.event.pull_request.user.login || github.event.inputs.username }}
   cancel-in-progress: false
 
 jobs:
@@ -54,4 +48,3 @@ jobs:
           token: ${{ github.token }}
           username: ${{ github.event.inputs.username }}
           dry-run: ${{ github.event.inputs.dryRun }}
-          per-issue-limit: 'true'

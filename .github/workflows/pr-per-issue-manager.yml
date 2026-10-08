@@ -1,0 +1,42 @@
+# Copyright (c) 2026 The Jaeger Authors.
+# SPDX-License-Identifier: Apache-2.0
+
+name: Per-Issue PR Manager
+
+on:
+  pull_request_target:
+    types: [opened, edited, closed, reopened, synchronize, ready_for_review, converted_to_draft, labeled, unlabeled]
+  issues:
+    types: [labeled, unlabeled]
+  schedule:
+    # Reconcile removed links and stale-policy changes made by GITHUB_TOKEN.
+    - cron: '15 2 * * *'
+  workflow_dispatch:
+
+permissions:
+  pull-requests: write
+  issues: write
+
+concurrency:
+  # The policy evaluates the complete repository graph in one pass.
+  group: per-issue-pr-policy-${{ github.repository }}
+  cancel-in-progress: false
+
+jobs:
+  reconcile:
+    # Only the persistent maintainer override label on issues is relevant here.
+    if: >-
+      github.event_name != 'issues' ||
+      github.event.label.name == 'allow-multiple-prs'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+
+      - name: Reconcile per-issue pull request policy
+        uses: ./.github/actions/pr-quota-manager
+        with:
+          token: ${{ github.token }}
+          per-issue-limit: 'true'
