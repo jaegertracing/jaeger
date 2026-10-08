@@ -12,15 +12,16 @@ on:
     # Reconcile removed links and stale-policy changes made by GITHUB_TOKEN.
     - cron: '15 2 * * *'
   workflow_dispatch:
+    inputs:
+      dryRun:
+        description: 'Log intended changes without writing labels or comments'
+        required: false
+        type: boolean
+        default: false
 
 permissions:
   pull-requests: write
   issues: write
-
-concurrency:
-  # The policy evaluates the complete repository graph in one pass.
-  group: per-issue-pr-policy-${{ github.repository }}
-  cancel-in-progress: false
 
 jobs:
   reconcile:
@@ -28,6 +29,10 @@ jobs:
     if: >-
       github.event_name != 'issues' ||
       github.event.label.name == 'allow-multiple-prs'
+    # Skipped issue-label runs do not acquire this job-level concurrency group.
+    concurrency:
+      group: per-issue-pr-policy-${{ github.repository }}
+      cancel-in-progress: false
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
@@ -40,3 +45,4 @@ jobs:
         with:
           token: ${{ github.token }}
           per-issue-limit: 'true'
+          dry-run: ${{ inputs.dryRun || 'false' }}

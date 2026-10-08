@@ -259,7 +259,11 @@ issue or intentionally competing implementations by applying `allow-multiple-prs
 to the issue. The policy workflow serializes repository runs separately from the
 author-quota workflow. It reads the complete, paginated graph of open PRs and
 their canonical links before mutations, so a PR linked to multiple issues keeps
-its full duplicate state. The daily sweep reconciles a remaining PR when another
-PR removes its issue link. Only comments authored by `github-actions[bot]` with
-the policy marker control label cleanup; resolved comments drop the marker so a
-later human-applied `duplicate` label is left alone.
+its full duplicate state. The query bounds nested connections and fails safely
+if a PR has more than 20 labels, more than 5 linked issues, or a linked issue
+has more than 10 labels; it never silently misses `stale`, `duplicate`, or
+`allow-multiple-prs`. The daily sweep reconciles a remaining PR when another PR
+removes its issue link. Only comments authored by `github-actions[bot]` with the
+policy marker control label cleanup; resolved comments drop the marker so a
+later human-applied `duplicate` label is left alone. Cleanup removes labels while
+the marker is still present and restores removed labels if a later removal fails.

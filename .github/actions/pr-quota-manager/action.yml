@@ -47,9 +47,12 @@ runs:
         github-token: ${{ inputs.token }}
         script: |
           const handler = require(process.env.QUOTA_SCRIPT)
-          // For pull request events, use the PR author; a manual run passes the name in.
-          const username = context.payload.pull_request?.user?.login || process.env.QUOTA_USERNAME
           const perIssueLimit = process.env.QUOTA_PER_ISSUE_LIMIT === 'true'
+          // Per-issue reconciliation must not invoke the author quota manager.
+          // Only the quota workflow resolves the event author automatically.
+          const username = perIssueLimit
+            ? process.env.QUOTA_USERNAME
+            : context.payload.pull_request?.user?.login || process.env.QUOTA_USERNAME
           if (!username && !perIssueLimit) {
             core.setFailed('Unable to determine username for quota processing. Aborting.')
             return

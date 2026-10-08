@@ -28,13 +28,20 @@ const openPullRequestsQuery = `
         nodes {
           number
           createdAt
-          labels(first: 100) { nodes { name } }
-          closingIssuesReferences(first: 100) {
+          labels(first: 20) {
+            nodes { name }
+            pageInfo { hasNextPage }
+          }
+          closingIssuesReferences(first: 5) {
             nodes {
               number
               repository { nameWithOwner }
-              labels(first: 100) { nodes { name } }
+              labels(first: 10) {
+                nodes { name }
+                pageInfo { hasNextPage }
+              }
             }
+            pageInfo { hasNextPage }
           }
         }
         pageInfo { hasNextPage endCursor }
@@ -457,6 +464,19 @@ async function fetchOpenPullRequests(octokit, owner, repo) {
   do {
     const result = await octokit.graphql(openPullRequestsQuery, { owner, repo, after });
     const connection = result.repository.pullRequests;
+    for (const pr of connection.nodes) {
+      if (pr.labels.pageInfo?.hasNextPage) {
+        throw new Error(`PR #${pr.number} has more labels than the per-issue policy query supports`);
+      }
+      if (pr.closingIssuesReferences.pageInfo?.hasNextPage) {
+        throw new Error(`PR #${pr.number} has more linked issues than the per-issue policy query supports`);
+      }
+      for (const issue of pr.closingIssuesReferences.nodes) {
+        if (issue.labels.pageInfo?.hasNextPage) {
+          throw new Error(`Issue #${issue.number} has more labels than the per-issue policy query supports`);
+        }
+      }
+    }
     pullRequests.push(...connection.nodes);
     after = connection.pageInfo?.hasNextPage ? connection.pageInfo.endCursor : null;
   } while (after);
@@ -534,27 +554,51 @@ async function processIssueLimits(octokit, owner, repo, logger = console, dryRun
       await octokit.rest.issues.updateComment({ owner, repo, comment_id: comments[0].id, body });
     }
   }
-  const labelsToRemove = [];
-  // Update comments before removing labels. A failed update leaves the previous
-  // duplicate indication intact, rather than removing only part of it.
+  const cleanup = [];
   for (const [number, pr] of knownPRs) {
     if (desiredDuplicates.has(number)) continue;
     const comments = commentSets.get(number) || [];
     if (comments.length === 0) continue;
-    const resolvedBody = issueLimitResolvedComment();
-    if (comments[0].body !== resolvedBody) {
-      await octokit.rest.issues.updateComment({ owner, repo, comment_id: comments[0].id, body: resolvedBody });
+    cleanup.push({
+      number,
+      comments,
+      hasDuplicateLabel: labelNames(pr.labels).includes(DUPLICATE_LABEL_NAME)
+    });
+  }
+
+  const removedLabels = [];
+  try {
+    // Keep markers intact until every destructive label removal succeeds. If a
+    // removal fails, rollback leaves the next run able to identify ownership.
+    for (const item of cleanup) {
+      if (!item.hasDuplicateLabel) continue;
+      await removeIssueLabel(octokit, owner, repo, item.number, DUPLICATE_LABEL_NAME);
+      removedLabels.push(item.number);
     }
-    for (const comment of comments.slice(1)) {
+  } catch (error) {
+    await Promise.allSettled(removedLabels.map(number =>
+      addIssueLabel(octokit, owner, repo, number, DUPLICATE_LABEL_NAME)
+    ));
+    throw error;
+  }
+
+  for (const item of cleanup) {
+    const resolvedBody = issueLimitResolvedComment();
+    if (item.comments[0].body !== resolvedBody) {
+      await octokit.rest.issues.updateComment({
+        owner,
+        repo,
+        comment_id: item.comments[0].id,
+        body: resolvedBody
+      });
+    }
+    for (const comment of item.comments.slice(1)) {
       await octokit.rest.issues.updateComment({
         owner,
         repo,
         comment_id: comment.id,
         body: supersededIssueLimitComment
       });
-    }
-    if (labelNames(pr.labels).includes(DUPLICATE_LABEL_NAME)) {
-      labelsToRemove.push(number);
     }
   }
   // Collapse historical marker comments without deleting user-visible history.
@@ -568,19 +612,6 @@ async function processIssueLimits(octokit, owner, repo, logger = console, dryRun
         body: supersededIssueLimitComment
       });
     }
-  }
-
-  const removedLabels = [];
-  try {
-    for (const number of labelsToRemove) {
-      await removeIssueLabel(octokit, owner, repo, number, DUPLICATE_LABEL_NAME);
-      removedLabels.push(number);
-    }
-  } catch (error) {
-    await Promise.allSettled(removedLabels.map(number =>
-      addIssueLabel(octokit, owner, repo, number, DUPLICATE_LABEL_NAME)
-    ));
-    throw error;
   }
 
   return {
@@ -644,7 +675,7 @@ async function githubActionHandler({github, core, username, owner, repo, pullReq
   }
 
   try {
-    if (username) {
+    if (username && !perIssueLimit) {
       const result = await processQuotaForAuthor(github, owner, repo, username, console, dryRun);
       core.info('');
       core.info('=== Author quota summary ===');

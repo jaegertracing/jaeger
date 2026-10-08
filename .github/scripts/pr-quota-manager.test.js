@@ -819,6 +819,14 @@ describe('processIssueLimitForPullRequest', () => {
       issue_number: 10,
       labels: [DUPLICATE_LABEL_NAME]
     }));
+    expect(octokit.rest.issues.updateComment).not.toHaveBeenCalled();
+
+    await processIssueLimitForPullRequest(octokit, 'owner', 'repo', 20);
+
+    expect(octokit.rest.issues.updateComment).toHaveBeenCalledWith(expect.objectContaining({
+      comment_id: 7,
+      body: issueLimitResolvedComment()
+    }));
   });
 
   test('keeps a PR duplicate for one issue when it is primary for another', async () => {
@@ -840,6 +848,10 @@ describe('processIssueLimitForPullRequest', () => {
     expect(octokit.rest.issues.updateComment).not.toHaveBeenCalledWith(expect.objectContaining({
       comment_id: 7,
       body: issueLimitResolvedComment()
+    }));
+    expect(octokit.rest.issues.createComment).toHaveBeenCalledWith(expect.objectContaining({
+      issue_number: 30,
+      body: issueLimitComment([{ issueNumber: 2, primaryNumber: 20 }])
     }));
   });
 
@@ -865,6 +877,72 @@ describe('processIssueLimitForPullRequest', () => {
 
     expect(octokit.rest.issues.removeLabel).not.toHaveBeenCalled();
   });
+
+  test('fails safely when a nested connection is truncated', async () => {
+    const octokit = issueLimitOctokit({ issues: [] });
+    octokit.graphql.mockResolvedValue({
+      repository: {
+        pullRequests: {
+          nodes: [{
+            number: 20,
+            createdAt: '2026-01-02T00:00:00Z',
+            labels: { nodes: [], pageInfo: { hasNextPage: false } },
+            closingIssuesReferences: { nodes: [], pageInfo: { hasNextPage: true } }
+          }]
+        }
+      }
+    });
+
+    await expect(processIssueLimitForPullRequest(octokit, 'owner', 'repo', 20)).rejects.toThrow(
+      'PR #20 has more linked issues than the per-issue policy query supports'
+    );
+    expect(octokit.rest.issues.addLabels).not.toHaveBeenCalled();
+    expect(octokit.rest.issues.removeLabel).not.toHaveBeenCalled();
+  });
+
+  test('fails safely when PR or issue labels exceed the query limits', async () => {
+    const octokit = issueLimitOctokit({ issues: [] });
+    octokit.graphql.mockResolvedValue({
+      repository: {
+        pullRequests: {
+          nodes: [{
+            number: 20,
+            createdAt: '2026-01-02T00:00:00Z',
+            labels: { nodes: [], pageInfo: { hasNextPage: true } },
+            closingIssuesReferences: { nodes: [], pageInfo: { hasNextPage: false } }
+          }]
+        }
+      }
+    });
+
+    await expect(processIssueLimitForPullRequest(octokit, 'owner', 'repo', 20)).rejects.toThrow(
+      'PR #20 has more labels than the per-issue policy query supports'
+    );
+
+    octokit.graphql.mockResolvedValue({
+      repository: {
+        pullRequests: {
+          nodes: [{
+            number: 20,
+            createdAt: '2026-01-02T00:00:00Z',
+            labels: { nodes: [], pageInfo: { hasNextPage: false } },
+            closingIssuesReferences: {
+              nodes: [{
+                number: 99,
+                repository: { nameWithOwner: 'owner/repo' },
+                labels: { nodes: [], pageInfo: { hasNextPage: true } }
+              }],
+              pageInfo: { hasNextPage: false }
+            }
+          }]
+        }
+      }
+    });
+
+    await expect(processIssueLimitForPullRequest(octokit, 'owner', 'repo', 20)).rejects.toThrow(
+      'Issue #99 has more labels than the per-issue policy query supports'
+    );
+  });
 });
 
 describe('githubActionHandler', () => {
@@ -887,5 +965,25 @@ describe('githubActionHandler', () => {
 
     expect(core.setFailed).not.toHaveBeenCalled();
     expect(core.info).toHaveBeenCalledWith('Reconciled the open pull request graph.');
+  });
+
+  test('does not run the author quota when per-issue reconciliation receives a username', async () => {
+    const core = { info: jest.fn(), setFailed: jest.fn() };
+    const github = {
+      graphql: jest.fn().mockResolvedValue({ repository: { pullRequests: { nodes: [] } } }),
+      rest: { issues: {}, pulls: { list: jest.fn() } }
+    };
+
+    await prQuotaManager({
+      github,
+      core,
+      username: 'contributor',
+      owner: 'owner',
+      repo: 'repo',
+      perIssueLimit: true
+    });
+
+    expect(github.rest.pulls.list).not.toHaveBeenCalled();
+    expect(core.setFailed).not.toHaveBeenCalled();
   });
 });
