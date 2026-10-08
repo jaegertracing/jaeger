@@ -5,6 +5,7 @@ package integration
 
 import (
 	"context"
+	"errors"
 	"slices"
 	"strings"
 	"testing"
@@ -252,6 +253,7 @@ func filterTestCases(p builder.Predicate) []filterCase {
 // is what lets these cases run against a corpus the suite wrote for every other assertion too.
 func (s *StorageIntegration) testFindTracesWithFilter(t *testing.T) {
 	s.skipIfNeeded(t)
+	filterCaps := s.filterCapabilities(t)
 
 	corpus := s.Corpus.Filter
 	start, end := filterCorpusTimeRange(corpus)
@@ -282,19 +284,22 @@ func (s *StorageIntegration) testFindTracesWithFilter(t *testing.T) {
 	// RFC 0005 §7 promises that a backend either evaluates a predicate or refuses it, and never
 	// answers a predicate it cannot evaluate with a wider result set.
 	refusals := []struct {
-		caption string
-		filter  *expression.Call
-		names   string
+		caption   string
+		filter    *expression.Call
+		names     string
+		supported bool
 	}{
 		{
-			caption: "a level the backend does not index is refused",
-			filter:  p.Scope().Attr("library.tier").Eq("core"),
-			names:   "scope",
+			caption:   "a level the backend does not index is refused",
+			filter:    p.Scope().Attr("library.tier").Eq("core"),
+			names:     "scope",
+			supported: filterCaps.SupportsLevel(expression.LevelScope),
 		},
 		{
-			caption: "an operator the backend does not evaluate is refused",
-			filter:  p.Some(p.Event(), p.Event().Name.Eq("exception")),
-			names:   "some",
+			caption:   "an operator the backend does not evaluate is refused",
+			filter:    p.Some(p.Event(), p.Event().Name.Eq("exception")),
+			names:     "some",
+			supported: filterCaps.SupportsOperator(expression.OpSome),
 		},
 		{
 			caption: "a built-in field the backend does not index is refused",
@@ -314,6 +319,9 @@ func (s *StorageIntegration) testFindTracesWithFilter(t *testing.T) {
 	}
 	for _, refusal := range refusals {
 		t.Run(refusal.caption, func(t *testing.T) {
+			if refusal.supported {
+				t.Skip("the backend serves this predicate")
+			}
 			s.skipIfNeeded(t)
 			query := filterQuery(t, refusal.filter, start, end)
 			_, err := jiter.CollectWithErrors(jptrace.AggregateTraces(
@@ -350,6 +358,24 @@ func (s *StorageIntegration) testFindTracesWithFilter(t *testing.T) {
 		require.NoError(t, err, "the range must be evaluated, not refused")
 		require.Empty(t, actual)
 	})
+}
+
+func (s *StorageIntegration) getFilterCapabilities(ctx context.Context) (tracestore.FilterCapabilities, error) {
+	caps, err := s.TraceReader.SearchCapabilities(ctx)
+	if err != nil {
+		return tracestore.FilterCapabilities{}, err
+	}
+	if caps.Filter.IsEmpty() {
+		return tracestore.FilterCapabilities{}, errors.New("the filter battery needs the reader's filter capabilities")
+	}
+	return *caps.Filter, nil
+}
+
+func (s *StorageIntegration) filterCapabilities(t *testing.T) tracestore.FilterCapabilities {
+	t.Helper()
+	caps, err := s.getFilterCapabilities(t.Context())
+	require.NoError(t, err)
+	return caps
 }
 
 // RunFilterRewriteTest asks one question both ways — through the legacy predicate fields, and as

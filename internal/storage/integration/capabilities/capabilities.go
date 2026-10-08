@@ -30,8 +30,6 @@ const (
 	attributeOrderingTest  = "ordering_compares_a_numeric_attribute_as_a_number"
 	attributeRefusedTest   = "ordering_an_attribute_is_refused_where_it_is_indexed_as_text"
 	attributeUnindexedTest = "ordering_an_attribute_finds_nothing_in_indices_written_before_the_numeric_mapping"
-	levelRefusedTest       = "a_level_the_backend_does_not_index_is_refused"
-	operatorRefusedTest    = "an_operator_the_backend_does_not_evaluate_is_refused"
 	fieldRefusedTest       = "a_built-in_field_the_backend_does_not_index_is_refused"
 
 	// Filter cases using operators, fields, or levels a backend does not evaluate natively.
@@ -190,30 +188,6 @@ func (c Capabilities) orderingOutcome(runs string) Capabilities {
 	return c
 }
 
-// WithoutUnindexedLevelRefusal skips the refusal assertion for a filter naming an unindexed level.
-// Used for backends that index or evaluate all filter levels (such as memory).
-func (c Capabilities) WithoutUnindexedLevelRefusal() Capabilities {
-	c.skipList = append(append([]string(nil), c.skipList...), levelRefusedTest)
-	return c
-}
-
-// WithoutLevelRefusal is an alias for WithoutUnindexedLevelRefusal.
-func (c Capabilities) WithoutLevelRefusal() Capabilities {
-	return c.WithoutUnindexedLevelRefusal()
-}
-
-// WithoutUnevaluatedOperatorRefusal skips the refusal assertion for a filter using an unevaluated operator.
-// Used for backends that evaluate all filter operators (such as memory).
-func (c Capabilities) WithoutUnevaluatedOperatorRefusal() Capabilities {
-	c.skipList = append(append([]string(nil), c.skipList...), operatorRefusedTest)
-	return c
-}
-
-// WithoutOperatorRefusal is an alias for WithoutUnevaluatedOperatorRefusal.
-func (c Capabilities) WithoutOperatorRefusal() Capabilities {
-	return c.WithoutUnevaluatedOperatorRefusal()
-}
-
 // WithoutTextAttributeOrderingRefusal skips the refusal assertion for numeric ordering on an attribute
 // that is indexed as text. Used for backends that compare numeric attributes natively (such as memory)
 // or whose indices have typed-attribute mapping enabled.
@@ -234,14 +208,12 @@ func (c Capabilities) WithoutUnindexedFieldRefusal() Capabilities {
 	return c
 }
 
-// WithoutFilterRefusals skips all four refusal assertions in the shared filter battery:
-// unindexed level, unevaluated operator, unindexed built-in field, and text-indexed attribute
-// ordering. Used by backends that evaluate all of these features natively rather than refusing
-// them.
+// WithoutFilterRefusals skips the refusal assertions in the shared filter battery for limits
+// that filter capabilities do not declare: unindexed built-in fields and text-indexed attribute
+// ordering. Unindexed level and unevaluated operator refusals are derived dynamically from the
+// reader's declared filter capabilities.
 func (c Capabilities) WithoutFilterRefusals() Capabilities {
-	return c.WithoutUnindexedLevelRefusal().
-		WithoutUnevaluatedOperatorRefusal().
-		WithoutUnindexedFieldRefusal().
+	return c.WithoutUnindexedFieldRefusal().
 		WithoutTextAttributeOrderingRefusal()
 }
 
@@ -299,8 +271,6 @@ var clickHouseSkipList = append([]string{
 	// but are not among them yet.
 	filterEventNameTest,
 	filterTraceStateTest,
-	// The reader indexes all five levels, so there is no level to refuse.
-	levelRefusedTest,
 	// The lowering evaluates and, or, not and eq, and orders span.duration only (RFC 0005 M3,
 	// first increment).
 }, filterOperatorTests...)
