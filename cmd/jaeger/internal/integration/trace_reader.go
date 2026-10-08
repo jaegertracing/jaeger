@@ -331,6 +331,10 @@ type traceStream interface {
 	Recv() (*jptrace.TracesData, error)
 }
 
+// apiV3ErrorInfoDomain is the ErrorInfo domain the api_v3 gRPC handler stamps on a refusal,
+// which is what lets tracestore.ErrorFromStatus restore the reader's sentinel on this side.
+const apiV3ErrorInfoDomain = "jaeger.api_v3"
+
 // consumeTraces reads the stream and calls yield for each chunk.
 // It also handles NotFound errors by terminating the stream.
 // It returns false if the processing was terminated through error.
@@ -344,6 +348,9 @@ func (r *traceReader) consumeTraces(
 			return true
 		}
 		err = unwrapNotFoundErr(err)
+		// A refusal crosses the api_v3 hop as a status, so the shared suite can assert on the
+		// same error family a direct reader returns (ADR-013).
+		err = tracestore.ErrorFromStatus(err, apiV3ErrorInfoDomain)
 		r.logger.Info("Error received", zap.Error(err))
 		if !errors.Is(err, spanstore.ErrTraceNotFound) {
 			yield(nil, err)

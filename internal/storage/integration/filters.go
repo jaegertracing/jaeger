@@ -5,6 +5,7 @@ package integration
 
 import (
 	"context"
+	"errors"
 	"slices"
 	"strings"
 	"testing"
@@ -285,10 +286,7 @@ func (s *StorageIntegration) testFindTracesWithFilter(t *testing.T) {
 			_, err := jiter.CollectWithErrors(jptrace.AggregateTraces(
 				s.TraceReader.FindTraces(context.Background(), *query),
 			))
-			require.Error(t, err, "the search must be refused rather than answered with a wider result set")
-			// The sentinel error does not survive the gRPC hop the e2e tests read through, so the
-			// assertion is on what the message names, which does.
-			require.ErrorContains(t, err, refusal.names)
+			requireRefusal(t, err, refusal.names)
 		})
 	}
 
@@ -304,8 +302,7 @@ func (s *StorageIntegration) testFindTracesWithFilter(t *testing.T) {
 			_, err := jiter.CollectWithErrors(jptrace.AggregateTraces(
 				s.TraceReader.FindTraces(context.Background(), *query),
 			))
-			require.Error(t, err, "the search must be refused rather than answered with a wider result set")
-			require.ErrorContains(t, err, "traceState")
+			requireRefusal(t, err, "traceState")
 			return
 		}
 		expected := filterCorpusTraces(t, corpus, []string{"search"})
@@ -335,14 +332,13 @@ func (s *StorageIntegration) testFindTracesWithFilter(t *testing.T) {
 			_, err := jiter.CollectWithErrors(jptrace.AggregateTraces(
 				s.TraceReader.FindTraces(context.Background(), *query),
 			))
-			require.Error(t, err, "the comparison must be refused rather than answered over the keyword")
-			require.ErrorContains(t, err, "keyword rather than a number")
+			requireRefusal(t, err, "keyword rather than a number")
 		case capabilities.AttributeComparisonNotYetIndexed:
 			// The reader is configured to range over the numeric sub-field, but the corpus was
-			// written into indices created before that mapping existed, so the range finds nothing
-			// there. RFC 0005 §7 admits this as a data gap rather than a refusal, and this case
-			// pins that the reader neither errors nor falls back to comparing the keyword, which
-			// would answer with cart_get as well.
+			// created before the mapping was turned on, so the range finds nothing there. RFC 0005
+			// §7 admits this as a data gap rather than a refusal, and this case pins that the
+			// reader neither errors nor falls back to comparing the keyword, which would answer
+			// with cart_get as well.
 			//
 			// The scope alone must find the whole corpus first, so that the empty answer below is
 			// the range's doing and not an index that has not caught up yet.
@@ -407,6 +403,18 @@ func (s *StorageIntegration) RunFilterRewriteTest(t *testing.T) {
 		require.NotEmpty(t, viaLegacy, "the legacy query must match a trace, or the two agreeing says nothing")
 		CompareTraceSlices(t, viaLegacy, viaFilter)
 	})
+}
+
+// requireRefusal asserts that a search was refused for a capability the backend lacks, rather than
+// failing in some other way or answering with a wider result set. The refusal's own sentinel does
+// not survive the gRPC hop the e2e suite reads through, but its family does: the api_v3 edge
+// answers it with Unimplemented, which the e2e reader restores to errors.ErrUnsupported (ADR-013).
+// The message is still checked for what was refused, because a refusal of the wrong thing would
+// pass the family check alone.
+func requireRefusal(t *testing.T, err error, names string) {
+	t.Helper()
+	require.ErrorIs(t, err, errors.ErrUnsupported, "the search must be refused rather than answered with a wider result set")
+	require.ErrorContains(t, err, names)
 }
 
 // filterQuery is a search whose only predicate is the filter. The filter is finalized here so a

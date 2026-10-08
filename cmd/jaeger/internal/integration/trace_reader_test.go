@@ -244,3 +244,25 @@ func TestTraceReaderSearchCapabilitiesErrors(t *testing.T) {
 		assert.Equal(t, codes.Unavailable, status.Code(err))
 	})
 }
+
+func TestConsumeTracesRestoresRefusals(t *testing.T) {
+	collect := func(startErr error) error {
+		reader := &traceReader{logger: zap.NewNop()}
+		var got error
+		reader.consumeTraces(func(_ []ptrace.Traces, err error) bool {
+			got = err
+			return true
+		}, nil, startErr)
+		return got
+	}
+	t.Run("Unimplemented reads as ErrUnsupported", func(t *testing.T) {
+		err := collect(status.Error(codes.Unimplemented, "it does not index the \"scope\" level"))
+		require.ErrorIs(t, err, errors.ErrUnsupported)
+		assert.ErrorContains(t, err, "scope")
+	})
+	t.Run("InvalidArgument stays a status", func(t *testing.T) {
+		err := collect(status.Error(codes.InvalidArgument, "bad filter"))
+		assert.Equal(t, codes.InvalidArgument, status.Code(err))
+		assert.NotErrorIs(t, err, errors.ErrUnsupported)
+	})
+}
