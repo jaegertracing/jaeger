@@ -62,9 +62,10 @@ type SyncBulkWriter struct {
 	// the batch, so the write completes and the offset advances. Transient failures
 	// (429 / 5xx / transport) still fail the batch. When false, any rejection fails
 	// the batch (retry-forever). Set from config.PoisonHandling by the factory.
-	dropPoison bool
-	metrics    *spanstoremetrics.WriteMetrics
-	logger     *zap.Logger
+	dropPoison   bool
+	metrics      *spanstoremetrics.WriteMetrics
+	requestBytes metrics.Histogram
+	logger       *zap.Logger
 }
 
 // NewSyncBulkWriter returns a SyncBulkWriter that sends each _bulk chunk over the
@@ -78,11 +79,12 @@ func NewSyncBulkWriter(client *Client, maxBytes int, dropPoison bool, metricsFac
 		maxBytes = defaultSyncBulkMaxBytes
 	}
 	return &SyncBulkWriter{
-		client:     client,
-		maxBytes:   maxBytes,
-		dropPoison: dropPoison,
-		metrics:    spanstoremetrics.NewWriter(metricsFactory, "bulk_index"),
-		logger:     logger,
+		client:       client,
+		maxBytes:     maxBytes,
+		dropPoison:   dropPoison,
+		metrics:      spanstoremetrics.NewWriter(metricsFactory, "bulk_index"),
+		requestBytes: newRequestBytesHistogram(metricsFactory),
+		logger:       logger,
 	}
 }
 
@@ -194,6 +196,7 @@ func (w *SyncBulkWriter) sendChunk(ctx context.Context, body []byte, count int) 
 		}
 	}()
 
+	w.requestBytes.Record(float64(len(body)))
 	raw, err := w.client.request(ctx, elasticRequest{
 		endpoint:    "_bulk",
 		method:      http.MethodPost,

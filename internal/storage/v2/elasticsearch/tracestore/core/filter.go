@@ -12,7 +12,6 @@ import (
 
 	"github.com/jaegertracing/jaeger-idl/model/v1"
 	expression "github.com/jaegertracing/jaeger-idl/query/expression/v1"
-	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/esclient"
 	esquery "github.com/jaegertracing/jaeger/internal/storage/elasticsearch/query"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore"
 )
@@ -207,8 +206,12 @@ func (s *SpanReader) buildCombinedArgs(predicate *expression.Call) ([]esquery.Qu
 	}
 	queries := make([]esquery.Query, 0, len(predicate.Args))
 	for _, arg := range predicate.Args {
+		// A nil *expression.Call still asserts ok here, since the type it carries is right and
+		// only the pointer is nil, so that has to be checked separately or buildFilterQuery
+		// panics on predicate.Op below instead of this returning the refusal its own doc
+		// comment promises: "every refusal is made here too rather than assumed."
 		call, ok := arg.(*expression.Call)
-		if !ok {
+		if !ok || call == nil {
 			return nil, fmt.Errorf("%w: %q combines predicates, not values",
 				tracestore.ErrFilterInvalid, predicate.Op)
 		}
@@ -281,6 +284,9 @@ func (s *SpanReader) buildComparison(
 ) (esquery.Query, error) {
 	if ref.isField(expression.LevelSpan, expression.SpanFieldDuration) {
 		return buildDurationComparison(op, value)
+	}
+	if ref.isField(expression.LevelSpan, expression.SpanFieldStartTime) {
+		return buildStartTimeComparison(op, value)
 	}
 	text, err := constantText(value)
 	if err != nil {
@@ -359,6 +365,31 @@ func lengthOfTime(value expression.Expression) (time.Duration, error) {
 	return 0, errTypedConstant(value)
 }
 
+// pointInTime reads the instant a constant carries, the way lengthOfTime reads a duration: a
+// finalized filter carries a timestamp node, and an untyped constant is read as finalizing would.
+func pointInTime(value expression.Expression) (time.Time, error) {
+	switch constant := value.(type) {
+	case *expression.TimestampValue:
+		if constant != nil {
+			return constant.Value, nil
+		}
+	case *expression.AnyValue:
+		if constant == nil {
+			break
+		}
+		read, err := tracestore.ReadFilterConstant(expression.FieldTypeTimestamp, constant.Value)
+		if err != nil {
+			return time.Time{}, fmt.Errorf(`%w: %q is not a timestamp such as "2026-01-02T03:04:05Z": %w`,
+				tracestore.ErrFilterInvalid, constant.Value, err)
+		}
+		if instant, ok := read.(*expression.TimestampValue); ok {
+			return instant.Value, nil
+		}
+	default:
+	}
+	return time.Time{}, errTypedConstant(value)
+}
+
 func (s *SpanReader) buildExists(ref reference) (esquery.Query, error) {
 	switch {
 	case ref.attribute:
@@ -369,6 +400,8 @@ func (s *SpanReader) buildExists(ref reference) (esquery.Query, error) {
 		return esquery.NewExistsQuery(serviceNameField), nil
 	case ref.isField(expression.LevelSpan, expression.SpanFieldDuration):
 		return esquery.NewExistsQuery(durationField), nil
+	case ref.isField(expression.LevelSpan, expression.SpanFieldStartTime):
+		return esquery.NewExistsQuery(startTimeField), nil
 	case ref.isField(expression.LevelSpan, expression.SpanFieldTraceID):
 		return esquery.NewExistsQuery(traceIDField), nil
 	case ref.isField(expression.LevelSpan, expression.SpanFieldSpanID):
@@ -400,7 +433,7 @@ func (s *SpanReader) buildAttributeComparison(
 		}
 		return esquery.NewBoolQuery().MustNot(errored), nil
 	}
-	match, err := attributeValueMatch(op, ref, value)
+	match, err := s.attributeValueMatch(op, ref, value)
 	if err != nil {
 		return nil, err
 	}
@@ -467,15 +500,15 @@ func nestedField(path, field string) string {
 // attributeValueMatch chooses how a comparison tests an attribute value. Every value is indexed
 // as a keyword, which is what serves equality and patterns. Ordering needs the numeric sub-field
 // the typed-attribute mapping adds beside that keyword, so it is served only where that mapping
-// is in place.
-func attributeValueMatch(op expression.Operator, ref reference, value string) (valueMatch, error) {
+// is configured.
+func (s *SpanReader) attributeValueMatch(op expression.Operator, ref reference, value string) (valueMatch, error) {
 	switch op {
 	case expression.OpEq:
 		return termMatch(value), nil
 	case expression.OpRegex:
 		return forThisEngine(value)
 	case expression.OpGt, expression.OpLt, expression.OpGte, expression.OpLte:
-		return orderedAttributeMatch(op, ref, value)
+		return s.orderedAttributeMatch(op, ref, value)
 	default:
 		return nil, errUnorderedValue(op, ref)
 	}
@@ -484,14 +517,17 @@ func attributeValueMatch(op expression.Operator, ref reference, value string) (v
 // orderedAttributeMatch orders an attribute against a numeric bound, over the sub-field the
 // typed-attribute mapping indexes the value in (RFC 0015). Without that mapping there is nothing
 // numeric to range over, and a range over the keyword would compare lexicographically, where "9"
-// is greater than "10" — so the predicate is refused instead.
+// is greater than "10" — so the predicate is refused instead. indices.spans.numeric_attributes is
+// what says the mapping is configured. It reaches only indices created after it was turned on,
+// and a range over an older index matches nothing rather than failing, so the predicate finds
+// nothing in those indices until retention has turned them over (RFC 0005 §7).
 //
 // The sub-field is mapped with coerce: false, so it holds only values that arrived as numbers. An
 // attribute a service wrote as text is therefore absent from it, and a numeric predicate on that
 // attribute matches nothing rather than matching the text lexicographically.
-func orderedAttributeMatch(op expression.Operator, ref reference, value string) (valueMatch, error) {
-	if !esclient.TypedAttributeIndexingGate.IsEnabled() {
-		return nil, errUnorderedValue(op, ref)
+func (s *SpanReader) orderedAttributeMatch(op expression.Operator, ref reference, value string) (valueMatch, error) {
+	if !s.numericAttributes {
+		return nil, errNumericAttributesOff(op, ref)
 	}
 	// ParseFloat accepts NaN and the infinities, which no range can be built over and which
 	// the request body cannot even encode, so they are refused with the other non-numbers.
@@ -630,23 +666,23 @@ func textValueMatch(op expression.Operator, ref reference, value string) (valueM
 	}
 }
 
-// durationComparisons is how each operator tests the duration field, which is the one
-// ordered value this schema indexes numerically.
-var durationComparisons = map[expression.Operator]func(micros uint64) esquery.Query{
-	expression.OpEq: func(micros uint64) esquery.Query {
-		return esquery.NewTermQuery(durationField, micros)
+// numericComparisons is how each operator tests a field this schema indexes as a number: the
+// duration and the start time, both longs holding microseconds.
+var numericComparisons = map[expression.Operator]func(field string, micros uint64) esquery.Query{
+	expression.OpEq: func(field string, micros uint64) esquery.Query {
+		return esquery.NewTermQuery(field, micros)
 	},
-	expression.OpGt: func(micros uint64) esquery.Query {
-		return esquery.NewRangeQuery(durationField).Gt(micros)
+	expression.OpGt: func(field string, micros uint64) esquery.Query {
+		return esquery.NewRangeQuery(field).Gt(micros)
 	},
-	expression.OpGte: func(micros uint64) esquery.Query {
-		return esquery.NewRangeQuery(durationField).Gte(micros)
+	expression.OpGte: func(field string, micros uint64) esquery.Query {
+		return esquery.NewRangeQuery(field).Gte(micros)
 	},
-	expression.OpLt: func(micros uint64) esquery.Query {
-		return esquery.NewRangeQuery(durationField).Lt(micros)
+	expression.OpLt: func(field string, micros uint64) esquery.Query {
+		return esquery.NewRangeQuery(field).Lt(micros)
 	},
-	expression.OpLte: func(micros uint64) esquery.Query {
-		return esquery.NewRangeQuery(durationField).Lte(micros)
+	expression.OpLte: func(field string, micros uint64) esquery.Query {
+		return esquery.NewRangeQuery(field).Lte(micros)
 	},
 }
 
@@ -654,7 +690,7 @@ var durationComparisons = map[expression.Operator]func(micros uint64) esquery.Qu
 // operator is resolved before the value is read, so an operator the duration has no answer for is
 // refused as that rather than as a value of the wrong kind.
 func buildDurationComparison(op expression.Operator, value expression.Expression) (esquery.Query, error) {
-	compare, ok := durationComparisons[op]
+	compare, ok := numericComparisons[op]
 	if !ok {
 		return nil, fmt.Errorf("%w: it does not support the operator %q on a duration",
 			tracestore.ErrFilterUnsupported, op)
@@ -663,7 +699,22 @@ func buildDurationComparison(op expression.Operator, value expression.Expression
 	if err != nil {
 		return nil, err
 	}
-	return compare(model.DurationAsMicroseconds(duration)), nil
+	return compare(durationField, model.DurationAsMicroseconds(duration)), nil
+}
+
+// buildStartTimeComparison compares the span start time, which the field holds as microseconds
+// since the epoch, against a timestamp constant.
+func buildStartTimeComparison(op expression.Operator, value expression.Expression) (esquery.Query, error) {
+	compare, ok := numericComparisons[op]
+	if !ok {
+		return nil, fmt.Errorf("%w: it does not support the operator %q on a timestamp",
+			tracestore.ErrFilterUnsupported, op)
+	}
+	instant, err := pointInTime(value)
+	if err != nil {
+		return nil, err
+	}
+	return compare(startTimeField, model.TimeAsEpochMicroseconds(instant)), nil
 }
 
 // asErrorTagEquality reports through ok whether a predicate tests the error tag for a
@@ -789,6 +840,14 @@ func errOrderedString(op expression.Operator, ref reference) error {
 
 func errUnorderedValue(op expression.Operator, ref reference) error {
 	return fmt.Errorf("%w: it indexes %q as a keyword rather than a number, so it cannot evaluate %q on it",
+		tracestore.ErrFilterUnsupported, ref.name, op)
+}
+
+// errNumericAttributesOff refuses an ordering predicate on an attribute while the numeric
+// sub-field is not configured. It names the setting, because unlike a built-in keyword field an
+// attribute can be ordered once the operator turns it on.
+func errNumericAttributesOff(op expression.Operator, ref reference) error {
+	return fmt.Errorf("%w: it indexes %q as a keyword rather than a number, so it cannot evaluate %q on it; set indices.spans.numeric_attributes to index attribute values as numbers as well",
 		tracestore.ErrFilterUnsupported, ref.name, op)
 }
 

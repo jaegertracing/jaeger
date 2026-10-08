@@ -44,12 +44,9 @@ Follow the checklist in the created tracking issue. The high level steps are:
     * Rotates release managers table
     * Creates PR with label `changelog:skip`
   * Manual: See [Manual release pull request](https://github.com/jaegertracing/jaeger/blob/main/RELEASE.md#manual-release-pull-request).
-2. After the PR is merged, create a release on Github:
-  * **Automated**:
-    ```bash
-    make draft-release
-    ```
-  * Manual: See [Manual release](https://github.com/jaegertracing/jaeger/blob/main/RELEASE.md#manual-release).
+2. After the PR is merged, the [Draft release workflow](https://github.com/jaegertracing/jaeger/actions/workflows/ci-release-draft.yml) creates a draft release from the merge commit.
+  * Open the draft on [GitHub Releases](https://github.com/jaegertracing/jaeger/releases), review the notes, and publish it.
+  * If no draft appears (the workflow failed, or the PR targeted a maintenance branch), run `./scripts/release/draft.py --target <merge commit SHA>` instead, or see [Manual release](https://github.com/jaegertracing/jaeger/blob/main/RELEASE.md#manual-release).
 3. Once the release is created, the [Publish Release workflow](https://github.com/jaegertracing/jaeger/actions/workflows/ci-release.yml) will run to build artifacts.
   * Wait for the workflow to finish. For monitoring and troubleshooting, open the logs of the workflow run from above URL.
   * Check the images are available on [Docker Hub](https://hub.docker.com/r/jaegertracing/) and binaries are uploaded [to the release](https://github.com/jaegertracing/jaeger/releases).
@@ -120,9 +117,9 @@ Here are the release managers for future versions with the tentative release dat
 
 | Version | Release Manager | Tentative release date    |
 |---------|-----------------|---------------------------|
-| 2.22.0  | @mahadzaryab1   | 7 October 2026            |
 | 2.23.0  | @albertteoh     | 4 November 2026           |
 | 2.24.0  | @pavolloffay    | 2 December 2026           |
 | 2.25.0  | @joe-elliott    | 6 January 2027            |
 | 2.26.0  | @yurishkuro     | 3 February 2027           |
 | 2.27.0  | @jkowall        | 3 March 2027              |
+| 2.28.0  | @mahadzaryab1   | 7 April 2027              |

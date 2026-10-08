@@ -79,6 +79,10 @@ extensions:
             max_bytes: 10000000
           indices:
             index_prefix: "jaeger-main"
+            spans:
+              # The e2e filter battery orders an attribute, which ranges over the numeric
+              # sub-field this setting maps (RFC 0015).
+              numeric_attributes: true
 
 receivers:
   kafka:

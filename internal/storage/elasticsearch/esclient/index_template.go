@@ -16,30 +16,6 @@ import (
 	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/config"
 )
 
-// TypedAttributeIndexingGate adds a numeric sub-field to each attribute value in
-// the span index template, beside the keyword the value is already indexed as.
-// That is what lets a query order on an attribute — `http.response.size > 500`
-// compares lexicographically against a keyword, which makes "9" greater than
-// "10" — and it is the mapping change RFC 0015 proposes. Documents are
-// unaffected: a mapping does not alter _source, so nothing about reading or
-// writing a span changes.
-//
-// Off by default for two reasons. It costs mapped fields on the elevated
-// representation, two per key instead of one, which presses hardest on a
-// `tags_as_fields: all` deployment. And it reaches only indices created after
-// it is turned on, so a range query against an older index matches nothing.
-var TypedAttributeIndexingGate = featuregate.GlobalRegistry().MustRegister(
-	"jaeger.es.typedAttributeIndexing",
-	featuregate.StageAlpha,
-	featuregate.WithRegisterFromVersion("v2.24.0"),
-	featuregate.WithRegisterDescription(
-		"Indexes span, resource, and event attribute values as numbers beside the "+
-			"keyword, so that ordered predicates (gt/lt/gte/lte) can be answered on an "+
-			"attribute. Applies only to indices created after it is enabled.",
-	),
-	featuregate.WithRegisterReferenceURL("https://github.com/jaegertracing/jaeger/blob/main/docs/rfc/0015-typed-attribute-indexing-elasticsearch.md"),
-)
-
 // PrefixedLegacyTemplatesGate scopes the ES7/OpenSearch legacy `_template`
 // index pattern of the dependencies and sampling templates by the configured
 // index prefix, as the span and service templates and the composable ES8+
@@ -158,8 +134,26 @@ func (m MappingType) options(indices config.Indices) config.IndexOptions {
 	case SamplingMapping:
 		return indices.Sampling
 	default:
-		return indices.Spans
+		return indices.Spans.IndexOptions
 	}
+}
+
+// spanParams are the values only the span template interpolates. They stay zero for
+// every other mapping type, whose templates never read them.
+type spanParams struct {
+	// TotalFieldsLimit is left nil when unconfigured, so the template omits
+	// "index.mapping.total_fields.limit" entirely rather than rendering a
+	// default.
+	TotalFieldsLimit *int64
+	// NumericAttributes adds a `number` sub-field beside the keyword each attribute value is
+	// indexed as, in both the nested and the elevated representation (RFC 0015 Option A). It is
+	// indices.spans.numeric_attributes, which the span template alone reads. The
+	// sub-field is mapped with coerce: false, so it holds only values that arrived as JSON numbers
+	// and a numeric string stays out, and with ignore_malformed: true, so a value that does not fit
+	// is skipped rather than costing the document. There is no boolean sub-field: OpenSearch rejects
+	// ignore_malformed on a boolean mapper, and the keyword already answers equality, which is the
+	// only operator a boolean has (RFC 0015 §7, question 7).
+	NumericAttributes bool
 }
 
 // lifecycleParams decide whether a template hands its indices to a rollover
@@ -178,18 +172,8 @@ type innerParams struct {
 	IndexPrefix string
 	Shards      int64
 	Replicas    int64
-	// TotalFieldsLimit is left nil when unconfigured, so the template omits
-	// "index.mapping.total_fields.limit" entirely rather than rendering a
-	// default.
-	TotalFieldsLimit *int64
-	// TypedAttributes adds a `number` sub-field beside the keyword each attribute value is
-	// indexed as, in both the nested and the elevated representation (RFC 0015 Option A). The
-	// sub-field is mapped with coerce: false, so it holds only values that arrived as JSON numbers
-	// and a numeric string stays out, and with ignore_malformed: true, so a value that does not fit
-	// is skipped rather than costing the document. There is no boolean sub-field: OpenSearch rejects
-	// ignore_malformed on a boolean mapper, and the keyword already answers equality, which is the
-	// only operator a boolean has (RFC 0015 §7, question 7).
-	TypedAttributes bool
+	// Span is filled only for the span index; the other templates leave it zero and do not read it.
+	Span spanParams
 }
 
 // renderBackendNeutralBody executes the embedded template for one mapping type and
@@ -206,15 +190,21 @@ func renderBackendNeutralBody(m MappingType, indices config.Indices, lifecycle l
 		return nil, fmt.Errorf("index options for %s have no replica count configured", m)
 	}
 
+	params := innerParams{
+		lifecycleParams: lifecycle,
+		IndexPrefix:     indices.IndexPrefix.Apply(""),
+		Shards:          opts.Shards,
+		Replicas:        *opts.Replicas,
+	}
+	if m == SpanMapping {
+		params.Span = spanParams{
+			TotalFieldsLimit:  indices.Spans.TotalFieldsLimit.Get(),
+			NumericAttributes: indices.Spans.NumericAttributes,
+		}
+	}
+
 	var buf bytes.Buffer
-	if err := indexTemplates.ExecuteTemplate(&buf, file, innerParams{
-		lifecycleParams:  lifecycle,
-		IndexPrefix:      indices.IndexPrefix.Apply(""),
-		Shards:           opts.Shards,
-		Replicas:         *opts.Replicas,
-		TotalFieldsLimit: opts.TotalFieldsLimit,
-		TypedAttributes:  TypedAttributeIndexingGate.IsEnabled(),
-	}); err != nil {
+	if err := indexTemplates.ExecuteTemplate(&buf, file, params); err != nil {
 		return nil, fmt.Errorf("failed to render %s index template: %w", m, err)
 	}
 

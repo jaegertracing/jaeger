@@ -50,7 +50,7 @@ func TestGRPCStorage(t *testing.T) {
 		SkipStorageCleaner: true,
 		StorageIntegration: integration.StorageIntegration{
 			CleanUp:      purge,
-			Capabilities: capabilities.E2EWithoutNativeFilters(),
+			Capabilities: capabilities.Capabilities{}.WithoutFilterRefusals().WithoutSpanAttributeOrdering(),
 		},
 		PropagateEnvVars: []string{
 			"REMOTE_STORAGE_ENDPOINT",
