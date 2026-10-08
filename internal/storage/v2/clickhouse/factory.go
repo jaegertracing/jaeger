@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"sync"
 	"text/template"
 	"time"
 
@@ -92,19 +93,121 @@ func newSchemaBuilder(cfg Configuration, opts *clickhouse.Options) *schemaBuilde
 	}
 }
 
+type migrationBodyGate struct {
+	mu        sync.Mutex
+	cond      *sync.Cond
+	activeVer uint
+	failed    bool
+	closed    bool
+}
+
+func newMigrationBodyGate() *migrationBodyGate {
+	g := &migrationBodyGate{}
+	g.cond = sync.NewCond(&g.mu)
+	return g
+}
+
+func (g *migrationBodyGate) reset(activeVer uint) {
+	g.mu.Lock()
+	g.activeVer = activeVer
+	g.failed = false
+	g.closed = false
+	g.cond.Broadcast()
+	g.mu.Unlock()
+}
+
+func (g *migrationBodyGate) waitTurn(version uint) error {
+	g.mu.Lock()
+	defer g.mu.Unlock()
+	for version > g.activeVer && !g.failed && !g.closed {
+		g.cond.Wait()
+	}
+	if g.failed || g.closed {
+		return io.EOF
+	}
+	return nil
+}
+
+func (g *migrationBodyGate) migrationSuccess() {
+	g.mu.Lock()
+	g.activeVer++
+	g.cond.Broadcast()
+	g.mu.Unlock()
+}
+
+func (g *migrationBodyGate) migrationFailed() {
+	g.mu.Lock()
+	g.failed = true
+	g.cond.Broadcast()
+	g.mu.Unlock()
+}
+
+func (g *migrationBodyGate) close() {
+	g.mu.Lock()
+	g.closed = true
+	g.cond.Broadcast()
+	g.mu.Unlock()
+}
+
+type gatedSourceDriver struct {
+	source.Driver
+	gate *migrationBodyGate
+}
+
+func (s *gatedSourceDriver) ReadUp(version uint) (io.ReadCloser, string, error) {
+	rc, id, err := s.Driver.ReadUp(version)
+	if err != nil {
+		return nil, "", err
+	}
+	return &gatedReadCloser{
+		rc:      rc,
+		version: version,
+		gate:    s.gate,
+	}, id, nil
+}
+
+type gatedReadCloser struct {
+	rc      io.ReadCloser
+	version uint
+	gate    *migrationBodyGate
+	waited  bool
+}
+
+func (g *gatedReadCloser) Read(p []byte) (n int, err error) {
+	if !g.waited {
+		if err := g.gate.waitTurn(g.version); err != nil {
+			return 0, err
+		}
+		g.waited = true
+	}
+	return g.rc.Read(p)
+}
+
+func (g *gatedReadCloser) Close() error {
+	return g.rc.Close()
+}
+
 type drainingDatabaseDriver struct {
 	database.Driver
+	gate *migrationBodyGate
 }
 
 func (d *drainingDatabaseDriver) Run(r io.Reader) error {
 	err := d.Driver.Run(r)
 	if err != nil {
+		if d.gate != nil {
+			d.gate.migrationFailed()
+		}
 		if closer, ok := r.(io.Closer); ok {
 			_ = closer.Close()
 		}
 		_, _ = io.Copy(io.Discard, r)
+		return err
 	}
-	return err
+	if d.gate != nil {
+		d.gate.migrationSuccess()
+	}
+	return nil
 }
 
 func latestBinaryVersion(src source.Driver) (uint, error) {
@@ -150,8 +253,20 @@ func (b *schemaBuilder) build(ctx context.Context) error {
 		return fmt.Errorf("failed to create migration database driver: %w", err)
 	}
 
-	wrappedDriver := &drainingDatabaseDriver{Driver: dbDriver}
-	m, err := newMigrateInstance("iofs", sourceDriver, "clickhouse", wrappedDriver)
+	gate := newMigrationBodyGate()
+	defer gate.close()
+
+	gatedSource := &gatedSourceDriver{
+		Driver: sourceDriver,
+		gate:   gate,
+	}
+
+	wrappedDriver := &drainingDatabaseDriver{
+		Driver: dbDriver,
+		gate:   gate,
+	}
+
+	m, err := newMigrateInstance("iofs", gatedSource, "clickhouse", wrappedDriver)
 	if err != nil {
 		_ = sourceDriver.Close()
 		_ = dbDriver.Close()
@@ -165,7 +280,7 @@ func (b *schemaBuilder) build(ctx context.Context) error {
 	}
 
 	if b.cfg.CreateSchema {
-		if err := b.applyMigrations(ctx, m); err != nil {
+		if err := b.applyMigrations(ctx, m, gate); err != nil {
 			return err
 		}
 	} else {
@@ -181,7 +296,7 @@ func (b *schemaBuilder) build(ctx context.Context) error {
 	return nil
 }
 
-func (b *schemaBuilder) applyMigrations(ctx context.Context, m *migrate.Migrate) error {
+func (b *schemaBuilder) applyMigrations(ctx context.Context, m *migrate.Migrate, gate *migrationBodyGate) error {
 	startTime := time.Now()
 	expBackoff := backoff.NewExponentialBackOff()
 	expBackoff.InitialInterval = b.backoffInitialInterval
@@ -189,6 +304,12 @@ func (b *schemaBuilder) applyMigrations(ctx context.Context, m *migrate.Migrate)
 	expBackoff.Reset()
 
 	for {
+		activeVer := uint(1)
+		if dbVer, _, verErr := m.Version(); verErr == nil {
+			activeVer = dbVer + 1
+		}
+		gate.reset(activeVer)
+
 		err := m.Up()
 		if err == nil || errors.Is(err, migrate.ErrNoChange) {
 			return nil

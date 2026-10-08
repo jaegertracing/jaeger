@@ -353,17 +353,17 @@ func TestSchemaBuilder_VersionChecking(t *testing.T) {
 	t.Run("database version newer than binary refuses startup", func(t *testing.T) {
 		b := newSchemaBuilder(cfg, opts)
 
-		// Set up mock driver where database version is 2, while binary is 1
+		// Set up mock driver where database version is 3, while binary is 2
 		orig := newDatabaseDriver
 		defer func() { newDatabaseDriver = orig }()
 		newDatabaseDriver = func(db *dbsql.DB, config *clickhousemigrate.Config) (database.Driver, error) {
 			drv, err := orig(db, config)
 			require.NoError(t, err)
-			return &mockVersionDriver{Driver: drv, version: 2}, nil
+			return &mockVersionDriver{Driver: drv, version: 3}, nil
 		}
 
 		err = b.build(context.Background())
-		require.ErrorContains(t, err, "database schema version 2 is newer than binary version 1")
+		require.ErrorContains(t, err, "database schema version 3 is newer than binary version 2")
 	})
 
 	t.Run("database version equal to binary allows startup", func(t *testing.T) {
@@ -374,7 +374,7 @@ func TestSchemaBuilder_VersionChecking(t *testing.T) {
 		newDatabaseDriver = func(db *dbsql.DB, config *clickhousemigrate.Config) (database.Driver, error) {
 			drv, err := orig(db, config)
 			require.NoError(t, err)
-			return &mockVersionDriver{Driver: drv, version: 1}, nil
+			return &mockVersionDriver{Driver: drv, version: 2}, nil
 		}
 
 		err = b.build(context.Background())

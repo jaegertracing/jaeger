@@ -9,11 +9,15 @@ import (
 	"time"
 
 	"github.com/ClickHouse/clickhouse-go/v2"
+	"github.com/golang-migrate/migrate/v4"
+	clickhousemigrate "github.com/golang-migrate/migrate/v4/database/clickhouse"
+	"github.com/golang-migrate/migrate/v4/source/iofs"
 	"github.com/open-telemetry/opentelemetry-collector-contrib/extension/basicauthextension"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/collector/config/configoptional"
 
+	"github.com/jaegertracing/jaeger/internal/storage/v2/clickhouse/sql"
 	"github.com/jaegertracing/jaeger/internal/telemetry"
 )
 
@@ -69,12 +73,28 @@ func TestMigrationSmoke(t *testing.T) {
 	// 1. Clean up any existing objects
 	dropAll()
 
-	// 2. Apply v001 migration via NewFactory with CreateSchema: true
+	// 2. Apply v001 migration directly
+	sourceDriver, err := iofs.New(sql.MigrationFiles, ".")
+	require.NoError(t, err)
+	dbDriver, err := clickhousemigrate.WithInstance(smokeDB, &clickhousemigrate.Config{
+		DatabaseName:          cfg.Database,
+		MultiStatementEnabled: true,
+	})
+	require.NoError(t, err)
+	m, err := migrate.NewWithInstance("iofs", sourceDriver, "clickhouse", dbDriver)
+	require.NoError(t, err)
+	err = m.Migrate(1)
+	require.NoError(t, err)
+	sourceErr, dbErr := m.Close()
+	require.NoError(t, sourceErr)
+	require.NoError(t, dbErr)
+
+	// 3. Upgrade to latest version (v002) via NewFactory with CreateSchema: true
 	f, err := NewFactory(testCtx, cfg, telemetry.NoopSettings())
 	require.NoError(t, err)
 	require.NoError(t, f.Close())
 
-	// 3. Dump schema DDL using SHOW CREATE TABLE
+	// 4. Dump schema DDL using SHOW CREATE TABLE
 	migratedDDLs := make(map[string]string)
 	for _, obj := range SchemaObjects {
 		var ddl string
