@@ -203,13 +203,18 @@ proto-zipkin:
 # where a manually defined traces.go file is located.
 API_V3_PATH=internal/proto/api_v3
 API_V3_PATCHED_DIR=$(PROTO_GEN)/.patched/api_v3
-API_V3_PATCHED=$(API_V3_PATCHED_DIR)/query_service.proto
+# api_v3 is two files, query_service.proto and capabilities.proto, which share one package
+# and one output directory.
+API_V3_PROTO_NAMES=query_service.proto capabilities.proto
+API_V3_PATCHED=$(addprefix $(API_V3_PATCHED_DIR)/,$(API_V3_PROTO_NAMES))
 .PHONY: patch-api-v3
 patch-api-v3:
 	mkdir -p $(API_V3_PATCHED_DIR)
-	$(SED) -f ./$(PROTO_GEN)/patch.sed \
-		idl/proto/api_v3/query_service.proto \
-		> $(API_V3_PATCHED)
+	for name in $(API_V3_PROTO_NAMES); do \
+		$(SED) -f ./$(PROTO_GEN)/patch.sed \
+			idl/proto/api_v3/$$name \
+			> $(API_V3_PATCHED_DIR)/$$name; \
+	done
 
 .PHONY: proto-api-v3
 proto-api-v3: patch-api-v3 proto-expression
@@ -235,7 +240,7 @@ PYTHON_SDK_DIR=sdk/python
 PYTHON_SDK_PATH=$(PYTHON_SDK_DIR)/src
 API_V3_PYTHON_PATCHED_ROOT=$(PROTO_GEN)/.patched/api_v3_python
 API_V3_PYTHON_PATCHED_DIR=$(API_V3_PYTHON_PATCHED_ROOT)/api_v3
-API_V3_PYTHON_PATCHED=$(API_V3_PYTHON_PATCHED_DIR)/query_service.proto
+API_V3_PYTHON_PATCHED=$(addprefix $(API_V3_PYTHON_PATCHED_DIR)/,$(API_V3_PROTO_NAMES))
 # api_v3 imports the shared filter AST, so Python needs a patched copy of that too.
 EXPRESSION_PYTHON_PATCHED_DIR=$(API_V3_PYTHON_PATCHED_ROOT)/expression/v1
 EXPRESSION_PYTHON_PATCHED=$(EXPRESSION_PYTHON_PATCHED_DIR)/expression.proto
@@ -244,14 +249,16 @@ API_V3_PYTHON_PROTOS=$(API_V3_PYTHON_PATCHED) $(EXPRESSION_PYTHON_PATCHED)
 .PHONY: patch-api-v3-python
 patch-api-v3-python:
 	mkdir -p $(API_V3_PYTHON_PATCHED_DIR) $(EXPRESSION_PYTHON_PATCHED_DIR)
-	$(SED) -f ./$(PROTO_GEN)/patch-python.sed \
-		idl/proto/api_v3/query_service.proto \
-		> $(API_V3_PYTHON_PATCHED)
+	for name in $(API_V3_PROTO_NAMES); do \
+		$(SED) -f ./$(PROTO_GEN)/patch-python.sed \
+			idl/proto/api_v3/$$name \
+			> $(API_V3_PYTHON_PATCHED_DIR)/$$name; \
+	done
 	$(SED) -f ./$(PROTO_GEN)/patch-python.sed \
 		idl/proto/expression/v1/expression.proto \
 		> $(EXPRESSION_PYTHON_PATCHED)
 	@echo "🏗️  verifying that no annotation survived the patch"
-	@! grep -nE 'google\.api|openapi\.v3|gnostic|jaeger\.expression\.v1\.operators|vocabulary\.proto' $(API_V3_PYTHON_PROTOS) || \
+	@! grep -nE 'google\.api|openapi\.v3|gnostic|jaeger\.expression\.v1\.(operators|levels)|vocabulary\.proto' $(API_V3_PYTHON_PROTOS) || \
 		(echo "ERROR: $(PROTO_GEN)/patch-python.sed did not remove every annotation"; exit 1)
 
 # protoc comes from grpcio-tools rather than $(PROTOC), because the shared
@@ -274,7 +281,7 @@ proto-api-v3-python: patch-api-v3-python
 		--python_out=$(PYTHON_SDK_PATH) \
 		--pyi_out=$(PYTHON_SDK_PATH) \
 		--grpc_python_out=$(PYTHON_SDK_PATH) \
-		api_v3/query_service.proto
+		$(addprefix api_v3/,$(API_V3_PROTO_NAMES))
 	@# expression.proto declares no service, so it needs no gRPC stub.
 	$(PYTHON_PROTOC) \
 		-I$(API_V3_PYTHON_PATCHED_ROOT) \
