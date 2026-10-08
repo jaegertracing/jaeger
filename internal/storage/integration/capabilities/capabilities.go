@@ -29,7 +29,21 @@ const (
 	filterEventNameTest  = "the_name_of_one_of_the_span's_events"
 	filterSpanKindTest   = "the_span_kind"
 	filterSpanStatusTest = "the_span_status"
+
+	filterPhraseTest         = "a_phrase_matches_adjacent_ordered_words"
+	filterPhraseCaseTest     = "a_phrase_is_case_insensitive"
+	filterPhraseGapTest      = "a_phrase_does_not_match_when_words_are_not_adjacent"
+	filterPhraseOrderTest    = "a_phrase_does_not_match_when_words_are_in_the_wrong_order"
+	filterFulltextTest       = "fulltext_matches_all_words_in_any_order"
+	filterFulltextCaseTest   = "fulltext_is_case_insensitive"
+	filterFulltextAbsentTest = "fulltext_does_not_match_when_a_word_is_missing"
 )
+
+// textSearchTests are the test cases for phrase and fulltext operators.
+var textSearchTests = []string{
+	filterPhraseTest, filterPhraseCaseTest, filterPhraseGapTest, filterPhraseOrderTest,
+	filterFulltextTest, filterFulltextCaseTest, filterFulltextAbsentTest,
+}
 
 // AttributeComparison is the outcome a deployment produces for an ordered comparison on an
 // attribute, such as `span.retry.count > 10` (RFC 0005 §7). The operator and the level are both
@@ -184,6 +198,13 @@ func (c Capabilities) WithNumericAttributesEnabledAtUpgrade() Capabilities {
 	return c
 }
 
+// WithoutTextSearch skips the phrase and fulltext test cases, for backends that do not
+// evaluate the text-search operators yet (RFC 0005 §5.3, M9/M10).
+func (c Capabilities) WithoutTextSearch() Capabilities {
+	c.skipList = append(append([]string(nil), c.skipList...), textSearchTests...)
+	return c
+}
+
 // Memory returns the capabilities for the in-process memory storage backend.
 func Memory() Capabilities {
 	return Capabilities{
@@ -317,7 +338,7 @@ func Elasticsearch() Capabilities {
 			filterSpanKindTest,
 			filterSpanStatusTest,
 		},
-	}
+	}.WithoutTextSearch()
 }
 
 // ElasticsearchSmokeTest defines capabilities for the rotation strategy suites, which check that a

@@ -167,7 +167,8 @@ func validateFilterShape(filter *expression.Call) error {
 			return errArity(filter)
 		}
 	case expression.OpEq, expression.OpNe, expression.OpGt, expression.OpLt,
-		expression.OpGte, expression.OpLte, expression.OpRegex, expression.OpIn, expression.OpNotIn:
+		expression.OpGte, expression.OpLte, expression.OpRegex, expression.OpIn, expression.OpNotIn,
+		expression.OpPhrase, expression.OpFulltext:
 		if len(filter.Args) != 2 {
 			return errArity(filter)
 		}
@@ -321,6 +322,10 @@ func evalPredicate(expr expression.Expression, ctx filterCtx) bool {
 		return evalNotIn(call.Args[0], call.Args[1], ctx)
 	case expression.OpSome:
 		return evalSome(call.Args[0], call.Args[1], ctx)
+	case expression.OpPhrase:
+		return evalPhrase(call.Args[0], call.Args[1], ctx)
+	case expression.OpFulltext:
+		return evalFulltext(call.Args[0], call.Args[1], ctx)
 	default:
 		// Unreached for a filter the query boundary admitted: it only ever names
 		// one of the operators above. Refusing to match, rather than panicking,
@@ -515,6 +520,98 @@ func evalNotIn(ref, listExpr expression.Expression, ctx filterCtx) bool {
 		}
 	}
 	return true
+}
+
+// evalPhrase matches when the attribute value contains the given words as a contiguous,
+// ordered subsequence (RFC 0005 §5.3). Both sides are lowercased and the value is split
+// on Unicode whitespace, so "Refund Policy" matches the phrase ["refund", "policy"].
+func evalPhrase(ref, listExpr expression.Expression, ctx filterCtx) bool {
+	values, list, ok := resolveMembership(ref, listExpr, ctx)
+	if !ok {
+		return false
+	}
+	needle := lowerWords(list.Values)
+	for _, v := range values {
+		if v.kind != kindString {
+			continue
+		}
+		haystack := splitWords(v.str)
+		if containsPhrase(haystack, needle) {
+			return true
+		}
+	}
+	return false
+}
+
+// evalFulltext matches when the attribute value contains every given word in any order
+// (RFC 0005 §5.3). Both sides are lowercased and the value is split on Unicode whitespace.
+func evalFulltext(ref, listExpr expression.Expression, ctx filterCtx) bool {
+	values, list, ok := resolveMembership(ref, listExpr, ctx)
+	if !ok {
+		return false
+	}
+	needle := lowerWords(list.Values)
+	for _, v := range values {
+		if v.kind != kindString {
+			continue
+		}
+		haystack := splitWords(v.str)
+		if containsAllWords(haystack, needle) {
+			return true
+		}
+	}
+	return false
+}
+
+func splitWords(s string) []string {
+	return strings.Fields(strings.ToLower(s))
+}
+
+func lowerWords(words []string) []string {
+	out := make([]string, len(words))
+	for i, w := range words {
+		out[i] = strings.ToLower(w)
+	}
+	return out
+}
+
+func containsPhrase(haystack, needle []string) bool {
+	if len(needle) == 0 {
+		return true
+	}
+	if len(needle) > len(haystack) {
+		return false
+	}
+outer:
+	for i := 0; i <= len(haystack)-len(needle); i++ {
+		for j, w := range needle {
+			if haystack[i+j] != w {
+				continue outer
+			}
+		}
+		return true
+	}
+	return false
+}
+
+func containsAllWords(haystack, needle []string) bool {
+	if len(needle) == 0 {
+		return true
+	}
+	if len(haystack) == 0 {
+		return false
+	}
+	remaining := make(map[string]struct{}, len(needle))
+	for _, w := range needle {
+		remaining[w] = struct{}{}
+	}
+	for _, w := range haystack {
+		delete(remaining, w)
+		if len(remaining) == 0 {
+			return true
+		}
+	}
+	return false
 }
 
 // resolveMembership resolves the operands of in and not_in, reporting false when the
