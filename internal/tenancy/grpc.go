@@ -29,7 +29,9 @@ func GetValidTenant(ctx context.Context, tm *Manager) (string, error) {
 		return "", err
 	}
 
-	if !tm.Valid(tenant) {
+	// Without an allow-list Valid accepts any value, so reject an empty
+	// tenant explicitly, as the HTTP handler does.
+	if tenant == "" || !tm.Valid(tenant) {
 		return "", status.Errorf(codes.PermissionDenied, "unknown tenant")
 	}
 
@@ -68,9 +70,6 @@ func extractSingleTenant(tenants []string) (string, error) {
 	case 0:
 		return "", status.Errorf(codes.Unauthenticated, "missing tenant header")
 	case 1:
-		if tenants[0] == "" {
-			return "", status.Errorf(codes.Unauthenticated, "missing tenant header")
-		}
 		return tenants[0], nil
 	default:
 		return "", status.Errorf(codes.PermissionDenied, "extra tenant header")
