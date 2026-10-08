@@ -179,6 +179,37 @@ func TestHandlerAddReceivingMiddleware(t *testing.T) {
 	assert.True(t, saw.Load(), "middleware added after the handler is built must run for later requests")
 }
 
+// TestHandlerAddReceivingMiddlewarePanicFailsOnlyThatCall covers middleware the AI
+// gateway adds after the server is built. The SDK places it outside the recovery
+// newServer installs, so a call it answers itself (a UI tool) never reaches that
+// recovery. A panic there must still fail only that call rather than terminate the
+// test binary, and the session must keep serving the built-in tools.
+func TestHandlerAddReceivingMiddlewarePanicFailsOnlyThatCall(t *testing.T) {
+	reader := &tracestoremocks.Reader{}
+	reader.On("GetServices", mock.Anything).Return([]string{"svc-a"}, nil)
+	svc := querysvc.NewQueryService(reader, &depstoremocks.Reader{}, querysvc.QueryServiceOptions{})
+	h := NewHandler(telemetry.NoopSettings(), svc, tenancy.NewManager(&tenancy.Options{}), DefaultConfig())
+	t.Cleanup(func() { require.NoError(t, h.Close()) })
+
+	h.AddReceivingMiddleware(func(next mcp.MethodHandler) mcp.MethodHandler {
+		return func(ctx context.Context, method string, req mcp.Request) (mcp.Result, error) {
+			if toolNameFromRequest(method, req) == "ui_tool" {
+				panic("ui tool failed")
+			}
+			return next(ctx, method, req)
+		}
+	})
+
+	session := connectTestClient(t, h)
+	result, err := session.CallTool(context.Background(), &mcp.CallToolParams{Name: "ui_tool"})
+	require.NoError(t, err)
+	assert.True(t, result.IsError)
+
+	result, err = session.CallTool(context.Background(), &mcp.CallToolParams{Name: "get_services"})
+	require.NoError(t, err)
+	assert.False(t, result.IsError, "the session must keep serving after a panic")
+}
+
 // TestRegisterTools verifies RegisterTools advertises the full tool set on a
 // bare server (in-memory transport, no HTTP stack). Registration only, so the
 // QueryService is backed by empty mocks that are never invoked.
