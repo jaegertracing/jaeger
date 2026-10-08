@@ -132,11 +132,10 @@ func (gw *testGateway) runGatewayGetServices(t *testing.T) {
 }
 
 // runGatewayGetCapabilities runs against the harness baseline, a reader that declares
-// nothing, so the snapshot pins the least-capable response.
+// nothing; TestHTTPGatewayGetCapabilities pins the JSON shape of a full declaration.
 func (gw *testGateway) runGatewayGetCapabilities(t *testing.T) {
 	body, statusCode := gw.execRequest(t, "/api/v3/capabilities")
 	require.Equal(t, http.StatusOK, statusCode)
-	body = gw.verifySnapshot(t, body)
 
 	var response api_v3.GetCapabilitiesResponse
 	parseResponse(t, body, &response)

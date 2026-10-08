@@ -525,7 +525,7 @@ func TestHTTPGatewayGetServicesErrors(t *testing.T) {
 }
 
 // TestHTTPGatewayGetCapabilities pins the JSON shape of a full declaration, which is what a
-// client or the UI reads; the harness baseline in runGatewayTests pins the empty one.
+// client or the UI reads.
 func TestHTTPGatewayGetCapabilities(t *testing.T) {
 	gw := setupHTTPGatewayNoServer(t, "")
 	gw.reader.ExpectedCalls = nil
