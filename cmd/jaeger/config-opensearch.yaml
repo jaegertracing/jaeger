@@ -46,6 +46,11 @@ extensions:
           # custom_headers:
           #   Host: "my-opensearch-domain.us-east-1.es.amazonaws.com"
           #   X-Custom-Header: "custom-value"
+          # Sort a span search on the document _id after the ordering terms, so that paging
+          # returns every stored occurrence of a span. It is off by default because the sort
+          # builds _id field data on the heap; this file turns it on so that the OpenSearch
+          # e2e suite exercises that path, which OpenSearch allows without a cluster setting.
+          span_search_tie_break_by_id: true
           indices:
             index_prefix: "jaeger-main"
             spans:
