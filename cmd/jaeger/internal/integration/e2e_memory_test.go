@@ -24,7 +24,10 @@ func TestMemoryStorage(t *testing.T) {
 		FeatureGates: featureGates,
 		StorageIntegration: integration.StorageIntegration{
 			CleanUp:      purge,
-			Capabilities: capabilities.Capabilities{}.WithoutUnindexedFieldRefusal().WithoutTextAttributeOrderingRefusal().WithoutSpanAttributeOrdering(),
+			Capabilities: capabilities.Capabilities{}.
+				WithoutUnindexedFieldRefusal().
+				WithoutTextAttributeOrderingRefusal().
+				WithoutSpanAttributeOrdering(),
 		},
 	}
 	s.e2eInitialize(t, "memory")

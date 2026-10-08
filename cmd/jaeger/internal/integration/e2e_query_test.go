@@ -30,7 +30,10 @@ func TestJaegerQueryService(t *testing.T) {
 		MetricsPort:     8887,
 		StorageIntegration: integration.StorageIntegration{
 			CleanUp:      purge,
-			Capabilities: capabilities.Capabilities{}.WithoutUnindexedFieldRefusal().WithoutTextAttributeOrderingRefusal().WithoutSpanSearch(),
+			Capabilities: capabilities.Capabilities{}.
+				WithoutUnindexedFieldRefusal().
+				WithoutTextAttributeOrderingRefusal().
+				WithoutSpanSearch(),
 		},
 	}
 	collector.e2eInitialize(t, "memory")

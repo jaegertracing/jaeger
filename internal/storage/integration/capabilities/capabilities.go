@@ -232,7 +232,9 @@ func Memory() Capabilities {
 			// Direct only: the reader embeds UnsupportedTraceSummaries; jaeger-query falls back to FindTraces.
 			findTraceSummariesTest,
 		},
-	}.WithoutUnindexedFieldRefusal().WithoutTextAttributeOrderingRefusal()
+	}.
+		WithoutUnindexedFieldRefusal().
+		WithoutTextAttributeOrderingRefusal()
 }
 
 // GRPC returns the capabilities for the gRPC remote storage backend.
@@ -248,7 +250,9 @@ func GRPC() Capabilities {
 			// Direct only: the remote memory reader embeds UnsupportedTraceSummaries; jaeger-query falls back.
 			findTraceSummariesTest,
 		},
-	}.WithoutUnindexedFieldRefusal().WithoutTextAttributeOrderingRefusal()
+	}.
+		WithoutUnindexedFieldRefusal().
+		WithoutTextAttributeOrderingRefusal()
 }
 
 // Cassandra returns the capabilities for the Cassandra storage backend.
