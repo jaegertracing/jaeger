@@ -15,6 +15,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
+	"go.opentelemetry.io/collector/component"
+	"go.opentelemetry.io/collector/config/configauth"
 	"go.opentelemetry.io/collector/config/configgrpc"
 	"go.opentelemetry.io/collector/config/confignet"
 	"go.opentelemetry.io/collector/config/configoptional"
@@ -398,6 +400,75 @@ func TestServerChecksTenantBeforeDecodingRequest(t *testing.T) {
 			assert.Equal(t, int64(1), decoded)
 			require.Len(t, res.TraceIds, 1)
 			assert.Equal(t, traceID[:], res.TraceIds[0].TraceId)
+		})
+	}
+}
+
+var errNoCredentials = errors.New("no credentials")
+
+// rejectingAuthenticator is a server authenticator extension that turns every caller away.
+type rejectingAuthenticator struct {
+	component.StartFunc
+	component.ShutdownFunc
+}
+
+func (rejectingAuthenticator) Authenticate(ctx context.Context, _ map[string][]string) (context.Context, error) {
+	return ctx, errNoCredentials
+}
+
+// extensionsHost is a component.Host that offers the extensions it holds.
+type extensionsHost map[component.ID]component.Component
+
+func (h extensionsHost) GetExtensions() map[component.ID]component.Component {
+	return h
+}
+
+func TestServerAuthenticatesBeforeCheckingTenant(t *testing.T) {
+	authID := component.MustNewID("rejecting_auth")
+	telset := telemetry.NoopSettings()
+	telset.Host = extensionsHost{authID: rejectingAuthenticator{}}
+	tm := tenancy.NewManager(&tenancy.Options{Enabled: true, Tenants: []string{"acme"}})
+	f := &fakeFactory{reader: new(tracestoremocks.Reader)}
+	server, err := NewServer(
+		context.Background(),
+		configgrpc.ServerConfig{
+			NetAddr: confignet.AddrConfig{Endpoint: ":0"},
+			Auth:    configoptional.Some(configauth.Config{AuthenticatorID: authID}),
+		},
+		f,
+		f,
+		tm,
+		telset,
+	)
+	require.NoError(t, err)
+	require.NoError(t, server.Start(context.Background()))
+	defer server.Close()
+	client := newGRPCClient(t, server.GRPCAddr(), nil, tm)
+	defer client.conn.Close()
+
+	tests := []struct {
+		name    string
+		tenants []string
+	}{
+		{name: "missing tenant"},
+		{name: "unknown tenant", tenants: []string{"megacorp"}},
+		{name: "valid tenant", tenants: []string{"acme"}},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+			defer cancel()
+			if test.tenants != nil {
+				ctx = metadata.NewOutgoingContext(ctx, metadata.MD{tm.Header: test.tenants})
+			}
+			_, err := client.FindTraceIDs(
+				ctx,
+				&storage.FindTraceIDsRequest{Query: &storage.TraceQueryParameters{ServiceName: "service"}},
+			)
+			// Every call must be answered by the authenticator, so the status does not depend on the tenant.
+			st := status.Convert(err)
+			assert.Equal(t, codes.Unauthenticated, st.Code())
+			assert.Equal(t, errNoCredentials.Error(), st.Message())
 		})
 	}
 }

@@ -94,7 +94,13 @@ func createGRPCServer(
 	if tm.Enabled {
 		unaryInterceptors = append(unaryInterceptors, tenancy.NewGuardingUnaryInterceptor(tm))
 		streamInterceptors = append(streamInterceptors, tenancy.NewGuardingStreamInterceptor(tm))
-		serverOptions = append(serverOptions, configgrpc.WithGrpcServerOption(grpc.InTapHandle(tenancy.NewGuardingTapHandle(tm))))
+		// The tap rejects a bad tenant before the request is decoded, but it runs ahead of every
+		// interceptor, configgrpc's authenticator included. With an authenticator configured, the
+		// tenant is checked only after authentication, so an unauthenticated caller gets the same
+		// answer whatever tenant it sends.
+		if !cfg.Auth.HasValue() {
+			serverOptions = append(serverOptions, configgrpc.WithGrpcServerOption(grpc.InTapHandle(tenancy.NewGuardingTapHandle(tm))))
+		}
 	}
 	serverOptions = append(serverOptions,
 		configgrpc.WithGrpcServerOption(grpc.ChainUnaryInterceptor(unaryInterceptors...)),
