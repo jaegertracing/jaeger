@@ -142,6 +142,7 @@ the call site instead of relying on `write-all`:
 The following workflows operate independently and are **not** part of the orchestrator:
 
 ### Release & Deployment
+- **ci-release-draft.yml** - Creates the draft GitHub release when a "Prepare release vX.Y.Z" PR merges to main
 - **ci-release.yml** - Triggered on release events to build and publish artifacts
 - **ci-deploy-demo.yml** - Scheduled/manual deployment to demo environment
 

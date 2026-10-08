@@ -61,15 +61,18 @@ func DefaultConfig() config.Configuration {
 		},
 		// The deprecated top-level spelling decodes over the same dot replacement when a
 		// configuration still uses it, so an explicitly empty one stays empty.
-		Tags:                 configoptional.Default(config.TagsAsFields{DotReplacement: defaultTagDotReplacement}),
-		Enabled:              true,
-		Version:              0,
-		Servers:              []string{"http://127.0.0.1:9200"},
-		RemoteReadClusters:   []string{},
-		MaxDocCount:          10_000,
-		LogLevel:             "error",
-		CreateIndexTemplates: true,
-		HTTPCompression:      true,
+		Tags:               configoptional.Default(config.TagsAsFields{DotReplacement: defaultTagDotReplacement}),
+		Enabled:            true,
+		Version:            0,
+		Servers:            []string{"http://127.0.0.1:9200"},
+		RemoteReadClusters: []string{},
+		MaxDocCount:        10_000,
+		// Off by default: sorting on _id builds _id field data on the heap for every segment a
+		// search touches, and the config field's comment says what that costs.
+		SpanSearchTieBreakByID: false,
+		LogLevel:               "error",
+		CreateIndexTemplates:   true,
+		HTTPCompression:        true,
 		Indices: config.Indices{
 			Spans: config.SpanIndexOptions{
 				IndexOptions: defaultIndexOptions,
