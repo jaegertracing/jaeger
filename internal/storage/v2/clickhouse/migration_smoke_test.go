@@ -9,11 +9,13 @@ import (
 	"time"
 
 	"github.com/ClickHouse/clickhouse-go/v2"
+	clickhousemigrate "github.com/golang-migrate/migrate/v4/database/clickhouse"
 	"github.com/open-telemetry/opentelemetry-collector-contrib/extension/basicauthextension"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/collector/config/configoptional"
 
+	chsql "github.com/jaegertracing/jaeger/internal/storage/v2/clickhouse/sql"
 	"github.com/jaegertracing/jaeger/internal/telemetry"
 )
 
@@ -69,7 +71,22 @@ func TestMigrationSmoke(t *testing.T) {
 	// 1. Clean up any existing objects
 	dropAll()
 
-	// 2. Apply v001 migration via NewFactory with CreateSchema: true
+	// 2. Create the original schema, then let the factory upgrade it to v002.
+	sourceDriver, err := newSourceDriver(chsql.MigrationFiles, ".")
+	require.NoError(t, err)
+	migrationDB := clickhouse.OpenDB(opts)
+	dbDriver, err := newDatabaseDriver(migrationDB, &clickhousemigrate.Config{
+		DatabaseName:          cfg.Database,
+		MultiStatementEnabled: true,
+	})
+	require.NoError(t, err)
+	m, err := newMigrateInstance("iofs", sourceDriver, "clickhouse", &drainingDatabaseDriver{Driver: dbDriver})
+	require.NoError(t, err)
+	require.NoError(t, m.Migrate(1))
+	sourceErr, databaseErr := m.Close()
+	require.NoError(t, sourceErr)
+	require.NoError(t, databaseErr)
+
 	f, err := NewFactory(testCtx, cfg, telemetry.NoopSettings())
 	require.NoError(t, err)
 	require.NoError(t, f.Close())

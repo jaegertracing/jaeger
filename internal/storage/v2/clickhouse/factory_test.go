@@ -7,6 +7,7 @@ import (
 	"context"
 	dbsql "database/sql"
 	"errors"
+	"fmt"
 	"io"
 	"io/fs"
 	"os"
@@ -92,10 +93,7 @@ func TestFactory(t *testing.T) {
 }
 
 func TestNewFactory_Errors(t *testing.T) {
-	servicesCreationQuery := `CREATE TABLE
-    IF NOT EXISTS services (name String) ENGINE = AggregatingMergeTree
-ORDER BY
-    (name)`
+	migrationQuery := "ADD COLUMN IF NOT EXISTS flags UInt32"
 
 	tests := []struct {
 		name          string
@@ -112,7 +110,7 @@ ORDER BY
 		{
 			name: "migration execution error",
 			failureConfig: clickhousetest.FailureConfig{
-				servicesCreationQuery: assert.AnError,
+				migrationQuery: assert.AnError,
 			},
 			expectedError: "failed to apply migrations",
 		},
@@ -338,6 +336,12 @@ func TestNewSchemaBuilder_Errors(t *testing.T) {
 }
 
 func TestSchemaBuilder_VersionChecking(t *testing.T) {
+	sourceDriver, err := newSourceDriver(sql.MigrationFiles, ".")
+	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, sourceDriver.Close()) })
+	binaryVersion, err := latestBinaryVersion(sourceDriver)
+	require.NoError(t, err)
+
 	srv := clickhousetest.NewServer(clickhousetest.FailureConfig{})
 	defer srv.Close()
 
@@ -353,17 +357,17 @@ func TestSchemaBuilder_VersionChecking(t *testing.T) {
 		b, err := newSchemaBuilder(context.Background(), cfg, opts)
 		require.NoError(t, err)
 
-		// Set up mock driver where database version is 2, while binary is 1
+		// Set up a database version newer than the binary's latest migration.
 		orig := newDatabaseDriver
 		defer func() { newDatabaseDriver = orig }()
 		newDatabaseDriver = func(db *dbsql.DB, config *clickhousemigrate.Config) (database.Driver, error) {
 			drv, err := orig(db, config)
 			require.NoError(t, err)
-			return &mockVersionDriver{Driver: drv, version: 2}, nil
+			return &mockVersionDriver{Driver: drv, version: int(binaryVersion + 1)}, nil
 		}
 
 		err = b.build(context.Background())
-		require.ErrorContains(t, err, "database schema version 2 is newer than binary version 1")
+		require.ErrorContains(t, err, fmt.Sprintf("database schema version %d is newer than binary version %d", binaryVersion+1, binaryVersion))
 	})
 
 	t.Run("database version equal to binary allows startup", func(t *testing.T) {
@@ -375,7 +379,7 @@ func TestSchemaBuilder_VersionChecking(t *testing.T) {
 		newDatabaseDriver = func(db *dbsql.DB, config *clickhousemigrate.Config) (database.Driver, error) {
 			drv, err := orig(db, config)
 			require.NoError(t, err)
-			return &mockVersionDriver{Driver: drv, version: 1}, nil
+			return &mockVersionDriver{Driver: drv, version: int(binaryVersion)}, nil
 		}
 
 		err = b.build(context.Background())
@@ -414,6 +418,12 @@ func (m *mockVersionDriver) Version() (int, bool, error) {
 }
 
 func TestSchemaBuilder_ConcurrencyAndRetry(t *testing.T) {
+	sourceDriver, err := newSourceDriver(sql.MigrationFiles, ".")
+	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, sourceDriver.Close()) })
+	binaryVersion, err := latestBinaryVersion(sourceDriver)
+	require.NoError(t, err)
+
 	srv := clickhousetest.NewServer(clickhousetest.FailureConfig{})
 	defer srv.Close()
 
@@ -442,9 +452,9 @@ func TestSchemaBuilder_ConcurrencyAndRetry(t *testing.T) {
 				versionFn: func() (int, bool, error) {
 					attempts++
 					if attempts == 1 {
-						return 1, true, nil // dirty!
+						return int(binaryVersion), true, nil // dirty!
 					}
-					return 1, false, nil // clean on second try!
+					return int(binaryVersion), false, nil // clean on second try!
 				},
 			}, nil
 		}
@@ -468,7 +478,7 @@ func TestSchemaBuilder_ConcurrencyAndRetry(t *testing.T) {
 			return &mockFlakyDriver{
 				Driver: drv,
 				versionFn: func() (int, bool, error) {
-					return 1, true, nil // always dirty!
+					return int(binaryVersion), true, nil // always dirty!
 				},
 			}, nil
 		}
@@ -491,7 +501,7 @@ func TestSchemaBuilder_ConcurrencyAndRetry(t *testing.T) {
 			return &mockFlakyDriver{
 				Driver: drv,
 				versionFn: func() (int, bool, error) {
-					return 1, true, nil // dirty
+					return int(binaryVersion), true, nil // dirty
 				},
 			}, nil
 		}

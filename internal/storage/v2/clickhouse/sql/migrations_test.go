@@ -31,4 +31,15 @@ func TestMigrationFiles(t *testing.T) {
 	content, err := io.ReadAll(r)
 	require.NoError(t, err)
 	assert.Contains(t, string(content), "CREATE TABLE\n    IF NOT EXISTS spans")
+
+	v, err = d.Next(1)
+	require.NoError(t, err)
+	assert.Equal(t, uint(2), v)
+	r, identifier, err = d.ReadUp(v)
+	require.NoError(t, err)
+	defer r.Close()
+	assert.Equal(t, "otlp_span_fields", identifier)
+	content, err = io.ReadAll(r)
+	require.NoError(t, err)
+	assert.Contains(t, string(content), "ALTER TABLE spans")
 }

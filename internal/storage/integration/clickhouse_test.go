@@ -62,11 +62,33 @@ func TestClickHouseStorage(t *testing.T) {
 	s := &ClickHouseStorageIntegration{
 		StorageIntegration: StorageIntegration{
 			Capabilities: capabilities.ClickHouse(),
+			Fixtures:     LoadAndParseQueryTestCases(t, "fixtures/queries_clickhouse.json"),
 		},
 	}
 	s.CleanUp = s.cleanUp
 	s.initialize(t)
 	s.RunAll(t)
+}
+
+func TestClickHouseOTLPFieldsFixture(t *testing.T) {
+	queries := LoadAndParseQueryTestCases(t, "fixtures/queries_clickhouse.json")
+	require.Len(t, queries, 1)
+	require.Equal(t, []string{"otlp_fields_trace"}, queries[0].ExpectedFixtures)
+
+	trace := getTraceFixture(t, "otlp_fields_trace")
+	resourceSpans := trace.ResourceSpans().At(0)
+	scopeSpans := resourceSpans.ScopeSpans().At(0)
+	span := scopeSpans.Spans().At(0)
+	require.NotEmpty(t, resourceSpans.SchemaUrl())
+	require.NotEmpty(t, scopeSpans.SchemaUrl())
+	require.NotZero(t, scopeSpans.Scope().DroppedAttributesCount())
+	require.NotZero(t, span.Flags())
+	require.NotZero(t, span.DroppedAttributesCount())
+	require.NotZero(t, span.DroppedEventsCount())
+	require.NotZero(t, span.DroppedLinksCount())
+	require.NotZero(t, span.Events().At(0).DroppedAttributesCount())
+	require.NotZero(t, span.Links().At(0).DroppedAttributesCount())
+	require.NotZero(t, span.Links().At(0).Flags())
 }
 
 func TestClickHouseMigrationSmoke(t *testing.T) {

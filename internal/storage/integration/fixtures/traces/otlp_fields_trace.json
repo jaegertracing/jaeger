@@ -1,0 +1,49 @@
+{
+  "resourceSpans": [
+    {
+      "resource": {
+        "attributes": [
+          {"key": "service.name", "value": {"stringValue": "otlp-fields-service"}}
+        ]
+      },
+      "schemaUrl": "https://example.com/resource-schema",
+      "scopeSpans": [
+        {
+          "scope": {
+            "name": "otlp-fields-scope",
+            "droppedAttributesCount": 8
+          },
+          "schemaUrl": "https://example.com/scope-schema",
+          "spans": [
+            {
+              "traceId": "00000000000000000000000000000989",
+              "spanId": "0000000000000989",
+              "name": "otlp-fields-span",
+              "startTimeUnixNano": "1485449191639875000",
+              "endTimeUnixNano": "1485449191639877000",
+              "flags": 1,
+              "droppedAttributesCount": 2,
+              "droppedEventsCount": 3,
+              "droppedLinksCount": 4,
+              "events": [
+                {
+                  "name": "otlp-fields-event",
+                  "timeUnixNano": "1485449191639876000",
+                  "droppedAttributesCount": 5
+                }
+              ],
+              "links": [
+                {
+                  "traceId": "00000000000000000000000000000988",
+                  "spanId": "0000000000000988",
+                  "droppedAttributesCount": 6,
+                  "flags": 7
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}
