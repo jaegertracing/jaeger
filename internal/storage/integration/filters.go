@@ -333,8 +333,8 @@ func (s *StorageIntegration) testFindTracesWithFilter(t *testing.T) {
 				s.TraceReader.FindTraces(context.Background(), *query),
 			))
 			requireRefusal(t, err, "keyword rather than a number")
-		case capabilities.AttributeComparisonNotYetIndexed:
-			// The reader is configured to range over the numeric sub-field, but the corpus was
+		case capabilities.AttributeComparisonMissesOlderIndices:
+			// The reader ranges over the numeric sub-field, but the corpus was written into indices
 			// created before the mapping was turned on, so the range finds nothing there. RFC 0005
 			// §7 admits this as a data gap rather than a refusal, and this case pins that the
 			// reader neither errors nor falls back to comparing the keyword, which would answer

@@ -49,6 +49,13 @@ const (
 // declared, so the capability check admits the predicate, and the index mapping decides whether
 // the value is stored as a number. The zero value is the fully capable outcome, keeping the
 // polarity of Capabilities.
+//
+// Elasticsearch and OpenSearch store a numeric sub-field beside the keyword only when
+// indices.spans.numeric_attributes is on (RFC 0015), and only in indices created after it was
+// turned on. A deployment is therefore in one of three states: the setting is on and the data
+// was written under it, the setting is off, or the setting was turned on at an upgrade and the
+// reader ranges over the numeric sub-field in indices that never got one. The backward
+// compatibility suites run the last two against an old binary that wrote the corpus.
 type AttributeComparison int
 
 const (
@@ -58,9 +65,9 @@ const (
 	// AttributeComparisonRefused declares that the value is indexed as text, so the reader
 	// refuses the comparison rather than ranging over the keyword.
 	AttributeComparisonRefused
-	// AttributeComparisonNotYetIndexed declares that the mapping is configured over indices
-	// created before it, so the comparison is evaluated and finds nothing.
-	AttributeComparisonNotYetIndexed
+	// AttributeComparisonMissesOlderIndices declares that the mapping was turned on after the
+	// data was written, so the comparison is evaluated and finds nothing in those indices.
+	AttributeComparisonMissesOlderIndices
 )
 
 // filterOperatorTests are the battery cases that need ne, regex, exists or in, or an ordered
@@ -186,12 +193,11 @@ func (c Capabilities) WithoutNumericAttributes() Capabilities {
 	return c
 }
 
-// WithNumericAttributesNotYetIndexed declares a deployment that configures the typed-attribute
-// mapping over indices created before it was turned on, so that an ordered comparison on an
-// attribute is evaluated and finds nothing (RFC 0005 §7). The backward-compatibility suite's enable-on-upgrade
-// scenario is that deployment.
-func (c Capabilities) WithNumericAttributesNotYetIndexed() Capabilities {
-	c.attributeComparison = AttributeComparisonNotYetIndexed
+// WithNumericAttributesEnabledAtUpgrade declares a deployment that turned the typed-attribute
+// mapping on at an upgrade, over indices written without it, so that an ordered comparison on an
+// attribute is evaluated and finds nothing (RFC 0005 §7).
+func (c Capabilities) WithNumericAttributesEnabledAtUpgrade() Capabilities {
+	c.attributeComparison = AttributeComparisonMissesOlderIndices
 	return c
 }
 

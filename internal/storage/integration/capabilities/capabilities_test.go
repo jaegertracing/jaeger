@@ -25,8 +25,8 @@ func TestAttributeComparisonOutcome(t *testing.T) {
 		{name: "Memory", caps: Memory(), outcome: AttributeComparisonNumeric},
 		{name: "Elasticsearch without numeric attributes", caps: Elasticsearch().WithoutNumericAttributes(), outcome: AttributeComparisonRefused},
 		{name: "OpenSearch without numeric attributes", caps: OpenSearch().WithoutNumericAttributes(), outcome: AttributeComparisonRefused},
-		{name: "Elasticsearch with the mapping over older indices", caps: Elasticsearch().WithNumericAttributesNotYetIndexed(), outcome: AttributeComparisonNotYetIndexed},
-		{name: "modifiers replace each other", caps: Elasticsearch().WithoutNumericAttributes().WithNumericAttributesNotYetIndexed(), outcome: AttributeComparisonNotYetIndexed},
+		{name: "Elasticsearch with the mapping over older indices", caps: Elasticsearch().WithNumericAttributesEnabledAtUpgrade(), outcome: AttributeComparisonMissesOlderIndices},
+		{name: "modifiers replace each other", caps: Elasticsearch().WithoutNumericAttributes().WithNumericAttributesEnabledAtUpgrade(), outcome: AttributeComparisonMissesOlderIndices},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
@@ -55,8 +55,8 @@ var optOuts = map[string]func(Capabilities) Capabilities{
 // skip list, so TestOptOutsAreAllListed can tell a new method of either kind from one that was
 // forgotten.
 var outcomeModifiers = map[string]func(Capabilities) Capabilities{
-	"WithoutNumericAttributes":           Capabilities.WithoutNumericAttributes,
-	"WithNumericAttributesNotYetIndexed": Capabilities.WithNumericAttributesNotYetIndexed,
+	"WithoutNumericAttributes":              Capabilities.WithoutNumericAttributes,
+	"WithNumericAttributesEnabledAtUpgrade": Capabilities.WithNumericAttributesEnabledAtUpgrade,
 }
 
 // backends is the backend declarations, so that each is checked once and called once.
