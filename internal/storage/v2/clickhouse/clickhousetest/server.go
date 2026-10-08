@@ -7,6 +7,7 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 
 	"github.com/ClickHouse/ch-go/proto"
 	"github.com/ClickHouse/clickhouse-go/v2"
@@ -14,8 +15,9 @@ import (
 )
 
 var (
-	PingQuery      = "SELECT 1"
-	HandshakeQuery = "SELECT displayName(), version(), revision(), timezone()"
+	PingQuery            = "SELECT 1"
+	HandshakeQuery       = "SELECT displayName(), version(), revision(), timezone()"
+	CurrentDatabaseQuery = "SELECT currentDatabase()"
 )
 
 // FailureConfig is a map of query body to error
@@ -30,9 +32,11 @@ func NewServer(failures FailureConfig) *httptest.Server {
 
 		block := chproto.NewBlock()
 
-		if err, shouldFail := failures[query]; shouldFail {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
-			return
+		for failQuery, failErr := range failures {
+			if strings.Contains(query, failQuery) {
+				http.Error(w, failErr.Error(), http.StatusInternalServerError)
+				return
+			}
 		}
 
 		switch query {
@@ -45,6 +49,9 @@ func NewServer(failures FailureConfig) *httptest.Server {
 			block.AddColumn("revision()", "UInt32")
 			block.AddColumn("timezone()", "String")
 			block.Append("mock-server", "23.3.1", chproto.DBMS_MIN_REVISION_WITH_CUSTOM_SERIALIZATION, "UTC")
+		case CurrentDatabaseQuery:
+			block.AddColumn("currentDatabase()", "String")
+			block.Append("default")
 		default:
 		}
 
