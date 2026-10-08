@@ -203,8 +203,8 @@ func TestMatchesFilter_Regex(t *testing.T) {
 	f := newFilterFixture(t)
 	// A typed pattern, which the evaluator compiles through its own branch; Matches builds an
 	// untyped one, covered by TestMatchesFilter_RegexAcceptsAnUntypedPattern.
-	assert.True(t, f.matches(p.Compare(expression.OpRegex, p.Span().Name, p.Text("cart$"))))
-	assert.False(t, f.matches(p.Compare(expression.OpRegex, p.Span().Name, p.Text("^cart"))))
+	assert.True(t, f.matches(p.Compare(expression.OpRegex, p.Span().Name, p.String("cart$"))))
+	assert.False(t, f.matches(p.Compare(expression.OpRegex, p.Span().Name, p.String("^cart"))))
 }
 
 func TestMatchesFilter_InAndNotIn(t *testing.T) {
@@ -305,7 +305,7 @@ func TestMatchesFilter_UnknownOperatorDoesNotMatch(t *testing.T) {
 
 func TestMatchesFilter_NonCallExpressionDoesNotMatch(t *testing.T) {
 	f := newFilterFixture(t)
-	assert.False(t, evalPredicate(p.Text("not a call"), filterCtx{span: f.span}))
+	assert.False(t, evalPredicate(p.String("not a call"), filterCtx{span: f.span}))
 }
 
 func TestMatchesFilter_LinkFields(t *testing.T) {
@@ -383,7 +383,7 @@ func TestMatchesFilter_InAndNotInAgainstNonList(t *testing.T) {
 	f := newFilterFixture(t)
 	// The builder wraps a bare value into a list, so the tree is written out.
 	name := fieldRef(expression.LevelSpan, expression.SpanFieldName)
-	notAList := p.Text("not-a-list")
+	notAList := p.String("not-a-list")
 	assert.False(t, f.matches(call(expression.OpIn, name, notAList)))
 	assert.False(t, f.matches(call(expression.OpNotIn, name, notAList)))
 }
@@ -414,7 +414,7 @@ func TestMatchesFilter_SomeOverUnknownLevelDoesNotMatch(t *testing.T) {
 
 func TestMatchesFilter_SomeWithNonNestedRefCollectionDoesNotMatch(t *testing.T) {
 	f := newFilterFixture(t)
-	assert.False(t, f.evaluates(call(expression.OpSome, p.Text("not-a-collection"),
+	assert.False(t, f.evaluates(call(expression.OpSome, p.String("not-a-collection"),
 		call(expression.OpExists, fieldRef(expression.LevelEvent, expression.EventFieldName)),
 	)))
 }
@@ -427,8 +427,8 @@ func TestMatchesFilter_SomeWithNonNestedRefCollectionDoesNotMatch(t *testing.T) 
 func TestMatchesFilter_ExplicitlyTypedConstantDoesNotCrossKind(t *testing.T) {
 	f := newFilterFixture(t)
 	// http.status_code is stored as an int attribute (500).
-	assert.False(t, f.matches(p.Span().Attr("http.status_code").Eq(p.Text("500"))))
-	assert.True(t, f.matches(p.Span().Attr("http.status_code").Ne(p.Text("500"))),
+	assert.False(t, f.matches(p.Span().Attr("http.status_code").Eq(p.String("500"))))
+	assert.True(t, f.matches(p.Span().Attr("http.status_code").Ne(p.String("500"))),
 		"present but a different kind, so ne is true rather than the leaf-absence false")
 }
 
@@ -453,8 +453,8 @@ func TestMatchesFilter_OpaqueAttributeExistsButNeverCompares(t *testing.T) {
 	f.span.Attributes().PutEmptyBytes("payload").FromRaw([]byte{1, 2, 3})
 
 	assert.True(t, f.matches(p.Span().Attr("payload").Exists()))
-	assert.False(t, f.matches(p.Span().Attr("payload").Eq(p.Text("anything"))))
-	assert.True(t, f.matches(p.Span().Attr("payload").Ne(p.Text("anything"))))
+	assert.False(t, f.matches(p.Span().Attr("payload").Eq(p.String("anything"))))
+	assert.True(t, f.matches(p.Span().Attr("payload").Ne(p.String("anything"))))
 }
 
 // TestMatchesFilter_IntPrecisionAtNanosecondTimestamps pins that comparing timestamps does
@@ -685,11 +685,11 @@ func TestValidateFilterShape_Valid(t *testing.T) {
 		{"nil filter", nil},
 		{"and with one arg", call(expression.OpAnd, call(expression.OpExists, nameRef))},
 		{"or with several args", call(expression.OpOr,
-			call(expression.OpExists, nameRef), call(expression.OpEq, nameRef, p.Text("x")))},
+			call(expression.OpExists, nameRef), call(expression.OpEq, nameRef, p.String("x")))},
 		{"not", call(expression.OpNot, call(expression.OpExists, nameRef))},
 		{"exists", call(expression.OpExists, nameRef)},
-		{"eq", call(expression.OpEq, nameRef, p.Text("x"))},
-		{"regex", call(expression.OpRegex, nameRef, p.Text("^x$"))},
+		{"eq", call(expression.OpEq, nameRef, p.String("x"))},
+		{"regex", call(expression.OpRegex, nameRef, p.String("^x$"))},
 		{"in", call(expression.OpIn, nameRef, &expression.List{Values: []string{"x"}})},
 		{"some over events", call(expression.OpSome,
 			&expression.NestedRef{Level: expression.LevelEvent},
@@ -728,7 +728,7 @@ func TestValidateFilterShape_Invalid(t *testing.T) {
 		},
 		{
 			name:       "and given a value instead of a predicate",
-			filter:     call(expression.OpAnd, p.Text("x")),
+			filter:     call(expression.OpAnd, p.String("x")),
 			wantErrIs:  tracestore.ErrFilterInvalid,
 			wantErrMsg: "combines predicates, not values",
 		},
@@ -739,7 +739,7 @@ func TestValidateFilterShape_Invalid(t *testing.T) {
 		},
 		{
 			name:       "not given a value instead of a predicate",
-			filter:     call(expression.OpNot, p.Text("x")),
+			filter:     call(expression.OpNot, p.String("x")),
 			wantErrIs:  tracestore.ErrFilterInvalid,
 			wantErrMsg: "negates a predicate, not a value",
 		},
@@ -755,7 +755,7 @@ func TestValidateFilterShape_Invalid(t *testing.T) {
 		},
 		{
 			name:      "eq with three args",
-			filter:    call(expression.OpEq, nameRef, p.Text("x"), p.Text("y")),
+			filter:    call(expression.OpEq, nameRef, p.String("x"), p.String("y")),
 			wantErrIs: tracestore.ErrFilterInvalid,
 		},
 		{
@@ -776,7 +776,7 @@ func TestValidateFilterShape_Invalid(t *testing.T) {
 		},
 		{
 			name:       "some quantifying a value instead of a predicate",
-			filter:     call(expression.OpSome, &expression.NestedRef{Level: expression.LevelEvent}, p.Text("x")),
+			filter:     call(expression.OpSome, &expression.NestedRef{Level: expression.LevelEvent}, p.String("x")),
 			wantErrIs:  tracestore.ErrFilterInvalid,
 			wantErrMsg: "quantifies a predicate, not a value",
 		},

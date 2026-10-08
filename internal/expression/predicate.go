@@ -157,10 +157,10 @@ func (Predicate) Compare(op ast.Operator, ref Ref, value any) *ast.Call {
 	return ref.compare(op, value)
 }
 
-// Text builds a constant to be matched as text, for the comparison that has to narrow the match
-// to the string-typed value where a Go string leaves the type open (RFC 0005 §5.4). Int, Double,
-// Bool and Duration narrow the match to the other scalar types the same way.
-func (Predicate) Text(value string) *ast.StringValue {
+// String builds a constant matched only against a string, for the comparison that has to narrow
+// the match where a Go string leaves the type open (RFC 0005 §5.4). Int, Double, Bool and Duration
+// narrow the match to the other scalar types the same way.
+func (Predicate) String(value string) *ast.StringValue {
 	return &ast.StringValue{Value: value}
 }
 
@@ -271,7 +271,7 @@ func (l level) Field(name string) Ref {
 // The right-hand operand is any rather than a type parameter because Go does not allow type
 // parameters on methods, and a generic function would give up the chained form these methods
 // exist for. It is a real union in any case: a Go scalar, another Ref to compare two references,
-// or a term already built by Text or List. constant decides which node a Go value becomes, and
+// or a term already built by String or List. constant decides which node a Go value becomes, and
 // what a backend does with a value it cannot read is RFC 0005's question, not this package's —
 // nothing here type checks the query.
 type Ref struct {
@@ -340,7 +340,7 @@ func combine(op ast.Operator, predicates []*ast.Call) *ast.Call {
 }
 
 // operand reads the right-hand side of a comparison. Another reference or an already-built term is
-// compared as it stands, which is what lets a query compare two references and what Text uses to
+// compared as it stands, which is what lets a query compare two references and what String uses to
 // narrow a match to text.
 //
 // Everything else becomes an untyped constant, whatever its Go type. A declared type is
