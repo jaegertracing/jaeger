@@ -6,7 +6,9 @@ package memory
 import (
 	"cmp"
 	"context"
+	"encoding/binary"
 	"fmt"
+	"math"
 	"testing"
 	"time"
 
@@ -353,7 +355,7 @@ func TestFindSpans_MalformedFilterIsRefusedOnEveryPath(t *testing.T) {
 	store, _ := writeTwoTraceStore(t)
 	malformed := &expression.Call{Op: expression.OpNot}
 
-	chunk, err := findSpansPage(t, store, tracestore.SpanQueryParams{Filter: malformed})
+	chunk, err := findSpansPage(t, store, tracestore.SpanQueryParams{Filter: malformed, Pagination: tracestore.Pagination{PageSize: 10}})
 	require.ErrorIs(t, err, tracestore.ErrFilterInvalid)
 	assert.Zero(t, chunk)
 
@@ -563,4 +565,76 @@ func TestSearchCapabilities_DeclaresPaginated(t *testing.T) {
 	caps, err := store.SearchCapabilities(context.Background())
 	require.NoError(t, err)
 	assert.True(t, caps.Paginated)
+}
+
+// writeTracesBeyondMaxPageSize writes one more single-span trace than tracestore.MaxPageSize, so
+// a search that matches them all does not fit in one page clamped to that size.
+func writeTracesBeyondMaxPageSize(t *testing.T) *Store {
+	t.Helper()
+	const n = tracestore.MaxPageSize + 1
+	store, err := NewStore(Configuration{MaxTraces: n})
+	require.NoError(t, err)
+	base := time.Date(2026, 3, 1, 12, 0, 0, 0, time.UTC)
+	traces := ptrace.NewTraces()
+	rs := traces.ResourceSpans().AppendEmpty()
+	rs.Resource().Attributes().PutStr("service.name", "svc")
+	spans := rs.ScopeSpans().AppendEmpty().Spans()
+	for i := uint32(1); i <= n; i++ {
+		span := spans.AppendEmpty()
+		var traceID pcommon.TraceID
+		binary.BigEndian.PutUint32(traceID[12:], i)
+		span.SetTraceID(traceID)
+		span.SetSpanID(pcommon.SpanID{1})
+		span.SetName("op")
+		span.SetStartTimestamp(pcommon.NewTimestampFromTime(base.Add(time.Duration(i) * time.Millisecond)))
+	}
+	require.NoError(t, store.WriteTraces(context.Background(), traces))
+	return store
+}
+
+// TestFindSpans_PageSizeIsBounded pins the page bound the store applies itself, since a caller
+// such as the remote storage server reaches it without the query service: a zero page size is
+// refused rather than read as a request for every span, and an oversized one is clamped to
+// tracestore.MaxPageSize, with a token that resumes after the clamped page.
+func TestFindSpans_PageSizeIsBounded(t *testing.T) {
+	store := writeTracesBeyondMaxPageSize(t)
+
+	chunk, err := findSpansPage(t, store, tracestore.SpanQueryParams{})
+	require.ErrorIs(t, err, tracestore.ErrPaginationInvalid)
+	require.ErrorContains(t, err, "page size")
+	assert.Zero(t, chunk)
+
+	query := tracestore.SpanQueryParams{Pagination: tracestore.Pagination{PageSize: math.MaxUint32}}
+	chunk, err = findSpansPage(t, store, query)
+	require.NoError(t, err)
+	assert.Equal(t, int(tracestore.MaxPageSize), chunk.Results.SpanCount())
+	require.NotEmpty(t, chunk.NextPageToken)
+
+	query.Pagination.PageToken = chunk.NextPageToken
+	chunk, err = findSpansPage(t, store, query)
+	require.NoError(t, err)
+	assert.Equal(t, 1, chunk.Results.SpanCount(), "the span beyond the clamped page comes next")
+	assert.Empty(t, chunk.NextPageToken)
+}
+
+// TestFindTraceIDs_PageSizeIsClamped is TestFindSpans_PageSizeIsBounded for a trace search: an
+// oversized page size is clamped to tracestore.MaxPageSize. A zero one is refused, which
+// TestFindTraceIDs_PaginationRefusals covers.
+func TestFindTraceIDs_PageSizeIsClamped(t *testing.T) {
+	store := writeTracesBeyondMaxPageSize(t)
+	query := tracestore.TraceQueryParams{
+		ServiceName: "svc",
+		Attributes:  pcommon.NewMap(),
+		Pagination:  &tracestore.Pagination{PageSize: math.MaxUint32},
+	}
+	chunk, err := findTraceIDsPage(t, store, query)
+	require.NoError(t, err)
+	assert.Len(t, chunk.Results, int(tracestore.MaxPageSize))
+	require.NotEmpty(t, chunk.NextPageToken)
+
+	query.Pagination.PageToken = chunk.NextPageToken
+	chunk, err = findTraceIDsPage(t, store, query)
+	require.NoError(t, err)
+	assert.Len(t, chunk.Results, 1, "the trace beyond the clamped page comes next")
+	assert.Empty(t, chunk.NextPageToken)
 }

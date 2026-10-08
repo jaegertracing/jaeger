@@ -1146,7 +1146,7 @@ func TestSpanRemoteErrors(t *testing.T) {
 	for _, backendErr := range []error{errors.ErrUnsupported, tracestore.ErrFilterInvalid, tracestore.ErrFilterUnsupported, tracestore.ErrPaginationInvalid, tracestore.ErrPaginationUnsupported, tracestore.ErrSpanOrderInvalid, tracestore.ErrSpanOrderUnsupported, status.Error(codes.Internal, "broken")} {
 		reader := new(tracestoremocks.Reader)
 		reader.On("FindSpans", mock.Anything, mock.Anything).Return(spanSequence(nil, backendErr))
-		_, err := jiter.CollectWithErrors(spanRemote(t, reader).FindSpans(t.Context(), tracestore.SpanQueryParams{Pagination: tracestore.Pagination{PageSize: 1}}))
+		_, err := jiter.CollectWithErrors(spanRemote(t, reader).FindSpans(t.Context(), tracestore.SpanQueryParams{}))
 		if status.Code(backendErr) == codes.Internal {
 			assert.Equal(t, codes.Internal, status.Code(err))
 			assert.ErrorContains(t, err, "received error from grpc stream")
@@ -1179,7 +1179,7 @@ func TestFindTracesRemoteErrors(t *testing.T) {
 
 func TestSpanQueryConversion(t *testing.T) {
 	filter := &expression.Call{Op: expression.OpEq, Args: []expression.Expression{&expression.FieldRef{Level: expression.LevelSpan, Name: "name"}, &expression.StringValue{Value: "operation"}}}
-	query := tracestore.SpanQueryParams{Filter: filter, OrderBy: spanOrder(), Pagination: tracestore.Pagination{PageSize: 1}}
+	query := tracestore.SpanQueryParams{Filter: filter, OrderBy: spanOrder()}
 	wire, err := toProtoSpanQuery(query)
 	require.NoError(t, err)
 	got, err := toSpanQueryParams(wire)
@@ -1215,7 +1215,7 @@ func TestSpanRemoteEarlyExit(t *testing.T) {
 			close(canceled)
 		})).Once()
 	count := 0
-	for _, err := range spanRemote(t, reader).FindSpans(t.Context(), tracestore.SpanQueryParams{Pagination: tracestore.Pagination{PageSize: 1}}) {
+	for _, err := range spanRemote(t, reader).FindSpans(t.Context(), tracestore.SpanQueryParams{}) {
 		require.NoError(t, err)
 		count++
 		break
@@ -1244,9 +1244,8 @@ func TestSpanClientCannotStartStream(t *testing.T) {
 
 func TestSpanQueryConversionDoesNotValidate(t *testing.T) {
 	query := tracestore.SpanQueryParams{
-		Filter:     &expression.Call{Op: "custom", Args: []expression.Expression{}},
-		OrderBy:    []tracestore.SpanSortOrder{{Expression: &expression.AttributeRef{Level: expression.LevelSpan, Key: "priority"}, Direction: "custom"}},
-		Pagination: tracestore.Pagination{PageSize: 1},
+		Filter:  &expression.Call{Op: "custom", Args: []expression.Expression{}},
+		OrderBy: []tracestore.SpanSortOrder{{Expression: &expression.AttributeRef{Level: expression.LevelSpan, Key: "priority"}, Direction: "custom"}},
 	}
 	wire, err := toProtoSpanQuery(query)
 	require.NoError(t, err)

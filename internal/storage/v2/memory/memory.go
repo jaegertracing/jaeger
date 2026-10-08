@@ -134,8 +134,9 @@ func (*Store) SearchCapabilities(context.Context) (tracestore.SearchCapabilities
 // other spans' resources.
 //
 // The result is one page, sorted by sortingKey and bounded by
-// query.Pagination.PageSize when that is positive. The chunk carries the next
-// page's token if more spans match (RFC 0014).
+// query.Pagination.PageSize, clamped to tracestore.MaxPageSize; a zero page
+// size is refused. The chunk carries the next page's token if more spans match
+// (RFC 0014).
 func (st *Store) FindSpans(ctx context.Context, query tracestore.SpanQueryParams) iter.Seq2[tracestore.PageChunk[ptrace.Traces], error] {
 	m := st.getTenant(tenancy.GetTenant(ctx))
 	return func(yield func(tracestore.PageChunk[ptrace.Traces], error) bool) {
@@ -200,8 +201,8 @@ func (st *Store) FindTraces(ctx context.Context, query tracestore.TraceQueryPara
 // FindTraceIDs without Pagination returns the most recently written matching
 // traces up to SearchDepth, as FindTraces does. With Pagination it sorts the
 // matching traces by traceKey, returns the page that follows the query's
-// token, at most PageSize traces, and carries the next page's token if more
-// traces match.
+// token, at most PageSize traces (clamped to tracestore.MaxPageSize), and
+// carries the next page's token if more traces match.
 func (st *Store) FindTraceIDs(ctx context.Context, query tracestore.TraceQueryParams) iter.Seq2[tracestore.PageChunk[[]tracestore.FoundTraceID], error] {
 	m := st.getTenant(tenancy.GetTenant(ctx))
 	return func(yield func(tracestore.PageChunk[[]tracestore.FoundTraceID], error) bool) {
