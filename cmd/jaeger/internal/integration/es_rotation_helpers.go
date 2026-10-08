@@ -24,7 +24,8 @@ const (
 // purge deletes (purge does DELETE /*).
 func runRotationSmokeTest(t *testing.T, configFile string, storage string, setupFn func(t *testing.T)) {
 	s := &E2EStorageIntegration{
-		ConfigFile: configFile,
+		ConfigFile:   configFile,
+		FeatureGates: searchGates,
 		StorageIntegration: integration.StorageIntegration{
 			CleanUp: func(t *testing.T) {
 				purge(t)

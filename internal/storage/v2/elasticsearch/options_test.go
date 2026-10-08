@@ -725,7 +725,7 @@ func TestMaxSpanAgeSetErrorInArchiveMode(t *testing.T) {
 }
 
 func TestSpanSearchTieBreakByIDDefault(t *testing.T) {
-	assert.True(t, DefaultConfig().SpanSearchTieBreakByID)
+	assert.False(t, DefaultConfig().SpanSearchTieBreakByID)
 }
 
 func TestMaxDocCount(t *testing.T) {
