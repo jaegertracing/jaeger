@@ -10,6 +10,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/collector/config/configoptional"
 	"go.opentelemetry.io/collector/config/configtls"
+	"go.opentelemetry.io/collector/confmap"
 )
 
 func TestValidate(t *testing.T) {
@@ -99,6 +100,70 @@ func TestValidate(t *testing.T) {
 			wantErr: "attribute_metadata_cache_ttl must be a non-negative duration",
 		},
 		{
+			name: "create_schema without table_engine",
+			mutate: func(cfg *Configuration) {
+				cfg.CreateSchema = true
+			},
+			wantErr: "create_schema requires table_engine with exactly one of merge_tree or replicated",
+		},
+		{
+			name: "create_schema with merge_tree",
+			mutate: func(cfg *Configuration) {
+				cfg.CreateSchema = true
+				cfg.TableEngine.MergeTree = configoptional.Some(MergeTreeEngine{})
+			},
+		},
+		{
+			name: "create_schema with replicated and server defaults",
+			mutate: func(cfg *Configuration) {
+				cfg.CreateSchema = true
+				cfg.TableEngine.Replicated = configoptional.Some(ReplicatedEngine{})
+			},
+		},
+		{
+			name: "create_schema with replicated keeper path and replica name",
+			mutate: func(cfg *Configuration) {
+				cfg.CreateSchema = true
+				cfg.TableEngine.Replicated = configoptional.Some(ReplicatedEngine{
+					KeeperPath:  "/clickhouse/tables/{shard}/{database}/{table}",
+					ReplicaName: "{replica}",
+				})
+			},
+		},
+		{
+			name: "table_engine ignored without create_schema",
+			mutate: func(cfg *Configuration) {
+				cfg.CreateSchema = false
+			},
+		},
+		{
+			name: "both table_engine variants",
+			mutate: func(cfg *Configuration) {
+				cfg.TableEngine.MergeTree = configoptional.Some(MergeTreeEngine{})
+				cfg.TableEngine.Replicated = configoptional.Some(ReplicatedEngine{})
+			},
+			wantErr: "table_engine must set only one of merge_tree or replicated",
+		},
+		{
+			name: "replicated keeper path without replica name",
+			mutate: func(cfg *Configuration) {
+				cfg.TableEngine.Replicated = configoptional.Some(ReplicatedEngine{
+					KeeperPath: "/clickhouse/tables/{shard}/{database}/{table}",
+				})
+			},
+			wantErr: "keeper_path and replica_name together or neither",
+		},
+		{
+			name: "replicated keeper path with a quote",
+			mutate: func(cfg *Configuration) {
+				cfg.TableEngine.Replicated = configoptional.Some(ReplicatedEngine{
+					KeeperPath:  "/clickhouse/tables/it's",
+					ReplicaName: "{replica}",
+				})
+			},
+			wantErr: "must not contain a single quote",
+		},
+		{
 			name:    "negative attribute metadata cache size",
 			mutate:  func(cfg *Configuration) { cfg.AttributeMetadataCacheMaxSize = -1 },
 			wantErr: "attribute_metadata_cache_max_size must be a non-negative number",
@@ -117,6 +182,52 @@ func TestValidate(t *testing.T) {
 			} else {
 				require.ErrorContains(t, err, tt.wantErr)
 			}
+		})
+	}
+}
+
+// TestTableEngine_Unmarshal checks that each variant is selected by its key the way the
+// collector's confmap unmarshals an optional block, including the empty merge_tree: {}.
+func TestTableEngine_Unmarshal(t *testing.T) {
+	tests := []struct {
+		name string
+		yaml map[string]any
+		want TableEngine
+	}{
+		{
+			name: "merge_tree",
+			yaml: map[string]any{"merge_tree": map[string]any{}},
+			want: TableEngine{MergeTree: configoptional.Some(MergeTreeEngine{})},
+		},
+		{
+			name: "replicated with server defaults",
+			yaml: map[string]any{"replicated": map[string]any{}},
+			want: TableEngine{Replicated: configoptional.Some(ReplicatedEngine{})},
+		},
+		{
+			name: "replicated with arguments",
+			yaml: map[string]any{"replicated": map[string]any{
+				"keeper_path":  "/clickhouse/tables/{shard}/{database}/{table}",
+				"replica_name": "{replica}",
+			}},
+			want: TableEngine{Replicated: configoptional.Some(ReplicatedEngine{
+				KeeperPath:  "/clickhouse/tables/{shard}/{database}/{table}",
+				ReplicaName: "{replica}",
+			})},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cfg := DefaultConfiguration()
+			conf := confmap.NewFromStringMap(map[string]any{
+				"addresses":     []any{"localhost:9000"},
+				"create_schema": true,
+				"table_engine":  tt.yaml,
+			})
+			require.NoError(t, conf.Unmarshal(&cfg))
+			require.True(t, cfg.CreateSchema)
+			require.Equal(t, tt.want, cfg.TableEngine)
+			require.NoError(t, cfg.Validate())
 		})
 	}
 }

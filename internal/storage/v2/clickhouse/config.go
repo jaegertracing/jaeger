@@ -5,6 +5,8 @@ package clickhouse
 
 import (
 	"errors"
+	"fmt"
+	"strings"
 	"time"
 
 	"github.com/asaskevich/govalidator"
@@ -37,7 +39,12 @@ type Configuration struct {
 	// DialTimeout is the timeout for establishing a connection to ClickHouse.
 	DialTimeout time.Duration `mapstructure:"dial_timeout"`
 	// CreateSchema, if set to true, will create the ClickHouse schema if it does not exist.
+	// It requires TableEngine to name the engine family the tables are created with.
 	CreateSchema bool `mapstructure:"create_schema"`
+	// TableEngine selects the engine family for every table CreateSchema creates.
+	// Exactly one of its variants must be set when CreateSchema is true; the block is
+	// ignored otherwise, because the operator then owns the tables.
+	TableEngine TableEngine `mapstructure:"table_engine"`
 	// DefaultSearchDepth is the default search depth for queries.
 	// This is the maximum number of trace IDs that will be returned when searching for traces
 	// if a limit is not specified in the query.
@@ -60,6 +67,69 @@ type Configuration struct {
 
 type Authentication struct {
 	Basic configoptional.Optional[basicauthextension.ClientAuthSettings] `mapstructure:"basic"`
+}
+
+// TableEngine selects the ClickHouse engine family for the tables the backend creates.
+// The backend knows which tables are MergeTree and which are AggregatingMergeTree, so the
+// choice here is only between the local engines and their Replicated counterparts.
+type TableEngine struct {
+	// MergeTree creates local tables, which hold data only on the server that received the
+	// insert. It is the right choice for a single-node server.
+	MergeTree configoptional.Optional[MergeTreeEngine] `mapstructure:"merge_tree"`
+	// Replicated creates ReplicatedMergeTree and ReplicatedAggregatingMergeTree tables, which
+	// keep every row on every replica of the shard. It is required on a cluster with more than
+	// one replica.
+	Replicated configoptional.Optional[ReplicatedEngine] `mapstructure:"replicated"`
+}
+
+// MergeTreeEngine has no parameters.
+type MergeTreeEngine struct{}
+
+// ReplicatedEngine carries the two arguments of a Replicated* engine. Both are passed to
+// ClickHouse verbatim, so server macros such as {shard}, {replica}, {database} and {table}
+// are substituted by the server. When both are empty the engine is rendered without
+// arguments and the server's default_replica_path and default_replica_name settings apply.
+type ReplicatedEngine struct {
+	// KeeperPath is the path in ClickHouse Keeper under which the table's replication
+	// metadata is kept. It must be distinct per table, which the {table} macro provides.
+	KeeperPath string `mapstructure:"keeper_path"`
+	// ReplicaName identifies this replica under KeeperPath.
+	ReplicaName string `mapstructure:"replica_name"`
+}
+
+// engineClause returns the body of the ENGINE clause for a table of the given family,
+// "MergeTree" or "AggregatingMergeTree", as the configured TableEngine renders it.
+func (e TableEngine) engineClause(family string) string {
+	r := e.Replicated.Get()
+	if r == nil {
+		return family
+	}
+	if r.KeeperPath == "" && r.ReplicaName == "" {
+		return "Replicated" + family
+	}
+	return fmt.Sprintf("Replicated%s('%s', '%s')", family, r.KeeperPath, r.ReplicaName)
+}
+
+func (e TableEngine) validate(createSchema bool) error {
+	hasMergeTree := e.MergeTree.HasValue()
+	hasReplicated := e.Replicated.HasValue()
+	if hasMergeTree && hasReplicated {
+		return errors.New("table_engine must set only one of merge_tree or replicated")
+	}
+	if createSchema && !hasMergeTree && !hasReplicated {
+		return errors.New("create_schema requires table_engine with exactly one of merge_tree or replicated: " +
+			"use merge_tree for a single-node server, replicated for a cluster with more than one replica, " +
+			"or set create_schema: false and manage the tables yourself")
+	}
+	if r := e.Replicated.Get(); r != nil {
+		if (r.KeeperPath == "") != (r.ReplicaName == "") {
+			return errors.New("table_engine.replicated must set keeper_path and replica_name together or neither")
+		}
+		if strings.ContainsAny(r.KeeperPath, "'") || strings.ContainsAny(r.ReplicaName, "'") {
+			return errors.New("table_engine.replicated keeper_path and replica_name must not contain a single quote")
+		}
+	}
+	return nil
 }
 
 // DefaultConfiguration returns the configuration a ClickHouse backend starts from
@@ -105,5 +175,5 @@ func (cfg *Configuration) Validate() error {
 	if cfg.AttributeMetadataCacheMaxSize < 0 {
 		return errors.New("attribute_metadata_cache_max_size must be a non-negative number")
 	}
-	return nil
+	return cfg.TableEngine.validate(cfg.CreateSchema)
 }

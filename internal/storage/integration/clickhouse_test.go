@@ -27,6 +27,15 @@ func (s *ClickHouseStorageIntegration) initialize(t *testing.T) {
 	cfg.Addresses = []string{"127.0.0.1:9000"}
 	cfg.Database = "jaeger"
 	cfg.CreateSchema = true
+	// The compose file runs a single replica with an embedded Keeper, so the direct suite
+	// creates the schema with the replicated engines while the e2e suite, through
+	// cmd/jaeger/config-clickhouse.yaml, creates it with the local ones.
+	cfg.TableEngine = ch.TableEngine{
+		Replicated: configoptional.Some(ch.ReplicatedEngine{
+			KeeperPath:  "/clickhouse/tables/{shard}/{database}/{table}",
+			ReplicaName: "{replica}",
+		}),
+	}
 	cfg.Auth = ch.Authentication{
 		Basic: configoptional.Some(basicauthextension.ClientAuthSettings{
 			Username: "default",
