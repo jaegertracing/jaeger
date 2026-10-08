@@ -118,7 +118,7 @@ func (h *Handler) AddReceivingMiddleware(middleware ...mcp.Middleware) {
 // so its MCP sessions are reaped.
 func NewHandler(telset telemetry.Settings, queryAPI *querysvc.QueryService, tenancyMgr *tenancy.Manager, cfg Config) *Handler {
 	server := newServer(telset, queryAPI, cfg)
-	checkCaller := checkSessionCaller(telset.Logger)
+	checkCaller := checkSessionCaller(telset.Logger, cfg.BearerTokenPropagation)
 	server.AddReceivingMiddleware(checkCaller)
 	streamable := mcp.NewStreamableHTTPHandler(
 		func(*http.Request) *mcp.Server { return server },
@@ -128,7 +128,7 @@ func NewHandler(telset telemetry.Settings, queryAPI *querysvc.QueryService, tena
 			SessionTimeout: mcpSessionTimeout,
 		},
 	)
-	tenantHandler := tenancy.ExtractTenantHTTPHandler(tenancyMgr, recordSessionCaller(tenancyMgr, streamable))
+	tenantHandler := tenancy.ExtractTenantHTTPHandler(tenancyMgr, recordSessionCaller(tenancyMgr, cfg.HeaderForwarding, streamable))
 	return &Handler{
 		Handler: otelhttp.NewHandler(
 			tenantHandler,

@@ -301,6 +301,8 @@ func registerAIRoutes(
 			cs = append(cs, customSkills)
 		}
 		mcpCfg.CustomSkillsFS = customSkills
+		mcpCfg.HeaderForwarding = queryOpts.HeaderForwarding
+		mcpCfg.BearerTokenPropagation = queryOpts.BearerTokenPropagation
 
 		mcpHandler = mcptools.NewHandler(telset, querySvc, tenancyMgr, mcpCfg)
 		cs = append(cs, mcpHandler)

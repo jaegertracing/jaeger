@@ -7,6 +7,7 @@ import (
 	"io/fs"
 	"time"
 
+	"github.com/jaegertracing/jaeger/internal/headerforwarding"
 	"github.com/jaegertracing/jaeger/internal/version"
 )
 
@@ -38,6 +39,13 @@ type Config struct {
 	// the built-in skills. Nil means none is configured, and only the built-ins
 	// are served.
 	CustomSkillsFS fs.FS
+	// HeaderForwarding is jaeger-query's header_forwarding. A request on an MCP
+	// session must carry the same values of each of these headers as the
+	// request that opened it, including carrying none.
+	HeaderForwarding []headerforwarding.ForwardedHeader
+	// BearerTokenPropagation is jaeger-query's bearer_token_propagation. When
+	// set, each request on an MCP session reaches storage with its own token.
+	BearerTokenPropagation bool
 }
 
 // DefaultConfig returns the Config the standalone jaeger_mcp extension used, so

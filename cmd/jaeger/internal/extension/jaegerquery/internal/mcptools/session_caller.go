@@ -35,16 +35,18 @@ var errSessionCallerMismatch = &jsonrpc.Error{
 type sessionCallerKey struct{}
 
 // recordSessionCaller stores in each request's context the headers its tenant,
-// forwarded headers and authenticated identity were taken from.
-func recordSessionCaller(tenancyMgr *tenancy.Manager, next http.Handler) http.Handler {
+// forwarded headers and authenticated identity were taken from. Every forwarded
+// header is recorded, with no values when the request lacks it, so a later
+// request cannot add a header the opener did not send.
+func recordSessionCaller(tenancyMgr *tenancy.Manager, forwarded []headerforwarding.ForwardedHeader, next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		ctx := r.Context()
 		var names []string
 		if tenancyMgr.Enabled {
 			names = append(names, tenancyMgr.Header)
 		}
-		for _, captured := range headerforwarding.CapturedFromContext(ctx) {
-			names = append(names, captured.Header.HTTPName)
+		for i := range forwarded {
+			names = append(names, forwarded[i].HTTPName)
 		}
 		if client.FromContext(ctx).Auth != nil {
 			names = append(names, credentialHeaders...)
@@ -58,9 +60,10 @@ func recordSessionCaller(tenancyMgr *tenancy.Manager, next http.Handler) http.Ha
 }
 
 // checkSessionCaller rejects a request whose recorded headers differ from those
-// of the request that opened its session, and gives the request its own bearer
-// token and client metadata in place of the opener's.
-func checkSessionCaller(logger *zap.Logger) mcp.Middleware {
+// of the request that opened its session, and gives the request its own client
+// metadata and, with propagateBearerToken, its own bearer token in place of the
+// opener's.
+func checkSessionCaller(logger *zap.Logger, propagateBearerToken bool) mcp.Middleware {
 	return func(next mcp.MethodHandler) mcp.MethodHandler {
 		return func(ctx context.Context, method string, req mcp.Request) (mcp.Result, error) {
 			opener, ok := ctx.Value(sessionCallerKey{}).(http.Header)
@@ -82,11 +85,11 @@ func checkSessionCaller(logger *zap.Logger) mcp.Middleware {
 					return reject(name)
 				}
 			}
-			if _, ok := bearertoken.GetBearerToken(ctx); ok {
-				// The opener's token cannot be taken out of the context, so a
-				// request that carries none is refused rather than served with it.
+			if propagateBearerToken {
 				token, _ := bearertoken.TokenFromHTTPHeader(header)
-				if token == "" {
+				if _, ok := bearertoken.GetBearerToken(ctx); ok && token == "" {
+					// The opener's token cannot be taken out of the context, so a
+					// request that carries none is refused rather than served with it.
 					return reject("bearer token")
 				}
 				ctx = bearertoken.ContextWithBearerToken(ctx, token)

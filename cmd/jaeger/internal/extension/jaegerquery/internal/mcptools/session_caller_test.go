@@ -129,9 +129,22 @@ func authenticatedSubject(ctx context.Context) string {
 }
 
 func TestSessionRejectsRequestsFromAnotherCaller(t *testing.T) {
+	forwarded := []headerforwarding.ForwardedHeader{{HTTPName: "X-User"}}
+	forwardHeaders := func(cfg *Config) { cfg.HeaderForwarding = forwarded }
+	captureForwarded := func(h http.Handler) http.Handler {
+		return headerforwarding.HTTPServerMiddleware(forwarded, h)
+	}
+	forwardedValues := func(ctx context.Context) string {
+		var values []string
+		for _, captured := range headerforwarding.CapturedFromContext(ctx) {
+			values = append(values, captured.Value)
+		}
+		return strings.Join(values, ",")
+	}
 	tests := []struct {
 		name         string
 		tenancy      bool
+		configure    func(*Config)
 		wrap         func(http.Handler) http.Handler
 		read         func(context.Context) string
 		opener       http.Header
@@ -149,20 +162,23 @@ func TestSessionRejectsRequestsFromAnotherCaller(t *testing.T) {
 			wantMismatch: "X-Tenant",
 		},
 		{
-			name: "different forwarded header",
-			wrap: func(h http.Handler) http.Handler {
-				return headerforwarding.HTTPServerMiddleware([]headerforwarding.ForwardedHeader{{HTTPName: "X-User"}}, h)
-			},
-			read: func(ctx context.Context) string {
-				var values []string
-				for _, captured := range headerforwarding.CapturedFromContext(ctx) {
-					values = append(values, captured.Value)
-				}
-				return strings.Join(values, ",")
-			},
+			name:         "different forwarded header",
+			configure:    forwardHeaders,
+			wrap:         captureForwarded,
+			read:         forwardedValues,
 			opener:       http.Header{"X-User": {"alice"}},
 			change:       func(h http.Header) { h.Set("X-User", "mallory") },
 			wantSeen:     "alice",
+			wantMismatch: "X-User",
+		},
+		{
+			name:         "forwarded header added",
+			configure:    forwardHeaders,
+			wrap:         captureForwarded,
+			read:         forwardedValues,
+			opener:       http.Header{},
+			change:       func(h http.Header) { h.Set("X-User", "bob") },
+			wantSeen:     "",
 			wantMismatch: "X-User",
 		},
 		{
@@ -176,6 +192,7 @@ func TestSessionRejectsRequestsFromAnotherCaller(t *testing.T) {
 		},
 		{
 			name:         "propagated bearer token dropped",
+			configure:    func(cfg *Config) { cfg.BearerTokenPropagation = true },
 			wrap:         propagateBearerToken,
 			read:         bearerToken,
 			opener:       http.Header{"Authorization": {"Bearer alice"}},
@@ -190,7 +207,11 @@ func TestSessionRejectsRequestsFromAnotherCaller(t *testing.T) {
 			telset := telemetry.NoopSettings()
 			telset.Logger = zap.New(core)
 			var calls storageCalls
-			h := NewHandler(telset, calls.queryService(tt.read), tenancy.NewManager(&tenancy.Options{Enabled: tt.tenancy}), DefaultConfig())
+			cfg := DefaultConfig()
+			if tt.configure != nil {
+				tt.configure(&cfg)
+			}
+			h := NewHandler(telset, calls.queryService(tt.read), tenancy.NewManager(&tenancy.Options{Enabled: tt.tenancy}), cfg)
 			t.Cleanup(func() { require.NoError(t, h.Close()) })
 			var handler http.Handler = h
 			if tt.wrap != nil {
@@ -243,7 +264,7 @@ func TestSessionAllowsTokenRefreshNothingReads(t *testing.T) {
 // reach it with its own token, not the opener's.
 func TestSessionPropagatesCurrentBearerToken(t *testing.T) {
 	var calls storageCalls
-	h := NewHandler(telemetry.NoopSettings(), calls.queryService(bearerToken), tenancy.NewManager(&tenancy.Options{}), DefaultConfig())
+	h := NewHandler(telemetry.NoopSettings(), calls.queryService(bearerToken), tenancy.NewManager(&tenancy.Options{}), propagationConfig())
 	t.Cleanup(func() { require.NoError(t, h.Close()) })
 	caller := &testCaller{header: http.Header{"Authorization": {"Bearer alice"}}}
 	session := connectTestClientAs(t, serveTestHandler(t, propagateBearerToken(h)), caller)
@@ -254,6 +275,30 @@ func TestSessionPropagatesCurrentBearerToken(t *testing.T) {
 	_, err = session.CallTool(t.Context(), &mcp.CallToolParams{Name: "get_services"})
 	require.NoError(t, err)
 	assert.Equal(t, []string{"alice", "bob"}, calls.get())
+}
+
+// TestSessionPropagatesBearerTokenAddedAfterOpen covers a session opened
+// without a token under bearer_token_propagation: a later request that carries
+// one reaches storage with it, as it would on a session of its own.
+func TestSessionPropagatesBearerTokenAddedAfterOpen(t *testing.T) {
+	var calls storageCalls
+	h := NewHandler(telemetry.NoopSettings(), calls.queryService(bearerToken), tenancy.NewManager(&tenancy.Options{}), propagationConfig())
+	t.Cleanup(func() { require.NoError(t, h.Close()) })
+	caller := &testCaller{header: http.Header{}}
+	session := connectTestClientAs(t, serveTestHandler(t, propagateBearerToken(h)), caller)
+
+	_, err := session.CallTool(t.Context(), &mcp.CallToolParams{Name: "get_services"})
+	require.NoError(t, err)
+	caller.update(func(hdr http.Header) { hdr.Set("Authorization", "Bearer bob") })
+	_, err = session.CallTool(t.Context(), &mcp.CallToolParams{Name: "get_services"})
+	require.NoError(t, err)
+	assert.Equal(t, []string{"", "bob"}, calls.get())
+}
+
+func propagationConfig() Config {
+	cfg := DefaultConfig()
+	cfg.BearerTokenPropagation = true
+	return cfg
 }
 
 // TestSessionServesCurrentClientMetadata covers query interceptors that read
