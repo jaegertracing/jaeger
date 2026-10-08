@@ -123,7 +123,7 @@ func TestLowering(t *testing.T) {
 		},
 		{
 			name:  "constant narrowed to text",
-			built: p.Attr("size").Eq(p.Text("4096")),
+			built: p.Attr("size").Eq(p.String("4096")),
 			want: &ast.Call{Op: ast.OpEq, Args: []ast.Expression{
 				&ast.AttributeRef{Key: "size"},
 				&ast.StringValue{Value: "4096"},
@@ -249,7 +249,11 @@ func TestConstantLeavesTheTypeOpen(t *testing.T) {
 		{"a duration against the field that holds one", p.Span().Duration.Gt(2 * time.Second), &ast.AnyValue{Value: "2s"}},
 
 		// Narrowing on purpose, which is the one way to get a typed node.
-		{"text asked for explicitly", p.Attr("size").Eq(p.Text("500")), &ast.StringValue{Value: "500"}},
+		{"string asked for explicitly", p.Attr("size").Eq(p.String("500")), &ast.StringValue{Value: "500"}},
+		{"integer asked for explicitly", p.Attr("size").Eq(p.Int(500)), &ast.IntValue{Value: 500}},
+		{"double asked for explicitly", p.Attr("ratio").Eq(p.Double(1.5)), &ast.DoubleValue{Value: 1.5}},
+		{"boolean asked for explicitly", p.Attr("ok").Eq(p.Bool(true)), &ast.BoolValue{Value: true}},
+		{"duration asked for explicitly", p.Attr("d").Gt(p.Duration(time.Second)), &ast.DurationValue{Value: time.Second}},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
