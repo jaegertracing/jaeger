@@ -30,8 +30,6 @@ const (
 	attributeOrderingTest  = "ordering_compares_a_numeric_attribute_as_a_number"
 	attributeRefusedTest   = "ordering_an_attribute_is_refused_where_it_is_indexed_as_text"
 	attributeUnindexedTest = "ordering_an_attribute_finds_nothing_in_indices_written_before_the_numeric_mapping"
-	levelRefusedTest       = "a_level_the_backend_does_not_index_is_refused"
-	operatorRefusedTest    = "an_operator_the_backend_does_not_evaluate_is_refused"
 	fieldRefusedTest       = "a_built-in_field_the_backend_does_not_index_is_refused"
 
 	// Filter cases using operators, fields, or levels a backend does not evaluate natively.
@@ -57,20 +55,25 @@ const (
 // attributeOrderingTests are the three outcomes of ordering an attribute, of which one runs.
 var attributeOrderingTests = []string{attributeOrderingTest, attributeRefusedTest, attributeUnindexedTest}
 
-// filterOperatorTests are the battery cases that need ne, regex, exists or in, or that order an
-// attribute. A backend whose lowering evaluates equality on attributes and orders only
-// span.duration skips them as a set. Of the three attribute-ordering outcomes, attributeRefusedTest
-// is the one such a backend does satisfy in substance, but the case expects the refusal worded
-// the way Elasticsearch words it, so it is skipped with the other two.
+// filterOperatorTests are the cases the ClickHouse SQL lowering cannot satisfy in either mode.
 var filterOperatorTests = []string{
+	// Both: unqualified attribute existence needs the unsupported exists operator.
 	filterUnqualifiedEventTest,
+	// Both: service-name membership needs the unsupported in operator.
 	filterServiceInListTest,
+	// Both: operation-name patterns need the unsupported regex operator.
 	filterOperationRegexTest,
+	// Both: attribute inequality needs the unsupported ne operator.
 	filterAttributeNeTest,
+	// Both: attribute existence needs the unsupported exists operator.
 	filterAttributeExistsTest,
+	// Both: attribute patterns need the unsupported regex operator.
 	filterAttributeRegexTest,
+	// Both: the SQL lowering orders span.duration, but not attributes.
 	attributeOrderingTest,
+	// Both: ClickHouse refuses attribute ordering with a different error than this ES-specific case expects.
 	attributeRefusedTest,
+	// Both: no attribute-ordering query can reach the old-index mapping case.
 	attributeUnindexedTest,
 }
 
@@ -124,6 +127,15 @@ func (c Capabilities) GetDependenciesMissingSource() bool {
 // SkipList returns a list of tests that should be skipped for this storage backend.
 func (c Capabilities) SkipList() []string {
 	return c.skipList
+}
+
+// WithOTLPEncoding runs scope and link assertions for Kafka's OTLP encodings, which
+// preserve those fields across the export and receive path.
+func (c Capabilities) WithOTLPEncoding() Capabilities {
+	c.skipList = slices.DeleteFunc(slices.Clone(c.skipList), func(test string) bool {
+		return test == scopeAttributesTest || test == linkAttributesTest
+	})
+	return c
 }
 
 // WithoutPagination excuses deployments whose backend does not support continuation tokens.
@@ -190,30 +202,6 @@ func (c Capabilities) orderingOutcome(runs string) Capabilities {
 	return c
 }
 
-// WithoutUnindexedLevelRefusal skips the refusal assertion for a filter naming an unindexed level.
-// Used for backends that index or evaluate all filter levels (such as memory).
-func (c Capabilities) WithoutUnindexedLevelRefusal() Capabilities {
-	c.skipList = append(append([]string(nil), c.skipList...), levelRefusedTest)
-	return c
-}
-
-// WithoutLevelRefusal is an alias for WithoutUnindexedLevelRefusal.
-func (c Capabilities) WithoutLevelRefusal() Capabilities {
-	return c.WithoutUnindexedLevelRefusal()
-}
-
-// WithoutUnevaluatedOperatorRefusal skips the refusal assertion for a filter using an unevaluated operator.
-// Used for backends that evaluate all filter operators (such as memory).
-func (c Capabilities) WithoutUnevaluatedOperatorRefusal() Capabilities {
-	c.skipList = append(append([]string(nil), c.skipList...), operatorRefusedTest)
-	return c
-}
-
-// WithoutOperatorRefusal is an alias for WithoutUnevaluatedOperatorRefusal.
-func (c Capabilities) WithoutOperatorRefusal() Capabilities {
-	return c.WithoutUnevaluatedOperatorRefusal()
-}
-
 // WithoutTextAttributeOrderingRefusal skips the refusal assertion for numeric ordering on an attribute
 // that is indexed as text. Used for backends that compare numeric attributes natively (such as memory)
 // or whose indices have typed-attribute mapping enabled.
@@ -226,34 +214,25 @@ func (c Capabilities) WithoutAttributeRefusal() Capabilities {
 	return c.WithoutTextAttributeOrderingRefusal()
 }
 
-// WithoutUnindexedFieldRefusal skips the refusal assertion for a filter naming a built-in field
-// the backend does not index (span.traceState). Used for backends that evaluate every built-in
-// field the filter AST defines (such as memory), which have nothing to refuse it for.
+// WithoutUnindexedFieldRefusal skips the trace-state refusal assertion when the backend
+// evaluates that field. FilterCapabilities does not declare individual built-in fields.
 func (c Capabilities) WithoutUnindexedFieldRefusal() Capabilities {
-	c.skipList = append(append([]string(nil), c.skipList...), fieldRefusedTest)
+	c.skipList = append(slices.Clone(c.skipList), fieldRefusedTest)
 	return c
-}
-
-// WithoutFilterRefusals skips all four refusal assertions in the shared filter battery:
-// unindexed level, unevaluated operator, unindexed built-in field, and text-indexed attribute
-// ordering. Used by backends that evaluate all of these features natively rather than refusing
-// them.
-func (c Capabilities) WithoutFilterRefusals() Capabilities {
-	return c.WithoutUnindexedLevelRefusal().
-		WithoutUnevaluatedOperatorRefusal().
-		WithoutUnindexedFieldRefusal().
-		WithoutTextAttributeOrderingRefusal()
 }
 
 // Memory returns the capabilities for the in-process memory storage backend.
 func Memory() Capabilities {
 	return Capabilities{
 		skipList: []string{
+			// Direct only: FindSpans orders only by intrinsic fields (RFC 0016).
 			spanAttributeOrderingTest,
+			// Direct only: the reader embeds UnsupportedTraceSummaries, so it cannot page them.
 			summaryPaginationTest,
+			// Direct only: the reader embeds UnsupportedTraceSummaries; jaeger-query falls back to FindTraces.
 			findTraceSummariesTest,
 		},
-	}.WithoutFilterRefusals()
+	}.WithoutUnindexedFieldRefusal().WithoutTextAttributeOrderingRefusal()
 }
 
 // GRPC returns the capabilities for the gRPC remote storage backend.
@@ -262,11 +241,14 @@ func Memory() Capabilities {
 func GRPC() Capabilities {
 	return Capabilities{
 		skipList: []string{
+			// Direct only: the memory reader behind remote storage cannot order by an attribute.
 			spanAttributeOrderingTest,
+			// Direct only: the remote memory reader does not implement trace summaries or their pagination.
 			summaryPaginationTest,
+			// Direct only: the remote memory reader embeds UnsupportedTraceSummaries; jaeger-query falls back.
 			findTraceSummariesTest,
 		},
-	}.WithoutFilterRefusals()
+	}.WithoutUnindexedFieldRefusal().WithoutTextAttributeOrderingRefusal()
 }
 
 // Cassandra returns the capabilities for the Cassandra storage backend.
@@ -275,17 +257,27 @@ func Cassandra() Capabilities {
 		searchRequiresServiceName:    true,
 		getDependenciesMissingSource: true,
 		skipList: []string{
+			// Both: the reader does not implement FindSpans, so it cannot order spans.
 			spanOrderingTest,
+			// Both: the reader does not implement continuation tokens.
 			paginationTest,
+			// Both: duration_index searches ignore tag and operation predicates (ADR 001).
 			"Tags_+_Operation_name_+_Duration_range",
+			// Both: duration_index searches ignore tag predicates (ADR 001).
 			"Tags_+_Duration_range",
+			// Both: duration_index searches ignore tag and operation predicates (ADR 001).
 			"Tags_+_Operation_name_+_max_Duration",
+			// Both: duration_index searches ignore tag predicates (ADR 001).
 			"Tags_+_max_Duration",
+			// Both: duration_index searches ignore the operation predicate (ADR 001).
 			"Operation_name_+_max_Duration",
-			"Multiple_Traces",
+			// Both: the legacy Cassandra span model does not preserve scope attributes.
 			scopeAttributesTest,
+			// Both: the legacy Cassandra span model does not preserve link attributes.
 			linkAttributesTest,
+			// Direct only: the reader embeds UnsupportedTraceSummaries; jaeger-query falls back.
 			findTraceSummariesTest,
+			// Both: the reader declares no structured-filter levels or operators.
 			structuredFilterTest,
 		},
 	}
@@ -293,28 +285,22 @@ func Cassandra() Capabilities {
 
 // clickHouseSkipList is what the ClickHouse reader does not satisfy in either mode.
 var clickHouseSkipList = append([]string{
+	// Both: the reader does not implement FindSpans or span ordering.
 	spanOrderingTest,
+	// Both: the reader does not implement continuation tokens.
 	paginationTest,
-	// The lowering maps five built-in fields; event.name and span.traceState have columns
-	// but are not among them yet.
+	// Both: the SQL filter lowering does not map event.name yet.
 	filterEventNameTest,
+	// Both: the SQL filter lowering does not map span.traceState yet.
 	filterTraceStateTest,
-	// The reader indexes all five levels, so there is no level to refuse.
-	levelRefusedTest,
-	// The lowering evaluates and, or, not and eq, and orders span.duration only (RFC 0005 M3,
-	// first increment).
 }, filterOperatorTests...)
 
 // ClickHouse returns the capabilities for the ClickHouse storage backend read directly.
 func ClickHouse() Capabilities {
 	return Capabilities{
 		skipList: append([]string{
-			// The ClickHouse reader does not support FindTraceSummaries. They are tested in
-			// the e2e suite because the query service falls back to FindTraces.
+			// Direct only: the reader embeds UnsupportedTraceSummaries; jaeger-query falls back in e2e.
 			findTraceSummariesTest,
-			// The direct suite has no sampling store for ClickHouse.
-			"GetThroughput",
-			"GetLatestProbability",
 		}, clickHouseSkipList...),
 	}
 }
@@ -334,15 +320,50 @@ func Badger() Capabilities {
 		// TODO: remove this once Badger supports returning spanKind from GetOperations
 		getOperationsMissingSpanKind: true,
 		skipList: []string{
+			// Both: the reader does not implement FindSpans or span ordering.
 			spanOrderingTest,
+			// Both: the reader does not implement continuation tokens.
 			paginationTest,
+			// Both: the legacy Badger span model does not preserve scope attributes.
 			scopeAttributesTest,
+			// Both: the legacy Badger span model does not preserve link attributes.
 			linkAttributesTest,
+			// Direct only: the reader embeds UnsupportedTraceSummaries; jaeger-query falls back.
 			findTraceSummariesTest,
+			// Both: the reader declares no structured-filter levels or operators.
 			structuredFilterTest,
 		},
 	}
 }
+
+// These Elasticsearch and OpenSearch exclusions apply in both direct and e2e suites.
+var elasticsearchSearchSkipList = []string{
+	// Both: FindSpans cannot order by attributes under the current contract (RFC 0016).
+	spanAttributeOrderingTest,
+	// Both: trace-ID search cannot resume from a continuation token (RFC 0014 M3).
+	traceIDPaginationTest,
+	// Both: summary search cannot resume from a continuation token (RFC 0014 M3).
+	summaryPaginationTest,
+	// Both: scope attributes are folded into span tags, not stored separately.
+	scopeAttributesTest,
+	// Both: the span document does not retain link attributes separately.
+	linkAttributesTest,
+}
+
+var elasticsearchFilterSkipList = []string{
+	// Both: the filter index has no scope-attribute field.
+	filterScopeLevelTest,
+	// Both: the filter index has no link-attribute field.
+	filterLinkLevelTest,
+	// Both: the span-kind value is not indexed for structured filtering.
+	filterSpanKindTest,
+	// Both: the span-status value is not indexed for structured filtering.
+	filterSpanStatusTest,
+	// Both: trace state is not indexed for structured filtering.
+	filterTraceStateTest,
+}
+
+var elasticsearchSkipList = append(slices.Clone(elasticsearchSearchSkipList), elasticsearchFilterSkipList...)
 
 // Elasticsearch defines the capabilities for the Elasticsearch storage backend.
 func Elasticsearch() Capabilities {
@@ -358,18 +379,7 @@ func Elasticsearch() Capabilities {
 		// skips the battery's other two ordering outcomes.
 		// FindSpans pages and orders by the built-in fields (RFC 0016 M4, M11), not yet by an attribute;
 		// the trace searches do not page yet (RFC 0014 M3).
-		skipList: []string{
-			spanAttributeOrderingTest,
-			traceIDPaginationTest,
-			summaryPaginationTest,
-			scopeAttributesTest,
-			linkAttributesTest,
-			filterScopeLevelTest,
-			filterLinkLevelTest,
-			filterSpanKindTest,
-			filterSpanStatusTest,
-			filterTraceStateTest,
-		},
+		skipList: slices.Clone(elasticsearchSkipList),
 	}.orderingOutcome(attributeOrderingTest)
 }
 
@@ -381,16 +391,14 @@ func ElasticsearchSmokeTest() Capabilities {
 		// The rotation configurations, for OpenSearch as well as Elasticsearch, leave
 		// span_search_tie_break_by_id at its default.
 		pagingDropsTiedSpans: true,
-		skipList: []string{
-			spanAttributeOrderingTest,
-			traceIDPaginationTest,
-			summaryPaginationTest,
-			scopeAttributesTest,
-			linkAttributesTest,
+		skipList: append(slices.Clone(elasticsearchSearchSkipList),
+			// E2E only: the rotation smoke suites validate index write/read, not filter conformance (#8838).
 			structuredFilterTest,
+			// E2E only: rotation suites omit this expensive large-trace subtest (#8838).
 			"GetLargeTrace",
+			// E2E only: rotation suites omit this expensive duplicate-span subtest (#8838).
 			"GetTraceWithDuplicateSpans",
-		},
+		),
 	}
 }
 
@@ -401,18 +409,7 @@ func OpenSearch() Capabilities {
 		// Same mapping and same setting, and same search support as Elasticsearch; see the note there.
 		// The e2e configuration turns span_search_tie_break_by_id on, so paging keeps every tied
 		// occurrence and pagingDropsTiedSpans stays unset.
-		skipList: []string{
-			spanAttributeOrderingTest,
-			traceIDPaginationTest,
-			summaryPaginationTest,
-			scopeAttributesTest,
-			linkAttributesTest,
-			filterScopeLevelTest,
-			filterLinkLevelTest,
-			filterSpanKindTest,
-			filterSpanStatusTest,
-			filterTraceStateTest,
-		},
+		skipList: slices.Clone(elasticsearchSkipList),
 	}.orderingOutcome(attributeOrderingTest)
 }
 
@@ -422,10 +419,13 @@ func Kafka() Capabilities {
 		searchRequiresServiceName:    true,
 		getDependenciesMissingSource: true,
 		skipList: []string{
-			spanOrderingTest,
+			// E2E only: the memory reader behind jaeger-query orders spans only by built-in fields.
+			spanAttributeOrderingTest,
+			// E2E only: Jaeger encodings use a legacy span model that discards scope attributes.
 			scopeAttributesTest,
+			// E2E only: Jaeger encodings use a legacy span model that discards link attributes.
 			linkAttributesTest,
-			findTraceSummariesTest,
+			// E2E only: this suite does not enable jaeger-query's structured-filter feature gate.
 			structuredFilterTest,
 		},
 	}
@@ -436,7 +436,9 @@ func Kafka() Capabilities {
 func E2EWithoutNativeFilters() Capabilities {
 	return Capabilities{
 		skipList: []string{
+			// E2E only: the underlying span search does not order by attributes.
 			spanAttributeOrderingTest,
+			// E2E only: jaeger-query rewrites filters for readers with no native filter support.
 			structuredFilterTest,
 		},
 	}
