@@ -271,9 +271,9 @@ func (l level) Field(name string) Ref {
 // The right-hand operand is any rather than a type parameter because Go does not allow type
 // parameters on methods, and a generic function would give up the chained form these methods
 // exist for. It is a real union in any case: a Go scalar, another Ref to compare two references,
-// or a term already built by a typed constructor such as String or by List. constant decides which node a Go value becomes, and
-// what a backend does with a value it cannot read is RFC 0005's question, not this package's —
-// nothing here type checks the query.
+// or a term already built by a typed constructor such as String or by List. constant decides
+// which node a Go value becomes, and what a backend does with a value it cannot read is RFC
+// 0005's question, not this package's — nothing here type checks the query.
 type Ref struct {
 	ref ast.Expression
 }

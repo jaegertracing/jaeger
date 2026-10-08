@@ -181,7 +181,8 @@ func TestMatchesFilter_ResourceAndScopeFields(t *testing.T) {
 
 func TestMatchesFilter_Attributes(t *testing.T) {
 	f := newFilterFixture(t)
-	// Each row asks for the typed constant, so the match is the typed one and not a coercion.
+	// The span attribute rows ask for the typed constant, so each match is the typed one and
+	// not a coercion.
 	assert.True(t, f.matches(p.Span().Attr("http.method").Eq(p.String("POST"))))
 	assert.True(t, f.matches(p.Span().Attr("http.status_code").Eq(p.Int(500))))
 	assert.True(t, f.matches(p.Span().Attr("duration_ms").Eq(p.Double(150.5))))
