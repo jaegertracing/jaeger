@@ -71,6 +71,7 @@ var backends = map[string]func() Capabilities{
 	"GRPC":                    GRPC,
 	"Cassandra":               Cassandra,
 	"ClickHouse":              ClickHouse,
+	"ClickHouseE2E":           ClickHouseE2E,
 	"Badger":                  Badger,
 	"Elasticsearch":           Elasticsearch,
 	"ElasticsearchSmokeTest":  ElasticsearchSmokeTest,

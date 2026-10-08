@@ -57,6 +57,23 @@ const (
 // attributeOrderingTests are the three outcomes of ordering an attribute, of which one runs.
 var attributeOrderingTests = []string{attributeOrderingTest, attributeRefusedTest, attributeUnindexedTest}
 
+// filterOperatorTests are the battery cases that need ne, regex, exists or in, or that order an
+// attribute. A backend whose lowering evaluates equality on attributes and orders only
+// span.duration skips them as a set. Of the three attribute-ordering outcomes, attributeRefusedTest
+// is the one such a backend does satisfy in substance, but the case expects the refusal worded
+// the way Elasticsearch words it, so it is skipped with the other two.
+var filterOperatorTests = []string{
+	filterUnqualifiedEventTest,
+	filterServiceInListTest,
+	filterOperationRegexTest,
+	filterAttributeNeTest,
+	filterAttributeExistsTest,
+	filterAttributeRegexTest,
+	attributeOrderingTest,
+	attributeRefusedTest,
+	attributeUnindexedTest,
+}
+
 // Capabilities records what a storage backend *cannot* do in the integration suite. Every
 // field is an opt-out: the zero value runs the whole battery, and a backend lists only the
 // tests or behaviors it cannot satisfy. New fields must keep that polarity, so a backend
@@ -274,17 +291,39 @@ func Cassandra() Capabilities {
 	}
 }
 
-// ClickHouse returns the capabilities for the ClickHouse storage backend.
+// clickHouseSkipList is what the ClickHouse reader does not satisfy in either mode.
+var clickHouseSkipList = append([]string{
+	spanOrderingTest,
+	paginationTest,
+	// The lowering maps five built-in fields; event.name and span.traceState have columns
+	// but are not among them yet.
+	filterEventNameTest,
+	filterTraceStateTest,
+	// The reader indexes all five levels, so there is no level to refuse.
+	levelRefusedTest,
+	// The lowering evaluates and, or, not and eq, and orders span.duration only (RFC 0005 M3,
+	// first increment).
+}, filterOperatorTests...)
+
+// ClickHouse returns the capabilities for the ClickHouse storage backend read directly.
 func ClickHouse() Capabilities {
 	return Capabilities{
-		skipList: []string{
-			spanOrderingTest,
-			paginationTest,
+		skipList: append([]string{
+			// The ClickHouse reader does not support FindTraceSummaries. They are tested in
+			// the e2e suite because the query service falls back to FindTraces.
+			findTraceSummariesTest,
+			// The direct suite has no sampling store for ClickHouse.
 			"GetThroughput",
 			"GetLatestProbability",
-			findTraceSummariesTest,
-			structuredFilterTest,
-		},
+		}, clickHouseSkipList...),
+	}
+}
+
+// ClickHouseE2E returns the capabilities for the ClickHouse e2e suite, which reaches the reader
+// through jaeger-query.
+func ClickHouseE2E() Capabilities {
+	return Capabilities{
+		skipList: clickHouseSkipList,
 	}
 }
 
