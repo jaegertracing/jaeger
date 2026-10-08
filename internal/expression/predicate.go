@@ -158,9 +158,25 @@ func (Predicate) Compare(op ast.Operator, ref Ref, value any) *ast.Call {
 }
 
 // Text builds a constant to be matched as text, for the comparison that has to narrow the match
-// to the string-typed value where a Go string leaves the type open (RFC 0005 §5.4).
+// to the string-typed value where a Go string leaves the type open (RFC 0005 §5.4). Int, Double
+// and Bool narrow the match to the other scalar types the same way.
 func (Predicate) Text(value string) *ast.StringValue {
 	return &ast.StringValue{Value: value}
+}
+
+// Int builds a constant matched only against an integer.
+func (Predicate) Int(value int64) *ast.IntValue {
+	return &ast.IntValue{Value: value}
+}
+
+// Double builds a constant matched only against a floating-point number.
+func (Predicate) Double(value float64) *ast.DoubleValue {
+	return &ast.DoubleValue{Value: value}
+}
+
+// Bool builds a constant matched only against a boolean.
+func (Predicate) Bool(value bool) *ast.BoolValue {
+	return &ast.BoolValue{Value: value}
 }
 
 // List builds a list constant whose elements are all of a declared type, to pass to In or

@@ -250,6 +250,9 @@ func TestConstantLeavesTheTypeOpen(t *testing.T) {
 
 		// Narrowing on purpose, which is the one way to get a typed node.
 		{"text asked for explicitly", p.Attr("size").Eq(p.Text("500")), &ast.StringValue{Value: "500"}},
+		{"integer asked for explicitly", p.Attr("size").Eq(p.Int(500)), &ast.IntValue{Value: 500}},
+		{"double asked for explicitly", p.Attr("ratio").Eq(p.Double(1.5)), &ast.DoubleValue{Value: 1.5}},
+		{"boolean asked for explicitly", p.Attr("ok").Eq(p.Bool(true)), &ast.BoolValue{Value: true}},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
