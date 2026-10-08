@@ -17,7 +17,17 @@ func TestValidate_DoesNotReturnErrorWhenValid(t *testing.T) {
 	}{
 		{
 			name: "non-required fields not set",
-			cfg:  &Config{},
+			cfg: &Config{
+				TTL: TTL{
+					Spans: time.Second,
+				},
+				MaintenanceInterval:   time.Second,
+				MetricsUpdateInterval: time.Second,
+			},
+		},
+		{
+			name: "default config",
+			cfg:  DefaultConfig(),
 		},
 		{
 			name: "all fields are set",
@@ -42,6 +52,53 @@ func TestValidate_DoesNotReturnErrorWhenValid(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			err := test.cfg.Validate()
 			require.NoError(t, err)
+		})
+	}
+}
+
+func TestValidate_ReturnsErrorForNonPositiveDurations(t *testing.T) {
+	tests := []struct {
+		name    string
+		mutate  func(*Config)
+		wantErr error
+	}{
+		{
+			name:    "zero spans TTL",
+			mutate:  func(c *Config) { c.TTL.Spans = 0 },
+			wantErr: errNonPositiveSpansTTL,
+		},
+		{
+			name:    "negative spans TTL",
+			mutate:  func(c *Config) { c.TTL.Spans = -time.Hour },
+			wantErr: errNonPositiveSpansTTL,
+		},
+		{
+			name:    "zero maintenance interval",
+			mutate:  func(c *Config) { c.MaintenanceInterval = 0 },
+			wantErr: errNonPositiveMaintenanceInterval,
+		},
+		{
+			name:    "negative maintenance interval",
+			mutate:  func(c *Config) { c.MaintenanceInterval = -time.Second },
+			wantErr: errNonPositiveMaintenanceInterval,
+		},
+		{
+			name:    "zero metrics update interval",
+			mutate:  func(c *Config) { c.MetricsUpdateInterval = 0 },
+			wantErr: errNonPositiveMetricsUpdateInterval,
+		},
+		{
+			name:    "negative metrics update interval",
+			mutate:  func(c *Config) { c.MetricsUpdateInterval = -time.Second },
+			wantErr: errNonPositiveMetricsUpdateInterval,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			cfg := DefaultConfig()
+			test.mutate(cfg)
+			require.ErrorIs(t, cfg.Validate(), test.wantErr)
 		})
 	}
 }
