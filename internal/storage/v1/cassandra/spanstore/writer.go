@@ -172,11 +172,12 @@ func (s *SpanWriter) writeSpanToDB(ds *dbmodel.Span) error {
 
 func (s *SpanWriter) writeIndexes(ds *dbmodel.Span) error {
 	spanKind := dbmodel.GetSpanKind(ds) // if not found it returns ""
-	if err := s.saveServiceNameAndOperationName(dbmodel.Operation{
+	err := s.saveServiceNameAndOperationName(dbmodel.Operation{
 		ServiceName:   ds.ServiceName,
 		SpanKind:      string(spanKind),
 		OperationName: ds.OperationName,
-	}); err != nil {
+	})
+	if err != nil {
 		// should this be a soft failure?
 		return s.logError(ds, err, "Failed to insert service name and operation name", s.logger)
 	}
