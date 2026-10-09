@@ -4,6 +4,7 @@
 package badger
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"time"
@@ -16,6 +17,10 @@ const (
 	defaultMetricsUpdateInterval time.Duration = 10 * time.Second
 	defaultTTL                   time.Duration = time.Hour * 72
 	defaultDataDir               string        = string(os.PathSeparator) + "data"
+	// SpanEncodingProtobuf selects protobuf for newly written spans.
+	SpanEncodingProtobuf = "protobuf"
+	// SpanEncodingJSON selects JSON for newly written spans.
+	SpanEncodingJSON = "json"
 )
 
 var (
@@ -45,6 +50,8 @@ type Config struct {
 	// ReadOnly opens the data store in read-only mode. Multiple instances can open the same
 	// store in read-only mode. Values still in the write-ahead-log must be replayed before opening.
 	ReadOnly bool `mapstructure:"read_only"`
+	// SpanEncoding selects the encoding used for newly written spans.
+	SpanEncoding string `mapstructure:"span_encoding"`
 }
 
 type TTL struct {
@@ -75,6 +82,7 @@ func DefaultConfig() *Config {
 		},
 		MaintenanceInterval:   defaultMaintenanceInterval,
 		MetricsUpdateInterval: defaultMetricsUpdateInterval,
+		SpanEncoding:          SpanEncodingProtobuf,
 	}
 }
 
@@ -85,6 +93,11 @@ func getCurrentExecutableDir() string {
 }
 
 func (c *Config) Validate() error {
-	_, err := govalidator.ValidateStruct(c)
-	return err
+	if _, err := govalidator.ValidateStruct(c); err != nil {
+		return err
+	}
+	if c.SpanEncoding != "" && c.SpanEncoding != SpanEncodingProtobuf && c.SpanEncoding != SpanEncodingJSON {
+		return fmt.Errorf("span_encoding must be %q or %q, got %q", SpanEncodingProtobuf, SpanEncodingJSON, c.SpanEncoding)
+	}
+	return nil
 }
