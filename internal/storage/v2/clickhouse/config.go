@@ -85,15 +85,20 @@ type TableEngine struct {
 // MergeTreeEngine has no parameters.
 type MergeTreeEngine struct{}
 
-// ReplicatedEngine carries the two arguments of a Replicated* engine. Both are passed to
-// ClickHouse verbatim, so server macros such as {shard}, {replica}, {database} and {table}
-// are substituted by the server. When both are empty the engine is rendered without
-// arguments and the server's default_replica_path and default_replica_name settings apply.
+// ReplicatedEngine carries the two arguments of a Replicated* engine. Both are optional,
+// but only together: when both are empty the engine is rendered without arguments and the
+// server's default_replica_path and default_replica_name settings apply, and setting one
+// without the other is a validation error. Both are passed to ClickHouse verbatim, so
+// server macros such as {shard}, {replica}, {database} and {table} are substituted by the
+// server.
 type ReplicatedEngine struct {
 	// KeeperPath is the path in ClickHouse Keeper under which the table's replication
-	// metadata is kept. It must be distinct per table, which the {table} macro provides.
+	// metadata is kept. The same template is used for every table in the schema, so it
+	// must contain the {table} macro, or another expansion distinct per table, because
+	// ClickHouse refuses two tables under one path.
 	KeeperPath string `mapstructure:"keeper_path"`
-	// ReplicaName identifies this replica under KeeperPath.
+	// ReplicaName identifies this replica under KeeperPath. The same value is used for
+	// every table, which is what the {replica} macro expects.
 	ReplicaName string `mapstructure:"replica_name"`
 }
 

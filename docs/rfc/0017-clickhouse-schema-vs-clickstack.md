@@ -344,8 +344,9 @@ A `table_engine` block on the backend selects the engine family for every table 
 ```yaml
 table_engine:
   replicated:
-    # Both optional. Omitted, the engine is rendered without arguments and the
-    # server's default_replica_path and default_replica_name apply.
+    # Optional together: omitted, the engine is rendered without arguments and the
+    # server's default_replica_path and default_replica_name apply. One template
+    # serves all six tables, so keeper_path must vary per table via {table}.
     keeper_path: /clickhouse/tables/{shard}/{database}/{table}
     replica_name: "{replica}"
 ```
