@@ -229,16 +229,19 @@ func Cassandra() Capabilities {
 	}
 }
 
-// clickHouseSkipList is what the ClickHouse reader does not satisfy in either mode.
-var clickHouseSkipList = []string{
-	// The reader implements neither FindSpans nor continuation tokens.
-	spanOrderingTest,
-	paginationTest,
-	// The lowering maps five built-in fields; event.name has a column but is not among them yet.
-	filterEventNameTest,
-	// The lowering declares the ordered comparisons but evaluates them on span.duration only, and
-	// refuses one on an attribute inside the lowering (RFC 0005 M3, first increment).
-	attributeComparisonTest,
+// clickHouseSkipList is what the ClickHouse reader does not satisfy in either mode. It returns a
+// fresh slice, so a caller may append to it.
+func clickHouseSkipList() []string {
+	return []string{
+		// The reader implements neither FindSpans nor continuation tokens.
+		spanOrderingTest,
+		paginationTest,
+		// The lowering maps five built-in fields; event.name has a column but is not among them yet.
+		filterEventNameTest,
+		// The lowering declares the ordered comparisons but evaluates them on span.duration only, and
+		// refuses one on an attribute inside the lowering (RFC 0005 M3, first increment).
+		attributeComparisonTest,
+	}
 }
 
 // ClickHouse returns the capabilities for the ClickHouse storage backend read directly.
@@ -246,14 +249,14 @@ func ClickHouse() Capabilities {
 	return Capabilities{
 		// The lowering has no mapping for span.traceState yet and refuses a filter naming it.
 		traceStateRefused: true,
-		skipList: append([]string{
-			// The ClickHouse reader does not support FindTraceSummaries. They are tested in
-			// the e2e suite because the query service falls back to FindTraces.
+		skipList: append(
+			clickHouseSkipList(),
+			// Trace summaries not supported; jaeger-query falls back to FindTraces for the e2e suite.
 			findTraceSummariesTest,
 			// The direct suite has no sampling store for ClickHouse.
 			"GetThroughput",
 			"GetLatestProbability",
-		}, clickHouseSkipList...),
+		),
 	}
 }
 
@@ -262,7 +265,7 @@ func ClickHouse() Capabilities {
 func ClickHouseE2E() Capabilities {
 	return Capabilities{
 		traceStateRefused: true,
-		skipList:          clickHouseSkipList,
+		skipList:          clickHouseSkipList(),
 	}
 }
 
@@ -325,7 +328,10 @@ func Elasticsearch() Capabilities {
 		pagingDropsTiedSpans: true,
 		// The span document has no field for the trace state, so a filter naming it is refused.
 		traceStateRefused: true,
-		skipList:          append(elasticsearchSkipList(), elasticsearchFilterSkipList()...),
+		skipList: append(
+			elasticsearchSkipList(),
+			elasticsearchFilterSkipList()...,
+		),
 	}
 }
 
@@ -338,7 +344,8 @@ func ElasticsearchSmokeTest() Capabilities {
 		// span_search_tie_break_by_id at its default.
 		pagingDropsTiedSpans: true,
 		traceStateRefused:    true,
-		skipList: append(elasticsearchSkipList(),
+		skipList: append(
+			elasticsearchSkipList(),
 			// The rotation suites check that a write lands in the rotated index and a read finds
 			// it there, so the filter battery and the two slowest subtests are left out.
 			structuredFilterTest,
@@ -356,7 +363,10 @@ func OpenSearch() Capabilities {
 		// Same mapping and same setting, and same search support as Elasticsearch; see the note there.
 		// The e2e configuration turns span_search_tie_break_by_id on, so paging keeps every tied
 		// occurrence and pagingDropsTiedSpans stays unset.
-		skipList: append(elasticsearchSkipList(), elasticsearchFilterSkipList()...),
+		skipList: append(
+			elasticsearchSkipList(),
+			elasticsearchFilterSkipList()...,
+		),
 	}
 }
 
