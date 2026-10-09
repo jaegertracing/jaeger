@@ -149,6 +149,8 @@ func (ext *rsExtension) Shutdown(ctx context.Context) error {
 		ext.grpcServer.GracefulStop()
 	}
 
+	ext.shutdownWG.Wait()
+
 	if ext.distLock != nil {
 		errs = append(errs, ext.distLock.Close())
 	}
