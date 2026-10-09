@@ -264,7 +264,7 @@ func serviceQueries(query *spanstore.TraceQueryParameters, indexSeeks [][]byte) 
 		indexSearchKey := make([]byte, 0, 64) // 64 is a magic guess
 		tagQueryUsed := false
 		for k, v := range query.Tags {
-			tagSearch := []byte(query.ServiceName + k + v)
+			tagSearch := encodeIndexFields(query.ServiceName, k, v)
 			tagSearchKey := make([]byte, 0, len(tagSearch)+1)
 			tagSearchKey = append(tagSearchKey, tagIndexKey)
 			tagSearchKey = append(tagSearchKey, tagSearch...)
@@ -274,10 +274,10 @@ func serviceQueries(query *spanstore.TraceQueryParameters, indexSeeks [][]byte) 
 
 		if query.OperationName != "" {
 			indexSearchKey = append(indexSearchKey, operationNameIndexKey)
-			indexSearchKey = append(indexSearchKey, []byte(query.ServiceName+query.OperationName)...)
+			indexSearchKey = append(indexSearchKey, encodeIndexFields(query.ServiceName, query.OperationName)...)
 		} else if !tagQueryUsed { // Tag query already reduces the search set with a serviceName
 			indexSearchKey = append(indexSearchKey, serviceNameIndexKey)
-			indexSearchKey = append(indexSearchKey, []byte(query.ServiceName)...)
+			indexSearchKey = append(indexSearchKey, encodeIndexFields(query.ServiceName)...)
 		}
 
 		if len(indexSearchKey) > 0 {
@@ -630,8 +630,13 @@ func (r *TraceReader) preloadServices() []string {
 
 		// Seek all the services first
 		for it.Seek(serviceKey); it.ValidForPrefix(serviceKey); it.Next() {
-			timestampStartIndex := len(it.Item().Key()) - (sizeOfTraceID + 8) // 8 = sizeof(uint64)
-			serviceName := string(it.Item().Key()[len(serviceKey):timestampStartIndex])
+			serviceNameBytes, _, ok := decodeIndexField(it.Item().Key(), len(serviceKey))
+			if !ok {
+				// Not a valid length-prefixed field, e.g. a leftover entry in the
+				// old unprefixed key format. Skip rather than misread it.
+				continue
+			}
+			serviceName := string(serviceNameBytes)
 			keyTTL := it.Item().ExpiresAt()
 			services[serviceName] = struct{}{}
 			r.cache.AddService(serviceName, keyTTL)
@@ -648,14 +653,20 @@ func (r *TraceReader) preloadOperations(service string) {
 		it := txn.NewIterator(opts)
 		defer it.Close()
 
-		serviceKey := make([]byte, len(service)+1)
+		encodedService := encodeIndexFields(service)
+		serviceKey := make([]byte, len(encodedService)+1)
 		serviceKey[0] = operationNameIndexKey
-		copy(serviceKey[1:], service)
+		copy(serviceKey[1:], encodedService)
 
-		// Seek all the services first
+		// Seek all the operations for this service
 		for it.Seek(serviceKey); it.ValidForPrefix(serviceKey); it.Next() {
-			timestampStartIndex := len(it.Item().Key()) - (sizeOfTraceID + 8) // 8 = sizeof(uint64)
-			operationName := string(it.Item().Key()[len(serviceKey):timestampStartIndex])
+			operationNameBytes, _, ok := decodeIndexField(it.Item().Key(), len(serviceKey))
+			if !ok {
+				// Not a valid length-prefixed field, e.g. a leftover entry in the
+				// old unprefixed key format. Skip rather than misread it.
+				continue
+			}
+			operationName := string(operationNameBytes)
 			keyTTL := it.Item().ExpiresAt()
 			r.cache.AddOperation(service, operationName, keyTTL)
 		}

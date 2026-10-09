@@ -277,6 +277,118 @@ func TestIndexSeeks(t *testing.T) {
 	})
 }
 
+// TestFindTraceIDs_TagIndexKeyCollision is a regression test for a bug where the
+// tag index key was built by concatenating ServiceName+TagKey+TagValue with no
+// delimiter, so two different (tag key, tag value) pairs under the same service
+// whose concatenation collided byte-for-byte became indistinguishable in the
+// index, and a query for one pair silently returned trace IDs belonging to the
+// other. Fixed by encoding each field with an explicit length prefix
+// (encodeIndexFields in index_encoding.go) instead of raw concatenation.
+func TestFindTraceIDs_TagIndexKeyCollision(t *testing.T) {
+	runFactoryTest(t, func(_ testing.TB, sw spanstore.Writer, sr spanstore.Reader) {
+		now := time.Now()
+
+		// trace1: service="checkout", tag id="123"      -> concat "checkout"+"id"+"123" = "checkoutid123"
+		trace1 := model.TraceID{Low: 1, High: 1}
+		span1 := model.Span{
+			TraceID:       trace1,
+			SpanID:        model.SpanID(1),
+			OperationName: "op",
+			Process:       &model.Process{ServiceName: "checkout"},
+			StartTime:     now,
+			Duration:      time.Millisecond,
+			Tags: model.KeyValues{
+				{Key: "id", VStr: "123", VType: model.StringType},
+			},
+		}
+		require.NoError(t, sw.WriteSpan(context.Background(), &span1))
+
+		// trace2: service="checkout", tag id1="23"       -> concat "checkout"+"id1"+"23" = "checkoutid123"
+		// Same concatenated bytes as trace1's index entry, but a genuinely different
+		// (tag key, tag value) pair.
+		trace2 := model.TraceID{Low: 2, High: 1}
+		span2 := model.Span{
+			TraceID:       trace2,
+			SpanID:        model.SpanID(2),
+			OperationName: "op",
+			Process:       &model.Process{ServiceName: "checkout"},
+			StartTime:     now.Add(time.Microsecond),
+			Duration:      time.Millisecond,
+			Tags: model.KeyValues{
+				{Key: "id1", VStr: "23", VType: model.StringType},
+			},
+		}
+		require.NoError(t, sw.WriteSpan(context.Background(), &span2))
+
+		ids, err := sr.FindTraceIDs(context.Background(), &spanstore.TraceQueryParameters{
+			ServiceName:  "checkout",
+			Tags:         map[string]string{"id": "123"},
+			StartTimeMin: now.Add(-time.Minute),
+			StartTimeMax: now.Add(time.Minute),
+			NumTraces:    10,
+		})
+		require.NoError(t, err)
+
+		// EXPECTED: only trace1 (tag id=123) should be returned.
+		// trace2 belongs to tag id1=23 and must not match.
+		assert.NotContains(t, ids, trace2,
+			"query for tag id=123 incorrectly matched tag id1=23 due to delimiter-less tag index key concatenation")
+		assert.Len(t, ids, 1, "expected exactly 1 trace id (trace1) to match")
+	})
+}
+
+// TestFindTraceIDs_OperationIndexKeyCollision is the operation-name analogue of
+// TestFindTraceIDs_TagIndexKeyCollision: the operation-name index key used to
+// concatenate ServiceName+OperationName with no delimiter, so a query could match
+// a trace from an unrelated (service, operation) pair whose names happened to
+// concatenate identically. Same fix, same root cause.
+func TestFindTraceIDs_OperationIndexKeyCollision(t *testing.T) {
+	runFactoryTest(t, func(_ testing.TB, sw spanstore.Writer, sr spanstore.Reader) {
+		now := time.Now()
+
+		// trace1: service="A", operation="Bc"  -> concat "A"+"Bc" = "ABc"
+		trace1 := model.TraceID{Low: 1, High: 1}
+		span1 := model.Span{
+			TraceID:       trace1,
+			SpanID:        model.SpanID(1),
+			OperationName: "Bc",
+			Process:       &model.Process{ServiceName: "A"},
+			StartTime:     now,
+			Duration:      time.Millisecond,
+		}
+		require.NoError(t, sw.WriteSpan(context.Background(), &span1))
+
+		// trace2: service="AB", operation="c"  -> concat "AB"+"c" = "ABc"
+		// Same concatenated bytes as trace1's index entry, but a genuinely different
+		// (service, operation) pair.
+		trace2 := model.TraceID{Low: 2, High: 1}
+		span2 := model.Span{
+			TraceID:       trace2,
+			SpanID:        model.SpanID(2),
+			OperationName: "c",
+			Process:       &model.Process{ServiceName: "AB"},
+			StartTime:     now.Add(time.Microsecond),
+			Duration:      time.Millisecond,
+		}
+		require.NoError(t, sw.WriteSpan(context.Background(), &span2))
+
+		ids, err := sr.FindTraceIDs(context.Background(), &spanstore.TraceQueryParameters{
+			ServiceName:   "A",
+			OperationName: "Bc",
+			StartTimeMin:  now.Add(-time.Minute),
+			StartTimeMax:  now.Add(time.Minute),
+			NumTraces:     10,
+		})
+		require.NoError(t, err)
+
+		// EXPECTED: only trace1 (service=A, operation=Bc) should be returned.
+		// trace2 belongs to service=AB, operation=c and must not match.
+		assert.NotContains(t, ids, trace2,
+			"query for service=A,operation=Bc incorrectly matched service=AB,operation=c due to delimiter-less operation index key concatenation")
+		assert.Len(t, ids, 1, "expected exactly 1 trace id (trace1) to match")
+	})
+}
+
 func TestFindNothing(t *testing.T) {
 	runFactoryTest(t, func(_ testing.TB, _ spanstore.Writer, sr spanstore.Reader) {
 		startT := time.Now()
