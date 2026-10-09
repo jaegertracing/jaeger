@@ -33,6 +33,7 @@ import (
 	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/indices"
 	esquery "github.com/jaegertracing/jaeger/internal/storage/elasticsearch/query"
 	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/snapshottest"
+	"github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/elasticsearch/tracestore/core/dbmodel"
 	"github.com/jaegertracing/jaeger/internal/testutils"
 )
@@ -115,15 +116,16 @@ func withSpanReader(t *testing.T, fn func(r *spanReaderTest)) {
 		logBuffer:   logBuffer,
 		traceBuffer: exp,
 		reader: NewSpanReader(SpanReaderParams{
-			Searcher:          searcher,
-			Logger:            zap.NewNop(),
-			Tracer:            tracer.Tracer("test"),
-			MaxSpanAge:        0,
-			MaxTraceDuration:  24 * time.Hour,
-			TagDotReplacement: "@",
-			MaxDocCount:       defaultMaxDocCount,
-			SpanRotation:      indices.NewPeriodicRotation(config.SpanIndexName, "2006-01-02", 24*time.Hour),
-			ServiceRotation:   indices.NewPeriodicRotation(config.ServiceIndexName, "2006-01-02", 24*time.Hour),
+			Searcher:               searcher,
+			Logger:                 zap.NewNop(),
+			Tracer:                 tracer.Tracer("test"),
+			MaxSpanAge:             0,
+			MaxTraceDuration:       24 * time.Hour,
+			TagDotReplacement:      "@",
+			MaxDocCount:            defaultMaxDocCount,
+			SpanSearchTieBreakByID: true,
+			SpanRotation:           indices.NewPeriodicRotation(config.SpanIndexName, "2006-01-02", 24*time.Hour),
+			ServiceRotation:        indices.NewPeriodicRotation(config.ServiceIndexName, "2006-01-02", 24*time.Hour),
 		}),
 	}
 	fn(r)
@@ -175,6 +177,36 @@ func TestNewSpanReader(t *testing.T) {
 	reader := NewSpanReader(params)
 	require.NotNil(t, reader)
 	assert.Equal(t, time.Hour*72, reader.maxSpanAge)
+}
+
+func TestSpanReader_ServiceQueriesUseBoundedLookback(t *testing.T) {
+	searcher := esclientmocks.NewSearcher(t)
+	searcher.On(
+		"Search",
+		mock.Anything,
+		mock.Anything,
+		mock.Anything,
+	).Run(func(args mock.Arguments) {
+		assert.Len(t, args.Get(1).([]string), 4)
+	}).Return(&esclient.SearchResponse{Aggregations: termsAggregations(map[string]esclient.AggregationResult{
+		servicesAggregation:   {},
+		operationsAggregation: {},
+	})}, nil).Twice()
+
+	reader := NewSpanReader(SpanReaderParams{
+		Searcher:            searcher,
+		MaxSpanAge:          DawnOfTimeSpanAge,
+		ServicesMaxLookback: 72 * time.Hour,
+		MaxDocCount:         defaultMaxDocCount,
+		Logger:              zap.NewNop(),
+		Tracer:              noop.NewTracerProvider().Tracer("test"),
+		ServiceRotation:     indices.NewPeriodicRotation(config.ServiceIndexName, "2006-01-02", 24*time.Hour),
+	})
+
+	_, err := reader.GetServices(context.Background())
+	require.NoError(t, err)
+	_, err = reader.GetOperations(context.Background(), dbmodel.OperationQueryParameters{ServiceName: "service"})
+	require.NoError(t, err)
 }
 
 func TestSpanReaderRotations(t *testing.T) {
@@ -734,22 +766,24 @@ func TestSpanReader_FindTraces(t *testing.T) {
 	})
 }
 
-func TestSpanReader_FindTracesInvalidQuery(t *testing.T) {
+// TestSpanReader_FindTracesRejectsQueryBeforeSearching covers the FindTraces side of
+// validation: a query that validateQuery rejects — here an unset time range — returns
+// the validation error without a round trip to the cluster. TestTraceQueryParameterValidation
+// covers which queries are rejected; this covers that rejection short-circuits the search.
+func TestSpanReader_FindTracesRejectsQueryBeforeSearching(t *testing.T) {
 	withSpanReader(t, func(r *spanReaderTest) {
-		// Missing service name with tags fails validation before any search runs.
 		traceQuery := dbmodel.TraceQueryParameters{
-			ServiceName: "",
+			ServiceName: serviceName,
 			Tags: map[string]string{
 				"hello": "world",
 			},
-			StartTimeMin: time.Now().Add(-1 * time.Hour),
-			StartTimeMax: time.Now(),
 		}
 
 		traces, err := r.reader.FindTraces(context.Background(), traceQuery)
-		require.NotEmpty(t, r.traceBuffer.GetSpans(), "Spans recorded")
-		require.Error(t, err)
+		require.ErrorIs(t, err, ErrStartAndEndTimeNotSet)
 		assert.Nil(t, traces)
+		r.searcher.AssertNotCalled(t, "Search")
+		require.NotEmpty(t, r.traceBuffer.GetSpans(), "the attempt is still traced")
 	})
 }
 
@@ -875,20 +909,23 @@ func mockSearchService(r *spanReaderTest) *mock.Call {
 }
 
 func TestTraceQueryParameterValidation(t *testing.T) {
+	// A tag search with no service name is a valid cross-service query (RFC 0013):
+	// the tag clauses do not reference the service, so only the time range is required.
 	tqp := dbmodel.TraceQueryParameters{
 		ServiceName: "",
 		Tags: map[string]string{
 			"hello": "world",
 		},
+		StartTimeMin: time.Now().Add(-1 * time.Hour),
+		StartTimeMax: time.Now(),
 	}
-	err := validateQuery(tqp)
-	require.EqualError(t, err, ErrServiceNameNotSet.Error())
+	require.NoError(t, validateQuery(tqp))
 
 	tqp.ServiceName = serviceName
 
 	tqp.StartTimeMin = time.Time{} // time.Unix(0,0) doesn't work because timezones
 	tqp.StartTimeMax = time.Time{}
-	err = validateQuery(tqp)
+	err := validateQuery(tqp)
 	require.EqualError(t, err, ErrStartAndEndTimeNotSet.Error())
 
 	tqp.StartTimeMin = time.Now()
@@ -925,7 +962,19 @@ func TestSpanReader_buildTraceIDAggregation(t *testing.T) {
 
 		expected := make(map[string]any)
 		json.Unmarshal([]byte(expectedStr), &expected)
-		expected["terms"].(map[string]any)["size"] = 123
+		expected["terms"].(map[string]any)["size"] = uint64(123)
+		expected["terms"].(map[string]any)["order"] = []any{map[string]string{"startTime": "desc"}}
+		assert.EqualValues(t, expected, actual)
+	})
+
+	withSpanReader(t, func(r *spanReaderTest) {
+		traceIDAggregation := r.reader.buildTraceIDAggregation(tracestore.MaxSearchDepth + 1)
+		actual, err := traceIDAggregation.Source()
+		require.NoError(t, err)
+
+		expected := make(map[string]any)
+		json.Unmarshal([]byte(expectedStr), &expected)
+		expected["terms"].(map[string]any)["size"] = uint64(tracestore.MaxSearchDepth + 1)
 		expected["terms"].(map[string]any)["order"] = []any{map[string]string{"startTime": "desc"}}
 		assert.EqualValues(t, expected, actual)
 	})
@@ -945,7 +994,8 @@ func TestSpanReader_buildFindTraceIDsQuery(t *testing.T) {
 			},
 		}
 
-		actualQuery := r.reader.buildFindTraceIDsQuery(traceQuery)
+		actualQuery, err := r.reader.buildFindTraceIDsQuery(traceQuery)
+		require.NoError(t, err)
 		actual, err := actualQuery.Source()
 		require.NoError(t, err)
 		expectedQuery := esquery.NewBoolQuery().
@@ -957,6 +1007,34 @@ func TestSpanReader_buildFindTraceIDsQuery(t *testing.T) {
 				r.reader.buildTagQuery("hello", "world"),
 			)
 		expected, err := expectedQuery.Source()
+		require.NoError(t, err)
+		assert.Equal(t, expected, actual)
+	})
+}
+
+// TestSpanReader_buildFindTraceIDsQueryWithoutServiceName pins the cross-service
+// search RFC 0013 relies on: with no service name the query carries every other
+// clause and simply omits the process.serviceName term, so it matches spans from all
+// services rather than none.
+func TestSpanReader_buildFindTraceIDsQueryWithoutServiceName(t *testing.T) {
+	withSpanReader(t, func(r *spanReaderTest) {
+		traceQuery := dbmodel.TraceQueryParameters{
+			StartTimeMin: time.Time{},
+			StartTimeMax: time.Time{}.Add(time.Second),
+			Tags: map[string]string{
+				"hello": "world",
+			},
+		}
+
+		actualQuery, err := r.reader.buildFindTraceIDsQuery(traceQuery)
+		require.NoError(t, err)
+		actual, err := actualQuery.Source()
+		require.NoError(t, err)
+		expected, err := esquery.NewBoolQuery().
+			Must(
+				r.reader.buildStartTimeQuery(time.Time{}, time.Time{}.Add(time.Second)),
+				r.reader.buildTagQuery("hello", "world"),
+			).Source()
 		require.NoError(t, err)
 		assert.Equal(t, expected, actual)
 	})
@@ -1005,11 +1083,13 @@ func TestSpanReader_buildFindTraceIDsQuery_errorTag(t *testing.T) {
 			{"2", wantSource(base().Must(r.reader.buildTagQuery("error", "2")))},
 		} {
 			t.Run("error="+tt.value, func(t *testing.T) {
-				got, err := r.reader.buildFindTraceIDsQuery(dbmodel.TraceQueryParameters{
+				query, err := r.reader.buildFindTraceIDsQuery(dbmodel.TraceQueryParameters{
 					StartTimeMin: start,
 					StartTimeMax: end,
 					Tags:         map[string]string{"error": tt.value},
-				}).Source()
+				})
+				require.NoError(t, err)
+				got, err := query.Source()
 				require.NoError(t, err)
 				assert.Equal(t, tt.want, got)
 			})
@@ -1279,16 +1359,24 @@ func TestTagsMap(t *testing.T) {
 // newSnapshotReader builds a SpanReader wired to searcher, with aliased (fixed)
 // index names so the recorded request paths are deterministic across runs.
 func newSnapshotReader(searcher esclient.Searcher) *SpanReader {
-	return NewSpanReader(SpanReaderParams{
-		Searcher:         searcher,
-		MaxSpanAge:       72 * time.Hour,
-		MaxTraceDuration: 24 * time.Hour,
-		MaxDocCount:      100,
-		Logger:           zap.NewNop(),
-		Tracer:           noop.NewTracerProvider().Tracer("test"),
-		SpanRotation:     indices.NewAliasedRotation("jaeger-span-write-000001", "jaeger-span-read"),
-		ServiceRotation:  indices.NewAliasedRotation("jaeger-service-write-000001", "jaeger-service-read"),
-	})
+	return newSnapshotReaderWithParams(searcher, func(*SpanReaderParams) {})
+}
+
+// newSnapshotReaderWithParams is newSnapshotReader with its parameters adjusted by override.
+func newSnapshotReaderWithParams(searcher esclient.Searcher, override func(*SpanReaderParams)) *SpanReader {
+	params := SpanReaderParams{
+		Searcher:               searcher,
+		MaxSpanAge:             72 * time.Hour,
+		MaxTraceDuration:       24 * time.Hour,
+		MaxDocCount:            100,
+		SpanSearchTieBreakByID: true,
+		Logger:                 zap.NewNop(),
+		Tracer:                 noop.NewTracerProvider().Tracer("test"),
+		SpanRotation:           indices.NewAliasedRotation("jaeger-span-write-000001", "jaeger-span-read"),
+		ServiceRotation:        indices.NewAliasedRotation("jaeger-service-write-000001", "jaeger-service-read"),
+	}
+	override(&params)
+	return NewSpanReader(params)
 }
 
 // TestReaderRequestSnapshots freezes the wire format of the trace-read path:

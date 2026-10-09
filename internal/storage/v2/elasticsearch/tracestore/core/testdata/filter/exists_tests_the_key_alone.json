@@ -1,0 +1,10 @@
+{
+  "nested": {
+    "path": "logs.fields",
+    "query": {
+      "term": {
+        "logs.fields.key": "exception.stacktrace"
+      }
+    }
+  }
+}

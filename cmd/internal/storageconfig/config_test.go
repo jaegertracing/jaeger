@@ -14,6 +14,7 @@ import (
 
 	escfg "github.com/jaegertracing/jaeger/internal/storage/elasticsearch/config"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/badger"
+	"github.com/jaegertracing/jaeger/internal/storage/v2/clickhouse"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/memory"
 )
 
@@ -71,7 +72,7 @@ func TestConfigValidate(t *testing.T) {
 			name: "valid metric backend",
 			config: Config{
 				TraceBackends: map[string]TraceBackend{
-					"memory": {Memory: &memory.Configuration{}},
+					"memory": {Memory: &memory.Configuration{MaxTraces: 10000}},
 				},
 				MetricBackends: map[string]MetricBackend{
 					"prometheus": {Prometheus: &PrometheusConfiguration{}},
@@ -96,7 +97,7 @@ func TestConfigValidate(t *testing.T) {
 			name: "invalid metric backend",
 			config: Config{
 				TraceBackends: map[string]TraceBackend{
-					"memory": {Memory: &memory.Configuration{}},
+					"memory": {Memory: &memory.Configuration{MaxTraces: 10000}},
 				},
 				MetricBackends: map[string]MetricBackend{
 					"invalid": {
@@ -138,7 +139,7 @@ func TestTraceBackendUnmarshal(t *testing.T) {
 			expectError: false,
 			validateFunc: func(t *testing.T, tb *TraceBackend) {
 				require.NotNil(t, tb.Memory)
-				assert.Equal(t, 1_000_000, tb.Memory.MaxTraces)
+				assert.EqualValues(t, 1_000_000, tb.Memory.MaxTraces)
 			},
 		},
 		{
@@ -151,7 +152,19 @@ func TestTraceBackendUnmarshal(t *testing.T) {
 			expectError: false,
 			validateFunc: func(t *testing.T, tb *TraceBackend) {
 				require.NotNil(t, tb.Memory)
-				assert.Equal(t, 50000, tb.Memory.MaxTraces)
+				assert.EqualValues(t, 50000, tb.Memory.MaxTraces)
+			},
+		},
+		{
+			name: "memory backend rejects zero max traces",
+			configMap: map[string]any{
+				"memory": map[string]any{
+					"max_traces": 0,
+				},
+			},
+			expectError: false,
+			validateFunc: func(t *testing.T, tb *TraceBackend) {
+				require.ErrorContains(t, confmap.Validate(tb), "max traces must be greater than zero")
 			},
 		},
 		{
@@ -168,16 +181,26 @@ func TestTraceBackendUnmarshal(t *testing.T) {
 			},
 		},
 		{
-			name: "grpc backend with defaults",
+			name: "grpc backend with defaults and case-insensitive balancer names",
 			configMap: map[string]any{
 				"grpc": map[string]any{
-					"endpoint": "localhost:17271",
+					"endpoint":      "localhost:17271",
+					"balancer_name": "ROUND_ROBIN",
+					"writer": map[string]any{
+						"endpoint":      "localhost:17272",
+						"balancer_name": "PICK_FIRST",
+					},
 				},
 			},
 			expectError: false,
 			validateFunc: func(t *testing.T, tb *TraceBackend) {
 				require.NotNil(t, tb.GRPC)
 				assert.Equal(t, "localhost:17271", tb.GRPC.ClientConfig.Endpoint)
+				assert.Equal(t, "localhost:17272", tb.GRPC.Writer.Endpoint)
+				assert.Equal(t, "round_robin", tb.GRPC.BalancerName)
+				assert.Equal(t, "pick_first", tb.GRPC.Writer.BalancerName)
+				require.NotEmpty(t, tb.GRPC.Timeout)
+				require.NoError(t, confmap.Validate(tb))
 			},
 		},
 		{
@@ -211,6 +234,49 @@ func TestTraceBackendUnmarshal(t *testing.T) {
 			expectError: false,
 			validateFunc: func(t *testing.T, tb *TraceBackend) {
 				require.NotNil(t, tb.Opensearch)
+			},
+		},
+		{
+			name: "clickhouse backend with defaults",
+			configMap: map[string]any{
+				"clickhouse": map[string]any{
+					"addresses": []any{"localhost:9000"},
+				},
+			},
+			expectError: false,
+			validateFunc: func(t *testing.T, tb *TraceBackend) {
+				require.NotNil(t, tb.ClickHouse)
+				assert.Equal(t, clickhouse.DefaultConfiguration().DefaultSearchDepth, tb.ClickHouse.DefaultSearchDepth)
+				assert.Equal(t, clickhouse.DefaultConfiguration().AttributeMetadataCacheTTL, tb.ClickHouse.AttributeMetadataCacheTTL)
+				assert.Equal(t, clickhouse.DefaultConfiguration().AttributeMetadataCacheMaxSize, tb.ClickHouse.AttributeMetadataCacheMaxSize)
+				require.NoError(t, confmap.Validate(tb))
+			},
+		},
+		{
+			name: "clickhouse backend rejects a negative search depth",
+			configMap: map[string]any{
+				"clickhouse": map[string]any{
+					"addresses":            []any{"localhost:9000"},
+					"default_search_depth": -1,
+				},
+			},
+			expectError: true,
+		},
+		{
+			name: "clickhouse backend keeps an explicitly configured zero",
+			configMap: map[string]any{
+				"clickhouse": map[string]any{
+					"addresses":                         []any{"localhost:9000"},
+					"attribute_metadata_cache_ttl":      0,
+					"attribute_metadata_cache_max_size": 0,
+				},
+			},
+			expectError: false,
+			validateFunc: func(t *testing.T, tb *TraceBackend) {
+				require.NotNil(t, tb.ClickHouse)
+				assert.Zero(t, tb.ClickHouse.AttributeMetadataCacheTTL)
+				assert.Zero(t, tb.ClickHouse.AttributeMetadataCacheMaxSize)
+				require.NoError(t, confmap.Validate(tb))
 			},
 		},
 	}
@@ -278,6 +344,7 @@ func TestMetricBackendUnmarshal(t *testing.T) {
 			expectError: false,
 			validateFunc: func(t *testing.T, mb *MetricBackend) {
 				require.NotNil(t, mb.ClickHouse)
+				assert.Equal(t, clickhouse.DefaultConfiguration().Database, mb.ClickHouse.Database)
 			},
 		},
 	}
@@ -332,6 +399,74 @@ func TestTraceBackendExclusive(t *testing.T) {
 			})
 		}
 	}
+}
+
+func TestTraceBackendValidateMemoryMaxTraces(t *testing.T) {
+	// confmap.Validate recurses into the backend structs, so it cannot detect
+	// whether TraceBackend.Validate itself enforces the memory constraints.
+	// remote-storage reaches TraceBackend.Validate through Config.Validate, so
+	// these cases assert on that path directly.
+	tests := []struct {
+		name        string
+		maxTraces   any
+		omit        bool
+		expectedErr string
+	}{
+		{
+			name: "default max traces is valid",
+			omit: true,
+		},
+		{
+			name:      "positive max traces is valid",
+			maxTraces: 1,
+		},
+		{
+			name:        "zero max traces is rejected",
+			maxTraces:   0,
+			expectedErr: "max traces must be greater than zero",
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			memoryConf := map[string]any{}
+			if !test.omit {
+				memoryConf["max_traces"] = test.maxTraces
+			}
+			conf := confmap.NewFromStringMap(map[string]any{
+				"memory": memoryConf,
+			})
+			var tb TraceBackend
+			require.NoError(t, tb.Unmarshal(conf))
+
+			err := tb.Validate()
+			if test.expectedErr == "" {
+				require.NoError(t, err)
+				return
+			}
+			require.ErrorContains(t, err, test.expectedErr)
+		})
+	}
+}
+
+func TestConfigValidateMemoryMaxTraces(t *testing.T) {
+	// End-to-end check of the Viper path used by remote-storage: an invalid
+	// max_traces must be caught by Config.Validate rather than only by the
+	// store constructor.
+	conf := confmap.NewFromStringMap(map[string]any{
+		"memory": map[string]any{
+			"max_traces": 0,
+		},
+	})
+	var tb TraceBackend
+	require.NoError(t, tb.Unmarshal(conf))
+
+	cfg := &Config{
+		TraceBackends: map[string]TraceBackend{
+			"some-backend": tb,
+		},
+	}
+	err := cfg.Validate()
+	require.ErrorContains(t, err, "max traces must be greater than zero")
 }
 
 func TestMetricBackendExclusive(t *testing.T) {

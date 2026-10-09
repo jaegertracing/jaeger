@@ -192,9 +192,10 @@ func TestFindTraceIDs(t *testing.T) {
 	reader.On("FindTraceIDs", mock.Anything, mock.Anything).Return([]cassdbmodel.TraceID{traceID}, nil)
 	tracereader := &TraceReader{reader: &reader}
 	var results []tracestore.FoundTraceID
-	for batch, err := range tracereader.FindTraceIDs(context.Background(), newTraceQueryParams(t)) {
+	for chunk, err := range tracereader.FindTraceIDs(context.Background(), newTraceQueryParams(t)) {
 		require.NoError(t, err)
-		results = append(results, batch...)
+		assert.Empty(t, chunk.NextPageToken)
+		results = append(results, chunk.Results...)
 	}
 	require.Len(t, results, 1)
 	assert.Equal(t, pcommon.TraceID(traceID), results[0].TraceID)
@@ -233,4 +234,12 @@ func mockIter(traces []cassdbmodel.Trace, err error) iter.Seq2[cassdbmodel.Trace
 			}
 		}
 	}
+}
+
+// Every Cassandra index is keyed by service name, so the reader declares that a search
+// cannot omit any query field (RFC 0013).
+func TestTraceReader_SearchCapabilities(t *testing.T) {
+	caps, err := (&TraceReader{}).SearchCapabilities(context.Background())
+	require.NoError(t, err)
+	assert.Equal(t, tracestore.SearchCapabilities{}, caps)
 }

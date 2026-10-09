@@ -5,14 +5,15 @@ This folder contains the Python ACP sidecar used by the Jaeger AI gateway.
 The sidecar:
 - Listens on `ws://localhost:16688` by default
 - Runs a Gemini-backed ACP agent
-- Uses Jaeger MCP tools from `http://127.0.0.1:16687/mcp`
+- Uses Jaeger MCP tools from `http://127.0.0.1:16686/api/ai/mcp/`
 - Registers per-turn **contextual (AG-UI) tools** the gateway attaches via
   `NewSessionRequest._meta`, and dispatches their invocations back to the
   gateway over an ACP **extension method** (`_meta/jaegertracing.io/tools/call`)
 
 ## Prerequisites
 
-- Python 3.14+
+- Python 3.14+. On macOS, the Gemini sidecar requires Apple silicon because
+  [`cryptography` 49+ no longer supports Intel macOS](https://cryptography.io/en/latest/changelog/#v49-0-0).
 - [`uv`](https://docs.astral.sh/uv/) installed
 - A Gemini API key
 
@@ -29,10 +30,10 @@ Without this key, the sidecar cannot create the Gemini client.
 Optional MCP endpoint override:
 
 ```bash
-export JAEGER_MCP_URL="http://127.0.0.1:16687/mcp"
+export JAEGER_MCP_URL="http://127.0.0.1:16686/api/ai/mcp/"
 ```
 
-If unset, the sidecar defaults to `http://127.0.0.1:16687/mcp`.
+If unset, the sidecar defaults to `http://127.0.0.1:16686/api/ai/mcp/`.
 
 Optional MCP discovery timeout override:
 
@@ -108,7 +109,7 @@ Useful runtime flags:
 ```bash
 uv run python main.py \
   --host localhost --port 16688 \
-  --mcp-url http://127.0.0.1:16687/mcp \
+  --mcp-url http://127.0.0.1:16686/api/ai/mcp/ \
   --mcp-discovery-timeout-sec 15 \
   --otlp-endpoint http://localhost:4317 --otlp-insecure
 ```
@@ -127,7 +128,7 @@ uv run python main.py \
 graph LR
     subgraph Jaeger Process
         GW[Jaeger AI Gateway]
-        MCP[MCP Server<br/>:16687/mcp]
+        MCP[MCP Server<br/>:16686/api/ai/mcp/]
     end
 
     subgraph Agent Sidecar

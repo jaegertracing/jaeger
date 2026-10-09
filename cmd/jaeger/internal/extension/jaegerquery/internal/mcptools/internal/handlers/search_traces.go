@@ -21,7 +21,7 @@ import (
 
 // queryServiceInterface defines the interface we need from QueryService for testing.
 type queryServiceInterface interface {
-	FindTraceSummaries(ctx context.Context, query querysvc.TraceQueryParams) iter.Seq2[[]tracestore.TraceSummary, error]
+	FindTraceSummaries(ctx context.Context, query querysvc.TraceQueryParams) iter.Seq2[querysvc.PageChunk[[]tracestore.TraceSummary], error]
 }
 
 // searchTracesHandler implements the search_traces MCP tool.
@@ -30,13 +30,13 @@ type queryServiceInterface interface {
 // browsing and filtering large result sets.
 type searchTracesHandler struct {
 	queryService queryServiceInterface
-	maxResults   int
+	maxResults   uint32
 }
 
 // NewSearchTracesHandler creates a new search_traces handler and returns the handler function.
 func NewSearchTracesHandler(
 	queryService *querysvc.QueryService,
-	maxResults int,
+	maxResults uint32,
 ) mcp.ToolHandlerFor[types.SearchTracesInput, types.SearchTracesOutput] {
 	h := &searchTracesHandler{
 		queryService: queryService,
@@ -60,14 +60,14 @@ func (h *searchTracesHandler) handle(
 	var processErrs []error
 
 outer:
-	for batch, err := range h.queryService.FindTraceSummaries(ctx, query) {
+	for chunk, err := range h.queryService.FindTraceSummaries(ctx, query) {
 		if err != nil {
 			processErrs = append(processErrs, err)
 			break
 		}
-		for i := range batch {
-			summaries = append(summaries, toMCPTraceSummary(batch[i]))
-			if h.maxResults > 0 && len(summaries) >= h.maxResults {
+		for i := range chunk.Results {
+			summaries = append(summaries, toMCPTraceSummary(chunk.Results[i]))
+			if h.maxResults > 0 && uint64(len(summaries)) >= uint64(h.maxResults) {
 				break outer
 			}
 		}
@@ -75,7 +75,15 @@ outer:
 
 	output := types.SearchTracesOutput{Traces: summaries}
 	if len(processErrs) > 0 {
-		output.Error = fmt.Sprintf("partial results returned due to error: %v", errors.Join(processErrs...))
+		searchErr := errors.Join(processErrs...)
+		if len(summaries) == 0 {
+			// Nothing came back — a query the storage backend refused, for one — so calling
+			// it partial would send an agent looking for the missing part instead of
+			// reading why the search could not run.
+			output.Error = searchErr.Error()
+		} else {
+			output.Error = fmt.Sprintf("partial results returned due to error: %v", searchErr)
+		}
 	}
 	return nil, output, nil
 }
@@ -130,14 +138,8 @@ func (h *searchTracesHandler) buildQuery(input types.SearchTracesInput) (querysv
 		maxStartTime = time.Now()
 	}
 
-	if !maxStartTime.IsZero() && maxStartTime.Before(minStartTime) {
-		return querysvc.TraceQueryParams{}, errors.New("start_time_max must be after start_time_min")
-	}
-
-	if input.ServiceName == "" {
-		return querysvc.TraceQueryParams{}, errors.New("service_name is required")
-	}
-
+	// Whether the time range and the duration bounds are ordered is the query service's
+	// decision, so only what this tool cannot hand over unparsed is checked here.
 	var durationMin, durationMax time.Duration
 	if input.DurationMin != "" {
 		durationMin, err = time.ParseDuration(input.DurationMin)
@@ -152,16 +154,13 @@ func (h *searchTracesHandler) buildQuery(input types.SearchTracesInput) (querysv
 		}
 	}
 
-	if durationMin > 0 && durationMax > 0 && durationMax < durationMin {
-		return querysvc.TraceQueryParams{}, errors.New("duration_max must be greater than duration_min")
-	}
-
+	// An agent reads small pages, so the tool's own default is lower than the query service's.
 	const defaultSearchDepth = 10
 	searchDepth := input.SearchDepth
-	if searchDepth <= 0 {
+	if searchDepth == 0 {
 		searchDepth = defaultSearchDepth
 	}
-	if searchDepth > h.maxResults {
+	if h.maxResults > 0 && searchDepth > h.maxResults {
 		searchDepth = h.maxResults
 	}
 
@@ -174,17 +173,15 @@ func (h *searchTracesHandler) buildQuery(input types.SearchTracesInput) (querysv
 	}
 
 	return querysvc.TraceQueryParams{
-		TraceQueryParams: tracestore.TraceQueryParams{
-			ServiceName:   input.ServiceName,
-			OperationName: input.SpanName,
-			Attributes:    attributes,
-			StartTimeMin:  minStartTime,
-			StartTimeMax:  maxStartTime,
-			DurationMin:   durationMin,
-			DurationMax:   durationMax,
-			SearchDepth:   searchDepth,
-		},
-		RawTraces: false,
+		ServiceName:   input.ServiceName,
+		OperationName: input.SpanName,
+		Attributes:    attributes,
+		StartTimeMin:  minStartTime,
+		StartTimeMax:  maxStartTime,
+		DurationMin:   durationMin,
+		DurationMax:   durationMax,
+		SearchDepth:   searchDepth,
+		RawTraces:     false,
 	}, nil
 }
 

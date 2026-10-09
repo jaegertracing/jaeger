@@ -11,17 +11,12 @@ import (
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 	"go.opentelemetry.io/collector/component"
-	"go.opentelemetry.io/collector/confmap"
-	"go.opentelemetry.io/collector/confmap/provider/envprovider"
-	"go.opentelemetry.io/collector/confmap/provider/fileprovider"
-	"go.opentelemetry.io/collector/confmap/provider/httpprovider"
-	"go.opentelemetry.io/collector/confmap/provider/httpsprovider"
-	"go.opentelemetry.io/collector/confmap/provider/yamlprovider"
 	"go.opentelemetry.io/collector/otelcol"
 
 	"github.com/jaegertracing/jaeger/cmd/internal/docs"
 	"github.com/jaegertracing/jaeger/internal/config"
-	"github.com/jaegertracing/jaeger/internal/storage/v1/elasticsearch/mappings"
+	"github.com/jaegertracing/jaeger/internal/jconfmap"
+	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/mappings"
 	"github.com/jaegertracing/jaeger/internal/version"
 )
 
@@ -45,15 +40,7 @@ func NewCommand(factories otelcol.Factories) *cobra.Command {
 		BuildInfo: info,
 		Factories: func() (otelcol.Factories, error) { return factories, nil },
 		ConfigProviderSettings: otelcol.ConfigProviderSettings{
-			ResolverSettings: confmap.ResolverSettings{
-				ProviderFactories: []confmap.ProviderFactory{
-					envprovider.NewFactory(),
-					fileprovider.NewFactory(),
-					httpprovider.NewFactory(),
-					httpsprovider.NewFactory(),
-					yamlprovider.NewFactory(),
-				},
-			},
+			ResolverSettings: jconfmap.ResolverSettings(),
 		},
 	}
 	cmd := otelcol.NewCommand(settings)

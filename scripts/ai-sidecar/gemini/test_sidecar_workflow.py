@@ -90,22 +90,21 @@ class FakeAgent(Agent):
         self,
         cwd: str,
         session_id: str,
-        additional_directories: list[str] | None = None,
         mcp_servers: Any = None,
+        additional_directories: list[str] | None = None,
         **kwargs: Any,
     ) -> LoadSessionResponse | None:
         return LoadSessionResponse()
 
     async def list_sessions(
         self,
-        additional_directories: list[str] | None = None,
-        cursor: str | None = None,
         cwd: str | None = None,
+        cursor: str | None = None,
         **kwargs: Any,
     ) -> ListSessionsResponse:
         return ListSessionsResponse(sessions=[])
 
-    async def prompt(self, prompt: list[Any], session_id: str, message_id: str | None = None, **kwargs: Any) -> PromptResponse:
+    async def prompt(self, session_id: str, prompt: list[Any], message_id: str | None = None, **kwargs: Any) -> PromptResponse:
         user_text = "".join(block.text for block in prompt if hasattr(block, "text"))
         self.received_prompts.append((session_id, user_text))
 
@@ -363,4 +362,14 @@ def test_execute_tool_truncates_oversized_result_on_span_only(
     result_attr = span.attributes["gen_ai.tool.call.result"]
     assert len(result_attr) <= MAX_SPAN_ATTR_CHARS
     assert result_attr.endswith("chars total]")
+
+
+def test_default_mcp_url_points_to_query_port(monkeypatch: pytest.MonkeyPatch) -> None:
+    from main import DEFAULT_MCP_URL, parse_args
+
+    assert DEFAULT_MCP_URL == "http://127.0.0.1:16686/api/ai/mcp/"
+    monkeypatch.delenv("JAEGER_MCP_URL", raising=False)
+    monkeypatch.setattr("sys.argv", ["main.py"])
+    args = parse_args()
+    assert args.mcp_url == DEFAULT_MCP_URL
 

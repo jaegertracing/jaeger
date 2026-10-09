@@ -29,6 +29,7 @@ import (
 	nooptrace "go.opentelemetry.io/otel/trace/noop"
 
 	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerquery"
+	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerstorage"
 )
 
 func TestNewFactory(t *testing.T) {
@@ -43,7 +44,7 @@ func TestFilteringTracerProvider_AllowedComponent(t *testing.T) {
 
 	ftp := &filteringTracerProvider{real: realTP, noop: noop}
 
-	for _, id := range []string{jaegerquery.ID.String()} {
+	for _, id := range []string{jaegerquery.ID.String(), jaegerstorage.ID.String()} {
 		t.Run(id, func(t *testing.T) {
 			tr := ftp.Tracer("test", trace.WithInstrumentationAttributes(
 				attribute.String("otelcol.component.id", id),
@@ -121,7 +122,7 @@ func TestFilteringTracerProvider_ShutdownNilCloser(t *testing.T) {
 func TestFilteringTracerProvider_FrameworkInjection(t *testing.T) {
 	t.Setenv("OTEL_TRACES_SAMPLER", "always_off")
 
-	var receiverGotReal, extensionGotReal atomic.Bool
+	var receiverGotReal, queryGotReal, storageGotReal atomic.Bool
 
 	// checkTP records whether the TracerProvider delivers a real (recording) span.
 	checkTP := func(tp trace.TracerProvider, out *atomic.Bool) {
@@ -144,17 +145,21 @@ func TestFilteringTracerProvider_FrameworkInjection(t *testing.T) {
 		),
 	)
 
-	// An extension with component ID matching jaeger_query that does the same.
-	extType := jaegerquery.ID.Type()
-	extFactory := extension.NewFactory(
-		extType,
-		func() component.Config { return &struct{}{} },
-		func(_ context.Context, set extension.Settings, _ component.Config) (extension.Extension, error) {
-			checkTP(set.TracerProvider, &extensionGotReal)
-			return &nopExtension{}, nil
-		},
-		component.StabilityLevelDevelopment,
-	)
+	// Extensions with the component IDs of jaeger_query and jaeger_storage that do
+	// the same, standing in for the two allowlisted extensions.
+	newExtFactory := func(id component.ID, out *atomic.Bool) extension.Factory {
+		return extension.NewFactory(
+			id.Type(),
+			func() component.Config { return &struct{}{} },
+			func(_ context.Context, set extension.Settings, _ component.Config) (extension.Extension, error) {
+				checkTP(set.TracerProvider, out)
+				return &nopExtension{}, nil
+			},
+			component.StabilityLevelDevelopment,
+		)
+	}
+	queryFactory := newExtFactory(jaegerquery.ID, &queryGotReal)
+	storageFactory := newExtFactory(jaegerstorage.ID, &storageGotReal)
 
 	nopExp := nopexporter.NewFactory()
 
@@ -174,10 +179,12 @@ func TestFilteringTracerProvider_FrameworkInjection(t *testing.T) {
 			nopExp.Type(): nopExp,
 		},
 		ExtensionsConfigs: map[component.ID]component.Config{
-			component.NewID(extType): &struct{}{},
+			jaegerquery.ID:   &struct{}{},
+			jaegerstorage.ID: &struct{}{},
 		},
 		ExtensionsFactories: map[component.Type]extension.Factory{
-			extType: extFactory,
+			jaegerquery.ID.Type():   queryFactory,
+			jaegerstorage.ID.Type(): storageFactory,
 		},
 		AsyncErrorChannel: make(chan error),
 		TelemetryFactory:  WrapFactory(otelconftelemetry.NewFactory()),
@@ -190,7 +197,7 @@ func TestFilteringTracerProvider_FrameworkInjection(t *testing.T) {
 
 	cfg := colservice.Config{
 		Telemetry:  telCfg,
-		Extensions: extensions.Config{component.NewID(extType)},
+		Extensions: extensions.Config{jaegerquery.ID, jaegerstorage.ID},
 		Pipelines: pipelines.Config{
 			pipeline.NewID(pipeline.SignalTraces): {
 				Receivers: []component.ID{component.NewID(recvType)},
@@ -206,7 +213,8 @@ func TestFilteringTracerProvider_FrameworkInjection(t *testing.T) {
 	t.Cleanup(func() { require.NoError(t, srv.Shutdown(ctx)) })
 
 	assert.False(t, receiverGotReal.Load(), "receiver must NOT get real TracerProvider")
-	assert.True(t, extensionGotReal.Load(), "jaeger_query extension must get real TracerProvider")
+	assert.True(t, queryGotReal.Load(), "jaeger_query extension must get real TracerProvider")
+	assert.True(t, storageGotReal.Load(), "jaeger_storage extension must get real TracerProvider")
 }
 
 type nopReceiver struct{}

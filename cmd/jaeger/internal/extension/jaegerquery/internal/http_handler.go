@@ -11,12 +11,10 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"net/url"
 	"strconv"
 	"time"
 
 	"github.com/gogo/protobuf/proto"
-	"go.opentelemetry.io/collector/pdata/pcommon"
 	"go.opentelemetry.io/otel/trace"
 	nooptrace "go.opentelemetry.io/otel/trace/noop"
 	"go.uber.org/zap"
@@ -84,8 +82,7 @@ func NewAPIHandler(queryService *querysvc.QueryService, options ...HandlerOption
 	aH := &APIHandler{
 		queryService: queryService,
 		queryParser: queryParser{
-			traceQueryLookbackDuration: defaultTraceQueryLookbackDuration,
-			timeNow:                    time.Now,
+			timeNow: time.Now,
 		},
 	}
 
@@ -108,12 +105,6 @@ func NewAPIHandler(queryService *querysvc.QueryService, options ...HandlerOption
 func (aH *APIHandler) RegisterRoutes(router *http.ServeMux) {
 	aH.handleFunc(router, aH.getTrace, http.MethodGet, "/traces/{%s}", traceIDParam)
 	aH.handleFunc(router, aH.archiveTrace, http.MethodPost, "/archive/{%s}", traceIDParam)
-	aH.handleFunc(router, aH.search, http.MethodGet, "/traces")
-	aH.handleFunc(router, aH.getServices, http.MethodGet, "/services")
-	// TODO change the UI to use this endpoint. Requires ?service= parameter.
-	aH.handleFunc(router, aH.getOperations, http.MethodGet, "/operations")
-	// TODO - remove this when UI catches up
-	aH.handleFunc(router, aH.getOperationsLegacy, http.MethodGet, "/services/{%s}/operations", serviceParam)
 	aH.handleFunc(router, aH.transformOTLP, http.MethodPost, "/transform")
 	aH.handleFunc(router, aH.dependencies, http.MethodGet, "/dependencies")
 	aH.handleFunc(router, aH.deepDependencies, http.MethodGet, "/deep-dependencies")
@@ -144,45 +135,6 @@ func (aH *APIHandler) formatRoute(route string, args ...any) string {
 	return formattedRoute
 }
 
-func (aH *APIHandler) getServices(w http.ResponseWriter, r *http.Request) {
-	services, err := aH.queryService.GetServices(r.Context())
-	if aH.handleError(w, err, http.StatusInternalServerError) {
-		return
-	}
-
-	if len(services) == 0 {
-		services = []string{}
-	}
-
-	structuredRes := structuredResponse{
-		Data:  services,
-		Total: len(services),
-	}
-	aH.writeJSON(w, r, &structuredRes)
-}
-
-func (aH *APIHandler) getOperationsLegacy(w http.ResponseWriter, r *http.Request) {
-	// given how getOperationsLegacy is bound to URL route, serviceParam cannot be empty
-	service, _ := url.QueryUnescape(r.PathValue(serviceParam))
-	// for backwards compatibility, we will retrieve operations with all span kind
-	operations, err := aH.queryService.GetOperations(r.Context(),
-		tracestore.OperationQueryParams{
-			ServiceName: service,
-			// include all kinds
-			SpanKind: "",
-		})
-
-	if aH.handleError(w, err, http.StatusInternalServerError) {
-		return
-	}
-	operationNames := getUniqueOperationNames(operations)
-	structuredRes := structuredResponse{
-		Data:  operationNames,
-		Total: len(operationNames),
-	}
-	aH.writeJSON(w, r, &structuredRes)
-}
-
 func (aH *APIHandler) transformOTLP(w http.ResponseWriter, r *http.Request) {
 	body, err := io.ReadAll(r.Body)
 	if aH.handleError(w, err, http.StatusBadRequest) {
@@ -199,69 +151,6 @@ func (aH *APIHandler) transformOTLP(w http.ResponseWriter, r *http.Request) {
 	aH.writeJSON(w, r, structuredRes)
 }
 
-func (aH *APIHandler) getOperations(w http.ResponseWriter, r *http.Request) {
-	service := r.URL.Query().Get(serviceParam)
-	if service == "" {
-		if aH.handleError(w, errServiceParameterRequired, http.StatusBadRequest) {
-			return
-		}
-	}
-	spanKind := r.URL.Query().Get(spanKindParam)
-	operations, err := aH.queryService.GetOperations(
-		r.Context(),
-		tracestore.OperationQueryParams{ServiceName: service, SpanKind: spanKind},
-	)
-
-	if aH.handleError(w, err, http.StatusInternalServerError) {
-		return
-	}
-	data := make([]ui.Operation, len(operations))
-	for i, operation := range operations {
-		data[i] = ui.Operation{
-			Name:     operation.Name,
-			SpanKind: operation.SpanKind,
-		}
-	}
-	structuredRes := structuredResponse{
-		Data:  data,
-		Total: len(operations),
-	}
-	aH.writeJSON(w, r, &structuredRes)
-}
-
-func (aH *APIHandler) search(w http.ResponseWriter, r *http.Request) {
-	tQuery, err := aH.queryParser.parseTraceQueryParams(r)
-	if aH.handleError(w, err, http.StatusBadRequest) {
-		return
-	}
-
-	var uiErrors []structuredError
-	var tracesFromStorage []*model.Trace
-	if len(tQuery.TraceIDs) > 0 {
-		tracesFromStorage, uiErrors, err = aH.tracesByIDs(
-			r.Context(),
-			tQuery,
-		)
-		if aH.handleError(w, err, http.StatusInternalServerError) {
-			return
-		}
-	} else {
-		// Convert to v2 query params and call v2 QueryService
-		queryParams := querysvc.TraceQueryParams{
-			TraceQueryParams: tQuery.TraceQueryParams,
-			RawTraces:        tQuery.RawTraces,
-		}
-		findTracesIter := aH.queryService.FindTraces(r.Context(), queryParams)
-		tracesFromStorage, err = v1adapter.V1TracesFromSeq2(findTracesIter)
-		if aH.handleError(w, err, http.StatusInternalServerError) {
-			return
-		}
-	}
-
-	structuredRes := aH.tracesToResponse(tracesFromStorage, uiErrors)
-	aH.writeJSON(w, r, structuredRes)
-}
-
 func (*APIHandler) tracesToResponse(traces []*model.Trace, uiErrors []structuredError) *structuredResponse {
 	uiTraces := make([]*ui.Trace, len(traces))
 	for i, v := range traces {
@@ -273,55 +162,6 @@ func (*APIHandler) tracesToResponse(traces []*model.Trace, uiErrors []structured
 		Data:   uiTraces,
 		Errors: uiErrors,
 	}
-}
-
-func (aH *APIHandler) tracesByIDs(ctx context.Context, traceQuery *traceQueryParameters) ([]*model.Trace, []structuredError, error) {
-	var traceErrors []structuredError
-	retMe := make([]*model.Trace, 0, len(traceQuery.TraceIDs))
-	if len(traceQuery.TraceIDs) == 0 {
-		return nil, nil, nil
-	}
-
-	ids := make([]tracestore.GetTraceParams, len(traceQuery.TraceIDs))
-	requestedIDs := make(map[pcommon.TraceID]model.TraceID)
-	for i, traceID := range traceQuery.TraceIDs {
-		v2ID := v1adapter.FromV1TraceID(traceID)
-		ids[i] = tracestore.GetTraceParams{
-			TraceID: v2ID,
-			Start:   traceQuery.StartTimeMin,
-			End:     traceQuery.StartTimeMax,
-		}
-		requestedIDs[v2ID] = traceID
-	}
-
-	query := querysvc.GetTraceParams{
-		TraceIDs:  ids,
-		RawTraces: traceQuery.RawTraces,
-	}
-
-	getTracesIter := aH.queryService.GetTraces(ctx, query)
-	traces, err := v1adapter.V1TracesFromSeq2(getTracesIter)
-	if err != nil {
-		return nil, nil, err
-	}
-
-	foundIDs := make(map[pcommon.TraceID]struct{})
-	for _, tr := range traces {
-		if len(tr.Spans) > 0 {
-			retMe = append(retMe, tr)
-			foundIDs[v1adapter.FromV1TraceID(tr.Spans[0].TraceID)] = struct{}{}
-		}
-	}
-
-	for v2ID, v1ID := range requestedIDs {
-		if _, ok := foundIDs[v2ID]; !ok {
-			traceErrors = append(traceErrors, structuredError{
-				Msg:     spanstore.ErrTraceNotFound.Error(),
-				TraceID: ui.TraceID(v1ID.String()),
-			})
-		}
-	}
-	return retMe, traceErrors, nil
 }
 
 func (aH *APIHandler) dependencies(w http.ResponseWriter, r *http.Request) {

@@ -95,7 +95,7 @@ func TestSearchTracesHandler_Handle_FullWorkflow(t *testing.T) {
 		findTraceSummariesFunc: func(_ context.Context, query querysvc.TraceQueryParams) iter.Seq2[[]tracestore.TraceSummary, error] {
 			assert.Equal(t, "cart-service", query.ServiceName)
 			assert.Equal(t, "/get-cart", query.OperationName)
-			assert.Equal(t, 10, query.SearchDepth)
+			assert.EqualValues(t, 10, query.SearchDepth)
 			return func(yield func([]tracestore.TraceSummary, error) bool) {
 				yield([]tracestore.TraceSummary{want}, nil)
 			}
@@ -266,7 +266,7 @@ func TestSearchTracesHandler_Handle_SearchDepthDefault(t *testing.T) {
 
 	mock := &mockQueryService{
 		findTraceSummariesFunc: func(_ context.Context, query querysvc.TraceQueryParams) iter.Seq2[[]tracestore.TraceSummary, error] {
-			assert.Equal(t, 10, query.SearchDepth)
+			assert.EqualValues(t, 10, query.SearchDepth)
 			return func(yield func([]tracestore.TraceSummary, error) bool) {
 				yield([]tracestore.TraceSummary{want}, nil)
 			}
@@ -290,7 +290,7 @@ func TestSearchTracesHandler_Handle_SearchDepthMax(t *testing.T) {
 
 	mock := &mockQueryService{
 		findTraceSummariesFunc: func(_ context.Context, query querysvc.TraceQueryParams) iter.Seq2[[]tracestore.TraceSummary, error] {
-			assert.Equal(t, 100, query.SearchDepth)
+			assert.EqualValues(t, 100, query.SearchDepth)
 			return func(yield func([]tracestore.TraceSummary, error) bool) {
 				yield([]tracestore.TraceSummary{want}, nil)
 			}
@@ -303,6 +303,31 @@ func TestSearchTracesHandler_Handle_SearchDepthMax(t *testing.T) {
 		StartTimeMin: "-1h",
 		ServiceName:  "test",
 		SearchDepth:  200, // capped at maxResults=100
+	}
+
+	_, _, err := handler.handle(context.Background(), &mcp.CallToolRequest{}, input)
+	require.NoError(t, err)
+}
+
+func TestSearchTracesHandler_Handle_SearchDepthUnlimitedMaxResults(t *testing.T) {
+	want := makeTraceSummary("test", "/test", false)
+
+	mock := &mockQueryService{
+		findTraceSummariesFunc: func(_ context.Context, query querysvc.TraceQueryParams) iter.Seq2[[]tracestore.TraceSummary, error] {
+			assert.EqualValues(t, 25, query.SearchDepth)
+			return func(yield func([]tracestore.TraceSummary, error) bool) {
+				yield([]tracestore.TraceSummary{want}, nil)
+			}
+		},
+	}
+
+	// maxResults == 0 means "no global cap", so an explicit search_depth must be preserved.
+	handler := &searchTracesHandler{queryService: mock, maxResults: 0}
+
+	input := types.SearchTracesInput{
+		StartTimeMin: "-1h",
+		ServiceName:  "test",
+		SearchDepth:  25,
 	}
 
 	_, _, err := handler.handle(context.Background(), &mcp.CallToolRequest{}, input)
@@ -372,17 +397,55 @@ func TestSearchTracesHandler_Handle_PartialResults(t *testing.T) {
 	assert.Contains(t, output.Error, "temporary failure")
 }
 
-func TestSearchTracesHandler_Handle_MissingServiceName(t *testing.T) {
-	handler := NewSearchTracesHandler(nil, 100)
-
-	input := types.SearchTracesInput{
-		StartTimeMin: "-1h",
+// TestSearchTracesHandler_Handle_NoServiceName covers the cross-service search an agent can
+// now ask for: the tool forwards a query with no service name instead of refusing it, so an
+// agent asked for "HTTP 500s in the last 10 minutes" makes one call rather than fanning out
+// over get_services (RFC 0013).
+func TestSearchTracesHandler_Handle_NoServiceName(t *testing.T) {
+	var gotQuery querysvc.TraceQueryParams
+	mock := &mockQueryService{
+		findTraceSummariesFunc: func(_ context.Context, query querysvc.TraceQueryParams) iter.Seq2[[]tracestore.TraceSummary, error] {
+			gotQuery = query
+			return func(yield func([]tracestore.TraceSummary, error) bool) {
+				yield([]tracestore.TraceSummary{{RootServiceName: "svc-a"}}, nil)
+			}
+		},
 	}
+	handler := &searchTracesHandler{queryService: mock, maxResults: 100}
 
-	_, _, err := handler(context.Background(), &mcp.CallToolRequest{}, input)
+	_, output, err := handler.handle(context.Background(), &mcp.CallToolRequest{}, types.SearchTracesInput{
+		StartTimeMin: "-1h",
+		Attributes:   map[string]string{"http.status_code": "500"},
+	})
 
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "service_name is required")
+	require.NoError(t, err)
+	assert.Empty(t, gotQuery.ServiceName, "the empty service name must reach the query service")
+	assert.Len(t, output.Traces, 1)
+	assert.Empty(t, output.Error)
+}
+
+// TestSearchTracesHandler_Handle_ServiceNameRequiredByBackend covers the other side: the
+// query service refuses the query for a backend that cannot serve it, and the agent is told
+// why rather than being handed an empty result set described as partial.
+func TestSearchTracesHandler_Handle_ServiceNameRequiredByBackend(t *testing.T) {
+	mock := &mockQueryService{
+		findTraceSummariesFunc: func(_ context.Context, _ querysvc.TraceQueryParams) iter.Seq2[[]tracestore.TraceSummary, error] {
+			return func(yield func([]tracestore.TraceSummary, error) bool) {
+				yield(nil, querysvc.ErrServiceNameRequired)
+			}
+		},
+	}
+	handler := &searchTracesHandler{queryService: mock, maxResults: 100}
+
+	_, output, err := handler.handle(context.Background(), &mcp.CallToolRequest{}, types.SearchTracesInput{
+		StartTimeMin: "-1h",
+	})
+
+	require.NoError(t, err)
+	assert.Empty(t, output.Traces)
+	assert.Contains(t, output.Error, "requires a service name")
+	assert.NotContains(t, output.Error, "partial results",
+		"nothing was returned, so the agent must not be told results were partial")
 }
 
 func TestSearchTracesHandler_Handle_InvalidTimeFormat(t *testing.T) {
@@ -444,35 +507,77 @@ func TestSearchTracesHandler_Handle_InvalidDurationMax(t *testing.T) {
 	assert.Contains(t, err.Error(), "invalid duration_max")
 }
 
-func TestSearchTracesHandler_Handle_StartTimeMaxBeforeMin(t *testing.T) {
-	handler := NewSearchTracesHandler(nil, 100)
-
-	input := types.SearchTracesInput{
-		StartTimeMin: "-1h",
-		StartTimeMax: "-2h",
-		ServiceName:  "test",
+// TestSearchTracesHandler_Handle_EnvelopeRefusedByQueryService covers the checks this tool no
+// longer makes itself: an inverted time range and a negative or inverted duration bound are the
+// query service's to refuse, and its refusal is what the agent reads. Nothing is returned, so
+// the answer names the refusal rather than calling the results partial.
+func TestSearchTracesHandler_Handle_EnvelopeRefusedByQueryService(t *testing.T) {
+	tests := []struct {
+		name    string
+		input   types.SearchTracesInput
+		wantErr string
+	}{
+		{
+			name:    "start_time_max before start_time_min",
+			input:   types.SearchTracesInput{StartTimeMin: "-1h", StartTimeMax: "-2h", ServiceName: "test"},
+			wantErr: "min start time must be before max start time",
+		},
+		{
+			name:    "duration_max less than duration_min",
+			input:   types.SearchTracesInput{StartTimeMin: "-1h", ServiceName: "test", DurationMin: "10s", DurationMax: "5s"},
+			wantErr: "max duration cannot be less than min duration",
+		},
+		{
+			name:    "negative duration_min",
+			input:   types.SearchTracesInput{StartTimeMin: "-1h", ServiceName: "test", DurationMin: "-5s"},
+			wantErr: "cannot be negative",
+		},
+		{
+			name:    "negative duration_max",
+			input:   types.SearchTracesInput{StartTimeMin: "-1h", ServiceName: "test", DurationMax: "-10s"},
+			wantErr: "cannot be negative",
+		},
 	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			store, err := memory.NewStore(memory.Configuration{MaxTraces: 10})
+			require.NoError(t, err)
+			handler := &searchTracesHandler{
+				queryService: querysvc.NewQueryService(store, store, querysvc.QueryServiceOptions{}),
+				maxResults:   100,
+			}
 
-	_, _, err := handler(context.Background(), &mcp.CallToolRequest{}, input)
+			_, output, err := handler.handle(context.Background(), &mcp.CallToolRequest{}, tt.input)
 
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "start_time_max must be after start_time_min")
+			require.NoError(t, err)
+			assert.Empty(t, output.Traces)
+			assert.Contains(t, output.Error, tt.wantErr)
+			assert.NotContains(t, output.Error, "partial results")
+		})
+	}
 }
 
-func TestSearchTracesHandler_Handle_DurationMaxLessThanMin(t *testing.T) {
-	handler := NewSearchTracesHandler(nil, 100)
+// TestSearchTracesHandler_Handle_ZeroDurationValid covers the boundary the negative check
+// must not overreach: a zero duration is a valid "no lower/upper bound" sentinel elsewhere
+// in this handler (see the durationMin > 0 && durationMax > 0 guard below), so it must still
+// reach the query service rather than being rejected as negative.
+func TestSearchTracesHandler_Handle_ZeroDurationValid(t *testing.T) {
+	want := makeTraceSummary("test", "/test", false)
+	mock := newMockFindTraceSummaries(want)
+
+	handler := &searchTracesHandler{queryService: mock, maxResults: 100}
 
 	input := types.SearchTracesInput{
 		StartTimeMin: "-1h",
 		ServiceName:  "test",
-		DurationMin:  "10s",
-		DurationMax:  "5s",
+		DurationMin:  "0s",
+		DurationMax:  "10s",
 	}
 
-	_, _, err := handler(context.Background(), &mcp.CallToolRequest{}, input)
+	_, output, err := handler.handle(context.Background(), &mcp.CallToolRequest{}, input)
 
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "duration_max must be greater than duration_min")
+	require.NoError(t, err)
+	require.Len(t, output.Traces, 1)
 }
 
 func TestParseTimeParam(t *testing.T) {

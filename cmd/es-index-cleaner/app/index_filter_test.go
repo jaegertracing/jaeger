@@ -361,3 +361,33 @@ func runIndexFilterTest(t *testing.T, prefix string) {
 		})
 	}
 }
+
+// Elasticsearch allows '.', '+', '(' and ')' in index names, and the prefix is
+// interpolated into a regular expression, so a prefix carrying any of them
+// must still match only its own indices.
+func TestIndexFilterWithRegexMetaPrefix(t *testing.T) {
+	runIndexFilterTest(t, "v1.0+(eu)-")
+}
+
+// A prefix that is not a valid regular expression on its own must not crash
+// the cleaner; it must match its own indices like any other prefix.
+func TestIndexFilterWithUnbalancedPrefix(t *testing.T) {
+	filter := &IndexFilter{
+		IndexPrefix:          "team(a-",
+		IndexDateSeparator:   "-",
+		DeleteBeforeThisDate: time.Date(2020, time.August, 7, 0, 0, 0, 0, time.UTC),
+	}
+	indices := []esclient.Index{
+		{
+			Index:        "team(a-jaeger-span-2020-08-05",
+			CreationTime: time.Date(2020, time.August, 5, 15, 0, 0, 0, time.UTC),
+			Aliases:      map[string]bool{},
+		},
+		{
+			Index:        "other-jaeger-span-2020-08-05",
+			CreationTime: time.Date(2020, time.August, 5, 15, 0, 0, 0, time.UTC),
+			Aliases:      map[string]bool{},
+		},
+	}
+	assert.Equal(t, indices[:1], filter.Filter(indices))
+}

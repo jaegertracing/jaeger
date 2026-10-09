@@ -239,7 +239,7 @@ func Test_ErrorCases(t *testing.T) {
 			wantErr: "invalid parameters",
 		},
 		{
-			name: "nil step params",
+			name: "nil lookback params",
 			params: metricstore.BaseQueryParameters{
 				EndTime: &endTime,
 			},
@@ -260,6 +260,21 @@ func Test_ErrorCases(t *testing.T) {
 			helperAssertError(t, err, tc.wantErr, errorMetricFamily)
 		})
 	}
+}
+
+func TestRateQueriesRequireRatePer(t *testing.T) {
+	endTime := time.UnixMilli(0)
+	lookback := time.Hour
+	params := metricstore.BaseQueryParameters{
+		EndTime:  &endTime,
+		Lookback: &lookback,
+	}
+	reader := MetricsReader{}
+
+	callRateMetricFamily, err := reader.GetCallRates(context.Background(), &metricstore.CallRateQueryParameters{BaseQueryParameters: params})
+	helperAssertError(t, err, "invalid parameters", callRateMetricFamily)
+	errorMetricFamily, err := reader.GetErrorRates(context.Background(), &metricstore.ErrorRateQueryParameters{BaseQueryParameters: params})
+	helperAssertError(t, err, "invalid parameters", errorMetricFamily)
 }
 
 func helperAssertError(t *testing.T, err error, wantErr string, result *metrics.MetricFamily) {
@@ -1095,9 +1110,13 @@ func setupMetricsReaderFromServer(t *testing.T, mockServer *httptest.Server) (*M
 	cfg := config.Configuration{
 		Servers:  []string{mockServer.URL},
 		LogLevel: "debug",
-		Tags: config.TagsAsFields{
-			Include:        "span.kind,error",
-			DotReplacement: "@",
+		Indices: config.Indices{
+			Spans: config.SpanIndexOptions{
+				Tags: config.TagsAsFields{
+					Include:        "span.kind,error",
+					DotReplacement: "@",
+				},
+			},
 		},
 	}
 
@@ -1144,7 +1163,13 @@ func metricsSnapshotConfig(url string, version es.BackendVersion) config.Configu
 		Servers:  []string{url},
 		Version:  uint(version),
 		LogLevel: "info",
-		Tags:     config.TagsAsFields{DotReplacement: "@"},
+		Indices: config.Indices{
+			Spans: config.SpanIndexOptions{
+				Tags: config.TagsAsFields{
+					DotReplacement: "@",
+				},
+			},
+		},
 	}
 }
 

@@ -262,20 +262,79 @@ func (_m *Reader) EXPECT() *Reader_Expecter {
 	return &Reader_Expecter{mock: &_m.Mock}
 }
 
+// FindSpans provides a mock function for the type Reader
+func (_mock *Reader) FindSpans(ctx context.Context, query tracestore.SpanQueryParams) iter.Seq2[tracestore.PageChunk[ptrace.Traces], error] {
+	ret := _mock.Called(ctx, query)
+
+	if len(ret) == 0 {
+		panic("no return value specified for FindSpans")
+	}
+
+	var r0 iter.Seq2[tracestore.PageChunk[ptrace.Traces], error]
+	if returnFunc, ok := ret.Get(0).(func(context.Context, tracestore.SpanQueryParams) iter.Seq2[tracestore.PageChunk[ptrace.Traces], error]); ok {
+		r0 = returnFunc(ctx, query)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).(iter.Seq2[tracestore.PageChunk[ptrace.Traces], error])
+		}
+	}
+	return r0
+}
+
+// Reader_FindSpans_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'FindSpans'
+type Reader_FindSpans_Call struct {
+	*mock.Call
+}
+
+// FindSpans is a helper method to define mock.On call
+//   - ctx context.Context
+//   - query tracestore.SpanQueryParams
+func (_e *Reader_Expecter) FindSpans(ctx interface{}, query interface{}) *Reader_FindSpans_Call {
+	return &Reader_FindSpans_Call{Call: _e.mock.On("FindSpans", ctx, query)}
+}
+
+func (_c *Reader_FindSpans_Call) Run(run func(ctx context.Context, query tracestore.SpanQueryParams)) *Reader_FindSpans_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		var arg0 context.Context
+		if args[0] != nil {
+			arg0 = args[0].(context.Context)
+		}
+		var arg1 tracestore.SpanQueryParams
+		if args[1] != nil {
+			arg1 = args[1].(tracestore.SpanQueryParams)
+		}
+		run(
+			arg0,
+			arg1,
+		)
+	})
+	return _c
+}
+
+func (_c *Reader_FindSpans_Call) Return(seq2 iter.Seq2[tracestore.PageChunk[ptrace.Traces], error]) *Reader_FindSpans_Call {
+	_c.Call.Return(seq2)
+	return _c
+}
+
+func (_c *Reader_FindSpans_Call) RunAndReturn(run func(ctx context.Context, query tracestore.SpanQueryParams) iter.Seq2[tracestore.PageChunk[ptrace.Traces], error]) *Reader_FindSpans_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // FindTraceIDs provides a mock function for the type Reader
-func (_mock *Reader) FindTraceIDs(ctx context.Context, query tracestore.TraceQueryParams) iter.Seq2[[]tracestore.FoundTraceID, error] {
+func (_mock *Reader) FindTraceIDs(ctx context.Context, query tracestore.TraceQueryParams) iter.Seq2[tracestore.PageChunk[[]tracestore.FoundTraceID], error] {
 	ret := _mock.Called(ctx, query)
 
 	if len(ret) == 0 {
 		panic("no return value specified for FindTraceIDs")
 	}
 
-	var r0 iter.Seq2[[]tracestore.FoundTraceID, error]
-	if returnFunc, ok := ret.Get(0).(func(context.Context, tracestore.TraceQueryParams) iter.Seq2[[]tracestore.FoundTraceID, error]); ok {
+	var r0 iter.Seq2[tracestore.PageChunk[[]tracestore.FoundTraceID], error]
+	if returnFunc, ok := ret.Get(0).(func(context.Context, tracestore.TraceQueryParams) iter.Seq2[tracestore.PageChunk[[]tracestore.FoundTraceID], error]); ok {
 		r0 = returnFunc(ctx, query)
 	} else {
 		if ret.Get(0) != nil {
-			r0 = ret.Get(0).(iter.Seq2[[]tracestore.FoundTraceID, error])
+			r0 = ret.Get(0).(iter.Seq2[tracestore.PageChunk[[]tracestore.FoundTraceID], error])
 		}
 	}
 	return r0
@@ -311,30 +370,30 @@ func (_c *Reader_FindTraceIDs_Call) Run(run func(ctx context.Context, query trac
 	return _c
 }
 
-func (_c *Reader_FindTraceIDs_Call) Return(seq2 iter.Seq2[[]tracestore.FoundTraceID, error]) *Reader_FindTraceIDs_Call {
+func (_c *Reader_FindTraceIDs_Call) Return(seq2 iter.Seq2[tracestore.PageChunk[[]tracestore.FoundTraceID], error]) *Reader_FindTraceIDs_Call {
 	_c.Call.Return(seq2)
 	return _c
 }
 
-func (_c *Reader_FindTraceIDs_Call) RunAndReturn(run func(ctx context.Context, query tracestore.TraceQueryParams) iter.Seq2[[]tracestore.FoundTraceID, error]) *Reader_FindTraceIDs_Call {
+func (_c *Reader_FindTraceIDs_Call) RunAndReturn(run func(ctx context.Context, query tracestore.TraceQueryParams) iter.Seq2[tracestore.PageChunk[[]tracestore.FoundTraceID], error]) *Reader_FindTraceIDs_Call {
 	_c.Call.Return(run)
 	return _c
 }
 
 // FindTraceSummaries provides a mock function for the type Reader
-func (_mock *Reader) FindTraceSummaries(ctx context.Context, query tracestore.TraceQueryParams) iter.Seq2[[]tracestore.TraceSummary, error] {
+func (_mock *Reader) FindTraceSummaries(ctx context.Context, query tracestore.TraceQueryParams) iter.Seq2[tracestore.PageChunk[[]tracestore.TraceSummary], error] {
 	ret := _mock.Called(ctx, query)
 
 	if len(ret) == 0 {
 		panic("no return value specified for FindTraceSummaries")
 	}
 
-	var r0 iter.Seq2[[]tracestore.TraceSummary, error]
-	if returnFunc, ok := ret.Get(0).(func(context.Context, tracestore.TraceQueryParams) iter.Seq2[[]tracestore.TraceSummary, error]); ok {
+	var r0 iter.Seq2[tracestore.PageChunk[[]tracestore.TraceSummary], error]
+	if returnFunc, ok := ret.Get(0).(func(context.Context, tracestore.TraceQueryParams) iter.Seq2[tracestore.PageChunk[[]tracestore.TraceSummary], error]); ok {
 		r0 = returnFunc(ctx, query)
 	} else {
 		if ret.Get(0) != nil {
-			r0 = ret.Get(0).(iter.Seq2[[]tracestore.TraceSummary, error])
+			r0 = ret.Get(0).(iter.Seq2[tracestore.PageChunk[[]tracestore.TraceSummary], error])
 		}
 	}
 	return r0
@@ -370,12 +429,12 @@ func (_c *Reader_FindTraceSummaries_Call) Run(run func(ctx context.Context, quer
 	return _c
 }
 
-func (_c *Reader_FindTraceSummaries_Call) Return(seq2 iter.Seq2[[]tracestore.TraceSummary, error]) *Reader_FindTraceSummaries_Call {
+func (_c *Reader_FindTraceSummaries_Call) Return(seq2 iter.Seq2[tracestore.PageChunk[[]tracestore.TraceSummary], error]) *Reader_FindTraceSummaries_Call {
 	_c.Call.Return(seq2)
 	return _c
 }
 
-func (_c *Reader_FindTraceSummaries_Call) RunAndReturn(run func(ctx context.Context, query tracestore.TraceQueryParams) iter.Seq2[[]tracestore.TraceSummary, error]) *Reader_FindTraceSummaries_Call {
+func (_c *Reader_FindTraceSummaries_Call) RunAndReturn(run func(ctx context.Context, query tracestore.TraceQueryParams) iter.Seq2[tracestore.PageChunk[[]tracestore.TraceSummary], error]) *Reader_FindTraceSummaries_Call {
 	_c.Call.Return(run)
 	return _c
 }
@@ -633,6 +692,66 @@ func (_c *Reader_GetTraces_Call) Return(seq2 iter.Seq2[[]ptrace.Traces, error]) 
 }
 
 func (_c *Reader_GetTraces_Call) RunAndReturn(run func(ctx context.Context, traceIDs ...tracestore.GetTraceParams) iter.Seq2[[]ptrace.Traces, error]) *Reader_GetTraces_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
+// SearchCapabilities provides a mock function for the type Reader
+func (_mock *Reader) SearchCapabilities(ctx context.Context) (tracestore.SearchCapabilities, error) {
+	ret := _mock.Called(ctx)
+
+	if len(ret) == 0 {
+		panic("no return value specified for SearchCapabilities")
+	}
+
+	var r0 tracestore.SearchCapabilities
+	var r1 error
+	if returnFunc, ok := ret.Get(0).(func(context.Context) (tracestore.SearchCapabilities, error)); ok {
+		return returnFunc(ctx)
+	}
+	if returnFunc, ok := ret.Get(0).(func(context.Context) tracestore.SearchCapabilities); ok {
+		r0 = returnFunc(ctx)
+	} else {
+		r0 = ret.Get(0).(tracestore.SearchCapabilities)
+	}
+	if returnFunc, ok := ret.Get(1).(func(context.Context) error); ok {
+		r1 = returnFunc(ctx)
+	} else {
+		r1 = ret.Error(1)
+	}
+	return r0, r1
+}
+
+// Reader_SearchCapabilities_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'SearchCapabilities'
+type Reader_SearchCapabilities_Call struct {
+	*mock.Call
+}
+
+// SearchCapabilities is a helper method to define mock.On call
+//   - ctx context.Context
+func (_e *Reader_Expecter) SearchCapabilities(ctx interface{}) *Reader_SearchCapabilities_Call {
+	return &Reader_SearchCapabilities_Call{Call: _e.mock.On("SearchCapabilities", ctx)}
+}
+
+func (_c *Reader_SearchCapabilities_Call) Run(run func(ctx context.Context)) *Reader_SearchCapabilities_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		var arg0 context.Context
+		if args[0] != nil {
+			arg0 = args[0].(context.Context)
+		}
+		run(
+			arg0,
+		)
+	})
+	return _c
+}
+
+func (_c *Reader_SearchCapabilities_Call) Return(searchCapabilities tracestore.SearchCapabilities, err error) *Reader_SearchCapabilities_Call {
+	_c.Call.Return(searchCapabilities, err)
+	return _c
+}
+
+func (_c *Reader_SearchCapabilities_Call) RunAndReturn(run func(ctx context.Context) (tracestore.SearchCapabilities, error)) *Reader_SearchCapabilities_Call {
 	_c.Call.Return(run)
 	return _c
 }

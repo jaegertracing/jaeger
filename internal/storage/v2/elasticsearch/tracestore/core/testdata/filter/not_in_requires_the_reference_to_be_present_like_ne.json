@@ -1,0 +1,25 @@
+{
+  "bool": {
+    "must": {
+      "exists": {
+        "field": "process.serviceName"
+      }
+    },
+    "must_not": {
+      "bool": {
+        "should": [
+          {
+            "term": {
+              "process.serviceName": "cart"
+            }
+          },
+          {
+            "term": {
+              "process.serviceName": "checkout"
+            }
+          }
+        ]
+      }
+    }
+  }
+}
