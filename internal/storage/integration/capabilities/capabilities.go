@@ -22,26 +22,13 @@ const (
 	// attributeComparisonTest asserts the outcome the deployment declares through
 	// AttributeComparison; a backend that evaluates no ordered comparison on an attribute skips it.
 	attributeComparisonTest = "an_ordered_comparison_on_an_attribute"
-	levelRefusedTest        = "a_level_the_backend_does_not_index_is_refused"
-	operatorRefusedTest     = "an_operator_the_backend_does_not_evaluate_is_refused"
 
-	// Filter cases using operators, fields, or levels a backend does not evaluate natively.
-	filterUnqualifiedEventTest = "an_unqualified_attribute_does_not_reach_the_event_level"
-	filterServiceInListTest    = "the_service_name_against_a_list_of_names"
-	filterOperationRegexTest   = "a_pattern_on_the_operation_name_matches_anywhere_in_it"
-	filterEventNameTest        = "the_name_of_one_of_the_span's_events"
-	filterDurationGtTest       = "a_duration_greater_than_a_bound"
-	filterDurationLteTest      = "a_duration_at_most_a_bound"
-	filterDurationRangeTest    = "a_duration_between_two_bounds"
-	filterAttributeNeTest      = "an_attribute_inequality_leaves_out_a_span_that_lacks_the_attribute"
-	filterAttributeExistsTest  = "an_attribute_exists"
-	filterAttributeRegexTest   = "a_pattern_on_an_attribute_value"
-	filterFieldDurationAndTest = "a_conjunction_of_a_built-in_field_and_a_duration"
-	filterScopeLevelTest       = "a_scope-level_attribute_matches_the_instrumentation_scope's_attributes_only"
-	filterLinkLevelTest        = "a_link-level_attribute_matches_an_attribute_of_one_of_the_span's_links"
-	filterSpanKindTest         = "the_span_kind"
-	filterSpanStatusTest       = "the_span_status"
-	filterStringTypedConstTest = "a_string-typed_constant_leaves_out_an_attribute_stored_as_a_number"
+	// Filter cases on built-in fields that a backend's lowering does not map, which the levels and
+	// operators of its FilterCapabilities are too coarse to say. A case on a level or an operator
+	// needs no entry here: the battery reads the declaration and expects a refusal instead.
+	filterEventNameTest  = "the_name_of_one_of_the_span's_events"
+	filterSpanKindTest   = "the_span_kind"
+	filterSpanStatusTest = "the_span_status"
 )
 
 // AttributeComparison is the outcome a deployment produces for an ordered comparison on an
@@ -70,19 +57,6 @@ const (
 	AttributeComparisonMissesOlderIndices
 )
 
-// filterOperatorTests are the battery cases that need ne, regex, exists or in, or an ordered
-// comparison on an attribute. A backend whose lowering evaluates equality on attributes and
-// compares only span.duration skips them as a set.
-var filterOperatorTests = []string{
-	filterUnqualifiedEventTest,
-	filterServiceInListTest,
-	filterOperationRegexTest,
-	filterAttributeNeTest,
-	filterAttributeExistsTest,
-	filterAttributeRegexTest,
-	attributeComparisonTest,
-}
-
 // Capabilities records what a storage backend *cannot* do in the integration suite. Every
 // field is an opt-out: the zero value runs the whole battery, and a backend lists only the
 // tests or behaviors it cannot satisfy. New fields must keep that polarity, so a backend
@@ -91,6 +65,15 @@ var filterOperatorTests = []string{
 // A value is an opt-out claim, exactly the opposite of the opt-in storage capability mechanism of
 // ADR-013. An e2e suite may claim more than its direct counterpart, because jaeger-query satisfies
 // tests the backend's own reader would fail.
+//
+// No double negatives. An opt-out excuses a backend from proving it can do something; it never
+// excuses a backend from proving it refuses something. A test that asserts a refusal must not be
+// skipped by the backends that evaluate the predicate instead, because then the capable backends
+// carry an opt-out from a negative assertion, which reads as a capability they lack. Such a test
+// derives its expectation from what the reader declares (FilterCapabilities) or from a typed
+// field here that names the outcome (AttributeComparison, traceStateRefused), and asserts the
+// declared outcome on every backend. The WithoutFilterRefusals family of opt-outs removed in
+// https://github.com/jaegertracing/jaeger/pull/9807 is the shape to refuse in review.
 type Capabilities struct {
 	// TODO: remove this after all storage backends return spanKind from GetOperations
 	getOperationsMissingSpanKind bool
@@ -201,38 +184,6 @@ func (c Capabilities) WithNumericAttributesEnabledAtUpgrade() Capabilities {
 	return c
 }
 
-// WithoutUnindexedLevelRefusal skips the refusal assertion for a filter naming an unindexed level.
-// Used for backends that index or evaluate all filter levels (such as memory).
-func (c Capabilities) WithoutUnindexedLevelRefusal() Capabilities {
-	c.skipList = append(append([]string(nil), c.skipList...), levelRefusedTest)
-	return c
-}
-
-// WithoutLevelRefusal is an alias for WithoutUnindexedLevelRefusal.
-func (c Capabilities) WithoutLevelRefusal() Capabilities {
-	return c.WithoutUnindexedLevelRefusal()
-}
-
-// WithoutUnevaluatedOperatorRefusal skips the refusal assertion for a filter using an unevaluated operator.
-// Used for backends that evaluate all filter operators (such as memory).
-func (c Capabilities) WithoutUnevaluatedOperatorRefusal() Capabilities {
-	c.skipList = append(append([]string(nil), c.skipList...), operatorRefusedTest)
-	return c
-}
-
-// WithoutOperatorRefusal is an alias for WithoutUnevaluatedOperatorRefusal.
-func (c Capabilities) WithoutOperatorRefusal() Capabilities {
-	return c.WithoutUnevaluatedOperatorRefusal()
-}
-
-// WithoutFilterRefusals skips both refusal assertions in the shared filter battery, the unindexed
-// level and the unevaluated operator. Used by backends that evaluate every level and operator
-// natively rather than refusing any.
-func (c Capabilities) WithoutFilterRefusals() Capabilities {
-	return c.WithoutUnindexedLevelRefusal().
-		WithoutUnevaluatedOperatorRefusal()
-}
-
 // Memory returns the capabilities for the in-process memory storage backend.
 func Memory() Capabilities {
 	return Capabilities{
@@ -241,7 +192,7 @@ func Memory() Capabilities {
 			summaryPaginationTest,
 			findTraceSummariesTest,
 		},
-	}.WithoutFilterRefusals()
+	}
 }
 
 // GRPC returns the capabilities for the gRPC remote storage backend.
@@ -254,7 +205,7 @@ func GRPC() Capabilities {
 			summaryPaginationTest,
 			findTraceSummariesTest,
 		},
-	}.WithoutFilterRefusals()
+	}
 }
 
 // Cassandra returns the capabilities for the Cassandra storage backend.
@@ -280,16 +231,15 @@ func Cassandra() Capabilities {
 }
 
 // clickHouseSkipList is what the ClickHouse reader does not satisfy in either mode.
-var clickHouseSkipList = append([]string{
+var clickHouseSkipList = []string{
 	spanOrderingTest,
 	paginationTest,
 	// The lowering maps five built-in fields; event.name has a column but is not among them yet.
 	filterEventNameTest,
-	// The reader indexes all five levels, so there is no level to refuse.
-	levelRefusedTest,
-	// The lowering evaluates and, or, not and eq, and compares only span.duration (RFC 0005 M3,
-	// first increment).
-}, filterOperatorTests...)
+	// The lowering declares the ordered comparisons but evaluates them on span.duration only, and
+	// refuses one on an attribute inside the lowering (RFC 0005 M3, first increment).
+	attributeComparisonTest,
+}
 
 // ClickHouse returns the capabilities for the ClickHouse storage backend read directly.
 func ClickHouse() Capabilities {
@@ -352,8 +302,6 @@ func Elasticsearch() Capabilities {
 			summaryPaginationTest,
 			scopeAttributesTest,
 			linkAttributesTest,
-			filterScopeLevelTest,
-			filterLinkLevelTest,
 			filterSpanKindTest,
 			filterSpanStatusTest,
 		},
@@ -396,8 +344,6 @@ func OpenSearch() Capabilities {
 			summaryPaginationTest,
 			scopeAttributesTest,
 			linkAttributesTest,
-			filterScopeLevelTest,
-			filterLinkLevelTest,
 			filterSpanKindTest,
 			filterSpanStatusTest,
 		},

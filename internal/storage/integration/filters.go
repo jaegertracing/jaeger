@@ -129,6 +129,13 @@ func filterTestCases(p builder.Predicate) []filterCase {
 			expected: []string{"cart_post"},
 		},
 		{
+			// `some` quantifies a predicate over the events of one span (RFC 0005 §5.5), so a
+			// backend that flattens events into the span's own fields cannot evaluate it.
+			caption:  "a predicate quantified over the span's events",
+			filter:   p.Some(p.Event(), p.Event().Name.Eq("exception")),
+			expected: []string{"cart_post"},
+		},
+		{
 			caption:  "an exact duration",
 			filter:   p.Span().Duration.Eq(40 * time.Millisecond),
 			expected: []string{"checkout"},
@@ -251,42 +258,28 @@ func (s *StorageIntegration) testFindTracesWithFilter(t *testing.T) {
 	// first filter goes straight to the reader, whose error says what is actually wrong.
 	s.requireFilterIsServed(t, filterQuery(t, scope, start, end))
 
+	// RFC 0005 §7 promises that a backend either evaluates a predicate or refuses it, and never
+	// answers a predicate it cannot evaluate with a wider result set. Which of the two a case
+	// expects follows from the levels and operators the reader declares (ADR-013): a declared
+	// predicate must return the traces the corpus holds for it, and an undeclared one must be
+	// refused. The expectation is derived from the declaration and not from the suite's
+	// Capabilities, so a reader that evaluates more than it declares fails the refusal, and one
+	// that declares more than it evaluates fails the search; neither direction passes vacuously.
+	declared := s.declaredFilterCapabilities(t)
 	for _, testCase := range filterTestCases(p) {
 		t.Run(testCase.caption, func(t *testing.T) {
 			s.skipIfNeeded(t)
-			expected := filterCorpusTraces(t, corpus, testCase.expected)
 			query := filterQuery(t, p.And(scope, testCase.filter), start, end)
+			if declared.EnsureSupported(testCase.filter) != nil {
+				_, err := jiter.CollectWithErrors(jptrace.AggregateTraces(
+					s.TraceReader.FindTraces(context.Background(), *query),
+				))
+				requireRefusal(t, err)
+				return
+			}
+			expected := filterCorpusTraces(t, corpus, testCase.expected)
 			actual := s.findTracesByQuery(t, query, expected)
 			CompareTraceSlices(t, expected, actual)
-		})
-	}
-
-	// RFC 0005 §7 promises that a backend either evaluates a predicate or refuses it, and never
-	// answers a predicate it cannot evaluate with a wider result set.
-	refusals := []struct {
-		caption string
-		filter  *expression.Call
-		names   string
-	}{
-		{
-			caption: "a level the backend does not index is refused",
-			filter:  p.Scope().Attr("library.tier").Eq("core"),
-			names:   "scope",
-		},
-		{
-			caption: "an operator the backend does not evaluate is refused",
-			filter:  p.Some(p.Event(), p.Event().Name.Eq("exception")),
-			names:   "some",
-		},
-	}
-	for _, refusal := range refusals {
-		t.Run(refusal.caption, func(t *testing.T) {
-			s.skipIfNeeded(t)
-			query := filterQuery(t, refusal.filter, start, end)
-			_, err := jiter.CollectWithErrors(jptrace.AggregateTraces(
-				s.TraceReader.FindTraces(context.Background(), *query),
-			))
-			requireRefusal(t, err, refusal.names)
 		})
 	}
 
@@ -302,7 +295,8 @@ func (s *StorageIntegration) testFindTracesWithFilter(t *testing.T) {
 			_, err := jiter.CollectWithErrors(jptrace.AggregateTraces(
 				s.TraceReader.FindTraces(context.Background(), *query),
 			))
-			requireRefusal(t, err, "traceState")
+			requireRefusal(t, err)
+			require.ErrorContains(t, err, "traceState")
 			return
 		}
 		expected := filterCorpusTraces(t, corpus, []string{"search"})
@@ -333,7 +327,8 @@ func (s *StorageIntegration) testFindTracesWithFilter(t *testing.T) {
 			_, err := jiter.CollectWithErrors(jptrace.AggregateTraces(
 				s.TraceReader.FindTraces(context.Background(), *query),
 			))
-			requireRefusal(t, err, "retry.count")
+			requireRefusal(t, err)
+			require.ErrorContains(t, err, "retry.count")
 		case capabilities.AttributeComparisonMissesOlderIndices:
 			// The reader ranges over the numeric sub-field, but the corpus was written into indices
 			// created before the mapping was turned on, so the range finds nothing there. RFC 0005
@@ -410,12 +405,23 @@ func (s *StorageIntegration) RunFilterRewriteTest(t *testing.T) {
 // failing in some other way or answering with a wider result set. The refusal's own sentinel does
 // not survive the gRPC hop the e2e suite reads through, but its family does: the api_v3 edge
 // answers it with Unimplemented, which the e2e reader restores to errors.ErrUnsupported (ADR-013).
-// The message is still checked for what was refused, because a refusal of the wrong thing would
-// pass the family check alone.
-func requireRefusal(t *testing.T, err error, names string) {
+// A case whose refusal the declaration does not predict checks the message as well for what was
+// refused, because a refusal of the wrong thing would pass the family check alone.
+func requireRefusal(t *testing.T, err error) {
 	t.Helper()
 	require.ErrorIs(t, err, errors.ErrUnsupported, "the search must be refused rather than answered with a wider result set")
-	require.ErrorContains(t, err, names)
+}
+
+// declaredFilterCapabilities is what the reader under test declares it evaluates of a filter. A
+// reader that declares nothing is held to refusing every level and operator.
+func (s *StorageIntegration) declaredFilterCapabilities(t *testing.T) tracestore.FilterCapabilities {
+	t.Helper()
+	caps, err := s.TraceReader.SearchCapabilities(context.Background())
+	require.NoError(t, err)
+	if caps.Filter == nil {
+		return tracestore.FilterCapabilities{}
+	}
+	return *caps.Filter
 }
 
 // filterQuery is a search whose only predicate is the filter. The filter is finalized here so a

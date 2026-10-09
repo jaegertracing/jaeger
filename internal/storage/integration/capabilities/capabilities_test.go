@@ -14,16 +14,11 @@ import (
 // optOuts is every exported method that adds to the skip list; TestOptOutsAreAllListed fails when
 // a new one is not added here.
 var optOuts = map[string]func(Capabilities) Capabilities{
-	"WithoutPagination":                 Capabilities.WithoutPagination,
-	"WithoutTraceIDPagination":          Capabilities.WithoutTraceIDPagination,
-	"WithoutSpanSearch":                 Capabilities.WithoutSpanSearch,
-	"WithoutSpanSorting":                Capabilities.WithoutSpanSorting,
-	"WithoutSpanAttributeOrdering":      Capabilities.WithoutSpanAttributeOrdering,
-	"WithoutUnindexedLevelRefusal":      Capabilities.WithoutUnindexedLevelRefusal,
-	"WithoutLevelRefusal":               Capabilities.WithoutLevelRefusal,
-	"WithoutUnevaluatedOperatorRefusal": Capabilities.WithoutUnevaluatedOperatorRefusal,
-	"WithoutOperatorRefusal":            Capabilities.WithoutOperatorRefusal,
-	"WithoutFilterRefusals":             Capabilities.WithoutFilterRefusals,
+	"WithoutPagination":            Capabilities.WithoutPagination,
+	"WithoutTraceIDPagination":     Capabilities.WithoutTraceIDPagination,
+	"WithoutSpanSearch":            Capabilities.WithoutSpanSearch,
+	"WithoutSpanSorting":           Capabilities.WithoutSpanSorting,
+	"WithoutSpanAttributeOrdering": Capabilities.WithoutSpanAttributeOrdering,
 }
 
 // outcomeModifiers is every exported method that sets a typed field instead of adding to the
