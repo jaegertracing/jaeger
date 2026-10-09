@@ -520,7 +520,7 @@ func TestTraceReader_FindTraceIDs(t *testing.T) {
 			},
 		},
 		{
-			name: "trace ID with less than 16 bytes",
+			name: "8-byte trace ID is placed in the low half",
 			testServer: &testServer{
 				traceIDs: []*storage.FoundTraceID{
 					{
@@ -533,14 +533,14 @@ func TestTraceReader_FindTraceIDs(t *testing.T) {
 			queryParams: queryParams,
 			expectedIDs: []tracestore.FoundTraceID{
 				{
-					TraceID: pcommon.TraceID([16]byte{1, 2, 3, 4, 5, 6, 7, 8}),
+					TraceID: pcommon.TraceID([16]byte{0, 0, 0, 0, 0, 0, 0, 0, 1, 2, 3, 4, 5, 6, 7, 8}),
 					Start:   now,
 					End:     now.Add(1 * time.Second),
 				},
 			},
 		},
 		{
-			name: "trace ID with more than 16 bytes",
+			name: "trace ID with an invalid length",
 			testServer: &testServer{
 				traceIDs: []*storage.FoundTraceID{
 					{
@@ -550,14 +550,8 @@ func TestTraceReader_FindTraceIDs(t *testing.T) {
 					},
 				},
 			},
-			queryParams: queryParams,
-			expectedIDs: []tracestore.FoundTraceID{
-				{
-					TraceID: pcommon.TraceID([16]byte{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16}),
-					Start:   now,
-					End:     now.Add(1 * time.Second),
-				},
-			},
+			queryParams:   queryParams,
+			expectedError: "invalid length for TraceID",
 		},
 		{
 			name: "error",
