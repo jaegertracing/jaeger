@@ -15,6 +15,10 @@ An example configuration for setting up a remote storage backend is available
 [here](../../../../cmd/jaeger/config-remote-storage.yaml).
 Note: In this example, the `TraceService` is configured to run on a different port (0.0.0.0:4316), which is overridden in the config file.
 
+### Multi-tenancy
+
+The gRPC storage client accepts an optional `multi_tenancy` block. When enabled, client interceptors copy the tenant from the request context into the configured header on outgoing RPCs. Enable this when the remote storage server enforces tenancy. See [Multi-tenancy in Jaeger v2](../../../../cmd/jaeger/docs/multi-tenancy.md).
+
 The integration tests also require a POST HTTP endpoint that can be called to purge the storage backend,
 ensuring a clean state before each test run.
 
