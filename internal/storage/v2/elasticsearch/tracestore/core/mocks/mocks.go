@@ -444,8 +444,8 @@ func (_c *Reader_GetServices_Call) RunAndReturn(run func(ctx context.Context) ([
 }
 
 // GetTraces provides a mock function for the type Reader
-func (_mock *Reader) GetTraces(ctx context.Context, query []dbmodel.TraceID) ([]dbmodel.Trace, error) {
-	ret := _mock.Called(ctx, query)
+func (_mock *Reader) GetTraces(ctx context.Context, query []dbmodel.TraceID, readAlias string) ([]dbmodel.Trace, error) {
+	ret := _mock.Called(ctx, query, readAlias)
 
 	if len(ret) == 0 {
 		panic("no return value specified for GetTraces")
@@ -453,18 +453,18 @@ func (_mock *Reader) GetTraces(ctx context.Context, query []dbmodel.TraceID) ([]
 
 	var r0 []dbmodel.Trace
 	var r1 error
-	if returnFunc, ok := ret.Get(0).(func(context.Context, []dbmodel.TraceID) ([]dbmodel.Trace, error)); ok {
-		return returnFunc(ctx, query)
+	if returnFunc, ok := ret.Get(0).(func(context.Context, []dbmodel.TraceID, string) ([]dbmodel.Trace, error)); ok {
+		return returnFunc(ctx, query, readAlias)
 	}
-	if returnFunc, ok := ret.Get(0).(func(context.Context, []dbmodel.TraceID) []dbmodel.Trace); ok {
-		r0 = returnFunc(ctx, query)
+	if returnFunc, ok := ret.Get(0).(func(context.Context, []dbmodel.TraceID, string) []dbmodel.Trace); ok {
+		r0 = returnFunc(ctx, query, readAlias)
 	} else {
 		if ret.Get(0) != nil {
 			r0 = ret.Get(0).([]dbmodel.Trace)
 		}
 	}
-	if returnFunc, ok := ret.Get(1).(func(context.Context, []dbmodel.TraceID) error); ok {
-		r1 = returnFunc(ctx, query)
+	if returnFunc, ok := ret.Get(1).(func(context.Context, []dbmodel.TraceID, string) error); ok {
+		r1 = returnFunc(ctx, query, readAlias)
 	} else {
 		r1 = ret.Error(1)
 	}
@@ -479,11 +479,12 @@ type Reader_GetTraces_Call struct {
 // GetTraces is a helper method to define mock.On call
 //   - ctx context.Context
 //   - query []dbmodel.TraceID
-func (_e *Reader_Expecter) GetTraces(ctx interface{}, query interface{}) *Reader_GetTraces_Call {
-	return &Reader_GetTraces_Call{Call: _e.mock.On("GetTraces", ctx, query)}
+//   - readAlias string
+func (_e *Reader_Expecter) GetTraces(ctx interface{}, query interface{}, readAlias interface{}) *Reader_GetTraces_Call {
+	return &Reader_GetTraces_Call{Call: _e.mock.On("GetTraces", ctx, query, readAlias)}
 }
 
-func (_c *Reader_GetTraces_Call) Run(run func(ctx context.Context, query []dbmodel.TraceID)) *Reader_GetTraces_Call {
+func (_c *Reader_GetTraces_Call) Run(run func(ctx context.Context, query []dbmodel.TraceID, readAlias string)) *Reader_GetTraces_Call {
 	_c.Call.Run(func(args mock.Arguments) {
 		var arg0 context.Context
 		if args[0] != nil {
@@ -493,9 +494,14 @@ func (_c *Reader_GetTraces_Call) Run(run func(ctx context.Context, query []dbmod
 		if args[1] != nil {
 			arg1 = args[1].([]dbmodel.TraceID)
 		}
+		var arg2 string
+		if args[2] != nil {
+			arg2 = args[2].(string)
+		}
 		run(
 			arg0,
 			arg1,
+			arg2,
 		)
 	})
 	return _c
@@ -506,7 +512,7 @@ func (_c *Reader_GetTraces_Call) Return(traces []dbmodel.Trace, err error) *Read
 	return _c
 }
 
-func (_c *Reader_GetTraces_Call) RunAndReturn(run func(ctx context.Context, query []dbmodel.TraceID) ([]dbmodel.Trace, error)) *Reader_GetTraces_Call {
+func (_c *Reader_GetTraces_Call) RunAndReturn(run func(ctx context.Context, query []dbmodel.TraceID, readAlias string) ([]dbmodel.Trace, error)) *Reader_GetTraces_Call {
 	_c.Call.Return(run)
 	return _c
 }
