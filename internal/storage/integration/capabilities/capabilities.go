@@ -191,8 +191,8 @@ func Memory() Capabilities {
 	return Capabilities{
 		skipList: []string{
 			spanAttributeOrderingTest,
-			// The store embeds UnsupportedTraceSummaries, so it neither computes summaries nor
-			// pages them; jaeger-query falls back to FindTraces for the e2e suite.
+			// The store does not support trace summaries; jaeger-query falls back to FindTraces for
+			// the e2e suite.
 			summaryPaginationTest,
 			findTraceSummariesTest,
 		},
@@ -224,8 +224,8 @@ func Cassandra() Capabilities {
 			// The v1 span model the reader converts through keeps no scope or link attributes.
 			scopeAttributesTest,
 			linkAttributesTest,
-			// The reader computes no trace summaries; jaeger-query falls back to FindTraces for
-			// the e2e suite.
+			// The reader does not support trace summaries; jaeger-query falls back to FindTraces
+			// for the e2e suite.
 			findTraceSummariesTest,
 			// The reader declares no filter levels or operators.
 			structuredFilterTest,
@@ -283,8 +283,8 @@ func Badger() Capabilities {
 			// The v1 span model the reader converts through keeps no scope or link attributes.
 			scopeAttributesTest,
 			linkAttributesTest,
-			// The reader computes no trace summaries; jaeger-query falls back to FindTraces for
-			// the e2e suite.
+			// The reader does not support trace summaries; jaeger-query falls back to FindTraces
+			// for the e2e suite.
 			findTraceSummariesTest,
 			// The reader declares no filter levels or operators.
 			structuredFilterTest,
