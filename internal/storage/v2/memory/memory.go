@@ -113,7 +113,10 @@ func (*Store) SearchCapabilities(context.Context) (tracestore.SearchCapabilities
 		// defines (see filter.go), so it declares the full vocabulary rather than a
 		// subset the way a real backend limited by its indexing would, less the
 		// operators it has not learned yet.
-		Filter: FilterCapabilities(),
+		Filter: &tracestore.FilterCapabilities{
+			Levels:    expression.Levels(),
+			Operators: supportedOperators(),
+		},
 		// FindSpans below evaluates the same filter engine as FindTraces, over
 		// every span in the store rather than per matched trace (RFC 0016).
 		SpanSearch:  true,
@@ -122,15 +125,6 @@ func (*Store) SearchCapabilities(context.Context) (tracestore.SearchCapabilities
 		// keyset cursor (pagination.go).
 		Paginated: true,
 	}, nil
-}
-
-// FilterCapabilities returns the in-memory reader's structured-filter declaration for
-// integration suites that reach the reader through the API v3 query service.
-func FilterCapabilities() *tracestore.FilterCapabilities {
-	return &tracestore.FilterCapabilities{
-		Levels:    expression.Levels(),
-		Operators: supportedOperators(),
-	}
 }
 
 // FindSpans returns every span in the store matching query, across however

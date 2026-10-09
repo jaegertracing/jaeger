@@ -5,7 +5,6 @@ package integration
 
 import (
 	"fmt"
-	"strings"
 	"testing"
 	"time"
 
@@ -37,10 +36,6 @@ func TestKafkaStorage(t *testing.T) {
 			}
 			uniqueTopic := fmt.Sprintf("jaeger-spans-%d", time.Now().UnixNano())
 			t.Logf("Using unique Kafka topic: %s", uniqueTopic)
-			caps := capabilities.Kafka()
-			if strings.HasPrefix(test.encoding, "otlp_") {
-				caps = caps.WithOTLPEncoding()
-			}
 
 			// Unlike the other storage tests where "collector" has access to the storage,
 			// here we have two distinct binaries, collector and ingester, and only the ingester
@@ -68,7 +63,7 @@ func TestKafkaStorage(t *testing.T) {
 				HealthCheckPort: 14133,
 				StorageIntegration: integration.StorageIntegration{
 					CleanUp:      purge,
-					Capabilities: caps,
+					Capabilities: capabilities.Kafka(),
 				},
 				EnvVarOverrides: envVarOverrides,
 			}
