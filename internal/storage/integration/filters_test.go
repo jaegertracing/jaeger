@@ -4,7 +4,6 @@
 package integration
 
 import (
-	"errors"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -32,7 +31,7 @@ func TestFilterCapabilities_DirectMode(t *testing.T) {
 	require.NoError(t, err)
 
 	s := &StorageIntegration{TraceReader: reader}
-	caps := s.filterCapabilities(t)
+	caps := s.declaredFilterCapabilities(t)
 
 	assert.False(t, caps.IsEmpty())
 	assert.True(t, caps.SupportsLevel(expression.LevelSpan))
@@ -55,7 +54,7 @@ func TestFilterCapabilities_E2EMode(t *testing.T) {
 	reader.EXPECT().SearchCapabilities(mock.Anything).Return(expectedCaps, nil).Once()
 
 	s := &StorageIntegration{TraceReader: reader}
-	caps := s.filterCapabilities(t)
+	caps := s.declaredFilterCapabilities(t)
 
 	assert.False(t, caps.IsEmpty())
 	assert.True(t, caps.SupportsLevel(expression.LevelSpan))
@@ -66,27 +65,15 @@ func TestFilterCapabilities_E2EMode(t *testing.T) {
 	assert.False(t, caps.SupportsOperator(expression.OpSome))
 }
 
-func TestFilterCapabilities_Errors(t *testing.T) {
-	t.Run("reader error", func(t *testing.T) {
-		reader := new(tracestoremocks.Reader)
-		reader.EXPECT().SearchCapabilities(mock.Anything).
-			Return(tracestore.SearchCapabilities{}, errors.New("reader unavailable")).Once()
-
-		s := &StorageIntegration{TraceReader: reader}
-		_, err := s.getFilterCapabilities(t.Context())
-		require.Error(t, err)
-		assert.Contains(t, err.Error(), "reader unavailable")
-	})
-
+func TestFilterCapabilities_NilOrEmptyFilter(t *testing.T) {
 	t.Run("nil filter", func(t *testing.T) {
 		reader := new(tracestoremocks.Reader)
 		reader.EXPECT().SearchCapabilities(mock.Anything).
 			Return(tracestore.SearchCapabilities{Filter: nil}, nil).Once()
 
 		s := &StorageIntegration{TraceReader: reader}
-		_, err := s.getFilterCapabilities(t.Context())
-		require.Error(t, err)
-		assert.Contains(t, err.Error(), "the filter battery needs the reader's filter capabilities")
+		caps := s.declaredFilterCapabilities(t)
+		assert.True(t, caps.IsEmpty())
 	})
 
 	t.Run("empty filter", func(t *testing.T) {
@@ -100,9 +87,8 @@ func TestFilterCapabilities_Errors(t *testing.T) {
 			}, nil).Once()
 
 		s := &StorageIntegration{TraceReader: reader}
-		_, err := s.getFilterCapabilities(t.Context())
-		require.Error(t, err)
-		assert.Contains(t, err.Error(), "the filter battery needs the reader's filter capabilities")
+		caps := s.declaredFilterCapabilities(t)
+		assert.True(t, caps.IsEmpty())
 	})
 }
 
@@ -110,10 +96,8 @@ func TestFilterCapabilities_BackendCompatibility(t *testing.T) {
 	t.Run("ClickHouse declarations", func(t *testing.T) {
 		caps := clickhouse.FilterCapabilities()
 		assert.False(t, caps.IsEmpty())
-		// ClickHouse declares all five levels including Scope, so scope refusal is skipped
 		assert.True(t, caps.SupportsLevel(expression.LevelScope))
 		assert.True(t, caps.SupportsLevel(expression.LevelSpan))
-		// ClickHouse does not declare Some, so some refusal runs
 		assert.False(t, caps.SupportsOperator(expression.OpSome))
 		assert.True(t, caps.SupportsOperator(expression.OpEq))
 	})
@@ -121,11 +105,9 @@ func TestFilterCapabilities_BackendCompatibility(t *testing.T) {
 	t.Run("Elasticsearch declarations", func(t *testing.T) {
 		caps := escore.FilterCapabilities()
 		assert.False(t, caps.IsEmpty())
-		// Elasticsearch declares Span, Resource, Event (not Scope or Link), so scope refusal runs
 		assert.False(t, caps.SupportsLevel(expression.LevelScope))
 		assert.False(t, caps.SupportsLevel(expression.LevelLink))
 		assert.True(t, caps.SupportsLevel(expression.LevelSpan))
-		// Elasticsearch does not declare Some, so some refusal runs
 		assert.False(t, caps.SupportsOperator(expression.OpSome))
 		assert.True(t, caps.SupportsOperator(expression.OpEq))
 	})

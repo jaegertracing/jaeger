@@ -3,8 +3,6 @@
 
 package capabilities
 
-import "slices"
-
 const (
 	scopeAttributesTest    = "Scope_Attributes"
 	linkAttributesTest     = "Link_Attributes"
@@ -21,65 +19,61 @@ const (
 	spanPaginationTest        = "Pagination/Spans"
 	summaryPaginationTest     = "Pagination/TraceSummaries"
 
-	// The battery has three cases for ordering an attribute, of which exactly one runs for any
-	// deployment: it is answered where the indices carry the typed-attribute mapping (RFC 0015),
-	// refused where the mapping is not configured, and answered with nothing where the mapping is
-	// configured but the indices were created before it. Elasticsearch and OpenSearch run the first
-	// by default, because the suites that run the battery configure the mapping;
-	// WithoutNumericAttributes and WithNumericAttributesNotYetIndexed pick one of the other two.
-	attributeOrderingTest  = "ordering_compares_a_numeric_attribute_as_a_number"
-	attributeRefusedTest   = "ordering_an_attribute_is_refused_where_it_is_indexed_as_text"
-	attributeUnindexedTest = "ordering_an_attribute_finds_nothing_in_indices_written_before_the_numeric_mapping"
-	fieldRefusedTest       = "a_built-in_field_the_backend_does_not_index_is_refused"
+	// attributeComparisonTest asserts the outcome the deployment declares through
+	// AttributeComparison; a backend that evaluates no ordered comparison on an attribute skips it.
+	attributeComparisonTest = "an_ordered_comparison_on_an_attribute"
 
-	// Filter cases using operators, fields, or levels a backend does not evaluate natively.
-	filterUnqualifiedEventTest = "an_unqualified_attribute_does_not_reach_the_event_level"
-	filterServiceInListTest    = "the_service_name_against_a_list_of_names"
-	filterOperationRegexTest   = "a_pattern_on_the_operation_name_matches_anywhere_in_it"
-	filterEventNameTest        = "the_name_of_one_of_the_span's_events"
-	filterDurationGtTest       = "a_duration_greater_than_a_bound"
-	filterDurationLteTest      = "a_duration_at_most_a_bound"
-	filterDurationRangeTest    = "a_duration_between_two_bounds"
-	filterAttributeNeTest      = "an_attribute_inequality_leaves_out_a_span_that_lacks_the_attribute"
-	filterAttributeExistsTest  = "an_attribute_exists"
-	filterAttributeRegexTest   = "a_pattern_on_an_attribute_value"
-	filterFieldDurationAndTest = "a_conjunction_of_a_built-in_field_and_a_duration"
-	filterScopeLevelTest       = "a_scope-level_attribute_matches_the_instrumentation_scope's_attributes_only"
-	filterLinkLevelTest        = "a_link-level_attribute_matches_an_attribute_of_one_of_the_span's_links"
-	filterSpanKindTest         = "the_span_kind"
-	filterSpanStatusTest       = "the_span_status"
-	filterStringTypedConstTest = "a_string-typed_constant_leaves_out_an_attribute_stored_as_a_number"
-	filterTraceStateTest       = "the_trace_state"
+	// Filter cases on built-in fields that a backend's lowering does not map, which the levels and
+	// operators of its FilterCapabilities are too coarse to say. A case on a level or an operator
+	// needs no entry here: the battery reads the declaration and expects a refusal instead.
+	filterEventNameTest  = "the_name_of_one_of_the_span's_events"
+	filterSpanKindTest   = "the_span_kind"
+	filterSpanStatusTest = "the_span_status"
 )
 
-// attributeOrderingTests are the three outcomes of ordering an attribute, of which one runs.
-var attributeOrderingTests = []string{attributeOrderingTest, attributeRefusedTest, attributeUnindexedTest}
-
-// filterOperatorTests are the battery cases that need ne, regex, exists or in, or that order an
-// attribute. A backend whose lowering evaluates equality on attributes and orders only
-// span.duration skips them as a set. Of the three attribute-ordering outcomes, attributeRefusedTest
-// is the one such a backend does satisfy in substance, but the case expects the refusal worded
-// the way Elasticsearch words it, so it is skipped with the other two.
-var filterOperatorTests = []string{
-	filterUnqualifiedEventTest,
-	filterServiceInListTest,
-	filterOperationRegexTest,
-	filterAttributeNeTest,
-	filterAttributeExistsTest,
-	filterAttributeRegexTest,
-	attributeOrderingTest,
-	attributeRefusedTest,
-	attributeUnindexedTest,
-}
-
-// Capabilities records what a storage backend *cannot* do in the integration suite. Every
-// field is an opt-out: the zero value runs the whole battery, and a backend lists only the
-// tests or behaviors it cannot satisfy. New fields must keep that polarity, so a backend
-// added later gets full coverage until someone deliberately excuses it from something.
+// AttributeComparison is the outcome a deployment produces for an ordered comparison on an
+// attribute, such as `span.retry.count > 10` (RFC 0005 §7). The operator and the level are both
+// declared, so the capability check admits the predicate, and the index mapping decides whether
+// the value is stored as a number. The zero value is the fully capable outcome, keeping the
+// polarity of Capabilities.
 //
-// A value is an opt-out claim, exactly the opposite of the opt-in storage capability mechanism of
-// ADR-013. An e2e suite may claim more than its direct counterpart, because jaeger-query satisfies
-// tests the backend's own reader would fail.
+// Elasticsearch and OpenSearch store a numeric sub-field beside the keyword only when
+// indices.spans.numeric_attributes is on (RFC 0015), and only in indices created after it was
+// turned on. A deployment is therefore in one of three states: the setting is on and the data
+// was written under it, the setting is off, or the setting was turned on at an upgrade and the
+// reader ranges over the numeric sub-field in indices that never got one. The backward
+// compatibility suites run the last two against an old binary that wrote the corpus.
+type AttributeComparison int
+
+const (
+	// AttributeComparisonNumeric declares that the value is indexed as a number, so the
+	// comparison is answered numerically.
+	AttributeComparisonNumeric AttributeComparison = iota
+	// AttributeComparisonRefused declares that the value is indexed as text, so the reader
+	// refuses the comparison rather than ranging over the keyword.
+	AttributeComparisonRefused
+	// AttributeComparisonMissesOlderIndices declares that the mapping was turned on after the
+	// data was written, so the comparison is evaluated and finds nothing in those indices.
+	AttributeComparisonMissesOlderIndices
+)
+
+// Capabilities records what a storage backend *cannot* do in the integration suite. Every field
+// is an opt-out: the zero value runs the whole battery, and a backend lists only the tests it
+// cannot pass. New fields must keep that polarity, so a backend added later gets full coverage
+// until someone deliberately excuses it from something. This is the opposite of the opt-in
+// storage capability mechanism of ADR-013, where a reader names what it can do. An e2e suite may
+// claim more than its direct counterpart, because jaeger-query satisfies tests the backend's own
+// reader would fail.
+//
+// No double negatives. An opt-out lets a backend skip a test that checks whether it can do
+// something. It must never let a backend skip a test that checks whether it refuses something,
+// because the backends that evaluate the predicate instead of refusing it would then carry an
+// opt-out from a negative assertion, which a reader would misread as a capability they lack. A
+// refusal test therefore takes its expected outcome from what the reader declares in
+// FilterCapabilities, or from a typed field on this struct that names the outcome
+// (AttributeComparison, traceStateRefused), and asserts that declared outcome on every backend.
+// The WithoutFilterRefusals opt-outs removed in https://github.com/jaegertracing/jaeger/pull/9807
+// are an example of the pattern this rule forbids.
 type Capabilities struct {
 	// TODO: remove this after all storage backends return spanKind from GetOperations
 	getOperationsMissingSpanKind bool
@@ -93,8 +87,27 @@ type Capabilities struct {
 	// page boundary (RFC 0016 §6.4): Elasticsearch and OpenSearch sort on _id only when
 	// span_search_tie_break_by_id is on.
 	pagingDropsTiedSpans bool
+	// attributeComparison is the outcome the filter battery expects for an ordered comparison on
+	// an attribute; the zero value expects the comparison answered numerically.
+	attributeComparison AttributeComparison
+	// traceStateRefused excuses a reader that does not index span.traceState and refuses a
+	// filter naming it (RFC 0005 §7). FilterCapabilities declares levels and operators, not
+	// built-in fields, so the deployment declares this one here.
+	traceStateRefused bool
 	// List of tests which to be skipped (exact name or substring)
 	skipList []string
+}
+
+// AttributeComparison returns the outcome the filter battery expects for an ordered comparison on
+// an attribute.
+func (c Capabilities) AttributeComparison() AttributeComparison {
+	return c.attributeComparison
+}
+
+// TraceStateRefused returns true if the reader refuses a filter on span.traceState rather than
+// evaluating it.
+func (c Capabilities) TraceStateRefused() bool {
+	return c.traceStateRefused
 }
 
 // PagingDropsTiedSpans returns true if a span search may skip documents that tie on every sort
@@ -156,65 +169,19 @@ func (c Capabilities) WithoutSpanAttributeOrdering() Capabilities {
 }
 
 // WithoutNumericAttributes declares a deployment that does not configure the typed-attribute
-// mapping (RFC 0015), so that ordering an attribute is refused rather than answered. A suite
+// mapping (RFC 0015), so that an ordered comparison on an attribute is refused rather than answered. A suite
 // that runs with indices.spans.numeric_attributes off uses it.
 func (c Capabilities) WithoutNumericAttributes() Capabilities {
-	return c.orderingOutcome(attributeRefusedTest)
-}
-
-// WithNumericAttributesNotYetIndexed declares a deployment that configures the typed-attribute
-// mapping over indices created before it was turned on, so that ordering an attribute is
-// evaluated and finds nothing (RFC 0005 §7). The backward-compatibility suite's enable-on-upgrade
-// scenario is that deployment.
-func (c Capabilities) WithNumericAttributesNotYetIndexed() Capabilities {
-	return c.orderingOutcome(attributeUnindexedTest)
-}
-
-// orderingOutcome makes the named attribute-ordering case the one that runs, skipping the other
-// two whatever the constructor chose.
-func (c Capabilities) orderingOutcome(runs string) Capabilities {
-	kept := make([]string, 0, len(c.skipList)+2)
-	for _, test := range c.skipList {
-		if !slices.Contains(attributeOrderingTests, test) {
-			kept = append(kept, test)
-		}
-	}
-	for _, test := range attributeOrderingTests {
-		if test != runs {
-			kept = append(kept, test)
-		}
-	}
-	c.skipList = kept
+	c.attributeComparison = AttributeComparisonRefused
 	return c
 }
 
-// WithoutTextAttributeOrderingRefusal skips the refusal assertion for numeric ordering on an attribute
-// that is indexed as text. Used for backends that compare numeric attributes natively (such as memory)
-// or whose indices have typed-attribute mapping enabled.
-func (c Capabilities) WithoutTextAttributeOrderingRefusal() Capabilities {
-	return c.orderingOutcome(attributeOrderingTest)
-}
-
-// WithoutAttributeRefusal is an alias for WithoutTextAttributeOrderingRefusal.
-func (c Capabilities) WithoutAttributeRefusal() Capabilities {
-	return c.WithoutTextAttributeOrderingRefusal()
-}
-
-// WithoutUnindexedFieldRefusal skips the refusal assertion for a filter naming a built-in field
-// the backend does not index (span.traceState). Used for backends that evaluate every built-in
-// field the filter AST defines (such as memory), which have nothing to refuse it for.
-func (c Capabilities) WithoutUnindexedFieldRefusal() Capabilities {
-	c.skipList = append(append([]string(nil), c.skipList...), fieldRefusedTest)
+// WithNumericAttributesEnabledAtUpgrade declares a deployment that turned the typed-attribute
+// mapping on at an upgrade, over indices written without it, so that an ordered comparison on an
+// attribute is evaluated and finds nothing (RFC 0005 §7).
+func (c Capabilities) WithNumericAttributesEnabledAtUpgrade() Capabilities {
+	c.attributeComparison = AttributeComparisonMissesOlderIndices
 	return c
-}
-
-// WithoutFilterRefusals skips the refusal assertions in the shared filter battery for limits
-// that filter capabilities do not declare: unindexed built-in fields and text-indexed attribute
-// ordering. Unindexed level and unevaluated operator refusals are derived dynamically from the
-// reader's declared filter capabilities.
-func (c Capabilities) WithoutFilterRefusals() Capabilities {
-	return c.WithoutUnindexedFieldRefusal().
-		WithoutTextAttributeOrderingRefusal()
 }
 
 // Memory returns the capabilities for the in-process memory storage backend.
@@ -222,23 +189,17 @@ func Memory() Capabilities {
 	return Capabilities{
 		skipList: []string{
 			spanAttributeOrderingTest,
+			// Trace summaries not supported; jaeger-query falls back to FindTraces for the e2e suite.
 			summaryPaginationTest,
 			findTraceSummariesTest,
 		},
-	}.WithoutFilterRefusals()
+	}
 }
 
-// GRPC returns the capabilities for the gRPC remote storage backend.
-// FindTraceSummaries is skipped because it depends on the backing store computing
-// summaries natively; the test backend (memory) does not yet.
+// GRPC returns the capabilities for the gRPC remote storage backend, whose server runs the memory
+// store, so the list is the memory store's.
 func GRPC() Capabilities {
-	return Capabilities{
-		skipList: []string{
-			spanAttributeOrderingTest,
-			summaryPaginationTest,
-			findTraceSummariesTest,
-		},
-	}.WithoutFilterRefusals()
+	return Memory()
 }
 
 // Cassandra returns the capabilities for the Cassandra storage backend.
@@ -247,45 +208,55 @@ func Cassandra() Capabilities {
 		searchRequiresServiceName:    true,
 		getDependenciesMissingSource: true,
 		skipList: []string{
+			// The reader implements neither FindSpans nor continuation tokens.
 			spanOrderingTest,
 			paginationTest,
+			// A search with a duration bound reads the duration_index table alone, which ignores
+			// the tag and operation predicates sent with it (ADR-001).
 			"Tags_+_Operation_name_+_Duration_range",
 			"Tags_+_Duration_range",
 			"Tags_+_Operation_name_+_max_Duration",
 			"Tags_+_max_Duration",
 			"Operation_name_+_max_Duration",
-			"Multiple_Traces",
+			// The reader goes through the v1 span model, which has no scope or link attributes.
 			scopeAttributesTest,
 			linkAttributesTest,
+			// Trace summaries not supported; jaeger-query falls back to FindTraces for the e2e suite.
 			findTraceSummariesTest,
+			// The reader declares no filter levels or operators.
 			structuredFilterTest,
 		},
 	}
 }
 
-// clickHouseSkipList is what the ClickHouse reader does not satisfy in either mode.
-var clickHouseSkipList = append([]string{
-	spanOrderingTest,
-	paginationTest,
-	// The lowering maps five built-in fields; event.name and span.traceState have columns
-	// but are not among them yet.
-	filterEventNameTest,
-	filterTraceStateTest,
-	// The lowering evaluates and, or, not and eq, and orders span.duration only (RFC 0005 M3,
-	// first increment).
-}, filterOperatorTests...)
+// clickHouseSkipList is what the ClickHouse reader does not satisfy in either mode. It returns a
+// fresh slice, so a caller may append to it.
+func clickHouseSkipList() []string {
+	return []string{
+		// The reader implements neither FindSpans nor continuation tokens.
+		spanOrderingTest,
+		paginationTest,
+		// The lowering maps five built-in fields; event.name has a column but is not among them yet.
+		filterEventNameTest,
+		// The lowering declares the ordered comparisons but evaluates them on span.duration only, and
+		// refuses one on an attribute inside the lowering (RFC 0005 M3, first increment).
+		attributeComparisonTest,
+	}
+}
 
 // ClickHouse returns the capabilities for the ClickHouse storage backend read directly.
 func ClickHouse() Capabilities {
 	return Capabilities{
-		skipList: append([]string{
-			// The ClickHouse reader does not support FindTraceSummaries. They are tested in
-			// the e2e suite because the query service falls back to FindTraces.
+		// The lowering has no mapping for span.traceState yet and refuses a filter naming it.
+		traceStateRefused: true,
+		skipList: append(
+			clickHouseSkipList(),
+			// Trace summaries not supported; jaeger-query falls back to FindTraces for the e2e suite.
 			findTraceSummariesTest,
 			// The direct suite has no sampling store for ClickHouse.
 			"GetThroughput",
 			"GetLatestProbability",
-		}, clickHouseSkipList...),
+		),
 	}
 }
 
@@ -293,7 +264,8 @@ func ClickHouse() Capabilities {
 // through jaeger-query.
 func ClickHouseE2E() Capabilities {
 	return Capabilities{
-		skipList: clickHouseSkipList,
+		traceStateRefused: true,
+		skipList:          clickHouseSkipList(),
 	}
 }
 
@@ -304,17 +276,22 @@ func Badger() Capabilities {
 		// TODO: remove this once Badger supports returning spanKind from GetOperations
 		getOperationsMissingSpanKind: true,
 		skipList: []string{
+			// The reader implements neither FindSpans nor continuation tokens.
 			spanOrderingTest,
 			paginationTest,
+			// The reader goes through the v1 span model, which has no scope or link attributes.
 			scopeAttributesTest,
 			linkAttributesTest,
+			// Trace summaries not supported; jaeger-query falls back to FindTraces for the e2e suite.
 			findTraceSummariesTest,
+			// The reader declares no filter levels or operators.
 			structuredFilterTest,
 		},
 	}
 }
 
-// Elasticsearch defines the capabilities for the Elasticsearch storage backend.
+// Elasticsearch defines the capabilities for the Elasticsearch storage backend. OpenSearch shares
+// its mapping and its lowering, so OpenSearch and ElasticsearchSmokeTest derive from it.
 func Elasticsearch() Capabilities {
 	return Capabilities{
 		// TODO: remove this flag after ES supports returning spanKind
@@ -323,67 +300,45 @@ func Elasticsearch() Capabilities {
 		// The direct-mode suite runs this set against OpenSearch as well, with the reader's
 		// default configuration, so the drop applies there too.
 		pagingDropsTiedSpans: true,
-		// The suite configures the typed-attribute mapping (RFC 0015), so an attribute value is
-		// indexed as a number beside the keyword and ordering one is answered; orderingOutcome
-		// skips the battery's other two ordering outcomes.
-		// FindSpans pages and orders by the built-in fields (RFC 0016 M4, M11), not yet by an attribute;
-		// the trace searches do not page yet (RFC 0014 M3).
+		// The span document has no field for the trace state, so a filter naming it is refused.
+		traceStateRefused: true,
 		skipList: []string{
+			// FindSpans orders by the built-in fields (RFC 0016 M4, M11), not yet by an attribute.
 			spanAttributeOrderingTest,
+			// The trace searches do not page yet (RFC 0014 M3).
 			traceIDPaginationTest,
 			summaryPaginationTest,
+			// The span document folds the scope's attributes into the span's tags and keeps a link
+			// as a reference without its attributes, so neither comes back as written.
 			scopeAttributesTest,
 			linkAttributesTest,
-			filterScopeLevelTest,
-			filterLinkLevelTest,
+			// The span document stores the kind and the status as tags, which the lowering does
+			// not map; the levels and operators of its FilterCapabilities are too coarse to say so.
 			filterSpanKindTest,
 			filterSpanStatusTest,
-			filterTraceStateTest,
-		},
-	}.orderingOutcome(attributeOrderingTest)
-}
-
-// ElasticsearchSmokeTest defines capabilities for lightweight rotation strategy
-// validation tests that skip expensive subtests (large traces, duplicates).
-func ElasticsearchSmokeTest() Capabilities {
-	return Capabilities{
-		getOperationsMissingSpanKind: true,
-		// The rotation configurations, for OpenSearch as well as Elasticsearch, leave
-		// span_search_tie_break_by_id at its default.
-		pagingDropsTiedSpans: true,
-		skipList: []string{
-			spanAttributeOrderingTest,
-			traceIDPaginationTest,
-			summaryPaginationTest,
-			scopeAttributesTest,
-			linkAttributesTest,
-			structuredFilterTest,
-			"GetLargeTrace",
-			"GetTraceWithDuplicateSpans",
 		},
 	}
 }
 
-// OpenSearch defines the capabilities for the OpenSearch storage backend.
+// ElasticsearchSmokeTest defines capabilities for the rotation strategy suites, which check that a
+// write lands in the rotated index and a read finds it there, and so leave out the filter battery
+// and the two slowest subtests.
+func ElasticsearchSmokeTest() Capabilities {
+	c := Elasticsearch()
+	c.skipList = append(c.skipList,
+		structuredFilterTest,
+		"GetLargeTrace",
+		"GetTraceWithDuplicateSpans",
+	)
+	return c
+}
+
+// OpenSearch defines the capabilities for the OpenSearch e2e suite, whose configuration turns
+// span_search_tie_break_by_id on, so paging keeps every tied occurrence.
 func OpenSearch() Capabilities {
-	return Capabilities{
-		getOperationsMissingSpanKind: true,
-		// Same mapping and same setting, and same search support as Elasticsearch; see the note there.
-		// The e2e configuration turns span_search_tie_break_by_id on, so paging keeps every tied
-		// occurrence and pagingDropsTiedSpans stays unset.
-		skipList: []string{
-			spanAttributeOrderingTest,
-			traceIDPaginationTest,
-			summaryPaginationTest,
-			scopeAttributesTest,
-			linkAttributesTest,
-			filterScopeLevelTest,
-			filterLinkLevelTest,
-			filterSpanKindTest,
-			filterSpanStatusTest,
-			filterTraceStateTest,
-		},
-	}.orderingOutcome(attributeOrderingTest)
+	c := Elasticsearch()
+	c.pagingDropsTiedSpans = false
+	return c
 }
 
 // Kafka defines the capabilities for the Kafka storage backend.
@@ -392,10 +347,13 @@ func Kafka() Capabilities {
 		searchRequiresServiceName:    true,
 		getDependenciesMissingSource: true,
 		skipList: []string{
-			spanOrderingTest,
+			spanAttributeOrderingTest,
+			// The jaeger_proto and jaeger_json encodings go through the v1 span model, which keeps
+			// no scope or link attributes, and the suite runs one list for all four encodings.
 			scopeAttributesTest,
 			linkAttributesTest,
-			findTraceSummariesTest,
+			// The ingester's configuration does not turn on the structured-filter feature gate of
+			// jaeger-query.
 			structuredFilterTest,
 		},
 	}
@@ -407,6 +365,8 @@ func E2EWithoutNativeFilters() Capabilities {
 	return Capabilities{
 		skipList: []string{
 			spanAttributeOrderingTest,
+			// jaeger-query rewrites a filter into the legacy predicate fields for such a backend,
+			// which the battery's cases cannot be expressed in.
 			structuredFilterTest,
 		},
 	}
