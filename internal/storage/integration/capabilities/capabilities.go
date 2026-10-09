@@ -290,34 +290,8 @@ func Badger() Capabilities {
 	}
 }
 
-// elasticsearchSkipList is what the Elasticsearch and OpenSearch readers do not satisfy in either
-// mode. The two share one mapping and one lowering. It returns a fresh slice, so a caller may
-// append to it.
-func elasticsearchSkipList() []string {
-	return []string{
-		// FindSpans orders by the built-in fields (RFC 0016 M4, M11), not yet by an attribute.
-		spanAttributeOrderingTest,
-		// The trace searches do not page yet (RFC 0014 M3).
-		traceIDPaginationTest,
-		summaryPaginationTest,
-		// The span document folds the scope's attributes into the span's tags and keeps a link as a
-		// reference without its attributes, so neither comes back as written.
-		scopeAttributesTest,
-		linkAttributesTest,
-	}
-}
-
-// elasticsearchFilterSkipList is what the Elasticsearch and OpenSearch lowering refuses among the
-// built-in fields, which the levels and operators of its FilterCapabilities are too coarse to say.
-func elasticsearchFilterSkipList() []string {
-	return []string{
-		// The span document stores the kind and the status as tags, which the lowering does not map.
-		filterSpanKindTest,
-		filterSpanStatusTest,
-	}
-}
-
-// Elasticsearch defines the capabilities for the Elasticsearch storage backend.
+// Elasticsearch defines the capabilities for the Elasticsearch storage backend. OpenSearch shares
+// its mapping and its lowering, so OpenSearch and ElasticsearchSmokeTest derive from it.
 func Elasticsearch() Capabilities {
 	return Capabilities{
 		// TODO: remove this flag after ES supports returning spanKind
@@ -328,46 +302,43 @@ func Elasticsearch() Capabilities {
 		pagingDropsTiedSpans: true,
 		// The span document has no field for the trace state, so a filter naming it is refused.
 		traceStateRefused: true,
-		skipList: append(
-			elasticsearchSkipList(),
-			elasticsearchFilterSkipList()...,
-		),
+		skipList: []string{
+			// FindSpans orders by the built-in fields (RFC 0016 M4, M11), not yet by an attribute.
+			spanAttributeOrderingTest,
+			// The trace searches do not page yet (RFC 0014 M3).
+			traceIDPaginationTest,
+			summaryPaginationTest,
+			// The span document folds the scope's attributes into the span's tags and keeps a link
+			// as a reference without its attributes, so neither comes back as written.
+			scopeAttributesTest,
+			linkAttributesTest,
+			// The span document stores the kind and the status as tags, which the lowering does
+			// not map; the levels and operators of its FilterCapabilities are too coarse to say so.
+			filterSpanKindTest,
+			filterSpanStatusTest,
+		},
 	}
 }
 
-// ElasticsearchSmokeTest defines capabilities for lightweight rotation strategy
-// validation tests that skip expensive subtests (large traces, duplicates).
+// ElasticsearchSmokeTest defines capabilities for the rotation strategy suites, which check that a
+// write lands in the rotated index and a read finds it there, and so leave out the filter battery
+// and the two slowest subtests.
 func ElasticsearchSmokeTest() Capabilities {
-	return Capabilities{
-		getOperationsMissingSpanKind: true,
-		// The rotation configurations, for OpenSearch as well as Elasticsearch, leave
-		// span_search_tie_break_by_id at its default.
-		pagingDropsTiedSpans: true,
-		traceStateRefused:    true,
-		skipList: append(
-			elasticsearchSkipList(),
-			// The rotation suites check that a write lands in the rotated index and a read finds
-			// it there, so the filter battery and the two slowest subtests are left out.
-			structuredFilterTest,
-			"GetLargeTrace",
-			"GetTraceWithDuplicateSpans",
-		),
-	}
+	c := Elasticsearch()
+	c.skipList = append(c.skipList,
+		structuredFilterTest,
+		"GetLargeTrace",
+		"GetTraceWithDuplicateSpans",
+	)
+	return c
 }
 
-// OpenSearch defines the capabilities for the OpenSearch storage backend.
+// OpenSearch defines the capabilities for the OpenSearch e2e suite, whose configuration turns
+// span_search_tie_break_by_id on, so paging keeps every tied occurrence.
 func OpenSearch() Capabilities {
-	return Capabilities{
-		getOperationsMissingSpanKind: true,
-		traceStateRefused:            true,
-		// Same mapping and same setting, and same search support as Elasticsearch; see the note there.
-		// The e2e configuration turns span_search_tie_break_by_id on, so paging keeps every tied
-		// occurrence and pagingDropsTiedSpans stays unset.
-		skipList: append(
-			elasticsearchSkipList(),
-			elasticsearchFilterSkipList()...,
-		),
-	}
+	c := Elasticsearch()
+	c.pagingDropsTiedSpans = false
+	return c
 }
 
 // Kafka defines the capabilities for the Kafka storage backend.
