@@ -144,4 +144,18 @@ func TestConfigSchemaValidation(t *testing.T) {
 	cfg.Schema.DependenciesTTL = time.Second - 1
 	err = cfg.Validate()
 	require.Error(t, err)
+
+	cfg.Schema.DependenciesTTL = time.Second
+	cfg.Schema.DependenciesTimeBucket = time.Second - 1
+	err = cfg.Validate()
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "dependencies_time_bucket")
+
+	cfg.Schema.DependenciesTimeBucket = 0
+	err = cfg.Validate()
+	require.NoError(t, err)
+
+	cfg.Schema.DependenciesTimeBucket = time.Hour
+	err = cfg.Validate()
+	require.NoError(t, err)
 }
