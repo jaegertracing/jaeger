@@ -61,6 +61,9 @@ func main() {
 			if err != nil {
 				return fmt.Errorf("could not parse NUM_OF_DAYS argument: %w", err)
 			}
+			if numOfDays < 0 {
+				return errors.New("NUM_OF_DAYS argument must be non-negative")
+			}
 
 			if err := cfg.InitFromViper(v); err != nil {
 				return fmt.Errorf("failed to initialize config: %w", err)
