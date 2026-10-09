@@ -108,9 +108,9 @@ linters:
           arguments:
             - 80
           disabled: true
-        # this should be enabled after fixing or disabling in a few packages
+        # storage/v1/api and storage/v2/api intentionally use package names that
+        # differ from the "api" directory; those are excluded via exclusions.rules below.
         - name: package-directory-mismatch
-          disabled: true
         # would be ok if we could exclude the test files, but otherwise too noisy
         - name: add-constant
           disabled: true
@@ -183,6 +183,12 @@ linters:
           - revive
         text: "unhandled-error"
         path: _test\.go
+      # storage/v1/api (package "storage") and storage/v2/api (package "storage_v2")
+      # intentionally keep package names that differ from the "api" directory.
+      - linters:
+          - revive
+        text: "package-directory-mismatch"
+        path: internal/storage/v(1|2)/api/
     paths:
       - .*.pb.go$
       - mocks
