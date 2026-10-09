@@ -189,23 +189,17 @@ func Memory() Capabilities {
 	return Capabilities{
 		skipList: []string{
 			spanAttributeOrderingTest,
+			// Trace summaries not supported; jaeger-query falls back to FindTraces for the e2e suite.
 			summaryPaginationTest,
 			findTraceSummariesTest,
 		},
 	}
 }
 
-// GRPC returns the capabilities for the gRPC remote storage backend.
-// FindTraceSummaries is skipped because it depends on the backing store computing
-// summaries natively; the test backend (memory) does not yet.
+// GRPC returns the capabilities for the gRPC remote storage backend, whose server runs the memory
+// store, so the list is the memory store's.
 func GRPC() Capabilities {
-	return Capabilities{
-		skipList: []string{
-			spanAttributeOrderingTest,
-			summaryPaginationTest,
-			findTraceSummariesTest,
-		},
-	}
+	return Memory()
 }
 
 // Cassandra returns the capabilities for the Cassandra storage backend.
@@ -214,31 +208,40 @@ func Cassandra() Capabilities {
 		searchRequiresServiceName:    true,
 		getDependenciesMissingSource: true,
 		skipList: []string{
+			// The reader implements neither FindSpans nor continuation tokens.
 			spanOrderingTest,
 			paginationTest,
+			// A search with a duration bound reads the duration_index table alone, which ignores
+			// the tag and operation predicates sent with it (ADR-001).
 			"Tags_+_Operation_name_+_Duration_range",
 			"Tags_+_Duration_range",
 			"Tags_+_Operation_name_+_max_Duration",
 			"Tags_+_max_Duration",
 			"Operation_name_+_max_Duration",
-			"Multiple_Traces",
+			// The reader goes through the v1 span model, which has no scope or link attributes.
 			scopeAttributesTest,
 			linkAttributesTest,
+			// Trace summaries not supported; jaeger-query falls back to FindTraces for the e2e suite.
 			findTraceSummariesTest,
+			// The reader declares no filter levels or operators.
 			structuredFilterTest,
 		},
 	}
 }
 
-// clickHouseSkipList is what the ClickHouse reader does not satisfy in either mode.
-var clickHouseSkipList = []string{
-	spanOrderingTest,
-	paginationTest,
-	// The lowering maps five built-in fields; event.name has a column but is not among them yet.
-	filterEventNameTest,
-	// The lowering declares the ordered comparisons but evaluates them on span.duration only, and
-	// refuses one on an attribute inside the lowering (RFC 0005 M3, first increment).
-	attributeComparisonTest,
+// clickHouseSkipList is what the ClickHouse reader does not satisfy in either mode. It returns a
+// fresh slice, so a caller may append to it.
+func clickHouseSkipList() []string {
+	return []string{
+		// The reader implements neither FindSpans nor continuation tokens.
+		spanOrderingTest,
+		paginationTest,
+		// The lowering maps five built-in fields; event.name has a column but is not among them yet.
+		filterEventNameTest,
+		// The lowering declares the ordered comparisons but evaluates them on span.duration only, and
+		// refuses one on an attribute inside the lowering (RFC 0005 M3, first increment).
+		attributeComparisonTest,
+	}
 }
 
 // ClickHouse returns the capabilities for the ClickHouse storage backend read directly.
@@ -246,14 +249,14 @@ func ClickHouse() Capabilities {
 	return Capabilities{
 		// The lowering has no mapping for span.traceState yet and refuses a filter naming it.
 		traceStateRefused: true,
-		skipList: append([]string{
-			// The ClickHouse reader does not support FindTraceSummaries. They are tested in
-			// the e2e suite because the query service falls back to FindTraces.
+		skipList: append(
+			clickHouseSkipList(),
+			// Trace summaries not supported; jaeger-query falls back to FindTraces for the e2e suite.
 			findTraceSummariesTest,
 			// The direct suite has no sampling store for ClickHouse.
 			"GetThroughput",
 			"GetLatestProbability",
-		}, clickHouseSkipList...),
+		),
 	}
 }
 
@@ -262,7 +265,7 @@ func ClickHouse() Capabilities {
 func ClickHouseE2E() Capabilities {
 	return Capabilities{
 		traceStateRefused: true,
-		skipList:          clickHouseSkipList,
+		skipList:          clickHouseSkipList(),
 	}
 }
 
@@ -273,17 +276,22 @@ func Badger() Capabilities {
 		// TODO: remove this once Badger supports returning spanKind from GetOperations
 		getOperationsMissingSpanKind: true,
 		skipList: []string{
+			// The reader implements neither FindSpans nor continuation tokens.
 			spanOrderingTest,
 			paginationTest,
+			// The reader goes through the v1 span model, which has no scope or link attributes.
 			scopeAttributesTest,
 			linkAttributesTest,
+			// Trace summaries not supported; jaeger-query falls back to FindTraces for the e2e suite.
 			findTraceSummariesTest,
+			// The reader declares no filter levels or operators.
 			structuredFilterTest,
 		},
 	}
 }
 
-// Elasticsearch defines the capabilities for the Elasticsearch storage backend.
+// Elasticsearch defines the capabilities for the Elasticsearch storage backend. OpenSearch shares
+// its mapping and its lowering, so OpenSearch and ElasticsearchSmokeTest derive from it.
 func Elasticsearch() Capabilities {
 	return Capabilities{
 		// TODO: remove this flag after ES supports returning spanKind
@@ -300,54 +308,37 @@ func Elasticsearch() Capabilities {
 			// The trace searches do not page yet (RFC 0014 M3).
 			traceIDPaginationTest,
 			summaryPaginationTest,
+			// The span document folds the scope's attributes into the span's tags and keeps a link
+			// as a reference without its attributes, so neither comes back as written.
 			scopeAttributesTest,
 			linkAttributesTest,
+			// The span document stores the kind and the status as tags, which the lowering does
+			// not map; the levels and operators of its FilterCapabilities are too coarse to say so.
 			filterSpanKindTest,
 			filterSpanStatusTest,
 		},
 	}
 }
 
-// ElasticsearchSmokeTest defines capabilities for lightweight rotation strategy
-// validation tests that skip expensive subtests (large traces, duplicates).
+// ElasticsearchSmokeTest defines capabilities for the rotation strategy suites, which check that a
+// write lands in the rotated index and a read finds it there, and so leave out the filter battery
+// and the two slowest subtests.
 func ElasticsearchSmokeTest() Capabilities {
-	return Capabilities{
-		getOperationsMissingSpanKind: true,
-		// The rotation configurations, for OpenSearch as well as Elasticsearch, leave
-		// span_search_tie_break_by_id at its default.
-		pagingDropsTiedSpans: true,
-		traceStateRefused:    true,
-		skipList: []string{
-			spanAttributeOrderingTest,
-			traceIDPaginationTest,
-			summaryPaginationTest,
-			scopeAttributesTest,
-			linkAttributesTest,
-			structuredFilterTest,
-			"GetLargeTrace",
-			"GetTraceWithDuplicateSpans",
-		},
-	}
+	c := Elasticsearch()
+	c.skipList = append(c.skipList,
+		structuredFilterTest,
+		"GetLargeTrace",
+		"GetTraceWithDuplicateSpans",
+	)
+	return c
 }
 
-// OpenSearch defines the capabilities for the OpenSearch storage backend.
+// OpenSearch defines the capabilities for the OpenSearch e2e suite, whose configuration turns
+// span_search_tie_break_by_id on, so paging keeps every tied occurrence.
 func OpenSearch() Capabilities {
-	return Capabilities{
-		getOperationsMissingSpanKind: true,
-		traceStateRefused:            true,
-		// Same mapping and same setting, and same search support as Elasticsearch; see the note there.
-		// The e2e configuration turns span_search_tie_break_by_id on, so paging keeps every tied
-		// occurrence and pagingDropsTiedSpans stays unset.
-		skipList: []string{
-			spanAttributeOrderingTest,
-			traceIDPaginationTest,
-			summaryPaginationTest,
-			scopeAttributesTest,
-			linkAttributesTest,
-			filterSpanKindTest,
-			filterSpanStatusTest,
-		},
-	}
+	c := Elasticsearch()
+	c.pagingDropsTiedSpans = false
+	return c
 }
 
 // Kafka defines the capabilities for the Kafka storage backend.
@@ -356,10 +347,13 @@ func Kafka() Capabilities {
 		searchRequiresServiceName:    true,
 		getDependenciesMissingSource: true,
 		skipList: []string{
-			spanOrderingTest,
+			spanAttributeOrderingTest,
+			// The jaeger_proto and jaeger_json encodings go through the v1 span model, which keeps
+			// no scope or link attributes, and the suite runs one list for all four encodings.
 			scopeAttributesTest,
 			linkAttributesTest,
-			findTraceSummariesTest,
+			// The ingester's configuration does not turn on the structured-filter feature gate of
+			// jaeger-query.
 			structuredFilterTest,
 		},
 	}
@@ -371,6 +365,8 @@ func E2EWithoutNativeFilters() Capabilities {
 	return Capabilities{
 		skipList: []string{
 			spanAttributeOrderingTest,
+			// jaeger-query rewrites a filter into the legacy predicate fields for such a backend,
+			// which the battery's cases cannot be expressed in.
 			structuredFilterTest,
 		},
 	}
