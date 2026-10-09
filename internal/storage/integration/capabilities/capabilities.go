@@ -3,8 +3,6 @@
 
 package capabilities
 
-import "slices"
-
 const (
 	scopeAttributesTest    = "Scope_Attributes"
 	linkAttributesTest     = "Link_Attributes"
@@ -290,25 +288,30 @@ func Badger() Capabilities {
 }
 
 // elasticsearchSkipList is what the Elasticsearch and OpenSearch readers do not satisfy in either
-// mode. The two share one mapping and one lowering.
-var elasticsearchSkipList = []string{
-	// FindSpans orders by the built-in fields (RFC 0016 M4, M11), not yet by an attribute.
-	spanAttributeOrderingTest,
-	// The trace searches do not page yet (RFC 0014 M3).
-	traceIDPaginationTest,
-	summaryPaginationTest,
-	// The span document folds the scope's attributes into the span's tags and keeps a link as a
-	// reference without its attributes, so neither comes back as written.
-	scopeAttributesTest,
-	linkAttributesTest,
+// mode. The two share one mapping and one lowering. It returns a fresh slice, so a caller may
+// append to it.
+func elasticsearchSkipList() []string {
+	return []string{
+		// FindSpans orders by the built-in fields (RFC 0016 M4, M11), not yet by an attribute.
+		spanAttributeOrderingTest,
+		// The trace searches do not page yet (RFC 0014 M3).
+		traceIDPaginationTest,
+		summaryPaginationTest,
+		// The span document folds the scope's attributes into the span's tags and keeps a link as a
+		// reference without its attributes, so neither comes back as written.
+		scopeAttributesTest,
+		linkAttributesTest,
+	}
 }
 
 // elasticsearchFilterSkipList is what the Elasticsearch and OpenSearch lowering refuses among the
 // built-in fields, which the levels and operators of its FilterCapabilities are too coarse to say.
-var elasticsearchFilterSkipList = []string{
-	// The span document stores the kind and the status as tags, which the lowering does not map.
-	filterSpanKindTest,
-	filterSpanStatusTest,
+func elasticsearchFilterSkipList() []string {
+	return []string{
+		// The span document stores the kind and the status as tags, which the lowering does not map.
+		filterSpanKindTest,
+		filterSpanStatusTest,
+	}
 }
 
 // Elasticsearch defines the capabilities for the Elasticsearch storage backend.
@@ -322,7 +325,7 @@ func Elasticsearch() Capabilities {
 		pagingDropsTiedSpans: true,
 		// The span document has no field for the trace state, so a filter naming it is refused.
 		traceStateRefused: true,
-		skipList:          append(slices.Clone(elasticsearchSkipList), elasticsearchFilterSkipList...),
+		skipList:          append(elasticsearchSkipList(), elasticsearchFilterSkipList()...),
 	}
 }
 
@@ -335,7 +338,7 @@ func ElasticsearchSmokeTest() Capabilities {
 		// span_search_tie_break_by_id at its default.
 		pagingDropsTiedSpans: true,
 		traceStateRefused:    true,
-		skipList: append(slices.Clone(elasticsearchSkipList),
+		skipList: append(elasticsearchSkipList(),
 			// The rotation suites check that a write lands in the rotated index and a read finds
 			// it there, so the filter battery and the two slowest subtests are left out.
 			structuredFilterTest,
@@ -353,7 +356,7 @@ func OpenSearch() Capabilities {
 		// Same mapping and same setting, and same search support as Elasticsearch; see the note there.
 		// The e2e configuration turns span_search_tie_break_by_id on, so paging keeps every tied
 		// occurrence and pagingDropsTiedSpans stays unset.
-		skipList: append(slices.Clone(elasticsearchSkipList), elasticsearchFilterSkipList...),
+		skipList: append(elasticsearchSkipList(), elasticsearchFilterSkipList()...),
 	}
 }
 
