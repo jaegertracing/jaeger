@@ -17,7 +17,8 @@ import (
 // FilterCapabilities declares the part of the RFC 0005 filter model this reader evaluates
 // natively: the boolean combinators, equality over every level's attributes, a handful of
 // built-in fields whose columns already exist (span.name, span.kind, span.status, span.duration,
-// resource.service), and the four ordered comparisons on span.duration. The declaration is
+// resource.service, resource.schemaURL, scope.schemaURL), and the four ordered comparisons on
+// span.duration. The declaration is
 // coarser than the lowering, as the elasticsearch backend's is: an ordered comparison on an
 // attribute or on another built-in field is refused in the lowering, not here. ne, regex,
 // exists, in/not_in and the remaining built-in fields are follow-up work; a filter naming any
@@ -62,9 +63,9 @@ type builtinFieldColumn struct {
 
 // builtinFieldColumns is the built-in fields this lowering compares, keyed by level and name.
 // The spans table stores most of the others (trace_state, parent_span_id, status_message,
-// scope_name, scope_version, events.name, links.trace_id and so on), but this first increment
-// maps only these five; a field not listed here is refused (errUnsupportedField) rather than
-// approximated. resource.schemaURL and scope.schemaURL have no column at all.
+// scope_name, scope_version, events.name, links.trace_id and so on), but this increment
+// maps only these seven; a field not listed here is refused (errUnsupportedField) rather than
+// approximated.
 var builtinFieldColumns = map[expression.Level]map[string]builtinFieldColumn{
 	expression.LevelSpan: {
 		expression.SpanFieldName: {
@@ -87,6 +88,16 @@ var builtinFieldColumns = map[expression.Level]map[string]builtinFieldColumn{
 	expression.LevelResource: {
 		expression.ResourceFieldService: {
 			column:    "s.service_name",
+			fieldType: expression.FieldTypeString,
+		},
+		expression.ResourceFieldSchemaURL: {
+			column:    "s.resource_schema_url",
+			fieldType: expression.FieldTypeString,
+		},
+	},
+	expression.LevelScope: {
+		expression.ScopeFieldSchemaURL: {
+			column:    "s.scope_schema_url",
 			fieldType: expression.FieldTypeString,
 		},
 	},
