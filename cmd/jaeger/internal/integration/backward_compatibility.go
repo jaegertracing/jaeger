@@ -57,7 +57,8 @@ func runBackwardCompatibilityTests(t *testing.T, storage string, suite E2EStorag
 			oldBinaryEnvVar, oldConfigDirEnvVar)
 	}
 
-	for _, scenario := range scenarios {
+	for i := range scenarios {
+		scenario := &scenarios[i]
 		t.Run(scenario.Name, func(t *testing.T) {
 			// Both phases share one corpus for this scenario, so that the reader compares against
 			// the timestamps the writer wrote: loading a fixture moves its dates to a recent day,
