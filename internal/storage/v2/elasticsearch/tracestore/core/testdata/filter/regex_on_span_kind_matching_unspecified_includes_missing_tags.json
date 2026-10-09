@@ -1,0 +1,69 @@
+{
+  "bool": {
+    "should": [
+      {
+        "bool": {
+          "should": [
+            {
+              "regexp": {
+                "tag.span@kind": {
+                  "flags": "NONE",
+                  "value": ".*(server|unspecified).*"
+                }
+              }
+            },
+            {
+              "nested": {
+                "path": "tags",
+                "query": {
+                  "bool": {
+                    "must": [
+                      {
+                        "term": {
+                          "tags.key": "span.kind"
+                        }
+                      },
+                      {
+                        "regexp": {
+                          "tags.value": {
+                            "flags": "NONE",
+                            "value": ".*(server|unspecified).*"
+                          }
+                        }
+                      }
+                    ]
+                  }
+                }
+              }
+            }
+          ]
+        }
+      },
+      {
+        "bool": {
+          "must_not": {
+            "bool": {
+              "should": [
+                {
+                  "exists": {
+                    "field": "tag.span@kind"
+                  }
+                },
+                {
+                  "nested": {
+                    "path": "tags",
+                    "query": {
+                      "term": {
+                        "tags.key": "span.kind"
+                      }
+                    }
+                  }
+                }
+              ]
+            }
+          }
+        }
+      }
+    ]
+  }
+}
