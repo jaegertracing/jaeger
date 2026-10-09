@@ -57,23 +57,23 @@ const (
 	AttributeComparisonMissesOlderIndices
 )
 
-// Capabilities records what a storage backend *cannot* do in the integration suite. Every
-// field is an opt-out: the zero value runs the whole battery, and a backend lists only the
-// tests or behaviors it cannot satisfy. New fields must keep that polarity, so a backend
-// added later gets full coverage until someone deliberately excuses it from something.
+// Capabilities records what a storage backend *cannot* do in the integration suite. Every field
+// is an opt-out: the zero value runs the whole battery, and a backend lists only the tests it
+// cannot pass. New fields must keep that polarity, so a backend added later gets full coverage
+// until someone deliberately excuses it from something. This is the opposite of the opt-in
+// storage capability mechanism of ADR-013, where a reader names what it can do. An e2e suite may
+// claim more than its direct counterpart, because jaeger-query satisfies tests the backend's own
+// reader would fail.
 //
-// A value is an opt-out claim, exactly the opposite of the opt-in storage capability mechanism of
-// ADR-013. An e2e suite may claim more than its direct counterpart, because jaeger-query satisfies
-// tests the backend's own reader would fail.
-//
-// No double negatives. An opt-out excuses a backend from proving it can do something; it never
-// excuses a backend from proving it refuses something. A test that asserts a refusal must not be
-// skipped by the backends that evaluate the predicate instead, because then the capable backends
-// carry an opt-out from a negative assertion, which reads as a capability they lack. Such a test
-// derives its expectation from what the reader declares (FilterCapabilities) or from a typed
-// field here that names the outcome (AttributeComparison, traceStateRefused), and asserts the
-// declared outcome on every backend. The WithoutFilterRefusals family of opt-outs removed in
-// https://github.com/jaegertracing/jaeger/pull/9807 is the shape to refuse in review.
+// No double negatives. An opt-out lets a backend skip a test that checks whether it can do
+// something. It must never let a backend skip a test that checks whether it refuses something,
+// because the backends that evaluate the predicate instead of refusing it would then carry an
+// opt-out from a negative assertion, which a reader would misread as a capability they lack. A
+// refusal test therefore takes its expected outcome from what the reader declares in
+// FilterCapabilities, or from a typed field on this struct that names the outcome
+// (AttributeComparison, traceStateRefused), and asserts that declared outcome on every backend.
+// The WithoutFilterRefusals opt-outs removed in https://github.com/jaegertracing/jaeger/pull/9807
+// are an example of the pattern this rule forbids.
 type Capabilities struct {
 	// TODO: remove this after all storage backends return spanKind from GetOperations
 	getOperationsMissingSpanKind bool
