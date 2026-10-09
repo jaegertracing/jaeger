@@ -221,7 +221,7 @@ func Cassandra() Capabilities {
 			"Tags_+_Operation_name_+_max_Duration",
 			"Tags_+_max_Duration",
 			"Operation_name_+_max_Duration",
-			// The v1 span model the reader converts through keeps no scope or link attributes.
+			// The reader goes through the v1 span model, which has no scope or link attributes.
 			scopeAttributesTest,
 			linkAttributesTest,
 			// The reader does not support trace summaries; jaeger-query falls back to FindTraces
@@ -280,7 +280,7 @@ func Badger() Capabilities {
 			// The reader implements neither FindSpans nor continuation tokens.
 			spanOrderingTest,
 			paginationTest,
-			// The v1 span model the reader converts through keeps no scope or link attributes.
+			// The reader goes through the v1 span model, which has no scope or link attributes.
 			scopeAttributesTest,
 			linkAttributesTest,
 			// The reader does not support trace summaries; jaeger-query falls back to FindTraces
