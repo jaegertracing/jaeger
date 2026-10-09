@@ -545,6 +545,11 @@ func TestSchemaBuilder_Engines(t *testing.T) {
 			assert.Equal(t, len(mergeTreeTables)+len(aggregatingTables), seen)
 		})
 	}
+
+	t.Run("unset engine is refused", func(t *testing.T) {
+		_, err := newSchemaBuilder(Configuration{CreateSchema: true})
+		require.ErrorContains(t, err, "create_schema requires table_engine")
+	})
 }
 
 func TestNewFactory_KeepsExplicitZeroCacheSettings(t *testing.T) {

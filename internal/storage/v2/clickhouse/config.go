@@ -102,44 +102,37 @@ type ReplicatedEngine struct {
 	ReplicaName string `mapstructure:"replica_name"`
 }
 
-// engineClause returns the body of the ENGINE clause for a table of the given family,
-// "MergeTree" or "AggregatingMergeTree", as the configured TableEngine renders it.
-func (e TableEngine) engineClause(family string) string {
-	r := e.Replicated.Get()
-	if r == nil {
-		return family
-	}
-	if r.KeeperPath == "" && r.ReplicaName == "" {
-		return "Replicated" + family
-	}
-	return fmt.Sprintf("Replicated%s('%s', '%s')", family, r.KeeperPath, r.ReplicaName)
-}
-
-func (e TableEngine) validate(createSchema bool) error {
-	if !createSchema {
-		return nil
-	}
+// engineClause validates the TableEngine and returns the body of the ENGINE clause for a
+// table of the given family, "MergeTree" or "AggregatingMergeTree", as the configured
+// TableEngine renders it. Validation and rendering share one function so that no clause
+// can be rendered from a configuration that was not checked.
+func (e TableEngine) engineClause(family string) (string, error) {
 	hasMergeTree := e.MergeTree.HasValue()
 	hasReplicated := e.Replicated.HasValue()
 	if hasMergeTree && hasReplicated {
-		return errors.New("table_engine must set only one of merge_tree or replicated")
+		return "", errors.New("table_engine must set only one of merge_tree or replicated")
 	}
 	if !hasMergeTree && !hasReplicated {
-		return errors.New("create_schema requires table_engine with exactly one of merge_tree or replicated: " +
+		return "", errors.New("create_schema requires table_engine with exactly one of merge_tree or replicated: " +
 			"use merge_tree for a single-node server, replicated for a cluster with more than one replica, " +
 			"or set create_schema: false and manage the tables yourself")
 	}
-	if r := e.Replicated.Get(); r != nil {
-		if (r.KeeperPath == "") != (r.ReplicaName == "") {
-			return errors.New("table_engine.replicated must set keeper_path and replica_name together or neither")
-		}
-		// Both values are rendered inside single-quoted SQL literals, where a quote ends the
-		// literal and a backslash escapes the character after it.
-		if strings.ContainsAny(r.KeeperPath, `'\`) || strings.ContainsAny(r.ReplicaName, `'\`) {
-			return errors.New("table_engine.replicated keeper_path and replica_name must not contain a single quote or a backslash")
-		}
+	r := e.Replicated.Get()
+	if r == nil {
+		return family, nil
 	}
-	return nil
+	if (r.KeeperPath == "") != (r.ReplicaName == "") {
+		return "", errors.New("table_engine.replicated must set keeper_path and replica_name together or neither")
+	}
+	// Both values are rendered inside single-quoted SQL literals, where a quote ends the
+	// literal and a backslash escapes the character after it.
+	if strings.ContainsAny(r.KeeperPath, `'\`) || strings.ContainsAny(r.ReplicaName, `'\`) {
+		return "", errors.New("table_engine.replicated keeper_path and replica_name must not contain a single quote or a backslash")
+	}
+	if r.KeeperPath == "" {
+		return "Replicated" + family, nil
+	}
+	return fmt.Sprintf("Replicated%s('%s', '%s')", family, r.KeeperPath, r.ReplicaName), nil
 }
 
 // DefaultConfiguration returns the configuration a ClickHouse backend starts from
@@ -185,5 +178,12 @@ func (cfg *Configuration) Validate() error {
 	if cfg.AttributeMetadataCacheMaxSize < 0 {
 		return errors.New("attribute_metadata_cache_max_size must be a non-negative number")
 	}
-	return cfg.TableEngine.validate(cfg.CreateSchema)
+	// The table_engine block is ignored without create_schema, because the operator then
+	// owns the tables.
+	if cfg.CreateSchema {
+		if _, err := cfg.TableEngine.engineClause("MergeTree"); err != nil {
+			return err
+		}
+	}
+	return nil
 }

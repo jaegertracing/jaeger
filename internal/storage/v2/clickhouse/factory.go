@@ -79,10 +79,18 @@ type schemaBuilder struct {
 }
 
 func newSchemaBuilder(cfg Configuration) (*schemaBuilder, error) {
+	mergeTree, err := cfg.TableEngine.engineClause("MergeTree")
+	if err != nil {
+		return nil, err
+	}
+	aggregatingMergeTree, err := cfg.TableEngine.engineClause("AggregatingMergeTree")
+	if err != nil {
+		return nil, err
+	}
 	params := schemaTemplateParams{
 		TTLSeconds:           int64(cfg.TTL / time.Second),
-		MergeTree:            cfg.TableEngine.engineClause("MergeTree"),
-		AggregatingMergeTree: cfg.TableEngine.engineClause("AggregatingMergeTree"),
+		MergeTree:            mergeTree,
+		AggregatingMergeTree: aggregatingMergeTree,
 	}
 	// The materialized views carry no engine of their own, because each writes TO its
 	// target table, so only the tables are templates.
@@ -108,7 +116,6 @@ func newSchemaBuilder(cfg Configuration) (*schemaBuilder, error) {
 	for _, s := range schema {
 		query := s.query
 		if s.template {
-			var err error
 			query, err = loadTemplate(s.name, s.query, params)
 			if err != nil {
 				return nil, err
