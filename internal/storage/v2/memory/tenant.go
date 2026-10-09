@@ -138,19 +138,22 @@ func (t *Tenant) storeTraces(tracesById map[pcommon.TraceID]ptrace.ResourceSpans
 // so that FindTraceIDs pays nothing for trace data it discards. Anything that
 // hands the traces to a reader must pass them through cloneTrace first.
 func (t *Tenant) findTraceAndIds(query tracestore.TraceQueryParams) ([]traceAndId, error) {
-	if query.SearchDepth == 0 || query.SearchDepth > t.config.MaxTraces {
+	if query.SearchDepth == 0 {
 		return nil, errInvalidSearchDepth
 	}
+	// The query service bounds SearchDepth without knowing this store's capacity,
+	// so a depth above MaxTraces asks for every trace the store can hold.
+	searchDepth := min(query.SearchDepth, t.config.MaxTraces)
 	filter, err := prepareFilter(query.Filter)
 	if err != nil {
 		return nil, err
 	}
 	t.mu.RLock()
 	defer t.mu.RUnlock()
-	traceAndIds := make([]traceAndId, 0, query.SearchDepth)
+	traceAndIds := make([]traceAndId, 0, searchDepth)
 	n := len(t.traces)
 	for i := range t.traces {
-		if uint64(len(traceAndIds)) == uint64(query.SearchDepth) {
+		if uint64(len(traceAndIds)) == uint64(searchDepth) {
 			break
 		}
 		index := (t.mostRecent - i + n) % n
