@@ -4,6 +4,9 @@
 package uiconv
 
 import (
+	"fmt"
+
+	"github.com/jaegertracing/jaeger-idl/model/v1"
 	"go.uber.org/zap"
 )
 
@@ -17,11 +20,15 @@ type Config struct {
 // Extract reads anonymized file, finds spans for a given trace,
 // and writes out that trace in the UI format.
 func Extract(config Config, logger *zap.Logger) error {
+	traceID, err := model.TraceIDFromString(config.TraceID)
+	if err != nil {
+		return fmt.Errorf("cannot parse trace ID: %w", err)
+	}
 	reader, err := newSpanReader(config.CapturedFile, logger)
 	if err != nil {
 		return err
 	}
-	ext, err := newExtractor(config.UIFile, config.TraceID, reader, logger)
+	ext, err := newExtractor(config.UIFile, fmt.Sprintf("%016x%016x", traceID.High, traceID.Low), reader, logger)
 	if err != nil {
 		return err
 	}

@@ -1,8 +1,8 @@
 {
-  "traceID": "0000000000000001",
+  "traceID": "00000000000000000000000000000001",
   "spans": [
     {
-      "traceID": "0000000000000001",
+      "traceID": "00000000000000000000000000000001",
       "spanID": "0000000000000002",
       "operationName": "test-general-conversion",
       "references": [],
@@ -35,7 +35,7 @@
       "warnings": null
     },
     {
-      "traceID": "0000000000000001",
+      "traceID": "00000000000000000000000000000001",
       "spanID": "0000000000000002",
       "operationName": "some-operation",
       "references": [],
@@ -78,13 +78,13 @@
       "warnings": null
     },
     {
-      "traceID": "0000000000000001",
+      "traceID": "00000000000000000000000000000001",
       "spanID": "0000000000000003",
       "operationName": "some-operation",
       "references": [
         {
           "refType": "CHILD_OF",
-          "traceID": "0000000000000001",
+          "traceID": "00000000000000000000000000000001",
           "spanID": "0000000000000002"
         }
       ],
@@ -96,23 +96,23 @@
       "warnings": null
     },
     {
-      "traceID": "0000000000000001",
+      "traceID": "00000000000000000000000000000001",
       "spanID": "0000000000000004",
       "operationName": "reference-test",
       "references": [
         {
           "refType": "CHILD_OF",
-          "traceID": "00000000000000ff",
+          "traceID": "000000000000000000000000000000ff",
           "spanID": "00000000000000ff"
         },
         {
           "refType": "CHILD_OF",
-          "traceID": "0000000000000001",
+          "traceID": "00000000000000000000000000000001",
           "spanID": "0000000000000002"
         },
         {
           "refType": "FOLLOWS_FROM",
-          "traceID": "0000000000000001",
+          "traceID": "00000000000000000000000000000001",
           "spanID": "0000000000000002"
         }
       ],
@@ -126,13 +126,13 @@
       ]
     },
     {
-      "traceID": "0000000000000001",
+      "traceID": "00000000000000000000000000000001",
       "spanID": "0000000000000005",
       "operationName": "preserveParentID-test",
       "references": [
         {
           "refType": "CHILD_OF",
-          "traceID": "0000000000000001",
+          "traceID": "00000000000000000000000000000001",
           "spanID": "0000000000000004"
         }
       ],

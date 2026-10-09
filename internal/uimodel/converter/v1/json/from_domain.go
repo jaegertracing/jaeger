@@ -38,13 +38,17 @@ type fromDomain struct {
 	convertKeyValuesFunc func(keyValues model.KeyValues) []uimodel.KeyValue
 }
 
+func formatTraceID(traceID model.TraceID) uimodel.TraceID {
+	return uimodel.TraceID(fmt.Sprintf("%016x%016x", traceID.High, traceID.Low))
+}
+
 func (fd fromDomain) fromDomain(trace *model.Trace) *uimodel.Trace {
 	jSpans := make([]uimodel.Span, len(trace.Spans))
 	processes := &processHashtable{}
 	var traceID uimodel.TraceID
 	for i, span := range trace.Spans {
 		if i == 0 {
-			traceID = uimodel.TraceID(span.TraceID.String())
+			traceID = formatTraceID(span.TraceID)
 		}
 		processID := uimodel.ProcessID(processes.getKey(span.Process))
 		jSpans[i] = fd.convertSpan(span, processID)
@@ -60,7 +64,7 @@ func (fd fromDomain) fromDomain(trace *model.Trace) *uimodel.Trace {
 
 func (fd fromDomain) convertSpanInternal(span *model.Span) uimodel.Span {
 	return uimodel.Span{
-		TraceID:       uimodel.TraceID(span.TraceID.String()),
+		TraceID:       formatTraceID(span.TraceID),
 		SpanID:        uimodel.SpanID(span.SpanID.String()),
 		Flags:         uint32(span.Flags),
 		OperationName: span.OperationName,
@@ -92,7 +96,7 @@ func (fd fromDomain) convertReferences(span *model.Span) []uimodel.Reference {
 	for _, ref := range span.References {
 		out = append(out, uimodel.Reference{
 			RefType: fd.convertRefType(ref.RefType),
-			TraceID: uimodel.TraceID(ref.TraceID.String()),
+			TraceID: formatTraceID(ref.TraceID),
 			SpanID:  uimodel.SpanID(ref.SpanID.String()),
 		})
 	}
