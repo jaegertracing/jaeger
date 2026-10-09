@@ -18,6 +18,7 @@ var (
 	PingQuery            = "SELECT 1"
 	HandshakeQuery       = "SELECT displayName(), version(), revision(), timezone()"
 	CurrentDatabaseQuery = "SELECT currentDatabase()"
+	SchemaVersionQuery   = "SELECT version, dirty FROM schema_migrations ORDER BY sequence DESC LIMIT 1"
 )
 
 // FailureConfig is a map of query body to error
@@ -52,6 +53,10 @@ func NewServer(failures FailureConfig) *httptest.Server {
 		case CurrentDatabaseQuery:
 			block.AddColumn("currentDatabase()", "String")
 			block.Append("default")
+		case SchemaVersionQuery:
+			block.AddColumn("version", "UInt64")
+			block.AddColumn("dirty", "UInt8")
+			block.Append(uint64(1), uint8(0))
 		default:
 		}
 

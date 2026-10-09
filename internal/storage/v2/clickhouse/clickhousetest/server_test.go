@@ -60,3 +60,10 @@ func TestNewServer_CurrentDatabaseQuery(t *testing.T) {
 	status, _ := postQuery(t, srv.URL, CurrentDatabaseQuery)
 	assert.Equal(t, http.StatusOK, status)
 }
+
+func TestNewServer_SchemaVersionQuery(t *testing.T) {
+	srv := NewServer(FailureConfig{})
+	defer srv.Close()
+	status, _ := postQuery(t, srv.URL, SchemaVersionQuery)
+	assert.Equal(t, http.StatusOK, status)
+}

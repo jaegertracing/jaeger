@@ -353,13 +353,10 @@ func TestSchemaBuilder_VersionChecking(t *testing.T) {
 	t.Run("database version newer than binary refuses startup", func(t *testing.T) {
 		b := newSchemaBuilder(cfg, opts)
 
-		// Set up mock driver where database version is 2, while binary is 1
-		orig := newDatabaseDriver
-		defer func() { newDatabaseDriver = orig }()
-		newDatabaseDriver = func(db *dbsql.DB, config *clickhousemigrate.Config) (database.Driver, error) {
-			drv, err := orig(db, config)
-			require.NoError(t, err)
-			return &mockVersionDriver{Driver: drv, version: 2}, nil
+		orig := readSchemaVersion
+		defer func() { readSchemaVersion = orig }()
+		readSchemaVersion = func(_ context.Context, _ *dbsql.DB) (uint, bool, error) {
+			return 2, false, nil
 		}
 
 		err = b.build(context.Background())
@@ -369,46 +366,200 @@ func TestSchemaBuilder_VersionChecking(t *testing.T) {
 	t.Run("database version equal to binary allows startup", func(t *testing.T) {
 		b := newSchemaBuilder(cfg, opts)
 
-		orig := newDatabaseDriver
-		defer func() { newDatabaseDriver = orig }()
-		newDatabaseDriver = func(db *dbsql.DB, config *clickhousemigrate.Config) (database.Driver, error) {
-			drv, err := orig(db, config)
-			require.NoError(t, err)
-			return &mockVersionDriver{Driver: drv, version: 1}, nil
+		orig := readSchemaVersion
+		defer func() { readSchemaVersion = orig }()
+		readSchemaVersion = func(_ context.Context, _ *dbsql.DB) (uint, bool, error) {
+			return 1, false, nil
 		}
 
 		err = b.build(context.Background())
 		require.NoError(t, err)
 	})
 
-	t.Run("database version check error", func(t *testing.T) {
+	t.Run("dirty database schema refuses startup", func(t *testing.T) {
 		b := newSchemaBuilder(cfg, opts)
 
-		orig := newDatabaseDriver
-		defer func() { newDatabaseDriver = orig }()
-		newDatabaseDriver = func(db *dbsql.DB, config *clickhousemigrate.Config) (database.Driver, error) {
-			drv, err := orig(db, config)
-			require.NoError(t, err)
-			return &mockVersionDriver{Driver: drv, err: errors.New("mock version error")}, nil
+		orig := readSchemaVersion
+		defer func() { readSchemaVersion = orig }()
+		readSchemaVersion = func(_ context.Context, _ *dbsql.DB) (uint, bool, error) {
+			return 1, true, nil
 		}
 
 		err = b.build(context.Background())
-		require.ErrorContains(t, err, "failed to read database schema version")
+		require.ErrorContains(t, err, "database schema is in dirty state at version 1")
+	})
+
+	t.Run("database version check error", func(t *testing.T) {
+		b := newSchemaBuilder(cfg, opts)
+
+		orig := readSchemaVersion
+		defer func() { readSchemaVersion = orig }()
+		readSchemaVersion = func(_ context.Context, _ *dbsql.DB) (uint, bool, error) {
+			return 0, false, errors.New("mock version error")
+		}
+
+		err = b.build(context.Background())
+		require.ErrorContains(t, err, "mock version error")
 	})
 }
 
-type mockVersionDriver struct {
-	database.Driver
-	version int
-	dirty   bool
-	err     error
+func TestReadSchemaVersionImpl(t *testing.T) {
+	t.Run("table does not exist returns version 0", func(t *testing.T) {
+		srv := clickhousetest.NewServer(clickhousetest.FailureConfig{
+			selectSchemaVersionQuery: errors.New("code: 60, message: Table default.schema_migrations doesn't exist"),
+		})
+		defer srv.Close()
+		cfg := Configuration{
+			Protocol:  "http",
+			Addresses: []string{srv.Listener.Addr().String()},
+		}
+		opts, err := Options(context.Background(), cfg)
+		require.NoError(t, err)
+		db := clickhouse.OpenDB(opts)
+		defer db.Close()
+
+		v, dirty, err := readSchemaVersionImpl(context.Background(), db)
+		require.NoError(t, err)
+		assert.Equal(t, uint(0), v)
+		assert.False(t, dirty)
+	})
+
+	t.Run("valid row returns schema version", func(t *testing.T) {
+		srv := clickhousetest.NewServer(clickhousetest.FailureConfig{})
+		defer srv.Close()
+		cfg := Configuration{
+			Protocol:  "http",
+			Addresses: []string{srv.Listener.Addr().String()},
+		}
+		opts, err := Options(context.Background(), cfg)
+		require.NoError(t, err)
+		db := clickhouse.OpenDB(opts)
+		defer db.Close()
+
+		v, dirty, err := readSchemaVersionImpl(context.Background(), db)
+		require.NoError(t, err)
+		assert.Equal(t, uint(1), v)
+		assert.False(t, dirty)
+	})
+
+	t.Run("no rows returns version 0", func(t *testing.T) {
+		orig := selectSchemaVersionQuery
+		defer func() { selectSchemaVersionQuery = orig }()
+		selectSchemaVersionQuery = "SELECT version, dirty FROM empty_migrations"
+
+		srv := clickhousetest.NewServer(clickhousetest.FailureConfig{})
+		defer srv.Close()
+		cfg := Configuration{
+			Protocol:  "http",
+			Addresses: []string{srv.Listener.Addr().String()},
+		}
+		opts, err := Options(context.Background(), cfg)
+		require.NoError(t, err)
+		db := clickhouse.OpenDB(opts)
+		defer db.Close()
+
+		v, dirty, err := readSchemaVersionImpl(context.Background(), db)
+		require.NoError(t, err)
+		assert.Equal(t, uint(0), v)
+		assert.False(t, dirty)
+	})
+
+	t.Run("unexpected error returns error", func(t *testing.T) {
+		srv := clickhousetest.NewServer(clickhousetest.FailureConfig{
+			selectSchemaVersionQuery: errors.New("mock db failure"),
+		})
+		defer srv.Close()
+		cfg := Configuration{
+			Protocol:  "http",
+			Addresses: []string{srv.Listener.Addr().String()},
+		}
+		opts, err := Options(context.Background(), cfg)
+		require.NoError(t, err)
+		db := clickhouse.OpenDB(opts)
+		defer db.Close()
+
+		_, _, err = readSchemaVersionImpl(context.Background(), db)
+		require.ErrorContains(t, err, "failed to read database schema version")
+		require.ErrorContains(t, err, "mock db failure")
+	})
+
+	t.Run("isTableNotExist", func(t *testing.T) {
+		assert.False(t, isTableNotExist(nil))
+		assert.True(t, isTableNotExist(&clickhouse.Exception{Code: 60}))
+		assert.False(t, isTableNotExist(&clickhouse.Exception{Code: 59}))
+		assert.True(t, isTableNotExist(errors.New("table not found")))
+		assert.True(t, isTableNotExist(errors.New("Table default.schema_migrations does not exist")))
+		assert.True(t, isTableNotExist(errors.New("unknown table: schema_migrations")))
+		assert.False(t, isTableNotExist(errors.New("connection refused")))
+	})
 }
 
-func (m *mockVersionDriver) Version() (int, bool, error) {
-	if m.err != nil {
-		return 0, false, m.err
+func TestSchemaBuilder_ApplyTTL(t *testing.T) {
+	srv := clickhousetest.NewServer(clickhousetest.FailureConfig{})
+	defer srv.Close()
+
+	cfg := Configuration{
+		Protocol:     "http",
+		Addresses:    []string{srv.Listener.Addr().String()},
+		CreateSchema: true,
+		TTL:          24 * time.Hour,
 	}
-	return m.version, m.dirty, nil
+	opts, err := Options(context.Background(), cfg)
+	require.NoError(t, err)
+
+	t.Run("applies TTL when configured", func(t *testing.T) {
+		b := newSchemaBuilder(cfg, opts)
+		db := clickhouse.OpenDB(opts)
+		defer db.Close()
+
+		err := b.applyTTL(context.Background(), db)
+		require.NoError(t, err)
+	})
+
+	t.Run("skips TTL when zero", func(t *testing.T) {
+		zeroCfg := cfg
+		zeroCfg.TTL = 0
+		b := newSchemaBuilder(zeroCfg, opts)
+		db := clickhouse.OpenDB(opts)
+		defer db.Close()
+
+		err := b.applyTTL(context.Background(), db)
+		require.NoError(t, err)
+	})
+
+	t.Run("returns error when ALTER TABLE fails", func(t *testing.T) {
+		failSrv := clickhousetest.NewServer(clickhousetest.FailureConfig{
+			"ALTER TABLE spans MODIFY TTL": errors.New("mock alter error"),
+		})
+		defer failSrv.Close()
+		failCfg := cfg
+		failCfg.Addresses = []string{failSrv.Listener.Addr().String()}
+		failOpts, err := Options(context.Background(), failCfg)
+		require.NoError(t, err)
+		b := newSchemaBuilder(failCfg, failOpts)
+		db := clickhouse.OpenDB(failOpts)
+		defer db.Close()
+
+		err = b.applyTTL(context.Background(), db)
+		require.ErrorContains(t, err, "failed to apply TTL")
+		require.ErrorContains(t, err, "mock alter error")
+	})
+
+	t.Run("returns error in build when applyTTL fails", func(t *testing.T) {
+		failSrv := clickhousetest.NewServer(clickhousetest.FailureConfig{
+			"ALTER TABLE spans MODIFY TTL": errors.New("mock alter error"),
+		})
+		defer failSrv.Close()
+		failCfg := cfg
+		failCfg.Addresses = []string{failSrv.Listener.Addr().String()}
+		failOpts, err := Options(context.Background(), failCfg)
+		require.NoError(t, err)
+		b := newSchemaBuilder(failCfg, failOpts)
+
+		err = b.build(context.Background())
+		require.ErrorContains(t, err, "failed to apply TTL")
+		require.ErrorContains(t, err, "mock alter error")
+	})
 }
 
 func TestSchemaBuilder_ConcurrencyAndRetry(t *testing.T) {
@@ -668,12 +819,22 @@ func TestNewFactory_KeepsExplicitZeroCacheSettings(t *testing.T) {
 }
 
 func TestBaselineSchemaStatements(t *testing.T) {
-	t.Run("success", func(t *testing.T) {
+	t.Run("success without TTL", func(t *testing.T) {
 		stmts, err := BaselineSchemaStatements()
 		require.NoError(t, err)
 		assert.Len(t, stmts, 12)
 		assert.Len(t, SchemaObjects, 12)
 		assert.Len(t, DropSchemaObjectsStatements, 13)
+		assert.NotContains(t, stmts[0], "TTL start_time")
+		assert.NotContains(t, stmts[5], "TTL end")
+	})
+
+	t.Run("success with TTL", func(t *testing.T) {
+		stmts, err := BaselineSchemaStatements(86400)
+		require.NoError(t, err)
+		assert.Len(t, stmts, 12)
+		assert.Contains(t, stmts[0], "TTL start_time + INTERVAL 86400 SECOND DELETE")
+		assert.Contains(t, stmts[5], "TTL end + INTERVAL 86400 SECOND DELETE")
 	})
 
 	t.Run("first template error", func(t *testing.T) {

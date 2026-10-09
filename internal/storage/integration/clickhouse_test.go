@@ -6,6 +6,7 @@ package integration
 import (
 	"context"
 	"testing"
+	"time"
 
 	"github.com/ClickHouse/clickhouse-go/v2"
 	"github.com/open-telemetry/opentelemetry-collector-contrib/extension/basicauthextension"
@@ -79,6 +80,7 @@ func TestClickHouseMigrationSmoke(t *testing.T) {
 	cfg.Addresses = []string{"127.0.0.1:9000"}
 	cfg.Database = "jaeger_smoke_test"
 	cfg.CreateSchema = true
+	cfg.TTL = 72 * time.Hour
 	cfg.Auth = ch.Authentication{
 		Basic: configoptional.Some(basicauthextension.ClientAuthSettings{
 			Username: "default",
@@ -134,7 +136,7 @@ func TestClickHouseMigrationSmoke(t *testing.T) {
 	dropAll()
 
 	// 5. Recreate directly with the schema baseline
-	baselineStmts, err := ch.BaselineSchemaStatements()
+	baselineStmts, err := ch.BaselineSchemaStatements(int64(cfg.TTL / time.Second))
 	require.NoError(t, err)
 	for _, stmt := range baselineStmts {
 		_, err := smokeDB.ExecContext(ctx, stmt)

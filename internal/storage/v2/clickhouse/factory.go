@@ -6,10 +6,12 @@ package clickhouse
 import (
 	"bytes"
 	"context"
+	dbsql "database/sql"
 	"errors"
 	"fmt"
 	"io"
 	"os"
+	"strings"
 	"text/template"
 	"time"
 
@@ -74,7 +76,40 @@ var (
 	newSourceDriver    = iofs.New
 	newDatabaseDriver  = clickhousemigrate.WithInstance
 	newMigrateInstance = migrate.NewWithInstance
+	readSchemaVersion  = readSchemaVersionImpl
 )
+
+var selectSchemaVersionQuery = "SELECT version, dirty FROM schema_migrations ORDER BY sequence DESC LIMIT 1"
+
+func isTableNotExist(err error) bool {
+	if err == nil {
+		return false
+	}
+	var chErr *clickhouse.Exception
+	if errors.As(err, &chErr) && chErr.Code == 60 {
+		return true
+	}
+	errStr := strings.ToLower(err.Error())
+	return strings.Contains(errStr, "doesn't exist") ||
+		strings.Contains(errStr, "does not exist") ||
+		strings.Contains(errStr, "unknown table") ||
+		strings.Contains(errStr, "table not found")
+}
+
+func readSchemaVersionImpl(ctx context.Context, db *dbsql.DB) (uint, bool, error) {
+	var (
+		version uint
+		dirty   uint8
+	)
+	err := db.QueryRowContext(ctx, selectSchemaVersionQuery).Scan(&version, &dirty)
+	if err != nil {
+		if errors.Is(err, dbsql.ErrNoRows) || isTableNotExist(err) {
+			return 0, false, nil
+		}
+		return 0, false, fmt.Errorf("failed to read database schema version: %w", err)
+	}
+	return version, dirty != 0, nil
+}
 
 type schemaBuilder struct {
 	cfg                    Configuration
@@ -135,29 +170,7 @@ func (b *schemaBuilder) build(ctx context.Context) error {
 	if err != nil {
 		return fmt.Errorf("failed to create migration source driver: %w", err)
 	}
-
-	dbName := b.cfg.Database
-	if dbName == "" {
-		dbName = "default"
-	}
-
-	dbDriver, err := newDatabaseDriver(db, &clickhousemigrate.Config{
-		DatabaseName:          dbName,
-		MultiStatementEnabled: true,
-	})
-	if err != nil {
-		_ = sourceDriver.Close()
-		return fmt.Errorf("failed to create migration database driver: %w", err)
-	}
-
-	wrappedDriver := &drainingDatabaseDriver{Driver: dbDriver}
-	m, err := newMigrateInstance("iofs", sourceDriver, "clickhouse", wrappedDriver)
-	if err != nil {
-		_ = sourceDriver.Close()
-		_ = dbDriver.Close()
-		return fmt.Errorf("failed to create migrate instance: %w", err)
-	}
-	defer m.Close()
+	defer sourceDriver.Close()
 
 	binaryVersion, err := latestBinaryVersion(sourceDriver)
 	if err != nil {
@@ -165,19 +178,63 @@ func (b *schemaBuilder) build(ctx context.Context) error {
 	}
 
 	if b.cfg.CreateSchema {
+		dbName := b.cfg.Database
+		if dbName == "" {
+			dbName = "default"
+		}
+
+		dbDriver, err := newDatabaseDriver(db, &clickhousemigrate.Config{
+			DatabaseName:          dbName,
+			MultiStatementEnabled: true,
+		})
+		if err != nil {
+			return fmt.Errorf("failed to create migration database driver: %w", err)
+		}
+
+		wrappedDriver := &drainingDatabaseDriver{Driver: dbDriver}
+		m, err := newMigrateInstance("iofs", sourceDriver, "clickhouse", wrappedDriver)
+		if err != nil {
+			_ = dbDriver.Close()
+			return fmt.Errorf("failed to create migrate instance: %w", err)
+		}
+		defer m.Close()
+
 		if err := b.applyMigrations(ctx, m); err != nil {
 			return err
 		}
+		if err := b.applyTTL(ctx, db); err != nil {
+			return err
+		}
 	} else {
-		dbVersion, _, err := m.Version()
-		if err != nil && !errors.Is(err, migrate.ErrNilVersion) {
-			return fmt.Errorf("failed to read database schema version: %w", err)
+		dbVersion, dirty, err := readSchemaVersion(ctx, db)
+		if err != nil {
+			return err
+		}
+		if dirty {
+			return fmt.Errorf("database schema is in dirty state at version %d", dbVersion)
 		}
 		if dbVersion > binaryVersion {
 			return fmt.Errorf("database schema version %d is newer than binary version %d", dbVersion, binaryVersion)
 		}
 	}
 
+	return nil
+}
+
+func (b *schemaBuilder) applyTTL(ctx context.Context, db *dbsql.DB) error {
+	if b.cfg.TTL <= 0 {
+		return nil
+	}
+	ttlSeconds := int64(b.cfg.TTL / time.Second)
+	stmts := []string{
+		fmt.Sprintf("ALTER TABLE spans MODIFY TTL start_time + INTERVAL %d SECOND DELETE", ttlSeconds),
+		fmt.Sprintf("ALTER TABLE trace_id_timestamps MODIFY TTL end + INTERVAL %d SECOND DELETE", ttlSeconds),
+	}
+	for _, stmt := range stmts {
+		if _, err := db.ExecContext(ctx, stmt); err != nil {
+			return fmt.Errorf("failed to apply TTL: %w", err)
+		}
+	}
 	return nil
 }
 
@@ -271,12 +328,16 @@ var DropSchemaObjectsStatements = []string{
 	"DROP TABLE IF EXISTS schema_migrations",
 }
 
-// BaselineSchemaStatements returns the 12 schema baseline DDL statements without TTL.
-func BaselineSchemaStatements() ([]string, error) {
+// BaselineSchemaStatements returns the 12 schema baseline DDL statements with optional TTL.
+func BaselineSchemaStatements(ttl ...int64) ([]string, error) {
+	var ttlSeconds int64
+	if len(ttl) > 0 {
+		ttlSeconds = ttl[0]
+	}
 	createSpansTableQuery, err := loadTemplate(
 		"create_spans_table",
 		chsql.CreateSpansTable,
-		schemaTemplateParams{TTLSeconds: 0},
+		schemaTemplateParams{TTLSeconds: ttlSeconds},
 	)
 	if err != nil {
 		return nil, err
@@ -285,7 +346,7 @@ func BaselineSchemaStatements() ([]string, error) {
 	createTraceIDTsTableQuery, err := loadTemplate(
 		"create_trace_id_timestamps_table",
 		chsql.CreateTraceIDTimestampsTable,
-		schemaTemplateParams{TTLSeconds: 0},
+		schemaTemplateParams{TTLSeconds: ttlSeconds},
 	)
 	if err != nil {
 		return nil, err
