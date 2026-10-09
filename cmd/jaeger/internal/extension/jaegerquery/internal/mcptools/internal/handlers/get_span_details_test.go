@@ -53,6 +53,9 @@ func TestGetSpanDetailsHandler_Handle_Success(t *testing.T) {
 					},
 				},
 			},
+			links: []linkConfig{
+				{traceID: traceID, spanID: spanID1},
+			},
 		},
 	}
 
@@ -99,6 +102,8 @@ func TestGetSpanDetailsHandler_Handle_Success(t *testing.T) {
 	assert.Equal(t, "500", span2.Attributes["http.status_code"])
 	assert.Len(t, span2.Events, 1)
 	assert.Equal(t, "error_event", span2.Events[0].Name)
+	require.Len(t, span2.Links, 1)
+	assert.Equal(t, spanIDToHex(spanID1), span2.Links[0].SpanID)
 }
 
 func TestGetSpanDetailsHandler_Handle_SingleSpan(t *testing.T) {
