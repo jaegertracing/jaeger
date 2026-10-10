@@ -142,6 +142,12 @@ connectors:
         # arrives and merges nothing. Below 1 MiB the batch waits for flush_timeout.
         min_size: 1048576
         max_size: 4194304 # 4 MiB, at most half of bulk_processing.max_bytes above
+        # Same partition requirement as config-kafka-ingester-sync.yaml: v0.162
+        # rejects a zero idle_timeout and cache_size. These are the exporterhelper
+        # defaults, and metadata_keys stays empty so this remains one batcher.
+        partition:
+          idle_timeout: 90s
+          cache_size: 10000
 
 exporters:
   otlphttp/dead_letter:
