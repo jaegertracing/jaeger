@@ -58,9 +58,9 @@ type matchedTrace struct {
 
 func (t traceAndId) traceIsBetweenStartAndEnd(startTime time.Time, endTime time.Time) bool {
 	if endTime.IsZero() {
-		return t.startTime.After(startTime)
+		return !t.startTime.Before(startTime)
 	}
-	return t.startTime.After(startTime) && t.endTime.Before(endTime)
+	return !t.startTime.Before(startTime) && !t.endTime.After(endTime)
 }
 
 func newTenant(cfg *Configuration) *Tenant {
