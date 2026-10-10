@@ -105,6 +105,15 @@ func TestStorageExtensionType(t *testing.T) {
 	require.NoError(t, err)
 }
 
+func TestStorageExtensionRejectsMultipleInstances(t *testing.T) {
+	host := storagetest.NewStorageHost().
+		WithExtension(ID, startStorageExtension(t, "foo", "")).
+		WithExtension(component.NewIDWithName(componentType, "secondary"), startStorageExtension(t, "foo", ""))
+
+	_, err := GetTraceStoreFactory("foo", host)
+	require.ErrorContains(t, err, "multiple 'jaeger_storage' extensions are configured")
+}
+
 func TestStorageFactoryBadShutdownError(t *testing.T) {
 	shutdownError := errors.New("shutdown error")
 	ext := storageExt{
@@ -629,19 +638,33 @@ func startStorageExtension(t *testing.T, memstoreName string, promstoreName stri
 	return ext
 }
 
-// Test authenticator resolution - success case
+// Test authenticator resolution - exact component ID.
 func TestGetAuthenticator_Success(t *testing.T) {
-	mockAuth := &mockHTTPAuthenticator{}
+	tests := []struct {
+		name string
+		id   component.ID
+	}{
+		{
+			name: "type only",
+			id:   component.MustNewID("sigv4auth"),
+		},
+		{
+			name: "type and name",
+			id:   component.MustNewIDWithName("basicauth", "prom"),
+		},
+	}
 
-	host := storagetest.NewStorageHost().
-		WithExtension(component.MustNewIDWithName("sigv4auth", "sigv4auth"), mockAuth)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			mockAuth := &mockHTTPAuthenticator{}
+			host := storagetest.NewStorageHost().WithExtension(tt.id, mockAuth)
+			ext := newStorageExt(&Config{}, noopTelemetrySettings())
 
-	cfg := &Config{}
-	ext := newStorageExt(cfg, noopTelemetrySettings())
-
-	auth, err := ext.getAuthenticator(host, "sigv4auth")
-	require.NoError(t, err)
-	require.NotNil(t, auth)
+			auth, err := ext.getAuthenticator(host, tt.id)
+			require.NoError(t, err)
+			require.Same(t, mockAuth, auth)
+		})
+	}
 }
 
 // Test authenticator not found
@@ -651,7 +674,7 @@ func TestGetAuthenticator_NotFound(t *testing.T) {
 	cfg := &Config{}
 	ext := newStorageExt(cfg, noopTelemetrySettings())
 
-	auth, err := ext.getAuthenticator(host, "nonexistent")
+	auth, err := ext.getAuthenticator(host, component.MustNewID("nonexistent"))
 	require.Error(t, err)
 	require.Nil(t, auth)
 	require.Contains(t, err.Error(), "authenticator extension 'nonexistent' not found")
@@ -662,15 +685,65 @@ func TestGetAuthenticator_WrongType(t *testing.T) {
 	mockExt := &mockNonHTTPExtension{}
 
 	host := storagetest.NewStorageHost().
-		WithExtension(component.MustNewIDWithName("wrongtype", "wrongtype"), mockExt)
+		WithExtension(component.MustNewID("wrongtype"), mockExt)
 
 	cfg := &Config{}
 	ext := newStorageExt(cfg, noopTelemetrySettings())
 
-	auth, err := ext.getAuthenticator(host, "wrongtype")
-	require.Error(t, err)
+	auth, err := ext.getAuthenticator(host, component.MustNewID("wrongtype"))
 	require.Nil(t, auth)
-	require.Contains(t, err.Error(), "does not implement extensionauth.HTTPClient")
+	require.EqualError(t, err, "extension 'wrongtype' does not implement extensionauth.HTTPClient")
+}
+
+func TestGetAuthenticator_SelectsExactIDOverSameName(t *testing.T) {
+	exact := &mockHTTPAuthenticator{}
+	sameName := &mockHTTPAuthenticator{}
+	host := storagetest.NewStorageHost().
+		WithExtension(component.MustNewID("basicauth"), exact).
+		WithExtension(component.MustNewIDWithName("basicauth", "basicauth"), sameName)
+
+	ext := newStorageExt(&Config{}, noopTelemetrySettings())
+
+	// Repeat so that a lookup which depends on map iteration order gets caught.
+	for range 100 {
+		auth, err := ext.getAuthenticator(host, component.MustNewID("basicauth"))
+		require.NoError(t, err)
+		require.Same(t, exact, auth)
+	}
+}
+
+func TestGetAuthenticator_RejectsNamePartOrTypeOnly(t *testing.T) {
+	tests := []struct {
+		name            string
+		authenticatorID component.ID
+		extensionID     component.ID
+		errContains     string
+	}{
+		{
+			name:            "name part",
+			authenticatorID: component.MustNewID("prom"),
+			extensionID:     component.MustNewIDWithName("basicauth", "prom"),
+			errContains:     "authenticator extension 'prom' not found",
+		},
+		{
+			name:            "type only",
+			authenticatorID: component.MustNewID("sigv4auth"),
+			extensionID:     component.MustNewIDWithName("sigv4auth", "sigv4auth"),
+			errContains:     "authenticator extension 'sigv4auth' not found",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			host := storagetest.NewStorageHost().
+				WithExtension(tt.extensionID, &mockHTTPAuthenticator{})
+			ext := newStorageExt(&Config{}, noopTelemetrySettings())
+
+			auth, err := ext.getAuthenticator(host, tt.authenticatorID)
+			require.Nil(t, auth)
+			require.ErrorContains(t, err, tt.errContains)
+		})
+	}
 }
 
 // Test metric backend with valid authenticator
@@ -814,7 +887,7 @@ func TestResolveAuthenticator(t *testing.T) {
 			},
 			setupHost: func() component.Host {
 				return storagetest.NewStorageHost().
-					WithExtension(component.MustNewIDWithName("sigv4auth", "sigv4auth"), &mockHTTPAuthenticator{})
+					WithExtension(component.MustNewID("sigv4auth"), &mockHTTPAuthenticator{})
 			},
 			wantErr: false,
 		},
@@ -867,7 +940,7 @@ func TestGetAuthenticatorEmptyName(t *testing.T) {
 	host := componenttest.NewNopHost()
 
 	// Call with empty authenticator name
-	auth, err := ext.getAuthenticator(host, "")
+	auth, err := ext.getAuthenticator(host, component.ID{})
 
 	require.NoError(t, err)
 	require.Nil(t, auth)
