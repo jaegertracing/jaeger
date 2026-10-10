@@ -128,7 +128,7 @@ func NewHandler(telset telemetry.Settings, queryAPI *querysvc.QueryService, tena
 			SessionTimeout: mcpSessionTimeout,
 		},
 	)
-	tenantHandler := tenancy.ExtractTenantHTTPHandler(tenancyMgr, recordSessionCaller(tenancyMgr, cfg.HeaderForwarding, streamable))
+	tenantHandler := tenancy.ExtractTenantHTTPHandler(tenancyMgr, recordSessionCaller(tenancyMgr, cfg, streamable))
 	return &Handler{
 		Handler: otelhttp.NewHandler(
 			tenantHandler,

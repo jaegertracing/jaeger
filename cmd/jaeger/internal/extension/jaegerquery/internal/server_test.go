@@ -1266,8 +1266,10 @@ func TestInitRouterAIHandlerRegistration(t *testing.T) {
 // mid-session makes a later request on the same MCP session differ from the
 // one that opened it.
 type mcpCallerTransport struct {
-	mu     sync.Mutex
-	header http.Header
+	mu       sync.Mutex
+	header   http.Header
+	rawQuery string
+	hasQuery bool
 }
 
 func (c *mcpCallerTransport) set(name, value string) {
@@ -1276,11 +1278,21 @@ func (c *mcpCallerTransport) set(name, value string) {
 	c.header.Set(name, value)
 }
 
+func (c *mcpCallerTransport) setQuery(q string) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.rawQuery = q
+	c.hasQuery = true
+}
+
 func (c *mcpCallerTransport) RoundTrip(r *http.Request) (*http.Response, error) {
 	c.mu.Lock()
 	r = r.Clone(r.Context())
 	for name, values := range c.header {
 		r.Header[name] = values
+	}
+	if c.hasQuery {
+		r.URL.RawQuery = c.rawQuery
 	}
 	c.mu.Unlock()
 	return http.DefaultTransport.RoundTrip(r)
@@ -1334,6 +1346,56 @@ func TestInitRouter_MCPSessionCaller(t *testing.T) {
 	mu.Lock()
 	defer mu.Unlock()
 	assert.Equal(t, []string{"", "bob"}, tokens)
+}
+
+// TestInitRouter_MCPSessionBindsHTTPAuth checks that http.auth is passed to
+// the MCP handler: with an authenticator configured, a later request whose
+// credential header or auth.request_params differ is refused, because that
+// authenticator may have stored the opener's identity only in the context.
+func TestInitRouter_MCPSessionBindsHTTPAuth(t *testing.T) {
+	telset := initTelSet(zaptest.NewLogger(t), nooptrace.NewTracerProvider())
+	opts := DefaultQueryOptions()
+	opts.AI = configoptional.Some(AIConfig{MCP: configoptional.Some(MCPConfig{}), MaxRequestBodySize: 1 << 20})
+	opts.HTTP.Auth = configoptional.Some(confighttp.AuthConfig{
+		RequestParameters: []string{"token"},
+	})
+	handler, cs, err := initRouter(context.Background(), makeQuerySvc().qs, nil, &opts, nilBackendCaps, noopTenancyMgr(), telset)
+	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, cs.Close()) })
+	ts := httptest.NewServer(handler)
+	t.Cleanup(ts.Close)
+
+	connect := func(t *testing.T, caller *mcpCallerTransport) *mcp.ClientSession {
+		t.Helper()
+		session, err := mcp.NewClient(&mcp.Implementation{Name: "test-client", Version: "0.0.0"}, nil).
+			Connect(t.Context(), &mcp.StreamableClientTransport{
+				Endpoint:   ts.URL + "/api/ai/mcp/",
+				HTTPClient: &http.Client{Transport: caller},
+			}, nil)
+		require.NoError(t, err)
+		t.Cleanup(func() { session.Close() })
+		return session
+	}
+
+	t.Run("credential header", func(t *testing.T) {
+		caller := &mcpCallerTransport{header: http.Header{"X-Api-Key": {"alice"}}}
+		session := connect(t, caller)
+		_, err := session.CallTool(t.Context(), &mcp.CallToolParams{Name: "get_services"})
+		require.NoError(t, err)
+		caller.set("X-Api-Key", "mallory")
+		_, err = session.CallTool(t.Context(), &mcp.CallToolParams{Name: "get_services"})
+		require.ErrorContains(t, err, "start a new session")
+	})
+
+	t.Run("request parameter", func(t *testing.T) {
+		caller := &mcpCallerTransport{hasQuery: true, rawQuery: "token=alice"}
+		session := connect(t, caller)
+		_, err := session.CallTool(t.Context(), &mcp.CallToolParams{Name: "get_services"})
+		require.NoError(t, err)
+		caller.setQuery("token=mallory")
+		_, err = session.CallTool(t.Context(), &mcp.CallToolParams{Name: "get_services"})
+		require.ErrorContains(t, err, "start a new session")
+	})
 }
 
 // TestMountSharedMCP_BasePathNormalization checks the mount prefix directly

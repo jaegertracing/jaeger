@@ -46,6 +46,17 @@ type Config struct {
 	// BearerTokenPropagation is jaeger-query's bearer_token_propagation. When
 	// set, each request on an MCP session reaches storage with its own token.
 	BearerTokenPropagation bool
+	// Authenticated is set when an HTTP server authenticator sits in front of
+	// the handler (jaeger-query's http.auth). The session is then bound to
+	// that authenticator's principal when it sets client.Info.Auth, and
+	// otherwise to the headers and auth.request_params it was given. An
+	// authenticator that stores the caller only in a context value would
+	// otherwise leave the opener's context reusable by any later holder of
+	// the session ID.
+	Authenticated bool
+	// AuthRequestParameters are jaeger-query's http.auth.request_params: the
+	// query keys confighttp passes to the authenticator along with the headers.
+	AuthRequestParameters []string
 }
 
 // DefaultConfig returns the Config the standalone jaeger_mcp extension used, so

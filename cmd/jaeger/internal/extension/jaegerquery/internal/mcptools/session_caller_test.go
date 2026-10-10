@@ -32,10 +32,13 @@ import (
 
 // testCaller is the HTTP transport of a test MCP client: it sends its headers
 // on every request, so changing them mid-session makes another caller use the
-// same MCP session.
+// same MCP session. rawQuery, when hasQuery is set, does the same for the
+// authenticator's query parameters.
 type testCaller struct {
-	mu     sync.Mutex
-	header http.Header
+	mu       sync.Mutex
+	header   http.Header
+	rawQuery string
+	hasQuery bool
 }
 
 func (c *testCaller) update(change func(http.Header)) {
@@ -44,11 +47,21 @@ func (c *testCaller) update(change func(http.Header)) {
 	change(c.header)
 }
 
+func (c *testCaller) setQuery(q string) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.rawQuery = q
+	c.hasQuery = true
+}
+
 func (c *testCaller) RoundTrip(r *http.Request) (*http.Response, error) {
 	c.mu.Lock()
 	r = r.Clone(r.Context())
 	for name, values := range c.header {
 		r.Header[name] = slices.Clone(values)
+	}
+	if c.hasQuery {
+		r.URL.RawQuery = c.rawQuery
 	}
 	c.mu.Unlock()
 	return http.DefaultTransport.RoundTrip(r)
@@ -114,18 +127,88 @@ func (testAuth) GetAttributeNames() []string { return []string{"subject"} }
 // authenticate stands in for a confighttp authenticator that takes the caller
 // from the Authorization header.
 func authenticate(next http.Handler) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		info := client.FromContext(r.Context())
-		info.Auth = testAuth(r.Header.Get("Authorization"))
-		next.ServeHTTP(w, r.WithContext(client.NewContext(r.Context(), info)))
-	})
+	return authenticateFrom(func(r *http.Request) client.AuthData {
+		return testAuth(r.Header.Get("Authorization"))
+	})(next)
 }
+
+// authenticateFrom stands in for a confighttp authenticator. sources is every
+// header plus the configured query parameters; the stand-in reads whichever of
+// those the test's authenticator uses, and may return a principal or only a
+// context value.
+func authenticateFrom(principal func(*http.Request) client.AuthData) func(http.Handler) http.Handler {
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			ctx := r.Context()
+			if principal != nil {
+				info := client.FromContext(ctx)
+				info.Auth = principal(r)
+				ctx = client.NewContext(ctx, info)
+			}
+			if id := requestIdentity(r); id != "" || principal == nil {
+				ctx = context.WithValue(ctx, ctxIdentityKey{}, requestIdentity(r))
+			}
+			next.ServeHTTP(w, r.WithContext(ctx))
+		})
+	}
+}
+
+// ctxIdentityKey is the custom context value an authenticator may use instead
+// of client.Info.Auth. The extensionauth contract leaves the key undefined.
+type ctxIdentityKey struct{}
+
+func requestIdentity(r *http.Request) string {
+	if id := r.Header.Get("X-Api-Key"); id != "" {
+		return id
+	}
+	if c, err := r.Cookie("session"); err == nil {
+		return c.Value
+	}
+	return r.URL.Query().Get("token")
+}
+
+func contextIdentity(ctx context.Context) string {
+	id, _ := ctx.Value(ctxIdentityKey{}).(string)
+	return id
+}
+
+// emptyAuth is a principal with no attributes. The authenticator accepted the
+// request, but the caller lives in a context value rather than Auth.
+type emptyAuth struct{}
+
+func (emptyAuth) GetAttribute(string) any     { return nil }
+func (emptyAuth) GetAttributeNames() []string { return nil }
 
 func authenticatedSubject(ctx context.Context) string {
 	if auth := client.FromContext(ctx).Auth; auth != nil {
 		return auth.GetAttribute("subject").(string)
 	}
 	return ""
+}
+
+func authenticatedConfig(params ...string) func(*Config) {
+	return func(cfg *Config) {
+		cfg.Authenticated = true
+		cfg.AuthRequestParameters = params
+	}
+}
+
+func principalFromCookie(r *http.Request) client.AuthData {
+	c, err := r.Cookie("session")
+	if err != nil {
+		return testAuth("")
+	}
+	return testAuth(c.Value)
+}
+
+func principalFromHeader(name string) func(*http.Request) client.AuthData {
+	return func(r *http.Request) client.AuthData {
+		return testAuth(r.Header.Get(name))
+	}
+}
+
+func principalFromQuery(r *http.Request) client.AuthData {
+	return testAuth(r.URL.Query().Get("token"))
 }
 
 func TestSessionRejectsRequestsFromAnotherCaller(t *testing.T) {
@@ -188,7 +271,56 @@ func TestSessionRejectsRequestsFromAnotherCaller(t *testing.T) {
 			opener:       http.Header{"Authorization": {"Bearer alice"}},
 			change:       func(h http.Header) { h.Set("Authorization", "Bearer mallory") },
 			wantSeen:     "Bearer alice",
-			wantMismatch: "Authorization",
+			wantMismatch: authenticatedIdentityMismatch,
+		},
+		{
+			name:   "different cookie principal",
+			wrap:   authenticateFrom(principalFromCookie),
+			read:   authenticatedSubject,
+			opener: http.Header{"Cookie": {"session=alice"}},
+			change: func(h http.Header) { h.Set("Cookie", "session=mallory") },
+			// The opener's context is what storage sees. A second cookie must
+			// not be served as the opener.
+			wantSeen:     "alice",
+			wantMismatch: authenticatedIdentityMismatch,
+		},
+		{
+			name:         "different custom-header principal",
+			wrap:         authenticateFrom(principalFromHeader("X-Api-Key")),
+			read:         authenticatedSubject,
+			opener:       http.Header{"X-Api-Key": {"alice"}},
+			change:       func(h http.Header) { h.Set("X-Api-Key", "mallory") },
+			wantSeen:     "alice",
+			wantMismatch: authenticatedIdentityMismatch,
+		},
+		{
+			name:         "custom identity context and a different credential header",
+			configure:    authenticatedConfig(),
+			wrap:         authenticateFrom(nil),
+			read:         contextIdentity,
+			opener:       http.Header{"X-Api-Key": {"alice"}},
+			change:       func(h http.Header) { h.Set("X-Api-Key", "mallory") },
+			wantSeen:     "alice",
+			wantMismatch: authenticatedIdentityMismatch,
+		},
+		{
+			name:         "empty principal falls back to authenticator inputs",
+			wrap:         authenticateFrom(func(*http.Request) client.AuthData { return emptyAuth{} }),
+			read:         contextIdentity,
+			opener:       http.Header{"Cookie": {"session=alice"}},
+			change:       func(h http.Header) { h.Set("Cookie", "session=mallory") },
+			wantSeen:     "alice",
+			wantMismatch: authenticatedIdentityMismatch,
+		},
+		{
+			name:         "custom identity context gains a credential header",
+			configure:    authenticatedConfig(),
+			wrap:         authenticateFrom(nil),
+			read:         contextIdentity,
+			opener:       http.Header{},
+			change:       func(h http.Header) { h.Set("X-Api-Key", "bob") },
+			wantSeen:     "",
+			wantMismatch: authenticatedIdentityMismatch,
 		},
 		{
 			name:         "propagated bearer token dropped",
@@ -235,6 +367,89 @@ func TestSessionRejectsRequestsFromAnotherCaller(t *testing.T) {
 				entries[0].ContextMap(), "the log names the header, not its value")
 		})
 	}
+}
+
+// TestSessionRejectsDifferentQueryPrincipal covers an authenticator that reads
+// a query parameter (confighttp auth.request_params) and returns that caller
+// as client.Info.Auth. The two requests carry the same headers.
+func TestSessionRejectsDifferentQueryPrincipal(t *testing.T) {
+	var calls storageCalls
+	h := NewHandler(telemetry.NoopSettings(), calls.queryService(authenticatedSubject), tenancy.NewManager(&tenancy.Options{}), DefaultConfig())
+	t.Cleanup(func() { require.NoError(t, h.Close()) })
+	caller := &testCaller{hasQuery: true, rawQuery: "token=alice"}
+	session := connectTestClientAs(t, serveTestHandler(t, authenticateFrom(principalFromQuery)(h)), caller)
+
+	_, err := session.CallTool(t.Context(), &mcp.CallToolParams{Name: "get_services"})
+	require.NoError(t, err)
+	caller.setQuery("token=mallory")
+	_, err = session.CallTool(t.Context(), &mcp.CallToolParams{Name: "get_services"})
+	require.ErrorContains(t, err, errSessionCallerMismatch.Message)
+	assert.Equal(t, []string{"alice"}, calls.get())
+}
+
+// TestSessionRejectsQueryParamOnCustomIdentity covers an authenticator that
+// never sets client.Info.Auth and instead stores the caller, taken from
+// auth.request_params, in its own context value.
+func TestSessionRejectsQueryParamOnCustomIdentity(t *testing.T) {
+	var calls storageCalls
+	cfg := DefaultConfig()
+	authenticatedConfig("token")(&cfg)
+	h := NewHandler(telemetry.NoopSettings(), calls.queryService(contextIdentity), tenancy.NewManager(&tenancy.Options{}), cfg)
+	t.Cleanup(func() { require.NoError(t, h.Close()) })
+	caller := &testCaller{hasQuery: true, rawQuery: "token=alice"}
+	session := connectTestClientAs(t, serveTestHandler(t, authenticateFrom(nil)(h)), caller)
+
+	_, err := session.CallTool(t.Context(), &mcp.CallToolParams{Name: "get_services"})
+	require.NoError(t, err)
+	caller.setQuery("token=mallory")
+	_, err = session.CallTool(t.Context(), &mcp.CallToolParams{Name: "get_services"})
+	require.ErrorContains(t, err, errSessionCallerMismatch.Message)
+	assert.Equal(t, []string{"alice"}, calls.get())
+}
+
+// TestSessionAllowsSamePrincipalWhenBearerHeaderChanges covers a session bound
+// to a cookie principal: refreshing Authorization, which this authenticator
+// does not read, does not make the request someone else.
+func TestSessionAllowsSamePrincipalWhenBearerHeaderChanges(t *testing.T) {
+	var calls storageCalls
+	h := NewHandler(telemetry.NoopSettings(), calls.queryService(authenticatedSubject), tenancy.NewManager(&tenancy.Options{}), DefaultConfig())
+	t.Cleanup(func() { require.NoError(t, h.Close()) })
+	caller := &testCaller{header: http.Header{"Cookie": {"session=alice"}}}
+	session := connectTestClientAs(t, serveTestHandler(t, authenticateFrom(principalFromCookie)(h)), caller)
+
+	_, err := session.CallTool(t.Context(), &mcp.CallToolParams{Name: "get_services"})
+	require.NoError(t, err)
+	caller.update(func(header http.Header) {
+		header.Set("Authorization", "Bearer refreshed")
+		header.Set("Traceparent", "00-0123456789abcdef0123456789abcdef-0123456789abcdef-01")
+	})
+	_, err = session.CallTool(t.Context(), &mcp.CallToolParams{Name: "get_services"})
+	require.NoError(t, err)
+	assert.Equal(t, []string{"alice", "alice"}, calls.get())
+}
+
+// TestSessionAllowsVolatileHeadersForSameCustomIdentity covers the headers a
+// client or a proxy changes between the request that opens a session and a
+// later call. They are not authenticator inputs, so the same caller proceeds.
+func TestSessionAllowsVolatileHeadersForSameCustomIdentity(t *testing.T) {
+	var calls storageCalls
+	cfg := DefaultConfig()
+	authenticatedConfig()(&cfg)
+	h := NewHandler(telemetry.NoopSettings(), calls.queryService(contextIdentity), tenancy.NewManager(&tenancy.Options{}), cfg)
+	t.Cleanup(func() { require.NoError(t, h.Close()) })
+	caller := &testCaller{header: http.Header{"X-Api-Key": {"alice"}}}
+	session := connectTestClientAs(t, serveTestHandler(t, authenticateFrom(nil)(h)), caller)
+
+	_, err := session.CallTool(t.Context(), &mcp.CallToolParams{Name: "get_services"})
+	require.NoError(t, err)
+	caller.update(func(header http.Header) {
+		header.Set("Traceparent", "00-0123456789abcdef0123456789abcdef-0123456789abcdef-01")
+		header.Set("X-Request-Id", "req-2")
+		header.Set("Mcp-Protocol-Version", "2025-11-25")
+	})
+	_, err = session.CallTool(t.Context(), &mcp.CallToolParams{Name: "get_services"})
+	require.NoError(t, err)
+	assert.Equal(t, []string{"alice", "alice"}, calls.get())
 }
 
 // TestSessionAllowsTokenRefreshNothingReads covers a client that refreshes its
@@ -413,4 +628,130 @@ func TestCheckSessionCallerSkipsSessionsNotOpenedOverHTTP(t *testing.T) {
 
 	_, err = session.ListTools(t.Context(), &mcp.ListToolsParams{})
 	require.NoError(t, err)
+}
+
+// TestSessionBindingHeaderStaysOutOfClientMetadata covers include_metadata:
+// the internal fingerprint must not be copied into the client metadata a
+// query interceptor reads.
+func TestSessionBindingHeaderStaysOutOfClientMetadata(t *testing.T) {
+	includeMetadata := func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			md := r.Header.Clone()
+			md.Set(client.MetadataHostName, r.Host)
+			ctx := client.NewContext(r.Context(), client.Info{Metadata: client.NewMetadata(md)})
+			next.ServeHTTP(w, r.WithContext(ctx))
+		})
+	}
+	var calls storageCalls
+	svc := calls.queryService(func(ctx context.Context) string {
+		md := client.FromContext(ctx).Metadata
+		if len(md.Get(sessionBindingHeader)) > 0 {
+			return "leaked"
+		}
+		return strings.Join(md.Get("X-Api-Key"), ",")
+	})
+	h := NewHandler(telemetry.NoopSettings(), svc, tenancy.NewManager(&tenancy.Options{}), DefaultConfig())
+	t.Cleanup(func() { require.NoError(t, h.Close()) })
+	handler := includeMetadata(authenticateFrom(principalFromHeader("X-Api-Key"))(h))
+	caller := &testCaller{header: http.Header{"X-Api-Key": {"alice"}}}
+	session := connectTestClientAs(t, serveTestHandler(t, handler), caller)
+
+	_, err := session.CallTool(t.Context(), &mcp.CallToolParams{Name: "get_services"})
+	require.NoError(t, err)
+	assert.Equal(t, []string{"alice"}, calls.get())
+}
+
+func TestSessionBindingSkipsUnauthenticatedRequests(t *testing.T) {
+	req := httptest.NewRequest(http.MethodPost, "http://example.com/mcp", http.NoBody)
+	req.Header.Set("Authorization", "Bearer alice")
+	assert.Empty(t, sessionBinding(req, DefaultConfig()))
+}
+
+func TestRecordSessionCallerNilHeaderStillBinds(t *testing.T) {
+	var got string
+	h := recordSessionCaller(tenancy.NewManager(&tenancy.Options{}), Config{Authenticated: true}, http.HandlerFunc(func(_ http.ResponseWriter, r *http.Request) {
+		got = r.Header.Get(sessionBindingHeader)
+		_, ok := r.Context().Value(sessionCallerKey{}).(http.Header)
+		assert.True(t, ok)
+	}))
+	req := httptest.NewRequest(http.MethodPost, "http://example.com/mcp", http.NoBody)
+	req.Header = nil
+	h.ServeHTTP(httptest.NewRecorder(), req)
+	assert.NotEmpty(t, got)
+}
+
+type mapAuth map[string]any
+
+func (m mapAuth) GetAttribute(name string) any { return m[name] }
+func (m mapAuth) GetAttributeNames() []string {
+	names := make([]string, 0, len(m))
+	for name := range m {
+		names = append(names, name)
+	}
+	return names
+}
+
+type failingAttr struct{}
+
+func (failingAttr) MarshalJSON() ([]byte, error) {
+	return nil, http.ErrNotSupported
+}
+
+func TestPrincipalFingerprint(t *testing.T) {
+	left := mapAuth{"b": "2", "a": []string{"x", "y"}}
+	right := mapAuth{"a": []string{"x", "y"}, "b": "2"}
+	assert.Equal(t, principalFingerprint(left), principalFingerprint(right))
+
+	changed := mapAuth{"a": []string{"x", "y"}, "b": "3"}
+	assert.NotEqual(t, principalFingerprint(left), principalFingerprint(changed))
+
+	// json.Marshal cannot encode failingAttr, so the fingerprint falls back to
+	// fmt's default form and stays stable for the same value.
+	first := mapAuth{"v": failingAttr{}}
+	second := mapAuth{"v": failingAttr{}}
+	assert.Equal(t, "{}", encodeAuthAttribute(failingAttr{}))
+	assert.Equal(t, principalFingerprint(first), principalFingerprint(second))
+	assert.NotEqual(t, principalFingerprint(left), principalFingerprint(first))
+}
+
+func TestAuthInputFingerprint(t *testing.T) {
+	opened := httptest.NewRequest(http.MethodPost, "http://example.com/mcp?token=alice&other=1", http.NoBody)
+	opened.Header.Set("X-Api-Key", "alice")
+	opened.Header.Set(sessionBindingHeader, "client-supplied")
+
+	later := opened.Clone(opened.Context())
+	later.Header = opened.Header.Clone()
+	later.Header.Set("Mcp-Session-Id", "sess-1")
+	later.Header.Set("Mcp-Protocol-Version", "2025-11-25")
+	later.Header.Set("Content-Length", "99")
+	later.Header.Set("Traceparent", "00-0123456789abcdef0123456789abcdef-0123456789abcdef-01")
+	later.Header.Set("X-Request-Id", "req-2")
+	assert.Equal(t, authInputFingerprint(opened, []string{"token"}), authInputFingerprint(later, []string{"token"}),
+		"protocol, framing, and tracing headers are not authenticator inputs")
+
+	// A query parameter the authenticator is not configured to receive.
+	other := opened.Clone(opened.Context())
+	other.Header = opened.Header.Clone()
+	other.URL.RawQuery = "token=alice&other=2"
+	assert.Equal(t, authInputFingerprint(opened, []string{"token"}), authInputFingerprint(other, []string{"token"}))
+
+	changedKey := opened.Clone(opened.Context())
+	changedKey.Header = opened.Header.Clone()
+	changedKey.Header.Set("X-Api-Key", "mallory")
+	assert.NotEqual(t, authInputFingerprint(opened, []string{"token"}), authInputFingerprint(changedKey, []string{"token"}))
+
+	added := opened.Clone(opened.Context())
+	added.Header = opened.Header.Clone()
+	added.Header.Set("X-Extra", "1")
+	assert.NotEqual(t, authInputFingerprint(opened, []string{"token"}), authInputFingerprint(added, []string{"token"}))
+
+	changedToken := opened.Clone(opened.Context())
+	changedToken.Header = opened.Header.Clone()
+	changedToken.URL.RawQuery = "token=mallory&other=1"
+	assert.NotEqual(t, authInputFingerprint(opened, []string{"token"}), authInputFingerprint(changedToken, []string{"token"}))
+
+	absentToken := opened.Clone(opened.Context())
+	absentToken.Header = opened.Header.Clone()
+	absentToken.URL.RawQuery = "other=1"
+	assert.NotEqual(t, authInputFingerprint(opened, []string{"token"}), authInputFingerprint(absentToken, []string{"token"}))
 }
