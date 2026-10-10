@@ -4,7 +4,9 @@
 # Reference builder.yaml for assembling Jaeger using ocb (OpenTelemetry Collector Builder).
 # This manifest reproduces the default Jaeger production distribution and serves as
 # both documentation and a CI validation artifact.
-# Note: test-only components (e.g., storagecleaner) are intentionally excluded.
+# The component list matches internal.Components(), which the standard binary uses.
+# Test-only components such as storagecleaner are in neither: they are registered by
+# cmd/jaeger/internal/integration/jaeger-e2e.
 #
 # Usage:
 #   ocb --config cmd/jaeger/builder.yaml
@@ -99,6 +101,8 @@ connectors:
     import: github.com/jaegertracing/jaeger/components/ext/connector/forwardconnector
   - gomod: github.com/jaegertracing/jaeger v0.0.0
     import: github.com/jaegertracing/jaeger/components/ext/connector/spanmetricsconnector
+  - gomod: github.com/jaegertracing/jaeger v0.0.0
+    import: github.com/jaegertracing/jaeger/components/connector/storageexporter
 
 replaces:
   - github.com/jaegertracing/jaeger v0.0.0 => ../../../

@@ -1,0 +1,14 @@
+{
+  "bool": {
+    "must": {
+      "exists": {
+        "field": "traceID"
+      }
+    },
+    "must_not": {
+      "term": {
+        "traceID": "0af7651916cd43dd8448eb211c80319c"
+      }
+    }
+  }
+}

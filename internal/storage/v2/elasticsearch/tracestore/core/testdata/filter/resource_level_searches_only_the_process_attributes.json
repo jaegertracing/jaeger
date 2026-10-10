@@ -1,0 +1,32 @@
+{
+  "bool": {
+    "should": [
+      {
+        "term": {
+          "process.tag.deployment@environment": "staging"
+        }
+      },
+      {
+        "nested": {
+          "path": "process.tags",
+          "query": {
+            "bool": {
+              "must": [
+                {
+                  "term": {
+                    "process.tags.key": "deployment.environment"
+                  }
+                },
+                {
+                  "term": {
+                    "process.tags.value": "staging"
+                  }
+                }
+              ]
+            }
+          }
+        }
+      }
+    ]
+  }
+}

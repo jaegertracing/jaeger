@@ -17,203 +17,6 @@ import (
 	"github.com/jaegertracing/jaeger/internal/testutils"
 )
 
-// basicAuth creates basic authentication component
-func basicAuth(username, password, passwordFilePath string) configoptional.Optional[BasicAuthentication] {
-	return configoptional.Some(BasicAuthentication{
-		Username:         username,
-		Password:         password,
-		PasswordFilePath: passwordFilePath,
-	})
-}
-
-func TestApplyDefaults(t *testing.T) {
-	source := &Configuration{
-		RemoteReadClusters: []string{"cluster1", "cluster2"},
-		Authentication: Authentication{
-			BasicAuthentication: basicAuth("sourceUser", "sourcePass", ""),
-		},
-		Sniffing: Sniffing{
-			Enabled: true,
-		},
-		MaxSpanAge:               100,
-		AdaptiveSamplingLookback: 50,
-		Indices: Indices{
-			IndexPrefix: "hello",
-			Spans: IndexOptions{
-				Shards:   5,
-				Replicas: new(int64(1)),
-				Priority: 10,
-			},
-			Services: IndexOptions{
-				Shards:   5,
-				Replicas: new(int64(1)),
-				Priority: 20,
-			},
-			Dependencies: IndexOptions{
-				Shards:   5,
-				Replicas: new(int64(1)),
-				Priority: 30,
-			},
-			Sampling: IndexOptions{},
-		},
-		BulkProcessing: BulkProcessing{
-			MaxBytes:      1000,
-			Workers:       10,
-			FlushInterval: 30,
-		},
-		Tags:        TagsAsFields{AllAsFields: true, DotReplacement: "dot", Include: "include", File: "file"},
-		MaxDocCount: 10000,
-		LogLevel:    "info",
-	}
-
-	tests := []struct {
-		name     string
-		target   *Configuration
-		expected *Configuration
-	}{
-		{
-			name: "All Defaults Applied except PriorityDependenciesTemplate",
-			target: &Configuration{
-				Indices: Indices{
-					Dependencies: IndexOptions{
-						Priority: 30,
-					},
-				},
-			}, // All fields are empty
-			expected: source,
-		},
-		{
-			name: "Some Defaults Applied",
-			target: &Configuration{
-				RemoteReadClusters: []string{"customCluster"},
-				Authentication: Authentication{
-					BasicAuthentication: basicAuth("customUser", "", ""),
-				},
-				Indices: Indices{
-					Spans: IndexOptions{
-						Priority: 10,
-					},
-					Services: IndexOptions{
-						Priority: 20,
-					},
-					Dependencies: IndexOptions{
-						Priority: 30,
-					},
-				},
-				// Other fields left default
-			},
-			expected: &Configuration{
-				RemoteReadClusters: []string{"customCluster"},
-				Authentication: Authentication{
-					BasicAuthentication: basicAuth("customUser", "sourcePass", ""),
-				},
-				Sniffing: Sniffing{
-					Enabled: true,
-				},
-				MaxSpanAge:               100,
-				AdaptiveSamplingLookback: 50,
-				Indices: Indices{
-					IndexPrefix: "hello",
-					Spans: IndexOptions{
-						Shards:   5,
-						Replicas: new(int64(1)),
-						Priority: 10,
-					},
-					Services: IndexOptions{
-						Shards:   5,
-						Replicas: new(int64(1)),
-						Priority: 20,
-					},
-					Dependencies: IndexOptions{
-						Shards:   5,
-						Replicas: new(int64(1)),
-						Priority: 30,
-					},
-				},
-				BulkProcessing: BulkProcessing{
-					MaxBytes:      1000,
-					Workers:       10,
-					FlushInterval: 30,
-				},
-				Tags:        TagsAsFields{AllAsFields: true, DotReplacement: "dot", Include: "include", File: "file"},
-				MaxDocCount: 10000,
-				LogLevel:    "info",
-			},
-		},
-		{
-			name: "No Defaults Applied",
-			target: &Configuration{
-				RemoteReadClusters: []string{"cluster1", "cluster2"},
-				Authentication: Authentication{
-					BasicAuthentication: basicAuth("sourceUser", "sourcePass", ""),
-				},
-				Sniffing: Sniffing{
-					Enabled: true,
-				},
-				MaxSpanAge:               100,
-				AdaptiveSamplingLookback: 50,
-				Indices: Indices{
-					IndexPrefix: "hello",
-					Spans: IndexOptions{
-						Shards:   5,
-						Replicas: new(int64(1)),
-						Priority: 10,
-					},
-					Services: IndexOptions{
-						Shards:   5,
-						Replicas: new(int64(1)),
-						Priority: 20,
-					},
-					Dependencies: IndexOptions{
-						Shards:   5,
-						Replicas: new(int64(1)),
-						Priority: 30,
-					},
-				},
-				BulkProcessing: BulkProcessing{
-					MaxBytes:      1000,
-					Workers:       10,
-					FlushInterval: 30,
-				},
-				Tags:        TagsAsFields{AllAsFields: true, DotReplacement: "dot", Include: "include", File: "file"},
-				MaxDocCount: 10000,
-				LogLevel:    "info",
-			},
-			expected: source,
-		},
-	}
-
-	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
-			test.target.ApplyDefaults(source)
-			require.Equal(t, test.expected, test.target)
-		})
-	}
-}
-
-func TestApplyDefaults_Auth(t *testing.T) {
-	source := &Configuration{
-		Authentication: Authentication{
-			BasicAuthentication: basicAuth("sourceUser", "sourcePass", ""),
-		},
-	}
-
-	target := &Configuration{
-		Authentication: Authentication{
-			BasicAuthentication: basicAuth("", "", ""),
-		},
-	}
-
-	expected := &Configuration{
-		Authentication: Authentication{
-			BasicAuthentication: basicAuth("sourceUser", "sourcePass", ""),
-		},
-	}
-
-	target.ApplyDefaults(source)
-	require.Equal(t, expected, target)
-}
-
 func TestTagKeysAsFields(t *testing.T) {
 	const (
 		pwd1 = "tag1\ntag2"
@@ -230,10 +33,21 @@ func TestTagKeysAsFields(t *testing.T) {
 		{
 			name: "File with tags",
 			config: &Configuration{
-				Tags: TagsAsFields{
+				Indices: Indices{Spans: SpanIndexOptions{Tags: TagsAsFields{
 					File:    pwdFile,
 					Include: "",
-				},
+				}}},
+			},
+			expectedTags: []string{"tag1", "tag2"},
+			expectError:  false,
+		},
+		{
+			name: "deprecated top-level tags_as_fields",
+			config: &Configuration{
+				Tags: configoptional.Some(TagsAsFields{
+					File:    pwdFile,
+					Include: "",
+				}),
 			},
 			expectedTags: []string{"tag1", "tag2"},
 			expectError:  false,
@@ -241,10 +55,10 @@ func TestTagKeysAsFields(t *testing.T) {
 		{
 			name: "include with tags",
 			config: &Configuration{
-				Tags: TagsAsFields{
+				Indices: Indices{Spans: SpanIndexOptions{Tags: TagsAsFields{
 					File:    "",
 					Include: "cmdtag1,cmdtag2",
-				},
+				}}},
 			},
 			expectedTags: []string{"cmdtag1", "cmdtag2"},
 			expectError:  false,
@@ -252,10 +66,10 @@ func TestTagKeysAsFields(t *testing.T) {
 		{
 			name: "File and include with tags",
 			config: &Configuration{
-				Tags: TagsAsFields{
+				Indices: Indices{Spans: SpanIndexOptions{Tags: TagsAsFields{
 					File:    pwdFile,
 					Include: "cmdtag1,cmdtag2",
-				},
+				}}},
 			},
 			expectedTags: []string{"tag1", "tag2", "cmdtag1", "cmdtag2"},
 			expectError:  false,
@@ -263,10 +77,10 @@ func TestTagKeysAsFields(t *testing.T) {
 		{
 			name: "File read error",
 			config: &Configuration{
-				Tags: TagsAsFields{
+				Indices: Indices{Spans: SpanIndexOptions{Tags: TagsAsFields{
 					File:    "/invalid/path/to/file.txt",
 					Include: "",
-				},
+				}}},
 			},
 			expectedTags: nil,
 			expectError:  true,
@@ -274,10 +88,10 @@ func TestTagKeysAsFields(t *testing.T) {
 		{
 			name: "Empty file and params",
 			config: &Configuration{
-				Tags: TagsAsFields{
+				Indices: Indices{Spans: SpanIndexOptions{Tags: TagsAsFields{
 					File:    "",
 					Include: "",
-				},
+				}}},
 			},
 			expectedTags: nil,
 			expectError:  false,
@@ -294,6 +108,27 @@ func TestTagKeysAsFields(t *testing.T) {
 				require.NoError(t, err)
 				require.ElementsMatch(t, test.expectedTags, tags)
 			}
+		})
+	}
+}
+
+// TestResolvedTagsAsFields checks which spelling wins: the deprecated top-level one whenever it
+// is present, since a configuration that still sets it has not been migrated, and the
+// indices.spans one otherwise.
+func TestResolvedTagsAsFields(t *testing.T) {
+	spans := TagsAsFields{Include: "new", DotReplacement: "@"}
+	tests := []struct {
+		name   string
+		legacy configoptional.Optional[TagsAsFields]
+		want   TagsAsFields
+	}{
+		{name: "indices.spans alone", want: spans},
+		{name: "deprecated spelling wins", legacy: configoptional.Some(TagsAsFields{Include: "old", DotReplacement: "!"}), want: TagsAsFields{Include: "old", DotReplacement: "!"}},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			cfg := &Configuration{Tags: test.legacy, Indices: Indices{Spans: SpanIndexOptions{Tags: spans}}}
+			assert.Equal(t, test.want, cfg.ResolvedTagsAsFields())
 		})
 	}
 }
@@ -332,8 +167,10 @@ func TestRolloverFrequencyAsNegativeDuration(t *testing.T) {
 func TestValidate(t *testing.T) {
 	// Several cases below configure legacy rotation flags to exercise alias/rotation
 	// validation, which only applies when RejectLegacyRotationFlags is disabled; the
-	// gate is Beta (enabled by default), so disable it for these cases.
+	// gate is Beta (enabled by default), so disable it for these cases. The same goes
+	// for the cases that set the deprecated top-level tags_as_fields.
 	setRejectLegacyRotationFlagsGate(t, false)
+	setGate(t, RejectLegacyTagsAsFields, false)
 
 	tests := []struct {
 		name          string
@@ -354,6 +191,36 @@ func TestValidate(t *testing.T) {
 			name:          "explicit unsupported version rejected",
 			config:        &Configuration{Servers: []string{"localhost:8000/dummyserver"}, Version: 10},
 			expectedError: "unsupported version 10",
+		},
+		{
+			name: "tags_as_fields under indices.spans accepted",
+			config: &Configuration{
+				Servers: []string{"localhost:8000/dummyserver"},
+				Indices: Indices{Spans: SpanIndexOptions{Tags: TagsAsFields{AllAsFields: true}}},
+			},
+		},
+		{
+			name: "deprecated top-level tags_as_fields accepted on its own",
+			config: &Configuration{
+				Servers: []string{"localhost:8000/dummyserver"},
+				Tags:    configoptional.Some(TagsAsFields{Include: "a"}),
+			},
+		},
+		{
+			name: "top-level tags_as_fields beside a dot replacement under indices.spans accepted",
+			config: &Configuration{
+				Servers: []string{"localhost:8000/dummyserver"},
+				Tags:    configoptional.Some(TagsAsFields{Include: "a"}),
+				Indices: Indices{Spans: SpanIndexOptions{Tags: TagsAsFields{DotReplacement: "@"}}},
+			},
+		},
+		{
+			name: "tags_as_fields in both places accepted",
+			config: &Configuration{
+				Servers: []string{"localhost:8000/dummyserver"},
+				Tags:    configoptional.Some(TagsAsFields{Include: "a"}),
+				Indices: Indices{Spans: SpanIndexOptions{Tags: TagsAsFields{Include: "b"}}},
+			},
 		},
 		{
 			name:          "no valid input are set",
@@ -652,17 +519,6 @@ func TestEffectivePoisonHandling(t *testing.T) {
 	assert.Equal(t, PoisonDrop, (&Configuration{PoisonPillHandling: PoisonDrop}).EffectivePoisonHandling())
 }
 
-func TestApplyDefaultsPoisonHandling(t *testing.T) {
-	source := &Configuration{PoisonPillHandling: PoisonDrop}
-	target := &Configuration{}
-	target.ApplyDefaults(source)
-	assert.Equal(t, PoisonDrop, target.PoisonPillHandling, "unset target inherits the source policy")
-
-	explicit := &Configuration{PoisonPillHandling: PoisonFail}
-	explicit.ApplyDefaults(source)
-	assert.Equal(t, PoisonFail, explicit.PoisonPillHandling, "explicit target policy is preserved")
-}
-
 func TestApplyForIndexPrefix(t *testing.T) {
 	tests := []struct {
 		testName     string
@@ -771,55 +627,6 @@ func TestCustomHeaders(t *testing.T) {
 	}
 }
 
-func TestApplyDefaultsCustomHeaders(t *testing.T) {
-	source := &Configuration{
-		CustomHeaders: map[string]string{
-			"Host":            "source-host",
-			"X-Custom-Header": "source-value",
-		},
-	}
-
-	tests := []struct {
-		name     string
-		target   *Configuration
-		expected map[string]string
-	}{
-		{
-			name:   "target has no headers, apply from source",
-			target: &Configuration{},
-			expected: map[string]string{
-				"Host":            "source-host",
-				"X-Custom-Header": "source-value",
-			},
-		},
-		{
-			name: "target has headers, keep target headers",
-			target: &Configuration{
-				CustomHeaders: map[string]string{
-					"Host": "target-host",
-				},
-			},
-			expected: map[string]string{
-				"Host": "target-host",
-			},
-		},
-		{
-			name: "target has empty map, keep empty",
-			target: &Configuration{
-				CustomHeaders: map[string]string{},
-			},
-			expected: map[string]string{},
-		},
-	}
-
-	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
-			test.target.ApplyDefaults(source)
-			assert.Equal(t, test.expected, test.target.CustomHeaders)
-		})
-	}
-}
-
 func TestRotationConfig_HasRotation(t *testing.T) {
 	tests := []struct {
 		name     string
@@ -916,11 +723,11 @@ func TestValidate_RotationConflictsWithLegacyFlags(t *testing.T) {
 	cfg := &Configuration{
 		Servers: []string{"localhost:8000/dummyserver"},
 		Indices: Indices{
-			Spans: IndexOptions{
+			Spans: SpanIndexOptions{IndexOptions: IndexOptions{
 				Rotation: RotationConfig{
 					Periodic: configoptional.Some(PeriodicRotation{DateLayout: "2006-01-02"}),
 				},
-			},
+			}},
 		},
 		UseReadWriteAliases: configoptional.Some(true),
 	}
@@ -959,6 +766,17 @@ func TestLogDeprecationWarnings(t *testing.T) {
 				"Deprecated Elasticsearch configuration flag",
 				"use_ilm",
 				"auto_rollover",
+			},
+		},
+		{
+			name: "top-level tags_as_fields",
+			cfg: &Configuration{
+				Tags: configoptional.Some(TagsAsFields{AllAsFields: true}),
+			},
+			expectedLogs: []string{
+				"Deprecated Elasticsearch configuration flag",
+				"tags_as_fields",
+				"indices.spans.tags_as_fields",
 			},
 		},
 		{
@@ -1034,6 +852,33 @@ func setRejectLegacyRotationFlagsGate(t *testing.T, enabled bool) {
 	})
 }
 
+// setGate sets a plain feature gate for the duration of the test and restores its
+// original value on cleanup.
+func setGate(t *testing.T, gate *featuregate.Gate, enabled bool) {
+	original := gate.IsEnabled()
+	require.NoError(t, featuregate.GlobalRegistry().Set(gate.ID(), enabled))
+	t.Cleanup(func() {
+		require.NoError(t, featuregate.GlobalRegistry().Set(gate.ID(), original))
+	})
+}
+
+func TestValidate_RejectLegacyTagsAsFieldsGate(t *testing.T) {
+	cfg := &Configuration{
+		Servers: []string{"localhost:8000/dummyserver"},
+		Tags: configoptional.Some(TagsAsFields{
+			AllAsFields: true,
+		}),
+	}
+
+	setGate(t, RejectLegacyTagsAsFields, true)
+	err := cfg.Validate()
+	require.ErrorContains(t, err, "top-level tags_as_fields is no longer supported")
+	require.ErrorContains(t, err, RejectLegacyTagsAsFields.ID())
+
+	setGate(t, RejectLegacyTagsAsFields, false)
+	require.NoError(t, cfg.Validate())
+}
+
 func TestValidate_RejectLegacyRotationFlagsGate(t *testing.T) {
 	setRejectLegacyRotationFlagsGate(t, true)
 
@@ -1077,14 +922,14 @@ func TestResolvedRotation(t *testing.T) {
 			name: "explicit rotation takes precedence",
 			cfg: &Configuration{
 				Indices: Indices{
-					Spans: IndexOptions{
+					Spans: SpanIndexOptions{IndexOptions: IndexOptions{
 						Rotation: RotationConfig{
 							ManualRollover: configoptional.Some(ManualRolloverRotation{
 								ReadAlias:  "custom-read",
 								WriteAlias: "custom-write",
 							}),
 						},
-					},
+					}},
 				},
 			},
 			checkFn: func(t *testing.T, rc RotationConfig) {
@@ -1160,9 +1005,9 @@ func TestResolvedRotation(t *testing.T) {
 			name: "custom date_layout in legacy field",
 			cfg: &Configuration{
 				Indices: Indices{
-					Spans: IndexOptions{
+					Spans: SpanIndexOptions{IndexOptions: IndexOptions{
 						DateLayout: configoptional.Some("2006010215"),
-					},
+					}},
 				},
 			},
 			checkFn: func(t *testing.T, rc RotationConfig) {
@@ -1224,12 +1069,12 @@ func TestValidateRotationConfig_DateLayoutConflict(t *testing.T) {
 	cfg := &Configuration{
 		Servers: []string{"localhost:8000/dummyserver"},
 		Indices: Indices{
-			Spans: IndexOptions{
+			Spans: SpanIndexOptions{IndexOptions: IndexOptions{
 				DateLayout: configoptional.Some("2006010215"),
 				Rotation: RotationConfig{
 					Periodic: configoptional.Some(PeriodicRotation{DateLayout: "2006-01-02"}),
 				},
-			},
+			}},
 		},
 	}
 	err := cfg.Validate()
@@ -1241,12 +1086,12 @@ func TestValidateRotationConfig_RolloverFrequencyConflict(t *testing.T) {
 	cfg := &Configuration{
 		Servers: []string{"localhost:8000/dummyserver"},
 		Indices: Indices{
-			Spans: IndexOptions{
+			Spans: SpanIndexOptions{IndexOptions: IndexOptions{
 				RolloverFrequency: configoptional.Some("hour"),
 				Rotation: RotationConfig{
 					Periodic: configoptional.Some(PeriodicRotation{DateLayout: "2006-01-02"}),
 				},
-			},
+			}},
 		},
 	}
 	err := cfg.Validate()

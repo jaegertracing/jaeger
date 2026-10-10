@@ -5,8 +5,6 @@
 package app
 
 import (
-	"time"
-
 	"go.opentelemetry.io/otel/trace"
 	"go.uber.org/zap"
 
@@ -40,13 +38,6 @@ func (handlerOptions) BasePath(prefix string) HandlerOption {
 func (handlerOptions) Prefix(prefix string) HandlerOption {
 	return func(apiHandler *APIHandler) {
 		apiHandler.apiPrefix = prefix
-	}
-}
-
-// QueryLookbackDuration creates a HandlerOption that initializes lookback duration
-func (handlerOptions) QueryLookbackDuration(queryLookbackDuration time.Duration) HandlerOption {
-	return func(apiHandler *APIHandler) {
-		apiHandler.queryParser.traceQueryLookbackDuration = queryLookbackDuration
 	}
 }
 

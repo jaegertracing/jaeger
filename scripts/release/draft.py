@@ -12,7 +12,7 @@ version_pattern = re.compile(r"^[# ]*v?(\d+\.\d+\.\d+)")
 underline_pattern = re.compile(r"^[-]+$", flags=0)
 
 
-def main(title, repo, dry_run=False):
+def main(title, repo, target=None, dry_run=False):
     changelog_text, version = get_changelog(repo)
     header = f"{title} v{version}"
     tag = f"v{version}"
@@ -23,6 +23,7 @@ def main(title, repo, dry_run=False):
         print(f"Repository: {full_repo}")
         print(f"Tag:        {tag}")
         print(f"Title:      {header}")
+        print(f"Target:     {target or 'default branch'}")
         print("Changelog:")
         print("-" * 20)
         print(changelog_text)
@@ -30,20 +31,23 @@ def main(title, repo, dry_run=False):
         return
 
     print(changelog_text)
+    cmd = [
+        "gh",
+        "release",
+        "create",
+        tag,
+        "--draft",
+        "--title",
+        header,
+        "--repo",
+        full_repo,
+        "-F",
+        "-",
+    ]
+    if target:
+        cmd += ["--target", target]
     output_string = subprocess.check_output(
-        [
-            "gh",
-            "release",
-            "create",
-            tag,
-            "--draft",
-            "--title",
-            header,
-            "--repo",
-            full_repo,
-            "-F",
-            "-",
-        ],
+        cmd,
         input=changelog_text,
         text=True,
     )
@@ -98,6 +102,11 @@ if __name__ == "__main__":
         help="The repository name where the draft release will be created. (default: jaeger)",
     )
     parser.add_argument(
+        "--target",
+        type=str,
+        help="Commit SHA or branch the release tag will point to. (default: the default branch)",
+    )
+    parser.add_argument(
         "-d",
         "--dry-run",
         action="store_true",
@@ -106,4 +115,4 @@ if __name__ == "__main__":
 
     args = parser.parse_args()
 
-    main(args.title, args.repo, args.dry_run)
+    main(args.title, args.repo, args.target, args.dry_run)

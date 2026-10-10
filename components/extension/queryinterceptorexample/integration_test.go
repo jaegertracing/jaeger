@@ -34,9 +34,9 @@ var testHTTPClient = &http.Client{Timeout: 5 * time.Second}
 // through the same env vars the file already exposes (`${env:...:-default}`),
 // so the file itself is what runs. It pushes one span via OTLP and drives the
 // jaeger-query API as two callers to prove both hooks fire per caller identity:
-//   - OnResult (return-path) redacts the configured attributes for a
+//   - OnTraceResult (return-path) redacts the configured attributes for a
 //     non-privileged caller but leaves them intact for a privileged one;
-//   - OnQuery (pre-query) rejects a search filtering on a forbidden attribute
+//   - OnTraceQuery (pre-query) rejects a search filtering on a forbidden attribute
 //     for a non-privileged caller but admits it for a privileged one.
 //
 // The caller identity travels in a request header and reaches the interceptor
@@ -96,7 +96,7 @@ func TestExampleConfigEndToEnd(t *testing.T) {
 	// restricted. This is the crux of the Option-D PoC: a real extension would
 	// resolve the caller against an access-control system instead of a static role.
 
-	// OnResult, privileged caller: sees the sensitive attributes unredacted.
+	// OnTraceResult, privileged caller: sees the sensitive attributes unredacted.
 	// This first fetch also serves as the readiness wait for the pushed trace.
 	var adminTags map[string]string
 	require.Eventually(t, func() bool {
@@ -111,19 +111,22 @@ func TestExampleConfigEndToEnd(t *testing.T) {
 	assert.Equal(t, "my password is hunter2", adminTags["prompt"], "privileged caller sees prompt unredacted")
 	assert.Equal(t, "the capital is Paris", adminTags["llm.response"], "privileged caller sees response unredacted")
 
-	// OnResult, non-privileged caller: same trace, sensitive attributes redacted.
+	// OnTraceResult, non-privileged caller: same trace, sensitive attributes redacted.
 	_, viewerBody := httpGet(t, queryBase+"/api/traces/"+traceID, "viewer")
 	viewerTags := spanTags(t, viewerBody)
 	assert.Equal(t, "REDACTED", viewerTags["prompt"], "non-privileged caller: prompt redacted")
 	assert.Equal(t, "REDACTED", viewerTags["llm.response"], "non-privileged caller: llm.response redacted")
 	assert.Equal(t, "visible", viewerTags["keep"], "non-configured attribute must be untouched")
 
-	// OnQuery, per caller: a search filtering on the forbidden `prompt` attribute
+	// OnTraceQuery, per caller: a search filtering on the forbidden `prompt` attribute
 	// is admitted for the privileged caller but rejected for everyone else.
-	nowUS := time.Now().UnixMicro()
-	tagFilter := url.QueryEscape(`{"prompt":"hunter2"}`)
-	searchURL := fmt.Sprintf("%s/api/traces?service=checkout&start=%d&end=%d&tags=%s",
-		queryBase, nowUS-3600_000_000, nowUS, tagFilter)
+	now := time.Now()
+	attrFilter := url.QueryEscape(`{"prompt":"my password is hunter2"}`)
+	searchURL := fmt.Sprintf("%s/api/v3/traces?query.serviceName=checkout&query.startTimeMin=%s&query.startTimeMax=%s&query.attributes=%s",
+		queryBase,
+		url.QueryEscape(now.Add(-time.Hour).Format(time.RFC3339Nano)),
+		url.QueryEscape(now.Format(time.RFC3339Nano)),
+		attrFilter)
 
 	adminCode, _ := httpGet(t, searchURL, "admin")
 	assert.Equal(t, http.StatusOK, adminCode, "privileged caller may filter on prompt")

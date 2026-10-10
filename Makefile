@@ -28,10 +28,11 @@ ALL_SRC = $(shell find . -name '*.go' \
 				   -not -name '.*' \
 				   -not -name 'mocks*' \
 				   -not -name '*.pb.go' \
+				   -not -path './.claude/*' \
 				   -not -path './vendor/*' \
 				   -not -path './idl/*' \
+				   -not -path './jaeger-ui/*' \
 				   -not -path './internal/tools/*' \
-				   -not -path './scripts/build/docker/debug/*' \
 				   -not -path '*/mocks/*' \
 				   -not -path './cmd/jaeger/_build/*' \
 				   -type f | \
@@ -40,12 +41,13 @@ ALL_SRC = $(shell find . -name '*.go' \
 # All tracked file types that should carry copyright and SPDX license headers.
 LIST_LICENSE_SRC = git ls-files \
 						'*.go' '*.js' '*.mk' '*.py' '*.sh' '*.ts' '*.yaml' '*.yml' 'Dockerfile*' 'Makefile*' | \
-						grep -vE '^(vendor/|idl/|jaeger-ui/|internal/proto-gen/|scripts/build/docker/debug/|python-sidecar/\.venv/|.*(^|/)mocks/|.*_mock\.go$$|.*\.pb\.go$$)' | \
+						grep -vE '^(vendor/|idl/|jaeger-ui/|internal/proto-gen/|sdk/python/src/(api_v3|expression)/|python-sidecar/\.venv/|.*(^|/)mocks/|.*_mock\.go$$|.*\.pb\.go$$)' | \
 						sort
 
 # All .sh or .py or Makefile or .mk files that should be auto-formatted and linted.
 SCRIPTS_SRC = $(shell find . \( -name '*.sh' -o -name '*.py' -o -name '*.mk' -o -name 'Makefile*' -o -name 'Dockerfile*' \) \
 						-not -path './.git/*' \
+						-not -path './.claude/*' \
 						-not -path './vendor/*' \
 						-not -path './idl/*' \
 						-not -path './jaeger-ui/*' \
@@ -74,7 +76,19 @@ else
 	SED=sed
 endif
 
-COVEROUT=cover.out
+# Every coverage artifact lives under COVERDIR so that nothing is written to the
+# repository root. `go test` and `covdata` do not create the directory they write
+# into, so each target that produces coverage creates it first.
+COVERDIR = .cover
+COVEROUT = $(COVERDIR)/cover.out
+COVERHTML = $(COVERDIR)/cover.html
+
+# gotestsum reruns a failed package by invoking `go test` again with the same
+# flags, and `go test -coverprofile` truncates the file it is given, so a rerun
+# leaves a profile holding only the package that was rerun. Writing binary
+# counters into a directory instead accumulates them: each invocation adds
+# uniquely named files, and covdata merges the whole set afterwards.
+UNIT_COVERDIR = $(CURDIR)/$(COVERDIR)/unit
 GOFMT=gofmt
 FMT_LOG=.fmt.log
 IMPORT_LOG=.import.log
@@ -120,7 +134,7 @@ echo-all-srcs:
 
 .PHONY: clean
 clean:
-	rm -rf cover*.out .cover/ cover.html $(FMT_LOG) $(IMPORT_LOG) \
+	rm -rf $(COVERDIR)/ $(FMT_LOG) $(IMPORT_LOG) \
 		jaeger-ui/packages/jaeger-ui/build
 	find ./cmd/jaeger/internal/extension/jaegerquery/internal/ui/actual -type f -name '*.gz' -delete
 	GOCACHE=$(GOCACHE) go clean -cache -testcache
@@ -132,8 +146,13 @@ test: $(GOTESTSUM)
 
 .PHONY: cover
 cover: nocover $(GOTESTSUM)
-	STORAGE=memory $(GOTESTSUM) $(GOTESTSUM_FLAGS) --rerun-fails --packages ./... -- $(RACE) -timeout 5m -coverprofile $(COVEROUT)
-	go tool cover -html=cover.out -o cover.html
+	rm -rf $(UNIT_COVERDIR) && mkdir -p $(UNIT_COVERDIR)
+	# -covermode=atomic is pinned rather than left to -race, because gocovmerge
+	# refuses to merge this profile with the e2e legs' profiles unless the modes
+	# match, and the CI Summary Report merges all of them.
+	STORAGE=memory $(GOTESTSUM) $(GOTESTSUM_FLAGS) --rerun-fails --packages ./... -- $(RACE) -timeout 5m -cover -covermode=atomic -args -test.gocoverdir=$(UNIT_COVERDIR)
+	go tool covdata textfmt -i=$(UNIT_COVERDIR) -o=$(COVEROUT)
+	go tool cover -html=$(COVEROUT) -o $(COVERHTML)
 
 .PHONY: nocover
 nocover:
@@ -210,9 +229,12 @@ lint-goleak:
 	@echo Verifying that all packages with tests have goleak in their TestMain
 	@scripts/lint/check-goleak-files.sh $(ALL_PKGS)
 
+# Each checkout gets its own cache because golangci-lint keys entries by file
+# content rather than by path, so worktrees sharing one cache report findings
+# against each other's paths.
 .PHONY: lint-go
 lint-go: $(LINT)
-	$(LINT) -v run
+	GOLANGCI_LINT_CACHE=$(TOOLS_BIN_DIR)/golangci-lint-cache $(LINT) -v run
 
 .PHONY: govulncheck
 govulncheck: $(GOVULNCHECK)

@@ -43,10 +43,30 @@ func Test_Run(t *testing.T) {
 		{
 			name: "Negative traces, positive duration",
 			config: &Config{
-				Traces:   -7,
-				Duration: 7,
+				Traces:     -7,
+				Duration:   7,
+				AttrKeys:   97,
+				AttrValues: 1000,
 			},
 			expectedErr: nil,
+		},
+		{
+			name: "Zero attr-keys",
+			config: &Config{
+				Traces:     10,
+				AttrKeys:   0,
+				AttrValues: 1000,
+			},
+			expectedErr: errors.New("`attr-keys` must be greater than 0"),
+		},
+		{
+			name: "Zero attr-values",
+			config: &Config{
+				Traces:     10,
+				AttrKeys:   97,
+				AttrValues: 0,
+			},
+			expectedErr: errors.New("`attr-values` must be greater than 0"),
 		},
 	}
 

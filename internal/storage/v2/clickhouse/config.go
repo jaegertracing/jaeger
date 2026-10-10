@@ -41,17 +41,17 @@ type Configuration struct {
 	// DefaultSearchDepth is the default search depth for queries.
 	// This is the maximum number of trace IDs that will be returned when searching for traces
 	// if a limit is not specified in the query.
-	DefaultSearchDepth int `mapstructure:"default_search_depth"`
+	DefaultSearchDepth uint32 `mapstructure:"default_search_depth"`
 	// MaxSearchDepth is the maximum allowed search depth for queries.
 	// This limits the number of trace IDs that can be returned when searching for traces.
-	MaxSearchDepth int `mapstructure:"max_search_depth"`
+	MaxSearchDepth uint32 `mapstructure:"max_search_depth"`
 	// AttributeMetadataCacheTTL is the time-to-live for cached attribute metadata entries.
 	// Attribute metadata maps attribute keys to their stored types and levels,
 	// which is needed to build type-correct queries for querying attributes.
-	// Default is 1h.
+	// Default is 1h. 0 means cached entries never expire.
 	AttributeMetadataCacheTTL time.Duration `mapstructure:"attribute_metadata_cache_ttl"`
 	// AttributeMetadataCacheMaxSize is the maximum number of entries in the attribute metadata cache.
-	// Default is 1000.
+	// Default is 1000. 0 disables caching.
 	AttributeMetadataCacheMaxSize int `mapstructure:"attribute_metadata_cache_max_size"`
 	// TTL is the Time-To-Live for spans in the database.
 	// Data older than this will be automatically deleted. 0 means disabled.
@@ -60,6 +60,19 @@ type Configuration struct {
 
 type Authentication struct {
 	Basic configoptional.Optional[basicauthextension.ClientAuthSettings] `mapstructure:"basic"`
+}
+
+// DefaultConfiguration returns the configuration a ClickHouse backend starts from
+// before the user's own settings are unmarshaled over it.
+func DefaultConfiguration() Configuration {
+	return Configuration{
+		Protocol:                      defaultProtocol,
+		Database:                      defaultDatabase,
+		DefaultSearchDepth:            defaultSearchDepth,
+		MaxSearchDepth:                defaultMaxSearchDepth,
+		AttributeMetadataCacheTTL:     defaultAttributeMetadataCacheTTL,
+		AttributeMetadataCacheMaxSize: defaultAttributeMetadataCacheMaxSize,
+	}
 }
 
 func (cfg *Configuration) Validate() error {
@@ -72,26 +85,25 @@ func (cfg *Configuration) Validate() error {
 	if cfg.TTL > 0 && cfg.TTL%time.Second != 0 {
 		return errors.New("ttl must be a whole number of seconds")
 	}
-	return nil
-}
-
-func (cfg *Configuration) applyDefaults() {
-	if cfg.Protocol == "" {
-		cfg.Protocol = "native"
-	}
-	if cfg.Database == "" {
-		cfg.Database = defaultDatabase
-	}
+	// A search depth of zero would make every trace search return nothing, and a
+	// negative one is meaningless, so reject both rather than querying with them.
 	if cfg.DefaultSearchDepth == 0 {
-		cfg.DefaultSearchDepth = defaultSearchDepth
+		return errors.New("default_search_depth must be a positive number")
 	}
 	if cfg.MaxSearchDepth == 0 {
-		cfg.MaxSearchDepth = defaultMaxSearchDepth
+		return errors.New("max_search_depth must be a positive number")
 	}
-	if cfg.AttributeMetadataCacheTTL <= 0 {
-		cfg.AttributeMetadataCacheTTL = defaultAttributeMetadataCacheTTL
+	if cfg.DefaultSearchDepth > cfg.MaxSearchDepth {
+		return errors.New("default_search_depth cannot exceed max_search_depth")
 	}
-	if cfg.AttributeMetadataCacheMaxSize <= 0 {
-		cfg.AttributeMetadataCacheMaxSize = defaultAttributeMetadataCacheMaxSize
+	if cfg.DialTimeout < 0 {
+		return errors.New("dial_timeout must be a non-negative duration")
 	}
+	if cfg.AttributeMetadataCacheTTL < 0 {
+		return errors.New("attribute_metadata_cache_ttl must be a non-negative duration")
+	}
+	if cfg.AttributeMetadataCacheMaxSize < 0 {
+		return errors.New("attribute_metadata_cache_max_size must be a non-negative number")
+	}
+	return nil
 }

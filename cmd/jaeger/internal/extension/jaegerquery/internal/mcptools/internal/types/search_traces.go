@@ -13,8 +13,9 @@ type SearchTracesInput struct {
 	// Supports RFC3339 or relative time (e.g., "now", "-1m").
 	StartTimeMax string `json:"start_time_max,omitempty" jsonschema:"End of time interval (RFC3339 or relative like now). Default: now"`
 
-	// ServiceName filters by service name (required).
-	ServiceName string `json:"service_name" jsonschema:"Filter by service name. Use get_services to discover valid names"`
+	// ServiceName filters by service name (optional). Omitting it searches every service,
+	// which some storage backends cannot do; those reject the query with an error saying so.
+	ServiceName string `json:"service_name,omitempty" jsonschema:"Filter by service name. Use get_services to discover valid names. Omit to search all services, which some storage backends do not support"`
 
 	// SpanName filters by span name (optional).
 	SpanName string `json:"span_name,omitempty" jsonschema:"Filter by span name"`
@@ -36,7 +37,7 @@ type SearchTracesInput struct {
 	// this may behave like an SQL LIMIT clause. However, some implementations might not support
 	// precise limits, and a larger value generally results in more traces being returned.
 	// Default: 10, maximum is controlled by server configuration (MaxSearchResults).
-	SearchDepth int `json:"search_depth,omitempty" jsonschema:"Maximum search depth (default: 10, max controlled by server config)"`
+	SearchDepth uint32 `json:"search_depth,omitempty" jsonschema:"Maximum search depth (default: 10, max controlled by server config)"`
 }
 
 // SearchTracesOutput defines the output of the search_traces MCP tool.

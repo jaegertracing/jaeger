@@ -63,7 +63,9 @@ func main() {
 	tracers, shutdown := createTracers(cfg, logger)
 	defer shutdown(context.Background())
 
-	tracegen.Run(cfg, tracers, logger)
+	if err := tracegen.Run(cfg, tracers, logger); err != nil {
+		logger.Fatal("trace generation failed", zap.Error(err))
+	}
 }
 
 func createTracers(cfg *tracegen.Config, logger *zap.Logger) ([]trace.Tracer, func(context.Context) error) {
@@ -86,7 +88,6 @@ func createTracers(cfg *tracegen.Config, logger *zap.Logger) ([]trace.Tracer, fu
 
 		res, err := resource.New(
 			context.Background(),
-			resource.WithSchemaURL(otelsemconv.SchemaURL),
 			resource.WithAttributes(otelsemconv.ServiceNameAttribute(svc)),
 			resource.WithTelemetrySDK(),
 			resource.WithHost(),

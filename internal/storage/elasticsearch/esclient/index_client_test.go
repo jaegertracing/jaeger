@@ -340,6 +340,76 @@ func TestClientDeleteIndices(t *testing.T) {
 	}
 }
 
+func TestClientDeleteIndicesTargetsOnlyGivenNames(t *testing.T) {
+	// Escaping nearly triples these names, so a batch sized by their unescaped
+	// length would overflow the request line.
+	percentNames := make([]string, 20)
+	for n := range percentNames {
+		percentNames[n] = fmt.Sprintf("jaeger-span-%06d-%s", n, strings.Repeat("%", 200))
+	}
+	tests := []struct {
+		name    string
+		indices []string
+	}{
+		{
+			name:    "daily",
+			indices: []string{"jaeger-span-2026-10-05", "jaeger-service-2026-10-05", "foo-jaeger-dependencies-2026-10-05", "jaeger-span-2026.10.05"},
+		},
+		{
+			name:    "hourly",
+			indices: []string{"jaeger-span-2026-10-05-13", "foo-jaeger-service-2026-10-05-13"},
+		},
+		{
+			name:    "rollover",
+			indices: []string{"jaeger-span-000001", "jaeger-service-000002", "foo-jaeger-span-archive-000003"},
+		},
+		{
+			name:    "name with encoded comma",
+			indices: []string{"jaeger-span-000001%2cother-index", "jaeger-span-2026-10-05%2Cother-index"},
+		},
+		{
+			name:    "name with encoded wildcard",
+			indices: []string{"jaeger-span-000001%2a"},
+		},
+		{
+			name:    "name with encoded percent",
+			indices: []string{"jaeger-span-000001%252cother-index"},
+		},
+		{
+			name:    "long list of names with percent signs",
+			indices: percentNames,
+		},
+	}
+	// The transport rewrites the path when the server URL has its own path,
+	// which drops the request's original escaping, so cover that form too.
+	for _, basePath := range []string{"", "/es"} {
+		t.Run("server path "+cmp.Or(basePath, "none"), func(t *testing.T) {
+			for _, test := range tests {
+				t.Run(test.name, func(t *testing.T) {
+					var targets []string
+					testServer := httptest.NewServer(http.HandlerFunc(func(_ http.ResponseWriter, req *http.Request) {
+						// The backend's http.max_initial_line_length defaults to 4kb.
+						assert.LessOrEqual(t, len(req.Method+" "+req.RequestURI+" "+req.Proto), 4096)
+						// req.URL.Path is percent-decoded, as the backend decodes it
+						// before splitting the target list on commas.
+						list := strings.TrimPrefix(req.URL.Path, basePath+"/")
+						targets = append(targets, strings.Split(strings.TrimSuffix(list, ","), ",")...)
+					}))
+					defer testServer.Close()
+
+					c := &IndicesClient{Client: makeClient(t, testServer.URL+basePath, "", "")}
+					indices := make([]Index, 0, len(test.indices))
+					for _, name := range test.indices {
+						indices = append(indices, Index{Index: name})
+					}
+					require.NoError(t, c.DeleteIndices(context.Background(), indices))
+					assert.Equal(t, test.indices, targets)
+				})
+			}
+		})
+	}
+}
+
 func TestIndexExists(t *testing.T) {
 	t.Run("index exists", func(t *testing.T) {
 		testIndexOrAliasExistence(t, "index")
@@ -675,7 +745,7 @@ func TestClientDeleteAliases(t *testing.T) {
 func testIndices() config.Indices {
 	reps := int64(1)
 	opts := config.IndexOptions{Shards: 5, Replicas: &reps}
-	return config.Indices{Spans: opts, Services: opts, Dependencies: opts, Sampling: opts}
+	return config.Indices{Spans: config.SpanIndexOptions{IndexOptions: opts}, Services: opts, Dependencies: opts, Sampling: opts}
 }
 
 // templateSnapshotIndices returns the index config the CreateTemplate wire
@@ -690,7 +760,7 @@ func templateSnapshotIndices() config.Indices {
 	}
 	return config.Indices{
 		IndexPrefix:  "test-",
-		Spans:        opts(500),
+		Spans:        config.SpanIndexOptions{IndexOptions: opts(500)},
 		Services:     opts(501),
 		Dependencies: opts(502),
 		Sampling:     opts(503),

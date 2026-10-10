@@ -231,7 +231,7 @@ func queryRequestRatePanel() *timeseries.PanelBuilder {
 	return stackedPanel(11, "Query Request Rate").
 		Unit("ops").
 		WithTarget(promTarget(
-			`sum(rate(http_server_request_duration_seconds_count{http_route="/api/traces"}[1m])) by (http_response_status_code)`,
+			`sum(rate(http_server_request_duration_seconds_count{http_route="/api/v3/trace-summaries"}[1m])) by (http_response_status_code)`,
 			"status {{http_response_status_code}}",
 		))
 }
@@ -241,7 +241,7 @@ func queryLatencyP99Panel() *timeseries.PanelBuilder {
 	return timeseriesPanel(12, "Query Latency - P99").
 		Unit("s").
 		WithTarget(promTarget(
-			`histogram_quantile(0.99, sum(rate(http_server_request_duration_seconds_bucket{http_route="/api/traces"}[1m])) by (le))`,
+			`histogram_quantile(0.99, sum(rate(http_server_request_duration_seconds_bucket{http_route="/api/v3/trace-summaries"}[1m])) by (le))`,
 			"P99",
 		))
 }

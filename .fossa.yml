@@ -25,9 +25,6 @@ paths:
     # These are NOT part of the distributed binaries
     - ./internal/tools
 
-    # Debug build utilities - only used for debugging, not distributed
-    - ./scripts/build/docker/debug
-
     # Git submodules - scanned separately in their own repositories
     - ./idl
     - ./jaeger-ui

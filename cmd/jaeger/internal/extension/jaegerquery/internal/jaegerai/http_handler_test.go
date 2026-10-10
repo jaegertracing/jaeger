@@ -5,29 +5,21 @@ package jaegerai
 
 import (
 	"context"
-	"io"
 	"net/http"
 	"net/http/httptest"
-	"slices"
 	"testing"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
-
-	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerquery/querysvc"
-	depstoremocks "github.com/jaegertracing/jaeger/internal/storage/v2/api/depstore/mocks"
-	tracestoremocks "github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore/mocks"
-	"github.com/jaegertracing/jaeger/internal/telemetry"
-	"github.com/jaegertracing/jaeger/internal/tenancy"
 )
 
 func TestNewHandlerBuildsEndpoints(t *testing.T) {
 	h := NewHandler(HandlerParams{Logger: zap.NewNop(), AgentURL: "ws://example", BasePath: "/jaeger", MaxRequestBodySize: 1 << 20})
 	require.NotNil(t, h.chat, "NewHandler must build the chat endpoint")
 	assert.Equal(t, "/jaeger", h.basePath)
-	assert.Nil(t, h.mcp, "the MCP endpoint must be nil when EnableMCP is false")
+	assert.Nil(t, h.mcp, "the MCP endpoint must be nil when no MCP handler is supplied")
 }
 
 func TestRegisterRoutesMountsChatEndpoint(t *testing.T) {
@@ -88,7 +80,6 @@ func TestNewHandlerNormalizesTrailingSlash(t *testing.T) {
 // an announced "…//api/ai/mcp/<id>/" is a path the mux never matches. NewHandler
 // must trim them so the announced URL has exactly one slash before the route.
 func TestNewHandlerNormalizesMCPBaseURL(t *testing.T) {
-	svc := querysvc.NewQueryService(&tracestoremocks.Reader{}, &depstoremocks.Reader{}, querysvc.QueryServiceOptions{})
 	for _, base := range []string{
 		"http://127.0.0.1:16686",
 		"http://127.0.0.1:16686/",
@@ -96,8 +87,7 @@ func TestNewHandlerNormalizesMCPBaseURL(t *testing.T) {
 	} {
 		h := NewHandler(HandlerParams{
 			Logger: zap.NewNop(), AgentURL: "ws://x", MaxRequestBodySize: 1,
-			EnableMCP: true, QueryService: svc, TenancyMgr: tenancy.NewManager(&tenancy.Options{}),
-			Telset: telemetry.NoopSettings(), MCPBaseURL: base,
+			MCP: sharedMCPHandler(t), MCPBaseURL: base,
 		})
 		got := h.chat.announceMCP(httpCaps(true), "SID")
 		require.Len(t, got, 1)
@@ -108,22 +98,18 @@ func TestNewHandlerNormalizesMCPBaseURL(t *testing.T) {
 
 func mcpEnabledHandler(t *testing.T, basePath string) *Handler {
 	t.Helper()
-	svc := querysvc.NewQueryService(&tracestoremocks.Reader{}, &depstoremocks.Reader{}, querysvc.QueryServiceOptions{})
 	return NewHandler(HandlerParams{
 		Logger:             zap.NewNop(),
 		AgentURL:           "ws://127.0.0.1:1",
 		BasePath:           basePath,
 		MaxRequestBodySize: 1 << 20,
-		EnableMCP:          true,
-		QueryService:       svc,
-		TenancyMgr:         tenancy.NewManager(&tenancy.Options{}),
-		Telset:             telemetry.NoopSettings(),
+		MCP:                sharedMCPHandler(t),
 	})
 }
 
 func TestRegisterRoutesMountsSessionScopedMCPWhenEnabled(t *testing.T) {
 	h := mcpEnabledHandler(t, "")
-	require.NotNil(t, h.mcp, "MCP endpoint must be built when EnableMCP is true")
+	require.NotNil(t, h.mcp, "MCP endpoint must be built when an MCP handler is supplied")
 	mux := http.NewServeMux()
 	h.RegisterRoutes(mux)
 	routeID := registerTurn(h.mcp.turns, testStreamingClient(), nil) // active turn
@@ -147,8 +133,12 @@ func TestRegisterRoutesMountsSessionScopedMCPWhenEnabled(t *testing.T) {
 	})
 }
 
+// TestRegisterRoutesOmitsMCPEndpointWhenDisabled is the chat-only shape: with no
+// ai.mcp block the query server passes no MCP handler, so there are no telemetry
+// tools to attach UI tools to and the turn-scoped endpoint is not built at all.
 func TestRegisterRoutesOmitsMCPEndpointWhenDisabled(t *testing.T) {
 	h := NewHandler(HandlerParams{Logger: zap.NewNop(), AgentURL: "ws://127.0.0.1:1", BasePath: "", MaxRequestBodySize: 1 << 20})
+	require.Nil(t, h.mcp, "no MCP handler supplied means no turn-scoped endpoint")
 	mux := http.NewServeMux()
 	h.RegisterRoutes(mux)
 
@@ -159,41 +149,33 @@ func TestRegisterRoutesOmitsMCPEndpointWhenDisabled(t *testing.T) {
 	assert.Equal(t, http.StatusNotFound, rr.Code, "turn-scoped MCP endpoint must not be mounted when disabled")
 }
 
-// TestHandlerCloseReapsMCPSessions pins the gateway into jaeger-query's teardown
-// chain (Server.Close → httpServer.Close → closers.Close → here). The MCP SDK reaps a
-// session only when it goes idle, so without this a live session would outlive the
-// server that served it.
-func TestHandlerCloseReapsMCPSessions(t *testing.T) {
-	h := mcpEnabledHandler(t, "")
-	require.Implements(t, (*io.Closer)(nil), h, "the gateway must be closable by the server's teardown chain")
-	require.NotNil(t, h.mcp)
-
-	// Bind a session the way an MCP client on the HTTP transport does: nothing else
-	// owns it, so nothing else would ever reap it.
-	serverTransport, _ := mcp.NewInMemoryTransports()
-	_, err := h.mcp.server.Connect(context.Background(), serverTransport, nil)
-	require.NoError(t, err)
-	require.NotEmpty(t, slices.Collect(h.mcp.server.Sessions()), "precondition: a session is bound")
-
-	require.NoError(t, h.Close())
-	assert.Empty(t, slices.Collect(h.mcp.server.Sessions()),
-		"Close must reap every session left on the shared server")
-}
-
-// TestHandlerCloseIsNoOpWhenNothingToClose covers the two shapes jaeger-query holds
-// when the gateway is not fully enabled: a nil Handler (no AI at all) and a Handler
-// with no MCP server (chat only). Both must close to nothing, because
-// httpServer.Close calls straight through without a guard.
-func TestHandlerCloseIsNoOpWhenNothingToClose(t *testing.T) {
-	var nilHandler *Handler
-	require.NoError(t, nilHandler.Close(), "a nil gateway must be closable")
-
-	chatOnly := NewHandler(HandlerParams{
+// TestSharedCloseReapsTurnScopedSessions pins the turn-scoped endpoint into
+// jaeger-query's teardown chain (Server.Close → httpServer.Close → closers.Close →
+// mcptools.Handler.Close). The gateway holds nothing itself, so closing the shared
+// MCP handler has to reap the sessions the turn-scoped mount bound; the SDK reaps a
+// session only when it goes idle, so otherwise a live turn's session would outlive
+// the server.
+func TestSharedCloseReapsTurnScopedSessions(t *testing.T) {
+	shared := sharedMCPHandler(t)
+	h := NewHandler(HandlerParams{
 		Logger:             zap.NewNop(),
 		AgentURL:           "ws://127.0.0.1:1",
 		MaxRequestBodySize: 1 << 20,
-		Telset:             telemetry.NoopSettings(),
+		MCP:                shared,
 	})
-	require.Nil(t, chatOnly.mcp)
-	require.NoError(t, chatOnly.Close())
+
+	mux := http.NewServeMux()
+	h.RegisterRoutes(mux)
+	routeID := registerTurn(h.mcp.turns, testStreamingClient(), nil)
+	ts := httptest.NewServer(mux)
+	t.Cleanup(ts.Close)
+
+	session := connectTurnMCP(t, ts, "/api/ai/mcp/"+routeID+"/")
+	_, err := session.ListTools(context.Background(), &mcp.ListToolsParams{})
+	require.NoError(t, err, "the session works before Close")
+
+	require.NoError(t, shared.Close())
+
+	_, err = session.ListTools(context.Background(), &mcp.ListToolsParams{})
+	require.Error(t, err, "closing the shared handler must reap the turn-scoped session too")
 }

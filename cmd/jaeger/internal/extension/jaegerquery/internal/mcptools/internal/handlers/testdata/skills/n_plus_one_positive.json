@@ -1,0 +1,1453 @@
+{
+  "resourceSpans": [
+    {
+      "resource": {
+        "attributes": [
+          {
+            "key": "host.name",
+            "value": {
+              "stringValue": "dace079f5c8f"
+            }
+          },
+          {
+            "key": "os.type",
+            "value": {
+              "stringValue": "linux"
+            }
+          },
+          {
+            "key": "service.name",
+            "value": {
+              "stringValue": "driver"
+            }
+          },
+          {
+            "key": "telemetry.sdk.language",
+            "value": {
+              "stringValue": "go"
+            }
+          },
+          {
+            "key": "telemetry.sdk.name",
+            "value": {
+              "stringValue": "opentelemetry"
+            }
+          },
+          {
+            "key": "telemetry.sdk.version",
+            "value": {
+              "stringValue": "1.44.0"
+            }
+          }
+        ]
+      },
+      "scopeSpans": [
+        {
+          "spans": [
+            {
+              "traceId": "ea6db5d7b317ca1a5e2c4e0e7cea53ce",
+              "spanId": "be56eec6f3678130",
+              "parentSpanId": "e24459008a1488f2",
+              "flags": 769,
+              "name": "driver.DriverService/FindNearest",
+              "kind": 2,
+              "startTimeUnixNano": "1786057568475144853",
+              "endTimeUnixNano": "1786057568687066857",
+              "attributes": [
+                {
+                  "key": "rpc.method",
+                  "value": {
+                    "stringValue": "driver.DriverService/FindNearest"
+                  }
+                },
+                {
+                  "key": "rpc.response.status_code",
+                  "value": {
+                    "stringValue": "OK"
+                  }
+                },
+                {
+                  "key": "rpc.system.name",
+                  "value": {
+                    "stringValue": "grpc"
+                  }
+                },
+                {
+                  "key": "server.address",
+                  "value": {
+                    "stringValue": "127.0.0.1"
+                  }
+                },
+                {
+                  "key": "server.port",
+                  "value": {
+                    "intValue": "8082"
+                  }
+                }
+              ],
+              "events": [
+                {
+                  "timeUnixNano": "1786057568523055032",
+                  "name": "Retrying GetDriver after error",
+                  "attributes": [
+                    {
+                      "key": "error",
+                      "value": {
+                        "stringValue": "redis timeout"
+                      }
+                    },
+                    {
+                      "key": "level",
+                      "value": {
+                        "stringValue": "error"
+                      }
+                    },
+                    {
+                      "key": "retry_no",
+                      "value": {
+                        "intValue": "1"
+                      }
+                    }
+                  ]
+                },
+                {
+                  "timeUnixNano": "1786057568589567055",
+                  "name": "Retrying GetDriver after error",
+                  "attributes": [
+                    {
+                      "key": "error",
+                      "value": {
+                        "stringValue": "redis timeout"
+                      }
+                    },
+                    {
+                      "key": "level",
+                      "value": {
+                        "stringValue": "error"
+                      }
+                    },
+                    {
+                      "key": "retry_no",
+                      "value": {
+                        "intValue": "1"
+                      }
+                    }
+                  ]
+                },
+                {
+                  "timeUnixNano": "1786057568665017941",
+                  "name": "Retrying GetDriver after error",
+                  "attributes": [
+                    {
+                      "key": "error",
+                      "value": {
+                        "stringValue": "redis timeout"
+                      }
+                    },
+                    {
+                      "key": "level",
+                      "value": {
+                        "stringValue": "error"
+                      }
+                    },
+                    {
+                      "key": "retry_no",
+                      "value": {
+                        "intValue": "1"
+                      }
+                    }
+                  ]
+                },
+                {
+                  "timeUnixNano": "1786057568686971828",
+                  "name": "Search successful",
+                  "attributes": [
+                    {
+                      "key": "driver_count",
+                      "value": {
+                        "intValue": "10"
+                      }
+                    },
+                    {
+                      "key": "level",
+                      "value": {
+                        "stringValue": "info"
+                      }
+                    },
+                    {
+                      "key": "locations",
+                      "value": {
+                        "stringValue": "[{\"driverID\":\"T776999C\",\"location\":\"820,297\"},{\"driverID\":\"T749180C\",\"location\":\"709,825\"},{\"driverID\":\"T788798C\",\"location\":\"654,537\"},{\"driverID\":\"T754929C\",\"location\":\"496,96\"},{\"driverID\":\"T745504C\",\"location\":\"399,708\"},{\"driverID\":\"T707480C\",\"location\":\"573,563\"},{\"driverID\":\"T755400C\",\"location\":\"381,225\"},{\"driverID\":\"T744333C\",\"location\":\"280,737\"},{\"driverID\":\"T770465C\",\"location\":\"567,968\"},{\"driverID\":\"T709380C\",\"location\":\"64,826\"}]"
+                      }
+                    }
+                  ]
+                },
+                {
+                  "timeUnixNano": "1786057568475165152",
+                  "name": "Searching for nearby drivers",
+                  "attributes": [
+                    {
+                      "key": "level",
+                      "value": {
+                        "stringValue": "info"
+                      }
+                    },
+                    {
+                      "key": "location",
+                      "value": {
+                        "stringValue": "211,653"
+                      }
+                    }
+                  ]
+                }
+              ],
+              "status": {}
+            }
+          ],
+          "scope": {
+            "name": "go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc",
+            "version": "0.69.0"
+          }
+        }
+      ]
+    },
+    {
+      "resource": {
+        "attributes": [
+          {
+            "key": "host.name",
+            "value": {
+              "stringValue": "dace079f5c8f"
+            }
+          },
+          {
+            "key": "os.type",
+            "value": {
+              "stringValue": "linux"
+            }
+          },
+          {
+            "key": "service.name",
+            "value": {
+              "stringValue": "redis-manual"
+            }
+          },
+          {
+            "key": "telemetry.sdk.language",
+            "value": {
+              "stringValue": "go"
+            }
+          },
+          {
+            "key": "telemetry.sdk.name",
+            "value": {
+              "stringValue": "opentelemetry"
+            }
+          },
+          {
+            "key": "telemetry.sdk.version",
+            "value": {
+              "stringValue": "1.44.0"
+            }
+          }
+        ]
+      },
+      "scopeSpans": [
+        {
+          "spans": [
+            {
+              "traceId": "ea6db5d7b317ca1a5e2c4e0e7cea53ce",
+              "spanId": "c5f1def4c8a5c5ee",
+              "parentSpanId": "be56eec6f3678130",
+              "flags": 257,
+              "name": "GetDriver",
+              "kind": 3,
+              "startTimeUnixNano": "1786057568492581350",
+              "endTimeUnixNano": "1786057568523035947",
+              "attributes": [
+                {
+                  "key": "param.driverID",
+                  "value": {
+                    "stringValue": "T776999C"
+                  }
+                }
+              ],
+              "events": [
+                {
+                  "timeUnixNano": "1786057568522954604",
+                  "name": "exception",
+                  "attributes": [
+                    {
+                      "key": "exception.message",
+                      "value": {
+                        "stringValue": "redis timeout"
+                      }
+                    },
+                    {
+                      "key": "exception.type",
+                      "value": {
+                        "stringValue": "*errors.errorString"
+                      }
+                    }
+                  ]
+                },
+                {
+                  "timeUnixNano": "1786057568522974110",
+                  "name": "redis timeout",
+                  "attributes": [
+                    {
+                      "key": "driver_id",
+                      "value": {
+                        "stringValue": "T776999C"
+                      }
+                    },
+                    {
+                      "key": "error",
+                      "value": {
+                        "stringValue": "redis timeout"
+                      }
+                    },
+                    {
+                      "key": "level",
+                      "value": {
+                        "stringValue": "error"
+                      }
+                    }
+                  ]
+                }
+              ],
+              "status": {
+                "message": "An error occurred",
+                "code": 2
+              }
+            },
+            {
+              "traceId": "ea6db5d7b317ca1a5e2c4e0e7cea53ce",
+              "spanId": "35dc668d9de944ad",
+              "parentSpanId": "be56eec6f3678130",
+              "flags": 257,
+              "name": "GetDriver",
+              "kind": 3,
+              "startTimeUnixNano": "1786057568523081422",
+              "endTimeUnixNano": "1786057568533350241",
+              "attributes": [
+                {
+                  "key": "param.driverID",
+                  "value": {
+                    "stringValue": "T776999C"
+                  }
+                }
+              ],
+              "events": [
+                {
+                  "timeUnixNano": "1786057568533290018",
+                  "name": "Got driver's ID",
+                  "attributes": [
+                    {
+                      "key": "driverID",
+                      "value": {
+                        "stringValue": "T776999C"
+                      }
+                    },
+                    {
+                      "key": "level",
+                      "value": {
+                        "stringValue": "info"
+                      }
+                    }
+                  ]
+                }
+              ],
+              "status": {}
+            },
+            {
+              "traceId": "ea6db5d7b317ca1a5e2c4e0e7cea53ce",
+              "spanId": "9eb329de42dd5fb8",
+              "parentSpanId": "be56eec6f3678130",
+              "flags": 257,
+              "name": "GetDriver",
+              "kind": 3,
+              "startTimeUnixNano": "1786057568533369818",
+              "endTimeUnixNano": "1786057568541511864",
+              "attributes": [
+                {
+                  "key": "param.driverID",
+                  "value": {
+                    "stringValue": "T749180C"
+                  }
+                }
+              ],
+              "events": [
+                {
+                  "timeUnixNano": "1786057568541475967",
+                  "name": "Got driver's ID",
+                  "attributes": [
+                    {
+                      "key": "driverID",
+                      "value": {
+                        "stringValue": "T749180C"
+                      }
+                    },
+                    {
+                      "key": "level",
+                      "value": {
+                        "stringValue": "info"
+                      }
+                    }
+                  ]
+                }
+              ],
+              "status": {}
+            },
+            {
+              "traceId": "ea6db5d7b317ca1a5e2c4e0e7cea53ce",
+              "spanId": "42fbb22e552ff972",
+              "parentSpanId": "be56eec6f3678130",
+              "flags": 257,
+              "name": "GetDriver",
+              "kind": 3,
+              "startTimeUnixNano": "1786057568541523386",
+              "endTimeUnixNano": "1786057568549793432",
+              "attributes": [
+                {
+                  "key": "param.driverID",
+                  "value": {
+                    "stringValue": "T788798C"
+                  }
+                }
+              ],
+              "events": [
+                {
+                  "timeUnixNano": "1786057568549723371",
+                  "name": "Got driver's ID",
+                  "attributes": [
+                    {
+                      "key": "driverID",
+                      "value": {
+                        "stringValue": "T788798C"
+                      }
+                    },
+                    {
+                      "key": "level",
+                      "value": {
+                        "stringValue": "info"
+                      }
+                    }
+                  ]
+                }
+              ],
+              "status": {}
+            },
+            {
+              "traceId": "ea6db5d7b317ca1a5e2c4e0e7cea53ce",
+              "spanId": "b22d69e666b28b3b",
+              "parentSpanId": "be56eec6f3678130",
+              "flags": 257,
+              "name": "GetDriver",
+              "kind": 3,
+              "startTimeUnixNano": "1786057568549821866",
+              "endTimeUnixNano": "1786057568561061878",
+              "attributes": [
+                {
+                  "key": "param.driverID",
+                  "value": {
+                    "stringValue": "T754929C"
+                  }
+                }
+              ],
+              "events": [
+                {
+                  "timeUnixNano": "1786057568561020591",
+                  "name": "Got driver's ID",
+                  "attributes": [
+                    {
+                      "key": "driverID",
+                      "value": {
+                        "stringValue": "T754929C"
+                      }
+                    },
+                    {
+                      "key": "level",
+                      "value": {
+                        "stringValue": "info"
+                      }
+                    }
+                  ]
+                }
+              ],
+              "status": {}
+            },
+            {
+              "traceId": "ea6db5d7b317ca1a5e2c4e0e7cea53ce",
+              "spanId": "da8361567314c3a4",
+              "parentSpanId": "be56eec6f3678130",
+              "flags": 257,
+              "name": "GetDriver",
+              "kind": 3,
+              "startTimeUnixNano": "1786057568561079251",
+              "endTimeUnixNano": "1786057568589554502",
+              "attributes": [
+                {
+                  "key": "param.driverID",
+                  "value": {
+                    "stringValue": "T745504C"
+                  }
+                }
+              ],
+              "events": [
+                {
+                  "timeUnixNano": "1786057568589510449",
+                  "name": "exception",
+                  "attributes": [
+                    {
+                      "key": "exception.message",
+                      "value": {
+                        "stringValue": "redis timeout"
+                      }
+                    },
+                    {
+                      "key": "exception.type",
+                      "value": {
+                        "stringValue": "*errors.errorString"
+                      }
+                    }
+                  ]
+                },
+                {
+                  "timeUnixNano": "1786057568589521159",
+                  "name": "redis timeout",
+                  "attributes": [
+                    {
+                      "key": "driver_id",
+                      "value": {
+                        "stringValue": "T745504C"
+                      }
+                    },
+                    {
+                      "key": "error",
+                      "value": {
+                        "stringValue": "redis timeout"
+                      }
+                    },
+                    {
+                      "key": "level",
+                      "value": {
+                        "stringValue": "error"
+                      }
+                    }
+                  ]
+                }
+              ],
+              "status": {
+                "message": "An error occurred",
+                "code": 2
+              }
+            },
+            {
+              "traceId": "ea6db5d7b317ca1a5e2c4e0e7cea53ce",
+              "spanId": "e082dc4065a803b5",
+              "parentSpanId": "be56eec6f3678130",
+              "flags": 257,
+              "name": "GetDriver",
+              "kind": 3,
+              "startTimeUnixNano": "1786057568589579128",
+              "endTimeUnixNano": "1786057568601859214",
+              "attributes": [
+                {
+                  "key": "param.driverID",
+                  "value": {
+                    "stringValue": "T745504C"
+                  }
+                }
+              ],
+              "events": [
+                {
+                  "timeUnixNano": "1786057568601805132",
+                  "name": "Got driver's ID",
+                  "attributes": [
+                    {
+                      "key": "driverID",
+                      "value": {
+                        "stringValue": "T745504C"
+                      }
+                    },
+                    {
+                      "key": "level",
+                      "value": {
+                        "stringValue": "info"
+                      }
+                    }
+                  ]
+                }
+              ],
+              "status": {}
+            },
+            {
+              "traceId": "ea6db5d7b317ca1a5e2c4e0e7cea53ce",
+              "spanId": "b46696af1c6a72ca",
+              "parentSpanId": "be56eec6f3678130",
+              "flags": 257,
+              "name": "GetDriver",
+              "kind": 3,
+              "startTimeUnixNano": "1786057568601900832",
+              "endTimeUnixNano": "1786057568611228804",
+              "attributes": [
+                {
+                  "key": "param.driverID",
+                  "value": {
+                    "stringValue": "T707480C"
+                  }
+                }
+              ],
+              "events": [
+                {
+                  "timeUnixNano": "1786057568611162790",
+                  "name": "Got driver's ID",
+                  "attributes": [
+                    {
+                      "key": "driverID",
+                      "value": {
+                        "stringValue": "T707480C"
+                      }
+                    },
+                    {
+                      "key": "level",
+                      "value": {
+                        "stringValue": "info"
+                      }
+                    }
+                  ]
+                }
+              ],
+              "status": {}
+            },
+            {
+              "traceId": "ea6db5d7b317ca1a5e2c4e0e7cea53ce",
+              "spanId": "79e99926f8d6ffba",
+              "parentSpanId": "be56eec6f3678130",
+              "flags": 257,
+              "name": "GetDriver",
+              "kind": 3,
+              "startTimeUnixNano": "1786057568611256817",
+              "endTimeUnixNano": "1786057568622585185",
+              "attributes": [
+                {
+                  "key": "param.driverID",
+                  "value": {
+                    "stringValue": "T755400C"
+                  }
+                }
+              ],
+              "events": [
+                {
+                  "timeUnixNano": "1786057568622536985",
+                  "name": "Got driver's ID",
+                  "attributes": [
+                    {
+                      "key": "driverID",
+                      "value": {
+                        "stringValue": "T755400C"
+                      }
+                    },
+                    {
+                      "key": "level",
+                      "value": {
+                        "stringValue": "info"
+                      }
+                    }
+                  ]
+                }
+              ],
+              "status": {}
+            },
+            {
+              "traceId": "ea6db5d7b317ca1a5e2c4e0e7cea53ce",
+              "spanId": "384f68cab7d1b995",
+              "parentSpanId": "be56eec6f3678130",
+              "flags": 257,
+              "name": "GetDriver",
+              "kind": 3,
+              "startTimeUnixNano": "1786057568622599703",
+              "endTimeUnixNano": "1786057568635907598",
+              "attributes": [
+                {
+                  "key": "param.driverID",
+                  "value": {
+                    "stringValue": "T744333C"
+                  }
+                }
+              ],
+              "events": [
+                {
+                  "timeUnixNano": "1786057568635825503",
+                  "name": "Got driver's ID",
+                  "attributes": [
+                    {
+                      "key": "driverID",
+                      "value": {
+                        "stringValue": "T744333C"
+                      }
+                    },
+                    {
+                      "key": "level",
+                      "value": {
+                        "stringValue": "info"
+                      }
+                    }
+                  ]
+                }
+              ],
+              "status": {}
+            },
+            {
+              "traceId": "ea6db5d7b317ca1a5e2c4e0e7cea53ce",
+              "spanId": "572191c1fdd2f346",
+              "parentSpanId": "be56eec6f3678130",
+              "flags": 257,
+              "name": "GetDriver",
+              "kind": 3,
+              "startTimeUnixNano": "1786057568635929348",
+              "endTimeUnixNano": "1786057568663466288",
+              "attributes": [
+                {
+                  "key": "param.driverID",
+                  "value": {
+                    "stringValue": "T770465C"
+                  }
+                }
+              ],
+              "events": [
+                {
+                  "timeUnixNano": "1786057568663392128",
+                  "name": "exception",
+                  "attributes": [
+                    {
+                      "key": "exception.message",
+                      "value": {
+                        "stringValue": "redis timeout"
+                      }
+                    },
+                    {
+                      "key": "exception.type",
+                      "value": {
+                        "stringValue": "*errors.errorString"
+                      }
+                    }
+                  ]
+                },
+                {
+                  "timeUnixNano": "1786057568663405994",
+                  "name": "redis timeout",
+                  "attributes": [
+                    {
+                      "key": "driver_id",
+                      "value": {
+                        "stringValue": "T770465C"
+                      }
+                    },
+                    {
+                      "key": "error",
+                      "value": {
+                        "stringValue": "redis timeout"
+                      }
+                    },
+                    {
+                      "key": "level",
+                      "value": {
+                        "stringValue": "error"
+                      }
+                    }
+                  ]
+                }
+              ],
+              "status": {
+                "message": "An error occurred",
+                "code": 2
+              }
+            },
+            {
+              "traceId": "ea6db5d7b317ca1a5e2c4e0e7cea53ce",
+              "spanId": "e89151f9d5938cea",
+              "parentSpanId": "be56eec6f3678130",
+              "flags": 257,
+              "name": "GetDriver",
+              "kind": 3,
+              "startTimeUnixNano": "1786057568665119361",
+              "endTimeUnixNano": "1786057568676341931",
+              "attributes": [
+                {
+                  "key": "param.driverID",
+                  "value": {
+                    "stringValue": "T770465C"
+                  }
+                }
+              ],
+              "events": [
+                {
+                  "timeUnixNano": "1786057568676288220",
+                  "name": "Got driver's ID",
+                  "attributes": [
+                    {
+                      "key": "driverID",
+                      "value": {
+                        "stringValue": "T770465C"
+                      }
+                    },
+                    {
+                      "key": "level",
+                      "value": {
+                        "stringValue": "info"
+                      }
+                    }
+                  ]
+                }
+              ],
+              "status": {}
+            },
+            {
+              "traceId": "ea6db5d7b317ca1a5e2c4e0e7cea53ce",
+              "spanId": "d70c907e970b2449",
+              "parentSpanId": "be56eec6f3678130",
+              "flags": 257,
+              "name": "GetDriver",
+              "kind": 3,
+              "startTimeUnixNano": "1786057568676354044",
+              "endTimeUnixNano": "1786057568686922756",
+              "attributes": [
+                {
+                  "key": "param.driverID",
+                  "value": {
+                    "stringValue": "T709380C"
+                  }
+                }
+              ],
+              "events": [
+                {
+                  "timeUnixNano": "1786057568686807700",
+                  "name": "Got driver's ID",
+                  "attributes": [
+                    {
+                      "key": "driverID",
+                      "value": {
+                        "stringValue": "T709380C"
+                      }
+                    },
+                    {
+                      "key": "level",
+                      "value": {
+                        "stringValue": "info"
+                      }
+                    }
+                  ]
+                }
+              ],
+              "status": {}
+            }
+          ],
+          "scope": {
+            "name": "redis-manual"
+          }
+        }
+      ]
+    },
+    {
+      "resource": {
+        "attributes": [
+          {
+            "key": "host.name",
+            "value": {
+              "stringValue": "dace079f5c8f"
+            }
+          },
+          {
+            "key": "os.type",
+            "value": {
+              "stringValue": "linux"
+            }
+          },
+          {
+            "key": "service.name",
+            "value": {
+              "stringValue": "frontend"
+            }
+          },
+          {
+            "key": "telemetry.sdk.language",
+            "value": {
+              "stringValue": "go"
+            }
+          },
+          {
+            "key": "telemetry.sdk.name",
+            "value": {
+              "stringValue": "opentelemetry"
+            }
+          },
+          {
+            "key": "telemetry.sdk.version",
+            "value": {
+              "stringValue": "1.44.0"
+            }
+          }
+        ]
+      },
+      "scopeSpans": [
+        {
+          "spans": [
+            {
+              "traceId": "ea6db5d7b317ca1a5e2c4e0e7cea53ce",
+              "spanId": "e24459008a1488f2",
+              "parentSpanId": "86740e648b8e485e",
+              "flags": 257,
+              "name": "driver.DriverService/FindNearest",
+              "kind": 3,
+              "startTimeUnixNano": "1786057568474900445",
+              "endTimeUnixNano": "1786057568687299443",
+              "attributes": [
+                {
+                  "key": "rpc.method",
+                  "value": {
+                    "stringValue": "driver.DriverService/FindNearest"
+                  }
+                },
+                {
+                  "key": "rpc.response.status_code",
+                  "value": {
+                    "stringValue": "OK"
+                  }
+                },
+                {
+                  "key": "rpc.system.name",
+                  "value": {
+                    "stringValue": "grpc"
+                  }
+                },
+                {
+                  "key": "server.address",
+                  "value": {
+                    "stringValue": "127.0.0.1"
+                  }
+                },
+                {
+                  "key": "server.port",
+                  "value": {
+                    "intValue": "8082"
+                  }
+                }
+              ],
+              "status": {}
+            }
+          ],
+          "scope": {
+            "name": "go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc",
+            "version": "0.69.0"
+          }
+        }
+      ]
+    },
+    {
+      "resource": {
+        "attributes": [
+          {
+            "key": "host.name",
+            "value": {
+              "stringValue": "dace079f5c8f"
+            }
+          },
+          {
+            "key": "os.type",
+            "value": {
+              "stringValue": "linux"
+            }
+          },
+          {
+            "key": "service.name",
+            "value": {
+              "stringValue": "frontend"
+            }
+          },
+          {
+            "key": "telemetry.sdk.language",
+            "value": {
+              "stringValue": "go"
+            }
+          },
+          {
+            "key": "telemetry.sdk.name",
+            "value": {
+              "stringValue": "opentelemetry"
+            }
+          },
+          {
+            "key": "telemetry.sdk.version",
+            "value": {
+              "stringValue": "1.44.0"
+            }
+          }
+        ]
+      },
+      "scopeSpans": [
+        {
+          "spans": [
+            {
+              "traceId": "ea6db5d7b317ca1a5e2c4e0e7cea53ce",
+              "spanId": "86740e648b8e485e",
+              "flags": 257,
+              "name": "GET /dispatch",
+              "kind": 2,
+              "startTimeUnixNano": "1786057567175002586",
+              "endTimeUnixNano": "1786057568859898750",
+              "attributes": [
+                {
+                  "key": "client.address",
+                  "value": {
+                    "stringValue": "172.29.0.1"
+                  }
+                },
+                {
+                  "key": "http.request.method",
+                  "value": {
+                    "stringValue": "GET"
+                  }
+                },
+                {
+                  "key": "http.response.body.size",
+                  "value": {
+                    "intValue": "40"
+                  }
+                },
+                {
+                  "key": "http.response.status_code",
+                  "value": {
+                    "intValue": "200"
+                  }
+                },
+                {
+                  "key": "http.route",
+                  "value": {
+                    "stringValue": "/dispatch"
+                  }
+                },
+                {
+                  "key": "network.peer.address",
+                  "value": {
+                    "stringValue": "172.29.0.1"
+                  }
+                },
+                {
+                  "key": "network.peer.port",
+                  "value": {
+                    "intValue": "39470"
+                  }
+                },
+                {
+                  "key": "network.protocol.version",
+                  "value": {
+                    "stringValue": "1.1"
+                  }
+                },
+                {
+                  "key": "server.address",
+                  "value": {
+                    "stringValue": "localhost"
+                  }
+                },
+                {
+                  "key": "server.port",
+                  "value": {
+                    "intValue": "8080"
+                  }
+                },
+                {
+                  "key": "url.path",
+                  "value": {
+                    "stringValue": "/dispatch"
+                  }
+                },
+                {
+                  "key": "url.scheme",
+                  "value": {
+                    "stringValue": "http"
+                  }
+                },
+                {
+                  "key": "user_agent.original",
+                  "value": {
+                    "stringValue": "curl/8.5.0"
+                  }
+                }
+              ],
+              "events": [
+                {
+                  "timeUnixNano": "1786057568859827656",
+                  "name": "Dispatch successful",
+                  "attributes": [
+                    {
+                      "key": "driver",
+                      "value": {
+                        "stringValue": "T788798C"
+                      }
+                    },
+                    {
+                      "key": "eta",
+                      "value": {
+                        "stringValue": "2m0s"
+                      }
+                    },
+                    {
+                      "key": "level",
+                      "value": {
+                        "stringValue": "info"
+                      }
+                    }
+                  ]
+                },
+                {
+                  "timeUnixNano": "1786057568474839620",
+                  "name": "Finding nearest drivers",
+                  "attributes": [
+                    {
+                      "key": "level",
+                      "value": {
+                        "stringValue": "info"
+                      }
+                    },
+                    {
+                      "key": "location",
+                      "value": {
+                        "stringValue": "211,653"
+                      }
+                    }
+                  ]
+                },
+                {
+                  "timeUnixNano": "1786057568687387689",
+                  "name": "Finding route",
+                  "attributes": [
+                    {
+                      "key": "dropoff",
+                      "value": {
+                        "stringValue": "211,653"
+                      }
+                    },
+                    {
+                      "key": "level",
+                      "value": {
+                        "stringValue": "info"
+                      }
+                    },
+                    {
+                      "key": "pickup",
+                      "value": {
+                        "stringValue": "654,537"
+                      }
+                    }
+                  ]
+                },
+                {
+                  "timeUnixNano": "1786057568687536418",
+                  "name": "Finding route",
+                  "attributes": [
+                    {
+                      "key": "dropoff",
+                      "value": {
+                        "stringValue": "211,653"
+                      }
+                    },
+                    {
+                      "key": "level",
+                      "value": {
+                        "stringValue": "info"
+                      }
+                    },
+                    {
+                      "key": "pickup",
+                      "value": {
+                        "stringValue": "820,297"
+                      }
+                    }
+                  ]
+                },
+                {
+                  "timeUnixNano": "1786057568687591111",
+                  "name": "Finding route",
+                  "attributes": [
+                    {
+                      "key": "dropoff",
+                      "value": {
+                        "stringValue": "211,653"
+                      }
+                    },
+                    {
+                      "key": "level",
+                      "value": {
+                        "stringValue": "info"
+                      }
+                    },
+                    {
+                      "key": "pickup",
+                      "value": {
+                        "stringValue": "709,825"
+                      }
+                    }
+                  ]
+                },
+                {
+                  "timeUnixNano": "1786057568726298993",
+                  "name": "Finding route",
+                  "attributes": [
+                    {
+                      "key": "dropoff",
+                      "value": {
+                        "stringValue": "211,653"
+                      }
+                    },
+                    {
+                      "key": "level",
+                      "value": {
+                        "stringValue": "info"
+                      }
+                    },
+                    {
+                      "key": "pickup",
+                      "value": {
+                        "stringValue": "496,96"
+                      }
+                    }
+                  ]
+                },
+                {
+                  "timeUnixNano": "1786057568737092117",
+                  "name": "Finding route",
+                  "attributes": [
+                    {
+                      "key": "dropoff",
+                      "value": {
+                        "stringValue": "211,653"
+                      }
+                    },
+                    {
+                      "key": "level",
+                      "value": {
+                        "stringValue": "info"
+                      }
+                    },
+                    {
+                      "key": "pickup",
+                      "value": {
+                        "stringValue": "399,708"
+                      }
+                    }
+                  ]
+                },
+                {
+                  "timeUnixNano": "1786057568739496090",
+                  "name": "Finding route",
+                  "attributes": [
+                    {
+                      "key": "dropoff",
+                      "value": {
+                        "stringValue": "211,653"
+                      }
+                    },
+                    {
+                      "key": "level",
+                      "value": {
+                        "stringValue": "info"
+                      }
+                    },
+                    {
+                      "key": "pickup",
+                      "value": {
+                        "stringValue": "573,563"
+                      }
+                    }
+                  ]
+                },
+                {
+                  "timeUnixNano": "1786057568780102276",
+                  "name": "Finding route",
+                  "attributes": [
+                    {
+                      "key": "dropoff",
+                      "value": {
+                        "stringValue": "211,653"
+                      }
+                    },
+                    {
+                      "key": "level",
+                      "value": {
+                        "stringValue": "info"
+                      }
+                    },
+                    {
+                      "key": "pickup",
+                      "value": {
+                        "stringValue": "381,225"
+                      }
+                    }
+                  ]
+                },
+                {
+                  "timeUnixNano": "1786057568797930137",
+                  "name": "Finding route",
+                  "attributes": [
+                    {
+                      "key": "dropoff",
+                      "value": {
+                        "stringValue": "211,653"
+                      }
+                    },
+                    {
+                      "key": "level",
+                      "value": {
+                        "stringValue": "info"
+                      }
+                    },
+                    {
+                      "key": "pickup",
+                      "value": {
+                        "stringValue": "280,737"
+                      }
+                    }
+                  ]
+                },
+                {
+                  "timeUnixNano": "1786057568807599881",
+                  "name": "Finding route",
+                  "attributes": [
+                    {
+                      "key": "dropoff",
+                      "value": {
+                        "stringValue": "211,653"
+                      }
+                    },
+                    {
+                      "key": "level",
+                      "value": {
+                        "stringValue": "info"
+                      }
+                    },
+                    {
+                      "key": "pickup",
+                      "value": {
+                        "stringValue": "567,968"
+                      }
+                    }
+                  ]
+                },
+                {
+                  "timeUnixNano": "1786057568812342145",
+                  "name": "Finding route",
+                  "attributes": [
+                    {
+                      "key": "dropoff",
+                      "value": {
+                        "stringValue": "211,653"
+                      }
+                    },
+                    {
+                      "key": "level",
+                      "value": {
+                        "stringValue": "info"
+                      }
+                    },
+                    {
+                      "key": "pickup",
+                      "value": {
+                        "stringValue": "64,826"
+                      }
+                    }
+                  ]
+                },
+                {
+                  "timeUnixNano": "1786057568474778215",
+                  "name": "Found customer",
+                  "attributes": [
+                    {
+                      "key": "level",
+                      "value": {
+                        "stringValue": "info"
+                      }
+                    }
+                  ]
+                },
+                {
+                  "timeUnixNano": "1786057568687318299",
+                  "name": "Found drivers",
+                  "attributes": [
+                    {
+                      "key": "level",
+                      "value": {
+                        "stringValue": "info"
+                      }
+                    }
+                  ]
+                },
+                {
+                  "timeUnixNano": "1786057568859761612",
+                  "name": "Found routes",
+                  "attributes": [
+                    {
+                      "key": "level",
+                      "value": {
+                        "stringValue": "info"
+                      }
+                    }
+                  ]
+                },
+                {
+                  "timeUnixNano": "1786057567175086524",
+                  "name": "Getting customer",
+                  "attributes": [
+                    {
+                      "key": "customer_id",
+                      "value": {
+                        "intValue": "567"
+                      }
+                    },
+                    {
+                      "key": "level",
+                      "value": {
+                        "stringValue": "info"
+                      }
+                    }
+                  ]
+                },
+                {
+                  "timeUnixNano": "1786057567175033484",
+                  "name": "HTTP request received",
+                  "attributes": [
+                    {
+                      "key": "level",
+                      "value": {
+                        "stringValue": "info"
+                      }
+                    },
+                    {
+                      "key": "method",
+                      "value": {
+                        "stringValue": "GET"
+                      }
+                    },
+                    {
+                      "key": "url",
+                      "value": {
+                        "stringValue": "/dispatch?customer=567&nonse=405898"
+                      }
+                    }
+                  ]
+                }
+              ],
+              "status": {}
+            }
+          ],
+          "scope": {
+            "name": "go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp",
+            "version": "0.69.0"
+          }
+        }
+      ]
+    }
+  ]
+}

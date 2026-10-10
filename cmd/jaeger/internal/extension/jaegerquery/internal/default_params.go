@@ -13,7 +13,6 @@ import (
 
 var (
 	defaultDependencyLookbackDuration   = time.Hour * 24
-	defaultTraceQueryLookbackDuration   = time.Hour * 24 * 2
 	defaultMetricsQueryLookbackDuration = time.Hour
 	defaultMetricsQueryStepDuration     = 5 * time.Second
 	defaultMetricsQueryRateDuration     = 10 * time.Minute
