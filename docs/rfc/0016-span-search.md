@@ -665,7 +665,9 @@ PR-sized milestones with exit bars. Everything here sits behind RFC 0005 M1 and 
 
 **M6 — Remote-storage gRPC.** Client and server for the new RPC, and capability forwarding. If M9 lands first, this milestone also delivers its ordering request/capability forwarding and structured-error mappings (§6.3). *Exit:* a remote backend that declares support serves a span query end to end; one that does not, or that predates the declaration, is refused before dispatch.
 
-**M7 — MCP.** A `find_spans` tool, and `get_span_details` rewired onto an identity filter where the backend declares support. *Exit:* an agent retrieves spans across traces in one call; `get_span_details` stops fetching whole traces on a declaring backend and is unchanged elsewhere.
+🚧 **M7 — MCP.** A `find_spans` tool, and `get_span_details` rewired onto an identity filter where the backend declares support. *Exit:* an agent retrieves spans across traces in one call; `get_span_details` stops fetching whole traces on a declaring backend and is unchanged elsewhere.
+
+- ✅ `get_span_details` rewired onto the identity filter of RFC 0016 §4.3 (`traceID` equality and an `IN` over the requested `spanID`s, since every span the tool takes shares one trace ID) on a backend that declares `SpanSearch`, falling back to the pre-existing whole-trace `GetTraces` path on `ErrSpanSearchUnsupported` or `ErrFilterDisabled`. The `find_spans` tool itself remains open.
 
 **Caller-selected ordering has its own milestones.** M0–M7 retain their default-order exit criteria and do not depend on M8–M12. These milestones extend only `FindSpans`; trace-search ordering is out of scope.
 
