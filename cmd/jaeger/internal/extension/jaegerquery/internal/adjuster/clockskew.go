@@ -136,18 +136,55 @@ func (a *clockSkewAdjuster) buildSubGraphs() {
 	}
 }
 
+// adjustNode adjusts n and all of its descendants, each after its parent.
+// It walks the tree without recursion because a trace can be deep enough
+// to exceed the maximum goroutine stack size, which crashes the process.
 func (a *clockSkewAdjuster) adjustNode(n *node, parent *node, skew clockSkew) {
-	if (n.hostKey != skew.hostKey || n.hostKey == "") && parent != nil {
-		// Node n is from a different host. The parent has already been adjusted,
-		// so we can compare this node's timestamps against the parent.
-		skew = clockSkew{
-			hostKey: n.hostKey,
-			delta:   a.calculateSkew(n, parent),
-		}
+	type frame struct {
+		branch    *node
+		nextChild int
+		skew      clockSkew
 	}
-	a.adjustTimestamps(n, skew)
-	for _, child := range n.children {
-		a.adjustNode(child, n, skew)
+
+	var stack []frame
+	for {
+		if (n.hostKey != skew.hostKey || n.hostKey == "") && parent != nil {
+			// Node n is from a different host. The parent has already been adjusted,
+			// so we can compare this node's timestamps against the parent.
+			skew = clockSkew{
+				hostKey: n.hostKey,
+				delta:   a.calculateSkew(n, parent),
+			}
+		}
+		a.adjustTimestamps(n, skew)
+
+		// Descend through the first child directly and retain only branches
+		// with siblings still to visit.
+		if len(n.children) > 0 {
+			if len(n.children) > 1 {
+				stack = append(stack, frame{
+					branch:    n,
+					nextChild: 1,
+					skew:      skew,
+				})
+			}
+			parent = n
+			n = n.children[0]
+			continue
+		}
+
+		if len(stack) == 0 {
+			return
+		}
+		last := len(stack) - 1
+		continuation := &stack[last]
+		parent = continuation.branch
+		n = parent.children[continuation.nextChild]
+		skew = continuation.skew
+		continuation.nextChild++
+		if continuation.nextChild == len(parent.children) {
+			stack = stack[:last]
+		}
 	}
 }
 
