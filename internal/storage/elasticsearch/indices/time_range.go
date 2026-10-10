@@ -19,9 +19,17 @@ import (
 // reject when it is longer than http.max_initial_line_length, 4 KB by default. The
 // method, query string and protocol take about 75 bytes of that, and the rest is
 // headroom. With the default span index names this is 115 hourly or 130 daily indices.
-// A range whose list would be longer reads the whole index family through wildcards
-// and relies on the query's own time-range filter.
+// A range whose list would be longer is not joined. ReadTargets then reads the whole
+// index family through wildcards and relies on the query's own time-range filter.
+// ExactTargets still returns concrete names; see maxExactTargets.
 const maxReadTargetsLen = 3000
+
+// maxExactTargets caps the concrete names ExactTargets returns once a range no longer
+// fits in maxReadTargetsLen. Those callers probe one name at a time, so the request-line
+// budget does not apply, but the list still has to stay bounded: an unbounded lookback
+// would allocate one name per period. 4096 hourly periods is about 170 days, and 4096
+// daily periods is about eleven years. Names past the cap are the older ones.
+const maxExactTargets = 4096
 
 // TimeRangeIndexFn is a function that returns the list of index names for a given time range.
 type TimeRangeIndexFn func(indexName string, indexDateLayout string, startTime time.Time, endTime time.Time, reduceDuration time.Duration) []string
@@ -83,30 +91,68 @@ func addRemoteReadClusters(fn TimeRangeIndexFn, remoteReadClusters []string) Tim
 	}
 }
 
-// timeRangeIndices returns the array of indices that we need to query, based on query params
+// timeRangeIndices returns the array of indices that we need to query, based on query params.
+// A range that would exceed the request-line budget is returned as wildcards.
 func timeRangeIndices(indexName, indexDateLayout string, startTime time.Time, endTime time.Time, reduceDuration time.Duration) []string {
 	firstIndex := IndexWithDate(indexName, indexDateLayout, startTime)
-	// A range spanning n whole or partial periods touches at most n+1 of them, so the
-	// list has at most n+1 names, each adding its length plus a comma. Check that
-	// against the budget before formatting any other name.
+	if readTargetsExceedBudget(firstIndex, startTime, endTime, reduceDuration) {
+		return wideRangeIndices(indexName, indexDateLayout)
+	}
+	return enumerateTimeRange(indexName, indexDateLayout, startTime, endTime, reduceDuration, 0)
+}
+
+// exactTimeRangeIndices returns concrete index names for the same range, newest first.
+// It never returns a wildcard. Past the request-line budget it keeps the newest
+// maxExactTargets names instead of the patterns ReadTargets uses.
+func exactTimeRangeIndices(indexName, indexDateLayout string, startTime time.Time, endTime time.Time, reduceDuration time.Duration) []string {
+	firstIndex := IndexWithDate(indexName, indexDateLayout, startTime)
+	if readTargetsExceedBudget(firstIndex, startTime, endTime, reduceDuration) {
+		return enumerateTimeRange(indexName, indexDateLayout, startTime, endTime, reduceDuration, maxExactTargets)
+	}
+	return enumerateTimeRange(indexName, indexDateLayout, startTime, endTime, reduceDuration, 0)
+}
+
+// readTargetsExceedBudget reports whether joining one name per period would exceed
+// maxReadTargetsLen. A range spanning n whole or partial periods touches at most
+// n+1 names, each adding its length plus a comma. periods is that count minus the
+// first name, so the list is longer than maxNames once periods reaches maxNames.
+func readTargetsExceedBudget(firstIndex string, startTime, endTime time.Time, reduceDuration time.Duration) bool {
 	maxNames := maxReadTargetsLen / (len(firstIndex) + 1)
 	span, period := endTime.Sub(startTime), -reduceDuration
 	periods := int64(span / period)
 	if span%period != 0 {
 		periods++
 	}
-	if periods+1 > int64(maxNames) {
-		return wideRangeIndices(indexName, indexDateLayout)
-	}
+	return periods >= int64(maxNames)
+}
+
+// enumerateTimeRange lists concrete index names from endTime backward. limit caps how
+// many names are returned; zero means no cap. reduceDuration is negative (one rollover
+// period toward the past). The newest name is first. The oldest name in range is
+// included when the cap has room for it.
+func enumerateTimeRange(indexName, indexDateLayout string, startTime, endTime time.Time, reduceDuration time.Duration, limit int) []string {
+	firstIndex := IndexWithDate(indexName, indexDateLayout, startTime)
 	var result []string
+	if limit > 0 {
+		result = make([]string, 0, limit)
+	}
 	currentIndex := IndexWithDate(indexName, indexDateLayout, endTime)
 	for currentIndex != firstIndex && endTime.After(startTime) {
 		if len(result) == 0 || result[len(result)-1] != currentIndex {
 			result = append(result, currentIndex)
+			if limit > 0 && len(result) == limit {
+				return result
+			}
 		}
-		endTime = endTime.Add(reduceDuration)
+		next := endTime.Add(reduceDuration)
+		// A zero or positive step would otherwise spin on the same timestamp.
+		if !next.Before(endTime) {
+			break
+		}
+		endTime = next
 		currentIndex = IndexWithDate(indexName, indexDateLayout, endTime)
 	}
+	// The cap returns above, so this is the oldest name still inside the range.
 	result = append(result, firstIndex)
 	return result
 }

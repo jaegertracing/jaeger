@@ -30,6 +30,15 @@ func TestLoggingRotation_WithDebug(t *testing.T) {
 	date := time.Date(1995, time.April, 21, 4, 0, 0, 0, time.UTC)
 	assert.Equal(t, "jaeger-span-1995-04-21", r.WriteTarget(date))
 	assert.Equal(t, []string{"jaeger-span-1995-04-21"}, r.ReadTargets(date, date))
+	assert.Equal(t, []string{"jaeger-span-1995-04-21"}, r.ExactTargets(date, date))
 	assert.Equal(t, es.WriteOpIndex, r.WriteOpType())
 	assert.False(t, r.RequiresDocumentTimestamp())
+
+	hourly := NewPeriodicRotation(config.SpanIndexName, "2006-01-02-15", time.Hour)
+	wrapped := NewLoggingRotation(hourly, logger)
+	end := time.Date(2026, time.October, 10, 15, 0, 0, 0, time.UTC)
+	wideStart := end.Add(-365 * 24 * time.Hour)
+	exact := wrapped.ExactTargets(wideStart, end)
+	assert.Equal(t, hourly.ExactTargets(wideStart, end), exact)
+	assert.NotContains(t, exact[0], "*")
 }

@@ -164,7 +164,13 @@ func (s *SamplingStore) writeProbabilitiesAndQPS(indexName string, ts time.Time,
 
 func (s *SamplingStore) getLatestIndex(ctx context.Context) (string, error) {
 	now := s.now().UTC()
-	candidates := s.rotation.ReadTargets(now.Add(-s.lookback), now)
+	// ExactTargets, not ReadTargets. Past the request-line budget ReadTargets returns
+	// wildcards, and a HEAD of a wildcard succeeds when any dated index matches.
+	// GetLatestProbabilities would then search that wildcard with a size limit and no
+	// sort, and could miss the newest probabilities. The candidate list stays concrete
+	// and newest-first, and it is capped so a huge lookback cannot allocate one name
+	// per period.
+	candidates := s.rotation.ExactTargets(now.Add(-s.lookback), now)
 	for _, idx := range candidates {
 		exists, err := s.indexClient.IndexExists(ctx, idx)
 		if err != nil {

@@ -23,6 +23,7 @@ func TestAliasedRotation_ReadTargets(t *testing.T) {
 	start := time.Date(2024, time.June, 17, 0, 0, 0, 0, time.UTC)
 	end := time.Date(2024, time.June, 18, 0, 0, 0, 0, time.UTC)
 	assert.Equal(t, []string{"jaeger-span-read"}, r.ReadTargets(start, end))
+	assert.Equal(t, []string{"jaeger-span-read"}, r.ExactTargets(start, end))
 }
 
 func TestAliasedRotation_WriteOpType(t *testing.T) {

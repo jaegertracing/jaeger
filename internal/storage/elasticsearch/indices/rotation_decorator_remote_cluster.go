@@ -29,7 +29,14 @@ func (r *RemoteClusterRotation) WriteTarget(spanTime time.Time) string {
 }
 
 func (r *RemoteClusterRotation) ReadTargets(startTime, endTime time.Time) []string {
-	local := r.inner.ReadTargets(startTime, endTime)
+	return r.withRemoteClusters(r.inner.ReadTargets(startTime, endTime))
+}
+
+func (r *RemoteClusterRotation) ExactTargets(startTime, endTime time.Time) []string {
+	return r.withRemoteClusters(r.inner.ExactTargets(startTime, endTime))
+}
+
+func (r *RemoteClusterRotation) withRemoteClusters(local []string) []string {
 	if len(r.remoteClusters) == 0 {
 		return local
 	}
