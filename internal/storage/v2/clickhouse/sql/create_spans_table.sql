@@ -22,7 +22,8 @@ CREATE TABLE
             double_attributes Nested (key String, value Float64),
             int_attributes Nested (key String, value Int64),
             str_attributes Nested (key String, value String),
-            complex_attributes Nested (key String, value String)
+            complex_attributes Nested (key String, value String),
+            dropped_attributes_count UInt32
         ),
         links Nested (
             trace_id String,
@@ -32,7 +33,9 @@ CREATE TABLE
             double_attributes Nested (key String, value Float64),
             int_attributes Nested (key String, value Int64),
             str_attributes Nested (key String, value String),
-            complex_attributes Nested (key String, value String)
+            complex_attributes Nested (key String, value String),
+            dropped_attributes_count UInt32,
+            flags UInt32
         ),
         service_name String,
         resource_bool_attributes Nested (key String, value Bool),
@@ -47,6 +50,13 @@ CREATE TABLE
         scope_int_attributes Nested (key String, value Int64),
         scope_str_attributes Nested (key String, value String),
         scope_complex_attributes Nested (key String, value String),
+        resource_schema_url String,
+        scope_schema_url String,
+        flags UInt32,
+        dropped_attributes_count UInt32,
+        dropped_events_count UInt32,
+        dropped_links_count UInt32,
+        scope_dropped_attributes_count UInt32,
         INDEX idx_trace_id trace_id TYPE bloom_filter GRANULARITY 1,
         INDEX idx_duration duration TYPE minmax GRANULARITY 1
     ) ENGINE = MergeTree

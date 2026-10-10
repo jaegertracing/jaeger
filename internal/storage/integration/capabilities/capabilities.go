@@ -6,6 +6,7 @@ package capabilities
 const (
 	scopeAttributesTest    = "Scope_Attributes"
 	linkAttributesTest     = "Link_Attributes"
+	otlpFieldsTest         = "OTLP_Fields"
 	findTraceSummariesTest = "FindTraceSummaries"
 	structuredFilterTest   = "FindTracesWithFilter"
 	paginationTest         = "Pagination"
@@ -221,6 +222,7 @@ func Cassandra() Capabilities {
 			// The reader goes through the v1 span model, which has no scope or link attributes.
 			scopeAttributesTest,
 			linkAttributesTest,
+			otlpFieldsTest,
 			// Trace summaries not supported; jaeger-query falls back to FindTraces for the e2e suite.
 			findTraceSummariesTest,
 			// The reader declares no filter levels or operators.
@@ -282,6 +284,7 @@ func Badger() Capabilities {
 			// The reader goes through the v1 span model, which has no scope or link attributes.
 			scopeAttributesTest,
 			linkAttributesTest,
+			otlpFieldsTest,
 			// Trace summaries not supported; jaeger-query falls back to FindTraces for the e2e suite.
 			findTraceSummariesTest,
 			// The reader declares no filter levels or operators.
@@ -312,6 +315,7 @@ func Elasticsearch() Capabilities {
 			// as a reference without its attributes, so neither comes back as written.
 			scopeAttributesTest,
 			linkAttributesTest,
+			otlpFieldsTest,
 			// The span document stores the kind and the status as tags, which the lowering does
 			// not map; the levels and operators of its FilterCapabilities are too coarse to say so.
 			filterSpanKindTest,
@@ -352,6 +356,8 @@ func Kafka() Capabilities {
 			// no scope or link attributes, and the suite runs one list for all four encodings.
 			scopeAttributesTest,
 			linkAttributesTest,
+			otlpFieldsTest,
+			findTraceSummariesTest,
 			// The ingester's configuration does not turn on the structured-filter feature gate of
 			// jaeger-query.
 			structuredFilterTest,
