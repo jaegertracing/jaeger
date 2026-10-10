@@ -20,6 +20,6 @@ func TestToRow(t *testing.T) {
 
 	expected := createTestSpanRow(t, now, duration)
 
-	row := ToRow(rs, sc, span)
+	row := ToRow(rs, "resource-schema", sc, "scope-schema", span)
 	require.Equal(t, expected, row)
 }
