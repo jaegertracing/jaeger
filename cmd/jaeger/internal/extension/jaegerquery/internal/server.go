@@ -303,6 +303,15 @@ func registerAIRoutes(
 			cs = append(cs, customSkills)
 		}
 		mcpCfg.CustomSkillsFS = customSkills
+		mcpCfg.HeaderForwarding = queryOpts.HeaderForwarding
+		mcpCfg.BearerTokenPropagation = queryOpts.BearerTokenPropagation
+		// confighttp authenticates in front of this handler and may take the
+		// caller from any header or from auth.request_params, then store it
+		// only in a context value. The session binding has to know that.
+		if httpAuth := queryOpts.HTTP.Auth.Get(); httpAuth != nil {
+			mcpCfg.Authenticated = true
+			mcpCfg.AuthRequestParameters = httpAuth.RequestParameters
+		}
 
 		mcpHandler = mcptools.NewHandler(telset, querySvc, tenancyMgr, mcpCfg)
 		cs = append(cs, mcpHandler)

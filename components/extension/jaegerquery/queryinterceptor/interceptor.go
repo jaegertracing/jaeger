@@ -136,7 +136,9 @@ type SpanQuery struct {
 //
 // (client is go.opentelemetry.io/collector/client). An access-control
 // implementation reads the caller's identity/token this way and resolves it
-// against its policy system. The example extension does exactly this.
+// against its policy system. The example extension does exactly this. Over MCP,
+// read the caller from this metadata, not from client.Info.Auth, which every
+// request on an MCP session inherits from the request that opened the session.
 //
 // Every method also *returns* a context. jaeger-query threads a pre-query hook's
 // returned context into the storage reader and into the matching result hook, and
