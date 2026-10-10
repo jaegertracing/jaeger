@@ -47,6 +47,8 @@ extensions:
               username: default
               password: password
           create_schema: true
+          table_engine:
+            merge_tree: {}
     metric_backends:
       some-metrics:
         clickhouse:

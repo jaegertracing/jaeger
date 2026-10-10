@@ -58,8 +58,15 @@ var (
 	_ storage.Purger             = (*Factory)(nil)
 )
 
+// schemaTemplateParams is what the CREATE TABLE templates under sql/ are rendered with.
 type schemaTemplateParams struct {
+	// TTLSeconds is the retention of spans and trace_id_timestamps; zero renders no TTL clause.
 	TTLSeconds int64
+	// MergeTree is the ENGINE clause body of the tables that hold raw rows.
+	MergeTree string
+	// AggregatingMergeTree is the ENGINE clause body of the derived tables, whose rows
+	// collapse on their sort key.
+	AggregatingMergeTree string
 }
 
 type schemaStatement struct {
@@ -72,40 +79,51 @@ type schemaBuilder struct {
 }
 
 func newSchemaBuilder(cfg Configuration) (*schemaBuilder, error) {
-	createSpansTableQuery, err := loadTemplate(
-		"create_spans_table",
-		sql.CreateSpansTable,
-		schemaTemplateParams{TTLSeconds: int64(cfg.TTL / time.Second)},
-	)
+	mergeTree, err := cfg.TableEngine.engineClause("MergeTree")
 	if err != nil {
 		return nil, err
 	}
-
-	createTraceIDTsTableQuery, err := loadTemplate(
-		"create_trace_id_timestamps_table",
-		sql.CreateTraceIDTimestampsTable,
-		schemaTemplateParams{TTLSeconds: int64(cfg.TTL / time.Second)},
-	)
+	aggregatingMergeTree, err := cfg.TableEngine.engineClause("AggregatingMergeTree")
 	if err != nil {
 		return nil, err
 	}
-
-	return &schemaBuilder{
-		statements: []schemaStatement{
-			{"spans table", createSpansTableQuery},
-			{"services table", sql.CreateServicesTable},
-			{"services materialized view", sql.CreateServicesMaterializedView},
-			{"operations table", sql.CreateOperationsTable},
-			{"operations materialized view", sql.CreateOperationsMaterializedView},
-			{"trace id timestamps table", createTraceIDTsTableQuery},
-			{"trace id timestamps materialized view", sql.CreateTraceIDTimestampsMaterializedView},
-			{"attribute metadata table", sql.CreateAttributeMetadataTable},
-			{"attribute metadata materialized view", sql.CreateAttributeMetadataMaterializedView},
-			{"event attribute metadata materialized view", sql.CreateEventAttributeMetadataMaterializedView},
-			{"link attribute metadata materialized view", sql.CreateLinkAttributeMetadataMaterializedView},
-			{"dependencies table", sql.CreateDependenciesTable},
-		},
-	}, nil
+	params := schemaTemplateParams{
+		TTLSeconds:           int64(cfg.TTL / time.Second),
+		MergeTree:            mergeTree,
+		AggregatingMergeTree: aggregatingMergeTree,
+	}
+	// The materialized views carry no engine of their own, because each writes TO its
+	// target table, so only the tables are templates.
+	schema := []struct {
+		name     string
+		query    string
+		template bool
+	}{
+		{"spans table", sql.CreateSpansTable, true},
+		{"services table", sql.CreateServicesTable, true},
+		{"services materialized view", sql.CreateServicesMaterializedView, false},
+		{"operations table", sql.CreateOperationsTable, true},
+		{"operations materialized view", sql.CreateOperationsMaterializedView, false},
+		{"trace id timestamps table", sql.CreateTraceIDTimestampsTable, true},
+		{"trace id timestamps materialized view", sql.CreateTraceIDTimestampsMaterializedView, false},
+		{"attribute metadata table", sql.CreateAttributeMetadataTable, true},
+		{"attribute metadata materialized view", sql.CreateAttributeMetadataMaterializedView, false},
+		{"event attribute metadata materialized view", sql.CreateEventAttributeMetadataMaterializedView, false},
+		{"link attribute metadata materialized view", sql.CreateLinkAttributeMetadataMaterializedView, false},
+		{"dependencies table", sql.CreateDependenciesTable, true},
+	}
+	builder := &schemaBuilder{}
+	for _, s := range schema {
+		query := s.query
+		if s.template {
+			query, err = loadTemplate(s.name, s.query, params)
+			if err != nil {
+				return nil, err
+			}
+		}
+		builder.statements = append(builder.statements, schemaStatement{name: s.name, query: query})
+	}
+	return builder, nil
 }
 
 func (b *schemaBuilder) build(ctx context.Context, conn driver.Conn) error {

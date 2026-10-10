@@ -6,6 +6,7 @@ package clickhouse
 import (
 	"context"
 	"errors"
+	"regexp"
 	"testing"
 	"time"
 
@@ -53,6 +54,8 @@ func TestFactory(t *testing.T) {
 						Password: "password",
 					}),
 				},
+				CreateSchema: tt.createSchema,
+				TableEngine:  localTableEngine,
 			}
 
 			f, err := NewFactory(context.Background(), cfg, telemetry.NoopSettings())
@@ -83,13 +86,26 @@ func TestFactory(t *testing.T) {
 	}
 }
 
+// localTableEngine is the engine the unit tests create the schema with.
+var localTableEngine = TableEngine{
+	MergeTree: configoptional.Some(MergeTreeEngine{}),
+}
+
+// schemaQuery returns the statement newSchemaBuilder renders under the given name for
+// localTableEngine and no TTL, so the tests expect exactly what the factory executes.
+func schemaQuery(t *testing.T, name string) string {
+	builder, err := newSchemaBuilder(Configuration{CreateSchema: true, TableEngine: localTableEngine})
+	require.NoError(t, err)
+	for _, stmt := range builder.statements {
+		if stmt.name == name {
+			return stmt.query
+		}
+	}
+	require.Failf(t, "unknown schema statement", "%s", name)
+	return ""
+}
+
 func TestNewFactory_Errors(t *testing.T) {
-	createSpansTableQuery, err := loadTemplate("test", sql.CreateSpansTable, schemaTemplateParams{TTLSeconds: 0})
-	require.NoError(t, err)
-
-	createTraceIDTsTableQuery, err := loadTemplate("test_ts", sql.CreateTraceIDTimestampsTable, schemaTemplateParams{TTLSeconds: 0})
-	require.NoError(t, err)
-
 	tests := []struct {
 		name          string
 		failureConfig clickhousetest.FailureConfig
@@ -105,14 +121,14 @@ func TestNewFactory_Errors(t *testing.T) {
 		{
 			name: "spans table creation error",
 			failureConfig: clickhousetest.FailureConfig{
-				createSpansTableQuery: assert.AnError,
+				schemaQuery(t, "spans table"): assert.AnError,
 			},
 			expectedError: "failed to create spans table",
 		},
 		{
 			name: "services table creation error",
 			failureConfig: clickhousetest.FailureConfig{
-				sql.CreateServicesTable: assert.AnError,
+				schemaQuery(t, "services table"): assert.AnError,
 			},
 			expectedError: "failed to create services table",
 		},
@@ -126,7 +142,7 @@ func TestNewFactory_Errors(t *testing.T) {
 		{
 			name: "operations table creation error",
 			failureConfig: clickhousetest.FailureConfig{
-				sql.CreateOperationsTable: assert.AnError,
+				schemaQuery(t, "operations table"): assert.AnError,
 			},
 			expectedError: "failed to create operations table",
 		},
@@ -140,7 +156,7 @@ func TestNewFactory_Errors(t *testing.T) {
 		{
 			name: "trace id timestamps table creation error",
 			failureConfig: clickhousetest.FailureConfig{
-				createTraceIDTsTableQuery: assert.AnError,
+				schemaQuery(t, "trace id timestamps table"): assert.AnError,
 			},
 			expectedError: "failed to create trace id timestamps table",
 		},
@@ -154,7 +170,7 @@ func TestNewFactory_Errors(t *testing.T) {
 		{
 			name: "attribute metadata table creation error",
 			failureConfig: clickhousetest.FailureConfig{
-				sql.CreateAttributeMetadataTable: assert.AnError,
+				schemaQuery(t, "attribute metadata table"): assert.AnError,
 			},
 			expectedError: "failed to create attribute metadata table",
 		},
@@ -182,7 +198,7 @@ func TestNewFactory_Errors(t *testing.T) {
 		{
 			name: "dependencies table creation error",
 			failureConfig: clickhousetest.FailureConfig{
-				sql.CreateDependenciesTable: assert.AnError,
+				schemaQuery(t, "dependencies table"): assert.AnError,
 			},
 			expectedError: "failed to create dependencies table",
 		},
@@ -200,6 +216,7 @@ func TestNewFactory_Errors(t *testing.T) {
 				},
 				DialTimeout:  1 * time.Second,
 				CreateSchema: true,
+				TableEngine:  localTableEngine,
 			}
 
 			f, err := NewFactory(context.Background(), cfg, telemetry.NoopSettings())
@@ -271,6 +288,7 @@ func TestPurge(t *testing.T) {
 				},
 				DialTimeout:  1 * time.Second,
 				CreateSchema: true,
+				TableEngine:  localTableEngine,
 			}
 
 			f, err := NewFactory(context.Background(), cfg, telemetry.NoopSettings())
@@ -384,7 +402,7 @@ func TestNewSchemaBuilder_Errors(t *testing.T) {
 			loadTemplate = tt.mockFn
 			_, err := NewFactory(
 				context.Background(),
-				Configuration{CreateSchema: true},
+				Configuration{CreateSchema: true, TableEngine: localTableEngine},
 				telemetry.NoopSettings(),
 			)
 			require.ErrorContains(t, err, tt.expectedError)
@@ -435,13 +453,12 @@ func TestLoadTemplate(t *testing.T) {
 
 func TestCreateSpansTableTemplate(t *testing.T) {
 	t.Run("without TTL", func(t *testing.T) {
-		queryWithoutTTL, err := loadTemplate("test_no_ttl", sql.CreateSpansTable, schemaTemplateParams{TTLSeconds: 0})
-		require.NoError(t, err)
+		queryWithoutTTL := schemaQuery(t, "spans table")
 		assert.NotContains(t, queryWithoutTTL, "TTL start_time")
 	})
 
 	t.Run("with TTL", func(t *testing.T) {
-		queryWithTTL, err := loadTemplate("test_ttl", sql.CreateSpansTable, schemaTemplateParams{TTLSeconds: 86400})
+		queryWithTTL, err := loadTemplate("test_ttl", sql.CreateSpansTable, schemaTemplateParams{TTLSeconds: 86400, MergeTree: "MergeTree"})
 		require.NoError(t, err)
 		assert.Contains(t, queryWithTTL, "TTL start_time + INTERVAL 86400 SECOND DELETE")
 	})
@@ -449,15 +466,89 @@ func TestCreateSpansTableTemplate(t *testing.T) {
 
 func TestCreateTraceIDTimestampsTableTemplate(t *testing.T) {
 	t.Run("without TTL", func(t *testing.T) {
-		queryWithoutTTL, err := loadTemplate("test_no_ttl_trace", sql.CreateTraceIDTimestampsTable, schemaTemplateParams{TTLSeconds: 0})
-		require.NoError(t, err)
+		queryWithoutTTL := schemaQuery(t, "trace id timestamps table")
 		assert.NotContains(t, queryWithoutTTL, "TTL end")
 	})
 
 	t.Run("with TTL", func(t *testing.T) {
-		queryWithTTL, err := loadTemplate("test_ttl_trace", sql.CreateTraceIDTimestampsTable, schemaTemplateParams{TTLSeconds: 86400})
+		queryWithTTL, err := loadTemplate("test_ttl_trace", sql.CreateTraceIDTimestampsTable, schemaTemplateParams{TTLSeconds: 86400, AggregatingMergeTree: "AggregatingMergeTree"})
 		require.NoError(t, err)
 		assert.Contains(t, queryWithTTL, "TTL end + INTERVAL 86400 SECOND DELETE")
+	})
+}
+
+// TestSchemaBuilder_Engines checks that every table the builder creates carries the ENGINE
+// clause the configured TableEngine renders, and that the materialized views carry none.
+func TestSchemaBuilder_Engines(t *testing.T) {
+	mergeTreeTables := map[string]bool{
+		"spans table":        true,
+		"dependencies table": true,
+	}
+	aggregatingTables := map[string]bool{
+		"services table":            true,
+		"operations table":          true,
+		"trace id timestamps table": true,
+		"attribute metadata table":  true,
+	}
+	tests := []struct {
+		name            string
+		engine          TableEngine
+		wantMergeTree   string
+		wantAggregating string
+	}{
+		{
+			name:            "merge_tree",
+			engine:          localTableEngine,
+			wantMergeTree:   "ENGINE = MergeTree",
+			wantAggregating: "ENGINE = AggregatingMergeTree",
+		},
+		{
+			name: "replicated with server defaults",
+			engine: TableEngine{
+				Replicated: configoptional.Some(ReplicatedEngine{}),
+			},
+			wantMergeTree:   "ENGINE = ReplicatedMergeTree",
+			wantAggregating: "ENGINE = ReplicatedAggregatingMergeTree",
+		},
+		{
+			name: "replicated with keeper path and replica name",
+			engine: TableEngine{
+				Replicated: configoptional.Some(ReplicatedEngine{
+					KeeperPath:  "/clickhouse/tables/{shard}/{database}/{table}",
+					ReplicaName: "{replica}",
+				}),
+			},
+			wantMergeTree:   "ENGINE = ReplicatedMergeTree('/clickhouse/tables/{shard}/{database}/{table}', '{replica}')",
+			wantAggregating: "ENGINE = ReplicatedAggregatingMergeTree('/clickhouse/tables/{shard}/{database}/{table}', '{replica}')",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			builder, err := newSchemaBuilder(Configuration{CreateSchema: true, TableEngine: tt.engine})
+			require.NoError(t, err)
+			seen := 0
+			for _, stmt := range builder.statements {
+				assert.NotContains(t, stmt.query, "{{", stmt.name)
+				// The clause must end at whitespace, so that a bare ReplicatedMergeTree
+				// is not satisfied by ReplicatedMergeTree('...') and vice versa.
+				switch {
+				case mergeTreeTables[stmt.name]:
+					assert.Regexp(t, regexp.QuoteMeta(tt.wantMergeTree)+`\s`, stmt.query, stmt.name)
+					seen++
+				case aggregatingTables[stmt.name]:
+					assert.Regexp(t, regexp.QuoteMeta(tt.wantAggregating)+`\s`, stmt.query, stmt.name)
+					seen++
+				default:
+					assert.NotContains(t, stmt.query, "ENGINE", stmt.name)
+				}
+			}
+			assert.Equal(t, len(mergeTreeTables)+len(aggregatingTables), seen)
+		})
+	}
+
+	t.Run("unset engine is refused", func(t *testing.T) {
+		_, err := newSchemaBuilder(Configuration{CreateSchema: true})
+		require.ErrorContains(t, err, "create_schema requires table_engine")
 	})
 }
 
