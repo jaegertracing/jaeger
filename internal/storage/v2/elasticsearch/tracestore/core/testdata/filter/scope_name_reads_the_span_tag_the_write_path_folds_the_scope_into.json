@@ -1,0 +1,32 @@
+{
+  "bool": {
+    "should": [
+      {
+        "term": {
+          "tag.otel@scope@name": "io.opentelemetry.contrib.cart"
+        }
+      },
+      {
+        "nested": {
+          "path": "tags",
+          "query": {
+            "bool": {
+              "must": [
+                {
+                  "term": {
+                    "tags.key": "otel.scope.name"
+                  }
+                },
+                {
+                  "term": {
+                    "tags.value": "io.opentelemetry.contrib.cart"
+                  }
+                }
+              ]
+            }
+          }
+        }
+      }
+    ]
+  }
+}
