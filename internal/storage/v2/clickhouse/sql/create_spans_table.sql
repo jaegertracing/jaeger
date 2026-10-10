@@ -47,6 +47,16 @@ CREATE TABLE
         scope_int_attributes Nested (key String, value Int64),
         scope_str_attributes Nested (key String, value String),
         scope_complex_attributes Nested (key String, value String),
+        flags UInt32,
+        dropped_attributes_count UInt32,
+        dropped_events_count UInt32,
+        dropped_links_count UInt32,
+        events.dropped_attributes_count Array(UInt32) DEFAULT arrayMap(x -> toUInt32(0), events.name),
+        links.dropped_attributes_count Array(UInt32) DEFAULT arrayMap(x -> toUInt32(0), links.trace_id),
+        links.flags Array(UInt32) DEFAULT arrayMap(x -> toUInt32(0), links.trace_id),
+        resource_schema_url String,
+        scope_schema_url String,
+        scope_dropped_attributes_count UInt32,
         INDEX idx_trace_id trace_id TYPE bloom_filter GRANULARITY 1,
         INDEX idx_duration duration TYPE minmax GRANULARITY 1
     ) ENGINE = MergeTree

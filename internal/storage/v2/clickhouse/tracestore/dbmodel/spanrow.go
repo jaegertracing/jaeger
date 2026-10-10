@@ -27,33 +27,43 @@ import (
 //     as a string. Keys for this type are prefixed with `@map@`.
 type SpanRow struct {
 	// --- Span ---
-	ID              string
-	TraceID         string
-	TraceState      string
-	ParentSpanID    string
-	Name            string
-	Kind            string
-	StartTime       time.Time
-	StatusCode      string
-	StatusMessage   string
-	Duration        int64
-	Attributes      Attributes
-	EventNames      []string
-	EventTimestamps []time.Time
-	EventAttributes Attributes2D
-	LinkTraceIDs    []string
-	LinkSpanIDs     []string
-	LinkTraceStates []string
-	LinkAttributes  Attributes2D
+	ID                          string
+	TraceID                     string
+	TraceState                  string
+	ParentSpanID                string
+	Name                        string
+	Kind                        string
+	StartTime                   time.Time
+	StatusCode                  string
+	StatusMessage               string
+	Duration                    int64
+	Flags                       uint32
+	DroppedAttributesCount      uint32
+	DroppedEventsCount          uint32
+	DroppedLinksCount           uint32
+	Attributes                  Attributes
+	EventNames                  []string
+	EventTimestamps             []time.Time
+	EventDroppedAttributesCount []uint32
+	EventAttributes             Attributes2D
+	LinkTraceIDs                []string
+	LinkSpanIDs                 []string
+	LinkTraceStates             []string
+	LinkDroppedAttributesCount  []uint32
+	LinkFlags                   []uint32
+	LinkAttributes              Attributes2D
 
 	// --- Resource ---
 	ServiceName        string
+	ResourceSchemaURL  string
 	ResourceAttributes Attributes
 
 	// --- Scope ---
-	ScopeName       string
-	ScopeVersion    string
-	ScopeAttributes Attributes
+	ScopeName                   string
+	ScopeVersion                string
+	ScopeSchemaURL              string
+	ScopeDroppedAttributesCount uint32
+	ScopeAttributes             Attributes
 }
 
 type Attributes struct {
@@ -153,6 +163,16 @@ func ScanRow(rows driver.Rows) (*SpanRow, error) {
 		&sr.ScopeAttributes.StrValues,
 		&sr.ScopeAttributes.ComplexKeys,
 		&sr.ScopeAttributes.ComplexValues,
+		&sr.Flags,
+		&sr.DroppedAttributesCount,
+		&sr.DroppedEventsCount,
+		&sr.DroppedLinksCount,
+		&sr.EventDroppedAttributesCount,
+		&sr.LinkDroppedAttributesCount,
+		&sr.LinkFlags,
+		&sr.ResourceSchemaURL,
+		&sr.ScopeSchemaURL,
+		&sr.ScopeDroppedAttributesCount,
 	)
 	if err != nil {
 		return nil, err

@@ -18,6 +18,7 @@ func TestClickHouseStorage(t *testing.T) {
 		StorageIntegration: integration.StorageIntegration{
 			CleanUp:      purge,
 			Capabilities: capabilities.ClickHouseE2E(),
+			Fixtures:     integration.LoadAndParseQueryTestCases(t, "fixtures/queries_clickhouse.json"),
 		},
 	}
 	s.e2eInitialize(t, "clickhouse")

@@ -27,7 +27,7 @@ func TestRoundTrip(t *testing.T) {
 
 		expected := createTestTrace(now, duration)
 
-		row := ToRow(rs, sc, span)
+		row := ToRow(rs, "resource-schema", sc, "scope-schema", span)
 		trace := FromRow(row)
 		require.Equal(t, expected, trace)
 	})
@@ -36,11 +36,13 @@ func TestRoundTrip(t *testing.T) {
 		spanRow := createTestSpanRow(t, now, duration)
 
 		trace := FromRow(spanRow)
-		rs := trace.ResourceSpans().At(0).Resource()
-		sc := trace.ResourceSpans().At(0).ScopeSpans().At(0).Scope()
-		span := trace.ResourceSpans().At(0).ScopeSpans().At(0).Spans().At(0)
+		resourceSpans := trace.ResourceSpans().At(0)
+		scopeSpans := resourceSpans.ScopeSpans().At(0)
+		rs := resourceSpans.Resource()
+		sc := scopeSpans.Scope()
+		span := scopeSpans.Spans().At(0)
 
-		row := ToRow(rs, sc, span)
+		row := ToRow(rs, resourceSpans.SchemaUrl(), sc, scopeSpans.SchemaUrl(), span)
 		require.Equal(t, spanRow, row)
 	})
 }
@@ -52,8 +54,10 @@ func createTestTrace(now time.Time, duration time.Duration) ptrace.Traces {
 
 	td := ptrace.NewTraces()
 	rsSpans := td.ResourceSpans().AppendEmpty()
+	rsSpans.SetSchemaUrl("resource-schema")
 	rs.CopyTo(rsSpans.Resource())
 	scSpans := rsSpans.ScopeSpans().AppendEmpty()
+	scSpans.SetSchemaUrl("scope-schema")
 	sc.CopyTo(scSpans.Scope())
 	span.CopyTo(scSpans.Spans().AppendEmpty())
 	return td
@@ -70,6 +74,7 @@ func createTestScope() pcommon.InstrumentationScope {
 	sc := pcommon.NewInstrumentationScope()
 	sc.SetName("test-scope")
 	sc.SetVersion("v1.0.0")
+	sc.SetDroppedAttributesCount(8)
 	addTestAttributes(sc.Attributes())
 	return sc
 }
@@ -82,6 +87,10 @@ func createTestSpan(now time.Time, duration time.Duration) ptrace.Span {
 	span.SetParentSpanID([8]byte{0, 0, 0, 0, 0, 0, 0, 2})
 	span.SetName("test-span")
 	span.SetKind(ptrace.SpanKindServer)
+	span.SetFlags(1)
+	span.SetDroppedAttributesCount(2)
+	span.SetDroppedEventsCount(3)
+	span.SetDroppedLinksCount(4)
 	span.SetStartTimestamp(pcommon.NewTimestampFromTime(now))
 	span.SetEndTimestamp(pcommon.NewTimestampFromTime(now.Add(duration)))
 	span.Status().SetCode(ptrace.StatusCodeOk)
@@ -98,6 +107,7 @@ func addSpanEvent(span ptrace.Span, now time.Time) {
 	event := span.Events().AppendEmpty()
 	event.SetName("test-event")
 	event.SetTimestamp(pcommon.NewTimestampFromTime(now))
+	event.SetDroppedAttributesCount(5)
 	addTestAttributes(event.Attributes())
 }
 
@@ -106,6 +116,8 @@ func addSpanLink(span ptrace.Span) {
 	link.SetTraceID(pcommon.TraceID([16]byte{0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 3}))
 	link.SetSpanID(pcommon.SpanID([8]byte{0, 0, 0, 0, 0, 0, 0, 4}))
 	link.TraceState().FromRaw("link-state")
+	link.SetDroppedAttributesCount(6)
+	link.SetFlags(7)
 	addTestAttributes(link.Attributes())
 }
 
@@ -137,16 +149,23 @@ func createTestSpanRow(t *testing.T, now time.Time, duration time.Duration) *Spa
 	require.NoError(t, err)
 
 	return &SpanRow{
-		ID:            "0000000000000001",
-		TraceID:       "00000000000000000000000000000001",
-		TraceState:    "state1",
-		ParentSpanID:  "0000000000000002",
-		Name:          "test-span",
-		Kind:          "server",
-		StartTime:     now,
-		StatusCode:    "Ok",
-		StatusMessage: "test-status-message",
-		Duration:      duration.Nanoseconds(),
+		ID:                          "0000000000000001",
+		TraceID:                     "00000000000000000000000000000001",
+		TraceState:                  "state1",
+		ParentSpanID:                "0000000000000002",
+		Name:                        "test-span",
+		Kind:                        "server",
+		StartTime:                   now,
+		StatusCode:                  "Ok",
+		StatusMessage:               "test-status-message",
+		Duration:                    duration.Nanoseconds(),
+		Flags:                       1,
+		DroppedAttributesCount:      2,
+		DroppedEventsCount:          3,
+		DroppedLinksCount:           4,
+		ResourceSchemaURL:           "resource-schema",
+		ScopeSchemaURL:              "scope-schema",
+		ScopeDroppedAttributesCount: 8,
 		Attributes: Attributes{
 			BoolKeys:      []string{"bool_attr"},
 			BoolValues:    []bool{true},
@@ -159,8 +178,9 @@ func createTestSpanRow(t *testing.T, now time.Time, duration time.Duration) *Spa
 			ComplexKeys:   []string{"@bytes@bytes_attr", "@map@map_attr", "@slice@slice_attr"},
 			ComplexValues: []string{encodedBytes, string(vmJSON), string(vsJSON)},
 		},
-		EventNames:      []string{"test-event"},
-		EventTimestamps: []time.Time{now},
+		EventNames:                  []string{"test-event"},
+		EventTimestamps:             []time.Time{now},
+		EventDroppedAttributesCount: []uint32{5},
 		EventAttributes: Attributes2D{
 			BoolKeys:      [][]string{{"bool_attr"}},
 			BoolValues:    [][]bool{{true}},
@@ -173,9 +193,11 @@ func createTestSpanRow(t *testing.T, now time.Time, duration time.Duration) *Spa
 			ComplexKeys:   [][]string{{"@bytes@bytes_attr", "@map@map_attr", "@slice@slice_attr"}},
 			ComplexValues: [][]string{{encodedBytes, string(vmJSON), string(vsJSON)}},
 		},
-		LinkTraceIDs:    []string{"00000000000000000000000000000003"},
-		LinkSpanIDs:     []string{"0000000000000004"},
-		LinkTraceStates: []string{"link-state"},
+		LinkTraceIDs:               []string{"00000000000000000000000000000003"},
+		LinkSpanIDs:                []string{"0000000000000004"},
+		LinkTraceStates:            []string{"link-state"},
+		LinkDroppedAttributesCount: []uint32{6},
+		LinkFlags:                  []uint32{7},
 		LinkAttributes: Attributes2D{
 			BoolKeys:      [][]string{{"bool_attr"}},
 			BoolValues:    [][]bool{{true}},
