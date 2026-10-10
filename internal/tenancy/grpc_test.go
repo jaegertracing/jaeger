@@ -13,6 +13,7 @@ import (
 	"go.opentelemetry.io/collector/client"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/metadata"
+	"google.golang.org/grpc/tap"
 )
 
 func TestTenancyInterceptors(t *testing.T) {
@@ -127,6 +128,64 @@ func TestTenancyInterceptors(t *testing.T) {
 			_, err = uinterceptor(test.ctx, iface, usi, uhandler)
 			if test.errMsg == "" {
 				require.NoError(t, err)
+			} else {
+				require.Error(t, err)
+				assert.Equal(t, test.errMsg, err.Error())
+			}
+		})
+	}
+}
+
+func TestGuardingTapHandle(t *testing.T) {
+	tests := []struct {
+		name       string
+		tenancyMgr *Manager
+		header     metadata.MD
+		errMsg     string
+	}{
+		{
+			name:       "missing tenant header",
+			tenancyMgr: NewManager(&Options{Enabled: true, Tenants: []string{"acme"}}),
+			header:     metadata.MD{},
+			errMsg:     "rpc error: code = Unauthenticated desc = missing tenant header",
+		},
+		{
+			name:       "invalid tenant header",
+			tenancyMgr: NewManager(&Options{Enabled: true, Tenants: []string{"megacorp"}}),
+			header:     metadata.MD{"x-tenant": {"acme"}},
+			errMsg:     "rpc error: code = PermissionDenied desc = unknown tenant",
+		},
+		{
+			name:       "extra tenant header",
+			tenancyMgr: NewManager(&Options{Enabled: true, Tenants: []string{"acme"}}),
+			header:     metadata.MD{"x-tenant": {"acme", "megacorp"}},
+			errMsg:     "rpc error: code = PermissionDenied desc = extra tenant header",
+		},
+		{
+			name:       "valid tenant header",
+			tenancyMgr: NewManager(&Options{Enabled: true, Tenants: []string{"acme"}}),
+			header:     metadata.MD{"x-tenant": {"acme"}},
+		},
+		{
+			name:       "any tenant header without a tenant list",
+			tenancyMgr: NewManager(&Options{Enabled: true}),
+			header:     metadata.MD{"x-tenant": {"acme"}},
+		},
+		{
+			name:       "missing tenant header without a tenant list",
+			tenancyMgr: NewManager(&Options{Enabled: true}),
+			header:     metadata.MD{},
+			errMsg:     "rpc error: code = Unauthenticated desc = missing tenant header",
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			ctx := context.Background()
+			gotCtx, err := NewGuardingTapHandle(test.tenancyMgr)(ctx, &tap.Info{Header: test.header})
+			if test.errMsg == "" {
+				require.NoError(t, err)
+				assert.Equal(t, ctx, gotCtx)
 			} else {
 				require.Error(t, err)
 				assert.Equal(t, test.errMsg, err.Error())
