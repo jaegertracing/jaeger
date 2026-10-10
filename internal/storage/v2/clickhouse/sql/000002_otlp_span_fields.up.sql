@@ -1,0 +1,10 @@
+ALTER TABLE spans ADD COLUMN IF NOT EXISTS events.dropped_attributes_count Array(UInt32) AFTER events.complex_attributes;
+ALTER TABLE spans ADD COLUMN IF NOT EXISTS links.dropped_attributes_count Array(UInt32) AFTER links.complex_attributes;
+ALTER TABLE spans ADD COLUMN IF NOT EXISTS links.flags Array(UInt32) AFTER links.dropped_attributes_count;
+ALTER TABLE spans ADD COLUMN IF NOT EXISTS resource_schema_url String;
+ALTER TABLE spans ADD COLUMN IF NOT EXISTS scope_schema_url String;
+ALTER TABLE spans ADD COLUMN IF NOT EXISTS flags UInt32;
+ALTER TABLE spans ADD COLUMN IF NOT EXISTS dropped_attributes_count UInt32;
+ALTER TABLE spans ADD COLUMN IF NOT EXISTS dropped_events_count UInt32;
+ALTER TABLE spans ADD COLUMN IF NOT EXISTS dropped_links_count UInt32;
+ALTER TABLE spans ADD COLUMN IF NOT EXISTS scope_dropped_attributes_count UInt32;

@@ -26,9 +26,11 @@ func requireTracesEqual(t *testing.T, expected []*dbmodel.SpanRow, actual []ptra
 	for i, e := range expected {
 		resources := actual[i].ResourceSpans()
 		require.Equal(t, 1, resources.Len())
+		require.Equal(t, e.ResourceSchemaURL, resources.At(0).SchemaUrl())
 
 		scopes := resources.At(0).ScopeSpans()
 		require.Equal(t, 1, scopes.Len())
+		require.Equal(t, e.ScopeSchemaURL, scopes.At(0).SchemaUrl())
 		requireScopeEqual(t, e, scopes.At(0).Scope())
 
 		spans := scopes.At(0).Spans()
@@ -43,6 +45,7 @@ func requireScopeEqual(t *testing.T, expected *dbmodel.SpanRow, actual pcommon.I
 
 	require.Equal(t, expected.ScopeName, actual.Name())
 	require.Equal(t, expected.ScopeVersion, actual.Version())
+	require.Equal(t, expected.ScopeDroppedAttributesCount, actual.DroppedAttributesCount())
 }
 
 func requireSpanEqual(t *testing.T, expected *dbmodel.SpanRow, actual ptrace.Span) {
@@ -58,6 +61,10 @@ func requireSpanEqual(t *testing.T, expected *dbmodel.SpanRow, actual ptrace.Spa
 	require.Equal(t, expected.StatusCode, actual.Status().Code().String())
 	require.Equal(t, expected.StatusMessage, actual.Status().Message())
 	require.Equal(t, time.Duration(expected.Duration), actual.EndTimestamp().AsTime().Sub(actual.StartTimestamp().AsTime()))
+	require.Equal(t, expected.Flags, uint32(actual.Flags()))
+	require.Equal(t, expected.DroppedAttributesCount, actual.DroppedAttributesCount())
+	require.Equal(t, expected.DroppedEventsCount, actual.DroppedEventsCount())
+	require.Equal(t, expected.DroppedLinksCount, actual.DroppedLinksCount())
 
 	requireBoolAttrs(t, expected.Attributes.BoolKeys, expected.Attributes.BoolValues, actual.Attributes())
 	requireDoubleAttrs(t, expected.Attributes.DoubleKeys, expected.Attributes.DoubleValues, actual.Attributes())
@@ -69,6 +76,9 @@ func requireSpanEqual(t *testing.T, expected *dbmodel.SpanRow, actual ptrace.Spa
 	for i, e := range actual.Events().All() {
 		require.Equal(t, expected.EventNames[i], e.Name())
 		require.Equal(t, expected.EventTimestamps[i].UnixNano(), e.Timestamp().AsTime().UnixNano())
+		if len(expected.EventDroppedAttributesCount) > i {
+			require.Equal(t, expected.EventDroppedAttributesCount[i], e.DroppedAttributesCount())
+		}
 
 		requireBoolAttrs(t, expected.EventAttributes.BoolKeys[i], expected.EventAttributes.BoolValues[i], e.Attributes())
 		requireDoubleAttrs(t, expected.EventAttributes.DoubleKeys[i], expected.EventAttributes.DoubleValues[i], e.Attributes())
@@ -82,6 +92,12 @@ func requireSpanEqual(t *testing.T, expected *dbmodel.SpanRow, actual ptrace.Spa
 		require.Equal(t, expected.LinkTraceIDs[i], l.TraceID().String())
 		require.Equal(t, expected.LinkSpanIDs[i], l.SpanID().String())
 		require.Equal(t, expected.LinkTraceStates[i], l.TraceState().AsRaw())
+		if len(expected.LinkDroppedAttributesCount) > i {
+			require.Equal(t, expected.LinkDroppedAttributesCount[i], l.DroppedAttributesCount())
+		}
+		if len(expected.LinkFlags) > i {
+			require.Equal(t, expected.LinkFlags[i], uint32(l.Flags()))
+		}
 	}
 }
 

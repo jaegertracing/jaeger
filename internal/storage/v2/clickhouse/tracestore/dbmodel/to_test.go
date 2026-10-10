@@ -14,8 +14,8 @@ func TestToRow(t *testing.T) {
 	now := time.Now().UTC()
 	duration := 2 * time.Second
 
-	rs := createTestResource()
-	sc := createTestScope()
+	rs := createTestResourceSpans()
+	sc := createTestScopeSpans()
 	span := createTestSpan(now, duration)
 
 	expected := createTestSpanRow(t, now, duration)

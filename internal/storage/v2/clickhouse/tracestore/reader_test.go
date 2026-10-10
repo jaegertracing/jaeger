@@ -102,8 +102,8 @@ func scanSpanRowFn() func(dest any, src *dbmodel.SpanRow) error {
 		if !ok {
 			return fmt.Errorf("expected []any for dest, got %T", dest)
 		}
-		if len(ptrs) != 68 {
-			return fmt.Errorf("expected 68 destination arguments, got %d", len(ptrs))
+		if len(ptrs) != 78 {
+			return fmt.Errorf("expected 78 destination arguments, got %d", len(ptrs))
 		}
 
 		values := []any{
@@ -175,6 +175,16 @@ func scanSpanRowFn() func(dest any, src *dbmodel.SpanRow) error {
 			&src.ScopeAttributes.StrValues,
 			&src.ScopeAttributes.ComplexKeys,
 			&src.ScopeAttributes.ComplexValues,
+			&src.Flags,
+			&src.DroppedAttributesCount,
+			&src.DroppedEventsCount,
+			&src.DroppedLinksCount,
+			&src.EventDroppedAttributesCount,
+			&src.LinkDroppedAttributesCount,
+			&src.LinkFlags,
+			&src.ResourceSchemaURL,
+			&src.ScopeSchemaURL,
+			&src.ScopeDroppedAttributesCount,
 		}
 
 		for i := range ptrs {
