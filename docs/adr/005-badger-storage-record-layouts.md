@@ -1,7 +1,7 @@
 # Badger Storage Record Layouts
 
 * **Status**: Documented existing implementation
-* **Date**: 2026-03-12
+* **Date**: 2026-03-12, extended 2026-10-06 with the check of operation and tag index hits against the stored spans
 
 ## Context
 
@@ -103,7 +103,7 @@ An index entry is written for each span, keyed by the concatenation of service n
 
 **Purpose**: enables finding trace IDs for a specific service + operation pair within a time range.
 
-**Note**: because the service name and operation name are concatenated without a separator, a service named `"foo"` with operation `"bar"` produces the same prefix as a service named `"foobar"` with operation `""`. The reader guards against this ambiguity by checking that the full key prefix (up to the timestamp) matches exactly.
+**Note**: because the service name and operation name are concatenated without a separator, a service named `"foo"` with operation `"bar"` produces the same prefix as a service named `"foobar"` with operation `""`. The reader's exact match on the key up to the timestamp only rules out longer values such as `"foo"` with `"barbaz"`; it cannot tell these two apart, so the reader checks each hit against the stored spans (see [Query Execution](#query-execution)).
 
 **TTL**: same as the corresponding primary span record.
 
@@ -124,6 +124,8 @@ For each searchable tag key-value pair associated with a span, a separate index 
 **Value**: empty (`nil`)
 
 **Purpose**: enables finding trace IDs for spans that carry a specific tag key-value pair within a given service.
+
+**Note**: the same key is written by service `"foo"` with tag `"bar"="baz"`, by service `"foob"` with tag `"ar"="baz"`, and by service `"foo"` with tag `"barb"="az"`, so tag index hits are checked against the stored spans as well.
 
 **TTL**: same as the corresponding primary span record.
 
@@ -206,6 +208,8 @@ The reader builds an *execution plan* that describes how to combine index result
 
 4. **Trace hydration**: the resulting trace ID list is resolved to full `*model.Trace` objects by prefix-scanning primary span records for each trace ID.
 
+5. **Operation and tag verification**: when the query has an operation or tags, the trace IDs from the index seeks are only candidates, so `FindTraceIDs` hydrates them too. A trace is kept only if, for the operation and for each tag, it has a span of the queried service that started within the time range and carries it. The candidates are hydrated in order, and the `NumTraces` limit applies to the traces that pass this check rather than to the index hits.
+
 ---
 
 ## Service and Operation Discovery
@@ -264,7 +268,7 @@ The record layouts described above were chosen to satisfy the following requirem
 
 - **Not distributed**: Badger is a single-node store. It is not suitable for high-throughput or multi-instance deployments.
 - **No spanKind in operations**: the operation name index does not encode span kind, so `GetOperations` returns operations without span kind information (tracked in [issue #1922](https://github.com/jaegertracing/jaeger/issues/1922)).
-- **String concatenation without separators**: the absence of separators between service name, tag key, and tag value in composite index keys means that a suffix of one component can collide with a prefix of the next. The implementation handles this with exact-prefix length checks but it is a latent source of subtle bugs if the key format is extended.
+- **String concatenation without separators**: the absence of separators between service name, tag key, and tag value in composite index keys means that a suffix of one component can collide with a prefix of the next. The exact-length checks only rule out longer values, so the reader checks operation and tag index hits against the stored spans, which makes `FindTraceIDs` load traces for those queries. Re-keying the indexes with separators or length prefixes would remove that cost but needs a data migration.
 - **No dependency index**: the dependency store computes dependency links via a full trace scan on every request rather than maintaining a dedicated index, which may be slow for large datasets.
 - **Sampling entries have no TTL**: throughput and probabilities records are not automatically expired and accumulate indefinitely unless explicitly pruned.
 - **Ephemeral by default**: the default configuration (`Ephemeral: true`) stores data in a temporary directory that is deleted on process exit, which may surprise users who expect data to persist across restarts.
