@@ -101,11 +101,12 @@ Custom ACP method router for inbound JSON-RPC from the sidecar. Routes:
 - anything else → `MethodNotFound`.
 
 `UIToolPrefix` (`ui_`) is the namespace the gateway prepends to every
-contextual tool name before exposing it to the sidecar (and therefore to
-Gemini). The dispatcher strips it back on the way in so the AG-UI client
-receives the original frontend name. The prefix prevents a frontend-supplied
-tool from shadowing a built-in Jaeger MCP tool with the same name (e.g.
-`search_traces`).
+UI / contextual tool name across both ACP (when exposing tools to the sidecar
+meta payload) and the gateway turn-scoped MCP endpoint (`tools/list`).
+Dispatchers strip the prefix before relaying calls to the browser SSE stream
+so the AG-UI client receives the original frontend name. The prefix prevents
+a frontend-supplied tool from colliding with a built-in Jaeger MCP tool of the
+same name (e.g. `search_traces`).
 
 ### ContextualToolsStore (`contextual_tools.go`)
 
