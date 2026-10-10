@@ -49,17 +49,11 @@ func (c *LRU) Get(key string) any {
 		return nil
 	}
 
-	cacheEntry := elt.Value.(*cacheEntry)
-	if !cacheEntry.expiration.IsZero() && c.TimeNow().After(cacheEntry.expiration) {
-		// Entry has expired
-		if c.onEvict != nil {
-			c.onEvict(cacheEntry.key, cacheEntry.value)
-		}
-		c.byAccess.Remove(elt)
-		delete(c.byKey, cacheEntry.key)
+	if c.evictIfExpired(elt) {
 		return nil
 	}
 
+	cacheEntry := elt.Value.(*cacheEntry)
 	c.byAccess.MoveToFront(elt)
 	return cacheEntry.value
 }
@@ -79,6 +73,10 @@ func (c *LRU) CompareAndSwap(key string, oldValue, newValue any) (itemInCache an
 	defer c.mux.Unlock()
 
 	elt := c.byKey[key]
+	if elt != nil && c.evictIfExpired(elt) {
+		elt = nil
+	}
+
 	// If entry not found, old value should be nil
 	if elt == nil && oldValue != nil {
 		return nil, false
@@ -93,6 +91,23 @@ func (c *LRU) CompareAndSwap(key string, oldValue, newValue any) (itemInCache an
 	}
 	c.putWithMutexHold(key, newValue, elt)
 	return newValue, true
+}
+
+// evictIfExpired removes elt if its entry has passed its TTL, calling onEvict the
+// same way everywhere this check is needed. Returns true if elt was evicted, so the
+// caller can treat the key as absent.
+// Caller is expected to hold the c.mux mutex before calling.
+func (c *LRU) evictIfExpired(elt *list.Element) bool {
+	entry := elt.Value.(*cacheEntry)
+	if entry.expiration.IsZero() || !c.TimeNow().After(entry.expiration) {
+		return false
+	}
+	if c.onEvict != nil {
+		c.onEvict(entry.key, entry.value)
+	}
+	c.byAccess.Remove(elt)
+	delete(c.byKey, entry.key)
+	return true
 }
 
 // putWithMutexHold populates the cache and returns the inserted value.
