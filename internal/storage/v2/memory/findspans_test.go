@@ -34,6 +34,10 @@ func spanNames(td ptrace.Traces) []string {
 	return names
 }
 
+// onePage is a page size that holds every span these tests write, so a search returns its whole
+// result in one page. A span search always carries a page size, since it is the only bound.
+var onePage = tracestore.Pagination{PageSize: 10}
+
 func writeTwoTraceStore(t *testing.T) (*Store, time.Time) {
 	t.Helper()
 	store, err := NewStore(Configuration{MaxTraces: 10})
@@ -87,7 +91,7 @@ func TestFindSpans_MatchesAcrossTraces(t *testing.T) {
 	}
 
 	var results []ptrace.Traces
-	for chunk, err := range store.FindSpans(context.Background(), tracestore.SpanQueryParams{Filter: filter}) {
+	for chunk, err := range store.FindSpans(context.Background(), tracestore.SpanQueryParams{Filter: filter, Pagination: onePage}) {
 		require.NoError(t, err)
 		results = append(results, chunk.Results)
 		assert.Empty(t, chunk.NextPageToken)
@@ -106,6 +110,7 @@ func TestFindSpans_TimeRangeBound(t *testing.T) {
 	for chunk, err := range store.FindSpans(context.Background(), tracestore.SpanQueryParams{
 		StartTimeMin: base.Add(-time.Minute),
 		StartTimeMax: base.Add(time.Minute),
+		Pagination:   onePage,
 	}) {
 		require.NoError(t, err)
 		results = append(results, chunk.Results)
@@ -121,7 +126,7 @@ func TestFindSpans_NilFilterReturnsEverySpan(t *testing.T) {
 	store, _ := writeTwoTraceStore(t)
 
 	var results []ptrace.Traces
-	for chunk, err := range store.FindSpans(context.Background(), tracestore.SpanQueryParams{}) {
+	for chunk, err := range store.FindSpans(context.Background(), tracestore.SpanQueryParams{Pagination: onePage}) {
 		require.NoError(t, err)
 		results = append(results, chunk.Results)
 	}
@@ -141,7 +146,7 @@ func TestFindSpans_NoMatchesYieldsEmptyChunk(t *testing.T) {
 	}
 
 	var results []ptrace.Traces
-	for chunk, err := range store.FindSpans(context.Background(), tracestore.SpanQueryParams{Filter: filter}) {
+	for chunk, err := range store.FindSpans(context.Background(), tracestore.SpanQueryParams{Filter: filter, Pagination: onePage}) {
 		require.NoError(t, err)
 		results = append(results, chunk.Results)
 	}
@@ -156,7 +161,7 @@ func TestFindSpans_ResultIsIndependentOfStore(t *testing.T) {
 	store, _ := writeTwoTraceStore(t)
 
 	var first ptrace.Traces
-	for chunk, err := range store.FindSpans(context.Background(), tracestore.SpanQueryParams{}) {
+	for chunk, err := range store.FindSpans(context.Background(), tracestore.SpanQueryParams{Pagination: onePage}) {
 		require.NoError(t, err)
 		first = chunk.Results
 		break
@@ -165,7 +170,7 @@ func TestFindSpans_ResultIsIndependentOfStore(t *testing.T) {
 	first.ResourceSpans().At(0).ScopeSpans().At(0).Spans().At(0).SetName("mutated")
 
 	var second ptrace.Traces
-	for chunk, err := range store.FindSpans(context.Background(), tracestore.SpanQueryParams{}) {
+	for chunk, err := range store.FindSpans(context.Background(), tracestore.SpanQueryParams{Pagination: onePage}) {
 		require.NoError(t, err)
 		second = chunk.Results
 		break
@@ -193,11 +198,11 @@ func TestFindSpans_BytesAttributeIsIndependentOfStore(t *testing.T) {
 		require.True(t, ok)
 		return v.Bytes()
 	}
-	first, err := jiter.CollectWithErrors(store.FindSpans(context.Background(), tracestore.SpanQueryParams{}))
+	first, err := jiter.CollectWithErrors(store.FindSpans(context.Background(), tracestore.SpanQueryParams{Pagination: onePage}))
 	require.NoError(t, err)
 	payloadOf(first[0].Results).SetAt(0, 9)
 
-	second, err := jiter.CollectWithErrors(store.FindSpans(context.Background(), tracestore.SpanQueryParams{}))
+	second, err := jiter.CollectWithErrors(store.FindSpans(context.Background(), tracestore.SpanQueryParams{Pagination: onePage}))
 	require.NoError(t, err)
 	assert.Equal(t, []byte{1, 2, 3}, payloadOf(second[0].Results).AsRaw())
 }
@@ -208,7 +213,7 @@ func TestFindSpans_CloneFailureIsReturned(t *testing.T) {
 	marshalTraces = func(ptrace.Traces) ([]byte, error) { return nil, assert.AnError }
 	t.Cleanup(func() { marshalTraces = orig })
 
-	_, err := jiter.CollectWithErrors(store.FindSpans(context.Background(), tracestore.SpanQueryParams{}))
+	_, err := jiter.CollectWithErrors(store.FindSpans(context.Background(), tracestore.SpanQueryParams{Pagination: onePage}))
 	require.ErrorIs(t, err, assert.AnError)
 }
 
@@ -242,7 +247,7 @@ func TestFindSpans_PreservesSchemaURLs(t *testing.T) {
 	}
 
 	var results []ptrace.Traces
-	for chunk, err := range store.FindSpans(context.Background(), tracestore.SpanQueryParams{Filter: filter}) {
+	for chunk, err := range store.FindSpans(context.Background(), tracestore.SpanQueryParams{Filter: filter, Pagination: onePage}) {
 		require.NoError(t, err)
 		results = append(results, chunk.Results)
 	}
@@ -263,7 +268,7 @@ func TestFindSpans_InvalidFilterShapeReturnsError(t *testing.T) {
 	filter := &expression.Call{Op: expression.OpAnd} // and requires at least one argument
 
 	var sawError bool
-	for chunk, err := range store.FindSpans(context.Background(), tracestore.SpanQueryParams{Filter: filter}) {
+	for chunk, err := range store.FindSpans(context.Background(), tracestore.SpanQueryParams{Filter: filter, Pagination: onePage}) {
 		if err != nil {
 			sawError = true
 			require.ErrorIs(t, err, tracestore.ErrFilterInvalid)
@@ -372,7 +377,7 @@ func TestFindSpans_UnhintedTimeConstants(t *testing.T) {
 			query := tracestore.SpanQueryParams{Filter: &expression.Call{Op: expression.OpGt, Args: []expression.Expression{
 				&expression.FieldRef{Level: expression.LevelSpan, Name: tc.field},
 				&expression.AnyValue{Value: tc.value},
-			}}}
+			}}, Pagination: onePage}
 			chunk, err := findSpansPage(t, store, query)
 			require.NoError(t, err)
 			assert.Equal(t, tc.want, spanNames(chunk.Results))
@@ -382,6 +387,6 @@ func TestFindSpans_UnhintedTimeConstants(t *testing.T) {
 	_, err := findSpansPage(t, store, tracestore.SpanQueryParams{Filter: &expression.Call{Op: expression.OpGt, Args: []expression.Expression{
 		&expression.FieldRef{Level: expression.LevelSpan, Name: expression.SpanFieldDuration},
 		&expression.AnyValue{Value: "invalid"},
-	}}})
+	}}, Pagination: onePage})
 	require.ErrorIs(t, err, tracestore.ErrFilterInvalid)
 }

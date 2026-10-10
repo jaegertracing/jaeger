@@ -192,7 +192,8 @@ type TraceQueryParams struct {
 	// request, the same as an absent jaeger.api_v3.Pagination on the wire; a pointer keeps
 	// that presence, so a present-but-empty message is still seen as a malformed request.
 	// When present it replaces SearchDepth rather than falling back to it — the two are
-	// mutually exclusive, which the query service enforces before a Reader ever sees the query.
+	// mutually exclusive (EnsurePaginationStandsAlone). The query service enforces that before
+	// dispatch, and a Reader reached directly by a remote client enforces it too.
 	Pagination *Pagination
 }
 
