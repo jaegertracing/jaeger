@@ -637,3 +637,41 @@ func TestFindTraceIDs_PageSizeIsClamped(t *testing.T) {
 	assert.Len(t, chunk.Results, 1, "the trace beyond the clamped page comes next")
 	assert.Empty(t, chunk.NextPageToken)
 }
+
+// TestFindTraceIDs_RejectsSearchDepthWithPagination pins RFC 0014 §4 for a caller that reaches
+// the store directly, as the remote storage server does. A page size replaces the search depth,
+// so a query that sets both is refused. SearchDepth 1 against three traces would otherwise be
+// ignored and the page size would return every match.
+func TestFindTraceIDs_RejectsSearchDepthWithPagination(t *testing.T) {
+	store, err := NewStore(Configuration{MaxTraces: 10})
+	require.NoError(t, err)
+	writeTracesStartingAt(t, store, 3, time.Date(2026, 3, 1, 12, 0, 0, 0, time.UTC))
+
+	query := tracestore.TraceQueryParams{
+		ServiceName: "svc",
+		Attributes:  pcommon.NewMap(),
+		SearchDepth: 1,
+		Pagination:  &tracestore.Pagination{PageSize: 10},
+	}
+	chunk, err := findTraceIDsPage(t, store, query)
+	require.ErrorIs(t, err, tracestore.ErrPaginationInvalid)
+	require.ErrorContains(t, err, "search depth")
+	require.ErrorIs(t, err, tracestore.ErrInvalidQuery, "the API layers answer 400")
+	assert.Empty(t, chunk.Results)
+	assert.Empty(t, chunk.NextPageToken)
+
+	// A zero page size, and a token that does not decode, are also malformed. The mixed
+	// bound is still the refusal: the query has not said which limit it wants.
+	for _, pagination := range []*tracestore.Pagination{{}, {PageSize: 10, PageToken: "not-a-token!"}} {
+		query.Pagination = pagination
+		chunk, err = findTraceIDsPage(t, store, query)
+		require.ErrorIs(t, err, tracestore.ErrPaginationInvalid)
+		require.ErrorContains(t, err, "search depth")
+		assert.Empty(t, chunk.Results)
+	}
+
+	query.Pagination = nil
+	chunk, err = findTraceIDsPage(t, store, query)
+	require.NoError(t, err)
+	assert.Len(t, chunk.Results, 1, "search depth remains the bound when the query is not paginated")
+}

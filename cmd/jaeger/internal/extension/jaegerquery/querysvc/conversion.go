@@ -56,9 +56,12 @@ func (q TraceQueryParams) toReaderQuery() (tracestore.TraceQueryParams, error) {
 			ErrPaginationDisabled, PaginationGate.ID())
 	}
 	// A page size replaces the search depth rather than falling back to it (RFC 0014 §4).
-	if q.SearchDepth != 0 {
-		return query, fmt.Errorf("%w: it cannot be combined with search depth",
-			tracestore.ErrPaginationInvalid)
+	// Pagination is present on q; the reader's query carries it only after the checks below.
+	if err := (tracestore.TraceQueryParams{
+		SearchDepth: q.SearchDepth,
+		Pagination:  &tracestore.Pagination{},
+	}).EnsurePaginationStandsAlone(); err != nil {
+		return query, err
 	}
 	if q.Pagination.PageSize == 0 {
 		return query, fmt.Errorf("%w: page size is required whenever pagination is present",

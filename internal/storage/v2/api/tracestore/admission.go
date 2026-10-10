@@ -13,8 +13,9 @@ import (
 
 // A filter arrives over two wires — an api_v3 request and the remote-storage protocol — and both
 // owe a Reader one filtering model rather than two (RFC 0005 §7). The check lives here, beside the
-// query type, so each wire runs the same one rather than its own. Converting a query toward what
-// a Reader declared it can evaluate is the query service's job.
+// query type, so each wire runs the same one rather than its own. Pagination and SearchDepth are
+// the same kind of pair (RFC 0014 §4): each wire owes a Reader one result bound. Converting a
+// query toward what a Reader declared it can evaluate is the query service's job.
 
 // EnsureFilterStandsAlone rejects a query that carries both a filter and one of the predicate
 // fields the filter replaces. The two express the same things — a service, an operation name, a
@@ -44,6 +45,17 @@ func (q TraceQueryParams) EnsureFilterStandsAlone() error {
 	}
 	return fmt.Errorf("%w: it cannot be combined with %v; express those predicates in the filter instead",
 		ErrFilterInvalid, set)
+}
+
+// EnsurePaginationStandsAlone rejects a trace query that sets Pagination together with a
+// SearchDepth. A page size replaces the search depth, so the two bounds have no single honest
+// meaning together (RFC 0014 §4). The query service applies this before dispatch, and so does a
+// Reader reached directly by a remote client.
+func (q TraceQueryParams) EnsurePaginationStandsAlone() error {
+	if q.Pagination == nil || q.SearchDepth == 0 {
+		return nil
+	}
+	return fmt.Errorf("%w: it cannot be combined with search depth", ErrPaginationInvalid)
 }
 
 // EnsureSupported walks the filter and refuses the first predicate the Reader did not declare it

@@ -204,7 +204,8 @@ func (st *Store) FindTraces(ctx context.Context, query tracestore.TraceQueryPara
 // traces up to SearchDepth, as FindTraces does. With Pagination it sorts the
 // matching traces by traceKey, returns the page that follows the query's
 // token, at most PageSize traces (clamped to tracestore.MaxPageSize), and
-// carries the next page's token if more traces match.
+// carries the next page's token if more traces match. A SearchDepth set beside
+// that pagination is refused before the token is read (RFC 0014 §4).
 func (st *Store) FindTraceIDs(ctx context.Context, query tracestore.TraceQueryParams) iter.Seq2[tracestore.PageChunk[[]tracestore.FoundTraceID], error] {
 	m := st.getTenant(tenancy.GetTenant(ctx))
 	return func(yield func(tracestore.PageChunk[[]tracestore.FoundTraceID], error) bool) {
@@ -220,6 +221,12 @@ func (st *Store) FindTraceIDs(ctx context.Context, query tracestore.TraceQueryPa
 				return
 			}
 		} else {
+			// The two bounds are malformed whichever page the token names, so this refusal
+			// comes before the token is read.
+			if err := query.EnsurePaginationStandsAlone(); err != nil {
+				fail(err)
+				return
+			}
 			fingerprint, err := query.Fingerprint()
 			if err != nil {
 				fail(err)

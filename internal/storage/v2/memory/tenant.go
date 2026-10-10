@@ -256,7 +256,8 @@ func (t *Tenant) findSpans(query tracestore.SpanQueryParams, after *cursor[sorti
 // the beginning when nil), at most PageSize of them, clamped to
 // tracestore.MaxPageSize. The returned cursor ends the page if more matches
 // remain, and is nil otherwise. Like findTraceAndIds it returns references, not
-// copies.
+// copies. FindTraceIDs refuses a SearchDepth beside this pagination before calling
+// here, so the page size is the only bound (RFC 0014 §4).
 func (t *Tenant) findTraceAndIdsPage(query tracestore.TraceQueryParams, after *cursor[traceKey]) ([]traceAndId, *cursor[traceKey], error) {
 	size, err := pageSize(*query.Pagination)
 	if err != nil {
