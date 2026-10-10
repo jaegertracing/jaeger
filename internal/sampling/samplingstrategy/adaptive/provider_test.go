@@ -64,6 +64,39 @@ func TestProviderRunUpdateProbabilitiesLoop(t *testing.T) {
 	p.mu.RUnlock()
 }
 
+func TestProviderRefreshesProbabilitiesWhenLeader(t *testing.T) {
+	// The leader's post-aggregator only writes probabilities to storage,
+	// so the provider on the leader has to read them back like any other.
+	probabilities := model.ServiceOperationProbabilities{
+		"svcA": {http.MethodGet: 0.5},
+	}
+	mockStorage := &smocks.Store{}
+	mockStorage.On("GetLatestProbabilities").Return(make(model.ServiceOperationProbabilities), nil).Once()
+	mockStorage.On("GetLatestProbabilities").Return(probabilities, nil)
+	mockEP := &epmocks.ElectionParticipant{}
+	mockEP.On("IsLeader").Return(true)
+
+	p := NewProvider(Options{InitialSamplingProbability: 0.001}, zap.NewNop(), mockEP, mockStorage)
+	p.followerRefreshInterval = time.Millisecond
+	require.NoError(t, p.Start())
+	defer p.Close()
+
+	var strategy *api_v2.SamplingStrategyResponse
+	for range 1000 {
+		var err error
+		strategy, err = p.GetSamplingStrategy(context.Background(), "svcA")
+		require.NoError(t, err)
+		if len(strategy.OperationSampling.PerOperationStrategies) > 0 {
+			break
+		}
+		time.Sleep(time.Millisecond)
+	}
+	require.Len(t, strategy.OperationSampling.PerOperationStrategies, 1)
+	opStrategy := strategy.OperationSampling.PerOperationStrategies[0]
+	assert.Equal(t, http.MethodGet, opStrategy.Operation)
+	assert.InDelta(t, 0.5, opStrategy.ProbabilisticSampling.SamplingRate, 1e-9)
+}
+
 func TestProviderRealisticRunCalculationLoop(t *testing.T) {
 	t.Skip("Skipped realistic calculation loop test")
 	logger := zap.NewNop()
