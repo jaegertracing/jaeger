@@ -594,3 +594,396 @@ describe('processQuotaForAuthor', () => {
     expect(result.results.blocked).toEqual([2, 3]);
   });
 });
+
+describe('processIssueLimitForPullRequest', () => {
+  const {
+    processIssueLimitForPullRequest,
+    processAllIssueLimits,
+    issueLimitComment,
+    issueLimitResolvedComment,
+    DUPLICATE_LABEL_NAME,
+    OVERRIDE_LABEL_NAME,
+    ISSUE_LIMIT_COMMENT_MARKER
+  } = prQuotaManager;
+
+  const makePR = (number, createdAt, labels = [], isDraft = false, authorAssociation = 'CONTRIBUTOR', linkedIssues) => ({
+    number,
+    state: 'OPEN',
+    isDraft,
+    authorAssociation,
+    createdAt,
+    repository: { nameWithOwner: 'owner/repo' },
+    labels: { nodes: labels.map(name => ({ name })) },
+    closingIssuesReferences: {
+      nodes: linkedIssues || [{
+        number: 99,
+        repository: { nameWithOwner: 'owner/repo' },
+        labels: { nodes: [] }
+      }]
+    }
+  });
+
+  function issueLimitOctokit({ issues, comments = {} }) {
+    return {
+      graphql: jest.fn().mockResolvedValue({
+        repository: { pullRequests: { nodes: issues } }
+      }),
+      rest: {
+        issues: {
+          get: jest.fn().mockResolvedValue({ data: { labels: [] } }),
+          getLabel: jest.fn().mockResolvedValue({}),
+          createLabel: jest.fn().mockResolvedValue({}),
+          listComments: jest.fn(({ issue_number }) => Promise.resolve({
+            data: (comments[issue_number] || []).map(comment => ({
+              user: { login: 'github-actions[bot]' },
+              ...comment
+            }))
+          })),
+          addLabels: jest.fn().mockResolvedValue({}),
+          removeLabel: jest.fn().mockResolvedValue({}),
+          createComment: jest.fn().mockResolvedValue({}),
+          updateComment: jest.fn().mockResolvedValue({}),
+          deleteComment: jest.fn().mockResolvedValue({})
+        }
+      }
+    };
+  }
+
+  test('labels every non-primary active PR, including drafts', async () => {
+    const octokit = issueLimitOctokit({
+      issues: [
+        makePR(30, '2026-01-03T00:00:00Z', [], true),
+        makePR(20, '2026-01-02T00:00:00Z'),
+        makePR(10, '2026-01-01T00:00:00Z')
+      ]
+    });
+
+    const result = await processIssueLimitForPullRequest(octokit, 'owner', 'repo', 30);
+
+    expect(result.duplicates).toEqual([20, 30]);
+    expect(octokit.rest.issues.addLabels).toHaveBeenCalledWith(expect.objectContaining({
+      issue_number: 20, labels: [DUPLICATE_LABEL_NAME]
+    }));
+    expect(octokit.rest.issues.addLabels).toHaveBeenCalledWith(expect.objectContaining({
+      issue_number: 30, labels: [DUPLICATE_LABEL_NAME]
+    }));
+    expect(octokit.rest.issues.createComment).toHaveBeenCalledTimes(2);
+  });
+
+  test('selects the oldest PR and then the lowest number as the primary', async () => {
+    const octokit = issueLimitOctokit({
+      issues: [
+        makePR(20, '2026-01-01T00:00:00Z'),
+        makePR(10, '2026-01-01T00:00:00Z')
+      ]
+    });
+
+    await processIssueLimitForPullRequest(octokit, 'owner', 'repo', 20);
+
+    expect(octokit.rest.issues.addLabels).toHaveBeenCalledWith(expect.objectContaining({ issue_number: 20 }));
+    expect(octokit.rest.issues.addLabels).not.toHaveBeenCalledWith(expect.objectContaining({ issue_number: 10 }));
+  });
+
+  test('counts a maintainer PR instead of exempting it', async () => {
+    const octokit = issueLimitOctokit({
+      issues: [
+        makePR(10, '2026-01-01T00:00:00Z', [], false, 'MEMBER'),
+        makePR(20, '2026-01-02T00:00:00Z')
+      ]
+    });
+
+    await processIssueLimitForPullRequest(octokit, 'owner', 'repo', 20);
+
+    expect(octokit.rest.issues.addLabels).toHaveBeenCalledWith(expect.objectContaining({ issue_number: 20 }));
+  });
+
+  test('does not let a stale PR block an active PR and clears its bot marker', async () => {
+    const marker = '<!-- jaeger-pr-per-issue-limit -->\nold';
+    const octokit = issueLimitOctokit({
+      issues: [
+        makePR(10, '2026-01-01T00:00:00Z', ['stale']),
+        makePR(20, '2026-01-02T00:00:00Z', ['duplicate'])
+      ],
+      comments: { 20: [{ id: 7, body: marker }] }
+    });
+
+    await processIssueLimitForPullRequest(octokit, 'owner', 'repo', 20);
+
+    expect(octokit.rest.issues.removeLabel).toHaveBeenCalledWith(expect.objectContaining({
+      issue_number: 20, name: DUPLICATE_LABEL_NAME
+    }));
+    expect(octokit.rest.issues.updateComment).toHaveBeenCalledWith(expect.objectContaining({
+      comment_id: 7,
+      body: issueLimitResolvedComment()
+    }));
+  });
+
+  test('preserves intentionally competing implementations when the issue is overridden', async () => {
+    const override = [{
+      number: 99,
+      repository: { nameWithOwner: 'owner/repo' },
+      labels: { nodes: [{ name: OVERRIDE_LABEL_NAME }] }
+    }];
+    const octokit = issueLimitOctokit({
+      issues: [
+        makePR(10, '2026-01-01T00:00:00Z', [], false, 'CONTRIBUTOR', override),
+        makePR(20, '2026-01-02T00:00:00Z', [], false, 'CONTRIBUTOR', override)
+      ]
+    });
+
+    const result = await processIssueLimitForPullRequest(octokit, 'owner', 'repo', 20);
+
+    expect(result.duplicates).toEqual([]);
+    expect(octokit.rest.issues.addLabels).not.toHaveBeenCalled();
+  });
+
+  test('updates one existing marker instead of adding another comment on a repeat run', async () => {
+    const octokit = issueLimitOctokit({
+      issues: [makePR(10, '2026-01-01T00:00:00Z'), makePR(20, '2026-01-02T00:00:00Z', ['duplicate'])],
+      comments: { 20: [{ id: 7, body: '<!-- jaeger-pr-per-issue-limit -->\noutdated' }] }
+    });
+
+    await processIssueLimitForPullRequest(octokit, 'owner', 'repo', 20);
+
+    expect(octokit.rest.issues.createComment).not.toHaveBeenCalled();
+    expect(octokit.rest.issues.updateComment).toHaveBeenCalledWith(expect.objectContaining({ comment_id: 7 }));
+  });
+
+  test('is idempotent when labels and the maintained comment already match', async () => {
+    const octokit = issueLimitOctokit({
+      issues: [makePR(10, '2026-01-01T00:00:00Z'), makePR(20, '2026-01-02T00:00:00Z', ['duplicate'])],
+      comments: { 20: [{ id: 7, body: issueLimitComment([{ issueNumber: 99, primaryNumber: 10 }]) }] }
+    });
+
+    await processIssueLimitForPullRequest(octokit, 'owner', 'repo', 20);
+
+    expect(octokit.rest.issues.addLabels).not.toHaveBeenCalled();
+    expect(octokit.rest.issues.createComment).not.toHaveBeenCalled();
+    expect(octokit.rest.issues.updateComment).not.toHaveBeenCalled();
+  });
+
+  test('does not change labels or comments if canonical-link discovery fails', async () => {
+    const octokit = issueLimitOctokit({ issues: [] });
+    octokit.graphql.mockRejectedValue(new Error('GitHub API unavailable'));
+
+    await expect(processIssueLimitForPullRequest(octokit, 'owner', 'repo', 20)).rejects.toThrow('GitHub API unavailable');
+
+    expect(octokit.rest.issues.addLabels).not.toHaveBeenCalled();
+    expect(octokit.rest.issues.removeLabel).not.toHaveBeenCalled();
+    expect(octokit.rest.issues.createComment).not.toHaveBeenCalled();
+    expect(octokit.rest.issues.deleteComment).not.toHaveBeenCalled();
+  });
+
+  test('sweeps open PRs to reconcile a duplicate after its former primary unlinks the issue', async () => {
+    const octokit = issueLimitOctokit({
+      issues: [makePR(20, '2026-01-02T00:00:00Z', ['duplicate'])],
+      comments: { 20: [{ id: 7, body: issueLimitComment([{ issueNumber: 99, primaryNumber: 10 }]) }] }
+    });
+    await processAllIssueLimits(octokit, 'owner', 'repo');
+
+    expect(octokit.rest.issues.removeLabel).toHaveBeenCalledWith(expect.objectContaining({
+      issue_number: 20,
+      name: DUPLICATE_LABEL_NAME
+    }));
+    expect(octokit.rest.issues.updateComment).toHaveBeenCalledWith(expect.objectContaining({
+      comment_id: 7,
+      body: issueLimitResolvedComment()
+    }));
+  });
+
+  test('restores earlier duplicate labels if a later cleanup removal fails', async () => {
+    const override = [{
+      number: 99,
+      repository: { nameWithOwner: 'owner/repo' },
+      labels: { nodes: [{ name: OVERRIDE_LABEL_NAME }] }
+    }];
+    const octokit = issueLimitOctokit({
+      issues: [
+        makePR(10, '2026-01-01T00:00:00Z', ['duplicate'], false, 'CONTRIBUTOR', override),
+        makePR(20, '2026-01-02T00:00:00Z', ['duplicate'], false, 'CONTRIBUTOR', override)
+      ],
+      comments: {
+        10: [{ id: 7, body: issueLimitComment([{ issueNumber: 99, primaryNumber: 1 }]) }],
+        20: [{ id: 8, body: issueLimitComment([{ issueNumber: 99, primaryNumber: 1 }]) }]
+      }
+    });
+    octokit.rest.issues.removeLabel
+      .mockResolvedValueOnce({})
+      .mockRejectedValueOnce(new Error('GitHub API unavailable'));
+
+    await expect(processIssueLimitForPullRequest(octokit, 'owner', 'repo', 20)).rejects.toThrow(
+      'Failed to remove duplicate label from PR #20'
+    );
+
+    expect(octokit.rest.issues.addLabels).toHaveBeenCalledWith(expect.objectContaining({
+      issue_number: 10,
+      labels: [DUPLICATE_LABEL_NAME]
+    }));
+    expect(octokit.rest.issues.updateComment).not.toHaveBeenCalled();
+
+    await processIssueLimitForPullRequest(octokit, 'owner', 'repo', 20);
+
+    expect(octokit.rest.issues.updateComment).toHaveBeenCalledWith(expect.objectContaining({
+      comment_id: 7,
+      body: issueLimitResolvedComment()
+    }));
+  });
+
+  test('keeps a PR duplicate for one issue when it is primary for another', async () => {
+    const issueOne = [{ number: 1, repository: { nameWithOwner: 'owner/repo' }, labels: { nodes: [] } }];
+    const issueTwo = [{ number: 2, repository: { nameWithOwner: 'owner/repo' }, labels: { nodes: [] } }];
+    const bothIssues = [...issueOne, ...issueTwo];
+    const octokit = issueLimitOctokit({
+      issues: [
+        makePR(10, '2026-01-01T00:00:00Z', [], false, 'CONTRIBUTOR', issueOne),
+        makePR(20, '2026-01-02T00:00:00Z', ['duplicate'], false, 'CONTRIBUTOR', bothIssues),
+        makePR(30, '2026-01-03T00:00:00Z', [], false, 'CONTRIBUTOR', issueTwo)
+      ],
+      comments: { 20: [{ id: 7, body: issueLimitComment([{ issueNumber: 1, primaryNumber: 10 }]) }] }
+    });
+
+    await processIssueLimitForPullRequest(octokit, 'owner', 'repo', 10);
+
+    expect(octokit.rest.issues.removeLabel).not.toHaveBeenCalledWith(expect.objectContaining({ issue_number: 20 }));
+    expect(octokit.rest.issues.updateComment).not.toHaveBeenCalledWith(expect.objectContaining({
+      comment_id: 7,
+      body: issueLimitResolvedComment()
+    }));
+    expect(octokit.rest.issues.createComment).toHaveBeenCalledWith(expect.objectContaining({
+      issue_number: 30,
+      body: issueLimitComment([{ issueNumber: 2, primaryNumber: 20 }])
+    }));
+  });
+
+  test('does not trust a marker quoted by a human when managing duplicate labels', async () => {
+    const octokit = issueLimitOctokit({
+      issues: [makePR(10, '2026-01-01T00:00:00Z'), makePR(20, '2026-01-02T00:00:00Z', ['duplicate'])],
+      comments: { 20: [{ id: 7, user: { login: 'maintainer' }, body: issueLimitComment([{ issueNumber: 99, primaryNumber: 10 }]) }] }
+    });
+
+    await processIssueLimitForPullRequest(octokit, 'owner', 'repo', 20);
+
+    expect(octokit.rest.issues.createComment).toHaveBeenCalledTimes(1);
+    expect(octokit.rest.issues.updateComment).not.toHaveBeenCalledWith(expect.objectContaining({ comment_id: 7 }));
+  });
+
+  test('does not remove a manually applied duplicate label', async () => {
+    const octokit = issueLimitOctokit({
+      issues: [makePR(20, '2026-01-02T00:00:00Z', ['duplicate'])],
+      comments: { 20: [{ id: 7, user: { login: 'maintainer' }, body: ISSUE_LIMIT_COMMENT_MARKER }] }
+    });
+
+    await processIssueLimitForPullRequest(octokit, 'owner', 'repo', 20);
+
+    expect(octokit.rest.issues.removeLabel).not.toHaveBeenCalled();
+  });
+
+  test('fails safely when a nested connection is truncated', async () => {
+    const octokit = issueLimitOctokit({ issues: [] });
+    octokit.graphql.mockResolvedValue({
+      repository: {
+        pullRequests: {
+          nodes: [{
+            number: 20,
+            createdAt: '2026-01-02T00:00:00Z',
+            labels: { nodes: [], pageInfo: { hasNextPage: false } },
+            closingIssuesReferences: { nodes: [], pageInfo: { hasNextPage: true } }
+          }]
+        }
+      }
+    });
+
+    await expect(processIssueLimitForPullRequest(octokit, 'owner', 'repo', 20)).rejects.toThrow(
+      'PR #20 has more linked issues than the per-issue policy query supports'
+    );
+    expect(octokit.rest.issues.addLabels).not.toHaveBeenCalled();
+    expect(octokit.rest.issues.removeLabel).not.toHaveBeenCalled();
+  });
+
+  test('fails safely when PR or issue labels exceed the query limits', async () => {
+    const octokit = issueLimitOctokit({ issues: [] });
+    octokit.graphql.mockResolvedValue({
+      repository: {
+        pullRequests: {
+          nodes: [{
+            number: 20,
+            createdAt: '2026-01-02T00:00:00Z',
+            labels: { nodes: [], pageInfo: { hasNextPage: true } },
+            closingIssuesReferences: { nodes: [], pageInfo: { hasNextPage: false } }
+          }]
+        }
+      }
+    });
+
+    await expect(processIssueLimitForPullRequest(octokit, 'owner', 'repo', 20)).rejects.toThrow(
+      'PR #20 has more labels than the per-issue policy query supports'
+    );
+
+    octokit.graphql.mockResolvedValue({
+      repository: {
+        pullRequests: {
+          nodes: [{
+            number: 20,
+            createdAt: '2026-01-02T00:00:00Z',
+            labels: { nodes: [], pageInfo: { hasNextPage: false } },
+            closingIssuesReferences: {
+              nodes: [{
+                number: 99,
+                repository: { nameWithOwner: 'owner/repo' },
+                labels: { nodes: [], pageInfo: { hasNextPage: true } }
+              }],
+              pageInfo: { hasNextPage: false }
+            }
+          }]
+        }
+      }
+    });
+
+    await expect(processIssueLimitForPullRequest(octokit, 'owner', 'repo', 20)).rejects.toThrow(
+      'Issue #99 has more labels than the per-issue policy query supports'
+    );
+  });
+});
+
+describe('githubActionHandler', () => {
+  test('runs the per-issue sweep without a pull request author', async () => {
+    const core = { info: jest.fn(), setFailed: jest.fn() };
+    const github = {
+      graphql: jest.fn().mockResolvedValue({
+        repository: { pullRequests: { nodes: [] } }
+      }),
+      rest: { issues: {} }
+    };
+
+    await prQuotaManager({
+      github,
+      core,
+      owner: 'owner',
+      repo: 'repo',
+      perIssueLimit: true
+    });
+
+    expect(core.setFailed).not.toHaveBeenCalled();
+    expect(core.info).toHaveBeenCalledWith('Reconciled the open pull request graph.');
+  });
+
+  test('does not run the author quota when per-issue reconciliation receives a username', async () => {
+    const core = { info: jest.fn(), setFailed: jest.fn() };
+    const github = {
+      graphql: jest.fn().mockResolvedValue({ repository: { pullRequests: { nodes: [] } } }),
+      rest: { issues: {}, pulls: { list: jest.fn() } }
+    };
+
+    await prQuotaManager({
+      github,
+      core,
+      username: 'contributor',
+      owner: 'owner',
+      repo: 'repo',
+      perIssueLimit: true
+    });
+
+    expect(github.rest.pulls.list).not.toHaveBeenCalled();
+    expect(core.setFailed).not.toHaveBeenCalled();
+  });
+});

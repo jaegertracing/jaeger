@@ -22,6 +22,10 @@ inputs:
     description: 'Log the intended labels and comments without writing anything.'
     required: false
     default: 'false'
+  per-issue-limit:
+    description: 'Reconcile the one-active-PR-per-linked-issue policy across open PRs.'
+    required: false
+    default: 'false'
 
 runs:
   using: composite
@@ -37,13 +41,19 @@ runs:
         # body, so an author-controlled username cannot inject JavaScript.
         QUOTA_USERNAME: ${{ inputs.username }}
         QUOTA_DRY_RUN: ${{ inputs.dry-run }}
+        QUOTA_PER_ISSUE_LIMIT: ${{ inputs.per-issue-limit }}
+        QUOTA_PR_NUMBER: ${{ github.event.pull_request.number }}
       with:
         github-token: ${{ inputs.token }}
         script: |
           const handler = require(process.env.QUOTA_SCRIPT)
-          // For pull request events, use the PR author; a manual run passes the name in.
-          const username = context.payload.pull_request?.user?.login || process.env.QUOTA_USERNAME
-          if (!username) {
+          const perIssueLimit = process.env.QUOTA_PER_ISSUE_LIMIT === 'true'
+          // Per-issue reconciliation must not invoke the author quota manager.
+          // Only the quota workflow resolves the event author automatically.
+          const username = perIssueLimit
+            ? process.env.QUOTA_USERNAME
+            : context.payload.pull_request?.user?.login || process.env.QUOTA_USERNAME
+          if (!username && !perIssueLimit) {
             core.setFailed('Unable to determine username for quota processing. Aborting.')
             return
           }
@@ -53,5 +63,9 @@ runs:
             username,
             owner: context.repo.owner,
             repo: context.repo.repo,
+            pullRequestNumber: perIssueLimit
+              ? process.env.QUOTA_PR_NUMBER
+              : undefined,
+            perIssueLimit,
             dryRun: process.env.QUOTA_DRY_RUN === 'true'
           })
