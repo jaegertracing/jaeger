@@ -227,6 +227,41 @@ func filterTestCases(p builder.Predicate) []filterCase {
 			),
 			expected: []string{"cart_get", "cart_post"},
 		},
+		{
+			caption:  "a phrase matches adjacent ordered words",
+			filter:   p.Span().Attr("note").Phrase("refund", "policy"),
+			expected: []string{"text-search"},
+		},
+		{
+			caption:  "a phrase is case insensitive",
+			filter:   p.Span().Attr("note").Phrase("REFUND", "POLICY"),
+			expected: []string{"text-search"},
+		},
+		{
+			caption:  "a phrase does not match when words are not adjacent",
+			filter:   p.Span().Attr("note").Phrase("refund", "updated"),
+			expected: nil,
+		},
+		{
+			caption:  "a phrase does not match when words are in the wrong order",
+			filter:   p.Span().Attr("note").Phrase("policy", "refund"),
+			expected: nil,
+		},
+		{
+			caption:  "fulltext matches all words in any order",
+			filter:   p.Span().Attr("note").Fulltext("premium", "refund"),
+			expected: []string{"text-search"},
+		},
+		{
+			caption:  "fulltext is case insensitive",
+			filter:   p.Span().Attr("note").Fulltext("PREMIUM", "REFUND"),
+			expected: []string{"text-search"},
+		},
+		{
+			caption:  "fulltext does not match when a word is missing",
+			filter:   p.Span().Attr("note").Fulltext("refund", "discount"),
+			expected: nil,
+		},
 	}
 }
 

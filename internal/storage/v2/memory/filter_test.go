@@ -63,6 +63,7 @@ func newFilterFixture(t *testing.T) filterFixture {
 	span.Attributes().PutInt("http.status_code", 500)
 	span.Attributes().PutDouble("duration_ms", 150.5)
 	span.Attributes().PutBool("retry", false)
+	span.Attributes().PutStr("note", "Refund Policy Updated for Premium users")
 
 	event := span.Events().AppendEmpty()
 	event.SetName("exception")
@@ -234,6 +235,64 @@ func TestMatchesFilter_GteLte(t *testing.T) {
 	assert.True(t, f.matches(p.Span().Duration.Lte(150*time.Millisecond)))
 	assert.True(t, f.matches(p.Span().Duration.Lte(200*time.Millisecond)))
 	assert.False(t, f.matches(p.Span().Duration.Lte(100*time.Millisecond)))
+}
+
+func TestMatchesFilter_Phrase(t *testing.T) {
+	f := newFilterFixture(t)
+
+	// Adjacent ordered words match.
+	assert.True(t, f.matches(p.Span().Attr("note").Phrase("refund", "policy")))
+
+	// Case insensitive.
+	assert.True(t, f.matches(p.Span().Attr("note").Phrase("REFUND", "POLICY")))
+
+	// Non-adjacent words do not match.
+	assert.False(t, f.matches(p.Span().Attr("note").Phrase("refund", "updated")))
+
+	// Wrong order does not match.
+	assert.False(t, f.matches(p.Span().Attr("note").Phrase("policy", "refund")))
+
+	// Absent attribute does not match.
+	assert.False(t, f.matches(p.Span().Attr("missing").Phrase("refund")))
+
+	// Non-list operand does not match (malformed tree the builder cannot produce).
+	assert.False(t, f.matches(call(expression.OpPhrase,
+		attrRef(expression.LevelSpan, "note"), &expression.StringValue{Value: "refund"})))
+
+	// Non-string attribute does not match.
+	assert.False(t, f.matches(p.Span().Attr("http.status_code").Phrase("500")))
+
+	// Empty needle matches (every string contains the empty phrase).
+	assert.True(t, f.matches(p.Span().Attr("note").Phrase()))
+
+	// Needle longer than haystack does not match.
+	assert.False(t, f.matches(p.Span().Attr("http.method").Phrase("POST", "extra")))
+}
+
+func TestMatchesFilter_Fulltext(t *testing.T) {
+	f := newFilterFixture(t)
+
+	// All words present in any order.
+	assert.True(t, f.matches(p.Span().Attr("note").Fulltext("premium", "refund")))
+
+	// Case insensitive.
+	assert.True(t, f.matches(p.Span().Attr("note").Fulltext("PREMIUM", "REFUND")))
+
+	// A missing word does not match.
+	assert.False(t, f.matches(p.Span().Attr("note").Fulltext("refund", "discount")))
+
+	// Absent attribute does not match.
+	assert.False(t, f.matches(p.Span().Attr("missing").Fulltext("refund")))
+
+	// Non-list operand does not match (malformed tree the builder cannot produce).
+	assert.False(t, f.matches(call(expression.OpFulltext,
+		attrRef(expression.LevelSpan, "note"), &expression.StringValue{Value: "refund"})))
+
+	// Non-string attribute does not match.
+	assert.False(t, f.matches(p.Span().Attr("http.status_code").Fulltext("500")))
+
+	// Empty needle matches.
+	assert.True(t, f.matches(p.Span().Attr("note").Fulltext()))
 }
 
 func TestMatchesFilter_AbsentReferenceLeafComparisonsAreFalse(t *testing.T) {

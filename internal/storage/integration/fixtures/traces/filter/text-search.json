@@ -1,0 +1,39 @@
+{
+  "resourceSpans": [
+    {
+      "resource": {
+        "attributes": [
+          {
+            "key": "service.name",
+            "value": {
+              "stringValue": "filter-text-search"
+            }
+          }
+        ]
+      },
+      "scopeSpans": [
+        {
+          "scope": {},
+          "spans": [
+            {
+              "traceId": "00000000000000000000000000000f06",
+              "spanId": "0000000000000f06",
+              "name": "POST /refund",
+              "startTimeUnixNano": "1485449191639875000",
+              "endTimeUnixNano": "1485449191839875000",
+              "attributes": [
+                {
+                  "key": "note",
+                  "value": {
+                    "stringValue": "Refund Policy Updated for Premium users"
+                  }
+                }
+              ],
+              "status": {}
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}
