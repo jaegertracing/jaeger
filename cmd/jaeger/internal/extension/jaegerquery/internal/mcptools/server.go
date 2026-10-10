@@ -38,7 +38,7 @@ var serverInstructions string
 var skillsEmbedFS embed.FS
 
 // newServer builds an *mcp.Server with the Jaeger telemetry tools and the
-// tracing/metrics middleware registered. It takes *querysvc.QueryService
+// tracing/metrics/recovery middleware registered. It takes *querysvc.QueryService
 // directly (rather than fetching it from the component host), which keeps it
 // dependency-free of the jaegerquery extension package and avoids the import
 // cycle a host-based lookup would create now that the tools live under
@@ -64,6 +64,10 @@ func newServer(telset telemetry.Settings, queryAPI *querysvc.QueryService, cfg C
 	} else {
 		mw = append(mw, metricsMiddleware)
 	}
+	// Innermost, so tracing and metrics record a recovered panic as a failed call.
+	// Middleware added later through Handler.AddReceivingMiddleware wraps this
+	// chain, so the Handler guards it with a recovery of its own.
+	mw = append(mw, createRecoveryMiddleware(telset.Logger))
 	server.AddReceivingMiddleware(mw...)
 	return server
 }
@@ -78,6 +82,9 @@ func newServer(telset telemetry.Settings, queryAPI *querysvc.QueryService, cfg C
 type Handler struct {
 	http.Handler
 	server *mcp.Server
+	// recovery guards the middleware added through AddReceivingMiddleware, which
+	// the SDK places outside the recovery newServer installs.
+	recovery mcp.Middleware
 }
 
 var _ io.Closer = (*Handler)(nil)
@@ -101,8 +108,14 @@ func (h *Handler) Close() error {
 // shared telemetry server. The HTTP shell captures the server by pointer, so
 // middleware added here applies to every later request; call it during startup,
 // before the HTTP server begins serving.
+//
+// The SDK wraps the existing chain with each later call, so the given middleware
+// runs outside the tracing, metrics and recovery middleware newServer installs,
+// and a call it answers itself (as the gateway does for its UI tools) never
+// reaches them. A recovery middleware is therefore added outside it, so a panic
+// in the caller's middleware fails only that request.
 func (h *Handler) AddReceivingMiddleware(middleware ...mcp.Middleware) {
-	h.server.AddReceivingMiddleware(middleware...)
+	h.server.AddReceivingMiddleware(append([]mcp.Middleware{h.recovery}, middleware...)...)
 }
 
 // NewHandler builds a closeable Handler that serves the Jaeger telemetry MCP tools
@@ -129,7 +142,8 @@ func NewHandler(telset telemetry.Settings, queryAPI *querysvc.QueryService, tena
 			"jaeger_mcp",
 			otelhttp.WithTracerProvider(telset.TracerProvider),
 		),
-		server: server,
+		server:   server,
+		recovery: createRecoveryMiddleware(telset.Logger),
 	}
 }
 

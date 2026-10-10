@@ -16,11 +16,13 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
+	"go.opentelemetry.io/otel/sdk/trace/tracetest"
 
 	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerquery/querysvc"
 	depstoremocks "github.com/jaegertracing/jaeger/internal/storage/v2/api/depstore/mocks"
 	tracestoremocks "github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore/mocks"
 	"github.com/jaegertracing/jaeger/internal/telemetry"
+	"github.com/jaegertracing/jaeger/internal/telemetry/otelsemconv"
 	"github.com/jaegertracing/jaeger/internal/tenancy"
 )
 
@@ -87,6 +89,40 @@ func TestNewHandler_CallTool(t *testing.T) {
 	assert.Contains(t, text.Text, "svc-b")
 }
 
+// TestNewHandler_ToolPanicFailsOnlyThatCall drives a panicking tool through the
+// full HTTP stack. The SDK runs tool handlers on goroutines of its own, so an
+// unrecovered panic there would terminate the test binary. With recovery in place
+// the call returns an error result that tracing records as a failed call, and the
+// session keeps serving.
+func TestNewHandler_ToolPanicFailsOnlyThatCall(t *testing.T) {
+	reader := &tracestoremocks.Reader{}
+	reader.On("GetServices", mock.Anything).Run(func(mock.Arguments) { panic("storage failed") }).Once()
+	reader.On("GetServices", mock.Anything).Return([]string{"svc-a"}, nil)
+	svc := querysvc.NewQueryService(reader, &depstoremocks.Reader{}, querysvc.QueryServiceOptions{})
+	capture := newTraceCapture(t)
+	telset := telemetry.NoopSettings()
+	telset.TracerProvider = capture.provider
+	handler := NewHandler(telset, svc, tenancy.NewManager(&tenancy.Options{}), DefaultConfig())
+
+	session := connectTestClient(t, handler)
+	result, err := session.CallTool(context.Background(), &mcp.CallToolParams{Name: "get_services"})
+	require.NoError(t, err)
+	assert.True(t, result.IsError)
+
+	result, err = session.CallTool(context.Background(), &mcp.CallToolParams{Name: "get_services"})
+	require.NoError(t, err)
+	assert.False(t, result.IsError, "the session must keep serving after a panic")
+
+	var toolSpans []tracetest.SpanStub
+	for _, span := range capture.exporter.GetSpans() {
+		if span.Name == mcpMethodToolsCall+" get_services" {
+			toolSpans = append(toolSpans, span)
+		}
+	}
+	require.Len(t, toolSpans, 2)
+	assertHasStringAttribute(t, toolSpans[0].Attributes, string(otelsemconv.ErrorType("").Key), errorTypeTool)
+}
+
 // TestNewServerDegradesWithoutMetrics covers the branch where the metrics
 // middleware fails to build: the server is still returned (metrics degraded)
 // rather than the construction failing.
@@ -141,6 +177,37 @@ func TestHandlerAddReceivingMiddleware(t *testing.T) {
 	_, err := session.ListTools(context.Background(), &mcp.ListToolsParams{})
 	require.NoError(t, err)
 	assert.True(t, saw.Load(), "middleware added after the handler is built must run for later requests")
+}
+
+// TestHandlerAddReceivingMiddlewarePanicFailsOnlyThatCall covers middleware the AI
+// gateway adds after the server is built. The SDK places it outside the recovery
+// newServer installs, so a call it answers itself (a UI tool) never reaches that
+// recovery. A panic there must still fail only that call rather than terminate the
+// test binary, and the session must keep serving the built-in tools.
+func TestHandlerAddReceivingMiddlewarePanicFailsOnlyThatCall(t *testing.T) {
+	reader := &tracestoremocks.Reader{}
+	reader.On("GetServices", mock.Anything).Return([]string{"svc-a"}, nil)
+	svc := querysvc.NewQueryService(reader, &depstoremocks.Reader{}, querysvc.QueryServiceOptions{})
+	h := NewHandler(telemetry.NoopSettings(), svc, tenancy.NewManager(&tenancy.Options{}), DefaultConfig())
+	t.Cleanup(func() { require.NoError(t, h.Close()) })
+
+	h.AddReceivingMiddleware(func(next mcp.MethodHandler) mcp.MethodHandler {
+		return func(ctx context.Context, method string, req mcp.Request) (mcp.Result, error) {
+			if toolNameFromRequest(method, req) == "ui_tool" {
+				panic("ui tool failed")
+			}
+			return next(ctx, method, req)
+		}
+	})
+
+	session := connectTestClient(t, h)
+	result, err := session.CallTool(context.Background(), &mcp.CallToolParams{Name: "ui_tool"})
+	require.NoError(t, err)
+	assert.True(t, result.IsError)
+
+	result, err = session.CallTool(context.Background(), &mcp.CallToolParams{Name: "get_services"})
+	require.NoError(t, err)
+	assert.False(t, result.IsError, "the session must keep serving after a panic")
 }
 
 // TestRegisterTools verifies RegisterTools advertises the full tool set on a
