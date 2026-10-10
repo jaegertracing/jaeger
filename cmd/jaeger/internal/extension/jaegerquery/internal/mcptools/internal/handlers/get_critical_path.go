@@ -113,40 +113,34 @@ func (*getCriticalPathHandler) buildOutput(
 	trace ptrace.Traces,
 	criticalPathSections []criticalpath.Section,
 ) types.GetCriticalPathOutput {
-	// Build a map of spans for quick lookup
-	spanMap := jptrace.SpanMap(trace, func(span ptrace.Span) string {
-		return span.SpanID().String()
-	})
-
-	// Build a map of span ID to service name
+	// Build maps of span ID to span and to service name for quick lookup.
+	// Only the first span with a given ID is kept, matching the spans that
+	// the critical path was computed from.
+	spanMap := make(map[string]ptrace.Span)
 	serviceMap := make(map[string]string)
 	var traceStartTime uint64
 	var traceEndTime uint64
 
-	for i := 0; i < trace.ResourceSpans().Len(); i++ {
-		rs := trace.ResourceSpans().At(i)
-		serviceName := "unknown"
-		if serviceNameAttr, ok := rs.Resource().Attributes().Get("service.name"); ok {
-			serviceName = serviceNameAttr.Str()
+	for pos, span := range jptrace.SpanIter(trace) {
+		spanID := span.SpanID().String()
+		if _, seen := spanMap[spanID]; !seen {
+			serviceName := "unknown"
+			if serviceNameAttr, ok := pos.Resource.Resource().Attributes().Get("service.name"); ok {
+				serviceName = serviceNameAttr.Str()
+			}
+			spanMap[spanID] = span
+			serviceMap[spanID] = serviceName
 		}
 
-		for j := 0; j < rs.ScopeSpans().Len(); j++ {
-			ss := rs.ScopeSpans().At(j)
-			for k := 0; k < ss.Spans().Len(); k++ {
-				span := ss.Spans().At(k)
-				serviceMap[span.SpanID().String()] = serviceName
+		// Track trace start and end times
+		startTime := uint64(span.StartTimestamp()) / 1000 // Convert to microseconds
+		endTime := uint64(span.EndTimestamp()) / 1000
 
-				// Track trace start and end times
-				startTime := uint64(span.StartTimestamp()) / 1000 // Convert to microseconds
-				endTime := uint64(span.EndTimestamp()) / 1000
-
-				if traceStartTime == 0 || startTime < traceStartTime {
-					traceStartTime = startTime
-				}
-				if endTime > traceEndTime {
-					traceEndTime = endTime
-				}
-			}
+		if traceStartTime == 0 || startTime < traceStartTime {
+			traceStartTime = startTime
+		}
+		if endTime > traceEndTime {
+			traceEndTime = endTime
 		}
 	}
 

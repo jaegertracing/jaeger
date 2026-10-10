@@ -277,6 +277,115 @@ func TestGetCriticalPathHandler_Handle_UnknownService(t *testing.T) {
 	}
 }
 
+func TestGetCriticalPathHandler_Handle_DuplicateSpanIDs(t *testing.T) {
+	// The last span reuses the ID of its grandparent 0a.
+	traces := ptrace.NewTraces()
+	rs := traces.ResourceSpans().AppendEmpty()
+	rs.Resource().Attributes().PutStr("service.name", "test-service")
+	ss := rs.ScopeSpans().AppendEmpty()
+	for _, s := range []struct {
+		id, parent byte
+		startUs    uint64
+		endUs      uint64
+	}{
+		{id: 0x01, startUs: 100, endUs: 200},
+		{id: 0x0a, parent: 0x01, startUs: 110, endUs: 190},
+		{id: 0x0b, parent: 0x0a, startUs: 120, endUs: 180},
+		{id: 0x0a, parent: 0x0b, startUs: 130, endUs: 170},
+	} {
+		span := ss.Spans().AppendEmpty()
+		span.SetTraceID([16]byte{15: 1})
+		span.SetSpanID([8]byte{7: s.id})
+		span.SetParentSpanID([8]byte{7: s.parent})
+		span.SetStartTimestamp(pcommon.Timestamp(s.startUs * 1000))
+		span.SetEndTimestamp(pcommon.Timestamp(s.endUs * 1000))
+	}
+
+	handler := &getCriticalPathHandler{
+		queryService: &mockGetCriticalPathQueryService{traces: []ptrace.Traces{traces}},
+	}
+
+	input := types.GetCriticalPathInput{TraceID: "00000000000000000000000000000001"}
+	_, output, err := handler.handle(context.Background(), nil, input)
+	require.NoError(t, err)
+
+	spanIDs := make([]string, 0, len(output.Segments))
+	for _, segment := range output.Segments {
+		spanIDs = append(spanIDs, segment.SpanID)
+	}
+	assert.Equal(t, []string{
+		"0000000000000001",
+		"000000000000000a",
+		"000000000000000b",
+		"000000000000000a",
+		"0000000000000001",
+	}, spanIDs)
+	assert.Equal(t, uint64(100), output.CriticalPathDurationUs)
+}
+
+func TestGetCriticalPathHandler_Handle_DuplicateSpanIDsReportFirstSpan(t *testing.T) {
+	// Span 0a appears in two resources. The critical path is computed from the
+	// first one, so the segment must also report the first span's name and service.
+	type testSpan struct {
+		id, parent byte
+		startUs    uint64
+		endUs      uint64
+		name       string
+	}
+	traces := ptrace.NewTraces()
+	for _, r := range []struct {
+		service string
+		spans   []testSpan
+	}{
+		{
+			service: "svc-first",
+			spans: []testSpan{
+				{id: 0x01, startUs: 100, endUs: 200, name: "root-op"},
+				{id: 0x0a, parent: 0x01, startUs: 110, endUs: 190, name: "first-op"},
+			},
+		},
+		{
+			service: "svc-second",
+			spans: []testSpan{
+				{id: 0x0a, parent: 0x01, startUs: 150, endUs: 160, name: "second-op"},
+			},
+		},
+	} {
+		rs := traces.ResourceSpans().AppendEmpty()
+		rs.Resource().Attributes().PutStr("service.name", r.service)
+		ss := rs.ScopeSpans().AppendEmpty()
+		for _, s := range r.spans {
+			span := ss.Spans().AppendEmpty()
+			span.SetTraceID([16]byte{15: 1})
+			span.SetSpanID([8]byte{7: s.id})
+			span.SetParentSpanID([8]byte{7: s.parent})
+			span.SetStartTimestamp(pcommon.Timestamp(s.startUs * 1000))
+			span.SetEndTimestamp(pcommon.Timestamp(s.endUs * 1000))
+			span.SetName(s.name)
+		}
+	}
+
+	handler := &getCriticalPathHandler{
+		queryService: &mockGetCriticalPathQueryService{traces: []ptrace.Traces{traces}},
+	}
+
+	input := types.GetCriticalPathInput{TraceID: "00000000000000000000000000000001"}
+	_, output, err := handler.handle(context.Background(), nil, input)
+	require.NoError(t, err)
+
+	var found bool
+	for _, segment := range output.Segments {
+		if segment.SpanID != "000000000000000a" {
+			continue
+		}
+		found = true
+		assert.Equal(t, "svc-first", segment.Service)
+		assert.Equal(t, "first-op", segment.SpanName)
+		assert.Equal(t, uint64(80), segment.SelfTimeUs)
+	}
+	assert.True(t, found, "critical path should include span 000000000000000a")
+}
+
 func TestGetCriticalPathHandler_BuildOutput_MissingSpan(t *testing.T) {
 	// Test buildOutput method directly to cover the case where a critical path section
 	// refers to a span ID that is not in the trace span map (get_critical_path.go line 159).
