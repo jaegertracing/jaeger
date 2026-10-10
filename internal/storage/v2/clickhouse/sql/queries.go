@@ -3,7 +3,10 @@
 
 package sql
 
-import _ "embed"
+import "embed"
+
+//go:embed *.sql
+var MigrationFiles embed.FS
 
 const InsertSpan = `
 INSERT INTO
