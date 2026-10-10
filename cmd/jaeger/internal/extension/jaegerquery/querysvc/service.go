@@ -314,12 +314,19 @@ func (qs QueryService) prepareSearchQuery(
 	}
 	caps := qs.readerSearchCapabilitiesOrDefault(ctx)
 	// The filter is settled before the service name is checked, because a filter can name the
-	// service itself and rewriting it is what moves that into ServiceName.
+	// service itself and rewriting it is what moves that into ServiceName, but only for a
+	// reader that declares no Filter support, which is the only case queryToReaderCapabilities
+	// rewrites into the legacy fields at all. A reader that declares Filter receives the filter
+	// itself, unconverted, so ServiceName legitimately stays empty whether or not the filter
+	// constrains the service; checking it here would refuse a filter that names the service
+	// through a resource.service predicate instead of the legacy field. Such a reader enforces
+	// the same requirement itself once the filter reaches it (RFC 0005 §7's refusal contract),
+	// the way Cassandra's ErrServiceNameNotSet does downstream of this reader's own lowering.
 	query, err = queryToReaderCapabilities(query, caps)
 	if err != nil {
 		return ctx, query, err
 	}
-	if query.ServiceName == "" && !caps.WithoutServiceName {
+	if query.ServiceName == "" && query.Filter == nil && !caps.WithoutServiceName {
 		return ctx, query, ErrServiceNameRequired
 	}
 	return ctx, query, nil
