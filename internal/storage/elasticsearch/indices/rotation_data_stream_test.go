@@ -25,6 +25,7 @@ func TestDataStreamRotation_ReadTargets_DataStreamName(t *testing.T) {
 	end := time.Date(2024, time.June, 18, 0, 0, 0, 0, time.UTC)
 	// With no read alias configured, reads go to the data stream name directly.
 	assert.Equal(t, []string{"jaeger.spans"}, r.ReadTargets(start, end))
+	assert.Equal(t, []string{"jaeger.spans"}, r.ExactTargets(start, end))
 }
 
 func TestDataStreamRotation_ReadTargets_ReadAliasOverride(t *testing.T) {
@@ -33,6 +34,7 @@ func TestDataStreamRotation_ReadTargets_ReadAliasOverride(t *testing.T) {
 	end := time.Date(2024, time.June, 18, 0, 0, 0, 0, time.UTC)
 	// When a read alias is configured (migration), reads target the alias instead.
 	assert.Equal(t, []string{"jaeger-legacy-read-alias"}, r.ReadTargets(start, end))
+	assert.Equal(t, []string{"jaeger-legacy-read-alias"}, r.ExactTargets(start, end))
 }
 
 func TestDataStreamRotation_WriteOpType(t *testing.T) {

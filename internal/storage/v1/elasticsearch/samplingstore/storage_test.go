@@ -102,6 +102,158 @@ func TestGetLatestIndex(t *testing.T) {
 	}
 }
 
+// TestGetLatestIndex_WideLookbackStaysExactAndNewestFirst is the regression
+// for the wildcard fallback. ReadTargets turns a range past the request-line
+// budget into wildcards; getLatestIndex must keep HEADing concrete names,
+// newest first, and still reach an index that is older than that budget but
+// inside the configured lookback. A huge lookback must stay capped.
+func TestGetLatestIndex_WideLookbackStaysExactAndNewestFirst(t *testing.T) {
+	now := time.Date(2026, time.October, 10, 15, 30, 0, 0, time.UTC)
+
+	t.Run("newest index exists", func(t *testing.T) {
+		rotation := indices.NewPeriodicRotation(config.SamplingIndexName, "2006-01-02-15", time.Hour)
+		newest := rotation.WriteTarget(now)
+		probed := recordIndexProbes(t, func(index string) bool { return index == newest })
+		store := wideLookbackStore(probed, rotation, 365*24*time.Hour, now)
+
+		got, err := store.getLatestIndex(context.Background())
+		require.NoError(t, err)
+		assert.Equal(t, newest, got)
+		assert.Equal(t, []string{newest}, probed.names)
+		assertExactIndexNames(t, probed.names)
+	})
+
+	t.Run("hourly index older than the request-line budget", func(t *testing.T) {
+		// The joined-list budget is about 100 hourly names. Ten days is past
+		// that budget and inside a 30-day lookback, so a wildcard fallback
+		// would HEAD jaeger-sampling-1* / jaeger-sampling-2* and miss this index.
+		const age = 10 * 24 * time.Hour
+		rotation := indices.NewPeriodicRotation(config.SamplingIndexName, "2006-01-02-15", time.Hour)
+		target := rotation.WriteTarget(now.Add(-age))
+		probed := recordIndexProbes(t, func(index string) bool { return index == target })
+		store := wideLookbackStore(probed, rotation, 30*24*time.Hour, now)
+
+		got, err := store.getLatestIndex(context.Background())
+		require.NoError(t, err)
+		assert.Equal(t, target, got)
+		assert.Equal(t, exactNamesUntil(rotation, now, now.Add(-age), time.Hour), probed.names)
+		assertExactIndexNames(t, probed.names)
+	})
+
+	t.Run("daily index older than the request-line budget", func(t *testing.T) {
+		// Default sampling rotation is daily. The joined-list budget is about
+		// 110 daily names; 200 days is past it and inside a 400-day lookback.
+		const age = 200 * 24 * time.Hour
+		rotation := indices.NewPeriodicRotation(config.SamplingIndexName, "2006-01-02", 24*time.Hour)
+		target := rotation.WriteTarget(now.Add(-age))
+		probed := recordIndexProbes(t, func(index string) bool { return index == target })
+		store := wideLookbackStore(probed, rotation, 400*24*time.Hour, now)
+
+		got, err := store.getLatestIndex(context.Background())
+		require.NoError(t, err)
+		assert.Equal(t, target, got)
+		assert.Equal(t, exactNamesUntil(rotation, now, now.Add(-age), 24*time.Hour), probed.names)
+		assertExactIndexNames(t, probed.names)
+	})
+
+	t.Run("huge lookback is capped", func(t *testing.T) {
+		rotation := indices.NewPeriodicRotation(config.SamplingIndexName, "2006-01-02-15", time.Hour)
+		probed := recordIndexProbes(t, func(string) bool { return false })
+		store := wideLookbackStore(probed, rotation, 365*24*time.Hour, now)
+
+		_, err := store.getLatestIndex(context.Background())
+		require.ErrorContains(t, err, "failed to find latest index")
+		require.NotEmpty(t, probed.names)
+		assert.Equal(t, rotation.WriteTarget(now), probed.names[0])
+		assert.Equal(t, rotation.WriteTarget(now.Add(-time.Hour)), probed.names[1])
+		// A full year of hourly indices is far more than this. The wildcard
+		// fallback probes two patterns; an uncapped walk probes the whole year.
+		assert.Greater(t, len(probed.names), 1000)
+		assert.Less(t, len(probed.names), 8000)
+		assert.NotContains(t, probed.names, rotation.WriteTarget(now.Add(-300*24*time.Hour)))
+		assertExactIndexNames(t, probed.names)
+	})
+}
+
+func TestGetLatestProbabilities_WideLookbackSearchesExactNewestIndex(t *testing.T) {
+	now := time.Date(2026, time.October, 10, 15, 30, 0, 0, time.UTC)
+	rotation := indices.NewPeriodicRotation(config.SamplingIndexName, "2006-01-02-15", time.Hour)
+	newest := rotation.WriteTarget(now)
+
+	probed := recordIndexProbes(t, func(index string) bool { return index == newest })
+	var searched [][]string
+	searcher := esclientmocks.NewSearcher(t)
+	searcher.On("Search", mock.Anything, mock.Anything, mock.Anything).
+		Run(func(args mock.Arguments) {
+			searched = append(searched, append([]string(nil), args.Get(1).([]string)...))
+		}).
+		Return(hitsResponse(), nil)
+
+	store := NewSamplingStore(Params{
+		Searcher:    searcher,
+		IndexClient: probed.client,
+		Logger:      zap.NewNop(),
+		MaxDocCount: defaultMaxDocCount,
+		Lookback:    30 * 24 * time.Hour,
+		Rotation:    rotation,
+	})
+	store.now = func() time.Time { return now }
+
+	_, err := store.GetLatestProbabilities()
+	require.NoError(t, err)
+	assert.Equal(t, [][]string{{newest}}, searched)
+	assertExactIndexNames(t, probed.names)
+}
+
+type indexProbes struct {
+	client *esclientmocks.IndexAPI
+	names  []string
+}
+
+func recordIndexProbes(t *testing.T, exists func(index string) bool) *indexProbes {
+	t.Helper()
+	probed := &indexProbes{client: esclientmocks.NewIndexAPI(t)}
+	probed.client.On("IndexExists", mock.Anything, mock.Anything).Return(
+		func(_ context.Context, index string) (bool, error) {
+			probed.names = append(probed.names, index)
+			return exists(index), nil
+		},
+	)
+	return probed
+}
+
+func wideLookbackStore(probed *indexProbes, rotation indices.Rotation, lookback time.Duration, now time.Time) *SamplingStore {
+	store := NewSamplingStore(Params{
+		IndexClient: probed.client,
+		Logger:      zap.NewNop(),
+		MaxDocCount: defaultMaxDocCount,
+		Lookback:    lookback,
+		Rotation:    rotation,
+	})
+	store.now = func() time.Time { return now }
+	return store
+}
+
+// exactNamesUntil lists concrete index names from end back to start, one
+// period at a time, skipping a step that stays on the same name.
+func exactNamesUntil(rotation indices.Rotation, end, start time.Time, period time.Duration) []string {
+	var names []string
+	for t := end; !t.Before(start); t = t.Add(-period) {
+		name := rotation.WriteTarget(t)
+		if len(names) == 0 || names[len(names)-1] != name {
+			names = append(names, name)
+		}
+	}
+	return names
+}
+
+func assertExactIndexNames(t *testing.T, names []string) {
+	t.Helper()
+	for _, name := range names {
+		assert.NotContains(t, name, "*")
+	}
+}
+
 func TestInsertThroughput(t *testing.T) {
 	batchWriter := esclientmocks.NewBatchWriter(t)
 	var added []esclient.BulkItem
