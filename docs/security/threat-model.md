@@ -327,10 +327,10 @@ These follow the settings above. They are not a new policy.
 
 - [SECURITY.md](../../SECURITY.md)
 - [Security architecture](architecture.md)
-- [Assurance case](assurance-case.md) — not updated with this model; it still
-  describes some controls this file no longer claims
+- [Assurance case](assurance-case.md)
 - [Self-assessment](self-assessment.md)
-- [Security review 2026](security-review-2026.md) — review snapshot from
-  2026-05-17
+- [Security review 2026](security-review-2026.md) — 2026-05-17 review
+  record, with a 2026-10-11 correction note for controls this model
+  does not claim
 - Embedded default: `cmd/jaeger/internal/all-in-one.yaml`
 - Component list: `cmd/jaeger/internal/components.go`
