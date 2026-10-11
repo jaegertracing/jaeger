@@ -6,8 +6,11 @@ follows [threat-model.md](threat-model.md). A control is listed only
 when the code implements it or when an operator turns it on.
 
 The embedded all-in-one config does not enable TLS or authentication.
-The query HTTP server defaults to `:16686` on every interface. MCP is
-on in that config and uses that same port.
+The query HTTP server defaults to `:16686` on every interface. Its
+`ai.mcp: {}` block keeps the factory default `agent_url`
+(`ws://localhost:16688`), so `/api/ai/mcp/`, `/api/ai/chat`, and the
+turn-scoped `/api/ai/mcp/<id>/` are all on that port. Set
+`agent_url: ""` to leave only the shared MCP route.
 
 ## Table of Contents
 
@@ -20,7 +23,8 @@ on in that config and uses that same port.
 ## Threat Model Summary
 
 Jaeger is one OpenTelemetry Collector process that receives spans,
-stores them, and serves the query API, UI, and (when configured) MCP.
+stores them, and serves the query API, UI, and, in the embedded
+config, MCP and the AI chat routes.
 The primary security concerns are:
 
 1. **Data Confidentiality**: Trace data may contain secrets or PII. TLS
@@ -37,8 +41,8 @@ The primary security concerns are:
 | Actor | Motivation | Capability |
 | -- | -- | -- |
 | Malicious or misconfigured application | DoS, data injection | Whatever receiver ports are bound |
-| External attacker | Read traces, reconnaissance | Reachability of the query port, receivers, or remote-storage gRPC |
-| MCP or AI client | Read traces, act on span text | Same read access as the query API when `/api/ai/mcp/` is enabled |
+| External attacker | Read or inject traces, reconnaissance | Reachability of the query port, receivers, or remote-storage gRPC (reads and OTLP `Export` writes) |
+| MCP or AI client | Read traces, act on span text | Same read access as the query API. The embedded config also mounts chat |
 | Unauthorized user | Read sensitive traces | UI, `/api/`, `/api/v3/`, and MCP on the query port |
 
 For the full analysis, see [threat-model.md](threat-model.md).
@@ -68,8 +72,8 @@ which is the embedded default. Separate configs can still split them.
 | 1 | Applications | Receivers | gRPC and HTTP can use TLS and `auth.authenticator`. Neither is set in the embedded config. UDP Thrift has no TLS. There is no default request rate limit. |
 | 2 | Pipeline | Storage | Backend TLS and credentials when the storage block sets them. The embedded backend is memory and does not leave the process. |
 | 3 | Storage | Query | Same client as boundary 2 in the default process. The gRPC storage client can use a different `writer` endpoint. Cassandra can use a separate keyspace. |
-| 4 | Users | Query/UI | TLS and `auth` are unset by default. The shipped server authenticator is `basicauth`. A reverse proxy can authenticate in front of the port. Bearer tokens are forwarded to storage when `bearer_token_propagation` is set. They are not validated. There is no in-process RBAC. |
-| 5 | MCP clients | Query HTTP | `/api/ai/mcp/` is mounted on the query HTTP server. The embedded config enables it. It has no second authenticator, so it is exposed wherever the query port is exposed. |
+| 4 | Users | Query/UI | TLS and `auth` are unset by default. The shipped server authenticator is `basicauth`, including on `remote_sampling` HTTP/gRPC and `remote_storage` gRPC. A reverse proxy can authenticate in front of the port. Bearer tokens are forwarded to storage when `bearer_token_propagation` is set. They are not validated. There is no in-process RBAC. |
+| 5 | MCP and chat clients | Query HTTP | The embedded `ai:` block mounts `/api/ai/mcp/`, `/api/ai/chat`, and `/api/ai/mcp/<id>/`. They have no second authenticator, so they are exposed wherever the query port is exposed. |
 
 ## Secure Design Principles
 
@@ -95,8 +99,9 @@ which is the embedded default. Separate configs can still split them.
   when that listener's config names an authenticator. The default
   listeners do not.
 - **Evidence**: The binary includes `basicauth` (htpasswd) as a server
-  authenticator. `sigv4auth` is a client authenticator for outbound AWS
-  calls, not for Jaeger's listeners. Bearer-token propagation is not
+  authenticator for receivers, `jaeger_query`, `remote_sampling`, and
+  `remote_storage`. `sigv4auth` is a client authenticator for outbound
+  AWS calls, not for Jaeger's listeners. Bearer-token propagation is not
   authentication. No OAuth2, OIDC, Kerberos, or RBAC extension is
   compiled in. Operators who need another scheme terminate it at a
   reverse proxy, or add an authenticator with `cmd/jaeger/builder.yaml`.
@@ -138,8 +143,10 @@ which is the embedded default. Separate configs can still split them.
 
 - **Implementation**: TLS, server auth, storage auth, and MCP are YAML
   on the collector config. MCP is a block under `jaeger_query.ai`.
-- **Evidence**: `ai.mcp: {}` enables `/api/ai/mcp/`. Removing the block
-  disables it. `http.auth.authenticator` names `basicauth`.
+- **Evidence**: `ai.mcp: {}` enables `/api/ai/mcp/` and, because that
+  partial block keeps the default `agent_url`, also enables chat.
+  Removing the whole `ai` block disables both. `agent_url: ""` keeps
+  MCP and drops chat. `http.auth.authenticator` names `basicauth`.
 
 ## Common Weakness Mitigations
 
@@ -151,7 +158,7 @@ which is the embedded default. Separate configs can still split them.
 | **Broken Authentication (CWE-287)** | `basicauth` when a listener's `auth.authenticator` is set. mTLS when server TLS has a client CA. Neither is on by default. Bearer tokens are not checked. OAuth2 and Kerberos are not in the binary. A reverse proxy is the other place to require credentials. |
 | **Sensitive Data Exposure (CWE-200)** | TLS is available on gRPC and HTTP and is off in the embedded config. UDP Thrift is plaintext. Span attributes are not redacted. `query_interceptors` can change query results; none are registered by default. |
 | **XML External Entities** | Not applicable. Payloads are protobuf or JSON. |
-| **Broken Access Control (CWE-284)** | No in-process RBAC. `multi_tenancy` checks a header (default `x-tenant`) against a configured list. Knowing the tenant name is enough. It is not authentication. |
+| **Broken Access Control (CWE-284)** | No in-process RBAC. When `multi_tenancy` is enabled, a missing tenant header (default `x-tenant`) is rejected. A non-empty `tenants` list allowlists the value. An omitted or empty list accepts any non-empty value. It is not authentication. |
 | **Security Misconfiguration** | TLS verification defaults to on once TLS is configured. The embedded config leaves TLS and auth off, enables MCP, and binds query to every interface. Example configs under `cmd/jaeger/` are examples; some set `tls.insecure: true`. |
 | **Cross-Site Scripting (CWE-79)** | Ordinary span text is rendered as React text. GenAI Markdown disables raw HTML, replaces images with a placeholder, and allows links only for `http`, `https`, and `mailto`. Remote GenAI media is not fetched until the user asks. There is no `Content-Security-Policy` header and no CSP meta tag. |
 | **Insecure Deserialization (CWE-502)** | Receivers reject payloads that do not unmarshal. That is not a separate schema check of every attribute. `POST /api/transform` accepts OTLP JSON up to the query HTTP body limit (20 MiB when unset). |
@@ -184,7 +191,7 @@ which is the embedded default. Separate configs can still split them.
 | Control | Implementation |
 | -- | -- |
 | TLS/mTLS | Collector `configtls` on gRPC and HTTP receivers, query servers, storage clients, Kafka clients, and remote-storage gRPC. Off unless configured. Not available on UDP Thrift. No certificate pinning. |
-| Listener authentication | `basicauth` via `auth.authenticator`. Off unless configured. A reverse proxy can authenticate in front of the query port. |
+| Listener authentication | `basicauth` via `auth.authenticator` on receivers, query HTTP/gRPC, `remote_sampling` HTTP/gRPC, and `remote_storage` gRPC. Off unless configured. A reverse proxy can authenticate in front of a port. |
 | Bearer tokens | Forwarded to storage when `bearer_token_propagation` is set. Not validated as a query credential. Default is off. |
 | MCP | `/api/ai/mcp/` on the query HTTP port when `ai.mcp` is set. Embedded config sets it. Same exposure as query. No separate authenticator. |
 | Volume limits | No default request rate limit and no per-service quota. Embedded memory storage uses `max_traces`. `memory_limiter`, tail sampling, and adaptive sampling are compiled in and are not in the embedded pipeline. UDP Thrift has a receiver `queue_size` (default 1000). |

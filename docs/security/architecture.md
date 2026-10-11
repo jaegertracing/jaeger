@@ -72,9 +72,9 @@ Jaeger is designed to be deployed in a hardened manner.
 
 ## Authentication
 
-Listener authentication is the collector server `auth.authenticator` setting on receivers and on `jaeger_query` HTTP and gRPC. The binary includes `basicauth` (htpasswd) as a server authenticator and as a client authenticator, and `sigv4auth` as a client authenticator for outbound AWS requests. No OAuth2, OIDC, Kerberos, or RBAC extension is compiled in. A custom distribution can add collector extensions via `cmd/jaeger/builder.yaml`; that is not the default binary.
+Listener authentication is the collector server `auth.authenticator` setting on receivers, on `jaeger_query` HTTP and gRPC, on the `remote_sampling` HTTP and gRPC servers, and on the `remote_storage` gRPC server. Those servers are started with collector `ToServer`, which resolves that authenticator. The binary includes `basicauth` (htpasswd) as a server authenticator and as a client authenticator, and `sigv4auth` as a client authenticator for outbound AWS requests. No OAuth2, OIDC, Kerberos, or RBAC extension is compiled in. A custom distribution can add collector extensions via `cmd/jaeger/builder.yaml`; that is not the default binary.
 
-`jaeger_query.bearer_token_propagation` copies an incoming bearer token onto storage calls. It does not accept or reject the caller. `multi_tenancy` checks a tenant header against a configured list. It is not authentication.
+`jaeger_query.bearer_token_propagation` copies an incoming bearer token onto storage calls. It does not accept or reject the caller. `multi_tenancy`, when enabled, requires the tenant header (default `x-tenant`). If `tenants` is non-empty, the value must be in that list. If `tenants` is omitted or empty, any non-empty value is accepted. It is not authentication.
 
 The MCP endpoint is a route on the query HTTP server. It does not have its own authenticator. The embedded all-in-one config enables it (`ai.mcp: {}`) and does not set query `auth`.
 

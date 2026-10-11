@@ -57,8 +57,13 @@ The query extension serves, on one HTTP port and one gRPC port:
   `jaeger.api_v3.QueryService`.
 - `GET` and `POST` MCP at `/api/ai/mcp/` when `ai.mcp` is set. The embedded
   config sets `mcp: {}`, so this is on by default.
-- `/api/ai/chat` and a turn-scoped `/api/ai/mcp/<id>/` only when `ai.agent_url`
-  is set. The embedded config does not set it. `cmd/jaeger/config.yaml` does.
+- `/api/ai/chat` and a turn-scoped `/api/ai/mcp/<id>/` when `ai.agent_url` is
+  non-empty. `DefaultQueryOptions` seeds `agent_url` with
+  `ws://localhost:16688`. A partial `ai:` block is unmarshaled onto that
+  seed, so omitting `agent_url` keeps it. The embedded `ai.mcp: {}` block
+  therefore mounts chat and the turn-scoped route as well. Clearing them
+  requires `agent_url: ""`. `cmd/jaeger/config.yaml` sets the same URL
+  explicitly.
 - `/api/otlp/v1/*`, a reverse proxy to a fixed OTLP HTTP target, only when
   `otlp_proxy` is set. The embedded config does not set it.
   `cmd/jaeger/config.yaml` points it at `http://127.0.0.1:4318`.
@@ -82,7 +87,10 @@ Storage backends configured under `jaeger_storage`:
 
 Metric backends are Prometheus, Elasticsearch, OpenSearch, and ClickHouse.
 The `remote_storage` extension and `cmd/remote-storage` expose a configured
-backend over gRPC (default port 17271) for trace and dependency reads.
+backend over gRPC (default port 17271). The server registers trace and
+dependency reads and the OTLP `TraceService`. `Export` calls `WriteTraces`,
+so the port is also a write path. Neither is in the embedded all-in-one
+extension list.
 
 Other processes still built from this repo (`es-index-cleaner`,
 `es-rollover`, `esmapping-generator`, `anonymizer`, `tracegen`) are helper
@@ -105,8 +113,8 @@ tools. They are not the query or ingest path.
 | **B1: Applications → receivers** | Untrusted spans | OTLP, Jaeger, Zipkin, and Kafka receivers unmarshal structured payloads and enforce transport message limits. TLS and receiver `auth` are off unless configured. Thrift compact and Thrift binary are UDP and have no TLS. The UDP servers bound a packet queue (`queue_size`, default 1000 in the Jaeger receiver). |
 | **B2: Pipeline → storage** | Spans and credentials | The storage client uses the backend's own TLS and auth settings. The embedded config uses memory and sends nothing off-box. |
 | **B3: Storage → query** | Trace reads | Same client credentials as B2. Separate read and write endpoints exist for the gRPC storage client (`writer`). Cassandra keyspaces can be split. There is no built-in read-only mode for every backend. |
-| **B4: Query/UI → users** | HTTP and gRPC | TLS and `auth.authenticator` are collector server settings and are unset by default. The shipped server authenticator is `basicauth` (htpasswd). `sigv4auth` is a client authenticator for outbound AWS calls, not a listener authenticator. |
-| **B5: Query → MCP and AI clients** | Trace data and tool calls | `/api/ai/mcp/` is mounted on the query HTTP mux. It has no second authenticator. When `ai.agent_url` is set, the process dials that WebSocket and announces the turn-scoped MCP URL to the sidecar. |
+| **B4: Query/UI → users** | HTTP and gRPC | TLS and `auth.authenticator` are collector server settings and are unset by default. The same `auth.authenticator` setting applies to `remote_sampling` HTTP/gRPC and to `remote_storage` gRPC. The shipped server authenticator is `basicauth` (htpasswd). `sigv4auth` is a client authenticator for outbound AWS calls, not a listener authenticator. |
+| **B5: Query → MCP and AI clients** | Trace data and tool calls | `/api/ai/mcp/`, `/api/ai/chat`, and `/api/ai/mcp/<id>/` are on the query HTTP mux in the embedded config, because `ai.mcp: {}` keeps the default `agent_url`. None of them has a second authenticator. Chat dials that WebSocket and can announce the turn-scoped MCP URL to the sidecar. |
 | **B6: Browser rendering** | Span data and uploaded JSON | The UI renders stored traces and files dropped on the search page. See T7 and T8. |
 | **B7: Debug listeners** | Process internals | Embedded config enables `healthcheckv2`, `expvar`, and `zpages` on `JAEGER_LISTEN_HOST`. `cmd/jaeger/config.yaml` also enables `pprof` on `0.0.0.0:1777`. Query gRPC registers server reflection. |
 
@@ -120,8 +128,8 @@ data from those systems as untrusted.
 | Actor | Capability in a default deployment |
 | --- | --- |
 | Misconfigured or hostile application | Can open the receiver ports that are bound, and send spans. |
-| Anyone who can reach the query port | Can read traces through the UI, `/api/`, `/api/v3/`, and `/api/ai/mcp/`. |
-| MCP client or AI agent | Same read access as the query API, plus whatever the sidecar does with tool output. |
+| Anyone who can reach the query port | Can read traces through the UI, `/api/`, `/api/v3/`, `/api/ai/mcp/`, and `/api/ai/chat`. |
+| MCP client or AI agent | Same read access as the query API, plus whatever the sidecar does with tool output. Chat is mounted in the embedded config. |
 | Person who uploads a JSON file in the UI | Executes that file in their own browser. The file is not sent to the server. |
 | Operator with the config and disk | Holds storage credentials, TLS keys, and the Badger directory. |
 | Network attacker | Sees plaintext on any listener left without TLS, including UDP Thrift. |
@@ -181,9 +189,10 @@ copied onto storage calls. It is not checked. The flag defaults to false.
 Turned on, either one lets a query client choose a credential the storage
 backend may trust.
 
-`multi_tenancy` checks a header (default `x-tenant`) against a configured
-tenant list. It is not authentication. A client that knows an allowed tenant
-name is accepted.
+`multi_tenancy`, when enabled, rejects a request that omits the tenant
+header (default `x-tenant`). `tenancyGuardFactory` allowlists the header
+value only when `tenants` is non-empty. An omitted or empty `tenants`
+list accepts any non-empty value. It is not authentication.
 
 Nothing in the binary implements RBAC, OAuth2, OIDC, Kerberos, or an audit
 log of who read a trace. Static-asset access logging (`ui.log_access`) is
@@ -198,7 +207,8 @@ and, for Cassandra, the username and password `cassandra`. Those files are
 examples, not the code defaults.
 
 The gRPC `remote_storage` server uses collector gRPC server config. Without
-`tls` and `auth`, anyone who can dial it can read the backend it wraps.
+`tls` and `auth`, anyone who can dial it can read the backend it wraps and
+can write traces through OTLP `Export`.
 Badger data is whatever the process user can read on disk. The container
 image runs as uid/gid 10001.
 
@@ -264,13 +274,15 @@ sensitive trace can be exported again in Jaeger's telemetry.
 Span text returned to an agent can contain instructions aimed at the model.
 Jaeger does not detect that.
 
-When `ai.agent_url` is set, `/api/ai/chat` dials that ACP WebSocket and can
-pass `ai.agent_headers`. The chat body limit defaults to 1 MiB. The gateway
+`/api/ai/chat` dials the configured ACP WebSocket and can pass
+`ai.agent_headers`. The chat body limit defaults to 1 MiB. The gateway
 also mounts `/api/ai/mcp/<id>/` on the same MCP server and can dispatch
 per-turn UI tools into the browser session that opened the chat. Anyone who
 can reach the query port can open these routes. The embedded all-in-one
-config does not set `agent_url`. `cmd/jaeger/config.yaml` sets it to
-`ws://localhost:16688` and also enables `mcp` and `otlp_proxy`.
+`ai:` block does not clear `agent_url`, so the factory default
+`ws://localhost:16688` stays and these routes are mounted.
+`cmd/jaeger/config.yaml` sets that same URL explicitly and also enables
+`otlp_proxy`. Set `agent_url: ""` for MCP without chat.
 
 ### T10: OTLP proxy and debug ports
 
@@ -311,8 +323,10 @@ These follow the settings above. They are not a new policy.
    including MCP, unless `http.tls` and `http.auth` (or a proxy in front)
    are configured. `basicauth` is the server authenticator shipped in the
    binary. Remove `ai.mcp` when no MCP client should be able to query.
-2. Set `ai.agent_url` and `otlp_proxy` only when those paths should be
-   reachable by everyone who can reach the query port.
+2. The embedded `ai:` block keeps `agent_url: ws://localhost:16688`, so
+   chat and the turn-scoped MCP route are on unless `agent_url` is set
+   to `""`. Set `otlp_proxy` only when that path should be reachable by
+   everyone who can reach the query port.
 3. Leave receivers on localhost, or set TLS and `auth`, before binding them
    beyond the host. Do not rely on UDP Thrift for a confidential ingest path.
 4. Set storage TLS and credentials in the backend block. Do not copy the

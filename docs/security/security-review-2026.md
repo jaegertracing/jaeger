@@ -117,8 +117,9 @@ as follows:
 - **Access control.** The May notes list bearer tokens, OAuth2, and
   Kerberos as Jaeger authentication mechanisms, and RBAC as authorization.
   The binary ships `basicauth` (htpasswd) as the server authenticator,
-  referenced from collector `auth.authenticator` on receivers and on
-  `jaeger_query` HTTP and gRPC. Nothing in the default config sets it.
+  referenced from collector `auth.authenticator` on receivers,
+  `jaeger_query` HTTP and gRPC, `remote_sampling` HTTP and gRPC, and
+  `remote_storage` gRPC. Nothing in the default config sets it.
   `bearer_token_propagation` copies an incoming bearer token onto storage
   calls. Jaeger does not validate that token. OAuth2, OIDC, Kerberos, and
   in-process RBAC are not compiled in. A reverse proxy in front of the
@@ -142,8 +143,10 @@ as follows:
   `/api/ai/mcp/` is enabled in the embedded config (`ai.mcp: {}`) and is
   mounted on the query HTTP server, which defaults to `:16686` on every
   interface. It has no authenticator of its own, so it has the same
-  exposure as the query API. AI chat (`ai.agent_url`) is not in that
-  embedded config.
+  exposure as the query API. The embedded `ai:` block does not set
+  `agent_url`, and unmarshalling keeps the factory default
+  `ws://localhost:16688`, so `/api/ai/chat` and `/api/ai/mcp/<id>/`
+  are mounted too. `agent_url: ""` is what leaves MCP without chat.
 
 The May conclusions about supply-chain controls, vulnerability
 reporting, the absence of hardcoded production secrets, and structured
