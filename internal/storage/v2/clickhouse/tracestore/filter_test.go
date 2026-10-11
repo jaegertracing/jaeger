@@ -186,6 +186,20 @@ func TestBuildFieldComparison(t *testing.T) {
 			&expression.DurationValue{Value: 2 * time.Second}, "s.duration", int64(2 * time.Second),
 		},
 		{"resource service", *fieldRef(expression.LevelResource, expression.ResourceFieldService), str("cart"), "s.service_name", "cart"},
+		{
+			"resource schemaURL",
+			*fieldRef(expression.LevelResource, expression.ResourceFieldSchemaURL),
+			str("https://opentelemetry.io/schemas/1.24.0"),
+			"s.resource_schema_url",
+			"https://opentelemetry.io/schemas/1.24.0",
+		},
+		{
+			"scope schemaURL",
+			*fieldRef(expression.LevelScope, expression.ScopeFieldSchemaURL),
+			str("https://opentelemetry.io/schemas/1.21.0"),
+			"s.scope_schema_url",
+			"https://opentelemetry.io/schemas/1.21.0",
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -208,6 +222,13 @@ func TestBuildFieldComparison_UnmappedLevelIsAFieldRefusal(t *testing.T) {
 	assert.ErrorContains(t, err, `does not support the built-in field "name" of the "event" level`)
 }
 
+func TestBuildFieldComparison_UnmappedScopeField(t *testing.T) {
+	var q strings.Builder
+	_, err := buildFieldComparison(&q, 0, nil, expression.OpEq, *fieldRef(expression.LevelScope, expression.ScopeFieldName), str("x"))
+	require.ErrorIs(t, err, tracestore.ErrFilterUnsupported)
+	assert.ErrorContains(t, err, `does not support the built-in field "name" of the "scope" level`)
+}
+
 func TestBuildFieldComparison_UnsupportedField(t *testing.T) {
 	var q strings.Builder
 	_, err := buildFieldComparison(&q, 0, nil, expression.OpEq, *fieldRef(expression.LevelSpan, expression.SpanFieldTraceID), str("x"))
@@ -219,6 +240,14 @@ func TestBuildFieldComparison_WrongConstantType(t *testing.T) {
 	_, err := buildFieldComparison(&q, 0, nil, expression.OpEq, *fieldRef(expression.LevelSpan, expression.SpanFieldName),
 		&expression.IntValue{Value: 1})
 	require.ErrorIs(t, err, tracestore.ErrFilterUnsupported)
+}
+
+func TestBuildFieldComparison_SchemaURLWrongConstantType(t *testing.T) {
+	var q strings.Builder
+	_, err := buildFieldComparison(&q, 0, nil, expression.OpEq, *fieldRef(expression.LevelResource, expression.ResourceFieldSchemaURL),
+		&expression.IntValue{Value: 1})
+	require.ErrorIs(t, err, tracestore.ErrFilterUnsupported)
+	assert.ErrorContains(t, err, "an integer constant declares a type this comparison cannot use")
 }
 
 func TestBuildFieldComparison_UnsupportedFieldType(t *testing.T) {
@@ -252,12 +281,67 @@ func TestBuildFieldComparison_OrdersDuration(t *testing.T) {
 // capability declaration admits are lowered for span.duration alone: the other mapped fields hold
 // words or names and are refused rather than compared as text.
 func TestBuildFieldComparison_OrderingReachesDurationOnly(t *testing.T) {
-	for _, name := range []string{expression.SpanFieldName, expression.SpanFieldKind, expression.SpanFieldStatus} {
-		t.Run(name, func(t *testing.T) {
+	fields := []expression.FieldRef{
+		*fieldRef(expression.LevelSpan, expression.SpanFieldName),
+		*fieldRef(expression.LevelSpan, expression.SpanFieldKind),
+		*fieldRef(expression.LevelSpan, expression.SpanFieldStatus),
+		*fieldRef(expression.LevelResource, expression.ResourceFieldService),
+		*fieldRef(expression.LevelResource, expression.ResourceFieldSchemaURL),
+		*fieldRef(expression.LevelScope, expression.ScopeFieldSchemaURL),
+	}
+	for _, ref := range fields {
+		t.Run(string(ref.Level)+"."+ref.Name, func(t *testing.T) {
 			var q strings.Builder
-			_, err := buildFieldComparison(&q, 0, nil, expression.OpGt, *fieldRef(expression.LevelSpan, name), str("m"))
+			_, err := buildFieldComparison(&q, 0, nil, expression.OpGt, ref, str("m"))
 			require.ErrorIs(t, err, tracestore.ErrFilterUnsupported)
 			assert.ErrorContains(t, err, "does not order the built-in field")
+		})
+	}
+}
+
+func TestBuildFilterCondition_SchemaURL(t *testing.T) {
+	r := newTestReader()
+	tests := []struct {
+		name      string
+		predicate *expression.Call
+		wantSQL   string
+		wantArgs  []any
+	}{
+		{
+			name: "resource schemaURL",
+			predicate: call(expression.OpEq,
+				fieldRef(expression.LevelResource, expression.ResourceFieldSchemaURL),
+				str("https://opentelemetry.io/schemas/1.24.0"),
+			),
+			wantSQL:  "s.resource_schema_url = ?",
+			wantArgs: []any{"https://opentelemetry.io/schemas/1.24.0"},
+		},
+		{
+			name: "scope schemaURL",
+			predicate: call(expression.OpEq,
+				fieldRef(expression.LevelScope, expression.ScopeFieldSchemaURL),
+				str("https://opentelemetry.io/schemas/1.21.0"),
+			),
+			wantSQL:  "s.scope_schema_url = ?",
+			wantArgs: []any{"https://opentelemetry.io/schemas/1.21.0"},
+		},
+		{
+			name: "conjunction of both schema URLs",
+			predicate: call(expression.OpAnd,
+				call(expression.OpEq, fieldRef(expression.LevelResource, expression.ResourceFieldSchemaURL), str("https://opentelemetry.io/schemas/1.24.0")),
+				call(expression.OpEq, fieldRef(expression.LevelScope, expression.ScopeFieldSchemaURL), str("https://opentelemetry.io/schemas/1.21.0")),
+			),
+			wantSQL:  "(\n\ts.resource_schema_url = ?\n\tAND\n\ts.scope_schema_url = ?\n)",
+			wantArgs: []any{"https://opentelemetry.io/schemas/1.24.0", "https://opentelemetry.io/schemas/1.21.0"},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var q strings.Builder
+			args, err := lowerFilter(t, r, &q, tt.predicate)
+			require.NoError(t, err)
+			assert.Equal(t, tt.wantSQL, strings.TrimSpace(q.String()))
+			assert.Equal(t, tt.wantArgs, args)
 		})
 	}
 }
@@ -476,6 +560,29 @@ func TestBuildFindTraceIDsQuery_WithFilter(t *testing.T) {
 	require.NoError(t, err)
 	verifyQuerySnapshot(t, sqlText)
 	assert.Equal(t, []any{"cart", time.Unix(0, 0), time.Unix(100, 0), testReaderConfig.DefaultSearchDepth}, args)
+}
+
+func TestBuildFindTraceIDsQuery_WithSchemaURLFilter(t *testing.T) {
+	r := newTestReader()
+	query := tracestore.TraceQueryParams{
+		Filter: call(expression.OpAnd,
+			call(expression.OpEq, fieldRef(expression.LevelResource, expression.ResourceFieldSchemaURL), str("https://opentelemetry.io/schemas/1.24.0")),
+			call(expression.OpEq, fieldRef(expression.LevelScope, expression.ScopeFieldSchemaURL), str("https://opentelemetry.io/schemas/1.21.0")),
+		),
+		StartTimeMin: time.Unix(0, 0),
+		StartTimeMax: time.Unix(100, 0),
+	}
+	sqlText, args, err := r.buildFindTraceIDsQuery(t.Context(), query)
+	require.NoError(t, err)
+	assert.Contains(t, sqlText, "s.resource_schema_url = ?")
+	assert.Contains(t, sqlText, "s.scope_schema_url = ?")
+	assert.Equal(t, []any{
+		"https://opentelemetry.io/schemas/1.24.0",
+		"https://opentelemetry.io/schemas/1.21.0",
+		time.Unix(0, 0),
+		time.Unix(100, 0),
+		testReaderConfig.DefaultSearchDepth,
+	}, args)
 }
 
 // TestBuildFindTraceIDsQuery_WithNestedFilter snapshots the whole query for a boolean tree with

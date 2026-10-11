@@ -1,0 +1,64 @@
+{
+  "resourceSpans": [
+    {
+      "schemaUrl": "https://opentelemetry.io/schemas/1.26.0/resource",
+      "resource": {
+        "attributes": [
+          {
+            "key": "service.name",
+            "value": {
+              "stringValue": "query26-service"
+            }
+          }
+        ]
+      },
+      "scopeSpans": [
+        {
+          "schemaUrl": "https://opentelemetry.io/schemas/1.26.0/scope",
+          "scope": {
+            "name": "test-scope",
+            "version": "1.0.0",
+            "droppedAttributesCount": 3
+          },
+          "spans": [
+            {
+              "traceId": "00000000000000000000000000000228",
+              "spanId": "0000000000000006",
+              "name": "query26-operation",
+              "startTimeUnixNano": "1485449191639875000",
+              "endTimeUnixNano": "1485449191639878000",
+              "flags": 257,
+              "droppedAttributesCount": 5,
+              "droppedEventsCount": 2,
+              "droppedLinksCount": 1,
+              "attributes": [
+                {
+                  "key": "sameplacespanattribute1",
+                  "value": {
+                    "stringValue": "sameplacevalue"
+                  }
+                }
+              ],
+              "events": [
+                {
+                  "timeUnixNano": "1485449191639875500",
+                  "name": "test-event",
+                  "droppedAttributesCount": 4
+                }
+              ],
+              "links": [
+                {
+                  "traceId": "000000000000000000000000000000ff",
+                  "spanId": "00000000000000ff",
+                  "flags": 1,
+                  "droppedAttributesCount": 6
+                }
+              ],
+              "status": {}
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

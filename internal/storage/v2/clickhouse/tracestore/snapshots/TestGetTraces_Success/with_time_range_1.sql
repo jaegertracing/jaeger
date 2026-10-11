@@ -66,7 +66,17 @@ SELECT
     scope_str_attributes.key,
     scope_str_attributes.value,
     scope_complex_attributes.key,
-    scope_complex_attributes.value
+    scope_complex_attributes.value,
+    flags,
+    dropped_attributes_count,
+    dropped_events_count,
+    dropped_links_count,
+    events.dropped_attributes_count,
+    links.dropped_attributes_count,
+    links.flags,
+    resource_schema_url,
+    scope_schema_url,
+    scope_dropped_attributes_count
 FROM
     spans s
  WHERE s.trace_id = ? AND s.start_time >= ? AND s.start_time <= ?

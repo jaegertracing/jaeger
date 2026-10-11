@@ -8,6 +8,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/ClickHouse/clickhouse-go/v2/lib/driver"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/collector/pdata/pcommon"
 	"go.opentelemetry.io/collector/pdata/ptrace"
@@ -21,8 +23,8 @@ func TestRoundTrip(t *testing.T) {
 	duration := 2 * time.Second
 
 	t.Run("ToRow->FromRow", func(t *testing.T) {
-		rs := createTestResource()
-		sc := createTestScope()
+		rs := createTestResourceSpans()
+		sc := createTestScopeSpans()
 		span := createTestSpan(now, duration)
 
 		expected := createTestTrace(now, duration)
@@ -36,42 +38,58 @@ func TestRoundTrip(t *testing.T) {
 		spanRow := createTestSpanRow(t, now, duration)
 
 		trace := FromRow(spanRow)
-		rs := trace.ResourceSpans().At(0).Resource()
-		sc := trace.ResourceSpans().At(0).ScopeSpans().At(0).Scope()
+		rs := trace.ResourceSpans().At(0)
+		sc := trace.ResourceSpans().At(0).ScopeSpans().At(0)
 		span := trace.ResourceSpans().At(0).ScopeSpans().At(0).Spans().At(0)
 
 		row := ToRow(rs, sc, span)
 		require.Equal(t, spanRow, row)
 	})
+
+	t.Run("ToDBModel->FromDBModel", func(t *testing.T) {
+		rs := createTestResourceSpans()
+		sc := createTestScopeSpans()
+		span := createTestSpan(now, duration)
+
+		expected := createTestTrace(now, duration)
+
+		row := ToDBModel(rs, sc, span)
+		trace := FromDBModel(row)
+		require.Equal(t, expected, trace)
+	})
 }
 
 func createTestTrace(now time.Time, duration time.Duration) ptrace.Traces {
-	rs := createTestResource()
-	sc := createTestScope()
+	rsSpans := createTestResourceSpans()
+	scSpans := createTestScopeSpans()
 	span := createTestSpan(now, duration)
 
 	td := ptrace.NewTraces()
-	rsSpans := td.ResourceSpans().AppendEmpty()
-	rs.CopyTo(rsSpans.Resource())
-	scSpans := rsSpans.ScopeSpans().AppendEmpty()
-	sc.CopyTo(scSpans.Scope())
-	span.CopyTo(scSpans.Spans().AppendEmpty())
+	destRS := td.ResourceSpans().AppendEmpty()
+	rsSpans.CopyTo(destRS)
+	destSS := destRS.ScopeSpans().AppendEmpty()
+	scSpans.CopyTo(destSS)
+	span.CopyTo(destSS.Spans().AppendEmpty())
 	return td
 }
 
-func createTestResource() pcommon.Resource {
-	rs := pcommon.NewResource()
-	rs.Attributes().PutStr(otelsemconv.ServiceNameKey, "test-service")
-	addTestAttributes(rs.Attributes())
+func createTestResourceSpans() ptrace.ResourceSpans {
+	rs := ptrace.NewResourceSpans()
+	rs.SetSchemaUrl("https://opentelemetry.io/schemas/1.24.0")
+	rs.Resource().Attributes().PutStr(otelsemconv.ServiceNameKey, "test-service")
+	addTestAttributes(rs.Resource().Attributes())
 	return rs
 }
 
-func createTestScope() pcommon.InstrumentationScope {
-	sc := pcommon.NewInstrumentationScope()
+func createTestScopeSpans() ptrace.ScopeSpans {
+	ss := ptrace.NewScopeSpans()
+	ss.SetSchemaUrl("https://opentelemetry.io/schemas/1.20.0")
+	sc := ss.Scope()
 	sc.SetName("test-scope")
 	sc.SetVersion("v1.0.0")
+	sc.SetDroppedAttributesCount(10)
 	addTestAttributes(sc.Attributes())
-	return sc
+	return ss
 }
 
 func createTestSpan(now time.Time, duration time.Duration) ptrace.Span {
@@ -86,6 +104,10 @@ func createTestSpan(now time.Time, duration time.Duration) ptrace.Span {
 	span.SetEndTimestamp(pcommon.NewTimestampFromTime(now.Add(duration)))
 	span.Status().SetCode(ptrace.StatusCodeOk)
 	span.Status().SetMessage("test-status-message")
+	span.SetFlags(1)
+	span.SetDroppedAttributesCount(2)
+	span.SetDroppedEventsCount(3)
+	span.SetDroppedLinksCount(4)
 
 	addTestAttributes(span.Attributes())
 	addSpanEvent(span, now)
@@ -98,6 +120,7 @@ func addSpanEvent(span ptrace.Span, now time.Time) {
 	event := span.Events().AppendEmpty()
 	event.SetName("test-event")
 	event.SetTimestamp(pcommon.NewTimestampFromTime(now))
+	event.SetDroppedAttributesCount(5)
 	addTestAttributes(event.Attributes())
 }
 
@@ -106,6 +129,8 @@ func addSpanLink(span ptrace.Span) {
 	link.SetTraceID(pcommon.TraceID([16]byte{0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 3}))
 	link.SetSpanID(pcommon.SpanID([8]byte{0, 0, 0, 0, 0, 0, 0, 4}))
 	link.TraceState().FromRaw("link-state")
+	link.SetDroppedAttributesCount(6)
+	link.SetFlags(7)
 	addTestAttributes(link.Attributes())
 }
 
@@ -201,8 +226,10 @@ func createTestSpanRow(t *testing.T, now time.Time, duration time.Duration) *Spa
 			ComplexKeys:   []string{"@bytes@bytes_attr", "@map@map_attr", "@slice@slice_attr"},
 			ComplexValues: []string{encodedBytes, string(vmJSON), string(vsJSON)},
 		},
-		ScopeName:    "test-scope",
-		ScopeVersion: "v1.0.0",
+		ScopeName:                   "test-scope",
+		ScopeVersion:                "v1.0.0",
+		ScopeSchemaURL:              "https://opentelemetry.io/schemas/1.20.0",
+		ScopeDroppedAttributesCount: 10,
 		ScopeAttributes: Attributes{
 			BoolKeys:      []string{"bool_attr"},
 			BoolValues:    []bool{true},
@@ -215,5 +242,54 @@ func createTestSpanRow(t *testing.T, now time.Time, duration time.Duration) *Spa
 			ComplexKeys:   []string{"@bytes@bytes_attr", "@map@map_attr", "@slice@slice_attr"},
 			ComplexValues: []string{encodedBytes, string(vmJSON), string(vsJSON)},
 		},
+		Flags:                       1,
+		DroppedAttributesCount:      2,
+		DroppedEventsCount:          3,
+		DroppedLinksCount:           4,
+		EventDroppedAttributesCount: []uint32{5},
+		LinkDroppedAttributesCount:  []uint32{6},
+		LinkFlags:                   []uint32{7},
+		ResourceSchemaURL:           "https://opentelemetry.io/schemas/1.24.0",
 	}
+}
+
+type mockRows struct {
+	driver.Rows
+	scanFunc func(dest ...any) error
+}
+
+func (m *mockRows) Scan(dest ...any) error {
+	if m.scanFunc != nil {
+		return m.scanFunc(dest...)
+	}
+	return nil
+}
+
+func TestScanRow(t *testing.T) {
+	t.Run("success", func(t *testing.T) {
+		var capturedDestLen int
+		rows := &mockRows{
+			scanFunc: func(dest ...any) error {
+				capturedDestLen = len(dest)
+				return nil
+			},
+		}
+
+		sr, err := ScanRow(rows)
+		require.NoError(t, err)
+		require.NotNil(t, sr)
+		assert.Equal(t, 78, capturedDestLen)
+	})
+
+	t.Run("scan_error", func(t *testing.T) {
+		rows := &mockRows{
+			scanFunc: func(_ ...any) error {
+				return assert.AnError
+			},
+		}
+
+		sr, err := ScanRow(rows)
+		require.ErrorIs(t, err, assert.AnError)
+		require.Nil(t, sr)
+	})
 }
