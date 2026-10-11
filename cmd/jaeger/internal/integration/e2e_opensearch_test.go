@@ -110,7 +110,7 @@ func TestOpenSearchStorage_BackwardCompatibility(t *testing.T) {
 			NewGates:     searchGates,
 			OldEnv:       map[string]string{numericAttributesEnvVar: "false"},
 			NewEnv:       map[string]string{numericAttributesEnvVar: "true"},
-			Capabilities: capabilities.OpenSearch().WithNumericAttributesNotYetIndexed(),
+			Capabilities: capabilities.OpenSearch().WithNumericAttributesEnabledAtUpgrade(),
 		},
 	)
 }

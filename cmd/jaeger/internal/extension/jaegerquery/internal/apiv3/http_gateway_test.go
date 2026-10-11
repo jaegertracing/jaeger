@@ -524,6 +524,65 @@ func TestHTTPGatewayGetServicesErrors(t *testing.T) {
 	assert.Contains(t, w.Body.String(), assert.AnError.Error())
 }
 
+// TestHTTPGatewayGetCapabilities pins the JSON shape of a full declaration, which is what a
+// client or the UI reads.
+func TestHTTPGatewayGetCapabilities(t *testing.T) {
+	gw := setupHTTPGatewayNoServer(t, "")
+	gw.reader.ExpectedCalls = nil
+	gw.reader.On("SearchCapabilities", mock.Anything).Return(tracestore.SearchCapabilities{
+		WithoutServiceName:  true,
+		SameSpanConjunction: true,
+		Filter: &tracestore.FilterCapabilities{
+			Levels:    []expression.Level{expression.LevelSpan, expression.LevelResource, expression.LevelEvent},
+			Operators: []expression.Operator{expression.OpAnd, expression.OpOr, expression.OpNot, expression.OpEq},
+		},
+		Paginated:   true,
+		SpanSearch:  true,
+		SpanSorting: true,
+	}, nil).Once()
+
+	r, err := http.NewRequest(http.MethodGet, "/api/v3/capabilities", http.NoBody)
+	require.NoError(t, err)
+	w := httptest.NewRecorder()
+	gw.router.ServeHTTP(w, r)
+	require.Equal(t, http.StatusOK, w.Code)
+	gw.verifySnapshot(t, w.Body.Bytes())
+	gw.reader.AssertExpectations(t)
+}
+
+func TestHTTPGatewayGetCapabilitiesErrors(t *testing.T) {
+	tests := []struct {
+		name   string
+		err    error
+		status int
+	}{
+		{
+			name:   "a reader that cannot report is 501",
+			err:    fmt.Errorf("cannot ask: %w", errors.ErrUnsupported),
+			status: http.StatusNotImplemented,
+		},
+		{
+			name:   "any other failure is 500",
+			err:    assert.AnError,
+			status: http.StatusInternalServerError,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			gw := setupHTTPGatewayNoServer(t, "")
+			gw.reader.ExpectedCalls = nil
+			gw.reader.On("SearchCapabilities", mock.Anything).Return(tracestore.SearchCapabilities{}, tt.err).Once()
+
+			r, err := http.NewRequest(http.MethodGet, "/api/v3/capabilities", http.NoBody)
+			require.NoError(t, err)
+			w := httptest.NewRecorder()
+			gw.router.ServeHTTP(w, r)
+			assert.Equal(t, tt.status, w.Code)
+			assert.Contains(t, w.Body.String(), tt.err.Error())
+		})
+	}
+}
+
 func TestHTTPGatewayGetOperationsDefaultSpanKind(t *testing.T) {
 	gw := setupHTTPGatewayNoServer(t, "")
 
