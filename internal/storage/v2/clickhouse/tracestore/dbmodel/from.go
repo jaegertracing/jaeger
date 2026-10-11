@@ -21,7 +21,11 @@ import (
 func FromRow(storedSpan *SpanRow) ptrace.Traces {
 	trace := ptrace.NewTraces()
 	resourceSpans := trace.ResourceSpans().AppendEmpty()
+	resourceSpans.SetSchemaUrl(storedSpan.ResourceSchemaURL)
+
 	scopeSpans := resourceSpans.ScopeSpans().AppendEmpty()
+	scopeSpans.SetSchemaUrl(storedSpan.ScopeSchemaURL)
+
 	span := scopeSpans.Spans().AppendEmpty()
 
 	sp, err := convertSpan(storedSpan)
@@ -41,6 +45,11 @@ func FromRow(storedSpan *SpanRow) ptrace.Traces {
 	return trace
 }
 
+// FromDBModel is an alias for FromRow to translate ClickHouse DB model to trace models.
+func FromDBModel(storedSpan *SpanRow) ptrace.Traces {
+	return FromRow(storedSpan)
+}
+
 func convertResource(sr *SpanRow, spanForWarnings ptrace.Span) pcommon.Resource {
 	resource := ptrace.NewResourceSpans().Resource()
 	resource.Attributes().PutStr(otelsemconv.ServiceNameKey, sr.ServiceName)
@@ -56,6 +65,7 @@ func convertScope(sr *SpanRow, spanForWarnings ptrace.Span) pcommon.Instrumentat
 	scope := ptrace.NewScopeSpans().Scope()
 	scope.SetName(sr.ScopeName)
 	scope.SetVersion(sr.ScopeVersion)
+	scope.SetDroppedAttributesCount(sr.ScopeDroppedAttributesCount)
 	putAttributes(
 		scope.Attributes(),
 		&sr.ScopeAttributes,
@@ -91,6 +101,10 @@ func convertSpan(sr *SpanRow) (ptrace.Span, error) {
 	span.SetEndTimestamp(pcommon.NewTimestampFromTime(sr.StartTime.Add(time.Duration(sr.Duration))))
 	span.Status().SetCode(jptrace.StringToStatusCode(sr.StatusCode))
 	span.Status().SetMessage(sr.StatusMessage)
+	span.SetFlags(sr.Flags)
+	span.SetDroppedAttributesCount(sr.DroppedAttributesCount)
+	span.SetDroppedEventsCount(sr.DroppedEventsCount)
+	span.SetDroppedLinksCount(sr.DroppedLinksCount)
 
 	putAttributes(
 		span.Attributes(),
@@ -102,6 +116,9 @@ func convertSpan(sr *SpanRow) (ptrace.Span, error) {
 		event := span.Events().AppendEmpty()
 		event.SetName(e)
 		event.SetTimestamp(pcommon.NewTimestampFromTime(sr.EventTimestamps[i]))
+		if i < len(sr.EventDroppedAttributesCount) {
+			event.SetDroppedAttributesCount(sr.EventDroppedAttributesCount[i])
+		}
 		putAttributes2D(event.Attributes(), &sr.EventAttributes, i, span)
 	}
 
@@ -120,6 +137,12 @@ func convertSpan(sr *SpanRow) (ptrace.Span, error) {
 		}
 		link.SetSpanID(spanID)
 		link.TraceState().FromRaw(sr.LinkTraceStates[i])
+		if i < len(sr.LinkDroppedAttributesCount) {
+			link.SetDroppedAttributesCount(sr.LinkDroppedAttributesCount[i])
+		}
+		if i < len(sr.LinkFlags) {
+			link.SetFlags(sr.LinkFlags[i])
+		}
 
 		putAttributes2D(link.Attributes(), &sr.LinkAttributes, i, span)
 	}

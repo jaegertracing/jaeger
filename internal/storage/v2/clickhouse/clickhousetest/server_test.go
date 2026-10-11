@@ -53,3 +53,10 @@ func TestNewServer_FailureConfig(t *testing.T) {
 	assert.Equal(t, http.StatusInternalServerError, status)
 	assert.Contains(t, body, wantErr.Error())
 }
+
+func TestNewServer_CurrentDatabaseQuery(t *testing.T) {
+	srv := NewServer(FailureConfig{})
+	defer srv.Close()
+	status, _ := postQuery(t, srv.URL, CurrentDatabaseQuery)
+	assert.Equal(t, http.StatusOK, status)
+}
