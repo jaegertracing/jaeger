@@ -41,19 +41,19 @@ func TestFactory(t *testing.T) {
 			srv := clickhousetest.NewServer(clickhousetest.FailureConfig{})
 			defer srv.Close()
 
-			cfg := Configuration{
-				Protocol: "http",
-				Addresses: []string{
-					srv.Listener.Addr().String(),
-				},
-				Database: "default",
-				Auth: Authentication{
-					Basic: configoptional.Some(basicauthextension.ClientAuthSettings{
-						Username: "user",
-						Password: "password",
-					}),
-				},
+			cfg := DefaultConfiguration()
+			cfg.Protocol = "http"
+			cfg.Addresses = []string{
+				srv.Listener.Addr().String(),
 			}
+			cfg.Database = "default"
+			cfg.Auth = Authentication{
+				Basic: configoptional.Some(basicauthextension.ClientAuthSettings{
+					Username: "user",
+					Password: "password",
+				}),
+			}
+			cfg.CreateSchema = tt.createSchema
 
 			f, err := NewFactory(context.Background(), cfg, telemetry.NoopSettings())
 			require.NoError(t, err)
@@ -193,14 +193,13 @@ func TestNewFactory_Errors(t *testing.T) {
 			srv := clickhousetest.NewServer(tt.failureConfig)
 			defer srv.Close()
 
-			cfg := Configuration{
-				Protocol: "http",
-				Addresses: []string{
-					srv.Listener.Addr().String(),
-				},
-				DialTimeout:  1 * time.Second,
-				CreateSchema: true,
+			cfg := DefaultConfiguration()
+			cfg.Protocol = "http"
+			cfg.Addresses = []string{
+				srv.Listener.Addr().String(),
 			}
+			cfg.DialTimeout = 1 * time.Second
+			cfg.CreateSchema = true
 
 			f, err := NewFactory(context.Background(), cfg, telemetry.NoopSettings())
 			require.ErrorContains(t, err, tt.expectedError)
@@ -264,14 +263,13 @@ func TestPurge(t *testing.T) {
 			srv := clickhousetest.NewServer(tt.failureConfig)
 			defer srv.Close()
 
-			cfg := Configuration{
-				Protocol: "http",
-				Addresses: []string{
-					srv.Listener.Addr().String(),
-				},
-				DialTimeout:  1 * time.Second,
-				CreateSchema: true,
+			cfg := DefaultConfiguration()
+			cfg.Protocol = "http"
+			cfg.Addresses = []string{
+				srv.Listener.Addr().String(),
 			}
+			cfg.DialTimeout = 1 * time.Second
+			cfg.CreateSchema = true
 
 			f, err := NewFactory(context.Background(), cfg, telemetry.NoopSettings())
 			require.NoError(t, err)
@@ -317,15 +315,14 @@ func TestGetProtocol(t *testing.T) {
 }
 
 func TestNewFactory_TLSLoadError(t *testing.T) {
-	cfg := Configuration{
-		Protocol:  "native",
-		Addresses: []string{"localhost:9440"},
-		TLS: configoptional.Some(configtls.ClientConfig{
-			Config: configtls.Config{
-				CAFile: "/nonexistent/ca.pem",
-			},
-		}),
-	}
+	cfg := DefaultConfiguration()
+	cfg.Protocol = "native"
+	cfg.Addresses = []string{"localhost:9440"}
+	cfg.TLS = configoptional.Some(configtls.ClientConfig{
+		Config: configtls.Config{
+			CAFile: "/nonexistent/ca.pem",
+		},
+	})
 	f, err := NewFactory(context.Background(), cfg, telemetry.NoopSettings())
 	require.ErrorContains(t, err, "failed to load TLS configuration")
 	require.Nil(t, f)
@@ -334,13 +331,12 @@ func TestNewFactory_TLSLoadError(t *testing.T) {
 func TestNewFactory_TLSLoadSuccess(t *testing.T) {
 	srv := clickhousetest.NewServer(clickhousetest.FailureConfig{})
 	defer srv.Close()
-	cfg := Configuration{
-		Protocol:  "native",
-		Addresses: []string{srv.Listener.Addr().String()},
-		TLS: configoptional.Some(configtls.ClientConfig{
-			InsecureSkipVerify: true,
-		}),
-	}
+	cfg := DefaultConfiguration()
+	cfg.Protocol = "native"
+	cfg.Addresses = []string{srv.Listener.Addr().String()}
+	cfg.TLS = configoptional.Some(configtls.ClientConfig{
+		InsecureSkipVerify: true,
+	})
 	// TLS config loads successfully; connection fails because the test server is plain (no TLS).
 	_, err := NewFactory(context.Background(), cfg, telemetry.NoopSettings())
 	require.Error(t, err)
@@ -382,9 +378,12 @@ func TestNewSchemaBuilder_Errors(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			loadTemplate = tt.mockFn
+			cfg := DefaultConfiguration()
+			cfg.Addresses = []string{"localhost:9000"}
+			cfg.CreateSchema = true
 			_, err := NewFactory(
 				context.Background(),
-				Configuration{CreateSchema: true},
+				cfg,
 				telemetry.NoopSettings(),
 			)
 			require.ErrorContains(t, err, tt.expectedError)
@@ -477,4 +476,57 @@ func TestNewFactory_KeepsExplicitZeroCacheSettings(t *testing.T) {
 
 	assert.Zero(t, f.config.AttributeMetadataCacheTTL)
 	assert.Zero(t, f.config.AttributeMetadataCacheMaxSize)
+}
+
+func TestNewFactory_InvalidConfig(t *testing.T) {
+	tests := []struct {
+		name        string
+		cfg         Configuration
+		expectedErr string
+	}{
+		{
+			name:        "missing addresses",
+			cfg:         DefaultConfiguration(),
+			expectedErr: "Addresses: non zero value required",
+		},
+		{
+			name: "zero default search depth",
+			cfg: func() Configuration {
+				cfg := DefaultConfiguration()
+				cfg.Addresses = []string{"localhost:9000"}
+				cfg.DefaultSearchDepth = 0
+				return cfg
+			}(),
+			expectedErr: "default_search_depth must be a positive number",
+		},
+		{
+			name: "zero max search depth",
+			cfg: func() Configuration {
+				cfg := DefaultConfiguration()
+				cfg.Addresses = []string{"localhost:9000"}
+				cfg.MaxSearchDepth = 0
+				return cfg
+			}(),
+			expectedErr: "max_search_depth must be a positive number",
+		},
+		{
+			name: "negative ttl",
+			cfg: func() Configuration {
+				cfg := DefaultConfiguration()
+				cfg.Addresses = []string{"localhost:9000"}
+				cfg.TTL = -1 * time.Second
+				return cfg
+			}(),
+			expectedErr: "ttl must be a non-negative duration",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			f, err := NewFactory(context.Background(), tt.cfg, telemetry.NoopSettings())
+			require.Error(t, err)
+			require.Nil(t, f)
+			assert.ErrorContains(t, err, "invalid clickhouse configuration")
+			assert.ErrorContains(t, err, tt.expectedErr)
+		})
+	}
 }
