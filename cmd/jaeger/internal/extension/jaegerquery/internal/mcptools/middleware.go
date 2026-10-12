@@ -63,7 +63,9 @@ func createTracingMiddleware(tracerProvider trace.TracerProvider) mcp.Middleware
 			toolName := toolNameFromRequest(method, req)
 			sessionID := sessionIDFromRequest(req)
 			spanName := method
-			attrs := []attribute.KeyValue{}
+			attrs := []attribute.KeyValue{
+				otelsemconv.McpMethodName(method),
+			}
 			if toolName != "" {
 				spanName = method + " " + toolName
 				attrs = append(
@@ -74,8 +76,6 @@ func createTracingMiddleware(tracerProvider trace.TracerProvider) mcp.Middleware
 				if toolArgs := toolArgumentsFromRequest(method, req); toolArgs != "" {
 					attrs = append(attrs, otelsemconv.GenAIToolCallArguments(truncateForSpan(toolArgs, maxSpanAttrChars)))
 				}
-			} else {
-				attrs = append(attrs, otelsemconv.McpMethodName(method))
 			}
 			if sessionID != "" {
 				attrs = append(attrs, otelsemconv.McpSessionID(sessionID))
@@ -103,6 +103,9 @@ func createTracingMiddleware(tracerProvider trace.TracerProvider) mcp.Middleware
 					span.SetAttributes(otelsemconv.ErrorType(errorTypeTool))
 					if toolErr := callResult.GetError(); toolErr != nil {
 						span.RecordError(toolErr)
+						span.SetStatus(codes.Error, toolErr.Error())
+					} else {
+						span.SetStatus(codes.Error, "tool returned an error result")
 					}
 				}
 			}

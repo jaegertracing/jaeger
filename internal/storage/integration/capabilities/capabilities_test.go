@@ -11,58 +11,22 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-// TestAttributeOrderingOutcome checks that exactly one of the three attribute-ordering cases
-// runs for every deployment the constructors and the two modifiers describe.
-func TestAttributeOrderingOutcome(t *testing.T) {
-	tests := []struct {
-		name string
-		caps Capabilities
-		runs string
-	}{
-		{name: "Elasticsearch", caps: Elasticsearch(), runs: attributeOrderingTest},
-		{name: "OpenSearch", caps: OpenSearch(), runs: attributeOrderingTest},
-		{name: "Elasticsearch without numeric attributes", caps: Elasticsearch().WithoutNumericAttributes(), runs: attributeRefusedTest},
-		{name: "OpenSearch without numeric attributes", caps: OpenSearch().WithoutNumericAttributes(), runs: attributeRefusedTest},
-		{name: "Elasticsearch with the mapping over older indices", caps: Elasticsearch().WithNumericAttributesNotYetIndexed(), runs: attributeUnindexedTest},
-		{name: "modifiers replace each other", caps: Elasticsearch().WithoutNumericAttributes().WithNumericAttributesNotYetIndexed(), runs: attributeUnindexedTest},
-	}
-	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
-			skipped := test.caps.SkipList()
-			for _, outcome := range attributeOrderingTests {
-				count := 0
-				for _, name := range skipped {
-					if name == outcome {
-						count++
-					}
-				}
-				if outcome == test.runs {
-					assert.Zero(t, count, "%s runs", outcome)
-				} else {
-					assert.Equal(t, 1, count, "%s is skipped once", outcome)
-				}
-			}
-		})
-	}
+// optOuts is every exported method that adds to the skip list; TestOptOutsAreAllListed fails when
+// a new one is not added here.
+var optOuts = map[string]func(Capabilities) Capabilities{
+	"WithoutPagination":            Capabilities.WithoutPagination,
+	"WithoutTraceIDPagination":     Capabilities.WithoutTraceIDPagination,
+	"WithoutSpanSearch":            Capabilities.WithoutSpanSearch,
+	"WithoutSpanSorting":           Capabilities.WithoutSpanSorting,
+	"WithoutSpanAttributeOrdering": Capabilities.WithoutSpanAttributeOrdering,
 }
 
-// optOuts is every exported opt-out; TestOptOutsAreAllListed fails when a new one is not added here.
-var optOuts = map[string]func(Capabilities) Capabilities{
-	"WithoutPagination":                   Capabilities.WithoutPagination,
-	"WithoutTraceIDPagination":            Capabilities.WithoutTraceIDPagination,
-	"WithoutSpanSearch":                   Capabilities.WithoutSpanSearch,
-	"WithoutSpanSorting":                  Capabilities.WithoutSpanSorting,
-	"WithoutSpanAttributeOrdering":        Capabilities.WithoutSpanAttributeOrdering,
-	"WithoutNumericAttributes":            Capabilities.WithoutNumericAttributes,
-	"WithNumericAttributesNotYetIndexed":  Capabilities.WithNumericAttributesNotYetIndexed,
-	"WithoutUnindexedLevelRefusal":        Capabilities.WithoutUnindexedLevelRefusal,
-	"WithoutLevelRefusal":                 Capabilities.WithoutLevelRefusal,
-	"WithoutUnevaluatedOperatorRefusal":   Capabilities.WithoutUnevaluatedOperatorRefusal,
-	"WithoutOperatorRefusal":              Capabilities.WithoutOperatorRefusal,
-	"WithoutTextAttributeOrderingRefusal": Capabilities.WithoutTextAttributeOrderingRefusal,
-	"WithoutAttributeRefusal":             Capabilities.WithoutAttributeRefusal,
-	"WithoutUnindexedFieldRefusal":        Capabilities.WithoutUnindexedFieldRefusal,
-	"WithoutFilterRefusals":               Capabilities.WithoutFilterRefusals,
+// outcomeModifiers is every exported method that sets a typed field instead of adding to the
+// skip list, so TestOptOutsAreAllListed can tell a new method of either kind from one that was
+// forgotten. They are not in optOuts because they leave the skip list alone.
+var outcomeModifiers = map[string]func(Capabilities) Capabilities{
+	"WithoutNumericAttributes":              Capabilities.WithoutNumericAttributes,
+	"WithNumericAttributesEnabledAtUpgrade": Capabilities.WithNumericAttributesEnabledAtUpgrade,
 }
 
 // backends is the backend declarations, so that each is checked once and called once.
@@ -71,6 +35,7 @@ var backends = map[string]func() Capabilities{
 	"GRPC":                    GRPC,
 	"Cassandra":               Cassandra,
 	"ClickHouse":              ClickHouse,
+	"ClickHouseE2E":           ClickHouseE2E,
 	"Badger":                  Badger,
 	"Elasticsearch":           Elasticsearch,
 	"ElasticsearchSmokeTest":  ElasticsearchSmokeTest,
@@ -98,13 +63,16 @@ func TestOptOutsCopyTheSkipList(t *testing.T) {
 
 func TestOptOutsAreAllListed(t *testing.T) {
 	// A new opt-out that is not in optOuts escapes TestOptOutsCopyTheSkipList, so every exported
-	// method that derives one Capabilities from another has to be listed there.
+	// method that derives one Capabilities from another has to be listed there or in
+	// outcomeModifiers.
 	capabilitiesType := reflect.TypeOf(Capabilities{})
 	for i := range capabilitiesType.NumMethod() {
 		method := capabilitiesType.Method(i)
 		isOptOut := method.Type.NumIn() == 1 && method.Type.NumOut() == 1 && method.Type.Out(0) == capabilitiesType
 		if isOptOut {
-			assert.Contains(t, optOuts, method.Name)
+			_, listed := optOuts[method.Name]
+			_, modifies := outcomeModifiers[method.Name]
+			assert.True(t, listed || modifies, "%s is in neither optOuts nor outcomeModifiers", method.Name)
 		}
 	}
 }
