@@ -183,7 +183,7 @@ which is the embedded default. Separate configs can still split them.
 | Signed commits | DCO `Signed-off-by` is required. This case does not claim every commit is GPG-signed. |
 | Signed releases | GPG-signed tags and artifacts |
 | SBOM | Generated for each release |
-| Container security | Official image runs as uid/gid 10001. Base image is the release base (alpine or scratch). |
+| Container security | Official image runs as uid/gid 10001. The release image base is Alpine (`baseimg_alpine`, `scripts/build/docker/base/Dockerfile`). |
 | Supply chain | Harden-Runner, `go.sum`, UI lockfile |
 
 ### Runtime

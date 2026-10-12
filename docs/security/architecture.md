@@ -55,7 +55,7 @@ Jaeger is designed to be deployed in a hardened manner.
 
 ### Container Security
 
-- **Minimal Base Images**: Official `jaeger` images are built `FROM` the release base image (alpine or scratch, selected by the image build).
+- **Minimal Base Images**: The official `jaeger` release image is built `FROM` `baseimg_alpine` (Alpine, `scripts/build/docker/base/Dockerfile`). The debug image is built `FROM` `ghcr.io/jaegertracing/base-image-with-debugger` (`scripts/build/docker/debug/Dockerfile`).
 - **Non-Root User**: `cmd/jaeger/Dockerfile` sets `USER` to uid/gid 10001.
 - **Debug listeners**: The embedded all-in-one config enables healthcheck, expvar, and zpages. `cmd/jaeger/config.yaml` also enables pprof on `0.0.0.0:1777`. Those are process-introspection ports, not trace APIs, and they should not be exposed on an untrusted network. The official image sets `JAEGER_LISTEN_HOST=0.0.0.0`, which binds the embedded debug and receiver ports on all interfaces.
 
