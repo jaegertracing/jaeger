@@ -88,9 +88,9 @@ Storage backends configured under `jaeger_storage`:
 Metric backends are Prometheus, Elasticsearch, OpenSearch, and ClickHouse.
 The `remote_storage` extension and `cmd/remote-storage` expose a configured
 backend over gRPC (default port 17271). The server registers trace and
-dependency reads and the OTLP `TraceService`. `Export` calls `WriteTraces`,
-so the port is also a write path. Neither is in the embedded all-in-one
-extension list.
+dependency reads, the capabilities service, and the OTLP `TraceService`.
+`Export` calls `WriteTraces`, so the port is also a write path. Neither is
+in the embedded all-in-one extension list.
 
 Other processes still built from this repo (`es-index-cleaner`,
 `es-rollover`, `esmapping-generator`, `anonymizer`, `tracegen`) are helper
