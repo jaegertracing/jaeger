@@ -421,6 +421,45 @@ func TestAutoUpdateStrategyWithURL(t *testing.T) {
 	assert.Equal(t, makeResponse(api_v2.SamplingStrategyType_PROBABILISTIC, 0.9), *s)
 }
 
+func TestAutoUpdateStrategyAfterURLUnavailableAtStartup(t *testing.T) {
+	var available atomic.Bool
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		if !available.Load() {
+			w.WriteHeader(http.StatusServiceUnavailable)
+			return
+		}
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte(strategiesJSON(0.8)))
+	}))
+	t.Cleanup(server.Close)
+
+	ss, err := NewProvider(Options{
+		DefaultSamplingProbability: DefaultSamplingProbability,
+		StrategiesFile:             server.URL,
+		ReloadInterval:             10 * time.Millisecond,
+	}, zap.NewNop())
+	require.NoError(t, err)
+	provider := ss.(*samplingProvider)
+	defer provider.Close()
+
+	// the URL is unavailable at startup, so defaults are used
+	s, err := provider.GetSamplingStrategy(context.Background(), "foo")
+	require.NoError(t, err)
+	assert.Equal(t, makeResponse(api_v2.SamplingStrategyType_PROBABILISTIC, DefaultSamplingProbability), *s)
+
+	// once the URL becomes available, the reload loop must pick up the strategies
+	available.Store(true)
+	for range 1000 { // wait up to 1sec
+		s, err = provider.GetSamplingStrategy(context.Background(), "foo")
+		require.NoError(t, err)
+		if s.ProbabilisticSampling != nil && s.ProbabilisticSampling.SamplingRate == 0.8 {
+			break
+		}
+		time.Sleep(1 * time.Millisecond)
+	}
+	assert.Equal(t, makeResponse(api_v2.SamplingStrategyType_PROBABILISTIC, 0.8), *s)
+}
+
 func TestAutoUpdateStrategyErrors(t *testing.T) {
 	tempFile, _ := os.Create(t.TempDir() + "for_go_test_*.json")
 	require.NoError(t, tempFile.Close())
