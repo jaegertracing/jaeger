@@ -136,39 +136,70 @@ func (r *Reader) buildFindTraceIDsQuery(
 	inner.WriteString(sql.SearchTraceIDsBase)
 	args := []any{}
 
-	if query.ServiceName != "" {
-		appendAnd(&inner, "s.service_name = ?")
-		args = append(args, query.ServiceName)
-	}
-	if query.OperationName != "" {
-		appendAnd(&inner, "s.name = ?")
-		args = append(args, query.OperationName)
-	}
-	if query.DurationMin > 0 {
-		appendAnd(&inner, "s.duration >= ?")
-		args = append(args, query.DurationMin.Nanoseconds())
-	}
-	if query.DurationMax > 0 {
-		appendAnd(&inner, "s.duration <= ?")
-		args = append(args, query.DurationMax.Nanoseconds())
-	}
-	if !query.StartTimeMin.IsZero() {
-		appendAnd(&inner, "s.start_time >= ?")
-		args = append(args, query.StartTimeMin)
-	}
-	if !query.StartTimeMax.IsZero() {
-		appendAnd(&inner, "s.start_time <= ?")
-		args = append(args, query.StartTimeMax)
+	// The time range bounds either shape, so it is appended after the predicates each shape
+	// carries rather than repeated in both branches.
+	appendTimeRange := func() {
+		if !query.StartTimeMin.IsZero() {
+			appendAnd(&inner, "s.start_time >= ?")
+			args = append(args, query.StartTimeMin)
+		}
+		if !query.StartTimeMax.IsZero() {
+			appendAnd(&inner, "s.start_time <= ?")
+			args = append(args, query.StartTimeMax)
+		}
 	}
 
-	attributeMetadata, err := r.getAttributeMetadata(ctx, query.Attributes)
-	if err != nil {
-		return "", nil, fmt.Errorf("failed to get attribute metadata: %w", err)
-	}
+	if query.Filter != nil {
+		// The query service refuses a query that carries both a filter and the legacy
+		// scalar fields (EnsureFilterStandsAlone), so the two shapes are alternatives here
+		// rather than combined. A remote-storage client reaches this reader without that
+		// check, so it is repeated rather than letting the legacy fields be dropped silently.
+		if err := query.EnsureFilterStandsAlone(); err != nil {
+			return "", nil, err
+		}
+		// The untyped attribute metadata for the whole tree is looked up once here, and the
+		// lowering reads it from that map.
+		metadata, err := r.lookupUntypedMetadata(ctx, query.Filter)
+		if err != nil {
+			return "", nil, err
+		}
 
-	args, err = buildAttributeConditions(&inner, args, query.Attributes, attributeMetadata)
-	if err != nil {
-		return "", nil, err
+		appendAnd(&inner, "(")
+		args, err = buildFilterCondition(&inner, 2, args, metadata, query.Filter)
+		if err != nil {
+			return "", nil, err
+		}
+		appendNewlineAndIndent(&inner, 1)
+		inner.WriteString(")")
+		appendTimeRange()
+	} else {
+		if query.ServiceName != "" {
+			appendAnd(&inner, "s.service_name = ?")
+			args = append(args, query.ServiceName)
+		}
+		if query.OperationName != "" {
+			appendAnd(&inner, "s.name = ?")
+			args = append(args, query.OperationName)
+		}
+		if query.DurationMin > 0 {
+			appendAnd(&inner, "s.duration >= ?")
+			args = append(args, query.DurationMin.Nanoseconds())
+		}
+		if query.DurationMax > 0 {
+			appendAnd(&inner, "s.duration <= ?")
+			args = append(args, query.DurationMax.Nanoseconds())
+		}
+		appendTimeRange()
+
+		attributeMetadata, err := r.getAttributeMetadata(ctx, query.Attributes)
+		if err != nil {
+			return "", nil, fmt.Errorf("failed to get attribute metadata: %w", err)
+		}
+
+		args, err = buildAttributeConditions(&inner, args, query.Attributes, attributeMetadata)
+		if err != nil {
+			return "", nil, err
+		}
 	}
 
 	inner.WriteString("\nLIMIT ?")

@@ -93,6 +93,12 @@ func (cfg *Configuration) Validate() error {
 	if cfg.MaxSearchDepth == 0 {
 		return errors.New("max_search_depth must be a positive number")
 	}
+	if cfg.DefaultSearchDepth > cfg.MaxSearchDepth {
+		return errors.New("default_search_depth cannot exceed max_search_depth")
+	}
+	if cfg.DialTimeout < 0 {
+		return errors.New("dial_timeout must be a non-negative duration")
+	}
 	if cfg.AttributeMetadataCacheTTL < 0 {
 		return errors.New("attribute_metadata_cache_ttl must be a non-negative duration")
 	}
