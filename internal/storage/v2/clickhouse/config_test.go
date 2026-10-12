@@ -70,6 +70,30 @@ func TestValidate(t *testing.T) {
 			wantErr: "max_search_depth must be a positive number",
 		},
 		{
+			name: "default search depth exceeds max search depth",
+			mutate: func(cfg *Configuration) {
+				cfg.DefaultSearchDepth = 15000
+				cfg.MaxSearchDepth = 10000
+			},
+			wantErr: "default_search_depth cannot exceed max_search_depth",
+		},
+		{
+			name: "default search depth equals max search depth",
+			mutate: func(cfg *Configuration) {
+				cfg.DefaultSearchDepth = 10000
+				cfg.MaxSearchDepth = 10000
+			},
+		},
+		{
+			name:    "negative dial timeout",
+			mutate:  func(cfg *Configuration) { cfg.DialTimeout = -time.Second },
+			wantErr: "dial_timeout must be a non-negative duration",
+		},
+		{
+			name:   "positive dial timeout",
+			mutate: func(cfg *Configuration) { cfg.DialTimeout = 5 * time.Second },
+		},
+		{
 			name:    "negative attribute metadata cache TTL",
 			mutate:  func(cfg *Configuration) { cfg.AttributeMetadataCacheTTL = -time.Second },
 			wantErr: "attribute_metadata_cache_ttl must be a non-negative duration",

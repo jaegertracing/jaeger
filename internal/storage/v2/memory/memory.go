@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"iter"
+	"slices"
 	"sync"
 
 	"go.opentelemetry.io/collector/pdata/pcommon"
@@ -110,10 +111,11 @@ func (*Store) SearchCapabilities(context.Context) (tracestore.SearchCapabilities
 		WithoutServiceName: true,
 		// The reference store evaluates every level and operator the filter AST
 		// defines (see filter.go), so it declares the full vocabulary rather than a
-		// subset the way a real backend limited by its indexing would.
+		// subset the way a real backend limited by its indexing would, less the
+		// operators it has not learned yet.
 		Filter: &tracestore.FilterCapabilities{
 			Levels:    expression.Levels(),
-			Operators: expression.Operators(),
+			Operators: supportedOperators(),
 		},
 		// FindSpans below evaluates the same filter engine as FindTraces, over
 		// every span in the store rather than per matched trace (RFC 0016).
@@ -387,4 +389,16 @@ func getServiceNameFromResource(resource pcommon.Resource) string {
 		return ""
 	}
 	return val.Str()
+}
+
+// unsupportedOperators lists the operators that the vocabulary defines and that filter.go does
+// not evaluate yet. A new operator reaches this store through a jaeger-idl release before the
+// store learns it, and the store must not declare one it would refuse (RFC 0005 §9, M8).
+var unsupportedOperators = []expression.Operator{expression.OpPhrase, expression.OpFulltext}
+
+// supportedOperators returns the vocabulary minus the unsupportedOperators list.
+func supportedOperators() []expression.Operator {
+	return slices.DeleteFunc(expression.Operators(), func(op expression.Operator) bool {
+		return slices.Contains(unsupportedOperators, op)
+	})
 }

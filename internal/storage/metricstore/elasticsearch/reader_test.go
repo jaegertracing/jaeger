@@ -239,7 +239,7 @@ func Test_ErrorCases(t *testing.T) {
 			wantErr: "invalid parameters",
 		},
 		{
-			name: "nil step params",
+			name: "nil lookback params",
 			params: metricstore.BaseQueryParameters{
 				EndTime: &endTime,
 			},
@@ -260,6 +260,21 @@ func Test_ErrorCases(t *testing.T) {
 			helperAssertError(t, err, tc.wantErr, errorMetricFamily)
 		})
 	}
+}
+
+func TestRateQueriesRequireRatePer(t *testing.T) {
+	endTime := time.UnixMilli(0)
+	lookback := time.Hour
+	params := metricstore.BaseQueryParameters{
+		EndTime:  &endTime,
+		Lookback: &lookback,
+	}
+	reader := MetricsReader{}
+
+	callRateMetricFamily, err := reader.GetCallRates(context.Background(), &metricstore.CallRateQueryParameters{BaseQueryParameters: params})
+	helperAssertError(t, err, "invalid parameters", callRateMetricFamily)
+	errorMetricFamily, err := reader.GetErrorRates(context.Background(), &metricstore.ErrorRateQueryParameters{BaseQueryParameters: params})
+	helperAssertError(t, err, "invalid parameters", errorMetricFamily)
 }
 
 func helperAssertError(t *testing.T, err error, wantErr string, result *metrics.MetricFamily) {

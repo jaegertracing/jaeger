@@ -2,6 +2,8 @@
 
 After the release of 1.50, Jaeger's Docker image is no longer running with root privileges (in [#4783](https://github.com/jaegertracing/jaeger/pull/4783)). In some installations it may cause issues such as "permission denied" errors when writing data.
 
+The images also set a non-root primary group, so the process runs with uid `10001` and gid `10001` rather than gid `0`. A data directory that Jaeger could write only through group `0` (for example, after `chgrp 0` and `chmod g+w`) needs its owner changed as shown below.
+
 A possible workaround for this ([proposed here](https://github.com/jaegertracing/jaeger/issues/4906#issuecomment-1991779425)) is to run an initialization step as `root` that pre-creates the Badger data directory and updates its owner to the user that will run the main Jaeger process.
 
 ```yaml

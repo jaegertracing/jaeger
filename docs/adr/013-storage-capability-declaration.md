@@ -1,7 +1,7 @@
 # ADR-013: Storage Capability Declaration
 
 * **Status**: Implemented — graduated from [RFC 0013](../rfc/0013-optional-service-name-in-search.md)
-* **Date**: 2026-08-08, extended 2026-08-16 with the [RFC 0005](../rfc/0005-structured-query-filters.md) filter capabilities, and 2026-09-28 with the two families of refusal under [Enforcement](#enforcement)
+* **Date**: 2026-08-08, extended 2026-08-16 with the [RFC 0005](../rfc/0005-structured-query-filters.md) filter capabilities, 2026-09-28 with the two families of refusal under [Enforcement](#enforcement), and 2026-10-08 with the api_v3 `Capabilities` service under [Reporting](#reporting)
 
 ## Context
 
@@ -66,10 +66,11 @@ Refusal is not the only answer a capability can produce, and which one applies i
 
 ### Reporting
 
-Two consumers read the declaration, and neither captures it:
+Three consumers read the declaration, and none of them captures it:
 
 * The query service asks the reader on every search that omits the service name.
 * The static handler asks on every SPA serve, to build the `JAEGER_BACKEND_CAPABILITIES` blob the UI reads.
+* The api_v3 `Capabilities` service (`GetCapabilities`, bound to `GET /api/v3/capabilities`) asks on every call and returns the declaration to any API client. Its messages mirror `jaeger.storage.v2.SearchCapabilities` field for field rather than importing it, so the storage boundary is not published as part of the public API. A reader that cannot report maps to `Unimplemented` / HTTP 501, as the remote-storage server does, and Jaeger's own e2e test client maps that back to `errors.ErrUnsupported`.
 
 Nothing evaluates the capability when jaeger-query starts, because jaeger-query can come up before a remote backend is reachable; a value captured then would pin the process to the least capable behaviour for its whole life, including in the UI. Where asking is expensive the reader caches, which keeps that concern in the one place it applies.
 
@@ -81,7 +82,7 @@ The storage integration suite gates capability-dependent tests on its own per-ba
 
 * Adding a capability is a two-line change to the struct plus one honest answer per backend, and the compiler lists the backends. The cost is that all of them must be touched.
 * A backend can be graduated later — Badger stays at `false` today, and applying tag and operation filters inside its time-range scan would flip it — without any caller changing.
-* API clients other than the UI cannot discover capabilities; they learn the limit by being refused. RFC 0013 §3.7 designed an api_v3 `Capabilities` service for this and rejected it, on the grounds that the UI already reads a live answer and that a test gating on a self-report is weaker than one gating on the harness's own knowledge. A deployment-capability-discovery API remains open as a feature in its own right, covering archive, metrics and AI storage as much as search.
+* API clients discover the search capabilities through the api_v3 `Capabilities` service. RFC 0013 §3.7 designed that service and set it aside while no client needed it; the client that does is the shared storage integration suite in e2e mode, which reaches the reader only through api_v3 and so could not read the declaration a direct suite reads from the reader. The response carries only `search`; archive, metrics and AI storage are deployment configuration rather than storage declarations and remain open as a separate addition.
 * Capabilities are assumed stable for the lifetime of a connection. A backend whose abilities change under a running jaeger-query would not be noticed until the connection is re-established.
 
 ## References

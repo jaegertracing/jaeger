@@ -1814,3 +1814,13 @@ func TestFindSpansOrdering(t *testing.T) {
 	require.ErrorIs(t, err, tracestore.ErrSpanOrderInvalid)
 	tqs.traceReader.AssertNotCalled(t, "FindSpans", mock.Anything, mock.Anything)
 }
+
+func TestSearchCapabilitiesForwardsTheReaderDeclaration(t *testing.T) {
+	tqs := initializeBareTestQueryService()
+	want := tracestore.SearchCapabilities{WithoutServiceName: true, SpanSearch: true}
+	tqs.traceReader.On("SearchCapabilities", mock.Anything).Return(want, nil).Once()
+
+	got, err := tqs.queryService.SearchCapabilities(context.Background())
+	require.NoError(t, err)
+	assert.Equal(t, want, got)
+}

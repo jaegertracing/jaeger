@@ -21,6 +21,148 @@ copy from UI changelog
 
 </details>
 
+v2.22.0 (2026-10-05)
+-------------------------------
+
+### Backend Changes
+
+#### ⛔ Breaking Changes
+
+* Fix(es): configure numeric attribute indexing instead of gating it ([@ysh-bot](https://github.com/ysh-bot) in [#9694](https://github.com/jaegertracing/jaeger/pull/9694))
+* Refactor(es): give the span index its own options type ([@ysh-bot](https://github.com/ysh-bot) in [#9693](https://github.com/jaegertracing/jaeger/pull/9693))
+* Fix(remote-storage): configure the service from one confmap-decoded file ([@ysh-bot](https://github.com/ysh-bot) in [#9699](https://github.com/jaegertracing/jaeger/pull/9699))
+* Fix(es): honor index-prefix in dependencies/sampling legacy templates ([@zarna1parekh](https://github.com/zarna1parekh) in [#9684](https://github.com/jaegertracing/jaeger/pull/9684))
+* Feat(es): promote the native trace summaries gate to stable ([@ysh-bot](https://github.com/ysh-bot) in [#9609](https://github.com/jaegertracing/jaeger/pull/9609))
+* Feat(query): promote the structured filters feature gate to beta ([@ysh-bot](https://github.com/ysh-bot) in [#9607](https://github.com/jaegertracing/jaeger/pull/9607))
+* Feat(query): give span searches their own query interceptor hooks ([@ysh-bot](https://github.com/ysh-bot) in [#9597](https://github.com/jaegertracing/jaeger/pull/9597))
+* Feat(es): promote the omitparentspanidreference gate to beta ([@ysh-bot](https://github.com/ysh-bot) in [#9586](https://github.com/jaegertracing/jaeger/pull/9586))
+
+#### ✨ New Features
+
+* Feat(es): declare span search and pagination ([@baroquebobcat](https://github.com/baroquebobcat) in [#9729](https://github.com/jaegertracing/jaeger/pull/9729))
+* Feat(memory): execute caller-selected span ordering ([@ysh-bot](https://github.com/ysh-bot) in [#9672](https://github.com/jaegertracing/jaeger/pull/9672))
+* Feat(query): expose span ordering in api v3 ([@ysh-bot](https://github.com/ysh-bot) in [#9671](https://github.com/jaegertracing/jaeger/pull/9671))
+* Feat(storage): forward span ordering over grpc ([@ysh-bot](https://github.com/ysh-bot) in [#9670](https://github.com/jaegertracing/jaeger/pull/9670))
+* Feat(query): validate and bind span ordering ([@ysh-bot](https://github.com/ysh-bot) in [#9669](https://github.com/jaegertracing/jaeger/pull/9669))
+
+#### 🐞 Bug fixes, Minor Improvements
+
+* Fix(memory): skip same-service parents when building dependency links ([@lopster568](https://github.com/lopster568) in [#9090](https://github.com/jaegertracing/jaeger/pull/9090))
+* Fix(es-rollover): reject unknown --unit values in lookback (takeover #9442) ([@jkowall](https://github.com/jkowall) in [#9732](https://github.com/jaegertracing/jaeger/pull/9732))
+* Fix(jaegerquery,remotestorage): remove nil error wrap in start() ([@g-k-s-03](https://github.com/g-k-s-03) in [#8882](https://github.com/jaegertracing/jaeger/pull/8882))
+* Fix(memory): use read locks for read-only samplingstore methods ([@shayannab](https://github.com/shayannab) in [#9005](https://github.com/jaegertracing/jaeger/pull/9005))
+* Fix(es): return an error for a nil predicate instead of panicking ([@RudraDudhat2509](https://github.com/RudraDudhat2509) in [#9709](https://github.com/jaegertracing/jaeger/pull/9709))
+* Feat(es): break span sort ties on the backing index and document id ([@baroquebobcat](https://github.com/baroquebobcat) in [#9720](https://github.com/jaegertracing/jaeger/pull/9720))
+* Feat(es): search spans in the core reader ([@baroquebobcat](https://github.com/baroquebobcat) in [#9704](https://github.com/jaegertracing/jaeger/pull/9704))
+* Fix(release): re-enable slsa provenance with valid tag reference (#9046) ([@Kartikupadhyay44](https://github.com/Kartikupadhyay44) in [#9702](https://github.com/jaegertracing/jaeger/pull/9702))
+* Feat(es): wire span search through the elasticsearch reader ([@baroquebobcat](https://github.com/baroquebobcat) in [#9700](https://github.com/jaegertracing/jaeger/pull/9700))
+* Feat(es): lower starttime comparisons into filter (rfc 0016 m4) ([@baroquebobcat](https://github.com/baroquebobcat) in [#9697](https://github.com/jaegertracing/jaeger/pull/9697))
+* Fix(ai-sidecar): point default mcp url to query port 16686 ([@rautaditya2606](https://github.com/rautaditya2606) in [#9658](https://github.com/jaegertracing/jaeger/pull/9658))
+* Fix(memory): validate positive maxtraces ([@DsThakurRawat](https://github.com/DsThakurRawat) in [#9634](https://github.com/jaegertracing/jaeger/pull/9634))
+* Fix(es): gate attribute ordering separately from typed attribute indexing ([@ysh-bot](https://github.com/ysh-bot) in [#9690](https://github.com/jaegertracing/jaeger/pull/9690))
+* Fix(query): answer capability refusals with unimplemented instead of invalidargument ([@ysh-bot](https://github.com/ysh-bot) in [#9685](https://github.com/jaegertracing/jaeger/pull/9685))
+* Fix(storage): apply timeout to grpc storage calls ([@anishmehta24](https://github.com/anishmehta24) in [#9638](https://github.com/jaegertracing/jaeger/pull/9638))
+* Fix(remotesampling): reject non-positive leader election lease refresh intervals ([@pujitha24](https://github.com/pujitha24) in [#9647](https://github.com/jaegertracing/jaeger/pull/9647))
+* Fix(es): give the sync batch size half of the bulk cap as headroom ([@ysh-bot](https://github.com/ysh-bot) in [#9645](https://github.com/jaegertracing/jaeger/pull/9645))
+* Fix(jptrace): tracesdata.marshaltosizedbuffer writes to buffer head instead of tail ([@om7057](https://github.com/om7057) in [#9629](https://github.com/jaegertracing/jaeger/pull/9629))
+* Fix(config): batch and block on overflow in the kafka ingester configurations ([@ysh-bot](https://github.com/ysh-bot) in [#9624](https://github.com/jaegertracing/jaeger/pull/9624))
+* Fix(query): copy the whole pagination struct before clamping ([@ysh-bot](https://github.com/ysh-bot) in [#9618](https://github.com/jaegertracing/jaeger/pull/9618))
+* Fix(query): clamp the page size on a copy rather than through the caller pointer ([@ysh-bot](https://github.com/ysh-bot) in [#9617](https://github.com/jaegertracing/jaeger/pull/9617))
+* Feat(query): admit rfc 0014 pagination into the query path ([@om7057](https://github.com/om7057) in [#9450](https://github.com/jaegertracing/jaeger/pull/9450))
+* Feat(es): support span.traceid and span.spanid in structured filters ([@prajak002](https://github.com/prajak002) in [#9610](https://github.com/jaegertracing/jaeger/pull/9610))
+* Fix(anonymizer): write ui trace file when max-spans-count is reached ([@DsThakurRawat](https://github.com/DsThakurRawat) in [#9567](https://github.com/jaegertracing/jaeger/pull/9567))
+* Feat(query): add findspans to the query service ([@baroquebobcat](https://github.com/baroquebobcat) in [#9581](https://github.com/jaegertracing/jaeger/pull/9581))
+* Fix(mcp): reject negative durations in search_traces before querying ([@pujitha24](https://github.com/pujitha24) in [#9575](https://github.com/jaegertracing/jaeger/pull/9575))
+* Fix(mcp): back off to a rune boundary when truncating read_skill ([@om7057](https://github.com/om7057) in [#9589](https://github.com/jaegertracing/jaeger/pull/9589))
+* Fix(query): refuse a trace filter that a later interceptor drops ([@ysh-bot](https://github.com/ysh-bot) in [#9606](https://github.com/jaegertracing/jaeger/pull/9606))
+* Fix(es): prevent service-operation key collisions ([@SaadShakeel1](https://github.com/SaadShakeel1) in [#9440](https://github.com/jaegertracing/jaeger/pull/9440))
+* Fix(elasticsearch): support ordered built-in text filters ([@alishair7071](https://github.com/alishair7071) in [#9477](https://github.com/jaegertracing/jaeger/pull/9477))
+* Fix(samplingstore): propagate write errors in insertthroughput and insertprobabilitiesandqps ([@shashankvarma499](https://github.com/shashankvarma499) in [#9533](https://github.com/jaegertracing/jaeger/pull/9533))
+* Fix(es): retry failed writes in the synchronous kafka ingester config ([@ysh-bot](https://github.com/ysh-bot) in [#9593](https://github.com/jaegertracing/jaeger/pull/9593))
+* Feat(query): add the rfc 0014 pagination contract to tracestore ([@om7057](https://github.com/om7057) in [#9570](https://github.com/jaegertracing/jaeger/pull/9570))
+* Fix(es-rollover): reject non-positive unit-count in lookback action ([@DsThakurRawat](https://github.com/DsThakurRawat) in [#9568](https://github.com/jaegertracing/jaeger/pull/9568))
+* Test(jaegerquery): add labeled trace fixtures and e2e coverage for the built-in skills ([@SoumyaRaikwar](https://github.com/SoumyaRaikwar) in [#9263](https://github.com/jaegertracing/jaeger/pull/9263))
+* Fix(query): prevent archiving archive-only traces ([@jkowall](https://github.com/jkowall) in [#9391](https://github.com/jaegertracing/jaeger/pull/9391))
+* Fix(es): do not double the separator when index-prefix already ends in "-" ([@pujitha24](https://github.com/pujitha24) in [#9551](https://github.com/jaegertracing/jaeger/pull/9551))
+* Fix(tracegen): validate attr-keys and attr-values to prevent divide-by-zero ([@shashankvarma499](https://github.com/shashankvarma499) in [#9545](https://github.com/jaegertracing/jaeger/pull/9545))
+
+#### 🚧 Experimental Features
+
+* Feat(storage): add findspans and search pagination to the memory backend ([@om7057](https://github.com/om7057) in [#9611](https://github.com/jaegertracing/jaeger/pull/9611))
+* Feat(storage): add the rfc 0014 page token that paginating readers return ([@ysh-bot](https://github.com/ysh-bot) in [#9655](https://github.com/jaegertracing/jaeger/pull/9655))
+* Feat(query): add the api_v3 findspans handler and http route ([@om7057](https://github.com/om7057) in [#9613](https://github.com/jaegertracing/jaeger/pull/9613))
+* Feat(es): add the jaeger_storage_writer connector to dead-letter rejected spans ([@ysh-bot](https://github.com/ysh-bot) in [#9604](https://github.com/jaegertracing/jaeger/pull/9604))
+* Feat(es): report terminally rejected bulk items in a typed error ([@ysh-bot](https://github.com/ysh-bot) in [#9598](https://github.com/jaegertracing/jaeger/pull/9598))
+* Feat(query): rfc 0016 m2 - pt 1 - add searchspans to capabilities and findspans to reader ([@baroquebobcat](https://github.com/baroquebobcat) in [#9578](https://github.com/jaegertracing/jaeger/pull/9578))
+
+#### 👷 CI Improvements
+
+* Feat(release): draft the github release when the prepare pr merges ([@albertteoh](https://github.com/albertteoh) in [#9740](https://github.com/jaegertracing/jaeger/pull/9740))
+* Ci(backward-compat): build the earlier revision from the latest release tag instead of main ([@alishair7071](https://github.com/alishair7071) in [#9547](https://github.com/jaegertracing/jaeger/pull/9547))
+* Ci(test): raise the storage integration test timeout to 20 minutes ([@ysh-bot](https://github.com/ysh-bot) in [#9680](https://github.com/jaegertracing/jaeger/pull/9680))
+* Ci: check out the default branch explicitly in the pr quota workflow ([@ysh-bot](https://github.com/ysh-bot) in [#9591](https://github.com/jaegertracing/jaeger/pull/9591))
+* Test(integration): support explicit upgrade scenarios in backward-compatibility harness ([@Kartikupadhyay44](https://github.com/Kartikupadhyay44) in [#9566](https://github.com/jaegertracing/jaeger/pull/9566))
+
+#### ⚙️ Refactoring
+
+* Refactor(memory): give filter values a kind instead of one flag per type ([@ysh-bot](https://github.com/ysh-bot) in [#9677](https://github.com/jaegertracing/jaeger/pull/9677))
+* Refactor(tracestore): make searchdepth and pagesize unsigned on internal query types ([@Kartikupadhyay44](https://github.com/Kartikupadhyay44) in [#9642](https://github.com/jaegertracing/jaeger/pull/9642))
+* Refactor(query): give the query service its own request types ([@ysh-bot](https://github.com/ysh-bot) in [#9654](https://github.com/jaegertracing/jaeger/pull/9654))
+* Refactor(jptrace): share the hex trace and span id parsers ([@ysh-bot](https://github.com/ysh-bot) in [#9632](https://github.com/jaegertracing/jaeger/pull/9632))
+* Refactor(exporter): register jaeger_storage_exporter as a connector with a dead-letter output ([@ysh-bot](https://github.com/ysh-bot) in [#9622](https://github.com/jaegertracing/jaeger/pull/9622))
+* Refactor(storage): export the storage exporter's write core as tracewriter ([@ysh-bot](https://github.com/ysh-bot) in [#9599](https://github.com/jaegertracing/jaeger/pull/9599))
+* Refactor(query): name search query fields in plain english in refusals ([@ysh-bot](https://github.com/ysh-bot) in [#9616](https://github.com/jaegertracing/jaeger/pull/9616))
+* Refactor(query): validate a search query once in the query service alone ([@ysh-bot](https://github.com/ysh-bot) in [#9612](https://github.com/jaegertracing/jaeger/pull/9612))
+* Refactor(storage): generalize paginated reader results ([@ysh-bot](https://github.com/ysh-bot) in [#9585](https://github.com/jaegertracing/jaeger/pull/9585))
+
+#### 📖 Documentation
+
+* Docs(rfc): mark rfc 0016 m3 delivered ([@ysh-bot](https://github.com/ysh-bot) in [#9759](https://github.com/jaegertracing/jaeger/pull/9759))
+* Docs(rfc): split the deferred kafka consumer milestone into receiver-level batching and a worker pool ([@ysh-bot](https://github.com/ysh-bot) in [#9696](https://github.com/jaegertracing/jaeger/pull/9696))
+* Docs(rfc): record the es/os pagination and tie-breaking decisions for span search ([@ysh-bot](https://github.com/ysh-bot) in [#9691](https://github.com/jaegertracing/jaeger/pull/9691))
+* Docs(rfc): state the single-value rule that attribute ordering must settle ([@ysh-bot](https://github.com/ysh-bot) in [#9679](https://github.com/jaegertracing/jaeger/pull/9679))
+* Docs(rfc): specify caller-selected span ordering ([@ysh-bot](https://github.com/ysh-bot) in [#9667](https://github.com/jaegertracing/jaeger/pull/9667))
+* Docs(rfc): record the delivered rfc 0014 m2 plumbing ([@ysh-bot](https://github.com/ysh-bot) in [#9630](https://github.com/jaegertracing/jaeger/pull/9630))
+* Docs(adr): record synchronous elasticsearch writes and lossless pipelines in adr-014 ([@ysh-bot](https://github.com/ysh-bot) in [#9621](https://github.com/jaegertracing/jaeger/pull/9621))
+* Docs(rfc): propose streaming responses for the api v3 http gateway ([@ysh-bot](https://github.com/ysh-bot) in [#9620](https://github.com/jaegertracing/jaeger/pull/9620))
+* Docs(rfc): compare the clickhouse schema with the clickstack exporter schema ([@ysh-bot](https://github.com/ysh-bot) in [#9596](https://github.com/jaegertracing/jaeger/pull/9596))
+* Docs(rfc): unify paginated reader results ([@ysh-bot](https://github.com/ysh-bot) in [#9584](https://github.com/jaegertracing/jaeger/pull/9584))
+
+### 📊 UI Changes
+
+#### 🐞 Bug fixes, Minor Improvements
+
+* Fix(trace): prevent call-stack overflow on deeply nested traces ([@jkowall](https://github.com/jkowall) in [#4554](https://github.com/jaegertracing/jaeger-ui/pull/4554))
+* Fix(model): align parentage with the backend ([@ysh-bot](https://github.com/ysh-bot) in [#4569](https://github.com/jaegertracing/jaeger-ui/pull/4569))
+* Fix(jaeger-ui): guard missing array fields in otelspanfacade ([@abhayrajjais01](https://github.com/abhayrajjais01) in [#4323](https://github.com/jaegertracing/jaeger-ui/pull/4323))
+* Fix(dependencygraph): include lookback in view traces url to prevent 400 error. ([@kams19-ops](https://github.com/kams19-ops) in [#4151](https://github.com/jaegertracing/jaeger-ui/pull/4151))
+* Feat(genai): add a json (deep) view that unwraps embedded json ([@ysh-bot](https://github.com/ysh-bot) in [#4544](https://github.com/jaegertracing/jaeger-ui/pull/4544))
+* Fix(genai): accept bare gen_ai.input and gen_ai.output ([@ysh-bot](https://github.com/ysh-bot) in [#4542](https://github.com/jaegertracing/jaeger-ui/pull/4542))
+* Fix(flamegraph): preserve search highlighting when collapsing nodes above ([@padmasri-web](https://github.com/padmasri-web) in [#4529](https://github.com/jaegertracing/jaeger-ui/pull/4529))
+* Fix(api/v3): drop out-of-range search timestamps gracefully ([@padmasri-web](https://github.com/padmasri-web) in [#4508](https://github.com/jaegertracing/jaeger-ui/pull/4508))
+* Fix: improve image alt text ([@Piyush4801](https://github.com/Piyush4801) in [#4524](https://github.com/jaegertracing/jaeger-ui/pull/4524))
+* Fix: optimize span index to row index lookup ([@Safian62](https://github.com/Safian62) in [#4500](https://github.com/jaegertracing/jaeger-ui/pull/4500))
+* Fix: correct deep dependencies endpoint ([@Safian62](https://github.com/Safian62) in [#4484](https://github.com/jaegertracing/jaeger-ui/pull/4484))
+* Feat(api/v3): validate v3 trace wire contract at boundary ([@sksingh2005](https://github.com/sksingh2005) in [#4455](https://github.com/jaegertracing/jaeger-ui/pull/4455))
+* Fix(trace-timeline): make span-details divider draggable from the header ([@KKamJi98](https://github.com/KKamJi98) in [#4412](https://github.com/jaegertracing/jaeger-ui/pull/4412))
+
+#### 👷 CI Improvements
+
+* Feat(release): draft the github release when the prepare pr merges ([@albertteoh](https://github.com/albertteoh) in [#4571](https://github.com/jaegertracing/jaeger-ui/pull/4571))
+* Ci(security): resolve scorecard alerts ([@ysh-bot](https://github.com/ysh-bot) in [#4557](https://github.com/jaegertracing/jaeger-ui/pull/4557))
+* Ci: check formatting across platforms ([@ysh-bot](https://github.com/ysh-bot) in [#4495](https://github.com/jaegertracing/jaeger-ui/pull/4495))
+
+#### ⚙️ Refactoring
+
+* Test(model): materialize otlp trace specs ([@sksingh2005](https://github.com/sksingh2005) in [#4527](https://github.com/jaegertracing/jaeger-ui/pull/4527))
+* Refactor(model): rename trace display helpers ([@ysh-bot](https://github.com/ysh-bot) in [#4573](https://github.com/jaegertracing/jaeger-ui/pull/4573))
+* Refactor(ui): convert deepdependencies to functional component ([@Harizz076](https://github.com/Harizz076) in [#3970](https://github.com/jaegertracing/jaeger-ui/pull/3970))
+* Chore: drop _get from spantreeoffset hover handlers ([@Priyanshu-byte-coder](https://github.com/Priyanshu-byte-coder) in [#4358](https://github.com/jaegertracing/jaeger-ui/pull/4358))
+* Chore(lint): replace react-x plugin with oxlint's native versions ([@akashchamp](https://github.com/akashchamp) in [#4463](https://github.com/jaegertracing/jaeger-ui/pull/4463))
+* Chore: eliminate as any cast on redux store in app provider (#4333) ([@Kartikupadhyay44](https://github.com/Kartikupadhyay44) in [#4456](https://github.com/jaegertracing/jaeger-ui/pull/4456))
+* Feat(monitor): migrate metrics fetching from redux to react query ([@parshipcy](https://github.com/parshipcy) in [#4048](https://github.com/jaegertracing/jaeger-ui/pull/4048))
+* Refactor(tracepage): decouple graph search logic ([@sksingh2005](https://github.com/sksingh2005) in [#4176](https://github.com/jaegertracing/jaeger-ui/pull/4176))
+
 v2.21.0 (2026-09-14)
 -------------------------------
 
