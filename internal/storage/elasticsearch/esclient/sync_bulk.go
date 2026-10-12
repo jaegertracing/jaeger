@@ -82,7 +82,7 @@ func NewSyncBulkWriter(client *Client, maxBytes int, dropPoison bool, metricsFac
 		client:       client,
 		maxBytes:     maxBytes,
 		dropPoison:   dropPoison,
-		metrics:      spanstoremetrics.NewWriter(metricsFactory, "bulk_index"),
+		metrics:      spanstoremetrics.NewWriter(bulkLatencyFactory{Factory: metricsFactory}, "bulk_index"),
 		requestBytes: newRequestBytesHistogram(metricsFactory),
 		logger:       logger,
 	}
