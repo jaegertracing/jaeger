@@ -153,7 +153,7 @@ For this backend the desired schema is today's twelve templates, unchanged and s
 
 Two properties follow that no versioned design has. The templates are the single readable source of truth, with no numbering, no frozen files and no golden dump. And a database that drifted, because an operator added an index by hand or an earlier version of the binary created a table slightly differently, is reconciled toward the desired state rather than assumed to match a version number.
 
-A versioned audit trail is a product of the same engine rather than its input: at release time, diffing the previous release's rendered schema against the current one through a scratch database yields a numbered migration file to commit, for people who want one.
+A versioned audit trail is a product of the same engine rather than its input: at release time, diffing the previous release's rendered schema against the current one through scratch tables yields a numbered migration file to commit, for people who want one.
 
 #### Third-party reconcilers for ClickHouse
 
