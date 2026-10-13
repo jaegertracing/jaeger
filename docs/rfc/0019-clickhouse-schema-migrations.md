@@ -102,7 +102,7 @@ Replication covers less than it seems. A column, index or codec `ALTER` on a `Re
 
 ### 2.5 How the other backends do it
 
-Cassandra was described above; its v2 backend also creates the schema from the Go template at startup, but that path can only create, not migrate. Elasticsearch and OpenSearch have no comparable problem: their mapping is an index template that the binary installs at startup, and because indices roll, by day or by alias rollover, a new mapping applies to the next index without altering the previous one. Badger and memory have no persistent schema. ClickHouse is the first Jaeger backend whose tables are long-lived and alterable, which is why neither precedent transfers.
+Cassandra was described above; its v2 backend also creates the schema from the Go template at startup, but that path can only create, not migrate. Elasticsearch and OpenSearch have no comparable problem: their mapping is an index template that the binary installs at startup, and because indices roll, by day or by alias rollover, a new mapping applies to the next index without altering the previous one. Badger and memory have no persistent schema. Cassandra's tables are long-lived and alterable like ClickHouse's, so its situation is the same; what does not transfer is its answer, a full copy of the schema per version and migration scripts outside the binary. The Elasticsearch answer does not transfer because it rests on indices rolling over.
 
 ---
 
