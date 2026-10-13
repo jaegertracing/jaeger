@@ -13,7 +13,7 @@
 
 The ClickHouse backend creates its twelve tables and materialized views at startup from one `CREATE ... IF NOT EXISTS` template per object, and has no way to change an object that already exists. The first change to the schema since it reached users, the missing OTLP span columns of #9789, therefore has to establish how the schema is amended from now on. This RFC describes the mechanism as it stands, states what a replacement has to satisfy, and analyses four families of approach: versioned delta files applied by a migration framework, as #9789 sketched and #9796 implements with golang-migrate; the same deltas applied by a small in-house migrator; a full copy of the schema per version, which is how the Cassandra backend works; and reconciliation, where the templates stay the single declarative description of the desired schema and the backend computes at startup the `ALTER` statements that bring the live database to it, in the manner of Kubernetes controllers and Terraform.
 
-Reconciliation is the recommendation. It keeps today's per-object templates as the living source of truth, needs no version numbering, frozen files or golden dumps, and gives operators who manage the schema themselves a printed plan of exactly what their database lacks. ClickHouse makes the diff tractable without a SQL parser: the desired objects are created in a scratch database and compared with the live ones through the system catalogs, so both sides are normalized by the same server. The engine refuses every change that would rewrite data and never drops anything, which keeps a startup step metadata-only, and the release version recorded in the database keeps an older binary in a rolling deploy from undoing a newer one's changes. A survey of third-party reconcilers for ClickHouse found none that is both embeddable and under a free license, so the diff engine is written in-house, informed by the designs of those tools. Release-time snapshots and numbered migration files are produced from the same engine for people who want a versioned audit trail.
+Reconciliation is the recommendation. It keeps today's per-object templates as the living source of truth, needs no version numbering, frozen files or golden dumps, and gives operators who manage the schema themselves a printed plan of exactly what their database lacks. ClickHouse makes the diff tractable without a SQL parser: the desired objects are created in a scratch database and compared with the live ones through the system catalogs, so both sides are normalized by the same server. At startup the backend applies only the additive part of the plan, new objects, columns and indexes, which is idempotent and commutes across concurrent instances and releases; every other change, a codec, default, setting, TTL or view query, is reported and applied by a one-shot operator command, because ClickHouse offers no primitive that can serialize such changes across instances safely. The engine refuses every change that would rewrite data and never drops anything. A survey of third-party reconcilers for ClickHouse found none that is both embeddable and under a free license, so the diff engine is written in-house, informed by the designs of those tools. Release-time snapshots and numbered migration files are produced from the same engine for people who want a versioned audit trail.
 
 ---
 
@@ -157,7 +157,7 @@ A versioned audit trail is a product of the same engine rather than its input: a
 
 #### Third-party reconcilers for ClickHouse
 
-The engine, with its lock and verification, is on the order of a thousand lines, so a library was looked for first. None is both embeddable in a Go binary and under a free license.
+The engine, with its verification step, is several hundred lines, so a library was looked for first. None is both embeddable in a Go binary and under a free license.
 
 | Tool | Desired-state input | Diff method | License | Embeddable |
 | --- | --- | --- | --- | --- |
@@ -184,7 +184,7 @@ Two of these matter as prior art even though none is adopted. The Python tool di
 | 8. Dependency footprint | 🟨¹² | 🟢 | 🟢 | 🟢 | 🟢 |
 | 9. Little bookkeeping | ❌ | ❌ | 🟨 | ❌ | 🟢¹³ |
 | 10. Production statements reviewable | 🟢 | 🟢 | 🟨 | 🟢 | 🟨¹⁴ |
-| Code to own | 🟢 glue only | 🟨 ~100 lines | 🟢 | 🟨 | ❌ ~1000 lines |
+| Code to own | 🟢 glue only | 🟨 ~100 lines | 🟢 | 🟨 | ❌ several hundred lines |
 
 - ¹ Deltas from version 2 on, but the baseline is one long file and the per-object organization is lost when the framework is adopted.
 - ² Templates and deltas are two descriptions kept equal only by a parity test.
@@ -193,15 +193,15 @@ Two of these matter as prior art even though none is adopted. The Python tool di
 - ⁵ The plan is computed from the live catalog, so what is reported is what the database actually lacks.
 - ⁶ The library's version table creation is not idempotent, so first starts race, and pending versions can interleave across instances.
 - ⁷ Correct if every statement is idempotent and no version reassigns an earlier version's property; a `KeeperMap` lock would make it 🟢.
-- ⁸ Additive statements are idempotent and commute, so they are applied without coordination. Non-additive statements are applied at startup only under the `KeeperMap` lock, with the version check inside it; where the server has no `KeeperMap` they are reported and left to the operator command (§5.5).
+- ⁸ Startup applies only additive statements, which are idempotent and commute, so no coordination is needed. Non-additive statements run only from a one-shot operator command (§5.5).
 - ⁹ The operator receives "versions 2 and 3 are pending" and the files, and is trusted to apply them whole.
 - ¹⁰ The operator receives the exact statements their database lacks, computed against it.
 - ¹¹ Through a generated golden dump rather than the authored files.
 - ¹² A second `database/sql` connection for the library's driver.
-- ¹³ The release version already compiled into the binary is recorded in the database (§5.2); nothing is maintained by hand.
+- ¹³ No version table, no numbering and no frozen files; the database state is read, not recorded.
 - ¹⁴ The PR shows the template edit, not the `ALTER`; the statements are visible in the release-time migration file (§5.7) and in the printed plan.
 
-Reconciliation is the recommendation. The rows that decided it are 4, 6, 7 and 9: the plan is computed from what the database actually contains, the operator gets the exact statements they lack, the templates stay the readable schema, and contributors learn no numbering or freezing rules. The row it loses, code to own, is catalog comparison plus a lock and a verification step, a shape the prior art shows to be solved, and row 10 is recovered by the release-time migration files. The in-house migrator of §4.2 is the fallback if the diff engine proves harder than estimated; it shares the per-object layout and the idempotence rules, so the templates and tests carry over.
+Reconciliation is the recommendation. The rows that decided it are 4, 6, 7 and 9: the plan is computed from what the database actually contains, the operator gets the exact statements they lack, the templates stay the readable schema, and contributors learn no numbering or freezing rules. The row it loses, code to own, is catalog comparison plus a verification step, a shape the prior art shows to be solved, and row 10 is recovered by the release-time migration files. The in-house migrator of §4.2 is the fallback if the diff engine proves harder than estimated; it shares the per-object layout and the idempotence rules, so the templates and tests carry over.
 
 ---
 
@@ -252,25 +252,52 @@ type schemaRefusal struct {
 
 Idempotence is a property of the vocabulary: every applicable statement is a no-op when the live object already matches, so two instances applying the same plan both succeed, and a plan computed after `apply` is empty.
 
-A rolling deploy runs two releases at once, and the older one's reconciler would move codecs, settings and view queries back to its own templates after the newer one moved them forward. Additive statements commute and need no protection; `MODIFY` statements do not. The reconciler therefore uses the version of the `github.com/jaegertracing/jaeger` module recorded in the binary by the Go toolchain, read at run time with `debug.ReadBuildInfo()`: it writes that version into the database after reconciling it, and refuses to reconcile a database whose recorded version is higher than its own, because that database was last shaped by a newer build. The toolchain stamps the version without any help from the build: a release build carries the tag (`v2.15.0`); a binary that imports Jaeger as a dependency, which is how a custom distribution built from trunk consumes it, carries the pseudo-version of the pinned commit (`v1.76.1-0.20261006154908-e4fd10c97f10`), whose middle field is the commit's UTC timestamp; and a build of the Jaeger repository itself at an untagged commit carries the pseudo-version the toolchain derives from the checkout since Go 1.24. All three are valid semantic versions and compare with `golang.org/x/mod/semver`, so a tag orders against a pseudo-version and a pseudo-version against another by commit time, which is monotone on a squash-merged trunk. Rebuilding an old commit reproduces its old version, so a rebuild cannot outrank a newer build. The two cases that do not compare, a `replace` directive to a local path and a build without version control, yield `(devel)`, which the reconciler treats as unknown: it reconciles unconditionally and says so in its log. Nothing is maintained by hand for this, and a build with no template change that records a higher version produces an empty plan, which is harmless.
+#### What is compared
 
-The version is recorded in an append-only table `schema_version (version String, recorded_at DateTime64(3)) ENGINE = {{ .MergeTree }} ORDER BY recorded_at`, created with `IF NOT EXISTS` on the deployment's engine so that it replicates when the data tables do, written with `insert_quorum = 'auto'` and `insert_quorum_parallel = 0` and read with `select_sequential_consistency = 1`, the combination under which ClickHouse guarantees that a read on any replica sees an insert acknowledged on another; on `SharedMergeTree`, whose metadata is shared, the quorum settings do not apply and only the sequential read is set. A read that a lagging replica rejects is retried three times and then treated as unknown, and a quorum that cannot be reached is reported like any other failed statement. Both happen inside the lock of §5.5, so the version check and the statements it guards are not interleaved with another reconciler's. The recorded version is the highest among the rows by semantic-version order.
+The comparison is defined per object kind over the catalog columns below. A property not in this table is not compared, so an empty plan certifies exactly these properties and nothing else.
 
-`plan` reads the recorded version first and, when it is higher than the binary's, returns an empty plan with a notice instead of the diff. `apply` reads it again immediately before the first statement that is not purely additive, where additive means `CREATE`, `ADD COLUMN` and `ADD INDEX` for an index that does not exist, stops if it has risen meanwhile, and inserts the binary's version after the last statement. The insert is part of the printed plan, so operator-managed deployments record it too. The check is a read followed by a write and ClickHouse offers no transaction to join them, so §5.5 states the window that remains.
+| Object | Property | Source | On difference |
+| --- | --- | --- | --- |
+| table | exists | `system.tables` | `CREATE` (additive) |
+| table | engine family (`MergeTree`, `AggregatingMergeTree`) after stripping `Replicated` or `Shared` | `system.tables.engine` | refusal |
+| table | replication mode: local, or `Replicated`/`Shared`, against `table_engine` | `system.tables.engine` | refusal in either direction |
+| table | sorting key, partition key, primary key, sampling key | `system.tables` | refusal |
+| table | TTL clause, taken from `create_table_query` between `TTL` and the following `SETTINGS` or end | `system.tables` | `MODIFY TTL` or `REMOVE TTL` (deferred) |
+| table | settings, taken from `engine_full` after `SETTINGS` | `system.tables` | `MODIFY SETTING` (deferred) |
+| column | exists | `system.columns` | `ADD COLUMN IF NOT EXISTS ... AFTER` (additive) |
+| column | type | `system.columns.type` | refusal |
+| column | default kind and expression | `system.columns` | `MODIFY COLUMN ... DEFAULT` (deferred) |
+| column | codec | `system.columns.compression_codec` | `MODIFY COLUMN ... CODEC` (deferred) |
+| index | exists | `system.data_skipping_indices` | `ADD INDEX IF NOT EXISTS` (additive) |
+| index | `type_full`, `expr`, `granularity` | `system.data_skipping_indices` | `DROP INDEX` then `ADD INDEX` (deferred) |
+| view | exists | `system.tables` | `CREATE MATERIALIZED VIEW IF NOT EXISTS` (additive) |
+| view | `TO` table | `create_table_query` | refusal |
+| view | query | `system.tables.as_select` | `MODIFY QUERY` with the template's text (deferred) |
+
+Deliberately not compared: the Keeper path and replica name of a `Replicated*` engine, because deployments legitimately carry paths no template reproduces; a view's declared columns, which `MODIFY QUERY` does not refresh; the position of existing columns; comments; and any column, index, projection or constraint present live and absent from the template, which an operator may have added and the reconciler never removes. Database qualifiers are stripped only where they name the scratch database or the configured database, so a deliberate cross-database reference would survive. `Nested` groups are flattened the same way on both sides, and a `Nested` group inside another is one `Array(Nested(...))` column, so a change inside it is a type difference.
+
+The engine is never changed, because ClickHouse cannot change it in place (§2.3); the two engine rows exist to catch a configuration that disagrees with the tables, `table_engine.replicated` over local tables or `merge_tree` over replicated ones, with `SharedMergeTree` counting as replicated because ClickHouse Cloud stores every `MergeTree` table that way.
+
+#### Additive and deferred statements
+
+Statements fall into two classes, and the class decides who runs them.
+
+- **Additive**: `CREATE ... IF NOT EXISTS`, `ADD COLUMN IF NOT EXISTS`, `ADD INDEX IF NOT EXISTS`. Each is idempotent, and two such statements for the same object from different releases either agree or leave the one that ran first in place, after which the other definition shows up as a deferred difference on the next `plan`; nothing is lost and nothing is silently certified. Additive statements therefore need no coordination, and startup applies them.
+- **Deferred**: `MODIFY COLUMN`, `MODIFY SETTING`, `MODIFY TTL`, `REMOVE TTL`, `DROP INDEX` plus `ADD INDEX`, `MODIFY QUERY`. These do not commute: an older release's `MODIFY QUERY` landing after a newer one's computes derived rows with the wrong query until someone notices, and an older TTL can expire parts in the meantime. ClickHouse has no primitive that lets concurrent instances order such statements safely: a distributed DDL that outlives its lease keeps executing, a `Replicated` database retries remote DDL until it completes, and a lock cannot revoke queued work. Deferred statements are therefore never applied at startup. They are reported, and applied by the one-shot operator command of §5.8, which an operator runs from one place at a time, or by startup under the opt-in `apply_deferred_changes: true`, which a deployment sets only when it guarantees by construction that a single instance reconciles, such as a single-node installation or an init container.
 
 ### 5.3 Startup behavior
 
 | `create_schema` | Plan | Behavior |
 | --- | --- | --- |
 | `true` | empty | Start. |
-| `true` | applicable statements only | `apply`, then start. Non-additive statements are applied only when the lock of §5.5 is held; without it they are logged like refusals, with the operator command that applies them, and startup continues on the additive ones. |
+| `true` | additive statements, possibly with deferred ones | Apply the additive statements, verify them (§5.6), log the deferred ones with the operator command that applies them, and start. With `apply_deferred_changes: true`, apply the deferred ones too. |
 | `true` | any refusal | Fail with the refusals and the statements an operator would run. A startup step does not rewrite data. |
 | `false` | empty | Start. |
 | `false` | anything | Log the plan as a warning, statement by statement, and start. The warning names the command of §5.8. |
 | `false` | cannot be computed | Warn and start. A deployment whose Jaeger user cannot create a scratch database ran without DDL privileges before this mechanism and continues to; the warning says which privilege is missing and that `clickhouse-schema plan` can be run with a privileged user instead. |
 | `true` | cannot be computed | Fail: creating the schema was asked for and needs the privileges to plan it. |
 
-A deployment on the previous release has no version table to migrate: the first start with this mechanism computes a plan against its tables like any other, and that plan carries the `CREATE TABLE IF NOT EXISTS schema_version` and its first insert along with whatever the data tables lack.
+A deployment on the previous release has nothing to bootstrap: the first start with this mechanism computes a plan against its tables like any other.
 
 ### 5.4 Rules for changing the schema
 
@@ -281,15 +308,13 @@ A deployment on the previous release has no version table to migrate: the first 
 
 ### 5.5 Concurrency
 
-Every statement in the vocabulary is idempotent, and the plan is applied in template order, so concurrent instances of one release applying the same plan produce the same schema. Two instances may both issue the same `ADD COLUMN`, and ClickHouse serializes `ALTER`s per table, so the second is a no-op.
+Startup applies only additive statements (§5.2), each idempotent, in template order. Concurrent instances of one release produce the same schema, and ClickHouse serializes `ALTER`s per table, so a duplicate `ADD COLUMN` is a no-op. Concurrent instances of two releases produce the union of their additive statements; where the two releases define a new column or index differently, the first definition stands and the second appears as a deferred difference in every later `plan`, so the disagreement is visible rather than resolved by chance. This is the whole concurrency story for startup, and it holds without a lock, a version table or a clock.
 
-Non-additive statements are different. An older binary's `MODIFY QUERY` landing after a newer one's would compute derived rows with the old query until repaired, and a regressed TTL could expire parts in the meantime, so a late `MODIFY` is not made harmless by a later restart. Non-additive statements are therefore applied at startup only inside the lock below, with the version check of §5.2 performed while the lock is held, which makes check and application atomic with respect to every other reconciler. Where the server offers no `KeeperMap`, the reconciler applies the additive statements, logs the non-additive ones with the operator command that applies them, and starts; a single operator run is the serialization in that case.
-
-The lock is the `KeeperMap` table of §2.4, `jaeger_schema_lock`, holding one row whose key is the database name and whose value is the holder's identity and a lease expiry. Taking it is an `INSERT` with `SETTINGS keeper_map_strict_mode = 1`, which fails if the row exists; an expired row is taken over by deleting it where the value still equals the expired one and inserting again, so two instances racing for an expired lease leave one of them with a failed insert. The lease is 300 s and the holder renews it every 60 s with `ALTER TABLE ... UPDATE`, over a connection of its own so that a blocking DDL statement on the apply connection cannot starve the renewal. Every statement the holder issues runs with `distributed_ddl_task_timeout` and `max_execution_time` below the lease, so no statement submitted under a lease can still be executing after another instance has taken over. A holder whose renewal finds another identity stops applying. The lock is released with `ALTER TABLE ... DELETE WHERE` on the holder's own value. A server that refuses the table because `keeper_map_path_prefix` is unset is logged once, and startup continues under the no-lock behavior above.
+The operator command that applies deferred statements is meant to run once, from one place. As a guard rail against two operators running it at once, it takes a lock on a server that offers `KeeperMap` (§2.4): a `jaeger_schema_lock` table with one row keyed by the database name whose value is the holder's identity and a lease expiry, every mutation of which runs with `keeper_map_strict_mode = 1` and a predicate on the current value, so acquisition, renewal, takeover of an expired lease and release are each a compare-and-set that fails rather than overwrites. The lock serializes the command's own statements; it cannot revoke distributed DDL that a previous holder queued, which is why it is a guard rail and the single-run instruction is the guarantee. Where `KeeperMap` is unavailable the command says so and runs unlocked.
 
 ### 5.6 Replicated clusters
 
-The plan is computed against the replica the connection reached. Column, index, codec and TTL `ALTER`s propagate through Keeper; `CREATE`, `MODIFY SETTING` and a view's `MODIFY QUERY` are local to that replica (§2.3). A multi-replica deployment therefore needs DDL fan-out for the reconciler to converge every replica in one pass. The backend adds an optional `cluster` field to `table_engine.replicated`; when set, every DDL statement the reconciler issues against the live database carries `ON CLUSTER <name>` through a template parameter, and the catalogs are read through `clusterAllReplicas(<name>, system.tables)` and its siblings so that a replica-local property, a setting or a view query, that drifted on a replica other than the connected one still produces a statement. `INSERT` takes no `ON CLUSTER`, so the version and lock rows reach other replicas through their replicated engines, which also means the design assumes the single-shard layout the backend writes to today; the scratch database stays on the connected server. When unset, the operator is expected to have a `Replicated` database, which is the ClickHouse Cloud default, and the documentation says so; DDL is then issued with `distributed_ddl_output_mode = 'throw'` so that a statement returns only when every replica has applied it or fails. After `apply`, and before the backend serves traffic, `plan` runs once more, through `clusterAllReplicas` when `cluster` is set, and a non-empty result fails startup under `create_schema: true`, because a replica that still lacks a column would fail the first insert routed to it. A `Replicated` database rejects `Replicated*` engines with explicit arguments by default since ClickHouse 24.9, so in that deployment `table_engine.replicated` is used without `keeper_path` and `replica_name` and the database supplies both, which is the case #9813 left those fields optional for. Without either, a replica that was missed is found to lack its objects or settings by the next instance that connects to it and reconciled then, so the cluster converges over restarts rather than in one pass; that is the failure mode today's startup already has, and the versioned designs make it worse because a recorded version hides it.
+The plan is computed against the replica the connection reached. Column, index, codec and TTL `ALTER`s propagate through Keeper; `CREATE`, `MODIFY SETTING` and a view's `MODIFY QUERY` are local to that replica (§2.3). A multi-replica deployment therefore needs DDL fan-out for the reconciler to converge every replica in one pass. The backend adds an optional `cluster` field to `table_engine.replicated`; when set, every DDL statement the reconciler issues against the live database carries `ON CLUSTER <name>` through a template parameter, and the catalogs are read through `clusterAllReplicas(<name>, system.tables)` and its siblings so that a replica-local property, a setting or a view query, that drifted on a replica other than the connected one still produces a statement. The design assumes the single-shard layout the backend writes to today; the scratch database stays on the connected server. When unset, the operator is expected to have a `Replicated` database, which is the ClickHouse Cloud default, and the documentation says so; DDL is then issued with `distributed_ddl_output_mode = 'throw'` so that a statement returns only when every replica has applied it or fails. After the additive statements, and before the backend serves traffic, `plan` runs once more, through `clusterAllReplicas` when `cluster` is set, and any additive statement still outstanding fails startup under `create_schema: true`, because a replica that still lacks a column would fail the first insert routed to it; deferred differences in that second plan are logged, not fatal. A `Replicated` database rejects `Replicated*` engines with explicit arguments by default since ClickHouse 24.9, so in that deployment `table_engine.replicated` is used without `keeper_path` and `replica_name` and the database supplies both, which is the case #9813 left those fields optional for. Without either, a replica that was missed is found to lack its objects or settings by the next instance that connects to it and reconciled then, so the cluster converges over restarts rather than in one pass; that is the failure mode today's startup already has, and the versioned designs make it worse because a recorded version hides it.
 
 ### 5.7 Release snapshots and migration files
 
@@ -299,24 +324,25 @@ The diff engine also runs offline, against two sets of rendered templates rather
 
 ```
 jaeger ... --config config.yaml clickhouse-schema plan      # the plan against the live database, apply nothing
+jaeger ... --config config.yaml clickhouse-schema apply     # apply the whole plan, additive and deferred, once
 jaeger ... --config config.yaml clickhouse-schema render    # the rendered desired schema
 ```
 
-`plan` is the `create_schema: false` warning on demand, exits non-zero when the plan is non-empty so it serves as a CI check, and prints refusals with the statements an operator would run. Both commands render with the configuration file's `ttl`, `table_engine` and `cluster`, so the output matches the deployment rather than a default.
+`plan` is the `create_schema: false` warning on demand, exits non-zero when the plan is non-empty so it serves as a CI check, and prints refusals with the statements an operator would run. `apply` is the one-shot procedure of §5.5: it takes the lock where the server offers one, applies additive and deferred statements in template order, verifies, and refuses to run when the plan carries a refusal. It is also the init-container form for fleets that want the schema settled before pods roll. All three commands render with the configuration file's `ttl`, `table_engine` and `cluster`, so the output matches the deployment rather than a default.
 
 ### 5.9 Tests
 
 All against the live ClickHouse that the integration suite already starts.
 
-1. **Fresh install.** `apply` on an empty database, then `plan` is empty, and the catalog of every object equals the rendered template as the server normalizes it, views compared by `as_select` because `MODIFY QUERY` does not refresh a view's declared columns. `schema_version` holds the binary's version.
-2. **Upgrade from every release.** For each snapshot in `snapshots/`, apply it to an empty database, run `apply`, and require the resulting catalog to equal a fresh install's and the plan to be empty afterwards. A template edit that needs a runbook fails this test with a refusal until the runbook exists and the test lists the change as expected.
-3. **Idempotence and concurrency.** `apply` twice; run `apply` from two connections at once; the plan is empty after each and the catalog equals a fresh install's. Run `apply` with the binary's version set below the recorded one and require an empty plan with the notice; raise the recorded version between `plan` and `apply` and require `apply` to stop before its first `MODIFY`.
-4. **Refusals.** For each refused class, create a table that differs from the template in that one way and require `plan` to return the refusal and `apply` to fail without executing anything.
-5. **Diff engine unit tests** on synthetic catalog rows: every vocabulary statement, `Nested` flattening, column placement, cross-object ordering, and TTL clause extraction.
+1. **Fresh install.** Startup on an empty database, then `plan` is empty, and every compared property (§5.2) of every object equals the rendered template as the server normalizes it.
+2. **Upgrade from every release.** For each snapshot in `snapshots/`, apply it to an empty database, start, then run `clickhouse-schema apply`, and require the compared properties to equal a fresh install's and the plan to be empty afterwards. A template edit that needs a runbook fails this test with a refusal until the runbook exists and the test lists the change as expected.
+3. **Idempotence and concurrency.** Start twice; start from two connections at once; the plan is empty after each. Start two binaries whose templates define a new column with different codecs at once and require the column to exist with one of the two codecs and the other to appear as a deferred difference in the next `plan`. Repeat for an index definition and a view query.
+4. **Refusals.** For each refused row of the §5.2 table, create an object that differs from the template in that one way and require `plan` to return the refusal and startup to fail without executing anything. Include a local table under `table_engine.replicated` and a replicated table under `merge_tree`.
+5. **Deferred statements.** Each deferred row of the §5.2 table: startup leaves the difference in place and logs it; `clickhouse-schema apply` resolves it; `apply_deferred_changes: true` resolves it at startup.
+6. **Diff engine unit tests** on synthetic catalog rows: every row of the §5.2 table, the ignored list, `Nested` flattening, column placement, cross-object ordering, TTL clause extraction and qualifier stripping.
+7. **Lock and replication.** Against a ClickHouse started with its embedded Keeper, which a single server supports: two `clickhouse-schema apply` runs at once leave one waiting, an expired lease is taken over exactly once, a renewal racing a takeover loses, a release racing a successor leaves the successor's row, and `KeeperMap` absent runs unlocked with a notice. A two-replica Compose job covers convergence through `ON CLUSTER` and through a `Replicated` database, a replica that is down during startup, and the verification failing startup when an additive statement did not reach a replica.
 
-6. **Lock and replication.** Against a ClickHouse started with its embedded Keeper, which a single server supports: lease takeover after expiry, a holder that loses its lease stops, a stale lock does not block startup past the lease, `KeeperMap` absent falls back to the no-lock behavior, two binaries of different versions started together leave the newer schema, and a `Replicated*` version table is read consistently from a second connection. A two-replica Compose job covers convergence through `ON CLUSTER` and through a `Replicated` database, a replica that is down during `apply`, and the post-apply verification failing startup.
-
-Run once with `merge_tree` and `ttl: 0` and once with `ttl` set, so the TTL clause is covered live. The CI ClickHouse gains an embedded Keeper for test 6, and the Compose job runs in the storage integration workflow with the other backends.
+Run once with `merge_tree` and `ttl: 0` and once with `ttl` set, so the TTL clause is covered live. The CI ClickHouse gains an embedded Keeper for test 7, and the Compose job runs in the storage integration workflow with the other backends.
 
 ---
 
@@ -324,20 +350,20 @@ Run once with `merge_tree` and `ttl: 0` and once with `ttl` set, so the TTL clau
 
 An existing deployment has the twelve objects as the previous release created them. On the first start of a binary with this mechanism:
 
-- With `create_schema: true`, `plan` finds the ten OTLP columns missing from `spans` and the absent `schema_version` table, and `apply` adds the columns, creates the table and records the version. No operator action, which is the point of putting the mechanism behind the existing flag.
-- With `create_schema: false`, the binary logs the ten `ADD COLUMN` statements, the `CREATE TABLE` for `schema_version` and its insert as a warning and starts; the writer fails on insert until the operator applies them, exactly as today, but the operator now has the statements in the log and in `clickhouse-schema plan`.
+- With `create_schema: true`, `plan` finds the ten OTLP columns missing from `spans`, all additive, and startup adds them. No operator action, which is the point of putting the mechanism behind the existing flag.
+- With `create_schema: false`, the binary logs the ten `ADD COLUMN` statements as a warning and starts; the writer fails on insert until the operator applies them, exactly as today, but the operator now has the statements in the log and in `clickhouse-schema plan`.
 
-A mismatch between the configuration and what was created a year ago is detected, which is new: today it is invisible. A `ttl` that was since changed becomes an applicable `MODIFY TTL` without materialization, so the configured retention takes effect as parts merge. A table whose engine is outside the configured family, say a local `MergeTree` under a configuration that now says `replicated`, is a refusal that stops startup with `create_schema: true` until the operator either rebuilds the table or corrects the configuration. This is the one way the upgrade can be noisier than before, and it is noisy about a real discrepancy.
+A mismatch between the configuration and what was created a year ago is detected, which is new: today it is invisible. A `ttl` that was since changed becomes a deferred `MODIFY TTL` without materialization, logged at startup and applied by `clickhouse-schema apply`, after which the configured retention takes effect as parts merge. A table whose engine disagrees with the configuration, say a local `MergeTree` under a configuration that now says `replicated`, is a refusal that stops startup with `create_schema: true` until the operator either rebuilds the table or corrects the configuration. This is the one way the upgrade can be noisier than before, and it is noisy about a real discrepancy.
 
 ---
 
 ## 7. Implementation Plan
 
 1. **M1 — Diff engine and plan.** `schemaReconciler.plan`, the scratch-database method, the vocabulary and refusals, the `clickhouse-schema plan` and `render` commands, and the `create_schema: false` warning. Read-only; no change to what `create_schema: true` does. Tests 4 and 5.
-2. **M2 — Apply.** `apply` replaces `schemaBuilder` behind `create_schema: true`, with the §5.3 table. Tests 1 and 3. #9796 is superseded by M1 and M2.
+2. **M2 — Apply.** Startup applies additive statements behind `create_schema: true` per §5.3 and verifies them; `clickhouse-schema apply` applies the whole plan unlocked; `apply_deferred_changes` is added. Tests 1, 3 and 5. #9796 is superseded by M1 and M2. The guarantees that ship here are the ones §5.5 makes for additive statements; the lock guard rail for the operator command arrives in M5.
 3. **M3 — OTLP span columns.** The ten columns added to `create_spans_table.sql`, the `SpanRow` and conversion wiring, the corpus fixture, and a live upgrade test from a snapshot of the schema as it stood before this milestone, taken from git; #9799 reduced to that. This is the first upgrade the mechanism performs for real, and it is tested live before it ships.
 4. **M4 — Release snapshots.** The `make` target of §5.7, which also generalizes the M3 snapshot into test 2.
-5. **M5 — Clusters.** The `cluster` field, `ON CLUSTER` rendering, the `KeeperMap` lock of §5.5 and test 6. Until this lands, non-additive statements follow the no-lock behavior of §5.3 on every deployment.
+5. **M5 — Clusters.** The `cluster` field, `ON CLUSTER` rendering, `clusterAllReplicas` catalog reads, the `KeeperMap` lock for `clickhouse-schema apply`, and test 7.
 6. **M6 — RFC 0017 changes** land as template edits through this mechanism, each as its own PR; the `LowCardinality` change ships with its runbook.
 
 ---
@@ -347,7 +373,7 @@ A mismatch between the configuration and what was created a year ago is detected
 - **Refusal strictness with `create_schema: true`.** §5.3 fails startup on any refusal. An alternative is to warn and start when the refusal concerns only a property the binary can live with, such as a sorting key that differs from the template; the strict form is proposed because a silent discrepancy is what the mechanism exists to end.
 - **Scratch database privileges.** `plan` needs `CREATE DATABASE` and `DROP DATABASE`. §5.3 lets an operator-managed deployment start without them; whether to offer a parser-based fallback that needs no scratch database is deferred until a user needs it.
 - **Minimum ClickHouse version.** `MODIFY QUERY` left its experimental setting in 23.11 and `keeper_map_strict_mode` arrived in 23.4. The backend has stated no floor so far; 24.3, the first LTS past both, is proposed and would be documented with M1.
-- **One-shot mode.** Large fleets may prefer an init container that applies the plan once before the pods roll. A `clickhouse-schema apply` command is a small addition to §5.8 if the demand appears.
+- **`apply_deferred_changes` as a setting.** It exists so that a single-node installation keeps today's hands-off behavior for every change. The alternative is to have no such setting and ask even single-node operators to run `clickhouse-schema apply` for deferred changes, which is simpler and one more step.
 
 ---
 
