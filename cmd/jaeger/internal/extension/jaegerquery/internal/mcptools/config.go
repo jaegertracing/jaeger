@@ -18,6 +18,13 @@ const (
 	DefaultMaxSearchResults         = 100
 	DefaultMaxReadFileSize          = 512 * 1024
 
+	// Upper bounds an operator may raise a tunable to, preserved from the
+	// retired jaeger_mcp extension's config validation. They exist so a typo
+	// cannot make one tool call allocate without limit.
+	MaxSpanDetailsPerRequestLimit = 100
+	MaxSearchResultsLimit         = 1000
+	MaxReadFileSizeLimit          = 10 * 1024 * 1024
+
 	// mcpSessionTimeout caps an idle MCP session. The streamable handler keeps
 	// per-MCP-session state for SSE resumption and stream-id correlation.
 	mcpSessionTimeout = 5 * time.Minute
