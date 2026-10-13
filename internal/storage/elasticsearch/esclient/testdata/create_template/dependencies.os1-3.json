@@ -5,7 +5,7 @@
     "aliases": {
       "test-jaeger-dependencies-read": {}
     },
-    "index_patterns": "*jaeger-dependencies-*",
+    "index_patterns": "*test-jaeger-dependencies-*",
     "mappings": {},
     "settings": {
       "index.mapping.nested_fields.limit": 50,

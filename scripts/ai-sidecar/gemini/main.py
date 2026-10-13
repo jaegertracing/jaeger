@@ -16,7 +16,7 @@ from tracing import init_tracing
 
 logger = logging.getLogger(__name__)
 
-DEFAULT_MCP_URL = "http://127.0.0.1:16687/mcp"
+DEFAULT_MCP_URL = "http://127.0.0.1:16686/api/ai/mcp/"
 DEFAULT_SIDECAR_PORT = 16688
 DEFAULT_MCP_DISCOVERY_TIMEOUT_SEC = 15.0
 DEFAULT_OTLP_ENDPOINT = "http://localhost:4317"

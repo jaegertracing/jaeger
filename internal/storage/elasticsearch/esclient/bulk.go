@@ -82,7 +82,11 @@ func NewBulkIndexer(client *Client, cfg BulkIndexerConfig, metricsFactory metric
 		// Client satisfies it (Perform delegates down through rawClient to the
 		// pool), so esutil runs on our transport — the same multi-node pool and
 		// auth/TLS/SigV4 stack every request uses — not a go-elasticsearch client.
-		Client:        client,
+		// requestSizeTransport records each request's body size on the way.
+		Client: &requestSizeTransport{
+			next:         client,
+			requestBytes: newRequestBytesHistogram(metricsFactory),
+		},
 		NumWorkers:    workers,
 		FlushBytes:    cfg.FlushBytes,
 		FlushInterval: cfg.FlushInterval,

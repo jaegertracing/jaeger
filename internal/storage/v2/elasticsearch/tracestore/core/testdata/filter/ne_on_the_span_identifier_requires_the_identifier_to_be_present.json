@@ -1,0 +1,14 @@
+{
+  "bool": {
+    "must": {
+      "exists": {
+        "field": "spanID"
+      }
+    },
+    "must_not": {
+      "term": {
+        "spanID": "b7ad6b7169203331"
+      }
+    }
+  }
+}

@@ -5,17 +5,16 @@ package tracestore
 
 import (
 	"context"
-	"encoding/hex"
 	"errors"
 	"fmt"
 	"iter"
 	"time"
 
 	"github.com/ClickHouse/clickhouse-go/v2/lib/driver"
-	"go.opentelemetry.io/collector/pdata/pcommon"
 	"go.opentelemetry.io/collector/pdata/ptrace"
 
 	"github.com/jaegertracing/jaeger/internal/cache"
+	"github.com/jaegertracing/jaeger/internal/jptrace"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/clickhouse/sql"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/clickhouse/tracestore/dbmodel"
@@ -26,10 +25,10 @@ var _ tracestore.Reader = (*Reader)(nil)
 type ReaderConfig struct {
 	// DefaultSearchDepth is the default number of trace IDs to return when searching for traces.
 	// This value is used when the SearchDepth field in TraceQueryParams is not set.
-	DefaultSearchDepth int
+	DefaultSearchDepth uint32
 	// MaxSearchDepth is the maximum number of trace IDs that can be returned when searching for traces.
 	// This value is used to limit the SearchDepth field in TraceQueryParams.
-	MaxSearchDepth int
+	MaxSearchDepth uint32
 	// AttributeMetadataCacheTTL is the time-to-live for cached attribute metadata entries.
 	AttributeMetadataCacheTTL time.Duration
 	// AttributeMetadataCacheMaxSize is the maximum number of entries in the attribute metadata cache.
@@ -61,11 +60,17 @@ func NewReader(conn driver.Conn, cfg ReaderConfig) *Reader {
 }
 
 func (*Reader) SearchCapabilities(context.Context) (tracestore.SearchCapabilities, error) {
+	filter := FilterCapabilities()
 	return tracestore.SearchCapabilities{
 		// The search SQL starts from "WHERE 1=1" and appends the service predicate only
 		// when the query carries a name, so an omitted name matches spans from every
 		// service.
 		WithoutServiceName: true,
+		// The search SQL matches span rows, and a conjunction's clauses all apply to the
+		// same row, so a conjunction is satisfied within one span rather than across a
+		// trace.
+		SameSpanConjunction: true,
+		Filter:              &filter,
 	}, nil
 }
 
@@ -231,13 +236,13 @@ func readRowIntoTraceID(rows driver.Rows) ([]tracestore.FoundTraceID, error) {
 		return nil, fmt.Errorf("failed to scan row: %w", err)
 	}
 
-	b, err := hex.DecodeString(traceIDHex)
+	id, err := jptrace.TraceIDFromString(traceIDHex)
 	if err != nil {
 		return nil, fmt.Errorf("failed to decode trace ID: %w", err)
 	}
 
 	traceID := tracestore.FoundTraceID{
-		TraceID: pcommon.TraceID(b),
+		TraceID: id,
 	}
 
 	if !start.IsZero() {

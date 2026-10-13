@@ -87,6 +87,17 @@ func (ff fakeFactory) CreateTraceWriter() (tracestore.Writer, error) {
 	return &tracestoremocks.Writer{}, nil
 }
 
+// fakeTraceOnlyFactory implements tracestore.Factory but not depstore.Factory.
+type fakeTraceOnlyFactory struct{}
+
+func (fakeTraceOnlyFactory) CreateTraceReader() (tracestore.Reader, error) {
+	return &tracestoremocks.Reader{}, nil
+}
+
+func (fakeTraceOnlyFactory) CreateTraceWriter() (tracestore.Writer, error) {
+	return &tracestoremocks.Writer{}, nil
+}
+
 type fakeMetricsFactory struct {
 	name string
 }
@@ -119,6 +130,10 @@ func (fakeStorageExt) TraceStorageFactory(name string) (tracestore.Factory, erro
 	case "unknowable-capabilities-store":
 		return fakeFactory{name: name, capabilitiesErr: errors.New("cannot ask the backend")}, nil
 	}
+	if name == "need-no-dep-factory" {
+		return fakeTraceOnlyFactory{}, nil
+	}
+
 	return fakeFactory{name: name}, nil
 }
 
@@ -139,15 +154,17 @@ func (fakeStorageExt) Shutdown(context.Context) error {
 
 // stubQueryInterceptor is an extension that also implements
 // queryinterceptor.Interceptor, used to exercise the server's interceptor wiring.
-type stubQueryInterceptor struct{}
+type stubQueryInterceptor struct {
+	queryinterceptor.UnsupportedSpanSearch
+}
 
 func (stubQueryInterceptor) Start(context.Context, component.Host) error { return nil }
 func (stubQueryInterceptor) Shutdown(context.Context) error              { return nil }
-func (stubQueryInterceptor) OnQuery(ctx context.Context, q queryinterceptor.Query) (context.Context, queryinterceptor.Query, error) {
+func (stubQueryInterceptor) OnTraceQuery(ctx context.Context, q queryinterceptor.TraceQuery) (context.Context, queryinterceptor.TraceQuery, error) {
 	return ctx, q, nil
 }
 
-func (stubQueryInterceptor) OnResult(ctx context.Context, t []ptrace.Traces) (context.Context, []ptrace.Traces, error) {
+func (stubQueryInterceptor) OnTraceResult(ctx context.Context, t []ptrace.Traces) (context.Context, []ptrace.Traces, error) {
 	return ctx, t, nil
 }
 
@@ -225,6 +242,15 @@ func TestServerStart(t *testing.T) {
 				},
 			},
 			expectedErr: "cannot create trace reader",
+		},
+		{
+			name: "depstore not implemented",
+			config: &Config{
+				Storage: Storage{
+					TracesPrimary: "need-no-dep-factory",
+				},
+			},
+			expectedErr: "cannot find factory for dependency storage",
 		},
 		{
 			name: "dependency error",
@@ -338,6 +364,10 @@ func TestServerStart(t *testing.T) {
 				}.Execute(t)
 			} else {
 				require.ErrorContains(t, err, tt.expectedErr)
+				if tt.name == "depstore not implemented" {
+					assert.NotContains(t, err.Error(), "%!w")
+					assert.NotContains(t, err.Error(), "<nil>")
+				}
 			}
 		})
 	}
@@ -707,7 +737,9 @@ func TestServerStartWiresSearchCapability(t *testing.T) {
 			t.Cleanup(func() { require.NoError(t, srv.Shutdown(t.Context())) })
 
 			_, err := jiter.FlattenWithErrors(srv.QueryService().FindTraces(t.Context(), querysvc.TraceQueryParams{
-				TraceQueryParams: tracestore.TraceQueryParams{Attributes: pcommon.NewMap()},
+				Attributes:   pcommon.NewMap(),
+				StartTimeMin: time.Now().Add(-time.Hour),
+				StartTimeMax: time.Now(),
 			}))
 			if test.expectError != nil {
 				require.ErrorIs(t, err, test.expectError)

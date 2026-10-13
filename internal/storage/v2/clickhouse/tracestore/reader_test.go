@@ -799,6 +799,16 @@ func TestFindTraces_SearchDepthExceedsMax(t *testing.T) {
 	require.ErrorContains(t, err, "search depth 10000 exceeds maximum allowed 1000")
 }
 
+func TestBuildFindTraceIDsQuery_DefaultSearchDepthExceedsMax(t *testing.T) {
+	config := testReaderConfig
+	config.DefaultSearchDepth = config.MaxSearchDepth + 1
+	reader := NewReader(&clickhousetest.Driver{}, config)
+	_, _, err := reader.buildFindTraceIDsQuery(context.Background(), tracestore.TraceQueryParams{
+		Attributes: pcommon.NewMap(),
+	})
+	require.EqualError(t, err, "search depth 1001 exceeds maximum allowed 1000")
+}
+
 func TestFindTraces_YieldFalseOnSuccessStopsIteration(t *testing.T) {
 	conn := &clickhousetest.Driver{
 		QueryResponses: map[string]*clickhousetest.QueryResponse{
@@ -1146,6 +1156,34 @@ func TestFindTraceIDs_DecodeErrorStopsIteration(t *testing.T) {
 	require.ErrorContains(t, err, "failed to decode trace ID")
 }
 
+func TestFindTraceIDs_ShortTraceIDIsAnError(t *testing.T) {
+	// A trace_id column that is valid hex but shorter than 16 bytes must be
+	// reported as a decode error rather than panic in the array conversion.
+	conn := &clickhousetest.Driver{
+		QueryResponses: map[string]*clickhousetest.QueryResponse{
+			sql.SearchTraceIDsBase: {
+				Rows: &clickhousetest.Rows[[]any]{
+					Data: [][]any{
+						{
+							"0001",
+							time.Now().Add(-2 * time.Hour),
+							time.Now().Add(-2 * time.Minute),
+						},
+					},
+					ScanFn: scanTraceIDFn(),
+				},
+			},
+		},
+	}
+
+	reader := NewReader(conn, ReaderConfig{})
+	iter := reader.FindTraceIDs(context.Background(), tracestore.TraceQueryParams{
+		Attributes: pcommon.NewMap(),
+	})
+	_, err := flattenPageChunks(iter)
+	require.ErrorContains(t, err, "failed to decode trace ID")
+}
+
 func TestFindTraceIDs_ErrorCases(t *testing.T) {
 	tests := []struct {
 		name        string
@@ -1252,5 +1290,10 @@ func TestFindTraceIDs_BuildQueryError(t *testing.T) {
 func TestReader_SearchCapabilities(t *testing.T) {
 	caps, err := (&Reader{}).SearchCapabilities(context.Background())
 	require.NoError(t, err)
-	assert.Equal(t, tracestore.SearchCapabilities{WithoutServiceName: true}, caps)
+	filter := FilterCapabilities()
+	assert.Equal(t, tracestore.SearchCapabilities{
+		WithoutServiceName:  true,
+		SameSpanConjunction: true,
+		Filter:              &filter,
+	}, caps)
 }

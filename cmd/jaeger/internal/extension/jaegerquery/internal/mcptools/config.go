@@ -30,7 +30,7 @@ type Config struct {
 	ServerName               string
 	ServerVersion            string
 	MaxSpanDetailsPerRequest int
-	MaxSearchResults         int
+	MaxSearchResults         uint32
 	// MaxReadFileSize bounds the size (bytes) of a file served by read_skill.
 	MaxReadFileSize int64
 	// CustomSkillsFS is the operator's skills directory (ai.skills_dir),

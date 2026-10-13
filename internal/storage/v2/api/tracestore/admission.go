@@ -12,82 +12,9 @@ import (
 )
 
 // A filter arrives over two wires — an api_v3 request and the remote-storage protocol — and both
-// owe a Reader the same query: one filtering model rather than two, and nothing the Reader did not
-// declare it can evaluate (RFC 0005 §7). The checks live here, beside the query type and the
-// capability declaration, so each wire runs the same ones rather than its own.
-
-// Pagination arrives over the same two wires and owes the same query. DecodePagination,
-// EnsurePaginationStandsAlone and EnsureNoPaginationOnFindTraces live here for that reason,
-// beside EnsureFilterStandsAlone, so both call sites — the api_v3 request path and the storage/v2
-// remote boundary — run the same checks rather than each writing its own.
-
-// DecodePagination builds a Pagination from a wire message's scalars for a caller that already
-// knows the message itself was sent (as opposed to absent — a plain proto3 scalar has no
-// presence of its own, so the caller must distinguish that before calling this, typically via a
-// nil check on the generated message pointer). page_size is required whenever Pagination is
-// present, so a present-but-zero page_size is refused here rather than read as "no Pagination"
-// later; a page_size over MaxPageSize is clamped down instead (RFC 0014 §4).
-func DecodePagination(pageSize uint32, pageToken string) (Pagination, error) {
-	if pageSize == 0 {
-		return Pagination{}, fmt.Errorf("%w: page_size is required whenever pagination is present", ErrPaginationInvalid)
-	}
-	if pageSize > MaxPageSize {
-		pageSize = MaxPageSize
-	}
-	return Pagination{PageSize: int(pageSize), PageToken: pageToken}, nil
-}
-
-// EnsurePaginationStandsAlone rejects a query whose Pagination is malformed on its own terms,
-// independent of any backend. Pagination.page_size replaces search_depth rather than falling back
-// to it (RFC 0014 §4), so the two bounds have no single honest meaning together, and a Pagination
-// that leaves page_size at zero does not describe a page.
-func (q TraceQueryParams) EnsurePaginationStandsAlone() error {
-	if q.Pagination == (Pagination{}) {
-		return nil
-	}
-	if q.SearchDepth != 0 {
-		return fmt.Errorf("%w: it cannot be combined with search_depth", ErrPaginationInvalid)
-	}
-	if q.Pagination.PageSize <= 0 {
-		return fmt.Errorf("%w: page_size is required whenever Pagination is present", ErrPaginationInvalid)
-	}
-	return nil
-}
-
-// EnsureNoPaginationOnFindTraces rejects a query with Pagination set, for a caller that is about
-// to dispatch it to FindTraces specifically. FindTraces streams whole traces with no field to
-// carry a continuation token, so accepting the request would silently drop the pagination it
-// asked for rather than honor it (RFC 0014 §4).
-func (q TraceQueryParams) EnsureNoPaginationOnFindTraces() error {
-	if q.Pagination == (Pagination{}) {
-		return nil
-	}
-	return ErrPaginationUnsupportedByFindTraces
-}
-
-// PaginationForCapabilities gives the Reader Pagination in whichever shape it can honor,
-// immediately before dispatch, the way ForCapabilities does for Filter. A Reader that declares
-// Paginated gets Pagination as sent: it has its own field to read PageSize from. A Reader that
-// does not has no such field, so PageSize is folded into SearchDepth, the bound every Reader
-// already reads, and Pagination is cleared, so the query still reaches storage bounded rather
-// than as an unbounded search with SearchDepth left at zero. A PageToken is never folded: a
-// Reader that cannot paginate cannot have minted it, so it is refused (RFC 0014 §6.2) rather
-// than silently started over as a new search.
-//
-// It answers only that question. Whether the request is one this deployment accepts at all,
-// and whether Pagination is well-formed on its own terms, are the caller's to settle first
-// (EnsurePaginationStandsAlone).
-func (q TraceQueryParams) PaginationForCapabilities(caps SearchCapabilities) (TraceQueryParams, error) {
-	if q.Pagination == (Pagination{}) || caps.Paginated {
-		return q, nil
-	}
-	if q.Pagination.PageToken != "" {
-		return TraceQueryParams{}, ErrPaginationUnsupported
-	}
-	q.SearchDepth = q.Pagination.PageSize
-	q.Pagination = Pagination{}
-	return q, nil
-}
+// owe a Reader one filtering model rather than two (RFC 0005 §7). The check lives here, beside the
+// query type, so each wire runs the same one rather than its own. Converting a query toward what
+// a Reader declared it can evaluate is the query service's job.
 
 // EnsureFilterStandsAlone rejects a query that carries both a filter and one of the predicate
 // fields the filter replaces. The two express the same things — a service, an operation name, a
@@ -117,24 +44,6 @@ func (q TraceQueryParams) EnsureFilterStandsAlone() error {
 	}
 	return fmt.Errorf("%w: it cannot be combined with %v; express those predicates in the filter instead",
 		ErrFilterInvalid, set)
-}
-
-// ForCapabilities gives the Reader whichever of the two filtering models it declared it can
-// evaluate. A Reader that declares filter support gets the filter itself, once every level and
-// operator it uses is one that Reader listed. A Reader that declares none gets the filter rewritten
-// into the legacy predicate fields, which carry the equalities and inclusive duration bounds and
-// nothing else (ToLegacyShape), or a refusal where they cannot carry it.
-//
-// It answers only that question. Whether the request is one this deployment accepts at all is the
-// caller's to settle first.
-func (q TraceQueryParams) ForCapabilities(caps SearchCapabilities) (TraceQueryParams, error) {
-	if q.Filter == nil {
-		return q, nil
-	}
-	if caps.Filter.IsEmpty() {
-		return q.ToLegacyShape()
-	}
-	return q, caps.Filter.EnsureSupported(q.Filter)
 }
 
 // EnsureSupported walks the filter and refuses the first predicate the Reader did not declare it

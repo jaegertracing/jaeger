@@ -779,6 +779,7 @@ func TestServerHandlesPortZero(t *testing.T) {
 		ExpectedServices: []string{
 			"jaeger.api_v2.QueryService",
 			"jaeger.api_v3.QueryService",
+			"jaeger.api_v3.Capabilities",
 			"grpc.health.v1.Health",
 		},
 	}.Execute(t)
