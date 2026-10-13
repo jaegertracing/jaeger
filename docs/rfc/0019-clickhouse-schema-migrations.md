@@ -13,7 +13,7 @@
 
 The ClickHouse backend creates its twelve tables and materialized views at startup from one `CREATE ... IF NOT EXISTS` template per object, and has no way to change an object that already exists. The first change to the schema since it reached users, the missing OTLP span columns of #9789, therefore has to establish how the schema is amended from now on. This RFC describes the mechanism as it stands, states what a replacement has to satisfy, and analyses four families of approach: versioned delta files applied by a migration framework, as #9789 sketched and #9796 implements with golang-migrate; the same deltas applied by a small in-house migrator; a full copy of the schema per version, which is how the Cassandra backend works; and reconciliation, where the templates stay the single declarative description of the desired schema and the backend computes at startup the `ALTER` statements that bring the live database to it, in the manner of Kubernetes controllers and Terraform.
 
-Reconciliation is the recommendation. It keeps today's per-object templates as the living source of truth, needs no version numbering, frozen files or golden dumps, and gives operators who manage the schema themselves a printed plan of exactly what their database lacks. ClickHouse makes the diff tractable without a SQL parser: the desired objects are created in a scratch database and compared with the live ones through the system catalogs, so both sides are normalized by the same server. The engine refuses every change that would rewrite data and never drops anything, which keeps a startup step metadata-only. A survey of third-party reconcilers for ClickHouse found none that is both embeddable and under a free license, so the diff engine is written in-house, informed by the designs of those tools. Release-time snapshots and numbered migration files are produced from the same engine for people who want a versioned audit trail.
+Reconciliation is the recommendation. It keeps today's per-object templates as the living source of truth, needs no version numbering, frozen files or golden dumps, and gives operators who manage the schema themselves a printed plan of exactly what their database lacks. ClickHouse makes the diff tractable without a SQL parser: the desired objects are created in a scratch database and compared with the live ones through the system catalogs, so both sides are normalized by the same server. The engine refuses every change that would rewrite data and never drops anything, which keeps a startup step metadata-only, and a single generation number recorded on the schema keeps an older binary in a rolling deploy from undoing a newer one's changes. A survey of third-party reconcilers for ClickHouse found none that is both embeddable and under a free license, so the diff engine is written in-house, informed by the designs of those tools. Release-time snapshots and numbered migration files are produced from the same engine for people who want a versioned audit trail.
 
 ---
 
@@ -33,7 +33,7 @@ The Cassandra backend is the cautionary example. Its schema lives in `v001.cql.t
 
 ### 2.1 Files
 
-The schema is twelve files under [`internal/storage/v2/clickhouse/sql/`](../../internal/storage/v2/clickhouse/sql/), one per object, each embedded as a string constant in `queries.go`:
+The schema is twelve files under [`internal/storage/v2/clickhouse/sql/`](../../internal/storage/v2/clickhouse/sql/), one per object, each embedded as a string variable in `queries.go`:
 
 | File | Object | Templated |
 | --- | --- | --- |
@@ -77,24 +77,27 @@ The shape of any migration mechanism follows from which parts of a table can cha
 | Add a column | `ALTER TABLE ... ADD COLUMN IF NOT EXISTS` | metadata only¹ | propagates through Keeper |
 | Add a skip index | `ALTER TABLE ... ADD INDEX IF NOT EXISTS` | metadata only; existing parts are indexed on merge or by `MATERIALIZE INDEX` | propagates |
 | Change a column's codec | `ALTER TABLE ... MODIFY COLUMN ... CODEC(...)` | metadata only; parts are re-encoded on merge | propagates |
+| Replace a skip index | `DROP INDEX` then `ADD INDEX` | metadata only; index files of existing parts are rebuilt on merge or by `MATERIALIZE INDEX` | propagates |
 | Change a column's type, including adding `LowCardinality` | `ALTER TABLE ... MODIFY COLUMN ... <type>` | a mutation that rewrites every part² | propagates |
-| Change a table setting | `ALTER TABLE ... MODIFY SETTING` | metadata only | propagates |
-| Change TTL | `ALTER TABLE ... MODIFY TTL` | a mutation that rewrites the parts the new expression expires² | propagates |
-| Change a view's query | `ALTER TABLE <view> MODIFY QUERY` | metadata only | propagates |
+| Change a table setting | `ALTER TABLE ... MODIFY SETTING` | metadata only | replica-local³ |
+| Change TTL | `ALTER TABLE ... MODIFY TTL` | a mutation by default; metadata only with `materialize_ttl_after_modify = 0`, after which the new expression applies as parts merge⁴ | propagates |
+| Change a view's query | `ALTER TABLE <view> MODIFY QUERY` | metadata only; ClickHouse 24.3 or newer for a view with a `TO` table | replica-local³ |
 | Extend the sorting key | `ALTER TABLE ... MODIFY ORDER BY` | metadata only, and only by appending columns added in the same statement | propagates |
-| Drop a column or index | `ALTER TABLE ... DROP COLUMN` | destroys data | propagates |
+| Drop a column | `ALTER TABLE ... DROP COLUMN` | destroys data | propagates |
 | Change `ENGINE`, `PARTITION BY`, or the existing sorting key | not possible | requires a new table and a copy | n/a |
 
 - ¹ The column is added to each part's metadata; existing parts read the column's default until they are merged.
-- ² A mutation is background work over every affected part, which for a large `spans` table is hours of I/O. It is the reason TTL belongs in `CREATE` and not in a per-startup `ALTER`, and the reason type changes are operator procedures rather than startup steps (§5.4).
+- ² A mutation is background work over every affected part, which for a large `spans` table is hours of I/O. It is the reason type changes are operator procedures rather than startup steps (§5.4).
+- ³ A `MODIFY SETTING` on a `Replicated*` table changes only the replica that received it, and a materialized view has engine `MaterializedView`, not a `Replicated*` engine, so its `MODIFY QUERY` is local too. Reaching every replica needs the fan-out of §2.4.
+- ⁴ With materialization off, existing parts keep their rows until a merge re-evaluates the TTL, which is the behavior a day-partitioned table with `ttl_only_drop_parts` wants anyway.
 
-Two properties of replicated deployments matter. An `ALTER` on a `Replicated*` table is recorded in Keeper and applied on every replica, so a statement issued through one connection reaches the whole shard. A `CREATE TABLE` is not: it creates the table only on the server the client reached, and reaching the others needs `ON CLUSTER`, a database with the `Replicated` database engine, or a connection to each. §5.6 draws the consequence.
+Replication covers less than it seems. A column, index or codec `ALTER` on a `Replicated*` table is recorded in Keeper and applied on every replica, so a statement issued through one connection reaches the whole shard. A `CREATE TABLE`, a `MODIFY SETTING` and a view's `MODIFY QUERY` are local to the server the client reached, and reaching the others needs `ON CLUSTER`, a database with the `Replicated` database engine, or a connection to each. §5.6 draws the consequence.
 
 ### 2.4 Facilities ClickHouse offers a schema tool
 
 - **System catalogs.** `system.tables` has `engine_full`, `sorting_key`, `partition_key`, `create_table_query` and, for views, `as_select`; `system.columns` has each column's `type`, `default_kind`, `default_expression`, `compression_codec` and `position`, with `Nested` groups flattened to `events.name Array(String)`; `system.data_skipping_indices` has each index's `type_full`, `expr` and `granularity`. Everything a diff needs is a query away, normalized by the server.
 - **Scratch databases.** `CREATE DATABASE` is cheap, so the desired DDL can be created under a throwaway database and compared with the live objects through the catalogs above, which avoids writing a ClickHouse DDL parser.
-- **A cross-process lock.** ClickHouse has no advisory locks, but a `KeeperMap` table with `keeper_map_strict_mode = 1` turns an `INSERT` of an existing key into an error, which is a lock with Keeper as the arbiter. It needs a Keeper ensemble and a `keeper_map_path_prefix` in the server configuration, both of which a replicated deployment has.
+- **A cross-process lock.** ClickHouse has no advisory locks, but a `KeeperMap` table with `keeper_map_strict_mode = 1` turns an `INSERT` of an existing key into an error, which is a lock with Keeper as the arbiter. It needs ClickHouse 23.8 or newer, a Keeper ensemble, and the opt-in `keeper_map_path_prefix` server setting, which no default configuration sets; a server without it refuses to create the table with a recognizable error.
 - **DDL fan-out.** The `Replicated` database engine replays every DDL statement issued to one replica on all of them, and is the default on ClickHouse Cloud; `ON CLUSTER <name>` does the same per statement on a self-hosted cluster with an ordinary `Atomic` database.
 
 ### 2.5 How the other backends do it
@@ -188,7 +191,7 @@ Two of these matter as prior art even though none is adopted. The Python tool di
 | 6. Operator-managed schema | 🟨⁹ | 🟨⁹ | 🟢 | 🟨⁹ | 🟢¹⁰ |
 | 7. Readable current schema | 🟨¹¹ | 🟨¹¹ | 🟢 | 🟢 | 🟢 |
 | 8. Dependency footprint | 🟨¹² | 🟢 | 🟢 | 🟢 | 🟢 |
-| 9. Little bookkeeping | ❌ | ❌ | 🟨 | ❌ | 🟢 |
+| 9. Little bookkeeping | ❌ | ❌ | 🟨 | ❌ | 🟢¹⁴ |
 | 10. Production statements reviewable | 🟢 | 🟢 | 🟨 | 🟢 | 🟨¹³ |
 | Code to own | 🟢 glue only | 🟨 ~100 lines | 🟢 | 🟨 | ❌ ~400 lines |
 
@@ -199,12 +202,13 @@ Two of these matter as prior art even though none is adopted. The Python tool di
 - ⁵ The plan is computed from the live catalog, so what is reported is what the database actually lacks.
 - ⁶ The version table's `CREATE` races on first start, and pending versions can interleave across instances (§4.1).
 - ⁷ Correct if every statement is idempotent and no version reassigns an earlier version's property; a `KeeperMap` lock would make it 🟢.
-- ⁸ Every statement is idempotent and there is no shared bookkeeping to race on; the optional `KeeperMap` lock removes even the duplicate work.
+- ⁸ Every statement is idempotent and there is no shared bookkeeping to race on; the `KeeperMap` lock, taken where the server offers it, removes even the duplicate work.
 - ⁹ The operator receives "versions 2 and 3 are pending" and the files, and is trusted to apply them whole.
 - ¹⁰ The operator receives the exact statements their database lacks, computed against it.
 - ¹¹ Through a generated golden dump rather than the authored files.
 - ¹² A second `database/sql` connection for the library's driver.
 - ¹³ The PR shows the template edit, not the `ALTER`; the statements are visible in the release-time migration file (§5.7) and in the printed plan.
+- ¹⁴ One integer, the schema generation of §5.2, incremented by any PR that edits a template.
 
 Reconciliation is the recommendation. The rows that decided it are 4, 6, 7 and 9: the plan is computed from what the database actually contains, the operator gets the exact statements they lack, the templates stay the readable schema, and contributors learn no numbering or freezing rules. The row it loses, code to own, is a few hundred lines of catalog comparison that the prior art shows to be a solved shape, and row 10 is recovered by the release-time migration files. The in-house migrator of §4.2 is the fallback if the diff engine proves harder than estimated; it shares the per-object layout and the idempotence rules, so the templates and tests carry over.
 
@@ -250,12 +254,14 @@ type schemaRefusal struct {
 
 `plan` does the following, all through the native connection the factory already holds:
 
-1. Create a scratch database `jaeger_schema_<random>`, render each template and create its object there. Scratch tables are rendered with the local engine family regardless of `table_engine`, because the engine is never diffed and a `Replicated*` scratch table would register a Keeper path.
-2. For each desired object, read `system.tables`, `system.columns` and `system.data_skipping_indices` for both the scratch and the live copy. `Nested` columns are flattened the same way on both sides.
-3. Per object, compute the difference. A live object that is missing yields its rendered `CREATE` with the deployment's engine. A missing column yields `ADD COLUMN IF NOT EXISTS` placed `AFTER` its predecessor; a missing index yields `ADD INDEX IF NOT EXISTS`; a codec difference yields `MODIFY COLUMN ... CODEC`; a setting difference yields `MODIFY SETTING`; a view whose `as_select` differs yields `MODIFY QUERY`. A type difference, a TTL difference (compared on the `TTL` clause of the normalized `create_table_query`), a sorting key, partition key or engine family difference yields a refusal. Columns and indexes present live and absent from the desired schema yield nothing.
+1. Create a scratch database `jaeger_schema_<random>`, render each template and create its object there. Scratch tables are rendered with the local engine family regardless of `table_engine`, because a `Replicated*` scratch table would register a Keeper path; the live engine is checked against the configured family directly (step 3).
+2. For each desired object, read `system.tables`, `system.columns` and `system.data_skipping_indices` for both the scratch and the live copy. ClickHouse qualifies every table reference with its database at `CREATE` time, so `as_select` and `create_table_query` are compared with the database qualifier stripped on both sides. A first-level `Nested` group is flattened to one `Array` column per member on both sides; a `Nested` group inside another, such as the attribute groups under `events` and `links`, stays one column of type `Array(Nested(...))`, so a change inside it is a type change.
+3. Per object, compute the difference. A live object that is missing yields its rendered `CREATE` with the deployment's engine. A missing column yields `ADD COLUMN IF NOT EXISTS` placed `AFTER` its predecessor; a missing index yields `ADD INDEX IF NOT EXISTS`; an index whose `type_full`, `expr` or `granularity` differs yields `DROP INDEX IF EXISTS` followed by `ADD INDEX`; a codec difference yields `MODIFY COLUMN ... CODEC`; a setting difference yields `MODIFY SETTING`; a TTL difference yields `MODIFY TTL ... SETTINGS materialize_ttl_after_modify = 0`; a view whose `as_select` differs yields `MODIFY QUERY` with the query text taken from the rendered template, not from the scratch view. A type difference, a sorting key or partition key difference, or a live engine outside the configured family yields a refusal. Columns and indexes present live and absent from the desired schema yield nothing.
 4. Drop the scratch database, also on error.
 
 Idempotence is a property of the vocabulary: every applicable statement is a no-op when the live object already matches, so two instances applying the same plan both succeed, and a plan computed after `apply` is empty.
+
+The reconciler also records which release last reconciled the schema, as the comment on the `spans` table (`ALTER TABLE spans MODIFY COMMENT 'jaeger schema generation N'`, a metadata-only statement that replicates). `N` is a constant in the backend that every PR editing a template increments, and test 1 of §5.9 fails when the rendered schema changes without it. `plan` reads the comment first and, when the recorded generation is higher than the binary's, returns an empty plan with a notice instead of the diff. This is what keeps an older instance in a rolling deploy from reconciling codecs, settings and view queries back to its own templates after a newer instance moved them forward; additive statements would be harmless either way, but `MODIFY` statements do not commute across releases. It is the one piece of version bookkeeping the design keeps, a single integer.
 
 ### 5.3 Startup behavior
 
@@ -266,13 +272,15 @@ Idempotence is a property of the vocabulary: every applicable statement is a no-
 | `true` | any refusal | Fail with the refusals and the statements an operator would run. A startup step does not rewrite data. |
 | `false` | empty | Start. |
 | `false` | anything | Log the plan as a warning, statement by statement, and start. The warning names the command of §5.8. |
+| `false` | cannot be computed | Warn and start. A deployment whose Jaeger user cannot create a scratch database ran without DDL privileges before this mechanism and continues to; the warning says which privilege is missing and that `clickhouse-schema plan` can be run with a privileged user instead. |
+| `true` | cannot be computed | Fail: creating the schema was asked for and needs the privileges to plan it. |
 
 A deployment on the previous release has no version table to migrate and nothing to bootstrap: the first start with this mechanism computes a plan against its tables like any other.
 
 ### 5.4 Rules for changing the schema
 
 1. **Expand only.** A template edit adds columns, indexes, codecs and settings or changes a view's query. It never removes or renames a column that the previous release reads or writes; removal is a template edit in the release after the one that stopped using it, and even then the reconciler does not drop it, so an operator runbook does. A rolling deploy therefore always has an older binary running against a schema that is a superset of what it expects, which `INSERT` with an explicit column list and `SELECT` with explicit columns already tolerate.
-2. **No data-rewriting changes at startup.** A column type, including `LowCardinality`, a TTL expression, a sorting key, a partition key and an engine are changed by operator procedures with runbooks. A template edit that changes one of them is legitimate for fresh installs, and the reconciler reports it as a refusal against existing databases, so the PR that makes the edit ships the runbook, and the test in §5.9 that reconciles from every prior release fails until it does.
+2. **No data-rewriting changes at startup.** A column type, including `LowCardinality` and any change inside the nested attribute groups of `events` and `links`, a sorting key, a partition key and an engine are changed by operator procedures with runbooks. A TTL change is applied without materialization (§2.3) and is the exception. A template edit that changes one of them is legitimate for fresh installs, and the reconciler reports it as a refusal against existing databases, so the PR that makes the edit ships the runbook, and the test in §5.9 that reconciles from every prior release fails until it does.
 3. **Views change by `MODIFY QUERY`.** Never drop-and-recreate, because inserts during the gap would bypass the view.
 4. **New columns have defaults the old binary can satisfy.** A new column takes its type default, so an `INSERT` from a binary that does not know the column still succeeds.
 
@@ -280,11 +288,11 @@ A deployment on the previous release has no version table to migrate and nothing
 
 Every statement in the vocabulary is idempotent and the plan has no cross-statement dependencies beyond order within one object, so concurrent instances applying the same plan produce the same schema. Two instances may both issue the same `ADD COLUMN`, and ClickHouse serializes `ALTER`s per table, so the second is a no-op.
 
-Where a Keeper ensemble exists, which is every deployment with `table_engine.replicated`, the reconciler additionally takes the `KeeperMap` lock of §2.4 around `plan` and `apply`: a `jaeger_schema_lock` table with `keeper_map_strict_mode = 1`, one row whose key is the database name and whose value is the instance identity and a timestamp, released after `apply` and treated as stale after 60 s. An instance that cannot take the lock waits and recomputes its plan afterwards, which is then empty. The lock removes duplicate work and the drift between replicas' views of an in-flight `ALTER`; it is not what correctness rests on.
+With `table_engine.replicated`, the reconciler additionally tries to take the `KeeperMap` lock of §2.4 around `plan` and `apply`: a `jaeger_schema_lock` table with `keeper_map_strict_mode = 1`, one row whose key is the database name and whose value is the instance identity and a timestamp, released after `apply` and treated as stale after 60 s. An instance that cannot take the lock waits and recomputes its plan afterwards, which is then empty. A server that refuses the table because `keeper_map_path_prefix` is unset is logged once and the reconciler proceeds without the lock. The lock removes duplicate work and the drift between replicas' views of an in-flight `ALTER`; it is not what correctness rests on, which is why its absence is a log line and not a failure.
 
 ### 5.6 Replicated clusters
 
-The plan is computed against the replica the connection reached. `ALTER` statements propagate through Keeper and need nothing more. `CREATE` statements are local (§2.3), so a fresh database on a self-hosted cluster whose replicas are not each reached by a Jaeger instance needs DDL fan-out. The backend adds an optional `cluster` field to `table_engine.replicated`; when set, every statement the reconciler issues carries `ON CLUSTER <name>` through a template parameter. When unset, the operator is expected to have a `Replicated` database, which is the ClickHouse Cloud default, and the documentation says so. Because the reconciler plans against the live catalog rather than a version number, a replica that was missed is simply found to lack its tables by the next instance that connects to it, which is the failure mode today's startup already has and the versioned designs make worse (§4.1).
+The plan is computed against the replica the connection reached. Column, index and codec `ALTER`s propagate through Keeper; `CREATE`, `MODIFY SETTING`, `MODIFY QUERY` and `MODIFY COMMENT` on a view are local to that replica (§2.3). A multi-replica deployment therefore needs DDL fan-out for the reconciler to converge every replica in one pass. The backend adds an optional `cluster` field to `table_engine.replicated`; when set, every statement the reconciler issues carries `ON CLUSTER <name>` through a template parameter. When unset, the operator is expected to have a `Replicated` database, which is the ClickHouse Cloud default, and the documentation says so. Without either, a replica that was missed is found to lack its objects or settings by the next instance that connects to it and reconciled then, so the cluster converges over restarts rather than in one pass; that is the failure mode today's startup already has, and the versioned designs make it worse because a recorded version hides it (§4.1).
 
 ### 5.7 Release snapshots and migration files
 
@@ -303,10 +311,10 @@ jaeger ... --config config.yaml clickhouse-schema render    # the rendered desir
 
 All against the live ClickHouse that the integration suite already starts.
 
-1. **Fresh install.** `apply` on an empty database, then `plan` is empty, and `SHOW CREATE TABLE` of every object equals the rendered template as the server normalizes it.
+1. **Fresh install.** `apply` on an empty database, then `plan` is empty, and `SHOW CREATE TABLE` of every object equals the rendered template as the server normalizes it. The rendered schema's hash is compared with a committed value keyed by the generation constant, so a template edit without a generation bump fails here.
 2. **Upgrade from every release.** For each snapshot in `snapshots/`, apply it to an empty database, run `apply`, and require the resulting catalog to equal a fresh install's and the plan to be empty afterwards. A template edit that needs a runbook fails this test with a refusal until the runbook exists and the test lists the change as expected.
 3. **Idempotence and concurrency.** `apply` twice; run `apply` from two connections at once; the plan is empty after each and the catalog equals a fresh install's.
-4. **Refusals.** For each refused class, create a table that differs from the template in that one way and require `plan` to return the refusal and `apply` to fail without executing anything.
+4. **Refusals and generations.** For each refused class, create a table that differs from the template in that one way and require `plan` to return the refusal and `apply` to fail without executing anything. Set the `spans` comment to a higher generation and require an empty plan with the notice.
 5. **Diff engine unit tests** on synthetic catalog rows: every vocabulary statement, `Nested` flattening, column placement, and TTL clause extraction.
 
 Run once with `merge_tree` and `ttl: 0` and once with `ttl` set, so the TTL clause is covered live; the `replicated` and `ON CLUSTER` rendering and the `KeeperMap` lock are covered by unit tests, because the CI ClickHouse runs without Keeper.
@@ -320,7 +328,7 @@ An existing deployment has the twelve objects as the previous release created th
 - With `create_schema: true`, `plan` finds the ten OTLP columns missing from `spans` and nothing else, and `apply` adds them. No operator action, which is the point of putting the mechanism behind the existing flag.
 - With `create_schema: false`, the binary logs the ten `ADD COLUMN` statements as a warning and starts; the writer fails on insert until the operator applies them, exactly as today, but the operator now has the statements in the log and in `clickhouse-schema plan`.
 
-A mismatch between the configuration and what was created a year ago, say a `ttl` that was since changed, is detected as a refusal, which is new: today it is invisible. With `create_schema: true` that refusal stops startup until the operator either runs the `MODIFY TTL` the message prints or sets `ttl` back to what the table has. This is the one way the upgrade can be noisier than before, and it is noisy about a real discrepancy.
+A mismatch between the configuration and what was created a year ago is detected, which is new: today it is invisible. A `ttl` that was since changed becomes an applicable `MODIFY TTL` without materialization, so the configured retention takes effect as parts merge. A table whose engine is outside the configured family, say a local `MergeTree` under a configuration that now says `replicated`, is a refusal that stops startup with `create_schema: true` until the operator either rebuilds the table or corrects the configuration. This is the one way the upgrade can be noisier than before, and it is noisy about a real discrepancy.
 
 ---
 
@@ -337,8 +345,9 @@ A mismatch between the configuration and what was created a year ago, say a `ttl
 
 ## 8. Open Questions
 
-- **Refusal strictness with `create_schema: true`.** §5.3 fails startup on any refusal. An alternative is to warn and start when the refusal concerns only a property the binary can live with, such as a TTL that differs from the configuration; the strict form is proposed because a silent discrepancy is what the mechanism exists to end.
-- **Scratch database privileges.** `plan` needs `CREATE DATABASE` and `DROP DATABASE`. A deployment whose Jaeger user lacks them can still run `clickhouse-schema render` and diff by hand, and the error message says so; whether to offer a parser-based fallback is deferred until a user needs it.
+- **Refusal strictness with `create_schema: true`.** §5.3 fails startup on any refusal. An alternative is to warn and start when the refusal concerns only a property the binary can live with, such as a sorting key that differs from the template; the strict form is proposed because a silent discrepancy is what the mechanism exists to end.
+- **Scratch database privileges.** `plan` needs `CREATE DATABASE` and `DROP DATABASE`. §5.3 lets an operator-managed deployment start without them; whether to offer a parser-based fallback that needs no scratch database is deferred until a user needs it.
+- **Minimum ClickHouse version.** `MODIFY QUERY` on a view with a `TO` table needs 24.3 and the lock needs 23.8. The backend has stated no floor so far; 24.3 is proposed and would be documented with M1.
 - **One-shot mode.** Large fleets may prefer an init container that applies the plan once before the pods roll. A `clickhouse-schema apply` command is a small addition to §5.8 if the demand appears.
 
 ---
