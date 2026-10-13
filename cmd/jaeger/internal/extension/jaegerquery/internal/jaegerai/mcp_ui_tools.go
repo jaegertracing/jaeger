@@ -192,7 +192,7 @@ func emitUIToolCall(stream *streamingClient, toolName string, rawArgs json.RawMe
 			return uiToolErrorResult(fmt.Sprintf("invalid JSON arguments for tool %q: %v", toolName, err))
 		}
 	}
-	stream.EmitContextualToolCall(newUIToolCallID(toolName), toolName, args)
+	stream.EmitUIToolCall(newUIToolCallID(toolName), toolName, args)
 	return &mcp.CallToolResult{
 		Content: []mcp.Content{&mcp.TextContent{Text: fmt.Sprintf("ui tool %q dispatched to the browser", toolName)}},
 	}
