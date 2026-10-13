@@ -292,6 +292,10 @@ func registerAIRoutes(
 	var mcpHandler *mcptools.Handler
 	if mcp := aiCfg.MCP.Get(); mcp != nil {
 		mcpCfg := mcptools.DefaultConfig()
+		// The tunables are optional, and an unset one must keep the default
+		// rather than become a zero value, so the overlay starts from the
+		// defaults the retired jaeger_mcp extension shipped.
+		mcp.applyTo(&mcpCfg)
 		// Opened once, so a broken path is reported once, at startup. It stays open
 		// for as long as it serves, so it is released with the server rather than at
 		// process exit.

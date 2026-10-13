@@ -27,6 +27,36 @@ It serves at `<basePath>/api/ai/mcp/` on the query port, carrying the telemetry
 tools and `read_skill` with the built-in skills. Point an MCP client there, or
 leave it to an AI chat sidecar configured with `ai.agent_url`.
 
+## Tuning the tool limits
+
+Three tools bound how much one call may ask for. Each has a default, and each
+can be raised under the same `ai.mcp` block:
+
+```yaml
+extensions:
+  jaeger_query:
+    ai:
+      mcp:
+        max_search_results: 500          # default 100, at most 1000
+        max_span_details_per_request: 50 # default 20,  at most 100
+        max_read_file_size: 1048576      # default 512 KiB, at most 10 MiB
+```
+
+| Setting | Bounds | Tools it limits |
+| --- | --- | --- |
+| `max_search_results` | returned spans | `search_traces` |
+| `max_span_details_per_request` | spans per call | `get_span_details`, `get_trace_errors`, `get_trace_topology` |
+| `max_read_file_size` | bytes served | `read_skill` |
+
+`server_name` (default `jaeger`) sets the name the server advertises to clients.
+
+Leave a setting out, or set it to `0`, to keep its default. A value outside the
+range above is rejected at startup rather than being silently clamped, so a
+limit an operator raised deliberately is the limit that takes effect.
+
+The bounds are per call, not per session: they stop one request from allocating
+without limit, and do not cap what a client can ask for across many requests.
+
 ## Adding installation-specific skills
 
 Point `ai.mcp.skills_dir` at a directory on the query server's disk:
