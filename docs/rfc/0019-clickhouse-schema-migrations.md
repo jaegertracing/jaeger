@@ -272,7 +272,7 @@ The comparison is defined per object kind over the catalog columns below. A prop
 | index | `type_full`, `expr`, `granularity` | `system.data_skipping_indices` | `DROP INDEX` then `ADD INDEX` (deferred) |
 | view | exists | `system.tables` | `CREATE MATERIALIZED VIEW IF NOT EXISTS` (additive) |
 | view | `TO` table | `create_table_query` | refusal |
-| view | query, the template's `SELECT` through `formatQuery` against the live `as_select` | `system.tables.as_select` | `MODIFY QUERY` with the template's text (deferred) |
+| view | query, the template's `SELECT` through `formatQuerySingleLine` against the live `as_select` | `system.tables.as_select` | `MODIFY QUERY` with the template's text (deferred) |
 
 Deliberately not compared: the Keeper path and replica name of a `Replicated*` engine, because deployments legitimately carry paths no template reproduces; a view's declared columns, which follow from the query that is compared; the position of existing columns; comments; and any column, index, projection or constraint present live and absent from the template, which an operator may have added and the reconciler never removes. Database qualifiers are stripped only where they name the configured database, so a deliberate cross-database reference would survive. `Nested` groups are flattened the same way on both sides, and a `Nested` group inside another is one `Array(Nested(...))` column, so a change inside it is a type difference.
 
