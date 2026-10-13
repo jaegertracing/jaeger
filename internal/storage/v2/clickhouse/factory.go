@@ -79,11 +79,11 @@ type schemaBuilder struct {
 }
 
 func newSchemaBuilder(cfg Configuration) (*schemaBuilder, error) {
-	mergeTree, err := cfg.TableEngine.engineClause("MergeTree")
+	mergeTree, err := cfg.TableEngine.engineClause(mergeTreeFamily)
 	if err != nil {
 		return nil, err
 	}
-	aggregatingMergeTree, err := cfg.TableEngine.engineClause("AggregatingMergeTree")
+	aggregatingMergeTree, err := cfg.TableEngine.engineClause(aggregatingMergeTreeFamily)
 	if err != nil {
 		return nil, err
 	}

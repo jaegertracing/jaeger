@@ -102,11 +102,20 @@ type ReplicatedEngine struct {
 	ReplicaName string `mapstructure:"replica_name"`
 }
 
+// engineFamily is the local engine of a table in the schema, which a TableEngine
+// renders either as is or as its Replicated counterpart.
+type engineFamily string
+
+const (
+	mergeTreeFamily            engineFamily = "MergeTree"
+	aggregatingMergeTreeFamily engineFamily = "AggregatingMergeTree"
+)
+
 // engineClause validates the TableEngine and returns the body of the ENGINE clause for a
-// table of the given family, "MergeTree" or "AggregatingMergeTree", as the configured
-// TableEngine renders it. Validation and rendering share one function so that no clause
-// can be rendered from a configuration that was not checked.
-func (e TableEngine) engineClause(family string) (string, error) {
+// table of the given family, as the configured TableEngine renders it. Validation and
+// rendering share one function so that no clause can be rendered from a configuration
+// that was not checked.
+func (e TableEngine) engineClause(family engineFamily) (string, error) {
 	hasMergeTree := e.MergeTree.HasValue()
 	hasReplicated := e.Replicated.HasValue()
 	if hasMergeTree && hasReplicated {
@@ -119,7 +128,7 @@ func (e TableEngine) engineClause(family string) (string, error) {
 	}
 	r := e.Replicated.Get()
 	if r == nil {
-		return family, nil
+		return string(family), nil
 	}
 	if (r.KeeperPath == "") != (r.ReplicaName == "") {
 		return "", errors.New("table_engine.replicated must set keeper_path and replica_name together or neither")
@@ -130,7 +139,7 @@ func (e TableEngine) engineClause(family string) (string, error) {
 		return "", errors.New("table_engine.replicated keeper_path and replica_name must not contain a single quote or a backslash")
 	}
 	if r.KeeperPath == "" {
-		return "Replicated" + family, nil
+		return "Replicated" + string(family), nil
 	}
 	return fmt.Sprintf("Replicated%s('%s', '%s')", family, r.KeeperPath, r.ReplicaName), nil
 }
@@ -181,7 +190,7 @@ func (cfg *Configuration) Validate() error {
 	// The table_engine block is ignored without create_schema, because the operator then
 	// owns the tables.
 	if cfg.CreateSchema {
-		if _, err := cfg.TableEngine.engineClause("MergeTree"); err != nil {
+		if _, err := cfg.TableEngine.engineClause(mergeTreeFamily); err != nil {
 			return err
 		}
 	}
