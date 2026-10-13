@@ -70,13 +70,13 @@ type Authentication struct {
 }
 
 // TableEngine selects the ClickHouse engine family for the tables the backend creates.
-// The backend knows which tables are MergeTree and which are AggregatingMergeTree, so the
+// The backend knows which tables are `MergeTree` and which are `AggregatingMergeTree`, so the
 // choice here is only between the local engines and their Replicated counterparts.
 type TableEngine struct {
 	// MergeTree creates local tables, which hold data only on the server that received the
 	// insert. It is the right choice for a single-node server.
 	MergeTree configoptional.Optional[MergeTreeEngine] `mapstructure:"merge_tree"`
-	// Replicated creates ReplicatedMergeTree and ReplicatedAggregatingMergeTree tables, which
+	// Replicated creates `ReplicatedMergeTree` and `ReplicatedAggregatingMergeTree` tables, which
 	// keep every row on every replica of the shard. It is required on a cluster with more than
 	// one replica.
 	Replicated configoptional.Optional[ReplicatedEngine] `mapstructure:"replicated"`
@@ -87,18 +87,18 @@ type MergeTreeEngine struct{}
 
 // ReplicatedEngine carries the two arguments of a Replicated* engine. Both are optional,
 // but only together: when both are empty the engine is rendered without arguments and the
-// server's default_replica_path and default_replica_name settings apply, and setting one
+// server's `default_replica_path` and `default_replica_name` settings apply, and setting one
 // without the other is a validation error. Both are passed to ClickHouse verbatim, so
-// server macros such as {shard}, {replica}, {database} and {table} are substituted by the
+// server macros such as `{shard}`, `{replica}`, `{database}` and `{table}` are substituted by the
 // server.
 type ReplicatedEngine struct {
 	// KeeperPath is the path in ClickHouse Keeper under which the table's replication
 	// metadata is kept. The same template is used for every table in the schema, so it
-	// must contain the {table} macro, or another expansion distinct per table, because
+	// must contain the `{table}` macro, or another expansion distinct per table, because
 	// ClickHouse refuses two tables under one path.
 	KeeperPath string `mapstructure:"keeper_path"`
 	// ReplicaName identifies this replica under KeeperPath. The same value is used for
-	// every table, which is what the {replica} macro expects.
+	// every table, which is what the `{replica}` macro expects.
 	ReplicaName string `mapstructure:"replica_name"`
 }
 
@@ -119,24 +119,24 @@ func (e TableEngine) engineClause(family engineFamily) (string, error) {
 	hasMergeTree := e.MergeTree.HasValue()
 	hasReplicated := e.Replicated.HasValue()
 	if hasMergeTree && hasReplicated {
-		return "", errors.New("table_engine must set only one of merge_tree or replicated")
+		return "", errors.New("`table_engine` must set only one of `merge_tree` or `replicated`")
 	}
 	if !hasMergeTree && !hasReplicated {
-		return "", errors.New("create_schema requires table_engine with exactly one of merge_tree or replicated: " +
-			"use merge_tree for a single-node server, replicated for a cluster with more than one replica, " +
-			"or set create_schema: false and manage the tables yourself")
+		return "", errors.New("`create_schema` requires `table_engine` with exactly one of `merge_tree` or `replicated`: " +
+			"use `merge_tree` for a single-node server, `replicated` for a cluster with more than one replica, " +
+			"or set `create_schema: false` and manage the tables yourself")
 	}
 	r := e.Replicated.Get()
 	if r == nil {
 		return string(family), nil
 	}
 	if (r.KeeperPath == "") != (r.ReplicaName == "") {
-		return "", errors.New("table_engine.replicated must set keeper_path and replica_name together or neither")
+		return "", errors.New("`table_engine.replicated` must set `keeper_path` and `replica_name` together or neither")
 	}
 	// Both values are rendered inside single-quoted SQL literals, where a quote ends the
 	// literal and a backslash escapes the character after it.
 	if strings.ContainsAny(r.KeeperPath, `'\`) || strings.ContainsAny(r.ReplicaName, `'\`) {
-		return "", errors.New("table_engine.replicated keeper_path and replica_name must not contain a single quote or a backslash")
+		return "", errors.New("`table_engine.replicated` `keeper_path` and `replica_name` must not contain a single quote or a backslash")
 	}
 	if r.KeeperPath == "" {
 		return "Replicated" + string(family), nil

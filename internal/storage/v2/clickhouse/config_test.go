@@ -104,7 +104,7 @@ func TestValidate(t *testing.T) {
 			mutate: func(cfg *Configuration) {
 				cfg.CreateSchema = true
 			},
-			wantErr: "create_schema requires table_engine with exactly one of merge_tree or replicated",
+			wantErr: "`create_schema` requires `table_engine` with exactly one of `merge_tree` or `replicated`",
 		},
 		{
 			name: "create_schema with merge_tree",
@@ -145,7 +145,7 @@ func TestValidate(t *testing.T) {
 				cfg.TableEngine.MergeTree = configoptional.Some(MergeTreeEngine{})
 				cfg.TableEngine.Replicated = configoptional.Some(ReplicatedEngine{})
 			},
-			wantErr: "table_engine must set only one of merge_tree or replicated",
+			wantErr: "`table_engine` must set only one of `merge_tree` or `replicated`",
 		},
 		{
 			name: "replicated keeper path without replica name",
@@ -155,7 +155,7 @@ func TestValidate(t *testing.T) {
 					KeeperPath: "/clickhouse/tables/{shard}/{database}/{table}",
 				})
 			},
-			wantErr: "keeper_path and replica_name together or neither",
+			wantErr: "`keeper_path` and `replica_name` together or neither",
 		},
 		{
 			name: "replicated keeper path with a quote",
@@ -237,7 +237,7 @@ func TestTableEngine_Unmarshal(t *testing.T) {
 		{
 			name:            "empty block",
 			yaml:            map[string]any{},
-			wantValidateErr: "create_schema requires table_engine",
+			wantValidateErr: "`create_schema` requires `table_engine`",
 		},
 		{
 			name:             "unknown variant",

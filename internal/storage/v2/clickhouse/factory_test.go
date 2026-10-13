@@ -548,7 +548,7 @@ func TestSchemaBuilder_Engines(t *testing.T) {
 
 	t.Run("unset engine is refused", func(t *testing.T) {
 		_, err := newSchemaBuilder(Configuration{CreateSchema: true})
-		require.ErrorContains(t, err, "create_schema requires table_engine")
+		require.ErrorContains(t, err, "`create_schema` requires `table_engine`")
 	})
 }
 
