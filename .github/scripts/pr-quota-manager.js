@@ -56,6 +56,7 @@ const openPullRequestsQuery = `
  * it is never treated as an authority signal when posted by another account.
  */
 const ISSUE_LIMIT_COMMENT_MARKER = '<!-- jaeger-pr-per-issue-limit -->';
+const ISSUE_LIMIT_OWNED_LABEL_MARKER = '<!-- jaeger-pr-per-issue-limit-label-owned -->';
 
 /**
  * Format open/limit counts as a bullet-point status block
@@ -388,12 +389,13 @@ function primaryPR(pullRequests) {
   )[0];
 }
 
-function issueLimitComment(duplicates) {
+function issueLimitComment(duplicates, ownsDuplicateLabel = true) {
   const references = duplicates
     .sort((left, right) => left.issueNumber - right.issueNumber)
     .map(({ issueNumber, primaryNumber }) => `- Issue #${issueNumber}: PR #${primaryNumber} is the primary pull request.`)
     .join('\n');
-  return `${ISSUE_LIMIT_COMMENT_MARKER}
+  const ownership = ownsDuplicateLabel ? `\n${ISSUE_LIMIT_OWNED_LABEL_MARKER}` : '';
+  return `${ISSUE_LIMIT_COMMENT_MARKER}${ownership}
 This pull request is marked as a duplicate because another active pull request is already linked to the same issue.
 
 ${references}
@@ -407,6 +409,10 @@ function issueLimitResolvedComment() {
 
 const supersededIssueLimitComment =
   'This automated active-PR policy comment has been superseded by the current policy comment.';
+
+function commentOwnsDuplicateLabel(comment) {
+  return comment.body?.includes(ISSUE_LIMIT_OWNED_LABEL_MARKER);
+}
 
 async function listIssueLimitComments(octokit, owner, repo, issueNumber) {
   const comments = [];
@@ -524,10 +530,9 @@ async function processIssueLimits(octokit, owner, repo, logger = console, dryRun
   const knownPRs = new Map(pullRequests.map(pr => [pr.number, pr]));
 
   const commentSets = new Map();
-  const commentCandidates = [...knownPRs.values()].filter(pr =>
-    desiredDuplicates.has(pr.number) || labelNames(pr.labels).includes(DUPLICATE_LABEL_NAME)
-  );
-  await Promise.all(commentCandidates.map(async ({ number }) => {
+  // Policy markers make incomplete comment/label transitions recoverable, so
+  // inspect every open PR until every marker has been retired.
+  await Promise.all([...knownPRs.values()].map(async ({ number }) => {
     commentSets.set(number, await listIssueLimitComments(octokit, owner, repo, number));
   }));
 
@@ -543,15 +548,19 @@ async function processIssueLimits(octokit, owner, repo, logger = console, dryRun
   // Add/update first. A later API failure must not remove an existing signal.
   for (const [number, duplicates] of desiredDuplicates) {
     const pr = knownPRs.get(number);
-    if (!labelNames(pr.labels).includes(DUPLICATE_LABEL_NAME)) {
-      await addIssueLabel(octokit, owner, repo, number, DUPLICATE_LABEL_NAME);
-    }
-    const body = issueLimitComment(duplicates);
     const comments = commentSets.get(number) || [];
+    const hasDuplicateLabel = labelNames(pr.labels).includes(DUPLICATE_LABEL_NAME);
+    // Persist ownership before adding a label. If the label write fails, the
+    // marker remains discoverable on the next pass and can be retired safely.
+    const ownsDuplicateLabel = comments.some(commentOwnsDuplicateLabel) || !hasDuplicateLabel;
+    const body = issueLimitComment(duplicates, ownsDuplicateLabel);
     if (comments.length === 0) {
       await octokit.rest.issues.createComment({ owner, repo, issue_number: number, body });
     } else if (comments[0].body !== body) {
       await octokit.rest.issues.updateComment({ owner, repo, comment_id: comments[0].id, body });
+    }
+    if (!hasDuplicateLabel) {
+      await addIssueLabel(octokit, owner, repo, number, DUPLICATE_LABEL_NAME);
     }
   }
   const cleanup = [];
@@ -562,7 +571,8 @@ async function processIssueLimits(octokit, owner, repo, logger = console, dryRun
     cleanup.push({
       number,
       comments,
-      hasDuplicateLabel: labelNames(pr.labels).includes(DUPLICATE_LABEL_NAME)
+      hasDuplicateLabel: labelNames(pr.labels).includes(DUPLICATE_LABEL_NAME),
+      ownsDuplicateLabel: comments.some(commentOwnsDuplicateLabel)
     });
   }
 
@@ -571,7 +581,7 @@ async function processIssueLimits(octokit, owner, repo, logger = console, dryRun
     // Keep markers intact until every destructive label removal succeeds. If a
     // removal fails, rollback leaves the next run able to identify ownership.
     for (const item of cleanup) {
-      if (!item.hasDuplicateLabel) continue;
+      if (!item.hasDuplicateLabel || !item.ownsDuplicateLabel) continue;
       await removeIssueLabel(octokit, owner, repo, item.number, DUPLICATE_LABEL_NAME);
       removedLabels.push(item.number);
     }
@@ -723,6 +733,7 @@ if (typeof module !== 'undefined' && module.exports) {
   module.exports.primaryPR = primaryPR;
   module.exports.issueLimitComment = issueLimitComment;
   module.exports.issueLimitResolvedComment = issueLimitResolvedComment;
+  module.exports.commentOwnsDuplicateLabel = commentOwnsDuplicateLabel;
   module.exports.fetchOpenPullRequests = fetchOpenPullRequests;
   module.exports.calculateIssueLimitState = calculateIssueLimitState;
   module.exports.listIssueLimitComments = listIssueLimitComments;
@@ -732,6 +743,7 @@ if (typeof module !== 'undefined' && module.exports) {
   module.exports.DUPLICATE_LABEL_NAME = DUPLICATE_LABEL_NAME;
   module.exports.OVERRIDE_LABEL_NAME = OVERRIDE_LABEL_NAME;
   module.exports.ISSUE_LIMIT_COMMENT_MARKER = ISSUE_LIMIT_COMMENT_MARKER;
+  module.exports.ISSUE_LIMIT_OWNED_LABEL_MARKER = ISSUE_LIMIT_OWNED_LABEL_MARKER;
   module.exports.LABEL_NAME = LABEL_NAME;
   module.exports.LABEL_COLOR = LABEL_COLOR;
 }

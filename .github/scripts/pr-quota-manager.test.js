@@ -698,7 +698,7 @@ describe('processIssueLimitForPullRequest', () => {
   });
 
   test('does not let a stale PR block an active PR and clears its bot marker', async () => {
-    const marker = '<!-- jaeger-pr-per-issue-limit -->\nold';
+    const marker = issueLimitComment([{ issueNumber: 99, primaryNumber: 10 }]);
     const octokit = issueLimitOctokit({
       issues: [
         makePR(10, '2026-01-01T00:00:00Z', ['stale']),
@@ -876,6 +876,81 @@ describe('processIssueLimitForPullRequest', () => {
     await processIssueLimitForPullRequest(octokit, 'owner', 'repo', 20);
 
     expect(octokit.rest.issues.removeLabel).not.toHaveBeenCalled();
+  });
+
+  test('retires an ownership marker when adding its duplicate label fails', async () => {
+    const comments = { 20: [] };
+    const octokit = issueLimitOctokit({
+      issues: [makePR(10, '2026-01-01T00:00:00Z'), makePR(20, '2026-01-02T00:00:00Z')],
+      comments
+    });
+    octokit.rest.issues.createComment.mockImplementation(({ issue_number, body }) => {
+      comments[issue_number].push({ id: 7, body });
+      return Promise.resolve({});
+    });
+    octokit.rest.issues.addLabels.mockRejectedValueOnce(new Error('GitHub API unavailable'));
+
+    await expect(processIssueLimitForPullRequest(octokit, 'owner', 'repo', 20)).rejects.toThrow(
+      'Failed to add duplicate label to PR #20'
+    );
+    expect(comments[20][0].body).toContain('label-owned');
+
+    octokit.graphql.mockResolvedValue({
+      repository: { pullRequests: { nodes: [makePR(20, '2026-01-02T00:00:00Z', [], false, 'CONTRIBUTOR', [])] } }
+    });
+    await processIssueLimitForPullRequest(octokit, 'owner', 'repo', 20);
+
+    expect(octokit.rest.issues.updateComment).toHaveBeenCalledWith(expect.objectContaining({
+      comment_id: 7,
+      body: issueLimitResolvedComment()
+    }));
+  });
+
+  test('does not claim or remove a pre-existing duplicate label', async () => {
+    const comments = { 20: [] };
+    const octokit = issueLimitOctokit({
+      issues: [
+        makePR(10, '2026-01-01T00:00:00Z'),
+        makePR(20, '2026-01-02T00:00:00Z', ['duplicate'])
+      ],
+      comments
+    });
+    octokit.rest.issues.createComment.mockImplementation(({ issue_number, body }) => {
+      comments[issue_number].push({ id: 7, body });
+      return Promise.resolve({});
+    });
+
+    await processIssueLimitForPullRequest(octokit, 'owner', 'repo', 20);
+
+    expect(comments[20][0].body).not.toContain('label-owned');
+    octokit.graphql.mockResolvedValue({
+      repository: { pullRequests: { nodes: [makePR(20, '2026-01-02T00:00:00Z', ['duplicate'], false, 'CONTRIBUTOR', [])] } }
+    });
+    await processIssueLimitForPullRequest(octokit, 'owner', 'repo', 20);
+
+    expect(octokit.rest.issues.removeLabel).not.toHaveBeenCalled();
+  });
+
+  test('retries marker retirement after its comment update fails', async () => {
+    const comments = {
+      20: [{ id: 7, body: issueLimitComment([{ issueNumber: 99, primaryNumber: 10 }]) }]
+    };
+    const octokit = issueLimitOctokit({
+      issues: [makePR(20, '2026-01-02T00:00:00Z', ['duplicate'], false, 'CONTRIBUTOR', [])],
+      comments
+    });
+    octokit.rest.issues.updateComment.mockRejectedValueOnce(new Error('GitHub API unavailable'));
+
+    await expect(processIssueLimitForPullRequest(octokit, 'owner', 'repo', 20)).rejects.toThrow(
+      'GitHub API unavailable'
+    );
+
+    await processIssueLimitForPullRequest(octokit, 'owner', 'repo', 20);
+
+    expect(octokit.rest.issues.updateComment).toHaveBeenCalledWith(expect.objectContaining({
+      comment_id: 7,
+      body: issueLimitResolvedComment()
+    }));
   });
 
   test('fails safely when a nested connection is truncated', async () => {

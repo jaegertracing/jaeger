@@ -265,5 +265,9 @@ has more than 10 labels; it never silently misses `stale`, `duplicate`, or
 `allow-multiple-prs`. The daily sweep reconciles a remaining PR when another PR
 removes its issue link. Only comments authored by `github-actions[bot]` with the
 policy marker control label cleanup; resolved comments drop the marker so a
-later human-applied `duplicate` label is left alone. Cleanup removes labels while
-the marker is still present and restores removed labels if a later removal fails.
+later human-applied `duplicate` label is left alone. The marker separately
+records whether the action added the label, so an existing manual `duplicate`
+label is never claimed or removed. The action scans all open PR comments until
+every marker is retired, which lets a later run repair a partial comment/label
+write. Cleanup removes labels while the marker is still present and restores
+removed labels if a later removal fails.
