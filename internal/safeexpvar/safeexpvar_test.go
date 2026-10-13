@@ -36,12 +36,10 @@ func TestSetIntConcurrent(t *testing.T) {
 	var wg sync.WaitGroup
 	start := make(chan struct{})
 	for i := range goroutines {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
+		wg.Go(func() {
 			<-start
 			SetInt(name, int64(i))
-		}()
+		})
 	}
 	close(start)
 	wg.Wait()
