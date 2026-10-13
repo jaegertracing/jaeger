@@ -206,8 +206,12 @@ func (s *SpanReader) buildCombinedArgs(predicate *expression.Call) ([]esquery.Qu
 	}
 	queries := make([]esquery.Query, 0, len(predicate.Args))
 	for _, arg := range predicate.Args {
+		// A nil *expression.Call still asserts ok here, since the type it carries is right and
+		// only the pointer is nil, so that has to be checked separately or buildFilterQuery
+		// panics on predicate.Op below instead of this returning the refusal its own doc
+		// comment promises: "every refusal is made here too rather than assumed."
 		call, ok := arg.(*expression.Call)
-		if !ok {
+		if !ok || call == nil {
 			return nil, fmt.Errorf("%w: %q combines predicates, not values",
 				tracestore.ErrFilterInvalid, predicate.Op)
 		}

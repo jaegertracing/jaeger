@@ -5,6 +5,7 @@ package tracestore
 
 import (
 	"context"
+	"fmt"
 	"iter"
 
 	"go.opentelemetry.io/collector/pdata/ptrace"
@@ -40,6 +41,14 @@ func (*TraceReader) SearchCapabilities(context.Context) (tracestore.SearchCapabi
 		// trace.
 		SameSpanConjunction: true,
 		Filter:              &filter,
+		// FindSpans reads span documents in the order the caller selects, lowering every
+		// term of the ordering contract to a single-valued document field (RFC 0016 §6).
+		SpanSearch:  true,
+		SpanSorting: true,
+		// FindSpans pages with a keyset cursor over the engine's own sort values. The
+		// capability covers the trace searches as well, which do not page yet: they serve
+		// one page bounded by the page size and refuse a token (see paginationAsDepth).
+		Paginated: true,
 	}, nil
 }
 
@@ -174,6 +183,11 @@ func (r *TraceReader) FindSpans(ctx context.Context, query tracestore.SpanQueryP
 
 func (r *TraceReader) FindTraceIDs(ctx context.Context, query tracestore.TraceQueryParams) iter.Seq2[tracestore.PageChunk[[]tracestore.FoundTraceID], error] {
 	return func(yield func(tracestore.PageChunk[[]tracestore.FoundTraceID], error) bool) {
+		query, err := paginationAsDepth(query)
+		if err != nil {
+			yield(tracestore.PageChunk[[]tracestore.FoundTraceID]{}, err)
+			return
+		}
 		traceIds, err := r.spanReader.FindTraceIDs(ctx, toDBTraceQueryParams(query))
 		if err != nil {
 			yield(tracestore.PageChunk[[]tracestore.FoundTraceID]{}, err)
@@ -190,9 +204,26 @@ func (r *TraceReader) FindTraceIDs(ctx context.Context, query tracestore.TraceQu
 				TraceID: dbTraceId,
 			})
 		}
-		// TODO: Populate NextPageToken when Elasticsearch supports RFC 0014 pagination.
+		// The trace searches do not page yet (RFC 0014 M3), so the page is the last one.
 		yield(tracestore.PageChunk[[]tracestore.FoundTraceID]{Results: otelTraceIds}, nil)
 	}
+}
+
+// paginationAsDepth is RFC 0014 §6.2 applied inside this reader for the trace searches, which
+// do not page yet while the Paginated capability, declared for FindSpans, covers them too. The
+// page size bounds the search as its depth, and a token is refused, because these searches
+// cannot have produced one. The query service applies the same rule, in queryToReaderCapabilities,
+// to a reader that declares no pagination at all.
+func paginationAsDepth(query tracestore.TraceQueryParams) (tracestore.TraceQueryParams, error) {
+	if query.Pagination == nil {
+		return query, nil
+	}
+	if query.Pagination.PageToken != "" {
+		return tracestore.TraceQueryParams{}, fmt.Errorf("%w: trace searches on this storage backend do not page yet", tracestore.ErrPaginationUnsupported)
+	}
+	query.SearchDepth = query.Pagination.PageSize
+	query.Pagination = nil
+	return query, nil
 }
 
 func toDBTraceQueryParams(query tracestore.TraceQueryParams) dbmodel.TraceQueryParameters {

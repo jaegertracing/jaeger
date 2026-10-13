@@ -14,7 +14,7 @@ func TestOpenSearchStorage(t *testing.T) {
 	integration.SkipUnlessEnv(t, integration.StorageOpenSearch)
 	s := &E2EStorageIntegration{
 		ConfigFile:   "../../config-opensearch.yaml",
-		FeatureGates: structuredFilterGates,
+		FeatureGates: searchGates,
 		StorageIntegration: integration.StorageIntegration{
 			CleanUp:      purge,
 			Fixtures:     integration.LoadAndParseQueryTestCases(t, "fixtures/queries_es.json"),
@@ -42,7 +42,7 @@ func TestOpenSearchStorage_TwoPhase(t *testing.T) {
 		s := &E2EStorageIntegration{
 			ConfigFile:   "../../config-opensearch.yaml",
 			BinaryName:   binaryName,
-			FeatureGates: structuredFilterGates,
+			FeatureGates: searchGates,
 			StorageIntegration: integration.StorageIntegration{
 				CleanUp:      func(*testing.T) {},
 				Fixtures:     fixtures,
@@ -100,17 +100,17 @@ func TestOpenSearchStorage_BackwardCompatibility(t *testing.T) {
 	},
 		compatScenario{
 			Name:         "numeric attributes off on the new reader",
-			NewGates:     structuredFilterGates,
+			NewGates:     searchGates,
 			OldEnv:       map[string]string{numericAttributesEnvVar: "false"},
 			NewEnv:       map[string]string{numericAttributesEnvVar: "false"},
 			Capabilities: capabilities.OpenSearch().WithoutNumericAttributes(),
 		},
 		compatScenario{
 			Name:         "numeric attributes turned on at upgrade, over indices written without them",
-			NewGates:     structuredFilterGates,
+			NewGates:     searchGates,
 			OldEnv:       map[string]string{numericAttributesEnvVar: "false"},
 			NewEnv:       map[string]string{numericAttributesEnvVar: "true"},
-			Capabilities: capabilities.OpenSearch().WithNumericAttributesNotYetIndexed(),
+			Capabilities: capabilities.OpenSearch().WithNumericAttributesEnabledAtUpgrade(),
 		},
 	)
 }

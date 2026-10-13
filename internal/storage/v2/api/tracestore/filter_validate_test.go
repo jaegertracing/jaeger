@@ -4,6 +4,7 @@
 package tracestore
 
 import (
+	"strings"
 	"testing"
 	"time"
 
@@ -21,6 +22,11 @@ func attr(key string) *expression.AttributeRef {
 	return &expression.AttributeRef{Key: key}
 }
 
+// words builds the list a text-search operator takes, with no declared type.
+func words(values ...string) *expression.List {
+	return &expression.List{Values: values}
+}
+
 func TestValidateFilter_Accepts(t *testing.T) {
 	tests := []struct {
 		name   string
@@ -29,6 +35,21 @@ func TestValidateFilter_Accepts(t *testing.T) {
 		{
 			name:   "unqualified attribute equality",
 			filter: eq(attr("http.status_code"), &expression.AnyValue{Value: "500"}),
+		},
+		{
+			name:   "phrase over an attribute",
+			filter: &expression.Call{Op: expression.OpPhrase, Args: []expression.Expression{attr("gen_ai.prompt"), words("refund", "policy")}},
+		},
+		{
+			name: "fulltext over an event attribute with a declared string type",
+			filter: &expression.Call{Op: expression.OpFulltext, Args: []expression.Expression{
+				&expression.AttributeRef{Level: expression.LevelEvent, Key: "gen_ai.completion"},
+				&expression.List{Values: []string{"refund"}, Type: expression.ValueTypeString},
+			}},
+		},
+		{
+			name:   "fulltext over words written in other scripts, with marks and digits",
+			filter: &expression.Call{Op: expression.OpFulltext, Args: []expression.Expression{attr("a"), words("naïve", "日本語", "b2", "Ṽ", strings.Repeat("a", 255))}},
 		},
 		{
 			name:   "text ordered against text",
@@ -269,6 +290,76 @@ func TestValidateFilter_Rejects(t *testing.T) {
 			name:        "a field at an unknown level",
 			expectedErr: `unknown filter level "pod"`,
 			filter:      eq(&expression.FieldRef{Name: expression.SpanFieldDuration, Level: "pod"}, &expression.AnyValue{Value: "2s"}),
+		},
+		{
+			name:        "phrase over a built-in field",
+			expectedErr: `operator "phrase" searches an attribute, not the built-in field "name" of the "span" level`,
+			filter:      &expression.Call{Op: expression.OpPhrase, Args: []expression.Expression{&expression.FieldRef{Level: expression.LevelSpan, Name: expression.SpanFieldName}, words("a")}},
+		},
+		{
+			name:        "phrase over a collection",
+			expectedErr: `a collection reference is only the first argument of "some"`,
+			filter:      &expression.Call{Op: expression.OpPhrase, Args: []expression.Expression{&expression.NestedRef{Level: expression.LevelEvent}, words("a")}},
+		},
+		{
+			name:        "fulltext over a constant",
+			expectedErr: `operator "fulltext" takes a reference, got a string constant`,
+			filter:      &expression.Call{Op: expression.OpFulltext, Args: []expression.Expression{&expression.StringValue{Value: "a"}, words("a")}},
+		},
+		{
+			name:        "fulltext over an attribute with no key",
+			expectedErr: "attribute reference has no key",
+			filter:      &expression.Call{Op: expression.OpFulltext, Args: []expression.Expression{&expression.AttributeRef{}, words("a")}},
+		},
+		{
+			name:        "fulltext over a missing attribute reference",
+			expectedErr: "filter has a missing reference",
+			filter:      &expression.Call{Op: expression.OpFulltext, Args: []expression.Expression{(*expression.AttributeRef)(nil), words("a")}},
+		},
+		{
+			name:        "phrase of a missing list",
+			expectedErr: `operator "phrase" takes a list of words as its second argument, got an empty term`,
+			filter:      &expression.Call{Op: expression.OpPhrase, Args: []expression.Expression{attr("a"), (*expression.List)(nil)}},
+		},
+		{
+			name:        "phrase with one argument",
+			expectedErr: `operator "phrase" takes 2 argument(s), got 1`,
+			filter:      &expression.Call{Op: expression.OpPhrase, Args: []expression.Expression{attr("a")}},
+		},
+		{
+			name:        "phrase of a search string rather than a list",
+			expectedErr: `operator "phrase" takes a list of words as its second argument, got a string constant`,
+			filter:      &expression.Call{Op: expression.OpPhrase, Args: []expression.Expression{attr("a"), &expression.StringValue{Value: "refund policy"}}},
+		},
+		{
+			name:        "phrase of an empty list",
+			expectedErr: `operator "phrase" takes a list with at least one word`,
+			filter:      &expression.Call{Op: expression.OpPhrase, Args: []expression.Expression{attr("a"), &expression.List{}}},
+		},
+		{
+			name:        "fulltext of a list of integers",
+			expectedErr: `operator "fulltext" takes a list of strings, not of "int"`,
+			filter:      &expression.Call{Op: expression.OpFulltext, Args: []expression.Expression{attr("a"), &expression.List{Values: []string{"1"}, Type: expression.ValueTypeInt}}},
+		},
+		{
+			name:        "fulltext of an empty word",
+			expectedErr: `operator "fulltext": a word is empty`,
+			filter:      &expression.Call{Op: expression.OpFulltext, Args: []expression.Expression{attr("a"), words("refund", "")}},
+		},
+		{
+			name:        "phrase of a word holding a space, which the caller splits",
+			expectedErr: `operator "phrase": a word holds letters, marks and digits only, got "refund policy"`,
+			filter:      &expression.Call{Op: expression.OpPhrase, Args: []expression.Expression{attr("a"), words("refund policy")}},
+		},
+		{
+			name:        "phrase of a word holding punctuation",
+			expectedErr: `operator "phrase": a word holds letters, marks and digits only, got "don't"`,
+			filter:      &expression.Call{Op: expression.OpPhrase, Args: []expression.Expression{attr("a"), words("don't")}},
+		},
+		{
+			name:        "fulltext of a word longer than Elasticsearch keeps whole, measured in UTF-16 code units",
+			expectedErr: `operator "fulltext": a word is at most 255 UTF-16 code units long, got one of 256`,
+			filter:      &expression.Call{Op: expression.OpFulltext, Args: []expression.Expression{attr("a"), words(strings.Repeat("a", 254) + "𝔸")}},
 		},
 		{
 			name:        "membership of a constant rather than a list",

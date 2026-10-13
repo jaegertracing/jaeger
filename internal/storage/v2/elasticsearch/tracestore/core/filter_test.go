@@ -228,15 +228,15 @@ func TestBuildFilterQuery(t *testing.T) {
 		},
 		{
 			name:   "a string constant against the operation name, which is what finalizing produces",
-			filter: p.Span().Name.Eq(p.Text("checkout")),
+			filter: p.Span().Name.Eq(p.String("checkout")),
 		},
 		{
 			name:   "a string constant against the service name",
-			filter: p.Resource().Service.Eq(p.Text("cart")),
+			filter: p.Resource().Service.Eq(p.String("cart")),
 		},
 		{
 			name:   "a string constant against the event name",
-			filter: p.Event().Name.Eq(p.Text("exception")),
+			filter: p.Event().Name.Eq(p.String("exception")),
 		},
 		{
 			// A Go duration reaches the AST as the untyped constant "2s", so the typed constant
@@ -358,7 +358,7 @@ func TestBuildFilterQuery(t *testing.T) {
 			// of any stored type. A declared string asks for that same comparison, the only one
 			// this schema performs on an attribute.
 			name:   "a string constant, beside an attribute this schema matches as text",
-			filter: p.Span().Attr("http.route").Eq(p.Text("/cart")),
+			filter: p.Span().Attr("http.route").Eq(p.String("/cart")),
 		},
 		{
 			name:   "not_in against an attribute requires the attribute to be present",
@@ -726,6 +726,17 @@ func TestBuildFilterQueryRefused(t *testing.T) {
 			wantMsg: `"and" combines predicates, not values`,
 		},
 		{
+			// A nil *expression.Call still asserts ok as a *expression.Call in a type switch, so
+			// this reaches a different line than the case above despite refusing for the same
+			// reason. ValidateFilter already refuses a filter built this way (TestCombineFlattens
+			// in the builder's own tests), but this reader has to refuse it independently too: its
+			// own doc comment says a remote-storage client can reach it without that check.
+			name:    "a combinator given a nil predicate where a predicate belongs",
+			filter:  call(expression.OpAnd, call(expression.OpEq, spanAttr("k"), scalar("v")), (*expression.Call)(nil)),
+			wantErr: tracestore.ErrFilterInvalid,
+			wantMsg: `"and" combines predicates, not values`,
+		},
+		{
 			name:    "exists given a constant, which reads nothing off the span",
 			filter:  call(expression.OpExists, scalar("k")),
 			wantErr: tracestore.ErrFilterInvalid,
@@ -773,7 +784,7 @@ func TestBuildFilterQueryRefused(t *testing.T) {
 		},
 		{
 			name:              "ordering an attribute against a bound that declares the string type",
-			filter:            p.Span().Attr("retry.count").Gt(p.Text("10")),
+			filter:            p.Span().Attr("retry.count").Gt(p.String("10")),
 			wantErr:           tracestore.ErrFilterUnsupported,
 			wantMsg:           `orders "retry.count" only as a number, so it cannot evaluate "gt" against a string constant`,
 			numericAttributes: true,

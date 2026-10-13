@@ -139,3 +139,46 @@ func TestTraceReader_FindSpans_Errors(t *testing.T) {
 		})
 	}
 }
+
+// TestTraceReader_TraceSearchesUnderPagination pins how the trace searches, which do not page
+// yet, honor the Pagination the query service passes them once the reader declares Paginated:
+// the page size bounds the search and a token is refused.
+func TestTraceReader_TraceSearchesUnderPagination(t *testing.T) {
+	ts := time.Now()
+	query := tracestore.TraceQueryParams{
+		ServiceName:  "svc",
+		Attributes:   pcommon.NewMap(),
+		StartTimeMin: ts,
+		StartTimeMax: ts.Add(time.Hour),
+		Pagination:   &tracestore.Pagination{PageSize: 7},
+	}
+	coreReader := &mocks.Reader{}
+	coreReader.On("FindTraceIDs", mock.Anything, mock.MatchedBy(func(q dbmodel.TraceQueryParameters) bool {
+		return q.SearchDepth == 7
+	})).Return([]dbmodel.TraceID{}, nil)
+	coreReader.On("FindTraceSummaries", mock.Anything, mock.MatchedBy(func(q dbmodel.TraceQueryParameters) bool {
+		return q.SearchDepth == 7
+	})).Return([]dbmodel.TraceSummary{}, nil)
+	reader := TraceReader{spanReader: coreReader}
+	for chunk, err := range reader.FindTraceIDs(context.Background(), query) {
+		require.NoError(t, err)
+		assert.Empty(t, chunk.NextPageToken)
+	}
+	for chunk, err := range reader.FindTraceSummaries(context.Background(), query) {
+		require.NoError(t, err)
+		assert.Empty(t, chunk.NextPageToken)
+	}
+	coreReader.AssertExpectations(t)
+
+	query.Pagination.PageToken = "some-token"
+	var refusals int
+	for _, err := range reader.FindTraceIDs(context.Background(), query) {
+		require.ErrorIs(t, err, tracestore.ErrPaginationUnsupported)
+		refusals++
+	}
+	for _, err := range reader.FindTraceSummaries(context.Background(), query) {
+		require.ErrorIs(t, err, tracestore.ErrPaginationUnsupported)
+		refusals++
+	}
+	assert.Equal(t, 2, refusals, "each trace search must yield the refusal rather than nothing")
+}

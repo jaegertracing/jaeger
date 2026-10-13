@@ -14,8 +14,15 @@ import (
 	"go.opentelemetry.io/collector/pdata/ptrace"
 
 	expression "github.com/jaegertracing/jaeger-idl/query/expression/v1"
+	builder "github.com/jaegertracing/jaeger/internal/expression"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore"
 )
+
+// p builds the filters under test. The builder holds no state, so one value serves every test.
+// The call, fieldRef and attrRef helpers below remain where the hand-built tree is the point: a
+// malformed shape, a constant on the left of a comparison, or a reference read back by level
+// and name.
+var p builder.Predicate
 
 // newFilterFixture builds a span, in the context of a resource and scope,
 // with enough shape (attributes at every level, an event and a link) for the
@@ -101,12 +108,6 @@ func attrRef(level expression.Level, key string) *expression.AttributeRef {
 	return &expression.AttributeRef{Level: level, Key: key}
 }
 
-func str(v string) *expression.StringValue          { return &expression.StringValue{Value: v} }
-func intVal(v int64) *expression.IntValue           { return &expression.IntValue{Value: v} }
-func dbl(v float64) *expression.DoubleValue         { return &expression.DoubleValue{Value: v} }
-func boolean(v bool) *expression.BoolValue          { return &expression.BoolValue{Value: v} }
-func dur(v time.Duration) *expression.DurationValue { return &expression.DurationValue{Value: v} }
-
 func TestMatchesFilter_NilFilterMatchesEverything(t *testing.T) {
 	f := newFilterFixture(t)
 	assert.True(t, f.matches(nil))
@@ -114,36 +115,32 @@ func TestMatchesFilter_NilFilterMatchesEverything(t *testing.T) {
 
 func TestMatchesFilter_And(t *testing.T) {
 	f := newFilterFixture(t)
-	assert.True(t, f.matches(call(expression.OpAnd,
-		call(expression.OpEq, fieldRef(expression.LevelSpan, expression.SpanFieldName), str("POST /cart")),
-		call(expression.OpEq, fieldRef(expression.LevelSpan, expression.SpanFieldStatus), str("error")),
+	assert.True(t, f.matches(p.And(
+		p.Span().Name.Eq("POST /cart"),
+		p.Span().Status.Eq("error"),
 	)))
-	assert.False(t, f.matches(call(expression.OpAnd,
-		call(expression.OpEq, fieldRef(expression.LevelSpan, expression.SpanFieldName), str("POST /cart")),
-		call(expression.OpEq, fieldRef(expression.LevelSpan, expression.SpanFieldStatus), str("ok")),
+	assert.False(t, f.matches(p.And(
+		p.Span().Name.Eq("POST /cart"),
+		p.Span().Status.Eq("ok"),
 	)))
 }
 
 func TestMatchesFilter_Or(t *testing.T) {
 	f := newFilterFixture(t)
-	assert.True(t, f.matches(call(expression.OpOr,
-		call(expression.OpEq, fieldRef(expression.LevelSpan, expression.SpanFieldStatus), str("ok")),
-		call(expression.OpEq, fieldRef(expression.LevelSpan, expression.SpanFieldStatus), str("error")),
+	assert.True(t, f.matches(p.Or(
+		p.Span().Status.Eq("ok"),
+		p.Span().Status.Eq("error"),
 	)))
-	assert.False(t, f.matches(call(expression.OpOr,
-		call(expression.OpEq, fieldRef(expression.LevelSpan, expression.SpanFieldStatus), str("ok")),
-		call(expression.OpEq, fieldRef(expression.LevelSpan, expression.SpanFieldStatus), str("unset")),
+	assert.False(t, f.matches(p.Or(
+		p.Span().Status.Eq("ok"),
+		p.Span().Status.Eq("unset"),
 	)))
 }
 
 func TestMatchesFilter_Not(t *testing.T) {
 	f := newFilterFixture(t)
-	assert.True(t, f.matches(call(expression.OpNot,
-		call(expression.OpEq, fieldRef(expression.LevelSpan, expression.SpanFieldStatus), str("ok")),
-	)))
-	assert.False(t, f.matches(call(expression.OpNot,
-		call(expression.OpEq, fieldRef(expression.LevelSpan, expression.SpanFieldStatus), str("error")),
-	)))
+	assert.True(t, f.matches(p.Not(p.Span().Status.Eq("ok"))))
+	assert.False(t, f.matches(p.Not(p.Span().Status.Eq("error"))))
 }
 
 func TestMatchesFilter_SpanFields(t *testing.T) {
@@ -153,18 +150,19 @@ func TestMatchesFilter_SpanFields(t *testing.T) {
 		pred *expression.Call
 		want bool
 	}{
-		{"traceID eq", call(expression.OpEq, fieldRef(expression.LevelSpan, expression.SpanFieldTraceID), str(f.span.TraceID().String())), true},
-		{"spanID eq", call(expression.OpEq, fieldRef(expression.LevelSpan, expression.SpanFieldSpanID), str(f.span.SpanID().String())), true},
-		{"parentSpanID absent", call(expression.OpExists, fieldRef(expression.LevelSpan, expression.SpanFieldParentSpanID)), false},
-		{"name eq", call(expression.OpEq, fieldRef(expression.LevelSpan, expression.SpanFieldName), str("POST /cart")), true},
-		{"name ne no match", call(expression.OpNe, fieldRef(expression.LevelSpan, expression.SpanFieldName), str("POST /cart")), false},
-		{"name ne match", call(expression.OpNe, fieldRef(expression.LevelSpan, expression.SpanFieldName), str("GET /cart")), true},
-		{"kind eq", call(expression.OpEq, fieldRef(expression.LevelSpan, expression.SpanFieldKind), str("server")), true},
-		{"status eq", call(expression.OpEq, fieldRef(expression.LevelSpan, expression.SpanFieldStatus), str("error")), true},
-		{"statusMessage eq", call(expression.OpEq, fieldRef(expression.LevelSpan, expression.SpanFieldStatusMessage), str("boom")), true},
-		{"duration gt", call(expression.OpGt, fieldRef(expression.LevelSpan, expression.SpanFieldDuration), dur(100*time.Millisecond)), true},
-		{"duration lt", call(expression.OpLt, fieldRef(expression.LevelSpan, expression.SpanFieldDuration), dur(100*time.Millisecond)), false},
-		{"startTime exists", call(expression.OpExists, fieldRef(expression.LevelSpan, expression.SpanFieldStartTime)), true},
+		{"traceID eq", p.Span().TraceID.Eq(f.span.TraceID().String()), true},
+		{"spanID eq", p.Span().SpanID.Eq(f.span.SpanID().String()), true},
+		{"parentSpanID absent", p.Span().ParentSpanID.Exists(), false},
+		{"name eq", p.Span().Name.Eq("POST /cart"), true},
+		{"name ne no match", p.Span().Name.Ne("POST /cart"), false},
+		{"name ne match", p.Span().Name.Ne("GET /cart"), true},
+		{"kind eq", p.Span().Kind.Eq("server"), true},
+		{"status eq", p.Span().Status.Eq("error"), true},
+		{"statusMessage eq", p.Span().StatusMessage.Eq("boom"), true},
+		{"duration gt", p.Span().Duration.Gt(100 * time.Millisecond), true},
+		{"duration lt", p.Span().Duration.Lt(100 * time.Millisecond), false},
+		{"duration gt, typed", p.Span().Duration.Gt(p.Duration(100 * time.Millisecond)), true},
+		{"startTime exists", p.Span().StartTime.Exists(), true},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -175,74 +173,78 @@ func TestMatchesFilter_SpanFields(t *testing.T) {
 
 func TestMatchesFilter_ResourceAndScopeFields(t *testing.T) {
 	f := newFilterFixture(t)
-	assert.True(t, f.matches(call(expression.OpEq, fieldRef(expression.LevelResource, expression.ResourceFieldService), str("checkout"))))
-	assert.False(t, f.matches(call(expression.OpEq, fieldRef(expression.LevelResource, expression.ResourceFieldService), str("other"))))
-	assert.True(t, f.matches(call(expression.OpEq, fieldRef(expression.LevelScope, expression.ScopeFieldName), str("otelgrpc"))))
-	assert.True(t, f.matches(call(expression.OpEq, fieldRef(expression.LevelScope, expression.ScopeFieldVersion), str("1.2.3"))))
+	assert.True(t, f.matches(p.Resource().Service.Eq("checkout")))
+	assert.False(t, f.matches(p.Resource().Service.Eq("other")))
+	assert.True(t, f.matches(p.Scope().Name.Eq("otelgrpc")))
+	assert.True(t, f.matches(p.Scope().Version.Eq("1.2.3")))
 }
 
 func TestMatchesFilter_Attributes(t *testing.T) {
 	f := newFilterFixture(t)
-	assert.True(t, f.matches(call(expression.OpEq, attrRef(expression.LevelSpan, "http.method"), str("POST"))))
-	assert.True(t, f.matches(call(expression.OpEq, attrRef(expression.LevelSpan, "http.status_code"), intVal(500))))
-	assert.True(t, f.matches(call(expression.OpEq, attrRef(expression.LevelSpan, "duration_ms"), dbl(150.5))))
-	assert.True(t, f.matches(call(expression.OpEq, attrRef(expression.LevelSpan, "retry"), boolean(false))))
-	assert.True(t, f.matches(call(expression.OpEq, attrRef(expression.LevelResource, "deployment.environment"), str("prod"))))
-	assert.True(t, f.matches(call(expression.OpEq, attrRef(expression.LevelScope, "scope.tag"), str("scope-value"))))
-	assert.False(t, f.matches(call(expression.OpExists, attrRef(expression.LevelSpan, "nonexistent"))))
+	// The span attribute rows ask for the typed constant, so each match is the typed one and
+	// not a coercion.
+	assert.True(t, f.matches(p.Span().Attr("http.method").Eq(p.String("POST"))))
+	assert.True(t, f.matches(p.Span().Attr("http.status_code").Eq(p.Int(500))))
+	assert.True(t, f.matches(p.Span().Attr("duration_ms").Eq(p.Double(150.5))))
+	assert.True(t, f.matches(p.Span().Attr("retry").Eq(p.Bool(false))))
+	assert.True(t, f.matches(p.Resource().Attr("deployment.environment").Eq("prod")))
+	assert.True(t, f.matches(p.Scope().Attr("scope.tag").Eq("scope-value")))
+	assert.False(t, f.matches(p.Span().Attr("nonexistent").Exists()))
 }
 
 func TestMatchesFilter_UnqualifiedAttributeSearchesSpanAndResource(t *testing.T) {
 	f := newFilterFixture(t)
 	// http.method lives only on the span; deployment.environment only on the resource.
 	// An unqualified (empty-level) attribute reference must find both.
-	assert.True(t, f.matches(call(expression.OpEq, attrRef("", "http.method"), str("POST"))))
-	assert.True(t, f.matches(call(expression.OpEq, attrRef("", "deployment.environment"), str("prod"))))
-	assert.False(t, f.matches(call(expression.OpExists, attrRef("", "nope"))))
+	assert.True(t, f.matches(p.Attr("http.method").Eq("POST")))
+	assert.True(t, f.matches(p.Attr("deployment.environment").Eq("prod")))
+	assert.False(t, f.matches(p.Attr("nope").Exists()))
 }
 
 func TestMatchesFilter_Regex(t *testing.T) {
 	f := newFilterFixture(t)
-	assert.True(t, f.matches(call(expression.OpRegex, fieldRef(expression.LevelSpan, expression.SpanFieldName), str("cart$"))))
-	assert.False(t, f.matches(call(expression.OpRegex, fieldRef(expression.LevelSpan, expression.SpanFieldName), str("^cart"))))
+	// A typed pattern, which the evaluator compiles through its own branch; Matches builds an
+	// untyped one, covered by TestMatchesFilter_RegexAcceptsAnUntypedPattern.
+	assert.True(t, f.matches(p.Compare(expression.OpRegex, p.Span().Name, p.String("cart$"))))
+	assert.False(t, f.matches(p.Compare(expression.OpRegex, p.Span().Name, p.String("^cart"))))
 }
 
 func TestMatchesFilter_InAndNotIn(t *testing.T) {
 	f := newFilterFixture(t)
-	list := &expression.List{Values: []string{"GET /cart", "POST /cart"}, Type: expression.ValueTypeString}
-	assert.True(t, f.matches(call(expression.OpIn, fieldRef(expression.LevelSpan, expression.SpanFieldName), list)))
+	list := p.List(expression.ValueTypeString, "GET /cart", "POST /cart")
+	assert.True(t, f.matches(p.Span().Name.In(list)))
 	// not_in is false when the value is found in the list, same list that made in true.
-	assert.False(t, f.matches(call(expression.OpNotIn, fieldRef(expression.LevelSpan, expression.SpanFieldName), list)))
+	assert.False(t, f.matches(p.Span().Name.NotIn(list)))
 
-	otherList := &expression.List{Values: []string{"GET /cart"}, Type: expression.ValueTypeString}
-	assert.False(t, f.matches(call(expression.OpIn, fieldRef(expression.LevelSpan, expression.SpanFieldName), otherList)))
-	assert.True(t, f.matches(call(expression.OpNotIn, fieldRef(expression.LevelSpan, expression.SpanFieldName), otherList)))
+	otherList := p.List(expression.ValueTypeString, "GET /cart")
+	assert.False(t, f.matches(p.Span().Name.In(otherList)))
+	assert.True(t, f.matches(p.Span().Name.NotIn(otherList)))
 
 	// not_in on an absent reference is false, same as every other leaf comparison;
 	// only a boolean `not` around it would make an absent reference match.
-	assert.False(t, f.matches(call(expression.OpNotIn, fieldRef(expression.LevelSpan, expression.SpanFieldParentSpanID), otherList)))
+	assert.False(t, f.matches(p.Span().ParentSpanID.NotIn(otherList)))
 }
 
 func TestMatchesFilter_GteLte(t *testing.T) {
 	f := newFilterFixture(t)
-	assert.True(t, f.matches(call(expression.OpGte, fieldRef(expression.LevelSpan, expression.SpanFieldDuration), dur(150*time.Millisecond))))
-	assert.True(t, f.matches(call(expression.OpGte, fieldRef(expression.LevelSpan, expression.SpanFieldDuration), dur(100*time.Millisecond))))
-	assert.False(t, f.matches(call(expression.OpGte, fieldRef(expression.LevelSpan, expression.SpanFieldDuration), dur(200*time.Millisecond))))
+	assert.True(t, f.matches(p.Span().Duration.Gte(150*time.Millisecond)))
+	assert.True(t, f.matches(p.Span().Duration.Gte(100*time.Millisecond)))
+	assert.False(t, f.matches(p.Span().Duration.Gte(200*time.Millisecond)))
 
-	assert.True(t, f.matches(call(expression.OpLte, fieldRef(expression.LevelSpan, expression.SpanFieldDuration), dur(150*time.Millisecond))))
-	assert.True(t, f.matches(call(expression.OpLte, fieldRef(expression.LevelSpan, expression.SpanFieldDuration), dur(200*time.Millisecond))))
-	assert.False(t, f.matches(call(expression.OpLte, fieldRef(expression.LevelSpan, expression.SpanFieldDuration), dur(100*time.Millisecond))))
+	assert.True(t, f.matches(p.Span().Duration.Lte(150*time.Millisecond)))
+	assert.True(t, f.matches(p.Span().Duration.Lte(200*time.Millisecond)))
+	assert.False(t, f.matches(p.Span().Duration.Lte(100*time.Millisecond)))
 }
 
 func TestMatchesFilter_AbsentReferenceLeafComparisonsAreFalse(t *testing.T) {
 	f := newFilterFixture(t)
-	absent := fieldRef(expression.LevelSpan, expression.SpanFieldParentSpanID)
-	assert.False(t, f.matches(call(expression.OpEq, absent, str("anything"))))
-	assert.False(t, f.matches(call(expression.OpNe, absent, str("anything"))))
-	assert.False(t, f.matches(call(expression.OpGt, absent, str("anything"))))
-	assert.False(t, f.matches(call(expression.OpRegex, absent, str(".*"))))
+	absent := p.Span().ParentSpanID
+	assert.False(t, f.matches(absent.Eq("anything")))
+	assert.False(t, f.matches(absent.Ne("anything")))
+	assert.False(t, f.matches(absent.Gt("anything")))
+	assert.False(t, f.matches(absent.Matches(".*")))
 	// Only `not` turns the absence into a match.
-	assert.True(t, f.matches(call(expression.OpNot, call(expression.OpEq, absent, str("anything")))))
+	assert.True(t, f.matches(p.Not(absent.Eq("anything"))))
 }
 
 func TestMatchesFilter_EventUncorrelatedMatchesAnyElement(t *testing.T) {
@@ -250,28 +252,28 @@ func TestMatchesFilter_EventUncorrelatedMatchesAnyElement(t *testing.T) {
 	// Outside `some`, event.name and event fields from *different* events both
 	// match independently (uncorrelated "any element" reading, RFC 0005 §5.5) —
 	// even though no single event has both this name and this attribute.
-	assert.True(t, f.matches(call(expression.OpAnd,
-		call(expression.OpEq, fieldRef(expression.LevelEvent, expression.EventFieldName), str("retry-scheduled")),
-		call(expression.OpEq, attrRef(expression.LevelEvent, "exception.type"), str("TimeoutError")),
+	assert.True(t, f.matches(p.And(
+		p.Event().Name.Eq("retry-scheduled"),
+		p.Event().Attr("exception.type").Eq("TimeoutError"),
 	)))
 }
 
 func TestMatchesFilter_SomeCorrelatesASingleEvent(t *testing.T) {
 	f := newFilterFixture(t)
 	// Correlated: some single event named "exception" also carries exception.type.
-	correlated := call(expression.OpSome, &expression.NestedRef{Level: expression.LevelEvent},
-		call(expression.OpAnd,
-			call(expression.OpEq, fieldRef(expression.LevelEvent, expression.EventFieldName), str("exception")),
-			call(expression.OpEq, attrRef(expression.LevelEvent, "exception.type"), str("TimeoutError")),
+	correlated := p.Some(p.Event(),
+		p.And(
+			p.Event().Name.Eq("exception"),
+			p.Event().Attr("exception.type").Eq("TimeoutError"),
 		),
 	)
 	assert.True(t, f.matches(correlated))
 
 	// No single event is named "retry-scheduled" and also carries exception.type.
-	uncorrelated := call(expression.OpSome, &expression.NestedRef{Level: expression.LevelEvent},
-		call(expression.OpAnd,
-			call(expression.OpEq, fieldRef(expression.LevelEvent, expression.EventFieldName), str("retry-scheduled")),
-			call(expression.OpEq, attrRef(expression.LevelEvent, "exception.type"), str("TimeoutError")),
+	uncorrelated := p.Some(p.Event(),
+		p.And(
+			p.Event().Name.Eq("retry-scheduled"),
+			p.Event().Attr("exception.type").Eq("TimeoutError"),
 		),
 	)
 	assert.False(t, f.matches(uncorrelated))
@@ -279,21 +281,21 @@ func TestMatchesFilter_SomeCorrelatesASingleEvent(t *testing.T) {
 
 func TestMatchesFilter_SomeOverLinks(t *testing.T) {
 	f := newFilterFixture(t)
-	assert.True(t, f.matches(call(expression.OpSome, &expression.NestedRef{Level: expression.LevelLink},
-		call(expression.OpEq, attrRef(expression.LevelLink, "link.tag"), str("link-value")),
+	assert.True(t, f.matches(p.Some(p.Link(),
+		p.Link().Attr("link.tag").Eq("link-value"),
 	)))
-	assert.False(t, f.matches(call(expression.OpSome, &expression.NestedRef{Level: expression.LevelLink},
-		call(expression.OpEq, attrRef(expression.LevelLink, "link.tag"), str("nope")),
+	assert.False(t, f.matches(p.Some(p.Link(),
+		p.Link().Attr("link.tag").Eq("nope"),
 	)))
 }
 
 func TestMatchesFilter_TimeSinceStart(t *testing.T) {
 	f := newFilterFixture(t)
 	// The "exception" event fires 50us after the span starts.
-	assert.True(t, f.matches(call(expression.OpSome, &expression.NestedRef{Level: expression.LevelEvent},
-		call(expression.OpAnd,
-			call(expression.OpEq, fieldRef(expression.LevelEvent, expression.EventFieldName), str("exception")),
-			call(expression.OpGt, fieldRef(expression.LevelEvent, expression.EventFieldTimeSinceStart), dur(40*time.Microsecond)),
+	assert.True(t, f.matches(p.Some(p.Event(),
+		p.And(
+			p.Event().Name.Eq("exception"),
+			p.Event().TimeSinceStart.Gt(40*time.Microsecond),
 		),
 	)))
 }
@@ -305,15 +307,15 @@ func TestMatchesFilter_UnknownOperatorDoesNotMatch(t *testing.T) {
 
 func TestMatchesFilter_NonCallExpressionDoesNotMatch(t *testing.T) {
 	f := newFilterFixture(t)
-	assert.False(t, evalPredicate(str("not a call"), filterCtx{span: f.span}))
+	assert.False(t, evalPredicate(p.String("not a call"), filterCtx{span: f.span}))
 }
 
 func TestMatchesFilter_LinkFields(t *testing.T) {
 	f := newFilterFixture(t)
 	link := f.span.Links().At(0)
-	assert.True(t, f.matches(call(expression.OpEq, fieldRef(expression.LevelLink, expression.LinkFieldTraceID), str(link.TraceID().String()))))
-	assert.True(t, f.matches(call(expression.OpEq, fieldRef(expression.LevelLink, expression.LinkFieldSpanID), str(link.SpanID().String()))))
-	assert.False(t, f.matches(call(expression.OpExists, fieldRef(expression.LevelLink, expression.LinkFieldTraceState))))
+	assert.True(t, f.matches(p.Link().TraceID.Eq(link.TraceID().String())))
+	assert.True(t, f.matches(p.Link().SpanID.Eq(link.SpanID().String())))
+	assert.False(t, f.matches(p.Link().TraceState.Exists()))
 }
 
 func TestMatchesFilter_StatusWords(t *testing.T) {
@@ -324,11 +326,11 @@ func TestMatchesFilter_StatusWords(t *testing.T) {
 	okSpan := ss.Spans().AppendEmpty()
 	okSpan.Status().SetCode(ptrace.StatusCodeOk)
 	okFixture := filterFixture{t: t, resource: rs.Resource(), scope: ss.Scope(), span: okSpan}
-	assert.True(t, okFixture.matches(call(expression.OpEq, fieldRef(expression.LevelSpan, expression.SpanFieldStatus), str("ok"))))
+	assert.True(t, okFixture.matches(p.Span().Status.Eq("ok")))
 
 	unsetSpan := ss.Spans().AppendEmpty()
 	unsetFixture := filterFixture{t: t, resource: rs.Resource(), scope: ss.Scope(), span: unsetSpan}
-	assert.True(t, unsetFixture.matches(call(expression.OpEq, fieldRef(expression.LevelSpan, expression.SpanFieldStatus), str("unset"))))
+	assert.True(t, unsetFixture.matches(p.Span().Status.Eq("unset")))
 }
 
 func TestMatchesFilter_ResourceAndScopeMissingFields(t *testing.T) {
@@ -340,11 +342,11 @@ func TestMatchesFilter_ResourceAndScopeMissingFields(t *testing.T) {
 
 	// No service.name resource attribute, no scope name/version, and this
 	// fixture's ResourceSpans/ScopeSpans carry no schema URL either.
-	assert.False(t, f.matches(call(expression.OpExists, fieldRef(expression.LevelResource, expression.ResourceFieldService))))
-	assert.False(t, f.matches(call(expression.OpExists, fieldRef(expression.LevelResource, expression.ResourceFieldSchemaURL))))
-	assert.False(t, f.matches(call(expression.OpExists, fieldRef(expression.LevelScope, expression.ScopeFieldName))))
-	assert.False(t, f.matches(call(expression.OpExists, fieldRef(expression.LevelScope, expression.ScopeFieldVersion))))
-	assert.False(t, f.matches(call(expression.OpExists, fieldRef(expression.LevelScope, expression.ScopeFieldSchemaURL))))
+	assert.False(t, f.matches(p.Resource().Service.Exists()))
+	assert.False(t, f.matches(p.Resource().SchemaURL.Exists()))
+	assert.False(t, f.matches(p.Scope().Name.Exists()))
+	assert.False(t, f.matches(p.Scope().Version.Exists()))
+	assert.False(t, f.matches(p.Scope().SchemaURL.Exists()))
 }
 
 // TestMatchesFilter_SchemaURL pins that resource.schemaURL and scope.schemaURL actually
@@ -364,38 +366,37 @@ func TestMatchesFilter_SchemaURL(t *testing.T) {
 		resourceSchemaURL: rs.SchemaUrl(), scopeSchemaURL: ss.SchemaUrl(),
 	}
 
-	assert.True(t, f.matches(call(expression.OpEq,
-		fieldRef(expression.LevelResource, expression.ResourceFieldSchemaURL), str("https://opentelemetry.io/schemas/1.9.0"))))
-	assert.False(t, f.matches(call(expression.OpEq,
-		fieldRef(expression.LevelResource, expression.ResourceFieldSchemaURL), str("other"))))
-	assert.True(t, f.matches(call(expression.OpEq,
-		fieldRef(expression.LevelScope, expression.ScopeFieldSchemaURL), str("https://opentelemetry.io/schemas/1.4.0"))))
+	assert.True(t, f.matches(p.Resource().SchemaURL.Eq("https://opentelemetry.io/schemas/1.9.0")))
+	assert.False(t, f.matches(p.Resource().SchemaURL.Eq("other")))
+	assert.True(t, f.matches(p.Scope().SchemaURL.Eq("https://opentelemetry.io/schemas/1.4.0")))
 }
 
 func TestMatchesFilter_EventTimeField(t *testing.T) {
 	f := newFilterFixture(t)
-	assert.True(t, f.matches(call(expression.OpSome, &expression.NestedRef{Level: expression.LevelEvent},
-		call(expression.OpAnd,
-			call(expression.OpEq, fieldRef(expression.LevelEvent, expression.EventFieldName), str("exception")),
-			call(expression.OpExists, fieldRef(expression.LevelEvent, expression.EventFieldTime)),
+	assert.True(t, f.matches(p.Some(p.Event(),
+		p.And(
+			p.Event().Name.Eq("exception"),
+			p.Event().Time.Exists(),
 		),
 	)))
 }
 
 func TestMatchesFilter_InAndNotInAgainstNonList(t *testing.T) {
 	f := newFilterFixture(t)
-	notAList := str("not-a-list")
-	assert.False(t, f.matches(call(expression.OpIn, fieldRef(expression.LevelSpan, expression.SpanFieldName), notAList)))
-	assert.False(t, f.matches(call(expression.OpNotIn, fieldRef(expression.LevelSpan, expression.SpanFieldName), notAList)))
+	// The builder wraps a bare value into a list, so the tree is written out.
+	name := fieldRef(expression.LevelSpan, expression.SpanFieldName)
+	notAList := p.String("not-a-list")
+	assert.False(t, f.matches(call(expression.OpIn, name, notAList)))
+	assert.False(t, f.matches(call(expression.OpNotIn, name, notAList)))
 }
 
 func TestMatchesFilter_InNumericAndBoolList(t *testing.T) {
 	f := newFilterFixture(t)
-	numList := &expression.List{Values: []string{"500", "404"}, Type: expression.ValueTypeInt}
-	assert.True(t, f.matches(call(expression.OpIn, attrRef(expression.LevelSpan, "http.status_code"), numList)))
+	numList := p.List(expression.ValueTypeInt, 500, 404)
+	assert.True(t, f.matches(p.Span().Attr("http.status_code").In(numList)))
 
-	boolList := &expression.List{Values: []string{"false"}, Type: expression.ValueTypeBool}
-	assert.True(t, f.matches(call(expression.OpIn, attrRef(expression.LevelSpan, "retry"), boolList)))
+	boolList := p.List(expression.ValueTypeBool, false)
+	assert.True(t, f.matches(p.Span().Attr("retry").In(boolList)))
 }
 
 func TestMatchesFilter_RegexInvalidPatternOperand(t *testing.T) {
@@ -407,14 +408,15 @@ func TestMatchesFilter_RegexInvalidPatternOperand(t *testing.T) {
 
 func TestMatchesFilter_SomeOverUnknownLevelDoesNotMatch(t *testing.T) {
 	f := newFilterFixture(t)
+	// The builder only quantifies over events and links, so the tree is written out.
 	assert.False(t, f.matches(call(expression.OpSome, &expression.NestedRef{Level: expression.LevelSpan},
-		call(expression.OpExists, fieldRef(expression.LevelSpan, expression.SpanFieldName)),
+		p.Span().Name.Exists(),
 	)))
 }
 
 func TestMatchesFilter_SomeWithNonNestedRefCollectionDoesNotMatch(t *testing.T) {
 	f := newFilterFixture(t)
-	assert.False(t, f.evaluates(call(expression.OpSome, str("not-a-collection"),
+	assert.False(t, f.evaluates(call(expression.OpSome, p.String("not-a-collection"),
 		call(expression.OpExists, fieldRef(expression.LevelEvent, expression.EventFieldName)),
 	)))
 }
@@ -427,8 +429,8 @@ func TestMatchesFilter_SomeWithNonNestedRefCollectionDoesNotMatch(t *testing.T) 
 func TestMatchesFilter_ExplicitlyTypedConstantDoesNotCrossKind(t *testing.T) {
 	f := newFilterFixture(t)
 	// http.status_code is stored as an int attribute (500).
-	assert.False(t, f.matches(call(expression.OpEq, attrRef(expression.LevelSpan, "http.status_code"), str("500"))))
-	assert.True(t, f.matches(call(expression.OpNe, attrRef(expression.LevelSpan, "http.status_code"), str("500"))),
+	assert.False(t, f.matches(p.Span().Attr("http.status_code").Eq(p.String("500"))))
+	assert.True(t, f.matches(p.Span().Attr("http.status_code").Ne(p.String("500"))),
 		"present but a different kind, so ne is true rather than the leaf-absence false")
 }
 
@@ -438,10 +440,10 @@ func TestMatchesFilter_ExplicitlyTypedConstantDoesNotCrossKind(t *testing.T) {
 func TestMatchesFilter_UntypedConstantResolvesAgainstAttributeKind(t *testing.T) {
 	f := newFilterFixture(t)
 	// http.status_code (int 500) and retry (bool false) beside an untyped "500"/"false".
-	assert.True(t, f.matches(call(expression.OpEq, attrRef(expression.LevelSpan, "http.status_code"), &expression.AnyValue{Value: "500"})))
-	assert.True(t, f.matches(call(expression.OpEq, attrRef(expression.LevelSpan, "retry"), &expression.AnyValue{Value: "false"})))
+	assert.True(t, f.matches(p.Span().Attr("http.status_code").Eq("500")))
+	assert.True(t, f.matches(p.Span().Attr("retry").Eq("false")))
 	// An untyped value that cannot be read as the attribute's kind matches nothing.
-	assert.False(t, f.matches(call(expression.OpEq, attrRef(expression.LevelSpan, "http.status_code"), &expression.AnyValue{Value: "not-a-number"})))
+	assert.False(t, f.matches(p.Span().Attr("http.status_code").Eq("not-a-number")))
 }
 
 // TestMatchesFilter_OpaqueAttributeExistsButNeverCompares pins OpExists to presence alone: a
@@ -452,9 +454,9 @@ func TestMatchesFilter_OpaqueAttributeExistsButNeverCompares(t *testing.T) {
 	f := newFilterFixture(t)
 	f.span.Attributes().PutEmptyBytes("payload").FromRaw([]byte{1, 2, 3})
 
-	assert.True(t, f.matches(call(expression.OpExists, attrRef(expression.LevelSpan, "payload"))))
-	assert.False(t, f.matches(call(expression.OpEq, attrRef(expression.LevelSpan, "payload"), str("anything"))))
-	assert.True(t, f.matches(call(expression.OpNe, attrRef(expression.LevelSpan, "payload"), str("anything"))))
+	assert.True(t, f.matches(p.Span().Attr("payload").Exists()))
+	assert.False(t, f.matches(p.Span().Attr("payload").Eq(p.String("anything"))))
+	assert.True(t, f.matches(p.Span().Attr("payload").Ne(p.String("anything"))))
 }
 
 // TestMatchesFilter_IntPrecisionAtNanosecondTimestamps pins that comparing timestamps does
@@ -470,8 +472,8 @@ func TestMatchesFilter_IntPrecisionAtNanosecondTimestamps(t *testing.T) {
 	span.SetEndTimestamp(pcommon.Timestamp(nanos))
 	f := filterFixture{t: t, resource: rs.Resource(), scope: ss.Scope(), span: span}
 
-	assert.True(t, f.matches(call(expression.OpEq, fieldRef(expression.LevelSpan, expression.SpanFieldStartTime), intVal(nanos))))
-	assert.False(t, f.matches(call(expression.OpEq, fieldRef(expression.LevelSpan, expression.SpanFieldStartTime), intVal(nanos-1))))
+	assert.True(t, f.matches(p.Span().StartTime.Eq(p.Int(nanos))))
+	assert.False(t, f.matches(p.Span().StartTime.Eq(p.Int(nanos-1))))
 }
 
 // TestMatchesFilter_ListTypeIsAuthoritative pins RFC 0005 §5.4: a typed list matches only
@@ -480,12 +482,12 @@ func TestMatchesFilter_IntPrecisionAtNanosecondTimestamps(t *testing.T) {
 func TestMatchesFilter_ListTypeIsAuthoritative(t *testing.T) {
 	f := newFilterFixture(t)
 	// http.status_code is an int attribute (500).
-	stringList := &expression.List{Values: []string{"500"}, Type: expression.ValueTypeString}
-	assert.False(t, f.matches(call(expression.OpIn, attrRef(expression.LevelSpan, "http.status_code"), stringList)))
+	stringList := p.List(expression.ValueTypeString, "500")
+	assert.False(t, f.matches(p.Span().Attr("http.status_code").In(stringList)))
 
 	// http.method is a string attribute ("POST"), never matches an int-typed list.
-	intList := &expression.List{Values: []string{"500"}, Type: expression.ValueTypeInt}
-	assert.False(t, f.matches(call(expression.OpIn, attrRef(expression.LevelSpan, "http.method"), intList)))
+	intList := p.List(expression.ValueTypeInt, 500)
+	assert.False(t, f.matches(p.Span().Attr("http.method").In(intList)))
 }
 
 func TestMatchesFilter_TraceStateAndEndTime(t *testing.T) {
@@ -502,10 +504,10 @@ func TestMatchesFilter_TraceStateAndEndTime(t *testing.T) {
 	link.TraceState().FromRaw("congo=t61rcWkgMzE")
 
 	f := filterFixture{t: t, resource: rs.Resource(), scope: ss.Scope(), span: span}
-	assert.True(t, f.matches(call(expression.OpEq, fieldRef(expression.LevelSpan, expression.SpanFieldTraceState), str("congo=t61rcWkgMzE"))))
-	assert.True(t, f.matches(call(expression.OpEq, fieldRef(expression.LevelSpan, expression.SpanFieldEndTime), intVal(int64(span.EndTimestamp())))))
-	assert.True(t, f.matches(call(expression.OpSome, &expression.NestedRef{Level: expression.LevelLink},
-		call(expression.OpEq, fieldRef(expression.LevelLink, expression.LinkFieldTraceState), str("congo=t61rcWkgMzE")),
+	assert.True(t, f.matches(p.Span().TraceState.Eq("congo=t61rcWkgMzE")))
+	assert.True(t, f.matches(p.Span().EndTime.Eq(p.Int(int64(span.EndTimestamp())))))
+	assert.True(t, f.matches(p.Some(p.Link(),
+		p.Link().TraceState.Eq("congo=t61rcWkgMzE"),
 	)))
 }
 
@@ -641,19 +643,19 @@ func TestMatchesFilter_ErrorVirtualAttribute(t *testing.T) {
 	unsetFixture := filterFixture{t: t, resource: rs.Resource(), scope: ss.Scope(), span: unsetSpan}
 
 	for _, level := range []expression.Level{"", expression.LevelSpan} {
-		assert.True(t, errorFixture.matches(call(expression.OpEq, attrRef(level, errorAttribute), boolean(true))),
+		assert.True(t, errorFixture.matches(call(expression.OpEq, attrRef(level, errorAttribute), p.Bool(true))),
 			"level=%q: an Error-status span matches error=true", level)
-		assert.False(t, errorFixture.matches(call(expression.OpEq, attrRef(level, errorAttribute), boolean(false))),
+		assert.False(t, errorFixture.matches(call(expression.OpEq, attrRef(level, errorAttribute), p.Bool(false))),
 			"level=%q: an Error-status span does not match error=false", level)
 		// error=false is the complement of error=true, not "tag absent": Unset is by far the
 		// common case and must match it, the same way the legacy search treats it.
-		assert.True(t, okFixture.matches(call(expression.OpEq, attrRef(level, errorAttribute), boolean(false))),
+		assert.True(t, okFixture.matches(call(expression.OpEq, attrRef(level, errorAttribute), p.Bool(false))),
 			"level=%q: an Ok-status span matches error=false", level)
-		assert.True(t, unsetFixture.matches(call(expression.OpEq, attrRef(level, errorAttribute), boolean(false))),
+		assert.True(t, unsetFixture.matches(call(expression.OpEq, attrRef(level, errorAttribute), p.Bool(false))),
 			"level=%q: an Unset-status span matches error=false, not just Ok", level)
 		assert.True(t, errorFixture.matches(call(expression.OpExists, attrRef(level, errorAttribute))),
 			"level=%q: error always exists, whether or not the span carries the attribute literally", level)
-		assert.True(t, okFixture.matches(call(expression.OpNe, attrRef(level, errorAttribute), boolean(true))),
+		assert.True(t, okFixture.matches(call(expression.OpNe, attrRef(level, errorAttribute), p.Bool(true))),
 			"level=%q: ne is the leaf-present complement, same as any other attribute", level)
 	}
 
@@ -663,14 +665,14 @@ func TestMatchesFilter_ErrorVirtualAttribute(t *testing.T) {
 	shadowed.Status().SetCode(ptrace.StatusCodeOk)
 	shadowed.Attributes().PutBool(errorAttribute, true)
 	shadowedFixture := filterFixture{t: t, resource: rs.Resource(), scope: ss.Scope(), span: shadowed}
-	assert.True(t, shadowedFixture.matches(call(expression.OpEq, attrRef("", errorAttribute), boolean(false))),
+	assert.True(t, shadowedFixture.matches(call(expression.OpEq, attrRef("", errorAttribute), p.Bool(false))),
 		"the literal attribute value is shadowed by the status-derived one")
 
 	// At any other level, "error" is an ordinary attribute lookup, not the virtual field: the
 	// special case is specific to the span's own status.
 	resourceErrorFixture := newFilterFixture(t)
 	resourceErrorFixture.resource.Attributes().PutBool(errorAttribute, true)
-	assert.True(t, resourceErrorFixture.matches(call(expression.OpEq, attrRef(expression.LevelResource, errorAttribute), boolean(true))),
+	assert.True(t, resourceErrorFixture.matches(call(expression.OpEq, attrRef(expression.LevelResource, errorAttribute), p.Bool(true))),
 		"resource-level error is a literal attribute, not the span-status virtual one")
 }
 
@@ -685,11 +687,11 @@ func TestValidateFilterShape_Valid(t *testing.T) {
 		{"nil filter", nil},
 		{"and with one arg", call(expression.OpAnd, call(expression.OpExists, nameRef))},
 		{"or with several args", call(expression.OpOr,
-			call(expression.OpExists, nameRef), call(expression.OpEq, nameRef, str("x")))},
+			call(expression.OpExists, nameRef), call(expression.OpEq, nameRef, p.String("x")))},
 		{"not", call(expression.OpNot, call(expression.OpExists, nameRef))},
 		{"exists", call(expression.OpExists, nameRef)},
-		{"eq", call(expression.OpEq, nameRef, str("x"))},
-		{"regex", call(expression.OpRegex, nameRef, str("^x$"))},
+		{"eq", call(expression.OpEq, nameRef, p.String("x"))},
+		{"regex", call(expression.OpRegex, nameRef, p.String("^x$"))},
 		{"in", call(expression.OpIn, nameRef, &expression.List{Values: []string{"x"}})},
 		{"some over events", call(expression.OpSome,
 			&expression.NestedRef{Level: expression.LevelEvent},
@@ -728,7 +730,7 @@ func TestValidateFilterShape_Invalid(t *testing.T) {
 		},
 		{
 			name:       "and given a value instead of a predicate",
-			filter:     call(expression.OpAnd, str("x")),
+			filter:     call(expression.OpAnd, p.String("x")),
 			wantErrIs:  tracestore.ErrFilterInvalid,
 			wantErrMsg: "combines predicates, not values",
 		},
@@ -739,7 +741,7 @@ func TestValidateFilterShape_Invalid(t *testing.T) {
 		},
 		{
 			name:       "not given a value instead of a predicate",
-			filter:     call(expression.OpNot, str("x")),
+			filter:     call(expression.OpNot, p.String("x")),
 			wantErrIs:  tracestore.ErrFilterInvalid,
 			wantErrMsg: "negates a predicate, not a value",
 		},
@@ -755,7 +757,7 @@ func TestValidateFilterShape_Invalid(t *testing.T) {
 		},
 		{
 			name:      "eq with three args",
-			filter:    call(expression.OpEq, nameRef, str("x"), str("y")),
+			filter:    call(expression.OpEq, nameRef, p.String("x"), p.String("y")),
 			wantErrIs: tracestore.ErrFilterInvalid,
 		},
 		{
@@ -776,7 +778,7 @@ func TestValidateFilterShape_Invalid(t *testing.T) {
 		},
 		{
 			name:       "some quantifying a value instead of a predicate",
-			filter:     call(expression.OpSome, &expression.NestedRef{Level: expression.LevelEvent}, str("x")),
+			filter:     call(expression.OpSome, &expression.NestedRef{Level: expression.LevelEvent}, p.String("x")),
 			wantErrIs:  tracestore.ErrFilterInvalid,
 			wantErrMsg: "quantifies a predicate, not a value",
 		},
@@ -801,23 +803,25 @@ func TestValidateFilterShape_Invalid(t *testing.T) {
 
 func TestMatchesFilter_RegexAcceptsAnUntypedPattern(t *testing.T) {
 	f := newFilterFixture(t)
-	nameRef := fieldRef(expression.LevelSpan, expression.SpanFieldName)
-	assert.True(t, f.matches(call(expression.OpRegex, nameRef, &expression.AnyValue{Value: "cart$"})))
-	assert.False(t, f.matches(call(expression.OpRegex, nameRef, &expression.AnyValue{Value: "^cart"})))
+	nameRef := p.Span().Name
+	assert.True(t, f.matches(nameRef.Matches("cart$")))
+	assert.False(t, f.matches(nameRef.Matches("^cart")))
 }
 
 // TestPrepareFilter_Regex pins that a regex pattern is compiled once, when the filter is
 // prepared, and that a pattern the search could not compile ahead of the scan is refused there.
 func TestPrepareFilter_Regex(t *testing.T) {
-	nameRef := fieldRef(expression.LevelSpan, expression.SpanFieldName)
-	nested := call(expression.OpAnd, call(expression.OpNot, call(expression.OpRegex, nameRef, str("^x"))))
+	nameRef := p.Span().Name
+	// The builder collapses a one-argument And, so each tree has a second predicate to keep the
+	// pattern nested.
+	nested := p.And(nameRef.Exists(), p.Not(nameRef.Matches("^x")))
 	prepared, err := prepareFilter(nested)
 	require.NoError(t, err)
 	assert.Len(t, prepared.regexps, 1, "the pattern under and/not is compiled")
 
-	_, err = prepareFilter(call(expression.OpRegex, nameRef, &expression.AnyValue{Value: "("}))
+	_, err = prepareFilter(nameRef.Matches("("))
 	require.ErrorIs(t, err, tracestore.ErrFilterInvalid, "a pattern that does not compile")
-	_, err = prepareFilter(call(expression.OpAnd, call(expression.OpRegex, nameRef, &expression.AnyValue{Value: "("})))
+	_, err = prepareFilter(p.And(nameRef.Exists(), nameRef.Matches("(")))
 	require.ErrorIs(t, err, tracestore.ErrFilterInvalid, "the same pattern nested under and")
 
 	prepared, err = prepareFilter(nil)
@@ -832,12 +836,12 @@ func TestPrepareFilter_Regex(t *testing.T) {
 func TestMatchesFilter_BooleanHasNoOrder(t *testing.T) {
 	f := newFilterFixture(t)
 	f.span.Attributes().PutBool("retry", true)
-	retry := attrRef(expression.LevelSpan, "retry")
-	assert.True(t, f.matches(call(expression.OpEq, retry, &expression.AnyValue{Value: "true"})))
-	assert.True(t, f.matches(call(expression.OpNe, retry, &expression.AnyValue{Value: "false"})))
+	retry := p.Span().Attr("retry")
+	assert.True(t, f.matches(retry.Eq("true")))
+	assert.True(t, f.matches(retry.Ne("false")))
 	for _, op := range []expression.Operator{expression.OpGt, expression.OpLt, expression.OpGte, expression.OpLte} {
-		assert.False(t, f.matches(call(op, retry, &expression.AnyValue{Value: "false"})), string(op))
-		assert.False(t, f.matches(call(op, retry, &expression.AnyValue{Value: "true"})), string(op))
+		assert.False(t, f.matches(p.Compare(op, retry, "false")), string(op))
+		assert.False(t, f.matches(p.Compare(op, retry, "true")), string(op))
 	}
 }
 
@@ -845,38 +849,34 @@ func TestMatchesFilter_BooleanHasNoOrder(t *testing.T) {
 // timestamp field are read as that type, since they travel as text.
 func TestMatchesFilter_MembershipOnTimeFields(t *testing.T) {
 	f := newFilterFixture(t)
-	duration := fieldRef(expression.LevelSpan, expression.SpanFieldDuration)
-	start := fieldRef(expression.LevelSpan, expression.SpanFieldStartTime)
-	durations := &expression.List{Values: []string{"100ms", "150ms"}}
-	starts := &expression.List{Values: []string{"2026-01-01T00:00:00Z"}}
-	others := &expression.List{Values: []string{"1s"}}
-
-	assert.True(t, f.matches(call(expression.OpIn, duration, durations)))
-	assert.False(t, f.matches(call(expression.OpNotIn, duration, durations)))
-	assert.True(t, f.matches(call(expression.OpIn, start, starts)))
-	assert.False(t, f.matches(call(expression.OpIn, duration, others)))
-	assert.True(t, f.matches(call(expression.OpNotIn, duration, others)))
-	assert.False(t, f.evaluates(call(expression.OpIn, duration, &expression.List{Values: []string{"not a duration"}})))
-	assert.False(t, f.matches(call(expression.OpIn, fieldRef(expression.LevelSpan, "no.such.field"), others)), "an unknown field resolves to nothing")
+	duration := p.Span().Duration
+	start := p.Span().StartTime
+	assert.True(t, f.matches(duration.In(100*time.Millisecond, 150*time.Millisecond)))
+	assert.False(t, f.matches(duration.NotIn(100*time.Millisecond, 150*time.Millisecond)))
+	assert.True(t, f.matches(start.In(time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC))))
+	assert.False(t, f.matches(duration.In(time.Second)))
+	assert.True(t, f.matches(duration.NotIn(time.Second)))
+	assert.False(t, f.evaluates(duration.In("not a duration")))
+	assert.False(t, f.matches(p.Span().Field("no.such.field").In(time.Second)), "an unknown field resolves to nothing")
 }
 
 func TestMatchesFilter_UnspecifiedSpanKind(t *testing.T) {
 	f := newFilterFixture(t)
 	f.span.SetKind(ptrace.SpanKindUnspecified)
-	kind := fieldRef(expression.LevelSpan, expression.SpanFieldKind)
-	assert.True(t, f.matches(call(expression.OpEq, kind, str("unspecified"))))
-	assert.True(t, f.matches(call(expression.OpIn, kind, &expression.List{Values: []string{"unspecified", "server"}})))
-	assert.False(t, f.evaluates(call(expression.OpEq, kind, str(""))))
+	kind := p.Span().Kind
+	assert.True(t, f.matches(kind.Eq("unspecified")))
+	assert.True(t, f.matches(kind.In("unspecified", "server")))
+	assert.False(t, f.evaluates(kind.Eq("")))
 }
 
 func TestMatchesFilter_NaNNeverCompares(t *testing.T) {
 	f := newFilterFixture(t)
-	ms := attrRef(expression.LevelSpan, "duration_ms")
+	ms := p.Span().Attr("duration_ms")
 	for _, op := range []expression.Operator{expression.OpEq, expression.OpGt, expression.OpLt, expression.OpGte, expression.OpLte} {
-		assert.False(t, f.matches(call(op, ms, &expression.AnyValue{Value: "NaN"})), string(op))
-		assert.False(t, f.matches(call(op, ms, dbl(math.NaN()))), string(op))
+		assert.False(t, f.matches(p.Compare(op, ms, "NaN")), string(op))
+		assert.False(t, f.matches(p.Compare(op, ms, p.Double(math.NaN()))), string(op))
 	}
-	assert.True(t, f.matches(call(expression.OpNe, ms, dbl(math.NaN()))), "present and not equal, as for any incomparable pair")
+	assert.True(t, f.matches(ms.Ne(p.Double(math.NaN()))), "present and not equal, as for any incomparable pair")
 }
 
 // TestMatchesFilter_AbsentAndUnknownFieldsResolveToNothing pins that a field the span does not
@@ -899,25 +899,24 @@ func TestMatchesFilter_AbsentAndUnknownFieldsResolveToNothing(t *testing.T) {
 	}
 
 	f.span.SetParentSpanID(pcommon.SpanID{9})
-	parent := fieldRef(expression.LevelSpan, expression.SpanFieldParentSpanID)
-	assert.True(t, f.matches(call(expression.OpEq, parent, str(pcommon.SpanID{9}.String()))))
+	assert.True(t, f.matches(p.Span().ParentSpanID.Eq(pcommon.SpanID{9}.String())))
 }
 
 func TestMatchesFilter_LinkAttributeOutsideSome(t *testing.T) {
 	f := newFilterFixture(t)
-	assert.True(t, f.matches(call(expression.OpEq, attrRef(expression.LevelLink, "link.tag"), str("link-value"))))
-	assert.False(t, f.matches(call(expression.OpExists, attrRef(expression.LevelLink, "no.such.attr"))))
+	assert.True(t, f.matches(p.Link().Attr("link.tag").Eq("link-value")))
+	assert.False(t, f.matches(p.Link().Attr("no.such.attr").Exists()))
 }
 
 func TestMatchesFilter_TypedListMismatches(t *testing.T) {
 	f := newFilterFixture(t)
-	status := attrRef(expression.LevelSpan, "http.status_code") // int 500
-	method := attrRef(expression.LevelSpan, "http.method")      // string
-	retry := attrRef(expression.LevelSpan, "retry")             // bool false
-	assert.False(t, f.matches(call(expression.OpIn, status, &expression.List{Values: []string{"404"}, Type: expression.ValueTypeInt})))
-	assert.False(t, f.matches(call(expression.OpIn, method, &expression.List{Values: []string{"true"}, Type: expression.ValueTypeBool})))
-	assert.False(t, f.matches(call(expression.OpIn, retry, &expression.List{Values: []string{"true"}, Type: expression.ValueTypeBool})))
-	assert.False(t, f.matches(call(expression.OpIn, status, &expression.List{Values: []string{"500"}, Type: "no-such-type"})))
+	status := p.Span().Attr("http.status_code") // int 500
+	method := p.Span().Attr("http.method")      // string
+	retry := p.Span().Attr("retry")             // bool false
+	assert.False(t, f.matches(status.In(p.List(expression.ValueTypeInt, 404))))
+	assert.False(t, f.matches(method.In(p.List(expression.ValueTypeBool, true))))
+	assert.False(t, f.matches(retry.In(p.List(expression.ValueTypeBool, true))))
+	assert.False(t, f.matches(status.In(p.List("no-such-type", 500))))
 }
 
 // TestMatchesFilter_LegacySyntheticTags pins that the attribute names the legacy predicate
@@ -945,10 +944,10 @@ func TestMatchesFilter_LegacySyntheticTags(t *testing.T) {
 // filter support. A span-level reference is not the legacy spelling and reads the literal key.
 func TestMatchesFilter_LegacyResourcePrefix(t *testing.T) {
 	f := newFilterFixture(t)
-	assert.True(t, f.matches(call(expression.OpEq, attrRef("", "resource.deployment.environment"), &expression.AnyValue{Value: "prod"})))
-	assert.False(t, f.matches(call(expression.OpEq, attrRef("", "resource.deployment.environment"), &expression.AnyValue{Value: "staging"})))
-	assert.False(t, f.matches(call(expression.OpExists, attrRef(expression.LevelSpan, "resource.deployment.environment"))))
-	assert.False(t, f.matches(call(expression.OpExists, attrRef("", "resource.http.status_code"))), "a span attribute is not behind the prefix")
+	assert.True(t, f.matches(p.Attr("resource.deployment.environment").Eq("prod")))
+	assert.False(t, f.matches(p.Attr("resource.deployment.environment").Eq("staging")))
+	assert.False(t, f.matches(p.Span().Attr("resource.deployment.environment").Exists()))
+	assert.False(t, f.matches(p.Attr("resource.http.status_code").Exists()), "a span attribute is not behind the prefix")
 }
 
 // TestMatchesFilter_UntypedConstantBesideTypedConstant pins that an untyped constant beside a
@@ -956,10 +955,10 @@ func TestMatchesFilter_LegacyResourcePrefix(t *testing.T) {
 // boundary accepts (RFC 0005 §5.4) has its arithmetic meaning.
 func TestMatchesFilter_UntypedConstantBesideTypedConstant(t *testing.T) {
 	f := newFilterFixture(t)
-	assert.True(t, f.matches(call(expression.OpEq, &expression.AnyValue{Value: "1"}, dbl(1))))
-	assert.True(t, f.matches(call(expression.OpEq, &expression.AnyValue{Value: "1"}, intVal(1))))
-	assert.True(t, f.matches(call(expression.OpLt, &expression.AnyValue{Value: "0.5"}, dbl(1))))
-	assert.False(t, f.matches(call(expression.OpLt, &expression.AnyValue{Value: "0.5"}, intVal(1))),
+	assert.True(t, f.matches(call(expression.OpEq, &expression.AnyValue{Value: "1"}, p.Double(1))))
+	assert.True(t, f.matches(call(expression.OpEq, &expression.AnyValue{Value: "1"}, p.Int(1))))
+	assert.True(t, f.matches(call(expression.OpLt, &expression.AnyValue{Value: "0.5"}, p.Double(1))))
+	assert.False(t, f.matches(call(expression.OpLt, &expression.AnyValue{Value: "0.5"}, p.Int(1))),
 		"a typed int is authoritative, and 0.5 is not an int")
 }
 
@@ -968,17 +967,17 @@ func TestMatchesFilter_UntypedConstantBesideTypedConstant(t *testing.T) {
 // matches only an attribute stored as that type, as a typed list already does.
 func TestMatchesFilter_MixedNumericKinds(t *testing.T) {
 	f := newFilterFixture(t)
-	durationMs := attrRef(expression.LevelSpan, "duration_ms")  // double 150.5
-	status := attrRef(expression.LevelSpan, "http.status_code") // int 500
-	assert.True(t, f.matches(call(expression.OpGt, durationMs, &expression.AnyValue{Value: "100"})), "double 150.5 > untyped 100")
-	assert.True(t, f.matches(call(expression.OpLt, status, &expression.AnyValue{Value: "600.5"})), "int 500 < untyped 600.5")
-	assert.True(t, f.matches(call(expression.OpEq, status, &expression.AnyValue{Value: "500.0"})), "int 500 == untyped 500.0")
+	durationMs := p.Span().Attr("duration_ms")  // double 150.5
+	status := p.Span().Attr("http.status_code") // int 500
+	assert.True(t, f.matches(durationMs.Gt("100")), "double 150.5 > untyped 100")
+	assert.True(t, f.matches(status.Lt("600.5")), "int 500 < untyped 600.5")
+	assert.True(t, f.matches(status.Eq("500.0")), "int 500 == untyped 500.0")
 
-	assert.False(t, f.matches(call(expression.OpGt, durationMs, intVal(100))), "a typed int matches no double attribute")
-	assert.False(t, f.matches(call(expression.OpLt, status, dbl(600.5))), "a typed double matches no int attribute")
-	assert.False(t, f.matches(call(expression.OpEq, status, dbl(500))), "not even one holding the same number")
-	assert.True(t, f.matches(call(expression.OpEq, status, intVal(500))))
-	assert.True(t, f.matches(call(expression.OpEq, durationMs, dbl(150.5))))
+	assert.False(t, f.matches(durationMs.Gt(p.Int(100))), "a typed int matches no double attribute")
+	assert.False(t, f.matches(status.Lt(p.Double(600.5))), "a typed double matches no int attribute")
+	assert.False(t, f.matches(status.Eq(p.Double(500))), "not even one holding the same number")
+	assert.True(t, f.matches(status.Eq(p.Int(500))))
+	assert.True(t, f.matches(durationMs.Eq(p.Double(150.5))))
 }
 
 // TestCompareValues_IntKeepsPrecisionAgainstIntegralDouble pins that an int64 above 2^53 is not
