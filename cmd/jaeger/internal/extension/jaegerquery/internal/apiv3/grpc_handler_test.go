@@ -44,6 +44,7 @@ var matchContext = mock.Anything
 func newGrpcServer(t *testing.T, handler *Handler) (*grpc.Server, net.Addr) {
 	server := grpc.NewServer()
 	api_v3.RegisterQueryServiceServer(server, handler)
+	api_v3.RegisterCapabilitiesServer(server, &CapabilitiesHandler{QueryService: handler.QueryService})
 
 	lis, err := net.Listen("tcp", ":0")
 	require.NoError(t, err)
@@ -61,6 +62,7 @@ type testServerClient struct {
 	reader     *tracestoremocks.Reader
 	depsReader *dependencystoremocks.Reader
 	client     api_v3.QueryServiceClient
+	caps       api_v3.CapabilitiesClient
 }
 
 // fakeStream records the last response the handler sends, or fails the send with sendErr when
@@ -120,6 +122,7 @@ func newTestServerClientWithCapabilities(t *testing.T, caps tracestore.SearchCap
 	require.NoError(t, err)
 	t.Cleanup(func() { conn.Close() })
 	tsc.client = api_v3.NewQueryServiceClient(conn)
+	tsc.caps = api_v3.NewCapabilitiesClient(conn)
 
 	return tsc
 }

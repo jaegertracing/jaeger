@@ -464,9 +464,9 @@ func (s *StorageIntegration) testFindTraceSummaries(t *testing.T) {
 // cannot make — that the backend really reads an absent service name as "any service".
 //
 // The gate is the suite's per-backend opt-out, which CI populates from the STORAGE under
-// test, not the reader's own SearchCapabilities: in the e2e configuration that reader talks
-// to a query service over api_v3, which cannot report capabilities, so gating on it would
-// skip everywhere (RFC 0013 §3.7).
+// test, not the reader's own SearchCapabilities: a test that gates on the backend's
+// self-report would pass vacuously when the backend under-reports, whereas the harness
+// knows which backend it started (RFC 0013 §3.7).
 func (s *StorageIntegration) testFindTracesWithoutServiceName(t *testing.T) {
 	s.skipIfNeeded(t)
 	if s.Capabilities.SearchRequiresServiceName() {
