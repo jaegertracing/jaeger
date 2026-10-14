@@ -1189,7 +1189,7 @@ func TestInitRouterAIHandlerRegistration(t *testing.T) {
 
 	t.Run("mcp endpoint mounted in MCP-only mode", func(t *testing.T) {
 		opts := DefaultQueryOptions()
-		opts.AI = configoptional.Some(AIConfig{MCP: configoptional.Some(MCPConfig{}), MaxRequestBodySize: 1 << 20})
+		opts.AI = configoptional.Some(AIConfig{MCP: configoptional.Some(MCPConfig{DisableLocalhostProtection: true}), MaxRequestBodySize: 1 << 20})
 
 		handler, cs, err := initRouter(context.Background(), querySvc.qs, nil, &opts, nilBackendCaps, tenancyMgr, telset)
 		require.NoError(t, err)

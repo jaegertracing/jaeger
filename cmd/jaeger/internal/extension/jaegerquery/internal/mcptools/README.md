@@ -27,6 +27,26 @@ It serves at `<basePath>/api/ai/mcp/` on the query port, carrying the telemetry
 tools and `read_skill` with the built-in skills. Point an MCP client there, or
 leave it to an AI chat sidecar configured with `ai.agent_url`.
 
+## Running behind a reverse proxy or sidecar
+
+The MCP SDK that serves this endpoint carries a DNS-rebinding guard for MCP servers on a
+developer's machine: a request that arrives on a loopback address with a non-loopback `Host`
+header is rejected with `403 Forbidden: invalid Host header`. A reverse proxy or service-mesh
+sidecar on the same host produces exactly that shape for every request, since it connects to the
+query port over `127.0.0.1` and preserves the client's `Host`, so behind one the endpoint rejects
+every caller. Turn the guard off there:
+
+```yaml
+extensions:
+  jaeger_query:
+    ai:
+      mcp:
+        disable_localhost_protection: true
+```
+
+The UI and the REST API on the same port have no such guard, so this setting changes nothing
+about them. Leave it at the default when clients reach the query port directly.
+
 ## Adding installation-specific skills
 
 Point `ai.mcp.skills_dir` at a directory on the query server's disk:

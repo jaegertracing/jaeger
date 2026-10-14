@@ -38,6 +38,9 @@ type Config struct {
 	// the built-in skills. Nil means none is configured, and only the built-ins
 	// are served.
 	CustomSkillsFS fs.FS
+	// DisableLocalhostProtection is passed through to the SDK's streamable HTTP
+	// handler; see MCPConfig.DisableLocalhostProtection on the extension config.
+	DisableLocalhostProtection bool
 }
 
 // DefaultConfig returns the Config the standalone jaeger_mcp extension used, so

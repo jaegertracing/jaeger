@@ -109,6 +109,14 @@ type MCPConfig struct {
 	// Jaeger. See mcptools/README.md for the layout it expects. Empty (the
 	// default) serves the built-in skills only.
 	SkillsDir string `mapstructure:"skills_dir" valid:"optional"`
+	// DisableLocalhostProtection turns off the MCP SDK's DNS-rebinding guard, which
+	// rejects with 403 any request that arrives on a loopback address with a
+	// non-loopback Host header. The guard protects an MCP server on a developer's
+	// machine from a web page that reaches 127.0.0.1 under a foreign name. Behind a
+	// reverse proxy or service-mesh sidecar on the same host, every request arrives
+	// that way, so the guard rejects every caller and must be turned off. Leave it
+	// false (the default) when the query port is reached directly.
+	DisableLocalhostProtection bool `mapstructure:"disable_localhost_protection" valid:"optional"`
 }
 
 func (c *MCPConfig) Validate() error {
