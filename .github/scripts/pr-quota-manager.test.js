@@ -953,6 +953,27 @@ describe('processIssueLimitForPullRequest', () => {
     }));
   });
 
+  test('bounds concurrent comment reads during an open PR sweep', async () => {
+    const openPRs = Array.from({ length: 12 }, (_, index) =>
+      makePR(index + 1, `2026-01-${String(index + 1).padStart(2, '0')}T00:00:00Z`)
+    );
+    const octokit = issueLimitOctokit({ issues: openPRs });
+    let activeRequests = 0;
+    let maximumActiveRequests = 0;
+    octokit.rest.issues.listComments.mockImplementation(async () => {
+      activeRequests++;
+      maximumActiveRequests = Math.max(maximumActiveRequests, activeRequests);
+      await new Promise(resolve => setImmediate(resolve));
+      activeRequests--;
+      return { data: [] };
+    });
+
+    await processAllIssueLimits(octokit, 'owner', 'repo');
+
+    expect(maximumActiveRequests).toBeLessThanOrEqual(10);
+    expect(octokit.rest.issues.listComments).toHaveBeenCalledTimes(openPRs.length);
+  });
+
   test('fails safely when a nested connection is truncated', async () => {
     const octokit = issueLimitOctokit({ issues: [] });
     octokit.graphql.mockResolvedValue({

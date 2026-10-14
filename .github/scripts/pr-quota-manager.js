@@ -20,6 +20,7 @@ const LABEL_COLOR = 'CFD3D7';
 const DUPLICATE_LABEL_NAME = 'duplicate';
 const OVERRIDE_LABEL_NAME = 'allow-multiple-prs';
 const STALE_LABEL_NAME = 'stale';
+const COMMENT_REQUEST_CONCURRENCY = 10;
 
 const openPullRequestsQuery = `
   query openPullRequests($owner: String!, $repo: String!, $after: String) {
@@ -431,6 +432,17 @@ async function listIssueLimitComments(octokit, owner, repo, issueNumber) {
   }
 }
 
+async function forEachWithConcurrency(items, concurrency, callback) {
+  let nextIndex = 0;
+  async function worker() {
+    while (nextIndex < items.length) {
+      const item = items[nextIndex++];
+      await callback(item);
+    }
+  }
+  await Promise.all(Array.from({ length: Math.min(concurrency, items.length) }, worker));
+}
+
 async function addIssueLabel(octokit, owner, repo, issueNumber, label) {
   try {
     await octokit.rest.issues.addLabels({ owner, repo, issue_number: issueNumber, labels: [label] });
@@ -531,10 +543,11 @@ async function processIssueLimits(octokit, owner, repo, logger = console, dryRun
 
   const commentSets = new Map();
   // Policy markers make incomplete comment/label transitions recoverable, so
-  // inspect every open PR until every marker has been retired.
-  await Promise.all([...knownPRs.values()].map(async ({ number }) => {
+  // inspect every open PR until every marker has been retired. Bound requests
+  // to avoid GitHub secondary-rate-limit throttling on repository sweeps.
+  await forEachWithConcurrency([...knownPRs.values()], COMMENT_REQUEST_CONCURRENCY, async ({ number }) => {
     commentSets.set(number, await listIssueLimitComments(octokit, owner, repo, number));
-  }));
+  });
 
   if (dryRun) return {
     reconciledIssues: [...issues.keys()].sort((left, right) => left - right),
@@ -737,6 +750,7 @@ if (typeof module !== 'undefined' && module.exports) {
   module.exports.fetchOpenPullRequests = fetchOpenPullRequests;
   module.exports.calculateIssueLimitState = calculateIssueLimitState;
   module.exports.listIssueLimitComments = listIssueLimitComments;
+  module.exports.forEachWithConcurrency = forEachWithConcurrency;
   module.exports.processIssueLimits = processIssueLimits;
   module.exports.processIssueLimitForPullRequest = processIssueLimitForPullRequest;
   module.exports.processAllIssueLimits = processAllIssueLimits;
@@ -746,6 +760,7 @@ if (typeof module !== 'undefined' && module.exports) {
   module.exports.ISSUE_LIMIT_OWNED_LABEL_MARKER = ISSUE_LIMIT_OWNED_LABEL_MARKER;
   module.exports.LABEL_NAME = LABEL_NAME;
   module.exports.LABEL_COLOR = LABEL_COLOR;
+  module.exports.COMMENT_REQUEST_CONCURRENCY = COMMENT_REQUEST_CONCURRENCY;
 }
 
 // Run main function if executed directly

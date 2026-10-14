@@ -45,10 +45,11 @@ So if you have a desire to work on an issue, feel free to mention it in the comm
 ### Link each pull request to an issue
 
 Every pull request must be linked to the issue it addresses. Use a GitHub closing
-keyword in the PR description, for example `Fixes #123`, so GitHub records the
-canonical issue relationship. GitHub can also create that relationship from a
-closing keyword in a commit message; a bare issue number in a title, commit, or
-comment is not sufficient.
+keyword in the PR description, for example `Fixes #123`, or explicitly link the
+issue in GitHub's sidebar, so GitHub records the canonical issue relationship. A
+bare issue number in a title, commit, or comment is not sufficient. A closing
+keyword that appears only in a commit message does not link the open PR to the
+issue for this policy.
 
 Only one active PR may normally be linked to an issue. Drafts and maintainer PRs
 count. If another active PR is already linked, coordinate with its author and
