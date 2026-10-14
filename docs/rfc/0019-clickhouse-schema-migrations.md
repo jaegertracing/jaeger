@@ -260,9 +260,9 @@ The comparison is defined per object kind over the catalog columns below. A prop
 | table | engine family (`MergeTree`, `AggregatingMergeTree`) after stripping `Replicated` or `Shared` | `system.tables.engine` | refusal |
 | table | replication mode against `table_engine`: a local engine under `replicated`, or a `Replicated*` engine under `merge_tree`, is a mismatch; `Shared*` satisfies either, because ClickHouse Cloud substitutes it for both | `system.tables.engine` | refusal |
 | table | sorting key, partition key, primary key, sampling key | `system.tables` | refusal |
-| table | TTL clause, taken from `engine_full`, which carries `TTL ... SETTINGS ...` without the column list | `system.tables` | `MODIFY TTL` or `REMOVE TTL` (deferred) |
-| table | constraints and projections declared by the template | `create_table_query` | refusal when missing live |
-| table | settings, taken from `engine_full` after `SETTINGS` | `system.tables` | `MODIFY SETTING` (deferred); the settings ClickHouse rejects with `READONLY_SETTING`, `index_granularity` and `index_granularity_bytes` among them, are a refusal, from a list kept in the code because the catalog does not mark them |
+| table | TTL clause, the text of `engine_full` between `TTL` and `SETTINGS`, which the server prints in a fixed order on both sides | `system.tables` | `MODIFY TTL` or `REMOVE TTL` (deferred) |
+| table | constraints and projections | none declared by a template today; a template that declares one is a refusal until the comparison learns the property | refusal |
+| table | settings, the `key = value` list of `engine_full` after `SETTINGS` | `system.tables` | `MODIFY SETTING` (deferred); the settings ClickHouse rejects with `READONLY_SETTING`, `index_granularity` and `index_granularity_bytes` among them, are a refusal, from a list kept in the code because the catalog does not mark them |
 | column | exists | `system.columns` | `ADD COLUMN IF NOT EXISTS ... AFTER` (additive) |
 | column | type | `system.columns.type` | refusal |
 | column | default expression, for the plain `DEFAULT` kind | `system.columns` | `MODIFY COLUMN ... DEFAULT`, or `REMOVE DEFAULT` when the template has none (deferred) |
