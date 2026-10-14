@@ -5,6 +5,7 @@ package mcptools
 
 import (
 	"context"
+	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"slices"
@@ -65,6 +66,24 @@ func TestNewHandler_ListTools(t *testing.T) {
 		"get_trace_errors", "get_trace_topology", "get_critical_path", "get_service_dependencies",
 		"read_skill",
 	}, got)
+
+	byName := toolsByName(t, listed.Tools)
+	errorSpanProps := spanItemProperties(t, byName["get_trace_errors"])
+	detailSpanProps := spanItemProperties(t, byName["get_span_details"])
+
+	for _, field := range []string{"attributes", "events", "links"} {
+		assert.NotContains(t, errorSpanProps, field,
+			"get_trace_errors output schema must not advertise %s on returned spans", field)
+		assert.Contains(t, detailSpanProps, field,
+			"get_span_details output schema must still advertise %s", field)
+	}
+	for _, field := range []string{"span_id", "service", "span_name", "status_message"} {
+		assert.Contains(t, errorSpanProps, field,
+			"get_trace_errors span listing schema must include %s", field)
+	}
+	errorOutProps := schemaObject(t, marshalSchema(t, byName["get_trace_errors"].OutputSchema), "properties")
+	assert.Contains(t, errorOutProps, "trace_id")
+	assert.Contains(t, errorOutProps, "total_error_count")
 }
 
 // TestNewHandler_CallTool exercises a tool end-to-end through the HTTP stack,
@@ -178,4 +197,46 @@ func TestRegisterTools(t *testing.T) {
 		"get_trace_errors", "get_trace_topology", "get_critical_path", "get_service_dependencies",
 		"read_skill",
 	}, got)
+}
+
+func toolsByName(t *testing.T, tools []*mcp.Tool) map[string]*mcp.Tool {
+	t.Helper()
+	byName := make(map[string]*mcp.Tool, len(tools))
+	for i := range tools {
+		byName[tools[i].Name] = tools[i]
+	}
+	require.Contains(t, byName, "get_trace_errors")
+	require.Contains(t, byName, "get_span_details")
+	return byName
+}
+
+func marshalSchema(t *testing.T, schema any) map[string]any {
+	t.Helper()
+	require.NotNil(t, schema)
+	raw, err := json.Marshal(schema)
+	require.NoError(t, err)
+	var out map[string]any
+	require.NoError(t, json.Unmarshal(raw, &out))
+	return out
+}
+
+func schemaObject(t *testing.T, node map[string]any, keys ...string) map[string]any {
+	t.Helper()
+	cur := any(node)
+	for _, key := range keys {
+		m, ok := cur.(map[string]any)
+		require.Truef(t, ok, "schema node for %q is %T, want object", key, cur)
+		next, ok := m[key]
+		require.Truef(t, ok, "missing schema key %q in %v", key, keys)
+		cur = next
+	}
+	m, ok := cur.(map[string]any)
+	require.Truef(t, ok, "final schema node is %T, want object", cur)
+	return m
+}
+
+func spanItemProperties(t *testing.T, tool *mcp.Tool) map[string]any {
+	t.Helper()
+	require.NotNil(t, tool)
+	return schemaObject(t, marshalSchema(t, tool.OutputSchema), "properties", "spans", "items", "properties")
 }
