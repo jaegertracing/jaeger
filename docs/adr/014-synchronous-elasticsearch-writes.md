@@ -1,7 +1,7 @@
 # ADR-014: Synchronous Elasticsearch/OpenSearch Writes and Lossless Pipelines
 
 * **Status**: Implemented — graduated from [RFC 0007](../rfc/0007-synchronous-elasticsearch-writes.md)
-* **Date**: 2026-09-22, extended 2026-09-24 with the batch-size headroom rule, extended 2026-09-29 to state that neither batch nor fetch settings raise the Kafka batch above one record per partition, and to track the RFC 0007 M8/M9 split
+* **Date**: 2026-09-22, extended 2026-09-24 with the batch-size headroom rule, extended 2026-09-29 to state that neither batch nor fetch settings raise the Kafka batch above one record per partition, and to track the RFC 0007 M8/M9 split, extended 2026-10-08 so a spelled-out `queue.batch` also sets `partition.idle_timeout` and `partition.cache_size`
 
 ## Context
 
@@ -77,7 +77,7 @@ The two topologies need two different shapes. Both drop the `batch` processor an
 | `processors` | `[]` | `[]` |
 | `exporters` / `connectors` | `jaeger_storage_exporter` under `exporters:` | `jaeger_storage_exporter` under `exporters:`, or under `connectors:` with a dead-letter pipeline |
 | `queue.wait_for_result` | `true` | `true` |
-| `queue.batch` | `sizer: bytes`, a positive `min_size`, `max_size` at most half of `bulk_processing.max_bytes`, `flush_timeout` in the low hundreds of milliseconds | same |
+| `queue.batch` | `sizer: bytes`, a positive `min_size`, `max_size` at most half of `bulk_processing.max_bytes`, `flush_timeout` in the low hundreds of milliseconds, and positive `partition.idle_timeout` / `partition.cache_size` (exporterhelper defaults 90s and 10000; an omitted partition unmarshals as zero) | same |
 | `retry_on_failure` | disabled: the client retries, and a collector-side retry would only hold the client's request open | `enabled: true`, `max_elapsed_time: 0` |
 | `queue.block_on_overflow` | default `false`: a full queue answers the client with a retryable error, which is the back-pressure signal | `true`: a full queue must wait, not fail the record |
 | receiver | `otlp` with defaults | `kafka` with `message_marking.after: true`, `on_error: false` |
