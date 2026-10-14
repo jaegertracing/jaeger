@@ -75,7 +75,9 @@ kind `allow_once` or `allow_always`, so an agent may ask but must not depend on
 a human.
 
 **Tracing.** `session/prompt` carries `traceparent` and `tracestate` in `_meta`,
-using the SEP-414 keys that MCP uses for the same purpose. An agent that reads them and re-injects them into `_meta` on each MCP
+using the keys that
+[SEP-414](https://modelcontextprotocol.io/seps/414-request-meta) defines for MCP.
+An agent that reads them and re-injects them into `_meta` on each MCP
 `tools/call` joins its spans to the chat request's trace. This is optional, but
 it is what makes the agent visible in Jaeger's own traces.
 
