@@ -77,7 +77,8 @@ func newServer(telset telemetry.Settings, queryAPI *querysvc.QueryService, cfg C
 // both.
 type Handler struct {
 	http.Handler
-	server *mcp.Server
+	server      *mcp.Server
+	checkCaller mcp.Middleware
 }
 
 var _ io.Closer = (*Handler)(nil)
@@ -102,18 +103,23 @@ func (h *Handler) Close() error {
 // middleware added here applies to every later request; call it during startup,
 // before the HTTP server begins serving.
 func (h *Handler) AddReceivingMiddleware(middleware ...mcp.Middleware) {
-	h.server.AddReceivingMiddleware(middleware...)
+	// The SDK runs the middleware added last first, so the caller check goes in
+	// again ahead of middleware that may answer a request itself.
+	h.server.AddReceivingMiddleware(append([]mcp.Middleware{h.checkCaller}, middleware...)...)
 }
 
 // NewHandler builds a closeable Handler that serves the Jaeger telemetry MCP tools
 // over streamable HTTP, backed by the given QueryService — the shared endpoint at
 // jaeger-query's /api/ai/mcp/. One *mcp.Server is reused for every session: with
-// Stateless: false the SDK builds one ServerSession per MCP session and reuses it
-// for that session's requests. It binds no listener of its own — the caller mounts
-// the returned handler on an existing mux and closes it at shutdown so its MCP
-// sessions are reaped.
+// Stateless: false the SDK builds one ServerSession per MCP session and serves
+// each of that session's requests with the context of the request that opened it,
+// which checkSessionCaller corrects for. It binds no listener of its own — the
+// caller mounts the returned handler on an existing mux and closes it at shutdown
+// so its MCP sessions are reaped.
 func NewHandler(telset telemetry.Settings, queryAPI *querysvc.QueryService, tenancyMgr *tenancy.Manager, cfg Config) *Handler {
 	server := newServer(telset, queryAPI, cfg)
+	checkCaller := checkSessionCaller(telset.Logger, cfg.BearerTokenPropagation)
+	server.AddReceivingMiddleware(checkCaller)
 	streamable := mcp.NewStreamableHTTPHandler(
 		func(*http.Request) *mcp.Server { return server },
 		&mcp.StreamableHTTPOptions{
@@ -122,14 +128,15 @@ func NewHandler(telset telemetry.Settings, queryAPI *querysvc.QueryService, tena
 			SessionTimeout: mcpSessionTimeout,
 		},
 	)
-	tenantHandler := tenancy.ExtractTenantHTTPHandler(tenancyMgr, streamable)
+	tenantHandler := tenancy.ExtractTenantHTTPHandler(tenancyMgr, recordSessionCaller(tenancyMgr, cfg, streamable))
 	return &Handler{
 		Handler: otelhttp.NewHandler(
 			tenantHandler,
 			"jaeger_mcp",
 			otelhttp.WithTracerProvider(telset.TracerProvider),
 		),
-		server: server,
+		server:      server,
+		checkCaller: checkCaller,
 	}
 }
 

@@ -13,9 +13,11 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
+	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
@@ -42,6 +44,7 @@ import (
 	"github.com/jaegertracing/jaeger-idl/model/v1"
 	"github.com/jaegertracing/jaeger-idl/proto-gen/api_v2"
 	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerquery/querysvc"
+	"github.com/jaegertracing/jaeger/internal/auth/bearertoken"
 	"github.com/jaegertracing/jaeger/internal/grpctest"
 	"github.com/jaegertracing/jaeger/internal/headerforwarding"
 	depsmocks "github.com/jaegertracing/jaeger/internal/storage/v2/api/depstore/mocks"
@@ -1257,6 +1260,142 @@ func TestInitRouterAIHandlerRegistration(t *testing.T) {
 			require.Equal(t, http.StatusNotFound, scopedRR.Code,
 				"session-scoped endpoint must be mounted and reject unknown session at %s", scopedPath)
 		}
+	})
+}
+
+// mcpCallerTransport sends its headers on every request, so changing them
+// mid-session makes a later request on the same MCP session differ from the
+// one that opened it.
+type mcpCallerTransport struct {
+	mu       sync.Mutex
+	header   http.Header
+	rawQuery string
+	hasQuery bool
+}
+
+func (c *mcpCallerTransport) set(name, value string) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.header.Set(name, value)
+}
+
+func (c *mcpCallerTransport) setQuery(q string) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.rawQuery = q
+	c.hasQuery = true
+}
+
+func (c *mcpCallerTransport) RoundTrip(r *http.Request) (*http.Response, error) {
+	c.mu.Lock()
+	r = r.Clone(r.Context())
+	for name, values := range c.header {
+		r.Header[name] = values
+	}
+	if c.hasQuery {
+		r.URL.RawQuery = c.rawQuery
+	}
+	c.mu.Unlock()
+	return http.DefaultTransport.RoundTrip(r)
+}
+
+// TestInitRouter_MCPSessionCaller checks that the telemetry MCP endpoint is
+// given header_forwarding and bearer_token_propagation: a token sent after a
+// session opened reaches storage, and a forwarded header sent after it opened
+// is refused.
+func TestInitRouter_MCPSessionCaller(t *testing.T) {
+	telset := initTelSet(zaptest.NewLogger(t), nooptrace.NewTracerProvider())
+	var mu sync.Mutex
+	var tokens []string
+	traceReader := &tracestoremocks.Reader{}
+	traceReader.On("GetServices", mock.Anything).Run(func(args mock.Arguments) {
+		token, _ := bearertoken.GetBearerToken(args.Get(0).(context.Context))
+		mu.Lock()
+		defer mu.Unlock()
+		tokens = append(tokens, token)
+	}).Return([]string{"svc"}, nil)
+	qs := querysvc.NewQueryService(traceReader, &depsmocks.Reader{}, querysvc.QueryServiceOptions{})
+
+	opts := DefaultQueryOptions()
+	opts.BearerTokenPropagation = true
+	opts.HeaderForwarding = []headerforwarding.ForwardedHeader{{HTTPName: "X-User"}}
+	opts.AI = configoptional.Some(AIConfig{MCP: configoptional.Some(MCPConfig{}), MaxRequestBodySize: 1 << 20})
+	handler, cs, err := initRouter(context.Background(), qs, nil, &opts, nilBackendCaps, noopTenancyMgr(), telset)
+	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, cs.Close()) })
+	ts := httptest.NewServer(handler)
+	t.Cleanup(ts.Close)
+
+	caller := &mcpCallerTransport{header: http.Header{}}
+	session, err := mcp.NewClient(&mcp.Implementation{Name: "test-client", Version: "0.0.0"}, nil).
+		Connect(t.Context(), &mcp.StreamableClientTransport{
+			Endpoint:   ts.URL + "/api/ai/mcp/",
+			HTTPClient: &http.Client{Transport: caller},
+		}, nil)
+	require.NoError(t, err)
+	t.Cleanup(func() { session.Close() })
+
+	_, err = session.CallTool(t.Context(), &mcp.CallToolParams{Name: "get_services"})
+	require.NoError(t, err)
+	caller.set("Authorization", "Bearer bob")
+	_, err = session.CallTool(t.Context(), &mcp.CallToolParams{Name: "get_services"})
+	require.NoError(t, err)
+	caller.set("X-User", "bob")
+	_, err = session.CallTool(t.Context(), &mcp.CallToolParams{Name: "get_services"})
+	require.ErrorContains(t, err, "start a new session")
+
+	mu.Lock()
+	defer mu.Unlock()
+	assert.Equal(t, []string{"", "bob"}, tokens)
+}
+
+// TestInitRouter_MCPSessionBindsHTTPAuth checks that http.auth is passed to
+// the MCP handler: with an authenticator configured, a later request whose
+// credential header or auth.request_params differ is refused, because that
+// authenticator may have stored the opener's identity only in the context.
+func TestInitRouter_MCPSessionBindsHTTPAuth(t *testing.T) {
+	telset := initTelSet(zaptest.NewLogger(t), nooptrace.NewTracerProvider())
+	opts := DefaultQueryOptions()
+	opts.AI = configoptional.Some(AIConfig{MCP: configoptional.Some(MCPConfig{}), MaxRequestBodySize: 1 << 20})
+	opts.HTTP.Auth = configoptional.Some(confighttp.AuthConfig{
+		RequestParameters: []string{"token"},
+	})
+	handler, cs, err := initRouter(context.Background(), makeQuerySvc().qs, nil, &opts, nilBackendCaps, noopTenancyMgr(), telset)
+	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, cs.Close()) })
+	ts := httptest.NewServer(handler)
+	t.Cleanup(ts.Close)
+
+	connect := func(t *testing.T, caller *mcpCallerTransport) *mcp.ClientSession {
+		t.Helper()
+		session, err := mcp.NewClient(&mcp.Implementation{Name: "test-client", Version: "0.0.0"}, nil).
+			Connect(t.Context(), &mcp.StreamableClientTransport{
+				Endpoint:   ts.URL + "/api/ai/mcp/",
+				HTTPClient: &http.Client{Transport: caller},
+			}, nil)
+		require.NoError(t, err)
+		t.Cleanup(func() { session.Close() })
+		return session
+	}
+
+	t.Run("credential header", func(t *testing.T) {
+		caller := &mcpCallerTransport{header: http.Header{"X-Api-Key": {"alice"}}}
+		session := connect(t, caller)
+		_, err := session.CallTool(t.Context(), &mcp.CallToolParams{Name: "get_services"})
+		require.NoError(t, err)
+		caller.set("X-Api-Key", "mallory")
+		_, err = session.CallTool(t.Context(), &mcp.CallToolParams{Name: "get_services"})
+		require.ErrorContains(t, err, "start a new session")
+	})
+
+	t.Run("request parameter", func(t *testing.T) {
+		caller := &mcpCallerTransport{hasQuery: true, rawQuery: "token=alice"}
+		session := connect(t, caller)
+		_, err := session.CallTool(t.Context(), &mcp.CallToolParams{Name: "get_services"})
+		require.NoError(t, err)
+		caller.setQuery("token=mallory")
+		_, err = session.CallTool(t.Context(), &mcp.CallToolParams{Name: "get_services"})
+		require.ErrorContains(t, err, "start a new session")
 	})
 }
 
