@@ -14,6 +14,7 @@ import (
 	"go.uber.org/zap"
 
 	queryapp "github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerquery/internal"
+	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerquery/internal/apiv3"
 	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerquery/internal/jaegerai/aihealth"
 	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerquery/queryinterceptor"
 	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerquery/querysvc"
@@ -116,17 +117,18 @@ func (s *server) Start(ctx context.Context, host component.Host) error {
 	archiveStorage := opts.ArchiveTraceReader != nil && opts.ArchiveTraceWriter != nil
 	metricsStorage := s.config.Storage.Metrics != ""
 	backendCaps := func(ctx context.Context) queryapp.BackendCapabilities {
-		searchWithoutServiceName, err := qs.SearchWithoutServiceName(ctx)
+		search, err := qs.SearchCapabilities(ctx)
 		if err != nil {
-			searchWithoutServiceName = false
+			search = tracestore.SearchCapabilities{}
 			telset.Logger.Info("Storage did not report its search capabilities; assuming baseline",
 				zap.Error(err))
 		}
 		return queryapp.BackendCapabilities{
 			ArchiveStorage:           archiveStorage,
 			MetricsStorage:           metricsStorage,
-			SearchWithoutServiceName: searchWithoutServiceName,
+			SearchWithoutServiceName: search.WithoutServiceName,
 			AIAssistant:              s.aiHealth != nil && s.aiHealth.Current(),
+			Search:                   apiv3.ToSearchCapabilities(search),
 		}
 	}
 
