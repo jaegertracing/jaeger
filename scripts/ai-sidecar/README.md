@@ -1,18 +1,19 @@
 # External ACP Agents
 
-Jaeger's AI gateway uses the [Agent Client Protocol (ACP)](https://agentclientprotocol.com/)
-to connect the UI to an external agent. Jaeger does not ship an agent or select
-a model provider. Operators run an ACP-compatible agent and configure Jaeger to
-reach it over WebSocket.
+Jaeger's AI gateway connects the UI to an external agent over the
+[Agent Client Protocol (ACP)](https://agentclientprotocol.com/). Jaeger ships no
+agent and selects no model provider. The operator runs an ACP agent and points
+Jaeger at it over WebSocket.
 
-[Goose](./goose/README.md) is a working configuration example. Any agent that
-meets the contract below can be used instead.
+[Goose](./goose/README.md) is the worked example: an off-the-shelf ACP agent
+that meets the contract below with no Jaeger-specific code. Any other agent that
+meets the same contract works the same way.
 
 ## Configure Jaeger
 
 Set the agent's WebSocket URL in the `jaeger_query` extension configuration.
-Use `agent_headers` for any credentials that the agent expects during the
-WebSocket upgrade:
+Use `agent_headers` for any credentials the agent expects on the WebSocket
+upgrade:
 
 ```yaml
 extensions:
@@ -25,65 +26,103 @@ extensions:
       mcp: {}
 ```
 
-`agent_headers` values are redacted from logs and configuration dumps. Prefer
-environment-variable expansion to inline credentials. The agent URL and header
-names are defined by the selected agent.
-
-The gateway periodically calls ACP `initialize` at `agent_url` to determine
-whether the agent is available. The AI assistant is shown in the UI only while
-that health check succeeds, so the configured agent must accept a connection
-and complete `initialize` without a chat request.
+The gateway redacts `agent_headers` values from logs and configuration dumps.
+The URL path and the header names are whatever the chosen agent requires.
 
 ## Agent contract
 
-An external agent must serve ACP JSON-RPC over the configured WebSocket URL.
-For each chat turn, the gateway opens a connection and sends these requests in
-order:
+This is what the gateway requires of an agent, as the gateway implements it
+today. The gateway code in
+[`jaegerai`](../../cmd/jaeger/internal/extension/jaegerquery/internal/jaegerai/README.md)
+is the reference for any detail this page leaves out.
 
-1. `initialize` — the agent responds with its protocol version, implementation
-   details, and capabilities.
-2. `session/new` — the agent allocates and returns a session ID.
-3. `session/prompt` — the agent runs the turn and returns its stop reason.
+**Transport.** The agent serves ACP JSON-RPC over a WebSocket at `agent_url`.
+Each WebSocket message carries one JSON-RPC object with no newline framing.
+The gateway sends `agent_headers` on every dial, so an agent may require an
+authentication header of its choosing.
 
-The gateway advertises no filesystem or terminal capability. An agent must not
-depend on either one and should expect `session/request_permission` to be
-denied.
+**Health.** The gateway periodically dials the agent and sends `initialize`
+and nothing else. The agent must answer it on a fresh connection. The UI shows
+the chat surface only while that check succeeds, and
+`ai.health_check_interval` controls how often it runs.
 
-While handling `session/prompt`, the agent sends `session/update`
-notifications for assistant text and tool-call progress. Jaeger converts these
-updates into AG-UI server-sent events for the browser. Use the ACP SDK for the
-agent's language when available; it supplies the required JSON-RPC framing and
-message types.
+**Capabilities.** The agent's `initialize` response must advertise
+`agentCapabilities.mcpCapabilities.http`. Without it the gateway announces no
+MCP server, and the agent runs every turn with zero Jaeger tools. The gateway
+advertises no `fs` and no `terminal` client capability, so the agent must not
+depend on either.
 
-## Use Jaeger's tools through MCP
+**Sessions and turns.** Each chat request is one `initialize`, one
+`session/new` and one `session/prompt` on a fresh connection. Session ids are
+never reused. `session/new` carries `mcpServers` with one Streamable HTTP
+server entry, the turn-scoped endpoint URL plus any headers. The agent must
+connect to that URL for this turn only, treat it as opaque, and not reuse it
+after the prompt completes.
 
-When `ai.mcp` is configured, Jaeger advertises a turn-scoped Streamable HTTP
-MCP server in `session/new`. An agent that supports this integration must
-advertise the ACP HTTP MCP capability during `initialize`, read the supplied
-MCP server from `session/new`, and use that URL for the lifetime of the turn.
+**Tools.** Jaeger's telemetry tools and the UI tools that the browser supplied
+with the chat request arrive together in one `tools/list` from that endpoint.
+The agent calls whatever it was offered, using the names and JSON schemas as
+served. A UI tool returns an acknowledgement, not data, and the browser performs
+the effect. Caching tools across turns is wrong, because the UI tool set differs
+per request.
 
-The MCP server exposes Jaeger's telemetry tools and any UI tools supplied with
-the chat request. Treat the announced URL as opaque and turn-scoped: do not
-construct it from the Jaeger host or reuse it after the prompt completes.
-The server's tool schemas are the source of truth; translate them into the
-model provider's function-calling format without changing tool names or JSON
-schemas.
+**Streaming.** The gateway translates `session/update` notifications into
+AG-UI events for the browser: `agent_message_chunk` carries text, and
+`tool_call` and `tool_call_update` with `rawInput` and `rawOutput` carry tool
+progress. The gateway accepts thought chunks and plans and drops them. The
+gateway answers `session/request_permission` by selecting the first option of
+kind `allow_once` or `allow_always`, so an agent may ask but must not depend on
+a human.
+
+**Tracing.** `session/prompt` carries `traceparent` and `tracestate` in `_meta`,
+using the SEP-414 keys that MCP uses for the same purpose. An agent that reads them and re-injects them into `_meta` on each MCP
+`tools/call` joins its spans to the chat request's trace. This is optional, but
+it is what makes the agent visible in Jaeger's own traces.
+
+**Finish.** The agent returns `session/prompt` with a `stopReason`, which ends
+the AG-UI run.
 
 ## Verify an integration
 
-1. Start the ACP agent with its own provider credentials and authentication.
-2. Start Jaeger with `agent_url`, required `agent_headers`, and `mcp: {}`.
-3. Open the Jaeger UI after the health check succeeds.
-4. Ask a question that requires telemetry, such as `list the services you can
-   see`, and confirm that the agent calls a tool advertised by Jaeger's MCP
-   server.
-5. Add an AG-UI contextual tool to a chat request and confirm that the agent
-   receives it through the announced MCP server and emits tool-call progress.
-
-Agent implementations should test the complete ACP lifecycle, MCP tool
-discovery and invocation, authentication headers, and cleanup after successful
-and failed prompts. Jaeger's gateway package has its own protocol tests; an
-external agent should test its integration in its own repository.
+1. Start the agent with its own provider credentials and authentication.
+2. Start Jaeger with `agent_url`, the required `agent_headers`, and `mcp: {}`.
+3. Confirm the health check passes:
+   ```bash
+   curl -s http://127.0.0.1:16686/api/v3/capabilities | jq .aiAssistant
+   ```
+   The output is `true` once the agent answers `initialize`.
+4. Send a chat request without the browser:
+   ```bash
+   curl -N -X POST http://127.0.0.1:16686/api/ai/chat \
+     -H 'Content-Type: application/json' \
+     -d '{
+       "threadId": "t1",
+       "runId": "r1",
+       "messages": [{"role": "user", "content": "what services are running?"}],
+       "tools": []
+     }'
+   ```
+   The response is a stream of AG-UI SSE frames: `RUN_STARTED`,
+   `TEXT_MESSAGE_START`, one or more `TEXT_MESSAGE_CONTENT`, `TOOL_CALL_*`
+   frames for each Jaeger tool the agent called, then `TEXT_MESSAGE_END` and
+   `RUN_FINISHED`.
+5. Pass a UI tool with the request and ask for it:
+   ```bash
+   curl -N -X POST http://127.0.0.1:16686/api/ai/chat \
+     -H 'Content-Type: application/json' \
+     -d '{
+       "threadId": "t1", "runId": "r2",
+       "messages": [{"role": "user", "content": "show the flamegraph for trace abc123"}],
+       "tools": [{
+         "name": "show_flamegraph",
+         "description": "Open the flamegraph view for a trace_id.",
+         "parameters": {"type":"object","properties":{"trace_id":{"type":"string"}},"required":["trace_id"]}
+       }]
+     }'
+   ```
+   The stream carries `TOOL_CALL_START`, `TOOL_CALL_ARGS` and `TOOL_CALL_END`
+   for `show_flamegraph`. The agent sees the tool as `ui_show_flamegraph`, and
+   the gateway strips the prefix before the event reaches the browser.
 
 ## Related documentation
 

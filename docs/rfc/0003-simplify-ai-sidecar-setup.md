@@ -3,7 +3,7 @@
 - **Status:** Partially Implemented
 - **Author:** Yuri Shkuro
 - **Created:** 2026-06-06
-- **Last Updated:** 2026-10-14
+- **Last Updated:** 2026-06-07
 
 ## Implementation status
 
@@ -12,16 +12,19 @@
 | §4.1 | UI: `backendCapabilities.aiAssistant` gate (drops the `Config.ai.enabled` flag) | ✅ Done — [jaeger-ui#4034][pr-4034] |
 | §4.1 | `jaegerai/aihealth` package: periodic ACP `initialize` check, `Current() bool`, `NewACPCheck` factory | ✅ Done — [#8728][pr-8728] |
 | §4.1 | `JAEGER_BACKEND_CAPABILITIES` injection in `static_handler.go`, per-request derivation, `health_check_interval`/`health_check_timeout` config | ✅ Done — [#8727][pr-8727] |
-| §4.2 | Reference sidecar launcher and shared shell helper | 🗑️ Removed — [#9837][issue-9837] |
-| §4.3 | Reference sidecar preflight check | 🗑️ Removed — [#9837][issue-9837] |
+| §4.2 | Gemini launcher: `make run-ai-gemini`, shared `scripts/ai-sidecar/_lib.sh`, prefix-tagged `[jaeger]`/`[sidecar]` logs, process-group cleanup | ✅ Done — [#8732][pr-8732] |
+| §4.3 | Gemini preflight check (`GEMINI_API_KEY`) | ✅ Done — [#8732][pr-8732] |
 | §4.2 | Claude Code launcher (`make run-ai-claude-code`) | ⏳ Blocked on [#8631][pr-8631] (Claude Code sidecar) |
-| §4.2 | Docker Compose: per-agent `Dockerfile`s and compose files | ⏳ Pending — separate follow-up |
+| §4.2 | Docker Compose: `docker-compose/ai-gemini/`, `docker-compose/ai-claude-code/`, per-sidecar `Dockerfile`s | ⏳ Pending — separate follow-up |
 | §7.2 | Prebuilt sidecar images on `ghcr.io` | ⏳ Deferred per the open question |
 | §5.4 | In-process sidecar supervision | ❌ Explicitly rejected in this RFC |
 
-The reference sidecar and its in-tree launcher were removed in [#9837][issue-9837].
-Operators now configure an external ACP agent; see
-[`scripts/ai-sidecar/README.md`](../../scripts/ai-sidecar/README.md).
+Spun out of this work but tracked separately:
+
+- [#8733][issue-8733] — Gemini sidecar leaks ACP background tasks when the
+  WebSocket closes mid-session. Triggered by the health checker's frequent
+  short-lived connections but a pre-existing bug in `handle_websocket`
+  (cancellation of `agent_task` skips `Connection.close()`).
 
 ---
 
@@ -55,8 +58,10 @@ implementation. The protocol design is sound, but the resulting operator
 experience for a first-time local run is heavier than it needs to be.
 The required steps are:
 
-1. Pick an external ACP agent, install its toolchain, and arrange its provider
-   authentication.
+1. Pick a sidecar implementation, install its toolchain, and arrange
+   provider auth (e.g. Python + `uv` + `GEMINI_API_KEY` for the Gemini
+   reference; Node + `npm` + Claude Max login or `ANTHROPIC_API_KEY` for
+   the Claude Code reference).
 2. Start the Jaeger binary.
 3. Start the sidecar.
 
@@ -70,8 +75,11 @@ registered. The embedded all-in-one config at
 semantic is also why a naive config-only gate doesn't work — see
 §4.1.)
 
-Step 3 is friction-prone: it's a separate process with its own toolchain. The
-startup order is forgiving but not obvious, and a fresh contributor
+Step 3 is friction-prone: it's a separate process with its own
+toolchain. The set of toolchains is also growing — the Gemini sidecar
+uses Python/`uv`, the in-progress Claude Code sidecar
+([PR #8631][pr-8631]) uses Node/`npm`, and further sidecars are likely.
+The startup order is forgiving but not obvious, and a fresh contributor
 hits it on every laptop reboot.
 
 The cost is paid by every new contributor, every demo, and every CI job that
@@ -437,35 +445,60 @@ directory. The target encapsulates the toolchain bootstrap, the Jaeger
 binary launch, and the sidecar launch, in the right order:
 
 ```bash
-# Start Jaeger with a configured external ACP agent.
-go run ./cmd/jaeger --config config.yaml
+# Gemini
+export GEMINI_API_KEY=…
+make run-ai-gemini
+
+# Claude Code (API key path)
+export ANTHROPIC_API_KEY=sk-…
+make run-ai-claude-code
+
+# Claude Code (Claude Max login path)
+(cd scripts/ai-sidecar/claude-code && npm run auth:max)   # one-time
+make run-ai-claude-code
 ```
 
-Each external-agent integration:
+Each target:
 
-1. Documents its toolchain and authentication prerequisites.
-2. Starts the agent independently of Jaeger.
-3. Configures Jaeger with the agent WebSocket URL and any authentication
-   headers.
-4. Waits for Jaeger's ACP health check to succeed before using the AI UI.
+1. Bootstraps the sidecar's toolchain idempotently (`uv sync` for Gemini,
+   `npm ci` for Claude Code). Fast on subsequent runs.
+2. Validates the auth prerequisite for that sidecar (see §4.3).
+3. Starts Jaeger in the background with the embedded all-in-one config.
+4. Starts the sidecar in the foreground (Ctrl-C exits both).
+5. Optionally waits for a "listening on …" log line before declaring
+   readiness.
 
-For Docker-first operators, an agent integration may provide its own Compose
-configuration. It must pass the agent URL and any required authentication
-headers to Jaeger, and expose the agent's ACP WebSocket endpoint to Jaeger.
+A shared shell helper (`scripts/ai-sidecar/_lib.sh` or similar) factors
+out the Jaeger-launch + readiness-wait + cleanup-on-exit logic so the
+per-sidecar Make targets stay short and adding a new sidecar is a
+small, repeatable change.
+
+For Docker-first operators, two compose files under
+`docker-compose/ai-gemini/` and `docker-compose/ai-claude-code/`
+mirror the Make targets. Each references the published
+`jaegertracing/jaeger` image plus a small per-sidecar image built from
+a `Dockerfile` colocated with the sidecar source. Compose files map
+`:16686`, `:16687`, `:16688`, and `:4317` and pass the relevant auth
+env var through.
 
 Neither path replaces the existing two-terminal workflow; both are additive.
 
 ### 4.3 Provider-specific prerequisite check
 
-Each external-agent integration documents the pre-flight required by its own
-authentication model:
+Each Make target performs a small pre-flight specific to its sidecar's
+auth model:
 
-| Agent | Pre-flight |
-|-------|------------|
-| External ACP agent | Defined by the agent's documentation and authentication model. |
+| Sidecar         | Pre-flight                                                                                   |
+|-----------------|----------------------------------------------------------------------------------------------|
+| Gemini          | `GEMINI_API_KEY` env var present and non-empty.                                              |
+| Claude Code     | Either `ANTHROPIC_API_KEY` present **or** a valid Claude Max session in `~/.claude/` exists. |
+| (future sidecar)| Defined by the sidecar's README; the launcher just calls a hook.                             |
 
-When pre-flight fails, the agent's startup procedure should identify the
-missing credential or login step before Jaeger attempts its health check.
+When the pre-flight fails, the launcher exits with a one-line message
+quoting the exact env var or login command, rather than the toolchain
+stack trace operators see today. The check lives in the shared shell
+helper so it is consistent across sidecars; each sidecar contributes a
+tiny pre-flight script in its directory (`preflight.sh` or similar).
 
 ---
 
@@ -508,9 +541,10 @@ chat surface is still there" bug reports.
 
 ### 5.4 In-process sidecar supervision
 
-Let the Jaeger binary spawn an external agent as a child process when the
-operator opts in (e.g. via a new `jaeger_query.ai.spawn` field). The Go side
-would execute the configured agent command, pipe logs, and propagate signals.
+Let the Jaeger binary spawn the sidecar as a child process when the
+operator opts in (e.g. via a new `jaeger_query.ai.spawn: gemini`
+field). The Go side would `exec.Command` `uv run python main.py` (or a
+packaged binary), pipe logs, and propagate signals.
 
 **Attractive because** it collapses the run-Jaeger and run-sidecar steps
 into one process invocation — closest possible to "one command, no
@@ -572,13 +606,21 @@ Docs:
 - Update `scripts/ai-sidecar/README.md`'s "Verify It Works" section to
   describe the new automatic-capability flow.
 
-### PR2 — Document the external-agent contract
+### PR2 — Shared launcher convention + per-sidecar targets
 
-- A provider-neutral contract for ACP connection setup, streaming updates, and
-  MCP capability negotiation.
-- A configuration example for a compatible external agent.
-- Documentation that keeps agent installation, credentials, and lifecycle
-  ownership with the agent's own distribution.
+- New `scripts/ai-sidecar/_lib.sh` (or equivalent) holding the shared
+  Jaeger-launch, readiness-wait, cleanup-on-exit, and pre-flight-dispatch
+  logic.
+- Per-sidecar Make targets at the top-level Makefile near existing `run-*`
+  targets — initially `run-ai-gemini` and `run-ai-claude-code`. Adding
+  a future sidecar means adding one Make target and one `preflight.sh`,
+  no changes to shared infrastructure.
+- New `Dockerfile`s colocated with each sidecar's source
+  (`scripts/ai-sidecar/gemini/Dockerfile`,
+  `scripts/ai-sidecar/claude-code/Dockerfile`). Per-sidecar compose files
+  under `docker-compose/ai-<sidecar>/docker-compose.yml` reference the
+  published Jaeger image plus the local sidecar image.
+- README updates pointing at the new Make targets.
 
 The two PRs are independent: §4.1 stands on its own; §4.2 is useful even if
 §4.1 isn't merged yet.
@@ -608,16 +650,27 @@ too lazy delays UI recovery after a sidecar restart. A few questions:
   index.html yet? No — initial-probe latency is the dominant factor in
   "how long until the UI shows AI is on" after both processes start.
 
-### 7.2 Should Jaeger publish external-agent Docker images?
+### 7.2 Should the launchers pre-fetch sidecar Docker images?
 
-An external agent may publish images from its own distribution. Jaeger does
-not publish or select agent images.
+The first `make run-ai-<sidecar>` will build the sidecar image (a few
+seconds on warm cache, longer on cold). We could push prebuilt images
+(`jaegertracing/ai-sidecar-gemini:latest`,
+`jaegertracing/ai-sidecar-claude-code:latest`) to ghcr.io and pull
+instead. Defer until §4.2 lands and we see real cold-start times.
 
-### 7.3 Discovery: should `make run-ai` exist?
+### 7.3 Discovery: should `make run-ai` exist as an alias?
 
-Jaeger does not provide a `make run-ai` target because agent startup belongs
-to the selected external integration. The sidecar README documents the
-configuration contract and links to a worked example.
+With per-sidecar targets, a contributor who types `make run-ai` (no
+suffix) hits nothing. Options:
+
+- Leave it unset; rely on `make help` and the READMEs.
+- Make `run-ai` an alias for the first listed sidecar (today: Gemini).
+  Discoverable but biases the operator.
+- Make `run-ai` print the list of available sidecars and exit
+  non-zero. Friendly nudge without picking favorites.
+
+Suggested: print-and-list. Cheap, surfaces the choice, never silently
+runs the wrong thing.
 
 ---
 
@@ -690,12 +743,17 @@ async-channel question is orthogonal to that mechanical cleanup.
 
 ## 8. Appendix — Before/After
 
-### 8.1 External agent
+### 8.1 Today (Gemini example; Claude Code is analogous with `npm` + `ANTHROPIC_API_KEY`/Claude Max)
 
 ```bash
-# Start the selected ACP agent using its own instructions, then configure
-# Jaeger to dial its WebSocket endpoint.
-go run ./cmd/jaeger --config config.yaml
+# terminal A:
+go run ./cmd/jaeger --config cmd/jaeger/config.yaml
+
+# terminal B:
+cd scripts/ai-sidecar/gemini
+uv sync
+export GEMINI_API_KEY=…
+uv run python main.py
 ```
 
 Until the backend half of §4.1 ships, `backendCapabilities.aiAssistant`
@@ -704,16 +762,17 @@ development, operators can override the default in
 `jaeger-ui.config.json` with
 `{ "backendCapabilities": { "aiAssistant": true } }`.
 
-### 8.2 With the external-agent contract
+### 8.2 With this RFC adopted
 
 ```bash
-# Start the selected ACP agent and Jaeger with its agent_url configuration.
-go run ./cmd/jaeger --config config.yaml
+# Pick a sidecar and run its target.
+export GEMINI_API_KEY=…           # or ANTHROPIC_API_KEY=…
+make run-ai-gemini                # or make run-ai-claude-code
 ```
 
 …and the UI chat surface lights up automatically because the backend told
-it to. The external agent owns its toolchain, credentials, lifecycle, and
-shutdown behavior.
+it to. The Make target handles toolchain bootstrap (`uv sync` / `npm ci`),
+pre-flight auth check, Jaeger launch, sidecar launch, and clean shutdown.
 
 ---
 
@@ -728,4 +787,4 @@ shutdown behavior.
 [pr-8728]: https://github.com/jaegertracing/jaeger/pull/8728
 [pr-8732]: https://github.com/jaegertracing/jaeger/pull/8732
 [pr-4034]: https://github.com/jaegertracing/jaeger-ui/pull/4034
-[issue-9837]: https://github.com/jaegertracing/jaeger/issues/9837
+[issue-8733]: https://github.com/jaegertracing/jaeger/issues/8733
