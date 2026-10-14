@@ -38,8 +38,11 @@ type Config struct {
 	// the built-in skills. Nil means none is configured, and only the built-ins
 	// are served.
 	CustomSkillsFS fs.FS
-	// DisableLocalhostProtection is passed through to the SDK's streamable HTTP
-	// handler; see MCPConfig.DisableLocalhostProtection on the extension config.
+	// DisableLocalhostProtection stops the endpoint from rejecting, with 403, a
+	// request that arrives on a loopback connection with a non-loopback Host
+	// header. That rejection guards an MCP server on a developer machine against
+	// DNS rebinding; behind a reverse proxy or sidecar that dials 127.0.0.1 and
+	// keeps the client's Host it would reject every request instead.
 	DisableLocalhostProtection bool
 }
 
