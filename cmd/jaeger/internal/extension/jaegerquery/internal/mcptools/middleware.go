@@ -50,7 +50,9 @@ var requestMetaPropagator = propagation.NewCompositeTextMapPropagator(
 )
 
 // createTracingMiddleware creates an MCP middleware that emits tool-level spans.
-func createTracingMiddleware(tracerProvider trace.TracerProvider) mcp.Middleware {
+// Tool-call arguments and results are recorded on them only when captureContent
+// is set; see Config.CaptureContent.
+func createTracingMiddleware(tracerProvider trace.TracerProvider, captureContent bool) mcp.Middleware {
 	tracer := tracerProvider.Tracer("jaeger.mcp")
 
 	return func(next mcp.MethodHandler) mcp.MethodHandler {
@@ -70,8 +72,10 @@ func createTracingMiddleware(tracerProvider trace.TracerProvider) mcp.Middleware
 					otelsemconv.GenAIOperationNameExecuteTool,
 					otelsemconv.GenAIToolName(toolName),
 				)
-				if toolArgs := toolArgumentsFromRequest(method, req); toolArgs != "" {
-					attrs = append(attrs, otelsemconv.GenAIToolCallArguments(truncateForSpan(toolArgs, maxSpanAttrChars)))
+				if captureContent {
+					if toolArgs := toolArgumentsFromRequest(method, req); toolArgs != "" {
+						attrs = append(attrs, otelsemconv.GenAIToolCallArguments(truncateForSpan(toolArgs, maxSpanAttrChars)))
+					}
 				}
 			}
 			if sessionID != "" {
@@ -93,8 +97,10 @@ func createTracingMiddleware(tracerProvider trace.TracerProvider) mcp.Middleware
 				return result, err
 			}
 			if callResult, ok := result.(*mcp.CallToolResult); ok {
-				if resultText := toolResultText(callResult); resultText != "" {
-					span.SetAttributes(otelsemconv.GenAIToolCallResult(truncateForSpan(resultText, maxSpanAttrChars)))
+				if captureContent {
+					if resultText := toolResultText(callResult); resultText != "" {
+						span.SetAttributes(otelsemconv.GenAIToolCallResult(truncateForSpan(resultText, maxSpanAttrChars)))
+					}
 				}
 				if callResult.IsError {
 					span.SetAttributes(otelsemconv.ErrorType(errorTypeTool))
