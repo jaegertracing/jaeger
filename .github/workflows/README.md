@@ -189,7 +189,7 @@ This is much simpler than requiring 10+ individual workflow checks.
 
 ## Local Development
 
-Individual workflows can still be triggered manually via the GitHub Actions UI for testing or debugging purposes. However, on PR events, only the orchestrator runs to avoid duplicate work.
+Individual workflows can still be triggered manually via the GitHub Actions UI for testing or debugging purposes. On PR events, the CI orchestrator owns CI execution; independent policy workflows such as PR quota management may also run to maintain their own state.
 
 ## Benefits
 

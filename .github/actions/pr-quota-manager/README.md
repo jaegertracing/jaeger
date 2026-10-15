@@ -23,7 +23,7 @@ steps:
 | `token` | yes | — | Token used to label and comment. Needs `issues: write` and `pull-requests: write`. |
 | `username` | no | PR author | Whose quota to process. Only manual runs need to set it. |
 | `dry-run` | no | `false` | Log the intended labels and comments without writing anything. |
-| `per-issue-limit` | no | `false` | For a pull request event, reconcile linked same-repository issues to one active PR. |
+| `per-issue-limit` | no | `false` | Reconcile the complete open-PR graph so each linked same-repository issue has one active PR. |
 
 Labels and comments on a pull request go through the `/issues/{n}/labels` and `/issues/{n}/comments` endpoints, so the token needs `issues: write` — `pull-requests: write` alone is not enough, and a token missing it fails every write with `403 Resource not accessible`.
 
