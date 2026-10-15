@@ -142,3 +142,19 @@ def _extract_function_declaration(tool: Any) -> types.FunctionDeclaration | None
         return cast(types.FunctionDeclaration, private_get_declaration())
 
     return None
+
+
+def _join_prompt_blocks(prompt: list[Any]) -> str:
+    """Join ACP prompt content blocks into the user text sent to the model.
+
+    The gateway sends the user's message and any contextual metadata (trace
+    ID, service name) as separate content blocks. Concatenating them without
+    a delimiter fuses adjacent words and corrupts values that are later
+    parsed back out of the text: a trace ID becomes ``<hex>Active`` and then
+    fails hex validation in the gateway's ``parseTraceID``, aborting MCP tool
+    calls before the model can act on the context it was given.
+
+    Blocks are joined as paragraphs so labels and values stay distinct, and
+    outer whitespace is trimmed so a single-block prompt is not padded.
+    """
+    return "\n\n".join(block.text for block in prompt if hasattr(block, "text")).strip()

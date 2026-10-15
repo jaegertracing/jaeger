@@ -105,7 +105,9 @@ class FakeAgent(Agent):
         return ListSessionsResponse(sessions=[])
 
     async def prompt(self, session_id: str, prompt: list[Any], message_id: str | None = None, **kwargs: Any) -> PromptResponse:
-        user_text = "".join(block.text for block in prompt if hasattr(block, "text"))
+        from sidecar_helpers import _join_prompt_blocks
+
+        user_text = _join_prompt_blocks(prompt)
         self.received_prompts.append((session_id, user_text))
 
         assert self._conn is not None
@@ -372,4 +374,37 @@ def test_default_mcp_url_points_to_query_port(monkeypatch: pytest.MonkeyPatch) -
     monkeypatch.setattr("sys.argv", ["main.py"])
     args = parse_args()
     assert args.mcp_url == DEFAULT_MCP_URL
+
+
+def test_join_prompt_blocks_separates_context_blocks() -> None:
+    # The gateway attaches the trace ID and service name as their own content
+    # blocks. Joining them without a delimiter fuses the trailing word of one
+    # block into the value of the next, so the trace ID the model reads back
+    # ("4bc972776e103118Active") is no longer valid hex.
+    from sidecar_helpers import _join_prompt_blocks
+
+    prompt = [
+        text_block("Investigate latency in this trace"),
+        text_block("Active Trace ID:\n4bc972776e103118"),
+        text_block("Active Service:\nfrontend"),
+    ]
+
+    assert _join_prompt_blocks(prompt) == (
+        "Investigate latency in this trace\n\n"
+        "Active Trace ID:\n4bc972776e103118\n\n"
+        "Active Service:\nfrontend"
+    )
+
+
+def test_join_prompt_blocks_trims_outer_whitespace() -> None:
+    from sidecar_helpers import _join_prompt_blocks
+
+    assert _join_prompt_blocks([text_block("  hello  ")]) == "hello"
+
+
+def test_join_prompt_blocks_ignores_non_text_blocks() -> None:
+    from sidecar_helpers import _join_prompt_blocks
+
+    assert _join_prompt_blocks([object(), text_block("only")]) == "only"
+    assert _join_prompt_blocks([]) == ""
 
