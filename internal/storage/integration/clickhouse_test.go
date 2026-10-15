@@ -78,7 +78,7 @@ func requireReplicatedTables(t *testing.T, cfg ch.Configuration) {
 	require.NoError(t, err)
 	defer conn.Close()
 	rows, err := conn.Query(context.Background(),
-		"SELECT name, engine FROM system.tables WHERE database = ? AND engine != 'MaterializedView' ORDER BY name",
+		"SELECT name, engine FROM system.tables WHERE database = ? AND engine != 'MaterializedView' AND name != 'schema_migrations' ORDER BY name",
 		cfg.Database)
 	require.NoError(t, err)
 	defer rows.Close()

@@ -632,6 +632,9 @@ func TestCreateSpansTableTemplate(t *testing.T) {
 		})
 		require.NoError(t, err)
 		assert.NotContains(t, queryWithoutTTL, "TTL start_time")
+		assert.Contains(t, queryWithoutTTL, "`events.dropped_attributes_count`")
+		assert.Contains(t, queryWithoutTTL, "`links.dropped_attributes_count`")
+		assert.Contains(t, queryWithoutTTL, "`links.flags`")
 	})
 
 	t.Run("with TTL", func(t *testing.T) {
