@@ -69,10 +69,11 @@ extensions:
         stateless: true
 ```
 
-Jaeger's tools keep no state between requests and the server sends no server-initiated MCP
-messages, so the tools behave the same. A stateless endpoint declines, with 405, the GET request
-some clients make to open a standing event stream, which the MCP specification allows for a server
-that offers none; clients continue without it.
+Jaeger's tools keep no state between requests, so they behave the same. A stateless endpoint
+answers 405 to the GET that a client sends to open a stream for server-initiated messages. Jaeger
+never sends any, so in the default mode that stream only sits idle until the session times out;
+the MCP specification allows a server to offer no stream and requires the client to continue
+without it.
 
 This covers external MCP clients on the shared `/api/ai/mcp/` endpoint. The chat gateway's
 turn-scoped endpoint, `/api/ai/mcp/<id>/`, is different: the turn it serves is held in the memory

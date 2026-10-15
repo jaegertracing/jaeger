@@ -48,8 +48,9 @@ type Config struct {
 	// Stateless makes the streamable handler answer each request on its own, with
 	// no per-client session held in memory and no Mcp-Session-Id validation. It is
 	// what lets several replicas serve one client behind a load balancer without
-	// session affinity. Jaeger sends no server-initiated MCP messages, so nothing
-	// is lost besides the GET event stream, which the handler then declines with 405.
+	// session affinity. The handler then answers 405 to a GET, which a client sends
+	// to open a stream for server-initiated messages; Jaeger never sends any, so
+	// that stream carried nothing and the client continues without it.
 	Stateless bool
 }
 
