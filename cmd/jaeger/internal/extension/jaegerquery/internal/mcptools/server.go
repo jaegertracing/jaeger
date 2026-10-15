@@ -117,9 +117,10 @@ func NewHandler(telset telemetry.Settings, queryAPI *querysvc.QueryService, tena
 	streamable := mcp.NewStreamableHTTPHandler(
 		func(*http.Request) *mcp.Server { return server },
 		&mcp.StreamableHTTPOptions{
-			JSONResponse:   false, // Use SSE for streamed events
-			Stateless:      false, // Session state management
-			SessionTimeout: mcpSessionTimeout,
+			JSONResponse:               false, // Use SSE for streamed events
+			Stateless:                  false, // Session state management
+			SessionTimeout:             mcpSessionTimeout,
+			DisableLocalhostProtection: cfg.DisableLocalhostProtection,
 		},
 	)
 	tenantHandler := tenancy.ExtractTenantHTTPHandler(tenancyMgr, streamable)

@@ -196,39 +196,35 @@ func TestContextualToolsStoreConcurrentAccess(t *testing.T) {
 	const iterations = 200
 
 	var wg sync.WaitGroup
-	wg.Add(goroutines * 3)
 
 	for w := 0; w < goroutines; w++ {
-		go func(w int) {
-			defer wg.Done()
+		wg.Go(func() {
 			id := "writer-" + strconv.Itoa(w)
 			for i := 0; i < iterations; i++ {
 				store.SetForSession(id, []json.RawMessage{
 					json.RawMessage(`{"name":"tool-` + strconv.Itoa(i) + `"}`),
 				})
 			}
-		}(w)
+		})
 	}
 
 	for r := 0; r < goroutines; r++ {
-		go func(r int) {
-			defer wg.Done()
+		wg.Go(func() {
 			id := "writer-" + strconv.Itoa(r)
 			for i := 0; i < iterations; i++ {
 				_ = store.GetContextualToolsForSession(id)
 			}
-		}(r)
+		})
 	}
 
 	for d := 0; d < goroutines; d++ {
-		go func(d int) {
-			defer wg.Done()
+		wg.Go(func() {
 			id := "deleter-" + strconv.Itoa(d)
 			for i := 0; i < iterations; i++ {
 				store.SetForSession(id, []json.RawMessage{json.RawMessage(`{"name":"tmp"}`)})
 				store.DeleteForSession(id)
 			}
-		}(d)
+		})
 	}
 
 	wg.Wait()
