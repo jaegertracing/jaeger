@@ -150,6 +150,7 @@ func TestClickHouseMigrationSmoke(t *testing.T) {
 	cfg.Addresses = []string{"127.0.0.1:9000"}
 	cfg.Database = "jaeger_smoke_test"
 	cfg.CreateSchema = true
+	cfg.TableEngine = ch.TableEngine{MergeTree: configoptional.Some(ch.MergeTreeEngine{})}
 	cfg.Auth = ch.Authentication{
 		Basic: configoptional.Some(basicauthextension.ClientAuthSettings{
 			Username: "default",
@@ -205,7 +206,7 @@ func TestClickHouseMigrationSmoke(t *testing.T) {
 	dropAll()
 
 	// 5. Recreate directly with the schema baseline
-	baselineStmts, err := ch.BaselineSchemaStatements()
+	baselineStmts, err := ch.BaselineSchemaStatements(cfg.TableEngine)
 	require.NoError(t, err)
 	for _, stmt := range baselineStmts {
 		_, err := smokeDB.ExecContext(ctx, stmt)

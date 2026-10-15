@@ -49,12 +49,12 @@ CREATE TABLE
         scope_complex_attributes Nested (key String, value String),
         INDEX idx_trace_id trace_id TYPE bloom_filter GRANULARITY 1,
         INDEX idx_duration duration TYPE minmax GRANULARITY 1
-    ) ENGINE = MergeTree
+    ) ENGINE = {{ .MergeTree }}
 PARTITION BY toDate(start_time)
 ORDER BY (service_name, name, toDateTime(start_time));
 
 CREATE TABLE
-    IF NOT EXISTS services (name String) ENGINE = AggregatingMergeTree
+    IF NOT EXISTS services (name String) ENGINE = {{ .AggregatingMergeTree }}
 ORDER BY
     (name);
 
@@ -71,7 +71,7 @@ CREATE TABLE IF NOT EXISTS
         service_name String,
         name String,
         span_kind String
-    ) ENGINE = AggregatingMergeTree
+    ) ENGINE = {{ .AggregatingMergeTree }}
 ORDER BY
     (service_name, span_kind);
 
@@ -89,7 +89,7 @@ CREATE TABLE IF NOT EXISTS trace_id_timestamps
     start SimpleAggregateFunction(min, DateTime64(9)),
     end SimpleAggregateFunction(max, DateTime64(9))
 )
-ENGINE = AggregatingMergeTree()
+ENGINE = {{ .AggregatingMergeTree }}
 ORDER BY (trace_id);
 
 CREATE MATERIALIZED VIEW IF NOT EXISTS trace_id_timestamps_mv
@@ -107,7 +107,7 @@ CREATE TABLE
         attribute_key String,
         type String,  -- 'bool', 'double', 'int', 'str', 'bytes', 'map', 'slice'
         level String  -- 'resource', 'scope', 'span'
-    ) ENGINE = AggregatingMergeTree
+    ) ENGINE = {{ .AggregatingMergeTree }}
 ORDER BY (attribute_key, type, level);
 
 CREATE MATERIALIZED VIEW IF NOT EXISTS attribute_metadata_mv TO attribute_metadata AS
@@ -212,7 +212,7 @@ CREATE TABLE
     IF NOT EXISTS dependencies (
         timestamp DateTime64 (9),
         dependencies_json String
-    ) ENGINE = MergeTree
+    ) ENGINE = {{ .MergeTree }}
 PARTITION BY
     toDate(timestamp)
 ORDER BY

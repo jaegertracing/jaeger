@@ -30,6 +30,10 @@ import (
 	"github.com/jaegertracing/jaeger/internal/telemetry"
 )
 
+var localTableEngine = TableEngine{
+	MergeTree: configoptional.Some(MergeTreeEngine{}),
+}
+
 func TestFactory(t *testing.T) {
 	tests := []struct {
 		name         string
@@ -62,6 +66,8 @@ func TestFactory(t *testing.T) {
 						Password: "password",
 					}),
 				},
+				CreateSchema: tt.createSchema,
+				TableEngine:  localTableEngine,
 			}
 
 			f, err := NewFactory(context.Background(), cfg, telemetry.NoopSettings())
@@ -128,6 +134,7 @@ func TestNewFactory_Errors(t *testing.T) {
 				},
 				DialTimeout:  1 * time.Second,
 				CreateSchema: true,
+				TableEngine:  localTableEngine,
 			}
 
 			f, err := NewFactory(context.Background(), cfg, telemetry.NoopSettings())
@@ -199,6 +206,7 @@ func TestPurge(t *testing.T) {
 				},
 				DialTimeout:  1 * time.Second,
 				CreateSchema: true,
+				TableEngine:  localTableEngine,
 			}
 
 			f, err := NewFactory(context.Background(), cfg, telemetry.NoopSettings())
@@ -283,6 +291,7 @@ func TestNewSchemaBuilder_Errors(t *testing.T) {
 		Protocol:     "http",
 		Addresses:    []string{srv.Listener.Addr().String()},
 		CreateSchema: true,
+		TableEngine:  localTableEngine,
 	}
 	opts, err := Options(context.Background(), cfg)
 	require.NoError(t, err)
@@ -431,6 +440,7 @@ func TestSchemaBuilder_ConcurrencyAndRetry(t *testing.T) {
 		Protocol:     "http",
 		Addresses:    []string{srv.Listener.Addr().String()},
 		CreateSchema: true,
+		TableEngine:  localTableEngine,
 	}
 	opts, err := Options(context.Background(), cfg)
 	require.NoError(t, err)
@@ -616,13 +626,20 @@ func TestLoadTemplate(t *testing.T) {
 
 func TestCreateSpansTableTemplate(t *testing.T) {
 	t.Run("without TTL", func(t *testing.T) {
-		queryWithoutTTL, err := loadTemplate("test_no_ttl", sql.CreateSpansTable, schemaTemplateParams{TTLSeconds: 0})
+		queryWithoutTTL, err := loadTemplate("test_no_ttl", sql.CreateSpansTable, schemaTemplateParams{
+			MergeTree:            "MergeTree",
+			AggregatingMergeTree: "AggregatingMergeTree",
+		})
 		require.NoError(t, err)
 		assert.NotContains(t, queryWithoutTTL, "TTL start_time")
 	})
 
 	t.Run("with TTL", func(t *testing.T) {
-		queryWithTTL, err := loadTemplate("test_ttl", sql.CreateSpansTable, schemaTemplateParams{TTLSeconds: 86400})
+		queryWithTTL, err := loadTemplate("test_ttl", sql.CreateSpansTable, schemaTemplateParams{
+			TTLSeconds:           86400,
+			MergeTree:            "MergeTree",
+			AggregatingMergeTree: "AggregatingMergeTree",
+		})
 		require.NoError(t, err)
 		assert.Contains(t, queryWithTTL, "TTL start_time + INTERVAL 86400 SECOND DELETE")
 	})
@@ -630,16 +647,43 @@ func TestCreateSpansTableTemplate(t *testing.T) {
 
 func TestCreateTraceIDTimestampsTableTemplate(t *testing.T) {
 	t.Run("without TTL", func(t *testing.T) {
-		queryWithoutTTL, err := loadTemplate("test_no_ttl_trace", sql.CreateTraceIDTimestampsTable, schemaTemplateParams{TTLSeconds: 0})
+		queryWithoutTTL, err := loadTemplate("test_no_ttl_trace", sql.CreateTraceIDTimestampsTable, schemaTemplateParams{
+			MergeTree:            "MergeTree",
+			AggregatingMergeTree: "AggregatingMergeTree",
+		})
 		require.NoError(t, err)
 		assert.NotContains(t, queryWithoutTTL, "TTL end")
 	})
 
 	t.Run("with TTL", func(t *testing.T) {
-		queryWithTTL, err := loadTemplate("test_ttl_trace", sql.CreateTraceIDTimestampsTable, schemaTemplateParams{TTLSeconds: 86400})
+		queryWithTTL, err := loadTemplate("test_ttl_trace", sql.CreateTraceIDTimestampsTable, schemaTemplateParams{
+			TTLSeconds:           86400,
+			MergeTree:            "MergeTree",
+			AggregatingMergeTree: "AggregatingMergeTree",
+		})
 		require.NoError(t, err)
 		assert.Contains(t, queryWithTTL, "TTL end + INTERVAL 86400 SECOND DELETE")
 	})
+}
+
+func TestRenderedMigrationFSUsesConfiguredTableEngine(t *testing.T) {
+	params, err := schemaTemplateParamsForTableEngine(TableEngine{
+		Replicated: configoptional.Some(ReplicatedEngine{
+			KeeperPath:  "/clickhouse/tables/{shard}/{database}/{table}",
+			ReplicaName: "{replica}",
+		}),
+	})
+	require.NoError(t, err)
+
+	file, err := (renderedMigrationFS{FS: sql.MigrationFiles, params: params}).Open("000001_initial_schema.up.sql")
+	require.NoError(t, err)
+	t.Cleanup(func() { assert.NoError(t, file.Close()) })
+
+	contents, err := io.ReadAll(file)
+	require.NoError(t, err)
+	assert.Contains(t, string(contents), "ENGINE = ReplicatedMergeTree('/clickhouse/tables/{shard}/{database}/{table}', '{replica}')")
+	assert.Contains(t, string(contents), "ENGINE = ReplicatedAggregatingMergeTree('/clickhouse/tables/{shard}/{database}/{table}', '{replica}')")
+	assert.NotContains(t, string(contents), "{{ .")
 }
 
 func TestNewFactory_KeepsExplicitZeroCacheSettings(t *testing.T) {
@@ -662,7 +706,7 @@ func TestNewFactory_KeepsExplicitZeroCacheSettings(t *testing.T) {
 
 func TestBaselineSchemaStatements(t *testing.T) {
 	t.Run("success", func(t *testing.T) {
-		stmts, err := BaselineSchemaStatements()
+		stmts, err := BaselineSchemaStatements(localTableEngine)
 		require.NoError(t, err)
 		assert.Len(t, stmts, 12)
 		assert.Len(t, SchemaObjects, 12)
@@ -675,7 +719,7 @@ func TestBaselineSchemaStatements(t *testing.T) {
 		loadTemplate = func(_, _ string, _ any) (string, error) {
 			return "", errors.New("mock template error")
 		}
-		_, err := BaselineSchemaStatements()
+		_, err := BaselineSchemaStatements(localTableEngine)
 		require.ErrorContains(t, err, "mock template error")
 	})
 
@@ -690,7 +734,7 @@ func TestBaselineSchemaStatements(t *testing.T) {
 			}
 			return orig(name, tmplBody, data)
 		}
-		_, err := BaselineSchemaStatements()
+		_, err := BaselineSchemaStatements(localTableEngine)
 		require.ErrorContains(t, err, "mock template error 2")
 	})
 }

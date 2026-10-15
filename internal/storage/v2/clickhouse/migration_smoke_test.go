@@ -24,6 +24,7 @@ func TestMigrationSmoke(t *testing.T) {
 	cfg.Addresses = []string{"127.0.0.1:9000"}
 	cfg.Database = "jaeger_smoke_test"
 	cfg.CreateSchema = true
+	cfg.TableEngine = localTableEngine
 	cfg.Auth = Authentication{
 		Basic: configoptional.Some(basicauthextension.ClientAuthSettings{
 			Username: "default",
@@ -72,7 +73,12 @@ func TestMigrationSmoke(t *testing.T) {
 	dropAll()
 
 	// 2. Create the original schema, then let the factory upgrade it to v002.
-	sourceDriver, err := newSourceDriver(chsql.MigrationFiles, ".")
+	params, err := schemaTemplateParamsForTableEngine(cfg.TableEngine)
+	require.NoError(t, err)
+	sourceDriver, err := newSourceDriver(renderedMigrationFS{
+		FS:     chsql.MigrationFiles,
+		params: params,
+	}, ".")
 	require.NoError(t, err)
 	migrationDB := clickhouse.OpenDB(opts)
 	dbDriver, err := newDatabaseDriver(migrationDB, &clickhousemigrate.Config{
@@ -104,7 +110,7 @@ func TestMigrationSmoke(t *testing.T) {
 	dropAll()
 
 	// 5. Recreate directly with the schema baseline
-	baselineStmts, err := BaselineSchemaStatements()
+	baselineStmts, err := BaselineSchemaStatements(cfg.TableEngine)
 	require.NoError(t, err)
 	for _, stmt := range baselineStmts {
 		_, err := smokeDB.ExecContext(testCtx, stmt)
