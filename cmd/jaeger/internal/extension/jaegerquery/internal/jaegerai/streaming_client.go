@@ -334,9 +334,10 @@ func closeACPSession(ctx context.Context, conn *acp.ClientSideConnection, caps a
 	}
 	closeCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 5*time.Second)
 	defer cancel()
-	if _, err := conn.CloseSession(closeCtx, acp.CloseSessionRequest{
+	_, err := conn.CloseSession(closeCtx, acp.CloseSessionRequest{
 		SessionId: sessionID,
-	}); err != nil {
+	})
+	if err != nil {
 		logger.Debug("session/close failed", zap.String("session_id", string(sessionID)), zap.Error(err))
 	}
 }
