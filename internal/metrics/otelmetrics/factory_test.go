@@ -186,6 +186,30 @@ func TestTimer(t *testing.T) {
 	assert.Equal(t, expectedLabels, promLabelsToMap(metricData[0].GetLabel()))
 }
 
+func TestTimerCustomBuckets(t *testing.T) {
+	registry := promreg.NewPedanticRegistry()
+	factory := newTestFactory(t, registry)
+	timer := factory.Timer(metrics.TimerOptions{
+		Name:    "test_timer_buckets",
+		Tags:    map[string]string{"tag1": "value1"},
+		Buckets: []time.Duration{10 * time.Millisecond, 50 * time.Millisecond},
+	})
+	timer.Record(30 * time.Millisecond)
+
+	metricData := findMetric(t, registry, "test_timer_buckets_seconds").GetMetric()
+	require.Len(t, metricData, 1)
+	histogram := metricData[0].GetHistogram()
+	buckets := histogram.GetBucket()
+	require.Len(t, buckets, 2, "the explicit boundaries replace the SDK defaults")
+	assert.InDelta(t, 0.01, buckets[0].GetUpperBound(), 1e-9)
+	assert.Equal(t, uint64(0), buckets[0].GetCumulativeCount())
+	assert.InDelta(t, 0.05, buckets[1].GetUpperBound(), 1e-9)
+	assert.Equal(t, uint64(1), buckets[1].GetCumulativeCount())
+	assert.Equal(t, uint64(1), histogram.GetSampleCount())
+	assert.InDelta(t, 0.03, histogram.GetSampleSum(), 1e-9)
+	assert.Equal(t, map[string]string{"tag1": "value1"}, promLabelsToMap(metricData[0].GetLabel()))
+}
+
 func TestNamespace(t *testing.T) {
 	testCases := []struct {
 		name           string

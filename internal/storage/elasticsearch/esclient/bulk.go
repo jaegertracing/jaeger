@@ -67,7 +67,7 @@ type flushStateKey struct{}
 // must call Close to flush buffered documents and stop the workers.
 func NewBulkIndexer(client *Client, cfg BulkIndexerConfig, metricsFactory metrics.Factory, logger *zap.Logger) (*BulkIndexer, error) {
 	b := &BulkIndexer{
-		metrics: spanstoremetrics.NewWriter(metricsFactory, "bulk_index"),
+		metrics: spanstoremetrics.NewWriter(bulkLatencyFactory{Factory: metricsFactory}, "bulk_index"),
 		logger:  logger,
 	}
 	// Default to a single worker when the config doesn't set one, matching the
