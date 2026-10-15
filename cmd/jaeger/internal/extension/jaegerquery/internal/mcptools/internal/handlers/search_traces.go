@@ -97,7 +97,7 @@ func toMCPTraceSummary(s tracestore.TraceSummary) types.TraceSummary {
 	}
 	var startTime string
 	if !s.MinStartTime.IsZero() {
-		startTime = s.MinStartTime.Format(time.RFC3339)
+		startTime = s.MinStartTime.Format(time.RFC3339Nano)
 	}
 	var durationUs int64
 	if !s.MinStartTime.IsZero() && !s.MaxEndTime.IsZero() {
