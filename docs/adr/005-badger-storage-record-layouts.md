@@ -2,6 +2,7 @@
 
 * **Status**: Documented existing implementation
 * **Date**: 2026-03-12
+* **Updated**: 2026-08-04 — corrected the Operation Name Index section's claim that the reader guards against concatenation-collision ambiguity (it doesn't: the check only rejects partial-prefix mismatches, not two field splits that concatenate to identical bytes). Documented the length-prefixed field encoding (`encodeIndexFields`/`decodeIndexField` in `index_encoding.go`) that fixes the underlying issue in the Service Name, Operation Name, and Tag indexes.
 
 ## Context
 
@@ -73,16 +74,16 @@ An index entry is written for each span, keyed by the service name of the span's
 
 **Key** (variable size):
 ```
-[0x81][serviceName: variable][startTime: 8B][traceID.High: 8B][traceID.Low: 8B]
+[0x81][encodeIndexFields(serviceName): variable][startTime: 8B][traceID.High: 8B][traceID.Low: 8B]
 ```
 
-- `serviceName` — UTF-8 bytes of the service name, no length prefix or separator
+- `encodeIndexFields(serviceName)` — the service name as a single length-prefixed field: a 2-byte big-endian length followed by that many bytes (see `encodeIndexFields` in `index_encoding.go`). A field longer than 65535 bytes is truncated before encoding. A lone field can't collide with itself, so this index doesn't strictly need the length prefix for correctness, but it goes through the same encoding as the Operation Name and Tag indexes below so that every composite index key is built by one function.
 - `startTime` — `uint64`, microseconds since Unix epoch
 - `traceID` — the 16-byte trace ID (High then Low, big-endian)
 
 **Value**: empty (`nil`)
 
-**Purpose**: enables scanning all trace IDs associated with a given service within a time range. The reader seeks to `[0x81][serviceName]` and iterates in reverse (latest first), extracting the trailing 16 bytes of each key as the trace ID.
+**Purpose**: enables scanning all trace IDs associated with a given service within a time range. The reader seeks to `[0x81][encodeIndexFields(serviceName)]` and iterates in reverse (latest first), extracting the trailing 16 bytes of each key as the trace ID.
 
 **TTL**: same as the corresponding primary span record.
 
@@ -90,20 +91,20 @@ An index entry is written for each span, keyed by the service name of the span's
 
 ### 3. Operation Name Index (`0x82`)
 
-An index entry is written for each span, keyed by the concatenation of service name and operation name.
+An index entry is written for each span, keyed by the service name and operation name, each encoded as its own length-prefixed field.
 
 **Key** (variable size):
 ```
-[0x82][serviceName + operationName: variable][startTime: 8B][traceID.High: 8B][traceID.Low: 8B]
+[0x82][encodeIndexFields(serviceName, operationName): variable][startTime: 8B][traceID.High: 8B][traceID.Low: 8B]
 ```
 
-- `serviceName + operationName` — the two strings concatenated directly, no separator
+- `encodeIndexFields(serviceName, operationName)` — each string prefixed with its own 2-byte big-endian length, then concatenated (see `index_encoding.go`)
 
 **Value**: empty (`nil`)
 
 **Purpose**: enables finding trace IDs for a specific service + operation pair within a time range.
 
-**Note**: because the service name and operation name are concatenated without a separator, a service named `"foo"` with operation `"bar"` produces the same prefix as a service named `"foobar"` with operation `""`. The reader guards against this ambiguity by checking that the full key prefix (up to the timestamp) matches exactly.
+**Note**: this index used to concatenate `serviceName + operationName` directly with no separator or length prefix, so a service named `"foo"` with operation `"bar"` produced the same bytes as a service named `"foobar"` with operation `""` — and, more generally, any two `(service, operation)` pairs whose concatenations happened to collide. An earlier version of this ADR claimed the reader guarded against that ambiguity by checking that the full key prefix (up to the timestamp) matched exactly. That claim was wrong: the check only rejects a *partial* prefix match (e.g. a stored key for `"foobarextra"` while querying `"foobar"`); it cannot distinguish two prefixes that are byte-for-byte identical, which is exactly what a concatenation collision produces, so the check passed colliding entries straight through. Queries could silently return trace IDs belonging to the wrong `(service, operation)` pair. Encoding each field with an explicit length prefix removes the ambiguity at the encoding level instead: two different field splits can no longer produce identical bytes, so no prefix-matching guard is needed to compensate.
 
 **TTL**: same as the corresponding primary span record.
 
@@ -115,15 +116,17 @@ For each searchable tag key-value pair associated with a span, a separate index 
 
 **Key** (variable size):
 ```
-[0x83][serviceName + tagKey + tagValue: variable][startTime: 8B][traceID.High: 8B][traceID.Low: 8B]
+[0x83][encodeIndexFields(serviceName, tagKey, tagValue): variable][startTime: 8B][traceID.High: 8B][traceID.Low: 8B]
 ```
 
-- `serviceName + tagKey + tagValue` — all three strings concatenated directly, no separators
-- Tag values are converted to their string representation via `kv.AsString()` before being embedded in the key
+- `encodeIndexFields(serviceName, tagKey, tagValue)` — each of the three strings prefixed with its own 2-byte big-endian length, then concatenated
+- Tag values are converted to their string representation via `kv.AsString()` before being encoded
 
 **Value**: empty (`nil`)
 
 **Purpose**: enables finding trace IDs for spans that carry a specific tag key-value pair within a given service.
+
+**Note**: this index used to concatenate `serviceName + tagKey + tagValue` directly with no separators, so e.g. a `checkout` service with tag `id=123` produced the same bytes as a `checkout` service with tag `id1=23`. Unlike the Operation Name Index above, this path had no prefix-matching guard at all — nothing stood between a collision and a wrong query result. Fixed by the same length-prefix encoding.
 
 **TTL**: same as the corresponding primary span record.
 
@@ -264,7 +267,7 @@ The record layouts described above were chosen to satisfy the following requirem
 
 - **Not distributed**: Badger is a single-node store. It is not suitable for high-throughput or multi-instance deployments.
 - **No spanKind in operations**: the operation name index does not encode span kind, so `GetOperations` returns operations without span kind information (tracked in [issue #1922](https://github.com/jaegertracing/jaeger/issues/1922)).
-- **String concatenation without separators**: the absence of separators between service name, tag key, and tag value in composite index keys means that a suffix of one component can collide with a prefix of the next. The implementation handles this with exact-prefix length checks but it is a latent source of subtle bugs if the key format is extended.
+- **Length-prefixed composite index keys**: the Service Name, Operation Name, and Tag indexes above encode each field with an explicit 2-byte length prefix (`encodeIndexFields`/`decodeIndexField` in `index_encoding.go`) rather than concatenating strings directly, which is what previously let different field combinations collide onto identical key bytes. A field longer than 65535 bytes is truncated before encoding, so two very long fields can still collide with each other, though this is unreachable in practice for typical service/operation/tag names. This changed the on-disk format of these three index types: pre-existing entries written in the old, unprefixed format are not decodable under the new format and are skipped (not misread) during cache prefill, so a persisted (non-ephemeral) data directory upgraded in place will simply miss search results for spans indexed before the upgrade until their TTL expires.
 - **No dependency index**: the dependency store computes dependency links via a full trace scan on every request rather than maintaining a dedicated index, which may be slow for large datasets.
 - **Sampling entries have no TTL**: throughput and probabilities records are not automatically expired and accumulate indefinitely unless explicitly pruned.
 - **Ephemeral by default**: the default configuration (`Ephemeral: true`) stores data in a temporary directory that is deleted on process exit, which may surprise users who expect data to persist across restarts.
@@ -274,6 +277,7 @@ The record layouts described above were chosen to satisfy the following requirem
 - [`internal/storage/v1/badger/spanstore/writer.go`](../../internal/storage/v1/badger/spanstore/writer.go) — `createTraceKV`, `createIndexKey`, `WriteSpan`
 - [`internal/storage/v1/badger/spanstore/reader.go`](../../internal/storage/v1/badger/spanstore/reader.go) — `FindTraceIDs`, `scanIndexKeys`, `scanRangeIndex`, `scanTimeRange`, `getTraces`
 - [`internal/storage/v1/badger/spanstore/cache.go`](../../internal/storage/v1/badger/spanstore/cache.go) — `CacheStore`
+- [`internal/storage/v1/badger/spanstore/index_encoding.go`](../../internal/storage/v1/badger/spanstore/index_encoding.go) — `encodeIndexFields`, `decodeIndexField`
 - [`internal/storage/v1/badger/samplingstore/storage.go`](../../internal/storage/v1/badger/samplingstore/storage.go) — `createThroughputKV`, `createProbabilitiesKV`
 - [`internal/storage/v1/badger/config.go`](../../internal/storage/v1/badger/config.go) — `Config`, `DefaultConfig`
 - [Badger documentation](https://dgraph.io/docs/badger/)
