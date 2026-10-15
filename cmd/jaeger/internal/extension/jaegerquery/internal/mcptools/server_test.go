@@ -286,7 +286,7 @@ func TestNewHandler_Stateless(t *testing.T) {
 		cfg.Stateless = true
 		h := NewHandler(telemetry.NoopSettings(), svc, tenancyMgr, cfg)
 		t.Cleanup(func() { h.Close() })
-		req := httptest.NewRequest(http.MethodGet, "/", nil)
+		req := httptest.NewRequest(http.MethodGet, "/", http.NoBody)
 		req.Header.Set("Accept", "text/event-stream")
 		rr := httptest.NewRecorder()
 		h.ServeHTTP(rr, req)
