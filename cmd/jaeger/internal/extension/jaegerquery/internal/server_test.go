@@ -1238,6 +1238,42 @@ func TestInitRouterAIHandlerRegistration(t *testing.T) {
 		}
 	})
 
+	t.Run("mcp stateless reaches the SDK handler", func(t *testing.T) {
+		// Two routers stand in for two jaeger-query replicas: the session that
+		// initialize creates lives in one handler's memory, so a tools/list that a
+		// load balancer sends to the other replica only succeeds when stateless.
+		initialize := `{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18","capabilities":{},"clientInfo":{"name":"test","version":"0"}}}`
+		listTools := `{"jsonrpc":"2.0","id":2,"method":"tools/list"}`
+		post := func(handler http.Handler, body, sessionID string) *httptest.ResponseRecorder {
+			req := httptest.NewRequest(http.MethodPost, "/api/ai/mcp/", strings.NewReader(body))
+			req.Header.Set("Content-Type", "application/json")
+			req.Header.Set("Accept", "application/json, text/event-stream")
+			if sessionID != "" {
+				req.Header.Set("Mcp-Session-Id", sessionID)
+			}
+			rr := httptest.NewRecorder()
+			handler.ServeHTTP(rr, req)
+			return rr
+		}
+		for _, tc := range []struct {
+			stateless bool
+			want      int
+		}{{stateless: false, want: http.StatusNotFound}, {stateless: true, want: http.StatusOK}} {
+			opts := DefaultQueryOptions()
+			opts.AI = configoptional.Some(AIConfig{MCP: configoptional.Some(MCPConfig{Stateless: tc.stateless}), MaxRequestBodySize: 1 << 20})
+			first, cs1, err := initRouter(context.Background(), querySvc.qs, nil, &opts, nilBackendCaps, tenancyMgr, telset)
+			require.NoError(t, err)
+			second, cs2, err := initRouter(context.Background(), querySvc.qs, nil, &opts, nilBackendCaps, tenancyMgr, telset)
+			require.NoError(t, err)
+			rr := post(first, initialize, "")
+			require.Equal(t, http.StatusOK, rr.Code)
+			rr = post(second, listTools, rr.Header().Get("Mcp-Session-Id"))
+			assert.Equal(t, tc.want, rr.Code, "stateless=%v", tc.stateless)
+			require.NoError(t, cs1.Close())
+			require.NoError(t, cs2.Close())
+		}
+	})
+
 	t.Run("mcp endpoint mounted with base path", func(t *testing.T) {
 		opts := DefaultQueryOptions()
 		opts.BasePath = "/jaeger"

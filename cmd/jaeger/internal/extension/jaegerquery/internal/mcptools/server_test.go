@@ -225,3 +225,57 @@ func TestNewHandler_LocalhostProtection(t *testing.T) {
 		assert.Equal(t, http.StatusOK, resp.StatusCode)
 	})
 }
+
+// TestNewHandler_Stateless pins the behaviour that matters behind a load balancer
+// without session affinity: a client that ran initialize against one replica and
+// is then routed to another. Each NewHandler stands in for one jaeger-query
+// process, since the session map lives in the handler.
+func TestNewHandler_Stateless(t *testing.T) {
+	initialize := `{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18","capabilities":{},"clientInfo":{"name":"test","version":"0"}}}`
+	listTools := `{"jsonrpc":"2.0","id":2,"method":"tools/list"}`
+	post := func(h http.Handler, body, sessionID string) *http.Response {
+		req := httptest.NewRequest(http.MethodPost, "/", strings.NewReader(body))
+		req.Header.Set("Content-Type", "application/json")
+		req.Header.Set("Accept", "application/json, text/event-stream")
+		if sessionID != "" {
+			req.Header.Set("Mcp-Session-Id", sessionID)
+		}
+		rr := httptest.NewRecorder()
+		h.ServeHTTP(rr, req)
+		return rr.Result()
+	}
+	svc := querysvc.NewQueryService(&tracestoremocks.Reader{}, &depstoremocks.Reader{}, querysvc.QueryServiceOptions{})
+	tenancyMgr := tenancy.NewManager(&tenancy.Options{})
+	twoReplicas := func(t *testing.T, cfg Config) (first, second *Handler) {
+		first = NewHandler(telemetry.NoopSettings(), svc, tenancyMgr, cfg)
+		second = NewHandler(telemetry.NoopSettings(), svc, tenancyMgr, cfg)
+		t.Cleanup(func() { first.Close(); second.Close() })
+		return first, second
+	}
+
+	t.Run("default loses the session on the other replica", func(t *testing.T) {
+		first, second := twoReplicas(t, DefaultConfig())
+		resp := post(first, initialize, "")
+		require.Equal(t, http.StatusOK, resp.StatusCode)
+		sessionID := resp.Header.Get("Mcp-Session-Id")
+		require.NotEmpty(t, sessionID)
+		resp = post(second, listTools, sessionID)
+		assert.Equal(t, http.StatusNotFound, resp.StatusCode)
+		body, err := io.ReadAll(resp.Body)
+		require.NoError(t, err)
+		assert.Contains(t, string(body), "session not found")
+	})
+
+	t.Run("stateless serves the other replica", func(t *testing.T) {
+		cfg := DefaultConfig()
+		cfg.Stateless = true
+		first, second := twoReplicas(t, cfg)
+		resp := post(first, initialize, "")
+		require.Equal(t, http.StatusOK, resp.StatusCode)
+		resp = post(second, listTools, resp.Header.Get("Mcp-Session-Id"))
+		require.Equal(t, http.StatusOK, resp.StatusCode)
+		body, err := io.ReadAll(resp.Body)
+		require.NoError(t, err)
+		assert.Contains(t, string(body), `"name":"get_services"`)
+	})
+}

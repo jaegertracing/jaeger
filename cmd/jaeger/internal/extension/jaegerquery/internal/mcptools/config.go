@@ -18,8 +18,9 @@ const (
 	DefaultMaxSearchResults         = 100
 	DefaultMaxReadFileSize          = 512 * 1024
 
-	// mcpSessionTimeout caps an idle MCP session. The streamable handler keeps
-	// per-MCP-session state for SSE resumption and stream-id correlation.
+	// mcpSessionTimeout caps an idle MCP session when the handler keeps sessions
+	// (Config.Stateless is false). The streamable handler keeps per-MCP-session
+	// state for SSE resumption and stream-id correlation.
 	mcpSessionTimeout = 5 * time.Minute
 )
 
@@ -44,6 +45,12 @@ type Config struct {
 	// DNS rebinding; behind a reverse proxy or sidecar that dials 127.0.0.1 and
 	// keeps the client's Host it would reject every request instead.
 	DisableLocalhostProtection bool
+	// Stateless makes the streamable handler answer each request on its own, with
+	// no per-client session held in memory and no Mcp-Session-Id validation. It is
+	// what lets several replicas serve one client behind a load balancer without
+	// session affinity. Jaeger sends no server-initiated MCP messages, so nothing
+	// is lost besides the GET event stream, which the handler then declines with 405.
+	Stateless bool
 }
 
 // DefaultConfig returns the Config the standalone jaeger_mcp extension used, so

@@ -50,6 +50,27 @@ The UI and the REST API on the same port have no such guard, so this setting cha
 about them. Keep the default when clients reach the query port directly, by a loopback address or
 a routable host name; only a loopback connection carrying some other name is affected.
 
+## Running several replicas behind a load balancer
+
+By default the endpoint keeps one MCP session per client in the memory of the `jaeger-query`
+process that handled `initialize`, and the SDK looks that session up by the `Mcp-Session-Id`
+header on every later request. A request that a load balancer sends to a different replica is
+answered with `404 session not found`, and the client's `tools/list` fails. Set `stateless` to
+make every request stand on its own:
+
+```yaml
+extensions:
+  jaeger_query:
+    ai:
+      mcp:
+        stateless: true
+```
+
+Jaeger's tools keep no state between requests and the server sends no server-initiated MCP
+messages, so the tools behave the same. A stateless endpoint declines, with 405, the GET request
+some clients make to open a standing event stream, which the MCP specification allows for a server
+that offers none; clients continue without it.
+
 ## Adding installation-specific skills
 
 Point `ai.mcp.skills_dir` at a directory on the query server's disk:

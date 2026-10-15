@@ -120,6 +120,17 @@ type MCPConfig struct {
 	// default when clients reach the query port directly by a loopback address or
 	// a routable host name.
 	DisableLocalhostProtection bool `mapstructure:"disable_localhost_protection" valid:"optional"`
+	// Stateless makes the endpoint answer each request on its own instead of
+	// keeping an MCP session per client in memory. The default keeps a session,
+	// which the SDK stores in the process that handled initialize and looks up by
+	// the Mcp-Session-Id header on every later request. A later request that
+	// reaches a different replica of jaeger-query fails with 404, so a deployment
+	// with several replicas behind a load balancer without session affinity needs
+	// this on. Jaeger's tools keep no per-session state and the server sends no
+	// server-initiated messages, so a stateless endpoint serves the same tools;
+	// it answers 405 to the GET request a client makes to open a standing event
+	// stream, which the MCP specification allows.
+	Stateless bool `mapstructure:"stateless" valid:"optional"`
 }
 
 func (c *MCPConfig) Validate() error {

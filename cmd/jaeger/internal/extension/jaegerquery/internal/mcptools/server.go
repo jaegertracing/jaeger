@@ -107,9 +107,10 @@ func (h *Handler) AddReceivingMiddleware(middleware ...mcp.Middleware) {
 
 // NewHandler builds a closeable Handler that serves the Jaeger telemetry MCP tools
 // over streamable HTTP, backed by the given QueryService — the shared endpoint at
-// jaeger-query's /api/ai/mcp/. One *mcp.Server is reused for every session: with
-// Stateless: false the SDK builds one ServerSession per MCP session and reuses it
-// for that session's requests. It binds no listener of its own — the caller mounts
+// jaeger-query's /api/ai/mcp/. One *mcp.Server is reused for every session. By
+// default the SDK builds one ServerSession per MCP session and reuses it for that
+// session's requests; with cfg.Stateless it builds one per request and keeps
+// nothing between requests. It binds no listener of its own — the caller mounts
 // the returned handler on an existing mux and closes it at shutdown so its MCP
 // sessions are reaped.
 func NewHandler(telset telemetry.Settings, queryAPI *querysvc.QueryService, tenancyMgr *tenancy.Manager, cfg Config) *Handler {
@@ -118,7 +119,7 @@ func NewHandler(telset telemetry.Settings, queryAPI *querysvc.QueryService, tena
 		func(*http.Request) *mcp.Server { return server },
 		&mcp.StreamableHTTPOptions{
 			JSONResponse:               false, // Use SSE for streamed events
-			Stateless:                  false, // Session state management
+			Stateless:                  cfg.Stateless,
 			SessionTimeout:             mcpSessionTimeout,
 			DisableLocalhostProtection: cfg.DisableLocalhostProtection,
 		},
