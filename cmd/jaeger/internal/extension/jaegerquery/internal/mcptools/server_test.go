@@ -5,9 +5,11 @@ package mcptools
 
 import (
 	"context"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"slices"
+	"strings"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -178,4 +180,48 @@ func TestRegisterTools(t *testing.T) {
 		"get_trace_errors", "get_trace_topology", "get_critical_path", "get_service_dependencies",
 		"read_skill",
 	}, got)
+}
+
+// TestNewHandler_LocalhostProtection pins the SDK's DNS-rebinding guard and the
+// config switch that turns it off. httptest listens on 127.0.0.1, so a request
+// that carries a non-loopback Host header is the shape the guard rejects: the
+// same shape a sidecar that dials 127.0.0.1 and preserves Host produces. The
+// SDK also honours MCPGODEBUG=disablelocalhostprotection=1, read once at process
+// start, so the default subtest fails on a machine with that variable set.
+func TestNewHandler_LocalhostProtection(t *testing.T) {
+	initialize := `{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18","capabilities":{},"clientInfo":{"name":"test","version":"0"}}}`
+	post := func(t *testing.T, h http.Handler) *http.Response {
+		ts := httptest.NewServer(h)
+		t.Cleanup(ts.Close)
+		req, err := http.NewRequestWithContext(context.Background(), http.MethodPost, ts.URL, strings.NewReader(initialize))
+		require.NoError(t, err)
+		req.Host = "jaeger.example.com"
+		req.Header.Set("Content-Type", "application/json")
+		req.Header.Set("Accept", "application/json, text/event-stream")
+		resp, err := ts.Client().Do(req)
+		require.NoError(t, err)
+		t.Cleanup(func() { resp.Body.Close() })
+		return resp
+	}
+	svc := querysvc.NewQueryService(&tracestoremocks.Reader{}, &depstoremocks.Reader{}, querysvc.QueryServiceOptions{})
+	tenancyMgr := tenancy.NewManager(&tenancy.Options{})
+
+	t.Run("default rejects a non-loopback Host over loopback", func(t *testing.T) {
+		h := NewHandler(telemetry.NoopSettings(), svc, tenancyMgr, DefaultConfig())
+		t.Cleanup(func() { h.Close() })
+		resp := post(t, h)
+		assert.Equal(t, http.StatusForbidden, resp.StatusCode)
+		body, err := io.ReadAll(resp.Body)
+		require.NoError(t, err)
+		assert.Contains(t, string(body), "invalid Host header")
+	})
+
+	t.Run("disable_localhost_protection admits it", func(t *testing.T) {
+		cfg := DefaultConfig()
+		cfg.DisableLocalhostProtection = true
+		h := NewHandler(telemetry.NoopSettings(), svc, tenancyMgr, cfg)
+		t.Cleanup(func() { h.Close() })
+		resp := post(t, h)
+		assert.Equal(t, http.StatusOK, resp.StatusCode)
+	})
 }

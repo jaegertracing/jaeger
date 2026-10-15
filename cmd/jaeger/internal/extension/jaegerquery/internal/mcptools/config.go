@@ -38,6 +38,12 @@ type Config struct {
 	// the built-in skills. Nil means none is configured, and only the built-ins
 	// are served.
 	CustomSkillsFS fs.FS
+	// DisableLocalhostProtection stops the endpoint from rejecting, with 403, a
+	// request that arrives on a loopback connection with a non-loopback Host
+	// header. That rejection guards an MCP server on a developer machine against
+	// DNS rebinding; behind a reverse proxy or sidecar that dials 127.0.0.1 and
+	// keeps the client's Host it would reject every request instead.
+	DisableLocalhostProtection bool
 }
 
 // DefaultConfig returns the Config the standalone jaeger_mcp extension used, so
