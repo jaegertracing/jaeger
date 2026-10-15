@@ -19,26 +19,35 @@ import (
 // span row that can be stored in ClickHouse.
 func ToRow(
 	resource pcommon.Resource,
+	resourceSchemaURL string,
 	scope pcommon.InstrumentationScope,
+	scopeSchemaURL string,
 	span ptrace.Span,
 ) *SpanRow {
 	// we assume a sanitizer was applied upstream to guarantee non-empty service name
 	serviceName, _ := resource.Attributes().Get(otelsemconv.ServiceNameKey)
 	duration := span.EndTimestamp().AsTime().Sub(span.StartTimestamp().AsTime()).Nanoseconds()
 	sr := &SpanRow{
-		ID:            span.SpanID().String(),
-		TraceID:       span.TraceID().String(),
-		TraceState:    span.TraceState().AsRaw(),
-		ParentSpanID:  span.ParentSpanID().String(),
-		Name:          span.Name(),
-		Kind:          jptrace.SpanKindToString(span.Kind()),
-		StartTime:     span.StartTimestamp().AsTime(),
-		StatusCode:    span.Status().Code().String(),
-		StatusMessage: span.Status().Message(),
-		Duration:      duration,
-		ServiceName:   serviceName.Str(),
-		ScopeName:     scope.Name(),
-		ScopeVersion:  scope.Version(),
+		ID:                          span.SpanID().String(),
+		TraceID:                     span.TraceID().String(),
+		TraceState:                  span.TraceState().AsRaw(),
+		ParentSpanID:                span.ParentSpanID().String(),
+		Name:                        span.Name(),
+		Kind:                        jptrace.SpanKindToString(span.Kind()),
+		StartTime:                   span.StartTimestamp().AsTime(),
+		StatusCode:                  span.Status().Code().String(),
+		StatusMessage:               span.Status().Message(),
+		Duration:                    duration,
+		Flags:                       span.Flags(),
+		DroppedAttributesCount:      span.DroppedAttributesCount(),
+		DroppedEventsCount:          span.DroppedEventsCount(),
+		DroppedLinksCount:           span.DroppedLinksCount(),
+		ServiceName:                 serviceName.Str(),
+		ResourceSchemaURL:           resourceSchemaURL,
+		ScopeName:                   scope.Name(),
+		ScopeVersion:                scope.Version(),
+		ScopeSchemaURL:              scopeSchemaURL,
+		ScopeDroppedAttributesCount: scope.DroppedAttributesCount(),
 	}
 	appendAttributes(&sr.Attributes, span.Attributes())
 	for _, event := range span.Events().All() {
@@ -84,6 +93,7 @@ func appendAttributes2D(dest *Attributes2D, attrs pcommon.Map) {
 func (sr *SpanRow) appendEvent(event ptrace.SpanEvent) {
 	sr.EventNames = append(sr.EventNames, event.Name())
 	sr.EventTimestamps = append(sr.EventTimestamps, event.Timestamp().AsTime())
+	sr.EventDroppedAttributesCount = append(sr.EventDroppedAttributesCount, event.DroppedAttributesCount())
 	appendAttributes2D(&sr.EventAttributes, event.Attributes())
 }
 
@@ -91,6 +101,8 @@ func (sr *SpanRow) appendLink(link ptrace.SpanLink) {
 	sr.LinkTraceIDs = append(sr.LinkTraceIDs, link.TraceID().String())
 	sr.LinkSpanIDs = append(sr.LinkSpanIDs, link.SpanID().String())
 	sr.LinkTraceStates = append(sr.LinkTraceStates, link.TraceState().AsRaw())
+	sr.LinkDroppedAttributesCount = append(sr.LinkDroppedAttributesCount, link.DroppedAttributesCount())
+	sr.LinkFlags = append(sr.LinkFlags, link.Flags())
 	appendAttributes2D(&sr.LinkAttributes, link.Attributes())
 }
 
