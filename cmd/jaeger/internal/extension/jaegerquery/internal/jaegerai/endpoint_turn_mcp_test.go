@@ -108,12 +108,15 @@ func TestTurnScopedEndpointServesTelemetryPlusUITools(t *testing.T) {
 	assert.Contains(t, got, "show_chart", "the turn's UI tools must be advertised")
 }
 
-// TestTurnScopedEndpointStateless pins that the per-turn UI tools survive a
-// stateless shared handler. The route id is stamped on every request's context,
-// and in stateless mode the SDK connects a fresh session from each request's
-// context, so uiToolsMiddleware still resolves the turn. The go-sdk client also
-// opens the standing GET stream, which a stateless server declines with 405, and
-// must carry on regardless.
+// TestTurnScopedEndpointStateless checks that the turn's UI tools are still
+// advertised when the shared handler runs in stateless mode. ServeHTTP stamps the
+// route id on every request, and in stateless mode the SDK builds the session from
+// each request's context, so uiToolsMiddleware finds the turn without a session
+// that outlives the request. The test talks to the endpoint through the real
+// go-sdk client, which after initialize sends a GET to open a stream for
+// server-to-client messages; a stateless server answers that GET with 405, and the
+// client has to treat that as "no stream" and continue, or ListTools below would
+// fail.
 func TestTurnScopedEndpointStateless(t *testing.T) {
 	cfg := mcptools.DefaultConfig()
 	cfg.Stateless = true
