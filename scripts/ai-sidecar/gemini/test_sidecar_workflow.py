@@ -373,3 +373,103 @@ def test_default_mcp_url_points_to_query_port(monkeypatch: pytest.MonkeyPatch) -
     args = parse_args()
     assert args.mcp_url == DEFAULT_MCP_URL
 
+
+def test_validate_function_call_normalizes_and_validates() -> None:
+    from sidecar_helpers import _validate_function_call
+
+    # Normal dict passes through
+    assert _validate_function_call("test_tool", {"a": 1}, "call-1") == {"a": 1}
+
+    # None and empty/whitespace string normalize to empty dict
+    assert _validate_function_call("test_tool", None, "call-2") == {}
+    assert _validate_function_call("test_tool", "", "call-3") == {}
+    assert _validate_function_call("test_tool", "   ", "call-4") == {}
+
+    # Stringified JSON decodes properly
+    assert _validate_function_call("test_tool", '{"query": "errors", "limit": 10}', "call-5") == {
+        "query": "errors",
+        "limit": 10,
+    }
+
+    # Invalid JSON string raises ValueError
+    with pytest.raises(ValueError, match="failed JSON decoding"):
+        _validate_function_call("test_tool", "{invalid_json}", "call-6")
+
+    # Non-dict JSON string raises ValueError
+    with pytest.raises(ValueError, match="has non-dict args"):
+        _validate_function_call("test_tool", "[1, 2, 3]", "call-7")
+
+    # Non-dict object raises ValueError
+    with pytest.raises(ValueError, match="has non-dict args"):
+        _validate_function_call("test_tool", 12345, "call-8")
+
+    # Empty or invalid tool_name raises ValueError
+    with pytest.raises(ValueError, match="function_call has no name"):
+        _validate_function_call("", {"a": 1}, "call-9")
+    with pytest.raises(ValueError, match="function_call has no name"):
+        _validate_function_call("   ", {"a": 1}, "call-10")
+    with pytest.raises(ValueError, match="function_call has no name"):
+        _validate_function_call(None, {"a": 1}, "call-11")  # pyright: ignore[reportArgumentType]
+
+
+def test_sidecar_config_validation() -> None:
+    valid_cfg = SidecarConfig(
+        gemini_api_key="valid-key",
+        mcp_url="http://127.0.0.1:16686/api/ai/mcp/",
+        mcp_discovery_timeout_sec=5.0,
+        otlp_endpoint="localhost:4317",
+        otlp_insecure=True,
+    )
+    valid_cfg.validate()
+
+    with pytest.raises(RuntimeError, match="GEMINI_API_KEY must be provided"):
+        SidecarConfig("", "http://127.0.0.1:16686", 5.0, "localhost:4317", True).validate()
+    with pytest.raises(RuntimeError, match="GEMINI_API_KEY must be provided"):
+        SidecarConfig("   ", "http://127.0.0.1:16686", 5.0, "localhost:4317", True).validate()
+
+    with pytest.raises(RuntimeError, match="JAEGER_MCP_URL must be provided"):
+        SidecarConfig("valid-key", "", 5.0, "localhost:4317", True).validate()
+    with pytest.raises(RuntimeError, match="JAEGER_MCP_URL must be provided"):
+        SidecarConfig("valid-key", "   ", 5.0, "localhost:4317", True).validate()
+
+    with pytest.raises(RuntimeError, match="JAEGER_MCP_URL must start with http:// or https://"):
+        SidecarConfig("valid-key", "ftp://localhost", 5.0, "localhost:4317", True).validate()
+
+    with pytest.raises(RuntimeError, match="MCP discovery timeout must be > 0"):
+        SidecarConfig("valid-key", "http://localhost", 0.0, "localhost:4317", True).validate()
+
+    with pytest.raises(RuntimeError, match="OTEL_EXPORTER_OTLP_ENDPOINT must be provided"):
+        SidecarConfig("valid-key", "http://localhost", 5.0, "", True).validate()
+    with pytest.raises(RuntimeError, match="OTEL_EXPORTER_OTLP_ENDPOINT must be provided"):
+        SidecarConfig("valid-key", "http://localhost", 5.0, "   ", True).validate()
+
+
+def test_execute_tool_with_stringified_json_arguments(
+    span_exporter: InMemorySpanExporter, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    agent = _new_jaeger_sidecar_agent()
+    agent.on_connect(FakeConn())  # pyright: ignore[reportArgumentType]
+    captured_args: dict[str, Any] = {}
+
+    async def fake_call(tool_name: str, arguments: dict[str, Any]) -> dict[str, Any]:
+        nonlocal captured_args
+        captured_args = arguments
+        return {"status": "ok"}
+
+    monkeypatch.setattr(agent._mcp, "call_tool", fake_call)
+
+    result = asyncio.run(
+        agent._execute_tool(
+            "sess-1", "search_traces", '{"service": "backend", "limit": 10}', "call-str-json"
+        )
+    )
+
+    assert result == {"status": "ok"}
+    assert captured_args == {"service": "backend", "limit": 10}
+    span = _find_span(span_exporter, "sidecar.execute_tool")
+    assert json.loads(span.attributes["gen_ai.tool.call.arguments"]) == {
+        "service": "backend",
+        "limit": 10,
+    }
+
+

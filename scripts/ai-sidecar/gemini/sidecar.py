@@ -202,7 +202,7 @@ class JaegerSidecarAgent(Agent):
         self,
         session_id: str,
         tool_name: str,
-        args: dict[str, Any],
+        args: Any,
         tool_call_id: str,
     ) -> Any:
         """Dispatch a contextual (frontend-supplied) tool call back to the
@@ -234,7 +234,7 @@ class JaegerSidecarAgent(Agent):
             GEN_AI_TOOL_CALL_ARGUMENTS: _truncate_for_span(_to_tool_text(args)),
         }) as span:
             try:
-                _validate_function_call(tool_name, args, tool_call_id)
+                args = _validate_function_call(tool_name, args, tool_call_id)
                 conn = self._require_conn()
                 # raw_input carries the LLM-generated arguments onto the
                 # AG-UI wire as TOOL_CALL_ARGS so the browser knows what
@@ -275,7 +275,7 @@ class JaegerSidecarAgent(Agent):
                 span.set_status(Status(StatusCode.ERROR, description=str(e)))
                 raise
 
-    async def _execute_tool(self, session_id: str, tool_name: str, args: dict[str, Any], tool_call_id: str) -> Any:
+    async def _execute_tool(self, session_id: str, tool_name: str, args: Any, tool_call_id: str) -> Any:
         with tracer().start_as_current_span("sidecar.execute_tool", attributes={
             GEN_AI_TOOL_NAME: tool_name,
             GEN_AI_TOOL_CALL_ID: tool_call_id,
@@ -283,7 +283,7 @@ class JaegerSidecarAgent(Agent):
             GEN_AI_TOOL_CALL_ARGUMENTS: _truncate_for_span(_to_tool_text(args)),
         }) as span:
             try:
-                _validate_function_call(tool_name, args, tool_call_id)
+                args = _validate_function_call(tool_name, args, tool_call_id)
                 conn = self._require_conn()
                 await conn.session_update(
                     session_id,
