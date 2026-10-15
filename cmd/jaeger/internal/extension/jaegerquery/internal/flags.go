@@ -129,7 +129,9 @@ type MCPConfig struct {
 	// this on. Jaeger's tools keep no per-session state and the server sends no
 	// server-initiated messages, so a stateless endpoint serves the same tools;
 	// it answers 405 to the GET request a client makes to open a standing event
-	// stream, which the MCP specification allows.
+	// stream, which the MCP specification allows. The chat gateway's turn-scoped
+	// endpoint still has to be reached on the replica that owns the turn; see
+	// mcptools/README.md.
 	Stateless bool `mapstructure:"stateless" valid:"optional"`
 }
 

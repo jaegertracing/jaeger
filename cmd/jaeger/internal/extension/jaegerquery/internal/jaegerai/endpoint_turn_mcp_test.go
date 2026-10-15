@@ -38,8 +38,13 @@ func rawUITool(t *testing.T, name string) json.RawMessage {
 // and hands to the gateway — the same server both mounts are served from.
 func sharedMCPHandler(t *testing.T) *mcptools.Handler {
 	t.Helper()
+	return sharedMCPHandlerWithConfig(t, mcptools.DefaultConfig())
+}
+
+func sharedMCPHandlerWithConfig(t *testing.T, cfg mcptools.Config) *mcptools.Handler {
+	t.Helper()
 	svc := querysvc.NewQueryService(&tracestoremocks.Reader{}, &depstoremocks.Reader{}, querysvc.QueryServiceOptions{})
-	h := mcptools.NewHandler(telemetry.NoopSettings(), svc, tenancy.NewManager(&tenancy.Options{}), mcptools.DefaultConfig())
+	h := mcptools.NewHandler(telemetry.NoopSettings(), svc, tenancy.NewManager(&tenancy.Options{}), cfg)
 	t.Cleanup(func() { h.Close() })
 	return h
 }
@@ -49,12 +54,17 @@ func sharedMCPHandler(t *testing.T) *mcptools.Handler {
 // the recorder backing that turn's SSE stream (to observe UI-tool dispatch).
 func turnMCPServer(t *testing.T, uiTools []json.RawMessage) (ts *httptest.Server, rec *httptest.ResponseRecorder, routeID string) {
 	t.Helper()
+	return turnMCPServerWithConfig(t, mcptools.DefaultConfig(), uiTools)
+}
+
+func turnMCPServerWithConfig(t *testing.T, cfg mcptools.Config, uiTools []json.RawMessage) (ts *httptest.Server, rec *httptest.ResponseRecorder, routeID string) {
+	t.Helper()
 	turns := newTurnRegistry()
 	rec = httptest.NewRecorder()
 	routeID = registerTurn(turns, newStreamingClient(context.Background(), rec, "thread", "run"), uiTools)
 
 	h := turnScopedEndpointBuilder{
-		shared: sharedMCPHandler(t),
+		shared: sharedMCPHandlerWithConfig(t, cfg),
 		turns:  turns,
 		logger: telemetry.NoopSettings().Logger,
 	}.build()
@@ -92,6 +102,22 @@ func listToolNames(t *testing.T, ts *httptest.Server, path string) []string {
 
 func TestTurnScopedEndpointServesTelemetryPlusUITools(t *testing.T) {
 	ts, _, routeID := turnMCPServer(t, []json.RawMessage{rawUITool(t, "show_chart")})
+
+	got := listToolNames(t, ts, "/api/ai/mcp/"+routeID+"/")
+	assert.Contains(t, got, "get_services", "built-in telemetry tools must be advertised")
+	assert.Contains(t, got, "show_chart", "the turn's UI tools must be advertised")
+}
+
+// TestTurnScopedEndpointStateless pins that the per-turn UI tools survive a
+// stateless shared handler. The route id is stamped on every request's context,
+// and in stateless mode the SDK connects a fresh session from each request's
+// context, so uiToolsMiddleware still resolves the turn. The go-sdk client also
+// opens the standing GET stream, which a stateless server declines with 405, and
+// must carry on regardless.
+func TestTurnScopedEndpointStateless(t *testing.T) {
+	cfg := mcptools.DefaultConfig()
+	cfg.Stateless = true
+	ts, _, routeID := turnMCPServerWithConfig(t, cfg, []json.RawMessage{rawUITool(t, "show_chart")})
 
 	got := listToolNames(t, ts, "/api/ai/mcp/"+routeID+"/")
 	assert.Contains(t, got, "get_services", "built-in telemetry tools must be advertised")

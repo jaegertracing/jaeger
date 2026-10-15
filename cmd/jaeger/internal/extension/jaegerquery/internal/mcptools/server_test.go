@@ -272,10 +272,25 @@ func TestNewHandler_Stateless(t *testing.T) {
 		first, second := twoReplicas(t, cfg)
 		resp := post(first, initialize, "")
 		require.Equal(t, http.StatusOK, resp.StatusCode)
-		resp = post(second, listTools, resp.Header.Get("Mcp-Session-Id"))
+		sessionID := resp.Header.Get("Mcp-Session-Id")
+		require.NotEmpty(t, sessionID)
+		resp = post(second, listTools, sessionID)
 		require.Equal(t, http.StatusOK, resp.StatusCode)
 		body, err := io.ReadAll(resp.Body)
 		require.NoError(t, err)
 		assert.Contains(t, string(body), `"name":"get_services"`)
+	})
+
+	t.Run("stateless declines the standing event stream", func(t *testing.T) {
+		cfg := DefaultConfig()
+		cfg.Stateless = true
+		h := NewHandler(telemetry.NoopSettings(), svc, tenancyMgr, cfg)
+		t.Cleanup(func() { h.Close() })
+		req := httptest.NewRequest(http.MethodGet, "/", nil)
+		req.Header.Set("Accept", "text/event-stream")
+		rr := httptest.NewRecorder()
+		h.ServeHTTP(rr, req)
+		assert.Equal(t, http.StatusMethodNotAllowed, rr.Code)
+		assert.Equal(t, "POST", rr.Header().Get("Allow"))
 	})
 }

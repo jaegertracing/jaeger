@@ -54,9 +54,12 @@ a routable host name; only a loopback connection carrying some other name is aff
 
 By default the endpoint keeps one MCP session per client in the memory of the `jaeger-query`
 process that handled `initialize`, and the SDK looks that session up by the `Mcp-Session-Id`
-header on every later request. A request that a load balancer sends to a different replica is
-answered with `404 session not found`, and the client's `tools/list` fails. Set `stateless` to
-make every request stand on its own:
+header on every later request. When a load balancer without session affinity spreads a client's
+requests over several replicas, a request that reaches a replica other than the one that holds the
+session is answered with `404 session not found`; and when the client's `notifications/initialized`
+is the request that went astray, the replica that holds the session rejects the next `tools/list`
+with `method "tools/list" is invalid during session initialization`. Set `stateless` to make every
+request stand on its own:
 
 ```yaml
 extensions:
@@ -70,6 +73,14 @@ Jaeger's tools keep no state between requests and the server sends no server-ini
 messages, so the tools behave the same. A stateless endpoint declines, with 405, the GET request
 some clients make to open a standing event stream, which the MCP specification allows for a server
 that offers none; clients continue without it.
+
+This covers external MCP clients on the shared `/api/ai/mcp/` endpoint. The chat gateway's
+turn-scoped endpoint, `/api/ai/mcp/<id>/`, is different: the turn it serves is held in the memory
+of the process that is streaming that chat to the browser, so a request for it that lands on
+another replica is answered 404 before the MCP handler is reached, stateless or not. An agent that
+is not co-located with `jaeger-query` must reach the replica that owns the turn, which means
+`ai.mcp.base_url` has to name that process (its pod address, not a load-balanced service name) or
+the load balancer has to route by the `<id>` path segment.
 
 ## Adding installation-specific skills
 
