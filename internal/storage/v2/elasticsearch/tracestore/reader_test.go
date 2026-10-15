@@ -41,6 +41,7 @@ func TestTraceReader_SearchCapabilities(t *testing.T) {
 		SpanSorting:         true,
 		Paginated:           true,
 	}, caps)
+	assert.True(t, filter.SupportsOperator(tracestore.OpHasPhrase))
 }
 
 func TestTraceReader_GetServices(t *testing.T) {

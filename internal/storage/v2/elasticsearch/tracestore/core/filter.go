@@ -103,6 +103,9 @@ type valueMatch func(field string) esquery.Query
 // implemented yet. Which built-in fields are served is not declarable — a field name is
 // indistinguishable from an attribute key — so buildFilterQuery refuses the ones this
 // schema has no field for.
+//
+// The has_phrase operator is servable when at least one attribute is configured
+// for text search (indices.spans.text_searchable_attributes is non-empty).
 func FilterCapabilities() tracestore.FilterCapabilities {
 	return tracestore.FilterCapabilities{
 		Levels: []expression.Level{
@@ -124,6 +127,7 @@ func FilterCapabilities() tracestore.FilterCapabilities {
 			expression.OpExists,
 			expression.OpIn,
 			expression.OpNotIn,
+			tracestore.OpHasPhrase,
 		},
 	}
 }
@@ -158,6 +162,13 @@ func (s *SpanReader) buildFilterQuery(predicate *expression.Call) (esquery.Query
 			return nil, err
 		}
 		return esquery.NewBoolQuery().MustNot(args[0]), nil
+
+	case tracestore.OpHasPhrase:
+		ref, value, err := refAndConstantArgs(predicate)
+		if err != nil {
+			return nil, err
+		}
+		return s.buildHasPhraseQuery(ref, value)
 
 	case expression.OpEq, expression.OpRegex,
 		expression.OpGt, expression.OpLt, expression.OpGte, expression.OpLte:
@@ -315,6 +326,33 @@ func (s *SpanReader) buildComparison(
 	default:
 		return nil, errUnsupportedField(ref)
 	}
+}
+
+// buildHasPhraseQuery lowers the has_phrase operator to an Elasticsearch match_phrase
+// query on the .text sub-field of an attribute. Only attributes listed in
+// text_searchable_attributes are searchable this way; built-in fields and unlisted
+// attributes are refused.
+func (s *SpanReader) buildHasPhraseQuery(ref reference, value expression.Expression) (esquery.Query, error) {
+	if !ref.attribute {
+		return nil, fmt.Errorf("%w: %q is not supported on %q because it is a built-in field, not an attribute",
+			tracestore.ErrFilterUnsupported, tracestore.OpHasPhrase, ref.name)
+	}
+	if _, ok := s.textSearchableAttributes[ref.name]; !ok {
+		return nil, fmt.Errorf("%w: %q on %q is not supported because the attribute is not in text_searchable_attributes",
+			tracestore.ErrFilterUnsupported, tracestore.OpHasPhrase, ref.name)
+	}
+	text, err := constantText(value)
+	if err != nil {
+		return nil, err
+	}
+	locations, ok := attributeLocations[ref.level]
+	if !ok {
+		return nil, errUnsupportedLevel(ref.level)
+	}
+	matchOnText := func(field string) esquery.Query {
+		return esquery.NewMatchPhraseQuery(nestedField(field, textSubField), text)
+	}
+	return s.attributeQuery(locations, ref.name, matchOnText), nil
 }
 
 // constantText returns the text that a constant contributes to a comparison. It accepts an untyped
