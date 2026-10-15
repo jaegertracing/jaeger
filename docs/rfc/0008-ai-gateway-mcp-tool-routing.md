@@ -19,7 +19,7 @@ This RFC captures the "MCP movement": consolidating every AI tool call — telem
 | M3 | Tool-call observability: GenAI span attributes + gateway↔sidecar trace propagation | ✅ Done — [#8942][pr-8942] |
 | M4 | **Terminology cleanup** — apply §2 (remove the `session`/`stream` overload; one name for UI tools; rename endpoints/registry/ids) | ✅ Done — [#9017][pr-9017] |
 | M5 | Announce the turn-scoped endpoint to the sidecar over **HTTP** (`ai.mcp.base_url`) | ✅ Done — [#9009][pr-9009] |
-| M6 | Retire the legacy ACP ext-method path and use the gateway MCP URL for external agents | ⏳ In progress — [#9837][issue-9837] |
+| M6 | Remove the Gemini reference sidecar and retire the legacy ACP ext-method path; external agents use the gateway MCP URL | ✅ Done — [#9841][pr-9841], [#9855][pr-9855] |
 | M7 | Consolidate the shared and turn-scoped mounts onto **one** `mcp.Server`. The query server builds it whenever `ai.mcp` is configured — independently of `ai.agent_url`, since external MCP clients use the shared mount with no sidecar — and the chat gateway, when enabled, layers its per-turn UI tools onto that same server and serves the turn-scoped route from it. One server, two mounts. | ✅ Done — [#9216][pr-9216] |
 | M7.1 | Reap the **shared** endpoint's MCP sessions. `mcptools.NewHandler` returns a closeable `Handler` that owns the reaping, and the query server holds it in its closer set, so the sessions on both mounts are torn down with the server instead of being left to process exit. | ✅ Done — [#9216][pr-9216] |
 | M7.2 | **UI tools stay gated on `ai.mcp`.** The turn-scoped endpoint carries the per-turn UI tools and is mounted only when `ai.mcp` is configured, so once M6 drops the ACP ext-method path that also carries them today, chat without `ai.mcp` leaves the agent no UI tools. Mounting the endpoint for chat alone was considered and dropped: it would serve the telemetry tools `ai.mcp` exists to gate, and the sidecar only learns the endpoint's address from `ai.mcp.base_url`, which is part of the same block. An AI-chat-only deployment, if it is ever wanted, comes as a flag inside `ai.mcp` that turns the shared telemetry tools off — not as a second gate. | ✅ Decided — [#9216][pr-9216] |
@@ -235,8 +235,8 @@ The gateway serves Jaeger's own telemetry in-process (§4.5); it does **not** pr
 
 See the **Implementation status** table at the top. In narrative:
 
-- **Done:** `jaeger_mcp` is merged into the query extension (M1, [#8894][pr-8894]); the turn-scoped endpoint serves telemetry + UI tools (M2, [#8973][pr-8973]); tool calls are traceable (M3, [#8942][pr-8942]); the terminology cleanup landed (M4, [#9017][pr-9017]); the sidecar is told where to reach the endpoint (M5, [#9009][pr-9009]); and both mounts share one `mcp.Server` whose sessions are reaped at shutdown (M7/M7.1, [#9216][pr-9216]).
-- **Next:** retire the legacy ACP ext-method path (M6), add the reachability probe (M8), and continue improving external-agent integrations.
+- **Done:** `jaeger_mcp` is merged into the query extension (M1, [#8894][pr-8894]); the turn-scoped endpoint serves telemetry + UI tools (M2, [#8973][pr-8973]); tool calls are traceable (M3, [#8942][pr-8942]); the terminology cleanup landed (M4, [#9017][pr-9017]); the sidecar is told where to reach the endpoint (M5, [#9009][pr-9009]); the Gemini reference sidecar and legacy ACP ext-method path are removed (M6, [#9841][pr-9841], [#9855][pr-9855]); and both mounts share one `mcp.Server` whose sessions are reaped at shutdown (M7/M7.1, [#9216][pr-9216]).
+- **Next:** add the reachability probe (M8) and continue improving external-agent integrations.
 - **Out of scope:** MCP-over-ACP, query-type UI tools, and gateway-as-proxy — see §6.
 
 ---
@@ -274,6 +274,8 @@ Considered and deliberately deferred; each decision is stated in the section not
 [pr-9009]: https://github.com/jaegertracing/jaeger/pull/9009
 [pr-9017]: https://github.com/jaegertracing/jaeger/pull/9017
 [pr-9216]: https://github.com/jaegertracing/jaeger/pull/9216
+[pr-9841]: https://github.com/jaegertracing/jaeger/pull/9841
+[pr-9855]: https://github.com/jaegertracing/jaeger/pull/9855
 [issue-8853]: https://github.com/jaegertracing/jaeger/issues/8853
 [issue-8890]: https://github.com/jaegertracing/jaeger/issues/8890
 [issue-9837]: https://github.com/jaegertracing/jaeger/issues/9837
