@@ -220,6 +220,72 @@ func TestStaticHandlerInjectsBackendCapabilities(t *testing.T) {
 	}
 }
 
+func TestPathDepth(t *testing.T) {
+	tests := []struct {
+		basePath    string
+		requestPath string
+		want        int
+	}{
+		{basePath: "", requestPath: "/", want: 0},
+		{basePath: "", requestPath: "/search", want: 0},
+		{basePath: "", requestPath: "/trace/abc", want: 1},
+		{basePath: "", requestPath: "/trace/abc/", want: 2},
+		{basePath: "/", requestPath: "/trace/abc", want: 1},
+		{basePath: "/jaeger", requestPath: "/jaeger/", want: 0},
+		{basePath: "/jaeger", requestPath: "/jaeger/search", want: 0},
+		{basePath: "/jaeger", requestPath: "/jaeger/trace/abc", want: 1},
+		// An escaped slash is not a path separator for the browser either.
+		{basePath: "", requestPath: "/trace/ab%2Fcd", want: 1},
+	}
+	for _, tt := range tests {
+		t.Run(tt.basePath+tt.requestPath, func(t *testing.T) {
+			assert.Equal(t, tt.want, pathDepth(tt.basePath, tt.requestPath))
+		})
+	}
+}
+
+func TestRelativeBaseHref(t *testing.T) {
+	assert.Equal(t, "./", relativeBaseHref(0))
+	assert.Equal(t, "../", relativeBaseHref(1))
+	assert.Equal(t, "../../", relativeBaseHref(2))
+}
+
+// TestStaticHandlerPutsBaseFirstInHead checks that a deep link gets a <base> in
+// the markup ahead of everything else in <head>, so that the browser's preload
+// scanner resolves the relative asset URLs against the UI's mount point.
+func TestStaticHandlerPutsBaseFirstInHead(t *testing.T) {
+	tests := []struct {
+		basePath string
+		path     string
+		want     string
+	}{
+		{basePath: "", path: "/", want: `<head><base href="./" />`},
+		{basePath: "", path: "/trace/abc", want: `<head><base href="../" />`},
+		{basePath: "/jaeger", path: "/jaeger/trace/abc", want: `<head><base href="../" />`},
+	}
+	for _, tt := range tests {
+		t.Run(tt.path, func(t *testing.T) {
+			r := http.NewServeMux()
+			closer := RegisterStaticHandler(r, zap.NewNop(),
+				&QueryOptions{UIConfig: UIConfig{AssetsPath: "fixture"}, BasePath: tt.basePath}, nil)
+			defer closer.Close()
+
+			rr := httptest.NewRecorder()
+			r.ServeHTTP(rr, httptest.NewRequest(http.MethodGet, tt.path, http.NoBody))
+			require.Equal(t, http.StatusOK, rr.Code)
+			body := rr.Body.String()
+			assert.Contains(t, body, tt.want)
+			assert.Less(t, strings.Index(body, tt.want), strings.Index(body, `data-inject-target="BASE_URL"`),
+				"the server's <base> must come before the one the UI adds")
+		})
+	}
+}
+
+func TestInsertBaseHrefWithoutHead(t *testing.T) {
+	html := []byte("<html><body></body></html>")
+	assert.Equal(t, html, insertBaseHref(html, "../"))
+}
+
 func TestStaticHandlerReflectsLatestAIHealthCheckPerRequest(t *testing.T) {
 	var available atomic.Bool
 	r := http.NewServeMux()
