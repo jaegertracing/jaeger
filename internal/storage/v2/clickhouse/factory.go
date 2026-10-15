@@ -9,7 +9,9 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"io/fs"
 	"os"
+	"strings"
 	"text/template"
 	"time"
 
@@ -67,7 +69,13 @@ var (
 )
 
 type schemaTemplateParams struct {
+	// TTLSeconds is the retention of spans and trace_id_timestamps; zero renders no TTL clause.
 	TTLSeconds int64
+	// MergeTree is the ENGINE clause body of the tables that hold raw rows.
+	MergeTree string
+	// AggregatingMergeTree is the ENGINE clause body of the derived tables, whose rows
+	// collapse on their sort key.
+	AggregatingMergeTree string
 }
 
 var (
@@ -79,6 +87,7 @@ var (
 type schemaBuilder struct {
 	cfg                    Configuration
 	opts                   *clickhouse.Options
+	templateParams         schemaTemplateParams
 	backoffInitialInterval time.Duration
 	backoffMaxElapsedTime  time.Duration
 }
@@ -94,12 +103,73 @@ func newSchemaBuilder(ctx context.Context, cfg Configuration, opts ...*clickhous
 			return nil, err
 		}
 	}
-	return &schemaBuilder{
+	b := &schemaBuilder{
 		cfg:                    cfg,
 		opts:                   opt,
 		backoffInitialInterval: 100 * time.Millisecond,
 		backoffMaxElapsedTime:  15 * time.Second,
+	}
+	if !cfg.CreateSchema {
+		return b, nil
+	}
+
+	params, err := schemaTemplateParamsForTableEngine(cfg.TableEngine)
+	if err != nil {
+		return nil, err
+	}
+	params.TTLSeconds = int64(cfg.TTL / time.Second)
+	b.templateParams = params
+	return b, nil
+}
+
+func schemaTemplateParamsForTableEngine(tableEngine TableEngine) (schemaTemplateParams, error) {
+	mergeTree, err := tableEngine.engineClause(mergeTreeFamily)
+	if err != nil {
+		return schemaTemplateParams{}, err
+	}
+	aggregatingMergeTree, err := tableEngine.engineClause(aggregatingMergeTreeFamily)
+	if err != nil {
+		return schemaTemplateParams{}, err
+	}
+	return schemaTemplateParams{
+		MergeTree:            mergeTree,
+		AggregatingMergeTree: aggregatingMergeTree,
 	}, nil
+}
+
+// renderedMigrationFS applies the schema template parameters to the initial migration.
+// Later migrations describe changes to an already-created schema and are not templates.
+type renderedMigrationFS struct {
+	fs.FS
+	params schemaTemplateParams
+}
+
+func (f renderedMigrationFS) Open(name string) (fs.File, error) {
+	file, err := f.FS.Open(name)
+	if err != nil || name != "000001_initial_schema.up.sql" {
+		return file, err
+	}
+
+	contents, err := io.ReadAll(file)
+	if err != nil {
+		_ = file.Close()
+		return nil, err
+	}
+	rendered, err := loadTemplate(name, string(contents), f.params)
+	if err != nil {
+		_ = file.Close()
+		return nil, err
+	}
+	return &renderedMigrationFile{File: file, reader: strings.NewReader(rendered)}, nil
+}
+
+type renderedMigrationFile struct {
+	fs.File
+	reader io.Reader
+}
+
+func (f *renderedMigrationFile) Read(p []byte) (int, error) {
+	return f.reader.Read(p)
 }
 
 type drainingDatabaseDriver struct {
@@ -141,7 +211,10 @@ func (b *schemaBuilder) build(ctx context.Context) error {
 	db := clickhouse.OpenDB(b.opts)
 	defer db.Close()
 
-	sourceDriver, err := newSourceDriver(chsql.MigrationFiles, ".")
+	sourceDriver, err := newSourceDriver(renderedMigrationFS{
+		FS:     chsql.MigrationFiles,
+		params: b.templateParams,
+	}, ".")
 	if err != nil {
 		return fmt.Errorf("failed to create migration source driver: %w", err)
 	}
@@ -285,11 +358,15 @@ var DropSchemaObjectsStatements = []string{
 }
 
 // BaselineSchemaStatements returns the 12 schema baseline DDL statements without TTL.
-func BaselineSchemaStatements() ([]string, error) {
+func BaselineSchemaStatements(tableEngine TableEngine) ([]string, error) {
+	params, err := schemaTemplateParamsForTableEngine(tableEngine)
+	if err != nil {
+		return nil, err
+	}
 	createSpansTableQuery, err := loadTemplate(
 		"create_spans_table",
 		chsql.CreateSpansTable,
-		schemaTemplateParams{TTLSeconds: 0},
+		params,
 	)
 	if err != nil {
 		return nil, err
@@ -298,7 +375,7 @@ func BaselineSchemaStatements() ([]string, error) {
 	createTraceIDTsTableQuery, err := loadTemplate(
 		"create_trace_id_timestamps_table",
 		chsql.CreateTraceIDTimestampsTable,
-		schemaTemplateParams{TTLSeconds: 0},
+		params,
 	)
 	if err != nil {
 		return nil, err
