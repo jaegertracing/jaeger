@@ -19,15 +19,16 @@ const (
 	DefaultMaxReadFileSize          = 512 * 1024
 
 	// mcpSessionTimeout caps an idle MCP session when the handler keeps sessions
-	// (Config.StreamableHTTP.Stateless is false). The streamable handler keeps per-MCP-session
+	// (ServerParams.StreamableHTTP.Stateless is false). The streamable handler keeps per-MCP-session
 	// state for SSE resumption and stream-id correlation.
 	mcpSessionTimeout = 5 * time.Minute
 )
 
-// Config holds the tunables for the in-process telemetry MCP server. It is the
-// non-transport slice of the retired jaeger_mcp extension's config — the HTTP
-// listener is gone because the handler now mounts on jaeger-query's own mux.
-type Config struct {
+// ServerParams holds what NewHandler needs beyond its dependencies: the tool
+// limits and server identity, which are fixed by DefaultServerParams, and the
+// operator-set parts of ai.mcp that the query server copies in (the custom
+// skills directory and the transport options).
+type ServerParams struct {
 	ServerName               string
 	ServerVersion            string
 	MaxSpanDetailsPerRequest int
@@ -81,14 +82,14 @@ type StreamableHTTPConfig struct {
 	JSONResponse bool `mapstructure:"json_response" valid:"optional"`
 }
 
-// DefaultConfig returns the Config the standalone jaeger_mcp extension used, so
-// migrating operators see identical tool behaviour on the in-process endpoint.
-func DefaultConfig() Config {
+// DefaultServerParams returns the limits the standalone jaeger_mcp extension used,
+// so migrating operators see identical tool behaviour on the in-process endpoint.
+func DefaultServerParams() ServerParams {
 	ver := version.Get().GitVersion
 	if ver == "" {
 		ver = "dev"
 	}
-	return Config{
+	return ServerParams{
 		ServerName:               DefaultServerName,
 		ServerVersion:            ver,
 		MaxSpanDetailsPerRequest: DefaultMaxSpanDetailsPerRequest,

@@ -38,13 +38,13 @@ func rawUITool(t *testing.T, name string) json.RawMessage {
 // and hands to the gateway — the same server both mounts are served from.
 func sharedMCPHandler(t *testing.T) *mcptools.Handler {
 	t.Helper()
-	return sharedMCPHandlerWithConfig(t, mcptools.DefaultConfig())
+	return sharedMCPHandlerWithParams(t, mcptools.DefaultServerParams())
 }
 
-func sharedMCPHandlerWithConfig(t *testing.T, cfg mcptools.Config) *mcptools.Handler {
+func sharedMCPHandlerWithParams(t *testing.T, params mcptools.ServerParams) *mcptools.Handler {
 	t.Helper()
 	svc := querysvc.NewQueryService(&tracestoremocks.Reader{}, &depstoremocks.Reader{}, querysvc.QueryServiceOptions{})
-	h := mcptools.NewHandler(telemetry.NoopSettings(), svc, tenancy.NewManager(&tenancy.Options{}), cfg)
+	h := mcptools.NewHandler(telemetry.NoopSettings(), svc, tenancy.NewManager(&tenancy.Options{}), params)
 	t.Cleanup(func() { h.Close() })
 	return h
 }
@@ -54,17 +54,17 @@ func sharedMCPHandlerWithConfig(t *testing.T, cfg mcptools.Config) *mcptools.Han
 // the recorder backing that turn's SSE stream (to observe UI-tool dispatch).
 func turnMCPServer(t *testing.T, uiTools []json.RawMessage) (ts *httptest.Server, rec *httptest.ResponseRecorder, routeID string) {
 	t.Helper()
-	return turnMCPServerWithConfig(t, mcptools.DefaultConfig(), uiTools)
+	return turnMCPServerWithParams(t, mcptools.DefaultServerParams(), uiTools)
 }
 
-func turnMCPServerWithConfig(t *testing.T, cfg mcptools.Config, uiTools []json.RawMessage) (ts *httptest.Server, rec *httptest.ResponseRecorder, routeID string) {
+func turnMCPServerWithParams(t *testing.T, params mcptools.ServerParams, uiTools []json.RawMessage) (ts *httptest.Server, rec *httptest.ResponseRecorder, routeID string) {
 	t.Helper()
 	turns := newTurnRegistry()
 	rec = httptest.NewRecorder()
 	routeID = registerTurn(turns, newStreamingClient(context.Background(), rec, "thread", "run"), uiTools)
 
 	h := turnScopedEndpointBuilder{
-		shared: sharedMCPHandlerWithConfig(t, cfg),
+		shared: sharedMCPHandlerWithParams(t, params),
 		turns:  turns,
 		logger: telemetry.NoopSettings().Logger,
 	}.build()
@@ -118,9 +118,9 @@ func TestTurnScopedEndpointServesTelemetryPlusUITools(t *testing.T) {
 // client has to treat that as "no stream" and continue, or ListTools below would
 // fail.
 func TestTurnScopedEndpointStateless(t *testing.T) {
-	cfg := mcptools.DefaultConfig()
-	cfg.StreamableHTTP.Stateless = true
-	ts, _, routeID := turnMCPServerWithConfig(t, cfg, []json.RawMessage{rawUITool(t, "show_chart")})
+	params := mcptools.DefaultServerParams()
+	params.StreamableHTTP.Stateless = true
+	ts, _, routeID := turnMCPServerWithParams(t, params, []json.RawMessage{rawUITool(t, "show_chart")})
 
 	got := listToolNames(t, ts, "/api/ai/mcp/"+routeID+"/")
 	assert.Contains(t, got, "get_services", "built-in telemetry tools must be advertised")
