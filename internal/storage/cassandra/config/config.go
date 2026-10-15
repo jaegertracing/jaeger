@@ -65,6 +65,8 @@ type Schema struct {
 	TraceTTL time.Duration `mapstructure:"trace_ttl" valid:"optional"`
 	// DependenciesTTL is Time To Live (TTL) for dependencies data. Should at least be 1 second
 	DependenciesTTL time.Duration `mapstructure:"dependencies_ttl" valid:"optional"`
+	// DependenciesTimeBucket is the time bucket width for the dependencies_v2 schema. Should either be 0 or at least 1 second
+	DependenciesTimeBucket time.Duration `mapstructure:"dependencies_time_bucket" valid:"optional"`
 	// Replication factor for the db
 	ReplicationFactor int `mapstructure:"replication_factor" valid:"optional"`
 	// CompactionWindow is the size of the window for TimeWindowCompactionStrategy.
@@ -100,13 +102,14 @@ type BasicAuthenticator struct {
 func DefaultConfiguration() Configuration {
 	return Configuration{
 		Schema: Schema{
-			CreateSchema:      false,
-			Keyspace:          "jaeger_dc1",
-			Datacenter:        "dc1",
-			TraceTTL:          2 * 24 * time.Hour,
-			DependenciesTTL:   2 * 24 * time.Hour,
-			ReplicationFactor: 1,
-			CompactionWindow:  2 * time.Hour,
+			CreateSchema:           false,
+			Keyspace:               "jaeger_dc1",
+			Datacenter:             "dc1",
+			TraceTTL:               2 * 24 * time.Hour,
+			DependenciesTTL:        2 * 24 * time.Hour,
+			DependenciesTimeBucket: 24 * time.Hour,
+			ReplicationFactor:      1,
+			CompactionWindow:       2 * time.Hour,
 		},
 		Connection: Connection{
 			Servers:            []string{"127.0.0.1"},
@@ -204,6 +207,10 @@ func (c *Configuration) Validate() error {
 
 	if !isValidTTL(c.Schema.DependenciesTTL) {
 		return errors.New("dependencies_ttl can either be 0 or greater than or equal to 1 second")
+	}
+
+	if !isValidTTL(c.Schema.DependenciesTimeBucket) {
+		return errors.New("dependencies_time_bucket can either be 0 or greater than or equal to 1 second")
 	}
 
 	if c.Schema.CompactionWindow < time.Minute {
