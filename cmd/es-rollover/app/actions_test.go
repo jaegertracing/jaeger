@@ -24,11 +24,11 @@ import (
 var errActionTest = errors.New("action error")
 
 type dummyAction struct {
-	TestFn func() error
+	TestFn func(context.Context) error
 }
 
-func (a *dummyAction) Do() error {
-	return a.TestFn()
+func (a *dummyAction) Do(ctx context.Context) error {
+	return a.TestFn(ctx)
 }
 
 func TestExecuteAction(t *testing.T) {
@@ -84,13 +84,19 @@ func TestExecuteAction(t *testing.T) {
 			cmdLine := append([]string{"--es.tls.enabled=true"}, test.flags...)
 			require.NoError(t, command.ParseFlags(cmdLine))
 			executedAction := false
+			
+			ctx, cancel := context.WithCancel(context.Background())
+			defer cancel()
+			
 			err := ExecuteAction(ActionExecuteOptions{
-				Args:   args,
-				Viper:  v,
-				Logger: logger,
+				Context: ctx,
+				Args:    args,
+				Viper:   v,
+				Logger:  logger,
 			}, func(_ *esclient.Client, _ Config) Action {
 				return &dummyAction{
-					TestFn: func() error {
+					TestFn: func(gotCtx context.Context) error {
+						assert.Equal(t, ctx, gotCtx, "ExecuteAction must pass through the exact context")
 						executedAction = true
 						return test.expectedError
 					},
@@ -118,12 +124,13 @@ func TestExecuteAction_ConfigError(t *testing.T) {
 	}
 
 	err := ExecuteAction(ActionExecuteOptions{
-		Args:   args,
-		Viper:  v,
-		Logger: logger,
+		Context: context.Background(),
+		Args:    args,
+		Viper:   v,
+		Logger:  logger,
 	}, func(_ *esclient.Client, _ Config) Action {
 		return &dummyAction{
-			TestFn: func() error {
+			TestFn: func(_ context.Context) error {
 				return nil
 			},
 		}
@@ -218,9 +225,10 @@ func TestExecuteAction_ClientError(t *testing.T) {
 	v, command := config.Viperize(AddFlags)
 	require.NoError(t, command.ParseFlags(nil))
 	err := ExecuteAction(ActionExecuteOptions{
-		Args:   []string{"not-a-valid-url"}, // no scheme -> esclient.NewClient rejects it
-		Viper:  v,
-		Logger: zap.NewNop(),
+		Context: context.Background(),
+		Args:    []string{"not-a-valid-url"}, // no scheme -> esclient.NewClient rejects it
+		Viper:   v,
+		Logger:  zap.NewNop(),
 	}, func(*esclient.Client, Config) Action {
 		t.Fatal("action must not be created when the client fails")
 		return nil

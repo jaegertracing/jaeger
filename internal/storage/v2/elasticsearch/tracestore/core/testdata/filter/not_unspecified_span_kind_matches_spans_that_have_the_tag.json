@@ -1,0 +1,34 @@
+{
+  "bool": {
+    "must": {
+      "exists": {
+        "field": "traceID"
+      }
+    },
+    "must_not": {
+      "bool": {
+        "must_not": {
+          "bool": {
+            "should": [
+              {
+                "exists": {
+                  "field": "tag.span@kind"
+                }
+              },
+              {
+                "nested": {
+                  "path": "tags",
+                  "query": {
+                    "term": {
+                      "tags.key": "span.kind"
+                    }
+                  }
+                }
+              }
+            ]
+          }
+        }
+      }
+    }
+  }
+}
