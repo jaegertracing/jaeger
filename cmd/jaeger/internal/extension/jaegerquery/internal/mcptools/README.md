@@ -43,7 +43,8 @@ extensions:
   jaeger_query:
     ai:
       mcp:
-        disable_localhost_protection: true
+        streamable_http:
+          disable_localhost_protection: true
 ```
 
 The UI and the REST API on the same port have no such guard, so this setting changes nothing
@@ -58,7 +59,7 @@ header on every later request. When a load balancer without session affinity spr
 requests over several replicas, a request that reaches a replica other than the one that holds the
 session is answered with `404 session not found`; and when the client's `notifications/initialized`
 is the request that went astray, the replica that holds the session rejects the next `tools/list`
-with `method "tools/list" is invalid during session initialization`. Set `stateless` to make every
+with `method "tools/list" is invalid during session initialization`. Set `streamable_http.stateless` to make every
 request stand on its own:
 
 ```yaml
@@ -66,7 +67,8 @@ extensions:
   jaeger_query:
     ai:
       mcp:
-        stateless: true
+        streamable_http:
+          stateless: true
 ```
 
 Jaeger's tools keep no state between requests, so they behave the same. A stateless endpoint

@@ -218,7 +218,7 @@ func TestNewHandler_LocalhostProtection(t *testing.T) {
 
 	t.Run("disable_localhost_protection admits it", func(t *testing.T) {
 		cfg := DefaultConfig()
-		cfg.DisableLocalhostProtection = true
+		cfg.StreamableHTTP.DisableLocalhostProtection = true
 		h := NewHandler(telemetry.NoopSettings(), svc, tenancyMgr, cfg)
 		t.Cleanup(func() { h.Close() })
 		resp := post(t, h)
@@ -268,7 +268,7 @@ func TestNewHandler_Stateless(t *testing.T) {
 
 	t.Run("stateless serves the other replica", func(t *testing.T) {
 		cfg := DefaultConfig()
-		cfg.Stateless = true
+		cfg.StreamableHTTP.Stateless = true
 		first, second := twoReplicas(t, cfg)
 		resp := post(first, initialize, "")
 		require.Equal(t, http.StatusOK, resp.StatusCode)
@@ -283,7 +283,7 @@ func TestNewHandler_Stateless(t *testing.T) {
 
 	t.Run("stateless declines the standing event stream", func(t *testing.T) {
 		cfg := DefaultConfig()
-		cfg.Stateless = true
+		cfg.StreamableHTTP.Stateless = true
 		h := NewHandler(telemetry.NoopSettings(), svc, tenancyMgr, cfg)
 		t.Cleanup(func() { h.Close() })
 		req := httptest.NewRequest(http.MethodGet, "/", http.NoBody)

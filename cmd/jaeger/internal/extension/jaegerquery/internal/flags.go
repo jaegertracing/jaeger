@@ -20,6 +20,7 @@ import (
 	"go.opentelemetry.io/collector/config/configopaque"
 	"go.opentelemetry.io/collector/config/configoptional"
 
+	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerquery/internal/mcptools"
 	"github.com/jaegertracing/jaeger/internal/headerforwarding"
 	"github.com/jaegertracing/jaeger/internal/tenancy"
 	"github.com/jaegertracing/jaeger/ports"
@@ -109,31 +110,10 @@ type MCPConfig struct {
 	// Jaeger. See mcptools/README.md for the layout it expects. Empty (the
 	// default) serves the built-in skills only.
 	SkillsDir string `mapstructure:"skills_dir" valid:"optional"`
-	// DisableLocalhostProtection turns off the MCP SDK's DNS-rebinding guard, which
-	// rejects with 403 any request that arrives on a loopback address with a
-	// non-loopback Host header. The guard protects an MCP server on a developer's
-	// machine from a web page that reaches 127.0.0.1 under a foreign name. A reverse
-	// proxy or service-mesh sidecar that dials the query port over loopback and
-	// preserves the client's Host header produces that shape for every request, so
-	// the guard rejects every caller. Prefer making the proxy rewrite Host or dial
-	// a non-loopback address; set this when the proxy cannot be changed. Keep the
-	// default when clients reach the query port directly by a loopback address or
-	// a routable host name.
-	DisableLocalhostProtection bool `mapstructure:"disable_localhost_protection" valid:"optional"`
-	// Stateless makes the endpoint answer each request on its own instead of
-	// keeping an MCP session per client in memory. The default keeps a session,
-	// which the SDK stores in the process that handled initialize and looks up by
-	// the Mcp-Session-Id header on every later request. A later request that
-	// reaches a different replica of jaeger-query fails with 404, so a deployment
-	// with several replicas behind a load balancer without session affinity needs
-	// this on. Jaeger's tools keep no per-session state, so a stateless endpoint
-	// serves the same tools. It answers 405 to the GET a client sends to open a
-	// stream for server-initiated messages; Jaeger never sends any, so that
-	// stream carried nothing and the client continues without it, as the MCP
-	// specification requires. The chat gateway's turn-scoped
-	// endpoint still has to be reached on the replica that owns the turn; see
-	// mcptools/README.md.
-	Stateless bool `mapstructure:"stateless" valid:"optional"`
+	// StreamableHTTP holds the options of the MCP Streamable HTTP transport the
+	// endpoint is served over; see mcptools.StreamableHTTPConfig for each one.
+	// None of them changes what the tools do.
+	StreamableHTTP mcptools.StreamableHTTPConfig `mapstructure:"streamable_http" valid:"optional"`
 }
 
 func (c *MCPConfig) Validate() error {

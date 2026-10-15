@@ -303,8 +303,7 @@ func registerAIRoutes(
 			cs = append(cs, customSkills)
 		}
 		mcpCfg.CustomSkillsFS = customSkills
-		mcpCfg.DisableLocalhostProtection = mcp.DisableLocalhostProtection
-		mcpCfg.Stateless = mcp.Stateless
+		mcpCfg.StreamableHTTP = mcp.StreamableHTTP
 
 		mcpHandler = mcptools.NewHandler(telset, querySvc, tenancyMgr, mcpCfg)
 		cs = append(cs, mcpHandler)

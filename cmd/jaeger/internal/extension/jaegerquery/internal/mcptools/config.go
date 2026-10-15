@@ -19,7 +19,7 @@ const (
 	DefaultMaxReadFileSize          = 512 * 1024
 
 	// mcpSessionTimeout caps an idle MCP session when the handler keeps sessions
-	// (Config.Stateless is false). The streamable handler keeps per-MCP-session
+	// (Config.StreamableHTTP.Stateless is false). The streamable handler keeps per-MCP-session
 	// state for SSE resumption and stream-id correlation.
 	mcpSessionTimeout = 5 * time.Minute
 )
@@ -39,19 +39,38 @@ type Config struct {
 	// the built-in skills. Nil means none is configured, and only the built-ins
 	// are served.
 	CustomSkillsFS fs.FS
+	// StreamableHTTP holds the options of the MCP Streamable HTTP transport the
+	// endpoint is served over. They shape how requests are accepted and answered
+	// on the wire and leave the tools untouched.
+	StreamableHTTP StreamableHTTPConfig
+}
+
+// StreamableHTTPConfig configures the Streamable HTTP transport of the MCP
+// endpoint: the go-sdk's StreamableHTTPOptions that an operator may need to
+// change for a deployment. It is the `streamable_http` block of ai.mcp, so it
+// carries the mapstructure tags the query extension's config loader uses.
+type StreamableHTTPConfig struct {
 	// DisableLocalhostProtection stops the endpoint from rejecting, with 403, a
 	// request that arrives on a loopback connection with a non-loopback Host
 	// header. That rejection guards an MCP server on a developer machine against
 	// DNS rebinding; behind a reverse proxy or sidecar that dials 127.0.0.1 and
-	// keeps the client's Host it would reject every request instead.
-	DisableLocalhostProtection bool
-	// Stateless makes the streamable handler answer each request on its own, with
-	// no per-client session held in memory and no Mcp-Session-Id validation. It is
-	// what lets several replicas serve one client behind a load balancer without
-	// session affinity. The handler then answers 405 to a GET, which a client sends
-	// to open a stream for server-initiated messages; Jaeger never sends any, so
-	// that stream carried nothing and the client continues without it.
-	Stateless bool
+	// keeps the client's Host it would reject every request instead. Prefer making
+	// the proxy rewrite Host or dial a non-loopback address; set this when the proxy
+	// cannot be changed.
+	DisableLocalhostProtection bool `mapstructure:"disable_localhost_protection" valid:"optional"`
+	// Stateless makes the endpoint answer each request on its own instead of
+	// keeping an MCP session per client in memory. The default keeps a session,
+	// which the SDK stores in the process that handled initialize and looks up by
+	// the Mcp-Session-Id header on every later request; a request that reaches a
+	// different replica of jaeger-query fails with 404, so several replicas behind
+	// a load balancer without session affinity need this on. Jaeger's tools keep no
+	// per-session state, so a stateless endpoint serves the same tools. It answers
+	// 405 to the GET a client sends to open a stream for server-initiated messages;
+	// Jaeger never sends any, so that stream carried nothing and the client
+	// continues without it, as the MCP specification requires. The chat gateway's
+	// turn-scoped endpoint still has to be reached on the replica that owns the
+	// turn; see README.md.
+	Stateless bool `mapstructure:"stateless" valid:"optional"`
 }
 
 // DefaultConfig returns the Config the standalone jaeger_mcp extension used, so

@@ -41,6 +41,7 @@ import (
 
 	"github.com/jaegertracing/jaeger-idl/model/v1"
 	"github.com/jaegertracing/jaeger-idl/proto-gen/api_v2"
+	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerquery/internal/mcptools"
 	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerquery/querysvc"
 	"github.com/jaegertracing/jaeger/internal/grpctest"
 	"github.com/jaegertracing/jaeger/internal/headerforwarding"
@@ -1220,7 +1221,7 @@ func TestInitRouterAIHandlerRegistration(t *testing.T) {
 			want    int
 		}{{disable: false, want: http.StatusForbidden}, {disable: true, want: http.StatusOK}} {
 			opts := DefaultQueryOptions()
-			opts.AI = configoptional.Some(AIConfig{MCP: configoptional.Some(MCPConfig{DisableLocalhostProtection: tc.disable}), MaxRequestBodySize: 1 << 20})
+			opts.AI = configoptional.Some(AIConfig{MCP: configoptional.Some(MCPConfig{StreamableHTTP: mcptools.StreamableHTTPConfig{DisableLocalhostProtection: tc.disable}}), MaxRequestBodySize: 1 << 20})
 			handler, cs, err := initRouter(context.Background(), querySvc.qs, nil, &opts, nilBackendCaps, tenancyMgr, telset)
 			require.NoError(t, err)
 			ts := httptest.NewServer(handler)
@@ -1260,7 +1261,7 @@ func TestInitRouterAIHandlerRegistration(t *testing.T) {
 			want      int
 		}{{stateless: false, want: http.StatusNotFound}, {stateless: true, want: http.StatusOK}} {
 			opts := DefaultQueryOptions()
-			opts.AI = configoptional.Some(AIConfig{MCP: configoptional.Some(MCPConfig{Stateless: tc.stateless}), MaxRequestBodySize: 1 << 20})
+			opts.AI = configoptional.Some(AIConfig{MCP: configoptional.Some(MCPConfig{StreamableHTTP: mcptools.StreamableHTTPConfig{Stateless: tc.stateless}}), MaxRequestBodySize: 1 << 20})
 			first, cs1, err := initRouter(context.Background(), querySvc.qs, nil, &opts, nilBackendCaps, tenancyMgr, telset)
 			require.NoError(t, err)
 			t.Cleanup(func() { require.NoError(t, cs1.Close()) })

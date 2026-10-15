@@ -119,7 +119,7 @@ func TestTurnScopedEndpointServesTelemetryPlusUITools(t *testing.T) {
 // fail.
 func TestTurnScopedEndpointStateless(t *testing.T) {
 	cfg := mcptools.DefaultConfig()
-	cfg.Stateless = true
+	cfg.StreamableHTTP.Stateless = true
 	ts, _, routeID := turnMCPServerWithConfig(t, cfg, []json.RawMessage{rawUITool(t, "show_chart")})
 
 	got := listToolNames(t, ts, "/api/ai/mcp/"+routeID+"/")
