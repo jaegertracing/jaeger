@@ -294,3 +294,53 @@ func TestNewHandler_Stateless(t *testing.T) {
 		assert.Equal(t, "POST", rr.Header().Get("Allow"))
 	})
 }
+
+// TestNewHandler_JSONResponse pins the body form of a single-message POST under
+// each setting, and that the go-sdk client, which accepts both forms, completes a
+// session against the JSON form.
+func TestNewHandler_JSONResponse(t *testing.T) {
+	initialize := `{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18","capabilities":{},"clientInfo":{"name":"test","version":"0"}}}`
+	svc := querysvc.NewQueryService(&tracestoremocks.Reader{}, &depstoremocks.Reader{}, querysvc.QueryServiceOptions{})
+	tenancyMgr := tenancy.NewManager(&tenancy.Options{})
+	contentType := func(t *testing.T, h http.Handler) string {
+		req := httptest.NewRequest(http.MethodPost, "/", strings.NewReader(initialize))
+		req.Header.Set("Content-Type", "application/json")
+		req.Header.Set("Accept", "application/json, text/event-stream")
+		rr := httptest.NewRecorder()
+		h.ServeHTTP(rr, req)
+		require.Equal(t, http.StatusOK, rr.Code)
+		return rr.Header().Get("Content-Type")
+	}
+
+	t.Run("default answers with an event stream", func(t *testing.T) {
+		h := NewHandler(telemetry.NoopSettings(), svc, tenancyMgr, DefaultConfig())
+		t.Cleanup(func() { h.Close() })
+		assert.Equal(t, "text/event-stream", contentType(t, h))
+	})
+
+	t.Run("json_response answers with a JSON body", func(t *testing.T) {
+		cfg := DefaultConfig()
+		cfg.StreamableHTTP.JSONResponse = true
+		h := NewHandler(telemetry.NoopSettings(), svc, tenancyMgr, cfg)
+		t.Cleanup(func() { h.Close() })
+		assert.Equal(t, "application/json", contentType(t, h))
+	})
+
+	t.Run("go-sdk client completes a session against the JSON form", func(t *testing.T) {
+		cfg := DefaultConfig()
+		cfg.StreamableHTTP.JSONResponse = true
+		h := NewHandler(telemetry.NoopSettings(), svc, tenancyMgr, cfg)
+		t.Cleanup(func() { h.Close() })
+		ts := httptest.NewServer(h)
+		t.Cleanup(ts.Close)
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		t.Cleanup(cancel)
+		client := mcp.NewClient(&mcp.Implementation{Name: "test-client", Version: "0.0.0"}, nil)
+		session, err := client.Connect(ctx, &mcp.StreamableClientTransport{Endpoint: ts.URL, HTTPClient: ts.Client()}, nil)
+		require.NoError(t, err)
+		t.Cleanup(func() { session.Close() })
+		listed, err := session.ListTools(ctx, &mcp.ListToolsParams{})
+		require.NoError(t, err)
+		assert.True(t, slices.ContainsFunc(listed.Tools, func(tool *mcp.Tool) bool { return tool.Name == "get_services" }))
+	})
+}

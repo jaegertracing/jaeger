@@ -85,6 +85,27 @@ is not co-located with `jaeger-query` must reach the replica that owns the turn,
 `ai.mcp.base_url` has to name that process (its pod address, not a load-balanced service name) or
 the load balancer has to route by the `<id>` path segment.
 
+## Answering with plain JSON instead of an event stream
+
+By default the endpoint answers every POST with a `text/event-stream` body, even when that body
+holds a single result, because the stream form lets a server send progress or its own requests
+before the result. Jaeger's tools send none, so the stream carries the one result and nothing
+else. Set `streamable_http.json_response` to answer a single-message POST with a plain
+`application/json` body, which is easier for proxies, logging middleware and command-line clients
+to read:
+
+```yaml
+extensions:
+  jaeger_query:
+    ai:
+      mcp:
+        streamable_http:
+          json_response: true
+```
+
+MCP clients must accept both forms, so the setting changes nothing for them. A JSON-RPC batch is
+still answered with a stream.
+
 ## Adding installation-specific skills
 
 Point `ai.mcp.skills_dir` at a directory on the query server's disk:

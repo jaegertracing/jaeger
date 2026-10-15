@@ -71,6 +71,14 @@ type StreamableHTTPConfig struct {
 	// turn-scoped endpoint still has to be reached on the replica that owns the
 	// turn; see README.md.
 	Stateless bool `mapstructure:"stateless" valid:"optional"`
+	// JSONResponse makes the endpoint answer a POST that carries one JSON-RPC
+	// message with a plain application/json body instead of a text/event-stream
+	// body holding that one message. The stream form exists so a server can send
+	// progress or its own requests before the result; Jaeger's tools send none, so
+	// the two bodies carry the same result and a plain body is easier for proxies
+	// and command-line clients to read. Clients must accept both forms, so this
+	// changes nothing for them. A JSON-RPC batch is still answered with a stream.
+	JSONResponse bool `mapstructure:"json_response" valid:"optional"`
 }
 
 // DefaultConfig returns the Config the standalone jaeger_mcp extension used, so
