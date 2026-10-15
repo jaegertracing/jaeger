@@ -264,10 +264,12 @@ if a PR has more than 20 labels, more than 5 linked issues, or a linked issue
 has more than 10 labels; it never silently misses `stale`, `duplicate`, or
 `allow-multiple-prs`. The daily sweep reconciles a remaining PR when another PR
 removes its issue link. Only comments authored by `github-actions[bot]` with the
-policy marker control label cleanup; resolved comments drop the marker so a
-later human-applied `duplicate` label is left alone. The marker separately
-records whether the action added the label, so an existing manual `duplicate`
-label is never claimed or removed. The action scans all open PR comments until
-every marker is retired, which lets a later run repair a partial comment/label
-write. Cleanup removes labels while the marker is still present and restores
-removed labels if a later removal fails.
+policy marker control label cleanup. Resolved comments retain the policy marker
+but drop the separate label-ownership marker, allowing the action to reuse its
+one maintained comment without claiming a later human-applied `duplicate`
+label. The ownership marker records whether the action added the label, so an
+existing manual `duplicate` label is never claimed or removed. The action scans
+all open PR comments for policy markers, which lets a later run repair a partial
+comment/label write. Cleanup removes labels while the ownership marker is still
+present and restores removed labels if a later removal fails. It does not mutate
+stale PRs, avoiding stale-policy reactivation caused by bot activity.

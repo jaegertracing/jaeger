@@ -405,7 +405,8 @@ If these are intentionally competing implementations or an umbrella issue, a mai
 }
 
 function issueLimitResolvedComment() {
-  return 'This pull request is no longer marked as a duplicate by the active-PR policy.';
+  return `${ISSUE_LIMIT_COMMENT_MARKER}
+This pull request is no longer marked as a duplicate by the active-PR policy.`;
 }
 
 const supersededIssueLimitComment =
@@ -543,7 +544,7 @@ async function processIssueLimits(octokit, owner, repo, logger = console, dryRun
 
   const commentSets = new Map();
   // Policy markers make incomplete comment/label transitions recoverable, so
-  // inspect every open PR until every marker has been retired. Bound requests
+  // inspect every open PR until policy comments have been reconciled. Bound requests
   // to avoid GitHub secondary-rate-limit throttling on repository sweeps.
   await forEachWithConcurrency([...knownPRs.values()], COMMENT_REQUEST_CONCURRENCY, async ({ number }) => {
     commentSets.set(number, await listIssueLimitComments(octokit, owner, repo, number));
@@ -564,7 +565,7 @@ async function processIssueLimits(octokit, owner, repo, logger = console, dryRun
     const comments = commentSets.get(number) || [];
     const hasDuplicateLabel = labelNames(pr.labels).includes(DUPLICATE_LABEL_NAME);
     // Persist ownership before adding a label. If the label write fails, the
-    // marker remains discoverable on the next pass and can be retired safely.
+    // marker remains discoverable on the next pass and can be resolved safely.
     const ownsDuplicateLabel = comments.some(commentOwnsDuplicateLabel) || !hasDuplicateLabel;
     const body = issueLimitComment(duplicates, ownsDuplicateLabel);
     if (comments.length === 0) {
@@ -578,7 +579,9 @@ async function processIssueLimits(octokit, owner, repo, logger = console, dryRun
   }
   const cleanup = [];
   for (const [number, pr] of knownPRs) {
-    if (desiredDuplicates.has(number)) continue;
+    // Cleanup must not update stale PRs: stale policy treats bot activity as
+    // renewed activity and could reactivate a PR that should stay inactive.
+    if (!isActivePR(pr) || desiredDuplicates.has(number)) continue;
     const comments = commentSets.get(number) || [];
     if (comments.length === 0) continue;
     cleanup.push({

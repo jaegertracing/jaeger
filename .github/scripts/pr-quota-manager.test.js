@@ -718,6 +718,19 @@ describe('processIssueLimitForPullRequest', () => {
     }));
   });
 
+  test('does not mutate policy state on a stale duplicate PR', async () => {
+    const marker = issueLimitComment([{ issueNumber: 99, primaryNumber: 10 }]);
+    const octokit = issueLimitOctokit({
+      issues: [makePR(20, '2026-01-02T00:00:00Z', ['duplicate', 'stale'])],
+      comments: { 20: [{ id: 7, body: marker }] }
+    });
+
+    await processIssueLimitForPullRequest(octokit, 'owner', 'repo', 20);
+
+    expect(octokit.rest.issues.removeLabel).not.toHaveBeenCalled();
+    expect(octokit.rest.issues.updateComment).not.toHaveBeenCalled();
+  });
+
   test('preserves intentionally competing implementations when the issue is overridden', async () => {
     const override = [{
       number: 99,
@@ -878,7 +891,7 @@ describe('processIssueLimitForPullRequest', () => {
     expect(octokit.rest.issues.removeLabel).not.toHaveBeenCalled();
   });
 
-  test('retires an ownership marker when adding its duplicate label fails', async () => {
+  test('clears an ownership marker when adding its duplicate label fails', async () => {
     const comments = { 20: [] };
     const octokit = issueLimitOctokit({
       issues: [makePR(10, '2026-01-01T00:00:00Z'), makePR(20, '2026-01-02T00:00:00Z')],
@@ -931,7 +944,7 @@ describe('processIssueLimitForPullRequest', () => {
     expect(octokit.rest.issues.removeLabel).not.toHaveBeenCalled();
   });
 
-  test('retries marker retirement after its comment update fails', async () => {
+  test('retries a resolved policy comment update after it fails', async () => {
     const comments = {
       20: [{ id: 7, body: issueLimitComment([{ issueNumber: 99, primaryNumber: 10 }]) }]
     };
@@ -951,6 +964,54 @@ describe('processIssueLimitForPullRequest', () => {
       comment_id: 7,
       body: issueLimitResolvedComment()
     }));
+  });
+
+  test('reuses its policy comment when a resolved PR becomes duplicate again', async () => {
+    const comments = { 20: [] };
+    const octokit = issueLimitOctokit({
+      issues: [makePR(10, '2026-01-01T00:00:00Z'), makePR(20, '2026-01-02T00:00:00Z')],
+      comments
+    });
+    octokit.rest.issues.createComment.mockImplementation(({ issue_number, body }) => {
+      comments[issue_number].push({ id: 7, body });
+      return Promise.resolve({});
+    });
+    octokit.rest.issues.updateComment.mockImplementation(({ comment_id, body }) => {
+      comments[20].find(comment => comment.id === comment_id).body = body;
+      return Promise.resolve({});
+    });
+
+    await processIssueLimitForPullRequest(octokit, 'owner', 'repo', 20);
+
+    const override = [{
+      number: 99,
+      repository: { nameWithOwner: 'owner/repo' },
+      labels: { nodes: [{ name: OVERRIDE_LABEL_NAME }] }
+    }];
+    octokit.graphql.mockResolvedValue({
+      repository: {
+        pullRequests: {
+          nodes: [
+            makePR(10, '2026-01-01T00:00:00Z', [], false, 'CONTRIBUTOR', override),
+            makePR(20, '2026-01-02T00:00:00Z', ['duplicate'], false, 'CONTRIBUTOR', override)
+          ]
+        }
+      }
+    });
+    await processIssueLimitForPullRequest(octokit, 'owner', 'repo', 20);
+    expect(comments[20][0].body).toBe(issueLimitResolvedComment());
+
+    octokit.graphql.mockResolvedValue({
+      repository: {
+        pullRequests: {
+          nodes: [makePR(10, '2026-01-01T00:00:00Z'), makePR(20, '2026-01-02T00:00:00Z')]
+        }
+      }
+    });
+    await processIssueLimitForPullRequest(octokit, 'owner', 'repo', 20);
+
+    expect(octokit.rest.issues.createComment).toHaveBeenCalledTimes(1);
+    expect(comments[20][0].body).toBe(issueLimitComment([{ issueNumber: 99, primaryNumber: 10 }]));
   });
 
   test('bounds concurrent comment reads during an open PR sweep', async () => {
