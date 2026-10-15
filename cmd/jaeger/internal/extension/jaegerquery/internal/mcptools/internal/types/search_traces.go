@@ -42,19 +42,19 @@ type SearchTracesInput struct {
 
 // SearchTracesOutput defines the output of the search_traces MCP tool.
 type SearchTracesOutput struct {
-	Traces []TraceSummary `json:"traces,omitempty" jsonschema:"List of trace summaries matching the search criteria"`
-	Error  string         `json:"error,omitempty" jsonschema:"Error message if partial results were returned"`
+	Traces []TraceSummary `json:"traces,omitempty"`
+	Error  string         `json:"error,omitempty"`
 }
 
 // TraceSummary contains lightweight metadata about a single trace.
 type TraceSummary struct {
-	TraceID      string   `json:"trace_id" jsonschema:"Unique identifier for the trace"`
-	RootService  string   `json:"root_service" jsonschema:"Service name of the root span"`
-	RootSpanName string   `json:"root_span_name" jsonschema:"Span name of the root span"`
-	StartTime    string   `json:"start_time" jsonschema:"Trace start time in RFC3339 format"`
-	DurationUs   int64    `json:"duration_us" jsonschema:"Total trace duration in microseconds"`
-	SpanCount    int      `json:"span_count" jsonschema:"Total number of spans in the trace"`
-	ServiceCount int      `json:"service_count" jsonschema:"Number of unique services in the trace"`
-	Services     []string `json:"services" jsonschema:"Sorted list of unique service names participating in the trace"`
-	HasErrors    bool     `json:"has_errors" jsonschema:"Whether the trace contains any error spans"`
+	TraceID      string   `json:"trace_id"`
+	RootService  string   `json:"root_service"`
+	RootSpanName string   `json:"root_span_name"`
+	StartTime    string   `json:"start_time"`
+	DurationUs   int64    `json:"duration_us"`
+	SpanCount    int      `json:"span_count"`
+	ServiceCount int      `json:"service_count"`
+	Services     []string `json:"services"`
+	HasErrors    bool     `json:"has_errors"`
 }

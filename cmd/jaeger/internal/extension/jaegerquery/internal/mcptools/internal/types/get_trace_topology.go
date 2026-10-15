@@ -18,8 +18,8 @@ type GetTraceTopologyInput struct {
 // the tree structure as a slash-delimited sequence of span IDs from the root to
 // that span (e.g. "rootID/parentID/spanID").
 type GetTraceTopologyOutput struct {
-	TraceID string         `json:"trace_id" jsonschema:"Unique identifier for the trace"`
-	Spans   []TopologySpan `json:"spans"    jsonschema:"Flat depth-first list of spans; Path encodes parent-child relationships"`
+	TraceID string         `json:"trace_id"`
+	Spans   []TopologySpan `json:"spans"`
 }
 
 // TopologySpan represents a span in the flat trace topology output.
@@ -31,11 +31,11 @@ type GetTraceTopologyOutput struct {
 // so the caller can identify the attachment point.
 type TopologySpan struct {
 	// Path is a slash-delimited sequence of span IDs from the root span to this span.
-	Path              string `json:"path"                         jsonschema:"Slash-delimited span IDs from root to this span"`
-	Service           string `json:"service"                      jsonschema:"Service name from resource attributes"`
-	SpanName          string `json:"span_name"                    jsonschema:"Span name"`
-	StartTime         string `json:"start_time"                   jsonschema:"Span start time in RFC3339 format"`
-	DurationUs        int64  `json:"duration_us"                  jsonschema:"Span duration in microseconds"`
-	Status            string `json:"status"                       jsonschema:"Span status (Unset Ok Error)"`
-	TruncatedChildren int    `json:"truncated_children,omitempty" jsonschema:"Number of direct children excluded due to depth limit"`
+	Path              string `json:"path"`
+	Service           string `json:"service"`
+	SpanName          string `json:"span_name"`
+	StartTime         string `json:"start_time"`
+	DurationUs        int64  `json:"duration_us"`
+	Status            string `json:"status"`
+	TruncatedChildren int    `json:"truncated_children,omitempty"`
 }
