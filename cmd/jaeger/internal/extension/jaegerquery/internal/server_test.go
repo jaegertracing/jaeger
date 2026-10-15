@@ -1210,6 +1210,34 @@ func TestInitRouterAIHandlerRegistration(t *testing.T) {
 		require.Equal(t, http.StatusNotFound, chatRR.Code)
 	})
 
+	t.Run("mcp disable_localhost_protection reaches the SDK handler", func(t *testing.T) {
+		// httptest.NewServer listens on 127.0.0.1, and a non-loopback Host header on
+		// that connection is what the SDK guard rejects, so the option is observable
+		// only over a real listener; a Recorder never sets the local address.
+		initialize := `{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18","capabilities":{},"clientInfo":{"name":"test","version":"0"}}}`
+		for _, tc := range []struct {
+			disable bool
+			want    int
+		}{{disable: false, want: http.StatusForbidden}, {disable: true, want: http.StatusOK}} {
+			opts := DefaultQueryOptions()
+			opts.AI = configoptional.Some(AIConfig{MCP: configoptional.Some(MCPConfig{DisableLocalhostProtection: tc.disable}), MaxRequestBodySize: 1 << 20})
+			handler, cs, err := initRouter(context.Background(), querySvc.qs, nil, &opts, nilBackendCaps, tenancyMgr, telset)
+			require.NoError(t, err)
+			ts := httptest.NewServer(handler)
+			req, err := http.NewRequestWithContext(context.Background(), http.MethodPost, ts.URL+"/api/ai/mcp/", strings.NewReader(initialize))
+			require.NoError(t, err)
+			req.Host = "jaeger.example.com"
+			req.Header.Set("Content-Type", "application/json")
+			req.Header.Set("Accept", "application/json, text/event-stream")
+			resp, err := ts.Client().Do(req)
+			require.NoError(t, err)
+			assert.Equal(t, tc.want, resp.StatusCode, "disable_localhost_protection=%v", tc.disable)
+			require.NoError(t, resp.Body.Close())
+			ts.Close()
+			require.NoError(t, cs.Close())
+		}
+	})
+
 	t.Run("mcp endpoint mounted with base path", func(t *testing.T) {
 		opts := DefaultQueryOptions()
 		opts.BasePath = "/jaeger"
