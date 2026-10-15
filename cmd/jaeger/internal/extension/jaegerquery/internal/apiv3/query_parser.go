@@ -26,23 +26,28 @@ const (
 	paramTraceID = "trace_id" // path parameter
 
 	// Canonical camelCase query params matching proto3 JSON encoding.
-	paramStartTime      = "startTime"
-	paramEndTime        = "endTime"
-	paramRawTraces      = "rawTraces"
-	paramServiceName    = "query.serviceName"
-	paramOperationName  = "query.operationName"
-	paramTimeMin        = "query.startTimeMin"
-	paramTimeMax        = "query.startTimeMax"
-	paramSearchDepth    = "query.searchDepth"
-	paramDurationMin    = "query.durationMin"
-	paramDurationMax    = "query.durationMax"
-	paramQueryRawTraces = "query.rawTraces"
-	paramAttributes     = "query.attributes"
-	paramFilter         = "query.filter"
-	paramSpanKind       = "spanKind"
-	paramOrderBy        = "query.orderBy"
-	paramPageSize       = "query.pagination.pageSize"
-	paramPageToken      = "query.pagination.pageToken"
+	paramStartTime = "startTime"
+	paramEndTime   = "endTime"
+	paramRawTraces = "rawTraces"
+	// paramGetTraceReadAlias is a hand-rolled extension of GetTraceRequest — a
+	// top-level field like paramStartTime/paramEndTime/paramRawTraces above, not a
+	// proto3 field, so it has no deprecated snake_case alias.
+	paramGetTraceReadAlias = "readAlias"
+	paramServiceName       = "query.serviceName"
+	paramOperationName     = "query.operationName"
+	paramTimeMin           = "query.startTimeMin"
+	paramTimeMax           = "query.startTimeMax"
+	paramSearchDepth       = "query.searchDepth"
+	paramDurationMin       = "query.durationMin"
+	paramDurationMax       = "query.durationMax"
+	paramQueryRawTraces    = "query.rawTraces"
+	paramAttributes        = "query.attributes"
+	paramFilter            = "query.filter"
+	paramSpanKind          = "spanKind"
+	paramOrderBy           = "query.orderBy"
+	paramPageSize          = "query.pagination.pageSize"
+	paramPageToken         = "query.pagination.pageToken"
+	paramReadAlias         = "query.readAlias"
 
 	// Deprecated snake_case aliases kept for backward compatibility.
 	paramStartTimeDeprecated      = "start_time"
@@ -140,6 +145,7 @@ func parseFindTracesQuery(q url.Values) (*querysvc.TraceQueryParams, error) {
 		ServiceName:   serviceName,
 		OperationName: operationName,
 		Attributes:    pcommon.NewMap(),
+		ReadAlias:     q.Get(paramReadAlias),
 	}
 	if attrsParam := q.Get(paramAttributes); attrsParam != "" {
 		var attrsMap map[string]string

@@ -276,7 +276,7 @@ func TestSpanReader_GetTrace(t *testing.T) {
 			{Hits: esclient.HitsResult{Hits: hits}},
 		}, nil)
 		query := []dbmodel.TraceID{dbmodel.TraceID(testingTraceId)}
-		trace, err := r.reader.GetTraces(context.Background(), query)
+		trace, err := r.reader.GetTraces(context.Background(), query, "")
 		require.NotEmpty(t, r.traceBuffer.GetSpans(), "Spans recorded")
 		require.NoError(t, err)
 		require.NotNil(t, trace)
@@ -286,6 +286,25 @@ func TestSpanReader_GetTrace(t *testing.T) {
 
 		require.Len(t, trace[0].Spans, 1)
 		assert.Equal(t, trace[0].Spans[0], expectedSpans[0])
+	})
+}
+
+// TestSpanReader_GetTrace_ReadAliasOverride verifies that a GetTraces readAlias
+// override replaces the rotation-resolved read targets for the call — the
+// mechanism a per-request read alias override on the query API relies on.
+func TestSpanReader_GetTrace_ReadAliasOverride(t *testing.T) {
+	withSpanReader(t, func(r *spanReaderTest) {
+		hits := []esclient.SearchHit{{Source: exampleESSpan}}
+		r.searcher.On("MultiSearch", mock.Anything, mock.MatchedBy(func(reqs []esclient.MultiSearchRequest) bool {
+			return len(reqs) == 1 && assert.ObjectsAreEqual([]string{"jaeger-span-archive-read"}, reqs[0].Indices)
+		})).Return([]esclient.SearchResponse{
+			{Hits: esclient.HitsResult{Hits: hits}},
+		}, nil)
+
+		query := []dbmodel.TraceID{dbmodel.TraceID(testingTraceId)}
+		trace, err := r.reader.GetTraces(context.Background(), query, "jaeger-span-archive-read")
+		require.NoError(t, err)
+		require.Len(t, trace, 1)
 	})
 }
 
@@ -355,7 +374,7 @@ func TestSpanReader_multiRead_followUp_query(t *testing.T) {
 			return len(reqs) == 1 && paginates(reqs[0], spanID1.StartTime, string(spanID1.SpanID))
 		})).Return(secondRound, nil).Once()
 
-		traces, err := r.reader.multiRead(context.Background(), []dbmodel.TraceID{traceID1, traceID2}, date, date)
+		traces, err := r.reader.multiRead(context.Background(), []dbmodel.TraceID{traceID1, traceID2}, "", date, date)
 		require.NotEmpty(t, r.traceBuffer.GetSpans(), "Spans recorded")
 		require.NoError(t, err)
 		require.NotNil(t, traces)
@@ -455,7 +474,7 @@ func TestSpanReader_multiRead_tieBreakerAvoidsSpanLoss(t *testing.T) {
 		ServiceRotation:  indices.NewAliasedRotation("jaeger-service-write-000001", "jaeger-service-read"),
 	})
 
-	traces, err := reader.multiRead(context.Background(), []dbmodel.TraceID{traceID}, base, base.Add(time.Hour))
+	traces, err := reader.multiRead(context.Background(), []dbmodel.TraceID{traceID}, "", base, base.Add(time.Hour))
 	require.NoError(t, err)
 	require.Len(t, traces, 1)
 
@@ -481,7 +500,7 @@ func TestSpanReader_SearchAfter(t *testing.T) {
 		mockMultiSearchService(r).Return(resp, nil).Times(2)
 
 		query := []dbmodel.TraceID{dbmodel.TraceID("testing-id")}
-		trace, err := r.reader.GetTraces(context.Background(), query)
+		trace, err := r.reader.GetTraces(context.Background(), query, "")
 		require.NotEmpty(t, r.traceBuffer.GetSpans(), "Spans recorded")
 		require.NoError(t, err)
 		require.NotNil(t, trace)
@@ -498,7 +517,7 @@ func TestSpanReader_GetTraceQueryError(t *testing.T) {
 		// An empty _msearch response set ends multiRead without producing traces.
 		mockMultiSearchService(r).Return([]esclient.SearchResponse{}, nil)
 		query := []dbmodel.TraceID{dbmodel.TraceID("testing-id")}
-		trace, err := r.reader.GetTraces(context.Background(), query)
+		trace, err := r.reader.GetTraces(context.Background(), query, "")
 		require.NoError(t, err)
 		require.NotEmpty(t, r.traceBuffer.GetSpans(), "Spans recorded")
 		require.Empty(t, trace)
@@ -512,7 +531,7 @@ func TestSpanReader_GetTraceNilHits(t *testing.T) {
 		}, nil)
 
 		query := []dbmodel.TraceID{dbmodel.TraceID(testingTraceId)}
-		trace, err := r.reader.GetTraces(context.Background(), query)
+		trace, err := r.reader.GetTraces(context.Background(), query, "")
 		require.NoError(t, err)
 		require.NotEmpty(t, r.traceBuffer.GetSpans(), "Spans recorded")
 		require.Empty(t, trace)
@@ -534,7 +553,7 @@ func TestSpanReader_GetTraceMultiSearchItemError(t *testing.T) {
 		}, nil)
 
 		query := []dbmodel.TraceID{dbmodel.TraceID(testingTraceId)}
-		trace, err := r.reader.GetTraces(context.Background(), query)
+		trace, err := r.reader.GetTraces(context.Background(), query, "")
 		require.NotEmpty(t, r.traceBuffer.GetSpans(), "Spans recorded")
 		require.ErrorContains(t, err, "status 503")
 		require.Nil(t, trace)
@@ -549,7 +568,7 @@ func TestSpanReader_GetTraceInvalidSpanError(t *testing.T) {
 		}, nil)
 
 		query := []dbmodel.TraceID{dbmodel.TraceID(testingTraceId)}
-		trace, err := r.reader.GetTraces(context.Background(), query)
+		trace, err := r.reader.GetTraces(context.Background(), query, "")
 		require.NotEmpty(t, r.traceBuffer.GetSpans(), "Spans recorded")
 		require.Error(t, err, "invalid span")
 		require.Nil(t, trace)
@@ -728,6 +747,25 @@ func TestSpanReader_findTraceIDsMultipleBuckets(t *testing.T) {
 	})
 }
 
+// TestSpanReader_findTraceIDsFromQuery_ReadAliasOverride verifies that
+// TraceQueryParameters.ReadAlias replaces the rotation-resolved read targets for
+// the trace-ID search, the mechanism a per-request read alias override on the
+// FindTraces/FindTraceIDs query API relies on.
+func TestSpanReader_findTraceIDsFromQuery_ReadAliasOverride(t *testing.T) {
+	withSpanReader(t, func(r *spanReaderTest) {
+		r.searcher.On("Search", mock.Anything, []string{"jaeger-span-archive-read"}, mock.Anything).Return(
+			&esclient.SearchResponse{Aggregations: termsAggregations(map[string]esclient.AggregationResult{
+				traceIDAggregation: {Buckets: []esclient.AggregationBucket{{Key: "1"}}},
+			})}, nil)
+
+		actual, err := r.reader.findTraceIDsFromQuery(context.Background(), dbmodel.TraceQueryParameters{
+			ReadAlias: "jaeger-span-archive-read",
+		})
+		require.NoError(t, err)
+		assert.Equal(t, []dbmodel.TraceID{"1"}, actual)
+	})
+}
+
 func TestSpanReader_FindTraces(t *testing.T) {
 	hits := []esclient.SearchHit{{Source: exampleESSpan}}
 
@@ -763,6 +801,36 @@ func TestSpanReader_FindTraces(t *testing.T) {
 
 		require.Len(t, trace.Spans, 2)
 		assert.Equal(t, trace.Spans[0], expectedSpans[0])
+	})
+}
+
+// TestSpanReader_FindTraces_ReadAliasOverride verifies that FindTraces carries a
+// TraceQueryParameters.ReadAlias override through both the trace-ID search and the
+// full-trace reads that follow, so a caller-supplied read alias is honored end to end.
+func TestSpanReader_FindTraces_ReadAliasOverride(t *testing.T) {
+	hits := []esclient.SearchHit{{Source: exampleESSpan}}
+
+	withSpanReader(t, func(r *spanReaderTest) {
+		r.searcher.On("Search", mock.Anything, []string{"jaeger-span-archive-read"}, mock.Anything).Return(
+			&esclient.SearchResponse{Aggregations: termsAggregations(map[string]esclient.AggregationResult{
+				traceIDAggregation: {Buckets: []esclient.AggregationBucket{{Key: "1"}}},
+			})}, nil)
+		r.searcher.On("MultiSearch", mock.Anything, mock.MatchedBy(func(reqs []esclient.MultiSearchRequest) bool {
+			return len(reqs) == 1 && assert.ObjectsAreEqual([]string{"jaeger-span-archive-read"}, reqs[0].Indices)
+		})).Return([]esclient.SearchResponse{
+			{Hits: esclient.HitsResult{Hits: hits}},
+		}, nil)
+
+		traceQuery := dbmodel.TraceQueryParameters{
+			ServiceName:  serviceName,
+			StartTimeMin: time.Now().Add(-1 * time.Hour),
+			StartTimeMax: time.Now(),
+			ReadAlias:    "jaeger-span-archive-read",
+		}
+
+		traces, err := r.reader.FindTraces(context.Background(), traceQuery)
+		require.NoError(t, err)
+		require.Len(t, traces, 1)
 	})
 }
 
@@ -1256,7 +1324,7 @@ func TestSpanReader_ArchiveTraces(t *testing.T) {
 				// An empty trace-ID list short-circuits multiRead before any search,
 				// so no searcher call is expected regardless of the rotation config.
 				query := []dbmodel.TraceID{}
-				trace, err := r.reader.GetTraces(context.Background(), query)
+				trace, err := r.reader.GetTraces(context.Background(), query, "")
 				require.NoError(t, err)
 				require.NotEmpty(t, r.traceBuffer.GetSpans(), "Spans recorded")
 				require.Empty(t, trace)
@@ -1395,7 +1463,7 @@ func TestReaderRequestSnapshots(t *testing.T) {
 		DurationMax:   time.Minute,
 		SearchDepth:   20,
 	}
-	traceIDs := []dbmodel.TraceID{"1234567890abcdef"}
+	traceIDs := []dbmodel.TraceID{dbmodel.TraceID("1234567890abcdef")}
 
 	findTraceIDs := map[es.BackendVersion]string{}
 	getTraces := map[es.BackendVersion]string{}
@@ -1416,7 +1484,7 @@ func TestReaderRequestSnapshots(t *testing.T) {
 		findTraceIDs[version] = rec.Marshal(t)
 
 		rec.Reset()
-		_, err = reader.multiRead(ctx, traceIDs, start, end)
+		_, err = reader.multiRead(ctx, traceIDs, "", start, end)
 		require.NoError(t, err)
 		getTraces[version] = rec.Marshal(t)
 	}

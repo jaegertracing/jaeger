@@ -121,6 +121,25 @@ func TestSpanReader_FindTraceSummaries_IndexWindowMatchesMaxTraceDuration(t *tes
 	})
 }
 
+// TestSpanReader_FindTraceSummaries_ReadAliasOverride verifies that a
+// TraceQueryParameters.ReadAlias override replaces the rotation-resolved read
+// targets in both the phase-1 trace-ID search and the phase-2 summary aggregation,
+// so a caller-supplied read alias is honored consistently across both searches.
+func TestSpanReader_FindTraceSummaries_ReadAliasOverride(t *testing.T) {
+	withSpanReader(t, func(r *spanReaderTest) {
+		r.searcher.On("Search", mock.Anything, []string{"jaeger-span-archive-read"}, mock.Anything).
+			Return(traceIDsResponse(t), nil).Once()
+		r.searcher.On("Search", mock.Anything, []string{"jaeger-span-archive-read"}, mock.Anything).
+			Return(summaryResponse(t, summaryAggregationJSON), nil).Once()
+
+		query := validSummaryQuery()
+		query.ReadAlias = "jaeger-span-archive-read"
+		summaries, err := r.reader.FindTraceSummaries(context.Background(), query)
+		require.NoError(t, err)
+		require.Len(t, summaries, 1)
+	})
+}
+
 func TestSpanReader_FindTraceSummaries(t *testing.T) {
 	withSpanReader(t, func(r *spanReaderTest) {
 		r.searcher.On("Search", mock.Anything, mock.Anything, mock.Anything).

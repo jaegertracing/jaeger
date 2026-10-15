@@ -121,6 +121,12 @@ type GetTraceParams struct {
 	Start time.Time
 	// End of the time interval to search for trace ID. Optional.
 	End time.Time
+	// ReadAlias, if set, overrides the read alias/index the backend would otherwise
+	// resolve this trace lookup against. Only the Elasticsearch backend honors it,
+	// and only when its configured index rotation strategy resolves reads through
+	// an alias; other backends, and other Elasticsearch rotation strategies, ignore
+	// it.
+	ReadAlias string
 }
 
 // MaxSearchDepth is the largest SearchDepth the query API and the gRPC storage
@@ -194,6 +200,11 @@ type TraceQueryParams struct {
 	// When present it replaces SearchDepth rather than falling back to it — the two are
 	// mutually exclusive, which the query service enforces before a Reader ever sees the query.
 	Pagination *Pagination
+	// ReadAlias, if set, overrides the read alias/index the backend would otherwise resolve
+	// this search against. Only the Elasticsearch backend honors it, and only when its
+	// configured index rotation strategy resolves reads through an alias; other backends,
+	// and other Elasticsearch rotation strategies, ignore it.
+	ReadAlias string
 }
 
 // MaxPageSize is the largest Pagination.PageSize the query service accepts. A larger request

@@ -29,6 +29,7 @@ func (q TraceQueryParams) toReaderQuery() (tracestore.TraceQueryParams, error) {
 		DurationMax:   q.DurationMax,
 		SearchDepth:   q.SearchDepth,
 		Filter:        q.Filter,
+		ReadAlias:     q.ReadAlias,
 	}
 	if q.StartTimeMin.IsZero() || q.StartTimeMax.IsZero() {
 		return query, fmt.Errorf("%w: min and max start time are required", tracestore.ErrInvalidQuery)

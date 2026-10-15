@@ -40,6 +40,7 @@ func (q TraceQueryParams) Fingerprint() ([]byte, error) {
 	if err := h.filter(q.Filter); err != nil {
 		return nil, err
 	}
+	h.string(q.ReadAlias)
 	return h.sum(), nil
 }
 

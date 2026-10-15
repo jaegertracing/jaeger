@@ -71,7 +71,7 @@ func TestTraceQueryFingerprint_IgnoresTheBoundAndTheCursor(t *testing.T) {
 func TestFingerprint_Golden(t *testing.T) {
 	trace, err := sampleTraceQuery().Fingerprint()
 	require.NoError(t, err)
-	assert.Equal(t, "fe2deb1b5cda9ebbd876297368b28e7d", hex.EncodeToString(trace))
+	assert.Equal(t, "4ca28233f72a6e9641b11f46f0c529f1", hex.EncodeToString(trace))
 
 	span, err := (SpanQueryParams{
 		StartTimeMin: windowStart, StartTimeMax: windowEnd, Filter: serviceAttributeIs("cart"),
@@ -139,6 +139,7 @@ func TestTraceQueryFingerprint_EverySelectingFieldCounts(t *testing.T) {
 		"min duration": func(q *TraceQueryParams) { q.DurationMin = 2 * time.Millisecond },
 		"max duration": func(q *TraceQueryParams) { q.DurationMax = 2 * time.Second },
 		"filter":       func(q *TraceQueryParams) { q.Filter = serviceAttributeIs("cart") },
+		"read alias":   func(q *TraceQueryParams) { q.ReadAlias = "jaeger-span-archive-read" },
 	}
 	for name, change := range changes {
 		t.Run(name, func(t *testing.T) {
@@ -180,6 +181,7 @@ func TestFingerprint_EveryFieldIsAccountedFor(t *testing.T) {
 		"ServiceName", "OperationName", "Attributes", "StartTimeMin", "StartTimeMax",
 		"DurationMin", "DurationMax", "SearchDepth", "Filter",
 		"Pagination", // excluded, with SearchDepth: the page bound and the token
+		"ReadAlias",
 	}, fields(TraceQueryParams{}))
 	assert.Equal(t, []string{
 		"StartTimeMin", "StartTimeMax", "Filter",
