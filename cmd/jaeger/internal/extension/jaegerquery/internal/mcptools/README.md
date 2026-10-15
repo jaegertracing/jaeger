@@ -200,6 +200,29 @@ header. Then check that:
 - After disabling MCP, an authenticated request to the MCP path returns HTTP
   404, while the query UI/API remains available.
 
+## Running behind a reverse proxy or sidecar
+
+The MCP SDK that serves this endpoint carries a DNS-rebinding guard for MCP servers on a
+developer's machine: a request that arrives on a loopback address with a non-loopback `Host`
+header is rejected with `403 Forbidden: invalid Host header`. A reverse proxy or service-mesh
+sidecar that dials the query port over `127.0.0.1` and preserves the client's `Host` (an Envoy
+sidecar without host rewriting, for example) produces that shape for every request, so behind one
+the endpoint rejects every caller with that body. The guard never fires when the proxy rewrites
+`Host` to the upstream address or dials a non-loopback address, so change the proxy where that is
+possible. Where it is not, turn the guard off:
+
+```yaml
+extensions:
+  jaeger_query:
+    ai:
+      mcp:
+        disable_localhost_protection: true
+```
+
+The UI and the REST API on the same port have no such guard, so this setting changes nothing
+about them. Keep the default when clients reach the query port directly, by a loopback address or
+a routable host name; only a loopback connection carrying some other name is affected.
+
 ## Adding installation-specific skills
 
 Point `ai.mcp.skills_dir` at a directory on the query server's disk:
