@@ -13,6 +13,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/collector/pdata/ptrace"
 
+	"github.com/jaegertracing/jaeger/internal/jptrace"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore"
 	tracestoremocks "github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore/mocks"
 	"github.com/jaegertracing/jaeger/internal/telemetry/otelsemconv"
@@ -79,4 +80,30 @@ func TestGetServicesUnexpectedServiceDiagnostic(t *testing.T) {
 func TestQueryToTraceQueryParamsPreservesSearchDepth(t *testing.T) {
 	query := Query{NumTraces: tracestore.MaxSearchDepth + 1}
 	assert.Equal(t, tracestore.MaxSearchDepth+1, query.ToTraceQueryParams(t).SearchDepth)
+}
+
+// TestQueryFixturesHaveDistinctStartTimesPerService guards the shared search fixtures against two
+// spans of one service that start in the same microsecond. The Cassandra service_name_index keys
+// a row by (service_name, bucket, start_time) with no trace_id, so such spans overwrite each other
+// whenever their hash lands in the same bucket, and the hash moves with the date-shifted start
+// time, so the search case that expects both traces fails on some days and passes on others.
+func TestQueryFixturesHaveDistinctStartTimesPerService(t *testing.T) {
+	type key struct {
+		service string
+		start   uint64
+	}
+	seen := make(map[key]string)
+	for _, queryCase := range LoadAndParseQueryTestCases(t, "fixtures/queries.json") {
+		for _, name := range queryCase.ExpectedFixtures {
+			for pos, span := range jptrace.SpanIter(getTraceFixture(t, name)) {
+				service, _ := pos.Resource.Resource().Attributes().Get(otelsemconv.ServiceNameKey)
+				k := key{service: service.Str(), start: uint64(span.StartTimestamp()) / 1000}
+				if other, ok := seen[k]; ok && other != name {
+					assert.Failf(t, "same service and start microsecond",
+						"fixtures %s and %s both have a %s span starting at %d", other, name, k.service, span.StartTimestamp())
+				}
+				seen[k] = name
+			}
+		}
+	}
 }
