@@ -18,8 +18,9 @@ type GetTraceTopologyInput struct {
 // the tree structure as a slash-delimited sequence of span IDs from the root to
 // that span (e.g. "rootID/parentID/spanID").
 type GetTraceTopologyOutput struct {
-	TraceID string         `json:"trace_id" jsonschema:"Unique identifier for the trace"`
-	Spans   []TopologySpan `json:"spans"    jsonschema:"Flat depth-first list of spans; Path encodes parent-child relationships"`
+	TraceID        string         `json:"trace_id"         jsonschema:"Unique identifier for the trace"`
+	TotalSpanCount int            `json:"total_span_count" jsonschema:"Total number of spans in the trace (may exceed the size of the spans list due to per-request limits)"`
+	Spans          []TopologySpan `json:"spans"            jsonschema:"Flat depth-first list of spans (possibly truncated to server-configured limit); Path encodes parent-child relationships"`
 }
 
 // TopologySpan represents a span in the flat trace topology output.
