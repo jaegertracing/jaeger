@@ -714,6 +714,9 @@ func TestBaselineSchemaStatements(t *testing.T) {
 		assert.Len(t, stmts, 12)
 		assert.Len(t, SchemaObjects, 12)
 		assert.Len(t, DropSchemaObjectsStatements, 13)
+		for _, stmt := range stmts {
+			assert.NotContains(t, stmt, "{{")
+		}
 	})
 
 	t.Run("first template error", func(t *testing.T) {

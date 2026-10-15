@@ -363,37 +363,38 @@ func BaselineSchemaStatements(tableEngine TableEngine) ([]string, error) {
 	if err != nil {
 		return nil, err
 	}
-	createSpansTableQuery, err := loadTemplate(
-		"create_spans_table",
-		chsql.CreateSpansTable,
-		params,
-	)
-	if err != nil {
-		return nil, err
+	queries := []struct {
+		name string
+		body string
+	}{
+		{"create_dependencies_table", chsql.CreateDependenciesTable},
+		{"create_spans_table", chsql.CreateSpansTable},
+		{"create_services_table", chsql.CreateServicesTable},
+		{"create_operations_table", chsql.CreateOperationsTable},
+		{"create_trace_id_timestamps_table", chsql.CreateTraceIDTimestampsTable},
+		{"create_attribute_metadata_table", chsql.CreateAttributeMetadataTable},
 	}
-
-	createTraceIDTsTableQuery, err := loadTemplate(
-		"create_trace_id_timestamps_table",
-		chsql.CreateTraceIDTimestampsTable,
-		params,
-	)
-	if err != nil {
-		return nil, err
+	rendered := make(map[string]string, len(queries))
+	for _, query := range queries {
+		rendered[query.name], err = loadTemplate(query.name, query.body, params)
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	return []string{
-		createSpansTableQuery,
-		chsql.CreateServicesTable,
+		rendered["create_spans_table"],
+		rendered["create_services_table"],
 		chsql.CreateServicesMaterializedView,
-		chsql.CreateOperationsTable,
+		rendered["create_operations_table"],
 		chsql.CreateOperationsMaterializedView,
-		createTraceIDTsTableQuery,
+		rendered["create_trace_id_timestamps_table"],
 		chsql.CreateTraceIDTimestampsMaterializedView,
-		chsql.CreateAttributeMetadataTable,
+		rendered["create_attribute_metadata_table"],
 		chsql.CreateAttributeMetadataMaterializedView,
 		chsql.CreateEventAttributeMetadataMaterializedView,
 		chsql.CreateLinkAttributeMetadataMaterializedView,
-		chsql.CreateDependenciesTable,
+		rendered["create_dependencies_table"],
 	}, nil
 }
 
