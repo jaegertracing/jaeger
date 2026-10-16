@@ -57,17 +57,30 @@ func NewHandler(
 	}
 }
 
+// traceIDFromBytes converts wire trace ID bytes to pcommon.TraceID.
+// An 8-byte ID carries only the low 64 bits and is placed in the low half,
+// matching model.TraceIDFromBytes; shorter inputs are left-padded the same
+// way so a short ID never lands in the high half. Inputs longer than 16
+// bytes are truncated to the first 16, preserving the previous behavior
+// for malformed input.
+func traceIDFromBytes(b []byte) pcommon.TraceID {
+	var id [16]byte
+	if len(b) > len(id) {
+		copy(id[:], b[:len(id)])
+		return pcommon.TraceID(id)
+	}
+	copy(id[len(id)-len(b):], b)
+	return pcommon.TraceID(id)
+}
+
 func (h *Handler) GetTraces(
 	req *storage.GetTracesRequest,
 	srv storage.TraceReader_GetTracesServer,
 ) error {
 	traceIDs := make([]tracestore.GetTraceParams, len(req.Query))
 	for i, query := range req.Query {
-		var sizedTraceID [16]byte
-		copy(sizedTraceID[:], query.TraceId)
-
 		traceIDs[i] = tracestore.GetTraceParams{
-			TraceID: pcommon.TraceID(sizedTraceID),
+			TraceID: traceIDFromBytes(query.TraceId),
 			Start:   query.StartTime,
 			End:     query.EndTime,
 		}
