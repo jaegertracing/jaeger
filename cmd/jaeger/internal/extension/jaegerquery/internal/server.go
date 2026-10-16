@@ -291,7 +291,7 @@ func registerAIRoutes(
 	// *mcp.Server rather than standing up a second one.
 	var mcpHandler *mcptools.Handler
 	if mcp := aiCfg.MCP.Get(); mcp != nil {
-		mcpCfg := mcptools.DefaultConfig()
+		mcpParams := mcptools.DefaultServerParams()
 		// Opened once, so a broken path is reported once, at startup. It stays open
 		// for as long as it serves, so it is released with the server rather than at
 		// process exit.
@@ -302,9 +302,10 @@ func registerAIRoutes(
 		if customSkills != nil {
 			cs = append(cs, customSkills)
 		}
-		mcpCfg.CustomSkillsFS = customSkills
+		mcpParams.CustomSkillsFS = customSkills
+		mcpParams.StreamableHTTP = mcp.StreamableHTTP
 
-		mcpHandler = mcptools.NewHandler(telset, querySvc, tenancyMgr, mcpCfg)
+		mcpHandler = mcptools.NewHandler(telset, querySvc, tenancyMgr, mcpParams)
 		cs = append(cs, mcpHandler)
 		mountSharedMCP(r, mcpHandler, queryOpts.BasePath, telset)
 	}

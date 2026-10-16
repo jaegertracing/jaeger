@@ -45,9 +45,13 @@ extensions:
       # Serve the Jaeger telemetry MCP tools in-process at /api/ai/mcp/ on the
       # query port (replaces the retired standalone jaeger_mcp extension).
       # Present enables the endpoint; remove the block to disable it.
-      # Optional keys: base_url, and skills_dir for operator-supplied skills
-      # served by the read_skill tool under custom/ (see
-      # cmd/jaeger/internal/extension/jaegerquery/internal/mcptools/README.md).
+      # Optional keys: base_url; skills_dir for operator-supplied skills served
+      # by the read_skill tool under custom/; and a streamable_http block with the
+      # transport options: disable_localhost_protection for a query port reached
+      # through a loopback-dialing proxy or sidecar, stateless for several
+      # jaeger-query replicas behind a load balancer without session affinity,
+      # json_response to answer POSTs with plain JSON instead of an event stream
+      # (see cmd/jaeger/internal/extension/jaegerquery/internal/mcptools/README.md).
       mcp: {}
     # Accept OTLP/HTTP spans from the UI same-origin at /api/otlp/v1/*
     # and forward to the OTLP HTTP receiver above.
