@@ -6,6 +6,7 @@ package tracestore
 import (
 	"context"
 	"errors"
+	"math"
 	"testing"
 	"time"
 
@@ -181,4 +182,88 @@ func TestTraceReader_TraceSearchesUnderPagination(t *testing.T) {
 		refusals++
 	}
 	assert.Equal(t, 2, refusals, "each trace search must yield the refusal rather than nothing")
+}
+
+func TestTraceReader_TraceSearchesBoundThePageSize(t *testing.T) {
+	ts := time.Now()
+	query := tracestore.TraceQueryParams{
+		ServiceName:  "svc",
+		Attributes:   pcommon.NewMap(),
+		StartTimeMin: ts,
+		StartTimeMax: ts.Add(time.Hour),
+		Pagination:   &tracestore.Pagination{PageSize: math.MaxUint32},
+	}
+	coreReader := &mocks.Reader{}
+	coreReader.On("FindTraceIDs", mock.Anything, mock.MatchedBy(func(q dbmodel.TraceQueryParameters) bool {
+		return q.SearchDepth == tracestore.MaxPageSize
+	})).Return([]dbmodel.TraceID{}, nil).Once()
+	coreReader.On("FindTraceSummaries", mock.Anything, mock.MatchedBy(func(q dbmodel.TraceQueryParameters) bool {
+		return q.SearchDepth == tracestore.MaxPageSize
+	})).Return([]dbmodel.TraceSummary{}, nil).Once()
+	reader := TraceReader{spanReader: coreReader}
+	for _, err := range reader.FindTraceIDs(context.Background(), query) {
+		require.NoError(t, err)
+	}
+	for _, err := range reader.FindTraceSummaries(context.Background(), query) {
+		require.NoError(t, err)
+	}
+	coreReader.AssertExpectations(t)
+
+	query.Pagination.PageSize = 0
+	var refusals int
+	for _, err := range reader.FindTraceIDs(context.Background(), query) {
+		require.ErrorIs(t, err, tracestore.ErrPaginationInvalid)
+		refusals++
+	}
+	for _, err := range reader.FindTraceSummaries(context.Background(), query) {
+		require.ErrorIs(t, err, tracestore.ErrPaginationInvalid)
+		refusals++
+	}
+	assert.Equal(t, 2, refusals)
+}
+
+// TestTraceReader_TraceSearchesRejectSearchDepthWithPagination pins RFC 0014 §4 for a caller
+// that reaches this reader directly. paginationAsDepth must refuse a search depth set beside
+// pagination before it copies the page size into the depth, and before the trace-search token
+// rule, because the two bounds are malformed wherever they are sent.
+func TestTraceReader_TraceSearchesRejectSearchDepthWithPagination(t *testing.T) {
+	ts := time.Now()
+	base := tracestore.TraceQueryParams{
+		ServiceName:  "svc",
+		Attributes:   pcommon.NewMap(),
+		StartTimeMin: ts,
+		StartTimeMax: ts.Add(time.Hour),
+		SearchDepth:  20,
+	}
+	coreReader := &mocks.Reader{}
+	reader := TraceReader{spanReader: coreReader}
+	for _, tc := range []struct {
+		name       string
+		pagination *tracestore.Pagination
+	}{
+		{name: "page size", pagination: &tracestore.Pagination{PageSize: 7}},
+		{name: "page size and token", pagination: &tracestore.Pagination{PageSize: 7, PageToken: "some-token"}},
+		{name: "zero page size", pagination: &tracestore.Pagination{}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			query := base
+			query.Pagination = tc.pagination
+			var refusals int
+			for _, err := range reader.FindTraceIDs(context.Background(), query) {
+				require.ErrorIs(t, err, tracestore.ErrPaginationInvalid)
+				require.NotErrorIs(t, err, tracestore.ErrPaginationUnsupported)
+				require.ErrorContains(t, err, "search depth")
+				refusals++
+			}
+			for _, err := range reader.FindTraceSummaries(context.Background(), query) {
+				require.ErrorIs(t, err, tracestore.ErrPaginationInvalid)
+				require.NotErrorIs(t, err, tracestore.ErrPaginationUnsupported)
+				require.ErrorContains(t, err, "search depth")
+				refusals++
+			}
+			assert.Equal(t, 2, refusals, "each trace search must yield the refusal rather than nothing")
+		})
+	}
+	coreReader.AssertNotCalled(t, "FindTraceIDs")
+	coreReader.AssertNotCalled(t, "FindTraceSummaries")
 }

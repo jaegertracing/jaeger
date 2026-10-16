@@ -5,7 +5,6 @@ package memory
 
 import (
 	"errors"
-	"fmt"
 	"slices"
 	"strconv"
 	"strings"
@@ -171,10 +170,10 @@ func (t *Tenant) findTraceAndIds(query tracestore.TraceQueryParams) ([]traceAndI
 // within [query.StartTimeMin, query.StartTimeMax] (a zero bound is unbounded)
 // and match query.Filter. Matches are sorted by sortingKey; the page starts after
 // the cursor `after` (at the beginning when nil) and holds at most
-// query.Pagination.PageSize spans when that is positive. A zero PageSize
-// returns every match: SpanQueryParams carries Pagination by value, so a zero
-// page size is the absence of a request rather than the malformed one it is
-// on a trace query, and the query service always sets one (RFC 0016 §6). The
+// query.Pagination.PageSize spans, clamped to tracestore.MaxPageSize. A zero
+// PageSize is refused rather than read as a request for every match: the page
+// size is a span search's only bound (RFC 0016 §6), so a caller that reaches
+// the store directly gets the refusal the Elasticsearch reader gives. The
 // returned cursor ends the page if more matches remain, and is nil otherwise.
 // Each span is copied with its own resource and scope, since one result can
 // hold spans from many traces and resources (RFC 0016), so the result shares
@@ -184,6 +183,10 @@ func (t *Tenant) findTraceAndIds(query tracestore.TraceQueryParams) ([]traceAndI
 // span: its shape and its regular expressions are static properties of the
 // filter, not something that can vary span to span.
 func (t *Tenant) findSpans(query tracestore.SpanQueryParams, after *cursor[sortingKey]) (ptrace.Traces, *cursor[sortingKey], error) {
+	size, err := pageSize(query.Pagination)
+	if err != nil {
+		return ptrace.Traces{}, nil, err
+	}
 	filter, err := prepareFilter(query.Filter)
 	if err != nil {
 		return ptrace.Traces{}, nil, err
@@ -227,7 +230,7 @@ func (t *Tenant) findSpans(query tracestore.SpanQueryParams, after *cursor[sorti
 	// were written in across searches, which the cursor's count of returned copies relies on.
 	compare := compareSortingKeys(query.OrderBy)
 	slices.SortStableFunc(matches, func(a, b matchedSpan) int { return compare(a.key, b.key) })
-	matches, last := page(matches, func(m matchedSpan) sortingKey { return m.key }, compare, after, query.Pagination.PageSize)
+	matches, last := page(matches, func(m matchedSpan) sortingKey { return m.key }, compare, after, size)
 	result := ptrace.NewTraces()
 	for _, m := range matches {
 		rs := result.ResourceSpans().AppendEmpty()
@@ -250,12 +253,15 @@ func (t *Tenant) findSpans(query tracestore.SpanQueryParams, after *cursor[sorti
 
 // findTraceAndIdsPage is findTraceAndIds for a query with Pagination: the
 // matching traces sorted by traceKey, starting after the cursor `after` (at
-// the beginning when nil), at most PageSize of them. The returned cursor ends
-// the page if more matches remain, and is nil otherwise. Like findTraceAndIds
-// it returns references, not copies.
+// the beginning when nil), at most PageSize of them, clamped to
+// tracestore.MaxPageSize. The returned cursor ends the page if more matches
+// remain, and is nil otherwise. Like findTraceAndIds it returns references, not
+// copies. FindTraceIDs refuses a SearchDepth beside this pagination before calling
+// here, so the page size is the only bound (RFC 0014 §4).
 func (t *Tenant) findTraceAndIdsPage(query tracestore.TraceQueryParams, after *cursor[traceKey]) ([]traceAndId, *cursor[traceKey], error) {
-	if query.Pagination.PageSize <= 0 {
-		return nil, nil, fmt.Errorf("%w: page size must be greater than 0", tracestore.ErrPaginationInvalid)
+	size, err := pageSize(*query.Pagination)
+	if err != nil {
+		return nil, nil, err
 	}
 	filter, err := prepareFilter(query.Filter)
 	if err != nil {
@@ -276,7 +282,7 @@ func (t *Tenant) findTraceAndIdsPage(query tracestore.TraceQueryParams, after *c
 		matches = append(matches, matchedTrace{key: traceKey{startTime: startTime, traceID: entry.id}, entry: entry})
 	}
 	slices.SortStableFunc(matches, func(a, b matchedTrace) int { return compareTraceKeys(a.key, b.key) })
-	matches, last := page(matches, func(m matchedTrace) traceKey { return m.key }, compareTraceKeys, after, query.Pagination.PageSize)
+	matches, last := page(matches, func(m matchedTrace) traceKey { return m.key }, compareTraceKeys, after, size)
 	traceAndIds := make([]traceAndId, len(matches))
 	for i, m := range matches {
 		traceAndIds[i] = m.entry

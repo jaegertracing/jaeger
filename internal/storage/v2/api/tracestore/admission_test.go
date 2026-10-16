@@ -95,6 +95,21 @@ func TestEnsureFilterStandsAlone(t *testing.T) {
 	}
 }
 
+// TestEnsurePaginationStandsAlone pins RFC 0014 §4: a page size replaces the search depth, so a
+// query that sets both is refused, and either bound on its own is left alone.
+func TestEnsurePaginationStandsAlone(t *testing.T) {
+	require.NoError(t, (TraceQueryParams{SearchDepth: 20}).EnsurePaginationStandsAlone())
+	require.NoError(t, (TraceQueryParams{Pagination: &Pagination{PageSize: 5}}).EnsurePaginationStandsAlone())
+
+	err := (TraceQueryParams{
+		SearchDepth: 20,
+		Pagination:  &Pagination{PageSize: 5},
+	}).EnsurePaginationStandsAlone()
+	require.ErrorIs(t, err, ErrPaginationInvalid)
+	require.ErrorIs(t, err, ErrInvalidQuery)
+	require.ErrorContains(t, err, "search depth")
+}
+
 // TestEnsureSupported walks the shapes the declaration is read against, since a predicate refused
 // here is one that would otherwise reach a Reader that cannot evaluate it.
 func TestEnsureSupported(t *testing.T) {

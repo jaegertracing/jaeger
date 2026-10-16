@@ -188,6 +188,18 @@ func cursorOf[K key](token tracestore.PageToken, fingerprint []byte, decode func
 	return &c, nil
 }
 
+// pageSize returns the bound on one page of a paginated search. A zero page size does not
+// describe a page and is refused, and an oversized one is clamped to tracestore.MaxPageSize
+// (RFC 0014 §4). The query service never sends either, but a caller can reach the store without
+// it, through the remote storage server, so the store bounds its own pages the way the
+// Elasticsearch reader does.
+func pageSize(pagination tracestore.Pagination) (uint32, error) {
+	if pagination.PageSize == 0 {
+		return 0, fmt.Errorf("%w: page size must be greater than 0", tracestore.ErrPaginationInvalid)
+	}
+	return min(pagination.PageSize, tracestore.MaxPageSize), nil
+}
+
 // page returns the elements that follow the cursor after (all elements when after is nil), at
 // most size of them when size is positive. If elements remain beyond the page, it also returns
 // the next page's cursor: the key of the page's last element, and how many elements with that
