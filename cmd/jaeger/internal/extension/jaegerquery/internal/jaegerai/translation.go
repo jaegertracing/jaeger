@@ -13,6 +13,11 @@ import (
 	"github.com/coder/acp-go-sdk"
 )
 
+// UIToolPrefix namespaces UI tools when an agent reports their ACP progress.
+// It prevents collisions with Jaeger's telemetry tools while preserving the
+// frontend's original name in the browser event stream.
+const UIToolPrefix = "ui_"
+
 // latestUserMessageText returns the text content of the most recent user
 // message in the AG-UI run input. It is an error if no user message carries
 // any textual content.
@@ -46,19 +51,14 @@ func contextTextEntries(entries []aguitypes.Context) []string {
 	return result
 }
 
-// validateContextualToolNames rejects requests carrying tools with empty
-// or whitespace-only names. Such names would prefix to "ui_" / "ui_   ",
-// which the dispatcher's handleJaegerToolCall later rejects as
-// InvalidParams and which would land in both NewSessionRequest.Meta and
-// ContextualToolsStore as unusable entries. Returning a 400 from the
-// caller (handler.go) keeps both data structures clean and surfaces
-// frontend bugs immediately instead of allowing them to fail mid-turn
-// after a sidecar round-trip.
+// validateUIToolNames rejects requests carrying UI tools with empty or
+// whitespace-only names. Returning a 400 surfaces frontend errors before an
+// agent starts a turn with an unusable MCP tool declaration.
 //
 // The reported error names the first offending tool index so the
 // frontend developer can locate the broken declaration; it does not
 // reveal any user content from the rest of the request.
-func validateContextualToolNames(tools []aguitypes.Tool) error {
+func validateUIToolNames(tools []aguitypes.Tool) error {
 	for i, tool := range tools {
 		if strings.TrimSpace(tool.Name) == "" {
 			return fmt.Errorf("tools[%d].name is empty or whitespace", i)
@@ -67,31 +67,10 @@ func validateContextualToolNames(tools []aguitypes.Tool) error {
 	return nil
 }
 
-// prefixContextualTools returns a copy of the supplied tools with each
-// name prefixed by UIToolPrefix. The original slice is not mutated so the
-// caller can keep it for logging/inspection. Empty input returns nil so
-// callers can branch on the length to decide whether to attach Meta and
-// SetForSession at all.
-//
-// Callers must invoke validateContextualToolNames first to guarantee no
-// blank names slip through. This function does not re-validate so a stray
-// caller cannot accidentally bypass the boundary check.
-func prefixContextualTools(tools []aguitypes.Tool) []aguitypes.Tool {
-	if len(tools) == 0 {
-		return nil
-	}
-	out := make([]aguitypes.Tool, len(tools))
-	for i, tool := range tools {
-		out[i] = tool
-		out[i].Name = UIToolPrefix + tool.Name
-	}
-	return out
-}
-
-// encodeToolsAsRaw marshals each AG-UI tool into its JSON representation so
-// that it can be forwarded verbatim to downstream consumers (the per-session
-// contextual tools store and the NewSessionRequest.Meta payload).
-func encodeToolsAsRaw(tools []aguitypes.Tool) []json.RawMessage {
+// encodeUIToolsAsRaw marshals each AG-UI tool into its JSON representation for
+// the turn registry. The turn-scoped MCP endpoint parses these declarations to
+// advertise and dispatch the turn's UI tools.
+func encodeUIToolsAsRaw(tools []aguitypes.Tool) []json.RawMessage {
 	result := make([]json.RawMessage, 0, len(tools))
 	for _, tool := range tools {
 		payload, err := json.Marshal(tool)
@@ -226,7 +205,7 @@ func toolResultMessageID(toolCallID acp.ToolCallId) string {
 	return "tool-msg-" + string(toolCallID)
 }
 
-// stripUIToolPrefix removes the contextual-tool namespace from a tool name
+// stripUIToolPrefix removes the UI-tool namespace from a tool name
 // so the frontend sees the original name it registered. Non-prefixed
 // names (e.g. built-in MCP tools) are returned unchanged.
 //
