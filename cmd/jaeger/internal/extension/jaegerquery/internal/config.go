@@ -20,6 +20,7 @@ import (
 	"go.opentelemetry.io/collector/config/configopaque"
 	"go.opentelemetry.io/collector/config/configoptional"
 
+	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerquery/internal/mcptools"
 	"github.com/jaegertracing/jaeger/internal/headerforwarding"
 	"github.com/jaegertracing/jaeger/internal/tenancy"
 	"github.com/jaegertracing/jaeger/ports"
@@ -109,6 +110,10 @@ type MCPConfig struct {
 	// Jaeger. See mcptools/README.md for the layout it expects. Empty (the
 	// default) serves the built-in skills only.
 	SkillsDir string `mapstructure:"skills_dir" valid:"optional"`
+	// StreamableHTTP holds the options of the MCP Streamable HTTP transport the
+	// endpoint is served over; see mcptools.StreamableHTTPConfig for each one.
+	// None of them changes what the tools do.
+	StreamableHTTP mcptools.StreamableHTTPConfig `mapstructure:"streamable_http" valid:"optional"`
 }
 
 func (c *MCPConfig) Validate() error {
