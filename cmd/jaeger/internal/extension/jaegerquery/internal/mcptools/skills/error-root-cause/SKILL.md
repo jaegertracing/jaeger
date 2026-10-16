@@ -1,9 +1,8 @@
 ---
 name: error-root-cause
 description: >-
-  Walk a failed trace to the first originating error span and distinguish root
-  cause from cascading failures. Use when a trace has errors and the user asks
-  why it failed, what caused the errors, or which service is the root cause.
+  Walk a failed trace to the first originating error span. Use when a request
+  failed and the user wants to know where.
 license: Apache-2.0
 metadata:
   author: jaegertracing
