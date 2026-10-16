@@ -145,6 +145,36 @@ func TestParameterErrors(t *testing.T) {
 			urlPath:          "/api/metrics/calls?service=emailservice&ratePer=foo",
 			wantErrorMessage: `unable to parse param 'ratePer': strconv.ParseInt: parsing \"foo\": invalid syntax`,
 		},
+		{
+			name:             "zero lookback parameter",
+			urlPath:          "/api/metrics/calls?service=emailservice&lookback=0",
+			wantErrorMessage: `unable to parse param 'lookback': must be a positive duration`,
+		},
+		{
+			name:             "negative lookback parameter",
+			urlPath:          "/api/metrics/calls?service=emailservice&lookback=-1000",
+			wantErrorMessage: `unable to parse param 'lookback': must be a positive duration`,
+		},
+		{
+			name:             "zero step parameter",
+			urlPath:          "/api/metrics/calls?service=emailservice&step=0",
+			wantErrorMessage: `unable to parse param 'step': must be a positive duration`,
+		},
+		{
+			name:             "negative step parameter",
+			urlPath:          "/api/metrics/calls?service=emailservice&step=-1000",
+			wantErrorMessage: `unable to parse param 'step': must be a positive duration`,
+		},
+		{
+			name:             "zero ratePer parameter",
+			urlPath:          "/api/metrics/calls?service=emailservice&ratePer=0",
+			wantErrorMessage: `unable to parse param 'ratePer': must be a positive duration`,
+		},
+		{
+			name:             "negative ratePer parameter",
+			urlPath:          "/api/metrics/calls?service=emailservice&ratePer=-1000",
+			wantErrorMessage: `unable to parse param 'ratePer': must be a positive duration`,
+		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			// Test
