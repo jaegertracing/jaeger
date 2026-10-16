@@ -629,9 +629,10 @@ func TestTraceReader_InvalidArgumentBecomesPaginationInvalid(t *testing.T) {
 
 func TestConvertMapToKeyValueList(t *testing.T) {
 	tests := []struct {
-		name       string
-		attributes pcommon.Map
-		expected   []*storage.KeyValue
+		name          string
+		attributes    pcommon.Map
+		expected      []*storage.KeyValue
+		expectedError string
 	}{
 		{
 			name:       "empty map",
@@ -645,12 +646,7 @@ func TestConvertMapToKeyValueList(t *testing.T) {
 				m.PutEmpty("key1")
 				return m
 			}(),
-			expected: []*storage.KeyValue{
-				{
-					Key:   "key1",
-					Value: nil,
-				},
-			},
+			expectedError: `attribute "key1" has no wire form`,
 		},
 		{
 			name: "primitive types",
@@ -775,8 +771,13 @@ func TestConvertMapToKeyValueList(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			result := convertMapToKeyValueList(test.attributes)
-			require.Equal(t, test.expected, result)
+			result, err := convertMapToKeyValueList(test.attributes)
+			if test.expectedError != "" {
+				require.ErrorContains(t, err, test.expectedError)
+			} else {
+				require.NoError(t, err)
+				require.Equal(t, test.expected, result)
+			}
 		})
 	}
 }
@@ -1090,6 +1091,13 @@ func TestToProtoQueryParameters_SearchDepth(t *testing.T) {
 			assert.ErrorContains(t, err, "SearchDepth must be in [0,")
 		}
 	})
+}
+
+func TestToProtoQueryParameters_EmptyAttribute(t *testing.T) {
+	attrs := pcommon.NewMap()
+	attrs.PutEmpty("key1")
+	_, err := toProtoQueryParameters(tracestore.TraceQueryParams{Attributes: attrs})
+	require.EqualError(t, err, `cannot send the query attributes: attribute "key1" has no wire form`)
 }
 
 func spanOrder() []tracestore.SpanSortOrder {
