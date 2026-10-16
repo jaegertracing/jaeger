@@ -11,6 +11,7 @@ import (
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/status"
+	"google.golang.org/grpc/tap"
 )
 
 // tenantedServerStream is a wrapper for ServerStream providing settable context
@@ -113,6 +114,21 @@ func NewGuardingUnaryInterceptor(tc *Manager) grpc.UnaryServerInterceptor {
 		}
 
 		return handler(WithTenant(ctx, tenant), req)
+	}
+}
+
+// NewGuardingTapHandle blocks RPCs whose tenancy header doesn't meet tenancy requirements as soon as
+// their headers arrive. grpc-go reads and decodes a unary request before it runs the interceptors, so
+// the guarding interceptors alone let a rejected request be decoded in full. It leaves the context as it
+// is: attaching the tenant remains the guarding interceptors' job, and a server needs them as well.
+// It also runs before any interceptor that authenticates the caller, so a server that authenticates
+// in an interceptor should not install it, or the tenant check would answer unauthenticated callers.
+func NewGuardingTapHandle(tc *Manager) tap.ServerInHandle {
+	return func(ctx context.Context, info *tap.Info) (context.Context, error) {
+		if _, err := GetValidTenant(metadata.NewIncomingContext(ctx, info.Header), tc); err != nil {
+			return nil, err
+		}
+		return ctx, nil
 	}
 }
 
