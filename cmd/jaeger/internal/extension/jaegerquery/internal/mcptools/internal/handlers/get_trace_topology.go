@@ -160,17 +160,23 @@ func extractRawSpan(pos jptrace.SpanIterPos, span ptrace.Span) rawSpan {
 // When maxDepth > 0, spans beyond that depth are omitted and the last included
 // ancestor records the count of excluded direct children in TruncatedChildren.
 func (h *getTraceTopologyHandler) buildFlatTopology(spans []rawSpan, maxDepth int) []types.TopologySpan {
-	// Create a map of span ID to span pointer for quick lookup
+	// Create a map of span ID to span pointer for quick lookup. Only the first span
+	// with a given ID is kept, so each kept span is the child of at most one other
+	// span and no cycle can be reached from a root.
 	byID := make(map[string]*rawSpan, len(spans))
+	unique := make([]*rawSpan, 0, len(spans))
 	for i := range spans {
+		if _, ok := byID[spans[i].spanID]; ok {
+			continue
+		}
 		byID[spans[i].spanID] = &spans[i]
+		unique = append(unique, &spans[i])
 	}
 
 	// Build parent-child relationships; collect roots (parent absent from trace)
 	childrenOf := make(map[string][]*rawSpan)
 	var roots []*rawSpan
-	for i := range spans {
-		s := &spans[i]
+	for _, s := range unique {
 		if s.parentID != "" && byID[s.parentID] != nil {
 			childrenOf[s.parentID] = append(childrenOf[s.parentID], s)
 		} else {
@@ -185,7 +191,8 @@ func (h *getTraceTopologyHandler) buildFlatTopology(spans []rawSpan, maxDepth in
 	}
 
 	// DFS from each root to produce the flat list
-	result := make([]types.TopologySpan, 0, len(spans))
+	result := make([]types.TopologySpan, 0, len(unique))
+	visited := make(map[string]struct{}, len(unique))
 	for _, root := range roots {
 		// For orphans (has a parentID but parent not in trace), prepend the missing
 		// parent ID to the path so the caller can identify the attachment point.
@@ -195,7 +202,7 @@ func (h *getTraceTopologyHandler) buildFlatTopology(spans []rawSpan, maxDepth in
 		} else {
 			rootPath = root.spanID
 		}
-		h.dfs(root, rootPath, 1, maxDepth, childrenOf, &result)
+		h.dfs(root, rootPath, 1, maxDepth, childrenOf, visited, &result)
 	}
 	return result
 }
@@ -203,17 +210,24 @@ func (h *getTraceTopologyHandler) buildFlatTopology(spans []rawSpan, maxDepth in
 // dfs appends the current span to result and then recurses into its children.
 // When maxDepth > 0 and the current span is at the depth limit, its children
 // are counted but not visited, and TruncatedChildren is set on the emitted span.
+// A span ID already in visited is skipped, so a cycle in childrenOf cannot
+// make the walk loop.
 func (h *getTraceTopologyHandler) dfs(
 	span *rawSpan,
 	path string,
 	depth int,
 	maxDepth int,
 	childrenOf map[string][]*rawSpan,
+	visited map[string]struct{},
 	result *[]types.TopologySpan,
 ) {
 	if maxDepth > 0 && depth > maxDepth {
 		return
 	}
+	if _, ok := visited[span.spanID]; ok {
+		return
+	}
+	visited[span.spanID] = struct{}{}
 
 	// Count and remove children beyond maxDepth
 	truncated := 0
@@ -234,7 +248,7 @@ func (h *getTraceTopologyHandler) dfs(
 	// Recursively process children if above the depth limit
 	if truncated == 0 {
 		for _, child := range childrenOf[span.spanID] {
-			h.dfs(child, path+"/"+child.spanID, depth+1, maxDepth, childrenOf, result)
+			h.dfs(child, path+"/"+child.spanID, depth+1, maxDepth, childrenOf, visited, result)
 		}
 	}
 }
