@@ -4,18 +4,69 @@
 package badger
 
 import (
+	"context"
 	"expvar"
 	"os"
 	"testing"
 	"time"
 
+	"github.com/dgraph-io/badger/v4"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
 
+	"github.com/jaegertracing/jaeger-idl/model/v1"
 	"github.com/jaegertracing/jaeger/internal/metrics"
 	"github.com/jaegertracing/jaeger/internal/metricstest"
+	spanstoreapi "github.com/jaegertracing/jaeger/internal/storage/v1/api/spanstore"
+	badgerstore "github.com/jaegertracing/jaeger/internal/storage/v1/badger/spanstore"
 )
+
+func TestCreateSpanWriterWithJSONEncoding(t *testing.T) {
+	f := NewFactory()
+	f.Config.SpanEncoding = SpanEncodingJSON
+	require.NoError(t, f.Initialize(metrics.NullFactory, zap.NewNop()))
+	defer func() { require.NoError(t, f.Close()) }()
+
+	writer, err := f.CreateSpanWriter()
+	require.NoError(t, err)
+	span := &model.Span{
+		TraceID:       model.TraceID{High: 1, Low: 2},
+		SpanID:        3,
+		OperationName: "operation",
+		Process:       &model.Process{ServiceName: "service"},
+		StartTime:     time.Now(),
+		Duration:      time.Second,
+	}
+	require.NoError(t, writer.WriteSpan(context.Background(), span))
+
+	var encodedAsJSON bool
+	require.NoError(t, f.store.View(func(txn *badger.Txn) error {
+		iterator := txn.NewIterator(badger.DefaultIteratorOptions)
+		defer iterator.Close()
+		for iterator.Rewind(); iterator.Valid(); iterator.Next() {
+			if iterator.Item().UserMeta()&0x0F == badgerstore.EncodingJSON {
+				encodedAsJSON = true
+				break
+			}
+		}
+		return nil
+	}))
+	assert.True(t, encodedAsJSON)
+
+	reader, err := f.CreateSpanReader()
+	require.NoError(t, err)
+	trace, err := reader.GetTrace(context.Background(), spanstoreapi.GetTraceParameters{TraceID: span.TraceID})
+	require.NoError(t, err)
+	assert.Len(t, trace.Spans, 1)
+}
+
+func TestCreateSpanWriterRejectsUnknownEncoding(t *testing.T) {
+	f := NewFactory()
+	f.Config.SpanEncoding = "yaml"
+	_, err := f.CreateSpanWriter()
+	require.ErrorContains(t, err, "unsupported Badger span encoding")
+}
 
 func TestInitializationErrors(t *testing.T) {
 	f := NewFactory()

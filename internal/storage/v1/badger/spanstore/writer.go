@@ -30,9 +30,11 @@ const (
 	operationNameIndexKey byte = 0x82
 	tagIndexKey           byte = 0x83
 	durationIndexKey      byte = 0x84
-	jsonEncoding          byte = 0x01 // Last 4 bits of the meta byte are for encoding type
-	protoEncoding         byte = 0x02 // Last 4 bits of the meta byte are for encoding type
-	defaultEncoding       byte = protoEncoding
+	// EncodingJSON identifies spans serialized as JSON.
+	EncodingJSON byte = 0x01
+	// EncodingProtobuf identifies spans serialized as protobuf.
+	EncodingProtobuf byte = 0x02
+	defaultEncoding  byte = EncodingProtobuf
 )
 
 // SpanWriter for writing spans to badger
@@ -43,13 +45,18 @@ type SpanWriter struct {
 	encodingType byte
 }
 
-// NewSpanWriter returns a SpawnWriter with cache
+// NewSpanWriter returns a SpanWriter with cache.
 func NewSpanWriter(db *badger.DB, c *CacheStore, ttl time.Duration) *SpanWriter {
+	return NewSpanWriterWithEncoding(db, c, ttl, defaultEncoding)
+}
+
+// NewSpanWriterWithEncoding returns a SpanWriter configured with the supplied span encoding.
+func NewSpanWriterWithEncoding(db *badger.DB, c *CacheStore, ttl time.Duration, encodingType byte) *SpanWriter {
 	return &SpanWriter{
 		store:        db,
 		ttl:          ttl,
 		cache:        c,
-		encodingType: defaultEncoding, // TODO Make configurable
+		encodingType: encodingType,
 	}
 }
 
@@ -169,9 +176,9 @@ func createTraceKV(span *model.Span, encodingType byte, startTime uint64) (key [
 	binary.BigEndian.PutUint64(key[pos:], uint64(span.SpanID))
 
 	switch encodingType {
-	case protoEncoding:
+	case EncodingProtobuf:
 		bb, err = proto.Marshal(span)
-	case jsonEncoding:
+	case EncodingJSON:
 		bb, err = json.Marshal(span)
 	default:
 		return nil, nil, fmt.Errorf("unknown encoding type: %#02x", encodingType)
