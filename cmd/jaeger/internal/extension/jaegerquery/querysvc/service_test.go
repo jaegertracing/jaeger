@@ -1615,6 +1615,32 @@ func TestFindTraces_ServiceNameRequired(t *testing.T) {
 		require.NoError(t, err)
 		reader.AssertExpectations(t)
 	})
+
+	// A reader that requires a service name but declares Filter support receives the filter
+	// itself unconverted (queryToReaderCapabilities never populates ServiceName for it), so the
+	// service name this reader requires, if the caller supplied one, lives inside the filter
+	// rather than in the legacy field. Refusing on an empty ServiceName here would wrongly
+	// reject a filter that names the service through a resource.service predicate; the reader
+	// enforces the requirement itself once the filter reaches it.
+	t.Run("forwarded when a filter-native backend's filter names the service", func(t *testing.T) {
+		filter := compare(expression.OpEq,
+			&expression.FieldRef{Level: expression.LevelResource, Name: expression.ResourceFieldService},
+			&expression.StringValue{Value: "svc"},
+		)
+		query := filterQuery(filter)
+		reader := forwards(new(tracestoremocks.Reader))
+		reader.On("SearchCapabilities", mock.Anything).
+			Return(tracestore.SearchCapabilities{Filter: &tracestore.FilterCapabilities{
+				Levels:    []expression.Level{expression.LevelResource},
+				Operators: []expression.Operator{expression.OpEq},
+			}}, nil)
+		qs := NewQueryService(reader, nil, QueryServiceOptions{})
+
+		got, err := jiter.FlattenWithErrors(qs.FindTraces(context.Background(), query))
+		require.NoError(t, err)
+		assert.NotEmpty(t, got)
+		reader.AssertExpectations(t)
+	})
 }
 
 // TestFindTraces_ServiceNameCapabilityAskedEveryTime pins that the query service keeps no

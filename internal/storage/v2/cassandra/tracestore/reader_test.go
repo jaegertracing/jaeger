@@ -16,6 +16,7 @@ import (
 	"go.opentelemetry.io/collector/pdata/pcommon"
 	"go.opentelemetry.io/collector/pdata/ptrace"
 
+	expression "github.com/jaegertracing/jaeger-idl/query/expression/v1"
 	cassdbmodel "github.com/jaegertracing/jaeger/internal/storage/v1/cassandra/spanstore/dbmodel"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/cassandra/spanstore/mocks"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore"
@@ -186,6 +187,30 @@ func TestFindTraces_Error(t *testing.T) {
 	}
 }
 
+func TestFindTraces_FilterUnsupported(t *testing.T) {
+	reader := mocks.CoreSpanReader{}
+	tracereader := &TraceReader{reader: &reader}
+	query := newTraceQueryParams(t)
+	query.Filter = &expression.Call{
+		Op: expression.OpOr,
+		Args: []expression.Expression{
+			&expression.Call{Op: expression.OpEq, Args: []expression.Expression{
+				&expression.AttributeRef{Key: "a"}, &expression.AnyValue{Value: "1"},
+			}},
+			&expression.Call{Op: expression.OpEq, Args: []expression.Expression{
+				&expression.AttributeRef{Key: "b"}, &expression.AnyValue{Value: "2"},
+			}},
+		},
+	}
+	var called bool
+	for _, err := range tracereader.FindTraces(context.Background(), query) {
+		called = true
+		require.ErrorIs(t, err, tracestore.ErrFilterUnsupported)
+	}
+	require.True(t, called, "the refusal must be yielded rather than the sequence silently ending")
+	reader.AssertNotCalled(t, "FindTraces", mock.Anything, mock.Anything)
+}
+
 func TestFindTraceIDs(t *testing.T) {
 	traceID := cassdbmodel.TraceID{0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15}
 	reader := mocks.CoreSpanReader{}
@@ -211,6 +236,26 @@ func TestFindTraceIDs_Empty(t *testing.T) {
 		iterations++
 	}
 	require.Zero(t, iterations)
+}
+
+func TestFindTraceIDs_FilterUnsupported(t *testing.T) {
+	reader := mocks.CoreSpanReader{}
+	tracereader := &TraceReader{reader: &reader}
+	query := newTraceQueryParams(t)
+	query.Filter = &expression.Call{
+		Op: expression.OpEq,
+		Args: []expression.Expression{
+			&expression.AttributeRef{Key: "zone", Level: expression.LevelScope},
+			&expression.AnyValue{Value: "us-east"},
+		},
+	}
+	var called bool
+	for _, err := range tracereader.FindTraceIDs(context.Background(), query) {
+		called = true
+		require.ErrorIs(t, err, tracestore.ErrFilterUnsupported)
+	}
+	require.True(t, called, "the refusal must be yielded rather than the sequence silently ending")
+	reader.AssertNotCalled(t, "FindTraceIDs", mock.Anything, mock.Anything)
 }
 
 func TestFindTraceIDs_Error(t *testing.T) {
@@ -241,5 +286,6 @@ func mockIter(traces []cassdbmodel.Trace, err error) iter.Seq2[cassdbmodel.Trace
 func TestTraceReader_SearchCapabilities(t *testing.T) {
 	caps, err := (&TraceReader{}).SearchCapabilities(context.Background())
 	require.NoError(t, err)
-	assert.Equal(t, tracestore.SearchCapabilities{}, caps)
+	filter := FilterCapabilities()
+	assert.Equal(t, tracestore.SearchCapabilities{Filter: &filter}, caps)
 }
