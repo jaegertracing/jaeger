@@ -28,7 +28,7 @@ type Tenant struct {
 	config *Configuration
 
 	ids        map[pcommon.TraceID]int // maps trace id to index in traces[]
-	traces     []traceAndId            // ring buffer to store traces
+	traces     []traceAndId            // ring buffer to store traces, grown up to MaxTraces as traces arrive
 	mostRecent int                     // position in traces[] of the most recently added trace
 
 	services   map[string]struct{}
@@ -67,7 +67,6 @@ func newTenant(cfg *Configuration) *Tenant {
 	return &Tenant{
 		config:     cfg,
 		ids:        make(map[pcommon.TraceID]int),
-		traces:     make([]traceAndId, cfg.MaxTraces),
 		mostRecent: -1,
 		services:   map[string]struct{}{},
 		operations: map[string]map[tracestore.Operation]struct{}{},
@@ -118,9 +117,12 @@ func (t *Tenant) storeTraces(tracesById map[pcommon.TraceID]ptrace.ResourceSpans
 		}
 		traces := ptrace.NewTraces()
 		sameTraceIDResourceSpan.MoveAndAppendTo(traces.ResourceSpans())
-		t.mostRecent = (t.mostRecent + 1) % len(t.traces)
-		// if there is already a trace in lastEvicted position, remove its ID from ids map
-		if !t.traces[t.mostRecent].id.IsEmpty() {
+		if uint64(len(t.traces)) < uint64(t.config.MaxTraces) {
+			t.addSlot()
+			t.mostRecent = len(t.traces) - 1
+		} else {
+			// the ring is full, so the next position holds the oldest trace, which is evicted
+			t.mostRecent = (t.mostRecent + 1) % len(t.traces)
 			delete(t.ids, t.traces[t.mostRecent].id)
 		}
 		// update the ring with the trace id
@@ -132,6 +134,18 @@ func (t *Tenant) storeTraces(tracesById map[pcommon.TraceID]ptrace.ResourceSpans
 			endTime:   endTime,
 		}
 	}
+}
+
+// addSlot extends the ring by one empty slot. The backing array doubles when it
+// is full, capped at MaxTraces, which append's own growth would overshoot.
+func (t *Tenant) addSlot() {
+	if len(t.traces) == cap(t.traces) {
+		size := min(max(2*uint64(cap(t.traces)), 1), uint64(t.config.MaxTraces))
+		grown := make([]traceAndId, len(t.traces), size)
+		copy(grown, t.traces)
+		t.traces = grown
+	}
+	t.traces = t.traces[:len(t.traces)+1]
 }
 
 // findTraceAndIds returns references to the traces the store holds, not copies,
@@ -155,11 +169,6 @@ func (t *Tenant) findTraceAndIds(query tracestore.TraceQueryParams) ([]traceAndI
 		}
 		index := (t.mostRecent - i + n) % n
 		traceById := t.traces[index]
-		if traceById.id.IsEmpty() {
-			// Finding an empty ID means we reached a gap in the ring buffer
-			// that has not yet been filled with traces.
-			break
-		}
 		if validTrace(traceById.trace, query, filter) {
 			traceAndIds = append(traceAndIds, traceById)
 		}
@@ -193,9 +202,6 @@ func (t *Tenant) findSpans(query tracestore.SpanQueryParams, after *cursor[sorti
 	var matches []matchedSpan
 	for i := range t.traces {
 		entry := t.traces[i]
-		if entry.id.IsEmpty() {
-			continue
-		}
 		for _, resourceSpan := range entry.trace.ResourceSpans().All() {
 			for _, scopeSpan := range resourceSpan.ScopeSpans().All() {
 				for _, span := range scopeSpan.Spans().All() {
@@ -266,9 +272,6 @@ func (t *Tenant) findTraceAndIdsPage(query tracestore.TraceQueryParams, after *c
 	var matches []matchedTrace
 	for i := range t.traces {
 		entry := t.traces[i]
-		if entry.id.IsEmpty() {
-			continue
-		}
 		startTime, ok := latestMatchingSpanStart(entry.trace, query, filter)
 		if !ok {
 			continue
