@@ -59,12 +59,9 @@ func (p *queryParser) parseDependenciesQueryParams(r *http.Request) (dqp depende
 		return dqp, err
 	}
 
-	dqp.lookback, err = parseDuration(r, lookbackParam, newDurationUnitsParser(time.Millisecond), defaultDependencyLookbackDuration)
+	dqp.lookback, err = parsePositiveDuration(r, lookbackParam, newDurationUnitsParser(time.Millisecond), defaultDependencyLookbackDuration)
 	if err != nil {
 		return dqp, err
-	}
-	if dqp.lookback <= 0 {
-		return dqp, newParseError(errors.New("must be a positive duration"), lookbackParam)
 	}
 	return dqp, nil
 }
@@ -126,15 +123,15 @@ func (p *queryParser) parseMetricsQueryParams(r *http.Request) (bqp metricstore.
 		return bqp, err
 	}
 	parser := newDurationUnitsParser(time.Millisecond)
-	lookback, err := parseDuration(r, lookbackParam, parser, defaultMetricsQueryLookbackDuration)
+	lookback, err := parsePositiveDuration(r, lookbackParam, parser, defaultMetricsQueryLookbackDuration)
 	if err != nil {
 		return bqp, err
 	}
-	step, err := parseDuration(r, stepParam, parser, defaultMetricsQueryStepDuration)
+	step, err := parsePositiveDuration(r, stepParam, parser, defaultMetricsQueryStepDuration)
 	if err != nil {
 		return bqp, err
 	}
-	ratePer, err := parseDuration(r, rateParam, parser, defaultMetricsQueryRateDuration)
+	ratePer, err := parsePositiveDuration(r, rateParam, parser, defaultMetricsQueryRateDuration)
 	if err != nil {
 		return bqp, err
 	}
@@ -169,6 +166,20 @@ func parseDuration(r *http.Request, paramName string, parse durationParser, defa
 	d, err := parse(formValue)
 	if err != nil {
 		return 0, newParseError(err, paramName)
+	}
+	return d, nil
+}
+
+// parsePositiveDuration is parseDuration for a parameter that must be positive when it is given,
+// such as a lookback window, a query step or a rate interval. A zero or negative value is
+// rejected here, so the request never reaches storage with an empty or inverted range.
+func parsePositiveDuration(r *http.Request, paramName string, parse durationParser, defaultDuration time.Duration) (time.Duration, error) {
+	d, err := parseDuration(r, paramName, parse, defaultDuration)
+	if err != nil {
+		return 0, err
+	}
+	if d <= 0 {
+		return 0, newParseError(errors.New("must be a positive duration"), paramName)
 	}
 	return d, nil
 }
