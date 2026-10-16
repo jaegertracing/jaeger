@@ -21,6 +21,8 @@ func Extract(config Config, logger *zap.Logger) error {
 	if err != nil {
 		return err
 	}
+	defer reader.capturedFile.Close()
+
 	ext, err := newExtractor(config.UIFile, config.TraceID, reader, logger)
 	if err != nil {
 		return err

@@ -14,6 +14,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"path/filepath"
 	"strings"
 	"sync/atomic"
 	"testing"
@@ -39,7 +40,7 @@ func TestNotExistingUiConfig(t *testing.T) {
 		nilBackendCaps,
 		zap.NewNop(),
 	)
-	require.ErrorContains(t, err, "no such file or directory")
+	require.ErrorIs(t, err, os.ErrNotExist)
 	assert.Nil(t, handler)
 }
 
@@ -59,7 +60,7 @@ func TestRegisterStaticHandlerPanic(t *testing.T) {
 		defer closer.Close()
 	})
 	assert.Contains(t, buf.String(), "Could not create static assets handler")
-	assert.Contains(t, buf.String(), "no such file or directory")
+	assert.Contains(t, buf.String(), "cannot open index.html")
 }
 
 func TestRegisterStaticHandler(t *testing.T) {
@@ -297,19 +298,12 @@ func TestHotReloadUIConfig(t *testing.T) {
 
 	dir := t.TempDir()
 
-	cfgFile, err := os.CreateTemp(dir, "*.json")
-	require.NoError(t, err)
-	defer cfgFile.Close()
-	cfgFileName := cfgFile.Name()
-
-	tmpFile, err := os.CreateTemp(dir, "*.json")
-	require.NoError(t, err)
-	defer tmpFile.Close()
+	cfgFileName := filepath.Join(dir, "config.json")
 
 	content, err := os.ReadFile("fixture/ui-config-hotreload.json")
 	require.NoError(t, err)
 
-	err = syncWrite(cfgFile, tmpFile, content)
+	err = syncWrite(cfgFileName, content)
 	require.NoError(t, err)
 
 	h, err := newStaticAssetsHandler(
@@ -323,7 +317,7 @@ func TestHotReloadUIConfig(t *testing.T) {
 	assert.Contains(t, string(h.deriveIndexHTML(context.Background())), "About Jaeger")
 
 	newContent := strings.Replace(string(content), "About Jaeger", "About a new Jaeger", 1)
-	err = syncWrite(cfgFile, tmpFile, []byte(newContent))
+	err = syncWrite(cfgFileName, []byte(newContent))
 	require.NoError(t, err)
 
 	// The TTL on the cached UI config is 10ms; deriveIndexHTML re-reads from
@@ -339,18 +333,11 @@ func TestUIConfigReloadErrorKeepsCachedValue(t *testing.T) {
 	t.Cleanup(func() { uiConfigReloadInterval = prev })
 
 	dir := t.TempDir()
-	cfgFile, err := os.CreateTemp(dir, "*.json")
-	require.NoError(t, err)
-	defer cfgFile.Close()
-	cfgFileName := cfgFile.Name()
-
-	tmpFile, err := os.CreateTemp(dir, "*.json")
-	require.NoError(t, err)
-	defer tmpFile.Close()
+	cfgFileName := filepath.Join(dir, "config.json")
 
 	good, err := os.ReadFile("fixture/ui-config-hotreload.json")
 	require.NoError(t, err)
-	require.NoError(t, syncWrite(cfgFile, tmpFile, good))
+	require.NoError(t, syncWrite(cfgFileName, good))
 
 	zcore, logObserver := observer.New(zapcore.ErrorLevel)
 	h, err := newStaticAssetsHandler(
@@ -363,7 +350,7 @@ func TestUIConfigReloadErrorKeepsCachedValue(t *testing.T) {
 
 	// Overwrite the file with content that fails to parse, then wait past
 	// the TTL so the next deriveIndexHTML triggers a reload.
-	require.NoError(t, syncWrite(cfgFile, tmpFile, []byte("{not valid json")))
+	require.NoError(t, syncWrite(cfgFileName, []byte("{not valid json")))
 
 	require.Eventually(t, func() bool {
 		// Force a reload attempt by calling deriveIndexHTML; the malformed
@@ -383,6 +370,7 @@ func TestLoadUIConfig(t *testing.T) {
 		configFile      string
 		expected        *loadedConfig
 		expectedError   string
+		expectedCause   error
 		expectedContent string
 	}
 
@@ -395,9 +383,13 @@ func TestLoadUIConfig(t *testing.T) {
 	run := func(description string, testCase testCase) {
 		t.Run(description, func(t *testing.T) {
 			config, err := loadUIConfig(testCase.configFile)
-			if testCase.expectedError != "" {
+			switch {
+			case testCase.expectedCause != nil:
+				require.ErrorIs(t, err, testCase.expectedCause)
+				require.ErrorContains(t, err, testCase.expectedError)
+			case testCase.expectedError != "":
 				require.EqualError(t, err, testCase.expectedError)
-			} else {
+			default:
 				require.NoError(t, err)
 			}
 			assert.Equal(t, testCase.expected, config)
@@ -418,7 +410,8 @@ func TestLoadUIConfig(t *testing.T) {
 	run("no config", testCase{})
 	run("invalid json config", testCase{
 		configFile:    "invalid",
-		expectedError: "cannot read UI config file invalid: open invalid: no such file or directory",
+		expectedError: "cannot read UI config file invalid",
+		expectedCause: os.ErrNotExist,
 	})
 	run("unsupported type", testCase{
 		configFile:    "fixture/ui-config.toml",
@@ -490,11 +483,12 @@ func TestLoadIndexHTMLReadError(t *testing.T) {
 
 // syncWrite ensures data is written to the given filename and flushed to disk.
 // This ensures that any watchers looking for file system changes can be reliably alerted.
-func syncWrite(target *os.File, temp *os.File, data []byte) error {
-	f, err := os.OpenFile(temp.Name(), os.O_WRONLY|os.O_CREATE|os.O_TRUNC|os.O_SYNC, 0o644)
+func syncWrite(target string, data []byte) error {
+	f, err := os.CreateTemp(filepath.Dir(target), "*.json")
 	if err != nil {
 		return err
 	}
+	defer os.Remove(f.Name())
 	defer f.Close()
 	if _, err = f.Write(data); err != nil {
 		return err
@@ -502,5 +496,8 @@ func syncWrite(target *os.File, temp *os.File, data []byte) error {
 	if err := f.Sync(); err != nil {
 		return err
 	}
-	return os.Rename(temp.Name(), target.Name())
+	if err := f.Close(); err != nil {
+		return err
+	}
+	return os.Rename(f.Name(), target)
 }

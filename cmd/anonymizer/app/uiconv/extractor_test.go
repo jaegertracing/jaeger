@@ -26,6 +26,7 @@ func TestExtractorTraceSuccess(t *testing.T) {
 
 	reader, err := newSpanReader(inputFile, zap.NewNop())
 	require.NoError(t, err)
+	defer reader.capturedFile.Close()
 
 	extractor, err := newExtractor(
 		outputFile,
@@ -50,15 +51,11 @@ func TestExtractorTraceSuccess(t *testing.T) {
 
 func TestExtractorTraceOutputFileError(t *testing.T) {
 	inputFile := "fixtures/trace_success.json"
-	outputFile := "fixtures/trace_success_ui_anonymized.json"
-	defer os.Remove(outputFile)
+	outputFile := t.TempDir()
 
 	reader, err := newSpanReader(inputFile, zap.NewNop())
 	require.NoError(t, err)
-
-	err = os.Chmod("fixtures", 0o000)
-	require.NoError(t, err)
-	defer os.Chmod("fixtures", 0o755)
+	defer reader.capturedFile.Close()
 
 	_, err = newExtractor(
 		outputFile,
@@ -76,6 +73,7 @@ func TestExtractorTraceScanError(t *testing.T) {
 
 	reader, err := newSpanReader(inputFile, zap.NewNop())
 	require.NoError(t, err)
+	defer reader.capturedFile.Close()
 
 	extractor, err := newExtractor(
 		outputFile,
