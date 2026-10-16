@@ -448,17 +448,98 @@ func mergeJoinIds(left, right [][]byte) [][]byte {
 }
 
 // FindTraces retrieves traces that match the traceQuery
-func (r *TraceReader) FindTraces(ctx context.Context, query *spanstore.TraceQueryParameters) ([]*model.Trace, error) {
-	keys, err := r.FindTraceIDs(ctx, query)
+func (r *TraceReader) FindTraces(_ context.Context, query *spanstore.TraceQueryParameters) ([]*model.Trace, error) {
+	keys, err := r.findCandidateTraceIDs(query)
 	if err != nil {
 		return nil, err
 	}
-
-	return r.getTraces(keys)
+	if !usesCompositeIndex(query) {
+		return r.getTraces(keys)
+	}
+	return r.getMatchingTraces(query, keys)
 }
 
 // FindTraceIDs retrieves only the TraceIDs that match the traceQuery, but not the trace data
 func (r *TraceReader) FindTraceIDs(_ context.Context, query *spanstore.TraceQueryParameters) ([]model.TraceID, error) {
+	keys, err := r.findCandidateTraceIDs(query)
+	if err != nil || !usesCompositeIndex(query) {
+		return keys, err
+	}
+	traces, err := r.getMatchingTraces(query, keys)
+	if err != nil {
+		return nil, err
+	}
+	traceIDs := make([]model.TraceID, 0, len(traces))
+	for _, trace := range traces {
+		traceIDs = append(traceIDs, trace.Spans[0].TraceID)
+	}
+	return traceIDs, nil
+}
+
+// usesCompositeIndex reports whether the query is answered from the operation or tag index. Their
+// keys concatenate the service name and the indexed values without separators, so a key written
+// for service "ab" and operation "c" is also found by a query for service "a" and operation "bc",
+// and the trace IDs they return are only candidates for getMatchingTraces to check.
+func usesCompositeIndex(query *spanstore.TraceQueryParameters) bool {
+	return query.OperationName != "" || len(query.Tags) > 0
+}
+
+// getMatchingTraces loads the candidates in order and returns the first query.NumTraces of them
+// that traceMatchesQuery accepts.
+func (r *TraceReader) getMatchingTraces(query *spanstore.TraceQueryParameters, candidates []model.TraceID) ([]*model.Trace, error) {
+	limit := uint64(query.NumTraces)
+	var traces []*model.Trace
+	for len(candidates) > 0 && uint64(len(traces)) < limit {
+		batch := candidates[:min(limit-uint64(len(traces)), uint64(len(candidates)))]
+		candidates = candidates[len(batch):]
+		loaded, err := r.getTraces(batch)
+		if err != nil {
+			return nil, err
+		}
+		for _, trace := range loaded {
+			if traceMatchesQuery(trace, query) {
+				traces = append(traces, trace)
+			}
+		}
+	}
+	return traces, nil
+}
+
+// traceMatchesQuery reports whether the trace has, for the operation and for each tag of the query,
+// a span of the queried service that started within the query time range and carries it. Those are
+// the spans whose index entries the query is looking for.
+func traceMatchesQuery(trace *model.Trace, query *spanstore.TraceQueryParameters) bool {
+	minStart := model.TimeAsEpochMicroseconds(query.StartTimeMin)
+	maxStart := model.TimeAsEpochMicroseconds(query.StartTimeMax)
+	hasSpan := func(carries func(*model.Span) bool) bool {
+		return slices.ContainsFunc(trace.Spans, func(span *model.Span) bool {
+			start := model.TimeAsEpochMicroseconds(span.StartTime)
+			return span.GetProcess().GetServiceName() == query.ServiceName &&
+				start >= minStart && start <= maxStart && carries(span)
+		})
+	}
+	if query.OperationName != "" && !hasSpan(func(span *model.Span) bool {
+		return span.OperationName == query.OperationName
+	}) {
+		return false
+	}
+	for key, value := range query.Tags {
+		if !hasSpan(func(span *model.Span) bool { return spanHasTag(span, key, value) }) {
+			return false
+		}
+	}
+	return true
+}
+
+// spanHasTag reports whether the span carries the tag in one of the places SpanWriter indexes.
+func spanHasTag(span *model.Span, key, value string) bool {
+	matches := func(kv model.KeyValue) bool { return kv.Key == key && kv.AsString() == value }
+	return slices.ContainsFunc(span.Tags, matches) ||
+		slices.ContainsFunc(span.GetProcess().GetTags(), matches) ||
+		slices.ContainsFunc(span.Logs, func(log model.Log) bool { return slices.ContainsFunc(log.Fields, matches) })
+}
+
+func (r *TraceReader) findCandidateTraceIDs(query *spanstore.TraceQueryParameters) ([]model.TraceID, error) {
 	// Validate and set query defaults which were not defined
 	if err := validateQuery(query); err != nil {
 		return nil, err
@@ -480,6 +561,10 @@ func (r *TraceReader) FindTraceIDs(_ context.Context, query *spanstore.TraceQuer
 		startTimeMin: startStampBytes,
 		startTimeMax: endStampBytes,
 		limit:        query.NumTraces,
+	}
+	if usesCompositeIndex(query) {
+		// getMatchingTraces applies the limit after it drops the candidates that do not match.
+		plan.limit = math.MaxUint32
 	}
 
 	if query.DurationMax != 0 || query.DurationMin != 0 {

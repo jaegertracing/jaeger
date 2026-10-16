@@ -117,6 +117,100 @@ func TestValidation(t *testing.T) {
 	})
 }
 
+func TestCompositeIndexKeyCollisions(t *testing.T) {
+	runFactoryTest(t, func(_ testing.TB, sw spanstore.Writer, sr spanstore.Reader) {
+		base := time.Now()
+		tag := func(key, value string) model.KeyValue {
+			return model.KeyValue{Key: key, VType: model.StringType, VStr: value}
+		}
+		span := func(trace uint64, service, operation string, start time.Duration) *model.Span {
+			return &model.Span{
+				TraceID:       model.TraceID{High: 1, Low: trace},
+				SpanID:        model.SpanID(rand.Uint64()),
+				OperationName: operation,
+				Process:       &model.Process{ServiceName: service},
+				StartTime:     base.Add(start),
+				Duration:      time.Millisecond,
+			}
+		}
+		// Every span below writes the tag index key "abkv", and all but trace 3 write the
+		// operation index key "abc".
+		spans := []*model.Span{
+			span(1, "a", "bc", time.Millisecond),
+			span(2, "a", "bc", 2*time.Millisecond),
+			span(3, "a", "x", 3*time.Millisecond),
+			span(4, "ab", "c", 10*time.Millisecond),
+			span(5, "ab", "c", 11*time.Millisecond),
+			span(6, "ab", "c", 12*time.Millisecond),
+			// Trace 7 matches service "a" only through a span outside the queried time range.
+			span(7, "a", "bc", -time.Hour),
+			span(7, "ab", "c", 5*time.Millisecond),
+		}
+		spans[0].Tags = model.KeyValues{tag("bk", "v")}
+		spans[1].Logs = []model.Log{{Timestamp: base, Fields: []model.KeyValue{tag("bk", "v")}}}
+		spans[2].Process.Tags = []model.KeyValue{tag("b", "kv")}
+		for _, s := range spans[3:] {
+			s.Tags = model.KeyValues{tag("k", "v")}
+		}
+		spans[6].Tags = model.KeyValues{tag("bk", "v")}
+		for _, s := range spans {
+			require.NoError(t, sw.WriteSpan(context.Background(), s))
+		}
+
+		tests := []struct {
+			name      string
+			service   string
+			operation string
+			tags      map[string]string
+			numTraces uint32
+			expected  []uint64
+		}{
+			{name: "service only", service: "a", expected: []uint64{3, 2, 1}},
+			{name: "shorter service operation", service: "a", operation: "bc", expected: []uint64{2, 1}},
+			{name: "longer service operation", service: "ab", operation: "c", expected: []uint64{6, 5, 4, 7}},
+			{name: "limit counts matches only", service: "a", operation: "bc", numTraces: 2, expected: []uint64{2, 1}},
+			{name: "shorter service tag", service: "a", tags: map[string]string{"bk": "v"}, expected: []uint64{2, 1}},
+			{name: "longer service tag", service: "ab", tags: map[string]string{"k": "v"}, expected: []uint64{6, 5, 4, 7}},
+			{name: "tag key and value split", service: "a", tags: map[string]string{"b": "kv"}, expected: []uint64{3}},
+			{
+				name:      "operation and tag",
+				service:   "a",
+				operation: "bc",
+				tags:      map[string]string{"bk": "v"},
+				expected:  []uint64{2, 1},
+			},
+		}
+		for _, test := range tests {
+			t.Run(test.name, func(t *testing.T) {
+				query := &spanstore.TraceQueryParameters{
+					ServiceName:   test.service,
+					OperationName: test.operation,
+					Tags:          test.tags,
+					NumTraces:     test.numTraces,
+					StartTimeMin:  base,
+					StartTimeMax:  base.Add(time.Minute),
+				}
+				expected := make([]model.TraceID, 0, len(test.expected))
+				for _, low := range test.expected {
+					expected = append(expected, model.TraceID{High: 1, Low: low})
+				}
+
+				traceIDs, err := sr.FindTraceIDs(context.Background(), query)
+				require.NoError(t, err)
+				assert.Equal(t, expected, traceIDs)
+
+				traces, err := sr.FindTraces(context.Background(), query)
+				require.NoError(t, err)
+				found := make([]model.TraceID, 0, len(traces))
+				for _, trace := range traces {
+					found = append(found, trace.Spans[0].TraceID)
+				}
+				assert.Equal(t, expected, found)
+			})
+		}
+	})
+}
+
 func TestIndexSeeks(t *testing.T) {
 	runFactoryTest(t, func(_ testing.TB, sw spanstore.Writer, sr spanstore.Reader) {
 		startT := time.Now()
