@@ -1,22 +1,22 @@
 {
-  "traceID": "0000000000000001",
+  "traceID": "00000000000000000000000000000001",
   "spanID": "0000000000000002",
   "flags": 1,
   "operationName": "test-general-conversion",
   "references": [
     {
       "refType": "CHILD_OF",
-      "traceID": "0000000000000001",
+      "traceID": "00000000000000000000000000000001",
       "spanID": "0000000000000003"
     },
     {
       "refType": "FOLLOWS_FROM",
-      "traceID": "0000000000000001",
+      "traceID": "00000000000000000000000000000001",
       "spanID": "0000000000000004"
     },
     {
       "refType": "CHILD_OF",
-      "traceID": "00000000000000ff",
+      "traceID": "000000000000000000000000000000ff",
       "spanID": "00000000000000ff"
     }
   ],
