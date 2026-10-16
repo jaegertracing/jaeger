@@ -20,8 +20,10 @@ func TestCommandExecute(t *testing.T) {
 	cmd := Command()
 
 	// TempFile to capture output
-	tempFile, err := os.Create(t.TempDir() + "command-output-*.txt")
+	tempFile, err := os.CreateTemp(t.TempDir(), "command-output-*.txt")
 	require.NoError(t, err)
+
+	defer tempFile.Close()
 
 	// Redirect stdout to the TempFile
 	oldStdout := os.Stdout

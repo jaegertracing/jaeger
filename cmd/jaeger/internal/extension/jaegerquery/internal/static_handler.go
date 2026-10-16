@@ -18,9 +18,11 @@ import (
 	"sync"
 	"time"
 
+	"github.com/gogo/protobuf/jsonpb"
 	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerquery/internal/ui"
+	"github.com/jaegertracing/jaeger/internal/proto/api_v3"
 	"github.com/jaegertracing/jaeger/internal/version"
 )
 
@@ -44,10 +46,35 @@ var uiConfigReloadInterval = 10 * time.Second
 // offer: the archive and metrics screens, the "All Services" search option (RFC 0013),
 // and the AI chat panel.
 type BackendCapabilities struct {
-	ArchiveStorage           bool `json:"archiveStorage"`
-	MetricsStorage           bool `json:"metricsStorage"`
-	SearchWithoutServiceName bool `json:"searchWithoutServiceName"`
-	AIAssistant              bool `json:"aiAssistant"`
+	ArchiveStorage           bool                       `json:"archiveStorage"`
+	MetricsStorage           bool                       `json:"metricsStorage"`
+	SearchWithoutServiceName bool                       `json:"searchWithoutServiceName"`
+	AIAssistant              bool                       `json:"aiAssistant"`
+	Search                   *api_v3.SearchCapabilities `json:"-"`
+}
+
+// MarshalJSON preserves the legacy flat keys and uses the API v3 protobuf JSON
+// encoding for search, including its camelCase field names and omitted defaults.
+func (c BackendCapabilities) MarshalJSON() ([]byte, error) {
+	search := c.Search
+	if search == nil {
+		search = &api_v3.SearchCapabilities{WithoutServiceName: c.SearchWithoutServiceName}
+	}
+	type legacyCapabilities BackendCapabilities
+	return json.Marshal(struct {
+		legacyCapabilities
+		Search searchCapabilitiesJSON `json:"search"`
+	}{legacyCapabilities(c), searchCapabilitiesJSON{search}})
+}
+
+type searchCapabilitiesJSON struct {
+	*api_v3.SearchCapabilities
+}
+
+func (s searchCapabilitiesJSON) MarshalJSON() ([]byte, error) {
+	var out bytes.Buffer
+	err := new(jsonpb.Marshaler).Marshal(&out, s.SearchCapabilities)
+	return out.Bytes(), err
 }
 
 // BackendCapabilityProvider reports what the deployment can currently do. It is called on
@@ -188,7 +215,7 @@ func (h *staticAssetsHandler) deriveIndexHTML(ctx context.Context) []byte {
 		caps = h.backendCaps(ctx)
 	}
 	capsJSON, _ := json.Marshal(caps)
-	out = capabilitiesPattern.ReplaceAll(out, fmt.Appendf(nil, "JAEGER_BACKEND_CAPABILITIES = %s;", capsJSON))
+	out = capabilitiesPattern.ReplaceAllLiteral(out, fmt.Appendf(nil, "JAEGER_BACKEND_CAPABILITIES = %s;", capsJSON))
 	return out
 }
 
