@@ -50,5 +50,9 @@ func (s *DataStreamRotation) ReadTargets(time.Time, time.Time) []string {
 	return []string{s.dataStream}
 }
 
+func (s *DataStreamRotation) ExactTargets(start, end time.Time) []string {
+	return s.ReadTargets(start, end)
+}
+
 func (*DataStreamRotation) WriteOpType() es.WriteOpType     { return es.WriteOpCreate }
 func (*DataStreamRotation) RequiresDocumentTimestamp() bool { return true }

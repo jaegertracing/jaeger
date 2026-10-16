@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	es "github.com/jaegertracing/jaeger/internal/storage/elasticsearch"
 	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/config"
@@ -30,6 +31,7 @@ func TestRemoteClusterRotation(t *testing.T) {
 			"cluster_two:jaeger-span-1995-04-21",
 		}
 		assert.Equal(t, expected, r.ReadTargets(date, date))
+		assert.Equal(t, expected, r.ExactTargets(date, date))
 	})
 
 	t.Run("WriteOpType delegates to inner", func(t *testing.T) {
@@ -50,6 +52,7 @@ func TestRemoteClusterRotation_WithAlias(t *testing.T) {
 		"cluster_one:jaeger-span-read",
 	}
 	assert.Equal(t, expected, r.ReadTargets(time.Now(), time.Now()))
+	assert.Equal(t, expected, r.ExactTargets(time.Now(), time.Now()))
 }
 
 func TestRemoteClusterRotation_NoClusters(t *testing.T) {
@@ -58,4 +61,20 @@ func TestRemoteClusterRotation_NoClusters(t *testing.T) {
 
 	date := time.Date(1995, time.April, 21, 4, 0, 0, 0, time.UTC)
 	assert.Equal(t, []string{"jaeger-span-1995-04-21"}, r.ReadTargets(date, date))
+	assert.Equal(t, []string{"jaeger-span-1995-04-21"}, r.ExactTargets(date, date))
+}
+
+func TestRemoteClusterRotation_ExactTargetsWideRange(t *testing.T) {
+	inner := NewPeriodicRotation(config.SpanIndexName, "2006-01-02-15", time.Hour)
+	r := NewRemoteClusterRotation(inner, []string{"cluster_one"})
+	end := time.Date(2026, time.October, 10, 15, 30, 0, 0, time.UTC)
+
+	got := r.ExactTargets(end.Add(-30*24*time.Hour), end)
+	newest := inner.WriteTarget(end)
+	require.GreaterOrEqual(t, len(got), 2)
+	assert.Equal(t, newest, got[0])
+	assert.Equal(t, "cluster_one:"+newest, got[1])
+	for _, name := range got {
+		assert.NotContains(t, name, "*")
+	}
 }
