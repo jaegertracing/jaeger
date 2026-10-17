@@ -598,6 +598,7 @@ describe('processQuotaForAuthor', () => {
 describe('processIssueLimitForPullRequest', () => {
   const {
     processIssueLimitForPullRequest,
+    processIssueLimitForIssue,
     processAllIssueLimits,
     issueLimitComment,
     issueLimitResolvedComment,
@@ -821,6 +822,24 @@ describe('processIssueLimitForPullRequest', () => {
 
     const listedPRs = octokit.rest.issues.listComments.mock.calls.map(([{ issue_number }]) => issue_number);
     expect(listedPRs).toEqual(expect.arrayContaining([10, 20, 40]));
+    expect(listedPRs).not.toContain(30);
+  });
+
+  test('does not list comments for unrelated PRs during issue-label reconciliation', async () => {
+    const issueOne = [{ number: 1, repository: { nameWithOwner: 'owner/repo' }, labels: { nodes: [] } }];
+    const issueTwo = [{ number: 2, repository: { nameWithOwner: 'owner/repo' }, labels: { nodes: [] } }];
+    const octokit = issueLimitOctokit({
+      issues: [
+        makePR(10, '2026-01-01T00:00:00Z', [], false, 'CONTRIBUTOR', issueOne),
+        makePR(20, '2026-01-02T00:00:00Z', [], false, 'CONTRIBUTOR', issueOne),
+        makePR(30, '2026-01-03T00:00:00Z', [], false, 'CONTRIBUTOR', issueTwo)
+      ]
+    });
+
+    await processIssueLimitForIssue(octokit, 'owner', 'repo', 1);
+
+    const listedPRs = octokit.rest.issues.listComments.mock.calls.map(([{ issue_number }]) => issue_number);
+    expect(listedPRs).toEqual(expect.arrayContaining([10, 20]));
     expect(listedPRs).not.toContain(30);
   });
 
