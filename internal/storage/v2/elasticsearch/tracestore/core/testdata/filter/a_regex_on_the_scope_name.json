@@ -1,0 +1,38 @@
+{
+  "bool": {
+    "should": [
+      {
+        "regexp": {
+          "tag.otel@scope@name": {
+            "flags": "NONE",
+            "value": ".*(io\\.opentelemetry.*).*"
+          }
+        }
+      },
+      {
+        "nested": {
+          "path": "tags",
+          "query": {
+            "bool": {
+              "must": [
+                {
+                  "term": {
+                    "tags.key": "otel.scope.name"
+                  }
+                },
+                {
+                  "regexp": {
+                    "tags.value": {
+                      "flags": "NONE",
+                      "value": ".*(io\\.opentelemetry.*).*"
+                    }
+                  }
+                }
+              ]
+            }
+          }
+        }
+      }
+    ]
+  }
+}
