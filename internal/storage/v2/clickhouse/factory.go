@@ -6,13 +6,24 @@ package clickhouse
 import (
 	"bytes"
 	"context"
+	dbsql "database/sql"
+	"errors"
 	"fmt"
 	"io"
+	"io/fs"
+	"os"
+	"strings"
+	"testing/fstest"
 	"text/template"
 	"time"
 
 	"github.com/ClickHouse/clickhouse-go/v2"
 	"github.com/ClickHouse/clickhouse-go/v2/lib/driver"
+	"github.com/cenkalti/backoff/v7"
+	"github.com/golang-migrate/migrate/v4"
+	clickhousemigrate "github.com/golang-migrate/migrate/v4/database/clickhouse"
+	"github.com/golang-migrate/migrate/v4/source"
+	"github.com/golang-migrate/migrate/v4/source/iofs"
 	"go.opentelemetry.io/collector/featuregate"
 
 	"github.com/jaegertracing/jaeger/internal/storage/v1"
@@ -22,7 +33,7 @@ import (
 	"github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore"
 	chdepstore "github.com/jaegertracing/jaeger/internal/storage/v2/clickhouse/depstore"
 	chmetricstore "github.com/jaegertracing/jaeger/internal/storage/v2/clickhouse/metricstore"
-	"github.com/jaegertracing/jaeger/internal/storage/v2/clickhouse/sql"
+	chsql "github.com/jaegertracing/jaeger/internal/storage/v2/clickhouse/sql"
 	chtracestore "github.com/jaegertracing/jaeger/internal/storage/v2/clickhouse/tracestore"
 	"github.com/jaegertracing/jaeger/internal/telemetry"
 )
@@ -69,70 +80,251 @@ type schemaTemplateParams struct {
 	AggregatingMergeTree string
 }
 
-type schemaStatement struct {
-	name  string
-	query string
+var (
+	newSourceDriver    = iofs.New
+	newDatabaseDriver  = clickhousemigrate.WithInstance
+	newMigrateInstance = migrate.NewWithInstance
+	readSchemaVersion  = readSchemaVersionImpl
+)
+
+var selectSchemaVersionQuery = "SELECT version, dirty FROM schema_migrations ORDER BY sequence DESC LIMIT 1"
+
+func isTableNotExist(err error) bool {
+	var chErr *clickhouse.Exception
+	return errors.As(err, &chErr) && chErr.Code == 60
 }
 
-type schemaBuilder struct {
-	statements []schemaStatement
+func readSchemaVersionImpl(ctx context.Context, db *dbsql.DB) (uint, bool, error) {
+	var (
+		version uint
+		dirty   uint8
+	)
+	err := db.QueryRowContext(ctx, selectSchemaVersionQuery).Scan(&version, &dirty)
+	if err != nil {
+		if errors.Is(err, dbsql.ErrNoRows) || isTableNotExist(err) {
+			return 0, false, nil
+		}
+		return 0, false, fmt.Errorf("failed to read database schema version: %w", err)
+	}
+	return version, dirty != 0, nil
 }
 
-func newSchemaBuilder(cfg Configuration) (*schemaBuilder, error) {
-	mergeTree, err := cfg.TableEngine.engineClause(mergeTreeFamily)
+func renderMigrationFiles(cfg Configuration) (fs.FS, error) {
+	var params schemaTemplateParams
+	if cfg.CreateSchema {
+		mergeTree, err := cfg.TableEngine.engineClause(mergeTreeFamily)
+		if err != nil {
+			return nil, err
+		}
+		aggregatingMergeTree, err := cfg.TableEngine.engineClause(aggregatingMergeTreeFamily)
+		if err != nil {
+			return nil, err
+		}
+		params = schemaTemplateParams{
+			TTLSeconds:           int64(cfg.TTL / time.Second),
+			MergeTree:            mergeTree,
+			AggregatingMergeTree: aggregatingMergeTree,
+		}
+	}
+
+	renderedFS := fstest.MapFS{}
+	entries, err := chsql.MigrationFiles.ReadDir(".")
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to read migration files directory: %w", err)
 	}
-	aggregatingMergeTree, err := cfg.TableEngine.engineClause(aggregatingMergeTreeFamily)
-	if err != nil {
-		return nil, err
-	}
-	params := schemaTemplateParams{
-		TTLSeconds:           int64(cfg.TTL / time.Second),
-		MergeTree:            mergeTree,
-		AggregatingMergeTree: aggregatingMergeTree,
-	}
-	// The materialized views carry no engine of their own, because each writes TO its
-	// target table, so only the tables are templates.
-	schema := []struct {
-		name     string
-		query    string
-		template bool
-	}{
-		{"spans table", sql.CreateSpansTable, true},
-		{"services table", sql.CreateServicesTable, true},
-		{"services materialized view", sql.CreateServicesMaterializedView, false},
-		{"operations table", sql.CreateOperationsTable, true},
-		{"operations materialized view", sql.CreateOperationsMaterializedView, false},
-		{"trace id timestamps table", sql.CreateTraceIDTimestampsTable, true},
-		{"trace id timestamps materialized view", sql.CreateTraceIDTimestampsMaterializedView, false},
-		{"attribute metadata table", sql.CreateAttributeMetadataTable, true},
-		{"attribute metadata materialized view", sql.CreateAttributeMetadataMaterializedView, false},
-		{"event attribute metadata materialized view", sql.CreateEventAttributeMetadataMaterializedView, false},
-		{"link attribute metadata materialized view", sql.CreateLinkAttributeMetadataMaterializedView, false},
-		{"dependencies table", sql.CreateDependenciesTable, true},
-	}
-	builder := &schemaBuilder{}
-	for _, s := range schema {
-		query := s.query
-		if s.template {
-			query, err = loadTemplate(s.name, s.query, params)
+
+	for _, entry := range entries {
+		name := entry.Name()
+		if entry.IsDir() || !strings.HasSuffix(name, ".up.sql") {
+			continue
+		}
+		content, err := chsql.MigrationFiles.ReadFile(name)
+		if err != nil {
+			return nil, fmt.Errorf("failed to read migration file %s: %w", name, err)
+		}
+
+		var rendered string
+		if cfg.CreateSchema {
+			rendered, err = loadTemplate(name, string(content), params)
 			if err != nil {
 				return nil, err
 			}
+		} else {
+			rendered = string(content)
 		}
-		builder.statements = append(builder.statements, schemaStatement{name: s.name, query: query})
+
+		renderedFS[name] = &fstest.MapFile{
+			Data: []byte(rendered),
+		}
 	}
-	return builder, nil
+	return renderedFS, nil
 }
 
-func (b *schemaBuilder) build(ctx context.Context, conn driver.Conn) error {
-	for _, statement := range b.statements {
-		if err := conn.Exec(ctx, statement.query); err != nil {
-			return fmt.Errorf("failed to create %s: %w", statement.name, err)
+type schemaBuilder struct {
+	cfg                    Configuration
+	opts                   *clickhouse.Options
+	renderedFS             fs.FS
+	backoffInitialInterval time.Duration
+	backoffMaxElapsedTime  time.Duration
+}
+
+func newSchemaBuilder(cfg Configuration, opts *clickhouse.Options) (*schemaBuilder, error) {
+	renderedFS, err := renderMigrationFiles(cfg)
+	if err != nil {
+		return nil, err
+	}
+	return &schemaBuilder{
+		cfg:                    cfg,
+		opts:                   opts,
+		renderedFS:             renderedFS,
+		backoffInitialInterval: 100 * time.Millisecond,
+		backoffMaxElapsedTime:  15 * time.Second,
+	}, nil
+}
+
+func latestBinaryVersion(src source.Driver) (uint, error) {
+	v, err := src.First()
+	if err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			return 0, nil
+		}
+		return 0, err
+	}
+	for {
+		next, err := src.Next(v)
+		if err != nil {
+			if errors.Is(err, os.ErrNotExist) {
+				return v, nil
+			}
+			return 0, err
+		}
+		v = next
+	}
+}
+
+func (b *schemaBuilder) build(ctx context.Context) error {
+	db := clickhouse.OpenDB(b.opts)
+	defer db.Close()
+
+	sourceDriver, err := newSourceDriver(b.renderedFS, ".")
+	if err != nil {
+		return fmt.Errorf("failed to create migration source driver: %w", err)
+	}
+	defer sourceDriver.Close()
+
+	binaryVersion, err := latestBinaryVersion(sourceDriver)
+	if err != nil {
+		return fmt.Errorf("failed to determine binary schema version: %w", err)
+	}
+
+	if b.cfg.CreateSchema {
+		dbName := b.cfg.Database
+		if dbName == "" {
+			dbName = "default"
+		}
+
+		migrateConfig := &clickhousemigrate.Config{
+			DatabaseName:          dbName,
+			MultiStatementEnabled: true,
+		}
+
+		if b.cfg.TableEngine.Replicated.HasValue() {
+			replicatedEngine, err := b.cfg.TableEngine.engineClause(mergeTreeFamily)
+			if err != nil {
+				return err
+			}
+			if !strings.HasSuffix(replicatedEngine, "Tree") {
+				replicatedEngine += " ORDER BY sequence"
+			}
+			migrateConfig.MigrationsTableEngine = replicatedEngine
+		}
+
+		dbDriver, err := newDatabaseDriver(db, migrateConfig)
+		if err != nil {
+			return fmt.Errorf("failed to create migration database driver: %w", err)
+		}
+
+		m, err := newMigrateInstance("iofs", sourceDriver, "clickhouse", dbDriver)
+		if err != nil {
+			_ = dbDriver.Close()
+			return fmt.Errorf("failed to create migrate instance: %w", err)
+		}
+		defer m.Close()
+
+		if err := b.applyMigrations(ctx, m); err != nil {
+			return err
+		}
+	} else {
+		dbVersion, dirty, err := readSchemaVersion(ctx, db)
+		if err != nil {
+			return err
+		}
+		if dirty {
+			return fmt.Errorf("database schema is in dirty state at version %d", dbVersion)
+		}
+		if dbVersion > binaryVersion {
+			return fmt.Errorf("database schema version %d is newer than binary version %d", dbVersion, binaryVersion)
 		}
 	}
+
 	return nil
+}
+
+func (b *schemaBuilder) applyMigrations(ctx context.Context, m *migrate.Migrate) error {
+	startTime := time.Now()
+	expBackoff := backoff.NewExponentialBackOff()
+	expBackoff.InitialInterval = b.backoffInitialInterval
+	expBackoff.MaxInterval = 2 * time.Second
+	expBackoff.Reset()
+
+	for {
+		err := m.Up()
+		if err == nil || errors.Is(err, migrate.ErrNoChange) {
+			return nil
+		}
+
+		var dirtyErr migrate.ErrDirty
+		if !errors.As(err, &dirtyErr) {
+			return fmt.Errorf("failed to apply migrations: %w", err)
+		}
+
+		if time.Since(startTime) >= b.backoffMaxElapsedTime {
+			return fmt.Errorf("ClickHouse schema_migrations table is dirty at version %d. Inspect the table and clean state using the migrate CLI (migrate force %d)", dirtyErr.Version, dirtyErr.Version)
+		}
+
+		delay := expBackoff.NextBackOff()
+
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-time.After(delay):
+		}
+	}
+}
+
+// Options creates ClickHouse client options from the configuration.
+func Options(ctx context.Context, cfg Configuration) (*clickhouse.Options, error) {
+	opts := &clickhouse.Options{
+		Protocol: getProtocol(cfg.Protocol),
+		Addr:     cfg.Addresses,
+		Auth: clickhouse.Auth{
+			Database: cfg.Database,
+		},
+		DialTimeout: cfg.DialTimeout,
+	}
+	basicAuth := cfg.Auth.Basic.Get()
+	if basicAuth != nil {
+		opts.Auth.Username = basicAuth.Username
+		opts.Auth.Password = string(basicAuth.Password)
+	}
+	if tlsCfg := cfg.TLS.Get(); tlsCfg != nil {
+		loaded, tlsErr := tlsCfg.LoadTLSConfig(ctx)
+		if tlsErr != nil {
+			return nil, fmt.Errorf("failed to load TLS configuration: %w", tlsErr)
+		}
+		opts.TLS = loaded
+	}
+	return opts, nil
 }
 
 type Factory struct {
@@ -142,39 +334,21 @@ type Factory struct {
 }
 
 func NewFactory(ctx context.Context, cfg Configuration, telset telemetry.Settings) (*Factory, error) {
-	var builder *schemaBuilder
-	if cfg.CreateSchema {
-		var err error
-		builder, err = newSchemaBuilder(cfg)
-		if err != nil {
-			return nil, err
-		}
+	opts, err := Options(ctx, cfg)
+	if err != nil {
+		return nil, err
+	}
+
+	builder, err := newSchemaBuilder(cfg, opts)
+	if err != nil {
+		return nil, err
 	}
 
 	f := &Factory{
 		config: cfg,
 		telset: telset,
 	}
-	opts := &clickhouse.Options{
-		Protocol: getProtocol(f.config.Protocol),
-		Addr:     f.config.Addresses,
-		Auth: clickhouse.Auth{
-			Database: f.config.Database,
-		},
-		DialTimeout: f.config.DialTimeout,
-	}
-	basicAuth := f.config.Auth.Basic.Get()
-	if basicAuth != nil {
-		opts.Auth.Username = basicAuth.Username
-		opts.Auth.Password = string(basicAuth.Password)
-	}
-	if tlsCfg := f.config.TLS.Get(); tlsCfg != nil {
-		loaded, tlsErr := tlsCfg.LoadTLSConfig(ctx)
-		if tlsErr != nil {
-			return nil, fmt.Errorf("failed to load TLS configuration: %w", tlsErr)
-		}
-		opts.TLS = loaded
-	}
+
 	conn, err := clickhouse.Open(opts)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create ClickHouse connection: %w", err)
@@ -191,10 +365,8 @@ func NewFactory(ctx context.Context, cfg Configuration, telset telemetry.Setting
 		return nil, fmt.Errorf("failed to ping ClickHouse: %w", err)
 	}
 
-	if builder != nil {
-		if err := builder.build(ctx, conn); err != nil {
-			return nil, err
-		}
+	if err := builder.build(ctx); err != nil {
+		return nil, err
 	}
 
 	success = true
@@ -239,12 +411,12 @@ func (f *Factory) Purge(ctx context.Context) error {
 		name  string
 		query string
 	}{
-		{"spans", sql.TruncateSpans},
-		{"services", sql.TruncateServices},
-		{"operations", sql.TruncateOperations},
-		{"trace_id_timestamps", sql.TruncateTraceIDTimestamps},
-		{"attribute_metadata", sql.TruncateAttributeMetadata},
-		{"dependencies", sql.TruncateDependencies},
+		{"spans", chsql.TruncateSpans},
+		{"services", chsql.TruncateServices},
+		{"operations", chsql.TruncateOperations},
+		{"trace_id_timestamps", chsql.TruncateTraceIDTimestamps},
+		{"attribute_metadata", chsql.TruncateAttributeMetadata},
+		{"dependencies", chsql.TruncateDependencies},
 	}
 
 	for _, table := range tables {
