@@ -26,6 +26,10 @@ inputs:
     description: 'Reconcile the one-active-PR-per-linked-issue policy across open PRs.'
     required: false
     default: 'false'
+  issue-number:
+    description: 'Issue number whose linked PRs should be reconciled.'
+    required: false
+    default: ''
 
 runs:
   using: composite
@@ -43,6 +47,7 @@ runs:
         QUOTA_DRY_RUN: ${{ inputs.dry-run }}
         QUOTA_PER_ISSUE_LIMIT: ${{ inputs.per-issue-limit }}
         QUOTA_PR_NUMBER: ${{ github.event.pull_request.number }}
+        QUOTA_ISSUE_NUMBER: ${{ inputs.issue-number }}
       with:
         github-token: ${{ inputs.token }}
         script: |
@@ -65,6 +70,9 @@ runs:
             repo: context.repo.repo,
             pullRequestNumber: perIssueLimit
               ? process.env.QUOTA_PR_NUMBER
+              : undefined,
+            issueNumber: perIssueLimit
+              ? process.env.QUOTA_ISSUE_NUMBER
               : undefined,
             perIssueLimit,
             dryRun: process.env.QUOTA_DRY_RUN === 'true'

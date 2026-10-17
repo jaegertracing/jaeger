@@ -24,6 +24,7 @@ steps:
 | `username` | no | PR author | Whose quota to process. Only manual runs need to set it. |
 | `dry-run` | no | `false` | Log the intended labels and comments without writing anything. |
 | `per-issue-limit` | no | `false` | Reconcile the complete open-PR graph so each linked same-repository issue has one active PR. |
+| `issue-number` | no | — | For an issue-label event, limit comment reconciliation to PRs linked to this issue. |
 
 Labels and comments on a pull request go through the `/issues/{n}/labels` and `/issues/{n}/comments` endpoints, so the token needs `issues: write` — `pull-requests: write` alone is not enough, and a token missing it fails every write with `403 Resource not accessible`.
 
@@ -253,23 +254,27 @@ in the same repository. An open PR with the `stale` label is inactive, matching
 the stale workflow's policy; drafts and PRs from maintainers remain active.
 
 For each linked issue, the oldest active PR (with PR number as the tie-breaker)
-is primary. The action labels the other active PRs `duplicate` and maintains one
-marker comment on each naming its primary PR. A maintainer can exempt an umbrella
-issue or intentionally competing implementations by applying `allow-multiple-prs`
-to the issue. The policy workflow serializes repository runs separately from the
-author-quota workflow. It reads the complete, paginated graph of open PRs and
-their canonical links before mutations, so a PR linked to multiple issues keeps
-its full duplicate state. The query bounds nested connections and fails safely
-if a PR has more than 20 labels, more than 5 linked issues, or a linked issue
-has more than 10 labels; it never silently misses `stale`, `duplicate`, or
-`allow-multiple-prs`. The daily sweep reconciles a remaining PR when another PR
-removes its issue link. Only comments authored by `github-actions[bot]` with the
+is primary. Draft and reopened PRs keep their original creation time, so either
+can remain primary. The action labels the other active PRs `duplicate` and
+maintains one marker comment on each naming its primary PR. A maintainer can
+exempt an umbrella issue or intentionally competing implementations by applying
+`allow-multiple-prs` to the issue. The policy workflow serializes repository runs
+separately from the author-quota workflow. It reads the complete, paginated graph
+of open PRs and their canonical links before mutations, so a PR linked to
+multiple issues keeps its full duplicate state. The query bounds nested
+connections and fails safely if a PR has more than 20 labels, more than 10 linked
+issues, or a linked issue has more than 10 labels; it never silently misses
+`stale`, `duplicate`, or `allow-multiple-prs`. The daily sweep reconciles a
+remaining PR when another PR removes its issue link. Only comments authored by
+`github-actions[bot]` with the
 policy marker control label cleanup. Resolved comments retain the policy marker
 but drop the separate label-ownership marker, allowing the action to reuse its
 one maintained comment without claiming a later human-applied `duplicate`
 label. The ownership marker records whether the action added the label, so an
-existing manual `duplicate` label is never claimed or removed. The action scans
-all open PR comments for policy markers, which lets a later run repair a partial
-comment/label write. Cleanup removes labels while the ownership marker is still
-present and restores removed labels if a later removal fails. It does not mutate
-stale PRs, avoiding stale-policy reactivation caused by bot activity.
+existing manual `duplicate` label is never claimed or removed. Scheduled and
+manual sweeps scan all open PR comments for policy markers, which lets a later
+run repair a partial comment/label write. PR and issue-label events inspect only
+their affected PRs and PRs already carrying `duplicate`. Cleanup removes labels
+while the ownership marker is still present and restores removed labels if a
+later removal fails. It does not mutate stale PRs, avoiding stale-policy
+reactivation caused by bot activity.

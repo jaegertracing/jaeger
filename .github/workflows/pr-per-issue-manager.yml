@@ -45,4 +45,5 @@ jobs:
         with:
           token: ${{ github.token }}
           per-issue-limit: 'true'
+          issue-number: ${{ github.event.issue.number }}
           dry-run: ${{ inputs.dryRun || 'false' }}

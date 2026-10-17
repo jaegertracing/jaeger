@@ -40,7 +40,9 @@ We do not assign issues to contributors. It is almost never the case that multip
 people jump on the same issue, and practice showed that occasionally people who ask
 for an issue to be assigned to them later have a change in priorities and are unable
 to find time to finish it, which leaves the issue in limbo.
-So if you have a desire to work on an issue, feel free to mention it in the comment and just submit a PR.
+So if you have a desire to work on an issue, feel free to mention it in the
+comment, then link the pull request to the issue as described in
+[Link each pull request to an issue](#link-each-pull-request-to-an-issue).
 
 ### Link each pull request to an issue
 

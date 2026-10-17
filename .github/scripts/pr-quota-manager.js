@@ -33,7 +33,7 @@ const openPullRequestsQuery = `
             nodes { name }
             pageInfo { hasNextPage }
           }
-          closingIssuesReferences(first: 5) {
+          closingIssuesReferences(first: 10) {
             nodes {
               number
               repository { nameWithOwner }
@@ -531,36 +531,71 @@ function calculateIssueLimitState(pullRequests, repository) {
   return { issues, desiredDuplicates };
 }
 
+function linkedIssueNumbers(pr, repository) {
+  return new Set(pr.closingIssuesReferences.nodes
+    .filter(issue => issue.repository.nameWithOwner === repository)
+    .map(issue => issue.number));
+}
+
+function issueLimitCommentCandidates(pullRequests, repository, pullRequestNumber, issueNumber) {
+  if (!pullRequestNumber && !issueNumber) {
+    return new Set(pullRequests.map(pr => pr.number));
+  }
+
+  const affectedIssues = new Set(issueNumber ? [Number(issueNumber)] : []);
+  const triggeringPR = pullRequests.find(pr => pr.number === Number(pullRequestNumber));
+  if (triggeringPR) {
+    for (const number of linkedIssueNumbers(triggeringPR, repository)) {
+      affectedIssues.add(number);
+    }
+  }
+
+  return new Set(pullRequests
+    .filter(pr =>
+      pr.number === Number(pullRequestNumber) ||
+      labelNames(pr.labels).includes(DUPLICATE_LABEL_NAME) ||
+      [...linkedIssueNumbers(pr, repository)].some(number => affectedIssues.has(number))
+    )
+    .map(pr => pr.number));
+}
+
 /**
  * Reconcile the complete open-PR graph in one paginated GraphQL traversal.
  * Computing every PR's links together avoids one issue clearing another issue's
  * duplicate state when a PR is linked to more than one issue.
  */
-async function processIssueLimits(octokit, owner, repo, logger = console, dryRun = false) {
+async function processIssueLimits(
+  octokit, owner, repo, logger = console, dryRun = false, pullRequestNumber, issueNumber
+) {
   const repository = `${owner}/${repo}`;
   const pullRequests = await fetchOpenPullRequests(octokit, owner, repo);
   const { issues, desiredDuplicates } = calculateIssueLimitState(pullRequests, repository);
   const knownPRs = new Map(pullRequests.map(pr => [pr.number, pr]));
+  const commentCandidates = issueLimitCommentCandidates(
+    pullRequests, repository, pullRequestNumber, issueNumber
+  );
+  const scopedDuplicates = new Map([...desiredDuplicates]
+    .filter(([number]) => commentCandidates.has(number)));
 
   const commentSets = new Map();
-  // Policy markers make incomplete comment/label transitions recoverable, so
-  // inspect every open PR until policy comments have been reconciled. Bound requests
-  // to avoid GitHub secondary-rate-limit throttling on repository sweeps.
-  await forEachWithConcurrency([...knownPRs.values()], COMMENT_REQUEST_CONCURRENCY, async ({ number }) => {
+  // Scheduled/manual sweeps inspect every marker for recovery. Event-driven
+  // reconciliation is limited to affected PRs and existing duplicate labels
+  // to preserve the shared GitHub token's hourly REST API budget.
+  await forEachWithConcurrency([...commentCandidates], COMMENT_REQUEST_CONCURRENCY, async number => {
     commentSets.set(number, await listIssueLimitComments(octokit, owner, repo, number));
   });
 
   if (dryRun) return {
     reconciledIssues: [...issues.keys()].sort((left, right) => left - right),
-    duplicates: [...desiredDuplicates.keys()].sort((left, right) => left - right)
+    duplicates: [...scopedDuplicates.keys()].sort((left, right) => left - right)
   };
 
-  const missingDuplicateLabel = [...desiredDuplicates.keys()].some(number =>
+  const missingDuplicateLabel = [...scopedDuplicates.keys()].some(number =>
     !labelNames(knownPRs.get(number).labels).includes(DUPLICATE_LABEL_NAME)
   );
   if (missingDuplicateLabel) await ensureIssueLimitLabels(octokit, owner, repo);
   // Add/update first. A later API failure must not remove an existing signal.
-  for (const [number, duplicates] of desiredDuplicates) {
+  for (const [number, duplicates] of scopedDuplicates) {
     const pr = knownPRs.get(number);
     const comments = commentSets.get(number) || [];
     const hasDuplicateLabel = labelNames(pr.labels).includes(DUPLICATE_LABEL_NAME);
@@ -581,7 +616,7 @@ async function processIssueLimits(octokit, owner, repo, logger = console, dryRun
   for (const [number, pr] of knownPRs) {
     // Cleanup must not update stale PRs: stale policy treats bot activity as
     // renewed activity and could reactivate a PR that should stay inactive.
-    if (!isActivePR(pr) || desiredDuplicates.has(number)) continue;
+    if (!commentCandidates.has(number) || !isActivePR(pr) || scopedDuplicates.has(number)) continue;
     const comments = commentSets.get(number) || [];
     if (comments.length === 0) continue;
     cleanup.push({
@@ -629,7 +664,7 @@ async function processIssueLimits(octokit, owner, repo, logger = console, dryRun
   }
   // Collapse historical marker comments without deleting user-visible history.
   for (const [number, comments] of commentSets) {
-    if (!desiredDuplicates.has(number)) continue;
+    if (!scopedDuplicates.has(number)) continue;
     for (const comment of comments.slice(1)) {
       await octokit.rest.issues.updateComment({
         owner,
@@ -642,12 +677,16 @@ async function processIssueLimits(octokit, owner, repo, logger = console, dryRun
 
   return {
     reconciledIssues: [...issues.keys()].sort((left, right) => left - right),
-    duplicates: [...desiredDuplicates.keys()].sort((left, right) => left - right)
+    duplicates: [...scopedDuplicates.keys()].sort((left, right) => left - right)
   };
 }
 
 async function processIssueLimitForPullRequest(octokit, owner, repo, pullRequestNumber, logger = console, dryRun = false) {
-  return processIssueLimits(octokit, owner, repo, logger, dryRun);
+  return processIssueLimits(octokit, owner, repo, logger, dryRun, pullRequestNumber);
+}
+
+async function processIssueLimitForIssue(octokit, owner, repo, issueNumber, logger = console, dryRun = false) {
+  return processIssueLimits(octokit, owner, repo, logger, dryRun, undefined, issueNumber);
 }
 
 async function processAllIssueLimits(octokit, owner, repo, logger = console, dryRun = false) {
@@ -693,8 +732,16 @@ async function main() {
   }
 }
 
+function logIssueLimitResult(core, result, dryRun) {
+  const prefix = dryRun ? 'Dry-run plan' : 'Reconciled';
+  core.info(`${prefix} linked issues: ${result.reconciledIssues.join(', ') || 'none'}`);
+  core.info(`${dryRun ? 'Dry-run plan duplicate' : 'Duplicate'} PRs: ${result.duplicates.join(', ') || 'none'}`);
+}
+
 // GitHub Actions wrapper function
-async function githubActionHandler({github, core, username, owner, repo, pullRequestNumber, perIssueLimit = false, dryRun = false}) {
+async function githubActionHandler({
+  github, core, username, owner, repo, pullRequestNumber, issueNumber, perIssueLimit = false, dryRun = false
+}) {
   if (!owner || !repo) {
     core.setFailed('Owner and repo are required');
     return;
@@ -713,12 +760,13 @@ async function githubActionHandler({github, core, username, owner, repo, pullReq
       const result = await processIssueLimitForPullRequest(
         github, owner, repo, Number(pullRequestNumber), console, dryRun
       );
-      core.info(`Reconciled linked issues: ${result.reconciledIssues.join(', ') || 'none'}`);
-      core.info(`Duplicate PRs: ${result.duplicates.join(', ') || 'none'}`);
+      logIssueLimitResult(core, result, dryRun);
     }
     if (perIssueLimit && !pullRequestNumber) {
-      await processAllIssueLimits(github, owner, repo, console, dryRun);
-      core.info('Reconciled the open pull request graph.');
+      const result = issueNumber
+        ? await processIssueLimitForIssue(github, owner, repo, Number(issueNumber), console, dryRun)
+        : await processAllIssueLimits(github, owner, repo, console, dryRun);
+      logIssueLimitResult(core, result, dryRun);
     }
     if (!username && !pullRequestNumber && !perIssueLimit) {
       core.setFailed('A username or pull request number is required');
@@ -752,10 +800,12 @@ if (typeof module !== 'undefined' && module.exports) {
   module.exports.commentOwnsDuplicateLabel = commentOwnsDuplicateLabel;
   module.exports.fetchOpenPullRequests = fetchOpenPullRequests;
   module.exports.calculateIssueLimitState = calculateIssueLimitState;
+  module.exports.issueLimitCommentCandidates = issueLimitCommentCandidates;
   module.exports.listIssueLimitComments = listIssueLimitComments;
   module.exports.forEachWithConcurrency = forEachWithConcurrency;
   module.exports.processIssueLimits = processIssueLimits;
   module.exports.processIssueLimitForPullRequest = processIssueLimitForPullRequest;
+  module.exports.processIssueLimitForIssue = processIssueLimitForIssue;
   module.exports.processAllIssueLimits = processAllIssueLimits;
   module.exports.DUPLICATE_LABEL_NAME = DUPLICATE_LABEL_NAME;
   module.exports.OVERRIDE_LABEL_NAME = OVERRIDE_LABEL_NAME;

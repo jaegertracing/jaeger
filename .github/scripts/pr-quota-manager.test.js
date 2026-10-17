@@ -804,6 +804,78 @@ describe('processIssueLimitForPullRequest', () => {
     }));
   });
 
+  test('does not list comments for unrelated PRs during pull request reconciliation', async () => {
+    const issueOne = [{ number: 1, repository: { nameWithOwner: 'owner/repo' }, labels: { nodes: [] } }];
+    const issueTwo = [{ number: 2, repository: { nameWithOwner: 'owner/repo' }, labels: { nodes: [] } }];
+    const issueThree = [{ number: 3, repository: { nameWithOwner: 'owner/repo' }, labels: { nodes: [] } }];
+    const octokit = issueLimitOctokit({
+      issues: [
+        makePR(10, '2026-01-01T00:00:00Z', [], false, 'CONTRIBUTOR', issueOne),
+        makePR(20, '2026-01-02T00:00:00Z', [], false, 'CONTRIBUTOR', issueOne),
+        makePR(30, '2026-01-03T00:00:00Z', [], false, 'CONTRIBUTOR', issueTwo),
+        makePR(40, '2026-01-04T00:00:00Z', ['duplicate'], false, 'CONTRIBUTOR', issueThree)
+      ]
+    });
+
+    await processIssueLimitForPullRequest(octokit, 'owner', 'repo', 20);
+
+    const listedPRs = octokit.rest.issues.listComments.mock.calls.map(([{ issue_number }]) => issue_number);
+    expect(listedPRs).toEqual(expect.arrayContaining([10, 20, 40]));
+    expect(listedPRs).not.toContain(30);
+  });
+
+  test('ignores canonical links to issues in other repositories', async () => {
+    const foreignIssue = [{
+      number: 99,
+      repository: { nameWithOwner: 'other/repo' },
+      labels: { nodes: [] }
+    }];
+    const octokit = issueLimitOctokit({
+      issues: [
+        makePR(10, '2026-01-01T00:00:00Z', [], false, 'CONTRIBUTOR', foreignIssue),
+        makePR(20, '2026-01-02T00:00:00Z', [], false, 'CONTRIBUTOR', foreignIssue)
+      ]
+    });
+
+    const result = await processIssueLimitForPullRequest(octokit, 'owner', 'repo', 20);
+
+    expect(result.duplicates).toEqual([]);
+    expect(octokit.rest.issues.addLabels).not.toHaveBeenCalled();
+    const listedPRs = octokit.rest.issues.listComments.mock.calls.map(([{ issue_number }]) => issue_number);
+    expect(listedPRs).not.toContain(10);
+  });
+
+  test('paginates the open PR graph before selecting a primary', async () => {
+    const octokit = issueLimitOctokit({ issues: [] });
+    octokit.graphql
+      .mockResolvedValueOnce({
+        repository: {
+          pullRequests: {
+            nodes: [makePR(10, '2026-01-01T00:00:00Z')],
+            pageInfo: { hasNextPage: true, endCursor: 'next-page' }
+          }
+        }
+      })
+      .mockResolvedValueOnce({
+        repository: {
+          pullRequests: {
+            nodes: [makePR(20, '2026-01-02T00:00:00Z')],
+            pageInfo: { hasNextPage: false, endCursor: null }
+          }
+        }
+      });
+
+    await processAllIssueLimits(octokit, 'owner', 'repo');
+
+    expect(octokit.graphql).toHaveBeenNthCalledWith(1, expect.any(String), {
+      owner: 'owner', repo: 'repo', after: null
+    });
+    expect(octokit.graphql).toHaveBeenNthCalledWith(2, expect.any(String), {
+      owner: 'owner', repo: 'repo', after: 'next-page'
+    });
+    expect(octokit.rest.issues.addLabels).toHaveBeenCalledWith(expect.objectContaining({ issue_number: 20 }));
+  });
+
   test('restores earlier duplicate labels if a later cleanup removal fails', async () => {
     const override = [{
       number: 99,
@@ -855,7 +927,7 @@ describe('processIssueLimitForPullRequest', () => {
       comments: { 20: [{ id: 7, body: issueLimitComment([{ issueNumber: 1, primaryNumber: 10 }]) }] }
     });
 
-    await processIssueLimitForPullRequest(octokit, 'owner', 'repo', 10);
+    await processIssueLimitForPullRequest(octokit, 'owner', 'repo', 30);
 
     expect(octokit.rest.issues.removeLabel).not.toHaveBeenCalledWith(expect.objectContaining({ issue_number: 20 }));
     expect(octokit.rest.issues.updateComment).not.toHaveBeenCalledWith(expect.objectContaining({
@@ -1121,7 +1193,30 @@ describe('githubActionHandler', () => {
     });
 
     expect(core.setFailed).not.toHaveBeenCalled();
-    expect(core.info).toHaveBeenCalledWith('Reconciled the open pull request graph.');
+    expect(core.info).toHaveBeenCalledWith('Reconciled linked issues: none');
+    expect(core.info).toHaveBeenCalledWith('Duplicate PRs: none');
+  });
+
+  test('logs the manual sweep plan in dry-run mode', async () => {
+    const core = { info: jest.fn(), setFailed: jest.fn() };
+    const github = {
+      graphql: jest.fn().mockResolvedValue({
+        repository: { pullRequests: { nodes: [] } }
+      }),
+      rest: { issues: {} }
+    };
+
+    await prQuotaManager({
+      github,
+      core,
+      owner: 'owner',
+      repo: 'repo',
+      perIssueLimit: true,
+      dryRun: true
+    });
+
+    expect(core.info).toHaveBeenCalledWith('Dry-run plan linked issues: none');
+    expect(core.info).toHaveBeenCalledWith('Dry-run plan duplicate PRs: none');
   });
 
   test('does not run the author quota when per-issue reconciliation receives a username', async () => {
