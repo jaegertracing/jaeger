@@ -121,7 +121,7 @@ func TestTraceReader_FindSpans_Errors(t *testing.T) {
 			if tc.core != nil {
 				coreReader.On("FindSpans", mock.Anything, mock.Anything).Return(dbmodel.SpanPage{}, tc.core)
 			} else {
-				coreReader.On("FindSpans", mock.Anything, mock.Anything).Return(dbmodel.SpanPage{Spans: []dbmodel.Span{{TraceID: "not hex"}}}, nil)
+				coreReader.On("FindSpans", mock.Anything, mock.Anything).Return(dbmodel.SpanPage{Spans: []dbmodel.Span{{TraceID: "NotHexNotHexNotHexNotHexNotHexNo"}}}, nil)
 			}
 			query := spanQuery()
 			tc.query(&query)
