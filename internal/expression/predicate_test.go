@@ -90,6 +90,22 @@ func TestLowering(t *testing.T) {
 			}},
 		},
 		{
+			name:  "phrase, whose words travel as an untyped list",
+			built: p.Attr("gen_ai.prompt").Phrase("refund", "policy"),
+			want: &ast.Call{Op: ast.OpPhrase, Args: []ast.Expression{
+				&ast.AttributeRef{Key: "gen_ai.prompt"},
+				&ast.List{Values: []string{"refund", "policy"}},
+			}},
+		},
+		{
+			name:  "fulltext, with the same list shape",
+			built: p.Attr("gen_ai.prompt").Fulltext("refund", "policy"),
+			want: &ast.Call{Op: ast.OpFulltext, Args: []ast.Expression{
+				&ast.AttributeRef{Key: "gen_ai.prompt"},
+				&ast.List{Values: []string{"refund", "policy"}},
+			}},
+		},
+		{
 			name:  "membership",
 			built: p.Resource().Service.In("cart", "checkout"),
 			want: &ast.Call{Op: ast.OpIn, Args: []ast.Expression{
@@ -107,7 +123,7 @@ func TestLowering(t *testing.T) {
 		},
 		{
 			name:  "constant narrowed to text",
-			built: p.Attr("size").Eq(p.Text("4096")),
+			built: p.Attr("size").Eq(p.String("4096")),
 			want: &ast.Call{Op: ast.OpEq, Args: []ast.Expression{
 				&ast.AttributeRef{Key: "size"},
 				&ast.StringValue{Value: "4096"},
@@ -233,7 +249,11 @@ func TestConstantLeavesTheTypeOpen(t *testing.T) {
 		{"a duration against the field that holds one", p.Span().Duration.Gt(2 * time.Second), &ast.AnyValue{Value: "2s"}},
 
 		// Narrowing on purpose, which is the one way to get a typed node.
-		{"text asked for explicitly", p.Attr("size").Eq(p.Text("500")), &ast.StringValue{Value: "500"}},
+		{"string asked for explicitly", p.Attr("size").Eq(p.String("500")), &ast.StringValue{Value: "500"}},
+		{"integer asked for explicitly", p.Attr("size").Eq(p.Int(500)), &ast.IntValue{Value: 500}},
+		{"double asked for explicitly", p.Attr("ratio").Eq(p.Double(1.5)), &ast.DoubleValue{Value: 1.5}},
+		{"boolean asked for explicitly", p.Attr("ok").Eq(p.Bool(true)), &ast.BoolValue{Value: true}},
+		{"duration asked for explicitly", p.Attr("d").Gt(p.Duration(time.Second)), &ast.DurationValue{Value: time.Second}},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
@@ -421,4 +441,40 @@ func accessors(t *testing.T, object any) []*ast.FieldRef {
 		refs = append(refs, ref)
 	}
 	return refs
+}
+
+// TestEveryOperatorHasAMethod is the operator counterpart of TestEveryBuiltInFieldHasAnAccessor:
+// jaeger-idl defines the operator vocabulary, and an operator added there has to fail this test
+// rather than leave the builder quietly unable to write it. The chains below are the builder's
+// whole operator surface, each lowered with placeholder operands, so the table doubles as the
+// check that each method writes the operator it is named for.
+func TestEveryOperatorHasAMethod(t *testing.T) {
+	ref := p.Attr("a")
+	byOperator := map[ast.Operator]*ast.Call{
+		ast.OpAnd:      p.And(ref.Exists(), ref.Exists()),
+		ast.OpOr:       p.Or(ref.Exists(), ref.Exists()),
+		ast.OpNot:      p.Not(ref.Exists()),
+		ast.OpEq:       ref.Eq(1),
+		ast.OpNe:       ref.Ne(1),
+		ast.OpGt:       ref.Gt(1),
+		ast.OpLt:       ref.Lt(1),
+		ast.OpGte:      ref.Gte(1),
+		ast.OpLte:      ref.Lte(1),
+		ast.OpRegex:    ref.Matches("a"),
+		ast.OpExists:   ref.Exists(),
+		ast.OpIn:       ref.In(1),
+		ast.OpNotIn:    ref.NotIn(1),
+		ast.OpSome:     p.Some(p.Event(), ref.Exists()),
+		ast.OpPhrase:   ref.Phrase("a", "b"),
+		ast.OpFulltext: ref.Fulltext("a", "b"),
+	}
+	for _, op := range ast.Operators() {
+		t.Run(string(op), func(t *testing.T) {
+			built, ok := byOperator[op]
+			require.True(t, ok, "add a builder method for operator %q and list it here", op)
+			require.NotNil(t, built)
+			assert.Equal(t, op, built.Op)
+		})
+	}
+	assert.Len(t, byOperator, len(ast.Operators()), "the table names an operator the vocabulary does not define")
 }
