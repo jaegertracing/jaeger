@@ -29,9 +29,7 @@ func GetValidTenant(ctx context.Context, tm *Manager) (string, error) {
 		return "", err
 	}
 
-	// Without an allow-list Valid accepts any value, so reject an empty
-	// tenant explicitly, as the HTTP handler does.
-	if tenant == "" || !tm.Valid(tenant) {
+	if !tm.Valid(tenant) {
 		return "", status.Errorf(codes.PermissionDenied, "unknown tenant")
 	}
 
