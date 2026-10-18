@@ -59,6 +59,16 @@ func TestTenancyValidity(t *testing.T) {
 			valid:  true,
 		},
 		{
+			name: "empty tenant without allow-list",
+			options: Options{
+				Enabled: true,
+				Header:  "x-tenant",
+				Tenants: []string{},
+			},
+			tenant: "",
+			valid:  false,
+		},
+		{
 			name: "ignore tenant",
 			options: Options{
 				Enabled: false,
