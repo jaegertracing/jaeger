@@ -214,9 +214,11 @@ DDL: [`create_operations_table.sql`](../../internal/storage/v2/clickhouse/sql/cr
 
 ### `trace_id_timestamps`
 
-Stores `min(start_time)` and `max(start_time)` per `trace_id`, keyed on `trace_id`.
+Stores the earliest span start (`min(start_time)`) and the latest span end (`max(addNanoseconds(start_time, duration))`) per `trace_id`, keyed on `trace_id`.
 
 DDL: [`create_trace_id_timestamps_table.sql`](../../internal/storage/v2/clickhouse/sql/create_trace_id_timestamps_table.sql), populated by [`create_trace_id_timestamps_mv.sql`](../../internal/storage/v2/clickhouse/sql/create_trace_id_timestamps_mv.sql).
+
+Earlier versions computed `end` as `max(start_time)`, which left out the duration of the last span and so ended the trace, and its TTL, too early. Because the view is created with `IF NOT EXISTS`, schema creation also runs [`alter_trace_id_timestamps_mv.sql`](../../internal/storage/v2/clickhouse/sql/alter_trace_id_timestamps_mv.sql), which replaces the query of an existing view. That fixes rows written afterwards; rows already in `trace_id_timestamps` keep the old `end` and are not backfilled.
 
 This table exists to make the search → fetch handoff cheap. `FindTraceIDs` returns each matching trace ID together with an optional `(start, end)` time range — documented in the v2 reader API as "an optimization hint for some storage backends that can perform more efficient queries when they know the approximate time range." The hint is optional, but populating it lets `GetTraces` skip a large amount of work on the ClickHouse backend specifically:
 
