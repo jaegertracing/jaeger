@@ -16,7 +16,7 @@ import (
 // protocol — and both carry these same generated messages, so the conversion to and from the
 // jaeger-idl types lives here once rather than in each of them.
 
-// FromProto converts a filter received over the wire into the filter AST. It fails only where the
+// CallFromProto converts a filter received over the wire into the filter AST. It fails only where the
 // wire cannot be represented as a tree at all: an argument with no term set, a call argument
 // carrying no call, or a constant that is not the type it declares — `{value: "x", type: "int"}`
 // names no integer, so there is no node to build for it. That last one is a representability check
@@ -27,7 +27,7 @@ import (
 // the validator rejects, and lets a caller decode a payload it means to inspect rather than serve.
 // It says nothing about what a backend can serve either; that is what a backend's declared
 // capabilities are for.
-func FromProto(filter *Call) (*expression.Call, error) {
+func CallFromProto(filter *Call) (*expression.Call, error) {
 	return decodeCall(filter, 1)
 }
 
@@ -54,6 +54,11 @@ func decodeCall(filter *Call, depth int) (*expression.Call, error) {
 		Op:   expression.Operator(filter.GetOp()),
 		Args: args,
 	}, nil
+}
+
+// FromProto decodes one expression without validating its operators, fields, or types for execution.
+func FromProto(expr *Expression) (expression.Expression, error) {
+	return toFilterExpression(expr, 0)
 }
 
 func toFilterExpression(expr *Expression, depth int) (expression.Expression, error) {
@@ -131,17 +136,17 @@ func errNotOfDeclaredType(value string, valueType expression.ValueType) error {
 	return fmt.Errorf("filter constant %q is not the %q it declares", value, valueType)
 }
 
-// ToProto encodes a filter for the wire. It expects a finalized tree (expression.Finalize), which
+// CallToProto encodes a filter for the wire. It expects a finalized tree (expression.Finalize), which
 // is what every filter reaching a wire has passed through, and it refuses a term it cannot write
 // rather than writing something else: an empty oneof arm decodes as an argument with no term, so
 // emitting one would turn a dropped operand into a different filter on the receiving side.
-func ToProto(filter *expression.Call) (*Call, error) {
+func CallToProto(filter *expression.Call) (*Call, error) {
 	if filter == nil {
 		return nil, nil
 	}
 	args := make([]*Expression, 0, len(filter.Args))
 	for _, arg := range filter.Args {
-		encoded, err := fromFilterExpression(arg)
+		encoded, err := ToProto(arg)
 		if err != nil {
 			return nil, err
 		}
@@ -153,7 +158,8 @@ func ToProto(filter *expression.Call) (*Call, error) {
 	}, nil
 }
 
-func fromFilterExpression(expr expression.Expression) (*Expression, error) {
+// ToProto encodes one expression using the same wire representation as filter operands.
+func ToProto(expr expression.Expression) (*Expression, error) {
 	switch term := expr.(type) {
 	case *expression.AttributeRef:
 		if term == nil {
@@ -190,7 +196,7 @@ func fromFilterExpression(expr expression.Expression) (*Expression, error) {
 		if term == nil {
 			break
 		}
-		call, err := ToProto(term)
+		call, err := CallToProto(term)
 		if err != nil {
 			return nil, err
 		}
@@ -202,8 +208,8 @@ func fromFilterExpression(expr expression.Expression) (*Expression, error) {
 	return nil, fmt.Errorf("%w: %T", ErrTermNotEncodable, expr)
 }
 
-// ErrTermNotEncodable is returned for a term ToProto has no wire form for: a nil one, or a type
-// this package does not know. Both mean the tree was not the finalized filter ToProto expects.
+// ErrTermNotEncodable is returned for a term CallToProto has no wire form for: a nil one, or a type
+// this package does not know. Both mean the tree was not the finalized filter CallToProto expects.
 var ErrTermNotEncodable = errors.New("filter term cannot be encoded for the wire")
 
 // fromFilterConstant writes a constant node as the wire's spelling plus the hint that fits it. A

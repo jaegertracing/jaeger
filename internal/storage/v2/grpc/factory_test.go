@@ -301,3 +301,82 @@ func TestNewFactory_TracesReadsNotWrites(t *testing.T) {
 	assert.Equal(t, readMethod[1:], ended[0].Name())
 	assert.Equal(t, caller.SpanContext().SpanID(), ended[0].Parent().SpanID())
 }
+
+func TestNewFactory_Timeout(t *testing.T) {
+	const (
+		readMethod   = "/jaeger.storage.v2.TraceReader/GetServices"
+		streamMethod = "/jaeger.storage.v2.TraceReader/GetTraces"
+		writeMethod  = "/opentelemetry.proto.collector.trace.v1.TraceService/Export"
+	)
+	tests := []struct {
+		name    string
+		timeout time.Duration
+	}{
+		{name: "configured", timeout: time.Minute},
+		{name: "disabled", timeout: 0},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var mu sync.Mutex
+			hasDeadline := make(map[string]bool)
+			server := grpc.NewServer(grpc.UnknownServiceHandler(
+				func(_ any, stream grpc.ServerStream) error {
+					method, _ := grpc.MethodFromServerStream(stream)
+					_, ok := stream.Context().Deadline()
+					mu.Lock()
+					hasDeadline[method] = ok
+					mu.Unlock()
+					return status.Error(codes.Unimplemented, "test server implements no services")
+				},
+			))
+			listener, err := net.Listen("tcp", ":0")
+			require.NoError(t, err)
+			go func() { server.Serve(listener) }()
+			t.Cleanup(func() {
+				server.Stop()
+				listener.Close()
+			})
+
+			cfg := Config{
+				ClientConfig: configgrpc.ClientConfig{
+					Endpoint: listener.Addr().String(),
+					TLS:      configtls.ClientConfig{Insecure: true},
+				},
+				TimeoutConfig: exporterhelper.TimeoutConfig{Timeout: tt.timeout},
+			}
+			f, err := NewFactory(context.Background(), cfg, telemetry.NoopSettings())
+			require.NoError(t, err)
+			t.Cleanup(func() { require.NoError(t, f.Close()) })
+			waitReady(t, f.readerConn, f.writerConn)
+
+			// The caller's context carries no deadline, so any deadline the server
+			// sees comes from the configured timeout.
+			ctx := context.Background()
+			for method, conn := range map[string]*grpc.ClientConn{readMethod: f.readerConn, writeMethod: f.writerConn} {
+				err := conn.Invoke(ctx, method, &emptypb.Empty{}, &emptypb.Empty{})
+				require.Equal(t, codes.Unimplemented, status.Code(err))
+			}
+			stream, err := f.readerConn.NewStream(ctx, &grpc.StreamDesc{ServerStreams: true}, streamMethod)
+			require.NoError(t, err)
+			require.NoError(t, stream.SendMsg(&emptypb.Empty{}))
+			require.NoError(t, stream.CloseSend())
+			require.Equal(t, codes.Unimplemented, status.Code(stream.RecvMsg(&emptypb.Empty{})))
+
+			mu.Lock()
+			defer mu.Unlock()
+			assert.Equal(t, tt.timeout > 0, hasDeadline[readMethod], "read call deadline")
+			assert.Equal(t, tt.timeout > 0, hasDeadline[writeMethod], "write call deadline")
+			assert.False(t, hasDeadline[streamMethod], "streaming calls are not bounded by the timeout")
+		})
+	}
+}
+
+func TestTimeoutUnaryClientInterceptor_DeadlineExceeded(t *testing.T) {
+	interceptor := timeoutUnaryClientInterceptor(10 * time.Millisecond)
+	slowInvoker := func(ctx context.Context, _ string, _, _ any, _ *grpc.ClientConn, _ ...grpc.CallOption) error {
+		<-ctx.Done()
+		return status.FromContextError(ctx.Err()).Err()
+	}
+	err := interceptor(context.Background(), "/test/Slow", nil, nil, nil, slowInvoker)
+	assert.Equal(t, codes.DeadlineExceeded, status.Code(err))
+}

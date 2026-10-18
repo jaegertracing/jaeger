@@ -27,6 +27,85 @@ It serves at `<basePath>/api/ai/mcp/` on the query port, carrying the telemetry
 tools and `read_skill` with the built-in skills. Point an MCP client there, or
 leave it to an AI chat sidecar configured with `ai.agent_url`.
 
+## Running behind a reverse proxy or sidecar
+
+The MCP SDK that serves this endpoint carries a DNS-rebinding guard for MCP servers on a
+developer's machine: a request that arrives on a loopback address with a non-loopback `Host`
+header is rejected with `403 Forbidden: invalid Host header`. A reverse proxy or service-mesh
+sidecar that dials the query port over `127.0.0.1` and preserves the client's `Host` (an Envoy
+sidecar without host rewriting, for example) produces that shape for every request, so behind one
+the endpoint rejects every caller with that body. The guard never fires when the proxy rewrites
+`Host` to the upstream address or dials a non-loopback address, so change the proxy where that is
+possible. Where it is not, turn the guard off:
+
+```yaml
+extensions:
+  jaeger_query:
+    ai:
+      mcp:
+        streamable_http:
+          disable_localhost_protection: true
+```
+
+The UI and the REST API on the same port have no such guard, so this setting changes nothing
+about them. Keep the default when clients reach the query port directly, by a loopback address or
+a routable host name; only a loopback connection carrying some other name is affected.
+
+## Running several replicas behind a load balancer
+
+By default the endpoint keeps one MCP session per client in the memory of the `jaeger-query`
+process that handled `initialize`, and the SDK looks that session up by the `Mcp-Session-Id`
+header on every later request. When a load balancer without session affinity spreads a client's
+requests over several replicas, a request that reaches a replica other than the one that holds the
+session is answered with `404 session not found`; and when the client's `notifications/initialized`
+is the request that went astray, the replica that holds the session rejects the next `tools/list`
+with `method "tools/list" is invalid during session initialization`. Set `streamable_http.stateless` to make every
+request stand on its own:
+
+```yaml
+extensions:
+  jaeger_query:
+    ai:
+      mcp:
+        streamable_http:
+          stateless: true
+```
+
+Jaeger's tools keep no state between requests, so they behave the same. A stateless endpoint
+answers 405 to the GET that a client sends to open a stream for server-initiated messages. Jaeger
+never sends any, so in the default mode that stream only sits idle until the session times out;
+the MCP specification allows a server to offer no stream and requires the client to continue
+without it.
+
+This covers external MCP clients on the shared `/api/ai/mcp/` endpoint. The chat gateway's
+turn-scoped endpoint, `/api/ai/mcp/<id>/`, is different: the turn it serves is held in the memory
+of the process that is streaming that chat to the browser, so a request for it that lands on
+another replica is answered 404 before the MCP handler is reached, stateless or not. An agent that
+is not co-located with `jaeger-query` must reach the replica that owns the turn, which means
+`ai.mcp.base_url` has to name that process (its pod address, not a load-balanced service name) or
+the load balancer has to route by the `<id>` path segment.
+
+## Answering with plain JSON instead of an event stream
+
+By default the endpoint answers every POST with a `text/event-stream` body, even when that body
+holds a single result, because the stream form lets a server send progress or its own requests
+before the result. Jaeger's tools send none, so the stream carries the one result and nothing
+else. Set `streamable_http.json_response` to answer a single-message POST with a plain
+`application/json` body, which is easier for proxies, logging middleware and command-line clients
+to read:
+
+```yaml
+extensions:
+  jaeger_query:
+    ai:
+      mcp:
+        streamable_http:
+          json_response: true
+```
+
+MCP clients must accept both forms, so the setting changes nothing for them. A JSON-RPC batch is
+still answered with a stream.
+
 ## Adding installation-specific skills
 
 Point `ai.mcp.skills_dir` at a directory on the query server's disk:

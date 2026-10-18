@@ -799,6 +799,16 @@ func TestFindTraces_SearchDepthExceedsMax(t *testing.T) {
 	require.ErrorContains(t, err, "search depth 10000 exceeds maximum allowed 1000")
 }
 
+func TestBuildFindTraceIDsQuery_DefaultSearchDepthExceedsMax(t *testing.T) {
+	config := testReaderConfig
+	config.DefaultSearchDepth = config.MaxSearchDepth + 1
+	reader := NewReader(&clickhousetest.Driver{}, config)
+	_, _, err := reader.buildFindTraceIDsQuery(context.Background(), tracestore.TraceQueryParams{
+		Attributes: pcommon.NewMap(),
+	})
+	require.EqualError(t, err, "search depth 1001 exceeds maximum allowed 1000")
+}
+
 func TestFindTraces_YieldFalseOnSuccessStopsIteration(t *testing.T) {
 	conn := &clickhousetest.Driver{
 		QueryResponses: map[string]*clickhousetest.QueryResponse{
@@ -1280,5 +1290,10 @@ func TestFindTraceIDs_BuildQueryError(t *testing.T) {
 func TestReader_SearchCapabilities(t *testing.T) {
 	caps, err := (&Reader{}).SearchCapabilities(context.Background())
 	require.NoError(t, err)
-	assert.Equal(t, tracestore.SearchCapabilities{WithoutServiceName: true}, caps)
+	filter := FilterCapabilities()
+	assert.Equal(t, tracestore.SearchCapabilities{
+		WithoutServiceName:  true,
+		SameSpanConjunction: true,
+		Filter:              &filter,
+	}, caps)
 }

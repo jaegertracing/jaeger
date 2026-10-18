@@ -12,9 +12,11 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/collector/pdata/pcommon"
 	"go.opentelemetry.io/collector/pdata/ptrace"
+	"google.golang.org/genproto/googleapis/rpc/errdetails"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/credentials/insecure"
@@ -26,6 +28,7 @@ import (
 	"github.com/jaegertracing/jaeger/internal/proto-gen/storage/v2"
 	expressionproto "github.com/jaegertracing/jaeger/internal/proto/expression/v1"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore"
+	tracestoremocks "github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore/mocks"
 )
 
 func flattenPageChunks[T any](seq iter.Seq2[tracestore.PageChunk[[]T], error]) ([]T, error) {
@@ -581,9 +584,45 @@ func TestTraceReader_FindTraceIDs(t *testing.T) {
 				require.Len(t, chunks, 1)
 				require.Equal(t, test.expectedIDs, chunks[0].Results)
 				if test.name == "success" {
-					assert.Equal(t, "next-page", chunks[0].NextPageToken)
+					assert.Equal(t, tracestore.PageToken("next-page"), chunks[0].NextPageToken)
 				}
 			}
+		})
+	}
+}
+
+// TestTraceReader_InvalidArgumentBecomesPaginationInvalid pins the client half of the wire
+// mapping (RFC 0014 §6): an InvalidArgument status marked with the pagination reason is
+// ErrPaginationInvalid again, and an InvalidArgument without the reason, which the server gives
+// a malformed filter, is left alone.
+func TestTraceReader_InvalidArgumentBecomesPaginationInvalid(t *testing.T) {
+	query := tracestore.TraceQueryParams{
+		Attributes: pcommon.NewMap(),
+		Pagination: &tracestore.Pagination{PageSize: 10, PageToken: "stale"},
+	}
+	marked, err := status.New(codes.InvalidArgument, "page token does not match the query").
+		WithDetails(&errdetails.ErrorInfo{Reason: tracestore.PaginationInvalidReason, Domain: errorInfoDomain})
+	require.NoError(t, err)
+	unmarked := status.Error(codes.InvalidArgument, "filter is malformed")
+
+	for name, find := range map[string]func(*TraceReader) error{
+		"FindTraceIDs": func(reader *TraceReader) error {
+			_, err := jiter.CollectWithErrors(reader.FindTraceIDs(context.Background(), query))
+			return err
+		},
+		"FindTraceSummaries": func(reader *TraceReader) error {
+			_, err := jiter.CollectWithErrors(reader.FindTraceSummaries(context.Background(), query))
+			return err
+		},
+	} {
+		t.Run(name, func(t *testing.T) {
+			err := find(NewTraceReader(startTestServer(t, &testServer{err: marked.Err()})))
+			require.ErrorIs(t, err, tracestore.ErrPaginationInvalid)
+			require.ErrorContains(t, err, "page token does not match the query")
+
+			err = find(NewTraceReader(startTestServer(t, &testServer{err: unmarked})))
+			require.NotErrorIs(t, err, tracestore.ErrPaginationInvalid)
+			require.Equal(t, codes.InvalidArgument, status.Code(err))
 		})
 	}
 }
@@ -768,7 +807,7 @@ func TestTraceReader_FindTraceSummaries_Success(t *testing.T) {
 		Attributes: pcommon.NewMap(),
 	}) {
 		require.NoError(t, err)
-		assert.Equal(t, "next-page", chunk.NextPageToken)
+		assert.Equal(t, tracestore.PageToken("next-page"), chunk.NextPageToken)
 		got = append(got, chunk.Results...)
 	}
 	require.Len(t, got, 1)
@@ -1031,7 +1070,7 @@ func TestTraceReader_RefusesUnencodableFilter(t *testing.T) {
 
 func TestToProtoQueryParameters_SearchDepth(t *testing.T) {
 	t.Run("zero and max encode as-is", func(t *testing.T) {
-		for _, depth := range []int{0, 1, tracestore.MaxSearchDepth} {
+		for _, depth := range []uint32{0, 1, tracestore.MaxSearchDepth} {
 			got, err := toProtoQueryParameters(tracestore.TraceQueryParams{
 				Attributes:  pcommon.NewMap(),
 				SearchDepth: depth,
@@ -1041,8 +1080,8 @@ func TestToProtoQueryParameters_SearchDepth(t *testing.T) {
 		}
 	})
 
-	t.Run("negative and above max are refused", func(t *testing.T) {
-		for _, depth := range []int{-1, tracestore.MaxSearchDepth + 1} {
+	t.Run("above max is refused", func(t *testing.T) {
+		for _, depth := range []uint32{tracestore.MaxSearchDepth + 1} {
 			_, err := toProtoQueryParameters(tracestore.TraceQueryParams{
 				Attributes:  pcommon.NewMap(),
 				SearchDepth: depth,
@@ -1051,4 +1090,224 @@ func TestToProtoQueryParameters_SearchDepth(t *testing.T) {
 			assert.ErrorContains(t, err, "SearchDepth must be in [0,")
 		}
 	})
+}
+
+func spanOrder() []tracestore.SpanSortOrder {
+	return []tracestore.SpanSortOrder{
+		{Expression: &expression.FieldRef{Level: expression.LevelSpan, Name: "duration"}, Direction: tracestore.SortDescending},
+		{Expression: &expression.FieldRef{Level: expression.LevelSpan, Name: "traceID"}, Direction: tracestore.SortAscending},
+	}
+}
+
+func spanRemote(t *testing.T, reader tracestore.Reader) *TraceReader {
+	t.Helper()
+	server := grpc.NewServer()
+	handler := NewHandler(reader, nil, nil)
+	storage.RegisterTraceReaderServer(server, handler)
+	storage.RegisterCapabilitiesServer(server, handler)
+	listener, err := net.Listen("tcp", "127.0.0.1:0")
+	require.NoError(t, err)
+	return NewTraceReader(startServer(t, server, listener))
+}
+
+func TestSpanRemoteRoundTrip(t *testing.T) {
+	for _, ordered := range []bool{false, true} {
+		t.Run(map[bool]string{false: "default", true: "ordered"}[ordered], func(t *testing.T) {
+			reader := new(tracestoremocks.Reader)
+			caps := tracestore.SearchCapabilities{SpanSearch: true, SpanSorting: true, Paginated: true}
+			reader.On("SearchCapabilities", mock.Anything).Return(caps, nil)
+			query := tracestore.SpanQueryParams{Pagination: tracestore.Pagination{PageSize: 2, PageToken: "cursor"}}
+			if ordered {
+				query.OrderBy = spanOrder()
+			}
+			chunks := []tracestore.PageChunk[ptrace.Traces]{{Results: makeTestTrace()}, {Results: ptrace.NewTraces(), NextPageToken: "next"}}
+			reader.On("FindSpans", mock.Anything, query).Return(spanSequence(chunks, nil)).Once()
+			remote := spanRemote(t, reader)
+			gotCaps, err := remote.SearchCapabilities(t.Context())
+			require.NoError(t, err)
+			assert.Equal(t, caps, gotCaps)
+			got, err := jiter.CollectWithErrors(remote.FindSpans(t.Context(), query))
+			require.NoError(t, err)
+			assert.Equal(t, chunks, got)
+			reader.AssertExpectations(t)
+		})
+	}
+}
+
+func TestTraceReader_FindSpans_Unimplemented(t *testing.T) {
+	remote := NewTraceReader(startTestServer(t, &testServer{}))
+	_, err := jiter.CollectWithErrors(remote.FindSpans(t.Context(), tracestore.SpanQueryParams{OrderBy: spanOrder()}))
+	require.ErrorIs(t, err, errors.ErrUnsupported)
+	_, err = jiter.CollectWithErrors(remote.FindSpans(t.Context(), tracestore.SpanQueryParams{}))
+	require.ErrorIs(t, err, errors.ErrUnsupported)
+}
+
+func TestSpanRemoteErrors(t *testing.T) {
+	for _, backendErr := range []error{errors.ErrUnsupported, tracestore.ErrFilterInvalid, tracestore.ErrFilterUnsupported, tracestore.ErrPaginationInvalid, tracestore.ErrPaginationUnsupported, tracestore.ErrSpanOrderInvalid, tracestore.ErrSpanOrderUnsupported, status.Error(codes.Internal, "broken")} {
+		reader := new(tracestoremocks.Reader)
+		reader.On("FindSpans", mock.Anything, mock.Anything).Return(spanSequence(nil, backendErr))
+		_, err := jiter.CollectWithErrors(spanRemote(t, reader).FindSpans(t.Context(), tracestore.SpanQueryParams{}))
+		if status.Code(backendErr) == codes.Internal {
+			assert.Equal(t, codes.Internal, status.Code(err))
+			assert.ErrorContains(t, err, "received error from grpc stream")
+		} else {
+			require.ErrorIs(t, err, backendErr)
+			assert.Equal(t, tracestore.ErrorReason(backendErr), tracestore.ErrorReason(err), "a typed refusal keeps its reason and a bare ErrUnsupported has none")
+		}
+	}
+}
+
+// TestFindTracesRemoteErrors pins that a reader refusal from FindTraces keeps its type across
+// the storage boundary the same way the paginated RPCs do, and that any other error keeps its
+// status.
+func TestFindTracesRemoteErrors(t *testing.T) {
+	for _, backendErr := range []error{errors.ErrUnsupported, tracestore.ErrFilterUnsupported, tracestore.ErrFilterInvalid, status.Error(codes.Internal, "broken")} {
+		reader := new(tracestoremocks.Reader)
+		reader.On("FindTraces", mock.Anything, mock.Anything).Return(iter.Seq2[[]ptrace.Traces, error](func(yield func([]ptrace.Traces, error) bool) {
+			yield(nil, backendErr)
+		}))
+		_, err := jiter.CollectWithErrors(spanRemote(t, reader).FindTraces(t.Context(), tracestore.TraceQueryParams{ServiceName: "svc", Attributes: pcommon.NewMap()}))
+		if status.Code(backendErr) == codes.Internal {
+			assert.Equal(t, codes.Internal, status.Code(err))
+			assert.ErrorContains(t, err, "received error from grpc stream")
+		} else {
+			require.ErrorIs(t, err, backendErr)
+			assert.Equal(t, tracestore.ErrorReason(backendErr), tracestore.ErrorReason(err), "a typed refusal keeps its reason and a bare ErrUnsupported has none")
+		}
+	}
+}
+
+func TestSpanQueryConversion(t *testing.T) {
+	filter := &expression.Call{Op: expression.OpEq, Args: []expression.Expression{&expression.FieldRef{Level: expression.LevelSpan, Name: "name"}, &expression.StringValue{Value: "operation"}}}
+	query := tracestore.SpanQueryParams{Filter: filter, OrderBy: spanOrder()}
+	wire, err := toProtoSpanQuery(query)
+	require.NoError(t, err)
+	got, err := toSpanQueryParams(wire)
+	require.NoError(t, err)
+	assert.Equal(t, query, got)
+	for _, wire := range []*storage.SpanQueryParameters{
+		nil,
+		{OrderBy: []*storage.SpanSortOrder{nil}},
+		{Filter: &expressionproto.Call{Args: []*expressionproto.Expression{nil}}},
+	} {
+		_, err := toSpanQueryParams(wire)
+		assert.Equal(t, codes.InvalidArgument, status.Code(err))
+	}
+	for _, query := range []tracestore.SpanQueryParams{
+		{OrderBy: []tracestore.SpanSortOrder{{}}},
+		{Filter: &expression.Call{Args: []expression.Expression{nil}}},
+	} {
+		remote := &TraceReader{}
+		_, err := jiter.CollectWithErrors(remote.FindSpans(t.Context(), query))
+		require.Error(t, err)
+	}
+}
+
+func TestSpanRemoteEarlyExit(t *testing.T) {
+	reader := new(tracestoremocks.Reader)
+	canceled := make(chan struct{})
+	var rpcCtx context.Context
+	reader.On("FindSpans", mock.Anything, mock.Anything).
+		Run(func(args mock.Arguments) { rpcCtx = args.Get(0).(context.Context) }).
+		Return(iter.Seq2[tracestore.PageChunk[ptrace.Traces], error](func(yield func(tracestore.PageChunk[ptrace.Traces], error) bool) {
+			yield(tracestore.PageChunk[ptrace.Traces]{Results: makeTestTrace()}, nil)
+			<-rpcCtx.Done()
+			close(canceled)
+		})).Once()
+	count := 0
+	for _, err := range spanRemote(t, reader).FindSpans(t.Context(), tracestore.SpanQueryParams{}) {
+		require.NoError(t, err)
+		count++
+		break
+	}
+	assert.Equal(t, 1, count)
+	select {
+	case <-canceled:
+	case <-time.After(5 * time.Second):
+		t.Fatal("the remote reader did not receive cancellation")
+	}
+	reader.AssertExpectations(t)
+}
+
+type failingSpanClient struct{ storage.TraceReaderClient }
+
+func (failingSpanClient) FindSpans(context.Context, *storage.FindSpansRequest, ...grpc.CallOption) (storage.TraceReader_FindSpansClient, error) {
+	return nil, status.Error(codes.Unavailable, "offline")
+}
+
+func TestSpanClientCannotStartStream(t *testing.T) {
+	reader := &TraceReader{client: failingSpanClient{}}
+	_, err := jiter.CollectWithErrors(reader.FindSpans(t.Context(), tracestore.SpanQueryParams{}))
+	assert.Equal(t, codes.Unavailable, status.Code(err))
+	assert.ErrorContains(t, err, "failed to execute FindSpans")
+}
+
+func TestSpanQueryConversionDoesNotValidate(t *testing.T) {
+	query := tracestore.SpanQueryParams{
+		Filter:  &expression.Call{Op: "custom", Args: []expression.Expression{}},
+		OrderBy: []tracestore.SpanSortOrder{{Expression: &expression.AttributeRef{Level: expression.LevelSpan, Key: "priority"}, Direction: "custom"}},
+	}
+	wire, err := toProtoSpanQuery(query)
+	require.NoError(t, err)
+	got, err := toSpanQueryParams(wire)
+	require.NoError(t, err)
+	assert.Equal(t, query, got)
+}
+
+type spanProxyServer struct {
+	storage.UnimplementedTraceReaderServer
+	requests chan *storage.FindSpansRequest
+}
+
+func (s *spanProxyServer) FindSpans(req *storage.FindSpansRequest, stream storage.TraceReader_FindSpansServer) error {
+	s.requests <- req
+	return stream.Send(&storage.FindSpansResponse{NextPageToken: "next"})
+}
+
+func TestFindSpansProxiesWithoutCapabilities(t *testing.T) {
+	server := grpc.NewServer()
+	peer := &spanProxyServer{requests: make(chan *storage.FindSpansRequest, 1)}
+	storage.RegisterTraceReaderServer(server, peer)
+	listener, err := net.Listen("tcp", "127.0.0.1:0")
+	require.NoError(t, err)
+	reader := NewTraceReader(startServer(t, server, listener))
+	query := tracestore.SpanQueryParams{
+		OrderBy:    []tracestore.SpanSortOrder{{Expression: &expression.AttributeRef{Level: expression.LevelSpan, Key: "priority"}, Direction: "custom"}},
+		Pagination: tracestore.Pagination{PageSize: 2, PageToken: "current"},
+	}
+	chunks, err := jiter.CollectWithErrors(reader.FindSpans(t.Context(), query))
+	require.NoError(t, err)
+	require.Len(t, chunks, 1)
+	assert.Equal(t, tracestore.PageToken("next"), chunks[0].NextPageToken)
+	forwarded, err := toSpanQueryParams((<-peer.requests).Query)
+	require.NoError(t, err)
+	assert.Equal(t, query, forwarded)
+}
+
+func TestReaderErrorDetails(t *testing.T) {
+	for _, tc := range []struct {
+		err    error
+		reason string
+		code   codes.Code
+	}{
+		{tracestore.ErrFilterInvalid, "FILTER_INVALID", codes.InvalidArgument},
+		{tracestore.ErrFilterUnsupported, "FILTER_UNSUPPORTED", codes.Unimplemented},
+		{tracestore.ErrSpanOrderInvalid, "ORDERING_INVALID", codes.InvalidArgument},
+		{tracestore.ErrSpanOrderUnsupported, "ORDERING_UNSUPPORTED", codes.Unimplemented},
+		{tracestore.ErrPaginationInvalid, "PAGINATION_INVALID", codes.InvalidArgument},
+		{tracestore.ErrPaginationUnsupported, "PAGINATION_UNSUPPORTED", codes.Unimplemented},
+	} {
+		wire := readerStatus(tc.err)
+		st := status.Convert(wire)
+		assert.Equal(t, tc.code, st.Code())
+		require.Len(t, st.Details(), 1)
+		info, ok := st.Details()[0].(*errdetails.ErrorInfo)
+		require.True(t, ok)
+		assert.Equal(t, errorInfoDomain, info.GetDomain())
+		assert.Equal(t, tc.reason, info.GetReason())
+		require.ErrorIs(t, readerError(wire), tc.err)
+		foreign, err := status.New(codes.InvalidArgument, "foreign error").WithDetails(&errdetails.ErrorInfo{Domain: "another.service", Reason: tc.reason})
+		require.NoError(t, err)
+		require.NotErrorIs(t, readerError(foreign.Err()), tc.err)
+	}
 }

@@ -3,7 +3,7 @@
 - **Status:** Draft
 - **Author:** Yuri Shkuro
 - **Created:** 2026-09-21
-- **Last Updated:** 2026-09-21
+- **Last Updated:** 2026-10-08
 - **Related:** [ADR-008 (ClickHouse storage schema)](../adr/008-clickhouse-storage-schema.md) · [#8715 (attribute search skip indexes)](https://github.com/jaegertracing/jaeger/issues/8715) · [#8918 (search performance, Bloom filter tuning)](https://github.com/jaegertracing/jaeger/issues/8918) · [ClickStack schema reference](https://clickhouse.com/docs/clickstack/ingesting-data/schemas#traces) · [OTel `clickhouseexporter` DDL templates](https://github.com/open-telemetry/opentelemetry-collector-contrib/tree/main/exporter/clickhouseexporter/internal/sqltemplates)
 
 ---
@@ -209,11 +209,11 @@ The `__hdx_materialized_rum.sessionId` and `SampleRate` materialized columns and
 | --- | --- | --- |
 | Create schema on start | `create_schema: true` | `create_schema: true` (default) |
 | Bring your own schema | Supported by setting `create_schema: false` and creating compatible tables | Same, and documented as the recommended production mode |
-| Table engine | Hard-coded `MergeTree` | `table_engine` config (name plus parameters), so `ReplicatedMergeTree` works |
+| Table engine | `table_engine` block, `merge_tree` or `replicated`, required with `create_schema: true` | `table_engine` config (name plus parameters), so `ReplicatedMergeTree` works |
 | Cluster DDL | none | `cluster_name` adds `ON CLUSTER` to every statement |
 | Database creation | Assumed to exist | Created if missing |
 
-Jaeger's single-node assumption is recorded in ADR-008's limitations. The exporter's `table_engine` option is the smallest change that lifts it, and §5.4 proposes it.
+Jaeger's single-node limitation was recorded in ADR-008 until §5.4 lifted it; the exporter's `table_engine` option was the model.
 
 ---
 
@@ -229,7 +229,7 @@ The criteria below are the ones a Jaeger deployment cares about. The columns are
 | Trace retrieval by ID at scale | 🟡 ⁵ | 🟢 | 🟡 ⁶ |
 | Retention cost | 🟡 ⁷ | 🟢 ⁸ | 🟢 |
 | Scope attributes preserved | 🟢 | 🟢 | 🔴 |
-| Replicated / clustered deployment | 🟡 ⁹ | 🟢 | 🟢 |
+| Replicated / clustered deployment | 🟢 ⁹ | 🟢 | 🟢 |
 | Reads tables written by the OTel `clickhouseexporter` | 🔴 | 🔴 ¹⁰ | 🟢 |
 | Schema simplicity (tables, views) | 🟡 ¹¹ | 🟡 ¹¹ | 🟢 |
 
@@ -241,7 +241,7 @@ The criteria below are the ones a Jaeger deployment cares about. The columns are
 - ⁶ The 0.001 rate is fixed in the DDL; a deployment that needs the 0.0001 of footnote ⁵ has to own its schema.
 - ⁷ TTL expiry rewrites parts to remove expired rows instead of dropping whole day-partition parts.
 - ⁸ Whole-part expiry applies to `spans`, which holds nearly all the data; `trace_id_timestamps` keeps row-level TTL (§5.1), and expiry lags the configured TTL by up to one partition day.
-- ⁹ Possible only by creating every table by hand with `create_schema: false`; the SQL templates hard-code `MergeTree` and nothing else.
+- ⁹ Through the `table_engine` block of §5.4; before it, the SQL templates hard-coded `MergeTree` and a cluster had to create every table by hand with `create_schema: false`.
 - ¹⁰ On the fallback branch the proposals change neither column names nor attribute representation, so a ClickStack table remains unreadable by Jaeger's reader; §6 covers what would.
 - ¹¹ One main table plus five derived tables and six materialized views, against ClickStack's one plus one.
 
@@ -339,7 +339,19 @@ ADR-008's decision stands until §5.2's spike says otherwise, for the type-fidel
 
 ### 5.4 Make the table engine configurable
 
-Add a `table_engine` option, defaulting to plain `MergeTree`, and substitute it into every `ENGINE =` clause the factory renders. The exporter's option is a literal engine name because the exporter has one table per signal; Jaeger has `MergeTree` and `AggregatingMergeTree` tables from the same DDL set, so the option is modeled as an engine-family prefix (`Replicated`) plus its parameters (ZooKeeper path and replica name), and the factory composes `ReplicatedMergeTree(...)` or `ReplicatedAggregatingMergeTree(...)` per table. This lifts ADR-008's single-node limitation for deployments that manage a cluster themselves; `ON CLUSTER` DDL is not proposed, because deployments that need it also need to own their DDL and `create_schema: false` already serves them.
+A `table_engine` block on the backend selects the engine family for every table the factory creates, and the factory substitutes it into every `ENGINE =` clause. The exporter's option is a literal engine name because the exporter has one table per signal; Jaeger has `MergeTree` and `AggregatingMergeTree` tables from the same DDL set, so the block names the family only, and the factory composes `ReplicatedMergeTree(...)` for `spans` and `dependencies` and `ReplicatedAggregatingMergeTree(...)` for the four derived tables. The variant is selected by key, with its parameters beneath it, which is how the backend already selects `auth: { basic: {...} }`:
+
+```yaml
+table_engine:
+  replicated:
+    # Optional together: omitted, the engine is rendered without arguments and the
+    # server's default_replica_path and default_replica_name apply. One template
+    # serves all six tables, so keeper_path must vary per table via {table}.
+    keeper_path: /clickhouse/tables/{shard}/{database}/{table}
+    replica_name: "{replica}"
+```
+
+The block is required when `create_schema` is true, and the backend refuses to start without it, recommending `merge_tree` for a single node and `replicated` for a cluster with more than one replica. A default of `merge_tree` was rejected: a local table on a two-replica cluster accepts every insert and holds only the rows its own server received, so the failure is silent until a trace is "not found" on one replica and present on the other, and an operator who has to choose the engine once is the cheapest point at which to make the single-node assumption visible. `create_schema: false` ignores the block. `ON CLUSTER` DDL is not proposed, because deployments that need it also need to own their DDL and `create_schema: false` already serves them. The comparison of this shape against a per-table map and against raw engine clauses is recorded on [#9812](https://github.com/jaegertracing/jaeger/issues/9812).
 
 ### 5.5 Do not change what is not broken
 
@@ -368,6 +380,6 @@ Each milestone is independently shippable and each carries a before/after benchm
 - **M1 — Storage tuning (§5.1).** Codecs, `LowCardinality`, table settings, the configuration note on `ttl_only_drop_parts`, and the 0.001 default for the trace-ID filter on top of the option #8923 proposes. Measured by compressed size and insert throughput; no query-shape change. #8923 itself resolves #8918, whose main subject is the `FindTraces` subquery rather than the Bloom rate.
 - **M2 — JSON attribute spike (§5.3).** A benchmark-only branch storing attributes as `JSON` columns on the 25.12.11 release the storage integration tests pin, run against the §5.2 pair filter on the same 10M-span data so that the two are compared under one setup. Settles the two design questions and measures the pass criteria in §5.3. Its output is a decision, recorded in this RFC's status, and on a pass a superseding RFC.
 - **M3 — Attribute index (§5.2).** One of two shapes, chosen by M2. On a pass: the `JSON` layout, under its own RFC, which closes #8715 by replacing the mechanism it asks about. On a fail: the pairwise `bloom_filter` design, the inline `has()` prefilter in the query builder, and the migration procedure, measured by the acceptance benchmark in §5.2, which closes #8715 directly.
-- **M4 — Configurable table engine (§5.4).** The `table_engine` option and its rendering into every DDL statement, exercised by an integration test against a `ReplicatedMergeTree` single-replica Keeper setup.
+- ✅ **M4 — Configurable table engine (§5.4).** The `table_engine` option and its rendering into every DDL statement, exercised by an integration test against a `ReplicatedMergeTree` single-replica Keeper setup. Delivered in [#9813](https://github.com/jaegertracing/jaeger/pull/9813), which requires the block with `create_schema: true` and runs the direct storage integration suite against the replicated engines on an embedded Keeper.
 
 ADR-008 is extended in place when M1 lands, in its Secondary Indexes and TTL sections, because nothing there reverses a decision it records, and again if M3 takes the pair-filter branch. The `JSON` branch of M3 supersedes ADR-008's attribute sections under its own RFC. M4 updates ADR-008's limitations section.

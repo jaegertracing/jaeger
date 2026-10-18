@@ -148,7 +148,7 @@ func (s *ServiceOperationStorage) getServices(ctx context.Context, indices []str
 		Aggregations: map[string]query.Aggregation{
 			// Size bounds distinct buckets — ES deprecated size omission for
 			// aggregating all. https://github.com/elastic/elasticsearch/issues/18838
-			servicesAggregation: query.NewTermsAggregation(serviceName).Size(maxDocCount),
+			servicesAggregation: query.NewTermsAggregation(serviceName).Size(uint64(max(0, maxDocCount))),
 		},
 	})
 	if err != nil {
@@ -165,7 +165,7 @@ func (s *ServiceOperationStorage) getOperations(ctx context.Context, indices []s
 		Size:  0,
 		Query: query.NewTermQuery(serviceName, service),
 		Aggregations: map[string]query.Aggregation{
-			operationsAggregation: query.NewTermsAggregation(operationNameField).Size(maxDocCount),
+			operationsAggregation: query.NewTermsAggregation(operationNameField).Size(uint64(max(0, maxDocCount))),
 		},
 	})
 	if err != nil {

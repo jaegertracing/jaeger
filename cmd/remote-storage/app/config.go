@@ -4,19 +4,24 @@
 package app
 
 import (
+	"context"
 	"fmt"
 
-	"github.com/spf13/viper"
 	"go.opentelemetry.io/collector/config/configgrpc"
 	"go.opentelemetry.io/collector/config/confignet"
+	"go.opentelemetry.io/collector/confmap"
 
 	"github.com/jaegertracing/jaeger/cmd/internal/storageconfig"
+	"github.com/jaegertracing/jaeger/internal/jconfmap"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/memory"
 	"github.com/jaegertracing/jaeger/internal/tenancy"
+	"github.com/jaegertracing/jaeger/ports"
 )
 
-// Config represents the configuration for remote-storage service.
+// Config is the whole configuration file of the remote-storage service.
 type Config struct {
+	// Service holds the admin server, logging and metrics sections.
+	Service ServiceConfig           `mapstructure:",squash"`
 	GRPC    configgrpc.ServerConfig `mapstructure:"grpc"`
 	Tenancy tenancy.Options         `mapstructure:"multi_tenancy"`
 	// This configuration is the same as of the main `jaeger` binary,
@@ -24,31 +29,49 @@ type Config struct {
 	Storage storageconfig.Config `mapstructure:"storage"`
 }
 
-// LoadConfigFromViper loads the configuration from Viper.
-func LoadConfigFromViper(v *viper.Viper) (*Config, error) {
-	cfg := &Config{}
+// LoadConfigFile reads the configuration file through OpenTelemetry confmap with the same
+// settings the main jaeger binary resolves its configuration with. That is what runs the
+// backends' Unmarshal hooks, which supply their defaults, decodes configoptional fields,
+// expands ${env:VAR} and ${VAR} references, rejects unknown keys, and validates every
+// nested section.
+func LoadConfigFile(ctx context.Context, path string) (*Config, error) {
+	set := jconfmap.ResolverSettings()
+	set.URIs = []string{"file:" + path}
+	resolver, err := confmap.NewResolver(set)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create configuration resolver: %w", err)
+	}
+	defer resolver.Shutdown(ctx)
+	conf, err := resolver.Resolve(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read configuration file %s: %w", path, err)
+	}
 
-	// Unmarshal the entire configuration
-	if err := v.Unmarshal(cfg); err != nil {
+	// The file is decoded over the defaults, so a section it leaves out keeps them. A file
+	// that names a storage section starts from an empty one, because the backend it names
+	// would otherwise sit beside the default memory backend. configoptional.Default cannot
+	// express this: it decodes the section over the default value, so the backends map
+	// keeps the memory entry, and an absent section still needs GetOrInsertDefault to
+	// hold the default at all.
+	cfg := DefaultConfig()
+	if conf.IsSet("storage") {
+		cfg = defaultConfigWithoutStorage()
+	}
+	if err := conf.Unmarshal(cfg); err != nil {
 		return nil, fmt.Errorf("failed to unmarshal configuration: %w", err)
 	}
 
-	// Validate storage configuration
-	if err := cfg.Validate(); err != nil {
+	// confmap.Validate reaches every Validate method in the tree, this type's included.
+	if err := confmap.Validate(cfg); err != nil {
 		return nil, fmt.Errorf("invalid configuration: %w", err)
 	}
 
 	return cfg, nil
 }
 
-// Validate validates the configuration.
+// Validate checks what no nested section can: that only one backend is configured.
+// The sections validate themselves when confmap.Validate walks the tree.
 func (c *Config) Validate() error {
-	// Validate storage configuration
-	if err := c.Storage.Validate(); err != nil {
-		return err
-	}
-
-	// Ensure only one backend is defined for remote-storage
 	if len(c.Storage.TraceBackends) > 1 {
 		return fmt.Errorf("remote-storage only supports a single storage backend, but %d were configured", len(c.Storage.TraceBackends))
 	}
@@ -65,24 +88,30 @@ func (c *Config) GetStorageName() string {
 	return ""
 }
 
-// DefaultConfig returns a default configuration with memory storage.
-// This is used when no configuration file is provided.
-func DefaultConfig() *Config {
+func defaultConfigWithoutStorage() *Config {
 	return &Config{
+		Service: DefaultServiceConfig(ports.RemoteStorageAdminHTTP),
 		GRPC: configgrpc.ServerConfig{
 			NetAddr: confignet.AddrConfig{
-				Endpoint:  ":17271",
+				Endpoint:  ports.PortToHostPort(ports.RemoteStorageGRPC),
 				Transport: confignet.TransportTypeTCP,
 			},
 		},
-		Storage: storageconfig.Config{
-			TraceBackends: map[string]storageconfig.TraceBackend{
-				"memory": {
-					Memory: &memory.Configuration{
-						MaxTraces: 1_000_000,
-					},
+	}
+}
+
+// DefaultConfig returns a default configuration with memory storage.
+// This is used when no configuration file is provided.
+func DefaultConfig() *Config {
+	cfg := defaultConfigWithoutStorage()
+	cfg.Storage = storageconfig.Config{
+		TraceBackends: map[string]storageconfig.TraceBackend{
+			"memory": {
+				Memory: &memory.Configuration{
+					MaxTraces: 1_000_000,
 				},
 			},
 		},
 	}
+	return cfg
 }

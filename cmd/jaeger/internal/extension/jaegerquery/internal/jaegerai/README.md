@@ -20,7 +20,7 @@ flowchart TB
 
     subgraph jaeger["Jaeger Process"]
         direction LR
-        MCP["MCP Server<br>:16687/mcp"]
+        MCP["MCP Server<br>:16686/api/ai/mcp/"]
         subgraph handler["ChatHandler"]
             direction TB
             ACPCONN["acp.Connection<br>(custom dispatcher)"]
@@ -298,8 +298,8 @@ Lifecycle:
 
 ## Related Components
 
-- **Agent Sidecar**: See `scripts/ai-sidecar/` for reference implementations
-  (e.g. Gemini-based Python sidecar).
+- **Agent Sidecar**: See `scripts/ai-sidecar/` for the contract an external
+  ACP agent must meet, with Goose as the worked example.
 - **MCP Server**: Jaeger's MCP server exposes built-in trace query tools at `/mcp`.
 - **ACP Protocol**: See https://agentclientprotocol.com/.
 - **AG-UI Protocol**: See https://docs.ag-ui.com/.

@@ -56,7 +56,7 @@ func (q *QueryBuilder) BuildBoolQuery(params metricstore.BaseQueryParameters, ti
 	serviceNameQuery := esquery.NewTermsQuery("process.serviceName", buildInterfaceSlice(params.ServiceNames)...)
 	boolQuery.Filter(serviceNameQuery)
 
-	spanKindField := strings.ReplaceAll(model.SpanKindKey, ".", q.cfg.Tags.DotReplacement)
+	spanKindField := strings.ReplaceAll(model.SpanKindKey, ".", q.cfg.ResolvedTagsAsFields().DotReplacement)
 	spanKindQuery := esquery.NewTermsQuery("tag."+spanKindField, buildInterfaceSlice(normalizeSpanKinds(params.SpanKinds))...)
 	boolQuery.Filter(spanKindQuery)
 

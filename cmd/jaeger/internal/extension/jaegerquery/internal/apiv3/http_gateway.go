@@ -36,6 +36,7 @@ const (
 	routeFindSpans     = "/api/v3/spans"
 	routeGetServices   = "/api/v3/services"
 	routeGetOperations = "/api/v3/operations"
+	routeCapabilities  = "/api/v3/capabilities"
 )
 
 // HTTPGateway exposes APIv3 HTTP endpoints.
@@ -54,6 +55,7 @@ func (h *HTTPGateway) RegisterRoutes(router *http.ServeMux) {
 	h.addRoute(router, h.findSpans, routeFindSpans, http.MethodGet)
 	h.addRoute(router, h.getServices, routeGetServices, http.MethodGet)
 	h.addRoute(router, h.getOperations, routeGetOperations, http.MethodGet)
+	h.addRoute(router, h.getCapabilities, routeCapabilities, http.MethodGet)
 }
 
 // addRoute adds a new endpoint to the router with given path and handler function.
@@ -79,8 +81,10 @@ func (h *HTTPGateway) tryHandleError(w http.ResponseWriter, err error, statusCod
 	if errors.Is(err, spanstore.ErrTraceNotFound) {
 		statusCode = http.StatusNotFound
 	}
-	if querysvc.IsBadRequest(err) {
-		// Either the query needs changing, or this deployment's storage cannot serve it.
+	if errors.Is(err, errors.ErrUnsupported) {
+		// The query is well formed, but this deployment's storage cannot serve it.
+		statusCode = http.StatusNotImplemented
+	} else if errors.Is(err, tracestore.ErrInvalidQuery) {
 		statusCode = http.StatusBadRequest
 	}
 	if errors.Is(err, queryinterceptor.ErrAccessDenied) {
@@ -250,7 +254,7 @@ func (h *HTTPGateway) findSpans(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		jptrace.MergeTraces(combined, chunk.Results)
-		nextPageToken = chunk.NextPageToken
+		nextPageToken = string(chunk.NextPageToken)
 	}
 	tracesData := jptrace.TracesData(combined)
 	h.marshalResultWrappedResponse(&api_v3.FindSpansResponse{
@@ -320,4 +324,15 @@ func TraceIDFromString(s string) (model.TraceID, error) {
 		}
 	}
 	return model.TraceID{}, err
+}
+
+// getCapabilities serves GET /api/v3/capabilities, the HTTP binding of
+// api_v3.Capabilities.GetCapabilities. A reader that cannot report answers 501 through
+// tryHandleError, since its error wraps errors.ErrUnsupported.
+func (h *HTTPGateway) getCapabilities(w http.ResponseWriter, r *http.Request) {
+	caps, err := h.QueryService.SearchCapabilities(r.Context())
+	if h.tryHandleError(w, err, http.StatusInternalServerError) {
+		return
+	}
+	h.marshalResponse(&api_v3.GetCapabilitiesResponse{Search: toSearchCapabilities(caps)}, w)
 }

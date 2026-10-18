@@ -41,6 +41,11 @@ func (r *TraceReader) FindTraceSummaries(ctx context.Context, query tracestore.T
 		// The aggregation returns all matching summaries in a single ES response,
 		// so they are materialized and yielded in one batch (allowed by the
 		// FindTraceSummaries contract).
+		query, err := paginationAsDepth(query)
+		if err != nil {
+			yield(tracestore.PageChunk[[]tracestore.TraceSummary]{}, err)
+			return
+		}
 		dbSummaries, err := r.spanReader.FindTraceSummaries(ctx, toDBTraceQueryParams(query))
 		if err != nil {
 			yield(tracestore.PageChunk[[]tracestore.TraceSummary]{}, err)
@@ -56,7 +61,7 @@ func (r *TraceReader) FindTraceSummaries(ctx context.Context, query tracestore.T
 			}
 			summaries = append(summaries, summary)
 		}
-		// TODO: Populate NextPageToken when Elasticsearch supports RFC 0014 pagination.
+		// The trace searches do not page yet (RFC 0014 M3), so the page is the last one.
 		yield(tracestore.PageChunk[[]tracestore.TraceSummary]{Results: summaries}, nil)
 	}
 }

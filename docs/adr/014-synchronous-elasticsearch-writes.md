@@ -1,13 +1,13 @@
 # ADR-014: Synchronous Elasticsearch/OpenSearch Writes and Lossless Pipelines
 
 * **Status**: Implemented — graduated from [RFC 0007](../rfc/0007-synchronous-elasticsearch-writes.md)
-* **Date**: 2026-09-22, extended 2026-09-24 with the batch-size headroom rule
+* **Date**: 2026-09-22, extended 2026-09-24 with the batch-size headroom rule, extended 2026-09-29 to state that neither batch nor fetch settings raise the Kafka batch above one record per partition, and to track the RFC 0007 M8/M9 split, extended 2026-10-08 so a spelled-out `queue.batch` also sets `partition.idle_timeout` and `partition.cache_size`
 
 ## Context
 
 The `tracestore.Writer` contract says `WriteTraces` returns an error when spans were not persisted. The Elasticsearch/OpenSearch writer did not honor it: spans went into a client-side bulk buffer and the call returned before anything reached the backend, so a failed flush was logged and lost while every component upstream believed the spans were stored. Behind a Kafka ingester this turned a backend outage into silent data loss, because the receiver committed offsets for records the storage never wrote.
 
-[RFC 0007](../rfc/0007-synchronous-elasticsearch-writes.md) analyzes the problem and lays out the design; it was delivered across milestones M1–M7 (issue [#8476](https://github.com/jaegertracing/jaeger/issues/8476)), with the optional M8 deferred. **This ADR records the resulting architecture and the pipeline configurations that make it lossless.** The RFC holds the motivation, the alternatives, and the milestone history.
+[RFC 0007](../rfc/0007-synchronous-elasticsearch-writes.md) analyzes the problem and lays out the design; it was delivered across milestones M1–M7 (issue [#8476](https://github.com/jaegertracing/jaeger/issues/8476)), with the optional M8 and M9 deferred. **This ADR records the resulting architecture and the pipeline configurations that make it lossless.** The RFC holds the motivation, the alternatives, and the milestone history.
 
 The implementation lives in:
 
@@ -77,7 +77,7 @@ The two topologies need two different shapes. Both drop the `batch` processor an
 | `processors` | `[]` | `[]` |
 | `exporters` / `connectors` | `jaeger_storage_exporter` under `exporters:` | `jaeger_storage_exporter` under `exporters:`, or under `connectors:` with a dead-letter pipeline |
 | `queue.wait_for_result` | `true` | `true` |
-| `queue.batch` | `sizer: bytes`, a positive `min_size`, `max_size` at most half of `bulk_processing.max_bytes`, `flush_timeout` in the low hundreds of milliseconds | same |
+| `queue.batch` | `sizer: bytes`, a positive `min_size`, `max_size` at most half of `bulk_processing.max_bytes`, `flush_timeout` in the low hundreds of milliseconds, and positive `partition.idle_timeout` / `partition.cache_size` (exporterhelper defaults 90s and 10000; an omitted partition unmarshals as zero) | same |
 | `retry_on_failure` | disabled: the client retries, and a collector-side retry would only hold the client's request open | `enabled: true`, `max_elapsed_time: 0` |
 | `queue.block_on_overflow` | default `false`: a full queue answers the client with a retryable error, which is the back-pressure signal | `true`: a full queue must wait, not fail the record |
 | receiver | `otlp` with defaults | `kafka` with `message_marking.after: true`, `on_error: false` |
@@ -86,7 +86,7 @@ The two topologies need two different shapes. Both drop the `batch` processor an
 
 For direct ingest, leaving `queue` out entirely is also lossless, with one `_bulk` request per client export request. The blocking queue is recommended because it merges the small requests of many clients into bulks the backend handles efficiently, at the cost of `flush_timeout` of added latency.
 
-For the Kafka ingester, batch size is bounded by the partitions the ingester consumes: the receiver processes each partition serially and partitions concurrently, so at most one record per partition waits in the batcher at a time. Throughput scales with partitions and replicas, not with `batch.max_size`.
+For the Kafka ingester, batch size is bounded by the partitions the ingester consumes: the receiver processes each partition serially and partitions concurrently, so at most one record per partition waits in the batcher at a time. Neither `batch.max_size` nor the receiver's fetch sizes can raise the batch above that, and adding ingester replicas spreads the same partitions over more processes and shrinks each replica's batches.
 
 ## Consequences
 
@@ -103,13 +103,13 @@ For the Kafka ingester, batch size is bounded by the partitions the ingester con
 * A span whose document cannot be JSON-encoded (an attribute holding NaN or infinity) is logged and skipped by the writer without an error, in both modes and under every `poison_pill_handling` value, so it is neither retried nor dead-lettered and the batch is acknowledged without it. This is the one known exception to the `WriteTraces` contract in sync mode.
 * The guarantee depends on settings on three components that must line up: `write_mode: sync` on the storage, `wait_for_result: true` on the exporter queue (or no queue) with no `batch` processor in the pipeline, and on the Kafka ingester `message_marking.after: true` on the receiver plus unbounded `retry_on_failure` on the exporter. The exporter cannot see the pipeline graph, so a `batch` processor left in place is not detected at startup. The documentation carries that burden.
 * Sync mode adds a `_bulk` round trip of latency to each batch, plus `flush_timeout` when the blocking batcher is used.
-* Kafka batch size is capped by partition count. A worker-pool consumer that decouples the two (RFC 0007 M8) is not built.
+* Kafka batch size is capped at one record per partition. Neither receiver-level batching (RFC 0007 M8) nor a worker-pool consumer (RFC 0007 M9) is built.
 * `write_mode` governs only the span writer; dependency and sampling writes remain asynchronous.
 * The default stays `async`, so an operator has to opt in, and Jaeger's sample collector configurations remain lossy until they are changed.
 
 ## References
 
-* [RFC 0007: Synchronous Elasticsearch/OpenSearch Writes](../rfc/0007-synchronous-elasticsearch-writes.md) — the proposal, alternatives, and milestone history (M1–M8).
+* [RFC 0007: Synchronous Elasticsearch/OpenSearch Writes](../rfc/0007-synchronous-elasticsearch-writes.md) — the proposal, alternatives, and milestone history (M1–M9).
 * Issue [#8476](https://github.com/jaegertracing/jaeger/issues/8476).
 * [ADR-012](012-unified-elasticsearch-client.md) — the `esclient` transport the synchronous writer runs on.
 * [`storageexporter/README.md`](../../cmd/jaeger/internal/exporters/storageexporter/README.md) — the configuration reference for both forms.
