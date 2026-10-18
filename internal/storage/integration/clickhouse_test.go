@@ -6,13 +6,18 @@ package integration
 import (
 	"context"
 	"testing"
+	"time"
 
 	"github.com/ClickHouse/clickhouse-go/v2"
 	"github.com/open-telemetry/opentelemetry-collector-contrib/extension/basicauthextension"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/collector/config/configoptional"
+	"go.opentelemetry.io/collector/pdata/pcommon"
+	"go.opentelemetry.io/collector/pdata/ptrace"
 
 	"github.com/jaegertracing/jaeger/internal/storage/integration/capabilities"
+	"github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore"
 	ch "github.com/jaegertracing/jaeger/internal/storage/v2/clickhouse"
 	"github.com/jaegertracing/jaeger/internal/telemetry"
 	"github.com/jaegertracing/jaeger/internal/testutils"
@@ -100,6 +105,80 @@ func requireReplicatedTables(t *testing.T, cfg ch.Configuration) {
 	}, engines)
 }
 
+// testTraceIDTimestamps checks that trace_id_timestamps records the end of the
+// latest-finishing span as the trace end.
+func (s *ClickHouseStorageIntegration) testTraceIDTimestamps(t *testing.T) {
+	ctx := context.Background()
+	writer, reader := s.TraceWriter, s.TraceReader
+
+	const service = "trace-id-timestamps-service"
+	base := time.Now().UTC().Truncate(time.Second).Add(-time.Minute)
+	type span struct {
+		start    time.Duration
+		duration time.Duration
+	}
+	tests := []struct {
+		name    string
+		traceID pcommon.TraceID
+		spans   []span
+		end     time.Duration
+	}{
+		{
+			name:    "single span",
+			traceID: pcommon.TraceID([16]byte{0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0x7e, 1}),
+			spans:   []span{{start: 0, duration: 5 * time.Second}},
+			end:     5 * time.Second,
+		},
+		{
+			// The span that finishes last is not the one that starts last.
+			name:    "multiple spans",
+			traceID: pcommon.TraceID([16]byte{0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0x7e, 2}),
+			spans: []span{
+				{start: 0, duration: 10 * time.Second},
+				{start: 1 * time.Second, duration: 2 * time.Second},
+				{start: 3 * time.Second, duration: 1 * time.Second},
+			},
+			end: 10 * time.Second,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			td := ptrace.NewTraces()
+			rs := td.ResourceSpans().AppendEmpty()
+			rs.Resource().Attributes().PutStr("service.name", service)
+			ss := rs.ScopeSpans().AppendEmpty()
+			for i, sp := range tt.spans {
+				otelSpan := ss.Spans().AppendEmpty()
+				otelSpan.SetTraceID(tt.traceID)
+				otelSpan.SetSpanID(pcommon.SpanID([8]byte{0, 0, 0, 0, 0, 0, tt.traceID[15], byte(i + 1)}))
+				otelSpan.SetName("op")
+				otelSpan.SetStartTimestamp(pcommon.NewTimestampFromTime(base.Add(sp.start)))
+				otelSpan.SetEndTimestamp(pcommon.NewTimestampFromTime(base.Add(sp.start + sp.duration)))
+			}
+			require.NoError(t, writer.WriteTraces(ctx, td))
+
+			var found []tracestore.FoundTraceID
+			for chunk, err := range reader.FindTraceIDs(ctx, tracestore.TraceQueryParams{
+				ServiceName:  service,
+				Attributes:   pcommon.NewMap(),
+				StartTimeMin: base.Add(-time.Minute),
+				StartTimeMax: base.Add(time.Minute),
+				SearchDepth:  10,
+			}) {
+				require.NoError(t, err)
+				for _, id := range chunk.Results {
+					if id.TraceID == tt.traceID {
+						found = append(found, id)
+					}
+				}
+			}
+			require.Len(t, found, 1)
+			assert.Equal(t, base, found[0].Start.UTC())
+			assert.Equal(t, base.Add(tt.end), found[0].End.UTC())
+		})
+	}
+}
+
 func (s *ClickHouseStorageIntegration) cleanUp(t *testing.T) {
 	require.NoError(t, s.factory.Purge(context.Background()))
 }
@@ -119,6 +198,7 @@ func runClickHouseStorageSuite(t *testing.T, database string, attributeLayout st
 	s.CleanUp = s.cleanUp
 	s.initialize(t, database, attributeLayout, hoistedAttributes)
 	s.RunAll(t)
+	t.Run("TraceIDTimestamps", s.testTraceIDTimestamps)
 }
 
 func TestClickHouseStorage(t *testing.T) {
