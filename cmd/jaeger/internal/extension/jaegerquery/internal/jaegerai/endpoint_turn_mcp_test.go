@@ -125,7 +125,7 @@ func TestTurnScopedEndpointStateless(t *testing.T) {
 
 	got := listToolNames(t, ts, "/api/ai/mcp/"+routeID+"/")
 	assert.Contains(t, got, "get_services", "built-in telemetry tools must be advertised")
-	assert.Contains(t, got, "show_chart", "the turn's UI tools must be advertised")
+	assert.Contains(t, got, UIToolPrefix+"show_chart", "the turn's UI tools must be advertised under the namespace")
 }
 
 // TestSharedMCPHandlerServesTelemetryOnly pins the shared mount's contract while a
