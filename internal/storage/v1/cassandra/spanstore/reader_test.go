@@ -449,6 +449,55 @@ func TestSpanReaderFindTraces(t *testing.T) {
 	}
 }
 
+func TestSpanReaderFindTraceIDsDurationStopsAtSearchDepth(t *testing.T) {
+	withSpanReader(t, func(r *spanReaderTest) {
+		// Every hourly bucket query returns one new trace ID: the iterator
+		// alternates between yielding a row and ending that query's rows.
+		var lastID byte
+		var rowSent bool
+		scanRow := mock.MatchedBy(func(args []any) bool {
+			if rowSent {
+				rowSent = false
+				return false
+			}
+			for _, arg := range args {
+				if ptr, ok := arg.(*dbmodel.TraceID); ok {
+					lastID++
+					*ptr = dbmodel.TraceID{15: lastID}
+					rowSent = true
+					return true
+				}
+			}
+			return false
+		})
+		iter := &mocks.Iterator{}
+		iter.On("Scan", scanRow).Return(true)
+		iter.On("Scan", mock.Anything).Return(false)
+		iter.On("Close").Return(nil)
+
+		bucketQueries := 0
+		query := &mocks.Query{}
+		query.On("Iter").Run(func(mock.Arguments) { bucketQueries++ }).Return(iter)
+		r.session.On("Query", queryByDuration, mock.Anything).Return(query)
+
+		now := time.Now()
+		traceIDs, err := r.reader.FindTraceIDs(context.Background(), &tracestore.TraceQueryParams{
+			ServiceName:  "service-a",
+			StartTimeMin: now.Add(-3 * time.Hour),
+			StartTimeMax: now,
+			DurationMin:  time.Minute,
+			SearchDepth:  1,
+			Attributes:   pcommon.NewMap(),
+		})
+		require.NoError(t, err)
+
+		// The newest bucket already fills the search depth, so no older bucket is queried
+		// and the trace returned is the one from the newest bucket.
+		assert.Equal(t, 1, bucketQueries)
+		assert.Equal(t, []dbmodel.TraceID{{15: 1}}, traceIDs)
+	})
+}
+
 func TestTraceQueryParameterValidation(t *testing.T) {
 	attr := pcommon.NewMap()
 	attr.PutStr("michael", "jackson")
