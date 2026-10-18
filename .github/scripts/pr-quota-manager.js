@@ -574,8 +574,10 @@ async function processIssueLimits(
   const commentCandidates = issueLimitCommentCandidates(
     pullRequests, repository, pullRequestNumber, issueNumber
   );
-  const scopedDuplicates = new Map([...desiredDuplicates]
-    .filter(([number]) => commentCandidates.has(number)));
+  for (const number of desiredDuplicates.keys()) {
+    commentCandidates.add(number);
+  }
+  const scopedDuplicates = desiredDuplicates;
 
   const commentSets = new Map();
   // Scheduled/manual sweeps inspect every marker for recovery. Event-driven
