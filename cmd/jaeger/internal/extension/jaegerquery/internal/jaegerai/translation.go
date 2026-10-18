@@ -13,9 +13,9 @@ import (
 	"github.com/coder/acp-go-sdk"
 )
 
-// UIToolPrefix identifies namespaced UI tool names echoed by an agent in ACP
-// session/update notifications. The gateway strips the prefix before emitting
-// AG-UI events; it does not add the prefix to tool declarations or calls.
+// UIToolPrefix is the namespace for UI tools on the turn-scoped MCP endpoint.
+// The gateway strips it from ACP session/update notifications before emitting
+// AG-UI events so the browser receives the original tool name.
 const UIToolPrefix = "ui_"
 
 // latestUserMessageText returns the text content of the most recent user

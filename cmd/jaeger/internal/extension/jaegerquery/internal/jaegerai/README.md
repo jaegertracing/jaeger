@@ -57,9 +57,6 @@ sends SDK writes as WebSocket text messages.
 
 ## Chat request flow
 
-The chat endpoint is registered at `POST /api/ai/chat` when
-`extensions.jaeger_query.ai.agent_url` is configured.
-
 1. The gateway parses the AG-UI `RunAgentInput`, collecting the latest user
    message and any context entries into ACP prompt blocks.
 2. It serializes the request's UI-tool declarations and registers them with a
@@ -74,9 +71,6 @@ The chat endpoint is registered at `POST /api/ai/chat` when
 5. When the prompt finishes, it closes the ACP session, unregisters the turn,
    and emits `RUN_FINISHED` or `RUN_ERROR`.
 
-No Jaeger-specific ACP extension method is used. An agent that sends an
-unknown ACP method receives the protocol's standard `MethodNotFound` response.
-
 ## MCP tool routing
 
 The agent calls the announced turn-scoped endpoint using standard MCP
@@ -89,10 +83,9 @@ The agent calls the announced turn-scoped endpoint using standard MCP
   synthetic dispatched result immediately. The browser performs the side
   effect; it does not return a result during the same chat turn.
 
-`UIToolPrefix` remains part of the ACP-to-AG-UI translation boundary. When an
-agent reports a namespaced UI tool in an ACP progress notification, the
-gateway strips the prefix before it writes the AG-UI event so the browser sees
-the name it declared.
+`UIToolPrefix` is the namespace for UI tools on the turn-scoped MCP endpoint.
+The gateway strips the prefix from ACP progress notifications before it writes
+the AG-UI event so the browser sees the name it declared.
 
 The external-agent contract and the Goose worked example are documented in
 [`scripts/ai-sidecar/README.md`](../../../../../../../scripts/ai-sidecar/README.md).
