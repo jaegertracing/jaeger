@@ -60,7 +60,13 @@ func (p *queryParser) parseDependenciesQueryParams(r *http.Request) (dqp depende
 	}
 
 	dqp.lookback, err = parseDuration(r, lookbackParam, newDurationUnitsParser(time.Millisecond), defaultDependencyLookbackDuration)
-	return dqp, err
+	if err != nil {
+		return dqp, err
+	}
+	if dqp.lookback <= 0 {
+		return dqp, newParseError(errors.New("must be a positive duration"), lookbackParam)
+	}
+	return dqp, nil
 }
 
 // parseMetricsQueryParams takes a request and constructs a model of metrics query parameters.
