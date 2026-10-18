@@ -292,6 +292,9 @@ func registerAIRoutes(
 	var mcpHandler *mcptools.Handler
 	if mcp := aiCfg.MCP.Get(); mcp != nil {
 		mcpParams := mcptools.DefaultServerParams()
+		// Overlay the operator's tunables; an unset one keeps its default so a
+		// zero limit can never make a tool refuse every call.
+		mcp.applyTo(&mcpParams)
 		// Opened once, so a broken path is reported once, at startup. It stays open
 		// for as long as it serves, so it is released with the server rather than at
 		// process exit.
