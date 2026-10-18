@@ -245,8 +245,9 @@ func (c *streamingClient) SessionUpdate(_ context.Context, n acp.SessionNotifica
 		}
 	}
 	if u.ToolCall != nil {
-		// The agent populates ACP Title with the tool identifier. Strip the UI
-		// tool namespace so the frontend sees the same name it registered.
+		// The agent populates ACP Title with the tool name it was offered, which
+		// for a UI tool carries UIToolPrefix. Strip it so the frontend sees the
+		// name it registered.
 		c.emit(aguievents.NewToolCallStartEvent(
 			string(u.ToolCall.ToolCallId),
 			stripUIToolPrefix(u.ToolCall.Title),

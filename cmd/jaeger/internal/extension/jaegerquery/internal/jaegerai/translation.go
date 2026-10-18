@@ -13,11 +13,6 @@ import (
 	"github.com/coder/acp-go-sdk"
 )
 
-// UIToolPrefix is the namespace for UI tools on the turn-scoped MCP endpoint.
-// The gateway strips it from ACP session/update notifications before emitting
-// AG-UI events so the browser receives the original tool name.
-const UIToolPrefix = "ui_"
-
 // latestUserMessageText returns the text content of the most recent user
 // message in the AG-UI run input. It is an error if no user message carries
 // any textual content.
@@ -205,15 +200,16 @@ func toolResultMessageID(toolCallID acp.ToolCallId) string {
 	return "tool-msg-" + string(toolCallID)
 }
 
-// stripUIToolPrefix removes the UI-tool namespace from a tool name
-// so the frontend sees the original name it registered. Non-prefixed
-// names (e.g. built-in MCP tools) are returned unchanged.
+// stripUIToolPrefix removes UIToolPrefix from a tool name the agent reports in
+// an ACP session/update notification, so the frontend sees the name it
+// registered rather than the namespaced name the MCP endpoint advertised.
+// Unprefixed names (telemetry tools) are returned unchanged.
 //
-// A name that is exactly UIToolPrefix (e.g. "ui_") would strip to "", which
-// AG-UI tool-call events reject and which would break SSE encoding. That
-// streaming client receives agent notifications directly, so it falls back to
-// the original (still non-empty) name rather than terminating the run over a
-// malformed upstream tool name.
+// A name that is exactly UIToolPrefix would strip to "", which AG-UI tool-call
+// events reject and which would break SSE encoding. The streaming client
+// receives agent notifications directly, so it falls back to the original
+// (still non-empty) name rather than terminating the run over a malformed
+// upstream tool name.
 func stripUIToolPrefix(name string) string {
 	if stripped, ok := strings.CutPrefix(name, UIToolPrefix); ok && stripped != "" {
 		return stripped

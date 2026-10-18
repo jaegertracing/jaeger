@@ -504,9 +504,9 @@ func TestStreamingClientSessionUpdateToolCallStripsUIPrefixForName(t *testing.T)
 	rec := httptest.NewRecorder()
 	c := newStreamingClient(context.Background(), rec, "thread-1", "run-1")
 
-	// ACP progress identifies a UI tool with UIToolPrefix. The frontend
-	// registered it under its unprefixed name, so TOOL_CALL_START.toolCallName
-	// must be stripped before it is emitted.
+	// The agent reports progress under the name the MCP endpoint advertised,
+	// which for a UI tool carries UIToolPrefix. The frontend registered it under
+	// the bare name, so TOOL_CALL_START.toolCallName must be stripped.
 	err := c.SessionUpdate(context.Background(), acp.SessionNotification{
 		Update: acp.SessionUpdate{
 			ToolCall: &acp.SessionUpdateToolCall{
