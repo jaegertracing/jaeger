@@ -13,9 +13,9 @@ import (
 	"github.com/coder/acp-go-sdk"
 )
 
-// UIToolPrefix namespaces UI tools when an agent reports their ACP progress.
-// It prevents collisions with Jaeger's telemetry tools while preserving the
-// frontend's original name in the browser event stream.
+// UIToolPrefix identifies namespaced UI tool names echoed by an agent in ACP
+// session/update notifications. The gateway strips the prefix before emitting
+// AG-UI events; it does not add the prefix to tool declarations or calls.
 const UIToolPrefix = "ui_"
 
 // latestUserMessageText returns the text content of the most recent user
@@ -211,11 +211,9 @@ func toolResultMessageID(toolCallID acp.ToolCallId) string {
 //
 // A name that is exactly UIToolPrefix (e.g. "ui_") would strip to "", which
 // AG-UI tool-call events reject and which would break SSE encoding. That
-// shape is already rejected as InvalidParams by handleJaegerToolCall on the
-// ext_method path, so it should never reach the streaming client; here we
-// defend the streaming path independently by falling back to the original
-// (still non-empty) name so the run does not terminate over a malformed
-// upstream tool name.
+// streaming client receives agent notifications directly, so it falls back to
+// the original (still non-empty) name rather than terminating the run over a
+// malformed upstream tool name.
 func stripUIToolPrefix(name string) string {
 	if stripped, ok := strings.CutPrefix(name, UIToolPrefix); ok && stripped != "" {
 		return stripped

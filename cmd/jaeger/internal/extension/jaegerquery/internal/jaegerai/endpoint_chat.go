@@ -125,9 +125,9 @@ func (h *chatEndpoint) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		promptBlocks = append(promptBlocks, acp.TextBlock(ctxText))
 	}
 
-	// The turn-scoped MCP endpoint namespaces UI tools with UIToolPrefix when
-	// it advertises them to the agent. Keep their original AG-UI names here so
-	// browser events retain the names declared by the frontend.
+	// Keep the original AG-UI names in the turn-scoped MCP endpoint and browser
+	// events. UIToolPrefix is accepted only when stripping a name echoed by an
+	// agent in a progress notification.
 	rawUITools := encodeUIToolsAsRaw(req.Tools)
 
 	ctx := r.Context()

@@ -504,10 +504,9 @@ func TestStreamingClientSessionUpdateToolCallStripsUIPrefixForName(t *testing.T)
 	rec := httptest.NewRecorder()
 	c := newStreamingClient(context.Background(), rec, "thread-1", "run-1")
 
-	// Contextual UI tools are registered with the LLM under a UIToolPrefix
-	// namespace so they never collide with built-in MCP tool names. The
-	// frontend, however, registered them under their unprefixed names —
-	// TOOL_CALL_START.toolCallName must be stripped so it round-trips.
+	// An agent may echo a UI tool with UIToolPrefix in a progress notification.
+	// The frontend registered it under its unprefixed name, so
+	// TOOL_CALL_START.toolCallName must be stripped before it is emitted.
 	err := c.SessionUpdate(context.Background(), acp.SessionNotification{
 		Update: acp.SessionUpdate{
 			ToolCall: &acp.SessionUpdateToolCall{

@@ -29,6 +29,32 @@ flowchart TB
     AGENT -- "Streamable HTTP MCP" --> MCP
 ```
 
+## Components
+
+### chatEndpoint (`endpoint_chat.go`)
+
+The chat endpoint is registered at `POST /api/ai/chat` only when
+`extensions.jaeger_query.ai.agent_url` is configured. It accepts AG-UI
+[`RunAgentInput`](https://docs.ag-ui.com/concepts/run-input) payloads,
+establishes the ACP WebSocket connection, runs the ACP session lifecycle, and
+streams AG-UI events back to the browser.
+
+### streamingClient (`streaming_client.go`)
+
+`streamingClient` translates ACP `session/update` notifications into AG-UI SSE
+events. It maps agent message chunks to text-message events and tool progress
+to tool-call events, and handles the run and message lifecycle around those
+updates. A mutex guards its mutable state because ACP updates may arrive from a
+different goroutine than the one driving `Prompt`, while lifecycle calls come
+from the chat endpoint.
+
+### WsReadWriteCloser (`ws_adapter.go`)
+
+`WsReadWriteCloser` adapts a gorilla WebSocket connection to the
+`io.ReadWriteCloser` interface required by the ACP runtime. It presents
+discrete WebSocket messages to the SDK as a newline-delimited byte stream and
+sends SDK writes as WebSocket text messages.
+
 ## Chat request flow
 
 The chat endpoint is registered at `POST /api/ai/chat` when
@@ -68,25 +94,7 @@ agent reports a namespaced UI tool in an ACP progress notification, the
 gateway strips the prefix before it writes the AG-UI event so the browser sees
 the name it declared.
 
-## External-agent contract
-
-An external agent integrates with the gateway by implementing these standard
-protocols:
-
-- Accept an ACP WebSocket connection from Jaeger and implement the normal
-  `Initialize`, `NewSession`, and `Prompt` request flow.
-- Advertise HTTP MCP support in its ACP initialize response. Jaeger announces
-  the per-turn MCP URL through `NewSessionRequest.mcpServers` when the MCP
-  endpoint is configured and reachable from the agent.
-- Use the announced MCP URL for both Jaeger telemetry tools and UI tools.
-  Do not use ACP extension methods to invoke browser tools.
-- Send `session/update` notifications to report text and tool progress. The
-  gateway maps those notifications to AG-UI events for the browser.
-- Handle `session/request_permission` according to ACP. Jaeger selects an
-  allow option for the curated tools it exposes; an agent should not request
-  unannounced filesystem or terminal capabilities.
-
-The repository's general external-agent guidance is in
+The external-agent contract and the Goose worked example are documented in
 [`scripts/ai-sidecar/README.md`](../../../../../../../scripts/ai-sidecar/README.md).
 
 ## Configuration
@@ -113,3 +121,6 @@ deployments should configure it explicitly.
 - `mcp_ui_tools.go` exposes browser UI tools through MCP.
 - `streaming_client.go` translates ACP notifications into AG-UI SSE events.
 - `ws_adapter.go` adapts the ACP WebSocket transport.
+
+Protocol specifications: [ACP](https://agentclientprotocol.com/) and
+[AG-UI](https://docs.ag-ui.com/).

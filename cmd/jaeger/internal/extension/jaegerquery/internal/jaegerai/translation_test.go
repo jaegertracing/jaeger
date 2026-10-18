@@ -270,7 +270,7 @@ func TestValidateUIToolNamesAcceptsEmptyAndValidSlices(t *testing.T) {
 
 func TestValidateUIToolNamesRejectsEmptyName(t *testing.T) {
 	err := validateUIToolNames([]aguitypes.Tool{{Name: ""}})
-	require.Error(t, err, "empty name must be rejected — would prefix to a bare 'ui_'")
+	require.Error(t, err, "empty name must be rejected before it reaches the MCP tool list")
 	assert.Contains(t, err.Error(), "tools[0].name")
 }
 

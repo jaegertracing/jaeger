@@ -19,10 +19,10 @@ This RFC captures the "MCP movement": consolidating every AI tool call — telem
 | M3 | Tool-call observability: GenAI span attributes + gateway↔sidecar trace propagation | ✅ Done — [#8942][pr-8942] |
 | M4 | **Terminology cleanup** — apply §2 (remove the `session`/`stream` overload; one name for UI tools; rename endpoints/registry/ids) | ✅ Done — [#9017][pr-9017] |
 | M5 | Announce the turn-scoped endpoint to the sidecar over **HTTP** (`ai.mcp.base_url`) | ✅ Done — [#9009][pr-9009] |
-| M6 | Remove the Gemini reference sidecar and retire the legacy ACP ext-method path; external agents use the gateway MCP URL | ✅ Done — [#9841][pr-9841], [#9855][pr-9855] |
+| M6 | The Gemini reference sidecar was removed rather than migrated; the legacy ACP ext-method path is removed, and external agents use the gateway MCP URL | ✅ Done — [#9841][pr-9841], [#9855][pr-9855] |
 | M7 | Consolidate the shared and turn-scoped mounts onto **one** `mcp.Server`. The query server builds it whenever `ai.mcp` is configured — independently of `ai.agent_url`, since external MCP clients use the shared mount with no sidecar — and the chat gateway, when enabled, layers its per-turn UI tools onto that same server and serves the turn-scoped route from it. One server, two mounts. | ✅ Done — [#9216][pr-9216] |
 | M7.1 | Reap the **shared** endpoint's MCP sessions. `mcptools.NewHandler` returns a closeable `Handler` that owns the reaping, and the query server holds it in its closer set, so the sessions on both mounts are torn down with the server instead of being left to process exit. | ✅ Done — [#9216][pr-9216] |
-| M7.2 | **UI tools stay gated on `ai.mcp`.** The turn-scoped endpoint carries the per-turn UI tools and is mounted only when `ai.mcp` is configured, so once M6 drops the ACP ext-method path that also carries them today, chat without `ai.mcp` leaves the agent no UI tools. Mounting the endpoint for chat alone was considered and dropped: it would serve the telemetry tools `ai.mcp` exists to gate, and the sidecar only learns the endpoint's address from `ai.mcp.base_url`, which is part of the same block. An AI-chat-only deployment, if it is ever wanted, comes as a flag inside `ai.mcp` that turns the shared telemetry tools off — not as a second gate. | ✅ Decided — [#9216][pr-9216] |
+| M7.2 | **UI tools stay gated on `ai.mcp`.** The turn-scoped endpoint carries the per-turn UI tools and is mounted only when `ai.mcp` is configured, so chat without `ai.mcp` gives the agent no UI tools. Mounting the endpoint for chat alone would also serve the telemetry tools that `ai.mcp` gates. An AI-chat-only deployment, if it is ever wanted, belongs behind a flag inside `ai.mcp` that turns the shared telemetry tools off, rather than behind a second gate. | ✅ Decided — [#9216][pr-9216] |
 | M8 | Probe `ai.mcp.base_url` reachability at startup before announcing (analogous to the ACP agent health probe), so a wrong address surfaces at startup, not mid-turn | ⏳ Proposed |
 | — | Claude Code sidecar (parallel track; consumes the same URL) | ⏳ In progress — [#8631][pr-8631] |
 
@@ -43,7 +43,7 @@ This RFC proposes a single dispatch surface: the gateway hosts its own MCP serve
 Three structural problems compound as agents multiply:
 
 1. **Telemetry tool calls bypass the gateway.** Each sidecar embeds its own MCP client dialing `jaeger_mcp:16687`. The gateway never sees those calls, so it cannot trace, log, authorize, or rate-limit them. This is the core inversion-of-control (IoC) violation.
-2. **Two dispatch protocols per sidecar (before M6).** UI tools flowed agent → gateway → browser via the ACP extension method `_meta/jaegertracing.io/tools/call`; telemetry tools flowed through the sidecar's own MCP client. Every sidecar author had to implement and understand both.
+2. **One standard dispatch protocol.** UI and telemetry tools both use MCP `tools/list` and `tools/call`, so external-agent authors implement one tool protocol.
 3. **Per-sidecar duplication.** The MCP client and the UI-tool machinery are re-written in every sidecar (Python Gemini, the in-progress Claude Code bridge, and any future ones). The goal is one dispatch surface owned by the gateway, with sidecars as thin adapters.
 
 Note the scope difference from [RFC 0002](./0002-ai-gateway-contextual-tools.md): that RFC solved **UI-tool** dispatch. This RFC's driving problem is **telemetry** dispatch and the duplication across sidecars — a different problem that reopens a design RFC 0002 had closed (§3.2).
@@ -132,7 +132,7 @@ Action: RFC 0002 gets a pointer banner to this RFC noting that its Alternative B
 
 ### 3.3 MCP-over-ACP: the actual SDK state
 
-The "keep everything on the one WebSocket" transport (MCP-over-ACP) matters because the original "HTTP now, ACP later" plan rested on it. It exists only in the **Go** ACP SDK (`coder/acp-go-sdk`), which the *gateway* uses. The former Gemini sidecar was Python, and the in-progress Claude Code sidecar ([#8631][pr-8631]) is Node.js on `claude-agent-acp` — neither agent SDK provides the tunnel. It is therefore a future opportunity, not a supported integration path today. In the Go SDK it is UNSTABLE and unfinished: `coder/acp-go-sdk` v0.13.0 (the pinned version) and v0.13.5 (the version #8890 cites) are identical for this feature, and both provide a **handshake scaffold, not a turnkey tunnel**. The [v0.13.0 release notes][rel-0130] call it *"unstable MCP-over-ACP support"* ("Agents can now host MCP servers over the ACP channel itself"); concretely that support is:
+MCP-over-ACP would keep MCP traffic on the ACP WebSocket, but it is not a supported integration path. It exists only in the **Go** ACP SDK (`coder/acp-go-sdk`), which the gateway uses, while the external-agent SDKs evaluated for Jaeger do not provide the tunnel. In the Go SDK it is UNSTABLE and unfinished: `coder/acp-go-sdk` v0.13.0 (the pinned version) and v0.13.5 (the version #8890 cites) are identical for this feature, and both provide a **handshake scaffold, not a turnkey tunnel**. The [v0.13.0 release notes][rel-0130] call it *"unstable MCP-over-ACP support"* ("Agents can now host MCP servers over the ACP channel itself"); concretely that support is:
 
 - **Wire types + method-name constants** for all three methods (`mcp/connect`, `mcp/message`, `mcp/disconnect`), plus `McpServer.Acp` and `McpCapabilities.Acp`. All are explicitly **UNSTABLE** — each carries the generated comment *"not part of the spec yet, and may be removed or changed at any point."* (`McpServer.Http` is stable by contrast; `Stdio` is mandatory.)
 - **`mcp/connect` / `mcp/disconnect`: handshake plumbing only.** The SDK generates a sender on the agent side (`AgentSideConnection.UnstableConnectMcp` / `UnstableDisconnectMcp`) and inbound dispatch cases on the client side — but the dispatch delegates to *optional* interface methods (`UnstableConnectMcp` / `UnstableDisconnectMcp`) that the consumer must implement, and returns `MethodNotFound` if it hasn't. The SDK supplies routing, **not behavior**.
@@ -195,7 +195,7 @@ Two poles were rejected. An **unconditional** localhost default announces a brok
 
 The transports considered (🟢 good / 🟡 partial / 🔴 poor):
 
-| Criterion | ext-method (legacy, retired — §4.4) | HTTP (chosen) | MCP-over-ACP (deferred) |
+| Criterion | Custom ACP ext-method (unsupported — §4.4) | HTTP (chosen) | MCP-over-ACP (deferred) |
 |---|---|---|---|
 | Reuses the one open connection | 🟢 | 🔴 second HTTP dial back into the process | 🟢 |
 | Covers telemetry **and** UI on one path | 🔴 UI only | 🟢 | 🟢 |
@@ -205,15 +205,15 @@ The transports considered (🟢 good / 🟡 partial / 🔴 poor):
 | Standard MCP `tools/call` (no custom method) | 🔴 Jaeger-custom `_meta/…/tools/call` | 🟢 | 🟢 |
 | Stable wire contract | 🟡 Jaeger-defined: stable, but bespoke | 🟢 standard, stable | 🔴 UNSTABLE draft |
 
-HTTP is the only option that is standard, stable, **and** speakable by today's sidecars; the ext-method is retired (§4.4) and MCP-over-ACP deferred (§6).
+HTTP is the only supported option that is standard, stable, **and** speakable by current external-agent SDKs; MCP-over-ACP remains deferred (§6).
 
-### 4.4 UI-tool dispatch is fire-and-forget today (an implementation limit), and the ext-method is retired
+### 4.4 UI-tool dispatch through MCP is fire-and-forget (an implementation limit)
 
 Today the gateway dispatches a UI tool by emitting its `TOOL_CALL_*` events on the browser's SSE stream and immediately returning a synthetic result from the MCP `tools/call` handler (`mcp_ui_tools.go`). It does not wait for, and cannot receive, a result from the browser.
 
 This is a property of the current **implementation**, not of UI tools and not of AG-UI. The browser↔gateway leg is a single `POST /api/ai/chat` whose response is a one-way SSE stream (server→browser); there is no channel for the browser to return a value mid-turn, and RFC 0002 §6.6 deliberately chose to synthesize the ack rather than build one (a `POST /api/ai/tool-result` endpoint plus per-call rendezvous state). AG-UI itself supports frontend tool calls that return structured results (plus HITL interrupts and shared-state sync), so query-type UI tools such as `get_current_viewport` or `read_selection` are not categorically impossible — they are unsupported only until a browser→gateway result channel exists. That is **out of scope for this RFC** (§6): nothing in the gateway↔sidecar protocol prevents it, but it needs UI-side integration and belongs in its own RFC.
 
-The agent→gateway transport is orthogonal to all of this. The gateway returns a synthetic result for a UI-tool call and a real result for a telemetry call. The MCP `tools/call` route is the supported path; the retired ACP ext-method and its contextual-tools snapshot are no longer part of the gateway contract.
+The agent→gateway transport is orthogonal to all of this. The gateway returns a synthetic result for a UI-tool call and a real result for a telemetry call. MCP `tools/call` is the gateway's tool-dispatch path, and the turn registry holds each request's UI-tool snapshot.
 
 ### 4.5 `jaeger_mcp` is merged into the query extension
 
@@ -233,11 +233,16 @@ The gateway serves Jaeger's own telemetry in-process (§4.5); it does **not** pr
 
 ## 5. Roadmap
 
-See the **Implementation status** table at the top. In narrative:
+See the **Implementation status** table at the top. The query extension owns one
+`mcp.Server` shared by the telemetry-only and turn-scoped mounts. The
+turn-scoped mount combines telemetry tools with the current turn's UI tools,
+and external agents receive its HTTP URL during ACP session creation. Tool
+calls are traceable, MCP sessions are reaped at shutdown, and UI tools use the
+same MCP `tools/list` and `tools/call` path as telemetry tools.
 
-- **Done:** `jaeger_mcp` is merged into the query extension (M1, [#8894][pr-8894]); the turn-scoped endpoint serves telemetry + UI tools (M2, [#8973][pr-8973]); tool calls are traceable (M3, [#8942][pr-8942]); the terminology cleanup landed (M4, [#9017][pr-9017]); the sidecar is told where to reach the endpoint (M5, [#9009][pr-9009]); the Gemini reference sidecar and legacy ACP ext-method path are removed (M6, [#9841][pr-9841], [#9855][pr-9855]); and both mounts share one `mcp.Server` whose sessions are reaped at shutdown (M7/M7.1, [#9216][pr-9216]).
-- **Next:** add the reachability probe (M8) and continue improving external-agent integrations.
-- **Out of scope:** MCP-over-ACP, query-type UI tools, and gateway-as-proxy — see §6.
+The remaining planned work is the reachability probe (M8). MCP-over-ACP,
+query-type UI tools, and gateway proxying of external MCP servers remain out of
+scope; see §6.
 
 ---
 
