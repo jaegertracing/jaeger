@@ -15,7 +15,15 @@
       ]
     },
     "body": {
-      "size": 1000
+      "size": 1,
+      "sort": [
+        {
+          "timestamp": {
+            "order": "desc",
+            "unmapped_type": "date"
+          }
+        }
+      ]
     }
   }
 ]

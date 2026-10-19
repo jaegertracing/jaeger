@@ -125,28 +125,21 @@ func (s *SamplingStore) GetLatestProbabilities() (model.ServiceOperationProbabil
 	if err != nil {
 		return nil, fmt.Errorf("failed to get latest index: %w", err)
 	}
+	// Ask for the newest document only; unmapped_type keeps a new, still empty
+	// index (no timestamp mapping yet) from failing the search.
 	searchResult, err := s.searcher.Search(ctx, []string{index}, esclient.SearchRequest{
-		Size: s.maxDocCount,
+		Size: 1,
+		Sort: []esclient.SortOrder{{Field: "timestamp", Order: query.Descending, UnmappedType: "date"}},
 	})
 	if err != nil {
 		return nil, fmt.Errorf("failed to search for Latest Probabilities: %w", err)
 	}
-	lengthOfSearchResult := len(searchResult.Hits.Hits)
-	if lengthOfSearchResult == 0 {
+	if len(searchResult.Hits.Hits) == 0 {
 		return nil, nil
 	}
-
 	var latestProbabilities dbmodel.TimeProbabilitiesAndQPS
-	latestTime := time.Time{}
-	for _, hit := range searchResult.Hits.Hits {
-		var data dbmodel.TimeProbabilitiesAndQPS
-		if err = json.Unmarshal(hit.Source, &data); err != nil {
-			return nil, fmt.Errorf("unmarshalling documents failed: %w", err)
-		}
-		if data.Timestamp.After(latestTime) {
-			latestTime = data.Timestamp
-			latestProbabilities = data
-		}
+	if err := json.Unmarshal(searchResult.Hits.Hits[0].Source, &latestProbabilities); err != nil {
+		return nil, fmt.Errorf("unmarshalling documents failed: %w", err)
 	}
 	return latestProbabilities.ProbabilitiesAndQPS.Probabilities, nil
 }
