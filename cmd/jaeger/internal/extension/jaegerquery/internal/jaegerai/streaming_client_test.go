@@ -674,6 +674,84 @@ func TestStreamingClientSessionUpdateToolCallEmitsStartAndArgs(t *testing.T) {
 		"TOOL_CALL_ARGS.delta must be the JSON-encoded args string")
 }
 
+func TestStreamingClientToolCallClosesTextAndStartsNewMessage(t *testing.T) {
+	tests := []struct {
+		name     string
+		toolCall func(t *testing.T, c *streamingClient)
+		types    []string
+	}{
+		{
+			name: "ACP tool call",
+			toolCall: func(t *testing.T, c *streamingClient) {
+				t.Helper()
+				err := c.SessionUpdate(context.Background(), acp.SessionNotification{
+					Update: acp.SessionUpdate{
+						ToolCall: &acp.SessionUpdateToolCall{
+							ToolCallId: "tool-1",
+							Title:      "search_traces",
+							Kind:       acp.ToolKindSearch,
+						},
+					},
+				})
+				require.NoError(t, err)
+			},
+			types: []string{
+				"RUN_STARTED",
+				"TEXT_MESSAGE_START", "TEXT_MESSAGE_CONTENT", "TEXT_MESSAGE_END",
+				"TOOL_CALL_START",
+				"TEXT_MESSAGE_START", "TEXT_MESSAGE_CONTENT", "TEXT_MESSAGE_END",
+				"RUN_FINISHED",
+			},
+		},
+		{
+			name: "UI tool call",
+			toolCall: func(_ *testing.T, c *streamingClient) {
+				c.EmitUIToolCall("tool-1", "navigate", nil)
+			},
+			types: []string{
+				"RUN_STARTED",
+				"TEXT_MESSAGE_START", "TEXT_MESSAGE_CONTENT", "TEXT_MESSAGE_END",
+				"TOOL_CALL_START", "TOOL_CALL_END",
+				"TEXT_MESSAGE_START", "TEXT_MESSAGE_CONTENT", "TEXT_MESSAGE_END",
+				"RUN_FINISHED",
+			},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			rec := httptest.NewRecorder()
+			c := newStreamingClient(context.Background(), rec, "thread-1", "run-1")
+			c.startRun()
+			sendAgentText(t, c, "before")
+			tt.toolCall(t, c)
+			sendAgentText(t, c, "after")
+			c.finishRun("")
+
+			events := parseSSEEvents(t, rec.Body.String())
+			require.Equal(t, tt.types, eventTypes(events))
+			assert.Equal(t, []string{"before", "after"}, contentDeltas(events))
+
+			n := len(events)
+			firstID := events[1]["messageId"]
+			secondID := events[n-4]["messageId"]
+			assert.Equal(t, firstID, events[3]["messageId"])
+			assert.Equal(t, secondID, events[n-2]["messageId"])
+			assert.NotEqual(t, firstID, secondID,
+				"a client keeps one text part per messageId, so reusing the id would append the text to the part before the tool call")
+		})
+	}
+}
+
+func TestStreamingClientToolCallWithoutOpenTextEmitsNoTextEnd(t *testing.T) {
+	rec := httptest.NewRecorder()
+	c := newStreamingClient(context.Background(), rec, "thread-1", "run-1")
+	c.startRun()
+	c.EmitUIToolCall("tool-1", "navigate", nil)
+
+	assert.Equal(t, []string{"RUN_STARTED", "TOOL_CALL_START", "TOOL_CALL_END"},
+		eventTypes(parseSSEEvents(t, rec.Body.String())))
+}
+
 func TestStreamingClientSessionUpdateToolCallStripsUIPrefixForName(t *testing.T) {
 	rec := httptest.NewRecorder()
 	c := newStreamingClient(context.Background(), rec, "thread-1", "run-1")
