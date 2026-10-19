@@ -29,144 +29,145 @@ func NewUTF8Sanitizer() Func {
 }
 
 func sanitizeUTF8(traces ptrace.Traces) ptrace.Traces {
-	for _, resourceSpans := range traces.ResourceSpans().All() {
-		if schema := resourceSpans.SchemaUrl(); !utf8.ValidString(schema) {
-			if traces.IsReadOnly() {
-				return sanitizeUTF8(cloneTraces(traces))
-			}
-			resourceSpans.SetSchemaUrl(strings.ToValidUTF8(schema, utf8Replacement))
-		}
-		if next, restart := sanitizeAttributesReadOnly(traces, resourceSpans.Resource().Attributes()); restart {
-			return sanitizeUTF8(next)
-		}
-
-		for _, scopeSpans := range resourceSpans.ScopeSpans().All() {
-			if schema := scopeSpans.SchemaUrl(); !utf8.ValidString(schema) {
-				if traces.IsReadOnly() {
-					return sanitizeUTF8(cloneTraces(traces))
-				}
-				scopeSpans.SetSchemaUrl(strings.ToValidUTF8(schema, utf8Replacement))
-			}
-			scope := scopeSpans.Scope()
-			if name := scope.Name(); !utf8.ValidString(name) {
-				if traces.IsReadOnly() {
-					return sanitizeUTF8(cloneTraces(traces))
-				}
-				scope.SetName(strings.ToValidUTF8(name, utf8Replacement))
-			}
-			if version := scope.Version(); !utf8.ValidString(version) {
-				if traces.IsReadOnly() {
-					return sanitizeUTF8(cloneTraces(traces))
-				}
-				scope.SetVersion(strings.ToValidUTF8(version, utf8Replacement))
-			}
-			if next, restart := sanitizeAttributesReadOnly(traces, scope.Attributes()); restart {
-				return sanitizeUTF8(next)
-			}
-
-			for _, span := range scopeSpans.Spans().All() {
-				if next, restart := sanitizeSpan(traces, span); restart {
-					return sanitizeUTF8(next)
-				}
-			}
-		}
+	if !tracesNeedUTF8Sanitization(traces) {
+		return traces
 	}
+	if traces.IsReadOnly() {
+		cloned := ptrace.NewTraces()
+		traces.CopyTo(cloned)
+		traces = cloned
+	}
+	sanitizeTraces(traces)
 	return traces
 }
 
-func sanitizeSpan(traces ptrace.Traces, span ptrace.Span) (ptrace.Traces, bool) {
-	if name := span.Name(); !utf8.ValidString(name) {
-		if traces.IsReadOnly() {
-			return cloneTraces(traces), true
+// tracesNeedUTF8Sanitization and sanitizeTraces walk the same fields in the
+// same order. Keep them together: a string that is detected has to be
+// repaired, and a string that is repaired has to be detected.
+func tracesNeedUTF8Sanitization(traces ptrace.Traces) bool {
+	for _, resourceSpans := range traces.ResourceSpans().All() {
+		if !utf8.ValidString(resourceSpans.SchemaUrl()) ||
+			attributesNeedUTF8Sanitization(resourceSpans.Resource().Attributes()) {
+			return true
 		}
-		span.SetName(strings.ToValidUTF8(name, utf8Replacement))
-	}
-	if state := span.TraceState().AsRaw(); !utf8.ValidString(state) {
-		if traces.IsReadOnly() {
-			return cloneTraces(traces), true
-		}
-		span.TraceState().FromRaw("")
-	}
-	status := span.Status()
-	if message := status.Message(); !utf8.ValidString(message) {
-		if traces.IsReadOnly() {
-			return cloneTraces(traces), true
-		}
-		status.SetMessage(strings.ToValidUTF8(message, utf8Replacement))
-	}
-	if next, restart := sanitizeAttributesReadOnly(traces, span.Attributes()); restart {
-		return next, true
-	}
-
-	for _, event := range span.Events().All() {
-		if name := event.Name(); !utf8.ValidString(name) {
-			if traces.IsReadOnly() {
-				return cloneTraces(traces), true
+		for _, scopeSpans := range resourceSpans.ScopeSpans().All() {
+			scope := scopeSpans.Scope()
+			if !utf8.ValidString(scopeSpans.SchemaUrl()) ||
+				!utf8.ValidString(scope.Name()) ||
+				!utf8.ValidString(scope.Version()) ||
+				attributesNeedUTF8Sanitization(scope.Attributes()) {
+				return true
 			}
-			event.SetName(strings.ToValidUTF8(name, utf8Replacement))
+			for _, span := range scopeSpans.Spans().All() {
+				if spanNeedsUTF8Sanitization(span) {
+					return true
+				}
+			}
 		}
-		if next, restart := sanitizeAttributesReadOnly(traces, event.Attributes()); restart {
-			return next, true
+	}
+	return false
+}
+
+func spanNeedsUTF8Sanitization(span ptrace.Span) bool {
+	if !utf8.ValidString(span.Name()) ||
+		!utf8.ValidString(span.TraceState().AsRaw()) ||
+		!utf8.ValidString(span.Status().Message()) ||
+		attributesNeedUTF8Sanitization(span.Attributes()) {
+		return true
+	}
+	for _, event := range span.Events().All() {
+		if !utf8.ValidString(event.Name()) || attributesNeedUTF8Sanitization(event.Attributes()) {
+			return true
 		}
 	}
 	for _, link := range span.Links().All() {
-		if state := link.TraceState().AsRaw(); !utf8.ValidString(state) {
-			if traces.IsReadOnly() {
-				return cloneTraces(traces), true
-			}
-			link.TraceState().FromRaw("")
-		}
-		if next, restart := sanitizeAttributesReadOnly(traces, link.Attributes()); restart {
-			return next, true
-		}
-	}
-	return traces, false
-}
-
-// sanitizeAttributesReadOnly clones traces before a read-only attribute map is
-// written. The caller restarts the walk on the clone. A mutable map is
-// sanitized here.
-func sanitizeAttributesReadOnly(traces ptrace.Traces, attributes pcommon.Map) (ptrace.Traces, bool) {
-	if traces.IsReadOnly() {
-		if attributesHaveInvalidUTF8(attributes) {
-			return cloneTraces(traces), true
-		}
-		return traces, false
-	}
-	sanitizeAttributes(attributes)
-	return traces, false
-}
-
-func cloneTraces(traces ptrace.Traces) ptrace.Traces {
-	cloned := ptrace.NewTraces()
-	traces.CopyTo(cloned)
-	return cloned
-}
-
-func attributesHaveInvalidUTF8(attributes pcommon.Map) bool {
-	for k, v := range attributes.All() {
-		if !utf8.ValidString(k) || valueHasInvalidUTF8(v) {
+		if !utf8.ValidString(link.TraceState().AsRaw()) || attributesNeedUTF8Sanitization(link.Attributes()) {
 			return true
 		}
 	}
 	return false
 }
 
-func valueHasInvalidUTF8(v pcommon.Value) bool {
+// attributesNeedUTF8Sanitization and sanitizeValue both switch on the value
+// kind. Extend both when a new kind can hold a string.
+func attributesNeedUTF8Sanitization(attributes pcommon.Map) bool {
+	for k, v := range attributes.All() {
+		if !utf8.ValidString(k) || valueNeedsUTF8Sanitization(v) {
+			return true
+		}
+	}
+	return false
+}
+
+func valueNeedsUTF8Sanitization(v pcommon.Value) bool {
 	switch v.Type() {
 	case pcommon.ValueTypeStr:
 		return !utf8.ValidString(v.Str())
 	case pcommon.ValueTypeMap:
-		return attributesHaveInvalidUTF8(v.Map())
+		return attributesNeedUTF8Sanitization(v.Map())
 	case pcommon.ValueTypeSlice:
 		for _, elem := range v.Slice().All() {
-			if valueHasInvalidUTF8(elem) {
+			if valueNeedsUTF8Sanitization(elem) {
 				return true
 			}
 		}
 	default:
 	}
 	return false
+}
+
+func sanitizeTraces(traces ptrace.Traces) {
+	for _, resourceSpans := range traces.ResourceSpans().All() {
+		if schema := resourceSpans.SchemaUrl(); !utf8.ValidString(schema) {
+			resourceSpans.SetSchemaUrl(strings.ToValidUTF8(schema, utf8Replacement))
+		}
+		sanitizeAttributes(resourceSpans.Resource().Attributes())
+
+		for _, scopeSpans := range resourceSpans.ScopeSpans().All() {
+			if schema := scopeSpans.SchemaUrl(); !utf8.ValidString(schema) {
+				scopeSpans.SetSchemaUrl(strings.ToValidUTF8(schema, utf8Replacement))
+			}
+			scope := scopeSpans.Scope()
+			if name := scope.Name(); !utf8.ValidString(name) {
+				scope.SetName(strings.ToValidUTF8(name, utf8Replacement))
+			}
+			if version := scope.Version(); !utf8.ValidString(version) {
+				scope.SetVersion(strings.ToValidUTF8(version, utf8Replacement))
+			}
+			sanitizeAttributes(scope.Attributes())
+
+			for _, span := range scopeSpans.Spans().All() {
+				sanitizeSpan(span)
+			}
+		}
+	}
+}
+
+func sanitizeSpan(span ptrace.Span) {
+	if name := span.Name(); !utf8.ValidString(name) {
+		span.SetName(strings.ToValidUTF8(name, utf8Replacement))
+	}
+	if state := span.TraceState().AsRaw(); !utf8.ValidString(state) {
+		span.TraceState().FromRaw("")
+	}
+	status := span.Status()
+	if message := status.Message(); !utf8.ValidString(message) {
+		status.SetMessage(strings.ToValidUTF8(message, utf8Replacement))
+	}
+	sanitizeAttributes(span.Attributes())
+
+	for _, event := range span.Events().All() {
+		if name := event.Name(); !utf8.ValidString(name) {
+			event.SetName(strings.ToValidUTF8(name, utf8Replacement))
+		}
+		sanitizeAttributes(event.Attributes())
+	}
+	for _, link := range span.Links().All() {
+		if state := link.TraceState().AsRaw(); !utf8.ValidString(state) {
+			link.TraceState().FromRaw("")
+		}
+		sanitizeAttributes(link.Attributes())
+	}
 }
 
 func sanitizeAttributes(attributes pcommon.Map) {

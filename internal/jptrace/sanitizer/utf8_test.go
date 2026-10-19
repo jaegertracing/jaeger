@@ -172,30 +172,6 @@ func TestUTF8Sanitizer_DoesNotSanitizeValidSpanName(t *testing.T) {
 	require.Equal(t, "name", name)
 }
 
-func TestUTF8Sanitizer_RemovesInvalidKeys(t *testing.T) {
-	k1 := invalidUTF8() + "-1"
-	k2 := invalidUTF8() + "-2"
-
-	traces := ptrace.NewTraces()
-	attributes := traces.ResourceSpans().AppendEmpty().Resource().Attributes()
-	attributes.PutStr(k1, "v1")
-	attributes.PutStr(k2, "v2")
-
-	sanitized := NewUTF8Sanitizer()(traces)
-	got := sanitized.ResourceSpans().At(0).Resource().Attributes()
-	_, ok := got.Get(k1)
-	require.False(t, ok)
-	_, ok = got.Get(k2)
-	require.False(t, ok)
-	v1, ok := got.Get(utf8Replacement + "-1")
-	require.True(t, ok)
-	require.Equal(t, "v1", v1.Str())
-	v2, ok := got.Get(utf8Replacement + "-2")
-	require.True(t, ok)
-	require.Equal(t, "v2", v2.Str())
-	require.Equal(t, 2, got.Len())
-}
-
 func TestUTF8Sanitizer_DoesNotSanitizeNonStringAttributeValue(t *testing.T) {
 	traces := ptrace.NewTraces()
 	traces.
@@ -251,216 +227,108 @@ func TestUTF8Sanitizer_SanitizesMultipleAttributesWithInvalidKeys(t *testing.T) 
 	require.Equal(t, "v2", v2.Str())
 }
 
-func TestUTF8Sanitizer_StrictProtobufDecode(t *testing.T) {
-	for _, readOnly := range []bool{false, true} {
-		t.Run(fmt.Sprintf("batch/readonly=%t", readOnly), func(t *testing.T) {
-			traces := tracesWithInvalidUTF8()
-			require.Error(t, unmarshalStrict(t, traces))
-			if readOnly {
-				traces.MarkReadOnly()
-			}
-
-			sanitized := NewUTF8Sanitizer()(traces)
-
-			require.NoError(t, unmarshalStrict(t, sanitized))
-			if readOnly {
-				require.True(t, traces.IsReadOnly())
-				require.False(t, sanitized.IsReadOnly())
-				original, ok := traces.ResourceSpans().At(0).Resource().Attributes().Get("resource")
-				require.True(t, ok)
-				require.Equal(t, "res"+invalidUTF8(), original.Str())
-			}
-			assertRewritten(t, sanitized)
-		})
-	}
-}
-
 func TestUTF8Sanitizer_SingleInvalidField(t *testing.T) {
 	tests := []struct {
-		name     string
-		poison   func(ptrace.Traces)
-		original func(ptrace.Traces) string
-		check    func(*testing.T, ptrace.Traces)
+		name   string
+		poison func(ptrace.Traces)
+		field  func(ptrace.Traces) string
+		want   string
 	}{
 		{
-			name: "resource schema url",
-			poison: func(traces ptrace.Traces) {
-				traces.ResourceSpans().At(0).SetSchemaUrl(invalidUTF8())
-			},
-			original: func(traces ptrace.Traces) string {
-				return traces.ResourceSpans().At(0).SchemaUrl()
-			},
-			check: func(t *testing.T, traces ptrace.Traces) {
-				require.Equal(t, utf8Replacement, traces.ResourceSpans().At(0).SchemaUrl())
-			},
+			name:   "resource schema url",
+			poison: func(traces ptrace.Traces) { traces.ResourceSpans().At(0).SetSchemaUrl(invalidUTF8()) },
+			field:  func(traces ptrace.Traces) string { return traces.ResourceSpans().At(0).SchemaUrl() },
+			want:   utf8Replacement,
 		},
 		{
 			name: "scope schema url",
 			poison: func(traces ptrace.Traces) {
 				traces.ResourceSpans().At(0).ScopeSpans().At(0).SetSchemaUrl(invalidUTF8())
 			},
-			original: func(traces ptrace.Traces) string {
-				return traces.ResourceSpans().At(0).ScopeSpans().At(0).SchemaUrl()
-			},
-			check: func(t *testing.T, traces ptrace.Traces) {
-				require.Equal(t, utf8Replacement, traces.ResourceSpans().At(0).ScopeSpans().At(0).SchemaUrl())
-			},
+			field: func(traces ptrace.Traces) string { return traces.ResourceSpans().At(0).ScopeSpans().At(0).SchemaUrl() },
+			want:  utf8Replacement,
 		},
 		{
-			name: "scope name",
-			poison: func(traces ptrace.Traces) {
-				traces.ResourceSpans().At(0).ScopeSpans().At(0).Scope().SetName(invalidUTF8())
-			},
-			original: func(traces ptrace.Traces) string {
-				return traces.ResourceSpans().At(0).ScopeSpans().At(0).Scope().Name()
-			},
-			check: func(t *testing.T, traces ptrace.Traces) {
-				require.Equal(t, utf8Replacement, traces.ResourceSpans().At(0).ScopeSpans().At(0).Scope().Name())
-			},
+			name:   "scope name",
+			poison: func(traces ptrace.Traces) { scopeOf(traces).SetName(invalidUTF8()) },
+			field:  func(traces ptrace.Traces) string { return scopeOf(traces).Name() },
+			want:   utf8Replacement,
 		},
 		{
-			name: "scope version",
-			poison: func(traces ptrace.Traces) {
-				traces.ResourceSpans().At(0).ScopeSpans().At(0).Scope().SetVersion(invalidUTF8())
-			},
-			original: func(traces ptrace.Traces) string {
-				return traces.ResourceSpans().At(0).ScopeSpans().At(0).Scope().Version()
-			},
-			check: func(t *testing.T, traces ptrace.Traces) {
-				require.Equal(t, utf8Replacement, traces.ResourceSpans().At(0).ScopeSpans().At(0).Scope().Version())
-			},
+			name:   "scope version",
+			poison: func(traces ptrace.Traces) { scopeOf(traces).SetVersion(invalidUTF8()) },
+			field:  func(traces ptrace.Traces) string { return scopeOf(traces).Version() },
+			want:   utf8Replacement,
 		},
 		{
-			name: "scope attributes",
-			poison: func(traces ptrace.Traces) {
-				traces.ResourceSpans().At(0).ScopeSpans().At(0).Scope().Attributes().PutStr("scope", invalidUTF8())
-			},
-			original: func(traces ptrace.Traces) string {
-				value, _ := traces.ResourceSpans().At(0).ScopeSpans().At(0).Scope().Attributes().Get("scope")
-				return value.Str()
-			},
-			check: func(t *testing.T, traces ptrace.Traces) {
-				requireStringAttr(t, traces.ResourceSpans().At(0).ScopeSpans().At(0).Scope().Attributes(), "scope", utf8Replacement)
-			},
+			name:   "scope attributes",
+			poison: func(traces ptrace.Traces) { scopeOf(traces).Attributes().PutStr("scope", invalidUTF8()) },
+			field:  func(traces ptrace.Traces) string { return attr(scopeOf(traces).Attributes(), "scope") },
+			want:   utf8Replacement,
 		},
 		{
-			name: "span name",
-			poison: func(traces ptrace.Traces) {
-				testSpan(traces).SetName(invalidUTF8())
-			},
-			original: func(traces ptrace.Traces) string {
-				return testSpan(traces).Name()
-			},
-			check: func(t *testing.T, traces ptrace.Traces) {
-				require.Equal(t, utf8Replacement, testSpan(traces).Name())
-			},
+			name:   "span name",
+			poison: func(traces ptrace.Traces) { testSpan(traces).SetName(invalidUTF8()) },
+			field:  func(traces ptrace.Traces) string { return testSpan(traces).Name() },
+			want:   utf8Replacement,
 		},
 		{
-			name: "status message",
-			poison: func(traces ptrace.Traces) {
-				testSpan(traces).Status().SetMessage(invalidUTF8())
-			},
-			original: func(traces ptrace.Traces) string {
-				return testSpan(traces).Status().Message()
-			},
-			check: func(t *testing.T, traces ptrace.Traces) {
-				require.Equal(t, utf8Replacement, testSpan(traces).Status().Message())
-			},
+			name:   "status message",
+			poison: func(traces ptrace.Traces) { testSpan(traces).Status().SetMessage(invalidUTF8()) },
+			field:  func(traces ptrace.Traces) string { return testSpan(traces).Status().Message() },
+			want:   utf8Replacement,
 		},
 		{
-			name: "span tracestate",
-			poison: func(traces ptrace.Traces) {
-				testSpan(traces).TraceState().FromRaw(invalidUTF8())
-			},
-			original: func(traces ptrace.Traces) string {
-				return testSpan(traces).TraceState().AsRaw()
-			},
-			check: func(t *testing.T, traces ptrace.Traces) {
-				require.Empty(t, testSpan(traces).TraceState().AsRaw())
-			},
+			name:   "span tracestate",
+			poison: func(traces ptrace.Traces) { testSpan(traces).TraceState().FromRaw(invalidUTF8()) },
+			field:  func(traces ptrace.Traces) string { return testSpan(traces).TraceState().AsRaw() },
 		},
 		{
-			name: "event name",
-			poison: func(traces ptrace.Traces) {
-				testSpan(traces).Events().At(0).SetName(invalidUTF8())
-			},
-			original: func(traces ptrace.Traces) string {
-				return testSpan(traces).Events().At(0).Name()
-			},
-			check: func(t *testing.T, traces ptrace.Traces) {
-				require.Equal(t, utf8Replacement, testSpan(traces).Events().At(0).Name())
-			},
+			name:   "event name",
+			poison: func(traces ptrace.Traces) { testSpan(traces).Events().At(0).SetName(invalidUTF8()) },
+			field:  func(traces ptrace.Traces) string { return testSpan(traces).Events().At(0).Name() },
+			want:   utf8Replacement,
 		},
 		{
 			name: "event attribute",
 			poison: func(traces ptrace.Traces) {
 				testSpan(traces).Events().At(0).Attributes().PutStr("event", invalidUTF8())
 			},
-			original: func(traces ptrace.Traces) string {
-				value, _ := testSpan(traces).Events().At(0).Attributes().Get("event")
-				return value.Str()
-			},
-			check: func(t *testing.T, traces ptrace.Traces) {
-				requireStringAttr(t, testSpan(traces).Events().At(0).Attributes(), "event", utf8Replacement)
-			},
+			field: func(traces ptrace.Traces) string { return attr(testSpan(traces).Events().At(0).Attributes(), "event") },
+			want:  utf8Replacement,
 		},
 		{
-			name: "link tracestate",
-			poison: func(traces ptrace.Traces) {
-				testSpan(traces).Links().At(0).TraceState().FromRaw(invalidUTF8())
-			},
-			original: func(traces ptrace.Traces) string {
-				return testSpan(traces).Links().At(0).TraceState().AsRaw()
-			},
-			check: func(t *testing.T, traces ptrace.Traces) {
-				require.Empty(t, testSpan(traces).Links().At(0).TraceState().AsRaw())
-			},
+			name:   "link tracestate",
+			poison: func(traces ptrace.Traces) { testSpan(traces).Links().At(0).TraceState().FromRaw(invalidUTF8()) },
+			field:  func(traces ptrace.Traces) string { return testSpan(traces).Links().At(0).TraceState().AsRaw() },
 		},
 		{
-			name: "link attribute",
-			poison: func(traces ptrace.Traces) {
-				testSpan(traces).Links().At(0).Attributes().PutStr("link", invalidUTF8())
-			},
-			original: func(traces ptrace.Traces) string {
-				value, _ := testSpan(traces).Links().At(0).Attributes().Get("link")
-				return value.Str()
-			},
-			check: func(t *testing.T, traces ptrace.Traces) {
-				requireStringAttr(t, testSpan(traces).Links().At(0).Attributes(), "link", utf8Replacement)
-			},
+			name:   "link attribute",
+			poison: func(traces ptrace.Traces) { testSpan(traces).Links().At(0).Attributes().PutStr("link", invalidUTF8()) },
+			field:  func(traces ptrace.Traces) string { return attr(testSpan(traces).Links().At(0).Attributes(), "link") },
+			want:   utf8Replacement,
 		},
 		{
 			name: "nested map value",
 			poison: func(traces ptrace.Traces) {
 				testSpan(traces).Attributes().PutEmptyMap("nested").PutStr("k", invalidUTF8())
 			},
-			original: func(traces ptrace.Traces) string {
+			field: func(traces ptrace.Traces) string {
 				value, _ := testSpan(traces).Attributes().Get("nested")
-				inner, _ := value.Map().Get("k")
-				return inner.Str()
+				return attr(value.Map(), "k")
 			},
-			check: func(t *testing.T, traces ptrace.Traces) {
-				value, ok := testSpan(traces).Attributes().Get("nested")
-				require.True(t, ok)
-				inner, ok := value.Map().Get("k")
-				require.True(t, ok)
-				require.Equal(t, utf8Replacement, inner.Str())
-			},
+			want: utf8Replacement,
 		},
 		{
 			name: "nested slice value",
 			poison: func(traces ptrace.Traces) {
 				testSpan(traces).Attributes().PutEmptySlice("items").AppendEmpty().SetStr(invalidUTF8())
 			},
-			original: func(traces ptrace.Traces) string {
+			field: func(traces ptrace.Traces) string {
 				value, _ := testSpan(traces).Attributes().Get("items")
 				return value.Slice().At(0).Str()
 			},
-			check: func(t *testing.T, traces ptrace.Traces) {
-				value, ok := testSpan(traces).Attributes().Get("items")
-				require.True(t, ok)
-				require.Equal(t, utf8Replacement, value.Slice().At(0).Str())
-			},
+			want: utf8Replacement,
 		},
 	}
 	for _, test := range tests {
@@ -469,7 +337,7 @@ func TestUTF8Sanitizer_SingleInvalidField(t *testing.T) {
 				traces := tracesWithValidUTF8()
 				test.poison(traces)
 				require.Error(t, unmarshalStrict(t, traces))
-				invalid := test.original(traces)
+				invalid := test.field(traces)
 				if readOnly {
 					traces.MarkReadOnly()
 				}
@@ -477,10 +345,10 @@ func TestUTF8Sanitizer_SingleInvalidField(t *testing.T) {
 				sanitized := NewUTF8Sanitizer()(traces)
 
 				require.NoError(t, unmarshalStrict(t, sanitized))
-				test.check(t, sanitized)
+				require.Equal(t, test.want, test.field(sanitized))
 				if readOnly {
-					require.Equal(t, invalid, test.original(traces))
-					require.False(t, utf8.ValidString(test.original(traces)))
+					require.Equal(t, invalid, test.field(traces))
+					require.False(t, utf8.ValidString(test.field(traces)))
 				}
 			})
 		}
@@ -520,6 +388,126 @@ func TestUTF8Sanitizer_KeepsFirstRepairedKey(t *testing.T) {
 	require.NoError(t, unmarshalStrict(t, sanitized))
 }
 
+func TestUTF8Sanitizer_ReadOnlyNestedInvalidKeys(t *testing.T) {
+	traces := ptrace.NewTraces()
+	attributes := traces.ResourceSpans().AppendEmpty().Resource().Attributes()
+	attributes.PutEmptyMap("wrap").PutStr(invalidUTF8(), "in-map")
+	attributes.PutEmptySlice("list").AppendEmpty().SetEmptyMap().PutStr(string([]byte{0xfe}), "in-slice")
+	traces.MarkReadOnly()
+	require.Error(t, unmarshalStrict(t, traces))
+
+	sanitized := NewUTF8Sanitizer()(traces)
+
+	require.False(t, sanitized.IsReadOnly())
+	require.True(t, traces.IsReadOnly())
+	originalMap, ok := traces.ResourceSpans().At(0).Resource().Attributes().Get("wrap")
+	require.True(t, ok)
+	_, ok = originalMap.Map().Get(invalidUTF8())
+	require.True(t, ok)
+	originalSlice, ok := traces.ResourceSpans().At(0).Resource().Attributes().Get("list")
+	require.True(t, ok)
+	_, ok = originalSlice.Slice().At(0).Map().Get(string([]byte{0xfe}))
+	require.True(t, ok)
+
+	require.NoError(t, unmarshalStrict(t, sanitized))
+	got := sanitized.ResourceSpans().At(0).Resource().Attributes()
+	repairedMap, ok := got.Get("wrap")
+	require.True(t, ok)
+	requireStringAttr(t, repairedMap.Map(), utf8Replacement, "in-map")
+	repairedSlice, ok := got.Get("list")
+	require.True(t, ok)
+	requireStringAttr(t, repairedSlice.Slice().At(0).Map(), utf8Replacement, "in-slice")
+}
+
+func TestUTF8Sanitizer_PreservesValuesUnderInvalidKeys(t *testing.T) {
+	traces := ptrace.NewTraces()
+	attributes := traces.ResourceSpans().AppendEmpty().Resource().Attributes()
+	attributes.PutEmptyMap(invalidUTF8()+"m").PutStr("k", "v")
+	attributes.PutEmptySlice(invalidUTF8() + "s").AppendEmpty().SetInt(7)
+	raw := []byte{0xff, 0xfe, 0xfd}
+	attributes.PutEmptyBytes(invalidUTF8() + "b").FromRaw(raw)
+
+	sanitized := NewUTF8Sanitizer()(traces)
+
+	got := sanitized.ResourceSpans().At(0).Resource().Attributes()
+	repairedMap, ok := got.Get(utf8Replacement + "m")
+	require.True(t, ok)
+	require.Equal(t, map[string]any{"k": "v"}, repairedMap.AsRaw())
+	repairedSlice, ok := got.Get(utf8Replacement + "s")
+	require.True(t, ok)
+	require.Equal(t, []any{int64(7)}, repairedSlice.AsRaw())
+	repairedBytes, ok := got.Get(utf8Replacement + "b")
+	require.True(t, ok)
+	require.Equal(t, raw, repairedBytes.Bytes().AsRaw())
+	require.NoError(t, unmarshalStrict(t, sanitized))
+}
+
+func TestUTF8Sanitizer_ReadOnlyInvalidOnlyInLastSpan(t *testing.T) {
+	traces := ptrace.NewTraces()
+	for range 2 {
+		resourceSpans := traces.ResourceSpans().AppendEmpty()
+		resourceSpans.Resource().Attributes().PutStr("service.name", "svc")
+		for range 2 {
+			resourceSpans.ScopeSpans().AppendEmpty().Spans().AppendEmpty().SetName("span")
+		}
+	}
+	traces.ResourceSpans().At(1).ScopeSpans().At(1).Spans().At(0).SetName(invalidUTF8())
+	traces.MarkReadOnly()
+
+	sanitized := NewUTF8Sanitizer()(traces)
+
+	require.False(t, sanitized.IsReadOnly())
+	require.Equal(t, invalidUTF8(), traces.ResourceSpans().At(1).ScopeSpans().At(1).Spans().At(0).Name())
+	require.Equal(t, "span", sanitized.ResourceSpans().At(0).ScopeSpans().At(0).Spans().At(0).Name())
+	require.Equal(t, utf8Replacement, sanitized.ResourceSpans().At(1).ScopeSpans().At(1).Spans().At(0).Name())
+	require.NoError(t, unmarshalStrict(t, sanitized))
+}
+
+func TestUTF8Sanitizer_InvalidKeysOnAttributeOwners(t *testing.T) {
+	traces := tracesWithValidUTF8()
+	key := invalidUTF8()
+	traces.ResourceSpans().At(0).Resource().Attributes().PutStr(key, "resource")
+	traces.ResourceSpans().At(0).ScopeSpans().At(0).Scope().Attributes().PutStr(key, "scope")
+	testSpan(traces).Events().At(0).Attributes().PutStr(key, "event")
+	testSpan(traces).Links().At(0).Attributes().PutStr(key, "link")
+	traces.MarkReadOnly()
+
+	sanitized := NewUTF8Sanitizer()(traces)
+
+	require.False(t, sanitized.IsReadOnly())
+	_, ok := traces.ResourceSpans().At(0).Resource().Attributes().Get(key)
+	require.True(t, ok)
+	require.NoError(t, unmarshalStrict(t, sanitized))
+	requireStringAttr(t, sanitized.ResourceSpans().At(0).Resource().Attributes(), utf8Replacement, "resource")
+	requireStringAttr(t, sanitized.ResourceSpans().At(0).ScopeSpans().At(0).Scope().Attributes(), utf8Replacement, "scope")
+	requireStringAttr(t, testSpan(sanitized).Events().At(0).Attributes(), utf8Replacement, "event")
+	requireStringAttr(t, testSpan(sanitized).Links().At(0).Attributes(), utf8Replacement, "link")
+}
+
+func TestUTF8Sanitizer_NestedMapKeyCollision(t *testing.T) {
+	traces := ptrace.NewTraces()
+	nested := traces.ResourceSpans().AppendEmpty().Resource().Attributes().PutEmptyMap("nested")
+	nested.PutStr(string([]byte{0xff}), "first")
+	nested.PutStr(utf8Replacement, "valid")
+	nested.PutStr(string([]byte{0xfe}), "second")
+	order := traces.ResourceSpans().At(0).Resource().Attributes().PutEmptyMap("order")
+	order.PutStr(string([]byte{0xff}), "first")
+	order.PutStr(string([]byte{0xfe}), "second")
+
+	sanitized := NewUTF8Sanitizer()(traces)
+
+	attributes := sanitized.ResourceSpans().At(0).Resource().Attributes()
+	got, ok := attributes.Get("nested")
+	require.True(t, ok)
+	require.Equal(t, 1, got.Map().Len())
+	requireStringAttr(t, got.Map(), utf8Replacement, "valid")
+	ordered, ok := attributes.Get("order")
+	require.True(t, ok)
+	require.Equal(t, 1, ordered.Map().Len())
+	requireStringAttr(t, ordered.Map(), utf8Replacement, "first")
+	require.NoError(t, unmarshalStrict(t, sanitized))
+}
+
 func TestUTF8Sanitizer_KeepsValidTraces(t *testing.T) {
 	traces := tracesWithValidUTF8()
 	traces.MarkReadOnly()
@@ -529,44 +517,6 @@ func TestUTF8Sanitizer_KeepsValidTraces(t *testing.T) {
 	require.True(t, sanitized.IsReadOnly())
 	require.Equal(t, "span", testSpan(sanitized).Name())
 	require.Equal(t, "vendor=value", testSpan(sanitized).TraceState().AsRaw())
-}
-
-func tracesWithInvalidUTF8() ptrace.Traces {
-	traces := ptrace.NewTraces()
-	resourceSpans := traces.ResourceSpans().AppendEmpty()
-	resourceSpans.SetSchemaUrl("https://opentelemetry.io/schemas/1.26.0")
-	resource := resourceSpans.Resource()
-	resource.Attributes().PutStr("resource", "res"+invalidUTF8())
-	resource.Attributes().PutStr("bad"+invalidUTF8(), "resource-key")
-
-	scopeSpans := resourceSpans.ScopeSpans().AppendEmpty()
-	scopeSpans.SetSchemaUrl(invalidUTF8())
-	scope := scopeSpans.Scope()
-	scope.SetName("scope" + invalidUTF8())
-	scope.SetVersion("v1")
-	scope.Attributes().PutStr("scope", invalidUTF8())
-
-	span := scopeSpans.Spans().AppendEmpty()
-	span.SetName("span" + invalidUTF8())
-	span.TraceState().FromRaw("vendor=value" + invalidUTF8())
-	span.Status().SetMessage("status" + invalidUTF8())
-	span.Attributes().PutStr("keep", "yes")
-	span.Attributes().PutStr("span", invalidUTF8())
-	nested := span.Attributes().PutEmptyMap("map")
-	nested.PutStr("inner", "nested"+invalidUTF8())
-	nested.PutStr(invalidUTF8(), "nested-key")
-	slice := nested.PutEmptySlice("slice")
-	slice.AppendEmpty().SetStr("item" + invalidUTF8())
-	slice.AppendEmpty().SetEmptyMap().PutStr("k", invalidUTF8())
-
-	event := span.Events().AppendEmpty()
-	event.SetName("event" + invalidUTF8())
-	event.Attributes().PutStr("event", invalidUTF8())
-
-	link := span.Links().AppendEmpty()
-	link.TraceState().FromRaw(invalidUTF8())
-	link.Attributes().PutStr("link", "link"+invalidUTF8())
-	return traces
 }
 
 func tracesWithValidUTF8() ptrace.Traces {
@@ -599,51 +549,6 @@ func tracesWithValidUTF8() ptrace.Traces {
 	return traces
 }
 
-func assertRewritten(t *testing.T, traces ptrace.Traces) {
-	t.Helper()
-	resourceSpans := traces.ResourceSpans().At(0)
-	require.Equal(t, "https://opentelemetry.io/schemas/1.26.0", resourceSpans.SchemaUrl())
-	resourceAttrs := resourceSpans.Resource().Attributes()
-	require.Equal(t, 2, resourceAttrs.Len())
-	requireStringAttr(t, resourceAttrs, "resource", "res"+utf8Replacement)
-	requireStringAttr(t, resourceAttrs, "bad"+utf8Replacement, "resource-key")
-	_, ok := resourceAttrs.Get("bad" + invalidUTF8())
-	require.False(t, ok)
-
-	scopeSpans := resourceSpans.ScopeSpans().At(0)
-	require.Equal(t, utf8Replacement, scopeSpans.SchemaUrl())
-	scope := scopeSpans.Scope()
-	require.Equal(t, "scope"+utf8Replacement, scope.Name())
-	require.Equal(t, "v1", scope.Version())
-	requireStringAttr(t, scope.Attributes(), "scope", utf8Replacement)
-
-	span := scopeSpans.Spans().At(0)
-	require.Equal(t, "span"+utf8Replacement, span.Name())
-	require.Empty(t, span.TraceState().AsRaw())
-	require.Equal(t, "status"+utf8Replacement, span.Status().Message())
-	require.Equal(t, 3, span.Attributes().Len())
-	requireStringAttr(t, span.Attributes(), "keep", "yes")
-	requireStringAttr(t, span.Attributes(), "span", utf8Replacement)
-	nested, ok := span.Attributes().Get("map")
-	require.True(t, ok)
-	require.Equal(t, map[string]any{
-		"inner":         "nested" + utf8Replacement,
-		utf8Replacement: "nested-key",
-		"slice": []any{
-			"item" + utf8Replacement,
-			map[string]any{"k": utf8Replacement},
-		},
-	}, nested.AsRaw())
-
-	event := span.Events().At(0)
-	require.Equal(t, "event"+utf8Replacement, event.Name())
-	requireStringAttr(t, event.Attributes(), "event", utf8Replacement)
-
-	link := span.Links().At(0)
-	require.Empty(t, link.TraceState().AsRaw())
-	requireStringAttr(t, link.Attributes(), "link", "link"+utf8Replacement)
-}
-
 func requireStringAttr(t *testing.T, attributes pcommon.Map, key, value string) {
 	t.Helper()
 	got, ok := attributes.Get(key)
@@ -656,6 +561,15 @@ func unmarshalStrict(t *testing.T, traces ptrace.Traces) error {
 	buf, err := (&ptrace.ProtoMarshaler{}).MarshalTraces(traces)
 	require.NoError(t, err)
 	return proto.Unmarshal(buf, &collectortracev1.ExportTraceServiceRequest{})
+}
+
+func scopeOf(traces ptrace.Traces) pcommon.InstrumentationScope {
+	return traces.ResourceSpans().At(0).ScopeSpans().At(0).Scope()
+}
+
+func attr(attributes pcommon.Map, key string) string {
+	value, _ := attributes.Get(key)
+	return value.Str()
 }
 
 func testSpan(traces ptrace.Traces) ptrace.Span {
