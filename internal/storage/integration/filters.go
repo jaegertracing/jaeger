@@ -130,7 +130,7 @@ func filterTestCases(p builder.Predicate) []filterCase {
 		{
 			// `some` quantifies a predicate over the events of one span (RFC 0005 §5.5), so a
 			// backend that flattens events into the span's own fields cannot evaluate it.
-			caption:  "a predicate quantified over the span's events",
+			caption: "a predicate quantified over the span's events",
 			filter: p.Some(p.Event(), p.Or(
 				p.Event().Name.Eq("exception"),
 				p.Event().Name.Eq("cache.miss"),
