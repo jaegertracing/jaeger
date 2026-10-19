@@ -415,36 +415,100 @@ func TestStreamingClientSessionUpdateAgentMessageChunkSkipsEmptyText(t *testing.
 		"TEXT_MESSAGE_START must not be emitted when no content will follow")
 }
 
-func TestStreamingClientSessionUpdateAgentMessageChunkSkipsWhitespaceOnlyText(t *testing.T) {
-	// Some agents emit framing chunks containing only whitespace (e.g. a
-	// newline marking a block boundary). The AG-UI encoder treats those the
-	// same as empty deltas, so they get filtered out at the boundary
-	// alongside truly-empty chunks.
-	for _, blank := range []string{" ", "  \t  ", "\n", "\r\n"} {
-		t.Run(strings.ReplaceAll(strings.ReplaceAll(blank, "\n", "\\n"), "\t", "\\t"), func(t *testing.T) {
+func TestStreamingClientSessionUpdateKeepsWhitespaceChunks(t *testing.T) {
+	// ACP agents such as Claude Code (via claude-agent-acp) stream spaces
+	// and newlines as their own chunks. Dropping those glues tokens
+	// ("of" + "2.23s" → "of2.23s") and erases paragraph breaks. Only a
+	// chunk whose text has len == 0 is framing and must be skipped; AG-UI
+	// rejects that empty delta and would close the SSE stream.
+	tests := []struct {
+		name   string
+		chunks []string
+		want   string
+	}{
+		{
+			name:   "space between tokens",
+			chunks: []string{"of", " ", "2.23s"},
+			want:   "of 2.23s",
+		},
+		{
+			name:   "paragraph break",
+			chunks: []string{"para one.", "\n\n", "Para two"},
+			want:   "para one.\n\nPara two",
+		},
+		{
+			name:   "empty chunks skipped between real deltas",
+			chunks: []string{"", "of", "", " ", "", "2.23s", ""},
+			want:   "of 2.23s",
+		},
+		{
+			name:   "only empty chunks emit no text",
+			chunks: []string{"", ""},
+			want:   "",
+		},
+		{
+			name:   "whitespace-only chunks forwarded unchanged",
+			chunks: []string{" ", "  \t  ", "\n", "\r\n"},
+			want:   " " + "  \t  " + "\n" + "\r\n",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
 			rec := httptest.NewRecorder()
 			c := newStreamingClient(context.Background(), rec, "thread-1", "run-1")
+			c.startRun()
 
-			err := c.SessionUpdate(context.Background(), acp.SessionNotification{
-				Update: acp.SessionUpdate{
-					AgentMessageChunk: &acp.SessionUpdateAgentMessageChunk{Content: acp.TextBlock(blank)},
-				},
-			})
-			require.NoError(t, err)
-			require.Empty(t, rec.Body.String(),
-				"whitespace-only agent_message_chunk %q must not produce any SSE events", blank)
-			assert.False(t, c.textOpen,
-				"TEXT_MESSAGE_START must not be emitted for whitespace-only chunks")
+			for _, chunk := range tt.chunks {
+				err := c.SessionUpdate(context.Background(), acp.SessionNotification{
+					Update: acp.SessionUpdate{
+						AgentMessageChunk: &acp.SessionUpdateAgentMessageChunk{Content: acp.TextBlock(chunk)},
+					},
+				})
+				require.NoError(t, err)
+			}
+
+			events := parseSSEEvents(t, rec.Body.String())
+			var deltas []string
+			for _, event := range events {
+				if event["type"] != "TEXT_MESSAGE_CONTENT" {
+					continue
+				}
+				delta, ok := event["delta"].(string)
+				require.True(t, ok, "TEXT_MESSAGE_CONTENT.delta must be a string")
+				deltas = append(deltas, delta)
+			}
+			assert.Equal(t, tt.want, strings.Join(deltas, ""),
+				"concatenated assistant text must match the chunks exactly")
+
+			var wantDeltas []string
+			for _, chunk := range tt.chunks {
+				if chunk == "" {
+					continue
+				}
+				wantDeltas = append(wantDeltas, chunk)
+			}
+			assert.Equal(t, wantDeltas, deltas,
+				"each non-empty chunk must be forwarded unchanged, empty chunks skipped")
+
+			if tt.want == "" {
+				assert.False(t, c.textOpen,
+					"TEXT_MESSAGE_START must not open when every chunk is empty")
+				assert.Equal(t, []string{"RUN_STARTED"}, eventTypes(events))
+				return
+			}
+			assert.True(t, c.textOpen)
+			require.GreaterOrEqual(t, len(events), 2)
+			assert.Equal(t, "TEXT_MESSAGE_START", events[1]["type"])
 		})
 	}
 }
 
 func TestStreamingClientSessionUpdateAgentMessageChunkPreservesInternalWhitespace(t *testing.T) {
-	// Whitespace inside a non-blank chunk is meaningful glue between
-	// streamed deltas — e.g. when an agent emits "Hello" then " world"
-	// separately, the leading space must survive so the assembled message
-	// reads "Hello world". The filter only drops fully-blank chunks; it
-	// does NOT trim the delta when it forwards.
+	// Whitespace inside a chunk is meaningful glue between streamed
+	// deltas — e.g. when an agent emits "Hello" then " world" separately,
+	// the leading space must survive so the assembled message reads
+	// "Hello world". The filter drops only empty chunks; it does not
+	// trim a delta it forwards.
 	rec := httptest.NewRecorder()
 	c := newStreamingClient(context.Background(), rec, "thread-1", "run-1")
 	c.startRun()

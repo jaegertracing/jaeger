@@ -8,7 +8,6 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
-	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -228,18 +227,14 @@ func (c *streamingClient) SessionUpdate(_ context.Context, n acp.SessionNotifica
 	u := n.Update
 	if u.AgentMessageChunk != nil {
 		content := u.AgentMessageChunk.Content
-		// AG-UI's TextMessageContentEvent forbids empty deltas and the SDK
-		// encoder rejects them at write time, marking the SSE stream closed
-		// and stranding the browser bubble half-rendered. ACP, however,
-		// allows agents to emit text-block lifecycle/framing chunks whose
-		// `text` is "" or whitespace-only (Claude's stream maps
-		// content_block_start → empty-text chunk this way). Skip those at
-		// the boundary so the AG-UI invariant START → CONTENT+ → END holds
-		// and a noisy upstream agent doesn't take down the run. Note we
-		// emit the original Text (not the trimmed value) — leading/trailing
-		// whitespace inside a multi-chunk message is meaningful glue
-		// between deltas, only fully-blank chunks are skipped.
-		if content.Text != nil && strings.TrimSpace(content.Text.Text) != "" {
+		// AG-UI's TextMessageContentEvent rejects a delta of "" and the SDK
+		// encoder then closes the SSE stream. ACP agents emit those empty
+		// chunks as content-block framing (content_block_start). Skip only
+		// a truly empty chunk (len == 0). Whitespace-only chunks are real
+		// deltas: agents such as Claude Code stream spaces and newlines on
+		// their own, and dropping them glues tokens together and loses
+		// paragraph breaks. Forward the original text unchanged.
+		if content.Text != nil && content.Text.Text != "" {
 			c.ensureTextStart()
 			c.emit(aguievents.NewTextMessageContentEvent(c.messageID, content.Text.Text))
 		}
