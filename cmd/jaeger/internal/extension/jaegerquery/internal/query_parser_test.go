@@ -175,6 +175,16 @@ func TestParameterErrors(t *testing.T) {
 			urlPath:          "/api/metrics/calls?service=emailservice&ratePer=-1000",
 			wantErrorMessage: `unable to parse param 'ratePer': must be a positive duration`,
 		},
+		{
+			name:             "overflowing negative lookback parameter",
+			urlPath:          "/api/metrics/calls?service=emailservice&lookback=-18446744073709551",
+			wantErrorMessage: `unable to parse param 'lookback': value -18446744073709551 is out of range for a duration`,
+		},
+		{
+			name:             "overflowing positive step parameter",
+			urlPath:          "/api/metrics/calls?service=emailservice&step=9223372036854776",
+			wantErrorMessage: `unable to parse param 'step': value 9223372036854776 is out of range for a duration`,
+		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			// Test
