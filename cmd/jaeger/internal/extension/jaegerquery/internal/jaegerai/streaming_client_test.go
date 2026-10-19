@@ -415,36 +415,210 @@ func TestStreamingClientSessionUpdateAgentMessageChunkSkipsEmptyText(t *testing.
 		"TEXT_MESSAGE_START must not be emitted when no content will follow")
 }
 
-func TestStreamingClientSessionUpdateAgentMessageChunkSkipsWhitespaceOnlyText(t *testing.T) {
-	// Some agents emit framing chunks containing only whitespace (e.g. a
-	// newline marking a block boundary). The AG-UI encoder treats those the
-	// same as empty deltas, so they get filtered out at the boundary
-	// alongside truly-empty chunks.
-	for _, blank := range []string{" ", "  \t  ", "\n", "\r\n"} {
-		t.Run(strings.ReplaceAll(strings.ReplaceAll(blank, "\n", "\\n"), "\t", "\\t"), func(t *testing.T) {
+func contentDeltas(events []map[string]any) []string {
+	var deltas []string
+	for _, e := range events {
+		if e["type"] == "TEXT_MESSAGE_CONTENT" {
+			deltas = append(deltas, e["delta"].(string))
+		}
+	}
+	return deltas
+}
+
+func sendAgentText(t *testing.T, c *streamingClient, text string) {
+	t.Helper()
+	sendAgentContent(t, c, acp.TextBlock(text))
+}
+
+func sendAgentContent(t *testing.T, c *streamingClient, content acp.ContentBlock) {
+	t.Helper()
+	err := c.SessionUpdate(context.Background(), acp.SessionNotification{
+		Update: acp.SessionUpdate{
+			AgentMessageChunk: &acp.SessionUpdateAgentMessageChunk{Content: content},
+		},
+	})
+	require.NoError(t, err)
+}
+
+func TestStreamingClientSessionUpdateKeepsWhitespaceChunks(t *testing.T) {
+	// ACP agents such as Claude Code (via claude-agent-acp) stream spaces
+	// and newlines as their own chunks. Dropping those glues tokens
+	// ("of" + "2.23s" → "of2.23s") and erases paragraph breaks. Empty
+	// chunks are still skipped, and a whitespace-only chunk that arrives
+	// before any visible text is dropped so it does not open a message.
+	tests := []struct {
+		name   string
+		chunks []string
+		deltas []string
+	}{
+		{
+			name:   "space between tokens",
+			chunks: []string{"of", " ", "2.23s"},
+			deltas: []string{"of", " ", "2.23s"},
+		},
+		{
+			name:   "paragraph break",
+			chunks: []string{"para one.", "\n\n", "Para two"},
+			deltas: []string{"para one.", "\n\n", "Para two"},
+		},
+		{
+			name:   "empty chunks skipped between real deltas",
+			chunks: []string{"", "of", "", " ", "", "2.23s", ""},
+			deltas: []string{"of", " ", "2.23s"},
+		},
+		{
+			name:   "only empty chunks emit no text",
+			chunks: []string{"", ""},
+		},
+		{
+			name:   "leading whitespace does not open a message",
+			chunks: []string{" ", "  \t  ", "\n", "\r\n"},
+		},
+		{
+			name:   "leading whitespace is dropped before the first visible chunk",
+			chunks: []string{"\n\n", "Para two"},
+			deltas: []string{"Para two"},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
 			rec := httptest.NewRecorder()
 			c := newStreamingClient(context.Background(), rec, "thread-1", "run-1")
+			c.startRun()
 
-			err := c.SessionUpdate(context.Background(), acp.SessionNotification{
-				Update: acp.SessionUpdate{
-					AgentMessageChunk: &acp.SessionUpdateAgentMessageChunk{Content: acp.TextBlock(blank)},
-				},
-			})
-			require.NoError(t, err)
-			require.Empty(t, rec.Body.String(),
-				"whitespace-only agent_message_chunk %q must not produce any SSE events", blank)
-			assert.False(t, c.textOpen,
-				"TEXT_MESSAGE_START must not be emitted for whitespace-only chunks")
+			for _, chunk := range tt.chunks {
+				sendAgentText(t, c, chunk)
+			}
+
+			events := parseSSEEvents(t, rec.Body.String())
+			assert.Equal(t, tt.deltas, contentDeltas(events))
+
+			if tt.deltas == nil {
+				assert.False(t, c.textOpen,
+					"TEXT_MESSAGE_START must not open when no visible text arrived")
+				assert.Equal(t, []string{"RUN_STARTED"}, eventTypes(events))
+				return
+			}
+			assert.True(t, c.textOpen)
+			require.GreaterOrEqual(t, len(events), 2)
+			assert.Equal(t, "TEXT_MESSAGE_START", events[1]["type"])
 		})
 	}
 }
 
+func TestStreamingClientWhitespaceAroundToolCall(t *testing.T) {
+	toolCall := func(c *streamingClient) {
+		t.Helper()
+		err := c.SessionUpdate(context.Background(), acp.SessionNotification{
+			Update: acp.SessionUpdate{
+				ToolCall: &acp.SessionUpdateToolCall{
+					ToolCallId: "tool-1",
+					Title:      "search_traces",
+					Kind:       acp.ToolKindSearch,
+				},
+			},
+		})
+		require.NoError(t, err)
+	}
+
+	t.Run("whitespace between tool calls before any text is dropped", func(t *testing.T) {
+		rec := httptest.NewRecorder()
+		c := newStreamingClient(context.Background(), rec, "thread-1", "run-1")
+		c.startRun()
+
+		sendAgentText(t, c, "\n")
+		toolCall(c)
+		sendAgentText(t, c, "\n")
+		toolCall(c)
+		sendAgentText(t, c, "after")
+
+		events := parseSSEEvents(t, rec.Body.String())
+		assert.Equal(t, []string{
+			"RUN_STARTED",
+			"TOOL_CALL_START",
+			"TOOL_CALL_START",
+			"TEXT_MESSAGE_START",
+			"TEXT_MESSAGE_CONTENT",
+		}, eventTypes(events))
+		assert.Equal(t, []string{"after"}, contentDeltas(events))
+	})
+
+	t.Run("whitespace inside an open message is kept across a tool call", func(t *testing.T) {
+		rec := httptest.NewRecorder()
+		c := newStreamingClient(context.Background(), rec, "thread-1", "run-1")
+		c.startRun()
+
+		sendAgentText(t, c, "Hello")
+		sendAgentText(t, c, "\n")
+		toolCall(c)
+		sendAgentText(t, c, "next")
+
+		assert.Equal(t, []string{"Hello", "\n", "next"}, contentDeltas(parseSSEEvents(t, rec.Body.String())))
+	})
+}
+
+func TestStreamingClientWhitespaceRunLifecycle(t *testing.T) {
+	t.Run("visible text with streamed whitespace", func(t *testing.T) {
+		rec := httptest.NewRecorder()
+		c := newStreamingClient(context.Background(), rec, "thread-1", "run-1")
+		c.startRun()
+
+		for _, chunk := range []string{"\n", "of", " ", "2.23s", "\n\n", "Done"} {
+			sendAgentText(t, c, chunk)
+		}
+		c.finishRun("")
+
+		events := parseSSEEvents(t, rec.Body.String())
+		assert.Equal(t, []string{
+			"RUN_STARTED",
+			"TEXT_MESSAGE_START",
+			"TEXT_MESSAGE_CONTENT",
+			"TEXT_MESSAGE_CONTENT",
+			"TEXT_MESSAGE_CONTENT",
+			"TEXT_MESSAGE_CONTENT",
+			"TEXT_MESSAGE_CONTENT",
+			"TEXT_MESSAGE_END",
+			"RUN_FINISHED",
+		}, eventTypes(events))
+		assert.Equal(t, "of 2.23s\n\nDone", strings.Join(contentDeltas(events), ""))
+		assert.False(t, c.textOpen)
+	})
+
+	t.Run("only whitespace then finish emits no message", func(t *testing.T) {
+		rec := httptest.NewRecorder()
+		c := newStreamingClient(context.Background(), rec, "thread-1", "run-1")
+		c.startRun()
+
+		sendAgentText(t, c, "\n\n")
+		c.finishRun("end_turn")
+
+		events := parseSSEEvents(t, rec.Body.String())
+		assert.Equal(t, []string{"RUN_STARTED", "RUN_FINISHED"}, eventTypes(events))
+		assert.False(t, c.textOpen)
+	})
+}
+
+func TestStreamingClientSessionUpdateNonTextChunkDoesNotPanic(t *testing.T) {
+	rec := httptest.NewRecorder()
+	c := newStreamingClient(context.Background(), rec, "thread-1", "run-1")
+	c.startRun()
+
+	require.NotPanics(t, func() {
+		sendAgentContent(t, c, acp.ContentBlock{})
+		sendAgentContent(t, c, acp.ImageBlock("aGVsbG8=", "image/png"))
+	})
+
+	events := parseSSEEvents(t, rec.Body.String())
+	assert.Equal(t, []string{"RUN_STARTED"}, eventTypes(events))
+	assert.False(t, c.textOpen)
+}
+
 func TestStreamingClientSessionUpdateAgentMessageChunkPreservesInternalWhitespace(t *testing.T) {
-	// Whitespace inside a non-blank chunk is meaningful glue between
-	// streamed deltas — e.g. when an agent emits "Hello" then " world"
-	// separately, the leading space must survive so the assembled message
-	// reads "Hello world". The filter only drops fully-blank chunks; it
-	// does NOT trim the delta when it forwards.
+	// Whitespace inside a chunk is meaningful glue between streamed
+	// deltas — e.g. when an agent emits "Hello" then " world" separately,
+	// the leading space must survive so the assembled message reads
+	// "Hello world". The filter drops only empty chunks; it does not
+	// trim a delta it forwards.
 	rec := httptest.NewRecorder()
 	c := newStreamingClient(context.Background(), rec, "thread-1", "run-1")
 	c.startRun()
