@@ -12,6 +12,7 @@ import (
 	"io/fs"
 	"os"
 	"testing"
+	"testing/fstest"
 	"time"
 
 	"github.com/ClickHouse/clickhouse-go/v2"
@@ -85,6 +86,10 @@ func TestFactory(t *testing.T) {
 			dr, err := f.CreateDependencyReader()
 			require.NoError(t, err)
 			require.NotNil(t, dr)
+
+			dw, err := f.CreateDependencyWriter()
+			require.NoError(t, err)
+			require.NotNil(t, dw)
 
 			mr, err := f.CreateMetricsReader()
 			require.NoError(t, err)
@@ -296,6 +301,17 @@ func TestNewSchemaBuilder_Errors(t *testing.T) {
 	opts, err := Options(context.Background(), cfg)
 	require.NoError(t, err)
 
+	t.Run("invalid table engine", func(t *testing.T) {
+		invalidCfg := cfg
+		invalidCfg.TableEngine = TableEngine{}
+		_, err := newSchemaBuilder(context.Background(), invalidCfg, opts)
+		require.ErrorContains(t, err, "create_schema")
+
+		factory, err := NewFactory(context.Background(), invalidCfg, telemetry.NoopSettings())
+		require.ErrorContains(t, err, "create_schema")
+		require.Nil(t, factory)
+	})
+
 	t.Run("TLS load error in newSchemaBuilder", func(t *testing.T) {
 		tlsCfg := cfg
 		tlsCfg.TLS = configoptional.Some(configtls.ClientConfig{
@@ -317,6 +333,18 @@ func TestNewSchemaBuilder_Errors(t *testing.T) {
 		require.NoError(t, err)
 		err = b.build(context.Background())
 		require.ErrorContains(t, err, "failed to create migration source driver: mock source driver error")
+	})
+
+	t.Run("schema version lookup error", func(t *testing.T) {
+		orig := newSourceDriver
+		defer func() { newSourceDriver = orig }()
+		newSourceDriver = func(_ fs.FS, _ string) (source.Driver, error) {
+			return &mockSourceDriver{firstErr: errors.New("version lookup failed")}, nil
+		}
+		b, err := newSchemaBuilder(context.Background(), cfg, opts)
+		require.NoError(t, err)
+		err = b.build(context.Background())
+		require.ErrorContains(t, err, "failed to determine binary schema version: version lookup failed")
 	})
 
 	t.Run("database driver error", func(t *testing.T) {
@@ -689,6 +717,56 @@ func TestRenderedMigrationFSUsesConfiguredTableEngine(t *testing.T) {
 	assert.NotContains(t, string(contents), "{{ .")
 }
 
+type failingMigrationFile struct {
+	fs.File
+	readErr error
+	closed  bool
+}
+
+func (f *failingMigrationFile) Read(p []byte) (int, error) {
+	if f.readErr != nil {
+		return 0, f.readErr
+	}
+	return f.File.Read(p)
+}
+
+func (f *failingMigrationFile) Close() error {
+	f.closed = true
+	return f.File.Close()
+}
+
+type migrationTestFS struct{ file fs.File }
+
+func (f migrationTestFS) Open(string) (fs.File, error) { return f.file, nil }
+
+func TestRenderedMigrationFSErrorsCloseFile(t *testing.T) {
+	wantErr := errors.New("migration read failed")
+	tests := []struct {
+		name    string
+		body    string
+		readErr error
+	}{
+		{name: "read error", body: "valid", readErr: wantErr},
+		{name: "invalid template", body: "{{ invalid"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			files := fstest.MapFS{"migration.sql": {Data: []byte(tt.body)}}
+			file, err := files.Open("migration.sql")
+			require.NoError(t, err)
+			tracked := &failingMigrationFile{File: file, readErr: tt.readErr}
+			_, err = (renderedMigrationFS{FS: migrationTestFS{file: tracked}}).Open("000001_initial_schema.up.sql")
+			if tt.readErr != nil {
+				require.ErrorIs(t, err, tt.readErr)
+			} else {
+				require.ErrorContains(t, err, "failed to parse")
+			}
+			assert.True(t, tracked.closed)
+		})
+	}
+}
+
 func TestNewFactory_KeepsExplicitZeroCacheSettings(t *testing.T) {
 	srv := clickhousetest.NewServer(clickhousetest.FailureConfig{})
 	defer srv.Close()
@@ -708,6 +786,11 @@ func TestNewFactory_KeepsExplicitZeroCacheSettings(t *testing.T) {
 }
 
 func TestBaselineSchemaStatements(t *testing.T) {
+	t.Run("invalid table engine", func(t *testing.T) {
+		_, err := BaselineSchemaStatements(TableEngine{})
+		require.ErrorContains(t, err, "create_schema")
+	})
+
 	t.Run("success", func(t *testing.T) {
 		stmts, err := BaselineSchemaStatements(localTableEngine)
 		require.NoError(t, err)
