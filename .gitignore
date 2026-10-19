@@ -50,7 +50,6 @@ test-results.json
 .metrics/
 .mockery.log
 build.log
-sidecar.py.orig
 
 # every coverage artifact: profiles, the HTML report, and the counter directories
 .cover/

@@ -1,7 +1,7 @@
 # ADR-008: ClickHouse Storage Schema
 
 * **Status**: Implemented
-* **Date**: 2026-04-25
+* **Date**: 2026-04-25 (limitations extended 2026-10-08)
 
 ## Context
 
@@ -255,4 +255,4 @@ DDL: [`create_dependencies_table.sql`](../../internal/storage/v2/clickhouse/sql/
 * **Search depends on a derived table for fast follow-up reads.** `FindTraceIDs` joins against `trace_id_timestamps` to populate the optional time-bounds hint on each result. If the materialized view falls behind under sustained heavy load, freshly-ingested traces come back with `NULL` bounds and the subsequent `GetTraces` call falls back to an unbounded `bloom_filter` scan — correct, but slower until the view catches up.
 * **Attribute filters cost more than flat-column filters.** Because attribute keys aren't fixed up-front, every key shares one `Nested` column per type. Filtering by an attribute therefore turns into an `arrayExists(...)` over that row's `Nested` slice rather than a direct comparison on a dedicated column. ClickHouse runs `arrayExists` per row, so it can't be SIMD-vectorized or skip-indexed the way a flat column can. In practice the cost is small (the arrays are short and heavily compressed, and earlier filters usually shrink the row set first), but it is strictly more work than filtering on a dedicated column would be.
 * **No TTL on the small derived tables.** Only `spans` and `trace_id_timestamps` carry a TTL. `services`, `operations`, `attribute_metadata`, and `dependencies` accumulate one row per unique entry indefinitely, so a service or attribute key that permanently disappears from the workload will leave a stale row behind.
-* **Single-node assumptions.** The schema and benchmarks assume a single ClickHouse node.
+* **Single-node benchmarks.** The benchmarks in this document were run on a single ClickHouse node. The schema itself is created with either engine family: `create_schema: true` requires a `table_engine` block naming `merge_tree` for local tables or `replicated` for `ReplicatedMergeTree` and `ReplicatedAggregatingMergeTree` tables, and the factory composes the engine per table from that choice (RFC 0017 §5.4). A cluster with more than one replica needs `replicated`, because a local table holds only the rows its own server received.

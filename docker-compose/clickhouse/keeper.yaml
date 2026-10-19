@@ -1,0 +1,23 @@
+# Copyright (c) 2026 The Jaeger Authors.
+# SPDX-License-Identifier: Apache-2.0
+
+# This file runs ClickHouse Keeper inside the single server of docker-compose.yml, so that the
+# Replicated* table engines can be exercised without a cluster. The macros give the {shard} and
+# {replica} tokens of a Keeper path a value.
+keeper_server:
+  tcp_port: 9181
+  server_id: 1
+  log_storage_path: /var/lib/clickhouse/coordination/log
+  snapshot_storage_path: /var/lib/clickhouse/coordination/snapshots
+  raft_configuration:
+    server:
+      id: 1
+      hostname: localhost
+      port: 9234
+zookeeper:
+  node:
+    host: localhost
+    port: 9181
+macros:
+  shard: "01"
+  replica: replica01

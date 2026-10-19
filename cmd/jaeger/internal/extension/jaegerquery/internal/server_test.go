@@ -41,6 +41,7 @@ import (
 
 	"github.com/jaegertracing/jaeger-idl/model/v1"
 	"github.com/jaegertracing/jaeger-idl/proto-gen/api_v2"
+	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerquery/internal/mcptools"
 	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerquery/querysvc"
 	"github.com/jaegertracing/jaeger/internal/grpctest"
 	"github.com/jaegertracing/jaeger/internal/headerforwarding"
@@ -1208,6 +1209,72 @@ func TestInitRouterAIHandlerRegistration(t *testing.T) {
 		chatRR := httptest.NewRecorder()
 		handler.ServeHTTP(chatRR, chatReq)
 		require.Equal(t, http.StatusNotFound, chatRR.Code)
+	})
+
+	t.Run("mcp disable_localhost_protection reaches the SDK handler", func(t *testing.T) {
+		// httptest.NewServer listens on 127.0.0.1, and a non-loopback Host header on
+		// that connection is what the SDK guard rejects, so the option is observable
+		// only over a real listener; a Recorder never sets the local address.
+		initialize := `{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18","capabilities":{},"clientInfo":{"name":"test","version":"0"}}}`
+		for _, tc := range []struct {
+			disable bool
+			want    int
+		}{{disable: false, want: http.StatusForbidden}, {disable: true, want: http.StatusOK}} {
+			opts := DefaultQueryOptions()
+			opts.AI = configoptional.Some(AIConfig{MCP: configoptional.Some(MCPConfig{StreamableHTTP: mcptools.StreamableHTTPConfig{DisableLocalhostProtection: tc.disable}}), MaxRequestBodySize: 1 << 20})
+			handler, cs, err := initRouter(context.Background(), querySvc.qs, nil, &opts, nilBackendCaps, tenancyMgr, telset)
+			require.NoError(t, err)
+			ts := httptest.NewServer(handler)
+			req, err := http.NewRequestWithContext(context.Background(), http.MethodPost, ts.URL+"/api/ai/mcp/", strings.NewReader(initialize))
+			require.NoError(t, err)
+			req.Host = "jaeger.example.com"
+			req.Header.Set("Content-Type", "application/json")
+			req.Header.Set("Accept", "application/json, text/event-stream")
+			resp, err := ts.Client().Do(req)
+			require.NoError(t, err)
+			assert.Equal(t, tc.want, resp.StatusCode, "disable_localhost_protection=%v", tc.disable)
+			require.NoError(t, resp.Body.Close())
+			ts.Close()
+			require.NoError(t, cs.Close())
+		}
+	})
+
+	t.Run("mcp stateless reaches the SDK handler", func(t *testing.T) {
+		// Two routers stand in for two jaeger-query replicas: the session that
+		// initialize creates lives in one handler's memory, so a tools/list that a
+		// load balancer sends to the other replica only succeeds when stateless.
+		initialize := `{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18","capabilities":{},"clientInfo":{"name":"test","version":"0"}}}`
+		listTools := `{"jsonrpc":"2.0","id":2,"method":"tools/list"}`
+		post := func(handler http.Handler, body, sessionID string) *httptest.ResponseRecorder {
+			req := httptest.NewRequest(http.MethodPost, "/api/ai/mcp/", strings.NewReader(body))
+			req.Header.Set("Content-Type", "application/json")
+			req.Header.Set("Accept", "application/json, text/event-stream")
+			if sessionID != "" {
+				req.Header.Set("Mcp-Session-Id", sessionID)
+			}
+			rr := httptest.NewRecorder()
+			handler.ServeHTTP(rr, req)
+			return rr
+		}
+		for _, tc := range []struct {
+			stateless bool
+			want      int
+		}{{stateless: false, want: http.StatusNotFound}, {stateless: true, want: http.StatusOK}} {
+			opts := DefaultQueryOptions()
+			opts.AI = configoptional.Some(AIConfig{MCP: configoptional.Some(MCPConfig{StreamableHTTP: mcptools.StreamableHTTPConfig{Stateless: tc.stateless}}), MaxRequestBodySize: 1 << 20})
+			first, cs1, err := initRouter(context.Background(), querySvc.qs, nil, &opts, nilBackendCaps, tenancyMgr, telset)
+			require.NoError(t, err)
+			t.Cleanup(func() { require.NoError(t, cs1.Close()) })
+			second, cs2, err := initRouter(context.Background(), querySvc.qs, nil, &opts, nilBackendCaps, tenancyMgr, telset)
+			require.NoError(t, err)
+			t.Cleanup(func() { require.NoError(t, cs2.Close()) })
+			rr := post(first, initialize, "")
+			require.Equal(t, http.StatusOK, rr.Code)
+			sessionID := rr.Header().Get("Mcp-Session-Id")
+			require.NotEmpty(t, sessionID)
+			rr = post(second, listTools, sessionID)
+			assert.Equal(t, tc.want, rr.Code, "stateless=%v", tc.stateless)
+		}
 	})
 
 	t.Run("mcp endpoint mounted with base path", func(t *testing.T) {

@@ -166,12 +166,12 @@ func (c *streamingClient) ensureTextStart() {
 	c.textOpen = true
 }
 
-// EmitContextualToolCall fires the TOOL_CALL_START / TOOL_CALL_ARGS /
+// EmitUIToolCall fires the TOOL_CALL_START / TOOL_CALL_ARGS /
 // TOOL_CALL_END lifecycle for a UI tool the agent invoked via the
 // turn-scoped MCP endpoint, writing the events onto the browser SSE stream so
 // the frontend executes the tool. It acquires c.mu like the other entry points,
 // so it is safe to call concurrently with the ACP SessionUpdate path.
-func (c *streamingClient) EmitContextualToolCall(toolCallID, toolName string, rawArgs any) {
+func (c *streamingClient) EmitUIToolCall(toolCallID, toolName string, rawArgs any) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	c.emit(aguievents.NewToolCallStartEvent(toolCallID, toolName))
@@ -186,7 +186,7 @@ func (c *streamingClient) EmitContextualToolCall(toolCallID, toolName string, ra
 // an agent can invoke through two pre-approved channels:
 //   - MCP tools the operator wires up at deploy time (read-only telemetry
 //     queries against Jaeger).
-//   - Contextual tools the frontend declares for the chat turn (browser-
+//   - UI tools the frontend declares for the chat turn (browser-
 //     side AG-UI tools the user is implicitly authorising by sending the
 //     prompt).
 //
@@ -245,10 +245,9 @@ func (c *streamingClient) SessionUpdate(_ context.Context, n acp.SessionNotifica
 		}
 	}
 	if u.ToolCall != nil {
-		// The sidecar populates ACP Title with the tool identifier (prefixed
-		// with UIToolPrefix for contextual tools). The prefix is stripped
-		// here so the frontend sees the same name it registered the tool
-		// under, regardless of the wire-level namespace.
+		// The agent populates ACP Title with the tool name it was offered, which
+		// for a UI tool carries UIToolPrefix. Strip it so the frontend sees the
+		// name it registered.
 		c.emit(aguievents.NewToolCallStartEvent(
 			string(u.ToolCall.ToolCallId),
 			stripUIToolPrefix(u.ToolCall.Title),
@@ -328,15 +327,16 @@ func (*streamingClient) WaitForTerminalExit(context.Context, acp.WaitForTerminal
 // values such as tracing. The 5s deadline keeps a stuck agent from
 // hanging the goroutine indefinitely. Errors are Debug-logged because the
 // HTTP response has already been streamed by the time this runs.
-func closeACPSession(ctx context.Context, conn *acp.Connection, caps acp.AgentCapabilities, sessionID acp.SessionId, logger *zap.Logger) {
+func closeACPSession(ctx context.Context, conn *acp.ClientSideConnection, caps acp.AgentCapabilities, sessionID acp.SessionId, logger *zap.Logger) {
 	if caps.SessionCapabilities.Close == nil {
 		return
 	}
 	closeCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 5*time.Second)
 	defer cancel()
-	if _, err := acp.SendRequest[acp.CloseSessionResponse](conn, closeCtx, acp.AgentMethodSessionClose, acp.CloseSessionRequest{
+	_, err := conn.CloseSession(closeCtx, acp.CloseSessionRequest{
 		SessionId: sessionID,
-	}); err != nil {
+	})
+	if err != nil {
 		logger.Debug("session/close failed", zap.String("session_id", string(sessionID)), zap.Error(err))
 	}
 }

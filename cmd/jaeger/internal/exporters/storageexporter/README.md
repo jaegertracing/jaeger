@@ -83,6 +83,11 @@ connectors:
         flush_timeout: 200ms
         min_size: 1048576  # flush at 1 MiB, or when flush_timeout elapses
         max_size: 4194304
+        # exporterhelper v0.162 requires these to be positive. An omitted partition
+        # unmarshals as zeros, not the defaults below. metadata_keys stays empty.
+        partition:
+          idle_timeout: 90s
+          cache_size: 10000
 
 service:
   pipelines:

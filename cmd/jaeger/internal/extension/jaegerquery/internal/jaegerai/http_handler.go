@@ -64,7 +64,7 @@ type HandlerParams struct {
 func NewHandler(p HandlerParams) *Handler {
 	basePath := normalizeBasePath(p.BasePath)
 	turns := newTurnRegistry()
-	chat := newChatEndpoint(p.Logger, NewContextualToolsStore(), turns, p.AgentURL, p.AgentHeaders, basePath, p.MaxRequestBodySize)
+	chat := newChatEndpoint(p.Logger, turns, p.AgentURL, p.AgentHeaders, basePath, p.MaxRequestBodySize)
 	h := &Handler{basePath: basePath, chat: chat}
 	if p.MCP != nil {
 		h.mcp = turnScopedEndpointBuilder{
