@@ -4,44 +4,23 @@
 package sanitizer
 
 import (
-	"fmt"
+	"strings"
 	"unicode/utf8"
 
 	"go.opentelemetry.io/collector/pdata/pcommon"
 	"go.opentelemetry.io/collector/pdata/ptrace"
-	"go.opentelemetry.io/collector/pdata/xpdata/entity"
 )
 
-const (
-	invalidSpanName        = "invalid-span-name"
-	invalidTagKey          = "invalid-tag-key"
-	invalidEventName       = "invalid-event-name"
-	invalidStatusMessage   = "invalid-status-message"
-	invalidScopeName       = "invalid-scope-name"
-	invalidScopeVersion    = "invalid-scope-version"
-	invalidTraceState      = "invalid-trace-state"
-	invalidSchemaURL       = "invalid-schema-url"
-	invalidEntitySchemaURL = "invalid-entity-schema-url"
-	invalidEntityType      = "invalid-entity-type"
-	invalidEntityIDKey     = "invalid-entity-id-key"
-	invalidEntityDescKey   = "invalid-entity-description-key"
-)
+// utf8Replacement is the U+FFFD character strings.ToValidUTF8 writes over an
+// invalid byte sequence.
+const utf8Replacement = "\uFFFD"
 
 // NewUTF8Sanitizer returns a sanitizer that rewrites invalid UTF-8 in trace
-// data. A backend that checks UTF-8 rejects the whole batch otherwise.
+// data so a strict protobuf decoder can accept the batch.
 //
-// Attribute keys and string values are sanitized on resources, scopes, spans,
-// span events, and span links, including values nested in maps and slices. An
-// invalid string value is replaced with a bytes value holding the original
-// bytes. An invalid key is removed and recorded as "invalid-tag-key-N", whose
-// bytes value holds the original key and value. Every invalid key is recorded,
-// so a repeated key is not collapsed into one entry.
-//
-// Any other invalid string is replaced with a placeholder, and the original
-// bytes are kept on the owning resource, scope, span, event, or link. That
-// covers span and event names, scope name and version, status messages, trace
-// state, schema URLs, and resource entity refs. Repeated entity-ref keys keep
-// each original value under a numbered attribute.
+// String fields and attribute keys are rewritten in place with U+FFFD.
+// Invalid trace state is cleared, because a placeholder is not valid W3C
+// tracestate. Valid traces are returned unchanged.
 func NewUTF8Sanitizer() Func {
 	return sanitizeUTF8
 }
@@ -60,96 +39,58 @@ func sanitizeUTF8(traces ptrace.Traces) ptrace.Traces {
 	}
 
 	for _, resourceSpans := range workingTraces.ResourceSpans().All() {
-		sanitizeResourceSpans(resourceSpans)
+		resource := resourceSpans.Resource()
+		sanitizeString(resourceSpans.SchemaUrl(), resourceSpans.SetSchemaUrl)
+		sanitizeAttributes(resource.Attributes())
+
+		for _, scopeSpans := range resourceSpans.ScopeSpans().All() {
+			scope := scopeSpans.Scope()
+			sanitizeString(scopeSpans.SchemaUrl(), scopeSpans.SetSchemaUrl)
+			sanitizeString(scope.Name(), scope.SetName)
+			sanitizeString(scope.Version(), scope.SetVersion)
+			sanitizeAttributes(scope.Attributes())
+
+			for _, span := range scopeSpans.Spans().All() {
+				sanitizeSpan(span)
+			}
+		}
 	}
 	return workingTraces
 }
 
-func sanitizeResourceSpans(resourceSpans ptrace.ResourceSpans) {
-	resource := resourceSpans.Resource()
-	sanitizeString(resourceSpans.SchemaUrl(), resourceSpans.SetSchemaUrl, invalidSchemaURL, resource.Attributes())
-	sanitizeAttributes(resource.Attributes())
-	sanitizeEntityRefs(resource)
-
-	for _, scopeSpans := range resourceSpans.ScopeSpans().All() {
-		sanitizeScopeSpans(scopeSpans)
-	}
-}
-
-func sanitizeScopeSpans(scopeSpans ptrace.ScopeSpans) {
-	scope := scopeSpans.Scope()
-	attributes := scope.Attributes()
-	sanitizeString(scopeSpans.SchemaUrl(), scopeSpans.SetSchemaUrl, invalidSchemaURL, attributes)
-	sanitizeString(scope.Name(), scope.SetName, invalidScopeName, attributes)
-	sanitizeString(scope.Version(), scope.SetVersion, invalidScopeVersion, attributes)
-	sanitizeAttributes(attributes)
-
-	for _, span := range scopeSpans.Spans().All() {
-		sanitizeSpan(span)
-	}
-}
-
 func sanitizeSpan(span ptrace.Span) {
-	attributes := span.Attributes()
-	sanitizeString(span.Name(), span.SetName, invalidSpanName, attributes)
-	sanitizeString(span.TraceState().AsRaw(), span.TraceState().FromRaw, invalidTraceState, attributes)
+	sanitizeString(span.Name(), span.SetName)
+	sanitizeTraceState(span.TraceState())
 	status := span.Status()
-	sanitizeString(status.Message(), status.SetMessage, invalidStatusMessage, attributes)
-	sanitizeAttributes(attributes)
+	sanitizeString(status.Message(), status.SetMessage)
+	sanitizeAttributes(span.Attributes())
 
 	for _, event := range span.Events().All() {
-		sanitizeString(event.Name(), event.SetName, invalidEventName, event.Attributes())
+		sanitizeString(event.Name(), event.SetName)
 		sanitizeAttributes(event.Attributes())
 	}
 	for _, link := range span.Links().All() {
-		sanitizeString(link.TraceState().AsRaw(), link.TraceState().FromRaw, invalidTraceState, link.Attributes())
+		sanitizeTraceState(link.TraceState())
 		sanitizeAttributes(link.Attributes())
 	}
 }
 
-func sanitizeEntityRefs(resource pcommon.Resource) {
-	attributes := resource.Attributes()
-	idKey := 1
-	descriptionKey := 1
-	for _, ref := range entity.ResourceEntityRefs(resource).All() {
-		sanitizeString(ref.SchemaUrl(), ref.SetSchemaUrl, invalidEntitySchemaURL, attributes)
-		sanitizeString(ref.Type(), ref.SetType, invalidEntityType, attributes)
-		idKey = sanitizeStringSlice(ref.IdKeys(), invalidEntityIDKey, attributes, idKey)
-		descriptionKey = sanitizeStringSlice(ref.DescriptionKeys(), invalidEntityDescKey, attributes, descriptionKey)
+func sanitizeString(value string, set func(string)) {
+	if !utf8.ValidString(value) {
+		set(strings.ToValidUTF8(value, utf8Replacement))
 	}
 }
 
-// sanitizeString replaces an invalid value with placeholder and keeps the
-// original bytes in attributes under that same key.
-func sanitizeString(value string, set func(string), placeholder string, attributes pcommon.Map) {
-	if utf8.ValidString(value) {
-		return
+func sanitizeTraceState(state pcommon.TraceState) {
+	if !utf8.ValidString(state.AsRaw()) {
+		state.FromRaw("")
 	}
-	attributes.PutEmptyBytes(placeholder).FromRaw([]byte(value))
-	set(placeholder)
-}
-
-// sanitizeStringSlice rewrites each invalid element in place. n numbers the
-// attribute that keeps the original bytes, so repeated keys are all recorded.
-func sanitizeStringSlice(values pcommon.StringSlice, placeholder string, attributes pcommon.Map, n int) int {
-	for i := 0; i < values.Len(); i++ {
-		value := values.At(i)
-		if utf8.ValidString(value) {
-			continue
-		}
-		attributes.PutEmptyBytes(fmt.Sprintf("%s-%d", placeholder, n)).FromRaw([]byte(value))
-		values.SetAt(i, placeholder)
-		n++
-	}
-	return n
 }
 
 func tracesNeedUTF8Sanitization(traces ptrace.Traces) bool {
 	for _, resourceSpans := range traces.ResourceSpans().All() {
-		resource := resourceSpans.Resource()
 		if !utf8.ValidString(resourceSpans.SchemaUrl()) ||
-			attributesNeedUTF8Sanitization(resource.Attributes()) ||
-			entityRefsNeedUTF8Sanitization(resource) {
+			attributesNeedUTF8Sanitization(resourceSpans.Resource().Attributes()) {
 			return true
 		}
 		for _, scopeSpans := range resourceSpans.ScopeSpans().All() {
@@ -190,27 +131,6 @@ func spanNeedsUTF8Sanitization(span ptrace.Span) bool {
 	return false
 }
 
-func entityRefsNeedUTF8Sanitization(resource pcommon.Resource) bool {
-	for _, ref := range entity.ResourceEntityRefs(resource).All() {
-		if !utf8.ValidString(ref.SchemaUrl()) ||
-			!utf8.ValidString(ref.Type()) ||
-			stringsNeedUTF8Sanitization(ref.IdKeys()) ||
-			stringsNeedUTF8Sanitization(ref.DescriptionKeys()) {
-			return true
-		}
-	}
-	return false
-}
-
-func stringsNeedUTF8Sanitization(values pcommon.StringSlice) bool {
-	for _, value := range values.All() {
-		if !utf8.ValidString(value) {
-			return true
-		}
-	}
-	return false
-}
-
 func attributesNeedUTF8Sanitization(attributes pcommon.Map) bool {
 	for k, v := range attributes.All() {
 		if !utf8.ValidString(k) || valueNeedsUTF8Sanitization(v) {
@@ -238,44 +158,33 @@ func valueNeedsUTF8Sanitization(v pcommon.Value) bool {
 }
 
 func sanitizeAttributes(attributes pcommon.Map) {
-	// A decoded map can repeat a key. A Go map would keep only one of them.
-	var invalidKeys [][]byte
+	// Keys are repaired after the scan so the map is not mutated while ranging.
+	// The value moves onto the repaired key; a new diagnostic key could overwrite
+	// an attribute that is already present.
+	type invalidKey struct {
+		key   string
+		value pcommon.Value
+	}
+	var invalidKeys []invalidKey
 	attributes.Range(func(k string, v pcommon.Value) bool {
 		sanitizeValue(v)
 		if !utf8.ValidString(k) {
-			invalidKeys = append(invalidKeys, attributeKeyPayload(k, v))
+			moved := pcommon.NewValueEmpty()
+			v.CopyTo(moved)
+			invalidKeys = append(invalidKeys, invalidKey{key: k, value: moved})
 		}
 		return true
 	})
-	if len(invalidKeys) == 0 {
-		return
+	for _, item := range invalidKeys {
+		attributes.Remove(item.key)
+		item.value.CopyTo(attributes.PutEmpty(strings.ToValidUTF8(item.key, utf8Replacement)))
 	}
-
-	attributes.RemoveIf(func(k string, _ pcommon.Value) bool {
-		return !utf8.ValidString(k)
-	})
-	for i, payload := range invalidKeys {
-		attributes.PutEmptyBytes(fmt.Sprintf("%s-%d", invalidTagKey, i+1)).FromRaw(payload)
-	}
-}
-
-func attributeKeyPayload(key string, value pcommon.Value) []byte {
-	sanitized := []byte(key + ":")
-	switch value.Type() {
-	case pcommon.ValueTypeBytes:
-		sanitized = append(sanitized, value.Bytes().AsRaw()...)
-	default:
-		sanitized = append(sanitized, value.AsString()...)
-	}
-	return sanitized
 }
 
 func sanitizeValue(v pcommon.Value) {
 	switch v.Type() {
 	case pcommon.ValueTypeStr:
-		if value := v.Str(); !utf8.ValidString(value) {
-			v.SetEmptyBytes().FromRaw([]byte(value))
-		}
+		sanitizeString(v.Str(), v.SetStr)
 	case pcommon.ValueTypeMap:
 		sanitizeAttributes(v.Map())
 	case pcommon.ValueTypeSlice:
