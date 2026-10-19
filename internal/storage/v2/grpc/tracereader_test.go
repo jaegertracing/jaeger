@@ -736,6 +736,24 @@ func TestConvertMapToKeyValueList(t *testing.T) {
 			},
 		},
 		{
+			name: "empty bytes",
+			attributes: func() pcommon.Map {
+				m := pcommon.NewMap()
+				m.PutEmptyBytes("key1")
+				return m
+			}(),
+			expected: []*storage.KeyValue{
+				{
+					Key: "key1",
+					Value: &storage.AnyValue{
+						Value: &storage.AnyValue_BytesValue{
+							BytesValue: []byte{},
+						},
+					},
+				},
+			},
+		},
+		{
 			name: "nested map",
 			attributes: func() pcommon.Map {
 				m := pcommon.NewMap()
@@ -1141,6 +1159,19 @@ func TestToProtoQueryParameters_EmptyAttribute(t *testing.T) {
 		q, err := toProtoQueryParameters(tracestore.TraceQueryParams{Attributes: attrs})
 		require.EqualError(t, err, `cannot send the query attributes: key "key1": index 0: Empty value has no wire form`)
 		require.Nil(t, q)
+	})
+	t.Run("empty bytes keep their oneof on the wire", func(t *testing.T) {
+		attrs := pcommon.NewMap()
+		attrs.PutEmptyBytes("key1")
+		q, err := toProtoQueryParameters(tracestore.TraceQueryParams{Attributes: attrs})
+		require.NoError(t, err)
+		data, err := q.Marshal()
+		require.NoError(t, err)
+		decoded := &storage.TraceQueryParameters{}
+		require.NoError(t, decoded.Unmarshal(data))
+		got := decoded.GetAttributes()[0].GetValue().GetBytesValue()
+		require.NotNil(t, got)
+		require.Empty(t, got)
 	})
 }
 

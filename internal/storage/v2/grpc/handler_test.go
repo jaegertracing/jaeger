@@ -708,6 +708,49 @@ func TestConvertKeyValueListToMap(t *testing.T) {
 			expectedError: `key "key1": index 0: index 0: key "nilValueKey": value is not set`,
 		},
 		{
+			name: "nil element in array",
+			input: []*storage.KeyValue{
+				{
+					Key: "key1",
+					Value: &storage.AnyValue{
+						Value: &storage.AnyValue_ArrayValue{
+							ArrayValue: &storage.ArrayValue{
+								Values: []*storage.AnyValue{
+									{Value: &storage.AnyValue_StringValue{StringValue: "keep"}},
+									nil,
+								},
+							},
+						},
+					},
+				},
+			},
+			expectedError: `key "key1": index 1: value is not set`,
+		},
+		{
+			name: "nil element in nested array",
+			input: []*storage.KeyValue{
+				{
+					Key: "key1",
+					Value: &storage.AnyValue{
+						Value: &storage.AnyValue_ArrayValue{
+							ArrayValue: &storage.ArrayValue{
+								Values: []*storage.AnyValue{
+									{
+										Value: &storage.AnyValue_ArrayValue{
+											ArrayValue: &storage.ArrayValue{
+												Values: []*storage.AnyValue{nil},
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+			expectedError: `key "key1": index 0: index 0: value is not set`,
+		},
+		{
 			name: "primitive types",
 			input: []*storage.KeyValue{
 				{
@@ -817,7 +860,6 @@ func TestConvertKeyValueListToMap(t *testing.T) {
 											},
 										},
 									},
-									nil,
 								},
 							},
 						},
@@ -834,7 +876,6 @@ func TestConvertKeyValueListToMap(t *testing.T) {
 				slice.AppendEmpty().SetEmptyBytes().FromRaw([]byte{1, 2})
 				nested := slice.AppendEmpty().SetEmptyMap()
 				nested.PutStr("nestedKey", "nestedValue")
-				slice.AppendEmpty() // for the nil entry
 				return m
 			}(),
 		},
@@ -854,12 +895,10 @@ func TestConvertKeyValueListToMap(t *testing.T) {
 													{
 														Value: &storage.AnyValue_StringValue{StringValue: "inner1"},
 													},
-													nil,
 												},
 											},
 										},
 									},
-									nil,
 								},
 							},
 						},
@@ -871,8 +910,6 @@ func TestConvertKeyValueListToMap(t *testing.T) {
 				slice := m.PutEmptySlice("key1")
 				nestedSlice := slice.AppendEmpty().SetEmptySlice()
 				nestedSlice.AppendEmpty().SetStr("inner1")
-				nestedSlice.AppendEmpty() // for the nil entry
-				slice.AppendEmpty()       // for the nil entry
 				return m
 			}(),
 		},
@@ -1201,19 +1238,19 @@ func TestHandler_RefusesNilAttribute(t *testing.T) {
 		{name: "nil value", attributes: []*storage.KeyValue{{Key: "key1"}}, message: `key "key1": value is not set`},
 	}
 	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
-			reader := new(tracestoremocks.Reader)
-			handler := NewHandler(reader, new(tracestoremocks.Writer), new(depstoremocks.Reader))
+		for _, method := range searchMethods {
+			t.Run(test.name+"/"+method.name, func(t *testing.T) {
+				reader := new(tracestoremocks.Reader)
+				handler := NewHandler(reader, new(tracestoremocks.Writer), new(depstoremocks.Reader))
 
-			err := handler.FindTraces(&storage.FindTracesRequest{
-				Query: &storage.TraceQueryParameters{Attributes: test.attributes},
-			}, &testStream{})
+				err := method.call(handler, &storage.TraceQueryParameters{Attributes: test.attributes})
 
-			require.Error(t, err)
-			assert.Equal(t, codes.InvalidArgument, status.Code(err))
-			assert.Equal(t, test.message, status.Convert(err).Message())
-			reader.AssertNotCalled(t, "FindTraces", mock.Anything, mock.Anything)
-		})
+				require.Error(t, err)
+				assert.Equal(t, codes.InvalidArgument, status.Code(err))
+				assert.Equal(t, test.message, status.Convert(err).Message())
+				reader.AssertNotCalled(t, method.name, mock.Anything, mock.Anything)
+			})
+		}
 	}
 }
 

@@ -406,9 +406,13 @@ func convertValueToAnyValue(v pcommon.Value) (*storage.AnyValue, error) {
 			},
 		}, nil
 	case pcommon.ValueTypeBytes:
+		raw := v.Bytes().AsRaw()
+		if raw == nil {
+			raw = []byte{} // the wire drops a nil oneof payload, which the server reads as an unset value
+		}
 		return &storage.AnyValue{
 			Value: &storage.AnyValue_BytesValue{
-				BytesValue: v.Bytes().AsRaw(),
+				BytesValue: raw,
 			},
 		}, nil
 	case pcommon.ValueTypeSlice:

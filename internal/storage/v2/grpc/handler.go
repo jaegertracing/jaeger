@@ -390,9 +390,9 @@ func (*Handler) toTraceQueryParams(t *storage.TraceQueryParameters) (tracestore.
 }
 
 // convertKeyValueListToMap refuses a nil entry, a nil value or a value with no type set at any
-// depth with InvalidArgument, and names the key and index path to it as the client does: skipping
-// it would run the query without that attribute and report the result as a match. A nil array
-// element, which the wire format cannot carry, still keeps its slot as an empty value.
+// depth, array elements included, with InvalidArgument, and names the key and index path to it as
+// the client does: skipping it would run the query without that attribute and report the result
+// as a match.
 func convertKeyValueListToMap(kvList []*storage.KeyValue) (pcommon.Map, error) {
 	m := pcommon.NewMap()
 	for _, kv := range kvList {
@@ -404,7 +404,7 @@ func convertKeyValueListToMap(kvList []*storage.KeyValue) (pcommon.Map, error) {
 }
 
 // requireValue is the one check that the map and slice paths share: a value that is nil or has no
-// type set carries nothing to match on.
+// type set carries nothing to match on, at any depth.
 func requireValue(av *storage.AnyValue) error {
 	if av == nil || av.Value == nil {
 		return errors.New("value is not set")
@@ -440,10 +440,6 @@ func setValueToMap(m pcommon.Map, key string, av *storage.AnyValue) error {
 	case *storage.AnyValue_ArrayValue:
 		sliceVal := m.PutEmptySlice(key)
 		for i, elem := range v.ArrayValue.Values {
-			if elem == nil {
-				sliceVal.AppendEmpty()
-				continue
-			}
 			if err := setValueToSlice(sliceVal, elem); err != nil {
 				return fmt.Errorf("index %d: %w", i, err)
 			}
@@ -479,10 +475,6 @@ func setValueToSlice(slice pcommon.Slice, av *storage.AnyValue) error {
 	case *storage.AnyValue_ArrayValue:
 		newSlice := slice.AppendEmpty().SetEmptySlice()
 		for i, subElem := range v.ArrayValue.Values {
-			if subElem == nil {
-				newSlice.AppendEmpty()
-				continue
-			}
 			if err := setValueToSlice(newSlice, subElem); err != nil {
 				return fmt.Errorf("index %d: %w", i, err)
 			}
