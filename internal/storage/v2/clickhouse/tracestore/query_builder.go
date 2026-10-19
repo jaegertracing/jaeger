@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
+	"time"
 
 	"go.opentelemetry.io/collector/pdata/pcommon"
 	"go.opentelemetry.io/collector/pdata/xpdata"
@@ -40,10 +41,6 @@ func appendNewlineAndIndent(q *strings.Builder, indent int) {
 	for range indent {
 		q.WriteString("\t")
 	}
-}
-
-func indentBlock(s string) string {
-	return "\t" + strings.ReplaceAll(s, "\n", "\n\t")
 }
 
 func appendAnd(q *strings.Builder, cond string) {
@@ -113,10 +110,32 @@ func buildGetTracesQuery(params tracestore.GetTraceParams) (string, []any) {
 	return q.String(), args
 }
 
-func buildFindTracesQuery(traceIDsQuery string) string {
-	inner := indentBlock("SELECT trace_id FROM (\n" + indentBlock(strings.TrimSpace(traceIDsQuery)) + "\n)")
-	base := strings.TrimRight(sql.SelectSpansQuery, "\n")
-	return base + "\nWHERE s.trace_id IN (\n" + inner + "\n)\nORDER BY s.trace_id"
+func buildFindTracesQuery(traceIDs []tracestore.FoundTraceID) (string, []any) {
+	ids := make([]string, 0, len(traceIDs))
+	var start, end time.Time
+	bounded := true
+	for i, trace := range traceIDs {
+		ids = append(ids, trace.TraceID.String())
+		if trace.Start.IsZero() || trace.End.IsZero() {
+			bounded = false
+		}
+		if i == 0 || trace.Start.Before(start) {
+			start = trace.Start
+		}
+		if trace.End.After(end) {
+			end = trace.End
+		}
+	}
+
+	q := strings.TrimRight(sql.SelectSpansQuery, "\n") + "\nWHERE s.trace_id IN (?)"
+	args := []any{ids}
+	// Missing timestamp metadata must not hide an otherwise searchable trace.
+	if bounded {
+		// Positional time.Time arguments are truncated to seconds by clickhouse-go.
+		q += " AND s.start_time >= fromUnixTimestamp64Nano(?) AND s.start_time <= fromUnixTimestamp64Nano(?)"
+		args = append(args, start.UnixNano(), end.UnixNano())
+	}
+	return q + "\nORDER BY s.trace_id", args
 }
 
 func (r *Reader) buildFindTraceIDsQuery(
@@ -205,11 +224,7 @@ func (r *Reader) buildFindTraceIDsQuery(
 	inner.WriteString("\nLIMIT ?")
 	args = append(args, limit)
 
-	// Wrap the inner subquery with a JOIN to trace_id_timestamps
-	// to retrieve start/end times only for the limited set of trace IDs.
-	q := fmt.Sprintf(sql.SearchTraceIDs, indentBlock(inner.String()))
-
-	return q, args, nil
+	return inner.String(), args, nil
 }
 
 func buildAttributeConditions(q *strings.Builder, args []any, attributes pcommon.Map, metadata attributeMetadata) ([]any, error) {
