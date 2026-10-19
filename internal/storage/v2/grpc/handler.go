@@ -360,11 +360,15 @@ func (*Handler) toTraceQueryParams(t *storage.TraceQueryParameters) (tracestore.
 	if depth < 0 || depth > int32(tracestore.MaxSearchDepth) {
 		return tracestore.TraceQueryParams{}, status.Errorf(codes.InvalidArgument, "SearchDepth must be in [0, %d]", tracestore.MaxSearchDepth)
 	}
+	attributes, err := convertKeyValueListToMap(t.Attributes)
+	if err != nil {
+		return tracestore.TraceQueryParams{}, err
+	}
 	searchDepth := uint32(depth)
 	query := tracestore.TraceQueryParams{
 		ServiceName:   t.ServiceName,
 		OperationName: t.OperationName,
-		Attributes:    convertKeyValueListToMap(t.Attributes),
+		Attributes:    attributes,
 		StartTimeMin:  t.StartTimeMin,
 		StartTimeMax:  t.StartTimeMax,
 		DurationMin:   t.DurationMin,
@@ -384,18 +388,29 @@ func (*Handler) toTraceQueryParams(t *storage.TraceQueryParameters) (tracestore.
 	return query, nil
 }
 
-func convertKeyValueListToMap(kvList []*storage.KeyValue) pcommon.Map {
+// convertKeyValueListToMap refuses a nil entry or a nil value at any depth with InvalidArgument:
+// skipping it would run the query without that attribute and report the result as a match.
+func convertKeyValueListToMap(kvList []*storage.KeyValue) (pcommon.Map, error) {
 	m := pcommon.NewMap()
 	for _, kv := range kvList {
-		if kv == nil || kv.Value == nil {
-			continue
+		if err := setKeyValueToMap(m, kv); err != nil {
+			return pcommon.NewMap(), err
 		}
-		setValueToMap(m, kv.Key, kv.Value)
 	}
-	return m
+	return m, nil
 }
 
-func setValueToMap(m pcommon.Map, key string, av *storage.AnyValue) {
+func setKeyValueToMap(m pcommon.Map, kv *storage.KeyValue) error {
+	if kv == nil {
+		return status.Error(codes.InvalidArgument, "attribute entry is nil")
+	}
+	if kv.Value == nil {
+		return status.Errorf(codes.InvalidArgument, "attribute %q has no value", kv.Key)
+	}
+	return setValueToMap(m, kv.Key, kv.Value)
+}
+
+func setValueToMap(m pcommon.Map, key string, av *storage.AnyValue) error {
 	switch v := av.Value.(type) {
 	case *storage.AnyValue_StringValue:
 		m.PutStr(key, v.StringValue)
@@ -414,22 +429,24 @@ func setValueToMap(m pcommon.Map, key string, av *storage.AnyValue) {
 				sliceVal.AppendEmpty()
 				continue
 			}
-			setValueToSlice(sliceVal, elem)
+			if err := setValueToSlice(sliceVal, elem); err != nil {
+				return err
+			}
 		}
 	case *storage.AnyValue_KvlistValue:
 		mapVal := m.PutEmptyMap(key)
 		for _, kv := range v.KvlistValue.Values {
-			if kv == nil || kv.Value == nil {
-				continue
+			if err := setKeyValueToMap(mapVal, kv); err != nil {
+				return err
 			}
-			setValueToMap(mapVal, kv.Key, kv.Value)
 		}
-	default:
-		return // unreachable
+	default: // an AnyValue with no type set would leave the key out of the query
+		return status.Errorf(codes.InvalidArgument, "attribute %q has no value", key)
 	}
+	return nil
 }
 
-func setValueToSlice(slice pcommon.Slice, av *storage.AnyValue) {
+func setValueToSlice(slice pcommon.Slice, av *storage.AnyValue) error {
 	switch v := av.Value.(type) {
 	case *storage.AnyValue_StringValue:
 		slice.AppendEmpty().SetStr(v.StringValue)
@@ -448,17 +465,19 @@ func setValueToSlice(slice pcommon.Slice, av *storage.AnyValue) {
 				newSlice.AppendEmpty()
 				continue
 			}
-			setValueToSlice(newSlice, subElem)
+			if err := setValueToSlice(newSlice, subElem); err != nil {
+				return err
+			}
 		}
 	case *storage.AnyValue_KvlistValue:
 		newMap := slice.AppendEmpty().SetEmptyMap()
 		for _, kv := range v.KvlistValue.Values {
-			if kv == nil || kv.Value == nil {
-				continue
+			if err := setKeyValueToMap(newMap, kv); err != nil {
+				return err
 			}
-			setValueToMap(newMap, kv.Key, kv.Value)
 		}
 	default:
-		return // unreachable
+		return nil // unreachable
 	}
+	return nil
 }

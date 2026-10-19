@@ -608,9 +608,10 @@ func TestHandler_GetDependencies(t *testing.T) {
 
 func TestConvertKeyValueListToMap(t *testing.T) {
 	tests := []struct {
-		name     string
-		input    []*storage.KeyValue
-		expected pcommon.Map
+		name          string
+		input         []*storage.KeyValue
+		expected      pcommon.Map
+		expectedError string
 	}{
 		{
 			name:     "empty list",
@@ -618,9 +619,9 @@ func TestConvertKeyValueListToMap(t *testing.T) {
 			expected: pcommon.NewMap(),
 		},
 		{
-			name:     "nil entry",
-			input:    []*storage.KeyValue{nil},
-			expected: pcommon.NewMap(),
+			name:          "nil entry",
+			input:         []*storage.KeyValue{nil},
+			expectedError: "attribute entry is nil",
 		},
 		{
 			name: "nil value",
@@ -630,7 +631,81 @@ func TestConvertKeyValueListToMap(t *testing.T) {
 					Value: nil,
 				},
 			},
-			expected: pcommon.NewMap(),
+			expectedError: `attribute "key1" has no value`,
+		},
+		{
+			name: "value with no type set",
+			input: []*storage.KeyValue{
+				{
+					Key:   "key1",
+					Value: &storage.AnyValue{},
+				},
+			},
+			expectedError: `attribute "key1" has no value`,
+		},
+		{
+			name: "nil entry in nested map",
+			input: []*storage.KeyValue{
+				{
+					Key: "key1",
+					Value: &storage.AnyValue{
+						Value: &storage.AnyValue_KvlistValue{
+							KvlistValue: &storage.KeyValueList{
+								Values: []*storage.KeyValue{nil},
+							},
+						},
+					},
+				},
+			},
+			expectedError: "attribute entry is nil",
+		},
+		{
+			name: "nil value in nested map",
+			input: []*storage.KeyValue{
+				{
+					Key: "key1",
+					Value: &storage.AnyValue{
+						Value: &storage.AnyValue_KvlistValue{
+							KvlistValue: &storage.KeyValueList{
+								Values: []*storage.KeyValue{{Key: "nilValueKey"}},
+							},
+						},
+					},
+				},
+			},
+			expectedError: `attribute "nilValueKey" has no value`,
+		},
+		{
+			name: "nil value in map inside array",
+			input: []*storage.KeyValue{
+				{
+					Key: "key1",
+					Value: &storage.AnyValue{
+						Value: &storage.AnyValue_ArrayValue{
+							ArrayValue: &storage.ArrayValue{
+								Values: []*storage.AnyValue{
+									{
+										Value: &storage.AnyValue_ArrayValue{
+											ArrayValue: &storage.ArrayValue{
+												Values: []*storage.AnyValue{
+													{
+														Value: &storage.AnyValue_KvlistValue{
+															KvlistValue: &storage.KeyValueList{
+																Values: []*storage.KeyValue{{Key: "nilValueKey"}},
+															},
+														},
+													},
+												},
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+			expectedError: `attribute "nilValueKey" has no value`,
 		},
 		{
 			name: "primitive types",
@@ -691,16 +766,11 @@ func TestConvertKeyValueListToMap(t *testing.T) {
 											Value: &storage.AnyValue_StringValue{StringValue: "nestedValue"},
 										},
 									},
-									{
-										Key:   "nilValueKey",
-										Value: nil, // should be skipped
-									},
 								},
 							},
 						},
 					},
 				},
-				nil, // should be skipped
 			},
 			expected: func() pcommon.Map {
 				m := pcommon.NewMap()
@@ -743,11 +813,6 @@ func TestConvertKeyValueListToMap(t *testing.T) {
 															Value: &storage.AnyValue_StringValue{StringValue: "nestedValue"},
 														},
 													},
-													{
-														Key:   "nilValueKey",
-														Value: nil, // should be skipped
-													},
-													nil, // should be skipped
 												},
 											},
 										},
@@ -815,7 +880,15 @@ func TestConvertKeyValueListToMap(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			result := convertKeyValueListToMap(test.input)
+			result, err := convertKeyValueListToMap(test.input)
+			if test.expectedError != "" {
+				require.Error(t, err)
+				assert.Equal(t, codes.InvalidArgument, status.Code(err))
+				assert.Equal(t, test.expectedError, status.Convert(err).Message())
+				assert.Equal(t, 0, result.Len())
+				return
+			}
+			require.NoError(t, err)
 			assert.Equal(t, test.expected, result)
 		})
 	}
@@ -1116,6 +1189,32 @@ func TestHandler_SearchDepthValidation(t *testing.T) {
 			} else {
 				require.NoError(t, err)
 			}
+		})
+	}
+}
+
+func TestHandler_RefusesNilAttribute(t *testing.T) {
+	tests := []struct {
+		name       string
+		attributes []*storage.KeyValue
+		message    string
+	}{
+		{name: "nil entry", attributes: []*storage.KeyValue{nil}, message: "attribute entry is nil"},
+		{name: "nil value", attributes: []*storage.KeyValue{{Key: "key1"}}, message: `attribute "key1" has no value`},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			reader := new(tracestoremocks.Reader)
+			handler := NewHandler(reader, new(tracestoremocks.Writer), new(depstoremocks.Reader))
+
+			err := handler.FindTraces(&storage.FindTracesRequest{
+				Query: &storage.TraceQueryParameters{Attributes: test.attributes},
+			}, &testStream{})
+
+			require.Error(t, err)
+			assert.Equal(t, codes.InvalidArgument, status.Code(err))
+			assert.Equal(t, test.message, status.Convert(err).Message())
+			reader.AssertNotCalled(t, "FindTraces", mock.Anything, mock.Anything)
 		})
 	}
 }
