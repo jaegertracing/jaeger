@@ -363,37 +363,48 @@ func BaselineSchemaStatements(tableEngine TableEngine) ([]string, error) {
 	if err != nil {
 		return nil, err
 	}
-	createSpansTableQuery, err := loadTemplate(
-		"create_spans_table",
-		chsql.CreateSpansTable,
-		params,
-	)
+	render := func(name, body string) (string, error) {
+		return loadTemplate(name, body, params)
+	}
+
+	createSpansTableQuery, err := render("create_spans_table", chsql.CreateSpansTable)
 	if err != nil {
 		return nil, err
 	}
-
-	createTraceIDTsTableQuery, err := loadTemplate(
-		"create_trace_id_timestamps_table",
-		chsql.CreateTraceIDTimestampsTable,
-		params,
-	)
+	createServicesTableQuery, err := render("create_services_table", chsql.CreateServicesTable)
+	if err != nil {
+		return nil, err
+	}
+	createOperationsTableQuery, err := render("create_operations_table", chsql.CreateOperationsTable)
+	if err != nil {
+		return nil, err
+	}
+	createTraceIDTsTableQuery, err := render("create_trace_id_timestamps_table", chsql.CreateTraceIDTimestampsTable)
+	if err != nil {
+		return nil, err
+	}
+	createAttributeMetadataTableQuery, err := render("create_attribute_metadata_table", chsql.CreateAttributeMetadataTable)
+	if err != nil {
+		return nil, err
+	}
+	createDependenciesTableQuery, err := render("create_dependencies_table", chsql.CreateDependenciesTable)
 	if err != nil {
 		return nil, err
 	}
 
 	return []string{
 		createSpansTableQuery,
-		chsql.CreateServicesTable,
+		createServicesTableQuery,
 		chsql.CreateServicesMaterializedView,
-		chsql.CreateOperationsTable,
+		createOperationsTableQuery,
 		chsql.CreateOperationsMaterializedView,
 		createTraceIDTsTableQuery,
 		chsql.CreateTraceIDTimestampsMaterializedView,
-		chsql.CreateAttributeMetadataTable,
+		createAttributeMetadataTableQuery,
 		chsql.CreateAttributeMetadataMaterializedView,
 		chsql.CreateEventAttributeMetadataMaterializedView,
 		chsql.CreateLinkAttributeMetadataMaterializedView,
-		chsql.CreateDependenciesTable,
+		createDependenciesTableQuery,
 	}, nil
 }
 
