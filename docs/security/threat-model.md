@@ -34,6 +34,7 @@ Jaeger is a distributed tracing platform that collects, processes, and visualize
 | **B2: Collector → Storage** | Internal service to database | TLS, authentication, authorized credentials |
 | **B3: Storage → Query** | Database to internal service | TLS, authentication, read-only access |
 | **B4: Query → Users** | Internal service to end users | TLS, bearer tokens, RBAC |
+| **B5: Callers → remote-storage gRPC** | `jaeger-remote-storage` and the `remote_storage` extension (default `:17271`) | Trusted interface. mTLS and network policy are required. The tenant header is not authentication. |
 
 ## Threat Actors
 
@@ -142,6 +143,22 @@ Jaeger is a distributed tracing platform that collects, processes, and visualize
 - SBOM generation
 - Pinned dependencies with checksums
 
+### T7: Untrusted Access to Remote Storage
+
+**Description**: The remote-storage gRPC port (`jaeger-remote-storage` and the `remote_storage` extension) is a trusted interface. Unless the server's `auth` authenticator is set, a caller who can reach the port can read and write the storage backend behind it. The tenant header (default `x-tenant`) identifies a tenant when `multi_tenancy` is enabled. It does not authenticate the caller. A client that can reach the port and present a tenant name the server accepts is served.
+
+The server bounds what it will decode. grpc-go's receive limit applies to every request before decode: 4 MB by default, configurable on the server with `max_recv_msg_size_mib`. protobuf-go's unmarshal recursion limit bounds how deeply a message may be nested. Those bounds are not access control.
+
+| Attribute | Value |
+| -- | -- |
+| Threat Actor | External Attacker, Malicious Application |
+| Impact | High - Read and write access to the storage backend |
+| Likelihood | Medium |
+
+**Mitigations**:
+- mTLS on the remote-storage gRPC server
+- Network policy that admits only the Jaeger processes that call the backend
+
 ## Security Recommendations
 
 ### For Operators
@@ -152,6 +169,7 @@ Jaeger is a distributed tracing platform that collects, processes, and visualize
 4. **Set up RBAC** - Limit who can access trace data
 5. **Enable audit logging** - Track access to sensitive traces
 6. **Use network segmentation** - Isolate Jaeger components
+7. **Protect the remote-storage gRPC port** - Treat it as a trusted interface. Require mTLS and network policy. Do not treat the tenant header as authentication.
 
 ### For Developers Instrumenting Applications
 
@@ -165,5 +183,7 @@ Jaeger is a distributed tracing platform that collects, processes, and visualize
 - [SECURITY.md](../../SECURITY.md) - Security policy and vulnerability reporting
 - [Security Architecture](architecture.md) - Cryptographic practices
 - [Assurance Case](assurance-case.md) - Security assurance case
+- [Remote storage](../../cmd/remote-storage/README.md#trust-boundary) - Trust boundary for the gRPC port
+- [remote_storage extension](../../cmd/jaeger/internal/extension/remotestorage/README.md#trust-boundary)
 - [Securing Jaeger Installation](https://www.jaegertracing.io/docs/latest/security/)
 - [OpenSSF Threat Modeling Standards](https://github.com/ossf/security-insights-spec/tree/main/docs/threat-model)

@@ -128,6 +128,18 @@ storage:
         max_traces: 100000
 ```
 
+Enabling `multi_tenancy` does not authenticate callers. See [Trust boundary](#trust-boundary).
+
+## Trust boundary
+
+The gRPC port is a trusted interface. `jaeger-remote-storage` and the [`remote_storage` extension](../jaeger/internal/extension/remotestorage/README.md#trust-boundary) serve the same API. The default endpoint is `:17271`, which listens on every interface. Unless `grpc.auth` names an authenticator, a caller who can reach the port can read and write the storage backend behind it.
+
+The tenant header is not authentication. When `multi_tenancy` is enabled, the header (default `x-tenant`) identifies the tenant for the call. It does not authenticate the caller. A client that can reach the port and present a tenant name the server accepts is served, including a name listed under `tenants`.
+
+Deployments must protect this port with mTLS and network policy, so only the Jaeger processes that use the backend can open it. Server TLS is the `grpc.tls` block. Setting `client_ca_file` makes the server require and verify a client certificate.
+
+grpc-go's receive limit applies to every request before decode. It is 4 MB by default, and it is configurable on this server with `grpc.max_recv_msg_size_mib` (unset means the grpc-go default). protobuf-go's unmarshal recursion limit bounds how deeply a message may be nested. These are bounds on the payload. They are not a substitute for mTLS or network policy.
+
 ## Integration with Jaeger
 
 To use remote-storage with Jaeger components, configure them to use the gRPC storage backend:
