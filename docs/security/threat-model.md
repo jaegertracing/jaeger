@@ -145,7 +145,7 @@ Jaeger is a distributed tracing platform that collects, processes, and visualize
 
 ### T7: Untrusted Access to Remote Storage
 
-**Description**: The remote-storage gRPC port (`jaeger-remote-storage` and the `remote_storage` extension) is a trusted interface. Unless the server's `auth` authenticator is set, a caller who can reach the port can read and write the storage backend behind it. The tenant header (default `x-tenant`) identifies a tenant when `multi_tenancy` is enabled. It does not authenticate the caller. A client that can reach the port and present a tenant name the server accepts is served.
+**Description**: The remote-storage gRPC port (`jaeger-remote-storage` and the `remote_storage` extension) is a trusted interface. The standalone `jaeger-remote-storage` binary has no caller authentication. Anyone who can reach its port can read and write the backend, so mTLS with `client_ca_file` plus network policy are the controls. An authenticator is available only on the `remote_storage` extension: unless `auth` names one, a caller who can reach that port can read and write the storage backend it serves. The tenant header (default `x-tenant`) identifies a tenant when `multi_tenancy` is enabled. It does not authenticate the caller, on either server. A client that can reach the port and present a tenant name the server accepts is served.
 
 The server bounds what it will decode. grpc-go's receive limit applies to every request before decode: 4 MB by default, configurable on the server with `max_recv_msg_size_mib`. protobuf-go's unmarshal recursion limit bounds how deeply a message may be nested. Those bounds are not access control.
 
@@ -156,8 +156,8 @@ The server bounds what it will decode. grpc-go's receive limit applies to every 
 | Likelihood | Medium |
 
 **Mitigations**:
-- mTLS on the remote-storage gRPC server
-- Network policy that admits only the Jaeger processes that call the backend
+- On `jaeger-remote-storage`: mTLS (`grpc.tls` with `client_ca_file`) and network policy. This binary has no caller authentication.
+- On the `remote_storage` extension: the same mTLS and network policy. `auth` can name an authenticator; that setting exists only on the extension.
 
 ## Security Recommendations
 
