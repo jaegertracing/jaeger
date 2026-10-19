@@ -67,7 +67,13 @@ func (s *SpanHashDeduper) Adjust(traces ptrace.Traces) {
 			}
 			dedupedSpans.CopyTo(spans)
 		}
+		scopeSpans.RemoveIf(func(ss ptrace.ScopeSpans) bool {
+			return ss.Spans().Len() == 0
+		})
 	}
+	resourceSpans.RemoveIf(func(rs ptrace.ResourceSpans) bool {
+		return rs.ScopeSpans().Len() == 0
+	})
 }
 
 func (s *SpanHashDeduper) computeHashCode(
