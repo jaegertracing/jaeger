@@ -646,7 +646,40 @@ func TestConvertMapToKeyValueList(t *testing.T) {
 				m.PutEmpty("key1")
 				return m
 			}(),
-			expectedError: `attribute "key1" has no wire form`,
+			expectedError: `key "key1": Empty value has no wire form`,
+		},
+		{
+			name: "empty value in slice",
+			attributes: func() pcommon.Map {
+				m := pcommon.NewMap()
+				arr := m.PutEmptySlice("key1")
+				arr.AppendEmpty().SetStr("value1")
+				arr.AppendEmpty()
+				return m
+			}(),
+			expectedError: `key "key1": index 1: Empty value has no wire form`,
+		},
+		{
+			name: "empty value in map",
+			attributes: func() pcommon.Map {
+				m := pcommon.NewMap()
+				nested := m.PutEmptyMap("key1")
+				nested.PutStr("nestedKey", "nestedValue")
+				nested.PutEmpty("emptyKey")
+				return m
+			}(),
+			expectedError: `key "key1": key "emptyKey": Empty value has no wire form`,
+		},
+		{
+			name: "empty value in slice in map",
+			attributes: func() pcommon.Map {
+				m := pcommon.NewMap()
+				arr := m.PutEmptyMap("key1").PutEmptySlice("key2")
+				arr.AppendEmpty().SetInt(42)
+				arr.AppendEmpty().SetEmptySlice().AppendEmpty()
+				return m
+			}(),
+			expectedError: `key "key1": key "key2": index 1: index 0: Empty value has no wire form`,
 		},
 		{
 			name: "primitive types",
@@ -773,7 +806,8 @@ func TestConvertMapToKeyValueList(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			result, err := convertMapToKeyValueList(test.attributes)
 			if test.expectedError != "" {
-				require.ErrorContains(t, err, test.expectedError)
+				require.EqualError(t, err, test.expectedError)
+				require.Nil(t, result)
 			} else {
 				require.NoError(t, err)
 				require.Equal(t, test.expected, result)
@@ -1094,10 +1128,20 @@ func TestToProtoQueryParameters_SearchDepth(t *testing.T) {
 }
 
 func TestToProtoQueryParameters_EmptyAttribute(t *testing.T) {
-	attrs := pcommon.NewMap()
-	attrs.PutEmpty("key1")
-	_, err := toProtoQueryParameters(tracestore.TraceQueryParams{Attributes: attrs})
-	require.EqualError(t, err, `cannot send the query attributes: attribute "key1" has no wire form`)
+	t.Run("top level", func(t *testing.T) {
+		attrs := pcommon.NewMap()
+		attrs.PutEmpty("key1")
+		q, err := toProtoQueryParameters(tracestore.TraceQueryParams{Attributes: attrs})
+		require.EqualError(t, err, `cannot send the query attributes: key "key1": Empty value has no wire form`)
+		require.Nil(t, q)
+	})
+	t.Run("in slice", func(t *testing.T) {
+		attrs := pcommon.NewMap()
+		attrs.PutEmptySlice("key1").AppendEmpty()
+		q, err := toProtoQueryParameters(tracestore.TraceQueryParams{Attributes: attrs})
+		require.EqualError(t, err, `cannot send the query attributes: key "key1": index 0: Empty value has no wire form`)
+		require.Nil(t, q)
+	})
 }
 
 func spanOrder() []tracestore.SpanSortOrder {

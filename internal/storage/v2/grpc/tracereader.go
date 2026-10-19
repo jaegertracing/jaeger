@@ -358,15 +358,16 @@ func toProtoQueryParameters(t tracestore.TraceQueryParams) (*storage.TraceQueryP
 	return q, nil
 }
 
-// convertMapToKeyValueList refuses a value with no wire form: the server skips a nil one, so the
-// query would run without that attribute.
+// convertMapToKeyValueList refuses a value with no wire form at any depth: the server skips a nil
+// one, and a nil array element fails marshaling, so the query would not be the one that was asked.
 func convertMapToKeyValueList(m pcommon.Map) ([]*storage.KeyValue, error) {
 	keyValues := make([]*storage.KeyValue, 0, m.Len())
 	var err error
 	m.Range(func(k string, v pcommon.Value) bool {
-		av := convertValueToAnyValue(v)
-		if av == nil {
-			err = fmt.Errorf("attribute %q has no wire form", k)
+		var av *storage.AnyValue
+		av, err = convertValueToAnyValue(v)
+		if err != nil {
+			err = fmt.Errorf("key %q: %w", k, err)
 			return false
 		}
 		keyValues = append(keyValues, &storage.KeyValue{Key: k, Value: av})
@@ -378,43 +379,47 @@ func convertMapToKeyValueList(m pcommon.Map) ([]*storage.KeyValue, error) {
 	return keyValues, nil
 }
 
-func convertValueToAnyValue(v pcommon.Value) *storage.AnyValue {
+func convertValueToAnyValue(v pcommon.Value) (*storage.AnyValue, error) {
 	switch v.Type() {
 	case pcommon.ValueTypeStr:
 		return &storage.AnyValue{
 			Value: &storage.AnyValue_StringValue{
 				StringValue: v.Str(),
 			},
-		}
+		}, nil
 	case pcommon.ValueTypeBool:
 		return &storage.AnyValue{
 			Value: &storage.AnyValue_BoolValue{
 				BoolValue: v.Bool(),
 			},
-		}
+		}, nil
 	case pcommon.ValueTypeInt:
 		return &storage.AnyValue{
 			Value: &storage.AnyValue_IntValue{
 				IntValue: v.Int(),
 			},
-		}
+		}, nil
 	case pcommon.ValueTypeDouble:
 		return &storage.AnyValue{
 			Value: &storage.AnyValue_DoubleValue{
 				DoubleValue: v.Double(),
 			},
-		}
+		}, nil
 	case pcommon.ValueTypeBytes:
 		return &storage.AnyValue{
 			Value: &storage.AnyValue_BytesValue{
 				BytesValue: v.Bytes().AsRaw(),
 			},
-		}
+		}, nil
 	case pcommon.ValueTypeSlice:
 		arr := v.Slice()
 		arrayValues := make([]*storage.AnyValue, 0, arr.Len())
 		for i := 0; i < arr.Len(); i++ {
-			arrayValues = append(arrayValues, convertValueToAnyValue(arr.At(i)))
+			elem, err := convertValueToAnyValue(arr.At(i))
+			if err != nil {
+				return nil, fmt.Errorf("index %d: %w", i, err)
+			}
+			arrayValues = append(arrayValues, elem)
 		}
 		return &storage.AnyValue{
 			Value: &storage.AnyValue_ArrayValue{
@@ -422,18 +427,18 @@ func convertValueToAnyValue(v pcommon.Value) *storage.AnyValue {
 					Values: arrayValues,
 				},
 			},
-		}
+		}, nil
 	case pcommon.ValueTypeMap:
-		kvList := &storage.KeyValueList{}
-		v.Map().Range(func(k string, val pcommon.Value) bool {
-			kvList.Values = append(kvList.Values, &storage.KeyValue{
-				Key:   k,
-				Value: convertValueToAnyValue(val),
-			})
-			return true
-		})
-		return &storage.AnyValue{Value: &storage.AnyValue_KvlistValue{KvlistValue: kvList}}
+		kvList, err := convertMapToKeyValueList(v.Map())
+		if err != nil {
+			return nil, err
+		}
+		return &storage.AnyValue{
+			Value: &storage.AnyValue_KvlistValue{
+				KvlistValue: &storage.KeyValueList{Values: kvList},
+			},
+		}, nil
 	default:
-		return nil
+		return nil, fmt.Errorf("%s value has no wire form", v.Type())
 	}
 }
