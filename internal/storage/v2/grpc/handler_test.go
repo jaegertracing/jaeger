@@ -631,7 +631,7 @@ func TestConvertKeyValueListToMap(t *testing.T) {
 					Value: nil,
 				},
 			},
-			expectedError: `attribute "key1" has no value`,
+			expectedError: `key "key1": value is not set`,
 		},
 		{
 			name: "value with no type set",
@@ -641,7 +641,7 @@ func TestConvertKeyValueListToMap(t *testing.T) {
 					Value: &storage.AnyValue{},
 				},
 			},
-			expectedError: `attribute "key1" has no value`,
+			expectedError: `key "key1": value is not set`,
 		},
 		{
 			name: "nil entry in nested map",
@@ -657,7 +657,7 @@ func TestConvertKeyValueListToMap(t *testing.T) {
 					},
 				},
 			},
-			expectedError: "attribute entry is nil",
+			expectedError: `key "key1": attribute entry is nil`,
 		},
 		{
 			name: "nil value in nested map",
@@ -673,7 +673,7 @@ func TestConvertKeyValueListToMap(t *testing.T) {
 					},
 				},
 			},
-			expectedError: `attribute "nilValueKey" has no value`,
+			expectedError: `key "key1": key "nilValueKey": value is not set`,
 		},
 		{
 			name: "nil value in map inside array",
@@ -705,7 +705,7 @@ func TestConvertKeyValueListToMap(t *testing.T) {
 					},
 				},
 			},
-			expectedError: `attribute "nilValueKey" has no value`,
+			expectedError: `key "key1": index 0: index 0: key "nilValueKey": value is not set`,
 		},
 		{
 			name: "primitive types",
@@ -1079,6 +1079,32 @@ func TestHandler_GetCapabilities(t *testing.T) {
 	}
 }
 
+// searchMethods runs a query through every search method that takes TraceQueryParameters.
+var searchMethods = []struct {
+	name string
+	call func(*Handler, *storage.TraceQueryParameters) error
+}{
+	{
+		name: "FindTraces",
+		call: func(h *Handler, q *storage.TraceQueryParameters) error {
+			return h.FindTraces(&storage.FindTracesRequest{Query: q}, &testStream{})
+		},
+	},
+	{
+		name: "FindTraceSummaries",
+		call: func(h *Handler, q *storage.TraceQueryParameters) error {
+			return h.FindTraceSummaries(&storage.FindTraceSummariesRequest{Query: q}, &summaryStream{})
+		},
+	},
+	{
+		name: "FindTraceIDs",
+		call: func(h *Handler, q *storage.TraceQueryParameters) error {
+			_, err := h.FindTraceIDs(context.Background(), &storage.FindTraceIDsRequest{Query: q})
+			return err
+		},
+	},
+}
+
 // TestHandler_RefusesUnusableFilter covers the refusal every search method shares: a filter the
 // caller has to change never reaches the reader, because a reader handed a filter it was not asked
 // about would answer the time range instead and call that a match.
@@ -1088,45 +1114,17 @@ func TestHandler_RefusesUnusableFilter(t *testing.T) {
 	query := &storage.TraceQueryParameters{
 		Filter: &expressionproto.Call{Op: "no-such-operator"},
 	}
-	tests := []struct {
-		name   string
-		method string
-		call   func(*Handler) error
-	}{
-		{
-			name:   "FindTraces",
-			method: "FindTraces",
-			call: func(h *Handler) error {
-				return h.FindTraces(&storage.FindTracesRequest{Query: query}, &testStream{})
-			},
-		},
-		{
-			name:   "FindTraceSummaries",
-			method: "FindTraceSummaries",
-			call: func(h *Handler) error {
-				return h.FindTraceSummaries(&storage.FindTraceSummariesRequest{Query: query}, &summaryStream{})
-			},
-		},
-		{
-			name:   "FindTraceIDs",
-			method: "FindTraceIDs",
-			call: func(h *Handler) error {
-				_, err := h.FindTraceIDs(context.Background(), &storage.FindTraceIDsRequest{Query: query})
-				return err
-			},
-		},
-	}
-	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
+	for _, method := range searchMethods {
+		t.Run(method.name, func(t *testing.T) {
 			reader := new(tracestoremocks.Reader)
 			handler := NewHandler(reader, new(tracestoremocks.Writer), new(depstoremocks.Reader))
 
-			err := test.call(handler)
+			err := method.call(handler, query)
 
 			require.Error(t, err)
 			assert.Equal(t, codes.InvalidArgument, status.Code(err))
 			assert.Contains(t, err.Error(), "no-such-operator")
-			reader.AssertNotCalled(t, test.method, mock.Anything, mock.Anything)
+			reader.AssertNotCalled(t, method.name, mock.Anything, mock.Anything)
 		})
 	}
 }
@@ -1200,7 +1198,7 @@ func TestHandler_RefusesNilAttribute(t *testing.T) {
 		message    string
 	}{
 		{name: "nil entry", attributes: []*storage.KeyValue{nil}, message: "attribute entry is nil"},
-		{name: "nil value", attributes: []*storage.KeyValue{{Key: "key1"}}, message: `attribute "key1" has no value`},
+		{name: "nil value", attributes: []*storage.KeyValue{{Key: "key1"}}, message: `key "key1": value is not set`},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
@@ -1216,6 +1214,66 @@ func TestHandler_RefusesNilAttribute(t *testing.T) {
 			assert.Equal(t, test.message, status.Convert(err).Message())
 			reader.AssertNotCalled(t, "FindTraces", mock.Anything, mock.Anything)
 		})
+	}
+}
+
+// TestHandler_RefusesEmptyWireAttribute sends the query through the wire codec, because a client
+// can encode an AnyValue with no type set (an empty message) where it cannot encode a nil one.
+func TestHandler_RefusesEmptyWireAttribute(t *testing.T) {
+	str := func(s string) *storage.AnyValue {
+		return &storage.AnyValue{Value: &storage.AnyValue_StringValue{StringValue: s}}
+	}
+	array := func(values ...*storage.AnyValue) *storage.AnyValue {
+		return &storage.AnyValue{Value: &storage.AnyValue_ArrayValue{ArrayValue: &storage.ArrayValue{Values: values}}}
+	}
+	kvlist := func(values ...*storage.KeyValue) *storage.AnyValue {
+		return &storage.AnyValue{Value: &storage.AnyValue_KvlistValue{KvlistValue: &storage.KeyValueList{Values: values}}}
+	}
+	tests := []struct {
+		name    string
+		value   *storage.AnyValue
+		message string
+	}{
+		{
+			name:    "empty value in array",
+			value:   array(str("keep"), &storage.AnyValue{}),
+			message: `key "a": index 1: value is not set`,
+		},
+		{
+			name:    "empty value in nested array",
+			value:   array(array(str("keep"), &storage.AnyValue{})),
+			message: `key "a": index 0: index 1: value is not set`,
+		},
+		{
+			name: "empty value in map nested in array",
+			value: array(str("keep"), kvlist(
+				&storage.KeyValue{Key: "b", Value: kvlist(&storage.KeyValue{Key: "c", Value: &storage.AnyValue{}})},
+			)),
+			message: `key "a": index 1: key "b": key "c": value is not set`,
+		},
+	}
+	for _, test := range tests {
+		sent := &storage.TraceQueryParameters{
+			Attributes: []*storage.KeyValue{{Key: "a", Value: test.value}},
+		}
+		data, err := sent.Marshal()
+		require.NoError(t, err)
+		query := &storage.TraceQueryParameters{}
+		require.NoError(t, query.Unmarshal(data))
+
+		for _, method := range searchMethods {
+			t.Run(test.name+"/"+method.name, func(t *testing.T) {
+				reader := new(tracestoremocks.Reader)
+				handler := NewHandler(reader, new(tracestoremocks.Writer), new(depstoremocks.Reader))
+
+				err := method.call(handler, query)
+
+				require.Error(t, err)
+				assert.Equal(t, codes.InvalidArgument, status.Code(err))
+				assert.Equal(t, test.message, status.Convert(err).Message())
+				reader.AssertNotCalled(t, method.name, mock.Anything, mock.Anything)
+			})
+		}
 	}
 }
 

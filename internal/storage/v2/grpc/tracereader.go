@@ -358,8 +358,8 @@ func toProtoQueryParameters(t tracestore.TraceQueryParams) (*storage.TraceQueryP
 	return q, nil
 }
 
-// convertMapToKeyValueList refuses a value with no wire form at any depth: the server skips a nil
-// one, and a nil array element fails marshaling, so the query would not be the one that was asked.
+// convertMapToKeyValueList refuses a value with no wire form at any depth and names the path to it:
+// the server refuses a value with no type set, and a nil array element fails marshaling.
 func convertMapToKeyValueList(m pcommon.Map) ([]*storage.KeyValue, error) {
 	keyValues := make([]*storage.KeyValue, 0, m.Len())
 	var err error
