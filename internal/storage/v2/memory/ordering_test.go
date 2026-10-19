@@ -16,10 +16,11 @@ import (
 
 	expression "github.com/jaegertracing/jaeger-idl/query/expression/v1"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore"
+	"github.com/jaegertracing/jaeger/internal/tenancy"
 )
 
 func TestFindSpansOrdering(t *testing.T) {
-	store, err := NewStore(Configuration{MaxTraces: 10})
+	store, err := NewStore(Configuration{MaxTraces: 10}, tenancy.Options{})
 	require.NoError(t, err)
 	data := ptrace.NewTraces()
 	for _, f := range []struct {
@@ -122,7 +123,7 @@ func TestDecodeSpanCursorMalformed(t *testing.T) {
 }
 
 func TestFindSpansOrderedDuplicatesAndChangedToken(t *testing.T) {
-	store, err := NewStore(Configuration{MaxTraces: 10})
+	store, err := NewStore(Configuration{MaxTraces: 10}, tenancy.Options{})
 	require.NoError(t, err)
 	base := time.Date(2026, 3, 1, 12, 0, 0, 0, time.UTC)
 	writeTracesStartingAt(t, store, 2, base)

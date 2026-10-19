@@ -96,6 +96,7 @@ func main() {
 				backend,
 				telset,
 				nil, // no auth resolver for remote-storage
+				cfg.Tenancy,
 			)
 			if err != nil {
 				logger.Fatal("Failed to create storage factory", zap.Error(err))

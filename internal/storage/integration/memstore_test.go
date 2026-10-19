@@ -13,6 +13,7 @@ import (
 	"github.com/jaegertracing/jaeger/internal/storage/integration/capabilities"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/memory"
 	"github.com/jaegertracing/jaeger/internal/telemetry"
+	"github.com/jaegertracing/jaeger/internal/tenancy"
 	"github.com/jaegertracing/jaeger/internal/testutils"
 )
 
@@ -26,7 +27,7 @@ func (s *MemStorageIntegrationTestSuite) initialize(t *testing.T) {
 	telset := telemetry.NoopSettings()
 	telset.Logger = s.logger
 
-	f, err := memory.NewFactory(memory.Configuration{MaxTraces: 10000}, telset)
+	f, err := memory.NewFactory(memory.Configuration{MaxTraces: 10000}, telset, tenancy.Options{})
 	require.NoError(t, err)
 	traceReader, err := f.CreateTraceReader()
 	require.NoError(t, err)

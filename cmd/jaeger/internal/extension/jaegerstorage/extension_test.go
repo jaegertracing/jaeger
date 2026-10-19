@@ -35,6 +35,7 @@ import (
 	"github.com/jaegertracing/jaeger/internal/storage/v2/grpc"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/memory"
 	"github.com/jaegertracing/jaeger/internal/telemetry"
+	"github.com/jaegertracing/jaeger/internal/tenancy"
 )
 
 type errorFactory struct {
@@ -103,6 +104,47 @@ func TestStorageExtensionType(t *testing.T) {
 	host := storagetest.NewStorageHost().WithExtension(ID, startStorageExtension(t, "", "foo"))
 	_, err := findExtension(host)
 	require.NoError(t, err)
+}
+
+func TestStorageTenancyOptions(t *testing.T) {
+	t.Run("matching lists are order independent", func(t *testing.T) {
+		ext := startStorageExtension(t, "memory", "").(*storageExt)
+		host := storagetest.NewStorageHost().WithExtension(ID, ext)
+		require.NoError(t, ConfigureTenancy(host, tenancy.Options{Enabled: true, Tenants: []string{"a", "b"}}))
+		_, err := GetTraceStoreFactory("memory", host)
+		require.NoError(t, err)
+		require.NoError(t, ConfigureTenancy(host, tenancy.Options{Enabled: true, Tenants: []string{"b", "a"}}))
+		require.NoError(t, ConfigureTenancy(host, tenancy.Options{}))
+	})
+
+	t.Run("different lists fail after initialization", func(t *testing.T) {
+		ext := startStorageExtension(t, "memory", "").(*storageExt)
+		host := storagetest.NewStorageHost().WithExtension(ID, ext)
+		require.NoError(t, ConfigureTenancy(host, tenancy.Options{Enabled: true, Tenants: []string{"a"}}))
+		_, err := GetTraceStoreFactory("memory", host)
+		require.NoError(t, err)
+		require.ErrorContains(t, ConfigureTenancy(host, tenancy.Options{Enabled: true, Tenants: []string{"b"}}), "conflicting multi_tenancy tenant lists")
+	})
+
+	t.Run("empty list fails before initialization", func(t *testing.T) {
+		ext := startStorageExtension(t, "memory", "").(*storageExt)
+		host := storagetest.NewStorageHost().WithExtension(ID, ext)
+		require.NoError(t, ConfigureTenancy(host, tenancy.Options{Enabled: true}))
+		_, err := GetTraceStoreFactory("memory", host)
+		require.ErrorContains(t, err, "multi-tenancy is enabled with an empty tenant list")
+	})
+
+	t.Run("empty list fails after initialization", func(t *testing.T) {
+		ext := startStorageExtension(t, "memory", "").(*storageExt)
+		host := storagetest.NewStorageHost().WithExtension(ID, ext)
+		_, err := GetTraceStoreFactory("memory", host)
+		require.NoError(t, err)
+		require.ErrorContains(t, ConfigureTenancy(host, tenancy.Options{Enabled: true}), "multi-tenancy is enabled with an empty tenant list")
+	})
+
+	t.Run("unknown storage extension", func(t *testing.T) {
+		require.ErrorContains(t, ConfigureTenancy(componenttest.NewNopHost(), tenancy.Options{}), "cannot find extension")
+	})
 }
 
 func TestStorageExtensionRejectsMultipleInstances(t *testing.T) {

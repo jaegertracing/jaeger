@@ -24,6 +24,7 @@ import (
 	"github.com/jaegertracing/jaeger/internal/storage/v2/grpc"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/memory"
 	"github.com/jaegertracing/jaeger/internal/telemetry"
+	"github.com/jaegertracing/jaeger/internal/tenancy"
 )
 
 func getTelemetrySettings() telemetry.Settings {
@@ -64,6 +65,7 @@ func TestCreateTraceStorageFactory_Memory(t *testing.T) {
 		backend,
 		getTelemetrySettings(),
 		nil,
+		tenancy.Options{},
 	)
 
 	require.NoError(t, err)
@@ -71,6 +73,26 @@ func TestCreateTraceStorageFactory_Memory(t *testing.T) {
 	t.Cleanup(func() {
 		if closer, ok := factory.(io.Closer); ok {
 			require.NoError(t, closer.Close())
+		}
+	})
+}
+
+func TestCreateTraceStorageFactoryTenancy(t *testing.T) {
+	options := tenancy.Options{Enabled: true}
+	t.Run("memory rejects an empty tenant list", func(t *testing.T) {
+		backend := TraceBackend{Memory: &memory.Configuration{MaxTraces: 10}}
+		factory, err := CreateTraceStorageFactory(t.Context(), "memory", backend, getTelemetrySettings(), nil, options)
+		require.ErrorContains(t, err, "failed to initialize storage 'memory'")
+		require.ErrorContains(t, err, "multi-tenancy is enabled with an empty tenant list")
+		require.Nil(t, factory)
+	})
+	t.Run("other backends keep accepting an empty tenant list", func(t *testing.T) {
+		backend := TraceBackend{Badger: &badger.Config{Ephemeral: true, MaintenanceInterval: 5, MetricsUpdateInterval: 10}}
+		factory, err := CreateTraceStorageFactory(t.Context(), "badger", backend, getTelemetrySettings(), nil, options)
+		require.NoError(t, err)
+		require.NotNil(t, factory)
+		if closer, ok := factory.(io.Closer); ok {
+			t.Cleanup(func() { require.NoError(t, closer.Close()) })
 		}
 	})
 }
@@ -90,6 +112,7 @@ func TestCreateTraceStorageFactory_Badger(t *testing.T) {
 		backend,
 		getTelemetrySettings(),
 		nil,
+		tenancy.Options{},
 	)
 
 	require.NoError(t, err)
@@ -116,6 +139,7 @@ func TestCreateTraceStorageFactory_GRPC(t *testing.T) {
 		backend,
 		getTelemetrySettings(),
 		nil,
+		tenancy.Options{},
 	)
 
 	require.NoError(t, err)
@@ -138,6 +162,7 @@ func TestCreateTraceStorageFactory_Cassandra(t *testing.T) {
 		backend,
 		getTelemetrySettings(),
 		nil,
+		tenancy.Options{},
 	)
 
 	// Cassandra will fail without proper servers config, but we're testing the factory creation path
@@ -160,6 +185,7 @@ func TestCreateTraceStorageFactory_Elasticsearch(t *testing.T) {
 		backend,
 		getTelemetrySettings(),
 		nil,
+		tenancy.Options{},
 	)
 
 	require.NoError(t, err)
@@ -190,6 +216,7 @@ func TestCreateTraceStorageFactory_ElasticsearchWithAuthResolver(t *testing.T) {
 		backend,
 		getTelemetrySettings(),
 		authResolver,
+		tenancy.Options{},
 	)
 
 	require.NoError(t, err)
@@ -220,6 +247,7 @@ func TestCreateTraceStorageFactory_ElasticsearchAuthResolverError(t *testing.T) 
 		backend,
 		getTelemetrySettings(),
 		authResolver,
+		tenancy.Options{},
 	)
 
 	require.Error(t, err)
@@ -241,6 +269,7 @@ func TestCreateTraceStorageFactory_Opensearch(t *testing.T) {
 		backend,
 		getTelemetrySettings(),
 		nil,
+		tenancy.Options{},
 	)
 
 	require.NoError(t, err)
@@ -271,6 +300,7 @@ func TestCreateTraceStorageFactory_OpensearchWithAuthResolver(t *testing.T) {
 		backend,
 		getTelemetrySettings(),
 		authResolver,
+		tenancy.Options{},
 	)
 
 	require.NoError(t, err)
@@ -301,6 +331,7 @@ func TestCreateTraceStorageFactory_OpensearchAuthResolverError(t *testing.T) {
 		backend,
 		getTelemetrySettings(),
 		authResolver,
+		tenancy.Options{},
 	)
 
 	require.Error(t, err)
@@ -326,6 +357,7 @@ func TestCreateTraceStorageFactory_ClickHouse(t *testing.T) {
 		backend,
 		getTelemetrySettings(),
 		nil,
+		tenancy.Options{},
 	)
 
 	require.NoError(t, err)
@@ -348,6 +380,7 @@ func TestCreateTraceStorageFactory_ClickHouseError(t *testing.T) {
 		backend,
 		getTelemetrySettings(),
 		nil,
+		tenancy.Options{},
 	)
 
 	// ClickHouse will fail without proper config, but we're testing the factory creation path
@@ -364,6 +397,7 @@ func TestCreateTraceStorageFactory_EmptyBackend(t *testing.T) {
 		backend,
 		getTelemetrySettings(),
 		nil,
+		tenancy.Options{},
 	)
 
 	require.Error(t, err)
