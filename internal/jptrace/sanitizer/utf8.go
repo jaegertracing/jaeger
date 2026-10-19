@@ -182,7 +182,7 @@ func sanitizeAttributes(attributes pcommon.Map) {
 		sanitizeValue(v)
 		if !utf8.ValidString(k) {
 			moved := pcommon.NewValueEmpty()
-			v.CopyTo(moved)
+			v.MoveTo(moved)
 			invalidKeys = append(invalidKeys, invalidKey{key: k, value: moved})
 		}
 		return true
@@ -197,7 +197,7 @@ func sanitizeAttributes(attributes pcommon.Map) {
 		if _, exists := attributes.Get(repaired); exists {
 			continue
 		}
-		item.value.CopyTo(attributes.PutEmpty(repaired))
+		item.value.MoveTo(attributes.PutEmpty(repaired))
 	}
 }
 
