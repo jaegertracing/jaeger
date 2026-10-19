@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -37,11 +38,11 @@ var _ acp.Client = (*streamingClient)(nil)
 // forgetting one is a compile error rather than a runtime ZodError on the
 // frontend. Framing is delegated to the SDK's SSEWriter.
 //
-// All mutable fields (closed, threadID, runID, messageID, textOpen) are
-// guarded by mu. The ACP SDK may invoke SessionUpdate on a goroutine other
-// than the one driving Prompt, and lifecycle calls (startRun, finishRun,
-// failRun) come from the chat handler — every entry point that touches
-// state or writes a frame must acquire the lock first.
+// All mutable fields (closed, threadID, runID, messageID, textOpen,
+// pendingWS) are guarded by mu. The ACP SDK may invoke SessionUpdate on a
+// goroutine other than the one driving Prompt, and lifecycle calls
+// (startRun, finishRun, failRun) come from the chat handler — every entry
+// point that touches state or writes a frame must acquire the lock first.
 type streamingClient struct {
 	requestCtx context.Context
 	w          http.ResponseWriter
@@ -52,6 +53,11 @@ type streamingClient struct {
 	runID      string
 	messageID  string
 	textOpen   bool
+	// pendingWS buffers whitespace-only agent chunks that arrive before any
+	// visible text. They are prepended to the next non-whitespace chunk so
+	// a leading newline is kept, without opening a bubble that contains
+	// only whitespace. A tool call or the end of the run discards it.
+	pendingWS string
 }
 
 func newStreamingClient(ctx context.Context, w http.ResponseWriter, threadID, runID string) *streamingClient {
@@ -121,6 +127,9 @@ func (c *streamingClient) startRun() {
 func (c *streamingClient) finishRun(stopReason string) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
+	// Whitespace still buffered never became part of a message. Drop it
+	// rather than opening a bubble just to close the run.
+	c.discardPendingWS()
 	if c.textOpen {
 		c.emit(aguievents.NewTextMessageEndEvent(c.messageID))
 		c.textOpen = false
@@ -141,6 +150,7 @@ func (c *streamingClient) finishRun(stopReason string) {
 func (c *streamingClient) failRun(message string) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
+	c.discardPendingWS()
 	if c.textOpen {
 		c.emit(aguievents.NewTextMessageEndEvent(c.messageID))
 		c.textOpen = false
@@ -173,6 +183,7 @@ func (c *streamingClient) ensureTextStart() {
 func (c *streamingClient) EmitUIToolCall(toolCallID, toolName string, rawArgs any) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
+	c.discardPendingWS()
 	c.emit(aguievents.NewToolCallStartEvent(toolCallID, toolName))
 	if rawArgs != nil {
 		c.emit(aguievents.NewToolCallArgsEvent(toolCallID, marshalToolArgsDelta(rawArgs)))
@@ -225,21 +236,20 @@ func (c *streamingClient) SessionUpdate(_ context.Context, n acp.SessionNotifica
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	u := n.Update
-	if u.AgentMessageChunk != nil {
-		content := u.AgentMessageChunk.Content
-		// AG-UI's TextMessageContentEvent rejects a delta of "" and the SDK
-		// encoder then closes the SSE stream. ACP agents emit those empty
-		// chunks as content-block framing (content_block_start). Skip only
-		// a truly empty chunk (len == 0). Whitespace-only chunks are real
-		// deltas: agents such as Claude Code stream spaces and newlines on
-		// their own, and dropping them glues tokens together and loses
-		// paragraph breaks. Forward the original text unchanged.
-		if content.Text != nil && content.Text.Text != "" {
-			c.ensureTextStart()
-			c.emit(aguievents.NewTextMessageContentEvent(c.messageID, content.Text.Text))
-		}
+	if u.AgentMessageChunk != nil && u.AgentMessageChunk.Content.Text != nil {
+		// AG-UI rejects a TEXT_MESSAGE_CONTENT delta of "" and then closes
+		// the SSE stream, so truly empty framing chunks are skipped.
+		// Whitespace-only chunks are real deltas, but they must not open a
+		// message by themselves: a standalone newline before the first
+		// word, or between tool calls, would start a bubble whose only
+		// content is whitespace. Hold those until visible text arrives and
+		// prepend them. Once a message is open, forward them immediately.
+		c.emitAgentText(u.AgentMessageChunk.Content.Text.Text)
 	}
 	if u.ToolCall != nil {
+		// A tool call before any visible text means the buffered whitespace
+		// was a separator, not the start of the assistant message.
+		c.discardPendingWS()
 		// The agent populates ACP Title with the tool name it was offered, which
 		// for a UI tool carries UIToolPrefix. Strip it so the frontend sees the
 		// name it registered.
@@ -255,6 +265,7 @@ func (c *streamingClient) SessionUpdate(_ context.Context, n acp.SessionNotifica
 		}
 	}
 	if u.ToolCallUpdate != nil {
+		c.discardPendingWS()
 		if u.ToolCallUpdate.RawInput != nil {
 			c.emit(aguievents.NewToolCallArgsEvent(
 				string(u.ToolCallUpdate.ToolCallId),
@@ -274,6 +285,32 @@ func (c *streamingClient) SessionUpdate(_ context.Context, n acp.SessionNotifica
 		}
 	}
 	return nil
+}
+
+// emitAgentText writes one assistant text chunk. Must be called with c.mu
+// held. Empty text is skipped. Whitespace-only text is buffered while no
+// message is open and prepended to the next visible chunk; after the
+// message is open it is emitted unchanged.
+func (c *streamingClient) emitAgentText(text string) {
+	if text == "" {
+		return
+	}
+	if !c.textOpen && strings.TrimSpace(text) == "" {
+		c.pendingWS += text
+		return
+	}
+	c.ensureTextStart()
+	if c.pendingWS != "" {
+		text = c.pendingWS + text
+		c.pendingWS = ""
+	}
+	c.emit(aguievents.NewTextMessageContentEvent(c.messageID, text))
+}
+
+// discardPendingWS drops whitespace buffered ahead of the first visible
+// text. Must be called with c.mu held.
+func (c *streamingClient) discardPendingWS() {
+	c.pendingWS = ""
 }
 
 // The methods below implement acp.Client operations that the Jaeger gateway
