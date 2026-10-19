@@ -19,13 +19,8 @@ import (
 	"go.uber.org/zap"
 )
 
-// streamingClientIDSeq is a process-wide monotonic counter appended to the
-// time-derived stem when startRun allocates IDs. Even on systems with
-// coarse clock resolution (some VMs, older Windows) or two streamingClients
-// constructed within the same nanosecond, the counter guarantees no two
-// runs in this process share a stem. The combination (nanos-seq) is also
-// time-sortable across processes, which keeps logs from a single Jaeger
-// instance well-ordered.
+// streamingClientIDSeq is the process-wide monotonic counter that newIDStem
+// appends to its time-derived stem.
 var streamingClientIDSeq atomic.Uint64
 
 var _ acp.Client = (*streamingClient)(nil)
@@ -96,7 +91,9 @@ func (c *streamingClient) startRun() {
 	// Allocate one stem per startRun and derive all three IDs from it.
 	// Sharing the stem makes the trio visibly correlated in logs/traces — a
 	// thread-N-K, run-N-K, msg-N-K triplet tells a debugger at a glance
-	// they came from the same run startup.
+	// they came from the same run startup. Only the first text message of
+	// the run carries the shared stem; closeText clears messageID and
+	// ensureTextStart mints a fresh stem for each later message.
 	stem := newIDStem()
 	if c.threadID == "" {
 		c.threadID = "thread-" + stem
@@ -110,9 +107,9 @@ func (c *streamingClient) startRun() {
 	c.emit(aguievents.NewRunStartedEvent(c.threadID, c.runID))
 }
 
-// newIDStem returns "<nanos>-<seq>". The nanosecond is time-sortable across
-// processes, and the process-wide counter keeps two stems minted in the same
-// nanosecond distinct.
+// newIDStem returns "<nanos>-<seq>". The nanosecond keeps IDs time-sortable
+// across processes, and the counter keeps two stems minted in the same
+// nanosecond distinct on systems with coarse clock resolution.
 func newIDStem() string {
 	return fmt.Sprintf("%d-%d", time.Now().UnixNano(), streamingClientIDSeq.Add(1))
 }
@@ -164,10 +161,11 @@ func (c *streamingClient) ensureTextStart() {
 }
 
 // closeText emits TEXT_MESSAGE_END for the open text message, if any, and
-// clears messageID so the next text chunk starts a new message. AG-UI
-// clients keep one text part per messageId, so text that arrives after a
-// tool call must carry a new id to render after the tool call rather than
-// be appended to the text before it. Must be called with c.mu held.
+// clears messageID so the next text chunk starts a new message. The
+// @assistant-ui/react-ag-ui aggregator keeps one text part per messageId, so
+// text that arrives after a tool call must carry a new id to render after
+// the tool call rather than be appended to the text before it. Must be
+// called with c.mu held.
 func (c *streamingClient) closeText() {
 	if !c.textOpen {
 		return

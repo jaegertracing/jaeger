@@ -235,6 +235,7 @@ func TestStreamingClientFinishRunClosesOpenTextAndEmitsRunFinished(t *testing.T)
 	require.True(t, ok, "stopReason must ride inside the schema-supported result payload")
 	assert.Equal(t, "end_turn", result["stopReason"])
 	assert.False(t, c.textOpen, "textOpen should be reset after finishRun")
+	assert.Empty(t, c.messageID, "messageID should be cleared with the text message")
 }
 
 func TestStreamingClientFinishRunOmitsResultWhenNoStopReason(t *testing.T) {
@@ -266,6 +267,8 @@ func TestStreamingClientFailRunEmitsRunError(t *testing.T) {
 	assert.Equal(t, []string{"RUN_STARTED", "TEXT_MESSAGE_START", "TEXT_MESSAGE_END", "RUN_ERROR"}, types)
 	assert.Equal(t, "boom", events[3]["message"])
 	assert.Equal(t, "run-1", events[3]["runId"], "RUN_ERROR should propagate runId so the frontend can correlate")
+	assert.False(t, c.textOpen)
+	assert.Empty(t, c.messageID)
 }
 
 func TestStreamingClientEnsureTextStartIsIdempotent(t *testing.T) {
@@ -413,6 +416,16 @@ func TestStreamingClientSessionUpdateAgentMessageChunkSkipsEmptyText(t *testing.
 		"empty-text agent_message_chunk must not produce any SSE events")
 	assert.False(t, c.textOpen,
 		"TEXT_MESSAGE_START must not be emitted when no content will follow")
+}
+
+func messageIDs(events []map[string]any, eventType string) []string {
+	var ids []string
+	for _, e := range events {
+		if e["type"] == eventType {
+			ids = append(ids, e["messageId"].(string))
+		}
+	}
+	return ids
 }
 
 func contentDeltas(events []map[string]any) []string {
@@ -731,13 +744,12 @@ func TestStreamingClientToolCallClosesTextAndStartsNewMessage(t *testing.T) {
 			require.Equal(t, tt.types, eventTypes(events))
 			assert.Equal(t, []string{"before", "after"}, contentDeltas(events))
 
-			n := len(events)
-			firstID := events[1]["messageId"]
-			secondID := events[n-4]["messageId"]
-			assert.Equal(t, firstID, events[3]["messageId"])
-			assert.Equal(t, secondID, events[n-2]["messageId"])
-			assert.NotEqual(t, firstID, secondID,
-				"a client keeps one text part per messageId, so reusing the id would append the text to the part before the tool call")
+			starts := messageIDs(events, "TEXT_MESSAGE_START")
+			require.Len(t, starts, 2)
+			assert.NotEqual(t, starts[0], starts[1],
+				"the UI keeps one text part per messageId, so reusing the id would append the text to the part before the tool call")
+			assert.Equal(t, starts, messageIDs(events, "TEXT_MESSAGE_CONTENT"))
+			assert.Equal(t, starts, messageIDs(events, "TEXT_MESSAGE_END"))
 		})
 	}
 }
