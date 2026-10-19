@@ -266,17 +266,17 @@ func filterTestCases(p builder.Predicate) []filterCase {
 		{
 			caption:  "fulltext matches all words in any order",
 			filter:   p.Span().Attr("note").Fulltext("premium", "refund"),
-			expected: []string{"text-search"},
+			expected: []string{"link_peer", "text-search"},
 		},
 		{
 			caption:  "fulltext matches the words a phrase rejects for their order",
 			filter:   p.Span().Attr("note").Fulltext("policy", "refund"),
-			expected: []string{"text-search"},
+			expected: []string{"scope_peer", "text-search"},
 		},
 		{
 			caption:  "fulltext is case insensitive",
 			filter:   p.Span().Attr("note").Fulltext("PREMIUM", "REFUND"),
-			expected: []string{"text-search"},
+			expected: []string{"link_peer", "text-search"},
 		},
 		{
 			caption:  "fulltext does not match when a word is missing",

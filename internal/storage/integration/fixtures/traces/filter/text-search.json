@@ -16,8 +16,8 @@
           "scope": {},
           "spans": [
             {
-              "traceId": "00000000000000000000000000000f06",
-              "spanId": "0000000000000f06",
+              "traceId": "00000000000000000000000000000f0a",
+              "spanId": "0000000000000f0a",
               "name": "POST /refund",
               "startTimeUnixNano": "1485449191639875000",
               "endTimeUnixNano": "1485449191839875000",

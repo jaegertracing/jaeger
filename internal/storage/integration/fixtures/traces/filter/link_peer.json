@@ -21,6 +21,12 @@
               "name": "RUN /link",
               "startTimeUnixNano": "1485449191639875000",
               "endTimeUnixNano": "1485449191739875000",
+              "attributes": [
+                {
+                  "key": "note",
+                  "value": { "stringValue": "Premium refund" }
+                }
+              ],
               "links": [
                 {
                   "traceId": "00000000000000000000000000000f01",
