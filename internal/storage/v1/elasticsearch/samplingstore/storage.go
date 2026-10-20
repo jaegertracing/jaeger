@@ -19,6 +19,11 @@ import (
 	"github.com/jaegertracing/jaeger/internal/storage/v1/elasticsearch/samplingstore/dbmodel"
 )
 
+// latestProbabilitiesSearchSize is how many of the newest probabilities documents
+// GetLatestProbabilities reads. The index sorts timestamps at millisecond precision,
+// so it reads a few and picks the newest at full precision.
+const latestProbabilitiesSearchSize = 10
+
 // IndexExistenceChecker reports whether an index exists. It is the narrow
 // admin-plane capability the sampling store needs to find the latest sampling
 // index; the factory satisfies it with an esclient.IndicesClient.
@@ -125,21 +130,31 @@ func (s *SamplingStore) GetLatestProbabilities() (model.ServiceOperationProbabil
 	if err != nil {
 		return nil, fmt.Errorf("failed to get latest index: %w", err)
 	}
-	// Ask for the newest document only; unmapped_type keeps a new, still empty
-	// index (no timestamp mapping yet) from failing the search.
 	searchResult, err := s.searcher.Search(ctx, []string{index}, esclient.SearchRequest{
-		Size: 1,
+		Size: latestProbabilitiesSearchSize,
+		// unmapped_type keeps a new, still empty index (no timestamp mapping yet)
+		// from failing the search.
 		Sort: []esclient.SortOrder{{Field: "timestamp", Order: query.Descending, UnmappedType: "date"}},
 	})
 	if err != nil {
 		return nil, fmt.Errorf("failed to search for Latest Probabilities: %w", err)
 	}
-	if len(searchResult.Hits.Hits) == 0 {
+	lengthOfSearchResult := len(searchResult.Hits.Hits)
+	if lengthOfSearchResult == 0 {
 		return nil, nil
 	}
+
 	var latestProbabilities dbmodel.TimeProbabilitiesAndQPS
-	if err := json.Unmarshal(searchResult.Hits.Hits[0].Source, &latestProbabilities); err != nil {
-		return nil, fmt.Errorf("unmarshalling documents failed: %w", err)
+	latestTime := time.Time{}
+	for _, hit := range searchResult.Hits.Hits {
+		var data dbmodel.TimeProbabilitiesAndQPS
+		if err = json.Unmarshal(hit.Source, &data); err != nil {
+			return nil, fmt.Errorf("unmarshalling documents failed: %w", err)
+		}
+		if data.Timestamp.After(latestTime) {
+			latestTime = data.Timestamp
+			latestProbabilities = data
+		}
 	}
 	return latestProbabilities.ProbabilitiesAndQPS.Probabilities, nil
 }

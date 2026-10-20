@@ -310,10 +310,16 @@ func TestGetLatestProbabilitiesRequestsNewestDocument(t *testing.T) {
 	indexClient.On("IndexExists", mock.Anything, "jaeger-sampling-read").Return(true, nil)
 	searcher := esclientmocks.NewSearcher(t)
 	searcher.On("Search", mock.Anything, []string{"jaeger-sampling-read"}, esclient.SearchRequest{
-		Size: 1,
+		Size: latestProbabilitiesSearchSize,
 		Sort: []esclient.SortOrder{{Field: "timestamp", Order: query.Descending, UnmappedType: "date"}},
-	}).Return(hitsResponse(`{
-		"timestamp": "2024-02-08T12:00:00Z",
+	}).Return(hitsResponse(
+		// Same millisecond: the sort can return them in either order.
+		`{
+		"timestamp": "2024-02-08T12:00:00.000100Z",
+		"probabilitiesandqps": {"Probabilities": {"old-srv": {"op": 0.5}}}
+	}`,
+		`{
+		"timestamp": "2024-02-08T12:00:00.000200Z",
 		"probabilitiesandqps": {"Probabilities": {"new-srv": {"op": 0.1}}}
 	}`), nil)
 	store := NewSamplingStore(Params{
