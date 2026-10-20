@@ -56,7 +56,7 @@ func TestUIToolDescriptorsSkipsMalformed(t *testing.T) {
 	}}
 	descs := uiToolDescriptors(sess, zap.NewNop())
 	require.Len(t, descs, 1, "only the well-formed tool is described")
-	assert.Equal(t, "show_chart", descs[0].Name)
+	assert.Equal(t, UIToolPrefix+"show_chart", descs[0].Name, "UI tools are advertised under the namespace")
 	assert.Equal(t, "d", descs[0].Description)
 	assert.Equal(t, map[string]any{"type": "object"}, descs[0].InputSchema)
 }
@@ -68,7 +68,7 @@ func TestUIToolDescriptorsDeduplicatesNames(t *testing.T) {
 		rawUITool(t, "highlight"),
 	}}
 	descs := uiToolDescriptors(sess, zap.NewNop())
-	assert.Equal(t, []string{"show_chart", "highlight"}, toolNames(descs), "repeated names collapse to one entry")
+	assert.Equal(t, []string{UIToolPrefix + "show_chart", UIToolPrefix + "highlight"}, toolNames(descs), "repeated names collapse to one entry")
 }
 
 func TestAppendUITools(t *testing.T) {
@@ -76,15 +76,16 @@ func TestAppendUITools(t *testing.T) {
 	telemetry := []*mcp.Tool{{Name: "get_services"}, {Name: "search_traces"}}
 	assert.Equal(t, telemetry, appendUITools(telemetry, &turnState{}, zap.NewNop()))
 
-	// A UI tool shadows a same-named telemetry tool (single entry, UI wins); the
-	// unrelated telemetry tool is kept and the new UI tool is appended.
+	// A UI tool named like a telemetry tool does not shadow it: the namespace
+	// keeps both, so the agent's telemetry capability never depends on what the
+	// frontend chose to call its tools.
 	sess := &turnState{uiTools: []json.RawMessage{
-		rawUITool(t, "search_traces"), // shadows the telemetry tool of the same name
+		rawUITool(t, "search_traces"),
 		rawUITool(t, "show_chart"),
 	}}
 	merged := appendUITools([]*mcp.Tool{{Name: "get_services"}, {Name: "search_traces"}}, sess, zap.NewNop())
-	assert.Equal(t, []string{"get_services", "search_traces", "show_chart"}, toolNames(merged),
-		"shadowed telemetry tool is dropped and UI tools appended, one entry per name")
+	assert.Equal(t, []string{"get_services", "search_traces", UIToolPrefix + "search_traces", UIToolPrefix + "show_chart"}, toolNames(merged),
+		"telemetry tools are kept whole and UI tools are appended under the namespace")
 }
 
 func TestSessionDeclaredUITool(t *testing.T) {
@@ -133,10 +134,10 @@ func TestUIDispatchMiddleware(t *testing.T) {
 		return &mcp.ListToolsResult{Tools: []*mcp.Tool{{Name: "get_services"}}}, nil
 	}
 
-	t.Run("tools/list appends the session's UI tools", func(t *testing.T) {
+	t.Run("tools/list appends the session's UI tools under the namespace", func(t *testing.T) {
 		res, err := mw(telemetryList)(ctx, methodListTools, &mcp.ListToolsRequest{Params: &mcp.ListToolsParams{}})
 		require.NoError(t, err)
-		assert.Equal(t, []string{"get_services", "show_chart"}, toolNames(res.(*mcp.ListToolsResult).Tools))
+		assert.Equal(t, []string{"get_services", UIToolPrefix + "show_chart"}, toolNames(res.(*mcp.ListToolsResult).Tools))
 	})
 
 	t.Run("tools/list with no active session is telemetry-only", func(t *testing.T) {
@@ -159,19 +160,49 @@ func TestUIDispatchMiddleware(t *testing.T) {
 		assert.IsType(t, &mcp.CallToolResult{}, res)
 	})
 
-	t.Run("tools/call dispatches a UI tool without hitting telemetry", func(t *testing.T) {
+	t.Run("tools/call dispatches a namespaced UI tool without hitting telemetry", func(t *testing.T) {
 		called := false
 		next := func(context.Context, string, mcp.Request) (mcp.Result, error) {
 			called = true
 			return &mcp.CallToolResult{}, nil
 		}
 		res, err := mw(next)(ctx, methodCallTool, &mcp.CallToolRequest{
-			Params: &mcp.CallToolParamsRaw{Name: "show_chart", Arguments: json.RawMessage(`{"a":1}`)},
+			Params: &mcp.CallToolParamsRaw{Name: UIToolPrefix + "show_chart", Arguments: json.RawMessage(`{"a":1}`)},
 		})
 		require.NoError(t, err)
 		assert.False(t, called, "a UI tool must not fall through to the telemetry handlers")
 		assert.False(t, res.(*mcp.CallToolResult).IsError)
-		assert.Contains(t, rec.Body.String(), "show_chart")
+		assert.Contains(t, rec.Body.String(), `"toolCallName":"show_chart"`, "the browser receives the bare name it registered")
+		assert.NotContains(t, rec.Body.String(), UIToolPrefix, "the namespace never reaches the browser")
+	})
+
+	t.Run("tools/call with the bare UI tool name falls through to telemetry", func(t *testing.T) {
+		called := false
+		next := func(context.Context, string, mcp.Request) (mcp.Result, error) {
+			called = true
+			return &mcp.CallToolResult{}, nil
+		}
+		_, err := mw(next)(ctx, methodCallTool, &mcp.CallToolRequest{Params: &mcp.CallToolParamsRaw{Name: "show_chart"}})
+		require.NoError(t, err)
+		assert.True(t, called, "without the namespace the name is a telemetry tool, declared or not")
+	})
+
+	t.Run("tools/call rejects a namespaced tool the turn did not declare", func(t *testing.T) {
+		called := false
+		next := func(context.Context, string, mcp.Request) (mcp.Result, error) {
+			called = true
+			return &mcp.CallToolResult{}, nil
+		}
+		res, err := mw(next)(ctx, methodCallTool, &mcp.CallToolRequest{Params: &mcp.CallToolParamsRaw{Name: UIToolPrefix + "not_declared"}})
+		require.NoError(t, err)
+		assert.False(t, called, "an undeclared UI tool must not reach the telemetry handlers")
+		assert.True(t, res.(*mcp.CallToolResult).IsError, "the agent cannot dispatch a UI tool the frontend never declared")
+	})
+
+	t.Run("tools/call rejects a namespaced tool when no turn is active", func(t *testing.T) {
+		res, err := mw(telemetryList)(context.Background(), methodCallTool, &mcp.CallToolRequest{Params: &mcp.CallToolParamsRaw{Name: UIToolPrefix + "show_chart"}})
+		require.NoError(t, err)
+		assert.True(t, res.(*mcp.CallToolResult).IsError)
 	})
 
 	t.Run("tools/call passes a telemetry tool through", func(t *testing.T) {

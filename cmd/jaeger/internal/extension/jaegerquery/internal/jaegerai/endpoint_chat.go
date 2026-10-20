@@ -30,8 +30,7 @@ type ChatRequest = aguitypes.RunAgentInput
 // resulting ACP notifications are streamed back to the caller as AG-UI SSE
 // events.
 type chatEndpoint struct {
-	Logger   *zap.Logger
-	ctxTools *ContextualToolsStore
+	Logger *zap.Logger
 	// turns registers each turn's SSE streaming client and UI tools so the
 	// turn-scoped MCP endpoint can resolve an active turn. Always non-nil (set by
 	// the constructor).
@@ -75,15 +74,13 @@ func (h *chatEndpoint) announceMCP(caps acp.AgentCapabilities, mcpRouteID string
 }
 
 // newChatEndpoint wires the chat endpoint against a sidecar WebSocket URL.
-// ctxTools may be nil in tests that do not exercise contextual tooling. basePath
-// is the jaeger-query base path; it is normalized once and kept on the endpoint
+// basePath is the jaeger-query base path; it is normalized once and kept on the endpoint
 // for consistency with sibling handlers even though ServeHTTP does not currently
 // read it. mcpBaseURL defaults to the zero value — the announcement stays off until
 // NewHandler enables it — so tests that do not exercise MCP need no extra wiring.
-func newChatEndpoint(logger *zap.Logger, ctxTools *ContextualToolsStore, turns *turnRegistry, sidecarWSURL string, sidecarHeaders configopaque.MapList, basePath string, maxRequestBodySize int64) *chatEndpoint {
+func newChatEndpoint(logger *zap.Logger, turns *turnRegistry, sidecarWSURL string, sidecarHeaders configopaque.MapList, basePath string, maxRequestBodySize int64) *chatEndpoint {
 	return &chatEndpoint{
 		Logger:             logger,
-		ctxTools:           ctxTools,
 		turns:              turns,
 		sidecarWSURL:       sidecarWSURL,
 		sidecarHeaders:     sidecarHeaders,
@@ -118,13 +115,7 @@ func (h *chatEndpoint) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Reject blank tool names up front. Empty or whitespace-only names
-	// would prefix to "ui_" (or "ui_   "), which the dispatcher later
-	// rejects as InvalidParams and which would also pollute both the Meta
-	// payload and the ContextualToolsStore snapshot with unusable entries.
-	// Failing fast here keeps both gateway-side data structures clean and
-	// surfaces frontend bugs as a 400 rather than a silent mid-turn error.
-	if err := validateContextualToolNames(req.Tools); err != nil {
+	if err := validateUIToolNames(req.Tools); err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
@@ -134,16 +125,9 @@ func (h *chatEndpoint) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		promptBlocks = append(promptBlocks, acp.TextBlock(ctxText))
 	}
 
-	// Build two snapshots from the same input:
-	//   - prefixedTools (Meta wire shape): names are UIToolPrefix-namespaced
-	//     so the sidecar registers them with the LLM under the prefix, which
-	//     guarantees no collision with built-in Jaeger MCP tool names.
-	//   - rawTools (ContextualToolsStore): the original frontend names, so
-	//     handleJaegerToolCall can validate dispatches against the unprefixed
-	//     name it gets after stripping. Storing prefixed bytes here would
-	//     force every consumer to know about the transport-level prefix.
-	prefixedTools := prefixContextualTools(req.Tools)
-	rawTools := encodeToolsAsRaw(req.Tools)
+	// Preserve the original AG-UI tool declarations for the turn-scoped MCP
+	// endpoint and browser events.
+	rawUITools := encodeUIToolsAsRaw(req.Tools)
 
 	ctx := r.Context()
 	acpCtx, cancel := context.WithCancel(ctx)
@@ -162,17 +146,12 @@ func (h *chatEndpoint) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	// confirm the turn is active, advertise its UI tools, and dispatch their calls
 	// onto the stream. The registry mints the route id, which we announce to the
 	// sidecar below as the turn's MCP URL, and hands back a closer.
-	mcpRouteID, closeTurn := h.turns.register(clientImpl, rawTools)
+	mcpRouteID, closeTurn := h.turns.register(clientImpl, rawUITools)
 	defer closeTurn()
 
-	// Build the ACP connection ourselves so the inbound dispatcher can
-	// route both standard ACP methods (session/update etc.) and our
-	// extension method (ExtMethodJaegerToolCall) — the SDK's
-	// NewClientSideConnection has a hardcoded dispatcher that returns
-	// MethodNotFound for any extension method we add.
-	acpConn := acp.NewConnection(newACPHandler(clientImpl, h.ctxTools, h.Logger), adapter, adapter)
+	acpConn := acp.NewClientSideConnection(clientImpl, adapter, adapter)
 
-	init, err := acp.SendRequest[acp.InitializeResponse](acpConn, acpCtx, acp.AgentMethodInitialize, acp.InitializeRequest{
+	init, err := acpConn.Initialize(acpCtx, acp.InitializeRequest{
 		ProtocolVersion: acp.ProtocolVersionNumber,
 		ClientCapabilities: acp.ClientCapabilities{
 			Fs:       acp.FileSystemCapabilities{ReadTextFile: false, WriteTextFile: false},
@@ -212,14 +191,7 @@ func (h *chatEndpoint) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		// transports it advertised support for in Initialize.
 		McpServers: h.announceMCP(init.AgentCapabilities, mcpRouteID),
 	}
-	if len(prefixedTools) > 0 {
-		newSessionReq.Meta = map[string]any{
-			ContextualToolsMetaKey: map[string]any{
-				"tools": prefixedTools,
-			},
-		}
-	}
-	sess, err := acp.SendRequest[acp.NewSessionResponse](acpConn, acpCtx, acp.AgentMethodSessionNew, newSessionReq)
+	sess, err := acpConn.NewSession(acpCtx, newSessionReq)
 	if err != nil {
 		http.Error(w, fmt.Sprintf("Error creating session: %v", err), http.StatusBadGateway)
 		return
@@ -227,15 +199,6 @@ func (h *chatEndpoint) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	span.SetAttributes(otelsemconv.GenAIConversationID(string(sess.SessionId)))
 
 	defer closeACPSession(ctx, acpConn, init.AgentCapabilities, sess.SessionId, h.Logger)
-
-	// Publish the unprefixed snapshot under the assigned ACP session id so
-	// handleJaegerToolCall can confirm dispatches by their post-strip
-	// (frontend) name. Cleared at turn end regardless of success.
-	if h.ctxTools != nil && len(rawTools) > 0 {
-		sessionID := string(sess.SessionId)
-		h.ctxTools.SetForSession(sessionID, rawTools)
-		defer h.ctxTools.DeleteForSession(sessionID)
-	}
 
 	// Set streaming headers just before Prompt: SessionUpdate callbacks
 	// start firing SSE frames from here on, and headers must be committed
@@ -256,7 +219,7 @@ func (h *chatEndpoint) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	// it (SEP-414 style, same as the MCP tool-call boundary) parents its own
 	// agentic-loop spans under this request's span, joining what would
 	// otherwise be two disconnected traces into one.
-	promptResp, err := acp.SendRequest[acp.PromptResponse](acpConn, acpCtx, acp.AgentMethodSessionPrompt, acp.PromptRequest{
+	promptResp, err := acpConn.Prompt(acpCtx, acp.PromptRequest{
 		SessionId: sess.SessionId,
 		Prompt:    promptBlocks,
 		Meta:      injectTraceContextIntoMeta(ctx, nil),
