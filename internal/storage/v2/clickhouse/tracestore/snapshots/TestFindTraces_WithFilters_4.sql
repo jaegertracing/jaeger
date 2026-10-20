@@ -69,5 +69,5 @@ SELECT
     scope_complex_attributes.value
 FROM
     spans s
-WHERE s.trace_id IN (?) AND s.start_time >= fromUnixTimestamp64Nano(?) AND s.start_time <= fromUnixTimestamp64Nano(?)
+WHERE (s.trace_id = ? AND s.start_time >= fromUnixTimestamp64Nano(?) AND s.start_time <= fromUnixTimestamp64Nano(?))
 ORDER BY s.trace_id

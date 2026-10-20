@@ -79,10 +79,13 @@ func TestFindTraces_StagedQueries(t *testing.T) {
 		case 3:
 			require.True(t, timestampRows.closed)
 			require.True(t, strings.HasPrefix(q, strings.TrimRight(sql.SelectSpansQuery, "\n")))
-			require.Contains(t, q, "WHERE s.trace_id IN (?) AND s.start_time >= fromUnixTimestamp64Nano(?) AND s.start_time <= fromUnixTimestamp64Nano(?)")
+			require.Contains(t, q, "WHERE (s.trace_id = ? AND s.start_time >= fromUnixTimestamp64Nano(?) AND s.start_time <= fromUnixTimestamp64Nano(?)) OR (s.trace_id = ? AND s.start_time >= fromUnixTimestamp64Nano(?) AND s.start_time <= fromUnixTimestamp64Nano(?))")
 			require.NotContains(t, q, "s.service_name =")
 			require.NotContains(t, q, "trace_id_timestamps")
-			require.Equal(t, []any{[]string{traceIDHex1, traceIDHex2}, start.UnixNano(), end.UnixNano()}, args)
+			require.Equal(t, []any{
+				traceIDHex1, start.UnixNano(), end.Add(-time.Second).UnixNano(),
+				traceIDHex2, start.Add(time.Second).UnixNano(), end.UnixNano(),
+			}, args)
 			return spanRows, nil
 		default:
 			t.Fatalf("unexpected query: %s", q)
@@ -141,46 +144,71 @@ func TestFindTraceIDs_MissingTimestamps(t *testing.T) {
 		{TraceID: pcommon.TraceID{15: 2}, Start: now.Add(-time.Hour), End: now},
 	}, ids)
 	q, args := buildFindTracesQuery(ids)
-	require.NotContains(t, q, "AND s.start_time")
-	require.Equal(t, []any{[]string{traceIDHex1, traceIDHex2}}, args)
+	require.Equal(t, strings.TrimRight(sql.SelectSpansQuery, "\n")+
+		"\nWHERE (s.trace_id = ?) OR (s.trace_id = ? AND s.start_time >= fromUnixTimestamp64Nano(?) AND s.start_time <= fromUnixTimestamp64Nano(?))\nORDER BY s.trace_id", q)
+	require.Equal(t, []any{traceIDHex1, traceIDHex2, now.Add(-time.Hour).UnixNano(), now.UnixNano()}, args)
 }
 
 func TestBuildFindTracesQuery_TimeBounds(t *testing.T) {
 	start := time.Unix(1700000000, 123456789)
 	end := start.Add(3*time.Second + 987654321*time.Nanosecond)
+	const boundedTrace = "(s.trace_id = ? AND s.start_time >= fromUnixTimestamp64Nano(?) AND s.start_time <= fromUnixTimestamp64Nano(?))"
 	for _, tc := range []struct {
-		name   string
-		bounds []tracestore.FoundTraceID
-		args   []any
+		name      string
+		bounds    []tracestore.FoundTraceID
+		condition string
+		args      []any
 	}{
 		{
 			name: "single trace", bounds: []tracestore.FoundTraceID{{TraceID: pcommon.TraceID{15: 1}, Start: start, End: end}},
-			args: []any{[]string{traceIDHex1}, start.UnixNano(), end.UnixNano()},
+			condition: boundedTrace,
+			args:      []any{traceIDHex1, start.UnixNano(), end.UnixNano()},
 		},
 		{
-			name: "unordered bounds", bounds: []tracestore.FoundTraceID{
+			name: "long trace does not widen another trace's range", bounds: []tracestore.FoundTraceID{
 				{TraceID: pcommon.TraceID{15: 1}, Start: start.Add(time.Second), End: end.Add(-time.Second)},
-				{TraceID: pcommon.TraceID{15: 2}, Start: start, End: end},
+				{TraceID: pcommon.TraceID{15: 2}, Start: start.Add(-24 * time.Hour), End: end.Add(24 * time.Hour)},
 			},
-			args: []any{[]string{traceIDHex1, traceIDHex2}, start.UnixNano(), end.UnixNano()},
+			condition: boundedTrace + " OR " + boundedTrace,
+			args: []any{
+				traceIDHex1, start.Add(time.Second).UnixNano(), end.Add(-time.Second).UnixNano(),
+				traceIDHex2, start.Add(-24 * time.Hour).UnixNano(), end.Add(24 * time.Hour).UnixNano(),
+			},
+		},
+		{
+			name: "mixed metadata", bounds: []tracestore.FoundTraceID{
+				{TraceID: pcommon.TraceID{15: 1}, Start: start, End: end},
+				{TraceID: pcommon.TraceID{15: 2}},
+				{TraceID: pcommon.TraceID{15: 3}, Start: start.Add(-time.Hour), End: end.Add(time.Hour)},
+			},
+			condition: boundedTrace + " OR (s.trace_id = ?) OR " + boundedTrace,
+			args: []any{
+				traceIDHex1, start.UnixNano(), end.UnixNano(), traceIDHex2,
+				"00000000000000000000000000000003", start.Add(-time.Hour).UnixNano(), end.Add(time.Hour).UnixNano(),
+			},
 		},
 		{
 			name: "missing start", bounds: []tracestore.FoundTraceID{{TraceID: pcommon.TraceID{15: 1}, End: end}},
-			args: []any{[]string{traceIDHex1}},
+			condition: "(s.trace_id = ?)",
+			args:      []any{traceIDHex1},
 		},
 		{
 			name: "missing end", bounds: []tracestore.FoundTraceID{{TraceID: pcommon.TraceID{15: 1}, Start: start}},
-			args: []any{[]string{traceIDHex1}},
+			condition: "(s.trace_id = ?)",
+			args:      []any{traceIDHex1},
+		},
+		{
+			name: "all metadata missing", bounds: []tracestore.FoundTraceID{
+				{TraceID: pcommon.TraceID{15: 1}}, {TraceID: pcommon.TraceID{15: 2}},
+			},
+			condition: "(s.trace_id = ?) OR (s.trace_id = ?)",
+			args:      []any{traceIDHex1, traceIDHex2},
 		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			q, args := buildFindTracesQuery(tc.bounds)
+			require.Equal(t, strings.TrimRight(sql.SelectSpansQuery, "\n")+"\nWHERE "+tc.condition+"\nORDER BY s.trace_id", q)
 			require.Equal(t, tc.args, args)
-			if len(args) == 3 {
-				require.Contains(t, q, "fromUnixTimestamp64Nano(?)")
-			} else {
-				require.NotContains(t, q, "AND s.start_time")
-			}
 		})
 	}
 }

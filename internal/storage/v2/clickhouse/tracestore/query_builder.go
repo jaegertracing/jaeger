@@ -9,7 +9,6 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
-	"time"
 
 	"go.opentelemetry.io/collector/pdata/pcommon"
 	"go.opentelemetry.io/collector/pdata/xpdata"
@@ -111,31 +110,26 @@ func buildGetTracesQuery(params tracestore.GetTraceParams) (string, []any) {
 }
 
 func buildFindTracesQuery(traceIDs []tracestore.FoundTraceID) (string, []any) {
-	ids := make([]string, 0, len(traceIDs))
-	var start, end time.Time
-	bounded := true
+	var q strings.Builder
+	q.WriteString(strings.TrimRight(sql.SelectSpansQuery, "\n"))
+	q.WriteString("\nWHERE ")
+	args := make([]any, 0, 3*len(traceIDs))
 	for i, trace := range traceIDs {
-		ids = append(ids, trace.TraceID.String())
-		if trace.Start.IsZero() || trace.End.IsZero() {
-			bounded = false
+		if i > 0 {
+			q.WriteString(" OR ")
 		}
-		if i == 0 || trace.Start.Before(start) {
-			start = trace.Start
+		q.WriteString("(s.trace_id = ?")
+		args = append(args, trace.TraceID.String())
+		// Missing metadata leaves only this trace unbounded.
+		if !trace.Start.IsZero() && !trace.End.IsZero() {
+			// Positional time.Time arguments are truncated to seconds by clickhouse-go.
+			q.WriteString(" AND s.start_time >= fromUnixTimestamp64Nano(?) AND s.start_time <= fromUnixTimestamp64Nano(?)")
+			args = append(args, trace.Start.UnixNano(), trace.End.UnixNano())
 		}
-		if trace.End.After(end) {
-			end = trace.End
-		}
+		q.WriteString(")")
 	}
-
-	q := strings.TrimRight(sql.SelectSpansQuery, "\n") + "\nWHERE s.trace_id IN (?)"
-	args := []any{ids}
-	// Missing timestamp metadata must not hide an otherwise searchable trace.
-	if bounded {
-		// Positional time.Time arguments are truncated to seconds by clickhouse-go.
-		q += " AND s.start_time >= fromUnixTimestamp64Nano(?) AND s.start_time <= fromUnixTimestamp64Nano(?)"
-		args = append(args, start.UnixNano(), end.UnixNano())
-	}
-	return q + "\nORDER BY s.trace_id", args
+	q.WriteString("\nORDER BY s.trace_id")
+	return q.String(), args
 }
 
 func (r *Reader) buildFindTraceIDsQuery(
