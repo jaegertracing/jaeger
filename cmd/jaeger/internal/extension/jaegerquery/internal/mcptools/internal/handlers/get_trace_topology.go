@@ -9,6 +9,7 @@ import (
 	"errors"
 	"fmt"
 	"slices"
+	"strings"
 	"time"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
@@ -73,6 +74,7 @@ func (h *getTraceTopologyHandler) handle(
 	// Collect all spans from the trace
 	var spans []rawSpan
 	traceFound := false
+	truncated := false
 
 	for trace, err := range aggregatedIter {
 		if err != nil {
@@ -80,6 +82,15 @@ func (h *getTraceTopologyHandler) handle(
 		}
 
 		traceFound = true
+
+		for _, span := range jptrace.SpanIter(trace) {
+			for _, warning := range jptrace.GetWarnings(span) {
+				if strings.Contains(warning, "trace has more than") &&
+					strings.Contains(warning, "spans, showing first") {
+					truncated = true
+				}
+			}
+		}
 
 		// Iterate through all spans in the trace and collect them
 		for pos, span := range jptrace.SpanIter(trace) {
@@ -96,8 +107,9 @@ func (h *getTraceTopologyHandler) handle(
 
 	// Build the flat topology list from the collected spans
 	output := types.GetTraceTopologyOutput{
-		TraceID: input.TraceID,
-		Spans:   h.buildFlatTopology(spans, input.Depth),
+		TraceID:   input.TraceID,
+		Spans:     h.buildFlatTopology(spans, input.Depth),
+		Truncated: truncated,
 	}
 
 	return nil, output, nil
