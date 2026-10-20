@@ -14,6 +14,7 @@ import (
 	"go.opentelemetry.io/collector/otelcol"
 
 	"github.com/jaegertracing/jaeger/cmd/internal/docs"
+	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/configschema"
 	"github.com/jaegertracing/jaeger/internal/config"
 	"github.com/jaegertracing/jaeger/internal/jconfmap"
 	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/mappings"
@@ -61,6 +62,7 @@ func NewCommand(factories otelcol.Factories) *cobra.Command {
 	cmd.AddCommand(version.Command())
 	cmd.AddCommand(docs.Command(v))
 	cmd.AddCommand(mappings.Command())
+	cmd.AddCommand(configschema.Command(factories))
 	config.AddFlags(v, cmd)
 
 	return cmd
