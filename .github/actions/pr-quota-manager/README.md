@@ -274,7 +274,7 @@ label. The ownership marker records whether the action added the label, so an
 existing manual `duplicate` label is never claimed or removed. Scheduled and
 manual sweeps scan all open PR comments for policy markers, which lets a later
 run repair a partial comment/label write. PR and issue-label events inspect only
-their affected PRs and PRs already carrying `duplicate`. Cleanup removes labels
-while the ownership marker is still present and restores removed labels if a
-later removal fails. It does not mutate stale PRs, avoiding stale-policy
-reactivation caused by bot activity.
+their affected PRs, PRs already carrying `duplicate`, and newly calculated
+duplicates. Cleanup removes labels while the ownership marker is still present
+and restores removed labels if a later removal fails. It does not mutate stale
+PRs, avoiding stale-policy reactivation caused by bot activity.

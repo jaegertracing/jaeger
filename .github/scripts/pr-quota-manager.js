@@ -559,6 +559,13 @@ function issueLimitCommentCandidates(pullRequests, repository, pullRequestNumber
     .map(pr => pr.number));
 }
 
+function reconciledIssueNumbers(issues, commentCandidates) {
+  return [...issues.values()]
+    .filter(issue => issue.pullRequests.some(pr => commentCandidates.has(pr.number)))
+    .map(issue => issue.number)
+    .sort((left, right) => left - right);
+}
+
 /**
  * Reconcile the complete open-PR graph in one paginated GraphQL traversal.
  * Computing every PR's links together avoids one issue clearing another issue's
@@ -577,27 +584,27 @@ async function processIssueLimits(
   for (const number of desiredDuplicates.keys()) {
     commentCandidates.add(number);
   }
-  const scopedDuplicates = desiredDuplicates;
+  const reconciledIssues = reconciledIssueNumbers(issues, commentCandidates);
 
   const commentSets = new Map();
   // Scheduled/manual sweeps inspect every marker for recovery. Event-driven
-  // reconciliation is limited to affected PRs and existing duplicate labels
-  // to preserve the shared GitHub token's hourly REST API budget.
+  // reconciliation also includes calculated duplicates so the surviving run
+  // applies a missed label without exhausting the shared REST API budget.
   await forEachWithConcurrency([...commentCandidates], COMMENT_REQUEST_CONCURRENCY, async number => {
     commentSets.set(number, await listIssueLimitComments(octokit, owner, repo, number));
   });
 
   if (dryRun) return {
-    reconciledIssues: [...issues.keys()].sort((left, right) => left - right),
-    duplicates: [...scopedDuplicates.keys()].sort((left, right) => left - right)
+    reconciledIssues,
+    duplicates: [...desiredDuplicates.keys()].sort((left, right) => left - right)
   };
 
-  const missingDuplicateLabel = [...scopedDuplicates.keys()].some(number =>
+  const missingDuplicateLabel = [...desiredDuplicates.keys()].some(number =>
     !labelNames(knownPRs.get(number).labels).includes(DUPLICATE_LABEL_NAME)
   );
   if (missingDuplicateLabel) await ensureIssueLimitLabels(octokit, owner, repo);
   // Add/update first. A later API failure must not remove an existing signal.
-  for (const [number, duplicates] of scopedDuplicates) {
+  for (const [number, duplicates] of desiredDuplicates) {
     const pr = knownPRs.get(number);
     const comments = commentSets.get(number) || [];
     const hasDuplicateLabel = labelNames(pr.labels).includes(DUPLICATE_LABEL_NAME);
@@ -618,7 +625,7 @@ async function processIssueLimits(
   for (const [number, pr] of knownPRs) {
     // Cleanup must not update stale PRs: stale policy treats bot activity as
     // renewed activity and could reactivate a PR that should stay inactive.
-    if (!commentCandidates.has(number) || !isActivePR(pr) || scopedDuplicates.has(number)) continue;
+    if (!commentCandidates.has(number) || !isActivePR(pr) || desiredDuplicates.has(number)) continue;
     const comments = commentSets.get(number) || [];
     if (comments.length === 0) continue;
     cleanup.push({
@@ -666,7 +673,7 @@ async function processIssueLimits(
   }
   // Collapse historical marker comments without deleting user-visible history.
   for (const [number, comments] of commentSets) {
-    if (!scopedDuplicates.has(number)) continue;
+    if (!desiredDuplicates.has(number)) continue;
     for (const comment of comments.slice(1)) {
       await octokit.rest.issues.updateComment({
         owner,
@@ -678,8 +685,8 @@ async function processIssueLimits(
   }
 
   return {
-    reconciledIssues: [...issues.keys()].sort((left, right) => left - right),
-    duplicates: [...scopedDuplicates.keys()].sort((left, right) => left - right)
+    reconciledIssues,
+    duplicates: [...desiredDuplicates.keys()].sort((left, right) => left - right)
   };
 }
 
@@ -803,6 +810,7 @@ if (typeof module !== 'undefined' && module.exports) {
   module.exports.fetchOpenPullRequests = fetchOpenPullRequests;
   module.exports.calculateIssueLimitState = calculateIssueLimitState;
   module.exports.issueLimitCommentCandidates = issueLimitCommentCandidates;
+  module.exports.reconciledIssueNumbers = reconciledIssueNumbers;
   module.exports.listIssueLimitComments = listIssueLimitComments;
   module.exports.forEachWithConcurrency = forEachWithConcurrency;
   module.exports.processIssueLimits = processIssueLimits;

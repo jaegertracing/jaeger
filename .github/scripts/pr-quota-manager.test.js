@@ -825,6 +825,31 @@ describe('processIssueLimitForPullRequest', () => {
     expect(listedPRs).not.toContain(30);
   });
 
+  test('reconciles calculated duplicates outside the triggering PRs issues', async () => {
+    const issueOne = [{ number: 1, repository: { nameWithOwner: 'owner/repo' }, labels: { nodes: [] } }];
+    const issueTwo = [{ number: 2, repository: { nameWithOwner: 'owner/repo' }, labels: { nodes: [] } }];
+    const issueThree = [{ number: 3, repository: { nameWithOwner: 'owner/repo' }, labels: { nodes: [] } }];
+    const octokit = issueLimitOctokit({
+      issues: [
+        makePR(10, '2026-01-01T00:00:00Z', [], false, 'CONTRIBUTOR', issueOne),
+        makePR(20, '2026-01-01T00:00:00Z', [], false, 'CONTRIBUTOR', issueTwo),
+        makePR(30, '2026-01-02T00:00:00Z', [], false, 'CONTRIBUTOR', issueTwo),
+        makePR(40, '2026-01-03T00:00:00Z', [], false, 'CONTRIBUTOR', issueThree)
+      ]
+    });
+
+    const result = await processIssueLimitForPullRequest(octokit, 'owner', 'repo', 10);
+
+    const listedPRs = octokit.rest.issues.listComments.mock.calls.map(([{ issue_number }]) => issue_number);
+    expect(listedPRs).toEqual(expect.arrayContaining([10, 30]));
+    expect(listedPRs).not.toContain(40);
+    expect(octokit.rest.issues.addLabels).toHaveBeenCalledWith(expect.objectContaining({
+      issue_number: 30,
+      labels: [DUPLICATE_LABEL_NAME]
+    }));
+    expect(result.reconciledIssues).toEqual([1, 2]);
+  });
+
   test('does not list comments for unrelated PRs during issue-label reconciliation', async () => {
     const issueOne = [{ number: 1, repository: { nameWithOwner: 'owner/repo' }, labels: { nodes: [] } }];
     const issueTwo = [{ number: 2, repository: { nameWithOwner: 'owner/repo' }, labels: { nodes: [] } }];
