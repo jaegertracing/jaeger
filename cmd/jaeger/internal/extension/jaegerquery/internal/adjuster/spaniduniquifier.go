@@ -26,16 +26,17 @@ var errTooManySpans = errors.New("cannot assign unique span ID, too many spans i
 func DeduplicateClientServerSpanIDs() Adjuster {
 	return Func(func(traces ptrace.Traces) {
 		adjuster := spanIDDeduper{
-			spansByID: make(map[pcommon.SpanID][]ptrace.Span),
-			maxUsedID: pcommon.NewSpanIDEmpty(),
+			hasClientSpanByID: make(map[pcommon.SpanID]bool),
+			maxUsedID:         pcommon.NewSpanIDEmpty(),
 		}
 		adjuster.adjust(traces)
 	})
 }
 
 type spanIDDeduper struct {
-	spansByID map[pcommon.SpanID][]ptrace.Span
-	maxUsedID pcommon.SpanID
+	// A key's presence means the span ID is in use; its value says whether a client span uses it.
+	hasClientSpanByID map[pcommon.SpanID]bool
+	maxUsedID         pcommon.SpanID
 }
 
 func (d *spanIDDeduper) adjust(traces ptrace.Traces) {
@@ -43,7 +44,7 @@ func (d *spanIDDeduper) adjust(traces ptrace.Traces) {
 	d.uniquifyServerSpanIDs(traces)
 }
 
-// groupSpansByID groups spans with the same ID returning a map id -> []Span
+// groupSpansByID records every span ID in the trace and whether a client span uses it.
 func (d *spanIDDeduper) groupSpansByID(traces ptrace.Traces) {
 	resourceSpans := traces.ResourceSpans()
 	for i := 0; i < resourceSpans.Len(); i++ {
@@ -54,24 +55,15 @@ func (d *spanIDDeduper) groupSpansByID(traces ptrace.Traces) {
 			spans := ss.Spans()
 			for k := 0; k < spans.Len(); k++ {
 				span := spans.At(k)
-				if spans, ok := d.spansByID[span.SpanID()]; ok {
-					d.spansByID[span.SpanID()] = append(spans, span)
-				} else {
-					d.spansByID[span.SpanID()] = []ptrace.Span{span}
-				}
+				spanID := span.SpanID()
+				d.hasClientSpanByID[spanID] = d.hasClientSpanByID[spanID] || span.Kind() == ptrace.SpanKindClient
 			}
 		}
 	}
 }
 
 func (d *spanIDDeduper) isSharedWithClientSpan(spanID pcommon.SpanID) bool {
-	spans := d.spansByID[spanID]
-	for _, span := range spans {
-		if span.Kind() == ptrace.SpanKindClient {
-			return true
-		}
-	}
-	return false
+	return d.hasClientSpanByID[spanID]
 }
 
 func (d *spanIDDeduper) uniquifyServerSpanIDs(traces ptrace.Traces) {
@@ -133,7 +125,7 @@ func (*spanIDDeduper) swapParentIDs(
 func (d *spanIDDeduper) makeUniqueSpanID() (pcommon.SpanID, error) {
 	id := incrementSpanID(d.maxUsedID)
 	for id != pcommon.NewSpanIDEmpty() {
-		if _, exists := d.spansByID[id]; !exists {
+		if _, exists := d.hasClientSpanByID[id]; !exists {
 			d.maxUsedID = id
 			return id, nil
 		}
