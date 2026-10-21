@@ -49,7 +49,7 @@ teardown_clickhouse() {
 run_integration_test() {
     local storage_test=${1:-e2e}
     local clickhouse_version=${2:-lts-latest}
-    compose_file="docker-compose/clickhouse/${clickhouse_version}.yml"
+    compose_file="docker-compose/clickhouse/docker-compose-${clickhouse_version}.yml"
     if [ ! -f "$compose_file" ]; then
         echo "ERROR: Compose file not found: $compose_file"
         exit 1
