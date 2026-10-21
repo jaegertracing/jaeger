@@ -125,6 +125,7 @@ func BuildCorpus(t *testing.T, suiteFixtures []*QueryFixtures, caps capabilities
 		c.Duplicates = buildSyntheticTrace(t, duplicateTraceSpans, duplicateSpanFrequency, duplicateSpansService, 0xD1)
 	}
 	c.CrossService = buildCrossServiceTraces()
+	c.QueryTraces["complete_search"] = buildCompleteSearchTrace()
 	c.Pagination = buildPaginationTraces()
 	c.SpanOrdering = buildSpanOrderingTraces()
 

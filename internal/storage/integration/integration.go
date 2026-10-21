@@ -746,6 +746,7 @@ func (s *StorageIntegration) AssertCorpus(t *testing.T) {
 	t.Run("GetLargeTrace", s.testGetLargeTrace)
 	t.Run("GetTraceWithDuplicateSpans", s.testGetTraceWithDuplicates)
 	t.Run("FindTraces", s.testFindTraces)
+	t.Run("FindCompleteTraces", s.testFindCompleteTraces)
 	t.Run("FindTracesWithFilter", s.testFindTracesWithFilter)
 	t.Run("FindTraceSummaries", s.testFindTraceSummaries)
 	t.Run("Pagination", s.testPagination)
