@@ -22,8 +22,8 @@ jobs:
         - e2e
         - direct
         clickhouse_version:
-        - lts-previous
-        - lts-latest
+        - lts-march
+        - lts-august
     name: clickhouse ${{ matrix.storage_test }} ${{ matrix.clickhouse_version }}
     steps:
     - name: Harden Runner

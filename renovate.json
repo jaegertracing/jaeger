@@ -222,7 +222,8 @@
       ]
     },
     {
-      "description": "The two ClickHouse LTS pins are rotated together by the process tracked in jaegertracing/jaeger#8664. Renovate must not move either file, because its next minor update would be a monthly stable release, not an LTS.",
+      "description": "ClickHouse publishes an LTS release in March (x.3) and in August (x.8) and supports each for a year. This file follows the March line, so a new March LTS arrives as a major update and the two files always hold the two supported lines.",
+      "groupName": "ClickHouse March LTS docker image",
       "matchDatasources": [
         "docker"
       ],
@@ -230,9 +231,37 @@
         "clickhouse/clickhouse-server"
       ],
       "matchFileNames": [
-        "docker-compose/clickhouse/docker-compose-*.yml"
+        "docker-compose/clickhouse/docker-compose-lts-march.yml"
       ],
-      "enabled": false
+      "matchUpdateTypes": [
+        "major",
+        "minor",
+        "patch",
+        "digest"
+      ],
+      "allowedVersions": "/^\\d+\\.3\\./",
+      "enabled": true
+    },
+    {
+      "description": "ClickHouse publishes an LTS release in March (x.3) and in August (x.8) and supports each for a year. This file follows the August line, so a new August LTS arrives as a major update and the two files always hold the two supported lines.",
+      "groupName": "ClickHouse August LTS docker image",
+      "matchDatasources": [
+        "docker"
+      ],
+      "matchPackageNames": [
+        "clickhouse/clickhouse-server"
+      ],
+      "matchFileNames": [
+        "docker-compose/clickhouse/docker-compose-lts-august.yml"
+      ],
+      "matchUpdateTypes": [
+        "major",
+        "minor",
+        "patch",
+        "digest"
+      ],
+      "allowedVersions": "/^\\d+\\.8\\./",
+      "enabled": true
     },
     {
       "groupName": "OpenSearch 3.x docker images",
