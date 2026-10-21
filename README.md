@@ -111,7 +111,7 @@ Backend-specific policy:
 
 Support means backend versions are in scope for proactive compatibility fixes. CI coverage is not the definitive support matrix: it may test only a subset of supported versions and may retain older versions on a best-effort basis. CI coverage alone does not make a backend version supported. Jaeger does not provide support for the backend product itself, vendor-specific distributions, or versions outside the upstream maintenance window.
 
-The table below translates the policy into where each backend's versions are defined. The image pins in the per-version Docker Compose files are what CI tests, and the upstream lifecycle page is what decides which versions the policy covers.
+The table below translates the policy into where each backend's versions are defined. The image pins in the per-backend Docker Compose files are what CI tests, and the upstream lifecycle page is what decides which versions the policy covers.
 
 | Backend | Versions covered by policy | Versions tested in CI |
 | --- | --- | --- |
