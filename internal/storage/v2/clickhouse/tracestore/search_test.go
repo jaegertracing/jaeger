@@ -143,10 +143,6 @@ func TestFindTraceIDs_MissingTimestamps(t *testing.T) {
 		{TraceID: pcommon.TraceID{15: 1}},
 		{TraceID: pcommon.TraceID{15: 2}, Start: now.Add(-time.Hour), End: now},
 	}, ids)
-	q, args := buildFindTracesQuery(ids)
-	require.Equal(t, strings.TrimRight(sql.SelectSpansQuery, "\n")+
-		"\nWHERE (s.trace_id = ?) OR (s.trace_id = ? AND s.start_time >= fromUnixTimestamp64Nano(?) AND s.start_time <= fromUnixTimestamp64Nano(?))\nORDER BY s.trace_id", q)
-	require.Equal(t, []any{traceIDHex1, traceIDHex2, now.Add(-time.Hour).UnixNano(), now.UnixNano()}, args)
 }
 
 func TestBuildFindTracesQuery_TimeBounds(t *testing.T) {
@@ -163,29 +159,6 @@ func TestBuildFindTracesQuery_TimeBounds(t *testing.T) {
 			name: "single trace", bounds: []tracestore.FoundTraceID{{TraceID: pcommon.TraceID{15: 1}, Start: start, End: end}},
 			condition: boundedTrace,
 			args:      []any{traceIDHex1, start.UnixNano(), end.UnixNano()},
-		},
-		{
-			name: "long trace does not widen another trace's range", bounds: []tracestore.FoundTraceID{
-				{TraceID: pcommon.TraceID{15: 1}, Start: start.Add(time.Second), End: end.Add(-time.Second)},
-				{TraceID: pcommon.TraceID{15: 2}, Start: start.Add(-24 * time.Hour), End: end.Add(24 * time.Hour)},
-			},
-			condition: boundedTrace + " OR " + boundedTrace,
-			args: []any{
-				traceIDHex1, start.Add(time.Second).UnixNano(), end.Add(-time.Second).UnixNano(),
-				traceIDHex2, start.Add(-24 * time.Hour).UnixNano(), end.Add(24 * time.Hour).UnixNano(),
-			},
-		},
-		{
-			name: "mixed metadata", bounds: []tracestore.FoundTraceID{
-				{TraceID: pcommon.TraceID{15: 1}, Start: start, End: end},
-				{TraceID: pcommon.TraceID{15: 2}},
-				{TraceID: pcommon.TraceID{15: 3}, Start: start.Add(-time.Hour), End: end.Add(time.Hour)},
-			},
-			condition: boundedTrace + " OR (s.trace_id = ?) OR " + boundedTrace,
-			args: []any{
-				traceIDHex1, start.UnixNano(), end.UnixNano(), traceIDHex2,
-				"00000000000000000000000000000003", start.Add(-time.Hour).UnixNano(), end.Add(time.Hour).UnixNano(),
-			},
 		},
 		{
 			name: "missing start", bounds: []tracestore.FoundTraceID{{TraceID: pcommon.TraceID{15: 1}, End: end}},

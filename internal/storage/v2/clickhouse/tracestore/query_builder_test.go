@@ -173,6 +173,23 @@ func TestBuildGetTracesQuery(t *testing.T) {
 	}
 }
 
+func TestBuildFindTracesQuery_MixedMetadata(t *testing.T) {
+	start := time.Unix(1700000000, 123456789)
+	end := start.Add(3*time.Second + 987654321*time.Nanosecond)
+	// The third trace has no trace_id_timestamps row, so only its disjunct is unbounded.
+	query, args := buildFindTracesQuery([]tracestore.FoundTraceID{
+		{TraceID: pcommon.TraceID{15: 1}, Start: start.Add(time.Second), End: end.Add(-time.Second)},
+		{TraceID: pcommon.TraceID{15: 2}, Start: start.Add(-24 * time.Hour), End: end.Add(24 * time.Hour)},
+		{TraceID: pcommon.TraceID{15: 3}},
+	})
+	verifyQuerySnapshot(t, query)
+	require.Equal(t, []any{
+		traceIDHex1, start.Add(time.Second).UnixNano(), end.Add(-time.Second).UnixNano(),
+		traceIDHex2, start.Add(-24 * time.Hour).UnixNano(), end.Add(24 * time.Hour).UnixNano(),
+		"00000000000000000000000000000003",
+	}, args)
+}
+
 func TestBuildStringAttributeCondition_MultipleTypes(t *testing.T) {
 	attr := pcommon.NewValueStr("123") // parses as both int and str
 	var q strings.Builder
