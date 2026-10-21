@@ -97,13 +97,14 @@ func buildGetTracesQuery(params tracestore.GetTraceParams) (string, []any) {
 	q.WriteString(sql.SelectSpansByTraceID)
 	args := []any{params.TraceID}
 
+	// Positional time.Time arguments are truncated to seconds by clickhouse-go.
 	if !params.Start.IsZero() {
-		q.WriteString(" AND s.start_time >= ?")
-		args = append(args, params.Start)
+		q.WriteString(" AND s.start_time >= fromUnixTimestamp64Nano(?)")
+		args = append(args, params.Start.UnixNano())
 	}
 	if !params.End.IsZero() {
-		q.WriteString(" AND s.start_time <= ?")
-		args = append(args, params.End)
+		q.WriteString(" AND s.start_time <= fromUnixTimestamp64Nano(?)")
+		args = append(args, params.End.UnixNano())
 	}
 
 	return q.String(), args
