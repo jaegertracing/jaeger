@@ -100,6 +100,14 @@ only controls dynamically-imported chunks loaded later; it cannot fix the initia
 
 This is why the inline script must be placed **before all asset tags** in `index.html`.
 
+**Correction (#9781):** in practice this is not enough. Chrome and Firefox run the
+preload scanner over the markup ahead of the parser, so it sees the `./static/*`
+tags before the inline script has inserted its `<base>`. On a two-level deep link
+such as `/trace/{id}`, every asset in `<head>` was first fetched from
+`/trace/static/*` (answered with `index.html`) and then again from `/static/*`.
+Only a `<base>` present in the markup itself is seen by the scanner; see
+[Relative `<base>` from the Backend](#relative-base-from-the-backend).
+
 ### Key Insight: the Browser Knows the External Prefix
 
 When a browser requests `https://example.com/jaeger/search` and receives an
@@ -167,6 +175,19 @@ The backend must still serve `index.html` for all SPA routes under the prefix so
 that direct navigation (e.g. bookmarking `/jaeger/trace/abc123`) works.
 This requirement is unchanged; `RegisterRoutes` already does this via a catch-all
 handler.
+
+### Relative `<base>` from the Backend
+
+When serving `index.html`, the catch-all inserts `<base href>` right after `<head>`,
+ahead of the inline script and every asset tag. The `href` is relative to the
+requested document: `./` at the mount point and one `../` for each path segment
+below it, e.g. `../` for `/trace/{id}`. A relative `href` never names the prefix,
+so it resolves to the external mount point under UC-1, UC-2 and UC-3 alike, which
+keeps the decision above intact: the backend still does not inject the base path.
+
+The inline script still adds its own `<base>`, but the browser and `site-prefix.ts`
+(`document.querySelector('base').href`) both use the first one in the document,
+which is the backend's.
 
 ### Development Mode
 

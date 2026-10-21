@@ -30,6 +30,8 @@ var (
 	configJsPattern     = regexp.MustCompile(`(?im)^\s*//\s*JAEGER_CONFIG_JS.*\n.*`)
 	versionPattern      = regexp.MustCompile("JAEGER_VERSION *= *DEFAULT_VERSION;")
 	capabilitiesPattern = regexp.MustCompile("JAEGER_BACKEND_CAPABILITIES *= *DEFAULT_BACKEND_CAPABILITIES;")
+	// headTagPattern matches the opening <head> tag, after which serveSPA inserts a <base>.
+	headTagPattern = regexp.MustCompile(`(?i)<head(\s[^>]*)?>`)
 )
 
 // uiConfigReloadInterval is the TTL on the cached UI config: deriveIndexHTML
@@ -174,8 +176,8 @@ func (h *staticAssetsHandler) getUIConfig() *loadedConfig {
 // capabilities. Called per request so values that can change at runtime are
 // always current.
 //
-// The <base href> is not injected here. The UI detects its own mount-point
-// prefix at page-load time via an inline script in index.html (see ADR-009).
+// The <base href> is not injected here, since it depends on the request path;
+// serveSPA adds it (see ADR-009).
 func (h *staticAssetsHandler) deriveIndexHTML(ctx context.Context) []byte {
 	out := h.indexHTMLRaw
 	if cfg := h.getUIConfig(); cfg != nil {
@@ -289,7 +291,43 @@ func (h *staticAssetsHandler) registerRoutes(router *http.ServeMux) {
 
 func (h *staticAssetsHandler) serveSPA(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	w.Write(h.deriveIndexHTML(r.Context()))
+	depth := pathDepth(h.basePath, r.URL.EscapedPath())
+	//nolint:gosec // G705: only a count of slashes is taken from the request; the href is made of "./" and "../"
+	w.Write(insertBaseHref(h.deriveIndexHTML(r.Context()), relativeBaseHref(depth)))
+}
+
+// pathDepth returns how many directories below the UI's mount point the
+// document at requestPath is, e.g. 1 for /trace/{id}.
+func pathDepth(basePath, requestPath string) int {
+	rest := strings.TrimPrefix(strings.TrimPrefix(requestPath, basePath), "/")
+	return strings.Count(rest, "/")
+}
+
+// relativeBaseHref returns the UI's mount point as a URL relative to a document
+// depth directories below it, e.g. "../" for /trace/{id}. Being relative, it
+// resolves correctly behind a proxy that adds a prefix this server never sees.
+func relativeBaseHref(depth int) string {
+	if depth == 0 {
+		return "./"
+	}
+	return strings.Repeat("../", depth)
+}
+
+// insertBaseHref inserts <base href> right after the opening <head> tag. The
+// UI's inline script also adds a <base>, but only once it runs, which is after
+// the browser's preload scanner has already resolved the relative asset URLs
+// in <head> against the document URL. A <base> present in the markup is seen
+// by the scanner, and being first it is also the one the UI reads.
+func insertBaseHref(html []byte, href string) []byte {
+	loc := headTagPattern.FindIndex(html)
+	if loc == nil {
+		return html
+	}
+	tag := `<base href="` + href + `" />`
+	out := make([]byte, 0, len(html)+len(tag))
+	out = append(out, html[:loc[1]]...)
+	out = append(out, tag...)
+	return append(out, html[loc[1]:]...)
 }
 
 // Close is a no-op; the handler holds no resources that need explicit
