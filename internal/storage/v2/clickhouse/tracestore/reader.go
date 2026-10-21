@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"iter"
+	"slices"
 	"time"
 
 	"github.com/ClickHouse/clickhouse-go/v2/lib/driver"
@@ -22,6 +23,11 @@ import (
 )
 
 var _ tracestore.Reader = (*Reader)(nil)
+
+// traceSearchChunkSize caps the number of trace IDs per bounds lookup and span
+// fetch statement. clickhouse-go inlines the arguments into the SQL text, which
+// the server parses under max_query_size (256 KiB by default).
+const traceSearchChunkSize = 500
 
 type ReaderConfig struct {
 	// DefaultSearchDepth is the default number of trace IDs to return when searching for traces.
@@ -201,36 +207,52 @@ func (r *Reader) FindTraces(
 			return
 		}
 
-		q, args := buildFindTracesQuery(traceIDs)
-		rows, err := r.conn.Query(ctx, q, args...)
-		if err != nil {
-			yield(nil, fmt.Errorf("failed to query traces: %w", err))
-			return
-		}
-
-		var errs []error
-		for rows.Next() {
-			span, scanErr := dbmodel.ScanRow(rows)
-			if scanErr != nil {
-				errs = append(errs, fmt.Errorf("failed to scan span row: %w", scanErr))
-				break
-			}
-			trace := dbmodel.FromRow(span)
-			if !yield([]ptrace.Traces{trace}, nil) {
-				_ = rows.Close()
+		for chunk := range slices.Chunk(traceIDs, traceSearchChunkSize) {
+			if !r.findTracesChunk(ctx, chunk, yield) {
 				return
 			}
 		}
-		if rowsErr := rows.Err(); rowsErr != nil {
-			errs = append(errs, fmt.Errorf("failed to read span rows: %w", rowsErr))
+	}
+}
+
+// findTracesChunk fetches the spans of one chunk of traces and reports whether
+// the caller should continue with the next chunk.
+func (r *Reader) findTracesChunk(
+	ctx context.Context,
+	traceIDs []tracestore.FoundTraceID,
+	yield func([]ptrace.Traces, error) bool,
+) bool {
+	q, args := buildFindTracesQuery(traceIDs)
+	rows, err := r.conn.Query(ctx, q, args...)
+	if err != nil {
+		yield(nil, fmt.Errorf("failed to query traces: %w", err))
+		return false
+	}
+
+	var errs []error
+	for rows.Next() {
+		span, scanErr := dbmodel.ScanRow(rows)
+		if scanErr != nil {
+			errs = append(errs, fmt.Errorf("failed to scan span row: %w", scanErr))
+			break
 		}
-		if closeErr := rows.Close(); closeErr != nil {
-			errs = append(errs, fmt.Errorf("failed to close rows: %w", closeErr))
-		}
-		if err := errors.Join(errs...); err != nil {
-			yield(nil, err)
+		trace := dbmodel.FromRow(span)
+		if !yield([]ptrace.Traces{trace}, nil) {
+			_ = rows.Close()
+			return false
 		}
 	}
+	if rowsErr := rows.Err(); rowsErr != nil {
+		errs = append(errs, fmt.Errorf("failed to read span rows: %w", rowsErr))
+	}
+	if closeErr := rows.Close(); closeErr != nil {
+		errs = append(errs, fmt.Errorf("failed to close rows: %w", closeErr))
+	}
+	if err := errors.Join(errs...); err != nil {
+		yield(nil, err)
+		return false
+	}
+	return true
 }
 
 // searchTraceIDs materializes the bounded candidate set before querying any
@@ -273,15 +295,33 @@ func (r *Reader) findTraceIDsWithBounds(ctx context.Context, query tracestore.Tr
 	if err != nil || len(traceIDs) == 0 {
 		return nil, err
 	}
-	ids := make([]string, 0, len(traceIDs))
 	positions := make(map[pcommon.TraceID]int, len(traceIDs))
 	for i, trace := range traceIDs {
-		ids = append(ids, trace.TraceID.String())
 		positions[trace.TraceID] = i
 	}
+	for chunk := range slices.Chunk(traceIDs, traceSearchChunkSize) {
+		ids := make([]string, 0, len(chunk))
+		for _, trace := range chunk {
+			ids = append(ids, trace.TraceID.String())
+		}
+		if err := r.readTraceBounds(ctx, ids, traceIDs, positions); err != nil {
+			return nil, err
+		}
+	}
+	return traceIDs, nil
+}
+
+// readTraceBounds looks up the bounds of the given IDs and stores them into
+// traceIDs at the index recorded in positions.
+func (r *Reader) readTraceBounds(
+	ctx context.Context,
+	ids []string,
+	traceIDs []tracestore.FoundTraceID,
+	positions map[pcommon.TraceID]int,
+) error {
 	rows, err := r.conn.Query(ctx, sql.SelectTraceIDTimestamps, ids)
 	if err != nil {
-		return nil, fmt.Errorf("failed to query trace timestamps: %w", err)
+		return fmt.Errorf("failed to query trace timestamps: %w", err)
 	}
 	var errs []error
 	for rows.Next() {
@@ -300,7 +340,7 @@ func (r *Reader) findTraceIDsWithBounds(ctx context.Context, query tracestore.Tr
 	if err := rows.Close(); err != nil {
 		errs = append(errs, fmt.Errorf("failed to close rows: %w", err))
 	}
-	return traceIDs, errors.Join(errs...)
+	return errors.Join(errs...)
 }
 
 func readRowIntoTraceID(rows driver.Rows) (tracestore.FoundTraceID, error) {
