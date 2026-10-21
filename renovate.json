@@ -230,7 +230,7 @@
         "clickhouse/clickhouse-server"
       ],
       "matchFileNames": [
-        "docker-compose/clickhouse/**/docker-compose.yml"
+        "docker-compose/clickhouse/*.yml"
       ],
       "enabled": false
     },
