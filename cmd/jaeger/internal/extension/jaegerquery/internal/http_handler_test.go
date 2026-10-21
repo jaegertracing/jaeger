@@ -898,7 +898,7 @@ func TestNewAPIHandler_Defaults(t *testing.T) {
 	assert.NotNil(t, aH.tracer)
 }
 
-// a NaN double attribute makes GET /api/traces/{id} fail with 500.
+// Non-finite double attributes (NaN, ±Inf) must not break JSON encoding of the trace.
 func TestGetTraceWithNonFiniteDoubleAttribute(t *testing.T) {
 	for _, v := range []float64{math.NaN(), math.Inf(1), math.Inf(-1)} {
 		t.Run(fmt.Sprintf("%v", v), func(t *testing.T) {
