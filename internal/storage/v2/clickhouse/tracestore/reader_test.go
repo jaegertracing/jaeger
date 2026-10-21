@@ -402,15 +402,13 @@ func TestGetTraces_ScanErrorStopsIteration(t *testing.T) {
 }
 
 func TestGetTraces_YieldFalseOnSuccessStopsIteration(t *testing.T) {
+	rows := &clickhousetest.Rows[*dbmodel.SpanRow]{
+		Data:   multipleSpans,
+		ScanFn: scanSpanRowFn(),
+	}
 	conn := &clickhousetest.Driver{
 		QueryResponses: map[string]*clickhousetest.QueryResponse{
-			sql.SelectSpansByTraceID: {
-				Rows: &clickhousetest.Rows[*dbmodel.SpanRow]{
-					Data:   multipleSpans,
-					ScanFn: scanSpanRowFn(),
-				},
-				Err: nil,
-			},
+			sql.SelectSpansByTraceID: {Rows: rows},
 		},
 	}
 
@@ -432,6 +430,7 @@ func TestGetTraces_YieldFalseOnSuccessStopsIteration(t *testing.T) {
 	requireTracesEqual(t, multipleSpans[0:1], gotTraces)
 	// The consumer stopped during the first trace, so the second trace is never queried.
 	require.Len(t, conn.RecordedQueries, 1)
+	require.True(t, rows.Closed)
 }
 
 func TestGetTraces_YieldFalseSkipsRowsError(t *testing.T) {
@@ -821,15 +820,13 @@ func TestBuildFindTraceIDsQuery_DefaultSearchDepthExceedsMax(t *testing.T) {
 }
 
 func TestFindTraces_YieldFalseOnSuccessStopsIteration(t *testing.T) {
+	rows := &clickhousetest.Rows[*dbmodel.SpanRow]{
+		Data:   multipleSpans,
+		ScanFn: scanSpanRowFn(),
+	}
 	conn := &clickhousetest.Driver{
 		QueryResponses: map[string]*clickhousetest.QueryResponse{
-			sql.SelectSpansQuery: {
-				Rows: &clickhousetest.Rows[*dbmodel.SpanRow]{
-					Data:   multipleSpans,
-					ScanFn: scanSpanRowFn(),
-				},
-				Err: nil,
-			},
+			sql.SelectSpansQuery: {Rows: rows},
 		},
 	}
 
@@ -848,6 +845,7 @@ func TestFindTraces_YieldFalseOnSuccessStopsIteration(t *testing.T) {
 
 	require.Len(t, gotTraces, 1)
 	requireTracesEqual(t, multipleSpans[0:1], gotTraces)
+	require.True(t, rows.Closed)
 }
 
 func TestFindTraces_YieldFalseSkipsRowsError(t *testing.T) {
@@ -1296,6 +1294,8 @@ func TestFindTraceIDs_ErrorCases(t *testing.T) {
 			})
 			_, err := flattenPageChunks(iter)
 			require.ErrorContains(t, err, test.expectedErr)
+			// A failed candidate search stops the pipeline before the bounds lookup.
+			require.Len(t, test.driver.RecordedQueries, 1)
 		})
 	}
 }
@@ -1534,6 +1534,9 @@ func TestReadRows(t *testing.T) {
 			}
 			for _, expected := range tc.expected {
 				require.ErrorIs(t, err, expected)
+			}
+			if errors.Is(err, errStopReading) {
+				require.Equal(t, errStopReading, err, "the stop signal carries no other error")
 			}
 			if tc.rows.RowsErr != nil && tc.scan == nil {
 				require.ErrorContains(t, err, "failed to read test rows")
