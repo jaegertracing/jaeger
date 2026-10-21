@@ -111,7 +111,16 @@ Backend-specific policy:
 
 Support means backend versions are in scope for proactive compatibility fixes. CI coverage is not the definitive support matrix: it may test only a subset of supported versions and may retain older versions on a best-effort basis. CI coverage alone does not make a backend version supported. Jaeger does not provide support for the backend product itself, vendor-specific distributions, or versions outside the upstream maintenance window.
 
-The versions that CI tests are the image pins in the per-version Docker Compose files under [`docker-compose/`](./docker-compose/), one directory per backend: [`elasticsearch/`](./docker-compose/elasticsearch/), [`opensearch/`](./docker-compose/opensearch/), [`cassandra/`](./docker-compose/cassandra/) and [`clickhouse/`](./docker-compose/clickhouse/). Those files are the source of truth for what Jaeger is tested against. The versions the policy covers follow from the upstream lifecycle pages linked above, which is why this document does not list them.
+The table below translates the policy into where each backend's versions are defined. The image pins in the per-version Docker Compose files are what CI tests, and the upstream lifecycle page is what decides which versions the policy covers.
+
+| Backend | Versions covered by policy | Versions tested in CI |
+| --- | --- | --- |
+| Elasticsearch | Per [Elastic's EOL policy](https://www.elastic.co/support/eol) | Pins in [`docker-compose/elasticsearch/`](./docker-compose/elasticsearch/) |
+| OpenSearch | Current and previous major, per the [OpenSearch maintenance policy](https://opensearch.org/releases/) | Pins in [`docker-compose/opensearch/`](./docker-compose/opensearch/) |
+| Cassandra | Current and previous major, per the [maintained Apache release lines](https://cassandra.apache.org/_/download.html) | Pins in [`docker-compose/cassandra/`](./docker-compose/cassandra/) |
+| ClickHouse | Current and previous [LTS release](https://clickhouse.com/docs/faq/operations/production) | Pins in [`docker-compose/clickhouse/`](./docker-compose/clickhouse/) |
+
+Compose files for versions outside the policy may remain on a best-effort basis; their presence in CI does not extend the support policy.
 
 ## Related Repositories
 
