@@ -162,17 +162,6 @@ func TestBuildGetTracesQuery(t *testing.T) {
 			expectedSQL:  sql.SelectSpansByTraceID + " AND s.start_time <= fromUnixTimestamp64Nano(?)",
 			expectedArgs: []any{traceID, now.UnixNano()},
 		},
-		{
-			name: "with sub-second precision bounds",
-			params: tracestore.GetTraceParams{
-				TraceID: traceID,
-				Start:   time.Unix(1755676800, 123456789),
-				End:     time.Unix(1755676801, 987654321),
-			},
-			expectedSQL: sql.SelectSpansByTraceID +
-				" AND s.start_time >= fromUnixTimestamp64Nano(?) AND s.start_time <= fromUnixTimestamp64Nano(?)",
-			expectedArgs: []any{traceID, time.Unix(1755676800, 123456789).UnixNano(), time.Unix(1755676801, 987654321).UnixNano()},
-		},
 	}
 
 	for _, tt := range tests {

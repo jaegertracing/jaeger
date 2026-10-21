@@ -253,13 +253,22 @@ func (s *StorageIntegration) assertTraceByID(
 	expected ptrace.Traces,
 	validator func(t *testing.T, actual ptrace.Traces),
 ) {
-	s.skipIfNeeded(t)
+	s.assertTrace(t, tracestore.GetTraceParams{TraceID: jptrace.GetTraceID(expected)}, expected, validator)
+}
 
-	expectedTraceID := jptrace.GetTraceID(expected)
+// assertTrace loads one trace through GetTraces with the given parameters, waits until it holds
+// at least the expected spans, and hands it to validator.
+func (s *StorageIntegration) assertTrace(
+	t *testing.T,
+	params tracestore.GetTraceParams,
+	expected ptrace.Traces,
+	validator func(t *testing.T, actual ptrace.Traces),
+) {
+	s.skipIfNeeded(t)
 
 	actual := ptrace.NewTraces()
 	found := s.waitForCondition(t, func(_ *testing.T) bool {
-		iterTraces := s.TraceReader.GetTraces(context.Background(), tracestore.GetTraceParams{TraceID: expectedTraceID})
+		iterTraces := s.TraceReader.GetTraces(context.Background(), params)
 		traces, err := jiter.CollectWithErrors(jptrace.AggregateTraces(iterTraces))
 		if err != nil {
 			t.Logf("Error loading trace: %v", err)
@@ -282,6 +291,21 @@ func (s *StorageIntegration) assertTraceByID(
 	if validator != nil {
 		validator(t, actual)
 	}
+}
+
+// testGetTraceWithBounds reads the bounded trace with Start and End set to its first and last
+// span start. Every span lies inside the window, so the trace must come back whole.
+func (s *StorageIntegration) testGetTraceWithBounds(t *testing.T) {
+	expected := s.Corpus.Bounded
+	spans := expected.ResourceSpans().At(0).ScopeSpans().At(0).Spans()
+	params := tracestore.GetTraceParams{
+		TraceID: jptrace.GetTraceID(expected),
+		Start:   spans.At(0).StartTimestamp().AsTime(),
+		End:     spans.At(spans.Len() - 1).StartTimestamp().AsTime(),
+	}
+	s.assertTrace(t, params, expected, func(t *testing.T, actual ptrace.Traces) {
+		CompareTraces(t, expected, actual)
+	})
 }
 
 func (s *StorageIntegration) testGetLargeTrace(t *testing.T) {
@@ -743,6 +767,7 @@ func (s *StorageIntegration) AssertCorpus(t *testing.T) {
 	t.Run("GetServices", s.testGetServices)
 	t.Run("GetOperations", s.testGetOperations)
 	t.Run("GetTrace", s.testGetTrace)
+	t.Run("GetTraceWithBounds", s.testGetTraceWithBounds)
 	t.Run("GetLargeTrace", s.testGetLargeTrace)
 	t.Run("GetTraceWithDuplicateSpans", s.testGetTraceWithDuplicates)
 	t.Run("FindTraces", s.testFindTraces)
