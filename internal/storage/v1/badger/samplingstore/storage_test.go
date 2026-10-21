@@ -31,6 +31,12 @@ func TestInsertThroughput(t *testing.T) {
 	})
 }
 
+func TestInsertThroughputPropagatesError(t *testing.T) {
+	store := newClosedTestSamplingStore(t)
+	err := store.InsertThroughput([]*samplemodel.Throughput{{Service: "my-svc", Operation: "op"}})
+	require.Error(t, err)
+}
+
 func TestGetThroughput(t *testing.T) {
 	runWithBadger(t, func(t *testing.T, store *SamplingStore) {
 		start := time.Now()
@@ -56,6 +62,16 @@ func TestInsertProbabilitiesAndQPS(t *testing.T) {
 		)
 		require.NoError(t, err)
 	})
+}
+
+func TestInsertProbabilitiesAndQPSPropagatesError(t *testing.T) {
+	store := newClosedTestSamplingStore(t)
+	err := store.InsertProbabilitiesAndQPS(
+		"dell11eg843d",
+		samplemodel.ServiceOperationProbabilities{"new-srv": {"op": 0.1}},
+		samplemodel.ServiceOperationQPS{"new-srv": {"op": 4}},
+	)
+	require.Error(t, err)
 }
 
 func TestGetLatestProbabilities(t *testing.T) {
@@ -128,6 +144,23 @@ func runWithBadger(t *testing.T, test func(t *testing.T, store *SamplingStore)) 
 	}()
 	ss := newTestSamplingStore(store)
 	test(t, ss)
+}
+
+// newClosedTestSamplingStore opens a Badger-backed SamplingStore and then closes
+// the underlying DB so that any subsequent write fails. It is used to verify that
+// write errors are propagated to callers instead of being silently swallowed.
+func newClosedTestSamplingStore(t *testing.T) *SamplingStore {
+	opts := badger.DefaultOptions("")
+	opts.SyncWrites = false
+	dir := t.TempDir()
+	opts.Dir = dir
+	opts.ValueDir = dir
+
+	db, err := badger.Open(opts)
+	require.NoError(t, err)
+	require.NoError(t, db.Close())
+
+	return newTestSamplingStore(db)
 }
 
 func TestMain(m *testing.M) {

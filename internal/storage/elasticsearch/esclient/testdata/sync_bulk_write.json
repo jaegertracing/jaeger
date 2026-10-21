@@ -1,0 +1,23 @@
+{
+  "method": "POST",
+  "path": "/_bulk",
+  "ndjson": [
+    {
+      "index": {
+        "_id": "abc",
+        "_index": "jaeger-span-000001"
+      }
+    },
+    {
+      "traceID": "1"
+    },
+    {
+      "create": {
+        "_index": "jaeger.spans"
+      }
+    },
+    {
+      "a": 1
+    }
+  ]
+}

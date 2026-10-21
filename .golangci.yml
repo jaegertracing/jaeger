@@ -3,7 +3,7 @@
 
 version: "2"
 run:
-  go: "1.26"
+  go: "1.27"
 linters:
   enable:
     - asciicheck
@@ -139,8 +139,8 @@ linters:
         - name: function-length
           disabled: true
         # definitely a good one, needs cleanup first
-        - name: argument-limit
-          disabled: true
+        # - name: argument-limit
+        #   disabled: true
         # this is idiocy, promotes less readable code. Don't enable.
         - name: var-declaration
           disabled: true

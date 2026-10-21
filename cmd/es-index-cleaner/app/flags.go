@@ -4,7 +4,9 @@
 package app
 
 import (
+	"errors"
 	"flag"
+	"strings"
 
 	"github.com/spf13/viper"
 	"go.opentelemetry.io/collector/config/configtls"
@@ -21,6 +23,8 @@ const (
 	indexDateSeparator = "index-date-separator"
 	username           = "es.username"
 	password           = "es.password"
+	tokenFile          = "es.token-file"   //nolint:gosec // G101: flag name, not a credential
+	apiKeyFile         = "es.api-key-file" //nolint:gosec // G101: flag name, not a credential
 )
 
 var tlsFlagsCfg = tlscfg.ClientFlagsConfig{Prefix: "es"}
@@ -34,6 +38,8 @@ type Config struct {
 	IndexDateSeparator       string
 	Username                 string
 	Password                 string
+	TokenFilePath            string
+	APIKeyFilePath           string
 	TLSEnabled               bool
 	TLSConfig                configtls.ClientConfig
 }
@@ -47,6 +53,8 @@ func (*Config) AddFlags(flags *flag.FlagSet) {
 	flags.String(indexDateSeparator, "-", "Index date separator")
 	flags.String(username, "", "The username required by storage")
 	flags.String(password, "", "The password required by storage")
+	flags.String(tokenFile, "", "Path to a file containing bearer token")
+	flags.String(apiKeyFile, "", "Path to a file containing API key")
 	tlsFlagsCfg.AddFlags(flags)
 	featuregate.GlobalRegistry().RegisterFlags(flags)
 }
@@ -54,7 +62,7 @@ func (*Config) AddFlags(flags *flag.FlagSet) {
 // InitFromViper initializes config from viper.Viper.
 func (c *Config) InitFromViper(v *viper.Viper) error {
 	c.IndexPrefix = v.GetString(indexPrefix)
-	if c.IndexPrefix != "" {
+	if c.IndexPrefix != "" && !strings.HasSuffix(c.IndexPrefix, "-") {
 		c.IndexPrefix += "-"
 	}
 
@@ -64,10 +72,29 @@ func (c *Config) InitFromViper(v *viper.Viper) error {
 	c.IndexDateSeparator = v.GetString(indexDateSeparator)
 	c.Username = v.GetString(username)
 	c.Password = v.GetString(password)
+	c.TokenFilePath = v.GetString(tokenFile)
+	c.APIKeyFilePath = v.GetString(apiKeyFile)
 	tlsCfg, err := tlsFlagsCfg.InitFromViper(v)
 	if err != nil {
 		return err
 	}
 	c.TLSConfig = tlsCfg
+	return validateAuthFlags(c.Username, c.Password, c.TokenFilePath, c.APIKeyFilePath)
+}
+
+// validateAuthFlags rejects configuring more than one authentication method.
+// The shared auth stack adds an Authorization header per configured method, so
+// more than one would emit multiple Authorization headers, which ES/OS reject.
+func validateAuthFlags(username, password, tokenFilePath, apiKeyFilePath string) error {
+	basicAuth := username != "" && password != ""
+	authMethods := 0
+	for _, set := range []bool{basicAuth, tokenFilePath != "", apiKeyFilePath != ""} {
+		if set {
+			authMethods++
+		}
+	}
+	if authMethods > 1 {
+		return errors.New("only one of basic auth (--es.username/--es.password), --es.token-file, or --es.api-key-file may be configured")
+	}
 	return nil
 }

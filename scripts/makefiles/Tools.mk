@@ -16,6 +16,7 @@ LINT          := $(TOOLS_BIN_DIR)/golangci-lint
 MOCKERY       := $(TOOLS_BIN_DIR)/mockery
 SCHEMAGEN     := $(TOOLS_BIN_DIR)/schemagen
 GOCOVMERGE    := $(TOOLS_BIN_DIR)/gocovmerge
+OCB           := $(TOOLS_BIN_DIR)/builder
 
 # this target is useful for setting up local workspace, but from CI we want to call more specific ones
 .PHONY: install-tools

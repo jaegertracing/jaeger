@@ -1,0 +1,16 @@
+{
+  "bool": {
+    "should": [
+      {
+        "term": {
+          "process.serviceName": "cart"
+        }
+      },
+      {
+        "term": {
+          "process.serviceName": "checkout"
+        }
+      }
+    ]
+  }
+}

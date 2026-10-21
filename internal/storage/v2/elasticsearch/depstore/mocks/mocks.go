@@ -44,57 +44,6 @@ func (_m *CoreDependencyStore) EXPECT() *CoreDependencyStore_Expecter {
 	return &CoreDependencyStore_Expecter{mock: &_m.Mock}
 }
 
-// CreateTemplates provides a mock function for the type CoreDependencyStore
-func (_mock *CoreDependencyStore) CreateTemplates(dependenciesTemplate string) error {
-	ret := _mock.Called(dependenciesTemplate)
-
-	if len(ret) == 0 {
-		panic("no return value specified for CreateTemplates")
-	}
-
-	var r0 error
-	if returnFunc, ok := ret.Get(0).(func(string) error); ok {
-		r0 = returnFunc(dependenciesTemplate)
-	} else {
-		r0 = ret.Error(0)
-	}
-	return r0
-}
-
-// CoreDependencyStore_CreateTemplates_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'CreateTemplates'
-type CoreDependencyStore_CreateTemplates_Call struct {
-	*mock.Call
-}
-
-// CreateTemplates is a helper method to define mock.On call
-//   - dependenciesTemplate string
-func (_e *CoreDependencyStore_Expecter) CreateTemplates(dependenciesTemplate interface{}) *CoreDependencyStore_CreateTemplates_Call {
-	return &CoreDependencyStore_CreateTemplates_Call{Call: _e.mock.On("CreateTemplates", dependenciesTemplate)}
-}
-
-func (_c *CoreDependencyStore_CreateTemplates_Call) Run(run func(dependenciesTemplate string)) *CoreDependencyStore_CreateTemplates_Call {
-	_c.Call.Run(func(args mock.Arguments) {
-		var arg0 string
-		if args[0] != nil {
-			arg0 = args[0].(string)
-		}
-		run(
-			arg0,
-		)
-	})
-	return _c
-}
-
-func (_c *CoreDependencyStore_CreateTemplates_Call) Return(err error) *CoreDependencyStore_CreateTemplates_Call {
-	_c.Call.Return(err)
-	return _c
-}
-
-func (_c *CoreDependencyStore_CreateTemplates_Call) RunAndReturn(run func(dependenciesTemplate string) error) *CoreDependencyStore_CreateTemplates_Call {
-	_c.Call.Return(run)
-	return _c
-}
-
 // GetDependencies provides a mock function for the type CoreDependencyStore
 func (_mock *CoreDependencyStore) GetDependencies(ctx context.Context, endTs time.Time, lookback time.Duration) ([]dbmodel.DependencyLink, error) {
 	ret := _mock.Called(ctx, endTs, lookback)

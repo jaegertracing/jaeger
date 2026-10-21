@@ -7,6 +7,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	stditer "iter"
 	"reflect"
 	"testing"
 	"time"
@@ -53,6 +54,20 @@ var (
 		{AttributeKey: "event.attr", Type: "str", Level: "event"},
 	}
 )
+
+func flattenPageChunks[T any](seq stditer.Seq2[tracestore.PageChunk[[]T], error]) ([]T, error) {
+	var results []T
+	for chunk, err := range seq {
+		if err != nil {
+			return nil, err
+		}
+		if chunk.NextPageToken != "" {
+			return nil, errors.New("unexpected next page token")
+		}
+		results = append(results, chunk.Results...)
+	}
+	return results, nil
+}
 
 func buildTestAttributes() pcommon.Map {
 	attrs := pcommon.NewMap()
@@ -784,6 +799,16 @@ func TestFindTraces_SearchDepthExceedsMax(t *testing.T) {
 	require.ErrorContains(t, err, "search depth 10000 exceeds maximum allowed 1000")
 }
 
+func TestBuildFindTraceIDsQuery_DefaultSearchDepthExceedsMax(t *testing.T) {
+	config := testReaderConfig
+	config.DefaultSearchDepth = config.MaxSearchDepth + 1
+	reader := NewReader(&clickhousetest.Driver{}, config)
+	_, _, err := reader.buildFindTraceIDsQuery(context.Background(), tracestore.TraceQueryParams{
+		Attributes: pcommon.NewMap(),
+	})
+	require.EqualError(t, err, "search depth 1001 exceeds maximum allowed 1000")
+}
+
 func TestFindTraces_YieldFalseOnSuccessStopsIteration(t *testing.T) {
 	conn := &clickhousetest.Driver{
 		QueryResponses: map[string]*clickhousetest.QueryResponse{
@@ -984,7 +1009,7 @@ func TestFindTraceIDs(t *testing.T) {
 		Attributes:    attributes,
 		SearchDepth:   5,
 	})
-	ids, err := jiter.FlattenWithErrors(iter)
+	ids, err := flattenPageChunks(iter)
 	require.NoError(t, err)
 	require.Len(t, driver.RecordedQueries, 2)
 	verifyQuerySnapshot(t, driver.RecordedQueries...)
@@ -1027,7 +1052,7 @@ func TestFindTraceIDs_SearchDepthExceedsMax(t *testing.T) {
 	iter := reader.FindTraceIDs(context.Background(), tracestore.TraceQueryParams{
 		SearchDepth: 10000,
 	})
-	_, err := jiter.FlattenWithErrors(iter)
+	_, err := flattenPageChunks(iter)
 	require.ErrorContains(t, err, "search depth 10000 exceeds maximum allowed 1000")
 }
 
@@ -1050,9 +1075,9 @@ func TestFindTraceIDs_YieldFalseOnSuccessStopsIteration(t *testing.T) {
 	})
 
 	var gotTraceIDs []tracestore.FoundTraceID
-	findTraceIDsIter(func(traceIDs []tracestore.FoundTraceID, err error) bool {
+	findTraceIDsIter(func(chunk tracestore.PageChunk[[]tracestore.FoundTraceID], err error) bool {
 		require.NoError(t, err)
-		gotTraceIDs = append(gotTraceIDs, traceIDs...)
+		gotTraceIDs = append(gotTraceIDs, chunk.Results...)
 		return false // stop iteration after the first trace ID
 	})
 
@@ -1093,7 +1118,7 @@ func TestFindTraceIDs_ScanErrorStopsIteration(t *testing.T) {
 	iter := reader.FindTraceIDs(context.Background(), tracestore.TraceQueryParams{
 		Attributes: pcommon.NewMap(),
 	})
-	_, err := jiter.FlattenWithErrors(iter)
+	_, err := flattenPageChunks(iter)
 	require.ErrorContains(t, err, "failed to scan row")
 }
 
@@ -1127,7 +1152,35 @@ func TestFindTraceIDs_DecodeErrorStopsIteration(t *testing.T) {
 	iter := reader.FindTraceIDs(context.Background(), tracestore.TraceQueryParams{
 		Attributes: pcommon.NewMap(),
 	})
-	_, err := jiter.FlattenWithErrors(iter)
+	_, err := flattenPageChunks(iter)
+	require.ErrorContains(t, err, "failed to decode trace ID")
+}
+
+func TestFindTraceIDs_ShortTraceIDIsAnError(t *testing.T) {
+	// A trace_id column that is valid hex but shorter than 16 bytes must be
+	// reported as a decode error rather than panic in the array conversion.
+	conn := &clickhousetest.Driver{
+		QueryResponses: map[string]*clickhousetest.QueryResponse{
+			sql.SearchTraceIDsBase: {
+				Rows: &clickhousetest.Rows[[]any]{
+					Data: [][]any{
+						{
+							"0001",
+							time.Now().Add(-2 * time.Hour),
+							time.Now().Add(-2 * time.Minute),
+						},
+					},
+					ScanFn: scanTraceIDFn(),
+				},
+			},
+		},
+	}
+
+	reader := NewReader(conn, ReaderConfig{})
+	iter := reader.FindTraceIDs(context.Background(), tracestore.TraceQueryParams{
+		Attributes: pcommon.NewMap(),
+	})
+	_, err := flattenPageChunks(iter)
 	require.ErrorContains(t, err, "failed to decode trace ID")
 }
 
@@ -1206,7 +1259,7 @@ func TestFindTraceIDs_ErrorCases(t *testing.T) {
 			iter := reader.FindTraceIDs(context.Background(), tracestore.TraceQueryParams{
 				Attributes: pcommon.NewMap(),
 			})
-			_, err := jiter.FlattenWithErrors(iter)
+			_, err := flattenPageChunks(iter)
 			require.ErrorContains(t, err, test.expectedErr)
 		})
 	}
@@ -1228,6 +1281,19 @@ func TestFindTraceIDs_BuildQueryError(t *testing.T) {
 		Attributes:  attrs,
 		SearchDepth: 1,
 	})
-	_, err := jiter.FlattenWithErrors(iter)
+	_, err := flattenPageChunks(iter)
 	require.ErrorContains(t, err, "failed to build query")
+}
+
+// The search SQL appends every predicate conditionally, so ClickHouse answers a query
+// that omits the service name (RFC 0013).
+func TestReader_SearchCapabilities(t *testing.T) {
+	caps, err := (&Reader{}).SearchCapabilities(context.Background())
+	require.NoError(t, err)
+	filter := FilterCapabilities()
+	assert.Equal(t, tracestore.SearchCapabilities{
+		WithoutServiceName:  true,
+		SameSpanConjunction: true,
+		Filter:              &filter,
+	}, caps)
 }

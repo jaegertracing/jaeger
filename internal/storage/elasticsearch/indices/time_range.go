@@ -8,6 +8,8 @@ import (
 	"time"
 
 	"go.uber.org/zap"
+
+	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/config"
 )
 
 // TimeRangeIndexFn is a function that returns the list of index names for a given time range.
@@ -44,7 +46,7 @@ func TimeRangeIndicesFn(useReadWriteAliases bool, readAliasSuffix string, remote
 func getTimeRangeIndexFn(useReadWriteAliases bool, readAlias string) TimeRangeIndexFn {
 	if useReadWriteAliases {
 		return func(indexPrefix, _ /* indexDateLayout */ string, _ /* startTime */ time.Time, _ /* endTime */ time.Time, _ /* reduceDuration */ time.Duration) []string {
-			return []string{indexPrefix + readAlias}
+			return []string{indexPrefix + config.IndexSeparator + readAlias}
 		}
 	}
 	return timeRangeIndices
@@ -89,5 +91,5 @@ func timeRangeIndices(indexName, indexDateLayout string, startTime time.Time, en
 // IndexWithDate returns index name with date
 func IndexWithDate(indexPrefix, indexDateLayout string, date time.Time) string {
 	spanDate := date.UTC().Format(indexDateLayout)
-	return indexPrefix + spanDate
+	return indexPrefix + config.IndexSeparator + spanDate
 }

@@ -19,5 +19,6 @@ import (
 	_ "github.com/open-telemetry/opentelemetry-collector-contrib/cmd/schemagen"
 	_ "github.com/vektra/mockery/v3"
 	_ "github.com/wadey/gocovmerge"
+	_ "go.opentelemetry.io/collector/cmd/builder"
 	_ "golang.org/x/vuln/cmd/govulncheck"
 )

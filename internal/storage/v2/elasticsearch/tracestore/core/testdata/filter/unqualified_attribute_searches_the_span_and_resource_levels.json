@@ -1,0 +1,58 @@
+{
+  "bool": {
+    "should": [
+      {
+        "term": {
+          "tag.http@status_code": "500"
+        }
+      },
+      {
+        "term": {
+          "process.tag.http@status_code": "500"
+        }
+      },
+      {
+        "nested": {
+          "path": "tags",
+          "query": {
+            "bool": {
+              "must": [
+                {
+                  "term": {
+                    "tags.key": "http.status_code"
+                  }
+                },
+                {
+                  "term": {
+                    "tags.value": "500"
+                  }
+                }
+              ]
+            }
+          }
+        }
+      },
+      {
+        "nested": {
+          "path": "process.tags",
+          "query": {
+            "bool": {
+              "must": [
+                {
+                  "term": {
+                    "process.tags.key": "http.status_code"
+                  }
+                },
+                {
+                  "term": {
+                    "process.tags.value": "500"
+                  }
+                }
+              ]
+            }
+          }
+        }
+      }
+    ]
+  }
+}

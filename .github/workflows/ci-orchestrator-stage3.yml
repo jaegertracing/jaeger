@@ -14,6 +14,10 @@ jobs:
     uses: ./.github/workflows/ci-build-binaries.yml
     secrets: inherit
 
+  ocb-build:
+    uses: ./.github/workflows/ci-ocb-build.yml
+    secrets: inherit
+
   docker-build:
     uses: ./.github/workflows/ci-docker-build.yml
     secrets: inherit
@@ -37,6 +41,7 @@ jobs:
     permissions:
       actions: read
       contents: read
+      # Required to upload CodeQL SARIF to the code-scanning API.
       security-events: write
     uses: ./.github/workflows/codeql.yml
     secrets: inherit

@@ -8,8 +8,6 @@ The dashboard in this directory is committed as [dashboard-for-grafana.json](./d
 make generate-dashboards
 ```
 
-Alert rules are available as the committed Prometheus rules file [prometheus_alerts.yml](./prometheus_alerts.yml). You can load it directly into Prometheus or the Prometheus Operator, alongside the committed Grafana dashboard JSON.
-
 Make sure your Prometheus setup is properly scraping the Jaeger components, either by creating a `ServiceMonitor` (and the backing `Service` objects), or via `PodMonitor` resources, like:
 
 ```console
@@ -33,14 +31,19 @@ This `PodMonitor` tells Prometheus to scrape the port `14269` from all pods cont
 
 This mixin was originally developed by [Grafana Labs](https://github.com/grafana/jsonnet-libs/tree/master/jaeger-mixin).
 
-## Pre-built dashboard and alert rules
+## Pre-built dashboard
 
-This repository contains a committed Grafana dashboard and pre-built alert rules for quick tests:
+This repository contains a committed Grafana dashboard:
 
 - [Dashboard](./dashboard-for-grafana.json)
-- [Alerts](./prometheus_alerts.yml)
 
 _IMPORTANT_: the metrics that are used by default by the dashboard are compatible with the components deployed as part of the production strategy, where each component is deployed individually. Some metric names differ from the ones used in the all-in-one strategy. Adjust your dashboard to reflect your scenario.
+
+## Alert rules
+
+This mixin no longer ships built-in alert rules. The previously bundled `prometheus_alerts.yml` contained Jaeger v1 alerts that relied on metrics no longer emitted by Jaeger v2.
+
+Since Jaeger v2 uses standard OpenTelemetry Collector metrics, any OTEL Collector alerting rules apply directly. For a maintained example of Prometheus alert rules for the OpenTelemetry Collector, see the [opentelemetry-helm-charts PrometheusRule template](https://github.com/open-telemetry/opentelemetry-helm-charts/blob/main/charts/opentelemetry-collector/templates/prometheusrule.yaml).
 
 ## Background
 

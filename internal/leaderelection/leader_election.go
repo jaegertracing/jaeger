@@ -15,7 +15,9 @@ import (
 )
 
 const (
-	acquireLockErrMsg = "Failed to acquire lock"
+	acquireLockErrMsg  = "Failed to acquire lock"
+	forfeitLockErrMsg  = "Failed to forfeit lock"
+	forfeitLockWarnMsg = "Lock was not forfeited"
 )
 
 // ElectionParticipant partakes in leader election to become leader.
@@ -33,6 +35,7 @@ type DistributedElectionParticipant struct {
 	isLeader     atomic.Bool
 	resourceName string
 	closeChan    chan struct{}
+	closeOnce    sync.Once
 	wg           sync.WaitGroup
 }
 
@@ -60,10 +63,33 @@ func (p *DistributedElectionParticipant) Start() error {
 	return nil
 }
 
-// Close implements io.Closer.
+// Close implements io.Closer and is safe to call multiple times.
 func (p *DistributedElectionParticipant) Close() error {
-	close(p.closeChan)
-	p.wg.Wait()
+	p.closeOnce.Do(func() {
+		close(p.closeChan)
+
+		p.wg.Wait()
+
+		wasLeader := p.IsLeader()
+		p.setLeader(false)
+
+		if wasLeader {
+			forfeited, err := p.lock.Forfeit(p.resourceName)
+			if err != nil {
+				p.Logger.Error(
+					forfeitLockErrMsg,
+					zap.String("resource", p.resourceName),
+					zap.Error(err),
+				)
+			} else if !forfeited {
+				p.Logger.Warn(
+					forfeitLockWarnMsg,
+					zap.String("resource", p.resourceName),
+				)
+			}
+		}
+	})
+
 	return nil
 }
 

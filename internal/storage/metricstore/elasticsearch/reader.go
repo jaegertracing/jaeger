@@ -8,15 +8,15 @@ import (
 	"errors"
 	"fmt"
 	"math"
-	"time"
 
-	"github.com/olivere/elastic/v7"
 	"go.opentelemetry.io/otel/trace"
 	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger/internal/proto-gen/api_v2/metrics"
-	es "github.com/jaegertracing/jaeger/internal/storage/elasticsearch"
 	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/config"
+	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/esclient"
+	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/indices"
+	esquery "github.com/jaegertracing/jaeger/internal/storage/elasticsearch/query"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/api/metricstore"
 )
 
@@ -35,11 +35,8 @@ type TimeRange struct {
 	startTimeMillis int64
 	endTimeMillis   int64
 	// extendedStartTimeMillis is an extended start time used for lookback periods
-	// in certain aggregations (e.g., cumulative sums or rate calculations)
-	// where data prior to startTimeMillis is needed to compute metrics accurately
-	// within the primary time range. This typically accounts for a window of
-	// preceding data (e.g., 10 minutes) to ensure that the initial data
-	// points in the primary time range have enough historical context for calculation.
+	// in rate calculations where data prior to startTimeMillis is needed to compute
+	// metrics accurately within the primary time range.
 	extendedStartTimeMillis int64
 }
 
@@ -48,8 +45,8 @@ type MetricsQueryParams struct {
 	metricstore.BaseQueryParameters
 	metricName string
 	metricDesc string
-	boolQuery  elastic.BoolQuery
-	aggQuery   elastic.Aggregation
+	boolQuery  *esquery.BoolQuery
+	aggQuery   esquery.Aggregation
 }
 
 // Pair represents a timestamp-value pair for metrics.
@@ -59,11 +56,11 @@ type Pair struct {
 }
 
 // NewMetricsReader initializes a new MetricsReader.
-func NewMetricsReader(client es.Client, cfg config.Configuration, logger *zap.Logger, tracer trace.TracerProvider) *MetricsReader {
+func NewMetricsReader(searcher esclient.Searcher, cfg config.Configuration, logger *zap.Logger, tracer trace.TracerProvider, spanRotation indices.Rotation) *MetricsReader {
 	tr := tracer.Tracer("elasticsearch-metricstore")
 	return &MetricsReader{
 		queryLogger:  NewQueryLogger(logger, tr),
-		queryBuilder: NewQueryBuilder(client, cfg, logger),
+		queryBuilder: NewQueryBuilder(searcher, cfg, spanRotation),
 	}
 }
 
@@ -88,7 +85,7 @@ func (r MetricsReader) GetLatencies(ctx context.Context, params *metricstore.Lat
 	}
 
 	translator := NewTranslator(func(
-		buckets []*elastic.AggregationBucketHistogramItem,
+		buckets []esclient.HistogramBucket,
 	) []*Pair {
 		return bucketsToLatencies(buckets, params.Quantile*100)
 	})
@@ -103,7 +100,7 @@ func (r MetricsReader) GetLatencies(ctx context.Context, params *metricstore.Lat
 
 // GetCallRates retrieves call rate metrics
 func (r MetricsReader) GetCallRates(ctx context.Context, params *metricstore.CallRateQueryParameters) (*metrics.MetricFamily, error) {
-	timeRange, err := calculateTimeRange(&params.BaseQueryParameters)
+	timeRange, err := calculateRateTimeRange(&params.BaseQueryParameters)
 	if err != nil {
 		return nil, err
 	}
@@ -132,7 +129,7 @@ func (r MetricsReader) GetCallRates(ctx context.Context, params *metricstore.Cal
 
 // GetErrorRates retrieves error rate metrics
 func (r MetricsReader) GetErrorRates(ctx context.Context, params *metricstore.ErrorRateQueryParameters) (*metrics.MetricFamily, error) {
-	timeRange, err := calculateTimeRange(&params.BaseQueryParameters)
+	timeRange, err := calculateRateTimeRange(&params.BaseQueryParameters)
 	if err != nil {
 		return nil, err
 	}
@@ -165,7 +162,7 @@ func (r MetricsReader) GetErrorRates(ctx context.Context, params *metricstore.Er
 }
 
 // bucketsToPoints is a helper function for getting points value from ES AGG bucket
-func bucketsToPoints(buckets []*elastic.AggregationBucketHistogramItem, valueExtractor func(*elastic.AggregationBucketHistogramItem) float64) []*Pair {
+func bucketsToPoints(buckets []esclient.HistogramBucket, valueExtractor func(esclient.HistogramBucket) float64) []*Pair {
 	var points []*Pair
 
 	for _, bucket := range buckets {
@@ -179,32 +176,32 @@ func bucketsToPoints(buckets []*elastic.AggregationBucketHistogramItem, valueExt
 		}
 
 		points = append(points, &Pair{
-			TimeStamp: int64(bucket.Key),
+			TimeStamp: bucket.Key,
 			Value:     value,
 		})
 	}
 	return points
 }
 
-func bucketsToCallRate(buckets []*elastic.AggregationBucketHistogramItem) []*Pair {
-	valueExtractor := func(bucket *elastic.AggregationBucketHistogramItem) float64 {
-		aggMap, ok := bucket.Aggregations.CumulativeSum(culmuAggName)
-		if !ok || aggMap.Value == nil {
+func bucketsToCallRate(buckets []esclient.HistogramBucket) []*Pair {
+	valueExtractor := func(bucket esclient.HistogramBucket) float64 {
+		value, ok := bucket.Metric(culmuAggName)
+		if !ok || value == nil {
 			return math.NaN()
 		}
-		return *aggMap.Value
+		return *value
 	}
 	return bucketsToPoints(buckets, valueExtractor)
 }
 
-func bucketsToLatencies(buckets []*elastic.AggregationBucketHistogramItem, percentileValue float64) []*Pair {
-	valueExtractor := func(bucket *elastic.AggregationBucketHistogramItem) float64 {
-		aggMap, ok := bucket.Aggregations.Percentiles(percentilesAggName)
+func bucketsToLatencies(buckets []esclient.HistogramBucket, percentileValue float64) []*Pair {
+	valueExtractor := func(bucket esclient.HistogramBucket) float64 {
+		percentiles, ok := bucket.Percentiles(percentilesAggName)
 		if !ok {
 			return math.NaN()
 		}
 		percentileKey := fmt.Sprintf("%.1f", percentileValue)
-		aggMapValue, ok := aggMap.Values[percentileKey]
+		aggMapValue, ok := percentiles.Values[percentileKey]
 		if !ok {
 			return math.NaN()
 		}
@@ -214,7 +211,7 @@ func bucketsToLatencies(buckets []*elastic.AggregationBucketHistogramItem, perce
 }
 
 // executeSearch performs the Elasticsearch search.
-func (r MetricsReader) executeSearch(ctx context.Context, p MetricsQueryParams, timeRange TimeRange) (*elastic.SearchResult, error) {
+func (r MetricsReader) executeSearch(ctx context.Context, p MetricsQueryParams, timeRange TimeRange) (*esclient.SearchResponse, error) {
 	span := r.queryLogger.TraceQuery(ctx, p.metricName)
 	defer span.End()
 
@@ -233,15 +230,26 @@ func (r MetricsReader) executeSearch(ctx context.Context, p MetricsQueryParams, 
 
 func calculateTimeRange(params *metricstore.BaseQueryParameters) (TimeRange, error) {
 	if params == nil || params.EndTime == nil || params.Lookback == nil {
-		return TimeRange{}, errors.New("invalid parameters")
+		return TimeRange{}, errors.New("invalid parameters: EndTime and Lookback are required")
 	}
 	endTime := *params.EndTime
 	startTime := endTime.Add(-*params.Lookback)
-	extendedStartTime := startTime.Add(-10 * time.Minute)
 
 	return TimeRange{
 		startTimeMillis:         startTime.UnixMilli(),
 		endTimeMillis:           endTime.UnixMilli(),
-		extendedStartTimeMillis: extendedStartTime.UnixMilli(),
+		extendedStartTimeMillis: startTime.UnixMilli(),
 	}, nil
+}
+
+func calculateRateTimeRange(params *metricstore.BaseQueryParameters) (TimeRange, error) {
+	timeRange, err := calculateTimeRange(params)
+	if err != nil {
+		return TimeRange{}, err
+	}
+	if params.RatePer == nil {
+		return TimeRange{}, errors.New("invalid parameters: RatePer is required")
+	}
+	timeRange.extendedStartTimeMillis -= params.RatePer.Milliseconds()
+	return timeRange, nil
 }

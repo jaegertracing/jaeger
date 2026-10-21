@@ -1,0 +1,66 @@
+{
+  "bool": {
+    "should": [
+      {
+        "range": {
+          "tag.retry@count.number": {
+            "gte": 3
+          }
+        }
+      },
+      {
+        "range": {
+          "process.tag.retry@count.number": {
+            "gte": 3
+          }
+        }
+      },
+      {
+        "nested": {
+          "path": "tags",
+          "query": {
+            "bool": {
+              "must": [
+                {
+                  "term": {
+                    "tags.key": "retry.count"
+                  }
+                },
+                {
+                  "range": {
+                    "tags.value.number": {
+                      "gte": 3
+                    }
+                  }
+                }
+              ]
+            }
+          }
+        }
+      },
+      {
+        "nested": {
+          "path": "process.tags",
+          "query": {
+            "bool": {
+              "must": [
+                {
+                  "term": {
+                    "process.tags.key": "retry.count"
+                  }
+                },
+                {
+                  "range": {
+                    "process.tags.value.number": {
+                      "gte": 3
+                    }
+                  }
+                }
+              ]
+            }
+          }
+        }
+      }
+    ]
+  }
+}
