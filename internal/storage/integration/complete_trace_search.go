@@ -16,24 +16,26 @@ import (
 
 func buildCompleteSearchTrace() ptrace.Traces {
 	trace := ptrace.NewTraces()
+	// Keep shared fixtures within the microsecond precision supported by all backends.
 	base := time.Now().Add(-time.Hour).Truncate(time.Second)
 	for i, fixture := range []struct {
 		service string
 		offset  time.Duration
 	}{
-		{service: "complete-trace-other", offset: 123456789 * time.Nanosecond},
-		{service: "complete-trace-search", offset: time.Second + 123456789*time.Nanosecond},
-		{service: "complete-trace-other", offset: 3*time.Second + 987654321*time.Nanosecond},
+		{service: "complete-trace-other", offset: 123456 * time.Microsecond},
+		{service: "complete-trace-search", offset: time.Second + 123456*time.Microsecond},
+		{service: "complete-trace-other", offset: 3*time.Second + 987654*time.Microsecond},
 	} {
 		rs := trace.ResourceSpans().AppendEmpty()
 		rs.Resource().Attributes().PutStr(otelsemconv.ServiceNameKey, fixture.service)
 		span := rs.ScopeSpans().AppendEmpty().Spans().AppendEmpty()
 		span.SetTraceID(pcommon.TraceID{0xC1, 0xF1})
-		span.SetSpanID(pcommon.SpanID{byte(i + 1)})
+		// Avoid span ID collisions when ingestion batches this trace with the rest of the corpus.
+		span.SetSpanID(pcommon.SpanID{0xC1, 0xF1, byte(i + 1)})
 		span.SetName("complete-trace-operation")
 		start := base.Add(fixture.offset)
 		span.SetStartTimestamp(pcommon.NewTimestampFromTime(start))
-		span.SetEndTimestamp(pcommon.NewTimestampFromTime(start.Add(time.Nanosecond)))
+		span.SetEndTimestamp(pcommon.NewTimestampFromTime(start.Add(time.Microsecond)))
 	}
 	return trace
 }
