@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/ClickHouse/clickhouse-go/v2/lib/driver"
+	"go.opentelemetry.io/collector/pdata/pcommon"
 	"go.opentelemetry.io/collector/pdata/ptrace"
 
 	"github.com/jaegertracing/jaeger/internal/cache"
@@ -191,13 +192,17 @@ func (r *Reader) FindTraces(
 	query tracestore.TraceQueryParams,
 ) iter.Seq2[[]ptrace.Traces, error] {
 	return func(yield func([]ptrace.Traces, error) bool) {
-		traceIDsQuery, args, err := r.buildFindTraceIDsQuery(ctx, query)
+		traceIDs, err := r.findTraceIDsWithBounds(ctx, query)
 		if err != nil {
-			yield(nil, fmt.Errorf("failed to build query: %w", err))
+			yield(nil, err)
+			return
+		}
+		if len(traceIDs) == 0 {
 			return
 		}
 
-		rows, err := r.conn.Query(ctx, buildFindTracesQuery(traceIDsQuery), args...)
+		q, args := buildFindTracesQuery(traceIDs)
+		rows, err := r.conn.Query(ctx, q, args...)
 		if err != nil {
 			yield(nil, fmt.Errorf("failed to query traces: %w", err))
 			return
@@ -228,17 +233,87 @@ func (r *Reader) FindTraces(
 	}
 }
 
-func readRowIntoTraceID(rows driver.Rows) ([]tracestore.FoundTraceID, error) {
+// searchTraceIDs materializes the bounded candidate set before querying any
+// Distributed lookup table, avoiding nested distributed subqueries and joins.
+func (r *Reader) searchTraceIDs(ctx context.Context, query tracestore.TraceQueryParams) ([]tracestore.FoundTraceID, error) {
+	q, args, err := r.buildFindTraceIDsQuery(ctx, query)
+	if err != nil {
+		return nil, fmt.Errorf("failed to build query: %w", err)
+	}
+	rows, err := r.conn.Query(ctx, q, args...)
+	if err != nil {
+		return nil, fmt.Errorf("failed to query trace IDs: %w", err)
+	}
+	var traceIDs []tracestore.FoundTraceID
+	var errs []error
+	for rows.Next() {
+		var hex string
+		if err := rows.Scan(&hex); err != nil {
+			errs = append(errs, fmt.Errorf("failed to scan row: %w", err))
+			break
+		}
+		id, err := jptrace.TraceIDFromString(hex)
+		if err != nil {
+			errs = append(errs, fmt.Errorf("failed to decode trace ID: %w", err))
+			break
+		}
+		traceIDs = append(traceIDs, tracestore.FoundTraceID{TraceID: id})
+	}
+	if err := rows.Err(); err != nil {
+		errs = append(errs, fmt.Errorf("failed to read trace ID rows: %w", err))
+	}
+	if err := rows.Close(); err != nil {
+		errs = append(errs, fmt.Errorf("failed to close rows: %w", err))
+	}
+	return traceIDs, errors.Join(errs...)
+}
+
+func (r *Reader) findTraceIDsWithBounds(ctx context.Context, query tracestore.TraceQueryParams) ([]tracestore.FoundTraceID, error) {
+	traceIDs, err := r.searchTraceIDs(ctx, query)
+	if err != nil || len(traceIDs) == 0 {
+		return nil, err
+	}
+	ids := make([]string, 0, len(traceIDs))
+	positions := make(map[pcommon.TraceID]int, len(traceIDs))
+	for i, trace := range traceIDs {
+		ids = append(ids, trace.TraceID.String())
+		positions[trace.TraceID] = i
+	}
+	rows, err := r.conn.Query(ctx, sql.SelectTraceIDTimestamps, ids)
+	if err != nil {
+		return nil, fmt.Errorf("failed to query trace timestamps: %w", err)
+	}
+	var errs []error
+	for rows.Next() {
+		trace, err := readRowIntoTraceID(rows)
+		if err != nil {
+			errs = append(errs, err)
+			break
+		}
+		if i, ok := positions[trace.TraceID]; ok {
+			traceIDs[i] = trace
+		}
+	}
+	if err := rows.Err(); err != nil {
+		errs = append(errs, fmt.Errorf("failed to read trace timestamp rows: %w", err))
+	}
+	if err := rows.Close(); err != nil {
+		errs = append(errs, fmt.Errorf("failed to close rows: %w", err))
+	}
+	return traceIDs, errors.Join(errs...)
+}
+
+func readRowIntoTraceID(rows driver.Rows) (tracestore.FoundTraceID, error) {
 	var traceIDHex string
 	var start, end time.Time
 
 	if err := rows.Scan(&traceIDHex, &start, &end); err != nil {
-		return nil, fmt.Errorf("failed to scan row: %w", err)
+		return tracestore.FoundTraceID{}, fmt.Errorf("failed to scan row: %w", err)
 	}
 
 	id, err := jptrace.TraceIDFromString(traceIDHex)
 	if err != nil {
-		return nil, fmt.Errorf("failed to decode trace ID: %w", err)
+		return tracestore.FoundTraceID{}, fmt.Errorf("failed to decode trace ID: %w", err)
 	}
 
 	traceID := tracestore.FoundTraceID{
@@ -252,9 +327,7 @@ func readRowIntoTraceID(rows driver.Rows) ([]tracestore.FoundTraceID, error) {
 		traceID.End = end
 	}
 
-	return []tracestore.FoundTraceID{
-		traceID,
-	}, nil
+	return traceID, nil
 }
 
 func (r *Reader) FindTraceIDs(
@@ -262,39 +335,17 @@ func (r *Reader) FindTraceIDs(
 	query tracestore.TraceQueryParams,
 ) iter.Seq2[tracestore.PageChunk[[]tracestore.FoundTraceID], error] {
 	return func(yield func(tracestore.PageChunk[[]tracestore.FoundTraceID], error) bool) {
-		q, args, err := r.buildFindTraceIDsQuery(ctx, query)
+		traceIDs, err := r.findTraceIDsWithBounds(ctx, query)
 		if err != nil {
-			yield(tracestore.PageChunk[[]tracestore.FoundTraceID]{}, fmt.Errorf("failed to build query: %w", err))
-			return
-		}
-
-		rows, err := r.conn.Query(ctx, q, args...)
-		if err != nil {
-			yield(tracestore.PageChunk[[]tracestore.FoundTraceID]{}, fmt.Errorf("failed to query trace IDs: %w", err))
+			yield(tracestore.PageChunk[[]tracestore.FoundTraceID]{}, err)
 			return
 		}
 
 		// TODO: Populate NextPageToken when ClickHouse supports RFC 0014 pagination.
-		var errs []error
-		for rows.Next() {
-			traceID, scanErr := readRowIntoTraceID(rows)
-			if scanErr != nil {
-				errs = append(errs, scanErr)
-				break
-			}
-			if !yield(tracestore.PageChunk[[]tracestore.FoundTraceID]{Results: traceID}, nil) {
-				_ = rows.Close()
+		for _, trace := range traceIDs {
+			if !yield(tracestore.PageChunk[[]tracestore.FoundTraceID]{Results: []tracestore.FoundTraceID{trace}}, nil) {
 				return
 			}
-		}
-		if rowsErr := rows.Err(); rowsErr != nil {
-			errs = append(errs, fmt.Errorf("failed to read trace ID rows: %w", rowsErr))
-		}
-		if closeErr := rows.Close(); closeErr != nil {
-			errs = append(errs, fmt.Errorf("failed to close rows: %w", closeErr))
-		}
-		if err := errors.Join(errs...); err != nil {
-			yield(tracestore.PageChunk[[]tracestore.FoundTraceID]{}, err)
 		}
 	}
 }
