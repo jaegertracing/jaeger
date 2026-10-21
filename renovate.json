@@ -222,6 +222,19 @@
       ]
     },
     {
+      "description": "The two ClickHouse LTS pins are rotated together by the process tracked in jaegertracing/jaeger#8664. Renovate must not move either file, because its next minor update would be a monthly stable release, not an LTS.",
+      "matchDatasources": [
+        "docker"
+      ],
+      "matchPackageNames": [
+        "clickhouse/clickhouse-server"
+      ],
+      "matchFileNames": [
+        "docker-compose/clickhouse/**/docker-compose.yml"
+      ],
+      "enabled": false
+    },
+    {
       "groupName": "OpenSearch 3.x docker images",
       "matchDatasources": [
         "docker"
