@@ -47,6 +47,10 @@ type Corpus struct {
 	// RFC 0013 search that carries no service name.
 	CrossService []ptrace.Traces
 
+	// CompleteSearch is a three-span trace across two services and several seconds, of which only
+	// the middle span matches the search, so the backend must return the whole trace.
+	CompleteSearch ptrace.Traces
+
 	// Pagination holds five traces under a dedicated service, including a start-time tie.
 	Pagination map[string]ptrace.Traces
 
@@ -130,7 +134,7 @@ func BuildCorpus(t *testing.T, suiteFixtures []*QueryFixtures, caps capabilities
 	}
 	c.Bounded = buildBoundedTrace()
 	c.CrossService = buildCrossServiceTraces()
-	c.QueryTraces["complete_search"] = buildCompleteSearchTrace()
+	c.CompleteSearch = buildCompleteSearchTrace()
 	c.Pagination = buildPaginationTraces()
 	c.SpanOrdering = buildSpanOrderingTraces()
 
@@ -259,9 +263,12 @@ func (c *Corpus) All() []ptrace.Traces {
 	if c.hasDuplicates {
 		all = append(all, c.Duplicates)
 	}
-	// A corpus built by hand, as the unit tests of this package do, may leave Bounded unset.
+	// A corpus built by hand, as the unit tests of this package do, may leave these unset.
 	if c.Bounded != (ptrace.Traces{}) {
 		all = append(all, c.Bounded)
+	}
+	if c.CompleteSearch != (ptrace.Traces{}) {
+		all = append(all, c.CompleteSearch)
 	}
 	all = append(all, c.CrossService...)
 	all = append(all, c.SpanOrdering...)
