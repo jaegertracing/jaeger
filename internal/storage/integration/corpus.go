@@ -259,7 +259,10 @@ func (c *Corpus) All() []ptrace.Traces {
 	if c.hasDuplicates {
 		all = append(all, c.Duplicates)
 	}
-	all = append(all, c.Bounded)
+	// A corpus built by hand, as the unit tests of this package do, may leave Bounded unset.
+	if c.Bounded != (ptrace.Traces{}) {
+		all = append(all, c.Bounded)
+	}
 	all = append(all, c.CrossService...)
 	all = append(all, c.SpanOrdering...)
 	for _, name := range slices.Sorted(maps(c.Pagination)) {
