@@ -222,6 +222,48 @@
       ]
     },
     {
+      "description": "ClickHouse publishes an LTS release in March (x.3) and in August (x.8) and supports each for a year. This file follows the March line, so a new March LTS arrives as a major update and the two files always hold the two supported lines.",
+      "groupName": "ClickHouse March LTS docker image",
+      "matchDatasources": [
+        "docker"
+      ],
+      "matchPackageNames": [
+        "clickhouse/clickhouse-server"
+      ],
+      "matchFileNames": [
+        "docker-compose/clickhouse/docker-compose-lts-march.yml"
+      ],
+      "matchUpdateTypes": [
+        "major",
+        "minor",
+        "patch",
+        "digest"
+      ],
+      "allowedVersions": "/^\\d+\\.3\\./",
+      "enabled": true
+    },
+    {
+      "description": "ClickHouse publishes an LTS release in March (x.3) and in August (x.8) and supports each for a year. This file follows the August line, so a new August LTS arrives as a major update and the two files always hold the two supported lines.",
+      "groupName": "ClickHouse August LTS docker image",
+      "matchDatasources": [
+        "docker"
+      ],
+      "matchPackageNames": [
+        "clickhouse/clickhouse-server"
+      ],
+      "matchFileNames": [
+        "docker-compose/clickhouse/docker-compose-lts-august.yml"
+      ],
+      "matchUpdateTypes": [
+        "major",
+        "minor",
+        "patch",
+        "digest"
+      ],
+      "allowedVersions": "/^\\d+\\.8\\./",
+      "enabled": true
+    },
+    {
       "groupName": "OpenSearch 3.x docker images",
       "matchDatasources": [
         "docker"
