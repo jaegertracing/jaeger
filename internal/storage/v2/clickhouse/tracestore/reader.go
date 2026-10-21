@@ -88,7 +88,9 @@ func (r *Reader) GetTraces(
 				return
 			}
 			if err := readRows(rows, "span", yieldSpanRow(yield)); err != nil {
-				yield(nil, err)
+				if !errors.Is(err, errStopReading) {
+					yield(nil, err)
+				}
 				return
 			}
 		}
@@ -168,7 +170,7 @@ func (r *Reader) FindTraces(
 			yield(nil, fmt.Errorf("failed to query traces: %w", err))
 			return
 		}
-		if err := readRows(rows, "span", yieldSpanRow(yield)); err != nil {
+		if err := readRows(rows, "span", yieldSpanRow(yield)); err != nil && !errors.Is(err, errStopReading) {
 			yield(nil, err)
 		}
 	}
@@ -198,8 +200,11 @@ func (r *Reader) FindTraceIDs(
 // FindTraceIDs both call it.
 func (r *Reader) findBoundedTraceIDs(ctx context.Context, query tracestore.TraceQueryParams) ([]tracestore.FoundTraceID, error) {
 	ids, err := r.queryCandidateTraceIDs(ctx, query)
-	if err != nil || len(ids) == 0 {
-		return ids, err
+	if err != nil {
+		return nil, err
+	}
+	if len(ids) == 0 {
+		return nil, nil
 	}
 	return r.attachTraceBounds(ctx, ids)
 }
@@ -276,19 +281,21 @@ func readRowIntoTraceID(rows driver.Rows) (tracestore.FoundTraceID, error) {
 }
 
 // errStopReading is returned by a scan function when the consumer of an iterator wants no more
-// rows. readRows then closes the result set and reports no error.
+// rows. readRows closes the result set and returns it unwrapped, so that a caller with more
+// statements to run stops as well instead of calling the consumer again.
 var errStopReading = errors.New("stop reading rows")
 
 // readRows passes every row to scan and then closes the result set. The error it returns joins
 // the first scan error with the iteration and close errors, and kind names the rows in the
-// iteration error, as in "failed to read span rows".
+// iteration error, as in "failed to read span rows". A scan error of errStopReading is returned
+// alone, after closing the rows.
 func readRows(rows driver.Rows, kind string, scan func(driver.Rows) error) error {
 	var errs []error
 	for rows.Next() {
 		if err := scan(rows); err != nil {
 			if errors.Is(err, errStopReading) {
 				_ = rows.Close()
-				return nil
+				return errStopReading
 			}
 			errs = append(errs, err)
 			break

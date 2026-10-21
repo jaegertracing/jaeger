@@ -417,6 +417,8 @@ func TestGetTraces_YieldFalseOnSuccessStopsIteration(t *testing.T) {
 	reader := NewReader(conn, testReaderConfig)
 	getTracesIter := reader.GetTraces(context.Background(), tracestore.GetTraceParams{
 		TraceID: traceID,
+	}, tracestore.GetTraceParams{
+		TraceID: pcommon.TraceID{15: 2},
 	})
 
 	var gotTraces []ptrace.Traces
@@ -428,6 +430,8 @@ func TestGetTraces_YieldFalseOnSuccessStopsIteration(t *testing.T) {
 
 	require.Len(t, gotTraces, 1)
 	requireTracesEqual(t, multipleSpans[0:1], gotTraces)
+	// The consumer stopped during the first trace, so the second trace is never queried.
+	require.Len(t, conn.RecordedQueries, 1)
 }
 
 func TestGetTraces_YieldFalseSkipsRowsError(t *testing.T) {
@@ -1268,6 +1272,19 @@ func TestFindTraceIDs_ErrorCases(t *testing.T) {
 			},
 			expectedErr: "failed to read trace ID rows",
 		},
+		{
+			name: "CloseError",
+			driver: &clickhousetest.Driver{
+				QueryResponses: map[string]*clickhousetest.QueryResponse{
+					sql.SearchTraceIDsBase: {
+						Rows: &clickhousetest.Rows[[]any]{
+							CloseErr: assert.AnError,
+						},
+					},
+				},
+			},
+			expectedErr: "failed to close rows",
+		},
 	}
 
 	for _, test := range tests {
@@ -1493,10 +1510,11 @@ func TestReadRows(t *testing.T) {
 			expected: []error{assert.AnError},
 		},
 		{
-			name:    "stop reading closes the rows without an error",
-			rows:    &clickhousetest.Rows[string]{Data: []string{"a", "b"}, RowsErr: assert.AnError, CloseErr: assert.AnError},
-			scan:    func(chdriver.Rows) error { return errStopReading },
-			scanned: 1,
+			name:     "stop reading closes the rows and returns only the stop signal",
+			rows:     &clickhousetest.Rows[string]{Data: []string{"a", "b"}, RowsErr: assert.AnError, CloseErr: assert.AnError},
+			scan:     func(chdriver.Rows) error { return errStopReading },
+			scanned:  1,
+			expected: []error{errStopReading},
 		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
