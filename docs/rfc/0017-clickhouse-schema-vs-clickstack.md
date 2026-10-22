@@ -3,7 +3,7 @@
 - **Status:** Draft
 - **Author:** Yuri Shkuro
 - **Created:** 2026-09-21
-- **Last Updated:** 2026-10-08
+- **Last Updated:** 2026-10-21
 - **Related:** [ADR-008 (ClickHouse storage schema)](../adr/008-clickhouse-storage-schema.md) · [#8715 (attribute search skip indexes)](https://github.com/jaegertracing/jaeger/issues/8715) · [#8918 (search performance, Bloom filter tuning)](https://github.com/jaegertracing/jaeger/issues/8918) · [ClickStack schema reference](https://clickhouse.com/docs/clickstack/ingesting-data/schemas#traces) · [OTel `clickhouseexporter` DDL templates](https://github.com/open-telemetry/opentelemetry-collector-contrib/tree/main/exporter/clickhouseexporter/internal/sqltemplates)
 
 ---
@@ -377,7 +377,7 @@ A read-only adapter is therefore feasible as a second `dbmodel` and a second set
 
 Each milestone is independently shippable and each carries a before/after benchmark on the [documented setup](../../internal/storage/v2/clickhouse/BENCHMARKING.md).
 
-- **M1 — Storage tuning (§5.1).** Codecs, `LowCardinality`, table settings, the configuration note on `ttl_only_drop_parts`, and the 0.001 default for the trace-ID filter on top of the option #8923 proposes. Measured by compressed size and insert throughput; no query-shape change. #8923 itself resolves #8918, whose main subject is the `FindTraces` subquery rather than the Bloom rate.
+- **M1 — Storage tuning (§5.1).** Codecs, `LowCardinality`, table settings, and the configuration note on `ttl_only_drop_parts` ship independently of the trace-ID Bloom change. The remaining 0.001 default follows [#8923](https://github.com/jaegertracing/jaeger/pull/8923), which introduces Bloom-filter configurability and resolves #8918. Measured by compressed size and insert throughput; no query-shape change.
 - **M2 — JSON attribute spike (§5.3).** A benchmark-only branch storing attributes as `JSON` columns on the release the storage integration tests pin (`docker-compose/clickhouse/`), run against the §5.2 pair filter on the same 10M-span data so that the two are compared under one setup. Settles the two design questions and measures the pass criteria in §5.3. Its output is a decision, recorded in this RFC's status, and on a pass a superseding RFC.
 - **M3 — Attribute index (§5.2).** One of two shapes, chosen by M2. On a pass: the `JSON` layout, under its own RFC, which closes #8715 by replacing the mechanism it asks about. On a fail: the pairwise `bloom_filter` design, the inline `has()` prefilter in the query builder, and the migration procedure, measured by the acceptance benchmark in §5.2, which closes #8715 directly.
 - ✅ **M4 — Configurable table engine (§5.4).** The `table_engine` option and its rendering into every DDL statement, exercised by an integration test against a `ReplicatedMergeTree` single-replica Keeper setup. Delivered in [#9813](https://github.com/jaegertracing/jaeger/pull/9813), which requires the block with `create_schema: true` and runs the direct storage integration suite against the replicated engines on an embedded Keeper.

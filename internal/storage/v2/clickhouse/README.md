@@ -1,5 +1,23 @@
 ## Clickhouse
 
+### Schema storage tuning
+
+New tables created with `create_schema: true` use `ZSTD(1)` compression on all
+columns and `Delta(8), ZSTD(1)` on the span's `start_time`. Repeated names, kinds,
+status codes, instrumentation scope names and versions, and attribute keys use
+`LowCardinality(String)`, including corresponding columns in the derived tables.
+Attribute values retain their original types.
+
+The `spans` table uses `index_granularity = 8192` and `ttl_only_drop_parts = 1`.
+When `ttl` is configured, ClickHouse drops a part only after every row in it has
+expired. Daily partitioning can therefore retain data for up to one extra day,
+plus background TTL processing time. The unpartitioned `trace_id_timestamps`
+table keeps row-level TTL so that newer trace bounds do not retain older ones.
+
+Schema creation uses `CREATE TABLE IF NOT EXISTS`; it does not modify existing
+tables or copy historical data. Operators using `create_schema: false` can use
+the [DDL templates](sql/) when creating their tables.
+
 ### Differences from the implementation in [otel collector contrib](https://github.com/open-telemetry/opentelemetry-collector-contrib/tree/main/exporter/clickhouseexporter)
 
 #### Trace Storage Format

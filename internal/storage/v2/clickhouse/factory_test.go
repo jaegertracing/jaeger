@@ -7,6 +7,7 @@ import (
 	"context"
 	"errors"
 	"regexp"
+	"strings"
 	"testing"
 	"time"
 
@@ -462,6 +463,35 @@ func TestCreateSpansTableTemplate(t *testing.T) {
 		require.NoError(t, err)
 		assert.Contains(t, queryWithTTL, "TTL start_time + INTERVAL 86400 SECOND DELETE")
 	})
+}
+
+func TestSchemaBuilder_StorageTuning(t *testing.T) {
+	for engineName, engine := range map[string]TableEngine{
+		"merge_tree": localTableEngine,
+		"replicated": {Replicated: configoptional.Some(ReplicatedEngine{})},
+	} {
+		builder, err := newSchemaBuilder(Configuration{TableEngine: engine, TTL: 24 * time.Hour})
+		require.NoError(t, err)
+		for _, stmt := range builder.statements {
+			if !strings.HasSuffix(stmt.name, " table") {
+				continue
+			}
+			t.Run(engineName+"/"+stmt.name, func(t *testing.T) {
+				assert.Contains(t, stmt.query, "CODEC(ZSTD(1))")
+				if stmt.name == "spans table" {
+					assert.Contains(t, stmt.query, "start_time DateTime64 (9) CODEC(Delta(8), ZSTD(1))")
+					assert.Contains(t, stmt.query, "SETTINGS index_granularity = 8192, ttl_only_drop_parts = 1")
+					assert.NotContains(t, stmt.query, "key String")
+					for _, column := range []string{"service_name", "name", "kind", "status_code", "scope_name", "scope_version"} {
+						assert.Contains(t, stmt.query, column+" LowCardinality(String)")
+					}
+				} else {
+					assert.NotContains(t, stmt.query, "ttl_only_drop_parts")
+					assert.NotContains(t, stmt.query, "Delta(8)")
+				}
+			})
+		}
+	}
 }
 
 func TestCreateTraceIDTimestampsTableTemplate(t *testing.T) {

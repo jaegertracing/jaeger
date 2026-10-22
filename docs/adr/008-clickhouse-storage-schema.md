@@ -1,7 +1,7 @@
 # ADR-008: ClickHouse Storage Schema
 
 * **Status**: Implemented
-* **Date**: 2026-04-25 (limitations extended 2026-10-08)
+* **Date**: 2026-04-25 (limitations extended 2026-10-08; storage tuning extended 2026-10-21)
 
 ## Context
 
@@ -192,7 +192,13 @@ Two skip indexes are defined on the `spans` table:
 
 The `spans` and `trace_id_timestamps` tables accept an optional TTL on their time columns (`start_time` and `end`, respectively). When configured, ClickHouse automatically deletes rows past the TTL during background merges, so retention has no separate write path.
 
+New `spans` tables set `ttl_only_drop_parts = 1`: a part is dropped only when every row in it has expired. With daily partitioning, retention can extend by up to one day, plus background TTL processing time. The unpartitioned `trace_id_timestamps` table keeps row-level expiry so that newer bounds in a part do not retain older bounds.
+
 The remaining tables (`services`, `operations`, `attribute_metadata`, `dependencies`) do not carry a TTL. They are small relative to `spans` — they accumulate at most one row per unique `(service)`, `(service, span_kind)`, or `(attribute_key, type, level)` triple — and `AggregatingMergeTree` deduplicates them in the background, so unbounded growth is not a practical concern in the alpha. If a service or attribute key permanently disappears from the workload, its row in these tables will linger; that is an accepted trade-off for the simpler write path. Adding TTL (or a periodic compaction step) to these tables is something we may revisit if long-running deployments accumulate enough stale entries to hurt query-builder performance.
+
+### Storage Encoding
+
+New tables use `CODEC(ZSTD(1))` on all columns, with `CODEC(Delta(8), ZSTD(1))` on `spans.start_time`. Event timestamps use plain ZSTD because they are arrays without ordering across rows. Repeated scalar names, kinds, status codes, instrumentation scope names and versions, and the keys of every typed attribute group use `LowCardinality(String)`. The services, operations, and attribute metadata tables use dictionary encoding on their corresponding string columns. These encodings preserve the typed `Nested` layout and the values returned by readers. Schema creation leaves existing tables unchanged.
 
 ---
 
