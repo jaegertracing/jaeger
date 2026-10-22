@@ -5,7 +5,6 @@ package jaegerai
 
 import (
 	"context"
-	"errors"
 	"io"
 	"net/http"
 	"strings"
@@ -14,6 +13,7 @@ import (
 
 	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerquery/internal/mcptools"
 	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerquery/querysvc"
+	"github.com/jaegertracing/jaeger/internal/closers"
 	"github.com/jaegertracing/jaeger/internal/telemetry"
 	"github.com/jaegertracing/jaeger/internal/tenancy"
 )
@@ -35,19 +35,6 @@ type RegisterParams struct {
 	Telemetry    telemetry.Settings
 }
 
-// closers releases, in order, everything Register mounted.
-type closers []io.Closer
-
-func (cs closers) Close() error {
-	var errs []error
-	for _, c := range cs {
-		if err := c.Close(); err != nil {
-			errs = append(errs, err)
-		}
-	}
-	return errors.Join(errs...)
-}
-
 // Register mounts the AI surface of the query port on r: the telemetry MCP
 // endpoint and the AI chat gateway. It returns one closer for whatever it
 // mounted. Invalid AI config disables the AI surface rather than stopping the
@@ -57,10 +44,10 @@ func Register(ctx context.Context, r *http.ServeMux, p RegisterParams) (io.Close
 	telset := p.Telemetry
 	if err := aiCfg.Validate(); err != nil {
 		telset.Logger.Error("Invalid AI config, AI handler disabled", zap.Error(err))
-		return closers(nil), nil
+		return closers.Closers(nil), nil
 	}
 
-	var cs closers
+	var cs closers.Closers
 	// The telemetry MCP endpoint stands on its own: external MCP clients (Claude Code,
 	// Cursor, IDEs) dial it with no chat sidecar involved, so it is built and mounted
 	// whenever ai.mcp is configured, never depending on ai.agent_url. It comes before

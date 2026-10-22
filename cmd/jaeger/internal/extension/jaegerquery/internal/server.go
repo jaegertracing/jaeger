@@ -33,6 +33,7 @@ import (
 	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerquery/internal/jaegerai"
 	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerquery/querysvc"
 	"github.com/jaegertracing/jaeger/internal/auth/bearertoken"
+	"github.com/jaegertracing/jaeger/internal/closers"
 	"github.com/jaegertracing/jaeger/internal/headerforwarding"
 	"github.com/jaegertracing/jaeger/internal/proto/api_v3"
 	"github.com/jaegertracing/jaeger/internal/recoveryhandler"
@@ -161,28 +162,13 @@ func createGRPCServer(
 	)
 }
 
-// closers are the components initRouter mounts that own resources past a single
-// request — the static assets handler, the AI gateway's MCP sessions, and whatever
-// is mounted next. Being an io.Closer itself lets both the caller that owns the
-// slice and the httpServer that stores it close the whole set the same way.
-type closers []io.Closer
-
-var _ io.Closer = closers(nil)
-
-// Close closes every closer and joins the errors, so one failure does not hide the
-// rest. This mirrors how the storage extension shuts its factories down.
-func (cs closers) Close() error {
-	var errs []error
-	for _, closer := range cs {
-		errs = append(errs, closer.Close())
-	}
-	return errors.Join(errs...)
-}
-
 type httpServer struct {
 	*http.Server
-	// closers shut down with the query server instead of being left to process exit.
-	closers closers
+	// closers are the components initRouter mounts that own resources past a
+	// single request: the static assets handler, the AI gateway's MCP sessions,
+	// and whatever is mounted next. They shut down with the query server instead
+	// of being left to process exit.
+	closers closers.Closers
 }
 
 var _ io.Closer = (*httpServer)(nil)
@@ -197,7 +183,7 @@ func initRouter(
 	backendCaps BackendCapabilityProvider,
 	tenancyMgr *tenancy.Manager,
 	telset telemetry.Settings,
-) (http.Handler, closers, error) {
+) (http.Handler, closers.Closers, error) {
 	apiHandlerOptions := []HandlerOption{
 		HandlerOptions.Logger(telset.Logger),
 		HandlerOptions.Tracer(telset.TracerProvider),
@@ -210,7 +196,7 @@ func initRouter(
 		apiHandlerOptions...,
 	)
 	r := http.NewServeMux()
-	var cs closers
+	var cs closers.Closers
 
 	(&apiv3.HTTPGateway{
 		QueryService: querySvc,

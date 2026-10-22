@@ -5,7 +5,6 @@ package jaegerai
 
 import (
 	"context"
-	"errors"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -97,17 +96,3 @@ func TestRegister(t *testing.T) {
 		require.Nil(t, closer)
 	})
 }
-
-func TestClosersJoinErrors(t *testing.T) {
-	cs := closers{
-		failingCloser("first"),
-		failingCloser("second"),
-	}
-	err := cs.Close()
-	require.ErrorContains(t, err, "first")
-	require.ErrorContains(t, err, "second")
-}
-
-type failingCloser string
-
-func (f failingCloser) Close() error { return errors.New(string(f)) }
