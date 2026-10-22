@@ -36,12 +36,12 @@ func (h *CapabilitiesHandler) GetCapabilities(ctx context.Context, _ *api_v3.Get
 		}
 		return nil, status.Error(codes.Internal, err.Error())
 	}
-	return &api_v3.GetCapabilitiesResponse{Search: toSearchCapabilities(caps)}, nil
+	return &api_v3.GetCapabilitiesResponse{Search: ToSearchCapabilities(caps)}, nil
 }
 
-// toSearchCapabilities converts the reader's declaration to its api_v3 shape, which mirrors
+// ToSearchCapabilities converts the reader's declaration to its api_v3 shape, which mirrors
 // jaeger.storage.v2.SearchCapabilities field for field.
-func toSearchCapabilities(caps tracestore.SearchCapabilities) *api_v3.SearchCapabilities {
+func ToSearchCapabilities(caps tracestore.SearchCapabilities) *api_v3.SearchCapabilities {
 	return &api_v3.SearchCapabilities{
 		WithoutServiceName:  caps.WithoutServiceName,
 		SameSpanConjunction: caps.SameSpanConjunction,

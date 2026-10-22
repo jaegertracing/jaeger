@@ -5,11 +5,13 @@ package jaegerquery
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
 	"iter"
 	"net/http"
+	"strings"
 	"testing"
 	"time"
 
@@ -30,6 +32,7 @@ import (
 	"go.uber.org/zap"
 	"go.uber.org/zap/zaptest"
 
+	expression "github.com/jaegertracing/jaeger-idl/query/expression/v1"
 	app "github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerquery/internal"
 	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerquery/querysvc"
 	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerstorage"
@@ -53,6 +56,7 @@ type fakeFactory struct {
 	// capabilitiesErr makes that reader unable to answer, so a test can drive both inputs
 	// server.Start takes from storage.
 	searchWithoutServiceName bool
+	searchCapabilities       tracestore.SearchCapabilities
 	capabilitiesErr          error
 }
 
@@ -67,10 +71,12 @@ func (ff fakeFactory) CreateTraceReader() (tracestore.Reader, error) {
 	if ff.name == "need-span-reader-error" {
 		return nil, errors.New("test-error")
 	}
+	caps := ff.searchCapabilities
+	caps.WithoutServiceName = ff.searchWithoutServiceName
 	reader := &tracestoremocks.Reader{}
 	reader.On("SearchCapabilities", mock.Anything).
 		Return(
-			tracestore.SearchCapabilities{WithoutServiceName: ff.searchWithoutServiceName},
+			caps,
 			ff.capabilitiesErr,
 		).
 		Maybe()
@@ -127,6 +133,14 @@ func (fakeStorageExt) TraceStorageFactory(name string) (tracestore.Factory, erro
 		return nil, errors.New("test-error")
 	case "serviceless-search-store":
 		return fakeFactory{name: name, searchWithoutServiceName: true}, nil
+	case "full-search-store":
+		return fakeFactory{name: name, searchWithoutServiceName: true, searchCapabilities: tracestore.SearchCapabilities{
+			SameSpanConjunction: true, Paginated: true, SpanSearch: true, SpanSorting: true,
+			Filter: &tracestore.FilterCapabilities{
+				Levels:    []expression.Level{expression.LevelSpan, expression.LevelResource},
+				Operators: []expression.Operator{expression.OpAnd, expression.OpEq},
+			},
+		}}, nil
 	case "unknowable-capabilities-store":
 		return fakeFactory{name: name, capabilitiesErr: errors.New("cannot ask the backend")}, nil
 	}
@@ -624,26 +638,36 @@ func TestBuildAIHealthChecker(t *testing.T) {
 // backend limitation.
 func TestServerReportsSearchCapabilityToUI(t *testing.T) {
 	tests := []struct {
-		name        string
-		store       string
-		expected    string
-		expectedLog string
+		name           string
+		store          string
+		expected       string
+		expectedSearch string
+		expectedLog    string
 	}{
 		{
-			name:     "declared capability reaches the UI",
-			store:    "serviceless-search-store",
-			expected: `"searchWithoutServiceName":true`,
+			name:           "declared capability reaches the UI",
+			store:          "serviceless-search-store",
+			expected:       `"searchWithoutServiceName":true`,
+			expectedSearch: `{"withoutServiceName":true}`,
 		},
 		{
-			name:     "declared absence reaches the UI",
-			store:    "some_store",
-			expected: `"searchWithoutServiceName":false`,
+			name:           "declared absence reaches the UI",
+			store:          "some_store",
+			expected:       `"searchWithoutServiceName":false`,
+			expectedSearch: `{}`,
 		},
 		{
-			name:        "a backend that cannot be asked is reported as the least capable",
-			store:       "unknowable-capabilities-store",
-			expected:    `"searchWithoutServiceName":false`,
-			expectedLog: "Storage did not report its search capabilities",
+			name:           "a backend that cannot be asked is reported as the least capable",
+			store:          "unknowable-capabilities-store",
+			expected:       `"searchWithoutServiceName":false`,
+			expectedLog:    "Storage did not report its search capabilities",
+			expectedSearch: `{}`,
+		},
+		{
+			name:           "all search capabilities match API v3",
+			store:          "full-search-store",
+			expected:       `"searchWithoutServiceName":true`,
+			expectedSearch: `{"withoutServiceName":true,"sameSpanConjunction":true,"filter":{"levels":["span","resource"],"operators":["and","eq"]},"paginated":true,"spanSearch":true,"spanSorting":true}`,
 		},
 	}
 	for _, test := range tests {
@@ -684,6 +708,20 @@ func TestServerReportsSearchCapabilityToUI(t *testing.T) {
 			}, 10*time.Second, 100*time.Millisecond, "server not started")
 
 			assert.Contains(t, body, test.expected)
+			parts := strings.SplitN(body, "JAEGER_BACKEND_CAPABILITIES = ", 2)
+			require.Len(t, parts, 2)
+			var bootstrap map[string]json.RawMessage
+			require.NoError(t, json.NewDecoder(strings.NewReader(parts[1])).Decode(&bootstrap))
+			require.JSONEq(t, test.expectedSearch, string(bootstrap["search"]))
+			if test.expectedLog == "" {
+				resp, err := http.Get(fmt.Sprintf("http://%s/api/v3/capabilities", srv.server.HTTPAddr()))
+				require.NoError(t, err)
+				defer resp.Body.Close()
+				require.Equal(t, http.StatusOK, resp.StatusCode)
+				var api map[string]json.RawMessage
+				require.NoError(t, json.NewDecoder(resp.Body).Decode(&api))
+				require.JSONEq(t, string(api["search"]), string(bootstrap["search"]))
+			}
 			if test.expectedLog != "" {
 				assert.Contains(t, logBuf.String(), test.expectedLog)
 				assert.Contains(t, logBuf.String(), "cannot ask the backend", "the reader's reason must survive")
