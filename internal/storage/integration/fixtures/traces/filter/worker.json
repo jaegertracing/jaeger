@@ -28,6 +28,7 @@
             {
               "traceId": "00000000000000000000000000000f05",
               "spanId": "0000000000000f05",
+              "traceState": "congo=ucfJifl5GOE",
               "name": "RUN /worker",
               "kind": 5,
               "startTimeUnixNano": "1485449191639875000",

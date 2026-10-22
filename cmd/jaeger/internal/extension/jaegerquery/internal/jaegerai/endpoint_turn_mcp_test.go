@@ -38,8 +38,13 @@ func rawUITool(t *testing.T, name string) json.RawMessage {
 // and hands to the gateway — the same server both mounts are served from.
 func sharedMCPHandler(t *testing.T) *mcptools.Handler {
 	t.Helper()
+	return sharedMCPHandlerWithParams(t, mcptools.DefaultServerParams())
+}
+
+func sharedMCPHandlerWithParams(t *testing.T, params mcptools.ServerParams) *mcptools.Handler {
+	t.Helper()
 	svc := querysvc.NewQueryService(&tracestoremocks.Reader{}, &depstoremocks.Reader{}, querysvc.QueryServiceOptions{})
-	h := mcptools.NewHandler(telemetry.NoopSettings(), svc, tenancy.NewManager(&tenancy.Options{}), mcptools.DefaultConfig())
+	h := mcptools.NewHandler(telemetry.NoopSettings(), svc, tenancy.NewManager(&tenancy.Options{}), params)
 	t.Cleanup(func() { h.Close() })
 	return h
 }
@@ -49,12 +54,17 @@ func sharedMCPHandler(t *testing.T) *mcptools.Handler {
 // the recorder backing that turn's SSE stream (to observe UI-tool dispatch).
 func turnMCPServer(t *testing.T, uiTools []json.RawMessage) (ts *httptest.Server, rec *httptest.ResponseRecorder, routeID string) {
 	t.Helper()
+	return turnMCPServerWithParams(t, mcptools.DefaultServerParams(), uiTools)
+}
+
+func turnMCPServerWithParams(t *testing.T, params mcptools.ServerParams, uiTools []json.RawMessage) (ts *httptest.Server, rec *httptest.ResponseRecorder, routeID string) {
+	t.Helper()
 	turns := newTurnRegistry()
 	rec = httptest.NewRecorder()
 	routeID = registerTurn(turns, newStreamingClient(context.Background(), rec, "thread", "run"), uiTools)
 
 	h := turnScopedEndpointBuilder{
-		shared: sharedMCPHandler(t),
+		shared: sharedMCPHandlerWithParams(t, params),
 		turns:  turns,
 		logger: telemetry.NoopSettings().Logger,
 	}.build()
@@ -95,7 +105,27 @@ func TestTurnScopedEndpointServesTelemetryPlusUITools(t *testing.T) {
 
 	got := listToolNames(t, ts, "/api/ai/mcp/"+routeID+"/")
 	assert.Contains(t, got, "get_services", "built-in telemetry tools must be advertised")
-	assert.Contains(t, got, "show_chart", "the turn's UI tools must be advertised")
+	assert.Contains(t, got, UIToolPrefix+"show_chart", "the turn's UI tools must be advertised under the namespace")
+	assert.NotContains(t, got, "show_chart", "the bare frontend name is not an MCP tool")
+}
+
+// TestTurnScopedEndpointStateless checks that the turn's UI tools are still
+// advertised when the shared handler runs in stateless mode. ServeHTTP stamps the
+// route id on every request, and in stateless mode the SDK builds the session from
+// each request's context, so uiToolsMiddleware finds the turn without a session
+// that outlives the request. The test talks to the endpoint through the real
+// go-sdk client, which after initialize sends a GET to open a stream for
+// server-to-client messages; a stateless server answers that GET with 405, and the
+// client has to treat that as "no stream" and continue, or ListTools below would
+// fail.
+func TestTurnScopedEndpointStateless(t *testing.T) {
+	params := mcptools.DefaultServerParams()
+	params.StreamableHTTP.Stateless = true
+	ts, _, routeID := turnMCPServerWithParams(t, params, []json.RawMessage{rawUITool(t, "show_chart")})
+
+	got := listToolNames(t, ts, "/api/ai/mcp/"+routeID+"/")
+	assert.Contains(t, got, "get_services", "built-in telemetry tools must be advertised")
+	assert.Contains(t, got, UIToolPrefix+"show_chart", "the turn's UI tools must be advertised under the namespace")
 }
 
 // TestSharedMCPHandlerServesTelemetryOnly pins the shared mount's contract while a
@@ -121,12 +151,12 @@ func TestSharedMCPHandlerServesTelemetryOnly(t *testing.T) {
 	ts := httptest.NewServer(mux)
 	t.Cleanup(ts.Close)
 
-	require.Contains(t, listToolNames(t, ts, "/api/ai/mcp/"+routeID+"/"), "show_chart",
+	require.Contains(t, listToolNames(t, ts, "/api/ai/mcp/"+routeID+"/"), UIToolPrefix+"show_chart",
 		"precondition: the turn's UI tool is live on the turn-scoped mount")
 
 	got := listToolNames(t, ts, "/api/ai/mcp/")
 	assert.Contains(t, got, "get_services", "the shared mount serves the telemetry tools")
-	assert.NotContains(t, got, "show_chart", "the shared mount must never advertise a turn's UI tools")
+	assert.NotContains(t, got, UIToolPrefix+"show_chart", "the shared mount must never advertise a turn's UI tools")
 }
 
 func TestTurnScopedEndpointDispatchesUIToolToStream(t *testing.T) {
@@ -134,15 +164,16 @@ func TestTurnScopedEndpointDispatchesUIToolToStream(t *testing.T) {
 	session := connectTurnMCP(t, ts, "/api/ai/mcp/"+routeID+"/")
 
 	result, err := session.CallTool(context.Background(), &mcp.CallToolParams{
-		Name:      "show_chart",
+		Name:      UIToolPrefix + "show_chart",
 		Arguments: map[string]any{"series": "latency"},
 	})
 	require.NoError(t, err)
 	assert.False(t, result.IsError)
 
 	// The UI-tool call was dispatched to the browser over the turn's SSE
-	// stream — the recorder should carry the TOOL_CALL_* frames for it.
-	assert.Contains(t, rec.Body.String(), "show_chart")
+	// stream under the bare name the frontend registered.
+	assert.Contains(t, rec.Body.String(), `"toolCallName":"show_chart"`)
+	assert.NotContains(t, rec.Body.String(), UIToolPrefix)
 }
 
 // TestTurnScopedEndpointIsolatesTurns is the key guarantee of the single
@@ -175,14 +206,14 @@ func TestTurnScopedEndpointIsolatesTurns(t *testing.T) {
 	require.NoError(t, err)
 	namesA, namesB := toolNames(listA.Tools), toolNames(listB.Tools)
 
-	assert.Contains(t, namesA, "chart_a")
-	assert.NotContains(t, namesA, "chart_b", "turn A must not see turn B's UI tools")
-	assert.Contains(t, namesB, "chart_b")
-	assert.NotContains(t, namesB, "chart_a", "turn B must not see turn A's UI tools")
+	assert.Contains(t, namesA, UIToolPrefix+"chart_a")
+	assert.NotContains(t, namesA, UIToolPrefix+"chart_b", "turn A must not see turn B's UI tools")
+	assert.Contains(t, namesB, UIToolPrefix+"chart_b")
+	assert.NotContains(t, namesB, UIToolPrefix+"chart_a", "turn B must not see turn A's UI tools")
 	assert.Contains(t, namesA, "get_services", "both turns still see the shared telemetry tools")
 	assert.Contains(t, namesB, "get_services")
 
-	_, err = sessionA.CallTool(context.Background(), &mcp.CallToolParams{Name: "chart_a"})
+	_, err = sessionA.CallTool(context.Background(), &mcp.CallToolParams{Name: UIToolPrefix + "chart_a"})
 	require.NoError(t, err)
 	assert.Contains(t, recA.Body.String(), "chart_a", "the dispatch reaches the calling turn's stream")
 	assert.NotContains(t, recB.Body.String(), "chart_a", "the other turn's stream is untouched")

@@ -70,6 +70,37 @@ const esIndexResponse = `
   }
 }`
 
+// esIndexResponseWithArraySettings mirrors a response from a cluster where the
+// index template sorts on multiple fields (OpenSearch 3.3+ / Elasticsearch
+// 8.15+ "index.sort" settings), which flattens to JSON arrays rather than
+// strings.
+const esIndexResponseWithArraySettings = `
+{
+  "%sjaeger-service-2021-08-06" : {
+    "aliases" : { },
+    "settings" : {
+      "index.creation_date" : "1628259381266"
+    }
+  },
+  "%sjaeger-span-2021-08-06" : {
+    "aliases" : { },
+    "settings" : {
+      "index.creation_date" : "1628259381326"
+    }
+  },
+  "%sjaeger-span-000001" : {
+    "aliases" : {
+      "jaeger-span-read" : { },
+      "jaeger-span-write" : { }
+    },
+    "settings" : {
+      "index.creation_date" : "1628259381326",
+      "index.sort.field" : ["traceID", "startTimeMillis"],
+      "index.sort.order" : ["asc", "desc"]
+    }
+  }
+}`
+
 const esErrResponse = `{"error":{"root_cause":[{"type":"illegal_argument_exception","reason":"request [/jaeger-*] contains unrecognized parameter: [help]"}],"type":"illegal_argument_exception","reason":"request [/jaeger-*] contains unrecognized parameter: [help]"},"status":400}`
 
 func TestClientGetIndices(t *testing.T) {
@@ -121,6 +152,28 @@ func TestClientGetIndices(t *testing.T) {
 				},
 				{
 					Index:        "foo-jaeger-span-2021-08-06",
+					CreationTime: time.Unix(0, int64(time.Millisecond)*1628259381326),
+					Aliases:      map[string]bool{},
+				},
+			},
+		},
+		{
+			name:         "settings with array values",
+			responseCode: http.StatusOK,
+			response:     esIndexResponseWithArraySettings,
+			indices: []Index{
+				{
+					Index:        "jaeger-service-2021-08-06",
+					CreationTime: time.Unix(0, int64(time.Millisecond)*1628259381266),
+					Aliases:      map[string]bool{},
+				},
+				{
+					Index:        "jaeger-span-000001",
+					CreationTime: time.Unix(0, int64(time.Millisecond)*1628259381326),
+					Aliases:      map[string]bool{"jaeger-span-read": true, "jaeger-span-write": true},
+				},
+				{
+					Index:        "jaeger-span-2021-08-06",
 					CreationTime: time.Unix(0, int64(time.Millisecond)*1628259381326),
 					Aliases:      map[string]bool{},
 				},

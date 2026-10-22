@@ -39,6 +39,10 @@ type Corpus struct {
 	// Duplicates is a trace that repeats a span ID, which a backend must return as written.
 	Duplicates ptrace.Traces
 
+	// Bounded is a two-span trace whose spans start within the same second, for the GetTraces
+	// lookup that carries Start and End.
+	Bounded ptrace.Traces
+
 	// CrossService is two traces from different services that share a marker attribute, for the
 	// RFC 0013 search that carries no service name.
 	CrossService []ptrace.Traces
@@ -124,7 +128,9 @@ func BuildCorpus(t *testing.T, suiteFixtures []*QueryFixtures, caps capabilities
 	if c.hasDuplicates {
 		c.Duplicates = buildSyntheticTrace(t, duplicateTraceSpans, duplicateSpanFrequency, duplicateSpansService, 0xD1)
 	}
+	c.Bounded = buildBoundedTrace()
 	c.CrossService = buildCrossServiceTraces()
+	c.QueryTraces["complete_search"] = buildCompleteSearchTrace()
 	c.Pagination = buildPaginationTraces()
 	c.SpanOrdering = buildSpanOrderingTraces()
 
@@ -172,6 +178,26 @@ func buildSyntheticTrace(t *testing.T, totalCount, dupFreq int, service string, 
 
 	trace := ptrace.NewTraces()
 	newResource.CopyTo(trace.ResourceSpans().AppendEmpty())
+	return trace
+}
+
+// buildBoundedTrace is a trace of two spans starting 300 ms apart inside one second, at offsets
+// a backend that stores microseconds returns unchanged. GetTraces with Start and End set to the
+// two starts must return both spans, which a bound rendered at second precision does not.
+func buildBoundedTrace() ptrace.Traces {
+	trace := ptrace.NewTraces()
+	rs := trace.ResourceSpans().AppendEmpty()
+	rs.Resource().Attributes().PutStr(otelsemconv.ServiceNameKey, "bounded-trace-service")
+	spans := rs.ScopeSpans().AppendEmpty().Spans()
+	first := time.Now().Add(-time.Hour).Truncate(time.Second).Add(100 * time.Millisecond)
+	for i, start := range []time.Time{first, first.Add(300 * time.Millisecond)} {
+		span := spans.AppendEmpty()
+		span.SetTraceID(pcommon.TraceID{0xB1})
+		span.SetSpanID(pcommon.SpanID{0xB1, byte(i + 1)})
+		span.SetName("bounded-operation")
+		span.SetStartTimestamp(pcommon.NewTimestampFromTime(start))
+		span.SetEndTimestamp(pcommon.NewTimestampFromTime(start.Add(time.Millisecond)))
+	}
 	return trace
 }
 
@@ -232,6 +258,10 @@ func (c *Corpus) All() []ptrace.Traces {
 	}
 	if c.hasDuplicates {
 		all = append(all, c.Duplicates)
+	}
+	// A corpus built by hand, as the unit tests of this package do, may leave Bounded unset.
+	if c.Bounded != (ptrace.Traces{}) {
+		all = append(all, c.Bounded)
 	}
 	all = append(all, c.CrossService...)
 	all = append(all, c.SpanOrdering...)

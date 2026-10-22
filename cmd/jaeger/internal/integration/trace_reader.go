@@ -19,6 +19,7 @@ import (
 	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/grpc/status"
 
+	expression "github.com/jaegertracing/jaeger-idl/query/expression/v1"
 	"github.com/jaegertracing/jaeger/internal/jptrace"
 	"github.com/jaegertracing/jaeger/internal/proto/api_v3"
 	expressionproto "github.com/jaegertracing/jaeger/internal/proto/expression/v1"
@@ -33,21 +34,55 @@ var (
 	_ io.Closer         = (*traceReader)(nil)
 )
 
-// traceReader retrieves trace data from the jaeger-v2 query service through the api_v2.QueryServiceClient.
+// traceReader retrieves trace data from the jaeger-v2 query service through the api_v3.QueryServiceClient.
 type traceReader struct {
-	logger     *zap.Logger
-	clientConn *grpc.ClientConn
-	client     api_v3.QueryServiceClient
+	logger       *zap.Logger
+	clientConn   *grpc.ClientConn
+	client       api_v3.QueryServiceClient
+	capabilities api_v3.CapabilitiesClient
 }
 
-// SearchCapabilities cannot be answered: api_v3 has no capability discovery, so this
-// client has no way to ask the query service what the storage behind it supports
-// (RFC 0013 §3.7 proposes the API that would let it). Reporting ErrUnsupported says
-// exactly that, where any concrete value would be a guess a caller might trust.
-func (*traceReader) SearchCapabilities(context.Context) (tracestore.SearchCapabilities, error) {
-	return tracestore.SearchCapabilities{}, fmt.Errorf(
-		"api_v3 does not expose the backend's search capabilities: %w", errors.ErrUnsupported,
-	)
+// SearchCapabilities asks the query service what the storage behind it declares, through the
+// api_v3 Capabilities service. A query service whose storage cannot report answers
+// UNIMPLEMENTED, which becomes ErrUnsupported so the caller reads it as the least capable
+// backend.
+func (r *traceReader) SearchCapabilities(ctx context.Context) (tracestore.SearchCapabilities, error) {
+	resp, err := r.capabilities.GetCapabilities(ctx, &api_v3.GetCapabilitiesRequest{})
+	if err != nil {
+		if status.Code(err) == codes.Unimplemented {
+			return tracestore.SearchCapabilities{}, fmt.Errorf(
+				"the query service does not report its storage's search capabilities: %w", errors.ErrUnsupported,
+			)
+		}
+		return tracestore.SearchCapabilities{}, err
+	}
+	search := resp.GetSearch()
+	return tracestore.SearchCapabilities{
+		WithoutServiceName:  search.GetWithoutServiceName(),
+		SameSpanConjunction: search.GetSameSpanConjunction(),
+		Filter:              fromAPIFilterCapabilities(search.GetFilter()),
+		Paginated:           search.GetPaginated(),
+		SpanSearch:          search.GetSpanSearch(),
+		SpanSorting:         search.GetSpanSorting(),
+	}, nil
+}
+
+func fromAPIFilterCapabilities(caps *api_v3.FilterCapabilities) *tracestore.FilterCapabilities {
+	if caps == nil {
+		return nil
+	}
+	levels := make([]expression.Level, 0, len(caps.GetLevels()))
+	for _, level := range caps.GetLevels() {
+		levels = append(levels, expression.Level(level))
+	}
+	operators := make([]expression.Operator, 0, len(caps.GetOperators()))
+	for _, op := range caps.GetOperators() {
+		operators = append(operators, expression.Operator(op))
+	}
+	return &tracestore.FilterCapabilities{
+		Levels:    levels,
+		Operators: operators,
+	}
 }
 
 func createTraceReader(logger *zap.Logger, port int) (*traceReader, error) {
@@ -62,9 +97,10 @@ func createTraceReader(logger *zap.Logger, port int) (*traceReader, error) {
 	}
 
 	return &traceReader{
-		logger:     logger,
-		clientConn: cc,
-		client:     api_v3.NewQueryServiceClient(cc),
+		logger:       logger,
+		clientConn:   cc,
+		client:       api_v3.NewQueryServiceClient(cc),
+		capabilities: api_v3.NewCapabilitiesClient(cc),
 	}, nil
 }
 
@@ -295,6 +331,10 @@ type traceStream interface {
 	Recv() (*jptrace.TracesData, error)
 }
 
+// apiV3ErrorInfoDomain is the ErrorInfo domain the api_v3 gRPC handler stamps on a refusal,
+// which is what lets tracestore.ErrorFromStatus restore the reader's sentinel on this side.
+const apiV3ErrorInfoDomain = "jaeger.api_v3"
+
 // consumeTraces reads the stream and calls yield for each chunk.
 // It also handles NotFound errors by terminating the stream.
 // It returns false if the processing was terminated through error.
@@ -308,6 +348,9 @@ func (r *traceReader) consumeTraces(
 			return true
 		}
 		err = unwrapNotFoundErr(err)
+		// A refusal crosses the api_v3 hop as a status, so the shared suite can assert on the
+		// same error family a direct reader returns (ADR-013).
+		err = tracestore.ErrorFromStatus(err, apiV3ErrorInfoDomain)
 		r.logger.Info("Error received", zap.Error(err))
 		if !errors.Is(err, spanstore.ErrTraceNotFound) {
 			yield(nil, err)

@@ -3,7 +3,7 @@
 
 services:
   clickhouse:
-    image: clickhouse/clickhouse-server:25.12.11@sha256:8a790dd3468db22b1d4e7b18a176f378ff5ff6053b9c48dd4ea1fa71a24c5ba6
+    image: clickhouse/clickhouse-server:26.3.57@sha256:aebd3c39b3d6b72168a600a7f6f3cb1c6856e2ba4fe112b85eaaea55c622cc7e
     container_name: clickhouse
     environment:
       - CLICKHOUSE_USER=default
@@ -12,6 +12,8 @@ services:
     ports:
       - "8123:8123"
       - "9000:9000"
+    volumes:
+      - ./keeper.yaml:/etc/clickhouse-server/config.d/keeper.yaml:ro
     healthcheck:
       test: ["CMD", "clickhouse-client", "--query=SELECT 1"]
       interval: 10s
