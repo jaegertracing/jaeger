@@ -666,7 +666,15 @@ func (s *SpanReader) convertTagField(k string, v any) dbmodel.KeyValue {
 	case bool:
 		kv.Type = dbmodel.BoolType
 	case string:
-		kv.Type = dbmodel.StringType
+		// Flat tag objects have no type field. Non-finite floats are stored as the
+		// OTLP/JSON tokens, so those three strings are read back as float64. A string
+		// attribute whose whole value is one of the tokens is indistinguishable there.
+		if f, ok := dbmodel.NonFiniteFloatToken(val); ok {
+			kv.Value = f
+			kv.Type = dbmodel.Float64Type
+		} else {
+			kv.Type = dbmodel.StringType
+		}
 	// the binary is never returned, ES returns it as string with base64 encoding
 	case []byte:
 		kv.Type = dbmodel.BinaryType

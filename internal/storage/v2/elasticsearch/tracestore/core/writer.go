@@ -117,8 +117,9 @@ func (s *SpanWriter) WriteSpans(ctx context.Context, spans []dbmodel.Span) error
 		}
 		item, err := s.buildSpanItem(s.spanRotation.WriteTarget(spanStartTime), span)
 		if err != nil {
-			// A span carrying an unencodable value (e.g. a NaN/Inf float tag) cannot
-			// be stored; drop it rather than fail the batch.
+			// Drop a span that still cannot be encoded rather than fail the batch.
+			// Non-finite floats are rewritten to JSON strings in buildSpanItem, so
+			// they are not what lands here.
 			s.writerMetrics.Errors.Inc(1)
 			s.logger.Error("failed to encode span document", zap.Error(err))
 			continue
@@ -224,10 +225,13 @@ func (*SpanWriter) Close() error {
 }
 
 // buildSpanItem marshals a span into a BulkItem with a deterministic _id, returning
-// an error if it cannot be encoded (e.g. a NaN/Inf float tag) — the caller decides
-// what to do. The span is marshaled once here; the bytes are reused for the _id and
-// handed to the batch writer as json.RawMessage so they are not re-encoded.
+// an error if it cannot be encoded — the caller decides what to do. Non-finite
+// float64 values are rewritten to JSON strings first so a NaN or ±Inf tag is stored
+// instead of rejecting the document. The span is marshaled once here; the bytes are
+// reused for the _id and handed to the batch writer as json.RawMessage so they are
+// not re-encoded.
 func (s *SpanWriter) buildSpanItem(indexName string, jsonSpan *dbmodel.Span) (esclient.BulkItem, error) {
+	encodeNonFiniteFloats(jsonSpan)
 	body, err := json.Marshal(jsonSpan)
 	if err != nil {
 		return esclient.BulkItem{}, err
@@ -276,6 +280,40 @@ func spanDocID(span *dbmodel.Span, body []byte) string {
 	h := fnv.New64a()
 	h.Write(body)
 	return string(span.TraceID) + "_" + string(span.SpanID) + "_" + strconv.FormatUint(h.Sum64(), 16)
+}
+
+// encodeNonFiniteFloats rewrites NaN and ±Inf to the OTLP/JSON strings "NaN",
+// "Infinity", and "-Infinity". encoding/json rejects the bare floats, which would
+// drop the whole span. KeyValue.Type stays float64. Flat tag maps have no type
+// field; the reader maps those same tokens back to float64.
+func encodeNonFiniteFloats(span *dbmodel.Span) {
+	encodeKeyValues(span.Tags)
+	encodeKeyValues(span.Process.Tags)
+	for i := range span.Logs {
+		encodeKeyValues(span.Logs[i].Fields)
+	}
+	encodeTagMap(span.Tag)
+	encodeTagMap(span.Process.Tag)
+}
+
+func encodeKeyValues(kvs []dbmodel.KeyValue) {
+	for i := range kvs {
+		f, ok := kvs[i].Value.(float64)
+		if !ok {
+			continue
+		}
+		kvs[i].Value = dbmodel.JSONSafeFloat(f)
+	}
+}
+
+func encodeTagMap(tags map[string]any) {
+	for k, v := range tags {
+		f, ok := v.(float64)
+		if !ok {
+			continue
+		}
+		tags[k] = dbmodel.JSONSafeFloat(f)
+	}
 }
 
 func (s *SpanWriter) splitElevatedTags(keyValues []dbmodel.KeyValue) ([]dbmodel.KeyValue, map[string]any) {
