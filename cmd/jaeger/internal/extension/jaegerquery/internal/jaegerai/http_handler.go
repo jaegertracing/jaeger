@@ -41,7 +41,7 @@ type HandlerParams struct {
 	Logger   *zap.Logger
 	AgentURL string
 	// AgentHeaders are sent on the agent WebSocket handshake, for agents that
-	// require authentication. See AIConfig.AgentHeaders.
+	// require authentication. See Config.AgentHeaders.
 	AgentHeaders       configopaque.MapList
 	BasePath           string
 	MaxRequestBodySize int64

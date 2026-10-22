@@ -1,0 +1,116 @@
+// Copyright (c) 2026 The Jaeger Authors.
+// SPDX-License-Identifier: Apache-2.0
+
+package jaegerai
+
+import (
+	"context"
+	"errors"
+	"io"
+	"net/http"
+	"strings"
+
+	"go.uber.org/zap"
+
+	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerquery/internal/mcptools"
+	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerquery/querysvc"
+	"github.com/jaegertracing/jaeger/internal/telemetry"
+	"github.com/jaegertracing/jaeger/internal/tenancy"
+)
+
+// RegisterParams is what Register needs from the query server: the ai block
+// of its configuration and the few server facts the AI routes depend on.
+type RegisterParams struct {
+	Config *Config
+	// BasePath is the query server's URL prefix, under which every AI route is
+	// mounted.
+	BasePath string
+	// HTTPEndpoint and TLSEnabled describe the query server's own listener,
+	// from which the MCP base URL announced to the sidecar is inferred when the
+	// configuration does not set one.
+	HTTPEndpoint string
+	TLSEnabled   bool
+	QueryService *querysvc.QueryService
+	Tenancy      *tenancy.Manager
+	Telemetry    telemetry.Settings
+}
+
+// closers releases, in order, everything Register mounted.
+type closers []io.Closer
+
+func (cs closers) Close() error {
+	var errs []error
+	for _, c := range cs {
+		if err := c.Close(); err != nil {
+			errs = append(errs, err)
+		}
+	}
+	return errors.Join(errs...)
+}
+
+// Register mounts the AI surface of the query port on r: the telemetry MCP
+// endpoint and the AI chat gateway. It returns one closer for whatever it
+// mounted. Invalid AI config disables the AI surface rather than stopping the
+// query server, which also serves the UI and the trace APIs.
+func Register(ctx context.Context, r *http.ServeMux, p RegisterParams) (io.Closer, error) {
+	aiCfg := p.Config
+	telset := p.Telemetry
+	if err := aiCfg.Validate(); err != nil {
+		telset.Logger.Error("Invalid AI config, AI handler disabled", zap.Error(err))
+		return closers(nil), nil
+	}
+
+	var cs closers
+	// The telemetry MCP endpoint stands on its own: external MCP clients (Claude Code,
+	// Cursor, IDEs) dial it with no chat sidecar involved, so it is built and mounted
+	// whenever ai.mcp is configured, never depending on ai.agent_url. It comes before
+	// the gateway because the gateway layers its per-turn UI tools onto this same
+	// *mcp.Server rather than standing up a second one.
+	var mcpHandler *mcptools.Handler
+	if mcp := aiCfg.MCP.Get(); mcp != nil {
+		mcpParams := mcptools.DefaultServerParams()
+		// Opened once, so a broken path is reported once, at startup. It stays open
+		// for as long as it serves, so it is released with the server rather than at
+		// process exit.
+		customSkills, err := mcptools.OpenCustomSkillsDir(mcp.SkillsDir)
+		if err != nil {
+			return nil, err
+		}
+		if customSkills != nil {
+			cs = append(cs, customSkills)
+		}
+		mcpParams.CustomSkillsFS = customSkills
+		mcpParams.StreamableHTTP = mcp.StreamableHTTP
+
+		mcpHandler = mcptools.NewHandler(telset, p.QueryService, p.Tenancy, mcpParams)
+		cs = append(cs, mcpHandler)
+		// The shared endpoint and the gateway's turn-scoped /api/ai/mcp/<id>/ patterns
+		// coexist because the latter are strictly more specific for ServeMux.
+		prefix := strings.TrimSuffix(p.BasePath, "/") + "/api/ai/mcp"
+		r.Handle(prefix+"/", http.StripPrefix(prefix, mcpHandler))
+		telset.Logger.Info("Jaeger telemetry MCP endpoint enabled", zap.String("path", prefix+"/"))
+	}
+
+	if aiCfg.AgentURL != "" {
+		// jaegerai owns the chat endpoint and, when MCP is configured, the turn-scoped
+		// endpoint (/api/ai/mcp/<id>/) — which it serves off mcpHandler's server, with
+		// the turn's UI tools layered on. Passing nil leaves it chat-only: there is no
+		// point advertising UI tools with no telemetry tools behind them.
+		//
+		// The announced base URL is resolved here because inferring the
+		// gateway's own localhost address needs the query HTTP endpoint and TLS
+		// setting, which the query server passes in RegisterParams. This is the only thing
+		// agent_url decides about MCP — which URL the sidecar is handed.
+		aiGateway := NewHandler(HandlerParams{
+			Logger:             telset.Logger,
+			AgentURL:           aiCfg.AgentURL,
+			AgentHeaders:       aiCfg.AgentHeaders,
+			BasePath:           p.BasePath,
+			MaxRequestBodySize: aiCfg.MaxRequestBodySize,
+			MCP:                mcpHandler,
+			MCPBaseURL:         aiCfg.ResolveMCPBaseURL(ctx, p.HTTPEndpoint, p.TLSEnabled),
+		})
+		aiGateway.RegisterRoutes(r)
+	}
+	return cs, nil
+}
