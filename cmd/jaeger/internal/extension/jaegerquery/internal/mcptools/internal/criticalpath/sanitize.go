@@ -11,14 +11,11 @@ import (
 // An overflowing child span is one whose time range falls outside its parent span's time range.
 // The function adjusts the start time and duration of overflowing child spans
 // to ensure they fit within the time range of their parent span.
+//
+// Each span is checked against its parent's already adjusted range, so spans are
+// visited parents first (see spanIDsParentsFirst).
 func removeOverflowingChildren(spanMap map[pcommon.SpanID]CPSpan) map[pcommon.SpanID]CPSpan {
-	// Get all span IDs
-	spanIDs := make([]pcommon.SpanID, 0, len(spanMap))
-	for spanID := range spanMap {
-		spanIDs = append(spanIDs, spanID)
-	}
-
-	for _, spanID := range spanIDs {
+	for _, spanID := range spanIDsParentsFirst(spanMap) {
 		span, ok := spanMap[spanID]
 		if !ok || span.ParentSpanID.IsEmpty() {
 			continue
@@ -101,4 +98,36 @@ func removeOverflowingChildren(spanMap map[pcommon.SpanID]CPSpan) map[pcommon.Sp
 	}
 
 	return spanMap
+}
+
+// spanIDsParentsFirst returns the IDs in spanMap ordered so that every span comes
+// after its parent: a breadth-first walk from the spans without a parent, then any
+// span the walk does not reach, such as one whose parent is not in the trace.
+func spanIDsParentsFirst(spanMap map[pcommon.SpanID]CPSpan) []pcommon.SpanID {
+	ordered := make([]pcommon.SpanID, 0, len(spanMap))
+	visited := make(map[pcommon.SpanID]struct{}, len(spanMap))
+	for spanID, span := range spanMap {
+		if span.ParentSpanID.IsEmpty() {
+			ordered = append(ordered, spanID)
+			visited[spanID] = struct{}{}
+		}
+	}
+	for i := 0; i < len(ordered); i++ {
+		for _, childID := range spanMap[ordered[i]].ChildSpanIDs {
+			if _, ok := spanMap[childID]; !ok {
+				continue
+			}
+			if _, ok := visited[childID]; ok {
+				continue
+			}
+			ordered = append(ordered, childID)
+			visited[childID] = struct{}{}
+		}
+	}
+	for spanID := range spanMap {
+		if _, ok := visited[spanID]; !ok {
+			ordered = append(ordered, spanID)
+		}
+	}
+	return ordered
 }
