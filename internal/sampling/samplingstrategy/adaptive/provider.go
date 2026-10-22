@@ -37,9 +37,7 @@ type Provider struct {
 	// strategyResponses is the cache of the sampling strategies for every service, in protobuf format.
 	strategyResponses map[string]*api_v2.SamplingStrategyResponse
 
-	// followerRefreshInterval determines how often the follower processor updates its probabilities.
-	// Given only the leader writes probabilities, the followers need to fetch the probabilities into
-	// cache.
+	// followerRefreshInterval determines how often the provider reloads probabilities from storage.
 	followerRefreshInterval time.Duration
 
 	shutdown   chan struct{}
@@ -86,7 +84,8 @@ func (p *Provider) loadProbabilities() {
 }
 
 // runUpdateProbabilitiesLoop is a loop that reads probabilities from storage.
-// The follower updates its local cache with the latest probabilities and serves them.
+// Every instance, the leader included, updates its local cache with the latest
+// probabilities and serves them, since the post-aggregator only writes them to storage.
 func (p *Provider) runUpdateProbabilitiesLoop() {
 	select {
 	case <-time.After(addJitter(p.followerRefreshInterval)):
@@ -100,19 +99,12 @@ func (p *Provider) runUpdateProbabilitiesLoop() {
 	for {
 		select {
 		case <-ticker.C:
-			// Only load probabilities if this strategy_store doesn't hold the leader lock
-			if !p.isLeader() {
-				p.loadProbabilities()
-				p.generateStrategyResponses()
-			}
+			p.loadProbabilities()
+			p.generateStrategyResponses()
 		case <-p.shutdown:
 			return
 		}
 	}
-}
-
-func (p *Provider) isLeader() bool {
-	return p.electionParticipant.IsLeader()
 }
 
 // generateStrategyResponses generates and caches SamplingStrategyResponse from the calculated sampling probabilities.
