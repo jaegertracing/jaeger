@@ -229,7 +229,7 @@ func initRouter(
 	}
 
 	if queryOpts.AI.HasValue() {
-		ai, err := jaegerai.Register(ctx, r, jaegerai.RegisterParams{
+		aiClosers, err := jaegerai.Register(ctx, r, jaegerai.RegisterParams{
 			Config:       queryOpts.AI.Get(),
 			BasePath:     queryOpts.BasePath,
 			HTTPEndpoint: queryOpts.HTTP.NetAddr.Endpoint,
@@ -241,7 +241,7 @@ func initRouter(
 		if err != nil {
 			return nil, nil, errors.Join(err, cs.Close())
 		}
-		cs = append(cs, ai)
+		cs = append(cs, aiClosers)
 	}
 
 	if queryOpts.OTLPProxy.HasValue() {
