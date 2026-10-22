@@ -8,6 +8,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.opentelemetry.io/collector/config/confighttp"
 	"go.opentelemetry.io/collector/config/configoptional"
 	"go.opentelemetry.io/collector/confmap"
 
@@ -113,4 +114,22 @@ func TestValidateRecursesIntoMCPConfig(t *testing.T) {
 	// "mcp:" names the block at fault; Config.Validate alone reports nothing here.
 	require.ErrorContains(t, err, "mcp: ai.mcp.base_url must be an absolute URL")
 	require.NoError(t, cfg.Validate())
+}
+
+// An ai.auth block without an authenticator is caught where the collector
+// validates the loaded config, before Dependencies() would hand the collector
+// an empty extension id to look up.
+func TestValidateRejectsAIAuthWithoutAuthenticator(t *testing.T) {
+	cfg := &Config{
+		Storage:      Storage{TracesPrimary: "some-storage"},
+		QueryOptions: queryapp.DefaultQueryOptions(),
+	}
+	ai := jaegerai.Config{
+		AgentURL:           jaegerai.DefaultAgentURL,
+		MaxRequestBodySize: jaegerai.DefaultMaxRequestBodySize,
+	}
+	ai.Auth = configoptional.Some(confighttp.AuthConfig{})
+	cfg.AI = configoptional.Some(ai)
+
+	require.ErrorContains(t, confmap.Validate(cfg), "ai.auth.authenticator must name an extension")
 }

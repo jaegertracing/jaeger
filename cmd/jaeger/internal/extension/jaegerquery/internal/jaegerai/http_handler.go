@@ -32,6 +32,8 @@ type Handler struct {
 	// MCP handler (HandlerParams.MCP); otherwise the endpoint is not mounted and the
 	// gateway advertises AI chat only.
 	mcp *turnScopedEndpoint
+	// chatMiddleware is HandlerParams.ChatMiddleware.
+	chatMiddleware func(http.Handler) http.Handler
 }
 
 // HandlerParams carries the dependencies for the AI gateway Handler. Grouping them
@@ -54,6 +56,11 @@ type HandlerParams struct {
 	// endpoint. Empty announces nothing — see chatEndpoint.announceMCP. Ignored when
 	// MCP is nil.
 	MCPBaseURL string
+	// ChatMiddleware wraps the chat endpoint before it is mounted, which is where
+	// the query server puts the ai.auth check. Nil mounts the endpoint bare. The
+	// turn-scoped MCP endpoint is left alone: its caller is the sidecar serving a
+	// turn that this middleware already admitted.
+	ChatMiddleware func(http.Handler) http.Handler
 }
 
 // NewHandler constructs a jaegerai.Handler, building the endpoints it will mount.
@@ -65,7 +72,7 @@ func NewHandler(p HandlerParams) *Handler {
 	basePath := normalizeBasePath(p.BasePath)
 	turns := newTurnRegistry()
 	chat := newChatEndpoint(p.Logger, turns, p.AgentURL, p.AgentHeaders, basePath, p.MaxRequestBodySize)
-	h := &Handler{basePath: basePath, chat: chat}
+	h := &Handler{basePath: basePath, chat: chat, chatMiddleware: p.ChatMiddleware}
 	if p.MCP != nil {
 		h.mcp = turnScopedEndpointBuilder{
 			shared:   p.MCP,
@@ -105,7 +112,11 @@ func normalizeBasePath(basePath string) string {
 //     wildcard is more specific than the shared "/api/ai/mcp/" pattern jaeger-query
 //     mounts, so all coexist.
 func (h *Handler) RegisterRoutes(router *http.ServeMux) {
-	router.HandleFunc(h.basePath+routeChat, h.chat.ServeHTTP)
+	var chat http.Handler = h.chat
+	if h.chatMiddleware != nil {
+		chat = h.chatMiddleware(chat)
+	}
+	router.Handle(h.basePath+routeChat, chat)
 	if h.mcp != nil {
 		h.mcp.registerRoutes(router)
 	}

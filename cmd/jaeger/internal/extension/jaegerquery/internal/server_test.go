@@ -5,6 +5,7 @@ package app
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"iter"
 	"net"
@@ -19,6 +20,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
+	"go.opentelemetry.io/collector/component"
+	"go.opentelemetry.io/collector/config/configauth"
 	"go.opentelemetry.io/collector/config/configgrpc"
 	"go.opentelemetry.io/collector/config/confighttp"
 	"go.opentelemetry.io/collector/config/confignet"
@@ -1212,6 +1215,86 @@ func TestInitRouterAIHandlerRegistration(t *testing.T) {
 		require.Equal(t, http.StatusNotFound, chatRR.Code)
 	})
 
+	t.Run("ai auth gates the chat and shared MCP endpoints but not the REST API", func(t *testing.T) {
+		authID := component.MustNewID("testauth")
+		opts := DefaultQueryOptions()
+		aiCfg := jaegerai.Config{
+			AgentURL:           "ws://localhost:1",
+			MCP:                configoptional.Some(jaegerai.MCPConfig{}),
+			MaxRequestBodySize: 1 << 20,
+		}
+		aiCfg.Auth = configoptional.Some(confighttp.AuthConfig{
+			Config:            configauth.Config{AuthenticatorID: authID},
+			RequestParameters: []string{"user"},
+		})
+		opts.AI = configoptional.Some(aiCfg)
+		authTelset := telset
+		authTelset.Host = &hostWithExtensions{extensions: map[component.ID]component.Component{
+			authID: &userHeaderAuthenticator{header: "X-Test-User", param: "user"},
+		}}
+
+		assistantUp := func(*http.Request) BackendCapabilities { return BackendCapabilities{AIAssistant: true} }
+		handler, cs, err := initRouter(context.Background(), querySvc.qs, nil, &opts, assistantUp, tenancyMgr, authTelset)
+		require.NoError(t, err)
+		t.Cleanup(func() {
+			require.NoError(t, cs.Close())
+		})
+
+		serve := func(method, path string, header http.Header) *httptest.ResponseRecorder {
+			req := httptest.NewRequest(method, path, strings.NewReader(`{}`))
+			req.Header = header
+			rr := httptest.NewRecorder()
+			handler.ServeHTTP(rr, req)
+			return rr
+		}
+		alice := http.Header{"X-Test-User": {"alice"}}
+
+		// An admitted request reaches the handler behind the gate, and both handlers
+		// judge the probe's empty `{}` body for themselves: the MCP transport wants an
+		// SSE Accept header and the chat gateway wants a prompt. 400 from either one
+		// proves the gate let the request through.
+		for _, route := range []struct {
+			method, path string
+			admitted     int
+		}{
+			{http.MethodGet, "/api/ai/mcp/", http.StatusBadRequest},
+			{http.MethodPost, "/api/ai/chat", http.StatusBadRequest},
+		} {
+			anonymous := serve(route.method, route.path, http.Header{})
+			require.Equal(t, http.StatusUnauthorized, anonymous.Code, route.path)
+			require.Contains(t, anonymous.Body.String(), "no user")
+
+			require.Equal(t, route.admitted, serve(route.method, route.path, alice).Code, route.path)
+			require.Equal(t, route.admitted, serve(route.method, route.path+"?user=alice", http.Header{}).Code, route.path)
+		}
+
+		// The REST API on the same port is not behind the authenticator.
+		rest := serve(http.MethodGet, "/api/v3/services", http.Header{})
+		require.Equal(t, http.StatusOK, rest.Code)
+
+		// The UI is served to everyone, and only an admitted caller is told
+		// that the AI assistant is available.
+		page := serve(http.MethodGet, "/", http.Header{})
+		require.Equal(t, http.StatusOK, page.Code)
+		require.Contains(t, page.Body.String(), `"aiAssistant":false`)
+		require.Contains(t, serve(http.MethodGet, "/", alice).Body.String(), `"aiAssistant":true`)
+	})
+
+	t.Run("ai auth naming an unusable authenticator aborts startup", func(t *testing.T) {
+		opts := DefaultQueryOptions()
+		aiCfg := jaegerai.Config{MCP: configoptional.Some(jaegerai.MCPConfig{}), MaxRequestBodySize: 1 << 20}
+		aiCfg.Auth = configoptional.Some(confighttp.AuthConfig{
+			Config: configauth.Config{AuthenticatorID: component.MustNewID("missing")},
+		})
+		opts.AI = configoptional.Some(aiCfg)
+		hostTelset := telset
+		hostTelset.Host = &hostWithExtensions{}
+
+		_, _, err := initRouter(context.Background(), querySvc.qs, nil, &opts, nilBackendCaps, tenancyMgr, hostTelset)
+		require.ErrorContains(t, err, "ai.auth")
+		require.ErrorContains(t, err, "authenticator not found")
+	})
+
 	t.Run("mcp disable_localhost_protection reaches the SDK handler", func(t *testing.T) {
 		// httptest.NewServer listens on 127.0.0.1, and a non-loopback Host header on
 		// that connection is what the SDK guard rejects, so the option is observable
@@ -1508,4 +1591,32 @@ func TestInitRouterOTLPProxyEmitsMetrics(t *testing.T) {
 	}
 	require.GreaterOrEqual(t, foundCount, uint64(3),
 		"expected at least 3 HTTP server metric measurements (one per request) from the OTLP proxy")
+}
+
+// userHeaderAuthenticator is an extensionauth.Server that admits a request
+// carrying the configured header or query parameter.
+type userHeaderAuthenticator struct {
+	component.StartFunc
+	component.ShutdownFunc
+	header string
+	param  string
+}
+
+func (a *userHeaderAuthenticator) Authenticate(ctx context.Context, sources map[string][]string) (context.Context, error) {
+	for _, key := range []string{a.header, a.param} {
+		if len(sources[key]) > 0 {
+			return ctx, nil
+		}
+	}
+	return ctx, errors.New("no user")
+}
+
+// hostWithExtensions is a component.Host whose extensions the test chooses.
+type hostWithExtensions struct {
+	component.Host
+	extensions map[component.ID]component.Component
+}
+
+func (h *hostWithExtensions) GetExtensions() map[component.ID]component.Component {
+	return h.extensions
 }

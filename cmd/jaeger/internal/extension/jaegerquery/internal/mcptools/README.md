@@ -27,6 +27,51 @@ It serves at `<basePath>/api/ai/mcp/` on the query port, carrying the telemetry
 tools and `read_skill` with the built-in skills. Point an MCP client there, or
 leave it to an AI chat sidecar configured with `ai.agent_url`.
 
+## Gating who may use the endpoint
+
+The query server's own `http.auth` setting runs an authenticator extension on every request to
+the port, so it cannot admit everyone to the UI and the REST API while admitting only some
+people to the AI features. The `ai.auth` block takes the same shape and applies it to the AI
+surfaces alone: this MCP endpoint, the chat endpoint, and the `aiAssistant` flag that tells the
+UI to show the chat panel.
+
+```yaml
+extensions:
+  basicauth/ai:
+    htpasswd:
+      inline: |
+        alice:$2y$...
+  jaeger_query:
+    ai:
+      mcp: {}
+      auth:
+        authenticator: basicauth/ai
+```
+
+The authenticator receives the request headers, plus any query parameters listed under
+`request_params`. An MCP or chat request it rejects is answered with `401` before it reaches the
+handler. A page request it rejects is served the UI with `aiAssistant` off, so a person outside
+the admitted group sees Jaeger without a chat panel rather than a panel that fails. Any extension
+that implements the collector's `extensionauth.Server` works here, so a deployment can gate the
+features on a group lookup of its own by building Jaeger with such an extension.
+
+Two things follow from the check running on whatever the client sends unprompted:
+
+- The `401` carries no `WWW-Authenticate` challenge, the same as the collector's own `http.auth`.
+  A browser therefore never offers basic-auth credentials on a page load, so the example above
+  gates MCP clients and direct chat calls, and hides the panel from every browser user. Showing the
+  panel to admitted users takes an authenticator that reads what a browser sends on navigation: a
+  session cookie, or a header that a fronting proxy injects. The `jaeger_query`
+  [README](../../README.md#authenticating-callers-behind-an-identity-aware-proxy) describes that
+  deployment pattern.
+- An MCP client that expects to discover an OAuth flow from the `401` does not get one. Hand such
+  a client its credential directly, as a header in its MCP server configuration.
+
+The turn-scoped endpoint `/api/ai/mcp/<id>/` is not wrapped: its caller is the chat sidecar
+serving a turn that the chat request already admitted, and the route id it needs is handed to the
+sidecar alone. Jaeger fails to start when the named extension is not loaded, and it starts the
+extension before the query server so the authenticator is ready for the first request.
+
 ## Running behind a reverse proxy or sidecar
 
 The MCP SDK that serves this endpoint carries a DNS-rebinding guard for MCP servers on a
