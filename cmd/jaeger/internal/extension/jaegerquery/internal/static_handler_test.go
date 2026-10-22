@@ -6,7 +6,6 @@ package app
 
 import (
 	"bytes"
-	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -30,7 +29,7 @@ import (
 
 // withCaps builds a provider that always reports caps.
 func withCaps(caps BackendCapabilities) BackendCapabilityProvider {
-	return func(context.Context) BackendCapabilities { return caps }
+	return func(*http.Request) BackendCapabilities { return caps }
 }
 
 func TestNotExistingUiConfig(t *testing.T) {
@@ -226,7 +225,7 @@ func TestStaticHandlerReflectsLatestAIHealthCheckPerRequest(t *testing.T) {
 	closer := RegisterStaticHandler(
 		r, zap.NewNop(),
 		&QueryOptions{UIConfig: UIConfig{AssetsPath: "fixture"}, BasePath: ""},
-		func(context.Context) BackendCapabilities {
+		func(*http.Request) BackendCapabilities {
 			return BackendCapabilities{AIAssistant: available.Load()}
 		},
 	)
@@ -257,7 +256,7 @@ func TestStaticHandlerReflectsSearchCapabilityPerRequest(t *testing.T) {
 	closer := RegisterStaticHandler(
 		r, zap.NewNop(),
 		&QueryOptions{UIConfig: UIConfig{AssetsPath: "fixture"}, BasePath: ""},
-		func(context.Context) BackendCapabilities {
+		func(*http.Request) BackendCapabilities {
 			return BackendCapabilities{SearchWithoutServiceName: supported.Load()}
 		},
 	)
@@ -316,7 +315,7 @@ func TestHotReloadUIConfig(t *testing.T) {
 	require.NoError(t, err)
 	defer h.Close()
 
-	assert.Contains(t, string(h.deriveIndexHTML(context.Background())), "About Jaeger")
+	assert.Contains(t, string(h.deriveIndexHTML(httptest.NewRequest(http.MethodGet, "/", http.NoBody))), "About Jaeger")
 
 	newContent := strings.Replace(string(content), "About Jaeger", "About a new Jaeger", 1)
 	err = syncWrite(cfgFile, tmpFile, []byte(newContent))
@@ -325,7 +324,7 @@ func TestHotReloadUIConfig(t *testing.T) {
 	// The TTL on the cached UI config is 10ms; deriveIndexHTML re-reads from
 	// disk after that. Poll until the new content is picked up.
 	require.Eventually(t, func() bool {
-		return strings.Contains(string(h.deriveIndexHTML(context.Background())), "About a new Jaeger")
+		return strings.Contains(string(h.deriveIndexHTML(httptest.NewRequest(http.MethodGet, "/", http.NoBody))), "About a new Jaeger")
 	}, time.Second, 5*time.Millisecond, "TTL-based reload did not pick up the new UI config content")
 }
 
@@ -365,7 +364,7 @@ func TestUIConfigReloadErrorKeepsCachedValue(t *testing.T) {
 		// Force a reload attempt by calling deriveIndexHTML; the malformed
 		// file should produce a logged error while leaving the previously
 		// cached "About Jaeger" content intact.
-		body := string(h.deriveIndexHTML(context.Background()))
+		body := string(h.deriveIndexHTML(httptest.NewRequest(http.MethodGet, "/", http.NoBody)))
 		if !strings.Contains(body, "About Jaeger") {
 			return false
 		}
@@ -406,7 +405,7 @@ func TestLoadUIConfig(t *testing.T) {
 				)
 				require.NoError(t, err)
 				defer h.Close()
-				assert.Contains(t, string(h.deriveIndexHTML(context.Background())), testCase.expectedContent)
+				assert.Contains(t, string(h.deriveIndexHTML(httptest.NewRequest(http.MethodGet, "/", http.NoBody))), testCase.expectedContent)
 			}
 		})
 	}

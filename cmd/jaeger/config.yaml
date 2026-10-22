@@ -53,6 +53,11 @@ extensions:
       # json_response to answer POSTs with plain JSON instead of an event stream
       # (see cmd/jaeger/internal/extension/jaegerquery/internal/mcptools/README.md).
       mcp: {}
+      # An auth block naming an authenticator extension gates the AI surfaces
+      # alone (the chat endpoint, this MCP endpoint and the UI's chat panel),
+      # leaving the rest of the UI and the REST API on the port as they are.
+      # auth:
+      #   authenticator: basicauth/ai
     # Accept OTLP/HTTP spans from the UI same-origin at /api/otlp/v1/*
     # and forward to the OTLP HTTP receiver above.
     otlp_proxy:

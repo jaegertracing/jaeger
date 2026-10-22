@@ -5,6 +5,7 @@ package app
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"iter"
 	"net"
@@ -19,6 +20,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
+	"go.opentelemetry.io/collector/component"
+	"go.opentelemetry.io/collector/config/configauth"
 	"go.opentelemetry.io/collector/config/configgrpc"
 	"go.opentelemetry.io/collector/config/confighttp"
 	"go.opentelemetry.io/collector/config/confignet"
@@ -1211,6 +1214,99 @@ func TestInitRouterAIHandlerRegistration(t *testing.T) {
 		require.Equal(t, http.StatusNotFound, chatRR.Code)
 	})
 
+	t.Run("ai auth gates the chat and shared MCP endpoints but not the REST API", func(t *testing.T) {
+		authenticator := &headerAuthenticator{header: "X-Test-User", param: "user"}
+		authID := component.MustNewID("testauth")
+		opts := DefaultQueryOptions()
+		aiCfg := AIConfig{
+			AgentURL:           "ws://localhost:1",
+			MCP:                configoptional.Some(MCPConfig{}),
+			MaxRequestBodySize: 1 << 20,
+		}
+		aiCfg.Auth = configoptional.Some(confighttp.AuthConfig{
+			Config:            configauth.Config{AuthenticatorID: authID},
+			RequestParameters: []string{"user"},
+		})
+		opts.AI = configoptional.Some(aiCfg)
+		authTelset := telset
+		authTelset.Host = &extensionsHost{extensions: map[component.ID]component.Component{authID: authenticator}}
+
+		assistantUp := func(*http.Request) BackendCapabilities { return BackendCapabilities{AIAssistant: true} }
+		handler, cs, err := initRouter(context.Background(), querySvc.qs, nil, &opts, assistantUp, tenancyMgr, authTelset)
+		require.NoError(t, err)
+		t.Cleanup(func() {
+			require.NoError(t, cs.Close())
+		})
+
+		serve := func(method, path string, header http.Header) *httptest.ResponseRecorder {
+			req := httptest.NewRequest(method, path, strings.NewReader(`{}`))
+			req.Header = header
+			rr := httptest.NewRecorder()
+			handler.ServeHTTP(rr, req)
+			return rr
+		}
+		alice := http.Header{"X-Test-User": {"alice"}}
+
+		// An admitted request reaches the handler behind the gate, and both handlers
+		// judge the probe's empty `{}` body for themselves: the MCP transport wants an
+		// SSE Accept header and the chat gateway wants a prompt. 400 from either one
+		// proves the gate let the request through.
+		for _, route := range []struct {
+			method, path string
+			admitted     int
+		}{
+			{http.MethodGet, "/api/ai/mcp/", http.StatusBadRequest},
+			{http.MethodPost, "/api/ai/chat", http.StatusBadRequest},
+		} {
+			anonymous := serve(route.method, route.path, http.Header{})
+			require.Equal(t, http.StatusUnauthorized, anonymous.Code, route.path)
+			require.Contains(t, anonymous.Body.String(), "no user")
+
+			require.Equal(t, route.admitted, serve(route.method, route.path, alice).Code, route.path)
+			require.Equal(t, route.admitted, serve(route.method, route.path+"?user=alice", http.Header{}).Code, route.path)
+		}
+
+		// The REST API on the same port is not behind the authenticator.
+		rest := serve(http.MethodGet, "/api/v3/services", http.Header{})
+		require.Equal(t, http.StatusOK, rest.Code)
+
+		// The UI is served to everyone, and only an admitted caller is told
+		// that the AI assistant is available.
+		page := serve(http.MethodGet, "/", http.Header{})
+		require.Equal(t, http.StatusOK, page.Code)
+		require.Contains(t, page.Body.String(), `"aiAssistant":false`)
+		require.Contains(t, serve(http.MethodGet, "/", alice).Body.String(), `"aiAssistant":true`)
+	})
+
+	t.Run("ai auth naming an unusable authenticator aborts startup", func(t *testing.T) {
+		notAnAuthenticator := component.MustNewID("plain")
+		host := &extensionsHost{extensions: map[component.ID]component.Component{
+			notAnAuthenticator: plainExtension{},
+		}}
+		cases := []struct {
+			name string
+			id   component.ID
+			want string
+		}{
+			{name: "not loaded", id: component.MustNewID("missing"), want: "authenticator not found"},
+			{name: "not a server authenticator", id: notAnAuthenticator, want: "not a server authenticator"},
+		}
+		for _, tc := range cases {
+			t.Run(tc.name, func(t *testing.T) {
+				opts := DefaultQueryOptions()
+				aiCfg := AIConfig{MCP: configoptional.Some(MCPConfig{}), MaxRequestBodySize: 1 << 20}
+				aiCfg.Auth = configoptional.Some(confighttp.AuthConfig{Config: configauth.Config{AuthenticatorID: tc.id}})
+				opts.AI = configoptional.Some(aiCfg)
+				hostTelset := telset
+				hostTelset.Host = host
+
+				_, _, err := initRouter(context.Background(), querySvc.qs, nil, &opts, nilBackendCaps, tenancyMgr, hostTelset)
+				require.ErrorContains(t, err, "ai.auth")
+				require.ErrorContains(t, err, tc.want)
+			})
+		}
+	})
+
 	t.Run("mcp disable_localhost_protection reaches the SDK handler", func(t *testing.T) {
 		// httptest.NewServer listens on 127.0.0.1, and a non-loopback Host header on
 		// that connection is what the SDK guard rejects, so the option is observable
@@ -1325,6 +1421,108 @@ func TestInitRouterAIHandlerRegistration(t *testing.T) {
 				"session-scoped endpoint must be mounted and reject unknown session at %s", scopedPath)
 		}
 	})
+}
+
+// headerAuthenticator is an extensionauth.Server that admits a request carrying
+// the configured header, or the configured query parameter once the interceptor
+// has copied it into the sources, and records the admitted user on the context.
+type headerAuthenticator struct {
+	component.StartFunc
+	component.ShutdownFunc
+	header string
+	param  string
+}
+
+type authenticatedUserKey struct{}
+
+func (a *headerAuthenticator) Authenticate(ctx context.Context, sources map[string][]string) (context.Context, error) {
+	for _, key := range []string{a.header, a.param} {
+		if values := sources[key]; len(values) > 0 {
+			return context.WithValue(ctx, authenticatedUserKey{}, values[0]), nil
+		}
+	}
+	return ctx, errors.New("no user")
+}
+
+func TestAIAuthenticator(t *testing.T) {
+	authID := component.MustNewID("testauth")
+	host := &extensionsHost{extensions: map[component.ID]component.Component{
+		authID: &headerAuthenticator{header: "X-Test-User", param: "user"},
+	}}
+	authenticator, err := newAIAuthenticator(context.Background(), &confighttp.AuthConfig{
+		Config:            configauth.Config{AuthenticatorID: authID},
+		RequestParameters: []string{"user"},
+	}, host)
+	require.NoError(t, err)
+
+	var seenUser any
+	var seenHeader http.Header
+	next := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		seenUser = r.Context().Value(authenticatedUserKey{})
+		seenHeader = r.Header.Clone()
+		w.WriteHeader(http.StatusNoContent)
+	})
+	handler := authenticator.Wrap(next)
+
+	request := func(target string, header http.Header) *http.Request {
+		req := httptest.NewRequest(http.MethodPost, target, http.NoBody)
+		req.Header = header
+		return req
+	}
+	serve := func(target string, header http.Header) *httptest.ResponseRecorder {
+		seenUser, seenHeader = nil, nil
+		rr := httptest.NewRecorder()
+		handler.ServeHTTP(rr, request(target, header))
+		return rr
+	}
+
+	t.Run("rejected request never reaches the handler", func(t *testing.T) {
+		rr := serve("/mcp", http.Header{})
+		assert.Equal(t, http.StatusUnauthorized, rr.Code)
+		assert.Contains(t, rr.Body.String(), "no user")
+		assert.Nil(t, seenHeader)
+		assert.False(t, authenticator.Admits(request("/mcp", http.Header{})))
+	})
+
+	t.Run("authenticated context reaches the handler", func(t *testing.T) {
+		rr := serve("/mcp", http.Header{"X-Test-User": {"alice"}})
+		assert.Equal(t, http.StatusNoContent, rr.Code)
+		assert.Equal(t, "alice", seenUser)
+		assert.True(t, authenticator.Admits(request("/mcp", http.Header{"X-Test-User": {"alice"}})))
+	})
+
+	t.Run("a listed query parameter counts, without touching the headers", func(t *testing.T) {
+		rr := serve("/mcp?user=bob", http.Header{"Accept": {"text/event-stream"}})
+		assert.Equal(t, http.StatusNoContent, rr.Code)
+		assert.Equal(t, "bob", seenUser)
+		assert.Equal(t, http.Header{"Accept": {"text/event-stream"}}, seenHeader)
+	})
+
+	t.Run("no ai.auth block admits everyone", func(t *testing.T) {
+		none, err := newAIAuthenticator(context.Background(), nil, host)
+		require.NoError(t, err)
+		assert.Nil(t, none)
+		assert.True(t, none.Admits(request("/mcp", http.Header{})))
+		rr := httptest.NewRecorder()
+		none.Wrap(next).ServeHTTP(rr, request("/mcp", http.Header{}))
+		assert.Equal(t, http.StatusNoContent, rr.Code)
+	})
+}
+
+// plainExtension is a component that is not an authenticator.
+type plainExtension struct {
+	component.StartFunc
+	component.ShutdownFunc
+}
+
+// extensionsHost is a component.Host whose extensions the test chooses.
+type extensionsHost struct {
+	component.Host
+	extensions map[component.ID]component.Component
+}
+
+func (h *extensionsHost) GetExtensions() map[component.ID]component.Component {
+	return h.extensions
 }
 
 // TestMountSharedMCP_BasePathNormalization checks the mount prefix directly

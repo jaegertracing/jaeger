@@ -19,6 +19,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/component/componenttest"
+	"go.opentelemetry.io/collector/config/configauth"
 	"go.opentelemetry.io/collector/config/configgrpc"
 	"go.opentelemetry.io/collector/config/confighttp"
 	"go.opentelemetry.io/collector/config/confignet"
@@ -188,6 +189,16 @@ func TestServerDependencies(t *testing.T) {
 		cfg.QueryInterceptors = []component.ID{testInterceptorID}
 		server := newServer(cfg, telemetrySettings)
 		assert.Equal(t, []component.ID{jaegerstorage.ID, testInterceptorID}, server.Dependencies())
+	})
+
+	t.Run("includes the AI authenticator", func(t *testing.T) {
+		authID := component.MustNewID("ai_authenticator")
+		cfg := createDefaultConfig().(*Config)
+		ai := app.AIConfig{}
+		ai.Auth = configoptional.Some(confighttp.AuthConfig{Config: configauth.Config{AuthenticatorID: authID}})
+		cfg.AI = configoptional.Some(ai)
+		server := newServer(cfg, telemetrySettings)
+		assert.Equal(t, []component.ID{jaegerstorage.ID, authID}, server.Dependencies())
 	})
 }
 

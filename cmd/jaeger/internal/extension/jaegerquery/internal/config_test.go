@@ -12,6 +12,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.opentelemetry.io/collector/config/confighttp"
 	"go.opentelemetry.io/collector/config/configopaque"
 	"go.opentelemetry.io/collector/config/configoptional"
 )
@@ -76,6 +77,12 @@ func TestAIConfigValidateAcceptsSkillsDir(t *testing.T) {
 	cfg := validAIConfig()
 	cfg.MCP = configoptional.Some(MCPConfig{SkillsDir: "/etc/jaeger/skills"})
 	require.NoError(t, cfg.Validate())
+}
+
+func TestAIConfigValidateRejectsAuthWithoutAuthenticator(t *testing.T) {
+	cfg := validAIConfig()
+	cfg.Auth = configoptional.Some(confighttp.AuthConfig{})
+	require.EqualError(t, cfg.Validate(), "ai.auth.authenticator must name an extension")
 }
 
 func TestAIConfigValidateRejectsNonPositiveBodySize(t *testing.T) {
