@@ -58,7 +58,7 @@ func newDurationUnitsParser(units time.Duration) durationParser {
 // and the typical backend granularity of those is on the order of 15min or more. As such, microseconds aren't
 // useful in this domain and milliseconds are sufficient for both times and durations.
 func (p *queryParser) parseDependenciesQueryParams(r *http.Request) (dqp dependenciesQueryParameters, err error) {
-	dqp.endTs, err = p.parseTime(r, endTsParam, time.Millisecond)
+	dqp.endTs, err = p.parseTime(r, endTsParam, time.UnixMilli)
 	if err != nil {
 		return dqp, err
 	}
@@ -122,7 +122,7 @@ func (p *queryParser) parseMetricsQueryParams(r *http.Request) (bqp metricstore.
 	if err != nil {
 		return bqp, err
 	}
-	endTs, err := p.parseTime(r, endTsParam, time.Millisecond)
+	endTs, err := p.parseTime(r, endTsParam, time.UnixMilli)
 	if err != nil {
 		return bqp, err
 	}
@@ -146,9 +146,11 @@ func (p *queryParser) parseMetricsQueryParams(r *http.Request) (bqp metricstore.
 	return bqp, err
 }
 
-// parseTime parses the time parameter of an HTTP request that is represented the number of "units" since epoch.
+// parseTime parses the time parameter of an HTTP request that is represented as a number of units since
+// epoch, which toTime (time.UnixMilli or time.UnixMicro) converts to a time. Converting this way rather than
+// multiplying by a time.Duration keeps large values from overflowing.
 // If the time parameter is empty, the current time will be returned.
-func (p *queryParser) parseTime(r *http.Request, paramName string, units time.Duration) (time.Time, error) {
+func (p *queryParser) parseTime(r *http.Request, paramName string, toTime func(int64) time.Time) (time.Time, error) {
 	formValue := r.URL.Query().Get(paramName)
 	if formValue == "" {
 		return p.timeNow(), nil
@@ -157,7 +159,7 @@ func (p *queryParser) parseTime(r *http.Request, paramName string, units time.Du
 	if err != nil {
 		return time.Time{}, newParseError(err, paramName)
 	}
-	return time.Unix(0, 0).Add(time.Duration(t) * units), nil
+	return toTime(t), nil
 }
 
 // parseDuration parses the duration parameter of an HTTP request using the provided durationParser.
