@@ -20,18 +20,3 @@ func JSONSafeFloat(f float64) any {
 		return f
 	}
 }
-
-// NonFiniteFloatToken parses the OTLP/JSON tokens "NaN", "Infinity", and
-// "-Infinity". Other strings, including "Inf" and "-Inf", are not tokens.
-func NonFiniteFloatToken(s string) (float64, bool) {
-	switch s {
-	case "NaN":
-		return math.NaN(), true
-	case "Infinity":
-		return math.Inf(1), true
-	case "-Infinity":
-		return math.Inf(-1), true
-	default:
-		return 0, false
-	}
-}

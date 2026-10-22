@@ -8,7 +8,6 @@ import (
 	"encoding/json"
 	"math"
 	"strconv"
-	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -35,14 +34,6 @@ func jsonFloatToken(v float64) string {
 	default:
 		return strconv.FormatFloat(v, 'f', -1, 64)
 	}
-}
-
-func floatTagValue(v float64) any {
-	token := jsonFloatToken(v)
-	if strings.HasPrefix(token, `"`) {
-		return strings.Trim(token, `"`)
-	}
-	return v
 }
 
 // spanCarryingFloat puts v into every float-bearing spot on a span document:
@@ -85,7 +76,7 @@ func spanCarryingFloat(v float64) *dbmodel.Span {
 	}
 }
 
-func newFloatSpanWriter(allTagsAsFields bool, batch *fakeBatchWriter) (*SpanWriter, *testutils.Buffer, *metricstest.Factory) {
+func newFloatSpanWriter(allTagsAsFields bool, tagKeys []string, batch *fakeBatchWriter) (*SpanWriter, *testutils.Buffer, *metricstest.Factory) {
 	logger, buf := testutils.NewLogger()
 	mf := metricstest.NewFactory(0)
 	if batch == nil {
@@ -97,6 +88,7 @@ func newFloatSpanWriter(allTagsAsFields bool, batch *fakeBatchWriter) (*SpanWrit
 		MetricsFactory:    mf,
 		ServiceOperations: NewServiceOperationStorage(nil, logger, 0),
 		AllTagsAsFields:   allTagsAsFields,
+		TagKeysAsFields:   tagKeys,
 		TagDotReplacement: "@",
 		SpanRotation:      indices.NewAliasedRotation("jaeger-span-write", "jaeger-span-read"),
 		ServiceRotation:   indices.NewAliasedRotation("jaeger-service-write", "jaeger-service-read"),
@@ -137,7 +129,7 @@ func TestBuildSpanItem_NonFiniteFloatTags(t *testing.T) {
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			writer, _, _ := newFloatSpanWriter(false, nil)
+			writer, _, _ := newFloatSpanWriter(false, nil, nil)
 			span := spanCarryingFloat(tc.value)
 			token := jsonFloatToken(tc.value)
 
@@ -159,18 +151,16 @@ func TestBuildSpanItem_NonFiniteFloatTags(t *testing.T) {
 			assert.Contains(t, body, `"procFlat":`+token)
 			assert.Contains(t, body, `"procFlatOk":1.5`)
 
-			want := floatTagValue(tc.value)
+			// The caller's span is not rewritten; only the marshaled document changes.
 			assert.Equal(t, dbmodel.Float64Type, span.Tags[0].Type)
-			assert.Equal(t, want, span.Tags[0].Value)
+			assertStillFloat(t, span.Tags[0].Value, tc.value)
 			assert.Equal(t, dbmodel.Float64Type, span.Process.Tags[0].Type)
-			assert.Equal(t, want, span.Process.Tags[0].Value)
+			assertStillFloat(t, span.Process.Tags[0].Value, tc.value)
 			assert.Equal(t, dbmodel.Float64Type, span.Logs[0].Fields[0].Type)
-			assert.Equal(t, want, span.Logs[0].Fields[0].Value)
-			assert.Equal(t, want, span.Tag["flat"])
-			assert.Equal(t, want, span.Process.Tag["procFlat"])
-			okVal, ok := span.Tags[1].Value.(float64)
-			require.True(t, ok)
-			assert.InDelta(t, 1.5, okVal, 0)
+			assertStillFloat(t, span.Logs[0].Fields[0].Value, tc.value)
+			assertStillFloat(t, span.Tag["flat"], tc.value)
+			assertStillFloat(t, span.Process.Tag["procFlat"], tc.value)
+			assertStillFloat(t, span.Tags[1].Value, 1.5)
 			assert.Equal(t, "kept", span.Tags[2].Value)
 
 			again, err := writer.buildSpanItem("jaeger-span-write", span)
@@ -182,8 +172,8 @@ func TestBuildSpanItem_NonFiniteFloatTags(t *testing.T) {
 }
 
 // TestWriteSpans_NonFiniteFloatNotDropped pins that a non-finite double does not
-// drop the span or log an encode error, whether the value stays nested or is
-// elevated into the flat tag map.
+// drop the span or log an encode error. It stays in the typed nested array.
+// Finite tags and strings still move to the flat map when tags-as-fields is on.
 func TestWriteSpans_NonFiniteFloatNotDropped(t *testing.T) {
 	cases := []struct {
 		name  string
@@ -199,7 +189,7 @@ func TestWriteSpans_NonFiniteFloatNotDropped(t *testing.T) {
 			for _, tc := range cases {
 				t.Run(tc.name, func(t *testing.T) {
 					batch := &fakeBatchWriter{}
-					writer, logs, mf := newFloatSpanWriter(allTags, batch)
+					writer, logs, mf := newFloatSpanWriter(allTags, nil, batch)
 					span := spanCarryingFloat(tc.value)
 					// WriteSpans rebuilds the flat maps from the nested tags.
 					span.Tag = nil
@@ -220,16 +210,24 @@ func TestWriteSpans_NonFiniteFloatNotDropped(t *testing.T) {
 					raw := bodies[0]
 					// Log fields are never elevated, so the float stays a typed KeyValue.
 					assertFloatJSON(t, raw, "log", token)
-					if allTags {
+					nonFinite := math.IsNaN(tc.value) || math.IsInf(tc.value, 0)
+					if allTags && !nonFinite {
 						assert.Contains(t, raw, `"span":`+token)
 						assert.Contains(t, raw, `"proc":`+token)
-						assert.Contains(t, raw, `"ok":1.5`)
-						assert.Contains(t, raw, `"label":"kept"`)
 						assert.NotContains(t, raw, `"key":"span"`)
-						assert.NotContains(t, raw, `"key":"ok"`)
+						assert.NotContains(t, raw, `"key":"proc"`)
 					} else {
 						assertFloatJSON(t, raw, "span", token)
 						assertFloatJSON(t, raw, "proc", token)
+						assert.NotContains(t, raw, `"span":`+token)
+						assert.NotContains(t, raw, `"proc":`+token)
+					}
+					if allTags {
+						assert.Contains(t, raw, `"ok":1.5`)
+						assert.Contains(t, raw, `"label":"kept"`)
+						assert.NotContains(t, raw, `"key":"ok"`)
+						assert.NotContains(t, raw, `"key":"label"`)
+					} else {
 						assertFloatJSON(t, raw, "ok", "1.5")
 						assert.Contains(t, raw, `"key":"label","type":"string","value":"kept"`)
 					}
@@ -246,7 +244,7 @@ func TestNonFiniteFloat_ReaderRoundTrip(t *testing.T) {
 
 	t.Run("nested", func(t *testing.T) {
 		batch := &fakeBatchWriter{}
-		writer, _, _ := newFloatSpanWriter(false, batch)
+		writer, _, _ := newFloatSpanWriter(false, nil, batch)
 		span := spanCarryingFloat(math.NaN())
 		span.Tags = append(span.Tags,
 			dbmodel.KeyValue{Key: "pinf", Type: dbmodel.Float64Type, Value: math.Inf(1)},
@@ -276,7 +274,7 @@ func TestNonFiniteFloat_ReaderRoundTrip(t *testing.T) {
 
 	t.Run("tags as fields", func(t *testing.T) {
 		batch := &fakeBatchWriter{}
-		writer, _, _ := newFloatSpanWriter(true, batch)
+		writer, _, _ := newFloatSpanWriter(true, nil, batch)
 		span := &dbmodel.Span{
 			TraceID:       "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
 			SpanID:        "bbbbbbbbbbbbbbbb",
@@ -305,38 +303,114 @@ func TestNonFiniteFloat_ReaderRoundTrip(t *testing.T) {
 		require.NoError(t, writer.WriteSpans(context.Background(), []dbmodel.Span{*span}))
 		bodies := spanRawBodies(batch.items)
 		require.Len(t, bodies, 1)
-		assert.Contains(t, bodies[0], `"a@b":"NaN"`)
-		assert.Contains(t, bodies[0], `"pinf":"Infinity"`)
-		assert.Contains(t, bodies[0], `"ninf":"-Infinity"`)
+		// Non-finite values stay nested, so the key keeps its dot and its type.
+		assertFloatJSON(t, bodies[0], "a.b", `"NaN"`)
+		assertFloatJSON(t, bodies[0], "pinf", `"Infinity"`)
+		assertFloatJSON(t, bodies[0], "ninf", `"-Infinity"`)
+		assertFloatJSON(t, bodies[0], "proc.nan", `"NaN"`)
+		assertFloatJSON(t, bodies[0], "ratio", `"-Infinity"`)
 		assert.Contains(t, bodies[0], `"ok":1.5`)
 		assert.Contains(t, bodies[0], `"label":"kept"`)
 		assert.Contains(t, bodies[0], `"word":"NaN"`)
-		assert.Contains(t, bodies[0], `"proc@nan":"NaN"`)
-		assert.Contains(t, bodies[0], `"key":"ratio","type":"float64","value":"-Infinity"`)
+		assert.NotContains(t, bodies[0], `"a@b"`)
+		assert.NotContains(t, bodies[0], `"proc@nan"`)
 
 		got, err := reader.unmarshalJSONSpan(esclient.SearchHit{Source: json.RawMessage(bodies[0])})
 		require.NoError(t, err)
 		reader.mergeAllNestedAndElevatedTagsOfSpan(&got)
 
-		assertFloatBack(t, findKeyValue(t, got.Tags, "a.b"), math.NaN())
-		assertFloatBack(t, findKeyValue(t, got.Tags, "pinf"), math.Inf(1))
-		assertFloatBack(t, findKeyValue(t, got.Tags, "ninf"), math.Inf(-1))
+		assertFloatToken(t, findKeyValue(t, got.Tags, "a.b"), "NaN")
+		assertFloatToken(t, findKeyValue(t, got.Tags, "pinf"), "Infinity")
+		assertFloatToken(t, findKeyValue(t, got.Tags, "ninf"), "-Infinity")
 		assertFloatBack(t, findKeyValue(t, got.Tags, "ok"), 1.5)
 		label := findKeyValue(t, got.Tags, "label")
 		assert.Equal(t, dbmodel.StringType, label.Type)
 		assert.Equal(t, "kept", label.Value)
-		// A string attribute whose value is the token is indistinguishable from
-		// a non-finite float once both live in the untyped tag object.
 		word := findKeyValue(t, got.Tags, "word")
-		assert.Equal(t, dbmodel.Float64Type, word.Type)
-		wordF, ok := word.Value.(float64)
-		require.True(t, ok, "word value %T", word.Value)
-		assert.True(t, math.IsNaN(wordF))
-		assertFloatBack(t, findKeyValue(t, got.Process.Tags, "proc.nan"), math.NaN())
+		assert.Equal(t, dbmodel.StringType, word.Type)
+		assert.Equal(t, "NaN", word.Value)
+		assertFloatToken(t, findKeyValue(t, got.Process.Tags, "proc.nan"), "NaN")
 		ratio := findKeyValue(t, got.Logs[0].Fields, "ratio")
 		assert.Equal(t, dbmodel.Float64Type, ratio.Type)
 		assert.Equal(t, "-Infinity", ratio.Value)
 	})
+}
+
+// TestWriteSpans_IncludeListKeepsNonFiniteNested pins that a key named in the
+// tags-as-fields include list is still stored nested when its value is non-finite.
+func TestWriteSpans_IncludeListKeepsNonFiniteNested(t *testing.T) {
+	batch := &fakeBatchWriter{}
+	writer, _, _ := newFloatSpanWriter(false, []string{"nan", "ok", "label", "a.b"}, batch)
+	span := dbmodel.Span{
+		TraceID:       "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+		SpanID:        "bbbbbbbbbbbbbbbb",
+		OperationName: "op",
+		StartTime:     1,
+		Process:       dbmodel.Process{ServiceName: "svc"},
+		Tags: []dbmodel.KeyValue{
+			{Key: "nan", Type: dbmodel.Float64Type, Value: math.NaN()},
+			{Key: "a.b", Type: dbmodel.Float64Type, Value: math.Inf(1)},
+			{Key: "ok", Type: dbmodel.Float64Type, Value: 1.5},
+			{Key: "label", Type: dbmodel.StringType, Value: "kept"},
+			{Key: "other", Type: dbmodel.StringType, Value: "plain"},
+		},
+	}
+	require.NoError(t, writer.WriteSpans(context.Background(), []dbmodel.Span{span}))
+	bodies := spanRawBodies(batch.items)
+	require.Len(t, bodies, 1)
+	raw := bodies[0]
+	assertFloatJSON(t, raw, "nan", `"NaN"`)
+	assertFloatJSON(t, raw, "a.b", `"Infinity"`)
+	assert.Contains(t, raw, `"key":"other","type":"string","value":"plain"`)
+	assert.Contains(t, raw, `"ok":1.5`)
+	assert.Contains(t, raw, `"label":"kept"`)
+	assert.NotContains(t, raw, `"nan":`)
+	assert.NotContains(t, raw, `"a@b"`)
+}
+
+// TestWriteSpans_DoesNotMutateCallerFloats pins that rewriting non-finite
+// floats for JSON does not write into slices or maps the caller still holds.
+func TestWriteSpans_DoesNotMutateCallerFloats(t *testing.T) {
+	batch := &fakeBatchWriter{}
+	writer, _, _ := newFloatSpanWriter(true, nil, batch)
+	tags := []dbmodel.KeyValue{
+		{Key: "span", Type: dbmodel.Float64Type, Value: math.NaN()},
+		{Key: "ok", Type: dbmodel.Float64Type, Value: 1.5},
+		{Key: "label", Type: dbmodel.StringType, Value: "kept"},
+	}
+	proc := []dbmodel.KeyValue{{Key: "proc", Type: dbmodel.Float64Type, Value: math.Inf(1)}}
+	fields := []dbmodel.KeyValue{{Key: "log", Type: dbmodel.Float64Type, Value: math.Inf(-1)}}
+	flat := map[string]any{"flat": math.NaN(), "flatOk": 1.5}
+	spans := []dbmodel.Span{{
+		TraceID:       "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+		SpanID:        "bbbbbbbbbbbbbbbb",
+		OperationName: "op",
+		StartTime:     1,
+		Tags:          tags,
+		Tag:           flat,
+		Logs:          []dbmodel.Log{{Timestamp: 2, Fields: fields}},
+		Process: dbmodel.Process{
+			ServiceName: "svc",
+			Tags:        proc,
+			Tag:         map[string]any{"procFlat": math.Inf(-1)},
+		},
+	}}
+
+	require.NoError(t, writer.WriteSpans(context.Background(), spans))
+
+	assertStillFloat(t, tags[0].Value, math.NaN())
+	assertStillFloat(t, tags[1].Value, 1.5)
+	assert.Equal(t, "kept", tags[2].Value)
+	assertStillFloat(t, proc[0].Value, math.Inf(1))
+	assertStillFloat(t, fields[0].Value, math.Inf(-1))
+	assertStillFloat(t, flat["flat"], math.NaN())
+	assertStillFloat(t, flat["flatOk"], 1.5)
+
+	stored := findKeyValue(t, spans[0].Tags, "span")
+	assert.Equal(t, dbmodel.Float64Type, stored.Type)
+	assertStillFloat(t, stored.Value, math.NaN())
+	assertStillFloat(t, findKeyValue(t, spans[0].Process.Tags, "proc").Value, math.Inf(1))
+	assertStillFloat(t, findKeyValue(t, spans[0].Logs[0].Fields, "log").Value, math.Inf(-1))
 }
 
 func findKeyValue(t *testing.T, kvs []dbmodel.KeyValue, key string) dbmodel.KeyValue {
@@ -348,6 +422,28 @@ func findKeyValue(t *testing.T, kvs []dbmodel.KeyValue, key string) dbmodel.KeyV
 	}
 	t.Fatalf("missing key %q in %+v", key, kvs)
 	return dbmodel.KeyValue{}
+}
+
+func assertFloatToken(t *testing.T, kv dbmodel.KeyValue, token string) {
+	t.Helper()
+	assert.Equal(t, dbmodel.Float64Type, kv.Type)
+	assert.Equal(t, token, kv.Value)
+}
+
+func assertStillFloat(t *testing.T, v any, want float64) {
+	t.Helper()
+	got, ok := v.(float64)
+	require.True(t, ok, "value %T (%v)", v, v)
+	switch {
+	case math.IsNaN(want):
+		assert.True(t, math.IsNaN(got))
+	case math.IsInf(want, 1):
+		assert.True(t, math.IsInf(got, 1))
+	case math.IsInf(want, -1):
+		assert.True(t, math.IsInf(got, -1))
+	default:
+		assert.InDelta(t, want, got, 0)
+	}
 }
 
 func assertFloatBack(t *testing.T, kv dbmodel.KeyValue, want float64) {

@@ -4,6 +4,7 @@
 package tracestore
 
 import (
+	"context"
 	"encoding/json"
 	"math"
 	"strings"
@@ -13,7 +14,12 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/collector/pdata/pcommon"
 	"go.opentelemetry.io/collector/pdata/ptrace"
+	"go.uber.org/zap"
 
+	"github.com/jaegertracing/jaeger/internal/metricstest"
+	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/esclient"
+	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/indices"
+	"github.com/jaegertracing/jaeger/internal/storage/v2/elasticsearch/tracestore/core"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/elasticsearch/tracestore/core/dbmodel"
 )
 
@@ -48,9 +54,9 @@ func TestToDBModel_NonFiniteDoubles(t *testing.T) {
 	assertStoredFloat(t, findDBTag(t, got.Logs[0].Fields, "ratio"), math.Inf(-1))
 }
 
-// TestFromDBModel_NonFiniteFloatStrings is the read path for a document that
-// already stores non-finite doubles as strings (the shape the writer emits)
-// and for the float64 values the tag-map merge produces.
+// TestFromDBModel_NonFiniteFloatStrings is the read path for a nested tag stored
+// as an OTLP/JSON string token with type float64, and for a float64 already in
+// memory. A string-typed "NaN" stays a string.
 func TestFromDBModel_NonFiniteFloatStrings(t *testing.T) {
 	t.Run("json strings", func(t *testing.T) {
 		const doc = `{
@@ -139,6 +145,89 @@ func TestFromDBModel_NonFiniteFloatStrings(t *testing.T) {
 		requireDouble(t, got.Attributes(), "num", math.NaN())
 		requireDouble(t, got.Events().At(0).Attributes(), "ratio", math.Inf(1))
 	})
+}
+
+// recordingBatch keeps the documents WriteSpans hands to the bulk writer.
+type recordingBatch struct {
+	items []esclient.BulkItem
+}
+
+func (r *recordingBatch) WriteBatch(_ context.Context, items []esclient.BulkItem) error {
+	r.items = append(r.items, items...)
+	return nil
+}
+
+// TestWriterDocumentRoundTripsThroughFromDBModel writes a tags-as-fields span and
+// reads that document back. The non-finite key stays nested and becomes a double.
+// The string attribute "NaN" is elevated and stays a string.
+func TestWriterDocumentRoundTripsThroughFromDBModel(t *testing.T) {
+	batch := &recordingBatch{}
+	writer := core.NewSpanWriter(core.SpanWriterParams{
+		BatchWriter:       batch,
+		Logger:            zap.NewNop(),
+		MetricsFactory:    metricstest.NewFactory(0),
+		ServiceOperations: core.NewServiceOperationStorage(nil, zap.NewNop(), 0),
+		AllTagsAsFields:   true,
+		TagDotReplacement: "@",
+		SpanRotation:      indices.NewAliasedRotation("jaeger-span-write", "jaeger-span-read"),
+		ServiceRotation:   indices.NewAliasedRotation("jaeger-service-write", "jaeger-service-read"),
+	})
+	in := dbmodel.Span{
+		TraceID:       "000000000000000000000000000000ab",
+		SpanID:        "00000000000000cd",
+		OperationName: "op",
+		StartTime:     10,
+		Duration:      5,
+		Process: dbmodel.Process{
+			ServiceName: "svc",
+			Tags: []dbmodel.KeyValue{
+				{Key: "proc.nan", Type: dbmodel.Float64Type, Value: math.NaN()},
+			},
+		},
+		Tags: []dbmodel.KeyValue{
+			{Key: "nan", Type: dbmodel.Float64Type, Value: math.NaN()},
+			{Key: "word", Type: dbmodel.StringType, Value: "NaN"},
+			{Key: "ok", Type: dbmodel.Float64Type, Value: 1.5},
+		},
+		Logs: []dbmodel.Log{{
+			Timestamp: 11,
+			Fields: []dbmodel.KeyValue{
+				{Key: "event", Type: dbmodel.StringType, Value: "boom"},
+				{Key: "ratio", Type: dbmodel.Float64Type, Value: math.Inf(-1)},
+			},
+		}},
+	}
+	require.NoError(t, writer.WriteSpans(context.Background(), []dbmodel.Span{in}))
+
+	var raw json.RawMessage
+	for _, item := range batch.items {
+		body, ok := item.Body.(json.RawMessage)
+		if ok {
+			raw = body
+		}
+	}
+	require.NotNil(t, raw)
+	dec := json.NewDecoder(strings.NewReader(string(raw)))
+	dec.UseNumber()
+	var stored dbmodel.Span
+	require.NoError(t, dec.Decode(&stored))
+
+	// Flat strings stay strings. The reader merge appends them after the nested tags.
+	word, ok := stored.Tag["word"].(string)
+	require.True(t, ok, "word value %T", stored.Tag["word"])
+	stored.Tags = append(stored.Tags, dbmodel.KeyValue{Key: "word", Type: dbmodel.StringType, Value: word})
+
+	td, err := FromDBModel([]dbmodel.Span{stored})
+	require.NoError(t, err)
+	rs := td.ResourceSpans().At(0)
+	requireDouble(t, rs.Resource().Attributes(), "proc.nan", math.NaN())
+	got := rs.ScopeSpans().At(0).Spans().At(0)
+	requireDouble(t, got.Attributes(), "nan", math.NaN())
+	requireDouble(t, got.Events().At(0).Attributes(), "ratio", math.Inf(-1))
+	text, ok := got.Attributes().Get("word")
+	require.True(t, ok)
+	assert.Equal(t, pcommon.ValueTypeStr, text.Type())
+	assert.Equal(t, "NaN", text.Str())
 }
 
 func findDBTag(t *testing.T, kvs []dbmodel.KeyValue, key string) dbmodel.KeyValue {
