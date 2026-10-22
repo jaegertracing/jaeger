@@ -1335,13 +1335,13 @@ func (c *chunkedSearchConn) Query(_ context.Context, query string, args ...any) 
 	c.queries = append(c.queries, query)
 	c.args = append(c.args, args)
 	switch {
-	case strings.Contains(query, sql.SelectTraceIDTimestamps):
+	case query == sql.SelectTraceIDTimestamps:
 		var data [][]any
 		for _, id := range args[0].([]string) {
 			data = append(data, []any{id, now.Add(-time.Hour), now})
 		}
 		return &clickhousetest.Rows[[]any]{Data: data, ScanFn: scanTraceIDFn()}, nil
-	case strings.Contains(query, strings.TrimRight(sql.SelectSpansQuery, "\n")):
+	case strings.HasPrefix(query, strings.TrimRight(sql.SelectSpansQuery, "\n")):
 		var data []*dbmodel.SpanRow
 		for i := 0; i < len(args); i += 3 {
 			span := *singleSpan[0]

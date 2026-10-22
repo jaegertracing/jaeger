@@ -218,7 +218,13 @@ func (r *Reader) findBoundedTraceIDs(ctx context.Context, query tracestore.Trace
 	if len(ids) == 0 {
 		return nil, nil
 	}
-	return r.attachTraceBounds(ctx, ids)
+	// Each chunk is a subslice of ids, so attachTraceBounds fills the bounds in ids itself.
+	for chunk := range slices.Chunk(ids, traceSearchChunkSize) {
+		if _, err := r.attachTraceBounds(ctx, chunk); err != nil {
+			return nil, err
+		}
+	}
+	return ids, nil
 }
 
 // queryCandidateTraceIDs runs the bounded search statement and returns IDs without bounds. The
@@ -252,35 +258,17 @@ func (r *Reader) queryCandidateTraceIDs(ctx context.Context, query tracestore.Tr
 // attachTraceBounds looks up trace_id_timestamps for the given IDs and fills Start and End in
 // place. An ID without a row keeps zero bounds.
 func (r *Reader) attachTraceBounds(ctx context.Context, traceIDs []tracestore.FoundTraceID) ([]tracestore.FoundTraceID, error) {
+	ids := make([]string, 0, len(traceIDs))
 	positions := make(map[pcommon.TraceID]int, len(traceIDs))
 	for i, trace := range traceIDs {
+		ids = append(ids, trace.TraceID.String())
 		positions[trace.TraceID] = i
 	}
-	for chunk := range slices.Chunk(traceIDs, traceSearchChunkSize) {
-		ids := make([]string, 0, len(chunk))
-		for _, trace := range chunk {
-			ids = append(ids, trace.TraceID.String())
-		}
-		if err := r.readTraceBounds(ctx, ids, traceIDs, positions); err != nil {
-			return nil, err
-		}
-	}
-	return traceIDs, nil
-}
-
-// readTraceBounds looks up the bounds of the given IDs and stores them into
-// traceIDs at the index recorded in positions.
-func (r *Reader) readTraceBounds(
-	ctx context.Context,
-	ids []string,
-	traceIDs []tracestore.FoundTraceID,
-	positions map[pcommon.TraceID]int,
-) error {
 	rows, err := r.conn.Query(ctx, sql.SelectTraceIDTimestamps, ids)
 	if err != nil {
-		return fmt.Errorf("failed to query trace timestamps: %w", err)
+		return nil, fmt.Errorf("failed to query trace timestamps: %w", err)
 	}
-	return readRows(rows, "trace timestamp", func(rows driver.Rows) error {
+	err = readRows(rows, "trace timestamp", func(rows driver.Rows) error {
 		trace, err := readRowIntoTraceID(rows)
 		if err != nil {
 			return err
@@ -290,6 +278,7 @@ func (r *Reader) readTraceBounds(
 		}
 		return nil
 	})
+	return traceIDs, err
 }
 
 func readRowIntoTraceID(rows driver.Rows) (tracestore.FoundTraceID, error) {
