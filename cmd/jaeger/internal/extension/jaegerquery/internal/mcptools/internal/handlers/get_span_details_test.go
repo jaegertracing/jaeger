@@ -5,8 +5,10 @@ package handlers
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"iter"
+	"math"
 	"strings"
 	"testing"
 
@@ -493,6 +495,30 @@ func TestConvertAttributeValue(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			value := tt.setup()
 			result := convertAttributeValue(value)
+			assert.Equal(t, tt.expected, result)
+		})
+	}
+}
+
+func TestConvertAttributeValue_NonFiniteDouble(t *testing.T) {
+	tests := []struct {
+		name     string
+		value    float64
+		expected any
+	}{
+		{name: "NaN", value: math.NaN(), expected: "NaN"},
+		{name: "positive infinity", value: math.Inf(1), expected: "Infinity"},
+		{name: "negative infinity", value: math.Inf(-1), expected: "-Infinity"},
+		{name: "finite", value: 3.14, expected: 3.14},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			value := pcommon.NewValueDouble(tt.value)
+			result := convertAttributeValue(value)
+
+			_, err := json.Marshal(result)
+			require.NoError(t, err)
 			assert.Equal(t, tt.expected, result)
 		})
 	}
