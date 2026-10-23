@@ -26,11 +26,7 @@ type authenticator struct {
 // that is not loaded, or is not a server authenticator, is a configuration
 // error that stops startup.
 func newAuthenticator(ctx context.Context, cfg *confighttp.AuthConfig, host component.Host) (*authenticator, error) {
-	var extensions map[component.ID]component.Component
-	if host != nil {
-		extensions = host.GetExtensions()
-	}
-	server, err := cfg.Config.GetServerAuthenticator(ctx, extensions)
+	server, err := cfg.Config.GetServerAuthenticator(ctx, host.GetExtensions())
 	if err != nil {
 		return nil, fmt.Errorf("ai.auth: %w", err)
 	}
