@@ -1,0 +1,66 @@
+{
+  "bool": {
+    "should": [
+      {
+        "match_phrase": {
+          "tag.output.text": {
+            "query": "cancellation"
+          }
+        }
+      },
+      {
+        "match_phrase": {
+          "process.tag.output.text": {
+            "query": "cancellation"
+          }
+        }
+      },
+      {
+        "nested": {
+          "path": "tags",
+          "query": {
+            "bool": {
+              "must": [
+                {
+                  "term": {
+                    "tags.key": "output"
+                  }
+                },
+                {
+                  "match_phrase": {
+                    "tags.value.text": {
+                      "query": "cancellation"
+                    }
+                  }
+                }
+              ]
+            }
+          }
+        }
+      },
+      {
+        "nested": {
+          "path": "process.tags",
+          "query": {
+            "bool": {
+              "must": [
+                {
+                  "term": {
+                    "process.tags.key": "output"
+                  }
+                },
+                {
+                  "match_phrase": {
+                    "process.tags.value.text": {
+                      "query": "cancellation"
+                    }
+                  }
+                }
+              ]
+            }
+          }
+        }
+      }
+    ]
+  }
+}
