@@ -196,6 +196,86 @@ func TestGetTraceTopologyHandler_Handle_MultipleChildren(t *testing.T) {
 	assert.True(t, names["child3"])
 }
 
+func TestGetTraceTopologyHandler_Handle_DuplicateSpanIDs(t *testing.T) {
+	rootHex, aHex, bHex := spanIDToHex("root001"), spanIDToHex("spanAAA"), spanIDToHex("spanBBB")
+	type pathAndName struct {
+		path string
+		name string
+	}
+
+	tests := []struct {
+		name     string
+		spans    []spanConfig
+		expected []pathAndName
+	}{
+		{
+			name: "second span with the root's ID is its child",
+			spans: []spanConfig{
+				{spanID: "root001", operation: "root"},
+				{spanID: "root001", parentSpanID: "root001", operation: "duplicate"},
+			},
+			expected: []pathAndName{
+				{path: rootHex, name: "root"},
+			},
+		},
+		{
+			name: "span reuses the ID of its grandparent",
+			spans: []spanConfig{
+				{spanID: "root001", operation: "root"},
+				{spanID: "spanAAA", parentSpanID: "root001", operation: "A"},
+				{spanID: "spanBBB", parentSpanID: "spanAAA", operation: "B"},
+				{spanID: "spanAAA", parentSpanID: "spanBBB", operation: "duplicate"},
+			},
+			expected: []pathAndName{
+				{path: rootHex, name: "root"},
+				{path: rootHex + "/" + aHex, name: "A"},
+				{path: rootHex + "/" + aHex + "/" + bHex, name: "B"},
+			},
+		},
+		{
+			name: "root reuses the ID of an earlier span",
+			spans: []spanConfig{
+				{spanID: "spanAAA", parentSpanID: "spanBBB", operation: "A"},
+				{spanID: "spanBBB", parentSpanID: "spanAAA", operation: "B"},
+				{spanID: "spanAAA", operation: "root"},
+			},
+			expected: []pathAndName{},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			handler := &getTraceTopologyHandler{
+				queryService: newMockYieldingTraces(createTestTraceWithSpans(testTraceID, tt.spans)),
+			}
+
+			input := types.GetTraceTopologyInput{TraceID: testTraceID}
+			_, output, err := handler.handle(context.Background(), &mcp.CallToolRequest{}, input)
+			require.NoError(t, err)
+
+			actual := make([]pathAndName, 0, len(output.Spans))
+			for _, s := range output.Spans {
+				actual = append(actual, pathAndName{path: s.Path, name: s.SpanName})
+			}
+			assert.Equal(t, tt.expected, actual)
+		})
+	}
+}
+
+func TestGetTraceTopologyHandler_DFS_SkipsVisitedSpan(t *testing.T) {
+	a := &rawSpan{spanID: "a", spanName: "A"}
+	b := &rawSpan{spanID: "b", spanName: "B"}
+	childrenOf := map[string][]*rawSpan{"a": {b}, "b": {a}}
+
+	var result []types.TopologySpan
+	handler := &getTraceTopologyHandler{}
+	handler.dfs(a, "a", 1, 0, childrenOf, map[string]struct{}{}, &result)
+
+	require.Len(t, result, 2)
+	assert.Equal(t, "a", result[0].Path)
+	assert.Equal(t, "a/b", result[1].Path)
+}
+
 func TestGetTraceTopologyHandler_Handle_ComplexTree(t *testing.T) {
 	traceID := testTraceID
 
