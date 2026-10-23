@@ -215,6 +215,7 @@ func TestStaticHandlerInjectsBackendCapabilities(t *testing.T) {
 				tt.caps.SearchWithoutServiceName, tt.caps.AIAssistant,
 			)
 			assert.Contains(t, body, expected, "backend capabilities injection mismatch")
+			assert.Equal(t, "no-store", rr.Header().Get("Cache-Control"), "a per-caller page must not be served from a shared cache")
 		})
 	}
 }

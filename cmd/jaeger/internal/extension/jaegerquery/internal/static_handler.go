@@ -284,6 +284,9 @@ func (h *staticAssetsHandler) registerRoutes(router *http.ServeMux) {
 
 func (h *staticAssetsHandler) serveSPA(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	// The page carries capabilities decided for this caller, so a shared cache must
+	// not hand one caller's page to another. The assets under /static stay cacheable.
+	w.Header().Set("Cache-Control", "no-store")
 	w.Write(h.deriveIndexHTML(r))
 }
 
