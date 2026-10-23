@@ -404,3 +404,44 @@ func TestStorageMode_StoreWithoutIndexing(t *testing.T) {
 		w.session.AssertNotCalled(t, "Query", serviceNameIndex, mock.Anything)
 	}, StoreWithoutIndexing())
 }
+
+func BenchmarkShouldIndexTag(b *testing.B) {
+	writer := &SpanWriter{}
+	
+	tests := []struct {
+		name string
+		tag  dbmodel.TagInsertion
+	}{
+		{
+			name: "short_string",
+			tag: dbmodel.TagInsertion{
+				TagKey:   "key",
+				TagValue: "value",
+			},
+		},
+		{
+			name: "json_string",
+			tag: dbmodel.TagInsertion{
+				TagKey:   "key",
+				TagValue: `{"foo": "bar", "baz": 123}`,
+			},
+		},
+		{
+			name: "invalid_json_prefix",
+			tag: dbmodel.TagInsertion{
+				TagKey:   "key",
+				TagValue: `{invalid json`,
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		b.Run(tt.name, func(b *testing.B) {
+			b.ReportAllocs()
+			b.ResetTimer()
+			for i := 0; i < b.N; i++ {
+				writer.shouldIndexTag(tt.tag)
+			}
+		})
+	}
+}
