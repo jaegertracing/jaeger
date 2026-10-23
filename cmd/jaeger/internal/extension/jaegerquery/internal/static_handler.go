@@ -58,7 +58,6 @@ type BackendCapabilities struct {
 type BackendCapabilityProvider func(*http.Request) BackendCapabilities
 
 // RegisterStaticHandler builds and registers the static-assets handler on r.
-// backendCaps may be nil, which offers the UI nothing beyond the bundle itself.
 func RegisterStaticHandler(
 	r *http.ServeMux,
 	logger *zap.Logger,
@@ -183,11 +182,7 @@ func (h *staticAssetsHandler) deriveIndexHTML(r *http.Request) []byte {
 	}
 	versionJSON, _ := json.Marshal(version.Get())
 	out = versionPattern.ReplaceAll(out, fmt.Appendf(nil, "JAEGER_VERSION = %s;", versionJSON))
-	var caps BackendCapabilities
-	if h.backendCaps != nil {
-		caps = h.backendCaps(r)
-	}
-	capsJSON, _ := json.Marshal(caps)
+	capsJSON, _ := json.Marshal(h.backendCaps(r))
 	out = capabilitiesPattern.ReplaceAll(out, fmt.Appendf(nil, "JAEGER_BACKEND_CAPABILITIES = %s;", capsJSON))
 	return out
 }

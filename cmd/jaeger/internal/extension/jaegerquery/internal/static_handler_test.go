@@ -35,7 +35,7 @@ func withCaps(caps BackendCapabilities) BackendCapabilityProvider {
 func TestNotExistingUiConfig(t *testing.T) {
 	handler, err := newStaticAssetsHandler(
 		&QueryOptions{UIConfig: UIConfig{AssetsPath: "/foo/bar"}},
-		nilBackendCaps,
+		noBackendCaps,
 		zap.NewNop(),
 	)
 	require.ErrorContains(t, err, "no such file or directory")
@@ -53,7 +53,7 @@ func TestRegisterStaticHandlerPanic(t *testing.T) {
 					AssetsPath: "/foo/bar",
 				},
 			},
-			nilBackendCaps,
+			noBackendCaps,
 		)
 		defer closer.Close()
 	})
@@ -278,7 +278,7 @@ func TestStaticHandlerReflectsSearchCapabilityPerRequest(t *testing.T) {
 func TestNewStaticAssetsHandlerErrors(t *testing.T) {
 	_, err := newStaticAssetsHandler(
 		&QueryOptions{UIConfig: UIConfig{AssetsPath: "fixture", ConfigFile: "fixture/invalid-config"}},
-		nilBackendCaps,
+		noBackendCaps,
 		zap.NewNop(),
 	)
 	require.Error(t, err)
@@ -309,7 +309,7 @@ func TestHotReloadUIConfig(t *testing.T) {
 
 	h, err := newStaticAssetsHandler(
 		&QueryOptions{UIConfig: UIConfig{AssetsPath: "fixture", ConfigFile: cfgFileName}},
-		nilBackendCaps,
+		noBackendCaps,
 		zap.NewNop(),
 	)
 	require.NoError(t, err)
@@ -350,7 +350,7 @@ func TestUIConfigReloadErrorKeepsCachedValue(t *testing.T) {
 	zcore, logObserver := observer.New(zapcore.ErrorLevel)
 	h, err := newStaticAssetsHandler(
 		&QueryOptions{UIConfig: UIConfig{AssetsPath: "fixture", ConfigFile: cfgFileName}},
-		nilBackendCaps,
+		noBackendCaps,
 		zap.New(zcore),
 	)
 	require.NoError(t, err)
@@ -400,7 +400,7 @@ func TestLoadUIConfig(t *testing.T) {
 			if testCase.expectedContent != "" {
 				h, err := newStaticAssetsHandler(
 					&QueryOptions{UIConfig: UIConfig{ConfigFile: testCase.configFile}},
-					nilBackendCaps,
+					noBackendCaps,
 					zap.NewNop(),
 				)
 				require.NoError(t, err)

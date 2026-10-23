@@ -231,13 +231,11 @@ func initRouter(
 		// The chat panel is offered only to a caller the ai.auth authenticator
 		// admits, so the UI hides it from everyone else instead of showing a panel
 		// whose first request would be refused.
-		if backendCaps != nil {
-			next := backendCaps
-			backendCaps = func(r *http.Request) BackendCapabilities {
-				caps := next(r)
-				caps.AIAssistant = caps.AIAssistant && aiRoutes.Admits(r)
-				return caps
-			}
+		next := backendCaps
+		backendCaps = func(r *http.Request) BackendCapabilities {
+			caps := next(r)
+			caps.AIAssistant = caps.AIAssistant && aiRoutes.Admits(r)
+			return caps
 		}
 	}
 
