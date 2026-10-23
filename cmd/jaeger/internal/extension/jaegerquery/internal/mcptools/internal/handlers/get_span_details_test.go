@@ -524,6 +524,54 @@ func TestConvertAttributeValue_NonFiniteDouble(t *testing.T) {
 	}
 }
 
+func TestGetSpanDetailsHandler_Handle_NonFiniteAttributes(t *testing.T) {
+	testTrace := createTestTraceWithSpans(testTraceID, []spanConfig{
+		{spanID: "span001", operation: "/api/test"},
+	})
+
+	span := testTrace.ResourceSpans().At(0).
+		ScopeSpans().At(0).Spans().At(0)
+
+	span.Attributes().PutDouble("measurement", math.NaN())
+
+	event := span.Events().AppendEmpty()
+	event.SetName("test-event")
+	event.Attributes().PutDouble("measurement", math.NaN())
+
+	link := span.Links().AppendEmpty()
+	link.SetTraceID(span.TraceID())
+	link.SetSpanID(span.SpanID())
+	link.Attributes().PutDouble("measurement", math.NaN())
+
+	handler := &getSpanDetailsHandler{
+		queryService:             newMockYieldingTraces(testTrace),
+		maxSpanDetailsPerRequest: 50,
+	}
+
+	input := types.GetSpanDetailsInput{
+		TraceID: testTraceID,
+		SpanIDs: []string{spanIDToHex("span001")},
+	}
+
+	_, output, err := handler.handle(
+		context.Background(), &mcp.CallToolRequest{}, input,
+	)
+	require.NoError(t, err)
+	require.Len(t, output.Spans, 1)
+
+	detail := output.Spans[0]
+	assert.Equal(t, "NaN", detail.Attributes["measurement"])
+
+	require.Len(t, detail.Events, 1)
+	assert.Equal(t, "NaN", detail.Events[0].Attributes["measurement"])
+
+	require.Len(t, detail.Links, 1)
+	assert.Equal(t, "NaN", detail.Links[0].Attributes["measurement"])
+
+	_, err = json.Marshal(output)
+	require.NoError(t, err)
+}
+
 func TestGetSpanDetailsHandler_ExceedsLimit(t *testing.T) {
 	// Create handler with a limit of 2 spans per request
 	handler := NewGetSpanDetailsHandler(nil, 2)
