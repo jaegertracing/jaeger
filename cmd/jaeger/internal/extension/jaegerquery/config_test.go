@@ -12,6 +12,7 @@ import (
 	"go.opentelemetry.io/collector/confmap"
 
 	queryapp "github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerquery/internal"
+	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerquery/internal/jaegerai"
 )
 
 func Test_Validate(t *testing.T) {
@@ -102,10 +103,10 @@ func TestValidateRecursesIntoMCPConfig(t *testing.T) {
 		Storage:      Storage{TracesPrimary: "some-storage"},
 		QueryOptions: queryapp.DefaultQueryOptions(),
 	}
-	cfg.AI = configoptional.Some(queryapp.AIConfig{
-		AgentURL:           queryapp.DefaultAIAgentURL,
-		MaxRequestBodySize: queryapp.DefaultAIMaxRequestBodySize,
-		MCP:                configoptional.Some(queryapp.MCPConfig{BaseURL: "not-a-url"}),
+	cfg.AI = configoptional.Some(jaegerai.Config{
+		AgentURL:           jaegerai.DefaultAgentURL,
+		MaxRequestBodySize: jaegerai.DefaultMaxRequestBodySize,
+		MCP:                configoptional.Some(jaegerai.MCPConfig{BaseURL: "not-a-url"}),
 	})
 
 	err := confmap.Validate(cfg)
