@@ -1,8 +1,7 @@
-// Copyright (c) 2019 The Jaeger Authors.
-// Copyright (c) 2017 Uber Technologies, Inc.
+// Copyright (c) 2026 The Jaeger Authors.
 // SPDX-License-Identifier: Apache-2.0
 
-package app
+package jaegerai
 
 import (
 	"context"
@@ -14,42 +13,44 @@ import (
 	"strings"
 	"time"
 
-	"go.opentelemetry.io/collector/config/configgrpc"
+	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/config/confighttp"
-	"go.opentelemetry.io/collector/config/confignet"
 	"go.opentelemetry.io/collector/config/configopaque"
 	"go.opentelemetry.io/collector/config/configoptional"
 
-	"github.com/jaegertracing/jaeger/internal/headerforwarding"
-	"github.com/jaegertracing/jaeger/internal/tenancy"
-	"github.com/jaegertracing/jaeger/ports"
+	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerquery/internal/mcptools"
 )
 
-type UIConfig struct {
-	// ConfigFile is the path to a configuration file for the UI.
-	ConfigFile string `mapstructure:"config_file" valid:"optional"`
-	// AssetsPath is the path for the static assets for the UI (https://github.com/uber/jaeger-ui).
-	AssetsPath string `mapstructure:"assets_path" valid:"optional" `
-	// LogAccess tells static handler to log access to static assets, useful in debugging.
-	LogAccess bool `mapstructure:"log_access" valid:"optional"`
-}
-
-// Defaults for AIConfig fields. Applied when the field is left at its zero
+// Defaults for Config fields. Applied when the field is left at its zero
 // value (or, for AgentURL, when DefaultQueryOptions seeds the configoptional
 // default).
 const (
-	DefaultAIAgentURL                  = "ws://localhost:16688"
-	DefaultAIMaxRequestBodySize  int64 = 1 << 20 // 1 MiB
-	DefaultAIHealthCheckInterval       = 30 * time.Second
-	DefaultAIHealthCheckTimeout        = 2 * time.Second
+	DefaultAgentURL                  = "ws://localhost:16688"
+	DefaultMaxRequestBodySize  int64 = 1 << 20 // 1 MiB
+	DefaultHealthCheckInterval       = 30 * time.Second
+	DefaultHealthCheckTimeout        = 2 * time.Second
 )
 
-// AIConfig is the AI-related slice of QueryOptions. All defaults are seeded
-// by DefaultQueryOptions via configoptional.Default, and a user's partial
+// Config is the ai block of the query extension configuration. All defaults are seeded
+// by the query extension's defaults via configoptional.Default, and a user's partial
 // YAML block overlays only the fields they specify (configoptional unmarshals
 // onto the seeded value), so unset fields keep their default. Validate is
 // therefore a pure check — it does not mutate the receiver.
-type AIConfig struct {
+type Config struct {
+	// Auth names an authenticator extension that guards the AI surfaces and
+	// nothing else on the query port: the chat endpoint, the shared MCP endpoint,
+	// and the aiAssistant flag that tells the UI to show the chat panel. The
+	// server-wide http.auth setting applies to every route, which is the wrong
+	// grain when the UI and the REST API stay open while the AI features are
+	// rolled out to a group. The authenticator receives the request headers and
+	// the listed request_params. A rejected chat or MCP request is answered with
+	// 401, and a rejected page request is served the UI with aiAssistant off.
+	// The turn-scoped MCP endpoint that the chat sidecar dials is not covered,
+	// since the person behind that turn was already admitted on the chat
+	// request. Startup fails when the extension is not loaded. The extension also
+	// runs on every UI page load, so an anonymous visitor shows up in it as one
+	// rejected attempt per page.
+	Auth configoptional.Optional[confighttp.AuthConfig] `mapstructure:"auth"`
 	// AgentURL is the WebSocket endpoint of an ACP-compatible agent sidecar.
 	// For example, ws://localhost:16688
 	// See https://agentclientprotocol.com/
@@ -85,7 +86,7 @@ type AIConfig struct {
 	HealthCheckTimeout time.Duration `mapstructure:"health_check_timeout" valid:"optional"`
 }
 
-// MCPConfig configures the telemetry MCP endpoint. Its presence on AIConfig is
+// MCPConfig configures the telemetry MCP endpoint. Its presence on Config is
 // what enables the endpoint, so both fields are optional and an empty block is
 // the common case.
 type MCPConfig struct {
@@ -98,7 +99,7 @@ type MCPConfig struct {
 	// when the sidecar is co-located (AgentURL is a loopback address), the query
 	// server is bound to loopback or a wildcard, and TLS is off — the common
 	// single-host deployment, which then needs no configuration at all (see
-	// resolveMCPBaseURL). Set this whenever the sidecar reaches the gateway at
+	// ResolveMCPBaseURL). Set this whenever the sidecar reaches the gateway at
 	// some other address — behind a proxy, in another network namespace, with TLS
 	// terminated elsewhere, or forwarded into a container — none of which the
 	// query server can infer. Ignored unless AgentURL is also set.
@@ -109,17 +110,10 @@ type MCPConfig struct {
 	// Jaeger. See mcptools/README.md for the layout it expects. Empty (the
 	// default) serves the built-in skills only.
 	SkillsDir string `mapstructure:"skills_dir" valid:"optional"`
-	// DisableLocalhostProtection turns off the MCP SDK's DNS-rebinding guard, which
-	// rejects with 403 any request that arrives on a loopback address with a
-	// non-loopback Host header. The guard protects an MCP server on a developer's
-	// machine from a web page that reaches 127.0.0.1 under a foreign name. A reverse
-	// proxy or service-mesh sidecar that dials the query port over loopback and
-	// preserves the client's Host header produces that shape for every request, so
-	// the guard rejects every caller. Prefer making the proxy rewrite Host or dial
-	// a non-loopback address; set this when the proxy cannot be changed. Keep the
-	// default when clients reach the query port directly by a loopback address or
-	// a routable host name.
-	DisableLocalhostProtection bool `mapstructure:"disable_localhost_protection" valid:"optional"`
+	// StreamableHTTP holds the options of the MCP Streamable HTTP transport the
+	// endpoint is served over; see mcptools.StreamableHTTPConfig for each one.
+	// None of them changes what the tools do.
+	StreamableHTTP mcptools.StreamableHTTPConfig `mapstructure:"streamable_http" valid:"optional"`
 }
 
 func (c *MCPConfig) Validate() error {
@@ -137,35 +131,18 @@ func (c *MCPConfig) Validate() error {
 	return nil
 }
 
-// DefaultOTLPProxyTarget is the loopback endpoint of the bundled OTel-collector
-// OTLP HTTP receiver.
-const DefaultOTLPProxyTarget = "http://127.0.0.1:4318"
-
-// OTLPProxyConfig mounts an HTTP reverse proxy at `<basePath>/api/otlp/v1/*`
-// that strips the `/api/otlp` prefix and forwards to Target. Intended for
-// same-origin browser telemetry from the SPA — POSTs to the query port
-// avoid the CORS preflight a cross-port OTLP receiver would need.
-type OTLPProxyConfig struct {
-	// Target is the base URL of the OTLP HTTP receiver to forward to.
-	Target string `mapstructure:"target" valid:"required"`
-}
-
-func (c *OTLPProxyConfig) Validate() error {
-	if c.Target == "" {
-		return errors.New("otlp_proxy.target is required")
-	}
-	return nil
-}
-
 // Validate is a pure check; defaults are supplied by DefaultQueryOptions
-// (see the AIConfig type-level comment) so by the time Validate runs the
+// (see the Config type-level comment) so by the time Validate runs the
 // caller's struct already has sensible values for any field they omitted.
-func (c *AIConfig) Validate() error {
+func (c *Config) Validate() error {
 	if c.AgentURL == "" && !c.MCP.HasValue() {
 		return errors.New("ai requires agent_url (AI chat) or mcp (telemetry MCP tools)")
 	}
 	if c.MaxRequestBodySize <= 0 {
 		return errors.New("ai.max_request_body_size must be a positive integer")
+	}
+	if auth := c.Auth.Get(); auth != nil && auth.Config.AuthenticatorID == (component.ID{}) {
+		return errors.New("ai.auth.authenticator must name an extension")
 	}
 	if c.HealthCheckInterval < 0 {
 		return errors.New("ai.health_check_interval must not be negative (0 disables the health checker)")
@@ -184,7 +161,7 @@ func (c *AIConfig) Validate() error {
 	return nil
 }
 
-// resolveMCPBaseURL returns the base URL the gateway announces for the turn-scoped
+// ResolveMCPBaseURL returns the base URL the gateway announces for the turn-scoped
 // MCP endpoint, or "" to announce no HTTP transport. An explicit base_url always
 // wins. Otherwise the gateway infers its own loopback address, which requires every
 // leg of the round trip to hold:
@@ -211,7 +188,7 @@ func (c *AIConfig) Validate() error {
 //
 // httpEndpoint is the query server's own HTTP host:port and tlsEnabled its own TLS
 // setting; neither is derived from AgentURL, which only gates the inference.
-func (c *AIConfig) resolveMCPBaseURL(ctx context.Context, httpEndpoint string, tlsEnabled bool) string {
+func (c *Config) ResolveMCPBaseURL(ctx context.Context, httpEndpoint string, tlsEnabled bool) string {
 	mcp := c.MCP.Get()
 	if mcp == nil {
 		return "" // MCP is off, so there is no endpoint to announce
@@ -301,7 +278,7 @@ func hostIP(ctx context.Context, host string) net.IP {
 		return net.IP(addr.AsSlice())
 	}
 	// "localhost" is the one name worth short-circuiting: it is the host in
-	// DefaultAIAgentURL, so resolving it would put a lookup on every default-config
+	// DefaultAgentURL, so resolving it would put a lookup on every default-config
 	// startup to learn what every resolver on every platform already agrees on. Any
 	// other name still goes to the resolver below.
 	if strings.EqualFold(host, "localhost") {
@@ -316,60 +293,4 @@ func hostIP(ctx context.Context, host string) net.IP {
 		return nil
 	}
 	return addrs[0].IP
-}
-
-// QueryOptions holds configuration for query service shared with jaeger-v2
-type QueryOptions struct {
-	// BasePath is the base path for all HTTP routes.
-	BasePath string `mapstructure:"base_path"`
-	// UIConfig contains configuration related to the Jaeger UIConfig.
-	UIConfig UIConfig `mapstructure:"ui"`
-	// BearerTokenPropagation activate/deactivate bearer token propagation to storage.
-	BearerTokenPropagation bool `mapstructure:"bearer_token_propagation"`
-	// HeaderForwarding lists additional request headers to extract and forward to the storage backend.
-	HeaderForwarding []headerforwarding.ForwardedHeader `mapstructure:"header_forwarding"`
-	// Tenancy holds the multi-tenancy configuration.
-	Tenancy tenancy.Options `mapstructure:"multi_tenancy"`
-	// MaxClockSkewAdjust is the maximum duration by which jaeger-query will adjust a span.
-	MaxClockSkewAdjust time.Duration `mapstructure:"max_clock_skew_adjust"  valid:"optional"`
-	// MaxTraceSize is the maximum number of spans allowed per trace. A value of 0 (default) means unlimited.
-	// If a trace has more spans than this limit, it will be truncated and a warning will be added.
-	MaxTraceSize int `mapstructure:"max_trace_size" valid:"optional"`
-	// EnableTracing determines whether traces will be emitted by jaeger-query.
-	EnableTracing bool `mapstructure:"enable_tracing"`
-	// HTTP holds the HTTP configuration that the query service uses to serve requests.
-	HTTP confighttp.ServerConfig `mapstructure:"http"`
-	// GRPC holds the GRPC configuration that the query service uses to serve requests.
-	GRPC configgrpc.ServerConfig `mapstructure:"grpc"`
-	// AI holds configuration related to Jaeger AI gateway integration.
-	AI configoptional.Optional[AIConfig] `mapstructure:"ai"`
-	// OTLPProxy, when present, mounts an OTLP HTTP reverse proxy — see OTLPProxyConfig.
-	OTLPProxy configoptional.Optional[OTLPProxyConfig] `mapstructure:"otlp_proxy"`
-}
-
-func DefaultQueryOptions() QueryOptions {
-	return QueryOptions{
-		MaxClockSkewAdjust: 0, // disabled by default
-		AI: configoptional.Default(AIConfig{
-			AgentURL:            DefaultAIAgentURL,
-			MaxRequestBodySize:  DefaultAIMaxRequestBodySize,
-			HealthCheckInterval: DefaultAIHealthCheckInterval,
-			HealthCheckTimeout:  DefaultAIHealthCheckTimeout,
-		}),
-		OTLPProxy: configoptional.Default(OTLPProxyConfig{
-			Target: DefaultOTLPProxyTarget,
-		}),
-		HTTP: confighttp.ServerConfig{
-			NetAddr: confignet.AddrConfig{
-				Endpoint:  ports.PortToHostPort(ports.QueryHTTP),
-				Transport: confignet.TransportTypeTCP,
-			},
-		},
-		GRPC: configgrpc.ServerConfig{
-			NetAddr: confignet.AddrConfig{
-				Endpoint:  ports.PortToHostPort(ports.QueryGRPC),
-				Transport: confignet.TransportTypeTCP,
-			},
-		},
-	}
 }

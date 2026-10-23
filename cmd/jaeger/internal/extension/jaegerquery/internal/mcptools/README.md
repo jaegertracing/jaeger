@@ -33,7 +33,9 @@ The embedded all-in-one configuration and the example
 [`cmd/jaeger/config.yaml`](../../../../../config.yaml) enable MCP. The query HTTP
 listener defaults to `:16686` (all interfaces), with no TLS or authenticator
 configured. MCP shares that listener and its `http` settings with the UI and
-query API; it does not have a separate port or authentication setting.
+query API; it does not have a separate port. The optional `ai.auth` setting
+adds authentication for the AI surfaces, as described in
+[Gating who may use the endpoint](#gating-who-may-use-the-endpoint).
 Network reachability also depends on your firewall, container port publishing,
 and ingress configuration.
 
@@ -140,10 +142,10 @@ header selects a tenant; it is not proof that the caller is allowed to access it
 Enforce that authorization at the proxy/gateway, and use storage that supports
 the required tenant isolation.
 
-The MCP transport is stateful. Tool calls retain the context of the request
-that created the session, including its tenant. Changing a tenant header on a
-later request does not switch that session's tenant. Use a separate session for
-each identity and tenant, and reconnect when either changes.
+By default, the MCP transport is stateful. Tool calls retain the context of the
+request that created the session, including its tenant. Changing a tenant header
+on a later request does not switch that session's tenant. Use a separate session
+for each identity and tenant, and reconnect when either changes.
 
 An `Mcp-Session-Id` is not an authentication credential. The MCP SDK can bind
 sessions to a user through its token metadata, but Jaeger's `basicauth`
@@ -200,6 +202,51 @@ header. Then check that:
 - After disabling MCP, an authenticated request to the MCP path returns HTTP
   404, while the query UI/API remains available.
 
+## Gating who may use the endpoint
+
+The query server's own `http.auth` setting runs an authenticator extension on every request to
+the port, so it cannot admit everyone to the UI and the REST API while admitting only some
+people to the AI features. The `ai.auth` block takes the same shape and applies it to the AI
+surfaces alone: this MCP endpoint, the chat endpoint, and the `aiAssistant` flag that tells the
+UI to show the chat panel.
+
+```yaml
+extensions:
+  basicauth/ai:
+    htpasswd:
+      inline: |
+        alice:$2y$...
+  jaeger_query:
+    ai:
+      mcp: {}
+      auth:
+        authenticator: basicauth/ai
+```
+
+The authenticator receives the request headers, plus any query parameters listed under
+`request_params`. An MCP or chat request it rejects is answered with `401` before it reaches the
+handler. A page request it rejects is served the UI with `aiAssistant` off, so a person outside
+the admitted group sees Jaeger without a chat panel rather than a panel that fails. Any extension
+that implements the collector's `extensionauth.Server` works here, so a deployment can gate the
+features on a group lookup of its own by building Jaeger with such an extension.
+
+Two things follow from the check running on whatever the client sends unprompted:
+
+- The `401` carries no `WWW-Authenticate` challenge, the same as the collector's own `http.auth`.
+  A browser therefore never offers basic-auth credentials on a page load, so the example above
+  gates MCP clients and direct chat calls, and hides the panel from every browser user. Showing the
+  panel to admitted users takes an authenticator that reads what a browser sends on navigation: a
+  session cookie, or a header that a fronting proxy injects. The `jaeger_query`
+  [README](../../README.md#authenticating-callers-behind-an-identity-aware-proxy) describes that
+  deployment pattern.
+- An MCP client that expects to discover an OAuth flow from the `401` does not get one. Hand such
+  a client its credential directly, as a header in its MCP server configuration.
+
+The turn-scoped endpoint `/api/ai/mcp/<id>/` is not wrapped: its caller is the chat sidecar
+serving a turn that the chat request already admitted, and the route id it needs is handed to the
+sidecar alone. Jaeger fails to start when the named extension is not loaded, and it starts the
+extension before the query server so the authenticator is ready for the first request.
+
 ## Running behind a reverse proxy or sidecar
 
 The MCP SDK that serves this endpoint carries a DNS-rebinding guard for MCP servers on a
@@ -216,12 +263,68 @@ extensions:
   jaeger_query:
     ai:
       mcp:
-        disable_localhost_protection: true
+        streamable_http:
+          disable_localhost_protection: true
 ```
 
 The UI and the REST API on the same port have no such guard, so this setting changes nothing
 about them. Keep the default when clients reach the query port directly, by a loopback address or
 a routable host name; only a loopback connection carrying some other name is affected.
+
+## Running several replicas behind a load balancer
+
+By default the endpoint keeps one MCP session per client in the memory of the `jaeger-query`
+process that handled `initialize`, and the SDK looks that session up by the `Mcp-Session-Id`
+header on every later request. When a load balancer without session affinity spreads a client's
+requests over several replicas, a request that reaches a replica other than the one that holds the
+session is answered with `404 session not found`; and when the client's `notifications/initialized`
+is the request that went astray, the replica that holds the session rejects the next `tools/list`
+with `method "tools/list" is invalid during session initialization`. Set `streamable_http.stateless` to make every
+request stand on its own:
+
+```yaml
+extensions:
+  jaeger_query:
+    ai:
+      mcp:
+        streamable_http:
+          stateless: true
+```
+
+Jaeger's tools keep no state between requests, so they behave the same. A stateless endpoint
+answers 405 to the GET that a client sends to open a stream for server-initiated messages. Jaeger
+never sends any, so in the default mode that stream only sits idle until the session times out;
+the MCP specification allows a server to offer no stream and requires the client to continue
+without it.
+
+This covers external MCP clients on the shared `/api/ai/mcp/` endpoint. The chat gateway's
+turn-scoped endpoint, `/api/ai/mcp/<id>/`, is different: the turn it serves is held in the memory
+of the process that is streaming that chat to the browser, so a request for it that lands on
+another replica is answered 404 before the MCP handler is reached, stateless or not. An agent that
+is not co-located with `jaeger-query` must reach the replica that owns the turn, which means
+`ai.mcp.base_url` has to name that process (its pod address, not a load-balanced service name) or
+the load balancer has to route by the `<id>` path segment.
+
+## Answering with plain JSON instead of an event stream
+
+By default the endpoint answers every POST with a `text/event-stream` body, even when that body
+holds a single result, because the stream form lets a server send progress or its own requests
+before the result. Jaeger's tools send none, so the stream carries the one result and nothing
+else. Set `streamable_http.json_response` to answer a single-message POST with a plain
+`application/json` body, which is easier for proxies, logging middleware and command-line clients
+to read:
+
+```yaml
+extensions:
+  jaeger_query:
+    ai:
+      mcp:
+        streamable_http:
+          json_response: true
+```
+
+MCP clients must accept both forms, so the setting changes nothing for them. A JSON-RPC batch is
+still answered with a stream.
 
 ## Adding installation-specific skills
 

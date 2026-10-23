@@ -31,9 +31,9 @@ import (
 	"github.com/jaegertracing/jaeger-idl/proto-gen/api_v2"
 	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerquery/internal/apiv3"
 	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerquery/internal/jaegerai"
-	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerquery/internal/mcptools"
 	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerquery/querysvc"
 	"github.com/jaegertracing/jaeger/internal/auth/bearertoken"
+	"github.com/jaegertracing/jaeger/internal/closers"
 	"github.com/jaegertracing/jaeger/internal/headerforwarding"
 	"github.com/jaegertracing/jaeger/internal/proto/api_v3"
 	"github.com/jaegertracing/jaeger/internal/recoveryhandler"
@@ -162,28 +162,13 @@ func createGRPCServer(
 	)
 }
 
-// closers are the components initRouter mounts that own resources past a single
-// request — the static assets handler, the AI gateway's MCP sessions, and whatever
-// is mounted next. Being an io.Closer itself lets both the caller that owns the
-// slice and the httpServer that stores it close the whole set the same way.
-type closers []io.Closer
-
-var _ io.Closer = closers(nil)
-
-// Close closes every closer and joins the errors, so one failure does not hide the
-// rest. This mirrors how the storage extension shuts its factories down.
-func (cs closers) Close() error {
-	var errs []error
-	for _, closer := range cs {
-		errs = append(errs, closer.Close())
-	}
-	return errors.Join(errs...)
-}
-
 type httpServer struct {
 	*http.Server
-	// closers shut down with the query server instead of being left to process exit.
-	closers closers
+	// closers are the components initRouter mounts that own resources past a
+	// single request: the static assets handler, the AI gateway's MCP sessions,
+	// and whatever is mounted next. They shut down with the query server instead
+	// of being left to process exit.
+	closers closers.Closers
 }
 
 var _ io.Closer = (*httpServer)(nil)
@@ -198,7 +183,7 @@ func initRouter(
 	backendCaps BackendCapabilityProvider,
 	tenancyMgr *tenancy.Manager,
 	telset telemetry.Settings,
-) (http.Handler, closers, error) {
+) (http.Handler, closers.Closers, error) {
 	apiHandlerOptions := []HandlerOption{
 		HandlerOptions.Logger(telset.Logger),
 		HandlerOptions.Tracer(telset.TracerProvider),
@@ -211,7 +196,7 @@ func initRouter(
 		apiHandlerOptions...,
 	)
 	r := http.NewServeMux()
-	var cs closers
+	var cs closers.Closers
 
 	(&apiv3.HTTPGateway{
 		QueryService: querySvc,
@@ -230,11 +215,28 @@ func initRouter(
 	}
 
 	if queryOpts.AI.HasValue() {
-		aiClosers, err := registerAIRoutes(ctx, r, queryOpts, querySvc, tenancyMgr, telset)
+		aiRoutes, err := jaegerai.Register(ctx, r, jaegerai.RegisterParams{
+			Config:       queryOpts.AI.Get(),
+			BasePath:     queryOpts.BasePath,
+			HTTPEndpoint: queryOpts.HTTP.NetAddr.Endpoint,
+			TLSEnabled:   queryOpts.HTTP.TLS.HasValue(),
+			QueryService: querySvc,
+			Tenancy:      tenancyMgr,
+			Telemetry:    telset,
+		})
 		if err != nil {
 			return nil, nil, errors.Join(err, cs.Close())
 		}
-		cs = append(cs, aiClosers...)
+		cs = append(cs, aiRoutes)
+		// The chat panel is offered only to a caller the ai.auth authenticator
+		// admits, so the UI hides it from everyone else instead of showing a panel
+		// whose first request would be refused.
+		next := backendCaps
+		backendCaps = func(r *http.Request) BackendCapabilities {
+			caps := next(r)
+			caps.AIAssistant = caps.AIAssistant && aiRoutes.Admits(r)
+			return caps
+		}
 	}
 
 	if queryOpts.OTLPProxy.HasValue() {
@@ -265,75 +267,6 @@ func initRouter(
 	return handler, cs, nil
 }
 
-// registerAIRoutes mounts the AI chat gateway and the telemetry MCP endpoint,
-// and returns the closers for whatever it mounted. Invalid AI config disables
-// the AI surface rather than stopping the query server, which also serves the
-// UI and the trace APIs.
-func registerAIRoutes(
-	ctx context.Context,
-	r *http.ServeMux,
-	queryOpts *QueryOptions,
-	querySvc *querysvc.QueryService,
-	tenancyMgr *tenancy.Manager,
-	telset telemetry.Settings,
-) (closers, error) {
-	aiCfg := queryOpts.AI.Get()
-	if err := aiCfg.Validate(); err != nil {
-		telset.Logger.Error("Invalid AI config, AI handler disabled", zap.Error(err))
-		return nil, nil
-	}
-
-	var cs closers
-	// The telemetry MCP endpoint stands on its own: external MCP clients (Claude Code,
-	// Cursor, IDEs) dial it with no chat sidecar involved, so it is built and mounted
-	// whenever ai.mcp is configured, never depending on ai.agent_url. It comes before
-	// the gateway because the gateway layers its per-turn UI tools onto this same
-	// *mcp.Server rather than standing up a second one.
-	var mcpHandler *mcptools.Handler
-	if mcp := aiCfg.MCP.Get(); mcp != nil {
-		mcpCfg := mcptools.DefaultConfig()
-		// Opened once, so a broken path is reported once, at startup. It stays open
-		// for as long as it serves, so it is released with the server rather than at
-		// process exit.
-		customSkills, err := mcptools.OpenCustomSkillsDir(mcp.SkillsDir)
-		if err != nil {
-			return nil, err
-		}
-		if customSkills != nil {
-			cs = append(cs, customSkills)
-		}
-		mcpCfg.CustomSkillsFS = customSkills
-		mcpCfg.DisableLocalhostProtection = mcp.DisableLocalhostProtection
-
-		mcpHandler = mcptools.NewHandler(telset, querySvc, tenancyMgr, mcpCfg)
-		cs = append(cs, mcpHandler)
-		mountSharedMCP(r, mcpHandler, queryOpts.BasePath, telset)
-	}
-
-	if aiCfg.AgentURL != "" {
-		// jaegerai owns the chat endpoint and, when MCP is configured, the turn-scoped
-		// endpoint (/api/ai/mcp/<id>/) — which it serves off mcpHandler's server, with
-		// the turn's UI tools layered on. Passing nil leaves it chat-only: there is no
-		// point advertising UI tools with no telemetry tools behind them.
-		//
-		// The announced base URL is resolved here because inferring the
-		// gateway's own localhost address needs the query HTTP endpoint and TLS
-		// setting, which live on QueryOptions, not AIConfig. This is the only thing
-		// agent_url decides about MCP — which URL the sidecar is handed.
-		aiGateway := jaegerai.NewHandler(jaegerai.HandlerParams{
-			Logger:             telset.Logger,
-			AgentURL:           aiCfg.AgentURL,
-			AgentHeaders:       aiCfg.AgentHeaders,
-			BasePath:           queryOpts.BasePath,
-			MaxRequestBodySize: aiCfg.MaxRequestBodySize,
-			MCP:                mcpHandler,
-			MCPBaseURL:         aiCfg.resolveMCPBaseURL(ctx, queryOpts.HTTP.NetAddr.Endpoint, queryOpts.HTTP.TLS.HasValue()),
-		})
-		aiGateway.RegisterRoutes(r)
-	}
-	return cs, nil
-}
-
 func otlpProxyPathPrefix(basePath string) string {
 	prefix := "/api/otlp"
 	if basePath != "" && basePath != "/" {
@@ -357,18 +290,6 @@ func otelFilterFunc(basePath string) func(*http.Request) bool {
 	}
 }
 
-// mountSharedMCP mounts handler as the shared telemetry MCP endpoint at
-// <basePath>/api/ai/mcp/, stripping that prefix so the handler sees its own root.
-// This pattern coexists with the AI gateway's turn-scoped ones because those are
-// strictly more specific, so ServeMux sends /api/ai/mcp/<id>/ to the gateway and
-// everything else here.
-func mountSharedMCP(r *http.ServeMux, handler http.Handler, basePath string, telset telemetry.Settings) {
-	prefix := strings.TrimSuffix(basePath, "/") + "/api/ai/mcp"
-	r.Handle(prefix+"/", http.StripPrefix(prefix, handler))
-	telset.Logger.Info("Jaeger telemetry MCP endpoint enabled", zap.String("path", prefix+"/"))
-}
-
-// per-route wrap is the only instrumentation layer.
 func registerOTLPProxy(r *http.ServeMux, queryOpts *QueryOptions, telset telemetry.Settings) error {
 	cfg := queryOpts.OTLPProxy.Get()
 	target, err := url.Parse(cfg.Target)

@@ -1,8 +1,7 @@
-// Copyright (c) 2019 The Jaeger Authors.
-// Copyright (c) 2017 Uber Technologies, Inc.
+// Copyright (c) 2026 The Jaeger Authors.
 // SPDX-License-Identifier: Apache-2.0
 
-package app
+package jaegerai
 
 import (
 	"context"
@@ -12,75 +11,56 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.opentelemetry.io/collector/config/confighttp"
 	"go.opentelemetry.io/collector/config/configopaque"
 	"go.opentelemetry.io/collector/config/configoptional"
 )
 
-func TestDefaultQueryOptions(t *testing.T) {
-	qo := DefaultQueryOptions()
-	require.Equal(t, ":16686", qo.HTTP.NetAddr.Endpoint)
-	require.Equal(t, ":16685", qo.GRPC.NetAddr.Endpoint)
-	require.EqualValues(t, "tcp", qo.GRPC.NetAddr.Transport)
-	require.False(t, qo.AI.HasValue())
-	aiCfg := qo.AI.GetOrInsertDefault()
-	require.NotNil(t, aiCfg)
-	require.Equal(t, DefaultAIAgentURL, aiCfg.AgentURL)
-	require.Equal(t, DefaultAIMaxRequestBodySize, aiCfg.MaxRequestBodySize)
-	require.Equal(t, DefaultAIHealthCheckInterval, aiCfg.HealthCheckInterval)
-	require.Equal(t, DefaultAIHealthCheckTimeout, aiCfg.HealthCheckTimeout)
-	require.NoError(t, aiCfg.Validate())
-
-	require.False(t, qo.OTLPProxy.HasValue())
-	otlpCfg := qo.OTLPProxy.GetOrInsertDefault()
-	require.NotNil(t, otlpCfg)
-	require.Equal(t, DefaultOTLPProxyTarget, otlpCfg.Target)
-	require.NoError(t, otlpCfg.Validate())
-}
-
-func TestOTLPProxyConfigValidate(t *testing.T) {
-	require.NoError(t, (&OTLPProxyConfig{Target: DefaultOTLPProxyTarget}).Validate())
-	require.EqualError(t, (&OTLPProxyConfig{Target: ""}).Validate(), "otlp_proxy.target is required")
-}
-
-// validAIConfig returns an AIConfig that passes Validate; tests mutate the
+// validConfig returns an Config that passes Validate; tests mutate the
 // field they care about to exercise one rule at a time. The factory-default
 // values mirror what configoptional.Default(...) seeds at runtime.
-func validAIConfig() AIConfig {
-	return AIConfig{
-		AgentURL:            DefaultAIAgentURL,
-		MaxRequestBodySize:  DefaultAIMaxRequestBodySize,
-		HealthCheckInterval: DefaultAIHealthCheckInterval,
-		HealthCheckTimeout:  DefaultAIHealthCheckTimeout,
+func validConfig() Config {
+	return Config{
+		AgentURL:            DefaultAgentURL,
+		MaxRequestBodySize:  DefaultMaxRequestBodySize,
+		HealthCheckInterval: DefaultHealthCheckInterval,
+		HealthCheckTimeout:  DefaultHealthCheckTimeout,
 	}
 }
 
-func TestAIConfigValidateAcceptsDefaults(t *testing.T) {
-	cfg := validAIConfig()
+func TestConfigValidateAcceptsDefaults(t *testing.T) {
+	cfg := validConfig()
 	require.NoError(t, cfg.Validate())
 }
 
-func TestAIConfigValidateRejectsEmptyAgentURLWithoutMCP(t *testing.T) {
-	cfg := validAIConfig()
+func TestConfigValidateRejectsEmptyAgentURLWithoutMCP(t *testing.T) {
+	cfg := validConfig()
 	cfg.AgentURL = ""
 	require.EqualError(t, cfg.Validate(), "ai requires agent_url (AI chat) or mcp (telemetry MCP tools)")
 }
 
-func TestAIConfigValidateAcceptsMCPOnly(t *testing.T) {
-	cfg := validAIConfig()
+func TestConfigValidateAcceptsMCPOnly(t *testing.T) {
+	cfg := validConfig()
 	cfg.AgentURL = ""
 	cfg.MCP = configoptional.Some(MCPConfig{})
 	require.NoError(t, cfg.Validate())
 }
 
-func TestAIConfigValidateAcceptsSkillsDir(t *testing.T) {
-	cfg := validAIConfig()
+func TestConfigValidateAcceptsSkillsDir(t *testing.T) {
+	cfg := validConfig()
 	cfg.MCP = configoptional.Some(MCPConfig{SkillsDir: "/etc/jaeger/skills"})
 	require.NoError(t, cfg.Validate())
 }
 
-func TestAIConfigValidateRejectsNonPositiveBodySize(t *testing.T) {
+func TestConfigValidateRejectsAuthWithoutAuthenticator(t *testing.T) {
+	cfg := validConfig()
+	cfg.Auth = configoptional.Some(confighttp.AuthConfig{})
+	require.EqualError(t, cfg.Validate(), "ai.auth.authenticator must name an extension")
+}
+
+func TestConfigValidateRejectsNonPositiveBodySize(t *testing.T) {
 	for _, size := range []int64{0, -1} {
-		cfg := validAIConfig()
+		cfg := validConfig()
 		cfg.MaxRequestBodySize = size
 		require.EqualError(t, cfg.Validate(), "ai.max_request_body_size must be a positive integer")
 	}
@@ -88,7 +68,7 @@ func TestAIConfigValidateRejectsNonPositiveBodySize(t *testing.T) {
 
 func TestMCPConfigValidateAcceptsAbsentOrAbsoluteBaseURL(t *testing.T) {
 	// Empty is valid — the announced URL is then resolved from AgentURL
-	// (see resolveMCPBaseURL); only an explicit override is validated here.
+	// (see ResolveMCPBaseURL); only an explicit override is validated here.
 	require.NoError(t, (&MCPConfig{}).Validate())
 
 	for _, u := range []string{
@@ -115,7 +95,7 @@ func TestMCPConfigValidateRejectsRelativeBaseURL(t *testing.T) {
 	}
 }
 
-func TestAIConfigResolveMCPBaseURL(t *testing.T) {
+func TestConfigResolveMCPBaseURL(t *testing.T) {
 	const httpEndpoint = ":16686"
 	tests := []struct {
 		name       string
@@ -258,17 +238,17 @@ func TestAIConfigResolveMCPBaseURL(t *testing.T) {
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			cfg := AIConfig{
+			cfg := Config{
 				AgentURL: tc.agentURL,
 				MCP:      configoptional.Some(MCPConfig{BaseURL: tc.mcpBaseURL}),
 			}
-			assert.Equal(t, tc.want, cfg.resolveMCPBaseURL(context.Background(), tc.endpoint, tc.tls))
+			assert.Equal(t, tc.want, cfg.ResolveMCPBaseURL(context.Background(), tc.endpoint, tc.tls))
 		})
 	}
 }
 
-func TestAIConfigValidateAcceptsZeroHealthCheckIntervalAsDisable(t *testing.T) {
-	cfg := validAIConfig()
+func TestConfigValidateAcceptsZeroHealthCheckIntervalAsDisable(t *testing.T) {
+	cfg := validConfig()
 	cfg.HealthCheckInterval = 0
 	// Timeout becomes irrelevant when the checker is disabled; the validator
 	// must not require a positive timeout in that case.
@@ -276,16 +256,16 @@ func TestAIConfigValidateAcceptsZeroHealthCheckIntervalAsDisable(t *testing.T) {
 	require.NoError(t, cfg.Validate())
 }
 
-func TestAIConfigValidateRejectsNegativeHealthCheckInterval(t *testing.T) {
-	cfg := validAIConfig()
+func TestConfigValidateRejectsNegativeHealthCheckInterval(t *testing.T) {
+	cfg := validConfig()
 	cfg.HealthCheckInterval = -time.Second
 	require.EqualError(t, cfg.Validate(),
 		"ai.health_check_interval must not be negative (0 disables the health checker)")
 }
 
-func TestAIConfigValidateRejectsNonPositiveHealthCheckTimeoutWhenEnabled(t *testing.T) {
+func TestConfigValidateRejectsNonPositiveHealthCheckTimeoutWhenEnabled(t *testing.T) {
 	for _, timeout := range []time.Duration{0, -time.Second} {
-		cfg := validAIConfig()
+		cfg := validConfig()
 		cfg.HealthCheckTimeout = timeout
 		require.EqualError(t, cfg.Validate(),
 			"ai.health_check_timeout must be positive when health_check_interval is positive")
@@ -323,8 +303,8 @@ func TestHostIPSkipsResolverForLocalhost(t *testing.T) {
 	}
 }
 
-func TestAIConfigRejectsDuplicateAgentHeaders(t *testing.T) {
-	cfg := AIConfig{
+func TestConfigRejectsDuplicateAgentHeaders(t *testing.T) {
+	cfg := Config{
 		AgentURL:           "ws://localhost:16688",
 		MaxRequestBodySize: 1 << 20,
 		AgentHeaders: configopaque.MapList{
@@ -335,8 +315,8 @@ func TestAIConfigRejectsDuplicateAgentHeaders(t *testing.T) {
 	require.ErrorContains(t, cfg.Validate(), "ai.agent_headers")
 }
 
-func TestAIConfigAcceptsAgentHeaders(t *testing.T) {
-	cfg := AIConfig{
+func TestConfigAcceptsAgentHeaders(t *testing.T) {
+	cfg := Config{
 		AgentURL:           "ws://localhost:16688",
 		MaxRequestBodySize: 1 << 20,
 		AgentHeaders: configopaque.MapList{
