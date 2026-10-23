@@ -6,6 +6,7 @@ package grpc
 import (
 	"context"
 	"errors"
+	"fmt"
 
 	"go.opentelemetry.io/collector/pdata/pcommon"
 	"go.opentelemetry.io/collector/pdata/ptrace/ptraceotlp"
@@ -360,11 +361,15 @@ func (*Handler) toTraceQueryParams(t *storage.TraceQueryParameters) (tracestore.
 	if depth < 0 || depth > int32(tracestore.MaxSearchDepth) {
 		return tracestore.TraceQueryParams{}, status.Errorf(codes.InvalidArgument, "SearchDepth must be in [0, %d]", tracestore.MaxSearchDepth)
 	}
+	attributes, err := convertKeyValueListToMap(t.Attributes)
+	if err != nil {
+		return tracestore.TraceQueryParams{}, err
+	}
 	searchDepth := uint32(depth)
 	query := tracestore.TraceQueryParams{
 		ServiceName:   t.ServiceName,
 		OperationName: t.OperationName,
-		Attributes:    convertKeyValueListToMap(t.Attributes),
+		Attributes:    attributes,
 		StartTimeMin:  t.StartTimeMin,
 		StartTimeMax:  t.StartTimeMax,
 		DurationMin:   t.DurationMin,
@@ -384,18 +389,43 @@ func (*Handler) toTraceQueryParams(t *storage.TraceQueryParameters) (tracestore.
 	return query, nil
 }
 
-func convertKeyValueListToMap(kvList []*storage.KeyValue) pcommon.Map {
+// convertKeyValueListToMap refuses a nil entry, a nil value or a value with no type set at any
+// depth, array elements included, with InvalidArgument, and names the key and index path to it as
+// the client does: skipping it would run the query without that attribute and report the result
+// as a match.
+func convertKeyValueListToMap(kvList []*storage.KeyValue) (pcommon.Map, error) {
 	m := pcommon.NewMap()
 	for _, kv := range kvList {
-		if kv == nil || kv.Value == nil {
-			continue
+		if err := setKeyValueToMap(m, kv); err != nil {
+			return pcommon.NewMap(), status.Error(codes.InvalidArgument, err.Error())
 		}
-		setValueToMap(m, kv.Key, kv.Value)
 	}
-	return m
+	return m, nil
 }
 
-func setValueToMap(m pcommon.Map, key string, av *storage.AnyValue) {
+// requireValue is the one check that the map and slice paths share: a value that is nil or has no
+// type set carries nothing to match on, at any depth.
+func requireValue(av *storage.AnyValue) error {
+	if av == nil || av.Value == nil {
+		return errors.New("value is not set")
+	}
+	return nil
+}
+
+func setKeyValueToMap(m pcommon.Map, kv *storage.KeyValue) error {
+	if kv == nil {
+		return errors.New("attribute entry is nil")
+	}
+	if err := setValueToMap(m, kv.Key, kv.Value); err != nil {
+		return fmt.Errorf("key %q: %w", kv.Key, err)
+	}
+	return nil
+}
+
+func setValueToMap(m pcommon.Map, key string, av *storage.AnyValue) error {
+	if err := requireValue(av); err != nil {
+		return err
+	}
 	switch v := av.Value.(type) {
 	case *storage.AnyValue_StringValue:
 		m.PutStr(key, v.StringValue)
@@ -409,27 +439,28 @@ func setValueToMap(m pcommon.Map, key string, av *storage.AnyValue) {
 		m.PutEmptyBytes(key).FromRaw(v.BytesValue)
 	case *storage.AnyValue_ArrayValue:
 		sliceVal := m.PutEmptySlice(key)
-		for _, elem := range v.ArrayValue.Values {
-			if elem == nil {
-				sliceVal.AppendEmpty()
-				continue
+		for i, elem := range v.ArrayValue.Values {
+			if err := setValueToSlice(sliceVal, elem); err != nil {
+				return fmt.Errorf("index %d: %w", i, err)
 			}
-			setValueToSlice(sliceVal, elem)
 		}
 	case *storage.AnyValue_KvlistValue:
 		mapVal := m.PutEmptyMap(key)
 		for _, kv := range v.KvlistValue.Values {
-			if kv == nil || kv.Value == nil {
-				continue
+			if err := setKeyValueToMap(mapVal, kv); err != nil {
+				return err
 			}
-			setValueToMap(mapVal, kv.Key, kv.Value)
 		}
-	default:
-		return // unreachable
+	default: // unreachable: requireValue refused a value with no type set
+		return fmt.Errorf("unsupported value type %T", v)
 	}
+	return nil
 }
 
-func setValueToSlice(slice pcommon.Slice, av *storage.AnyValue) {
+func setValueToSlice(slice pcommon.Slice, av *storage.AnyValue) error {
+	if err := requireValue(av); err != nil {
+		return err
+	}
 	switch v := av.Value.(type) {
 	case *storage.AnyValue_StringValue:
 		slice.AppendEmpty().SetStr(v.StringValue)
@@ -443,22 +474,20 @@ func setValueToSlice(slice pcommon.Slice, av *storage.AnyValue) {
 		slice.AppendEmpty().SetEmptyBytes().FromRaw(v.BytesValue)
 	case *storage.AnyValue_ArrayValue:
 		newSlice := slice.AppendEmpty().SetEmptySlice()
-		for _, subElem := range v.ArrayValue.Values {
-			if subElem == nil {
-				newSlice.AppendEmpty()
-				continue
+		for i, subElem := range v.ArrayValue.Values {
+			if err := setValueToSlice(newSlice, subElem); err != nil {
+				return fmt.Errorf("index %d: %w", i, err)
 			}
-			setValueToSlice(newSlice, subElem)
 		}
 	case *storage.AnyValue_KvlistValue:
 		newMap := slice.AppendEmpty().SetEmptyMap()
 		for _, kv := range v.KvlistValue.Values {
-			if kv == nil || kv.Value == nil {
-				continue
+			if err := setKeyValueToMap(newMap, kv); err != nil {
+				return err
 			}
-			setValueToMap(newMap, kv.Key, kv.Value)
 		}
-	default:
-		return // unreachable
+	default: // unreachable: requireValue refused a value with no type set
+		return fmt.Errorf("unsupported value type %T", v)
 	}
+	return nil
 }
