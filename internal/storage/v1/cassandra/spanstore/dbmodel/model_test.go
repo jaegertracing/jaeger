@@ -6,6 +6,7 @@ package dbmodel
 
 import (
 	"bytes"
+	"math"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -330,6 +331,44 @@ func TestKeyValueAsString(t *testing.T) {
 				ValueFloat64: 12.34,
 			},
 			expect: "12.34",
+		},
+		{
+			// tag_index rows must be searchable, and SpanReader builds the query
+			// with pcommon.Value.AsString(), so these must be the same strings.
+			name: "Float64TypeMaxFloat64",
+			kv: KeyValue{
+				Key:          "k",
+				ValueType:    Float64Type,
+				ValueFloat64: math.MaxFloat64,
+			},
+			expect: "1.7976931348623157e+308",
+		},
+		{
+			name: "Float64TypeFullPrecision",
+			kv: KeyValue{
+				Key:          "k",
+				ValueType:    Float64Type,
+				ValueFloat64: 0.30000000000000004,
+			},
+			expect: "0.30000000000000004",
+		},
+		{
+			name: "Float64TypeLargeInteger",
+			kv: KeyValue{
+				Key:          "k",
+				ValueType:    Float64Type,
+				ValueFloat64: 1e20,
+			},
+			expect: "100000000000000000000",
+		},
+		{
+			name: "Float64TypeSmallMagnitude",
+			kv: KeyValue{
+				Key:          "k",
+				ValueType:    Float64Type,
+				ValueFloat64: 1e-7,
+			},
+			expect: "1e-7",
 		},
 		{
 			name: "BinaryType",

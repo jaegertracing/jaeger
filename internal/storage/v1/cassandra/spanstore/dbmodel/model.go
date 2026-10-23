@@ -13,6 +13,8 @@ import (
 	"strconv"
 	"strings"
 
+	"go.opentelemetry.io/collector/pdata/pcommon"
+
 	"github.com/jaegertracing/jaeger-idl/model/v1"
 )
 
@@ -139,7 +141,9 @@ func (t *KeyValue) AsString() string {
 	case Int64Type:
 		return strconv.FormatInt(t.ValueInt64, 10)
 	case Float64Type:
-		return strconv.FormatFloat(t.ValueFloat64, 'g', 10, 64)
+		// SpanReader.queryByTagsAndLogs looks up tag_index with
+		// pcommon.Value.AsString(), so the index must be written the same way.
+		return pcommon.NewValueDouble(t.ValueFloat64).AsString()
 	case BinaryType:
 		return hex.EncodeToString(t.ValueBinary)
 	default:
