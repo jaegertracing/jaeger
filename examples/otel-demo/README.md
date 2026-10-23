@@ -144,6 +144,22 @@ fail on an immutable StatefulSet field. Reconcile the template separately only
 after the staged version upgrade and soak. PVC expansion cannot be rolled back
 or shrunk.
 
+### Index retention
+
+Jaeger writes one OpenSearch index per day, and OpenSearch has no TTL. The
+`esIndexCleaner` block in `jaeger-values.yaml` enables the Jaeger chart's
+CronJob, which runs `jaeger-es-index-cleaner` daily and deletes
+`jaeger-main-jaeger-{span,service,dependencies,sampling}-<date>` indices older
+than 30 days. The `jaeger-archive-*` indices are not touched. The cleaner's
+`index-prefix` must be `jaeger-main-` (the `index_prefix` in
+`jaeger-config.yaml` plus a dash); `jaeger-values.test.sh` checks that the two
+stay in sync.
+
+Without retention the data volume eventually passes the OpenSearch flood-stage
+watermark (95% disk), which makes the indices read-only and stops trace
+ingestion while every pod still reports `Running`. To size retention, keep
+`numberOfDays` times the daily index size well under the volume.
+
 The Jaeger deployment uses `jaeger-config.yaml` to configure the Jaeger v2
 `jaeger_storage` extension against the in-cluster OpenSearch service. The Helm
 chart storage type is set to `elasticsearch` for compatibility with the chart's
