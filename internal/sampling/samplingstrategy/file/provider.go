@@ -7,6 +7,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"net/url"
@@ -24,6 +25,9 @@ import (
 // null represents "null" JSON value and
 // it un-marshals to nil pointer.
 var nullJSON = []byte("null")
+
+// errServiceUnavailable is returned when the strategies URL responds with 503.
+var errServiceUnavailable = errors.New("sampling strategies URL is temporarily unavailable")
 
 type samplingProvider struct {
 	logger *zap.Logger
@@ -59,13 +63,14 @@ func NewProvider(options Options, logger *zap.Logger) (samplingstrategy.Provider
 
 	loadFn := h.samplingStrategyLoader(options.StrategiesFile)
 	strategies, err := loadStrategies(loadFn)
-	if err != nil {
+	if err != nil && !errors.Is(err, errServiceUnavailable) {
 		return nil, err
-	} else if strategies == nil {
-		h.logger.Info("No sampling strategies found or URL is unavailable, using defaults")
-		return h, nil
 	}
-	h.parseStrategies(strategies)
+	if strategies == nil {
+		h.logger.Info("No sampling strategies found or URL is unavailable, using defaults")
+	} else {
+		h.parseStrategies(strategies)
+	}
 	if options.ReloadInterval > 0 {
 		go h.autoUpdateStrategies(ctx, loadFn)
 	}
@@ -110,7 +115,7 @@ func (h *samplingProvider) downloadSamplingStrategies(samplingURL string) ([]byt
 	}
 
 	if resp.StatusCode == http.StatusServiceUnavailable {
-		return nullJSON, nil
+		return nil, errServiceUnavailable
 	}
 	if resp.StatusCode != http.StatusOK {
 		return nil, fmt.Errorf(
