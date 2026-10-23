@@ -44,7 +44,7 @@ func TestToUpsertItem(t *testing.T) {
 	require.True(t, ok)
 	assert.Equal(t, indexName, item.Index)
 	assert.Equal(t, serviceHash, item.ID)
-	assert.Equal(t, key, item.ID)
+	assert.Equal(t, indexName+":"+serviceHash, key)
 	assert.IsType(t, dbmodel.Service{}, item.Body)
 
 	// Still pending on a repeat: the pair is not cached until the write is confirmed
@@ -56,6 +56,20 @@ func TestToUpsertItem(t *testing.T) {
 	s.commitToCache(key)
 	_, _, ok = s.toUpsertItem(indexName, jsonSpan)
 	assert.False(t, ok, "must be cached after confirm")
+
+	otherIndex := "jaeger-1995-04-22"
+	otherItem, otherKey, ok := s.toUpsertItem(otherIndex, jsonSpan)
+	require.True(t, ok, "the same pair must be written to a different index")
+	assert.Equal(t, otherIndex, otherItem.Index)
+	assert.Equal(t, serviceHash, otherItem.ID)
+	assert.Equal(t, otherIndex+":"+serviceHash, otherKey)
+	assert.NotEqual(t, key, otherKey)
+
+	s.commitToCache(otherKey)
+	for _, index := range []string{indexName, otherIndex} {
+		_, _, ok = s.toUpsertItem(index, jsonSpan)
+		assert.False(t, ok, "the pair must remain cached in %s", index)
+	}
 }
 
 func TestHashCodeSeparatesServiceAndOperation(t *testing.T) {
@@ -108,7 +122,7 @@ func TestServiceOperationCacheKeepsDistinctPairsWithSameConcatenation(t *testing
 	require.True(t, ok)
 
 	assert.NotEqual(t, firstKey, secondKey)
-	assert.Equal(t, secondKey, secondItem.ID)
+	assert.Equal(t, indexName+":"+secondItem.ID, secondKey)
 }
 
 func TestServiceOperationStorage_ClearCache(t *testing.T) {
