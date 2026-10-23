@@ -106,6 +106,7 @@ func newSchemaBuilder(cfg Configuration) (*schemaBuilder, error) {
 		{"operations materialized view", sql.CreateOperationsMaterializedView, false},
 		{"trace id timestamps table", sql.CreateTraceIDTimestampsTable, true},
 		{"trace id timestamps materialized view", sql.CreateTraceIDTimestampsMaterializedView, false},
+		{"trace id timestamps materialized view query", sql.AlterTraceIDTimestampsMaterializedView, false},
 		{"attribute metadata table", sql.CreateAttributeMetadataTable, true},
 		{"attribute metadata materialized view", sql.CreateAttributeMetadataMaterializedView, false},
 		{"event attribute metadata materialized view", sql.CreateEventAttributeMetadataMaterializedView, false},
