@@ -60,9 +60,6 @@ func (a *authenticator) authenticate(r *http.Request) (context.Context, error) {
 // admits reports whether the extension accepts r, for a surface that hides a
 // feature from a rejected caller instead of refusing the request.
 func (a *authenticator) admits(r *http.Request) bool {
-	if a == nil {
-		return true
-	}
 	_, err := a.authenticate(r)
 	return err == nil
 }
@@ -70,9 +67,6 @@ func (a *authenticator) admits(r *http.Request) bool {
 // wrap answers a rejected request with 401 before next sees it, and hands an
 // admitted request to next with the authenticated context.
 func (a *authenticator) wrap(next http.Handler) http.Handler {
-	if a == nil {
-		return next
-	}
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		ctx, err := a.authenticate(r)
 		if err != nil {

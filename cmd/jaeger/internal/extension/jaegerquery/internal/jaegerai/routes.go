@@ -50,7 +50,7 @@ func (rs *Routes) Close() error {
 // Admits reports whether the ai.auth authenticator accepts r. Without an
 // ai.auth block every request is admitted.
 func (rs *Routes) Admits(r *http.Request) bool {
-	return rs.auth.admits(r)
+	return rs.auth == nil || rs.auth.admits(r)
 }
 
 // Register mounts the AI surface of the query port on r: the telemetry MCP
@@ -102,11 +102,19 @@ func Register(ctx context.Context, r *http.ServeMux, p RegisterParams) (*Routes,
 		// The shared endpoint and the gateway's turn-scoped /api/ai/mcp/<id>/ patterns
 		// coexist because the latter are strictly more specific for ServeMux.
 		prefix := strings.TrimSuffix(p.BasePath, "/") + "/api/ai/mcp"
-		r.Handle(prefix+"/", http.StripPrefix(prefix, auth.wrap(mcpHandler)))
+		var shared http.Handler = mcpHandler
+		if auth != nil {
+			shared = auth.wrap(shared)
+		}
+		r.Handle(prefix+"/", http.StripPrefix(prefix, shared))
 		telset.Logger.Info("Jaeger telemetry MCP endpoint enabled", zap.String("path", prefix+"/"))
 	}
 
 	if aiCfg.AgentURL != "" {
+		var chatMiddleware func(http.Handler) http.Handler
+		if auth != nil {
+			chatMiddleware = auth.wrap
+		}
 		// jaegerai owns the chat endpoint and, when MCP is configured, the turn-scoped
 		// endpoint (/api/ai/mcp/<id>/) — which it serves off mcpHandler's server, with
 		// the turn's UI tools layered on. Passing nil leaves it chat-only: there is no
@@ -124,7 +132,7 @@ func Register(ctx context.Context, r *http.ServeMux, p RegisterParams) (*Routes,
 			MaxRequestBodySize: aiCfg.MaxRequestBodySize,
 			MCP:                mcpHandler,
 			MCPBaseURL:         aiCfg.ResolveMCPBaseURL(ctx, p.HTTPEndpoint, p.TLSEnabled),
-			ChatMiddleware:     auth.wrap,
+			ChatMiddleware:     chatMiddleware,
 		})
 		aiGateway.RegisterRoutes(r)
 	}

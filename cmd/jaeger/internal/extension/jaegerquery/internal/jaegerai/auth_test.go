@@ -125,14 +125,10 @@ func TestAuthenticator(t *testing.T) {
 		assert.Equal(t, "bob", seenUser)
 	})
 
-	t.Run("no ai.auth block admits everyone", func(t *testing.T) {
+	t.Run("no ai.auth block yields no authenticator", func(t *testing.T) {
 		none, err := newAuthenticator(context.Background(), nil, host)
 		require.NoError(t, err)
 		assert.Nil(t, none)
-		assert.True(t, none.admits(request("/mcp", http.Header{})))
-		rr := httptest.NewRecorder()
-		none.wrap(next).ServeHTTP(rr, request("/mcp", http.Header{}))
-		assert.Equal(t, http.StatusNoContent, rr.Code)
 	})
 }
 
