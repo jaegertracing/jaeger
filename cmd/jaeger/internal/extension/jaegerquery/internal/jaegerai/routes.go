@@ -5,7 +5,6 @@ package jaegerai
 
 import (
 	"context"
-	"io"
 	"net/http"
 	"strings"
 
@@ -35,16 +34,51 @@ type RegisterParams struct {
 	Telemetry    telemetry.Settings
 }
 
+// Routes is what Register hands back to the query server: a closer for what
+// it mounted, and the ai.auth decision for the one surface the query server
+// renders itself, the aiAssistant flag in the UI page.
+type Routes struct {
+	closers closers.Closers
+	auth    *authenticator
+}
+
+// Close releases everything Register mounted.
+func (rs *Routes) Close() error {
+	return rs.closers.Close()
+}
+
+// Admits reports whether the ai.auth authenticator accepts r. Without an
+// ai.auth block every request is admitted.
+func (rs *Routes) Admits(r *http.Request) bool {
+	return rs.auth == nil || rs.auth.admits(r)
+}
+
 // Register mounts the AI surface of the query port on r: the telemetry MCP
-// endpoint and the AI chat gateway. It returns one closer for whatever it
-// mounted. Invalid AI config disables the AI surface rather than stopping the
-// query server, which also serves the UI and the trace APIs.
-func Register(ctx context.Context, r *http.ServeMux, p RegisterParams) (io.Closer, error) {
+// endpoint, the AI chat gateway, and the ai.auth check in front of both.
+// Invalid AI config disables the AI surface rather than stopping the query
+// server, which also serves the UI and the trace APIs. An ai.auth block that
+// names an unusable extension is the exception and stops startup, since
+// serving the AI surface unguarded is the one outcome an operator who set it
+// cannot want.
+func Register(ctx context.Context, r *http.ServeMux, p RegisterParams) (*Routes, error) {
 	aiCfg := p.Config
 	telset := p.Telemetry
 	if err := aiCfg.Validate(); err != nil {
 		telset.Logger.Error("Invalid AI config, AI handler disabled", zap.Error(err))
-		return closers.Closers(nil), nil
+		return &Routes{}, nil
+	}
+
+	// One authenticator guards every AI surface, so a caller admitted to the chat
+	// panel is admitted to the MCP tools and the other way round.
+	var auth *authenticator
+	authWrap := func(h http.Handler) http.Handler { return h }
+	if authCfg := aiCfg.Auth.Get(); authCfg != nil {
+		var err error
+		auth, err = newAuthenticator(ctx, authCfg, telset.Host)
+		if err != nil {
+			return nil, err
+		}
+		authWrap = auth.wrap
 	}
 
 	var cs closers.Closers
@@ -74,7 +108,7 @@ func Register(ctx context.Context, r *http.ServeMux, p RegisterParams) (io.Close
 		// The shared endpoint and the gateway's turn-scoped /api/ai/mcp/<id>/ patterns
 		// coexist because the latter are strictly more specific for ServeMux.
 		prefix := strings.TrimSuffix(p.BasePath, "/") + "/api/ai/mcp"
-		r.Handle(prefix+"/", http.StripPrefix(prefix, mcpHandler))
+		r.Handle(prefix+"/", http.StripPrefix(prefix, authWrap(mcpHandler)))
 		telset.Logger.Info("Jaeger telemetry MCP endpoint enabled", zap.String("path", prefix+"/"))
 	}
 
@@ -96,8 +130,9 @@ func Register(ctx context.Context, r *http.ServeMux, p RegisterParams) (io.Close
 			MaxRequestBodySize: aiCfg.MaxRequestBodySize,
 			MCP:                mcpHandler,
 			MCPBaseURL:         aiCfg.ResolveMCPBaseURL(ctx, p.HTTPEndpoint, p.TLSEnabled),
+			ChatMiddleware:     authWrap,
 		})
 		aiGateway.RegisterRoutes(r)
 	}
-	return cs, nil
+	return &Routes{closers: cs, auth: auth}, nil
 }

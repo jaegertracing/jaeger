@@ -13,6 +13,8 @@ import (
 	"strings"
 	"time"
 
+	"go.opentelemetry.io/collector/component"
+	"go.opentelemetry.io/collector/config/confighttp"
 	"go.opentelemetry.io/collector/config/configopaque"
 	"go.opentelemetry.io/collector/config/configoptional"
 
@@ -35,6 +37,20 @@ const (
 // onto the seeded value), so unset fields keep their default. Validate is
 // therefore a pure check — it does not mutate the receiver.
 type Config struct {
+	// Auth names an authenticator extension that guards the AI surfaces and
+	// nothing else on the query port: the chat endpoint, the shared MCP endpoint,
+	// and the aiAssistant flag that tells the UI to show the chat panel. The
+	// server-wide http.auth setting applies to every route, which is the wrong
+	// grain when the UI and the REST API stay open while the AI features are
+	// rolled out to a group. The authenticator receives the request headers and
+	// the listed request_params. A rejected chat or MCP request is answered with
+	// 401, and a rejected page request is served the UI with aiAssistant off.
+	// The turn-scoped MCP endpoint that the chat sidecar dials is not covered,
+	// since the person behind that turn was already admitted on the chat
+	// request. Startup fails when the extension is not loaded. The extension also
+	// runs on every UI page load, so an anonymous visitor shows up in it as one
+	// rejected attempt per page.
+	Auth configoptional.Optional[confighttp.AuthConfig] `mapstructure:"auth"`
 	// AgentURL is the WebSocket endpoint of an ACP-compatible agent sidecar.
 	// For example, ws://localhost:16688
 	// See https://agentclientprotocol.com/
@@ -124,6 +140,9 @@ func (c *Config) Validate() error {
 	}
 	if c.MaxRequestBodySize <= 0 {
 		return errors.New("ai.max_request_body_size must be a positive integer")
+	}
+	if auth := c.Auth.Get(); auth != nil && auth.Config.AuthenticatorID == (component.ID{}) {
+		return errors.New("ai.auth.authenticator must name an extension")
 	}
 	if c.HealthCheckInterval < 0 {
 		return errors.New("ai.health_check_interval must not be negative (0 disables the health checker)")

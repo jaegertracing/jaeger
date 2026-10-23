@@ -215,7 +215,7 @@ func initRouter(
 	}
 
 	if queryOpts.AI.HasValue() {
-		aiClosers, err := jaegerai.Register(ctx, r, jaegerai.RegisterParams{
+		aiRoutes, err := jaegerai.Register(ctx, r, jaegerai.RegisterParams{
 			Config:       queryOpts.AI.Get(),
 			BasePath:     queryOpts.BasePath,
 			HTTPEndpoint: queryOpts.HTTP.NetAddr.Endpoint,
@@ -227,7 +227,16 @@ func initRouter(
 		if err != nil {
 			return nil, nil, errors.Join(err, cs.Close())
 		}
-		cs = append(cs, aiClosers)
+		cs = append(cs, aiRoutes)
+		// The chat panel is offered only to a caller the ai.auth authenticator
+		// admits, so the UI hides it from everyone else instead of showing a panel
+		// whose first request would be refused.
+		next := backendCaps
+		backendCaps = func(r *http.Request) BackendCapabilities {
+			caps := next(r)
+			caps.AIAssistant = caps.AIAssistant && aiRoutes.Admits(r)
+			return caps
+		}
 	}
 
 	if queryOpts.OTLPProxy.HasValue() {
