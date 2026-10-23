@@ -8,7 +8,6 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"math"
 	"net/http/httptest"
 	"testing"
 	"time"
@@ -494,12 +493,14 @@ func TestBuildSpanItem_EncodeError(t *testing.T) {
 		ServiceRotation: indices.NewAliasedRotation("jaeger-service-write", "jaeger-service-read"),
 	})
 
-	// A NaN float tag value cannot be JSON-encoded, so buildSpanItem returns an error
-	// (the caller decides to drop the span — see TestSpanWriter_WriteSpansEncodeError).
-	span := &dbmodel.Span{TraceID: "a", SpanID: "b", Tag: map[string]any{"bad": math.NaN()}}
+	// A channel cannot be JSON-encoded, so buildSpanItem returns an error and the
+	// caller drops the span (see TestSpanWriter_WriteSpansEncodeError). Non-finite
+	// floats are not this case; they are stored as strings.
+	span := &dbmodel.Span{TraceID: "a", SpanID: "b", Tag: map[string]any{"bad": make(chan int)}}
 	item, err := writer.buildSpanItem("jaeger-span-write", span)
 
 	require.Error(t, err)
+	require.ErrorContains(t, err, "unsupported type")
 	assert.Empty(t, item.ID)
 }
 
@@ -509,13 +510,14 @@ func TestSpanWriter_WriteSpansEncodeError(t *testing.T) {
 	withSpanWriter(func(w *spanWriterTest) {
 		startTime := model.TimeAsEpochMicroseconds(time.Now())
 		good := dbmodel.Span{TraceID: "t", SpanID: "ok", OperationName: "op", Process: dbmodel.Process{ServiceName: "svc"}, StartTime: startTime}
-		// A NaN tag value (kept in Tags, so it survives tag elevation) makes this
-		// span fail to JSON-encode. It shares (service, op) with the good span so the
-		// service doc is deduped.
+		// A value encoding/json cannot encode (kept in Tags, so it survives tag
+		// elevation) makes this span fail to encode. It shares (service, op) with
+		// the good span so the service doc is deduped. Non-finite floats are
+		// encodable and are covered by TestWriteSpans_NonFiniteFloatNotDropped.
 		bad := dbmodel.Span{
 			TraceID: "t", SpanID: "bad", OperationName: "op",
 			Process:   dbmodel.Process{ServiceName: "svc"},
-			Tags:      []dbmodel.KeyValue{{Key: "x", Type: dbmodel.Float64Type, Value: math.NaN()}},
+			Tags:      []dbmodel.KeyValue{{Key: "x", Type: dbmodel.StringType, Value: make(chan int)}},
 			StartTime: startTime,
 		}
 

@@ -9,6 +9,7 @@ import (
 	"encoding/json"
 	"errors"
 	"hash/fnv"
+	"math"
 	"strconv"
 	"strings"
 	"time"
@@ -117,8 +118,9 @@ func (s *SpanWriter) WriteSpans(ctx context.Context, spans []dbmodel.Span) error
 		}
 		item, err := s.buildSpanItem(s.spanRotation.WriteTarget(spanStartTime), span)
 		if err != nil {
-			// A span carrying an unencodable value (e.g. a NaN/Inf float tag) cannot
-			// be stored; drop it rather than fail the batch.
+			// Drop a span that still cannot be encoded rather than fail the batch.
+			// Non-finite floats are rewritten to JSON strings in buildSpanItem, so
+			// they are not what lands here.
 			s.writerMetrics.Errors.Inc(1)
 			s.logger.Error("failed to encode span document", zap.Error(err))
 			continue
@@ -224,11 +226,16 @@ func (*SpanWriter) Close() error {
 }
 
 // buildSpanItem marshals a span into a BulkItem with a deterministic _id, returning
-// an error if it cannot be encoded (e.g. a NaN/Inf float tag) — the caller decides
-// what to do. The span is marshaled once here; the bytes are reused for the _id and
-// handed to the batch writer as json.RawMessage so they are not re-encoded.
+// an error if it cannot be encoded — the caller decides what to do. Non-finite
+// float64 values are rewritten to JSON strings first so a NaN or ±Inf tag is stored
+// instead of rejecting the document. The span is marshaled once here; the bytes are
+// reused for the _id and handed to the batch writer as json.RawMessage so they are
+// not re-encoded.
 func (s *SpanWriter) buildSpanItem(indexName string, jsonSpan *dbmodel.Span) (esclient.BulkItem, error) {
-	body, err := json.Marshal(jsonSpan)
+	// Marshal a copy when a non-finite float has to be rewritten. The caller's
+	// span keeps the original float64, including slices and maps it shares with
+	// this value.
+	body, err := json.Marshal(encodeNonFiniteFloats(jsonSpan))
 	if err != nil {
 		return esclient.BulkItem{}, err
 	}
@@ -278,6 +285,106 @@ func spanDocID(span *dbmodel.Span, body []byte) string {
 	return string(span.TraceID) + "_" + string(span.SpanID) + "_" + strconv.FormatUint(h.Sum64(), 16)
 }
 
+// encodeNonFiniteFloats returns the span to marshal. NaN and ±Inf become the
+// OTLP/JSON strings "NaN", "Infinity", and "-Infinity" so encoding/json accepts
+// the document, and KeyValue.Type stays float64. The input is returned as-is
+// when every float is finite. Otherwise only the slices and maps that hold a
+// non-finite value are copied, and the copy is rewritten.
+func encodeNonFiniteFloats(span *dbmodel.Span) *dbmodel.Span {
+	tags, tagsChanged := rewriteKeyValues(span.Tags)
+	logs, logsChanged := rewriteLogs(span.Logs)
+	tag, tagChanged := rewriteTagMap(span.Tag)
+	procTags, procTagsChanged := rewriteKeyValues(span.Process.Tags)
+	procTag, procTagChanged := rewriteTagMap(span.Process.Tag)
+	if !tagsChanged && !logsChanged && !tagChanged && !procTagsChanged && !procTagChanged {
+		return span
+	}
+	clone := *span
+	if tagsChanged {
+		clone.Tags = tags
+	}
+	if logsChanged {
+		clone.Logs = logs
+	}
+	if tagChanged {
+		clone.Tag = tag
+	}
+	if procTagsChanged {
+		clone.Process.Tags = procTags
+	}
+	if procTagChanged {
+		clone.Process.Tag = procTag
+	}
+	return &clone
+}
+
+// rewriteFloat returns the JSON-safe form of a non-finite float64 and true.
+// Finite floats and every other type are left alone.
+func rewriteFloat(v any) (any, bool) {
+	f, ok := v.(float64)
+	if !ok || (!math.IsNaN(f) && !math.IsInf(f, 0)) {
+		return nil, false
+	}
+	return dbmodel.JSONSafeFloat(f), true
+}
+
+func rewriteKeyValues(kvs []dbmodel.KeyValue) ([]dbmodel.KeyValue, bool) {
+	var cloned []dbmodel.KeyValue
+	for i := range kvs {
+		safe, changed := rewriteFloat(kvs[i].Value)
+		if !changed {
+			continue
+		}
+		if cloned == nil {
+			cloned = append([]dbmodel.KeyValue(nil), kvs...)
+		}
+		cloned[i].Value = safe
+	}
+	if cloned == nil {
+		return kvs, false
+	}
+	return cloned, true
+}
+
+func rewriteLogs(logs []dbmodel.Log) ([]dbmodel.Log, bool) {
+	var cloned []dbmodel.Log
+	for i := range logs {
+		fields, changed := rewriteKeyValues(logs[i].Fields)
+		if !changed {
+			continue
+		}
+		if cloned == nil {
+			cloned = append([]dbmodel.Log(nil), logs...)
+		}
+		cloned[i].Fields = fields
+	}
+	if cloned == nil {
+		return logs, false
+	}
+	return cloned, true
+}
+
+func rewriteTagMap(tags map[string]any) (map[string]any, bool) {
+	var cloned map[string]any
+	for k, v := range tags {
+		safe, changed := rewriteFloat(v)
+		if !changed {
+			continue
+		}
+		if cloned == nil {
+			cloned = make(map[string]any, len(tags))
+			for k2, v2 := range tags {
+				cloned[k2] = v2
+			}
+		}
+		cloned[k] = safe
+	}
+	if cloned == nil {
+		return tags, false
+	}
+	return cloned, true
+}
+
 func (s *SpanWriter) splitElevatedTags(keyValues []dbmodel.KeyValue) ([]dbmodel.KeyValue, map[string]any) {
 	if !s.allTagsAsFields && len(s.tagKeysAsFields) == 0 {
 		return keyValues, nil
@@ -285,6 +392,13 @@ func (s *SpanWriter) splitElevatedTags(keyValues []dbmodel.KeyValue) ([]dbmodel.
 	var tagsMap map[string]any
 	var kvs []dbmodel.KeyValue
 	for _, kv := range keyValues {
+		// A non-finite float has to stay in the typed array. The flat tag object
+		// has no type field, so elevating it would store a bare string and the
+		// reader could not tell it from a string attribute of the same text.
+		if _, nonFinite := rewriteFloat(kv.Value); nonFinite {
+			kvs = append(kvs, kv)
+			continue
+		}
 		if kv.Type != dbmodel.BinaryType && (s.allTagsAsFields || s.tagKeysAsFields[kv.Key]) {
 			if tagsMap == nil {
 				tagsMap = map[string]any{}
