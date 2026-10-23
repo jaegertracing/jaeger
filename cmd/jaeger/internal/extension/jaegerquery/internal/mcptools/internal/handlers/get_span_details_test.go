@@ -7,6 +7,7 @@ import (
 	"context"
 	"errors"
 	"iter"
+	"math"
 	"strings"
 	"testing"
 
@@ -486,6 +487,36 @@ func TestConvertAttributeValue(t *testing.T) {
 			name:     "empty value",
 			setup:    pcommon.NewValueEmpty,
 			expected: nil,
+		},
+		{
+			name:     "NaN double value",
+			setup:    func() pcommon.Value { return pcommon.NewValueDouble(math.NaN()) },
+			expected: "NaN",
+		},
+		{
+			name:     "+Inf double value",
+			setup:    func() pcommon.Value { return pcommon.NewValueDouble(math.Inf(1)) },
+			expected: "Infinity",
+		},
+		{
+			name:     "-Inf double value",
+			setup:    func() pcommon.Value { return pcommon.NewValueDouble(math.Inf(-1)) },
+			expected: "-Infinity",
+		},
+		{
+			name: "non-finite doubles nested in slice and map",
+			setup: func() pcommon.Value {
+				v := pcommon.NewValueMap()
+				slice := v.Map().PutEmptySlice("slice")
+				slice.AppendEmpty().SetDouble(math.NaN())
+				slice.AppendEmpty().SetDouble(1.5)
+				v.Map().PutEmptyMap("map").PutDouble("inf", math.Inf(1))
+				return v
+			},
+			expected: map[string]any{
+				"slice": []any{"NaN", 1.5},
+				"map":   map[string]any{"inf": "Infinity"},
+			},
 		},
 	}
 
