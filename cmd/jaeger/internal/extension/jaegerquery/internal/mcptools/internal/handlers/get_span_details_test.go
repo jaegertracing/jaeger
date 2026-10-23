@@ -500,6 +500,32 @@ func TestConvertAttributeValue(t *testing.T) {
 	}
 }
 
+func TestConvertAttributeValue_NestedNonFiniteValues(t *testing.T) {
+	value := pcommon.NewValueMap()
+
+	values := value.Map().PutEmptySlice("values")
+	values.AppendEmpty().SetDouble(math.NaN())
+	values.AppendEmpty().SetDouble(math.Inf(1))
+	values.AppendEmpty().SetDouble(math.Inf(-1))
+	values.AppendEmpty().SetDouble(3.14)
+
+	nested := value.Map().PutEmptyMap("nested")
+	nested.PutDouble("measurement", math.NaN())
+
+	result := convertAttributeValue(value)
+
+	expected := map[string]any{
+		"values": []any{"NaN", "Infinity", "-Infinity", 3.14},
+		"nested": map[string]any{
+			"measurement": "NaN",
+		},
+	}
+	assert.Equal(t, expected, result)
+
+	_, err := json.Marshal(result)
+	require.NoError(t, err)
+}
+
 func TestConvertAttributeValue_NonFiniteDouble(t *testing.T) {
 	tests := []struct {
 		name     string
