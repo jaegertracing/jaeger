@@ -70,9 +70,13 @@ func Register(ctx context.Context, r *http.ServeMux, p RegisterParams) (*Routes,
 
 	// One authenticator guards every AI surface, so a caller admitted to the chat
 	// panel is admitted to the MCP tools and the other way round.
-	auth, err := newAuthenticator(ctx, aiCfg.Auth.Get(), telset.Host)
-	if err != nil {
-		return nil, err
+	var auth *authenticator
+	if authCfg := aiCfg.Auth.Get(); authCfg != nil {
+		var err error
+		auth, err = newAuthenticator(ctx, authCfg, telset.Host)
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	var cs closers.Closers

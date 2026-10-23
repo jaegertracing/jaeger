@@ -16,20 +16,16 @@ import (
 // authenticator applies the extension named by ai.auth to the AI surfaces of
 // the query port, with the inputs the collector's confighttp gives one for a
 // whole server: the request headers plus the query parameters listed in
-// request_params. A nil *authenticator admits everyone, so callers need no
-// branch for a deployment without the setting.
+// request_params. Register builds one only when the ai.auth block is present.
 type authenticator struct {
 	server        extensionauth.Server
 	requestParams []string
 }
 
-// newAuthenticator resolves cfg against the host's extensions. A nil cfg
-// returns a nil authenticator. An extension that is not loaded, or is not a
-// server authenticator, is a configuration error that stops startup.
+// newAuthenticator resolves cfg against the host's extensions. An extension
+// that is not loaded, or is not a server authenticator, is a configuration
+// error that stops startup.
 func newAuthenticator(ctx context.Context, cfg *confighttp.AuthConfig, host component.Host) (*authenticator, error) {
-	if cfg == nil {
-		return nil, nil
-	}
 	var extensions map[component.ID]component.Component
 	if host != nil {
 		extensions = host.GetExtensions()

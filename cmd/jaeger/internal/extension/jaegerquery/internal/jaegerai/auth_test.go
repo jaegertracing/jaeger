@@ -124,12 +124,6 @@ func TestAuthenticator(t *testing.T) {
 		assert.Equal(t, http.StatusNoContent, rr.Code)
 		assert.Equal(t, "bob", seenUser)
 	})
-
-	t.Run("no ai.auth block yields no authenticator", func(t *testing.T) {
-		none, err := newAuthenticator(context.Background(), nil, host)
-		require.NoError(t, err)
-		assert.Nil(t, none)
-	})
 }
 
 func TestRegisterRejectsUnusableAuthenticator(t *testing.T) {
