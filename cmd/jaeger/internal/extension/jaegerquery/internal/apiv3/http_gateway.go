@@ -14,6 +14,7 @@ import (
 
 	"github.com/gogo/protobuf/jsonpb"
 	"github.com/gogo/protobuf/proto"
+	"go.opentelemetry.io/collector/pdata/pcommon"
 	"go.opentelemetry.io/collector/pdata/ptrace"
 	"go.opentelemetry.io/otel/trace"
 	"go.uber.org/zap"
@@ -173,7 +174,7 @@ func (h *HTTPGateway) getTrace(w http.ResponseWriter, r *http.Request) {
 	request := querysvc.GetTraceParams{
 		TraceIDs: []tracestore.GetTraceParams{
 			{
-				TraceID: v1adapter.FromV1TraceID(traceID),
+				TraceID: traceID,
 			},
 		},
 	}
@@ -301,16 +302,16 @@ func (h *HTTPGateway) getOperations(w http.ResponseWriter, r *http.Request) {
 	h.marshalResponse(&api_v3.GetOperationsResponse{Operations: apiOperations}, w)
 }
 
-// TraceIDFromString parses a trace ID from either a hex string or a base64 string.
+// TraceIDFromString parses a 32 hex character trace ID from either a hex string or a base64 string.
 // It supports both standard and URL-safe base64, with or without padding.
-func TraceIDFromString(s string) (model.TraceID, error) {
+func TraceIDFromString(s string) (pcommon.TraceID, error) {
 	traceID, err := model.TraceIDFromString(s)
 	if err == nil {
-		return traceID, nil
+		return v1adapter.FromV1TraceID(traceID), nil
 	}
 	// 128-bit trace ID = 24 base64 chars with padding, 22 without.
 	if len(s) > 24 {
-		return model.TraceID{}, err
+		return pcommon.TraceID{}, err
 	}
 	encodings := []*base64.Encoding{
 		base64.StdEncoding,
@@ -320,10 +321,11 @@ func TraceIDFromString(s string) (model.TraceID, error) {
 	}
 	for _, enc := range encodings {
 		if b, b64Err := enc.DecodeString(s); b64Err == nil {
-			return model.TraceIDFromBytes(b)
+			traceID, err := model.TraceIDFromBytes(b)
+			return v1adapter.FromV1TraceID(traceID), err
 		}
 	}
-	return model.TraceID{}, err
+	return pcommon.TraceID{}, err
 }
 
 // getCapabilities serves GET /api/v3/capabilities, the HTTP binding of
