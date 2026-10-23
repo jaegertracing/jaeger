@@ -627,3 +627,15 @@ func TestParseSpanID(t *testing.T) {
 		require.EqualError(t, err, "span ID must not be all zero")
 	})
 }
+
+func TestGetSpanDetailsHandler_Handle_NonFiniteDoubleAttributes(t *testing.T) {
+	traces, spanID := createTraceWithNonFiniteDoubles(ptrace.StatusCodeOk)
+	handler := &getSpanDetailsHandler{queryService: newMockYieldingTraces(traces), maxSpanDetailsPerRequest: 10}
+
+	_, output, err := handler.handle(context.Background(), &mcp.CallToolRequest{}, types.GetSpanDetailsInput{
+		TraceID: testTraceID,
+		SpanIDs: []string{spanID},
+	})
+	require.NoError(t, err)
+	assertNonFiniteDoublesMarshal(t, output)
+}
