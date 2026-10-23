@@ -5,9 +5,14 @@ package handlers
 
 import (
 	"context"
+	"encoding/json"
 	"iter"
+	"math"
+	"testing"
 	"time"
 
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/collector/pdata/pcommon"
 	"go.opentelemetry.io/collector/pdata/ptrace"
 
@@ -226,4 +231,85 @@ func spanIDToHex(spanID string) string {
 	sid := pcommon.SpanID{}
 	copy(sid[:], spanID)
 	return sid.String()
+}
+
+// putNonFiniteDoubles adds NaN, +Inf and -Inf double attributes to attrs,
+// plus a finite one that must stay a JSON number.
+func putNonFiniteDoubles(attrs pcommon.Map) {
+	attrs.PutDouble("nan", math.NaN())
+	attrs.PutDouble("pos-inf", math.Inf(1))
+	attrs.PutDouble("neg-inf", math.Inf(-1))
+	attrs.PutDouble("finite", 1.5)
+}
+
+// createTraceWithNonFiniteDoubles creates a trace with one span whose span,
+// event and link attributes all carry non-finite doubles. It returns the trace
+// and the span ID in the hex form the tools accept.
+func createTraceWithNonFiniteDoubles(code ptrace.StatusCode) (ptrace.Traces, string) {
+	traces := ptrace.NewTraces()
+	rs := traces.ResourceSpans().AppendEmpty()
+	rs.Resource().Attributes().PutStr("service.name", "test-service")
+	span := rs.ScopeSpans().AppendEmpty().Spans().AppendEmpty()
+
+	tid := pcommon.TraceID{}
+	copy(tid[:], testTraceID)
+	spanID := pcommon.SpanID([8]byte{1, 2, 3, 4, 5, 6, 7, 8})
+	span.SetTraceID(tid)
+	span.SetSpanID(spanID)
+	span.SetName("op")
+	span.Status().SetCode(code)
+
+	putNonFiniteDoubles(span.Attributes())
+	putNonFiniteDoubles(span.Events().AppendEmpty().Attributes())
+	link := span.Links().AppendEmpty()
+	link.SetTraceID(tid)
+	link.SetSpanID(spanID)
+	putNonFiniteDoubles(link.Attributes())
+
+	return traces, spanID.String()
+}
+
+// assertNonFiniteDoublesMarshal marshals a tool output the way the MCP SDK
+// does and checks that the span, event and link attributes created by
+// createTraceWithNonFiniteDoubles came out as the expected JSON values.
+func assertNonFiniteDoublesMarshal(t *testing.T, output any) {
+	t.Helper()
+	out, err := json.Marshal(output)
+	require.NoError(t, err)
+
+	// Keep values as raw JSON so a string can be told apart from a number.
+	type attrs = map[string]json.RawMessage
+	var decoded struct {
+		Spans []struct {
+			Attributes attrs `json:"attributes"`
+			Events     []struct {
+				Attributes attrs `json:"attributes"`
+			} `json:"events"`
+			Links []struct {
+				Attributes attrs `json:"attributes"`
+			} `json:"links"`
+		} `json:"spans"`
+	}
+	require.NoError(t, json.Unmarshal(out, &decoded))
+	require.Len(t, decoded.Spans, 1)
+	span := decoded.Spans[0]
+	require.Len(t, span.Events, 1)
+	require.Len(t, span.Links, 1)
+
+	expected := map[string]string{
+		"nan":     `"NaN"`,
+		"pos-inf": `"Infinity"`,
+		"neg-inf": `"-Infinity"`,
+		"finite":  `1.5`,
+	}
+	for name, got := range map[string]attrs{
+		"span":  span.Attributes,
+		"event": span.Events[0].Attributes,
+		"link":  span.Links[0].Attributes,
+	} {
+		require.Len(t, got, len(expected), name)
+		for key, want := range expected {
+			assert.JSONEq(t, want, string(got[key]), "%s attribute %q", name, key)
+		}
+	}
 }
