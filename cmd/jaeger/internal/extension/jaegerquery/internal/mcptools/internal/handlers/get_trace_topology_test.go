@@ -598,4 +598,30 @@ func TestGetTraceTopologyHandler_Handle_LimitEnforced(t *testing.T) {
 	require.NoError(t, err)
 	// Exactly 3 spans returned — 6-span trace with limit=3 must truncate to exactly 3
 	assert.Len(t, output.Spans, 3)
+	assert.True(t, output.Truncated, "expected truncation when the trace exceeds the span limit")
+}
+
+func TestGetTraceTopologyHandler_Handle_ExactLimitNotTruncated(t *testing.T) {
+	traceID := testTraceID
+
+	spanConfigs := []spanConfig{
+		{spanID: "root001", operation: "root"},
+		{spanID: "span002", parentSpanID: "root001", operation: "child1"},
+		{spanID: "span003", parentSpanID: "root001", operation: "child2"},
+	}
+
+	testTrace := createTestTraceWithSpans(traceID, spanConfigs)
+	mock := newMockYieldingTraces(testTrace)
+
+	handler := &getTraceTopologyHandler{
+		queryService:             mock,
+		maxSpanDetailsPerRequest: 3,
+	}
+
+	input := types.GetTraceTopologyInput{TraceID: traceID}
+	_, output, err := handler.handle(context.Background(), &mcp.CallToolRequest{}, input)
+
+	require.NoError(t, err)
+	assert.Len(t, output.Spans, 3)
+	assert.False(t, output.Truncated, "an exact-limit trace should not be marked truncated")
 }

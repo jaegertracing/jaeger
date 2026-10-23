@@ -20,6 +20,8 @@ type GetTraceTopologyInput struct {
 type GetTraceTopologyOutput struct {
 	TraceID string         `json:"trace_id" jsonschema:"Unique identifier for the trace"`
 	Spans   []TopologySpan `json:"spans"    jsonschema:"Flat depth-first list of spans; Path encodes parent-child relationships"`
+	// Truncated is true when the server-side span limit excluded spans from the trace.
+	Truncated bool `json:"truncated" jsonschema:"True if the trace topology was truncated by the server-side span limit"`
 }
 
 // TopologySpan represents a span in the flat trace topology output.
