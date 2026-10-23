@@ -75,6 +75,9 @@ func (g *GRPCHandler) GetTrace(r *api_v2.GetTraceRequest, stream api_v2.QuerySer
 	if r.TraceID == (model.TraceID{}) {
 		return errUninitializedTraceID
 	}
+	if !r.StartTime.IsZero() && !r.EndTime.IsZero() && !r.EndTime.After(r.StartTime) {
+		return status.Errorf(codes.InvalidArgument, "end_time must be after start_time")
+	}
 	query := querysvc.GetTraceParams{
 		TraceIDs: []tracestore.GetTraceParams{
 			{
@@ -111,6 +114,9 @@ func (g *GRPCHandler) ArchiveTrace(ctx context.Context, r *api_v2.ArchiveTraceRe
 	}
 	if r.TraceID == (model.TraceID{}) {
 		return nil, errUninitializedTraceID
+	}
+	if !r.StartTime.IsZero() && !r.EndTime.IsZero() && !r.EndTime.After(r.StartTime) {
+		return nil, status.Errorf(codes.InvalidArgument, "end_time must be after start_time")
 	}
 	query := tracestore.GetTraceParams{
 		TraceID: v1adapter.FromV1TraceID(r.TraceID),

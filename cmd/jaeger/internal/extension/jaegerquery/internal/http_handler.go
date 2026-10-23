@@ -314,6 +314,10 @@ func (aH *APIHandler) parseGetTraceParameters(w http.ResponseWriter, r *http.Req
 	if !ok {
 		return query, false
 	}
+	if !startTime.IsZero() && !endTime.IsZero() && !endTime.After(startTime) {
+		aH.handleError(w, errors.New("end time must be after start time"), http.StatusBadRequest)
+		return query, false
+	}
 	raw, ok := aH.parseBool(w, r, rawParam)
 	if !ok {
 		return query, false
