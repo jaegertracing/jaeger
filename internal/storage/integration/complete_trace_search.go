@@ -7,12 +7,15 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/collector/pdata/pcommon"
 	"go.opentelemetry.io/collector/pdata/ptrace"
 
 	"github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore"
 	"github.com/jaegertracing/jaeger/internal/telemetry/otelsemconv"
 )
+
+const completeSearchService = "complete-trace-search"
 
 func buildCompleteSearchTrace() ptrace.Traces {
 	trace := ptrace.NewTraces()
@@ -23,7 +26,7 @@ func buildCompleteSearchTrace() ptrace.Traces {
 		offset  time.Duration
 	}{
 		{service: "complete-trace-other", offset: 123456 * time.Microsecond},
-		{service: "complete-trace-search", offset: time.Second + 123456*time.Microsecond},
+		{service: completeSearchService, offset: time.Second + 123456*time.Microsecond},
 		{service: "complete-trace-other", offset: 3*time.Second + 987654*time.Microsecond},
 	} {
 		rs := trace.ResourceSpans().AppendEmpty()
@@ -42,11 +45,16 @@ func buildCompleteSearchTrace() ptrace.Traces {
 
 func (s *StorageIntegration) testFindCompleteTraces(t *testing.T) {
 	s.skipIfNeeded(t)
-	expected := s.Corpus.QueryTraces["complete_search"]
-	matched := expected.ResourceSpans().At(1).ScopeSpans().At(0).Spans().At(0)
-	start := matched.StartTimestamp().AsTime().Truncate(time.Second)
+	expected := s.Corpus.CompleteSearch
+	var start time.Time
+	for _, rs := range expected.ResourceSpans().All() {
+		if service, _ := rs.Resource().Attributes().Get(otelsemconv.ServiceNameKey); service.Str() == completeSearchService {
+			start = rs.ScopeSpans().At(0).Spans().At(0).StartTimestamp().AsTime().Truncate(time.Second)
+		}
+	}
+	require.False(t, start.IsZero(), "the complete-search trace has no span of %s", completeSearchService)
 	query := &tracestore.TraceQueryParams{
-		ServiceName:  "complete-trace-search",
+		ServiceName:  completeSearchService,
 		Attributes:   pcommon.NewMap(),
 		StartTimeMin: start,
 		StartTimeMax: start.Add(time.Second),
