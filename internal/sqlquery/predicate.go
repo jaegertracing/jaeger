@@ -20,6 +20,10 @@ import (
 // builder lowers to the same tree a Go caller would build by hand (RFC 0019 §5).
 var builder expression.Predicate
 
+// decimalNumber is the spelling of a number every backend reads from the untyped constant.
+// The parser also lexes hexadecimal, which storage would read as text.
+var decimalNumber = regexp.MustCompile(`^[+-]?\d+(\.\d+)?([eE][+-]?\d+)?$`)
+
 // scope is the relation a predicate's column names resolve against: the one alias of the
 // statement, or the events or links alias of an EXISTS subquery, which also sees the outer
 // alias for its correlation.
@@ -176,6 +180,9 @@ func (c *compiler) constantText(node parser.Expr) (string, error) {
 	case *parser.StringLiteral:
 		return unquote(n.Literal), nil
 	case *parser.NumberLiteral:
+		if !decimalNumber.MatchString(n.Literal) {
+			return "", c.pos.at(node, fmt.Sprintf("%q is not a decimal number", n.Literal), "Write the number in decimal digits; storage reads the constant as text")
+		}
 		return strings.TrimPrefix(n.Literal, "+"), nil
 	case *parser.Ident:
 		if isBoolean(n.Name) {
@@ -208,7 +215,7 @@ func (c *compiler) constantText(node parser.Expr) (string, error) {
 // instant evaluates now() and now() ± INTERVAL, the only arithmetic the dialect has. ok is false
 // for a node that is not that shape, so the caller can report it in its own words.
 func (c *compiler) instant(node parser.Expr) (t time.Time, ok bool, err error) {
-	switch n := node.(type) {
+	switch n := unparenthesized(node).(type) {
 	case *parser.FunctionExpr:
 		if !strings.EqualFold(n.Name.Name, "now") {
 			return time.Time{}, false, nil
@@ -493,7 +500,7 @@ func (c *compiler) operandError(node parser.Expr) error {
 	case *parser.UnaryExpr:
 		return c.pos.at(n, fmt.Sprintf("the operator %s is not supported", n.Kind), "Arithmetic has no target in the filter; compare the column with a literal")
 	}
-	return c.pos.at(node, "a comparison names a column on at least one side", "Columns are written as alias.column, column, attributes['key'] or attr('key')")
+	return c.pos.at(node, "a comparison names a column on at least one side, and IN, LIKE and REGEXP name it on the left", "Columns are written as alias.column, column, attributes['key'] or attr('key')")
 }
 
 // refuseParametricCall rejects ClickHouse's second argument list, f(a)(b), which none of the
@@ -643,9 +650,6 @@ func (c *compiler) exists(outer *scope, sub *parser.SelectQuery) (*ast.Call, err
 	}
 	if outer.outer != nil {
 		return nil, c.pos.at(sub.From, "EXISTS does not nest", "An event or a link has no collection of its own; write the two conditions side by side in the outer WHERE")
-	}
-	if outer.rel != relationSpans {
-		return nil, c.pos.at(sub.From, "EXISTS appears in the WHERE of a spans query", hintOneRelation)
 	}
 	hint := "Inside EXISTS, " + string(rel) + " is the span's own collection; write a predicate on it, for example " + alias + ".name = 'exception'"
 	if sub.Where == nil {

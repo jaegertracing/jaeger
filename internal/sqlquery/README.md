@@ -13,7 +13,7 @@ The dialect is one `SELECT` over a virtual schema. Nothing is a physical table; 
 | `links` | span link | `linked_trace_id`, `linked_span_id`, `trace_state`, `attributes[...]` |
 | `traces` | trace | `trace_id`, `root_service`, `root_name`, `start_time`, `duration`, `span_count`, `error_count` |
 
-A statement reads `spans` or `traces` in `FROM`, optionally aliased. `events` and `links` appear only inside `EXISTS`, where they are the current span's own collections. The column names are the RFC 0005 field names in `snake_case`; the `camelCase` spelling of the IDL (`startTime`, `traceID`) is accepted and means the same column.
+A statement reads `spans` or `traces` in `FROM`, optionally aliased. `events` and `links` appear only inside `EXISTS`, where they are the current span's own collections. The column names are the RFC 0005 field names in `snake_case`; the `camelCase` spelling of the IDL (`startTime`, `traceID`) is accepted and means the same column, because a name is resolved with its case and underscores ignored.
 
 The three `*_attributes` columns are maps addressed by subscript, `attributes['http.status_code']`, and compile to an attribute reference at the span, resource or scope level. `attr('key')` names an attribute without a level, which a backend looks for at the span and resource levels; it is the filter counterpart of the legacy attributes map.
 

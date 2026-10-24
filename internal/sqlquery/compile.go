@@ -193,6 +193,12 @@ func (c *compiler) spans(sel *parser.SelectQuery, sc *scope) (*Query, error) {
 	}
 	switch {
 	case sel.HasDistinct:
+		if len(sel.SelectItems) == 1 {
+			// A wrong alias is reported as such, before the shape is judged.
+			if _, err := c.reference(sc, sel.SelectItems[0].Expr); err != nil && isReference(sel.SelectItems[0].Expr) {
+				return nil, err
+			}
+		}
 		if len(sel.SelectItems) != 1 || !isColumnOf(sc, sel.SelectItems[0].Expr, "traceid") {
 			return nil, c.pos.at(sel, "DISTINCT is accepted only as SELECT DISTINCT trace_id", "SELECT DISTINCT trace_id FROM spans returns trace IDs; SELECT * FROM spans returns spans")
 		}
@@ -501,7 +507,7 @@ func (c *compiler) traces(sel *parser.SelectQuery, alias string) (*Query, error)
 	if sel.Where == nil {
 		return nil, c.pos.at(sel, "a traces query is "+shape, "A trace predicate alone has nothing to search on; the subquery over spans does the searching")
 	}
-	bin, ok := sel.Where.Expr.(*parser.BinaryOperation)
+	bin, ok := unparenthesized(sel.Where.Expr).(*parser.BinaryOperation)
 	if !ok || !strings.EqualFold(string(bin.Operation), parser.KeywordIn) || bin.HasGlobal || !isColumnOf(&scope{alias: alias}, bin.LeftExpr, "traceid") {
 		return nil, c.pos.at(sel.Where, "the WHERE of a traces query is trace_id IN (SELECT trace_id FROM spans WHERE ...)", "Put every predicate inside the subquery; it is what selects the traces")
 	}

@@ -570,7 +570,7 @@ func TestCompileWindow(t *testing.T) {
 		},
 		{
 			name:  "parenthesized bounds",
-			where: "start_time >= (now() - ('1h')) AND start_time <= (now())",
+			where: "start_time >= ((now()) - ('1h')) AND start_time <= (now())",
 			min:   now.Add(-time.Hour), max: now,
 		},
 		{
@@ -651,6 +651,19 @@ func TestCompileShapes(t *testing.T) {
 				{Expression: &ast.FieldRef{Name: ast.SpanFieldTraceID, Level: ast.LevelSpan}, Direction: tracestore.SortAscending},
 				{Expression: &ast.FieldRef{Name: ast.SpanFieldSpanID, Level: ast.LevelSpan}, Direction: tracestore.SortAscending},
 			}},
+		},
+		{
+			name: "traces with a parenthesized WHERE is FindTraces",
+			sql: `
+				SELECT *
+				FROM traces
+				WHERE (trace_id IN (
+					SELECT trace_id
+					FROM spans s
+					WHERE between(start_time, now() - '1h', now())
+						AND s.service = 'checkout'
+				))`,
+			want: Query{Kind: KindFindTraces, Filter: spanFilter},
 		},
 		{
 			name: "traces star is FindTraces",
@@ -995,6 +1008,46 @@ func TestRefusals(t *testing.T) {
 			want: "IN takes a parenthesized list of literals",
 		},
 		{
+			name: "hexadecimal number",
+			sql: `
+				SELECT DISTINCT trace_id
+				FROM spans
+				WHERE between(start_time, now() - '1h', now())
+					AND attributes['attempts'] = 0x10`,
+			at:   "0x10",
+			want: "is not a decimal number",
+		},
+		{
+			name: "a pattern that is an expression starting with a literal",
+			sql: `
+				SELECT DISTINCT trace_id
+				FROM spans
+				WHERE between(start_time, now() - '1h', now())
+					AND name LIKE 'a' || 'b'`,
+			at:   "'a' || 'b'",
+			want: "the pattern of LIKE is a quoted string",
+		},
+		{
+			name: "is not null on a built-in field",
+			sql: `
+				SELECT DISTINCT trace_id
+				FROM spans
+				WHERE between(start_time, now() - '1h', now())
+					AND name IS NOT NULL`,
+			at:   "name IS NOT NULL",
+			want: "IS NOT NULL applies to an attribute",
+		},
+		{
+			name: "parametric predicate function",
+			sql: `
+				SELECT DISTINCT trace_id
+				FROM spans
+				WHERE between(start_time, now() - '1h', now())
+					AND phrase(attributes['msg'], 'a')(1)`,
+			at:   "(1)",
+			want: "a function takes one argument list",
+		},
+		{
 			name: "order by alias",
 			sql: `
 				SELECT *
@@ -1024,8 +1077,8 @@ func TestRefusals(t *testing.T) {
 				SELECT DISTINCT t.trace_id
 				FROM spans s
 				WHERE between(start_time, now() - '1h', now())`,
-			at:   "SELECT",
-			want: "DISTINCT is accepted only as SELECT DISTINCT trace_id",
+			at:   "t.trace_id",
+			want: "unknown alias \"t\"",
 		},
 		{
 			name: "distinct trace_id aliased",

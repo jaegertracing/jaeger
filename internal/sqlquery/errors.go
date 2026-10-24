@@ -58,13 +58,34 @@ func newPositions(sql string) positions {
 }
 
 // at places an error at the start of a node. A string literal's position is that of its text,
-// so the opening quote is one byte before it.
+// so when the node, or the leftmost leaf of a node that starts with its left operand, is a
+// string literal, the opening quote is one byte before it.
 func (p positions) at(node parser.Expr, message, hint string) *Error {
 	offset := int(node.Pos())
-	if _, ok := node.(*parser.StringLiteral); ok {
+	if _, ok := leftmost(node).(*parser.StringLiteral); ok {
 		offset--
 	}
 	return p.atOffset(offset, message, hint)
+}
+
+// leftmost descends to the leaf a node's position is taken from.
+func leftmost(node parser.Expr) parser.Expr {
+	for {
+		switch n := node.(type) {
+		case *parser.BinaryOperation:
+			node = n.LeftExpr
+		case *parser.BetweenClause:
+			node = n.Expr
+		case *parser.IsNullExpr:
+			node = n.Expr
+		case *parser.IsNotNullExpr:
+			node = n.Expr
+		case *parser.ObjectParams:
+			node = n.Object
+		default:
+			return node
+		}
+	}
 }
 
 // atOffset places an error at a byte offset of the statement, counted from 0 as the parser
