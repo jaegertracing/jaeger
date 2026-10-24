@@ -64,6 +64,9 @@ func Compile(sql string, now time.Time) (*Query, error) {
 	if err != nil {
 		return nil, c.pos.fromParser(err)
 	}
+	if len(stmts) == 0 {
+		return nil, c.pos.atOffset(0, "the request holds no statement", "Send one SELECT statement")
+	}
 	if len(stmts) != 1 {
 		return nil, c.pos.at(stmts[1], fmt.Sprintf("the request holds %d statements", len(stmts)), "Send one SELECT statement")
 	}
@@ -116,6 +119,8 @@ func (c *compiler) refuseClauses(sel *parser.SelectQuery) error {
 		return c.pos.at(sel.GroupBy, "GROUP BY is not supported yet", hintAggregation)
 	case sel.Having != nil:
 		return c.pos.at(sel.Having, "HAVING is not supported yet", hintAggregation)
+	case sel.WithTotal:
+		return c.pos.at(sel, "WITH TOTALS is not supported", hintAggregation)
 	case sel.Window != nil:
 		return c.pos.at(sel.Window, "window functions are not supported", "")
 	case sel.Prewhere != nil:
@@ -141,18 +146,24 @@ func (c *compiler) relationOf(sel *parser.SelectQuery) (relation, string, error)
 	if sel.From == nil {
 		return "", "", c.pos.at(sel, "FROM is required", "Write FROM spans or FROM traces")
 	}
-	var table parser.Expr
-	switch from := sel.From.Expr.(type) {
-	case *parser.JoinExpr:
-		return "", "", c.pos.at(from, "JOIN is not supported", hintOneRelation+". A self-join of spans would express RFC 0005's structural tier, which no backend serves")
-	case *parser.JoinTableExpr:
-		table = from.Table.Expr
-	default:
-		table = from
+	join, ok := sel.From.Expr.(*parser.JoinTableExpr)
+	if !ok {
+		return "", "", c.pos.at(sel.From.Expr, "JOIN is not supported", hintOneRelation+". A self-join of spans would express RFC 0005's structural tier, which no backend serves")
 	}
+	if join.SampleRatio != nil {
+		return "", "", c.pos.at(join.SampleRatio, "SAMPLE is not supported", "The search reads every span in the window")
+	}
+	if join.HasFinal || join.Table.HasFinal {
+		return "", "", c.pos.at(join.Table, "FINAL is not supported", "The relations are not tables; there is nothing to merge")
+	}
+	table := join.Table.Expr
 	alias := ""
 	if aliased, ok := table.(*parser.AliasExpr); ok {
-		alias, table = formatted(aliased.Alias), aliased.Expr
+		name, ok := aliased.Alias.(*parser.Ident)
+		if !ok {
+			return "", "", c.pos.at(aliased.Alias, "an alias is a plain name", "")
+		}
+		alias, table = name.Name, aliased.Expr
 	}
 	ident, ok := table.(*parser.TableIdentifier)
 	if !ok {
@@ -177,10 +188,18 @@ func (c *compiler) relationOf(sel *parser.SelectQuery) (relation, string, error)
 // FindTraceIDs or FindSpans.
 func (c *compiler) spans(sel *parser.SelectQuery, sc *scope) (*Query, error) {
 	query := &Query{}
+	for _, item := range sel.SelectItems {
+		if len(item.Modifiers) != 0 {
+			return nil, c.pos.at(item.Modifiers[0], "a SELECT modifier is not supported", "Write the columns the result needs, or *")
+		}
+	}
 	switch {
 	case sel.HasDistinct:
-		if len(sel.SelectItems) != 1 || !c.isColumnNamed(sel.SelectItems[0].Expr, "traceid") {
+		if len(sel.SelectItems) != 1 || !isColumnOf(sc, sel.SelectItems[0].Expr, "traceid") {
 			return nil, c.pos.at(sel, "DISTINCT is accepted only as SELECT DISTINCT trace_id", "SELECT DISTINCT trace_id FROM spans returns trace IDs; SELECT * FROM spans returns spans")
+		}
+		if alias := sel.SelectItems[0].Alias; alias != nil {
+			return nil, c.pos.at(alias, "a column alias in SELECT has no effect", "The result's field names are the RPC's")
 		}
 		query.Kind = KindFindTraceIDs
 	case len(sel.SelectItems) == 1 && isStar(sel.SelectItems[0].Expr):
@@ -262,8 +281,8 @@ func (c *compiler) where(sel *parser.SelectQuery, sc *scope, query *Query) error
 		return c.pos.at(sel.Where, "WHERE needs a lower bound on start_time", hintWindow)
 	case query.StartTimeMax.IsZero():
 		return c.pos.at(sel.Where, "WHERE needs an upper bound on start_time", hintWindow)
-	case !query.StartTimeMin.Before(query.StartTimeMax):
-		return c.pos.at(sel.Where, "the start_time window is empty", "The lower bound is not before the upper bound")
+	case query.StartTimeMax.Before(query.StartTimeMin):
+		return c.pos.at(sel.Where, "the start_time window is empty", "The lower bound is after the upper bound")
 	}
 	if len(predicates) == 0 {
 		return nil
@@ -278,9 +297,11 @@ func (c *compiler) where(sel *parser.SelectQuery, sc *scope, query *Query) error
 
 // windowBound recognizes a top-level conjunct that bounds start_time of the statement's alias
 // against an instant and records it. A start_time compared with another column stays in the
-// filter, and a second bound on the same side is refused.
+// filter, and a second bound on the same side is refused. The window the request carries is
+// inclusive at both ends, so a strict bound moves its instant by one nanosecond, the
+// resolution of a span's start time, to exclude the instant itself.
 func (c *compiler) windowBound(sc *scope, node parser.Expr, query *Query) (bool, error) {
-	if r, ok := asRange(node); ok && !r.negated && c.isColumnNamed(r.subject, "starttime") && sameScope(sc, r.subject) && !isReference(r.low) && !isReference(r.high) {
+	if r, ok := asRange(node); ok && !r.negated && isColumnOf(sc, r.subject, "starttime") && !isReference(r.low) && !isReference(r.high) {
 		low, err := c.instantOf(r.low)
 		if err != nil {
 			return false, err
@@ -289,10 +310,10 @@ func (c *compiler) windowBound(sc *scope, node parser.Expr, query *Query) (bool,
 		if err != nil {
 			return false, err
 		}
-		if err := c.setBound(node, query, &query.StartTimeMin, low); err != nil {
+		if err := c.setBound(node, &query.StartTimeMin, low); err != nil {
 			return false, err
 		}
-		return true, c.setBound(node, query, &query.StartTimeMax, high)
+		return true, c.setBound(node, &query.StartTimeMax, high)
 	}
 	bin, ok := node.(*parser.BinaryOperation)
 	if !ok {
@@ -300,26 +321,30 @@ func (c *compiler) windowBound(sc *scope, node parser.Expr, query *Query) (bool,
 	}
 	op := string(bin.Operation)
 	ref, value := bin.LeftExpr, bin.RightExpr
-	if !c.isColumnNamed(ref, "starttime") {
+	if !isColumnOf(sc, ref, "starttime") {
 		ref, value, op = bin.RightExpr, bin.LeftExpr, mirror(op)
 	}
-	if !c.isColumnNamed(ref, "starttime") || isReference(value) || !sameScope(sc, ref) {
-		return false, nil
-	}
-	if op != ">=" && op != ">" && op != "<" && op != "<=" {
+	if !isColumnOf(sc, ref, "starttime") || isReference(value) {
 		return false, nil
 	}
 	instant, err := c.instantOf(value)
 	if err != nil {
 		return false, err
 	}
-	if op == ">=" || op == ">" {
-		return true, c.setBound(node, query, &query.StartTimeMin, instant)
+	switch op {
+	case ">=":
+		return true, c.setBound(node, &query.StartTimeMin, instant)
+	case ">":
+		return true, c.setBound(node, &query.StartTimeMin, instant.Add(time.Nanosecond))
+	case "<=":
+		return true, c.setBound(node, &query.StartTimeMax, instant)
+	case "<":
+		return true, c.setBound(node, &query.StartTimeMax, instant.Add(-time.Nanosecond))
 	}
-	return true, c.setBound(node, query, &query.StartTimeMax, instant)
+	return false, nil
 }
 
-func (c *compiler) setBound(node parser.Expr, _ *Query, bound *time.Time, value time.Time) error {
+func (c *compiler) setBound(node parser.Expr, bound *time.Time, value time.Time) error {
 	if !bound.IsZero() {
 		return c.pos.at(node, "start_time is bounded twice on the same side", "Write one lower bound and one upper bound")
 	}
@@ -330,6 +355,7 @@ func (c *compiler) setBound(node parser.Expr, _ *Query, bound *time.Time, value 
 // instantOf evaluates the right-hand side of a window bound: an RFC 3339 string, or now()
 // arithmetic.
 func (c *compiler) instantOf(node parser.Expr) (time.Time, error) {
+	node = unparenthesized(node)
 	if t, ok, err := c.instant(node); ok || err != nil {
 		return t, err
 	}
@@ -344,14 +370,14 @@ func (c *compiler) instantOf(node parser.Expr) (time.Time, error) {
 	return t, nil
 }
 
-// isColumnNamed reports whether a node is a plain column reference with the given key,
-// whatever its alias.
-func (*compiler) isColumnNamed(node parser.Expr, key string) bool {
+// isColumnOf reports whether a node is a plain column reference with the given key, unqualified
+// or qualified by the scope's alias.
+func isColumnOf(sc *scope, node parser.Expr, key string) bool {
 	switch ref := node.(type) {
 	case *parser.Ident:
 		return columnKey(ref.Name) == key
 	case *parser.Path:
-		return len(ref.Fields) == 2 && columnKey(ref.Fields[1].Name) == key
+		return len(ref.Fields) == 2 && columnKey(ref.Fields[1].Name) == key && sameScope(sc, node)
 	}
 	return false
 }
@@ -435,6 +461,9 @@ func (c *compiler) limit(clause *parser.LimitClause) (uint32, error) {
 func (c *compiler) traces(sel *parser.SelectQuery, alias string) (*Query, error) {
 	const shape = "SELECT * FROM traces WHERE trace_id IN (SELECT trace_id FROM spans WHERE ...)"
 	query := &Query{Kind: KindFindTraces}
+	if sel.HasDistinct {
+		return nil, c.pos.at(sel, "DISTINCT applies to a span search", "SELECT DISTINCT trace_id FROM spans returns trace IDs; a traces query returns one row per trace already")
+	}
 	if len(sel.SelectItems) != 1 || !isStar(sel.SelectItems[0].Expr) {
 		query.Kind = KindFindTraceSummaries
 		for _, item := range sel.SelectItems {
@@ -454,7 +483,7 @@ func (c *compiler) traces(sel *parser.SelectQuery, alias string) (*Query, error)
 		return nil, c.pos.at(sel, "a traces query is "+shape, "A trace predicate alone has nothing to search on; the subquery over spans does the searching")
 	}
 	bin, ok := sel.Where.Expr.(*parser.BinaryOperation)
-	if !ok || !strings.EqualFold(string(bin.Operation), parser.KeywordIn) || !c.isColumnNamed(bin.LeftExpr, "traceid") || !sameScope(&scope{alias: alias}, bin.LeftExpr) {
+	if !ok || !strings.EqualFold(string(bin.Operation), parser.KeywordIn) || bin.HasGlobal || !isColumnOf(&scope{alias: alias}, bin.LeftExpr, "traceid") {
 		return nil, c.pos.at(sel.Where, "the WHERE of a traces query is trace_id IN (SELECT trace_id FROM spans WHERE ...)", "Put every predicate inside the subquery; it is what selects the traces")
 	}
 	sub, ok := bin.RightExpr.(*parser.SubQuery)
@@ -471,13 +500,14 @@ func (c *compiler) traces(sel *parser.SelectQuery, alias string) (*Query, error)
 	if rel != relationSpans {
 		return nil, c.pos.at(sub.Select.From, "the subquery of a traces query reads spans", shape)
 	}
-	if len(sub.Select.SelectItems) != 1 || !c.isColumnNamed(sub.Select.SelectItems[0].Expr, "traceid") {
+	subScope := &scope{alias: subAlias, rel: relationSpans}
+	if len(sub.Select.SelectItems) != 1 || !isColumnOf(subScope, sub.Select.SelectItems[0].Expr, "traceid") || sub.Select.SelectItems[0].Alias != nil {
 		return nil, c.pos.at(sub.Select, "the subquery of a traces query selects trace_id", shape)
 	}
 	if sub.Select.OrderBy != nil || sub.Select.Limit != nil {
 		return nil, c.pos.at(sub.Select, "ORDER BY and LIMIT go on the outer traces query", "LIMIT there is the search depth, the number of traces returned")
 	}
-	if err := c.where(sub.Select, &scope{alias: subAlias, rel: relationSpans}, query); err != nil {
+	if err := c.where(sub.Select, subScope, query); err != nil {
 		return nil, err
 	}
 	limit, err := c.limit(sel.Limit)

@@ -5,6 +5,7 @@ package sqlquery
 
 import (
 	"fmt"
+	"math"
 	"regexp"
 	"strconv"
 	"strings"
@@ -42,6 +43,9 @@ func (c *compiler) resolveColumn(sc *scope, node parser.Expr) (resolved, error) 
 	var qualifier, name string
 	switch ref := node.(type) {
 	case *parser.Ident:
+		if strings.EqualFold(ref.Name, "null") {
+			return resolved{}, c.pos.at(node, "NULL is not a value to compare with", "Write attributes['key'] IS NULL or IS NOT NULL")
+		}
 		name = ref.Name
 	case *parser.Path:
 		if len(ref.Fields) != 2 {
@@ -110,7 +114,7 @@ func (c *compiler) reference(sc *scope, node parser.Expr) (ast.Expression, error
 		return nil, c.outerReference(node, sc)
 	}
 	if col.Level == "" {
-		return nil, c.pos.at(node, fmt.Sprintf("%q is a correlation column, not a predicate", col.name), "Inside EXISTS the collection is already the span's own; the column is accepted only as e.span_id = s.span_id")
+		return nil, c.pos.at(node, fmt.Sprintf("%q is a correlation column, not a predicate", col.name), "Inside EXISTS the collection is already the span's own; the column is accepted only as "+correlationExample(sc))
 	}
 	if col.isMap() {
 		return nil, c.pos.at(node, fmt.Sprintf("%q is a map and is read by subscript", col.name), fmt.Sprintf("Write %s['key'], or attr('key') to search the span and resource levels together", col.name))
@@ -119,7 +123,16 @@ func (c *compiler) reference(sc *scope, node parser.Expr) (ast.Expression, error
 }
 
 func (c *compiler) outerReference(node parser.Expr, sc *scope) error {
-	return c.pos.at(node, fmt.Sprintf("a predicate inside EXISTS reads the %s columns only", sc.rel), "The outer alias may appear only in the correlation e.span_id = s.span_id, which is optional")
+	return c.pos.at(node, fmt.Sprintf("a predicate inside EXISTS reads the %s columns only", sc.rel), "The outer alias may appear only in the correlation "+correlationExample(sc)+", which is optional")
+}
+
+// correlationExample spells the optional correlation of an EXISTS subquery with its aliases.
+func correlationExample(sc *scope) string {
+	outer := "spans"
+	if sc.outer != nil {
+		outer = sc.outer.alias
+	}
+	return sc.alias + ".span_id = " + outer + ".span_id"
 }
 
 // isReference reports whether a node names a value on the span rather than a constant.
@@ -213,7 +226,7 @@ func (c *compiler) instant(node parser.Expr) (t time.Time, ok bool, err error) {
 // offset reads the duration added to or subtracted from now(): a string in the Go duration
 // syntax every duration constant uses, '1h', or the SQL-standard INTERVAL '1' HOUR.
 func (c *compiler) offset(node parser.Expr) (time.Duration, error) {
-	switch n := node.(type) {
+	switch n := unparenthesized(node).(type) {
 	case *parser.StringLiteral:
 		d, err := time.ParseDuration(unquote(n.Literal))
 		if err != nil {
@@ -227,10 +240,14 @@ func (c *compiler) offset(node parser.Expr) (time.Duration, error) {
 	}
 }
 
+// intervalUnits are the units of INTERVAL that have a fixed length; a month, a quarter or a year
+// does not. The parser knows no finer unit than a millisecond and no plural spelling.
 var intervalUnits = map[string]time.Duration{
-	"NANOSECOND": time.Nanosecond, "MICROSECOND": time.Microsecond, "MILLISECOND": time.Millisecond,
-	"SECOND": time.Second, "MINUTE": time.Minute, "HOUR": time.Hour, "DAY": 24 * time.Hour, "WEEK": 7 * 24 * time.Hour,
+	"MILLISECOND": time.Millisecond, "SECOND": time.Second, "MINUTE": time.Minute,
+	"HOUR": time.Hour, "DAY": 24 * time.Hour, "WEEK": 7 * 24 * time.Hour,
 }
+
+const intervalUnitsHint = "The units are MILLISECOND, SECOND, MINUTE, HOUR, DAY and WEEK; a month or a year has no fixed length"
 
 func (c *compiler) interval(n *parser.IntervalExpr) (time.Duration, error) {
 	var text string
@@ -246,12 +263,12 @@ func (c *compiler) interval(n *parser.IntervalExpr) (time.Duration, error) {
 	if err != nil {
 		return 0, c.pos.at(n, fmt.Sprintf("%q is not a whole number", text), "An INTERVAL takes a whole number, as INTERVAL '90' SECOND")
 	}
-	if n.Unit == nil {
-		return 0, c.pos.at(n, "an INTERVAL needs a unit", "The units are NANOSECOND, MICROSECOND, MILLISECOND, SECOND, MINUTE, HOUR, DAY and WEEK")
-	}
-	unit, ok := intervalUnits[strings.ToUpper(strings.TrimSuffix(strings.ToUpper(n.Unit.Name), "S"))]
+	unit, ok := intervalUnits[strings.ToUpper(n.Unit.Name)]
 	if !ok {
-		return 0, c.pos.at(n.Unit, fmt.Sprintf("%q is not an interval unit the dialect knows", n.Unit.Name), "The units are NANOSECOND, MICROSECOND, MILLISECOND, SECOND, MINUTE, HOUR, DAY and WEEK; a month or a year has no fixed length")
+		return 0, c.pos.at(n.Unit, fmt.Sprintf("%q is not an interval unit the dialect knows", n.Unit.Name), intervalUnitsHint)
+	}
+	if count > int64(math.MaxInt64/unit) || count < int64(math.MinInt64/unit) {
+		return 0, c.pos.at(n, fmt.Sprintf("INTERVAL '%d' %s is longer than a duration can hold", count, n.Unit.Name), "The longest duration is about 292 years")
 	}
 	return time.Duration(count) * unit, nil
 }
@@ -287,7 +304,8 @@ func (c *compiler) predicate(sc *scope, node parser.Expr) (*ast.Call, error) {
 		}
 		return ref.Exists(), nil
 	case *parser.BetweenClause:
-		return c.between(sc, rangeTest{subject: n.Expr, low: n.Between, high: n.And, negated: n.Not})
+		r, _ := asRange(n)
+		return c.between(sc, r)
 	case *parser.FunctionExpr:
 		if r, ok := asRange(n); ok {
 			return c.between(sc, r)
@@ -366,6 +384,9 @@ func (c *compiler) operand(sc *scope, node parser.Expr) (ast.Expression, error) 
 }
 
 func (c *compiler) binary(sc *scope, n *parser.BinaryOperation) (*ast.Call, error) {
+	if n.HasGlobal {
+		return nil, c.pos.at(n, "GLOBAL IN is not supported", "Write IN or NOT IN; the search is not distributed")
+	}
 	op := strings.ToUpper(string(n.Operation))
 	switch op {
 	case parser.KeywordAnd, parser.KeywordOr:
@@ -397,7 +418,7 @@ func (c *compiler) binary(sc *scope, n *parser.BinaryOperation) (*ast.Call, erro
 	ref := builder.RefOf(refExpr)
 	switch op {
 	case "IN", "NOT IN":
-		values, err := c.list(sc, n.RightExpr)
+		values, err := c.list(n.RightExpr)
 		if err != nil {
 			return nil, err
 		}
@@ -435,10 +456,16 @@ func (c *compiler) binary(sc *scope, n *parser.BinaryOperation) (*ast.Call, erro
 // operandError says why the left operand of a comparison cannot be lowered, naming the construct
 // where there is one: an aggregate or a function the dialect lacks, or arithmetic.
 func (c *compiler) operandError(node parser.Expr) error {
-	switch n := node.(type) {
+	switch n := unparenthesized(node).(type) {
 	case *parser.FunctionExpr:
+		if strings.EqualFold(n.Name.Name, "now") {
+			break
+		}
 		return c.functionError(n)
 	case *parser.BinaryOperation:
+		if comparisonOps[strings.ToUpper(string(n.Operation))] != "" {
+			return c.pos.at(n, "a comparison cannot be the operand of another comparison", "Join predicates with AND and OR")
+		}
 		return c.pos.at(n, fmt.Sprintf("the operator %s is not supported", n.Operation), "Arithmetic has no target in the filter; compare the column with a literal")
 	case *parser.UnaryExpr:
 		return c.pos.at(n, fmt.Sprintf("the operator %s is not supported", n.Kind), "Arithmetic has no target in the filter; compare the column with a literal")
@@ -478,7 +505,7 @@ func mirror(op string) string {
 // list lowers the right-hand side of IN, a parenthesized list of literals. A subquery there is
 // refused: the one admitted subquery shape, trace_id IN (SELECT ...), is a statement shape that
 // compileTraces consumes before any predicate is lowered (RFC 0019 §4.4).
-func (c *compiler) list(_ *scope, node parser.Expr) ([]any, error) {
+func (c *compiler) list(node parser.Expr) ([]any, error) {
 	if _, ok := node.(*parser.SubQuery); ok {
 		return nil, c.pos.at(node, "a subquery in IN is accepted only as SELECT * FROM traces WHERE trace_id IN (SELECT trace_id FROM spans WHERE ...)", hintOneRelation)
 	}
@@ -565,6 +592,9 @@ func (c *compiler) exists(outer *scope, sub *parser.SelectQuery) (*ast.Call, err
 	}
 	if sub.OrderBy != nil || sub.Limit != nil {
 		return nil, c.pos.at(sub, "an EXISTS subquery takes no ORDER BY or LIMIT", "")
+	}
+	if sub.HasDistinct || len(sub.SelectItems) != 1 || !isSelectOne(sub.SelectItems[0]) {
+		return nil, c.pos.at(sub, "an EXISTS subquery is SELECT 1", "EXISTS asks whether a row exists; its select list has no effect")
 	}
 	rel, alias, err := c.relationOf(sub)
 	if err != nil {
@@ -680,7 +710,9 @@ func functionArgs(fn *parser.FunctionExpr) []parser.Expr {
 }
 
 // unquote reads the text of a string literal as the lexer slices it, between the quotes with
-// the escapes still in place.
+// the escapes still in place. The quote is written ” or \', and a backslash is written \\.
+// every other backslash is a character of the text, so a regex is written as it is read,
+// '\d+', and a LIKE pattern escapes its wildcards as '\%' (RFC 0019 §4.2).
 func unquote(literal string) string {
 	var b strings.Builder
 	for i := 0; i < len(literal); i++ {
@@ -689,7 +721,7 @@ func unquote(literal string) string {
 		case c == '\'' && i+1 < len(literal) && literal[i+1] == '\'':
 			b.WriteByte('\'')
 			i++
-		case c == '\\' && i+1 < len(literal):
+		case c == '\\' && i+1 < len(literal) && (literal[i+1] == '\'' || literal[i+1] == '\\'):
 			b.WriteByte(literal[i+1])
 			i++
 		default:
@@ -697,6 +729,27 @@ func unquote(literal string) string {
 		}
 	}
 	return b.String()
+}
+
+// unparenthesized looks through the parentheses around one expression.
+func unparenthesized(node parser.Expr) parser.Expr {
+	for {
+		params, ok := node.(*parser.ParamExprList)
+		if !ok {
+			return node
+		}
+		inner, ok := parenthesized(params)
+		if !ok {
+			return node
+		}
+		node = inner
+	}
+}
+
+// isSelectOne reports whether a select item is the literal 1 of EXISTS (SELECT 1 ...).
+func isSelectOne(item *parser.SelectItem) bool {
+	lit, ok := item.Expr.(*parser.NumberLiteral)
+	return ok && lit.Literal == "1" && item.Alias == nil && len(item.Modifiers) == 0
 }
 
 // like lowers a LIKE pattern to the anchored regular expression it means, or to an equality when
@@ -713,14 +766,19 @@ func (*compiler) like(ref expression.Ref, pattern string, foldCase bool) *ast.Ca
 	return ref.Matches(regex)
 }
 
-// likeToRegex translates the wildcards of a LIKE pattern into RE2.
+// likeToRegex translates the wildcards of a LIKE pattern into RE2. A backslash escapes the
+// character after it, so '\%' and '\_' are the literal characters, as in ClickHouse.
 func likeToRegex(pattern string) string {
 	var b strings.Builder
-	for _, r := range pattern {
-		switch r {
-		case '%':
+	runes := []rune(pattern)
+	for i := 0; i < len(runes); i++ {
+		switch r := runes[i]; {
+		case r == '\\' && i+1 < len(runes):
+			i++
+			b.WriteString(regexp.QuoteMeta(string(runes[i])))
+		case r == '%':
 			b.WriteString(".*")
-		case '_':
+		case r == '_':
 			b.WriteByte('.')
 		default:
 			b.WriteString(regexp.QuoteMeta(string(r)))

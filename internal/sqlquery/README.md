@@ -37,7 +37,7 @@ Every search needs both bounds on `start_time`. The compiler takes them out of t
 WHERE between(start_time, now() - '1h', now())
 ```
 
-or, with the bounds as two conjuncts, `start_time >= now() - '1h' AND start_time < now()`, which is the form to use when the end has to be exclusive.
+or, with the bounds as two conjuncts, `start_time >= now() - '1h' AND start_time < now()`. The window the request carries is inclusive at both ends, so a strict bound moves its instant by one nanosecond, the resolution of a span's start time; `<` therefore excludes the instant it names.
 
 A bound is an RFC 3339 instant, `'2026-10-23T12:00:00Z'`, or `now()` with a duration added or subtracted. The duration is written in Go syntax, `'1h'`, `'90m'`, `'2h30m'`, the same syntax every duration constant uses; the SQL-standard `INTERVAL '1' HOUR` is accepted as well. Both spellings of `BETWEEN` set both bounds at once. A `start_time` predicate that is not a bound, inside `OR` or compared with another column, stays in the filter.
 
@@ -49,7 +49,7 @@ A bound is an RFC 3339 instant, `'2026-10-23T12:00:00Z'`, or `now()` with a dura
 | `=`, `==`, `<>`, `!=`, `<`, `<=`, `>`, `>=` | `eq`, `ne`, `lt`, `lte`, `gt`, `gte` | a constant on the left is mirrored to the right |
 | `x IN (a, b)`, `x NOT IN (a, b)` | `in`, `not_in` | literal lists only |
 | `x REGEXP 'pattern'`, `match(x, 'pattern')` | `regex` | RE2 syntax, matched anywhere in the value unless the pattern starts with `^` or ends with `$` (an anchor anywhere else is refused); `(?i)` folds case |
-| `x LIKE 'GET %'`, `x LIKE '%.json'` | `regex` | `%` becomes `.*`, `_` becomes `.`, and the pattern is anchored at both ends |
+| `x LIKE 'GET %'`, `x LIKE '%.json'` | `regex` | `%` becomes `.*`, `_` becomes `.`, `\%` and `\_` are the literal characters, and the pattern is anchored at both ends |
 | `x ILIKE 'get %'` | `regex` | as `LIKE`, with `(?i)` |
 | `x LIKE 'text'` | `eq` | a pattern without a wildcard is an equality |
 | `x IS NOT NULL`, `x IS NULL` | `exists`, `not(exists)` | on attributes only; a built-in field is always present |
@@ -62,12 +62,12 @@ Two columns may be compared, `start_time < end_time`, `attributes['after'] > att
 
 ### Literals
 
-Strings are single-quoted, with `''` or `\'` for a quote inside. Numbers are integers or decimals. Booleans are `true` and `false`. A constant carries no type; the field beside it types it, as RFC 0005 §5.4 specifies:
+Strings are single-quoted, with `''` or `\'` for a quote inside and `\\` for a backslash. Any other backslash is a character of the text, so a regex is written as it is read, `'\d+'`. Numbers are integers or decimals. Booleans are `true` and `false`. A constant carries no type; the field beside it types it, as RFC 0005 §5.4 specifies:
 
 | Compared with | Accepted text |
 |---|---|
 | `start_time`, `end_time`, `e.time` | RFC 3339, `'2026-10-23T12:00:00Z'` |
-| `duration`, `e.time_since_start` | Go duration, `'2s'`, `'250ms'`; `INTERVAL '250' MILLISECOND` is rewritten to it |
+| `duration`, `e.time_since_start` | Go duration, `'2s'`, `'250ms'`; `INTERVAL '250' MILLISECOND` is rewritten to it, with `MILLISECOND`, `SECOND`, `MINUTE`, `HOUR`, `DAY` and `WEEK` as the units |
 | `kind` | `'unspecified'`, `'internal'`, `'server'`, `'client'`, `'producer'`, `'consumer'` |
 | `status` | `'unset'`, `'ok'`, `'error'` |
 | other built-in fields | any text |
@@ -102,7 +102,7 @@ The compiler refuses, with a message that names the construct and the admitted a
 
 - `JOIN` of any kind, `WITH`, `UNION`, derived tables and table functions in `FROM`, `events` or `links` in the outer `FROM`. A statement reads one relation.
 - `GROUP BY`, `HAVING` and aggregate functions, which are reserved for the row-returning RPC of RFC 0016 §5.
-- `OFFSET`, `LIMIT BY`, `TOP`, `DISTINCT ON`, `WINDOW`, `PREWHERE`, `SETTINGS`, `FORMAT`.
+- `OFFSET`, `LIMIT BY`, `TOP`, `DISTINCT ON`, `WINDOW`, `PREWHERE`, `SETTINGS`, `FORMAT`, `WITH TOTALS`, `SAMPLE`, `FINAL`, `GLOBAL IN` and the `SELECT` modifiers `EXCEPT`, `REPLACE` and `APPLY`.
 - Arithmetic, `CAST`, string functions and any function other than `between`, `match`, `phrase`, `fulltext`, `attr` and `now`.
 - A `traces` query whose `WHERE` is anything but `trace_id IN (SELECT trace_id FROM spans WHERE ...)`.
 - A statement without both `start_time` bounds.
@@ -117,7 +117,7 @@ Every refusal is an `*Error` with the line and column of the construct, a messag
 line 4:7: the function lower() is not supported. The functions are between(column, low, high), match(column, 'regex'), phrase(column, 'words'), fulltext(column, 'words'), attr('key') and now()
 ```
 
-The message is what an agent reads to repair its statement, so every message in the compiler is exercised by a statement in `compile_test.go` and asserted on its text and position.
+The message is what an agent reads to repair its statement, so the refusals in `compile_test.go` are asserted on their text and position. A filter the finalizer of RFC 0005 refuses, such as a regex with an anchor inside the pattern, is reported at the `WHERE` keyword, because the finalizer sees the tree and not the text.
 
 ## Usage
 

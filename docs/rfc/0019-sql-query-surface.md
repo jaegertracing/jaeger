@@ -81,9 +81,11 @@ The dialect exposes four relations. None is a physical table; each is a name the
 | Relation | One row per | Columns |
 |---|---|---|
 | `spans` | span | `trace_id`, `span_id`, `parent_span_id`, `name`, `kind`, `start_time`, `end_time`, `duration`, `status`, `status_message`, `trace_state`, `service`, `scope_name`, `scope_version`, `attributes`, `resource_attributes`, `scope_attributes` |
-| `events` | span event | `trace_id`, `span_id`, `name`, `time`, `time_since_start`, `attributes` |
-| `links` | span link | `trace_id`, `span_id`, `linked_trace_id`, `linked_span_id`, `trace_state`, `attributes` |
+| `events` | span event | `trace_id`, `span_id`¹, `name`, `time`, `time_since_start`, `attributes` |
+| `links` | span link | `trace_id`, `span_id`¹, `linked_trace_id`, `linked_span_id`, `trace_state`, `attributes` |
 | `traces` | trace | `trace_id`, `root_service`, `root_name`, `start_time`, `duration`, `span_count`, `error_count` (the RFC 0011 summary fields) |
+
+- ¹ `trace_id` and `span_id` of `events` and `links` appear only in the optional correlation to the outer span (§4.3); a predicate on them is refused, because inside `EXISTS` the collection is already the span's own.
 
 Column names are the RFC 0005 field names in `snake_case`, because that is the case every SQL corpus uses and the case ClickHouse's own schema uses. The compiler also accepts the `camelCase` spelling of the IDL (`parentSpanId`, `startTime`) and normalizes it, so a model that has read the API documentation is not punished for it.
 
@@ -298,7 +300,7 @@ Option D is the status quo plus a better skill document, and it is cheap. It fai
 
 Each milestone is independently shippable.
 
-- ✅ **M0 — Parser spike.** Delivered as the `internal/sqlquery` package: the compiler for every construct of §4, with a corpus of 32 accepted statements that compile to the builder's trees byte for byte and 136 refused statements whose message and position are asserted, all against `clickhouse-sql-parser`. The findings are recorded in §4.2 and §6.3. The package is not yet reachable from any RPC; M1 wires it in.
+- ✅ **M0 — Parser spike.** Delivered as the `internal/sqlquery` package: the compiler for every construct of §4, with a corpus of 39 accepted statements that compile to the builder's trees byte for byte and 152 refused statements whose message and position are asserted, all against `clickhouse-sql-parser`. The findings are recorded in §4.2 and §6.3. The package is not yet reachable from any RPC; M1 wires it in.
 - **M1 — `WHERE` tier.** The `sql` field on `TraceQueryParameters` for `FindTraceIDs`, `FindTraces` and `FindTraceSummaries`; `ExplainQuery`; the MCP `search_traces` input and skill section. *Exit:* a statement sent through the API returns the same traces as the equivalent `filter`.
 - **M2 — Result shaping.** The `sql` field on `SpanQueryParameters`, so that `SELECT *` and column lists over `spans` reach `FindSpans` with the ordering, limit and projection the compiler already produces, as RFC 0016 lands those fields. *Exit:* the shared storage integration suite's filter battery runs its cases through SQL as well as through `filter`.
 - **M3 — Aggregation.** `GROUP BY`, `HAVING` and the aggregate functions compile to the row RPC of RFC 0016 §5 when that RPC exists. This milestone is owned by that RFC's successor and listed here so the clause mapping is reserved.

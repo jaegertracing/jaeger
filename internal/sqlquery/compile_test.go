@@ -75,7 +75,7 @@ func TestCompileFilters(t *testing.T) {
 				SELECT DISTINCT traceID
 				FROM spans
 				WHERE startTime >= now() - INTERVAL '1' HOUR
-					AND startTime < now()
+					AND startTime <= now()
 					AND parentSpanId = ''
 					AND statusMessage <> 'ok'`,
 			want: p.And(
@@ -451,6 +451,32 @@ func TestCompileFilters(t *testing.T) {
 				p.Span().StatusMessage.Eq("a'b"),
 			),
 		},
+		{
+			name: "backslashes in literals reach the pattern",
+			sql: `
+				SELECT DISTINCT trace_id
+				FROM spans
+				WHERE between(start_time, now() - '1h', now())
+					AND name REGEXP '^\d+ \\w$'
+					AND status_message = 'C:\temp'
+					AND attributes['pct'] LIKE '100\%'
+					AND attributes['job'] LIKE 'job\\_%'`,
+			want: p.And(
+				p.Span().Name.Matches(`^\d+ \w$`),
+				p.Span().StatusMessage.Eq(`C:\temp`),
+				p.Span().Attr("pct").Matches(`^100%$`),
+				p.Span().Attr("job").Matches(`^job_.*$`),
+			),
+		},
+		{
+			name: "quoted alias",
+			sql: `
+				SELECT DISTINCT trace_id
+				FROM spans AS ` + "`s`" + `
+				WHERE between(s.start_time, now() - '1h', now())
+					AND s.name = 'x'`,
+			want: p.Span().Name.Eq("x"),
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -480,14 +506,24 @@ func TestCompileWindow(t *testing.T) {
 			min:   now.Add(-2 * time.Hour), max: now.Add(-time.Hour + 500*time.Millisecond),
 		},
 		{
-			name:  "strict lower bound and offset",
+			name:  "strict bounds exclude their instants",
 			where: "start_time > '2026-10-23T13:00:00+02:00' AND start_time < now()",
-			min:   now.Add(-time.Hour), max: now,
+			min:   now.Add(-time.Hour + time.Nanosecond), max: now.Add(-time.Nanosecond),
 		},
 		{
 			name:  "duration strings",
-			where: "start_time >= now() - '90m' AND start_time < now() + '2h30m'",
+			where: "start_time >= now() - '90m' AND start_time <= now() + '2h30m'",
 			min:   now.Add(-90 * time.Minute), max: now.Add(150 * time.Minute),
+		},
+		{
+			name:  "parenthesized bounds",
+			where: "start_time >= (now() - ('1h')) AND start_time <= (now())",
+			min:   now.Add(-time.Hour), max: now,
+		},
+		{
+			name:  "one instant",
+			where: "start_time >= now() AND start_time <= now()",
+			min:   now, max: now,
 		},
 		{
 			name:  "between",
@@ -497,7 +533,7 @@ func TestCompileWindow(t *testing.T) {
 		{
 			name:  "reversed and qualified",
 			where: "now() - INTERVAL '2' WEEK <= s.start_time AND now() > s.start_time",
-			min:   now.Add(-14 * 24 * time.Hour), max: now,
+			min:   now.Add(-14 * 24 * time.Hour), max: now.Add(-time.Nanosecond),
 		},
 	}
 	for _, tt := range tests {
@@ -695,10 +731,189 @@ func TestRefusals(t *testing.T) {
 				SELECT service
 				FROM spans
 				WHERE between(start_time, now() - '1h', now())
-				GROUP BY service
 				HAVING count() > 1`,
-			at:   "GROUP BY",
-			want: "GROUP BY is not supported yet",
+			at:   "HAVING",
+			want: "HAVING is not supported yet",
+		},
+		{
+			name: "with totals",
+			sql: `
+				SELECT service
+				FROM spans
+				WHERE between(start_time, now() - '1h', now())
+				WITH TOTALS`,
+			at:   "SELECT",
+			want: "WITH TOTALS is not supported",
+		},
+		{
+			name: "empty request",
+			sql:  "",
+			at:   "",
+			want: "the request holds no statement",
+		},
+		{
+			name: "comment only",
+			sql:  "-- nothing to see",
+			at:   "-- nothing",
+			want: "the request holds no statement",
+		},
+		{
+			name: "sample",
+			sql: `
+				SELECT *
+				FROM spans SAMPLE 0.1
+				WHERE between(start_time, now() - '1h', now())`,
+			at:   "SAMPLE",
+			want: "SAMPLE is not supported",
+		},
+		{
+			name: "final",
+			sql: `
+				SELECT *
+				FROM spans FINAL
+				WHERE between(start_time, now() - '1h', now())`,
+			at:   "spans FINAL",
+			want: "FINAL is not supported",
+		},
+		{
+			name: "select modifier",
+			sql: `
+				SELECT * EXCEPT (duration)
+				FROM spans
+				WHERE between(start_time, now() - '1h', now())`,
+			at:   "EXCEPT",
+			want: "a SELECT modifier is not supported",
+		},
+		{
+			name: "distinct trace_id of another alias",
+			sql: `
+				SELECT DISTINCT t.trace_id
+				FROM spans s
+				WHERE between(start_time, now() - '1h', now())`,
+			at:   "SELECT",
+			want: "DISTINCT is accepted only as SELECT DISTINCT trace_id",
+		},
+		{
+			name: "distinct trace_id aliased",
+			sql: `
+				SELECT DISTINCT trace_id AS t
+				FROM spans
+				WHERE between(start_time, now() - '1h', now())`,
+			at:   "t\n",
+			want: "a column alias in SELECT has no effect",
+		},
+		{
+			name: "distinct on traces",
+			sql: `
+				SELECT DISTINCT trace_id
+				FROM traces
+				WHERE trace_id IN (
+					SELECT trace_id
+					FROM spans
+					WHERE between(start_time, now() - '1h', now())
+				)`,
+			at:   "SELECT",
+			want: "DISTINCT applies to a span search",
+		},
+		{
+			name: "traces subquery selects trace_id of another alias",
+			sql: `
+				SELECT *
+				FROM traces
+				WHERE trace_id IN (
+					SELECT x.trace_id
+					FROM spans s
+					WHERE between(start_time, now() - '1h', now())
+				)`,
+			at:   "SELECT x",
+			want: "the subquery of a traces query selects trace_id",
+		},
+		{
+			name: "global in",
+			sql: `
+				SELECT *
+				FROM traces
+				WHERE trace_id GLOBAL IN (
+					SELECT trace_id
+					FROM spans
+					WHERE between(start_time, now() - '1h', now())
+				)`,
+			at:   "WHERE",
+			want: "the WHERE of a traces query is trace_id IN",
+		},
+		{
+			name: "global not in",
+			sql: `
+				SELECT DISTINCT trace_id
+				FROM spans
+				WHERE between(start_time, now() - '1h', now())
+					AND kind GLOBAL NOT IN ('server')`,
+			at:   "kind GLOBAL",
+			want: "GLOBAL IN is not supported",
+		},
+		{
+			name: "exists with an aggregate",
+			sql: `
+				SELECT DISTINCT trace_id
+				FROM spans
+				WHERE between(start_time, now() - '1h', now())
+					AND EXISTS (
+						SELECT count()
+						FROM events
+						WHERE name = 'exception'
+					)`,
+			at:   "SELECT count",
+			want: "an EXISTS subquery is SELECT 1",
+		},
+		{
+			name: "interval overflow",
+			sql: `
+				SELECT DISTINCT trace_id
+				FROM spans
+				WHERE between(start_time, now() - '1h', now())
+					AND duration > INTERVAL '9223372036854775807' SECOND`,
+			at:   "INTERVAL '9",
+			want: "is longer than a duration can hold",
+		},
+		{
+			name: "null as a value",
+			sql: `
+				SELECT DISTINCT trace_id
+				FROM spans
+				WHERE between(start_time, now() - '1h', now())
+					AND attributes['k'] = NULL`,
+			at:   "NULL",
+			want: "NULL is not a value to compare with",
+		},
+		{
+			name: "comparison of a comparison",
+			sql: `
+				SELECT DISTINCT trace_id
+				FROM spans
+				WHERE between(start_time, now() - '1h', now())
+					AND (status = 'ok') = true`,
+			at:   "status = 'ok') = true",
+			want: "a comparison cannot be the operand of another comparison",
+		},
+		{
+			name: "now compared with now",
+			sql: `
+				SELECT DISTINCT trace_id
+				FROM spans
+				WHERE between(start_time, now() - '1h', now())
+					AND now() = now()`,
+			at:   "now() = now()",
+			want: "a comparison names a column on at least one side",
+		},
+		{
+			name: "empty window",
+			sql: `
+				SELECT DISTINCT trace_id
+				FROM spans
+				WHERE start_time >= now()
+					AND start_time < now()`,
+			at:   "WHERE",
+			want: "the start_time window is empty",
 		},
 		{
 			name: "aggregate in select",
@@ -2085,10 +2300,13 @@ func TestErrorRendering(t *testing.T) {
 func TestLikeToRegex(t *testing.T) {
 	assert.Equal(t, `a\.b.*c.`, likeToRegex("a.b%c_"))
 	assert.Equal(t, `\(x\)`, likeToRegex("(x)"))
+	assert.Equal(t, `100%_\\.*`, likeToRegex(`100\%\_\\%`))
+	assert.Equal(t, `tail\\`, likeToRegex(`tail\`))
 }
 
 func TestUnquote(t *testing.T) {
 	assert.Equal(t, "o'brien", unquote("o''brien"))
 	assert.Equal(t, `a'b\c`, unquote(`a\'b\\c`))
 	assert.Equal(t, `trailing\`, unquote(`trailing\`))
+	assert.Equal(t, `\d+\n`, unquote(`\d+\n`))
 }
