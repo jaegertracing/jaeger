@@ -62,7 +62,8 @@ writes AG-UI SSE frames into the HTTP response.
 
 - **Run lifecycle.** `startRun`, `finishRun`, and `failRun` emit `RUN_STARTED`,
   `RUN_FINISHED`, and `RUN_ERROR`. Assistant text is bracketed with
-  `TEXT_MESSAGE_START` and `TEXT_MESSAGE_END`.
+  `TEXT_MESSAGE_START` and `TEXT_MESSAGE_END`; a tool call closes the open
+  text message, and text after it starts a new message with a new id.
 - **`SessionUpdate`.** Maps ACP `session/update` notifications to AG-UI events:
   `AgentMessageChunk` to `TEXT_MESSAGE_CONTENT`; `ToolCall` to
   `TOOL_CALL_START`, plus `TOOL_CALL_ARGS` when `RawInput` is set;

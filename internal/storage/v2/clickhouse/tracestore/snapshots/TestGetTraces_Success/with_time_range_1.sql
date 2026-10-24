@@ -79,4 +79,4 @@ SELECT
     scope_dropped_attributes_count
 FROM
     spans s
- WHERE s.trace_id = ? AND s.start_time >= ? AND s.start_time <= ?
+ WHERE s.trace_id = ? AND s.start_time >= fromUnixTimestamp64Nano(?) AND s.start_time <= fromUnixTimestamp64Nano(?)

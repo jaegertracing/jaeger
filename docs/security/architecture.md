@@ -33,6 +33,22 @@ Jaeger uses Go's standard `crypto/tls` implementation for TLS. Operators can con
 
 Jaeger verifies TLS certificates during the TLS handshake before application data is transmitted. Certificate verification is enabled by default when TLS is configured, and operators must explicitly opt out with insecure settings such as `insecure_skip_verify`.
 
+## MCP Access to Trace Data
+
+The embedded all-in-one configuration enables the MCP endpoint at
+`<basePath>/api/ai/mcp/` on the query HTTP listener. That listener defaults to
+all interfaces on port 16686, without TLS or an authenticator configured.
+MCP tools share the query service's read access to trace data, so deployment
+access controls must cover MCP as well as the UI and HTTP query API.
+
+Use authentication and TLS on the query HTTP server or an authenticated
+reverse proxy/gateway that clients cannot bypass. Tenant headers and MCP
+session IDs are not authentication credentials; deployments must authorize
+tenant selection and enforce session ownership where required. See the
+[MCP deployment guide](../../cmd/jaeger/internal/extension/jaegerquery/internal/mcptools/README.md#production-deployment)
+for configuration examples, tenant and session behavior, and
+[instructions to disable MCP](../../cmd/jaeger/internal/extension/jaegerquery/internal/mcptools/README.md#disabling-mcp).
+
 ## Input Validation
 
 Jaeger performs strict input validation to prevent injection attacks and ensure system stability.
