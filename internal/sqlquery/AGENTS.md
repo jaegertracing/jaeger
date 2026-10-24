@@ -32,7 +32,7 @@ For whole traces: `SELECT * FROM traces WHERE trace_id IN (SELECT trace_id FROM 
 
 `=`, `<>`, `<`, `<=`, `>`, `>=`, `IN (...)`, `NOT IN`, `between(x, a, b)`, `AND`, `OR`, `NOT`, parentheses.
 
-- Text search: `x REGEXP 'pat'` or `match(x, 'pat')`, RE2, matched anywhere in the value. No `^`, `$` or `(?i)`. `x LIKE '%text%'` works; `LIKE 'text%'` does not, because there is no anchoring.
+- Text search: `x REGEXP 'pat'` or `match(x, 'pat')`, RE2 syntax. A pattern matches if it occurs anywhere in the value, and it cannot say "starts with" or "ends with": `^`, `$` and `(?i)` are refused because not every storage backend honors them. For the same reason `x LIKE '%text%'` (contains) works but `LIKE 'text%'` (starts with) is refused.
 - Presence: `attributes['key'] IS NOT NULL`. Built-in fields always exist.
 - Events and links of the span: `EXISTS (SELECT 1 FROM events WHERE name = 'exception' AND attributes['exception.type'] = 'TimeoutError')`. Inside `EXISTS`, `events` and `links` are this span's own; no join condition is needed. Event columns: `name`, `time`, `time_since_start`, `attributes`. Link columns: `linked_trace_id`, `linked_span_id`, `trace_state`, `attributes`.
 
