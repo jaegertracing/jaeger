@@ -482,6 +482,41 @@ func TestCompileFilters(t *testing.T) {
 			),
 		},
 		{
+			name: "parentheses around operands and start_time in a membership",
+			sql: `
+				SELECT DISTINCT trace_id
+				FROM spans
+				WHERE between(start_time, now() - '1h', now())
+					AND (duration) > ('1s')
+					AND start_time < (end_time)
+					AND start_time IN ('2026-10-23T11:30:00Z')
+					AND name LIKE ('GET%')`,
+			want: p.And(
+				p.Span().Duration.Gt("1s"),
+				p.Span().StartTime.Lt(p.Span().EndTime),
+				p.Span().StartTime.In("2026-10-23T11:30:00Z"),
+				p.Span().Name.Matches(`^GET[\s\S]*$`),
+			),
+		},
+		{
+			name: "parenthesized conjunct groups and == as a correlation",
+			sql: `
+				SELECT DISTINCT trace_id
+				FROM spans s
+				WHERE (start_time >= now() - '1h' AND start_time <= now())
+					AND (attributes['n'] > -1 AND -1 < attributes['m'])
+					AND EXISTS (
+						SELECT 1
+						FROM events e
+						WHERE (e.span_id == s.span_id AND e.name = 'x')
+					)`,
+			want: p.And(
+				p.Span().Attr("n").Gt("-1"),
+				p.Span().Attr("m").Gt("-1"),
+				p.Some(p.Event(), p.Event().Name.Eq("x")),
+			),
+		},
+		{
 			name: "quoted alias",
 			sql: `
 				SELECT DISTINCT trace_id
@@ -836,6 +871,45 @@ func TestRefusals(t *testing.T) {
 					)`,
 			at:   "e.span_id['x']",
 			want: "is not a map column and takes no subscript",
+		},
+		{
+			name: "parametric function call",
+			sql: `
+				SELECT DISTINCT trace_id
+				FROM spans
+				WHERE between(start_time, now() - '1h', now())
+					AND match(name, '^ok$')('^error$')`,
+			at:   "('^error$')",
+			want: "a function takes one argument list",
+		},
+		{
+			name: "parametric attr",
+			sql: `
+				SELECT DISTINCT trace_id
+				FROM spans
+				WHERE between(start_time, now() - '1h', now())
+					AND attr('a')('b') = 'x'`,
+			at:   "('b')",
+			want: "a function takes one argument list",
+		},
+		{
+			name: "parametric now",
+			sql: `
+				SELECT DISTINCT trace_id
+				FROM spans
+				WHERE start_time >= now()('x') - '1h'
+					AND start_time <= now()`,
+			at:   "('x')",
+			want: "a function takes one argument list",
+		},
+		{
+			name: "aggregate combinator",
+			sql: `
+				SELECT countIf(status = 'error')
+				FROM spans
+				WHERE between(start_time, now() - '1h', now())`,
+			at:   "countIf",
+			want: "countIf() is an aggregate",
 		},
 		{
 			name: "order by alias",
@@ -1569,7 +1643,7 @@ func TestRefusals(t *testing.T) {
 							)
 					)`,
 			at:   "FROM links",
-			want: "EXISTS appears in the WHERE of a spans query",
+			want: "EXISTS does not nest",
 		},
 		{
 			name: "order by on trace ids",

@@ -332,7 +332,7 @@ func (c *compiler) windowBound(sc *scope, node parser.Expr, query *Query) (bool,
 	if !isColumnOf(sc, ref, "starttime") {
 		ref, value, op = bin.RightExpr, bin.LeftExpr, mirror(op)
 	}
-	if !isColumnOf(sc, ref, "starttime") || isReference(value) {
+	if !isColumnOf(sc, ref, "starttime") || isReference(value) || mirror(op) == op {
 		return false, nil
 	}
 	instant, err := c.instantOf(value)
@@ -346,10 +346,9 @@ func (c *compiler) windowBound(sc *scope, node parser.Expr, query *Query) (bool,
 		return true, c.setBound(node, &query.StartTimeMin, instant.Add(time.Nanosecond))
 	case "<=":
 		return true, c.setBound(node, &query.StartTimeMax, instant)
-	case "<":
+	default:
 		return true, c.setBound(node, &query.StartTimeMax, instant.Add(-time.Nanosecond))
 	}
-	return false, nil
 }
 
 func (c *compiler) setBound(node parser.Expr, bound *time.Time, value time.Time) error {

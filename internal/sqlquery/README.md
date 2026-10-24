@@ -49,12 +49,12 @@ A bound is an RFC 3339 instant, `'2026-10-23T12:00:00Z'`, or `now()` with a dura
 | `=`, `==`, `<>`, `!=`, `<`, `<=`, `>`, `>=` | `eq`, `ne`, `lt`, `lte`, `gt`, `gte` | a constant on the left is mirrored to the right |
 | `x IN (a, b)`, `x NOT IN (a, b)` | `in`, `not_in` | literal lists only |
 | `x REGEXP 'pattern'`, `match(x, 'pattern')` | `regex` | RE2 syntax, matched anywhere in the value unless the pattern starts with `^` or ends with `$` (an anchor anywhere else is refused); `(?i)` folds case |
-| `x LIKE 'GET %'`, `x LIKE '%.json'` | `regex` | `%` and `_` match any characters, a newline included; `\%`, `\_` and `\\` are the literal characters; the pattern is anchored at both ends |
+| `x LIKE 'GET %'`, `x LIKE '%.json'` | `regex` | `%` and `_` match any characters, a newline included; a backslash escapes the character after it, so `\%` is the percent sign; the pattern is anchored at both ends |
 | `x ILIKE 'get %'` | `regex` | as `LIKE`, with `(?i)` |
 | `x LIKE 'text'` | `eq` | a pattern without a wildcard is an equality |
 | `x IS NOT NULL`, `x IS NULL` | `exists`, `not(exists)` | on attributes only; a built-in field is always present |
 | `between(x, a, b)`, `x BETWEEN a AND b` | `and(gte, lte)` | inclusive at both ends; the function form has no `AND` of its own, so it reads better beside other conjuncts. `NOT` negates either |
-| `phrase(x, 'word word')`, `fulltext(x, 'word word')` | `phrase`, `fulltext` | on attributes; the words are split on whitespace |
+| `phrase(x, 'word word')`, `fulltext(x, 'word word')` | `phrase`, `fulltext` | on attributes; the words of every quoted argument are split on whitespace |
 | `EXISTS (SELECT 1 FROM events WHERE ...)` | `some` over events | the span's own events; see below |
 | `EXISTS (SELECT 1 FROM links WHERE ...)` | `some` over links | the span's own links; see below |
 

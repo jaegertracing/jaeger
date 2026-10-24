@@ -102,7 +102,7 @@ The `WHERE` clause is a boolean expression over the columns above and compiles t
 | `x IN (a, b)`, `x NOT IN (…)` | `in`, `not_in` | literal lists only; a subquery on the right is refused except the `trace_id IN (SELECT …)` shape of §4.4 |
 | `x REGEXP 'regex'`, `match(x, 'regex')` | `regex` | two spellings for one operator, because models produce both; PostgreSQL's `~` is not in the parser's grammar and is a parse error |
 | `x IS NOT NULL`, `x IS NULL` | `exists`, `not(exists)` | on attribute references only; built-in fields always exist |
-| `x LIKE 'a%b_'`, `x LIKE 'exact'` | `regex`, `eq` | `LIKE` is what models reach for first. The pattern is translated with `%`→`.*`, `_`→`.` and anchored at both ends, which RFC 0005 §5.3 lets every backend honor; a pattern without wildcards is an equality. `ILIKE` adds the `(?i)` flag |
+| `x LIKE 'a%b_'`, `x LIKE 'exact'` | `regex`, `eq` | `LIKE` is what models reach for first. The pattern is translated with `%`→`[\s\S]*` and `_`→`[\s\S]`, because SQL's wildcards match a newline and RE2's dot does not, and anchored at both ends, which RFC 0005 §5.3 lets every backend honor; a backslash escapes the character after it; a pattern without wildcards is an equality. `ILIKE` adds the `(?i)` flag |
 | `between(x, a, b)`, `x BETWEEN a AND b` | `and(gte, lte)` | the function spelling exists because the operator's own `AND` reads as a conjunction beside the other conjuncts; both are inclusive |
 | `phrase(x, 'word word')`, `fulltext(x, 'word word')` | `phrase`, `fulltext` | functions, because SQL has no standard text-search operator |
 | `EXISTS (SELECT 1 FROM events e WHERE …)` | `some` over events | the span's own events; §4.3 |
@@ -300,7 +300,7 @@ Option D is the status quo plus a better skill document, and it is cheap. It fai
 
 Each milestone is independently shippable.
 
-- ✅ **M0 — Parser spike.** Delivered as the `internal/sqlquery` package: the compiler for every construct of §4, with a corpus of 39 accepted statements that compile to the builder's trees byte for byte and 152 refused statements whose message and position are asserted, all against `clickhouse-sql-parser`. The findings are recorded in §4.2 and §6.3. The package is not yet reachable from any RPC; M1 wires it in.
+- ✅ **M0 — Parser spike.** Delivered as the `internal/sqlquery` package: the compiler for every construct of §4, with a corpus of 42 accepted statements that compile to the builder's trees byte for byte and 161 refused statements whose message and position are asserted, all against `clickhouse-sql-parser`. The findings are recorded in §4.2 and §6.3. The package is not yet reachable from any RPC; M1 wires it in.
 - **M1 — `WHERE` tier.** The `sql` field on `TraceQueryParameters` for `FindTraceIDs`, `FindTraces` and `FindTraceSummaries`; `ExplainQuery`; the MCP `search_traces` input and skill section. *Exit:* a statement sent through the API returns the same traces as the equivalent `filter`.
 - **M2 — Result shaping.** The `sql` field on `SpanQueryParameters`, so that `SELECT *` and column lists over `spans` reach `FindSpans` with the ordering, limit and projection the compiler already produces, as RFC 0016 lands those fields. *Exit:* the shared storage integration suite's filter battery runs its cases through SQL as well as through `filter`.
 - **M3 — Aggregation.** `GROUP BY`, `HAVING` and the aggregate functions compile to the row RPC of RFC 0016 §5 when that RPC exists. This milestone is owned by that RFC's successor and listed here so the clause mapping is reserved.

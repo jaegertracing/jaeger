@@ -56,7 +56,7 @@ LIMIT 20
 
 `=`, `<>`, `<`, `<=`, `>`, `>=`, `IN (...)`, `NOT IN`, `between(x, a, b)`, `AND`, `OR`, `NOT`, parentheses.
 
-- Text search: `x LIKE 'GET %'` with `%` and `_` as in SQL (`\%` and `\_` for the characters), `x ILIKE 'get %'` to ignore case, or `x REGEXP 'pat'` / `match(x, 'pat')` in RE2 syntax. A regex matches anywhere in the value unless it starts with `^` or ends with `$` (anchors elsewhere are refused), and is case-sensitive unless it starts with `(?i)`.
+- Text search: `x LIKE 'GET %'` with `%` and `_` as in SQL (a backslash escapes the character after it), `x ILIKE 'get %'` to ignore case, or `x REGEXP 'pat'` / `match(x, 'pat')` in RE2 syntax. A regex matches anywhere in the value unless it starts with `^` or ends with `$` (anchors elsewhere are refused), and is case-sensitive unless it starts with `(?i)`.
 - Presence: `attributes['key'] IS NOT NULL`. Built-in fields always exist.
 - Events and links of the span: `EXISTS (SELECT 1 FROM events WHERE name = 'exception' AND attributes['exception.type'] = 'TimeoutError')`. Inside `EXISTS`, `events` and `links` are this span's own; no join condition is needed. Event columns: `name`, `time`, `time_since_start`, `attributes`. Link columns: `linked_trace_id`, `linked_span_id`, `trace_state`, `attributes`.
 

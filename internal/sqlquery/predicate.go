@@ -75,7 +75,11 @@ func (c *compiler) resolveColumn(sc *scope, node parser.Expr) (resolved, error) 
 // reference lowers a column or a map subscript to the term a predicate names. It refuses a
 // reference to the outer alias, because inside EXISTS only the correlation may name it.
 func (c *compiler) reference(sc *scope, node parser.Expr) (ast.Expression, error) {
+	node = unparenthesized(node)
 	if fn, ok := node.(*parser.FunctionExpr); ok && strings.EqualFold(fn.Name.Name, "attr") {
+		if err := c.refuseParametricCall(fn); err != nil {
+			return nil, err
+		}
 		args := functionArgs(fn)
 		if len(args) != 1 {
 			return nil, c.pos.at(node, "attr() takes one argument, the attribute key", "")
@@ -137,7 +141,7 @@ func correlationExample(sc *scope) string {
 
 // isReference reports whether a node names a value on the span rather than a constant.
 func isReference(node parser.Expr) bool {
-	switch n := node.(type) {
+	switch n := unparenthesized(node).(type) {
 	case *parser.Ident:
 		return !isBoolean(n.Name)
 	case *parser.Path, *parser.ObjectParams:
@@ -164,6 +168,7 @@ func (c *compiler) constant(node parser.Expr) (ast.Expression, error) {
 }
 
 func (c *compiler) constantText(node parser.Expr) (string, error) {
+	node = unparenthesized(node)
 	switch n := node.(type) {
 	case *parser.StringLiteral:
 		return unquote(n.Literal), nil
@@ -172,6 +177,12 @@ func (c *compiler) constantText(node parser.Expr) (string, error) {
 	case *parser.Ident:
 		if isBoolean(n.Name) {
 			return strings.ToLower(n.Name), nil
+		}
+	case *parser.UnaryExpr:
+		// The parser reads a leading minus as an operator in some positions and as part of the
+		// number in others; both spell the one negative number.
+		if num, ok := unparenthesized(n.Expr).(*parser.NumberLiteral); ok && n.Kind == parser.TokenKindMinus {
+			return "-" + num.Literal, nil
 		}
 	case *parser.IntervalExpr:
 		d, err := c.interval(n)
@@ -198,6 +209,9 @@ func (c *compiler) instant(node parser.Expr) (t time.Time, ok bool, err error) {
 	case *parser.FunctionExpr:
 		if !strings.EqualFold(n.Name.Name, "now") {
 			return time.Time{}, false, nil
+		}
+		if err := c.refuseParametricCall(n); err != nil {
+			return time.Time{}, true, err
 		}
 		if len(functionArgs(n)) != 0 {
 			return time.Time{}, true, c.pos.at(node, "now() takes no arguments", "")
@@ -307,6 +321,9 @@ func (c *compiler) predicate(sc *scope, node parser.Expr) (*ast.Call, error) {
 		r, _ := asRange(n)
 		return c.between(sc, r)
 	case *parser.FunctionExpr:
+		if err := c.refuseParametricCall(n); err != nil {
+			return nil, err
+		}
 		if r, ok := asRange(n); ok {
 			return c.between(sc, r)
 		}
@@ -426,10 +443,13 @@ func (c *compiler) binary(sc *scope, n *parser.BinaryOperation) (*ast.Call, erro
 			return ref.In(values...), nil
 		}
 		return ref.NotIn(values...), nil
+	}
+	right := unparenthesized(n.RightExpr)
+	switch op {
 	case "LIKE", "NOT LIKE", "ILIKE", "NOT ILIKE":
-		pattern, ok := n.RightExpr.(*parser.StringLiteral)
+		pattern, ok := right.(*parser.StringLiteral)
 		if !ok {
-			return nil, c.pos.at(n.RightExpr, "the pattern of LIKE is a quoted string", "")
+			return nil, c.pos.at(right, "the pattern of LIKE is a quoted string", "")
 		}
 		call := c.like(ref, unquote(pattern.Literal), strings.Contains(op, "ILIKE"))
 		if strings.HasPrefix(op, "NOT") {
@@ -437,14 +457,14 @@ func (c *compiler) binary(sc *scope, n *parser.BinaryOperation) (*ast.Call, erro
 		}
 		return call, nil
 	case "REGEXP":
-		pattern, ok := n.RightExpr.(*parser.StringLiteral)
+		pattern, ok := right.(*parser.StringLiteral)
 		if !ok {
-			return nil, c.pos.at(n.RightExpr, "the pattern of REGEXP is a quoted string", "")
+			return nil, c.pos.at(right, "the pattern of REGEXP is a quoted string", "")
 		}
 		return ref.Matches(unquote(pattern.Literal)), nil
 	}
 	if astOp := comparisonOps[op]; astOp != "" {
-		value, err := c.operand(sc, n.RightExpr)
+		value, err := c.operand(sc, right)
 		if err != nil {
 			return nil, err
 		}
@@ -473,6 +493,15 @@ func (c *compiler) operandError(node parser.Expr) error {
 	return c.pos.at(node, "a comparison names a column on at least one side", "Columns are written as alias.column, column, attributes['key'] or attr('key')")
 }
 
+// refuseParametricCall rejects ClickHouse's second argument list, f(a)(b), which none of the
+// dialect's functions take.
+func (c *compiler) refuseParametricCall(fn *parser.FunctionExpr) error {
+	if fn.Params != nil && fn.Params.ColumnArgList != nil {
+		return c.pos.at(fn.Params.ColumnArgList, "a function takes one argument list", "Write "+fn.Name.Name+"(...) once")
+	}
+	return nil
+}
+
 // functionError refuses a function that is not one of the dialect's.
 func (c *compiler) functionError(n *parser.FunctionExpr) error {
 	name := strings.ToLower(n.Name.Name)
@@ -487,7 +516,8 @@ var comparisonOps = map[string]ast.Operator{
 	">": ast.OpGt, "<": ast.OpLt, ">=": ast.OpGte, "<=": ast.OpLte,
 }
 
-// mirror returns the operator that reads the same with its operands swapped.
+// mirror returns the operator that reads the same with its operands swapped. An operator
+// that is not an ordering is its own mirror.
 func mirror(op string) string {
 	switch op {
 	case ">":
@@ -575,10 +605,15 @@ func (c *compiler) functionPredicate(sc *scope, n *parser.FunctionExpr) (*ast.Ca
 	}
 }
 
+// aggregateFamilies are the stems of ClickHouse's aggregate functions, which their combinators
+// extend: countIf, uniqExact, quantilesTiming, groupArray, argMax.
+var aggregateFamilies = []string{"count", "sum", "avg", "min", "max", "quantile", "median", "any", "uniq", "group", "arg", "topk", "stddev", "var"}
+
 func isAggregate(name string) bool {
-	switch name {
-	case "count", "sum", "avg", "min", "max", "quantile", "median", "any", "uniq":
-		return true
+	for _, family := range aggregateFamilies {
+		if strings.HasPrefix(name, family) {
+			return true
+		}
 	}
 	return false
 }
@@ -603,7 +638,10 @@ func (c *compiler) exists(outer *scope, sub *parser.SelectQuery) (*ast.Call, err
 	if rel != relationEvents && rel != relationLinks {
 		return nil, c.pos.at(sub.From, "EXISTS reads events or links", hintOneRelation)
 	}
-	if outer.rel != relationSpans || outer.outer != nil {
+	if outer.outer != nil {
+		return nil, c.pos.at(sub.From, "EXISTS does not nest", "An event or a link has no collection of its own; write the two conditions side by side in the outer WHERE")
+	}
+	if outer.rel != relationSpans {
 		return nil, c.pos.at(sub.From, "EXISTS appears in the WHERE of a spans query", hintOneRelation)
 	}
 	hint := "Inside EXISTS, " + string(rel) + " is the span's own collection; write a predicate on it, for example " + alias + ".name = 'exception'"
@@ -638,7 +676,7 @@ func (c *compiler) exists(outer *scope, sub *parser.SelectQuery) (*ast.Call, err
 // that exists can drop them, and refuses any other use of the correlation columns.
 func (c *compiler) correlation(sc *scope, node parser.Expr) (bool, error) {
 	bin, ok := node.(*parser.BinaryOperation)
-	if !ok || string(bin.Operation) != "=" {
+	if !ok || comparisonOps[string(bin.Operation)] != ast.OpEq {
 		return false, nil
 	}
 	left, right := bin.LeftExpr, bin.RightExpr
