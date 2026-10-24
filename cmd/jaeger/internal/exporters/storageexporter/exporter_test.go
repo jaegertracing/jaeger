@@ -34,6 +34,7 @@ import (
 	tracestoremocks "github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore/mocks"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/memory"
 	"github.com/jaegertracing/jaeger/internal/telemetry/otelsemconv"
+	"github.com/jaegertracing/jaeger/internal/tenancy"
 )
 
 type mockStorageExt struct {
@@ -41,6 +42,8 @@ type mockStorageExt struct {
 	factory        *tracestoremocks.Factory
 	metricsFactory *factorymocks.MetricStoreFactory
 }
+
+func (*mockStorageExt) SetTenancyOptions(tenancy.Options) error { return nil }
 
 var _ jaegerstorage.Extension = (*mockStorageExt)(nil)
 
@@ -90,6 +93,8 @@ type fakeFactoryExt struct {
 	name    string
 	factory tracestore.Factory
 }
+
+func (*fakeFactoryExt) SetTenancyOptions(tenancy.Options) error { return nil }
 
 var _ jaegerstorage.Extension = (*fakeFactoryExt)(nil)
 
