@@ -491,8 +491,8 @@ func orderable(e expression.Expression) bool {
 }
 
 // validatePattern checks a regular expression. RFC 0005 §5.3 makes it RE2 syntax, matched anywhere
-// in the value and case-sensitively, so a pattern that will not parse is refused here rather than
-// by whichever backend received it.
+// in the value unless the pattern anchors itself and case-sensitively unless it folds case with (?i),
+// so a pattern that will not parse is refused here rather than by whichever backend received it.
 func validatePattern(pattern string) error {
 	parsed, err := syntax.Parse(pattern, syntax.Perl)
 	if err != nil {
@@ -501,28 +501,94 @@ func validatePattern(pattern string) error {
 	return checkPortable(parsed)
 }
 
-// checkPortable refuses the constructs the backends this lowers to do not all have. Elasticsearch,
-// for one, reads `^` as a literal caret rather than as an anchor, so a pattern using it would be
-// answered differently by each backend instead of being refused by the ones that cannot honor it.
+// checkPortable refuses the constructs the backends this lowers to do not all have, so that a pattern
+// is refused at the boundary rather than answered differently by each backend. An anchor at either
+// end of the pattern is not among them: an engine that matches whole terms, as Lucene does, lowers it
+// by leaving out its own wildcard on that side. An anchor anywhere else is, because such an engine
+// has no anchor syntax to lower it to: `^GET|^POST` is refused where `^(GET|POST)` is served. Case
+// folding is not among them either: an engine without a fold flag writes each folded letter as the
+// set of its case equivalents. The line anchors that (?m) produces are refused: a value is matched as
+// a whole, and an engine without the flag would read the pattern another way.
 func checkPortable(re *syntax.Regexp) error {
-	switch re.Op {
-	case syntax.OpBeginLine, syntax.OpEndLine, syntax.OpBeginText, syntax.OpEndText:
-		return fmt.Errorf("operator %q matches anywhere in the value, so a pattern cannot anchor itself", expression.OpRegex)
-	case syntax.OpWordBoundary, syntax.OpNoWordBoundary:
-		return fmt.Errorf("operator %q takes a pattern without word boundaries", expression.OpRegex)
-	}
-	if re.Flags&syntax.NonGreedy != 0 {
-		return fmt.Errorf("operator %q asks whether the value matches, so a quantifier cannot be lazy", expression.OpRegex)
-	}
-	if re.Flags&syntax.FoldCase != 0 {
-		return fmt.Errorf("operator %q matches case-sensitively, so a pattern cannot fold case", expression.OpRegex)
-	}
-	for _, sub := range re.Sub {
-		if err := checkPortable(sub); err != nil {
+	parts, _, _ := SplitPatternAnchors(re)
+	for _, part := range parts {
+		if err := checkPortableInside(part); err != nil {
 			return err
 		}
 	}
 	return nil
+}
+
+// SplitPatternAnchors takes the anchors off the ends of a parsed pattern and reports which ends they
+// were on. The parts are the elements of the pattern's top-level sequence that remain, which a
+// backend that matches whole terms wraps in its own wildcards on the sides the pattern leaves open.
+// Every anchor a pattern may carry stands at one of its ends, since checkPortable refuses the rest.
+func SplitPatternAnchors(re *syntax.Regexp) (parts []*syntax.Regexp, atStart, atEnd bool) {
+	parts = []*syntax.Regexp{re}
+	if re.Op == syntax.OpConcat {
+		parts = re.Sub
+	}
+	for len(parts) > 0 && parts[0].Op == syntax.OpBeginText {
+		atStart, parts = true, parts[1:]
+	}
+	for len(parts) > 0 && parts[len(parts)-1].Op == syntax.OpEndText {
+		atEnd, parts = true, parts[:len(parts)-1]
+	}
+	return parts, atStart, atEnd
+}
+
+// checkPortableInside applies checkPortable's rules to a node that is not at either end of the
+// pattern, where an anchor of any kind is refused. A surrogate code point, which text never holds,
+// is refused as a literal, and a class holding no other character is refused as well: both match
+// nothing, and an engine without a spelling for that would have to refuse them.
+func checkPortableInside(re *syntax.Regexp) error {
+	switch re.Op {
+	case syntax.OpLiteral:
+		for _, r := range re.Rune {
+			if utf16.IsSurrogate(r) {
+				return fmt.Errorf("operator %q matches text, and the surrogate code point %U cannot occur in text", expression.OpRegex, r)
+			}
+		}
+	case syntax.OpCharClass:
+		if len(WithoutSurrogates(re.Rune)) == 0 {
+			return fmt.Errorf("operator %q takes a pattern that can match, and a class holding no character cannot", expression.OpRegex)
+		}
+	case syntax.OpBeginText, syntax.OpEndText:
+		return fmt.Errorf("operator %q honors an anchor only as the first or the last element of the pattern", expression.OpRegex)
+	case syntax.OpBeginLine, syntax.OpEndLine:
+		return fmt.Errorf("operator %q matches the value as a whole, so a pattern cannot use multi-line anchors", expression.OpRegex)
+	case syntax.OpWordBoundary, syntax.OpNoWordBoundary:
+		return fmt.Errorf("operator %q takes a pattern without word boundaries", expression.OpRegex)
+	default:
+	}
+	if re.Flags&syntax.NonGreedy != 0 {
+		return fmt.Errorf("operator %q asks whether the value matches, so a quantifier cannot be lazy", expression.OpRegex)
+	}
+	for _, sub := range re.Sub {
+		if err := checkPortableInside(sub); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// WithoutSurrogates returns the rune ranges of a character class, which come in pairs of inclusive
+// bounds, with the surrogate code points taken out. UTF-8 cannot encode one, so text holds none and
+// a class matches the same text without them; an engine that writes a pattern in UTF-16 has no
+// spelling for a lone surrogate at all.
+func WithoutSurrogates(ranges []rune) []rune {
+	const lo, hi = 0xD800, 0xDFFF
+	out := make([]rune, 0, len(ranges)+2)
+	for i := 0; i+1 < len(ranges); i += 2 {
+		from, to := ranges[i], ranges[i+1]
+		if from < lo {
+			out = append(out, from, min(to, lo-1))
+		}
+		if to > hi {
+			out = append(out, max(from, hi+1), to)
+		}
+	}
+	return out
 }
 
 // patternText returns the text of a constant that can serve as a regular expression. An untyped

@@ -134,6 +134,27 @@ func TestValidateFilter_Accepts(t *testing.T) {
 			}},
 		},
 		{
+			name: "a regular expression anchored at the start",
+			filter: &expression.Call{Op: expression.OpRegex, Args: []expression.Expression{
+				&expression.FieldRef{Name: expression.SpanFieldName, Level: expression.LevelSpan},
+				&expression.AnyValue{Value: "^GET"},
+			}},
+		},
+		{
+			name: "a regular expression anchored at the end",
+			filter: &expression.Call{Op: expression.OpRegex, Args: []expression.Expression{
+				&expression.FieldRef{Name: expression.SpanFieldName, Level: expression.LevelSpan},
+				&expression.AnyValue{Value: `\.json$`},
+			}},
+		},
+		{
+			name: "a regular expression anchored at both ends",
+			filter: &expression.Call{Op: expression.OpRegex, Args: []expression.Expression{
+				&expression.FieldRef{Name: expression.SpanFieldName, Level: expression.LevelSpan},
+				&expression.AnyValue{Value: "^GET /api/[a-z]+$"},
+			}},
+		},
+		{
 			name: "membership of a field holding one of a set of words in a list of strings",
 			filter: &expression.Call{Op: expression.OpIn, Args: []expression.Expression{
 				&expression.FieldRef{Name: expression.SpanFieldKind, Level: expression.LevelSpan},
@@ -151,6 +172,13 @@ func TestValidateFilter_Accepts(t *testing.T) {
 			filter: &expression.Call{Op: expression.OpRegex, Args: []expression.Expression{
 				&expression.FieldRef{Name: expression.SpanFieldKind, Level: expression.LevelSpan},
 				&expression.StringValue{Value: "produ.*"},
+			}},
+		},
+		{
+			name: "a regular expression folding case",
+			filter: &expression.Call{Op: expression.OpRegex, Args: []expression.Expression{
+				&expression.FieldRef{Name: expression.SpanFieldName, Level: expression.LevelSpan},
+				&expression.StringValue{Value: "(?i)^get"},
 			}},
 		},
 		{
@@ -507,13 +535,6 @@ func TestValidateFilter_Rejects(t *testing.T) {
 			}},
 		},
 		{
-			name:        "an anchored regular expression",
-			expectedErr: `operator "regex" matches anywhere in the value, so a pattern cannot anchor itself`,
-			filter: &expression.Call{Op: expression.OpRegex, Args: []expression.Expression{
-				&expression.FieldRef{Name: expression.SpanFieldName, Level: expression.LevelSpan}, &expression.StringValue{Value: "^GET"},
-			}},
-		},
-		{
 			name:        "a regular expression that will not compile",
 			expectedErr: `operator "regex" takes a pattern in RE2 syntax`,
 			filter: &expression.Call{Op: expression.OpRegex, Args: []expression.Expression{
@@ -535,10 +556,52 @@ func TestValidateFilter_Rejects(t *testing.T) {
 			}},
 		},
 		{
-			name:        "a regular expression asking to fold case",
-			expectedErr: `operator "regex" matches case-sensitively, so a pattern cannot fold case`,
+			name:        "a regular expression anchored inside an alternation",
+			expectedErr: `operator "regex" honors an anchor only as the first or the last element of the pattern`,
 			filter: &expression.Call{Op: expression.OpRegex, Args: []expression.Expression{
-				&expression.FieldRef{Name: expression.SpanFieldName, Level: expression.LevelSpan}, &expression.StringValue{Value: "(?i)get"},
+				&expression.FieldRef{Name: expression.SpanFieldName, Level: expression.LevelSpan}, &expression.StringValue{Value: "^GET|^POST"},
+			}},
+		},
+		{
+			name:        "a regular expression anchored inside a group",
+			expectedErr: `operator "regex" honors an anchor only as the first or the last element of the pattern`,
+			filter: &expression.Call{Op: expression.OpRegex, Args: []expression.Expression{
+				&expression.FieldRef{Name: expression.SpanFieldName, Level: expression.LevelSpan}, &expression.StringValue{Value: "(^GET)"},
+			}},
+		},
+		{
+			name:        "a regular expression anchored in the middle",
+			expectedErr: `operator "regex" honors an anchor only as the first or the last element of the pattern`,
+			filter: &expression.Call{Op: expression.OpRegex, Args: []expression.Expression{
+				&expression.FieldRef{Name: expression.SpanFieldName, Level: expression.LevelSpan}, &expression.StringValue{Value: "GET^x"},
+			}},
+		},
+		{
+			name:        "a regular expression with a class holding no character",
+			expectedErr: `operator "regex" takes a pattern that can match, and a class holding no character cannot`,
+			filter: &expression.Call{Op: expression.OpRegex, Args: []expression.Expression{
+				&expression.FieldRef{Name: expression.SpanFieldName, Level: expression.LevelSpan}, &expression.StringValue{Value: `GET[^\x00-\x{10FFFF}]`},
+			}},
+		},
+		{
+			name:        "a regular expression with a class holding only surrogate code points",
+			expectedErr: `operator "regex" takes a pattern that can match, and a class holding no character cannot`,
+			filter: &expression.Call{Op: expression.OpRegex, Args: []expression.Expression{
+				&expression.FieldRef{Name: expression.SpanFieldName, Level: expression.LevelSpan}, &expression.StringValue{Value: `GET[\x{D800}-\x{DBFF}]`},
+			}},
+		},
+		{
+			name:        "a regular expression with a surrogate code point",
+			expectedErr: `operator "regex" matches text, and the surrogate code point U+D800 cannot occur in text`,
+			filter: &expression.Call{Op: expression.OpRegex, Args: []expression.Expression{
+				&expression.FieldRef{Name: expression.SpanFieldName, Level: expression.LevelSpan}, &expression.StringValue{Value: `GET\x{D800}`},
+			}},
+		},
+		{
+			name:        "a regular expression with multi-line anchors",
+			expectedErr: `operator "regex" matches the value as a whole, so a pattern cannot use multi-line anchors`,
+			filter: &expression.Call{Op: expression.OpRegex, Args: []expression.Expression{
+				&expression.FieldRef{Name: expression.SpanFieldName, Level: expression.LevelSpan}, &expression.StringValue{Value: "(?m)^GET"},
 			}},
 		},
 		{
