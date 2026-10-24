@@ -16,6 +16,15 @@ import (
 	"github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore"
 )
 
+// Every statement in this file is laid out the same way, so that a reader scans the corpus as
+// SQL rather than as Go strings: one clause per line (SELECT, FROM, WHERE, ORDER BY, LIMIT), each
+// AND or OR on its own line indented one level under WHERE, a subquery indented one level inside
+// its parentheses with the closing parenthesis on its own line, and the expected tree with one
+// predicate per line. The layout is a convention reviewers hold the file to. The parser library
+// has a beautifying formatter, but its layout differs from this one, so a Go formatter that
+// could enforce the convention from a test is left to the UI SQL mode of RFC 0019 §9, which
+// needs one for its format button.
+//
 // now is the instant now() evaluates to in every test.
 var now = time.Date(2026, 10, 23, 12, 0, 0, 0, time.UTC)
 

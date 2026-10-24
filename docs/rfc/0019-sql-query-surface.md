@@ -302,7 +302,7 @@ Each milestone is independently shippable.
 - **M1 — `WHERE` tier.** The `sql` field on `TraceQueryParameters` for `FindTraceIDs`, `FindTraces` and `FindTraceSummaries`; `ExplainQuery`; the MCP `search_traces` input and skill section. *Exit:* a statement sent through the API returns the same traces as the equivalent `filter`.
 - **M2 — Result shaping.** The `sql` field on `SpanQueryParameters`, so that `SELECT *` and column lists over `spans` reach `FindSpans` with the ordering, limit and projection the compiler already produces, as RFC 0016 lands those fields. *Exit:* the shared storage integration suite's filter battery runs its cases through SQL as well as through `filter`.
 - **M3 — Aggregation.** `GROUP BY`, `HAVING` and the aggregate functions compile to the row RPC of RFC 0016 §5 when that RPC exists. This milestone is owned by that RFC's successor and listed here so the clause mapping is reserved.
-- **M4 (optional) — UI SQL mode.** A search box in jaeger-ui backed by `ExplainQuery` for inline errors. Out of this repository.
+- **M4 (optional) — UI SQL mode.** A search box in jaeger-ui backed by `ExplainQuery` for inline errors, and a format button, which SQL input boxes customarily have. The button needs a formatter in Go that lays a statement out one clause per line; the parser library's beautifying mode produces a different layout, so the formatter is written over the library's AST and returned by `ExplainQuery` beside the normalized SQL. The same formatter then holds the compiler's test corpus to its layout from a test. The search box is out of this repository; the formatter is in it.
 
 ---
 
