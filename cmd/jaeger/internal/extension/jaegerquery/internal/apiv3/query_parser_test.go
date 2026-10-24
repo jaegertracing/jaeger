@@ -478,18 +478,18 @@ func TestGetQueryParam(t *testing.T) {
 	q.Set("canonical", "c-val")
 	q.Set("deprecated", "d-val")
 
-	v, present := getQueryParam(q, "canonical", "deprecated")
+	v, paramName := getQueryParam(q, "canonical", "deprecated")
 	assert.Equal(t, "c-val", v)
-	assert.Equal(t, "canonical", present)
+	assert.Equal(t, "canonical", paramName)
 
 	q2 := url.Values{}
 	q2.Set("deprecated", "d-val")
-	v, present = getQueryParam(q2, "canonical", "deprecated")
+	v, paramName = getQueryParam(q2, "canonical", "deprecated")
 	assert.Equal(t, "d-val", v)
-	assert.Equal(t, "deprecated", present)
+	assert.Equal(t, "deprecated", paramName)
 
 	q3 := url.Values{}
-	v, present = getQueryParam(q3, "canonical", "deprecated")
+	v, paramName = getQueryParam(q3, "canonical", "deprecated")
 	assert.Empty(t, v)
-	assert.Equal(t, "deprecated", present)
+	assert.Equal(t, "deprecated", paramName)
 }

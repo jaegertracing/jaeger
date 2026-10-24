@@ -21,6 +21,8 @@ import (
 	tracestoremocks "github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore/mocks"
 )
 
+var p builder.Predicate
+
 // TestQueryParametersCarryTheFilter pins the filter onto the query parameters themselves,
 // which is what makes a remote backend that declares filter support actually receive one.
 func TestQueryParametersCarryTheFilter(t *testing.T) {
@@ -48,8 +50,6 @@ func TestQueryParametersCarryTheFilter(t *testing.T) {
 // a query carrying both filtering models would otherwise reach the reader, which would answer one of
 // them without saying which. The filter itself is passed on as sent, whatever the reader declared,
 // because converting it toward the reader's capabilities is the query service's job (ADR-013).
-var p builder.Predicate
-
 func TestRemoteIngress_RefusesAMixedQuery(t *testing.T) {
 	filter, err := expressionproto.CallToProto(p.Span().Attr("http.route").Eq("/cart"))
 	require.NoError(t, err)

@@ -353,7 +353,7 @@ func TestSpanQueryFingerprint_SortExpressions(t *testing.T) {
 		&expression.DurationValue{Value: time.Second},
 		&expression.TimestampValue{Value: windowStart},
 		&expression.List{Values: []string{"a", "b"}},
-		call(expression.OpAnd, tagIs("a", "1"), tagIs("b", "2")),
+		p.And(tagIs("a", "1"), tagIs("b", "2")),
 	}
 	seen := make(map[string]bool)
 	for _, term := range terms {
