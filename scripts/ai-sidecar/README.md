@@ -61,6 +61,7 @@ after the prompt completes.
 
 **Tools.** Jaeger's telemetry tools and the UI tools that the browser supplied
 with the chat request arrive together in one `tools/list` from that endpoint.
+UI tools are namespaced `ui__<name>` so they cannot shadow a telemetry tool.
 The agent calls whatever it was offered, using the names and JSON schemas as
 served. A UI tool returns an acknowledgement, not data, and the browser performs
 the effect. Caching tools across turns is wrong, because the UI tool set differs
@@ -123,7 +124,7 @@ the AG-UI run.
      }'
    ```
    The stream carries `TOOL_CALL_START`, `TOOL_CALL_ARGS` and `TOOL_CALL_END`
-   for `show_flamegraph`. The agent sees the tool as `ui_show_flamegraph`, and
+   for `show_flamegraph`. The agent sees the tool as `ui__show_flamegraph`, and
    the gateway strips the prefix before the event reaches the browser.
 
 ## Related documentation
