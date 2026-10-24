@@ -2,20 +2,44 @@
 
 Search traces with one read-only `SELECT`. The statement is compiled to Jaeger's filter; nothing is executed as SQL.
 
-## Shape
+## Three statement shapes
+
+Trace IDs of the traces that have a matching span:
 
 ```sql
-SELECT DISTINCT trace_id          -- trace IDs; or SELECT * for spans
+SELECT DISTINCT trace_id
 FROM spans s
 WHERE between(s.start_time, now() - '1h', now())   -- required: both bounds
   AND s.service = 'checkout'
   AND s.duration > '500ms'
   AND s.attributes['http.status_code'] >= 500
-ORDER BY s.duration DESC          -- spans only: start_time, duration, trace_id, span_id
 LIMIT 20
 ```
 
-For whole traces: `SELECT * FROM traces WHERE trace_id IN (SELECT trace_id FROM spans WHERE ...)`.
+The matching spans themselves, in an order:
+
+```sql
+SELECT *
+FROM spans s
+WHERE between(s.start_time, now() - '1h', now())
+  AND s.service = 'checkout'
+ORDER BY s.duration DESC     -- start_time, duration, trace_id, span_id
+LIMIT 100
+```
+
+Whole traces, selected by the spans they contain. The subquery is a spans query as above; the outer `WHERE` takes nothing else:
+
+```sql
+SELECT *
+FROM traces
+WHERE trace_id IN (
+  SELECT trace_id
+  FROM spans s
+  WHERE between(s.start_time, now() - '1h', now())
+    AND s.service = 'checkout'
+)
+LIMIT 20
+```
 
 ## Columns of `spans`
 
