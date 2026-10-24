@@ -6,16 +6,49 @@ The dialect is one `SELECT` over a virtual schema. Nothing is a physical table; 
 
 ## Relations
 
-| Relation | One row per | Columns |
+A statement reads `spans` or `traces` in `FROM`, optionally aliased. `events` and `links` appear only inside `EXISTS`, where they are the current span's own collections. A column name is the RFC 0005 field name in `snake_case`, matched exactly; `startTime` and `TRACE_ID` are not columns.
+
+### `spans`, one row per span
+
+| Column | Type | Values |
 |---|---|---|
-| `spans` | span | `trace_id`, `span_id`, `parent_span_id`, `name`, `kind`, `start_time`, `end_time`, `duration`, `status`, `status_message`, `trace_state`, `service`, `scope_name`, `scope_version`, `attributes[...]`, `resource_attributes[...]`, `scope_attributes[...]` |
-| `events` | span event | `name`, `time`, `time_since_start`, `attributes[...]` |
-| `links` | span link | `linked_trace_id`, `linked_span_id`, `trace_state`, `attributes[...]` |
-| `traces` | trace | `trace_id`, `root_service`, `root_name`, `start_time`, `duration`, `span_count`, `error_count` |
+| `trace_id`, `span_id`, `parent_span_id` | text | lower-case hex; `parent_span_id` is `''` on a root span |
+| `name`, `status_message`, `trace_state` | text | any |
+| `kind` | word | `'server'`, `'client'`, `'producer'`, `'consumer'`, `'internal'`, `'unspecified'` |
+| `status` | word | `'ok'`, `'error'`, `'unset'` |
+| `start_time`, `end_time` | instant | RFC 3339, `'2026-10-23T12:00:00Z'`, or `now() - '1h'` |
+| `duration` | duration | Go syntax with a unit, `'2s'`, `'250ms'`; `INTERVAL '250' MILLISECOND` is rewritten to it |
+| `service` | text | the resource's `service.name` |
+| `scope_name`, `scope_version` | text | the instrumentation scope |
+| `attributes['key']` | map | span attributes; a value is compared at the type storage holds |
+| `resource_attributes['key']` | map | resource attributes |
+| `scope_attributes['key']` | map | instrumentation scope attributes |
 
-A statement reads `spans` or `traces` in `FROM`, optionally aliased. `events` and `links` appear only inside `EXISTS`, where they are the current span's own collections. The column names are the RFC 0005 field names in `snake_case`; the `camelCase` spelling of the IDL (`startTime`, `traceID`) is accepted and means the same column, because a name is resolved with its case and underscores ignored.
+The three map columns compile to an attribute reference at the span, resource or scope level. The dialect has no level-less attribute reference: the span-or-resource search of RFC 0005 §5.1 is not exposed, so that every attribute predicate says which level it reads.
 
-The three `*_attributes` columns are maps addressed by subscript, `attributes['http.status_code']`, and compile to an attribute reference at the span, resource or scope level. `attr('key')` names an attribute without a level, which a backend looks for at the span and resource levels; it is the filter counterpart of the legacy attributes map.
+### `events` and `links`, inside `EXISTS` only
+
+| Relation | Column | Type | Values |
+|---|---|---|---|
+| `events` | `name` | text | any |
+| `events` | `time` | instant | RFC 3339 |
+| `events` | `time_since_start` | duration | Go syntax with a unit |
+| `events` | `attributes['key']` | map | event attributes |
+| `links` | `linked_trace_id`, `linked_span_id` | text | lower-case hex |
+| `links` | `trace_state` | text | any |
+| `links` | `attributes['key']` | map | link attributes |
+
+### `traces`, one row per trace
+
+| Column | Type |
+|---|---|
+| `trace_id` | text |
+| `root_service`, `root_name` | text |
+| `start_time` | instant |
+| `duration` | duration |
+| `span_count`, `error_count` | number |
+
+The columns of `traces` are the RFC 0011 summary fields. They may be selected but not filtered on, because the expression tree has no trace-level fields; the only `WHERE` on `traces` is `trace_id IN (SELECT trace_id FROM spans WHERE ...)`.
 
 ## Statement shape selects the method
 
@@ -103,7 +136,7 @@ The compiler refuses, with a message that names the construct and the admitted a
 - `JOIN` of any kind, `WITH`, `UNION`, derived tables and table functions in `FROM`, `events` or `links` in the outer `FROM`. A statement reads one relation.
 - `GROUP BY`, `HAVING` and aggregate functions, which are reserved for the row-returning query service method of RFC 0016 §5.
 - `OFFSET`, `LIMIT BY`, `TOP`, `DISTINCT ON`, `WINDOW`, `PREWHERE`, `SETTINGS`, `FORMAT`, `WITH TOTALS`, `SAMPLE`, `FINAL`, `GLOBAL IN` and the `SELECT` modifiers `EXCEPT`, `REPLACE` and `APPLY`.
-- Arithmetic, `CAST`, string functions and any function other than `between`, `match`, `phrase`, `fulltext`, `attr` and `now`.
+- Arithmetic, `CAST`, string functions and any function other than `between`, `match`, `phrase`, `fulltext` and `now`; `attr('key')` is refused with a hint naming the three map columns.
 - A `traces` query whose `WHERE` is anything but `trace_id IN (SELECT trace_id FROM spans WHERE ...)`.
 - A statement without both `start_time` bounds.
 
@@ -114,7 +147,7 @@ Four spellings are parse errors rather than refusals, because the parser library
 Every refusal is an `*Error` with the line and column of the construct, a message saying what is wrong, and a hint saying what the dialect admits instead:
 
 ```
-line 4:7: the function lower() is not supported. The functions are between(column, low, high), match(column, 'regex'), phrase(column, 'words'), fulltext(column, 'words'), attr('key') and now()
+line 4:7: the function lower() is not supported. The functions are between(column, low, high), match(column, 'regex'), phrase(column, 'words'), fulltext(column, 'words') and now()
 ```
 
 The message is what an agent reads to repair its statement, so the refusals in `compile_test.go` are asserted on their text and position. A filter the finalizer of RFC 0005 refuses, such as a regex with an anchor inside the pattern, is reported at the `WHERE` keyword, because the finalizer sees the tree and not the text.

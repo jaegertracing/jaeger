@@ -66,7 +66,7 @@ func (c *compiler) resolveColumn(sc *scope, node parser.Expr) (resolved, error) 
 		}
 		target, outer = sc.outer, true
 	}
-	col, ok := columnsOf(target.rel)[columnKey(name)]
+	col, ok := columnsOf(target.rel)[name]
 	if !ok {
 		if isCorrelationColumn(name) && target.rel != relationSpans {
 			return resolved{name: name, outer: outer}, nil
@@ -81,21 +81,7 @@ func (c *compiler) resolveColumn(sc *scope, node parser.Expr) (resolved, error) 
 func (c *compiler) reference(sc *scope, node parser.Expr) (ast.Expression, error) {
 	node = unparenthesized(node)
 	if fn, ok := node.(*parser.FunctionExpr); ok && strings.EqualFold(fn.Name.Name, "attr") {
-		if err := c.refuseParametricCall(fn); err != nil {
-			return nil, err
-		}
-		if sc.rel != relationSpans {
-			return nil, c.pos.at(node, "attr() names an attribute of the span or its resource", fmt.Sprintf("Inside EXISTS write %s.attributes['key'] for an attribute of the %s", sc.alias, strings.TrimSuffix(string(sc.rel), "s")))
-		}
-		args := functionArgs(fn)
-		if len(args) != 1 {
-			return nil, c.pos.at(node, "attr() takes one argument, the attribute key", "")
-		}
-		key, ok := args[0].(*parser.StringLiteral)
-		if !ok {
-			return nil, c.pos.at(args[0], "the argument of attr() is a quoted attribute key", "")
-		}
-		return &ast.AttributeRef{Key: unquote(key.Literal)}, nil
+		return nil, c.pos.at(node, "attr() is not supported; an attribute reference names its level", hintAttributeColumns)
 	}
 	if sub, ok := node.(*parser.ObjectParams); ok {
 		col, err := c.resolveColumn(sc, sub.Object)
@@ -128,7 +114,7 @@ func (c *compiler) reference(sc *scope, node parser.Expr) (ast.Expression, error
 		return nil, c.pos.at(node, fmt.Sprintf("%q is a correlation column, not a predicate", col.name), "Inside EXISTS the collection is already the span's own; the column is accepted only as "+correlationExample(sc))
 	}
 	if col.isMap() {
-		return nil, c.pos.at(node, fmt.Sprintf("%q is a map and is read by subscript", col.name), fmt.Sprintf("Write %s['key'], or attr('key') to search the span and resource levels together", col.name))
+		return nil, c.pos.at(node, fmt.Sprintf("%q is a map and is read by subscript", col.name), fmt.Sprintf("Write %s['key']", col.name))
 	}
 	return &ast.FieldRef{Name: col.Field, Level: col.Level}, nil
 }
@@ -500,7 +486,7 @@ func (c *compiler) operandError(node parser.Expr) error {
 	case *parser.UnaryExpr:
 		return c.pos.at(n, fmt.Sprintf("the operator %s is not supported", n.Kind), "Arithmetic has no target in the filter; compare the column with a literal")
 	}
-	return c.pos.at(node, "a comparison names a column on at least one side, and IN, LIKE and REGEXP name it on the left", "Columns are written as alias.column, column, attributes['key'] or attr('key')")
+	return c.pos.at(node, "a comparison names a column on at least one side, and IN, LIKE and REGEXP name it on the left", "Columns are written as alias.column, column or attributes['key']")
 }
 
 // refuseParametricCall rejects ClickHouse's second argument list, f(a)(b), which none of the
@@ -518,7 +504,7 @@ func (c *compiler) functionError(n *parser.FunctionExpr) error {
 	if isAggregate(name) {
 		return c.pos.at(n, name+"() is an aggregate", hintAggregation)
 	}
-	return c.pos.at(n, fmt.Sprintf("the function %s() is not supported", n.Name.Name), "The functions are between(column, low, high), match(column, 'regex'), phrase(column, 'words'), fulltext(column, 'words'), attr('key') and now()")
+	return c.pos.at(n, fmt.Sprintf("the function %s() is not supported", n.Name.Name), "The functions are between(column, low, high), match(column, 'regex'), phrase(column, 'words'), fulltext(column, 'words') and now()")
 }
 
 var comparisonOps = map[string]ast.Operator{
@@ -701,7 +687,7 @@ func (c *compiler) correlation(sc *scope, node parser.Expr) (bool, error) {
 	if !isCorrelationColumn(lhs.name) || !isCorrelationColumn(rhs.name) {
 		return false, nil
 	}
-	if lhs.outer == rhs.outer || columnKey(lhs.name) != columnKey(rhs.name) {
+	if lhs.outer == rhs.outer || lhs.name != rhs.name {
 		return false, c.pos.at(node, "a correlation ties the same column of the subquery and the outer alias", "Write "+sc.alias+".span_id = "+sc.outer.alias+".span_id")
 	}
 	return true, nil

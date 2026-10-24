@@ -38,6 +38,9 @@ const hintOneRelation = "A statement reads one relation, spans or traces; events
 // hintWindow shows the two conjuncts every search needs.
 const hintWindow = "Add both bounds to WHERE as top-level conjuncts, for example between(start_time, now() - '1h', now()); a bound inside OR or NOT stays in the filter"
 
+// hintAttributeColumns names the three map columns that address an attribute by its level.
+const hintAttributeColumns = "Write attributes['key'] for a span attribute, resource_attributes['key'] for a resource attribute or scope_attributes['key'] for a scope attribute"
+
 // hintAggregation names where the aggregation clauses are reserved.
 const hintAggregation = "GROUP BY, HAVING and aggregate functions are reserved for the row-returning query service method of RFC 0016 §5 and are not supported yet"
 

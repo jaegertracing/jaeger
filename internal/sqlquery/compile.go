@@ -199,7 +199,7 @@ func (c *compiler) spans(sel *parser.SelectQuery, sc *scope) (*Query, error) {
 				return nil, err
 			}
 		}
-		if len(sel.SelectItems) != 1 || !isColumnOf(sc, sel.SelectItems[0].Expr, "traceid") {
+		if len(sel.SelectItems) != 1 || !isColumnOf(sc, sel.SelectItems[0].Expr, "trace_id") {
 			return nil, c.pos.at(sel, "DISTINCT is accepted only as SELECT DISTINCT trace_id", "SELECT DISTINCT trace_id FROM spans returns trace IDs; SELECT * FROM spans returns spans")
 		}
 		if alias := sel.SelectItems[0].Alias; alias != nil {
@@ -320,7 +320,7 @@ func (c *compiler) windowBound(sc *scope, node parser.Expr, query *Query) (bool,
 			return false, err
 		}
 	}
-	if r, ok := asRange(node); ok && !r.negated && isColumnOf(sc, r.subject, "starttime") && !isReference(r.low) && !isReference(r.high) {
+	if r, ok := asRange(node); ok && !r.negated && isColumnOf(sc, r.subject, "start_time") && !isReference(r.low) && !isReference(r.high) {
 		low, err := c.instantOf(r.low)
 		if err != nil {
 			return false, err
@@ -340,10 +340,10 @@ func (c *compiler) windowBound(sc *scope, node parser.Expr, query *Query) (bool,
 	}
 	op := string(bin.Operation)
 	ref, value := bin.LeftExpr, bin.RightExpr
-	if !isColumnOf(sc, ref, "starttime") {
+	if !isColumnOf(sc, ref, "start_time") {
 		ref, value, op = bin.RightExpr, bin.LeftExpr, mirror(op)
 	}
-	if !isColumnOf(sc, ref, "starttime") || isReference(value) || mirror(op) == op {
+	if !isColumnOf(sc, ref, "start_time") || isReference(value) || mirror(op) == op {
 		return false, nil
 	}
 	instant, err := c.instantOf(value)
@@ -388,15 +388,15 @@ func (c *compiler) instantOf(node parser.Expr) (time.Time, error) {
 	return t, nil
 }
 
-// isColumnOf reports whether a node is a plain column reference with the given key, unqualified
+// isColumnOf reports whether a node is a plain column reference with the given name, unqualified
 // or qualified by the scope's alias.
 func isColumnOf(sc *scope, node parser.Expr, key string) bool {
 	node = unparenthesized(node)
 	switch ref := node.(type) {
 	case *parser.Ident:
-		return columnKey(ref.Name) == key
+		return ref.Name == key
 	case *parser.Path:
-		return len(ref.Fields) == 2 && columnKey(ref.Fields[1].Name) == key && sameScope(sc, node)
+		return len(ref.Fields) == 2 && ref.Fields[1].Name == key && sameScope(sc, node)
 	}
 	return false
 }
@@ -508,7 +508,7 @@ func (c *compiler) traces(sel *parser.SelectQuery, alias string) (*Query, error)
 		return nil, c.pos.at(sel, "a traces query is "+shape, "A trace predicate alone has nothing to search on; the subquery over spans does the searching")
 	}
 	bin, ok := unparenthesized(sel.Where.Expr).(*parser.BinaryOperation)
-	if !ok || !strings.EqualFold(string(bin.Operation), parser.KeywordIn) || bin.HasGlobal || !isColumnOf(&scope{alias: alias}, bin.LeftExpr, "traceid") {
+	if !ok || !strings.EqualFold(string(bin.Operation), parser.KeywordIn) || bin.HasGlobal || !isColumnOf(&scope{alias: alias}, bin.LeftExpr, "trace_id") {
 		return nil, c.pos.at(sel.Where, "the WHERE of a traces query is trace_id IN (SELECT trace_id FROM spans WHERE ...)", "Put every predicate inside the subquery; it is what selects the traces")
 	}
 	sub, ok := bin.RightExpr.(*parser.SubQuery)
@@ -529,7 +529,7 @@ func (c *compiler) traces(sel *parser.SelectQuery, alias string) (*Query, error)
 		return nil, c.pos.at(sub.Select.From, "the subquery of a traces query reads spans", shape)
 	}
 	subScope := &scope{alias: subAlias, rel: relationSpans}
-	if len(sub.Select.SelectItems) != 1 || !isColumnOf(subScope, sub.Select.SelectItems[0].Expr, "traceid") || sub.Select.SelectItems[0].Alias != nil {
+	if len(sub.Select.SelectItems) != 1 || !isColumnOf(subScope, sub.Select.SelectItems[0].Expr, "trace_id") || sub.Select.SelectItems[0].Alias != nil {
 		return nil, c.pos.at(sub.Select, "the subquery of a traces query selects trace_id", shape)
 	}
 	if sub.Select.OrderBy != nil || sub.Select.Limit != nil {

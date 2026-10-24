@@ -71,14 +71,14 @@ func TestCompileFilters(t *testing.T) {
 			),
 		},
 		{
-			name: "camelCase columns and the IDL spelling of a field",
+			name: "parent span id and status message",
 			sql: `
-				SELECT DISTINCT traceID
+				SELECT DISTINCT trace_id
 				FROM spans
-				WHERE startTime >= now() - INTERVAL '1' HOUR
-					AND startTime <= now()
-					AND parentSpanId = ''
-					AND statusMessage <> 'ok'`,
+				WHERE start_time >= now() - INTERVAL '1' HOUR
+					AND start_time <= now()
+					AND parent_span_id = ''
+					AND status_message <> 'ok'`,
 			want: p.And(
 				p.Span().ParentSpanID.Eq(""),
 				p.Span().StatusMessage.Ne("ok"),
@@ -259,18 +259,18 @@ func TestCompileFilters(t *testing.T) {
 			),
 		},
 		{
-			name: "unqualified attribute, boolean and numbers",
+			name: "attribute compared with a boolean and numbers",
 			sql: `
 				SELECT DISTINCT trace_id
 				FROM spans
 				WHERE between(start_time, now() - '1h', now())
-					AND attr('error') = true
-					AND attr('retries') > 3
-					AND attr('ratio') <= 0.5`,
+					AND attributes['error'] = true
+					AND attributes['retries'] > 3
+					AND resource_attributes['ratio'] <= 0.5`,
 			want: p.And(
-				p.Attr("error").Eq("true"),
-				p.Attr("retries").Gt("3"),
-				p.Attr("ratio").Lte("0.5"),
+				p.Span().Attr("error").Eq("true"),
+				p.Span().Attr("retries").Gt("3"),
+				p.Resource().Attr("ratio").Lte("0.5"),
 			),
 		},
 		{
@@ -718,6 +718,7 @@ func TestRefusals(t *testing.T) {
 		sql  string
 		at   string // the text the refusal points at, or "" when the error is at the end of the statement
 		want string
+		hint string // a fragment of the hint, when the hint is the point of the case
 	}{
 		{
 			name: "syntax error",
@@ -906,14 +907,15 @@ func TestRefusals(t *testing.T) {
 			want: "a function takes one argument list",
 		},
 		{
-			name: "parametric attr",
+			name: "camelCase column",
 			sql: `
 				SELECT DISTINCT trace_id
 				FROM spans
 				WHERE between(start_time, now() - '1h', now())
-					AND attr('a')('b') = 'x'`,
-			at:   "('b')",
-			want: "a function takes one argument list",
+					AND startTime < endTime`,
+			at:   "startTime",
+			want: `spans has no column "startTime"`,
+			hint: "Its columns are trace_id, span_id",
 		},
 		{
 			name: "parametric now",
@@ -955,7 +957,8 @@ func TestRefusals(t *testing.T) {
 						WHERE attr('k') = 'v'
 					)`,
 			at:   "attr('k')",
-			want: "attr() names an attribute of the span or its resource",
+			want: "attr() is not supported",
+			hint: "Write attributes['key'] for a span attribute",
 		},
 		{
 			name: "double sign",
@@ -1532,14 +1535,23 @@ func TestRefusals(t *testing.T) {
 			want: "the subscript of a map column is a quoted attribute key",
 		},
 		{
-			name: "attr with two arguments",
+			name: "upper-case column in select",
+			sql: `
+				SELECT DISTINCT TRACE_ID
+				FROM spans s
+				WHERE between(start_time, now() - '1h', now())`,
+			at:   "TRACE_ID",
+			want: `spans has no column "TRACE_ID"`,
+		},
+		{
+			name: "capitalized column in where",
 			sql: `
 				SELECT DISTINCT trace_id
 				FROM spans s
 				WHERE between(start_time, now() - '1h', now())
-					AND attr('a', 'b') = 'y'`,
-			at:   "attr('a'",
-			want: "attr() takes one argument",
+					AND s.Duration > '1s'`,
+			at:   "s.Duration",
+			want: `spans has no column "Duration"`,
 		},
 		{
 			name: "is null on a field",
@@ -2154,14 +2166,15 @@ func TestRefusals(t *testing.T) {
 			want: "expected a column name here",
 		},
 		{
-			name: "attr with a number",
+			name: "attr function",
 			sql: `
 				SELECT DISTINCT trace_id
 				FROM spans s
 				WHERE between(start_time, now() - '1h', now())
-					AND attr(1) = 'x'`,
-			at:   "1) =",
-			want: "the argument of attr() is a quoted attribute key",
+					AND attr('error') = true`,
+			at:   "attr('error')",
+			want: "attr() is not supported",
+			hint: "resource_attributes['key'] for a resource attribute or scope_attributes['key'] for a scope attribute",
 		},
 		{
 			name: "subscript with an unknown alias",
@@ -2557,6 +2570,9 @@ func TestRefusals(t *testing.T) {
 			var refusal *Error
 			require.ErrorAs(t, err, &refusal)
 			assert.Contains(t, err.Error(), tt.want)
+			if tt.hint != "" {
+				assert.Contains(t, err.Error(), tt.hint)
+			}
 			offset := len(tt.sql)
 			if tt.at != "" {
 				offset = strings.Index(tt.sql, tt.at)
@@ -2575,13 +2591,6 @@ func lineColumn(sql string, offset int) (line, column int) {
 	line = 1 + strings.Count(before, "\n")
 	column = utf8.RuneCountInString(before[strings.LastIndex(before, "\n")+1:]) + 1
 	return line, column
-}
-
-func TestErrorRendering(t *testing.T) {
-	err := &Error{Line: 2, Column: 7, Message: "the operator ^ is not supported"}
-	assert.Equal(t, "line 2:7: the operator ^ is not supported", err.Error())
-	err.Hint = "Use REGEXP"
-	assert.Equal(t, "line 2:7: the operator ^ is not supported. Use REGEXP", err.Error())
 }
 
 func TestLikeToRegex(t *testing.T) {

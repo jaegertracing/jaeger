@@ -5,7 +5,6 @@ package sqlquery
 
 import (
 	"slices"
-	"strings"
 
 	ast "github.com/jaegertracing/jaeger-idl/query/expression/v1"
 )
@@ -29,53 +28,49 @@ type column struct {
 
 func (c column) isMap() bool { return c.Field == "" }
 
-// columnKey normalizes a column name so that the snake_case of the dialect and the camelCase of
-// the IDL resolve to the same column: trace_id, traceID and traceId are one key.
-func columnKey(name string) string {
-	return strings.ReplaceAll(strings.ToLower(name), "_", "")
-}
-
+// The column tables are keyed by the exact snake_case spelling of the dialect. A name in another
+// case or spelling is not a column.
 var spansColumns = map[string]column{
-	"traceid":            {Level: ast.LevelSpan, Field: ast.SpanFieldTraceID},
-	"spanid":             {Level: ast.LevelSpan, Field: ast.SpanFieldSpanID},
-	"parentspanid":       {Level: ast.LevelSpan, Field: ast.SpanFieldParentSpanID},
-	"tracestate":         {Level: ast.LevelSpan, Field: ast.SpanFieldTraceState},
-	"name":               {Level: ast.LevelSpan, Field: ast.SpanFieldName},
-	"kind":               {Level: ast.LevelSpan, Field: ast.SpanFieldKind},
-	"starttime":          {Level: ast.LevelSpan, Field: ast.SpanFieldStartTime},
-	"endtime":            {Level: ast.LevelSpan, Field: ast.SpanFieldEndTime},
-	"duration":           {Level: ast.LevelSpan, Field: ast.SpanFieldDuration},
-	"status":             {Level: ast.LevelSpan, Field: ast.SpanFieldStatus},
-	"statusmessage":      {Level: ast.LevelSpan, Field: ast.SpanFieldStatusMessage},
-	"service":            {Level: ast.LevelResource, Field: ast.ResourceFieldService},
-	"scopename":          {Level: ast.LevelScope, Field: ast.ScopeFieldName},
-	"scopeversion":       {Level: ast.LevelScope, Field: ast.ScopeFieldVersion},
-	"attributes":         {Level: ast.LevelSpan},
-	"resourceattributes": {Level: ast.LevelResource},
-	"scopeattributes":    {Level: ast.LevelScope},
+	"trace_id":            {Level: ast.LevelSpan, Field: ast.SpanFieldTraceID},
+	"span_id":             {Level: ast.LevelSpan, Field: ast.SpanFieldSpanID},
+	"parent_span_id":      {Level: ast.LevelSpan, Field: ast.SpanFieldParentSpanID},
+	"trace_state":         {Level: ast.LevelSpan, Field: ast.SpanFieldTraceState},
+	"name":                {Level: ast.LevelSpan, Field: ast.SpanFieldName},
+	"kind":                {Level: ast.LevelSpan, Field: ast.SpanFieldKind},
+	"start_time":          {Level: ast.LevelSpan, Field: ast.SpanFieldStartTime},
+	"end_time":            {Level: ast.LevelSpan, Field: ast.SpanFieldEndTime},
+	"duration":            {Level: ast.LevelSpan, Field: ast.SpanFieldDuration},
+	"status":              {Level: ast.LevelSpan, Field: ast.SpanFieldStatus},
+	"status_message":      {Level: ast.LevelSpan, Field: ast.SpanFieldStatusMessage},
+	"service":             {Level: ast.LevelResource, Field: ast.ResourceFieldService},
+	"scope_name":          {Level: ast.LevelScope, Field: ast.ScopeFieldName},
+	"scope_version":       {Level: ast.LevelScope, Field: ast.ScopeFieldVersion},
+	"attributes":          {Level: ast.LevelSpan},
+	"resource_attributes": {Level: ast.LevelResource},
+	"scope_attributes":    {Level: ast.LevelScope},
 }
 
 var eventsColumns = map[string]column{
-	"name":           {Level: ast.LevelEvent, Field: ast.EventFieldName},
-	"time":           {Level: ast.LevelEvent, Field: ast.EventFieldTime},
-	"timesincestart": {Level: ast.LevelEvent, Field: ast.EventFieldTimeSinceStart},
-	"attributes":     {Level: ast.LevelEvent},
+	"name":             {Level: ast.LevelEvent, Field: ast.EventFieldName},
+	"time":             {Level: ast.LevelEvent, Field: ast.EventFieldTime},
+	"time_since_start": {Level: ast.LevelEvent, Field: ast.EventFieldTimeSinceStart},
+	"attributes":       {Level: ast.LevelEvent},
 }
 
 var linksColumns = map[string]column{
-	"linkedtraceid": {Level: ast.LevelLink, Field: ast.LinkFieldTraceID},
-	"linkedspanid":  {Level: ast.LevelLink, Field: ast.LinkFieldSpanID},
-	"tracestate":    {Level: ast.LevelLink, Field: ast.LinkFieldTraceState},
-	"attributes":    {Level: ast.LevelLink},
+	"linked_trace_id": {Level: ast.LevelLink, Field: ast.LinkFieldTraceID},
+	"linked_span_id":  {Level: ast.LevelLink, Field: ast.LinkFieldSpanID},
+	"trace_state":     {Level: ast.LevelLink, Field: ast.LinkFieldTraceState},
+	"attributes":      {Level: ast.LevelLink},
 }
 
 // tracesColumns are the RFC 0011 summary fields. They have no expression-level counterpart yet,
 // so a traces column may be selected but not filtered on (RFC 0019 §4.4).
-var tracesColumns = []string{"traceid", "rootservice", "rootname", "starttime", "duration", "spancount", "errorcount"}
+var tracesColumns = []string{"trace_id", "root_service", "root_name", "start_time", "duration", "span_count", "error_count"}
 
 // correlationColumns are the columns of events and links that tie a row to its span. They are
 // not predicates: the EXISTS shape of RFC 0019 §4.3 consumes them.
-var correlationColumns = []string{"spanid", "traceid"}
+var correlationColumns = []string{"span_id", "trace_id"}
 
 // columnsOf returns the column table of a relation that predicates may read.
 func columnsOf(rel relation) map[string]column {
@@ -106,16 +101,16 @@ func columnNames(rel relation) string {
 }
 
 func isTracesColumn(name string) bool {
-	return slices.Contains(tracesColumns, columnKey(name))
+	return slices.Contains(tracesColumns, name)
 }
 
 func isCorrelationColumn(name string) bool {
-	return slices.Contains(correlationColumns, columnKey(name))
+	return slices.Contains(correlationColumns, name)
 }
 
-// sortableColumns are the span fields RFC 0016 §6 declares sortable, by column key.
-var sortableColumns = []string{"starttime", "duration", "traceid", "spanid"}
+// sortableColumns are the span fields RFC 0016 §6 declares sortable.
+var sortableColumns = []string{"start_time", "duration", "trace_id", "span_id"}
 
 func isSortableColumn(name string) bool {
-	return slices.Contains(sortableColumns, columnKey(name))
+	return slices.Contains(sortableColumns, name)
 }
