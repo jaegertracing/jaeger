@@ -536,7 +536,7 @@ func (c *compiler) exists(outer *scope, sub *parser.SelectQuery) (*ast.Call, err
 		return nil, c.pos.at(sub.From, "EXISTS reads events or links", hintOneRelation)
 	}
 	if outer.rel != relationSpans || outer.outer != nil {
-		return nil, c.pos.at(sub, "EXISTS appears in the WHERE of a spans query", hintOneRelation)
+		return nil, c.pos.at(sub.From, "EXISTS appears in the WHERE of a spans query", hintOneRelation)
 	}
 	if sub.Where == nil {
 		return nil, c.pos.at(sub, "an EXISTS subquery needs WHERE "+alias+".span_id = "+outer.alias+".span_id and a predicate", hintOneRelation)

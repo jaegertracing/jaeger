@@ -44,50 +44,132 @@ func TestCompileFilters(t *testing.T) {
 	}{
 		{
 			name: "window only",
-			sql:  "SELECT DISTINCT trace_id FROM spans WHERE " + window,
+			sql: `
+				SELECT DISTINCT trace_id
+				FROM spans
+				WHERE start_time >= now() - INTERVAL '1' HOUR
+					AND start_time < now()`,
 			want: nil,
 		},
 		{
 			name: "service and attribute",
-			sql:  "SELECT DISTINCT trace_id FROM spans s WHERE " + window + " AND s.service = 'checkout' AND s.attributes['http.status_code'] >= 500",
-			want: p.And(p.Resource().Service.Eq("checkout"), p.Span().Attr("http.status_code").Gte("500")),
+			sql: `
+				SELECT DISTINCT trace_id
+				FROM spans s
+				WHERE start_time >= now() - INTERVAL '1' HOUR
+					AND start_time < now()
+					AND s.service = 'checkout'
+					AND s.attributes['http.status_code'] >= 500`,
+			want: p.And(
+				p.Resource().Service.Eq("checkout"),
+				p.Span().Attr("http.status_code").Gte("500"),
+			),
 		},
 		{
 			name: "camelCase columns and the IDL spelling of a field",
-			sql:  "SELECT DISTINCT traceID FROM spans WHERE startTime >= now() - INTERVAL '1' HOUR AND startTime < now() AND parentSpanId = '' AND statusMessage <> 'ok'",
-			want: p.And(p.Span().ParentSpanID.Eq(""), p.Span().StatusMessage.Ne("ok")),
+			sql: `
+				SELECT DISTINCT traceID
+				FROM spans
+				WHERE startTime >= now() - INTERVAL '1' HOUR
+					AND startTime < now()
+					AND parentSpanId = ''
+					AND statusMessage <> 'ok'`,
+			want: p.And(
+				p.Span().ParentSpanID.Eq(""),
+				p.Span().StatusMessage.Ne("ok"),
+			),
 		},
 		{
 			name: "every comparison operator",
-			sql:  "SELECT DISTINCT trace_id FROM spans WHERE " + window + " AND duration > '2s' AND duration < '10s' AND duration >= '1ms' AND duration <= '1us' AND name != 'a' AND name == 'b'",
+			sql: `
+				SELECT DISTINCT trace_id
+				FROM spans
+				WHERE start_time >= now() - INTERVAL '1' HOUR
+					AND start_time < now()
+					AND duration > '2s'
+					AND duration < '10s'
+					AND duration >= '1ms'
+					AND duration <= '1us'
+					AND name != 'a'
+					AND name == 'b'`,
 			want: p.And(
-				p.Span().Duration.Gt("2s"), p.Span().Duration.Lt("10s"), p.Span().Duration.Gte("1ms"),
-				p.Span().Duration.Lte("1us"), p.Span().Name.Ne("a"), p.Span().Name.Eq("b"),
+				p.Span().Duration.Gt("2s"),
+				p.Span().Duration.Lt("10s"),
+				p.Span().Duration.Gte("1ms"),
+				p.Span().Duration.Lte("1us"),
+				p.Span().Name.Ne("a"),
+				p.Span().Name.Eq("b"),
 			),
 		},
 		{
 			name: "a constant on the left is mirrored",
-			sql:  "SELECT DISTINCT trace_id FROM spans WHERE " + window + " AND '2s' < duration AND 'x' = name",
-			want: p.And(p.Span().Duration.Gt("2s"), p.Span().Name.Eq("x")),
+			sql: `
+				SELECT DISTINCT trace_id
+				FROM spans
+				WHERE start_time >= now() - INTERVAL '1' HOUR
+					AND start_time < now()
+					AND '2s' < duration
+					AND 'x' = name`,
+			want: p.And(
+				p.Span().Duration.Gt("2s"),
+				p.Span().Name.Eq("x"),
+			),
 		},
 		{
 			name: "interval as a duration constant",
-			sql:  "SELECT DISTINCT trace_id FROM spans WHERE " + window + " AND duration > INTERVAL '250' MILLISECOND AND duration < INTERVAL 2 SECOND",
-			want: p.And(p.Span().Duration.Gt("250ms"), p.Span().Duration.Lt("2s")),
+			sql: `
+				SELECT DISTINCT trace_id
+				FROM spans
+				WHERE start_time >= now() - INTERVAL '1' HOUR
+					AND start_time < now()
+					AND duration > INTERVAL '250' MILLISECOND
+					AND duration < INTERVAL 2 SECOND`,
+			want: p.And(
+				p.Span().Duration.Gt("250ms"),
+				p.Span().Duration.Lt("2s"),
+			),
 		},
 		{
 			name: "or, not and parentheses",
-			sql:  "SELECT DISTINCT trace_id FROM spans WHERE " + window + " AND (kind = 'server' OR kind = 'client') AND NOT status = 'ok'",
-			want: p.And(p.Or(p.Span().Kind.Eq("server"), p.Span().Kind.Eq("client")), p.Not(p.Span().Status.Eq("ok"))),
+			sql: `
+				SELECT DISTINCT trace_id
+				FROM spans
+				WHERE start_time >= now() - INTERVAL '1' HOUR
+					AND start_time < now()
+					AND (kind = 'server' OR kind = 'client')
+					AND NOT status = 'ok'`,
+			want: p.And(
+				p.Or(
+					p.Span().Kind.Eq("server"),
+					p.Span().Kind.Eq("client"),
+				),
+				p.Not(p.Span().Status.Eq("ok")),
+			),
 		},
 		{
 			name: "in and not in",
-			sql:  "SELECT DISTINCT trace_id FROM spans WHERE " + window + " AND kind IN ('server', 'consumer') AND attributes['http.method'] NOT IN ('GET', 'HEAD')",
-			want: p.And(p.Span().Kind.In("server", "consumer"), p.Span().Attr("http.method").NotIn("GET", "HEAD")),
+			sql: `
+				SELECT DISTINCT trace_id
+				FROM spans
+				WHERE start_time >= now() - INTERVAL '1' HOUR
+					AND start_time < now()
+					AND kind IN ('server', 'consumer')
+					AND attributes['http.method'] NOT IN ('GET', 'HEAD')`,
+			want: p.And(
+				p.Span().Kind.In("server", "consumer"),
+				p.Span().Attr("http.method").NotIn("GET", "HEAD"),
+			),
 		},
 		{
 			name: "like and not like",
-			sql:  "SELECT DISTINCT trace_id FROM spans WHERE " + window + " AND name LIKE '%/api/%' AND name NOT LIKE '%health_check%' AND status_message LIKE 'exact (text)'",
+			sql: `
+				SELECT DISTINCT trace_id
+				FROM spans
+				WHERE start_time >= now() - INTERVAL '1' HOUR
+					AND start_time < now()
+					AND name LIKE '%/api/%'
+					AND name NOT LIKE '%health_check%'
+					AND status_message LIKE 'exact (text)'`,
 			want: p.And(
 				p.Span().Name.Matches(`/api/`),
 				p.Not(p.Span().Name.Matches(`health.check`)),
@@ -96,84 +178,249 @@ func TestCompileFilters(t *testing.T) {
 		},
 		{
 			name: "regexp and match",
-			sql:  "SELECT DISTINCT trace_id FROM spans WHERE " + window + " AND name REGEXP 'GET|POST' AND match(attributes['http.route'], '/users/[0-9]+')",
-			want: p.And(p.Span().Name.Matches("GET|POST"), p.Span().Attr("http.route").Matches("/users/[0-9]+")),
+			sql: `
+				SELECT DISTINCT trace_id
+				FROM spans
+				WHERE start_time >= now() - INTERVAL '1' HOUR
+					AND start_time < now()
+					AND name REGEXP 'GET|POST'
+					AND match(attributes['http.route'], '/users/[0-9]+')`,
+			want: p.And(
+				p.Span().Name.Matches("GET|POST"),
+				p.Span().Attr("http.route").Matches("/users/[0-9]+"),
+			),
 		},
 		{
 			name: "is null and is not null on attributes",
-			sql:  "SELECT DISTINCT trace_id FROM spans WHERE " + window + " AND attributes['error'] IS NOT NULL AND resource_attributes['k8s.pod.name'] IS NULL",
-			want: p.And(p.Span().Attr("error").Exists(), p.Not(p.Resource().Attr("k8s.pod.name").Exists())),
+			sql: `
+				SELECT DISTINCT trace_id
+				FROM spans
+				WHERE start_time >= now() - INTERVAL '1' HOUR
+					AND start_time < now()
+					AND attributes['error'] IS NOT NULL
+					AND resource_attributes['k8s.pod.name'] IS NULL`,
+			want: p.And(
+				p.Span().Attr("error").Exists(),
+				p.Not(p.Resource().Attr("k8s.pod.name").Exists()),
+			),
 		},
 		{
 			name: "phrase and fulltext",
-			sql:  "SELECT DISTINCT trace_id FROM spans WHERE " + window + " AND phrase(attributes['db.statement'], 'connection refused') AND fulltext(attributes['exception.message'], 'timeout', 'upstream')",
-			want: p.And(p.Span().Attr("db.statement").Phrase("connection", "refused"), p.Span().Attr("exception.message").Fulltext("timeout", "upstream")),
+			sql: `
+				SELECT DISTINCT trace_id
+				FROM spans
+				WHERE start_time >= now() - INTERVAL '1' HOUR
+					AND start_time < now()
+					AND phrase(attributes['db.statement'], 'connection refused')
+					AND fulltext(attributes['exception.message'], 'timeout', 'upstream')`,
+			want: p.And(
+				p.Span().Attr("db.statement").Phrase("connection", "refused"),
+				p.Span().Attr("exception.message").Fulltext("timeout", "upstream"),
+			),
 		},
 		{
 			name: "between",
-			sql:  "SELECT DISTINCT trace_id FROM spans WHERE " + window + " AND duration BETWEEN '1s' AND '2s' AND attributes['retries'] NOT BETWEEN 1 AND 3",
+			sql: `
+				SELECT DISTINCT trace_id
+				FROM spans
+				WHERE start_time >= now() - INTERVAL '1' HOUR
+					AND start_time < now()
+					AND duration BETWEEN '1s' AND '2s'
+					AND attributes['retries'] NOT BETWEEN 1 AND 3`,
 			want: p.And(
-				p.Span().Duration.Gte("1s"), p.Span().Duration.Lte("2s"),
-				p.Not(p.And(p.Span().Attr("retries").Gte("1"), p.Span().Attr("retries").Lte("3"))),
+				p.Span().Duration.Gte("1s"),
+				p.Span().Duration.Lte("2s"),
+				p.Not(
+					p.And(
+						p.Span().Attr("retries").Gte("1"),
+						p.Span().Attr("retries").Lte("3"),
+					),
+				),
 			),
 		},
 		{
 			name: "unqualified attribute, boolean and numbers",
-			sql:  "SELECT DISTINCT trace_id FROM spans WHERE " + window + " AND attr('error') = true AND attr('retries') > 3 AND attr('ratio') <= 0.5",
-			want: p.And(p.Attr("error").Eq("true"), p.Attr("retries").Gt("3"), p.Attr("ratio").Lte("0.5")),
+			sql: `
+				SELECT DISTINCT trace_id
+				FROM spans
+				WHERE start_time >= now() - INTERVAL '1' HOUR
+					AND start_time < now()
+					AND attr('error') = true
+					AND attr('retries') > 3
+					AND attr('ratio') <= 0.5`,
+			want: p.And(
+				p.Attr("error").Eq("true"),
+				p.Attr("retries").Gt("3"),
+				p.Attr("ratio").Lte("0.5"),
+			),
 		},
 		{
 			name: "two columns compared",
-			sql:  "SELECT DISTINCT trace_id FROM spans WHERE " + window + " AND start_time < end_time AND attributes['after'] > attributes['before']",
-			want: p.And(p.Span().StartTime.Lt(p.Span().EndTime), p.Span().Attr("after").Gt(p.Span().Attr("before"))),
+			sql: `
+				SELECT DISTINCT trace_id
+				FROM spans
+				WHERE start_time >= now() - INTERVAL '1' HOUR
+					AND start_time < now()
+					AND start_time < end_time
+					AND attributes['after'] > attributes['before']`,
+			want: p.And(
+				p.Span().StartTime.Lt(p.Span().EndTime),
+				p.Span().Attr("after").Gt(p.Span().Attr("before")),
+			),
 		},
 		{
 			name: "a second start_time predicate stays in the filter",
-			sql:  "SELECT DISTINCT trace_id FROM spans WHERE " + window + " AND (start_time < '2026-10-23T11:30:00Z' OR duration > '1s')",
-			want: p.Or(p.Span().StartTime.Lt("2026-10-23T11:30:00Z"), p.Span().Duration.Gt("1s")),
+			sql: `
+				SELECT DISTINCT trace_id
+				FROM spans
+				WHERE start_time >= now() - INTERVAL '1' HOUR
+					AND start_time < now()
+					AND (start_time < '2026-10-23T11:30:00Z' OR duration > '1s')`,
+			want: p.Or(
+				p.Span().StartTime.Lt("2026-10-23T11:30:00Z"),
+				p.Span().Duration.Gt("1s"),
+			),
 		},
 		{
 			name: "scope columns",
-			sql:  "SELECT DISTINCT trace_id FROM spans WHERE " + window + " AND scope_name = 'io.opentelemetry.http' AND scope_version LIKE '%1.%' AND scope_attributes['x'] = 'y'",
-			want: p.And(p.Scope().Name.Eq("io.opentelemetry.http"), p.Scope().Version.Matches(`1\.`), p.Scope().Attr("x").Eq("y")),
+			sql: `
+				SELECT DISTINCT trace_id
+				FROM spans
+				WHERE start_time >= now() - INTERVAL '1' HOUR
+					AND start_time < now()
+					AND scope_name = 'io.opentelemetry.http'
+					AND scope_version LIKE '%1.%'
+					AND scope_attributes['x'] = 'y'`,
+			want: p.And(
+				p.Scope().Name.Eq("io.opentelemetry.http"),
+				p.Scope().Version.Matches(`1\.`),
+				p.Scope().Attr("x").Eq("y"),
+			),
 		},
 		{
 			name: "exists over events",
-			sql: "SELECT DISTINCT trace_id FROM spans s WHERE " + window + " AND s.service = 'checkout' AND EXISTS (" +
-				"SELECT 1 FROM events e WHERE e.span_id = s.span_id AND e.trace_id = s.trace_id AND e.name = 'exception' AND e.attributes['exception.type'] = 'TimeoutError')",
+			sql: `
+				SELECT DISTINCT trace_id
+				FROM spans s
+				WHERE start_time >= now() - INTERVAL '1' HOUR
+					AND start_time < now()
+					AND s.service = 'checkout'
+					AND EXISTS (
+						SELECT 1
+						FROM events e
+						WHERE e.span_id = s.span_id
+							AND e.trace_id = s.trace_id
+							AND e.name = 'exception'
+							AND e.attributes['exception.type'] = 'TimeoutError'
+					)`,
 			want: p.And(
 				p.Resource().Service.Eq("checkout"),
-				p.Some(p.Event(), p.And(p.Event().Name.Eq("exception"), p.Event().Attr("exception.type").Eq("TimeoutError"))),
+				p.Some(
+					p.Event(),
+					p.And(
+						p.Event().Name.Eq("exception"),
+						p.Event().Attr("exception.type").Eq("TimeoutError"),
+					),
+				),
 			),
 		},
 		{
 			name: "exists over links, correlation last and reversed",
-			sql: "SELECT DISTINCT trace_id FROM spans s WHERE " + window + " AND EXISTS (" +
-				"SELECT 1 FROM links l WHERE l.linked_trace_id = 'abc' AND l.attributes['time_since'] IS NULL AND s.span_id = l.span_id)",
-			want: p.Some(p.Link(), p.And(p.Link().TraceID.Eq("abc"), p.Not(p.Link().Attr("time_since").Exists()))),
+			sql: `
+				SELECT DISTINCT trace_id
+				FROM spans s
+				WHERE start_time >= now() - INTERVAL '1' HOUR
+					AND start_time < now()
+					AND EXISTS (
+						SELECT 1
+						FROM links l
+						WHERE l.linked_trace_id = 'abc'
+							AND l.attributes['time_since'] IS NULL
+							AND s.span_id = l.span_id
+					)`,
+			want: p.Some(
+				p.Link(),
+				p.And(
+					p.Link().TraceID.Eq("abc"),
+					p.Not(p.Link().Attr("time_since").Exists()),
+				),
+			),
 		},
 		{
 			name: "not exists",
-			sql:  "SELECT DISTINCT trace_id FROM spans s WHERE " + window + " AND NOT EXISTS (SELECT 1 FROM events e WHERE e.span_id = s.span_id AND e.name = 'retry')",
-			want: p.Not(p.Some(p.Event(), p.Event().Name.Eq("retry"))),
+			sql: `
+				SELECT DISTINCT trace_id
+				FROM spans s
+				WHERE start_time >= now() - INTERVAL '1' HOUR
+					AND start_time < now()
+					AND NOT EXISTS (
+						SELECT 1
+						FROM events e
+						WHERE e.span_id = s.span_id
+							AND e.name = 'retry'
+					)`,
+			want: p.Not(
+				p.Some(
+					p.Event(),
+					p.Event().Name.Eq("retry"),
+				),
+			),
 		},
 		{
 			name: "nested boolean structure",
-			sql:  "SELECT DISTINCT trace_id FROM spans WHERE " + window + " AND NOT (kind = 'server' OR (status = 'error' AND duration > '1s')) AND ((name = 'a' AND name = 'b') OR name = 'c')",
+			sql: `
+				SELECT DISTINCT trace_id
+				FROM spans
+				WHERE start_time >= now() - INTERVAL '1' HOUR
+					AND start_time < now()
+					AND NOT (kind = 'server' OR (status = 'error' AND duration > '1s'))
+					AND ( (name = 'a' AND name = 'b') OR name = 'c')`,
 			want: p.And(
-				p.Not(p.Or(p.Span().Kind.Eq("server"), p.And(p.Span().Status.Eq("error"), p.Span().Duration.Gt("1s")))),
-				p.Or(p.And(p.Span().Name.Eq("a"), p.Span().Name.Eq("b")), p.Span().Name.Eq("c")),
+				p.Not(
+					p.Or(
+						p.Span().Kind.Eq("server"),
+						p.And(
+							p.Span().Status.Eq("error"),
+							p.Span().Duration.Gt("1s"),
+						),
+					),
+				),
+				p.Or(
+					p.And(
+						p.Span().Name.Eq("a"),
+						p.Span().Name.Eq("b"),
+					),
+					p.Span().Name.Eq("c"),
+				),
 			),
 		},
 		{
 			name: "start_time predicates that are not bounds stay in the filter",
-			sql:  "SELECT DISTINCT trace_id FROM spans WHERE " + window + " AND start_time <> '2026-10-23T11:30:00Z' AND attributes['deadline'] > now() + INTERVAL '30' SECOND",
-			want: p.And(p.Span().StartTime.Ne("2026-10-23T11:30:00Z"), p.Span().Attr("deadline").Gt("2026-10-23T12:00:30Z")),
+			sql: `
+				SELECT DISTINCT trace_id
+				FROM spans
+				WHERE start_time >= now() - INTERVAL '1' HOUR
+					AND start_time < now()
+					AND start_time <> '2026-10-23T11:30:00Z'
+					AND attributes['deadline'] > now() + INTERVAL '30' SECOND`,
+			want: p.And(
+				p.Span().StartTime.Ne("2026-10-23T11:30:00Z"),
+				p.Span().Attr("deadline").Gt("2026-10-23T12:00:30Z"),
+			),
 		},
 		{
 			name: "quoted quote in a literal",
-			sql:  "SELECT DISTINCT trace_id FROM spans WHERE " + window + " AND name = 'o''brien' AND status_message = 'a\\'b'",
-			want: p.And(p.Span().Name.Eq("o'brien"), p.Span().StatusMessage.Eq("a'b")),
+			sql: `
+				SELECT DISTINCT trace_id
+				FROM spans
+				WHERE start_time >= now() - INTERVAL '1' HOUR
+					AND start_time < now()
+					AND name = 'o''brien'
+					AND status_message = 'a\'b'`,
+			want: p.And(
+				p.Span().Name.Eq("o'brien"),
+				p.Span().StatusMessage.Eq("a'b"),
+			),
 		},
 	}
 	for _, tt := range tests {
@@ -239,12 +486,25 @@ func TestCompileShapes(t *testing.T) {
 	}{
 		{
 			name: "distinct trace_id is FindTraceIDs",
-			sql:  "SELECT DISTINCT trace_id FROM spans WHERE " + window + " AND service = 'checkout' LIMIT 20",
+			sql: `
+				SELECT DISTINCT trace_id
+				FROM spans
+				WHERE start_time >= now() - INTERVAL '1' HOUR
+					AND start_time < now()
+					AND service = 'checkout'
+				LIMIT 20`,
 			want: Query{Kind: KindFindTraceIDs, Filter: spanFilter, Limit: 20},
 		},
 		{
 			name: "star is FindSpans",
-			sql:  "SELECT * FROM spans WHERE " + window + " AND service = 'checkout' ORDER BY duration DESC, start_time LIMIT 100",
+			sql: `
+				SELECT *
+				FROM spans
+				WHERE start_time >= now() - INTERVAL '1' HOUR
+					AND start_time < now()
+					AND service = 'checkout'
+				ORDER BY duration DESC, start_time
+				LIMIT 100`,
 			want: Query{Kind: KindFindSpans, Filter: spanFilter, Limit: 100, OrderBy: []tracestore.SpanSortOrder{
 				{Expression: &ast.FieldRef{Name: ast.SpanFieldDuration, Level: ast.LevelSpan}, Direction: tracestore.SortDescending},
 				{Expression: &ast.FieldRef{Name: ast.SpanFieldStartTime, Level: ast.LevelSpan}, Direction: tracestore.SortAscending},
@@ -252,7 +512,12 @@ func TestCompileShapes(t *testing.T) {
 		},
 		{
 			name: "column list is FindSpans with a projection",
-			sql:  "SELECT s.span_id, duration, attributes['http.route'] FROM spans s WHERE " + window + " ORDER BY s.trace_id, s.span_id",
+			sql: `
+				SELECT s.span_id, duration, attributes['http.route']
+				FROM spans s
+				WHERE start_time >= now() - INTERVAL '1' HOUR
+					AND start_time < now()
+				ORDER BY s.trace_id, s.span_id`,
 			want: Query{Kind: KindFindSpans, Projection: []ast.Expression{
 				&ast.FieldRef{Name: ast.SpanFieldSpanID, Level: ast.LevelSpan},
 				&ast.FieldRef{Name: ast.SpanFieldDuration, Level: ast.LevelSpan},
@@ -264,12 +529,30 @@ func TestCompileShapes(t *testing.T) {
 		},
 		{
 			name: "traces star is FindTraces",
-			sql:  "SELECT * FROM traces WHERE trace_id IN (SELECT trace_id FROM spans s WHERE " + window + " AND s.service = 'checkout') LIMIT 5",
+			sql: `
+				SELECT *
+				FROM traces
+				WHERE trace_id IN (
+					SELECT trace_id
+					FROM spans s
+					WHERE start_time >= now() - INTERVAL '1' HOUR
+						AND start_time < now()
+						AND s.service = 'checkout'
+				)
+				LIMIT 5`,
 			want: Query{Kind: KindFindTraces, Filter: spanFilter, Limit: 5},
 		},
 		{
 			name: "traces columns is FindTraceSummaries",
-			sql:  "SELECT t.trace_id, root_service, span_count, error_count FROM traces t WHERE t.trace_id IN (SELECT DISTINCT trace_id FROM spans WHERE " + window + ")",
+			sql: `
+				SELECT t.trace_id, root_service, span_count, error_count
+				FROM traces t
+				WHERE t.trace_id IN (
+					SELECT DISTINCT trace_id
+					FROM spans
+					WHERE start_time >= now() - INTERVAL '1' HOUR
+						AND start_time < now()
+				)`,
 			want: Query{Kind: KindFindTraceSummaries},
 		},
 	}
@@ -294,149 +577,1582 @@ func TestCompileNormalized(t *testing.T) {
 // construct and says what the dialect admits instead. The message is asserted because it is
 // what an agent reads to repair the statement.
 func TestRefusals(t *testing.T) {
-	const spans = "SELECT DISTINCT trace_id FROM spans s WHERE " + window
 	tests := []struct {
 		name string
 		sql  string
-		at   string // the text the refusal points at; "" when the parser places the error at the end
+		at   string // the text the refusal points at, or "" when the error is at the end of the statement
 		want string
 	}{
-		{"syntax error", "SELECT DISTINCT trace_id FROM spans WHERE start_time >= 'a' AND", "", "The statement did not parse as SQL"},
-		{"tilde is not an operator", spans + " AND name ~ 'x'", "~", "did not parse"},
-		{"timestamp keyword", spans + " AND start_time >= TIMESTAMP '2026-01-01T00:00:00Z'", "TIMESTAMP", "did not parse"},
-		{"two statements", "SELECT 1; SELECT 2", "SELECT 1", "the request holds 2 statements"},
-		{"not a select", "INSERT INTO spans VALUES (1)", "INSERT", "only a SELECT statement is accepted"},
-		{"with", "WITH x AS (SELECT 1) " + spans, "WITH", "WITH is not supported"},
-		{"union", spans + " UNION ALL " + spans, "SELECT", "UNION, EXCEPT and INTERSECT are not supported"},
-		{"group by", "SELECT service FROM spans WHERE " + window + " GROUP BY service", "GROUP BY", "GROUP BY is not supported yet"},
-		{"having", "SELECT service FROM spans WHERE " + window + " GROUP BY service HAVING count() > 1", "GROUP BY", "GROUP BY is not supported yet"},
-		{"aggregate in select", "SELECT count(*) FROM spans WHERE " + window, "count", "count() is an aggregate"},
-		{"aggregate in where", spans + " AND count() > 1", "count", "count() is an aggregate"},
-		{"offset", spans + " LIMIT 10 OFFSET 5", "5", "OFFSET is not supported"},
-		{"limit zero", spans + " LIMIT 0", "0", `"0" is not a page size`},
-		{"limit not a number", spans + " LIMIT 'ten'", "'ten'", "LIMIT takes a whole number"},
-		{"settings", spans + " SETTINGS max_threads = 1", "SETTINGS", "SETTINGS is not supported"},
-		{"format", spans + " FORMAT JSON", "FORMAT", "FORMAT is not supported"},
-		{"no from", "SELECT 1 WHERE " + window, "SELECT", "FROM is required"},
-		{"join", "SELECT DISTINCT a.trace_id FROM spans a JOIN spans b ON a.trace_id = b.trace_id WHERE a." + window, "spans a JOIN", "JOIN is not supported"},
-		{"derived table", "SELECT DISTINCT trace_id FROM (SELECT * FROM spans) WHERE " + window, "SELECT * FROM spans)", "FROM takes a relation name"},
-		{"unknown relation", "SELECT DISTINCT trace_id FROM logs WHERE " + window, "logs", `unknown relation "logs"`},
-		{"events in from", "SELECT DISTINCT trace_id FROM events WHERE " + window, "FROM events", "events is read through EXISTS"},
-		{"database qualifier", "SELECT DISTINCT trace_id FROM jaeger.spans WHERE " + window, "jaeger.spans", "a relation has no database qualifier"},
-		{"distinct other column", "SELECT DISTINCT name FROM spans WHERE " + window, "SELECT", "DISTINCT is accepted only as SELECT DISTINCT trace_id"},
-		{"expression in select", "SELECT duration * 2 FROM spans WHERE " + window, "duration * 2", "SELECT lists columns, or *"},
-		{"alias in select", "SELECT duration AS d FROM spans WHERE " + window, "d FROM", "a column alias in SELECT has no effect"},
-		{"no where", "SELECT DISTINCT trace_id FROM spans", "SELECT", "WHERE is required"},
-		{"no window", "SELECT DISTINCT trace_id FROM spans WHERE service = 'a'", "WHERE", "WHERE needs both bounds on start_time"},
-		{"no upper bound", "SELECT DISTINCT trace_id FROM spans WHERE start_time >= now() - INTERVAL '1' HOUR", "WHERE", "WHERE needs an upper bound on start_time"},
-		{"no lower bound", "SELECT DISTINCT trace_id FROM spans WHERE start_time < now()", "WHERE", "WHERE needs a lower bound on start_time"},
-		{"empty window", "SELECT DISTINCT trace_id FROM spans WHERE start_time >= now() AND start_time < now() - INTERVAL '1' HOUR", "WHERE", "the start_time window is empty"},
-		{"bound twice", spans + " AND s.start_time >= now() - INTERVAL '2' HOUR", "s.start_time >= now() - INTERVAL '2'", "start_time is bounded twice on the same side"},
-		{"bound not an instant", "SELECT DISTINCT trace_id FROM spans WHERE start_time >= 'yesterday' AND start_time < now()", "'yesterday'", `"yesterday" is not an RFC 3339 instant`},
-		{"bound is a number", "SELECT DISTINCT trace_id FROM spans WHERE start_time >= 1700000000 AND start_time < now()", "1700000000", "a start_time bound is an instant"},
-		{"now with arguments", "SELECT DISTINCT trace_id FROM spans WHERE start_time >= now('UTC') AND start_time < now()", "now('UTC')", "now() takes no arguments"},
-		{"now minus a number", "SELECT DISTINCT trace_id FROM spans WHERE start_time >= now() - 3600 AND start_time < now()", "3600", "only an INTERVAL may be added to or subtracted from now()"},
-		{"interval month", "SELECT DISTINCT trace_id FROM spans WHERE start_time >= now() - INTERVAL '1' MONTH AND start_time < now()", "MONTH", `"MONTH" is not an interval unit the dialect knows`},
-		{"interval fraction", "SELECT DISTINCT trace_id FROM spans WHERE start_time >= now() - INTERVAL '1.5' HOUR AND start_time < now()", "INTERVAL '1.5'", `"1.5" is not a whole number`},
-		{"unknown column", spans + " AND s.operation = 'x'", "s.operation", `spans has no column "operation"`},
-		{"unknown alias", spans + " AND t.name = 'x'", "t.name", `unknown alias "t"`},
-		{"map without subscript", spans + " AND attributes = 'x'", "attributes =", `"attributes" is a map and is read by subscript`},
-		{"subscript on a field", spans + " AND name['x'] = 'y'", "name['x']", `"name" is not a map column and takes no subscript`},
-		{"subscript not a string", spans + " AND attributes[1] = 'y'", "[1]", "the subscript of a map column is a quoted attribute key"},
-		{"attr with two arguments", spans + " AND attr('a', 'b') = 'y'", "attr('a'", "attr() takes one argument"},
-		{"is null on a field", spans + " AND name IS NULL", "name IS NULL", "IS NULL applies to an attribute"},
-		{"duration without unit", spans + " AND duration > 2000", "WHERE", "the filter is not valid"},
-		{"ordered operator on kind", spans + " AND kind > 'server'", "WHERE", "the filter is not valid"},
-		{"two constants", spans + " AND 1 = 1", "1 = 1", "a comparison names a column on at least one side"},
-		{"in with a subquery", spans + " AND trace_id IN (SELECT trace_id FROM spans)", "SELECT trace_id FROM spans)", "a subquery in IN is accepted only as"},
-		{"in without a list", spans + " AND name IN 'a'", "'a'", "IN takes a parenthesized list of literals"},
-		{"like anchored at one end", spans + " AND name LIKE 'GET%'", "'GET%'", `LIKE "GET%" is anchored at one end`},
-		{"like anchored at the other end", spans + " AND name LIKE '%GET'", "'%GET'", `LIKE "%GET" is anchored at one end`},
-		{"ilike", spans + " AND name ILIKE '%get%'", "name ILIKE", "ILIKE is not supported"},
-		{"exists selects star", spans + " AND EXISTS (SELECT * FROM events e WHERE e.span_id = s.span_id AND e.name = 'x')", "FROM events", "did not parse"},
-		{"like without a string", spans + " AND name LIKE duration", "duration", "the pattern of LIKE is a quoted string"},
-		{"unsupported function", spans + " AND lower(name) = 'x'", "lower(", "the function lower() is not supported"},
-		{"arithmetic", spans + " AND duration * 2 > '1s'", "duration * 2", "the operator * is not supported"},
-		{"unary minus", spans + " AND -duration > '1s'", "-duration", "the operator - is not supported"},
-		{"exists without correlation", spans + " AND EXISTS (SELECT 1 FROM events e WHERE e.name = 'x')", "WHERE e.name", "an EXISTS subquery is tied to its span by e.span_id = s.span_id"},
-		{"exists without a predicate", spans + " AND EXISTS (SELECT 1 FROM events e WHERE e.span_id = s.span_id)", "WHERE e.span_id", "an EXISTS subquery needs a predicate on events beside the correlation"},
-		{"exists without where", spans + " AND EXISTS (SELECT 1 FROM events e)", "SELECT 1 FROM events e)", "an EXISTS subquery needs WHERE e.span_id = s.span_id"},
-		{"exists over spans", spans + " AND EXISTS (SELECT 1 FROM spans x WHERE x.span_id = s.span_id)", "FROM spans x", "EXISTS reads events or links"},
-		{"exists reads the outer alias", spans + " AND EXISTS (SELECT 1 FROM events e WHERE e.span_id = s.span_id AND s.name = 'x')", "s.name = 'x'", "a predicate inside EXISTS reads the events columns only"},
-		{"exists with a limit", spans + " AND EXISTS (SELECT 1 FROM events e WHERE e.span_id = s.span_id AND e.name = 'x' LIMIT 1)", "SELECT 1 FROM events e WHERE", "an EXISTS subquery takes no ORDER BY or LIMIT"},
-		{"correlation on different columns", spans + " AND EXISTS (SELECT 1 FROM events e WHERE e.span_id = s.trace_id AND e.name = 'x')", "e.span_id = s.trace_id", "a correlation ties the same column"},
-		{"correlation column as a predicate", spans + " AND EXISTS (SELECT 1 FROM events e WHERE e.span_id = s.span_id AND e.trace_id = 'abc')", "e.trace_id = 'abc'", `"trace_id" is a correlation column, not a predicate`},
-		{"nested exists", spans + " AND EXISTS (SELECT 1 FROM events e WHERE e.span_id = s.span_id AND EXISTS (SELECT 1 FROM links l WHERE l.span_id = e.span_id AND l.trace_state = 'x'))", "SELECT 1 FROM links", "EXISTS appears in the WHERE of a spans query"},
-		{"order by on trace ids", spans + " ORDER BY duration", "ORDER BY", "ORDER BY applies to a span search"},
-		{"order by unsortable", "SELECT * FROM spans WHERE " + window + " ORDER BY name", "name", "ORDER BY takes a sortable column"},
-		{"order by attribute", "SELECT * FROM spans WHERE " + window + " ORDER BY attributes['x']", "attributes['x']", "ORDER BY takes a sortable column"},
-		{"traces without where", "SELECT * FROM traces", "SELECT", "a traces query is SELECT * FROM traces WHERE trace_id IN"},
-		{"traces with a predicate", "SELECT * FROM traces WHERE duration > '5s'", "WHERE", "the WHERE of a traces query is trace_id IN"},
-		{"traces in without subquery", "SELECT * FROM traces WHERE trace_id IN ('a', 'b')", "('a'", "trace_id IN takes the subquery"},
-		{"traces subquery over events", "SELECT * FROM traces WHERE trace_id IN (SELECT trace_id FROM events WHERE " + window + ")", "FROM events", "the subquery of a traces query reads spans"},
-		{"traces subquery selects a span column", "SELECT * FROM traces WHERE trace_id IN (SELECT span_id FROM spans WHERE " + window + ")", "SELECT span_id", "the subquery of a traces query selects trace_id"},
-		{"traces subquery with limit", "SELECT * FROM traces WHERE trace_id IN (SELECT trace_id FROM spans WHERE " + window + " LIMIT 5)", "SELECT trace_id", "ORDER BY and LIMIT go on the outer traces query"},
-		{"traces order by", "SELECT * FROM traces WHERE trace_id IN (SELECT trace_id FROM spans WHERE " + window + ") ORDER BY duration", "ORDER BY", "a trace search has no ORDER BY"},
-		{"traces unknown column", "SELECT trace_id, name FROM traces WHERE trace_id IN (SELECT trace_id FROM spans WHERE " + window + ")", "name", `traces has no column "name"`},
-		{"parenthesized query", "(" + spans + ")", "(", "a parenthesized query is not supported"},
-		{"having without group by", spans + " HAVING count() > 1", "HAVING", "HAVING is not supported yet"},
-		{"window clause", "SELECT * FROM spans WHERE " + window + " WINDOW w AS (PARTITION BY service)", "WINDOW", "window functions are not supported"},
-		{"prewhere", "SELECT * FROM spans PREWHERE service = 'a' WHERE " + window, "PREWHERE", "PREWHERE is not supported"},
-		{"limit by", spans + " LIMIT 1 BY service", "LIMIT 1 BY", "LIMIT BY is not supported"},
-		{"top", "SELECT TOP 5 * FROM spans WHERE " + window, "TOP", "TOP is not supported"},
-		{"distinct on", "SELECT DISTINCT ON (trace_id) * FROM spans WHERE " + window, "ON", "DISTINCT ON is not supported"},
-		{"table function", "SELECT * FROM numbers(10) WHERE " + window, "numbers", "FROM takes a relation name"},
-		{"unknown projected column", "SELECT nonexistent FROM spans WHERE " + window, "nonexistent", `spans has no column "nonexistent"`},
-		{"between window with a bad lower bound", "SELECT DISTINCT trace_id FROM spans WHERE start_time BETWEEN 'x' AND now()", "'x'", `"x" is not an RFC 3339 instant`},
-		{"between window with a bad upper bound", "SELECT DISTINCT trace_id FROM spans WHERE start_time BETWEEN now() AND 'y'", "'y'", `"y" is not an RFC 3339 instant`},
-		{"between window beside a bound", spans + " AND start_time BETWEEN now() - INTERVAL '2' HOUR AND now()", "start_time BETWEEN", "start_time is bounded twice"},
-		{"bound is another function", "SELECT DISTINCT trace_id FROM spans WHERE start_time >= today() AND start_time < now()", "today()", "a start_time bound is an instant"},
-		{"bound is now times two", "SELECT DISTINCT trace_id FROM spans WHERE start_time >= now() * 2 AND start_time < now()", "now() * 2", "a start_time bound is an instant"},
-		{"bound subtracts from another function", "SELECT DISTINCT trace_id FROM spans WHERE start_time >= today() - INTERVAL '1' HOUR AND start_time < now()", "today()", "a start_time bound is an instant"},
-		{"with fill", "SELECT * FROM spans WHERE " + window + " ORDER BY duration WITH FILL", "duration WITH", "WITH FILL is not supported"},
-		{"order by unknown alias", "SELECT * FROM spans WHERE " + window + " ORDER BY t.duration", "t.duration", `unknown alias "t"`},
-		{"order by twice", "SELECT * FROM spans WHERE " + window + " ORDER BY duration, duration DESC", "ORDER BY", "the order is not valid"},
-		{"traces subquery with group by", "SELECT * FROM traces WHERE trace_id IN (SELECT trace_id FROM spans WHERE " + window + " GROUP BY service)", "GROUP BY", "GROUP BY is not supported yet"},
-		{"traces subquery over an unknown relation", "SELECT * FROM traces WHERE trace_id IN (SELECT trace_id FROM logs WHERE " + window + ")", "logs", `unknown relation "logs"`},
-		{"traces subquery without where", "SELECT * FROM traces WHERE trace_id IN (SELECT trace_id FROM spans)", "SELECT trace_id", "WHERE is required"},
-		{"traces limit zero", "SELECT * FROM traces WHERE trace_id IN (SELECT trace_id FROM spans WHERE " + window + ") LIMIT 0", "0", `"0" is not a page size`},
-		{"three-part column", spans + " AND a.b.c = 1", "a.b.c", "a column is written as alias.column or column"},
-		{"subscript on a function", spans + " AND now()['x'] = 1", "now()['x']", "expected a column name here"},
-		{"attr with a number", spans + " AND attr(1) = 'x'", "1) =", "the argument of attr() is a quoted attribute key"},
-		{"subscript with an unknown alias", spans + " AND t.attributes['x'] = 1", "t.attributes", `unknown alias "t"`},
-		{"subscript on the outer alias inside exists", spans + " AND EXISTS (SELECT 1 FROM events e WHERE e.span_id = s.span_id AND s.attributes['x'] = 1)", "s.attributes", "a predicate inside EXISTS reads the events columns only"},
-		{"subscript with two keys", spans + " AND attributes['a', 'b'] = 1", "attributes['a'", "a map subscript names one attribute key"},
-		{"interval month as a constant", spans + " AND name = INTERVAL '1' MONTH", "MONTH", `"MONTH" is not an interval unit`},
-		{"interval of a function", spans + " AND name = INTERVAL now() HOUR", "INTERVAL now()", "an INTERVAL takes a number"},
-		{"tuple as a constant", spans + " AND name = (1, 2)", "(1, 2)", "expected a literal here"},
-		{"tuple as a predicate", spans + " AND (name = 'a', name = 'b')", "(name", "a parenthesized group holds one expression"},
-		{"negated column as a predicate", spans + " AND -duration", "-duration", "the operator - is not supported"},
-		{"not over an unsupported function", spans + " AND NOT lower(name) = 'x'", "lower(", "the function lower() is not supported"},
-		{"string as a predicate", spans + " AND 'str'", "'str'", "expected a predicate here"},
-		{"between with an unknown alias", spans + " AND t.duration BETWEEN '1s' AND '2s'", "t.duration", `unknown alias "t"`},
-		{"between with a bad lower bound", spans + " AND duration BETWEEN lower(x) AND '2s'", "lower(x)", "expected a literal here"},
-		{"between with a bad upper bound", spans + " AND duration BETWEEN '1s' AND lower(x)", "lower(x)", "expected a literal here"},
-		{"is null with an unknown alias", spans + " AND t.attributes['x'] IS NULL", "t.attributes", `unknown alias "t"`},
-		{"error on the left of or", spans + " AND (lower(name) = 'x' OR name = 'y')", "lower(", "the function lower() is not supported"},
-		{"error on the right of or", spans + " AND (name = 'y' OR lower(name) = 'x')", "lower(", "the function lower() is not supported"},
-		{"regexp without a string", spans + " AND name REGEXP duration", "duration", "the pattern of REGEXP is a quoted string"},
-		{"comparison with a function constant", spans + " AND name = lower(x)", "lower(x)", "expected a literal here"},
-		{"concatenation as a predicate", spans + " AND name || 'x'", "name ||", "the operator || is not supported"},
-		{"in with a function", spans + " AND name IN (lower(x))", "lower(x)", "expected a literal here"},
-		{"exists with two arguments", spans + " AND EXISTS(1, 2)", "EXISTS", "EXISTS takes one subquery"},
-		{"exists with a number", spans + " AND EXISTS(1)", "1)", "EXISTS takes a subquery"},
-		{"match with one argument", spans + " AND match(name)", "match(", "match() takes a column and a quoted pattern"},
-		{"match with an unknown alias", spans + " AND match(t.name, 'x')", "t.name", `unknown alias "t"`},
-		{"phrase with a number", spans + " AND phrase(attributes['x'], 1)", "1)", "the pattern of phrase() is a quoted string"},
-		{"match with two patterns", spans + " AND match(name, 'a', 'b')", "match(", "match() takes a column and one pattern"},
-		{"function as a predicate", spans + " AND lower(name)", "lower(", "the function lower() is not supported"},
-		{"exists with group by", spans + " AND EXISTS (SELECT 1 FROM events e WHERE e.span_id = s.span_id AND e.name = 'x' GROUP BY e.name)", "GROUP BY", "GROUP BY is not supported yet"},
-		{"exists over an unknown relation", spans + " AND EXISTS (SELECT 1 FROM logs l WHERE l.span_id = s.span_id)", "logs", `unknown relation "logs"`},
-		{"correlation with an unknown inner column", spans + " AND EXISTS (SELECT 1 FROM events e WHERE e.foo = s.span_id)", "e.foo", `events has no column "foo"`},
-		{"correlation with an unknown outer column", spans + " AND EXISTS (SELECT 1 FROM links l WHERE l.span_id = s.foo)", "l.span_id", `"span_id" is a correlation column, not a predicate`},
-		{"links unknown column", spans + " AND EXISTS (SELECT 1 FROM links l WHERE l.span_id = s.span_id AND l.foo = 1)", "l.foo", `links has no column "foo"`},
-		{"event column compared with the outer span", spans + " AND EXISTS (SELECT 1 FROM events e WHERE e.span_id = s.span_id AND e.name = s.name)", "s.name", "a predicate inside EXISTS reads the events columns only"},
-		{"traces aggregate", "SELECT count(*) FROM traces WHERE trace_id IN (SELECT trace_id FROM spans WHERE " + window + ")", "count", "count() is an aggregate"},
+		{
+			name: "syntax error",
+			sql: `
+				SELECT DISTINCT trace_id
+				FROM spans
+				WHERE start_time >= 'a'
+					AND`,
+			at:   "",
+			want: "The statement did not parse as SQL",
+		},
+		{
+			name: "tilde is not an operator",
+			sql: `
+				SELECT DISTINCT trace_id
+				FROM spans s
+				WHERE start_time >= now() - INTERVAL '1' HOUR
+					AND start_time < now()
+					AND name ~ 'x'`,
+			at:   "~",
+			want: "did not parse",
+		},
+		{
+			name: "timestamp keyword",
+			sql: `
+				SELECT DISTINCT trace_id
+				FROM spans s
+				WHERE start_time >= now() - INTERVAL '1' HOUR
+					AND start_time < now()
+					AND start_time >= TIMESTAMP '2026-01-01T00:00:00Z'`,
+			at:   "TIMESTAMP",
+			want: "did not parse",
+		},
+		{
+			name: "two statements",
+			sql: `
+				SELECT 1; SELECT 2`,
+			at:   "SELECT 2",
+			want: "the request holds 2 statements",
+		},
+		{
+			name: "not a select",
+			sql: `
+				INSERT INTO spans VALUES(1)`,
+			at:   "INSERT",
+			want: "only a SELECT statement is accepted",
+		},
+		{
+			name: "with",
+			sql: `
+				WITH x AS (
+					SELECT 1
+				) SELECT DISTINCT trace_id
+				FROM spans s
+				WHERE start_time >= now() - INTERVAL '1' HOUR
+					AND start_time < now()`,
+			at:   "WITH",
+			want: "WITH is not supported",
+		},
+		{
+			name: "union",
+			sql: `
+				SELECT DISTINCT trace_id
+				FROM spans s
+				WHERE start_time >= now() - INTERVAL '1' HOUR
+					AND start_time < now()
+				UNION ALL SELECT DISTINCT trace_id
+				FROM spans s
+				WHERE start_time >= now() - INTERVAL '1' HOUR
+					AND start_time < now()`,
+			at:   "SELECT",
+			want: "UNION, EXCEPT and INTERSECT are not supported",
+		},
+		{
+			name: "group by",
+			sql: `
+				SELECT service
+				FROM spans
+				WHERE start_time >= now() - INTERVAL '1' HOUR
+					AND start_time < now()
+				GROUP BY service`,
+			at:   "GROUP BY",
+			want: "GROUP BY is not supported yet",
+		},
+		{
+			name: "having",
+			sql: `
+				SELECT service
+				FROM spans
+				WHERE start_time >= now() - INTERVAL '1' HOUR
+					AND start_time < now()
+				GROUP BY service
+				HAVING count() > 1`,
+			at:   "GROUP BY",
+			want: "GROUP BY is not supported yet",
+		},
+		{
+			name: "aggregate in select",
+			sql: `
+				SELECT count(*)
+				FROM spans
+				WHERE start_time >= now() - INTERVAL '1' HOUR
+					AND start_time < now()`,
+			at:   "count",
+			want: "count() is an aggregate",
+		},
+		{
+			name: "aggregate in where",
+			sql: `
+				SELECT DISTINCT trace_id
+				FROM spans s
+				WHERE start_time >= now() - INTERVAL '1' HOUR
+					AND start_time < now()
+					AND count() > 1`,
+			at:   "count",
+			want: "count() is an aggregate",
+		},
+		{
+			name: "offset",
+			sql: `
+				SELECT DISTINCT trace_id
+				FROM spans s
+				WHERE start_time >= now() - INTERVAL '1' HOUR
+					AND start_time < now()
+				LIMIT 10 OFFSET 5`,
+			at:   "5",
+			want: "OFFSET is not supported",
+		},
+		{
+			name: "limit zero",
+			sql: `
+				SELECT DISTINCT trace_id
+				FROM spans s
+				WHERE start_time >= now() - INTERVAL '1' HOUR
+					AND start_time < now()
+				LIMIT 0`,
+			at:   "0",
+			want: `"0" is not a page size`,
+		},
+		{
+			name: "limit not a number",
+			sql: `
+				SELECT DISTINCT trace_id
+				FROM spans s
+				WHERE start_time >= now() - INTERVAL '1' HOUR
+					AND start_time < now()
+				LIMIT 'ten'`,
+			at:   "'ten'",
+			want: "LIMIT takes a whole number",
+		},
+		{
+			name: "settings",
+			sql: `
+				SELECT DISTINCT trace_id
+				FROM spans s
+				WHERE start_time >= now() - INTERVAL '1' HOUR
+					AND start_time < now()
+				SETTINGS max_threads = 1`,
+			at:   "SETTINGS",
+			want: "SETTINGS is not supported",
+		},
+		{
+			name: "format",
+			sql: `
+				SELECT DISTINCT trace_id
+				FROM spans s
+				WHERE start_time >= now() - INTERVAL '1' HOUR
+					AND start_time < now()
+				FORMAT JSON`,
+			at:   "FORMAT",
+			want: "FORMAT is not supported",
+		},
+		{
+			name: "no from",
+			sql: `
+				SELECT 1
+				WHERE start_time >= now() - INTERVAL '1' HOUR
+					AND start_time < now()`,
+			at:   "SELECT",
+			want: "FROM is required",
+		},
+		{
+			name: "join",
+			sql: `
+				SELECT DISTINCT a.trace_id
+				FROM spans a JOIN spans b ON a.trace_id = b.trace_id
+				WHERE a.start_time >= now() - INTERVAL '1' HOUR
+					AND start_time < now()`,
+			at:   "spans a JOIN",
+			want: "JOIN is not supported",
+		},
+		{
+			name: "derived table",
+			sql: `
+				SELECT DISTINCT trace_id
+				FROM (
+					SELECT *
+					FROM spans
+				)
+				WHERE start_time >= now() - INTERVAL '1' HOUR
+					AND start_time < now()`,
+			at:   "SELECT *",
+			want: "FROM takes a relation name",
+		},
+		{
+			name: "unknown relation",
+			sql: `
+				SELECT DISTINCT trace_id
+				FROM logs
+				WHERE start_time >= now() - INTERVAL '1' HOUR
+					AND start_time < now()`,
+			at:   "logs",
+			want: `unknown relation "logs"`,
+		},
+		{
+			name: "events in from",
+			sql: `
+				SELECT DISTINCT trace_id
+				FROM events
+				WHERE start_time >= now() - INTERVAL '1' HOUR
+					AND start_time < now()`,
+			at:   "FROM events",
+			want: "events is read through EXISTS",
+		},
+		{
+			name: "database qualifier",
+			sql: `
+				SELECT DISTINCT trace_id
+				FROM jaeger.spans
+				WHERE start_time >= now() - INTERVAL '1' HOUR
+					AND start_time < now()`,
+			at:   "jaeger.spans",
+			want: "a relation has no database qualifier",
+		},
+		{
+			name: "distinct other column",
+			sql: `
+				SELECT DISTINCT name
+				FROM spans
+				WHERE start_time >= now() - INTERVAL '1' HOUR
+					AND start_time < now()`,
+			at:   "SELECT",
+			want: "DISTINCT is accepted only as SELECT DISTINCT trace_id",
+		},
+		{
+			name: "expression in select",
+			sql: `
+				SELECT duration * 2
+				FROM spans
+				WHERE start_time >= now() - INTERVAL '1' HOUR
+					AND start_time < now()`,
+			at:   "duration * 2",
+			want: "SELECT lists columns, or *",
+		},
+		{
+			name: "alias in select",
+			sql: `
+				SELECT duration AS d
+				FROM spans
+				WHERE start_time >= now() - INTERVAL '1' HOUR
+					AND start_time < now()`,
+			at:   "d\n",
+			want: "a column alias in SELECT has no effect",
+		},
+		{
+			name: "no where",
+			sql: `
+				SELECT DISTINCT trace_id
+				FROM spans`,
+			at:   "SELECT",
+			want: "WHERE is required",
+		},
+		{
+			name: "no window",
+			sql: `
+				SELECT DISTINCT trace_id
+				FROM spans
+				WHERE service = 'a'`,
+			at:   "WHERE",
+			want: "WHERE needs both bounds on start_time",
+		},
+		{
+			name: "no upper bound",
+			sql: `
+				SELECT DISTINCT trace_id
+				FROM spans
+				WHERE start_time >= now() - INTERVAL '1' HOUR`,
+			at:   "WHERE",
+			want: "WHERE needs an upper bound on start_time",
+		},
+		{
+			name: "no lower bound",
+			sql: `
+				SELECT DISTINCT trace_id
+				FROM spans
+				WHERE start_time < now()`,
+			at:   "WHERE",
+			want: "WHERE needs a lower bound on start_time",
+		},
+		{
+			name: "empty window",
+			sql: `
+				SELECT DISTINCT trace_id
+				FROM spans
+				WHERE start_time >= now()
+					AND start_time < now() - INTERVAL '1' HOUR`,
+			at:   "WHERE",
+			want: "the start_time window is empty",
+		},
+		{
+			name: "bound twice",
+			sql: `
+				SELECT DISTINCT trace_id
+				FROM spans s
+				WHERE start_time >= now() - INTERVAL '1' HOUR
+					AND start_time < now()
+					AND s.start_time >= now() - INTERVAL '2' HOUR`,
+			at:   "s.start_time >= now() - INTERVAL '2'",
+			want: "start_time is bounded twice on the same side",
+		},
+		{
+			name: "bound not an instant",
+			sql: `
+				SELECT DISTINCT trace_id
+				FROM spans
+				WHERE start_time >= 'yesterday'
+					AND start_time < now()`,
+			at:   "'yesterday'",
+			want: `"yesterday" is not an RFC 3339 instant`,
+		},
+		{
+			name: "bound is a number",
+			sql: `
+				SELECT DISTINCT trace_id
+				FROM spans
+				WHERE start_time >= 1700000000
+					AND start_time < now()`,
+			at:   "1700000000",
+			want: "a start_time bound is an instant",
+		},
+		{
+			name: "now with arguments",
+			sql: `
+				SELECT DISTINCT trace_id
+				FROM spans
+				WHERE start_time >= now('UTC')
+					AND start_time < now()`,
+			at:   "now('UTC')",
+			want: "now() takes no arguments",
+		},
+		{
+			name: "now minus a number",
+			sql: `
+				SELECT DISTINCT trace_id
+				FROM spans
+				WHERE start_time >= now() - 3600
+					AND start_time < now()`,
+			at:   "3600",
+			want: "only an INTERVAL may be added to or subtracted from now()",
+		},
+		{
+			name: "interval month",
+			sql: `
+				SELECT DISTINCT trace_id
+				FROM spans
+				WHERE start_time >= now() - INTERVAL '1' MONTH
+					AND start_time < now()`,
+			at:   "MONTH",
+			want: `"MONTH" is not an interval unit the dialect knows`,
+		},
+		{
+			name: "interval fraction",
+			sql: `
+				SELECT DISTINCT trace_id
+				FROM spans
+				WHERE start_time >= now() - INTERVAL '1.5' HOUR
+					AND start_time < now()`,
+			at:   "INTERVAL '1.5'",
+			want: `"1.5" is not a whole number`,
+		},
+		{
+			name: "unknown column",
+			sql: `
+				SELECT DISTINCT trace_id
+				FROM spans s
+				WHERE start_time >= now() - INTERVAL '1' HOUR
+					AND start_time < now()
+					AND s.operation = 'x'`,
+			at:   "s.operation",
+			want: `spans has no column "operation"`,
+		},
+		{
+			name: "unknown alias",
+			sql: `
+				SELECT DISTINCT trace_id
+				FROM spans s
+				WHERE start_time >= now() - INTERVAL '1' HOUR
+					AND start_time < now()
+					AND t.name = 'x'`,
+			at:   "t.name",
+			want: `unknown alias "t"`,
+		},
+		{
+			name: "map without subscript",
+			sql: `
+				SELECT DISTINCT trace_id
+				FROM spans s
+				WHERE start_time >= now() - INTERVAL '1' HOUR
+					AND start_time < now()
+					AND attributes = 'x'`,
+			at:   "attributes =",
+			want: `"attributes" is a map and is read by subscript`,
+		},
+		{
+			name: "subscript on a field",
+			sql: `
+				SELECT DISTINCT trace_id
+				FROM spans s
+				WHERE start_time >= now() - INTERVAL '1' HOUR
+					AND start_time < now()
+					AND name['x'] = 'y'`,
+			at:   "name['x']",
+			want: `"name" is not a map column and takes no subscript`,
+		},
+		{
+			name: "subscript not a string",
+			sql: `
+				SELECT DISTINCT trace_id
+				FROM spans s
+				WHERE start_time >= now() - INTERVAL '1' HOUR
+					AND start_time < now()
+					AND attributes[1] = 'y'`,
+			at:   "[1]",
+			want: "the subscript of a map column is a quoted attribute key",
+		},
+		{
+			name: "attr with two arguments",
+			sql: `
+				SELECT DISTINCT trace_id
+				FROM spans s
+				WHERE start_time >= now() - INTERVAL '1' HOUR
+					AND start_time < now()
+					AND attr('a', 'b') = 'y'`,
+			at:   "attr('a'",
+			want: "attr() takes one argument",
+		},
+		{
+			name: "is null on a field",
+			sql: `
+				SELECT DISTINCT trace_id
+				FROM spans s
+				WHERE start_time >= now() - INTERVAL '1' HOUR
+					AND start_time < now()
+					AND name IS NULL`,
+			at:   "name IS NULL",
+			want: "IS NULL applies to an attribute",
+		},
+		{
+			name: "duration without unit",
+			sql: `
+				SELECT DISTINCT trace_id
+				FROM spans s
+				WHERE start_time >= now() - INTERVAL '1' HOUR
+					AND start_time < now()
+					AND duration > 2000`,
+			at:   "WHERE",
+			want: "the filter is not valid",
+		},
+		{
+			name: "ordered operator on kind",
+			sql: `
+				SELECT DISTINCT trace_id
+				FROM spans s
+				WHERE start_time >= now() - INTERVAL '1' HOUR
+					AND start_time < now()
+					AND kind > 'server'`,
+			at:   "WHERE",
+			want: "the filter is not valid",
+		},
+		{
+			name: "two constants",
+			sql: `
+				SELECT DISTINCT trace_id
+				FROM spans s
+				WHERE start_time >= now() - INTERVAL '1' HOUR
+					AND start_time < now()
+					AND 1 = 1`,
+			at:   "1 = 1",
+			want: "a comparison names a column on at least one side",
+		},
+		{
+			name: "in with a subquery",
+			sql: `
+				SELECT DISTINCT trace_id
+				FROM spans s
+				WHERE start_time >= now() - INTERVAL '1' HOUR
+					AND start_time < now()
+					AND trace_id IN (
+						SELECT trace_id
+						FROM spans
+					)`,
+			at:   "SELECT trace_id",
+			want: "a subquery in IN is accepted only as",
+		},
+		{
+			name: "in without a list",
+			sql: `
+				SELECT DISTINCT trace_id
+				FROM spans s
+				WHERE start_time >= now() - INTERVAL '1' HOUR
+					AND start_time < now()
+					AND name IN 'a'`,
+			at:   "'a'",
+			want: "IN takes a parenthesized list of literals",
+		},
+		{
+			name: "like anchored at one end",
+			sql: `
+				SELECT DISTINCT trace_id
+				FROM spans s
+				WHERE start_time >= now() - INTERVAL '1' HOUR
+					AND start_time < now()
+					AND name LIKE 'GET%'`,
+			at:   "'GET%'",
+			want: `LIKE "GET%" is anchored at one end`,
+		},
+		{
+			name: "like anchored at the other end",
+			sql: `
+				SELECT DISTINCT trace_id
+				FROM spans s
+				WHERE start_time >= now() - INTERVAL '1' HOUR
+					AND start_time < now()
+					AND name LIKE '%GET'`,
+			at:   "'%GET'",
+			want: `LIKE "%GET" is anchored at one end`,
+		},
+		{
+			name: "ilike",
+			sql: `
+				SELECT DISTINCT trace_id
+				FROM spans s
+				WHERE start_time >= now() - INTERVAL '1' HOUR
+					AND start_time < now()
+					AND name ILIKE '%get%'`,
+			at:   "name ILIKE",
+			want: "ILIKE is not supported",
+		},
+		{
+			name: "exists selects star",
+			sql: `
+				SELECT DISTINCT trace_id
+				FROM spans s
+				WHERE start_time >= now() - INTERVAL '1' HOUR
+					AND start_time < now()
+					AND EXISTS (
+						SELECT *
+						FROM events e
+						WHERE e.span_id = s.span_id
+							AND e.name = 'x'
+					)`,
+			at:   "FROM events",
+			want: "did not parse",
+		},
+		{
+			name: "like without a string",
+			sql: `
+				SELECT DISTINCT trace_id
+				FROM spans s
+				WHERE start_time >= now() - INTERVAL '1' HOUR
+					AND start_time < now()
+					AND name LIKE duration`,
+			at:   "duration",
+			want: "the pattern of LIKE is a quoted string",
+		},
+		{
+			name: "unsupported function",
+			sql: `
+				SELECT DISTINCT trace_id
+				FROM spans s
+				WHERE start_time >= now() - INTERVAL '1' HOUR
+					AND start_time < now()
+					AND lower(name) = 'x'`,
+			at:   "lower(",
+			want: "the function lower() is not supported",
+		},
+		{
+			name: "arithmetic",
+			sql: `
+				SELECT DISTINCT trace_id
+				FROM spans s
+				WHERE start_time >= now() - INTERVAL '1' HOUR
+					AND start_time < now()
+					AND duration * 2 > '1s'`,
+			at:   "duration * 2",
+			want: "the operator * is not supported",
+		},
+		{
+			name: "unary minus",
+			sql: `
+				SELECT DISTINCT trace_id
+				FROM spans s
+				WHERE start_time >= now() - INTERVAL '1' HOUR
+					AND start_time < now()
+					AND -duration > '1s'`,
+			at:   "-duration",
+			want: "the operator - is not supported",
+		},
+		{
+			name: "exists without correlation",
+			sql: `
+				SELECT DISTINCT trace_id
+				FROM spans s
+				WHERE start_time >= now() - INTERVAL '1' HOUR
+					AND start_time < now()
+					AND EXISTS (
+						SELECT 1
+						FROM events e
+						WHERE e.name = 'x'
+					)`,
+			at:   "WHERE e.name",
+			want: "an EXISTS subquery is tied to its span by e.span_id = s.span_id",
+		},
+		{
+			name: "exists without a predicate",
+			sql: `
+				SELECT DISTINCT trace_id
+				FROM spans s
+				WHERE start_time >= now() - INTERVAL '1' HOUR
+					AND start_time < now()
+					AND EXISTS (
+						SELECT 1
+						FROM events e
+						WHERE e.span_id = s.span_id
+					)`,
+			at:   "WHERE e.span_id",
+			want: "an EXISTS subquery needs a predicate on events beside the correlation",
+		},
+		{
+			name: "exists without where",
+			sql: `
+				SELECT DISTINCT trace_id
+				FROM spans s
+				WHERE start_time >= now() - INTERVAL '1' HOUR
+					AND start_time < now()
+					AND EXISTS (
+						SELECT 1
+						FROM events e
+					)`,
+			at:   "SELECT 1",
+			want: "an EXISTS subquery needs WHERE e.span_id = s.span_id",
+		},
+		{
+			name: "exists over spans",
+			sql: `
+				SELECT DISTINCT trace_id
+				FROM spans s
+				WHERE start_time >= now() - INTERVAL '1' HOUR
+					AND start_time < now()
+					AND EXISTS (
+						SELECT 1
+						FROM spans x
+						WHERE x.span_id = s.span_id
+					)`,
+			at:   "FROM spans x",
+			want: "EXISTS reads events or links",
+		},
+		{
+			name: "exists reads the outer alias",
+			sql: `
+				SELECT DISTINCT trace_id
+				FROM spans s
+				WHERE start_time >= now() - INTERVAL '1' HOUR
+					AND start_time < now()
+					AND EXISTS (
+						SELECT 1
+						FROM events e
+						WHERE e.span_id = s.span_id
+							AND s.name = 'x'
+					)`,
+			at:   "s.name = 'x'",
+			want: "a predicate inside EXISTS reads the events columns only",
+		},
+		{
+			name: "exists with a limit",
+			sql: `
+				SELECT DISTINCT trace_id
+				FROM spans s
+				WHERE start_time >= now() - INTERVAL '1' HOUR
+					AND start_time < now()
+					AND EXISTS (
+						SELECT 1
+						FROM events e
+						WHERE e.span_id = s.span_id
+							AND e.name = 'x'
+						LIMIT 1
+					)`,
+			at:   "SELECT 1",
+			want: "an EXISTS subquery takes no ORDER BY or LIMIT",
+		},
+		{
+			name: "correlation on different columns",
+			sql: `
+				SELECT DISTINCT trace_id
+				FROM spans s
+				WHERE start_time >= now() - INTERVAL '1' HOUR
+					AND start_time < now()
+					AND EXISTS (
+						SELECT 1
+						FROM events e
+						WHERE e.span_id = s.trace_id
+							AND e.name = 'x'
+					)`,
+			at:   "e.span_id = s.trace_id",
+			want: "a correlation ties the same column",
+		},
+		{
+			name: "correlation column as a predicate",
+			sql: `
+				SELECT DISTINCT trace_id
+				FROM spans s
+				WHERE start_time >= now() - INTERVAL '1' HOUR
+					AND start_time < now()
+					AND EXISTS (
+						SELECT 1
+						FROM events e
+						WHERE e.span_id = s.span_id
+							AND e.trace_id = 'abc'
+					)`,
+			at:   "e.trace_id = 'abc'",
+			want: `"trace_id" is a correlation column, not a predicate`,
+		},
+		{
+			name: "nested exists",
+			sql: `
+				SELECT DISTINCT trace_id
+				FROM spans s
+				WHERE start_time >= now() - INTERVAL '1' HOUR
+					AND start_time < now()
+					AND EXISTS (
+						SELECT 1
+						FROM events e
+						WHERE e.span_id = s.span_id
+							AND EXISTS (
+								SELECT 1
+								FROM links l
+								WHERE l.span_id = e.span_id
+									AND l.trace_state = 'x'
+							)
+					)`,
+			at:   "FROM links",
+			want: "EXISTS appears in the WHERE of a spans query",
+		},
+		{
+			name: "order by on trace ids",
+			sql: `
+				SELECT DISTINCT trace_id
+				FROM spans s
+				WHERE start_time >= now() - INTERVAL '1' HOUR
+					AND start_time < now()
+				ORDER BY duration`,
+			at:   "ORDER BY",
+			want: "ORDER BY applies to a span search",
+		},
+		{
+			name: "order by unsortable",
+			sql: `
+				SELECT *
+				FROM spans
+				WHERE start_time >= now() - INTERVAL '1' HOUR
+					AND start_time < now()
+				ORDER BY name`,
+			at:   "name",
+			want: "ORDER BY takes a sortable column",
+		},
+		{
+			name: "order by attribute",
+			sql: `
+				SELECT *
+				FROM spans
+				WHERE start_time >= now() - INTERVAL '1' HOUR
+					AND start_time < now()
+				ORDER BY attributes['x']`,
+			at:   "attributes['x']",
+			want: "ORDER BY takes a sortable column",
+		},
+		{
+			name: "traces without where",
+			sql: `
+				SELECT *
+				FROM traces`,
+			at:   "SELECT",
+			want: "a traces query is SELECT * FROM traces WHERE trace_id IN",
+		},
+		{
+			name: "traces with a predicate",
+			sql: `
+				SELECT *
+				FROM traces
+				WHERE duration > '5s'`,
+			at:   "WHERE",
+			want: "the WHERE of a traces query is trace_id IN",
+		},
+		{
+			name: "traces in without subquery",
+			sql: `
+				SELECT *
+				FROM traces
+				WHERE trace_id IN ('a', 'b')`,
+			at:   "('a'",
+			want: "trace_id IN takes the subquery",
+		},
+		{
+			name: "traces subquery over events",
+			sql: `
+				SELECT *
+				FROM traces
+				WHERE trace_id IN (
+					SELECT trace_id
+					FROM events
+					WHERE start_time >= now() - INTERVAL '1' HOUR
+						AND start_time < now()
+				)`,
+			at:   "FROM events",
+			want: "the subquery of a traces query reads spans",
+		},
+		{
+			name: "traces subquery selects a span column",
+			sql: `
+				SELECT *
+				FROM traces
+				WHERE trace_id IN (
+					SELECT span_id
+					FROM spans
+					WHERE start_time >= now() - INTERVAL '1' HOUR
+						AND start_time < now()
+				)`,
+			at:   "SELECT span_id",
+			want: "the subquery of a traces query selects trace_id",
+		},
+		{
+			name: "traces subquery with limit",
+			sql: `
+				SELECT *
+				FROM traces
+				WHERE trace_id IN (
+					SELECT trace_id
+					FROM spans
+					WHERE start_time >= now() - INTERVAL '1' HOUR
+						AND start_time < now()
+					LIMIT 5
+				)`,
+			at:   "SELECT trace_id",
+			want: "ORDER BY and LIMIT go on the outer traces query",
+		},
+		{
+			name: "traces order by",
+			sql: `
+				SELECT *
+				FROM traces
+				WHERE trace_id IN (
+					SELECT trace_id
+					FROM spans
+					WHERE start_time >= now() - INTERVAL '1' HOUR
+						AND start_time < now()
+				)
+				ORDER BY duration`,
+			at:   "ORDER BY",
+			want: "a trace search has no ORDER BY",
+		},
+		{
+			name: "traces unknown column",
+			sql: `
+				SELECT trace_id, name
+				FROM traces
+				WHERE trace_id IN (
+					SELECT trace_id
+					FROM spans
+					WHERE start_time >= now() - INTERVAL '1' HOUR
+						AND start_time < now()
+				)`,
+			at:   "name",
+			want: `traces has no column "name"`,
+		},
+		{
+			name: "parenthesized query",
+			sql: `
+				(
+					SELECT DISTINCT trace_id
+					FROM spans s
+					WHERE start_time >= now() - INTERVAL '1' HOUR
+						AND start_time < now()
+				)`,
+			at:   "(",
+			want: "a parenthesized query is not supported",
+		},
+		{
+			name: "having without group by",
+			sql: `
+				SELECT DISTINCT trace_id
+				FROM spans s
+				WHERE start_time >= now() - INTERVAL '1' HOUR
+					AND start_time < now()
+				HAVING count() > 1`,
+			at:   "HAVING",
+			want: "HAVING is not supported yet",
+		},
+		{
+			name: "window clause",
+			sql: `
+				SELECT *
+				FROM spans
+				WHERE start_time >= now() - INTERVAL '1' HOUR
+					AND start_time < now()
+				WINDOW w AS(PARTITION BY service)`,
+			at:   "WINDOW",
+			want: "window functions are not supported",
+		},
+		{
+			name: "prewhere",
+			sql: `
+				SELECT *
+				FROM spans
+				PREWHERE service = 'a'
+				WHERE start_time >= now() - INTERVAL '1' HOUR
+					AND start_time < now()`,
+			at:   "PREWHERE",
+			want: "PREWHERE is not supported",
+		},
+		{
+			name: "limit by",
+			sql: `
+				SELECT DISTINCT trace_id
+				FROM spans s
+				WHERE start_time >= now() - INTERVAL '1' HOUR
+					AND start_time < now()
+				LIMIT 1 BY service`,
+			at:   "LIMIT 1 BY",
+			want: "LIMIT BY is not supported",
+		},
+		{
+			name: "top",
+			sql: `
+				SELECT TOP 5 *
+				FROM spans
+				WHERE start_time >= now() - INTERVAL '1' HOUR
+					AND start_time < now()`,
+			at:   "TOP",
+			want: "TOP is not supported",
+		},
+		{
+			name: "distinct on",
+			sql: `
+				SELECT DISTINCT ON (trace_id) *
+				FROM spans
+				WHERE start_time >= now() - INTERVAL '1' HOUR
+					AND start_time < now()`,
+			at:   "ON",
+			want: "DISTINCT ON is not supported",
+		},
+		{
+			name: "table function",
+			sql: `
+				SELECT *
+				FROM numbers(10)
+				WHERE start_time >= now() - INTERVAL '1' HOUR
+					AND start_time < now()`,
+			at:   "numbers",
+			want: "FROM takes a relation name",
+		},
+		{
+			name: "unknown projected column",
+			sql: `
+				SELECT nonexistent
+				FROM spans
+				WHERE start_time >= now() - INTERVAL '1' HOUR
+					AND start_time < now()`,
+			at:   "nonexistent",
+			want: `spans has no column "nonexistent"`,
+		},
+		{
+			name: "between window with a bad lower bound",
+			sql: `
+				SELECT DISTINCT trace_id
+				FROM spans
+				WHERE start_time BETWEEN 'x' AND now()`,
+			at:   "'x'",
+			want: `"x" is not an RFC 3339 instant`,
+		},
+		{
+			name: "between window with a bad upper bound",
+			sql: `
+				SELECT DISTINCT trace_id
+				FROM spans
+				WHERE start_time BETWEEN now() AND 'y'`,
+			at:   "'y'",
+			want: `"y" is not an RFC 3339 instant`,
+		},
+		{
+			name: "between window beside a bound",
+			sql: `
+				SELECT DISTINCT trace_id
+				FROM spans s
+				WHERE start_time >= now() - INTERVAL '1' HOUR
+					AND start_time < now()
+					AND start_time BETWEEN now() - INTERVAL '2' HOUR AND now()`,
+			at:   "start_time BETWEEN",
+			want: "start_time is bounded twice",
+		},
+		{
+			name: "bound is another function",
+			sql: `
+				SELECT DISTINCT trace_id
+				FROM spans
+				WHERE start_time >= today()
+					AND start_time < now()`,
+			at:   "today()",
+			want: "a start_time bound is an instant",
+		},
+		{
+			name: "bound is now times two",
+			sql: `
+				SELECT DISTINCT trace_id
+				FROM spans
+				WHERE start_time >= now() * 2
+					AND start_time < now()`,
+			at:   "now() * 2",
+			want: "a start_time bound is an instant",
+		},
+		{
+			name: "bound subtracts from another function",
+			sql: `
+				SELECT DISTINCT trace_id
+				FROM spans
+				WHERE start_time >= today() - INTERVAL '1' HOUR
+					AND start_time < now()`,
+			at:   "today()",
+			want: "a start_time bound is an instant",
+		},
+		{
+			name: "with fill",
+			sql: `
+				SELECT *
+				FROM spans
+				WHERE start_time >= now() - INTERVAL '1' HOUR
+					AND start_time < now()
+				ORDER BY duration WITH FILL`,
+			at:   "duration WITH",
+			want: "WITH FILL is not supported",
+		},
+		{
+			name: "order by unknown alias",
+			sql: `
+				SELECT *
+				FROM spans
+				WHERE start_time >= now() - INTERVAL '1' HOUR
+					AND start_time < now()
+				ORDER BY t.duration`,
+			at:   "t.duration",
+			want: `unknown alias "t"`,
+		},
+		{
+			name: "order by twice",
+			sql: `
+				SELECT *
+				FROM spans
+				WHERE start_time >= now() - INTERVAL '1' HOUR
+					AND start_time < now()
+				ORDER BY duration, duration DESC`,
+			at:   "ORDER BY",
+			want: "the order is not valid",
+		},
+		{
+			name: "traces subquery with group by",
+			sql: `
+				SELECT *
+				FROM traces
+				WHERE trace_id IN (
+					SELECT trace_id
+					FROM spans
+					WHERE start_time >= now() - INTERVAL '1' HOUR
+						AND start_time < now()
+					GROUP BY service
+				)`,
+			at:   "GROUP BY",
+			want: "GROUP BY is not supported yet",
+		},
+		{
+			name: "traces subquery over an unknown relation",
+			sql: `
+				SELECT *
+				FROM traces
+				WHERE trace_id IN (
+					SELECT trace_id
+					FROM logs
+					WHERE start_time >= now() - INTERVAL '1' HOUR
+						AND start_time < now()
+				)`,
+			at:   "logs",
+			want: `unknown relation "logs"`,
+		},
+		{
+			name: "traces subquery without where",
+			sql: `
+				SELECT *
+				FROM traces
+				WHERE trace_id IN (
+					SELECT trace_id
+					FROM spans
+				)`,
+			at:   "SELECT trace_id",
+			want: "WHERE is required",
+		},
+		{
+			name: "traces limit zero",
+			sql: `
+				SELECT *
+				FROM traces
+				WHERE trace_id IN (
+					SELECT trace_id
+					FROM spans
+					WHERE start_time >= now() - INTERVAL '1' HOUR
+						AND start_time < now()
+				)
+				LIMIT 0`,
+			at:   "0",
+			want: `"0" is not a page size`,
+		},
+		{
+			name: "three-part column",
+			sql: `
+				SELECT DISTINCT trace_id
+				FROM spans s
+				WHERE start_time >= now() - INTERVAL '1' HOUR
+					AND start_time < now()
+					AND a.b.c = 1`,
+			at:   "a.b.c",
+			want: "a column is written as alias.column or column",
+		},
+		{
+			name: "subscript on a function",
+			sql: `
+				SELECT DISTINCT trace_id
+				FROM spans s
+				WHERE start_time >= now() - INTERVAL '1' HOUR
+					AND start_time < now()
+					AND now()['x'] = 1`,
+			at:   "now()['x']",
+			want: "expected a column name here",
+		},
+		{
+			name: "attr with a number",
+			sql: `
+				SELECT DISTINCT trace_id
+				FROM spans s
+				WHERE start_time >= now() - INTERVAL '1' HOUR
+					AND start_time < now()
+					AND attr(1) = 'x'`,
+			at:   "1) =",
+			want: "the argument of attr() is a quoted attribute key",
+		},
+		{
+			name: "subscript with an unknown alias",
+			sql: `
+				SELECT DISTINCT trace_id
+				FROM spans s
+				WHERE start_time >= now() - INTERVAL '1' HOUR
+					AND start_time < now()
+					AND t.attributes['x'] = 1`,
+			at:   "t.attributes",
+			want: `unknown alias "t"`,
+		},
+		{
+			name: "subscript on the outer alias inside exists",
+			sql: `
+				SELECT DISTINCT trace_id
+				FROM spans s
+				WHERE start_time >= now() - INTERVAL '1' HOUR
+					AND start_time < now()
+					AND EXISTS (
+						SELECT 1
+						FROM events e
+						WHERE e.span_id = s.span_id
+							AND s.attributes['x'] = 1
+					)`,
+			at:   "s.attributes",
+			want: "a predicate inside EXISTS reads the events columns only",
+		},
+		{
+			name: "subscript with two keys",
+			sql: `
+				SELECT DISTINCT trace_id
+				FROM spans s
+				WHERE start_time >= now() - INTERVAL '1' HOUR
+					AND start_time < now()
+					AND attributes['a', 'b'] = 1`,
+			at:   "attributes['a'",
+			want: "a map subscript names one attribute key",
+		},
+		{
+			name: "interval month as a constant",
+			sql: `
+				SELECT DISTINCT trace_id
+				FROM spans s
+				WHERE start_time >= now() - INTERVAL '1' HOUR
+					AND start_time < now()
+					AND name = INTERVAL '1' MONTH`,
+			at:   "MONTH",
+			want: `"MONTH" is not an interval unit`,
+		},
+		{
+			name: "interval of a function",
+			sql: `
+				SELECT DISTINCT trace_id
+				FROM spans s
+				WHERE start_time >= now() - INTERVAL '1' HOUR
+					AND start_time < now()
+					AND name = INTERVAL now() HOUR`,
+			at:   "INTERVAL now()",
+			want: "an INTERVAL takes a number",
+		},
+		{
+			name: "tuple as a constant",
+			sql: `
+				SELECT DISTINCT trace_id
+				FROM spans s
+				WHERE start_time >= now() - INTERVAL '1' HOUR
+					AND start_time < now()
+					AND name = (1, 2)`,
+			at:   "(1, 2)",
+			want: "expected a literal here",
+		},
+		{
+			name: "tuple as a predicate",
+			sql: `
+				SELECT DISTINCT trace_id
+				FROM spans s
+				WHERE start_time >= now() - INTERVAL '1' HOUR
+					AND start_time < now()
+					AND (name = 'a', name = 'b')`,
+			at:   "(name",
+			want: "a parenthesized group holds one expression",
+		},
+		{
+			name: "negated column as a predicate",
+			sql: `
+				SELECT DISTINCT trace_id
+				FROM spans s
+				WHERE start_time >= now() - INTERVAL '1' HOUR
+					AND start_time < now()
+					AND -duration`,
+			at:   "-duration",
+			want: "the operator - is not supported",
+		},
+		{
+			name: "not over an unsupported function",
+			sql: `
+				SELECT DISTINCT trace_id
+				FROM spans s
+				WHERE start_time >= now() - INTERVAL '1' HOUR
+					AND start_time < now()
+					AND NOT lower(name) = 'x'`,
+			at:   "lower(",
+			want: "the function lower() is not supported",
+		},
+		{
+			name: "string as a predicate",
+			sql: `
+				SELECT DISTINCT trace_id
+				FROM spans s
+				WHERE start_time >= now() - INTERVAL '1' HOUR
+					AND start_time < now()
+					AND 'str'`,
+			at:   "'str'",
+			want: "expected a predicate here",
+		},
+		{
+			name: "between with an unknown alias",
+			sql: `
+				SELECT DISTINCT trace_id
+				FROM spans s
+				WHERE start_time >= now() - INTERVAL '1' HOUR
+					AND start_time < now()
+					AND t.duration BETWEEN '1s' AND '2s'`,
+			at:   "t.duration",
+			want: `unknown alias "t"`,
+		},
+		{
+			name: "between with a bad lower bound",
+			sql: `
+				SELECT DISTINCT trace_id
+				FROM spans s
+				WHERE start_time >= now() - INTERVAL '1' HOUR
+					AND start_time < now()
+					AND duration BETWEEN lower(x) AND '2s'`,
+			at:   "lower(x)",
+			want: "expected a literal here",
+		},
+		{
+			name: "between with a bad upper bound",
+			sql: `
+				SELECT DISTINCT trace_id
+				FROM spans s
+				WHERE start_time >= now() - INTERVAL '1' HOUR
+					AND start_time < now()
+					AND duration BETWEEN '1s' AND lower(x)`,
+			at:   "lower(x)",
+			want: "expected a literal here",
+		},
+		{
+			name: "is null with an unknown alias",
+			sql: `
+				SELECT DISTINCT trace_id
+				FROM spans s
+				WHERE start_time >= now() - INTERVAL '1' HOUR
+					AND start_time < now()
+					AND t.attributes['x'] IS NULL`,
+			at:   "t.attributes",
+			want: `unknown alias "t"`,
+		},
+		{
+			name: "error on the left of or",
+			sql: `
+				SELECT DISTINCT trace_id
+				FROM spans s
+				WHERE start_time >= now() - INTERVAL '1' HOUR
+					AND start_time < now()
+					AND (lower(name) = 'x' OR name = 'y')`,
+			at:   "lower(",
+			want: "the function lower() is not supported",
+		},
+		{
+			name: "error on the right of or",
+			sql: `
+				SELECT DISTINCT trace_id
+				FROM spans s
+				WHERE start_time >= now() - INTERVAL '1' HOUR
+					AND start_time < now()
+					AND (name = 'y' OR lower(name) = 'x')`,
+			at:   "lower(",
+			want: "the function lower() is not supported",
+		},
+		{
+			name: "regexp without a string",
+			sql: `
+				SELECT DISTINCT trace_id
+				FROM spans s
+				WHERE start_time >= now() - INTERVAL '1' HOUR
+					AND start_time < now()
+					AND name REGEXP duration`,
+			at:   "duration",
+			want: "the pattern of REGEXP is a quoted string",
+		},
+		{
+			name: "comparison with a function constant",
+			sql: `
+				SELECT DISTINCT trace_id
+				FROM spans s
+				WHERE start_time >= now() - INTERVAL '1' HOUR
+					AND start_time < now()
+					AND name = lower(x)`,
+			at:   "lower(x)",
+			want: "expected a literal here",
+		},
+		{
+			name: "concatenation as a predicate",
+			sql: `
+				SELECT DISTINCT trace_id
+				FROM spans s
+				WHERE start_time >= now() - INTERVAL '1' HOUR
+					AND start_time < now()
+					AND name || 'x'`,
+			at:   "name ||",
+			want: "the operator || is not supported",
+		},
+		{
+			name: "in with a function",
+			sql: `
+				SELECT DISTINCT trace_id
+				FROM spans s
+				WHERE start_time >= now() - INTERVAL '1' HOUR
+					AND start_time < now()
+					AND name IN (lower(x))`,
+			at:   "lower(x)",
+			want: "expected a literal here",
+		},
+		{
+			name: "exists with two arguments",
+			sql: `
+				SELECT DISTINCT trace_id
+				FROM spans s
+				WHERE start_time >= now() - INTERVAL '1' HOUR
+					AND start_time < now()
+					AND EXISTS(1, 2)`,
+			at:   "EXISTS",
+			want: "EXISTS takes one subquery",
+		},
+		{
+			name: "exists with a number",
+			sql: `
+				SELECT DISTINCT trace_id
+				FROM spans s
+				WHERE start_time >= now() - INTERVAL '1' HOUR
+					AND start_time < now()
+					AND EXISTS(1)`,
+			at:   "1)",
+			want: "EXISTS takes a subquery",
+		},
+		{
+			name: "match with one argument",
+			sql: `
+				SELECT DISTINCT trace_id
+				FROM spans s
+				WHERE start_time >= now() - INTERVAL '1' HOUR
+					AND start_time < now()
+					AND match(name)`,
+			at:   "match(",
+			want: "match() takes a column and a quoted pattern",
+		},
+		{
+			name: "match with an unknown alias",
+			sql: `
+				SELECT DISTINCT trace_id
+				FROM spans s
+				WHERE start_time >= now() - INTERVAL '1' HOUR
+					AND start_time < now()
+					AND match(t.name, 'x')`,
+			at:   "t.name",
+			want: `unknown alias "t"`,
+		},
+		{
+			name: "phrase with a number",
+			sql: `
+				SELECT DISTINCT trace_id
+				FROM spans s
+				WHERE start_time >= now() - INTERVAL '1' HOUR
+					AND start_time < now()
+					AND phrase(attributes['x'], 1)`,
+			at:   "1)",
+			want: "the pattern of phrase() is a quoted string",
+		},
+		{
+			name: "match with two patterns",
+			sql: `
+				SELECT DISTINCT trace_id
+				FROM spans s
+				WHERE start_time >= now() - INTERVAL '1' HOUR
+					AND start_time < now()
+					AND match(name, 'a', 'b')`,
+			at:   "match(",
+			want: "match() takes a column and one pattern",
+		},
+		{
+			name: "function as a predicate",
+			sql: `
+				SELECT DISTINCT trace_id
+				FROM spans s
+				WHERE start_time >= now() - INTERVAL '1' HOUR
+					AND start_time < now()
+					AND lower(name)`,
+			at:   "lower(",
+			want: "the function lower() is not supported",
+		},
+		{
+			name: "exists with group by",
+			sql: `
+				SELECT DISTINCT trace_id
+				FROM spans s
+				WHERE start_time >= now() - INTERVAL '1' HOUR
+					AND start_time < now()
+					AND EXISTS (
+						SELECT 1
+						FROM events e
+						WHERE e.span_id = s.span_id
+							AND e.name = 'x'
+						GROUP BY e.name
+					)`,
+			at:   "GROUP BY",
+			want: "GROUP BY is not supported yet",
+		},
+		{
+			name: "exists over an unknown relation",
+			sql: `
+				SELECT DISTINCT trace_id
+				FROM spans s
+				WHERE start_time >= now() - INTERVAL '1' HOUR
+					AND start_time < now()
+					AND EXISTS (
+						SELECT 1
+						FROM logs l
+						WHERE l.span_id = s.span_id
+					)`,
+			at:   "logs",
+			want: `unknown relation "logs"`,
+		},
+		{
+			name: "correlation with an unknown inner column",
+			sql: `
+				SELECT DISTINCT trace_id
+				FROM spans s
+				WHERE start_time >= now() - INTERVAL '1' HOUR
+					AND start_time < now()
+					AND EXISTS (
+						SELECT 1
+						FROM events e
+						WHERE e.foo = s.span_id
+					)`,
+			at:   "e.foo",
+			want: `events has no column "foo"`,
+		},
+		{
+			name: "correlation with an unknown outer column",
+			sql: `
+				SELECT DISTINCT trace_id
+				FROM spans s
+				WHERE start_time >= now() - INTERVAL '1' HOUR
+					AND start_time < now()
+					AND EXISTS (
+						SELECT 1
+						FROM links l
+						WHERE l.span_id = s.foo
+					)`,
+			at:   "l.span_id",
+			want: `"span_id" is a correlation column, not a predicate`,
+		},
+		{
+			name: "links unknown column",
+			sql: `
+				SELECT DISTINCT trace_id
+				FROM spans s
+				WHERE start_time >= now() - INTERVAL '1' HOUR
+					AND start_time < now()
+					AND EXISTS (
+						SELECT 1
+						FROM links l
+						WHERE l.span_id = s.span_id
+							AND l.foo = 1
+					)`,
+			at:   "l.foo",
+			want: `links has no column "foo"`,
+		},
+		{
+			name: "event column compared with the outer span",
+			sql: `
+				SELECT DISTINCT trace_id
+				FROM spans s
+				WHERE start_time >= now() - INTERVAL '1' HOUR
+					AND start_time < now()
+					AND EXISTS (
+						SELECT 1
+						FROM events e
+						WHERE e.span_id = s.span_id
+							AND e.name = s.name
+					)`,
+			at:   "s.name",
+			want: "a predicate inside EXISTS reads the events columns only",
+		},
+		{
+			name: "traces aggregate",
+			sql: `
+				SELECT count(*)
+				FROM traces
+				WHERE trace_id IN (
+					SELECT trace_id
+					FROM spans
+					WHERE start_time >= now() - INTERVAL '1' HOUR
+						AND start_time < now()
+				)`,
+			at:   "count",
+			want: "count() is an aggregate",
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -445,14 +2161,24 @@ func TestRefusals(t *testing.T) {
 			var refusal *Error
 			require.ErrorAs(t, err, &refusal)
 			assert.Contains(t, err.Error(), tt.want)
-			assert.Equal(t, 1, refusal.Line)
-			if tt.at == "" {
-				assert.Equal(t, len(tt.sql)+1, refusal.Column, err.Error())
-				return
+			offset := len(tt.sql)
+			if tt.at != "" {
+				offset = strings.Index(tt.sql, tt.at)
+				require.NotEqual(t, -1, offset, "marker %q is not in the statement", tt.at)
 			}
-			assert.Equal(t, strings.Index(tt.sql, tt.at)+1, refusal.Column, err.Error())
+			line, column := lineColumn(tt.sql, offset)
+			assert.Equal(t, line, refusal.Line, err.Error())
+			assert.Equal(t, column, refusal.Column, err.Error())
 		})
 	}
+}
+
+// lineColumn converts a byte offset into the 1-based line and column the error reports.
+func lineColumn(sql string, offset int) (line, column int) {
+	before := sql[:offset]
+	line = 1 + strings.Count(before, "\n")
+	column = offset - strings.LastIndex(before, "\n")
+	return line, column
 }
 
 func TestErrorRendering(t *testing.T) {

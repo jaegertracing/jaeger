@@ -65,7 +65,7 @@ func Compile(sql string, now time.Time) (*Query, error) {
 		return nil, c.pos.fromParser(err)
 	}
 	if len(stmts) != 1 {
-		return nil, &Error{Line: 1, Column: 1, Message: fmt.Sprintf("the request holds %d statements", len(stmts)), Hint: "Send one SELECT statement"}
+		return nil, c.pos.at(stmts[1], fmt.Sprintf("the request holds %d statements", len(stmts)), "Send one SELECT statement")
 	}
 	sel, ok := stmts[0].(*parser.SelectQuery)
 	if !ok {
