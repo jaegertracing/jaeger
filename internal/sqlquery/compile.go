@@ -309,6 +309,11 @@ func (c *compiler) where(sel *parser.SelectQuery, sc *scope, query *Query) error
 // inclusive at both ends, so a strict bound moves its instant by one nanosecond, the
 // resolution of a span's start time, to exclude the instant itself.
 func (c *compiler) windowBound(sc *scope, node parser.Expr, query *Query) (bool, error) {
+	if fn, ok := node.(*parser.FunctionExpr); ok {
+		if err := c.refuseParametricCall(fn); err != nil {
+			return false, err
+		}
+	}
 	if r, ok := asRange(node); ok && !r.negated && isColumnOf(sc, r.subject, "starttime") && !isReference(r.low) && !isReference(r.high) {
 		low, err := c.instantOf(r.low)
 		if err != nil {
@@ -380,6 +385,7 @@ func (c *compiler) instantOf(node parser.Expr) (time.Time, error) {
 // isColumnOf reports whether a node is a plain column reference with the given key, unqualified
 // or qualified by the scope's alias.
 func isColumnOf(sc *scope, node parser.Expr, key string) bool {
+	node = unparenthesized(node)
 	switch ref := node.(type) {
 	case *parser.Ident:
 		return columnKey(ref.Name) == key

@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"unicode/utf8"
 
 	"github.com/AfterShip/clickhouse-sql-parser/parser"
 )
@@ -67,7 +68,7 @@ func (p positions) at(node parser.Expr, message, hint string) *Error {
 }
 
 // atOffset places an error at a byte offset of the statement, counted from 0 as the parser
-// counts them.
+// counts them. The column it reports counts characters, not bytes.
 func (p positions) atOffset(offset int, message, hint string) *Error {
 	offset = max(0, min(offset, len(p.sql)))
 	line := 1
@@ -76,7 +77,7 @@ func (p positions) atOffset(offset int, message, hint string) *Error {
 	}
 	return &Error{
 		Line:    line,
-		Column:  offset - p.lineStarts[line-1] + 1,
+		Column:  utf8.RuneCountInString(p.sql[p.lineStarts[line-1]:offset]) + 1,
 		Message: message,
 		Hint:    hint,
 	}

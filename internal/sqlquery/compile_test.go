@@ -7,6 +7,7 @@ import (
 	"strings"
 	"testing"
 	"time"
+	"unicode/utf8"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -460,12 +461,16 @@ func TestCompileFilters(t *testing.T) {
 					AND name REGEXP '^\d+ \\w$'
 					AND status_message = 'C:\temp'
 					AND attributes['pct'] LIKE '100\%'
-					AND attributes['job'] LIKE 'job\\_%'`,
+					AND attributes['job'] LIKE 'job\\_%'
+					AND name LIKE 'ser\_er'
+					AND attributes['n'] > +1`,
 			want: p.And(
 				p.Span().Name.Matches(`^\d+ \w$`),
 				p.Span().StatusMessage.Eq(`C:\temp`),
-				p.Span().Attr("pct").Matches(`^100%$`),
+				p.Span().Attr("pct").Eq("100%"),
 				p.Span().Attr("job").Matches(`^job_[\s\S]*$`),
+				p.Span().Name.Eq("ser_er"),
+				p.Span().Attr("n").Gt("1"),
 			),
 		},
 		{
@@ -566,6 +571,11 @@ func TestCompileWindow(t *testing.T) {
 		{
 			name:  "parenthesized bounds",
 			where: "start_time >= (now() - ('1h')) AND start_time <= (now())",
+			min:   now.Add(-time.Hour), max: now,
+		},
+		{
+			name:  "parenthesized column",
+			where: "(start_time) >= now() - '1h' AND ((s.start_time)) <= now()",
 			min:   now.Add(-time.Hour), max: now,
 		},
 		{
@@ -910,6 +920,79 @@ func TestRefusals(t *testing.T) {
 				WHERE between(start_time, now() - '1h', now())`,
 			at:   "countIf",
 			want: "countIf() is an aggregate",
+		},
+		{
+			name: "parametric between as the window",
+			sql: `
+				SELECT DISTINCT trace_id
+				FROM spans
+				WHERE between(start_time, now() - '1h', now())(42)`,
+			at:   "(42)",
+			want: "a function takes one argument list",
+		},
+		{
+			name: "attr inside exists",
+			sql: `
+				SELECT DISTINCT trace_id
+				FROM spans
+				WHERE between(start_time, now() - '1h', now())
+					AND EXISTS (
+						SELECT 1
+						FROM events e
+						WHERE attr('k') = 'v'
+					)`,
+			at:   "attr('k')",
+			want: "attr() names an attribute of the span or its resource",
+		},
+		{
+			name: "double sign",
+			sql: `
+				SELECT DISTINCT trace_id
+				FROM spans
+				WHERE between(start_time, now() - '1h', now())
+					AND attributes['k'] = - -1`,
+			at:   "- -1",
+			want: "expected a literal here",
+		},
+		{
+			name: "bare unary predicate",
+			sql: `
+				SELECT DISTINCT trace_id
+				FROM spans
+				WHERE between(start_time, now() - '1h', now())
+					AND -1`,
+			at:   "-1",
+			want: "the operator - is not supported",
+		},
+		{
+			name: "now with an argument on the right",
+			sql: `
+				SELECT DISTINCT trace_id
+				FROM spans
+				WHERE between(start_time, now() - '1h', now())
+					AND end_time < now(1)`,
+			at:   "now(1)",
+			want: "now() takes no arguments",
+		},
+		{
+			name: "three-part order by column",
+			sql: `
+				SELECT *
+				FROM spans
+				WHERE between(start_time, now() - '1h', now())
+				ORDER BY a.b.c`,
+			at:   "a.b.c",
+			want: "ORDER BY takes a sortable column",
+		},
+		{
+			name: "column after a multibyte literal",
+			sql: `
+				SELECT DISTINCT trace_id
+				FROM spans
+				WHERE between(start_time, now() - '1h', now())
+					AND name = 'é' AND name IN 'a'`,
+			at:   "'a'",
+			want: "IN takes a parenthesized list of literals",
 		},
 		{
 			name: "order by alias",
@@ -2437,7 +2520,7 @@ func TestRefusals(t *testing.T) {
 func lineColumn(sql string, offset int) (line, column int) {
 	before := sql[:offset]
 	line = 1 + strings.Count(before, "\n")
-	column = offset - strings.LastIndex(before, "\n")
+	column = utf8.RuneCountInString(before[strings.LastIndex(before, "\n")+1:]) + 1
 	return line, column
 }
 

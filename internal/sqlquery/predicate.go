@@ -80,6 +80,9 @@ func (c *compiler) reference(sc *scope, node parser.Expr) (ast.Expression, error
 		if err := c.refuseParametricCall(fn); err != nil {
 			return nil, err
 		}
+		if sc.rel != relationSpans {
+			return nil, c.pos.at(node, "attr() names an attribute of the span or its resource", fmt.Sprintf("Inside EXISTS write %s.attributes['key'] for an attribute of the %s", sc.alias, strings.TrimSuffix(string(sc.rel), "s")))
+		}
 		args := functionArgs(fn)
 		if len(args) != 1 {
 			return nil, c.pos.at(node, "attr() takes one argument, the attribute key", "")
@@ -173,7 +176,7 @@ func (c *compiler) constantText(node parser.Expr) (string, error) {
 	case *parser.StringLiteral:
 		return unquote(n.Literal), nil
 	case *parser.NumberLiteral:
-		return n.Literal, nil
+		return strings.TrimPrefix(n.Literal, "+"), nil
 	case *parser.Ident:
 		if isBoolean(n.Name) {
 			return strings.ToLower(n.Name), nil
@@ -181,7 +184,7 @@ func (c *compiler) constantText(node parser.Expr) (string, error) {
 	case *parser.UnaryExpr:
 		// The parser reads a leading minus as an operator in some positions and as part of the
 		// number in others; both spell the one negative number.
-		if num, ok := unparenthesized(n.Expr).(*parser.NumberLiteral); ok && n.Kind == parser.TokenKindMinus {
+		if num, ok := unparenthesized(n.Expr).(*parser.NumberLiteral); ok && n.Kind == parser.TokenKindMinus && !strings.ContainsAny(num.Literal[:1], "+-") {
 			return "-" + num.Literal, nil
 		}
 	case *parser.IntervalExpr:
@@ -794,7 +797,7 @@ func isSelectOne(item *parser.SelectItem) bool {
 // it has no wildcard. ILIKE folds case with the (?i) flag, which keeps it a regex even without a
 // wildcard. The anchors and the flag are honored by every backend (RFC 0005 §5.3).
 func (*compiler) like(ref expression.Ref, pattern string, foldCase bool) *ast.Call {
-	if !foldCase && !strings.ContainsAny(pattern, "%_") {
+	if !foldCase && !likeHasWildcard(pattern) {
 		return ref.Eq(likeLiteral(pattern))
 	}
 	regex := "^" + likeToRegex(pattern) + "$"
@@ -825,6 +828,21 @@ func likeToRegex(pattern string) string {
 		}
 	}
 	return b.String()
+}
+
+// likeHasWildcard reports whether a LIKE pattern has a % or _ that is not escaped.
+func likeHasWildcard(pattern string) bool {
+	runes := []rune(pattern)
+	for i := 0; i < len(runes); i++ {
+		switch runes[i] {
+		case '\\':
+			i++
+		case '%', '_':
+			return true
+		default:
+		}
+	}
+	return false
 }
 
 // likeLiteral reads a LIKE pattern without wildcards as the text it matches, with its
