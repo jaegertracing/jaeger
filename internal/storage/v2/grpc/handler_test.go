@@ -128,7 +128,7 @@ func TestHandler_GetTraces(t *testing.T) {
 			err := server.GetTraces(&storage.GetTracesRequest{
 				Query: []*storage.GetTraceParams{
 					{
-						TraceId:   []byte{1},
+						TraceId:   []byte{1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0},
 						StartTime: start,
 						EndTime:   end,
 					},
@@ -142,6 +142,38 @@ func TestHandler_GetTraces(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestHandler_GetTraces_EightByteTraceID(t *testing.T) {
+	start := time.Now()
+	end := start.Add(time.Minute)
+	wantID := pcommon.TraceID([16]byte{0, 0, 0, 0, 0, 0, 0, 0, 1, 2, 3, 4, 5, 6, 7, 8})
+	query := []tracestore.GetTraceParams{{
+		TraceID: wantID,
+		Start:   start,
+		End:     end,
+	}}
+	reader := new(tracestoremocks.Reader)
+	reader.On("GetTraces", mock.Anything, query).
+		Return(iter.Seq2[[]ptrace.Traces, error](func(yield func([]ptrace.Traces, error) bool) {
+		})).Once()
+	server := NewHandler(reader, new(tracestoremocks.Writer), new(depstoremocks.Reader))
+	err := server.GetTraces(&storage.GetTracesRequest{
+		Query: []*storage.GetTraceParams{{
+			TraceId:   []byte{1, 2, 3, 4, 5, 6, 7, 8},
+			StartTime: start,
+			EndTime:   end,
+		}},
+	}, &testStream{})
+	require.NoError(t, err)
+	reader.AssertExpectations(t)
+
+	err = server.GetTraces(&storage.GetTracesRequest{
+		Query: []*storage.GetTraceParams{{
+			TraceId: []byte{1},
+		}},
+	}, &testStream{})
+	require.ErrorContains(t, err, "invalid length for TraceID")
 }
 
 func TestHandler_GetServices(t *testing.T) {
