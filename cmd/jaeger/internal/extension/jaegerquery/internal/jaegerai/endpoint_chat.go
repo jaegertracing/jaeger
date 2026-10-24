@@ -40,7 +40,7 @@ type chatEndpoint struct {
 	// a reachable address is known, so empty means announce nothing.
 	mcpBaseURL   string
 	sidecarWSURL string
-	// sidecarHeaders are sent on the agent WebSocket handshake; see AIConfig.AgentHeaders.
+	// sidecarHeaders are sent on the agent WebSocket handshake; see Config.AgentHeaders.
 	sidecarHeaders     configopaque.MapList
 	basePath           string
 	maxRequestBodySize int64

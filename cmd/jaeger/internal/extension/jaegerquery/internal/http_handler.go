@@ -279,7 +279,7 @@ func (aH *APIHandler) parseTraceID(w http.ResponseWriter, r *http.Request) (mode
 
 func (aH *APIHandler) parseMicroseconds(w http.ResponseWriter, r *http.Request, timeKey string) (time.Time, bool) {
 	if timeString := r.URL.Query().Get(timeKey); timeString != "" {
-		t, err := aH.queryParser.parseTime(r, timeKey, time.Microsecond)
+		t, err := aH.queryParser.parseTime(r, timeKey, time.UnixMicro)
 		if aH.handleError(w, err, http.StatusBadRequest) {
 			return time.Time{}, false
 		}
