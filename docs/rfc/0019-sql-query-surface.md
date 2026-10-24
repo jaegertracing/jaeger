@@ -178,11 +178,11 @@ flowchart LR
 
 ### 5.1 API surface
 
-Three additions, all additive:
+Three additions, all additive, in the order they ship:
 
-1. **A `sql` field** (`string`) on `TraceQueryParameters` and `SpanQueryParameters` in api_v3, in the same mutual-exclusion group as `filter` and the legacy predicate fields. The HTTP gateway takes it as a query parameter or request-body field; the gRPC service as the field. The query service compiles it before anything else looks at the request, so storage, capability checks and admission see a request indistinguishable from one that arrived with `filter`.
-2. **`ExplainQuery`** (name provisional), an RPC taking the SQL and returning the normalized SQL, the compiled `Expression`, the chosen method, the extracted window, and the warnings, or the error. It is the dry run of G5. It is also what a UI "SQL mode" would call for inline validation.
-3. **The MCP `search_traces` tool** gains the `sql` input alongside its existing inputs, and the skill it serves through `read_skill` gains a section with the virtual schema and ten example statements. For an agent, this is the whole feature; the two items above exist so that the MCP server is not the only client.
+1. **The MCP `search_traces` tool** gains the `sql` input beside its structured inputs and compiles it in the handler, so the query service sees the same parameters it would build from those inputs. The dialect reaches the agent as a skill served through `read_skill`, which the `sql` input's description points at. For an agent this is the whole feature, and it needs no change to the API or the IDL; the two items below exist so that the MCP server is not the only client.
+2. **A `sql` field** (`string`) on `TraceQueryParameters` and `SpanQueryParameters` in api_v3, in the same mutual-exclusion group as `filter` and the legacy predicate fields. The HTTP gateway takes it as a query parameter or request-body field; the gRPC service as the field. The query service compiles it before anything else looks at the request, so storage, capability checks and admission see a request indistinguishable from one that arrived with `filter`.
+3. **`ExplainQuery`** (name provisional), an RPC taking the SQL and returning the normalized SQL, the compiled `Expression`, the chosen method, the extracted window, and the warnings, or the error. It is the dry run of G5. It is also what a UI "SQL mode" would call for inline validation.
 
 ---
 
@@ -300,11 +300,12 @@ Option D is the status quo plus a better skill document, and it is cheap. It fai
 
 Each milestone is independently shippable.
 
-- ✅ **M0 — Parser spike.** Delivered as the `internal/sqlquery` package: the compiler for every construct of §4, with a corpus of 44 accepted statements that compile to the builder's trees byte for byte and 172 refused statements whose message and position are asserted, all against `clickhouse-sql-parser`. The findings are recorded in §4.2 and §6.3. The package is not yet reachable from the API or the MCP tools; M1 wires it in.
-- **M1 — `WHERE` tier.** The `sql` field on `TraceQueryParameters` for `FindTraceIDs`, `FindTraces` and `FindTraceSummaries`; `ExplainQuery`; the MCP `search_traces` input and skill section. *Exit:* a statement sent through the API returns the same traces as the equivalent `filter`.
-- **M2 — Result shaping.** The `sql` field on `SpanQueryParameters`, so that `SELECT *` and column lists over `spans` reach `FindSpans` with the ordering, limit and projection the compiler already produces, as RFC 0016 lands those fields. *Exit:* the shared storage integration suite's filter battery runs its cases through SQL as well as through `filter`.
-- **M3 — Aggregation.** `GROUP BY`, `HAVING` and the aggregate functions compile to the row-returning method of RFC 0016 §5 when that method exists. This milestone is owned by that RFC's successor and listed here so the clause mapping is reserved.
-- **M4 (optional) — UI SQL mode.** A search box in jaeger-ui backed by `ExplainQuery` for inline errors, and a format button, which SQL input boxes customarily have. The button needs a formatter in Go that lays a statement out one clause per line; the parser library's beautifying mode produces a different layout, so the formatter is written over the library's AST and returned by `ExplainQuery` beside the normalized SQL. The same formatter then holds the compiler's test corpus to its layout from a test. The search box is out of this repository; the formatter is in it.
+- ✅ **M0 — Parser spike.** Delivered as the `internal/sqlquery` package: the compiler for every construct of §4, with a corpus of 44 accepted statements that compile to the builder's trees byte for byte and 172 refused statements whose message and position are asserted, all against `clickhouse-sql-parser`. The findings are recorded in §4.2 and §6.3. The package is not yet reachable from the API or the MCP tools; M1 wires it into its first client.
+- **M1 — MCP `search_traces`.** The `sql` input of the tool, compiled in the handler for the trace-returning shapes of §4.4, and the dialect served as a skill through `read_skill`. No API or IDL change. *Exit:* a statement sent through the tool returns the same traces as the equivalent structured inputs.
+- **M2 — `WHERE` tier in api_v3.** The `sql` field on `TraceQueryParameters` for `FindTraceIDs`, `FindTraces` and `FindTraceSummaries`, and `ExplainQuery`. *Exit:* a statement sent through the API returns the same traces as the equivalent `filter`.
+- **M3 — Result shaping.** The `sql` field on `SpanQueryParameters`, so that `SELECT *` and column lists over `spans` reach `FindSpans` with the ordering, limit and projection the compiler already produces, as RFC 0016 lands those fields. *Exit:* the shared storage integration suite's filter battery runs its cases through SQL as well as through `filter`.
+- **M4 — Aggregation.** `GROUP BY`, `HAVING` and the aggregate functions compile to the row-returning method of RFC 0016 §5 when that method exists. This milestone is owned by that RFC's successor and listed here so the clause mapping is reserved.
+- **M5 (optional) — UI SQL mode.** A search box in jaeger-ui backed by `ExplainQuery` for inline errors, and a format button, which SQL input boxes customarily have. The button needs a formatter in Go that lays a statement out one clause per line; the parser library's beautifying mode produces a different layout, so the formatter is written over the library's AST and returned by `ExplainQuery` beside the normalized SQL. The same formatter then holds the compiler's test corpus to its layout from a test. The search box is out of this repository; the formatter is in it.
 
 ---
 
