@@ -100,7 +100,7 @@ The `WHERE` clause is a boolean expression over the columns above and compiles t
 | `x IN (a, b)`, `x NOT IN (…)` | `in`, `not_in` | literal lists only; a subquery on the right is refused except the `trace_id IN (SELECT …)` shape of §4.4 |
 | `x REGEXP 'regex'`, `match(x, 'regex')` | `regex` | two spellings for one operator, because models produce both; PostgreSQL's `~` is not in the parser's grammar and is a parse error |
 | `x IS NOT NULL`, `x IS NULL` | `exists`, `not(exists)` | on attribute references only; built-in fields always exist |
-| `x LIKE '%a_b%'`, `x LIKE 'exact'` | `regex`, `eq` | `LIKE` is what models reach for first. RFC 0005's `regex` matches anywhere in the value and refuses anchors, so a pattern with `%` at both ends compiles to the regex between them (`%`→`.*`, `_`→`.`) and a pattern without wildcards to `eq`; a pattern anchored at one end, `LIKE 'GET%'`, has no equivalent and is refused with that explanation. `ILIKE` is refused because `regex` is case-sensitive |
+| `x LIKE 'a%b_'`, `x LIKE 'exact'` | `regex`, `eq` | `LIKE` is what models reach for first. The pattern is translated with `%`→`.*`, `_`→`.` and anchored at both ends, which RFC 0005 §5.3 lets every backend honor; a pattern without wildcards is an equality. `ILIKE` is refused because `regex` is case-sensitive |
 | `between(x, a, b)`, `x BETWEEN a AND b` | `and(gte, lte)` | the function spelling exists because the operator's own `AND` reads as a conjunction beside the other conjuncts; both are inclusive |
 | `phrase(x, 'word word')`, `fulltext(x, 'word word')` | `phrase`, `fulltext` | functions, because SQL has no standard text-search operator |
 | `EXISTS (SELECT 1 FROM events e WHERE …)` | `some` over events | the span's own events; §4.3 |

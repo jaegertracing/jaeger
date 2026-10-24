@@ -410,10 +410,7 @@ func (c *compiler) binary(sc *scope, n *parser.BinaryOperation) (*ast.Call, erro
 		if !ok {
 			return nil, c.pos.at(n.RightExpr, "the pattern of LIKE is a quoted string", "")
 		}
-		call, err := c.like(n.RightExpr, ref, unquote(pattern.Literal))
-		if err != nil {
-			return nil, err
-		}
+		call := c.like(ref, unquote(pattern.Literal))
 		if op == "NOT LIKE" {
 			return builder.Not(call), nil
 		}
@@ -704,20 +701,14 @@ func unquote(literal string) string {
 	return b.String()
 }
 
-// like lowers a LIKE pattern. The regex operator of RFC 0005 matches anywhere in the value and
-// cannot be anchored, so only the patterns that mean the same thing have a target: one without
-// a wildcard is an equality, and one with % at both ends is a regex over the text between them.
-// A pattern anchored at one end, LIKE 'GET%', is refused rather than silently widened.
-func (c *compiler) like(node parser.Expr, ref expression.Ref, pattern string) (*ast.Call, error) {
+// like lowers a LIKE pattern to the anchored regular expression it means, or to an equality when
+// it has no wildcard. The anchors are honored by every backend: an engine that matches whole
+// terms drops its own wildcards for them (RFC 0005 §5.3).
+func (*compiler) like(ref expression.Ref, pattern string) *ast.Call {
 	if !strings.ContainsAny(pattern, "%_") {
-		return ref.Eq(pattern), nil
+		return ref.Eq(pattern)
 	}
-	inner, open := strings.CutPrefix(pattern, "%")
-	inner, closed := strings.CutSuffix(inner, "%")
-	if !open || !closed {
-		return nil, c.pos.at(node, fmt.Sprintf("LIKE %q is anchored at one end, which the regex operator of RFC 0005 cannot express", pattern), "It matches anywhere in the value: write LIKE '%text%' to search for text anywhere, or = 'text' for the whole value")
-	}
-	return ref.Matches(likeToRegex(inner)), nil
+	return ref.Matches("^" + likeToRegex(pattern) + "$")
 }
 
 // likeToRegex translates the wildcards of a LIKE pattern into RE2.

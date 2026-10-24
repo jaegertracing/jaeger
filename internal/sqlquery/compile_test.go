@@ -165,12 +165,14 @@ func TestCompileFilters(t *testing.T) {
 				SELECT DISTINCT trace_id
 				FROM spans
 				WHERE between(start_time, now() - '1h', now())
-					AND name LIKE '%/api/%'
-					AND name NOT LIKE '%health_check%'
+					AND name LIKE 'GET /api/%'
+					AND name NOT LIKE '%health_check'
+					AND attributes['http.route'] LIKE '%/users/%'
 					AND status_message LIKE 'exact (text)'`,
 			want: p.And(
-				p.Span().Name.Matches(`/api/`),
-				p.Not(p.Span().Name.Matches(`health.check`)),
+				p.Span().Name.Matches(`^GET /api/.*$`),
+				p.Not(p.Span().Name.Matches(`^.*health.check$`)),
+				p.Span().Attr("http.route").Matches(`^.*/users/.*$`),
 				p.Span().StatusMessage.Eq("exact (text)"),
 			),
 		},
@@ -180,10 +182,10 @@ func TestCompileFilters(t *testing.T) {
 				SELECT DISTINCT trace_id
 				FROM spans
 				WHERE between(start_time, now() - '1h', now())
-					AND name REGEXP 'GET|POST'
+					AND name REGEXP '^GET|POST$'
 					AND match(attributes['http.route'], '/users/[0-9]+')`,
 			want: p.And(
-				p.Span().Name.Matches("GET|POST"),
+				p.Span().Name.Matches("^GET|POST$"),
 				p.Span().Attr("http.route").Matches("/users/[0-9]+"),
 			),
 		},
@@ -298,11 +300,11 @@ func TestCompileFilters(t *testing.T) {
 				FROM spans
 				WHERE between(start_time, now() - '1h', now())
 					AND scope_name = 'io.opentelemetry.http'
-					AND scope_version LIKE '%1.%'
+					AND scope_version LIKE '1.%'
 					AND scope_attributes['x'] = 'y'`,
 			want: p.And(
 				p.Scope().Name.Eq("io.opentelemetry.http"),
-				p.Scope().Version.Matches(`1\.`),
+				p.Scope().Version.Matches(`^1\..*$`),
 				p.Scope().Attr("x").Eq("y"),
 			),
 		},
@@ -1095,26 +1097,6 @@ func TestRefusals(t *testing.T) {
 					AND name IN 'a'`,
 			at:   "'a'",
 			want: "IN takes a parenthesized list of literals",
-		},
-		{
-			name: "like anchored at one end",
-			sql: `
-				SELECT DISTINCT trace_id
-				FROM spans s
-				WHERE between(start_time, now() - '1h', now())
-					AND name LIKE 'GET%'`,
-			at:   "'GET%'",
-			want: `LIKE "GET%" is anchored at one end`,
-		},
-		{
-			name: "like anchored at the other end",
-			sql: `
-				SELECT DISTINCT trace_id
-				FROM spans s
-				WHERE between(start_time, now() - '1h', now())
-					AND name LIKE '%GET'`,
-			at:   "'%GET'",
-			want: `LIKE "%GET" is anchored at one end`,
 		},
 		{
 			name: "ilike",
