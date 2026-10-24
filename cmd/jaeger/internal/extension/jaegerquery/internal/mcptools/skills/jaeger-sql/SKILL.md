@@ -58,7 +58,7 @@ Column names are `snake_case` and match exactly.
 
 | Column | Type | Values |
 |---|---|---|
-| `trace_id`, `span_id`, `parent_span_id` | text | lower-case hex; `parent_span_id` is `''` on a root span |
+| `trace_id`, `span_id`, `parent_span_id` | text | lower-case hex; a root span has no `parent_span_id`, and no comparison on it matches a root span |
 | `name`, `status_message`, `trace_state` | text | any |
 | `kind` | word | `'server'`, `'client'`, `'producer'`, `'consumer'`, `'internal'`, `'unspecified'` |
 | `status` | word | `'ok'`, `'error'`, `'unset'` |
