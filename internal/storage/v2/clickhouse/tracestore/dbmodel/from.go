@@ -21,7 +21,9 @@ import (
 func FromRow(storedSpan *SpanRow) ptrace.Traces {
 	trace := ptrace.NewTraces()
 	resourceSpans := trace.ResourceSpans().AppendEmpty()
+	resourceSpans.SetSchemaUrl(storedSpan.ResourceSchemaURL)
 	scopeSpans := resourceSpans.ScopeSpans().AppendEmpty()
+	scopeSpans.SetSchemaUrl(storedSpan.ScopeSchemaURL)
 	span := scopeSpans.Spans().AppendEmpty()
 
 	sp, err := convertSpan(storedSpan)
@@ -56,6 +58,7 @@ func convertScope(sr *SpanRow, spanForWarnings ptrace.Span) pcommon.Instrumentat
 	scope := ptrace.NewScopeSpans().Scope()
 	scope.SetName(sr.ScopeName)
 	scope.SetVersion(sr.ScopeVersion)
+	scope.SetDroppedAttributesCount(sr.ScopeDroppedAttributesCount)
 	putAttributes(
 		scope.Attributes(),
 		&sr.ScopeAttributes,
@@ -87,6 +90,10 @@ func convertSpan(sr *SpanRow) (ptrace.Span, error) {
 	}
 	span.TraceState().FromRaw(sr.TraceState)
 	span.SetName(sr.Name)
+	span.SetFlags(sr.Flags)
+	span.SetDroppedAttributesCount(sr.DroppedAttributesCount)
+	span.SetDroppedEventsCount(sr.DroppedEventsCount)
+	span.SetDroppedLinksCount(sr.DroppedLinksCount)
 	span.SetKind(jptrace.StringToSpanKind(sr.Kind))
 	span.SetEndTimestamp(pcommon.NewTimestampFromTime(sr.StartTime.Add(time.Duration(sr.Duration))))
 	span.Status().SetCode(jptrace.StringToStatusCode(sr.StatusCode))
@@ -102,6 +109,7 @@ func convertSpan(sr *SpanRow) (ptrace.Span, error) {
 		event := span.Events().AppendEmpty()
 		event.SetName(e)
 		event.SetTimestamp(pcommon.NewTimestampFromTime(sr.EventTimestamps[i]))
+		event.SetDroppedAttributesCount(sr.EventDroppedAttributesCount[i])
 		putAttributes2D(event.Attributes(), &sr.EventAttributes, i, span)
 	}
 
@@ -120,6 +128,8 @@ func convertSpan(sr *SpanRow) (ptrace.Span, error) {
 		}
 		link.SetSpanID(spanID)
 		link.TraceState().FromRaw(sr.LinkTraceStates[i])
+		link.SetDroppedAttributesCount(sr.LinkDroppedAttributesCount[i])
+		link.SetFlags(sr.LinkFlags[i])
 
 		putAttributes2D(link.Attributes(), &sr.LinkAttributes, i, span)
 	}

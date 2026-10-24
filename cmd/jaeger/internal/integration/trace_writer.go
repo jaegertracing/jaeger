@@ -105,7 +105,9 @@ func (w *traceWriter) WriteTraces(ctx context.Context, td ptrace.Traces) error {
 
 		if currentResourceIndex != pos.ResourceIndex {
 			resource = currentChunk.ResourceSpans().AppendEmpty()
-			td.ResourceSpans().At(pos.ResourceIndex).Resource().Attributes().CopyTo(resource.Resource().Attributes())
+			sourceResource := td.ResourceSpans().At(pos.ResourceIndex)
+			sourceResource.Resource().Attributes().CopyTo(resource.Resource().Attributes())
+			resource.SetSchemaUrl(sourceResource.SchemaUrl())
 			currentResourceIndex = pos.ResourceIndex
 			currentScopeIndex = -1
 		} else {
@@ -114,7 +116,9 @@ func (w *traceWriter) WriteTraces(ctx context.Context, td ptrace.Traces) error {
 
 		if currentScopeIndex != pos.ScopeIndex {
 			scope = resource.ScopeSpans().AppendEmpty()
-			td.ResourceSpans().At(pos.ResourceIndex).ScopeSpans().At(pos.ScopeIndex).Scope().CopyTo(scope.Scope())
+			sourceScope := td.ResourceSpans().At(pos.ResourceIndex).ScopeSpans().At(pos.ScopeIndex)
+			sourceScope.Scope().CopyTo(scope.Scope())
+			scope.SetSchemaUrl(sourceScope.SchemaUrl())
 			currentScopeIndex = pos.ScopeIndex
 		} else {
 			scope = resource.ScopeSpans().At(resource.ScopeSpans().Len() - 1)

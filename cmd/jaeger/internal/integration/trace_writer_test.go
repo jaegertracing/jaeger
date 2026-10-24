@@ -51,8 +51,10 @@ func TestWriteTraces(t *testing.T) {
 	for i := 1; i <= 3; i++ {
 		resource := resources.AppendEmpty()
 		resource.Resource().Attributes().PutStr("service.name", fmt.Sprintf("NoServiceName%d", i))
+		resource.SetSchemaUrl(fmt.Sprintf("https://example.com/resource/%d", i))
 		scope := resource.ScopeSpans().AppendEmpty()
 		scope.Scope().SetName(fmt.Sprintf("success-op-%d", i))
+		scope.SetSchemaUrl(fmt.Sprintf("https://example.com/scope/%d", i))
 	}
 
 	// Add span1 and span2
@@ -102,25 +104,33 @@ func TestWriteTraces(t *testing.T) {
 	// First chunk: NoServiceName1 span1 and 2
 	firstChunkResource := chunks[0].ResourceSpans().At(0)
 	assert.Equal(t, "NoServiceName1", firstChunkResource.Resource().Attributes().AsRaw()["service.name"])
+	assert.Equal(t, "https://example.com/resource/1", firstChunkResource.SchemaUrl())
 	firstChunkScope := firstChunkResource.ScopeSpans().At(0)
+	assert.Equal(t, "https://example.com/scope/1", firstChunkScope.SchemaUrl())
 	assert.Equal(t, "span1", firstChunkScope.Spans().At(0).Name())
 	assert.Equal(t, "span2", firstChunkScope.Spans().At(1).Name())
 
 	// Second chunk: NoServiceName2 span3 and 4
 	secondChunkResource := chunks[1].ResourceSpans().At(0)
 	assert.Equal(t, "NoServiceName2", secondChunkResource.Resource().Attributes().AsRaw()["service.name"])
+	assert.Equal(t, "https://example.com/resource/2", secondChunkResource.SchemaUrl())
 	secondChunkScope := secondChunkResource.ScopeSpans().At(0)
+	assert.Equal(t, "https://example.com/scope/2", secondChunkScope.SchemaUrl())
 	assert.Equal(t, "span3", secondChunkScope.Spans().At(0).Name())
 
 	secondChunkResource2 := chunks[1].ResourceSpans().At(1)
 	assert.Equal(t, "NoServiceName3", secondChunkResource2.Resource().Attributes().AsRaw()["service.name"])
+	assert.Equal(t, "https://example.com/resource/3", secondChunkResource2.SchemaUrl())
 	secondChunkScope2 := secondChunkResource2.ScopeSpans().At(0)
+	assert.Equal(t, "https://example.com/scope/3", secondChunkScope2.SchemaUrl())
 	assert.Equal(t, "span4", secondChunkScope2.Spans().At(0).Name())
 
 	// Third chunk: NoServiceName3 span5
 	thirdChunkResource := chunks[2].ResourceSpans().At(0)
 	assert.Equal(t, "NoServiceName3", thirdChunkResource.Resource().Attributes().AsRaw()["service.name"])
+	assert.Equal(t, "https://example.com/resource/3", thirdChunkResource.SchemaUrl())
 	thirdChunkScope := thirdChunkResource.ScopeSpans().At(0)
+	assert.Equal(t, "https://example.com/scope/3", thirdChunkScope.SchemaUrl())
 	assert.Equal(t, "span5", thirdChunkScope.Spans().At(0).Name())
 }
 

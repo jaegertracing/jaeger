@@ -4,12 +4,14 @@
 package clickhousetest
 
 import (
+	"context"
 	"errors"
 	"io"
 	"net/http"
 	"strings"
 	"testing"
 
+	"github.com/ClickHouse/clickhouse-go/v2"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -36,6 +38,21 @@ func TestNewServer_HandshakeQuery(t *testing.T) {
 	defer srv.Close()
 	status, _ := postQuery(t, srv.URL, HandshakeQuery)
 	assert.Equal(t, http.StatusOK, status)
+}
+
+func TestNewServer_CurrentDatabaseQuery(t *testing.T) {
+	srv := NewServer(FailureConfig{})
+	defer srv.Close()
+	conn, err := clickhouse.Open(&clickhouse.Options{
+		Protocol: clickhouse.HTTP,
+		Addr:     []string{srv.Listener.Addr().String()},
+	})
+	require.NoError(t, err)
+	defer func() { require.NoError(t, conn.Close()) }()
+
+	var database string
+	require.NoError(t, conn.QueryRow(context.Background(), CurrentDatabaseQuery).Scan(&database))
+	assert.Equal(t, "default", database)
 }
 
 func TestNewServer_DefaultQuery(t *testing.T) {
