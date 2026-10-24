@@ -36,7 +36,7 @@ ORDER BY s.duration DESC     -- start_time, duration, trace_id, span_id
 LIMIT 100
 ```
 
-Whole traces, selected by the spans they contain. The subquery is a spans query as above; the outer `WHERE` takes nothing else:
+Whole traces, selected by the spans they contain. The subquery is a spans query as above without `ORDER BY` or `LIMIT`; the outer `WHERE` takes nothing else:
 
 ```sql
 SELECT *
@@ -59,7 +59,8 @@ Column names are `snake_case` and match exactly.
 | Column | Type | Values |
 |---|---|---|
 | `trace_id`, `span_id`, `parent_span_id` | text | lower-case hex; a root span has no `parent_span_id`, and no comparison on it matches a root span |
-| `name`, `status_message`, `trace_state` | text | any |
+| `name`, `status_message` | text | any |
+| `trace_state` | text | any; a span without a trace state has no value, so no comparison on it matches that span |
 | `kind` | word | `'server'`, `'client'`, `'producer'`, `'consumer'`, `'internal'`, `'unspecified'` |
 | `status` | word | `'ok'`, `'error'`, `'unset'` |
 | `start_time`, `end_time` | instant | RFC 3339 `'2026-10-23T12:00:00Z'`, or `now() - '1h'` |
@@ -98,4 +99,4 @@ Every attribute predicate names its level. When the level is unknown, `attribute
 
 ## Not supported
 
-`JOIN`, `GROUP BY`, aggregates, `OFFSET`, arithmetic, `CAST`, other functions, and any relation other than `spans` and `traces` in `FROM`. An error names the construct, its line and column, and what to write instead.
+`JOIN`, `GROUP BY`, aggregates, `OFFSET`, arithmetic, `CAST`, any function other than `between`, `match`, `phrase`, `fulltext` and `now`, and any relation other than `spans` and `traces` in `FROM`. An error names the construct, its line and column, and what to write instead.
