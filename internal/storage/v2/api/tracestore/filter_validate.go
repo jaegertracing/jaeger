@@ -501,14 +501,9 @@ func validatePattern(pattern string) error {
 	return checkPortable(parsed)
 }
 
-// checkPortable refuses the constructs the backends this lowers to do not all have, so that a pattern
-// is refused at the boundary rather than answered differently by each backend. An anchor at either
-// end of the pattern is not among them: an engine that matches whole terms, as Lucene does, lowers it
-// by leaving out its own wildcard on that side. An anchor anywhere else is, because such an engine
-// has no anchor syntax to lower it to: `^GET|^POST` is refused where `^(GET|POST)` is served. Case
-// folding is not among them either: an engine without a fold flag writes each folded letter as the
-// set of its case equivalents. The line anchors that (?m) produces are refused: a value is matched as
-// a whole, and an engine without the flag would read the pattern another way.
+// checkPortable refuses the constructs that not every backend can evaluate, so that no pattern is
+// answered differently by each backend. Anchors at the ends and case folding are portable; an anchor
+// anywhere else, the line anchors of (?m), word boundaries and lazy quantifiers are not.
 func checkPortable(re *syntax.Regexp) error {
 	parts, _, _ := SplitPatternAnchors(re)
 	for _, part := range parts {
@@ -537,10 +532,8 @@ func SplitPatternAnchors(re *syntax.Regexp) (parts []*syntax.Regexp, atStart, at
 	return parts, atStart, atEnd
 }
 
-// checkPortableInside applies checkPortable's rules to a node that is not at either end of the
-// pattern, where an anchor of any kind is refused. A surrogate code point, which text never holds,
-// is refused as a literal, and a class holding no other character is refused as well: both match
-// nothing, and an engine without a spelling for that would have to refuse them.
+// checkPortableInside applies checkPortable's rules to a node inside the pattern, where every anchor
+// is refused. A literal surrogate and a class with no character are refused too, because both match nothing.
 func checkPortableInside(re *syntax.Regexp) error {
 	switch re.Op {
 	case syntax.OpLiteral:
