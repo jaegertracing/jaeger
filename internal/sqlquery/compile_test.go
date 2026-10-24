@@ -186,10 +186,10 @@ func TestCompileFilters(t *testing.T) {
 				SELECT DISTINCT trace_id
 				FROM spans
 				WHERE between(start_time, now() - '1h', now())
-					AND name REGEXP '^GET|POST$'
+					AND name REGEXP '^(GET|POST)$'
 					AND match(attributes['http.route'], '/users/[0-9]+')`,
 			want: p.And(
-				p.Span().Name.Matches("^GET|POST$"),
+				p.Span().Name.Matches("^(GET|POST)$"),
 				p.Span().Attr("http.route").Matches("/users/[0-9]+"),
 			),
 		},
