@@ -175,7 +175,7 @@ func (c *compiler) constantText(node parser.Expr) (string, error) {
 		}
 	default:
 	}
-	return "", c.pos.at(node, "expected a literal here", "Literals are quoted strings, numbers, true or false, INTERVAL '2' SECOND, and now() with an INTERVAL added or subtracted")
+	return "", c.pos.at(node, "expected a literal here", "Literals are quoted strings, numbers, true or false, a duration such as '2s', and now() with a duration added or subtracted")
 }
 
 // instant evaluates now() and now() ± INTERVAL, the only arithmetic the dialect has. ok is false
@@ -198,11 +198,7 @@ func (c *compiler) instant(node parser.Expr) (t time.Time, ok bool, err error) {
 		if err != nil || !ok {
 			return time.Time{}, ok, err
 		}
-		interval, ok := n.RightExpr.(*parser.IntervalExpr)
-		if !ok {
-			return time.Time{}, true, c.pos.at(n.RightExpr, "only an INTERVAL may be added to or subtracted from now()", "")
-		}
-		d, err := c.interval(interval)
+		d, err := c.offset(n.RightExpr)
 		if err != nil {
 			return time.Time{}, true, err
 		}
@@ -212,6 +208,23 @@ func (c *compiler) instant(node parser.Expr) (t time.Time, ok bool, err error) {
 		return base.Add(d), true, nil
 	}
 	return time.Time{}, false, nil
+}
+
+// offset reads the duration added to or subtracted from now(): a string in the Go duration
+// syntax every duration constant uses, '1h', or the SQL-standard INTERVAL '1' HOUR.
+func (c *compiler) offset(node parser.Expr) (time.Duration, error) {
+	switch n := node.(type) {
+	case *parser.StringLiteral:
+		d, err := time.ParseDuration(unquote(n.Literal))
+		if err != nil {
+			return 0, c.pos.at(node, fmt.Sprintf("%q is not a duration", unquote(n.Literal)), "Write the offset from now() as '1h', '30m' or '90s'")
+		}
+		return d, nil
+	case *parser.IntervalExpr:
+		return c.interval(n)
+	default:
+		return 0, c.pos.at(node, "only a duration may be added to or subtracted from now()", "Write now() - '1h', or now() - INTERVAL '1' HOUR")
+	}
 }
 
 var intervalUnits = map[string]time.Duration{

@@ -335,7 +335,7 @@ func (c *compiler) instantOf(node parser.Expr) (time.Time, error) {
 	}
 	lit, ok := node.(*parser.StringLiteral)
 	if !ok {
-		return time.Time{}, c.pos.at(node, "a start_time bound is an instant", "Write an RFC 3339 string such as '2026-10-23T12:00:00Z', or now() - INTERVAL '1' HOUR")
+		return time.Time{}, c.pos.at(node, "a start_time bound is an instant", "Write an RFC 3339 string such as '2026-10-23T12:00:00Z', or now() - '1h'")
 	}
 	t, err := time.Parse(time.RFC3339Nano, unquote(lit.Literal))
 	if err != nil {
