@@ -192,6 +192,40 @@ func TestSanitizeOverFlowingChildren(t *testing.T) {
 			},
 		},
 		{
+			name: "grandchild of overflowing span is also dropped",
+			// Root A: [0..200], Child B: [210..300] overflows A, Grandchild C: [220..280] child of B.
+			// B and C must both be dropped regardless of map iteration order.
+			input: map[pcommon.SpanID]CPSpan{
+				[8]byte{1}: {
+					SpanID:       [8]byte{1},
+					StartTime:    0,
+					Duration:     200,
+					ChildSpanIDs: []pcommon.SpanID{[8]byte{2}},
+				},
+				[8]byte{2}: {
+					SpanID:       [8]byte{2},
+					ParentSpanID: [8]byte{1},
+					StartTime:    210,
+					Duration:     90,
+					ChildSpanIDs: []pcommon.SpanID{[8]byte{3}},
+				},
+				[8]byte{3}: {
+					SpanID:       [8]byte{3},
+					ParentSpanID: [8]byte{2},
+					StartTime:    220,
+					Duration:     60,
+				},
+			},
+			expected: map[pcommon.SpanID]CPSpan{
+				[8]byte{1}: {
+					SpanID:       [8]byte{1},
+					StartTime:    0,
+					Duration:     200,
+					ChildSpanIDs: []pcommon.SpanID{},
+				},
+			},
+		},
+		{
 			name: "child with dropped parent - should be dropped",
 			input: map[pcommon.SpanID]CPSpan{
 				[8]byte{2}: {
