@@ -13,7 +13,8 @@ A statement reads `spans` or `traces` in `FROM`, optionally aliased. `events` an
 | Column | Type | Values |
 |---|---|---|
 | `trace_id`, `span_id`, `parent_span_id` | text | lower-case hex; a root span has no `parent_span_id`, and no comparison on it matches a root span |
-| `name`, `status_message`, `trace_state` | text | any |
+| `name`, `status_message` | text | any |
+| `trace_state` | text | any; a span without a trace state has no value, so no comparison on it matches that span |
 | `kind` | word | `'server'`, `'client'`, `'producer'`, `'consumer'`, `'internal'`, `'unspecified'` |
 | `status` | word | `'ok'`, `'error'`, `'unset'` |
 | `start_time`, `end_time` | instant | RFC 3339, `'2026-10-23T12:00:00Z'`, or `now() - '1h'` |
@@ -101,7 +102,7 @@ Strings are single-quoted, with `''` or `\'` for a quote inside and `\\` for a b
 
 | Compared with | Accepted text |
 |---|---|
-| `start_time`, `end_time`, `e.time` | RFC 3339, `'2026-10-23T12:00:00Z'` |
+| `start_time`, `end_time`, `e.time` | RFC 3339, `'2026-10-23T12:00:00Z'`, or `now()` with a duration subtracted, `now() - '1h'` |
 | `duration`, `e.time_since_start` | Go duration, `'2s'`, `'250ms'`; `INTERVAL '250' MILLISECOND` is rewritten to it, with `MILLISECOND`, `SECOND`, `MINUTE`, `HOUR`, `DAY` and `WEEK` as the units |
 | `kind` | `'unspecified'`, `'internal'`, `'server'`, `'client'`, `'producer'`, `'consumer'` |
 | `status` | `'unset'`, `'ok'`, `'error'` |
