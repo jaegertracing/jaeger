@@ -533,19 +533,9 @@ func SplitPatternAnchors(re *syntax.Regexp) (parts []*syntax.Regexp, atStart, at
 }
 
 // checkPortableInside applies checkPortable's rules to a node inside the pattern, where every anchor
-// is refused. A literal surrogate and a class with no character are refused too, because both match nothing.
+// is refused.
 func checkPortableInside(re *syntax.Regexp) error {
 	switch re.Op {
-	case syntax.OpLiteral:
-		for _, r := range re.Rune {
-			if utf16.IsSurrogate(r) {
-				return fmt.Errorf("operator %q matches text, and the surrogate code point %U cannot occur in text", expression.OpRegex, r)
-			}
-		}
-	case syntax.OpCharClass:
-		if len(WithoutSurrogates(re.Rune)) == 0 {
-			return fmt.Errorf("operator %q takes a pattern that can match, and a class holding no character cannot", expression.OpRegex)
-		}
 	case syntax.OpBeginText, syntax.OpEndText:
 		return fmt.Errorf("operator %q honors an anchor only as the first or the last element of the pattern", expression.OpRegex)
 	case syntax.OpBeginLine, syntax.OpEndLine:
@@ -563,25 +553,6 @@ func checkPortableInside(re *syntax.Regexp) error {
 		}
 	}
 	return nil
-}
-
-// WithoutSurrogates returns the rune ranges of a character class, which come in pairs of inclusive
-// bounds, with the surrogate code points taken out. UTF-8 cannot encode one, so text holds none and
-// a class matches the same text without them; an engine that writes a pattern in UTF-16 has no
-// spelling for a lone surrogate at all.
-func WithoutSurrogates(ranges []rune) []rune {
-	const lo, hi = 0xD800, 0xDFFF
-	out := make([]rune, 0, len(ranges)+2)
-	for i := 0; i+1 < len(ranges); i += 2 {
-		from, to := ranges[i], ranges[i+1]
-		if from < lo {
-			out = append(out, from, min(to, lo-1))
-		}
-		if to > hi {
-			out = append(out, max(from, hi+1), to)
-		}
-	}
-	return out
 }
 
 // patternText returns the text of a constant that can serve as a regular expression. An untyped

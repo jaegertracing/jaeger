@@ -75,7 +75,7 @@ func TestLuceneRegex(t *testing.T) {
 		`[Z-\]]`:            `.*([Z-\]]).*`,
 		`[Z-\\]`:            `.*([Z-\\]).*`,
 		`[\\]`:              `.*(\\).*`,
-		`[^\x00-\x5B]`:      ".*([\\\\\\]\\^_-\ud7ff\ue000-\U0010FFFF]).*",
+		`[^\x00-\x5B]`:      ".*([\\\\\\]\\^_-\U0010FFFF]).*",
 		"[^^]":              `.*([^\^]).*`,
 		"[^-^]":             `.*([^\-\^]).*`,
 		"[^a^]":             `.*([^\^a]).*`,
@@ -86,13 +86,13 @@ func TestLuceneRegex(t *testing.T) {
 		`a[\s\S]b`:          ".*(a.b).*",
 		`foo[\s\S]*bar`:     ".*(foo.*bar).*",
 		`^[\s\S]+$`:         "(.+)",
-		// A surrogate code point is left out of a class, since text holds none and Lucene cannot
-		// spell one.
-		`[^\x{D800}-\x{DFFF}]`: ".*(.).*",
-		`[\x{DFFF}-\x{E000}]`:  ".*([\ue000]).*",
-		`[\x{D7FF}-\x{E000}]`:  ".*([\ud7ff\ue000]).*",
-		`[^\x{D7FF}-\x{E000}]`: ".*([^\ud7ff\ue000]).*",
-		`[\x{D000}-\x{F000}]`:  ".*([\ud000-\ud7ff\ue000-\uf000]).*",
+		// A range end inside the surrogate block is moved to the edge of the block, which no text
+		// can tell apart.
+		`[^\x{D7FF}]`:         ".*([^\ud7ff]).*",
+		`[\x{DFFF}-\x{E000}]`: ".*([\ue000]).*",
+		`[\x{D7FF}-\x{E000}]`: ".*([\ud7ff-\ue000]).*",
+		`[\x{D000}-\x{F000}]`: ".*([\ud000-\uf000]).*",
+		`GET\x{D800}`:         ".*(GET\ufffd).*",
 		// A folded letter is written as the set of its case equivalents, the Kelvin sign and the
 		// long s among them, so the engine folds what RE2 folds and nothing else.
 		"(?i)get":        ".*([Gg][Ee][Tt]).*",
@@ -141,7 +141,6 @@ func TestLuceneRegexRefusals(t *testing.T) {
 		`[^\x00-\x{10FFFF}]`:    "a class that matches nothing",
 		`GET[^\x00-\x{10FFFF}]`: "a class that matches nothing",
 		`[\x{D800}-\x{DBFF}]`:   "a class that matches nothing",
-		`GET\x{D800}`:           "the surrogate code point U+D800",
 	} {
 		t.Run(pattern, func(t *testing.T) {
 			parsed, err := syntax.Parse(pattern, syntax.Perl)

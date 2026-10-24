@@ -190,10 +190,6 @@ func (w *luceneWriter) repeat(minCount, maxCount int) {
 
 // literal writes one rune, as the class of its case equivalents when the pattern folds case there.
 func (w *luceneWriter) literal(r rune, folded bool) {
-	if utf16.IsSurrogate(r) {
-		w.fail(fmt.Errorf("%w: it has no form for the surrogate code point %U", tracestore.ErrFilterUnsupported, r))
-		return
-	}
 	if !folded {
 		w.escaped(r, luceneReserved)
 		return
@@ -214,16 +210,15 @@ func (w *luceneWriter) literal(r rune, folded bool) {
 	w.WriteString("]")
 }
 
-// everyRune is the class of every code point text can hold, which Lucene spells `.`.
-var everyRune = tracestore.WithoutSurrogates([]rune{0, unicode.MaxRune})
+// everyRune is the class of every code point, which Lucene spells `.`.
+var everyRune = []rune{0, unicode.MaxRune}
 
 // class writes a character class from the parser's rune ranges, which come in pairs of inclusive
-// bounds, with the surrogates taken out first. A class that runs from the first rune to the last is
+// bounds. A class that runs from the first rune to the last is
 // one the parser has complemented, and it is written back as the negation of the gaps between its
 // ranges, which is both shorter and what was written. A class of every rune is written as the
 // any-character operator, and a class of none is refused, since Lucene has no spelling for it.
 func (w *luceneWriter) class(ranges []rune) {
-	ranges = tracestore.WithoutSurrogates(ranges)
 	switch {
 	case len(ranges) == 0:
 		w.fail(fmt.Errorf("%w: it has no form for a class that matches nothing", tracestore.ErrFilterUnsupported))
@@ -239,10 +234,15 @@ func (w *luceneWriter) class(ranges []rune) {
 		for i := 1; i+1 < len(ranges); i += 2 {
 			gaps = append(gaps, ranges[i]+1, ranges[i+1]-1)
 		}
-		ranges = tracestore.WithoutSurrogates(gaps)
+		ranges = gaps
 	}
+	wrote := false
 	for i := 0; i < len(ranges); i += 2 {
-		w.classRange(ranges[i], ranges[i+1])
+		wrote = w.classRange(ranges[i], ranges[i+1]) || wrote
+	}
+	if !wrote {
+		w.fail(fmt.Errorf("%w: it has no form for a class that matches nothing", tracestore.ErrFilterUnsupported))
+		return
 	}
 	w.WriteString("]")
 }
@@ -252,7 +252,18 @@ func (w *luceneWriter) class(ranges []rune) {
 // only the older ones let an escaped character open a range, so a lower bound that needs an escape
 // is written as a member of its own and the range starts after it. A bare `-` after a member is the
 // range operator in every one of them, so it is escaped wherever it stands.
-func (w *luceneWriter) classRange(lo, hi rune) {
+func (w *luceneWriter) classRange(lo, hi rune) bool {
+	// A range end inside the surrogate block has no character to write, and no text holds a
+	// surrogate, so moving the end to the edge of the block changes what the class matches by nothing.
+	if utf16.IsSurrogate(lo) {
+		lo = surrogateMax + 1
+	}
+	if utf16.IsSurrogate(hi) {
+		hi = surrogateMin - 1
+	}
+	if lo > hi {
+		return false
+	}
 	for lo < hi && strings.ContainsRune(luceneClassReserved, lo) {
 		w.escaped(lo, luceneClassReserved)
 		lo++
@@ -262,7 +273,10 @@ func (w *luceneWriter) classRange(lo, hi rune) {
 		w.WriteString("-")
 		w.escaped(hi, luceneClassReserved)
 	}
+	return true
 }
+
+const surrogateMin, surrogateMax = 0xD800, 0xDFFF
 
 func (w *luceneWriter) escaped(r rune, reserved string) {
 	if strings.ContainsRune(reserved, r) {
