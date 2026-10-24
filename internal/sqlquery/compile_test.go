@@ -24,7 +24,7 @@ import (
 // has a beautifying formatter, but its layout differs from this one, so a Go formatter that
 // could enforce the convention from a test is left to the UI SQL mode of RFC 0019 §9, which
 // needs one for its format button.
-//
+
 // now is the instant now() evaluates to in every test.
 var now = time.Date(2026, 10, 23, 12, 0, 0, 0, time.UTC)
 
