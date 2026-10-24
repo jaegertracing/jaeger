@@ -20,6 +20,7 @@ import (
 	"go.opentelemetry.io/otel/trace"
 	"go.uber.org/zap"
 
+	"github.com/jaegertracing/jaeger-idl/model/v1"
 	"github.com/jaegertracing/jaeger/internal/metricstest"
 	"github.com/jaegertracing/jaeger/internal/storage/cassandra"
 	"github.com/jaegertracing/jaeger/internal/storage/cassandra/mocks"
@@ -495,6 +496,40 @@ func TestSpanReaderFindTraceIDsDurationStopsAtSearchDepth(t *testing.T) {
 		// and the trace returned is the one from the newest bucket.
 		assert.Equal(t, 1, bucketQueries)
 		assert.Equal(t, []dbmodel.TraceID{{15: 1}}, traceIDs)
+	})
+}
+
+func TestSpanReaderFindTraceIDsDurationBoundsStartTime(t *testing.T) {
+	withSpanReader(t, func(r *spanReaderTest) {
+		iter := &mocks.Iterator{}
+		iter.On("Scan", mock.Anything).Return(false)
+		iter.On("Close").Return(nil)
+		query := &mocks.Query{}
+		query.On("Iter").Return(iter)
+
+		var bound []any
+		r.session.On("Query", queryByDuration, mock.MatchedBy(func(args []any) bool {
+			bound = args
+			return true
+		})).Return(query)
+
+		from := time.Date(2026, 10, 23, 10, 15, 0, 0, time.UTC)
+		to := from.Add(5 * time.Minute)
+		_, err := r.reader.FindTraceIDs(context.Background(), &tracestore.TraceQueryParams{
+			ServiceName:  "service-a",
+			StartTimeMin: from,
+			StartTimeMax: to,
+			DurationMin:  time.Second,
+			SearchDepth:  20,
+			Attributes:   pcommon.NewMap(),
+		})
+		require.NoError(t, err)
+
+		// The hourly bucket is wider than the window, so the window must be passed to the query.
+		require.GreaterOrEqual(t, len(bound), 8)
+		assert.Equal(t, model.TimeAsEpochMicroseconds(from), bound[5])
+		assert.Equal(t, model.TimeAsEpochMicroseconds(to), bound[6])
+		assert.Contains(t, queryByDuration, "start_time > ? AND start_time < ?")
 	})
 }
 
