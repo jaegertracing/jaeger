@@ -15,8 +15,11 @@ import (
 
 	expression "github.com/jaegertracing/jaeger-idl/query/expression/v1"
 	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerquery/querysvc"
+	builder "github.com/jaegertracing/jaeger/internal/expression"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore"
 )
+
+var p builder.Predicate
 
 func TestParseFindTracesQuery(t *testing.T) {
 	tMin := time.Now().Add(-time.Hour).UTC().Truncate(time.Nanosecond)
@@ -286,16 +289,10 @@ func TestParseFindTracesQuery_Filter(t *testing.T) {
 
 		got, err := parseFindTracesQuery(q)
 		require.NoError(t, err)
-		assert.Equal(t, &expression.Call{Op: expression.OpAnd, Args: []expression.Expression{
-			&expression.Call{Op: expression.OpGt, Args: []expression.Expression{
-				&expression.FieldRef{Level: expression.LevelSpan, Name: expression.SpanFieldDuration},
-				&expression.AnyValue{Value: "2s"},
-			}},
-			&expression.Call{Op: expression.OpIn, Args: []expression.Expression{
-				&expression.AttributeRef{Key: "http.status_code"},
-				&expression.List{Values: []string{"500", "503"}, Type: expression.ValueTypeInt},
-			}},
-		}}, got.Filter)
+		assert.Equal(t, p.And(
+			p.Span().Duration.Gt("2s"),
+			p.Attr("http.status_code").In(p.List(expression.ValueTypeInt, "500", "503")),
+		), got.Filter)
 	})
 
 	// The quantifier is the one place the third reference arm is written, and its own level says
@@ -308,13 +305,7 @@ func TestParseFindTracesQuery_Filter(t *testing.T) {
 
 		got, err := parseFindTracesQuery(q)
 		require.NoError(t, err)
-		assert.Equal(t, &expression.Call{Op: expression.OpSome, Args: []expression.Expression{
-			&expression.NestedRef{Level: expression.LevelEvent},
-			&expression.Call{Op: expression.OpEq, Args: []expression.Expression{
-				&expression.FieldRef{Level: expression.LevelEvent, Name: expression.EventFieldName},
-				&expression.StringValue{Value: "exception"},
-			}},
-		}}, got.Filter)
+		assert.Equal(t, p.Some(p.Event(), p.Event().Name.Eq(p.String("exception"))), got.Filter)
 	})
 
 	t.Run("a constant that is not the type it declares", func(t *testing.T) {
@@ -381,10 +372,7 @@ func TestParseFindSpansQuery(t *testing.T) {
 
 		got, err := parseFindSpansQuery(q)
 		require.NoError(t, err)
-		assert.Equal(t, &expression.Call{Op: expression.OpEq, Args: []expression.Expression{
-			&expression.AttributeRef{Key: "http.route", Level: expression.LevelSpan},
-			&expression.AnyValue{Value: "/cart"},
-		}}, got.Filter)
+		assert.Equal(t, p.Span().Attr("http.route").Eq("/cart"), got.Filter)
 	})
 
 	t.Run("malformed filter JSON", func(t *testing.T) {
@@ -490,18 +478,18 @@ func TestGetQueryParam(t *testing.T) {
 	q.Set("canonical", "c-val")
 	q.Set("deprecated", "d-val")
 
-	v, p := getQueryParam(q, "canonical", "deprecated")
+	v, present := getQueryParam(q, "canonical", "deprecated")
 	assert.Equal(t, "c-val", v)
-	assert.Equal(t, "canonical", p)
+	assert.Equal(t, "canonical", present)
 
 	q2 := url.Values{}
 	q2.Set("deprecated", "d-val")
-	v, p = getQueryParam(q2, "canonical", "deprecated")
+	v, present = getQueryParam(q2, "canonical", "deprecated")
 	assert.Equal(t, "d-val", v)
-	assert.Equal(t, "deprecated", p)
+	assert.Equal(t, "deprecated", present)
 
 	q3 := url.Values{}
-	v, p = getQueryParam(q3, "canonical", "deprecated")
+	v, present = getQueryParam(q3, "canonical", "deprecated")
 	assert.Empty(t, v)
-	assert.Equal(t, "deprecated", p)
+	assert.Equal(t, "deprecated", present)
 }
