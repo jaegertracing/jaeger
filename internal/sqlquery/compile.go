@@ -188,10 +188,8 @@ func (c *compiler) relationOf(sel *parser.SelectQuery) (relation, string, error)
 // FindTraceIDs or FindSpans.
 func (c *compiler) spans(sel *parser.SelectQuery, sc *scope) (*Query, error) {
 	query := &Query{}
-	for _, item := range sel.SelectItems {
-		if len(item.Modifiers) != 0 {
-			return nil, c.pos.at(item.Modifiers[0], "a SELECT modifier is not supported", "Write the columns the result needs, or *")
-		}
+	if err := c.refuseModifiers(sel); err != nil {
+		return nil, err
 	}
 	switch {
 	case sel.HasDistinct:
@@ -236,6 +234,16 @@ func (c *compiler) spans(sel *parser.SelectQuery, sc *scope) (*Query, error) {
 	}
 	query.Limit = limit
 	return query, nil
+}
+
+// refuseModifiers rejects the EXCEPT, REPLACE and APPLY modifiers of a select list.
+func (c *compiler) refuseModifiers(sel *parser.SelectQuery) error {
+	for _, item := range sel.SelectItems {
+		if len(item.Modifiers) != 0 {
+			return c.pos.at(item.Modifiers[0], "a SELECT modifier is not supported", "Write the columns the result needs, or *")
+		}
+	}
+	return nil
 }
 
 // refuseSelectItem rejects a select item that is not a column, naming aggregation when that
@@ -404,6 +412,9 @@ func (c *compiler) order(clause *parser.OrderByClause, sc *scope) ([]tracestore.
 		if term.Fill != nil {
 			return nil, c.pos.at(term.Expr, "WITH FILL is not supported", "")
 		}
+		if term.Alias != nil {
+			return nil, c.pos.at(term.Alias, "a column alias in ORDER BY has no effect", "Write the column alone")
+		}
 		name := columnName(term.Expr)
 		if name == "" || !isSortableColumn(name) {
 			return nil, c.pos.at(term.Expr, "ORDER BY takes a sortable column", "The sortable columns are start_time, duration, trace_id and span_id (RFC 0016 §6)")
@@ -461,6 +472,9 @@ func (c *compiler) limit(clause *parser.LimitClause) (uint32, error) {
 func (c *compiler) traces(sel *parser.SelectQuery, alias string) (*Query, error) {
 	const shape = "SELECT * FROM traces WHERE trace_id IN (SELECT trace_id FROM spans WHERE ...)"
 	query := &Query{Kind: KindFindTraces}
+	if err := c.refuseModifiers(sel); err != nil {
+		return nil, err
+	}
 	if sel.HasDistinct {
 		return nil, c.pos.at(sel, "DISTINCT applies to a span search", "SELECT DISTINCT trace_id FROM spans returns trace IDs; a traces query returns one row per trace already")
 	}
@@ -471,8 +485,8 @@ func (c *compiler) traces(sel *parser.SelectQuery, alias string) (*Query, error)
 				return nil, err
 			}
 			name := columnName(item.Expr)
-			if name == "" || !isTracesColumn(name) {
-				return nil, c.pos.at(item, "traces has no column "+quoteName(item.Expr), "Its columns are "+columnNames(relationTraces))
+			if name == "" || !isTracesColumn(name) || !sameScope(&scope{alias: alias}, item.Expr) {
+				return nil, c.pos.at(item, "traces has no column "+quoteName(item.Expr), "Its columns are "+columnNames(relationTraces)+", read as "+alias)
 			}
 		}
 	}
@@ -491,6 +505,9 @@ func (c *compiler) traces(sel *parser.SelectQuery, alias string) (*Query, error)
 		return nil, c.pos.at(bin.RightExpr, "trace_id IN takes the subquery (SELECT trace_id FROM spans WHERE ...)", "")
 	}
 	if err := c.refuseClauses(sub.Select); err != nil {
+		return nil, err
+	}
+	if err := c.refuseModifiers(sub.Select); err != nil {
 		return nil, err
 	}
 	rel, subAlias, err := c.relationOf(sub.Select)

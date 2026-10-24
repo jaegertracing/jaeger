@@ -172,12 +172,12 @@ func TestCompileFilters(t *testing.T) {
 					AND attributes['http.method'] ILIKE 'get'
 					AND name NOT ILIKE '%Health%'`,
 			want: p.And(
-				p.Span().Name.Matches(`^GET /api/.*$`),
-				p.Not(p.Span().Name.Matches(`^.*health.check$`)),
-				p.Span().Attr("http.route").Matches(`^.*/users/.*$`),
+				p.Span().Name.Matches(`^GET /api/[\s\S]*$`),
+				p.Not(p.Span().Name.Matches(`^[\s\S]*health[\s\S]check$`)),
+				p.Span().Attr("http.route").Matches(`^[\s\S]*/users/[\s\S]*$`),
 				p.Span().StatusMessage.Eq("exact (text)"),
 				p.Span().Attr("http.method").Matches(`(?i)^get$`),
-				p.Not(p.Span().Name.Matches(`(?i)^.*Health.*$`)),
+				p.Not(p.Span().Name.Matches(`(?i)^[\s\S]*Health[\s\S]*$`)),
 			),
 		},
 		{
@@ -308,7 +308,7 @@ func TestCompileFilters(t *testing.T) {
 					AND scope_attributes['x'] = 'y'`,
 			want: p.And(
 				p.Scope().Name.Eq("io.opentelemetry.http"),
-				p.Scope().Version.Matches(`^1\..*$`),
+				p.Scope().Version.Matches(`^1\.[\s\S]*$`),
 				p.Scope().Attr("x").Eq("y"),
 			),
 		},
@@ -465,7 +465,20 @@ func TestCompileFilters(t *testing.T) {
 				p.Span().Name.Matches(`^\d+ \w$`),
 				p.Span().StatusMessage.Eq(`C:\temp`),
 				p.Span().Attr("pct").Matches(`^100%$`),
-				p.Span().Attr("job").Matches(`^job_.*$`),
+				p.Span().Attr("job").Matches(`^job_[\s\S]*$`),
+			),
+		},
+		{
+			name: "like without a wildcard resolves its escapes",
+			sql: `
+				SELECT DISTINCT trace_id
+				FROM spans
+				WHERE between(start_time, now() - '1h', now())
+					AND name LIKE 'a\\\\b'
+					AND status_message ILIKE 'a\\\\b'`,
+			want: p.And(
+				p.Span().Name.Eq(`a\b`),
+				p.Span().StatusMessage.Matches(`(?i)^a\\b$`),
 			),
 		},
 		{
@@ -783,6 +796,70 @@ func TestRefusals(t *testing.T) {
 				WHERE between(start_time, now() - '1h', now())`,
 			at:   "EXCEPT",
 			want: "a SELECT modifier is not supported",
+		},
+		{
+			name: "select modifier on traces",
+			sql: `
+				SELECT * EXCEPT (duration)
+				FROM traces
+				WHERE trace_id IN (
+					SELECT trace_id
+					FROM spans
+					WHERE between(start_time, now() - '1h', now())
+				)`,
+			at:   "EXCEPT",
+			want: "a SELECT modifier is not supported",
+		},
+		{
+			name: "select modifier in the traces subquery",
+			sql: `
+				SELECT *
+				FROM traces
+				WHERE trace_id IN (
+					SELECT trace_id EXCEPT (trace_id)
+					FROM spans
+					WHERE between(start_time, now() - '1h', now())
+				)`,
+			at:   "EXCEPT",
+			want: "a SELECT modifier is not supported",
+		},
+		{
+			name: "subscript on a correlation column",
+			sql: `
+				SELECT DISTINCT trace_id
+				FROM spans
+				WHERE between(start_time, now() - '1h', now())
+					AND EXISTS (
+						SELECT 1
+						FROM events e
+						WHERE e.span_id['x'] = 'yes'
+					)`,
+			at:   "e.span_id['x']",
+			want: "is not a map column and takes no subscript",
+		},
+		{
+			name: "order by alias",
+			sql: `
+				SELECT *
+				FROM spans
+				WHERE between(start_time, now() - '1h', now())
+				ORDER BY duration AS d
+				LIMIT 1`,
+			at:   "d\n",
+			want: "a column alias in ORDER BY has no effect",
+		},
+		{
+			name: "traces column of another alias",
+			sql: `
+				SELECT x.trace_id
+				FROM traces t
+				WHERE t.trace_id IN (
+					SELECT trace_id
+					FROM spans
+					WHERE between(start_time, now() - '1h', now())
+				)`,
+			at:   "x.trace_id",
+			want: "traces has no column",
 		},
 		{
 			name: "distinct trace_id of another alias",
@@ -2298,10 +2375,11 @@ func TestErrorRendering(t *testing.T) {
 }
 
 func TestLikeToRegex(t *testing.T) {
-	assert.Equal(t, `a\.b.*c.`, likeToRegex("a.b%c_"))
+	assert.Equal(t, `a\.b[\s\S]*c[\s\S]`, likeToRegex("a.b%c_"))
 	assert.Equal(t, `\(x\)`, likeToRegex("(x)"))
-	assert.Equal(t, `100%_\\.*`, likeToRegex(`100\%\_\\%`))
+	assert.Equal(t, `100%_\\[\s\S]*`, likeToRegex(`100\%\_\\%`))
 	assert.Equal(t, `tail\\`, likeToRegex(`tail\`))
+	assert.Equal(t, `100%\`, likeLiteral(`100\%\\`))
 }
 
 func TestUnquote(t *testing.T) {

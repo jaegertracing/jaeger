@@ -49,7 +49,7 @@ A bound is an RFC 3339 instant, `'2026-10-23T12:00:00Z'`, or `now()` with a dura
 | `=`, `==`, `<>`, `!=`, `<`, `<=`, `>`, `>=` | `eq`, `ne`, `lt`, `lte`, `gt`, `gte` | a constant on the left is mirrored to the right |
 | `x IN (a, b)`, `x NOT IN (a, b)` | `in`, `not_in` | literal lists only |
 | `x REGEXP 'pattern'`, `match(x, 'pattern')` | `regex` | RE2 syntax, matched anywhere in the value unless the pattern starts with `^` or ends with `$` (an anchor anywhere else is refused); `(?i)` folds case |
-| `x LIKE 'GET %'`, `x LIKE '%.json'` | `regex` | `%` becomes `.*`, `_` becomes `.`, `\%` and `\_` are the literal characters, and the pattern is anchored at both ends |
+| `x LIKE 'GET %'`, `x LIKE '%.json'` | `regex` | `%` and `_` match any characters, a newline included; `\%`, `\_` and `\\` are the literal characters; the pattern is anchored at both ends |
 | `x ILIKE 'get %'` | `regex` | as `LIKE`, with `(?i)` |
 | `x LIKE 'text'` | `eq` | a pattern without a wildcard is an equality |
 | `x IS NOT NULL`, `x IS NULL` | `exists`, `not(exists)` | on attributes only; a built-in field is always present |
@@ -107,7 +107,7 @@ The compiler refuses, with a message that names the construct and the admitted a
 - A `traces` query whose `WHERE` is anything but `trace_id IN (SELECT trace_id FROM spans WHERE ...)`.
 - A statement without both `start_time` bounds.
 
-Three spellings are parse errors rather than refusals, because the parser library does not know them: PostgreSQL's `~` operator, the SQL-92 `TIMESTAMP '...'` literal, and `EXISTS (SELECT * ...)`.
+Four spellings are parse errors rather than refusals, because the parser library does not know them: PostgreSQL's `~` operator, the SQL-92 `TIMESTAMP '...'` literal, `EXISTS (SELECT * ...)`, and `x NOT REGEXP 'p'`, which is written `NOT x REGEXP 'p'`.
 
 ## Errors
 

@@ -94,7 +94,7 @@ func (c *compiler) reference(sc *scope, node parser.Expr) (ast.Expression, error
 		if col.outer {
 			return nil, c.outerReference(node, sc)
 		}
-		if !col.isMap() {
+		if col.Level == "" || !col.isMap() {
 			return nil, c.pos.at(node, fmt.Sprintf("%q is not a map column and takes no subscript", col.name), "The map columns are attributes, resource_attributes and scope_attributes")
 		}
 		if sub.Params == nil || sub.Params.Items == nil || len(sub.Params.Items.Items) != 1 {
@@ -504,7 +504,7 @@ func mirror(op string) string {
 
 // list lowers the right-hand side of IN, a parenthesized list of literals. A subquery there is
 // refused: the one admitted subquery shape, trace_id IN (SELECT ...), is a statement shape that
-// compileTraces consumes before any predicate is lowered (RFC 0019 §4.4).
+// traces consumes before any predicate is lowered (RFC 0019 §4.4).
 func (c *compiler) list(node parser.Expr) ([]any, error) {
 	if _, ok := node.(*parser.SubQuery); ok {
 		return nil, c.pos.at(node, "a subquery in IN is accepted only as SELECT * FROM traces WHERE trace_id IN (SELECT trace_id FROM spans WHERE ...)", hintOneRelation)
@@ -757,7 +757,7 @@ func isSelectOne(item *parser.SelectItem) bool {
 // wildcard. The anchors and the flag are honored by every backend (RFC 0005 §5.3).
 func (*compiler) like(ref expression.Ref, pattern string, foldCase bool) *ast.Call {
 	if !foldCase && !strings.ContainsAny(pattern, "%_") {
-		return ref.Eq(pattern)
+		return ref.Eq(likeLiteral(pattern))
 	}
 	regex := "^" + likeToRegex(pattern) + "$"
 	if foldCase {
@@ -767,7 +767,9 @@ func (*compiler) like(ref expression.Ref, pattern string, foldCase bool) *ast.Ca
 }
 
 // likeToRegex translates the wildcards of a LIKE pattern into RE2. A backslash escapes the
-// character after it, so '\%' and '\_' are the literal characters, as in ClickHouse.
+// character after it, so '\%' and '\_' are the literal characters, as in ClickHouse. The
+// wildcards are written as the class of every character, because SQL's match a newline and
+// RE2's dot does not.
 func likeToRegex(pattern string) string {
 	var b strings.Builder
 	runes := []rune(pattern)
@@ -777,12 +779,26 @@ func likeToRegex(pattern string) string {
 			i++
 			b.WriteString(regexp.QuoteMeta(string(runes[i])))
 		case r == '%':
-			b.WriteString(".*")
+			b.WriteString(`[\s\S]*`)
 		case r == '_':
-			b.WriteByte('.')
+			b.WriteString(`[\s\S]`)
 		default:
 			b.WriteString(regexp.QuoteMeta(string(r)))
 		}
+	}
+	return b.String()
+}
+
+// likeLiteral reads a LIKE pattern without wildcards as the text it matches, with its
+// backslash escapes resolved.
+func likeLiteral(pattern string) string {
+	var b strings.Builder
+	runes := []rune(pattern)
+	for i := 0; i < len(runes); i++ {
+		if runes[i] == '\\' && i+1 < len(runes) {
+			i++
+		}
+		b.WriteRune(runes[i])
 	}
 	return b.String()
 }
