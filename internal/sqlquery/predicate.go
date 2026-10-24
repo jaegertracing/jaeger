@@ -81,7 +81,11 @@ func (c *compiler) resolveColumn(sc *scope, node parser.Expr) (resolved, error) 
 func (c *compiler) reference(sc *scope, node parser.Expr) (ast.Expression, error) {
 	node = unparenthesized(node)
 	if fn, ok := node.(*parser.FunctionExpr); ok && strings.EqualFold(fn.Name.Name, "attr") {
-		return nil, c.pos.at(node, "attr() is not supported; an attribute reference names its level", hintAttributeColumns)
+		hint := hintAttributeColumns
+		if sc.rel != relationSpans {
+			hint = fmt.Sprintf("Inside EXISTS write %s.attributes['key'] for an attribute of the %s", sc.alias, strings.TrimSuffix(string(sc.rel), "s"))
+		}
+		return nil, c.pos.at(node, "attr() is not supported; an attribute reference names its level", hint)
 	}
 	if sub, ok := node.(*parser.ObjectParams); ok {
 		col, err := c.resolveColumn(sc, sub.Object)

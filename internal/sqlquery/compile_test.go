@@ -958,7 +958,7 @@ func TestRefusals(t *testing.T) {
 					)`,
 			at:   "attr('k')",
 			want: "attr() is not supported",
-			hint: "Write attributes['key'] for a span attribute",
+			hint: "Inside EXISTS write e.attributes['key'] for an attribute of the event",
 		},
 		{
 			name: "double sign",

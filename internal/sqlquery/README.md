@@ -12,7 +12,7 @@ A statement reads `spans` or `traces` in `FROM`, optionally aliased. `events` an
 
 | Column | Type | Values |
 |---|---|---|
-| `trace_id`, `span_id`, `parent_span_id` | text | lower-case hex; `parent_span_id` is `''` on a root span |
+| `trace_id`, `span_id`, `parent_span_id` | text | lower-case hex; a root span has no `parent_span_id`, and no comparison on it matches a root span |
 | `name`, `status_message`, `trace_state` | text | any |
 | `kind` | word | `'server'`, `'client'`, `'producer'`, `'consumer'`, `'internal'`, `'unspecified'` |
 | `status` | word | `'ok'`, `'error'`, `'unset'` |
@@ -37,6 +37,8 @@ The three map columns compile to an attribute reference at the span, resource or
 | `links` | `linked_trace_id`, `linked_span_id` | text | lower-case hex |
 | `links` | `trace_state` | text | any |
 | `links` | `attributes['key']` | map | link attributes |
+
+The `span_id` and `trace_id` of an event or link appear only in the optional correlation with the outer span, `e.span_id = s.span_id`; a predicate on them is refused, because inside `EXISTS` the collection is already the span's own.
 
 ### `traces`, one row per trace
 
