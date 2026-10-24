@@ -100,7 +100,7 @@ The `WHERE` clause is a boolean expression over the columns above and compiles t
 | `x IN (a, b)`, `x NOT IN (…)` | `in`, `not_in` | literal lists only; a subquery on the right is refused except the `trace_id IN (SELECT …)` shape of §4.4 |
 | `x REGEXP 'regex'`, `match(x, 'regex')` | `regex` | two spellings for one operator, because models produce both; PostgreSQL's `~` is not in the parser's grammar and is a parse error |
 | `x IS NOT NULL`, `x IS NULL` | `exists`, `not(exists)` | on attribute references only; built-in fields always exist |
-| `x LIKE 'a%b_'`, `x LIKE 'exact'` | `regex`, `eq` | `LIKE` is what models reach for first. The pattern is translated with `%`→`.*`, `_`→`.` and anchored at both ends, which RFC 0005 §5.3 lets every backend honor; a pattern without wildcards is an equality. `ILIKE` is refused because `regex` is case-sensitive |
+| `x LIKE 'a%b_'`, `x LIKE 'exact'` | `regex`, `eq` | `LIKE` is what models reach for first. The pattern is translated with `%`→`.*`, `_`→`.` and anchored at both ends, which RFC 0005 §5.3 lets every backend honor; a pattern without wildcards is an equality. `ILIKE` adds the `(?i)` flag |
 | `between(x, a, b)`, `x BETWEEN a AND b` | `and(gte, lte)` | the function spelling exists because the operator's own `AND` reads as a conjunction beside the other conjuncts; both are inclusive |
 | `phrase(x, 'word word')`, `fulltext(x, 'word word')` | `phrase`, `fulltext` | functions, because SQL has no standard text-search operator |
 | `EXISTS (SELECT 1 FROM events e WHERE …)` | `some` over events | the span's own events; §4.3 |
@@ -308,7 +308,6 @@ Each milestone is independently shippable.
 
 ## 10. Open questions
 
-- **Case-insensitive matching.** `ILIKE` is refused because RFC 0005's `regex` is case-sensitive on every backend. If that operator ever gains a case-folding flag, `ILIKE` and `(?i)` patterns compile to it.
 - **A SQL spelling for the structural tier, when it is built.** If a later RFC delivers RFC 0005's L5, the natural SQL for "a `frontend` span with a failing `db` span below it" is a self-join or a correlated `EXISTS` over `spans`, and both are shapes this RFC refuses today. That RFC should decide the spelling; the only constraint this one leaves is that the refusal message for a self-join is where it would be lifted.
 - **`attr('k')` versus a default level.** §4.1 keeps RFC 0005's unqualified search as a function. A simpler rule, "an unqualified `attributes['k']` means span-or-resource", would read better but would make `spans.attributes` mean two things depending on whether `resource_attributes` appears in the same statement.
 - **Should the time window be allowed out of band?** §4.2 requires it in the statement. A request that carries `start_time_min`/`max` as fields and a statement without them is a plausible convenience for a UI with a time picker; the compiler could accept either source and refuse both.

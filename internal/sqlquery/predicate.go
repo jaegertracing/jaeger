@@ -405,18 +405,16 @@ func (c *compiler) binary(sc *scope, n *parser.BinaryOperation) (*ast.Call, erro
 			return ref.In(values...), nil
 		}
 		return ref.NotIn(values...), nil
-	case "LIKE", "NOT LIKE":
+	case "LIKE", "NOT LIKE", "ILIKE", "NOT ILIKE":
 		pattern, ok := n.RightExpr.(*parser.StringLiteral)
 		if !ok {
 			return nil, c.pos.at(n.RightExpr, "the pattern of LIKE is a quoted string", "")
 		}
-		call := c.like(ref, unquote(pattern.Literal))
-		if op == "NOT LIKE" {
+		call := c.like(ref, unquote(pattern.Literal), strings.Contains(op, "ILIKE"))
+		if strings.HasPrefix(op, "NOT") {
 			return builder.Not(call), nil
 		}
 		return call, nil
-	case "ILIKE", "NOT ILIKE":
-		return nil, c.pos.at(n, "ILIKE is not supported", "The regex operator of RFC 0005 matches case-sensitively, so a case-insensitive pattern has no target; write LIKE or REGEXP with the case the value has")
 	case "REGEXP":
 		pattern, ok := n.RightExpr.(*parser.StringLiteral)
 		if !ok {
@@ -702,13 +700,17 @@ func unquote(literal string) string {
 }
 
 // like lowers a LIKE pattern to the anchored regular expression it means, or to an equality when
-// it has no wildcard. The anchors are honored by every backend: an engine that matches whole
-// terms drops its own wildcards for them (RFC 0005 §5.3).
-func (*compiler) like(ref expression.Ref, pattern string) *ast.Call {
-	if !strings.ContainsAny(pattern, "%_") {
+// it has no wildcard. ILIKE folds case with the (?i) flag, which keeps it a regex even without a
+// wildcard. The anchors and the flag are honored by every backend (RFC 0005 §5.3).
+func (*compiler) like(ref expression.Ref, pattern string, foldCase bool) *ast.Call {
+	if !foldCase && !strings.ContainsAny(pattern, "%_") {
 		return ref.Eq(pattern)
 	}
-	return ref.Matches("^" + likeToRegex(pattern) + "$")
+	regex := "^" + likeToRegex(pattern) + "$"
+	if foldCase {
+		regex = "(?i)" + regex
+	}
+	return ref.Matches(regex)
 }
 
 // likeToRegex translates the wildcards of a LIKE pattern into RE2.

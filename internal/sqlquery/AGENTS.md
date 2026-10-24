@@ -56,10 +56,10 @@ LIMIT 20
 
 `=`, `<>`, `<`, `<=`, `>`, `>=`, `IN (...)`, `NOT IN`, `between(x, a, b)`, `AND`, `OR`, `NOT`, parentheses.
 
-- Text search: `x LIKE 'GET %'` with `%` and `_` as in SQL, or `x REGEXP 'pat'` / `match(x, 'pat')` in RE2 syntax. A regex matches anywhere in the value unless anchored with `^` or `$`. Matching is case-sensitive; `(?i)` is refused.
+- Text search: `x LIKE 'GET %'` with `%` and `_` as in SQL, `x ILIKE 'get %'` to ignore case, or `x REGEXP 'pat'` / `match(x, 'pat')` in RE2 syntax. A regex matches anywhere in the value unless anchored with `^` or `$`, and is case-sensitive unless it starts with `(?i)`.
 - Presence: `attributes['key'] IS NOT NULL`. Built-in fields always exist.
 - Events and links of the span: `EXISTS (SELECT 1 FROM events WHERE name = 'exception' AND attributes['exception.type'] = 'TimeoutError')`. Inside `EXISTS`, `events` and `links` are this span's own; no join condition is needed. Event columns: `name`, `time`, `time_since_start`, `attributes`. Link columns: `linked_trace_id`, `linked_span_id`, `trace_state`, `attributes`.
 
 ## Not supported
 
-`JOIN`, `GROUP BY`, aggregates, `OFFSET`, arithmetic, `CAST`, other functions, `ILIKE`, and any relation other than `spans` and `traces` in `FROM`. An error names the construct, its line and column, and what to write instead.
+`JOIN`, `GROUP BY`, aggregates, `OFFSET`, arithmetic, `CAST`, other functions, and any relation other than `spans` and `traces` in `FROM`. An error names the construct, its line and column, and what to write instead.

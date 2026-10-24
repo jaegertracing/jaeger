@@ -160,7 +160,7 @@ func TestCompileFilters(t *testing.T) {
 			),
 		},
 		{
-			name: "like and not like",
+			name: "like, ilike and their negations",
 			sql: `
 				SELECT DISTINCT trace_id
 				FROM spans
@@ -168,12 +168,16 @@ func TestCompileFilters(t *testing.T) {
 					AND name LIKE 'GET /api/%'
 					AND name NOT LIKE '%health_check'
 					AND attributes['http.route'] LIKE '%/users/%'
-					AND status_message LIKE 'exact (text)'`,
+					AND status_message LIKE 'exact (text)'
+					AND attributes['http.method'] ILIKE 'get'
+					AND name NOT ILIKE '%Health%'`,
 			want: p.And(
 				p.Span().Name.Matches(`^GET /api/.*$`),
 				p.Not(p.Span().Name.Matches(`^.*health.check$`)),
 				p.Span().Attr("http.route").Matches(`^.*/users/.*$`),
 				p.Span().StatusMessage.Eq("exact (text)"),
+				p.Span().Attr("http.method").Matches(`(?i)^get$`),
+				p.Not(p.Span().Name.Matches(`(?i)^.*Health.*$`)),
 			),
 		},
 		{
@@ -1097,16 +1101,6 @@ func TestRefusals(t *testing.T) {
 					AND name IN 'a'`,
 			at:   "'a'",
 			want: "IN takes a parenthesized list of literals",
-		},
-		{
-			name: "ilike",
-			sql: `
-				SELECT DISTINCT trace_id
-				FROM spans s
-				WHERE between(start_time, now() - '1h', now())
-					AND name ILIKE '%get%'`,
-			at:   "name ILIKE",
-			want: "ILIKE is not supported",
 		},
 		{
 			name: "exists selects star",
