@@ -174,7 +174,7 @@ flowchart LR
 
 **Compile** rewrites the `WHERE` tree of each `spans` alias into an RFC 0005 `Call`, reusing `internal/expression` so that the output is exactly what the Go builder would produce for the same query, and then runs `tracestore.FinalizeFilter` on it, which validates the tree and resolves every constant against the field beside it. The window, order, limit and projection are filled into the request message.
 
-**Normalized SQL.** The compiler also prints the statement back from the AST through the parser's formatter, which fixes keyword case, spacing and the `AS` of every alias while keeping identifiers and literals as written. The dry-run RPC returns it, the MCP tool echoes it beside the results, and query logs record it, so that two agents asking the same question in different spellings leave one footprint.
+**Normalized SQL.** The compiler also prints the statement back from the AST through the parser's formatter, which fixes keyword case, spacing and the `AS` of every alias while keeping identifiers and literals as written. `ExplainQuery` returns it and query logs record it, so that two agents asking the same question in different spellings leave one footprint; the MCP tool returns only the traces, because an agent that wants the normalized form asks `ExplainQuery` for it.
 
 ### 5.1 API surface
 
