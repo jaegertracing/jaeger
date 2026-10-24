@@ -814,6 +814,18 @@ func TestSearchTracesHandler_BuildSQLQuery_SearchDepth(t *testing.T) {
 	}
 }
 
+// TestSearchTracesHandler_Handle_SQL_EmptyStatement pins that a statement with no SELECT in
+// it, such as a lone semicolon, comes back as an ordinary tool error.
+func TestSearchTracesHandler_Handle_SQL_EmptyStatement(t *testing.T) {
+	handler := &searchTracesHandler{queryService: &mockQueryService{}, maxResults: 100}
+
+	_, output, err := handler.handle(context.Background(), &mcp.CallToolRequest{}, types.SearchTracesInput{SQL: ";"})
+
+	require.ErrorContains(t, err, "invalid sql: ")
+	require.ErrorContains(t, err, "no statement")
+	assert.Empty(t, output.Traces)
+}
+
 func TestSearchTracesHandler_BuildSQLQuery_Refusals(t *testing.T) {
 	const statement = "SELECT DISTINCT trace_id FROM spans WHERE between(start_time, now() - '1h', now())"
 	tests := []struct {
