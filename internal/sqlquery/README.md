@@ -9,11 +9,11 @@ The dialect is one `SELECT` over a virtual schema. Nothing is a physical table; 
 | Relation | One row per | Columns |
 |---|---|---|
 | `spans` | span | `trace_id`, `span_id`, `parent_span_id`, `name`, `kind`, `start_time`, `end_time`, `duration`, `status`, `status_message`, `trace_state`, `service`, `scope_name`, `scope_version`, `attributes[...]`, `resource_attributes[...]`, `scope_attributes[...]` |
-| `events` | span event | `name`, `time`, `time_since_start`, `attributes[...]`, plus `span_id` and `trace_id` for the correlation |
-| `links` | span link | `linked_trace_id`, `linked_span_id`, `trace_state`, `attributes[...]`, plus `span_id` and `trace_id` for the correlation |
+| `events` | span event | `name`, `time`, `time_since_start`, `attributes[...]` |
+| `links` | span link | `linked_trace_id`, `linked_span_id`, `trace_state`, `attributes[...]` |
 | `traces` | trace | `trace_id`, `root_service`, `root_name`, `start_time`, `duration`, `span_count`, `error_count` |
 
-A statement reads `spans` or `traces` in `FROM`, optionally aliased. `events` and `links` appear only inside `EXISTS`. The column names are the RFC 0005 field names in `snake_case`; the `camelCase` spelling of the IDL (`startTime`, `traceID`) is accepted and means the same column.
+A statement reads `spans` or `traces` in `FROM`, optionally aliased. `events` and `links` appear only inside `EXISTS`, where they are the current span's own collections. The column names are the RFC 0005 field names in `snake_case`; the `camelCase` spelling of the IDL (`startTime`, `traceID`) is accepted and means the same column.
 
 The three `*_attributes` columns are maps addressed by subscript, `attributes['http.status_code']`, and compile to an attribute reference at the span, resource or scope level. `attr('key')` names an attribute without a level, which a backend looks for at the span and resource levels; it is the filter counterpart of the legacy attributes map.
 
@@ -54,8 +54,8 @@ A bound is an RFC 3339 instant, `'2026-10-23T12:00:00Z'`, or `now()` with a dura
 | `x IS NOT NULL`, `x IS NULL` | `exists`, `not(exists)` | on attributes only; a built-in field is always present |
 | `between(x, a, b)`, `x BETWEEN a AND b` | `and(gte, lte)` | inclusive at both ends; the function form has no `AND` of its own, so it reads better beside other conjuncts. `NOT` negates either |
 | `phrase(x, 'word word')`, `fulltext(x, 'word word')` | `phrase`, `fulltext` | on attributes; the words are split on whitespace |
-| `EXISTS (SELECT 1 FROM events e WHERE e.span_id = s.span_id AND ...)` | `some` over events | see below |
-| `EXISTS (SELECT 1 FROM links l WHERE l.span_id = s.span_id AND ...)` | `some` over links | see below |
+| `EXISTS (SELECT 1 FROM events WHERE ...)` | `some` over events | the span's own events; see below |
+| `EXISTS (SELECT 1 FROM links WHERE ...)` | `some` over links | the span's own links; see below |
 
 A `LIKE` pattern anchored at one end, `LIKE 'GET%'`, is refused: the `regex` operator matches anywhere in the value and cannot express a prefix. `ILIKE` is refused because `regex` is case-sensitive. Both refusals say so.
 
@@ -78,23 +78,24 @@ Strings are single-quoted, with `''` or `\'` for a quote inside. Numbers are int
 
 ### Events and links
 
-A span's events and links are collections, so two predicates on them have to bind to the same element. The dialect uses SQL's own existential for that:
+A span's events and links are collections, and a conjunction of two event predicates has to bind to the same event. The dialect uses SQL's existential for that, and scopes it: **inside `EXISTS`, `events` and `links` are the current span's own collections**, not a relation of every event in storage. The subquery asks whether the span has an event that satisfies the predicate.
 
 ```sql
 SELECT DISTINCT trace_id
-FROM spans s
-WHERE between(s.start_time, now() - '1h', now())
-  AND s.service = 'checkout'
+FROM spans
+WHERE between(start_time, now() - '1h', now())
+  AND service = 'checkout'
   AND EXISTS (
     SELECT 1
-    FROM events e
-    WHERE e.span_id = s.span_id
-      AND e.name = 'exception'
-      AND e.attributes['exception.type'] = 'TimeoutError'
+    FROM events
+    WHERE name = 'exception'
+      AND attributes['exception.type'] = 'TimeoutError'
   )
 ```
 
-The subquery reads `events` or `links`, is tied to the outer span by `e.span_id = s.span_id` (and optionally `e.trace_id = s.trace_id`), and otherwise names the subquery's own columns only. It compiles to `some(events, and(...))`. The select list is `SELECT 1`; the parser does not accept `SELECT *` there. `NOT EXISTS` negates the quantifier.
+That compiles to `some(events, and(...))`. The correlation a SQL reader expects, `e.span_id = s.span_id` and optionally `e.trace_id = s.trace_id`, is accepted and dropped, because the scoping already supplies it. Any other reference to the outer span inside the subquery is refused. The select list is `SELECT 1`; the parser does not accept `SELECT *` there. `NOT EXISTS` negates the quantifier.
+
+Because the collection is the span's own, an `EXISTS` cannot ask about events of other spans in the trace. That is RFC 0005's structural tier, which no backend serves.
 
 ## What is refused
 

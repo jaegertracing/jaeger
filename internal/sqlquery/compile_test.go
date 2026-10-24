@@ -354,6 +354,26 @@ func TestCompileFilters(t *testing.T) {
 			),
 		},
 		{
+			name: "exists without a correlation",
+			sql: `
+				SELECT DISTINCT trace_id
+				FROM spans
+				WHERE between(start_time, now() - '1h', now())
+					AND EXISTS (
+						SELECT 1
+						FROM events
+						WHERE name = 'exception'
+							AND attributes['exception.escaped'] = true
+					)`,
+			want: p.Some(
+				p.Event(),
+				p.And(
+					p.Event().Name.Eq("exception"),
+					p.Event().Attr("exception.escaped").Eq("true"),
+				),
+			),
+		},
+		{
 			name: "not exists",
 			sql: `
 				SELECT DISTINCT trace_id
@@ -1162,20 +1182,6 @@ func TestRefusals(t *testing.T) {
 			want: "the operator - is not supported",
 		},
 		{
-			name: "exists without correlation",
-			sql: `
-				SELECT DISTINCT trace_id
-				FROM spans s
-				WHERE between(start_time, now() - '1h', now())
-					AND EXISTS (
-						SELECT 1
-						FROM events e
-						WHERE e.name = 'x'
-					)`,
-			at:   "WHERE e.name",
-			want: "an EXISTS subquery is tied to its span by e.span_id = s.span_id",
-		},
-		{
 			name: "exists without a predicate",
 			sql: `
 				SELECT DISTINCT trace_id
@@ -1187,7 +1193,7 @@ func TestRefusals(t *testing.T) {
 						WHERE e.span_id = s.span_id
 					)`,
 			at:   "WHERE e.span_id",
-			want: "an EXISTS subquery needs a predicate on events beside the correlation",
+			want: "an EXISTS subquery needs a predicate on events",
 		},
 		{
 			name: "exists without where",
@@ -1200,7 +1206,7 @@ func TestRefusals(t *testing.T) {
 						FROM events e
 					)`,
 			at:   "SELECT 1",
-			want: "an EXISTS subquery needs WHERE e.span_id = s.span_id",
+			want: "an EXISTS subquery needs a WHERE",
 		},
 		{
 			name: "exists over spans",

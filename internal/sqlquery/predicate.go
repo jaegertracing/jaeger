@@ -110,7 +110,7 @@ func (c *compiler) reference(sc *scope, node parser.Expr) (ast.Expression, error
 		return nil, c.outerReference(node, sc)
 	}
 	if col.Level == "" {
-		return nil, c.pos.at(node, fmt.Sprintf("%q is a correlation column, not a predicate", col.name), "Inside EXISTS write e.span_id = s.span_id once; it ties the event to its span")
+		return nil, c.pos.at(node, fmt.Sprintf("%q is a correlation column, not a predicate", col.name), "Inside EXISTS the collection is already the span's own; the column is accepted only as e.span_id = s.span_id")
 	}
 	if col.isMap() {
 		return nil, c.pos.at(node, fmt.Sprintf("%q is a map and is read by subscript", col.name), fmt.Sprintf("Write %s['key'], or attr('key') to search the span and resource levels together", col.name))
@@ -119,7 +119,7 @@ func (c *compiler) reference(sc *scope, node parser.Expr) (ast.Expression, error
 }
 
 func (c *compiler) outerReference(node parser.Expr, sc *scope) error {
-	return c.pos.at(node, fmt.Sprintf("a predicate inside EXISTS reads the %s columns only", sc.rel), "The outer alias appears once, in the correlation e.span_id = s.span_id")
+	return c.pos.at(node, fmt.Sprintf("a predicate inside EXISTS reads the %s columns only", sc.rel), "The outer alias may appear only in the correlation e.span_id = s.span_id, which is optional")
 }
 
 // isReference reports whether a node names a value on the span rather than a constant.
@@ -561,7 +561,9 @@ func isAggregate(name string) bool {
 	return false
 }
 
-// exists lowers the correlated subquery of RFC 0019 §4.3 to some(events, ...) or some(links, ...).
+// exists lowers the subquery of RFC 0019 §4.3 to some(events, ...) or some(links, ...). Inside
+// EXISTS the relation is the span's own collection, so a correlation to the outer alias,
+// e.span_id = s.span_id, is accepted for the SQL reader's sake and adds nothing.
 func (c *compiler) exists(outer *scope, sub *parser.SelectQuery) (*ast.Call, error) {
 	if err := c.refuseClauses(sub); err != nil {
 		return nil, err
@@ -579,17 +581,16 @@ func (c *compiler) exists(outer *scope, sub *parser.SelectQuery) (*ast.Call, err
 	if outer.rel != relationSpans || outer.outer != nil {
 		return nil, c.pos.at(sub.From, "EXISTS appears in the WHERE of a spans query", hintOneRelation)
 	}
+	hint := "Inside EXISTS, " + string(rel) + " is the span's own collection; write a predicate on it, for example " + alias + ".name = 'exception'"
 	if sub.Where == nil {
-		return nil, c.pos.at(sub, "an EXISTS subquery needs WHERE "+alias+".span_id = "+outer.alias+".span_id and a predicate", hintOneRelation)
+		return nil, c.pos.at(sub, "an EXISTS subquery needs a WHERE", hint)
 	}
 	sc := &scope{alias: alias, rel: rel, outer: outer}
 	var predicates []*ast.Call
-	correlated := false
 	for _, conjunct := range conjuncts(sub.Where.Expr) {
 		if isCorrelation, err := c.correlation(sc, conjunct); err != nil {
 			return nil, err
 		} else if isCorrelation {
-			correlated = true
 			continue
 		}
 		pred, err := c.predicate(sc, conjunct)
@@ -598,11 +599,8 @@ func (c *compiler) exists(outer *scope, sub *parser.SelectQuery) (*ast.Call, err
 		}
 		predicates = append(predicates, pred)
 	}
-	if !correlated {
-		return nil, c.pos.at(sub.Where, "an EXISTS subquery is tied to its span by "+alias+".span_id = "+outer.alias+".span_id", "Without the correlation the subquery would read every span's "+string(rel))
-	}
 	if len(predicates) == 0 {
-		return nil, c.pos.at(sub.Where, "an EXISTS subquery needs a predicate on "+string(rel)+" beside the correlation", "For example "+alias+".name = 'exception'")
+		return nil, c.pos.at(sub.Where, "an EXISTS subquery needs a predicate on "+string(rel), hint)
 	}
 	var collection expression.Collection = builder.Event()
 	if rel == relationLinks {
@@ -611,8 +609,8 @@ func (c *compiler) exists(outer *scope, sub *parser.SelectQuery) (*ast.Call, err
 	return builder.Some(collection, builder.And(predicates...)), nil
 }
 
-// correlation recognizes e.span_id = s.span_id and e.trace_id = s.trace_id, in either order,
-// and refuses any other use of the correlation columns.
+// correlation recognizes e.span_id = s.span_id and e.trace_id = s.trace_id, in either order, so
+// that exists can drop them, and refuses any other use of the correlation columns.
 func (c *compiler) correlation(sc *scope, node parser.Expr) (bool, error) {
 	bin, ok := node.(*parser.BinaryOperation)
 	if !ok || string(bin.Operation) != "=" {

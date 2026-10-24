@@ -103,8 +103,8 @@ The `WHERE` clause is a boolean expression over the columns above and compiles t
 | `x LIKE '%a_b%'`, `x LIKE 'exact'` | `regex`, `eq` | `LIKE` is what models reach for first. RFC 0005's `regex` matches anywhere in the value and refuses anchors, so a pattern with `%` at both ends compiles to the regex between them (`%`→`.*`, `_`→`.`) and a pattern without wildcards to `eq`; a pattern anchored at one end, `LIKE 'GET%'`, has no equivalent and is refused with that explanation. `ILIKE` is refused because `regex` is case-sensitive |
 | `between(x, a, b)`, `x BETWEEN a AND b` | `and(gte, lte)` | the function spelling exists because the operator's own `AND` reads as a conjunction beside the other conjuncts; both are inclusive |
 | `phrase(x, 'word word')`, `fulltext(x, 'word word')` | `phrase`, `fulltext` | functions, because SQL has no standard text-search operator |
-| `EXISTS (SELECT … FROM events e WHERE e.span_id = s.span_id AND …)` | `some` over events | §4.3 |
-| `EXISTS (SELECT … FROM links l WHERE l.span_id = s.span_id AND …)` | `some` over links | §4.3 |
+| `EXISTS (SELECT 1 FROM events e WHERE …)` | `some` over events | the span's own events; §4.3 |
+| `EXISTS (SELECT 1 FROM links l WHERE …)` | `some` over links | the span's own links; §4.3 |
 
 **Literals.** Strings are single-quoted. Numbers are integers or decimals. Booleans are `true`/`false`. A duration is written as a string with a unit, `'2s'`, `'250ms'`, which is the form the RFC 0005 `DurationValue` already takes, or as the standard `INTERVAL '2' SECOND`, which the compiler normalizes to the former. A timestamp is an RFC 3339 string, `'2026-10-23T12:00:00Z'`, typed by the `start_time` beside it exactly as RFC 0005 types it, or `now()` with a duration subtracted or added, `now() - '1h'`, the only arithmetic the dialect allows; `now()` is evaluated once per request by the query service. The offset is written the way every other duration is, so a model that has written `duration > '2s'` writes the window the same way, and the standard `INTERVAL '1' HOUR` is accepted too. The SQL-92 `TIMESTAMP '…'` literal is not in the parser's grammar and is a parse error. A constant carries no type on the wire; it is typed by the field beside it, as RFC 0005 §5.4 specifies, so `duration > 2000` is refused with the message that a duration needs a unit, and `attributes['retries'] > 3` is passed through for storage to compare numerically.
 
@@ -120,13 +120,12 @@ WHERE between(s.start_time, now() - '1h', now())
   AND s.service = 'checkout'
   AND EXISTS (
     SELECT 1 FROM events e
-    WHERE e.span_id = s.span_id AND e.trace_id = s.trace_id
-      AND e.name = 'exception'
+    WHERE e.name = 'exception'
       AND e.attributes['exception.type'] = 'TimeoutError'
   )
 ```
 
-The compiler recognizes the subquery by shape: `FROM events` or `FROM links`, a correlation on `span_id` (and optionally `trace_id`) to the outer alias, and a `WHERE` over the child relation's columns only. It compiles to `some(events, <inner predicate>)`. A correlated subquery of any other shape is refused with a message that shows this one. An `events` or `links` relation in the outer `FROM` is also refused; it would make the result one row per event, which no RPC returns.
+Inside `EXISTS`, `events` and `links` are the current span's own collections rather than relations over all of storage, so the subquery asks whether this span has a matching event. The compiler recognizes the subquery by shape: `FROM events` or `FROM links`, and a `WHERE` over the child relation's columns. It compiles to `some(events, <inner predicate>)`. The correlation a SQL reader expects, `e.span_id = s.span_id`, is accepted and dropped, since the scoping supplies it; Jaeger has no RPC that could evaluate the uncorrelated SQL meaning, a search over every span's events, so there is nothing for the correlation to distinguish. Any other reference to the outer alias inside the subquery is refused, as is an `events` or `links` relation in the outer `FROM`, which would make the result one row per event.
 
 ### 4.4 Statement shape selects the RPC
 

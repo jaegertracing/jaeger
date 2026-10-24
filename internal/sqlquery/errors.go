@@ -32,7 +32,7 @@ func (e *Error) Error() string {
 }
 
 // hintOneRelation is the hint for every construct that would read more than one relation.
-const hintOneRelation = "A statement reads one relation, spans or traces; events and links are reached through EXISTS (SELECT 1 FROM events e WHERE e.span_id = s.span_id AND ...)"
+const hintOneRelation = "A statement reads one relation, spans or traces; events and links are reached through EXISTS (SELECT 1 FROM events e WHERE e.name = ...)"
 
 // hintWindow shows the two conjuncts every search needs.
 const hintWindow = "Add both bounds to WHERE, for example between(start_time, now() - '1h', now())"
