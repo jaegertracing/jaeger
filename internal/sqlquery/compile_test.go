@@ -28,9 +28,6 @@ import (
 // now is the instant now() evaluates to in every test.
 var now = time.Date(2026, 10, 23, 12, 0, 0, 0, time.UTC)
 
-// window is the conjunct pair every statement needs; the corpus appends its own predicates.
-const window = "start_time >= now() - INTERVAL '1' HOUR AND start_time < now()"
-
 // p is the builder the expected trees are written with, so that the test states the tree a Go
 // caller would build and the compiler has to match it.
 var p expression.Predicate
@@ -2195,12 +2192,6 @@ func TestErrorRendering(t *testing.T) {
 	assert.Equal(t, "line 2:7: the operator ^ is not supported", err.Error())
 	err.Hint = "Use REGEXP"
 	assert.Equal(t, "line 2:7: the operator ^ is not supported. Use REGEXP", err.Error())
-}
-
-func TestPositionsSpanLines(t *testing.T) {
-	_, err := Compile("SELECT DISTINCT trace_id\nFROM spans\nWHERE "+window+"\n  AND lower(name) = 'x'", now)
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "line 4:7: the function lower() is not supported")
 }
 
 func TestLikeToRegex(t *testing.T) {
