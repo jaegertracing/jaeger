@@ -303,18 +303,28 @@ func (s *SpanReader) buildComparison(
 		return buildOrderedTextComparison(operationNameField, op, ref, text)
 	case ref.isField(expression.LevelResource, expression.ResourceFieldService):
 		return buildTextComparison(serviceNameField, op, ref, text)
-	// The identifiers are keywords holding the lowercase hex that pcommon.TraceID.String() and
-	// pcommon.SpanID.String() write, so an uppercase constant is lowered to match them rather
-	// than to a term that finds nothing. Hex carries no order worth exposing.
 	case ref.isField(expression.LevelSpan, expression.SpanFieldTraceID):
-		return buildTextComparison(traceIDField, op, ref, strings.ToLower(text))
+		return buildTextComparison(traceIDField, op, ref, lowercaseHex(op, text))
 	case ref.isField(expression.LevelSpan, expression.SpanFieldSpanID):
-		return buildTextComparison(spanIDField, op, ref, strings.ToLower(text))
+		return buildTextComparison(spanIDField, op, ref, lowercaseHex(op, text))
 	case ref.isField(expression.LevelEvent, expression.EventFieldName):
 		return s.buildEventNameComparison(op, ref, text)
 	default:
 		return nil, errUnsupportedField(ref)
 	}
+}
+
+// lowercaseHex makes a constant match an identifier, which is a keyword holding the lowercase hex
+// that pcommon.TraceID.String() and pcommon.SpanID.String() write, so that an uppercase constant
+// matches rather than naming a term that finds nothing. A value is lowered. A pattern folds case
+// instead, because lowering its text would turn an escape such as `\D` into another one; a pattern
+// that switches the fold off again with (?-i) matches only lowercase hex, which is what is stored.
+// Hex carries no order worth exposing.
+func lowercaseHex(op expression.Operator, text string) string {
+	if op == expression.OpRegex {
+		return "(?i)" + text
+	}
+	return strings.ToLower(text)
 }
 
 // constantText returns the text that a constant contributes to a comparison. It accepts an untyped
@@ -554,54 +564,6 @@ var numberComparisons = map[expression.Operator]func(field string, bound float64
 	expression.OpLte: func(field string, bound float64) esquery.Query {
 		return esquery.NewRangeQuery(field).Lte(bound)
 	},
-}
-
-// forThisEngine builds the match for this engine's regexp query, or refuses a pattern it would read
-// differently than the query boundary said it means (RFC 0005 §5.3).
-//
-// Three differences. The query matches a whole indexed term while a filter's pattern matches anywhere
-// in the value, so the pattern is wrapped: soundly, because the boundary refuses a pattern that
-// anchors itself, and the group keeps a top-level alternation from swallowing the wildcards.
-//
-// This dialect also has no Perl shorthands. It reads `\d` as the letter d rather than as a digit, so a
-// pattern carrying one is refused rather than sent to match something else; the same pattern written
-// `[0-9]` is served. The refusal is lexical because it has to be: parsing turns `\d` and `[0-9]` into
-// one character class, and there is no telling them apart afterwards.
-//
-// And it reads &, @, ~, <n-m>, # and <identifier> as operators unless the query opts out, so the flags
-// are pinned to NONE. Without that an address like `@example.com` is an operator rather than the text
-// the filter asked for, and the capability is lost instead of narrowed.
-func forThisEngine(pattern string) (valueMatch, error) {
-	if escape, ok := perlShorthand(pattern); ok {
-		return nil, fmt.Errorf(
-			`%w: it reads %q as the literal character, so write the class out ("[0-9]" for "\d")`,
-			tracestore.ErrFilterUnsupported, escape,
-		)
-	}
-	wrapped := ".*(" + pattern + ").*"
-	return func(field string) esquery.Query {
-		return esquery.NewRegexpQuery(field, wrapped).Flags("NONE")
-	}, nil
-}
-
-// perlShorthand finds the first backslash escape of a letter or a digit, which is what a Perl
-// shorthand looks like. An escaped punctuation character — `\.`, `\[` — means the same thing in both
-// dialects, so those pass.
-func perlShorthand(pattern string) (string, bool) {
-	for i := 0; i < len(pattern)-1; i++ {
-		if pattern[i] != '\\' {
-			continue
-		}
-		next := pattern[i+1]
-		if next == '\\' {
-			i++ // An escaped backslash is a literal one, and does not escape what follows it.
-			continue
-		}
-		if (next >= 'a' && next <= 'z') || (next >= 'A' && next <= 'Z') || (next >= '0' && next <= '9') {
-			return pattern[i : i+2], true
-		}
-	}
-	return "", false
 }
 
 func termMatch(value string) valueMatch {
