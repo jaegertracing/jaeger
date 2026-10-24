@@ -418,7 +418,7 @@ func TestAnnounceMCPRequiresHTTPCapability(t *testing.T) {
 
 // TestAnnounceMCPRequiresBaseURL covers both reasons mcpBaseURL is empty: the
 // turn-scoped endpoint is not mounted at all, or it is mounted but no reachable
-// address is known (see AIConfig.resolveMCPBaseURL).
+// address is known (see Config.ResolveMCPBaseURL).
 func TestAnnounceMCPRequiresBaseURL(t *testing.T) {
 	got := announceEndpoint("", "").announceMCP(httpCaps(true), "route-1")
 	assert.Empty(t, got, "with no reachable base URL the endpoint is not announced")

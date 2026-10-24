@@ -6,7 +6,6 @@ package app
 
 import (
 	"bytes"
-	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -50,15 +49,15 @@ type BackendCapabilities struct {
 	AIAssistant              bool `json:"aiAssistant"`
 }
 
-// BackendCapabilityProvider reports what the deployment can currently do. It is called on
-// every SPA serve rather than evaluated once at startup, because not every flag is settled by
-// then: the AI sidecar's reachability changes while the process runs, and a storage backend
-// that answers for itself may not have been reachable when jaeger-query started. Flags that
-// do follow from configuration are simply constant within a provider.
-type BackendCapabilityProvider func(context.Context) BackendCapabilities
+// BackendCapabilityProvider reports what the deployment can currently do for the caller of
+// the page request. It is called on every SPA serve rather than evaluated once at startup,
+// because not every flag is settled by then: the AI sidecar's reachability changes while the
+// process runs, a storage backend that answers for itself may not have been reachable when
+// jaeger-query started, and the AI panel is offered only to a caller the ai.auth extension
+// admits. Flags that do follow from configuration are simply constant within a provider.
+type BackendCapabilityProvider func(*http.Request) BackendCapabilities
 
 // RegisterStaticHandler builds and registers the static-assets handler on r.
-// backendCaps may be nil, which offers the UI nothing beyond the bundle itself.
 func RegisterStaticHandler(
 	r *http.ServeMux,
 	logger *zap.Logger,
@@ -176,18 +175,14 @@ func (h *staticAssetsHandler) getUIConfig() *loadedConfig {
 //
 // The <base href> is not injected here. The UI detects its own mount-point
 // prefix at page-load time via an inline script in index.html (see ADR-009).
-func (h *staticAssetsHandler) deriveIndexHTML(ctx context.Context) []byte {
+func (h *staticAssetsHandler) deriveIndexHTML(r *http.Request) []byte {
 	out := h.indexHTMLRaw
 	if cfg := h.getUIConfig(); cfg != nil {
 		out = cfg.regexp.ReplaceAll(out, cfg.config)
 	}
 	versionJSON, _ := json.Marshal(version.Get())
 	out = versionPattern.ReplaceAll(out, fmt.Appendf(nil, "JAEGER_VERSION = %s;", versionJSON))
-	var caps BackendCapabilities
-	if h.backendCaps != nil {
-		caps = h.backendCaps(ctx)
-	}
-	capsJSON, _ := json.Marshal(caps)
+	capsJSON, _ := json.Marshal(h.backendCaps(r))
 	out = capabilitiesPattern.ReplaceAll(out, fmt.Appendf(nil, "JAEGER_BACKEND_CAPABILITIES = %s;", capsJSON))
 	return out
 }
@@ -289,7 +284,10 @@ func (h *staticAssetsHandler) registerRoutes(router *http.ServeMux) {
 
 func (h *staticAssetsHandler) serveSPA(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	w.Write(h.deriveIndexHTML(r.Context()))
+	// The page carries capabilities decided for this caller, so a shared cache must
+	// not hand one caller's page to another. The assets under /static stay cacheable.
+	w.Header().Set("Cache-Control", "no-store")
+	w.Write(h.deriveIndexHTML(r))
 }
 
 // Close is a no-op; the handler holds no resources that need explicit

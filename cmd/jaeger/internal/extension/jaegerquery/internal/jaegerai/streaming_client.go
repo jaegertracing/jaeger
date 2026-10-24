@@ -19,13 +19,8 @@ import (
 	"go.uber.org/zap"
 )
 
-// streamingClientIDSeq is a process-wide monotonic counter appended to the
-// time-derived stem when startRun allocates IDs. Even on systems with
-// coarse clock resolution (some VMs, older Windows) or two streamingClients
-// constructed within the same nanosecond, the counter guarantees no two
-// runs in this process share a stem. The combination (nanos-seq) is also
-// time-sortable across processes, which keeps logs from a single Jaeger
-// instance well-ordered.
+// streamingClientIDSeq is the process-wide monotonic counter that newIDStem
+// appends to its time-derived stem.
 var streamingClientIDSeq atomic.Uint64
 
 var _ acp.Client = (*streamingClient)(nil)
@@ -94,14 +89,12 @@ func (c *streamingClient) startRun() {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	// Allocate one stem per startRun and derive all three IDs from it.
-	// The stem is "<nanos>-<seq>": the nanosecond is time-sortable across
-	// processes, and the process-wide atomic counter guarantees no two
-	// runs in this process collide even on coarse-clock systems where
-	// two startRun calls might land in the same nanosecond. Sharing the
-	// stem also makes the trio visibly correlated in logs/traces — a
+	// Sharing the stem makes the trio visibly correlated in logs/traces — a
 	// thread-N-K, run-N-K, msg-N-K triplet tells a debugger at a glance
-	// they came from the same run startup.
-	stem := fmt.Sprintf("%d-%d", time.Now().UnixNano(), streamingClientIDSeq.Add(1))
+	// they came from the same run startup. Only the first text message of
+	// the run carries the shared stem; closeText clears messageID and
+	// ensureTextStart mints a fresh stem for each later message.
+	stem := newIDStem()
 	if c.threadID == "" {
 		c.threadID = "thread-" + stem
 	}
@@ -114,6 +107,13 @@ func (c *streamingClient) startRun() {
 	c.emit(aguievents.NewRunStartedEvent(c.threadID, c.runID))
 }
 
+// newIDStem returns "<nanos>-<seq>". The nanosecond keeps IDs time-sortable
+// across processes, and the counter keeps two stems minted in the same
+// nanosecond distinct on systems with coarse clock resolution.
+func newIDStem() string {
+	return fmt.Sprintf("%d-%d", time.Now().UnixNano(), streamingClientIDSeq.Add(1))
+}
+
 // finishRun closes any open text message and emits RUN_FINISHED. The
 // AG-UI schema has no top-level stopReason field, so the sidecar's stop
 // reason is forwarded via the schema-supported `result` payload as
@@ -122,10 +122,7 @@ func (c *streamingClient) startRun() {
 func (c *streamingClient) finishRun(stopReason string) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	if c.textOpen {
-		c.emit(aguievents.NewTextMessageEndEvent(c.messageID))
-		c.textOpen = false
-	}
+	c.closeText()
 	if stopReason != "" {
 		c.emit(aguievents.NewRunFinishedEventWithOptions(
 			c.threadID, c.runID,
@@ -142,28 +139,40 @@ func (c *streamingClient) finishRun(stopReason string) {
 func (c *streamingClient) failRun(message string) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	if c.textOpen {
-		c.emit(aguievents.NewTextMessageEndEvent(c.messageID))
-		c.textOpen = false
-	}
+	c.closeText()
 	c.emit(aguievents.NewRunErrorEvent(message, aguievents.WithRunID(c.runID)))
 }
 
-// ensureTextStart emits TEXT_MESSAGE_START the first time streamed assistant
-// text is observed. Subsequent chunks are emitted as TEXT_MESSAGE_CONTENT.
-// A messageID is allocated lazily here as well as in startRun so an
-// out-of-order SessionUpdate (no preceding startRun) still produces a
-// schema-valid event — the SDK rejects events with empty required fields
-// at encode time. Must be called with c.mu held.
+// ensureTextStart emits TEXT_MESSAGE_START when streamed assistant text is
+// observed and no message is open. Subsequent chunks are emitted as
+// TEXT_MESSAGE_CONTENT. A messageID is allocated lazily here as well as in
+// startRun so an out-of-order SessionUpdate (no preceding startRun) still
+// produces a schema-valid event — the SDK rejects events with empty required
+// fields at encode time. Must be called with c.mu held.
 func (c *streamingClient) ensureTextStart() {
 	if c.textOpen {
 		return
 	}
 	if c.messageID == "" {
-		c.messageID = fmt.Sprintf("msg-%d", time.Now().UnixNano())
+		c.messageID = "msg-" + newIDStem()
 	}
 	c.emit(aguievents.NewTextMessageStartEvent(c.messageID))
 	c.textOpen = true
+}
+
+// closeText emits TEXT_MESSAGE_END for the open text message, if any, and
+// clears messageID so the next text chunk starts a new message. The
+// @assistant-ui/react-ag-ui aggregator keeps one text part per messageId, so
+// text that arrives after a tool call must carry a new id to render after
+// the tool call rather than be appended to the text before it. Must be
+// called with c.mu held.
+func (c *streamingClient) closeText() {
+	if !c.textOpen {
+		return
+	}
+	c.emit(aguievents.NewTextMessageEndEvent(c.messageID))
+	c.textOpen = false
+	c.messageID = ""
 }
 
 // EmitUIToolCall fires the TOOL_CALL_START / TOOL_CALL_ARGS /
@@ -174,6 +183,7 @@ func (c *streamingClient) ensureTextStart() {
 func (c *streamingClient) EmitUIToolCall(toolCallID, toolName string, rawArgs any) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
+	c.closeText()
 	c.emit(aguievents.NewToolCallStartEvent(toolCallID, toolName))
 	if rawArgs != nil {
 		c.emit(aguievents.NewToolCallArgsEvent(toolCallID, marshalToolArgsDelta(rawArgs)))
@@ -226,25 +236,18 @@ func (c *streamingClient) SessionUpdate(_ context.Context, n acp.SessionNotifica
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	u := n.Update
-	if u.AgentMessageChunk != nil {
-		content := u.AgentMessageChunk.Content
-		// AG-UI's TextMessageContentEvent forbids empty deltas and the SDK
-		// encoder rejects them at write time, marking the SSE stream closed
-		// and stranding the browser bubble half-rendered. ACP, however,
-		// allows agents to emit text-block lifecycle/framing chunks whose
-		// `text` is "" or whitespace-only (Claude's stream maps
-		// content_block_start → empty-text chunk this way). Skip those at
-		// the boundary so the AG-UI invariant START → CONTENT+ → END holds
-		// and a noisy upstream agent doesn't take down the run. Note we
-		// emit the original Text (not the trimmed value) — leading/trailing
-		// whitespace inside a multi-chunk message is meaningful glue
-		// between deltas, only fully-blank chunks are skipped.
-		if content.Text != nil && strings.TrimSpace(content.Text.Text) != "" {
+	if u.AgentMessageChunk != nil && u.AgentMessageChunk.Content.Text != nil {
+		text := u.AgentMessageChunk.Content.Text.Text
+		// The AG-UI SDK rejects an empty delta and closes the stream.
+		// Whitespace between tokens and paragraphs is a real delta and is kept.
+		// Whitespace before the first visible text must not open a message.
+		if text != "" && (c.textOpen || strings.TrimSpace(text) != "") {
 			c.ensureTextStart()
-			c.emit(aguievents.NewTextMessageContentEvent(c.messageID, content.Text.Text))
+			c.emit(aguievents.NewTextMessageContentEvent(c.messageID, text))
 		}
 	}
 	if u.ToolCall != nil {
+		c.closeText()
 		// The agent populates ACP Title with the tool name it was offered, which
 		// for a UI tool carries UIToolPrefix. Strip it so the frontend sees the
 		// name it registered.
