@@ -1,9 +1,9 @@
 // Copyright (c) 2026 The Jaeger Authors.
 // SPDX-License-Identifier: Apache-2.0
 
-// Package sqlquery compiles the read-only SQL dialect of RFC 0019 into what the api_v3 RPCs
-// take: the RFC 0005 filter, the start-time window, the RFC 0016 ordering and page size, and
-// the RPC that the statement's shape selects.
+// Package sqlquery compiles the read-only SQL dialect of RFC 0019 into the parameters the
+// query service's search methods take: the RFC 0005 filter, the start-time window, the RFC
+// 0016 ordering and page size, and the method that the statement's shape selects.
 //
 // The package has no storage knowledge. Parsing is the job of the ClickHouse SQL parser
 // library, whose dialect is standard SELECT grammar plus the map subscript and INTERVAL
@@ -24,7 +24,7 @@ import (
 	"github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore"
 )
 
-// Kind is the RPC a statement compiles to (RFC 0019 §4.4).
+// Kind is the query service method a statement compiles to (RFC 0019 §4.4).
 type Kind string
 
 const (
@@ -34,8 +34,8 @@ const (
 	KindFindTraceSummaries Kind = "FindTraceSummaries"
 )
 
-// Query is a compiled statement: the request the query service dispatches, and the RPC it
-// dispatches it to.
+// Query is a compiled statement: the parameters of a query service search, and the method
+// they are for.
 type Query struct {
 	Kind Kind
 	// Filter is the RFC 0005 filter, finalized. It is nil when WHERE held only the window.
@@ -130,7 +130,7 @@ func (c *compiler) refuseClauses(sel *parser.SelectQuery) error {
 	case sel.Settings != nil:
 		return c.pos.at(sel.Settings, "SETTINGS is not supported", "")
 	case sel.Format != nil:
-		return c.pos.at(sel.Format, "FORMAT is not supported", "The response format is the RPC's")
+		return c.pos.at(sel.Format, "FORMAT is not supported", "The result's shape is fixed by the query service")
 	case sel.Top != nil:
 		return c.pos.at(sel.Top, "TOP is not supported", "Write LIMIT n")
 	case sel.DistinctOn != nil:
@@ -197,7 +197,7 @@ func (c *compiler) spans(sel *parser.SelectQuery, sc *scope) (*Query, error) {
 			return nil, c.pos.at(sel, "DISTINCT is accepted only as SELECT DISTINCT trace_id", "SELECT DISTINCT trace_id FROM spans returns trace IDs; SELECT * FROM spans returns spans")
 		}
 		if alias := sel.SelectItems[0].Alias; alias != nil {
-			return nil, c.pos.at(alias, "a column alias in SELECT has no effect", "The result's field names are the RPC's")
+			return nil, c.pos.at(alias, "a column alias in SELECT has no effect", "The result's field names are fixed by the query service")
 		}
 		query.Kind = KindFindTraceIDs
 	case len(sel.SelectItems) == 1 && isStar(sel.SelectItems[0].Expr):
@@ -253,10 +253,10 @@ func (c *compiler) refuseSelectItem(item *parser.SelectItem) error {
 		return c.pos.at(item, fn.Name.Name+"() is an aggregate", hintAggregation)
 	}
 	if !isReference(item.Expr) {
-		return c.pos.at(item, "SELECT lists columns, or *", "Expressions in SELECT have no target in the result; the result is the RPC's")
+		return c.pos.at(item, "SELECT lists columns, or *", "Expressions in SELECT have no target; the result's fields are fixed by the query service")
 	}
 	if item.Alias != nil {
-		return c.pos.at(item.Alias, "a column alias in SELECT has no effect", "The result's field names are the RPC's")
+		return c.pos.at(item.Alias, "a column alias in SELECT has no effect", "The result's field names are fixed by the query service")
 	}
 	return nil
 }

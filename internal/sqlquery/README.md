@@ -1,8 +1,8 @@
 # SQL query compiler
 
-This package compiles a read-only SQL statement into the query that Jaeger's trace search RPCs take: the RFC 0005 filter, the start-time window, the RFC 0016 ordering and page size, and the RPC that the statement's shape selects. It is the implementation of [RFC 0019](../../docs/rfc/0019-sql-query-surface.md), and this page documents the dialect as the compiler accepts it. The RFC holds the reasoning.
+This package compiles a read-only SQL statement into the parameters that the query service's search methods take: the RFC 0005 filter, the start-time window, the RFC 0016 ordering and page size, and the method that the statement's shape selects. The compiler runs in process; no remote call is involved. It is the implementation of [RFC 0019](../../docs/rfc/0019-sql-query-surface.md), and this page documents the dialect as the compiler accepts it. The RFC holds the reasoning.
 
-The dialect is one `SELECT` over a virtual schema. Nothing is a physical table; every name compiles to a level, a field, or an RPC of the existing API, so a statement reaches every storage backend through the filter the backend already evaluates.
+The dialect is one `SELECT` over a virtual schema. Nothing is a physical table; every name compiles to a level, a field, or a search method of the query service, so a statement reaches every storage backend through the filter the backend already evaluates.
 
 ## Relations
 
@@ -17,9 +17,9 @@ A statement reads `spans` or `traces` in `FROM`, optionally aliased. `events` an
 
 The three `*_attributes` columns are maps addressed by subscript, `attributes['http.status_code']`, and compile to an attribute reference at the span, resource or scope level. `attr('key')` names an attribute without a level, which a backend looks for at the span and resource levels; it is the filter counterpart of the legacy attributes map.
 
-## Statement shape selects the RPC
+## Statement shape selects the method
 
-| Statement | RPC | Fields filled |
+| Statement | Method | Fields filled |
 |---|---|---|
 | `SELECT DISTINCT trace_id FROM spans WHERE ...` | `FindTraceIDs` | filter, window, limit |
 | `SELECT * FROM spans WHERE ...` | `FindSpans` | filter, window, order, limit |
@@ -101,7 +101,7 @@ Because the collection is the span's own, an `EXISTS` cannot ask about events of
 The compiler refuses, with a message that names the construct and the admitted alternative:
 
 - `JOIN` of any kind, `WITH`, `UNION`, derived tables and table functions in `FROM`, `events` or `links` in the outer `FROM`. A statement reads one relation.
-- `GROUP BY`, `HAVING` and aggregate functions, which are reserved for the row-returning RPC of RFC 0016 §5.
+- `GROUP BY`, `HAVING` and aggregate functions, which are reserved for the row-returning query service method of RFC 0016 §5.
 - `OFFSET`, `LIMIT BY`, `TOP`, `DISTINCT ON`, `WINDOW`, `PREWHERE`, `SETTINGS`, `FORMAT`, `WITH TOTALS`, `SAMPLE`, `FINAL`, `GLOBAL IN` and the `SELECT` modifiers `EXCEPT`, `REPLACE` and `APPLY`.
 - Arithmetic, `CAST`, string functions and any function other than `between`, `match`, `phrase`, `fulltext`, `attr` and `now`.
 - A `traces` query whose `WHERE` is anything but `trace_id IN (SELECT trace_id FROM spans WHERE ...)`.
@@ -125,4 +125,4 @@ The message is what an agent reads to repair its statement, so the refusals in `
 query, err := sqlquery.Compile(sql, time.Now())
 ```
 
-`now` is the instant `now()` evaluates to, fixed once per request so that the two bounds of a window agree. The result holds the RPC kind, the finalized filter, the window, the span order, the projection, the limit and the statement printed back in the parser's canonical spelling.
+`now` is the instant `now()` evaluates to, fixed once per request so that the two bounds of a window agree. The result holds the method, the finalized filter, the window, the span order, the projection, the limit and the statement printed back in the parser's canonical spelling.

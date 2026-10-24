@@ -30,7 +30,7 @@ The MCP server ([ADR-002](../adr/002-mcp-server.md), [RFC 0012](0012-mcp-server-
 
 ### 1.3 The tiers above filtering are SQL clauses already
 
-RFC 0005 named its tiers in SQL's own terms: L2 is the `WHERE` clause, L3 is `SELECT`/`ORDER BY`/`LIMIT`, L4 is `GROUP BY` ([RFC 0005 §4](0005-structured-query-filters.md#4-composition--the-query-complexity-continuum)), and [RFC 0016 §5](0016-span-search.md#5-provisioning-for-select-and-group-by) reserved `projection`, `group_by` and `having` fields with those names. A structured request grows one proto field per tier, and an agent has to learn each field. A SQL statement grows one clause per tier, and the agent knew the clause before it met Jaeger. The same surface therefore serves the filter that exists today, the span search that RFC 0016 adds, and the aggregation RPC that RFC 0016 leaves for later, without a new vocabulary at any step.
+RFC 0005 named its tiers in SQL's own terms: L2 is the `WHERE` clause, L3 is `SELECT`/`ORDER BY`/`LIMIT`, L4 is `GROUP BY` ([RFC 0005 §4](0005-structured-query-filters.md#4-composition--the-query-complexity-continuum)), and [RFC 0016 §5](0016-span-search.md#5-provisioning-for-select-and-group-by) reserved `projection`, `group_by` and `having` fields with those names. A structured request grows one proto field per tier, and an agent has to learn each field. A SQL statement grows one clause per tier, and the agent knew the clause before it met Jaeger. The same surface therefore serves the filter that exists today, the span search that RFC 0016 adds, and the aggregation method that RFC 0016 leaves for later, without a new vocabulary at any step.
 
 ### 1.4 What SQL does not buy
 
@@ -53,7 +53,7 @@ SQL is not a better language for traces than TraceQL. TraceQL's spanset pipeline
 
 - **Data modification, DDL, transactions, multiple statements.** The dialect is one `SELECT`.
 - **Joins, and the structural tier.** A statement reads one relation. Self-joins over `spans` would be the SQL spelling of RFC 0005's tier L5 (parent, child, descendant, sibling), but that tier needs a fetch-then-filter execution model that no backend has, and RFC 0005 deferred it to a separate effort for that reason. This RFC does not change that decision; a later RFC that builds L5 may give it a SQL spelling.
-- **Aggregation (`GROUP BY`, `HAVING`, aggregate functions).** Parsed and recognized, but refused until the row-returning RPC that [RFC 0016 §5](0016-span-search.md#5-provisioning-for-select-and-group-by) deliberately leaves unnamed exists. This RFC reserves the clause mapping (§4.4) and does not build it.
+- **Aggregation (`GROUP BY`, `HAVING`, aggregate functions).** Parsed and recognized, but refused until the row-returning query service method that [RFC 0016 §5](0016-span-search.md#5-provisioning-for-select-and-group-by) deliberately leaves unnamed exists. This RFC reserves the clause mapping (§4.4) and does not build it.
 - **Passing SQL through to a storage engine.** ClickHouse speaks SQL and OpenSearch has a SQL plugin, but §7 shows why neither is this RFC's design.
 - **A SQL surface for the Jaeger UI.** The UI could grow a "SQL mode" search box over the same endpoint; that is jaeger-ui work and is listed in §9 as optional.
 - **Replacing the structured filter.** The RFC 0005 tree remains the contract and the Go and Python builders remain the programmatic surface. SQL is a third way to produce the same tree.
@@ -66,7 +66,7 @@ Three facts about the code shape the design.
 
 **The filter is already an expression tree with a closed vocabulary.** `jaeger-idl/query/expression/v1` defines sixteen operators (`and`, `or`, `not`, `eq`, `ne`, `gt`, `lt`, `gte`, `lte`, `regex`, `exists`, `in`, `not_in`, `some`, `phrase`, `fulltext`), five levels, and a per-level list of built-in fields (`traceID`, `spanID`, `parentSpanID`, `name`, `kind`, `startTime`, `endTime`, `duration`, `status`, `statusMessage` on the span; `service` and `schemaURL` on the resource; and so on). A constant travels as text with an optional type hint, and `tracestore.ResolveFilterConstants` reads it as the type of the field beside it, so `duration > "2s"` is already a valid and typed comparison ([RFC 0005 §5.4](0005-structured-query-filters.md#54-typed-values)). A SQL `WHERE` clause over these names is a one-to-one rewrite.
 
-**The result shape is settled per RPC.** `FindTraces` returns whole traces, `FindTraceIDs` identities, `FindTraceSummaries` per-trace statistics (RFC 0011), and `FindSpans` (RFC 0016) the matching spans with ordering and a keyset cursor (RFC 0014). RFC 0016 reserved `projection`, `group_by` and `having` fields and concluded that aggregation needs a separate row-returning RPC. The SQL compiler's job is to pick the RPC from the statement's shape (§4.4), not to invent a result type.
+**The result shape is settled per query service method.** `FindTraces` returns whole traces, `FindTraceIDs` identities, `FindTraceSummaries` per-trace statistics (RFC 0011), and `FindSpans` (RFC 0016) the matching spans with ordering and a keyset cursor (RFC 0014). RFC 0016 reserved `projection`, `group_by` and `having` fields and concluded that aggregation needs a separate row-returning method. The SQL compiler's job is to pick the method from the statement's shape (§4.4), not to invent a result type.
 
 **Capabilities are declared.** Each backend declares the levels and operators it evaluates (`FilterCapabilities`), and the query service refuses a filter the backend did not declare. A SQL statement compiles to the same filter, so the same check applies to it with no new mechanism.
 
@@ -76,7 +76,7 @@ Three facts about the code shape the design.
 
 ### 4.1 Virtual schema
 
-The dialect exposes four relations. None is a physical table; each is a name the compiler resolves to a level, a field, or an RPC. A statement reads `spans` or `traces` in its `FROM` clause; `events` and `links` appear only inside an `EXISTS` subquery (§4.3).
+The dialect exposes four relations. None is a physical table; each is a name the compiler resolves to a level, a field, or a query service method. A statement reads `spans` or `traces` in its `FROM` clause; `events` and `links` appear only inside an `EXISTS` subquery (§4.3).
 
 | Relation | One row per | Columns |
 |---|---|---|
@@ -127,20 +127,20 @@ WHERE between(s.start_time, now() - '1h', now())
   )
 ```
 
-Inside `EXISTS`, `events` and `links` are the current span's own collections rather than relations over all of storage, so the subquery asks whether this span has a matching event. The compiler recognizes the subquery by shape: `FROM events` or `FROM links`, and a `WHERE` over the child relation's columns. It compiles to `some(events, <inner predicate>)`. The correlation a SQL reader expects, `e.span_id = s.span_id`, is accepted and dropped, since the scoping supplies it; Jaeger has no RPC that could evaluate the uncorrelated SQL meaning, a search over every span's events, so there is nothing for the correlation to distinguish. Any other reference to the outer alias inside the subquery is refused, as is an `events` or `links` relation in the outer `FROM`, which would make the result one row per event.
+Inside `EXISTS`, `events` and `links` are the current span's own collections rather than relations over all of storage, so the subquery asks whether this span has a matching event. The compiler recognizes the subquery by shape: `FROM events` or `FROM links`, and a `WHERE` over the child relation's columns. It compiles to `some(events, <inner predicate>)`. The correlation a SQL reader expects, `e.span_id = s.span_id`, is accepted and dropped, since the scoping supplies it; the query service has no method that could evaluate the uncorrelated SQL meaning, a search over every span's events, so there is nothing for the correlation to distinguish. Any other reference to the outer alias inside the subquery is refused, as is an `events` or `links` relation in the outer `FROM`, which would make the result one row per event.
 
-### 4.4 Statement shape selects the RPC
+### 4.4 Statement shape selects the method
 
-The query service picks the RPC from the `SELECT` list and the `FROM` relation, because the RPCs differ in what they return and the statement already says what the caller wants.
+The compiler picks the query service method from the `SELECT` list and the `FROM` relation, because the methods differ in what they return and the statement already says what the caller wants.
 
-| Statement shape | RPC | Compiled fields |
+| Statement shape | Method | Compiled fields |
 |---|---|---|
 | `SELECT DISTINCT trace_id FROM spans WHERE …` | `FindTraceIDs` | filter, window, limit, cursor |
 | `SELECT * FROM spans WHERE …` | `FindSpans` (RFC 0016) | filter, window, order, limit, cursor |
 | `SELECT span_id, duration, … FROM spans WHERE …` | `FindSpans` | the above plus a reference-only `projection` |
 | `SELECT * FROM traces WHERE trace_id IN (SELECT trace_id FROM spans WHERE …)` | `FindTraces` | the inner filter and window; `LIMIT` on the outer query is `search_depth` |
 | `SELECT trace_id, root_service, span_count, … FROM traces WHERE trace_id IN (…)` | `FindTraceSummaries` (RFC 0011) | as above |
-| `SELECT … FROM spans … GROUP BY …`, any aggregate function | refused | reserved for the RPC of RFC 0016 §5 |
+| `SELECT … FROM spans … GROUP BY …`, any aggregate function | refused | reserved for the method of RFC 0016 §5 |
 
 `ORDER BY` accepts the fields RFC 0016 §6 declares sortable (`start_time`, `duration`, `trace_id`, `span_id`) and compiles to its ordering message; any other column is refused with the list. `LIMIT n` compiles to the page size, capped by the server's configured maximum, and `OFFSET` is refused in favor of the keyset cursor, which the response carries and the request accepts as a field beside the SQL. A `traces` query without the `IN (SELECT …)` shape is refused, because a trace predicate alone has nothing to search on; a later RFC may let `traces.duration > '5s'` compile to a summary-level filter if a backend indexes it.
 
@@ -148,7 +148,7 @@ The query service picks the RPC from the `SELECT` list and the `FROM` relation, 
 
 - Arithmetic other than `now() - INTERVAL`, string functions, `CASE`, `CAST`, window functions. None has a target in the expression tree. `CAST` is tempting for `attributes['x']::int`, but RFC 0005 already types a constant from the stored attribute and a cast would state a type the query cannot know.
 - `JOIN` of any kind, `UNION`, `WITH`, derived tables in `FROM`, scalar subqueries in `SELECT`. A statement reads one relation (§2). The refusal for a self-join on `spans` says so and points at RFC 0005's structural tier, because that is the question the agent was asking.
-- `GROUP BY`, `HAVING`, aggregates, until the row RPC exists.
+- `GROUP BY`, `HAVING`, aggregates, until the row-returning method exists.
 - `OFFSET`, for the reason RFC 0014 gives: deep offsets are the pathological case of every backend.
 
 ---
@@ -161,7 +161,7 @@ The compiler is one Go package in the query service, `internal/sqlquery` (name i
 flowchart LR
     sql["SQL text"] --> parse[["parser library<br/>(§6)"]]
     parse --> ast["library AST"]
-    ast --> shape[["shape check<br/>allow-list, aliases,<br/>RPC selection"]]
+    ast --> shape[["shape check<br/>allow-list, aliases,<br/>method selection"]]
     shape --> compile[["compile"]]
     compile --> expr["RFC 0005 Expression<br/>+ window, order,<br/>limit, projection"]
     expr --> caps[["capability check<br/>(ADR-013)"]]
@@ -170,7 +170,7 @@ flowchart LR
 
 **Parse** is the library's job. Its output is the library's AST for the whole statement, including constructs the dialect will refuse; a full-dialect parser is an asset here, because a model that writes `GROUP BY` gets "aggregation is not supported yet" instead of a tokenizer error at the first unexpected keyword.
 
-**Shape check** walks the AST once and decides three things: that the statement is a single `SELECT` with no refused clause; the alias graph (the one `spans` or `traces` alias, and which correlated subqueries are `events`/`links`); and the RPC from §4.4. Every rejection here is built from a small catalog of error templates, each with the construct's position and a "did you mean" that lists the admitted alternatives. The catalog is a test fixture: every template is exercised by a statement that triggers it, and the tests assert the message text, because the message *is* the agent's documentation at the moment it matters.
+**Shape check** walks the AST once and decides three things: that the statement is a single `SELECT` with no refused clause; the alias graph (the one `spans` or `traces` alias, and which correlated subqueries are `events`/`links`); and the method from §4.4. Every rejection here is built from a small catalog of error templates, each with the construct's position and a "did you mean" that lists the admitted alternatives. The catalog is a test fixture: every template is exercised by a statement that triggers it, and the tests assert the message text, because the message *is* the agent's documentation at the moment it matters.
 
 **Compile** rewrites the `WHERE` tree of each `spans` alias into an RFC 0005 `Call`, reusing `internal/expression` so that the output is exactly what the Go builder would produce for the same query, and then runs `tracestore.FinalizeFilter` on it, which validates the tree and resolves every constant against the field beside it. The window, order, limit and projection are filled into the request message.
 
@@ -181,7 +181,7 @@ flowchart LR
 Three additions, all additive:
 
 1. **A `sql` field** (`string`) on `TraceQueryParameters` and `SpanQueryParameters` in api_v3, in the same mutual-exclusion group as `filter` and the legacy predicate fields. The HTTP gateway takes it as a query parameter or request-body field; the gRPC service as the field. The query service compiles it before anything else looks at the request, so storage, capability checks and admission see a request indistinguishable from one that arrived with `filter`.
-2. **`ExplainQuery`** (name provisional), an RPC taking the SQL and returning the normalized SQL, the compiled `Expression`, the chosen RPC, the extracted window, and the warnings, or the error. It is the dry run of G5. It is also what a UI "SQL mode" would call for inline validation.
+2. **`ExplainQuery`** (name provisional), an RPC taking the SQL and returning the normalized SQL, the compiled `Expression`, the chosen method, the extracted window, and the warnings, or the error. It is the dry run of G5. It is also what a UI "SQL mode" would call for inline validation.
 3. **The MCP `search_traces` tool** gains the `sql` input alongside its existing inputs, and the skill it serves through `read_skill` gains a section with the virtual schema and ten example statements. For an agent, this is the whole feature; the two items above exist so that the MCP server is not the only client.
 
 ---
@@ -277,7 +277,7 @@ A parser is an implementation detail behind the compiler: the shape check consum
 | Storage contract unchanged | 🟢 | 🟢 | ❌ | 🟢 |
 
 - ¹ TraceQL has fifteen structural operators and a spanset pipeline syntax [\[3\]](https://grafana.com/docs/tempo/latest/traceql/construct-traceql-queries/); no search found evidence on how reliably models produce it, and a Jaeger dialect of it would have even less representation.
-- ² `ORDER BY`/`LIMIT` and a column list today, `GROUP BY` when the row RPC of RFC 0016 §5 exists; §4.4.
+- ² `ORDER BY`/`LIMIT` and a column list today, `GROUP BY` when the row-returning method of RFC 0016 §5 exists; §4.4.
 - ³ Elasticsearch SQL and the OpenSearch SQL plugin restrict nested fields to one per query and refuse multi-valued fields by default [\[12\]](https://www.elastic.co/docs/explore-analyze/query-filter/languages/sql-limitations), which rules out a query over both events and links, and span attributes are multi-valued in the v1 schema's `tags` array.
 - ⁴ the query would be written against a physical schema that differs per backend and changes with Jaeger versions, which makes it an API the project cannot keep.
 - ⁵ user-supplied SQL reaching a shared storage cluster is a cost and injection surface that an allow-listed compiler does not have.
@@ -300,10 +300,10 @@ Option D is the status quo plus a better skill document, and it is cheap. It fai
 
 Each milestone is independently shippable.
 
-- ✅ **M0 — Parser spike.** Delivered as the `internal/sqlquery` package: the compiler for every construct of §4, with a corpus of 43 accepted statements that compile to the builder's trees byte for byte and 168 refused statements whose message and position are asserted, all against `clickhouse-sql-parser`. The findings are recorded in §4.2 and §6.3. The package is not yet reachable from any RPC; M1 wires it in.
+- ✅ **M0 — Parser spike.** Delivered as the `internal/sqlquery` package: the compiler for every construct of §4, with a corpus of 43 accepted statements that compile to the builder's trees byte for byte and 168 refused statements whose message and position are asserted, all against `clickhouse-sql-parser`. The findings are recorded in §4.2 and §6.3. The package is not yet reachable from the API or the MCP tools; M1 wires it in.
 - **M1 — `WHERE` tier.** The `sql` field on `TraceQueryParameters` for `FindTraceIDs`, `FindTraces` and `FindTraceSummaries`; `ExplainQuery`; the MCP `search_traces` input and skill section. *Exit:* a statement sent through the API returns the same traces as the equivalent `filter`.
 - **M2 — Result shaping.** The `sql` field on `SpanQueryParameters`, so that `SELECT *` and column lists over `spans` reach `FindSpans` with the ordering, limit and projection the compiler already produces, as RFC 0016 lands those fields. *Exit:* the shared storage integration suite's filter battery runs its cases through SQL as well as through `filter`.
-- **M3 — Aggregation.** `GROUP BY`, `HAVING` and the aggregate functions compile to the row RPC of RFC 0016 §5 when that RPC exists. This milestone is owned by that RFC's successor and listed here so the clause mapping is reserved.
+- **M3 — Aggregation.** `GROUP BY`, `HAVING` and the aggregate functions compile to the row-returning method of RFC 0016 §5 when that method exists. This milestone is owned by that RFC's successor and listed here so the clause mapping is reserved.
 - **M4 (optional) — UI SQL mode.** A search box in jaeger-ui backed by `ExplainQuery` for inline errors, and a format button, which SQL input boxes customarily have. The button needs a formatter in Go that lays a statement out one clause per line; the parser library's beautifying mode produces a different layout, so the formatter is written over the library's AST and returned by `ExplainQuery` beside the normalized SQL. The same formatter then holds the compiler's test corpus to its layout from a test. The search box is out of this repository; the formatter is in it.
 
 ---

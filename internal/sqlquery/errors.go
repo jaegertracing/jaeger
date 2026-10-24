@@ -39,7 +39,7 @@ const hintOneRelation = "A statement reads one relation, spans or traces; events
 const hintWindow = "Add both bounds to WHERE as top-level conjuncts, for example between(start_time, now() - '1h', now()); a bound inside OR or NOT stays in the filter"
 
 // hintAggregation names where the aggregation clauses are reserved.
-const hintAggregation = "GROUP BY, HAVING and aggregate functions are reserved for the row-returning RPC of RFC 0016 §5 and are not supported yet"
+const hintAggregation = "GROUP BY, HAVING and aggregate functions are reserved for the row-returning query service method of RFC 0016 §5 and are not supported yet"
 
 // positions maps a byte offset in the statement to a line and column, both 1-based.
 type positions struct {
