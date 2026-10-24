@@ -34,11 +34,12 @@ The three `*_attributes` columns are maps addressed by subscript, `attributes['h
 Every search needs both bounds on `start_time`. The compiler takes them out of the top-level `AND` of `WHERE` and puts them in the request's window, so the filter never carries them:
 
 ```sql
-WHERE start_time >= now() - '1h'
-  AND start_time < now()
+WHERE between(start_time, now() - '1h', now())
 ```
 
-A bound is an RFC 3339 instant, `'2026-10-23T12:00:00Z'`, or `now()` with a duration added or subtracted. The duration is written in Go syntax, `'1h'`, `'90m'`, `'2h30m'`, the same syntax every duration constant uses; the SQL-standard `INTERVAL '1' HOUR` is accepted as well. `BETWEEN` sets both bounds at once. A `start_time` predicate that is not a bound, inside `OR` or compared with another column, stays in the filter.
+or, with the bounds as two conjuncts, `start_time >= now() - '1h' AND start_time < now()`, which is the form to use when the end has to be exclusive.
+
+A bound is an RFC 3339 instant, `'2026-10-23T12:00:00Z'`, or `now()` with a duration added or subtracted. The duration is written in Go syntax, `'1h'`, `'90m'`, `'2h30m'`, the same syntax every duration constant uses; the SQL-standard `INTERVAL '1' HOUR` is accepted as well. Both spellings of `BETWEEN` set both bounds at once. A `start_time` predicate that is not a bound, inside `OR` or compared with another column, stays in the filter.
 
 ## Predicates
 
@@ -51,7 +52,7 @@ A bound is an RFC 3339 instant, `'2026-10-23T12:00:00Z'`, or `now()` with a dura
 | `x LIKE '%text%'` | `regex` | `%` becomes `.*` and `_` becomes `.` between the two `%` |
 | `x LIKE 'text'` | `eq` | a pattern without a wildcard is an equality |
 | `x IS NOT NULL`, `x IS NULL` | `exists`, `not(exists)` | on attributes only; a built-in field is always present |
-| `x BETWEEN a AND b` | `and(gte, lte)` | `NOT BETWEEN` negates it |
+| `between(x, a, b)`, `x BETWEEN a AND b` | `and(gte, lte)` | inclusive at both ends; the function form has no `AND` of its own, so it reads better beside other conjuncts. `NOT` negates either |
 | `phrase(x, 'word word')`, `fulltext(x, 'word word')` | `phrase`, `fulltext` | on attributes; the words are split on whitespace |
 | `EXISTS (SELECT 1 FROM events e WHERE e.span_id = s.span_id AND ...)` | `some` over events | see below |
 | `EXISTS (SELECT 1 FROM links l WHERE l.span_id = s.span_id AND ...)` | `some` over links | see below |
@@ -82,8 +83,7 @@ A span's events and links are collections, so two predicates on them have to bin
 ```sql
 SELECT DISTINCT trace_id
 FROM spans s
-WHERE s.start_time >= now() - '1h'
-  AND s.start_time < now()
+WHERE between(s.start_time, now() - '1h', now())
   AND s.service = 'checkout'
   AND EXISTS (
     SELECT 1
@@ -103,7 +103,7 @@ The compiler refuses, with a message that names the construct and the admitted a
 - `JOIN` of any kind, `WITH`, `UNION`, derived tables and table functions in `FROM`, `events` or `links` in the outer `FROM`. A statement reads one relation.
 - `GROUP BY`, `HAVING` and aggregate functions, which are reserved for the row-returning RPC of RFC 0016 §5.
 - `OFFSET`, `LIMIT BY`, `TOP`, `DISTINCT ON`, `WINDOW`, `PREWHERE`, `SETTINGS`, `FORMAT`.
-- Arithmetic, `CAST`, string functions and any function other than `match`, `phrase`, `fulltext`, `attr` and `now`.
+- Arithmetic, `CAST`, string functions and any function other than `between`, `match`, `phrase`, `fulltext`, `attr` and `now`.
 - A `traces` query whose `WHERE` is anything but `trace_id IN (SELECT trace_id FROM spans WHERE ...)`.
 - A statement without both `start_time` bounds.
 
@@ -114,7 +114,7 @@ Three spellings are parse errors rather than refusals, because the parser librar
 Every refusal is an `*Error` with the line and column of the construct, a message saying what is wrong, and a hint saying what the dialect admits instead:
 
 ```
-line 4:7: the function lower() is not supported. The functions are match(column, 'regex'), phrase(column, 'words'), fulltext(column, 'words'), attr('key') and now()
+line 4:7: the function lower() is not supported. The functions are between(column, low, high), match(column, 'regex'), phrase(column, 'words'), fulltext(column, 'words'), attr('key') and now()
 ```
 
 The message is what an agent reads to repair its statement, so every message in the compiler is exercised by a statement in `compile_test.go` and asserted on its text and position.

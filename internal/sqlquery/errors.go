@@ -35,7 +35,7 @@ func (e *Error) Error() string {
 const hintOneRelation = "A statement reads one relation, spans or traces; events and links are reached through EXISTS (SELECT 1 FROM events e WHERE e.span_id = s.span_id AND ...)"
 
 // hintWindow shows the two conjuncts every search needs.
-const hintWindow = "Add both bounds to WHERE, for example start_time >= now() - '1h' AND start_time < now()"
+const hintWindow = "Add both bounds to WHERE, for example between(start_time, now() - '1h', now())"
 
 // hintAggregation names where the aggregation clauses are reserved.
 const hintAggregation = "GROUP BY, HAVING and aggregate functions are reserved for the row-returning RPC of RFC 0016 §5 and are not supported yet"

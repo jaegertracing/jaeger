@@ -287,13 +287,16 @@ func (c *compiler) predicate(sc *scope, node parser.Expr) (*ast.Call, error) {
 		}
 		return ref.Exists(), nil
 	case *parser.BetweenClause:
-		return c.between(sc, n)
+		return c.between(sc, rangeTest{subject: n.Expr, low: n.Between, high: n.And, negated: n.Not})
 	case *parser.FunctionExpr:
+		if r, ok := asRange(n); ok {
+			return c.between(sc, r)
+		}
 		return c.functionPredicate(sc, n)
 	case *parser.BinaryOperation:
 		return c.binary(sc, n)
 	}
-	return nil, c.pos.at(node, "expected a predicate here", "A predicate is a comparison, IN, LIKE, REGEXP, IS [NOT] NULL, BETWEEN, EXISTS (SELECT ...), match(), phrase() or fulltext(), joined by AND, OR and NOT")
+	return nil, c.pos.at(node, "expected a predicate here", "A predicate is a comparison, IN, LIKE, REGEXP, IS [NOT] NULL, between(), EXISTS (SELECT ...), match(), phrase() or fulltext(), joined by AND, OR and NOT")
 }
 
 // attributeReference resolves the operand of IS [NOT] NULL, which applies to attributes only:
@@ -309,22 +312,45 @@ func (c *compiler) attributeReference(sc *scope, node parser.Expr, op string) (e
 	return builder.RefOf(ref), nil
 }
 
-func (c *compiler) between(sc *scope, n *parser.BetweenClause) (*ast.Call, error) {
-	ref, err := c.reference(sc, n.Expr)
+// rangeTest is a BETWEEN in either of its spellings: the SQL operator x BETWEEN a AND b, or
+// the function between(x, a, b), which reads better beside other conjuncts because it has no
+// AND of its own. Both are inclusive at both ends.
+type rangeTest struct {
+	subject   parser.Expr
+	low, high parser.Expr
+	negated   bool
+}
+
+// asRange recognizes both spellings of BETWEEN, or reports that the node is neither.
+func asRange(node parser.Expr) (rangeTest, bool) {
+	switch n := node.(type) {
+	case *parser.BetweenClause:
+		return rangeTest{subject: n.Expr, low: n.Between, high: n.And, negated: n.Not}, true
+	case *parser.FunctionExpr:
+		if args := functionArgs(n); strings.EqualFold(n.Name.Name, "between") && len(args) == 3 {
+			return rangeTest{subject: args[0], low: args[1], high: args[2]}, true
+		}
+	default:
+	}
+	return rangeTest{}, false
+}
+
+func (c *compiler) between(sc *scope, r rangeTest) (*ast.Call, error) {
+	ref, err := c.reference(sc, r.subject)
 	if err != nil {
 		return nil, err
 	}
-	low, err := c.operand(sc, n.Between)
+	low, err := c.operand(sc, r.low)
 	if err != nil {
 		return nil, err
 	}
-	high, err := c.operand(sc, n.And)
+	high, err := c.operand(sc, r.high)
 	if err != nil {
 		return nil, err
 	}
-	r := builder.RefOf(ref)
-	call := builder.And(r.Gte(low), r.Lte(high))
-	if n.Not {
+	ro := builder.RefOf(ref)
+	call := builder.And(ro.Gte(low), ro.Lte(high))
+	if r.negated {
 		return builder.Not(call), nil
 	}
 	return call, nil
@@ -431,7 +457,7 @@ func (c *compiler) functionError(n *parser.FunctionExpr) error {
 	if isAggregate(name) {
 		return c.pos.at(n, name+"() is an aggregate", hintAggregation)
 	}
-	return c.pos.at(n, fmt.Sprintf("the function %s() is not supported", n.Name.Name), "The functions are match(column, 'regex'), phrase(column, 'words'), fulltext(column, 'words'), attr('key') and now()")
+	return c.pos.at(n, fmt.Sprintf("the function %s() is not supported", n.Name.Name), "The functions are between(column, low, high), match(column, 'regex'), phrase(column, 'words'), fulltext(column, 'words'), attr('key') and now()")
 }
 
 var comparisonOps = map[string]ast.Operator{
@@ -492,6 +518,8 @@ func (c *compiler) functionPredicate(sc *scope, n *parser.FunctionExpr) (*ast.Ca
 			return nil, c.pos.at(args[0], "EXISTS takes a subquery", hintOneRelation)
 		}
 		return c.exists(sc, sub)
+	case "between":
+		return nil, c.pos.at(n, "between() takes a column and two bounds", "Write between(duration, '1s', '2s')")
 	case "match", "phrase", "fulltext":
 		if len(args) < 2 {
 			return nil, c.pos.at(n, name+"() takes a column and a quoted pattern", "")

@@ -101,13 +101,14 @@ The `WHERE` clause is a boolean expression over the columns above and compiles t
 | `x REGEXP 'regex'`, `match(x, 'regex')` | `regex` | two spellings for one operator, because models produce both; PostgreSQL's `~` is not in the parser's grammar and is a parse error |
 | `x IS NOT NULL`, `x IS NULL` | `exists`, `not(exists)` | on attribute references only; built-in fields always exist |
 | `x LIKE '%a_b%'`, `x LIKE 'exact'` | `regex`, `eq` | `LIKE` is what models reach for first. RFC 0005's `regex` matches anywhere in the value and refuses anchors, so a pattern with `%` at both ends compiles to the regex between them (`%`→`.*`, `_`→`.`) and a pattern without wildcards to `eq`; a pattern anchored at one end, `LIKE 'GET%'`, has no equivalent and is refused with that explanation. `ILIKE` is refused because `regex` is case-sensitive |
+| `between(x, a, b)`, `x BETWEEN a AND b` | `and(gte, lte)` | the function spelling exists because the operator's own `AND` reads as a conjunction beside the other conjuncts; both are inclusive |
 | `phrase(x, 'word word')`, `fulltext(x, 'word word')` | `phrase`, `fulltext` | functions, because SQL has no standard text-search operator |
 | `EXISTS (SELECT … FROM events e WHERE e.span_id = s.span_id AND …)` | `some` over events | §4.3 |
 | `EXISTS (SELECT … FROM links l WHERE l.span_id = s.span_id AND …)` | `some` over links | §4.3 |
 
 **Literals.** Strings are single-quoted. Numbers are integers or decimals. Booleans are `true`/`false`. A duration is written as a string with a unit, `'2s'`, `'250ms'`, which is the form the RFC 0005 `DurationValue` already takes, or as the standard `INTERVAL '2' SECOND`, which the compiler normalizes to the former. A timestamp is an RFC 3339 string, `'2026-10-23T12:00:00Z'`, typed by the `start_time` beside it exactly as RFC 0005 types it, or `now()` with a duration subtracted or added, `now() - '1h'`, the only arithmetic the dialect allows; `now()` is evaluated once per request by the query service. The offset is written the way every other duration is, so a model that has written `duration > '2s'` writes the window the same way, and the standard `INTERVAL '1' HOUR` is accepted too. The SQL-92 `TIMESTAMP '…'` literal is not in the parser's grammar and is a parse error. A constant carries no type on the wire; it is typed by the field beside it, as RFC 0005 §5.4 specifies, so `duration > 2000` is refused with the message that a duration needs a unit, and `attributes['retries'] > 3` is passed through for storage to compare numerically.
 
-**Time window.** Jaeger requires a start-time window on every search. The compiler extracts it from the top-level conjuncts of `WHERE` that bound `start_time` on the primary `spans` alias, both bounds required, and puts them in `start_time_min` and `start_time_max` of the request. A statement without both bounds is refused with a message that shows the two conjuncts to add. The window is taken out of the compiled filter so that the backends' time handling is unchanged. A second `start_time` predicate deeper in the tree stays in the filter.
+**Time window.** Jaeger requires a start-time window on every search. The compiler extracts it from the top-level conjuncts of `WHERE` that bound `start_time` on the primary `spans` alias, both bounds required, and puts them in `start_time_min` and `start_time_max` of the request. A statement without both bounds is refused with a message that shows the `between(start_time, …)` conjunct to add; either spelling of `BETWEEN` supplies both bounds in one conjunct. The window is taken out of the compiled filter so that the backends' time handling is unchanged. A second `start_time` predicate deeper in the tree stays in the filter.
 
 ### 4.3 Events and links
 
@@ -115,7 +116,7 @@ A span's events and links are collections, and RFC 0005 §5.5 shows why a conjun
 
 ```sql
 SELECT * FROM spans s
-WHERE s.start_time >= now() - '1h' AND s.start_time < now()
+WHERE between(s.start_time, now() - '1h', now())
   AND s.service = 'checkout'
   AND EXISTS (
     SELECT 1 FROM events e

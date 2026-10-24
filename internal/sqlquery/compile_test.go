@@ -53,7 +53,7 @@ func TestCompileFilters(t *testing.T) {
 			sql: `
 				SELECT DISTINCT trace_id
 				FROM spans
-				WHERE start_time BETWEEN now() - '1h' AND now()`,
+				WHERE between(start_time, now() - '1h', now())`,
 			want: nil,
 		},
 		{
@@ -61,7 +61,7 @@ func TestCompileFilters(t *testing.T) {
 			sql: `
 				SELECT DISTINCT trace_id
 				FROM spans s
-				WHERE start_time BETWEEN now() - '1h' AND now()
+				WHERE between(start_time, now() - '1h', now())
 					AND s.service = 'checkout'
 					AND s.attributes['http.status_code'] >= 500`,
 			want: p.And(
@@ -88,7 +88,7 @@ func TestCompileFilters(t *testing.T) {
 			sql: `
 				SELECT DISTINCT trace_id
 				FROM spans
-				WHERE start_time BETWEEN now() - '1h' AND now()
+				WHERE between(start_time, now() - '1h', now())
 					AND duration > '2s'
 					AND duration < '10s'
 					AND duration >= '1ms'
@@ -109,7 +109,7 @@ func TestCompileFilters(t *testing.T) {
 			sql: `
 				SELECT DISTINCT trace_id
 				FROM spans
-				WHERE start_time BETWEEN now() - '1h' AND now()
+				WHERE between(start_time, now() - '1h', now())
 					AND '2s' < duration
 					AND 'x' = name`,
 			want: p.And(
@@ -122,7 +122,7 @@ func TestCompileFilters(t *testing.T) {
 			sql: `
 				SELECT DISTINCT trace_id
 				FROM spans
-				WHERE start_time BETWEEN now() - '1h' AND now()
+				WHERE between(start_time, now() - '1h', now())
 					AND duration > INTERVAL '250' MILLISECOND
 					AND duration < INTERVAL 2 SECOND`,
 			want: p.And(
@@ -135,7 +135,7 @@ func TestCompileFilters(t *testing.T) {
 			sql: `
 				SELECT DISTINCT trace_id
 				FROM spans
-				WHERE start_time BETWEEN now() - '1h' AND now()
+				WHERE between(start_time, now() - '1h', now())
 					AND (kind = 'server' OR kind = 'client')
 					AND NOT status = 'ok'`,
 			want: p.And(
@@ -151,7 +151,7 @@ func TestCompileFilters(t *testing.T) {
 			sql: `
 				SELECT DISTINCT trace_id
 				FROM spans
-				WHERE start_time BETWEEN now() - '1h' AND now()
+				WHERE between(start_time, now() - '1h', now())
 					AND kind IN ('server', 'consumer')
 					AND attributes['http.method'] NOT IN ('GET', 'HEAD')`,
 			want: p.And(
@@ -164,7 +164,7 @@ func TestCompileFilters(t *testing.T) {
 			sql: `
 				SELECT DISTINCT trace_id
 				FROM spans
-				WHERE start_time BETWEEN now() - '1h' AND now()
+				WHERE between(start_time, now() - '1h', now())
 					AND name LIKE '%/api/%'
 					AND name NOT LIKE '%health_check%'
 					AND status_message LIKE 'exact (text)'`,
@@ -179,7 +179,7 @@ func TestCompileFilters(t *testing.T) {
 			sql: `
 				SELECT DISTINCT trace_id
 				FROM spans
-				WHERE start_time BETWEEN now() - '1h' AND now()
+				WHERE between(start_time, now() - '1h', now())
 					AND name REGEXP 'GET|POST'
 					AND match(attributes['http.route'], '/users/[0-9]+')`,
 			want: p.And(
@@ -192,7 +192,7 @@ func TestCompileFilters(t *testing.T) {
 			sql: `
 				SELECT DISTINCT trace_id
 				FROM spans
-				WHERE start_time BETWEEN now() - '1h' AND now()
+				WHERE between(start_time, now() - '1h', now())
 					AND attributes['error'] IS NOT NULL
 					AND resource_attributes['k8s.pod.name'] IS NULL`,
 			want: p.And(
@@ -205,7 +205,7 @@ func TestCompileFilters(t *testing.T) {
 			sql: `
 				SELECT DISTINCT trace_id
 				FROM spans
-				WHERE start_time BETWEEN now() - '1h' AND now()
+				WHERE between(start_time, now() - '1h', now())
 					AND phrase(attributes['db.statement'], 'connection refused')
 					AND fulltext(attributes['exception.message'], 'timeout', 'upstream')`,
 			want: p.And(
@@ -218,9 +218,28 @@ func TestCompileFilters(t *testing.T) {
 			sql: `
 				SELECT DISTINCT trace_id
 				FROM spans
-				WHERE start_time BETWEEN now() - '1h' AND now()
+				WHERE between(start_time, now() - '1h', now())
 					AND duration BETWEEN '1s' AND '2s'
 					AND attributes['retries'] NOT BETWEEN 1 AND 3`,
+			want: p.And(
+				p.Span().Duration.Gte("1s"),
+				p.Span().Duration.Lte("2s"),
+				p.Not(
+					p.And(
+						p.Span().Attr("retries").Gte("1"),
+						p.Span().Attr("retries").Lte("3"),
+					),
+				),
+			),
+		},
+		{
+			name: "between as a function",
+			sql: `
+				SELECT DISTINCT trace_id
+				FROM spans s
+				WHERE between(start_time, now() - '1h', now())
+					AND between(s.duration, '1s', '2s')
+					AND NOT between(attributes['retries'], 1, 3)`,
 			want: p.And(
 				p.Span().Duration.Gte("1s"),
 				p.Span().Duration.Lte("2s"),
@@ -237,7 +256,7 @@ func TestCompileFilters(t *testing.T) {
 			sql: `
 				SELECT DISTINCT trace_id
 				FROM spans
-				WHERE start_time BETWEEN now() - '1h' AND now()
+				WHERE between(start_time, now() - '1h', now())
 					AND attr('error') = true
 					AND attr('retries') > 3
 					AND attr('ratio') <= 0.5`,
@@ -252,7 +271,7 @@ func TestCompileFilters(t *testing.T) {
 			sql: `
 				SELECT DISTINCT trace_id
 				FROM spans
-				WHERE start_time BETWEEN now() - '1h' AND now()
+				WHERE between(start_time, now() - '1h', now())
 					AND start_time < end_time
 					AND attributes['after'] > attributes['before']`,
 			want: p.And(
@@ -265,7 +284,7 @@ func TestCompileFilters(t *testing.T) {
 			sql: `
 				SELECT DISTINCT trace_id
 				FROM spans
-				WHERE start_time BETWEEN now() - '1h' AND now()
+				WHERE between(start_time, now() - '1h', now())
 					AND (start_time < '2026-10-23T11:30:00Z' OR duration > '1s')`,
 			want: p.Or(
 				p.Span().StartTime.Lt("2026-10-23T11:30:00Z"),
@@ -277,7 +296,7 @@ func TestCompileFilters(t *testing.T) {
 			sql: `
 				SELECT DISTINCT trace_id
 				FROM spans
-				WHERE start_time BETWEEN now() - '1h' AND now()
+				WHERE between(start_time, now() - '1h', now())
 					AND scope_name = 'io.opentelemetry.http'
 					AND scope_version LIKE '%1.%'
 					AND scope_attributes['x'] = 'y'`,
@@ -292,7 +311,7 @@ func TestCompileFilters(t *testing.T) {
 			sql: `
 				SELECT DISTINCT trace_id
 				FROM spans s
-				WHERE start_time BETWEEN now() - '1h' AND now()
+				WHERE between(start_time, now() - '1h', now())
 					AND s.service = 'checkout'
 					AND EXISTS (
 						SELECT 1
@@ -318,7 +337,7 @@ func TestCompileFilters(t *testing.T) {
 			sql: `
 				SELECT DISTINCT trace_id
 				FROM spans s
-				WHERE start_time BETWEEN now() - '1h' AND now()
+				WHERE between(start_time, now() - '1h', now())
 					AND EXISTS (
 						SELECT 1
 						FROM links l
@@ -339,7 +358,7 @@ func TestCompileFilters(t *testing.T) {
 			sql: `
 				SELECT DISTINCT trace_id
 				FROM spans s
-				WHERE start_time BETWEEN now() - '1h' AND now()
+				WHERE between(start_time, now() - '1h', now())
 					AND NOT EXISTS (
 						SELECT 1
 						FROM events e
@@ -358,7 +377,7 @@ func TestCompileFilters(t *testing.T) {
 			sql: `
 				SELECT DISTINCT trace_id
 				FROM spans
-				WHERE start_time BETWEEN now() - '1h' AND now()
+				WHERE between(start_time, now() - '1h', now())
 					AND NOT (kind = 'server' OR (status = 'error' AND duration > '1s'))
 					AND ( (name = 'a' AND name = 'b') OR name = 'c')`,
 			want: p.And(
@@ -385,7 +404,7 @@ func TestCompileFilters(t *testing.T) {
 			sql: `
 				SELECT DISTINCT trace_id
 				FROM spans
-				WHERE start_time BETWEEN now() - '1h' AND now()
+				WHERE between(start_time, now() - '1h', now())
 					AND start_time <> '2026-10-23T11:30:00Z'
 					AND attributes['deadline'] > now() + INTERVAL '30' SECOND`,
 			want: p.And(
@@ -398,7 +417,7 @@ func TestCompileFilters(t *testing.T) {
 			sql: `
 				SELECT DISTINCT trace_id
 				FROM spans
-				WHERE start_time BETWEEN now() - '1h' AND now()
+				WHERE between(start_time, now() - '1h', now())
 					AND name = 'o''brien'
 					AND status_message = 'a\'b'`,
 			want: p.And(
@@ -478,7 +497,7 @@ func TestCompileShapes(t *testing.T) {
 			sql: `
 				SELECT DISTINCT trace_id
 				FROM spans
-				WHERE start_time BETWEEN now() - '1h' AND now()
+				WHERE between(start_time, now() - '1h', now())
 					AND service = 'checkout'
 				LIMIT 20`,
 			want: Query{Kind: KindFindTraceIDs, Filter: spanFilter, Limit: 20},
@@ -488,7 +507,7 @@ func TestCompileShapes(t *testing.T) {
 			sql: `
 				SELECT *
 				FROM spans
-				WHERE start_time BETWEEN now() - '1h' AND now()
+				WHERE between(start_time, now() - '1h', now())
 					AND service = 'checkout'
 				ORDER BY duration DESC, start_time
 				LIMIT 100`,
@@ -502,7 +521,7 @@ func TestCompileShapes(t *testing.T) {
 			sql: `
 				SELECT s.span_id, duration, attributes['http.route']
 				FROM spans s
-				WHERE start_time BETWEEN now() - '1h' AND now()
+				WHERE between(start_time, now() - '1h', now())
 				ORDER BY s.trace_id, s.span_id`,
 			want: Query{Kind: KindFindSpans, Projection: []ast.Expression{
 				&ast.FieldRef{Name: ast.SpanFieldSpanID, Level: ast.LevelSpan},
@@ -521,7 +540,7 @@ func TestCompileShapes(t *testing.T) {
 				WHERE trace_id IN (
 					SELECT trace_id
 					FROM spans s
-					WHERE start_time BETWEEN now() - '1h' AND now()
+					WHERE between(start_time, now() - '1h', now())
 						AND s.service = 'checkout'
 				)
 				LIMIT 5`,
@@ -535,7 +554,7 @@ func TestCompileShapes(t *testing.T) {
 				WHERE t.trace_id IN (
 					SELECT DISTINCT trace_id
 					FROM spans
-					WHERE start_time BETWEEN now() - '1h' AND now()
+					WHERE between(start_time, now() - '1h', now())
 				)`,
 			want: Query{Kind: KindFindTraceSummaries},
 		},
@@ -582,7 +601,7 @@ func TestRefusals(t *testing.T) {
 			sql: `
 				SELECT DISTINCT trace_id
 				FROM spans s
-				WHERE start_time BETWEEN now() - '1h' AND now()
+				WHERE between(start_time, now() - '1h', now())
 					AND name ~ 'x'`,
 			at:   "~",
 			want: "did not parse",
@@ -592,7 +611,7 @@ func TestRefusals(t *testing.T) {
 			sql: `
 				SELECT DISTINCT trace_id
 				FROM spans s
-				WHERE start_time BETWEEN now() - '1h' AND now()
+				WHERE between(start_time, now() - '1h', now())
 					AND start_time >= TIMESTAMP '2026-01-01T00:00:00Z'`,
 			at:   "TIMESTAMP",
 			want: "did not parse",
@@ -618,7 +637,7 @@ func TestRefusals(t *testing.T) {
 					SELECT 1
 				) SELECT DISTINCT trace_id
 				FROM spans s
-				WHERE start_time BETWEEN now() - '1h' AND now()`,
+				WHERE between(start_time, now() - '1h', now())`,
 			at:   "WITH",
 			want: "WITH is not supported",
 		},
@@ -627,10 +646,10 @@ func TestRefusals(t *testing.T) {
 			sql: `
 				SELECT DISTINCT trace_id
 				FROM spans s
-				WHERE start_time BETWEEN now() - '1h' AND now()
+				WHERE between(start_time, now() - '1h', now())
 				UNION ALL SELECT DISTINCT trace_id
 				FROM spans s
-				WHERE start_time BETWEEN now() - '1h' AND now()`,
+				WHERE between(start_time, now() - '1h', now())`,
 			at:   "SELECT",
 			want: "UNION, EXCEPT and INTERSECT are not supported",
 		},
@@ -639,7 +658,7 @@ func TestRefusals(t *testing.T) {
 			sql: `
 				SELECT service
 				FROM spans
-				WHERE start_time BETWEEN now() - '1h' AND now()
+				WHERE between(start_time, now() - '1h', now())
 				GROUP BY service`,
 			at:   "GROUP BY",
 			want: "GROUP BY is not supported yet",
@@ -649,7 +668,7 @@ func TestRefusals(t *testing.T) {
 			sql: `
 				SELECT service
 				FROM spans
-				WHERE start_time BETWEEN now() - '1h' AND now()
+				WHERE between(start_time, now() - '1h', now())
 				GROUP BY service
 				HAVING count() > 1`,
 			at:   "GROUP BY",
@@ -660,7 +679,7 @@ func TestRefusals(t *testing.T) {
 			sql: `
 				SELECT count(*)
 				FROM spans
-				WHERE start_time BETWEEN now() - '1h' AND now()`,
+				WHERE between(start_time, now() - '1h', now())`,
 			at:   "count",
 			want: "count() is an aggregate",
 		},
@@ -669,7 +688,7 @@ func TestRefusals(t *testing.T) {
 			sql: `
 				SELECT DISTINCT trace_id
 				FROM spans s
-				WHERE start_time BETWEEN now() - '1h' AND now()
+				WHERE between(start_time, now() - '1h', now())
 					AND count() > 1`,
 			at:   "count",
 			want: "count() is an aggregate",
@@ -679,7 +698,7 @@ func TestRefusals(t *testing.T) {
 			sql: `
 				SELECT DISTINCT trace_id
 				FROM spans s
-				WHERE start_time BETWEEN now() - '1h' AND now()
+				WHERE between(start_time, now() - '1h', now())
 				LIMIT 10 OFFSET 5`,
 			at:   "5",
 			want: "OFFSET is not supported",
@@ -689,7 +708,7 @@ func TestRefusals(t *testing.T) {
 			sql: `
 				SELECT DISTINCT trace_id
 				FROM spans s
-				WHERE start_time BETWEEN now() - '1h' AND now()
+				WHERE between(start_time, now() - '1h', now())
 				LIMIT 0`,
 			at:   "0",
 			want: `"0" is not a page size`,
@@ -699,7 +718,7 @@ func TestRefusals(t *testing.T) {
 			sql: `
 				SELECT DISTINCT trace_id
 				FROM spans s
-				WHERE start_time BETWEEN now() - '1h' AND now()
+				WHERE between(start_time, now() - '1h', now())
 				LIMIT 'ten'`,
 			at:   "'ten'",
 			want: "LIMIT takes a whole number",
@@ -709,7 +728,7 @@ func TestRefusals(t *testing.T) {
 			sql: `
 				SELECT DISTINCT trace_id
 				FROM spans s
-				WHERE start_time BETWEEN now() - '1h' AND now()
+				WHERE between(start_time, now() - '1h', now())
 				SETTINGS max_threads = 1`,
 			at:   "SETTINGS",
 			want: "SETTINGS is not supported",
@@ -719,7 +738,7 @@ func TestRefusals(t *testing.T) {
 			sql: `
 				SELECT DISTINCT trace_id
 				FROM spans s
-				WHERE start_time BETWEEN now() - '1h' AND now()
+				WHERE between(start_time, now() - '1h', now())
 				FORMAT JSON`,
 			at:   "FORMAT",
 			want: "FORMAT is not supported",
@@ -728,7 +747,7 @@ func TestRefusals(t *testing.T) {
 			name: "no from",
 			sql: `
 				SELECT 1
-				WHERE start_time BETWEEN now() - '1h' AND now()`,
+				WHERE between(start_time, now() - '1h', now())`,
 			at:   "SELECT",
 			want: "FROM is required",
 		},
@@ -750,7 +769,7 @@ func TestRefusals(t *testing.T) {
 					SELECT *
 					FROM spans
 				)
-				WHERE start_time BETWEEN now() - '1h' AND now()`,
+				WHERE between(start_time, now() - '1h', now())`,
 			at:   "SELECT *",
 			want: "FROM takes a relation name",
 		},
@@ -759,7 +778,7 @@ func TestRefusals(t *testing.T) {
 			sql: `
 				SELECT DISTINCT trace_id
 				FROM logs
-				WHERE start_time BETWEEN now() - '1h' AND now()`,
+				WHERE between(start_time, now() - '1h', now())`,
 			at:   "logs",
 			want: `unknown relation "logs"`,
 		},
@@ -768,7 +787,7 @@ func TestRefusals(t *testing.T) {
 			sql: `
 				SELECT DISTINCT trace_id
 				FROM events
-				WHERE start_time BETWEEN now() - '1h' AND now()`,
+				WHERE between(start_time, now() - '1h', now())`,
 			at:   "FROM events",
 			want: "events is read through EXISTS",
 		},
@@ -777,7 +796,7 @@ func TestRefusals(t *testing.T) {
 			sql: `
 				SELECT DISTINCT trace_id
 				FROM jaeger.spans
-				WHERE start_time BETWEEN now() - '1h' AND now()`,
+				WHERE between(start_time, now() - '1h', now())`,
 			at:   "jaeger.spans",
 			want: "a relation has no database qualifier",
 		},
@@ -786,7 +805,7 @@ func TestRefusals(t *testing.T) {
 			sql: `
 				SELECT DISTINCT name
 				FROM spans
-				WHERE start_time BETWEEN now() - '1h' AND now()`,
+				WHERE between(start_time, now() - '1h', now())`,
 			at:   "SELECT",
 			want: "DISTINCT is accepted only as SELECT DISTINCT trace_id",
 		},
@@ -795,7 +814,7 @@ func TestRefusals(t *testing.T) {
 			sql: `
 				SELECT duration * 2
 				FROM spans
-				WHERE start_time BETWEEN now() - '1h' AND now()`,
+				WHERE between(start_time, now() - '1h', now())`,
 			at:   "duration * 2",
 			want: "SELECT lists columns, or *",
 		},
@@ -804,7 +823,7 @@ func TestRefusals(t *testing.T) {
 			sql: `
 				SELECT duration AS d
 				FROM spans
-				WHERE start_time BETWEEN now() - '1h' AND now()`,
+				WHERE between(start_time, now() - '1h', now())`,
 			at:   "d\n",
 			want: "a column alias in SELECT has no effect",
 		},
@@ -939,7 +958,7 @@ func TestRefusals(t *testing.T) {
 			sql: `
 				SELECT DISTINCT trace_id
 				FROM spans s
-				WHERE start_time BETWEEN now() - '1h' AND now()
+				WHERE between(start_time, now() - '1h', now())
 					AND s.operation = 'x'`,
 			at:   "s.operation",
 			want: `spans has no column "operation"`,
@@ -949,7 +968,7 @@ func TestRefusals(t *testing.T) {
 			sql: `
 				SELECT DISTINCT trace_id
 				FROM spans s
-				WHERE start_time BETWEEN now() - '1h' AND now()
+				WHERE between(start_time, now() - '1h', now())
 					AND t.name = 'x'`,
 			at:   "t.name",
 			want: `unknown alias "t"`,
@@ -959,7 +978,7 @@ func TestRefusals(t *testing.T) {
 			sql: `
 				SELECT DISTINCT trace_id
 				FROM spans s
-				WHERE start_time BETWEEN now() - '1h' AND now()
+				WHERE between(start_time, now() - '1h', now())
 					AND attributes = 'x'`,
 			at:   "attributes =",
 			want: `"attributes" is a map and is read by subscript`,
@@ -969,7 +988,7 @@ func TestRefusals(t *testing.T) {
 			sql: `
 				SELECT DISTINCT trace_id
 				FROM spans s
-				WHERE start_time BETWEEN now() - '1h' AND now()
+				WHERE between(start_time, now() - '1h', now())
 					AND name['x'] = 'y'`,
 			at:   "name['x']",
 			want: `"name" is not a map column and takes no subscript`,
@@ -979,7 +998,7 @@ func TestRefusals(t *testing.T) {
 			sql: `
 				SELECT DISTINCT trace_id
 				FROM spans s
-				WHERE start_time BETWEEN now() - '1h' AND now()
+				WHERE between(start_time, now() - '1h', now())
 					AND attributes[1] = 'y'`,
 			at:   "[1]",
 			want: "the subscript of a map column is a quoted attribute key",
@@ -989,7 +1008,7 @@ func TestRefusals(t *testing.T) {
 			sql: `
 				SELECT DISTINCT trace_id
 				FROM spans s
-				WHERE start_time BETWEEN now() - '1h' AND now()
+				WHERE between(start_time, now() - '1h', now())
 					AND attr('a', 'b') = 'y'`,
 			at:   "attr('a'",
 			want: "attr() takes one argument",
@@ -999,7 +1018,7 @@ func TestRefusals(t *testing.T) {
 			sql: `
 				SELECT DISTINCT trace_id
 				FROM spans s
-				WHERE start_time BETWEEN now() - '1h' AND now()
+				WHERE between(start_time, now() - '1h', now())
 					AND name IS NULL`,
 			at:   "name IS NULL",
 			want: "IS NULL applies to an attribute",
@@ -1009,7 +1028,7 @@ func TestRefusals(t *testing.T) {
 			sql: `
 				SELECT DISTINCT trace_id
 				FROM spans s
-				WHERE start_time BETWEEN now() - '1h' AND now()
+				WHERE between(start_time, now() - '1h', now())
 					AND duration > 2000`,
 			at:   "WHERE",
 			want: "the filter is not valid",
@@ -1019,7 +1038,7 @@ func TestRefusals(t *testing.T) {
 			sql: `
 				SELECT DISTINCT trace_id
 				FROM spans s
-				WHERE start_time BETWEEN now() - '1h' AND now()
+				WHERE between(start_time, now() - '1h', now())
 					AND kind > 'server'`,
 			at:   "WHERE",
 			want: "the filter is not valid",
@@ -1029,7 +1048,7 @@ func TestRefusals(t *testing.T) {
 			sql: `
 				SELECT DISTINCT trace_id
 				FROM spans s
-				WHERE start_time BETWEEN now() - '1h' AND now()
+				WHERE between(start_time, now() - '1h', now())
 					AND 1 = 1`,
 			at:   "1 = 1",
 			want: "a comparison names a column on at least one side",
@@ -1039,7 +1058,7 @@ func TestRefusals(t *testing.T) {
 			sql: `
 				SELECT DISTINCT trace_id
 				FROM spans s
-				WHERE start_time BETWEEN now() - '1h' AND now()
+				WHERE between(start_time, now() - '1h', now())
 					AND trace_id IN (
 						SELECT trace_id
 						FROM spans
@@ -1052,7 +1071,7 @@ func TestRefusals(t *testing.T) {
 			sql: `
 				SELECT DISTINCT trace_id
 				FROM spans s
-				WHERE start_time BETWEEN now() - '1h' AND now()
+				WHERE between(start_time, now() - '1h', now())
 					AND name IN 'a'`,
 			at:   "'a'",
 			want: "IN takes a parenthesized list of literals",
@@ -1062,7 +1081,7 @@ func TestRefusals(t *testing.T) {
 			sql: `
 				SELECT DISTINCT trace_id
 				FROM spans s
-				WHERE start_time BETWEEN now() - '1h' AND now()
+				WHERE between(start_time, now() - '1h', now())
 					AND name LIKE 'GET%'`,
 			at:   "'GET%'",
 			want: `LIKE "GET%" is anchored at one end`,
@@ -1072,7 +1091,7 @@ func TestRefusals(t *testing.T) {
 			sql: `
 				SELECT DISTINCT trace_id
 				FROM spans s
-				WHERE start_time BETWEEN now() - '1h' AND now()
+				WHERE between(start_time, now() - '1h', now())
 					AND name LIKE '%GET'`,
 			at:   "'%GET'",
 			want: `LIKE "%GET" is anchored at one end`,
@@ -1082,7 +1101,7 @@ func TestRefusals(t *testing.T) {
 			sql: `
 				SELECT DISTINCT trace_id
 				FROM spans s
-				WHERE start_time BETWEEN now() - '1h' AND now()
+				WHERE between(start_time, now() - '1h', now())
 					AND name ILIKE '%get%'`,
 			at:   "name ILIKE",
 			want: "ILIKE is not supported",
@@ -1092,7 +1111,7 @@ func TestRefusals(t *testing.T) {
 			sql: `
 				SELECT DISTINCT trace_id
 				FROM spans s
-				WHERE start_time BETWEEN now() - '1h' AND now()
+				WHERE between(start_time, now() - '1h', now())
 					AND EXISTS (
 						SELECT *
 						FROM events e
@@ -1107,7 +1126,7 @@ func TestRefusals(t *testing.T) {
 			sql: `
 				SELECT DISTINCT trace_id
 				FROM spans s
-				WHERE start_time BETWEEN now() - '1h' AND now()
+				WHERE between(start_time, now() - '1h', now())
 					AND name LIKE duration`,
 			at:   "duration",
 			want: "the pattern of LIKE is a quoted string",
@@ -1117,7 +1136,7 @@ func TestRefusals(t *testing.T) {
 			sql: `
 				SELECT DISTINCT trace_id
 				FROM spans s
-				WHERE start_time BETWEEN now() - '1h' AND now()
+				WHERE between(start_time, now() - '1h', now())
 					AND lower(name) = 'x'`,
 			at:   "lower(",
 			want: "the function lower() is not supported",
@@ -1127,7 +1146,7 @@ func TestRefusals(t *testing.T) {
 			sql: `
 				SELECT DISTINCT trace_id
 				FROM spans s
-				WHERE start_time BETWEEN now() - '1h' AND now()
+				WHERE between(start_time, now() - '1h', now())
 					AND duration * 2 > '1s'`,
 			at:   "duration * 2",
 			want: "the operator * is not supported",
@@ -1137,7 +1156,7 @@ func TestRefusals(t *testing.T) {
 			sql: `
 				SELECT DISTINCT trace_id
 				FROM spans s
-				WHERE start_time BETWEEN now() - '1h' AND now()
+				WHERE between(start_time, now() - '1h', now())
 					AND -duration > '1s'`,
 			at:   "-duration",
 			want: "the operator - is not supported",
@@ -1147,7 +1166,7 @@ func TestRefusals(t *testing.T) {
 			sql: `
 				SELECT DISTINCT trace_id
 				FROM spans s
-				WHERE start_time BETWEEN now() - '1h' AND now()
+				WHERE between(start_time, now() - '1h', now())
 					AND EXISTS (
 						SELECT 1
 						FROM events e
@@ -1161,7 +1180,7 @@ func TestRefusals(t *testing.T) {
 			sql: `
 				SELECT DISTINCT trace_id
 				FROM spans s
-				WHERE start_time BETWEEN now() - '1h' AND now()
+				WHERE between(start_time, now() - '1h', now())
 					AND EXISTS (
 						SELECT 1
 						FROM events e
@@ -1175,7 +1194,7 @@ func TestRefusals(t *testing.T) {
 			sql: `
 				SELECT DISTINCT trace_id
 				FROM spans s
-				WHERE start_time BETWEEN now() - '1h' AND now()
+				WHERE between(start_time, now() - '1h', now())
 					AND EXISTS (
 						SELECT 1
 						FROM events e
@@ -1188,7 +1207,7 @@ func TestRefusals(t *testing.T) {
 			sql: `
 				SELECT DISTINCT trace_id
 				FROM spans s
-				WHERE start_time BETWEEN now() - '1h' AND now()
+				WHERE between(start_time, now() - '1h', now())
 					AND EXISTS (
 						SELECT 1
 						FROM spans x
@@ -1202,7 +1221,7 @@ func TestRefusals(t *testing.T) {
 			sql: `
 				SELECT DISTINCT trace_id
 				FROM spans s
-				WHERE start_time BETWEEN now() - '1h' AND now()
+				WHERE between(start_time, now() - '1h', now())
 					AND EXISTS (
 						SELECT 1
 						FROM events e
@@ -1217,7 +1236,7 @@ func TestRefusals(t *testing.T) {
 			sql: `
 				SELECT DISTINCT trace_id
 				FROM spans s
-				WHERE start_time BETWEEN now() - '1h' AND now()
+				WHERE between(start_time, now() - '1h', now())
 					AND EXISTS (
 						SELECT 1
 						FROM events e
@@ -1233,7 +1252,7 @@ func TestRefusals(t *testing.T) {
 			sql: `
 				SELECT DISTINCT trace_id
 				FROM spans s
-				WHERE start_time BETWEEN now() - '1h' AND now()
+				WHERE between(start_time, now() - '1h', now())
 					AND EXISTS (
 						SELECT 1
 						FROM events e
@@ -1248,7 +1267,7 @@ func TestRefusals(t *testing.T) {
 			sql: `
 				SELECT DISTINCT trace_id
 				FROM spans s
-				WHERE start_time BETWEEN now() - '1h' AND now()
+				WHERE between(start_time, now() - '1h', now())
 					AND EXISTS (
 						SELECT 1
 						FROM events e
@@ -1263,7 +1282,7 @@ func TestRefusals(t *testing.T) {
 			sql: `
 				SELECT DISTINCT trace_id
 				FROM spans s
-				WHERE start_time BETWEEN now() - '1h' AND now()
+				WHERE between(start_time, now() - '1h', now())
 					AND EXISTS (
 						SELECT 1
 						FROM events e
@@ -1283,7 +1302,7 @@ func TestRefusals(t *testing.T) {
 			sql: `
 				SELECT DISTINCT trace_id
 				FROM spans s
-				WHERE start_time BETWEEN now() - '1h' AND now()
+				WHERE between(start_time, now() - '1h', now())
 				ORDER BY duration`,
 			at:   "ORDER BY",
 			want: "ORDER BY applies to a span search",
@@ -1293,7 +1312,7 @@ func TestRefusals(t *testing.T) {
 			sql: `
 				SELECT *
 				FROM spans
-				WHERE start_time BETWEEN now() - '1h' AND now()
+				WHERE between(start_time, now() - '1h', now())
 				ORDER BY name`,
 			at:   "name",
 			want: "ORDER BY takes a sortable column",
@@ -1303,7 +1322,7 @@ func TestRefusals(t *testing.T) {
 			sql: `
 				SELECT *
 				FROM spans
-				WHERE start_time BETWEEN now() - '1h' AND now()
+				WHERE between(start_time, now() - '1h', now())
 				ORDER BY attributes['x']`,
 			at:   "attributes['x']",
 			want: "ORDER BY takes a sortable column",
@@ -1342,7 +1361,7 @@ func TestRefusals(t *testing.T) {
 				WHERE trace_id IN (
 					SELECT trace_id
 					FROM events
-					WHERE start_time BETWEEN now() - '1h' AND now()
+					WHERE between(start_time, now() - '1h', now())
 				)`,
 			at:   "FROM events",
 			want: "the subquery of a traces query reads spans",
@@ -1355,7 +1374,7 @@ func TestRefusals(t *testing.T) {
 				WHERE trace_id IN (
 					SELECT span_id
 					FROM spans
-					WHERE start_time BETWEEN now() - '1h' AND now()
+					WHERE between(start_time, now() - '1h', now())
 				)`,
 			at:   "SELECT span_id",
 			want: "the subquery of a traces query selects trace_id",
@@ -1368,7 +1387,7 @@ func TestRefusals(t *testing.T) {
 				WHERE trace_id IN (
 					SELECT trace_id
 					FROM spans
-					WHERE start_time BETWEEN now() - '1h' AND now()
+					WHERE between(start_time, now() - '1h', now())
 					LIMIT 5
 				)`,
 			at:   "SELECT trace_id",
@@ -1382,7 +1401,7 @@ func TestRefusals(t *testing.T) {
 				WHERE trace_id IN (
 					SELECT trace_id
 					FROM spans
-					WHERE start_time BETWEEN now() - '1h' AND now()
+					WHERE between(start_time, now() - '1h', now())
 				)
 				ORDER BY duration`,
 			at:   "ORDER BY",
@@ -1396,7 +1415,7 @@ func TestRefusals(t *testing.T) {
 				WHERE trace_id IN (
 					SELECT trace_id
 					FROM spans
-					WHERE start_time BETWEEN now() - '1h' AND now()
+					WHERE between(start_time, now() - '1h', now())
 				)`,
 			at:   "name",
 			want: `traces has no column "name"`,
@@ -1407,7 +1426,7 @@ func TestRefusals(t *testing.T) {
 				(
 					SELECT DISTINCT trace_id
 					FROM spans s
-					WHERE start_time BETWEEN now() - '1h' AND now()
+					WHERE between(start_time, now() - '1h', now())
 				)`,
 			at:   "(",
 			want: "a parenthesized query is not supported",
@@ -1417,7 +1436,7 @@ func TestRefusals(t *testing.T) {
 			sql: `
 				SELECT DISTINCT trace_id
 				FROM spans s
-				WHERE start_time BETWEEN now() - '1h' AND now()
+				WHERE between(start_time, now() - '1h', now())
 				HAVING count() > 1`,
 			at:   "HAVING",
 			want: "HAVING is not supported yet",
@@ -1427,7 +1446,7 @@ func TestRefusals(t *testing.T) {
 			sql: `
 				SELECT *
 				FROM spans
-				WHERE start_time BETWEEN now() - '1h' AND now()
+				WHERE between(start_time, now() - '1h', now())
 				WINDOW w AS(PARTITION BY service)`,
 			at:   "WINDOW",
 			want: "window functions are not supported",
@@ -1438,7 +1457,7 @@ func TestRefusals(t *testing.T) {
 				SELECT *
 				FROM spans
 				PREWHERE service = 'a'
-				WHERE start_time BETWEEN now() - '1h' AND now()`,
+				WHERE between(start_time, now() - '1h', now())`,
 			at:   "PREWHERE",
 			want: "PREWHERE is not supported",
 		},
@@ -1447,7 +1466,7 @@ func TestRefusals(t *testing.T) {
 			sql: `
 				SELECT DISTINCT trace_id
 				FROM spans s
-				WHERE start_time BETWEEN now() - '1h' AND now()
+				WHERE between(start_time, now() - '1h', now())
 				LIMIT 1 BY service`,
 			at:   "LIMIT 1 BY",
 			want: "LIMIT BY is not supported",
@@ -1457,7 +1476,7 @@ func TestRefusals(t *testing.T) {
 			sql: `
 				SELECT TOP 5 *
 				FROM spans
-				WHERE start_time BETWEEN now() - '1h' AND now()`,
+				WHERE between(start_time, now() - '1h', now())`,
 			at:   "TOP",
 			want: "TOP is not supported",
 		},
@@ -1466,7 +1485,7 @@ func TestRefusals(t *testing.T) {
 			sql: `
 				SELECT DISTINCT ON (trace_id) *
 				FROM spans
-				WHERE start_time BETWEEN now() - '1h' AND now()`,
+				WHERE between(start_time, now() - '1h', now())`,
 			at:   "ON",
 			want: "DISTINCT ON is not supported",
 		},
@@ -1475,7 +1494,7 @@ func TestRefusals(t *testing.T) {
 			sql: `
 				SELECT *
 				FROM numbers(10)
-				WHERE start_time BETWEEN now() - '1h' AND now()`,
+				WHERE between(start_time, now() - '1h', now())`,
 			at:   "numbers",
 			want: "FROM takes a relation name",
 		},
@@ -1484,7 +1503,7 @@ func TestRefusals(t *testing.T) {
 			sql: `
 				SELECT nonexistent
 				FROM spans
-				WHERE start_time BETWEEN now() - '1h' AND now()`,
+				WHERE between(start_time, now() - '1h', now())`,
 			at:   "nonexistent",
 			want: `spans has no column "nonexistent"`,
 		},
@@ -1552,7 +1571,7 @@ func TestRefusals(t *testing.T) {
 			sql: `
 				SELECT *
 				FROM spans
-				WHERE start_time BETWEEN now() - '1h' AND now()
+				WHERE between(start_time, now() - '1h', now())
 				ORDER BY duration WITH FILL`,
 			at:   "duration WITH",
 			want: "WITH FILL is not supported",
@@ -1562,7 +1581,7 @@ func TestRefusals(t *testing.T) {
 			sql: `
 				SELECT *
 				FROM spans
-				WHERE start_time BETWEEN now() - '1h' AND now()
+				WHERE between(start_time, now() - '1h', now())
 				ORDER BY t.duration`,
 			at:   "t.duration",
 			want: `unknown alias "t"`,
@@ -1572,7 +1591,7 @@ func TestRefusals(t *testing.T) {
 			sql: `
 				SELECT *
 				FROM spans
-				WHERE start_time BETWEEN now() - '1h' AND now()
+				WHERE between(start_time, now() - '1h', now())
 				ORDER BY duration, duration DESC`,
 			at:   "ORDER BY",
 			want: "the order is not valid",
@@ -1585,7 +1604,7 @@ func TestRefusals(t *testing.T) {
 				WHERE trace_id IN (
 					SELECT trace_id
 					FROM spans
-					WHERE start_time BETWEEN now() - '1h' AND now()
+					WHERE between(start_time, now() - '1h', now())
 					GROUP BY service
 				)`,
 			at:   "GROUP BY",
@@ -1599,7 +1618,7 @@ func TestRefusals(t *testing.T) {
 				WHERE trace_id IN (
 					SELECT trace_id
 					FROM logs
-					WHERE start_time BETWEEN now() - '1h' AND now()
+					WHERE between(start_time, now() - '1h', now())
 				)`,
 			at:   "logs",
 			want: `unknown relation "logs"`,
@@ -1624,7 +1643,7 @@ func TestRefusals(t *testing.T) {
 				WHERE trace_id IN (
 					SELECT trace_id
 					FROM spans
-					WHERE start_time BETWEEN now() - '1h' AND now()
+					WHERE between(start_time, now() - '1h', now())
 				)
 				LIMIT 0`,
 			at:   "0",
@@ -1635,7 +1654,7 @@ func TestRefusals(t *testing.T) {
 			sql: `
 				SELECT DISTINCT trace_id
 				FROM spans s
-				WHERE start_time BETWEEN now() - '1h' AND now()
+				WHERE between(start_time, now() - '1h', now())
 					AND a.b.c = 1`,
 			at:   "a.b.c",
 			want: "a column is written as alias.column or column",
@@ -1645,7 +1664,7 @@ func TestRefusals(t *testing.T) {
 			sql: `
 				SELECT DISTINCT trace_id
 				FROM spans s
-				WHERE start_time BETWEEN now() - '1h' AND now()
+				WHERE between(start_time, now() - '1h', now())
 					AND now()['x'] = 1`,
 			at:   "now()['x']",
 			want: "expected a column name here",
@@ -1655,7 +1674,7 @@ func TestRefusals(t *testing.T) {
 			sql: `
 				SELECT DISTINCT trace_id
 				FROM spans s
-				WHERE start_time BETWEEN now() - '1h' AND now()
+				WHERE between(start_time, now() - '1h', now())
 					AND attr(1) = 'x'`,
 			at:   "1) =",
 			want: "the argument of attr() is a quoted attribute key",
@@ -1665,7 +1684,7 @@ func TestRefusals(t *testing.T) {
 			sql: `
 				SELECT DISTINCT trace_id
 				FROM spans s
-				WHERE start_time BETWEEN now() - '1h' AND now()
+				WHERE between(start_time, now() - '1h', now())
 					AND t.attributes['x'] = 1`,
 			at:   "t.attributes",
 			want: `unknown alias "t"`,
@@ -1675,7 +1694,7 @@ func TestRefusals(t *testing.T) {
 			sql: `
 				SELECT DISTINCT trace_id
 				FROM spans s
-				WHERE start_time BETWEEN now() - '1h' AND now()
+				WHERE between(start_time, now() - '1h', now())
 					AND EXISTS (
 						SELECT 1
 						FROM events e
@@ -1690,7 +1709,7 @@ func TestRefusals(t *testing.T) {
 			sql: `
 				SELECT DISTINCT trace_id
 				FROM spans s
-				WHERE start_time BETWEEN now() - '1h' AND now()
+				WHERE between(start_time, now() - '1h', now())
 					AND attributes['a', 'b'] = 1`,
 			at:   "attributes['a'",
 			want: "a map subscript names one attribute key",
@@ -1700,7 +1719,7 @@ func TestRefusals(t *testing.T) {
 			sql: `
 				SELECT DISTINCT trace_id
 				FROM spans s
-				WHERE start_time BETWEEN now() - '1h' AND now()
+				WHERE between(start_time, now() - '1h', now())
 					AND name = INTERVAL '1' MONTH`,
 			at:   "MONTH",
 			want: `"MONTH" is not an interval unit`,
@@ -1710,7 +1729,7 @@ func TestRefusals(t *testing.T) {
 			sql: `
 				SELECT DISTINCT trace_id
 				FROM spans s
-				WHERE start_time BETWEEN now() - '1h' AND now()
+				WHERE between(start_time, now() - '1h', now())
 					AND name = INTERVAL now() HOUR`,
 			at:   "INTERVAL now()",
 			want: "an INTERVAL takes a number",
@@ -1720,7 +1739,7 @@ func TestRefusals(t *testing.T) {
 			sql: `
 				SELECT DISTINCT trace_id
 				FROM spans s
-				WHERE start_time BETWEEN now() - '1h' AND now()
+				WHERE between(start_time, now() - '1h', now())
 					AND name = (1, 2)`,
 			at:   "(1, 2)",
 			want: "expected a literal here",
@@ -1730,7 +1749,7 @@ func TestRefusals(t *testing.T) {
 			sql: `
 				SELECT DISTINCT trace_id
 				FROM spans s
-				WHERE start_time BETWEEN now() - '1h' AND now()
+				WHERE between(start_time, now() - '1h', now())
 					AND (name = 'a', name = 'b')`,
 			at:   "(name",
 			want: "a parenthesized group holds one expression",
@@ -1740,7 +1759,7 @@ func TestRefusals(t *testing.T) {
 			sql: `
 				SELECT DISTINCT trace_id
 				FROM spans s
-				WHERE start_time BETWEEN now() - '1h' AND now()
+				WHERE between(start_time, now() - '1h', now())
 					AND -duration`,
 			at:   "-duration",
 			want: "the operator - is not supported",
@@ -1750,7 +1769,7 @@ func TestRefusals(t *testing.T) {
 			sql: `
 				SELECT DISTINCT trace_id
 				FROM spans s
-				WHERE start_time BETWEEN now() - '1h' AND now()
+				WHERE between(start_time, now() - '1h', now())
 					AND NOT lower(name) = 'x'`,
 			at:   "lower(",
 			want: "the function lower() is not supported",
@@ -1760,7 +1779,7 @@ func TestRefusals(t *testing.T) {
 			sql: `
 				SELECT DISTINCT trace_id
 				FROM spans s
-				WHERE start_time BETWEEN now() - '1h' AND now()
+				WHERE between(start_time, now() - '1h', now())
 					AND 'str'`,
 			at:   "'str'",
 			want: "expected a predicate here",
@@ -1770,7 +1789,7 @@ func TestRefusals(t *testing.T) {
 			sql: `
 				SELECT DISTINCT trace_id
 				FROM spans s
-				WHERE start_time BETWEEN now() - '1h' AND now()
+				WHERE between(start_time, now() - '1h', now())
 					AND t.duration BETWEEN '1s' AND '2s'`,
 			at:   "t.duration",
 			want: `unknown alias "t"`,
@@ -1780,7 +1799,7 @@ func TestRefusals(t *testing.T) {
 			sql: `
 				SELECT DISTINCT trace_id
 				FROM spans s
-				WHERE start_time BETWEEN now() - '1h' AND now()
+				WHERE between(start_time, now() - '1h', now())
 					AND duration BETWEEN lower(x) AND '2s'`,
 			at:   "lower(x)",
 			want: "expected a literal here",
@@ -1790,7 +1809,7 @@ func TestRefusals(t *testing.T) {
 			sql: `
 				SELECT DISTINCT trace_id
 				FROM spans s
-				WHERE start_time BETWEEN now() - '1h' AND now()
+				WHERE between(start_time, now() - '1h', now())
 					AND duration BETWEEN '1s' AND lower(x)`,
 			at:   "lower(x)",
 			want: "expected a literal here",
@@ -1800,7 +1819,7 @@ func TestRefusals(t *testing.T) {
 			sql: `
 				SELECT DISTINCT trace_id
 				FROM spans s
-				WHERE start_time BETWEEN now() - '1h' AND now()
+				WHERE between(start_time, now() - '1h', now())
 					AND t.attributes['x'] IS NULL`,
 			at:   "t.attributes",
 			want: `unknown alias "t"`,
@@ -1810,7 +1829,7 @@ func TestRefusals(t *testing.T) {
 			sql: `
 				SELECT DISTINCT trace_id
 				FROM spans s
-				WHERE start_time BETWEEN now() - '1h' AND now()
+				WHERE between(start_time, now() - '1h', now())
 					AND (lower(name) = 'x' OR name = 'y')`,
 			at:   "lower(",
 			want: "the function lower() is not supported",
@@ -1820,7 +1839,7 @@ func TestRefusals(t *testing.T) {
 			sql: `
 				SELECT DISTINCT trace_id
 				FROM spans s
-				WHERE start_time BETWEEN now() - '1h' AND now()
+				WHERE between(start_time, now() - '1h', now())
 					AND (name = 'y' OR lower(name) = 'x')`,
 			at:   "lower(",
 			want: "the function lower() is not supported",
@@ -1830,7 +1849,7 @@ func TestRefusals(t *testing.T) {
 			sql: `
 				SELECT DISTINCT trace_id
 				FROM spans s
-				WHERE start_time BETWEEN now() - '1h' AND now()
+				WHERE between(start_time, now() - '1h', now())
 					AND name REGEXP duration`,
 			at:   "duration",
 			want: "the pattern of REGEXP is a quoted string",
@@ -1840,7 +1859,7 @@ func TestRefusals(t *testing.T) {
 			sql: `
 				SELECT DISTINCT trace_id
 				FROM spans s
-				WHERE start_time BETWEEN now() - '1h' AND now()
+				WHERE between(start_time, now() - '1h', now())
 					AND name = lower(x)`,
 			at:   "lower(x)",
 			want: "expected a literal here",
@@ -1850,7 +1869,7 @@ func TestRefusals(t *testing.T) {
 			sql: `
 				SELECT DISTINCT trace_id
 				FROM spans s
-				WHERE start_time BETWEEN now() - '1h' AND now()
+				WHERE between(start_time, now() - '1h', now())
 					AND name || 'x'`,
 			at:   "name ||",
 			want: "the operator || is not supported",
@@ -1860,7 +1879,7 @@ func TestRefusals(t *testing.T) {
 			sql: `
 				SELECT DISTINCT trace_id
 				FROM spans s
-				WHERE start_time BETWEEN now() - '1h' AND now()
+				WHERE between(start_time, now() - '1h', now())
 					AND name IN (lower(x))`,
 			at:   "lower(x)",
 			want: "expected a literal here",
@@ -1870,7 +1889,7 @@ func TestRefusals(t *testing.T) {
 			sql: `
 				SELECT DISTINCT trace_id
 				FROM spans s
-				WHERE start_time BETWEEN now() - '1h' AND now()
+				WHERE between(start_time, now() - '1h', now())
 					AND EXISTS(1, 2)`,
 			at:   "EXISTS",
 			want: "EXISTS takes one subquery",
@@ -1880,17 +1899,27 @@ func TestRefusals(t *testing.T) {
 			sql: `
 				SELECT DISTINCT trace_id
 				FROM spans s
-				WHERE start_time BETWEEN now() - '1h' AND now()
+				WHERE between(start_time, now() - '1h', now())
 					AND EXISTS(1)`,
 			at:   "1)",
 			want: "EXISTS takes a subquery",
+		},
+		{
+			name: "between with two arguments",
+			sql: `
+				SELECT DISTINCT trace_id
+				FROM spans s
+				WHERE between(start_time, now() - '1h', now())
+					AND between(duration, '1s')`,
+			at:   "between(duration",
+			want: "between() takes a column and two bounds",
 		},
 		{
 			name: "match with one argument",
 			sql: `
 				SELECT DISTINCT trace_id
 				FROM spans s
-				WHERE start_time BETWEEN now() - '1h' AND now()
+				WHERE between(start_time, now() - '1h', now())
 					AND match(name)`,
 			at:   "match(",
 			want: "match() takes a column and a quoted pattern",
@@ -1900,7 +1929,7 @@ func TestRefusals(t *testing.T) {
 			sql: `
 				SELECT DISTINCT trace_id
 				FROM spans s
-				WHERE start_time BETWEEN now() - '1h' AND now()
+				WHERE between(start_time, now() - '1h', now())
 					AND match(t.name, 'x')`,
 			at:   "t.name",
 			want: `unknown alias "t"`,
@@ -1910,7 +1939,7 @@ func TestRefusals(t *testing.T) {
 			sql: `
 				SELECT DISTINCT trace_id
 				FROM spans s
-				WHERE start_time BETWEEN now() - '1h' AND now()
+				WHERE between(start_time, now() - '1h', now())
 					AND phrase(attributes['x'], 1)`,
 			at:   "1)",
 			want: "the pattern of phrase() is a quoted string",
@@ -1920,7 +1949,7 @@ func TestRefusals(t *testing.T) {
 			sql: `
 				SELECT DISTINCT trace_id
 				FROM spans s
-				WHERE start_time BETWEEN now() - '1h' AND now()
+				WHERE between(start_time, now() - '1h', now())
 					AND match(name, 'a', 'b')`,
 			at:   "match(",
 			want: "match() takes a column and one pattern",
@@ -1930,7 +1959,7 @@ func TestRefusals(t *testing.T) {
 			sql: `
 				SELECT DISTINCT trace_id
 				FROM spans s
-				WHERE start_time BETWEEN now() - '1h' AND now()
+				WHERE between(start_time, now() - '1h', now())
 					AND lower(name)`,
 			at:   "lower(",
 			want: "the function lower() is not supported",
@@ -1940,7 +1969,7 @@ func TestRefusals(t *testing.T) {
 			sql: `
 				SELECT DISTINCT trace_id
 				FROM spans s
-				WHERE start_time BETWEEN now() - '1h' AND now()
+				WHERE between(start_time, now() - '1h', now())
 					AND EXISTS (
 						SELECT 1
 						FROM events e
@@ -1956,7 +1985,7 @@ func TestRefusals(t *testing.T) {
 			sql: `
 				SELECT DISTINCT trace_id
 				FROM spans s
-				WHERE start_time BETWEEN now() - '1h' AND now()
+				WHERE between(start_time, now() - '1h', now())
 					AND EXISTS (
 						SELECT 1
 						FROM logs l
@@ -1970,7 +1999,7 @@ func TestRefusals(t *testing.T) {
 			sql: `
 				SELECT DISTINCT trace_id
 				FROM spans s
-				WHERE start_time BETWEEN now() - '1h' AND now()
+				WHERE between(start_time, now() - '1h', now())
 					AND EXISTS (
 						SELECT 1
 						FROM events e
@@ -1984,7 +2013,7 @@ func TestRefusals(t *testing.T) {
 			sql: `
 				SELECT DISTINCT trace_id
 				FROM spans s
-				WHERE start_time BETWEEN now() - '1h' AND now()
+				WHERE between(start_time, now() - '1h', now())
 					AND EXISTS (
 						SELECT 1
 						FROM links l
@@ -1998,7 +2027,7 @@ func TestRefusals(t *testing.T) {
 			sql: `
 				SELECT DISTINCT trace_id
 				FROM spans s
-				WHERE start_time BETWEEN now() - '1h' AND now()
+				WHERE between(start_time, now() - '1h', now())
 					AND EXISTS (
 						SELECT 1
 						FROM links l
@@ -2013,7 +2042,7 @@ func TestRefusals(t *testing.T) {
 			sql: `
 				SELECT DISTINCT trace_id
 				FROM spans s
-				WHERE start_time BETWEEN now() - '1h' AND now()
+				WHERE between(start_time, now() - '1h', now())
 					AND EXISTS (
 						SELECT 1
 						FROM events e
@@ -2031,7 +2060,7 @@ func TestRefusals(t *testing.T) {
 				WHERE trace_id IN (
 					SELECT trace_id
 					FROM spans
-					WHERE start_time BETWEEN now() - '1h' AND now()
+					WHERE between(start_time, now() - '1h', now())
 				)`,
 			at:   "count",
 			want: "count() is an aggregate",

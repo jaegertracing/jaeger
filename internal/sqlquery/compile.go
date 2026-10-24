@@ -280,12 +280,12 @@ func (c *compiler) where(sel *parser.SelectQuery, sc *scope, query *Query) error
 // against an instant and records it. A start_time compared with another column stays in the
 // filter, and a second bound on the same side is refused.
 func (c *compiler) windowBound(sc *scope, node parser.Expr, query *Query) (bool, error) {
-	if between, ok := node.(*parser.BetweenClause); ok && !between.Not && c.isColumnNamed(between.Expr, "starttime") && !isReference(between.Between) && !isReference(between.And) {
-		low, err := c.instantOf(between.Between)
+	if r, ok := asRange(node); ok && !r.negated && c.isColumnNamed(r.subject, "starttime") && sameScope(sc, r.subject) && !isReference(r.low) && !isReference(r.high) {
+		low, err := c.instantOf(r.low)
 		if err != nil {
 			return false, err
 		}
-		high, err := c.instantOf(between.And)
+		high, err := c.instantOf(r.high)
 		if err != nil {
 			return false, err
 		}
