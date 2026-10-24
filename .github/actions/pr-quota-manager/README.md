@@ -23,6 +23,8 @@ steps:
 | `token` | yes | — | Token used to label and comment. Needs `issues: write` and `pull-requests: write`. |
 | `username` | no | PR author | Whose quota to process. Only manual runs need to set it. |
 | `dry-run` | no | `false` | Log the intended labels and comments without writing anything. |
+| `per-issue-limit` | no | `false` | Reconcile the complete open-PR graph so each linked same-repository issue has one active PR. |
+| `issue-number` | no | — | For an issue-label event, limit comment reconciliation to PRs linked to this issue. |
 
 Labels and comments on a pull request go through the `/issues/{n}/labels` and `/issues/{n}/comments` endpoints, so the token needs `issues: write` — `pull-requests: write` alone is not enough, and a token missing it fails every write with `403 Resource not accessible`.
 
@@ -231,10 +233,48 @@ If you hit rate limits, wait for the limit to reset or use a different token.
 
 ## Integration with GitHub Actions
 
-`.github/workflows/pr-quota-manager.yml` calls the action in this directory on:
-- Pull request opened, closed, reopened, or pushed to
-- Manual workflow dispatch, which is also how you process a single user without a command line — pass `username`, and `dryRun` if you only want to see what would happen
+`.github/workflows/pr-quota-manager.yml` calls the action for the existing
+author quota on pull request opened, closed, reopened, or pushed events, and on
+manual workflow dispatch. Manual runs pass `username`, and optionally `dryRun`.
+
+`.github/workflows/pr-per-issue-manager.yml` separately enables the per-issue
+policy on pull request lifecycle events, the `allow-multiple-prs` issue-label
+override, and a daily sweep. The stale workflow uses `GITHUB_TOKEN`, so its label
+changes cannot trigger another workflow; the daily sweep observes those changes.
 
 The action runs the script through `actions/github-script` with the repository's built-in `GITHUB_TOKEN`. The `pull_request_target` trigger runs in the base repository context, so that token carries the workflow's declared write permissions even for pull requests from forks.
 
 `jaegertracing/jaeger-ui` calls the same action at a pinned SHA rather than keeping its own copy of the script.
+
+## Per-issue active PR limit
+
+Jaeger enables `per-issue-limit` for its own workflow. The action reads GitHub's
+canonical `closingIssuesReferences` relationship and considers only linked issues
+in the same repository. An open PR with the `stale` label is inactive, matching
+the stale workflow's policy; drafts and PRs from maintainers remain active.
+
+For each linked issue, the oldest active PR (with PR number as the tie-breaker)
+is primary. Draft and reopened PRs keep their original creation time, so either
+can remain primary. The action labels the other active PRs `duplicate` and
+maintains one marker comment on each naming its primary PR. A maintainer can
+exempt an umbrella issue or intentionally competing implementations by applying
+`allow-multiple-prs` to the issue. The policy workflow serializes repository runs
+separately from the author-quota workflow. It reads the complete, paginated graph
+of open PRs and their canonical links before mutations, so a PR linked to
+multiple issues keeps its full duplicate state. The query bounds nested
+connections and fails safely if a PR has more than 20 labels, more than 10 linked
+issues, or a linked issue has more than 10 labels; it never silently misses
+`stale`, `duplicate`, or `allow-multiple-prs`. The daily sweep reconciles a
+remaining PR when another PR removes its issue link. Only comments authored by
+`github-actions[bot]` with the
+policy marker control label cleanup. Resolved comments retain the policy marker
+but drop the separate label-ownership marker, allowing the action to reuse its
+one maintained comment without claiming a later human-applied `duplicate`
+label. The ownership marker records whether the action added the label, so an
+existing manual `duplicate` label is never claimed or removed. Scheduled and
+manual sweeps scan all open PR comments for policy markers, which lets a later
+run repair a partial comment/label write. PR and issue-label events inspect only
+their affected PRs, PRs already carrying `duplicate`, and newly calculated
+duplicates. Cleanup removes labels while the ownership marker is still present
+and restores removed labels if a later removal fails. It does not mutate stale
+PRs, avoiding stale-policy reactivation caused by bot activity.
