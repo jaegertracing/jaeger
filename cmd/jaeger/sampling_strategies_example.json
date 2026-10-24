@@ -4,6 +4,8 @@
       "service": "foo",
       "type": "probabilistic",
       "param": 0.8,
+      "lower_bound_traces_per_second": 1,
+      "upper_bound_traces_per_second": 10,
       "operation_strategies": [
         {
           "operation": "op1",
@@ -26,6 +28,8 @@
   "default_strategy": {
     "type": "probabilistic",
     "param": 0.5,
+    "lower_bound_traces_per_second": 0.5,
+    "upper_bound_traces_per_second": 20,
     "operation_strategies": [
       {
         "operation": "/health",
