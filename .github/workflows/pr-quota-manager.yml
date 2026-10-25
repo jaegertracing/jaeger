@@ -48,3 +48,4 @@ jobs:
           token: ${{ github.token }}
           username: ${{ github.event.inputs.username }}
           dry-run: ${{ github.event.inputs.dryRun }}
+          exempt-users: ${{ vars.QUOTA_EXEMPT_USERS }}

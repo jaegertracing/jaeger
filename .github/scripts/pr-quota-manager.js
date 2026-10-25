@@ -21,6 +21,13 @@ const DUPLICATE_LABEL_NAME = 'duplicate';
 const OVERRIDE_LABEL_NAME = 'allow-multiple-prs';
 const STALE_LABEL_NAME = 'stale';
 const COMMENT_REQUEST_CONCURRENCY = 10;
+const UNLIMITED_QUOTA = Number.POSITIVE_INFINITY;
+// Merged history is shared by the repositories that enforce this policy.
+// The open cap is still applied only in the repository that runs the action.
+const PROJECT_REPOS = [
+  ['jaegertracing', 'jaeger'],
+  ['jaegertracing', 'jaeger-ui']
+];
 
 const openPullRequestsQuery = `
   query openPullRequests($owner: String!, $repo: String!, $after: String) {
@@ -65,38 +72,136 @@ const ISSUE_LIMIT_OWNED_LABEL_MARKER = '<!-- jaeger-pr-per-issue-limit-label-own
  * @param {number} quota - Allowed quota
  * @returns {string} Formatted status string
  */
+function formatQuota(quota) {
+  return Number.isFinite(quota) ? String(quota) : 'unlimited';
+}
+
 function formatStatus(openCount, quota) {
-  return `  * Open: ${openCount}\n  * Limit: ${quota}`;
+  return `  * Open: ${openCount}\n  * Limit: ${formatQuota(quota)}`;
 }
 
 /**
- * Calculate the quota for a user based on their merged PR count
- * @param {number} mergedCount - Number of merged PRs
- * @returns {number} The allowed quota
+ * Case-insensitive exemption list from the QUOTA_EXEMPT_USERS repository variable.
+ * @param {string} author - PR author username
+ * @returns {boolean} Whether the author skips the quota
+ */
+function isExempt(author) {
+  const names = (process.env.QUOTA_EXEMPT_USERS || '')
+    .split(',')
+    .map(name => name.trim().toLowerCase())
+    .filter(Boolean);
+  return names.includes(String(author || '').toLowerCase());
+}
+
+/**
+ * Calculate the quota for a user based on their merged PR count.
+ * Three or more merged PRs is unlimited: no open PR is labeled.
+ * @param {number} mergedCount - Number of merged PRs across the project repositories
+ * @returns {number} The allowed quota, or Infinity when there is no cap
  */
 function calculateQuota(mergedCount) {
   if (mergedCount === 0) return 1;
   if (mergedCount === 1) return 2;
   if (mergedCount === 2) return 3;
-  return 10; // Unlimited for 3+ merged PRs
+  return UNLIMITED_QUOTA;
+}
+
+function quoteSearchTerm(value) {
+  return `"${String(value).replace(/"/g, '')}"`;
 }
 
 /**
- * Fetch open and merged PRs by a specific author
- * Optimized to stop early: fetches all open PRs and only enough merged PRs to determine quota
+ * Run a GitHub issue search. A failed or incomplete search throws so the job
+ * fails instead of falling back to a single-repository count.
+ * @param {object} octokit - GitHub API client
+ * @param {string} q - Search query
+ * @param {boolean} paginate - When true, follow pages so every hit is returned
+ * @returns {Promise<{totalCount: number, items: Array}>} Search total and items
+ */
+async function searchIssues(octokit, q, paginate = false) {
+  const items = [];
+  let totalCount = 0;
+  const maxPage = paginate ? 10 : 1;
+
+  for (let page = 1; page <= maxPage; page++) {
+    const { data } = await octokit.rest.search.issuesAndPullRequests({
+      q,
+      per_page: paginate ? 100 : 1,
+      page
+    });
+
+    if (data.incomplete_results) {
+      throw new Error(`GitHub search returned incomplete results for query: ${q}`);
+    }
+    if (typeof data.total_count !== 'number') {
+      throw new Error(`GitHub search returned no total_count for query: ${q}`);
+    }
+
+    totalCount = data.total_count;
+    const pageItems = data.items || [];
+    items.push(...pageItems);
+
+    if (!paginate || items.length >= totalCount || pageItems.length < 100) {
+      break;
+    }
+  }
+
+  if (paginate && items.length < totalCount) {
+    throw new Error(`GitHub search returned ${items.length} of ${totalCount} results for query: ${q}`);
+  }
+
+  return { totalCount, items };
+}
+
+/**
+ * Count pull requests the author opened that were merged in jaeger or jaeger-ui.
+ * Search matches the pull request opener, so a squash merge still counts.
+ * @param {object} octokit - GitHub API client
+ * @param {string} author - PR author username
+ * @returns {Promise<number>} Merged pull request count
+ */
+async function countProjectMergedPRs(octokit, author) {
+  const repos = PROJECT_REPOS.map(([owner, repo]) => `repo:${owner}/${repo}`).join(' ');
+  const q = `is:pr is:merged author:${quoteSearchTerm(author)} ${repos}`;
+  const { totalCount } = await searchIssues(octokit, q, false);
+  return totalCount;
+}
+
+/**
+ * Closed pull requests in this repository that still wear the quota label.
+ * @param {object} octokit - GitHub API client
+ * @param {string} owner - Repository owner
+ * @param {string} repo - Repository name
+ * @param {string} author - PR author username
+ * @returns {Promise<Array>} Closed pull requests to clear
+ */
+async function listClosedQuotaPRs(octokit, owner, repo, author) {
+  const q = [
+    `repo:${owner}/${repo}`,
+    'is:pr',
+    'is:closed',
+    `label:${quoteSearchTerm(LABEL_NAME)}`,
+    `author:${quoteSearchTerm(author)}`
+  ].join(' ');
+  const { items } = await searchIssues(octokit, q, true);
+  return items;
+}
+
+/**
+ * Fetch this repository's open PRs by the author, the shared merged-PR count,
+ * and closed PRs in this repository that still have the quota label.
+ * Both searches run before any label write. A search error rejects the promise.
  * @param {object} octokit - GitHub API client
  * @param {string} owner - Repository owner/org
  * @param {string} repo - Repository name
  * @param {string} author - PR author username
- * @returns {Promise<{openPRs: Array, mergedCount: number}>} Open PRs and count of merged PRs
+ * @returns {Promise<{openPRs: Array, mergedCount: number, closedLabeledPRs: Array}>}
  */
 async function fetchAuthorPRs(octokit, owner, repo, author) {
   const openPRs = [];
-  const mergedPRs = [];
   const perPage = 100;
-  const MAX_MERGED_NEEDED = 3; // Stop after 3 merged PRs (gives unlimited quota)
 
-  // Fetch open PRs
+  // Open PRs are counted only in the repository that is enforcing the cap.
   let page = 1;
   while (true) {
     const { data } = await octokit.rest.pulls.list({
@@ -118,34 +223,13 @@ async function fetchAuthorPRs(octokit, owner, repo, author) {
     page++;
   }
 
-  // Fetch merged PRs, but stop once we have enough to determine quota
-  page = 1;
-  while (mergedPRs.length < MAX_MERGED_NEEDED) {
-    const { data } = await octokit.rest.pulls.list({
-      owner,
-      repo,
-      state: 'closed',
-      per_page: perPage,
-      page,
-      sort: 'created',
-      direction: 'desc' // Most recent first to find merges faster
-    });
-
-    if (data.length === 0) break;
-
-    const authorMergedPRs = data.filter(pr => pr.user.login === author && pr.merged_at !== null);
-    mergedPRs.push(...authorMergedPRs);
-
-    // Stop if we have enough merged PRs to determine unlimited quota
-    if (mergedPRs.length >= MAX_MERGED_NEEDED) break;
-
-    if (data.length < perPage) break;
-    page++;
-  }
+  const mergedCount = await countProjectMergedPRs(octokit, author);
+  const closedLabeledPRs = await listClosedQuotaPRs(octokit, owner, repo, author);
 
   return {
     openPRs,
-    mergedCount: mergedPRs.length
+    mergedCount,
+    closedLabeledPRs
   };
 }
 
@@ -165,26 +249,31 @@ async function processQuotaForAuthor(octokit, owner, repo, author, logger = cons
   }
   logger.log(`\n=== Processing Quota for: @${author} ===\n`);
 
-  // Fetch PRs by the author (optimized to stop early)
-  const { openPRs, mergedCount } = await fetchAuthorPRs(octokit, owner, repo, author);
+  // Reads happen before any label or comment write. A search failure rejects here.
+  const { openPRs, mergedCount, closedLabeledPRs } = await fetchAuthorPRs(octokit, owner, repo, author);
 
-  // Open PRs are already sorted by creation date (oldest first) from the fetch
-  const quota = calculateQuota(mergedCount);
+  // Open PRs are already sorted by creation date (oldest first) from the fetch.
+  // An exempt login is unlimited regardless of the merged count.
+  const quota = isExempt(author) ? UNLIMITED_QUOTA : calculateQuota(mergedCount);
   const openCount = openPRs.length;
+  const quotaText = formatQuota(quota);
 
   // Log history audit
   logger.log('📜 History Audit:');
+  if (isExempt(author)) {
+    logger.log('  User is exempt from the PR quota.');
+  }
   if (mergedCount === 0) {
     logger.log('  No merged PRs found.');
-  } else if (mergedCount >= 3) {
-    logger.log(`  User has ${mergedCount}+ merged PRs (unlimited quota).`);
+  } else if (!Number.isFinite(quota)) {
+    logger.log(`  User has ${mergedCount} merged PR${mergedCount === 1 ? '' : 's'} in the project (unlimited quota).`);
   } else {
     logger.log(`  User has ${mergedCount} merged PR${mergedCount > 1 ? 's' : ''}.`);
   }
 
   // Log current stats
   logger.log(`\n📊 Current Stats:`);
-  logger.log(`  User has ${mergedCount} merged PRs. Current Quota: ${quota}. Currently Open: ${openCount}.`);
+  logger.log(`  User has ${mergedCount} merged PRs. Current Quota: ${quotaText}. Currently Open: ${openCount}.`);
 
   // Ensure label exists
   if (!dryRun) {
@@ -195,7 +284,8 @@ async function processQuotaForAuthor(octokit, owner, repo, author, logger = cons
   const results = {
     blocked: [],
     unblocked: [],
-    unchanged: []
+    unchanged: [],
+    closedUnlabeled: []
   };
 
   logger.log(`\n🔄 Processing Open PRs:\n`);
@@ -208,29 +298,41 @@ async function processQuotaForAuthor(octokit, owner, repo, author, logger = cons
     if (shouldBeBlocked && !isCurrentlyBlocked) {
       // Need to block this PR
       if (dryRun) {
-        logger.log(`  🔍 [DRY RUN] Would label PR #${pr.number} as blocked (Position: ${i + 1}/${openCount}, Quota: ${quota})`);
+        logger.log(`  🔍 [DRY RUN] Would label PR #${pr.number} as blocked (Position: ${i + 1}/${openCount}, Quota: ${quotaText})`);
         logger.log(`  🔍 [DRY RUN] Would post blocking comment on PR #${pr.number}`);
       } else {
         await addLabel(octokit, owner, repo, pr.number, logger);
         await postBlockingComment(octokit, owner, repo, pr.number, author, openCount, quota, logger);
-        logger.log(`  ✅ Labeled PR #${pr.number} as blocked (Position: ${i + 1}/${openCount}, Quota: ${quota})`);
+        logger.log(`  ✅ Labeled PR #${pr.number} as blocked (Position: ${i + 1}/${openCount}, Quota: ${quotaText})`);
       }
       results.blocked.push(pr.number);
     } else if (!shouldBeBlocked && isCurrentlyBlocked) {
       // Need to unblock this PR
       if (dryRun) {
-        logger.log(`  🔍 [DRY RUN] Would remove label from PR #${pr.number} (Position: ${i + 1}/${openCount}, Quota: ${quota})`);
+        logger.log(`  🔍 [DRY RUN] Would remove label from PR #${pr.number} (Position: ${i + 1}/${openCount}, Quota: ${quotaText})`);
         logger.log(`  🔍 [DRY RUN] Would post unblocking comment on PR #${pr.number}`);
       } else {
         await removeLabel(octokit, owner, repo, pr.number, logger);
         await postUnblockingComment(octokit, owner, repo, pr.number, author, openCount, quota, logger);
-        logger.log(`  ✅ Unblocked PR #${pr.number} (Position: ${i + 1}/${openCount}, Quota: ${quota})`);
+        logger.log(`  ✅ Unblocked PR #${pr.number} (Position: ${i + 1}/${openCount}, Quota: ${quotaText})`);
       }
       results.unblocked.push(pr.number);
     } else {
       results.unchanged.push(pr.number);
       logger.log(`  ℹ️  PR #${pr.number} unchanged (${shouldBeBlocked ? 'blocked' : 'active'})`);
     }
+  }
+
+  // Closed PRs are not in the open list, so a label applied before close would
+  // otherwise stay. Clearing it does not post a comment.
+  for (const pr of closedLabeledPRs) {
+    if (dryRun) {
+      logger.log(`  🔍 [DRY RUN] Would remove label from closed PR #${pr.number}`);
+    } else {
+      await removeLabel(octokit, owner, repo, pr.number, logger);
+      logger.log(`  ✅ Removed label from closed PR #${pr.number}`);
+    }
+    results.closedUnlabeled.push(pr.number);
   }
 
   logger.log(`\n✅ Processing Complete for @${author}\n`);
@@ -735,6 +837,7 @@ async function main() {
     console.log(`  - Blocked: ${result.results.blocked.length} PRs`);
     console.log(`  - Unblocked: ${result.results.unblocked.length} PRs`);
     console.log(`  - Unchanged: ${result.results.unchanged.length} PRs`);
+    console.log(`  - Closed unlabeled: ${result.results.closedUnlabeled.length} PRs`);
   } catch (error) {
     console.error('Error:', error.message);
     process.exit(1);
@@ -764,6 +867,7 @@ async function githubActionHandler({
       core.info(`Blocked: ${result.results.blocked.length} PRs`);
       core.info(`Unblocked: ${result.results.unblocked.length} PRs`);
       core.info(`Unchanged: ${result.results.unchanged.length} PRs`);
+      core.info(`Closed unlabeled: ${result.results.closedUnlabeled.length} PRs`);
     }
     if (pullRequestNumber) {
       const result = await processIssueLimitForPullRequest(
@@ -793,7 +897,10 @@ if (typeof module !== 'undefined' && module.exports) {
 
   // Named exports for testing and direct usage
   module.exports.formatStatus = formatStatus;
+  module.exports.formatQuota = formatQuota;
+  module.exports.isExempt = isExempt;
   module.exports.calculateQuota = calculateQuota;
+  module.exports.countProjectMergedPRs = countProjectMergedPRs;
   module.exports.fetchAuthorPRs = fetchAuthorPRs;
   module.exports.processQuotaForAuthor = processQuotaForAuthor;
   module.exports.ensureLabelExists = ensureLabelExists;
@@ -823,6 +930,8 @@ if (typeof module !== 'undefined' && module.exports) {
   module.exports.ISSUE_LIMIT_OWNED_LABEL_MARKER = ISSUE_LIMIT_OWNED_LABEL_MARKER;
   module.exports.LABEL_NAME = LABEL_NAME;
   module.exports.LABEL_COLOR = LABEL_COLOR;
+  module.exports.UNLIMITED_QUOTA = UNLIMITED_QUOTA;
+  module.exports.PROJECT_REPOS = PROJECT_REPOS;
   module.exports.COMMENT_REQUEST_CONCURRENCY = COMMENT_REQUEST_CONCURRENCY;
 }
 

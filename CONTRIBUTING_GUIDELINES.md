@@ -119,9 +119,9 @@ To ensure high-quality code reviews and long-term codebase stability, we limit t
 
 ### The Policy
 
-Your limit of **simultaneous open PRs** is based on your history with this project:
+Your limit of **simultaneous open PRs in one repository** is based on pull requests you opened that were merged in `jaegertracing/jaeger` and `jaegertracing/jaeger-ui`, counted together. Each of those repositories applies the open cap on its own. A squash merge still counts, because the pull request author does not change. A pull request closed without merging does not count.
 
-| Merged PRs in this project | Max Simultaneous Open PRs |
+| Merged PRs in jaeger and jaeger-ui | Max simultaneous open PRs in each repository |
 | :--- | :--- |
 | **0** (First-time contributor) | **1** |
 | **1** merged PR | **2** |
@@ -138,7 +138,7 @@ AI tools have dramatically reduced the cost of creating pull requests, but the b
 
 ### How to Proceed
 
-If you reach your limit, please focus on addressing feedback and merging your existing PR(s) before opening new ones. PRs opened in excess of these limits may be labeled as **on-hold** or closed to keep our backlog manageable.
+If you reach your limit, please focus on addressing feedback and merging your existing PR(s) before opening new ones. A pull request opened beyond the limit for that repository is labeled `pr-quota-reached` and left on hold until a slot is free. The label is removed when the pull request is within the cap, including after it is closed.
 
 ### Tips for Success
 

@@ -30,6 +30,12 @@ inputs:
     description: 'Issue number whose linked PRs should be reconciled.'
     required: false
     default: ''
+  exempt-users:
+    description: >-
+      Comma-separated GitHub logins that skip the author quota. Matching is
+      case-insensitive. Pass the repository variable QUOTA_EXEMPT_USERS.
+    required: false
+    default: ''
 
 runs:
   using: composite
@@ -48,6 +54,8 @@ runs:
         QUOTA_PER_ISSUE_LIMIT: ${{ inputs.per-issue-limit }}
         QUOTA_PR_NUMBER: ${{ github.event.pull_request.number }}
         QUOTA_ISSUE_NUMBER: ${{ inputs.issue-number }}
+        # Repository variable, not author input, so a pull request cannot add itself.
+        QUOTA_EXEMPT_USERS: ${{ inputs.exempt-users }}
       with:
         github-token: ${{ inputs.token }}
         script: |
