@@ -138,7 +138,7 @@ AI tools have dramatically reduced the cost of creating pull requests, but the b
 
 ### How to Proceed
 
-If you reach your limit, please focus on addressing feedback and merging your existing PR(s) before opening new ones. A pull request opened beyond the limit for that repository is labeled `pr-quota-reached` and left on hold until a slot is free. The label is removed when the pull request is within the cap, including after it is closed.
+If you reach your limit, please focus on addressing feedback and merging your existing PR(s) before opening new ones. A pull request opened beyond the limit for that repository is labeled `pr-quota-reached` and left on hold until a slot is free. The label is removed when the pull request is back within the cap. It is also removed when the pull request is closed.
 
 ### Tips for Success
 

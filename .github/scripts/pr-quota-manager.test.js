@@ -79,6 +79,14 @@ describe('isExempt', () => {
     expect(isExempt('someone-else')).toBe(false);
   });
 
+  test('splits on whitespace, including newlines, and strips a leading @', () => {
+    process.env.QUOTA_EXEMPT_USERS = '@One\nTwo, three';
+    expect(isExempt('one')).toBe(true);
+    expect(isExempt('@two')).toBe(true);
+    expect(isExempt('three')).toBe(true);
+    expect(isExempt('four')).toBe(false);
+  });
+
   test('treats a missing or empty variable as no exemptions', () => {
     delete process.env.QUOTA_EXEMPT_USERS;
     expect(isExempt('newuser')).toBe(false);
@@ -786,7 +794,11 @@ describe('processQuotaForAuthor', () => {
     const mockOctokit = authorOctokit({
       openPRs: [],
       mergedCount: 5,
-      closedLabeled: [{ number: 4577 }]
+      closedLabeled: [{
+        number: 4577,
+        repository_url: 'https://api.github.com/repos/jaegertracing/jaeger-ui',
+        user: { login: 'contributor' }
+      }]
     });
 
     const result = await processQuotaForAuthor(
@@ -807,7 +819,11 @@ describe('processQuotaForAuthor', () => {
     const mockOctokit = authorOctokit({
       openPRs: [],
       mergedCount: 0,
-      closedLabeled: [{ number: 9 }]
+      closedLabeled: [{
+        number: 9,
+        repository_url: 'https://api.github.com/repos/owner/repo',
+        user: { login: 'newuser' }
+      }]
     });
 
     const result = await processQuotaForAuthor(
@@ -820,7 +836,9 @@ describe('processQuotaForAuthor', () => {
   });
 
   test('an exempt login is not blocked even with zero merged PRs', async () => {
+    const previousExempt = process.env.QUOTA_EXEMPT_USERS;
     process.env.QUOTA_EXEMPT_USERS = 'Other, NewUser';
+    mockLogger.log.mockClear();
     try {
       const openPRs = [1, 2, 3].map(number => ({
         number,
@@ -835,9 +853,31 @@ describe('processQuotaForAuthor', () => {
       expect(result.quota).toBe(UNLIMITED_QUOTA);
       expect(result.results.blocked).toEqual([]);
       expect(mockOctokit.rest.issues.addLabels).not.toHaveBeenCalled();
+      expect(mockOctokit.rest.search.issuesAndPullRequests).not.toHaveBeenCalled();
+      const logged = mockLogger.log.mock.calls.map(call => call.join(' ')).join('\n');
+      expect(logged).not.toContain('in the project (unlimited quota)');
     } finally {
-      delete process.env.QUOTA_EXEMPT_USERS;
+      if (previousExempt === undefined) delete process.env.QUOTA_EXEMPT_USERS;
+      else process.env.QUOTA_EXEMPT_USERS = previousExempt;
     }
+  });
+
+  test('dry run does not unlabel an open PR that is back within quota', async () => {
+    const openPRs = [{
+      number: 1,
+      user: { login: 'contributor' },
+      created_at: '2024-01-01T00:00:00Z',
+      labels: [{ name: LABEL_NAME }]
+    }];
+    const mockOctokit = authorOctokit({ openPRs, mergedCount: 1 });
+
+    const result = await processQuotaForAuthor(
+      mockOctokit, 'owner', 'repo', 'contributor', mockLogger, true
+    );
+
+    expect(result.results.unblocked).toEqual([1]);
+    expect(mockOctokit.rest.issues.removeLabel).not.toHaveBeenCalled();
+    expect(mockOctokit.rest.issues.createComment).not.toHaveBeenCalled();
   });
 
   test('dry run does not label an open PR that is over quota', async () => {
@@ -911,6 +951,241 @@ describe('processQuotaForAuthor', () => {
     ).rejects.toThrow('closed search failed');
     expect(mockOctokit.rest.issues.addLabels).not.toHaveBeenCalled();
     expect(mockOctokit.rest.issues.getLabel).not.toHaveBeenCalled();
+  });
+
+  function closedHit(number, owner, repo, login) {
+    return {
+      number,
+      repository_url: `https://api.github.com/repos/${owner}/${repo}`,
+      user: { login }
+    };
+  }
+
+  test('does not clear a search hit that REST still lists as open', async () => {
+    const openPRs = [
+      { number: 1, user: { login: 'newuser' }, created_at: '2024-01-01T00:00:00Z', labels: [] },
+      { number: 5, user: { login: 'newuser' }, created_at: '2024-01-02T00:00:00Z', labels: [{ name: LABEL_NAME }] }
+    ];
+    const mockOctokit = authorOctokit({
+      openPRs,
+      mergedCount: 0,
+      closedLabeled: [closedHit(5, 'owner', 'repo', 'newuser')]
+    });
+
+    const result = await processQuotaForAuthor(mockOctokit, 'owner', 'repo', 'newuser', mockLogger);
+
+    expect(result.results.unchanged).toContain(5);
+    expect(result.results.closedUnlabeled).toEqual([]);
+    expect(mockOctokit.rest.issues.removeLabel).not.toHaveBeenCalled();
+  });
+
+  test('ignores closed search hits for another repository or another login', async () => {
+    const mockOctokit = authorOctokit({
+      openPRs: [],
+      mergedCount: 1,
+      closedLabeled: [
+        closedHit(3, 'other', 'repo', 'newuser'),
+        { number: 4, repository_url: 'https://api.github.com/repos/owner/repo', user: { login: 'someone' } },
+        { number: 8, repository: { full_name: 'owner/repo' }, user: { login: 'NewUser' } }
+      ]
+    });
+
+    const result = await processQuotaForAuthor(mockOctokit, 'owner', 'repo', 'newuser', mockLogger);
+
+    expect(result.results.closedUnlabeled).toEqual([8]);
+  });
+
+  test('clears the closed event pull request when search has not indexed it', async () => {
+    const mockOctokit = authorOctokit({ openPRs: [], mergedCount: 1, closedLabeled: [] });
+
+    const result = await processQuotaForAuthor(
+      mockOctokit, 'owner', 'repo', 'newuser', mockLogger, false,
+      { eventName: 'pull_request_target', eventPullRequest: { action: 'closed', number: 4577, merged: false } }
+    );
+
+    expect(result.results.closedUnlabeled).toEqual([4577]);
+    expect(mockOctokit.rest.issues.removeLabel).toHaveBeenCalledWith({
+      owner: 'owner',
+      repo: 'repo',
+      issue_number: 4577,
+      name: LABEL_NAME
+    });
+  });
+
+  test('counts a just-merged pull request that search has not indexed, crossing 2 to 3', async () => {
+    const openPRs = [10, 11, 12, 13].map(number => ({
+      number,
+      user: { login: 'contributor' },
+      created_at: `2024-01-${String(number).padStart(2, '0')}T00:00:00Z`,
+      labels: []
+    }));
+    const search = jest.fn(async ({ q }) => {
+      if (q.includes('is:merged')) {
+        return {
+          data: {
+            total_count: 2,
+            incomplete_results: false,
+            items: [1, 2].map(number => closedHit(number, 'jaegertracing', 'jaeger', 'contributor'))
+          }
+        };
+      }
+      return { data: { total_count: 0, incomplete_results: false, items: [] } };
+    });
+    const mockOctokit = authorOctokit({ openPRs, mergedCount: 0 });
+    mockOctokit.rest.search.issuesAndPullRequests = search;
+
+    const result = await processQuotaForAuthor(
+      mockOctokit, 'jaegertracing', 'jaeger', 'contributor', mockLogger, false,
+      {
+        eventName: 'pull_request_target',
+        eventPullRequest: { action: 'closed', merged: true, number: 99 }
+      }
+    );
+
+    expect(result.mergedCount).toBe(3);
+    expect(result.quota).toBe(UNLIMITED_QUOTA);
+    expect(result.results.blocked).toEqual([]);
+    expect(mockOctokit.rest.issues.addLabels).not.toHaveBeenCalled();
+  });
+
+  test('does not add one when search already includes the merged pull request', async () => {
+    const openPRs = [10, 11, 12].map(number => ({
+      number,
+      user: { login: 'contributor' },
+      created_at: `2024-01-${String(number).padStart(2, '0')}T00:00:00Z`,
+      labels: []
+    }));
+    const search = jest.fn(async ({ q }) => {
+      if (q.includes('is:merged')) {
+        return {
+          data: {
+            total_count: 2,
+            incomplete_results: false,
+            items: [closedHit(1, 'jaegertracing', 'jaeger', 'contributor'), closedHit(99, 'jaegertracing', 'jaeger', 'contributor')]
+          }
+        };
+      }
+      return { data: { total_count: 0, incomplete_results: false, items: [] } };
+    });
+    const mockOctokit = authorOctokit({ openPRs, mergedCount: 0 });
+    mockOctokit.rest.search.issuesAndPullRequests = search;
+
+    const result = await processQuotaForAuthor(
+      mockOctokit, 'jaegertracing', 'jaeger', 'contributor', mockLogger, false,
+      {
+        eventName: 'pull_request_target',
+        eventPullRequest: { action: 'closed', merged: true, number: 99 }
+      }
+    );
+
+    expect(result.mergedCount).toBe(2);
+    expect(result.quota).toBe(3);
+    expect(result.results.blocked).toEqual([]);
+  });
+
+  test('queries Copilot as the swe agent app', async () => {
+    const search = mockQuotaSearch({ mergedCount: 4 });
+    const mockOctokit = {
+      rest: {
+        pulls: { list: jest.fn().mockResolvedValue({ data: [] }) },
+        search: { issuesAndPullRequests: search }
+      }
+    };
+
+    await fetchAuthorPRs(mockOctokit, 'jaegertracing', 'jaeger', 'Copilot');
+
+    const queries = search.mock.calls.map(call => call[0].q);
+    expect(queries.some(q => q.includes('author:app/copilot-swe-agent'))).toBe(true);
+    expect(queries.some(q => q.includes('author:"Copilot"'))).toBe(false);
+  });
+
+  test('logs and skips a 422 for an unknown login on a pull request event', async () => {
+    const error = Object.assign(new Error('Validation Failed'), {
+      status: 422,
+      response: { data: { errors: [{ message: 'The listed users cannot be searched' }] } }
+    });
+    const mockOctokit = authorOctokit({
+      openPRs: [{ number: 1, user: { login: 'ghost' }, created_at: '2024-01-01T00:00:00Z', labels: [] }],
+      searchError: error
+    });
+
+    const result = await processQuotaForAuthor(
+      mockOctokit, 'owner', 'repo', 'ghost', mockLogger, false,
+      {
+        eventName: 'pull_request_target',
+        eventPullRequest: { action: 'closed', number: 44, merged: false }
+      }
+    );
+
+    expect(result.skipped).toBe(true);
+    expect(result.results.blocked).toEqual([]);
+    expect(result.results.closedUnlabeled).toEqual([44]);
+    expect(mockOctokit.rest.issues.addLabels).not.toHaveBeenCalled();
+  });
+
+  test('fails a workflow_dispatch run when search returns 422', async () => {
+    const error = Object.assign(
+      new Error('The listed users cannot be searched either because the users do not exist'),
+      { status: 422 }
+    );
+    const mockOctokit = authorOctokit({
+      openPRs: [],
+      searchError: error
+    });
+
+    await expect(processQuotaForAuthor(
+      mockOctokit, 'owner', 'repo', 'not-a-user', mockLogger, false,
+      { eventName: 'workflow_dispatch' }
+    )).rejects.toThrow('cannot be searched');
+    expect(mockOctokit.rest.issues.removeLabel).not.toHaveBeenCalled();
+  });
+
+  test('matches open pull requests without regard to login case', async () => {
+    const mockOctokit = {
+      rest: {
+        pulls: {
+          list: jest.fn().mockResolvedValue({
+            data: [
+              { number: 7, user: { login: 'NewUser' } },
+              { number: 8, user: null }
+            ]
+          })
+        },
+        search: { issuesAndPullRequests: mockQuotaSearch({ mergedCount: 0 }) }
+      }
+    };
+
+    const result = await fetchAuthorPRs(mockOctokit, 'owner', 'repo', 'newuser');
+
+    expect(result.openPRs.map(pr => pr.number)).toEqual([7]);
+  });
+
+  test('does not count a merge from a repository outside the project', async () => {
+    const search = jest.fn(async ({ q }) => {
+      if (q.includes('is:merged')) {
+        return {
+          data: {
+            total_count: 2,
+            incomplete_results: false,
+            items: [closedHit(1, 'someone', 'else', 'testuser')]
+          }
+        };
+      }
+      return { data: { total_count: 0, incomplete_results: false, items: [] } };
+    });
+    const mockOctokit = {
+      rest: {
+        pulls: { list: jest.fn().mockResolvedValue({ data: [] }) },
+        search: { issuesAndPullRequests: search }
+      }
+    };
+
+    const result = await fetchAuthorPRs(
+      mockOctokit, 'someone', 'else', 'testuser',
+      { action: 'closed', merged: true, number: 5 }
+    );
+
+    expect(result.mergedCount).toBe(2);
   });
 });
 
@@ -1599,6 +1874,176 @@ describe('githubActionHandler', () => {
     });
 
     expect(github.rest.pulls.list).not.toHaveBeenCalled();
+    expect(core.setFailed).not.toHaveBeenCalled();
+  });
+
+  test('clears the closed event pull request from the per-issue path', async () => {
+    const core = { info: jest.fn(), setFailed: jest.fn() };
+    const github = {
+      graphql: jest.fn().mockResolvedValue({ repository: { pullRequests: { nodes: [] } } }),
+      rest: {
+        issues: { removeLabel: jest.fn().mockResolvedValue({}) },
+        pulls: { list: jest.fn() }
+      }
+    };
+
+    await prQuotaManager({
+      github,
+      core,
+      owner: 'jaegertracing',
+      repo: 'jaeger',
+      perIssueLimit: true,
+      pullRequestNumber: 15,
+      eventName: 'pull_request_target',
+      eventPullRequest: { action: 'closed', number: 15, login: 'contributor' }
+    });
+
+    expect(github.rest.pulls.list).not.toHaveBeenCalled();
+    expect(github.rest.issues.removeLabel).toHaveBeenCalledWith({
+      owner: 'jaegertracing',
+      repo: 'jaeger',
+      issue_number: 15,
+      name: LABEL_NAME
+    });
+    expect(core.info).toHaveBeenCalledWith('Closed event unlabeled: 15');
+    expect(core.setFailed).not.toHaveBeenCalled();
+  });
+
+  test('dry-runs the closed-label sweep from workflow_dispatch', async () => {
+    const core = { info: jest.fn(), setFailed: jest.fn() };
+    const github = {
+      rest: {
+        pulls: { list: jest.fn().mockResolvedValue({ data: [{ number: 4, user: { login: 'a' } }] }) },
+        search: {
+          issuesAndPullRequests: jest.fn().mockResolvedValue({
+            data: {
+              total_count: 3,
+              incomplete_results: false,
+              items: [
+                {
+                  number: 4,
+                  repository_url: 'https://api.github.com/repos/jaegertracing/jaeger',
+                  user: { login: 'a' }
+                },
+                {
+                  number: 8,
+                  repository_url: 'https://api.github.com/repos/other/repo',
+                  user: { login: 'c' }
+                },
+                {
+                  number: 9,
+                  repository_url: 'https://api.github.com/repos/jaegertracing/jaeger',
+                  user: { login: 'b' }
+                }
+              ]
+            }
+          })
+        },
+        issues: { removeLabel: jest.fn() }
+      }
+    };
+
+    await prQuotaManager({
+      github,
+      core,
+      owner: 'jaegertracing',
+      repo: 'jaeger',
+      eventName: 'workflow_dispatch',
+      sweepClosedLabels: 'dry-run'
+    });
+
+    expect(github.rest.issues.removeLabel).not.toHaveBeenCalled();
+    expect(core.info).toHaveBeenCalledWith('Dry-run would clear closed quota labels: 9');
+    expect(core.setFailed).not.toHaveBeenCalled();
+  });
+
+  test('applies the closed-label sweep only from workflow_dispatch', async () => {
+    const core = { info: jest.fn(), setFailed: jest.fn() };
+    const github = {
+      rest: {
+        pulls: { list: jest.fn().mockResolvedValue({ data: [] }) },
+        search: {
+          issuesAndPullRequests: jest.fn().mockResolvedValue({
+            data: {
+              total_count: 1,
+              incomplete_results: false,
+              items: [{
+                number: 9,
+                repository_url: 'https://api.github.com/repos/jaegertracing/jaeger',
+                user: { login: 'b' }
+              }]
+            }
+          })
+        },
+        issues: { removeLabel: jest.fn().mockResolvedValue({}) }
+      }
+    };
+
+    await prQuotaManager({
+      github,
+      core,
+      owner: 'jaegertracing',
+      repo: 'jaeger',
+      eventName: 'pull_request_target',
+      sweepClosedLabels: 'apply'
+    });
+    expect(core.setFailed).toHaveBeenCalledWith(
+      'The closed-label sweep is only available from workflow_dispatch.'
+    );
+    expect(github.rest.issues.removeLabel).not.toHaveBeenCalled();
+
+    core.setFailed.mockClear();
+    await prQuotaManager({
+      github,
+      core,
+      owner: 'jaegertracing',
+      repo: 'jaeger',
+      eventName: 'workflow_dispatch',
+      sweepClosedLabels: 'apply'
+    });
+    expect(github.rest.issues.removeLabel).toHaveBeenCalledWith({
+      owner: 'jaegertracing',
+      repo: 'jaeger',
+      issue_number: 9,
+      name: LABEL_NAME
+    });
+    expect(core.setFailed).not.toHaveBeenCalled();
+  });
+
+  test('forwards a closed pull request into the author quota path', async () => {
+    const core = { info: jest.fn(), setFailed: jest.fn() };
+    const github = {
+      rest: {
+        pulls: { list: jest.fn().mockResolvedValue({ data: [] }) },
+        search: {
+          issuesAndPullRequests: jest.fn().mockResolvedValue({
+            data: { total_count: 0, incomplete_results: false, items: [] }
+          })
+        },
+        issues: {
+          getLabel: jest.fn().mockResolvedValue({}),
+          removeLabel: jest.fn().mockResolvedValue({})
+        }
+      }
+    };
+
+    await prQuotaManager({
+      github,
+      core,
+      username: 'newuser',
+      owner: 'owner',
+      repo: 'repo',
+      eventName: 'pull_request_target',
+      eventPullRequest: { action: 'closed', number: 3, merged: false }
+    });
+
+    expect(github.rest.issues.removeLabel).toHaveBeenCalledWith({
+      owner: 'owner',
+      repo: 'repo',
+      issue_number: 3,
+      name: LABEL_NAME
+    });
+    expect(core.info).toHaveBeenCalledWith('Closed unlabeled: 1 PRs');
     expect(core.setFailed).not.toHaveBeenCalled();
   });
 });

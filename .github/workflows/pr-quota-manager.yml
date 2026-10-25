@@ -9,21 +9,30 @@ on:
   workflow_dispatch:
     inputs:
       username:
-        description: 'GitHub username to process quota for'
-        required: true
+        description: 'GitHub username to process quota for. Not required for a closed-label sweep.'
+        required: false
         type: string
       dryRun:
         description: 'Dry run mode - show actions without making changes'
         required: false
         type: boolean
         default: false
+      sweepClosedLabels:
+        description: 'Sweep pr-quota-reached off every closed PR: off, dry-run, or apply. Use dry-run before apply.'
+        required: false
+        type: choice
+        options:
+          - off
+          - dry-run
+          - apply
+        default: off
 
 permissions:
   pull-requests: write
   issues: write
 
 concurrency:
-  group: quota-${{ github.event.pull_request.user.login || github.event.inputs.username }}
+  group: quota-${{ github.event.pull_request.user.login || github.event.inputs.username || github.event.inputs.sweepClosedLabels || 'dispatch' }}
   cancel-in-progress: false
 
 jobs:
@@ -49,3 +58,4 @@ jobs:
           username: ${{ github.event.inputs.username }}
           dry-run: ${{ github.event.inputs.dryRun }}
           exempt-users: ${{ vars.QUOTA_EXEMPT_USERS }}
+          sweep-closed-labels: ${{ github.event.inputs.sweepClosedLabels || 'off' }}

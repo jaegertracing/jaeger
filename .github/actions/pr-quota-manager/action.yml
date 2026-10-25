@@ -36,6 +36,12 @@ inputs:
       case-insensitive. Pass the repository variable QUOTA_EXEMPT_USERS.
     required: false
     default: ''
+  sweep-closed-labels:
+    description: >-
+      Closed-label sweep: off, dry-run, or apply. Only workflow_dispatch may
+      set dry-run or apply. dry-run is the mode to use before apply.
+    required: false
+    default: 'off'
 
 runs:
   using: composite
@@ -54,22 +60,27 @@ runs:
         QUOTA_PER_ISSUE_LIMIT: ${{ inputs.per-issue-limit }}
         QUOTA_PR_NUMBER: ${{ github.event.pull_request.number }}
         QUOTA_ISSUE_NUMBER: ${{ inputs.issue-number }}
-        # Repository variable, not author input, so a pull request cannot add itself.
+        # Callers must pass a repository variable (vars.QUOTA_EXEMPT_USERS), never PR-derived data.
         QUOTA_EXEMPT_USERS: ${{ inputs.exempt-users }}
+        QUOTA_SWEEP_CLOSED: ${{ inputs.sweep-closed-labels }}
       with:
         github-token: ${{ inputs.token }}
+        retries: 3
         script: |
           const handler = require(process.env.QUOTA_SCRIPT)
           const perIssueLimit = process.env.QUOTA_PER_ISSUE_LIMIT === 'true'
+          const sweepClosedLabels = process.env.QUOTA_SWEEP_CLOSED || 'off'
           // Per-issue reconciliation must not invoke the author quota manager.
           // Only the quota workflow resolves the event author automatically.
           const username = perIssueLimit
             ? process.env.QUOTA_USERNAME
             : context.payload.pull_request?.user?.login || process.env.QUOTA_USERNAME
-          if (!username && !perIssueLimit) {
+          const sweeping = sweepClosedLabels === 'dry-run' || sweepClosedLabels === 'apply' || sweepClosedLabels === 'true'
+          if (!username && !perIssueLimit && !sweeping) {
             core.setFailed('Unable to determine username for quota processing. Aborting.')
             return
           }
+          const pullRequest = context.payload.pull_request
           await handler({
             github,
             core,
@@ -83,5 +94,13 @@ runs:
               ? process.env.QUOTA_ISSUE_NUMBER
               : undefined,
             perIssueLimit,
-            dryRun: process.env.QUOTA_DRY_RUN === 'true'
+            dryRun: process.env.QUOTA_DRY_RUN === 'true',
+            eventName: context.eventName,
+            sweepClosedLabels,
+            eventPullRequest: pullRequest ? {
+              number: pullRequest.number,
+              action: context.payload.action,
+              merged: pullRequest.merged === true,
+              login: pullRequest.user && pullRequest.user.login
+            } : undefined
           })

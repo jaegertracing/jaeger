@@ -66,18 +66,31 @@ const openPullRequestsQuery = `
 const ISSUE_LIMIT_COMMENT_MARKER = '<!-- jaeger-pr-per-issue-limit -->';
 const ISSUE_LIMIT_OWNED_LABEL_MARKER = '<!-- jaeger-pr-per-issue-limit-label-owned -->';
 
+/** Render a finite quota, or the word unlimited when there is no cap. */
+function formatQuota(quota) {
+  return Number.isFinite(quota) ? String(quota) : 'unlimited';
+}
+
 /**
  * Format open/limit counts as a bullet-point status block
  * @param {number} openCount - Number of currently open PRs
  * @param {number} quota - Allowed quota
  * @returns {string} Formatted status string
  */
-function formatQuota(quota) {
-  return Number.isFinite(quota) ? String(quota) : 'unlimited';
-}
-
 function formatStatus(openCount, quota) {
   return `  * Open: ${openCount}\n  * Limit: ${formatQuota(quota)}`;
+}
+
+/**
+ * Logins from QUOTA_EXEMPT_USERS. Commas and whitespace separate entries, and a
+ * leading @ is ignored. Computed on each check so tests can change the variable.
+ * @returns {string[]} Lowercased logins
+ */
+function exemptNames() {
+  return (process.env.QUOTA_EXEMPT_USERS || '')
+    .split(/[\s,]+/)
+    .map(name => name.replace(/^@/, '').trim().toLowerCase())
+    .filter(Boolean);
 }
 
 /**
@@ -86,11 +99,8 @@ function formatStatus(openCount, quota) {
  * @returns {boolean} Whether the author skips the quota
  */
 function isExempt(author) {
-  const names = (process.env.QUOTA_EXEMPT_USERS || '')
-    .split(',')
-    .map(name => name.trim().toLowerCase())
-    .filter(Boolean);
-  return names.includes(String(author || '').toLowerCase());
+  const login = String(author || '').replace(/^@/, '').trim().toLowerCase();
+  return login !== '' && exemptNames().includes(login);
 }
 
 /**
@@ -111,22 +121,82 @@ function quoteSearchTerm(value) {
 }
 
 /**
+ * Search qualifier for the pull request opener.
+ * The Copilot account's login is Copilot, and author:"Copilot" is rejected
+ * with 422. GitHub's app qualifier is the one that matches those pull requests.
+ * @param {string} author - PR author username
+ * @returns {string} author: qualifier, including the author: prefix
+ */
+function authorSearchQualifier(author) {
+  if (String(author || '').toLowerCase() === 'copilot') {
+    return 'author:app/copilot-swe-agent';
+  }
+  return `author:${quoteSearchTerm(author)}`;
+}
+
+function isPullRequestEvent(eventName) {
+  return eventName === 'pull_request' || eventName === 'pull_request_target';
+}
+
+/**
+ * 422 from Search when the login does not exist, was deleted, or cannot be
+ * queried in author:"..." form.
+ * @param {Error} error - Octokit or test error
+ * @returns {boolean}
+ */
+function isUnsearchableAuthorError(error) {
+  const status = error && (error.status || error.response?.status);
+  const details = [
+    error && error.message,
+    error && error.response?.data?.message,
+    ...((error && error.response?.data?.errors) || []).map(item => item && item.message)
+  ].filter(Boolean).join(' ');
+  return status === 422 && /cannot be searched/i.test(details);
+}
+
+function sameRepository(item, owner, repo) {
+  const expected = `${owner}/${repo}`.toLowerCase();
+  const url = String(item && item.repository_url || '').toLowerCase();
+  if (url.endsWith(`/repos/${expected}`)) return true;
+  const fullName = item && item.repository && (item.repository.full_name || item.repository.nameWithOwner);
+  return String(fullName || '').toLowerCase() === expected;
+}
+
+/**
+ * A closed-label search hit may be removed only when it is this repository and,
+ * for an author sweep, that author. Missing identity fields are not a match.
+ * @param {object} item - Search result
+ * @param {string} owner - Repository owner
+ * @param {string} repo - Repository name
+ * @param {string} [author] - Required login, or omitted for the repo-wide sweep
+ * @returns {boolean}
+ */
+function closedHitMatches(item, owner, repo, author) {
+  if (!item || !item.number || !sameRepository(item, owner, repo)) return false;
+  if (!author) return true;
+  const login = item.user && item.user.login;
+  return Boolean(login) && login.toLowerCase() === String(author).toLowerCase();
+}
+
+/**
  * Run a GitHub issue search. A failed or incomplete search throws so the job
  * fails instead of falling back to a single-repository count.
  * @param {object} octokit - GitHub API client
  * @param {string} q - Search query
- * @param {boolean} paginate - When true, follow pages so every hit is returned
+ * @param {{paginate?: boolean, perPage?: number}} [options] - Page size. Pagination uses 100.
  * @returns {Promise<{totalCount: number, items: Array}>} Search total and items
  */
-async function searchIssues(octokit, q, paginate = false) {
+async function searchIssues(octokit, q, options = {}) {
+  const paginate = options.paginate === true;
   const items = [];
   let totalCount = 0;
   const maxPage = paginate ? 10 : 1;
+  const pageSize = paginate ? 100 : (options.perPage || 1);
 
   for (let page = 1; page <= maxPage; page++) {
     const { data } = await octokit.rest.search.issuesAndPullRequests({
       q,
-      per_page: paginate ? 100 : 1,
+      per_page: pageSize,
       page
     });
 
@@ -160,11 +230,39 @@ async function searchIssues(octokit, q, paginate = false) {
  * @param {string} author - PR author username
  * @returns {Promise<number>} Merged pull request count
  */
-async function countProjectMergedPRs(octokit, author) {
-  const repos = PROJECT_REPOS.map(([owner, repo]) => `repo:${owner}/${repo}`).join(' ');
-  const q = `is:pr is:merged author:${quoteSearchTerm(author)} ${repos}`;
-  const { totalCount } = await searchIssues(octokit, q, false);
+/**
+ * If this run is the merge of a pull request Search has not indexed yet, count it.
+ * total_count below 3 cannot already include that pull request when per_page is 3
+ * and none of the returned items is the event pull request.
+ * @param {number} totalCount - Search total_count
+ * @param {Array} items - First page of merged results
+ * @param {object} [eventPullRequest] - Closed event, with owner and repo set
+ * @returns {number}
+ */
+function mergedCountWithEvent(totalCount, items, eventPullRequest) {
+  if (!eventPullRequest || eventPullRequest.action !== 'closed' || eventPullRequest.merged !== true) {
+    return totalCount;
+  }
+  const owner = eventPullRequest.owner;
+  const repo = eventPullRequest.repo;
+  const inProject = PROJECT_REPOS.some(([projectOwner, projectRepo]) =>
+    projectOwner.toLowerCase() === String(owner || '').toLowerCase() &&
+    projectRepo.toLowerCase() === String(repo || '').toLowerCase()
+  );
+  if (!inProject) return totalCount;
+  const number = Number(eventPullRequest.number);
+  const seen = (items || []).some(item =>
+    Number(item.number) === number && sameRepository(item, owner, repo)
+  );
+  if (!seen && totalCount < 3) return totalCount + 1;
   return totalCount;
+}
+
+async function countProjectMergedPRs(octokit, author, eventPullRequest) {
+  const repos = PROJECT_REPOS.map(([owner, repo]) => `repo:${owner}/${repo}`).join(' ');
+  const q = `is:pr is:merged ${authorSearchQualifier(author)} ${repos}`;
+  const { totalCount, items } = await searchIssues(octokit, q, { perPage: 3 });
+  return mergedCountWithEvent(totalCount, items, eventPullRequest);
 }
 
 /**
@@ -181,27 +279,43 @@ async function listClosedQuotaPRs(octokit, owner, repo, author) {
     'is:pr',
     'is:closed',
     `label:${quoteSearchTerm(LABEL_NAME)}`,
-    `author:${quoteSearchTerm(author)}`
+    authorSearchQualifier(author)
   ].join(' ');
-  const { items } = await searchIssues(octokit, q, true);
+  const { items } = await searchIssues(octokit, q, { paginate: true });
   return items;
 }
 
 /**
- * Fetch this repository's open PRs by the author, the shared merged-PR count,
- * and closed PRs in this repository that still have the quota label.
- * Both searches run before any label write. A search error rejects the promise.
+ * Every closed pull request in this repository that still has the quota label.
  * @param {object} octokit - GitHub API client
- * @param {string} owner - Repository owner/org
+ * @param {string} owner - Repository owner
  * @param {string} repo - Repository name
- * @param {string} author - PR author username
- * @returns {Promise<{openPRs: Array, mergedCount: number, closedLabeledPRs: Array}>}
+ * @returns {Promise<Array>} Search hits
  */
-async function fetchAuthorPRs(octokit, owner, repo, author) {
+async function listAllClosedQuotaPRs(octokit, owner, repo) {
+  const q = [
+    `repo:${owner}/${repo}`,
+    'is:pr',
+    'is:closed',
+    `label:${quoteSearchTerm(LABEL_NAME)}`
+  ].join(' ');
+  const { items } = await searchIssues(octokit, q, { paginate: true });
+  return items;
+}
+
+/**
+ * Open pull requests in this repository. Pass an author to keep only that login.
+ * The comparison is case-insensitive. A missing user is skipped.
+ * @param {object} octokit - GitHub API client
+ * @param {string} owner - Repository owner
+ * @param {string} repo - Repository name
+ * @param {string} [author] - Login to keep, or omitted for every open pull request
+ * @returns {Promise<Array>} Open pull requests, oldest first
+ */
+async function listOpenPullRequests(octokit, owner, repo, author) {
   const openPRs = [];
   const perPage = 100;
-
-  // Open PRs are counted only in the repository that is enforcing the cap.
+  const authorKey = author ? String(author).toLowerCase() : '';
   let page = 1;
   while (true) {
     const { data } = await octokit.rest.pulls.list({
@@ -213,17 +327,35 @@ async function fetchAuthorPRs(octokit, owner, repo, author) {
       sort: 'created',
       direction: 'asc'
     });
-
     if (data.length === 0) break;
-
-    const authorPRs = data.filter(pr => pr.user.login === author);
-    openPRs.push(...authorPRs);
-
+    const pagePRs = authorKey
+      ? data.filter(pr => pr.user && String(pr.user.login || '').toLowerCase() === authorKey)
+      : data;
+    openPRs.push(...pagePRs);
     if (data.length < perPage) break;
     page++;
   }
+  return openPRs;
+}
 
-  const mergedCount = await countProjectMergedPRs(octokit, author);
+/**
+ * Fetch this repository's open PRs by the author, the shared merged-PR count,
+ * and closed PRs in this repository that still have the quota label.
+ * Both searches run before any label write. A search error rejects the promise.
+ * @param {object} octokit - GitHub API client
+ * @param {string} owner - Repository owner/org
+ * @param {string} repo - Repository name
+ * @param {string} author - PR author username
+ * @param {object} [eventPullRequest] - Closed merge event used to correct index lag
+ * @returns {Promise<{openPRs: Array, mergedCount: number, closedLabeledPRs: Array}>}
+ */
+async function fetchAuthorPRs(octokit, owner, repo, author, eventPullRequest) {
+  const openPRs = await listOpenPullRequests(octokit, owner, repo, author);
+  const mergedCount = await countProjectMergedPRs(octokit, author, eventPullRequest && {
+    ...eventPullRequest,
+    owner,
+    repo
+  });
   const closedLabeledPRs = await listClosedQuotaPRs(octokit, owner, repo, author);
 
   return {
@@ -234,6 +366,47 @@ async function fetchAuthorPRs(octokit, owner, repo, author) {
 }
 
 /**
+ * Numbers whose quota label should be removed because they are closed.
+ * Search hits that are still in the REST open list are left for the open-PR
+ * loop: the index can still call a reopened PR closed.
+ * The event pull request is included on close even when Search has not indexed it.
+ * @param {Array} closedLabeledPRs - Search hits
+ * @param {Array} openPRs - REST open pull requests for this author
+ * @param {string} owner - Repository owner
+ * @param {string} repo - Repository name
+ * @param {string} author - PR author username
+ * @param {object} [eventPullRequest] - Triggering pull request, if any
+ * @returns {number[]}
+ */
+function closedNumbersToClear(closedLabeledPRs, openPRs, owner, repo, author, eventPullRequest) {
+  const openNumbers = new Set(openPRs.map(pr => Number(pr.number)));
+  const numbers = [];
+  function add(number) {
+    if (!number || openNumbers.has(number) || numbers.includes(number)) return;
+    numbers.push(number);
+  }
+  for (const pr of closedLabeledPRs) {
+    if (closedHitMatches(pr, owner, repo, author)) add(Number(pr.number));
+  }
+  if (eventPullRequest && eventPullRequest.action === 'closed') {
+    add(Number(eventPullRequest.number));
+  }
+  return numbers;
+}
+
+async function clearClosedNumbers(octokit, owner, repo, numbers, logger, dryRun) {
+  for (const number of numbers) {
+    if (dryRun) {
+      logger.log(`  🔍 [DRY RUN] Would remove label from closed PR #${number}`);
+    } else {
+      await removeLabel(octokit, owner, repo, number, logger);
+      logger.log(`  ✅ Removed label from closed PR #${number}`);
+    }
+  }
+  return numbers;
+}
+
+/**
  * Process quota management for a specific author
  * @param {object} octokit - GitHub API client
  * @param {string} owner - Repository owner
@@ -241,29 +414,62 @@ async function fetchAuthorPRs(octokit, owner, repo, author) {
  * @param {string} author - PR author username
  * @param {object} logger - Logger object (console or custom)
  * @param {boolean} dryRun - If true, only print actions without executing them
+ * @param {{eventName?: string, eventPullRequest?: object}} [options] - Trigger context
  * @returns {Promise<object>} Processing results
  */
-async function processQuotaForAuthor(octokit, owner, repo, author, logger = console, dryRun = false) {
+async function processQuotaForAuthor(octokit, owner, repo, author, logger = console, dryRun = false, options = {}) {
+  const exempt = isExempt(author);
+  const eventPullRequest = options.eventPullRequest;
+  const eventName = options.eventName;
   if (dryRun) {
     logger.log('🔍 DRY RUN MODE - No changes will be made\n');
   }
   logger.log(`\n=== Processing Quota for: @${author} ===\n`);
 
-  // Reads happen before any label or comment write. A search failure rejects here.
-  const { openPRs, mergedCount, closedLabeledPRs } = await fetchAuthorPRs(octokit, owner, repo, author);
+  // Open pull requests come from REST. Search runs only for authors who are
+  // not exempt, and only after that decision, so an exempt login makes no
+  // Search calls.
+  const openPRs = await listOpenPullRequests(octokit, owner, repo, author);
+
+  let mergedCount = 0;
+  let closedLabeledPRs = [];
+  if (!exempt) {
+    const eventForCount = eventPullRequest ? { ...eventPullRequest, owner, repo } : undefined;
+    try {
+      mergedCount = await countProjectMergedPRs(octokit, author, eventForCount);
+      closedLabeledPRs = await listClosedQuotaPRs(octokit, owner, repo, author);
+    } catch (error) {
+      if (isUnsearchableAuthorError(error) && isPullRequestEvent(eventName)) {
+        logger.log(`  Search cannot look up @${author}. Skipping quota changes.`);
+        const closedUnlabeled = await clearClosedNumbers(
+          octokit, owner, repo,
+          closedNumbersToClear([], openPRs, owner, repo, author, eventPullRequest),
+          logger, dryRun
+        );
+        return {
+          author,
+          mergedCount: 0,
+          quota: null,
+          openCount: openPRs.length,
+          skipped: true,
+          results: { blocked: [], unblocked: [], unchanged: [], closedUnlabeled }
+        };
+      }
+      throw error;
+    }
+  }
 
   // Open PRs are already sorted by creation date (oldest first) from the fetch.
-  // An exempt login is unlimited regardless of the merged count.
-  const quota = isExempt(author) ? UNLIMITED_QUOTA : calculateQuota(mergedCount);
+  // An exempt login is unlimited regardless of merged history, which is not queried.
+  const quota = exempt ? UNLIMITED_QUOTA : calculateQuota(mergedCount);
   const openCount = openPRs.length;
   const quotaText = formatQuota(quota);
 
   // Log history audit
   logger.log('📜 History Audit:');
-  if (isExempt(author)) {
+  if (exempt) {
     logger.log('  User is exempt from the PR quota.');
-  }
-  if (mergedCount === 0) {
+  } else if (mergedCount === 0) {
     logger.log('  No merged PRs found.');
   } else if (!Number.isFinite(quota)) {
     logger.log(`  User has ${mergedCount} merged PR${mergedCount === 1 ? '' : 's'} in the project (unlimited quota).`);
@@ -273,7 +479,11 @@ async function processQuotaForAuthor(octokit, owner, repo, author, logger = cons
 
   // Log current stats
   logger.log(`\n📊 Current Stats:`);
-  logger.log(`  User has ${mergedCount} merged PRs. Current Quota: ${quotaText}. Currently Open: ${openCount}.`);
+  if (exempt) {
+    logger.log(`  User is exempt. Current Quota: unlimited. Currently Open: ${openCount}.`);
+  } else {
+    logger.log(`  User has ${mergedCount} merged PRs. Current Quota: ${quotaText}. Currently Open: ${openCount}.`);
+  }
 
   // Ensure label exists
   if (!dryRun) {
@@ -323,17 +533,14 @@ async function processQuotaForAuthor(octokit, owner, repo, author, logger = cons
     }
   }
 
-  // Closed PRs are not in the open list, so a label applied before close would
-  // otherwise stay. Clearing it does not post a comment.
-  for (const pr of closedLabeledPRs) {
-    if (dryRun) {
-      logger.log(`  🔍 [DRY RUN] Would remove label from closed PR #${pr.number}`);
-    } else {
-      await removeLabel(octokit, owner, repo, pr.number, logger);
-      logger.log(`  ✅ Removed label from closed PR #${pr.number}`);
-    }
-    results.closedUnlabeled.push(pr.number);
-  }
+  // Search can lag REST in both directions. Never clear a number REST still
+  // lists as open, and always clear the pull request that just closed.
+  // Clearing a closed pull request does not post a comment.
+  results.closedUnlabeled = await clearClosedNumbers(
+    octokit, owner, repo,
+    closedNumbersToClear(closedLabeledPRs, openPRs, owner, repo, author, eventPullRequest),
+    logger, dryRun
+  );
 
   logger.log(`\n✅ Processing Complete for @${author}\n`);
 
@@ -844,6 +1051,36 @@ async function main() {
   }
 }
 
+/**
+ * Remove pr-quota-reached from every closed pull request in this repository.
+ * Search hits that REST still lists as open are skipped. This does not comment.
+ * @param {object} octokit - GitHub API client
+ * @param {string} owner - Repository owner
+ * @param {string} repo - Repository name
+ * @param {object} logger - Logger
+ * @param {boolean} dryRun - Log without writing
+ * @returns {Promise<number[]>} Pull request numbers cleared or planned
+ */
+async function sweepClosedQuotaLabels(octokit, owner, repo, logger = console, dryRun = true) {
+  if (dryRun) {
+    logger.log('🔍 DRY RUN MODE - No changes will be made\n');
+  }
+  const openPRs = await listOpenPullRequests(octokit, owner, repo);
+  const openNumbers = new Set(openPRs.map(pr => Number(pr.number)));
+  const hits = await listAllClosedQuotaPRs(octokit, owner, repo);
+  const numbers = [];
+  for (const hit of hits) {
+    const number = Number(hit.number);
+    if (!closedHitMatches(hit, owner, repo)) continue;
+    if (openNumbers.has(number)) {
+      logger.log(`  Not removing the quota label from PR #${number}; REST still lists it as open.`);
+      continue;
+    }
+    numbers.push(number);
+  }
+  return clearClosedNumbers(octokit, owner, repo, numbers, logger, dryRun);
+}
+
 function logIssueLimitResult(core, result, dryRun) {
   const prefix = dryRun ? 'Dry-run plan' : 'Reconciled';
   core.info(`${prefix} linked issues: ${result.reconciledIssues.join(', ') || 'none'}`);
@@ -851,17 +1088,38 @@ function logIssueLimitResult(core, result, dryRun) {
 }
 
 // GitHub Actions wrapper function
+function sweepModeOf(value) {
+  if (value === 'apply') return 'apply';
+  if (value === 'dry-run' || value === 'true') return 'dry-run';
+  return 'off';
+}
+
 async function githubActionHandler({
-  github, core, username, owner, repo, pullRequestNumber, issueNumber, perIssueLimit = false, dryRun = false
+  github, core, username, owner, repo, pullRequestNumber, issueNumber,
+  perIssueLimit = false, dryRun = false, eventName = '', eventPullRequest = null,
+  sweepClosedLabels = 'off'
 }) {
   if (!owner || !repo) {
     core.setFailed('Owner and repo are required');
     return;
   }
 
+  const sweepMode = sweepModeOf(sweepClosedLabels);
   try {
+    if (sweepMode !== 'off') {
+      if (eventName !== 'workflow_dispatch') {
+        core.setFailed('The closed-label sweep is only available from workflow_dispatch.');
+        return;
+      }
+      // dry-run is the default. apply writes only when the caller also left dryRun false.
+      const sweepDryRun = sweepMode !== 'apply' || dryRun;
+      const cleared = await sweepClosedQuotaLabels(github, owner, repo, console, sweepDryRun);
+      core.info(`${sweepDryRun ? 'Dry-run would clear' : 'Cleared'} closed quota labels: ${cleared.join(', ') || 'none'}`);
+    }
     if (username && !perIssueLimit) {
-      const result = await processQuotaForAuthor(github, owner, repo, username, console, dryRun);
+      const result = await processQuotaForAuthor(
+        github, owner, repo, username, console, dryRun, { eventName, eventPullRequest }
+      );
       core.info('');
       core.info('=== Author quota summary ===');
       core.info(`Blocked: ${result.results.blocked.length} PRs`);
@@ -881,7 +1139,17 @@ async function githubActionHandler({
         : await processAllIssueLimits(github, owner, repo, console, dryRun);
       logIssueLimitResult(core, result, dryRun);
     }
-    if (!username && !pullRequestNumber && !perIssueLimit) {
+    // The per-issue workflow does not run the author quota. A pull request that
+    // just closed still loses pr-quota-reached from the event payload.
+    if (perIssueLimit && eventPullRequest && eventPullRequest.action === 'closed') {
+      const cleared = await clearClosedNumbers(
+        github, owner, repo,
+        closedNumbersToClear([], [], owner, repo, eventPullRequest.login, eventPullRequest),
+        console, dryRun
+      );
+      core.info(`Closed event unlabeled: ${cleared.join(', ') || 'none'}`);
+    }
+    if (!username && !pullRequestNumber && !perIssueLimit && sweepMode === 'off') {
       core.setFailed('A username or pull request number is required');
     }
   } catch (error) {
@@ -902,6 +1170,9 @@ if (typeof module !== 'undefined' && module.exports) {
   module.exports.calculateQuota = calculateQuota;
   module.exports.countProjectMergedPRs = countProjectMergedPRs;
   module.exports.fetchAuthorPRs = fetchAuthorPRs;
+  module.exports.authorSearchQualifier = authorSearchQualifier;
+  module.exports.closedNumbersToClear = closedNumbersToClear;
+  module.exports.sweepClosedQuotaLabels = sweepClosedQuotaLabels;
   module.exports.processQuotaForAuthor = processQuotaForAuthor;
   module.exports.ensureLabelExists = ensureLabelExists;
   module.exports.addLabel = addLabel;
