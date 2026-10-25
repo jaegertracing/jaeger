@@ -56,6 +56,9 @@ func TestForCodecov(t *testing.T) {
 	// Now try to close, since the files have been deleted this should throw an error
 	err = f.Close()
 	require.Error(t, err)
+	err2 := f.Close()
+	require.Error(t, err2)
+	require.EqualError(t, err2, err.Error())
 }
 
 func TestMaintenanceRun(t *testing.T) {
@@ -154,4 +157,19 @@ func TestBadgerMetrics(t *testing.T) {
 	assert.True(t, found)
 
 	require.NoError(t, f.Close())
+}
+
+func TestCloseIsIdempotent(t *testing.T) {
+	f := NewFactory()
+	f.Config.Ephemeral = true
+	err := f.Initialize(metrics.NullFactory, zap.NewNop())
+	require.NoError(t, err)
+
+	require.NotPanics(t, func() {
+		require.NoError(t, f.Close())
+	})
+
+	require.NotPanics(t, func() {
+		require.NoError(t, f.Close())
+	})
 }
