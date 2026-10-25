@@ -1,6 +1,6 @@
 # SQL query compiler
 
-This package compiles a read-only SQL statement into the parameters that the query service's search methods take: the RFC 0005 filter, the start-time window, the RFC 0016 ordering and page size, and the method that the statement's shape selects. The compiler runs in process; no remote call is involved. It is the implementation of [RFC 0019](../../docs/rfc/0019-sql-query-surface.md), and this page documents the dialect as the compiler accepts it. The RFC holds the reasoning.
+This package compiles a read-only SQL statement into the parameters that the query service's search methods take: the RFC 0005 filter, the start-time window, the RFC 0016 ordering and page size, and the method that the statement's shape selects. The compiler runs in process; no remote call is involved. It is the implementation of [RFC 0019](../../docs/rfc/0019-sql-query-surface.md), and this page documents the dialect as the compiler accepts it. The RFC holds the reasoning, and the [jaeger-sql skill](../../cmd/jaeger/internal/extension/jaegerquery/internal/mcptools/skills/jaeger-sql/SKILL.md) is the shorter description an agent reads through the MCP server.
 
 The dialect is one `SELECT` over a virtual schema. Nothing is a physical table; every name compiles to a level, a field, or a search method of the query service, so a statement reaches every storage backend through the filter the backend already evaluates.
 

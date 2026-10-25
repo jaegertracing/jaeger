@@ -174,7 +174,7 @@ flowchart LR
 
 **Compile** rewrites the `WHERE` tree of each `spans` alias into an RFC 0005 `Call`, reusing `internal/expression` so that the output is exactly what the Go builder would produce for the same query, and then runs `tracestore.FinalizeFilter` on it, which validates the tree and resolves every constant against the field beside it. The window, order, limit and projection are filled into the request message.
 
-**Normalized SQL.** The compiler also prints the statement back from the AST through the parser's formatter, which fixes keyword case, spacing and the `AS` of every alias while keeping identifiers and literals as written. The dry-run RPC returns it, the MCP tool echoes it beside the results, and query logs record it, so that two agents asking the same question in different spellings leave one footprint.
+**Normalized SQL.** The compiler also prints the statement back from the AST through the parser's formatter, which fixes keyword case, spacing and the `AS` of every alias while keeping identifiers and literals as written. `ExplainQuery` returns it and query logs record it, so that two agents asking the same question in different spellings leave one footprint; the MCP tool returns only the traces, because an agent that wants the normalized form asks `ExplainQuery` for it.
 
 ### 5.1 API surface
 
@@ -301,7 +301,7 @@ Option D is the status quo plus a better skill document, and it is cheap. It fai
 Each milestone is independently shippable.
 
 - ✅ **M0 — Parser spike.** Delivered as the `internal/sqlquery` package: the compiler for every construct of §4, with a corpus of 44 accepted statements that compile to the builder's trees byte for byte and 172 refused statements whose message and position are asserted, all against `clickhouse-sql-parser`. The findings are recorded in §4.2 and §6.3. The package is not yet reachable from the API or the MCP tools; M1 wires it into its first client.
-- **M1 — MCP `search_traces`.** The `sql` input of the tool, compiled in the handler for the trace-returning shapes of §4.4, and the dialect served as a skill through `read_skill`. No API or IDL change. *Exit:* a statement sent through the tool returns the same traces as the equivalent structured inputs.
+- ✅ **M1 — MCP `search_traces`.** Delivered in #9925: the `sql` input of the tool, compiled in the handler for the trace-returning shapes of §4.4, and the `jaeger-sql` skill served through `read_skill`. No API or IDL change. *Exit met:* a statement sent through the tool returns the same traces as the equivalent structured inputs, shown against the memory backend in the handler's tests.
 - **M2 — `WHERE` tier in api_v3.** The `sql` field on `TraceQueryParameters` for `FindTraceIDs`, `FindTraces` and `FindTraceSummaries`, and `ExplainQuery`. *Exit:* a statement sent through the API returns the same traces as the equivalent `filter`.
 - **M3 — Result shaping.** The `sql` field on `SpanQueryParameters`, so that `SELECT *` and column lists over `spans` reach `FindSpans` with the ordering, limit and projection the compiler already produces, as RFC 0016 lands those fields. *Exit:* the shared storage integration suite's filter battery runs its cases through SQL as well as through `filter`.
 - **M4 — Aggregation.** `GROUP BY`, `HAVING` and the aggregate functions compile to the row-returning method of RFC 0016 §5 when that method exists. This milestone is owned by that RFC's successor and listed here so the clause mapping is reserved.
