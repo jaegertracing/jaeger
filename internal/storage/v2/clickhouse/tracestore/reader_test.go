@@ -1377,7 +1377,7 @@ func TestFindTraces_StagedQueries(t *testing.T) {
 	require.NoError(t, err)
 	requireTracesEqual(t, multipleSpans, traces)
 	require.Equal(t, [][]any{
-		{"serviceA", query.StartTimeMin, query.StartTimeMax, uint32(2)},
+		{"serviceA", query.StartTimeMin.UnixNano(), query.StartTimeMax.UnixNano(), uint32(2)},
 		{[]string{traceIDHex1, traceIDHex2}},
 		{
 			traceIDHex1, start.UnixNano(), end.Add(-time.Second).UnixNano(),

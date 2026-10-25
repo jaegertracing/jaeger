@@ -475,7 +475,7 @@ func TestBuildFindTraceIDsQuery_WithFilter(t *testing.T) {
 	sqlText, args, err := r.buildFindTraceIDsQuery(t.Context(), query)
 	require.NoError(t, err)
 	verifyQuerySnapshot(t, sqlText)
-	assert.Equal(t, []any{"cart", time.Unix(0, 0), time.Unix(100, 0), testReaderConfig.DefaultSearchDepth}, args)
+	assert.Equal(t, []any{"cart", time.Unix(0, 0).UnixNano(), time.Unix(100, 0).UnixNano(), testReaderConfig.DefaultSearchDepth}, args)
 }
 
 // TestBuildFindTraceIDsQuery_WithNestedFilter snapshots the whole query for a boolean tree with
@@ -511,7 +511,7 @@ func TestBuildFindTraceIDsQuery_WithNestedFilter(t *testing.T) {
 	sqlText, args, err := r.buildFindTraceIDsQuery(t.Context(), query)
 	require.NoError(t, err)
 	verifyQuerySnapshot(t, sqlText)
-	assert.Equal(t, []any{"checkout", "http.status_code", int64(500), int64(time.Second), time.Unix(0, 0), time.Unix(100, 0), testReaderConfig.DefaultSearchDepth}, args)
+	assert.Equal(t, []any{"checkout", "http.status_code", int64(500), int64(time.Second), time.Unix(0, 0).UnixNano(), time.Unix(100, 0).UnixNano(), testReaderConfig.DefaultSearchDepth}, args)
 }
 
 func TestBuildFindTraceIDsQuery_FilterBesideLegacyFields(t *testing.T) {
