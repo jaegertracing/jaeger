@@ -153,6 +153,22 @@ func TestValidateFilter_Accepts(t *testing.T) {
 			filter: matchesString(p.Span().Name, "(?i)^get"),
 		},
 		{
+			name:   "a regular expression spelling case-insensitivity as a character class",
+			filter: matchesString(p.Span().Name, "[gG]et"),
+		},
+		{
+			name:   "a regular expression spelling case-insensitivity as an alternation",
+			filter: matchesString(p.Span().Name, "(g|G)et"),
+		},
+		{
+			name:   "a regular expression quoting what looks like a case-folding flag",
+			filter: matchesString(p.Span().Name, `\Q(?i)\Eget`),
+		},
+		{
+			name:   "a regular expression switching case folding off",
+			filter: matchesString(p.Span().Name, "(?-i)get"),
+		},
+		{
 			name:   "a regular expression with a typed pattern",
 			filter: matchesString(p.Attr("http.route"), "/api/.*"),
 		},
