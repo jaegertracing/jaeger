@@ -227,10 +227,10 @@ describe('computeMetrics', () => {
     expect(r.snapshots).toBeNull();
   });
 
-  test('failure when total changes > 0', () => {
+  test('success with warning text when total changes > 0', () => {
     const r = computeMetrics({ metrics_has_infra_errors: false, metrics_total_changes: 3 });
-    expect(r.conclusion).toBe('failure');
-    expect(r.text).toBe('❌ 3 metric change(s) detected');
+    expect(r.conclusion).toBe('success');
+    expect(r.text).toBe('⚠️ 3 metric change(s) detected (informational)');
     expect(r.totalChanges).toBe(3);
   });
 
@@ -485,7 +485,7 @@ describe('buildCommentBody', () => {
       added: 1, removed: 0, modified: 1,
       metric_names: ['http_server_duration'],
     }];
-    const body = buildCommentBody('❌ 2 metric change(s) detected', coverageText, footer, { metricsSnapshots: snapshots });
+    const body = buildCommentBody('⚠️ 2 metric change(s) detected (informational)', coverageText, footer, { metricsSnapshots: snapshots });
     expect(body).toContain('<details>');
     expect(body).toContain('**cassandra_v2**');
     expect(body).toContain('- `http_server_duration`');
@@ -506,7 +506,7 @@ describe('buildCommentBody', () => {
       artifact_id: null,
     }];
     const ciRunUrl = 'https://github.com/org/repo/actions/runs/999';
-    const body = buildCommentBody('❌ 1 metric change(s) detected', coverageText, footer, { metricsSnapshots: snapshots, ciRunUrl });
+    const body = buildCommentBody('⚠️ 1 metric change(s) detected (informational)', coverageText, footer, { metricsSnapshots: snapshots, ciRunUrl });
     expect(body).toContain(`[CI run](${ciRunUrl})`);
     expect(body).toContain('Compare metrics and generate summary');
   });
@@ -519,7 +519,7 @@ describe('buildCommentBody', () => {
       artifact_id: 6359406281,
     }];
     const artifactUrlPrefix = 'https://github.com/org/repo/actions/runs/999/artifacts';
-    const body = buildCommentBody('❌ 1 metric change(s) detected', coverageText, footer, { metricsSnapshots: snapshots, artifactUrlPrefix });
+    const body = buildCommentBody('⚠️ 1 metric change(s) detected (informational)', coverageText, footer, { metricsSnapshots: snapshots, artifactUrlPrefix });
     expect(body).toContain(`[⬇️ download diff](${artifactUrlPrefix}/6359406281)`);
   });
 });

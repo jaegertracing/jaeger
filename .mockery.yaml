@@ -1,3 +1,6 @@
+# Copyright (c) 2026 The Jaeger Authors.
+# SPDX-License-Identifier: Apache-2.0
+
 dir: '{{.InterfaceDir}}/mocks/'
 structname: '{{.InterfaceName}}'
 pkgname: mocks
@@ -6,10 +9,6 @@ filename: mocks.go
 template-data:
   boilerplate-file: .mockery.header.txt
 packages:
-  github.com/jaegertracing/jaeger/crossdock/services:
-    interfaces:
-      CollectorService: {}
-      QueryService: {}
   github.com/jaegertracing/jaeger/internal/distributedlock:
     config:
       all: true
@@ -28,10 +27,7 @@ packages:
       Iterator: {}
       Query: {}
       Session: {}
-  github.com/jaegertracing/jaeger/internal/storage/elasticsearch:
-    config:
-      all: true
-  github.com/jaegertracing/jaeger/internal/storage/elasticsearch/client:
+  github.com/jaegertracing/jaeger/internal/storage/elasticsearch/esclient:
     config:
       all: true
   github.com/jaegertracing/jaeger/internal/storage/v1:
@@ -57,9 +53,6 @@ packages:
     interfaces:
       Reader: {}
       Writer: {}
-  github.com/jaegertracing/jaeger/internal/storage/v1/grpc/shared:
-    interfaces:
-      PluginCapabilities: {}
   github.com/jaegertracing/jaeger/internal/storage/v2/api/depstore:
     config:
       all: true

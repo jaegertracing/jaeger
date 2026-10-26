@@ -12,30 +12,22 @@ import (
 	"go.opentelemetry.io/collector/config/configgrpc"
 	"go.opentelemetry.io/collector/config/confighttp"
 	"go.opentelemetry.io/collector/config/configoptional"
-	"go.opentelemetry.io/collector/confmap/xconfmap"
-	"go.opentelemetry.io/collector/featuregate"
+	"go.opentelemetry.io/collector/confmap"
 
 	"github.com/jaegertracing/jaeger/internal/sampling/samplingstrategy/adaptive"
 )
 
 var (
-	errNoProvider        = errors.New("no sampling strategy provider specified, expecting 'adaptive' or 'file'")
-	errMultipleProviders = errors.New("only one sampling strategy provider can be specified, 'adaptive' or 'file'")
-	errNegativeInterval  = errors.New("reload interval must be a positive value, or zero to disable automatic reloading")
+	errNoProvider                   = errors.New("no sampling strategy provider specified, expecting 'adaptive' or 'file'")
+	errMultipleProviders            = errors.New("only one sampling strategy provider can be specified, 'adaptive' or 'file'")
+	errNegativeInterval             = errors.New("reload interval must be a positive value, or zero to disable automatic reloading")
+	errLeaderLeaseRefreshInterval   = errors.New("leader_lease_refresh_interval must be a positive value")
+	errFollowerLeaseRefreshInterval = errors.New("follower_lease_refresh_interval must be a positive value")
 )
 
 var (
-	_ component.Config   = (*Config)(nil)
-	_ xconfmap.Validator = (*Config)(nil)
-
-	_ = featuregate.GlobalRegistry().MustRegister(
-		"jaeger.sampling.includeDefaultOpStrategies",
-		featuregate.StageStable, // can only be ON
-		featuregate.WithRegisterFromVersion("v2.2.0"),
-		featuregate.WithRegisterToVersion("v2.5.0"),
-		featuregate.WithRegisterDescription("Forces service strategy to be merged with default strategy, including per-operation overrides."),
-		featuregate.WithRegisterReferenceURL("https://github.com/jaegertracing/jaeger/issues/5270"),
-	)
+	_ component.Config  = (*Config)(nil)
+	_ confmap.Validator = (*Config)(nil)
 )
 
 type Config struct {
@@ -83,10 +75,18 @@ func (cfg *Config) Validate() error {
 	}
 
 	if cfg.Adaptive.HasValue() {
+		adaptiveCfg := cfg.Adaptive.Get()
 		// Validate adaptive config fields
-		_, err := govalidator.ValidateStruct(cfg.Adaptive.Get())
+		_, err := govalidator.ValidateStruct(adaptiveCfg)
 		if err != nil {
 			return err
+		}
+		// Leader election uses these intervals for time.NewTicker, which panics on non-positive values.
+		if adaptiveCfg.LeaderLeaseRefreshInterval <= 0 {
+			return errLeaderLeaseRefreshInterval
+		}
+		if adaptiveCfg.FollowerLeaseRefreshInterval <= 0 {
+			return errFollowerLeaseRefreshInterval
 		}
 	}
 

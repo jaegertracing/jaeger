@@ -10,6 +10,8 @@ import (
 	"io"
 	"net"
 	"net/http"
+	"net/http/httputil"
+	"net/url"
 	"path"
 	"strings"
 	"sync"
@@ -19,6 +21,7 @@ import (
 	"go.opentelemetry.io/collector/config/configgrpc"
 	"go.opentelemetry.io/collector/config/confighttp/xconfighttp"
 	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
+	nooptrace "go.opentelemetry.io/otel/trace/noop"
 	"go.uber.org/zap"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/health"
@@ -30,6 +33,7 @@ import (
 	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerquery/internal/jaegerai"
 	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerquery/querysvc"
 	"github.com/jaegertracing/jaeger/internal/auth/bearertoken"
+	"github.com/jaegertracing/jaeger/internal/closers"
 	"github.com/jaegertracing/jaeger/internal/headerforwarding"
 	"github.com/jaegertracing/jaeger/internal/proto/api_v3"
 	"github.com/jaegertracing/jaeger/internal/recoveryhandler"
@@ -49,13 +53,13 @@ type Server struct {
 	telset       telemetry.Settings
 }
 
-// NewServer creates and initializes Server
+// NewServer creates and initializes Server.
 func NewServer(
 	ctx context.Context,
 	querySvc *querysvc.QueryService,
 	metricsQuerySvc metricstore.Reader,
 	options *QueryOptions,
-	caps querysvc.StorageCapabilities,
+	backendCaps BackendCapabilityProvider,
 	tm *tenancy.Manager,
 	telset telemetry.Settings,
 ) (*Server, error) {
@@ -78,7 +82,7 @@ func NewServer(
 		return nil, err
 	}
 	registerGRPCHandlers(grpcServer, querySvc, telset)
-	httpServer, err := createHTTPServer(ctx, querySvc, metricsQuerySvc, options, caps, tm, telset)
+	httpServer, err := createHTTPServer(ctx, querySvc, metricsQuerySvc, options, backendCaps, tm, telset)
 	if err != nil {
 		return nil, err
 	}
@@ -102,10 +106,12 @@ func registerGRPCHandlers(
 
 	api_v2.RegisterQueryServiceServer(server, handler)
 	api_v3.RegisterQueryServiceServer(server, &apiv3.Handler{QueryService: querySvc})
+	api_v3.RegisterCapabilitiesServer(server, &apiv3.CapabilitiesHandler{QueryService: querySvc})
 
 	healthServer.SetServingStatus("jaeger.api_v2.QueryService", grpc_health_v1.HealthCheckResponse_SERVING)
 	healthServer.SetServingStatus("jaeger.api_v2.metrics.MetricsQueryService", grpc_health_v1.HealthCheckResponse_SERVING)
 	healthServer.SetServingStatus("jaeger.api_v3.QueryService", grpc_health_v1.HealthCheckResponse_SERVING)
+	healthServer.SetServingStatus("jaeger.api_v3.Capabilities", grpc_health_v1.HealthCheckResponse_SERVING)
 
 	grpc_health_v1.RegisterHealthServer(server, healthServer)
 }
@@ -124,10 +130,9 @@ func createGRPCServer(
 		bearertoken.NewStreamServerInterceptor(),
 	}
 
-	//nolint:contextcheck // The context is handled by the interceptors
 	if tm.Enabled {
 		unaryInterceptors = append(unaryInterceptors, tenancy.NewGuardingUnaryInterceptor(tm))
-		streamInterceptors = append(streamInterceptors, tenancy.NewGuardingStreamInterceptor(tm))
+		streamInterceptors = append(streamInterceptors, tenancy.NewGuardingStreamInterceptor(tm)) //nolint:contextcheck // The context is handled by the interceptors.
 	}
 
 	//nolint:contextcheck // The context is handled by the interceptors
@@ -159,19 +164,26 @@ func createGRPCServer(
 
 type httpServer struct {
 	*http.Server
-	staticHandlerCloser io.Closer
+	// closers are the components initRouter mounts that own resources past a
+	// single request: the static assets handler, the AI gateway's MCP sessions,
+	// and whatever is mounted next. They shut down with the query server instead
+	// of being left to process exit.
+	closers closers.Closers
 }
 
 var _ io.Closer = (*httpServer)(nil)
 
+// initRouter returns, alongside the handler, the closers for everything it mounted
+// that outlives a request; the caller owns closing them (see httpServer.closers).
 func initRouter(
+	ctx context.Context,
 	querySvc *querysvc.QueryService,
 	metricsQuerySvc metricstore.Reader,
 	queryOpts *QueryOptions,
-	caps querysvc.StorageCapabilities,
+	backendCaps BackendCapabilityProvider,
 	tenancyMgr *tenancy.Manager,
 	telset telemetry.Settings,
-) (http.Handler, io.Closer) {
+) (http.Handler, closers.Closers, error) {
 	apiHandlerOptions := []HandlerOption{
 		HandlerOptions.Logger(telset.Logger),
 		HandlerOptions.Tracer(telset.TracerProvider),
@@ -184,6 +196,7 @@ func initRouter(
 		apiHandlerOptions...,
 	)
 	r := http.NewServeMux()
+	var cs closers.Closers
 
 	(&apiv3.HTTPGateway{
 		QueryService: querySvc,
@@ -201,14 +214,34 @@ func initRouter(
 		apiNotFoundPattern = queryOpts.BasePath + apiNotFoundPattern
 	}
 
-	// AI Gateway Endpoints
 	if queryOpts.AI.HasValue() {
-		if aiCfg := queryOpts.AI.Get(); aiCfg != nil && aiCfg.AgentURL != "" {
-			if err := aiCfg.Validate(); err != nil {
-				telset.Logger.Error("Invalid AI config, AI handler disabled", zap.Error(err))
-			} else {
-				jaegerai.NewHandler(telset.Logger, aiCfg.AgentURL, queryOpts.BasePath, aiCfg.MaxRequestBodySize).RegisterRoutes(r)
-			}
+		aiRoutes, err := jaegerai.Register(ctx, r, jaegerai.RegisterParams{
+			Config:       queryOpts.AI.Get(),
+			BasePath:     queryOpts.BasePath,
+			HTTPEndpoint: queryOpts.HTTP.NetAddr.Endpoint,
+			TLSEnabled:   queryOpts.HTTP.TLS.HasValue(),
+			QueryService: querySvc,
+			Tenancy:      tenancyMgr,
+			Telemetry:    telset,
+		})
+		if err != nil {
+			return nil, nil, errors.Join(err, cs.Close())
+		}
+		cs = append(cs, aiRoutes)
+		// The chat panel is offered only to a caller the ai.auth authenticator
+		// admits, so the UI hides it from everyone else instead of showing a panel
+		// whose first request would be refused.
+		next := backendCaps
+		backendCaps = func(r *http.Request) BackendCapabilities {
+			caps := next(r)
+			caps.AIAssistant = caps.AIAssistant && aiRoutes.Admits(r)
+			return caps
+		}
+	}
+
+	if queryOpts.OTLPProxy.HasValue() {
+		if err := registerOTLPProxy(r, queryOpts, telset); err != nil {
+			return nil, nil, errors.Join(err, cs.Close())
 		}
 	}
 
@@ -216,9 +249,11 @@ func initRouter(
 		http.Error(w, "404 page not found", http.StatusNotFound)
 	})
 
-	staticHandlerCloser := RegisterStaticHandler(r, telset.Logger, queryOpts, caps)
+	cs = append(cs, RegisterStaticHandler(r, telset.Logger, queryOpts, backendCaps))
 
-	var handler http.Handler = r
+	// MUST wrap the mux directly: nothing may be inserted between the two, or the pattern
+	// the mux records becomes invisible again. The wrappers below go on top of this one.
+	handler := routeTagHandler(queryOpts.BasePath, r)
 	if queryOpts.BearerTokenPropagation {
 		handler = bearertoken.PropagationHandler(telset.Logger, handler)
 	}
@@ -229,7 +264,51 @@ func initRouter(
 		handler = tenancy.ExtractTenantHTTPHandler(tenancyMgr, handler)
 	}
 	handler = traceResponseHandler(handler)
-	return handler, staticHandlerCloser
+	return handler, cs, nil
+}
+
+func otlpProxyPathPrefix(basePath string) string {
+	prefix := "/api/otlp"
+	if basePath != "" && basePath != "/" {
+		prefix = basePath + prefix
+	}
+	return prefix
+}
+
+func otelFilterFunc(basePath string) func(*http.Request) bool {
+	prefixes := []string{
+		path.Join("/", basePath, "static"),
+		otlpProxyPathPrefix(basePath),
+	}
+	return func(r *http.Request) bool {
+		for _, p := range prefixes {
+			if strings.HasPrefix(r.URL.Path, p) {
+				return false
+			}
+		}
+		return true
+	}
+}
+
+func registerOTLPProxy(r *http.ServeMux, queryOpts *QueryOptions, telset telemetry.Settings) error {
+	cfg := queryOpts.OTLPProxy.Get()
+	target, err := url.Parse(cfg.Target)
+	if err != nil {
+		return fmt.Errorf("invalid OTLP proxy target %q: %w", cfg.Target, err)
+	}
+	proxy := httputil.NewSingleHostReverseProxy(target)
+	prefix := otlpProxyPathPrefix(queryOpts.BasePath)
+	instrumented := otelhttp.NewHandler(
+		http.StripPrefix(prefix, proxy),
+		"otlp.proxy",
+		otelhttp.WithTracerProvider(nooptrace.NewTracerProvider()),
+		otelhttp.WithMeterProvider(telset.MeterProvider),
+	)
+	r.Handle(prefix+"/v1/", instrumented)
+	telset.Logger.Info("OTLP proxy registered",
+		zap.String("path_prefix", prefix+"/v1/"),
+		zap.String("target", cfg.Target))
+	return nil
 }
 
 func createHTTPServer(
@@ -237,11 +316,14 @@ func createHTTPServer(
 	querySvc *querysvc.QueryService,
 	metricsQuerySvc metricstore.Reader,
 	queryOpts *QueryOptions,
-	caps querysvc.StorageCapabilities,
+	backendCaps BackendCapabilityProvider,
 	tm *tenancy.Manager,
 	telset telemetry.Settings,
 ) (*httpServer, error) {
-	handler, staticHandlerCloser := initRouter(querySvc, metricsQuerySvc, queryOpts, caps, tm, telset)
+	handler, cs, err := initRouter(ctx, querySvc, metricsQuerySvc, queryOpts, backendCaps, tm, telset)
+	if err != nil {
+		return nil, err
+	}
 	handler = recoveryhandler.NewRecoveryHandler(telset.Logger, true)(handler)
 	var extensions map[component.ID]component.Component
 	if telset.Host != nil {
@@ -257,48 +339,25 @@ func createHTTPServer(
 		},
 		handler,
 		xconfighttp.WithOtelHTTPOptions(
-			otelhttp.WithFilter(func(r *http.Request) bool {
-				ignorePath := path.Join("/", queryOpts.BasePath, "static")
-				return !strings.HasPrefix(r.URL.Path, ignorePath)
-			}),
+			otelhttp.WithFilter(otelFilterFunc(queryOpts.BasePath)),
 			otelhttp.WithSpanNameFormatter(func(_ string, r *http.Request) string {
-				// Use just the route pattern without the HTTP method prefix or basePath
-				// r.Pattern includes the method like "GET /jaeger/api/v3/traces/{trace_id}"
-				// We want to return just "/api/v3/traces/{trace_id}" (without basePath)
-				pattern := r.Pattern
-				if pattern != "" {
-					// Remove the method prefix (e.g., "GET ", "POST ", etc.)
-					if idx := strings.Index(pattern, " "); idx > 0 {
-						pattern = pattern[idx+1:]
-					}
-					// Remove basePath prefix if present
-					if queryOpts.BasePath != "" && queryOpts.BasePath != "/" {
-						pattern = strings.TrimPrefix(pattern, queryOpts.BasePath)
-					}
-				}
-				return pattern
+				return spanNameForRoute(routeFromPattern(r.Pattern), queryOpts.BasePath)
 			}),
 		),
 	)
 	if err != nil {
-		return nil, errors.Join(err, staticHandlerCloser.Close())
+		return nil, errors.Join(err, cs.Close())
 	}
 	server := &httpServer{
-		Server:              hs,
-		staticHandlerCloser: staticHandlerCloser,
+		Server:  hs,
+		closers: cs,
 	}
 
 	return server, nil
 }
 
 func (hS httpServer) Close() error {
-	var errs []error
-	errs = append(
-		errs,
-		hS.Server.Close(),
-		hS.staticHandlerCloser.Close(),
-	)
-	return errors.Join(errs...)
+	return errors.Join(hS.Server.Close(), hS.closers.Close())
 }
 
 // initListener initialises listeners of the server

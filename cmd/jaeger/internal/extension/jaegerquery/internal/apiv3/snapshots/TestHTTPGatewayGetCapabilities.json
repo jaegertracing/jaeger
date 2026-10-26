@@ -1,0 +1,22 @@
+{
+  "search": {
+    "filter": {
+      "levels": [
+        "span",
+        "resource",
+        "event"
+      ],
+      "operators": [
+        "and",
+        "or",
+        "not",
+        "eq"
+      ]
+    },
+    "paginated": true,
+    "sameSpanConjunction": true,
+    "spanSearch": true,
+    "spanSorting": true,
+    "withoutServiceName": true
+  }
+}

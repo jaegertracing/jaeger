@@ -1,3 +1,6 @@
+# Copyright (c) 2026 The Jaeger Authors.
+# SPDX-License-Identifier: Apache-2.0
+
 services:
   cassandra:
     image: cassandra:4.1@sha256:b9451ebdfa53f9e22b470e1420f2a94a3433738b7f25350472d3443f0b203b75

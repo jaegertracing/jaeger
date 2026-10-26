@@ -2,6 +2,10 @@
 
 The Jaeger v2 integration test is an extension of the existing `integration.StorageIntegration` designed to test the Jaeger-v2 OtelCol binary; currently, it only tests the span store. The existing tests at `internal/storage/integration` (also called "unit mode") test by writing and reading span data directly to the storage API. In contrast, these tests (or "e2e mode") read and write span data through the RPC client to the Jaeger-v2 OtelCol binary. E2E mode tests read from the jaeger_query extension and write to the receiver in OTLP formats. For details, see the [Architecture](#architecture) section below.
 
+## File layout
+
+The `e2e_*_test.go` files hold the end-to-end tests themselves, one per backend or pipeline feature; each spawns the `jaeger-e2e` binary and is skipped unless the matching `STORAGE` (or `SAMPLING`) environment variable selects it. The harness and the helpers the e2e tests share live in plain `.go` files (`integration_harness.go`, `binary.go`, `trace_writer.go`, `kafka_fault_injection.go`, `backward_compatibility.go`, ...); nothing outside the package imports it, so they import `testing` freely. The remaining `*_test.go` files are unit tests of those helpers, named after the file they test, and run without any backend.
+
 ## Architecture
 
 ```mermaid
@@ -33,15 +37,17 @@ flowchart LR
 
 Integration tests require cleaning up the data in the storage between tests to produce independent results. This is achieved with a `storagecleaner` extension. The configuration for this extension is auto-injected into standard collector configs located in `/cmd/jaeger/`. The extension opens an HTTP endpoint (`POST /purge`) in the collector which retrieves the storage factory from the `jaegerstorage` extension and if the factory implements the `Purger` interface it calls the `purge()` function.
 
+Because that endpoint deletes all trace data and has no authentication, the extension is not part of the standard component set. The tests therefore run `jaeger-e2e` (`./jaeger-e2e`), which is the standard set plus `storagecleaner`, rather than the `jaeger` binary that ships to users.
+
 ```mermaid
 flowchart LR
     Receiver --> Processor
     Processor[...] --> Exporter
-    JaegerStorageExension -.->|"(1) getStorage()"| Exporter
+    JaegerStorageExtension -.->|"(1) getStorage()"| Exporter
     Exporter -->|"(2) writeTrace()"| Storage
 
     e2e_test -->|"(1) POST /purge"| HTTP_endpoint
-    JaegerStorageExension -.->|"(2) getStorage()"| HTTP_endpoint
+    JaegerStorageExtension -.->|"(2) getStorage()"| HTTP_endpoint
     HTTP_endpoint -->|"(3) factory.(*Purger).Purge()"| Storage
 
     style e2e_test fill:blue,color:white
@@ -52,7 +58,7 @@ flowchart LR
         Processor
         Exporter
 
-        subgraph JaegerStorageExension[Jaeger Storage Exension]
+        subgraph JaegerStorageExtension[Jaeger Storage Extension]
             Storage[(Trace
                      Storage)]
         end

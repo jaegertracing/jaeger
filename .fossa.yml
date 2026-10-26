@@ -1,3 +1,6 @@
+# Copyright (c) 2026 The Jaeger Authors.
+# SPDX-License-Identifier: Apache-2.0
+
 # FOSSA Configuration File
 # https://github.com/fossas/fossa-cli/blob/master/docs/references/files/fossa-yml.md
 #
@@ -21,9 +24,6 @@ paths:
     # Development tooling (golangci-lint and plugins) - GPL-3.0 licensed
     # These are NOT part of the distributed binaries
     - ./internal/tools
-
-    # Debug build utilities - only used for debugging, not distributed
-    - ./scripts/build/docker/debug
 
     # Git submodules - scanned separately in their own repositories
     - ./idl

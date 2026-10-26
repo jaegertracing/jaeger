@@ -49,14 +49,7 @@ func getStorageFactory(name string, host component.Host) (tracestore.Factory, er
 	if err != nil {
 		return nil, err
 	}
-	f, err := ext.TraceStorageFactory(name)
-	if err != nil {
-		return nil, fmt.Errorf(
-			"cannot find definition of storage '%s' in the configuration for extension '%s': %w",
-			name, componentType, err,
-		)
-	}
-	return f, nil
+	return ext.TraceStorageFactory(name)
 }
 
 // GetMetricStorageFactory locates the extension in Host and retrieves
@@ -66,14 +59,7 @@ func GetMetricStorageFactory(name string, host component.Host) (storage.MetricSt
 	if err != nil {
 		return nil, err
 	}
-	mf, err := ext.MetricStorageFactory(name)
-	if err != nil {
-		return nil, fmt.Errorf(
-			"cannot find metric storage '%s' declared by '%s' extension: %w",
-			name, componentType, err,
-		)
-	}
-	return mf, nil
+	return ext.MetricStorageFactory(name)
 }
 
 func GetTraceStoreFactory(name string, host component.Host) (tracestore.Factory, error) {
@@ -118,8 +104,13 @@ func findExtension(host component.Host) (Extension, error) {
 	var comp component.Component
 	for i, ext := range host.GetExtensions() {
 		if i.Type() == componentType {
+			if comp != nil {
+				return nil, fmt.Errorf(
+					"multiple '%s' extensions are configured; declare all storage backends in a single '%s' extension",
+					componentType, componentType,
+				)
+			}
 			id, comp = i, ext
-			break
 		}
 	}
 	if comp == nil {
@@ -333,21 +324,24 @@ func (s *storageExt) MetricStorageFactory(name string) (storage.MetricStoreFacto
 	return metricStoreFactory, nil
 }
 
-// getAuthenticator retrieves an HTTP authenticator extension from the host by name.
-func (*storageExt) getAuthenticator(host component.Host, authenticatorName string) (extensionauth.HTTPClient, error) {
-	if authenticatorName == "" {
+// getAuthenticator retrieves an HTTP authenticator extension from the host.
+// The reference resolves by exact component ID, the same way the OpenTelemetry
+// Collector resolves authenticator references (configauth.Config.GetHTTPClientAuthenticator).
+// An empty ID means no authenticator is configured.
+func (*storageExt) getAuthenticator(host component.Host, id component.ID) (extensionauth.HTTPClient, error) {
+	if id.String() == "" {
 		return nil, nil
 	}
 
-	for id, ext := range host.GetExtensions() {
-		if id.String() == authenticatorName || id.Name() == authenticatorName {
-			if httpAuth, ok := ext.(extensionauth.HTTPClient); ok {
-				return httpAuth, nil
-			}
-			return nil, fmt.Errorf("extension '%s' does not implement extensionauth.HTTPClient", authenticatorName)
-		}
+	ext, found := host.GetExtensions()[id]
+	if !found {
+		return nil, fmt.Errorf("authenticator extension '%s' not found", id)
 	}
-	return nil, fmt.Errorf("authenticator extension '%s' not found", authenticatorName)
+	httpAuth, ok := ext.(extensionauth.HTTPClient)
+	if !ok {
+		return nil, fmt.Errorf("extension '%s' does not implement extensionauth.HTTPClient", id)
+	}
+	return httpAuth, nil
 }
 
 // resolveAuthenticator is a helper to resolve and validate HTTP authenticator for a backend
@@ -356,7 +350,7 @@ func (s *storageExt) resolveAuthenticator(host component.Host, authCfg config.Au
 		return nil, nil
 	}
 
-	httpAuth, err := s.getAuthenticator(host, authCfg.AuthenticatorID.String())
+	httpAuth, err := s.getAuthenticator(host, authCfg.AuthenticatorID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get HTTP authenticator for %s backend '%s': %w", backendType, backendName, err)
 	}

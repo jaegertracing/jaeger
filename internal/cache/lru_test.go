@@ -117,6 +117,73 @@ func TestLRUWithTTL(t *testing.T) {
 	assert.Equal(t, 0, cache.Size())
 }
 
+func TestCompareAndSwapExpired(t *testing.T) {
+	clk := &simulatedClock{}
+	var evicted []struct {
+		key   string
+		value any
+	}
+	cache := NewLRUWithOptions(5, &Options{
+		TTL:     time.Millisecond * 100,
+		TimeNow: clk.Now,
+		OnEvict: func(key string, value any) {
+			evicted = append(evicted, struct {
+				key   string
+				value any
+			}{key, value})
+		},
+	})
+	cache.Put("A", "Foo")
+	clk.Elapse(time.Millisecond * 200)
+
+	// A is expired but was never Get, so nothing has evicted it yet. CompareAndSwap
+	// has to notice that itself rather than compare against the stale value.
+	item, ok := cache.CompareAndSwap("A", "Foo", "Bar")
+	assert.False(t, ok)
+	assert.Nil(t, item)
+	if assert.Len(t, evicted, 1, "the expired entry must be evicted, and only once") {
+		assert.Equal(t, "A", evicted[0].key)
+		assert.Equal(t, "Foo", evicted[0].value)
+	}
+
+	item, ok = cache.CompareAndSwap("A", nil, "Bar")
+	assert.True(t, ok)
+	assert.Equal(t, "Bar", item)
+	assert.Equal(t, "Bar", cache.Get("A"))
+	assert.Len(t, evicted, 1, "the insert must not evict anything")
+}
+
+func TestLRUClear(t *testing.T) {
+	var evicted []string
+	cache := NewLRUWithOptions(5, &Options{
+		OnEvict: func(key string, _ any) {
+			evicted = append(evicted, key)
+		},
+	})
+	cache.Put("A", "foo")
+	cache.Put("B", "bar")
+
+	cache.Clear()
+
+	assert.Equal(t, 0, cache.Size())
+	assert.Nil(t, cache.Get("A"))
+	assert.Nil(t, cache.Get("B"))
+	assert.ElementsMatch(t, []string{"A", "B"}, evicted)
+
+	// The cache is still usable, and eviction still bounds it by maxSize.
+	cache.Put("C", "baz")
+	assert.Equal(t, "baz", cache.Get("C"))
+	assert.Equal(t, 1, cache.Size())
+}
+
+func TestLRUClearWithoutOnEvict(t *testing.T) {
+	cache := NewLRUWithOptions(5, nil)
+	cache.Put("A", "foo")
+	cache.Clear()
+	assert.Equal(t, 0, cache.Size())
+	assert.Nil(t, cache.Get("A"))
+}
+
 func TestDefaultClock(t *testing.T) {
 	cache := NewLRUWithOptions(5, &Options{
 		TTL: time.Millisecond * 1,

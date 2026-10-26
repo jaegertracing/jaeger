@@ -9,10 +9,10 @@ import (
 	"fmt"
 	"io"
 	"math"
+	"time"
 
 	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/config/configgrpc"
-	"go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc"
 	"go.opentelemetry.io/otel/trace"
 	"go.opentelemetry.io/otel/trace/noop"
 	"google.golang.org/grpc"
@@ -143,6 +143,10 @@ func (f *Factory) initializeConnections(
 		streamInterceptors = append(streamInterceptors, headerforwarding.NewStreamClientInterceptor())
 	}
 
+	if f.config.Timeout > 0 {
+		unaryInterceptors = append(unaryInterceptors, timeoutUnaryClientInterceptor(f.config.Timeout))
+	}
+
 	baseOpts := []grpc.DialOption{
 		grpc.WithChainUnaryInterceptor(unaryInterceptors...),
 		grpc.WithChainStreamInterceptor(streamInterceptors...),
@@ -154,13 +158,7 @@ func (f *Factory) initializeConnections(
 	}
 
 	createConn := func(telset component.TelemetrySettings, gcs *configgrpc.ClientConfig) (*grpc.ClientConn, error) {
-		opts := append(baseOpts, grpc.WithStatsHandler(
-			otelgrpc.NewClientHandler(
-				otelgrpc.WithTracerProvider(telset.TracerProvider),
-				otelgrpc.WithMeterProvider(telset.MeterProvider),
-			),
-		))
-		return newClient(telset, gcs, opts...)
+		return newClient(telset, gcs, baseOpts...)
 	}
 
 	readerConn, err := createConn(readerTelset, readerConfig)
@@ -176,4 +174,22 @@ func (f *Factory) initializeConnections(
 	f.readerConn, f.writerConn = readerConn, writerConn
 
 	return nil
+}
+
+// timeoutUnaryClientInterceptor bounds every unary call by the configured timeout.
+// Streaming calls are not bounded, because their deadline would also cover the time
+// the caller spends consuming the stream.
+func timeoutUnaryClientInterceptor(timeout time.Duration) grpc.UnaryClientInterceptor {
+	return func(
+		ctx context.Context,
+		method string,
+		req, reply any,
+		cc *grpc.ClientConn,
+		invoker grpc.UnaryInvoker,
+		opts ...grpc.CallOption,
+	) error {
+		ctx, cancel := context.WithTimeout(ctx, timeout)
+		defer cancel()
+		return invoker(ctx, method, req, reply, cc, opts...)
+	}
 }

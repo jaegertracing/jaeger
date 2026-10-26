@@ -1,3 +1,6 @@
+# Copyright (c) 2026 The Jaeger Authors.
+# SPDX-License-Identifier: Apache-2.0
+
 service:
   extensions: [jaeger_storage, jaeger_query, healthcheckv2]
 
@@ -25,6 +28,7 @@ extensions:
         opensearch:
           server_urls:
             - http://opensearch-cluster-single.opensearch.svc.cluster.local:9200
+          max_span_age: 720h
           indices:
             index_prefix: "jaeger-main"
             spans:

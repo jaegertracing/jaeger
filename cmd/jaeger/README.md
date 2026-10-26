@@ -7,8 +7,18 @@ Read the [blog post](https://medium.com/jaegertracing/towards-jaeger-v2-moar-ope
 
 * Download `docker-compose.yml` from https://github.com/jaegertracing/jaeger/blob/main/examples/hotrod/docker-compose.yml, e.g.:
   * `curl -O https://raw.githubusercontent.com/jaegertracing/jaeger/refs/heads/main/examples/hotrod/docker-compose.yml`
-* Optional: find the latest images versions (see https://www.jaegertracing.io/download/) and pass them via environment variables `JAEGER_VERSION` and `HOTROD_VERSION`. Otherwise `docker compose` will use the `latest` tag, which is fine for the first time you download the images, but once they are in your local registry the `latest` tag is never updated and you may be running stale (and possibly incompatible) verions of Jaeger and the HotROD app.
+* Optional: find the latest images versions (see https://www.jaegertracing.io/download/) and pass them via environment variables `JAEGER_VERSION` and `HOTROD_VERSION`. Otherwise `docker compose` will use the `latest` tag, which is fine for the first time you download the images, but once they are in your local registry the `latest` tag is never updated and you may be running stale (and possibly incompatible) versions of Jaeger and the HotROD app.
 * Run Jaeger backend and HotROD demo, e.g.:
   * `JAEGER_VERSION=2.0.0 HOTROD_VERSION=1.63.0 docker compose -f docker-compose.yml up`
 * Access Jaeger UI at http://localhost:16686 and HotROD app at http://localhost:8080
 * Shutdown / cleanup with `docker compose -f docker-compose.yml down`
+
+## Deploying with MCP
+
+The embedded all-in-one configuration enables AI agents to query trace data at
+`/api/ai/mcp/` on the query HTTP port. The listener defaults to all interfaces
+on port 16686, without TLS or authentication configured. Before exposing it to
+remote clients, follow the [MCP deployment guide](internal/extension/jaegerquery/internal/mcptools/README.md#production-deployment)
+to configure authentication and TLS, account for tenant and session identity,
+or [disable MCP](internal/extension/jaegerquery/internal/mcptools/README.md#disabling-mcp)
+if it is not needed.

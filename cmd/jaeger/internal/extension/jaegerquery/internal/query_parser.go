@@ -5,31 +5,19 @@
 package app
 
 import (
-	"encoding/json"
 	"errors"
 	"fmt"
-	"maps"
+	"math"
 	"net/http"
 	"strconv"
-	"strings"
 	"time"
 
-	"github.com/jaegertracing/jaeger-idl/model/v1"
 	"github.com/jaegertracing/jaeger/internal/jptrace"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/api/metricstore"
-	"github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore"
 )
 
 const (
-	defaultQueryLimit = 100
-
-	operationParam   = "operation"
-	tagParam         = "tag"
-	tagsParam        = "tags"
 	startTimeParam   = "start"
-	limitParam       = "limit"
-	minDurationParam = "minDuration"
-	maxDurationParam = "maxDuration"
 	serviceParam     = "service"
 	spanKindParam    = "spanKind"
 	endTimeParam     = "end"
@@ -37,24 +25,10 @@ const (
 	rawParam         = "raw"
 )
 
-var (
-	errMaxDurationGreaterThanMin = fmt.Errorf("'%s' should be greater than '%s'", maxDurationParam, minDurationParam)
-
-	// errServiceParameterRequired occurs when no service name is defined.
-	errServiceParameterRequired = fmt.Errorf("parameter '%s' is required", serviceParam)
-)
-
 type (
 	// queryParser handles the parsing of query parameters for traces.
 	queryParser struct {
-		traceQueryLookbackDuration time.Duration
-		timeNow                    func() time.Time
-	}
-
-	traceQueryParameters struct {
-		tracestore.TraceQueryParams
-		RawTraces bool
-		TraceIDs  []model.TraceID
+		timeNow func() time.Time
 	}
 
 	dependenciesQueryParameters struct {
@@ -65,120 +39,17 @@ type (
 	durationParser = func(s string) (time.Duration, error)
 )
 
-func newDurationStringParser() durationParser {
-	return time.ParseDuration
-}
-
 func newDurationUnitsParser(units time.Duration) durationParser {
 	return func(s string) (time.Duration, error) {
 		i, err := strconv.ParseInt(s, 10, 64)
 		if err != nil {
 			return 0, err
 		}
+		if i > int64(math.MaxInt64/units) || i < int64(math.MinInt64/units) {
+			return 0, fmt.Errorf("value %d is out of range for a duration", i)
+		}
 		return time.Duration(i) * units, nil
 	}
-}
-
-// parseTraceQueryParams takes a request and constructs a model of parameters.
-//
-// Why start/end parameters are expressed in microseconds:
-// Span searches operate on span latencies, which are expressed as microseconds in the data model, hence why
-// support for high accuracy in search query parameters is required.
-// Microsecond precision is a legacy artifact from zipkin origins where timestamps and durations
-// are in microseconds (see: https://zipkin.io/pages/instrumenting.html).
-//
-// Why duration parameters are expressed as duration strings like "1ms":
-// The search UI itself does not insist on exact units because it supports string like 1ms.
-// Go makes parsing duration strings like "1ms" very easy, hence why parsing of such strings is
-// deferred to the backend rather than Jaeger UI.
-//
-// Trace query syntax:
-//
-//	query ::= param | param '&' query
-//	param ::= service | operation | limit | start | end | minDuration | maxDuration | tag | tags
-//	service ::= 'service=' strValue
-//	operation ::= 'operation=' strValue
-//	limit ::= 'limit=' intValue
-//	start ::= 'start=' intValue in unix microseconds
-//	end ::= 'end=' intValue in unix microseconds
-//	minDuration ::= 'minDuration=' strValue (units are "ns", "us" (or "µs"), "ms", "s", "m", "h")
-//	maxDuration ::= 'maxDuration=' strValue (units are "ns", "us" (or "µs"), "ms", "s", "m", "h")
-//	tag ::= 'tag=' key | 'tag=' keyvalue
-//	key := strValue
-//	keyValue := strValue ':' strValue
-//	tags :== 'tags=' jsonMap
-func (p *queryParser) parseTraceQueryParams(r *http.Request) (*traceQueryParameters, error) {
-	service := r.URL.Query().Get(serviceParam)
-	operation := r.URL.Query().Get(operationParam)
-
-	startTime, err := p.parseTime(r, startTimeParam, time.Microsecond)
-	if err != nil {
-		return nil, err
-	}
-	endTime, err := p.parseTime(r, endTimeParam, time.Microsecond)
-	if err != nil {
-		return nil, err
-	}
-
-	tags, err := p.parseTags(r.URL.Query()[tagParam], r.URL.Query()[tagsParam])
-	if err != nil {
-		return nil, err
-	}
-
-	limitParam := r.URL.Query().Get(limitParam)
-	limit := defaultQueryLimit
-	if limitParam != "" {
-		limitParsed, err := strconv.ParseInt(limitParam, 10, 32)
-		if err != nil {
-			return nil, err
-		}
-		limit = int(limitParsed)
-	}
-
-	parser := newDurationStringParser()
-	minDuration, err := parseDuration(r, minDurationParam, parser, 0)
-	if err != nil {
-		return nil, err
-	}
-
-	maxDuration, err := parseDuration(r, maxDurationParam, parser, 0)
-	if err != nil {
-		return nil, err
-	}
-
-	var traceIDs []model.TraceID
-	for _, id := range r.URL.Query()[traceIDParam] {
-		traceID, err := model.TraceIDFromString(id)
-		if err != nil {
-			return nil, fmt.Errorf("cannot parse traceID param: %w", err)
-		}
-		traceIDs = append(traceIDs, traceID)
-	}
-
-	raw, err := parseBool(r, rawParam)
-	if err != nil {
-		return nil, err
-	}
-
-	traceQuery := &traceQueryParameters{
-		TraceQueryParams: tracestore.TraceQueryParams{
-			ServiceName:   service,
-			OperationName: operation,
-			StartTimeMin:  startTime,
-			StartTimeMax:  endTime,
-			Attributes:    convertTagsToAttributes(tags),
-			SearchDepth:   limit,
-			DurationMin:   minDuration,
-			DurationMax:   maxDuration,
-		},
-		RawTraces: raw,
-		TraceIDs:  traceIDs,
-	}
-
-	if err := p.validateQuery(traceQuery); err != nil {
-		return nil, err
-	}
-	return traceQuery, nil
 }
 
 // parseDependenciesQueryParams takes a request and constructs a model of dependencies query parameters.
@@ -187,13 +58,16 @@ func (p *queryParser) parseTraceQueryParams(r *http.Request) (*traceQueryParamet
 // and the typical backend granularity of those is on the order of 15min or more. As such, microseconds aren't
 // useful in this domain and milliseconds are sufficient for both times and durations.
 func (p *queryParser) parseDependenciesQueryParams(r *http.Request) (dqp dependenciesQueryParameters, err error) {
-	dqp.endTs, err = p.parseTime(r, endTsParam, time.Millisecond)
+	dqp.endTs, err = p.parseTime(r, endTsParam, time.UnixMilli)
 	if err != nil {
 		return dqp, err
 	}
 
-	dqp.lookback, err = parseDuration(r, lookbackParam, newDurationUnitsParser(time.Millisecond), defaultDependencyLookbackDuration)
-	return dqp, err
+	dqp.lookback, err = parsePositiveDuration(r, lookbackParam, newDurationUnitsParser(time.Millisecond), defaultDependencyLookbackDuration)
+	if err != nil {
+		return dqp, err
+	}
+	return dqp, nil
 }
 
 // parseMetricsQueryParams takes a request and constructs a model of metrics query parameters.
@@ -248,20 +122,20 @@ func (p *queryParser) parseMetricsQueryParams(r *http.Request) (bqp metricstore.
 	if err != nil {
 		return bqp, err
 	}
-	endTs, err := p.parseTime(r, endTsParam, time.Millisecond)
+	endTs, err := p.parseTime(r, endTsParam, time.UnixMilli)
 	if err != nil {
 		return bqp, err
 	}
 	parser := newDurationUnitsParser(time.Millisecond)
-	lookback, err := parseDuration(r, lookbackParam, parser, defaultMetricsQueryLookbackDuration)
+	lookback, err := parsePositiveDuration(r, lookbackParam, parser, defaultMetricsQueryLookbackDuration)
 	if err != nil {
 		return bqp, err
 	}
-	step, err := parseDuration(r, stepParam, parser, defaultMetricsQueryStepDuration)
+	step, err := parsePositiveDuration(r, stepParam, parser, defaultMetricsQueryStepDuration)
 	if err != nil {
 		return bqp, err
 	}
-	ratePer, err := parseDuration(r, rateParam, parser, defaultMetricsQueryRateDuration)
+	ratePer, err := parsePositiveDuration(r, rateParam, parser, defaultMetricsQueryRateDuration)
 	if err != nil {
 		return bqp, err
 	}
@@ -272,21 +146,20 @@ func (p *queryParser) parseMetricsQueryParams(r *http.Request) (bqp metricstore.
 	return bqp, err
 }
 
-// parseTime parses the time parameter of an HTTP request that is represented the number of "units" since epoch.
+// parseTime parses the time parameter of an HTTP request that is represented as a number of units since
+// epoch, which toTime (time.UnixMilli or time.UnixMicro) converts to a time. Converting this way rather than
+// multiplying by a time.Duration keeps large values from overflowing.
 // If the time parameter is empty, the current time will be returned.
-func (p *queryParser) parseTime(r *http.Request, paramName string, units time.Duration) (time.Time, error) {
+func (p *queryParser) parseTime(r *http.Request, paramName string, toTime func(int64) time.Time) (time.Time, error) {
 	formValue := r.URL.Query().Get(paramName)
 	if formValue == "" {
-		if paramName == startTimeParam {
-			return p.timeNow().Add(-1 * p.traceQueryLookbackDuration), nil
-		}
 		return p.timeNow(), nil
 	}
 	t, err := strconv.ParseInt(formValue, 10, 64)
 	if err != nil {
 		return time.Time{}, newParseError(err, paramName)
 	}
-	return time.Unix(0, 0).Add(time.Duration(t) * units), nil
+	return toTime(t), nil
 }
 
 // parseDuration parses the duration parameter of an HTTP request using the provided durationParser.
@@ -299,6 +172,20 @@ func parseDuration(r *http.Request, paramName string, parse durationParser, defa
 	d, err := parse(formValue)
 	if err != nil {
 		return 0, newParseError(err, paramName)
+	}
+	return d, nil
+}
+
+// parsePositiveDuration is parseDuration for a parameter that must be positive when it is given,
+// such as a lookback window, a query step or a rate interval. A zero or negative value is
+// rejected here, so the request never reaches storage with an empty or inverted range.
+func parsePositiveDuration(r *http.Request, paramName string, parse durationParser, defaultDuration time.Duration) (time.Duration, error) {
+	d, err := parseDuration(r, paramName, parse, defaultDuration)
+	if err != nil {
+		return 0, err
+	}
+	if d <= 0 {
+		return 0, newParseError(errors.New("must be a positive duration"), paramName)
 	}
 	return d, nil
 }
@@ -356,37 +243,6 @@ func mapSpanKindsToOpenTelemetry(spanKinds []string) ([]string, error) {
 		otelSpanKinds[i] = v
 	}
 	return otelSpanKinds, nil
-}
-
-func (*queryParser) validateQuery(traceQuery *traceQueryParameters) error {
-	if len(traceQuery.TraceIDs) == 0 && traceQuery.ServiceName == "" {
-		return errServiceParameterRequired
-	}
-	if traceQuery.DurationMin != 0 && traceQuery.DurationMax != 0 {
-		if traceQuery.DurationMax < traceQuery.DurationMin {
-			return errMaxDurationGreaterThanMin
-		}
-	}
-	return nil
-}
-
-func (*queryParser) parseTags(simpleTags []string, jsonTags []string) (map[string]string, error) {
-	retMe := make(map[string]string)
-	for _, tag := range simpleTags {
-		keyAndValue := strings.Split(tag, ":")
-		if l := len(keyAndValue); l <= 1 {
-			return nil, fmt.Errorf("malformed 'tag' parameter, expecting key:value, received: %s", tag)
-		}
-		retMe[keyAndValue[0]] = strings.Join(keyAndValue[1:], ":")
-	}
-	for _, tags := range jsonTags {
-		var fromJSON map[string]string
-		if err := json.Unmarshal([]byte(tags), &fromJSON); err != nil {
-			return nil, fmt.Errorf("malformed 'tags' parameter, cannot unmarshal JSON: %w", err)
-		}
-		maps.Copy(retMe, fromJSON)
-	}
-	return retMe, nil
 }
 
 func newParseError(err error, paramName string) error {

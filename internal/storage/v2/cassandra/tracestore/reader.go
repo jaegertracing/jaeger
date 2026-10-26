@@ -16,7 +16,20 @@ import (
 )
 
 type TraceReader struct {
+	// Cassandra does not compute trace summaries natively; fall back to
+	// FindTraces + client-side aggregation.
+	tracestore.UnsupportedTraceSummaries
+	// SpanSearch is unsupported in Cassandra for now.
+	tracestore.UnsupportedSpanSearch
+
 	reader spanstore.CoreSpanReader
+}
+
+func (*TraceReader) SearchCapabilities(context.Context) (tracestore.SearchCapabilities, error) {
+	return tracestore.SearchCapabilities{
+		// Every Cassandra index is keyed by service name, so a search cannot omit it.
+		WithoutServiceName: false,
+	}, nil
 }
 
 func NewTraceReader(reader spanstore.CoreSpanReader) *TraceReader {
@@ -66,11 +79,11 @@ func (r *TraceReader) FindTraces(ctx context.Context, query tracestore.TraceQuer
 	}
 }
 
-func (r *TraceReader) FindTraceIDs(ctx context.Context, query tracestore.TraceQueryParams) iter.Seq2[[]tracestore.FoundTraceID, error] {
-	return func(yield func([]tracestore.FoundTraceID, error) bool) {
+func (r *TraceReader) FindTraceIDs(ctx context.Context, query tracestore.TraceQueryParams) iter.Seq2[tracestore.PageChunk[[]tracestore.FoundTraceID], error] {
+	return func(yield func(tracestore.PageChunk[[]tracestore.FoundTraceID], error) bool) {
 		dbIDs, err := r.reader.FindTraceIDs(ctx, &query)
 		if err != nil {
-			yield(nil, err)
+			yield(tracestore.PageChunk[[]tracestore.FoundTraceID]{}, err)
 			return
 		}
 		if len(dbIDs) == 0 {
@@ -82,6 +95,7 @@ func (r *TraceReader) FindTraceIDs(ctx context.Context, query tracestore.TraceQu
 				TraceID: pcommon.TraceID(id),
 			})
 		}
-		yield(otelIDs, nil)
+		// TODO: Populate NextPageToken when Cassandra supports RFC 0014 pagination.
+		yield(tracestore.PageChunk[[]tracestore.FoundTraceID]{Results: otelIDs}, nil)
 	}
 }

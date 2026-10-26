@@ -56,6 +56,12 @@ func Run(c *Config, tracers []trace.Tracer, logger *zap.Logger) error {
 	} else if c.Traces <= 0 {
 		return errors.New("either `traces` or `duration` must be greater than 0")
 	}
+	if c.AttrKeys <= 0 {
+		return errors.New("`attr-keys` must be greater than 0")
+	}
+	if c.AttrValues <= 0 {
+		return errors.New("`attr-values` must be greater than 0")
+	}
 
 	wg := sync.WaitGroup{}
 	var running uint32 = 1

@@ -25,7 +25,7 @@ The `setup` job determines whether to use parallel execution based on these **OR
 | `merge_group` event | Merge Queue entry, high confidence |
 | PR author is an org member (`MEMBER` or `OWNER`) | Trusted maintainer |
 | PR author has 5+ merged PRs in this repo | Established contributor. Covers private org members whose `author_association` is incorrectly reported as `CONTRIBUTOR` when they lack direct team access. |
-| PR author login is `dependabot[bot]`, `renovate-bot`, or `Copilot` | Dependency automation bots and the Copilot coding agent (`Copilot` is the `user.login` for `copilot-swe-agent[bot]`; GitHub Search API returns 422 for that login so the merged-PR fallback cannot detect it) |
+| PR author login is `dependabot[bot]`, `renovate-bot`, `Copilot`, or `ysh-bot` | Dependency automation bots, the Copilot coding agent, and the `ysh-bot` maintainer automation account (`Copilot` is the `user.login` for `copilot-swe-agent[bot]`; GitHub Search API returns 422 for that login so the merged-PR fallback cannot detect it) |
 | PR has the `ci:parallel` label | Explicit opt-in |
 
 #### Stage Workflows (DRY Encapsulation)
@@ -41,9 +41,16 @@ This avoids duplication: both the sequential and parallel paths call the same st
 #### Stage 1: Fast Gate (Linters only)
 - **ci-lint-checks.yaml** - Go linting, DCO checks, generated files validation, shell script linting
 
+`ci-lint-checks.yaml` also fails a pull request whose `jaeger` binary grows by more than 2%. When an
+upstream upgrade links in code that the pull request has no way to avoid, no change to the branch can
+bring the binary back under the threshold. A maintainer waives the gate for that pull request by
+labeling it `accept-binary-size-increase` and describing the growth in the description; the job then
+reports the measurement as a warning instead of failing. Adding the label to a pull request whose run
+already failed takes effect on re-running the failed job, because the job reads the label from the
+API rather than from the event that started the run.
+
 #### Stage 2: Unit Tests
 - **ci-unit-tests.yml** - Full unit test suite with coverage
-- **ci-ai-sidecar-gemini.yml** - Python ACP sidecar workflow test for the Gemini example
 
 #### Stage 3: Expensive Checks & Static Analysis
 Executes in parallel within the stage:
@@ -104,26 +111,37 @@ This allows a single "kill-switch" to cancel older runs when new commits are pus
 
 ### Permissions Model
 
-The orchestrator uses `permissions: write-all` to allow maximum flexibility for child workflows:
+The orchestrator defaults to read-only repository access:
 
 ```yaml
-permissions: write-all
+permissions:
+  contents: read
 ```
 
-This grants broad permissions at the orchestrator level, allowing child workflows to request the specific permissions they need. Child workflows then apply the principle of least privilege by downgrading to only the permissions they require:
+Reusable workflows can only use permissions passed by their caller, and each
+called workflow can only keep or downgrade those permissions. The top-level
+`contents: read` declaration is therefore only the default. Jobs that call a
+reusable workflow and need additional scopes declare those scopes explicitly at
+the call site instead of relying on `write-all`:
 
-- **codeql.yml**: `security-events: write`, `actions: read` (for security scanning)
-- **ci-unit-tests.yml**: `checks: write` (for reporting test results)
-- **ci-docker-all-in-one.yml**: `packages: read` (for pulling from GHCR)
-- Other workflows: typically `contents: read` only
-
-**Why write-all?** When using `workflow_call`, GitHub Actions requires the caller workflow to grant permissions that called workflows can then use or downgrade. Without `write-all`, child workflows would be restricted to `contents: read` only, causing failures for workflows that need additional permissions like CodeQL or test reporting.
+- **stage 1 and stage 2**: `contents: read`
+- **stage 3**: `contents: read`, plus `packages: read`, `actions: read`, and
+  `security-events: write` only so nested Docker and CodeQL workflows can
+  request their required scopes
+- **codeql.yml**: `security-events: write`, `actions: read`
+- **ci-docker-all-in-one.yml**: `packages: read` for pulling from GHCR
+- **ci-summary-report.yml**: `actions: write` for cache save and artifact
+  download. PR comments and check runs are handled by
+  **ci-summary-report-publish.yml**, which runs from `workflow_run` in the base
+  repository context with its own explicit `pull-requests: write` and
+  `checks: write` permissions.
 
 ## Independent Workflows
 
 The following workflows operate independently and are **not** part of the orchestrator:
 
 ### Release & Deployment
+- **ci-release-draft.yml** - Creates the draft GitHub release when a "Prepare release vX.Y.Z" PR merges to main
 - **ci-release.yml** - Triggered on release events to build and publish artifacts
 - **ci-deploy-demo.yml** - Scheduled/manual deployment to demo environment
 
@@ -131,7 +149,11 @@ The following workflows operate independently and are **not** part of the orches
 - **ci-summary-report.yml** - Fan-in workflow triggered after CI Orchestrator completes; posts a consolidated PR comment with performance metrics comparison and code coverage gating (see `docs/adr/004-migrating-coverage-gating-to-github-actions.md`)
 - **label-check.yml** - Verifies PR labels
 - **pr-quota-manager.yml** - PR management automation
+- **pr-per-issue-manager.yml** - Reconciles the per-issue active PR policy
 - **dco_merge_group.yml** - DCO verification for merge groups
+
+### Opt-in Checks
+- **ci-backward-compatibility.yml** - Writes the integration corpus with a Jaeger built from both the latest release and `main` and reads it back with the one built from the pull request. A backend joins by adding a matrix entry carrying the command that stands its storage up. Each job builds a second Jaeger and stands up a storage backend, so the workflow runs only on a pull request labelled `ci:backward-compat`, and it gates nothing.
 
 ### Scheduled Maintenance
 - **stale.yml** - Marks and closes stale issues/PRs
@@ -166,7 +188,7 @@ This is much simpler than requiring 10+ individual workflow checks.
 
 ## Local Development
 
-Individual workflows can still be triggered manually via the GitHub Actions UI for testing or debugging purposes. However, on PR events, only the orchestrator runs to avoid duplicate work.
+Individual workflows can still be triggered manually via the GitHub Actions UI for testing or debugging purposes. On PR events, the CI orchestrator owns CI execution; independent policy workflows such as PR quota management may also run to maintain their own state.
 
 ## Benefits
 

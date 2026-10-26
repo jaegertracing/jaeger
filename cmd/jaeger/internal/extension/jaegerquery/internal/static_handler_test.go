@@ -5,6 +5,7 @@
 package app
 
 import (
+	"bytes"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -13,6 +14,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -22,17 +24,20 @@ import (
 	"go.uber.org/zap/zapcore"
 	"go.uber.org/zap/zaptest/observer"
 
-	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerquery/internal/ui"
-	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerquery/querysvc"
 	"github.com/jaegertracing/jaeger/internal/testutils"
 )
 
-//go:generate mockery -all -dir ../../../internal/fswatcher
+// withCaps builds a provider that always reports caps.
+func withCaps(caps BackendCapabilities) BackendCapabilityProvider {
+	return func(*http.Request) BackendCapabilities { return caps }
+}
 
 func TestNotExistingUiConfig(t *testing.T) {
-	handler, err := NewStaticAssetsHandler("/foo/bar", StaticAssetsHandlerOptions{
-		Logger: zap.NewNop(),
-	})
+	handler, err := newStaticAssetsHandler(
+		&QueryOptions{UIConfig: UIConfig{AssetsPath: "/foo/bar"}},
+		noBackendCaps,
+		zap.NewNop(),
+	)
 	require.ErrorContains(t, err, "no such file or directory")
 	assert.Nil(t, handler)
 }
@@ -48,7 +53,7 @@ func TestRegisterStaticHandlerPanic(t *testing.T) {
 					AssetsPath: "/foo/bar",
 				},
 			},
-			querysvc.StorageCapabilities{ArchiveStorage: false},
+			noBackendCaps,
 		)
 		defer closer.Close()
 	})
@@ -66,7 +71,7 @@ func TestRegisterStaticHandler(t *testing.T) {
 		logAccess                   bool
 		UIConfigPath                string // path to UI config
 		expectedUIConfig            string // expected UI config
-		expectedStorageCapabilities string // expected storage capabilities
+		expectedBackendCapabilities string // expected backend capabilities blob
 	}{
 		{
 			basePath:                    "",
@@ -75,7 +80,7 @@ func TestRegisterStaticHandler(t *testing.T) {
 			logAccess:                   true,
 			UIConfigPath:                "",
 			expectedUIConfig:            "JAEGER_CONFIG=DEFAULT_CONFIG;",
-			expectedStorageCapabilities: `JAEGER_STORAGE_CAPABILITIES = {"archiveStorage":false,"metricsStorage":false};`,
+			expectedBackendCapabilities: `JAEGER_BACKEND_CAPABILITIES = {"archiveStorage":false,"metricsStorage":false,"searchWithoutServiceName":false,"aiAssistant":false};`,
 		},
 		{
 			basePath:                    "/",
@@ -83,7 +88,7 @@ func TestRegisterStaticHandler(t *testing.T) {
 			archiveStorage:              false,
 			UIConfigPath:                "fixture/ui-config.json",
 			expectedUIConfig:            `JAEGER_CONFIG = {"x":"y"};`,
-			expectedStorageCapabilities: `JAEGER_STORAGE_CAPABILITIES = {"archiveStorage":false,"metricsStorage":false};`,
+			expectedBackendCapabilities: `JAEGER_BACKEND_CAPABILITIES = {"archiveStorage":false,"metricsStorage":false,"searchWithoutServiceName":false,"aiAssistant":false};`,
 		},
 		{
 			basePath:                    "/jaeger",
@@ -92,7 +97,7 @@ func TestRegisterStaticHandler(t *testing.T) {
 			archiveStorage:              true,
 			UIConfigPath:                "fixture/ui-config.js",
 			expectedUIConfig:            "function UIConfig(){",
-			expectedStorageCapabilities: `JAEGER_STORAGE_CAPABILITIES = {"archiveStorage":true,"metricsStorage":false};`,
+			expectedBackendCapabilities: `JAEGER_BACKEND_CAPABILITIES = {"archiveStorage":true,"metricsStorage":false,"searchWithoutServiceName":false,"aiAssistant":false};`,
 		},
 		{
 			basePath:                    "/metrics",
@@ -101,7 +106,7 @@ func TestRegisterStaticHandler(t *testing.T) {
 			metricsStorage:              true,
 			UIConfigPath:                "fixture/ui-config.js",
 			expectedUIConfig:            "function UIConfig(){",
-			expectedStorageCapabilities: `JAEGER_STORAGE_CAPABILITIES = {"archiveStorage":false,"metricsStorage":true};`,
+			expectedBackendCapabilities: `JAEGER_BACKEND_CAPABILITIES = {"archiveStorage":false,"metricsStorage":true,"searchWithoutServiceName":false,"aiAssistant":false};`,
 		},
 	}
 	httpClient = &http.Client{
@@ -120,7 +125,10 @@ func TestRegisterStaticHandler(t *testing.T) {
 					},
 					BasePath: testCase.basePath,
 				},
-				querysvc.StorageCapabilities{ArchiveStorage: testCase.archiveStorage, MetricsStorage: testCase.metricsStorage},
+				withCaps(BackendCapabilities{
+					ArchiveStorage: testCase.archiveStorage,
+					MetricsStorage: testCase.metricsStorage,
+				}),
 			)
 			defer closer.Close()
 
@@ -141,7 +149,7 @@ func TestRegisterStaticHandler(t *testing.T) {
 
 			html := httpGet("") // get home page
 			assert.Contains(t, html, testCase.expectedUIConfig, "actual: %v", html)
-			assert.Contains(t, html, testCase.expectedStorageCapabilities, "actual: %v", html)
+			assert.Contains(t, html, testCase.expectedBackendCapabilities, "actual: %v", html)
 			assert.Contains(t, html, `JAEGER_VERSION = {"gitCommit":"","gitVersion":"dev","buildDate":""};`, "actual: %v", html)
 			// Verify the inline base-path script marker is present and the backend
 			// did not rewrite <base href> to a path-specific value (ADR-009).
@@ -161,17 +169,128 @@ func TestRegisterStaticHandler(t *testing.T) {
 	}
 }
 
-func TestNewStaticAssetsHandlerErrors(t *testing.T) {
-	_, err := NewStaticAssetsHandler("fixture", StaticAssetsHandlerOptions{
-		UIConfig: UIConfig{
-			ConfigFile: "fixture/invalid-config",
+// TestStaticHandlerInjectsBackendCapabilities covers the handler's whole part in this:
+// serialize what the provider reports into the JAEGER_BACKEND_CAPABILITIES slot, under the
+// key names and in the order the UI bundle expects.
+func TestStaticHandlerInjectsBackendCapabilities(t *testing.T) {
+	tests := []struct {
+		name string
+		caps BackendCapabilities
+	}{
+		{
+			name: "nothing supported",
+			caps: BackendCapabilities{},
 		},
-		Logger: zap.NewNop(),
-	})
+		{
+			name: "everything supported",
+			caps: BackendCapabilities{
+				ArchiveStorage:           true,
+				MetricsStorage:           true,
+				SearchWithoutServiceName: true,
+				AIAssistant:              true,
+			},
+		},
+		{
+			name: "one flag does not imply another",
+			caps: BackendCapabilities{SearchWithoutServiceName: true},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			r := http.NewServeMux()
+			closer := RegisterStaticHandler(
+				r, zap.NewNop(),
+				&QueryOptions{UIConfig: UIConfig{AssetsPath: "fixture"}, BasePath: ""},
+				withCaps(tt.caps),
+			)
+			defer closer.Close()
+
+			rr := httptest.NewRecorder()
+			r.ServeHTTP(rr, httptest.NewRequest(http.MethodGet, "/", http.NoBody))
+			body := rr.Body.String()
+
+			expected := fmt.Sprintf(
+				`JAEGER_BACKEND_CAPABILITIES = {"archiveStorage":%t,"metricsStorage":%t,"searchWithoutServiceName":%t,"aiAssistant":%t};`,
+				tt.caps.ArchiveStorage, tt.caps.MetricsStorage,
+				tt.caps.SearchWithoutServiceName, tt.caps.AIAssistant,
+			)
+			assert.Contains(t, body, expected, "backend capabilities injection mismatch")
+			assert.Equal(t, "no-store", rr.Header().Get("Cache-Control"), "a per-caller page must not be served from a shared cache")
+		})
+	}
+}
+
+func TestStaticHandlerReflectsLatestAIHealthCheckPerRequest(t *testing.T) {
+	var available atomic.Bool
+	r := http.NewServeMux()
+	closer := RegisterStaticHandler(
+		r, zap.NewNop(),
+		&QueryOptions{UIConfig: UIConfig{AssetsPath: "fixture"}, BasePath: ""},
+		func(*http.Request) BackendCapabilities {
+			return BackendCapabilities{AIAssistant: available.Load()}
+		},
+	)
+	defer closer.Close()
+
+	getBody := func() string {
+		rr := httptest.NewRecorder()
+		r.ServeHTTP(rr, httptest.NewRequest(http.MethodGet, "/", http.NoBody))
+		return rr.Body.String()
+	}
+
+	require.Contains(t, getBody(), `"aiAssistant":false`)
+
+	available.Store(true)
+	require.Contains(t, getBody(), `"aiAssistant":true`,
+		"next response must reflect the new AI health check value")
+
+	available.Store(false)
+	require.Contains(t, getBody(), `"aiAssistant":false`,
+		"next response must reflect the new AI health check value")
+}
+
+// TestStaticHandlerReflectsSearchCapabilityPerRequest: a page loaded after the backend
+// becomes reachable must offer "All Services" without a restart (RFC 0013 §3.6).
+func TestStaticHandlerReflectsSearchCapabilityPerRequest(t *testing.T) {
+	var supported atomic.Bool
+	r := http.NewServeMux()
+	closer := RegisterStaticHandler(
+		r, zap.NewNop(),
+		&QueryOptions{UIConfig: UIConfig{AssetsPath: "fixture"}, BasePath: ""},
+		func(*http.Request) BackendCapabilities {
+			return BackendCapabilities{SearchWithoutServiceName: supported.Load()}
+		},
+	)
+	defer closer.Close()
+
+	getBody := func() string {
+		rr := httptest.NewRecorder()
+		r.ServeHTTP(rr, httptest.NewRequest(http.MethodGet, "/", http.NoBody))
+		return rr.Body.String()
+	}
+
+	require.Contains(t, getBody(), `"searchWithoutServiceName":false`)
+
+	supported.Store(true)
+	require.Contains(t, getBody(), `"searchWithoutServiceName":true`,
+		"a backend that has since answered must be reflected without a restart")
+}
+
+func TestNewStaticAssetsHandlerErrors(t *testing.T) {
+	_, err := newStaticAssetsHandler(
+		&QueryOptions{UIConfig: UIConfig{AssetsPath: "fixture", ConfigFile: "fixture/invalid-config"}},
+		noBackendCaps,
+		zap.NewNop(),
+	)
 	require.Error(t, err)
 }
 
 func TestHotReloadUIConfig(t *testing.T) {
+	// Shorten the reload TTL so the test doesn't have to wait the full default.
+	prev := uiConfigReloadInterval
+	uiConfigReloadInterval = 10 * time.Millisecond
+	t.Cleanup(func() { uiConfigReloadInterval = prev })
+
 	dir := t.TempDir()
 
 	cfgFile, err := os.CreateTemp(dir, "*.json")
@@ -189,31 +308,70 @@ func TestHotReloadUIConfig(t *testing.T) {
 	err = syncWrite(cfgFile, tmpFile, content)
 	require.NoError(t, err)
 
-	zcore, logObserver := observer.New(zapcore.InfoLevel)
-	logger := zap.New(zcore)
-	h, err := NewStaticAssetsHandler("fixture", StaticAssetsHandlerOptions{
-		UIConfig: UIConfig{
-			ConfigFile: cfgFileName,
-		},
-		Logger: logger,
-	})
+	h, err := newStaticAssetsHandler(
+		&QueryOptions{UIConfig: UIConfig{AssetsPath: "fixture", ConfigFile: cfgFileName}},
+		noBackendCaps,
+		zap.NewNop(),
+	)
 	require.NoError(t, err)
 	defer h.Close()
 
-	c := string(h.indexHTML.Load().([]byte))
-	assert.Contains(t, c, "About Jaeger")
+	assert.Contains(t, string(h.deriveIndexHTML(httptest.NewRequest(http.MethodGet, "/", http.NoBody))), "About Jaeger")
 
 	newContent := strings.Replace(string(content), "About Jaeger", "About a new Jaeger", 1)
 	err = syncWrite(cfgFile, tmpFile, []byte(newContent))
 	require.NoError(t, err)
 
-	waitUntil(t, func() bool {
-		return logObserver.FilterMessage("reloaded UI config").
-			FilterField(zap.String("filename", cfgFileName)).Len() > 0
-	}, 100, 10*time.Millisecond, "timed out waiting for the hot reload to kick in")
+	// The TTL on the cached UI config is 10ms; deriveIndexHTML re-reads from
+	// disk after that. Poll until the new content is picked up.
+	require.Eventually(t, func() bool {
+		return strings.Contains(string(h.deriveIndexHTML(httptest.NewRequest(http.MethodGet, "/", http.NoBody))), "About a new Jaeger")
+	}, time.Second, 5*time.Millisecond, "TTL-based reload did not pick up the new UI config content")
+}
 
-	i := string(h.indexHTML.Load().([]byte))
-	assert.Contains(t, i, "About a new Jaeger", logObserver.All())
+func TestUIConfigReloadErrorKeepsCachedValue(t *testing.T) {
+	prev := uiConfigReloadInterval
+	uiConfigReloadInterval = 10 * time.Millisecond
+	t.Cleanup(func() { uiConfigReloadInterval = prev })
+
+	dir := t.TempDir()
+	cfgFile, err := os.CreateTemp(dir, "*.json")
+	require.NoError(t, err)
+	defer cfgFile.Close()
+	cfgFileName := cfgFile.Name()
+
+	tmpFile, err := os.CreateTemp(dir, "*.json")
+	require.NoError(t, err)
+	defer tmpFile.Close()
+
+	good, err := os.ReadFile("fixture/ui-config-hotreload.json")
+	require.NoError(t, err)
+	require.NoError(t, syncWrite(cfgFile, tmpFile, good))
+
+	zcore, logObserver := observer.New(zapcore.ErrorLevel)
+	h, err := newStaticAssetsHandler(
+		&QueryOptions{UIConfig: UIConfig{AssetsPath: "fixture", ConfigFile: cfgFileName}},
+		noBackendCaps,
+		zap.New(zcore),
+	)
+	require.NoError(t, err)
+	defer h.Close()
+
+	// Overwrite the file with content that fails to parse, then wait past
+	// the TTL so the next deriveIndexHTML triggers a reload.
+	require.NoError(t, syncWrite(cfgFile, tmpFile, []byte("{not valid json")))
+
+	require.Eventually(t, func() bool {
+		// Force a reload attempt by calling deriveIndexHTML; the malformed
+		// file should produce a logged error while leaving the previously
+		// cached "About Jaeger" content intact.
+		body := string(h.deriveIndexHTML(httptest.NewRequest(http.MethodGet, "/", http.NoBody)))
+		if !strings.Contains(body, "About Jaeger") {
+			return false
+		}
+		return logObserver.FilterMessage("could not reload UI config; keeping previously cached value").Len() > 0
+	}, time.Second, 5*time.Millisecond,
+		"expected the static handler to keep the previously cached UI config when a reload fails")
 }
 
 func TestLoadUIConfig(t *testing.T) {
@@ -222,6 +380,12 @@ func TestLoadUIConfig(t *testing.T) {
 		expected        *loadedConfig
 		expectedError   string
 		expectedContent string
+	}
+
+	readJSFixture := func(name string) []byte {
+		content, err := os.ReadFile(name)
+		require.NoError(t, err)
+		return bytes.TrimSpace(content)
 	}
 
 	run := func(description string, testCase testCase) {
@@ -235,17 +399,14 @@ func TestLoadUIConfig(t *testing.T) {
 			assert.Equal(t, testCase.expected, config)
 
 			if testCase.expectedContent != "" {
-				h := &StaticAssetsHandler{
-					options: StaticAssetsHandlerOptions{
-						UIConfig: UIConfig{
-							ConfigFile: testCase.configFile,
-						},
-					},
-				}
-				assetsFS := ui.GetStaticFiles(zap.NewNop())
-				indexHTML, err := h.loadAndEnrichIndexHTML(assetsFS.Open)
+				h, err := newStaticAssetsHandler(
+					&QueryOptions{UIConfig: UIConfig{ConfigFile: testCase.configFile}},
+					noBackendCaps,
+					zap.NewNop(),
+				)
 				require.NoError(t, err)
-				assert.Contains(t, string(indexHTML), testCase.expectedContent)
+				defer h.Close()
+				assert.Contains(t, string(h.deriveIndexHTML(httptest.NewRequest(http.MethodGet, "/", http.NoBody))), testCase.expectedContent)
 			}
 		})
 	}
@@ -293,11 +454,7 @@ func TestLoadUIConfig(t *testing.T) {
 		configFile: "fixture/ui-config.js",
 		expected: &loadedConfig{
 			regexp: configJsPattern,
-			config: []byte(`function UIConfig(){
-  return {
-    x: "y"
-  }
-}`),
+			config: readJSFixture("fixture/ui-config.js"),
 		},
 		expectedContent: "function UIConfig()",
 	})
@@ -305,16 +462,7 @@ func TestLoadUIConfig(t *testing.T) {
 		configFile: "fixture/ui-config-menu.js",
 		expected: &loadedConfig{
 			regexp: configJsPattern,
-			config: []byte(`function UIConfig(){
-  return {
-    menu: [
-      {
-        label: "GitHub",
-        url: "https://github.com/jaegertracing/jaeger"
-      }
-    ]
-  }
-}`),
+			config: readJSFixture("fixture/ui-config-menu.js"),
 		},
 		expectedContent: "function UIConfig()",
 	})
@@ -334,16 +482,6 @@ func TestLoadIndexHTMLReadError(t *testing.T) {
 	}
 	_, err := loadIndexHTML(open)
 	require.Error(t, err)
-}
-
-func waitUntil(t *testing.T, f func() bool, iterations int, sleepInterval time.Duration, timeoutErrMsg string) {
-	for range iterations {
-		if f() {
-			return
-		}
-		time.Sleep(sleepInterval)
-	}
-	require.Fail(t, timeoutErrMsg)
 }
 
 // syncWrite ensures data is written to the given filename and flushed to disk.

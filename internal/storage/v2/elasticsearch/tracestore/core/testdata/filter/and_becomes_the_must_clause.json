@@ -1,0 +1,18 @@
+{
+  "bool": {
+    "must": [
+      {
+        "term": {
+          "process.serviceName": "cart"
+        }
+      },
+      {
+        "range": {
+          "duration": {
+            "gt": 2000000
+          }
+        }
+      }
+    ]
+  }
+}

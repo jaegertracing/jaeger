@@ -1,0 +1,71 @@
+# Copyright (c) 2026 The Jaeger Authors.
+# SPDX-License-Identifier: Apache-2.0
+
+# Validates that the ocb (OpenTelemetry Collector Builder) can produce a working
+# Jaeger binary from the public facade packages, and that it passes the same
+# integration tests as the standard build.
+
+name: OCB Build
+
+on:
+  workflow_call:
+
+permissions:
+  contents: read
+
+jobs:
+  ocb-build:
+    runs-on: ubuntu-latest
+    steps:
+    - name: Harden Runner
+      uses: step-security/harden-runner@05e31511f85b41b11d1cf0ef85d0992719546e2c # v2.21.0
+      with:
+        egress-policy: audit
+
+    - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+      with:
+        submodules: true
+
+    - uses: ./.github/actions/setup-go
+
+    - uses: ./.github/actions/setup-node.js
+
+    - name: Build UI
+      run: make build-ui
+
+    # ocb generates a fresh module set under cmd/jaeger/_build and runs `go mod tidy`
+    # over it. That set includes modules the ordinary build never needs, so they are
+    # absent from the warm module cache and every run fetches and sum-verifies them.
+    # This step therefore makes far more cold requests to proxy.golang.org and
+    # sum.golang.org than any other, and it is the one that keeps losing a connection
+    # to them; the failures name a different module each time, so retrying clears them.
+    - name: Build Jaeger with ocb
+      run: |
+        for attempt in 1 2 3; do
+          if make build-ocb; then
+            exit 0
+          fi
+          if [ "$attempt" -lt 3 ]; then
+            echo "::warning::ocb build attempt $attempt failed; retrying"
+            rm -rf ./cmd/jaeger/_build
+            sleep $((attempt * 15))
+          fi
+        done
+        echo "::error::ocb build failed after 3 attempts"
+        exit 1
+
+    - name: Run ocb-built binary
+      run: |
+        ./cmd/jaeger/_build/jaeger --config cmd/jaeger/config-ocb-smoketest.yaml &
+        echo "JAEGER_PID=$!" >> "$GITHUB_ENV"
+
+    - name: Run integration tests against ocb binary
+      run: |
+        HEALTHCHECK_V2=true make all-in-one-integration-test
+
+    - name: Stop Jaeger
+      if: always()
+      run: |
+        if [ -n "${JAEGER_PID:-}" ]; then
+          kill "$JAEGER_PID" 2>/dev/null || true
+        fi

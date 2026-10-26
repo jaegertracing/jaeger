@@ -37,13 +37,18 @@ func (td *TracesData) MarshalTo(buf []byte) (n int, err error) {
 	return td.MarshalToSizedBuffer(buf)
 }
 
-// MarshalToSizedBuffer is used by Gogo.
+// MarshalToSizedBuffer writes the encoded traces into the tail of buf and returns the number of
+// bytes written. That is the contract gogo-generated code relies on: a parent message encodes
+// its fields back to front, hands each nested field the still-unused prefix of its buffer, and
+// takes the field's length from the return value. Writing at the head of buf instead would leave
+// the slot the parent reserved at the tail empty, and the parent would then encode its remaining
+// fields, including this field's own tag and length, over what we would have written.
 func (td *TracesData) MarshalToSizedBuffer(buf []byte) (int, error) {
 	data, err := td.Marshal()
 	if err != nil {
 		return 0, err
 	}
-	n := copy(buf, data)
+	n := copy(buf[len(buf)-len(data):], data)
 	return n, nil
 }
 

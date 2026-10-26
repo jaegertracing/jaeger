@@ -7,12 +7,14 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"syscall"
 	"testing"
 	"time"
 
@@ -21,10 +23,17 @@ import (
 	"github.com/jaegertracing/jaeger/ports"
 )
 
+// defaultShutdownTimeout is how long Stop waits for the process to exit after
+// SIGTERM before escalating to SIGKILL.
+const defaultShutdownTimeout = time.Minute
+
 // Binary is a wrapper around exec.Cmd to help running binaries in tests.
 type Binary struct {
 	Name            string
 	HealthCheckPort int // overridable for Kafka tests which run two binaries and need different ports
+	// ShutdownTimeout overrides how long Stop waits after SIGTERM before
+	// escalating to SIGKILL. Zero means defaultShutdownTimeout.
+	ShutdownTimeout time.Duration
 	exec.Cmd
 }
 
@@ -52,26 +61,73 @@ func (b *Binary) Start(t *testing.T) {
 	require.NoError(t, b.Cmd.Start())
 
 	t.Cleanup(func() {
-		if err := b.Process.Kill(); err != nil {
-			t.Errorf("Failed to kill %s process: %v", b.Name, err)
-		}
-		t.Logf("Waiting for %s to exit", b.Name)
-		b.Process.Wait()
-		t.Logf("%s exited", b.Name)
+		b.Stop(t)
 		// Dump logs if test failed, or if running in GitHub Actions where
 		// t.Failed() may not return true when the test times out with a panic.
 		if t.Failed() || os.Getenv("GITHUB_ACTIONS") == "true" {
 			b.dumpLogs(t, outFile, errFile)
 		}
+		if err := outFile.Close(); err != nil {
+			t.Logf("Failed to close output log file: %v", err)
+		}
+		if err := errFile.Close(); err != nil {
+			t.Logf("Failed to close error log file: %v", err)
+		}
 	})
-
+	client := testingHttpClient(t)
 	// Wait for the binary to start and become ready to serve requests.
-	require.Eventually(t, func() bool { return b.doHealthCheck(t) },
+	require.Eventually(t, func() bool { return b.doHealthCheck(t, client) },
 		time.Minute, time.Second, "%s did not start", b.Name)
 	t.Logf("%s is ready", b.Name)
 }
 
-func (b *Binary) doHealthCheck(t *testing.T) bool {
+// Stop shuts the process down and waits for it to exit.
+//
+// SIGTERM is sent first so the binary runs its own shutdown path — for jaeger
+// that means the collector's Shutdown hooks and storage Close calls, which
+// SIGKILL skips entirely, hiding any bug in them from every e2e test. A kill is
+// still a kill: if the process has not exited within ShutdownTimeout, it is
+// escalated to SIGKILL, which cannot be caught or ignored, so Stop always
+// terminates the process rather than trusting it to cooperate.
+//
+// It is safe to call more than once (and after the process has already exited):
+// once the process has been reaped, signalling it returns os.ErrProcessDone,
+// which is treated as a successful stop.
+func (b *Binary) Stop(t *testing.T) {
+	t.Helper()
+	timeout := b.ShutdownTimeout
+	if timeout == 0 {
+		timeout = defaultShutdownTimeout
+	}
+
+	if err := b.Process.Signal(syscall.SIGTERM); err != nil && !errors.Is(err, os.ErrProcessDone) {
+		t.Errorf("Failed to signal %s process: %v", b.Name, err)
+	}
+	t.Logf("Waiting up to %v for %s to exit after SIGTERM", timeout, b.Name)
+
+	// A single Wait runs in the background: os.Process.Wait must not be called
+	// concurrently or twice, so the escalation path below waits on this channel
+	// rather than calling Wait again.
+	exited := make(chan struct{})
+	go func() {
+		b.Process.Wait()
+		close(exited)
+	}()
+
+	select {
+	case <-exited:
+		t.Logf("%s exited on SIGTERM", b.Name)
+	case <-time.After(timeout):
+		t.Logf("%s did not exit within %v of SIGTERM, sending SIGKILL", b.Name, timeout)
+		if err := b.Process.Kill(); err != nil && !errors.Is(err, os.ErrProcessDone) {
+			t.Errorf("Failed to kill %s process: %v", b.Name, err)
+		}
+		<-exited
+		t.Logf("%s killed", b.Name)
+	}
+}
+
+func (b *Binary) doHealthCheck(t *testing.T, client *http.Client) bool {
 	healthCheckPort := b.HealthCheckPort
 	if healthCheckPort == 0 {
 		healthCheckPort = ports.CollectorV2HealthChecks
@@ -85,7 +141,7 @@ func (b *Binary) doHealthCheck(t *testing.T) bool {
 		t.Logf("HTTP request creation failed: %v", err)
 		return false
 	}
-	resp, err := http.DefaultClient.Do(req)
+	resp, err := client.Do(req)
 	if err != nil {
 		t.Logf("HTTP request failed: %v", err)
 		return false

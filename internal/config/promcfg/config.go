@@ -4,6 +4,7 @@
 package promcfg
 
 import (
+	"fmt"
 	"time"
 
 	"github.com/asaskevich/govalidator"
@@ -30,6 +31,11 @@ type Configuration struct {
 }
 
 func (c *Configuration) Validate() error {
-	_, err := govalidator.ValidateStruct(c)
-	return err
+	if _, err := govalidator.ValidateStruct(c); err != nil {
+		return err
+	}
+	if u := c.LatencyUnit; u != "" && u != "ms" && u != "s" {
+		return fmt.Errorf(`latency_unit must be "ms" or "s", not %q`, u)
+	}
+	return nil
 }

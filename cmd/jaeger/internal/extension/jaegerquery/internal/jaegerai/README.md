@@ -1,13 +1,13 @@
 # Jaeger AI Gateway
 
-This package implements the AI gateway component within Jaeger Query that bridges
-the Jaeger UI with an external AI Agent Sidecar using the
-[Agent Client Protocol (ACP)](https://agentclientprotocol.com/).
+This package implements the AI gateway in Jaeger Query. It accepts
+[AG-UI](https://docs.ag-ui.com/) chat requests from the Jaeger UI, speaks the
+[Agent Client Protocol (ACP)](https://agentclientprotocol.com/) to an external
+agent, and streams AG-UI Server-Sent Events (SSE) back to the browser.
 
-It also defines a small ACP **extension method** the sidecar invokes when the
-LLM requests a frontend-supplied (AG-UI) tool, plus a per-turn store the
-gateway uses to correlate those calls with the snapshot the browser attached
-to the chat request.
+Agents use Jaeger's turn-scoped [MCP](https://modelcontextprotocol.io/)
+endpoint for every tool call. That endpoint serves Jaeger telemetry tools and,
+for a chat turn, the UI tools declared by the browser.
 
 ## Architecture
 
@@ -15,221 +15,211 @@ to the chat request.
 flowchart TB
     UI["Jaeger UI (Browser)"]
 
-    subgraph jaeger["Jaeger Process"]
-        direction LR
-        MCP["MCP Server<br>:16687/mcp"]
-        subgraph handler["ChatHandler"]
-            direction TB
-            ACPCONN["acp.Connection<br>(custom dispatcher)"]
-            DISPATCH["dispatcher.go<br>(ACP method router)"]
-            SC["streamingClient<br>(session/update writer)"]
-            WS["WsReadWriteCloser<br>(WebSocket adapter)"]
-            STORE["ContextualToolsStore<br>(per-turn tool snapshots)"]
-            ACPCONN -- "inbound JSON-RPC" --> DISPATCH
-            DISPATCH -- "session/update<br>session/request_permission" --> SC
-            DISPATCH -- "_meta/jaegertracing.io/<br>tools/call" --> STORE
-            ACPCONN -- "transport" --> WS
-        end
+    subgraph jaeger["Jaeger Query"]
+        CHAT["POST /api/ai/chat<br>chatEndpoint"]
+        SC["streamingClient<br>(ACP notifications → AG-UI SSE)"]
+        WS["WsReadWriteCloser<br>(WebSocket adapter)"]
+        TURNS["turnRegistry<br>(per-turn UI tools + SSE stream)"]
+        MCP["/api/ai/mcp/&lt;route-id&gt;/<br>turn-scoped MCP endpoint"]
+        SHARED["/api/ai/mcp/<br>shared MCP endpoint"]
+        CHAT --> SC
+        CHAT --> WS
+        CHAT -- "register turn" --> TURNS
+        MCP -- "resolve turn" --> TURNS
+        MCP -- "UI tool call" --> SC
     end
 
-    subgraph sidecar["Agent Sidecar"]
-        AGENT["ACP Agent Handler"]
-        MCPCLIENT["MCP Client"]
-        GEMINI["Gemini API<br>(gemini-2.5-*)"]
-        AGENT --> MCPCLIENT
-        AGENT --> GEMINI
-    end
+    AGENT["External ACP agent<br>with an MCP client"]
 
-    UI -- "POST /api/ai/chat" --> handler
-    SC -- "Streaming text/plain" --> UI
-    WS -- "WebSocket (ACP)" --> AGENT
-    MCPCLIENT -- "HTTP (MCP)" --> MCP
+    UI -- "AG-UI RunAgentInput" --> CHAT
+    SC -- "AG-UI SSE" --> UI
+    WS -- "ACP over WebSocket" --> AGENT
+    AGENT -- "Streamable HTTP MCP" --> MCP
 ```
+
+The shared endpoint serves the telemetry tools to external MCP clients with no
+chat turn involved; see the
+[`mcptools` README](../mcptools/README.md). The turn-scoped endpoint serves the
+same telemetry tools plus the calling turn's UI tools from the same
+`mcp.Server`.
 
 ## Components
 
-### ChatHandler (`handler.go`)
+### chatEndpoint (`endpoint_chat.go`)
 
-HTTP handler registered at `POST /api/ai/chat`. When a request arrives:
-
-1. Parses the JSON request body containing the user's prompt.
-2. Establishes a WebSocket connection to the Agent Sidecar.
-3. Creates a `WsReadWriteCloser` to adapt WebSocket to `io.ReadWriteCloser`.
-4. Creates a `streamingClient` that writes ACP `session/update` payloads to the HTTP response.
-5. Builds the connection via `acp.NewConnection(newDispatcher(...), adapter, adapter)` rather
-   than `acp.NewClientSideConnection`. The SDK's stock dispatcher returns `MethodNotFound`
-   for any extension method, so we install our own router (see Dispatcher below) that
-   handles both standard ACP methods and the `_meta/jaegertracing.io/tools/call`
-   extension method.
-6. Executes ACP handshake: `Initialize` → `NewSession` → `Prompt`. `NewSessionRequest.Meta`
-   carries the contextual tools snapshot (PR2 wiring; PR1 sends an empty meta).
-7. Streams responses back to the HTTP client as `text/plain`.
-
-### Dispatcher (`dispatcher.go`)
-
-Custom ACP method router for inbound JSON-RPC from the sidecar. Routes:
-
-- `session/update` → `streamingClient.SessionUpdate` (streamed agent text, tool progress markers).
-- `session/request_permission` → `streamingClient.RequestPermission` (always denies; gateway advertises no fs/terminal capabilities).
-- `_meta/jaegertracing.io/tools/call` → `handleJaegerToolCall` — logs the call and returns a
-  placeholder result. PR2 will replace the placeholder with a real round-trip to the
-  AG-UI-connected browser via the open HTTP response stream.
-- anything else → `MethodNotFound`.
-
-`UIToolPrefix` (`ui_`) is the namespace the gateway prepends to every contextual tool name
-before exposing it to the sidecar (and therefore to Gemini). The dispatcher strips it back
-on the way in so the AG-UI client receives the original frontend name. The prefix prevents
-a frontend-supplied tool from shadowing a built-in Jaeger MCP tool with the same name
-(e.g. `search_traces`).
-
-### ContextualToolsStore (`contextual_tools.go`)
-
-Thread-safe per-turn store of frontend-supplied AG-UI tools, keyed by ACP **session
-id**. The chat handler writes the snapshot once `NewSessionResponse` returns and
-before `Prompt` is sent. The dispatcher (`handleJaegerToolCall`) reads the snapshot
-using the same `sessionId` the sidecar puts on the ext_method payload, so the
-lookup is unambiguous without any extra correlation field.
-
-- `SetForSession` — stores a snapshot, copying raw JSON bytes so later caller
-  mutation cannot affect the stored entry. Empty id is a no-op; an empty/all-invalid
-  set deletes any existing entry rather than writing an empty slice.
-- `DeleteForSession` — drops the snapshot at turn end. The chat handler must call
-  this once `Prompt` returns so the store does not grow over the gateway's lifetime.
-- `GetContextualToolsForSession` — returns a freshly unmarshaled tree per call so
-  readers cannot corrupt the stored snapshot through map mutation.
+The chat endpoint is registered at `POST /api/ai/chat` only when
+`extensions.jaeger_query.ai.agent_url` is configured. It accepts AG-UI
+[`RunAgentInput`](https://docs.ag-ui.com/concepts/run-input) payloads
+(`messages`, `tools`, `context`, `threadId`, `runId`), establishes the ACP
+WebSocket connection, runs the ACP session lifecycle, and streams AG-UI events
+back to the browser. It passes the request's `threadId` and `runId` to the
+`streamingClient` so the SSE events match what the AG-UI client expects.
 
 ### streamingClient (`streaming_client.go`)
 
-Implements the `acp.Client`-shaped subset the dispatcher needs. Key responsibilities:
+`streamingClient` implements the ACP `Client` interface for one chat turn and
+writes AG-UI SSE frames into the HTTP response.
 
-- **SessionUpdate**: receives streamed content from the agent (text chunks, tool call
-  notifications) and writes them to the HTTP response.
-- **RequestPermission**: always cancels/denies permission requests (the gateway advertises
-  no filesystem or terminal capability in `Initialize`).
+- **Run lifecycle.** `startRun`, `finishRun`, and `failRun` emit `RUN_STARTED`,
+  `RUN_FINISHED`, and `RUN_ERROR`. Assistant text is bracketed with
+  `TEXT_MESSAGE_START` and `TEXT_MESSAGE_END`; a tool call closes the open
+  text message, and text after it starts a new message with a new id.
+- **`SessionUpdate`.** Maps ACP `session/update` notifications to AG-UI events:
+  `AgentMessageChunk` to `TEXT_MESSAGE_CONTENT`; `ToolCall` to
+  `TOOL_CALL_START`, plus `TOOL_CALL_ARGS` when `RawInput` is set;
+  `ToolCallUpdate` to `TOOL_CALL_ARGS`, `TOOL_CALL_RESULT`, or `TOOL_CALL_END`
+  depending on which fields are populated. Thought chunks and plans are
+  accepted and dropped. Tool-call notifications are progress display only: the
+  tool calls themselves travel over MCP (below), not over ACP. The tool name in
+  a notification is the name the agent was offered, so a UI tool arrives with
+  `UIToolPrefix`, which is stripped before the event reaches the browser.
+- **`EmitUIToolCall`.** Called from the MCP endpoint when the agent invokes a UI
+  tool. Emits `TOOL_CALL_START`, `TOOL_CALL_ARGS`, and `TOOL_CALL_END` under the
+  bare name the browser registered.
+- **`RequestPermission`.** Answers `session/request_permission` by selecting the
+  first option of kind `allow_once` or `allow_always`, and cancels if the agent
+  offers neither. The gateway advertises no filesystem or terminal capability in
+  `Initialize`, so a well-behaved agent has nothing else to ask about.
+
+A mutex guards its mutable state because ACP updates may arrive from a
+different goroutine than the one driving `Prompt`, while lifecycle calls come
+from the chat endpoint and UI tool calls from the MCP endpoint.
 
 ### WsReadWriteCloser (`ws_adapter.go`)
 
-Adapts a gorilla WebSocket connection to the `io.ReadWriteCloser` interface required by
-the ACP runtime. Reads WebSocket text/binary messages as a continuous byte stream; writes
-bytes as WebSocket text messages.
+`WsReadWriteCloser` adapts a gorilla WebSocket connection to the
+`io.ReadWriteCloser` interface required by the ACP runtime. It presents
+discrete WebSocket messages to the SDK as a newline-delimited byte stream and
+sends SDK writes as WebSocket text messages.
 
-## Request Flow
+## Request flow
 
 ```mermaid
 sequenceDiagram
-    participant UI
-    participant ChatHandler
-    participant acpConn as acp.Connection
-    participant DSP as dispatcher
+    participant UI as Jaeger UI
+    participant CHAT as chatEndpoint
     participant SC as streamingClient
-    participant Sidecar as Agent Sidecar
-    participant Gemini
+    participant TURNS as turnRegistry
+    participant AGENT as ACP agent
+    participant MCP as turn-scoped MCP endpoint
 
-    UI->>ChatHandler: POST /api/ai/chat {"prompt":"..."}
-    ChatHandler->>Sidecar: WS connect
-    ChatHandler->>acpConn: Initialize
-    acpConn->>Sidecar: ACP: Initialize
-    Sidecar-->>acpConn: InitializeResponse
-    ChatHandler->>acpConn: NewSession (Meta carries contextual tools in PR2)
-    acpConn->>Sidecar: ACP: NewSession
-    Sidecar-->>acpConn: NewSessionResponse
-    ChatHandler->>acpConn: Prompt (blocks)
-    acpConn->>Sidecar: ACP: Prompt
+    UI->>CHAT: POST /api/ai/chat (RunAgentInput)
+    CHAT->>TURNS: register(stream, UI tools) → route id
+    CHAT->>AGENT: WS connect, Initialize
+    AGENT-->>CHAT: InitializeResponse (mcpCapabilities.http)
+    CHAT->>AGENT: NewSession {mcpServers: [turn-scoped URL]}
+    AGENT-->>CHAT: NewSessionResponse {sessionId}
+    CHAT->>SC: startRun → RUN_STARTED
+    CHAT->>AGENT: Prompt (blocks, _meta: traceparent)
 
-    Sidecar->>Gemini: send_message (mcp + contextual tools merged)
-    Gemini-->>Sidecar: function_call
+    AGENT->>MCP: tools/list
+    MCP->>TURNS: resolve turn by route id
+    MCP-->>AGENT: telemetry tools + ui__ namespaced UI tools
 
-    alt Built-in MCP tool
-        Note over Sidecar: sidecar calls Jaeger MCP server directly over HTTP
-        Sidecar->>acpConn: SessionUpdate (tool_call)
-        acpConn->>DSP: route session/update
-        DSP->>SC: SessionUpdate
-        SC-->>UI: [tool_call] get_traces
-    else Contextual tool
-        Note over Sidecar: dispatch via ACP extension method
-        Sidecar->>acpConn: _meta/jaegertracing.io/tools/call<br>{sessionId, name, args}
-        acpConn->>DSP: route extension method
-        DSP->>DSP: handleJaegerToolCall<br>(strip ui_ prefix, look up snapshot)
-        DSP-->>UI: relay tool call via streaming response
-        UI-->>DSP: tool result
-        DSP-->>acpConn: CallToolResult
-        acpConn-->>Sidecar: response
+    par Tool calls over MCP
+        alt Telemetry tool
+            AGENT->>MCP: tools/call get_services
+            MCP-->>AGENT: real result
+        else UI tool
+            AGENT->>MCP: tools/call ui__show_flamegraph
+            MCP->>SC: EmitUIToolCall(show_flamegraph)
+            SC-->>UI: TOOL_CALL_START/ARGS/END
+            MCP-->>AGENT: synthetic "dispatched" result
+        end
+    and Progress over ACP
+        AGENT->>CHAT: session/update (text chunks, tool_call, tool_call_update)
+        CHAT->>SC: SessionUpdate (strip ui__ from tool names)
+        SC-->>UI: TEXT_MESSAGE_*, TOOL_CALL_*
     end
 
-    Gemini-->>Sidecar: final text
-    Sidecar->>acpConn: SessionUpdate (text chunk)
-    acpConn->>DSP: route session/update
-    DSP->>SC: SessionUpdate
-    SC-->>UI: "Based on..."
-
-    Sidecar-->>acpConn: PromptResponse (StopReason)
-    acpConn-->>ChatHandler: Prompt() returns
-    ChatHandler->>SC: writeAndFlush([stop_reason])
-    SC-->>UI: [stop_reason]
-    ChatHandler->>Sidecar: WS close
+    AGENT-->>CHAT: PromptResponse {stopReason}
+    CHAT->>SC: finishRun → TEXT_MESSAGE_END, RUN_FINISHED
+    CHAT->>AGENT: CloseSession, WS close
+    CHAT->>TURNS: unregister turn
 ```
 
-## Configuration
+1. The gateway parses the AG-UI `RunAgentInput`, collecting the latest user
+   message and any context entries into ACP prompt blocks. A `tools` entry
+   with an empty or whitespace name is rejected with a 400 before any agent
+   work happens.
+2. It serializes the request's UI-tool declarations and registers them with a
+   new turn. The turn registry gives the agent a unique MCP route and holds
+   the browser SSE stream for that turn.
+3. It creates a standard ACP client connection, runs `Initialize`, then
+   `NewSession`. When the agent advertises HTTP MCP support and
+   `ai.mcp.base_url` is available, the session announces the turn-scoped MCP
+   URL.
+4. It emits `RUN_STARTED` and sends `Prompt`, with the request's trace context
+   in `_meta` so an agent that propagates it joins its spans to the request's
+   trace. While the prompt runs, the agent calls tools over MCP and reports
+   progress over ACP; the two legs are concurrent.
+5. When the prompt finishes, it closes the ACP session, unregisters the turn,
+   and emits `RUN_FINISHED` or `RUN_ERROR`.
 
-The AI gateway is configured via the `extensions.jaeger_query.ai` section:
+## MCP tool routing
+
+The agent calls the announced turn-scoped endpoint using standard MCP
+`tools/list` and `tools/call` requests. The UI-tools middleware in
+`mcp_ui_tools.go` layers the turn's UI tools onto the shared telemetry server:
+
+- **Telemetry tools** execute against Jaeger's in-process query service and
+  return their results to the agent.
+- **UI tools** are the browser-supplied tools attached to the active turn.
+  `tools/list` advertises each one as `UIToolPrefix` (`ui__`) plus its frontend
+  name. A `tools/call` with that prefix is a UI tool: the gateway strips the
+  prefix, confirms the turn declared the tool, emits `TOOL_CALL_*` events over
+  the browser's SSE stream under the bare name, and returns a synthetic
+  dispatched result immediately. A prefixed name the turn never declared is
+  rejected as a tool error, so an agent cannot dispatch a UI tool the frontend
+  did not offer. Unprefixed names fall through to the telemetry handlers.
+
+The namespace exists so a UI tool can never shadow a telemetry tool of the same
+name. The frontend chooses UI tool names per request, so without a namespace
+the agent's telemetry capability would depend on what the browser happened to
+send. The double underscore follows the convention MCP aggregators use for
+sub-domain prefixes, which keeps a coincidental clash with a telemetry tool
+name contrived.
+
+UI tools are fire-and-forget by design. They are commands such as
+`show_flamegraph(trace_id)` rather than queries, so there is no result to
+return to the model. The browser performs the side effect when it sees the
+`TOOL_CALL_*` events, and the synthetic result lets the model's loop continue
+to a final answer in the same turn. The browser cannot return a value during
+the turn; RFC 0008 §4.4 records that as an implementation limit, not a protocol
+one.
+
+The external-agent contract and the Goose worked example are documented in
+[`scripts/ai-sidecar/README.md`](../../../../../../../scripts/ai-sidecar/README.md).
+
+## Configuration
 
 ```yaml
 extensions:
   jaeger_query:
     ai:
-      agent_url: "ws://localhost:16688"     # WebSocket URL of Agent Sidecar
+      agent_url: "ws://localhost:16688"
+      agent_headers:
+        Authorization: Bearer ${env:MY_AGENT_TOKEN}
+      mcp:
+        base_url: "http://localhost:16686"
 ```
 
-The endpoint is only registered when `ai.agent_url` is configured and non-empty.
+`agent_url` is the external agent's WebSocket URL. `agent_headers` are sent on
+every dial and redacted from logs. `mcp.base_url` is the address that the
+agent can use to call Jaeger's MCP endpoint. When both ends are on the same
+loopback host, the gateway can infer a suitable MCP URL; other deployments
+should configure it explicitly.
 
-## ACP Surface
+## Related code
 
-The gateway speaks two distinct ACP method families with the sidecar:
+- `endpoint_chat.go` owns the chat HTTP and ACP lifecycle.
+- `endpoint_turn_mcp.go` and `turn_registry.go` provide the per-turn MCP
+  route and lifecycle.
+- `mcp_ui_tools.go` exposes browser UI tools through MCP under `UIToolPrefix`.
+- `streaming_client.go` translates ACP notifications into AG-UI SSE events.
+- `translation.go` holds the AG-UI to ACP helpers, including the prefix strip.
+- `ws_adapter.go` adapts the ACP WebSocket transport.
+- `../mcptools` serves the shared MCP endpoint and the telemetry tools.
 
-**Standard methods** (defined by the protocol):
-
-- Outbound from gateway: `Initialize`, `NewSession`, `Prompt`.
-- Inbound to gateway:
-  - `session/update` — informational stream (text chunks, thought chunks, tool call
-    notifications, plans), written into the HTTP response.
-  - `session/request_permission` — always denied; gateway advertises no fs/terminal
-    capability in `Initialize`.
-
-`SessionUpdate(ToolCall)` notifications are purely informational (UI progress display).
-The sidecar executes built-in MCP tools by calling Jaeger's MCP server directly over
-HTTP — those calls do not flow through the gateway.
-
-**Extension methods** (defined by this package):
-
-- `_meta/jaegertracing.io/tools/call` — sent by the sidecar when the LLM requests a
-  contextual tool. Payload: `{sessionId, name, args}`. The gateway replies with a
-  `CallToolResult`-shaped object. PR1 returns a logged placeholder; PR2 will round-trip
-  the call to the browser via the open HTTP response stream and return the real result.
-
-## Contextual Tools
-
-Frontend-supplied AG-UI tools follow this lifecycle:
-
-1. The browser includes a `tools` array in its POST to `/api/ai/chat` (PR2 wiring).
-2. The gateway prefixes each tool name with `UIToolPrefix` (`ui_`) and attaches the
-   prefixed snapshot to `NewSessionRequest.Meta` under the namespaced key
-   `jaegertracing.io/contextual-tools` so the sidecar can register them with the LLM.
-3. Once `NewSessionResponse` returns with the assigned `SessionId`, the gateway
-   writes the same prefixed snapshot into `ContextualToolsStore` keyed by that
-   session id, then sends `Prompt`.
-4. When the LLM calls a contextual tool, the sidecar dispatches
-   `_meta/jaegertracing.io/tools/call` over ACP back to the gateway with
-   `{sessionId, name, args}`.
-5. The dispatcher strips the `ui_` prefix, looks the call up in the store by the
-   session id, and (PR2) relays it to the browser via the streaming HTTP response.
-6. The browser executes the tool, returns the result, the dispatcher returns it
-   to the sidecar, the sidecar feeds it back into the LLM.
-7. After `Prompt` returns, the chat handler calls `DeleteForSession` so the store
-   does not accumulate entries.
-
-## Related Components
-
-- **Agent Sidecar**: See `scripts/ai-sidecar/` for reference implementations
-  (e.g. Gemini-based Python sidecar).
-- **MCP Server**: Jaeger's MCP server exposes built-in trace query tools at `/mcp`.
-- **ACP Protocol**: See https://agentclientprotocol.com/.
+Protocol specifications: [ACP](https://agentclientprotocol.com/) and
+[AG-UI](https://docs.ag-ui.com/).

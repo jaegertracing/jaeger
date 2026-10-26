@@ -58,6 +58,17 @@ func TestAddWarning(t *testing.T) {
 	}
 }
 
+func TestAddWarnings_NonSliceAttribute(t *testing.T) {
+	// Simulates a warnings attribute that round-tripped through a storage
+	// backend without slice-typed tag support (e.g. Elasticsearch stores it
+	// as a string tag). AddWarnings must not panic and must preserve the
+	// previous value. See https://github.com/jaegertracing/jaeger/issues/8746.
+	span := ptrace.NewSpan()
+	span.Attributes().PutStr(WarningsAttribute, "warning A")
+	AddWarnings(span, "warning B")
+	assert.Equal(t, []string{"warning A", "warning B"}, GetWarnings(span))
+}
+
 func TestAddWarning_MultipleWarnings(t *testing.T) {
 	span := ptrace.NewSpan()
 	AddWarnings(span, "warning-1", "warning-2")

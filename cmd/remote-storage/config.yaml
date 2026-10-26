@@ -1,6 +1,19 @@
+# Copyright (c) 2026 The Jaeger Authors.
+# SPDX-License-Identifier: Apache-2.0
+
 # Example configuration for remote-storage service
 # This service exposes a gRPC API for remote storage backends
 # and allows sharing single-node storage implementations like memory or Badger.
+
+# Admin server (health check, metrics, pprof); logging; metrics. Shown with their defaults.
+admin:
+  endpoint: :17270
+logging:
+  level: info
+  encoding: json
+metrics:
+  backend: prometheus
+  http_route: /metrics
 
 # Server configuration
 grpc:

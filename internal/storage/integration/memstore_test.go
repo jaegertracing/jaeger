@@ -10,6 +10,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
 
+	"github.com/jaegertracing/jaeger/internal/storage/integration/capabilities"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/memory"
 	"github.com/jaegertracing/jaeger/internal/telemetry"
 	"github.com/jaegertracing/jaeger/internal/testutils"
@@ -35,6 +36,7 @@ func (s *MemStorageIntegrationTestSuite) initialize(t *testing.T) {
 	s.SamplingStore = memory.NewSamplingStore(2)
 	s.TraceReader = traceReader
 	s.TraceWriter = traceWriter
+	s.Capabilities = capabilities.Memory()
 
 	// TODO DependencyWriter is not implemented in memory store
 
@@ -42,7 +44,7 @@ func (s *MemStorageIntegrationTestSuite) initialize(t *testing.T) {
 }
 
 func TestMemoryStorage(t *testing.T) {
-	SkipUnlessEnv(t, "memory")
+	SkipUnlessEnv(t, StorageMemory)
 	t.Cleanup(func() {
 		testutils.VerifyGoLeaksOnce(t)
 	})

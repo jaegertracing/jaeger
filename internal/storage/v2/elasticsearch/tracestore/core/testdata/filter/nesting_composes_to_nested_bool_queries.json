@@ -1,0 +1,31 @@
+{
+  "bool": {
+    "must": [
+      {
+        "term": {
+          "process.serviceName": "cart"
+        }
+      },
+      {
+        "bool": {
+          "should": [
+            {
+              "term": {
+                "operationName": "a"
+              }
+            },
+            {
+              "bool": {
+                "must_not": {
+                  "term": {
+                    "operationName": "b"
+                  }
+                }
+              }
+            }
+          ]
+        }
+      }
+    ]
+  }
+}

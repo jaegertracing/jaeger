@@ -19,10 +19,11 @@ func TestDriver_Query_Match(t *testing.T) {
 			"SELECT foo": {Rows: rows, Err: nil},
 		},
 	}
-	got, err := d.Query(context.Background(), "SELECT foo FROM bar")
+	got, err := d.Query(context.Background(), "SELECT foo FROM bar", "arg", 1)
 	require.NoError(t, err)
 	assert.Equal(t, rows, got)
 	assert.Equal(t, []string{"SELECT foo FROM bar"}, d.RecordedQueries)
+	assert.Equal(t, [][]any{{"arg", 1}}, d.RecordedArgs)
 }
 
 func TestDriver_Query_MatchError(t *testing.T) {
@@ -69,8 +70,10 @@ func TestDriver_PrepareBatch_Match(t *testing.T) {
 	}
 	got, err := d.PrepareBatch(context.Background(), "INSERT INTO spans VALUES (?)")
 	require.NoError(t, err)
+	defer got.Close()
 	assert.Equal(t, batch, got)
 	assert.Equal(t, []string{"INSERT INTO spans VALUES (?)"}, d.RecordedQueries)
+	assert.Equal(t, [][]any{nil}, d.RecordedArgs)
 }
 
 func TestDriver_PrepareBatch_MatchError(t *testing.T) {
@@ -80,7 +83,7 @@ func TestDriver_PrepareBatch_MatchError(t *testing.T) {
 			"INSERT INTO spans": {Batch: nil, Err: wantErr},
 		},
 	}
-	got, err := d.PrepareBatch(context.Background(), "INSERT INTO spans VALUES (?)")
+	got, err := d.PrepareBatch(context.Background(), "INSERT INTO spans VALUES (?)") //nolint:clickhouselint // got is nil on error
 	require.ErrorIs(t, err, wantErr)
 	assert.Nil(t, got)
 }
@@ -91,7 +94,7 @@ func TestDriver_PrepareBatch_NoMatch(t *testing.T) {
 			"INSERT INTO spans": {Batch: &Batch{}},
 		},
 	}
-	got, err := d.PrepareBatch(context.Background(), "INSERT INTO other VALUES (?)")
+	got, err := d.PrepareBatch(context.Background(), "INSERT INTO other VALUES (?)") //nolint:clickhouselint // got is nil when no match
 	require.NoError(t, err)
 	assert.Nil(t, got)
 }
@@ -136,7 +139,9 @@ func TestRows_Next(t *testing.T) {
 
 func TestRows_Close(t *testing.T) {
 	r := &Rows[string]{}
+	assert.False(t, r.Closed)
 	require.NoError(t, r.Close())
+	assert.True(t, r.Closed)
 
 	r2 := &Rows[string]{CloseErr: errors.New("close error")}
 	require.Error(t, r2.Close())

@@ -5,7 +5,6 @@ package dbmodel
 
 import (
 	"encoding/base64"
-	"encoding/hex"
 	"fmt"
 	"strings"
 	"time"
@@ -69,22 +68,22 @@ func convertScope(sr *SpanRow, spanForWarnings ptrace.Span) pcommon.Instrumentat
 func convertSpan(sr *SpanRow) (ptrace.Span, error) {
 	span := ptrace.NewSpan()
 	span.SetStartTimestamp(pcommon.NewTimestampFromTime(sr.StartTime))
-	traceId, err := hex.DecodeString(sr.TraceID)
+	traceId, err := jptrace.TraceIDFromString(sr.TraceID)
 	if err != nil {
 		return span, fmt.Errorf("failed to decode trace ID: %w", err)
 	}
-	span.SetTraceID(pcommon.TraceID(traceId))
-	spanId, err := hex.DecodeString(sr.ID)
+	span.SetTraceID(traceId)
+	spanId, err := jptrace.SpanIDFromString(sr.ID)
 	if err != nil {
 		return span, fmt.Errorf("failed to decode span ID: %w", err)
 	}
-	span.SetSpanID(pcommon.SpanID(spanId))
-	parentSpanId, err := hex.DecodeString(sr.ParentSpanID)
-	if err != nil {
-		return span, fmt.Errorf("failed to decode parent span ID: %w", err)
-	}
-	if len(parentSpanId) != 0 {
-		span.SetParentSpanID(pcommon.SpanID(parentSpanId))
+	span.SetSpanID(spanId)
+	if sr.ParentSpanID != "" {
+		parentSpanId, err := jptrace.SpanIDFromString(sr.ParentSpanID)
+		if err != nil {
+			return span, fmt.Errorf("failed to decode parent span ID: %w", err)
+		}
+		span.SetParentSpanID(parentSpanId)
 	}
 	span.TraceState().FromRaw(sr.TraceState)
 	span.SetName(sr.Name)
@@ -108,18 +107,18 @@ func convertSpan(sr *SpanRow) (ptrace.Span, error) {
 
 	for i, l := range sr.LinkTraceIDs {
 		link := span.Links().AppendEmpty()
-		traceID, err := hex.DecodeString(l)
+		traceID, err := jptrace.TraceIDFromString(l)
 		if err != nil {
 			jptrace.AddWarnings(span, fmt.Sprintf("failed to decode link trace ID: %v", err))
 			continue
 		}
-		link.SetTraceID(pcommon.TraceID(traceID))
-		spanID, err := hex.DecodeString(sr.LinkSpanIDs[i])
+		link.SetTraceID(traceID)
+		spanID, err := jptrace.SpanIDFromString(sr.LinkSpanIDs[i])
 		if err != nil {
 			jptrace.AddWarnings(span, fmt.Sprintf("failed to decode link span ID: %v", err))
 			continue
 		}
-		link.SetSpanID(pcommon.SpanID(spanID))
+		link.SetSpanID(spanID)
 		link.TraceState().FromRaw(sr.LinkTraceStates[i])
 
 		putAttributes2D(link.Attributes(), &sr.LinkAttributes, i, span)

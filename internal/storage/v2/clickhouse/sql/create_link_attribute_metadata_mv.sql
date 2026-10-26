@@ -4,12 +4,11 @@ SELECT
     tp.2 AS type,
     'link' AS level
 FROM spans
-ARRAY JOIN links
 ARRAY JOIN arrayConcat(
-    arrayMap(k -> (k, 'bool'),   links.bool_attributes.key),
-    arrayMap(k -> (k, 'double'), links.double_attributes.key),
-    arrayMap(k -> (k, 'int'),    links.int_attributes.key),
-    arrayMap(k -> (k, 'str'),    links.str_attributes.key),
+    arrayMap(k -> (k, 'bool'),   arrayFlatten(links.bool_attributes.key)),
+    arrayMap(k -> (k, 'double'), arrayFlatten(links.double_attributes.key)),
+    arrayMap(k -> (k, 'int'),    arrayFlatten(links.int_attributes.key)),
+    arrayMap(k -> (k, 'str'),    arrayFlatten(links.str_attributes.key)),
     arrayMap(k -> (
         multiIf(startsWith(k, '@bytes@'), substring(k, 8),
                 startsWith(k, '@map@'),   substring(k, 6),
@@ -17,6 +16,6 @@ ARRAY JOIN arrayConcat(
         multiIf(startsWith(k, '@bytes@'), 'bytes',
                 startsWith(k, '@map@'),   'map',
                 startsWith(k, '@slice@'), 'slice', '')
-    ), links.complex_attributes.key)
+    ), arrayFlatten(links.complex_attributes.key))
 ) AS tp
 GROUP BY attribute_key, type, level;

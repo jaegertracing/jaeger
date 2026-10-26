@@ -1,9 +1,19 @@
+# Copyright (c) 2026 The Jaeger Authors.
+# SPDX-License-Identifier: Apache-2.0
+
 name: "CI Orchestrator: Stage 1 (Linters)"
 
 on:
   workflow_call:
 
+permissions:
+  contents: read
+
 jobs:
   lint-checks:
+    permissions:
+      contents: read
+      # binary-size-check reads the PR's labels to see whether its size gate is waived.
+      pull-requests: read
     uses: ./.github/workflows/ci-lint-checks.yaml
     secrets: inherit

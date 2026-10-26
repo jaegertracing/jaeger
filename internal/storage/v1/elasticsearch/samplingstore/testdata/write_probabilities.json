@@ -1,0 +1,27 @@
+{
+  "method": "POST",
+  "path": "/_bulk",
+  "ndjson": [
+    {
+      "index": {
+        "_index": "jaeger-sampling-write"
+      }
+    },
+    {
+      "probabilitiesandqps": {
+        "Hostname": "dell11eg843d",
+        "Probabilities": {
+          "new-srv": {
+            "op": 0.1
+          }
+        },
+        "QPS": {
+          "new-srv": {
+            "op": 4
+          }
+        }
+      },
+      "timestamp": "2024-02-08T12:00:00Z"
+    }
+  ]
+}

@@ -54,6 +54,9 @@ func (r *Reader) GetDependencies(ctx context.Context, query depstore.QueryParame
 			merged[dependencyKey{link.Parent, link.Child}] += link.CallCount
 		}
 	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("failed to read dependency rows: %w", err)
+	}
 
 	if len(merged) == 0 {
 		return nil, nil
