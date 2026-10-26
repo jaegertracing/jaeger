@@ -3,6 +3,7 @@ module github.com/jaegertracing/jaeger
 go 1.27.0
 
 require (
+	github.com/AfterShip/clickhouse-sql-parser v0.5.6
 	github.com/ClickHouse/ch-go v0.74.0
 	github.com/ClickHouse/clickhouse-go/v2 v2.48.0
 	github.com/ag-ui-protocol/ag-ui/sdks/community/go v0.0.0-20260630145048-7479d97e25f6

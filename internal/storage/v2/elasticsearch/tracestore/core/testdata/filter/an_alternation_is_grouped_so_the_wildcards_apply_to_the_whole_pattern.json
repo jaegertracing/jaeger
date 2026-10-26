@@ -5,7 +5,7 @@
         "regexp": {
           "tag.http@route": {
             "flags": "NONE",
-            "value": ".*(cart|checkout).*"
+            "value": ".*(c(art|heckout)).*"
           }
         }
       },
@@ -24,7 +24,7 @@
                   "regexp": {
                     "tags.value": {
                       "flags": "NONE",
-                      "value": ".*(cart|checkout).*"
+                      "value": ".*(c(art|heckout)).*"
                     }
                   }
                 }
