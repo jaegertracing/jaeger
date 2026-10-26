@@ -68,9 +68,12 @@ esIndexCleaner:
     # The chart defaults to its appVersion, which is not a published tag.
     tag: "2.21.0"
   cmdlineParams:
-    # The cleaner matches "<prefix>jaeger-span-<date>", so the trailing dash is
-    # required. The chart's ES_INDEX_PREFIX env var is not read by the cleaner.
-    index-prefix: "jaeger-main-"
+    # Pinned 2.21.0 appends "-" to every nonempty prefix, then matches
+    # "<prefix>jaeger-(span|service|dependencies|sampling)-<date>". Set this
+    # to the same index_prefix jaeger-config.yaml writes ("jaeger-main"),
+    # which becomes jaeger-main-jaeger-span-<date>. The chart's
+    # ES_INDEX_PREFIX env var is not read by the cleaner.
+    index-prefix: "jaeger-main"
   resources:
     requests:
       cpu: "50m"

@@ -35,13 +35,15 @@ testCleanerImageTagIsPinnedToPublishedRelease() {
   assertTrue "tag '$tag' should be a release version" "[[ '$tag' =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]"
 }
 
-# The cleaner only deletes "<prefix>jaeger-(span|service|...)-<date>" indices,
-# so its prefix must be the index_prefix Jaeger writes with plus a dash.
+# Pinned es-index-cleaner 2.21.0 appends "-" to every nonempty prefix and
+# matches "<prefix>jaeger-(span|service|...)-<date>", so the value here must
+# equal the index_prefix Jaeger writes with.
 testCleanerPrefixMatchesJaegerIndexPrefix() {
   written=$(awk '/index_prefix:/{gsub(/"/,"",$2);print $2;exit}' "$CONFIG")
   cleaned=$(value_in_block esIndexCleaner "    index-prefix" "$VALUES")
   assertNotNull "index_prefix should be set in jaeger-config.yaml" "$written"
-  assertEquals "${written}-" "$cleaned"
+  assertEquals "jaeger-main" "$written"
+  assertEquals "$written" "$cleaned"
 }
 
 # The Jaeger indices use the daily date layout the cleaner expects by default.
