@@ -63,12 +63,24 @@ func (h *getDependenciesHandler) handle(
 		return nil, types.GetDependenciesOutput{}, fmt.Errorf("failed to get dependencies: %w", err)
 	}
 
-	links := make([]types.DependencyLink, 0, len(deps))
+	// Storage backends such as Elasticsearch and Cassandra return one link per
+	// stored snapshot, so the same caller/callee pair can appear several times
+	// within the lookback window. Merge them into a single edge per pair.
+	type edgeKey struct {
+		caller string
+		callee string
+	}
+	merged := make(map[edgeKey]uint64, len(deps))
 	for _, d := range deps {
+		merged[edgeKey{caller: d.Parent, callee: d.Child}] += d.CallCount
+	}
+
+	links := make([]types.DependencyLink, 0, len(merged))
+	for k, callCount := range merged {
 		links = append(links, types.DependencyLink{
-			Caller:    d.Parent,
-			Callee:    d.Child,
-			CallCount: d.CallCount,
+			Caller:    k.caller,
+			Callee:    k.callee,
+			CallCount: callCount,
 		})
 	}
 
