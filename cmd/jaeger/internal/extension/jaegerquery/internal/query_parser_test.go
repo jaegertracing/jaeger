@@ -5,6 +5,7 @@
 package app
 
 import (
+	"fmt"
 	"net/http"
 	"testing"
 	"time"
@@ -58,6 +59,43 @@ func TestParseDuration(t *testing.T) {
 	mqp, err := parser.parseMetricsQueryParams(request)
 	require.NoError(t, err)
 	assert.Equal(t, time.Second, *mqp.Step)
+}
+
+func TestParseTimeLargeValues(t *testing.T) {
+	parser := &queryParser{
+		timeNow: time.Now,
+	}
+	for _, tc := range []struct {
+		name   string
+		value  int64
+		toTime func(int64) time.Time
+	}{
+		{
+			// Multiplying by time.Millisecond overflowed this to 1970-01-01T00:00:00.000192Z.
+			name:   "milliseconds",
+			value:  9223372036854776,
+			toTime: time.UnixMilli,
+		},
+		{
+			name:   "microseconds",
+			value:  9223372036854776,
+			toTime: time.UnixMicro,
+		},
+		{
+			name:   "negative milliseconds",
+			value:  -9223372036854776,
+			toTime: time.UnixMilli,
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			request, err := http.NewRequest(http.MethodGet, fmt.Sprintf("x?ts=%d", tc.value), http.NoBody)
+			require.NoError(t, err)
+			got, err := parser.parseTime(request, "ts", tc.toTime)
+			require.NoError(t, err)
+			assert.True(t, tc.toTime(tc.value).Equal(got), "got %v", got)
+			assert.NotEqual(t, 1970, got.UTC().Year())
+		})
+	}
 }
 
 func TestParseRepeatedServices(t *testing.T) {
@@ -144,6 +182,46 @@ func TestParameterErrors(t *testing.T) {
 			name:             "invalid ratePer parameter",
 			urlPath:          "/api/metrics/calls?service=emailservice&ratePer=foo",
 			wantErrorMessage: `unable to parse param 'ratePer': strconv.ParseInt: parsing \"foo\": invalid syntax`,
+		},
+		{
+			name:             "zero lookback parameter",
+			urlPath:          "/api/metrics/calls?service=emailservice&lookback=0",
+			wantErrorMessage: `unable to parse param 'lookback': must be a positive duration`,
+		},
+		{
+			name:             "negative lookback parameter",
+			urlPath:          "/api/metrics/calls?service=emailservice&lookback=-1000",
+			wantErrorMessage: `unable to parse param 'lookback': must be a positive duration`,
+		},
+		{
+			name:             "zero step parameter",
+			urlPath:          "/api/metrics/calls?service=emailservice&step=0",
+			wantErrorMessage: `unable to parse param 'step': must be a positive duration`,
+		},
+		{
+			name:             "negative step parameter",
+			urlPath:          "/api/metrics/calls?service=emailservice&step=-1000",
+			wantErrorMessage: `unable to parse param 'step': must be a positive duration`,
+		},
+		{
+			name:             "zero ratePer parameter",
+			urlPath:          "/api/metrics/calls?service=emailservice&ratePer=0",
+			wantErrorMessage: `unable to parse param 'ratePer': must be a positive duration`,
+		},
+		{
+			name:             "negative ratePer parameter",
+			urlPath:          "/api/metrics/calls?service=emailservice&ratePer=-1000",
+			wantErrorMessage: `unable to parse param 'ratePer': must be a positive duration`,
+		},
+		{
+			name:             "overflowing negative lookback parameter",
+			urlPath:          "/api/metrics/calls?service=emailservice&lookback=-18446744073709551",
+			wantErrorMessage: `unable to parse param 'lookback': value -18446744073709551 is out of range for a duration`,
+		},
+		{
+			name:             "overflowing positive step parameter",
+			urlPath:          "/api/metrics/calls?service=emailservice&step=9223372036854776",
+			wantErrorMessage: `unable to parse param 'step': value 9223372036854776 is out of range for a duration`,
 		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {

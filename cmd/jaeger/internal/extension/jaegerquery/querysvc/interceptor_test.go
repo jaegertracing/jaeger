@@ -253,19 +253,13 @@ func searchSpansQuery(q SpanQueryParams) SpanQueryParams {
 // serviceFilter builds the predicate `resource.service == name`, which is how an access-control
 // interceptor scopes a search to a service the caller may read.
 func serviceFilter(name string) *expression.Call {
-	return &expression.Call{Op: expression.OpEq, Args: []expression.Expression{
-		&expression.FieldRef{Level: expression.LevelResource, Name: expression.ResourceFieldService},
-		&expression.StringValue{Value: name},
-	}}
+	return p.Resource().Service.Eq(p.String(name))
 }
 
 // routeFilter builds the predicate `span.http.route == "/cart"`, a predicate qualified by the
 // level it applies to.
 func routeFilter() *expression.Call {
-	return &expression.Call{Op: expression.OpEq, Args: []expression.Expression{
-		&expression.AttributeRef{Key: "http.route", Level: expression.LevelSpan},
-		&expression.AnyValue{Value: "/cart"},
-	}}
+	return p.Span().Attr("http.route").Eq("/cart")
 }
 
 func narrowSpansTo(filter *expression.Call) func(queryinterceptor.SpanQuery) (queryinterceptor.SpanQuery, error) {
@@ -452,9 +446,7 @@ func TestFindTraces_RefusesAPredicateTheBackendCannotServe(t *testing.T) {
 	t.Run("the backend evaluates no filter and the fields cannot carry it", func(t *testing.T) {
 		next := &fakeReader{batch: tracesWith("k", "v")}
 		qs := interceptedService(next, fakeInterceptor{
-			onQuery: narrowTo(&expression.Call{Op: expression.OpOr, Args: []expression.Expression{
-				serviceFilter("a"), serviceFilter("b"),
-			}}),
+			onQuery: narrowTo(p.Or(serviceFilter("a"), serviceFilter("b"))),
 		})
 
 		_, err := collectTraces(qs.FindTraces(t.Context(), searchQuery(TraceQueryParams{
@@ -476,9 +468,7 @@ func TestFindTraces_RefusesAPredicateTheBackendCannotServe(t *testing.T) {
 			},
 		}
 		qs := interceptedService(next, fakeInterceptor{
-			onQuery: narrowTo(&expression.Call{Op: expression.OpAnd, Args: []expression.Expression{
-				spanPredicate, serviceFilter("gated"),
-			}}),
+			onQuery: narrowTo(p.And(spanPredicate, serviceFilter("gated"))),
 		})
 
 		_, err := collectTraces(qs.FindTraces(t.Context(), searchQuery(TraceQueryParams{
@@ -506,6 +496,8 @@ func TestFindTraces_RefusesAnInvalidInterceptorFilter(t *testing.T) {
 			expectedErr: "widen the search to everything in the time range",
 		},
 		{
+			// The builder's And of one predicate is that predicate, so the conjunction of one, the
+			// unknown operator and the missing operand below are built by hand.
 			name:        "a conjunction of one",
 			filter:      &expression.Call{Op: expression.OpAnd, Args: []expression.Expression{serviceFilter("gated")}},
 			expectedErr: `operator "and" takes at least two arguments`,
@@ -586,10 +578,7 @@ func TestFindTraces_LeavesALegacyQueryAloneWhenNothingChangedIt(t *testing.T) {
 		enableStructuredFilters(t)
 		next := &fakeReader{batch: tracesWith("k", "v")}
 		next.capabilities = filterCapableBackend()
-		narrowed := &expression.Call{Op: expression.OpEq, Args: []expression.Expression{
-			&expression.FieldRef{Name: expression.ResourceFieldService, Level: expression.LevelResource},
-			&expression.StringValue{Value: "gated"},
-		}}
+		narrowed := serviceFilter("gated")
 		qs := interceptedService(next, fakeInterceptor{onQuery: narrowTo(narrowed)})
 
 		_, err := collectTraces(qs.FindTraces(t.Context(), searchQuery(TraceQueryParams{
@@ -628,10 +617,7 @@ func TestFindTraces_LeavesALegacyQueryAloneWhenNothingChangedIt(t *testing.T) {
 		next.capabilities = filterCapableBackend()
 		qs := interceptedService(next, fakeInterceptor{})
 
-		filter := &expression.Call{Op: expression.OpEq, Args: []expression.Expression{
-			&expression.FieldRef{Name: expression.ResourceFieldService, Level: expression.LevelResource},
-			&expression.AnyValue{Value: "cart"},
-		}}
+		filter := p.Resource().Service.Eq("cart")
 		_, err := collectTraces(qs.FindTraces(t.Context(), searchQuery(TraceQueryParams{
 			Filter: filter,
 		})))
@@ -671,59 +657,29 @@ func TestFindTraces_FinalizesAnInterceptorFilter(t *testing.T) {
 		expected *expression.Call
 	}{
 		{
-			name: "a duration compared against the field that holds one",
-			returned: &expression.Call{Op: expression.OpGt, Args: []expression.Expression{
-				&expression.FieldRef{Name: expression.SpanFieldDuration, Level: expression.LevelSpan},
-				&expression.AnyValue{Value: "2s"},
-			}},
-			expected: &expression.Call{Op: expression.OpGt, Args: []expression.Expression{
-				&expression.FieldRef{Name: expression.SpanFieldDuration, Level: expression.LevelSpan},
-				&expression.DurationValue{Value: 2 * time.Second},
-			}},
+			name:     "a duration compared against the field that holds one",
+			returned: p.Span().Duration.Gt("2s"),
+			expected: p.Span().Duration.Gt(p.Duration(2 * time.Second)),
 		},
 		{
-			name: "an instant compared against a timestamp field",
-			returned: &expression.Call{Op: expression.OpLt, Args: []expression.Expression{
-				&expression.FieldRef{Name: expression.SpanFieldStartTime, Level: expression.LevelSpan},
-				&expression.AnyValue{Value: "2026-08-18T00:00:00Z"},
-			}},
-			expected: &expression.Call{Op: expression.OpLt, Args: []expression.Expression{
-				&expression.FieldRef{Name: expression.SpanFieldStartTime, Level: expression.LevelSpan},
-				&expression.TimestampValue{Value: time.Date(2026, 8, 18, 0, 0, 0, 0, time.UTC)},
-			}},
+			name:     "an instant compared against a timestamp field",
+			returned: p.Span().StartTime.Lt("2026-08-18T00:00:00Z"),
+			expected: p.Span().StartTime.Lt(&expression.TimestampValue{Value: time.Date(2026, 8, 18, 0, 0, 0, 0, time.UTC)}),
 		},
 		{
-			name: "a comparison written with the constant on the left",
-			returned: &expression.Call{Op: expression.OpGt, Args: []expression.Expression{
-				&expression.AnyValue{Value: "2s"},
-				&expression.FieldRef{Name: expression.SpanFieldDuration, Level: expression.LevelSpan},
-			}},
-			expected: &expression.Call{Op: expression.OpLt, Args: []expression.Expression{
-				&expression.FieldRef{Name: expression.SpanFieldDuration, Level: expression.LevelSpan},
-				&expression.DurationValue{Value: 2 * time.Second},
-			}},
+			name:     "a comparison written with the constant on the left",
+			returned: p.Compare(expression.OpGt, p.RefOf(&expression.AnyValue{Value: "2s"}), p.Span().Duration),
+			expected: p.Span().Duration.Lt(p.Duration(2 * time.Second)),
 		},
 		{
-			name: "a typed list against an attribute",
-			returned: &expression.Call{Op: expression.OpIn, Args: []expression.Expression{
-				&expression.AttributeRef{Key: "http.status_code"},
-				&expression.List{Values: []string{"500", "503"}, Type: expression.ValueTypeInt},
-			}},
-			expected: &expression.Call{Op: expression.OpIn, Args: []expression.Expression{
-				&expression.AttributeRef{Key: "http.status_code"},
-				&expression.List{Values: []string{"500", "503"}, Type: expression.ValueTypeInt},
-			}},
+			name:     "a typed list against an attribute",
+			returned: p.Attr("http.status_code").In(p.List(expression.ValueTypeInt, "500", "503")),
+			expected: p.Attr("http.status_code").In(p.List(expression.ValueTypeInt, "500", "503")),
 		},
 		{
-			name: "a word one of the closed sets holds",
-			returned: &expression.Call{Op: expression.OpEq, Args: []expression.Expression{
-				&expression.FieldRef{Name: expression.SpanFieldKind, Level: expression.LevelSpan},
-				&expression.AnyValue{Value: "server"},
-			}},
-			expected: &expression.Call{Op: expression.OpEq, Args: []expression.Expression{
-				&expression.FieldRef{Name: expression.SpanFieldKind, Level: expression.LevelSpan},
-				&expression.StringValue{Value: "server"},
-			}},
+			name:     "a word one of the closed sets holds",
+			returned: p.Span().Kind.Eq("server"),
+			expected: p.Span().Kind.Eq(p.String("server")),
 		},
 	}
 	for _, test := range tests {
@@ -749,10 +705,7 @@ func TestFindTraces_RefusesAnInterceptorConstantThatWillNotParse(t *testing.T) {
 	enableStructuredFilters(t)
 	next := &fakeReader{batch: tracesWith("k", "v")}
 	next.capabilities = filterCapableBackend()
-	returned := &expression.Call{Op: expression.OpGt, Args: []expression.Expression{
-		&expression.FieldRef{Name: expression.SpanFieldDuration, Level: expression.LevelSpan},
-		&expression.AnyValue{Value: "banana"},
-	}}
+	returned := p.Span().Duration.Gt("banana")
 	qs := interceptedService(next, fakeInterceptor{onQuery: narrowTo(returned)})
 
 	_, err := collectTraces(qs.FindTraces(t.Context(), searchQuery(TraceQueryParams{
@@ -1170,9 +1123,7 @@ func TestFindSpans_RefusesAPredicateTheBackendCannotServe(t *testing.T) {
 		},
 	}
 	qs := interceptedService(next, fakeInterceptor{
-		onSpanQuery: narrowSpansTo(&expression.Call{Op: expression.OpAnd, Args: []expression.Expression{
-			spanPredicate, serviceFilter("gated"),
-		}}),
+		onSpanQuery: narrowSpansTo(p.And(spanPredicate, serviceFilter("gated"))),
 	})
 
 	_, err := collectSpans(qs.FindSpans(t.Context(), searchSpansQuery(SpanQueryParams{
@@ -1216,6 +1167,7 @@ func TestFindSpans_RefusesACallerFilterTheDeploymentDoesNotAccept(t *testing.T) 
 		qs := interceptedService(next)
 
 		_, err := collectSpans(qs.FindSpans(t.Context(), searchSpansQuery(SpanQueryParams{
+			// A conjunction of one is a tree the builder cannot spell.
 			Filter: &expression.Call{Op: expression.OpAnd, Args: []expression.Expression{serviceFilter("cart")}},
 		})))
 		require.ErrorIs(t, err, tracestore.ErrFilterInvalid)
@@ -1237,6 +1189,8 @@ func TestFindSpans_RefusesAnInvalidInterceptorFilter(t *testing.T) {
 		expectedErr string
 	}{
 		{
+			// The builder's And of one predicate is that predicate, so the conjunction of one, the
+			// unknown operator and the missing operand below are built by hand.
 			name:        "a conjunction of one",
 			filter:      &expression.Call{Op: expression.OpAnd, Args: []expression.Expression{serviceFilter("gated")}},
 			expectedErr: `operator "and" takes at least two arguments`,
@@ -1302,59 +1256,29 @@ func TestFindSpans_FinalizesAnInterceptorFilter(t *testing.T) {
 		expected *expression.Call
 	}{
 		{
-			name: "a duration compared against the field that holds one",
-			returned: &expression.Call{Op: expression.OpGt, Args: []expression.Expression{
-				&expression.FieldRef{Name: expression.SpanFieldDuration, Level: expression.LevelSpan},
-				&expression.AnyValue{Value: "2s"},
-			}},
-			expected: &expression.Call{Op: expression.OpGt, Args: []expression.Expression{
-				&expression.FieldRef{Name: expression.SpanFieldDuration, Level: expression.LevelSpan},
-				&expression.DurationValue{Value: 2 * time.Second},
-			}},
+			name:     "a duration compared against the field that holds one",
+			returned: p.Span().Duration.Gt("2s"),
+			expected: p.Span().Duration.Gt(p.Duration(2 * time.Second)),
 		},
 		{
-			name: "an instant compared against a timestamp field",
-			returned: &expression.Call{Op: expression.OpLt, Args: []expression.Expression{
-				&expression.FieldRef{Name: expression.SpanFieldStartTime, Level: expression.LevelSpan},
-				&expression.AnyValue{Value: "2026-08-18T00:00:00Z"},
-			}},
-			expected: &expression.Call{Op: expression.OpLt, Args: []expression.Expression{
-				&expression.FieldRef{Name: expression.SpanFieldStartTime, Level: expression.LevelSpan},
-				&expression.TimestampValue{Value: time.Date(2026, 8, 18, 0, 0, 0, 0, time.UTC)},
-			}},
+			name:     "an instant compared against a timestamp field",
+			returned: p.Span().StartTime.Lt("2026-08-18T00:00:00Z"),
+			expected: p.Span().StartTime.Lt(&expression.TimestampValue{Value: time.Date(2026, 8, 18, 0, 0, 0, 0, time.UTC)}),
 		},
 		{
-			name: "a comparison written with the constant on the left",
-			returned: &expression.Call{Op: expression.OpGt, Args: []expression.Expression{
-				&expression.AnyValue{Value: "2s"},
-				&expression.FieldRef{Name: expression.SpanFieldDuration, Level: expression.LevelSpan},
-			}},
-			expected: &expression.Call{Op: expression.OpLt, Args: []expression.Expression{
-				&expression.FieldRef{Name: expression.SpanFieldDuration, Level: expression.LevelSpan},
-				&expression.DurationValue{Value: 2 * time.Second},
-			}},
+			name:     "a comparison written with the constant on the left",
+			returned: p.Compare(expression.OpGt, p.RefOf(&expression.AnyValue{Value: "2s"}), p.Span().Duration),
+			expected: p.Span().Duration.Lt(p.Duration(2 * time.Second)),
 		},
 		{
-			name: "a typed list against an attribute",
-			returned: &expression.Call{Op: expression.OpIn, Args: []expression.Expression{
-				&expression.AttributeRef{Key: "http.status_code"},
-				&expression.List{Values: []string{"500", "503"}, Type: expression.ValueTypeInt},
-			}},
-			expected: &expression.Call{Op: expression.OpIn, Args: []expression.Expression{
-				&expression.AttributeRef{Key: "http.status_code"},
-				&expression.List{Values: []string{"500", "503"}, Type: expression.ValueTypeInt},
-			}},
+			name:     "a typed list against an attribute",
+			returned: p.Attr("http.status_code").In(p.List(expression.ValueTypeInt, "500", "503")),
+			expected: p.Attr("http.status_code").In(p.List(expression.ValueTypeInt, "500", "503")),
 		},
 		{
-			name: "a word one of the closed sets holds",
-			returned: &expression.Call{Op: expression.OpEq, Args: []expression.Expression{
-				&expression.FieldRef{Name: expression.SpanFieldKind, Level: expression.LevelSpan},
-				&expression.AnyValue{Value: "server"},
-			}},
-			expected: &expression.Call{Op: expression.OpEq, Args: []expression.Expression{
-				&expression.FieldRef{Name: expression.SpanFieldKind, Level: expression.LevelSpan},
-				&expression.StringValue{Value: "server"},
-			}},
+			name:     "a word one of the closed sets holds",
+			returned: p.Span().Kind.Eq("server"),
+			expected: p.Span().Kind.Eq(p.String("server")),
 		},
 	}
 	for _, test := range tests {
@@ -1380,10 +1304,7 @@ func TestFindSpans_RefusesAnInterceptorConstantThatWillNotParse(t *testing.T) {
 	enableStructuredFilters(t)
 	next := &fakeReader{batch: tracesWith("k", "v")}
 	next.capabilities = filterCapableBackend()
-	returned := &expression.Call{Op: expression.OpGt, Args: []expression.Expression{
-		&expression.FieldRef{Name: expression.SpanFieldDuration, Level: expression.LevelSpan},
-		&expression.AnyValue{Value: "banana"},
-	}}
+	returned := p.Span().Duration.Gt("banana")
 	qs := interceptedService(next, fakeInterceptor{onSpanQuery: narrowSpansTo(returned)})
 
 	_, err := collectSpans(qs.FindSpans(t.Context(), searchSpansQuery(SpanQueryParams{

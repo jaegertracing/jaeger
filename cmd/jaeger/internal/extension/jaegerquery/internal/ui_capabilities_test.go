@@ -4,8 +4,9 @@
 package app
 
 import (
-	"context"
 	"encoding/json"
+	"net/http"
+	"net/http/httptest"
 	"strings"
 	"testing"
 
@@ -23,7 +24,7 @@ func TestUIAdvertisesNestedSearchCapabilities(t *testing.T) {
 	)
 	require.NoError(t, err)
 	t.Cleanup(func() { require.NoError(t, handler.Close()) })
-	html := string(handler.deriveIndexHTML(t.Context()))
+	html := string(handler.deriveIndexHTML(httptest.NewRequest(http.MethodGet, "/", http.NoBody)))
 	parts := strings.SplitN(html, "JAEGER_BACKEND_CAPABILITIES = ", 2)
 	require.Len(t, parts, 2)
 	var blob map[string]json.RawMessage
@@ -40,7 +41,7 @@ func TestUIReflectsLatestSearchCapabilities(t *testing.T) {
 	search := &api_v3.SearchCapabilities{}
 	handler, err := newStaticAssetsHandler(
 		&QueryOptions{UIConfig: UIConfig{AssetsPath: "fixture"}},
-		func(context.Context) BackendCapabilities {
+		func(*http.Request) BackendCapabilities {
 			return BackendCapabilities{Search: search, SearchWithoutServiceName: search.WithoutServiceName}
 		},
 		zap.NewNop(),
@@ -48,7 +49,7 @@ func TestUIReflectsLatestSearchCapabilities(t *testing.T) {
 	require.NoError(t, err)
 	t.Cleanup(func() { require.NoError(t, handler.Close()) })
 	for _, expected := range []string{`{}`, `{"withoutServiceName":true,"spanSearch":true}`} {
-		html := string(handler.deriveIndexHTML(t.Context()))
+		html := string(handler.deriveIndexHTML(httptest.NewRequest(http.MethodGet, "/", http.NoBody)))
 		parts := strings.SplitN(html, "JAEGER_BACKEND_CAPABILITIES = ", 2)
 		require.Len(t, parts, 2)
 		var blob map[string]json.RawMessage
@@ -71,7 +72,7 @@ func TestUIEscapesSearchCapabilityMetadata(t *testing.T) {
 	)
 	require.NoError(t, err)
 	t.Cleanup(func() { require.NoError(t, handler.Close()) })
-	html := string(handler.deriveIndexHTML(t.Context()))
+	html := string(handler.deriveIndexHTML(httptest.NewRequest(http.MethodGet, "/", http.NoBody)))
 	require.NotContains(t, html, "</script><script>alert(1)</script>")
 	parts := strings.SplitN(html, "JAEGER_BACKEND_CAPABILITIES = ", 2)
 	require.Len(t, parts, 2)

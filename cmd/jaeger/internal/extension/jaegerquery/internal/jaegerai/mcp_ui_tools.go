@@ -7,12 +7,21 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"strings"
 	"sync/atomic"
 	"time"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"go.uber.org/zap"
 )
+
+// UIToolPrefix is the namespace under which the turn-scoped MCP endpoint
+// advertises the browser's UI tools, so a UI tool can never shadow a telemetry
+// tool of the same name. The double underscore follows the convention MCP
+// aggregators use for sub-domain prefixes and keeps a coincidental clash with a
+// telemetry tool name contrived. The browser registers and receives the bare
+// name; the prefix exists only between the gateway and the agent.
+const UIToolPrefix = "ui__"
 
 // MCP method names the UI-dispatch middleware intercepts. The go-sdk keeps its
 // own copies of these unexported, so we spell them out here.
@@ -26,13 +35,13 @@ const (
 // as receiving middleware, so it wraps every inbound method and acts on two:
 //
 //   - tools/list — after the shared server lists the built-in telemetry tools,
-//     the calling turn's UI tools are appended so the agent can see them.
-//     A UI tool whose name matches a telemetry tool shadows it (matching
-//     Server.AddTool's replace-by-name semantics), keeping the list free of
-//     duplicate names.
-//   - tools/call — a call to one of the turn's UI tools is dispatched to the
-//     browser over its SSE stream (the browser is the executor) and acked;
-//     everything else falls through to the telemetry handlers.
+//     the calling turn's UI tools are appended under UIToolPrefix so the agent
+//     can see them and so they cannot shadow a telemetry tool.
+//   - tools/call — a call whose name carries UIToolPrefix is a UI tool. If the
+//     turn declared it, the bare name is dispatched to the browser over its SSE
+//     stream (the browser is the executor) and acked; if the turn did not, the
+//     call is rejected as a tool error. Unprefixed names fall through to the
+//     telemetry handlers.
 //
 // The turn is resolved from the request context: ServeHTTP stamps the URL
 // route id before delegating, and the go-sdk propagates the initialize
@@ -72,11 +81,15 @@ func uiToolsMiddleware(turns *turnRegistry, logger *zap.Logger) mcp.Middleware {
 					// Params.Name unconditionally and would panic on nil.
 					return uiToolErrorResult("missing tool call parameters"), nil
 				}
-				turn := turns.get(mcpRouteIDFromContext(ctx))
-				if turn == nil || !turnDeclaredUITool(turn, call.Params.Name) {
+				name, isUITool := strings.CutPrefix(call.Params.Name, UIToolPrefix)
+				if !isUITool {
 					return next(ctx, method, req)
 				}
-				return emitUIToolCall(turn.stream, call.Params.Name, call.Params.Arguments), nil
+				turn := turns.get(mcpRouteIDFromContext(ctx))
+				if turn == nil || !turnDeclaredUITool(turn, name) {
+					return uiToolErrorResult(fmt.Sprintf("ui tool %q was not declared for this turn", call.Params.Name)), nil
+				}
+				return emitUIToolCall(turn.stream, name, call.Params.Arguments), nil
 
 			default:
 				return next(ctx, method, req)
@@ -86,25 +99,16 @@ func uiToolsMiddleware(turns *turnRegistry, logger *zap.Logger) mcp.Middleware {
 }
 
 // appendUITools returns the telemetry tool list with the turn's UI tools
-// added. Any telemetry tool shadowed by a same-named UI tool is dropped so the
-// result carries a single entry per name (UI wins, mirroring AddTool's
-// replace-by-name behaviour). The input slice is not mutated. Malformed UI tools
-// are skipped and logged.
+// added. UI tools carry UIToolPrefix, so the two sets cannot collide and the
+// telemetry list is kept whole. The input slice is not mutated. Malformed UI
+// tools are skipped and logged.
 func appendUITools(telemetryTools []*mcp.Tool, turn *turnState, logger *zap.Logger) []*mcp.Tool {
 	uiTools := uiToolDescriptors(turn, logger)
 	if len(uiTools) == 0 {
 		return telemetryTools
 	}
-	shadowed := make(map[string]struct{}, len(uiTools))
-	for _, t := range uiTools {
-		shadowed[t.Name] = struct{}{}
-	}
 	merged := make([]*mcp.Tool, 0, len(telemetryTools)+len(uiTools))
-	for _, t := range telemetryTools {
-		if _, clash := shadowed[t.Name]; !clash {
-			merged = append(merged, t)
-		}
-	}
+	merged = append(merged, telemetryTools...)
 	return append(merged, uiTools...)
 }
 
@@ -118,9 +122,10 @@ type uiToolDef struct {
 }
 
 // uiToolDescriptors parses the turn's declared UI tools into MCP tool
-// descriptors for advertisement in tools/list, skipping malformed entries
-// (frontend input is untrusted) and collapsing repeated names to their first
-// occurrence so the advertised list has no duplicates. The InputSchema is
+// descriptors for advertisement in tools/list, each named UIToolPrefix plus the
+// frontend name, skipping malformed entries (frontend input is untrusted) and
+// collapsing repeated names to their first occurrence so the advertised list
+// has no duplicates. The InputSchema is
 // normalized to a valid JSON-object schema so a frontend typo can't make the
 // agent reject the tool. These descriptors are advertised only, never registered
 // on the server — dispatch is handled by the middleware — so they bypass
@@ -139,7 +144,7 @@ func uiToolDescriptors(turn *turnState, logger *zap.Logger) []*mcp.Tool {
 		}
 		seen[def.name] = struct{}{}
 		descriptors = append(descriptors, &mcp.Tool{
-			Name:        def.name,
+			Name:        UIToolPrefix + def.name,
 			Description: def.description,
 			InputSchema: def.schema,
 		})
@@ -147,8 +152,9 @@ func uiToolDescriptors(turn *turnState, logger *zap.Logger) []*mcp.Tool {
 	return descriptors
 }
 
-// turnDeclaredUITool reports whether toolName is one of the turn's
-// frontend-declared UI tools. Malformed or unnamed entries never match.
+// turnDeclaredUITool reports whether toolName, with UIToolPrefix already
+// removed, is one of the turn's frontend-declared UI tools. Malformed or
+// unnamed entries never match.
 func turnDeclaredUITool(turn *turnState, toolName string) bool {
 	for _, raw := range turn.uiTools {
 		if def, ok := parseUITool(raw); ok && def.name == toolName {
@@ -178,10 +184,11 @@ func parseUITool(raw json.RawMessage) (uiToolDef, bool) {
 }
 
 // emitUIToolCall fires the UI tool's TOOL_CALL_* lifecycle onto the browser
-// SSE stream and returns a synthetic ack so the agent's tool-call loop can
-// progress. The browser is the real executor, so this is fire-and-forget at the
-// LLM layer. A nil stream (turn ended mid-request) or malformed arguments
-// return an MCP error result rather than failing the call at the transport.
+// SSE stream under the bare frontend name and returns a synthetic ack so the
+// agent's tool-call loop can progress. The browser is the real executor, so this
+// is fire-and-forget at the LLM layer. A nil stream (turn ended mid-request) or
+// malformed arguments return an MCP error result rather than failing the call at
+// the transport.
 func emitUIToolCall(stream *streamingClient, toolName string, rawArgs json.RawMessage) *mcp.CallToolResult {
 	if stream == nil {
 		return uiToolErrorResult(fmt.Sprintf("browser stream closed for tool %q", toolName))
@@ -192,7 +199,7 @@ func emitUIToolCall(stream *streamingClient, toolName string, rawArgs json.RawMe
 			return uiToolErrorResult(fmt.Sprintf("invalid JSON arguments for tool %q: %v", toolName, err))
 		}
 	}
-	stream.EmitContextualToolCall(newUIToolCallID(toolName), toolName, args)
+	stream.EmitUIToolCall(newUIToolCallID(toolName), toolName, args)
 	return &mcp.CallToolResult{
 		Content: []mcp.Content{&mcp.TextContent{Text: fmt.Sprintf("ui tool %q dispatched to the browser", toolName)}},
 	}

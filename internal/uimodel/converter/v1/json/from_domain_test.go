@@ -8,6 +8,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"math"
 	"os"
 	"testing"
 	"time"
@@ -187,4 +188,69 @@ func TestConvertKeyValues_DefaultValueType(t *testing.T) {
 
 	assert.Equal(t, "unknown type 999", result[0].Value)
 	assert.Equal(t, uimodel.ValueType("999"), result[0].Type)
+}
+
+func TestFromDomainNonFiniteFloat64(t *testing.T) {
+	kvs := func() model.KeyValues {
+		return model.KeyValues{
+			model.Float64("nan", math.NaN()),
+			model.Float64("pos-inf", math.Inf(1)),
+			model.Float64("neg-inf", math.Inf(-1)),
+			model.Float64("finite", 1.5),
+		}
+	}
+	trace := &model.Trace{
+		Spans: []*model.Span{{
+			TraceID:   model.TraceID{Low: 1},
+			SpanID:    model.SpanID(2),
+			StartTime: time.Now(),
+			Tags:      kvs(),
+			Logs:      []model.Log{{Timestamp: time.Now(), Fields: kvs()}},
+			Process:   model.NewProcess("svc", kvs()),
+		}},
+	}
+
+	out, err := json.Marshal(FromDomain(trace))
+	require.NoError(t, err)
+
+	// Keep values as raw JSON so a string can be told apart from a number.
+	type rawKV struct {
+		Key   string          `json:"key"`
+		Type  string          `json:"type"`
+		Value json.RawMessage `json:"value"`
+	}
+	var decoded struct {
+		Spans []struct {
+			Tags []rawKV `json:"tags"`
+			Logs []struct {
+				Fields []rawKV `json:"fields"`
+			} `json:"logs"`
+		} `json:"spans"`
+		Processes map[string]struct {
+			Tags []rawKV `json:"tags"`
+		} `json:"processes"`
+	}
+	require.NoError(t, json.Unmarshal(out, &decoded))
+	require.Len(t, decoded.Spans, 1)
+	require.Len(t, decoded.Spans[0].Logs, 1)
+	require.Len(t, decoded.Processes, 1)
+
+	expected := map[string]string{
+		"nan":     `"NaN"`,
+		"pos-inf": `"Infinity"`,
+		"neg-inf": `"-Infinity"`,
+		"finite":  `1.5`,
+	}
+	check := func(t *testing.T, got []rawKV) {
+		require.Len(t, got, len(expected))
+		for _, kv := range got {
+			assert.Equal(t, "float64", kv.Type, kv.Key)
+			assert.JSONEq(t, expected[kv.Key], string(kv.Value), kv.Key)
+		}
+	}
+	t.Run("span tags", func(t *testing.T) { check(t, decoded.Spans[0].Tags) })
+	t.Run("log fields", func(t *testing.T) { check(t, decoded.Spans[0].Logs[0].Fields) })
+	for _, p := range decoded.Processes {
+		t.Run("process tags", func(t *testing.T) { check(t, p.Tags) })
+	}
 }
