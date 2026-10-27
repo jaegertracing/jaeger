@@ -2,7 +2,7 @@
   "regexp": {
     "traceID": {
       "flags": "NONE",
-      "value": ".*(0af7.*).*"
+      "value": ".*(0[Aa][Ff]7[^\n]*).*"
     }
   }
 }

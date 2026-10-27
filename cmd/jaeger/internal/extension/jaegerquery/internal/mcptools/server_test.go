@@ -9,8 +9,10 @@ import (
 	"io"
 	"iter"
 	"math"
+	"io/fs"
 	"net/http"
 	"net/http/httptest"
+	"regexp"
 	"slices"
 	"strings"
 	"sync/atomic"
@@ -423,4 +425,26 @@ func TestNewHandler_JSONResponse(t *testing.T) {
 		require.NoError(t, err)
 		assert.True(t, slices.ContainsFunc(listed.Tools, func(tool *mcp.Tool) bool { return tool.Name == "get_services" }))
 	})
+}
+
+// TestBuiltinSkillsCatalog checks that every skill the root catalog links to is in the
+// binary, because an agent passes the link text straight back to read_skill.
+func TestBuiltinSkillsCatalog(t *testing.T) {
+	skills, err := fs.Sub(skillsEmbedFS, "skills")
+	require.NoError(t, err)
+	catalog, err := fs.ReadFile(skills, entryPointSkill)
+	require.NoError(t, err)
+
+	links := regexp.MustCompile(`\]\(([^)]+/SKILL\.md)\)`).FindAllStringSubmatch(string(catalog), -1)
+	require.NotEmpty(t, links)
+	var linked []string
+	for _, link := range links {
+		if strings.HasPrefix(link[1], "custom/") {
+			continue
+		}
+		linked = append(linked, link[1])
+		_, err := fs.Stat(skills, link[1])
+		require.NoError(t, err, "catalog links %s", link[1])
+	}
+	assert.Contains(t, linked, "jaeger-sql/SKILL.md")
 }
