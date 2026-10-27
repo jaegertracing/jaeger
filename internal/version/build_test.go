@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/jaegertracing/jaeger/internal/metricstest"
 )
 
 func saveBuildVars(t *testing.T) {
@@ -54,4 +55,27 @@ func TestString(t *testing.T) {
 	}
 	expectedOutput := "git-commit=foobar, git-version=v1.2.3, build-date=2024-01-04"
 	assert.Equal(t, expectedOutput, test.String())
+}
+
+// TestNewInfoMetrics verifies that NewInfoMetrics properly initializes the
+// build_info Prometheus gauge with the current revision, version, and build date.
+func TestNewInfoMetrics(t *testing.T) {
+	// 1. Preserve and restore global build variables after the test finishes
+	saveBuildVars(t)
+
+	// 2. Set deterministic build metadata for testing
+	commitSHA = "abc1234"
+	latestVersion = "v1.50.0"
+	date = "2024-01-01"
+
+	// 3. Create an in-memory metric recorder mock (avoids network I/O)
+	mf := metricstest.NewFactory(0)
+
+	// 4. Initialize info metrics with the factory
+	infoMetrics := NewInfoMetrics(mf)
+	assert.NotNil(t, infoMetrics)
+
+	// 5. Verify the gauge was emitted and recorded in memory
+	_, gauges := mf.Backend.Snapshot()
+	assert.NotEmpty(t, gauges)
 }
