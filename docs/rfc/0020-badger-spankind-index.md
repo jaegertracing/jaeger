@@ -1,9 +1,9 @@
 # RFC 0020: Badger Span Kind Index
 
-- **Status:** Proposed
+- **Status:** Draft
 - **Author:** Atip Kajitamkul
 - **Created:** 2026-04-18
-- **Last Updated:** 2026-10-26
+- **Last Updated:** 2026-10-28
 - **Related:** [#1922 Query service to support spanKind when retrieve operations](https://github.com/jaegertracing/jaeger/issues/1922) [#6376](https://github.com/jaegertracing/jaeger/pull/6376) [ADR-005 (Badger storage's record layouts)](../adr/005-badger-storage-record-layouts.md)
 
 ---
@@ -14,7 +14,7 @@ Badger's `GetOperations` does not currently support returning or filtering opera
 
 Because neither the index nor the cache retains span kind, supporting this feature requires changes to both. The existing key format also lacks a delimiter between the service and operation names. Changing the key layout affects how readers locate records. To keep existing data readable, existing entries must either be rewritten or remain accessible through support for both formats.
 
-This RFC proposes extending the operation index and cache to support span kind in `GetOperations`. It discusses alternative record layouts and their trade-offs, and sets out the compatibility requirements for rollout and rollback.
+This RFC proposes a design for supporting span kind in Badger's `GetOperations`, informed by the design discussion and preload benchmark. The proposed design extends the existing `0x82` record's value and the operation cache. It preserves the current trace-search path, while the benchmark shows modest additional preload overhead in the measured dataset. The RFC explains this choice, compares the alternatives, and describes the compatibility requirements for rollout and rollback.
 
 ---
 
@@ -54,24 +54,23 @@ The [reader's `GetOperations`](../../internal/storage/v1/badger/spanstore/reader
 
 The implementation should:
 
-- Return distinct operation-name and span-kind pairs and apply an optional kind filter.
-- Preserve those pairs and their expiry when rebuilding the cache after a restart.
-- Define the complete record format, including field widths, string boundaries, and the representation of absent and unrecognized kinds.
-- Keep existing traces searchable by operation during upgrade, gate changes, and supported binary rollback.
-- Require warm-up of each database before enabling the feature, with an explicit check of data coverage.
-- Retain legacy writes throughout every stage that supports rollback to a binary that reads only the legacy index.
+- Return distinct `(name, kind)` pairs within each service and support filtering by kind.
+- Rebuild the cache from unexpired index entries after a restart, preserving all recorded kinds and following the expiry rules defined in this RFC.
+- Specify the key and value formats, including field widths, string lengths, and how absent kinds, unrecognized kinds, and legacy values are represented.
+- Keep traces searchable by service and operation during upgrades, gate changes, and supported rollback by continuing to write `0x82` entries that older binaries can read.
+- Use the new `GetOperations` behavior only when the gate is enabled and the database has passed its readiness check. Otherwise, keep the existing behavior. Primary and archive databases must be checked separately.
 
-The change is intended to support operation discovery. Changes to trace-search filtering semantics and backfilling historical kind information are outside its initial scope. Fixing the service/operation boundary would require a key-format change and is considered separately below.
+The change is limited to operation discovery. Backfilling historical kind information, changing trace-search filters, and separating service and operation names in the key are outside its scope. Alternative key formats are discussed in [Section 4.4](#44-alternatives).
 
 ---
 
-## 4. Record layout alternatives
+## 4. Proposed design
 
-### 4.1 Store kind in the existing `0x82` value
+This RFC proposes keeping the existing `0x82` key and storing span kinds in its value, following [Yuri’s suggestion](https://github.com/jaegertracing/jaeger/pull/8402#discussion_r3120670715). The operation cache would read these values at startup so `GetOperations` can return and filter operations by kind.
 
-[Yuri suggested adding span kind to the value of the existing record](https://github.com/jaegertracing/jaeger/pull/8402#discussion_r3120670715). This would allow prefill to recover kind while preserving the key used by trace search.
+### 4.1 Record layout and encoding
 
-A possible encoding would retain the existing key and add a versioned string value:
+The key would remain unchanged. The value would start with a version byte and a flags byte, followed by one or more kinds:
 
 ```text
 Key:
@@ -79,85 +78,44 @@ Key:
 [startTime:8B][traceID.High:8B][traceID.Low:8B]
 
 Value:
-[version:1B = 0x01][spanKind:K bytes]
+[version:1B = 0x01][flags:1B]
+repeated until the end of the value:
+    [kindLength:4B][spanKind:kindLength bytes]
 ```
 
-Under this encoding, `spanKind` would contain the bytes of the `span.kind` string tag. The value would occupy `1 + K` bytes, with the end of the value marking the end of the string. The version byte would distinguish a new record with an absent kind from an older record whose value is empty.
+The key would use `25 + len(serviceName) + len(operationName)` bytes, and the value would use `2 + Σ(4 + kindLength)` bytes. Integer fields shown above would use unsigned big-endian encoding. Start time would remain in Unix microseconds.
 
-| Input or record | Value | Kind returned by `GetOperations` |
-| --- | --- | --- |
-| Recognized string, such as `server` | `0x01` followed by the original string bytes | Original string |
-| Unrecognized non-empty string | `0x01` followed by the original string bytes | Original string |
-| Absent tag or empty string | `0x01` alone | `""` |
-| Legacy empty value | Unchanged empty value | `""` |
+The legacy bit, `0x01`, would mean that some older spans represented by the entry have no stored kind information. The writer would set this bit when merging with an existing `nil` value and keep it on later writes. All other flag bits would be reserved and set to zero.
 
-This would preserve unknown strings rather than treating the input as a closed OTel enum from 0 to 5. An empty query filter would mean no kind filter; a non-empty filter would match the stored string exactly. Malformed values and unsupported versions would need explicit error handling during prefill. The handling of non-string `span.kind` tags remains an encoding question to resolve against the model's conversion rules.
+Kind would come from the first span-level `span.kind` tag. Strings would be stored unchanged, including unrecognized kind strings. Other value types would be converted with `KeyValue.AsString()`, as they are in the existing tag index. An absent or empty tag would be stored as a zero-length kind and returned as `""`. Each kind would appear once, sorted by its encoded bytes.
 
-The existing trace-search reader ignores values, so populating them would preserve its search path. Prefill would need to read and decode values, and the concatenation ambiguity in the existing key would remain. The benchmark in section 6 measures part of that additional prefill work.
+Expiry would stay in Badger’s `ExpiresAt` field, in Unix seconds, and apply to the entire entry. A merge would keep the later expiry. Zero would mean no expiry and take precedence over any finite expiry.
 
-The cache collision concern is separate from the placement of kind on disk. A cache keyed only by operation name would collapse different kinds of that name. An operation-index key also contains start time and trace ID, so sharing an operation name does not by itself cause one disk record to overwrite another. A narrower case remains when two spans share the entire index key, which omits span ID; that case needs a policy before a single-kind value can guarantee complete reconstruction of the cache.
+A `nil` value would mean that kind information was not recorded, while an encoded empty kind would represent an absent or empty tag. During prefill, the database would be marked as not ready if an entry has a `nil` value, the legacy bit set, an unsupported version, unknown flag bits, or an invalid value.
 
-### 4.2 Store kind in a new key
+### 4.2 Collision handling
 
-The original proposal placed a one-byte kind between service and operation under a new `0x85` prefix. A new prefix would let readers distinguish an updated key format from the existing one without rewriting old entries. This explains why a key change could use a new prefix; it does not establish that kind must be placed in the key.
+The `0x82` key does not include span ID or kind. Two spans can therefore have the same index key but different kinds. As discussed in [#6376](https://github.com/jaegertracing/jaeger/pull/6376#discussion_r1900318241), storing only one kind would let a later write overwrite the earlier kind.
 
-A fixed-width kind byte would have a known offset only after the exact service boundary was known. A prefix match alone cannot establish that boundary: longer service names can share the prefix, and names can contain bytes that coincide with kind encodings. The kind byte cannot serve as a separator.
+The writer would read the existing `0x82` and `0x81` entries in the same transaction that writes the span. It would add the span’s kind to the operation entry without removing existing kinds, then keep the later of the service entry’s expiry and the merged operation entry’s expiry. A new service entry would use the operation entry’s expiry, with zero taking precedence as no expiry. This would keep the service available for prefill while the operation entry remains unexpired. On `ErrConflict`, the writer would start a new transaction, read both entries again, and retry. After a successful commit, it would update the caches with all kinds from the merged entry and the resulting expiries, without shortening any expiry already cached.
 
-Putting kind between service and operation would favor scans by service and kind. `GetOperations` does not perform those scans on each request: it reads from the cache. The disk query is `FindTraceIDs(service, operation)`, and placing kind before operation would require multiple seeks or a broader scan to find records of all kinds. Cache-based kind resolution would also need to establish that the cache contains every kind relevant to the requested time range.
+TTL is counted from write time, so spans sharing a key may expire at different times. With one expiry for the whole set, `GetOperations` could still return a kind after all spans carrying it for that operation have expired.
 
-[Manik's earlier PR, #6376](https://github.com/jaegertracing/jaeger/pull/6376), used a different ordering in its final diff:
+Repeated writes to an entry with the legacy bit set could also keep extending its expiry, leaving the database unable to become ready. The readiness check would finish before writers start, as described in [Section 7.3](#73-database-warm-up-and-expiry).
 
-```text
-Key:
-[0x85:1B][serviceName + operationName:variable]
-[startTime:8B][kind:1B][traceID.High:8B][traceID.Low:8B]
+### 4.3 Rationale
 
-Value: nil
-```
+`GetOperations` reads from the cache, so it does not need kind in the index key to filter its results. Storing kind in the value would let the cache load this information at startup while `FindTraceIDs(service, operation)` continues to scan the same keys. This would avoid adding another index and supporting both key formats during upgrade and rollback.
 
-[Yuri suggested putting kind after the timestamp](https://github.com/jaegertracing/jaeger/pull/6376#issuecomment-2568123111) so that a query could reach the service, operation, and time range without knowing kind. The PR included dual lookup of old and new indexes and was closed without merging.
+The [benchmark](https://gist.github.com/Audio431/5dda84ae8189c60932d9e1156003204c), described in [section 6](#6-preload-benchmark), measured about 26 ms of additional operation prefill time per generated service and 90 ms per prefill pass on about 5 GB of data. These results support reading values during prefill for that dataset. They do not compare `0x82` with `0x85`, or measure the cost of decoding the kind set and performing the additional reads and retries when writing spans.
 
-Placing kind after the timestamp would avoid partitioning the time range by kind, but would still require updated key parsing and a compatibility transition. A one-byte encoding would also need a complete mapping from tag strings, including absent and unrecognized values. The mapping cannot be inferred from OTel enum numbers, and the encoding in section 4.1 would not automatically apply to a byte embedded in the key.
+### 4.4 Alternatives
 
-### 4.3 Separate variable-length fields
+The [writer](https://github.com/jaegertracing/jaeger/blob/main/internal/storage/v1/badger/spanstore/writer.go#L120) calculates span index prefixes as `(prefix & 0x0F) | 0x80`. Since `0x80`–`0x84` are already used, a new index could use `0x85`–`0x8F`. A `0x85` format could separate service and operation names and include kind in the key. However, putting kind between those names would require operation trace searches to scan a separate prefix for each kind.
 
-A new key format could also remove the ambiguity between service and operation. For example, a separated key with kind in the value could use:
+Putting a one-byte kind between the timestamp and trace ID would keep the trace ID in the last 16 bytes, but move the start of the timestamp from 24 to 25 bytes before the end of the key. The [reader currently assumes 24 bytes](https://github.com/jaegertracing/jaeger/blob/main/internal/storage/v1/badger/spanstore/reader.go#L565), so that layout would also require changes to the existing scans. Keeping the key unchanged avoids these changes.
 
-```text
-Key:
-[0x85:1B][E(serviceName):variable][0x00:1B]
-[E(operationName):variable][0x00:1B]
-[startTime:8B][traceID.High:8B][traceID.Low:8B]
-
-Value:
-[version:1B = 0x01][spanKind:K bytes]
-```
-
-The key would occupy `27 + len(E(serviceName)) + len(E(operationName))` bytes. The value would use the string encoding described in section 4.1. The new prefix would need to be checked for availability when implemented.
-
-Names can contain bytes `0x00`–`0x05`, so a literal `0x00` separator requires an escaping rule. One possible rule for `E` is:
-
-| Input byte | Encoded bytes |
-| --- | --- |
-| `0x00` | `0x01 0x01` |
-| `0x01` | `0x01 0x02` |
-| Any other byte | Unchanged |
-
-With that rule, an unescaped `0x00` would mark the end of a field. Empty names and names sharing a prefix would remain distinguishable. The final encoding would need tests for those cases and for embedded control bytes.
-
-Adding separators under `0x82` would change the key expected by older readers. Their presence would not identify a new format reliably because old names can already contain `0x00`. Separating fields therefore needs a distinguishable key format and a compatibility plan, even when kind remains in the value.
-
-### 4.4 Trade-offs
-
-| Approach | Benefit | Cost or limitation |
-| --- | --- | --- |
-| Kind in the existing `0x82` value | Preserves the current operation-search key | Prefill must read values; existing field ambiguity remains |
-| Kind between service and operation | Groups records by service and kind | Operation trace search must account for multiple kinds |
-| Kind after timestamp | Preserves a contiguous service, operation, and time-range scan | Requires new parsing, a kind encoding, and support for old data |
-| Separated fields with kind in the value | Gives service and operation explicit boundaries without putting kind in the search prefix | Requires a new key format and support for both indexes during transition |
-| Kind only in the cache | Avoids a persistent-format change | Cannot recover kinds from the current index after restart |
-
-The value-based approach offers the smaller change to trace search. A new key format offers a way to address field boundaries and, if kind forms part of record identity, distinguish records by kind. The benchmark helps compare prefill costs; field boundaries and record identity also need to be considered before settling the format.
+Separators could fix the ambiguity between service and operation names, provided the format also defines how to escape separator bytes within those names. That key-format change is outside the scope of this RFC.
 
 ---
 
@@ -169,25 +127,25 @@ The cache would identify operations by both name and kind within a service:
 service → tracestore.Operation{Name, SpanKind} → expiry
 ```
 
-This would preserve different kinds of the same operation name. Each pair would retain the latest expiry among its contributing records and expire independently of other pairs.
+Each pair would use the latest expiry among the index entries containing it, with zero treated as no expiry. After a successful write, the cache would be updated with all kinds and the expiry from the merged entry, not just the new span’s kind. Prefill would use the same rules when reading stored entries.
 
-With the feature enabled, `GetOperations` would return all distinct pairs when the kind filter is empty and exact matches when it is non-empty. Missing kinds would be returned as `""`. Under the value-based approach, a legacy empty value would also decode to an empty kind because it contains no historical kind information. Results would be ordered by name and then kind.
+When the gate is enabled and the database is ready, `GetOperations` would return all distinct pairs if the kind filter is empty, or only pairs matching the requested kind otherwise. An explicitly stored empty kind would be returned as `""`. Results would be sorted by name and then kind.
 
-With separate old and new indexes, the kind-aware cache would be rebuilt from the new index after coverage had been verified. Legacy entries would still support the name-only view while the gate was off. They must not add an artificial empty-kind pair for every record also represented in the new index. Combining trace IDs from both indexes and combining operation metadata are different operations.
+When the gate is disabled or the database is not ready, `GetOperations` would keep its current behavior: return each operation name once, with `SpanKind` set to `""`, without applying the kind filter. Operation names from legacy entries would remain available for this fallback. Their `nil` values would not be interpreted as evidence that the original spans had an empty kind. The primary and archive databases would each have their own readiness state.
 
-Ingestion and prefill would use the same extraction and decoding rules. Cache updates would follow a successful storage write. Prefill would retain the stored expiry and report decoding failures so that an incomplete cache could not be treated as a successful warm-up.
+The writer would extract kinds from spans as described in [Section 4.1](#41-record-layout-and-encoding), and prefill would decode them from the stored values. Prefill would report decoding errors and entries with incomplete kind information, preventing the database from being marked ready with an incomplete cache.
 
-Prefill must also retain every kind represented by the records it scans. Seeking directly to the next operation after reading one record could skip other kinds of that operation. Such an optimization would need to demonstrate that it preserves all distinct pairs.
+Prefill must read every kind stored in each entry it processes. Reading one entry for an operation is not enough to recover all its kinds or their latest expiries, because other entries may contain additional kinds or expire later. Any optimization that skips entries must preserve both.
 
 ---
 
 ## 6. Preload benchmark
 
-At Yuri's request, a [benchmark published on 2026-04-30](https://gist.github.com/Audio431/5dda84ae8189c60932d9e1156003204c) compared prefill with and without `ValueCopy(nil)` on approximately 5 GB of tracegen data. The comparison used the same dataset, reported as 499 SST tables and six services: five generated services and Jaeger's internal service. Operation records contained a one-byte dummy value, `0x01`; the comparison changed whether the reader copied that value.
+At Yuri’s request, a [benchmark](https://gist.github.com/Audio431/5dda84ae8189c60932d9e1156003204c) compared prefill with and without `ValueCopy(nil)` on approximately 5 GB of tracegen data. The dataset contained 499 SST tables and six services: five generated services and Jaeger’s internal service. Both versions read the same operation records containing a one-byte dummy value, `0x01`. The difference was whether the reader copied that value.
 
-Both variants used `badger.DefaultIteratorOptions`, including `PrefetchValues: true`. The one-byte values were stored inline in the LSM. The baseline therefore already included value prefetching, and the experiment measured the additional work of retrieving and copying those values.
+Both versions used `badger.DefaultIteratorOptions`, with `PrefetchValues: true`. The values were stored inline in the LSM, so the baseline already included value prefetching. The test measured the extra cost of calling `ValueCopy(nil)` during prefill.
 
-The gist reports the following figures from runs 2–3, treating the first value-copy run as a cold-cache outlier:
+The following figures use runs 2–3. The first run with `ValueCopy` was treated as a cold-cache outlier.
 
 | Measurement | Without `ValueCopy` | With `ValueCopy` | Difference |
 | --- | --- | --- | --- |
@@ -195,93 +153,89 @@ The gist reports the following figures from runs 2–3, treating the first value
 | Operation prefill, average per generated service | ~499 ms | ~525 ms | +~26 ms (~5%) |
 | Total prefill per pass | ~4.88 s | ~4.97 s | +~90 ms (~2%) |
 
-The measured increase was small in this setup and is consistent with copying and allocation work on values that were already prefetched. Those costs were not profiled separately. The factory also created two readers with prefill enabled, so the total in the table describes one prefill pass rather than the full startup.
+The test did not measure copying and allocation costs separately. The factory also created two readers with prefill enabled, so the totals above describe one prefill pass rather than the full startup.
 
-The result provides evidence for considering kind-in-value, but does not establish that the overhead will remain at 5% for larger databases. `preloadOperations` seeks to a service prefix and then visits every matching record. Copying a value adds work to that scan; the relative cost can change with cache residency, storage reads, and garbage collection as the dataset grows.
+These percentages apply to this dataset and these runs. They do not show that the overhead would stay at 5% on larger databases. `preloadOperations` seeks to a service prefix and scans every matching record. As the dataset grows, the cost can change with the amount of cached data, disk access, and garbage collection.
 
-The experiment used a dummy byte rather than the final kind encoding, and kind diversity in the generated data was not verified. The implementation should measure decoding costs and cache growth with realistic name/kind pairs. The [benchmark results are available in the design discussion](https://github.com/jaegertracing/jaeger/pull/8402#discussion_r3169432632).
+The test used a dummy byte rather than the proposed kind-set encoding, and the number of distinct kinds in the generated data was not checked. Further measurements should cover decoding the set, cache memory use with realistic operation names and kinds, and the additional transaction reads and retries when writing spans.
+
+The results were [shared in the design discussion on 2026-04-30](https://github.com/jaegertracing/jaeger/pull/8402#discussion_r3169432632).
 
 ---
 
 ## 7. Rollout and rollback
 
-A proposed feature gate, `jaeger.badger.operationIndex`, would control the new `GetOperations` behavior. Writers would prepare the database while the gate is off. Enabling it would require successful warm-up of that database, including a complete cache prefill and verified coverage of retained data. A release reaching Alpha or Beta would not establish that readiness.
+The proposed gate, `jaeger.badger.operationIndex`, would control whether `GetOperations` returns and filters operations by kind. It would remain disabled by default while the readiness check is required.
 
-The storage behavior would depend on the chosen record format.
+The gate would apply to the process, but readiness would be tracked separately for each Badger database. The primary database could therefore serve results with kinds while the archive database continues returning names only.
 
-### 7.1 Extending the existing value
+### 7.1 Writes and queries
 
-If kind is added to the existing `0x82` value, upgraded writers would write the new value in either gate state. The key used by trace search would remain the same.
+Upgraded writers would write the value format described in [Section 4.1](#41-record-layout-and-encoding) whether the gate is enabled or disabled. The `0x82` key would remain unchanged.
 
-| Gate | Writes | `GetOperations` | `FindTraceIDs` for service and operation |
+| Gate | Database readiness | `GetOperations` | `FindTraceIDs` for service and operation |
 | --- | --- | --- | --- |
-| Off | Existing `0x82` key with kind metadata in the value | Legacy behavior: distinct names, empty kinds, no kind filtering | Existing `0x82` key scan |
-| On, after warm-up | Same key and value format | Distinct name/kind pairs with optional kind filtering | Same `0x82` key scan |
+| Off | Any | Distinct names, empty kinds, no kind filtering | Existing `0x82` key scan |
+| On | Not ready | Distinct names, empty kinds, no kind filtering | Existing `0x82` key scan |
+| On | Ready | Distinct name/kind pairs with optional kind filtering | Existing `0x82` key scan |
 
-The reader would accept both legacy empty values and the new value encoding. While the gate is off, it could retain pairs internally and project them to the legacy result. Complete kind coverage would require the unexpired legacy empty-value records to have expired or acquired equivalent metadata before enabling the gate. A version marker, as in section 4.1, would distinguish those records from new records whose kind is intentionally absent.
+Backfill is outside the scope of this RFC, so entries with missing historical kind information must expire before the database can become ready. A write to an existing legacy `nil` entry would set the legacy bit, and later writes would preserve it. Adding new kinds would not recover the missing kind information for earlier spans.
 
-Disabling the gate would not remove metadata already written. An older binary would still find traces using the unchanged keys and ignore the values, subject to verification against an actual older binary. Its writer would resume producing empty values, so enabling the feature after another upgrade would require a fresh readiness check.
+### 7.2 Disabling the gate and rolling back
 
-### 7.2 Introducing a new key format
+Disabling the gate would restore the existing `GetOperations` behavior without removing stored kind information. Upgraded writers would continue writing the new values.
 
-If the key changes, writers would write both the legacy `0x82` index and the new index while the gate is off and throughout every stage that supports binary rollback.
+An older writer would resume writing `nil` values and could overwrite kind information in entries with matching keys. After another upgrade, the database would need to pass the readiness check again before serving results with kinds.
 
-| Gate or transition | Writes | `GetOperations` | `FindTraceIDs` for service and operation |
-| --- | --- | --- | --- |
-| Off, warming up | Legacy and new indexes | Legacy behavior; prefill prepares the kind-aware cache from the new index | Legacy `0x82` scan |
-| On, after warm-up | Legacy and new indexes | Distinct pairs from the new index with optional kind filtering | Deduplicated union of legacy and new index results |
-| Disabled again | Legacy and new indexes | Legacy behavior | Legacy `0x82` scan |
-| Binary rollback | Older writer continues legacy writes | Older binary's behavior | Legacy `0x82` scan, including records kept current by dual-write |
-
-The union read would preserve ordering and apply limits after combining and deduplicating results. It would not rely on the cache to discover all kinds needed for trace search. Its new-index scan would follow the chosen key layout; a layout with kind before operation would still need kind fan-out or a broader scan.
-
-Continuing legacy writes is necessary for rollback to an older binary. A union reader in the upgraded binary cannot protect a reader in an older binary that understands only `0x82`. Both index entries should be committed with the span and share its expiry so a failed write does not leave only one representation.
-
-After the supported rollback window has closed, the implementation could stop legacy writes. Removing legacy reads would require a separate check that no retained record depends on them.
+The implementation must verify rollback against a supported older binary, including reading traces and searching by service and operation after the upgraded writer has stored the new values.
 
 ### 7.3 Database warm-up and expiry
 
-Warm-up must establish coverage for the database being enabled. It should verify that compatible writers have populated the chosen representation, that retained records predating that coverage have expired or have a verified new representation, and that prefill has completed successfully. The implementation must expose enough readiness information to make this check enforceable before enabling the gate.
+Each database would start with readiness set to false. Before accepting span writes, startup would:
 
-Every current `0x82` record receives an expiry of write time plus TTL. As long as writers keep creating legacy records, the `0x82` index does not drain. During dual-write warm-up, it is the records written before dual-write began that can expire; the legacy index as a whole remains populated.
+1. Complete the service and operation cache prefill.
+2. Scan all unexpired `0x82` entries and count `nil` values, entries with the legacy bit set, and entries whose values cannot be decoded under the rules in Section 4.1.
+3. Make the completed cache available and mark the database ready only if prefill and the scan succeed and all three counts are zero.
 
-A fixed release-stage duration or a wait based only on today's TTL is insufficient. The check must account for actual expiry times, including records written under a longer TTL. Restoring an older backup or writing with a legacy binary can invalidate previously established coverage and must trigger another readiness check.
+Startup logs would report the result and counts for each database. Read errors would be reported and would never count as a successful check.
 
-Switching reads to only the new index before coverage is established would hide unexpired traces. Stopping legacy writes while binary rollback remains supported would make spans written during that period invisible to the older operation-search path. The rollout must avoid both gaps.
+The check would finish before writers start, preventing an unfinished write from restoring an entry with incomplete kind information after the database is marked ready. If coverage is incomplete, that database would continue returning names only for the rest of the process lifetime. Upgraded writers would still record kinds for new spans, and the next restart would run the check again.
+
+The check would use the entries actually present in the database, rather than assuming that a release-stage duration or the current TTL is sufficient. Older entries may have longer expiry times. Repeated writes to an entry with the legacy bit set may also extend its expiry, as described in Section 4.2.
+
+Readiness would not be saved and reused across restarts. After a binary rollback or backup restore, the database would have to pass a new check before serving results with kinds.
 
 ---
 
 ## 8. Consequences
 
-Persisting kind and using `(name, kind)` as the cache identity would allow operation discovery to retain multiple kinds of the same name across restart. The cache could hold more entries, and prefill would need to process the additional metadata.
+Storing kinds in the index and identifying cached operations by `(name, kind)` would allow the cache to rebuild multiple kinds of the same operation after a restart. Index values would be larger, and the cache could hold more entries. Writing spans would also require reading the existing value, with transaction retries when concurrent writes conflict. These costs are not covered by the preload benchmark.
 
-Adding kind to the existing value would preserve the trace-search key but retain its field-boundary ambiguity. A new key format could address that ambiguity and change record identity, at the cost of dual writes, support for multiple formats, and a longer compatibility transition. Either approach must define how it handles records with no kind metadata and repeated complete index keys.
+Keeping the `0x82` key unchanged would preserve the existing operation trace-search path, including searches over legacy entries. The ambiguity between concatenated service and operation names would remain.
 
-Legacy entries would remain searchable by operation. Their kinds could not be recovered from the legacy index alone. In the value-based layout, the version marker would distinguish missing historical metadata from intentionally absent kinds in newly written records. In a separate-index layout, readiness would establish new-index coverage before the kind-aware cache was used for queries.
+Using one expiry for all kinds in an entry could keep a kind discoverable after all spans carrying it have expired. The same expiry would apply to the legacy bit, so repeated writes to an entry with that bit set could prevent the database from becoming ready indefinitely.
 
-The implementation PR must update [ADR-005 (Badger storage's record layouts)](../adr/005-badger-storage-record-layouts.md), including its `0x82` section. That update must describe the implemented key and value format, the role of the legacy index during transition, and the cache changes. If field boundaries are addressed, it must also correct the suggestion that an exact check of the concatenated prefix can distinguish different service/operation splits.
+Kinds missing from legacy entries could not be recovered from the operation index alone. Since backfill is outside the scope of this RFC, those entries would need to expire before the database could serve results with kinds. Until then, `GetOperations` would continue returning names only, without applying the kind filter.
+
+The implementation PR must update [ADR-005 (Badger storage’s record layouts)](../adr/005-badger-storage-record-layouts.md) to describe the new `0x82` value format, collision handling, expiry rules for `0x81` and `0x82`, and cache changes. It must also update the statement that secondary index values are always `nil`, because new `0x82` entries would store span kinds. The ADR should clarify that checking the full concatenated prefix cannot distinguish different combinations of service and operation names.
 
 ---
 
 ## 9. Implementation plan
 
-1. **Settle the persistent representation.** Use the benchmark and the alternatives above to choose the record format. Specify field boundaries, kind encoding, and handling of repeated complete keys. Confirm the proposed prefix is available if a new one is needed.
-2. **Update the existing writer, prefill, cache, and `GetOperations`.** Preserve name/kind pairs and expiry during ingestion and reconstruction, and apply the requested kind filter. Test missing and unknown kinds, repeated names, restarts, embedded control bytes, and decoding failures.
-3. **Implement the gate and compatibility checks.** Add the per-database warm-up check and the read/write behavior for each gate state. Test upgrades with existing data, gate toggles, restored databases, and rollback with actual old and new binaries. A new index also needs dual-write and union-read tests covering ordering, limits, and deduplication.
-4. **Complete integration and documentation.** Remove Badger's `getOperationsMissingSpanKind: true` opt-out in `capabilities.Badger()` in `internal/storage/integration/capabilities/capabilities.go` once the enabled configuration supports the behavior. Keep coverage for the disabled gate. Update ADR-005 and measure prefill using the final encoding.
+1. **Implement the value format and collision handling.** Keep the existing `0x82` key and add the encoding described in [Section 4.1](#41-record-layout-and-encoding). Implement the merge rules in [Section 4.2](#42-collision-handling), including legacy values, shared expiry, and retries on `ErrConflict`. Test changes to the configured TTL and writes that commit in a different order from when they started. After restarting between the earlier and later expiry times, verify that the service and the operation/kind pairs whose spans remain unexpired are still returned. Also test that concurrent writes to the same `0x82` key preserve all distinct kinds.
+
+2. **Update the cache, prefill, and `GetOperations`.** Store operations by name and kind within each service. Update the cache with every kind and the expiry from a committed entry, and rebuild the same information during prefill. Apply the filter and ordering described in [Section 5](#5-cache-and-operation-queries). Test absent, empty, and unknown kinds, non-string tags, embedded control bytes, multiple kinds of the same operation, restarts, and decoding errors.
+
+3. **Add the gate and database readiness checks.** Implement the behavior in [Section 7](#7-rollout-and-rollback), with separate readiness states for primary and archive databases. Test both gate states, including cases where only one database is ready. Verify upgrades with existing data, expiry of legacy entries, backup restores, and rollback using actual old and new binaries.
+
+4. **Enable the integration tests for span kind.** Run the Badger operation tests with the gate enabled and a ready database. Once that configuration passes, remove Badger’s `getOperationsMissingSpanKind: true` entry from `capabilities.Badger()` in `internal/storage/integration/capabilities/capabilities.go`. Keep separate tests for the existing behavior when the gate is disabled or the database is not ready.
+
+5. **Measure the implementation and update the documentation.** Measure prefill time, cache memory use, and write performance using the final encoding and realistic operation names and kinds. Include the cost of reading and merging existing values and retrying conflicting transactions. Update ADR-005 as described in [Section 8](#8-consequences).
 
 ---
 
-## 10. Open questions
-
-- **Should this change also replace the concatenated key?** Keeping `0x82` offers a smaller change to trace search. Separating fields would fix an existing ambiguity but require a transition to a new format.
-- **How should a value-based layout retain multiple kinds under an identical complete key?** Different start times or trace IDs already separate ordinary records. If all key fields match, the implementation must preserve every contributing kind or use a record identity that distinguishes them.
-- **What is the final kind encoding?** A versioned string value can preserve absent and unknown string kinds. A numeric kind in the key would need its own complete mapping, and non-string tags need an explicit conversion or rejection rule.
-- **How will readiness be checked?** The implementation needs a database-specific way to establish coverage and invalidate it after legacy writes or restoration, before allowing the gate to be enabled.
-
----
-
-## 11. References
+## 10. References
 
 1. [#1922: span kind support in operation queries](https://github.com/jaegertracing/jaeger/issues/1922).
 2. [#6376: earlier implementation and dual-lookup discussion](https://github.com/jaegertracing/jaeger/pull/6376).
