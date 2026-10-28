@@ -110,12 +110,12 @@ func TestGetSpanDetailsHandler_Handle_SpanKind(t *testing.T) {
 		{
 			name:     "server span",
 			spanKind: ptrace.SpanKindServer,
-			expected: ptrace.SpanKindServer.String(),
+			expected: "server",
 		},
 		{
 			name:     "client span",
 			spanKind: ptrace.SpanKindClient,
-			expected: ptrace.SpanKindClient.String(),
+			expected: "client",
 		},
 	}
 
