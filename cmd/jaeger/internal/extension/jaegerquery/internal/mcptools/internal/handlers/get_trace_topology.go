@@ -66,13 +66,11 @@ func (h *getTraceTopologyHandler) handle(
 
 	tracesIter := h.queryService.GetTraces(ctx, params)
 
-	// AggregateTraces reassembles the full trace so TotalSpanCount reflects every span
-	// and so we can build a correct DFS topology regardless of OTLP container ordering.
-	// SpanIter walks resource/scope/span order, so a root span that appears after its
-	// children would be dropped if we capped collection here, producing an incorrect
-	// tree (children promoted to roots, paths broken). Instead, we collect every span,
-	// build the full DFS-ordered topology, then truncate the resulting list — roots
-	// are emitted first by DFS, so capping the tail removes leaves rather than roots.
+	// AggregateTraces reassembles the full trace so TotalSpanCount counts every span and
+	// the tree is built from all of them. Capping here, in container order, would drop a
+	// root stored after its children and promote them to roots. The per-request cap is
+	// applied later in the DFS walk, which keeps a DFS prefix: later roots and later
+	// sibling subtrees are omitted, and TruncatedChildren only reports the depth cut.
 	aggregatedIter := jptrace.AggregateTraces(tracesIter)
 
 	var spans []rawSpan
@@ -223,8 +221,9 @@ func (h *getTraceTopologyHandler) buildFlatTopology(spans []rawSpan, maxDepth, m
 // dfs appends the current span to result and then recurses into its children.
 // When maxDepth > 0 and the current span is at the depth limit, its children
 // are counted but not visited, and TruncatedChildren is set on the emitted span.
-// When maxSpans > 0, the walk stops once result holds that many spans; since the
-// walk is roots-first, this keeps the roots and drops the tail (leaf) spans.
+// When maxSpans > 0, callers stop the walk once result holds that many spans, so the
+// output is a DFS prefix: later roots and later sibling subtrees are omitted, while
+// TruncatedChildren stays the depth signal.
 func (h *getTraceTopologyHandler) dfs(
 	span *rawSpan,
 	path string,
@@ -235,9 +234,6 @@ func (h *getTraceTopologyHandler) dfs(
 	result *[]types.TopologySpan,
 ) {
 	if maxDepth > 0 && depth > maxDepth {
-		return
-	}
-	if maxSpans > 0 && len(*result) >= maxSpans {
 		return
 	}
 

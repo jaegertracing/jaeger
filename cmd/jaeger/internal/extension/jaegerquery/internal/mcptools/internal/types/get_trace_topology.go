@@ -19,7 +19,7 @@ type GetTraceTopologyInput struct {
 // that span (e.g. "rootID/parentID/spanID").
 type GetTraceTopologyOutput struct {
 	TraceID        string         `json:"trace_id"         jsonschema:"Unique identifier for the trace"`
-	TotalSpanCount int            `json:"total_span_count" jsonschema:"Total number of spans in the trace (may exceed the size of the spans list due to per-request limits)"`
+	TotalSpanCount int            `json:"total_span_count" jsonschema:"Total number of spans in the trace. With depth 0 a shorter spans list means the per-request limit cut it; with depth > 0 truncated_children marks where the depth limit cut the tree"`
 	Spans          []TopologySpan `json:"spans"            jsonschema:"Flat depth-first list of spans (possibly truncated to server-configured limit); Path encodes parent-child relationships"`
 }
 

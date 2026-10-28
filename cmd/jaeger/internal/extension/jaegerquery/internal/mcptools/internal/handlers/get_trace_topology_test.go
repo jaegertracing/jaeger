@@ -586,7 +586,7 @@ func TestGetTraceTopologyHandler_Handle_LimitEnforced(t *testing.T) {
 	testTrace := createTestTraceWithSpans(traceID, spanConfigs)
 	mock := newMockYieldingTraces(testTrace)
 
-	// Set limit to 3 — the full trace is walked (for the count and correct
+	// Set limit to 3: the full trace is walked (for the count and correct
 	// roots-first ordering) but only the first 3 spans are emitted.
 	handler := &getTraceTopologyHandler{
 		queryService:             mock,
@@ -612,7 +612,7 @@ func TestGetTraceTopologyHandler_Handle_LimitEnforced(t *testing.T) {
 func TestGetTraceTopologyHandler_Handle_LimitPreservesRootWhenLast(t *testing.T) {
 	traceID := testTraceID
 
-	// Children appear before the root in iteration order — a real-world case
+	// Children appear before the root in iteration order, a real-world case
 	// when traces are reassembled from multiple resource/scope batches.
 	spanConfigs := []spanConfig{
 		{spanID: "child001", parentSpanID: "root001", operation: "child1"},
@@ -640,4 +640,38 @@ func TestGetTraceTopologyHandler_Handle_LimitPreservesRootWhenLast(t *testing.T)
 	assert.Equal(t, "root", output.Spans[0].SpanName)
 	// Path of the root span is just its own ID, no orphan parent prefix.
 	assert.NotContains(t, output.Spans[0].Path, "/")
+}
+
+// TestGetTraceTopologyHandler_Handle_LimitDropsLaterRoot verifies that when the
+// first root's subtree fills the limit, a later root is omitted entirely.
+func TestGetTraceTopologyHandler_Handle_LimitDropsLaterRoot(t *testing.T) {
+	traceID := testTraceID
+
+	spanConfigs := []spanConfig{
+		{spanID: "root001", operation: "rootA"},
+		{spanID: "span002", parentSpanID: "root001", operation: "childA1"},
+		{spanID: "span003", parentSpanID: "root001", operation: "childA2"},
+		{spanID: "root002", operation: "rootB"},
+		{spanID: "span004", parentSpanID: "root002", operation: "childB1"},
+	}
+
+	testTrace := createTestTraceWithSpans(traceID, spanConfigs)
+	mock := newMockYieldingTraces(testTrace)
+
+	handler := &getTraceTopologyHandler{
+		queryService:             mock,
+		maxSpanDetailsPerRequest: 3,
+	}
+
+	input := types.GetTraceTopologyInput{TraceID: traceID}
+	_, output, err := handler.handle(context.Background(), &mcp.CallToolRequest{}, input)
+
+	require.NoError(t, err)
+	assert.Equal(t, 5, output.TotalSpanCount)
+	names := make([]string, 0, len(output.Spans))
+	for _, s := range output.Spans {
+		names = append(names, s.SpanName)
+		assert.Zero(t, s.TruncatedChildren)
+	}
+	assert.Equal(t, []string{"rootA", "childA1", "childA2"}, names)
 }
