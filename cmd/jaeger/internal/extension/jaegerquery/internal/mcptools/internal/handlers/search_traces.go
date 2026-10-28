@@ -210,7 +210,7 @@ func (h *searchTracesHandler) buildSQLQuery(input types.SearchTracesInput) (quer
 	if query.Kind == sqlquery.KindFindSpans {
 		return querysvc.TraceQueryParams{}, errors.New(
 			"invalid sql: the statement selects spans, and search_traces returns traces. " +
-				"Write SELECT DISTINCT trace_id FROM spans WHERE ..., " +
+				"Send it to find_spans instead, or write SELECT DISTINCT trace_id FROM spans WHERE ..., " +
 				"or SELECT * FROM traces WHERE trace_id IN (SELECT trace_id FROM spans WHERE ...)")
 	}
 	searchDepth := input.SearchDepth
