@@ -12,12 +12,18 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"strings"
+	"sync"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
 )
+
+// archiveModTime is the modification time buildTar gives every entry.
+var archiveModTime = time.Date(2026, time.January, 2, 3, 4, 5, 0, time.UTC)
 
 type archiveEntry struct {
 	name     string
@@ -29,7 +35,7 @@ func buildTar(t *testing.T, entries []archiveEntry) []byte {
 	var buf bytes.Buffer
 	tw := tar.NewWriter(&buf)
 	for _, e := range entries {
-		hdr := &tar.Header{Name: e.name, Typeflag: e.typeflag, Mode: 0o644}
+		hdr := &tar.Header{Name: e.name, Typeflag: e.typeflag, Mode: 0o644, ModTime: archiveModTime}
 		switch e.typeflag {
 		case tar.TypeDir:
 			hdr.Mode = 0o755
@@ -116,6 +122,65 @@ func TestStaticHandlerServesAssetsArchive(t *testing.T) {
 	}
 }
 
+func TestStaticHandlerServesArchiveConcurrently(t *testing.T) {
+	body := strings.Repeat("0123456789", 20<<10) // 200 KB
+	entries := append(releaseEntries(),
+		archiveEntry{name: uiArchivePrefix + "static/big.js", typeflag: tar.TypeReg, body: body})
+	h, err := newStaticAssetsHandler(
+		&QueryOptions{UIConfig: UIConfig{AssetsPath: writeArchive(t, gzipBytes(t, buildTar(t, entries)))}},
+		nilBackendCaps,
+		zap.NewNop(),
+	)
+	require.NoError(t, err)
+	r := http.NewServeMux()
+	h.registerRoutes(r)
+	server := httptest.NewServer(r)
+	defer server.Close()
+
+	// Each goroutine records its result; assertions run on the test goroutine.
+	type result struct {
+		body string
+		err  error
+	}
+	results := make([]result, 16)
+	var wg sync.WaitGroup
+	for i := range results {
+		wg.Go(func() {
+			resp, err := http.Get(server.URL + "/static/big.js")
+			if err != nil {
+				results[i].err = err
+				return
+			}
+			defer resp.Body.Close()
+			got, err := io.ReadAll(resp.Body)
+			results[i] = result{body: string(got), err: err}
+		})
+	}
+	wg.Wait()
+	for _, res := range results {
+		require.NoError(t, res.err)
+		assert.Equal(t, body, res.body)
+	}
+}
+
+func TestStaticHandlerKeepsArchiveModTime(t *testing.T) {
+	h, err := newStaticAssetsHandler(
+		&QueryOptions{UIConfig: UIConfig{AssetsPath: writeArchive(t, gzipBytes(t, buildTar(t, releaseEntries())))}},
+		nilBackendCaps,
+		zap.NewNop(),
+	)
+	require.NoError(t, err)
+	r := http.NewServeMux()
+	h.registerRoutes(r)
+	server := httptest.NewServer(r)
+	defer server.Close()
+
+	resp, err := http.Get(server.URL + "/static/app.js")
+	require.NoError(t, err)
+	defer resp.Body.Close()
+	assert.Equal(t, archiveModTime.Format(http.TimeFormat), resp.Header.Get("Last-Modified"))
+}
+
 func TestLoadAssetsArchiveSkipsEntries(t *testing.T) {
 	entries := append(releaseEntries(),
 		archiveEntry{name: "README.md", typeflag: tar.TypeReg, body: "outside the prefix"},
@@ -190,31 +255,13 @@ func TestLoadAssetsArchiveErrors(t *testing.T) {
 		})
 	}
 
-	t.Run("too large", func(t *testing.T) {
-		// GNU tar pads the archive to a whole record after the end-of-archive
-		// marker; the tar reader never reads that padding, only the drain does.
-		padded := append(bytes.Clone(tarball), make([]byte, 8192)...)
-		for _, tc := range []struct {
-			name  string
-			data  []byte
-			limit int64
-		}{
-			{name: "inside the first header", data: release, limit: 10},
-			{name: "inside the trailing padding", data: gzipBytes(t, padded), limit: int64(len(tarball)) + 10},
-		} {
-			t.Run(tc.name, func(t *testing.T) {
-				archive := writeArchive(t, tc.data)
-				saved := maxUIArchiveSize
-				maxUIArchiveSize = tc.limit
-				t.Cleanup(func() { maxUIArchiveSize = saved })
-				_, err := loadAssetsArchive(archive)
-				require.ErrorContains(t, err, "exceeds")
-			})
-		}
-	})
-
 	t.Run("missing file", func(t *testing.T) {
 		_, err := loadAssetsArchive(filepath.Join(t.TempDir(), "missing.tar.gz"))
+		require.ErrorContains(t, err, "cannot open UI assets archive")
+	})
+
+	t.Run("missing archive", func(t *testing.T) {
+		_, err := openAssetsFS(filepath.Join(t.TempDir(), "missing.tar.gz"))
 		require.ErrorContains(t, err, "cannot open UI assets archive")
 	})
 
@@ -239,7 +286,6 @@ func TestOpenAssetsFSFallsBackToDirectory(t *testing.T) {
 		dir,
 		notArchive,
 		archiveDir,
-		filepath.Join(dir, "missing.tar.gz"),
 	} {
 		fsys, err := openAssetsFS(p)
 		require.NoError(t, err)

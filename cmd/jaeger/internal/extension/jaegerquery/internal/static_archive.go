@@ -29,27 +29,30 @@ const (
 	uiArchivePrefix = "packages/jaeger-ui/build/"
 )
 
-// maxUIArchiveSize caps how many bytes loadAssetsArchive decompresses, so a
-// malformed or hostile archive cannot exhaust memory. A jaeger-ui build is a
-// few megabytes. A package-level var (not const) so tests can lower it.
-var maxUIArchiveSize int64 = 256 << 20
-
 // openAssetsFS returns the file system the UI is served from. A regular file
 // whose name ends in .tar.gz is loaded as a jaeger-ui release archive; any
 // other path is served as a directory, as before.
 func openAssetsFS(assetsPath string) (http.FileSystem, error) {
-	info, err := os.Stat(assetsPath)
-	if err == nil && !info.IsDir() && strings.HasSuffix(assetsPath, uiArchiveSuffix) {
-		return loadAssetsArchive(assetsPath)
+	if !strings.HasSuffix(assetsPath, uiArchiveSuffix) {
+		return http.Dir(assetsPath), nil
 	}
-	return http.Dir(assetsPath), nil
+	info, err := os.Stat(assetsPath)
+	if err != nil {
+		return nil, fmt.Errorf("cannot open UI assets archive %s: %w", assetsPath, err)
+	}
+	if !info.Mode().IsRegular() {
+		return http.Dir(assetsPath), nil
+	}
+	return loadAssetsArchive(assetsPath)
 }
 
-// loadAssetsArchive reads the entries of a jaeger-ui assets.tar.gz that sit
-// under uiArchivePrefix into an in-memory file system, with the prefix
-// stripped so index.html is at the root. Entries outside the prefix, entries
-// whose names are not clean relative paths, and anything other than regular
-// files and directories are skipped.
+// loadAssetsArchive reads the regular files of a jaeger-ui assets.tar.gz that
+// sit under uiArchivePrefix into an in-memory file system, with the prefix
+// stripped so index.html is at the root. The whole build is decompressed into
+// memory once, at startup. Entries outside the prefix, entries whose names are
+// not clean relative paths, and anything other than regular files are
+// skipped. Each file keeps its modification time from the archive, so
+// Last-Modified does not change across restarts.
 func loadAssetsArchive(archivePath string) (http.FileSystem, error) {
 	f, err := os.Open(filepath.Clean(archivePath))
 	if err != nil {
@@ -63,59 +66,56 @@ func loadAssetsArchive(archivePath string) (http.FileSystem, error) {
 	}
 	defer gzr.Close()
 
-	src := &io.LimitedReader{R: gzr, N: maxUIArchiveSize + 1}
-	// fail reports the size cap in place of err when the cap is what cut the
-	// stream short, since the tar reader only sees an early EOF.
-	fail := func(err error) error {
-		if src.N <= 0 {
-			return fmt.Errorf("UI assets archive %s exceeds %d bytes uncompressed", archivePath, maxUIArchiveSize)
-		}
-		return err
-	}
-
 	memFS := afero.NewMemMapFs()
 	files := 0
-	tr := tar.NewReader(src)
+	tr := tar.NewReader(gzr)
 	for {
 		hdr, err := tr.Next()
 		if errors.Is(err, io.EOF) {
 			break
 		}
 		if err != nil {
-			return nil, fail(fmt.Errorf("cannot read UI assets archive %s: %w", archivePath, err))
+			return nil, fmt.Errorf("cannot read UI assets archive %s: %w", archivePath, err)
+		}
+		if hdr.Typeflag != tar.TypeReg {
+			continue
 		}
 		name, ok := strings.CutPrefix(hdr.Name, uiArchivePrefix)
-		if !ok {
+		if !ok || !fs.ValidPath(name) {
 			continue
 		}
-		name = strings.TrimSuffix(name, "/")
-		if name == "" || !fs.ValidPath(name) {
-			continue
-		}
-		switch hdr.Typeflag {
-		case tar.TypeDir:
-			err = memFS.MkdirAll("/"+name, 0o755)
-		case tar.TypeReg:
-			err = afero.WriteReader(memFS, "/"+name, tr)
-			files++
-		default:
-			continue
+		// WriteReader creates any missing parent directories.
+		err = afero.WriteReader(memFS, "/"+name, tr)
+		if err == nil {
+			err = memFS.Chtimes("/"+name, hdr.ModTime, hdr.ModTime)
 		}
 		if err != nil {
-			return nil, fail(fmt.Errorf("cannot load %s from UI assets archive %s: %w", hdr.Name, archivePath, err))
+			return nil, fmt.Errorf("cannot load %s from UI assets archive %s: %w", hdr.Name, archivePath, err)
 		}
+		files++
 	}
 	// The tar reader stops at the end-of-archive marker, which can leave
 	// padding and the gzip trailer unread. Drain the stream so a truncated or
 	// corrupt archive fails its checksum here instead of being served.
-	if _, err := io.Copy(io.Discard, src); err != nil {
+	if err := drain(gzr); err != nil {
 		return nil, fmt.Errorf("cannot read UI assets archive %s: %w", archivePath, err)
-	}
-	if err := fail(nil); err != nil {
-		return nil, err
 	}
 	if files == 0 {
 		return nil, fmt.Errorf("UI assets archive %s has no files under %s", archivePath, uiArchivePrefix)
 	}
 	return afero.NewHttpFs(memFS), nil
+}
+
+// drain reads r to the end and discards what it reads.
+func drain(r io.Reader) error {
+	buf := make([]byte, 32<<10)
+	for {
+		_, err := r.Read(buf)
+		if errors.Is(err, io.EOF) {
+			return nil
+		}
+		if err != nil {
+			return err
+		}
+	}
 }
