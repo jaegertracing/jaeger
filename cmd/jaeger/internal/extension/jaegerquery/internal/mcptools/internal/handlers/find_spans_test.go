@@ -8,19 +8,19 @@ import (
 	"errors"
 	"iter"
 	"testing"
-	"time"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/collector/pdata/ptrace"
 
-	expression "github.com/jaegertracing/jaeger-idl/query/expression/v1"
 	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerquery/internal/mcptools/internal/types"
 	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerquery/querysvc"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/memory"
 )
+
+const findSpansWindow = "WHERE between(start_time, now() - '1h', now())"
 
 func TestFindSpansHandler_Handle_FullWorkflow(t *testing.T) {
 	trace := createTestTraceWithSpans("trace111", []spanConfig{
@@ -41,10 +41,7 @@ func TestFindSpansHandler_Handle_FullWorkflow(t *testing.T) {
 	handler := &findSpansHandler{queryService: mock, maxResults: 100}
 
 	input := types.FindSpansInput{
-		StartTimeMin: "-1h",
-		StartTimeMax: "now",
-		ServiceName:  "test-service",
-		SpanName:     "/checkout",
+		SQL: "SELECT * FROM spans " + findSpansWindow + " AND service = 'test-service' AND name = '/checkout'",
 	}
 
 	_, output, err := handler.handle(context.Background(), &mcp.CallToolRequest{}, input)
@@ -66,54 +63,18 @@ func TestFindSpansHandler_Handle_NoFilterWhenNoCriteria(t *testing.T) {
 	}
 	handler := &findSpansHandler{queryService: mock, maxResults: 100}
 
-	input := types.FindSpansInput{StartTimeMin: "-1h", StartTimeMax: "now"}
+	input := types.FindSpansInput{SQL: "SELECT * FROM spans " + findSpansWindow}
 	_, _, err := handler.handle(context.Background(), &mcp.CallToolRequest{}, input)
 	require.NoError(t, err)
 }
 
-func TestFindSpansHandler_Handle_MissingStartTimeMin(t *testing.T) {
+func TestFindSpansHandler_Handle_BlankSQL(t *testing.T) {
 	// Via the exported constructor, like NewSearchTracesHandler/NewGetSpanDetailsHandler's own
 	// validation-error tests: nil is a valid *querysvc.QueryService here because this path
 	// returns before ever touching it.
 	handler := NewFindSpansHandler(nil, 100)
-	input := types.FindSpansInput{StartTimeMax: "now"}
-	_, _, err := handler(context.Background(), &mcp.CallToolRequest{}, input)
-	require.ErrorContains(t, err, "start_time_min is required")
-}
-
-func TestFindSpansHandler_Handle_MissingStartTimeMax(t *testing.T) {
-	handler := &findSpansHandler{queryService: &mockQueryService{}, maxResults: 100}
-	input := types.FindSpansInput{StartTimeMin: "-1h"}
-	_, _, err := handler.handle(context.Background(), &mcp.CallToolRequest{}, input)
-	require.ErrorContains(t, err, "start_time_max is required")
-}
-
-func TestFindSpansHandler_Handle_InvalidStartTimeMin(t *testing.T) {
-	handler := &findSpansHandler{queryService: &mockQueryService{}, maxResults: 100}
-	input := types.FindSpansInput{StartTimeMin: "not-a-time", StartTimeMax: "now"}
-	_, _, err := handler.handle(context.Background(), &mcp.CallToolRequest{}, input)
-	require.ErrorContains(t, err, "invalid start_time_min")
-}
-
-func TestFindSpansHandler_Handle_InvalidStartTimeMax(t *testing.T) {
-	handler := &findSpansHandler{queryService: &mockQueryService{}, maxResults: 100}
-	input := types.FindSpansInput{StartTimeMin: "-1h", StartTimeMax: "not-a-time"}
-	_, _, err := handler.handle(context.Background(), &mcp.CallToolRequest{}, input)
-	require.ErrorContains(t, err, "invalid start_time_max")
-}
-
-func TestFindSpansHandler_Handle_InvalidDurationMin(t *testing.T) {
-	handler := &findSpansHandler{queryService: &mockQueryService{}, maxResults: 100}
-	input := types.FindSpansInput{StartTimeMin: "-1h", StartTimeMax: "now", DurationMin: "nope"}
-	_, _, err := handler.handle(context.Background(), &mcp.CallToolRequest{}, input)
-	require.ErrorContains(t, err, "invalid duration_min")
-}
-
-func TestFindSpansHandler_Handle_InvalidDurationMax(t *testing.T) {
-	handler := &findSpansHandler{queryService: &mockQueryService{}, maxResults: 100}
-	input := types.FindSpansInput{StartTimeMin: "-1h", StartTimeMax: "now", DurationMax: "nope"}
-	_, _, err := handler.handle(context.Background(), &mcp.CallToolRequest{}, input)
-	require.ErrorContains(t, err, "invalid duration_max")
+	_, _, err := handler(context.Background(), &mcp.CallToolRequest{}, types.FindSpansInput{SQL: " \n\t"})
+	require.ErrorContains(t, err, "sql is required")
 }
 
 func TestFindSpansHandler_Handle_QueryError(t *testing.T) {
@@ -126,7 +87,7 @@ func TestFindSpansHandler_Handle_QueryError(t *testing.T) {
 	}
 	handler := &findSpansHandler{queryService: mock, maxResults: 100}
 
-	input := types.FindSpansInput{StartTimeMin: "-1h", StartTimeMax: "now"}
+	input := types.FindSpansInput{SQL: "SELECT * FROM spans " + findSpansWindow}
 	_, output, err := handler.handle(context.Background(), &mcp.CallToolRequest{}, input)
 
 	require.NoError(t, err, "a query error is reported in output.Error, not returned")
@@ -144,7 +105,7 @@ func TestFindSpansHandler_Handle_SpanSearchUnsupported(t *testing.T) {
 	}
 	handler := &findSpansHandler{queryService: mock, maxResults: 100}
 
-	input := types.FindSpansInput{StartTimeMin: "-1h", StartTimeMax: "now"}
+	input := types.FindSpansInput{SQL: "SELECT * FROM spans " + findSpansWindow}
 	_, output, err := handler.handle(context.Background(), &mcp.CallToolRequest{}, input)
 
 	require.NoError(t, err)
@@ -168,7 +129,7 @@ func TestFindSpansHandler_Handle_PartialResults(t *testing.T) {
 	}
 	handler := &findSpansHandler{queryService: mock, maxResults: 100}
 
-	input := types.FindSpansInput{StartTimeMin: "-1h", StartTimeMax: "now"}
+	input := types.FindSpansInput{SQL: "SELECT * FROM spans " + findSpansWindow}
 	_, output, err := handler.handle(context.Background(), &mcp.CallToolRequest{}, input)
 
 	require.NoError(t, err)
@@ -186,7 +147,7 @@ func TestFindSpansHandler_Handle_LimitEnforced(t *testing.T) {
 	mock := newMockFindSpans(trace)
 	handler := &findSpansHandler{queryService: mock, maxResults: 2}
 
-	input := types.FindSpansInput{StartTimeMin: "-1h", StartTimeMax: "now"}
+	input := types.FindSpansInput{SQL: "SELECT * FROM spans " + findSpansWindow}
 	_, output, err := handler.handle(context.Background(), &mcp.CallToolRequest{}, input)
 
 	require.NoError(t, err)
@@ -202,43 +163,114 @@ func TestFindSpansHandler_Handle_MaxResultsClampedToServerCap(t *testing.T) {
 	mock := newMockFindSpans(trace)
 	handler := &findSpansHandler{queryService: mock, maxResults: 2}
 
-	input := types.FindSpansInput{StartTimeMin: "-1h", StartTimeMax: "now", MaxResults: 100}
+	input := types.FindSpansInput{SQL: "SELECT * FROM spans " + findSpansWindow, MaxResults: 100}
 	_, output, err := handler.handle(context.Background(), &mcp.CallToolRequest{}, input)
 
 	require.NoError(t, err)
 	assert.Len(t, output.Spans, 2, "a request above the server cap is clamped to it")
 }
 
-func TestFindSpansHandler_Handle_WithErrorsFilter(t *testing.T) {
-	trace := createTestTraceWithSpans("trace111", []spanConfig{
-		{spanID: "span0001", operation: "/error", hasError: true, errorMessage: "boom"},
-	})
-
-	mock := &mockQueryService{
-		findSpansFunc: func(_ context.Context, query querysvc.SpanQueryParams) iter.Seq2[tracestore.PageChunk[ptrace.Traces], error] {
-			require.NotNil(t, query.Filter)
-			ref, ok := query.Filter.Args[0].(*expression.AttributeRef)
-			require.True(t, ok)
-			assert.Equal(t, "error", ref.Key)
-			return func(yield func(tracestore.PageChunk[ptrace.Traces], error) bool) {
-				yield(tracestore.PageChunk[ptrace.Traces]{Results: trace}, nil)
-			}
+// TestFindSpansHandler_BuildQuery_EffectiveLimit pins how max_results and the statement's own
+// LIMIT interact: LIMIT overrides max_results, and the server cap applies to either.
+func TestFindSpansHandler_BuildQuery_EffectiveLimit(t *testing.T) {
+	tests := []struct {
+		name       string
+		sql        string
+		maxResults int
+		want       uint32
+	}{
+		{
+			name: "the statement's LIMIT is the limit",
+			sql:  "SELECT * FROM spans " + findSpansWindow + " LIMIT 7",
+			want: 7,
+		},
+		{
+			name:       "LIMIT overrides max_results",
+			sql:        "SELECT * FROM spans " + findSpansWindow + " LIMIT 7",
+			maxResults: 50,
+			want:       7,
+		},
+		{
+			name:       "max_results applies without LIMIT",
+			sql:        "SELECT * FROM spans " + findSpansWindow,
+			maxResults: 50,
+			want:       50,
+		},
+		{
+			name: "the server cap applies without either",
+			sql:  "SELECT * FROM spans " + findSpansWindow,
+			want: 100,
+		},
+		{
+			name: "the server cap applies to LIMIT",
+			sql:  "SELECT * FROM spans " + findSpansWindow + " LIMIT 500",
+			want: 100,
 		},
 	}
-	handler := &findSpansHandler{queryService: mock, maxResults: 100}
-
-	input := types.FindSpansInput{
-		StartTimeMin: "-1h",
-		StartTimeMax: "now",
-		WithErrors:   true,
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			handler := &findSpansHandler{maxResults: 100}
+			_, limit, err := handler.buildQuery(types.FindSpansInput{SQL: tt.sql, MaxResults: tt.maxResults})
+			require.NoError(t, err)
+			assert.Equal(t, tt.want, limit)
+		})
 	}
-	_, output, err := handler.handle(context.Background(), &mcp.CallToolRequest{}, input)
+}
 
+// TestFindSpansHandler_EffectiveLimit_NegativeRequested pins that a negative max_results
+// (which the schema does not forbid) is treated the same as unset, not as a negative page size.
+func TestFindSpansHandler_EffectiveLimit_NegativeRequested(t *testing.T) {
+	handler := &findSpansHandler{maxResults: 100}
+	assert.EqualValues(t, 100, handler.effectiveLimit(-5, 0))
+}
+
+// TestFindSpansHandler_BuildQuery_PageSizeMatchesLimit pins the fix for the bug Yuri's review
+// found: the effective limit must be the backend page size, not just the output truncation
+// bound, or a request for one span still makes the backend fetch a full default page.
+func TestFindSpansHandler_BuildQuery_PageSizeMatchesLimit(t *testing.T) {
+	handler := &findSpansHandler{maxResults: 100}
+	query, limit, err := handler.buildQuery(types.FindSpansInput{
+		SQL: "SELECT * FROM spans " + findSpansWindow, MaxResults: 1,
+	})
 	require.NoError(t, err)
-	require.Len(t, output.Spans, 1)
-	assert.Equal(t, "/error", output.Spans[0].SpanName)
-	assert.Equal(t, "Error", output.Spans[0].Status.Code)
-	assert.Empty(t, output.Error)
+	assert.EqualValues(t, 1, limit)
+	assert.EqualValues(t, 1, query.Pagination.PageSize)
+}
+
+func TestFindSpansHandler_BuildQuery_Refusals(t *testing.T) {
+	tests := []struct {
+		name    string
+		sql     string
+		wantErr string
+	}{
+		{
+			name:    "a trace-ID search",
+			sql:     "SELECT DISTINCT trace_id FROM spans " + findSpansWindow,
+			wantErr: "invalid sql: the statement selects traces, and find_spans returns spans. Send it to search_traces instead",
+		},
+		{
+			name:    "a whole-traces search",
+			sql:     "SELECT * FROM traces WHERE trace_id IN (SELECT trace_id FROM spans " + findSpansWindow + ")",
+			wantErr: "invalid sql: the statement selects traces, and find_spans returns spans. Send it to search_traces instead",
+		},
+		{
+			name:    "a compile error carries the position and the hint",
+			sql:     "SELECT * FROM spans WHERE service = 'checkout'",
+			wantErr: "invalid sql: line 1:21: WHERE needs both bounds on start_time",
+		},
+		{
+			name:    "a parse error",
+			sql:     "SELEC * FROM spans",
+			wantErr: "invalid sql: line 1:1:",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			handler := NewFindSpansHandler(nil, 100)
+			_, _, err := handler(context.Background(), &mcp.CallToolRequest{}, types.FindSpansInput{SQL: tt.sql})
+			require.ErrorContains(t, err, tt.wantErr)
+		})
+	}
 }
 
 // TestFindSpansHandler_Handle_ServedByMemoryStore pins the end-to-end behavior against the
@@ -256,7 +288,7 @@ func TestFindSpansHandler_Handle_ServedByMemoryStore(t *testing.T) {
 		maxResults:   100,
 	}
 
-	input := types.FindSpansInput{StartTimeMin: "-1h", StartTimeMax: "now"}
+	input := types.FindSpansInput{SQL: "SELECT * FROM spans " + findSpansWindow}
 	_, output, err := handler.handle(context.Background(), &mcp.CallToolRequest{}, input)
 
 	require.NoError(t, err)
@@ -265,54 +297,26 @@ func TestFindSpansHandler_Handle_ServedByMemoryStore(t *testing.T) {
 	assert.Empty(t, output.Error)
 }
 
-func TestBuildSearchFilter(t *testing.T) {
-	t.Run("no criteria yields nil", func(t *testing.T) {
-		assert.Nil(t, buildSearchFilter(types.FindSpansInput{}, nil, nil))
+func TestFindSpansHandler_Handle_WithErrorsFilter(t *testing.T) {
+	trace := createTestTraceWithSpans("trace111", []spanConfig{
+		{spanID: "span0001", operation: "/error", hasError: true, errorMessage: "boom"},
 	})
-	t.Run("single criterion is not wrapped in and", func(t *testing.T) {
-		f := buildSearchFilter(types.FindSpansInput{ServiceName: "svc"}, nil, nil)
-		require.NotNil(t, f)
-		assert.Equal(t, expression.OpEq, f.Op)
-	})
-	t.Run("multiple criteria are anded together", func(t *testing.T) {
-		f := buildSearchFilter(types.FindSpansInput{ServiceName: "svc", SpanName: "op"}, nil, nil)
-		require.NotNil(t, f)
-		assert.Equal(t, expression.OpAnd, f.Op)
-		assert.Len(t, f.Args, 2)
-	})
-	t.Run("attribute value is untyped so it resolves against the stored kind", func(t *testing.T) {
-		f := buildSearchFilter(types.FindSpansInput{Attributes: map[string]string{"k": "v"}}, nil, nil)
-		require.NotNil(t, f)
-		call, ok := f.Args[1].(*expression.AnyValue)
-		require.True(t, ok)
-		assert.Equal(t, "v", call.Value)
-	})
-	t.Run("with_errors reads the error virtual attribute as a bool", func(t *testing.T) {
-		f := buildSearchFilter(types.FindSpansInput{WithErrors: true}, nil, nil)
-		require.NotNil(t, f)
-		ref, ok := f.Args[0].(*expression.AttributeRef)
-		require.True(t, ok)
-		assert.Equal(t, "error", ref.Key)
-		value, ok := f.Args[1].(*expression.AnyValue)
-		require.True(t, ok, "untyped, so the text lowering can read it")
-		assert.Equal(t, "true", value.Value)
-	})
-	t.Run("duration bounds compare the span duration field", func(t *testing.T) {
-		lo, hi := 2*time.Second, 10*time.Second
-		f := buildSearchFilter(types.FindSpansInput{}, &lo, &hi)
-		require.NotNil(t, f)
-		require.Equal(t, expression.OpAnd, f.Op)
-		require.Len(t, f.Args, 2)
-		lower := f.Args[0].(*expression.Call)
-		assert.Equal(t, expression.OpGte, lower.Op)
-		upper := f.Args[1].(*expression.Call)
-		assert.Equal(t, expression.OpLte, upper.Op)
-	})
-	t.Run("an explicit zero upper bound is applied, not dropped", func(t *testing.T) {
-		zero := time.Duration(0)
-		f := buildSearchFilter(types.FindSpansInput{}, nil, &zero)
-		require.NotNil(t, f, "a single bound is the whole filter, not an AND of one")
-		assert.Equal(t, expression.OpLte, f.Op)
-		assert.Equal(t, time.Duration(0), f.Args[1].(*expression.DurationValue).Value)
-	})
+
+	store, err := memory.NewStore(memory.Configuration{MaxTraces: 10})
+	require.NoError(t, err)
+	require.NoError(t, store.WriteTraces(context.Background(), trace))
+
+	handler := &findSpansHandler{
+		queryService: querysvc.NewQueryService(store, store, querysvc.QueryServiceOptions{}),
+		maxResults:   100,
+	}
+
+	input := types.FindSpansInput{SQL: "SELECT * FROM spans " + findSpansWindow + " AND status = 'error'"}
+	_, output, err := handler.handle(context.Background(), &mcp.CallToolRequest{}, input)
+
+	require.NoError(t, err)
+	require.Len(t, output.Spans, 1)
+	assert.Equal(t, "/error", output.Spans[0].SpanName)
+	assert.Equal(t, "Error", output.Spans[0].Status.Code)
+	assert.Empty(t, output.Error)
 }

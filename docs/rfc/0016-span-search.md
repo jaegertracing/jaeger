@@ -667,7 +667,7 @@ PR-sized milestones with exit bars. Everything here sits behind RFC 0005 M1 and 
 
 **M7 — MCP.** A `find_spans` tool, and `get_span_details` rewired onto an identity filter where the backend declares support. *Exit:* an agent retrieves spans across traces in one call; `get_span_details` stops fetching whole traces on a declaring backend and is unchanged elsewhere.
 
-- ✅ `find_spans`, translating flat service/name/attribute/duration/error parameters into an RFC 0005 filter rather than exposing the AST to the model directly. Delivered in [#9643](https://github.com/jaegertracing/jaeger/pull/9643).
+- ✅ `find_spans`, taking a `sql` input compiled by [RFC 0019](0019-sql-query-surface.md) into the filter, the window, the order and the limit, mirroring `search_traces`'s own SQL input. Delivered in [#9643](https://github.com/jaegertracing/jaeger/pull/9643).
 - `get_span_details` rewired onto an identity filter. In progress: [#9623](https://github.com/jaegertracing/jaeger/pull/9623).
 
 **Caller-selected ordering has its own milestones.** M0–M7 retain their default-order exit criteria and do not depend on M8–M12. These milestones extend only `FindSpans`; trace-search ordering is out of scope.

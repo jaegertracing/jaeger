@@ -8,15 +8,16 @@ import (
 	"errors"
 	"fmt"
 	"iter"
+	"strings"
 	"time"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"go.opentelemetry.io/collector/pdata/ptrace"
 
-	expression "github.com/jaegertracing/jaeger-idl/query/expression/v1"
 	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerquery/internal/mcptools/internal/types"
 	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerquery/querysvc"
 	"github.com/jaegertracing/jaeger/internal/jptrace"
+	"github.com/jaegertracing/jaeger/internal/sqlquery"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore"
 )
 
@@ -25,11 +26,11 @@ type findSpansQueryService interface {
 	FindSpans(ctx context.Context, query querysvc.SpanQueryParams) iter.Seq2[tracestore.PageChunk[ptrace.Traces], error]
 }
 
-// findSpansHandler implements the find_spans MCP tool (RFC 0016 M7). Unlike
-// get_span_details, which names spans it already knows the IDs of, this tool discovers
-// spans matching service/name/attribute/duration/error criteria across however many
-// traces in one call, which today takes a search_traces call followed by one or more
-// get_span_details calls.
+// findSpansHandler implements the find_spans MCP tool (RFC 0016 M7, RFC 0019). Unlike
+// get_span_details, which names spans it already knows the IDs of, this tool discovers spans
+// matching whatever a statement over spans describes, across however many traces in one call,
+// which before this tool took a search_traces call followed by one or more get_span_details
+// calls.
 type findSpansHandler struct {
 	queryService findSpansQueryService
 	maxResults   int
@@ -69,7 +70,7 @@ outer:
 		}
 		for pos, span := range jptrace.SpanIter(chunk.Results) {
 			spans = append(spans, buildSpanDetail(pos, span))
-			if limit > 0 && len(spans) >= limit {
+			if limit > 0 && len(spans) >= int(limit) {
 				break outer
 			}
 		}
@@ -91,124 +92,48 @@ outer:
 	return nil, output, nil
 }
 
-// buildQuery converts FindSpansInput to querysvc.SpanQueryParams and the effective
-// result limit (input.MaxResults, clamped to the server's configured cap).
-func (h *findSpansHandler) buildQuery(input types.FindSpansInput) (querysvc.SpanQueryParams, int, error) {
-	if input.StartTimeMin == "" {
-		return querysvc.SpanQueryParams{}, 0, errors.New("start_time_min is required")
+// buildQuery compiles input.SQL (RFC 0019) into the span search it describes, and the
+// effective result limit: the statement's own LIMIT when present, else input.MaxResults,
+// clamped either way to the server's configured cap.
+func (h *findSpansHandler) buildQuery(input types.FindSpansInput) (querysvc.SpanQueryParams, uint32, error) {
+	if strings.TrimSpace(input.SQL) == "" {
+		return querysvc.SpanQueryParams{}, 0, errors.New("sql is required")
 	}
-	if input.StartTimeMax == "" {
-		return querysvc.SpanQueryParams{}, 0, errors.New("start_time_max is required")
-	}
-	startTimeMin, err := parseTimeParam(input.StartTimeMin)
+	query, err := sqlquery.Compile(input.SQL, time.Now())
 	if err != nil {
-		return querysvc.SpanQueryParams{}, 0, fmt.Errorf("invalid start_time_min: %w", err)
+		return querysvc.SpanQueryParams{}, 0, fmt.Errorf("invalid sql: %w", err)
 	}
-	startTimeMax, err := parseTimeParam(input.StartTimeMax)
-	if err != nil {
-		return querysvc.SpanQueryParams{}, 0, fmt.Errorf("invalid start_time_max: %w", err)
-	}
-
-	// A bound is present whenever the caller sent it, even as "0s": a nil pointer means no bound,
-	// so an explicit zero bound is not mistaken for an absent one.
-	var durationMin, durationMax *time.Duration
-	if input.DurationMin != "" {
-		d, err := time.ParseDuration(input.DurationMin)
-		if err != nil {
-			return querysvc.SpanQueryParams{}, 0, fmt.Errorf("invalid duration_min: %w", err)
-		}
-		durationMin = &d
-	}
-	if input.DurationMax != "" {
-		d, err := time.ParseDuration(input.DurationMax)
-		if err != nil {
-			return querysvc.SpanQueryParams{}, 0, fmt.Errorf("invalid duration_max: %w", err)
-		}
-		durationMax = &d
+	if query.Kind != sqlquery.KindFindSpans {
+		return querysvc.SpanQueryParams{}, 0, errors.New(
+			"invalid sql: the statement selects traces, and find_spans returns spans. " +
+				"Send it to search_traces instead, or write SELECT * FROM spans WHERE ... " +
+				"to search spans")
 	}
 
-	limit := input.MaxResults
-	if limit <= 0 || (h.maxResults > 0 && limit > h.maxResults) {
-		limit = h.maxResults
-	}
-
+	limit := h.effectiveLimit(input.MaxResults, query.Limit)
 	return querysvc.SpanQueryParams{
-		StartTimeMin: startTimeMin,
-		StartTimeMax: startTimeMax,
-		Filter:       buildSearchFilter(input, durationMin, durationMax),
+		StartTimeMin: query.StartTimeMin,
+		StartTimeMax: query.StartTimeMax,
+		Filter:       query.Filter,
+		OrderBy:      query.OrderBy,
+		Pagination:   querysvc.Pagination{PageSize: limit},
 	}, limit, nil
 }
 
-// buildSearchFilter translates the tool's flat, LLM-friendly parameters into the RFC 0005
-// filter FindSpans actually takes, rather than exposing the filter AST to the model
-// directly. Every present criterion becomes one predicate, ANDed together; no criteria
-// leaves the filter nil, which is the base case of a span query: the time range alone
-// (RFC 0016 §5.1).
-//
-// An attribute value from the input map is passed as an untyped AnyValue rather than a
-// StringValue, so it resolves against whatever kind the attribute is actually stored as
-// (string, number or bool) instead of only ever matching a literal string (RFC 0005 §5.4).
-// with_errors reads as the error virtual attribute every backend's filter lowering
-// special-cases (e.g. the elasticsearch backend's asErrorTagEquality), not a stored
-// attribute of that name.
-func buildSearchFilter(input types.FindSpansInput, durationMin, durationMax *time.Duration) *expression.Call {
-	var predicates []expression.Expression
-
-	if input.ServiceName != "" {
-		predicates = append(predicates, eq(
-			&expression.FieldRef{Level: expression.LevelResource, Name: expression.ResourceFieldService},
-			&expression.StringValue{Value: input.ServiceName},
-		))
+// effectiveLimit is the page size the backend is asked for: the statement's own LIMIT when
+// present, else requested (input.MaxResults), with the server's configured cap applied either
+// way. A zero result here is passed through as a zero PageSize, which the query service reads
+// as its own default, rather than this handler guessing at one.
+func (h *findSpansHandler) effectiveLimit(requested int, compiledLimit uint32) uint32 {
+	limit := requested
+	if compiledLimit > 0 {
+		limit = int(compiledLimit)
 	}
-	if input.SpanName != "" {
-		predicates = append(predicates, eq(
-			&expression.FieldRef{Level: expression.LevelSpan, Name: expression.SpanFieldName},
-			&expression.StringValue{Value: input.SpanName},
-		))
+	if limit < 0 {
+		limit = 0
 	}
-	for key, value := range input.Attributes {
-		predicates = append(predicates, eq(
-			&expression.AttributeRef{Key: key},
-			&expression.AnyValue{Value: value},
-		))
+	if h.maxResults > 0 && (limit == 0 || limit > h.maxResults) {
+		limit = h.maxResults
 	}
-	if input.WithErrors {
-		predicates = append(predicates, eq(
-			&expression.AttributeRef{Key: "error"},
-			// Untyped, so every backend's lowering reads it as the text "true" and parses it against
-			// the error tag, rather than refusing a typed boolean on a path that accepts only text.
-			&expression.AnyValue{Value: "true"},
-		))
-	}
-	if durationMin != nil {
-		predicates = append(predicates, &expression.Call{
-			Op: expression.OpGte,
-			Args: []expression.Expression{
-				&expression.FieldRef{Level: expression.LevelSpan, Name: expression.SpanFieldDuration},
-				&expression.DurationValue{Value: *durationMin},
-			},
-		})
-	}
-	if durationMax != nil {
-		predicates = append(predicates, &expression.Call{
-			Op: expression.OpLte,
-			Args: []expression.Expression{
-				&expression.FieldRef{Level: expression.LevelSpan, Name: expression.SpanFieldDuration},
-				&expression.DurationValue{Value: *durationMax},
-			},
-		})
-	}
-
-	switch len(predicates) {
-	case 0:
-		return nil
-	case 1:
-		return predicates[0].(*expression.Call)
-	default:
-		return &expression.Call{Op: expression.OpAnd, Args: predicates}
-	}
-}
-
-func eq(ref, value expression.Expression) *expression.Call {
-	return &expression.Call{Op: expression.OpEq, Args: []expression.Expression{ref, value}}
+	return uint32(limit)
 }
