@@ -307,6 +307,29 @@ func TestGetTraceTopologyHandler_Handle_SingleSpan(t *testing.T) {
 	assert.Equal(t, spanIDToHex(rootSpanID), output.Spans[0].Path)
 }
 
+func TestGetTraceTopologyHandler_Handle_SpanKind(t *testing.T) {
+	traceID := testTraceID
+	rootSpanID := "root001"
+	childSpanID := "child001"
+
+	spanConfigs := []spanConfig{
+		{spanID: rootSpanID, operation: "/api/users", spanKind: ptrace.SpanKindServer},
+		{spanID: childSpanID, parentSpanID: rootSpanID, operation: "db.query", spanKind: ptrace.SpanKindClient},
+	}
+
+	testTrace := createTestTraceWithSpans(traceID, spanConfigs)
+	mock := newMockYieldingTraces(testTrace)
+	handler := &getTraceTopologyHandler{queryService: mock}
+
+	input := types.GetTraceTopologyInput{TraceID: traceID, Depth: 0}
+	_, output, err := handler.handle(context.Background(), &mcp.CallToolRequest{}, input)
+
+	require.NoError(t, err)
+	require.Len(t, output.Spans, 2)
+	assert.Equal(t, "server", output.Spans[0].SpanKind)
+	assert.Equal(t, "client", output.Spans[1].SpanKind)
+}
+
 func TestGetTraceTopologyHandler_Handle_NoAttributes(t *testing.T) {
 	traceID := testTraceID
 	rootSpanID := "root001"
