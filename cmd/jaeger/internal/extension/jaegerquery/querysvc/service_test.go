@@ -1623,10 +1623,7 @@ func TestFindTraces_ServiceNameRequired(t *testing.T) {
 	// reject a filter that names the service through a resource.service predicate; the reader
 	// enforces the requirement itself once the filter reaches it.
 	t.Run("forwarded when a filter-native backend's filter names the service", func(t *testing.T) {
-		filter := compare(expression.OpEq,
-			&expression.FieldRef{Level: expression.LevelResource, Name: expression.ResourceFieldService},
-			&expression.StringValue{Value: "svc"},
-		)
+		filter := p.Resource().Service.Eq("svc")
 		query := filterQuery(filter)
 		reader := forwards(new(tracestoremocks.Reader))
 		reader.On("SearchCapabilities", mock.Anything).
