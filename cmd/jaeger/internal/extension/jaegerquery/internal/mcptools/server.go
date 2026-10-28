@@ -185,6 +185,9 @@ func registerTools(server *mcp.Server, queryAPI *querysvc.QueryService, params S
 		Description: "Get the structural overview of a trace as a flat, depth-first span list. " +
 			"Each span includes a 'path' field encoding ancestry as slash-delimited span IDs " +
 			"(e.g. 'rootID/parentID/spanID'). " +
+			"Results may be truncated to the server limit, keeping a depth-first prefix " +
+			"(later roots and sibling subtrees are omitted); " +
+			"compare total_span_count with the number of returned spans to detect truncation. " +
 			"Does NOT include attributes, events, or links.",
 	}, handlers.NewGetTraceTopologyHandler(s.queryAPI, s.params.MaxSpanDetailsPerRequest))
 
