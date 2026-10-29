@@ -4,6 +4,10 @@
 package criticalpath
 
 import (
+	"bytes"
+	"cmp"
+	"slices"
+
 	"go.opentelemetry.io/collector/pdata/pcommon"
 )
 
@@ -25,15 +29,31 @@ func removeOverflowingChildren(spanMap map[pcommon.SpanID]CPSpan) map[pcommon.Sp
 		_, parentInMap := spanMap[span.ParentSpanID]
 		if span.ParentSpanID.IsEmpty() || !parentInMap {
 			// True root (no parent) or orphan whose parent is missing from the map.
-			// Orphans with a non-empty ParentSpanID that point outside the map are
-			// treated as roots for traversal purposes; the original code dropped them
-			// via the "parentExists == false" branch. We replicate that below.
 			queue = append(queue, spanID)
 		}
 	}
 
+	// Deterministic ordering: sort initial seeds by StartTime, tie-breaking by SpanID bytes.
+	// This ensures cycle breaking and traversal order are 100% deterministic regardless of
+	// Go's randomized map iteration order.
+	slices.SortFunc(queue, func(a, b pcommon.SpanID) int {
+		spanA := spanMap[a]
+		spanB := spanMap[b]
+		if spanA.StartTime != spanB.StartTime {
+			return cmp.Compare(spanA.StartTime, spanB.StartTime)
+		}
+		return bytes.Compare(a[:], b[:])
+	})
+
+	// Track enqueued spans using a zero-allocation map[SpanID]struct{} set.
+	// Marking spans as enqueued at insertion time guarantees that each span is
+	// enqueued at most once and prevents duplicate BFS queue growth.
+	enqueued := make(map[pcommon.SpanID]struct{}, len(spanMap))
+	for _, id := range queue {
+		enqueued[id] = struct{}{}
+	}
+
 	for len(queue) > 0 {
-		// Dequeue the next span to process.
 		spanID := queue[0]
 		queue = queue[1:]
 
@@ -49,13 +69,36 @@ func removeOverflowingChildren(spanMap map[pcommon.SpanID]CPSpan) map[pcommon.Sp
 			if _, parentExists := spanMap[span.ParentSpanID]; !parentExists {
 				// Drop this orphan and cascade deletion to all its descendants.
 				delete(spanMap, spanID)
-				queue = appendChildren(queue, span.ChildSpanIDs)
+				for _, childID := range span.ChildSpanIDs {
+					if _, seen := enqueued[childID]; !seen {
+						enqueued[childID] = struct{}{}
+						queue = append(queue, childID)
+					}
+				}
 				continue
 			}
 		}
 
 		// Enqueue this span's children so they are processed after the parent.
-		queue = appendChildren(queue, span.ChildSpanIDs)
+		// Exclude already-enqueued spans to break cycles and prevent infinite loops.
+		hasCycle := false
+		validChildren := make([]pcommon.SpanID, 0, len(span.ChildSpanIDs))
+		for _, childID := range span.ChildSpanIDs {
+			if _, seen := enqueued[childID]; seen {
+				hasCycle = true
+				continue
+			}
+			enqueued[childID] = struct{}{}
+			validChildren = append(validChildren, childID)
+		}
+
+		if hasCycle {
+			// Prune cyclic edges in-place so downstream callers (e.g. computeCriticalPath)
+			// cannot follow the back-edge into a stack overflow.
+			span.ChildSpanIDs = validChildren
+			spanMap[spanID] = span
+		}
+		queue = appendChildren(queue, validChildren)
 
 		// Root spans have no parent to overflow; nothing to check.
 		if span.ParentSpanID.IsEmpty() {
@@ -119,6 +162,14 @@ func removeOverflowingChildren(spanMap map[pcommon.SpanID]CPSpan) map[pcommon.Sp
 			span.StartTime = parentSpan.StartTime
 			span.Duration = parentEndTime - parentSpan.StartTime
 			spanMap[span.SpanID] = span
+		}
+	}
+
+	// Any spans that were never enqueued have no path to a root or orphan seed;
+	// they form isolated closed cycles with no root. Purge them.
+	for id := range spanMap {
+		if _, seen := enqueued[id]; !seen {
+			delete(spanMap, id)
 		}
 	}
 

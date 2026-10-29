@@ -36,15 +36,20 @@ func CreateCPSpan(span ptrace.Span, childSpanIDs []pcommon.SpanID) CPSpan {
 func CreateCPSpanMap(traces ptrace.Traces) map[pcommon.SpanID]CPSpan {
 	spanMap := make(map[pcommon.SpanID]CPSpan)
 	childrenMap := make(map[pcommon.SpanID][]pcommon.SpanID)
+	seen := make(map[pcommon.SpanID]struct{})
 
-	// First pass: build children map
+	// First pass: build children map, ignoring duplicate span IDs and self-referencing spans.
 	for i := 0; i < traces.ResourceSpans().Len(); i++ {
 		rs := traces.ResourceSpans().At(i)
 		for j := 0; j < rs.ScopeSpans().Len(); j++ {
 			ss := rs.ScopeSpans().At(j)
 			for k := 0; k < ss.Spans().Len(); k++ {
 				span := ss.Spans().At(k)
-				if !span.ParentSpanID().IsEmpty() {
+				if _, dup := seen[span.SpanID()]; dup {
+					continue
+				}
+				seen[span.SpanID()] = struct{}{}
+				if !span.ParentSpanID().IsEmpty() && span.ParentSpanID() != span.SpanID() {
 					parentID := span.ParentSpanID()
 					childrenMap[parentID] = append(childrenMap[parentID], span.SpanID())
 				}
@@ -52,13 +57,19 @@ func CreateCPSpanMap(traces ptrace.Traces) map[pcommon.SpanID]CPSpan {
 		}
 	}
 
-	// Second pass: create CPSpan objects with child relationships
+	clear(seen)
+
+	// Second pass: create CPSpan objects with child relationships, ignoring duplicate span IDs.
 	for i := 0; i < traces.ResourceSpans().Len(); i++ {
 		rs := traces.ResourceSpans().At(i)
 		for j := 0; j < rs.ScopeSpans().Len(); j++ {
 			ss := rs.ScopeSpans().At(j)
 			for k := 0; k < ss.Spans().Len(); k++ {
 				span := ss.Spans().At(k)
+				if _, dup := seen[span.SpanID()]; dup {
+					continue
+				}
+				seen[span.SpanID()] = struct{}{}
 				childSpanIDs := childrenMap[span.SpanID()]
 				cpSpan := CreateCPSpan(span, childSpanIDs)
 				spanMap[span.SpanID()] = cpSpan

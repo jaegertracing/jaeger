@@ -439,3 +439,222 @@ func TestSanitizeOverFlowingChildren_GrandchildCascade(t *testing.T) {
 		}
 	}
 }
+
+// TestSanitizeOverFlowingChildren_CascadeDanglingChild ensures that if a dropped span
+// references a child that does not exist in the span map, cascadeDelete safely ignores it.
+func TestSanitizeOverFlowingChildren_CascadeDanglingChild(t *testing.T) {
+	spA := pcommon.SpanID([8]byte{0xA})
+	spB := pcommon.SpanID([8]byte{0xB})
+	spMissing := pcommon.SpanID([8]byte{0xEE})
+
+	input := map[pcommon.SpanID]CPSpan{
+		spA: {
+			SpanID:       spA,
+			StartTime:    0,
+			Duration:     200,
+			ChildSpanIDs: []pcommon.SpanID{spB},
+		},
+		spB: {
+			SpanID:       spB,
+			ParentSpanID: spA,
+			StartTime:    250, // overflows A, will be dropped
+			Duration:     50,
+			ChildSpanIDs: []pcommon.SpanID{spMissing}, // references missing child
+		},
+	}
+
+	result := removeOverflowingChildren(input)
+
+	// A survives with empty children
+	a, ok := result[spA]
+	assert.True(t, ok)
+	assert.Empty(t, a.ChildSpanIDs)
+
+	// B is dropped
+	_, ok = result[spB]
+	assert.False(t, ok)
+}
+
+// TestSanitizeOverFlowingChildren_CycleDetection ensures that spans forming a cycle
+// (e.g. A -> B -> A) do not cause an infinite loop and that cyclic back-edges are broken.
+func TestSanitizeOverFlowingChildren_CycleDetection(t *testing.T) {
+	spRoot := pcommon.SpanID([8]byte{1})
+	spA := pcommon.SpanID([8]byte{2})
+	spB := pcommon.SpanID([8]byte{3})
+
+	input := map[pcommon.SpanID]CPSpan{
+		spRoot: {
+			SpanID:       spRoot,
+			StartTime:    0,
+			Duration:     1000,
+			ChildSpanIDs: []pcommon.SpanID{spA},
+		},
+		spA: {
+			SpanID:       spA,
+			ParentSpanID: spRoot,
+			StartTime:    100,
+			Duration:     400,
+			ChildSpanIDs: []pcommon.SpanID{spB},
+		},
+		spB: {
+			SpanID:       spB,
+			ParentSpanID: spA,
+			StartTime:    150,
+			Duration:     200,
+			ChildSpanIDs: []pcommon.SpanID{spA}, // cycle back to A!
+		},
+	}
+
+	result := removeOverflowingChildren(input)
+
+	// All spans should survive, but the cycle must be broken (spB must not reference spA as child).
+	b, okB := result[spB]
+	assert.True(t, okB)
+	assert.NotContains(t, b.ChildSpanIDs, spA)
+}
+
+// TestSanitizeOverFlowingChildren_DisconnectedCycle ensures that disconnected cyclic spans
+// with no root span are dropped rather than surviving un-sanitized.
+func TestSanitizeOverFlowingChildren_DisconnectedCycle(t *testing.T) {
+	spA := pcommon.SpanID([8]byte{0xAA})
+	spB := pcommon.SpanID([8]byte{0xBB})
+
+	input := map[pcommon.SpanID]CPSpan{
+		spA: {
+			SpanID:       spA,
+			ParentSpanID: spB,
+			StartTime:    100,
+			Duration:     100,
+			ChildSpanIDs: []pcommon.SpanID{spB},
+		},
+		spB: {
+			SpanID:       spB,
+			ParentSpanID: spA,
+			StartTime:    100,
+			Duration:     100,
+			ChildSpanIDs: []pcommon.SpanID{spA},
+		},
+	}
+
+	result := removeOverflowingChildren(input)
+	assert.Empty(t, result)
+}
+
+// TestSanitizeOverFlowingChildren_SelfReferenceStandalone ensures that an isolated span
+// that references itself as its parent (ParentSpanID == SpanID) is purged as an invalid cycle.
+func TestSanitizeOverFlowingChildren_SelfReferenceStandalone(t *testing.T) {
+	spA := pcommon.SpanID([8]byte{0x55})
+
+	input := map[pcommon.SpanID]CPSpan{
+		spA: {
+			SpanID:       spA,
+			ParentSpanID: spA, // points to itself
+			StartTime:    100,
+			Duration:     100,
+			ChildSpanIDs: []pcommon.SpanID{spA},
+		},
+	}
+
+	result := removeOverflowingChildren(input)
+	assert.Empty(t, result)
+}
+
+// TestSanitizeOverFlowingChildren_SelfReferenceChild ensures that a valid child span
+// listing itself in its ChildSpanIDs has the self-referencing loop pruned.
+func TestSanitizeOverFlowingChildren_SelfReferenceChild(t *testing.T) {
+	spRoot := pcommon.SpanID([8]byte{1})
+	spA := pcommon.SpanID([8]byte{2})
+
+	input := map[pcommon.SpanID]CPSpan{
+		spRoot: {
+			SpanID:       spRoot,
+			StartTime:    0,
+			Duration:     1000,
+			ChildSpanIDs: []pcommon.SpanID{spA},
+		},
+		spA: {
+			SpanID:       spA,
+			ParentSpanID: spRoot,
+			StartTime:    100,
+			Duration:     200,
+			ChildSpanIDs: []pcommon.SpanID{spA}, // self-loop
+		},
+	}
+
+	result := removeOverflowingChildren(input)
+	a, ok := result[spA]
+	assert.True(t, ok)
+	assert.NotContains(t, a.ChildSpanIDs, spA)
+}
+
+// TestSanitizeOverFlowingChildren_DeterministicOrder runs cycle sanitization across multiple
+// iterations to ensure the result is completely deterministic despite Go's randomized map iteration.
+func TestSanitizeOverFlowingChildren_DeterministicOrder(t *testing.T) {
+	spRoot1 := pcommon.SpanID([8]byte{1})
+	spRoot2 := pcommon.SpanID([8]byte{2})
+	spA := pcommon.SpanID([8]byte{3})
+	spB := pcommon.SpanID([8]byte{4})
+
+	buildInput := func() map[pcommon.SpanID]CPSpan {
+		return map[pcommon.SpanID]CPSpan{
+			spRoot1: {
+				SpanID:       spRoot1,
+				StartTime:    0,
+				Duration:     500,
+				ChildSpanIDs: []pcommon.SpanID{spA},
+			},
+			spRoot2: {
+				SpanID:       spRoot2,
+				StartTime:    50,
+				Duration:     500,
+				ChildSpanIDs: []pcommon.SpanID{spB},
+			},
+			spA: {
+				SpanID:       spA,
+				ParentSpanID: spRoot1,
+				StartTime:    100,
+				Duration:     200,
+				ChildSpanIDs: []pcommon.SpanID{spB},
+			},
+			spB: {
+				SpanID:       spB,
+				ParentSpanID: spRoot2,
+				StartTime:    150,
+				Duration:     200,
+				ChildSpanIDs: []pcommon.SpanID{spA}, // creates cycle A <-> B
+			},
+		}
+	}
+
+	for i := range 50 {
+		res := removeOverflowingChildren(buildInput())
+		assert.Len(t, res, 4, "iteration %d: all spans must survive with cycle broken", i)
+		// spA was visited first because spRoot1 has StartTime 0 < spRoot2 StartTime 50.
+		// Thus the back-edge spB -> spA must be pruned.
+		b := res[spB]
+		assert.NotContains(t, b.ChildSpanIDs, spA, "iteration %d: spB must not contain spA", i)
+	}
+}
+
+// TestSanitizeOverFlowingChildren_DeterministicOrder_EqualStartTime exercises the tie-breaker
+// comparison when two seed spans share the exact same StartTime.
+func TestSanitizeOverFlowingChildren_DeterministicOrder_EqualStartTime(t *testing.T) {
+	spRoot1 := pcommon.SpanID([8]byte{0x01})
+	spRoot2 := pcommon.SpanID([8]byte{0x02})
+
+	input := map[pcommon.SpanID]CPSpan{
+		spRoot1: {
+			SpanID:    spRoot1,
+			StartTime: 100, // same start time
+			Duration:  200,
+		},
+		spRoot2: {
+			SpanID:    spRoot2,
+			StartTime: 100, // same start time
+			Duration:  200,
+		},
+	}
+
+	res := removeOverflowingChildren(input)
+	assert.Len(t, res, 2)
+}
