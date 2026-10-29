@@ -177,14 +177,14 @@ build-all-platforms:
 # Build Jaeger using ocb (OpenTelemetry Collector Builder) with the Workspace
 # Overwrite pattern: ocb generates the sources, then we replace its vanilla
 # main.go with one that calls jaegercli.NewCommand so the binary keeps Jaeger's
-# subcommands and embedded all-in-one config.
+# subcommands and embedded all-in-one config. The main*.go files removed below
+# are ocb's main.go and its main_{others,windows}.go wrappers.
 .PHONY: build-ocb
 build-ocb: $(OCB)
 	@echo "Generating Jaeger sources with ocb"
 	$(OCB) --config cmd/jaeger/builder.yaml --skip-strict-versioning --skip-compilation
-	# replace ocb's entrypoint (main.go + its main_{others,windows}.go wrappers)
 	rm -f cmd/jaeger/_build/main*.go
 	cp cmd/jaeger/jaegercli/main.go.tmpl cmd/jaeger/_build/main.go
 	@echo "Compiling ocb-built Jaeger"
-	cd cmd/jaeger/_build && go mod tidy && go build $(BUILD_INFO) -o jaeger .
+	cd cmd/jaeger/_build && go mod tidy && $(GOBUILD_EXEC) $(BUILD_INFO) -o jaeger .
 	@echo "✅ ocb build successful: cmd/jaeger/_build/jaeger"
