@@ -11,12 +11,12 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/jaegertracing/jaeger/cmd/es-rollover/app"
-	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/client"
-	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/client/mocks"
+	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/esclient"
+	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/esclient/mocks"
 )
 
 func TestRolloverAction(t *testing.T) {
-	readIndices := []client.Index{
+	readIndices := []esclient.Index{
 		{
 			Index: "jaeger-read-span",
 			Aliases: map[string]bool{
@@ -25,7 +25,7 @@ func TestRolloverAction(t *testing.T) {
 		},
 	}
 
-	aliasToCreate := []client.Alias{{Index: "jaeger-read-span", Name: "jaeger-span-archive-read", IsWriteIndex: false}}
+	aliasToCreate := []esclient.Alias{{Index: "jaeger-read-span", Name: "jaeger-span-archive-read", IsWriteIndex: false}}
 	type testCase struct {
 		name                  string
 		conditions            string
@@ -34,7 +34,7 @@ func TestRolloverAction(t *testing.T) {
 		rolloverErr           error
 		createAliasErr        error
 		expectedError         bool
-		indices               []client.Index
+		indices               []esclient.Index
 		setupCallExpectations func(indexClient *mocks.IndexAPI, t *testCase)
 	}
 
@@ -54,7 +54,7 @@ func TestRolloverAction(t *testing.T) {
 			name:          "no alias write alias",
 			conditions:    "{\"max_age\": \"2d\"}",
 			expectedError: false,
-			indices: []client.Index{
+			indices: []esclient.Index{
 				{
 					Index: "jaeger-read-span",
 					Aliases: map[string]bool{

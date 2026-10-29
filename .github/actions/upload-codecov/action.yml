@@ -10,8 +10,9 @@ name: 'Upload coverage to codecov'
 description: 'Uploads coverage to codecov with retries and saves raw profiles as artifacts'
 inputs:
   files:
-    description: 'Coverage files to upload (comma-separated)'
-    required: true
+    description: 'Coverage files to upload (comma-separated). Defaults to the profile every make target writes.'
+    required: false
+    default: '.cover/cover.out'
   flag:
     description: 'Codecov flag for this upload; also used as the artifact name suffix (coverage-<flag>)'
     required: true

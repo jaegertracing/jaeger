@@ -55,7 +55,7 @@ func (s *SamplingStore) InsertThroughput(throughput []*model.Throughput) error {
 		return nil
 	})
 
-	return nil
+	return err
 }
 
 func (s *SamplingStore) GetThroughput(start, end time.Time) ([]*model.Throughput, error) {
@@ -121,7 +121,7 @@ func (s *SamplingStore) InsertProbabilitiesAndQPS(hostname string,
 		return nil
 	})
 
-	return nil
+	return err
 }
 
 // GetLatestProbabilities implements samplingstore.Reader#GetLatestProbabilities.

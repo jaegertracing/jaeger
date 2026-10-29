@@ -10,7 +10,6 @@ go.work.sum
 .fmt.log
 .import.log
 .lint.log
-cover.html
 .envrc
 .idea/
 .vscode/
@@ -19,6 +18,7 @@ cover.html
 vendor/
 
 # Jaeger binaries
+/jaeger
 examples/hotrod/hotrod
 examples/hotrod/hotrod-*
 cmd/agent/agent
@@ -50,4 +50,6 @@ test-results.json
 .metrics/
 .mockery.log
 build.log
-sidecar.py.orig
+
+# every coverage artifact: profiles, the HTML report, and the counter directories
+.cover/

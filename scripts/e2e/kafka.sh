@@ -6,6 +6,11 @@
 set -euf -o pipefail
 
 compose_file=""
+# Elasticsearch is started alongside Kafka so the synchronous-write ingester e2e
+# (TestKafkaStorage_SyncElasticsearch) can exercise Collector -> Kafka -> Ingester
+# -> Elasticsearch end-to-end (RFC 0007). The plain TestKafkaStorage still uses the
+# in-process memory backend and ignores it.
+es_compose_file="docker-compose/elasticsearch/v8/docker-compose.yml"
 kafka_version="v3"
 manage_kafka="true"
 success="false"
@@ -46,14 +51,19 @@ parse_args() {
 }
 
 setup_kafka() {
-  echo "Starting Kafka using Docker Compose..."
+  echo "Starting Kafka and Elasticsearch using Docker Compose..."
   bash scripts/utils/retry.sh docker compose -f "${compose_file}" pull kafka
+  bash scripts/utils/retry.sh docker compose -f "${es_compose_file}" pull elasticsearch
   docker compose -f "${compose_file}" up -d kafka
+  docker compose -f "${es_compose_file}" up -d elasticsearch
 }
 
 dump_logs() {
   echo "::group::🚧 🚧 🚧 Kafka logs"
   docker compose -f "${compose_file}" logs
+  echo "::endgroup::"
+  echo "::group::🚧 🚧 🚧 Elasticsearch logs"
+  docker compose -f "${es_compose_file}" logs
   echo "::endgroup::"
 }
 
@@ -61,8 +71,9 @@ teardown_kafka() {
    if [[ "$success" == "false" ]]; then
     dump_logs
   fi
-  echo "Stopping Kafka..."
+  echo "Stopping Kafka and Elasticsearch..."
   docker compose -f "${compose_file}" down
+  docker compose -f "${es_compose_file}" down
 }
 
 is_kafka_ready() {
@@ -90,6 +101,23 @@ wait_for_kafka() {
   exit 1
 }
 
+wait_for_es() {
+  local timeout=180
+  local interval=5
+  local end_time=$((SECONDS + timeout))
+
+  while [ $SECONDS -lt $end_time ]; do
+    if curl -s http://localhost:9200 >/dev/null 2>&1; then
+      return
+    fi
+    echo "Elasticsearch not ready, waiting ${interval} seconds"
+    sleep $interval
+  done
+
+  echo "Timed out waiting for Elasticsearch to start"
+  exit 1
+}
+
 run_integration_test() {
   export STORAGE=kafka
   make jaeger-v2-storage-integration-test
@@ -107,6 +135,7 @@ main() {
     trap 'teardown_kafka' EXIT
   fi
   wait_for_kafka
+  wait_for_es
 
   run_integration_test
 

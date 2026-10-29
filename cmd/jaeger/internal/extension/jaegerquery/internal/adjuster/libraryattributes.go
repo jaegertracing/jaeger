@@ -58,11 +58,17 @@ func (ResourceAttributesAdjuster) moveAttributes(span ptrace.Span, resource pcom
 	})
 	for k, v := range replace {
 		existing, ok := resource.Attributes().Get(k)
-		if ok && existing.AsRaw() != v.AsRaw() {
+		if ok && !equalStrings(existing, v) {
 			jptrace.AddWarnings(span, "conflicting values between Span and Resource for attribute "+k)
 			continue
 		}
 		v.CopyTo(resource.Attributes().PutEmpty(k))
 		span.Attributes().Remove(k)
 	}
+}
+
+// equalStrings matches only identical strings, the type semantic conventions
+// define for the library attributes; any other type is reported as a conflict.
+func equalStrings(a, b pcommon.Value) bool {
+	return a.Type() == pcommon.ValueTypeStr && b.Type() == pcommon.ValueTypeStr && a.Str() == b.Str()
 }

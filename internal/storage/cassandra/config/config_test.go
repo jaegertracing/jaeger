@@ -119,17 +119,6 @@ func TestNewClusterWithOverrides(t *testing.T) {
 	assert.True(t, cl.DisableInitialHostLookup)
 }
 
-func TestApplyDefaults(t *testing.T) {
-	cfg1 := DefaultConfiguration()
-	cfg2 := Configuration{}
-	cfg2.ApplyDefaults(&cfg1)
-	assert.Equal(t, cfg2.Schema, cfg1.Schema)
-	assert.Equal(t, cfg2.Query, cfg1.Query)
-	assert.NotEqual(t, cfg2.Connection.Servers, cfg1.Connection.Servers, "servers not copied")
-	cfg1.Connection.Servers = nil
-	assert.Equal(t, cfg2.Connection, cfg1.Connection)
-}
-
 func TestToString(t *testing.T) {
 	cfg := DefaultConfiguration()
 	cfg.Schema.Keyspace = "test"

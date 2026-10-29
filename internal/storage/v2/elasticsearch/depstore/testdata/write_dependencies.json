@@ -1,0 +1,21 @@
+{
+  "method": "POST",
+  "path": "/_bulk",
+  "ndjson": [
+    {
+      "index": {
+        "_index": "jaeger-dependencies-2020-01-02"
+      }
+    },
+    {
+      "dependencies": [
+        {
+          "callCount": 1,
+          "child": "svcB",
+          "parent": "svcA"
+        }
+      ],
+      "timestamp": "2020-01-02T03:04:05Z"
+    }
+  ]
+}

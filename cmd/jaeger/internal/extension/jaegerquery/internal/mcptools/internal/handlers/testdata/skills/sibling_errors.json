@@ -1,0 +1,131 @@
+{
+  "resourceSpans": [
+    {
+      "resource": {
+        "attributes": [
+          {
+            "key": "service.name",
+            "value": {
+              "stringValue": "checkout"
+            }
+          }
+        ]
+      },
+      "scopeSpans": [
+        {
+          "spans": [
+            {
+              "traceId": "7c4f1a90b3e84d2f9a6c5e8017b3d264",
+              "spanId": "a1b2c3d4e5f60718",
+              "name": "oteldemo.CheckoutService/PlaceOrder",
+              "kind": "SPAN_KIND_SERVER",
+              "startTimeUnixNano": "1754500000000000000",
+              "endTimeUnixNano": "1754500000200000000",
+              "status": {
+                "code": "STATUS_CODE_ERROR",
+                "message": "order failed"
+              }
+            },
+            {
+              "traceId": "7c4f1a90b3e84d2f9a6c5e8017b3d264",
+              "spanId": "b2c3d4e5f6071829",
+              "name": "oteldemo.CartService/GetCart",
+              "kind": "SPAN_KIND_CLIENT",
+              "startTimeUnixNano": "1754500000005000000",
+              "endTimeUnixNano": "1754500000015000000",
+              "parentSpanId": "a1b2c3d4e5f60718"
+            },
+            {
+              "traceId": "7c4f1a90b3e84d2f9a6c5e8017b3d264",
+              "spanId": "c3d4e5f60718293a",
+              "name": "oteldemo.PaymentService/Charge",
+              "kind": "SPAN_KIND_CLIENT",
+              "startTimeUnixNano": "1754500000020000000",
+              "endTimeUnixNano": "1754500000060000000",
+              "parentSpanId": "a1b2c3d4e5f60718",
+              "status": {
+                "code": "STATUS_CODE_ERROR",
+                "message": "payment declined"
+              }
+            },
+            {
+              "traceId": "7c4f1a90b3e84d2f9a6c5e8017b3d264",
+              "spanId": "e5f60718293a4b5c",
+              "name": "oteldemo.EmailService/SendOrderConfirmation",
+              "kind": "SPAN_KIND_CLIENT",
+              "startTimeUnixNano": "1754500000120000000",
+              "endTimeUnixNano": "1754500000180000000",
+              "parentSpanId": "a1b2c3d4e5f60718",
+              "status": {
+                "code": "STATUS_CODE_ERROR",
+                "message": "order not found"
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "resource": {
+        "attributes": [
+          {
+            "key": "service.name",
+            "value": {
+              "stringValue": "payment"
+            }
+          }
+        ]
+      },
+      "scopeSpans": [
+        {
+          "spans": [
+            {
+              "traceId": "7c4f1a90b3e84d2f9a6c5e8017b3d264",
+              "spanId": "d4e5f60718293a4b",
+              "name": "oteldemo.PaymentService/Charge",
+              "kind": "SPAN_KIND_CLIENT",
+              "startTimeUnixNano": "1754500000022000000",
+              "endTimeUnixNano": "1754500000058000000",
+              "parentSpanId": "c3d4e5f60718293a",
+              "status": {
+                "code": "STATUS_CODE_ERROR",
+                "message": "payment declined: card processor rejected transaction"
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "resource": {
+        "attributes": [
+          {
+            "key": "service.name",
+            "value": {
+              "stringValue": "email"
+            }
+          }
+        ]
+      },
+      "scopeSpans": [
+        {
+          "spans": [
+            {
+              "traceId": "7c4f1a90b3e84d2f9a6c5e8017b3d264",
+              "spanId": "f60718293a4b5c6d",
+              "name": "oteldemo.EmailService/SendOrderConfirmation",
+              "kind": "SPAN_KIND_CLIENT",
+              "startTimeUnixNano": "1754500000122000000",
+              "endTimeUnixNano": "1754500000178000000",
+              "parentSpanId": "e5f60718293a4b5c",
+              "status": {
+                "code": "STATUS_CODE_ERROR",
+                "message": "order not found"
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

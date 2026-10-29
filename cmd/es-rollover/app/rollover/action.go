@@ -8,14 +8,14 @@ import (
 	"encoding/json"
 
 	"github.com/jaegertracing/jaeger/cmd/es-rollover/app"
-	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/client"
+	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/esclient"
 	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/filter"
 )
 
 // Action holds the configuration and clients for rollover action
 type Action struct {
 	Config
-	IndicesClient client.IndexAPI
+	IndicesClient esclient.IndexAPI
 }
 
 // Do the rollover action
@@ -51,9 +51,9 @@ func (a *Action) rollover(ctx context.Context, indexSet app.IndexOption) error {
 	}
 
 	indicesWithWriteAlias := filter.ByAlias(jaegerIndex, []string{writeAlias})
-	aliases := make([]client.Alias, 0, len(indicesWithWriteAlias))
+	aliases := make([]esclient.Alias, 0, len(indicesWithWriteAlias))
 	for _, index := range indicesWithWriteAlias {
-		aliases = append(aliases, client.Alias{
+		aliases = append(aliases, esclient.Alias{
 			Index: index.Index,
 			Name:  readAlias,
 		})

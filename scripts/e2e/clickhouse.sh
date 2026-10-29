@@ -8,7 +8,6 @@ set -euxf -o pipefail
 success="false"
 timeout=600
 end_time=$((SECONDS + timeout))
-compose_file="docker-compose/clickhouse/docker-compose.yml"
 container_name="clickhouse"
 
 setup_clickhouse() {
@@ -48,25 +47,38 @@ teardown_clickhouse() {
 }
 
 run_integration_test() {
-    local storage_test=${1:-e2e}
+    local storage_test=$1
+    local clickhouse_version=$2
+    compose_file="docker-compose/clickhouse/docker-compose-${clickhouse_version}.yml"
+    if [ ! -f "$compose_file" ]; then
+        echo "ERROR: Compose file not found: $compose_file"
+        exit 1
+    fi
     setup_clickhouse
     trap teardown_clickhouse EXIT
     healthcheck_clickhouse
     if [[ "${storage_test}" == "e2e" ]]; then
         STORAGE=clickhouse make jaeger-v2-storage-integration-test
+    elif [[ "${storage_test}" == "compat" ]]; then
+        STORAGE=clickhouse make jaeger-v2-backward-compatibility-test
     elif [[ "${storage_test}" == "direct" ]]; then
         STORAGE=clickhouse make storage-integration-test
     else
-        echo "ERROR: Invalid argument value storage_test=${storage_test}, expecting direct or e2e"
+        echo "ERROR: Invalid argument value storage_test=${storage_test}, expecting direct, e2e or compat"
         exit 1
     fi
     success="true"
 }
 
 main() {
-    local storage_test=${1:-e2e}
-    echo "Executing ClickHouse ${storage_test} integration tests"
-    run_integration_test "${storage_test}"
+    if [ $# -ne 2 ]; then
+        echo "Usage: $0 <e2e|direct|compat> <lts-march|lts-august>"
+        exit 1
+    fi
+    local storage_test=$1
+    local clickhouse_version=$2
+    echo "Executing ClickHouse ${storage_test} integration tests (${clickhouse_version})"
+    run_integration_test "${storage_test}" "${clickhouse_version}"
 }
 
 main "$@"

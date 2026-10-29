@@ -25,7 +25,6 @@ const (
 	statusOk         = "OK"
 	tagError         = "error"
 	tagW3CTraceState = "w3c.tracestate"
-	tagHTTPStatusMsg = "http.status_message"
 )
 
 // ToDBModel translates internal trace data into the DB Spans.

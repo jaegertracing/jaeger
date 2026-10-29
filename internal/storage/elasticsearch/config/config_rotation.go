@@ -119,7 +119,7 @@ func (c *Configuration) validateRotationConfig() error {
 		rotation *RotationConfig
 	}
 	entries := []rotationEntry{
-		{"spans", &c.Indices.Spans, &c.Indices.Spans.Rotation},
+		{"spans", &c.Indices.Spans.IndexOptions, &c.Indices.Spans.Rotation},
 		{"services", &c.Indices.Services, &c.Indices.Services.Rotation},
 		{"dependencies", &c.Indices.Dependencies, &c.Indices.Dependencies.Rotation},
 		{"sampling", &c.Indices.Sampling, &c.Indices.Sampling.Rotation},

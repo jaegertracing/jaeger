@@ -1,7 +1,7 @@
 # Copyright (c) 2026 The Jaeger Authors.
 # SPDX-License-Identifier: Apache-2.0
 
-# official schema for otel demo is at https://raw.githubusercontent.com/open-telemetry/opentelemetry-helm-charts/main/charts/opentelemetry-demo/values.yaml
+# Official values for the pinned chart are at https://raw.githubusercontent.com/open-telemetry/opentelemetry-helm-charts/opentelemetry-demo-0.40.9/charts/opentelemetry-demo/values.yaml
 
 # Keep bundled infra disabled (we deploy Jaeger/OpenSearch separately)
 jaeger:
@@ -133,6 +133,14 @@ components:
 opentelemetry-collector:
   image:
     repository: docker.io/otel/opentelemetry-collector-contrib
+  # Allow initialization to complete before the existing liveness probe takes over.
+  startupProbe:
+    httpGet:
+      port: 13133
+      path: /
+    periodSeconds: 10
+    timeoutSeconds: 1
+    failureThreshold: 30
   presets:
     hostMetrics:
       enabled: false

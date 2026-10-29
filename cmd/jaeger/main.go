@@ -6,12 +6,11 @@ package main
 import (
 	"log"
 
-	"github.com/jaegertracing/jaeger/cmd/jaeger/internal"
 	"github.com/jaegertracing/jaeger/cmd/jaeger/jaegercli"
 )
 
 func main() {
-	factories, err := internal.Components()
+	factories, err := jaegercli.Components()
 	if err != nil {
 		log.Fatal(err)
 	}

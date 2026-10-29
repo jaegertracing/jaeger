@@ -7,21 +7,50 @@ import (
 	"go.opentelemetry.io/collector/config/configoptional"
 	"go.opentelemetry.io/collector/featuregate"
 	"go.uber.org/zap"
+
+	jaegerfeaturegate "github.com/jaegertracing/jaeger/internal/featuregate"
 )
 
 // RejectLegacyRotationFlags is a feature gate that, when enabled, causes validation
 // to reject deprecated rotation-related flags (use_aliases, use_ilm,
 // span_read_alias, span_write_alias, service_read_alias, service_write_alias).
-// Once promoted to Stable, users must migrate to the new rotation config.
-var RejectLegacyRotationFlags = featuregate.GlobalRegistry().MustRegister(
-	"es.config.rejectLegacyRotationFlags",
-	featuregate.StageAlpha,
-	featuregate.WithRegisterFromVersion("v2.9.0"),
-	featuregate.WithRegisterDescription(
-		"When enabled, the use of deprecated ES rotation flags "+
-			"(use_aliases, use_ilm, span_read_alias, etc.) "+
-			"becomes a validation error instead of a deprecation warning.",
+// It is enabled by default (Beta): setting any of these flags is a validation error
+// unless the gate is explicitly disabled. Once promoted to Stable, the gate can no
+// longer be disabled and users must migrate to the new rotation config.
+var RejectLegacyRotationFlags = jaegerfeaturegate.NewRenamedGate(
+	featuregate.GlobalRegistry().MustRegister(
+		"jaeger.es.config.rejectLegacyRotationFlags",
+		featuregate.StageBeta,
+		featuregate.WithRegisterFromVersion("v2.21.0"),
+		featuregate.WithRegisterDescription(
+			"When enabled, the use of deprecated ES rotation flags "+
+				"(use_aliases, use_ilm, span_read_alias, etc.) "+
+				"becomes a validation error instead of a deprecation warning.",
+		),
+		featuregate.WithRegisterReferenceURL("https://github.com/jaegertracing/jaeger/issues/9016"),
 	),
+	featuregate.GlobalRegistry().MustRegister(
+		"es.config.rejectLegacyRotationFlags",
+		featuregate.StageBeta,
+		featuregate.WithRegisterFromVersion("v2.9.0"),
+		featuregate.WithRegisterDescription("Deprecated alias for jaeger.es.config.rejectLegacyRotationFlags."),
+		featuregate.WithRegisterReferenceURL("https://github.com/jaegertracing/jaeger/issues/9016"),
+	),
+)
+
+// RejectLegacyTagsAsFields is a feature gate that, when enabled, causes validation to
+// reject the deprecated top-level tags_as_fields in favor of indices.spans.tags_as_fields.
+// It is enabled by default (Beta): the deprecated spelling is a validation error unless
+// the gate is explicitly disabled, in which case it is honored with a deprecation warning.
+var RejectLegacyTagsAsFields = featuregate.GlobalRegistry().MustRegister(
+	"jaeger.es.config.rejectLegacyTagsAsFields",
+	featuregate.StageBeta,
+	featuregate.WithRegisterFromVersion("v2.22.0"),
+	featuregate.WithRegisterDescription(
+		"When enabled, the deprecated top-level 'tags_as_fields' in the Elasticsearch/OpenSearch "+
+			"storage configuration becomes a validation error; use 'indices.spans.tags_as_fields' instead.",
+	),
+	featuregate.WithRegisterReferenceURL("https://github.com/jaegertracing/jaeger/pull/9693"),
 )
 
 func (c *Configuration) getUseReadWriteAliases() bool {
@@ -79,7 +108,21 @@ func (c *Configuration) hasAnyLegacyRotationFlags() bool {
 // ResolvedSpanRotation returns the effective rotation configuration for span indices,
 // resolving legacy flags into the appropriate RotationConfig variant.
 func (c *Configuration) ResolvedSpanRotation() RotationConfig {
-	return c.resolvedRotation(&c.Indices.Spans, c.Indices.IndexPrefix.Apply(SpanIndexName), c.getSpanReadAlias(), c.getSpanWriteAlias())
+	return c.resolvedRotation(
+		&c.Indices.Spans.IndexOptions,
+		c.Indices.IndexPrefix.Apply(SpanIndexName),
+		c.getSpanReadAlias(),
+		c.getSpanWriteAlias(),
+	)
+}
+
+// ResolvedTagsAsFields returns the effective tags-as-fields settings: the deprecated
+// top-level tags_as_fields when it is set, and indices.spans.tags_as_fields otherwise.
+func (c *Configuration) ResolvedTagsAsFields() TagsAsFields {
+	if legacy := c.Tags.Get(); legacy != nil {
+		return *legacy
+	}
+	return c.Indices.Spans.Tags
 }
 
 // ResolvedServiceRotation returns the effective rotation configuration for service indices,
@@ -172,6 +215,7 @@ func (c *Configuration) LogDeprecationWarnings(logger *zap.Logger) {
 		{"span_write_alias", c.SpanWriteAlias.HasValue(), "use 'indices.spans.rotation.manual_rollover.write_alias' instead"},
 		{"service_read_alias", c.ServiceReadAlias.HasValue(), "use 'indices.services.rotation.manual_rollover.read_alias' instead"},
 		{"service_write_alias", c.ServiceWriteAlias.HasValue(), "use 'indices.services.rotation.manual_rollover.write_alias' instead"},
+		{"tags_as_fields", c.Tags.HasValue(), "use 'indices.spans.tags_as_fields' instead; the indices.spans one is ignored while this one is set"},
 	}
 	for _, d := range deprecations {
 		if !d.isSet {

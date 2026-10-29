@@ -5,30 +5,46 @@ package app
 
 import (
 	"context"
-	"crypto/tls"
 	"fmt"
-	"net/http"
 	"time"
 
 	"github.com/spf13/viper"
+	"go.opentelemetry.io/collector/config/configoptional"
 	"go.uber.org/zap"
 
-	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/client"
+	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/config"
+	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/esclient"
 )
 
-func newESClient(endpoint string, cfg *Config, tlsCfg *tls.Config) client.Client {
-	httpClient := &http.Client{
-		Timeout: time.Duration(cfg.Timeout) * time.Second,
-		Transport: &http.Transport{
-			Proxy:           http.ProxyFromEnvironment,
-			TLSClientConfig: tlsCfg,
-		},
+// newESClient builds the client and detects the backend version once, so all
+// version-dependent operations (template endpoint, ILM vs ISM) are resolved at
+// construction time instead of re-detecting per call.
+func newESClient(ctx context.Context, endpoint string, cfg *Config, logger *zap.Logger) (*esclient.Client, error) {
+	esCfg := &config.Configuration{
+		Servers:      []string{endpoint},
+		QueryTimeout: time.Duration(cfg.Timeout) * time.Second,
+		TLS:          cfg.TLSConfig,
 	}
-	return client.Client{
-		Endpoint:  endpoint,
-		Client:    httpClient,
-		BasicAuth: client.BasicAuth(cfg.Username, cfg.Password),
+	// Enable basic auth only when both are set, matching the prior behavior of
+	// omitting the Authorization header unless username and password are present.
+	if cfg.Username != "" && cfg.Password != "" {
+		esCfg.Authentication.BasicAuthentication = configoptional.Some(config.BasicAuthentication{
+			Username: cfg.Username,
+			Password: cfg.Password,
+		})
 	}
+	if cfg.TokenFilePath != "" {
+		esCfg.Authentication.BearerTokenAuth = configoptional.Some(config.TokenAuthentication{
+			FilePath: cfg.TokenFilePath,
+		})
+	}
+	if cfg.APIKeyFilePath != "" {
+		esCfg.Authentication.APIKeyAuth = configoptional.Some(config.TokenAuthentication{
+			FilePath: cfg.APIKeyFilePath,
+		})
+	}
+	// NewClient resolves the backend version at construction.
+	return esclient.NewClient(ctx, esCfg, logger, nil)
 }
 
 // Action is an interface that each action (init, rollover and lookback) of the es-rollover should implement
@@ -44,7 +60,7 @@ type ActionExecuteOptions struct {
 }
 
 // ActionCreatorFunction type is the function type in charge of create the action to be executed
-type ActionCreatorFunction func(client.Client, Config) Action
+type ActionCreatorFunction func(*esclient.Client, Config) Action
 
 // ExecuteAction execute the action returned by the createAction function
 func ExecuteAction(opts ActionExecuteOptions, createAction ActionCreatorFunction) error {
@@ -53,13 +69,10 @@ func ExecuteAction(opts ActionExecuteOptions, createAction ActionCreatorFunction
 		return fmt.Errorf("failed to initialize config: %w", err)
 	}
 
-	ctx := context.Background()
-	tlsCfg, err := cfg.TLSConfig.LoadTLSConfig(ctx)
+	esClient, err := newESClient(context.Background(), opts.Args[0], &cfg, opts.Logger)
 	if err != nil {
-		return fmt.Errorf("TLS configuration failed: %w", err)
+		return fmt.Errorf("failed to create Elasticsearch client: %w", err)
 	}
-
-	esClient := newESClient(opts.Args[0], &cfg, tlsCfg)
 	action := createAction(esClient, cfg)
 	return action.Do()
 }

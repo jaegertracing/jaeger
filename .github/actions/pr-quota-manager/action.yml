@@ -1,0 +1,79 @@
+# Copyright (c) 2026 The Jaeger Authors.
+# SPDX-License-Identifier: Apache-2.0
+
+name: 'PR Quota Manager'
+description: >-
+  Apply the concurrent open pull request limit for new contributors by labelling
+  and commenting on the pull requests that exceed an author's quota.
+
+inputs:
+  token:
+    description: >-
+      Token used to label and comment. Needs issues:write and pull-requests:write,
+      so pass the workflow token from a job that declares those permissions.
+    required: true
+  username:
+    description: >-
+      Username to process. Defaults to the author of the pull request that
+      triggered the workflow, so only manual runs need to set this.
+    required: false
+    default: ''
+  dry-run:
+    description: 'Log the intended labels and comments without writing anything.'
+    required: false
+    default: 'false'
+  per-issue-limit:
+    description: 'Reconcile the one-active-PR-per-linked-issue policy across open PRs.'
+    required: false
+    default: 'false'
+  issue-number:
+    description: 'Issue number whose linked PRs should be reconciled.'
+    required: false
+    default: ''
+
+runs:
+  using: composite
+  steps:
+    - uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9
+      env:
+        # The script stays in .github/scripts, where its dependencies, tests and
+        # manual-execution guide live. When this action is consumed from another
+        # repository the runner unpacks the whole repo tarball under
+        # github.action_path's parent, so the sibling path resolves there too.
+        QUOTA_SCRIPT: ${{ github.action_path }}/../../scripts/pr-quota-manager.js
+        # Passed through the environment rather than interpolated into the script
+        # body, so an author-controlled username cannot inject JavaScript.
+        QUOTA_USERNAME: ${{ inputs.username }}
+        QUOTA_DRY_RUN: ${{ inputs.dry-run }}
+        QUOTA_PER_ISSUE_LIMIT: ${{ inputs.per-issue-limit }}
+        QUOTA_PR_NUMBER: ${{ github.event.pull_request.number }}
+        QUOTA_ISSUE_NUMBER: ${{ inputs.issue-number }}
+      with:
+        github-token: ${{ inputs.token }}
+        script: |
+          const handler = require(process.env.QUOTA_SCRIPT)
+          const perIssueLimit = process.env.QUOTA_PER_ISSUE_LIMIT === 'true'
+          // Per-issue reconciliation must not invoke the author quota manager.
+          // Only the quota workflow resolves the event author automatically.
+          const username = perIssueLimit
+            ? process.env.QUOTA_USERNAME
+            : context.payload.pull_request?.user?.login || process.env.QUOTA_USERNAME
+          if (!username && !perIssueLimit) {
+            core.setFailed('Unable to determine username for quota processing. Aborting.')
+            return
+          }
+          await handler({
+            github,
+            core,
+            username,
+            owner: context.repo.owner,
+            repo: context.repo.repo,
+            pullRequestNumber: perIssueLimit
+              ? process.env.QUOTA_PR_NUMBER
+              : undefined,
+            issueNumber: perIssueLimit
+              ? process.env.QUOTA_ISSUE_NUMBER
+              : undefined,
+            perIssueLimit,
+            dryRun: process.env.QUOTA_DRY_RUN === 'true'
+          })

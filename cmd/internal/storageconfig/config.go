@@ -16,8 +16,8 @@ import (
 	"github.com/jaegertracing/jaeger/internal/storage/metricstore/prometheus"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/badger"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/cassandra"
-	es "github.com/jaegertracing/jaeger/internal/storage/v1/elasticsearch"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/clickhouse"
+	es "github.com/jaegertracing/jaeger/internal/storage/v2/elasticsearch"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/grpc"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/memory"
 )
@@ -95,7 +95,8 @@ func (cfg *TraceBackend) Unmarshal(conf *confmap.Conf) error {
 		cfg.Opensearch = &v
 	}
 	if conf.IsSet("clickhouse") {
-		cfg.ClickHouse = &clickhouse.Configuration{}
+		v := clickhouse.DefaultConfiguration()
+		cfg.ClickHouse = &v
 	}
 	return conf.Unmarshal(cfg)
 }
@@ -129,6 +130,16 @@ func (cfg *TraceBackend) Validate() error {
 	if len(backends) > 1 {
 		return fmt.Errorf("multiple backend types found for trace storage: %v", backends)
 	}
+	// Validate the selected backend's own configuration. Both callers of
+	// Config.Validate, the Viper path in remote-storage and the jaegerstorage
+	// extension, reach this method, so without this the memory backend's
+	// constraints were only enforced by confmap.Validate and an invalid
+	// max_traces surfaced later, from the store constructor.
+	if cfg.Memory != nil {
+		if err := cfg.Memory.Validate(); err != nil {
+			return fmt.Errorf("memory: %w", err)
+		}
+	}
 	return nil
 }
 
@@ -150,7 +161,8 @@ func (cfg *MetricBackend) Unmarshal(conf *confmap.Conf) error {
 		cfg.Opensearch = &v
 	}
 	if conf.IsSet("clickhouse") {
-		cfg.ClickHouse = &clickhouse.Configuration{}
+		v := clickhouse.DefaultConfiguration()
+		cfg.ClickHouse = &v
 	}
 	return conf.Unmarshal(cfg)
 }

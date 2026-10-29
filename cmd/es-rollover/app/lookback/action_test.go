@@ -14,13 +14,13 @@ import (
 	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger/cmd/es-rollover/app"
-	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/client"
-	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/client/mocks"
+	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/esclient"
+	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/esclient/mocks"
 )
 
 func TestLookBackAction(t *testing.T) {
 	nowTime := time.Date(2021, 10, 12, 10, 10, 10, 10, time.Local)
-	indices := []client.Index{
+	indices := []esclient.Index{
 		{
 			Index: "jaeger-span-archive-0000",
 			Aliases: map[string]bool{
@@ -74,7 +74,7 @@ func TestLookBackAction(t *testing.T) {
 			name: "success",
 			setupCallExpectations: func(indexClient *mocks.IndexAPI) {
 				indexClient.On("GetJaegerIndices", mock.Anything, "").Return(indices, nil)
-				indexClient.On("DeleteAlias", mock.Anything, []client.Alias{
+				indexClient.On("DeleteAlias", mock.Anything, []esclient.Alias{
 					{
 						Index: "jaeger-span-archive-0001",
 						Name:  "jaeger-span-archive-read",
@@ -109,7 +109,7 @@ func TestLookBackAction(t *testing.T) {
 		{
 			name: "empty indices",
 			setupCallExpectations: func(indexClient *mocks.IndexAPI) {
-				indexClient.On("GetJaegerIndices", mock.Anything, "").Return([]client.Index{}, nil)
+				indexClient.On("GetJaegerIndices", mock.Anything, "").Return([]esclient.Index{}, nil)
 			},
 			config: Config{
 				Unit:      "days",
@@ -120,6 +120,52 @@ func TestLookBackAction(t *testing.T) {
 				},
 			},
 			expectedErr: nil,
+		},
+		{
+			name: "zero unit count",
+			setupCallExpectations: func(_ *mocks.IndexAPI) {
+				// No calls to IndexAPI expected when unit-count <= 0
+			},
+			config: Config{
+				Unit:      "days",
+				UnitCount: 0,
+				Config: app.Config{
+					Archive: true,
+					UseILM:  true,
+				},
+			},
+			expectedErr: errors.New("unit-count must be greater than 0, got 0"),
+		},
+		{
+			name: "negative unit count",
+			setupCallExpectations: func(_ *mocks.IndexAPI) {
+				// No calls to IndexAPI expected when unit-count <= 0
+			},
+			config: Config{
+				Unit:      "days",
+				UnitCount: -1,
+				Config: app.Config{
+					Archive: true,
+					UseILM:  true,
+				},
+			},
+			expectedErr: errors.New("unit-count must be greater than 0, got -1"),
+		},
+		{
+			name: "unknown unit",
+			setupCallExpectations: func(_ *mocks.IndexAPI) {
+				// No calls expected: an unknown unit must be rejected before any
+				// indices are read or removed from the alias.
+			},
+			config: Config{
+				Unit:      "dayss",
+				UnitCount: 1,
+				Config: app.Config{
+					Archive: true,
+					UseILM:  true,
+				},
+			},
+			expectedErr: errors.New(`unknown unit "dayss", expected one of: seconds, minutes, hours, days, weeks, months, years`),
 		},
 	}
 

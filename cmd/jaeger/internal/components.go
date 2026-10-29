@@ -12,7 +12,7 @@ import (
 	"go.opentelemetry.io/collector/processor"
 	"go.opentelemetry.io/collector/receiver"
 
-	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/integration/storagecleaner"
+	storageconnector "github.com/jaegertracing/jaeger/components/connector/storageexporter"
 	"github.com/jaegertracing/jaeger/components/exporter/storageexporter"
 	"github.com/jaegertracing/jaeger/components/ext/connector/forwardconnector"
 	"github.com/jaegertracing/jaeger/components/ext/connector/spanmetricsconnector"
@@ -38,7 +38,6 @@ import (
 	"github.com/jaegertracing/jaeger/components/ext/receiver/otlpreceiver"
 	"github.com/jaegertracing/jaeger/components/ext/receiver/zipkinreceiver"
 	"github.com/jaegertracing/jaeger/components/extension/expvar"
-	"github.com/jaegertracing/jaeger/components/extension/jaegermcp"
 	"github.com/jaegertracing/jaeger/components/extension/jaegerquery"
 	"github.com/jaegertracing/jaeger/components/extension/jaegerstorage"
 	"github.com/jaegertracing/jaeger/components/extension/remotesampling"
@@ -80,13 +79,10 @@ func (b builders) build() (otelcol.Factories, error) {
 		// add-ons
 		basicauthextension.NewFactory(),
 		sigv4authextension.NewFactory(),
-		jaegermcp.NewFactory(),
 		jaegerquery.NewFactory(),
 		jaegerstorage.NewFactory(),
 		remotesampling.NewFactory(),
 		expvar.NewFactory(),
-		// only for e2e testing
-		storagecleaner.NewFactory(),
 		remotestorage.NewFactory(),
 	)
 	if err != nil {
@@ -141,6 +137,7 @@ func (b builders) build() (otelcol.Factories, error) {
 		forwardconnector.NewFactory(),
 		// add-ons
 		spanmetricsconnector.NewFactory(),
+		storageconnector.NewFactory(), // jaeger_storage_exporter declared under connectors: the storage write with a dead-letter output for rejected spans (RFC 0007)
 	)
 	if err != nil {
 		return otelcol.Factories{}, err

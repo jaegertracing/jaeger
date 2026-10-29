@@ -17,6 +17,47 @@
 
 const LABEL_NAME = 'pr-quota-reached';
 const LABEL_COLOR = 'CFD3D7';
+const DUPLICATE_LABEL_NAME = 'duplicate';
+const OVERRIDE_LABEL_NAME = 'allow-multiple-prs';
+const STALE_LABEL_NAME = 'stale';
+const COMMENT_REQUEST_CONCURRENCY = 10;
+
+const openPullRequestsQuery = `
+  query openPullRequests($owner: String!, $repo: String!, $after: String) {
+    repository(owner: $owner, name: $repo) {
+      pullRequests(states: OPEN, first: 100, after: $after) {
+        nodes {
+          number
+          createdAt
+          labels(first: 20) {
+            nodes { name }
+            pageInfo { hasNextPage }
+          }
+          closingIssuesReferences(first: 10) {
+            nodes {
+              number
+              repository { nameWithOwner }
+              labels(first: 10) {
+                nodes { name }
+                pageInfo { hasNextPage }
+              }
+            }
+            pageInfo { hasNextPage }
+          }
+        }
+        pageInfo { hasNextPage endCursor }
+      }
+    }
+  }
+`;
+
+/*
+ * This policy intentionally uses GitHub's repository-wide `duplicate` label,
+ * as requested in #9250. The marker identifies comments owned by this action;
+ * it is never treated as an authority signal when posted by another account.
+ */
+const ISSUE_LIMIT_COMMENT_MARKER = '<!-- jaeger-pr-per-issue-limit -->';
+const ISSUE_LIMIT_OWNED_LABEL_MARKER = '<!-- jaeger-pr-per-issue-limit-label-owned -->';
 
 /**
  * Format open/limit counts as a bullet-point status block
@@ -241,7 +282,8 @@ async function addLabel(octokit, owner, repo, issueNumber, logger) {
       labels: [LABEL_NAME]
     });
   } catch (error) {
-    logger.error(`Failed to add label to PR #${issueNumber}:`, error.message);
+    // Fail the job: a quota that cannot be applied is a quota that does not exist.
+    throw new Error(`Failed to add label to PR #${issueNumber}: ${error.message}`, { cause: error });
   }
 }
 
@@ -257,9 +299,9 @@ async function removeLabel(octokit, owner, repo, issueNumber, logger) {
       name: LABEL_NAME
     });
   } catch (error) {
-    // Ignore 404 errors (label wasn't present)
+    // A 404 means the label was not present, which is already the desired state.
     if (error.status !== 404) {
-      logger.error(`Failed to remove label from PR #${issueNumber}:`, error.message);
+      throw new Error(`Failed to remove label from PR #${issueNumber}: ${error.message}`, { cause: error });
     }
   }
 }
@@ -306,7 +348,7 @@ Please see our [Contributing Guidelines](https://github.com/jaegertracing/jaeger
       body: message
     });
   } catch (error) {
-    logger.error(`Failed to post blocking comment on PR #${issueNumber}:`, error.message);
+    throw new Error(`Failed to post blocking comment on PR #${issueNumber}: ${error.message}`, { cause: error });
   }
 }
 
@@ -330,8 +372,334 @@ Thank you for your patience.`;
       body: message
     });
   } catch (error) {
-    logger.error(`Failed to post unblocking comment on PR #${issueNumber}:`, error.message);
+    throw new Error(`Failed to post unblocking comment on PR #${issueNumber}: ${error.message}`, { cause: error });
   }
+}
+
+function labelNames(labels) {
+  return labels.nodes.map(label => label.name);
+}
+
+function isActivePR(pr) {
+  return (!pr.state || pr.state === 'OPEN') && !labelNames(pr.labels).includes(STALE_LABEL_NAME);
+}
+
+function primaryPR(pullRequests) {
+  return [...pullRequests].sort((left, right) =>
+    left.createdAt.localeCompare(right.createdAt) || left.number - right.number
+  )[0];
+}
+
+function issueLimitComment(duplicates, ownsDuplicateLabel = true) {
+  const references = duplicates
+    .sort((left, right) => left.issueNumber - right.issueNumber)
+    .map(({ issueNumber, primaryNumber }) => `- Issue #${issueNumber}: PR #${primaryNumber} is the primary pull request.`)
+    .join('\n');
+  const ownership = ownsDuplicateLabel ? `\n${ISSUE_LIMIT_OWNED_LABEL_MARKER}` : '';
+  return `${ISSUE_LIMIT_COMMENT_MARKER}${ownership}
+This pull request is marked as a duplicate because another active pull request is already linked to the same issue.
+
+${references}
+
+If these are intentionally competing implementations or an umbrella issue, a maintainer can apply the \`${OVERRIDE_LABEL_NAME}\` label to the issue.`;
+}
+
+function issueLimitResolvedComment() {
+  return `${ISSUE_LIMIT_COMMENT_MARKER}
+This pull request is no longer marked as a duplicate by the active-PR policy.`;
+}
+
+const supersededIssueLimitComment =
+  'This automated active-PR policy comment has been superseded by the current policy comment.';
+
+function commentOwnsDuplicateLabel(comment) {
+  return comment.body?.includes(ISSUE_LIMIT_OWNED_LABEL_MARKER);
+}
+
+async function listIssueLimitComments(octokit, owner, repo, issueNumber) {
+  const comments = [];
+  for (let page = 1; ; page++) {
+    const { data } = await octokit.rest.issues.listComments({
+      owner,
+      repo,
+      issue_number: issueNumber,
+      per_page: 100,
+      page
+    });
+    comments.push(...data.filter(comment =>
+      comment.user?.login === 'github-actions[bot]' && comment.body?.includes(ISSUE_LIMIT_COMMENT_MARKER)
+    ));
+    if (data.length < 100) return comments;
+  }
+}
+
+async function forEachWithConcurrency(items, concurrency, callback) {
+  let nextIndex = 0;
+  async function worker() {
+    while (nextIndex < items.length) {
+      const item = items[nextIndex++];
+      await callback(item);
+    }
+  }
+  await Promise.all(Array.from({ length: Math.min(concurrency, items.length) }, worker));
+}
+
+async function addIssueLabel(octokit, owner, repo, issueNumber, label) {
+  try {
+    await octokit.rest.issues.addLabels({ owner, repo, issue_number: issueNumber, labels: [label] });
+  } catch (error) {
+    throw new Error(`Failed to add ${label} label to PR #${issueNumber}: ${error.message}`, { cause: error });
+  }
+}
+
+async function removeIssueLabel(octokit, owner, repo, issueNumber, label) {
+  try {
+    await octokit.rest.issues.removeLabel({ owner, repo, issue_number: issueNumber, name: label });
+  } catch (error) {
+    if (error.status !== 404) {
+      throw new Error(`Failed to remove ${label} label from PR #${issueNumber}: ${error.message}`, { cause: error });
+    }
+  }
+}
+
+async function ensureIssueLimitLabels(octokit, owner, repo) {
+  const labels = [
+    [DUPLICATE_LABEL_NAME, 'CFD3D7', 'Pull request duplicates another active pull request for an issue'],
+    [OVERRIDE_LABEL_NAME, '0E8A16', 'Allow multiple active pull requests for this issue']
+  ];
+  for (const [name, color, description] of labels) {
+    try {
+      await octokit.rest.issues.getLabel({ owner, repo, name });
+    } catch (error) {
+      if (error.status !== 404) throw error;
+      await octokit.rest.issues.createLabel({ owner, repo, name, color, description });
+    }
+  }
+}
+
+async function fetchOpenPullRequests(octokit, owner, repo) {
+  const pullRequests = [];
+  let after = null;
+  do {
+    const result = await octokit.graphql(openPullRequestsQuery, { owner, repo, after });
+    const connection = result.repository.pullRequests;
+    for (const pr of connection.nodes) {
+      if (pr.labels.pageInfo?.hasNextPage) {
+        throw new Error(`PR #${pr.number} has more labels than the per-issue policy query supports`);
+      }
+      if (pr.closingIssuesReferences.pageInfo?.hasNextPage) {
+        throw new Error(`PR #${pr.number} has more linked issues than the per-issue policy query supports`);
+      }
+      for (const issue of pr.closingIssuesReferences.nodes) {
+        if (issue.labels.pageInfo?.hasNextPage) {
+          throw new Error(`Issue #${issue.number} has more labels than the per-issue policy query supports`);
+        }
+      }
+    }
+    pullRequests.push(...connection.nodes);
+    after = connection.pageInfo?.hasNextPage ? connection.pageInfo.endCursor : null;
+  } while (after);
+  return pullRequests;
+}
+
+function calculateIssueLimitState(pullRequests, repository) {
+  const issues = new Map();
+  for (const pr of pullRequests.filter(isActivePR)) {
+    for (const issue of pr.closingIssuesReferences.nodes) {
+      if (issue.repository.nameWithOwner !== repository) continue;
+      const state = issues.get(issue.number) || {
+        number: issue.number,
+        overridden: labelNames(issue.labels).includes(OVERRIDE_LABEL_NAME),
+        pullRequests: []
+      };
+      state.pullRequests.push(pr);
+      issues.set(issue.number, state);
+    }
+  }
+
+  const desiredDuplicates = new Map();
+  for (const issue of issues.values()) {
+    if (issue.overridden || issue.pullRequests.length <= 1) continue;
+    const primary = primaryPR(issue.pullRequests);
+    for (const pr of issue.pullRequests) {
+      if (pr.number === primary.number) continue;
+      const duplicates = desiredDuplicates.get(pr.number) || [];
+      duplicates.push({ issueNumber: issue.number, primaryNumber: primary.number });
+      desiredDuplicates.set(pr.number, duplicates);
+    }
+  }
+  return { issues, desiredDuplicates };
+}
+
+function linkedIssueNumbers(pr, repository) {
+  return new Set(pr.closingIssuesReferences.nodes
+    .filter(issue => issue.repository.nameWithOwner === repository)
+    .map(issue => issue.number));
+}
+
+function issueLimitCommentCandidates(pullRequests, repository, pullRequestNumber, issueNumber) {
+  if (!pullRequestNumber && !issueNumber) {
+    return new Set(pullRequests.map(pr => pr.number));
+  }
+
+  const affectedIssues = new Set(issueNumber ? [Number(issueNumber)] : []);
+  const triggeringPR = pullRequests.find(pr => pr.number === Number(pullRequestNumber));
+  if (triggeringPR) {
+    for (const number of linkedIssueNumbers(triggeringPR, repository)) {
+      affectedIssues.add(number);
+    }
+  }
+
+  return new Set(pullRequests
+    .filter(pr =>
+      pr.number === Number(pullRequestNumber) ||
+      labelNames(pr.labels).includes(DUPLICATE_LABEL_NAME) ||
+      [...linkedIssueNumbers(pr, repository)].some(number => affectedIssues.has(number))
+    )
+    .map(pr => pr.number));
+}
+
+function reconciledIssueNumbers(issues, commentCandidates) {
+  return [...issues.values()]
+    .filter(issue => issue.pullRequests.some(pr => commentCandidates.has(pr.number)))
+    .map(issue => issue.number)
+    .sort((left, right) => left - right);
+}
+
+/**
+ * Reconcile the complete open-PR graph in one paginated GraphQL traversal.
+ * Computing every PR's links together avoids one issue clearing another issue's
+ * duplicate state when a PR is linked to more than one issue.
+ */
+async function processIssueLimits(
+  octokit, owner, repo, logger = console, dryRun = false, pullRequestNumber, issueNumber
+) {
+  const repository = `${owner}/${repo}`;
+  const pullRequests = await fetchOpenPullRequests(octokit, owner, repo);
+  const { issues, desiredDuplicates } = calculateIssueLimitState(pullRequests, repository);
+  const knownPRs = new Map(pullRequests.map(pr => [pr.number, pr]));
+  const commentCandidates = issueLimitCommentCandidates(
+    pullRequests, repository, pullRequestNumber, issueNumber
+  );
+  for (const number of desiredDuplicates.keys()) {
+    commentCandidates.add(number);
+  }
+  const reconciledIssues = reconciledIssueNumbers(issues, commentCandidates);
+
+  const commentSets = new Map();
+  // Scheduled/manual sweeps inspect every marker for recovery. Event-driven
+  // reconciliation also includes calculated duplicates so the surviving run
+  // applies a missed label without exhausting the shared REST API budget.
+  await forEachWithConcurrency([...commentCandidates], COMMENT_REQUEST_CONCURRENCY, async number => {
+    commentSets.set(number, await listIssueLimitComments(octokit, owner, repo, number));
+  });
+
+  if (dryRun) return {
+    reconciledIssues,
+    duplicates: [...desiredDuplicates.keys()].sort((left, right) => left - right)
+  };
+
+  const missingDuplicateLabel = [...desiredDuplicates.keys()].some(number =>
+    !labelNames(knownPRs.get(number).labels).includes(DUPLICATE_LABEL_NAME)
+  );
+  if (missingDuplicateLabel) await ensureIssueLimitLabels(octokit, owner, repo);
+  // Add/update first. A later API failure must not remove an existing signal.
+  for (const [number, duplicates] of desiredDuplicates) {
+    const pr = knownPRs.get(number);
+    const comments = commentSets.get(number) || [];
+    const hasDuplicateLabel = labelNames(pr.labels).includes(DUPLICATE_LABEL_NAME);
+    // Persist ownership before adding a label. If the label write fails, the
+    // marker remains discoverable on the next pass and can be resolved safely.
+    const ownsDuplicateLabel = comments.some(commentOwnsDuplicateLabel) || !hasDuplicateLabel;
+    const body = issueLimitComment(duplicates, ownsDuplicateLabel);
+    if (comments.length === 0) {
+      await octokit.rest.issues.createComment({ owner, repo, issue_number: number, body });
+    } else if (comments[0].body !== body) {
+      await octokit.rest.issues.updateComment({ owner, repo, comment_id: comments[0].id, body });
+    }
+    if (!hasDuplicateLabel) {
+      await addIssueLabel(octokit, owner, repo, number, DUPLICATE_LABEL_NAME);
+    }
+  }
+  const cleanup = [];
+  for (const [number, pr] of knownPRs) {
+    // Cleanup must not update stale PRs: stale policy treats bot activity as
+    // renewed activity and could reactivate a PR that should stay inactive.
+    if (!commentCandidates.has(number) || !isActivePR(pr) || desiredDuplicates.has(number)) continue;
+    const comments = commentSets.get(number) || [];
+    if (comments.length === 0) continue;
+    cleanup.push({
+      number,
+      comments,
+      hasDuplicateLabel: labelNames(pr.labels).includes(DUPLICATE_LABEL_NAME),
+      ownsDuplicateLabel: comments.some(commentOwnsDuplicateLabel)
+    });
+  }
+
+  const removedLabels = [];
+  try {
+    // Keep markers intact until every destructive label removal succeeds. If a
+    // removal fails, rollback leaves the next run able to identify ownership.
+    for (const item of cleanup) {
+      if (!item.hasDuplicateLabel || !item.ownsDuplicateLabel) continue;
+      await removeIssueLabel(octokit, owner, repo, item.number, DUPLICATE_LABEL_NAME);
+      removedLabels.push(item.number);
+    }
+  } catch (error) {
+    await Promise.allSettled(removedLabels.map(number =>
+      addIssueLabel(octokit, owner, repo, number, DUPLICATE_LABEL_NAME)
+    ));
+    throw error;
+  }
+
+  for (const item of cleanup) {
+    const resolvedBody = issueLimitResolvedComment();
+    if (item.comments[0].body !== resolvedBody) {
+      await octokit.rest.issues.updateComment({
+        owner,
+        repo,
+        comment_id: item.comments[0].id,
+        body: resolvedBody
+      });
+    }
+    for (const comment of item.comments.slice(1)) {
+      await octokit.rest.issues.updateComment({
+        owner,
+        repo,
+        comment_id: comment.id,
+        body: supersededIssueLimitComment
+      });
+    }
+  }
+  // Collapse historical marker comments without deleting user-visible history.
+  for (const [number, comments] of commentSets) {
+    if (!desiredDuplicates.has(number)) continue;
+    for (const comment of comments.slice(1)) {
+      await octokit.rest.issues.updateComment({
+        owner,
+        repo,
+        comment_id: comment.id,
+        body: supersededIssueLimitComment
+      });
+    }
+  }
+
+  return {
+    reconciledIssues,
+    duplicates: [...desiredDuplicates.keys()].sort((left, right) => left - right)
+  };
+}
+
+async function processIssueLimitForPullRequest(octokit, owner, repo, pullRequestNumber, logger = console, dryRun = false) {
+  return processIssueLimits(octokit, owner, repo, logger, dryRun, pullRequestNumber);
+}
+
+async function processIssueLimitForIssue(octokit, owner, repo, issueNumber, logger = console, dryRun = false) {
+  return processIssueLimits(octokit, owner, repo, logger, dryRun, undefined, issueNumber);
+}
+
+async function processAllIssueLimits(octokit, owner, repo, logger = console, dryRun = false) {
+  return processIssueLimits(octokit, owner, repo, logger, dryRun);
 }
 
 /**
@@ -373,34 +741,44 @@ async function main() {
   }
 }
 
-// GitHub Actions wrapper function
-async function githubActionHandler({github, core, username, owner, repo, dryRun = false}) {
-  if (!username) {
-    core.setFailed('Username is required');
-    return;
-  }
+function logIssueLimitResult(core, result, dryRun) {
+  const prefix = dryRun ? 'Dry-run plan' : 'Reconciled';
+  core.info(`${prefix} linked issues: ${result.reconciledIssues.join(', ') || 'none'}`);
+  core.info(`${dryRun ? 'Dry-run plan duplicate' : 'Duplicate'} PRs: ${result.duplicates.join(', ') || 'none'}`);
+}
 
+// GitHub Actions wrapper function
+async function githubActionHandler({
+  github, core, username, owner, repo, pullRequestNumber, issueNumber, perIssueLimit = false, dryRun = false
+}) {
   if (!owner || !repo) {
     core.setFailed('Owner and repo are required');
     return;
   }
 
-  // Process the quota
   try {
-    const result = await processQuotaForAuthor(github, owner, repo, username, console, dryRun);
-
-    core.info('');
-    core.info('=== Summary ===');
-    core.info(`Blocked: ${result.results.blocked.length} PRs`);
-    core.info(`Unblocked: ${result.results.unblocked.length} PRs`);
-    core.info(`Unchanged: ${result.results.unchanged.length} PRs`);
-
-    if (result.results.blocked.length > 0) {
-      core.info(`Blocked PRs: ${result.results.blocked.join(', ')}`);
+    if (username && !perIssueLimit) {
+      const result = await processQuotaForAuthor(github, owner, repo, username, console, dryRun);
+      core.info('');
+      core.info('=== Author quota summary ===');
+      core.info(`Blocked: ${result.results.blocked.length} PRs`);
+      core.info(`Unblocked: ${result.results.unblocked.length} PRs`);
+      core.info(`Unchanged: ${result.results.unchanged.length} PRs`);
     }
-
-    if (result.results.unblocked.length > 0) {
-      core.info(`Unblocked PRs: ${result.results.unblocked.join(', ')}`);
+    if (pullRequestNumber) {
+      const result = await processIssueLimitForPullRequest(
+        github, owner, repo, Number(pullRequestNumber), console, dryRun
+      );
+      logIssueLimitResult(core, result, dryRun);
+    }
+    if (perIssueLimit && !pullRequestNumber) {
+      const result = issueNumber
+        ? await processIssueLimitForIssue(github, owner, repo, Number(issueNumber), console, dryRun)
+        : await processAllIssueLimits(github, owner, repo, console, dryRun);
+      logIssueLimitResult(core, result, dryRun);
+    }
+    if (!username && !pullRequestNumber && !perIssueLimit) {
+      core.setFailed('A username or pull request number is required');
     }
   } catch (error) {
     core.setFailed(`Error processing quota: ${error.message}`);
@@ -424,8 +802,28 @@ if (typeof module !== 'undefined' && module.exports) {
   module.exports.hasBlockingComment = hasBlockingComment;
   module.exports.postBlockingComment = postBlockingComment;
   module.exports.postUnblockingComment = postUnblockingComment;
+  module.exports.isActivePR = isActivePR;
+  module.exports.primaryPR = primaryPR;
+  module.exports.issueLimitComment = issueLimitComment;
+  module.exports.issueLimitResolvedComment = issueLimitResolvedComment;
+  module.exports.commentOwnsDuplicateLabel = commentOwnsDuplicateLabel;
+  module.exports.fetchOpenPullRequests = fetchOpenPullRequests;
+  module.exports.calculateIssueLimitState = calculateIssueLimitState;
+  module.exports.issueLimitCommentCandidates = issueLimitCommentCandidates;
+  module.exports.reconciledIssueNumbers = reconciledIssueNumbers;
+  module.exports.listIssueLimitComments = listIssueLimitComments;
+  module.exports.forEachWithConcurrency = forEachWithConcurrency;
+  module.exports.processIssueLimits = processIssueLimits;
+  module.exports.processIssueLimitForPullRequest = processIssueLimitForPullRequest;
+  module.exports.processIssueLimitForIssue = processIssueLimitForIssue;
+  module.exports.processAllIssueLimits = processAllIssueLimits;
+  module.exports.DUPLICATE_LABEL_NAME = DUPLICATE_LABEL_NAME;
+  module.exports.OVERRIDE_LABEL_NAME = OVERRIDE_LABEL_NAME;
+  module.exports.ISSUE_LIMIT_COMMENT_MARKER = ISSUE_LIMIT_COMMENT_MARKER;
+  module.exports.ISSUE_LIMIT_OWNED_LABEL_MARKER = ISSUE_LIMIT_OWNED_LABEL_MARKER;
   module.exports.LABEL_NAME = LABEL_NAME;
   module.exports.LABEL_COLOR = LABEL_COLOR;
+  module.exports.COMMENT_REQUEST_CONCURRENCY = COMMENT_REQUEST_CONCURRENCY;
 }
 
 // Run main function if executed directly

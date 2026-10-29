@@ -1,9 +1,10 @@
 // Copyright (c) 2026 The Jaeger Authors.
 // SPDX-License-Identifier: Apache-2.0
 
-// Package jaegercli exposes Jaeger's root CLI command for reuse in custom
-// OpenTelemetry Collector Builder (OCB) distributions, so they retain the
-// embedded all-in-one default config and Jaeger-specific subcommands.
+// Package jaegercli exposes Jaeger's root CLI command and the default set of
+// component factories for reuse in custom OpenTelemetry Collector Builder (OCB)
+// distributions, so they retain the embedded all-in-one default config and
+// Jaeger-specific subcommands.
 package jaegercli
 
 import (

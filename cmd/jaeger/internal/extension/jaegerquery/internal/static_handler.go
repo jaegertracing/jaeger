@@ -20,7 +20,6 @@ import (
 	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerquery/internal/ui"
-	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerquery/querysvc"
 	"github.com/jaegertracing/jaeger/internal/version"
 )
 
@@ -40,17 +39,32 @@ var (
 var uiConfigReloadInterval = 10 * time.Second
 
 // BackendCapabilities is the JSON shape injected into index.html via the
-// JAEGER_BACKEND_CAPABILITIES search-replace pattern.
+// JAEGER_BACKEND_CAPABILITIES search-replace pattern. It tells the UI which surfaces to
+// offer: the archive and metrics screens, the "All Services" search option (RFC 0013),
+// and the AI chat panel.
 type BackendCapabilities struct {
-	ArchiveStorage bool `json:"archiveStorage"`
-	MetricsStorage bool `json:"metricsStorage"`
-	AIAssistant    bool `json:"aiAssistant"`
+	ArchiveStorage           bool `json:"archiveStorage"`
+	MetricsStorage           bool `json:"metricsStorage"`
+	SearchWithoutServiceName bool `json:"searchWithoutServiceName"`
+	AIAssistant              bool `json:"aiAssistant"`
 }
 
+// BackendCapabilityProvider reports what the deployment can currently do for the caller of
+// the page request. It is called on every SPA serve rather than evaluated once at startup,
+// because not every flag is settled by then: the AI sidecar's reachability changes while the
+// process runs, a storage backend that answers for itself may not have been reachable when
+// jaeger-query started, and the AI panel is offered only to a caller the ai.auth extension
+// admits. Flags that do follow from configuration are simply constant within a provider.
+type BackendCapabilityProvider func(*http.Request) BackendCapabilities
+
 // RegisterStaticHandler builds and registers the static-assets handler on r.
-// aiHealthCheck may be nil; the chat surface stays hidden when it is.
-func RegisterStaticHandler(r *http.ServeMux, logger *zap.Logger, qOpts *QueryOptions, qCapabilities querysvc.StorageCapabilities, aiHealthCheck func() bool) io.Closer {
-	h, err := newStaticAssetsHandler(qOpts, qCapabilities, aiHealthCheck, logger)
+func RegisterStaticHandler(
+	r *http.ServeMux,
+	logger *zap.Logger,
+	qOpts *QueryOptions,
+	backendCaps BackendCapabilityProvider,
+) io.Closer {
+	h, err := newStaticAssetsHandler(qOpts, backendCaps, logger)
 	if err != nil {
 		logger.Panic("Could not create static assets handler", zap.Error(err))
 	}
@@ -59,16 +73,14 @@ func RegisterStaticHandler(r *http.ServeMux, logger *zap.Logger, qOpts *QueryOpt
 }
 
 // staticAssetsHandler serves the Jaeger UI bundle. index.html is derived on
-// every SPA serve so all injected values — including the AI capability,
-// which flips at runtime — are always current. The raw bytes are cached;
-// the UI config is cached with a TTL and re-read from disk on demand.
+// every SPA serve, so every injected value is current. The raw bytes are
+// cached; the UI config is cached with a TTL and re-read from disk on demand.
 type staticAssetsHandler struct {
-	assetsFS      http.FileSystem
-	basePath      string
-	logAccess     bool
-	storageCaps   querysvc.StorageCapabilities
-	aiHealthCheck func() bool
-	logger        *zap.Logger
+	assetsFS    http.FileSystem
+	basePath    string
+	logAccess   bool
+	backendCaps BackendCapabilityProvider
+	logger      *zap.Logger
 
 	indexHTMLRaw []byte // read once from disk at boot
 	uiConfigFile string // immutable after construction
@@ -85,7 +97,11 @@ type loadedConfig struct {
 	config []byte
 }
 
-func newStaticAssetsHandler(qOpts *QueryOptions, storageCaps querysvc.StorageCapabilities, aiHealthCheck func() bool, logger *zap.Logger) (*staticAssetsHandler, error) {
+func newStaticAssetsHandler(
+	qOpts *QueryOptions,
+	backendCaps BackendCapabilityProvider,
+	logger *zap.Logger,
+) (*staticAssetsHandler, error) {
 	assetsFS := ui.GetStaticFiles(logger)
 	if qOpts.UIConfig.AssetsPath != "" {
 		assetsFS = http.Dir(qOpts.UIConfig.AssetsPath)
@@ -95,14 +111,13 @@ func newStaticAssetsHandler(qOpts *QueryOptions, storageCaps querysvc.StorageCap
 		return nil, fmt.Errorf("cannot load index.html: %w", err)
 	}
 	h := &staticAssetsHandler{
-		assetsFS:      assetsFS,
-		basePath:      qOpts.BasePath,
-		logAccess:     qOpts.UIConfig.LogAccess,
-		storageCaps:   storageCaps,
-		aiHealthCheck: aiHealthCheck,
-		logger:        logger,
-		indexHTMLRaw:  raw,
-		uiConfigFile:  qOpts.UIConfig.ConfigFile,
+		assetsFS:     assetsFS,
+		basePath:     qOpts.BasePath,
+		logAccess:    qOpts.UIConfig.LogAccess,
+		backendCaps:  backendCaps,
+		logger:       logger,
+		indexHTMLRaw: raw,
+		uiConfigFile: qOpts.UIConfig.ConfigFile,
 	}
 	if h.uiConfigFile != "" {
 		// Eager initial load: surface UI-config syntax errors at startup
@@ -160,22 +175,14 @@ func (h *staticAssetsHandler) getUIConfig() *loadedConfig {
 //
 // The <base href> is not injected here. The UI detects its own mount-point
 // prefix at page-load time via an inline script in index.html (see ADR-009).
-func (h *staticAssetsHandler) deriveIndexHTML() []byte {
+func (h *staticAssetsHandler) deriveIndexHTML(r *http.Request) []byte {
 	out := h.indexHTMLRaw
 	if cfg := h.getUIConfig(); cfg != nil {
 		out = cfg.regexp.ReplaceAll(out, cfg.config)
 	}
 	versionJSON, _ := json.Marshal(version.Get())
 	out = versionPattern.ReplaceAll(out, fmt.Appendf(nil, "JAEGER_VERSION = %s;", versionJSON))
-	aiAvailable := false
-	if h.aiHealthCheck != nil {
-		aiAvailable = h.aiHealthCheck()
-	}
-	capsJSON, _ := json.Marshal(BackendCapabilities{
-		ArchiveStorage: h.storageCaps.ArchiveStorage,
-		MetricsStorage: h.storageCaps.MetricsStorage,
-		AIAssistant:    aiAvailable,
-	})
+	capsJSON, _ := json.Marshal(h.backendCaps(r))
 	out = capabilitiesPattern.ReplaceAll(out, fmt.Appendf(nil, "JAEGER_BACKEND_CAPABILITIES = %s;", capsJSON))
 	return out
 }
@@ -275,9 +282,12 @@ func (h *staticAssetsHandler) registerRoutes(router *http.ServeMux) {
 	router.Handle(catchAllPattern, h.loggingHandler(http.HandlerFunc(h.serveSPA)))
 }
 
-func (h *staticAssetsHandler) serveSPA(w http.ResponseWriter, _ *http.Request) {
+func (h *staticAssetsHandler) serveSPA(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	w.Write(h.deriveIndexHTML())
+	// The page carries capabilities decided for this caller, so a shared cache must
+	// not hand one caller's page to another. The assets under /static stay cacheable.
+	w.Header().Set("Cache-Control", "no-store")
+	w.Write(h.deriveIndexHTML(r))
 }
 
 // Close is a no-op; the handler holds no resources that need explicit

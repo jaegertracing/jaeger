@@ -6,10 +6,8 @@ package clickhouse
 import (
 	"bytes"
 	"context"
-	"errors"
 	"fmt"
 	"io"
-	"os"
 	"text/template"
 	"time"
 
@@ -29,13 +27,27 @@ import (
 	"github.com/jaegertracing/jaeger/internal/telemetry"
 )
 
-var clickhouseStorageGate = featuregate.GlobalRegistry().MustRegister(
-	"storage.clickhouse",
-	featuregate.StageAlpha,
-	featuregate.WithRegisterFromVersion("v2.18.0"),
-	featuregate.WithRegisterDescription(
-		"Enables ClickHouse as a storage backend.",
-	),
+// ClickHouse is always available as a storage backend and is selected through
+// configuration; no feature gate is required to enable it. The gate IDs below
+// remain registered as Stable only so that existing --feature-gates values keep
+// working (as no-ops) until they are removed in v2.23.0.
+var (
+	_ = featuregate.GlobalRegistry().MustRegister(
+		"jaeger.clickhouse",
+		featuregate.StageStable,
+		featuregate.WithRegisterFromVersion("v2.21.0"),
+		featuregate.WithRegisterToVersion("v2.23.0"),
+		featuregate.WithRegisterDescription("No-op: ClickHouse is always available as a storage backend and is selected through configuration. Retained for backward compatibility and removed in v2.23.0."),
+		featuregate.WithRegisterReferenceURL("https://github.com/jaegertracing/jaeger/issues/9016"),
+	)
+	_ = featuregate.GlobalRegistry().MustRegister(
+		"storage.clickhouse",
+		featuregate.StageStable,
+		featuregate.WithRegisterFromVersion("v2.18.0"),
+		featuregate.WithRegisterToVersion("v2.23.0"),
+		featuregate.WithRegisterDescription("No-op: deprecated alias for jaeger.clickhouse, retained for backward compatibility and removed in v2.23.0."),
+		featuregate.WithRegisterReferenceURL("https://github.com/jaegertracing/jaeger/issues/9016"),
+	)
 )
 
 var (
@@ -46,8 +58,15 @@ var (
 	_ storage.Purger             = (*Factory)(nil)
 )
 
+// schemaTemplateParams is what the CREATE TABLE templates under sql/ are rendered with.
 type schemaTemplateParams struct {
+	// TTLSeconds is the retention of spans and trace_id_timestamps; zero renders no TTL clause.
 	TTLSeconds int64
+	// MergeTree is the ENGINE clause body of the tables that hold raw rows.
+	MergeTree string
+	// AggregatingMergeTree is the ENGINE clause body of the derived tables, whose rows
+	// collapse on their sort key.
+	AggregatingMergeTree string
 }
 
 type schemaStatement struct {
@@ -60,40 +79,51 @@ type schemaBuilder struct {
 }
 
 func newSchemaBuilder(cfg Configuration) (*schemaBuilder, error) {
-	createSpansTableQuery, err := loadTemplate(
-		"create_spans_table",
-		sql.CreateSpansTable,
-		schemaTemplateParams{TTLSeconds: int64(cfg.TTL / time.Second)},
-	)
+	mergeTree, err := cfg.TableEngine.engineClause(mergeTreeFamily)
 	if err != nil {
 		return nil, err
 	}
-
-	createTraceIDTsTableQuery, err := loadTemplate(
-		"create_trace_id_timestamps_table",
-		sql.CreateTraceIDTimestampsTable,
-		schemaTemplateParams{TTLSeconds: int64(cfg.TTL / time.Second)},
-	)
+	aggregatingMergeTree, err := cfg.TableEngine.engineClause(aggregatingMergeTreeFamily)
 	if err != nil {
 		return nil, err
 	}
-
-	return &schemaBuilder{
-		statements: []schemaStatement{
-			{"spans table", createSpansTableQuery},
-			{"services table", sql.CreateServicesTable},
-			{"services materialized view", sql.CreateServicesMaterializedView},
-			{"operations table", sql.CreateOperationsTable},
-			{"operations materialized view", sql.CreateOperationsMaterializedView},
-			{"trace id timestamps table", createTraceIDTsTableQuery},
-			{"trace id timestamps materialized view", sql.CreateTraceIDTimestampsMaterializedView},
-			{"attribute metadata table", sql.CreateAttributeMetadataTable},
-			{"attribute metadata materialized view", sql.CreateAttributeMetadataMaterializedView},
-			{"event attribute metadata materialized view", sql.CreateEventAttributeMetadataMaterializedView},
-			{"link attribute metadata materialized view", sql.CreateLinkAttributeMetadataMaterializedView},
-			{"dependencies table", sql.CreateDependenciesTable},
-		},
-	}, nil
+	params := schemaTemplateParams{
+		TTLSeconds:           int64(cfg.TTL / time.Second),
+		MergeTree:            mergeTree,
+		AggregatingMergeTree: aggregatingMergeTree,
+	}
+	// The materialized views carry no engine of their own, because each writes TO its
+	// target table, so only the tables are templates.
+	schema := []struct {
+		name     string
+		query    string
+		template bool
+	}{
+		{"spans table", sql.CreateSpansTable, true},
+		{"services table", sql.CreateServicesTable, true},
+		{"services materialized view", sql.CreateServicesMaterializedView, false},
+		{"operations table", sql.CreateOperationsTable, true},
+		{"operations materialized view", sql.CreateOperationsMaterializedView, false},
+		{"trace id timestamps table", sql.CreateTraceIDTimestampsTable, true},
+		{"trace id timestamps materialized view", sql.CreateTraceIDTimestampsMaterializedView, false},
+		{"attribute metadata table", sql.CreateAttributeMetadataTable, true},
+		{"attribute metadata materialized view", sql.CreateAttributeMetadataMaterializedView, false},
+		{"event attribute metadata materialized view", sql.CreateEventAttributeMetadataMaterializedView, false},
+		{"link attribute metadata materialized view", sql.CreateLinkAttributeMetadataMaterializedView, false},
+		{"dependencies table", sql.CreateDependenciesTable, true},
+	}
+	builder := &schemaBuilder{}
+	for _, s := range schema {
+		query := s.query
+		if s.template {
+			query, err = loadTemplate(s.name, s.query, params)
+			if err != nil {
+				return nil, err
+			}
+		}
+		builder.statements = append(builder.statements, schemaStatement{name: s.name, query: query})
+	}
+	return builder, nil
 }
 
 func (b *schemaBuilder) build(ctx context.Context, conn driver.Conn) error {
@@ -112,27 +142,6 @@ type Factory struct {
 }
 
 func NewFactory(ctx context.Context, cfg Configuration, telset telemetry.Settings) (*Factory, error) {
-	if !clickhouseStorageGate.IsEnabled() {
-		return nil, errors.New(
-			"ClickHouse storage is experimental and must be explicitly enabled. " +
-				"The schema is subject to breaking changes. " +
-				"Enable it with --feature-gates=storage.clickhouse",
-		)
-	}
-	fmt.Fprint(os.Stderr, `
-*******************************************************************************
-
-⚠️  WARNING: ClickHouse Storage is Experimental
-
-You are using the ClickHouse storage backend, which is currently experimental.
-The schema is subject to breaking changes in future releases.
-
-⚠️  WARNING: ClickHouse Storage is Experimental
-
-*******************************************************************************
-`)
-	cfg.applyDefaults()
-
 	var builder *schemaBuilder
 	if cfg.CreateSchema {
 		var err error

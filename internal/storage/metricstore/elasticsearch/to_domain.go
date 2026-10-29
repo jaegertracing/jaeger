@@ -9,26 +9,26 @@ import (
 	"time"
 
 	"github.com/gogo/protobuf/types"
-	"github.com/olivere/elastic/v7"
 
 	"github.com/jaegertracing/jaeger/internal/proto-gen/api_v2/metrics"
+	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/esclient"
 )
 
 // Translator converts raw Elasticsearch aggregation results into Jaeger's metrics domain model
 // (metrics.MetricFamily). It uses a configurable function to extract values from buckets,
 // ensuring flexibility across different metric types (e.g., latencies, call rates).
 type Translator struct {
-	bucketsToPointsFunc func(buckets []*elastic.AggregationBucketHistogramItem) []*Pair
+	bucketsToPointsFunc func(buckets []esclient.HistogramBucket) []*Pair
 }
 
-func NewTranslator(bucketsToPointsFunc func(buckets []*elastic.AggregationBucketHistogramItem) []*Pair) Translator {
+func NewTranslator(bucketsToPointsFunc func(buckets []esclient.HistogramBucket) []*Pair) Translator {
 	return Translator{
 		bucketsToPointsFunc: bucketsToPointsFunc,
 	}
 }
 
 // ToDomainMetricsFamily converts Elasticsearch aggregations to Jaeger's MetricFamily.
-func (t *Translator) ToDomainMetricsFamily(m MetricsQueryParams, result *elastic.SearchResult) (*metrics.MetricFamily, error) {
+func (t *Translator) ToDomainMetricsFamily(m MetricsQueryParams, result *esclient.SearchResponse) (*metrics.MetricFamily, error) {
 	domainMetrics, err := t.toDomainMetrics(m, result)
 	if err != nil {
 		return nil, fmt.Errorf("failed to convert aggregations to metrics: %w", err)
@@ -48,7 +48,7 @@ func (t *Translator) ToDomainMetricsFamily(m MetricsQueryParams, result *elastic
 }
 
 // toDomainMetrics converts Elasticsearch aggregations to Jaeger metrics.
-func (t *Translator) toDomainMetrics(m MetricsQueryParams, result *elastic.SearchResult) ([]*metrics.Metric, error) {
+func (t *Translator) toDomainMetrics(m MetricsQueryParams, result *esclient.SearchResponse) ([]*metrics.Metric, error) {
 	labels := buildServiceLabels(m.ServiceNames)
 
 	if !m.GroupByOperation {
@@ -90,14 +90,11 @@ func buildServiceLabels(serviceNames []string) []*metrics.Label {
 	return labels
 }
 
-func (t *Translator) processOperationBucket(bucket *elastic.AggregationBucketKeyItem, baseLabels []*metrics.Label) (*metrics.Metric, error) {
-	key, ok := bucket.Key.(string)
-	if !ok {
-		return nil, fmt.Errorf("bucket key is not a string: %v", bucket.Key)
-	}
+func (t *Translator) processOperationBucket(bucket esclient.AggregationBucket, baseLabels []*metrics.Label) (*metrics.Metric, error) {
+	key := bucket.Key
 
 	// Extract nested date_histogram buckets
-	dateHistAgg, found := bucket.Aggregations.DateHistogram(dateHistAggName)
+	dateHistAgg, found := bucket.DateHistogram(dateHistAggName)
 	if !found {
 		return nil, fmt.Errorf("date_histogram aggregation not found in bucket %q", key)
 	}
@@ -122,7 +119,7 @@ func toDomainLabels(key string) []*metrics.Label {
 }
 
 // extractBuckets retrieves date histogram buckets from Elasticsearch results.
-func extractBuckets(result *elastic.SearchResult) ([]*elastic.AggregationBucketHistogramItem, error) {
+func extractBuckets(result *esclient.SearchResponse) ([]esclient.HistogramBucket, error) {
 	agg, found := result.Aggregations.DateHistogram(aggName)
 	if !found {
 		return nil, fmt.Errorf("%s aggregation not found", aggName)

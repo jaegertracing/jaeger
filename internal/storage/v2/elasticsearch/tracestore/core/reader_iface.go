@@ -11,6 +11,8 @@ import (
 
 // Reader is a DB-Level abstraction which directly deals with database level operations
 type Reader interface {
+	// FindSpans retrieves one page of the spans that match the spanQuery (RFC 0016).
+	FindSpans(ctx context.Context, spanQuery dbmodel.SpanQueryParameters) (dbmodel.SpanPage, error)
 	// FindTraceIDs retrieves traces IDs that match the traceQuery
 	FindTraceIDs(ctx context.Context, traceQuery dbmodel.TraceQueryParameters) ([]dbmodel.TraceID, error)
 	// FindTraces retrieves traces that match the traceQuery
@@ -21,4 +23,8 @@ type Reader interface {
 	GetServices(ctx context.Context) ([]string, error)
 	// GetTraces takes a traceID and returns a Trace associated with that traceID
 	GetTraces(ctx context.Context, query []dbmodel.TraceID) ([]dbmodel.Trace, error)
+	// FindTraceSummaries natively computes per-trace summaries for traces matching
+	// the query. It returns errors.ErrUnsupported when the backend cannot compute
+	// them (e.g. Painless scripting is disabled).
+	FindTraceSummaries(ctx context.Context, traceQuery dbmodel.TraceQueryParameters) ([]dbmodel.TraceSummary, error)
 }
