@@ -17,28 +17,38 @@ import (
 	"go.opentelemetry.io/collector/pdata/pcommon"
 
 	expression "github.com/jaegertracing/jaeger-idl/query/expression/v1"
+	"github.com/jaegertracing/jaeger/components/extension/jaegerquery/queryinterceptor"
+	builder "github.com/jaegertracing/jaeger/internal/expression"
 	"github.com/jaegertracing/jaeger/internal/jiter"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore"
 	tracestoremocks "github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore/mocks"
 )
 
-func compare(op expression.Operator, args ...expression.Expression) *expression.Call {
-	return &expression.Call{Op: op, Args: args}
-}
+var p builder.Predicate
 
 // tag builds a predicate on an unqualified attribute, whose constant declares no type because a
 // tag never did.
 func tag(op expression.Operator, key string, value string) *expression.Call {
-	return compare(op, &expression.AttributeRef{Key: key}, &expression.AnyValue{Value: value})
+	return p.Compare(op, p.Attr(key), value)
 }
 
+// filterQuery is the search a test sends when its subject is something other than the envelope:
+// a filter, or none, over the shared time window.
 func filterQuery(filter *expression.Call) TraceQueryParams {
 	return TraceQueryParams{
-		TraceQueryParams: tracestore.TraceQueryParams{
-			Attributes: pcommon.NewMap(),
-			Filter:     filter,
-		},
+		Attributes:   pcommon.NewMap(),
+		Filter:       filter,
+		StartTimeMin: testWindowStart,
+		StartTimeMax: testWindowEnd,
 	}
+}
+
+// readerQuery is the reader-side shape of a request, for tests whose subject is the capability
+// shaping that runs after the request has been converted.
+func readerQuery(t *testing.T, q TraceQueryParams) tracestore.TraceQueryParams {
+	query, err := q.toReaderQuery()
+	require.NoError(t, err)
+	return query
 }
 
 // TestPrepareFilteredQuery_PassesFilterToADeclaringReader covers a backend that evaluates the
@@ -51,25 +61,17 @@ func TestPrepareFilteredQuery_PassesFilterToADeclaringReader(t *testing.T) {
 			expression.OpEq, expression.OpGt, expression.OpRegex, expression.OpSome,
 		},
 	}}
-	filter := compare(expression.OpAnd,
-		compare(expression.OpGt,
-			&expression.FieldRef{Level: expression.LevelSpan, Name: expression.SpanFieldDuration},
-			&expression.DurationValue{Value: 2 * time.Second}),
-		compare(expression.OpOr,
+	filter := p.And(
+		p.Span().Duration.Gt(p.Duration(2*time.Second)),
+		p.Or(
 			tag(expression.OpEq, "http.status_code", "500"),
-			compare(expression.OpRegex,
-				&expression.AttributeRef{Key: "http.route", Level: expression.LevelSpan},
-				&expression.AnyValue{Value: "/cart/.*"})),
-		compare(expression.OpSome,
-			&expression.NestedRef{Level: expression.LevelEvent},
-			compare(expression.OpEq,
-				&expression.FieldRef{Level: expression.LevelEvent, Name: expression.EventFieldName},
-				&expression.StringValue{Value: "exception"})))
-	query := filterQuery(filter)
+			p.Span().Attr("http.route").Matches("/cart/.*")),
+		p.Some(p.Event(), p.Event().Name.Eq(p.String("exception"))))
+	query := readerQuery(t, filterQuery(filter))
 
-	got, err := query.ForCapabilities(caps)
+	got, err := queryToReaderCapabilities(query, caps)
 	require.NoError(t, err)
-	assert.Equal(t, query.TraceQueryParams, got)
+	assert.Equal(t, query, got)
 }
 
 // TestPrepareFilteredQuery_RefusesWhatAReaderDidNotDeclare covers the refusal gates: a level or an
@@ -98,21 +100,21 @@ func TestPrepareFilteredQuery_RefusesWhatAReaderDidNotDeclare(t *testing.T) {
 		{
 			name:        "an operator it did not list, nested in a conjunction",
 			caps:        conjunctive,
-			filter:      compare(expression.OpAnd, eqRef("a"), tag(expression.OpGt, "b", "1")),
+			filter:      p.And(eqRef("a"), tag(expression.OpGt, "b", "1")),
 			expectedErr: `does not support the operator "gt"`,
 		},
 		{
 			name:        "a disjunction against a flat index",
 			caps:        conjunctive,
-			filter:      compare(expression.OpOr, eqRef("a"), eqRef("b")),
+			filter:      p.Or(eqRef("a"), eqRef("b")),
 			expectedErr: `does not support the operator "or"`,
 		},
 		{
 			name: "a disjunction nested in a conjunction against a flat index",
 			caps: conjunctive,
-			filter: compare(expression.OpAnd,
+			filter: p.And(
 				eqRef("a"),
-				compare(expression.OpOr, eqRef("b"), eqRef("c"))),
+				p.Or(eqRef("b"), eqRef("c"))),
 			expectedErr: `does not support the operator "or"`,
 		},
 		{
@@ -121,9 +123,7 @@ func TestPrepareFilteredQuery_RefusesWhatAReaderDidNotDeclare(t *testing.T) {
 				Levels:    []expression.Level{expression.LevelSpan},
 				Operators: []expression.Operator{expression.OpEq},
 			},
-			filter: compare(expression.OpEq,
-				&expression.AttributeRef{Key: "peer.service", Level: expression.LevelLink},
-				&expression.AnyValue{Value: "cart"}),
+			filter:      p.Link().Attr("peer.service").Eq("cart"),
 			expectedErr: `does not index the "link" level`,
 		},
 		{
@@ -132,9 +132,7 @@ func TestPrepareFilteredQuery_RefusesWhatAReaderDidNotDeclare(t *testing.T) {
 				Levels:    []expression.Level{expression.LevelSpan},
 				Operators: []expression.Operator{expression.OpEq},
 			},
-			filter: compare(expression.OpEq,
-				&expression.FieldRef{Level: expression.LevelScope, Name: expression.ScopeFieldName},
-				&expression.StringValue{Value: "otelhttp"}),
+			filter:      p.Scope().Name.Eq(p.String("otelhttp")),
 			expectedErr: `does not index the "scope" level`,
 		},
 		{
@@ -143,11 +141,7 @@ func TestPrepareFilteredQuery_RefusesWhatAReaderDidNotDeclare(t *testing.T) {
 				Levels:    []expression.Level{expression.LevelSpan},
 				Operators: []expression.Operator{expression.OpSome, expression.OpEq},
 			},
-			filter: compare(expression.OpSome,
-				&expression.NestedRef{Level: expression.LevelEvent},
-				compare(expression.OpEq,
-					&expression.FieldRef{Level: expression.LevelEvent, Name: expression.EventFieldName},
-					&expression.StringValue{Value: "exception"})),
+			filter:      p.Some(p.Event(), p.Event().Name.Eq(p.String("exception"))),
 			expectedErr: `does not index the "event" level`,
 		},
 		{
@@ -156,16 +150,14 @@ func TestPrepareFilteredQuery_RefusesWhatAReaderDidNotDeclare(t *testing.T) {
 				Levels:    []expression.Level{expression.LevelSpan},
 				Operators: []expression.Operator{expression.OpNe},
 			},
-			filter: compare(expression.OpNe,
-				&expression.AttributeRef{Key: "enduser.id", Level: expression.LevelSpan},
-				&expression.AttributeRef{Key: "enduser.id", Level: expression.LevelResource}),
+			filter:      p.Span().Attr("enduser.id").Ne(p.Resource().Attr("enduser.id")),
 			expectedErr: `does not index the "resource" level`,
 		},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			caps := tracestore.SearchCapabilities{Filter: &test.caps}
-			_, err := filterQuery(test.filter).ForCapabilities(caps)
+			_, err := queryToReaderCapabilities(readerQuery(t, filterQuery(test.filter)), caps)
 			require.ErrorIs(t, err, tracestore.ErrFilterUnsupported)
 			assert.Contains(t, err.Error(), test.expectedErr)
 		})
@@ -228,10 +220,10 @@ func setStructuredFilters(t *testing.T, enabled bool) {
 	})
 }
 
-// TestPrepareSearchQuery_FilterDisabled pins what a deployment that has not opted in does with
+// TestPrepareSearchQuery_FilterDisabled pins what a deployment that has opted out does with
 // a query carrying a filter: it is refused where every other unserviceable query is refused,
-// and the reader is never asked for its capabilities, let alone dispatched to. Alpha is what
-// makes that the default, which TestStructuredFiltersGate_IsAlpha pins separately.
+// and the reader is never asked for its capabilities, let alone dispatched to. The gate is on by
+// default, which TestStructuredFiltersGate_IsBeta pins separately, so this is the opted-out path.
 func TestPrepareSearchQuery_FilterDisabled(t *testing.T) {
 	setStructuredFilters(t, false)
 
@@ -242,7 +234,7 @@ func TestPrepareSearchQuery_FilterDisabled(t *testing.T) {
 	_, err := jiter.FlattenWithErrors(qs.FindTraces(context.Background(), query))
 	require.ErrorIs(t, err, ErrFilterDisabled)
 	require.ErrorContains(t, err, "jaeger.query.structuredFilters")
-	assert.True(t, IsBadRequest(err), "the API layers answer 400")
+	require.ErrorIs(t, err, errors.ErrUnsupported, "the API layers answer 501")
 	reader.AssertExpectations(t)
 }
 
@@ -259,7 +251,7 @@ func TestPrepareSearchQuery_RefusesAMalformedFilter(t *testing.T) {
 	_, err := jiter.FlattenWithErrors(qs.FindTraces(context.Background(), query))
 	require.ErrorIs(t, err, tracestore.ErrFilterInvalid)
 	require.ErrorContains(t, err, `unknown filter operator "matches"`)
-	assert.True(t, IsBadRequest(err), "the API layers answer 400")
+	require.ErrorIs(t, err, tracestore.ErrInvalidQuery, "the API layers answer 400")
 	reader.AssertExpectations(t)
 }
 
@@ -275,17 +267,13 @@ func TestPrepareSearchQuery_RefusesAConstantThatDoesNotFitItsField(t *testing.T)
 		expectedErr string
 	}{
 		{
-			name: "a duration nobody can read",
-			filter: compare(expression.OpGte,
-				&expression.FieldRef{Level: expression.LevelSpan, Name: expression.SpanFieldDuration},
-				&expression.AnyValue{Value: "quickly"}),
+			name:        "a duration nobody can read",
+			filter:      p.Span().Duration.Gte("quickly"),
 			expectedErr: `cannot compare span.duration against "quickly"`,
 		},
 		{
-			name: "a span kind that is not one of the words",
-			filter: compare(expression.OpEq,
-				&expression.FieldRef{Level: expression.LevelSpan, Name: expression.SpanFieldKind},
-				&expression.AnyValue{Value: "SPAN_KIND_SERVER"}),
+			name:        "a span kind that is not one of the words",
+			filter:      p.Span().Kind.Eq("SPAN_KIND_SERVER"),
 			expectedErr: "not one of unspecified, internal, server, client, producer, consumer",
 		},
 	}
@@ -297,7 +285,7 @@ func TestPrepareSearchQuery_RefusesAConstantThatDoesNotFitItsField(t *testing.T)
 			_, err := jiter.FlattenWithErrors(qs.FindTraces(context.Background(), filterQuery(test.filter)))
 			require.ErrorIs(t, err, tracestore.ErrFilterInvalid)
 			require.ErrorContains(t, err, test.expectedErr)
-			assert.True(t, IsBadRequest(err), "the API layers answer 400")
+			require.ErrorIs(t, err, tracestore.ErrInvalidQuery, "the API layers answer 400")
 			reader.AssertExpectations(t)
 		})
 	}
@@ -308,9 +296,7 @@ func TestPrepareSearchQuery_RefusesAConstantThatDoesNotFitItsField(t *testing.T)
 // reader that serves only the legacy fields as the length of time it names.
 func TestPrepareSearchQuery_ResolvesADurationBeforeDispatch(t *testing.T) {
 	enableStructuredFilters(t)
-	filter := compare(expression.OpGte,
-		&expression.FieldRef{Level: expression.LevelSpan, Name: expression.SpanFieldDuration},
-		&expression.AnyValue{Value: "1m30s"})
+	filter := p.Span().Duration.Gte("1m30s")
 
 	var dispatched tracestore.TraceQueryParams
 	reader := forwardsOneTrace(new(tracestoremocks.Reader), &dispatched)
@@ -324,19 +310,57 @@ func TestPrepareSearchQuery_ResolvesADurationBeforeDispatch(t *testing.T) {
 	reader.AssertExpectations(t)
 }
 
-func TestStructuredFiltersGate_IsAlpha(t *testing.T) {
-	assert.Equal(t, featuregate.StageAlpha, StructuredFiltersGate.Stage(),
-		"Alpha is what keeps the filter off unless a deployment asks for it")
+func TestStructuredFiltersGate_IsBeta(t *testing.T) {
+	assert.Equal(t, featuregate.StageBeta, StructuredFiltersGate.Stage(),
+		"Beta is what makes the filter available unless a deployment turns it off")
 }
 
-func TestIsBadRequest(t *testing.T) {
-	assert.True(t, IsBadRequest(ErrServiceNameRequired))
-	assert.True(t, IsBadRequest(tracestore.ErrFilterUnsupported))
-	assert.True(t, IsBadRequest(tracestore.ErrFilterInvalid))
-	assert.True(t, IsBadRequest(ErrFilterDisabled))
-	assert.True(t, IsBadRequest(fmt.Errorf("%w: nested", tracestore.ErrFilterUnsupported)))
-	assert.False(t, IsBadRequest(errors.New("storage is down")))
-	assert.False(t, IsBadRequest(nil))
+// TestRefusalFamilies pins every query-service refusal to exactly one of the two families the
+// API layers map: a malformed query (tracestore.ErrInvalidQuery, InvalidArgument / 400) or a
+// query this deployment cannot serve (errors.ErrUnsupported, Unimplemented / 501). A refusal in
+// neither family would reach the client as a server fault, and one in both would be mapped twice.
+func TestRefusalFamilies(t *testing.T) {
+	malformed := []error{
+		tracestore.ErrInvalidQuery,
+		tracestore.ErrFilterInvalid,
+		tracestore.ErrSpanOrderInvalid,
+		tracestore.ErrPaginationInvalid,
+		tracestore.ErrPaginationUnsupportedByFindTraces,
+	}
+	unsupported := []error{
+		ErrServiceNameRequired,
+		ErrSpanSearchUnsupported,
+		ErrFilterDisabled,
+		tracestore.ErrFilterUnsupported,
+		tracestore.ErrSpanOrderUnsupported,
+		ErrPaginationDisabled,
+		tracestore.ErrPaginationUnsupported,
+	}
+	for _, err := range malformed {
+		t.Run(err.Error(), func(t *testing.T) {
+			require.ErrorIs(t, err, tracestore.ErrInvalidQuery)
+			require.ErrorIs(t, fmt.Errorf("%w: nested", err), tracestore.ErrInvalidQuery)
+			require.NotErrorIs(t, err, errors.ErrUnsupported)
+		})
+	}
+	for _, err := range unsupported {
+		t.Run(err.Error(), func(t *testing.T) {
+			require.ErrorIs(t, err, errors.ErrUnsupported)
+			require.ErrorIs(t, fmt.Errorf("%w: nested", err), errors.ErrUnsupported)
+			require.NotErrorIs(t, err, tracestore.ErrInvalidQuery)
+		})
+	}
+	// A deployment fault is neither: the caller's request was fine, so it reaches the client
+	// as a server error rather than as either refusal.
+	for _, err := range []error{
+		errors.New("storage is down"),
+		ErrInterceptorFilter,
+		queryinterceptor.ErrSpanSearchUnsupported,
+		queryinterceptor.ErrAccessDenied,
+	} {
+		assert.False(t, tracestore.IsRefusal(err), err.Error())
+	}
+	assert.False(t, tracestore.IsRefusal(nil))
 }
 
 // TestPrepareFilteredQuery_EmptyDeclarationIsNoDeclaration pins that a reader naming nothing reads as
@@ -351,7 +375,7 @@ func TestPrepareFilteredQuery_EmptyDeclarationIsNoDeclaration(t *testing.T) {
 		"empty declaration": {Filter: &tracestore.FilterCapabilities{}},
 	} {
 		t.Run(name, func(t *testing.T) {
-			got, err := filterQuery(filter).ForCapabilities(caps)
+			got, err := queryToReaderCapabilities(readerQuery(t, filterQuery(filter)), caps)
 			require.NoError(t, err)
 			assert.Nil(t, got.Filter, "the filter is rewritten, not sent down")
 			value, ok := got.Attributes.Get("http.method")
@@ -359,4 +383,88 @@ func TestPrepareFilteredQuery_EmptyDeclarationIsNoDeclaration(t *testing.T) {
 			assert.Equal(t, "GET", value.Str())
 		})
 	}
+}
+
+func serviceIs(name string) *expression.Call {
+	return p.Resource().Service.Eq(p.String(name))
+}
+
+// TestQueryToReaderShape covers the two conversions toward what a reader declared: a filter is handed
+// over or rewritten into the legacy fields, and a page size is handed over or folded into the
+// search depth, with a page token refused where the reader cannot have minted it.
+func TestQueryToReaderShape(t *testing.T) {
+	filterCapable := tracestore.SearchCapabilities{Filter: &tracestore.FilterCapabilities{
+		Levels:    []expression.Level{expression.LevelResource},
+		Operators: []expression.Operator{expression.OpEq},
+	}}
+
+	t.Run("a paginating reader gets pagination as sent", func(t *testing.T) {
+		query := tracestore.TraceQueryParams{Pagination: &tracestore.Pagination{PageSize: 50, PageToken: "cursor"}}
+		prepared, err := queryToReaderCapabilities(query, tracestore.SearchCapabilities{Paginated: true})
+		require.NoError(t, err)
+		assert.Equal(t, query, prepared)
+	})
+
+	t.Run("a non-paginating reader gets page size folded into search depth", func(t *testing.T) {
+		query := tracestore.TraceQueryParams{Pagination: &tracestore.Pagination{PageSize: 50}}
+		prepared, err := queryToReaderCapabilities(query, tracestore.SearchCapabilities{})
+		require.NoError(t, err)
+		assert.Equal(t, tracestore.TraceQueryParams{SearchDepth: 50}, prepared)
+	})
+
+	t.Run("a page token against a non-paginating reader is refused", func(t *testing.T) {
+		query := tracestore.TraceQueryParams{Pagination: &tracestore.Pagination{PageSize: 50, PageToken: "cursor"}}
+		_, err := queryToReaderCapabilities(query, tracestore.SearchCapabilities{})
+		require.ErrorIs(t, err, tracestore.ErrPaginationUnsupported)
+	})
+
+	t.Run("no filter is left alone", func(t *testing.T) {
+		query := tracestore.TraceQueryParams{ServiceName: "cart"}
+		prepared, err := queryToReaderCapabilities(query, tracestore.SearchCapabilities{})
+		require.NoError(t, err)
+		assert.Equal(t, query, prepared)
+	})
+
+	t.Run("a reader that evaluates filters is given the filter", func(t *testing.T) {
+		query := tracestore.TraceQueryParams{Filter: serviceIs("cart")}
+		prepared, err := queryToReaderCapabilities(query, filterCapable)
+		require.NoError(t, err)
+		assert.Equal(t, query, prepared)
+	})
+
+	t.Run("a reader that evaluates none is given the legacy fields", func(t *testing.T) {
+		query := tracestore.TraceQueryParams{Filter: serviceIs("cart")}
+		prepared, err := queryToReaderCapabilities(query, tracestore.SearchCapabilities{})
+		require.NoError(t, err)
+		assert.Equal(t, "cart", prepared.ServiceName)
+		assert.Nil(t, prepared.Filter)
+	})
+
+	t.Run("a filter the legacy fields cannot carry is refused", func(t *testing.T) {
+		disjunction := p.Or(serviceIs("cart"), serviceIs("checkout"))
+		_, err := queryToReaderCapabilities(tracestore.TraceQueryParams{Filter: disjunction}, tracestore.SearchCapabilities{})
+		require.ErrorIs(t, err, tracestore.ErrFilterUnsupported)
+	})
+
+	t.Run("a predicate the reader did not declare is refused", func(t *testing.T) {
+		spanLevel := p.Span().Attr("http.route").Eq("/cart")
+		_, err := queryToReaderCapabilities(tracestore.TraceQueryParams{Filter: spanLevel}, filterCapable)
+		require.ErrorIs(t, err, tracestore.ErrFilterUnsupported)
+		require.ErrorContains(t, err, `it does not index the "span" level`)
+	})
+
+	t.Run("pagination and filter both apply, pagination first", func(t *testing.T) {
+		query := tracestore.TraceQueryParams{Filter: serviceIs("cart"), Pagination: &tracestore.Pagination{PageSize: 50}}
+		prepared, err := queryToReaderCapabilities(query, filterCapable)
+		require.NoError(t, err)
+		assert.Equal(t, serviceIs("cart"), prepared.Filter, "a paginated query still gets its filter evaluated")
+		assert.EqualValues(t, 50, prepared.SearchDepth, "a reader that declared no Paginated support still gets a bound")
+		assert.Nil(t, prepared.Pagination)
+	})
+
+	t.Run("a page token against a non-paginating reader is refused before the filter is touched", func(t *testing.T) {
+		query := tracestore.TraceQueryParams{Filter: serviceIs("cart"), Pagination: &tracestore.Pagination{PageSize: 50, PageToken: "cursor"}}
+		_, err := queryToReaderCapabilities(query, filterCapable)
+		require.ErrorIs(t, err, tracestore.ErrPaginationUnsupported)
+	})
 }

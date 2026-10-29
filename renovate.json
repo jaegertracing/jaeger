@@ -55,7 +55,7 @@
       "automerge": false
     },
     {
-      "description": "Keep the OTel demo OpenSearch charts on supported 2.x releases and update them together",
+      "description": "Keep the OTel demo OpenSearch charts on supported 3.x releases and update them together",
       "matchManagers": [
         "custom.regex"
       ],
@@ -69,7 +69,7 @@
       "groupName": "OTel demo OpenSearch Helm charts",
       "groupSlug": "otel-demo-opensearch-helm",
       "minimumGroupSize": 2,
-      "allowedVersions": "/^2\\./",
+      "allowedVersions": "/^3\\./",
       "automerge": false
     },
     {
@@ -202,6 +202,16 @@
       ]
     },
     {
+      "groupName": "All Elasticsearch client packages",
+      "matchManagers": [
+        "gomod"
+      ],
+      "matchPackageNames": [
+        "github.com/elastic/go-elasticsearch/**",
+        "github.com/elastic/elastic-transport-go/**"
+      ]
+    },
+    {
       "groupName": "All ClickHouse packages",
       "matchManagers": [
         "gomod"
@@ -210,6 +220,66 @@
         "github.com/ClickHouse/ch-go",
         "github.com/ClickHouse/clickhouse-go/v2"
       ]
+    },
+    {
+      "description": "ClickHouse publishes an LTS release in March (x.3) and in August (x.8) and supports each for a year. This file follows the March line, so only versions with minor 3 are allowed.",
+      "groupName": "ClickHouse March LTS docker image",
+      "matchDatasources": [
+        "docker"
+      ],
+      "matchPackageNames": [
+        "clickhouse/clickhouse-server"
+      ],
+      "matchFileNames": [
+        "docker-compose/clickhouse/docker-compose-lts-march.yml"
+      ],
+      "allowedVersions": "/^\\d+\\.3\\./"
+    },
+    {
+      "description": "Only the yearly major update to the next March LTS is wanted, not the patch releases in between, so major updates are re-enabled for this file and the rest stay disabled by the docker-compose rule above.",
+      "matchDatasources": [
+        "docker"
+      ],
+      "matchPackageNames": [
+        "clickhouse/clickhouse-server"
+      ],
+      "matchFileNames": [
+        "docker-compose/clickhouse/docker-compose-lts-march.yml"
+      ],
+      "matchUpdateTypes": [
+        "major"
+      ],
+      "enabled": true
+    },
+    {
+      "description": "ClickHouse publishes an LTS release in March (x.3) and in August (x.8) and supports each for a year. This file follows the August line, so only versions with minor 8 are allowed.",
+      "groupName": "ClickHouse August LTS docker image",
+      "matchDatasources": [
+        "docker"
+      ],
+      "matchPackageNames": [
+        "clickhouse/clickhouse-server"
+      ],
+      "matchFileNames": [
+        "docker-compose/clickhouse/docker-compose-lts-august.yml"
+      ],
+      "allowedVersions": "/^\\d+\\.8\\./"
+    },
+    {
+      "description": "Only the yearly major update to the next August LTS is wanted, not the patch releases in between, so major updates are re-enabled for this file and the rest stay disabled by the docker-compose rule above.",
+      "matchDatasources": [
+        "docker"
+      ],
+      "matchPackageNames": [
+        "clickhouse/clickhouse-server"
+      ],
+      "matchFileNames": [
+        "docker-compose/clickhouse/docker-compose-lts-august.yml"
+      ],
+      "matchUpdateTypes": [
+        "major"
+      ],
+      "enabled": true
     },
     {
       "groupName": "OpenSearch 3.x docker images",

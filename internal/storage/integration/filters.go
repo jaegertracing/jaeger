@@ -5,6 +5,7 @@ package integration
 
 import (
 	"context"
+	"errors"
 	"slices"
 	"strings"
 	"testing"
@@ -18,6 +19,7 @@ import (
 	builder "github.com/jaegertracing/jaeger/internal/expression"
 	"github.com/jaegertracing/jaeger/internal/jiter"
 	"github.com/jaegertracing/jaeger/internal/jptrace"
+	"github.com/jaegertracing/jaeger/internal/storage/integration/capabilities"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore"
 	"github.com/jaegertracing/jaeger/internal/telemetry/otelsemconv"
 )
@@ -46,9 +48,9 @@ type filterCase struct {
 	expected []string
 }
 
-// filterTestCases covers what M4 of RFC 0005 delivered for Elasticsearch and OpenSearch: the three
-// levels those index, the built-in fields they route to a field of their own, every operator they
-// declare, and boolean composition over the lot.
+// filterTestCases covers the RFC 0005 filter model across the backends that evaluate it natively:
+// the five OTLP attribute levels, the built-in fields each backend routes to a column or field of
+// its own, the operators and typed constants they declare, and boolean composition over the lot.
 func filterTestCases(p builder.Predicate) []filterCase {
 	return []filterCase{
 		{
@@ -62,6 +64,11 @@ func filterTestCases(p builder.Predicate) []filterCase {
 			expected: []string{"checkout"},
 		},
 		{
+			caption:  "a scope-level attribute matches the instrumentation scope's attributes only",
+			filter:   p.Scope().Attr("zone").Eq("us-east"),
+			expected: []string{"worker"},
+		},
+		{
 			caption:  "an unqualified attribute matches either the span or the resource",
 			filter:   p.Attr("zone").Eq("us-east"),
 			expected: []string{"cart_get", "checkout"},
@@ -72,8 +79,14 @@ func filterTestCases(p builder.Predicate) []filterCase {
 			expected: []string{"search"},
 		},
 		{
+			caption:  "a link-level attribute matches an attribute of one of the span's links",
+			filter:   p.Link().Attr("zone").Eq("eu-west"),
+			expected: []string{"worker"},
+		},
+		{
 			// The span-or-resource default of RFC 0005 §5.1, asserted by what it leaves out: the
-			// search trace carries `zone` on an event and nowhere else.
+			// `search` trace carries `zone` on an event and the `worker` trace on its scope and on
+			// a link, and neither is reached.
 			caption:  "an unqualified attribute does not reach the event level",
 			filter:   p.Attr("zone").Exists(),
 			expected: []string{"cart_get", "checkout"},
@@ -94,9 +107,60 @@ func filterTestCases(p builder.Predicate) []filterCase {
 			expected: []string{"cart_get"},
 		},
 		{
+			caption:  "the span kind",
+			filter:   p.Span().Kind.Eq("consumer"),
+			expected: []string{"worker"},
+		},
+		{
+			caption:  "the span status",
+			filter:   p.Span().Status.Eq("error"),
+			expected: []string{"worker"},
+		},
+		{
 			caption:  "a pattern on the operation name matches anywhere in it",
 			filter:   p.Span().Name.Matches("cart"),
 			expected: []string{"cart_get", "cart_post"},
+		},
+		{
+			// Without the anchor the pattern also matches search, whose name is "GET /search".
+			caption:  "a pattern anchored at the start of the operation name",
+			filter:   p.Span().Name.Matches("^search"),
+			expected: []string{"text-search"},
+		},
+		{
+			// Without the anchor the pattern also matches cart_post, whose name is "POST /cart/items".
+			caption:  "a pattern anchored at the end of the operation name",
+			filter:   p.Span().Name.Matches("/cart$"),
+			expected: []string{"cart_get"},
+		},
+		{
+			caption:  "a pattern with a negated class",
+			filter:   p.Span().Name.Matches("GET /[^/]+$"),
+			expected: []string{"cart_get", "checkout", "search"},
+		},
+		{
+			caption:  "a pattern with a quantified group",
+			filter:   p.Span().Name.Matches("/cart(/items)?$"),
+			expected: []string{"cart_get", "cart_post"},
+		},
+		{
+			caption:  "a pattern folding case",
+			filter:   p.Span().Name.Matches("(?i)^post /cart"),
+			expected: []string{"cart_post"},
+		},
+		{
+			// The range spells the lowercase of the G the name starts with and the literal the
+			// uppercase of the rest, so the case passes only when both fold.
+			caption:  "a pattern folding the case of a range",
+			filter:   p.Span().Name.Matches("(?i)^[g-h]et /CART$"),
+			expected: []string{"cart_get"},
+		},
+		{
+			// The long s (U+017F) folds to s and S under the simple case folding RE2 applies, so a
+			// pattern written with it matches a name spelled in ASCII.
+			caption:  "a pattern folding a letter beyond ASCII",
+			filter:   p.Span().Name.Matches("(?i)^po\u017ft /cart"),
+			expected: []string{"cart_post"},
 		},
 		{
 			// The write path stores an event's name as an attribute of the event, so this asserts
@@ -104,6 +168,18 @@ func filterTestCases(p builder.Predicate) []filterCase {
 			caption:  "the name of one of the span's events",
 			filter:   p.Event().Name.Eq("exception"),
 			expected: []string{"cart_post"},
+		},
+		{
+			// `some` quantifies a predicate over the events of one span (RFC 0005 §5.5), so a
+			// backend that flattens events into the span's own fields cannot evaluate it.
+			caption:  "a predicate quantified over the span's events",
+			filter:   p.Some(p.Event(), p.Event().Name.Eq("exception")),
+			expected: []string{"cart_post"},
+		},
+		{
+			caption:  "an exact duration",
+			filter:   p.Span().Duration.Eq(40 * time.Millisecond),
+			expected: []string{"checkout"},
 		},
 		{
 			caption:  "a duration greater than a bound",
@@ -132,12 +208,20 @@ func filterTestCases(p builder.Predicate) []filterCase {
 			expected: []string{"cart_post"},
 		},
 		{
-			// Ordering an attribute needs the value stored as a number. A backend that indexes
-			// attributes as text refuses this instead, and excuses itself from this case — see
-			// its twin among the refusals below.
-			caption:  "ordering compares a numeric attribute as a number",
-			filter:   p.Span().Attr("retry.count").Gt(3),
+			caption:  "an untyped constant matches an attribute stored as a number",
+			filter:   p.Span().Attr("retry.count").Eq(11),
 			expected: []string{"cart_post"},
+		},
+		{
+			// `cart_get` stores `retry.count` as the integer 9 and `search` as the string "09". A
+			// constant declaring the string type (RFC 0005 §5.4) is compared as text, so it
+			// matches `search` only; the same value sent untyped would be read as the number 9
+			// and match `cart_get` as well. The value is zero-padded so that a backend comparing
+			// this attribute lexicographically does not also count it as greater than "10" in
+			// "an ordered comparison on an attribute" below.
+			caption:  "a string-typed constant leaves out an attribute stored as a number",
+			filter:   p.Span().Attr("retry.count").Eq(p.String("09")),
+			expected: []string{"search"},
 		},
 		{
 			caption:  "an attribute exists",
@@ -147,6 +231,18 @@ func filterTestCases(p builder.Predicate) []filterCase {
 		{
 			caption:  "a pattern on an attribute value",
 			filter:   p.Span().Attr("http.status_code").Matches("5.."),
+			expected: []string{"cart_post"},
+		},
+		{
+			// The class spells the characters Lucene reads as syntax inside a class, and the value
+			// holds a hyphen.
+			caption:  "a pattern with a class holding a hyphen and a bracket",
+			filter:   p.Attr("zone").Matches(`^[a-z\]\-^]+$`),
+			expected: []string{"cart_get", "checkout"},
+		},
+		{
+			caption:  "a pattern using a Perl shorthand on an attribute value",
+			filter:   p.Span().Attr("http.status_code").Matches(`^5\d\d$`),
 			expected: []string{"cart_post"},
 		},
 		{
@@ -184,6 +280,46 @@ func filterTestCases(p builder.Predicate) []filterCase {
 			),
 			expected: []string{"cart_get", "cart_post"},
 		},
+		{
+			caption:  "a phrase matches adjacent ordered words",
+			filter:   p.Span().Attr("note").Phrase("refund", "policy"),
+			expected: []string{"text-search"},
+		},
+		{
+			caption:  "a phrase is case insensitive",
+			filter:   p.Span().Attr("note").Phrase("REFUND", "POLICY"),
+			expected: []string{"text-search"},
+		},
+		{
+			caption:  "a phrase does not match when words are not adjacent",
+			filter:   p.Span().Attr("note").Phrase("refund", "updated"),
+			expected: nil,
+		},
+		{
+			caption:  "a phrase does not match when words are in the wrong order",
+			filter:   p.Span().Attr("note").Phrase("policy", "refund"),
+			expected: nil,
+		},
+		{
+			caption:  "fulltext matches all words in any order",
+			filter:   p.Span().Attr("note").Fulltext("premium", "refund"),
+			expected: []string{"text-search"},
+		},
+		{
+			caption:  "fulltext matches the words a phrase rejects for their order",
+			filter:   p.Span().Attr("note").Fulltext("policy", "refund"),
+			expected: []string{"text-search"},
+		},
+		{
+			caption:  "fulltext is case insensitive",
+			filter:   p.Span().Attr("note").Fulltext("PREMIUM", "REFUND"),
+			expected: []string{"text-search"},
+		},
+		{
+			caption:  "fulltext does not match when a word is missing",
+			filter:   p.Span().Attr("note").Fulltext("refund", "discount"),
+			expected: nil,
+		},
 	}
 }
 
@@ -205,68 +341,112 @@ func (s *StorageIntegration) testFindTracesWithFilter(t *testing.T) {
 	// The suite's corpus holds far more than these fixtures, and a case's time range covers all of
 	// it, so every case below is scoped to the services only these fixtures use. The scope is
 	// derived from the corpus rather than listed here, so a fixture added to filterCorpusDir is
-	// searched without being named anywhere.
-	scope := p.Resource().Service.In(filterCorpusServices(corpus)...)
+	// searched without being named anywhere, and it is a disjunction of equalities rather than In
+	// so every backend that evaluates a boolean filter can serve it.
+	scope := filterCorpusScope(p, corpus)
 
 	// A deployment that will not serve a filter at all refuses every case below, and a search that
 	// comes back with an error is retried for a minute and a half before it is called a failure —
 	// which for a whole battery is half an hour of a CI run spent on one misconfiguration. So the
 	// first filter goes straight to the reader, whose error says what is actually wrong.
-	s.requireFilterIsServed(t, filterQuery(p.Resource().Service.Exists(), start, end))
+	s.requireFilterIsServed(t, filterQuery(t, scope, start, end))
 
+	// RFC 0005 §7 promises that a backend either evaluates a predicate or refuses it, and never
+	// answers a predicate it cannot evaluate with a wider result set. Which of the two a case
+	// expects follows from the levels and operators the reader declares (ADR-013): a declared
+	// predicate must return the traces the corpus holds for it, and an undeclared one must be
+	// refused. The expectation is derived from the declaration and not from the suite's
+	// Capabilities, so a reader that evaluates more than it declares fails the refusal, and one
+	// that declares more than it evaluates fails the search; neither direction passes vacuously.
+	declared := s.declaredFilterCapabilities(t)
 	for _, testCase := range filterTestCases(p) {
 		t.Run(testCase.caption, func(t *testing.T) {
 			s.skipIfNeeded(t)
+			query := filterQuery(t, p.And(scope, testCase.filter), start, end)
+			if declared.EnsureSupported(testCase.filter) != nil {
+				_, err := jiter.CollectWithErrors(jptrace.AggregateTraces(
+					s.TraceReader.FindTraces(context.Background(), *query),
+				))
+				requireRefusal(t, err)
+				return
+			}
 			expected := filterCorpusTraces(t, corpus, testCase.expected)
-			query := filterQuery(p.And(scope, testCase.filter), start, end)
 			actual := s.findTracesByQuery(t, query, expected)
 			CompareTraceSlices(t, expected, actual)
 		})
 	}
 
-	// RFC 0005 §7 promises that a backend either evaluates a predicate or refuses it, and never
-	// answers a predicate it cannot evaluate with a wider result set. These two are the shapes an
-	// Elasticsearch or OpenSearch reader declares it cannot serve: the scope level, which its
-	// schema does not index apart from the span's own attributes, and the `some` quantifier.
-	refusals := []struct {
-		caption string
-		filter  *expression.Call
-		names   string
-	}{
-		{
-			caption: "a level the backend does not index is refused",
-			filter:  p.Scope().Attr("library.tier").Eq("core"),
-			names:   "scope",
-		},
-		{
-			caption: "an operator the backend does not evaluate is refused",
-			filter:  p.Some(p.Event(), p.Event().Name.Eq("exception")),
-			names:   "some",
-		},
-		{
-			// The twin of "ordering compares a numeric attribute as a number" above: the same
-			// filter, for a backend whose schema indexes an attribute as text. This one refuses
-			// inside the reader rather than at the capability edge, because the operator and the
-			// level are both declared and only the pairing is unservable. A backend that orders
-			// attributes natively excuses itself from this case and runs the other.
-			caption: "ordering an attribute is refused where it is indexed as text",
-			filter:  p.Span().Attr("retry.count").Gt(3),
-			names:   "keyword rather than a number",
-		},
-	}
-	for _, refusal := range refusals {
-		t.Run(refusal.caption, func(t *testing.T) {
-			s.skipIfNeeded(t)
-			query := filterQuery(refusal.filter, start, end)
+	// FilterCapabilities declares levels and operators, not built-in fields, so whether the trace
+	// state is indexed is declared by the deployment through Capabilities.TraceStateRefused
+	// instead, and this case asserts the declared outcome. `worker` carries a trace state with
+	// another value, so a backend that matched the field's presence rather than its value would
+	// answer with both traces and fail.
+	t.Run("the trace state", func(t *testing.T) {
+		s.skipIfNeeded(t)
+		query := filterQuery(t, p.And(scope, p.Span().TraceState.Eq("congo=t61rcWkgMzE")), start, end)
+		if s.Capabilities.TraceStateRefused() {
 			_, err := jiter.CollectWithErrors(jptrace.AggregateTraces(
 				s.TraceReader.FindTraces(context.Background(), *query),
 			))
-			require.Error(t, err, "the search must be refused rather than answered with a wider result set")
-			// The sentinel error does not survive the gRPC hop the e2e tests read through, so the
-			// assertion is on what the message names, which does.
-			require.ErrorContains(t, err, refusal.names)
-		})
-	}
+			requireRefusal(t, err)
+			require.ErrorContains(t, err, "traceState")
+			return
+		}
+		expected := filterCorpusTraces(t, corpus, []string{"search"})
+		CompareTraceSlices(t, expected, s.findTracesByQuery(t, query, expected))
+	})
+
+	// An ordered comparison on an attribute needs the value stored as a number, which depends on
+	// the index mapping rather than on anything the reader declares: the operator and the level
+	// are both declared, and only the pairing can be unservable. So the deployment names the
+	// outcome it produces through Capabilities.AttributeComparison, and this case asserts it.
+	//
+	// The corpus carries retry.count as 9 and 11, and the bound is 10, because those are the
+	// numbers that tell a numeric comparison from a lexicographic one. Numerically only 11 is
+	// greater; as text both are, since "9" sorts after "10". So a backend that ranged over the
+	// keyword would answer with cart_get as well — a superset, which is the failure this case
+	// exists to catch, and one that cannot be mistaken for the writes not having landed.
+	t.Run("an ordered comparison on an attribute", func(t *testing.T) {
+		s.skipIfNeeded(t)
+		query := filterQuery(t, p.And(scope, p.Span().Attr("retry.count").Gt(10)), start, end)
+		switch outcome := s.Capabilities.AttributeComparison(); outcome {
+		case capabilities.AttributeComparisonNumeric:
+			expected := filterCorpusTraces(t, corpus, []string{"cart_post"})
+			CompareTraceSlices(t, expected, s.findTracesByQuery(t, query, expected))
+		case capabilities.AttributeComparisonRefused:
+			// The reader refuses inside its lowering rather than at the capability edge, so the
+			// message is the reader's own; what every reader's message has in common is the
+			// attribute it refuses to compare.
+			_, err := jiter.CollectWithErrors(jptrace.AggregateTraces(
+				s.TraceReader.FindTraces(context.Background(), *query),
+			))
+			requireRefusal(t, err)
+			require.ErrorContains(t, err, "retry.count")
+		case capabilities.AttributeComparisonMissesOlderIndices:
+			// The reader ranges over the numeric sub-field, but the corpus was written into indices
+			// created before the mapping was turned on, so the range finds nothing there. RFC 0005
+			// §7 admits this as a data gap rather than a refusal, and this case pins that the
+			// reader neither errors nor falls back to comparing the keyword, which would answer
+			// with cart_get as well.
+			//
+			// The scope alone must find the whole corpus first, so that the empty answer below is
+			// the range's doing and not an index that has not caught up yet.
+			names := make([]string, 0, len(corpus))
+			for name := range corpus {
+				names = append(names, name)
+			}
+			s.findTracesByQuery(t, filterQuery(t, scope, start, end), filterCorpusTraces(t, corpus, names))
+			// The reader is asked directly rather than through findTracesByQuery, which retries an
+			// error for the whole wait: a refusal here is wrong at once and should say so.
+			actual, err := jiter.CollectWithErrors(jptrace.AggregateTraces(
+				s.TraceReader.FindTraces(context.Background(), *query),
+			))
+			require.NoError(t, err, "the range must be evaluated, not refused")
+			require.Empty(t, actual)
+		default:
+			t.Fatalf("unknown attribute comparison outcome %d", outcome)
+		}
+	})
 }
 
 // RunFilterRewriteTest asks one question both ways — through the legacy predicate fields, and as
@@ -301,7 +481,7 @@ func (s *StorageIntegration) RunFilterRewriteTest(t *testing.T) {
 			StartTimeMax: end,
 			SearchDepth:  filterSearchDepth,
 		}
-		filter := filterQuery(p.And(
+		filter := filterQuery(t, p.And(
 			p.Resource().Service.Eq("filter-cart"),
 			p.Attr("http.status_code").Eq("500"),
 		), start, end)
@@ -314,13 +494,41 @@ func (s *StorageIntegration) RunFilterRewriteTest(t *testing.T) {
 	})
 }
 
-// filterQuery is a search whose only predicate is the filter. The attributes map is empty rather
-// than unset because a Reader is entitled to read it (it "must be initialized with
-// pcommon.NewMap() before use"), and a filter must arrive alone: a query carrying one beside a
-// service name, an operation name, a tag or a duration bound is refused.
-func filterQuery(filter *expression.Call, start, end time.Time) *tracestore.TraceQueryParams {
+// requireRefusal asserts that a search was refused for a capability the backend lacks, rather than
+// failing in some other way or answering with a wider result set. The refusal's own sentinel does
+// not survive the gRPC hop the e2e suite reads through, but its family does: the api_v3 edge
+// answers it with Unimplemented, which the e2e reader restores to errors.ErrUnsupported (ADR-013).
+// A case whose refusal the declaration does not predict checks the message as well for what was
+// refused, because a refusal of the wrong thing would pass the family check alone.
+func requireRefusal(t *testing.T, err error) {
+	t.Helper()
+	require.ErrorIs(t, err, errors.ErrUnsupported, "the search must be refused rather than answered with a wider result set")
+}
+
+// declaredFilterCapabilities is what the reader under test declares it evaluates of a filter. A
+// reader that declares nothing is held to refusing every level and operator.
+func (s *StorageIntegration) declaredFilterCapabilities(t *testing.T) tracestore.FilterCapabilities {
+	t.Helper()
+	caps, err := s.TraceReader.SearchCapabilities(context.Background())
+	require.NoError(t, err)
+	if caps.Filter == nil {
+		return tracestore.FilterCapabilities{}
+	}
+	return *caps.Filter
+}
+
+// filterQuery is a search whose only predicate is the filter. The filter is finalized here so a
+// direct suite hands its Reader the same resolved AST the query service and the remote-storage
+// server hand it in production (RFC 0005 §7). The attributes map is empty rather than unset
+// because a Reader is entitled to read it (it "must be initialized with pcommon.NewMap() before
+// use"), and a filter must arrive alone: a query carrying one beside a service name, an operation
+// name, a tag or a duration bound is refused.
+func filterQuery(t *testing.T, filter *expression.Call, start, end time.Time) *tracestore.TraceQueryParams {
+	t.Helper()
+	finalized, err := tracestore.FinalizeFilter(filter)
+	require.NoError(t, err)
 	return &tracestore.TraceQueryParams{
-		Filter:       filter,
+		Filter:       finalized,
 		Attributes:   pcommon.NewMap(),
 		StartTimeMin: start,
 		StartTimeMax: end,
@@ -337,10 +545,10 @@ func (s *StorageIntegration) requireFilterIsServed(t *testing.T, query *tracesto
 	require.NoError(t, err, "this deployment refuses the filter itself, so no case below can pass")
 }
 
-// filterCorpusServices are the services the filter fixtures use, as the values of a membership
-// predicate. Only these fixtures use a "filter-" prefixed service, which is what lets a case be
-// scoped to them.
-func filterCorpusServices(corpus map[string]ptrace.Traces) []any {
+// filterCorpusScope builds the disjunction of service-name equalities that restricts a search to
+// the services the filter fixtures use. Only these fixtures use a "filter-" prefixed service,
+// which is what lets a case be scoped to them.
+func filterCorpusScope(p builder.Predicate, corpus map[string]ptrace.Traces) *expression.Call {
 	seen := make(map[string]struct{})
 	for _, trace := range corpus {
 		for i := 0; i < trace.ResourceSpans().Len(); i++ {
@@ -349,11 +557,11 @@ func filterCorpusServices(corpus map[string]ptrace.Traces) []any {
 			}
 		}
 	}
-	values := make([]any, 0, len(seen))
+	clauses := make([]*expression.Call, 0, len(seen))
 	for _, name := range slices.Sorted(maps(seen)) {
-		values = append(values, name)
+		clauses = append(clauses, p.Resource().Service.Eq(name))
 	}
-	return values
+	return p.Or(clauses...)
 }
 
 // writeFilterCorpus writes every trace in filterCorpusDir and returns them by file name, without

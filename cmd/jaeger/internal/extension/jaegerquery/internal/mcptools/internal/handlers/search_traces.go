@@ -16,12 +16,17 @@ import (
 
 	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerquery/internal/mcptools/internal/types"
 	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerquery/querysvc"
+	"github.com/jaegertracing/jaeger/internal/sqlquery"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore"
 )
 
+// defaultSearchDepth is the tool's own page bound. An agent reads small pages, so it is lower
+// than the query service's default.
+const defaultSearchDepth = 10
+
 // queryServiceInterface defines the interface we need from QueryService for testing.
 type queryServiceInterface interface {
-	FindTraceSummaries(ctx context.Context, query querysvc.TraceQueryParams) iter.Seq2[[]tracestore.TraceSummary, error]
+	FindTraceSummaries(ctx context.Context, query querysvc.TraceQueryParams) iter.Seq2[querysvc.PageChunk[[]tracestore.TraceSummary], error]
 }
 
 // searchTracesHandler implements the search_traces MCP tool.
@@ -30,13 +35,13 @@ type queryServiceInterface interface {
 // browsing and filtering large result sets.
 type searchTracesHandler struct {
 	queryService queryServiceInterface
-	maxResults   int
+	maxResults   uint32
 }
 
 // NewSearchTracesHandler creates a new search_traces handler and returns the handler function.
 func NewSearchTracesHandler(
 	queryService *querysvc.QueryService,
-	maxResults int,
+	maxResults uint32,
 ) mcp.ToolHandlerFor[types.SearchTracesInput, types.SearchTracesOutput] {
 	h := &searchTracesHandler{
 		queryService: queryService,
@@ -60,14 +65,14 @@ func (h *searchTracesHandler) handle(
 	var processErrs []error
 
 outer:
-	for batch, err := range h.queryService.FindTraceSummaries(ctx, query) {
+	for chunk, err := range h.queryService.FindTraceSummaries(ctx, query) {
 		if err != nil {
 			processErrs = append(processErrs, err)
 			break
 		}
-		for i := range batch {
-			summaries = append(summaries, toMCPTraceSummary(batch[i]))
-			if h.maxResults > 0 && len(summaries) >= h.maxResults {
+		for i := range chunk.Results {
+			summaries = append(summaries, toMCPTraceSummary(chunk.Results[i]))
+			if h.maxResults > 0 && uint64(len(summaries)) >= uint64(h.maxResults) {
 				break outer
 			}
 		}
@@ -118,6 +123,9 @@ func toMCPTraceSummary(s tracestore.TraceSummary) types.TraceSummary {
 
 // buildQuery converts SearchTracesInput to querysvc.TraceQueryParams.
 func (h *searchTracesHandler) buildQuery(input types.SearchTracesInput) (querysvc.TraceQueryParams, error) {
+	if strings.TrimSpace(input.SQL) != "" {
+		return h.buildSQLQuery(input)
+	}
 	startTimeMinInput := input.StartTimeMin
 	if startTimeMinInput == "" {
 		startTimeMinInput = "-1h"
@@ -138,10 +146,8 @@ func (h *searchTracesHandler) buildQuery(input types.SearchTracesInput) (querysv
 		maxStartTime = time.Now()
 	}
 
-	if !maxStartTime.IsZero() && maxStartTime.Before(minStartTime) {
-		return querysvc.TraceQueryParams{}, errors.New("start_time_max must be after start_time_min")
-	}
-
+	// Whether the time range and the duration bounds are ordered is the query service's
+	// decision, so only what this tool cannot hand over unparsed is checked here.
 	var durationMin, durationMax time.Duration
 	if input.DurationMin != "" {
 		durationMin, err = time.ParseDuration(input.DurationMin)
@@ -156,19 +162,6 @@ func (h *searchTracesHandler) buildQuery(input types.SearchTracesInput) (querysv
 		}
 	}
 
-	if durationMin > 0 && durationMax > 0 && durationMax < durationMin {
-		return querysvc.TraceQueryParams{}, errors.New("duration_max must be greater than duration_min")
-	}
-
-	const defaultSearchDepth = 10
-	searchDepth := input.SearchDepth
-	if searchDepth <= 0 {
-		searchDepth = defaultSearchDepth
-	}
-	if searchDepth > h.maxResults {
-		searchDepth = h.maxResults
-	}
-
 	attributes := pcommon.NewMap()
 	for key, value := range input.Attributes {
 		attributes.PutStr(key, value)
@@ -178,18 +171,80 @@ func (h *searchTracesHandler) buildQuery(input types.SearchTracesInput) (querysv
 	}
 
 	return querysvc.TraceQueryParams{
-		TraceQueryParams: tracestore.TraceQueryParams{
-			ServiceName:   input.ServiceName,
-			OperationName: input.SpanName,
-			Attributes:    attributes,
-			StartTimeMin:  minStartTime,
-			StartTimeMax:  maxStartTime,
-			DurationMin:   durationMin,
-			DurationMax:   durationMax,
-			SearchDepth:   searchDepth,
-		},
-		RawTraces: false,
+		ServiceName:   input.ServiceName,
+		OperationName: input.SpanName,
+		Attributes:    attributes,
+		StartTimeMin:  minStartTime,
+		StartTimeMax:  maxStartTime,
+		DurationMin:   durationMin,
+		DurationMax:   durationMax,
+		SearchDepth:   h.searchDepth(input.SearchDepth),
+		RawTraces:     false,
 	}, nil
+}
+
+// searchDepth applies the tool's default and the server's cap to a requested depth.
+func (h *searchTracesHandler) searchDepth(requested uint32) uint32 {
+	if requested == 0 {
+		requested = defaultSearchDepth
+	}
+	if h.maxResults > 0 && requested > h.maxResults {
+		requested = h.maxResults
+	}
+	return requested
+}
+
+// buildSQLQuery compiles the statement of input.SQL into the trace search it describes. The
+// statement carries the filter and the window itself, so every other filter input is refused
+// beside it rather than merged, which keeps one description of the search per request.
+func (h *searchTracesHandler) buildSQLQuery(input types.SearchTracesInput) (querysvc.TraceQueryParams, error) {
+	if set := structuredInputsSet(input); len(set) > 0 {
+		return querysvc.TraceQueryParams{}, fmt.Errorf(
+			"sql replaces the other filter inputs; remove %s or write the condition into the statement",
+			strings.Join(set, ", "))
+	}
+	query, err := sqlquery.Compile(input.SQL, time.Now())
+	if err != nil {
+		return querysvc.TraceQueryParams{}, fmt.Errorf("invalid sql: %w", err)
+	}
+	if query.Kind == sqlquery.KindFindSpans {
+		return querysvc.TraceQueryParams{}, errors.New(
+			"invalid sql: the statement selects spans, and search_traces returns traces. " +
+				"Write SELECT DISTINCT trace_id FROM spans WHERE ..., " +
+				"or SELECT * FROM traces WHERE trace_id IN (SELECT trace_id FROM spans WHERE ...)")
+	}
+	searchDepth := input.SearchDepth
+	if query.Limit > 0 {
+		searchDepth = query.Limit
+	}
+	return querysvc.TraceQueryParams{
+		Attributes:   pcommon.NewMap(),
+		StartTimeMin: query.StartTimeMin,
+		StartTimeMax: query.StartTimeMax,
+		SearchDepth:  h.searchDepth(searchDepth),
+		Filter:       query.Filter,
+		RawTraces:    false,
+	}, nil
+}
+
+// structuredInputsSet names the filter inputs of input that are set, in the order the type
+// declares them. search_depth is not among them because a statement without LIMIT takes it.
+func structuredInputsSet(input types.SearchTracesInput) []string {
+	var set []string
+	add := func(name string, isSet bool) {
+		if isSet {
+			set = append(set, name)
+		}
+	}
+	add("start_time_min", input.StartTimeMin != "")
+	add("start_time_max", input.StartTimeMax != "")
+	add("service_name", input.ServiceName != "")
+	add("span_name", input.SpanName != "")
+	add("attributes", len(input.Attributes) > 0)
+	add("with_errors", input.WithErrors)
+	add("duration_min", input.DurationMin != "")
+	add("duration_max", input.DurationMax != "")
+	return set
 }
 
 // parseTimeParam parses time parameters supporting RFC3339 and relative time formats.

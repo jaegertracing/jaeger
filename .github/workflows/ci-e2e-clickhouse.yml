@@ -21,7 +21,10 @@ jobs:
         storage_test:
         - e2e
         - direct
-    name: clickhouse ${{ matrix.storage_test }}
+        clickhouse_version:
+        - lts-march
+        - lts-august
+    name: clickhouse ${{ matrix.storage_test }} ${{ matrix.clickhouse_version }}
     steps:
     - name: Harden Runner
       uses: step-security/harden-runner@05e31511f85b41b11d1cf0ef85d0992719546e2c # v2.21.0
@@ -31,23 +34,20 @@ jobs:
     - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
 
     - uses: ./.github/actions/setup-go
-      with:
-        go-version: 1.26.x
 
     - name: Run ClickHouse integration tests
       id: test-execution
-      run: bash scripts/e2e/clickhouse.sh ${{ matrix.storage_test }}
+      run: bash scripts/e2e/clickhouse.sh ${{ matrix.storage_test }} ${{ matrix.clickhouse_version }}
 
     - uses: ./.github/actions/verify-metrics-snapshot
       if: matrix.storage_test == 'e2e'
       with:
-        snapshot: metrics_snapshot_clickhouse
-        artifact_key: metrics_snapshot_clickhouse
+        snapshot: metrics_snapshot_clickhouse_${{ matrix.clickhouse_version }}
+        artifact_key: metrics_snapshot_clickhouse_${{ matrix.clickhouse_version }}
 
     - name: Upload coverage to codecov
       uses: ./.github/actions/upload-codecov
       with:
-        files: cover.out
-        flag: clickhouse-${{ matrix.storage_test }}
+        flag: clickhouse-${{ matrix.storage_test }}-${{ matrix.clickhouse_version }}
 
 

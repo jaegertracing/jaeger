@@ -1,0 +1,8 @@
+{
+  "regexp": {
+    "traceID": {
+      "flags": "NONE",
+      "value": ".*(0[Aa][Ff]7[A-Fa-f][^\n]*).*"
+    }
+  }
+}

@@ -39,9 +39,19 @@ type Corpus struct {
 	// Duplicates is a trace that repeats a span ID, which a backend must return as written.
 	Duplicates ptrace.Traces
 
+	// Bounded is a two-span trace whose spans start within the same second, for the GetTraces
+	// lookup that carries Start and End.
+	Bounded ptrace.Traces
+
 	// CrossService is two traces from different services that share a marker attribute, for the
 	// RFC 0013 search that carries no service name.
 	CrossService []ptrace.Traces
+
+	// Pagination holds five traces under a dedicated service, including a start-time tie.
+	Pagination map[string]ptrace.Traces
+
+	// SpanOrdering holds alternating resources, tied sort fields and duplicate occurrences.
+	SpanOrdering []ptrace.Traces
 
 	// Queries are the search cases, and QueryTraces the traces they expect, by fixture name.
 	Queries     []*QueryFixtures
@@ -118,7 +128,11 @@ func BuildCorpus(t *testing.T, suiteFixtures []*QueryFixtures, caps capabilities
 	if c.hasDuplicates {
 		c.Duplicates = buildSyntheticTrace(t, duplicateTraceSpans, duplicateSpanFrequency, duplicateSpansService, 0xD1)
 	}
+	c.Bounded = buildBoundedTrace()
 	c.CrossService = buildCrossServiceTraces()
+	c.QueryTraces["complete_search"] = buildCompleteSearchTrace()
+	c.Pagination = buildPaginationTraces()
+	c.SpanOrdering = buildSpanOrderingTraces()
 
 	return c
 }
@@ -167,6 +181,26 @@ func buildSyntheticTrace(t *testing.T, totalCount, dupFreq int, service string, 
 	return trace
 }
 
+// buildBoundedTrace is a trace of two spans starting 300 ms apart inside one second, at offsets
+// a backend that stores microseconds returns unchanged. GetTraces with Start and End set to the
+// two starts must return both spans, which a bound rendered at second precision does not.
+func buildBoundedTrace() ptrace.Traces {
+	trace := ptrace.NewTraces()
+	rs := trace.ResourceSpans().AppendEmpty()
+	rs.Resource().Attributes().PutStr(otelsemconv.ServiceNameKey, "bounded-trace-service")
+	spans := rs.ScopeSpans().AppendEmpty().Spans()
+	first := time.Now().Add(-time.Hour).Truncate(time.Second).Add(100 * time.Millisecond)
+	for i, start := range []time.Time{first, first.Add(300 * time.Millisecond)} {
+		span := spans.AppendEmpty()
+		span.SetTraceID(pcommon.TraceID{0xB1})
+		span.SetSpanID(pcommon.SpanID{0xB1, byte(i + 1)})
+		span.SetName("bounded-operation")
+		span.SetStartTimestamp(pcommon.NewTimestampFromTime(start))
+		span.SetEndTimestamp(pcommon.NewTimestampFromTime(start.Add(time.Millisecond)))
+	}
+	return trace
+}
+
 // buildCrossServiceTraces are two traces of different services carrying one shared attribute, so
 // that a search on the attribute alone must return both.
 func buildCrossServiceTraces() []ptrace.Traces {
@@ -187,6 +221,35 @@ func buildCrossServiceTraces() []ptrace.Traces {
 	return traces
 }
 
+func buildPaginationTraces() map[string]ptrace.Traces {
+	base := time.Now().Add(-time.Hour).Truncate(time.Second)
+	traces := make(map[string]ptrace.Traces)
+	for _, fixture := range []struct {
+		name    string
+		seconds int
+		traceID byte
+	}{
+		{name: "oldest", seconds: 1, traceID: 1},
+		{name: "second-oldest", seconds: 2, traceID: 2},
+		{name: "tied-lower-id", seconds: 3, traceID: 3},
+		{name: "tied-higher-id", seconds: 3, traceID: 4},
+		{name: "newest", seconds: 4, traceID: 5},
+	} {
+		trace := ptrace.NewTraces()
+		rs := trace.ResourceSpans().AppendEmpty()
+		rs.Resource().Attributes().PutStr(otelsemconv.ServiceNameKey, "pagination-service")
+		span := rs.ScopeSpans().AppendEmpty().Spans().AppendEmpty()
+		span.SetTraceID(pcommon.TraceID{0xE1, fixture.traceID})
+		span.SetSpanID(pcommon.SpanID{1})
+		span.SetName("pagination-operation")
+		start := base.Add(time.Duration(fixture.seconds) * time.Second)
+		span.SetStartTimestamp(pcommon.NewTimestampFromTime(start))
+		span.SetEndTimestamp(pcommon.NewTimestampFromTime(start.Add(time.Millisecond)))
+		traces[fixture.name] = trace
+	}
+	return traces
+}
+
 // All returns every trace in the corpus, in the order the write phase writes them.
 func (c *Corpus) All() []ptrace.Traces {
 	all := []ptrace.Traces{c.Example}
@@ -196,7 +259,15 @@ func (c *Corpus) All() []ptrace.Traces {
 	if c.hasDuplicates {
 		all = append(all, c.Duplicates)
 	}
+	// A corpus built by hand, as the unit tests of this package do, may leave Bounded unset.
+	if c.Bounded != (ptrace.Traces{}) {
+		all = append(all, c.Bounded)
+	}
 	all = append(all, c.CrossService...)
+	all = append(all, c.SpanOrdering...)
+	for _, name := range slices.Sorted(maps(c.Pagination)) {
+		all = append(all, c.Pagination[name])
+	}
 	for _, name := range slices.Sorted(maps(c.QueryTraces)) {
 		all = append(all, c.QueryTraces[name])
 	}

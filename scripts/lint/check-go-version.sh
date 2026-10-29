@@ -97,10 +97,9 @@ for file in $(find . -type f -name go.mod -not -path './.claude/*' | grep -v '^.
     check "$file" "^go\s\+$version_regex" "$go_latest_version"
 done
 
-IFS='|' read -r -a gha_workflows <<< "$(grep -rl go-version .github/workflows | tr '\n' '|')"
-for gha_workflow in "${gha_workflows[@]}"; do
-    check "$gha_workflow" "^\s*go-version:\s\+$version_regex" "$go_latest_version"
-done
+# CI installs Go only through the shared setup-go action, which hardcodes the
+# version, so the workflows themselves never name one.
+check .github/actions/setup-go/action.yml "^\s*go-version:\s\+$version_regex\.x" "$go_latest_version"
 
 if [ $files_to_update -eq 0 ]; then
     echo "All files are up to date."

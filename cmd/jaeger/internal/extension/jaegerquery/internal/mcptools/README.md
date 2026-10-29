@@ -9,7 +9,322 @@ and following its links, so a skill is only read when it looks relevant.
 
 The `skills/` directory beside this file holds the skills compiled into the
 Jaeger binary. Operators can add their own without rebuilding, via
-`ai.skills_dir` — the rest of this file is for them.
+`ai.mcp.skills_dir` — the rest of this file is for them. For writing the skills
+themselves, see [AUTHORING.md](./AUTHORING.md).
+
+## Turning the MCP endpoint on
+
+The `ai.mcp` block enables the endpoint; an empty block is enough:
+
+```yaml
+extensions:
+  jaeger_query:
+    ai:
+      mcp: {}
+```
+
+It serves at `<basePath>/api/ai/mcp/` on the query port, carrying the telemetry
+tools and `read_skill` with the built-in skills. Point an MCP client there, or
+leave it to an AI chat sidecar configured with `ai.agent_url`.
+
+## Exposure and access to trace data
+
+The embedded all-in-one configuration and the example
+[`cmd/jaeger/config.yaml`](../../../../../config.yaml) enable MCP. The query HTTP
+listener defaults to `:16686` (all interfaces), with no TLS or authenticator
+configured. MCP shares that listener and its `http` settings with the UI and
+query API; it does not have a separate port. The optional `ai.auth` setting
+adds authentication for the AI surfaces, as described in
+[Gating who may use the endpoint](#gating-who-may-use-the-endpoint).
+Network reachability also depends on your firewall, container port publishing,
+and ingress configuration.
+
+MCP tools use the same query service as the UI/API and can read trace data,
+including span attributes, events, and errors. Read-only access can still expose
+sensitive telemetry. Treat access to MCP as access to your trace data. The
+`read_skill` tool also exposes any configured installation-specific skills.
+
+## Production deployment
+
+Require authentication and TLS before making MCP reachable by remote agents.
+Choose either an authenticated reverse proxy/gateway or the query HTTP server's
+authenticator. Apply the policy to the entire query HTTP surface, including
+`<basePath>/api/ai/mcp/` and its subpaths.
+
+### Reverse proxy or gateway
+
+Terminate TLS and authenticate requests at the proxy. Restrict direct access to
+the query listener so clients cannot bypass the proxy. For a proxy on the same
+host, you can bind `extensions.jaeger_query.http.endpoint` to `127.0.0.1:16686`.
+For this loopback upstream, set the upstream `Host` header to `127.0.0.1` or
+`localhost` (for example, nginx `proxy_set_header Host 127.0.0.1;`). The MCP SDK's
+localhost protection rejects requests arriving on loopback with a public `Host`
+header with HTTP 403. For separate hosts or containers, use a private network
+with access restricted to the proxy, and TLS on the upstream connection as
+appropriate.
+
+The query gRPC listener also reads trace data and defaults to `:16685` on all
+interfaces. An HTTP reverse proxy does not protect it; bind
+`extensions.jaeger_query.grpc.endpoint` to a private or loopback address with
+restricted access, or configure gRPC authentication and TLS as shown below.
+
+MCP uses Streamable HTTP: forward POST, GET, and DELETE requests, the
+`Mcp-Session-Id` and `MCP-Protocol-Version` headers, and SSE responses without
+buffering. Preserve the configured `base_path`. If multi-tenancy is enabled,
+the proxy must derive the tenant header from the authenticated identity and
+overwrite any client-supplied value.
+
+### Query HTTP and gRPC authentication and TLS
+
+Jaeger includes the
+[`basicauth` server authenticator](https://github.com/open-telemetry/opentelemetry-collector-contrib/tree/main/extension/basicauthextension).
+Merge the following settings into your existing configuration, retaining your
+storage, pipelines, and other extensions. Add `basicauth/query` to the existing
+`service.extensions` list as well as declaring it under `extensions`.
+
+```yaml
+extensions:
+  basicauth/query:
+    htpasswd:
+      file: /etc/jaeger/query.htpasswd
+  jaeger_query:
+    http:
+      endpoint: 0.0.0.0:16686
+      auth:
+        authenticator: basicauth/query
+      tls:
+        cert_file: /etc/jaeger/tls/server.crt
+        key_file: /etc/jaeger/tls/server.key
+        min_version: "1.2"
+    grpc:
+      endpoint: 0.0.0.0:16685
+      auth:
+        authenticator: basicauth/query
+      tls:
+        cert_file: /etc/jaeger/tls/server.crt
+        key_file: /etc/jaeger/tls/server.key
+        min_version: "1.2"
+    ai:
+      mcp:
+        base_url: https://jaeger.example.com:16686
+
+service:
+  extensions: [basicauth/query, jaeger_storage, jaeger_query]
+```
+
+Provision an htpasswd file containing hashed passwords and a server certificate
+valid for the hostname clients use. Mount these files so the Jaeger process can
+read them, and keep the password file and private key out of source control.
+The `0.0.0.0` endpoints above bind all IPv4 interfaces; the defaults `:16686` and
+`:16685` are dual-stack where the host supports it.
+Configure the MCP client to trust the certificate's CA and send HTTP Basic
+credentials on every request. Basic authentication requires TLS to protect
+those credentials in transit. These settings protect the UI, HTTP query API,
+and query gRPC API. Configure gRPC clients with CA trust and Basic credentials
+in the `authorization` metadata. Other listeners, such as ingestion endpoints,
+need their own access controls.
+
+TLS disables automatic inference of the MCP URL, even for a co-located AI chat
+sidecar. Set `ai.mcp.base_url` to the HTTPS scheme and authority the sidecar can
+reach, as in the example, and configure the sidecar's MCP client with the
+required credentials and CA trust. Jaeger appends `base_path` and the MCP path
+to this URL; do not include them in `base_url`.
+`ai.agent_headers` authenticates the outbound connection to the agent; it does
+not configure authentication for the agent's requests back to MCP.
+
+### Tenants and session identity
+
+MCP follows `extensions.jaeger_query.multi_tenancy`. When enabled, every MCP HTTP
+request must supply the configured tenant header (`x-tenant` by default).
+Missing headers and tenants outside a configured `tenants` allowlist receive
+HTTP 401. With an empty allowlist, any nonempty tenant is accepted. A tenant
+header selects a tenant; it is not proof that the caller is allowed to access it.
+Enforce that authorization at the proxy/gateway, and use storage that supports
+the required tenant isolation.
+
+By default, the MCP transport is stateful. Tool calls retain the context of the
+request that created the session, including its tenant. Changing a tenant header
+on a later request does not switch that session's tenant. Use a separate session
+for each identity and tenant, and reconnect when either changes.
+
+An `Mcp-Session-Id` is not an authentication credential. The MCP SDK can bind
+sessions to a user through its token metadata, but Jaeger's `basicauth`
+authenticator does not populate that metadata. Authenticating each request
+therefore does not, by itself, bind the session to that user. Do not share
+session IDs across users or tenants; deployments requiring enforced session
+ownership must enforce it at the gateway. Idle sessions expire after five
+minutes.
+
+## Disabling MCP
+
+In a configuration file, remove `extensions.jaeger_query.ai.mcp`. An empty
+`mcp: {}` enables the endpoint. If you do not need AI chat either, remove the
+entire `ai` block. If you explicitly set `agent_url: ""`, remove the `ai` block
+when removing MCP, since an AI configuration requires chat or MCP.
+
+For the embedded all-in-one configuration (running without `--config`), disable
+the AI block explicitly:
+
+```sh
+jaeger --set extensions.jaeger_query.ai.enabled=false
+```
+
+This disables both MCP and AI chat while leaving the query UI/API available.
+Restart Jaeger after changing the configuration.
+
+## Verifying the deployment
+
+Use an MCP client to initialize a session at
+`https://<host>:16686<basePath>/api/ai/mcp/`, where `<basePath>` is the configured
+`base_path`, including its leading slash (for example, `/jaeger`). Omit
+`<basePath>` when unset or set to `/`.
+For the Basic authentication example, you can also check initialization with
+`curl` (it prompts for the password):
+
+```sh
+curl --cacert /path/to/ca.crt --user alice --include \
+  --header 'Content-Type: application/json' \
+  --header 'Accept: application/json, text/event-stream' \
+  --data '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-03-26","capabilities":{},"clientInfo":{"name":"deployment-check","version":"1.0"}}}' \
+  https://jaeger.example.com:16686/api/ai/mcp/
+```
+
+Use your actual hostname, CA file, and username; add the tenant header when
+required. A successful initialization returns HTTP 200 and an `Mcp-Session-Id`
+header. Then check that:
+
+- Requests without valid credentials are rejected before MCP runs.
+- With valid credentials and CA trust, initialization and `tools/list` succeed.
+- Query gRPC requests also require valid credentials and a trusted TLS
+  connection, or the gRPC listener is reachable only on the restricted network.
+- With multi-tenancy enabled, requests without the tenant header are rejected;
+  start a new session for each permitted tenant.
+- After disabling MCP, an authenticated request to the MCP path returns HTTP
+  404, while the query UI/API remains available.
+
+## Gating who may use the endpoint
+
+The query server's own `http.auth` setting runs an authenticator extension on every request to
+the port, so it cannot admit everyone to the UI and the REST API while admitting only some
+people to the AI features. The `ai.auth` block takes the same shape and applies it to the AI
+surfaces alone: this MCP endpoint, the chat endpoint, and the `aiAssistant` flag that tells the
+UI to show the chat panel.
+
+```yaml
+extensions:
+  basicauth/ai:
+    htpasswd:
+      inline: |
+        alice:$2y$...
+  jaeger_query:
+    ai:
+      mcp: {}
+      auth:
+        authenticator: basicauth/ai
+```
+
+The authenticator receives the request headers, plus any query parameters listed under
+`request_params`. An MCP or chat request it rejects is answered with `401` before it reaches the
+handler. A page request it rejects is served the UI with `aiAssistant` off, so a person outside
+the admitted group sees Jaeger without a chat panel rather than a panel that fails. Any extension
+that implements the collector's `extensionauth.Server` works here, so a deployment can gate the
+features on a group lookup of its own by building Jaeger with such an extension.
+
+Two things follow from the check running on whatever the client sends unprompted:
+
+- The `401` carries no `WWW-Authenticate` challenge, the same as the collector's own `http.auth`.
+  A browser therefore never offers basic-auth credentials on a page load, so the example above
+  gates MCP clients and direct chat calls, and hides the panel from every browser user. Showing the
+  panel to admitted users takes an authenticator that reads what a browser sends on navigation: a
+  session cookie, or a header that a fronting proxy injects. The `jaeger_query`
+  [README](../../README.md#authenticating-callers-behind-an-identity-aware-proxy) describes that
+  deployment pattern.
+- An MCP client that expects to discover an OAuth flow from the `401` does not get one. Hand such
+  a client its credential directly, as a header in its MCP server configuration.
+
+The turn-scoped endpoint `/api/ai/mcp/<id>/` is not wrapped: its caller is the chat sidecar
+serving a turn that the chat request already admitted, and the route id it needs is handed to the
+sidecar alone. Jaeger fails to start when the named extension is not loaded, and it starts the
+extension before the query server so the authenticator is ready for the first request.
+
+## Running behind a reverse proxy or sidecar
+
+The MCP SDK that serves this endpoint carries a DNS-rebinding guard for MCP servers on a
+developer's machine: a request that arrives on a loopback address with a non-loopback `Host`
+header is rejected with `403 Forbidden: invalid Host header`. A reverse proxy or service-mesh
+sidecar that dials the query port over `127.0.0.1` and preserves the client's `Host` (an Envoy
+sidecar without host rewriting, for example) produces that shape for every request, so behind one
+the endpoint rejects every caller with that body. The guard never fires when the proxy rewrites
+`Host` to the upstream address or dials a non-loopback address, so change the proxy where that is
+possible. Where it is not, turn the guard off:
+
+```yaml
+extensions:
+  jaeger_query:
+    ai:
+      mcp:
+        streamable_http:
+          disable_localhost_protection: true
+```
+
+The UI and the REST API on the same port have no such guard, so this setting changes nothing
+about them. Keep the default when clients reach the query port directly, by a loopback address or
+a routable host name; only a loopback connection carrying some other name is affected.
+
+## Running several replicas behind a load balancer
+
+By default the endpoint keeps one MCP session per client in the memory of the `jaeger-query`
+process that handled `initialize`, and the SDK looks that session up by the `Mcp-Session-Id`
+header on every later request. When a load balancer without session affinity spreads a client's
+requests over several replicas, a request that reaches a replica other than the one that holds the
+session is answered with `404 session not found`; and when the client's `notifications/initialized`
+is the request that went astray, the replica that holds the session rejects the next `tools/list`
+with `method "tools/list" is invalid during session initialization`. Set `streamable_http.stateless` to make every
+request stand on its own:
+
+```yaml
+extensions:
+  jaeger_query:
+    ai:
+      mcp:
+        streamable_http:
+          stateless: true
+```
+
+Jaeger's tools keep no state between requests, so they behave the same. A stateless endpoint
+answers 405 to the GET that a client sends to open a stream for server-initiated messages. Jaeger
+never sends any, so in the default mode that stream only sits idle until the session times out;
+the MCP specification allows a server to offer no stream and requires the client to continue
+without it.
+
+This covers external MCP clients on the shared `/api/ai/mcp/` endpoint. The chat gateway's
+turn-scoped endpoint, `/api/ai/mcp/<id>/`, is different: the turn it serves is held in the memory
+of the process that is streaming that chat to the browser, so a request for it that lands on
+another replica is answered 404 before the MCP handler is reached, stateless or not. An agent that
+is not co-located with `jaeger-query` must reach the replica that owns the turn, which means
+`ai.mcp.base_url` has to name that process (its pod address, not a load-balanced service name) or
+the load balancer has to route by the `<id>` path segment.
+
+## Answering with plain JSON instead of an event stream
+
+By default the endpoint answers every POST with a `text/event-stream` body, even when that body
+holds a single result, because the stream form lets a server send progress or its own requests
+before the result. Jaeger's tools send none, so the stream carries the one result and nothing
+else. Set `streamable_http.json_response` to answer a single-message POST with a plain
+`application/json` body, which is easier for proxies, logging middleware and command-line clients
+to read:
+
+```yaml
+extensions:
+  jaeger_query:
+    ai:
+      mcp:
+        streamable_http:
+          json_response: true
+```
+
+MCP clients must accept both forms, so the setting changes nothing for them. A JSON-RPC batch is
+still answered with a stream.
 
 ## Adding installation-specific skills
 
@@ -35,6 +350,9 @@ error-root-cause/SKILL.md      # built-in skill
 custom/SKILL.md                # your entry point, mounts <skills_dir>/SKILL.md
 custom/your-skill/SKILL.md     # your skill      , mounts <skills_dir>/your-skill/SKILL.md
 ```
+
+`custom/` is a prefix on the path an agent asks for, not a directory you create:
+inside `skills_dir`, your entry point is plain `SKILL.md`.
 
 `<skills_dir>/SKILL.md` is required: an agent reads it first, and without it
 nothing below is reachable. It is also your index. An agent chooses what to read
@@ -77,6 +395,64 @@ one, so a skill written for either stays readable here — but Jaeger reads no
 field of it, and a `description` there is no substitute for the line beside the
 link in your index.
 
+## Editing skills on a running server
+
+`skills_dir` is read live. Editing a skill's text, or adding a file the index
+links to, takes effect on the next `read_skill` call — no restart, no reload
+signal. Startup validation is the exception: it runs once, so a `skills_dir`
+that breaks after the server started is reported when an agent reads it rather
+than by refusing to serve.
+
+Skills are static text, and Jaeger never executes them. What reads them is an
+agent, which then decides what to do.
+
+## What Jaeger checks, and what it limits
+
 A `skills_dir` that cannot be opened, or whose `SKILL.md` cannot be read, is
 broken configuration, and Jaeger refuses to start rather than quietly serving an
-incomplete skill set.
+incomplete skill set:
+
+| Startup error | Cause |
+| --- | --- |
+| `cannot open skills_dir "…"` | Path is missing, or is not a directory |
+| `cannot read SKILL.md in skills_dir "…"` | Directory opens, but has no readable entry point |
+
+At read time a bad path is reported back to the agent as
+`cannot read "<path>": …` — which is also what every `custom/…` path returns
+when no `skills_dir` is configured.
+
+Two limits apply to what is served:
+
+- **Path containment.** The directory is opened with `os.OpenRoot`, so `..`
+  traversal and symlinks pointing outside `skills_dir` are refused by the OS
+  rather than by a path check that could be tricked.
+- **File size.** A served file is capped at 512 KiB; beyond that the reply is cut
+  and ends with `file content truncated after 524288 bytes`. The cap is fixed, not
+  a config field — a skill anywhere near it is far too long to be useful to an
+  agent.
+
+## Who can write to skills_dir
+
+A skill is instructions an agent follows, with your telemetry tools already in
+hand. Anyone who can write to `skills_dir` can steer that agent's behaviour
+without touching Jaeger's binary or configuration. Treat the directory as part
+of the trusted configuration surface: own it by root or the Jaeger service
+account, keep it out of paths writable by application deployments, and review
+changes to it as you would a config change.
+
+## Checking it works
+
+With an MCP client attached to the endpoint, ask for your entry point directly:
+
+```
+read_skill(path="custom/SKILL.md")
+```
+
+Your text coming back means the directory is mounted and reachable.
+`cannot read "custom/SKILL.md"` means either no `skills_dir` is configured on
+this server, or the file is not there under that name.
+
+Note that Jaeger serving a skill and an agent choosing to read it are separate
+questions — see [AUTHORING.md](./AUTHORING.md), and
+[#9336](https://github.com/jaegertracing/jaeger/issues/9336) for what is known
+about the second.

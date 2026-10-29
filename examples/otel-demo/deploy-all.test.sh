@@ -213,7 +213,7 @@ testPinnedChartRendersCollectorStartupProbe() {
 
 testPinsCompatibleOpenSearchCharts() {
   output=$(bash -c 'source "$1"; printf "%s|%s" "$OPENSEARCH_CHART_VERSION" "$OPENSEARCH_DASHBOARDS_CHART_VERSION"' _ "$SCRIPT")
-  assertEquals "2.38.0|2.34.0" "$output"
+  assertEquals "3.7.0|3.7.0" "$output"
 }
 
 testDeploysPinnedOpenSearchChartsInOrder() {
@@ -229,9 +229,9 @@ testDeploysPinnedOpenSearchChartsInOrder() {
   ' _ "$SCRIPT")
 
   expected="bash $(dirname "$SCRIPT")/opensearch-recovery.sh verify
-helm upgrade --install opensearch opensearch/opensearch --namespace opensearch --create-namespace --version 2.38.0 -f $(dirname "$SCRIPT")/opensearch-values.yaml --wait --timeout 10m
+helm upgrade --install opensearch opensearch/opensearch --namespace opensearch --create-namespace --version 3.7.0 -f $(dirname "$SCRIPT")/opensearch-values.yaml --wait --timeout 10m
 wait-for-statefulset opensearch opensearch-cluster-single 600s
-helm upgrade --install opensearch-dashboards opensearch/opensearch-dashboards --namespace opensearch --version 2.34.0 -f $(dirname "$SCRIPT")/opensearch-dashboard-values.yaml --wait --timeout 60m"
+helm upgrade --install opensearch-dashboards opensearch/opensearch-dashboards --namespace opensearch --version 3.7.0 -f $(dirname "$SCRIPT")/opensearch-dashboard-values.yaml --wait --timeout 60m"
   expected="$expected
 wait-for-dashboards 600s"
   assertEquals "$expected" "$output"

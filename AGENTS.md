@@ -2,6 +2,8 @@
 
 This file provides guidance for AI agents working on the Jaeger repository. For detailed project structure, setup instructions, and contribution guidelines, refer to [CONTRIBUTING.md](./CONTRIBUTING.md).
 
+What the project expects from a human contributor who works with an agent is stated in the [AI Usage Policy](./AI_POLICY.md). It applies to work done in this repository, and the human running you owns everything you produce.
+
 ## Setup
 
 The primary branch is called `main`, all PRs are merged into it.
@@ -10,6 +12,10 @@ If checking out a fresh repository, initialize submodules:
 ```bash
 git submodule update --init --recursive
 ```
+
+## Upgrading Go
+
+Follow [Upgrading the Go Version](./CONTRIBUTING.md#upgrading-the-go-version) in CONTRIBUTING.md. The version is mirrored across several files that a script propagates from the top-level `go.mod`, and Delve has to be upgraded alongside it in [jaegertracing/base-image-with-debugger](https://github.com/jaegertracing/base-image-with-debugger).
 
 ## Pull Requests
 
@@ -44,6 +50,17 @@ Run these commands without asking for permission:
 - Always use `git commit -s` (DCO sign-off) when committing.
 - Capitalize the first word of the description after the `type(scope):` prefix, e.g. `fix(test): Inline all deps…` not `fix(test): inline all deps…`
 
+## Copyright and Third-Party Code
+
+Write the code yourself rather than copying it in from another project. If a change genuinely needs third-party code, it must be Apache-2.0 compatible, and its original copyright header must be preserved — add the Jaeger copyright above it rather than replacing it. See [Copyright Header](./CONTRIBUTING_GUIDELINES.md#copyright-header) for the exact form. Never remove an existing copyright header.
+
+New files get the standard header (but with current year):
+
+```
+// Copyright (c) 2026 The Jaeger Authors.
+// SPDX-License-Identifier: Apache-2.0
+```
+
 ## Do Not Edit
 
 **Auto-generated files:**
@@ -63,6 +80,10 @@ Run these commands without asking for permission:
 - Do not delete existing tests to make a build green. If a test is genuinely wrong, explain why in the PR description.
 - Do not weaken assertions (e.g. replacing exact checks with `assert.NotNil`) just to make a flaky test pass.
 - Every package must have at least one `*_test.go` file (enforced by `make nocover`). If no tests are possible (e.g. a package that only defines types), create an empty `empty_test.go`.
+
+## Storage Integration Tests
+
+Storage behavior belongs in the shared `internal/storage/integration` corpus and `StorageIntegration.AssertCorpus`, which run in both direct and e2e modes. New assertions run for every backend by default; unsupported backends must explicitly opt out in `internal/storage/integration/capabilities`. Extend the e2e reader/writer adapters when the shared tests need new API fields, and keep transport-specific assertions in the e2e package. Read [the integration architecture](cmd/jaeger/internal/integration/README.md) before adding tests.
 
 ## Scope Discipline
 

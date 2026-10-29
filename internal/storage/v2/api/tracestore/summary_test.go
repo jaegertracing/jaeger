@@ -16,7 +16,7 @@ func TestUnsupportedTraceSummaries_FindTraceSummaries(t *testing.T) {
 	iterations := 0
 	for batch, err := range (UnsupportedTraceSummaries{}).FindTraceSummaries(context.Background(), TraceQueryParams{}) {
 		iterations++
-		assert.Nil(t, batch)
+		assert.Equal(t, PageChunk[[]TraceSummary]{}, batch)
 		require.ErrorIs(t, err, errors.ErrUnsupported)
 	}
 	assert.Equal(t, 1, iterations, "expected exactly one yield carrying ErrUnsupported")

@@ -149,7 +149,7 @@ func TestSearchRequestBodyIncludesPaginationFields(t *testing.T) {
 
 func TestSearchParsesHits(t *testing.T) {
 	const body = `{"hits":{"total":2,"hits":[` +
-		`{"_source":{"traceID":"abc"}},{"_source":{"traceID":"def"}}]}}`
+		`{"_source":{"traceID":"abc"},"sort":[1577934245000000,"abc"]},{"_source":{"traceID":"def"}}]}}`
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.Write([]byte(body))
 	}))
@@ -160,6 +160,9 @@ func TestSearchParsesHits(t *testing.T) {
 	assert.Equal(t, 2, resp.Hits.Total.Value)
 	require.Len(t, resp.Hits.Hits, 2)
 	assert.JSONEq(t, `{"traceID":"abc"}`, string(resp.Hits.Hits[0].Source))
+	// The sort values come back as the engine encoded them.
+	assert.Equal(t, []json.RawMessage{json.RawMessage(`1577934245000000`), json.RawMessage(`"abc"`)}, resp.Hits.Hits[0].Sort)
+	assert.Empty(t, resp.Hits.Hits[1].Sort)
 }
 
 func TestMultiSearchNDJSONAndResponse(t *testing.T) {

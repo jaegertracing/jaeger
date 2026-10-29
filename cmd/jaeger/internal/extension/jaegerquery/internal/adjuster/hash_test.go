@@ -289,6 +289,42 @@ func TestSpanHash_DuplicateSpansDifferentResourceAttributes(t *testing.T) {
 	assert.Equal(t, expected(), i)
 }
 
+func TestSpanHash_RemovesEmptiedScopeAndResourceSpans(t *testing.T) {
+	adjuster := DeduplicateSpans()
+	addSpan := func(rs ptrace.ResourceSpans, scopeAttr string, name string, spanID byte) {
+		ss := rs.ScopeSpans().AppendEmpty()
+		ss.Scope().Attributes().PutStr("scope", scopeAttr)
+		span := ss.Spans().AppendEmpty()
+		span.SetName(name)
+		span.SetTraceID([16]byte{1})
+		span.SetSpanID([8]byte{spanID})
+	}
+
+	// the same span stored three times, e.g. after the exporter retried
+	input := ptrace.NewTraces()
+	rs1 := input.ResourceSpans().AppendEmpty()
+	rs1.Resource().Attributes().PutStr("key1", "value1")
+	addSpan(rs1, "a", "span1", 1)
+	rs2 := input.ResourceSpans().AppendEmpty()
+	rs2.Resource().Attributes().PutStr("key1", "value1")
+	addSpan(rs2, "a", "span1", 1)
+	addSpan(rs2, "b", "span2", 2)
+	rs3 := input.ResourceSpans().AppendEmpty()
+	rs3.Resource().Attributes().PutStr("key1", "value1")
+	addSpan(rs3, "a", "span1", 1)
+
+	expected := ptrace.NewTraces()
+	rs1 = expected.ResourceSpans().AppendEmpty()
+	rs1.Resource().Attributes().PutStr("key1", "value1")
+	addSpan(rs1, "a", "span1", 1)
+	rs2 = expected.ResourceSpans().AppendEmpty()
+	rs2.Resource().Attributes().PutStr("key1", "value1")
+	addSpan(rs2, "b", "span2", 2)
+
+	adjuster.Adjust(input)
+	assert.Equal(t, expected, input)
+}
+
 type errorMarshaler struct{}
 
 func (*errorMarshaler) MarshalTraces(ptrace.Traces) ([]byte, error) {

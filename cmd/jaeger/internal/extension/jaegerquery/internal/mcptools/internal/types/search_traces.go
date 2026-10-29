@@ -33,11 +33,15 @@ type SearchTracesInput struct {
 	// DurationMax is the maximum duration filter (optional).
 	DurationMax string `json:"duration_max,omitempty" jsonschema:"Maximum duration filter (e.g. 10s 1m)"`
 
+	// SQL is a read-only SELECT in the dialect of RFC 0019 (optional). It replaces every other
+	// input of the tool except SearchDepth, which the statement's own LIMIT overrides.
+	SQL string `json:"sql,omitempty" jsonschema:"A SELECT statement over spans or traces that replaces the other filter inputs. Read the jaeger-sql/SKILL.md skill before writing one"`
+
 	// SearchDepth defines the maximum search depth. Depending on the backend storage implementation,
 	// this may behave like an SQL LIMIT clause. However, some implementations might not support
 	// precise limits, and a larger value generally results in more traces being returned.
 	// Default: 10, maximum is controlled by server configuration (MaxSearchResults).
-	SearchDepth int `json:"search_depth,omitempty" jsonschema:"Maximum search depth (default: 10, max controlled by server config)"`
+	SearchDepth uint32 `json:"search_depth,omitempty" jsonschema:"Maximum search depth (default: 10, max controlled by server config)"`
 }
 
 // SearchTracesOutput defines the output of the search_traces MCP tool.

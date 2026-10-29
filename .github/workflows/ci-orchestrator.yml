@@ -192,6 +192,7 @@ jobs:
       actions: read
       contents: read
       packages: read
+      # Ceiling for CodeQL SARIF upload in the called stage3 workflow.
       security-events: write
     uses: ./.github/workflows/ci-orchestrator-stage3.yml
     secrets: inherit
@@ -226,6 +227,7 @@ jobs:
       actions: read
       contents: read
       packages: read
+      # Ceiling for CodeQL SARIF upload in the called stage3 workflow.
       security-events: write
     uses: ./.github/workflows/ci-orchestrator-stage3.yml
     secrets: inherit
@@ -303,6 +305,7 @@ jobs:
     needs: [ci-success]
     if: always() && needs.ci-success.result == 'success'
     permissions:
+      # Ceiling for actions/cache save in the called summary workflow.
       actions: write
       contents: read
     uses: ./.github/workflows/ci-summary-report.yml

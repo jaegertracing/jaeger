@@ -30,14 +30,17 @@ on:
       pr_number:
         description: 'PR number to post summary report for'
         required: true
+# Scorecard Token-Permissions: keep writes on the publish job only.
 permissions:
   contents: read
-  pull-requests: write
-  checks: write
-  actions: read
 jobs:
   publish:
     name: Post Summary
+    permissions:
+      contents: read
+      pull-requests: write
+      checks: write
+      actions: read
     if: |
       github.event_name == 'workflow_dispatch' ||
       github.event.workflow_run.conclusion == 'success' ||

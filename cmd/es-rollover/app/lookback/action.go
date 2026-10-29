@@ -5,6 +5,7 @@ package lookback
 
 import (
 	"context"
+	"fmt"
 	"time"
 
 	"go.uber.org/zap"
@@ -25,6 +26,9 @@ type Action struct {
 
 // Do the lookback action
 func (a *Action) Do() error {
+	if a.UnitCount <= 0 {
+		return fmt.Errorf("unit-count must be greater than 0, got %d", a.UnitCount)
+	}
 	ctx := context.TODO()
 	rolloverIndices := app.RolloverIndices(a.Config.Archive, a.Config.SkipDependencies, a.Config.AdaptiveSampling, a.Config.IndexPrefix)
 	for _, indexName := range rolloverIndices {
@@ -36,6 +40,11 @@ func (a *Action) Do() error {
 }
 
 func (a *Action) lookback(ctx context.Context, indexSet app.IndexOption) error {
+	timeReference, err := getTimeReference(timeNow(), a.Unit, a.UnitCount)
+	if err != nil {
+		return err
+	}
+
 	jaegerIndex, err := a.IndicesClient.GetJaegerIndices(ctx, a.Config.IndexPrefix)
 	if err != nil {
 		return err
@@ -44,7 +53,7 @@ func (a *Action) lookback(ctx context.Context, indexSet app.IndexOption) error {
 	readAliasName := indexSet.ReadAliasName()
 	readAliasIndices := filter.ByAlias(jaegerIndex, []string{readAliasName})
 	excludedWriteIndex := filter.ByAliasExclude(readAliasIndices, []string{indexSet.WriteAliasName()})
-	finalIndices := filter.ByDate(excludedWriteIndex, getTimeReference(timeNow(), a.Unit, a.UnitCount))
+	finalIndices := filter.ByDate(excludedWriteIndex, timeReference)
 
 	if len(finalIndices) == 0 {
 		a.Logger.Info("No indices to remove from alias", zap.String("readAliasName", readAliasName))

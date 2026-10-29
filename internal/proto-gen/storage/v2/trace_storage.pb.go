@@ -11,6 +11,7 @@ import (
 	proto "github.com/gogo/protobuf/proto"
 	_ "github.com/gogo/protobuf/types"
 	github_com_gogo_protobuf_types "github.com/gogo/protobuf/types"
+	_ "github.com/google/gnostic-models/openapiv3"
 	v1 "github.com/jaegertracing/jaeger/internal/proto/expression/v1"
 	v11 "github.com/jaegertracing/jaeger/internal/jptrace"
 	grpc "google.golang.org/grpc"
@@ -729,13 +730,16 @@ type TraceQueryParameters struct {
 	// Mutually exclusive with the legacy predicate fields (service_name,
 	// operation_name, duration_min/max, attributes).
 	//
-	// Experimental. A filter reaches a remote backend only when Jaeger's query service
-	// has the `jaeger.query.structuredFilters` feature gate enabled (Alpha, off by
-	// default) and the backend declares support via SearchCapabilities.filter.
-	Filter               *v1.Call `protobuf:"bytes,9,opt,name=filter,proto3" json:"filter,omitempty"`
-	XXX_NoUnkeyedLiteral struct{} `json:"-"`
-	XXX_unrecognized     []byte   `json:"-"`
-	XXX_sizecache        int32    `json:"-"`
+	// Experimental. A filter reaches a remote backend only when the backend declares
+	// support via SearchCapabilities.filter; the query service refuses it otherwise.
+	Filter *v1.Call `protobuf:"bytes,9,opt,name=filter,proto3" json:"filter,omitempty"`
+	// pagination requests a paginated search, see comments for Pagination.
+	// Mutually exclusive with search_depth. When this field is absent the search
+	// returns a single page bounded by search_depth and no continuation token.
+	Pagination           *Pagination `protobuf:"bytes,10,opt,name=pagination,proto3" json:"pagination,omitempty"`
+	XXX_NoUnkeyedLiteral struct{}    `json:"-"`
+	XXX_unrecognized     []byte      `json:"-"`
+	XXX_sizecache        int32       `json:"-"`
 }
 
 func (m *TraceQueryParameters) Reset()         { *m = TraceQueryParameters{} }
@@ -834,6 +838,368 @@ func (m *TraceQueryParameters) GetFilter() *v1.Call {
 	return nil
 }
 
+func (m *TraceQueryParameters) GetPagination() *Pagination {
+	if m != nil {
+		return m.Pagination
+	}
+	return nil
+}
+
+// Pagination asks for one page of results and, on continuation, says where the
+// previous page stopped. Same shape as jaeger.api_v3.Pagination; duplicated here
+// because jaeger.storage.v2 does not import jaeger.api_v3.
+//
+// A paginated search returns at most page_size results, and when more matches
+// remain the response also carries a next_page_token. Sending that value back as
+// page_token in an otherwise identical request returns the page that follows, so
+// that a caller walking the token chain sees every matching trace exactly once. An
+// empty next_page_token means the search is exhausted.
+//
+// Pagination replaces search_depth rather than refining it: the two are mutually
+// exclusive, and a request that sets both is refused with InvalidArgument.
+//
+// Only FindSpans, FindTraceIDs, and FindTraceSummaries paginate, returning the token on
+// FindTraceIDsResponse and FindTraceSummariesResponse. FindTraces streams
+// opentelemetry.proto.trace.v1.TracesData, an OTLP type with no field to carry a
+// token, so FindTraces is not paginated at all: a FindTraces request that sets
+// pagination is refused with InvalidArgument, and search_depth bounds such a call
+// instead.
+//
+// A backend should only honor a Pagination if it declares
+// SearchCapabilities.paginated. One that does not serves a single page capped at
+// page_size and returns an empty next_page_token even when matches remain, and
+// refuses a request carrying a page_token with InvalidArgument, since it cannot
+// have minted a valid token.
+type Pagination struct {
+	// page_size bounds the number of results in one page. A Pagination that leaves it
+	// zero does not describe a page and is refused with InvalidArgument.
+	//
+	// This field is required.
+	PageSize uint32 `protobuf:"varint,1,opt,name=page_size,json=pageSize,proto3" json:"page_size,omitempty"`
+	// page_token is the next_page_token returned for the preceding page; empty starts
+	// a new search. The value is opaque, and a caller MUST echo back exactly what the
+	// backend returned without inspecting or modifying it. A token is only valid for
+	// the query that produced it.
+	//
+	// This field is optional.
+	PageToken            string   `protobuf:"bytes,2,opt,name=page_token,json=pageToken,proto3" json:"page_token,omitempty"`
+	XXX_NoUnkeyedLiteral struct{} `json:"-"`
+	XXX_unrecognized     []byte   `json:"-"`
+	XXX_sizecache        int32    `json:"-"`
+}
+
+func (m *Pagination) Reset()         { *m = Pagination{} }
+func (m *Pagination) String() string { return proto.CompactTextString(m) }
+func (*Pagination) ProtoMessage()    {}
+func (*Pagination) Descriptor() ([]byte, []int) {
+	return fileDescriptor_3441c0fd9397413c, []int{12}
+}
+func (m *Pagination) XXX_Unmarshal(b []byte) error {
+	return m.Unmarshal(b)
+}
+func (m *Pagination) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	if deterministic {
+		return xxx_messageInfo_Pagination.Marshal(b, m, deterministic)
+	} else {
+		b = b[:cap(b)]
+		n, err := m.MarshalToSizedBuffer(b)
+		if err != nil {
+			return nil, err
+		}
+		return b[:n], nil
+	}
+}
+func (m *Pagination) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_Pagination.Merge(m, src)
+}
+func (m *Pagination) XXX_Size() int {
+	return m.Size()
+}
+func (m *Pagination) XXX_DiscardUnknown() {
+	xxx_messageInfo_Pagination.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_Pagination proto.InternalMessageInfo
+
+func (m *Pagination) GetPageSize() uint32 {
+	if m != nil {
+		return m.PageSize
+	}
+	return 0
+}
+
+func (m *Pagination) GetPageToken() string {
+	if m != nil {
+		return m.PageToken
+	}
+	return ""
+}
+
+// SpanQueryParameters contains query parameters to find spans. For a detailed
+// definition of each field, refer to `SpanQueryParameters` in `jaeger.api_v3`
+// (https://github.com/jaegertracing/jaeger-idl/blob/main/proto/api_v3/query_service.proto).
+//
+// Predicates are matched against individual spans, like FindTraces, except
+// the matching spans are the result instead of the traces that contain them.
+type SpanQueryParameters struct {
+	// The time range, as on TraceQueryParameters. Required — see RFC 0016 §4.3.
+	StartTimeMin time.Time `protobuf:"bytes,1,opt,name=start_time_min,json=startTimeMin,proto3,stdtime" json:"start_time_min"`
+	StartTimeMax time.Time `protobuf:"bytes,2,opt,name=start_time_max,json=startTimeMax,proto3,stdtime" json:"start_time_max"`
+	// The predicates (RFC 0005): a single boolean-valued Call.
+	Filter *v1.Call `protobuf:"bytes,3,opt,name=filter,proto3" json:"filter,omitempty"`
+	// The page size and cursor (RFC 0014). There is no search_depth: a span search
+	// is bounded by its page size, and the server caps that.
+	Pagination *Pagination `protobuf:"bytes,4,opt,name=pagination,proto3" json:"pagination,omitempty"`
+	// order_by lists sort terms from highest to lowest precedence; an empty list
+	// selects (startTime desc, traceID asc, spanID asc).
+	// The server appends any missing fields from that default as tie-breakers, and
+	// a continuation token is valid only for the same effective ordering (RFC 0016 §6).
+	OrderBy              []*SpanSortOrder `protobuf:"bytes,5,rep,name=order_by,json=orderBy,proto3" json:"order_by,omitempty"`
+	XXX_NoUnkeyedLiteral struct{}         `json:"-"`
+	XXX_unrecognized     []byte           `json:"-"`
+	XXX_sizecache        int32            `json:"-"`
+}
+
+func (m *SpanQueryParameters) Reset()         { *m = SpanQueryParameters{} }
+func (m *SpanQueryParameters) String() string { return proto.CompactTextString(m) }
+func (*SpanQueryParameters) ProtoMessage()    {}
+func (*SpanQueryParameters) Descriptor() ([]byte, []int) {
+	return fileDescriptor_3441c0fd9397413c, []int{13}
+}
+func (m *SpanQueryParameters) XXX_Unmarshal(b []byte) error {
+	return m.Unmarshal(b)
+}
+func (m *SpanQueryParameters) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	if deterministic {
+		return xxx_messageInfo_SpanQueryParameters.Marshal(b, m, deterministic)
+	} else {
+		b = b[:cap(b)]
+		n, err := m.MarshalToSizedBuffer(b)
+		if err != nil {
+			return nil, err
+		}
+		return b[:n], nil
+	}
+}
+func (m *SpanQueryParameters) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_SpanQueryParameters.Merge(m, src)
+}
+func (m *SpanQueryParameters) XXX_Size() int {
+	return m.Size()
+}
+func (m *SpanQueryParameters) XXX_DiscardUnknown() {
+	xxx_messageInfo_SpanQueryParameters.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_SpanQueryParameters proto.InternalMessageInfo
+
+func (m *SpanQueryParameters) GetStartTimeMin() time.Time {
+	if m != nil {
+		return m.StartTimeMin
+	}
+	return time.Time{}
+}
+
+func (m *SpanQueryParameters) GetStartTimeMax() time.Time {
+	if m != nil {
+		return m.StartTimeMax
+	}
+	return time.Time{}
+}
+
+func (m *SpanQueryParameters) GetFilter() *v1.Call {
+	if m != nil {
+		return m.Filter
+	}
+	return nil
+}
+
+func (m *SpanQueryParameters) GetPagination() *Pagination {
+	if m != nil {
+		return m.Pagination
+	}
+	return nil
+}
+
+func (m *SpanQueryParameters) GetOrderBy() []*SpanSortOrder {
+	if m != nil {
+		return m.OrderBy
+	}
+	return nil
+}
+
+// SpanSortOrder orders matching spans by one expression (RFC 0016 §6).
+// It applies only to FindSpans, and an explicit order requires span_sorting support.
+type SpanSortOrder struct {
+	// expression must name a built-in span field: startTime, duration, traceID or spanID.
+	// Other expressions and repeated fields in an order_by list are rejected.
+	Expression *v1.Expression `protobuf:"bytes,1,opt,name=expression,proto3" json:"expression,omitempty"`
+	// direction accepts "asc" and "desc"; an empty value means "asc".
+	// Any other value is rejected rather than replaced with the default.
+	Direction            string   `protobuf:"bytes,2,opt,name=direction,proto3" json:"direction,omitempty"`
+	XXX_NoUnkeyedLiteral struct{} `json:"-"`
+	XXX_unrecognized     []byte   `json:"-"`
+	XXX_sizecache        int32    `json:"-"`
+}
+
+func (m *SpanSortOrder) Reset()         { *m = SpanSortOrder{} }
+func (m *SpanSortOrder) String() string { return proto.CompactTextString(m) }
+func (*SpanSortOrder) ProtoMessage()    {}
+func (*SpanSortOrder) Descriptor() ([]byte, []int) {
+	return fileDescriptor_3441c0fd9397413c, []int{14}
+}
+func (m *SpanSortOrder) XXX_Unmarshal(b []byte) error {
+	return m.Unmarshal(b)
+}
+func (m *SpanSortOrder) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	if deterministic {
+		return xxx_messageInfo_SpanSortOrder.Marshal(b, m, deterministic)
+	} else {
+		b = b[:cap(b)]
+		n, err := m.MarshalToSizedBuffer(b)
+		if err != nil {
+			return nil, err
+		}
+		return b[:n], nil
+	}
+}
+func (m *SpanSortOrder) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_SpanSortOrder.Merge(m, src)
+}
+func (m *SpanSortOrder) XXX_Size() int {
+	return m.Size()
+}
+func (m *SpanSortOrder) XXX_DiscardUnknown() {
+	xxx_messageInfo_SpanSortOrder.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_SpanSortOrder proto.InternalMessageInfo
+
+func (m *SpanSortOrder) GetExpression() *v1.Expression {
+	if m != nil {
+		return m.Expression
+	}
+	return nil
+}
+
+func (m *SpanSortOrder) GetDirection() string {
+	if m != nil {
+		return m.Direction
+	}
+	return ""
+}
+
+// FindSpansRequest represents a request to find spans.
+type FindSpansRequest struct {
+	Query                *SpanQueryParameters `protobuf:"bytes,1,opt,name=query,proto3" json:"query,omitempty"`
+	XXX_NoUnkeyedLiteral struct{}             `json:"-"`
+	XXX_unrecognized     []byte               `json:"-"`
+	XXX_sizecache        int32                `json:"-"`
+}
+
+func (m *FindSpansRequest) Reset()         { *m = FindSpansRequest{} }
+func (m *FindSpansRequest) String() string { return proto.CompactTextString(m) }
+func (*FindSpansRequest) ProtoMessage()    {}
+func (*FindSpansRequest) Descriptor() ([]byte, []int) {
+	return fileDescriptor_3441c0fd9397413c, []int{15}
+}
+func (m *FindSpansRequest) XXX_Unmarshal(b []byte) error {
+	return m.Unmarshal(b)
+}
+func (m *FindSpansRequest) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	if deterministic {
+		return xxx_messageInfo_FindSpansRequest.Marshal(b, m, deterministic)
+	} else {
+		b = b[:cap(b)]
+		n, err := m.MarshalToSizedBuffer(b)
+		if err != nil {
+			return nil, err
+		}
+		return b[:n], nil
+	}
+}
+func (m *FindSpansRequest) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_FindSpansRequest.Merge(m, src)
+}
+func (m *FindSpansRequest) XXX_Size() int {
+	return m.Size()
+}
+func (m *FindSpansRequest) XXX_DiscardUnknown() {
+	xxx_messageInfo_FindSpansRequest.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_FindSpansRequest proto.InternalMessageInfo
+
+func (m *FindSpansRequest) GetQuery() *SpanQueryParameters {
+	if m != nil {
+		return m.Query
+	}
+	return nil
+}
+
+// FindSpansResponse is a response chunk for FindSpans. A single RPC call may
+// yield multiple chunks, mirroring the chunked streaming used by GetTraces /
+// FindTraces; next_page_token is meaningful only on the last chunk of the page,
+// where an empty value means the page is the last one (RFC 0014 §4). Earlier
+// chunks leave it unset.
+type FindSpansResponse struct {
+	// The matching spans.
+	Spans *v11.TracesData `protobuf:"bytes,1,opt,name=spans,proto3" json:"spans,omitempty"`
+	// The cursor to send as the next request's page_token, or empty when this
+	// page is the last one.
+	NextPageToken        string   `protobuf:"bytes,3,opt,name=next_page_token,json=nextPageToken,proto3" json:"next_page_token,omitempty"`
+	XXX_NoUnkeyedLiteral struct{} `json:"-"`
+	XXX_unrecognized     []byte   `json:"-"`
+	XXX_sizecache        int32    `json:"-"`
+}
+
+func (m *FindSpansResponse) Reset()         { *m = FindSpansResponse{} }
+func (m *FindSpansResponse) String() string { return proto.CompactTextString(m) }
+func (*FindSpansResponse) ProtoMessage()    {}
+func (*FindSpansResponse) Descriptor() ([]byte, []int) {
+	return fileDescriptor_3441c0fd9397413c, []int{16}
+}
+func (m *FindSpansResponse) XXX_Unmarshal(b []byte) error {
+	return m.Unmarshal(b)
+}
+func (m *FindSpansResponse) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	if deterministic {
+		return xxx_messageInfo_FindSpansResponse.Marshal(b, m, deterministic)
+	} else {
+		b = b[:cap(b)]
+		n, err := m.MarshalToSizedBuffer(b)
+		if err != nil {
+			return nil, err
+		}
+		return b[:n], nil
+	}
+}
+func (m *FindSpansResponse) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_FindSpansResponse.Merge(m, src)
+}
+func (m *FindSpansResponse) XXX_Size() int {
+	return m.Size()
+}
+func (m *FindSpansResponse) XXX_DiscardUnknown() {
+	xxx_messageInfo_FindSpansResponse.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_FindSpansResponse proto.InternalMessageInfo
+
+func (m *FindSpansResponse) GetSpans() *v11.TracesData {
+	if m != nil {
+		return m.Spans
+	}
+	return nil
+}
+
+func (m *FindSpansResponse) GetNextPageToken() string {
+	if m != nil {
+		return m.NextPageToken
+	}
+	return ""
+}
+
 // FindTracesRequest represents a request to find traces.
 type FindTracesRequest struct {
 	Query                *TraceQueryParameters `protobuf:"bytes,1,opt,name=query,proto3" json:"query,omitempty"`
@@ -846,7 +1212,7 @@ func (m *FindTracesRequest) Reset()         { *m = FindTracesRequest{} }
 func (m *FindTracesRequest) String() string { return proto.CompactTextString(m) }
 func (*FindTracesRequest) ProtoMessage()    {}
 func (*FindTracesRequest) Descriptor() ([]byte, []int) {
-	return fileDescriptor_3441c0fd9397413c, []int{12}
+	return fileDescriptor_3441c0fd9397413c, []int{17}
 }
 func (m *FindTracesRequest) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -894,7 +1260,7 @@ func (m *FindTraceIDsRequest) Reset()         { *m = FindTraceIDsRequest{} }
 func (m *FindTraceIDsRequest) String() string { return proto.CompactTextString(m) }
 func (*FindTraceIDsRequest) ProtoMessage()    {}
 func (*FindTraceIDsRequest) Descriptor() ([]byte, []int) {
-	return fileDescriptor_3441c0fd9397413c, []int{13}
+	return fileDescriptor_3441c0fd9397413c, []int{18}
 }
 func (m *FindTraceIDsRequest) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -950,7 +1316,7 @@ func (m *FoundTraceID) Reset()         { *m = FoundTraceID{} }
 func (m *FoundTraceID) String() string { return proto.CompactTextString(m) }
 func (*FoundTraceID) ProtoMessage()    {}
 func (*FoundTraceID) Descriptor() ([]byte, []int) {
-	return fileDescriptor_3441c0fd9397413c, []int{14}
+	return fileDescriptor_3441c0fd9397413c, []int{19}
 }
 func (m *FoundTraceID) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -1002,17 +1368,21 @@ func (m *FoundTraceID) GetEnd() time.Time {
 
 // FindTraceIDsResponse represents the response for FindTraceIDsRequest.
 type FindTraceIDsResponse struct {
-	TraceIds             []*FoundTraceID `protobuf:"bytes,1,rep,name=trace_ids,json=traceIds,proto3" json:"trace_ids,omitempty"`
-	XXX_NoUnkeyedLiteral struct{}        `json:"-"`
-	XXX_unrecognized     []byte          `json:"-"`
-	XXX_sizecache        int32           `json:"-"`
+	TraceIds []*FoundTraceID `protobuf:"bytes,1,rep,name=trace_ids,json=traceIds,proto3" json:"trace_ids,omitempty"`
+	// next_page_token is the cursor the caller can send back as Pagination.page_token
+	// to fetch the page after this one, see comments for Pagination. The backend
+	// leaves it empty when this is the last page.
+	NextPageToken        string   `protobuf:"bytes,2,opt,name=next_page_token,json=nextPageToken,proto3" json:"next_page_token,omitempty"`
+	XXX_NoUnkeyedLiteral struct{} `json:"-"`
+	XXX_unrecognized     []byte   `json:"-"`
+	XXX_sizecache        int32    `json:"-"`
 }
 
 func (m *FindTraceIDsResponse) Reset()         { *m = FindTraceIDsResponse{} }
 func (m *FindTraceIDsResponse) String() string { return proto.CompactTextString(m) }
 func (*FindTraceIDsResponse) ProtoMessage()    {}
 func (*FindTraceIDsResponse) Descriptor() ([]byte, []int) {
-	return fileDescriptor_3441c0fd9397413c, []int{15}
+	return fileDescriptor_3441c0fd9397413c, []int{20}
 }
 func (m *FindTraceIDsResponse) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -1048,6 +1418,13 @@ func (m *FindTraceIDsResponse) GetTraceIds() []*FoundTraceID {
 	return nil
 }
 
+func (m *FindTraceIDsResponse) GetNextPageToken() string {
+	if m != nil {
+		return m.NextPageToken
+	}
+	return ""
+}
+
 // ServiceSummary contains per-service statistics for a trace.
 // Mirrors jaeger.api_v3.ServiceSummary but lives in the storage package
 // to avoid a cross-package proto dependency.
@@ -1064,7 +1441,7 @@ func (m *ServiceSummary) Reset()         { *m = ServiceSummary{} }
 func (m *ServiceSummary) String() string { return proto.CompactTextString(m) }
 func (*ServiceSummary) ProtoMessage()    {}
 func (*ServiceSummary) Descriptor() ([]byte, []int) {
-	return fileDescriptor_3441c0fd9397413c, []int{16}
+	return fileDescriptor_3441c0fd9397413c, []int{21}
 }
 func (m *ServiceSummary) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -1135,7 +1512,7 @@ func (m *TraceSummary) Reset()         { *m = TraceSummary{} }
 func (m *TraceSummary) String() string { return proto.CompactTextString(m) }
 func (*TraceSummary) ProtoMessage()    {}
 func (*TraceSummary) Descriptor() ([]byte, []int) {
-	return fileDescriptor_3441c0fd9397413c, []int{17}
+	return fileDescriptor_3441c0fd9397413c, []int{22}
 }
 func (m *TraceSummary) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -1239,7 +1616,7 @@ func (m *FindTraceSummariesRequest) Reset()         { *m = FindTraceSummariesReq
 func (m *FindTraceSummariesRequest) String() string { return proto.CompactTextString(m) }
 func (*FindTraceSummariesRequest) ProtoMessage()    {}
 func (*FindTraceSummariesRequest) Descriptor() ([]byte, []int) {
-	return fileDescriptor_3441c0fd9397413c, []int{18}
+	return fileDescriptor_3441c0fd9397413c, []int{23}
 }
 func (m *FindTraceSummariesRequest) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -1278,17 +1655,22 @@ func (m *FindTraceSummariesRequest) GetQuery() *TraceQueryParameters {
 // FindTraceSummariesResponse is a response chunk for FindTraceSummaries.
 // Mirrors the chunked streaming contract of GetTraces / FindTraces.
 type FindTraceSummariesResponse struct {
-	Summaries            []*TraceSummary `protobuf:"bytes,1,rep,name=summaries,proto3" json:"summaries,omitempty"`
-	XXX_NoUnkeyedLiteral struct{}        `json:"-"`
-	XXX_unrecognized     []byte          `json:"-"`
-	XXX_sizecache        int32           `json:"-"`
+	Summaries []*TraceSummary `protobuf:"bytes,1,rep,name=summaries,proto3" json:"summaries,omitempty"`
+	// next_page_token is the cursor the caller can send back as Pagination.page_token
+	// to fetch the page after this one, see comments for Pagination. The backend sets
+	// it only on the final chunk of the stream, and leaves it empty there when
+	// this is the last page.
+	NextPageToken        string   `protobuf:"bytes,2,opt,name=next_page_token,json=nextPageToken,proto3" json:"next_page_token,omitempty"`
+	XXX_NoUnkeyedLiteral struct{} `json:"-"`
+	XXX_unrecognized     []byte   `json:"-"`
+	XXX_sizecache        int32    `json:"-"`
 }
 
 func (m *FindTraceSummariesResponse) Reset()         { *m = FindTraceSummariesResponse{} }
 func (m *FindTraceSummariesResponse) String() string { return proto.CompactTextString(m) }
 func (*FindTraceSummariesResponse) ProtoMessage()    {}
 func (*FindTraceSummariesResponse) Descriptor() ([]byte, []int) {
-	return fileDescriptor_3441c0fd9397413c, []int{19}
+	return fileDescriptor_3441c0fd9397413c, []int{24}
 }
 func (m *FindTraceSummariesResponse) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -1324,6 +1706,13 @@ func (m *FindTraceSummariesResponse) GetSummaries() []*TraceSummary {
 	return nil
 }
 
+func (m *FindTraceSummariesResponse) GetNextPageToken() string {
+	if m != nil {
+		return m.NextPageToken
+	}
+	return ""
+}
+
 func init() {
 	proto.RegisterType((*GetTraceParams)(nil), "jaeger.storage.v2.GetTraceParams")
 	proto.RegisterType((*GetTracesRequest)(nil), "jaeger.storage.v2.GetTracesRequest")
@@ -1337,6 +1726,11 @@ func init() {
 	proto.RegisterType((*KeyValueList)(nil), "jaeger.storage.v2.KeyValueList")
 	proto.RegisterType((*ArrayValue)(nil), "jaeger.storage.v2.ArrayValue")
 	proto.RegisterType((*TraceQueryParameters)(nil), "jaeger.storage.v2.TraceQueryParameters")
+	proto.RegisterType((*Pagination)(nil), "jaeger.storage.v2.Pagination")
+	proto.RegisterType((*SpanQueryParameters)(nil), "jaeger.storage.v2.SpanQueryParameters")
+	proto.RegisterType((*SpanSortOrder)(nil), "jaeger.storage.v2.SpanSortOrder")
+	proto.RegisterType((*FindSpansRequest)(nil), "jaeger.storage.v2.FindSpansRequest")
+	proto.RegisterType((*FindSpansResponse)(nil), "jaeger.storage.v2.FindSpansResponse")
 	proto.RegisterType((*FindTracesRequest)(nil), "jaeger.storage.v2.FindTracesRequest")
 	proto.RegisterType((*FindTraceIDsRequest)(nil), "jaeger.storage.v2.FindTraceIDsRequest")
 	proto.RegisterType((*FoundTraceID)(nil), "jaeger.storage.v2.FoundTraceID")
@@ -1350,86 +1744,105 @@ func init() {
 func init() { proto.RegisterFile("trace_storage.proto", fileDescriptor_3441c0fd9397413c) }
 
 var fileDescriptor_3441c0fd9397413c = []byte{
-	// 1253 bytes of a gzipped FileDescriptorProto
-	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0xac, 0x56, 0xdd, 0x72, 0xdb, 0xc4,
-	0x17, 0xb7, 0xea, 0xf8, 0x43, 0xc7, 0x6e, 0xda, 0x6e, 0xdc, 0xff, 0xb8, 0xee, 0xbf, 0x49, 0xaa,
-	0xd2, 0xd6, 0xc3, 0x80, 0xd3, 0xb8, 0x33, 0x65, 0x06, 0xda, 0x81, 0x36, 0x21, 0x49, 0x09, 0x6d,
-	0x40, 0x49, 0xb9, 0x28, 0x33, 0x15, 0xeb, 0x68, 0xeb, 0x88, 0x58, 0x2b, 0x77, 0xb5, 0xf2, 0xd8,
-	0x6f, 0xc1, 0x25, 0x17, 0x70, 0xc9, 0x03, 0xf0, 0x16, 0xb9, 0xe4, 0x09, 0x80, 0xc9, 0x0b, 0xf0,
-	0x0a, 0xcc, 0x7e, 0x48, 0x96, 0x1d, 0xe1, 0xc4, 0x33, 0xbd, 0x93, 0xce, 0xfe, 0xce, 0xef, 0x7c,
-	0xec, 0x39, 0x67, 0x0f, 0x2c, 0x71, 0x86, 0x0f, 0x89, 0x13, 0xf2, 0x80, 0xe1, 0x2e, 0x69, 0xf5,
-	0x59, 0xc0, 0x03, 0x74, 0xed, 0x47, 0x4c, 0xba, 0x84, 0xb5, 0x62, 0xe9, 0xa0, 0xdd, 0x58, 0xee,
-	0x06, 0x41, 0xb7, 0x47, 0xd6, 0x24, 0xa0, 0x13, 0xbd, 0x5d, 0x73, 0x23, 0x86, 0xb9, 0x17, 0x50,
-	0xa5, 0xd2, 0xa8, 0x75, 0x83, 0x6e, 0x20, 0x3f, 0xd7, 0xc4, 0x97, 0x96, 0xae, 0x4c, 0x6b, 0x71,
-	0xcf, 0x27, 0x21, 0xc7, 0x7e, 0x5f, 0x03, 0x9a, 0x41, 0x9f, 0x50, 0x4e, 0x7a, 0xc4, 0x27, 0x9c,
-	0x8d, 0x14, 0x6e, 0x4d, 0xba, 0xb4, 0x36, 0x58, 0x57, 0x1f, 0x1a, 0xb9, 0x4c, 0x86, 0x7d, 0x46,
-	0xc2, 0xd0, 0x0b, 0xa8, 0x38, 0x1a, 0xff, 0xa9, 0x73, 0xeb, 0x77, 0x03, 0x16, 0xb7, 0x09, 0x3f,
-	0x10, 0x2a, 0xdf, 0x60, 0x86, 0xfd, 0x10, 0xdd, 0x80, 0xb2, 0x8a, 0xce, 0x73, 0xeb, 0xc6, 0xaa,
-	0xd1, 0xac, 0xda, 0x25, 0xf9, 0xff, 0xdc, 0x45, 0x1b, 0x00, 0x21, 0xc7, 0x8c, 0x3b, 0xc2, 0xa1,
-	0xfa, 0xa5, 0x55, 0xa3, 0x59, 0x69, 0x37, 0x5a, 0xca, 0xdb, 0x56, 0xec, 0x6d, 0xeb, 0x20, 0xf6,
-	0xf6, 0x59, 0xf9, 0xe4, 0xcf, 0x95, 0xdc, 0x4f, 0x7f, 0xad, 0x18, 0xb6, 0x29, 0xf5, 0xc4, 0x09,
-	0xfa, 0x1c, 0xca, 0x84, 0xba, 0x8a, 0x22, 0x3f, 0x07, 0x45, 0x89, 0x50, 0x57, 0xc8, 0xad, 0x5d,
-	0xb8, 0x1a, 0xbb, 0x1c, 0xda, 0xe4, 0x5d, 0x44, 0x42, 0x8e, 0x3e, 0x81, 0xc2, 0xbb, 0x88, 0xb0,
-	0x51, 0xdd, 0x58, 0xcd, 0x37, 0x2b, 0xed, 0xdb, 0xad, 0x33, 0x77, 0xd1, 0x9a, 0x0c, 0xd3, 0x56,
-	0x78, 0xab, 0x06, 0x68, 0x9b, 0xf0, 0x7d, 0xc2, 0x06, 0xde, 0x98, 0xce, 0x5a, 0x87, 0xa5, 0x09,
-	0x69, 0xd8, 0x0f, 0x68, 0x48, 0x50, 0x03, 0xca, 0xa1, 0x96, 0x49, 0x43, 0xa6, 0x9d, 0xfc, 0x5b,
-	0x2f, 0xa0, 0xb6, 0x4d, 0xf8, 0x5e, 0x9f, 0xa8, 0x0b, 0x4e, 0x3c, 0xab, 0x43, 0x49, 0x63, 0x64,
-	0x36, 0x4d, 0x3b, 0xfe, 0x45, 0x37, 0xc1, 0x0c, 0xfb, 0x98, 0x3a, 0xc7, 0x1e, 0x75, 0x65, 0x32,
-	0x05, 0x5d, 0x1f, 0xd3, 0x5d, 0x8f, 0xba, 0xd6, 0x63, 0x30, 0x13, 0x2e, 0x84, 0x60, 0x81, 0x62,
-	0x3f, 0x26, 0x90, 0xdf, 0xb3, 0xb5, 0x5f, 0xc1, 0xf5, 0x29, 0x67, 0x74, 0x04, 0x8f, 0x01, 0x82,
-	0x44, 0xaa, 0x93, 0xf5, 0xff, 0x8c, 0x64, 0x25, 0xaa, 0x76, 0x0a, 0x6f, 0xed, 0x41, 0x79, 0x97,
-	0x8c, 0xbe, 0xc3, 0xbd, 0x88, 0xa0, 0xab, 0x90, 0x3f, 0x26, 0x23, 0xed, 0x92, 0xf8, 0x44, 0xeb,
-	0x50, 0x18, 0x88, 0x23, 0x5d, 0x18, 0x37, 0x33, 0x68, 0x9f, 0x52, 0xa5, 0x6d, 0x2b, 0xa4, 0x75,
-	0x72, 0x09, 0xca, 0xb1, 0x0c, 0xdd, 0x81, 0x6a, 0xc8, 0x99, 0x47, 0xbb, 0x8e, 0xa2, 0x91, 0xd4,
-	0x3b, 0x39, 0xbb, 0xa2, 0xa4, 0x0a, 0xb4, 0x02, 0xd0, 0x09, 0x82, 0x9e, 0x33, 0xb6, 0x54, 0xde,
-	0xc9, 0xd9, 0xa6, 0x90, 0x29, 0xc0, 0x2d, 0x30, 0x3d, 0xca, 0xf5, 0xb9, 0xa8, 0xaf, 0xfc, 0x4e,
-	0xce, 0x2e, 0x7b, 0x94, 0x27, 0x46, 0xdc, 0x20, 0xea, 0xf4, 0x88, 0x46, 0x2c, 0xac, 0x1a, 0x4d,
-	0x43, 0x18, 0x51, 0x52, 0x05, 0xfa, 0x02, 0x2a, 0x98, 0x31, 0x3c, 0xd2, 0x98, 0x82, 0x8c, 0xe7,
-	0x56, 0x56, 0x3c, 0x02, 0x25, 0x75, 0x76, 0x72, 0x36, 0xe0, 0xe4, 0x0f, 0x6d, 0x42, 0xf5, 0x78,
-	0xd0, 0xf3, 0xc2, 0xd8, 0x91, 0xa2, 0xa4, 0x58, 0xc9, 0xa0, 0x88, 0x13, 0xfa, 0xb5, 0x17, 0x72,
-	0xe1, 0x87, 0x52, 0x53, 0x2c, 0xb7, 0xa1, 0xd2, 0x19, 0x71, 0x12, 0x6a, 0x92, 0x92, 0xe8, 0x46,
-	0x61, 0x48, 0x0a, 0x25, 0xe4, 0x59, 0x49, 0x27, 0xdd, 0xda, 0x80, 0x6a, 0x9a, 0x0a, 0x3d, 0x84,
-	0xa2, 0x3c, 0x88, 0x6f, 0xf9, 0xe6, 0x0c, 0xdb, 0xb6, 0x86, 0x5a, 0x4f, 0x01, 0xc6, 0x21, 0x5d,
-	0x88, 0x22, 0xb9, 0xd1, 0x98, 0xe2, 0x97, 0x05, 0xa8, 0xc9, 0x3e, 0xfb, 0x56, 0xf4, 0x97, 0x6c,
-	0x36, 0xc2, 0x09, 0x0b, 0xd1, 0x6d, 0xa8, 0xea, 0xca, 0x77, 0x52, 0xc5, 0x5c, 0xd1, 0xb2, 0x97,
-	0xa2, 0xa6, 0xef, 0xc2, 0x62, 0x52, 0x6d, 0x0a, 0xa4, 0x0a, 0xfb, 0x72, 0x22, 0x95, 0xb0, 0xcf,
-	0x00, 0x30, 0xe7, 0xcc, 0xeb, 0x44, 0x9c, 0x84, 0xf5, 0xfc, 0xf9, 0xe1, 0xa5, 0xe0, 0xe8, 0x2b,
-	0x58, 0x1c, 0xcf, 0x30, 0xc7, 0xf7, 0xa8, 0x2c, 0x81, 0x8b, 0x0e, 0xa1, 0x6a, 0x32, 0xc7, 0x5e,
-	0x78, 0x74, 0x9a, 0x0b, 0x0f, 0x75, 0xa9, 0xcc, 0xcd, 0x85, 0x87, 0x68, 0x0b, 0xaa, 0xf1, 0xe3,
-	0x20, 0xbd, 0x52, 0x15, 0x73, 0xe3, 0x0c, 0xd3, 0xa6, 0x06, 0x29, 0xa2, 0x9f, 0x05, 0x51, 0x25,
-	0x56, 0x14, 0x3e, 0x4d, 0xf0, 0xe0, 0xa1, 0x2c, 0x9a, 0xb9, 0x79, 0xf0, 0x50, 0x5d, 0x17, 0x66,
-	0x87, 0x47, 0x8e, 0x4b, 0xfa, 0xfc, 0xa8, 0x5e, 0x5e, 0x35, 0x9a, 0x05, 0x71, 0x5d, 0x42, 0xb6,
-	0x29, 0x44, 0xa8, 0x0d, 0xc5, 0xb7, 0x5e, 0x8f, 0x13, 0x56, 0x37, 0x75, 0xd8, 0xfa, 0x0e, 0x52,
-	0xcf, 0xcc, 0x60, 0xbd, 0xb5, 0x81, 0x7b, 0x3d, 0x5b, 0x23, 0x2d, 0x1b, 0xae, 0x6d, 0x79, 0xd4,
-	0x9d, 0x9c, 0xde, 0x4f, 0xc6, 0xd3, 0x5b, 0xf0, 0xdc, 0xcf, 0xb8, 0xcb, 0xac, 0x92, 0x8a, 0x67,
-	0xf8, 0x01, 0x2c, 0x25, 0x9c, 0xcf, 0x37, 0xdf, 0x17, 0xeb, 0xaf, 0x06, 0x54, 0xb7, 0x82, 0x28,
-	0xe1, 0x9d, 0xf5, 0x30, 0x7e, 0x0a, 0x05, 0x79, 0x99, 0x73, 0xbd, 0x89, 0x4a, 0x05, 0x3d, 0x82,
-	0x3c, 0xa1, 0xee, 0x5c, 0x4f, 0xa1, 0x50, 0xb0, 0x0e, 0xa0, 0x36, 0x19, 0x75, 0x32, 0xe2, 0xcd,
-	0xd8, 0xcd, 0xb8, 0x71, 0xb3, 0xe6, 0x4e, 0x3a, 0x34, 0xbb, 0xac, 0x03, 0x09, 0x2d, 0x1f, 0x16,
-	0xf5, 0xb3, 0xb7, 0x1f, 0xf9, 0x3e, 0x66, 0xa3, 0xcc, 0xc7, 0xe7, 0x16, 0x80, 0x7c, 0x7c, 0x0e,
-	0x83, 0x88, 0xaa, 0xa0, 0x0b, 0xb6, 0x7c, 0x8e, 0x36, 0x84, 0x00, 0x35, 0xe1, 0x2a, 0x61, 0x2c,
-	0x60, 0x4e, 0x0a, 0x94, 0x97, 0xa0, 0x45, 0x29, 0xdf, 0x8f, 0x91, 0xd6, 0x6f, 0x79, 0xa8, 0x4a,
-	0x27, 0x62, 0x6b, 0x33, 0x92, 0xfc, 0x21, 0x5c, 0x63, 0x41, 0xc0, 0x9d, 0x89, 0x29, 0xa2, 0x06,
-	0xc4, 0x15, 0x71, 0xb0, 0x9f, 0x9a, 0x24, 0x2d, 0x58, 0x92, 0xd8, 0xa9, 0x71, 0x92, 0x97, 0x68,
-	0x49, 0xb3, 0x37, 0x31, 0x52, 0x1e, 0x41, 0xdd, 0xf7, 0xa8, 0x93, 0xea, 0xe6, 0x88, 0x7a, 0x43,
-	0x87, 0x62, 0x1a, 0xc8, 0xf9, 0x50, 0xb4, 0x6b, 0xbe, 0x47, 0xf7, 0xe3, 0x86, 0x7d, 0x45, 0xbd,
-	0xe1, 0x4b, 0x4c, 0x03, 0xd4, 0x86, 0xff, 0xf9, 0x78, 0xe8, 0xc4, 0x0b, 0x4d, 0x4a, 0xab, 0x20,
-	0xb5, 0x90, 0x8f, 0x87, 0x5f, 0xaa, 0xbd, 0x25, 0xd1, 0x99, 0x4c, 0x5e, 0xf1, 0x22, 0xc9, 0x2b,
-	0x65, 0x25, 0x4f, 0x24, 0x24, 0x60, 0xfd, 0x23, 0x4c, 0xd3, 0x50, 0xd5, 0xa7, 0x57, 0xd4, 0xc1,
-	0x18, 0xfb, 0x24, 0xb5, 0xba, 0x98, 0xff, 0xb9, 0x23, 0x4d, 0x5e, 0x7d, 0x6a, 0xbb, 0x79, 0x0d,
-	0x37, 0x92, 0x62, 0x53, 0xa7, 0xde, 0x7b, 0x6b, 0xdf, 0xef, 0xa1, 0x91, 0xc5, 0xad, 0xcb, 0xf9,
-	0x09, 0x98, 0x61, 0x2c, 0x9c, 0x51, 0xce, 0xe9, 0x22, 0xb2, 0xc7, 0x1a, 0xed, 0x7f, 0x16, 0xa0,
-	0x22, 0xcf, 0x6c, 0x82, 0x5d, 0xc2, 0xd0, 0x1b, 0x30, 0x93, 0xe5, 0x11, 0xdd, 0x99, 0xb1, 0x26,
-	0xc6, 0xd1, 0x35, 0x9a, 0xad, 0x89, 0x6d, 0x5b, 0x75, 0x66, 0x4b, 0x2d, 0xd9, 0x83, 0x75, 0x65,
-	0x38, 0xdc, 0xc4, 0x1c, 0x5b, 0xb9, 0x07, 0x06, 0x7a, 0x03, 0x95, 0xd4, 0xe6, 0x88, 0xee, 0x66,
-	0x5b, 0x98, 0xda, 0x37, 0x1b, 0xf7, 0xce, 0x83, 0xa9, 0x64, 0x58, 0x39, 0xe4, 0xc2, 0xe5, 0x89,
-	0xcd, 0x0e, 0xdd, 0xcf, 0x56, 0x3d, 0xb3, 0x88, 0x36, 0x9a, 0xe7, 0x03, 0x13, 0x2b, 0x3f, 0x00,
-	0x8c, 0xa7, 0x34, 0xfa, 0x20, 0x6b, 0x7c, 0x4c, 0x0f, 0xf1, 0x39, 0xf3, 0x84, 0xa1, 0x9a, 0x9e,
-	0x5e, 0xe8, 0xde, 0x2c, 0x1b, 0xe3, 0xa1, 0xde, 0xb8, 0x7f, 0x2e, 0x2e, 0x09, 0x22, 0x02, 0x74,
-	0xb6, 0xae, 0xd0, 0x47, 0xb3, 0x08, 0xa6, 0x4b, 0xbb, 0xf1, 0xf1, 0x05, 0xd1, 0xb1, 0xd1, 0x07,
-	0xc6, 0xb3, 0xeb, 0x27, 0xa7, 0xcb, 0xc6, 0x1f, 0xa7, 0xcb, 0xc6, 0xdf, 0xa7, 0xcb, 0xc6, 0xeb,
-	0x92, 0x56, 0xec, 0x14, 0x65, 0x3e, 0x1e, 0xfe, 0x1b, 0x00, 0x00, 0xff, 0xff, 0x03, 0xca, 0x9b,
-	0x8f, 0x3b, 0x0e, 0x00, 0x00,
+	// 1561 bytes of a gzipped FileDescriptorProto
+	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0xac, 0x57, 0x4b, 0x73, 0x13, 0xc7,
+	0x16, 0xf6, 0x58, 0xd6, 0xeb, 0x48, 0x36, 0xa6, 0x6d, 0x6e, 0x09, 0x71, 0xf1, 0x63, 0x00, 0x5b,
+	0x75, 0xeb, 0x5e, 0x19, 0x9b, 0x2a, 0x6e, 0x15, 0xc1, 0x09, 0xd8, 0x06, 0x9b, 0x10, 0xb0, 0x33,
+	0x32, 0x59, 0xb0, 0x60, 0xd2, 0xf6, 0x34, 0x62, 0x62, 0xa9, 0x47, 0xf4, 0xb4, 0x54, 0x12, 0xc9,
+	0x2e, 0x7f, 0x80, 0x65, 0x36, 0x59, 0xa6, 0xb2, 0xce, 0xd6, 0x4b, 0x56, 0x54, 0xb2, 0xc9, 0x3e,
+	0x55, 0x49, 0x8a, 0xaa, 0xfc, 0x8f, 0x54, 0x3f, 0xe6, 0x21, 0x79, 0x2c, 0xdb, 0x84, 0xdd, 0xcc,
+	0xe9, 0xef, 0x7c, 0x7d, 0xce, 0xe9, 0xaf, 0xfb, 0x74, 0xc3, 0x14, 0x67, 0x78, 0x9f, 0xd8, 0x3e,
+	0xf7, 0x18, 0xae, 0x93, 0x6a, 0x8b, 0x79, 0xdc, 0x43, 0xe7, 0xbf, 0xc2, 0xa4, 0x4e, 0x58, 0x35,
+	0xb0, 0x76, 0x56, 0xca, 0x33, 0x75, 0xcf, 0xab, 0x37, 0xc8, 0x92, 0x04, 0xec, 0xb5, 0x9f, 0x2f,
+	0x39, 0x6d, 0x86, 0xb9, 0xeb, 0x51, 0xe5, 0x52, 0x9e, 0xae, 0x7b, 0x75, 0x4f, 0x7e, 0x2e, 0x89,
+	0x2f, 0x6d, 0x9d, 0x1d, 0xf4, 0xe2, 0x6e, 0x93, 0xf8, 0x1c, 0x37, 0x5b, 0x1a, 0x50, 0xf1, 0x5a,
+	0x84, 0x72, 0xd2, 0x20, 0x4d, 0xc2, 0x59, 0x4f, 0xe1, 0x96, 0x64, 0x48, 0x4b, 0x9d, 0x65, 0xf5,
+	0xa1, 0x91, 0x33, 0xa4, 0xdb, 0x62, 0xc4, 0xf7, 0x5d, 0x8f, 0x8a, 0xa1, 0xe8, 0x4f, 0x8f, 0x5f,
+	0xa9, 0x53, 0xcf, 0xe7, 0xee, 0xfe, 0x92, 0x60, 0xc4, 0x2d, 0xb7, 0x73, 0x63, 0x09, 0x53, 0xea,
+	0x71, 0x19, 0xa4, 0xaf, 0x40, 0xe6, 0x4f, 0x06, 0x4c, 0x6c, 0x12, 0xbe, 0x2b, 0x78, 0x77, 0x30,
+	0xc3, 0x4d, 0x1f, 0x5d, 0x84, 0x9c, 0x2a, 0x81, 0xeb, 0x94, 0x8c, 0x39, 0xa3, 0x52, 0xb4, 0xb2,
+	0xf2, 0xff, 0x81, 0x83, 0xd6, 0x01, 0x7c, 0x8e, 0x19, 0xb7, 0x45, 0xd4, 0xa5, 0xd1, 0x39, 0xa3,
+	0x52, 0x58, 0x29, 0x57, 0x55, 0x4a, 0xd5, 0x20, 0xa5, 0xea, 0x6e, 0x90, 0xd2, 0x5a, 0xee, 0xed,
+	0xef, 0xb3, 0x23, 0xaf, 0xff, 0x98, 0x35, 0xac, 0xbc, 0xf4, 0x13, 0x23, 0xe8, 0x13, 0xc8, 0x11,
+	0xea, 0x28, 0x8a, 0xd4, 0x19, 0x28, 0xb2, 0x84, 0x3a, 0xc2, 0x6e, 0x3e, 0x84, 0xc9, 0x20, 0x64,
+	0xdf, 0x22, 0x2f, 0xdb, 0xc4, 0xe7, 0xe8, 0xff, 0x90, 0x7e, 0xd9, 0x26, 0xac, 0x57, 0x32, 0xe6,
+	0x52, 0x95, 0xc2, 0xca, 0x7c, 0xf5, 0xc8, 0x82, 0x55, 0xfb, 0xd3, 0xb4, 0x14, 0xde, 0x9c, 0x06,
+	0xb4, 0x49, 0x78, 0x8d, 0xb0, 0x8e, 0x1b, 0xd1, 0x99, 0xcb, 0x30, 0xd5, 0x67, 0xf5, 0x5b, 0x1e,
+	0xf5, 0x09, 0x2a, 0x43, 0xce, 0xd7, 0x36, 0x39, 0x51, 0xde, 0x0a, 0xff, 0xcd, 0x47, 0x30, 0xbd,
+	0x49, 0xf8, 0x76, 0x8b, 0x28, 0x15, 0x84, 0x91, 0x95, 0x20, 0xab, 0x31, 0xb2, 0x9a, 0x79, 0x2b,
+	0xf8, 0x45, 0x97, 0x20, 0xef, 0xb7, 0x30, 0xb5, 0x0f, 0x5c, 0xea, 0xc8, 0x62, 0x0a, 0xba, 0x16,
+	0xa6, 0x0f, 0x5d, 0xea, 0x98, 0xb7, 0x21, 0x1f, 0x72, 0x21, 0x04, 0x63, 0x14, 0x37, 0x03, 0x02,
+	0xf9, 0x3d, 0xdc, 0xfb, 0x09, 0x5c, 0x18, 0x08, 0x46, 0x67, 0x70, 0x1b, 0xc0, 0x0b, 0xad, 0xba,
+	0x58, 0xff, 0x4e, 0x28, 0x56, 0xe8, 0x6a, 0xc5, 0xf0, 0xe6, 0x36, 0xe4, 0x1e, 0x92, 0xde, 0x17,
+	0xb8, 0xd1, 0x26, 0x68, 0x12, 0x52, 0x07, 0xa4, 0xa7, 0x43, 0x12, 0x9f, 0x68, 0x19, 0xd2, 0x1d,
+	0x31, 0xa4, 0x85, 0x71, 0x29, 0x81, 0xf6, 0x2e, 0x55, 0xde, 0x96, 0x42, 0x9a, 0x6f, 0x47, 0x21,
+	0x17, 0xd8, 0xd0, 0x15, 0x28, 0xfa, 0x9c, 0xb9, 0xb4, 0x6e, 0x2b, 0x1a, 0x49, 0xbd, 0x35, 0x62,
+	0x15, 0x94, 0x55, 0x81, 0x66, 0x01, 0xf6, 0x3c, 0xaf, 0x61, 0x47, 0x33, 0xe5, 0xb6, 0x46, 0xac,
+	0xbc, 0xb0, 0x29, 0xc0, 0x65, 0xc8, 0xbb, 0x94, 0xeb, 0x71, 0xa1, 0xaf, 0xd4, 0xd6, 0x88, 0x95,
+	0x73, 0x29, 0x0f, 0x27, 0x71, 0xbc, 0xf6, 0x5e, 0x83, 0x68, 0xc4, 0xd8, 0x9c, 0x51, 0x31, 0xc4,
+	0x24, 0xca, 0xaa, 0x40, 0x77, 0xa0, 0x80, 0x19, 0xc3, 0x3d, 0x8d, 0x49, 0xcb, 0x7c, 0x2e, 0x27,
+	0xe5, 0x23, 0x50, 0xd2, 0x67, 0x6b, 0xc4, 0x02, 0x1c, 0xfe, 0xa1, 0x0d, 0x28, 0x1e, 0x74, 0x1a,
+	0xae, 0x1f, 0x04, 0x92, 0x91, 0x14, 0xb3, 0x09, 0x14, 0x41, 0x41, 0x3f, 0x73, 0x7d, 0x2e, 0xe2,
+	0x50, 0x6e, 0x8a, 0x65, 0x1e, 0x0a, 0x7b, 0x3d, 0x4e, 0x7c, 0x4d, 0x92, 0x15, 0xbb, 0x51, 0x4c,
+	0x24, 0x8d, 0x12, 0xb2, 0x96, 0xd5, 0x45, 0x37, 0xd7, 0xa1, 0x18, 0xa7, 0x42, 0x37, 0x20, 0x23,
+	0x07, 0x82, 0x55, 0xbe, 0x34, 0x64, 0x6e, 0x4b, 0x43, 0xcd, 0xbb, 0x00, 0x51, 0x4a, 0xa7, 0xa2,
+	0x08, 0x57, 0x34, 0xa0, 0xf8, 0x6d, 0x0c, 0xa6, 0xe5, 0x3e, 0xfb, 0x5c, 0xec, 0x2f, 0xb9, 0xd9,
+	0x08, 0x27, 0xcc, 0x47, 0xf3, 0x50, 0xd4, 0xca, 0xb7, 0x63, 0x62, 0x2e, 0x68, 0xdb, 0x63, 0xa1,
+	0xe9, 0x6b, 0x30, 0x11, 0xaa, 0x4d, 0x81, 0x94, 0xb0, 0xc7, 0x43, 0xab, 0x84, 0x7d, 0x04, 0x80,
+	0x39, 0x67, 0xee, 0x5e, 0x9b, 0x13, 0xbf, 0x94, 0x3a, 0x39, 0xbd, 0x18, 0x1c, 0x7d, 0x0a, 0x13,
+	0xd1, 0x19, 0x66, 0x37, 0x5d, 0x2a, 0x25, 0x70, 0xda, 0x43, 0xa8, 0x18, 0x9e, 0x63, 0x8f, 0x5c,
+	0x3a, 0xc8, 0x85, 0xbb, 0x5a, 0x2a, 0x67, 0xe6, 0xc2, 0x5d, 0x74, 0x1f, 0x8a, 0x41, 0x07, 0x91,
+	0x51, 0x29, 0xc5, 0x5c, 0x3c, 0xc2, 0xb4, 0xa1, 0x41, 0x8a, 0xe8, 0x3b, 0x41, 0x54, 0x08, 0x1c,
+	0x45, 0x4c, 0x7d, 0x3c, 0xb8, 0x2b, 0x45, 0x73, 0x66, 0x1e, 0xdc, 0x55, 0xcb, 0x85, 0xd9, 0xfe,
+	0x0b, 0xdb, 0x21, 0x2d, 0xfe, 0xa2, 0x94, 0x9b, 0x33, 0x2a, 0x69, 0xb1, 0x5c, 0xc2, 0xb6, 0x21,
+	0x4c, 0x68, 0x05, 0x32, 0xcf, 0xdd, 0x06, 0x27, 0xac, 0x94, 0xd7, 0x69, 0xeb, 0x35, 0x88, 0xf5,
+	0xa2, 0xce, 0x72, 0x75, 0x1d, 0x37, 0x1a, 0x96, 0x46, 0xa2, 0x55, 0x80, 0x16, 0xae, 0xbb, 0x54,
+	0xce, 0x53, 0x82, 0x63, 0x77, 0xd6, 0x4e, 0x08, 0xb2, 0x62, 0x0e, 0xe6, 0x16, 0x40, 0x34, 0x22,
+	0xce, 0xc0, 0x16, 0xae, 0x13, 0xdb, 0x77, 0x5f, 0x29, 0x3d, 0x8d, 0x5b, 0x39, 0x61, 0xa8, 0xb9,
+	0xaf, 0xc4, 0x41, 0x00, 0x72, 0x90, 0x7b, 0x07, 0x84, 0x6a, 0x21, 0x49, 0xf8, 0xae, 0x30, 0x98,
+	0x7f, 0x8d, 0xc2, 0x54, 0xad, 0x85, 0xe9, 0xa0, 0x4c, 0x8f, 0xea, 0xc3, 0xf8, 0x80, 0xfa, 0x18,
+	0x7d, 0x6f, 0x7d, 0x44, 0xc5, 0x4e, 0xbd, 0x67, 0xb1, 0xc7, 0xce, 0x58, 0x6c, 0xb4, 0x0e, 0x39,
+	0x8f, 0x39, 0x84, 0xd9, 0x7b, 0xbd, 0x52, 0x5a, 0xee, 0xb2, 0xb9, 0x04, 0x67, 0x51, 0xc4, 0x9a,
+	0xc7, 0xf8, 0xb6, 0x80, 0xae, 0x65, 0x0e, 0x37, 0x53, 0xaf, 0x8d, 0x31, 0x2b, 0x2b, 0x3d, 0xd7,
+	0x7a, 0xe6, 0x8f, 0x06, 0x8c, 0xf7, 0x41, 0xd0, 0x1d, 0x80, 0x28, 0x66, 0x5d, 0xdd, 0xb9, 0xe4,
+	0x6c, 0xee, 0x85, 0x7f, 0x56, 0xcc, 0x07, 0xad, 0x41, 0xde, 0x71, 0x19, 0xd9, 0x97, 0x69, 0xc9,
+	0x95, 0x5d, 0xbb, 0x7a, 0xb8, 0x39, 0xff, 0xc6, 0x18, 0x43, 0xa3, 0x8b, 0x8b, 0x6f, 0x8c, 0x34,
+	0x4a, 0x61, 0x7f, 0xff, 0x8d, 0x91, 0x41, 0x63, 0x0e, 0xf1, 0xf7, 0x7f, 0x36, 0x32, 0xaa, 0x85,
+	0x58, 0x91, 0xdb, 0xad, 0xc9, 0xc3, 0xcd, 0xf1, 0x43, 0x23, 0xc6, 0x6a, 0xee, 0xc0, 0xe4, 0x7d,
+	0x97, 0x3a, 0x22, 0xd8, 0xb0, 0x7b, 0xdf, 0x8e, 0xee, 0x15, 0x22, 0xcc, 0x85, 0x63, 0xf2, 0x1f,
+	0x10, 0x51, 0x70, 0xb9, 0xf8, 0x1a, 0xce, 0xc7, 0x18, 0x75, 0x0b, 0xfe, 0x18, 0xd2, 0xa2, 0x4f,
+	0xfb, 0x9a, 0xb2, 0x52, 0xed, 0xbb, 0xf1, 0x29, 0x49, 0x54, 0xd5, 0x45, 0xaf, 0xb3, 0x5c, 0x55,
+	0xd7, 0x9c, 0x0d, 0xcc, 0xb1, 0xa5, 0xdc, 0xd0, 0x02, 0x9c, 0xa3, 0xa4, 0xcb, 0xed, 0x98, 0xb8,
+	0x53, 0xea, 0x94, 0x14, 0xe6, 0x9d, 0x50, 0xe0, 0x96, 0x9a, 0xbc, 0xff, 0x9e, 0xb4, 0xda, 0x9f,
+	0xcf, 0x62, 0x42, 0x3e, 0x49, 0x87, 0x77, 0x90, 0xd0, 0x2e, 0x4c, 0x85, 0x9c, 0x0f, 0x36, 0x3e,
+	0x14, 0xeb, 0xf7, 0x06, 0x14, 0xef, 0x7b, 0xed, 0x90, 0x77, 0xd8, 0x15, 0xf4, 0x16, 0xa4, 0xe5,
+	0xb6, 0x38, 0xd3, 0x4e, 0x52, 0x2e, 0xe8, 0x26, 0xa4, 0x08, 0x75, 0xce, 0x74, 0xe9, 0x14, 0x0e,
+	0xe6, 0x37, 0x30, 0xdd, 0x9f, 0x75, 0x78, 0x99, 0xca, 0x07, 0x61, 0x06, 0x2d, 0x32, 0xa9, 0xc3,
+	0xc7, 0x53, 0xb3, 0x72, 0x3a, 0x91, 0xc4, 0x75, 0x1c, 0x4d, 0x5a, 0xc7, 0x26, 0x4c, 0xe8, 0x8b,
+	0x68, 0xad, 0xdd, 0x6c, 0x62, 0xd6, 0x4b, 0xbc, 0x0e, 0x5e, 0x06, 0x90, 0xd7, 0xc1, 0x7d, 0xaf,
+	0x4d, 0x55, 0x71, 0xd2, 0x96, 0xbc, 0x20, 0xae, 0x0b, 0x03, 0xaa, 0xc0, 0x24, 0x61, 0xcc, 0x63,
+	0x76, 0x0c, 0x94, 0x92, 0xa0, 0x09, 0x69, 0xaf, 0x05, 0x48, 0xf3, 0x87, 0x14, 0x14, 0x65, 0xb0,
+	0xc1, 0x6c, 0x43, 0x16, 0xe3, 0x3f, 0x70, 0x9e, 0x79, 0x1e, 0xb7, 0xfb, 0xfa, 0xba, 0x4a, 0xe2,
+	0x9c, 0x18, 0xa8, 0xc5, 0x7a, 0x7b, 0x15, 0xa6, 0x24, 0x76, 0xa0, 0xc1, 0x2b, 0xe9, 0x4a, 0x9a,
+	0xed, 0xbe, 0x26, 0x7f, 0x13, 0x4a, 0x4d, 0x97, 0xda, 0xb1, 0xf3, 0xb3, 0x4d, 0xdd, 0xae, 0x4d,
+	0x31, 0xf5, 0xe4, 0x49, 0x96, 0xb1, 0xa6, 0x9b, 0x2e, 0xad, 0x05, 0x47, 0xe4, 0x13, 0xea, 0x76,
+	0x1f, 0x63, 0xea, 0xa1, 0x15, 0xf8, 0x57, 0x13, 0x77, 0xed, 0xe0, 0x89, 0x11, 0xf3, 0x4a, 0x4b,
+	0x2f, 0xd4, 0xc4, 0xdd, 0x7b, 0xea, 0x25, 0x11, 0xfa, 0xf4, 0x17, 0x2f, 0x73, 0x9a, 0xe2, 0x65,
+	0x93, 0x8a, 0x27, 0x0a, 0xe2, 0xb1, 0xd6, 0x0b, 0x4c, 0xe3, 0x50, 0xd5, 0x39, 0xcf, 0xa9, 0x81,
+	0x08, 0xbb, 0x1a, 0x7b, 0x4c, 0xe4, 0x8f, 0x7d, 0xb5, 0xf4, 0x2f, 0x7d, 0xec, 0xbd, 0xf1, 0x14,
+	0x2e, 0x86, 0xa2, 0x54, 0xa3, 0xee, 0x07, 0xdb, 0xe6, 0xdf, 0x1a, 0x50, 0x4e, 0x22, 0xd7, 0xba,
+	0x5f, 0x85, 0xbc, 0x1f, 0x18, 0x87, 0xe8, 0x3e, 0xae, 0x22, 0x2b, 0xf2, 0x38, 0xad, 0xf0, 0x57,
+	0x7e, 0x49, 0x43, 0x41, 0x72, 0x58, 0x04, 0x8b, 0xbe, 0xf1, 0x0c, 0xf2, 0xe1, 0xbb, 0x0f, 0x5d,
+	0x19, 0xf2, 0xc2, 0x0b, 0xca, 0x50, 0x3e, 0xf5, 0xd9, 0x6a, 0x8e, 0x5c, 0x37, 0xd0, 0x33, 0x28,
+	0xc4, 0x1e, 0x7d, 0xe8, 0x5a, 0xf2, 0x0c, 0x03, 0x4f, 0xc5, 0xf2, 0xc2, 0x49, 0x30, 0x55, 0x34,
+	0x73, 0x04, 0x39, 0x30, 0xde, 0xf7, 0x28, 0x43, 0x8b, 0xc9, 0xae, 0x47, 0xde, 0x90, 0xe5, 0xca,
+	0xc9, 0xc0, 0x70, 0x96, 0xa7, 0x90, 0x0f, 0x7b, 0x4e, 0x62, 0x95, 0x06, 0x7b, 0x5c, 0xf9, 0xea,
+	0x70, 0x50, 0xc0, 0x7c, 0xdd, 0x40, 0x5f, 0x02, 0x44, 0x2d, 0x05, 0x1d, 0xe7, 0xf7, 0x4f, 0xd6,
+	0x00, 0x43, 0x31, 0x7e, 0xd4, 0xa2, 0x85, 0x61, 0x73, 0x44, 0x1d, 0xa8, 0xbc, 0x78, 0x22, 0x2e,
+	0x2c, 0x50, 0x1b, 0xd0, 0x51, 0x6d, 0xa3, 0xff, 0x0e, 0x23, 0x18, 0xdc, 0x5f, 0xe5, 0xff, 0x9d,
+	0x12, 0x1d, 0xd5, 0x6e, 0xed, 0xc2, 0xdb, 0x77, 0x33, 0xc6, 0xaf, 0xef, 0x66, 0x8c, 0x3f, 0xdf,
+	0xcd, 0x18, 0x4f, 0xb3, 0xda, 0x71, 0x2f, 0x23, 0xeb, 0x71, 0xe3, 0xef, 0x00, 0x00, 0x00, 0xff,
+	0xff, 0xe7, 0x4a, 0x6c, 0x44, 0x77, 0x12, 0x00, 0x00,
 }
 
 // Reference imports to suppress errors if they are not otherwise used.
@@ -1461,6 +1874,13 @@ type TraceReaderClient interface {
 	// GetOperations returns all operation names for a given service
 	// known to the backend from traces within its retention period.
 	GetOperations(ctx context.Context, in *GetOperationsRequest, opts ...grpc.CallOption) (*GetOperationsResponse, error)
+	// FindSpans returns a stream of pages of spans matching the query.
+	//
+	// The yielded FindSpansResponse chunks has a spans field of type TracesData that
+	// may contain spans from multiple traces, unlike GetTraces and FindTraces.
+	//
+	// If no matching spans are found, an empty stream is returned.
+	FindSpans(ctx context.Context, in *FindSpansRequest, opts ...grpc.CallOption) (TraceReader_FindSpansClient, error)
 	// FindTraces returns a stream that retrieves traces matching query parameters.
 	//
 	// The chunking rules are the same as for GetTraces.
@@ -1545,8 +1965,40 @@ func (c *traceReaderClient) GetOperations(ctx context.Context, in *GetOperations
 	return out, nil
 }
 
+func (c *traceReaderClient) FindSpans(ctx context.Context, in *FindSpansRequest, opts ...grpc.CallOption) (TraceReader_FindSpansClient, error) {
+	stream, err := c.cc.NewStream(ctx, &_TraceReader_serviceDesc.Streams[1], "/jaeger.storage.v2.TraceReader/FindSpans", opts...)
+	if err != nil {
+		return nil, err
+	}
+	x := &traceReaderFindSpansClient{stream}
+	if err := x.ClientStream.SendMsg(in); err != nil {
+		return nil, err
+	}
+	if err := x.ClientStream.CloseSend(); err != nil {
+		return nil, err
+	}
+	return x, nil
+}
+
+type TraceReader_FindSpansClient interface {
+	Recv() (*FindSpansResponse, error)
+	grpc.ClientStream
+}
+
+type traceReaderFindSpansClient struct {
+	grpc.ClientStream
+}
+
+func (x *traceReaderFindSpansClient) Recv() (*FindSpansResponse, error) {
+	m := new(FindSpansResponse)
+	if err := x.ClientStream.RecvMsg(m); err != nil {
+		return nil, err
+	}
+	return m, nil
+}
+
 func (c *traceReaderClient) FindTraces(ctx context.Context, in *FindTracesRequest, opts ...grpc.CallOption) (TraceReader_FindTracesClient, error) {
-	stream, err := c.cc.NewStream(ctx, &_TraceReader_serviceDesc.Streams[1], "/jaeger.storage.v2.TraceReader/FindTraces", opts...)
+	stream, err := c.cc.NewStream(ctx, &_TraceReader_serviceDesc.Streams[2], "/jaeger.storage.v2.TraceReader/FindTraces", opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -1587,7 +2039,7 @@ func (c *traceReaderClient) FindTraceIDs(ctx context.Context, in *FindTraceIDsRe
 }
 
 func (c *traceReaderClient) FindTraceSummaries(ctx context.Context, in *FindTraceSummariesRequest, opts ...grpc.CallOption) (TraceReader_FindTraceSummariesClient, error) {
-	stream, err := c.cc.NewStream(ctx, &_TraceReader_serviceDesc.Streams[2], "/jaeger.storage.v2.TraceReader/FindTraceSummaries", opts...)
+	stream, err := c.cc.NewStream(ctx, &_TraceReader_serviceDesc.Streams[3], "/jaeger.storage.v2.TraceReader/FindTraceSummaries", opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -1637,6 +2089,13 @@ type TraceReaderServer interface {
 	// GetOperations returns all operation names for a given service
 	// known to the backend from traces within its retention period.
 	GetOperations(context.Context, *GetOperationsRequest) (*GetOperationsResponse, error)
+	// FindSpans returns a stream of pages of spans matching the query.
+	//
+	// The yielded FindSpansResponse chunks has a spans field of type TracesData that
+	// may contain spans from multiple traces, unlike GetTraces and FindTraces.
+	//
+	// If no matching spans are found, an empty stream is returned.
+	FindSpans(*FindSpansRequest, TraceReader_FindSpansServer) error
 	// FindTraces returns a stream that retrieves traces matching query parameters.
 	//
 	// The chunking rules are the same as for GetTraces.
@@ -1675,6 +2134,9 @@ func (*UnimplementedTraceReaderServer) GetServices(ctx context.Context, req *Get
 }
 func (*UnimplementedTraceReaderServer) GetOperations(ctx context.Context, req *GetOperationsRequest) (*GetOperationsResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetOperations not implemented")
+}
+func (*UnimplementedTraceReaderServer) FindSpans(req *FindSpansRequest, srv TraceReader_FindSpansServer) error {
+	return status.Errorf(codes.Unimplemented, "method FindSpans not implemented")
 }
 func (*UnimplementedTraceReaderServer) FindTraces(req *FindTracesRequest, srv TraceReader_FindTracesServer) error {
 	return status.Errorf(codes.Unimplemented, "method FindTraces not implemented")
@@ -1745,6 +2207,27 @@ func _TraceReader_GetOperations_Handler(srv interface{}, ctx context.Context, de
 		return srv.(TraceReaderServer).GetOperations(ctx, req.(*GetOperationsRequest))
 	}
 	return interceptor(ctx, in, info, handler)
+}
+
+func _TraceReader_FindSpans_Handler(srv interface{}, stream grpc.ServerStream) error {
+	m := new(FindSpansRequest)
+	if err := stream.RecvMsg(m); err != nil {
+		return err
+	}
+	return srv.(TraceReaderServer).FindSpans(m, &traceReaderFindSpansServer{stream})
+}
+
+type TraceReader_FindSpansServer interface {
+	Send(*FindSpansResponse) error
+	grpc.ServerStream
+}
+
+type traceReaderFindSpansServer struct {
+	grpc.ServerStream
+}
+
+func (x *traceReaderFindSpansServer) Send(m *FindSpansResponse) error {
+	return x.ServerStream.SendMsg(m)
 }
 
 func _TraceReader_FindTraces_Handler(srv interface{}, stream grpc.ServerStream) error {
@@ -1828,6 +2311,11 @@ var _TraceReader_serviceDesc = grpc.ServiceDesc{
 		{
 			StreamName:    "GetTraces",
 			Handler:       _TraceReader_GetTraces_Handler,
+			ServerStreams: true,
+		},
+		{
+			StreamName:    "FindSpans",
+			Handler:       _TraceReader_FindSpans_Handler,
 			ServerStreams: true,
 		},
 		{
@@ -2423,6 +2911,18 @@ func (m *TraceQueryParameters) MarshalToSizedBuffer(dAtA []byte) (int, error) {
 		i -= len(m.XXX_unrecognized)
 		copy(dAtA[i:], m.XXX_unrecognized)
 	}
+	if m.Pagination != nil {
+		{
+			size, err := m.Pagination.MarshalToSizedBuffer(dAtA[:i])
+			if err != nil {
+				return 0, err
+			}
+			i -= size
+			i = encodeVarintTraceStorage(dAtA, i, uint64(size))
+		}
+		i--
+		dAtA[i] = 0x52
+	}
 	if m.Filter != nil {
 		{
 			size, err := m.Filter.MarshalToSizedBuffer(dAtA[:i])
@@ -2440,36 +2940,36 @@ func (m *TraceQueryParameters) MarshalToSizedBuffer(dAtA []byte) (int, error) {
 		i--
 		dAtA[i] = 0x40
 	}
-	n7, err7 := github_com_gogo_protobuf_types.StdDurationMarshalTo(m.DurationMax, dAtA[i-github_com_gogo_protobuf_types.SizeOfStdDuration(m.DurationMax):])
-	if err7 != nil {
-		return 0, err7
-	}
-	i -= n7
-	i = encodeVarintTraceStorage(dAtA, i, uint64(n7))
-	i--
-	dAtA[i] = 0x3a
-	n8, err8 := github_com_gogo_protobuf_types.StdDurationMarshalTo(m.DurationMin, dAtA[i-github_com_gogo_protobuf_types.SizeOfStdDuration(m.DurationMin):])
+	n8, err8 := github_com_gogo_protobuf_types.StdDurationMarshalTo(m.DurationMax, dAtA[i-github_com_gogo_protobuf_types.SizeOfStdDuration(m.DurationMax):])
 	if err8 != nil {
 		return 0, err8
 	}
 	i -= n8
 	i = encodeVarintTraceStorage(dAtA, i, uint64(n8))
 	i--
-	dAtA[i] = 0x32
-	n9, err9 := github_com_gogo_protobuf_types.StdTimeMarshalTo(m.StartTimeMax, dAtA[i-github_com_gogo_protobuf_types.SizeOfStdTime(m.StartTimeMax):])
+	dAtA[i] = 0x3a
+	n9, err9 := github_com_gogo_protobuf_types.StdDurationMarshalTo(m.DurationMin, dAtA[i-github_com_gogo_protobuf_types.SizeOfStdDuration(m.DurationMin):])
 	if err9 != nil {
 		return 0, err9
 	}
 	i -= n9
 	i = encodeVarintTraceStorage(dAtA, i, uint64(n9))
 	i--
-	dAtA[i] = 0x2a
-	n10, err10 := github_com_gogo_protobuf_types.StdTimeMarshalTo(m.StartTimeMin, dAtA[i-github_com_gogo_protobuf_types.SizeOfStdTime(m.StartTimeMin):])
+	dAtA[i] = 0x32
+	n10, err10 := github_com_gogo_protobuf_types.StdTimeMarshalTo(m.StartTimeMax, dAtA[i-github_com_gogo_protobuf_types.SizeOfStdTime(m.StartTimeMax):])
 	if err10 != nil {
 		return 0, err10
 	}
 	i -= n10
 	i = encodeVarintTraceStorage(dAtA, i, uint64(n10))
+	i--
+	dAtA[i] = 0x2a
+	n11, err11 := github_com_gogo_protobuf_types.StdTimeMarshalTo(m.StartTimeMin, dAtA[i-github_com_gogo_protobuf_types.SizeOfStdTime(m.StartTimeMin):])
+	if err11 != nil {
+		return 0, err11
+	}
+	i -= n11
+	i = encodeVarintTraceStorage(dAtA, i, uint64(n11))
 	i--
 	dAtA[i] = 0x22
 	if len(m.Attributes) > 0 {
@@ -2497,6 +2997,257 @@ func (m *TraceQueryParameters) MarshalToSizedBuffer(dAtA []byte) (int, error) {
 		i -= len(m.ServiceName)
 		copy(dAtA[i:], m.ServiceName)
 		i = encodeVarintTraceStorage(dAtA, i, uint64(len(m.ServiceName)))
+		i--
+		dAtA[i] = 0xa
+	}
+	return len(dAtA) - i, nil
+}
+
+func (m *Pagination) Marshal() (dAtA []byte, err error) {
+	size := m.Size()
+	dAtA = make([]byte, size)
+	n, err := m.MarshalToSizedBuffer(dAtA[:size])
+	if err != nil {
+		return nil, err
+	}
+	return dAtA[:n], nil
+}
+
+func (m *Pagination) MarshalTo(dAtA []byte) (int, error) {
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *Pagination) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
+	_ = i
+	var l int
+	_ = l
+	if m.XXX_unrecognized != nil {
+		i -= len(m.XXX_unrecognized)
+		copy(dAtA[i:], m.XXX_unrecognized)
+	}
+	if len(m.PageToken) > 0 {
+		i -= len(m.PageToken)
+		copy(dAtA[i:], m.PageToken)
+		i = encodeVarintTraceStorage(dAtA, i, uint64(len(m.PageToken)))
+		i--
+		dAtA[i] = 0x12
+	}
+	if m.PageSize != 0 {
+		i = encodeVarintTraceStorage(dAtA, i, uint64(m.PageSize))
+		i--
+		dAtA[i] = 0x8
+	}
+	return len(dAtA) - i, nil
+}
+
+func (m *SpanQueryParameters) Marshal() (dAtA []byte, err error) {
+	size := m.Size()
+	dAtA = make([]byte, size)
+	n, err := m.MarshalToSizedBuffer(dAtA[:size])
+	if err != nil {
+		return nil, err
+	}
+	return dAtA[:n], nil
+}
+
+func (m *SpanQueryParameters) MarshalTo(dAtA []byte) (int, error) {
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *SpanQueryParameters) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
+	_ = i
+	var l int
+	_ = l
+	if m.XXX_unrecognized != nil {
+		i -= len(m.XXX_unrecognized)
+		copy(dAtA[i:], m.XXX_unrecognized)
+	}
+	if len(m.OrderBy) > 0 {
+		for iNdEx := len(m.OrderBy) - 1; iNdEx >= 0; iNdEx-- {
+			{
+				size, err := m.OrderBy[iNdEx].MarshalToSizedBuffer(dAtA[:i])
+				if err != nil {
+					return 0, err
+				}
+				i -= size
+				i = encodeVarintTraceStorage(dAtA, i, uint64(size))
+			}
+			i--
+			dAtA[i] = 0x2a
+		}
+	}
+	if m.Pagination != nil {
+		{
+			size, err := m.Pagination.MarshalToSizedBuffer(dAtA[:i])
+			if err != nil {
+				return 0, err
+			}
+			i -= size
+			i = encodeVarintTraceStorage(dAtA, i, uint64(size))
+		}
+		i--
+		dAtA[i] = 0x22
+	}
+	if m.Filter != nil {
+		{
+			size, err := m.Filter.MarshalToSizedBuffer(dAtA[:i])
+			if err != nil {
+				return 0, err
+			}
+			i -= size
+			i = encodeVarintTraceStorage(dAtA, i, uint64(size))
+		}
+		i--
+		dAtA[i] = 0x1a
+	}
+	n14, err14 := github_com_gogo_protobuf_types.StdTimeMarshalTo(m.StartTimeMax, dAtA[i-github_com_gogo_protobuf_types.SizeOfStdTime(m.StartTimeMax):])
+	if err14 != nil {
+		return 0, err14
+	}
+	i -= n14
+	i = encodeVarintTraceStorage(dAtA, i, uint64(n14))
+	i--
+	dAtA[i] = 0x12
+	n15, err15 := github_com_gogo_protobuf_types.StdTimeMarshalTo(m.StartTimeMin, dAtA[i-github_com_gogo_protobuf_types.SizeOfStdTime(m.StartTimeMin):])
+	if err15 != nil {
+		return 0, err15
+	}
+	i -= n15
+	i = encodeVarintTraceStorage(dAtA, i, uint64(n15))
+	i--
+	dAtA[i] = 0xa
+	return len(dAtA) - i, nil
+}
+
+func (m *SpanSortOrder) Marshal() (dAtA []byte, err error) {
+	size := m.Size()
+	dAtA = make([]byte, size)
+	n, err := m.MarshalToSizedBuffer(dAtA[:size])
+	if err != nil {
+		return nil, err
+	}
+	return dAtA[:n], nil
+}
+
+func (m *SpanSortOrder) MarshalTo(dAtA []byte) (int, error) {
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *SpanSortOrder) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
+	_ = i
+	var l int
+	_ = l
+	if m.XXX_unrecognized != nil {
+		i -= len(m.XXX_unrecognized)
+		copy(dAtA[i:], m.XXX_unrecognized)
+	}
+	if len(m.Direction) > 0 {
+		i -= len(m.Direction)
+		copy(dAtA[i:], m.Direction)
+		i = encodeVarintTraceStorage(dAtA, i, uint64(len(m.Direction)))
+		i--
+		dAtA[i] = 0x12
+	}
+	if m.Expression != nil {
+		{
+			size, err := m.Expression.MarshalToSizedBuffer(dAtA[:i])
+			if err != nil {
+				return 0, err
+			}
+			i -= size
+			i = encodeVarintTraceStorage(dAtA, i, uint64(size))
+		}
+		i--
+		dAtA[i] = 0xa
+	}
+	return len(dAtA) - i, nil
+}
+
+func (m *FindSpansRequest) Marshal() (dAtA []byte, err error) {
+	size := m.Size()
+	dAtA = make([]byte, size)
+	n, err := m.MarshalToSizedBuffer(dAtA[:size])
+	if err != nil {
+		return nil, err
+	}
+	return dAtA[:n], nil
+}
+
+func (m *FindSpansRequest) MarshalTo(dAtA []byte) (int, error) {
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *FindSpansRequest) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
+	_ = i
+	var l int
+	_ = l
+	if m.XXX_unrecognized != nil {
+		i -= len(m.XXX_unrecognized)
+		copy(dAtA[i:], m.XXX_unrecognized)
+	}
+	if m.Query != nil {
+		{
+			size, err := m.Query.MarshalToSizedBuffer(dAtA[:i])
+			if err != nil {
+				return 0, err
+			}
+			i -= size
+			i = encodeVarintTraceStorage(dAtA, i, uint64(size))
+		}
+		i--
+		dAtA[i] = 0xa
+	}
+	return len(dAtA) - i, nil
+}
+
+func (m *FindSpansResponse) Marshal() (dAtA []byte, err error) {
+	size := m.Size()
+	dAtA = make([]byte, size)
+	n, err := m.MarshalToSizedBuffer(dAtA[:size])
+	if err != nil {
+		return nil, err
+	}
+	return dAtA[:n], nil
+}
+
+func (m *FindSpansResponse) MarshalTo(dAtA []byte) (int, error) {
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *FindSpansResponse) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
+	_ = i
+	var l int
+	_ = l
+	if m.XXX_unrecognized != nil {
+		i -= len(m.XXX_unrecognized)
+		copy(dAtA[i:], m.XXX_unrecognized)
+	}
+	if len(m.NextPageToken) > 0 {
+		i -= len(m.NextPageToken)
+		copy(dAtA[i:], m.NextPageToken)
+		i = encodeVarintTraceStorage(dAtA, i, uint64(len(m.NextPageToken)))
+		i--
+		dAtA[i] = 0x1a
+	}
+	if m.Spans != nil {
+		{
+			size, err := m.Spans.MarshalToSizedBuffer(dAtA[:i])
+			if err != nil {
+				return 0, err
+			}
+			i -= size
+			i = encodeVarintTraceStorage(dAtA, i, uint64(size))
+		}
 		i--
 		dAtA[i] = 0xa
 	}
@@ -2605,20 +3356,20 @@ func (m *FoundTraceID) MarshalToSizedBuffer(dAtA []byte) (int, error) {
 		i -= len(m.XXX_unrecognized)
 		copy(dAtA[i:], m.XXX_unrecognized)
 	}
-	n13, err13 := github_com_gogo_protobuf_types.StdTimeMarshalTo(m.End, dAtA[i-github_com_gogo_protobuf_types.SizeOfStdTime(m.End):])
-	if err13 != nil {
-		return 0, err13
+	n21, err21 := github_com_gogo_protobuf_types.StdTimeMarshalTo(m.End, dAtA[i-github_com_gogo_protobuf_types.SizeOfStdTime(m.End):])
+	if err21 != nil {
+		return 0, err21
 	}
-	i -= n13
-	i = encodeVarintTraceStorage(dAtA, i, uint64(n13))
+	i -= n21
+	i = encodeVarintTraceStorage(dAtA, i, uint64(n21))
 	i--
 	dAtA[i] = 0x1a
-	n14, err14 := github_com_gogo_protobuf_types.StdTimeMarshalTo(m.Start, dAtA[i-github_com_gogo_protobuf_types.SizeOfStdTime(m.Start):])
-	if err14 != nil {
-		return 0, err14
+	n22, err22 := github_com_gogo_protobuf_types.StdTimeMarshalTo(m.Start, dAtA[i-github_com_gogo_protobuf_types.SizeOfStdTime(m.Start):])
+	if err22 != nil {
+		return 0, err22
 	}
-	i -= n14
-	i = encodeVarintTraceStorage(dAtA, i, uint64(n14))
+	i -= n22
+	i = encodeVarintTraceStorage(dAtA, i, uint64(n22))
 	i--
 	dAtA[i] = 0x12
 	if len(m.TraceId) > 0 {
@@ -2654,6 +3405,13 @@ func (m *FindTraceIDsResponse) MarshalToSizedBuffer(dAtA []byte) (int, error) {
 	if m.XXX_unrecognized != nil {
 		i -= len(m.XXX_unrecognized)
 		copy(dAtA[i:], m.XXX_unrecognized)
+	}
+	if len(m.NextPageToken) > 0 {
+		i -= len(m.NextPageToken)
+		copy(dAtA[i:], m.NextPageToken)
+		i = encodeVarintTraceStorage(dAtA, i, uint64(len(m.NextPageToken)))
+		i--
+		dAtA[i] = 0x12
 	}
 	if len(m.TraceIds) > 0 {
 		for iNdEx := len(m.TraceIds) - 1; iNdEx >= 0; iNdEx-- {
@@ -2867,6 +3625,13 @@ func (m *FindTraceSummariesResponse) MarshalToSizedBuffer(dAtA []byte) (int, err
 	if m.XXX_unrecognized != nil {
 		i -= len(m.XXX_unrecognized)
 		copy(dAtA[i:], m.XXX_unrecognized)
+	}
+	if len(m.NextPageToken) > 0 {
+		i -= len(m.NextPageToken)
+		copy(dAtA[i:], m.NextPageToken)
+		i = encodeVarintTraceStorage(dAtA, i, uint64(len(m.NextPageToken)))
+		i--
+		dAtA[i] = 0x12
 	}
 	if len(m.Summaries) > 0 {
 		for iNdEx := len(m.Summaries) - 1; iNdEx >= 0; iNdEx-- {
@@ -3201,6 +3966,115 @@ func (m *TraceQueryParameters) Size() (n int) {
 		l = m.Filter.Size()
 		n += 1 + l + sovTraceStorage(uint64(l))
 	}
+	if m.Pagination != nil {
+		l = m.Pagination.Size()
+		n += 1 + l + sovTraceStorage(uint64(l))
+	}
+	if m.XXX_unrecognized != nil {
+		n += len(m.XXX_unrecognized)
+	}
+	return n
+}
+
+func (m *Pagination) Size() (n int) {
+	if m == nil {
+		return 0
+	}
+	var l int
+	_ = l
+	if m.PageSize != 0 {
+		n += 1 + sovTraceStorage(uint64(m.PageSize))
+	}
+	l = len(m.PageToken)
+	if l > 0 {
+		n += 1 + l + sovTraceStorage(uint64(l))
+	}
+	if m.XXX_unrecognized != nil {
+		n += len(m.XXX_unrecognized)
+	}
+	return n
+}
+
+func (m *SpanQueryParameters) Size() (n int) {
+	if m == nil {
+		return 0
+	}
+	var l int
+	_ = l
+	l = github_com_gogo_protobuf_types.SizeOfStdTime(m.StartTimeMin)
+	n += 1 + l + sovTraceStorage(uint64(l))
+	l = github_com_gogo_protobuf_types.SizeOfStdTime(m.StartTimeMax)
+	n += 1 + l + sovTraceStorage(uint64(l))
+	if m.Filter != nil {
+		l = m.Filter.Size()
+		n += 1 + l + sovTraceStorage(uint64(l))
+	}
+	if m.Pagination != nil {
+		l = m.Pagination.Size()
+		n += 1 + l + sovTraceStorage(uint64(l))
+	}
+	if len(m.OrderBy) > 0 {
+		for _, e := range m.OrderBy {
+			l = e.Size()
+			n += 1 + l + sovTraceStorage(uint64(l))
+		}
+	}
+	if m.XXX_unrecognized != nil {
+		n += len(m.XXX_unrecognized)
+	}
+	return n
+}
+
+func (m *SpanSortOrder) Size() (n int) {
+	if m == nil {
+		return 0
+	}
+	var l int
+	_ = l
+	if m.Expression != nil {
+		l = m.Expression.Size()
+		n += 1 + l + sovTraceStorage(uint64(l))
+	}
+	l = len(m.Direction)
+	if l > 0 {
+		n += 1 + l + sovTraceStorage(uint64(l))
+	}
+	if m.XXX_unrecognized != nil {
+		n += len(m.XXX_unrecognized)
+	}
+	return n
+}
+
+func (m *FindSpansRequest) Size() (n int) {
+	if m == nil {
+		return 0
+	}
+	var l int
+	_ = l
+	if m.Query != nil {
+		l = m.Query.Size()
+		n += 1 + l + sovTraceStorage(uint64(l))
+	}
+	if m.XXX_unrecognized != nil {
+		n += len(m.XXX_unrecognized)
+	}
+	return n
+}
+
+func (m *FindSpansResponse) Size() (n int) {
+	if m == nil {
+		return 0
+	}
+	var l int
+	_ = l
+	if m.Spans != nil {
+		l = m.Spans.Size()
+		n += 1 + l + sovTraceStorage(uint64(l))
+	}
+	l = len(m.NextPageToken)
+	if l > 0 {
+		n += 1 + l + sovTraceStorage(uint64(l))
+	}
 	if m.XXX_unrecognized != nil {
 		n += len(m.XXX_unrecognized)
 	}
@@ -3270,6 +4144,10 @@ func (m *FindTraceIDsResponse) Size() (n int) {
 			l = e.Size()
 			n += 1 + l + sovTraceStorage(uint64(l))
 		}
+	}
+	l = len(m.NextPageToken)
+	if l > 0 {
+		n += 1 + l + sovTraceStorage(uint64(l))
 	}
 	if m.XXX_unrecognized != nil {
 		n += len(m.XXX_unrecognized)
@@ -3371,6 +4249,10 @@ func (m *FindTraceSummariesResponse) Size() (n int) {
 			l = e.Size()
 			n += 1 + l + sovTraceStorage(uint64(l))
 		}
+	}
+	l = len(m.NextPageToken)
+	if l > 0 {
+		n += 1 + l + sovTraceStorage(uint64(l))
 	}
 	if m.XXX_unrecognized != nil {
 		n += len(m.XXX_unrecognized)
@@ -4910,6 +5792,692 @@ func (m *TraceQueryParameters) Unmarshal(dAtA []byte) error {
 				return err
 			}
 			iNdEx = postIndex
+		case 10:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Pagination", wireType)
+			}
+			var msglen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowTraceStorage
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				msglen |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if msglen < 0 {
+				return ErrInvalidLengthTraceStorage
+			}
+			postIndex := iNdEx + msglen
+			if postIndex < 0 {
+				return ErrInvalidLengthTraceStorage
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			if m.Pagination == nil {
+				m.Pagination = &Pagination{}
+			}
+			if err := m.Pagination.Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
+				return err
+			}
+			iNdEx = postIndex
+		default:
+			iNdEx = preIndex
+			skippy, err := skipTraceStorage(dAtA[iNdEx:])
+			if err != nil {
+				return err
+			}
+			if (skippy < 0) || (iNdEx+skippy) < 0 {
+				return ErrInvalidLengthTraceStorage
+			}
+			if (iNdEx + skippy) > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.XXX_unrecognized = append(m.XXX_unrecognized, dAtA[iNdEx:iNdEx+skippy]...)
+			iNdEx += skippy
+		}
+	}
+
+	if iNdEx > l {
+		return io.ErrUnexpectedEOF
+	}
+	return nil
+}
+func (m *Pagination) Unmarshal(dAtA []byte) error {
+	l := len(dAtA)
+	iNdEx := 0
+	for iNdEx < l {
+		preIndex := iNdEx
+		var wire uint64
+		for shift := uint(0); ; shift += 7 {
+			if shift >= 64 {
+				return ErrIntOverflowTraceStorage
+			}
+			if iNdEx >= l {
+				return io.ErrUnexpectedEOF
+			}
+			b := dAtA[iNdEx]
+			iNdEx++
+			wire |= uint64(b&0x7F) << shift
+			if b < 0x80 {
+				break
+			}
+		}
+		fieldNum := int32(wire >> 3)
+		wireType := int(wire & 0x7)
+		if wireType == 4 {
+			return fmt.Errorf("proto: Pagination: wiretype end group for non-group")
+		}
+		if fieldNum <= 0 {
+			return fmt.Errorf("proto: Pagination: illegal tag %d (wire type %d)", fieldNum, wire)
+		}
+		switch fieldNum {
+		case 1:
+			if wireType != 0 {
+				return fmt.Errorf("proto: wrong wireType = %d for field PageSize", wireType)
+			}
+			m.PageSize = 0
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowTraceStorage
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				m.PageSize |= uint32(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+		case 2:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field PageToken", wireType)
+			}
+			var stringLen uint64
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowTraceStorage
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				stringLen |= uint64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			intStringLen := int(stringLen)
+			if intStringLen < 0 {
+				return ErrInvalidLengthTraceStorage
+			}
+			postIndex := iNdEx + intStringLen
+			if postIndex < 0 {
+				return ErrInvalidLengthTraceStorage
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.PageToken = string(dAtA[iNdEx:postIndex])
+			iNdEx = postIndex
+		default:
+			iNdEx = preIndex
+			skippy, err := skipTraceStorage(dAtA[iNdEx:])
+			if err != nil {
+				return err
+			}
+			if (skippy < 0) || (iNdEx+skippy) < 0 {
+				return ErrInvalidLengthTraceStorage
+			}
+			if (iNdEx + skippy) > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.XXX_unrecognized = append(m.XXX_unrecognized, dAtA[iNdEx:iNdEx+skippy]...)
+			iNdEx += skippy
+		}
+	}
+
+	if iNdEx > l {
+		return io.ErrUnexpectedEOF
+	}
+	return nil
+}
+func (m *SpanQueryParameters) Unmarshal(dAtA []byte) error {
+	l := len(dAtA)
+	iNdEx := 0
+	for iNdEx < l {
+		preIndex := iNdEx
+		var wire uint64
+		for shift := uint(0); ; shift += 7 {
+			if shift >= 64 {
+				return ErrIntOverflowTraceStorage
+			}
+			if iNdEx >= l {
+				return io.ErrUnexpectedEOF
+			}
+			b := dAtA[iNdEx]
+			iNdEx++
+			wire |= uint64(b&0x7F) << shift
+			if b < 0x80 {
+				break
+			}
+		}
+		fieldNum := int32(wire >> 3)
+		wireType := int(wire & 0x7)
+		if wireType == 4 {
+			return fmt.Errorf("proto: SpanQueryParameters: wiretype end group for non-group")
+		}
+		if fieldNum <= 0 {
+			return fmt.Errorf("proto: SpanQueryParameters: illegal tag %d (wire type %d)", fieldNum, wire)
+		}
+		switch fieldNum {
+		case 1:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field StartTimeMin", wireType)
+			}
+			var msglen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowTraceStorage
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				msglen |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if msglen < 0 {
+				return ErrInvalidLengthTraceStorage
+			}
+			postIndex := iNdEx + msglen
+			if postIndex < 0 {
+				return ErrInvalidLengthTraceStorage
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			if err := github_com_gogo_protobuf_types.StdTimeUnmarshal(&m.StartTimeMin, dAtA[iNdEx:postIndex]); err != nil {
+				return err
+			}
+			iNdEx = postIndex
+		case 2:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field StartTimeMax", wireType)
+			}
+			var msglen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowTraceStorage
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				msglen |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if msglen < 0 {
+				return ErrInvalidLengthTraceStorage
+			}
+			postIndex := iNdEx + msglen
+			if postIndex < 0 {
+				return ErrInvalidLengthTraceStorage
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			if err := github_com_gogo_protobuf_types.StdTimeUnmarshal(&m.StartTimeMax, dAtA[iNdEx:postIndex]); err != nil {
+				return err
+			}
+			iNdEx = postIndex
+		case 3:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Filter", wireType)
+			}
+			var msglen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowTraceStorage
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				msglen |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if msglen < 0 {
+				return ErrInvalidLengthTraceStorage
+			}
+			postIndex := iNdEx + msglen
+			if postIndex < 0 {
+				return ErrInvalidLengthTraceStorage
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			if m.Filter == nil {
+				m.Filter = &v1.Call{}
+			}
+			if err := m.Filter.Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
+				return err
+			}
+			iNdEx = postIndex
+		case 4:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Pagination", wireType)
+			}
+			var msglen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowTraceStorage
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				msglen |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if msglen < 0 {
+				return ErrInvalidLengthTraceStorage
+			}
+			postIndex := iNdEx + msglen
+			if postIndex < 0 {
+				return ErrInvalidLengthTraceStorage
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			if m.Pagination == nil {
+				m.Pagination = &Pagination{}
+			}
+			if err := m.Pagination.Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
+				return err
+			}
+			iNdEx = postIndex
+		case 5:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field OrderBy", wireType)
+			}
+			var msglen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowTraceStorage
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				msglen |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if msglen < 0 {
+				return ErrInvalidLengthTraceStorage
+			}
+			postIndex := iNdEx + msglen
+			if postIndex < 0 {
+				return ErrInvalidLengthTraceStorage
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.OrderBy = append(m.OrderBy, &SpanSortOrder{})
+			if err := m.OrderBy[len(m.OrderBy)-1].Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
+				return err
+			}
+			iNdEx = postIndex
+		default:
+			iNdEx = preIndex
+			skippy, err := skipTraceStorage(dAtA[iNdEx:])
+			if err != nil {
+				return err
+			}
+			if (skippy < 0) || (iNdEx+skippy) < 0 {
+				return ErrInvalidLengthTraceStorage
+			}
+			if (iNdEx + skippy) > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.XXX_unrecognized = append(m.XXX_unrecognized, dAtA[iNdEx:iNdEx+skippy]...)
+			iNdEx += skippy
+		}
+	}
+
+	if iNdEx > l {
+		return io.ErrUnexpectedEOF
+	}
+	return nil
+}
+func (m *SpanSortOrder) Unmarshal(dAtA []byte) error {
+	l := len(dAtA)
+	iNdEx := 0
+	for iNdEx < l {
+		preIndex := iNdEx
+		var wire uint64
+		for shift := uint(0); ; shift += 7 {
+			if shift >= 64 {
+				return ErrIntOverflowTraceStorage
+			}
+			if iNdEx >= l {
+				return io.ErrUnexpectedEOF
+			}
+			b := dAtA[iNdEx]
+			iNdEx++
+			wire |= uint64(b&0x7F) << shift
+			if b < 0x80 {
+				break
+			}
+		}
+		fieldNum := int32(wire >> 3)
+		wireType := int(wire & 0x7)
+		if wireType == 4 {
+			return fmt.Errorf("proto: SpanSortOrder: wiretype end group for non-group")
+		}
+		if fieldNum <= 0 {
+			return fmt.Errorf("proto: SpanSortOrder: illegal tag %d (wire type %d)", fieldNum, wire)
+		}
+		switch fieldNum {
+		case 1:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Expression", wireType)
+			}
+			var msglen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowTraceStorage
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				msglen |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if msglen < 0 {
+				return ErrInvalidLengthTraceStorage
+			}
+			postIndex := iNdEx + msglen
+			if postIndex < 0 {
+				return ErrInvalidLengthTraceStorage
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			if m.Expression == nil {
+				m.Expression = &v1.Expression{}
+			}
+			if err := m.Expression.Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
+				return err
+			}
+			iNdEx = postIndex
+		case 2:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Direction", wireType)
+			}
+			var stringLen uint64
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowTraceStorage
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				stringLen |= uint64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			intStringLen := int(stringLen)
+			if intStringLen < 0 {
+				return ErrInvalidLengthTraceStorage
+			}
+			postIndex := iNdEx + intStringLen
+			if postIndex < 0 {
+				return ErrInvalidLengthTraceStorage
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.Direction = string(dAtA[iNdEx:postIndex])
+			iNdEx = postIndex
+		default:
+			iNdEx = preIndex
+			skippy, err := skipTraceStorage(dAtA[iNdEx:])
+			if err != nil {
+				return err
+			}
+			if (skippy < 0) || (iNdEx+skippy) < 0 {
+				return ErrInvalidLengthTraceStorage
+			}
+			if (iNdEx + skippy) > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.XXX_unrecognized = append(m.XXX_unrecognized, dAtA[iNdEx:iNdEx+skippy]...)
+			iNdEx += skippy
+		}
+	}
+
+	if iNdEx > l {
+		return io.ErrUnexpectedEOF
+	}
+	return nil
+}
+func (m *FindSpansRequest) Unmarshal(dAtA []byte) error {
+	l := len(dAtA)
+	iNdEx := 0
+	for iNdEx < l {
+		preIndex := iNdEx
+		var wire uint64
+		for shift := uint(0); ; shift += 7 {
+			if shift >= 64 {
+				return ErrIntOverflowTraceStorage
+			}
+			if iNdEx >= l {
+				return io.ErrUnexpectedEOF
+			}
+			b := dAtA[iNdEx]
+			iNdEx++
+			wire |= uint64(b&0x7F) << shift
+			if b < 0x80 {
+				break
+			}
+		}
+		fieldNum := int32(wire >> 3)
+		wireType := int(wire & 0x7)
+		if wireType == 4 {
+			return fmt.Errorf("proto: FindSpansRequest: wiretype end group for non-group")
+		}
+		if fieldNum <= 0 {
+			return fmt.Errorf("proto: FindSpansRequest: illegal tag %d (wire type %d)", fieldNum, wire)
+		}
+		switch fieldNum {
+		case 1:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Query", wireType)
+			}
+			var msglen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowTraceStorage
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				msglen |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if msglen < 0 {
+				return ErrInvalidLengthTraceStorage
+			}
+			postIndex := iNdEx + msglen
+			if postIndex < 0 {
+				return ErrInvalidLengthTraceStorage
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			if m.Query == nil {
+				m.Query = &SpanQueryParameters{}
+			}
+			if err := m.Query.Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
+				return err
+			}
+			iNdEx = postIndex
+		default:
+			iNdEx = preIndex
+			skippy, err := skipTraceStorage(dAtA[iNdEx:])
+			if err != nil {
+				return err
+			}
+			if (skippy < 0) || (iNdEx+skippy) < 0 {
+				return ErrInvalidLengthTraceStorage
+			}
+			if (iNdEx + skippy) > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.XXX_unrecognized = append(m.XXX_unrecognized, dAtA[iNdEx:iNdEx+skippy]...)
+			iNdEx += skippy
+		}
+	}
+
+	if iNdEx > l {
+		return io.ErrUnexpectedEOF
+	}
+	return nil
+}
+func (m *FindSpansResponse) Unmarshal(dAtA []byte) error {
+	l := len(dAtA)
+	iNdEx := 0
+	for iNdEx < l {
+		preIndex := iNdEx
+		var wire uint64
+		for shift := uint(0); ; shift += 7 {
+			if shift >= 64 {
+				return ErrIntOverflowTraceStorage
+			}
+			if iNdEx >= l {
+				return io.ErrUnexpectedEOF
+			}
+			b := dAtA[iNdEx]
+			iNdEx++
+			wire |= uint64(b&0x7F) << shift
+			if b < 0x80 {
+				break
+			}
+		}
+		fieldNum := int32(wire >> 3)
+		wireType := int(wire & 0x7)
+		if wireType == 4 {
+			return fmt.Errorf("proto: FindSpansResponse: wiretype end group for non-group")
+		}
+		if fieldNum <= 0 {
+			return fmt.Errorf("proto: FindSpansResponse: illegal tag %d (wire type %d)", fieldNum, wire)
+		}
+		switch fieldNum {
+		case 1:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Spans", wireType)
+			}
+			var msglen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowTraceStorage
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				msglen |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if msglen < 0 {
+				return ErrInvalidLengthTraceStorage
+			}
+			postIndex := iNdEx + msglen
+			if postIndex < 0 {
+				return ErrInvalidLengthTraceStorage
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			if m.Spans == nil {
+				m.Spans = &v11.TracesData{}
+			}
+			if err := m.Spans.Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
+				return err
+			}
+			iNdEx = postIndex
+		case 3:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field NextPageToken", wireType)
+			}
+			var stringLen uint64
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowTraceStorage
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				stringLen |= uint64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			intStringLen := int(stringLen)
+			if intStringLen < 0 {
+				return ErrInvalidLengthTraceStorage
+			}
+			postIndex := iNdEx + intStringLen
+			if postIndex < 0 {
+				return ErrInvalidLengthTraceStorage
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.NextPageToken = string(dAtA[iNdEx:postIndex])
+			iNdEx = postIndex
 		default:
 			iNdEx = preIndex
 			skippy, err := skipTraceStorage(dAtA[iNdEx:])
@@ -5319,6 +6887,38 @@ func (m *FindTraceIDsResponse) Unmarshal(dAtA []byte) error {
 			if err := m.TraceIds[len(m.TraceIds)-1].Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
 				return err
 			}
+			iNdEx = postIndex
+		case 2:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field NextPageToken", wireType)
+			}
+			var stringLen uint64
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowTraceStorage
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				stringLen |= uint64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			intStringLen := int(stringLen)
+			if intStringLen < 0 {
+				return ErrInvalidLengthTraceStorage
+			}
+			postIndex := iNdEx + intStringLen
+			if postIndex < 0 {
+				return ErrInvalidLengthTraceStorage
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.NextPageToken = string(dAtA[iNdEx:postIndex])
 			iNdEx = postIndex
 		default:
 			iNdEx = preIndex
@@ -5872,6 +7472,38 @@ func (m *FindTraceSummariesResponse) Unmarshal(dAtA []byte) error {
 			if err := m.Summaries[len(m.Summaries)-1].Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
 				return err
 			}
+			iNdEx = postIndex
+		case 2:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field NextPageToken", wireType)
+			}
+			var stringLen uint64
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowTraceStorage
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				stringLen |= uint64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			intStringLen := int(stringLen)
+			if intStringLen < 0 {
+				return ErrInvalidLengthTraceStorage
+			}
+			postIndex := iNdEx + intStringLen
+			if postIndex < 0 {
+				return ErrInvalidLengthTraceStorage
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.NextPageToken = string(dAtA[iNdEx:postIndex])
 			iNdEx = postIndex
 		default:
 			iNdEx = preIndex

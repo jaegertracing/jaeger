@@ -13,6 +13,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	ast "github.com/jaegertracing/jaeger-idl/query/expression/v1"
+	"github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore"
 )
 
 // p is the builder under test. Predicate holds no state, so one value serves every case.
@@ -58,6 +59,14 @@ func TestLowering(t *testing.T) {
 			}},
 		},
 		{
+			name:  "reference built elsewhere",
+			built: p.RefOf(&ast.FieldRef{Name: ast.SpanFieldDuration, Level: ast.LevelSpan}).Gt("2s"),
+			want: &ast.Call{Op: ast.OpGt, Args: []ast.Expression{
+				&ast.FieldRef{Name: ast.SpanFieldDuration, Level: ast.LevelSpan},
+				&ast.AnyValue{Value: "2s"},
+			}},
+		},
+		{
 			name:  "regular expression",
 			built: p.Span().Name.Matches("GET|POST"),
 			want: &ast.Call{Op: ast.OpRegex, Args: []ast.Expression{
@@ -89,6 +98,22 @@ func TestLowering(t *testing.T) {
 			}},
 		},
 		{
+			name:  "phrase, whose words travel as an untyped list",
+			built: p.Attr("gen_ai.prompt").Phrase("refund", "policy"),
+			want: &ast.Call{Op: ast.OpPhrase, Args: []ast.Expression{
+				&ast.AttributeRef{Key: "gen_ai.prompt"},
+				&ast.List{Values: []string{"refund", "policy"}},
+			}},
+		},
+		{
+			name:  "fulltext, with the same list shape",
+			built: p.Attr("gen_ai.prompt").Fulltext("refund", "policy"),
+			want: &ast.Call{Op: ast.OpFulltext, Args: []ast.Expression{
+				&ast.AttributeRef{Key: "gen_ai.prompt"},
+				&ast.List{Values: []string{"refund", "policy"}},
+			}},
+		},
+		{
 			name:  "membership",
 			built: p.Resource().Service.In("cart", "checkout"),
 			want: &ast.Call{Op: ast.OpIn, Args: []ast.Expression{
@@ -106,7 +131,7 @@ func TestLowering(t *testing.T) {
 		},
 		{
 			name:  "constant narrowed to text",
-			built: p.Attr("size").Eq(p.Text("4096")),
+			built: p.Attr("size").Eq(p.String("4096")),
 			want: &ast.Call{Op: ast.OpEq, Args: []ast.Expression{
 				&ast.AttributeRef{Key: "size"},
 				&ast.StringValue{Value: "4096"},
@@ -188,7 +213,7 @@ func TestLowering(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			assert.Equal(t, test.want, test.built)
-			require.NoError(t, ast.ValidateFilter(test.built))
+			require.NoError(t, tracestore.ValidateFilter(test.built))
 		})
 	}
 }
@@ -232,7 +257,11 @@ func TestConstantLeavesTheTypeOpen(t *testing.T) {
 		{"a duration against the field that holds one", p.Span().Duration.Gt(2 * time.Second), &ast.AnyValue{Value: "2s"}},
 
 		// Narrowing on purpose, which is the one way to get a typed node.
-		{"text asked for explicitly", p.Attr("size").Eq(p.Text("500")), &ast.StringValue{Value: "500"}},
+		{"string asked for explicitly", p.Attr("size").Eq(p.String("500")), &ast.StringValue{Value: "500"}},
+		{"integer asked for explicitly", p.Attr("size").Eq(p.Int(500)), &ast.IntValue{Value: 500}},
+		{"double asked for explicitly", p.Attr("ratio").Eq(p.Double(1.5)), &ast.DoubleValue{Value: 1.5}},
+		{"boolean asked for explicitly", p.Attr("ok").Eq(p.Bool(true)), &ast.BoolValue{Value: true}},
+		{"duration asked for explicitly", p.Attr("d").Gt(p.Duration(time.Second)), &ast.DurationValue{Value: time.Second}},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
@@ -245,8 +274,9 @@ func TestConstantLeavesTheTypeOpen(t *testing.T) {
 // attribute it has to declare one, because nothing else does and the AST requires it; compared
 // against a built-in field it declares none, since the field's own type says how to read the
 // elements — which is also the only way to write a list of durations, the wire having no duration
-// type (RFC 0005 §5.4).
-func TestListDeclaresItsElementType(t *testing.T) {
+// TestListLeavesTheElementTypeToTheCaller pins that the values a caller passes never produce a
+// declared type, whatever the reference and whatever the Go types (RFC 0005 §5.4).
+func TestListLeavesTheElementTypeToTheCaller(t *testing.T) {
 	tests := []struct {
 		name  string
 		built *ast.Call
@@ -255,27 +285,27 @@ func TestListDeclaresItsElementType(t *testing.T) {
 		{
 			name:  "strings against an attribute",
 			built: p.Attr("k").In("cart", "checkout"),
-			want:  &ast.List{Values: []string{"cart", "checkout"}, Type: ast.ValueTypeString},
+			want:  &ast.List{Values: []string{"cart", "checkout"}},
 		},
 		{
-			name:  "integers against an attribute",
+			name:  "integers against an attribute, which say nothing about how they were stored",
 			built: p.Attr("size").In(1, 2),
-			want:  &ast.List{Values: []string{"1", "2"}, Type: ast.ValueTypeInt},
+			want:  &ast.List{Values: []string{"1", "2"}},
 		},
 		{
 			name:  "floating-point numbers against an attribute",
 			built: p.Attr("ratio").In(1.5, float32(0.5)),
-			want:  &ast.List{Values: []string{"1.5", "0.5"}, Type: ast.ValueTypeDouble},
+			want:  &ast.List{Values: []string{"1.5", "0.5"}},
 		},
 		{
 			name:  "booleans against an attribute",
 			built: p.Attr("ok").In(true, false),
-			want:  &ast.List{Values: []string{"true", "false"}, Type: ast.ValueTypeBool},
+			want:  &ast.List{Values: []string{"true", "false"}},
 		},
 		{
-			name:  "mixed kinds, which read as text",
+			name:  "mixed kinds",
 			built: p.Attr("k").In("cart", 500),
-			want:  &ast.List{Values: []string{"cart", "500"}, Type: ast.ValueTypeString},
+			want:  &ast.List{Values: []string{"cart", "500"}},
 		},
 		{
 			name:  "durations against the field that holds them",
@@ -290,12 +320,12 @@ func TestListDeclaresItsElementType(t *testing.T) {
 		{
 			name:  "durations against an attribute, which are text however Go holds them",
 			built: p.Attr("latency").In(time.Second, 2*time.Second),
-			want:  &ast.List{Values: []string{"1s", "2s"}, Type: ast.ValueTypeString},
+			want:  &ast.List{Values: []string{"1s", "2s"}},
 		},
 		{
 			name:  "instants against an attribute",
 			built: p.Attr("deadline").In(time.Date(2026, 8, 18, 0, 0, 0, 0, time.UTC)),
-			want:  &ast.List{Values: []string{"2026-08-18T00:00:00Z"}, Type: ast.ValueTypeString},
+			want:  &ast.List{Values: []string{"2026-08-18T00:00:00Z"}},
 		},
 		{
 			name:  "a list built outright, which says its own type",
@@ -310,14 +340,14 @@ func TestListDeclaresItsElementType(t *testing.T) {
 	}
 }
 
-// TestListElementText covers how a Go value is written into a list, whose elements stay text
-// because that is what the AST holds them as. These are of mixed kinds, so the list reads as text.
+// TestListElementText covers how a Go value is written into a list. The elements stay text,
+// because the AST stores them as text.
 func TestListElementText(t *testing.T) {
 	instant := time.Date(2026, 8, 16, 18, 56, 20, 0, time.UTC)
 	assert.Equal(t,
 		&ast.List{Values: []string{
 			"cart", "500", "1.5", "0.5", "true", "2s", "2026-08-16T18:56:20Z",
-		}, Type: ast.ValueTypeString},
+		}},
 		p.Attr("k").In("cart", 500, 1.5, float32(0.5), true, 2*time.Second, instant).Args[1])
 }
 
@@ -328,7 +358,7 @@ func TestValueWithoutOwnRendering(t *testing.T) {
 		&ast.AnyValue{Value: "[1 2]"},
 		p.Attr("ids").Eq([]int{1, 2}).Args[1])
 	assert.Equal(t,
-		&ast.List{Values: []string{"[1 2]"}, Type: ast.ValueTypeString},
+		&ast.List{Values: []string{"[1 2]"}},
 		p.Attr("ids").In([]int{1, 2}).Args[1])
 }
 
@@ -360,7 +390,7 @@ func TestCombineFlattens(t *testing.T) {
 	t.Run("a nil predicate is carried through to be refused", func(t *testing.T) {
 		built := p.And(first, nil)
 		require.Len(t, built.Args, 2)
-		require.Error(t, ast.ValidateFilter(built))
+		require.Error(t, tracestore.ValidateFilter(built))
 	})
 }
 
@@ -396,7 +426,7 @@ func TestEveryAccessorNamesABuiltInField(t *testing.T) {
 		refs := accessors(t, object)
 		require.NotEmpty(t, refs)
 		for _, ref := range refs {
-			require.NoError(t, ast.ValidateFilter(
+			require.NoError(t, tracestore.ValidateFilter(
 				&ast.Call{Op: ast.OpExists, Args: []ast.Expression{ref}},
 			))
 			assert.Equal(t, level, ref.Level)
@@ -419,4 +449,40 @@ func accessors(t *testing.T, object any) []*ast.FieldRef {
 		refs = append(refs, ref)
 	}
 	return refs
+}
+
+// TestEveryOperatorHasAMethod is the operator counterpart of TestEveryBuiltInFieldHasAnAccessor:
+// jaeger-idl defines the operator vocabulary, and an operator added there has to fail this test
+// rather than leave the builder quietly unable to write it. The chains below are the builder's
+// whole operator surface, each lowered with placeholder operands, so the table doubles as the
+// check that each method writes the operator it is named for.
+func TestEveryOperatorHasAMethod(t *testing.T) {
+	ref := p.Attr("a")
+	byOperator := map[ast.Operator]*ast.Call{
+		ast.OpAnd:      p.And(ref.Exists(), ref.Exists()),
+		ast.OpOr:       p.Or(ref.Exists(), ref.Exists()),
+		ast.OpNot:      p.Not(ref.Exists()),
+		ast.OpEq:       ref.Eq(1),
+		ast.OpNe:       ref.Ne(1),
+		ast.OpGt:       ref.Gt(1),
+		ast.OpLt:       ref.Lt(1),
+		ast.OpGte:      ref.Gte(1),
+		ast.OpLte:      ref.Lte(1),
+		ast.OpRegex:    ref.Matches("a"),
+		ast.OpExists:   ref.Exists(),
+		ast.OpIn:       ref.In(1),
+		ast.OpNotIn:    ref.NotIn(1),
+		ast.OpSome:     p.Some(p.Event(), ref.Exists()),
+		ast.OpPhrase:   ref.Phrase("a", "b"),
+		ast.OpFulltext: ref.Fulltext("a", "b"),
+	}
+	for _, op := range ast.Operators() {
+		t.Run(string(op), func(t *testing.T) {
+			built, ok := byOperator[op]
+			require.True(t, ok, "add a builder method for operator %q and list it here", op)
+			require.NotNil(t, built)
+			assert.Equal(t, op, built.Op)
+		})
+	}
+	assert.Len(t, byOperator, len(ast.Operators()), "the table names an operator the vocabulary does not define")
 }

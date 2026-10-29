@@ -43,6 +43,35 @@ func TestBindFlags(t *testing.T) {
 	assert.Equal(t, "admin", c.Password)
 }
 
+func TestInitFromViper_IndexPrefix(t *testing.T) {
+	tests := []struct {
+		name     string
+		prefix   string
+		expected string
+	}{
+		{"no prefix", "", ""},
+		{"no trailing dash", "tenant1", "tenant1-"},
+		{"trailing dash already present", "tenant1-", "tenant1-"},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			v := viper.New()
+			c := &Config{}
+			command := cobra.Command{}
+			flags := &flag.FlagSet{}
+			c.AddFlags(flags)
+			command.PersistentFlags().AddGoFlagSet(flags)
+			v.BindPFlags(command.PersistentFlags())
+
+			err := command.ParseFlags([]string{"--index-prefix=" + test.prefix})
+			require.NoError(t, err)
+
+			require.NoError(t, c.InitFromViper(v))
+			assert.Equal(t, test.expected, c.IndexPrefix)
+		})
+	}
+}
+
 func TestInitFromViper_AuthFlagsBind(t *testing.T) {
 	tests := []struct {
 		name  string

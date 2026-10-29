@@ -72,11 +72,11 @@ func dbSpansToSpans(dbSpans []dbmodel.Span, resourceSpans ptrace.ResourceSpansSl
 }
 
 func dbSpanToSpan(dbSpan *dbmodel.Span, span ptrace.Span) error {
-	traceId, err := convertTraceIDFromDB(dbSpan.TraceID)
+	traceId, err := dbSpan.TraceID.ToOTEL()
 	if err != nil {
 		return err
 	}
-	spanId, err := fromDbSpanId(dbSpan.SpanID)
+	spanId, err := dbSpan.SpanID.ToOTEL()
 	if err != nil {
 		return err
 	}
@@ -111,7 +111,7 @@ func dbSpanToSpan(dbSpan *dbmodel.Span, span ptrace.Span) error {
 	}
 	dbParentSpanId := getParentSpanId(dbSpan)
 	if dbParentSpanId != "" {
-		parentSpanId, err := fromDbSpanId(dbParentSpanId)
+		parentSpanId, err := dbParentSpanId.ToOTEL()
 		if err != nil {
 			return err
 		}
@@ -340,11 +340,11 @@ func dbSpanRefsToSpanEvents(refs []dbmodel.Reference, excludeParentID dbmodel.Sp
 		}
 
 		link := spanLinks.AppendEmpty()
-		refTraceId, err := convertTraceIDFromDB(ref.TraceID)
+		refTraceId, err := ref.TraceID.ToOTEL()
 		if err != nil {
 			return err
 		}
-		refSpanId, err := fromDbSpanId(ref.SpanID)
+		refSpanId, err := ref.SpanID.ToOTEL()
 		if err != nil {
 			return err
 		}

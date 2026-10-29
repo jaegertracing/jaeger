@@ -41,6 +41,7 @@ jobs:
     permissions:
       actions: read
       contents: read
+      # Required to upload CodeQL SARIF to the code-scanning API.
       security-events: write
     uses: ./.github/workflows/codeql.yml
     secrets: inherit

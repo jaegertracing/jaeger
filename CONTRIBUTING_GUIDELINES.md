@@ -40,7 +40,25 @@ We do not assign issues to contributors. It is almost never the case that multip
 people jump on the same issue, and practice showed that occasionally people who ask
 for an issue to be assigned to them later have a change in priorities and are unable
 to find time to finish it, which leaves the issue in limbo.
-So if you have a desire to work on an issue, feel free to mention it in the comment and just submit a PR.
+So if you have a desire to work on an issue, feel free to mention it in the
+comment, then link the pull request to the issue as described in
+[Link each pull request to an issue](#link-each-pull-request-to-an-issue).
+
+### Link each pull request to an issue
+
+Every pull request must be linked to the issue it addresses. Use a GitHub closing
+keyword in the PR description, for example `Fixes #123`, or explicitly link the
+issue in GitHub's sidebar, so GitHub records the canonical issue relationship. A
+bare issue number in a title, commit, or comment is not sufficient. A closing
+keyword that appears only in a commit message does not link the open PR to the
+issue for this policy.
+
+Only one active PR may normally be linked to an issue. Drafts and maintainer PRs
+count. If another active PR is already linked, coordinate with its author and
+maintainers instead of starting duplicate work. The repository may label a
+duplicate PR and point to the primary PR; this does not close the PR. For umbrella
+issues or intentionally competing implementations, a maintainer may apply the
+`allow-multiple-prs` label to the issue.
 
 ### Creating a pull request
 
@@ -88,44 +106,12 @@ Each PR should have:
   * Capitalize the title
   * Do not end the title with a period
   * Use the imperative mood in the title
-* A description of the problem it is solving. It could be simply a reference to the corresponding issue, e.g. `Resolves #123`.
+* A description of the problem it is solving, including the required canonical link to the corresponding issue, e.g. `Resolves #123`.
 * A summary of changes made to solve the problem. Explain _what_ and _why_ instead of _how_.
 
 ## AI Usage Policy
 
-### Goals
-
-This policy exists to:
-
-- **Keep the effort balanced** – Before AI, contributors did most of the work (writing, testing, understanding). We want to keep it that way. AI should help you, not replace your effort.
-- **Protect maintainer time** – Large, low-quality AI-generated PRs shift the burden to reviewers. We want to avoid that.
-- **Ensure understanding** – Contributors should understand and be able to explain every change they submit.
-- **Keep conversations human** – Code review is a discussion between people, not bots.
-
-### Good use of AI
-
-- Using AI to help you understand the code.
-- Using AI to write drafts of code, tests, or docs.
-- Using AI to explore ideas or try different approaches.
-- Saying "AI helped me write this" in your PR description.
-
-### Disallowed use of AI
-
-- Copy-pasting AI output without reading or understanding it.
-- Submitting AI-generated code without testing.
-- Using AI to reply to review comments – reviewers want to talk to you, not a bot.
-
-### Your responsibility
-
-- You own everything you submit, even if AI wrote it.
-- You must understand your code well enough to explain it.
-- You must run tests locally before opening or updating a PR.
-- If AI wrote a big part of your PR, mention that in the PR description.
-
-### Enforcement
-
-- PRs that look like low-effort AI slop will be closed.
-- Repeated violators may be banned from the project.
+The use of AI tools when contributing to Jaeger is governed by a separate document, [AI_POLICY.md](./AI_POLICY.md). Read it before submitting AI-assisted work.
 
 ## Pull Request Limits for New Contributors
 

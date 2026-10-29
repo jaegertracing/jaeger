@@ -4,9 +4,11 @@
 package mappings
 
 import (
+	"flag"
 	"fmt"
 
 	"github.com/spf13/cobra"
+	"go.opentelemetry.io/collector/featuregate"
 
 	es "github.com/jaegertracing/jaeger/internal/storage/elasticsearch"
 )
@@ -20,6 +22,8 @@ type Options struct {
 	IndexPrefix   string
 	UseILM        string // using string as util is being used in python and using bool leads to type issues.
 	ILMPolicyName string
+	// SpanNumericAttributes mirrors indices.spans.numeric_attributes for the span template.
+	SpanNumericAttributes bool
 }
 
 // resolveBackendVersion selects the backend version from the generator's two
@@ -40,14 +44,15 @@ func resolveBackendVersion(backendToken string, legacyEsVersion uint) (es.Backen
 }
 
 const (
-	mappingFlag       = "mapping"
-	backendFlag       = "backend"
-	esVersionFlag     = "es-version"
-	shardsFlag        = "shards"
-	replicasFlag      = "replicas"
-	indexPrefixFlag   = "index-prefix"
-	useILMFlag        = "use-ilm"
-	ilmPolicyNameFlag = "ilm-policy-name"
+	mappingFlag               = "mapping"
+	backendFlag               = "backend"
+	esVersionFlag             = "es-version"
+	shardsFlag                = "shards"
+	replicasFlag              = "replicas"
+	indexPrefixFlag           = "index-prefix"
+	useILMFlag                = "use-ilm"
+	ilmPolicyNameFlag         = "ilm-policy-name"
+	spanNumericAttributesFlag = "span-numeric-attributes"
 )
 
 // AddFlags adds flags for esmapping-generator main program
@@ -106,6 +111,19 @@ func (o *Options) AddFlags(command *cobra.Command) {
 		"jaeger-ilm-policy",
 		"The name of the ILM policy to use if ILM is active",
 	)
+	command.Flags().BoolVar(
+		&o.SpanNumericAttributes,
+		spanNumericAttributesFlag,
+		false,
+		"Index attribute values as numbers beside the keyword in the jaeger-span template, matching indices.spans.numeric_attributes in the jaeger configuration",
+	)
+
+	// Some feature gates change the rendered template, so the generator has to be
+	// able to set them the same way the collector binary does. RegisterFlags writes
+	// straight into the global registry, so there is no Options field to carry.
+	goFlags := flag.NewFlagSet("", flag.ContinueOnError)
+	featuregate.GlobalRegistry().RegisterFlags(goFlags)
+	command.Flags().AddGoFlagSet(goFlags)
 
 	// mark mapping flag as mandatory
 	command.MarkFlagRequired(mappingFlag)

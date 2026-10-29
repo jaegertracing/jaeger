@@ -18,9 +18,11 @@ import (
 )
 
 var (
-	errNoProvider        = errors.New("no sampling strategy provider specified, expecting 'adaptive' or 'file'")
-	errMultipleProviders = errors.New("only one sampling strategy provider can be specified, 'adaptive' or 'file'")
-	errNegativeInterval  = errors.New("reload interval must be a positive value, or zero to disable automatic reloading")
+	errNoProvider                   = errors.New("no sampling strategy provider specified, expecting 'adaptive' or 'file'")
+	errMultipleProviders            = errors.New("only one sampling strategy provider can be specified, 'adaptive' or 'file'")
+	errNegativeInterval             = errors.New("reload interval must be a positive value, or zero to disable automatic reloading")
+	errLeaderLeaseRefreshInterval   = errors.New("leader_lease_refresh_interval must be a positive value")
+	errFollowerLeaseRefreshInterval = errors.New("follower_lease_refresh_interval must be a positive value")
 )
 
 var (
@@ -73,10 +75,18 @@ func (cfg *Config) Validate() error {
 	}
 
 	if cfg.Adaptive.HasValue() {
+		adaptiveCfg := cfg.Adaptive.Get()
 		// Validate adaptive config fields
-		_, err := govalidator.ValidateStruct(cfg.Adaptive.Get())
+		_, err := govalidator.ValidateStruct(adaptiveCfg)
 		if err != nil {
 			return err
+		}
+		// Leader election uses these intervals for time.NewTicker, which panics on non-positive values.
+		if adaptiveCfg.LeaderLeaseRefreshInterval <= 0 {
+			return errLeaderLeaseRefreshInterval
+		}
+		if adaptiveCfg.FollowerLeaseRefreshInterval <= 0 {
+			return errFollowerLeaseRefreshInterval
 		}
 	}
 

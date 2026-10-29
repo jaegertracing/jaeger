@@ -101,7 +101,7 @@ type Query struct {
 	StartTimeMax  time.Time
 	DurationMin   time.Duration
 	DurationMax   time.Duration
-	NumTraces     int
+	NumTraces     uint32
 }
 
 func (q *Query) ToTraceQueryParams(t *testing.T) *tracestore.TraceQueryParams {
@@ -213,10 +213,16 @@ func (s *StorageIntegration) testGetServices(t *testing.T) {
 			// If the storage backend returns more services than expected, let's log traces for those
 			t.Log("🛑 Found unexpected services!")
 			for _, service := range actual {
+				// Attributes and SearchDepth are not optional: readers dereference the map
+				// before anything else, where a zero value panics, and the memory store
+				// rejects a non-positive depth. 100 is what Cassandra and Elasticsearch
+				// default to when the field is unset, and it exceeds the whole corpus.
 				iterTraces := s.TraceReader.FindTraces(context.Background(), tracestore.TraceQueryParams{
 					ServiceName:  service,
+					Attributes:   pcommon.NewMap(),
 					StartTimeMin: time.Now().Add(-2 * time.Hour),
 					StartTimeMax: time.Now(),
+					SearchDepth:  100,
 				})
 				for traces, err := range iterTraces {
 					if err != nil {
@@ -247,13 +253,23 @@ func (s *StorageIntegration) assertTraceByID(
 	expected ptrace.Traces,
 	validator func(t *testing.T, actual ptrace.Traces),
 ) {
+	// The skip runs before the trace ID is read: a backend that skips the large or duplicate
+	// trace assertion has no such trace in its corpus.
 	s.skipIfNeeded(t)
+	s.assertTrace(t, tracestore.GetTraceParams{TraceID: jptrace.GetTraceID(expected)}, expected, validator)
+}
 
-	expectedTraceID := jptrace.GetTraceID(expected)
-
+// assertTrace loads one trace through GetTraces with the given parameters, waits until it holds
+// at least the expected spans, and hands it to validator. Callers run skipIfNeeded first.
+func (s *StorageIntegration) assertTrace(
+	t *testing.T,
+	params tracestore.GetTraceParams,
+	expected ptrace.Traces,
+	validator func(t *testing.T, actual ptrace.Traces),
+) {
 	actual := ptrace.NewTraces()
 	found := s.waitForCondition(t, func(_ *testing.T) bool {
-		iterTraces := s.TraceReader.GetTraces(context.Background(), tracestore.GetTraceParams{TraceID: expectedTraceID})
+		iterTraces := s.TraceReader.GetTraces(context.Background(), params)
 		traces, err := jiter.CollectWithErrors(jptrace.AggregateTraces(iterTraces))
 		if err != nil {
 			t.Logf("Error loading trace: %v", err)
@@ -276,6 +292,22 @@ func (s *StorageIntegration) assertTraceByID(
 	if validator != nil {
 		validator(t, actual)
 	}
+}
+
+// testGetTraceWithBounds reads the bounded trace with Start and End set to its first and last
+// span start. Every span lies inside the window, so the trace must come back whole.
+func (s *StorageIntegration) testGetTraceWithBounds(t *testing.T) {
+	s.skipIfNeeded(t)
+	expected := s.Corpus.Bounded
+	spans := expected.ResourceSpans().At(0).ScopeSpans().At(0).Spans()
+	params := tracestore.GetTraceParams{
+		TraceID: jptrace.GetTraceID(expected),
+		Start:   spans.At(0).StartTimestamp().AsTime(),
+		End:     spans.At(spans.Len() - 1).StartTimestamp().AsTime(),
+	}
+	s.assertTrace(t, params, expected, func(t *testing.T, actual ptrace.Traces) {
+		CompareTraces(t, expected, actual)
+	})
 }
 
 func (s *StorageIntegration) testGetLargeTrace(t *testing.T) {
@@ -432,9 +464,9 @@ func (s *StorageIntegration) testFindTraceSummaries(t *testing.T) {
 		}
 		summary = nil
 		for _, b := range batches {
-			for i := range b {
-				if b[i].TraceID == expectedTraceID {
-					sm := b[i]
+			for i := range b.Results {
+				if b.Results[i].TraceID == expectedTraceID {
+					sm := b.Results[i]
 					summary = &sm
 				}
 			}
@@ -458,9 +490,9 @@ func (s *StorageIntegration) testFindTraceSummaries(t *testing.T) {
 // cannot make — that the backend really reads an absent service name as "any service".
 //
 // The gate is the suite's per-backend opt-out, which CI populates from the STORAGE under
-// test, not the reader's own SearchCapabilities: in the e2e configuration that reader talks
-// to a query service over api_v3, which cannot report capabilities, so gating on it would
-// skip everywhere (RFC 0013 §3.7).
+// test, not the reader's own SearchCapabilities: a test that gates on the backend's
+// self-report would pass vacuously when the backend under-reports, whereas the harness
+// knows which backend it started (RFC 0013 §3.7).
 func (s *StorageIntegration) testFindTracesWithoutServiceName(t *testing.T) {
 	s.skipIfNeeded(t)
 	if s.Capabilities.SearchRequiresServiceName() {
@@ -737,10 +769,14 @@ func (s *StorageIntegration) AssertCorpus(t *testing.T) {
 	t.Run("GetServices", s.testGetServices)
 	t.Run("GetOperations", s.testGetOperations)
 	t.Run("GetTrace", s.testGetTrace)
+	t.Run("GetTraceWithBounds", s.testGetTraceWithBounds)
 	t.Run("GetLargeTrace", s.testGetLargeTrace)
 	t.Run("GetTraceWithDuplicateSpans", s.testGetTraceWithDuplicates)
 	t.Run("FindTraces", s.testFindTraces)
+	t.Run("FindCompleteTraces", s.testFindCompleteTraces)
 	t.Run("FindTracesWithFilter", s.testFindTracesWithFilter)
 	t.Run("FindTraceSummaries", s.testFindTraceSummaries)
+	t.Run("Pagination", s.testPagination)
+	t.Run("SpanOrdering", s.testSpanOrdering)
 	t.Run("FindTracesWithoutServiceName", s.testFindTracesWithoutServiceName)
 }
