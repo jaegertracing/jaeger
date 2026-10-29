@@ -14,8 +14,9 @@ When OCB generates a `main.go`, it wraps components in a plain
 - `docs` — generate CLI reference documentation
 - `elasticsearch-mappings` — create/update Elasticsearch index mappings
 
-Additionally, a standard Jaeger binary defaults to an embedded all-in-one
-configuration when no `--config` flag is supplied.
+Additionally, when all default components are included and no `--config`
+flag is supplied, a standard Jaeger binary falls back to an embedded
+all-in-one configuration.
 
 The **Workspace Overwrite** pattern solves this by letting OCB act as a
 *code generator only*, removing the generated entrypoint files, and then
@@ -23,118 +24,67 @@ providing a custom `main.go` that calls into Jaeger's exported `jaegercli` build
 
 ## Prerequisites
 
-- [OCB installed](https://github.com/open-telemetry/opentelemetry-collector/releases)
-  (`ocb` binary on your `$PATH`)
-- Go 1.26+
+- [OCB installed](https://github.com/open-telemetry/opentelemetry-collector-releases/releases)
+  (`ocb` binary on your `$PATH`, pinned to `v0.159.0` or the version declared in Jaeger's `internal/tools/go.mod`)
+- Go 1.27+
 
 ## Step 1 — Create a `builder-config.yaml`
 
-Start from Jaeger's reference builder manifest (`cmd/jaeger/builder.yaml`).
-Use a current release version (e.g. `v2.22.0`) across all `gomod:` entries so
-that OCB resolves all component facades and telemetry through Jaeger's curated dependencies.
-Do not include in-repo `replaces:`.
+Rather than maintaining a hand-copied manifest that can drift between releases,
+start by copying Jaeger's reference manifest [`cmd/jaeger/builder.yaml`](../builder.yaml)
+from the desired release tag (for example, `v2.22.0`).
 
-To include your own custom components, append them to the appropriate section
-(`extensions`, `receivers`, `exporters`, `processors`, or `connectors`).
+Make the following adjustments in your copied `builder-config.yaml`:
+
+1. Set `dist.module` to a neutral module path for your project (e.g. `example.com/jaeger-custom`), and set `dist.output_path` (e.g. `./dist`).
+2. Replace `v0.0.0` across all `gomod:` entries with the release commit's pseudo-version, such as `v1.76.1-0.20261006114434-462bb49fcff9` for `v2.22.0`.
+   > **Note on module versions:** Jaeger's repository module path is `github.com/jaegertracing/jaeger` without a `/v2` suffix. Because Go module tooling requires a `/vN` suffix for major versions $\ge 2$, `go mod tidy` rejects `v2.22.0` directly. What resolves in Go tooling is the commit's pseudo-version (which `go get github.com/jaegertracing/jaeger@v2.22.0` resolves automatically).
+3. Remove the in-repo `replaces:` section at the bottom of the file.
+4. Append any custom components to their respective sections (`extensions`, `receivers`, `exporters`, `processors`, or `connectors`).
+
+Here is an excerpt illustrating the modified sections:
 
 ```yaml
 dist:
-  module: github.com/jaegertracing/jaeger/cmd/jaeger/ocb-build
+  module: example.com/jaeger-custom
   name: jaeger-custom
-  description: Custom Jaeger distribution
+  description: Custom Jaeger distribution with additional components
   output_path: ./dist
 
 telemetry:
-  gomod: github.com/jaegertracing/jaeger v2.22.0
+  gomod: github.com/jaegertracing/jaeger v1.76.1-0.20261006114434-462bb49fcff9
   import: github.com/jaegertracing/jaeger/components/telemetry
 
 extensions:
-  - gomod: github.com/jaegertracing/jaeger v2.22.0
-    import: github.com/jaegertracing/jaeger/components/ext/extension/healthcheckv2extension
-  - gomod: github.com/jaegertracing/jaeger v2.22.0
-    import: github.com/jaegertracing/jaeger/components/ext/extension/pprofextension
-  - gomod: github.com/jaegertracing/jaeger v2.22.0
-    import: github.com/jaegertracing/jaeger/components/ext/extension/zpagesextension
-  - gomod: github.com/jaegertracing/jaeger v2.22.0
-    import: github.com/jaegertracing/jaeger/components/ext/extension/basicauthextension
-  - gomod: github.com/jaegertracing/jaeger v2.22.0
-    import: github.com/jaegertracing/jaeger/components/ext/extension/sigv4authextension
-  - gomod: github.com/jaegertracing/jaeger v2.22.0
+  # ... standard Jaeger extensions copied from builder.yaml ...
+  - gomod: github.com/jaegertracing/jaeger v1.76.1-0.20261006114434-462bb49fcff9
     import: github.com/jaegertracing/jaeger/components/extension/jaegerquery
-  - gomod: github.com/jaegertracing/jaeger v2.22.0
-    import: github.com/jaegertracing/jaeger/components/extension/jaegerstorage
-  - gomod: github.com/jaegertracing/jaeger v2.22.0
-    import: github.com/jaegertracing/jaeger/components/extension/remotesampling
-  - gomod: github.com/jaegertracing/jaeger v2.22.0
-    import: github.com/jaegertracing/jaeger/components/extension/expvar
-  - gomod: github.com/jaegertracing/jaeger v2.22.0
-    import: github.com/jaegertracing/jaeger/components/extension/remotestorage
-
-receivers:
-  - gomod: github.com/jaegertracing/jaeger v2.22.0
-    import: github.com/jaegertracing/jaeger/components/ext/receiver/otlpreceiver
-  - gomod: github.com/jaegertracing/jaeger v2.22.0
-    import: github.com/jaegertracing/jaeger/components/ext/receiver/nopreceiver
-  - gomod: github.com/jaegertracing/jaeger v2.22.0
-    import: github.com/jaegertracing/jaeger/components/ext/receiver/jaegerreceiver
-  - gomod: github.com/jaegertracing/jaeger v2.22.0
-    import: github.com/jaegertracing/jaeger/components/ext/receiver/kafkareceiver
-  - gomod: github.com/jaegertracing/jaeger v2.22.0
-    import: github.com/jaegertracing/jaeger/components/ext/receiver/zipkinreceiver
-
-exporters:
-  - gomod: github.com/jaegertracing/jaeger v2.22.0
-    import: github.com/jaegertracing/jaeger/components/ext/exporter/debugexporter
-  - gomod: github.com/jaegertracing/jaeger v2.22.0
-    import: github.com/jaegertracing/jaeger/components/ext/exporter/otlpexporter
-  - gomod: github.com/jaegertracing/jaeger v2.22.0
-    import: github.com/jaegertracing/jaeger/components/ext/exporter/otlphttpexporter
-  - gomod: github.com/jaegertracing/jaeger v2.22.0
-    import: github.com/jaegertracing/jaeger/components/ext/exporter/nopexporter
-  - gomod: github.com/jaegertracing/jaeger v2.22.0
-    import: github.com/jaegertracing/jaeger/components/exporter/storageexporter
-  - gomod: github.com/jaegertracing/jaeger v2.22.0
-    import: github.com/jaegertracing/jaeger/components/ext/exporter/kafkaexporter
-  - gomod: github.com/jaegertracing/jaeger v2.22.0
-    import: github.com/jaegertracing/jaeger/components/ext/exporter/prometheusexporter
 
 processors:
-  - gomod: github.com/jaegertracing/jaeger v2.22.0
-    import: github.com/jaegertracing/jaeger/components/ext/processor/batchprocessor
-  - gomod: github.com/jaegertracing/jaeger v2.22.0
-    import: github.com/jaegertracing/jaeger/components/ext/processor/memorylimiterprocessor
-  - gomod: github.com/jaegertracing/jaeger v2.22.0
-    import: github.com/jaegertracing/jaeger/components/ext/processor/tailsamplingprocessor
-  - gomod: github.com/jaegertracing/jaeger v2.22.0
-    import: github.com/jaegertracing/jaeger/components/ext/processor/attributesprocessor
-  - gomod: github.com/jaegertracing/jaeger v2.22.0
-    import: github.com/jaegertracing/jaeger/components/ext/processor/filterprocessor
-  - gomod: github.com/jaegertracing/jaeger v2.22.0
-    import: github.com/jaegertracing/jaeger/components/processor/adaptivesampling
-
-connectors:
-  - gomod: github.com/jaegertracing/jaeger v2.22.0
-    import: github.com/jaegertracing/jaeger/components/ext/connector/forwardconnector
-  - gomod: github.com/jaegertracing/jaeger v2.22.0
-    import: github.com/jaegertracing/jaeger/components/ext/connector/spanmetricsconnector
+  # ... standard Jaeger processors copied from builder.yaml ...
+  # Append your custom component:
+  - gomod: github.com/open-telemetry/opentelemetry-collector-contrib/processor/transformprocessor v0.159.0
+    import: github.com/open-telemetry/opentelemetry-collector-contrib/processor/transformprocessor
 ```
 
 ## Step 2 — Run OCB in generator-only mode
 
-Run `ocb` with `--skip-compilation` so it only acts as a code generator:
+Run `ocb` with `--skip-compilation` so it generates sources without compiling, and
+include `--skip-strict-versioning` so OCB's version check does not fail on minor collector
+version discrepancies:
 
 ```bash
-ocb --config builder-config.yaml --skip-compilation
+ocb --config builder-config.yaml --skip-compilation --skip-strict-versioning
 ```
 
-OCB generates the source tree in `./dist`, including `components.go`, `main.go`,
-and platform helper files (`main_others.go`, `main_windows.go`).
+OCB writes the generated Go code into `./dist`, including `components.go`,
+`main.go`, and platform helper files (`main_others.go`, `main_windows.go`).
 
 ## Step 3 — Replace the generated entrypoint
 
 OCB generates `main.go` alongside platform files `main_others.go` and `main_windows.go`.
 Because both platform files call `runInteractive` (which is defined in OCB's generated `main.go`),
-simply overwriting `main.go` leaves dangling references that break `go build`.
+leaving them in place while replacing only `main.go` leads to `undefined: runInteractive` errors.
 
 Delete all generated `main*.go` files first:
 
@@ -191,12 +141,14 @@ including all subcommands that are absent from a plain OCB-generated binary:
 ./jaeger-custom elasticsearch-mappings --help
 ```
 
-When run with no arguments or `--config` flag, it starts in default All-in-One
-mode just like the official Jaeger binary.
+When all default Jaeger components are retained and no `--config` flag is provided,
+the binary falls back to the embedded All-in-One configuration with memory storage.
+Note that UI static assets in custom distributions require building or serving separately,
+as raw builds bundle placeholder assets.
 
 ## Alternative: Programmatic Extension with `jaegercli.Components()`
 
-If you are developing a custom binary directly in Go rather than using OCB, you can
+If you are building a custom binary directly in Go rather than using OCB, you can
 start from Jaeger's default components and modify them programmatically using
 `jaegercli.Components()`:
 
@@ -232,7 +184,7 @@ func main() {
 builder-config.yaml
         │
         ▼
-  OCB (--skip-compilation)
+  OCB (--skip-compilation --skip-strict-versioning)
         │  generates
         ├─▶ dist/components.go      (component factories)
         └─▶ dist/main*.go           (deleted: main.go, main_others.go, main_windows.go)
@@ -247,9 +199,8 @@ builder-config.yaml
                 └─▶ version, docs, elasticsearch-mappings, ...
 ```
 
-This approach gives you:
-
-- ✅ A conflict-free dependency graph using Jaeger's curated facade modules
-- ✅ No need to clone the Jaeger repository
-- ✅ All Jaeger-specific CLI tooling and default All-in-One behavior preserved
-- ✅ Freedom to add custom OpenTelemetry Collector components via OCB
+This approach provides:
+- A conflict-free dependency graph that resolves transitively through Jaeger's curated module dependencies.
+- No need to clone or fork the Jaeger repository.
+- Full access to Jaeger-specific subcommands and default All-in-One configuration behavior.
+- Complete freedom to append custom OpenTelemetry Collector components.
