@@ -42,7 +42,11 @@ jobs:
     - uses: ./.github/actions/verify-metrics-snapshot
       if: matrix.storage_test == 'e2e'
       with:
-        snapshot: metrics_snapshot_clickhouse_${{ matrix.clickhouse_version }}
+        # scrapeMetrics names the file metrics_snapshot_<storage>.txt from the
+        # string passed to e2eInitialize ("clickhouse"), not the LTS line.
+        # The line belongs only on artifact_key, as with the other backends,
+        # so the two matrix jobs do not share one cache entry.
+        snapshot: metrics_snapshot_clickhouse
         artifact_key: metrics_snapshot_clickhouse_${{ matrix.clickhouse_version }}
 
     - name: Upload coverage to codecov
