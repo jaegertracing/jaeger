@@ -17,25 +17,17 @@ import (
 // tag builds a predicate on an unqualified attribute, whose constant declares no type because a
 // tag never did.
 func tag(op expression.Operator, key string, value string) *expression.Call {
-	return compare(op, &expression.AttributeRef{Key: key}, &expression.AnyValue{Value: value})
+	return p.Compare(op, p.Attr(key), value)
 }
 
 // text builds a predicate on a built-in field against a text constant.
 func text(op expression.Operator, level expression.Level, name string, value string) *expression.Call {
-	return compare(op,
-		&expression.FieldRef{Level: level, Name: name},
-		&expression.StringValue{Value: value})
+	return p.Compare(op, p.RefOf(&expression.FieldRef{Level: level, Name: name}), p.String(value))
 }
 
 // bound builds one of the inclusive duration bounds on span.duration.
 func bound(op expression.Operator, d time.Duration) *expression.Call {
-	return compare(op,
-		&expression.FieldRef{Level: expression.LevelSpan, Name: expression.SpanFieldDuration},
-		&expression.DurationValue{Value: d})
-}
-
-func compare(op expression.Operator, args ...expression.Expression) *expression.Call {
-	return &expression.Call{Op: op, Args: args}
+	return p.Compare(op, p.Span().Duration, p.Duration(d))
 }
 
 func filterQuery(filter *expression.Call) TraceQueryParams {
@@ -65,26 +57,20 @@ func TestToLegacyShape_Converts(t *testing.T) {
 			expected: TraceQueryParams{Attributes: attributes(map[string]string{"http.status_code": "500"})},
 		},
 		{
-			name: "a level-qualified attribute widens to an unqualified tag",
-			filter: compare(expression.OpEq,
-				&expression.AttributeRef{Key: "k8s.pod.name", Level: expression.LevelResource},
-				&expression.AnyValue{Value: "cart-0"}),
+			name:     "a level-qualified attribute widens to an unqualified tag",
+			filter:   p.Resource().Attr("k8s.pod.name").Eq("cart-0"),
 			expected: TraceQueryParams{Attributes: attributes(map[string]string{"k8s.pod.name": "cart-0"})},
 		},
 		{
-			name: "an event-level attribute widens too",
-			filter: compare(expression.OpEq,
-				&expression.AttributeRef{Key: "exception.type", Level: expression.LevelEvent},
-				&expression.AnyValue{Value: "IOError"}),
+			name:     "an event-level attribute widens too",
+			filter:   p.Event().Attr("exception.type").Eq("IOError"),
 			expected: TraceQueryParams{Attributes: attributes(map[string]string{"exception.type": "IOError"})},
 		},
 		{
 			// A tag holds whatever spelling was stored, so a text constant narrows to it and an
 			// untyped one leaves the type open; the legacy map carries a string either way.
-			name: "an attribute compared against a text constant",
-			filter: compare(expression.OpEq,
-				&expression.AttributeRef{Key: "http.method"},
-				&expression.StringValue{Value: "GET"}),
+			name:     "an attribute compared against a text constant",
+			filter:   p.Attr("http.method").Eq(p.String("GET")),
 			expected: TraceQueryParams{Attributes: attributes(map[string]string{"http.method": "GET"})},
 		},
 		{
@@ -99,7 +85,7 @@ func TestToLegacyShape_Converts(t *testing.T) {
 		},
 		{
 			name: "the inclusive duration bounds become the duration range",
-			filter: compare(expression.OpAnd,
+			filter: p.And(
 				bound(expression.OpGte, 2*time.Second),
 				bound(expression.OpLte, 90*time.Second)),
 			expected: TraceQueryParams{
@@ -110,7 +96,7 @@ func TestToLegacyShape_Converts(t *testing.T) {
 		},
 		{
 			name: "a conjunction fills several fields at once",
-			filter: compare(expression.OpAnd,
+			filter: p.And(
 				text(expression.OpEq, expression.LevelResource, expression.ResourceFieldService, "cart"),
 				tag(expression.OpEq, "http.method", "GET"),
 				tag(expression.OpEq, "http.status_code", "500")),
@@ -121,15 +107,19 @@ func TestToLegacyShape_Converts(t *testing.T) {
 		},
 		{
 			// `and` is associative, so a nested conjunction asks the same question as a flat one
-			// and is flattened rather than refused.
+			// and is flattened rather than refused. The builder flattens too, so the nesting is
+			// built by hand.
 			name: "a conjunction nested in a conjunction",
-			filter: compare(expression.OpAnd,
+			filter: &expression.Call{Op: expression.OpAnd, Args: []expression.Expression{
 				text(expression.OpEq, expression.LevelResource, expression.ResourceFieldService, "cart"),
-				compare(expression.OpAnd,
+				&expression.Call{Op: expression.OpAnd, Args: []expression.Expression{
 					tag(expression.OpEq, "http.method", "GET"),
-					compare(expression.OpAnd,
+					&expression.Call{Op: expression.OpAnd, Args: []expression.Expression{
 						tag(expression.OpEq, "http.status_code", "500"),
-						bound(expression.OpGte, 2*time.Second)))),
+						bound(expression.OpGte, 2*time.Second),
+					}},
+				}},
+			}},
 			expected: TraceQueryParams{
 				ServiceName: "cart",
 				DurationMin: 2 * time.Second,
@@ -163,26 +153,28 @@ func TestToLegacyShape_RefusesWhatTheFieldsCannotExpress(t *testing.T) {
 	}{
 		{
 			name: "a disjunction",
-			filter: compare(expression.OpOr,
+			filter: p.Or(
 				tag(expression.OpEq, "a", "1"), tag(expression.OpEq, "b", "1")),
 			expectedErr: `does not support the operator "or"`,
 		},
 		{
 			name:        "a negation",
-			filter:      compare(expression.OpNot, tag(expression.OpEq, "a", "1")),
+			filter:      p.Not(tag(expression.OpEq, "a", "1")),
 			expectedErr: `does not support the operator "not"`,
 		},
 		{
 			name: "a disjunction nested in a conjunction",
-			filter: compare(expression.OpAnd,
+			filter: p.And(
 				tag(expression.OpEq, "a", "1"),
-				compare(expression.OpOr, tag(expression.OpEq, "b", "1"), tag(expression.OpEq, "c", "1"))),
+				p.Or(tag(expression.OpEq, "b", "1"), tag(expression.OpEq, "c", "1"))),
 			expectedErr: `does not support the operator "or"`,
 		},
 		{
+			// The builder's And takes predicates only, so the stray reference is built by hand.
 			name: "a bare reference among the conjuncts",
-			filter: compare(expression.OpAnd,
-				tag(expression.OpEq, "a", "1"), &expression.AttributeRef{Key: "b"}),
+			filter: &expression.Call{Op: expression.OpAnd, Args: []expression.Expression{
+				tag(expression.OpEq, "a", "1"), &expression.AttributeRef{Key: "b"},
+			}},
 			expectedErr: "conjunction of predicates only",
 		},
 		{
@@ -206,17 +198,13 @@ func TestToLegacyShape_RefusesWhatTheFieldsCannotExpress(t *testing.T) {
 			expectedErr: `does not support the operator "ne" on "service"`,
 		},
 		{
-			name: "an attribute at a level no backend indexes",
-			filter: compare(expression.OpEq,
-				&expression.AttributeRef{Key: "peer.service", Level: expression.LevelLink},
-				&expression.AnyValue{Value: "cart"}),
+			name:        "an attribute at a level no backend indexes",
+			filter:      p.Link().Attr("peer.service").Eq("cart"),
 			expectedErr: `does not index the "link" level`,
 		},
 		{
-			name: "a scope-level attribute",
-			filter: compare(expression.OpEq,
-				&expression.AttributeRef{Key: "lib", Level: expression.LevelScope},
-				&expression.AnyValue{Value: "otel"}),
+			name:        "a scope-level attribute",
+			filter:      p.Scope().Attr("lib").Eq("otel"),
 			expectedErr: `does not index the "scope" level`,
 		},
 		{
@@ -225,90 +213,76 @@ func TestToLegacyShape_RefusesWhatTheFieldsCannotExpress(t *testing.T) {
 			expectedErr: `does not support the built-in field "kind" of the "span" level`,
 		},
 		{
-			name: "set membership",
-			filter: compare(expression.OpIn,
-				&expression.AttributeRef{Key: "http.status_code"},
-				&expression.List{Values: []string{"500", "503"}}),
+			name:        "set membership",
+			filter:      p.Attr("http.status_code").In("500", "503"),
 			expectedErr: `does not support the operator "in" on "http.status_code"`,
 		},
 		{
-			name: "an equality against a list",
-			filter: compare(expression.OpEq,
-				&expression.AttributeRef{Key: "http.status_code"},
-				&expression.List{Values: []string{"500"}}),
+			name:        "an equality against a list",
+			filter:      p.Attr("http.status_code").Eq(words("500")),
 			expectedErr: `compares "http.status_code" against a string constant only`,
 		},
 		{
-			name: "an equality of two references",
-			filter: compare(expression.OpEq,
-				&expression.AttributeRef{Key: "enduser.id", Level: expression.LevelSpan},
-				&expression.AttributeRef{Key: "enduser.id", Level: expression.LevelResource}),
+			name:        "an equality of two references",
+			filter:      p.Span().Attr("enduser.id").Eq(p.Resource().Attr("enduser.id")),
 			expectedErr: `compares "enduser.id" against a string constant only`,
 		},
 		{
 			// A tag is a string in the legacy map, so a constant that declares a type the map
 			// cannot name asks for a narrower match than it can make.
-			name: "a tag compared against an integer",
-			filter: compare(expression.OpEq,
-				&expression.AttributeRef{Key: "http.status_code"},
-				&expression.IntValue{Value: 500}),
+			name:        "a tag compared against an integer",
+			filter:      p.Attr("http.status_code").Eq(p.Int(500)),
 			expectedErr: `compares "http.status_code" against a string constant only`,
 		},
 		{
-			name: "the operation name compared against a boolean",
-			filter: compare(expression.OpEq,
-				&expression.FieldRef{Level: expression.LevelSpan, Name: expression.SpanFieldName},
-				&expression.BoolValue{Value: true}),
+			name:        "the operation name compared against a boolean",
+			filter:      p.Span().Name.Eq(p.Bool(true)),
 			expectedErr: `compares "name" against a string constant only`,
 		},
 		{
-			name: "a duration bound that is not a length of time",
-			filter: compare(expression.OpGte,
-				&expression.FieldRef{Level: expression.LevelSpan, Name: expression.SpanFieldDuration},
-				&expression.IntValue{Value: 2}),
+			name:        "a duration bound that is not a length of time",
+			filter:      p.Span().Duration.Gte(p.Int(2)),
 			expectedErr: `compares "duration" against a duration such as "2s" only`,
 		},
 		{
-			name: "a quantifier over the events",
-			filter: compare(expression.OpSome,
-				&expression.NestedRef{Level: expression.LevelEvent},
-				tag(expression.OpEq, "exception.type", "IOError")),
+			name:        "a quantifier over the events",
+			filter:      p.Some(p.Event(), tag(expression.OpEq, "exception.type", "IOError")),
 			expectedErr: "compares a reference against a constant only",
 		},
 		{
 			name:        "an existence test",
-			filter:      compare(expression.OpExists, &expression.AttributeRef{Key: "error"}),
+			filter:      p.Attr("error").Exists(),
 			expectedErr: `does not support the operator "exists"`,
 		},
 		{
 			name: "two predicates on the same attribute",
-			filter: compare(expression.OpAnd,
+			filter: p.And(
 				tag(expression.OpEq, "a", "1"), tag(expression.OpEq, "a", "2")),
 			expectedErr: `only one predicate on "a"`,
 		},
 		{
 			name: "two services",
-			filter: compare(expression.OpAnd,
+			filter: p.And(
 				text(expression.OpEq, expression.LevelResource, expression.ResourceFieldService, "cart"),
 				text(expression.OpEq, expression.LevelResource, expression.ResourceFieldService, "checkout")),
 			expectedErr: `only one predicate on "service"`,
 		},
 		{
 			name: "two operation names",
-			filter: compare(expression.OpAnd,
+			filter: p.And(
 				text(expression.OpEq, expression.LevelSpan, expression.SpanFieldName, "a"),
 				text(expression.OpEq, expression.LevelSpan, expression.SpanFieldName, "b")),
 			expectedErr: `only one predicate on "name"`,
 		},
 		{
 			name: "two lower duration bounds",
-			filter: compare(expression.OpAnd,
+			filter: p.And(
 				bound(expression.OpGte, time.Second), bound(expression.OpGte, 2*time.Second)),
 			expectedErr: `only one predicate on "duration"`,
 		},
 		{
 			name: "two upper duration bounds",
-			filter: compare(expression.OpAnd,
+			filter: p.And(
 				bound(expression.OpLte, time.Second), bound(expression.OpLte, 2*time.Second)),
 			expectedErr: `only one predicate on "duration"`,
 		},
@@ -329,9 +303,7 @@ func TestToLegacyShape_RefusesWhatTheFieldsCannotExpress(t *testing.T) {
 // spelling that is not a duration is refused, so an untyped bound here says the query path
 // skipped that rather than that the caller wrote the bound wrong.
 func TestToLegacyShape_RefusesAnUnresolvedDurationBound(t *testing.T) {
-	filter := compare(expression.OpGte,
-		&expression.FieldRef{Level: expression.LevelSpan, Name: expression.SpanFieldDuration},
-		&expression.AnyValue{Value: "2s"})
+	filter := p.Span().Duration.Gte("2s")
 	_, err := filterQuery(filter).ToLegacyShape()
 	require.ErrorIs(t, err, ErrFilterInvalid)
 	assert.Contains(t, err.Error(), `the bound "2s" on "duration" was never read as a duration`)

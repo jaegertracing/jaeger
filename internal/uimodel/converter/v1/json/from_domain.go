@@ -6,6 +6,7 @@ package json
 
 import (
 	"fmt"
+	"math"
 	"strings"
 
 	"github.com/jaegertracing/jaeger-idl/model/v1"
@@ -121,7 +122,18 @@ func (fromDomain) convertKeyValues(keyValues model.KeyValues) []uimodel.KeyValue
 				value = fmt.Sprintf("%d", value)
 			}
 		case model.Float64Type:
-			value = kv.Float64()
+			// encoding/json rejects NaN and ±Inf, so render them as strings.
+			f := kv.Float64()
+			switch {
+			case math.IsNaN(f):
+				value = "NaN"
+			case math.IsInf(f, 1):
+				value = "Infinity"
+			case math.IsInf(f, -1):
+				value = "-Infinity"
+			default:
+				value = f
+			}
 		case model.BinaryType:
 			value = kv.Binary()
 		default:

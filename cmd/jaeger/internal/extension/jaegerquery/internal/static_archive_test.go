@@ -93,7 +93,7 @@ func TestStaticHandlerServesAssetsArchive(t *testing.T) {
 	archive := writeArchive(t, gzipBytes(t, buildTar(t, releaseEntries())))
 	h, err := newStaticAssetsHandler(
 		&QueryOptions{UIConfig: UIConfig{AssetsPath: archive}},
-		nilBackendCaps,
+		noBackendCaps,
 		zap.NewNop(),
 	)
 	require.NoError(t, err)
@@ -128,7 +128,7 @@ func TestStaticHandlerServesArchiveConcurrently(t *testing.T) {
 		archiveEntry{name: uiArchivePrefix + "static/big.js", typeflag: tar.TypeReg, body: body})
 	h, err := newStaticAssetsHandler(
 		&QueryOptions{UIConfig: UIConfig{AssetsPath: writeArchive(t, gzipBytes(t, buildTar(t, entries)))}},
-		nilBackendCaps,
+		noBackendCaps,
 		zap.NewNop(),
 	)
 	require.NoError(t, err)
@@ -166,7 +166,7 @@ func TestStaticHandlerServesArchiveConcurrently(t *testing.T) {
 func TestStaticHandlerKeepsArchiveModTime(t *testing.T) {
 	h, err := newStaticAssetsHandler(
 		&QueryOptions{UIConfig: UIConfig{AssetsPath: writeArchive(t, gzipBytes(t, buildTar(t, releaseEntries())))}},
-		nilBackendCaps,
+		noBackendCaps,
 		zap.NewNop(),
 	)
 	require.NoError(t, err)
@@ -268,7 +268,7 @@ func TestLoadAssetsArchiveErrors(t *testing.T) {
 	t.Run("through the handler", func(t *testing.T) {
 		_, err := newStaticAssetsHandler(
 			&QueryOptions{UIConfig: UIConfig{AssetsPath: writeArchive(t, []byte("not a gzip stream"))}},
-			nilBackendCaps,
+			noBackendCaps,
 			zap.NewNop(),
 		)
 		require.ErrorContains(t, err, "cannot read UI assets archive")
