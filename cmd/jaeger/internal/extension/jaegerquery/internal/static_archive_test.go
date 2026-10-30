@@ -20,6 +20,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
+	"go.uber.org/zap/zaptest/observer"
 )
 
 // archiveModTime is the modification time buildTar gives every entry.
@@ -91,33 +92,42 @@ func readFromFS(t *testing.T, fsys http.FileSystem, name string) string {
 
 func TestStaticHandlerServesAssetsArchive(t *testing.T) {
 	archive := writeArchive(t, gzipBytes(t, buildTar(t, releaseEntries())))
-	h, err := newStaticAssetsHandler(
-		&QueryOptions{UIConfig: UIConfig{AssetsPath: archive}},
-		noBackendCaps,
-		zap.NewNop(),
-	)
-	require.NoError(t, err)
-	r := http.NewServeMux()
-	h.registerRoutes(r)
-	server := httptest.NewServer(r)
-	defer server.Close()
+	for _, basePath := range []string{"", "/jaeger"} {
+		t.Run("base path "+basePath, func(t *testing.T) {
+			zapCore, logs := observer.New(zap.InfoLevel)
+			h, err := newStaticAssetsHandler(
+				&QueryOptions{UIConfig: UIConfig{AssetsPath: archive}, BasePath: basePath},
+				noBackendCaps,
+				zap.New(zapCore),
+			)
+			require.NoError(t, err)
+			entries := logs.FilterMessage("Serving UI assets from archive").All()
+			require.Len(t, entries, 1)
+			assert.Equal(t, map[string]any{"path": archive, "files": int64(2)}, entries[0].ContextMap())
 
-	for _, tc := range []struct {
-		path     string
-		contains string
-	}{
-		{path: "/", contains: "archived JAEGER_VERSION = {"},
-		{path: "/search", contains: "archived JAEGER_VERSION = {"},
-		{path: "/static/app.js", contains: "console.log('archived');"},
-	} {
-		t.Run(tc.path, func(t *testing.T) {
-			resp, err := http.Get(server.URL + tc.path)
-			require.NoError(t, err)
-			defer resp.Body.Close()
-			assert.Equal(t, http.StatusOK, resp.StatusCode)
-			body, err := io.ReadAll(resp.Body)
-			require.NoError(t, err)
-			assert.Contains(t, string(body), tc.contains)
+			r := http.NewServeMux()
+			h.registerRoutes(r)
+			server := httptest.NewServer(r)
+			defer server.Close()
+
+			for _, tc := range []struct {
+				path     string
+				contains string
+			}{
+				{path: "/", contains: "archived JAEGER_VERSION = {"},
+				{path: "/search", contains: "archived JAEGER_VERSION = {"},
+				{path: "/static/app.js", contains: "console.log('archived');"},
+			} {
+				t.Run(tc.path, func(t *testing.T) {
+					resp, err := http.Get(server.URL + basePath + tc.path)
+					require.NoError(t, err)
+					defer resp.Body.Close()
+					assert.Equal(t, http.StatusOK, resp.StatusCode)
+					body, err := io.ReadAll(resp.Body)
+					require.NoError(t, err)
+					assert.Contains(t, string(body), tc.contains)
+				})
+			}
 		})
 	}
 }
@@ -190,7 +200,7 @@ func TestLoadAssetsArchiveSkipsEntries(t *testing.T) {
 		archiveEntry{name: uiArchivePrefix + "/absolute.txt", typeflag: tar.TypeReg, body: "absolute"},
 		archiveEntry{name: uiArchivePrefix + "link.txt", typeflag: tar.TypeSymlink, body: "/etc/passwd"},
 	)
-	fsys, err := loadAssetsArchive(writeArchive(t, gzipBytes(t, buildTar(t, entries))))
+	fsys, err := loadAssetsArchive(writeArchive(t, gzipBytes(t, buildTar(t, entries))), zap.NewNop())
 	require.NoError(t, err)
 
 	assert.Equal(t, "<html>archived JAEGER_VERSION = DEFAULT_VERSION;</html>", readFromFS(t, fsys, "/index.html"))
@@ -213,7 +223,7 @@ func TestLoadAssetsArchiveWithoutDirectoryEntries(t *testing.T) {
 		{name: uiArchivePrefix + "index.html", typeflag: tar.TypeReg, body: "index"},
 		{name: uiArchivePrefix + "static/nested/app.js", typeflag: tar.TypeReg, body: "app"},
 	}
-	fsys, err := loadAssetsArchive(writeArchive(t, gzipBytes(t, buildTar(t, entries))))
+	fsys, err := loadAssetsArchive(writeArchive(t, gzipBytes(t, buildTar(t, entries))), zap.NewNop())
 	require.NoError(t, err)
 	assert.Equal(t, "index", readFromFS(t, fsys, "/index.html"))
 	assert.Equal(t, "app", readFromFS(t, fsys, "/static/nested/app.js"))
@@ -250,18 +260,18 @@ func TestLoadAssetsArchiveErrors(t *testing.T) {
 		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			_, err := loadAssetsArchive(writeArchive(t, tc.data))
+			_, err := loadAssetsArchive(writeArchive(t, tc.data), zap.NewNop())
 			require.ErrorContains(t, err, tc.expected)
 		})
 	}
 
 	t.Run("missing file", func(t *testing.T) {
-		_, err := loadAssetsArchive(filepath.Join(t.TempDir(), "missing.tar.gz"))
+		_, err := loadAssetsArchive(filepath.Join(t.TempDir(), "missing.tar.gz"), zap.NewNop())
 		require.ErrorContains(t, err, "cannot open UI assets archive")
 	})
 
 	t.Run("missing archive", func(t *testing.T) {
-		_, err := openAssetsFS(filepath.Join(t.TempDir(), "missing.tar.gz"))
+		_, err := openAssetsFS(filepath.Join(t.TempDir(), "missing.tar.gz"), zap.NewNop())
 		require.ErrorContains(t, err, "cannot open UI assets archive")
 	})
 
@@ -287,7 +297,7 @@ func TestOpenAssetsFSFallsBackToDirectory(t *testing.T) {
 		notArchive,
 		archiveDir,
 	} {
-		fsys, err := openAssetsFS(p)
+		fsys, err := openAssetsFS(p, zap.NewNop())
 		require.NoError(t, err)
 		assert.Equal(t, http.Dir(p), fsys, p)
 	}

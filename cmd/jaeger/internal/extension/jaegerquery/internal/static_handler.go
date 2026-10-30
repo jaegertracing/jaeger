@@ -105,7 +105,7 @@ func newStaticAssetsHandler(
 	assetsFS := ui.GetStaticFiles(logger)
 	if qOpts.UIConfig.AssetsPath != "" {
 		var err error
-		assetsFS, err = openAssetsFS(qOpts.UIConfig.AssetsPath)
+		assetsFS, err = openAssetsFS(qOpts.UIConfig.AssetsPath, logger)
 		if err != nil {
 			return nil, err
 		}

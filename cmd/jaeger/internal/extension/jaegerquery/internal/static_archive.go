@@ -16,6 +16,7 @@ import (
 	"strings"
 
 	"github.com/spf13/afero"
+	"go.uber.org/zap"
 )
 
 const (
@@ -32,7 +33,7 @@ const (
 // openAssetsFS returns the file system the UI is served from. A regular file
 // whose name ends in .tar.gz is loaded as a jaeger-ui release archive; any
 // other path is served as a directory, as before.
-func openAssetsFS(assetsPath string) (http.FileSystem, error) {
+func openAssetsFS(assetsPath string, logger *zap.Logger) (http.FileSystem, error) {
 	if !strings.HasSuffix(assetsPath, uiArchiveSuffix) {
 		return http.Dir(assetsPath), nil
 	}
@@ -43,7 +44,7 @@ func openAssetsFS(assetsPath string) (http.FileSystem, error) {
 	if !info.Mode().IsRegular() {
 		return http.Dir(assetsPath), nil
 	}
-	return loadAssetsArchive(assetsPath)
+	return loadAssetsArchive(assetsPath, logger)
 }
 
 // loadAssetsArchive reads the regular files of a jaeger-ui assets.tar.gz that
@@ -53,7 +54,7 @@ func openAssetsFS(assetsPath string) (http.FileSystem, error) {
 // not clean relative paths, and anything other than regular files are
 // skipped. Each file keeps its modification time from the archive, so
 // Last-Modified does not change across restarts.
-func loadAssetsArchive(archivePath string) (http.FileSystem, error) {
+func loadAssetsArchive(archivePath string, logger *zap.Logger) (http.FileSystem, error) {
 	f, err := os.Open(filepath.Clean(archivePath))
 	if err != nil {
 		return nil, fmt.Errorf("cannot open UI assets archive %s: %w", archivePath, err)
@@ -96,13 +97,15 @@ func loadAssetsArchive(archivePath string) (http.FileSystem, error) {
 	}
 	// The tar reader stops at the end-of-archive marker, which can leave
 	// padding and the gzip trailer unread. Drain the stream so a truncated or
-	// corrupt archive fails its checksum here instead of being served.
+	// corrupt gzip stream fails here instead of being served. A tar cut short
+	// at an entry boundary before compression is not detected.
 	if err := drain(gzr); err != nil {
 		return nil, fmt.Errorf("cannot read UI assets archive %s: %w", archivePath, err)
 	}
 	if files == 0 {
 		return nil, fmt.Errorf("UI assets archive %s has no files under %s", archivePath, uiArchivePrefix)
 	}
+	logger.Info("Serving UI assets from archive", zap.String("path", archivePath), zap.Int("files", files))
 	return afero.NewHttpFs(memFS), nil
 }
 
