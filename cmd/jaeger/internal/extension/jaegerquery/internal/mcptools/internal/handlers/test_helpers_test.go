@@ -5,6 +5,7 @@ package handlers
 
 import (
 	"context"
+	"encoding/hex"
 	"iter"
 	"time"
 
@@ -17,6 +18,18 @@ import (
 
 // testTraceID is a common trace ID used across tests
 const testTraceID = "12345678901234567890123456789012"
+
+// traceIDFromTestHex decodes a hex trace ID the way the tools parse one, so a span built from it
+// carries the same ID a request for it names. Text that is not hex keeps the original copy.
+func traceIDFromTestHex(traceID string) pcommon.TraceID {
+	tid := pcommon.TraceID{}
+	if raw, err := hex.DecodeString(traceID); err == nil {
+		copy(tid[:], raw)
+		return tid
+	}
+	copy(tid[:], traceID)
+	return tid
+}
 
 // spanConfig defines the configuration for creating a test span
 type spanConfig struct {
@@ -42,10 +55,15 @@ type linkConfig struct {
 	spanID  string
 }
 
-// mockQueryService is a unified mock implementation for both GetTraces and FindTraceSummaries
+// mockQueryService is a unified mock implementation for GetTraces, FindTraceSummaries and
+// FindSpans.
 type mockQueryService struct {
 	getTracesFunc          func(ctx context.Context, params querysvc.GetTraceParams) iter.Seq2[[]ptrace.Traces, error]
 	findTraceSummariesFunc func(ctx context.Context, query querysvc.TraceQueryParams) iter.Seq2[[]tracestore.TraceSummary, error]
+	findSpansFunc          func(ctx context.Context, query querysvc.SpanQueryParams) iter.Seq2[tracestore.PageChunk[ptrace.Traces], error]
+	adjustCalls            int
+	hasInterceptors        bool
+	hasArchive             bool
 }
 
 func (m *mockQueryService) GetTraces(ctx context.Context, params querysvc.GetTraceParams) iter.Seq2[[]ptrace.Traces, error] {
@@ -53,6 +71,28 @@ func (m *mockQueryService) GetTraces(ctx context.Context, params querysvc.GetTra
 		return m.getTracesFunc(ctx, params)
 	}
 	return func(_ func([]ptrace.Traces, error) bool) {}
+}
+
+// FindSpans defaults to reporting the backend as not supporting span search, so a test that
+// never sets findSpansFunc exercises get_span_details' pre-RFC-0016 GetTraces fallback
+// unchanged, the same as before this mock grew a FindSpans method.
+// AdjustSpans records the call and leaves spans as the mock returns them.
+func (m *mockQueryService) AdjustSpans(ptrace.Traces) { m.adjustCalls++ }
+
+// HasInterceptors reports whether the mock was given an interceptor; by default it has none, so a
+// refusal may fall back as it did before.
+func (m *mockQueryService) HasInterceptors() bool { return m.hasInterceptors }
+
+// HasArchiveTraceReader reports whether the mock was given archive storage.
+func (m *mockQueryService) HasArchiveTraceReader() bool { return m.hasArchive }
+
+func (m *mockQueryService) FindSpans(ctx context.Context, query querysvc.SpanQueryParams) iter.Seq2[tracestore.PageChunk[ptrace.Traces], error] {
+	if m.findSpansFunc != nil {
+		return m.findSpansFunc(ctx, query)
+	}
+	return func(yield func(tracestore.PageChunk[ptrace.Traces], error) bool) {
+		yield(tracestore.PageChunk[ptrace.Traces]{}, querysvc.ErrSpanSearchUnsupported)
+	}
 }
 
 func (m *mockQueryService) FindTraceSummaries(ctx context.Context, query querysvc.TraceQueryParams) iter.Seq2[querysvc.PageChunk[[]tracestore.TraceSummary], error] {
@@ -124,8 +164,7 @@ func createTestTrace(traceID string, serviceName string, spanName string, hasErr
 	span := scopeSpans.Spans().AppendEmpty()
 
 	// Set trace ID
-	tid := pcommon.TraceID{}
-	copy(tid[:], traceID)
+	tid := traceIDFromTestHex(traceID)
 	span.SetTraceID(tid)
 
 	// Set span ID (root span has empty parent)
@@ -156,8 +195,7 @@ func createTestTraceWithSpans(traceID string, spanConfigs []spanConfig) ptrace.T
 
 	scopeSpans := resourceSpans.ScopeSpans().AppendEmpty()
 
-	tid := pcommon.TraceID{}
-	copy(tid[:], traceID)
+	tid := traceIDFromTestHex(traceID)
 
 	for i := range spanConfigs {
 		config := &spanConfigs[i]
