@@ -14,6 +14,7 @@ import (
 	"go.opentelemetry.io/collector/pdata/pcommon"
 
 	expression "github.com/jaegertracing/jaeger-idl/query/expression/v1"
+	builder "github.com/jaegertracing/jaeger/internal/expression"
 	exprproto "github.com/jaegertracing/jaeger/internal/proto/expression/v1"
 )
 
@@ -23,10 +24,7 @@ var (
 )
 
 func serviceAttributeIs(name string) *expression.Call {
-	return &expression.Call{Op: expression.OpEq, Args: []expression.Expression{
-		&expression.AttributeRef{Key: "service.name", Level: expression.LevelResource},
-		&expression.AnyValue{Value: name},
-	}}
+	return p.Resource().Attr("service.name").Eq(name)
 }
 
 func attrs(kv ...string) pcommon.Map {
@@ -224,12 +222,11 @@ func spanQueryWith(filter *expression.Call) SpanQueryParams {
 }
 
 func tagIs(key, value string) *expression.Call {
-	return &expression.Call{Op: expression.OpEq, Args: []expression.Expression{
-		&expression.AttributeRef{Key: key, Level: expression.LevelSpan},
-		&expression.AnyValue{Value: value},
-	}}
+	return p.Span().Attr(key).Eq(value)
 }
 
+// call builds the trees the builder cannot: a nil or stray operand, or a comparison with the
+// constant on the left.
 func call(op expression.Operator, args ...expression.Expression) *expression.Call {
 	return &expression.Call{Op: op, Args: args}
 }
@@ -245,29 +242,27 @@ func fingerprintOf(t *testing.T, filter *expression.Call) []byte {
 // nested or not, while a permutation that changes the meaning does not.
 func TestFilter_InvariantUnderEquivalentPermutations(t *testing.T) {
 	a, b, c := tagIs("a", "1"), tagIs("b", "2"), tagIs("c", "3")
-	start := &expression.FieldRef{Level: expression.LevelSpan, Name: expression.SpanFieldStartTime}
-	duration := &expression.FieldRef{Level: expression.LevelSpan, Name: expression.SpanFieldDuration}
+	start := p.Span().StartTime
+	duration := p.Span().Duration
 	in := func(values ...string) *expression.Call {
-		return call(expression.OpIn,
-			&expression.AttributeRef{Key: "k", Level: expression.LevelSpan},
-			&expression.List{Values: values, Type: expression.ValueTypeString})
+		return p.Span().Attr("k").In(&expression.List{Values: values, Type: expression.ValueTypeString})
 	}
-	inField := func(field *expression.FieldRef, values ...string) *expression.Call {
-		return call(expression.OpIn, field, &expression.List{Values: values})
+	inField := func(field builder.Ref, values ...string) *expression.Call {
+		return field.In(words(values...))
 	}
 
 	same := []struct {
 		name string
 		x, y *expression.Call
 	}{
-		{"and operands", call(expression.OpAnd, a, b, c), call(expression.OpAnd, c, a, b)},
-		{"or operands", call(expression.OpOr, a, b), call(expression.OpOr, b, a)},
-		{"nested", call(expression.OpAnd, call(expression.OpOr, a, b), c), call(expression.OpAnd, c, call(expression.OpOr, b, a))},
+		{"and operands", p.And(a, b, c), p.And(c, a, b)},
+		{"or operands", p.Or(a, b), p.Or(b, a)},
+		{"nested", p.And(p.Or(a, b), c), p.And(c, p.Or(b, a))},
 		{"list values", in("x", "y", "z"), in("z", "x", "y")},
 		{
 			"timestamp offset",
-			call(expression.OpGt, start, &expression.TimestampValue{Value: windowStart}),
-			call(expression.OpGt, start, &expression.TimestampValue{Value: windowStart.In(time.FixedZone("east", 2*3600))}),
+			start.Gt(&expression.TimestampValue{Value: windowStart}),
+			start.Gt(&expression.TimestampValue{Value: windowStart.In(time.FixedZone("east", 2*3600))}),
 		},
 		{
 			"timestamp list offset",
@@ -287,10 +282,10 @@ func TestFilter_InvariantUnderEquivalentPermutations(t *testing.T) {
 		name string
 		x, y *expression.Call
 	}{
-		{"and versus or", call(expression.OpAnd, a, b), call(expression.OpOr, a, b)},
-		{"different operand", call(expression.OpAnd, a, b), call(expression.OpAnd, a, c)},
-		{"operand count", call(expression.OpAnd, a, b), call(expression.OpAnd, a, b, c)},
-		{"comparison operands", call(expression.OpGt, duration, second), call(expression.OpGt, second, duration)},
+		{"and versus or", p.And(a, b), p.Or(a, b)},
+		{"different operand", p.And(a, b), p.And(a, c)},
+		{"operand count", p.And(a, b), p.And(a, b, c)},
+		{"comparison operands", duration.Gt(second), p.Compare(expression.OpGt, p.RefOf(second), duration)},
 		{"list versus other list", in("x", "y"), in("x", "z")},
 		{"timestamp list versus other instant", inField(start, "2026-09-25T10:00:00Z"), inField(start, "2026-09-25T10:00:01Z")},
 		{"attribute list keeps its spelling", in("1s"), in("1000ms")},
@@ -307,7 +302,7 @@ func TestFilter_InvariantUnderEquivalentPermutations(t *testing.T) {
 func TestCanonicalize_LeavesTheInputAlone(t *testing.T) {
 	a, b := tagIs("b", "2"), tagIs("a", "1")
 	list := &expression.List{Values: []string{"z", "x"}, Type: expression.ValueTypeString}
-	filter := call(expression.OpAnd, a, b, call(expression.OpIn, &expression.AttributeRef{Key: "k", Level: expression.LevelSpan}, list))
+	filter := p.And(a, b, p.Span().Attr("k").In(list))
 
 	_, err := canonicalize(filter)
 	require.NoError(t, err)
@@ -358,7 +353,7 @@ func TestSpanQueryFingerprint_SortExpressions(t *testing.T) {
 		&expression.DurationValue{Value: time.Second},
 		&expression.TimestampValue{Value: windowStart},
 		&expression.List{Values: []string{"a", "b"}},
-		call(expression.OpAnd, tagIs("a", "1"), tagIs("b", "2")),
+		p.And(tagIs("a", "1"), tagIs("b", "2")),
 	}
 	seen := make(map[string]bool)
 	for _, term := range terms {
@@ -389,7 +384,7 @@ func TestSpanQueryFingerprint_SortExpressions(t *testing.T) {
 func TestSpanQueryFingerprint_CanonicalSortExpressions(t *testing.T) {
 	a, b := tagIs("a", "1"), tagIs("b", "2")
 	for _, pair := range [][2]expression.Expression{
-		{call(expression.OpAnd, a, b), call(expression.OpAnd, b, a)},
+		{p.And(a, b), p.And(b, a)},
 		{&expression.List{Values: []string{"b", "a"}}, &expression.List{Values: []string{"a", "b"}}},
 		{&expression.TimestampValue{Value: windowStart}, &expression.TimestampValue{Value: windowStart.In(time.FixedZone("offset", 3600))}},
 	} {

@@ -78,13 +78,7 @@ func writeTwoTraceStore(t *testing.T) (*Store, time.Time) {
 func TestFindSpans_MatchesAcrossTraces(t *testing.T) {
 	store, _ := writeTwoTraceStore(t)
 
-	filter := &expression.Call{
-		Op: expression.OpRegex,
-		Args: []expression.Expression{
-			&expression.FieldRef{Level: expression.LevelSpan, Name: expression.SpanFieldName},
-			&expression.StringValue{Value: "^(GET /|handle-request)$"},
-		},
-	}
+	filter := p.Compare(expression.OpRegex, p.Span().Name, p.String("^(GET /|handle-request)$"))
 
 	var results []ptrace.Traces
 	for chunk, err := range store.FindSpans(context.Background(), tracestore.SpanQueryParams{Filter: filter}) {
@@ -132,13 +126,7 @@ func TestFindSpans_NilFilterReturnsEverySpan(t *testing.T) {
 func TestFindSpans_NoMatchesYieldsEmptyChunk(t *testing.T) {
 	store, _ := writeTwoTraceStore(t)
 
-	filter := &expression.Call{
-		Op: expression.OpEq,
-		Args: []expression.Expression{
-			&expression.FieldRef{Level: expression.LevelSpan, Name: expression.SpanFieldName},
-			&expression.StringValue{Value: "nonexistent"},
-		},
-	}
+	filter := p.Span().Name.Eq(p.String("nonexistent"))
 
 	var results []ptrace.Traces
 	for chunk, err := range store.FindSpans(context.Background(), tracestore.SpanQueryParams{Filter: filter}) {
@@ -233,13 +221,7 @@ func TestFindSpans_PreservesSchemaURLs(t *testing.T) {
 
 	require.NoError(t, store.WriteTraces(context.Background(), traces))
 
-	filter := &expression.Call{
-		Op: expression.OpEq,
-		Args: []expression.Expression{
-			&expression.FieldRef{Level: expression.LevelResource, Name: expression.ResourceFieldSchemaURL},
-			&expression.StringValue{Value: "https://opentelemetry.io/schemas/1.9.0"},
-		},
-	}
+	filter := p.Resource().SchemaURL.Eq(p.String("https://opentelemetry.io/schemas/1.9.0"))
 
 	var results []ptrace.Traces
 	for chunk, err := range store.FindSpans(context.Background(), tracestore.SpanQueryParams{Filter: filter}) {
@@ -314,13 +296,7 @@ func TestDeclaredOperatorsAreEvaluated(t *testing.T) {
 func TestFindTraces_StructuredFilter(t *testing.T) {
 	store, _ := writeTwoTraceStore(t)
 
-	filter := &expression.Call{
-		Op: expression.OpEq,
-		Args: []expression.Expression{
-			&expression.FieldRef{Level: expression.LevelSpan, Name: expression.SpanFieldName},
-			&expression.StringValue{Value: "call-backend"},
-		},
-	}
+	filter := p.Span().Name.Eq(p.String("call-backend"))
 
 	var traces []ptrace.Traces
 	for batch, err := range store.FindTraces(context.Background(), tracestore.TraceQueryParams{
@@ -340,13 +316,7 @@ func TestFindTraces_StructuredFilter(t *testing.T) {
 func TestFindTraces_StructuredFilterNoMatch(t *testing.T) {
 	store, _ := writeTwoTraceStore(t)
 
-	filter := &expression.Call{
-		Op: expression.OpEq,
-		Args: []expression.Expression{
-			&expression.FieldRef{Level: expression.LevelSpan, Name: expression.SpanFieldName},
-			&expression.StringValue{Value: "nonexistent"},
-		},
-	}
+	filter := p.Span().Name.Eq(p.String("nonexistent"))
 
 	var traces []ptrace.Traces
 	for batch, err := range store.FindTraces(context.Background(), tracestore.TraceQueryParams{
@@ -369,19 +339,13 @@ func TestFindSpans_UnhintedTimeConstants(t *testing.T) {
 		{"timestamp", expression.SpanFieldStartTime, base.Add(time.Hour).Format(time.RFC3339Nano), []string{"handle-request"}},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			query := tracestore.SpanQueryParams{Filter: &expression.Call{Op: expression.OpGt, Args: []expression.Expression{
-				&expression.FieldRef{Level: expression.LevelSpan, Name: tc.field},
-				&expression.AnyValue{Value: tc.value},
-			}}}
+			query := tracestore.SpanQueryParams{Filter: p.Span().Field(tc.field).Gt(tc.value)}
 			chunk, err := findSpansPage(t, store, query)
 			require.NoError(t, err)
 			assert.Equal(t, tc.want, spanNames(chunk.Results))
 			assert.IsType(t, &expression.AnyValue{}, query.Filter.Args[1])
 		})
 	}
-	_, err := findSpansPage(t, store, tracestore.SpanQueryParams{Filter: &expression.Call{Op: expression.OpGt, Args: []expression.Expression{
-		&expression.FieldRef{Level: expression.LevelSpan, Name: expression.SpanFieldDuration},
-		&expression.AnyValue{Value: "invalid"},
-	}}})
+	_, err := findSpansPage(t, store, tracestore.SpanQueryParams{Filter: p.Span().Duration.Gt("invalid")})
 	require.ErrorIs(t, err, tracestore.ErrFilterInvalid)
 }
