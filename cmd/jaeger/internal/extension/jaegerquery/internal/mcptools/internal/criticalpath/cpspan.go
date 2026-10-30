@@ -59,6 +59,14 @@ func CreateCPSpanMap(traces ptrace.Traces) map[pcommon.SpanID]CPSpan {
 			ss := rs.ScopeSpans().At(j)
 			for k := 0; k < ss.Spans().Len(); k++ {
 				span := ss.Spans().At(k)
+				if _, exists := spanMap[span.SpanID()]; exists {
+					// Duplicate span IDs (e.g. malformed or exporter-corrupted
+					// traces) would overwrite the span while childrenMap still
+					// references it from multiple parents, desynchronizing the
+					// two maps and creating synthetic cycles (issue #9966).
+					// Keep the first occurrence.
+					continue
+				}
 				childSpanIDs := childrenMap[span.SpanID()]
 				cpSpan := CreateCPSpan(span, childSpanIDs)
 				spanMap[span.SpanID()] = cpSpan
