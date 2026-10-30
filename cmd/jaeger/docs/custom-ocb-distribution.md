@@ -25,7 +25,7 @@ providing a custom `main.go` that calls into Jaeger's exported `jaegercli` build
 ## Prerequisites
 
 - [OCB installed](https://github.com/open-telemetry/opentelemetry-collector-releases/releases)
-  (`ocb` binary on your `$PATH`, pinned to `v0.159.0` or the version declared in Jaeger's `internal/tools/go.mod`)
+  (`ocb` binary on your `$PATH`, matched to the collector version in Jaeger's `go.mod` for your chosen release tag, e.g. `v0.160.0` for `v2.22.0`)
 - Go 1.27+
 
 ## Step 1 — Create a `builder-config.yaml`
@@ -38,9 +38,16 @@ Make the following adjustments in your copied `builder-config.yaml`:
 
 1. Set `dist.module` to a neutral module path for your project (e.g. `example.com/jaeger-custom`), and set `dist.output_path` (e.g. `./dist`).
 2. Replace `v0.0.0` across all `gomod:` entries with the release commit's pseudo-version, such as `v1.76.1-0.20261006114434-462bb49fcff9` for `v2.22.0`.
-   > **Note on module versions:** Jaeger's repository module path is `github.com/jaegertracing/jaeger` without a `/v2` suffix. Because Go module tooling requires a `/vN` suffix for major versions $\ge 2$, `go mod tidy` rejects `v2.22.0` directly. What resolves in Go tooling is the commit's pseudo-version (which `go get github.com/jaegertracing/jaeger@v2.22.0` resolves automatically).
+   > **Note on module versions:** Jaeger's repository module path is `github.com/jaegertracing/jaeger` without a `/v2` suffix. Because Go module tooling requires a `/vN` suffix for major versions v2 or higher, `go mod tidy` rejects `v2.22.0` directly. To obtain the resolvable pseudo-version for any tag, query the tag's commit hash using `go list`:
+   > ```bash
+   > go list -m github.com/jaegertracing/jaeger@$(git rev-list -n1 v2.22.0)
+   > # or by commit SHA directly:
+   > go list -m github.com/jaegertracing/jaeger@462bb49fcff9
+   > # prints: github.com/jaegertracing/jaeger v1.76.1-0.20261006114434-462bb49fcff9
+   > ```
 3. Remove the in-repo `replaces:` section at the bottom of the file.
 4. Append any custom components to their respective sections (`extensions`, `receivers`, `exporters`, `processors`, or `connectors`).
+   > **Rule on component versions:** Always match OCB and custom/contrib components to the exact OpenTelemetry Collector version pinned in Jaeger's `go.mod` for that release tag (e.g. `v0.160.0` for Jaeger `v2.22.0`). Mismatched versions can lead to compile-time API incompatibilities in Collector packages.
 
 Here is an excerpt illustrating the modified sections:
 
@@ -62,8 +69,8 @@ extensions:
 
 processors:
   # ... standard Jaeger processors copied from builder.yaml ...
-  # Append your custom component:
-  - gomod: github.com/open-telemetry/opentelemetry-collector-contrib/processor/transformprocessor v0.159.0
+  # Append your custom component (matching the collector version in Jaeger's go.mod, e.g. v0.160.0):
+  - gomod: github.com/open-telemetry/opentelemetry-collector-contrib/processor/transformprocessor v0.160.0
     import: github.com/open-telemetry/opentelemetry-collector-contrib/processor/transformprocessor
 ```
 
@@ -92,7 +99,15 @@ Delete all generated `main*.go` files first:
 rm -f dist/main*.go
 ```
 
-Then create a replacement `dist/main.go` that invokes `jaegercli.NewCommand`:
+Then provide a replacement `dist/main.go` that invokes `jaegercli.NewCommand`.
+
+For releases that ship it, copy Jaeger's template directly rather than maintaining a duplicate copy:
+
+```bash
+cp cmd/jaeger/jaegercli/main.go.tmpl dist/main.go
+```
+
+For standalone or out-of-tree builds without a local Jaeger checkout, create `dist/main.go` with the following entrypoint:
 
 ```go
 // main.go
@@ -144,7 +159,8 @@ including all subcommands that are absent from a plain OCB-generated binary:
 When all default Jaeger components are retained and no `--config` flag is provided,
 the binary falls back to the embedded All-in-One configuration with memory storage.
 Note that UI static assets in custom distributions require building or serving separately,
-as raw builds bundle placeholder assets.
+as raw builds bundle placeholder assets. Also note that `./jaeger-custom version` outputs
+`git-version=dev` unless compiled with Jaeger's version ldflags (as done in `make build-ocb`).
 
 ## Alternative: Programmatic Extension with `jaegercli.Components()`
 
@@ -190,7 +206,7 @@ builder-config.yaml
         └─▶ dist/main*.go           (deleted: main.go, main_others.go, main_windows.go)
                                             │
                                             ▼ replaced with
-  Your main.go
+  Your main.go (or main.go.tmpl)
         │  calls
         ├─▶ components()            (OCB-generated factories)
         └─▶ jaegercli.NewCommand()  (Jaeger's full CLI engine)
@@ -200,7 +216,7 @@ builder-config.yaml
 ```
 
 This approach provides:
-- A conflict-free dependency graph that resolves transitively through Jaeger's curated module dependencies.
+- All component dependencies resolve through Jaeger's module graph.
 - No need to clone or fork the Jaeger repository.
 - Full access to Jaeger-specific subcommands and default All-in-One configuration behavior.
 - Complete freedom to append custom OpenTelemetry Collector components.
