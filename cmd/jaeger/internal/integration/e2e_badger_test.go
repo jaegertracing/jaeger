@@ -14,6 +14,7 @@ func TestBadgerStorage(t *testing.T) {
 	integration.SkipUnlessEnv(t, integration.StorageBadger)
 
 	s := &E2EStorageIntegration{
+		FeatureGates:     []string{"jaeger.badger.operationIndex"},
 		ConfigFile:       "../../config-badger.yaml",
 		PropagateEnvVars: []string{"BADGER_METRICS_UPDATE_INTERVAL"},
 		StorageIntegration: integration.StorageIntegration{

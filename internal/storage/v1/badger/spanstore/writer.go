@@ -7,6 +7,7 @@ import (
 	"context"
 	"encoding/binary"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"time"
 
@@ -54,7 +55,7 @@ func NewSpanWriter(db *badger.DB, c *CacheStore, ttl time.Duration) *SpanWriter 
 }
 
 // WriteSpan writes the encoded span as well as creates indexes with defined TTL
-func (w *SpanWriter) WriteSpan(_ context.Context, span *model.Span) error {
+func (w *SpanWriter) WriteSpan(ctx context.Context, span *model.Span) error {
 	//nolint:gosec // G115
 	expireTime := uint64(time.Now().Add(w.ttl).Unix())
 	startTime := model.TimeAsEpochMicroseconds(span.StartTime)
@@ -67,12 +68,10 @@ func (w *SpanWriter) WriteSpan(_ context.Context, span *model.Span) error {
 		return err
 	}
 
-	entriesToStore = append(
-		entriesToStore,
-		trace,
-		w.createBadgerEntry(createIndexKey(serviceNameIndexKey, []byte(span.Process.ServiceName), startTime, span.TraceID), nil, expireTime),
-		w.createBadgerEntry(createIndexKey(operationNameIndexKey, []byte(span.Process.ServiceName+span.OperationName), startTime, span.TraceID), nil, expireTime),
-	)
+	entriesToStore = append(entriesToStore, trace)
+	serviceKey := createIndexKey(serviceNameIndexKey, []byte(span.Process.ServiceName), startTime, span.TraceID)
+	operationKey := createIndexKey(operationNameIndexKey, []byte(span.Process.ServiceName+span.OperationName), startTime, span.TraceID)
+	kind := spanKind(span)
 
 	// It doesn't matter if we overwrite Duration index keys, everything is read at Trace level in any case
 	durationValue := make([]byte, 8)
@@ -95,26 +94,50 @@ func (w *SpanWriter) WriteSpan(_ context.Context, span *model.Span) error {
 		}
 	}
 
-	err = w.store.Update(func(txn *badger.Txn) error {
-		// Write the entries
-		for i := range entriesToStore {
-			err = txn.SetEntry(entriesToStore[i])
+	var kinds operationKinds
+	var operationExpiry, serviceExpiry uint64
+	for {
+		if err := ctx.Err(); err != nil {
+			return err
+		}
+		err = w.store.Update(func(txn *badger.Txn) error {
+			var err error
+			kinds, operationExpiry, err = mergeOperationIndex(txn, operationKey, kind, expireTime)
 			if err != nil {
-				// Most likely primary key conflict, but let the caller check this
 				return err
 			}
+			serviceExpiry, err = mergeServiceExpiry(txn, serviceKey, operationExpiry)
+			if err != nil {
+				return err
+			}
+			if err := txn.SetEntry(w.createBadgerEntry(operationKey, kinds.encode(), operationExpiry)); err != nil {
+				return err
+			}
+			if err := txn.SetEntry(w.createBadgerEntry(serviceKey, nil, serviceExpiry)); err != nil {
+				return err
+			}
+			// Write the entries
+			for i := range entriesToStore {
+				err = txn.SetEntry(entriesToStore[i])
+				if err != nil {
+					return err
+				}
+			}
+
+			return nil
+		})
+		if !errors.Is(err, badger.ErrConflict) {
+			break
 		}
-
-		// TODO Alternative option is to use simpler keys with the merge value interface.
-		// Requires at least this to be solved: https://github.com/dgraph-io/badger/issues/373
-
-		return nil
-	})
+	}
+	if err != nil {
+		return err
+	}
 
 	// Do cache refresh here to release the transaction earlier
-	w.cache.Update(span.Process.ServiceName, span.OperationName, expireTime)
+	w.cache.updateOperations(span.Process.ServiceName, span.OperationName, kinds.kinds, serviceExpiry, operationExpiry)
 
-	return err
+	return nil
 }
 
 func createIndexKey(indexPrefixKey byte, value []byte, startTime uint64, traceID model.TraceID) []byte {
