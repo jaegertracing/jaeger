@@ -76,6 +76,14 @@ func TestNewInfoMetrics(t *testing.T) {
 	assert.NotNil(t, infoMetrics)
 
 	// 5. Verify the gauge was emitted and recorded in memory
-	_, gauges := mf.Backend.Snapshot()
-	assert.NotEmpty(t, gauges)
+		// 5. Verify the build_info gauge was emitted with value 1 and exact metadata tags
+	mf.AssertGaugeMetrics(t, metricstest.ExpectedMetric{
+		Name: "build_info",
+		Tags: map[string]string{
+			"revision":   "abc1234",
+			"version":    "v1.50.0",
+			"build_date": "2024-01-01",
+		},
+		Value: 1,
+	})
 }
