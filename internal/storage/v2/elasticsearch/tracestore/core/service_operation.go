@@ -71,7 +71,7 @@ func NewServiceOperationStorage(
 }
 
 // toUpsertItem returns the service:operation document to upsert for a span and its
-// cache key, or ok=false if the pair is already cached (nothing to write). The
+// cache key, or ok=false if the pair is already cached for this index. The
 // caller writes the item through its bulk sink and calls commitToCache only after
 // the write is durable (RFC 0007 §4.3): marking the cache before durability would
 // let a failed-then-retried batch skip the service document and leave a gap. The
@@ -81,11 +81,12 @@ func (s *ServiceOperationStorage) toUpsertItem(indexName string, jsonSpan *dbmod
 		ServiceName:   jsonSpan.Process.ServiceName,
 		OperationName: jsonSpan.OperationName,
 	}
-	cacheKey := hashCode(service)
+	documentID := hashCode(service)
+	cacheKey := indexName + ":" + documentID
 	if s.serviceCache.Get(cacheKey) != nil {
 		return esclient.BulkItem{}, "", false
 	}
-	return esclient.BulkItem{Index: indexName, ID: cacheKey, Body: service}, cacheKey, true
+	return esclient.BulkItem{Index: indexName, ID: documentID, Body: service}, cacheKey, true
 }
 
 // commitToCache records that a service:operation document is durably written, so it
@@ -117,8 +118,8 @@ func newServiceOperationBatch(store *ServiceOperationStorage) serviceOperationBa
 }
 
 // toUpsertItem returns the service:operation document to upsert for a span, or
-// ok=false if the pair is already cached globally or was already added earlier in
-// this batch.
+// ok=false if the pair is already cached globally for this index or was already
+// added for this index earlier in this batch.
 func (b serviceOperationBatch) toUpsertItem(indexName string, jsonSpan *dbmodel.Span) (esclient.BulkItem, bool) {
 	item, cacheKey, ok := b.store.toUpsertItem(indexName, jsonSpan)
 	if !ok {
