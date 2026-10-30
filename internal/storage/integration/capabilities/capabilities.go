@@ -273,8 +273,6 @@ func ClickHouseE2E() Capabilities {
 func Badger() Capabilities {
 	return Capabilities{
 		searchRequiresServiceName: true,
-		// TODO: remove this once Badger supports returning spanKind from GetOperations
-		getOperationsMissingSpanKind: true,
 		skipList: []string{
 			// The reader implements neither FindSpans nor continuation tokens.
 			spanOrderingTest,

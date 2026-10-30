@@ -46,6 +46,7 @@ type Factory struct {
 	Config         *Config
 	store          *badger.DB
 	cache          *badgerstore.CacheStore
+	reader         *badgerstore.TraceReader
 	logger         *zap.Logger
 	metricsFactory metrics.Factory
 
@@ -114,6 +115,16 @@ func (f *Factory) Initialize(metricsFactory metrics.Factory, logger *zap.Logger)
 	f.store = store
 
 	f.cache = badgerstore.NewCacheStore(f.store, f.Config.TTL.Spans)
+	f.reader = badgerstore.NewTraceReader(f.store, f.cache, true)
+	status := f.reader.OperationIndexReadiness()
+	logger.Info("Badger operation index readiness",
+		zap.String("directory", opts.Dir),
+		zap.Bool("ready", status.Ready),
+		zap.Int("legacy_entries", status.LegacyEntries),
+		zap.Int("partial_entries", status.PartialEntries),
+		zap.Int("invalid_entries", status.InvalidEntries),
+		zap.Error(status.Err),
+	)
 
 	f.metrics.ValueLogSpaceAvailable = metricsFactory.Gauge(metrics.Options{Name: valueLogSpaceAvailableName})
 	f.metrics.KeyLogSpaceAvailable = metricsFactory.Gauge(metrics.Options{Name: keyLogSpaceAvailableName})
@@ -146,8 +157,7 @@ func initializeDir(path string) {
 
 // CreateSpanReader creates a spanstore.Reader.
 func (f *Factory) CreateSpanReader() (spanstore.Reader, error) {
-	tr := badgerstore.NewTraceReader(f.store, f.cache, true)
-	return spanstoremetrics.NewReaderDecorator(tr, f.metricsFactory), nil
+	return spanstoremetrics.NewReaderDecorator(f.reader, f.metricsFactory), nil
 }
 
 // CreateSpanWriter creates a spanstore.Writer.
