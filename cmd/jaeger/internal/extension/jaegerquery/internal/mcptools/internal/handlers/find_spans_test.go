@@ -7,6 +7,7 @@ import (
 	"context"
 	"errors"
 	"iter"
+	"math"
 	"testing"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
@@ -222,6 +223,17 @@ func TestFindSpansHandler_BuildQuery_EffectiveLimit(t *testing.T) {
 func TestFindSpansHandler_EffectiveLimit_NegativeRequested(t *testing.T) {
 	handler := &findSpansHandler{maxResults: 100}
 	assert.EqualValues(t, 100, handler.effectiveLimit(-5, 0))
+}
+
+// TestClampToInt32 pins that a compiledLimit above math.MaxInt32 (LIMIT comes from the SQL
+// compiler as a uint32, RFC 0019 puts no smaller bound on it) clamps rather than wrapping
+// negative when narrowed to int, which is what CodeQL's unchecked-conversion check wants
+// demonstrated at the call site.
+func TestClampToInt32(t *testing.T) {
+	assert.Equal(t, 5, clampToInt32(5))
+	assert.Equal(t, math.MaxInt32, clampToInt32(math.MaxInt32))
+	assert.Equal(t, math.MaxInt32, clampToInt32(math.MaxInt32+1))
+	assert.Equal(t, math.MaxInt32, clampToInt32(math.MaxUint32))
 }
 
 // TestFindSpansHandler_BuildQuery_PageSizeMatchesLimit pins the fix for the bug Yuri's review

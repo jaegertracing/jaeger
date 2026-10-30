@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"iter"
+	"math"
 	"strings"
 	"time"
 
@@ -70,7 +71,7 @@ outer:
 		}
 		for pos, span := range jptrace.SpanIter(chunk.Results) {
 			spans = append(spans, buildSpanDetail(pos, span))
-			if limit > 0 && len(spans) >= int(limit) {
+			if limit > 0 && len(spans) >= clampToInt32(limit) {
 				break outer
 			}
 		}
@@ -127,7 +128,7 @@ func (h *findSpansHandler) buildQuery(input types.FindSpansInput) (querysvc.Span
 func (h *findSpansHandler) effectiveLimit(requested int, compiledLimit uint32) uint32 {
 	limit := requested
 	if compiledLimit > 0 {
-		limit = int(compiledLimit)
+		limit = clampToInt32(compiledLimit)
 	}
 	if limit < 0 {
 		limit = 0
@@ -136,4 +137,13 @@ func (h *findSpansHandler) effectiveLimit(requested int, compiledLimit uint32) u
 		limit = h.maxResults
 	}
 	return uint32(limit)
+}
+
+// clampToInt32 converts a uint32 to int with an explicit upper bound, so the conversion stays
+// in range regardless of whether int is 32 or 64 bits on the build platform.
+func clampToInt32(v uint32) int {
+	if v > math.MaxInt32 {
+		return math.MaxInt32
+	}
+	return int(v)
 }
