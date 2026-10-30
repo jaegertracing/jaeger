@@ -4,4 +4,8 @@ SELECT
     kind AS span_kind,
     service_name
 FROM
-    spans;
+    spans
+GROUP BY
+    service_name,
+    name,
+    kind;
