@@ -82,7 +82,10 @@ func loadAssetsArchive(archivePath string, logger *zap.Logger) (http.FileSystem,
 			continue
 		}
 		name, ok := strings.CutPrefix(hdr.Name, uiArchivePrefix)
-		if !ok || !fs.ValidPath(name) {
+		// fs.ValidPath rejects names that are not clean slash-separated
+		// paths; filepath.IsLocal is the check CodeQL recognizes against
+		// path traversal ("Zip Slip").
+		if !ok || !fs.ValidPath(name) || !filepath.IsLocal(name) {
 			continue
 		}
 		// WriteReader creates any missing parent directories.
