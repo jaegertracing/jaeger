@@ -174,6 +174,14 @@ func registerTools(server *mcp.Server, queryAPI *querysvc.QueryService, params S
 	}, handlers.NewGetSpanDetailsHandler(s.queryAPI, s.params.MaxSpanDetailsPerRequest))
 
 	mcp.AddTool(s.mcpServer, &mcp.Tool{
+		Name: "find_spans",
+		Description: "Search for spans matching criteria across however many traces, given as one " +
+			"SQL statement in 'sql', returning full span data in one call. " +
+			"Unlike search_traces, the statement must select spans, not traces, and the window is " +
+			"required. Refused if the storage backend does not support span search.",
+	}, handlers.NewFindSpansHandler(s.queryAPI, int(s.params.MaxSearchResults)))
+
+	mcp.AddTool(s.mcpServer, &mcp.Tool{
 		Name: "get_trace_errors",
 		Description: "Get full details for all error-status spans in a trace. " +
 			"Results may be truncated to the server limit; " +

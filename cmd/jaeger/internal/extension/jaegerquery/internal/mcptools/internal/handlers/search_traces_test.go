@@ -836,7 +836,7 @@ func TestSearchTracesHandler_BuildSQLQuery_Refusals(t *testing.T) {
 		{
 			name:    "a span search",
 			input:   types.SearchTracesInput{SQL: "SELECT * FROM spans WHERE between(start_time, now() - '1h', now())"},
-			wantErr: "invalid sql: the statement selects spans, and search_traces returns traces. Write SELECT DISTINCT trace_id FROM spans WHERE ...",
+			wantErr: "invalid sql: the statement selects spans, and search_traces returns traces. Send it to find_spans instead",
 		},
 		{
 			name: "a compile error carries the position and the hint",
