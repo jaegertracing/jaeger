@@ -9,6 +9,7 @@ import (
 	"go.opentelemetry.io/collector/pdata/ptrace"
 
 	"github.com/jaegertracing/jaeger-idl/model/v1"
+	"github.com/jaegertracing/jaeger/internal/jptrace/sanitizer"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/v1adapter"
 )
 
@@ -18,7 +19,7 @@ func otlp2traces(otlpSpans []byte) ([]*model.Trace, error) {
 	if err != nil {
 		return nil, fmt.Errorf("cannot unmarshal OTLP : %w", err)
 	}
-	jaegerBatches := v1adapter.V1BatchesFromTraces(otlpTraces)
+	jaegerBatches := v1adapter.V1BatchesFromTraces(sanitizer.Sanitize(otlpTraces))
 	var traces []*model.Trace
 	traceMap := make(map[model.TraceID]*model.Trace)
 	for _, batch := range jaegerBatches {
