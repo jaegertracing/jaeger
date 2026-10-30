@@ -6,6 +6,7 @@ package grpc
 import (
 	"context"
 	"errors"
+	"fmt"
 
 	"go.opentelemetry.io/collector/pdata/pcommon"
 	"go.opentelemetry.io/collector/pdata/ptrace/ptraceotlp"
@@ -25,7 +26,10 @@ import (
 
 // errorInfoDomain is the ErrorInfo domain under which the storage server reports reader
 // refusals, so the storage client restores only the reasons this server attached.
-const errorInfoDomain = "jaeger.storage.v2"
+const (
+	errorInfoDomain = "jaeger.storage.v2"
+	defaultPageSize = uint32(100)
+)
 
 var (
 	_ storage.TraceReaderServer      = (*Handler)(nil)
@@ -131,6 +135,9 @@ func (h *Handler) FindTraces(
 	if err != nil {
 		return err
 	}
+	if query.Pagination != nil {
+		return readerStatus(tracestore.ErrPaginationUnsupportedByFindTraces)
+	}
 	for traces, err := range h.traceReader.FindTraces(srv.Context(), query) {
 		if err != nil {
 			return readerStatus(err)
@@ -151,6 +158,7 @@ func (h *Handler) FindSpans(req *storage.FindSpansRequest, srv storage.TraceRead
 	if err != nil {
 		return err
 	}
+	query = boundSpanQueryParams(query)
 	for chunk, err := range h.traceReader.FindSpans(srv.Context(), query) {
 		if err != nil {
 			return readerStatus(err)
@@ -187,11 +195,39 @@ func toSpanQueryParams(wire *storage.SpanQueryParameters) (tracestore.SpanQueryP
 	}, nil
 }
 
+func boundSpanQueryParams(query tracestore.SpanQueryParams) tracestore.SpanQueryParams {
+	if query.Pagination.PageSize == 0 {
+		query.Pagination.PageSize = defaultPageSize
+	} else if query.Pagination.PageSize > tracestore.MaxPageSize {
+		query.Pagination.PageSize = tracestore.MaxPageSize
+	}
+	return query
+}
+
+func boundTraceQueryParams(query tracestore.TraceQueryParams) (tracestore.TraceQueryParams, error) {
+	if query.Pagination != nil {
+		if query.SearchDepth != 0 {
+			return query, readerStatus(fmt.Errorf("%w: it cannot be combined with search depth", tracestore.ErrPaginationInvalid))
+		}
+		if query.Pagination.PageSize == 0 {
+			return query, readerStatus(fmt.Errorf("%w: page size is required whenever pagination is present", tracestore.ErrPaginationInvalid))
+		}
+		if query.Pagination.PageSize > tracestore.MaxPageSize {
+			query.Pagination.PageSize = tracestore.MaxPageSize
+		}
+	}
+	return query, nil
+}
+
 func (h *Handler) FindTraceSummaries(
 	req *storage.FindTraceSummariesRequest,
 	srv storage.TraceReader_FindTraceSummariesServer,
 ) error {
 	query, err := h.toTraceQueryParams(req.Query)
+	if err != nil {
+		return err
+	}
+	query, err = boundTraceQueryParams(query)
 	if err != nil {
 		return err
 	}
@@ -246,6 +282,10 @@ func (h *Handler) FindTraceIDs(
 	foundTraceIDs := []*storage.FoundTraceID{}
 	var nextPageToken string
 	query, err := h.toTraceQueryParams(req.Query)
+	if err != nil {
+		return nil, err
+	}
+	query, err = boundTraceQueryParams(query)
 	if err != nil {
 		return nil, err
 	}
@@ -360,7 +400,6 @@ func (*Handler) toTraceQueryParams(t *storage.TraceQueryParameters) (tracestore.
 	if depth < 0 || depth > int32(tracestore.MaxSearchDepth) {
 		return tracestore.TraceQueryParams{}, status.Errorf(codes.InvalidArgument, "SearchDepth must be in [0, %d]", tracestore.MaxSearchDepth)
 	}
-	searchDepth := uint32(depth)
 	query := tracestore.TraceQueryParams{
 		ServiceName:   t.ServiceName,
 		OperationName: t.OperationName,
@@ -369,7 +408,7 @@ func (*Handler) toTraceQueryParams(t *storage.TraceQueryParameters) (tracestore.
 		StartTimeMax:  t.StartTimeMax,
 		DurationMin:   t.DurationMin,
 		DurationMax:   t.DurationMax,
-		SearchDepth:   searchDepth,
+		SearchDepth:   uint32(depth),
 		Filter:        filter,
 	}
 	if pagination := t.GetPagination(); pagination != nil {

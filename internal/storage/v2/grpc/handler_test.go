@@ -1176,3 +1176,194 @@ func TestHandler_FindSpansPreservesQuery(t *testing.T) {
 	reader.AssertExpectations(t)
 	reader.AssertNotCalled(t, "SearchCapabilities", mock.Anything)
 }
+
+func TestHandler_FindTracesRefusesPagination(t *testing.T) {
+	reader := new(tracestoremocks.Reader)
+	handler := NewHandler(reader, new(tracestoremocks.Writer), new(depstoremocks.Reader))
+
+	err := handler.FindTraces(&storage.FindTracesRequest{
+		Query: &storage.TraceQueryParameters{
+			ServiceName: "service",
+			Pagination: &storage.Pagination{
+				PageSize: 10,
+			},
+		},
+	}, &testStream{})
+
+	require.Error(t, err)
+	assert.Equal(t, codes.InvalidArgument, status.Code(err))
+	assert.Contains(t, err.Error(), tracestore.ErrPaginationUnsupportedByFindTraces.Error())
+	reader.AssertNotCalled(t, "FindTraces", mock.Anything, mock.Anything)
+}
+
+func TestHandler_PaginationValidation(t *testing.T) {
+	tests := []struct {
+		name         string
+		searchDepth  int32
+		pagination   *storage.Pagination
+		expectedErr  bool
+		errContains  string
+		expectedSize uint32
+	}{
+		{
+			name:        "pagination with search depth",
+			searchDepth: 10,
+			pagination: &storage.Pagination{
+				PageSize: 50,
+			},
+			expectedErr: true,
+			errContains: "cannot be combined with search depth",
+		},
+		{
+			name: "pagination zero page size",
+			pagination: &storage.Pagination{
+				PageSize: 0,
+			},
+			expectedErr: true,
+			errContains: "page size is required whenever pagination is present",
+		},
+		{
+			name: "pagination exceeding max page size clamped",
+			pagination: &storage.Pagination{
+				PageSize:  tracestore.MaxPageSize + 500,
+				PageToken: "cursor",
+			},
+			expectedErr:  false,
+			expectedSize: tracestore.MaxPageSize,
+		},
+		{
+			name: "valid pagination preserved",
+			pagination: &storage.Pagination{
+				PageSize:  50,
+				PageToken: "cursor",
+			},
+			expectedErr:  false,
+			expectedSize: 50,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run("FindTraceSummaries/"+tt.name, func(t *testing.T) {
+			reader := new(tracestoremocks.Reader)
+			handler := NewHandler(reader, new(tracestoremocks.Writer), new(depstoremocks.Reader))
+
+			if !tt.expectedErr {
+				reader.On("FindTraceSummaries", mock.Anything, mock.MatchedBy(func(p tracestore.TraceQueryParams) bool {
+					return p.Pagination != nil && p.Pagination.PageSize == tt.expectedSize && p.Pagination.PageToken == "cursor"
+				})).Return(iter.Seq2[tracestore.PageChunk[[]tracestore.TraceSummary], error](func(_ func(tracestore.PageChunk[[]tracestore.TraceSummary], error) bool) {
+					// empty iter
+				})).Once()
+			}
+
+			err := handler.FindTraceSummaries(&storage.FindTraceSummariesRequest{
+				Query: &storage.TraceQueryParameters{
+					ServiceName: "service",
+					SearchDepth: tt.searchDepth,
+					Pagination:  tt.pagination,
+				},
+			}, &summaryStream{})
+
+			if tt.expectedErr {
+				require.Error(t, err)
+				assert.Equal(t, codes.InvalidArgument, status.Code(err))
+				assert.Contains(t, err.Error(), tt.errContains)
+				reader.AssertNotCalled(t, "FindTraceSummaries", mock.Anything, mock.Anything)
+			} else {
+				require.NoError(t, err)
+				reader.AssertExpectations(t)
+			}
+		})
+
+		t.Run("FindTraceIDs/"+tt.name, func(t *testing.T) {
+			reader := new(tracestoremocks.Reader)
+			handler := NewHandler(reader, new(tracestoremocks.Writer), new(depstoremocks.Reader))
+
+			if !tt.expectedErr {
+				reader.On("FindTraceIDs", mock.Anything, mock.MatchedBy(func(p tracestore.TraceQueryParams) bool {
+					return p.Pagination != nil && p.Pagination.PageSize == tt.expectedSize && p.Pagination.PageToken == "cursor"
+				})).Return(iter.Seq2[tracestore.PageChunk[[]tracestore.FoundTraceID], error](func(_ func(tracestore.PageChunk[[]tracestore.FoundTraceID], error) bool) {
+					// empty iter
+				})).Once()
+			}
+
+			_, err := handler.FindTraceIDs(context.Background(), &storage.FindTraceIDsRequest{
+				Query: &storage.TraceQueryParameters{
+					ServiceName: "service",
+					SearchDepth: tt.searchDepth,
+					Pagination:  tt.pagination,
+				},
+			})
+
+			if tt.expectedErr {
+				require.Error(t, err)
+				assert.Equal(t, codes.InvalidArgument, status.Code(err))
+				assert.Contains(t, err.Error(), tt.errContains)
+				reader.AssertNotCalled(t, "FindTraceIDs", mock.Anything, mock.Anything)
+			} else {
+				require.NoError(t, err)
+				reader.AssertExpectations(t)
+			}
+		})
+	}
+}
+
+func TestHandler_FindSpansPaginationBounds(t *testing.T) {
+	tests := []struct {
+		name         string
+		pagination   *storage.Pagination
+		expectedSize uint32
+		expectedTok  string
+	}{
+		{
+			name:         "missing pagination defaults to 100",
+			pagination:   nil,
+			expectedSize: defaultPageSize,
+			expectedTok:  "",
+		},
+		{
+			name: "zero page size defaults to 100",
+			pagination: &storage.Pagination{
+				PageSize: 0,
+			},
+			expectedSize: defaultPageSize,
+			expectedTok:  "",
+		},
+		{
+			name: "exceeding max page size clamped",
+			pagination: &storage.Pagination{
+				PageSize:  tracestore.MaxPageSize + 1000,
+				PageToken: "cursor",
+			},
+			expectedSize: tracestore.MaxPageSize,
+			expectedTok:  "cursor",
+		},
+		{
+			name: "valid page size preserved",
+			pagination: &storage.Pagination{
+				PageSize:  50,
+				PageToken: "cursor",
+			},
+			expectedSize: 50,
+			expectedTok:  "cursor",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			reader := new(tracestoremocks.Reader)
+			reader.On("FindSpans", mock.Anything, mock.MatchedBy(func(p tracestore.SpanQueryParams) bool {
+				return p.Pagination.PageSize == tt.expectedSize && string(p.Pagination.PageToken) == tt.expectedTok
+			})).Return(spanSequence(nil, nil)).Once()
+
+			handler := NewHandler(reader, nil, nil)
+			err := handler.FindSpans(&storage.FindSpansRequest{
+				Query: &storage.SpanQueryParameters{
+					Pagination: tt.pagination,
+				},
+			}, &spanStream{})
+
+			require.NoError(t, err)
+			reader.AssertExpectations(t)
+		})
+	}
+}
