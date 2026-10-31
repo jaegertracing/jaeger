@@ -40,14 +40,6 @@ var (
 		featuregate.WithRegisterDescription("No-op: ClickHouse is always available as a storage backend and is selected through configuration. Retained for backward compatibility and removed in v2.23.0."),
 		featuregate.WithRegisterReferenceURL("https://github.com/jaegertracing/jaeger/issues/9016"),
 	)
-	_ = featuregate.GlobalRegistry().MustRegister(
-		"storage.clickhouse",
-		featuregate.StageStable,
-		featuregate.WithRegisterFromVersion("v2.18.0"),
-		featuregate.WithRegisterToVersion("v2.23.0"),
-		featuregate.WithRegisterDescription("No-op: deprecated alias for jaeger.clickhouse, retained for backward compatibility and removed in v2.23.0."),
-		featuregate.WithRegisterReferenceURL("https://github.com/jaegertracing/jaeger/issues/9016"),
-	)
 )
 
 var (
