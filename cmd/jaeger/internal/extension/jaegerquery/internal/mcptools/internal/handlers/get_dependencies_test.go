@@ -136,3 +136,29 @@ func TestNewGetDependenciesHandler(t *testing.T) {
 	handler := NewGetDependenciesHandler(nil)
 	assert.NotNil(t, handler)
 }
+
+func TestGetDependenciesHandler_Handle_MergesSnapshotsOfOneEdge(t *testing.T) {
+	// Elasticsearch and Cassandra return a link per dependency snapshot (e.g. one
+	// per day), so the same caller/callee pair shows up once per snapshot. The
+	// duplicates are deliberately non-adjacent and interleaved with other pairs,
+	// and the reverse direction of an edge is a distinct pair that must not merge.
+	deps := []model.DependencyLink{
+		{Parent: "frontend", Child: "payment", CallCount: 100},
+		{Parent: "payment", Child: "db", CallCount: 7},
+		{Parent: "frontend", Child: "payment", CallCount: 40},
+		{Parent: "payment", Child: "frontend", CallCount: 3},
+		{Parent: "frontend", Child: "auth", CallCount: 11},
+		{Parent: "frontend", Child: "payment", CallCount: 2},
+		{Parent: "payment", Child: "db", CallCount: 5},
+	}
+	h := &getDependenciesHandler{queryService: &mockDependencyService{deps: deps}}
+
+	_, output, err := h.handle(context.Background(), nil, types.GetDependenciesInput{})
+	require.NoError(t, err)
+	assert.Equal(t, []types.DependencyLink{
+		{Caller: "frontend", Callee: "auth", CallCount: 11},
+		{Caller: "frontend", Callee: "payment", CallCount: 142},
+		{Caller: "payment", Callee: "db", CallCount: 12},
+		{Caller: "payment", Callee: "frontend", CallCount: 3},
+	}, output.Dependencies)
+}
