@@ -1117,27 +1117,77 @@ func TestGetErrorRatesWithFilterAppliesToBothNumeratorAndDenominator(t *testing.
 	require.NoError(t, err)
 }
 
-func TestUnknownFilterKeyDroppedFromPromQL(t *testing.T) {
-	// The HTTP handler is the authoritative validator; the reader is defensive
-	// against direct/in-process callers and silently drops unknown keys.
-	params := metricstore.CallRateQueryParameters{
-		BaseQueryParameters: buildTestBaseQueryParametersFrom(metricsTestCase{
-			serviceNames: []string{"emailservice"},
-			spanKinds:    []string{"SPAN_KIND_SERVER"},
-		}),
+func TestUnknownFilterKeyRejected(t *testing.T) {
+	for _, method := range []struct {
+		name  string
+		query func(metricstore.Reader, metricstore.BaseQueryParameters) (*metrics.MetricFamily, error)
+	}{
+		{
+			name: "calls",
+			query: func(reader metricstore.Reader, params metricstore.BaseQueryParameters) (*metrics.MetricFamily, error) {
+				return reader.GetCallRates(context.Background(), &metricstore.CallRateQueryParameters{BaseQueryParameters: params})
+			},
+		},
+		{
+			name: "latencies",
+			query: func(reader metricstore.Reader, params metricstore.BaseQueryParameters) (*metrics.MetricFamily, error) {
+				return reader.GetLatencies(context.Background(), &metricstore.LatenciesQueryParameters{BaseQueryParameters: params, Quantile: 0.95})
+			},
+		},
+		{
+			name: "errors",
+			query: func(reader metricstore.Reader, params metricstore.BaseQueryParameters) (*metrics.MetricFamily, error) {
+				return reader.GetErrorRates(context.Background(), &metricstore.ErrorRateQueryParameters{BaseQueryParameters: params})
+			},
+		},
+	} {
+		t.Run(method.name, func(t *testing.T) {
+			for _, tc := range []struct {
+				name       string
+				dimensions []metricstore.Dimension
+				filters    map[string]string
+			}{
+				{
+					name:       "unknown only",
+					dimensions: []metricstore.Dimension{{Name: "deployment.environment"}},
+					filters:    map[string]string{"deployment.environmnt": "prod"},
+				},
+				{
+					name:       "valid and unknown",
+					dimensions: []metricstore.Dimension{{Name: "deployment.environment"}},
+					filters:    map[string]string{"deployment.environment": "prod", "deployment.environmnt": "prod"},
+				},
+				{
+					name:    "no configured dimensions",
+					filters: map[string]string{"deployment.environmnt": "prod"},
+				},
+			} {
+				t.Run(tc.name, func(t *testing.T) {
+					var requests atomic.Int32
+					mockPrometheus := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+						requests.Add(1)
+						sendResponse(t, w, "testdata/service_datapoint_response.json")
+					}))
+					defer mockPrometheus.Close()
+
+					tracer, _, closer := tracerProvider(t)
+					defer closer()
+					cfg := configWithDimensions(tc.dimensions...)
+					cfg.ServerURL = mockPrometheus.URL
+					reader, err := NewMetricsReader(cfg, zap.NewNop(), tracer, nil)
+					require.NoError(t, err)
+					params := buildTestBaseQueryParametersFrom(metricsTestCase{serviceNames: []string{"emailservice"}})
+					params.Filters = tc.filters
+
+					result, err := method.query(reader, params)
+
+					assert.Zero(t, requests.Load(), "invalid filters must not send a Prometheus request")
+					require.ErrorContains(t, err, `unknown filter dimension "deployment.environmnt"`)
+					assert.Nil(t, result)
+				})
+			}
+		})
 	}
-	params.Filters = map[string]string{"unknown.key": "value"}
-
-	tracer, _, closer := tracerProvider(t)
-	defer closer()
-	cfg := configWithDimensions(metricstore.Dimension{Name: "deployment.environment"})
-	want := `sum(rate(calls{service_name =~ "emailservice", ` +
-		`span_kind =~ "SPAN_KIND_SERVER"}[10m])) by (service_name)`
-	reader, mockPrometheus := prepareMetricsReaderAndServer(t, cfg, want, nil, tracer)
-	defer mockPrometheus.Close()
-
-	_, err := reader.GetCallRates(context.Background(), &params)
-	require.NoError(t, err)
 }
 
 func TestGetDimensions(t *testing.T) {

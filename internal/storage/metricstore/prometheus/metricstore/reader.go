@@ -285,7 +285,10 @@ func (m MetricsReader) executeQuery(ctx context.Context, p metricsQueryParams) (
 		p.metricName = strings.Replace(p.metricName, "service", "service_operation", 1)
 		p.metricDesc += " & operation"
 	}
-	promQuery := m.buildPromQuery(p)
+	promQuery, err := m.buildPromQuery(p)
+	if err != nil {
+		return nil, err
+	}
 
 	ctx, span := startSpanForQuery(ctx, p.metricName, promQuery, m.tracer)
 	defer span.End()
@@ -315,7 +318,7 @@ func (m MetricsReader) executeQuery(ctx context.Context, p metricsQueryParams) (
 	)
 }
 
-func (m MetricsReader) buildPromQuery(metricsParams metricsQueryParams) string {
+func (m MetricsReader) buildPromQuery(metricsParams metricsQueryParams) (string, error) {
 	groupBy := []string{"service_name"}
 	if metricsParams.GroupByOperation {
 		groupBy = append(groupBy, m.operationLabel)
@@ -329,7 +332,11 @@ func (m MetricsReader) buildPromQuery(metricsParams metricsQueryParams) string {
 	if len(metricsParams.SpanKinds) > 0 {
 		selectors = append(selectors, fmt.Sprintf(`span_kind =~ %q`, strings.Join(metricsParams.SpanKinds, "|")))
 	}
-	selectors = append(selectors, m.buildExtraFilterSelectors(metricsParams.Filters)...)
+	filterSelectors, err := m.buildExtraFilterSelectors(metricsParams.Filters)
+	if err != nil {
+		return "", err
+	}
+	selectors = append(selectors, filterSelectors...)
 
 	// Service names are literals, but the =~ matcher that ORs them together
 	// would read regex metacharacters in a name ('.', '(', '\' ...) as syntax.
@@ -343,24 +350,20 @@ func (m MetricsReader) buildPromQuery(metricsParams metricsQueryParams) string {
 		rate:          promqlDurationString(metricsParams.RatePer),
 		groupBy:       strings.Join(groupBy, ","),
 	}
-	return metricsParams.buildPromQuery(promParams)
+	return metricsParams.buildPromQuery(promParams), nil
 }
 
 // buildExtraFilterSelectors converts the pre-configured Filters map into
 // PromQL label selectors in deterministic alphabetical order, e.g.
-// `deployment_environment="prod"`. Keys that don't match a configured
-// dimension are skipped (the HTTP handler is the authoritative validator;
-// this is a defensive guard against direct/in-process callers).
-func (m MetricsReader) buildExtraFilterSelectors(filters map[string]string) []string {
+// `deployment_environment="prod"`. Unknown dimensions are rejected.
+func (m MetricsReader) buildExtraFilterSelectors(filters map[string]string) ([]string, error) {
 	if len(filters) == 0 {
-		return nil
+		return nil, nil
 	}
 	keys := make([]string, 0, len(filters))
 	for k := range filters {
 		if _, ok := m.dimensionByName[k]; !ok {
-			m.logger.Warn("skipping unknown metric filter key",
-				zap.String("key", k))
-			continue
+			return nil, fmt.Errorf("unknown filter dimension %q", k)
 		}
 		keys = append(keys, k)
 	}
@@ -373,7 +376,7 @@ func (m MetricsReader) buildExtraFilterSelectors(filters map[string]string) []st
 		promLabel := strings.ReplaceAll(k, ".", "_")
 		out = append(out, fmt.Sprintf(`%s=%q`, promLabel, filters[k]))
 	}
-	return out
+	return out, nil
 }
 
 // promqlDurationString formats the duration string to be promQL-compliant.

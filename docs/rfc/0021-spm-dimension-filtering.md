@@ -131,6 +131,10 @@ metrics, including the environment-filtering use case described in #7433.
      by (service_name)
    ```
 
+   The reader rejects unknown filter keys before sending any Prometheus
+   request, including when called directly without HTTP validation. A mix
+   of valid and unknown keys rejects the entire query.
+
    Dot-separated OTel attribute names are converted to underscore form to
    match the OTel→Prometheus exporter's label name translation. Values are
    emitted with Go's `%q` (which produces PromQL-compatible string literals)
@@ -283,6 +287,8 @@ it is not delivered by the backend PR above.
   - Single filter selector emitted in PromQL for latencies, calls, and
     errors (both numerator and denominator).
   - Multiple filters emitted in deterministic alphabetical order.
+  - Unknown-only and mixed valid/unknown filters return an error without
+    sending a Prometheus request for latencies, calls, and errors.
   - Dot → underscore conversion in label names.
   - Values containing characters that need PromQL string escaping (e.g.
     `"`) emitted via `%q` without breaking the query.
