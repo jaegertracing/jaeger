@@ -42,12 +42,11 @@ extensions:
           normalize_calls: true
           normalize_duration: true
           # extra_dimensions declares the pre-configured set of additional
-          # Prometheus labels the SPM UI can filter on. Names must match the
+          # Prometheus labels the SPM API can filter on. Names must match the
           # `dimensions:` declared in the spanmetrics connector below, so the
-          # labels exist on the stored time series. Arbitrary/free-form tag
-          # filtering is intentionally not supported because PromQL requires
-          # labels to be declared up front. See docs/adr/010 for the full
-          # rationale.
+          # labels exist on the stored time series. Attributes discarded during
+          # aggregation cannot be recovered by a metrics query.
+          # See docs/rfc/0021-spm-dimension-filtering.md for the proposal.
           # extra_dimensions:
           #   - name: deployment.environment
           #     display_name: Environment
