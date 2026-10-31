@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"github.com/gogo/protobuf/proto"
+	"go.opentelemetry.io/collector/pdata/pcommon"
 	"go.opentelemetry.io/otel/trace"
 	nooptrace "go.opentelemetry.io/otel/trace/noop"
 	"go.uber.org/zap"
@@ -268,7 +269,7 @@ func (*APIHandler) filterDependenciesByService(
 }
 
 // Parses trace ID from URL like /traces/{trace-id}
-func (aH *APIHandler) parseTraceID(w http.ResponseWriter, r *http.Request) (model.TraceID, bool) {
+func (aH *APIHandler) parseTraceID(w http.ResponseWriter, r *http.Request) (pcommon.TraceID, bool) {
 	traceIDVar := r.PathValue(traceIDParam)
 	traceID, err := apiv3.TraceIDFromString(traceIDVar)
 	if aH.handleError(w, err, http.StatusBadRequest) {
@@ -320,7 +321,7 @@ func (aH *APIHandler) parseGetTraceParameters(w http.ResponseWriter, r *http.Req
 	}
 	query.TraceIDs = []tracestore.GetTraceParams{
 		{
-			TraceID: v1adapter.FromV1TraceID(traceID),
+			TraceID: traceID,
 			Start:   startTime,
 			End:     endTime,
 		},
