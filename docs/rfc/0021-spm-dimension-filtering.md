@@ -135,9 +135,25 @@ metrics, including the environment-filtering use case described in #7433.
    request, including when called directly without HTTP validation. A mix
    of valid and unknown keys rejects the entire query.
 
-   Dot-separated OTel attribute names are converted to underscore form to
-   match the OTel→Prometheus exporter's label name translation. Values are
-   emitted with Go's `%q` (which produces PromQL-compatible string literals)
+   **Compatibility requirement:** dimension filtering currently requires
+   labels stored with underscore translation. For example, the configured
+   dimension `deployment.environment` is queried as
+   `deployment_environment="prod"`. Use an ingestion pipeline that stores
+   that underscore label, such as the Prometheus exporter's
+   `UnderscoreEscapingWithSuffixes` or `UnderscoreEscapingWithoutSuffixes`
+   translation strategy. Metric name suffixes must also match the reader's
+   existing `normalize_calls` and `normalize_duration` settings.
+
+   Strategies such as `NoUTF8EscapingWithSuffixes` and `NoTranslation` can
+   preserve dotted label names, depending on scrape negotiation. Stored
+   dotted labels are not supported by this implementation; querying the
+   underscore name instead normally returns no matching series. Jaeger
+   does not discover the ingestion translation strategy. Supporting those
+   labels would require a reliable mapping to stored label names and
+   quoted PromQL label identifiers. See the
+   [exporter documentation](https://github.com/open-telemetry/opentelemetry-collector-contrib/blob/main/exporter/prometheusexporter/README.md#metric-names-and-labels-normalization).
+
+   Values are emitted with Go's `%q` (which produces PromQL-compatible string literals)
    and the matcher is `=` (exact), not `=~` (regex), to keep the attack
    surface and cardinality predictable.
 
@@ -190,6 +206,8 @@ the runtime values passed in by callers.
   spaces). A declared dimension whose label is absent from the stored
   metrics can produce no matching series.
 - Dynamic discovery of dimensions and values is not included.
+- Dimension filters require underscore-translated stored labels. Pipelines
+  that retain dots in label names are not supported.
 - Asymmetric backend support: today only the Prometheus metricstore honours
   `Filters`. The Elasticsearch and ClickHouse metricstores accept the field
   (it's additive on the shared `BaseQueryParameters`) and return an empty
@@ -289,7 +307,8 @@ it is not delivered by the backend PR above.
   - Multiple filters emitted in deterministic alphabetical order.
   - Unknown-only and mixed valid/unknown filters return an error without
     sending a Prometheus request for latencies, calls, and errors.
-  - Dot → underscore conversion in label names.
+  - Underscore label translation: one or multiple dots become underscores;
+    existing underscores remain unchanged.
   - Values containing characters that need PromQL string escaping (e.g.
     `"`) emitted via `%q` without breaking the query.
   - Empty `Filters` produces PromQL byte-identical to today (no regression).
@@ -313,19 +332,74 @@ it is not delivered by the backend PR above.
 
 ### Integration / manual verification
 
-1. Build `make build-jaeger`.
-2. In `cmd/jaeger/config-spm.yaml`, set the spanmetrics connector
-   `dimensions:` to include `deployment.environment`, and enable the
-   `extra_dimensions:` block on the Prometheus backend.
-3. Send synthetic traces from two services tagged with
-   `deployment.environment=prod` and `staging`.
-4. `curl /api/metrics/dimensions` returns the declared dimension.
-5. `curl /api/metrics/calls?service=svc&filter=deployment.environment:prod`
-   produces a PromQL query containing `deployment_environment="prod"`.
-6. Each negative case (unknown key, out-of-set value, control character)
-   returns 400.
-7. Point `metric_backends` at `disabled` → `/api/metrics/dimensions`
-   returns 501.
+1. Build the current branch and run Jaeger with Prometheus, using the SPM
+   sample configuration. Enable `extra_dimensions` for
+   `deployment.environment` with `values: [prod, staging, dev]`, and add
+   that dimension to the spanmetrics connector. Set the Prometheus
+   exporter's `translation_strategy: UnderscoreEscapingWithSuffixes`,
+   matching `normalize_calls: true` and `normalize_duration: true`.
+2. Send spans for the **same service**, `microsim-server`, with the span
+   attribute `deployment.environment` set to either `prod` or `staging`.
+   Use different traffic profiles so an ignored filter cannot pass the
+   check: for example, 20 spans/second with 10% errors and 10ms duration
+   in prod, versus 10 spans/second with 40% errors and 100ms duration in
+   staging. For explicit latency histograms, use buckets including 5ms,
+   10ms, 50ms, and 100ms. With 2s metric flush and scrape intervals, send
+   traffic for at least 90s before comparing a 60s window with 30s rates.
+3. Confirm `GET /api/metrics/dimensions` returns the declared dimension,
+   and the stored metrics contain `deployment_environment` labels for
+   both environments.
+4. Query each endpoint with the real `filter=key:value` syntax. Use the
+   same end time and query window for each comparison:
+
+   ```bash
+   spm_end_ts="$(date +%s)000"
+   for environment in prod staging; do
+     for metric in calls errors latencies; do
+       curl -fsS -G "http://localhost:16686/api/metrics/$metric" \
+         --data-urlencode 'service=microsim-server' \
+         --data-urlencode "endTs=$spm_end_ts" \
+         --data-urlencode 'lookback=60000' \
+         --data-urlencode 'step=5000' \
+         --data-urlencode 'ratePer=30000' \
+         --data-urlencode 'quantile=0.95' \
+         --data-urlencode "filter=deployment.environment:$environment"
+     done
+   done
+   ```
+
+   `quantile` is used by the latencies endpoint. Compare against requests
+   without `filter`: prod and staging should have distinct call rates,
+   error rates, and latency percentiles. Their call rates should sum to
+   the unfiltered call rate; error rates should reflect each environment's
+   own failures and calls.
+5. Inspect Jaeger's debug query logs or enable Prometheus's
+   `global.query_log_file`. Each filtered query must contain the selected
+   `deployment_environment="prod"` or `deployment_environment="staging"`
+   selector. For errors, check both the numerator and denominator. For
+   latencies, check the histogram bucket selector before aggregation.
+6. Repeat the negative requests for calls, errors, and latencies, supplying
+   `quantile=0.95` for latencies:
+
+   ```bash
+   curl -sS -i -G 'http://localhost:16686/api/metrics/calls' \
+     --data-urlencode 'service=microsim-server' \
+     --data-urlencode 'filter=bogus:x'
+   curl -sS -i -G 'http://localhost:16686/api/metrics/calls' \
+     --data-urlencode 'service=microsim-server' \
+     --data-urlencode 'filter=deployment.environment:hacker'
+   ```
+
+   Both return 400, with unknown-dimension and disallowed-value errors,
+   respectively, and do not execute a Prometheus query. A free-text
+   dimension's control-character values also return 400.
+7. With metrics disabled, `GET /api/metrics/dimensions` and filtered
+   metrics requests return 501.
+
+`filter.deployment.environment=prod` is not the filter parameter. It is
+ignored by this parser, so a 200 response to that spelling does not verify
+filtering. Record the actual responses and selectors from the corrected
+requests when reporting manual-test results.
 
 ## 7. Future Improvements
 

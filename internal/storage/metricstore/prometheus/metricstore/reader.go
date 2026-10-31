@@ -370,9 +370,8 @@ func (m MetricsReader) buildExtraFilterSelectors(filters map[string]string) ([]s
 	slices.Sort(keys)
 	out := make([]string, 0, len(keys))
 	for _, k := range keys {
-		// OTel attribute names use dots; Prometheus label names use underscores.
-		// The OTel→Prometheus translator at metric-ingest time performs the same
-		// substitution, so the label as stored is the underscore form.
+		// Dimension filtering requires stored labels to use underscore translation.
+		// Pipelines that preserve dots in label names are not supported.
 		promLabel := strings.ReplaceAll(k, ".", "_")
 		out = append(out, fmt.Sprintf(`%s=%q`, promLabel, filters[k]))
 	}

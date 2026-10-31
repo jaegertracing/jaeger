@@ -1027,10 +1027,22 @@ func TestGetCallRatesWithFilter(t *testing.T) {
 		want    string
 	}{
 		{
-			name:    "single filter; dot in name becomes underscore",
+			name:    "underscore translation replaces a dot in the dimension name",
 			filters: map[string]string{"deployment.environment": "prod"},
 			want: `sum(rate(calls{service_name =~ "emailservice", ` +
 				`span_kind =~ "SPAN_KIND_SERVER", deployment_environment="prod"}[10m])) by (service_name)`,
+		},
+		{
+			name:    "underscore translation replaces every dot in the dimension name",
+			filters: map[string]string{"k8s.cluster.name": "us-west-1"},
+			want: `sum(rate(calls{service_name =~ "emailservice", ` +
+				`span_kind =~ "SPAN_KIND_SERVER", k8s_cluster_name="us-west-1"}[10m])) by (service_name)`,
+		},
+		{
+			name:    "underscore translation preserves existing underscores",
+			filters: map[string]string{"region_name": "us-west-1"},
+			want: `sum(rate(calls{service_name =~ "emailservice", ` +
+				`span_kind =~ "SPAN_KIND_SERVER", region_name="us-west-1"}[10m])) by (service_name)`,
 		},
 		{
 			name: "multiple filters emit in sorted order",
@@ -1062,6 +1074,8 @@ func TestGetCallRatesWithFilter(t *testing.T) {
 			cfg := configWithDimensions(
 				metricstore.Dimension{Name: "deployment.environment"},
 				metricstore.Dimension{Name: "k8s.cluster"},
+				metricstore.Dimension{Name: "k8s.cluster.name"},
+				metricstore.Dimension{Name: "region_name"},
 			)
 			reader, mockPrometheus := prepareMetricsReaderAndServer(t, cfg, tc.want, nil, tracer)
 			defer mockPrometheus.Close()

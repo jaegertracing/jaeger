@@ -40,8 +40,9 @@ type Configuration struct {
 	// Prometheus labels that the SPM API will accept as filters and inject
 	// into PromQL queries. Names must match dimensions declared in the
 	// spanmetrics connector config (so the labels exist on the stored time
-	// series). Free-form/arbitrary tag filtering is intentionally not
-	// supported because PromQL requires labels to be declared up front.
+	// series). Stored label names must use underscore translation: dots in
+	// dimension names become underscores in selectors. Preserved dotted labels
+	// are not supported. Attributes discarded during aggregation cannot be filtered.
 	ExtraDimensions []metricstore.Dimension `mapstructure:"extra_dimensions" valid:"-"`
 }
 
