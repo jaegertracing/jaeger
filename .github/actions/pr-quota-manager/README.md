@@ -25,6 +25,8 @@ steps:
 | `dry-run` | no | `false` | Log the intended labels and comments without writing anything. |
 | `per-issue-limit` | no | `false` | Reconcile the complete open-PR graph so each linked same-repository issue has one active PR. |
 | `issue-number` | no | — | For an issue-label event, limit comment reconciliation to PRs linked to this issue. |
+| `exempt-users` | no | empty | Logins that skip the author quota. Commas or whitespace separate them, and a leading `@` is ignored. Case-insensitive. The quota workflow passes the `QUOTA_EXEMPT_USERS` repository variable. Callers must pass that variable, never a value taken from the pull request. |
+| `sweep-closed-labels` | no | `off` | `off`, `dry-run`, or `apply`. Removes `pr-quota-reached` from every closed pull request in the current repository, without commenting. Only `workflow_dispatch` may select `dry-run` or `apply`. `dry-run` is the mode to run before `apply`. |
 
 Labels and comments on a pull request go through the `/issues/{n}/labels` and `/issues/{n}/comments` endpoints, so the token needs `issues: write` — `pull-requests: write` alone is not enough, and a token missing it fails every write with `403 Resource not accessible`.
 
@@ -132,10 +134,10 @@ FORMAT=csv node list-open-prs-by-author.js > prs.csv
 
 The script will display:
 
-1. **History Audit**: Summary of merged PR count (up to 3 merged PRs for quota calculation)
-2. **Current Stats**: Merged count, calculated quota, and open PR count
-3. **Processing Actions**: Each PR being blocked/unblocked
-4. **Summary**: Total counts of blocked, unblocked, and unchanged PRs
+1. **History Audit**: Merged PR count across `jaegertracing/jaeger` and `jaegertracing/jaeger-ui`, and whether the login is exempt
+2. **Current Stats**: Merged count, calculated quota (`unlimited` when there is no cap), and open PR count in the current repository
+3. **Processing Actions**: Each open PR being blocked or unblocked, and each closed PR losing `pr-quota-reached`
+4. **Summary**: Total counts of blocked, unblocked, unchanged, and closed-unlabeled PRs
 
 ### Example Output
 
@@ -160,6 +162,7 @@ The script will display:
   - Blocked: 2 PRs
   - Unblocked: 0 PRs
   - Unchanged: 1 PRs
+  - Closed unlabeled: 0 PRs
 ```
 
 ## Running Tests
@@ -179,14 +182,14 @@ npm test -- --coverage
 
 ## Quota Rules
 
-The script applies the following quota rules:
+Merged pull requests are those the user opened that were merged in `jaegertracing/jaeger` or `jaegertracing/jaeger-ui`. The count is the Search API `total_count` for `is:pr is:merged author:<login>` across both repositories, so a squash merge counts. The open cap applies only to the repository running the action. A login listed in `QUOTA_EXEMPT_USERS` has no cap. Three or more merged pull requests is unlimited: the action does not add `pr-quota-reached`.
 
-| Merged PRs | Quota |
+| Merged PRs in jaeger and jaeger-ui | Open PRs allowed in the current repository |
 |-----------|-------|
 | 0 | 1 |
 | 1 | 2 |
 | 2 | 3 |
-| 3+ | 10 |
+| 3+ | Unlimited |
 
 ## Troubleshooting
 
@@ -214,28 +217,36 @@ npm install @octokit/rest
 ### API Rate Limiting
 
 GitHub has rate limits for API requests:
-- Authenticated requests: 5,000 requests per hour
-- The script makes approximately 2-5 API calls per user
+- Authenticated REST requests: 5,000 requests per hour
+- The Search API allows 30 requests a minute for the token, plus a secondary rate limit
+- For one user the script lists that user's open pull requests in the current repository and runs two searches (the second paginated): merged pull requests in `jaegertracing/jaeger` and `jaegertracing/jaeger-ui`, then closed pull requests in the current repository that still have `pr-quota-reached`. An exempt login skips both searches. The login `Copilot` is queried as `author:app/copilot-swe-agent`
 
-If you hit rate limits, wait for the limit to reset or use a different token.
+A failed or incomplete search fails the run, except a 422 for a deleted or nonexistent login on a pull request event, which is logged and skipped. A `workflow_dispatch` run still fails on that 422. The script does not fall back to counting one repository. If you hit rate limits, wait for the limit to reset or use a different token. The closed-label sweep is a separate `workflow_dispatch` input (`sweepClosedLabels`: `off`, `dry-run`, or `apply`). It searches every closed pull request with `pr-quota-reached` in the current repository and removes the label. `dry-run` writes nothing.
 
 ## How It Works
 
-1. **Fetches PRs** by the target author (all open PRs + up to 3 merged PRs for quota calculation)
-2. **Calculates quota** based on the number of merged PRs
-3. **Identifies open PRs** and sorts them by creation date (oldest first)
-4. **Applies labels** to PRs based on quota:
-   - PRs within quota: Remove `pr-quota-reached` label (if present)
-   - PRs exceeding quota: Add `pr-quota-reached` label
-5. **Posts comments** (only on state changes to avoid spam):
-   - Blocking comment when PR first gets blocked
-   - Unblocking comment when PR is moved to active queue
+1. **Lists open PRs** by the author in the current repository, oldest first
+2. **Counts merged PRs** the author opened in `jaegertracing/jaeger` and `jaegertracing/jaeger-ui` via the Search API, unless the login is exempt. A failed or incomplete search fails the run before any label is written. On a merged `closed` event, a pull request Search has not indexed yet is still counted. A pull request event whose login Search rejects with 422 is logged and skipped; `workflow_dispatch` still fails
+3. **Finds closed PRs** in the current repository that still have `pr-quota-reached`, again via Search, unless the login is exempt. Each hit must match this repository and this author
+4. **Calculates quota** from the combined merged count. Three or more, or a login in `QUOTA_EXEMPT_USERS`, is unlimited
+5. **Applies labels** to the open PRs:
+   - Within quota: remove `pr-quota-reached` when it is present
+   - Over quota: add `pr-quota-reached`
+   - Unlimited: remove the label from every open PR, and do not add it
+6. **Removes `pr-quota-reached` from closed PRs** without commenting. A number REST still lists as open is never cleared from the closed pass. On a `closed` event the payload pull request number is cleared even when Search has not indexed it yet, including from the per-issue workflow
+7. **Posts comments** on open PRs only, and only when an open PR changes state:
+   - Blocking comment when a PR is first blocked
+   - Unblocking comment when a PR moves into the active queue
 
 ## Integration with GitHub Actions
 
 `.github/workflows/pr-quota-manager.yml` calls the action for the existing
 author quota on pull request opened, closed, reopened, or pushed events, and on
 manual workflow dispatch. Manual runs pass `username`, and optionally `dryRun`.
+The workflow passes the `QUOTA_EXEMPT_USERS` repository variable through the
+`exempt-users` input. `jaegertracing/jaeger-ui` uses a pinned copy of this
+action, so it keeps the previous behavior until that pin is updated and its
+workflow passes the same variable.
 
 `.github/workflows/pr-per-issue-manager.yml` separately enables the per-issue
 policy on pull request lifecycle events, the `allow-multiple-prs` issue-label
