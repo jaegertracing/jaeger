@@ -39,15 +39,17 @@ func (s *SpanHashDeduper) Adjust(traces ptrace.Traces) {
 	for i := 0; i < resourceSpans.Len(); i++ {
 		rs := resourceSpans.At(i)
 		scopeSpans := rs.ScopeSpans()
-		hashTrace := ptrace.NewTraces()
-		hashResourceSpan := hashTrace.ResourceSpans().AppendEmpty()
-		hashScopeSpan := hashResourceSpan.ScopeSpans().AppendEmpty()
-		hashSpan := hashScopeSpan.Spans().AppendEmpty()
-		rs.Resource().Attributes().CopyTo(hashResourceSpan.Resource().Attributes())
 		for j := 0; j < scopeSpans.Len(); j++ {
 			ss := scopeSpans.At(j)
 			spans := ss.Spans()
-			ss.Scope().Attributes().CopyTo(hashScopeSpan.Scope().Attributes())
+			hashTrace := ptrace.NewTraces()
+			hashResourceSpan := hashTrace.ResourceSpans().AppendEmpty()
+			hashScopeSpan := hashResourceSpan.ScopeSpans().AppendEmpty()
+			hashSpan := hashScopeSpan.Spans().AppendEmpty()
+			rs.Resource().CopyTo(hashResourceSpan.Resource())
+			hashResourceSpan.SetSchemaUrl(rs.SchemaUrl())
+			ss.Scope().CopyTo(hashScopeSpan.Scope())
+			hashScopeSpan.SetSchemaUrl(ss.SchemaUrl())
 			dedupedSpans := ptrace.NewSpanSlice()
 			for k := 0; k < spans.Len(); k++ {
 				span := spans.At(k)
