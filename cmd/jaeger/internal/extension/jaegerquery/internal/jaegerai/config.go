@@ -114,9 +114,56 @@ type MCPConfig struct {
 	// endpoint is served over; see mcptools.StreamableHTTPConfig for each one.
 	// None of them changes what the tools do.
 	StreamableHTTP mcptools.StreamableHTTPConfig `mapstructure:"streamable_http" valid:"optional"`
+	// ServerName is the name the MCP server advertises to clients. Empty (the
+	// default) is "jaeger".
+	ServerName string `mapstructure:"server_name" valid:"optional"`
+	// MaxSpanDetailsPerRequest bounds how many spans one get_span_details,
+	// get_trace_errors, or get_trace_topology call may request. Zero (the
+	// default) is 20. Raised to at most 100.
+	MaxSpanDetailsPerRequest int `mapstructure:"max_span_details_per_request" valid:"optional"`
+	// MaxSearchResults bounds how many spans one search_traces call may return.
+	// Zero (the default) is 100. Raised to at most 1000.
+	MaxSearchResults uint32 `mapstructure:"max_search_results" valid:"optional"`
+	// MaxReadFileSize bounds how many bytes read_skill serves from one skill
+	// file. Zero (the default) is 512 KiB. Raised to at most 10 MiB.
+	MaxReadFileSize int64 `mapstructure:"max_read_file_size" valid:"optional"`
+}
+
+// applyTo overlays the operator's tunables onto the defaults, so a field left
+// unset keeps the behaviour the retired jaeger_mcp extension had rather than
+// silently dropping to a zero value — a zero limit would make the matching
+// tool refuse every call.
+func (c *MCPConfig) applyTo(cfg *mcptools.ServerParams) {
+	if c.ServerName != "" {
+		cfg.ServerName = c.ServerName
+	}
+	if c.MaxSpanDetailsPerRequest != 0 {
+		cfg.MaxSpanDetailsPerRequest = c.MaxSpanDetailsPerRequest
+	}
+	if c.MaxSearchResults != 0 {
+		cfg.MaxSearchResults = c.MaxSearchResults
+	}
+	if c.MaxReadFileSize != 0 {
+		cfg.MaxReadFileSize = c.MaxReadFileSize
+	}
 }
 
 func (c *MCPConfig) Validate() error {
+	// Zero means "use the default", so only a set value is range-checked. A
+	// negative or oversized value would otherwise be accepted at config load
+	// and then either disable the tool or let one call allocate without limit.
+	if c.MaxSpanDetailsPerRequest < 0 || c.MaxSpanDetailsPerRequest > mcptools.MaxSpanDetailsPerRequestLimit {
+		return fmt.Errorf("ai.mcp.max_span_details_per_request must be between 1 and %d, or 0 to keep the default of %d",
+			mcptools.MaxSpanDetailsPerRequestLimit, mcptools.DefaultMaxSpanDetailsPerRequest)
+	}
+	if c.MaxSearchResults > mcptools.MaxSearchResultsLimit {
+		return fmt.Errorf("ai.mcp.max_search_results must be between 1 and %d, or 0 to keep the default of %d",
+			mcptools.MaxSearchResultsLimit, mcptools.DefaultMaxSearchResults)
+	}
+	if c.MaxReadFileSize < 0 || c.MaxReadFileSize > mcptools.MaxReadFileSizeLimit {
+		return fmt.Errorf("ai.mcp.max_read_file_size must be between 1 and %d, or 0 to keep the default of %d",
+			mcptools.MaxReadFileSizeLimit, mcptools.DefaultMaxReadFileSize)
+	}
 	if c.BaseURL == "" {
 		return nil
 	}
