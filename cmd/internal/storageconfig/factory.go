@@ -20,6 +20,7 @@ import (
 	"github.com/jaegertracing/jaeger/internal/storage/v2/grpc"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/memory"
 	"github.com/jaegertracing/jaeger/internal/telemetry"
+	"github.com/jaegertracing/jaeger/internal/tenancy"
 )
 
 // AuthResolver is a function type that resolves an authenticator by name.
@@ -35,6 +36,7 @@ func CreateTraceStorageFactory(
 	backend TraceBackend,
 	telset telemetry.Settings,
 	authResolver AuthResolver,
+	tenancyOpts tenancy.Options,
 ) (tracestore.Factory, error) {
 	telset.Logger.Sugar().Infof("Initializing storage '%s'", name)
 
@@ -52,7 +54,7 @@ func CreateTraceStorageFactory(
 
 	switch {
 	case backend.Memory != nil:
-		factory, err = memory.NewFactory(*backend.Memory, telset)
+		factory, err = memory.NewFactory(*backend.Memory, telset, tenancyOpts)
 	case backend.Badger != nil:
 		factory, err = badger.NewFactory(*backend.Badger, telset)
 	case backend.GRPC != nil:

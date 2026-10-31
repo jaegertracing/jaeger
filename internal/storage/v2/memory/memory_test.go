@@ -31,7 +31,7 @@ import (
 func TestNewStore_DefaultConfig(t *testing.T) {
 	store, err := NewStore(Configuration{
 		MaxTraces: 10,
-	})
+	}, tenancy.Options{})
 	require.NoError(t, err)
 	td := loadInputTraces(t, 1)
 	err = store.WriteTraces(context.Background(), td)
@@ -103,6 +103,30 @@ func TestNewStore_DefaultConfig(t *testing.T) {
 		testTraces(t, expected, foundTraces[0])
 	}
 	assert.Equal(t, 1, i)
+}
+
+func TestNewStoreTenancy(t *testing.T) {
+	tests := []struct {
+		name    string
+		options tenancy.Options
+		wantErr string
+	}{
+		{name: "disabled"},
+		{name: "enabled without tenants", options: tenancy.Options{Enabled: true}, wantErr: "multi-tenancy is enabled with an empty tenant list"},
+		{name: "enabled with tenants", options: tenancy.Options{Enabled: true, Tenants: []string{"team-a"}}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			store, err := NewStore(Configuration{MaxTraces: 10}, tt.options)
+			if tt.wantErr != "" {
+				require.ErrorContains(t, err, tt.wantErr)
+				require.Nil(t, store)
+				return
+			}
+			require.NoError(t, err)
+			require.Empty(t, store.perTenant)
+		})
+	}
 }
 
 func getQueryAttributes() pcommon.Map {
@@ -177,7 +201,7 @@ func TestFindTraces_WrongQuery(t *testing.T) {
 	}
 	store, err := NewStore(Configuration{
 		MaxTraces: 10,
-	})
+	}, tenancy.Options{})
 	require.NoError(t, err)
 	td := loadInputTraces(t, 1)
 	err = store.WriteTraces(context.Background(), td)
@@ -205,7 +229,7 @@ func TestFindTraces_WrongQuery(t *testing.T) {
 func TestFindTraces_ErrorAttributeStringCompatibility(t *testing.T) {
 	store, err := NewStore(Configuration{
 		MaxTraces: 10,
-	})
+	}, tenancy.Options{})
 	require.NoError(t, err)
 
 	td := ptrace.NewTraces()
@@ -271,7 +295,7 @@ func TestFindTraces_ErrorAttributeStringCompatibility(t *testing.T) {
 func TestFindTraces_ErrorFalseMatchesUnsetStatus(t *testing.T) {
 	store, err := NewStore(Configuration{
 		MaxTraces: 10,
-	})
+	}, tenancy.Options{})
 	require.NoError(t, err)
 
 	td := ptrace.NewTraces()
@@ -310,7 +334,7 @@ func TestFindTraces_ErrorFalseMatchesUnsetStatus(t *testing.T) {
 func TestFindTraces_ErrorAttributeInvalidType(t *testing.T) {
 	store, err := NewStore(Configuration{
 		MaxTraces: 10,
-	})
+	}, tenancy.Options{})
 	require.NoError(t, err)
 
 	td := ptrace.NewTraces()
@@ -382,7 +406,7 @@ func TestFindTracesAttributesMatching(t *testing.T) {
 	}
 	store, err := NewStore(Configuration{
 		MaxTraces: 10,
-	})
+	}, tenancy.Options{})
 	require.NoError(t, err)
 	for i, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -411,7 +435,7 @@ func TestFindTracesAttributesMatching(t *testing.T) {
 func TestFindTraces_MaxTraces(t *testing.T) {
 	store, err := NewStore(Configuration{
 		MaxTraces: 10,
-	})
+	}, tenancy.Options{})
 	require.NoError(t, err)
 	for i := 1; i < 9; i++ {
 		td := ptrace.NewTraces()
@@ -451,7 +475,7 @@ func TestFindTraces_MaxTraces(t *testing.T) {
 func TestFindTraces_AttributesFoundInEvents(t *testing.T) {
 	store, err := NewStore(Configuration{
 		MaxTraces: 10,
-	})
+	}, tenancy.Options{})
 	require.NoError(t, err)
 	td := ptrace.NewTraces()
 	span := td.ResourceSpans().AppendEmpty().ScopeSpans().AppendEmpty().Spans().AppendEmpty()
@@ -480,7 +504,7 @@ func TestFindTraces_AttributesFoundInEvents(t *testing.T) {
 func TestFindTraces_ErrorStatusNotMatched(t *testing.T) {
 	store, err := NewStore(Configuration{
 		MaxTraces: 10,
-	})
+	}, tenancy.Options{})
 	require.NoError(t, err)
 	td := ptrace.NewTraces()
 	span := td.ResourceSpans().AppendEmpty().ScopeSpans().AppendEmpty().Spans().AppendEmpty()
@@ -549,7 +573,7 @@ func testInvalidSearchDepth(t *testing.T, fxn func(store *Store, params tracesto
 		t.Run(test.name, func(t *testing.T) {
 			store, err := NewStore(Configuration{
 				MaxTraces: 10,
-			})
+			}, tenancy.Options{})
 			require.NoError(t, err)
 			params := tracestore.TraceQueryParams{
 				SearchDepth: test.searchDepth,
@@ -562,7 +586,7 @@ func testInvalidSearchDepth(t *testing.T, fxn func(store *Store, params tracesto
 func TestFindTraces_StatusCode(t *testing.T) {
 	store, err := NewStore(Configuration{
 		MaxTraces: 10,
-	})
+	}, tenancy.Options{})
 	traceId1 := fromString(t, "00000000000000010000000000000000")
 	traceId2 := fromString(t, "00000000000000020000000000000000")
 	traceId3 := fromString(t, "00000000000000030000000000000000")
@@ -645,7 +669,7 @@ func TestGetOperationsWithKind(t *testing.T) {
 		t.Run(test.spanKind.String(), func(t *testing.T) {
 			store, err := NewStore(Configuration{
 				MaxTraces: 10,
-			})
+			}, tenancy.Options{})
 			require.NoError(t, err)
 			td := ptrace.NewTraces()
 			resourceSpan := td.ResourceSpans().AppendEmpty()
@@ -671,7 +695,7 @@ func TestGetOperationsWithKind(t *testing.T) {
 // SearchCapabilities declaration (RFC 0013): a query that omits the service name
 // matches spans from every service, not none.
 func TestFindTracesWithoutServiceName(t *testing.T) {
-	store, err := NewStore(Configuration{MaxTraces: 10})
+	store, err := NewStore(Configuration{MaxTraces: 10}, tenancy.Options{})
 	require.NoError(t, err)
 	caps, err := store.SearchCapabilities(context.Background())
 	require.NoError(t, err)
@@ -707,7 +731,7 @@ func TestFindTracesWithoutServiceName(t *testing.T) {
 func TestGetTraces_IterBreak(t *testing.T) {
 	store, err := NewStore(Configuration{
 		MaxTraces: 10,
-	})
+	}, tenancy.Options{})
 	require.NoError(t, err)
 	td := loadInputTraces(t, 1)
 	err = store.WriteTraces(context.Background(), td)
@@ -729,7 +753,7 @@ func TestGetTraces_IterBreak(t *testing.T) {
 func TestWriteTraces_WriteTwoBatches(t *testing.T) {
 	store, err := NewStore(Configuration{
 		MaxTraces: 10,
-	})
+	}, tenancy.Options{})
 	require.NoError(t, err)
 	traceId := fromString(t, "00000000000000010000000000000000")
 	td1 := ptrace.NewTraces()
@@ -749,7 +773,7 @@ func TestWriteTraces_WriteTwoBatches(t *testing.T) {
 func TestWriteTraces_WriteTraceWithTwoResourceSpans(t *testing.T) {
 	store, err := NewStore(Configuration{
 		MaxTraces: 10,
-	})
+	}, tenancy.Options{})
 	require.NoError(t, err)
 	traceId := fromString(t, "00000000000000010000000000000000")
 	td := ptrace.NewTraces()
@@ -773,7 +797,7 @@ func TestNewStore_TracesLimit(t *testing.T) {
 	const maxTraces = 8
 	store, err := NewStore(Configuration{
 		MaxTraces: maxTraces,
-	})
+	}, tenancy.Options{})
 	require.NoError(t, err)
 	writeTenTraces(t, store)
 	tenant := store.getTenant(tenancy.GetTenant(context.Background()))
@@ -786,7 +810,7 @@ func TestNewStore_ReverseChronologicalOrder(t *testing.T) {
 	const maxTraces = 8
 	store, err := NewStore(Configuration{
 		MaxTraces: maxTraces,
-	})
+	}, tenancy.Options{})
 	require.NoError(t, err)
 	writeTenTraces(t, store)
 	iter := store.FindTraces(context.Background(), tracestore.TraceQueryParams{
@@ -806,7 +830,7 @@ func TestNewStore_ReverseChronologicalOrder(t *testing.T) {
 }
 
 func TestInvalidMaxTracesErr(t *testing.T) {
-	store, err := NewStore(Configuration{})
+	store, err := NewStore(Configuration{}, tenancy.Options{})
 	require.ErrorContains(t, err, errInvalidMaxTraces.Error())
 	assert.Nil(t, store)
 }
@@ -814,7 +838,7 @@ func TestInvalidMaxTracesErr(t *testing.T) {
 func TestGetDependencies(t *testing.T) {
 	store, err := NewStore(Configuration{
 		MaxTraces: 10,
-	})
+	}, tenancy.Options{})
 	require.NoError(t, err)
 	traceId := fromString(t, "00000000000000010000000000000000")
 	td := ptrace.NewTraces()
@@ -886,7 +910,7 @@ func TestGetDependencies(t *testing.T) {
 func TestGetDependencies_SameService(t *testing.T) {
 	store, err := NewStore(Configuration{
 		MaxTraces: 10,
-	})
+	}, tenancy.Options{})
 	require.NoError(t, err)
 	traceId := fromString(t, "00000000000000010000000000000000")
 	td := ptrace.NewTraces()
@@ -929,7 +953,7 @@ func TestGetDependencies_SameService(t *testing.T) {
 func TestGetDependencies_Err(t *testing.T) {
 	store, err := NewStore(Configuration{
 		MaxTraces: 10,
-	})
+	}, tenancy.Options{})
 	require.NoError(t, err)
 	startTime := time.Now()
 	deps, err := store.GetDependencies(context.Background(), depstore.QueryParameters{
@@ -946,7 +970,7 @@ func TestGetDependencies_Err(t *testing.T) {
 func TestGetDependencies_EmptyParentSpanId(t *testing.T) {
 	store, err := NewStore(Configuration{
 		MaxTraces: 10,
-	})
+	}, tenancy.Options{})
 	require.NoError(t, err)
 	td := ptrace.NewTraces()
 	span := td.ResourceSpans().AppendEmpty().ScopeSpans().AppendEmpty().Spans().AppendEmpty()
@@ -967,7 +991,7 @@ func TestGetDependencies_EmptyParentSpanId(t *testing.T) {
 func TestGetDependencies_WrongSpanId(t *testing.T) {
 	store, err := NewStore(Configuration{
 		MaxTraces: 10,
-	})
+	}, tenancy.Options{})
 	require.NoError(t, err)
 	td := ptrace.NewTraces()
 	span := td.ResourceSpans().AppendEmpty().ScopeSpans().AppendEmpty().Spans().AppendEmpty()
@@ -1051,7 +1075,7 @@ func loadTraces(t *testing.T, name string) ptrace.Traces {
 func TestFindTraces_OTLPFields(t *testing.T) {
 	store, err := NewStore(Configuration{
 		MaxTraces: 100,
-	})
+	}, tenancy.Options{})
 	require.NoError(t, err)
 
 	traceID1 := fromString(t, "00000000000000010000000000000000")
@@ -1364,7 +1388,7 @@ func firstSpanAttr(t *testing.T, seq func(func([]ptrace.Traces, error) bool), at
 // removed together with the v1 implementation; adjusters and query interceptors
 // both modify traces in place, so the store has to hand out copies.
 func TestGetTraces_MutatingReaderDoesNotCorruptStore(t *testing.T) {
-	store, err := NewStore(Configuration{MaxTraces: 10})
+	store, err := NewStore(Configuration{MaxTraces: 10}, tenancy.Options{})
 	require.NoError(t, err)
 	traceID := storeOneSpan(t, store, "secret", "original")
 	query := tracestore.GetTraceParams{TraceID: traceID}
@@ -1408,7 +1432,7 @@ func TestCloneTraceFailurePropagates(t *testing.T) {
 		},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
-			store, err := NewStore(Configuration{MaxTraces: 10})
+			store, err := NewStore(Configuration{MaxTraces: 10}, tenancy.Options{})
 			require.NoError(t, err)
 			traceID := storeOneSpan(t, store, "secret", "original")
 			tt.setup(t)
@@ -1438,7 +1462,7 @@ func TestCloneTraceFailurePropagates(t *testing.T) {
 // sharing the store's backing array. ptrace.Traces.CopyTo does the latter, so
 // this is the case that rules it out as the copy mechanism.
 func TestGetTraces_MutatingBytesAttributeDoesNotCorruptStore(t *testing.T) {
-	store, err := NewStore(Configuration{MaxTraces: 10})
+	store, err := NewStore(Configuration{MaxTraces: 10}, tenancy.Options{})
 	require.NoError(t, err)
 	traceID := fromString(t, "00000000000000010000000000000000")
 	td := ptrace.NewTraces()
@@ -1479,7 +1503,7 @@ func TestGetTraces_MutatingBytesAttributeDoesNotCorruptStore(t *testing.T) {
 }
 
 func TestFindTraces_MutatingReaderDoesNotCorruptStore(t *testing.T) {
-	store, err := NewStore(Configuration{MaxTraces: 10})
+	store, err := NewStore(Configuration{MaxTraces: 10}, tenancy.Options{})
 	require.NoError(t, err)
 	traceID := storeOneSpan(t, store, "secret", "original")
 	query := tracestore.TraceQueryParams{

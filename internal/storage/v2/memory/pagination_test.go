@@ -17,6 +17,7 @@ import (
 
 	expression "github.com/jaegertracing/jaeger-idl/query/expression/v1"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore"
+	"github.com/jaegertracing/jaeger/internal/tenancy"
 )
 
 // findSpansPage returns the single chunk one FindSpans call yields.
@@ -114,7 +115,7 @@ func TestFindSpans_CursorSurvivesWritesBetweenPages(t *testing.T) {
 // twice is returned twice rather than skipped, with PageSize still bounding every page: the
 // copies share the whole sort key, and the cursor counts how many of them earlier pages returned.
 func TestFindSpans_DuplicateSpansAreEachReturned(t *testing.T) {
-	store, err := NewStore(Configuration{MaxTraces: 10})
+	store, err := NewStore(Configuration{MaxTraces: 10}, tenancy.Options{})
 	require.NoError(t, err)
 	base := time.Date(2026, 3, 1, 12, 0, 0, 0, time.UTC)
 	writeTracesStartingAt(t, store, 2, base)
@@ -148,7 +149,7 @@ func TestFindSpans_DuplicateSpansAreEachReturned(t *testing.T) {
 // copies it counted are gone: the store evicted that trace between pages, so the next page
 // resumes at the first key after the cursor's rather than skipping unrelated spans.
 func TestFindSpans_CursorPastEvictedCopiesResumesAtNextKey(t *testing.T) {
-	store, err := NewStore(Configuration{MaxTraces: 2})
+	store, err := NewStore(Configuration{MaxTraces: 2}, tenancy.Options{})
 	require.NoError(t, err)
 	base := time.Date(2026, 3, 1, 12, 0, 0, 0, time.UTC)
 	writeSpan := func(id byte, start time.Time) {
@@ -194,7 +195,7 @@ func TestFindSpans_PageThatEndsExactlyCarriesNoToken(t *testing.T) {
 // TestFindSpans_TieBreaksOnTraceAndSpanID pins that spans with the same start time are sorted
 // by trace ID, then span ID, and that a cursor inside a tie resumes at the right span.
 func TestFindSpans_TieBreaksOnTraceAndSpanID(t *testing.T) {
-	store, err := NewStore(Configuration{MaxTraces: 10})
+	store, err := NewStore(Configuration{MaxTraces: 10}, tenancy.Options{})
 	require.NoError(t, err)
 	at := pcommon.NewTimestampFromTime(time.Date(2026, 3, 1, 12, 0, 0, 0, time.UTC))
 	traces := ptrace.NewTraces()
@@ -395,7 +396,7 @@ func traceIDBytes(ids []tracestore.FoundTraceID) []byte {
 }
 
 func TestFindTraceIDs_PagesInStartTimeOrder(t *testing.T) {
-	store, err := NewStore(Configuration{MaxTraces: 10})
+	store, err := NewStore(Configuration{MaxTraces: 10}, tenancy.Options{})
 	require.NoError(t, err)
 	base := time.Date(2026, 3, 1, 12, 0, 0, 0, time.UTC)
 	writeTracesStartingAt(t, store, 5, base)
@@ -421,7 +422,7 @@ func TestFindTraceIDs_PagesInStartTimeOrder(t *testing.T) {
 // TestFindTraceIDs_PositionIsTheLatestMatchingSpan pins that a trace is sorted by the latest
 // start time among its matching spans, not among all its spans (RFC 0014 §3.3).
 func TestFindTraceIDs_PositionIsTheLatestMatchingSpan(t *testing.T) {
-	store, err := NewStore(Configuration{MaxTraces: 10})
+	store, err := NewStore(Configuration{MaxTraces: 10}, tenancy.Options{})
 	require.NoError(t, err)
 	base := time.Date(2026, 3, 1, 12, 0, 0, 0, time.UTC)
 	write := func(traceID byte, spans ...struct {
@@ -461,7 +462,7 @@ func TestFindTraceIDs_PositionIsTheLatestMatchingSpan(t *testing.T) {
 }
 
 func TestFindTraceIDs_PaginationRefusals(t *testing.T) {
-	store, err := NewStore(Configuration{MaxTraces: 10})
+	store, err := NewStore(Configuration{MaxTraces: 10}, tenancy.Options{})
 	require.NoError(t, err)
 	writeTracesStartingAt(t, store, 3, time.Date(2026, 3, 1, 12, 0, 0, 0, time.UTC))
 
@@ -506,7 +507,7 @@ func TestFindTraceIDs_PaginationRefusals(t *testing.T) {
 }
 
 func TestFindTraceIDs_FilterThatCannotBeFingerprintedIsRefused(t *testing.T) {
-	store, err := NewStore(Configuration{MaxTraces: 10})
+	store, err := NewStore(Configuration{MaxTraces: 10}, tenancy.Options{})
 	require.NoError(t, err)
 	query := tracestore.TraceQueryParams{
 		Filter:     &expression.Call{Op: expression.OpAnd, Args: []expression.Expression{(*expression.Call)(nil)}},
@@ -521,7 +522,7 @@ func TestFindTraceIDs_FilterThatCannotBeFingerprintedIsRefused(t *testing.T) {
 // TestFindTraceIDs_CursorSurvivesWritesBetweenPages is TestFindSpans_CursorSurvivesWritesBetweenPages
 // for a trace search.
 func TestFindTraceIDs_CursorSurvivesWritesBetweenPages(t *testing.T) {
-	store, err := NewStore(Configuration{MaxTraces: 10})
+	store, err := NewStore(Configuration{MaxTraces: 10}, tenancy.Options{})
 	require.NoError(t, err)
 	base := time.Date(2026, 3, 1, 12, 0, 0, 0, time.UTC)
 	writeTracesStartingAt(t, store, 3, base)
@@ -557,7 +558,7 @@ func TestFindTraceIDs_CursorSurvivesWritesBetweenPages(t *testing.T) {
 }
 
 func TestSearchCapabilities_DeclaresPaginated(t *testing.T) {
-	store, err := NewStore(Configuration{MaxTraces: 10})
+	store, err := NewStore(Configuration{MaxTraces: 10}, tenancy.Options{})
 	require.NoError(t, err)
 	caps, err := store.SearchCapabilities(context.Background())
 	require.NoError(t, err)

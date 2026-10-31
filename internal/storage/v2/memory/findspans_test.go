@@ -17,6 +17,7 @@ import (
 	expression "github.com/jaegertracing/jaeger-idl/query/expression/v1"
 	"github.com/jaegertracing/jaeger/internal/jiter"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore"
+	"github.com/jaegertracing/jaeger/internal/tenancy"
 )
 
 // spanNames collects every span's name from a ptrace.Traces, across however
@@ -36,7 +37,7 @@ func spanNames(td ptrace.Traces) []string {
 
 func writeTwoTraceStore(t *testing.T) (*Store, time.Time) {
 	t.Helper()
-	store, err := NewStore(Configuration{MaxTraces: 10})
+	store, err := NewStore(Configuration{MaxTraces: 10}, tenancy.Options{})
 	require.NoError(t, err)
 
 	base := time.Date(2026, 3, 1, 12, 0, 0, 0, time.UTC)
@@ -165,7 +166,7 @@ func TestFindSpans_ResultIsIndependentOfStore(t *testing.T) {
 // its source: a caller rewriting a bytes-valued attribute in a FindSpans result must not rewrite
 // the stored span.
 func TestFindSpans_BytesAttributeIsIndependentOfStore(t *testing.T) {
-	store, err := NewStore(Configuration{MaxTraces: 10})
+	store, err := NewStore(Configuration{MaxTraces: 10}, tenancy.Options{})
 	require.NoError(t, err)
 	traces := ptrace.NewTraces()
 	rs := traces.ResourceSpans().AppendEmpty()
@@ -205,7 +206,7 @@ func TestFindSpans_CloneFailureIsReturned(t *testing.T) {
 // filtered on resource.schemaURL or scope.schemaURL, and a caller reading the field back off
 // the result, both depend on it surviving the copy.
 func TestFindSpans_PreservesSchemaURLs(t *testing.T) {
-	store, err := NewStore(Configuration{MaxTraces: 10})
+	store, err := NewStore(Configuration{MaxTraces: 10}, tenancy.Options{})
 	require.NoError(t, err)
 
 	traces := ptrace.NewTraces()
@@ -257,7 +258,7 @@ func TestFindSpans_InvalidFilterShapeReturnsError(t *testing.T) {
 }
 
 func TestSearchCapabilities_DeclareSpanSearchAndFilter(t *testing.T) {
-	store, err := NewStore(Configuration{MaxTraces: 10})
+	store, err := NewStore(Configuration{MaxTraces: 10}, tenancy.Options{})
 	require.NoError(t, err)
 	caps, err := store.SearchCapabilities(context.Background())
 	require.NoError(t, err)

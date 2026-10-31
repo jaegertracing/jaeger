@@ -23,6 +23,7 @@ import (
 	"github.com/jaegertracing/jaeger/internal/storage/v1"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore"
 	tracestoremocks "github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore/mocks"
+	"github.com/jaegertracing/jaeger/internal/tenancy"
 )
 
 var (
@@ -44,6 +45,8 @@ type mockStorageExt struct {
 	factory        tracestore.Factory
 	metricsFactory storage.MetricStoreFactory
 }
+
+func (*mockStorageExt) SetTenancyOptions(tenancy.Options) error { return nil }
 
 func (*mockStorageExt) Start(context.Context, component.Host) error {
 	panic("not implemented")

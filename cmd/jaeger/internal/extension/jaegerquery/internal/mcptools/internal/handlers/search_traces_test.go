@@ -20,6 +20,7 @@ import (
 	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerquery/querysvc"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/memory"
+	"github.com/jaegertracing/jaeger/internal/tenancy"
 )
 
 var testTraceIDBytes = func() pcommon.TraceID {
@@ -225,7 +226,7 @@ func TestSearchTracesHandler_Handle_WithErrorsFilter(t *testing.T) {
 }
 
 func TestSearchTracesHandler_Handle_WithErrorsFilter_UsingMemoryStore(t *testing.T) {
-	store, err := memory.NewStore(memory.Configuration{MaxTraces: 10})
+	store, err := memory.NewStore(memory.Configuration{MaxTraces: 10}, tenancy.Options{})
 	require.NoError(t, err)
 
 	require.NoError(t, store.WriteTraces(context.Background(), createTestTrace(
@@ -541,7 +542,7 @@ func TestSearchTracesHandler_Handle_EnvelopeRefusedByQueryService(t *testing.T) 
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			store, err := memory.NewStore(memory.Configuration{MaxTraces: 10})
+			store, err := memory.NewStore(memory.Configuration{MaxTraces: 10}, tenancy.Options{})
 			require.NoError(t, err)
 			handler := &searchTracesHandler{
 				queryService: querysvc.NewQueryService(store, store, querysvc.QueryServiceOptions{}),
