@@ -138,6 +138,7 @@ func (s *OperationNamesStorage) Write(operation dbmodel.Operation) error {
 		)
 		err := s.metrics.Exec(q, s.logger)
 		if err != nil {
+			s.operationNames.Delete(key)
 			return err
 		}
 	}
