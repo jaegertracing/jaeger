@@ -4,6 +4,7 @@
 package apiv3
 
 import (
+	"bytes"
 	"encoding/base64"
 	"encoding/json"
 	"errors"
@@ -112,15 +113,15 @@ func (h *HTTPGateway) tryParamError(w http.ResponseWriter, err error, paramName 
 	return h.tryHandleError(w, fmt.Errorf("malformed parameter %s: %w", paramName, err), http.StatusBadRequest)
 }
 
-func (h *HTTPGateway) returnTrace(td ptrace.Traces, w http.ResponseWriter) {
+func (h *HTTPGateway) returnTrace(td ptrace.Traces, w http.ResponseWriter, r *http.Request) {
 	tracesData := jptrace.TracesData(td)
 	response := &api_v3.GRPCGatewayWrapper{
 		Result: &tracesData,
 	}
-	h.marshalResponse(response, w)
+	h.marshalResponse(response, w, r)
 }
 
-func (h *HTTPGateway) returnTraces(traces []ptrace.Traces, err error, w http.ResponseWriter) {
+func (h *HTTPGateway) returnTraces(traces []ptrace.Traces, err error, w http.ResponseWriter, r *http.Request) {
 	if h.tryHandleError(w, err, http.StatusInternalServerError) {
 		return
 	}
@@ -145,23 +146,44 @@ func (h *HTTPGateway) returnTraces(traces []ptrace.Traces, err error, w http.Res
 			resource.CopyTo(combinedTrace.ResourceSpans().AppendEmpty())
 		}
 	}
-	h.returnTrace(combinedTrace, w)
+	h.returnTrace(combinedTrace, w, r)
 }
 
-func (*HTTPGateway) marshalResponse(response proto.Message, w http.ResponseWriter) {
+const paramPrettyPrint = "prettyPrint"
+
+// writeJSON writes the output of marshal, indented as the v1 HTTP API does when prettyPrint is
+// set to anything but "false". jsonpb.Marshaler.Indent is not enough: TracesData marshals itself.
+func writeJSON(w http.ResponseWriter, r *http.Request, marshal func(io.Writer)) {
 	w.Header().Set("Content-Type", "application/json")
-	_ = new(jsonpb.Marshaler).Marshal(w, response)
+	if v := r.URL.Query().Get(paramPrettyPrint); v == "" || v == "false" {
+		marshal(w)
+		return
+	}
+	var compact, indented bytes.Buffer
+	marshal(&compact)
+	out := compact.Bytes()
+	if err := json.Indent(&indented, out, "", "    "); err == nil {
+		out = indented.Bytes()
+	}
+	_, _ = w.Write(out)
+}
+
+func (*HTTPGateway) marshalResponse(response proto.Message, w http.ResponseWriter, r *http.Request) {
+	writeJSON(w, r, func(out io.Writer) {
+		_ = new(jsonpb.Marshaler).Marshal(out, response)
+	})
 }
 
 // marshalResultWrappedResponse writes response as jsonpb, wrapped in {"result": …} at the JSON
 // level rather than the proto level: unlike the trace endpoints, whose GRPCGatewayWrapper types
 // its result field as TracesData, there is no proto message typed to carry this RPC's response
 // as a wrapped result, so the envelope is applied to the marshaled bytes directly (RFC 0018 §6.1).
-func (*HTTPGateway) marshalResultWrappedResponse(response proto.Message, w http.ResponseWriter) {
-	w.Header().Set("Content-Type", "application/json")
-	_, _ = io.WriteString(w, `{"result":`)
-	_ = new(jsonpb.Marshaler).Marshal(w, response)
-	_, _ = io.WriteString(w, `}`)
+func (*HTTPGateway) marshalResultWrappedResponse(response proto.Message, w http.ResponseWriter, r *http.Request) {
+	writeJSON(w, r, func(out io.Writer) {
+		_, _ = io.WriteString(out, `{"result":`)
+		_ = new(jsonpb.Marshaler).Marshal(out, response)
+		_, _ = io.WriteString(out, `}`)
+	})
 }
 
 func (h *HTTPGateway) getTrace(w http.ResponseWriter, r *http.Request) {
@@ -201,7 +223,7 @@ func (h *HTTPGateway) getTrace(w http.ResponseWriter, r *http.Request) {
 	}
 	getTracesIter := h.QueryService.GetTraces(r.Context(), request)
 	trc, err := jiter.FlattenWithErrors(getTracesIter)
-	h.returnTraces(trc, err, w)
+	h.returnTraces(trc, err, w, r)
 }
 
 func (h *HTTPGateway) findTraces(w http.ResponseWriter, r *http.Request) {
@@ -212,7 +234,7 @@ func (h *HTTPGateway) findTraces(w http.ResponseWriter, r *http.Request) {
 
 	findTracesIter := h.QueryService.FindTraces(r.Context(), *queryParams)
 	traces, err := jiter.FlattenWithErrors(findTracesIter)
-	h.returnTraces(traces, err, w)
+	h.returnTraces(traces, err, w, r)
 }
 
 func (h *HTTPGateway) findTraceSummaries(w http.ResponseWriter, r *http.Request) {
@@ -235,7 +257,7 @@ func (h *HTTPGateway) findTraceSummaries(w http.ResponseWriter, r *http.Request)
 	h.marshalResponse(&api_v3.FindTraceSummariesResponse{
 		Summaries:     toProtoTraceSummaries(summaries),
 		NextPageToken: nextPageToken,
-	}, w)
+	}, w, r)
 }
 
 func (h *HTTPGateway) findSpans(w http.ResponseWriter, r *http.Request) {
@@ -260,7 +282,7 @@ func (h *HTTPGateway) findSpans(w http.ResponseWriter, r *http.Request) {
 	h.marshalResultWrappedResponse(&api_v3.FindSpansResponse{
 		Spans:         &tracesData,
 		NextPageToken: nextPageToken,
-	}, w)
+	}, w, r)
 }
 
 func (h *HTTPGateway) getServices(w http.ResponseWriter, r *http.Request) {
@@ -273,7 +295,7 @@ func (h *HTTPGateway) getServices(w http.ResponseWriter, r *http.Request) {
 	}
 	h.marshalResponse(&api_v3.GetServicesResponse{
 		Services: services,
-	}, w)
+	}, w, r)
 }
 
 func (h *HTTPGateway) getOperations(w http.ResponseWriter, r *http.Request) {
@@ -298,7 +320,7 @@ func (h *HTTPGateway) getOperations(w http.ResponseWriter, r *http.Request) {
 			SpanKind: spanKind,
 		}
 	}
-	h.marshalResponse(&api_v3.GetOperationsResponse{Operations: apiOperations}, w)
+	h.marshalResponse(&api_v3.GetOperationsResponse{Operations: apiOperations}, w, r)
 }
 
 // TraceIDFromString parses a trace ID from either a hex string or a base64 string.
@@ -334,5 +356,5 @@ func (h *HTTPGateway) getCapabilities(w http.ResponseWriter, r *http.Request) {
 	if h.tryHandleError(w, err, http.StatusInternalServerError) {
 		return
 	}
-	h.marshalResponse(&api_v3.GetCapabilitiesResponse{Search: toSearchCapabilities(caps)}, w)
+	h.marshalResponse(&api_v3.GetCapabilitiesResponse{Search: toSearchCapabilities(caps)}, w, r)
 }
