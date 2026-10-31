@@ -144,6 +144,8 @@ metrics, including the environment-filtering use case described in #7433.
    - Values not in the declared `Values:` set (when configured) → 400.
    - Values containing control characters, double quotes, or backslashes → 400
      (length capped at 256).
+   - Unexpected failures retrieving dimensions → 500.
+   - Disabled metrics backend → 501.
 
 ### Naming
 
@@ -297,6 +299,7 @@ it is not delivered by the backend PR above.
 - `cmd/jaeger/internal/extension/jaegerquery/internal/http_handler_test.go`
   - `GET /api/metrics/dimensions` happy path.
   - `ErrDisabled` → 501.
+  - Unexpected `GetDimensions` failure on a filtered metrics request → 500.
   - Unknown filter key → 400 (mock advertises a different dimension set).
   - Value not in `Values:` → 400.
   - Free-text value containing a control character → 400.

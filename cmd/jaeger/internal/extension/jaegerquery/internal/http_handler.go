@@ -232,9 +232,14 @@ func (aH *APIHandler) metrics(w http.ResponseWriter, r *http.Request, getMetrics
 	if aH.handleError(w, err, http.StatusBadRequest) {
 		return
 	}
-	if err := aH.validateMetricFilters(r.Context(), requestParams.Filters); err != nil {
-		aH.handleError(w, err, http.StatusBadRequest)
-		return
+	if len(requestParams.Filters) > 0 {
+		dims, err := aH.metricsQueryService.GetDimensions(r.Context())
+		if aH.handleError(w, err, http.StatusInternalServerError) {
+			return
+		}
+		if err := validateMetricFilters(requestParams.Filters, dims); aH.handleError(w, err, http.StatusBadRequest) {
+			return
+		}
 	}
 	m, err := getMetrics(r.Context(), requestParams)
 	if aH.handleError(w, err, http.StatusInternalServerError) {
@@ -258,17 +263,8 @@ func (aH *APIHandler) dimensions(w http.ResponseWriter, r *http.Request) {
 }
 
 // validateMetricFilters checks the requested filter keys against the configured
-// dimensions and (when configured) their allowed values. Returns nil if filters
-// is empty. Backends that return ErrDisabled from GetDimensions surface that
-// error here so it maps to 501 instead of 400.
-func (aH *APIHandler) validateMetricFilters(ctx context.Context, filters map[string]string) error {
-	if len(filters) == 0 {
-		return nil
-	}
-	dims, err := aH.metricsQueryService.GetDimensions(ctx)
-	if err != nil {
-		return err
-	}
+// dimensions and (when configured) their allowed values.
+func validateMetricFilters(filters map[string]string, dims []metricstore.Dimension) error {
 	if len(dims) == 0 {
 		return errors.New("metric filtering is not supported by this backend (no dimensions configured)")
 	}

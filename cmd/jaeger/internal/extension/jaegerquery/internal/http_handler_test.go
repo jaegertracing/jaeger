@@ -722,6 +722,21 @@ func TestMetricsQueryDisabled(t *testing.T) {
 			urlPath:          "/api/metrics/dimensions",
 			wantErrorMessage: disabled.ErrDisabled.Error(),
 		},
+		{
+			name:             "filtered calls on disabled backend returns 501",
+			urlPath:          "/api/metrics/calls?service=svc&filter=k8s.cluster:foo",
+			wantErrorMessage: disabled.ErrDisabled.Error(),
+		},
+		{
+			name:             "filtered latencies on disabled backend returns 501",
+			urlPath:          "/api/metrics/latencies?service=svc&quantile=0.95&filter=k8s.cluster:foo",
+			wantErrorMessage: disabled.ErrDisabled.Error(),
+		},
+		{
+			name:             "filtered errors on disabled backend returns 501",
+			urlPath:          "/api/metrics/errors?service=svc&filter=k8s.cluster:foo",
+			wantErrorMessage: disabled.ErrDisabled.Error(),
+		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			// Test
@@ -766,6 +781,24 @@ func TestGetDimensionsEndpointEmpty(t *testing.T) {
 	body, err := io.ReadAll(resp.Body)
 	require.NoError(t, err)
 	assert.Equal(t, "[]", string(bytes.TrimSpace(body)))
+}
+
+func TestMetricsFilterMalformed(t *testing.T) {
+	for _, filter := range []string{"missing-colon", ":value", "key:"} {
+		t.Run(filter, func(t *testing.T) {
+			metricsReader := &metricsmocks.Reader{}
+			ts := initializeTestServer(t, HandlerOptions.MetricsQueryService(metricsReader))
+
+			var response any
+			err := getJSON(ts.server.URL+"/api/metrics/calls?service=svc&filter="+filter, &response)
+
+			var httpErr *HTTPError
+			require.ErrorAs(t, err, &httpErr)
+			assert.Equal(t, http.StatusBadRequest, httpErr.StatusCode)
+			assert.Contains(t, httpErr.Body, "malformed filter")
+			metricsReader.AssertNotCalled(t, "GetDimensions", mock.Anything)
+		})
+	}
 }
 
 func TestMetricsFilterValidation(t *testing.T) {
@@ -846,23 +879,25 @@ func TestMetricsFilterHappyPath(t *testing.T) {
 }
 
 func TestMetricsFilterGetDimensionsError(t *testing.T) {
-	// When GetDimensions returns a non-nil error (other than ErrDisabled)
-	// during filter validation, the error must surface to the client as 400
-	// via the validateMetricFilters error path.
-	metricsReader := &metricsmocks.Reader{}
-	ts := initializeTestServer(t, HandlerOptions.MetricsQueryService(metricsReader))
-	metricsReader.
-		On("GetDimensions", mock.Anything).
-		Return(nil, assert.AnError).
-		Once()
+	for _, endpoint := range []string{"calls", "latencies", "errors"} {
+		t.Run(endpoint, func(t *testing.T) {
+			metricsReader := &metricsmocks.Reader{}
+			ts := initializeTestServer(t, HandlerOptions.MetricsQueryService(metricsReader))
+			metricsReader.
+				On("GetDimensions", mock.Anything).
+				Return(nil, assert.AnError).
+				Once()
 
-	resp, err := http.Get(ts.server.URL + "/api/metrics/calls?service=svc&filter=k8s.cluster:foo")
-	require.NoError(t, err)
-	defer resp.Body.Close()
-	assert.Equal(t, http.StatusBadRequest, resp.StatusCode)
-	body, err := io.ReadAll(resp.Body)
-	require.NoError(t, err)
-	assert.Contains(t, string(body), assert.AnError.Error())
+			var response any
+			err := getJSON(ts.server.URL+"/api/metrics/"+endpoint+"?service=svc&quantile=0.95&filter=k8s.cluster:foo", &response)
+
+			var httpErr *HTTPError
+			require.ErrorAs(t, err, &httpErr)
+			assert.Equal(t, http.StatusInternalServerError, httpErr.StatusCode)
+			assert.Contains(t, httpErr.Body, assert.AnError.Error())
+			metricsReader.AssertExpectations(t)
+		})
+	}
 }
 
 func TestMetricsFilterRequestOnBackendWithoutDimensions(t *testing.T) {
