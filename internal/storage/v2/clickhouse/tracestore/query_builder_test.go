@@ -64,6 +64,22 @@ func TestBuildFindTraceIDsQuery_AttributeMetadataError(t *testing.T) {
 	require.ErrorContains(t, err, "failed to get attribute metadata")
 }
 
+func TestBuildFindTraceIDsQuery_TimeRangePrecision(t *testing.T) {
+	reader := NewReader(&clickhousetest.Driver{}, testReaderConfig)
+	start := time.Unix(1700000000, 123456789)
+	end := time.Unix(1700000005, 987654321)
+
+	sqlText, args, err := reader.buildFindTraceIDsQuery(t.Context(), tracestore.TraceQueryParams{
+		Attributes:   pcommon.NewMap(),
+		StartTimeMin: start,
+		StartTimeMax: end,
+	})
+	require.NoError(t, err)
+	assert.Contains(t, sqlText, "s.start_time >= fromUnixTimestamp64Nano(?)")
+	assert.Contains(t, sqlText, "s.start_time <= fromUnixTimestamp64Nano(?)")
+	assert.Equal(t, []any{start.UnixNano(), end.UnixNano(), testReaderConfig.DefaultSearchDepth}, args)
+}
+
 func TestBuildStringAttributeCondition_Fallbacks(t *testing.T) {
 	cases := []struct {
 		name      string
