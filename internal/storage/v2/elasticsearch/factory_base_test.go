@@ -751,6 +751,25 @@ func TestBuildRotations(t *testing.T) {
 	}
 }
 
+func TestBuildSamplingRotationWithRemoteClusters(t *testing.T) {
+	date := time.Date(2019, 10, 10, 5, 0, 0, 0, time.UTC)
+	f := &FactoryBase{
+		config: &escfg.Configuration{
+			RemoteReadClusters: []string{"cluster_one", "cluster_two"},
+		},
+		logger: zap.NewNop(),
+	}
+
+	rotation := f.buildSamplingRotation()
+	localIndex := "jaeger-sampling-" + date.Format("2006-01-02")
+	assert.Equal(t, []string{
+		localIndex,
+		"cluster_one:" + localIndex,
+		"cluster_two:" + localIndex,
+	}, rotation.ReadTargets(date, date))
+	assert.Equal(t, localIndex, rotation.WriteTarget(date))
+}
+
 // TestIndicesClientFromConfig verifies the factory derives the template-rendering
 // ILM inputs from the span rotation config: auto_rollover with a policy name
 // enables ILM, while periodic rotation (or an empty policy name) leaves it off.
