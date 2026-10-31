@@ -5,6 +5,7 @@
 
 """
 This script finds the release managers table in RELEASE.md and move the first data row to the end, rotating the release manager schedule.
+It only rotates for a minor release (X.Y.0) that matches the table's first row, so patch releases leave the schedule alone.
 """
 
 import re
@@ -29,7 +30,7 @@ def get_next_first_wednesday(last_date_str: str) -> str:
     return first_wednesday.strftime("%-d %B %Y")
 
 
-def rotate_release_managers() -> None:
+def rotate_release_managers(version: str) -> None:
     with open('RELEASE.md', 'r') as f:
         content = f.read()
 
@@ -55,6 +56,14 @@ def rotate_release_managers() -> None:
     if not data_lines:
         print("Error: No data lines found in release managers table", file=sys.stderr)
         sys.exit(1)
+
+    first_row_version = next((p.strip() for p in data_lines[0].split('|') if p.strip()), "")
+    if not re.fullmatch(r'\d+\.\d+\.0', version):
+        print(f"Skipping release managers rotation: {version} is not a minor release (X.Y.0)")
+        return
+    if version != first_row_version:
+        print(f"Skipping release managers rotation: {version} does not match the table's first row ({first_row_version})")
+        return
 
     # Find the maximum version currently in the table to determine the next one
     max_major, max_minor, max_patch = -1, -1, -1
@@ -107,7 +116,10 @@ def rotate_release_managers() -> None:
     print(f"Rotated release managers table. Added {next_version} for {manager} on {next_date}")
 
 def main():
-    rotate_release_managers()
+    if len(sys.argv) != 2:
+        print(f"Usage: {sys.argv[0]} <version>", file=sys.stderr)
+        sys.exit(1)
+    rotate_release_managers(sys.argv[1].removeprefix('v'))
 
 if __name__ == "__main__":
     main()

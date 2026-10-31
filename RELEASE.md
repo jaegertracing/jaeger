@@ -41,7 +41,7 @@ Follow the checklist in the created tracking issue. The high level steps are:
     ```
     * Updates CHANGELOG.md (generates content via `make changelog`)
     * Upgrades jaeger-ui submodule to the corresponding version
-    * Rotates release managers table
+    * Rotates release managers table (only for the X.Y.0 release in its first row)
     * Creates PR with label `changelog:skip`
   * Manual: See [Manual release pull request](https://github.com/jaegertracing/jaeger/blob/main/RELEASE.md#manual-release-pull-request).
 2. After the PR is merged, the [Draft release workflow](https://github.com/jaegertracing/jaeger/actions/workflows/ci-release-draft.yml) creates a draft release from the merge commit.
