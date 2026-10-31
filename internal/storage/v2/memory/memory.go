@@ -186,8 +186,12 @@ func (st *Store) FindTraces(ctx context.Context, query tracestore.TraceQueryPara
 			yield(nil, err)
 			return
 		}
+
 		for i := range traceAndIds {
+			m.mu.RLock()
 			trace, err := cloneTrace(traceAndIds[i].trace)
+			m.mu.RUnlock()
+
 			if err != nil {
 				yield(nil, err)
 				return
@@ -252,14 +256,14 @@ func (st *Store) FindTraceIDs(ctx context.Context, query tracestore.TraceQueryPa
 func (st *Store) GetTraces(ctx context.Context, traceIDs ...tracestore.GetTraceParams) iter.Seq2[[]ptrace.Traces, error] {
 	m := st.getTenant(tenancy.GetTenant(ctx))
 	return func(yield func([]ptrace.Traces, error) bool) {
-		traces := m.getTraces(traceIDs...)
+		traces, err := m.getTraces(traceIDs...)
+		if err != nil {
+			yield(nil, err)
+			return
+		}
+
 		for i := range traces {
-			trace, err := cloneTrace(traces[i])
-			if err != nil {
-				yield(nil, err)
-				return
-			}
-			if !yield([]ptrace.Traces{trace}, nil) {
+			if !yield([]ptrace.Traces{traces[i]}, nil) {
 				return
 			}
 		}

@@ -134,9 +134,9 @@ func (t *Tenant) storeTraces(tracesById map[pcommon.TraceID]ptrace.ResourceSpans
 	}
 }
 
-// findTraceAndIds returns references to the traces the store holds, not copies,
-// so that FindTraceIDs pays nothing for trace data it discards. Anything that
-// hands the traces to a reader must pass them through cloneTrace first.
+// findTraceAndIds returns references to stored traces so ID-only searches avoid copies.
+// Callers must hold t.mu.RLock while reading the referenced trace data and make
+// independent copies before handing traces to a reader.
 func (t *Tenant) findTraceAndIds(query tracestore.TraceQueryParams) ([]traceAndId, error) {
 	if query.SearchDepth == 0 || query.SearchDepth > t.config.MaxTraces {
 		return nil, errInvalidSearchDepth
@@ -295,19 +295,23 @@ func spanStartsWithin(span ptrace.Span, startTimeMin, startTimeMax time.Time) bo
 	return true
 }
 
-// getTraces returns references to the traces the store holds, not copies; see
-// findTraceAndIds. Callers must clone before handing them to a reader.
-func (t *Tenant) getTraces(traceIds ...tracestore.GetTraceParams) []ptrace.Traces {
+// getTraces returns independent copies made while holding the tenant read lock.
+func (t *Tenant) getTraces(traceIds ...tracestore.GetTraceParams) ([]ptrace.Traces, error) {
 	t.mu.RLock()
 	defer t.mu.RUnlock()
+
 	traces := make([]ptrace.Traces, 0)
 	for i := range traceIds {
 		index, ok := t.ids[traceIds[i].TraceID]
 		if ok {
-			traces = append(traces, t.traces[index].trace)
+			trace, err := cloneTrace(t.traces[index].trace)
+			if err != nil {
+				return nil, err
+			}
+			traces = append(traces, trace)
 		}
 	}
-	return traces
+	return traces, nil
 }
 
 func (t *Tenant) getDependencies(query depstore.QueryParameters) ([]model.DependencyLink, error) {
