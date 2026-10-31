@@ -858,6 +858,39 @@ func TestHandler_FindTraceSummaries_NotImplemented(t *testing.T) {
 		"the client reads the status back as the missing capability the reader reported")
 }
 
+func TestHandler_MissingQueryReturnsInvalidArgument(t *testing.T) {
+	// An omitted nested query message is valid protobuf. All three search handlers
+	// must refuse it before they dereference it, without calling the storage reader.
+	assertMissingQuery := func(t *testing.T, err error) {
+		t.Helper()
+		require.Error(t, err)
+		assert.Equal(t, codes.InvalidArgument, status.Code(err))
+		assert.Equal(t, "missing query", status.Convert(err).Message())
+	}
+	t.Run("FindTraces", func(t *testing.T) {
+		reader := new(tracestoremocks.Reader)
+		handler := NewHandler(reader, new(tracestoremocks.Writer), new(depstoremocks.Reader))
+		assertMissingQuery(t, handler.FindTraces(&storage.FindTracesRequest{}, &testStream{}))
+		reader.AssertNotCalled(t, "FindTraces", mock.Anything, mock.Anything)
+		reader.AssertExpectations(t)
+	})
+	t.Run("FindTraceIDs", func(t *testing.T) {
+		reader := new(tracestoremocks.Reader)
+		handler := NewHandler(reader, new(tracestoremocks.Writer), new(depstoremocks.Reader))
+		_, err := handler.FindTraceIDs(context.Background(), &storage.FindTraceIDsRequest{})
+		assertMissingQuery(t, err)
+		reader.AssertNotCalled(t, "FindTraceIDs", mock.Anything, mock.Anything)
+		reader.AssertExpectations(t)
+	})
+	t.Run("FindTraceSummaries", func(t *testing.T) {
+		reader := new(tracestoremocks.Reader)
+		handler := NewHandler(reader, new(tracestoremocks.Writer), new(depstoremocks.Reader))
+		assertMissingQuery(t, handler.FindTraceSummaries(&storage.FindTraceSummariesRequest{}, &summaryStream{}))
+		reader.AssertNotCalled(t, "FindTraceSummaries", mock.Anything, mock.Anything)
+		reader.AssertExpectations(t)
+	})
+}
+
 func TestHandler_FindTraceSummaries_Success(t *testing.T) {
 	now := time.Unix(1000, 0).UTC()
 	want := []tracestore.TraceSummary{
