@@ -45,3 +45,9 @@ func (*MetricsReader) GetCallRates(context.Context, *metricstore.CallRateQueryPa
 func (*MetricsReader) GetErrorRates(context.Context, *metricstore.ErrorRateQueryParameters) (*metrics.MetricFamily, error) {
 	return nil, ErrDisabled
 }
+
+// GetDimensions returns the configured filterable dimensions. For the disabled
+// reader this is always nil with ErrDisabled, mirroring the other endpoints.
+func (*MetricsReader) GetDimensions(context.Context) ([]metricstore.Dimension, error) {
+	return nil, ErrDisabled
+}

@@ -76,6 +76,13 @@ func (r *Reader) GetErrorRates(ctx context.Context, params *metricstore.ErrorRat
 	}, base)
 }
 
+// GetDimensions returns the set of pre-configured filterable dimensions.
+// TODO(#7433): the ClickHouse metricstore does not yet support dimension
+// filtering. Returning an empty slice tells the UI to hide the dropdowns.
+func (*Reader) GetDimensions(context.Context) ([]metricstore.Dimension, error) {
+	return nil, nil
+}
+
 type metricsQuery struct {
 	baseName  string
 	opName    string
