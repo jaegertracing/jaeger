@@ -11,9 +11,9 @@ on:
   workflow_dispatch:
     inputs:
       tag:
-        required: true
+        required: false
         type: string
-        description: Release tag to build, e.g. v2.23.0. The source is checked out from this tag; the workflow file comes from the selected branch.
+        description: Release tag to build, e.g. v2.23.0. Leave blank to build the latest published release. The source is checked out from this tag; the workflow file comes from the selected branch.
 
       dry_run:
         required: true
@@ -56,10 +56,25 @@ jobs:
       with:
         egress-policy: audit # TODO: change to 'egress-policy: block' after couple of runs
 
+    - name: Resolve the tag to build on manual runs
+      id: tag
+      if: github.event_name == 'workflow_dispatch'
+      env:
+        GH_TOKEN: ${{ github.token }}
+        INPUT_TAG: ${{ inputs.tag }}
+      run: |
+        TAG="${INPUT_TAG}"
+        if [[ -z "${TAG}" ]]; then
+          TAG=$(gh release view --repo "${GITHUB_REPOSITORY}" --json tagName -q .tagName)
+          echo "No tag given, using the latest published release: ${TAG}"
+        fi
+        echo "Building tag ${TAG}"
+        echo "tag=${TAG}" >> "$GITHUB_OUTPUT"
+
     - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
       with:
-        # Manual runs build the given tag, not the branch the workflow was dispatched from.
-        ref: ${{ inputs.tag && format('refs/tags/{0}', inputs.tag) || '' }}
+        # Manual runs build the resolved tag, not the branch the workflow was dispatched from.
+        ref: ${{ steps.tag.outputs.tag && format('refs/tags/{0}', steps.tag.outputs.tag) || '' }}
         submodules: true
 
     - name: Fetch git tags
@@ -96,14 +111,14 @@ jobs:
         BRANCH=$(make echo-version)
         echo Validate that the latest tag ${BRANCH} is in semver format
         echo ${BRANCH} | grep -E '^v[0-9]+.[0-9]+.[0-9]+(-rc[0-9]+)?$'
-        if [[ "${GITHUB_EVENT_NAME}" == "workflow_dispatch" && "${BRANCH}" != "${INPUT_TAG}" ]]; then
-          echo "::error::make echo-version returned ${BRANCH}, but the tag input is ${INPUT_TAG}"
+        if [[ "${GITHUB_EVENT_NAME}" == "workflow_dispatch" && "${BRANCH}" != "${RELEASE_TAG}" ]]; then
+          echo "::error::make echo-version returned ${BRANCH}, but the tag to build is ${RELEASE_TAG}"
           exit 1
         fi
         echo "BRANCH=${BRANCH}" >> ${GITHUB_ENV}
         echo "tag=${BRANCH}" >> "$GITHUB_OUTPUT"
       env:
-        INPUT_TAG: ${{ inputs.tag }}
+        RELEASE_TAG: ${{ steps.tag.outputs.tag }}
 
     - name: Configure GPG Key
       if: ${{ inputs.dry_run != true }}
