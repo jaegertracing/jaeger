@@ -72,20 +72,25 @@ type node struct {
 // hostKey derives a unique string representation of a host based on resource attributes.
 // This is used to determine if two spans are from the same host.
 func hostKey(resource ptrace.ResourceSpans) string {
-	if attr, ok := resource.Resource().Attributes().Get(string(otelsemconv.HostIDKey)); ok {
+	attrs := resource.Resource().Attributes()
+	if attr, ok := attrs.Get(string(otelsemconv.HostIDKey)); ok && attr.Type() == pcommon.ValueTypeStr && attr.Str() != "" {
 		return attr.Str()
 	}
-	if attr, ok := resource.Resource().Attributes().Get(string(otelsemconv.HostIPKey)); ok {
+	if attr, ok := attrs.Get(string(otelsemconv.HostIPKey)); ok {
 		if attr.Type() == pcommon.ValueTypeStr {
-			return attr.Str()
+			if attr.Str() != "" {
+				return attr.Str()
+			}
 		} else if attr.Type() == pcommon.ValueTypeSlice {
 			ips := attr.Slice()
 			if ips.Len() > 0 {
-				return ips.At(0).AsString()
+				if ip := ips.At(0).AsString(); ip != "" {
+					return ip
+				}
 			}
 		}
 	}
-	if attr, ok := resource.Resource().Attributes().Get(string(otelsemconv.HostNameKey)); ok {
+	if attr, ok := attrs.Get(string(otelsemconv.HostNameKey)); ok && attr.Type() == pcommon.ValueTypeStr && attr.Str() != "" {
 		return attr.Str()
 	}
 	return ""
