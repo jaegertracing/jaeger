@@ -50,7 +50,11 @@ Follow the checklist in the created tracking issue. The high level steps are:
 3. Once the release is created, the [Publish Release workflow](https://github.com/jaegertracing/jaeger/actions/workflows/ci-release.yml) will run to build artifacts.
   * Wait for the workflow to finish. For monitoring and troubleshooting, open the logs of the workflow run from above URL.
   * Check the images are available on [Docker Hub](https://hub.docker.com/r/jaegertracing/) and binaries are uploaded [to the release](https://github.com/jaegertracing/jaeger/releases).
-  * If the workflow fails: if it failed before uploading anything, "Re-run failed jobs" on the failed run rebuilds the same tag. Otherwise (a transient failure after some uploads, or a fix to the workflow file on `main`), use "Run workflow" on `main` with `overwrite=true`: `gh workflow run ci-release.yml --ref main -f tag=vX.Y.Z -f dry_run=false -f overwrite=true`. Leave `tag` blank only when the failed release is the one marked Latest. For a code fix, if the release hasn't been announced and `git log --oneline vX.Y.Z..<upstream-remote>/main` lists only the fix, move the tag to it (`git tag -f vX.Y.Z <fix-sha> && git push -f <upstream-remote> vX.Y.Z`) and run the workflow again (safe for Go: the module path has no `/v2`); otherwise cut a patch release.
+  * If the workflow fails:
+    * Failed before uploading anything: use "Re-run failed jobs" on the failed run; it rebuilds the same tag.
+    * Failed after some uploads, or the fix is to the workflow file on `main`: "Run workflow" on `main` with `overwrite=true` (`gh workflow run ci-release.yml --ref main -f tag=vX.Y.Z -f dry_run=false -f overwrite=true`). Leave `tag` blank only when the failed release is the one marked Latest.
+    * Code fix, release not announced, and `git log --oneline vX.Y.Z..<upstream-remote>/main` lists only the fix: move the tag (`git tag -f vX.Y.Z <fix-sha> && git push -f <upstream-remote> vX.Y.Z`) and run the workflow again (safe for Go: the module path has no `/v2`).
+    * Anything else: cut a patch release.
 4. Review the [feature gate lifecycle tracker](https://github.com/jaegertracing/jaeger/issues/9057) and open follow-up PRs for any gate stage advancements or legacy-ID removals due in the next release.
 
 <!-- END_CHECKLIST -->
