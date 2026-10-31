@@ -608,9 +608,10 @@ func TestHandler_GetDependencies(t *testing.T) {
 
 func TestConvertKeyValueListToMap(t *testing.T) {
 	tests := []struct {
-		name     string
-		input    []*storage.KeyValue
-		expected pcommon.Map
+		name          string
+		input         []*storage.KeyValue
+		expected      pcommon.Map
+		expectedError string
 	}{
 		{
 			name:     "empty list",
@@ -618,9 +619,9 @@ func TestConvertKeyValueListToMap(t *testing.T) {
 			expected: pcommon.NewMap(),
 		},
 		{
-			name:     "nil entry",
-			input:    []*storage.KeyValue{nil},
-			expected: pcommon.NewMap(),
+			name:          "nil entry",
+			input:         []*storage.KeyValue{nil},
+			expectedError: "attribute entry is nil",
 		},
 		{
 			name: "nil value",
@@ -630,7 +631,124 @@ func TestConvertKeyValueListToMap(t *testing.T) {
 					Value: nil,
 				},
 			},
-			expected: pcommon.NewMap(),
+			expectedError: `key "key1": value is not set`,
+		},
+		{
+			name: "value with no type set",
+			input: []*storage.KeyValue{
+				{
+					Key:   "key1",
+					Value: &storage.AnyValue{},
+				},
+			},
+			expectedError: `key "key1": value is not set`,
+		},
+		{
+			name: "nil entry in nested map",
+			input: []*storage.KeyValue{
+				{
+					Key: "key1",
+					Value: &storage.AnyValue{
+						Value: &storage.AnyValue_KvlistValue{
+							KvlistValue: &storage.KeyValueList{
+								Values: []*storage.KeyValue{nil},
+							},
+						},
+					},
+				},
+			},
+			expectedError: `key "key1": attribute entry is nil`,
+		},
+		{
+			name: "nil value in nested map",
+			input: []*storage.KeyValue{
+				{
+					Key: "key1",
+					Value: &storage.AnyValue{
+						Value: &storage.AnyValue_KvlistValue{
+							KvlistValue: &storage.KeyValueList{
+								Values: []*storage.KeyValue{{Key: "nilValueKey"}},
+							},
+						},
+					},
+				},
+			},
+			expectedError: `key "key1": key "nilValueKey": value is not set`,
+		},
+		{
+			name: "nil value in map inside array",
+			input: []*storage.KeyValue{
+				{
+					Key: "key1",
+					Value: &storage.AnyValue{
+						Value: &storage.AnyValue_ArrayValue{
+							ArrayValue: &storage.ArrayValue{
+								Values: []*storage.AnyValue{
+									{
+										Value: &storage.AnyValue_ArrayValue{
+											ArrayValue: &storage.ArrayValue{
+												Values: []*storage.AnyValue{
+													{
+														Value: &storage.AnyValue_KvlistValue{
+															KvlistValue: &storage.KeyValueList{
+																Values: []*storage.KeyValue{{Key: "nilValueKey"}},
+															},
+														},
+													},
+												},
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+			expectedError: `key "key1": index 0: index 0: key "nilValueKey": value is not set`,
+		},
+		{
+			name: "nil element in array",
+			input: []*storage.KeyValue{
+				{
+					Key: "key1",
+					Value: &storage.AnyValue{
+						Value: &storage.AnyValue_ArrayValue{
+							ArrayValue: &storage.ArrayValue{
+								Values: []*storage.AnyValue{
+									{Value: &storage.AnyValue_StringValue{StringValue: "keep"}},
+									nil,
+								},
+							},
+						},
+					},
+				},
+			},
+			expectedError: `key "key1": index 1: value is not set`,
+		},
+		{
+			name: "nil element in nested array",
+			input: []*storage.KeyValue{
+				{
+					Key: "key1",
+					Value: &storage.AnyValue{
+						Value: &storage.AnyValue_ArrayValue{
+							ArrayValue: &storage.ArrayValue{
+								Values: []*storage.AnyValue{
+									{
+										Value: &storage.AnyValue_ArrayValue{
+											ArrayValue: &storage.ArrayValue{
+												Values: []*storage.AnyValue{nil},
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+			expectedError: `key "key1": index 0: index 0: value is not set`,
 		},
 		{
 			name: "primitive types",
@@ -691,16 +809,11 @@ func TestConvertKeyValueListToMap(t *testing.T) {
 											Value: &storage.AnyValue_StringValue{StringValue: "nestedValue"},
 										},
 									},
-									{
-										Key:   "nilValueKey",
-										Value: nil, // should be skipped
-									},
 								},
 							},
 						},
 					},
 				},
-				nil, // should be skipped
 			},
 			expected: func() pcommon.Map {
 				m := pcommon.NewMap()
@@ -743,16 +856,10 @@ func TestConvertKeyValueListToMap(t *testing.T) {
 															Value: &storage.AnyValue_StringValue{StringValue: "nestedValue"},
 														},
 													},
-													{
-														Key:   "nilValueKey",
-														Value: nil, // should be skipped
-													},
-													nil, // should be skipped
 												},
 											},
 										},
 									},
-									nil,
 								},
 							},
 						},
@@ -769,7 +876,6 @@ func TestConvertKeyValueListToMap(t *testing.T) {
 				slice.AppendEmpty().SetEmptyBytes().FromRaw([]byte{1, 2})
 				nested := slice.AppendEmpty().SetEmptyMap()
 				nested.PutStr("nestedKey", "nestedValue")
-				slice.AppendEmpty() // for the nil entry
 				return m
 			}(),
 		},
@@ -789,12 +895,10 @@ func TestConvertKeyValueListToMap(t *testing.T) {
 													{
 														Value: &storage.AnyValue_StringValue{StringValue: "inner1"},
 													},
-													nil,
 												},
 											},
 										},
 									},
-									nil,
 								},
 							},
 						},
@@ -806,8 +910,6 @@ func TestConvertKeyValueListToMap(t *testing.T) {
 				slice := m.PutEmptySlice("key1")
 				nestedSlice := slice.AppendEmpty().SetEmptySlice()
 				nestedSlice.AppendEmpty().SetStr("inner1")
-				nestedSlice.AppendEmpty() // for the nil entry
-				slice.AppendEmpty()       // for the nil entry
 				return m
 			}(),
 		},
@@ -815,7 +917,15 @@ func TestConvertKeyValueListToMap(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			result := convertKeyValueListToMap(test.input)
+			result, err := convertKeyValueListToMap(test.input)
+			if test.expectedError != "" {
+				require.Error(t, err)
+				assert.Equal(t, codes.InvalidArgument, status.Code(err))
+				assert.Equal(t, test.expectedError, status.Convert(err).Message())
+				assert.Equal(t, 0, result.Len())
+				return
+			}
+			require.NoError(t, err)
 			assert.Equal(t, test.expected, result)
 		})
 	}
@@ -1006,6 +1116,32 @@ func TestHandler_GetCapabilities(t *testing.T) {
 	}
 }
 
+// searchMethods runs a query through every search method that takes TraceQueryParameters.
+var searchMethods = []struct {
+	name string
+	call func(*Handler, *storage.TraceQueryParameters) error
+}{
+	{
+		name: "FindTraces",
+		call: func(h *Handler, q *storage.TraceQueryParameters) error {
+			return h.FindTraces(&storage.FindTracesRequest{Query: q}, &testStream{})
+		},
+	},
+	{
+		name: "FindTraceSummaries",
+		call: func(h *Handler, q *storage.TraceQueryParameters) error {
+			return h.FindTraceSummaries(&storage.FindTraceSummariesRequest{Query: q}, &summaryStream{})
+		},
+	},
+	{
+		name: "FindTraceIDs",
+		call: func(h *Handler, q *storage.TraceQueryParameters) error {
+			_, err := h.FindTraceIDs(context.Background(), &storage.FindTraceIDsRequest{Query: q})
+			return err
+		},
+	},
+}
+
 // TestHandler_RefusesUnusableFilter covers the refusal every search method shares: a filter the
 // caller has to change never reaches the reader, because a reader handed a filter it was not asked
 // about would answer the time range instead and call that a match.
@@ -1015,45 +1151,17 @@ func TestHandler_RefusesUnusableFilter(t *testing.T) {
 	query := &storage.TraceQueryParameters{
 		Filter: &expressionproto.Call{Op: "no-such-operator"},
 	}
-	tests := []struct {
-		name   string
-		method string
-		call   func(*Handler) error
-	}{
-		{
-			name:   "FindTraces",
-			method: "FindTraces",
-			call: func(h *Handler) error {
-				return h.FindTraces(&storage.FindTracesRequest{Query: query}, &testStream{})
-			},
-		},
-		{
-			name:   "FindTraceSummaries",
-			method: "FindTraceSummaries",
-			call: func(h *Handler) error {
-				return h.FindTraceSummaries(&storage.FindTraceSummariesRequest{Query: query}, &summaryStream{})
-			},
-		},
-		{
-			name:   "FindTraceIDs",
-			method: "FindTraceIDs",
-			call: func(h *Handler) error {
-				_, err := h.FindTraceIDs(context.Background(), &storage.FindTraceIDsRequest{Query: query})
-				return err
-			},
-		},
-	}
-	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
+	for _, method := range searchMethods {
+		t.Run(method.name, func(t *testing.T) {
 			reader := new(tracestoremocks.Reader)
 			handler := NewHandler(reader, new(tracestoremocks.Writer), new(depstoremocks.Reader))
 
-			err := test.call(handler)
+			err := method.call(handler, query)
 
 			require.Error(t, err)
 			assert.Equal(t, codes.InvalidArgument, status.Code(err))
 			assert.Contains(t, err.Error(), "no-such-operator")
-			reader.AssertNotCalled(t, test.method, mock.Anything, mock.Anything)
+			reader.AssertNotCalled(t, method.name, mock.Anything, mock.Anything)
 		})
 	}
 }
@@ -1117,6 +1225,92 @@ func TestHandler_SearchDepthValidation(t *testing.T) {
 				require.NoError(t, err)
 			}
 		})
+	}
+}
+
+func TestHandler_RefusesNilAttribute(t *testing.T) {
+	tests := []struct {
+		name       string
+		attributes []*storage.KeyValue
+		message    string
+	}{
+		{name: "nil entry", attributes: []*storage.KeyValue{nil}, message: "attribute entry is nil"},
+		{name: "nil value", attributes: []*storage.KeyValue{{Key: "key1"}}, message: `key "key1": value is not set`},
+	}
+	for _, test := range tests {
+		for _, method := range searchMethods {
+			t.Run(test.name+"/"+method.name, func(t *testing.T) {
+				reader := new(tracestoremocks.Reader)
+				handler := NewHandler(reader, new(tracestoremocks.Writer), new(depstoremocks.Reader))
+
+				err := method.call(handler, &storage.TraceQueryParameters{Attributes: test.attributes})
+
+				require.Error(t, err)
+				assert.Equal(t, codes.InvalidArgument, status.Code(err))
+				assert.Equal(t, test.message, status.Convert(err).Message())
+				reader.AssertNotCalled(t, method.name, mock.Anything, mock.Anything)
+			})
+		}
+	}
+}
+
+// TestHandler_RefusesEmptyWireAttribute sends the query through the wire codec, because a client
+// can encode an AnyValue with no type set (an empty message) where it cannot encode a nil one.
+func TestHandler_RefusesEmptyWireAttribute(t *testing.T) {
+	str := func(s string) *storage.AnyValue {
+		return &storage.AnyValue{Value: &storage.AnyValue_StringValue{StringValue: s}}
+	}
+	array := func(values ...*storage.AnyValue) *storage.AnyValue {
+		return &storage.AnyValue{Value: &storage.AnyValue_ArrayValue{ArrayValue: &storage.ArrayValue{Values: values}}}
+	}
+	kvlist := func(values ...*storage.KeyValue) *storage.AnyValue {
+		return &storage.AnyValue{Value: &storage.AnyValue_KvlistValue{KvlistValue: &storage.KeyValueList{Values: values}}}
+	}
+	tests := []struct {
+		name    string
+		value   *storage.AnyValue
+		message string
+	}{
+		{
+			name:    "empty value in array",
+			value:   array(str("keep"), &storage.AnyValue{}),
+			message: `key "a": index 1: value is not set`,
+		},
+		{
+			name:    "empty value in nested array",
+			value:   array(array(str("keep"), &storage.AnyValue{})),
+			message: `key "a": index 0: index 1: value is not set`,
+		},
+		{
+			name: "empty value in map nested in array",
+			value: array(str("keep"), kvlist(
+				&storage.KeyValue{Key: "b", Value: kvlist(&storage.KeyValue{Key: "c", Value: &storage.AnyValue{}})},
+			)),
+			message: `key "a": index 1: key "b": key "c": value is not set`,
+		},
+	}
+	for _, test := range tests {
+		sent := &storage.TraceQueryParameters{
+			Attributes: []*storage.KeyValue{{Key: "a", Value: test.value}},
+		}
+		data, err := sent.Marshal()
+		require.NoError(t, err)
+		query := &storage.TraceQueryParameters{}
+		require.NoError(t, query.Unmarshal(data))
+
+		for _, method := range searchMethods {
+			t.Run(test.name+"/"+method.name, func(t *testing.T) {
+				reader := new(tracestoremocks.Reader)
+				handler := NewHandler(reader, new(tracestoremocks.Writer), new(depstoremocks.Reader))
+
+				err := method.call(handler, query)
+
+				require.Error(t, err)
+				assert.Equal(t, codes.InvalidArgument, status.Code(err))
+				assert.Equal(t, test.message, status.Convert(err).Message())
+				reader.AssertNotCalled(t, method.name, mock.Anything, mock.Anything)
+			})
+		}
 	}
 }
 

@@ -334,10 +334,14 @@ func toProtoQueryParameters(t tracestore.TraceQueryParams) (*storage.TraceQueryP
 	if t.SearchDepth > tracestore.MaxSearchDepth {
 		return nil, fmt.Errorf("SearchDepth must be in [0, %d]", tracestore.MaxSearchDepth)
 	}
+	attributes, err := convertMapToKeyValueList(t.Attributes)
+	if err != nil {
+		return nil, fmt.Errorf("cannot send the query attributes: %w", err)
+	}
 	q := &storage.TraceQueryParameters{
 		ServiceName:   t.ServiceName,
 		OperationName: t.OperationName,
-		Attributes:    convertMapToKeyValueList(t.Attributes),
+		Attributes:    attributes,
 		StartTimeMin:  t.StartTimeMin,
 		StartTimeMax:  t.StartTimeMax,
 		DurationMin:   t.DurationMin,
@@ -354,55 +358,72 @@ func toProtoQueryParameters(t tracestore.TraceQueryParams) (*storage.TraceQueryP
 	return q, nil
 }
 
-func convertMapToKeyValueList(m pcommon.Map) []*storage.KeyValue {
+// convertMapToKeyValueList refuses a value with no wire form at any depth and names the path to it:
+// the server refuses a value with no type set, and a nil array element fails marshaling.
+func convertMapToKeyValueList(m pcommon.Map) ([]*storage.KeyValue, error) {
 	keyValues := make([]*storage.KeyValue, 0, m.Len())
+	var err error
 	m.Range(func(k string, v pcommon.Value) bool {
-		keyValues = append(keyValues, &storage.KeyValue{
-			Key:   k,
-			Value: convertValueToAnyValue(v),
-		})
+		var av *storage.AnyValue
+		av, err = convertValueToAnyValue(v)
+		if err != nil {
+			err = fmt.Errorf("key %q: %w", k, err)
+			return false
+		}
+		keyValues = append(keyValues, &storage.KeyValue{Key: k, Value: av})
 		return true
 	})
-	return keyValues
+	if err != nil {
+		return nil, err
+	}
+	return keyValues, nil
 }
 
-func convertValueToAnyValue(v pcommon.Value) *storage.AnyValue {
+func convertValueToAnyValue(v pcommon.Value) (*storage.AnyValue, error) {
 	switch v.Type() {
 	case pcommon.ValueTypeStr:
 		return &storage.AnyValue{
 			Value: &storage.AnyValue_StringValue{
 				StringValue: v.Str(),
 			},
-		}
+		}, nil
 	case pcommon.ValueTypeBool:
 		return &storage.AnyValue{
 			Value: &storage.AnyValue_BoolValue{
 				BoolValue: v.Bool(),
 			},
-		}
+		}, nil
 	case pcommon.ValueTypeInt:
 		return &storage.AnyValue{
 			Value: &storage.AnyValue_IntValue{
 				IntValue: v.Int(),
 			},
-		}
+		}, nil
 	case pcommon.ValueTypeDouble:
 		return &storage.AnyValue{
 			Value: &storage.AnyValue_DoubleValue{
 				DoubleValue: v.Double(),
 			},
-		}
+		}, nil
 	case pcommon.ValueTypeBytes:
+		raw := v.Bytes().AsRaw()
+		if raw == nil {
+			raw = []byte{} // the wire drops a nil oneof payload, which the server reads as an unset value
+		}
 		return &storage.AnyValue{
 			Value: &storage.AnyValue_BytesValue{
-				BytesValue: v.Bytes().AsRaw(),
+				BytesValue: raw,
 			},
-		}
+		}, nil
 	case pcommon.ValueTypeSlice:
 		arr := v.Slice()
 		arrayValues := make([]*storage.AnyValue, 0, arr.Len())
 		for i := 0; i < arr.Len(); i++ {
-			arrayValues = append(arrayValues, convertValueToAnyValue(arr.At(i)))
+			elem, err := convertValueToAnyValue(arr.At(i))
+			if err != nil {
+				return nil, fmt.Errorf("index %d: %w", i, err)
+			}
+			arrayValues = append(arrayValues, elem)
 		}
 		return &storage.AnyValue{
 			Value: &storage.AnyValue_ArrayValue{
@@ -410,18 +431,18 @@ func convertValueToAnyValue(v pcommon.Value) *storage.AnyValue {
 					Values: arrayValues,
 				},
 			},
-		}
+		}, nil
 	case pcommon.ValueTypeMap:
-		kvList := &storage.KeyValueList{}
-		v.Map().Range(func(k string, val pcommon.Value) bool {
-			kvList.Values = append(kvList.Values, &storage.KeyValue{
-				Key:   k,
-				Value: convertValueToAnyValue(val),
-			})
-			return true
-		})
-		return &storage.AnyValue{Value: &storage.AnyValue_KvlistValue{KvlistValue: kvList}}
+		kvList, err := convertMapToKeyValueList(v.Map())
+		if err != nil {
+			return nil, err
+		}
+		return &storage.AnyValue{
+			Value: &storage.AnyValue_KvlistValue{
+				KvlistValue: &storage.KeyValueList{Values: kvList},
+			},
+		}, nil
 	default:
-		return nil
+		return nil, fmt.Errorf("%s value has no wire form", v.Type())
 	}
 }
