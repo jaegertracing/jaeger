@@ -34,7 +34,10 @@ Follow the checklist in the created tracking issue. The high level steps are:
 
 <!-- BEGIN_CHECKLIST -->
 
-1. Create a PR "Prepare release vX.Y.Z" against main or maintenance branch ([example](https://github.com/jaegertracing/jaeger/pull/6826)).
+1. Land the feature gate transitions due in vX.Y.Z before preparing the release.
+  * Review the [feature gate lifecycle tracker](https://github.com/jaegertracing/jaeger/issues/9057), then merge PRs for every gate stage advancement and legacy-ID removal due in vX.Y.Z.
+  * Check legacy-ID removals due in vX.Y.Z by hand: `make prepare-release` only catches gates still registered with `WithRegisterToVersion("vX.Y.Z")`.
+2. Create a PR "Prepare release vX.Y.Z" against main or maintenance branch ([example](https://github.com/jaegertracing/jaeger/pull/6826)).
   * **Automated**:
     ```bash
     make prepare-release VERSION=X.Y.Z ISSUE=__RELEASE_ISSUE__
@@ -44,13 +47,12 @@ Follow the checklist in the created tracking issue. The high level steps are:
     * Rotates release managers table (only for the X.Y.0 release in its first row)
     * Creates PR with label `changelog:skip`
   * Manual: See [Manual release pull request](https://github.com/jaegertracing/jaeger/blob/main/RELEASE.md#manual-release-pull-request).
-2. After the PR is merged, the [Draft release workflow](https://github.com/jaegertracing/jaeger/actions/workflows/ci-release-draft.yml) creates a draft release from the merge commit.
+3. After the PR is merged, the [Draft release workflow](https://github.com/jaegertracing/jaeger/actions/workflows/ci-release-draft.yml) creates a draft release from the merge commit.
   * Open the draft on [GitHub Releases](https://github.com/jaegertracing/jaeger/releases), review the notes, and publish it.
   * If no draft appears (the workflow failed, or the PR targeted a maintenance branch), run `./scripts/release/draft.py --target <merge commit SHA>` instead, or see [Manual release](https://github.com/jaegertracing/jaeger/blob/main/RELEASE.md#manual-release).
-3. Once the release is created, the [Publish Release workflow](https://github.com/jaegertracing/jaeger/actions/workflows/ci-release.yml) will run to build artifacts.
+4. Once the release is created, the [Publish Release workflow](https://github.com/jaegertracing/jaeger/actions/workflows/ci-release.yml) will run to build artifacts.
   * Wait for the workflow to finish. For monitoring and troubleshooting, open the logs of the workflow run from above URL.
   * Check the images are available on [Docker Hub](https://hub.docker.com/r/jaegertracing/) and binaries are uploaded [to the release](https://github.com/jaegertracing/jaeger/releases).
-4. Review the [feature gate lifecycle tracker](https://github.com/jaegertracing/jaeger/issues/9057) and open follow-up PRs for any gate stage advancements or legacy-ID removals due in the next release.
 
 <!-- END_CHECKLIST -->
 
