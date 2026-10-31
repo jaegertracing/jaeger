@@ -198,7 +198,7 @@ func TestElasticsearchTagsFileDoNotExist(t *testing.T) {
 		LogLevel: "debug",
 	}
 	f, err := NewFactoryBase(context.Background(), cfg, metrics.NullFactory, zaptest.NewLogger(t), nooptrace.NewTracerProvider(), nil)
-	require.ErrorContains(t, err, "open fixtures/file-does-not-exist.txt: no such file or directory")
+	require.ErrorIs(t, err, os.ErrNotExist)
 	assert.Nil(t, f)
 }
 

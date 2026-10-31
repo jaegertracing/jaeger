@@ -18,6 +18,10 @@ import (
 // caches it for the specified interval, and reloads after the interval expires.
 // disable Reloading by setting interval to 0
 func cachedFileTokenLoader(path string, interval time.Duration, timeFn func() time.Time) func() (string, error) {
+	return cachedFileTokenLoaderWithReader(path, interval, timeFn, os.ReadFile)
+}
+
+func cachedFileTokenLoaderWithReader(path string, interval time.Duration, timeFn func() time.Time, readFile func(string) ([]byte, error)) func() (string, error) {
 	var (
 		mu          sync.Mutex
 		cachedToken string
@@ -37,7 +41,7 @@ func cachedFileTokenLoader(path string, interval time.Duration, timeFn func() ti
 		}
 
 		// Read from file
-		b, err := os.ReadFile(filepath.Clean(path))
+		b, err := readFile(filepath.Clean(path))
 		if err != nil {
 			return "", fmt.Errorf("failed to read token file: %w", err)
 		}
