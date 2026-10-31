@@ -5,12 +5,20 @@ package clickhouse
 
 import (
 	"context"
+	dbsql "database/sql"
 	"errors"
-	"regexp"
+	"fmt"
+	"io"
+	"io/fs"
+	"os"
 	"testing"
 	"time"
 
 	"github.com/ClickHouse/clickhouse-go/v2"
+	"github.com/golang-migrate/migrate/v4"
+	"github.com/golang-migrate/migrate/v4/database"
+	clickhousemigrate "github.com/golang-migrate/migrate/v4/database/clickhouse"
+	"github.com/golang-migrate/migrate/v4/source"
 	"github.com/open-telemetry/opentelemetry-collector-contrib/extension/basicauthextension"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -21,6 +29,10 @@ import (
 	"github.com/jaegertracing/jaeger/internal/storage/v2/clickhouse/sql"
 	"github.com/jaegertracing/jaeger/internal/telemetry"
 )
+
+var localTableEngine = TableEngine{
+	MergeTree: configoptional.Some(MergeTreeEngine{}),
+}
 
 func TestFactory(t *testing.T) {
 	tests := []struct {
@@ -86,26 +98,9 @@ func TestFactory(t *testing.T) {
 	}
 }
 
-// localTableEngine is the engine the unit tests create the schema with.
-var localTableEngine = TableEngine{
-	MergeTree: configoptional.Some(MergeTreeEngine{}),
-}
-
-// schemaQuery returns the statement newSchemaBuilder renders under the given name for
-// localTableEngine and no TTL, so the tests expect exactly what the factory executes.
-func schemaQuery(t *testing.T, name string) string {
-	builder, err := newSchemaBuilder(Configuration{CreateSchema: true, TableEngine: localTableEngine})
-	require.NoError(t, err)
-	for _, stmt := range builder.statements {
-		if stmt.name == name {
-			return stmt.query
-		}
-	}
-	require.Failf(t, "unknown schema statement", "%s", name)
-	return ""
-}
-
 func TestNewFactory_Errors(t *testing.T) {
+	migrationQuery := "ADD COLUMN IF NOT EXISTS flags UInt32"
+
 	tests := []struct {
 		name          string
 		failureConfig clickhousetest.FailureConfig
@@ -119,88 +114,11 @@ func TestNewFactory_Errors(t *testing.T) {
 			expectedError: "failed to ping ClickHouse",
 		},
 		{
-			name: "spans table creation error",
+			name: "migration execution error",
 			failureConfig: clickhousetest.FailureConfig{
-				schemaQuery(t, "spans table"): assert.AnError,
+				migrationQuery: assert.AnError,
 			},
-			expectedError: "failed to create spans table",
-		},
-		{
-			name: "services table creation error",
-			failureConfig: clickhousetest.FailureConfig{
-				schemaQuery(t, "services table"): assert.AnError,
-			},
-			expectedError: "failed to create services table",
-		},
-		{
-			name: "services materialized view creation error",
-			failureConfig: clickhousetest.FailureConfig{
-				sql.CreateServicesMaterializedView: assert.AnError,
-			},
-			expectedError: "failed to create services materialized view",
-		},
-		{
-			name: "operations table creation error",
-			failureConfig: clickhousetest.FailureConfig{
-				schemaQuery(t, "operations table"): assert.AnError,
-			},
-			expectedError: "failed to create operations table",
-		},
-		{
-			name: "operations materialized view creation error",
-			failureConfig: clickhousetest.FailureConfig{
-				sql.CreateOperationsMaterializedView: assert.AnError,
-			},
-			expectedError: "failed to create operations materialized view",
-		},
-		{
-			name: "trace id timestamps table creation error",
-			failureConfig: clickhousetest.FailureConfig{
-				schemaQuery(t, "trace id timestamps table"): assert.AnError,
-			},
-			expectedError: "failed to create trace id timestamps table",
-		},
-		{
-			name: "trace id timestamps materialized view creation error",
-			failureConfig: clickhousetest.FailureConfig{
-				sql.CreateTraceIDTimestampsMaterializedView: assert.AnError,
-			},
-			expectedError: "failed to create trace id timestamps materialized view",
-		},
-		{
-			name: "attribute metadata table creation error",
-			failureConfig: clickhousetest.FailureConfig{
-				schemaQuery(t, "attribute metadata table"): assert.AnError,
-			},
-			expectedError: "failed to create attribute metadata table",
-		},
-		{
-			name: "attribute metadata materialized view creation error",
-			failureConfig: clickhousetest.FailureConfig{
-				sql.CreateAttributeMetadataMaterializedView: assert.AnError,
-			},
-			expectedError: "failed to create attribute metadata materialized view",
-		},
-		{
-			name: "event attribute metadata materialized view creation error",
-			failureConfig: clickhousetest.FailureConfig{
-				sql.CreateEventAttributeMetadataMaterializedView: assert.AnError,
-			},
-			expectedError: "failed to create event attribute metadata materialized view",
-		},
-		{
-			name: "link attribute metadata materialized view creation error",
-			failureConfig: clickhousetest.FailureConfig{
-				sql.CreateLinkAttributeMetadataMaterializedView: assert.AnError,
-			},
-			expectedError: "failed to create link attribute metadata materialized view",
-		},
-		{
-			name: "dependencies table creation error",
-			failureConfig: clickhousetest.FailureConfig{
-				schemaQuery(t, "dependencies table"): assert.AnError,
-			},
-			expectedError: "failed to create dependencies table",
+			expectedError: "failed to apply migrations",
 		},
 	}
 
@@ -366,48 +284,303 @@ func TestNewFactory_TLSLoadSuccess(t *testing.T) {
 }
 
 func TestNewSchemaBuilder_Errors(t *testing.T) {
-	originalLoadTemplate := loadTemplate
-	t.Cleanup(func() { loadTemplate = originalLoadTemplate })
+	srv := clickhousetest.NewServer(clickhousetest.FailureConfig{})
+	defer srv.Close()
 
-	tests := []struct {
-		name          string
-		mockFn        func(name, tmplBody string, data any) (string, error)
-		expectedError string
-	}{
-		{
-			name: "first loadTemplate call fails",
-			mockFn: func(_, _ string, _ any) (string, error) {
-				return "", errors.New("mock template error")
+	cfg := Configuration{
+		Protocol:     "http",
+		Addresses:    []string{srv.Listener.Addr().String()},
+		CreateSchema: true,
+		TableEngine:  localTableEngine,
+	}
+	opts, err := Options(context.Background(), cfg)
+	require.NoError(t, err)
+
+	t.Run("TLS load error in newSchemaBuilder", func(t *testing.T) {
+		tlsCfg := cfg
+		tlsCfg.TLS = configoptional.Some(configtls.ClientConfig{
+			Config: configtls.Config{
+				CAFile: "/non/existent/ca.pem",
 			},
-			expectedError: "mock template error",
-		},
-		{
-			name: "second loadTemplate call fails",
-			mockFn: func() func(name, tmplBody string, data any) (string, error) {
-				calls := 0
-				return func(name, tmplBody string, data any) (string, error) {
-					calls++
-					if calls >= 2 {
-						return "", errors.New("mock template error")
-					}
-					return loadTemplateImpl(name, tmplBody, data)
-				}
-			}(),
-			expectedError: "mock template error",
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			loadTemplate = tt.mockFn
-			_, err := NewFactory(
-				context.Background(),
-				Configuration{CreateSchema: true, TableEngine: localTableEngine},
-				telemetry.NoopSettings(),
-			)
-			require.ErrorContains(t, err, tt.expectedError)
 		})
+		_, err := newSchemaBuilder(context.Background(), tlsCfg)
+		require.ErrorContains(t, err, "failed to load TLS configuration")
+	})
+
+	t.Run("source driver error", func(t *testing.T) {
+		orig := newSourceDriver
+		defer func() { newSourceDriver = orig }()
+		newSourceDriver = func(_ fs.FS, _ string) (source.Driver, error) {
+			return nil, errors.New("mock source driver error")
+		}
+		b, err := newSchemaBuilder(context.Background(), cfg, opts)
+		require.NoError(t, err)
+		err = b.build(context.Background())
+		require.ErrorContains(t, err, "failed to create migration source driver: mock source driver error")
+	})
+
+	t.Run("database driver error", func(t *testing.T) {
+		orig := newDatabaseDriver
+		defer func() { newDatabaseDriver = orig }()
+		newDatabaseDriver = func(_ *dbsql.DB, _ *clickhousemigrate.Config) (database.Driver, error) {
+			return nil, errors.New("mock database driver error")
+		}
+		b, err := newSchemaBuilder(context.Background(), cfg, opts)
+		require.NoError(t, err)
+		err = b.build(context.Background())
+		require.ErrorContains(t, err, "failed to create migration database driver: mock database driver error")
+	})
+
+	t.Run("migrate instance error", func(t *testing.T) {
+		orig := newMigrateInstance
+		defer func() { newMigrateInstance = orig }()
+		newMigrateInstance = func(_ string, _ source.Driver, _ string, _ database.Driver) (*migrate.Migrate, error) {
+			return nil, errors.New("mock migrate instance error")
+		}
+		b, err := newSchemaBuilder(context.Background(), cfg, opts)
+		require.NoError(t, err)
+		err = b.build(context.Background())
+		require.ErrorContains(t, err, "failed to create migrate instance: mock migrate instance error")
+	})
+}
+
+func TestSchemaBuilder_VersionChecking(t *testing.T) {
+	sourceDriver, err := newSourceDriver(sql.MigrationFiles, ".")
+	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, sourceDriver.Close()) })
+	binaryVersion, err := latestBinaryVersion(sourceDriver)
+	require.NoError(t, err)
+
+	srv := clickhousetest.NewServer(clickhousetest.FailureConfig{})
+	defer srv.Close()
+
+	cfg := Configuration{
+		Protocol:     "http",
+		Addresses:    []string{srv.Listener.Addr().String()},
+		CreateSchema: false,
 	}
+	opts, err := Options(context.Background(), cfg)
+	require.NoError(t, err)
+
+	t.Run("database version newer than binary refuses startup", func(t *testing.T) {
+		b, err := newSchemaBuilder(context.Background(), cfg, opts)
+		require.NoError(t, err)
+
+		// Set up a database version newer than the binary's latest migration.
+		orig := newDatabaseDriver
+		defer func() { newDatabaseDriver = orig }()
+		newDatabaseDriver = func(db *dbsql.DB, config *clickhousemigrate.Config) (database.Driver, error) {
+			drv, err := orig(db, config)
+			require.NoError(t, err)
+			return &mockVersionDriver{Driver: drv, version: int(binaryVersion + 1)}, nil
+		}
+
+		err = b.build(context.Background())
+		require.ErrorContains(t, err, fmt.Sprintf("database schema version %d is newer than binary version %d", binaryVersion+1, binaryVersion))
+	})
+
+	t.Run("database version equal to binary allows startup", func(t *testing.T) {
+		b, err := newSchemaBuilder(context.Background(), cfg, opts)
+		require.NoError(t, err)
+
+		orig := newDatabaseDriver
+		defer func() { newDatabaseDriver = orig }()
+		newDatabaseDriver = func(db *dbsql.DB, config *clickhousemigrate.Config) (database.Driver, error) {
+			drv, err := orig(db, config)
+			require.NoError(t, err)
+			return &mockVersionDriver{Driver: drv, version: int(binaryVersion)}, nil
+		}
+
+		err = b.build(context.Background())
+		require.NoError(t, err)
+	})
+
+	t.Run("database version check error", func(t *testing.T) {
+		b, err := newSchemaBuilder(context.Background(), cfg, opts)
+		require.NoError(t, err)
+
+		orig := newDatabaseDriver
+		defer func() { newDatabaseDriver = orig }()
+		newDatabaseDriver = func(db *dbsql.DB, config *clickhousemigrate.Config) (database.Driver, error) {
+			drv, err := orig(db, config)
+			require.NoError(t, err)
+			return &mockVersionDriver{Driver: drv, err: errors.New("mock version error")}, nil
+		}
+
+		err = b.build(context.Background())
+		require.ErrorContains(t, err, "failed to read database schema version")
+	})
+}
+
+type mockVersionDriver struct {
+	database.Driver
+	version int
+	dirty   bool
+	err     error
+}
+
+func (m *mockVersionDriver) Version() (int, bool, error) {
+	if m.err != nil {
+		return 0, false, m.err
+	}
+	return m.version, m.dirty, nil
+}
+
+func TestSchemaBuilder_ConcurrencyAndRetry(t *testing.T) {
+	sourceDriver, err := newSourceDriver(sql.MigrationFiles, ".")
+	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, sourceDriver.Close()) })
+	binaryVersion, err := latestBinaryVersion(sourceDriver)
+	require.NoError(t, err)
+
+	srv := clickhousetest.NewServer(clickhousetest.FailureConfig{})
+	defer srv.Close()
+
+	cfg := Configuration{
+		Protocol:     "http",
+		Addresses:    []string{srv.Listener.Addr().String()},
+		CreateSchema: true,
+		TableEngine:  localTableEngine,
+	}
+	opts, err := Options(context.Background(), cfg)
+	require.NoError(t, err)
+
+	t.Run("retry on ErrDirty succeeds when cleared", func(t *testing.T) {
+		b, err := newSchemaBuilder(context.Background(), cfg, opts)
+		require.NoError(t, err)
+		b.backoffInitialInterval = 1 * time.Millisecond
+		b.backoffMaxElapsedTime = 200 * time.Millisecond
+
+		attempts := 0
+		orig := newDatabaseDriver
+		defer func() { newDatabaseDriver = orig }()
+		newDatabaseDriver = func(db *dbsql.DB, config *clickhousemigrate.Config) (database.Driver, error) {
+			drv, err := orig(db, config)
+			require.NoError(t, err)
+			return &mockFlakyDriver{
+				Driver: drv,
+				versionFn: func() (int, bool, error) {
+					attempts++
+					if attempts == 1 {
+						return int(binaryVersion), true, nil // dirty!
+					}
+					return int(binaryVersion), false, nil // clean on second try!
+				},
+			}, nil
+		}
+
+		err = b.build(context.Background())
+		require.NoError(t, err)
+		assert.Equal(t, 2, attempts)
+	})
+
+	t.Run("retry on ErrDirty times out after bounded backoff", func(t *testing.T) {
+		b, err := newSchemaBuilder(context.Background(), cfg, opts)
+		require.NoError(t, err)
+		b.backoffInitialInterval = 1 * time.Millisecond
+		b.backoffMaxElapsedTime = 10 * time.Millisecond
+
+		orig := newDatabaseDriver
+		defer func() { newDatabaseDriver = orig }()
+		newDatabaseDriver = func(db *dbsql.DB, config *clickhousemigrate.Config) (database.Driver, error) {
+			drv, err := orig(db, config)
+			require.NoError(t, err)
+			return &mockFlakyDriver{
+				Driver: drv,
+				versionFn: func() (int, bool, error) {
+					return int(binaryVersion), true, nil // always dirty!
+				},
+			}, nil
+		}
+
+		err = b.build(context.Background())
+		require.ErrorContains(t, err, "schema migration dirty after backoff")
+	})
+
+	t.Run("context canceled during retry backoff", func(t *testing.T) {
+		b, err := newSchemaBuilder(context.Background(), cfg, opts)
+		require.NoError(t, err)
+		b.backoffInitialInterval = 50 * time.Millisecond
+		b.backoffMaxElapsedTime = 5 * time.Second
+
+		orig := newDatabaseDriver
+		defer func() { newDatabaseDriver = orig }()
+		newDatabaseDriver = func(db *dbsql.DB, config *clickhousemigrate.Config) (database.Driver, error) {
+			drv, err := orig(db, config)
+			require.NoError(t, err)
+			return &mockFlakyDriver{
+				Driver: drv,
+				versionFn: func() (int, bool, error) {
+					return int(binaryVersion), true, nil // dirty
+				},
+			}, nil
+		}
+
+		ctx, cancel := context.WithCancel(context.Background())
+		go func() {
+			time.Sleep(10 * time.Millisecond)
+			cancel()
+		}()
+
+		err = b.build(ctx)
+		require.ErrorIs(t, err, context.Canceled)
+	})
+}
+
+type mockFlakyDriver struct {
+	database.Driver
+	versionFn func() (int, bool, error)
+}
+
+func (m *mockFlakyDriver) Version() (int, bool, error) {
+	if m.versionFn != nil {
+		return m.versionFn()
+	}
+	return m.Driver.Version()
+}
+
+func TestLatestBinaryVersion(t *testing.T) {
+	t.Run("first version error", func(t *testing.T) {
+		drv := &mockSourceDriver{firstErr: errors.New("mock first error")}
+		_, err := latestBinaryVersion(drv)
+		require.ErrorContains(t, err, "mock first error")
+	})
+
+	t.Run("next version error", func(t *testing.T) {
+		drv := &mockSourceDriver{
+			firstVersion: 1,
+			nextErr:      errors.New("mock next error"),
+		}
+		_, err := latestBinaryVersion(drv)
+		require.ErrorContains(t, err, "mock next error")
+	})
+
+	t.Run("no migrations", func(t *testing.T) {
+		drv := &mockSourceDriver{firstErr: os.ErrNotExist}
+		v, err := latestBinaryVersion(drv)
+		require.NoError(t, err)
+		assert.Equal(t, uint(0), v)
+	})
+}
+
+type mockSourceDriver struct {
+	firstVersion uint
+	firstErr     error
+	nextVersion  uint
+	nextErr      error
+}
+
+func (m *mockSourceDriver) Open(_ string) (source.Driver, error) { return m, nil }
+func (*mockSourceDriver) Close() error                           { return nil }
+func (m *mockSourceDriver) First() (uint, error)                 { return m.firstVersion, m.firstErr }
+func (*mockSourceDriver) Prev(_ uint) (uint, error)              { return 0, os.ErrNotExist }
+func (m *mockSourceDriver) Next(_ uint) (uint, error)            { return m.nextVersion, m.nextErr }
+func (*mockSourceDriver) ReadUp(_ uint) (io.ReadCloser, string, error) {
+	return nil, "", os.ErrNotExist
+}
+
+func (*mockSourceDriver) ReadDown(_ uint) (io.ReadCloser, string, error) {
+	return nil, "", os.ErrNotExist
 }
 
 func TestLoadTemplate(t *testing.T) {
@@ -453,12 +626,23 @@ func TestLoadTemplate(t *testing.T) {
 
 func TestCreateSpansTableTemplate(t *testing.T) {
 	t.Run("without TTL", func(t *testing.T) {
-		queryWithoutTTL := schemaQuery(t, "spans table")
+		queryWithoutTTL, err := loadTemplate("test_no_ttl", sql.CreateSpansTable, schemaTemplateParams{
+			MergeTree:            "MergeTree",
+			AggregatingMergeTree: "AggregatingMergeTree",
+		})
+		require.NoError(t, err)
 		assert.NotContains(t, queryWithoutTTL, "TTL start_time")
+		assert.Contains(t, queryWithoutTTL, "`events.dropped_attributes_count`")
+		assert.Contains(t, queryWithoutTTL, "`links.dropped_attributes_count`")
+		assert.Contains(t, queryWithoutTTL, "`links.flags`")
 	})
 
 	t.Run("with TTL", func(t *testing.T) {
-		queryWithTTL, err := loadTemplate("test_ttl", sql.CreateSpansTable, schemaTemplateParams{TTLSeconds: 86400, MergeTree: "MergeTree"})
+		queryWithTTL, err := loadTemplate("test_ttl", sql.CreateSpansTable, schemaTemplateParams{
+			TTLSeconds:           86400,
+			MergeTree:            "MergeTree",
+			AggregatingMergeTree: "AggregatingMergeTree",
+		})
 		require.NoError(t, err)
 		assert.Contains(t, queryWithTTL, "TTL start_time + INTERVAL 86400 SECOND DELETE")
 	})
@@ -466,90 +650,43 @@ func TestCreateSpansTableTemplate(t *testing.T) {
 
 func TestCreateTraceIDTimestampsTableTemplate(t *testing.T) {
 	t.Run("without TTL", func(t *testing.T) {
-		queryWithoutTTL := schemaQuery(t, "trace id timestamps table")
+		queryWithoutTTL, err := loadTemplate("test_no_ttl_trace", sql.CreateTraceIDTimestampsTable, schemaTemplateParams{
+			MergeTree:            "MergeTree",
+			AggregatingMergeTree: "AggregatingMergeTree",
+		})
+		require.NoError(t, err)
 		assert.NotContains(t, queryWithoutTTL, "TTL end")
 	})
 
 	t.Run("with TTL", func(t *testing.T) {
-		queryWithTTL, err := loadTemplate("test_ttl_trace", sql.CreateTraceIDTimestampsTable, schemaTemplateParams{TTLSeconds: 86400, AggregatingMergeTree: "AggregatingMergeTree"})
+		queryWithTTL, err := loadTemplate("test_ttl_trace", sql.CreateTraceIDTimestampsTable, schemaTemplateParams{
+			TTLSeconds:           86400,
+			MergeTree:            "MergeTree",
+			AggregatingMergeTree: "AggregatingMergeTree",
+		})
 		require.NoError(t, err)
 		assert.Contains(t, queryWithTTL, "TTL end + INTERVAL 86400 SECOND DELETE")
 	})
 }
 
-// TestSchemaBuilder_Engines checks that every table the builder creates carries the ENGINE
-// clause the configured TableEngine renders, and that the materialized views carry none.
-func TestSchemaBuilder_Engines(t *testing.T) {
-	mergeTreeTables := map[string]bool{
-		"spans table":        true,
-		"dependencies table": true,
-	}
-	aggregatingTables := map[string]bool{
-		"services table":            true,
-		"operations table":          true,
-		"trace id timestamps table": true,
-		"attribute metadata table":  true,
-	}
-	tests := []struct {
-		name            string
-		engine          TableEngine
-		wantMergeTree   string
-		wantAggregating string
-	}{
-		{
-			name:            "merge_tree",
-			engine:          localTableEngine,
-			wantMergeTree:   "ENGINE = MergeTree",
-			wantAggregating: "ENGINE = AggregatingMergeTree",
-		},
-		{
-			name: "replicated with server defaults",
-			engine: TableEngine{
-				Replicated: configoptional.Some(ReplicatedEngine{}),
-			},
-			wantMergeTree:   "ENGINE = ReplicatedMergeTree",
-			wantAggregating: "ENGINE = ReplicatedAggregatingMergeTree",
-		},
-		{
-			name: "replicated with keeper path and replica name",
-			engine: TableEngine{
-				Replicated: configoptional.Some(ReplicatedEngine{
-					KeeperPath:  "/clickhouse/tables/{shard}/{database}/{table}",
-					ReplicaName: "{replica}",
-				}),
-			},
-			wantMergeTree:   "ENGINE = ReplicatedMergeTree('/clickhouse/tables/{shard}/{database}/{table}', '{replica}')",
-			wantAggregating: "ENGINE = ReplicatedAggregatingMergeTree('/clickhouse/tables/{shard}/{database}/{table}', '{replica}')",
-		},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			builder, err := newSchemaBuilder(Configuration{CreateSchema: true, TableEngine: tt.engine})
-			require.NoError(t, err)
-			seen := 0
-			for _, stmt := range builder.statements {
-				assert.NotContains(t, stmt.query, "{{", stmt.name)
-				// The clause must end at whitespace, so that a bare ReplicatedMergeTree
-				// is not satisfied by ReplicatedMergeTree('...') and vice versa.
-				switch {
-				case mergeTreeTables[stmt.name]:
-					assert.Regexp(t, regexp.QuoteMeta(tt.wantMergeTree)+`\s`, stmt.query, stmt.name)
-					seen++
-				case aggregatingTables[stmt.name]:
-					assert.Regexp(t, regexp.QuoteMeta(tt.wantAggregating)+`\s`, stmt.query, stmt.name)
-					seen++
-				default:
-					assert.NotContains(t, stmt.query, "ENGINE", stmt.name)
-				}
-			}
-			assert.Equal(t, len(mergeTreeTables)+len(aggregatingTables), seen)
-		})
-	}
-
-	t.Run("unset engine is refused", func(t *testing.T) {
-		_, err := newSchemaBuilder(Configuration{CreateSchema: true})
-		require.ErrorContains(t, err, "`create_schema` requires `table_engine`")
+func TestRenderedMigrationFSUsesConfiguredTableEngine(t *testing.T) {
+	params, err := schemaTemplateParamsForTableEngine(TableEngine{
+		Replicated: configoptional.Some(ReplicatedEngine{
+			KeeperPath:  "/clickhouse/tables/{shard}/{database}/{table}",
+			ReplicaName: "{replica}",
+		}),
 	})
+	require.NoError(t, err)
+
+	file, err := (renderedMigrationFS{FS: sql.MigrationFiles, params: params}).Open("000001_initial_schema.up.sql")
+	require.NoError(t, err)
+	t.Cleanup(func() { assert.NoError(t, file.Close()) })
+
+	contents, err := io.ReadAll(file)
+	require.NoError(t, err)
+	assert.Contains(t, string(contents), "ENGINE = ReplicatedMergeTree('/clickhouse/tables/{shard}/{database}/{table}', '{replica}')")
+	assert.Contains(t, string(contents), "ENGINE = ReplicatedAggregatingMergeTree('/clickhouse/tables/{shard}/{database}/{table}', '{replica}')")
+	assert.NotContains(t, string(contents), "{{ .")
 }
 
 func TestNewFactory_KeepsExplicitZeroCacheSettings(t *testing.T) {
@@ -568,4 +705,39 @@ func TestNewFactory_KeepsExplicitZeroCacheSettings(t *testing.T) {
 
 	assert.Zero(t, f.config.AttributeMetadataCacheTTL)
 	assert.Zero(t, f.config.AttributeMetadataCacheMaxSize)
+}
+
+func TestBaselineSchemaStatements(t *testing.T) {
+	t.Run("success", func(t *testing.T) {
+		stmts, err := BaselineSchemaStatements(localTableEngine)
+		require.NoError(t, err)
+		assert.Len(t, stmts, 12)
+		assert.Len(t, SchemaObjects, 12)
+		assert.Len(t, DropSchemaObjectsStatements, 13)
+	})
+
+	t.Run("first template error", func(t *testing.T) {
+		orig := loadTemplate
+		defer func() { loadTemplate = orig }()
+		loadTemplate = func(_, _ string, _ any) (string, error) {
+			return "", errors.New("mock template error")
+		}
+		_, err := BaselineSchemaStatements(localTableEngine)
+		require.ErrorContains(t, err, "mock template error")
+	})
+
+	t.Run("second template error", func(t *testing.T) {
+		orig := loadTemplate
+		defer func() { loadTemplate = orig }()
+		calls := 0
+		loadTemplate = func(name, tmplBody string, data any) (string, error) {
+			calls++
+			if calls == 2 {
+				return "", errors.New("mock template error 2")
+			}
+			return orig(name, tmplBody, data)
+		}
+		_, err := BaselineSchemaStatements(localTableEngine)
+		require.ErrorContains(t, err, "mock template error 2")
+	})
 }

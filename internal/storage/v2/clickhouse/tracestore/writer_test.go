@@ -152,6 +152,16 @@ func TestWriter_Success(t *testing.T) {
 		require.Equal(t, expected.ScopeAttributes.StrValues, row[55])        // Scope str attribute values
 		require.Equal(t, expected.ScopeAttributes.ComplexKeys, row[56])      // Scope complex attribute keys
 		require.Equal(t, expected.ScopeAttributes.ComplexValues, row[57])    // Scope complex attribute values
+		require.Equal(t, expected.Flags, row[58])
+		require.Equal(t, expected.DroppedAttributesCount, row[59])
+		require.Equal(t, expected.DroppedEventsCount, row[60])
+		require.Equal(t, expected.DroppedLinksCount, row[61])
+		require.Equal(t, expected.EventDroppedAttributesCount, row[62])
+		require.Equal(t, expected.LinkDroppedAttributesCount, row[63])
+		require.Equal(t, expected.LinkFlags, row[64])
+		require.Equal(t, expected.ResourceSchemaURL, row[65])
+		require.Equal(t, expected.ScopeSchemaURL, row[66])
+		require.Equal(t, expected.ScopeDroppedAttributesCount, row[67])
 	}
 }
 
