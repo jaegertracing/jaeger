@@ -61,11 +61,12 @@ func NewProvider(options Options, logger *zap.Logger) (samplingstrategy.Provider
 	strategies, err := loadStrategies(loadFn)
 	if err != nil {
 		return nil, err
-	} else if strategies == nil {
-		h.logger.Info("No sampling strategies found or URL is unavailable, using defaults")
-		return h, nil
 	}
-	h.parseStrategies(strategies)
+	if strategies == nil {
+		h.logger.Info("No sampling strategies found or URL is unavailable, using defaults")
+	} else {
+		h.parseStrategies(strategies)
+	}
 	if options.ReloadInterval > 0 {
 		go h.autoUpdateStrategies(ctx, loadFn)
 	}
