@@ -12,6 +12,7 @@ TEST_FILES=(
     "$UTILS_DIR/compute-tags.test.sh"
     "$UTILS_DIR/retry.test.sh"
     "$UTILS_DIR/resolve-demo-snapshot-tags.test.sh"
+    "$REPO_ROOT/scripts/release/release.test.sh"
     "$REPO_ROOT/examples/otel-demo/deploy-all.test.sh"
     "$REPO_ROOT/examples/otel-demo/opensearch-expand-volume.test.sh"
     "$REPO_ROOT/examples/otel-demo/opensearch-recovery.test.sh"

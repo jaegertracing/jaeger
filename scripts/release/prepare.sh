@@ -27,6 +27,9 @@
 
 set -euo pipefail
 
+official_remote=""
+rotated_line=""
+
 check_prerequisites() {
     for tool in gh git python3; do
         if ! command -v "$tool" &> /dev/null; then
@@ -36,25 +39,17 @@ check_prerequisites() {
     done
 }
 
-# Verify we're on main branch
-verify_on_main_branch() {
-    local current_branch
-
-    current_branch=$(git rev-parse --abbrev-ref HEAD)
-    if [ "$current_branch" != "main" ]; then
-        echo "Warning: Not on main branch (current: ${current_branch})"
-        read -p "Continue anyway? (y/n) " -n 1 -r
-        echo
-        if [[ ! $REPLY =~ ^[Yy]$ ]]; then
-            exit 1
-        fi
+# Uncommitted changes to tracked files would be carried onto the release branch
+verify_clean_worktree() {
+    if [ -n "$(git status --porcelain --untracked-files=no --ignore-submodules)" ]; then
+        echo "Error: working tree has uncommitted changes; commit or stash them first"
+        git status --short --untracked-files=no --ignore-submodules
+        exit 1
     fi
 }
 
-# find by checking URL patterns
+# find by checking URL patterns; sets the global official_remote
 fetch_from_official_remote() {
-    local official_remote
-
     if ! official_remote=$(bash scripts/utils/find-official-remote.sh); then
         exit 1
     fi
@@ -82,13 +77,14 @@ check_due_feature_gates() {
     fi
 }
 
-# Create a new branch
+# Create a new branch from the official main, not the local checkout
 create_release_branch() {
     local version=$1
     local branch_name
     branch_name="prepare-release-v${version}-$(date +%s)"
 
-    git checkout -b "${branch_name}"
+    # set -e is not in effect inside the $(...) this runs in, so exit explicitly
+    git checkout --no-track -b "${branch_name}" "${official_remote}/main" >&2 || exit 1
     echo "$branch_name"
 }
 
@@ -111,15 +107,8 @@ update_ui_submodule() {
         git checkout "${ui_version}"
         echo "Checked out jaeger-ui ${ui_version}"
     else
-        # UI version not found
-        echo "Warning: UI version ${ui_version} not found"
-        read -r -p "Enter UI version to use, e.g. ${ui_version} (or Enter to skip): " ui_input
-        if [ -n "$ui_input" ]; then
-            git checkout "$ui_input"
-        else
-            echo "Skipping UI version update"
-            git checkout main && git pull
-        fi
+        echo "Error: jaeger-ui tag ${ui_version} not found. Release jaeger-ui ${ui_version} first."
+        exit 1
     fi
 
     popd > /dev/null
@@ -141,20 +130,29 @@ update_changelog() {
 }
 
 rotate_release_managers() {
+    local version=$1
+
     echo "Rotating release managers table..."
-    python3 scripts/release/rotate-managers.py
+    python3 scripts/release/rotate-managers.py "$version"
     # Stage RELEASE.md if it was modified
-    git diff --quiet RELEASE.md || git add RELEASE.md
+    if ! git diff --quiet RELEASE.md; then
+        git add RELEASE.md
+        rotated_line="Rotated release managers table in RELEASE.md"
+    fi
 }
 
 commit_changes() {
     local version=$1
-
-    git commit -s -m "Prepare release v${version}
+    local msg="Prepare release v${version}
 
 - Updated CHANGELOG.md with release notes
-- Updated jaeger-ui submodule
-- Rotated release managers table"
+- Updated jaeger-ui submodule to v${version}"
+
+    if [ -n "$rotated_line" ]; then
+        msg="${msg}
+- ${rotated_line}"
+    fi
+    git commit -s -m "$msg"
 }
 
 push_branch() {
@@ -170,8 +168,8 @@ create_pull_request() {
 
 ## Changes
 - [x] Updated CHANGELOG.md with release notes
-- [x] Updated jaeger-ui submodule to v${version}
-- [x] Rotated release managers table in RELEASE.md
+- [x] Updated jaeger-ui submodule to v${version}${rotated_line:+
+- [x] ${rotated_line}}
 
 After this PR is merged, continue with the release process as outlined in the release issue."
 
@@ -183,6 +181,7 @@ Part of #${issue}"
 
     # Create the PR
     gh pr create \
+        -R jaegertracing/jaeger \
         --title "Prepare release v${version}" \
         --body "$pr_body" \
         --label "changelog:skip" \
@@ -207,7 +206,7 @@ main() {
     echo "Preparing release for v${version}"
 
     check_prerequisites
-    verify_on_main_branch
+    verify_clean_worktree
     fetch_from_official_remote
     check_due_feature_gates "$version"
 
@@ -216,7 +215,7 @@ main() {
 
     update_ui_submodule "$version"
     update_changelog "$version"
-    rotate_release_managers
+    rotate_release_managers "$version"
     commit_changes "$version"
     push_branch "$branch_name"
     create_pull_request "$version" "$issue"
