@@ -24,6 +24,7 @@ import (
 	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/esclient"
 	esclientmocks "github.com/jaegertracing/jaeger/internal/storage/elasticsearch/esclient/mocks"
 	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/indices"
+	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/query"
 	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/snapshottest"
 	samplemodel "github.com/jaegertracing/jaeger/internal/storage/v1/api/samplingstore/model"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/elasticsearch/samplingstore/dbmodel"
@@ -302,6 +303,37 @@ func TestGetLatestProbabilities(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestGetLatestProbabilitiesRequestsNewestDocument(t *testing.T) {
+	indexClient := esclientmocks.NewIndexAPI(t)
+	indexClient.On("IndexExists", mock.Anything, "jaeger-sampling-read").Return(true, nil)
+	searcher := esclientmocks.NewSearcher(t)
+	searcher.On("Search", mock.Anything, []string{"jaeger-sampling-read"}, esclient.SearchRequest{
+		Size: latestProbabilitiesSearchSize,
+		Sort: []esclient.SortOrder{{Field: "timestamp", Order: query.Descending, UnmappedType: "date"}},
+	}).Return(hitsResponse(
+		// Same millisecond: the sort can return them in either order.
+		`{
+		"timestamp": "2024-02-08T12:00:00.000100Z",
+		"probabilitiesandqps": {"Probabilities": {"old-srv": {"op": 0.5}}}
+	}`,
+		`{
+		"timestamp": "2024-02-08T12:00:00.000200Z",
+		"probabilitiesandqps": {"Probabilities": {"new-srv": {"op": 0.1}}}
+	}`), nil)
+	store := NewSamplingStore(Params{
+		Searcher:    searcher,
+		IndexClient: indexClient,
+		Logger:      zap.NewNop(),
+		MaxDocCount: 1000,
+		Lookback:    72 * time.Hour,
+		Rotation:    indices.NewAliasedRotation("jaeger-sampling-write", "jaeger-sampling-read"),
+	})
+
+	actual, err := store.GetLatestProbabilities()
+	require.NoError(t, err)
+	assert.Equal(t, samplemodel.ServiceOperationProbabilities{"new-srv": {"op": 0.1}}, actual)
 }
 
 func TestMain(m *testing.M) {

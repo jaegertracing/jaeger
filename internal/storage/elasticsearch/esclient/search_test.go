@@ -147,6 +147,17 @@ func TestSearchRequestBodyIncludesPaginationFields(t *testing.T) {
 	assert.Equal(t, true, m["track_total_hits"])
 }
 
+func TestSearchRequestBodySortUnmappedType(t *testing.T) {
+	body, err := SearchRequest{
+		Size: 1,
+		Sort: []SortOrder{{Field: "timestamp", Order: query.Descending, UnmappedType: "date"}},
+	}.body()
+	require.NoError(t, err)
+	var m map[string]any
+	require.NoError(t, json.Unmarshal(body, &m))
+	assert.Equal(t, []any{map[string]any{"timestamp": map[string]any{"order": "desc", "unmapped_type": "date"}}}, m["sort"])
+}
+
 func TestSearchParsesHits(t *testing.T) {
 	const body = `{"hits":{"total":2,"hits":[` +
 		`{"_source":{"traceID":"abc"},"sort":[1577934245000000,"abc"]},{"_source":{"traceID":"def"}}]}}`
