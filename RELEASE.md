@@ -50,6 +50,7 @@ Follow the checklist in the created tracking issue. The high level steps are:
 3. Once the release is created, the [Publish Release workflow](https://github.com/jaegertracing/jaeger/actions/workflows/ci-release.yml) will run to build artifacts.
   * Wait for the workflow to finish. For monitoring and troubleshooting, open the logs of the workflow run from above URL.
   * Check the images are available on [Docker Hub](https://hub.docker.com/r/jaegertracing/) and binaries are uploaded [to the release](https://github.com/jaegertracing/jaeger/releases).
+  * If the workflow fails, re-run it against the tag: `gh workflow run ci-release.yml --ref main -f tag=vX.Y.Z -f dry_run=false -f overwrite=true`. If the failure is in the build code at the tag, cut a patch release instead of publishing a build that isn't the tag.
 4. Review the [feature gate lifecycle tracker](https://github.com/jaegertracing/jaeger/issues/9057) and open follow-up PRs for any gate stage advancements or legacy-ID removals due in the next release.
 
 <!-- END_CHECKLIST -->
