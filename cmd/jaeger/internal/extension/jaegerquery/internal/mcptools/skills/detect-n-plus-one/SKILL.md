@@ -1,10 +1,9 @@
 ---
 name: detect-n-plus-one
 description: >-
-  Detect N+1 query patterns in a trace, where one parent operation triggers many
-  near-identical child spans (often database calls). Use when a trace is slow
-  and shows repeated downstream calls, or when the user asks about N+1,
-  repeated queries, or chatty DB access.
+  Detect N+1 query patterns where one parent operation triggers many
+  near-identical child spans. Use when traces show repeated downstream calls
+  or the user asks about chatty DB access.
 license: Apache-2.0
 metadata:
   author: jaegertracing
