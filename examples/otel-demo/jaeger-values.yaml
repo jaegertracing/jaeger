@@ -56,3 +56,27 @@ hotrod:
 query:
   service:
     type: ClusterIP
+
+# Daily retention for the OpenSearch indices Jaeger writes (see index_prefix and
+# date_layout in jaeger-config.yaml). Without it the daily indices accumulate
+# until the data volume breaches the flood-stage watermark and OpenSearch makes
+# them read-only, which stops all trace ingestion.
+esIndexCleaner:
+  enabled: true
+  numberOfDays: 30
+  image:
+    # The chart defaults to its appVersion, which is not a published tag.
+    tag: "2.21.0"
+  cmdlineParams:
+    # Pinned 2.21.0 appends "-" to every nonempty prefix, then matches
+    # "<prefix>jaeger-(span|service|dependencies|sampling)-<date>". Set this
+    # to the same index_prefix jaeger-config.yaml writes ("jaeger-main"),
+    # which becomes jaeger-main-jaeger-span-<date>. The chart's
+    # ES_INDEX_PREFIX env var is not read by the cleaner.
+    index-prefix: "jaeger-main"
+  resources:
+    requests:
+      cpu: "50m"
+      memory: "64Mi"
+    limits:
+      memory: "128Mi"
