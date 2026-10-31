@@ -6,6 +6,8 @@ package criticalpath
 import (
 	"go.opentelemetry.io/collector/pdata/pcommon"
 	"go.opentelemetry.io/collector/pdata/ptrace"
+
+	"github.com/jaegertracing/jaeger/internal/jptrace"
 )
 
 // CPSpan represents a span used for critical path computation.
@@ -31,40 +33,40 @@ func CreateCPSpan(span ptrace.Span, childSpanIDs []pcommon.SpanID) CPSpan {
 	return cpSpan
 }
 
-// CreateCPSpanMap creates a map of CPSpan objects from ptrace spans
-// It also builds the parent-child relationships by iterating through all spans
-func CreateCPSpanMap(traces ptrace.Traces) map[pcommon.SpanID]CPSpan {
-	spanMap := make(map[pcommon.SpanID]CPSpan)
+// CreateCPSpanMap creates a map of CPSpan objects from spans with unique span IDs
+// (see uniqueSpans). It also builds the parent-child relationships between them.
+func CreateCPSpanMap(spans []ptrace.Span) map[pcommon.SpanID]CPSpan {
+	spanMap := make(map[pcommon.SpanID]CPSpan, len(spans))
 	childrenMap := make(map[pcommon.SpanID][]pcommon.SpanID)
 
 	// First pass: build children map
-	for i := 0; i < traces.ResourceSpans().Len(); i++ {
-		rs := traces.ResourceSpans().At(i)
-		for j := 0; j < rs.ScopeSpans().Len(); j++ {
-			ss := rs.ScopeSpans().At(j)
-			for k := 0; k < ss.Spans().Len(); k++ {
-				span := ss.Spans().At(k)
-				if !span.ParentSpanID().IsEmpty() {
-					parentID := span.ParentSpanID()
-					childrenMap[parentID] = append(childrenMap[parentID], span.SpanID())
-				}
-			}
+	for _, span := range spans {
+		if !span.ParentSpanID().IsEmpty() {
+			parentID := span.ParentSpanID()
+			childrenMap[parentID] = append(childrenMap[parentID], span.SpanID())
 		}
 	}
 
 	// Second pass: create CPSpan objects with child relationships
-	for i := 0; i < traces.ResourceSpans().Len(); i++ {
-		rs := traces.ResourceSpans().At(i)
-		for j := 0; j < rs.ScopeSpans().Len(); j++ {
-			ss := rs.ScopeSpans().At(j)
-			for k := 0; k < ss.Spans().Len(); k++ {
-				span := ss.Spans().At(k)
-				childSpanIDs := childrenMap[span.SpanID()]
-				cpSpan := CreateCPSpan(span, childSpanIDs)
-				spanMap[span.SpanID()] = cpSpan
-			}
-		}
+	for _, span := range spans {
+		spanMap[span.SpanID()] = CreateCPSpan(span, childrenMap[span.SpanID()])
 	}
 
 	return spanMap
+}
+
+// uniqueSpans returns the spans of a trace in order, keeping only the first span
+// for each span ID. Every kept span is then the child of at most one span, so no
+// cycle can be reached from a root span.
+func uniqueSpans(traces ptrace.Traces) []ptrace.Span {
+	seen := make(map[pcommon.SpanID]struct{})
+	var spans []ptrace.Span
+	for _, span := range jptrace.SpanIter(traces) {
+		if _, ok := seen[span.SpanID()]; ok {
+			continue
+		}
+		seen[span.SpanID()] = struct{}{}
+		spans = append(spans, span)
+	}
+	return spans
 }

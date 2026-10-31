@@ -170,17 +170,23 @@ func toTopologySpan(rs *rawSpan, path string, truncatedChildren int) types.Topol
 // When maxDepth > 0, spans beyond that depth are omitted and the last included
 // ancestor records the count of excluded direct children in TruncatedChildren.
 func (h *getTraceTopologyHandler) buildFlatTopology(spans []rawSpan, maxDepth, maxSpans int) []types.TopologySpan {
-	// Create a map of span ID to span pointer for quick lookup
+	// Create a map of span ID to span pointer for quick lookup. Only the first span
+	// with a given ID is kept, so each kept span is the child of at most one other
+	// span and no cycle can be reached from a root.
 	byID := make(map[string]*rawSpan, len(spans))
+	unique := make([]*rawSpan, 0, len(spans))
 	for i := range spans {
+		if _, ok := byID[spans[i].spanID]; ok {
+			continue
+		}
 		byID[spans[i].spanID] = &spans[i]
+		unique = append(unique, &spans[i])
 	}
 
 	// Build parent-child relationships; collect roots (parent absent from trace)
 	childrenOf := make(map[string][]*rawSpan)
 	var roots []*rawSpan
-	for i := range spans {
-		s := &spans[i]
+	for _, s := range unique {
 		if s.parentID != "" && byID[s.parentID] != nil {
 			childrenOf[s.parentID] = append(childrenOf[s.parentID], s)
 		} else {
@@ -196,11 +202,12 @@ func (h *getTraceTopologyHandler) buildFlatTopology(spans []rawSpan, maxDepth, m
 
 	// DFS from each root to produce the flat list. The output is capped at
 	// maxSpans, so do not preallocate for the whole trace when it is set.
-	capacity := len(spans)
+	capacity := len(unique)
 	if maxSpans > 0 && maxSpans < capacity {
 		capacity = maxSpans
 	}
 	result := make([]types.TopologySpan, 0, capacity)
+	visited := make(map[string]struct{}, len(unique))
 	for _, root := range roots {
 		if maxSpans > 0 && len(result) >= maxSpans {
 			break
@@ -213,7 +220,7 @@ func (h *getTraceTopologyHandler) buildFlatTopology(spans []rawSpan, maxDepth, m
 		} else {
 			rootPath = root.spanID
 		}
-		h.dfs(root, rootPath, 1, maxDepth, maxSpans, childrenOf, &result)
+		h.dfs(root, rootPath, 1, maxDepth, maxSpans, childrenOf, visited, &result)
 	}
 	return result
 }
@@ -224,6 +231,8 @@ func (h *getTraceTopologyHandler) buildFlatTopology(spans []rawSpan, maxDepth, m
 // When maxSpans > 0, callers stop the walk once result holds that many spans, so the
 // output is a DFS prefix: later roots and later sibling subtrees are omitted, while
 // TruncatedChildren stays the depth signal.
+// A span ID already in visited is skipped, so a cycle in childrenOf cannot
+// make the walk loop.
 func (h *getTraceTopologyHandler) dfs(
 	span *rawSpan,
 	path string,
@@ -231,11 +240,16 @@ func (h *getTraceTopologyHandler) dfs(
 	maxDepth int,
 	maxSpans int,
 	childrenOf map[string][]*rawSpan,
+	visited map[string]struct{},
 	result *[]types.TopologySpan,
 ) {
 	if maxDepth > 0 && depth > maxDepth {
 		return
 	}
+	if _, ok := visited[span.spanID]; ok {
+		return
+	}
+	visited[span.spanID] = struct{}{}
 
 	// Count the children that will not be visited because of maxDepth, so the
 	// caller can tell a leaf from a subtree that was cut off here.
@@ -252,7 +266,7 @@ func (h *getTraceTopologyHandler) dfs(
 			if maxSpans > 0 && len(*result) >= maxSpans {
 				break
 			}
-			h.dfs(child, path+"/"+child.spanID, depth+1, maxDepth, maxSpans, childrenOf, result)
+			h.dfs(child, path+"/"+child.spanID, depth+1, maxDepth, maxSpans, childrenOf, visited, result)
 		}
 	}
 }

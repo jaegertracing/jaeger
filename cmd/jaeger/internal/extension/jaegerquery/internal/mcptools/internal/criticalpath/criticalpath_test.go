@@ -4,6 +4,7 @@
 package criticalpath
 
 import (
+	"encoding/binary"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -164,8 +165,10 @@ func TestComputeCriticalPath_ZeroDurationRoot(t *testing.T) {
 }
 
 func TestComputeCriticalPath_Internal_SpanNotFound(t *testing.T) {
-	// Test the case where spanID is not in spanMap (line 51)
-	spanMap := map[pcommon.SpanID]CPSpan{}
+	// Test the case where spanID is not in spanMap
+	spanMap := map[pcommon.SpanID]CPSpan{
+		[8]byte{2}: {SpanID: [8]byte{2}},
+	}
 	var spanID pcommon.SpanID = [8]byte{1}
 
 	result := computeCriticalPath(spanMap, spanID, nil, nil)
@@ -225,6 +228,130 @@ func TestComputeCriticalPath_ZeroDurationChildAtReturningBoundary(t *testing.T) 
 		{SpanID: "0200000000000000", SectionStart: 100, SectionEnd: 150},
 		{SpanID: "0100000000000000", SectionStart: 0, SectionEnd: 100},
 	}, result)
+}
+
+func TestComputeCriticalPath_Internal_StopsOnCycle(t *testing.T) {
+	// A span listed as its own child is its own last finishing child every time.
+	spanMap := map[pcommon.SpanID]CPSpan{
+		[8]byte{1}: {
+			SpanID:       [8]byte{1},
+			StartTime:    100,
+			Duration:     100,
+			ChildSpanIDs: []pcommon.SpanID{[8]byte{1}},
+		},
+	}
+
+	result := computeCriticalPath(spanMap, [8]byte{1}, nil, nil)
+	assert.Empty(t, result)
+}
+
+func newSpanID(n uint64) pcommon.SpanID {
+	var id pcommon.SpanID
+	binary.BigEndian.PutUint64(id[:], n)
+	return id
+}
+
+func appendSpan(ss ptrace.ScopeSpans, spanID, parentSpanID pcommon.SpanID, startUs, endUs uint64) {
+	span := ss.Spans().AppendEmpty()
+	span.SetTraceID([16]byte{15: 1})
+	span.SetSpanID(spanID)
+	span.SetParentSpanID(parentSpanID)
+	span.SetStartTimestamp(pcommon.Timestamp(startUs * 1000))
+	span.SetEndTimestamp(pcommon.Timestamp(endUs * 1000))
+}
+
+func TestComputeCriticalPath_DuplicateSpanIDs(t *testing.T) {
+	root, a, b := newSpanID(0x01), newSpanID(0x0a), newSpanID(0x0b)
+	var noParent pcommon.SpanID
+	type span struct {
+		id, parent pcommon.SpanID
+		start, end uint64
+	}
+
+	tests := []struct {
+		name     string
+		spans    []span
+		expected []Section
+		err      string
+	}{
+		{
+			name: "second span with the root's ID is its child",
+			spans: []span{
+				{root, noParent, 10, 110},
+				{root, root, 20, 100},
+			},
+			expected: []Section{
+				{SpanID: root.String(), SectionStart: 10, SectionEnd: 110},
+			},
+		},
+		{
+			name: "span reuses the ID of its grandparent",
+			spans: []span{
+				{root, noParent, 0, 100},
+				{a, root, 10, 90},
+				{b, a, 20, 80},
+				{a, b, 30, 70},
+			},
+			expected: []Section{
+				{SpanID: root.String(), SectionStart: 90, SectionEnd: 100},
+				{SpanID: a.String(), SectionStart: 80, SectionEnd: 90},
+				{SpanID: b.String(), SectionStart: 20, SectionEnd: 80},
+				{SpanID: a.String(), SectionStart: 10, SectionEnd: 20},
+				{SpanID: root.String(), SectionStart: 0, SectionEnd: 10},
+			},
+		},
+		{
+			name: "root reuses the ID of an earlier span",
+			spans: []span{
+				{a, b, 10, 90},
+				{b, a, 20, 80},
+				{a, noParent, 0, 100},
+			},
+			err: "no root span found",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			traces := ptrace.NewTraces()
+			ss := traces.ResourceSpans().AppendEmpty().ScopeSpans().AppendEmpty()
+			for _, s := range tt.spans {
+				appendSpan(ss, s.id, s.parent, s.start, s.end)
+			}
+
+			criticalPath, err := ComputeCriticalPathFromTraces(traces)
+			if tt.err != "" {
+				require.ErrorContains(t, err, tt.err)
+				return
+			}
+			require.NoError(t, err)
+			assert.Equal(t, tt.expected, criticalPath)
+		})
+	}
+}
+
+func TestComputeCriticalPath_DeepChain(t *testing.T) {
+	// Each span is the only child of the previous one and ends one microsecond
+	// before it, so the walk goes all the way down the chain and back up.
+	const depth = 100_000
+	traces := ptrace.NewTraces()
+	ss := traces.ResourceSpans().AppendEmpty().ScopeSpans().AppendEmpty()
+	ss.Spans().EnsureCapacity(depth)
+	var parent pcommon.SpanID
+	for i := range uint64(depth) {
+		id := newSpanID(i + 1)
+		appendSpan(ss, id, parent, i, 2*depth-i)
+		parent = id
+	}
+
+	criticalPath, err := ComputeCriticalPathFromTraces(traces)
+	require.NoError(t, err)
+	require.Len(t, criticalPath, 2*depth-1)
+	var total uint64
+	for _, section := range criticalPath {
+		total += section.SectionEnd - section.SectionStart
+	}
+	assert.Equal(t, uint64(2*depth), total)
 }
 
 func TestFindLastFinishingChildSpan_MissingChild(t *testing.T) {
