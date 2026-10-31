@@ -63,6 +63,20 @@ fetch_from_official_remote() {
     git fetch "$official_remote"
 }
 
+# Refuse to release while a feature gate scheduled for removal in this
+# version is still registered.
+check_due_feature_gates() {
+    local version=$1
+    local matches
+
+    if matches=$(git grep -nF "WithRegisterToVersion(\"v${version}\")" -- '*.go' ':!*_test.go'); then
+        echo "Error: these feature gates are scheduled for removal in v${version} but are still registered:"
+        echo "$matches"
+        echo "Land the gate transitions due in v${version} first (see https://github.com/jaegertracing/jaeger/issues/9057)."
+        exit 1
+    fi
+}
+
 # Create a new branch
 create_release_branch() {
     local version=$1
@@ -190,6 +204,7 @@ main() {
     check_prerequisites
     verify_on_main_branch
     fetch_from_official_remote
+    check_due_feature_gates "$version"
 
     local branch_name
     branch_name=$(create_release_branch "$version")
