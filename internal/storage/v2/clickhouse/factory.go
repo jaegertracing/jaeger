@@ -13,7 +13,6 @@ import (
 
 	"github.com/ClickHouse/clickhouse-go/v2"
 	"github.com/ClickHouse/clickhouse-go/v2/lib/driver"
-	"go.opentelemetry.io/collector/featuregate"
 
 	"github.com/jaegertracing/jaeger/internal/storage/v1"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/api/metricstore"
@@ -25,21 +24,6 @@ import (
 	"github.com/jaegertracing/jaeger/internal/storage/v2/clickhouse/sql"
 	chtracestore "github.com/jaegertracing/jaeger/internal/storage/v2/clickhouse/tracestore"
 	"github.com/jaegertracing/jaeger/internal/telemetry"
-)
-
-// ClickHouse is always available as a storage backend and is selected through
-// configuration; no feature gate is required to enable it. The gate ID below
-// remains registered as Stable only so that existing --feature-gates values keep
-// working (as a no-op) until it is removed in v2.23.0.
-var (
-	_ = featuregate.GlobalRegistry().MustRegister(
-		"storage.clickhouse",
-		featuregate.StageStable,
-		featuregate.WithRegisterFromVersion("v2.18.0"),
-		featuregate.WithRegisterToVersion("v2.23.0"),
-		featuregate.WithRegisterDescription("No-op: ClickHouse is always available as a storage backend and is selected through configuration. Retained for backward compatibility and removed in v2.23.0."),
-		featuregate.WithRegisterReferenceURL("https://github.com/jaegertracing/jaeger/issues/9016"),
-	)
 )
 
 var (
