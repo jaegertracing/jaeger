@@ -34,17 +34,16 @@ Alternatively, you can run each component separately as described below.
 
 ### Run everything in Kubernetes
 
-```bash
-kustomize build ./kubernetes | kubectl apply -f -
-kubectl port-forward -n example-hotrod service/example-hotrod 8080:frontend
-# In another terminal
-kubectl port-forward -n example-hotrod service/jaeger 16686:frontend
+Follow the [Kubernetes deployment guide](kubernetes/README.md) to install Jaeger and HotROD with Helm.
+After deployment, forward the services to your local machine:
 
-# To cleanup
-kustomize build ./kubernetes | kubectl delete -f -
+```bash
+kubectl port-forward svc/jaeger-hotrod 8080:80
+# In another terminal
+kubectl port-forward svc/jaeger-query 16686:16686
 ```
 
-Access Jaeger UI at http://localhost:16686 and HotROD app at http://localhost:8080
+Access Jaeger UI at http://localhost:16686/jaeger and HotROD app at http://localhost:8080/hotrod.
 
 ### Run Jaeger backend
 
