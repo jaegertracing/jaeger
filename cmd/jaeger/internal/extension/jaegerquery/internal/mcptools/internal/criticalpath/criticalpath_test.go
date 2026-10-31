@@ -238,3 +238,162 @@ func TestFindLastFinishingChildSpan_MissingChild(t *testing.T) {
 	result := findLastFinishingChildSpan(spanMap, parentSpan, nil)
 	assert.Nil(t, result)
 }
+
+func TestCreateCPSpanMap_DuplicateSpanIDsAndSelfLoop(t *testing.T) {
+	traces := ptrace.NewTraces()
+	rs := traces.ResourceSpans().AppendEmpty()
+	ss := rs.ScopeSpans().AppendEmpty()
+
+	spRootID := pcommon.SpanID([8]byte{1})
+	spChildID := pcommon.SpanID([8]byte{2})
+	spSelfID := pcommon.SpanID([8]byte{3})
+
+	// Root span
+	root := ss.Spans().AppendEmpty()
+	root.SetSpanID(spRootID)
+	root.SetStartTimestamp(1000)
+	root.SetEndTimestamp(100000)
+
+	// Child span (first occurrence, parent = root)
+	c1 := ss.Spans().AppendEmpty()
+	c1.SetSpanID(spChildID)
+	c1.SetParentSpanID(spRootID)
+	c1.SetStartTimestamp(10000)
+	c1.SetEndTimestamp(50000)
+
+	// Duplicate child span (second occurrence, parent = missing)
+	c2 := ss.Spans().AppendEmpty()
+	c2.SetSpanID(spChildID)
+	c2.SetParentSpanID(pcommon.SpanID([8]byte{99}))
+	c2.SetStartTimestamp(20000)
+	c2.SetEndTimestamp(60000)
+
+	// Duplicate child span (third occurrence, parent = different missing)
+	c3 := ss.Spans().AppendEmpty()
+	c3.SetSpanID(spChildID)
+	c3.SetParentSpanID(pcommon.SpanID([8]byte{88}))
+	c3.SetStartTimestamp(30000)
+	c3.SetEndTimestamp(70000)
+
+	// Self-referencing span (Parent == SpanID)
+	selfSpan := ss.Spans().AppendEmpty()
+	selfSpan.SetSpanID(spSelfID)
+	selfSpan.SetParentSpanID(spSelfID)
+	selfSpan.SetStartTimestamp(30000)
+	selfSpan.SetEndTimestamp(40000)
+
+	spanMap := CreateCPSpanMap(traces)
+
+	// Only 3 unique spans must exist (root, first child, self-loop)
+	assert.Len(t, spanMap, 3)
+
+	// First occurrence of child must be retained across both passes
+	c, ok := spanMap[spChildID]
+	require.True(t, ok)
+	assert.Equal(t, spRootID, c.ParentSpanID)
+	assert.Equal(t, uint64(10), c.StartTime)
+
+	// Root span must list the child exactly once
+	rootCPSpan, okRoot := spanMap[spRootID]
+	require.True(t, okRoot)
+	assert.Equal(t, []pcommon.SpanID{spChildID}, rootCPSpan.ChildSpanIDs)
+
+	// Self-referencing span must not list itself in ChildSpanIDs
+	selfCPSpan, okSelf := spanMap[spSelfID]
+	require.True(t, okSelf)
+	assert.Empty(t, selfCPSpan.ChildSpanIDs)
+}
+
+func TestComputeCriticalPath_RealTracesWithDuplicateSpanIDs(t *testing.T) {
+	traces := ptrace.NewTraces()
+	rs := traces.ResourceSpans().AppendEmpty()
+	ss := rs.ScopeSpans().AppendEmpty()
+
+	spRootID := pcommon.SpanID([8]byte{1})
+	spAID := pcommon.SpanID([8]byte{2})
+	spBID := pcommon.SpanID([8]byte{3})
+
+	// Root
+	root := ss.Spans().AppendEmpty()
+	root.SetSpanID(spRootID)
+	root.SetStartTimestamp(0)
+	root.SetEndTimestamp(1000 * 1000)
+
+	// Span A
+	spanA := ss.Spans().AppendEmpty()
+	spanA.SetSpanID(spAID)
+	spanA.SetParentSpanID(spRootID)
+	spanA.SetStartTimestamp(100 * 1000)
+	spanA.SetEndTimestamp(400 * 1000)
+
+	// Span B
+	spanB := ss.Spans().AppendEmpty()
+	spanB.SetSpanID(spBID)
+	spanB.SetParentSpanID(spAID)
+	spanB.SetStartTimestamp(150 * 1000)
+	spanB.SetEndTimestamp(300 * 1000)
+
+	// Duplicate Span A with parent B (would create cycle A -> B -> A)
+	dupA := ss.Spans().AppendEmpty()
+	dupA.SetSpanID(spAID)
+	dupA.SetParentSpanID(spBID)
+	dupA.SetStartTimestamp(100 * 1000)
+	dupA.SetEndTimestamp(400 * 1000)
+
+	sections, err := ComputeCriticalPathFromTraces(traces)
+	require.NoError(t, err)
+	assert.NotEmpty(t, sections)
+}
+
+func TestComputeCriticalPath_TraceWithSelfLoopSpan(t *testing.T) {
+	// 1. Trace consisting exclusively of a self-loop (Parent == SpanID) has no valid root.
+	tracesOnlySelf := ptrace.NewTraces()
+	ssOnlySelf := tracesOnlySelf.ResourceSpans().AppendEmpty().ScopeSpans().AppendEmpty()
+	selfSpan := ssOnlySelf.Spans().AppendEmpty()
+	selfID := pcommon.SpanID([8]byte{0x77})
+	selfSpan.SetSpanID(selfID)
+	selfSpan.SetParentSpanID(selfID)
+	selfSpan.SetStartTimestamp(1000)
+	selfSpan.SetEndTimestamp(2000)
+
+	_, err := ComputeCriticalPathFromTraces(tracesOnlySelf)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "no root span found")
+
+	// 2. Trace with a valid root, valid child, plus a self-looping span.
+	// The self-looping span must be excluded from the critical path output.
+	tracesMixed := ptrace.NewTraces()
+	ssMixed := tracesMixed.ResourceSpans().AppendEmpty().ScopeSpans().AppendEmpty()
+
+	rootID := pcommon.SpanID([8]byte{1})
+	childID := pcommon.SpanID([8]byte{2})
+
+	r := ssMixed.Spans().AppendEmpty()
+	r.SetSpanID(rootID)
+	r.SetStartTimestamp(0)
+	r.SetEndTimestamp(500 * 1000)
+
+	c := ssMixed.Spans().AppendEmpty()
+	c.SetSpanID(childID)
+	c.SetParentSpanID(rootID)
+	c.SetStartTimestamp(100 * 1000)
+	c.SetEndTimestamp(300 * 1000)
+
+	s := ssMixed.Spans().AppendEmpty()
+	s.SetSpanID(selfID)
+	s.SetParentSpanID(selfID)
+	s.SetStartTimestamp(200 * 1000)
+	s.SetEndTimestamp(400 * 1000)
+
+	sections, err := ComputeCriticalPathFromTraces(tracesMixed)
+	require.NoError(t, err)
+	require.NotEmpty(t, sections)
+
+	for _, sec := range sections {
+		assert.NotEqual(t, selfID.String(), sec.SpanID, "self-loop span must never appear in critical path")
+	}
+
+	// Explicitly verify the self-loop span was purged from the sanitized spanMap.
+	sanitizedMap := removeOverflowingChildren(CreateCPSpanMap(tracesMixed))
+	assert.NotContains(t, sanitizedMap, selfID, "self-loop span must be purged from sanitized span map")
+}
