@@ -36,7 +36,7 @@ Follow the checklist in the created tracking issue. The high level steps are:
 
 1. Land the feature gate transitions due in vX.Y.Z before preparing the release.
   * Review the [feature gate lifecycle tracker](https://github.com/jaegertracing/jaeger/issues/9057), then merge PRs for every gate stage advancement and legacy-ID removal due in vX.Y.Z.
-  * `make prepare-release` refuses to run while a non-test Go file still registers a gate with `WithRegisterToVersion("vX.Y.Z")`. Legacy-ID removals are only tracked in the issue, so check those by hand.
+  * Check legacy-ID removals due in vX.Y.Z by hand: `make prepare-release` only catches gates still registered with `WithRegisterToVersion("vX.Y.Z")`.
 2. Create a PR "Prepare release vX.Y.Z" against main or maintenance branch ([example](https://github.com/jaegertracing/jaeger/pull/6826)).
   * **Automated**:
     ```bash

@@ -67,9 +67,14 @@ fetch_from_official_remote() {
 # version is still registered.
 check_due_feature_gates() {
     local version=$1
-    local matches
+    local matches rc=0
 
-    if matches=$(git grep -nF "WithRegisterToVersion(\"v${version}\")" -- '*.go' ':!*_test.go'); then
+    matches=$(git grep -nF "WithRegisterToVersion(\"v${version}\")" -- '*.go' ':!*_test.go') || rc=$?
+    if [ "$rc" -gt 1 ]; then
+        echo "Error: git grep failed (exit ${rc}) while checking feature gates"
+        exit 1
+    fi
+    if [ "$rc" -eq 0 ]; then
         echo "Error: these feature gates are scheduled for removal in v${version} but are still registered:"
         echo "$matches"
         echo "Land the gate transitions due in v${version} first (see https://github.com/jaegertracing/jaeger/issues/9057)."
