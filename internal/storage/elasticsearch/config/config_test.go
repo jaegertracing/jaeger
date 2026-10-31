@@ -1099,6 +1099,84 @@ func TestValidateRotationConfig_RolloverFrequencyConflict(t *testing.T) {
 	require.ErrorContains(t, err, "rollover_frequency")
 }
 
+func TestValidateRotationConfig_PeriodicFrequency(t *testing.T) {
+	tests := []struct {
+		name      string
+		opts      IndexOptions
+		expectErr string
+	}{
+		{
+			name: "daily layout with default frequency",
+			opts: IndexOptions{Rotation: RotationConfig{
+				Periodic: configoptional.Some(PeriodicRotation{DateLayout: "2006-01-02"}),
+			}},
+		},
+		{
+			name: "hourly layout with hour frequency",
+			opts: IndexOptions{Rotation: RotationConfig{
+				Periodic: configoptional.Some(PeriodicRotation{DateLayout: "2006-01-02-15", RolloverFrequency: "hour"}),
+			}},
+		},
+		{
+			name: "default layout with hour frequency",
+			opts: IndexOptions{Rotation: RotationConfig{
+				Periodic: configoptional.Some(PeriodicRotation{RolloverFrequency: "hour"}),
+			}},
+		},
+		{
+			name: "hourly layout with default frequency",
+			opts: IndexOptions{Rotation: RotationConfig{
+				Periodic: configoptional.Some(PeriodicRotation{DateLayout: "2006-01-02-15"}),
+			}},
+			expectErr: `indices.spans: date_layout "2006-01-02-15" changes more often than rollover_frequency "day"`,
+		},
+		{
+			name: "minute layout with hour frequency",
+			opts: IndexOptions{Rotation: RotationConfig{
+				Periodic: configoptional.Some(PeriodicRotation{DateLayout: "2006-01-02-15-04", RolloverFrequency: "hour"}),
+			}},
+			expectErr: `indices.spans: date_layout "2006-01-02-15-04" changes more often than rollover_frequency "hour"`,
+		},
+		{
+			name: "unknown frequency",
+			opts: IndexOptions{Rotation: RotationConfig{
+				Periodic: configoptional.Some(PeriodicRotation{DateLayout: "2006-01-02-15", RolloverFrequency: "hourly"}),
+			}},
+			expectErr: `indices.spans: rollover_frequency must be "day" or "hour", got "hourly"`,
+		},
+		{
+			name: "legacy hourly layout with default frequency",
+			opts: IndexOptions{
+				DateLayout: configoptional.Some("2006-01-02-15"),
+			},
+			expectErr: `indices.spans: date_layout "2006-01-02-15" changes more often than rollover_frequency "day"`,
+		},
+		{
+			name: "legacy unknown frequency",
+			opts: IndexOptions{
+				RolloverFrequency: configoptional.Some("hourly"),
+			},
+			expectErr: `indices.spans: rollover_frequency must be "day" or "hour", got "hourly"`,
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			cfg := &Configuration{
+				Servers: []string{"localhost:8000/dummyserver"},
+				Indices: Indices{
+					Spans: SpanIndexOptions{IndexOptions: test.opts},
+				},
+			}
+			err := cfg.Validate()
+			if test.expectErr == "" {
+				require.NoError(t, err)
+			} else {
+				require.ErrorContains(t, err, test.expectErr)
+			}
+		})
+	}
+}
+
 func TestRotationConfig_ValidateAutoRollover(t *testing.T) {
 	rc := RotationConfig{
 		AutoRollover: configoptional.Some(AutoRolloverRotation{
