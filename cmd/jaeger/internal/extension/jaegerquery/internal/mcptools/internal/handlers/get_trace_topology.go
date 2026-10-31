@@ -9,7 +9,6 @@ import (
 	"errors"
 	"fmt"
 	"slices"
-	"strings"
 	"time"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
@@ -156,7 +155,7 @@ func toTopologySpan(rs *rawSpan, path string, truncatedChildren int) types.Topol
 		Path:              path,
 		Service:           serviceName,
 		SpanName:          rs.span.Name(),
-		SpanKind:          strings.ToLower(rs.span.Kind().String()),
+		SpanKind:          jptrace.SpanKindToString(rs.span.Kind()),
 		StartTime:         rs.span.StartTimestamp().AsTime().Format(time.RFC3339Nano),
 		DurationUs:        duration.Microseconds(),
 		Status:            rs.span.Status().Code().String(),
