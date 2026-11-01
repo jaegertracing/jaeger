@@ -161,10 +161,10 @@ The gateway hosts an MCP server and implements the MCP methods itself (it is **n
 | MCP method | Behavior |
 |---|---|
 | `initialize` | Advertises the `tools` capability. |
-| `tools/list` | Returns telemetry tools **+** the calling turn's UI tools. UI tools are namespaced `ui__<name>` so they cannot shadow a telemetry tool; the namespace carries forward the decision of [RFC 0002 §6.5](./0002-ai-gateway-contextual-tools.md), and the double underscore follows the sub-domain convention of MCP aggregators. |
+| `tools/list` | Returns telemetry tools **+** the calling turn's UI tools. UI tools are namespaced `ui__<name>` (`UIToolPrefix`) so they cannot shadow a telemetry tool; the namespace carries forward the decision of [RFC 0002 §6.5](./0002-ai-gateway-contextual-tools.md), and the double underscore follows the sub-domain convention of MCP aggregators. |
 | `tools/call` | Routes by prefix. A `ui__` name is a UI tool: strip the prefix, check the turn declared it (an undeclared one is a tool error), emit its `TOOL_CALL_*` events on the browser's SSE stream under the bare name (the browser executes the side effect) and immediately return a synthetic "dispatched" result to the caller — the gateway does not wait for the browser (fire-and-forget; §4.4 explains why). Any other name: execute the telemetry tool and return its real result. |
 
-The UI-vs-telemetry decision is made once, in the gateway's `tools/call` handling — the UI-tools middleware layered on the MCP server — which the gateway fully observes (M3 gives it tracing). Sidecars stop re-implementing tool plumbing — the tool-translation bridge to `jaeger_mcp` and the separate UI-tool path — and simply point their MCP client at the single gateway URL.
+The UI-vs-telemetry decision is made once, in the gateway's `tools/call` handling — the UI-tools middleware layered on the MCP server — which the gateway fully observes (M3 gives it tracing). Namespacing UI tools under `UIToolPrefix` (`ui__<name>`) replaces the old "UI wins on collision" behavior: bare calls (such as `search_traces`) never intercept a UI tool and always fall through to telemetry, while namespaced calls dispatch to the browser over SSE with the prefix stripped. Sidecars stop re-implementing tool plumbing — the tool-translation bridge to `jaeger_mcp` and the separate UI-tool path — and simply point their MCP client at the single gateway URL.
 
 ### 4.2 Shared vs. turn-scoped endpoints
 
