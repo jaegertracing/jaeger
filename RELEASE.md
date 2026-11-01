@@ -53,8 +53,8 @@ Follow the checklist in the created tracking issue. The high level steps are:
   * If the workflow fails:
     * Failed before uploading anything: use "Re-run failed jobs" on the failed run; it rebuilds the same tag.
     * The fix is on `main` (workflow or build process): "Run workflow" on `main` with `overwrite=true` (`gh workflow run ci-release.yml --ref main -f dry_run=false -f overwrite=true`). The build then includes the commits after the tag; the run summary lists them.
-    * To build exactly the tag or a specific commit, add `-f ref=vX.Y.Z` (or a commit SHA).
-    * Code fix, release not announced, and `git log --oneline vX.Y.Z..<upstream-remote>/main` lists only the fix: move the tag (`git tag -f vX.Y.Z <fix-sha> && git push -f <upstream-remote> vX.Y.Z`) and run the workflow again (safe for Go: the module path has no `/v2`).
+    * To build exactly the tag or a specific commit, add `-f ref=vX.Y.Z` (or a full commit SHA).
+    * Code fix, release not announced, and `git log --oneline vX.Y.Z..<upstream-remote>/main` lists only the fix: move the tag (`git tag -f vX.Y.Z <fix-sha> && git push -f <upstream-remote> vX.Y.Z`) and run the workflow with `-f ref=vX.Y.Z` (safe for Go: the module path has no `/v2`).
     * Anything else: cut a patch release.
 4. Review the [feature gate lifecycle tracker](https://github.com/jaegertracing/jaeger/issues/9057) and open follow-up PRs for any gate stage advancements or legacy-ID removals due in the next release.
 

@@ -13,7 +13,7 @@ on:
       ref:
         required: false
         type: string
-        description: Tag or commit SHA to build, e.g. v2.23.0. Leave blank to build the branch the workflow runs from. The workflow file always comes from that branch.
+        description: Tag or full commit SHA to build, e.g. v2.23.0. Leave blank to build the branch the workflow runs from. The workflow file always comes from that branch.
 
       dry_run:
         required: true
@@ -100,6 +100,7 @@ jobs:
 
     - name: Report commits built past the release tag
       # Manual runs from a branch may build later commits than the tag. Show them; don't block.
+      continue-on-error: true
       run: |
         tag_sha=$(git rev-parse "${BRANCH}^{commit}")
         head_sha=$(git rev-parse HEAD)
