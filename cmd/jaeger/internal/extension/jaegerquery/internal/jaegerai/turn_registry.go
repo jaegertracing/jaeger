@@ -8,15 +8,63 @@ import (
 	"sync"
 
 	"github.com/google/uuid"
+	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
 // turnState holds the per-turn state the turn-scoped MCP endpoint needs: the live
-// SSE stream back to the browser, and the UI tools the frontend declared for that
-// turn. The endpoint advertises those UI tools (alongside the built-in telemetry
-// tools) and dispatches their calls onto the stream.
+// SSE stream back to the browser, the UI tools the frontend declared for that
+// turn, and the caller the chat request resolved. The endpoint advertises those
+// UI tools (alongside the built-in telemetry tools), dispatches their calls onto
+// the stream, and runs every tool call as that caller.
+//
+// A turn also owns the MCP sessions the agent opened under its route. In the
+// stateful transport a session keeps the context of the request that created
+// it, caller included, for as long as it lives, and the shared MCP mount serves
+// the same sessions by id with no route check (only the ai.auth check, when one
+// is configured), so the turn closes its sessions when it ends rather than let
+// the caller's identity outlive the turn in a session the agent could keep
+// using.
 type turnState struct {
 	stream  *streamingClient
 	uiTools []json.RawMessage
+	caller  turnCaller
+
+	mu       sync.Mutex
+	closed   bool
+	sessions []*mcp.ServerSession
+}
+
+// attachSession records an MCP session that the agent opened under this turn's
+// route, so that closing the turn closes the session. It reports false when the
+// turn has already ended, which can happen when the turn closes between the
+// route check in ServeHTTP and the SDK creating the session; the caller then
+// owns closing the session, since nothing else will.
+func (t *turnState) attachSession(session *mcp.ServerSession) bool {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	if t.closed {
+		return false
+	}
+	t.sessions = append(t.sessions, session)
+	return true
+}
+
+// closeSessions marks the turn ended and closes every MCP session attached to
+// it. In the stateful transport closing also removes the session from the
+// handler's session map, so a later request carrying its id is refused on the
+// shared mount as well as here. Each close runs on its own goroutine because
+// ServerSession.Close waits for the session's in-flight requests, and the chat
+// handler, which runs this from its deferred closer, must not wait on a tool
+// call that a straggling agent still has open.
+func (t *turnState) closeSessions() {
+	t.mu.Lock()
+	t.closed = true
+	sessions := t.sessions
+	t.sessions = nil
+	t.mu.Unlock()
+	for _, session := range sessions {
+		go session.Close()
+	}
 }
 
 // turnRegistry maps a per-turn route id (mcpRouteID) to its turn state. The chat
@@ -48,22 +96,29 @@ func newTurnRegistry() *turnRegistry {
 	}
 }
 
-// register records a new turn — the browser's SSE stream and the UI tools it
-// declared — under a freshly minted route id, and returns that id plus a closer
-// that removes the turn. The registry mints the id (nothing outside chooses how a
-// turn is keyed); the closer is meant to be deferred by the chat handler and is
-// idempotent. The chat handler ignores the id today — the turn-scoped endpoint
-// resolves it from the request path — but the id is what the turn's MCP URL is
-// built from once that URL is announced to the sidecar.
-func (s *turnRegistry) register(stream *streamingClient, uiTools []json.RawMessage) (mcpRouteID string, closer func()) {
+// register records a new turn — the browser's SSE stream, the UI tools it
+// declared and the caller behind it — under a freshly minted route id, and
+// returns that id plus a closer that removes the turn and closes the MCP
+// sessions opened under it. The registry mints the id (nothing outside chooses
+// how a turn is keyed); the closer is meant to be deferred by the chat handler
+// and is idempotent. The chat handler ignores the id today — the turn-scoped
+// endpoint resolves it from the request path — but the id is what the turn's
+// MCP URL is built from once that URL is announced to the sidecar.
+func (s *turnRegistry) register(stream *streamingClient, uiTools []json.RawMessage, caller turnCaller) (mcpRouteID string, closer func()) {
 	id := uuid.NewString()
+	turn := &turnState{
+		stream:  stream,
+		uiTools: uiTools,
+		caller:  caller,
+	}
 	s.mu.Lock()
-	s.turns[id] = &turnState{stream: stream, uiTools: uiTools}
+	s.turns[id] = turn
 	s.mu.Unlock()
 	return id, func() {
 		s.mu.Lock()
 		delete(s.turns, id)
 		s.mu.Unlock()
+		turn.closeSessions()
 	}
 }
 

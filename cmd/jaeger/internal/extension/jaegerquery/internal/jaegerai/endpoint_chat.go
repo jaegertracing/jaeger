@@ -142,11 +142,12 @@ func (h *chatEndpoint) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	clientImpl := newStreamingClient(ctx, w, req.ThreadID, req.RunID)
 
-	// Register this turn's stream and UI tools so the turn-scoped MCP endpoint can
-	// confirm the turn is active, advertise its UI tools, and dispatch their calls
-	// onto the stream. The registry mints the route id, which we announce to the
+	// Register this turn's stream, UI tools and caller so the turn-scoped MCP
+	// endpoint can confirm the turn is active, advertise its UI tools, dispatch
+	// their calls onto the stream, and run every tool call as the person behind
+	// this request. The registry mints the route id, which we announce to the
 	// sidecar below as the turn's MCP URL, and hands back a closer.
-	mcpRouteID, closeTurn := h.turns.register(clientImpl, rawUITools)
+	mcpRouteID, closeTurn := h.turns.register(clientImpl, rawUITools, captureTurnCaller(ctx))
 	defer closeTurn()
 
 	acpConn := acp.NewClientSideConnection(clientImpl, adapter, adapter)

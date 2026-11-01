@@ -97,7 +97,8 @@ func (h *turnScopedEndpoint) registerRoutes(router *http.ServeMux) {
 
 func (h *turnScopedEndpoint) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	mcpRouteID := r.PathValue("mcpRouteID")
-	if h.turns.get(mcpRouteID) == nil {
+	turn := h.turns.get(mcpRouteID)
+	if turn == nil {
 		// Unknown or expired route id: the scoped endpoint is only valid
 		// during an active chat turn, so a missing entry is a client error.
 		h.logger.Debug("turn-scoped MCP request for unknown route id", zap.String("mcp_route_id", mcpRouteID))
@@ -109,12 +110,22 @@ func (h *turnScopedEndpoint) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	// middleware. The no-slash form strips to "", which we normalize to "/". Our
 	// routes carry no percent-encoding past the UUID, so Path is canonical and
 	// RawPath cleared.
+	//
+	// The request also takes on the chat caller's identity, so the telemetry
+	// tools query storage as the person who asked rather than as the sidecar
+	// that relays their question (see turnCaller). In the stateless transport
+	// every request is served from its own context, so every tool call gets the
+	// caller here. In the stateful transport the SDK keeps the context of the
+	// request that created the session, so the caller installed on that first
+	// request is the one every later call in the session runs as, and the turn
+	// closes the session when it ends (see turnState).
 	prefix := h.basePath + routeMCPPrefix + mcpRouteID
 	rest := strings.TrimPrefix(r.URL.Path, prefix)
 	if rest == "" {
 		rest = "/"
 	}
-	rewritten := r.Clone(context.WithValue(r.Context(), mcpRouteIDContextKey{}, mcpRouteID))
+	ctx := turn.caller.contextFor(r.Context())
+	rewritten := r.Clone(context.WithValue(ctx, mcpRouteIDContextKey{}, mcpRouteID))
 	rewritten.URL.Path = rest
 	rewritten.URL.RawPath = ""
 	h.streamable.ServeHTTP(w, rewritten)
