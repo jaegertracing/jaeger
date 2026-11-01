@@ -47,12 +47,38 @@ func computeCriticalPath(
 	criticalPath []Section,
 	returningChildStartTime *uint64,
 ) []Section {
+	return computeCriticalPathWithChildren(spanMap, spanID, criticalPath, returningChildStartTime, make(map[pcommon.SpanID]*childSpanIterator))
+}
+
+func computeCriticalPathWithChildren(
+	spanMap map[pcommon.SpanID]CPSpan,
+	spanID pcommon.SpanID,
+	criticalPath []Section,
+	returningChildStartTime *uint64,
+	childrenByParent map[pcommon.SpanID]*childSpanIterator,
+) []Section {
 	currentSpan, ok := spanMap[spanID]
 	if !ok {
 		return criticalPath
 	}
 
-	lastFinishingChildSpan := findLastFinishingChildSpan(spanMap, currentSpan, returningChildStartTime)
+	var lastFinishingChildSpan *CPSpan
+	switch len(currentSpan.ChildSpanIDs) {
+	case 0:
+	case 1:
+		child, exists := spanMap[currentSpan.ChildSpanIDs[0]]
+		if exists && childFinishesBefore(child, returningChildStartTime) {
+			lastFinishingChildSpan = &child
+		}
+	default:
+		children, prepared := childrenByParent[spanID]
+		if !prepared {
+			iterator := newChildSpanIterator(spanMap, currentSpan)
+			children = &iterator
+			childrenByParent[spanID] = children
+		}
+		lastFinishingChildSpan = children.next(returningChildStartTime)
+	}
 
 	var spanCriticalSection Section
 
@@ -74,7 +100,7 @@ func computeCriticalPath(
 		}
 
 		// Now focus shifts to the lastFinishingChildSpan of current span
-		criticalPath = computeCriticalPath(spanMap, lastFinishingChildSpan.SpanID, criticalPath, nil)
+		criticalPath = computeCriticalPathWithChildren(spanMap, lastFinishingChildSpan.SpanID, criticalPath, nil, childrenByParent)
 	} else {
 		// If there is no last finishing child then total section up to startTime of span is on critical path
 		endTime := currentSpan.StartTime + currentSpan.Duration
@@ -96,7 +122,7 @@ func computeCriticalPath(
 		// return from recursion and walk backwards to one level depth to parent span
 		// provide span's startTime as returningChildStartTime
 		if !currentSpan.ParentSpanID.IsEmpty() {
-			criticalPath = computeCriticalPath(spanMap, currentSpan.ParentSpanID, criticalPath, &currentSpan.StartTime)
+			criticalPath = computeCriticalPathWithChildren(spanMap, currentSpan.ParentSpanID, criticalPath, &currentSpan.StartTime, childrenByParent)
 		}
 	}
 

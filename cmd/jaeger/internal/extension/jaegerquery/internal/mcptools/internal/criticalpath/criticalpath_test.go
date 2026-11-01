@@ -227,14 +227,82 @@ func TestComputeCriticalPath_ZeroDurationChildAtReturningBoundary(t *testing.T) 
 	}, result)
 }
 
-func TestFindLastFinishingChildSpan_MissingChild(t *testing.T) {
-	// Test findLastFinishingChildSpan with child ID in list but missing from map (find_lfc.go line 23)
+func TestChildSpanIterator_MissingChild(t *testing.T) {
+	// Test a child ID in the list that is missing from the map.
 	parentSpan := CPSpan{
 		SpanID:       [8]byte{1},
 		ChildSpanIDs: []pcommon.SpanID{[8]byte{2}}, // Refers to missing span
 	}
 	spanMap := map[pcommon.SpanID]CPSpan{} // Empty map
 
-	result := findLastFinishingChildSpan(spanMap, parentSpan, nil)
+	children := newChildSpanIterator(spanMap, parentSpan)
+	result := children.next(nil)
 	assert.Nil(t, result)
+	spanMap[parentSpan.SpanID] = parentSpan
+	assert.Nil(t, computeCriticalPath(spanMap, parentSpan.SpanID, nil, nil))
+}
+
+func TestComputeCriticalPath_NestedSiblings(t *testing.T) {
+	spans := map[pcommon.SpanID]CPSpan{
+		{1}: {SpanID: spanID(1), StartTime: 1, Duration: 99, ChildSpanIDs: []pcommon.SpanID{{2}, {3}}},
+		{2}: {SpanID: spanID(2), ParentSpanID: spanID(1), StartTime: 10, Duration: 30, ChildSpanIDs: []pcommon.SpanID{{4}, {5}}},
+		{3}: {SpanID: spanID(3), ParentSpanID: spanID(1), StartTime: 60, Duration: 30, ChildSpanIDs: []pcommon.SpanID{{6}, {7}}},
+		{4}: {SpanID: spanID(4), ParentSpanID: spanID(2), StartTime: 15, Duration: 5},
+		{5}: {SpanID: spanID(5), ParentSpanID: spanID(2), StartTime: 25, Duration: 5},
+		{6}: {SpanID: spanID(6), ParentSpanID: spanID(3), StartTime: 65, Duration: 5},
+		{7}: {SpanID: spanID(7), ParentSpanID: spanID(3), StartTime: 75, Duration: 5},
+	}
+	expected := []Section{
+		{SpanID: spanID(1).String(), SectionStart: 90, SectionEnd: 100},
+		{SpanID: spanID(3).String(), SectionStart: 80, SectionEnd: 90},
+		{SpanID: spanID(7).String(), SectionStart: 75, SectionEnd: 80},
+		{SpanID: spanID(3).String(), SectionStart: 70, SectionEnd: 75},
+		{SpanID: spanID(6).String(), SectionStart: 65, SectionEnd: 70},
+		{SpanID: spanID(3).String(), SectionStart: 60, SectionEnd: 65},
+		{SpanID: spanID(1).String(), SectionStart: 40, SectionEnd: 60},
+		{SpanID: spanID(2).String(), SectionStart: 30, SectionEnd: 40},
+		{SpanID: spanID(5).String(), SectionStart: 25, SectionEnd: 30},
+		{SpanID: spanID(2).String(), SectionStart: 20, SectionEnd: 25},
+		{SpanID: spanID(4).String(), SectionStart: 15, SectionEnd: 20},
+		{SpanID: spanID(2).String(), SectionStart: 10, SectionEnd: 15},
+		{SpanID: spanID(1).String(), SectionStart: 1, SectionEnd: 10},
+	}
+	for range 2 {
+		require.Equal(t, expected, computeCriticalPath(spans, spanID(1), []Section{}, nil))
+	}
+}
+
+func TestComputeCriticalPath_SequentialSections(t *testing.T) {
+	const n = 64
+	for _, reverse := range []bool{false, true} {
+		traces := sequentialTrace(n, reverse)
+		original := ptrace.NewTraces()
+		traces.CopyTo(original)
+		expected := make([]Section, 0, 2*n+1)
+		end := uint64(2*n + 2)
+		for i := n - 1; i >= 0; i-- {
+			start := uint64(2*i + 2)
+			position := i
+			if reverse {
+				position = n - 1 - i
+			}
+			expected = append(expected,
+				Section{SpanID: sequentialSpanID(1).String(), SectionStart: start + 1, SectionEnd: end},
+				Section{SpanID: sequentialSpanID(uint64(position + 2)).String(), SectionStart: start, SectionEnd: start + 1},
+			)
+			end = start
+		}
+		expected = append(expected, Section{SpanID: sequentialSpanID(1).String(), SectionStart: 1, SectionEnd: end})
+		for range 2 {
+			actual, err := ComputeCriticalPathFromTraces(traces)
+			require.NoError(t, err)
+			require.Equal(t, expected, actual)
+		}
+		marshaler := ptrace.JSONMarshaler{}
+		before, err := marshaler.MarshalTraces(original)
+		require.NoError(t, err)
+		after, err := marshaler.MarshalTraces(traces)
+		require.NoError(t, err)
+		require.JSONEq(t, string(before), string(after))
+	}
 }
