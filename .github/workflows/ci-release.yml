@@ -177,6 +177,9 @@ jobs:
     - name: Build and upload all container images
       # -B skips building the binaries since we already did that above
       run: |
+        # Name snapshot images after the built commit, which differs from the dispatch commit when ref is set.
+        GITHUB_SHA=$(git rev-parse HEAD)
+        export GITHUB_SHA
         bash scripts/build/build-upload-docker-images.sh -B \
           ${{ steps.params.outputs.docker_flags }}
       env:
@@ -185,6 +188,8 @@ jobs:
 
     - name: Build, test, and publish jaeger image
       run: |
+        GITHUB_SHA=$(git rev-parse HEAD)
+        export GITHUB_SHA
         bash scripts/build/build-all-in-one-image.sh \
           ${{ steps.params.outputs.docker_flags }}
       env:
@@ -193,6 +198,8 @@ jobs:
 
     - name: Build, test, and publish hotrod image
       run: |
+        GITHUB_SHA=$(git rev-parse HEAD)
+        export GITHUB_SHA
         bash scripts/build/build-hotrod-image.sh \
           ${{ steps.params.outputs.docker_flags }}
       env:
