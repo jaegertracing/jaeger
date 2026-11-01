@@ -27,9 +27,6 @@ on:
       run_id:
         description: 'CI Orchestrator run ID to publish summary for'
         required: true
-      pr_number:
-        description: 'PR number to post summary report for (found from the run if empty)'
-        required: false
 # Scorecard Token-Permissions: keep writes on the publish job only.
 permissions:
   contents: read
@@ -86,9 +83,8 @@ jobs:
             --dir .artifacts \
           || echo "::warning::ci-summary artifact not found; proceeding without summary artifact (later checks may fail)."
 
-      # The script reads the CI run, commit, and PR from the event payload in
-      # `context` (or fetches the run named by workflow_dispatch). Nothing is
-      # interpolated into the script source.
+      # The script takes the CI run, commit, and PR from `context`, so nothing
+      # is interpolated into the script source.
       - name: Post PR comment and create check runs
         uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9
         with:

@@ -18,9 +18,6 @@ const {
   postCheckRun,
   postOrUpdateComment,
   COMMENT_TAG,
-  validatePrNumber,
-  validateRunId,
-  validateHeadSha,
   resolvePublishTarget,
 } = handler;
 
@@ -641,8 +638,6 @@ describe('postOrUpdateComment', () => {
 // ── publish target binding ────────────────────────────────────────────────────
 // The commit and PR come from the CI run GitHub reports, never the artifact.
 
-const REPO_ID = 1000;
-const FORK_REPO_ID = 2000;
 const RUN_SHA = 'a'.repeat(40);
 const NEWER_SHA = 'b'.repeat(40);
 const ARTIFACT_SHA = 'c'.repeat(40);
@@ -662,7 +657,7 @@ function recordingCore() {
   };
 }
 
-function recordingGithub({ pulls = [], pull = pr(42), run = null, pullsError = null } = {}) {
+function recordingGithub({ pulls = [], run = null, pullsError = null } = {}) {
   const calls = [];
   const record = (name, data) => async (args) => {
     calls.push({ name, args });
@@ -689,20 +684,14 @@ function recordingGithub({ pulls = [], pull = pr(42), run = null, pullsError = n
       },
       pulls: {
         list: jest.fn(record('pulls.list', pulls)),
-        get: jest.fn(record('pulls.get', pull)),
       },
     },
   };
 }
 
-// A pull_requests / Pulls API entry.
-function pr(number, { baseRepoId = REPO_ID, headRepoId = REPO_ID, sha = RUN_SHA, state = 'open' } = {}) {
-  return {
-    number,
-    state,
-    head: { sha, repo: { id: headRepoId } },
-    base: { repo: { id: baseRepoId } },
-  };
+// A Pulls API entry, or an entry of a run's pull_requests array.
+function pr(number, { sha = RUN_SHA } = {}) {
+  return { number, head: { sha } };
 }
 
 // A CI Orchestrator workflow run.
@@ -712,7 +701,7 @@ function ciRun(overrides = {}) {
     event: 'pull_request',
     head_sha: RUN_SHA,
     head_branch: 'feature',
-    head_repository: { id: REPO_ID, owner: { login: 'org' } },
+    head_repository: { owner: { login: 'org' } },
     pull_requests: [],
     ...overrides,
   };
@@ -720,7 +709,7 @@ function ciRun(overrides = {}) {
 
 function forkRun(overrides = {}) {
   return ciRun({
-    head_repository: { id: FORK_REPO_ID, owner: { login: 'forker' } },
+    head_repository: { owner: { login: 'forker' } },
     ...overrides,
   });
 }
@@ -730,7 +719,7 @@ function workflowRunContext(run) {
     eventName: 'workflow_run',
     repo: { owner: 'org', repo: 'repo' },
     runId: 200,
-    payload: { repository: { id: REPO_ID }, workflow_run: run },
+    payload: { workflow_run: run },
   };
 }
 
@@ -739,231 +728,90 @@ function dispatchContext(inputs) {
     eventName: 'workflow_dispatch',
     repo: { owner: 'org', repo: 'repo' },
     runId: 200,
-    payload: { repository: { id: REPO_ID }, inputs },
+    payload: { inputs },
   };
 }
 
-describe('validatePrNumber / validateRunId / validateHeadSha', () => {
-  test('rejects a newline and a workflow command instead of truncating with parseInt', () => {
-    expect(validatePrNumber(INJECTED_PR)).toBeNull();
-    expect(validateRunId('100\n::set-output name=x::y')).toBeNull();
-    expect(validateHeadSha(INJECTED_SHA)).toBeNull();
-  });
-
-  test('accepts a positive integer and a 40-hex sha', () => {
-    expect(validatePrNumber(42)).toBe(42);
-    expect(validatePrNumber('42')).toBe(42);
-    expect(validateRunId('41237292075')).toBe(41237292075);
-    expect(validateHeadSha(RUN_SHA)).toBe(RUN_SHA);
-  });
-
-  test('rejects zero, prefixes, and non-hex shas', () => {
-    expect(validatePrNumber(0)).toBeNull();
-    expect(validatePrNumber('01')).toBeNull();
-    expect(validatePrNumber('12abc')).toBeNull();
-    expect(validateHeadSha(RUN_SHA.toUpperCase())).toBeNull();
-    expect(validateHeadSha(RUN_SHA.slice(1))).toBeNull();
-  });
-});
-
 describe('resolvePublishTarget', () => {
-  test('uses the run head SHA and a pull_requests entry that targets this repository', async () => {
-    const github = recordingGithub();
-    const result = await resolvePublishTarget({
-      github,
-      context: workflowRunContext(ciRun({ pull_requests: [pr(42)] })),
-    });
-    expect(result).toEqual({ runId: 100, headSha: RUN_SHA, prNumber: 42, warnings: [] });
-    expect(github.rest.pulls.get).toHaveBeenCalledWith({ owner: 'org', repo: 'repo', pull_number: 42 });
-    expect(github.rest.pulls.list).not.toHaveBeenCalled();
-  });
+  function resolve(github, context) {
+    return resolvePublishTarget({ github, context, core: recordingCore() });
+  }
 
-  test('skips the comment when a pull_requests entry matches but the live PR head has moved on', async () => {
-    const github = recordingGithub({ pull: pr(42, { sha: NEWER_SHA }) });
-    const result = await resolvePublishTarget({
-      github,
-      context: workflowRunContext(ciRun({ pull_requests: [pr(42)] })),
-    });
-    expect(result.headSha).toBe(RUN_SHA);
-    expect(result.prNumber).toBeNull();
-    expect(result.warnings).toEqual([
-      'No single open PR in this repository has the CI run head SHA as its head; skipping the PR comment.',
-    ]);
-    expect(github.rest.pulls.list).not.toHaveBeenCalled();
-  });
-
-  test('skips the comment when a pull_requests entry matches but the PR has been closed', async () => {
-    const github = recordingGithub({ pull: pr(42, { state: 'closed' }) });
-    const result = await resolvePublishTarget({
-      github,
-      context: workflowRunContext(ciRun({ pull_requests: [pr(42)] })),
-    });
-    expect(result.headSha).toBe(RUN_SHA);
-    expect(result.prNumber).toBeNull();
-  });
-
-  test('does not comment on a push to main that lists PRs from forks', async () => {
-    // Observed on jaegertracing/jaeger: push runs on main carry fork PRs whose
-    // head is main, numbered in the fork (e.g. #1 in someone's fork).
-    const github = recordingGithub();
-    const result = await resolvePublishTarget({
-      github,
-      context: workflowRunContext(ciRun({
-        event: 'push',
-        head_branch: 'main',
-        pull_requests: [pr(1, { baseRepoId: FORK_REPO_ID }), pr(17, { baseRepoId: FORK_REPO_ID + 1 })],
-      })),
-    });
-    expect(result).toEqual({ runId: 100, headSha: RUN_SHA, prNumber: null, warnings: [] });
-    expect(github.calls).toEqual([]);
-  });
-
-  test('does not comment on a merge_group run', async () => {
-    const github = recordingGithub();
-    const result = await resolvePublishTarget({
-      github,
-      context: workflowRunContext(ciRun({ event: 'merge_group', pull_requests: [pr(42)] })),
-    });
-    expect(result.prNumber).toBeNull();
-    expect(result.headSha).toBe(RUN_SHA);
-    expect(github.calls).toEqual([]);
-  });
-
-  test('ignores a pull_requests entry that targets another repository', async () => {
-    const github = recordingGithub({ pulls: [] });
-    const result = await resolvePublishTarget({
-      github,
-      context: workflowRunContext(ciRun({ pull_requests: [pr(1, { baseRepoId: FORK_REPO_ID })] })),
-    });
-    expect(result.prNumber).toBeNull();
-    expect(result.headSha).toBe(RUN_SHA);
-  });
-
-  test('finds a fork PR by head repository and branch when pull_requests is empty', async () => {
-    const github = recordingGithub({ pulls: [pr(77, { headRepoId: FORK_REPO_ID })] });
-    const result = await resolvePublishTarget({ github, context: workflowRunContext(forkRun()) });
-    expect(result).toEqual({ runId: 100, headSha: RUN_SHA, prNumber: 77, warnings: [] });
+  test('finds the open PR by head repository and branch at the run head SHA', async () => {
+    const github = recordingGithub({ pulls: [pr(42)] });
+    const result = await resolve(github, workflowRunContext(ciRun()));
+    expect(result).toEqual({ runId: 100, headSha: RUN_SHA, prNumber: 42 });
     expect(github.rest.pulls.list).toHaveBeenCalledWith(expect.objectContaining({
-      owner: 'org', repo: 'repo', head: 'forker:feature', state: 'open',
+      owner: 'org', repo: 'repo', state: 'open', head: 'org:feature',
     }));
   });
 
-  test('keeps the run SHA but skips the comment when the fork PR head has moved on', async () => {
-    const github = recordingGithub({ pulls: [pr(77, { headRepoId: FORK_REPO_ID, sha: NEWER_SHA })] });
-    const result = await resolvePublishTarget({ github, context: workflowRunContext(forkRun()) });
-    expect(result.headSha).toBe(RUN_SHA);
-    expect(result.prNumber).toBeNull();
-    expect(result.warnings).toEqual([
-      'No single open PR in this repository has the CI run head SHA as its head; skipping the PR comment.',
-    ]);
-  });
-
-  test('ignores a lookup result whose head is in a different repository', async () => {
-    const github = recordingGithub({ pulls: [pr(77, { headRepoId: FORK_REPO_ID + 1 })] });
-    const result = await resolvePublishTarget({ github, context: workflowRunContext(forkRun()) });
-    expect(result.prNumber).toBeNull();
-  });
-
-  test('keeps the run SHA and reports a fixed warning when the Pulls API fails', async () => {
-    const github = recordingGithub({ pullsError: new Error('boom\n::set-output name=x::y') });
-    const result = await resolvePublishTarget({ github, context: workflowRunContext(forkRun()) });
-    expect(result.headSha).toBe(RUN_SHA);
-    expect(result.prNumber).toBeNull();
-    expect(result.warnings).toEqual(['Pulls API request failed; skipping the PR comment.']);
-  });
-
-  test('skips everything when the run has no valid head SHA', async () => {
-    const github = recordingGithub();
-    const result = await resolvePublishTarget({
-      github,
-      context: workflowRunContext(ciRun({ head_sha: INJECTED_SHA, pull_requests: [pr(42)] })),
-    });
-    expect(result).toEqual({
-      runId: null, headSha: null, prNumber: null,
-      warnings: ['CI run has no valid run ID or head SHA.'],
-    });
-  });
-
-  test('rejects an unsupported event', async () => {
-    const github = recordingGithub();
-    const result = await resolvePublishTarget({
-      github,
-      context: { ...workflowRunContext(ciRun()), eventName: 'pull_request_target' },
-    });
-    expect(result.headSha).toBeNull();
-    expect(result.warnings).toEqual(['Unsupported event; skipping publish.']);
-    expect(github.calls).toEqual([]);
-  });
-
-  test('workflow_dispatch: uses the fetched run SHA and a pr_number whose head matches it', async () => {
-    const github = recordingGithub({ run: forkRun({ id: 555 }), pull: pr(77, { headRepoId: FORK_REPO_ID }) });
-    const result = await resolvePublishTarget({
-      github,
-      context: dispatchContext({ run_id: '555', pr_number: '77' }),
-    });
-    expect(result).toEqual({ runId: 555, headSha: RUN_SHA, prNumber: 77, warnings: [] });
-    expect(github.rest.actions.getWorkflowRun).toHaveBeenCalledWith({ owner: 'org', repo: 'repo', run_id: 555 });
-    expect(github.rest.pulls.get).toHaveBeenCalledWith({ owner: 'org', repo: 'repo', pull_number: 77 });
-  });
-
-  test('workflow_dispatch: keeps the run SHA but skips the comment when the PR has moved on', async () => {
-    const github = recordingGithub({ run: forkRun({ id: 555 }), pull: pr(77, { sha: NEWER_SHA }) });
-    const result = await resolvePublishTarget({
-      github,
-      context: dispatchContext({ run_id: '555', pr_number: '77' }),
-    });
-    expect(result.headSha).toBe(RUN_SHA);
-    expect(result.prNumber).toBeNull();
-    expect(result.warnings).toEqual([
-      'workflow_dispatch pr_number is not an open PR with the CI run head SHA as its head; skipping the PR comment.',
-    ]);
-  });
-
-  test('workflow_dispatch: keeps the run SHA but skips the comment when the PR is closed', async () => {
-    const github = recordingGithub({ run: forkRun({ id: 555 }), pull: pr(77, { state: 'closed' }) });
-    const result = await resolvePublishTarget({
-      github,
-      context: dispatchContext({ run_id: '555', pr_number: '77' }),
-    });
-    expect(result.headSha).toBe(RUN_SHA);
-    expect(result.prNumber).toBeNull();
-    expect(result.warnings).toEqual([
-      'workflow_dispatch pr_number is not an open PR with the CI run head SHA as its head; skipping the PR comment.',
-    ]);
-  });
-
-  test('workflow_dispatch: finds the PR from the run when pr_number is empty', async () => {
-    const github = recordingGithub({ run: forkRun({ id: 555 }), pulls: [pr(77, { headRepoId: FORK_REPO_ID })] });
-    const result = await resolvePublishTarget({
-      github,
-      context: dispatchContext({ run_id: '555', pr_number: '' }),
-    });
+  test('finds a fork PR by the fork owner and branch', async () => {
+    const github = recordingGithub({ pulls: [pr(77)] });
+    const result = await resolve(github, workflowRunContext(forkRun()));
     expect(result.prNumber).toBe(77);
-    expect(github.rest.pulls.get).not.toHaveBeenCalled();
+    expect(github.rest.pulls.list).toHaveBeenCalledWith(expect.objectContaining({ head: 'forker:feature' }));
+  });
+
+  test('keeps the run SHA but skips the comment when the PR head has moved on', async () => {
+    const github = recordingGithub({ pulls: [pr(77, { sha: NEWER_SHA })] });
+    const result = await resolve(github, workflowRunContext(forkRun()));
+    expect(result).toEqual({ runId: 100, headSha: RUN_SHA, prNumber: null });
+  });
+
+  test('skips the comment when two open PRs share the head', async () => {
+    const github = recordingGithub({ pulls: [pr(1), pr(2)] });
+    const result = await resolve(github, workflowRunContext(ciRun()));
+    expect(result.prNumber).toBeNull();
+  });
+
+  test('does not look up a PR for a push to main, whatever pull_requests lists', async () => {
+    const github = recordingGithub();
+    const result = await resolve(github, workflowRunContext(ciRun({
+      event: 'push',
+      head_branch: 'main',
+      pull_requests: [pr(1)],
+    })));
+    expect(result).toEqual({ runId: 100, headSha: RUN_SHA, prNumber: null });
+    expect(github.rest.pulls.list).not.toHaveBeenCalled();
+  });
+
+  test('does not look up a PR for a merge_group run', async () => {
+    const github = recordingGithub();
+    const result = await resolve(github, workflowRunContext(ciRun({ event: 'merge_group' })));
+    expect(result.prNumber).toBeNull();
+    expect(github.rest.pulls.list).not.toHaveBeenCalled();
+  });
+
+  test('keeps the run SHA when the Pulls API fails', async () => {
+    const github = recordingGithub({ pullsError: new Error('boom') });
+    const result = await resolve(github, workflowRunContext(ciRun()));
+    expect(result).toEqual({ runId: 100, headSha: RUN_SHA, prNumber: null });
+  });
+
+  test('returns null when the run has no valid head SHA', async () => {
+    const github = recordingGithub();
+    expect(await resolve(github, workflowRunContext(ciRun({ head_sha: INJECTED_SHA })))).toBeNull();
+    expect(await resolve(github, workflowRunContext(ciRun({ head_sha: RUN_SHA.toUpperCase() })))).toBeNull();
+    expect(github.rest.pulls.list).not.toHaveBeenCalled();
+  });
+
+  test('workflow_dispatch: fetches the run by run_id and finds its PR', async () => {
+    const github = recordingGithub({ run: ciRun({ id: 555 }), pulls: [pr(42)] });
+    const result = await resolve(github, dispatchContext({ run_id: '555' }));
+    expect(github.rest.actions.getWorkflowRun).toHaveBeenCalledWith({ owner: 'org', repo: 'repo', run_id: 555 });
+    expect(result).toEqual({ runId: 555, headSha: RUN_SHA, prNumber: 42 });
   });
 
   test('workflow_dispatch: rejects an injected run_id without calling the API', async () => {
-    const github = recordingGithub();
+    const github = recordingGithub({ run: ciRun() });
+    const core = recordingCore();
     const result = await resolvePublishTarget({
-      github,
-      context: dispatchContext({ run_id: '555"; curl evil #', pr_number: '77' }),
+      github, core, context: dispatchContext({ run_id: '555\n::set-output name=x::y' }),
     });
-    expect(result.headSha).toBeNull();
-    expect(result.warnings).toEqual(['workflow_dispatch run_id is not a valid run ID.']);
-    expect(github.calls).toEqual([]);
-  });
-
-  test('workflow_dispatch: an injected pr_number posts checks only and does not fall back to a lookup', async () => {
-    const github = recordingGithub({ run: forkRun({ id: 555 }), pulls: [pr(77, { headRepoId: FORK_REPO_ID })] });
-    const result = await resolvePublishTarget({
-      github,
-      context: dispatchContext({ run_id: '555', pr_number: INJECTED_PR }),
-    });
-    expect(result.headSha).toBe(RUN_SHA);
-    expect(result.prNumber).toBeNull();
-    expect(github.rest.pulls.list).not.toHaveBeenCalled();
-    expect(github.rest.pulls.get).not.toHaveBeenCalled();
-    expect(JSON.stringify(result.warnings)).not.toContain('::set-output');
+    expect(result).toBeNull();
+    expect(github.rest.actions.getWorkflowRun).not.toHaveBeenCalled();
+    expect(core.lines.join('\n')).not.toContain('::set-output');
   });
 });
 
@@ -996,10 +844,10 @@ describe('handler publish target', () => {
 
   test('posts to the run SHA and PR and never prints artifact pr_number or head_sha', async () => {
     const core = recordingCore();
-    const github = recordingGithub();
+    const github = recordingGithub({ pulls: [pr(42)] });
     await handler({
       github, core,
-      context: workflowRunContext(ciRun({ pull_requests: [pr(42)] })),
+      context: workflowRunContext(ciRun()),
       fs: artifactFs(changedArtifact),
     });
 
@@ -1019,10 +867,10 @@ describe('handler publish target', () => {
 
   test('ignores a well-formed artifact PR and SHA that disagree with the run', async () => {
     const core = recordingCore();
-    const github = recordingGithub();
+    const github = recordingGithub({ pulls: [pr(42)] });
     await handler({
       github, core,
-      context: workflowRunContext(ciRun({ pull_requests: [pr(42)] })),
+      context: workflowRunContext(ciRun()),
       fs: artifactFs({ ...changedArtifact, pr_number: 999, head_sha: ARTIFACT_SHA }),
     });
 
@@ -1041,7 +889,7 @@ describe('handler publish target', () => {
       context: workflowRunContext(ciRun({
         event: 'push',
         head_branch: 'main',
-        pull_requests: [pr(1, { baseRepoId: FORK_REPO_ID })],
+        pull_requests: [pr(1)],
       })),
       fs: artifactFs(changedArtifact),
     });
@@ -1054,7 +902,7 @@ describe('handler publish target', () => {
 
   test('posts checks on the tested commit, not the newer PR head, when the PR has moved on', async () => {
     const core = recordingCore();
-    const github = recordingGithub({ pulls: [pr(77, { headRepoId: FORK_REPO_ID, sha: NEWER_SHA })] });
+    const github = recordingGithub({ pulls: [pr(77, { sha: NEWER_SHA })] });
     await handler({ github, core, context: workflowRunContext(forkRun()), fs: artifactFs(changedArtifact) });
 
     expect(github.rest.checks.create.mock.calls.map(call => call[0].head_sha)).toEqual([RUN_SHA, RUN_SHA]);
@@ -1064,10 +912,10 @@ describe('handler publish target', () => {
 
   test('does not echo an unparseable artifact that contains a workflow command', async () => {
     const core = recordingCore();
-    const github = recordingGithub();
+    const github = recordingGithub({ pulls: [pr(42)] });
     await handler({
       github, core,
-      context: workflowRunContext(ciRun({ pull_requests: [pr(42)] })),
+      context: workflowRunContext(ciRun()),
       fs: { readFileSync: jest.fn(() => `{ "pr_number": "${INJECTED_PR}" `) },
     });
 
@@ -1086,10 +934,10 @@ describe('handler publish target', () => {
 
   test('treats a non-object artifact as missing', async () => {
     const core = recordingCore();
-    const github = recordingGithub();
+    const github = recordingGithub({ pulls: [pr(42)] });
     await handler({
       github, core,
-      context: workflowRunContext(ciRun({ pull_requests: [pr(42)] })),
+      context: workflowRunContext(ciRun()),
       fs: { readFileSync: jest.fn(() => '[]') },
     });
 
@@ -1105,13 +953,13 @@ describe('handler publish target', () => {
     const github = recordingGithub();
     await handler({
       github, core,
-      context: workflowRunContext(ciRun({ head_sha: '', pull_requests: [pr(42)] })),
+      context: workflowRunContext(ciRun({ head_sha: '' })),
       fs: artifactFs({ ...changedArtifact, head_sha: ARTIFACT_SHA }),
     });
 
     expect(github.rest.checks.create).not.toHaveBeenCalled();
     expect(github.rest.issues.createComment).not.toHaveBeenCalled();
-    expect(core.lines).toContain('No CI run head SHA; skipping check runs and PR comment.');
+    expect(core.lines).toContain('No CI run to publish; skipping check runs and PR comment.');
   });
 });
 
