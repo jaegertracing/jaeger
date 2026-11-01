@@ -29,6 +29,10 @@ jobs:
     steps:
       - name: Determine execution mode
         id: mode
+        env:
+          # The org-membership and merged-PR checks below call the GitHub API
+          # through gh, which needs a token even for read-only queries.
+          GH_TOKEN: ${{ github.token }}
         run: |
           PARALLEL=false
 
