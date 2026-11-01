@@ -62,10 +62,10 @@ For detailed threat analysis, see [threat-model.md](threat-model.md).
 
 | Boundary | From | To | Security Controls |
 | -- | -- | -- | -- |
-| 1 | OTel SDK | Collector | TLS/mTLS, rate limiting |
+| 1 | OTel SDK | Collector | Configurable TLS/mTLS on TCP/gRPC/HTTP (no TLS on UDP Thrift); rate limiting is opt-in (not default) |
 | 2 | Collector | Storage | TLS, authentication |
 | 3 | Storage | Query | TLS, authentication |
-| 4 | Users | Query/UI | TLS, bearer tokens, RBAC |
+| 4 | Users | Query/UI/MCP | No default TLS or auth; basicauth is shipped server authenticator; bearer tokens forwarded to storage (not validated); production auth expected at reverse proxy |
 
 ## Secure Design Principles
 
@@ -78,12 +78,12 @@ For detailed threat analysis, see [threat-model.md](threat-model.md).
 
 - **Implementation**: TLS certificate verification is enabled by default when TLS is configured
 - **Evidence**: `insecure_skip_verify` must be explicitly set to disable verification
-- **Note**: TLS itself is opt-in to simplify initial testing and non-production deployments; for all production deployments, TLS (preferably mTLS where supported) MUST be enabled on all external and inter-service connections.
+- **Note**: The embedded configuration leaves TLS and authentication disabled by default, binds the query server to `:16686`, and enables the `/api/ai/mcp/` endpoint. For production, TLS and authentication (or an authenticating reverse proxy) must be configured.
 
 ### Complete Mediation
 
-- **Implementation**: All API endpoints require passing through authentication when configured
-- **Evidence**: Bearer token and RBAC support at Query service level
+- **Implementation**: Endpoints do not authenticate callers by default; authentication is enforced when configured on the listener or by a fronting reverse proxy
+- **Evidence**: `basicauth` server authenticator support; bearer tokens are forwarded to storage without validation; no in-process RBAC
 
 ### Open Design
 
@@ -117,14 +117,14 @@ For detailed threat analysis, see [threat-model.md](threat-model.md).
 | Weakness | Mitigation |
 | -- | -- |
 | **Injection (CWE-89, CWE-79)** | Structured data formats (protobuf/OTLP), parameterized storage queries |
-| **Broken Authentication (CWE-287)** | Bearer tokens, OAuth2, mTLS support |
+| **Broken Authentication (CWE-287)** | `basicauth` authenticator; production authentication expected at a reverse proxy/gateway; bearer tokens forwarded to storage (not validated by Jaeger) |
 | **Sensitive Data Exposure (CWE-200)** | TLS for all communications, no credentials in traces |
 | **XML External Entities** | Not applicable - uses protobuf/JSON |
-| **Broken Access Control (CWE-284)** | RBAC support in Query service |
+| **Broken Access Control (CWE-284)** | No in-process RBAC. Multi-tenancy header checks enforce tenant presence, but an omitted/empty `tenants` list accepts any non-empty header (tenant partitioning, not authentication) |
 | **Security Misconfiguration** | Secure defaults where possible, configuration validation |
-| **Cross-Site Scripting (CWE-79)** | UI built with React (auto-escaping), CSP headers |
+| **Cross-Site Scripting (CWE-79)** | UI built with React (auto-escaping text); GenAI Markdown disables raw HTML and restricts link schemes. No UI CSP header or meta tag |
 | **Insecure Deserialization (CWE-502)** | Uses protobuf with schema validation |
-| **Insufficient Logging** | Comprehensive logging in all components |
+| **Insufficient Logging** | Standard operational logging. No audit log of trace reads; `ui.log_access` is off by default and logs only static asset requests |
 | **SSRF (CWE-918)** | No user-controlled URLs in backend requests |
 
 ### Go-Specific Security
@@ -152,9 +152,10 @@ For detailed threat analysis, see [threat-model.md](threat-model.md).
 
 | Control | Implementation |
 | -- | -- |
-| TLS/mTLS | Configurable for all connections |
-| Authentication | Bearer tokens, OAuth2, Kerberos |
-| Rate Limiting | Configurable at collector |
+| TLS/mTLS | Configurable on HTTP/gRPC listeners and storage backends. Off by default. Not supported on UDP Thrift. No certificate pinning |
+| Authentication | `basicauth` via collector `auth.authenticator` on HTTP/gRPC listeners. Production auth expected at reverse proxy. Bearer tokens forwarded to storage, not validated as credentials |
+| MCP | `/api/ai/mcp/` enabled on query HTTP port in embedded config; inherits query-port exposure with no separate authenticator |
+| Rate Limiting | No request rate limit or per-service quota by default. Optional `memory_limiter` and sampling processors available in custom pipelines |
 | Input Validation | OTLP schema validation, size limits |
 
 ## References
@@ -162,4 +163,5 @@ For detailed threat analysis, see [threat-model.md](threat-model.md).
 - [SECURITY.md](../../SECURITY.md) - Vulnerability reporting
 - [Threat Model](threat-model.md) - Detailed threat analysis
 - [Security Architecture](architecture.md) - Cryptographic practices
+- [Security Review 2026](security-review-2026.md) - 2026-05-17 record, plus the 2026-10-11 correction note
 - [Securing Jaeger Installation](https://www.jaegertracing.io/docs/latest/security/)
