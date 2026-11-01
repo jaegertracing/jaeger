@@ -5,6 +5,7 @@ package criticalpath
 
 import (
 	"errors"
+	"strconv"
 
 	"go.opentelemetry.io/collector/pdata/pcommon"
 	"go.opentelemetry.io/collector/pdata/ptrace"
@@ -47,10 +48,47 @@ func computeCriticalPath(
 	criticalPath []Section,
 	returningChildStartTime *uint64,
 ) []Section {
+	return computeCriticalPathWithGuard(spanMap, spanID, criticalPath, returningChildStartTime, make(map[string]struct{}))
+}
+
+// criticalPathVisitKey returns a unique key for a (spanID, returningChildStartTime)
+// recursion invocation. It is used to detect cyclic or self-referencing span
+// relationships that would otherwise cause computeCriticalPath to recurse
+// indefinitely (see issue #9966).
+func criticalPathVisitKey(spanID pcommon.SpanID, returningChildStartTime *uint64) string {
+	if returningChildStartTime == nil {
+		return spanID.String() + "|-"
+	}
+	return spanID.String() + "|" + strconv.FormatUint(*returningChildStartTime, 10)
+}
+
+// computeCriticalPathWithGuard is the internal implementation of
+// computeCriticalPath that tracks the current recursion path. When a span is
+// revisited with the same parameters, a cycle exists in the span
+// parent/child graph (e.g. Root -> A -> B -> A, or a self-referencing span
+// whose ParentSpanID equals its SpanID). In that case the recursion stops to
+// avoid an infinite loop / stack overflow while still returning the sections
+// accumulated so far.
+func computeCriticalPathWithGuard(
+	spanMap map[pcommon.SpanID]CPSpan,
+	spanID pcommon.SpanID,
+	criticalPath []Section,
+	returningChildStartTime *uint64,
+	visitGuard map[string]struct{},
+) []Section {
 	currentSpan, ok := spanMap[spanID]
 	if !ok {
 		return criticalPath
 	}
+
+	visitKey := criticalPathVisitKey(spanID, returningChildStartTime)
+	if _, visited := visitGuard[visitKey]; visited {
+		// A cycle or self-reference was detected. Stop descending further to
+		// avoid infinite recursion; the sections computed so far are valid.
+		return criticalPath
+	}
+	visitGuard[visitKey] = struct{}{}
+	defer delete(visitGuard, visitKey)
 
 	lastFinishingChildSpan := findLastFinishingChildSpan(spanMap, currentSpan, returningChildStartTime)
 
@@ -74,7 +112,7 @@ func computeCriticalPath(
 		}
 
 		// Now focus shifts to the lastFinishingChildSpan of current span
-		criticalPath = computeCriticalPath(spanMap, lastFinishingChildSpan.SpanID, criticalPath, nil)
+		criticalPath = computeCriticalPathWithGuard(spanMap, lastFinishingChildSpan.SpanID, criticalPath, nil, visitGuard)
 	} else {
 		// If there is no last finishing child then total section up to startTime of span is on critical path
 		endTime := currentSpan.StartTime + currentSpan.Duration
@@ -96,7 +134,7 @@ func computeCriticalPath(
 		// return from recursion and walk backwards to one level depth to parent span
 		// provide span's startTime as returningChildStartTime
 		if !currentSpan.ParentSpanID.IsEmpty() {
-			criticalPath = computeCriticalPath(spanMap, currentSpan.ParentSpanID, criticalPath, &currentSpan.StartTime)
+			criticalPath = computeCriticalPathWithGuard(spanMap, currentSpan.ParentSpanID, criticalPath, &currentSpan.StartTime, visitGuard)
 		}
 	}
 
