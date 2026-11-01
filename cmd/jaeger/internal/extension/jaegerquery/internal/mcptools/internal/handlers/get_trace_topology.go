@@ -170,52 +170,112 @@ func toTopologySpan(rs *rawSpan, path string, truncatedChildren int) types.Topol
 // When maxDepth > 0, spans beyond that depth are omitted and the last included
 // ancestor records the count of excluded direct children in TruncatedChildren.
 func (h *getTraceTopologyHandler) buildFlatTopology(spans []rawSpan, maxDepth, maxSpans int) []types.TopologySpan {
-	// Create a map of span ID to span pointer for quick lookup
-	byID := make(map[string]*rawSpan, len(spans))
+	n := len(spans)
+	childrenOf := make([][]int, n)
+	var roots []int
 	for i := range spans {
-		byID[spans[i].spanID] = &spans[i]
-	}
-
-	// Build parent-child relationships; collect roots (parent absent from trace)
-	childrenOf := make(map[string][]*rawSpan)
-	var roots []*rawSpan
-	for i := range spans {
-		s := &spans[i]
-		if s.parentID != "" && byID[s.parentID] != nil {
-			childrenOf[s.parentID] = append(childrenOf[s.parentID], s)
+		parentIdx := parentIndex(spans, i)
+		if parentIdx >= 0 {
+			childrenOf[parentIdx] = append(childrenOf[parentIdx], i)
 		} else {
-			roots = append(roots, s)
+			roots = append(roots, i)
 		}
 	}
 
-	// Sort roots and children by start time for a deterministic, meaningful order
-	sortByStartNano(roots)
-	for k := range childrenOf {
-		sortByStartNano(childrenOf[k])
+	sortIndicesByStartNano(spans, roots)
+	for i := range childrenOf {
+		sortIndicesByStartNano(spans, childrenOf[i])
 	}
 
-	// DFS from each root to produce the flat list. The output is capped at
-	// maxSpans, so do not preallocate for the whole trace when it is set.
-	capacity := len(spans)
+	capacity := n
 	if maxSpans > 0 && maxSpans < capacity {
 		capacity = maxSpans
 	}
 	result := make([]types.TopologySpan, 0, capacity)
-	for _, root := range roots {
+	visited := make([]bool, n)
+	reachable := reachableFromRoots(n, roots, childrenOf)
+
+	for _, rootIdx := range roots {
 		if maxSpans > 0 && len(result) >= maxSpans {
 			break
 		}
-		// For orphans (has a parentID but parent not in trace), prepend the missing
-		// parent ID to the path so the caller can identify the attachment point.
-		var rootPath string
-		if root.parentID != "" {
-			rootPath = root.parentID + "/" + root.spanID
-		} else {
-			rootPath = root.spanID
+		result = h.emitFromRoot(spans, rootIdx, maxDepth, maxSpans, childrenOf, visited, result, false)
+	}
+
+	var unreachable []int
+	for i := range spans {
+		if !reachable[i] {
+			unreachable = append(unreachable, i)
 		}
-		h.dfs(root, rootPath, 1, maxDepth, maxSpans, childrenOf, &result)
+	}
+	sortIndicesByStartNano(spans, unreachable)
+	for _, rootIdx := range unreachable {
+		if maxSpans > 0 && len(result) >= maxSpans {
+			break
+		}
+		result = h.emitFromRoot(spans, rootIdx, maxDepth, maxSpans, childrenOf, visited, result, true)
 	}
 	return result
+}
+
+func reachableFromRoots(n int, roots []int, childrenOf [][]int) []bool {
+	reachable := make([]bool, n)
+	var walk func(idx int)
+	walk = func(idx int) {
+		if reachable[idx] {
+			return
+		}
+		reachable[idx] = true
+		for _, childIdx := range childrenOf[idx] {
+			walk(childIdx)
+		}
+	}
+	for _, rootIdx := range roots {
+		walk(rootIdx)
+	}
+	return reachable
+}
+
+// parentIndex returns the slice index of the parent span, or -1 when the span
+// has no parent or the parent ID does not appear in the trace. When several
+// spans share the same ID, the earliest in slice order is treated as the parent
+// (matching OTLP parent references that only carry a span ID).
+func parentIndex(spans []rawSpan, childIdx int) int {
+	parentID := spans[childIdx].parentID
+	if parentID == "" {
+		return -1
+	}
+	for i := range spans {
+		if spans[i].spanID == parentID {
+			return i
+		}
+	}
+	return -1
+}
+
+func (h *getTraceTopologyHandler) emitFromRoot(
+	spans []rawSpan,
+	rootIdx int,
+	maxDepth, maxSpans int,
+	childrenOf [][]int,
+	visited []bool,
+	result []types.TopologySpan,
+	unreachableEntry bool,
+) []types.TopologySpan {
+	rootPath := topologyRootPath(spans, rootIdx, unreachableEntry)
+	h.dfs(spans, rootIdx, rootPath, 1, maxDepth, maxSpans, childrenOf, visited, &result)
+	return result
+}
+
+func topologyRootPath(spans []rawSpan, idx int, unreachableEntry bool) string {
+	s := &spans[idx]
+	if s.parentID == "" {
+		return s.spanID
+	}
+	if unreachableEntry || parentIndex(spans, idx) < 0 {
+		return s.parentID + "/" + s.spanID
+	}
+	return s.spanID
 }
 
 // dfs appends the current span to result and then recurses into its children.
@@ -225,46 +285,49 @@ func (h *getTraceTopologyHandler) buildFlatTopology(spans []rawSpan, maxDepth, m
 // output is a DFS prefix: later roots and later sibling subtrees are omitted, while
 // TruncatedChildren stays the depth signal.
 func (h *getTraceTopologyHandler) dfs(
-	span *rawSpan,
+	spans []rawSpan,
+	spanIdx int,
 	path string,
 	depth int,
 	maxDepth int,
 	maxSpans int,
-	childrenOf map[string][]*rawSpan,
+	childrenOf [][]int,
+	visited []bool,
 	result *[]types.TopologySpan,
 ) {
+	if visited[spanIdx] {
+		return
+	}
 	if maxDepth > 0 && depth > maxDepth {
 		return
 	}
 
-	// Count the children that will not be visited because of maxDepth, so the
-	// caller can tell a leaf from a subtree that was cut off here.
+	span := &spans[spanIdx]
 	truncated := 0
 	if maxDepth > 0 && depth >= maxDepth {
-		truncated = len(childrenOf[span.spanID])
+		truncated = len(childrenOf[spanIdx])
 	}
 
+	visited[spanIdx] = true
 	*result = append(*result, toTopologySpan(span, path, truncated))
 
-	// Recursively process children if above the depth limit
 	if truncated == 0 {
-		for _, child := range childrenOf[span.spanID] {
+		for _, childIdx := range childrenOf[spanIdx] {
 			if maxSpans > 0 && len(*result) >= maxSpans {
 				break
 			}
-			h.dfs(child, path+"/"+child.spanID, depth+1, maxDepth, maxSpans, childrenOf, result)
+			child := &spans[childIdx]
+			h.dfs(spans, childIdx, path+"/"+child.spanID, depth+1, maxDepth, maxSpans, childrenOf, visited, result)
 		}
 	}
 }
 
-// sortByStartNano sorts a slice of rawSpan pointers by ascending start timestamp.
-// Spans with equal timestamps are further ordered by span ID to make the sort
-// deterministic regardless of the original collection order.
-func sortByStartNano(spans []*rawSpan) {
-	slices.SortStableFunc(spans, func(a, b *rawSpan) int {
-		if a.startNano != b.startNano {
-			return cmp.Compare(a.startNano, b.startNano)
+func sortIndicesByStartNano(spans []rawSpan, indices []int) {
+	slices.SortStableFunc(indices, func(a, b int) int {
+		sa, sb := spans[a], spans[b]
+		if sa.startNano != sb.startNano {
+			return cmp.Compare(sa.startNano, sb.startNano)
 		}
-		return cmp.Compare(a.spanID, b.spanID)
+		return cmp.Compare(sa.spanID, sb.spanID)
 	})
 }

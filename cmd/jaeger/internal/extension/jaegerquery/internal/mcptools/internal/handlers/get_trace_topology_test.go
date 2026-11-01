@@ -675,3 +675,55 @@ func TestGetTraceTopologyHandler_Handle_LimitDropsLaterRoot(t *testing.T) {
 	}
 	assert.Equal(t, []string{"rootA", "childA1", "childA2"}, names)
 }
+
+func TestGetTraceTopologyHandler_Handle_ReusedSpanID(t *testing.T) {
+	traceID := testTraceID
+	dSpanID := "spanDDD"
+
+	spanConfigs := []spanConfig{
+		{spanID: dSpanID, operation: "D_root"},
+		{spanID: "spanCCC", parentSpanID: dSpanID, operation: "C"},
+		{spanID: dSpanID, parentSpanID: "spanCCC", operation: "D_prime"},
+	}
+
+	testTrace := createTestTraceWithSpans(traceID, spanConfigs)
+	mock := newMockYieldingTraces(testTrace)
+	handler := &getTraceTopologyHandler{
+		queryService:             mock,
+		maxSpanDetailsPerRequest: 20,
+	}
+
+	input := types.GetTraceTopologyInput{TraceID: traceID, Depth: 0}
+	_, output, err := handler.handle(context.Background(), &mcp.CallToolRequest{}, input)
+
+	require.NoError(t, err)
+	assert.Equal(t, 3, output.TotalSpanCount)
+	require.Len(t, output.Spans, 3)
+}
+
+func TestGetTraceTopologyHandler_Handle_ParentCycle(t *testing.T) {
+	traceID := testTraceID
+
+	spanConfigs := []spanConfig{
+		{spanID: "spanAAA", parentSpanID: "spanBBB", operation: "A"},
+		{spanID: "spanBBB", parentSpanID: "spanAAA", operation: "B"},
+	}
+
+	testTrace := createTestTraceWithSpans(traceID, spanConfigs)
+	mock := newMockYieldingTraces(testTrace)
+	handler := &getTraceTopologyHandler{queryService: mock, maxSpanDetailsPerRequest: 100}
+
+	input := types.GetTraceTopologyInput{TraceID: traceID, Depth: 0}
+	_, output, err := handler.handle(context.Background(), &mcp.CallToolRequest{}, input)
+
+	require.NoError(t, err)
+	assert.Equal(t, 2, output.TotalSpanCount)
+	require.Len(t, output.Spans, 2)
+
+	a := findSpanByName(output.Spans, "A")
+	b := findSpanByName(output.Spans, "B")
+	require.NotNil(t, a)
+	require.NotNil(t, b)
+	assert.Equal(t, spanIDToHex("spanBBB")+"/"+spanIDToHex("spanAAA"), a.Path)
+	assert.Contains(t, b.Path, spanIDToHex("spanAAA"))
+}
