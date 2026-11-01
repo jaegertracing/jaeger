@@ -9,16 +9,19 @@
 // containing UNTRUSTED content crafted by the PR author.
 //
 // NEVER interpolate artifact content verbatim into PR comments, check run
-// summaries, or any GitHub API call. Doing so allows a malicious PR to inject
-// arbitrary Markdown or URLs into the repository's UI.
+// summaries, log lines, workflow commands, or any GitHub API call. Doing so
+// allows a malicious PR to inject arbitrary Markdown, URLs, or a workflow
+// command into this privileged job.
+//
+// The artifact never chooses where results are written. resolvePublishTarget()
+// takes the commit and PR from the CI run that triggered this job (or the run
+// named by workflow_dispatch), as reported by GitHub.
 //
 // Required invariants maintained by this file:
 //   1. ci-summary.json contains ONLY typed primitives: numbers, booleans, and
 //      fixed enum strings ("success"/"failure"/"skipped"). No free-form text.
-//      Exception: head_sha is a 40-char hex string produced from GitHub's own
-//      event context (github.event.pull_request.head.sha), validated as
-//      /^[0-9a-f]{40}$/ in the publish workflow before being passed here, and
-//      used only as an API parameter — never interpolated into display strings.
+//      Any other field, including pr_number or head_sha from an older
+//      artifact, is ignored.
 //   2. All display text (PR comments, check summaries) is constructed entirely
 //      from trusted template strings defined in this file.
 //   3. Numeric values are coerced through safeNum() which validates with
@@ -313,48 +316,236 @@ async function postOrUpdateComment(github, owner, repo, prNumber, body, core, { 
   }
 }
 
+
+// PR numbers stay inside the range GitHub issue numbers actually use.
+const PR_NUMBER_RE = /^[1-9][0-9]{0,8}$/;
+// Actions run IDs are wider than PR numbers but must stay within MAX_SAFE_INTEGER.
+const RUN_ID_RE = /^[1-9][0-9]{0,14}$/;
+const SHA_RE = /^[0-9a-f]{40}$/;
+const PR_EVENTS = new Set(['pull_request', 'pull_request_target']);
+
+/**
+ * Accept a positive integer from a JSON number or a whole decimal string.
+ * Rejects any string parseInt would truncate (newline, suffix, leading zero).
+ * @param {*} value
+ * @param {RegExp} re
+ * @returns {number|null}
+ */
+function validateBoundedInt(value, re) {
+  if (typeof value === 'number') {
+    if (!Number.isSafeInteger(value) || value <= 0) return null;
+    return re.test(String(value)) ? value : null;
+  }
+  if (typeof value !== 'string' || !re.test(value)) return null;
+  const n = Number(value);
+  return Number.isSafeInteger(n) && n > 0 ? n : null;
+}
+
+/**
+ * @param {*} value
+ * @returns {number|null}
+ */
+function validatePrNumber(value) {
+  return validateBoundedInt(value, PR_NUMBER_RE);
+}
+
+/**
+ * @param {*} value
+ * @returns {number|null}
+ */
+function validateRunId(value) {
+  return validateBoundedInt(value, RUN_ID_RE);
+}
+
+/**
+ * @param {*} value
+ * @returns {string|null}
+ */
+function validateHeadSha(value) {
+  return typeof value === 'string' && SHA_RE.test(value) ? value : null;
+}
+
+/**
+ * Return the number of the one PR in prs, or null when there is not exactly one.
+ * @param {Array} prs
+ * @returns {number|null}
+ */
+function singlePrNumber(prs) {
+  return prs.length === 1 ? validatePrNumber(prs[0].number) : null;
+}
+
+/**
+ * Find the open PR in this repository whose head is the commit the CI run tested.
+ *
+ * workflow_run.pull_requests is not limited to this repository: on a push to
+ * main it lists PRs in forks whose head is main, numbered in the fork's own
+ * sequence. It is also empty for fork PRs. Entries are kept only when they
+ * target this repository at the run's head SHA, and a fork PR is found by its
+ * head repository and branch, again requiring the same head SHA.
+ *
+ * @param {object} args
+ * @param {object} args.github
+ * @param {string} args.owner
+ * @param {string} args.repo
+ * @param {number} args.repoId - id of the base repository
+ * @param {object} args.run - the CI Orchestrator workflow run
+ * @returns {Promise<number|null>}
+ */
+async function findPullRequest({ github, owner, repo, repoId, run }) {
+  if (!PR_EVENTS.has(run.event)) return null;
+
+  const listed = (Array.isArray(run.pull_requests) ? run.pull_requests : [])
+    .filter(pr => pr?.base?.repo?.id === repoId && pr?.head?.sha === run.head_sha);
+  if (listed.length > 0) {
+    const number = singlePrNumber(listed);
+    if (!number) return null;
+    // pull_requests was captured when the CI run finished. Confirm the PR has
+    // not been closed or moved on since, as the head-branch lookup below does.
+    const { data: live } = await github.rest.pulls.get({ owner, repo, pull_number: number });
+    return live?.state === 'open' && live?.head?.sha === run.head_sha ? number : null;
+  }
+
+  const headRepo = run.head_repository;
+  if (!headRepo?.owner?.login || !run.head_branch) return null;
+  const { data } = await github.rest.pulls.list({
+    owner, repo,
+    head: `${headRepo.owner.login}:${run.head_branch}`,
+    state: 'open',
+    per_page: 10,
+  });
+  return singlePrNumber((Array.isArray(data) ? data : [])
+    .filter(pr => pr?.head?.repo?.id === headRepo.id && pr?.head?.sha === run.head_sha));
+}
+
+/**
+ * Choose the CI run, commit, and PR this privileged job writes to.
+ *
+ * The commit is always the CI run's head_sha. For a pull_request run that is
+ * the PR branch tip (the synthetic merge commit is only GITHUB_SHA inside the
+ * run), so check runs land on the commit whose results they report, even if
+ * the PR has moved on since.
+ *
+ * workflow_run: the run is the event's workflow_run.
+ * workflow_dispatch: the run is fetched by the run_id input. A pr_number input
+ * is used only if that PR's head is still the run's head SHA.
+ *
+ * Nothing here reads the ci-summary artifact. Warnings are fixed strings.
+ *
+ * @param {object} args
+ * @param {object} args.github - Octokit client
+ * @param {object} args.context - actions/github-script context
+ * @returns {Promise<{runId: number|null, headSha: string|null, prNumber: number|null, warnings: string[]}>}
+ */
+async function resolvePublishTarget({ github, context }) {
+  const warnings = [];
+  const none = { runId: null, headSha: null, prNumber: null, warnings };
+  const { owner, repo } = context.repo;
+  const payload = context.payload || {};
+
+  let run;
+  let dispatchPr = null;
+  let lookUpPr = true;
+  if (context.eventName === 'workflow_run') {
+    run = payload.workflow_run;
+  } else if (context.eventName === 'workflow_dispatch') {
+    const inputs = payload.inputs || {};
+    const runId = validateRunId(inputs.run_id);
+    if (!runId) {
+      warnings.push('workflow_dispatch run_id is not a valid run ID.');
+      return none;
+    }
+    ({ data: run } = await github.rest.actions.getWorkflowRun({ owner, repo, run_id: runId }));
+    if (inputs.pr_number) {
+      lookUpPr = false;
+      dispatchPr = validatePrNumber(inputs.pr_number);
+      if (!dispatchPr) warnings.push('workflow_dispatch pr_number is not a valid PR number; skipping the PR comment.');
+    }
+  } else {
+    warnings.push('Unsupported event; skipping publish.');
+    return none;
+  }
+
+  const runId = validateRunId(run?.id);
+  const headSha = validateHeadSha(run?.head_sha);
+  if (!runId || !headSha) {
+    warnings.push('CI run has no valid run ID or head SHA.');
+    return none;
+  }
+
+  let prNumber = null;
+  try {
+    if (dispatchPr) {
+      const { data: pr } = await github.rest.pulls.get({ owner, repo, pull_number: dispatchPr });
+      if (pr?.head?.sha === headSha) {
+        prNumber = dispatchPr;
+      } else {
+        warnings.push('workflow_dispatch pr_number does not have the CI run head SHA as its head; skipping the PR comment.');
+      }
+    } else if (lookUpPr) {
+      prNumber = await findPullRequest({ github, owner, repo, repoId: payload.repository?.id, run });
+      if (!prNumber && PR_EVENTS.has(run.event)) {
+        warnings.push('No single open PR in this repository has the CI run head SHA as its head; skipping the PR comment.');
+      }
+    }
+  } catch {
+    warnings.push('Pulls API request failed; skipping the PR comment.');
+  }
+
+  return { runId, headSha, prNumber, warnings };
+}
+
+/**
+ * @param {object} fs
+ * @returns {object|null} the parsed artifact, or null if it is missing or not a JSON object
+ */
+function readSummaryArtifact(fs) {
+  let parsed;
+  try {
+    parsed = JSON.parse(fs.readFileSync('.artifacts/ci-summary.json', 'utf8'));
+  } catch {
+    return null;
+  }
+  return parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed : null;
+}
+
 /**
  * GitHub Actions entry point.
  * Reads ci-summary.json, computes conclusions, posts check runs and PR comment.
+ * The run, commit, and PR come from resolvePublishTarget, never the artifact.
  *
  * @param {object} opts
  * @param {object} opts.github  - Octokit client from actions/github-script
  * @param {object} opts.core    - GitHub Actions core logger
+ * @param {object} opts.context - actions/github-script context
  * @param {object} opts.fs      - Node fs module (injected for testability)
- * @param {object} opts.inputs
- * @param {string} opts.inputs.owner
- * @param {string} opts.inputs.repo
- * @param {string} opts.inputs.headSha
- * @param {string} opts.inputs.prNumber  - raw string from step output
- * @param {string} opts.inputs.ciRunUrl
- * @param {string} opts.inputs.publishUrl
- * @param {string} [opts.inputs.sourceRunId] - numeric run ID of the CI Orchestrator run;
- *   used to construct direct artifact download URLs (e.g. .../artifacts/{id})
  */
-async function handler({ github, core, fs, inputs }) {
-  const { owner, repo, headSha, ciRunUrl, publishUrl } = inputs;
-  const prNumber = parseInt(inputs.prNumber, 10) || null;
+async function handler({ github, core, context, fs }) {
+  const { owner, repo } = context.repo;
+  const target = await resolvePublishTarget({ github, context });
+  for (const warning of target.warnings) core.warning(warning);
+  const { runId, headSha, prNumber } = target;
+  if (!headSha) {
+    core.warning('No CI run head SHA; skipping check runs and PR comment.');
+    return;
+  }
+  core.info(`Publishing CI run ${runId} for ${headSha}${prNumber ? ` on PR #${prNumber}` : ''}`);
 
-  const links  = `➡️ [View CI run](${ciRunUrl}) | [View publish logs](${publishUrl})`;
-  const ts     = new Date().toISOString().replace('T', ' ').replace(/\.\d+Z$/, ' UTC');
-  const footer = `${links}\n_${ts}_`;
-
-  // Construct the artifact URL prefix for per-snapshot diff download links.
-  // All parts come from trusted sources: owner/repo from context, runId validated as integer.
-  const sourceRunId = parseInt(inputs.sourceRunId, 10) || null;
-  const artifactUrlPrefix = (owner && repo && sourceRunId)
-    ? `https://github.com/${owner}/${repo}/actions/runs/${sourceRunId}/artifacts`
-    : null;
+  // owner/repo come from the base repository and runId was validated as an integer.
+  const runsUrl    = `https://github.com/${owner}/${repo}/actions/runs`;
+  const ciRunUrl   = `${runsUrl}/${runId}`;
+  const publishUrl = `${runsUrl}/${context.runId}`;
+  const links      = `➡️ [View CI run](${ciRunUrl}) | [View publish logs](${publishUrl})`;
+  const ts         = new Date().toISOString().replace('T', ' ').replace(/\.\d+Z$/, ' UTC');
+  const footer     = `${links}\n_${ts}_`;
+  const artifactUrlPrefix = `${ciRunUrl}/artifacts`;
 
   // Read structured data written by ci-summary-report.yml.
   // All fields are primitives (enums, numbers, booleans) — no free-form text.
-  let s;
-  try {
-    s = JSON.parse(fs.readFileSync('.artifacts/ci-summary.json', 'utf8'));
-  } catch (e) {
-    core.warning(`ci-summary.json not found or unparseable: ${e.message}`);
+  const s = readSummaryArtifact(fs);
+  if (!s) {
+    // Fixed text only: JSON.parse error messages quote the file contents.
+    core.warning('ci-summary.json not found or unparseable.');
     // Post failing check runs so required status checks are never silently absent.
-    // All text here is a trusted, fixed string — no artifact content is used.
     const errorSummary = 'ci-summary artifact missing or unparseable; check CI run logs.';
     for (const name of ['Metrics Comparison', 'Coverage Gate']) {
       await postCheckRun(github, owner, repo, headSha, name, 'failure',
@@ -407,3 +598,7 @@ module.exports.buildCommentBody     = buildCommentBody;
 module.exports.postCheckRun         = postCheckRun;
 module.exports.postOrUpdateComment  = postOrUpdateComment;
 module.exports.COMMENT_TAG          = COMMENT_TAG;
+module.exports.validatePrNumber     = validatePrNumber;
+module.exports.validateRunId        = validateRunId;
+module.exports.validateHeadSha      = validateHeadSha;
+module.exports.resolvePublishTarget = resolvePublishTarget;
