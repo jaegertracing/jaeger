@@ -33,13 +33,24 @@ func CreateCPSpan(span ptrace.Span, childSpanIDs []pcommon.SpanID) CPSpan {
 	return cpSpan
 }
 
-// CreateCPSpanMap creates a map of CPSpan objects from spans with unique span IDs
-// (see uniqueSpans). It also builds the parent-child relationships between them.
-func CreateCPSpanMap(spans []ptrace.Span) map[pcommon.SpanID]CPSpan {
-	spanMap := make(map[pcommon.SpanID]CPSpan, len(spans))
-	childrenMap := make(map[pcommon.SpanID][]pcommon.SpanID)
+// CreateCPSpanMap creates a map of CPSpan objects from the spans of a trace and
+// builds the parent-child relationships between them. When several spans share
+// an ID, only the first one in trace order is kept, as the clock-skew adjuster
+// does. Every span in the map is therefore the child of at most one span, so the
+// spans reachable from a root span form a tree.
+func CreateCPSpanMap(traces ptrace.Traces) map[pcommon.SpanID]CPSpan {
+	var spans []ptrace.Span
+	seen := make(map[pcommon.SpanID]struct{})
+	for _, span := range jptrace.SpanIter(traces) {
+		if _, ok := seen[span.SpanID()]; ok {
+			continue
+		}
+		seen[span.SpanID()] = struct{}{}
+		spans = append(spans, span)
+	}
 
 	// First pass: build children map
+	childrenMap := make(map[pcommon.SpanID][]pcommon.SpanID)
 	for _, span := range spans {
 		if !span.ParentSpanID().IsEmpty() {
 			parentID := span.ParentSpanID()
@@ -48,25 +59,10 @@ func CreateCPSpanMap(spans []ptrace.Span) map[pcommon.SpanID]CPSpan {
 	}
 
 	// Second pass: create CPSpan objects with child relationships
+	spanMap := make(map[pcommon.SpanID]CPSpan, len(spans))
 	for _, span := range spans {
 		spanMap[span.SpanID()] = CreateCPSpan(span, childrenMap[span.SpanID()])
 	}
 
 	return spanMap
-}
-
-// uniqueSpans returns the spans of a trace in order, keeping only the first span
-// for each span ID. Every kept span is then the child of at most one span, so no
-// cycle can be reached from a root span.
-func uniqueSpans(traces ptrace.Traces) []ptrace.Span {
-	seen := make(map[pcommon.SpanID]struct{})
-	var spans []ptrace.Span
-	for _, span := range jptrace.SpanIter(traces) {
-		if _, ok := seen[span.SpanID()]; ok {
-			continue
-		}
-		seen[span.SpanID()] = struct{}{}
-		spans = append(spans, span)
-	}
-	return spans
 }

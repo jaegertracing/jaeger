@@ -230,21 +230,6 @@ func TestComputeCriticalPath_ZeroDurationChildAtReturningBoundary(t *testing.T) 
 	}, result)
 }
 
-func TestComputeCriticalPath_Internal_StopsOnCycle(t *testing.T) {
-	// A span listed as its own child is its own last finishing child every time.
-	spanMap := map[pcommon.SpanID]CPSpan{
-		[8]byte{1}: {
-			SpanID:       [8]byte{1},
-			StartTime:    100,
-			Duration:     100,
-			ChildSpanIDs: []pcommon.SpanID{[8]byte{1}},
-		},
-	}
-
-	result := computeCriticalPath(spanMap, [8]byte{1}, nil, nil)
-	assert.Empty(t, result)
-}
-
 func newSpanID(n uint64) pcommon.SpanID {
 	var id pcommon.SpanID
 	binary.BigEndian.PutUint64(id[:], n)

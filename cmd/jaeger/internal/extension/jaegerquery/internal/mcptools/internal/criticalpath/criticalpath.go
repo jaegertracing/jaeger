@@ -8,6 +8,8 @@ import (
 
 	"go.opentelemetry.io/collector/pdata/pcommon"
 	"go.opentelemetry.io/collector/pdata/ptrace"
+
+	"github.com/jaegertracing/jaeger/internal/jptrace"
 )
 
 // Section represents a section of the critical path
@@ -23,8 +25,13 @@ type Section struct {
 // When a span has no LFC left, the algorithm walks backward to its parent and picks another
 // child that finished just before that span's start.
 //
+// The walk terminates because spanMap comes from CreateCPSpanMap, which keeps
+// one span per ID: the spans reachable from spanID form a tree, each span is
+// entered once from its parent, and each return to a parent moves strictly
+// backward in time.
+//
 // Parameters:
-//   - spanMap: A map associating span IDs with spans
+//   - spanMap: A map associating span IDs with spans, built by CreateCPSpanMap
 //   - spanID: The ID of the current span
 //   - criticalPath: An array of critical path sections (accumulated result)
 //   - returningChildStartTime: Optional parameter representing the span's start time.
@@ -47,10 +54,7 @@ func computeCriticalPath(
 	criticalPath []Section,
 	returningChildStartTime *uint64,
 ) []Section {
-	// In a tree, each span is entered once from its parent and once more each time
-	// one of its children returns to it, so the walk takes fewer than
-	// 2*len(spanMap) steps. The bound stops the walk if spanMap has a cycle.
-	for range 2 * len(spanMap) {
+	for {
 		currentSpan, ok := spanMap[spanID]
 		if !ok {
 			return criticalPath
@@ -107,32 +111,28 @@ func computeCriticalPath(
 			returningChildStartTime = &currentSpan.StartTime
 		}
 	}
-
-	return criticalPath
 }
 
 // ComputeCriticalPathFromTraces computes the critical path for a given trace
 func ComputeCriticalPathFromTraces(traces ptrace.Traces) ([]Section, error) {
-	spans := uniqueSpans(traces)
+	// Create a map of CPSpan objects to avoid modifying the original trace
+	spanMap := CreateCPSpanMap(traces)
 
-	// Find the root span (the one with no parent)
+	// Find the root span (the one with no parent). The trace is walked in order so
+	// that the choice is deterministic, and the map is consulted so that a later
+	// duplicate of a non-root span cannot be taken for the root.
 	var rootSpanID pcommon.SpanID
 	found := false
-
-	for _, span := range spans {
-		if span.ParentSpanID().IsEmpty() {
+	for _, span := range jptrace.SpanIter(traces) {
+		if spanMap[span.SpanID()].ParentSpanID.IsEmpty() {
 			rootSpanID = span.SpanID()
 			found = true
 			break
 		}
 	}
-
 	if !found {
 		return nil, errors.New("no root span found in trace")
 	}
-
-	// Create a map of CPSpan objects to avoid modifying the original trace
-	spanMap := CreateCPSpanMap(spans)
 	if len(spanMap) == 0 {
 		return nil, errors.New("empty trace")
 	}
