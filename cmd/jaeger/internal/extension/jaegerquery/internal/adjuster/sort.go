@@ -17,7 +17,7 @@ var _ Adjuster = (*SortAttributesAndEventsAdjuster)(nil)
 // - Resource attributes are sorted lexicographically by their keys.
 // - Scope attributes are sorted lexicographically by their keys.
 // - Span attributes are sorted lexicographically by their keys.
-// - Span events are sorted by their timestamp (TimeUnixNano) in ascending order.
+// - Span events are sorted by their timestamp in ascending order, then by name.
 // - Attributes within each span event are sorted lexicographically by their keys.
 // - Attributes within each span link are sorted lexicographically by their keys.
 func SortCollections() SortAttributesAndEventsAdjuster {
@@ -79,7 +79,13 @@ func (SortAttributesAndEventsAdjuster) sortAttributes(attributes pcommon.Map) {
 
 func (s SortAttributesAndEventsAdjuster) sortEvents(events ptrace.SpanEventSlice) {
 	events.Sort(func(a, b ptrace.SpanEvent) bool {
-		return a.TimeUnixNano() < b.TimeUnixNano()
+		if a.Timestamp() != b.Timestamp() {
+			return a.Timestamp() < b.Timestamp()
+		}
+		// Events recorded at the same instant have no inherent order, so break the
+		// tie by name. This keeps the output independent of the order the backend
+		// happened to return the events in.
+		return a.Name() < b.Name()
 	})
 	for i := 0; i < events.Len(); i++ {
 		event := events.At(i)

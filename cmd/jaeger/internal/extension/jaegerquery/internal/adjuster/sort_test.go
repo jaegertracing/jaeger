@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"go.opentelemetry.io/collector/pdata/pcommon"
 	"go.opentelemetry.io/collector/pdata/ptrace"
 )
 
@@ -33,13 +34,13 @@ func TestSortAttributesAndEventsAdjuster(t *testing.T) {
 
 		event2 := span.Events().AppendEmpty()
 		event2.SetName("event2")
-		event2.SetTimeUnixNano(200)
+		event2.SetTimestamp(pcommon.Timestamp(200))
 		event2.Attributes().PutStr("attributeU", "valE")
 		event2.Attributes().PutStr("attributeT", "valF")
 
 		event1 := span.Events().AppendEmpty()
 		event1.SetName("event1")
-		event1.SetTimeUnixNano(100)
+		event1.SetTimestamp(pcommon.Timestamp(100))
 		event1.Attributes().PutStr("attributeR", "valE")
 		event1.Attributes().PutStr("attributeS", "valF")
 
@@ -74,13 +75,13 @@ func TestSortAttributesAndEventsAdjuster(t *testing.T) {
 
 		event1 := span.Events().AppendEmpty()
 		event1.SetName("event1")
-		event1.SetTimeUnixNano(100)
+		event1.SetTimestamp(pcommon.Timestamp(100))
 		event1.Attributes().PutStr("attributeR", "valE")
 		event1.Attributes().PutStr("attributeS", "valF")
 
 		event2 := span.Events().AppendEmpty()
 		event2.SetName("event2")
-		event2.SetTimeUnixNano(200)
+		event2.SetTimestamp(pcommon.Timestamp(200))
 		event2.Attributes().PutStr("attributeT", "valF")
 		event2.Attributes().PutStr("attributeU", "valE")
 
@@ -100,6 +101,8 @@ func TestSortAttributesAndEventsAdjuster(t *testing.T) {
 	assert.Equal(t, expected(), i)
 }
 
+// TestSortEventsByTimestamp uses names whose lexicographic order is the
+// reverse of their timestamps, so it fails if events are sorted by name.
 func TestSortEventsByTimestamp(t *testing.T) {
 	adjuster := SortCollections()
 	traces := ptrace.NewTraces()
@@ -107,26 +110,58 @@ func TestSortEventsByTimestamp(t *testing.T) {
 	ss := rs.ScopeSpans().AppendEmpty()
 	span := ss.Spans().AppendEmpty()
 
-	event1 := span.Events().AppendEmpty()
-	event1.SetName("c-third")
-	event1.SetTimeUnixNano(300)
-
-	event2 := span.Events().AppendEmpty()
-	event2.SetName("a-first")
-	event2.SetTimeUnixNano(100)
-
-	event3 := span.Events().AppendEmpty()
-	event3.SetName("b-second")
-	event3.SetTimeUnixNano(200)
+	// Appended out of order; names sort as a-late, m-middle, z-early.
+	type event struct {
+		name      string
+		timestamp pcommon.Timestamp
+	}
+	events := []event{
+		{name: "a-late", timestamp: 300},
+		{name: "z-early", timestamp: 100},
+		{name: "m-middle", timestamp: 200},
+	}
+	for _, e := range events {
+		added := span.Events().AppendEmpty()
+		added.SetName(e.name)
+		added.SetTimestamp(e.timestamp)
+	}
 
 	adjuster.Adjust(traces)
 
-	events := span.Events()
-	assert.Equal(t, 3, events.Len())
-	assert.Equal(t, "a-first", events.At(0).Name())
-	assert.Equal(t, "b-second", events.At(1).Name())
-	assert.Equal(t, "c-third", events.At(2).Name())
-	assert.Equal(t, uint64(100), uint64(events.At(0).TimeUnixNano()))
-	assert.Equal(t, uint64(200), uint64(events.At(1).TimeUnixNano()))
-	assert.Equal(t, uint64(300), uint64(events.At(2).TimeUnixNano()))
+	got := span.Events()
+	assert.Equal(t, 3, got.Len())
+
+	// Chronological order, which is the opposite of the name order above.
+	assert.Equal(t, "z-early", got.At(0).Name())
+	assert.Equal(t, "m-middle", got.At(1).Name())
+	assert.Equal(t, "a-late", got.At(2).Name())
+
+	for i := 1; i < got.Len(); i++ {
+		assert.Less(t, got.At(i-1).Timestamp(), got.At(i).Timestamp())
+	}
+}
+
+// TestSortEventsBreaksTimestampTiesByName covers events recorded at the same
+// instant, where the timestamp alone cannot order them. Appending them in an
+// order that differs from their names makes the tie-break visible.
+func TestSortEventsBreaksTimestampTiesByName(t *testing.T) {
+	adjuster := SortCollections()
+	traces := ptrace.NewTraces()
+	rs := traces.ResourceSpans().AppendEmpty()
+	ss := rs.ScopeSpans().AppendEmpty()
+	span := ss.Spans().AppendEmpty()
+
+	for _, name := range []string{"b", "a", "c"} {
+		added := span.Events().AppendEmpty()
+		added.SetName(name)
+		added.SetTimestamp(pcommon.Timestamp(500))
+	}
+
+	adjuster.Adjust(traces)
+
+	got := span.Events()
+	assert.Equal(t, 3, got.Len())
+	assert.Equal(t, "a", got.At(0).Name())
+	assert.Equal(t, "b", got.At(1).Name())
+	assert.Equal(t, "c", got.At(2).Name())
 }
