@@ -142,12 +142,13 @@ func (h *chatEndpoint) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	run := newAGUIRun(ctx, w, req.ThreadID, req.RunID)
 
-	// Register this turn's AG-UI run and UI tools so the turn-scoped MCP endpoint can
-	// confirm the turn is active, advertise its UI tools, and dispatch their calls
-	// onto that run. The registry mints the route id and token, which we
-	// announce to the sidecar below as the turn's MCP URL and header, and hands
-	// back a closer.
-	grant, closeTurn := h.turns.register(run, rawUITools)
+	// Register this turn's run, UI tools and caller so the turn-scoped MCP
+	// endpoint can confirm the turn is active, advertise its UI tools, dispatch
+	// their calls onto the stream, and run every tool call as the person behind
+	// this request. The registry mints the route id and token, which we announce
+	// to the sidecar below as the turn's MCP URL and header, and hands back a
+	// closer.
+	grant, closeTurn := h.turns.register(run, rawUITools, captureTurnCaller(ctx))
 	defer closeTurn()
 
 	acpConn := acp.NewClientSideConnection(newACPClient(run), adapter, adapter)
