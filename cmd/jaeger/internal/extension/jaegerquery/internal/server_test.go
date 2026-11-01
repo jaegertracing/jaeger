@@ -17,6 +17,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/gorilla/websocket"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
@@ -25,6 +26,7 @@ import (
 	"go.opentelemetry.io/collector/config/configgrpc"
 	"go.opentelemetry.io/collector/config/confighttp"
 	"go.opentelemetry.io/collector/config/confignet"
+	"go.opentelemetry.io/collector/config/configopaque"
 	"go.opentelemetry.io/collector/config/configoptional"
 	"go.opentelemetry.io/collector/config/configtls"
 	"go.opentelemetry.io/collector/pdata/ptrace"
@@ -1106,6 +1108,67 @@ func TestInitRouter_HeaderForwarding(t *testing.T) {
 		}
 	}
 	assert.Equal(t, "alice", gotUser)
+}
+
+// A header named in header_forwarding reaches the agent on each turn's WebSocket
+// handshake, beside the static agent_headers and under its outbound name, and a
+// forwarded value replaces a static header of the same name. The agent here
+// only records the upgrade and speaks no ACP, so the chat request fails after
+// the handshake; the handshake is what this test is about.
+func TestInitRouter_HeaderForwardingReachesAgentHandshake(t *testing.T) {
+	gotHeaders := make(chan http.Header, 1)
+	upgrader := websocket.Upgrader{CheckOrigin: func(*http.Request) bool { return true }}
+	agent := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotHeaders <- r.Header.Clone()
+		conn, err := upgrader.Upgrade(w, r, nil)
+		if err != nil {
+			return
+		}
+		conn.Close()
+	}))
+	t.Cleanup(agent.Close)
+
+	telset := initTelSet(zaptest.NewLogger(t), nooptrace.NewTracerProvider())
+	querySvc := makeQuerySvc()
+	opts := DefaultQueryOptions()
+	opts.HeaderForwarding = []headerforwarding.ForwardedHeader{
+		{HTTPName: "X-Identity-Token"},
+		{HTTPName: "X-User", HTTPOutboundName: "X-Forwarded-User"},
+		{HTTPName: "X-Caller"},
+		{HTTPName: "X-Never-Sent"},
+	}
+	opts.AI = configoptional.Some(jaegerai.Config{
+		AgentURL: "ws" + strings.TrimPrefix(agent.URL, "http"),
+		AgentHeaders: configopaque.MapList{
+			{Name: "X-Secret-Key", Value: "s3cret"},
+			{Name: "X-Caller", Value: "gateway"},
+		},
+		MaxRequestBodySize: 1 << 20,
+	})
+	handler, cs, err := initRouter(context.Background(), querySvc.qs, nil, &opts, noBackendCaps, noopTenancyMgr(), telset)
+	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, cs.Close()) })
+
+	req := httptest.NewRequest(http.MethodPost, "/api/ai/chat", strings.NewReader(`{"messages":[{"role":"user","content":"hello"}]}`))
+	req.Header.Set("X-Identity-Token", "tok-123")
+	req.Header.Set("X-User", "alice")
+	req.Header.Set("X-Caller", "alice")
+	req.Header.Set("X-Unlisted", "private")
+	handler.ServeHTTP(httptest.NewRecorder(), req)
+
+	var got http.Header
+	select {
+	case got = <-gotHeaders:
+	default:
+		t.Fatal("the gateway did not dial the agent")
+	}
+	assert.Equal(t, "s3cret", got.Get("X-Secret-Key"), "static agent headers still go on the handshake")
+	assert.Equal(t, "tok-123", got.Get("X-Identity-Token"))
+	assert.Equal(t, "alice", got.Get("X-Forwarded-User"), "a forwarded header is sent under its outbound name")
+	assert.Empty(t, got.Values("X-User"), "the inbound name is not sent when an outbound name is configured")
+	assert.Equal(t, "alice", got.Get("X-Caller"), "a forwarded header replaces a static header of the same name")
+	assert.Empty(t, got.Values("X-Never-Sent"), "a listed header the request did not carry is not sent")
+	assert.Empty(t, got.Values("X-Unlisted"), "a request header that is not listed stays with the gateway")
 }
 
 func TestInitRouterAIHandlerRegistration(t *testing.T) {

@@ -205,7 +205,11 @@ extensions:
 ```
 
 `agent_url` is the external agent's WebSocket URL. `agent_headers` are sent on
-every dial and redacted from logs. `mcp.base_url` is the address that the
+every dial and redacted from logs. The headers that the query extension's
+`header_forwarding` list captures from the chat request go onto the same dial,
+so an agent that acts on the caller's behalf receives the caller's own identity
+token rather than a credential of the gateway. Each header arrives under its
+`http_outbound_name`, or its `http_name` when that is unset. `mcp.base_url` is the address that the
 agent can use to call Jaeger's MCP endpoint. When both ends are on the same
 loopback host, the gateway can infer a suitable MCP URL; other deployments
 should configure it explicitly.
