@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"iter"
+	"math"
 	"time"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
@@ -243,7 +244,7 @@ func convertAttributeValue(v pcommon.Value) any {
 	case pcommon.ValueTypeInt:
 		return v.Int()
 	case pcommon.ValueTypeDouble:
-		return v.Double()
+		return doubleValue(v.Double())
 	case pcommon.ValueTypeBool:
 		return v.Bool()
 	case pcommon.ValueTypeBytes:
@@ -264,6 +265,22 @@ func convertAttributeValue(v pcommon.Value) any {
 		return result
 	default:
 		return nil
+	}
+}
+
+// doubleValue returns f as is, except for NaN and ±Inf, which encoding/json
+// rejects. Those become the OTLP/JSON string tokens "NaN", "Infinity" and
+// "-Infinity", so one such attribute cannot fail the whole tool call.
+func doubleValue(f float64) any {
+	switch {
+	case math.IsNaN(f):
+		return "NaN"
+	case math.IsInf(f, 1):
+		return "Infinity"
+	case math.IsInf(f, -1):
+		return "-Infinity"
+	default:
+		return f
 	}
 }
 

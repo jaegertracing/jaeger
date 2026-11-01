@@ -7,6 +7,7 @@ import (
 	"context"
 	"errors"
 	"iter"
+	"math"
 	"strings"
 	"testing"
 
@@ -487,6 +488,36 @@ func TestConvertAttributeValue(t *testing.T) {
 			setup:    pcommon.NewValueEmpty,
 			expected: nil,
 		},
+		{
+			name:     "NaN double value",
+			setup:    func() pcommon.Value { return pcommon.NewValueDouble(math.NaN()) },
+			expected: "NaN",
+		},
+		{
+			name:     "+Inf double value",
+			setup:    func() pcommon.Value { return pcommon.NewValueDouble(math.Inf(1)) },
+			expected: "Infinity",
+		},
+		{
+			name:     "-Inf double value",
+			setup:    func() pcommon.Value { return pcommon.NewValueDouble(math.Inf(-1)) },
+			expected: "-Infinity",
+		},
+		{
+			name: "non-finite doubles nested in slice and map",
+			setup: func() pcommon.Value {
+				v := pcommon.NewValueMap()
+				slice := v.Map().PutEmptySlice("slice")
+				slice.AppendEmpty().SetDouble(math.NaN())
+				slice.AppendEmpty().SetDouble(1.5)
+				v.Map().PutEmptyMap("map").PutDouble("inf", math.Inf(1))
+				return v
+			},
+			expected: map[string]any{
+				"slice": []any{"NaN", 1.5},
+				"map":   map[string]any{"inf": "Infinity"},
+			},
+		},
 	}
 
 	for _, tt := range tests {
@@ -595,4 +626,16 @@ func TestParseSpanID(t *testing.T) {
 		_, err := parseSpanID("0000000000000000")
 		require.EqualError(t, err, "span ID must not be all zero")
 	})
+}
+
+func TestGetSpanDetailsHandler_Handle_NonFiniteDoubleAttributes(t *testing.T) {
+	traces, spanID := createTraceWithNonFiniteDoubles(ptrace.StatusCodeOk)
+	handler := &getSpanDetailsHandler{queryService: newMockYieldingTraces(traces), maxSpanDetailsPerRequest: 10}
+
+	_, output, err := handler.handle(context.Background(), &mcp.CallToolRequest{}, types.GetSpanDetailsInput{
+		TraceID: testTraceID,
+		SpanIDs: []string{spanID},
+	})
+	require.NoError(t, err)
+	assertNonFiniteDoublesMarshal(t, output)
 }

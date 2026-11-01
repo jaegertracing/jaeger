@@ -5,7 +5,10 @@ package mcptools
 
 import (
 	"context"
+	"encoding/json"
 	"io"
+	"iter"
+	"math"
 	"io/fs"
 	"net/http"
 	"net/http/httptest"
@@ -20,6 +23,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
+	"go.opentelemetry.io/collector/pdata/pcommon"
+	"go.opentelemetry.io/collector/pdata/ptrace"
 
 	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerquery/querysvc"
 	depstoremocks "github.com/jaegertracing/jaeger/internal/storage/v2/api/depstore/mocks"
@@ -89,6 +94,81 @@ func TestNewHandler_CallTool(t *testing.T) {
 	require.True(t, ok)
 	assert.Contains(t, text.Text, "svc-a")
 	assert.Contains(t, text.Text, "svc-b")
+}
+
+// TestNewHandler_CallToolNonFiniteDouble calls the span tools end to end
+// through the MCP SDK, which marshals the tool output with encoding/json.
+// A NaN or ±Inf double attribute must not fail the call.
+func TestNewHandler_CallToolNonFiniteDouble(t *testing.T) {
+	traceID := pcommon.TraceID([16]byte{1})
+	spanID := pcommon.SpanID([8]byte{1})
+
+	traces := ptrace.NewTraces()
+	rs := traces.ResourceSpans().AppendEmpty()
+	rs.Resource().Attributes().PutStr("service.name", "svc")
+	span := rs.ScopeSpans().AppendEmpty().Spans().AppendEmpty()
+	span.SetTraceID(traceID)
+	span.SetSpanID(spanID)
+	span.SetName("op")
+	span.Status().SetCode(ptrace.StatusCodeError)
+	span.Attributes().PutDouble("nan", math.NaN())
+	span.Events().AppendEmpty().Attributes().PutDouble("pos-inf", math.Inf(1))
+	link := span.Links().AppendEmpty()
+	link.SetTraceID(traceID)
+	link.SetSpanID(spanID)
+	link.Attributes().PutDouble("neg-inf", math.Inf(-1))
+
+	reader := &tracestoremocks.Reader{}
+	reader.On("GetTraces", mock.Anything, mock.Anything).
+		Return(iter.Seq2[[]ptrace.Traces, error](func(yield func([]ptrace.Traces, error) bool) {
+			yield([]ptrace.Traces{traces}, nil)
+		}))
+	svc := querysvc.NewQueryService(reader, &depstoremocks.Reader{}, querysvc.QueryServiceOptions{})
+	handler := NewHandler(telemetry.NoopSettings(), svc, tenancy.NewManager(&tenancy.Options{}), DefaultServerParams())
+	session := connectTestClient(t, handler)
+
+	tests := []struct {
+		tool string
+		args map[string]any
+	}{
+		{
+			tool: "get_span_details",
+			args: map[string]any{"trace_id": traceID.String(), "span_ids": []string{spanID.String()}},
+		},
+		{
+			tool: "get_trace_errors",
+			args: map[string]any{"trace_id": traceID.String()},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.tool, func(t *testing.T) {
+			result, err := session.CallTool(context.Background(), &mcp.CallToolParams{Name: tt.tool, Arguments: tt.args})
+			require.NoError(t, err)
+			require.False(t, result.IsError, "tool call failed: %v", result.Content)
+
+			out, err := json.Marshal(result.StructuredContent)
+			require.NoError(t, err)
+			var decoded struct {
+				Spans []struct {
+					Attributes map[string]any `json:"attributes"`
+					Events     []struct {
+						Attributes map[string]any `json:"attributes"`
+					} `json:"events"`
+					Links []struct {
+						Attributes map[string]any `json:"attributes"`
+					} `json:"links"`
+				} `json:"spans"`
+			}
+			require.NoError(t, json.Unmarshal(out, &decoded))
+			require.Len(t, decoded.Spans, 1)
+			got := decoded.Spans[0]
+			assert.Equal(t, "NaN", got.Attributes["nan"])
+			require.Len(t, got.Events, 1)
+			assert.Equal(t, "Infinity", got.Events[0].Attributes["pos-inf"])
+			require.Len(t, got.Links, 1)
+			assert.Equal(t, "-Infinity", got.Links[0].Attributes["neg-inf"])
+		})
+	}
 }
 
 // TestNewServerDegradesWithoutMetrics covers the branch where the metrics
