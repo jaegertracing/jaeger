@@ -400,19 +400,21 @@ func announceEndpoint(baseURL, basePath string) *chatEndpoint {
 }
 
 func TestAnnounceMCPOverHTTP(t *testing.T) {
-	got := announceEndpoint(testBaseURL, "").announceMCP(httpCaps(true), "route-1")
+	got := announceEndpoint(testBaseURL, "").announceMCP(httpCaps(true), turnGrant{routeID: "route-1", token: "tok"})
 	require.Len(t, got, 1)
 	require.NotNil(t, got[0].Http)
 	assert.Equal(t, "http", got[0].Http.Type)
 	assert.Equal(t, mcpServerName, got[0].Http.Name)
 	assert.Equal(t, testBaseURL+"/api/ai/mcp/route-1/", got[0].Http.Url)
+	assert.Equal(t, []acp.HttpHeader{{Name: turnTokenHeader, Value: "tok"}}, got[0].Http.Headers,
+		"the turn's token is announced as a header the agent must send")
 }
 
 // TestAnnounceMCPRequiresHTTPCapability is the core contract: ACP requires an agent
 // to opt into each McpServer variant, so announcing HTTP to an agent that cannot
 // consume it would make it fail the session.
 func TestAnnounceMCPRequiresHTTPCapability(t *testing.T) {
-	got := announceEndpoint(testBaseURL, "").announceMCP(httpCaps(false), "route-1")
+	got := announceEndpoint(testBaseURL, "").announceMCP(httpCaps(false), turnGrant{routeID: "route-1", token: "tok"})
 	assert.Empty(t, got, "an agent that did not advertise mcpCapabilities.http is offered nothing")
 }
 
@@ -420,17 +422,17 @@ func TestAnnounceMCPRequiresHTTPCapability(t *testing.T) {
 // turn-scoped endpoint is not mounted at all, or it is mounted but no reachable
 // address is known (see Config.ResolveMCPBaseURL).
 func TestAnnounceMCPRequiresBaseURL(t *testing.T) {
-	got := announceEndpoint("", "").announceMCP(httpCaps(true), "route-1")
+	got := announceEndpoint("", "").announceMCP(httpCaps(true), turnGrant{routeID: "route-1", token: "tok"})
 	assert.Empty(t, got, "with no reachable base URL the endpoint is not announced")
 }
 
 func TestAnnounceMCPRequiresRouteID(t *testing.T) {
-	got := announceEndpoint(testBaseURL, "").announceMCP(httpCaps(true), "")
+	got := announceEndpoint(testBaseURL, "").announceMCP(httpCaps(true), turnGrant{})
 	assert.Empty(t, got, "without a route id there is no turn-scoped endpoint to announce")
 }
 
 func TestAnnounceMCPEmbedsBasePath(t *testing.T) {
-	got := announceEndpoint("http://127.0.0.1:16686", "/jaeger").announceMCP(httpCaps(true), "u-1")
+	got := announceEndpoint("http://127.0.0.1:16686", "/jaeger").announceMCP(httpCaps(true), turnGrant{routeID: "u-1", token: "tok"})
 	require.Len(t, got, 1)
 	assert.Equal(t, "http://127.0.0.1:16686/jaeger/api/ai/mcp/u-1/", got[0].Http.Url,
 		"the announced URL must carry the query server's base path")
@@ -468,6 +470,10 @@ func TestChatEndpointAnnouncesMCPEndpoint(t *testing.T) {
 	assert.True(t, strings.HasPrefix(url, "https://jaeger.example.com:16686/jaeger/api/ai/mcp/"),
 		"announced URL must point at this turn's turn-scoped endpoint, got %q", url)
 	assert.True(t, strings.HasSuffix(url, "/"))
+	headers := sessionReq.McpServers[0].Http.Headers
+	require.Len(t, headers, 1, "the turn's token is announced beside the URL")
+	assert.Equal(t, turnTokenHeader, headers[0].Name)
+	assert.NotEmpty(t, headers[0].Value)
 	assert.Zero(t, handler.turns.count(), "the turn's registry entry is removed once the turn ends")
 }
 

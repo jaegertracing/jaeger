@@ -84,7 +84,9 @@ type Handler struct {
 	server *mcp.Server
 	// recovery guards the middleware added through AddReceivingMiddleware, which
 	// the SDK places outside the recovery newServer installs.
-	recovery mcp.Middleware
+	recovery   mcp.Middleware
+	tenancyMgr *tenancy.Manager
+	transport  mcp.StreamableHTTPOptions
 }
 
 var _ io.Closer = (*Handler)(nil)
@@ -127,26 +129,36 @@ func (h *Handler) AddReceivingMiddleware(middleware ...mcp.Middleware) {
 // the returned handler on an existing mux and closes it at shutdown so its MCP
 // sessions are reaped.
 func NewHandler(telset telemetry.Settings, queryAPI *querysvc.QueryService, tenancyMgr *tenancy.Manager, params ServerParams) *Handler {
-	server := newServer(telset, queryAPI, params)
-	streamable := mcp.NewStreamableHTTPHandler(
-		func(*http.Request) *mcp.Server { return server },
-		&mcp.StreamableHTTPOptions{
+	h := &Handler{
+		server:     newServer(telset, queryAPI, params),
+		tenancyMgr: tenancyMgr,
+		transport: mcp.StreamableHTTPOptions{
 			JSONResponse:               params.StreamableHTTP.JSONResponse,
 			Stateless:                  params.StreamableHTTP.Stateless,
 			SessionTimeout:             mcpSessionTimeout,
 			DisableLocalhostProtection: params.StreamableHTTP.DisableLocalhostProtection,
 		},
-	)
-	tenantHandler := tenancy.ExtractTenantHTTPHandler(tenancyMgr, streamable)
-	return &Handler{
-		Handler: otelhttp.NewHandler(
-			tenantHandler,
-			"jaeger_mcp",
-			otelhttp.WithTracerProvider(telset.TracerProvider),
-		),
-		server:   server,
 		recovery: createRecoveryMiddleware(telset.Logger),
 	}
+	h.Handler = otelhttp.NewHandler(
+		h.NewTransport(),
+		"jaeger_mcp",
+		otelhttp.WithTracerProvider(telset.TracerProvider),
+	)
+	return h
+}
+
+// NewTransport returns a new Streamable HTTP transport over the same *mcp.Server,
+// with the same options and tenant extraction as the shared endpoint. Each
+// transport keeps its own table of MCP sessions, so a session opened through one
+// transport cannot be addressed by its id through another. Close reaps the
+// sessions of every transport, because they all belong to the one server.
+func (h *Handler) NewTransport() http.Handler {
+	streamable := mcp.NewStreamableHTTPHandler(
+		func(*http.Request) *mcp.Server { return h.server },
+		&h.transport,
+	)
+	return tenancy.ExtractTenantHTTPHandler(h.tenancyMgr, streamable)
 }
 
 // RegisterTools registers all Jaeger telemetry MCP tools on the given server,

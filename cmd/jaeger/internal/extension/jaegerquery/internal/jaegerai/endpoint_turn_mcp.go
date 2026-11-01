@@ -53,13 +53,16 @@ func mcpRouteIDFromContext(ctx context.Context) string {
 // SSE stream. Access is gated to route ids that belong to an active chat turn
 // (present in turnRegistry).
 type turnScopedEndpoint struct {
-	// baseHandler is the handler that jaeger-query mounts at /api/ai/mcp/. ServeHTTP
-	// strips the route id from the path and forwards the request to it. jaeger-query
-	// owns the handler and closes it; this endpoint does not.
-	baseHandler http.Handler
-	turns       *turnRegistry
-	basePath    string
-	logger      *zap.Logger
+	// handler is this endpoint's own HTTP handler over the MCP server behind
+	// baseHandler, which jaeger-query mounts at /api/ai/mcp/ and owns. Sharing the
+	// server registers the telemetry tools once; having a handler of its own gives
+	// this endpoint a session table of its own, so a turn's MCP sessions are
+	// addressable only here, behind the token check, and never by session id
+	// through the shared path.
+	handler  http.Handler
+	turns    *turnRegistry
+	basePath string
+	logger   *zap.Logger
 }
 
 // turnScopedEndpointBuilder collects the endpoint's dependencies. The MCP handler
@@ -80,10 +83,10 @@ type turnScopedEndpointBuilder struct {
 func (b turnScopedEndpointBuilder) build() *turnScopedEndpoint {
 	b.baseHandler.AddReceivingMiddleware(uiToolsMiddleware(b.turns, b.logger))
 	return &turnScopedEndpoint{
-		baseHandler: b.baseHandler,
-		turns:       b.turns,
-		basePath:    b.basePath,
-		logger:      b.logger,
+		handler:  b.baseHandler.NewTransport(),
+		turns:    b.turns,
+		basePath: b.basePath,
+		logger:   b.logger,
 	}
 }
 
@@ -97,11 +100,20 @@ func (h *turnScopedEndpoint) registerRoutes(router *http.ServeMux) {
 
 func (h *turnScopedEndpoint) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	mcpRouteID := r.PathValue("mcpRouteID")
-	if h.turns.get(mcpRouteID) == nil {
+	turn := h.turns.get(mcpRouteID)
+	if turn == nil {
 		// Unknown or expired route id: the scoped endpoint is only valid
 		// during an active chat turn, so a missing entry is a client error.
 		h.logger.Debug("turn-scoped MCP request for unknown route id", zap.String("mcp_route_id", mcpRouteID))
 		http.NotFound(w, r)
+		return
+	}
+	// The route id names the turn; the token proves the caller was given it.
+	// Anyone who can reach the query port can send a request to this path, so
+	// the id alone, which travels in URLs and lands in logs, is not enough.
+	if !turn.authorize(r.Header.Get(turnTokenHeader)) {
+		h.logger.Debug("turn-scoped MCP request without the turn's token", zap.String("mcp_route_id", mcpRouteID))
+		http.Error(w, "missing or invalid turn token", http.StatusUnauthorized)
 		return
 	}
 	// Strip "<basePath>/api/ai/mcp/<mcpRouteID>" so the wrapped MCP handler sees
@@ -117,5 +129,5 @@ func (h *turnScopedEndpoint) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	rewritten := r.Clone(context.WithValue(r.Context(), mcpRouteIDContextKey{}, mcpRouteID))
 	rewritten.URL.Path = rest
 	rewritten.URL.RawPath = ""
-	h.baseHandler.ServeHTTP(w, rewritten)
+	h.handler.ServeHTTP(w, rewritten)
 }

@@ -83,9 +83,11 @@ depend on either.
 **Sessions and turns.** Each chat request is one `initialize`, one
 `session/new` and one `session/prompt` on a fresh connection. Session ids are
 never reused. `session/new` carries `mcpServers` with one Streamable HTTP
-server entry, the turn-scoped endpoint URL plus any headers. The agent must
-connect to that URL for this turn only, treat it as opaque, and not reuse it
-after the prompt completes.
+server entry: the turn-scoped endpoint URL and a header that carries the turn's
+token. The agent must connect to that URL for this turn only, send the
+announced header on every request to it, treat both as opaque, and not reuse
+them after the prompt completes. A request without the token is refused with
+401.
 
 **Tools.** Jaeger's telemetry tools and the UI tools that the browser supplied
 with the chat request arrive together in one `tools/list` from that endpoint.

@@ -117,16 +117,16 @@ sequenceDiagram
     participant MCP as turn-scoped MCP endpoint
 
     UI->>CHAT: POST /api/ai/chat (RunAgentInput)
-    CHAT->>TURNS: register(run, UI tools) → route id
+    CHAT->>TURNS: register(run, UI tools) → route id + token
     CHAT->>AGENT: WS connect, Initialize
     AGENT-->>CHAT: InitializeResponse (mcpCapabilities.http)
-    CHAT->>AGENT: NewSession {mcpServers: [turn-scoped URL]}
+    CHAT->>AGENT: NewSession {mcpServers: [turn-scoped URL + token header]}
     AGENT-->>CHAT: NewSessionResponse {sessionId}
     CHAT->>SC: startRun → RUN_STARTED
     CHAT->>AGENT: Prompt (blocks, _meta: traceparent)
 
     AGENT->>MCP: tools/list
-    MCP->>TURNS: resolve turn by route id
+    MCP->>TURNS: resolve turn by route id, check token
     MCP-->>AGENT: telemetry tools + ui__ namespaced UI tools
 
     par Tool calls over MCP
@@ -173,7 +173,13 @@ sequenceDiagram
 ## MCP tool routing
 
 The agent calls the announced turn-scoped endpoint using standard MCP
-`tools/list` and `tools/call` requests. The UI-tools middleware in
+`tools/list` and `tools/call` requests, sending the announced
+`X-Jaeger-Turn-Token` header on each. The route id in the URL names the turn
+and the token proves the caller was given it: the endpoint is reachable by
+anyone who can reach the query port, and a URL ends up in access logs and
+traces, so the id alone would not do. Both are random, minted per turn, and
+void when the turn ends; a request without the turn's token is refused with
+401. The UI-tools middleware in
 `mcp_ui_tools.go` layers the turn's UI tools onto the shared telemetry server:
 
 - **Telemetry tools** execute against Jaeger's in-process query service and

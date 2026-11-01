@@ -59,16 +59,16 @@ const mcpServerName = "jaeger"
 // requires an agent to opt into each McpServer variant, and announcing one it cannot
 // consume would make it fail the session. Streamable HTTP is the only variant the
 // gateway offers today.
-func (h *chatEndpoint) announceMCP(caps acp.AgentCapabilities, mcpRouteID string) []acp.McpServer {
-	if mcpRouteID == "" || h.mcpBaseURL == "" || !caps.McpCapabilities.Http {
+func (h *chatEndpoint) announceMCP(caps acp.AgentCapabilities, grant turnGrant) []acp.McpServer {
+	if grant.routeID == "" || h.mcpBaseURL == "" || !caps.McpCapabilities.Http {
 		return []acp.McpServer{}
 	}
 	return []acp.McpServer{{
 		Http: &acp.McpServerHttpInline{
 			Type:    "http",
 			Name:    mcpServerName,
-			Url:     h.mcpBaseURL + h.basePath + routeMCPPrefix + mcpRouteID + "/",
-			Headers: []acp.HttpHeader{},
+			Url:     h.mcpBaseURL + h.basePath + routeMCPPrefix + grant.routeID + "/",
+			Headers: []acp.HttpHeader{{Name: turnTokenHeader, Value: grant.token}},
 		},
 	}}
 }
@@ -144,9 +144,10 @@ func (h *chatEndpoint) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	// Register this turn's AG-UI run and UI tools so the turn-scoped MCP endpoint can
 	// confirm the turn is active, advertise its UI tools, and dispatch their calls
-	// onto that run. The registry mints the route id, which we announce to the
-	// sidecar below as the turn's MCP URL, and hands back a closer.
-	mcpRouteID, closeTurn := h.turns.register(run, rawUITools)
+	// onto that run. The registry mints the route id and token, which we
+	// announce to the sidecar below as the turn's MCP URL and header, and hands
+	// back a closer.
+	grant, closeTurn := h.turns.register(run, rawUITools)
 	defer closeTurn()
 
 	acpConn := acp.NewClientSideConnection(newACPClient(run), adapter, adapter)
@@ -189,7 +190,7 @@ func (h *chatEndpoint) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		Cwd: "/",
 		// Point the sidecar at this turn's turn-scoped MCP endpoint, on the
 		// transports it advertised support for in Initialize.
-		McpServers: h.announceMCP(init.AgentCapabilities, mcpRouteID),
+		McpServers: h.announceMCP(init.AgentCapabilities, grant),
 	}
 	sess, err := acpConn.NewSession(acpCtx, newSessionReq)
 	if err != nil {
