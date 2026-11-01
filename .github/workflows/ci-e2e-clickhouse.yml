@@ -42,8 +42,6 @@ jobs:
     - uses: ./.github/actions/verify-metrics-snapshot
       if: matrix.storage_test == 'e2e'
       with:
-        # The matrix version belongs on artifact_key only; see the input
-        # descriptions in the action for why the snapshot name has no variant.
         snapshot: metrics_snapshot_clickhouse
         artifact_key: metrics_snapshot_clickhouse_${{ matrix.clickhouse_version }}
 
