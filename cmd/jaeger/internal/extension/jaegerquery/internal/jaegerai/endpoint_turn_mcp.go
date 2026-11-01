@@ -31,6 +31,9 @@ const (
 	routeMCPPrefix      = "/api/ai/mcp/"
 	routeTurnMCPNoSlash = routeMCPPrefix + "{mcpRouteID}"
 	routeTurnMCP        = routeTurnMCPNoSlash + "/"
+
+	// mcpSessionIDHeader is the Streamable HTTP header that names an MCP session.
+	mcpSessionIDHeader = "Mcp-Session-Id"
 )
 
 // mcpRouteIDContextKey carries the URL route id from ServeHTTP into the
@@ -116,17 +119,28 @@ func (h *turnScopedEndpoint) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "missing or invalid turn token", http.StatusUnauthorized)
 		return
 	}
+	// A session id must belong to this turn. The transport resolves a session
+	// by its id alone and serves it from the context it was created with, so a
+	// session opened under another turn would run as that turn's caller.
+	if sessionID := r.Header.Get(mcpSessionIDHeader); sessionID != "" && !turn.ownsSession(sessionID) {
+		h.logger.Debug("turn-scoped MCP request for a session of another turn", zap.String("mcp_route_id", mcpRouteID))
+		http.NotFound(w, r)
+		return
+	}
 	// Strip "<basePath>/api/ai/mcp/<mcpRouteID>" so the wrapped MCP handler sees
 	// its own root, and carry the id forward in the context for the UI-dispatch
 	// middleware. The no-slash form strips to "", which we normalize to "/". Our
 	// routes carry no percent-encoding past the UUID, so Path is canonical and
 	// RawPath cleared.
+	//
+	// The request also runs as the chat caller (see turnCaller and turnState).
 	prefix := h.basePath + routeMCPPrefix + mcpRouteID
 	rest := strings.TrimPrefix(r.URL.Path, prefix)
 	if rest == "" {
 		rest = "/"
 	}
-	rewritten := r.Clone(context.WithValue(r.Context(), mcpRouteIDContextKey{}, mcpRouteID))
+	ctx := turn.caller.contextFor(r.Context())
+	rewritten := r.Clone(context.WithValue(ctx, mcpRouteIDContextKey{}, mcpRouteID))
 	rewritten.URL.Path = rest
 	rewritten.URL.RawPath = ""
 	h.handler.ServeHTTP(w, rewritten)

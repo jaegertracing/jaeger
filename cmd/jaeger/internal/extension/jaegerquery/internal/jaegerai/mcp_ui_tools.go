@@ -6,6 +6,7 @@ package jaegerai
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"strings"
 	"sync/atomic"
@@ -26,9 +27,14 @@ const UIToolPrefix = "ui__"
 // MCP method names the UI-dispatch middleware intercepts. The go-sdk keeps its
 // own copies of these unexported, so we spell them out here.
 const (
-	methodListTools = "tools/list"
-	methodCallTool  = "tools/call"
+	methodInitialize = "initialize"
+	methodListTools  = "tools/list"
+	methodCallTool   = "tools/call"
 )
+
+// errEndedTurn answers an initialize that reached a turn's route after the turn
+// ended, so the agent sees a refusal rather than a session it must not use.
+var errEndedTurn = errors.New("the chat turn has ended")
 
 // uiToolsMiddleware layers a turn's frontend-declared UI tools onto the
 // shared telemetry MCP server without registering them on it. It is installed
@@ -54,6 +60,22 @@ func uiToolsMiddleware(turns *turnRegistry, logger *zap.Logger) mcp.Middleware {
 	return func(next mcp.MethodHandler) mcp.MethodHandler {
 		return func(ctx context.Context, method string, req mcp.Request) (mcp.Result, error) {
 			switch method {
+			case methodInitialize:
+				routeID := mcpRouteIDFromContext(ctx)
+				if routeID == "" {
+					// The shared mount: an external MCP client with no turn.
+					return next(ctx, method, req)
+				}
+				// initialize creates the session, so the turn claims it here (see
+				// turnState). A turn that ended since the route check refuses the
+				// initialize, and the SDK closes the unfinished session itself.
+				session, _ := req.GetSession().(*mcp.ServerSession)
+				turn := turns.get(routeID)
+				if turn == nil || (session != nil && !turn.attachSession(session)) {
+					return nil, errEndedTurn
+				}
+				return next(ctx, method, req)
+
 			case methodListTools:
 				res, err := next(ctx, method, req)
 				if err != nil {

@@ -10,6 +10,7 @@ import (
 	"sync"
 	"testing"
 
+	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -25,7 +26,8 @@ func TestTurnRegistryRegisterGetClose(t *testing.T) {
 	assert.Nil(t, s.get("missing"), "unknown id returns nil")
 
 	tools := []json.RawMessage{json.RawMessage(`{"name":"t"}`)}
-	grant, closeTurn := s.register(client, tools)
+	caller := turnCaller{bearerToken: "tok"}
+	grant, closeTurn := s.register(client, tools, caller)
 	require.NotEmpty(t, grant.routeID, "register mints a route id")
 	require.NotEmpty(t, grant.token, "register mints a token")
 
@@ -33,11 +35,12 @@ func TestTurnRegistryRegisterGetClose(t *testing.T) {
 	require.NotNil(t, got, "get returns the registered turn")
 	assert.Same(t, client, got.run, "turn carries the registered AG-UI run")
 	assert.Equal(t, tools, got.uiTools, "turn carries the registered UI tools")
+	assert.Equal(t, caller, got.caller, "turn carries the chat caller")
 	assert.True(t, got.authorize(grant.token), "the turn accepts its own token")
 	assert.False(t, got.authorize(""), "the turn refuses an empty token")
 	assert.False(t, got.authorize(grant.token+"x"), "the turn refuses a different token")
 
-	other, closeOther := s.register(client, nil)
+	other, closeOther := s.register(client, nil, turnCaller{})
 	defer closeOther()
 	assert.NotEqual(t, grant.token, other.token, "every turn gets its own token")
 	assert.False(t, got.authorize(other.token), "another turn's token does not open this turn")
@@ -53,7 +56,7 @@ func TestTurnRegistryConcurrent(t *testing.T) {
 	var wg sync.WaitGroup
 	for range n {
 		wg.Go(func() {
-			grant, closeTurn := s.register(testAGUIRun(), nil)
+			grant, closeTurn := s.register(testAGUIRun(), nil, turnCaller{})
 			s.get(grant.routeID)
 			closeTurn()
 		})
@@ -66,6 +69,15 @@ func TestTurnRegistryConcurrent(t *testing.T) {
 // id, which integration tests need to dial that turn's URL. It drops the closer —
 // the registry is a local test object, so the entry simply lives for the test.
 func registerTurn(r *turnRegistry, run *aguiRun, uiTools []json.RawMessage) turnGrant {
-	grant, _ := r.register(run, uiTools)
+	grant, _ := r.register(stream, uiTools, turnCaller{})
 	return grant
+}
+
+// A session that reaches a turn after the turn ended must not be adopted, or
+// nothing would ever close it; attachSession says so and the turn stays empty.
+func TestTurnStateRefusesSessionAfterClose(t *testing.T) {
+	turn := &turnState{}
+	turn.closeSessions()
+	assert.False(t, turn.attachSession(&mcp.ServerSession{}), "a closed turn adopts no session")
+	assert.Empty(t, turn.sessions)
 }

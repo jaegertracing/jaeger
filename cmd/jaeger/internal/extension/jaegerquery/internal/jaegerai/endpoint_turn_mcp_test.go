@@ -6,6 +6,8 @@ package jaegerai
 import (
 	"context"
 	"encoding/json"
+	"errors"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -14,10 +16,14 @@ import (
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
+	"go.opentelemetry.io/collector/client"
 
 	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerquery/internal/mcptools"
 	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerquery/querysvc"
+	"github.com/jaegertracing/jaeger/internal/auth/bearertoken"
+	"github.com/jaegertracing/jaeger/internal/headerforwarding"
 	depstoremocks "github.com/jaegertracing/jaeger/internal/storage/v2/api/depstore/mocks"
 	tracestoremocks "github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore/mocks"
 	"github.com/jaegertracing/jaeger/internal/telemetry"
@@ -44,7 +50,14 @@ func sharedMCPHandler(t *testing.T) *mcptools.Handler {
 
 func sharedMCPHandlerWithParams(t *testing.T, params mcptools.ServerParams) *mcptools.Handler {
 	t.Helper()
-	svc := querysvc.NewQueryService(&tracestoremocks.Reader{}, &depstoremocks.Reader{}, querysvc.QueryServiceOptions{})
+	return sharedMCPHandlerWithReader(t, params, &tracestoremocks.Reader{})
+}
+
+// sharedMCPHandlerWithReader builds the shared endpoint over a caller-supplied
+// trace reader, for tests that observe what the telemetry tools pass to storage.
+func sharedMCPHandlerWithReader(t *testing.T, params mcptools.ServerParams, reader *tracestoremocks.Reader) *mcptools.Handler {
+	t.Helper()
+	svc := querysvc.NewQueryService(reader, &depstoremocks.Reader{}, querysvc.QueryServiceOptions{})
 	h := mcptools.NewHandler(telemetry.NoopSettings(), svc, tenancy.NewManager(&tenancy.Options{}), params)
 	t.Cleanup(func() { h.Close() })
 	return h
@@ -60,21 +73,105 @@ func turnMCPServer(t *testing.T, uiTools []json.RawMessage) (ts *httptest.Server
 
 func turnMCPServerWithParams(t *testing.T, params mcptools.ServerParams, uiTools []json.RawMessage) (ts *httptest.Server, rec *httptest.ResponseRecorder, grant turnGrant) {
 	t.Helper()
-	turns := newTurnRegistry()
-	rec = httptest.NewRecorder()
-	grant = registerTurn(turns, newAGUIRun(context.Background(), rec, "thread", "run"), uiTools)
+	f := newTurnMCPFixture(t, turnMCPOptions{params: params, uiTools: uiTools})
+	return f.ts, f.rec, f.grant
+}
 
+// turnMCPOptions configures newTurnMCPFixture. Zero values give the default
+// server params, no UI tools, an anonymous caller and a reader with no
+// expectations.
+type turnMCPOptions struct {
+	params  mcptools.ServerParams
+	uiTools []json.RawMessage
+	caller  turnCaller
+	reader  *tracestoremocks.Reader
+}
+
+// turnMCPFixture is a test server with one active turn, mounted the way the
+// query server mounts the gateway: the turn-scoped routes plus the shared
+// telemetry mount at /api/ai/mcp/, both served from one MCP server.
+type turnMCPFixture struct {
+	ts        *httptest.Server
+	rec       *httptest.ResponseRecorder
+	grant     turnGrant
+	closeTurn func()
+	turns     *turnRegistry
+	// transport is the turn-scoped endpoint's own MCP transport, for tests that
+	// observe a session's lifetime behind the route and token checks.
+	transport http.Handler
+}
+
+func newTurnMCPFixture(t *testing.T, opts turnMCPOptions) turnMCPFixture {
+	t.Helper()
+	if opts.reader == nil {
+		opts.reader = &tracestoremocks.Reader{}
+	}
+	turns := newTurnRegistry()
+	rec := httptest.NewRecorder()
+	grant, closeTurn := turns.register(newAGUIRun(context.Background(), rec, "thread", "run"), opts.uiTools, opts.caller)
+
+	shared := sharedMCPHandlerWithReader(t, opts.params, opts.reader)
 	h := turnScopedEndpointBuilder{
-		baseHandler: sharedMCPHandlerWithParams(t, params),
+		baseHandler: shared,
 		turns:       turns,
 		logger:      telemetry.NoopSettings().Logger,
 	}.build()
 	mux := http.NewServeMux()
 	h.registerRoutes(mux)
+	mux.Handle(routeMCPPrefix, http.StripPrefix(strings.TrimSuffix(routeMCPPrefix, "/"), shared))
 
-	ts = httptest.NewServer(mux)
+	ts := httptest.NewServer(mux)
 	t.Cleanup(ts.Close)
-	return ts, rec, grant
+	return turnMCPFixture{
+		ts:        ts,
+		rec:       rec,
+		grant:     grant,
+		closeTurn: closeTurn,
+		turns:     turns,
+		transport: h.handler,
+	}
+}
+
+// A session belongs to the turn that opened it. A request on another turn's
+// route, with that turn's own token, that names the session is refused, so a
+// token holder cannot run tools as a different turn's caller.
+func TestTurnSessionIsNotServedOnAnotherTurnsRoute(t *testing.T) {
+	f := newTurnMCPFixture(t, turnMCPOptions{
+		caller: captureTurnCaller(chatRequestContext(t)),
+		reader: chatCallerReader(),
+	})
+	other := registerTurn(f.turns, testAGUIRun(), nil)
+
+	session := connectTurnMCP(t, f.ts, routeMCPPrefix+f.grant.routeID+"/", f.grant.token)
+	require.NotEmpty(t, session.ID())
+
+	body := `{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"get_services"}}`
+	req, err := http.NewRequestWithContext(context.Background(), http.MethodPost, f.ts.URL+routeMCPPrefix+other.routeID+"/", strings.NewReader(body))
+	require.NoError(t, err)
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Accept", "application/json, text/event-stream")
+	req.Header.Set(turnTokenHeader, other.token)
+	req.Header.Set(mcpSessionIDHeader, session.ID())
+	resp, err := f.ts.Client().Do(req)
+	require.NoError(t, err)
+	defer resp.Body.Close()
+	assert.Equal(t, http.StatusNotFound, resp.StatusCode)
+}
+
+// callToolOnTurnTransport posts one tools/call for sessionID straight to the
+// turn-scoped endpoint's transport, past the route and token checks, and returns
+// the HTTP status. It observes whether the transport still holds the session:
+// 200 while it does, 404 once the session is closed.
+func callToolOnTurnTransport(t *testing.T, f turnMCPFixture, sessionID string) int {
+	t.Helper()
+	body := `{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"get_services"}}`
+	req := httptest.NewRequest(http.MethodPost, "/", strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Accept", "application/json, text/event-stream")
+	req.Header.Set("Mcp-Session-Id", sessionID)
+	rr := httptest.NewRecorder()
+	f.handler.ServeHTTP(rr, req)
+	return rr.Code
 }
 
 // connectTurnMCP connects an MCP client to path. token is the turn's token, sent
@@ -83,8 +180,8 @@ func connectTurnMCP(t *testing.T, ts *httptest.Server, path, token string) *mcp.
 	t.Helper()
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	t.Cleanup(cancel)
-	client := mcp.NewClient(&mcp.Implementation{Name: "test-client", Version: "0.0.0"}, nil)
-	session, err := client.Connect(ctx, &mcp.StreamableClientTransport{
+	mcpClient := mcp.NewClient(&mcp.Implementation{Name: "test-client", Version: "0.0.0"}, nil)
+	session, err := mcpClient.Connect(ctx, &mcp.StreamableClientTransport{
 		Endpoint:   ts.URL + path,
 		HTTPClient: turnHTTPClient(ts, token),
 	}, nil)
@@ -128,6 +225,83 @@ func TestTurnScopedEndpointServesTelemetryPlusUITools(t *testing.T) {
 	assert.Contains(t, got, "get_services", "built-in telemetry tools must be advertised")
 	assert.Contains(t, got, UIToolPrefix+"show_chart", "the turn's UI tools must be advertised under the namespace")
 	assert.NotContains(t, got, "show_chart", "the bare frontend name is not an MCP tool")
+}
+
+// chatCallerReader is a trace reader that answers get_services only for the
+// caller that chatRequestContext describes, and refuses anyone else with an
+// error rather than a mock panic, so a regression reads as a failed assertion.
+func chatCallerReader() *tracestoremocks.Reader {
+	reader := &tracestoremocks.Reader{}
+	reader.On("GetServices", mock.MatchedBy(func(ctx context.Context) bool {
+		token, ok := bearertoken.GetBearerToken(ctx)
+		auth := client.FromContext(ctx).Auth
+		forwarded := headerforwarding.CapturedFromContext(ctx)
+		return ok && token == "tok-123" &&
+			auth != nil && auth.GetAttribute("enduser.id") == "alice" &&
+			len(forwarded) == 1 && forwarded[0].Value == "alice"
+	})).Return([]string{"checkout"}, nil)
+	reader.On("GetServices", mock.Anything).Return(nil, errors.New("anonymous caller"))
+	return reader
+}
+
+// TestTurnScopedEndpointQueriesStorageAsChatCaller follows the identity from the
+// chat request to the storage call: a telemetry tool invoked through the
+// turn-scoped endpoint reaches the trace reader with the chat caller's
+// client.Info and bearer token, although the MCP request itself carried neither.
+// The stateful transport serves every call from the context of the request that
+// created the session; the stateless one builds a session from each request. The
+// caller has to arrive either way.
+func TestTurnScopedEndpointQueriesStorageAsChatCaller(t *testing.T) {
+	for _, stateless := range []bool{false, true} {
+		t.Run(fmt.Sprintf("stateless=%t", stateless), func(t *testing.T) {
+			params := mcptools.DefaultServerParams()
+			params.StreamableHTTP.Stateless = stateless
+			reader := chatCallerReader()
+			f := newTurnMCPFixture(t, turnMCPOptions{
+				params: params,
+				caller: captureTurnCaller(chatRequestContext(t)),
+				reader: reader,
+			})
+
+			session := connectTurnMCP(t, f.ts, routeMCPPrefix+f.grant.routeID+"/", f.grant.token)
+			res, err := session.CallTool(context.Background(), &mcp.CallToolParams{Name: "get_services"})
+			require.NoError(t, err)
+			require.False(t, res.IsError, "the tool must succeed, which it only does when the reader saw the chat caller: %v", res.Content)
+			reader.AssertExpectations(t)
+		})
+	}
+}
+
+// TestClosingTurnClosesItsMCPSessions pins the lifetime of the caller's identity
+// to the turn. A stateful session created under the turn's route keeps the chat
+// caller in its context for as long as the transport holds it, so the turn must
+// close the session when it ends rather than leave it to the idle timer. The
+// route answers 404 after the turn whether or not the session was closed, so the
+// test asks the endpoint's transport directly.
+func TestClosingTurnClosesItsMCPSessions(t *testing.T) {
+	f := newTurnMCPFixture(t, turnMCPOptions{
+		caller: captureTurnCaller(chatRequestContext(t)),
+		reader: chatCallerReader(),
+	})
+
+	session := connectTurnMCP(t, f.ts, routeMCPPrefix+f.grant.routeID+"/", f.grant.token)
+	res, err := session.CallTool(context.Background(), &mcp.CallToolParams{Name: "get_services"})
+	require.NoError(t, err)
+	require.False(t, res.IsError, "the session works while the turn is live")
+	require.Equal(t, http.StatusOK, callToolOnTurnTransport(t, f, session.ID()), "the transport holds the turn's session while the turn is live")
+
+	// A second turn on the same transport is the control: closing the first
+	// turn must not close its sessions.
+	other := registerTurn(f.turns, testAGUIRun(), nil)
+	otherSession := connectTurnMCP(t, f.ts, routeMCPPrefix+other.routeID+"/", other.token)
+
+	f.closeTurn()
+
+	// Closing runs on its own goroutine, so the refusal arrives shortly after.
+	require.Eventually(t, func() bool {
+		return callToolOnTurnTransport(t, f, session.ID()) == http.StatusNotFound
+	}, 5*time.Second, 10*time.Millisecond, "a session opened under the turn is closed with it")
+	assert.Equal(t, http.StatusOK, callToolOnTurnTransport(t, f, otherSession.ID()), "another turn's session stays open")
 }
 
 // TestTurnScopedEndpointStateless checks that the turn's UI tools are still
@@ -218,7 +392,7 @@ func TestTurnSessionIsNotAddressableOnSharedEndpoint(t *testing.T) {
 // right token is refused like any other request for a dead route id.
 func TestTurnTokenIsVoidAfterTurnEnds(t *testing.T) {
 	turns := newTurnRegistry()
-	grant, closeTurn := turns.register(testAGUIRun(), nil)
+	grant, closeTurn := turns.register(testAGUIRun(), nil, turnCaller{})
 	h := turnScopedEndpointBuilder{
 		baseHandler: sharedMCPHandler(t),
 		turns:       turns,
