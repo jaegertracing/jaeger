@@ -41,7 +41,10 @@ type chatEndpoint struct {
 	mcpBaseURL   string
 	sidecarWSURL string
 	// sidecarHeaders are sent on the agent WebSocket handshake; see Config.AgentHeaders.
-	sidecarHeaders     configopaque.MapList
+	sidecarHeaders configopaque.MapList
+	// forwardHeaders names the chat request headers copied onto the same
+	// handshake; see Config.ForwardHeaders.
+	forwardHeaders     []string
 	basePath           string
 	maxRequestBodySize int64
 }
@@ -71,6 +74,30 @@ func (h *chatEndpoint) announceMCP(caps acp.AgentCapabilities, mcpRouteID string
 			Headers: []acp.HttpHeader{},
 		},
 	}}
+}
+
+// handshakeHeaders returns the headers for this turn's WebSocket handshake: the
+// static sidecarHeaders followed by the values of every forwardHeaders name that
+// the chat request carries. The forwarded values ride in the same opaque list as
+// the static credentials, because an identity token forwarded from a request is
+// just as much a secret as a credential read from the configuration, and the
+// list is what keeps both out of logs. Config.Validate guarantees the two sets
+// of names do not overlap.
+func (h *chatEndpoint) handshakeHeaders(requestHeader http.Header) configopaque.MapList {
+	if len(h.forwardHeaders) == 0 {
+		return h.sidecarHeaders
+	}
+	headers := make(configopaque.MapList, 0, len(h.sidecarHeaders)+len(h.forwardHeaders))
+	headers = append(headers, h.sidecarHeaders...)
+	for _, name := range h.forwardHeaders {
+		for _, value := range requestHeader.Values(name) {
+			headers = append(headers, configopaque.Pair{
+				Name:  name,
+				Value: configopaque.String(value),
+			})
+		}
+	}
+	return headers
 }
 
 // newChatEndpoint wires the chat endpoint against a sidecar WebSocket URL.
@@ -133,7 +160,7 @@ func (h *chatEndpoint) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	acpCtx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
-	adapter, err := DialWsAdapter(acpCtx, h.sidecarWSURL, h.sidecarHeaders, h.Logger)
+	adapter, err := DialWsAdapter(acpCtx, h.sidecarWSURL, h.handshakeHeaders(r.Header), h.Logger)
 	if err != nil {
 		http.Error(w, "Failed to connect to agent backend", http.StatusBadGateway)
 		return

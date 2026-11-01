@@ -20,6 +20,7 @@ import (
 	"github.com/gorilla/websocket"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.opentelemetry.io/collector/config/configopaque"
 	"go.opentelemetry.io/otel/attribute"
 	tracesdk "go.opentelemetry.io/otel/sdk/trace"
 	"go.opentelemetry.io/otel/sdk/trace/tracetest"
@@ -64,6 +65,10 @@ type mockACPAgent struct {
 
 	// asc is set by startMockACPWebSocketServer so Prompt can send SessionUpdate notifications.
 	asc *acp.AgentSideConnection
+
+	// upgradeHeader is the header block of the most recent WebSocket upgrade
+	// request, for tests that check what the gateway sends on the handshake.
+	upgradeHeader http.Header
 }
 
 func (a *mockACPAgent) Initialize(_ context.Context, params acp.InitializeRequest) (acp.InitializeResponse, error) {
@@ -132,6 +137,12 @@ func (a *mockACPAgent) snapshot() (*acp.InitializeRequest, *acp.NewSessionReques
 	return a.initializeReq, a.newSessionReq, a.promptReq
 }
 
+func (a *mockACPAgent) capturedUpgradeHeader() http.Header {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	return a.upgradeHeader
+}
+
 func (a *mockACPAgent) capturedCloseRequest() *acp.CloseSessionRequest {
 	a.mu.Lock()
 	defer a.mu.Unlock()
@@ -143,6 +154,9 @@ func startMockACPWebSocketServer(t *testing.T, agent *mockACPAgent) (string, fun
 
 	upgrader := websocket.Upgrader{CheckOrigin: func(*http.Request) bool { return true }}
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		agent.mu.Lock()
+		agent.upgradeHeader = r.Header.Clone()
+		agent.mu.Unlock()
 		conn, err := upgrader.Upgrade(w, r, nil)
 		if err != nil {
 			return
@@ -937,4 +951,40 @@ func TestChatEndpointSessionCloseSkippedWhenCapabilityAbsent(t *testing.T) {
 
 	require.Equal(t, http.StatusOK, rr.Code, "unexpected status code, body=%q", rr.Body.String())
 	require.Nil(t, agent.capturedCloseRequest(), "session/close must not fire when agent does not advertise the capability")
+}
+
+// The handshake carries the static agent headers and, of the chat request's
+// headers, exactly the ones forward_headers names, with every value of a
+// multi-valued one. A listed header the request did not send is not sent, and
+// an unlisted request header never reaches the agent.
+func TestChatEndpointForwardsListedRequestHeadersOnHandshake(t *testing.T) {
+	agent := &mockACPAgent{}
+	wsURL, cleanup := startMockACPWebSocketServer(t, agent)
+	defer cleanup()
+
+	static := configopaque.MapList{configopaque.Pair{Name: "X-Secret-Key", Value: "s3cret"}}
+	handler := newChatEndpoint(zap.NewNop(), newTurnRegistry(), wsURL, static, "", 1<<20)
+	// The first name is listed in lower case on purpose: matching is by
+	// canonical name, whatever case the configuration and the browser use.
+	handler.forwardHeaders = []string{"x-identity-token", "X-Forwarded-Group", "X-Never-Sent"}
+
+	reqBody, err := json.Marshal(newAGUIRequest("hello"))
+	require.NoError(t, err)
+	req := httptest.NewRequest(http.MethodPost, "/api/ai/chat", bytes.NewReader(reqBody))
+	req.Header.Set("X-Identity-Token", "tok-123")
+	req.Header.Add("X-Forwarded-Group", "a")
+	req.Header.Add("X-Forwarded-Group", "b")
+	req.Header.Set("X-Unlisted", "private")
+	rr := httptest.NewRecorder()
+
+	handler.ServeHTTP(rr, req)
+	require.Equal(t, http.StatusOK, rr.Code, "body=%q", rr.Body.String())
+
+	got := agent.capturedUpgradeHeader()
+	require.NotNil(t, got)
+	assert.Equal(t, "s3cret", got.Get("X-Secret-Key"), "static agent headers still go on the handshake")
+	assert.Equal(t, "tok-123", got.Get("X-Identity-Token"))
+	assert.Equal(t, []string{"a", "b"}, got.Values("X-Forwarded-Group"), "every value of a multi-valued header is forwarded")
+	assert.Empty(t, got.Values("X-Never-Sent"), "a listed header the request did not carry is not sent")
+	assert.Empty(t, got.Values("X-Unlisted"), "a request header that is not listed stays with the gateway")
 }

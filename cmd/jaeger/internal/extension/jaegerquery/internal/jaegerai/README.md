@@ -200,12 +200,18 @@ extensions:
       agent_url: "ws://localhost:16688"
       agent_headers:
         Authorization: Bearer ${env:MY_AGENT_TOKEN}
+      forward_headers: [X-Identity-Token]
       mcp:
         base_url: "http://localhost:16686"
 ```
 
 `agent_url` is the external agent's WebSocket URL. `agent_headers` are sent on
-every dial and redacted from logs. `mcp.base_url` is the address that the
+every dial and redacted from logs. `forward_headers` names the chat request
+headers that the gateway copies onto the same dial, so an agent that acts on
+the caller's behalf receives the caller's own identity token rather than a
+credential of the gateway. The gateway copies the header as the request
+carried it, so the value is only as trustworthy as the proxy in front of Jaeger
+that sets it and strips any copy the client supplied. `mcp.base_url` is the address that the
 agent can use to call Jaeger's MCP endpoint. When both ends are on the same
 loopback host, the gateway can infer a suitable MCP URL; other deployments
 should configure it explicitly.

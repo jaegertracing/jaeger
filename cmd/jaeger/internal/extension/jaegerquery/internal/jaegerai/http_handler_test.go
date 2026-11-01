@@ -17,8 +17,15 @@ import (
 )
 
 func TestNewHandlerBuildsEndpoints(t *testing.T) {
-	h := NewHandler(HandlerParams{Logger: zap.NewNop(), AgentURL: "ws://example", BasePath: "/jaeger", MaxRequestBodySize: 1 << 20})
+	h := NewHandler(HandlerParams{
+		Logger:             zap.NewNop(),
+		AgentURL:           "ws://example",
+		ForwardHeaders:     []string{"X-Identity-Token"},
+		BasePath:           "/jaeger",
+		MaxRequestBodySize: 1 << 20,
+	})
 	require.NotNil(t, h.chat, "NewHandler must build the chat endpoint")
+	assert.Equal(t, []string{"X-Identity-Token"}, h.chat.forwardHeaders, "the chat endpoint forwards the configured headers")
 	assert.Equal(t, "/jaeger", h.basePath)
 	assert.Nil(t, h.mcp, "the MCP endpoint must be nil when no MCP handler is supplied")
 }

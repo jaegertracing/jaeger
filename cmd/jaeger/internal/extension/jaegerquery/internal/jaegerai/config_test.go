@@ -325,3 +325,84 @@ func TestConfigAcceptsAgentHeaders(t *testing.T) {
 	}
 	require.NoError(t, cfg.Validate())
 }
+
+func TestConfigAcceptsForwardHeaders(t *testing.T) {
+	cfg := Config{
+		AgentURL:           "ws://localhost:16688",
+		MaxRequestBodySize: 1 << 20,
+		AgentHeaders: configopaque.MapList{
+			{Name: "X-Secret-Key", Value: "one"},
+		},
+		ForwardHeaders: []string{"X-Identity-Token", "x-forwarded-user"},
+	}
+	require.NoError(t, cfg.Validate())
+}
+
+func TestConfigRejectsInvalidForwardHeaders(t *testing.T) {
+	tests := []struct {
+		name           string
+		forwardHeaders []string
+		wantErr        string
+	}{
+		{
+			name:           "empty name",
+			forwardHeaders: []string{""},
+			wantErr:        "not a valid header name",
+		},
+		{
+			name:           "quoted name with a trailing space",
+			forwardHeaders: []string{"X-Identity-Token "},
+			wantErr:        "not a valid header name",
+		},
+		{
+			name:           "colon pasted from a header line",
+			forwardHeaders: []string{"X-Identity-Token:"},
+			wantErr:        "not a valid header name",
+		},
+		{
+			name:           "hop-by-hop header the handshake sets",
+			forwardHeaders: []string{"connection"},
+			wantErr:        "belongs to the WebSocket dial",
+		},
+		{
+			name:           "negotiation header the handshake sets",
+			forwardHeaders: []string{"Sec-WebSocket-Key"},
+			wantErr:        "belongs to the WebSocket dial",
+		},
+		{
+			name:           "host header gorilla derives from the URL",
+			forwardHeaders: []string{"Host"},
+			wantErr:        "belongs to the WebSocket dial",
+		},
+		{
+			name:           "framing header net/http drops on the wire",
+			forwardHeaders: []string{"Transfer-Encoding"},
+			wantErr:        "belongs to the WebSocket dial",
+		},
+		{
+			name:           "duplicate name in a different case",
+			forwardHeaders: []string{"X-Identity-Token", "x-identity-token"},
+			wantErr:        "listed more than once",
+		},
+		{
+			name:           "name also set in agent_headers",
+			forwardHeaders: []string{"x-secret-key"},
+			wantErr:        "also set in ai.agent_headers",
+		},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			cfg := Config{
+				AgentURL:           "ws://localhost:16688",
+				MaxRequestBodySize: 1 << 20,
+				AgentHeaders: configopaque.MapList{
+					{Name: "X-Secret-Key", Value: "one"},
+				},
+				ForwardHeaders: tc.forwardHeaders,
+			}
+			err := cfg.Validate()
+			require.ErrorContains(t, err, "ai.forward_headers")
+			require.ErrorContains(t, err, tc.wantErr)
+		})
+	}
+}

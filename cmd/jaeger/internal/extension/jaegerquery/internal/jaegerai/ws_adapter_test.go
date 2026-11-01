@@ -570,3 +570,36 @@ func TestDialWsAdapterWithoutHeaders(t *testing.T) {
 	assert.Empty(t, received.Get("X-Secret-Key"))
 	assert.Empty(t, received.Get("Authorization"))
 }
+
+// A name that appears twice in the list is a forwarded multi-valued request
+// header, and both values must arrive rather than the last one overwriting the
+// first.
+func TestDialWsAdapterSendsRepeatedHeaderValues(t *testing.T) {
+	t.Parallel()
+
+	gotHeaders := make(chan http.Header, 1)
+	upgrader := websocket.Upgrader{CheckOrigin: func(*http.Request) bool { return true }}
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotHeaders <- r.Header.Clone()
+		conn, err := upgrader.Upgrade(w, r, nil)
+		if err != nil {
+			return
+		}
+		defer conn.Close()
+		_, _, _ = conn.ReadMessage()
+	}))
+	defer server.Close()
+
+	headers := configopaque.MapList{
+		{Name: "X-Forwarded-Group", Value: "a"},
+		{Name: "X-Forwarded-Group", Value: "b"},
+	}
+
+	wsURL := "ws" + strings.TrimPrefix(server.URL, "http")
+	adapter, err := DialWsAdapter(context.Background(), wsURL, headers, zap.NewNop())
+	require.NoError(t, err, "dial should succeed")
+	defer adapter.Close()
+
+	received := <-gotHeaders
+	assert.Equal(t, []string{"a", "b"}, received.Values("X-Forwarded-Group"))
+}

@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"net"
+	"net/http"
 	"net/netip"
 	"net/url"
 	"strings"
@@ -17,6 +18,7 @@ import (
 	"go.opentelemetry.io/collector/config/confighttp"
 	"go.opentelemetry.io/collector/config/configopaque"
 	"go.opentelemetry.io/collector/config/configoptional"
+	"golang.org/x/net/http/httpguts"
 
 	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerquery/internal/mcptools"
 )
@@ -68,6 +70,17 @@ type Config struct {
 	// than by everyone remembering not to print it. Prefer env expansion
 	// (${env:VAR}) over inline values. Ignored unless AgentURL is set.
 	AgentHeaders configopaque.MapList `mapstructure:"agent_headers" valid:"optional"`
+	// ForwardHeaders names request headers that the gateway copies from each
+	// chat request onto that turn's WebSocket handshake with the agent. The
+	// gateway dials the agent afresh for every turn, so the handshake is where a
+	// per-request value such as the caller's identity token reaches the agent,
+	// which can then act on the caller's behalf (attribute model usage to them,
+	// for example) without the gateway knowing what the agent does with it.
+	// AgentHeaders carry the static credentials of the gateway itself; these
+	// carry whatever the caller sent. Names are matched case-insensitively and a
+	// header absent from a request is not sent. The names are validated whether
+	// or not AgentURL is set; they are used only when it is.
+	ForwardHeaders []string `mapstructure:"forward_headers" valid:"optional"`
 	// MCP exposes Jaeger telemetry MCP server at <basePath>/api/ai/mcp/ on
 	// the query port. Present enables it, absent disables it — an empty block
 	// (`mcp: {}`) is enough. It replaces the retired standalone jaeger_mcp
@@ -150,15 +163,68 @@ func (c *Config) Validate() error {
 	if c.HealthCheckInterval > 0 && c.HealthCheckTimeout <= 0 {
 		return errors.New("ai.health_check_timeout must be positive when health_check_interval is positive")
 	}
-	// MapList permits repeated names on the wire; a duplicated header would
-	// silently keep only one value, so reject it here rather than guess which.
+	// MapList permits repeated names on the wire; a duplicated header would be
+	// sent twice, so reject it here rather than guess which value was meant.
 	if err := c.AgentHeaders.Validate(); err != nil {
 		return fmt.Errorf("ai.agent_headers: %w", err)
+	}
+	if err := c.validateForwardHeaders(); err != nil {
+		return fmt.Errorf("ai.forward_headers: %w", err)
 	}
 	// MCPConfig.Validate is reached by the collector's config walk on its own,
 	// the same way OTLPProxyConfig's is; delegating to it here would only
 	// duplicate the check and drop the "mcp:" path segment from the message.
 	return nil
+}
+
+// validateForwardHeaders rejects a forward_headers list that would break or
+// confuse the handshake. A name that is not a valid header field name, such as
+// a quoted name with a trailing space, matches no request header and would
+// forward nothing without a word of complaint. A name that the dial itself
+// owns is refused by gorilla as a duplicate, so every turn would fail with no
+// hint that the configuration caused it, or is rewritten or dropped on the
+// wire, so it would forward nothing. A name listed twice
+// would send the value twice. A name that agent_headers also sets would send
+// the gateway's static value and the caller's value under one header, and
+// which one the agent reads is then up to the agent, so the two lists must not
+// overlap.
+func (c *Config) validateForwardHeaders() error {
+	seen := make(map[string]struct{}, len(c.ForwardHeaders))
+	for _, name := range c.ForwardHeaders {
+		if !httpguts.ValidHeaderFieldName(name) {
+			return fmt.Errorf("%q is not a valid header name", name)
+		}
+		canonical := http.CanonicalHeaderKey(name)
+		if isDialOwnedHeader(canonical) {
+			return fmt.Errorf("header %q belongs to the WebSocket dial and cannot be forwarded", name)
+		}
+		if _, dup := seen[canonical]; dup {
+			return fmt.Errorf("header %q is listed more than once", name)
+		}
+		seen[canonical] = struct{}{}
+	}
+	for staticName := range c.AgentHeaders.Iter {
+		if _, both := seen[http.CanonicalHeaderKey(staticName)]; both {
+			return fmt.Errorf("header %q is also set in ai.agent_headers", staticName)
+		}
+	}
+	return nil
+}
+
+// isDialOwnedHeader reports whether the canonical header name is one that the
+// WebSocket dial decides for itself, so a forwarded value could never reach the
+// agent as the caller sent it: the hop-by-hop headers that make the request an
+// upgrade and the Sec-WebSocket-* negotiation headers, which gorilla refuses to
+// see duplicated; Host, which gorilla takes from the header in place of the
+// URL's; and the framing headers that net/http excludes when it writes the
+// request.
+func isDialOwnedHeader(canonical string) bool {
+	switch canonical {
+	case "Connection", "Upgrade", "Host",
+		"Content-Length", "Transfer-Encoding", "Trailer":
+		return true
+	}
+	return strings.HasPrefix(canonical, "Sec-Websocket-")
 }
 
 // ResolveMCPBaseURL returns the base URL the gateway announces for the turn-scoped

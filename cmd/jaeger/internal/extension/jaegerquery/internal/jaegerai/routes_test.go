@@ -4,7 +4,9 @@
 package jaegerai
 
 import (
+	"bytes"
 	"context"
+	"encoding/json"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -46,6 +48,25 @@ func TestRegister(t *testing.T) {
 		r.ServeHTTP(rr, httptest.NewRequest(method, path, strings.NewReader(`{}`)))
 		return rr.Code
 	}
+
+	t.Run("forward_headers reach the agent handshake", func(t *testing.T) {
+		agent := &mockACPAgent{}
+		wsURL, cleanup := startMockACPWebSocketServer(t, agent)
+		t.Cleanup(cleanup)
+		cfg := validConfig()
+		cfg.AgentURL = wsURL
+		cfg.ForwardHeaders = []string{"X-Identity-Token"}
+		r, _ := register(t, cfg)
+
+		body, err := json.Marshal(newAGUIRequest("hello"))
+		require.NoError(t, err)
+		req := httptest.NewRequest(http.MethodPost, "/api/ai/chat", bytes.NewReader(body))
+		req.Header.Set("X-Identity-Token", "tok-123")
+		rr := httptest.NewRecorder()
+		r.ServeHTTP(rr, req)
+		require.Equal(t, http.StatusOK, rr.Code, "body=%q", rr.Body.String())
+		require.Equal(t, "tok-123", agent.capturedUpgradeHeader().Get("X-Identity-Token"))
+	})
 
 	t.Run("invalid config mounts nothing", func(t *testing.T) {
 		r, _ := register(t, Config{})

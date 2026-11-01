@@ -44,7 +44,10 @@ type HandlerParams struct {
 	AgentURL string
 	// AgentHeaders are sent on the agent WebSocket handshake, for agents that
 	// require authentication. See Config.AgentHeaders.
-	AgentHeaders       configopaque.MapList
+	AgentHeaders configopaque.MapList
+	// ForwardHeaders names the chat request headers copied onto the same
+	// handshake. See Config.ForwardHeaders.
+	ForwardHeaders     []string
 	BasePath           string
 	MaxRequestBodySize int64
 	// MCP is the telemetry MCP endpoint the query server built. Supplying it mounts
@@ -72,6 +75,7 @@ func NewHandler(p HandlerParams) *Handler {
 	basePath := normalizeBasePath(p.BasePath)
 	turns := newTurnRegistry()
 	chat := newChatEndpoint(p.Logger, turns, p.AgentURL, p.AgentHeaders, basePath, p.MaxRequestBodySize)
+	chat.forwardHeaders = p.ForwardHeaders
 	h := &Handler{basePath: basePath, chat: chat, chatMiddleware: p.ChatMiddleware}
 	if p.MCP != nil {
 		h.mcp = turnScopedEndpointBuilder{
