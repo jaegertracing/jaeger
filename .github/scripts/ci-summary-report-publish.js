@@ -375,6 +375,15 @@ function singlePrNumber(prs) {
 }
 
 /**
+ * @param {object} pr - a PR from the Pulls API
+ * @param {string} headSha
+ * @returns {boolean} whether the PR is open with headSha as its head
+ */
+function isOpenAt(pr, headSha) {
+  return pr?.state === 'open' && pr?.head?.sha === headSha;
+}
+
+/**
  * Find the open PR in this repository whose head is the commit the CI run tested.
  *
  * workflow_run.pull_requests is not limited to this repository: on a push to
@@ -402,7 +411,7 @@ async function findPullRequest({ github, owner, repo, repoId, run }) {
     // pull_requests was captured when the CI run finished. Confirm the PR has
     // not been closed or moved on since, as the head-branch lookup below does.
     const { data: live } = await github.rest.pulls.get({ owner, repo, pull_number: number });
-    return live?.state === 'open' && live?.head?.sha === run.head_sha ? number : null;
+    return isOpenAt(live, run.head_sha) ? number : null;
   }
 
   const headRepo = run.head_repository;
@@ -427,7 +436,7 @@ async function findPullRequest({ github, owner, repo, repoId, run }) {
  *
  * workflow_run: the run is the event's workflow_run.
  * workflow_dispatch: the run is fetched by the run_id input. A pr_number input
- * is used only if that PR's head is still the run's head SHA.
+ * is used only if that PR is still open with the run's head SHA as its head.
  *
  * Nothing here reads the ci-summary artifact. Warnings are fixed strings.
  *
@@ -476,10 +485,10 @@ async function resolvePublishTarget({ github, context }) {
   try {
     if (dispatchPr) {
       const { data: pr } = await github.rest.pulls.get({ owner, repo, pull_number: dispatchPr });
-      if (pr?.head?.sha === headSha) {
+      if (isOpenAt(pr, headSha)) {
         prNumber = dispatchPr;
       } else {
-        warnings.push('workflow_dispatch pr_number does not have the CI run head SHA as its head; skipping the PR comment.');
+        warnings.push('workflow_dispatch pr_number is not an open PR with the CI run head SHA as its head; skipping the PR comment.');
       }
     } else if (lookUpPr) {
       prNumber = await findPullRequest({ github, owner, repo, repoId: payload.repository?.id, run });

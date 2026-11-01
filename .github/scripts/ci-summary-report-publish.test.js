@@ -915,7 +915,20 @@ describe('resolvePublishTarget', () => {
     expect(result.headSha).toBe(RUN_SHA);
     expect(result.prNumber).toBeNull();
     expect(result.warnings).toEqual([
-      'workflow_dispatch pr_number does not have the CI run head SHA as its head; skipping the PR comment.',
+      'workflow_dispatch pr_number is not an open PR with the CI run head SHA as its head; skipping the PR comment.',
+    ]);
+  });
+
+  test('workflow_dispatch: keeps the run SHA but skips the comment when the PR is closed', async () => {
+    const github = recordingGithub({ run: forkRun({ id: 555 }), pull: pr(77, { state: 'closed' }) });
+    const result = await resolvePublishTarget({
+      github,
+      context: dispatchContext({ run_id: '555', pr_number: '77' }),
+    });
+    expect(result.headSha).toBe(RUN_SHA);
+    expect(result.prNumber).toBeNull();
+    expect(result.warnings).toEqual([
+      'workflow_dispatch pr_number is not an open PR with the CI run head SHA as its head; skipping the PR comment.',
     ]);
   });
 
