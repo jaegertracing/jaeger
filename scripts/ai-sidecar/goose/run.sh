@@ -10,14 +10,15 @@
 # identity and checks the proxy log: every MCP request Goose made must carry the
 # turn token and the caller's identity headers, and none may carry a header the
 # gateway was not told to forward. The stack stays up afterwards, with the UI at
-# http://localhost:16686, unless --down is given, in which case the script tears
-# the stack down and exits with the check's result, for use in CI.
+# http://localhost:16686, until ./run.sh --down stops it. With --ci the script
+# tears the stack down after the check and exits with the check's result.
 #
 # Goose lists the MCP server's tools before it calls the model, so the header
 # check needs no model provider. Chatting in the UI, and the agent calling a
 # tool, needs OPENROUTER_API_KEY (or another provider; see README.md).
 #
-# Usage: [OPENROUTER_API_KEY=...] ./run.sh [--release] [--down] [extra docker compose args]
+# Usage: [OPENROUTER_API_KEY=...] ./run.sh [--release] [--ci] [extra docker compose args]
+#        ./run.sh --down
 #
 # By default the script builds cmd/jaeger from this working tree for Linux and
 # runs that binary inside the released image (see docker-compose.local.yml), so
@@ -25,16 +26,21 @@
 set -euo pipefail
 cd "$(dirname "$0")"
 
+compose=(docker compose -f docker-compose.yml)
+if [ "${1:-}" = "--down" ]; then
+  # The override needs JAEGER_BINARY to parse; down mounts nothing.
+  JAEGER_BINARY="${JAEGER_BINARY:-/dev/null}" exec "${compose[@]}" -f docker-compose.local.yml down
+fi
+
 if [ -z "${OPENROUTER_API_KEY:-}" ]; then
   echo "--- OPENROUTER_API_KEY is not set: the header check still runs, but chatting in the UI fails until Goose has a model key (see README.md, step 1)"
 fi
 export OPENROUTER_API_KEY="${OPENROUTER_API_KEY:-unset}"
-compose=(docker compose -f docker-compose.yml)
-release=0 down=0
+release=0 ci=0
 while [ $# -gt 0 ]; do
   case "$1" in
     --release) release=1; shift ;;
-    --down) down=1; shift ;;
+    --ci) ci=1; shift ;;
     *) break ;;
   esac
 done
@@ -49,7 +55,7 @@ compose+=("$@")
 
 "${compose[@]}" build --quiet
 "${compose[@]}" up -d --wait --wait-timeout 120 || { "${compose[@]}" logs; exit 1; }
-if [ "$down" = 1 ]; then
+if [ "$ci" = 1 ]; then
   trap '"${compose[@]}" down' EXIT
 fi
 
@@ -78,8 +84,7 @@ grep -qv 'user=alice' <<<"$mcp" && { echo "FAIL: an MCP request did not carry X-
 grep -qv 'auth=Bearer user-token' <<<"$mcp" && { echo "FAIL: an MCP request did not carry the caller's bearer token"; fail=1; }
 grep -q 'unlisted=private' <<<"$mcp" && { echo "FAIL: an unlisted header leaked to the agent"; fail=1; }
 [ "$fail" = 0 ] && echo "PASS"
-if [ "$down" = 0 ]; then
-  echo "--- the stack is up: Jaeger UI at http://localhost:16686, with the AI assistant. Stop it with:"
-  echo "    JAEGER_BINARY=${JAEGER_BINARY:-} ${compose[*]} down"
+if [ "$ci" = 0 ]; then
+  echo "--- the stack is up: Jaeger UI at http://localhost:16686, with the AI assistant. Stop it with: $0 --down"
 fi
 exit "$fail"
