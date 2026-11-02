@@ -254,6 +254,7 @@ jobs:
     - uses: ./.github/actions/setup-go
 
     - name: Verify published assets and images
-      run: bash scripts/release/verify-published.sh "${{ needs.publish-release.outputs.tag }}"
+      run: bash scripts/release/verify-published.sh "${TAG}"
       env:
+        TAG: ${{ needs.publish-release.outputs.tag }}
         GH_TOKEN: ${{ github.token }}

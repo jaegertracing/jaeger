@@ -55,11 +55,19 @@ report_missing() {
   echo "::error::Missing $1"
 }
 
+# A failing make or awk would only shorten these lists, so check they are not empty.
+want_assets=$(expected_assets)
+want_images=$(expected_images)
+if (( $(grep -c . <<< "$want_assets") <= 3 )) || [[ -z "$want_images" ]]; then
+  echo "::error::Could not derive the expected platforms or images from the build scripts"
+  exit 1
+fi
+
 echo "Checking release assets of ${tag}"
 assets=$(gh release view "$tag" -R "$repo" --json assets --jq '.assets[].name')
 while read -r asset; do
   grep -Fxq "$asset" <<< "$assets" || report_missing "release asset ${asset}"
-done < <(expected_assets)
+done <<< "$want_assets"
 
 echo "Checking images for tag ${version}"
 while read -r image; do
@@ -68,10 +76,20 @@ while read -r image; do
     if bash "$repo_root/scripts/utils/retry.sh" docker manifest inspect "$ref" > /dev/null; then
       echo "found ${ref}"
     else
-      report_missing "image ${ref}"
+      report_missing "image ${ref} (or the registry is unreachable)"
     fi
   done
-done < <(expected_images)
+done <<< "$want_images"
+
+{
+  echo "### Published release check for ${tag}"
+  if (( ${#missing[@]} == 0 )); then
+    echo "All expected release assets and images are published."
+  else
+    echo "Missing:"
+    printf -- '- %s\n' "${missing[@]}"
+  fi
+} | tee -a "$summary"
 
 echo "Checking the commit the linux-amd64 binaries were built from"
 tag_sha=$(gh api "repos/${repo}/commits/${tag}" --jq .sha)
@@ -98,18 +116,11 @@ for bin in "$tmp"/*/*; do
   fi
 done
 
-{
-  echo "### Published release check for ${tag}"
-  if (( ${#missing[@]} == 0 )); then
-    echo "All expected release assets and images are published."
-  else
-    echo "Missing:"
-    printf -- '- %s\n' "${missing[@]}"
-  fi
-  if (( ${#mismatched[@]} > 0 )); then
+if (( ${#mismatched[@]} > 0 )); then
+  {
     echo "Binaries not built from \`${tag}\` (\`${tag_sha}\`):"
     printf -- '- %s\n' "${mismatched[@]}"
-  fi
-} | tee -a "$summary"
+  } | tee -a "$summary"
+fi
 
 (( ${#missing[@]} == 0 ))
