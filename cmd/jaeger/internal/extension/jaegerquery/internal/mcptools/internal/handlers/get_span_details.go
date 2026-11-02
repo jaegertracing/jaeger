@@ -8,7 +8,6 @@ import (
 	"errors"
 	"fmt"
 	"iter"
-	"strings"
 	"time"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
@@ -218,7 +217,7 @@ func buildSpanDetail(pos jptrace.SpanIterPos, span ptrace.Span) types.SpanDetail
 		ParentSpanID: parentSpanID,
 		Service:      serviceName,
 		SpanName:     span.Name(),
-		SpanKind:     strings.ToLower(span.Kind().String()),
+		SpanKind:     jptrace.SpanKindToString(span.Kind()),
 		StartTime:    span.StartTimestamp().AsTime().Format(time.RFC3339Nano),
 		DurationUs:   durationUs,
 		Status:       status,

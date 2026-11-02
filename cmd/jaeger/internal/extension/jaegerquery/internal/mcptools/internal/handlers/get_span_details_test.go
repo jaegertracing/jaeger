@@ -117,6 +117,11 @@ func TestGetSpanDetailsHandler_Handle_SpanKind(t *testing.T) {
 			spanKind: ptrace.SpanKindClient,
 			expected: "client",
 		},
+		{
+			name:     "unspecified span",
+			spanKind: ptrace.SpanKindUnspecified,
+			expected: "",
+		},
 	}
 
 	for _, tt := range tests {

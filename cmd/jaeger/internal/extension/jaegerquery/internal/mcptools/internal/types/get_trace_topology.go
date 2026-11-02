@@ -35,7 +35,7 @@ type TopologySpan struct {
 	Path              string `json:"path"                         jsonschema:"Slash-delimited span IDs from root to this span"`
 	Service           string `json:"service"                      jsonschema:"Service name from resource attributes"`
 	SpanName          string `json:"span_name"                    jsonschema:"Span name"`
-	SpanKind          string `json:"span_kind"                    jsonschema:"Span kind in lowercase (e.g. server, client)"`
+	SpanKind          string `json:"span_kind"                    jsonschema:"Span kind in lowercase: internal, server, client, producer, or consumer. Empty when the span has no kind"`
 	StartTime         string `json:"start_time"                   jsonschema:"Span start time in RFC3339 format"`
 	DurationUs        int64  `json:"duration_us"                  jsonschema:"Span duration in microseconds"`
 	Status            string `json:"status"                       jsonschema:"Span status (Unset Ok Error)"`
