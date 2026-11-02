@@ -17,6 +17,8 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/collector/config/configopaque"
 	"go.uber.org/zap"
+
+	"github.com/jaegertracing/jaeger/internal/headerforwarding"
 )
 
 func TestWsReadWriteCloserRoundTrip(t *testing.T) {
@@ -569,4 +571,45 @@ func TestDialWsAdapterWithoutHeaders(t *testing.T) {
 	received := <-gotHeaders
 	assert.Empty(t, received.Get("X-Secret-Key"))
 	assert.Empty(t, received.Get("Authorization"))
+}
+
+// The headers that header_forwarding captured in the dial's context go on the
+// handshake beside the static ones, and a captured value replaces a static
+// header of the same name.
+func TestDialWsAdapterForwardsCapturedHeaders(t *testing.T) {
+	t.Parallel()
+
+	gotHeaders := make(chan http.Header, 1)
+	upgrader := websocket.Upgrader{CheckOrigin: func(*http.Request) bool { return true }}
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotHeaders <- r.Header.Clone()
+		conn, err := upgrader.Upgrade(w, r, nil)
+		if err != nil {
+			return
+		}
+		defer conn.Close()
+		_, _, _ = conn.ReadMessage()
+	}))
+	defer server.Close()
+
+	static := configopaque.MapList{
+		{Name: "X-Secret-Key", Value: "s3cret"},
+		{Name: "X-Caller", Value: "gateway"},
+	}
+	token := headerforwarding.ForwardedHeader{HTTPName: "X-Identity-Token"}
+	caller := headerforwarding.ForwardedHeader{HTTPName: "X-Caller"}
+	ctx := headerforwarding.ContextWithCaptured(context.Background(), []headerforwarding.CapturedHeader{
+		{Header: &token, Value: "tok-123"},
+		{Header: &caller, Value: "alice"},
+	})
+
+	wsURL := "ws" + strings.TrimPrefix(server.URL, "http")
+	adapter, err := DialWsAdapter(ctx, wsURL, static, zap.NewNop())
+	require.NoError(t, err)
+	defer adapter.Close()
+
+	received := <-gotHeaders
+	assert.Equal(t, "s3cret", received.Get("X-Secret-Key"))
+	assert.Equal(t, "tok-123", received.Get("X-Identity-Token"))
+	assert.Equal(t, "alice", received.Get("X-Caller"))
 }

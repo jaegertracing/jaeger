@@ -14,13 +14,13 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func testStreamingClient() *streamingClient {
-	return newStreamingClient(context.Background(), httptest.NewRecorder(), "thread", "run")
+func testAGUIRun() *aguiRun {
+	return newAGUIRun(context.Background(), httptest.NewRecorder(), "thread", "run")
 }
 
 func TestTurnRegistryRegisterGetClose(t *testing.T) {
 	s := newTurnRegistry()
-	client := testStreamingClient()
+	client := testAGUIRun()
 
 	assert.Nil(t, s.get("missing"), "unknown id returns nil")
 
@@ -30,7 +30,7 @@ func TestTurnRegistryRegisterGetClose(t *testing.T) {
 
 	got := s.get(id)
 	require.NotNil(t, got, "get returns the registered turn")
-	assert.Same(t, client, got.stream, "turn carries the registered stream")
+	assert.Same(t, client, got.run, "turn carries the registered AG-UI run")
 	assert.Equal(t, tools, got.uiTools, "turn carries the registered UI tools")
 
 	closeTurn()
@@ -44,7 +44,7 @@ func TestTurnRegistryConcurrent(t *testing.T) {
 	var wg sync.WaitGroup
 	for range n {
 		wg.Go(func() {
-			id, closeTurn := s.register(testStreamingClient(), nil)
+			id, closeTurn := s.register(testAGUIRun(), nil)
 			s.get(id)
 			closeTurn()
 		})
@@ -56,7 +56,7 @@ func TestTurnRegistryConcurrent(t *testing.T) {
 // registerTurn is a test helper: it registers a turn and returns the minted route
 // id, which integration tests need to dial that turn's URL. It drops the closer —
 // the registry is a local test object, so the entry simply lives for the test.
-func registerTurn(r *turnRegistry, stream *streamingClient, uiTools []json.RawMessage) string {
-	id, _ := r.register(stream, uiTools)
+func registerTurn(r *turnRegistry, run *aguiRun, uiTools []json.RawMessage) string {
+	id, _ := r.register(run, uiTools)
 	return id
 }

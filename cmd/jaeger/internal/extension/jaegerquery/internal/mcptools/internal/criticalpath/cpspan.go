@@ -6,6 +6,8 @@ package criticalpath
 import (
 	"go.opentelemetry.io/collector/pdata/pcommon"
 	"go.opentelemetry.io/collector/pdata/ptrace"
+
+	"github.com/jaegertracing/jaeger/internal/jptrace"
 )
 
 // CPSpan represents a span used for critical path computation.
@@ -31,39 +33,35 @@ func CreateCPSpan(span ptrace.Span, childSpanIDs []pcommon.SpanID) CPSpan {
 	return cpSpan
 }
 
-// CreateCPSpanMap creates a map of CPSpan objects from ptrace spans
-// It also builds the parent-child relationships by iterating through all spans
+// CreateCPSpanMap creates a map of CPSpan objects from the spans of a trace and
+// builds the parent-child relationships between them. When several spans share
+// an ID, only the first one in trace order is kept, as the clock-skew adjuster
+// does. Every span in the map is therefore the child of at most one span, so the
+// spans reachable from a root span form a tree.
 func CreateCPSpanMap(traces ptrace.Traces) map[pcommon.SpanID]CPSpan {
-	spanMap := make(map[pcommon.SpanID]CPSpan)
-	childrenMap := make(map[pcommon.SpanID][]pcommon.SpanID)
+	var spans []ptrace.Span
+	seen := make(map[pcommon.SpanID]struct{})
+	for _, span := range jptrace.SpanIter(traces) {
+		if _, ok := seen[span.SpanID()]; ok {
+			continue
+		}
+		seen[span.SpanID()] = struct{}{}
+		spans = append(spans, span)
+	}
 
 	// First pass: build children map
-	for i := 0; i < traces.ResourceSpans().Len(); i++ {
-		rs := traces.ResourceSpans().At(i)
-		for j := 0; j < rs.ScopeSpans().Len(); j++ {
-			ss := rs.ScopeSpans().At(j)
-			for k := 0; k < ss.Spans().Len(); k++ {
-				span := ss.Spans().At(k)
-				if !span.ParentSpanID().IsEmpty() {
-					parentID := span.ParentSpanID()
-					childrenMap[parentID] = append(childrenMap[parentID], span.SpanID())
-				}
-			}
+	childrenMap := make(map[pcommon.SpanID][]pcommon.SpanID)
+	for _, span := range spans {
+		if !span.ParentSpanID().IsEmpty() {
+			parentID := span.ParentSpanID()
+			childrenMap[parentID] = append(childrenMap[parentID], span.SpanID())
 		}
 	}
 
 	// Second pass: create CPSpan objects with child relationships
-	for i := 0; i < traces.ResourceSpans().Len(); i++ {
-		rs := traces.ResourceSpans().At(i)
-		for j := 0; j < rs.ScopeSpans().Len(); j++ {
-			ss := rs.ScopeSpans().At(j)
-			for k := 0; k < ss.Spans().Len(); k++ {
-				span := ss.Spans().At(k)
-				childSpanIDs := childrenMap[span.SpanID()]
-				cpSpan := CreateCPSpan(span, childSpanIDs)
-				spanMap[span.SpanID()] = cpSpan
-			}
-		}
+	spanMap := make(map[pcommon.SpanID]CPSpan, len(spans))
+	for _, span := range spans {
+		spanMap[span.SpanID()] = CreateCPSpan(span, childrenMap[span.SpanID()])
 	}
 
 	return spanMap
