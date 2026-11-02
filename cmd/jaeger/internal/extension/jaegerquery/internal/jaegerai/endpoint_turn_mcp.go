@@ -83,7 +83,7 @@ type turnScopedEndpointBuilder struct {
 func (b turnScopedEndpointBuilder) build() *turnScopedEndpoint {
 	b.baseHandler.AddReceivingMiddleware(uiToolsMiddleware(b.turns, b.logger))
 	return &turnScopedEndpoint{
-		handler:  b.baseHandler.NewTransport(),
+		handler:  b.baseHandler.NewMount(),
 		turns:    b.turns,
 		basePath: b.basePath,
 		logger:   b.logger,
