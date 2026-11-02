@@ -4,6 +4,7 @@
 package bearertoken
 
 import (
+	"context"
 	"net/http"
 	"strings"
 
@@ -41,4 +42,13 @@ func PropagationHandler(logger *zap.Logger, h http.Handler) http.Handler {
 			h.ServeHTTP(w, r.WithContext(ctx))
 		}
 	})
+}
+
+// SetAuthorizationHeader writes the bearer token carried by ctx into header as
+// "Authorization: Bearer <token>", the form PropagationHandler reads. It leaves
+// header unchanged when ctx carries no token.
+func SetAuthorizationHeader(ctx context.Context, header http.Header) {
+	if token, ok := GetBearerToken(ctx); ok {
+		header.Set("Authorization", "Bearer "+token)
+	}
 }

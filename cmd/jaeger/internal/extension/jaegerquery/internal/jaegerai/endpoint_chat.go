@@ -91,9 +91,7 @@ func turnServerHeaders(ctx context.Context, grant turnGrant) []acp.HttpHeader {
 	for _, c := range headerforwarding.CapturedFromContext(ctx) {
 		header.Set(c.Header.HTTPName, c.Value)
 	}
-	if token, ok := bearertoken.GetBearerToken(ctx); ok && token != "" {
-		header.Set("Authorization", "Bearer "+token)
-	}
+	bearertoken.SetAuthorizationHeader(ctx, header)
 	header.Set(turnTokenHeader, grant.token)
 	names := slices.Sorted(maps.Keys(header))
 	headers := make([]acp.HttpHeader, 0, len(names))
