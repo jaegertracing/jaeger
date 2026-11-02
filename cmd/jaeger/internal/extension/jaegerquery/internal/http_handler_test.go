@@ -882,6 +882,12 @@ func TestMetricsFilterValidation(t *testing.T) {
 			wantMsg:  `not allowed for filter`,
 		},
 		{
+			name:     "free-text value with control character returns 400",
+			urlPath:  "/api/metrics/calls?service=svc&filter=k8s.cluster:bad%0Avalue",
+			wantCode: http.StatusBadRequest,
+			wantMsg:  "invalid value for filter",
+		},
+		{
 			name:     "free-text value with double-quote returns 400",
 			urlPath:  `/api/metrics/calls?service=svc&filter=k8s.cluster:bad"value`,
 			wantCode: http.StatusBadRequest,
@@ -906,6 +912,8 @@ func TestMetricsFilterValidation(t *testing.T) {
 			body, err := io.ReadAll(resp.Body)
 			require.NoError(t, err)
 			assert.Contains(t, string(body), tc.wantMsg)
+			metricsReader.AssertNumberOfCalls(t, "GetDimensions", 1)
+			assert.Len(t, metricsReader.Calls, 1, "invalid filters must not execute a metrics query")
 		})
 	}
 }
