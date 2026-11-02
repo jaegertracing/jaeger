@@ -29,6 +29,7 @@ package expression
 
 import (
 	"fmt"
+	"math"
 	"strconv"
 	"time"
 
@@ -399,10 +400,23 @@ func render(value any) string {
 	case time.Time:
 		return term.Format(time.RFC3339Nano)
 	case float32:
-		return strconv.FormatFloat(float64(term), 'g', -1, 32)
+		return renderFloat(float64(term), 32)
 	case float64:
-		return strconv.FormatFloat(term, 'g', -1, 64)
+		return renderFloat(term, 64)
 	default:
 		return fmt.Sprint(value)
 	}
+}
+
+// renderFloat spells a non-finite number as the OTLP/JSON token — Infinity, -Infinity — that the
+// rest of the system uses on the wire and that a backend storing the value as text keeps, rather
+// than the +Inf and -Inf of strconv, which no backend stores. NaN is already spelled the same.
+func renderFloat(value float64, bitSize int) string {
+	if math.IsInf(value, 1) {
+		return "Infinity"
+	}
+	if math.IsInf(value, -1) {
+		return "-Infinity"
+	}
+	return strconv.FormatFloat(value, 'g', -1, bitSize)
 }
