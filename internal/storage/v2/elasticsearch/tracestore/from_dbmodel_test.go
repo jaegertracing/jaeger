@@ -328,6 +328,27 @@ func TestDbTagsToAttributes_NonFiniteDoubles(t *testing.T) {
 	assert.Equal(t, "NaN", word.Str())
 }
 
+// TestDbSpanToScope_IgnoresNonStringTags checks that a double attribute that happens to be
+// named like the scope metadata stays an attribute, even though a non-finite double is
+// stored as a string token.
+func TestDbSpanToScope_IgnoresNonStringTags(t *testing.T) {
+	span := &dbmodel.Span{Tags: []dbmodel.KeyValue{
+		{Key: conventions.AttributeOtelScopeName, Type: dbmodel.Float64Type, Value: "NaN"},
+		{Key: conventions.AttributeOtelScopeVersion, Type: dbmodel.StringType, Value: "1.0"},
+	}}
+	scopeSpans := ptrace.NewScopeSpans()
+	dbSpanToScope(span, scopeSpans)
+	assert.Empty(t, scopeSpans.Scope().Name())
+	assert.Empty(t, scopeSpans.Scope().Version())
+	assert.Len(t, span.Tags, 2)
+
+	span.Tags[0] = dbmodel.KeyValue{Key: conventions.AttributeOtelScopeName, Type: dbmodel.StringType, Value: "lib"}
+	dbSpanToScope(span, scopeSpans)
+	assert.Equal(t, "lib", scopeSpans.Scope().Name())
+	assert.Equal(t, "1.0", scopeSpans.Scope().Version())
+	assert.Empty(t, span.Tags)
+}
+
 func TestFromDBModelErrors(t *testing.T) {
 	tests := []struct {
 		name    string
