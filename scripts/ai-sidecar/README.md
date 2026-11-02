@@ -29,6 +29,31 @@ extensions:
 The gateway redacts `agent_headers` values from logs and configuration dumps.
 The URL path and the header names are whatever the chosen agent requires.
 
+An agent that acts on behalf of the person in the chat, for example to
+attribute its model usage to them, needs that person's identity on the
+handshake rather than a credential of the gateway. The query extension's
+`header_forwarding` list names the request headers that Jaeger captures from
+each inbound request and forwards to the storage backend; the gateway copies
+the same captured headers onto each turn's handshake, so one list describes the
+caller's identity for every hop:
+
+```yaml
+extensions:
+  jaeger_query:
+    header_forwarding:
+      - http_name: X-Identity-Token
+    ai:
+      agent_url: ws://127.0.0.1:16688/acp
+```
+
+A listed header that a request does not carry is not sent. A captured header
+with the same name as an `agent_headers` entry replaces the static value. The
+gateway copies the header as the request carried it, so it is only as
+trustworthy as the proxy in front of Jaeger that sets it and strips any copy
+the client supplied. The health check has no request to copy from, so it dials
+with `agent_headers` alone, and the agent must answer `initialize` without the
+forwarded header.
+
 ## Agent contract
 
 This is what the gateway requires of an agent, as the gateway implements it
@@ -39,10 +64,13 @@ is the reference for any detail this page leaves out.
 **Transport.** The agent serves ACP JSON-RPC over a WebSocket at `agent_url`.
 Each WebSocket message carries one JSON-RPC object with no newline framing.
 The gateway sends `agent_headers` on every dial, so an agent may require an
-authentication header of its choosing.
+authentication header of its choosing, and it copies the chat request's
+`header_forwarding` headers onto the same dial, so an agent may read the
+caller's identity from the handshake.
 
 **Health.** The gateway periodically dials the agent and sends `initialize`
-and nothing else. The agent must answer it on a fresh connection. The UI shows
+and nothing else. That dial carries `agent_headers` but no forwarded request
+headers. The agent must answer it on a fresh connection. The UI shows
 the chat surface only while that check succeeds, and
 `ai.health_check_interval` controls how often it runs.
 

@@ -53,6 +53,12 @@ Follow the checklist in the created tracking issue. The high level steps are:
 4. Once the release is created, the [Publish Release workflow](https://github.com/jaegertracing/jaeger/actions/workflows/ci-release.yml) will run to build artifacts.
   * Wait for the workflow to finish. For monitoring and troubleshooting, open the logs of the workflow run from above URL.
   * Check the images are available on [Docker Hub](https://hub.docker.com/r/jaegertracing/) and binaries are uploaded [to the release](https://github.com/jaegertracing/jaeger/releases).
+  * If the workflow fails:
+    * Failed before uploading anything: use "Re-run failed jobs" on the failed run; it rebuilds the same tag.
+    * The fix is on `main` (workflow or build process): "Run workflow" on `main` with `overwrite=true` (`gh workflow run ci-release.yml --ref main -f dry_run=false -f overwrite=true`). The build then includes the commits after the tag; the run summary lists them.
+    * To build exactly the tag or a specific commit, add `-f ref=vX.Y.Z` (or a full commit SHA).
+    * Code fix, release not announced, and `git log --oneline vX.Y.Z..<upstream-remote>/main` lists only the fix: move the tag (`git tag -f vX.Y.Z <fix-sha> && git push -f <upstream-remote> vX.Y.Z`) and run the workflow with `-f ref=vX.Y.Z` (safe for Go: the module path has no `/v2`).
+    * Anything else: cut a patch release.
 
 <!-- END_CHECKLIST -->
 

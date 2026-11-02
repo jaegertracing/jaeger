@@ -10,17 +10,17 @@ import (
 	"github.com/google/uuid"
 )
 
-// turnState holds the per-turn state the turn-scoped MCP endpoint needs: the live
-// SSE stream back to the browser, and the UI tools the frontend declared for that
+// turnState holds the per-turn state the turn-scoped MCP endpoint needs: the AG-UI
+// run that writes to the browser, and the UI tools the frontend declared for that
 // turn. The endpoint advertises those UI tools (alongside the built-in telemetry
-// tools) and dispatches their calls onto the stream.
+// tools) and dispatches their calls onto that run.
 type turnState struct {
-	stream  *streamingClient
+	run     *aguiRun
 	uiTools []json.RawMessage
 }
 
 // turnRegistry maps a per-turn route id (mcpRouteID) to its turn state. The chat
-// handler mints a route id when it opens a turn, registers the stream and the
+// handler mints a route id when it opens a turn, registers the run and the
 // turn's UI tools here, and removes the entry when the turn ends. The turn-scoped
 // MCP endpoint (`/api/ai/mcp/<mcpRouteID>/`) looks the id up to confirm it belongs
 // to an active turn and to build that turn's tool set.
@@ -30,7 +30,7 @@ type turnState struct {
 // turn-scoped URL).
 //
 // The registry is in-memory and tied to the process lifetime — turns are scoped
-// to a single HTTP chat request and the streaming client wraps a live
+// to a single HTTP chat request and the AG-UI run wraps a live
 // http.ResponseWriter, so there is nothing meaningful to persist.
 //
 // Methods are safe for concurrent use: the chat handler writes from the request
@@ -55,10 +55,10 @@ func newTurnRegistry() *turnRegistry {
 // idempotent. The chat handler ignores the id today — the turn-scoped endpoint
 // resolves it from the request path — but the id is what the turn's MCP URL is
 // built from once that URL is announced to the sidecar.
-func (s *turnRegistry) register(stream *streamingClient, uiTools []json.RawMessage) (mcpRouteID string, closer func()) {
+func (s *turnRegistry) register(run *aguiRun, uiTools []json.RawMessage) (mcpRouteID string, closer func()) {
 	id := uuid.NewString()
 	s.mu.Lock()
-	s.turns[id] = &turnState{stream: stream, uiTools: uiTools}
+	s.turns[id] = &turnState{run: run, uiTools: uiTools}
 	s.mu.Unlock()
 	return id, func() {
 		s.mu.Lock()
