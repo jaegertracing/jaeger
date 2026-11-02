@@ -45,6 +45,10 @@ services:
         GOOSE_VERSION: ${GOOSE_VERSION:-v1.57.0}
     environment:
       GOOSE_PROVIDER: ${GOOSE_PROVIDER:-openrouter}
+      # OpenRouter's free tier changes over time, so this slug may stop being
+      # free or disappear. When every prompt fails with a 404 that names a paid
+      # slug, pick another free tool-calling model; README.md step 1 shows how
+      # to list them.
       GOOSE_MODEL: ${GOOSE_MODEL:-nvidia/nemotron-3.5-lightning:free}
       OPENROUTER_API_KEY: ${OPENROUTER_API_KEY:-}
       GOOSE_SERVER__SECRET_KEY: ${GOOSE_SERVER__SECRET_KEY:-goose-secret}
