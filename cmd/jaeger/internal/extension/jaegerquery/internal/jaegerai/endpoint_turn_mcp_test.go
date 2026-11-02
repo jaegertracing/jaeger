@@ -220,9 +220,9 @@ func TestTurnTokenIsVoidAfterTurnEnds(t *testing.T) {
 	turns := newTurnRegistry()
 	grant, closeTurn := turns.register(testAGUIRun(), nil)
 	h := turnScopedEndpointBuilder{
-		shared: sharedMCPHandler(t),
-		turns:  turns,
-		logger: telemetry.NoopSettings().Logger,
+		baseHandler: sharedMCPHandler(t),
+		turns:       turns,
+		logger:      telemetry.NoopSettings().Logger,
 	}.build()
 	mux := http.NewServeMux()
 	h.registerRoutes(mux)
