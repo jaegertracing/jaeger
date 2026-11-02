@@ -198,16 +198,26 @@ request, because the agent sends that person's identity with each one. The
 server's middleware recorded about the chat caller: the bearer token of
 `bearer_token_propagation` and the `header_forwarding` headers under the
 names the chat request carried, which are the names the middleware reads when
-the tool request comes back. The agent sends every announced header on every request to the
-announced server, so the turn-scoped endpoint receives each tool call as an
-ordinary request from the caller, and the same server-wide middleware that
-authenticated the chat request authenticates the tool call. An interceptor or
-storage client that filters or masks by caller therefore sees the person who
+the tool request comes back. The agent sends every announced header on every
+request to the announced server, so the turn-scoped endpoint receives each tool
+call as an ordinary request from the caller, and the same server-wide middleware
+that authenticated the chat request authenticates the tool call. An interceptor
+or storage client that filters or masks by caller therefore sees the person who
 asked, not the agent. The gateway stores no identity in the turn; the token
-proves only that a request belongs to the turn, and a request that carries the
-token without the caller's headers runs as nobody. The agent already receives
-the same headers on the ACP handshake, so announcing them for the tool leg
-exposes nothing new to it.
+proves only that a request belongs to the turn, and a session opened with the
+token but without the caller's headers runs as nobody.
+
+In the stateful transport the SDK serves every call of a session from the
+context of the `initialize` request that opened it, so the identity a session
+runs under is the one its first request carried, whatever later requests of the
+same session carry. The turn closes the sessions opened under its route when it
+ends, so that identity does not outlive the turn. The stateless transport reads
+each request's own headers.
+
+The announcement hands the agent the caller's bearer token, which the handshake
+does not carry; the forwarded headers it already receives on the handshake. An
+agent therefore holds the same credential a browser request to Jaeger carries,
+for the life of the turn, and the deployment trusts the host the agent runs on.
 
 The namespace exists so a UI tool can never shadow a telemetry tool of the same
 name. The frontend chooses UI tool names per request, so without a namespace

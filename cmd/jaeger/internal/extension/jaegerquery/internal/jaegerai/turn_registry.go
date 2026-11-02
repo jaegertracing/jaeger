@@ -63,7 +63,10 @@ func (t *turnState) attachSession(session *mcp.ServerSession) bool {
 // ownsSession reports whether an MCP session with this id was opened under this
 // turn's route. The transport resolves a session by its id alone, so without
 // this check a request on one turn's route could name another turn's session
-// and run as that turn's caller.
+// and run as that turn's caller. A closed session stays in the list on purpose:
+// in stateless mode the SDK closes the initialize session with its request and
+// the agent keeps sending that session's id, so pruning would refuse every later
+// request of a stateless turn.
 func (t *turnState) ownsSession(id string) bool {
 	t.mu.Lock()
 	defer t.mu.Unlock()
