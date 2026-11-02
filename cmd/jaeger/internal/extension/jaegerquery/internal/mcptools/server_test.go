@@ -322,16 +322,16 @@ func TestNewHandler_Stateless(t *testing.T) {
 		return first, second
 	}
 
-	t.Run("a second mount of one server keeps its own sessions", func(t *testing.T) {
+	t.Run("a second HTTP handler over one server keeps its own sessions", func(t *testing.T) {
 		first := NewHandler(telemetry.NoopSettings(), svc, tenancyMgr, DefaultServerParams())
 		t.Cleanup(func() { first.Close() })
-		second := first.NewMount()
+		second := first.NewHTTPHandler()
 		resp := post(first, initialize, "")
 		require.Equal(t, http.StatusOK, resp.StatusCode)
 		sessionID := resp.Header.Get("Mcp-Session-Id")
 		require.NotEmpty(t, sessionID)
-		require.Equal(t, http.StatusOK, post(first, listTools, sessionID).StatusCode, "the session is live on its own mount")
-		assert.Equal(t, http.StatusNotFound, post(second, listTools, sessionID).StatusCode, "the other mount does not know it")
+		require.Equal(t, http.StatusOK, post(first, listTools, sessionID).StatusCode, "the session is live on the handler that opened it")
+		assert.Equal(t, http.StatusNotFound, post(second, listTools, sessionID).StatusCode, "the other handler does not know it")
 	})
 
 	t.Run("default loses the session on the other replica", func(t *testing.T) {
