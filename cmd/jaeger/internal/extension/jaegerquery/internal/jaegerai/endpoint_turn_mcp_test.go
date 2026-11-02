@@ -78,7 +78,7 @@ func turnMCPServerWithParams(t *testing.T, params mcptools.ServerParams, uiTools
 }
 
 // connectTurnMCP connects an MCP client to path. token is the turn's token, sent
-// on every request; it is empty for the shared mount, which requires none.
+// on every request; it is empty for the shared endpoint, which requires none.
 func connectTurnMCP(t *testing.T, ts *httptest.Server, path, token string) *mcp.ClientSession {
 	t.Helper()
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
@@ -149,12 +149,12 @@ func TestTurnScopedEndpointStateless(t *testing.T) {
 	assert.Contains(t, got, UIToolPrefix+"show_chart", "the turn's UI tools must be advertised under the namespace")
 }
 
-// TestSharedMCPHandlerServesTelemetryOnly pins the shared mount's contract while a
+// TestSharedMCPHandlerServesTelemetryOnly pins the shared endpoint's contract while a
 // chat gateway runs on the same server. Building the gateway installs
 // uiToolsMiddleware on that server, so the middleware now sees the external clients'
 // requests too; it must resolve no turn for them and leave the tool list alone. The
 // turn below is live throughout, so a leak would show up as its UI tool appearing on
-// the shared mount.
+// the shared endpoint.
 func TestSharedMCPHandlerServesTelemetryOnly(t *testing.T) {
 	shared := sharedMCPHandler(t)
 	h := NewHandler(HandlerParams{
@@ -167,23 +167,23 @@ func TestSharedMCPHandlerServesTelemetryOnly(t *testing.T) {
 
 	mux := http.NewServeMux()
 	h.RegisterRoutes(mux)
-	// The shared mount, as jaeger-query's mountSharedMCP registers it.
+	// The shared endpoint, as jaeger-query's mountSharedMCP registers it.
 	mux.Handle("/api/ai/mcp/", http.StripPrefix("/api/ai/mcp", shared))
 	ts := httptest.NewServer(mux)
 	t.Cleanup(ts.Close)
 
 	require.Contains(t, listToolNames(t, ts, "/api/ai/mcp/"+grant.routeID+"/", grant.token), UIToolPrefix+"show_chart",
-		"precondition: the turn's UI tool is live on the turn-scoped mount")
+		"precondition: the turn's UI tool is live on the turn-scoped endpoint")
 
 	got := listToolNames(t, ts, "/api/ai/mcp/", "")
-	assert.Contains(t, got, "get_services", "the shared mount serves the telemetry tools")
-	assert.NotContains(t, got, UIToolPrefix+"show_chart", "the shared mount must never advertise a turn's UI tools")
+	assert.Contains(t, got, "get_services", "the shared endpoint serves the telemetry tools")
+	assert.NotContains(t, got, UIToolPrefix+"show_chart", "the shared endpoint must never advertise a turn's UI tools")
 }
 
 // A turn's MCP session lives on the turn-scoped endpoint's own transport, so its
-// session id opens nothing on the shared mount, where no turn token is checked.
+// session id opens nothing on the shared endpoint, where no turn token is checked.
 // Without that, a session id would be a second way into the turn.
-func TestTurnSessionIsNotAddressableOnSharedMount(t *testing.T) {
+func TestTurnSessionIsNotAddressableOnSharedEndpoint(t *testing.T) {
 	shared := sharedMCPHandler(t)
 	h := NewHandler(HandlerParams{
 		Logger:             telemetry.NoopSettings().Logger,
@@ -211,7 +211,7 @@ func TestTurnSessionIsNotAddressableOnSharedMount(t *testing.T) {
 	resp, err := ts.Client().Do(req)
 	require.NoError(t, err)
 	defer resp.Body.Close()
-	assert.Equal(t, http.StatusNotFound, resp.StatusCode, "the shared mount does not know the turn's session")
+	assert.Equal(t, http.StatusNotFound, resp.StatusCode, "the shared endpoint does not know the turn's session")
 }
 
 // A token outlives nothing: once the turn closes, a request that carries the
