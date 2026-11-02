@@ -106,7 +106,7 @@ func TestNewHandler_ToolPanicFailsOnlyThatCall(t *testing.T) {
 	capture := newTraceCapture(t)
 	telset := telemetry.NoopSettings()
 	telset.TracerProvider = capture.provider
-	handler := NewHandler(telset, svc, tenancy.NewManager(&tenancy.Options{}), DefaultConfig())
+	handler := NewHandler(telset, svc, tenancy.NewManager(&tenancy.Options{}), DefaultServerParams())
 
 	session := connectTestClient(t, handler)
 	result, err := session.CallTool(context.Background(), &mcp.CallToolParams{Name: "get_services"})
@@ -192,7 +192,7 @@ func TestHandlerAddReceivingMiddlewarePanicFailsOnlyThatCall(t *testing.T) {
 	reader := &tracestoremocks.Reader{}
 	reader.On("GetServices", mock.Anything).Return([]string{"svc-a"}, nil)
 	svc := querysvc.NewQueryService(reader, &depstoremocks.Reader{}, querysvc.QueryServiceOptions{})
-	h := NewHandler(telemetry.NoopSettings(), svc, tenancy.NewManager(&tenancy.Options{}), DefaultConfig())
+	h := NewHandler(telemetry.NoopSettings(), svc, tenancy.NewManager(&tenancy.Options{}), DefaultServerParams())
 	t.Cleanup(func() { require.NoError(t, h.Close()) })
 
 	h.AddReceivingMiddleware(func(next mcp.MethodHandler) mcp.MethodHandler {
