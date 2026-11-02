@@ -86,23 +86,31 @@ telemetry, for example *"list the services you can see"*, and the streamed tool
 calls should be prefixed `jaeger:` — that prefix means they came from Jaeger's
 MCP endpoint rather than from a tool the agent brought itself.
 
-## Smoke test
+## Run the stack
 
-`docker-compose.yml` runs the setup above as containers, with an Apache httpd
-reverse proxy between Goose and Jaeger's MCP endpoint whose access log prints
-the headers of every proxied request. `smoke.sh` starts the stack, sends one
-chat request that carries a caller identity, and checks the log: every MCP
-request Goose made carries the turn token and the caller's identity headers,
-and none carries a header the gateway was not told to forward. Goose lists the
-MCP server's tools before it calls the model, so the checks run without a model
-provider; with `OPENROUTER_API_KEY` set, the agent also calls a tool.
+`docker-compose.yml` runs the setup above as containers, plus two things that
+make it usable on its own: microsim, the trace generator of the SPM example,
+sending a steady trickle of traces, and an Apache httpd reverse proxy between
+Goose and Jaeger's MCP endpoint whose access log prints the headers of every
+proxied request. `run.sh` starts the stack and leaves it up, so the assistant
+can be tried in the Jaeger UI at <http://localhost:16686>, where the AI panel
+appears once Jaeger's health probe reaches Goose. Chatting needs a model
+provider: set `OPENROUTER_API_KEY` as in step 1 before starting.
 
 ```bash
-./smoke.sh              # a Linux build of this working tree, inside the released image
-./smoke.sh --release    # the released Jaeger image as is
+./run.sh              # a Linux build of this working tree, inside the released image
+./run.sh --release    # the released Jaeger image as is
+./run.sh --down       # tear the stack down after the check, for CI
 ```
 
-The proxy logs the credentials on purpose, so the test can check them; a
+Before it hands the stack over, the script sends one chat request that carries
+a caller identity and checks the proxy log: every MCP request Goose made
+carries the turn token and the caller's identity headers, and none carries a
+header the gateway was not told to forward. Goose lists the MCP server's tools
+before it calls the model, so the check passes without a model provider; with
+one, the agent also calls a tool.
+
+The proxy logs the credentials on purpose, so the check can read them; a
 deployment's proxy must not. The log looks like this (the token and route id
 are per turn). Three answers are expected and depend on no header: Goose sends
 one POST before `initialize` that Jaeger answers 400; the `GET` that would open

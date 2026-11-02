@@ -1,11 +1,12 @@
 # Copyright (c) 2026 The Jaeger Authors.
 # SPDX-License-Identifier: Apache-2.0
 
-# This is the Jaeger configuration of the smoke test in docker-compose.yml: an
-# in-memory store, the AI gateway pointed at the Goose container, and the two
-# identity mechanisms the test observes, header_forwarding and bearer token
-# propagation. The MCP base URL points at the logging proxy rather than at
-# Jaeger itself, so every MCP request from Goose passes through the proxy.
+# This is the Jaeger configuration of the stack in docker-compose.yml: an
+# in-memory store fed over OTLP, the AI gateway pointed at the Goose container,
+# and the two identity mechanisms that run.sh checks, header_forwarding and
+# bearer token propagation. The MCP base URL points at the logging proxy rather
+# than at Jaeger itself, so every MCP request from Goose passes through the
+# proxy.
 service:
   extensions: [jaeger_storage, jaeger_query]
   pipelines:
