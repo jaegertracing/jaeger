@@ -86,6 +86,34 @@ telemetry, for example *"list the services you can see"*, and the streamed tool
 calls should be prefixed `jaeger:` — that prefix means they came from Jaeger's
 MCP endpoint rather than from a tool the agent brought itself.
 
+## Smoke test
+
+`docker-compose.yml` runs the setup above as containers, with an Apache httpd
+reverse proxy between Goose and Jaeger's MCP endpoint whose access log prints
+the headers of every proxied request. `smoke.sh` starts the stack, sends one
+chat request that carries a caller identity, and checks the log: every MCP
+request Goose made carries the turn token and the caller's identity headers,
+and none carries a header the gateway was not told to forward. Goose lists the
+MCP server's tools before it calls the model, so the checks run without a model
+provider; with `OPENROUTER_API_KEY` set, the agent also calls a tool.
+
+```bash
+./smoke.sh                                   # released Jaeger image
+CGO_ENABLED=0 GOOS=linux go build -o /tmp/jaeger-linux ../../../cmd/jaeger
+JAEGER_BINARY=/tmp/jaeger-linux ./smoke.sh -f docker-compose.local.yml   # this working tree
+```
+
+The proxy log looks like this (the token and route id are per turn). Goose
+sends one POST before `initialize` that Jaeger answers 400, and its `DELETE`
+after the turn is answered 404 because the turn-scoped route is gone by then;
+both are expected.
+
+```text
+POST /api/ai/mcp/<route>/ -> 200 turn=<token> user=alice auth=Bearer user-token unlisted=- ...
+GET /api/ai/mcp/<route>/ -> 200 turn=<token> user=alice auth=Bearer user-token unlisted=- ...
+DELETE /api/ai/mcp/<route>/ -> 404 turn=<token> user=alice auth=Bearer user-token unlisted=- ...
+```
+
 ## Troubleshooting
 
 **Assistant panel missing / `"aiAssistant":false` in the page source.** The
