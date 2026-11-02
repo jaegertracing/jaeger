@@ -55,9 +55,9 @@ type turnScopedEndpoint struct {
 	// handler is this endpoint's own stateless HTTP handler over the MCP server
 	// behind baseHandler, which jaeger-query mounts at /api/ai/mcp/ and owns.
 	// Sharing the server registers the telemetry tools once. Being stateless, the
-	// handler keeps no session between requests, so each tool call runs under the
-	// turn token and the identity headers of its own request, and no session id
-	// opens a way into another request's turn or identity.
+	// handler keeps no session between requests and issues no session id, so each
+	// tool call runs under the turn token and the identity headers of its own
+	// request, and nothing names another request's turn or identity.
 	handler  http.Handler
 	turns    *turnRegistry
 	basePath string

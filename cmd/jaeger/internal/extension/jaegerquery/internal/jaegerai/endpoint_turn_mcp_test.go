@@ -333,38 +333,41 @@ func TestSharedMCPHandlerServesTelemetryOnly(t *testing.T) {
 	assert.NotContains(t, got, UIToolPrefix+"show_chart", "the shared endpoint must never advertise a turn's UI tools")
 }
 
-// The turn-scoped endpoint keeps no session, so the session id its stateless
-// handler issues names nothing: the shared endpoint, where no turn token is
-// checked, does not know it, so the id is no second way into the turn.
-func TestTurnSessionIsNotAddressableOnSharedEndpoint(t *testing.T) {
-	shared := sharedMCPHandler(t)
-	h := NewHandler(HandlerParams{
-		Logger:             telemetry.NoopSettings().Logger,
-		AgentURL:           "ws://127.0.0.1:1",
-		MaxRequestBodySize: 1 << 20,
-		MCP:                shared,
-	})
-	grant := registerTurn(h.mcp.turns, testAGUIRun(), []json.RawMessage{rawUITool(t, "show_chart")})
-
+// The turn-scoped endpoint issues no session id: the protocol revision it
+// speaks has no sessions, so there is no id that could name a turn's identity on
+// any endpoint. A client that still sends one is served as if it had not.
+func TestTurnScopedEndpointIssuesNoSessionID(t *testing.T) {
+	turns := newTurnRegistry()
+	grant, _ := turns.register(testAGUIRun(), nil)
+	h := turnScopedEndpointBuilder{
+		baseHandler: sharedMCPHandler(t),
+		turns:       turns,
+		logger:      telemetry.NoopSettings().Logger,
+	}.build()
 	mux := http.NewServeMux()
-	h.RegisterRoutes(mux)
-	mux.Handle("/api/ai/mcp/", http.StripPrefix("/api/ai/mcp", shared))
+	h.registerRoutes(mux)
 	ts := httptest.NewServer(mux)
 	t.Cleanup(ts.Close)
 
-	session := connectTurnMCP(t, ts, "/api/ai/mcp/"+grant.routeID+"/", grant.token)
-	require.NotEmpty(t, session.ID(), "precondition: the SDK issues a session id even to a stateless client")
-
-	req, err := http.NewRequestWithContext(context.Background(), http.MethodPost, ts.URL+"/api/ai/mcp/",
-		strings.NewReader(`{"jsonrpc":"2.0","id":2,"method":"tools/list"}`))
-	require.NoError(t, err)
-	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("Accept", "application/json, text/event-stream")
-	req.Header.Set("Mcp-Session-Id", session.ID())
-	resp, err := ts.Client().Do(req)
-	require.NoError(t, err)
-	defer resp.Body.Close()
-	assert.Equal(t, http.StatusNotFound, resp.StatusCode, "the shared endpoint does not know the turn's session")
+	post := func(sessionID string) *http.Response {
+		req, err := http.NewRequestWithContext(context.Background(), http.MethodPost, ts.URL+"/api/ai/mcp/"+grant.routeID+"/",
+			strings.NewReader(`{"jsonrpc":"2.0","id":1,"method":"tools/list"}`))
+		require.NoError(t, err)
+		req.Header.Set("Content-Type", "application/json")
+		req.Header.Set("Accept", "application/json, text/event-stream")
+		req.Header.Set(turnTokenHeader, grant.token)
+		if sessionID != "" {
+			req.Header.Set("Mcp-Session-Id", sessionID)
+		}
+		resp, err := ts.Client().Do(req)
+		require.NoError(t, err)
+		t.Cleanup(func() { resp.Body.Close() })
+		return resp
+	}
+	resp := post("")
+	assert.Equal(t, http.StatusOK, resp.StatusCode)
+	assert.Empty(t, resp.Header.Get("Mcp-Session-Id"), "the turn-scoped endpoint issues no session id")
+	assert.Equal(t, http.StatusOK, post("some-session").StatusCode, "a session id sent anyway is ignored")
 }
 
 // A token outlives nothing: once the turn closes, a request that carries the

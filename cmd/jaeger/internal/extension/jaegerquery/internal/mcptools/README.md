@@ -70,7 +70,8 @@ restricted access, or configure gRPC authentication and TLS as shown below.
 
 MCP uses Streamable HTTP: forward POST, GET, and DELETE requests, the
 `Mcp-Session-Id` and `MCP-Protocol-Version` headers, and SSE responses without
-buffering. Preserve the configured `base_path`. If multi-tenancy is enabled,
+buffering. Clients on MCP revision 2026-07-28 send only POST and no session
+header; older clients send all three. Preserve the configured `base_path`. If multi-tenancy is enabled,
 the proxy must derive the tenant header from the authenticated identity and
 overwrite any client-supplied value.
 
@@ -142,7 +143,9 @@ header selects a tenant; it is not proof that the caller is allowed to access it
 Enforce that authorization at the proxy/gateway, and use storage that supports
 the required tenant isolation.
 
-By default, the MCP transport is stateful. Tool calls retain the context of the
+By default, the MCP transport is stateful and serves MCP revisions up to
+2025-11-25, which open a session with `initialize` and name it with
+`Mcp-Session-Id` on every later request. Tool calls retain the context of the
 request that created the session, including its tenant. Changing a tenant header
 on a later request does not switch that session's tenant. Use a separate session
 for each identity and tenant, and reconnect when either changes.
@@ -154,6 +157,15 @@ therefore does not, by itself, bind the session to that user. Do not share
 session IDs across users or tenants; deployments requiring enforced session
 ownership must enforce it at the gateway. Idle sessions expire after five
 minutes.
+
+MCP revision 2026-07-28 removed sessions: each request carries its own protocol
+version and capabilities, and the server authenticates and serves it on its own.
+The MCP SDK serves that revision only with `streamable_http.stateless` set (see
+"Running several replicas behind a load balancer"), where every request is
+served from its own context and the tenant and identity are those of that
+request. A stateful endpoint answers a 2026-07-28 request with an
+unsupported-protocol-version error that lists the revisions it serves, and a
+conforming client retries with one of them.
 
 ## Disabling MCP
 
@@ -190,8 +202,8 @@ curl --cacert /path/to/ca.crt --user alice --include \
 ```
 
 Use your actual hostname, CA file, and username; add the tenant header when
-required. A successful initialization returns HTTP 200 and an `Mcp-Session-Id`
-header. Then check that:
+required. A successful initialization returns HTTP 200 and, unless
+`streamable_http.stateless` is set, an `Mcp-Session-Id` header. Then check that:
 
 - Requests without valid credentials are rejected before MCP runs.
 - With valid credentials and CA trust, initialization and `tools/list` succeed.
@@ -291,11 +303,12 @@ extensions:
           stateless: true
 ```
 
-Jaeger's tools keep no state between requests, so they behave the same. A stateless endpoint
-answers 405 to the GET that a client sends to open a stream for server-initiated messages. Jaeger
-never sends any, so in the default mode that stream only sits idle until the session times out;
-the MCP specification allows a server to offer no stream and requires the client to continue
-without it.
+Jaeger's tools keep no state between requests, so they behave the same. A stateless endpoint is
+also the only one that serves MCP revision 2026-07-28, which has no sessions at all; it answers
+405 to the GET and DELETE of older revisions, which open a stream for server-initiated messages
+and close a session. Jaeger never sends a server-initiated message, so in the default mode that
+stream only sits idle until the session times out; the MCP specification allows a server to
+offer no stream and requires the client to continue without it.
 
 This covers external MCP clients on the shared `/api/ai/mcp/` endpoint. The chat gateway's
 turn-scoped endpoint, `/api/ai/mcp/<id>/`, is different: the turn it serves is held in the memory

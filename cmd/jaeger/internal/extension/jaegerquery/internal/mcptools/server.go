@@ -123,7 +123,9 @@ func (h *Handler) AddReceivingMiddleware(middleware ...mcp.Middleware) {
 // jaeger-query's /api/ai/mcp/. One *mcp.Server is reused for every session. By
 // default the SDK builds one ServerSession per MCP session and reuses it for that
 // session's requests; with params.StreamableHTTP.Stateless it builds one per request and keeps
-// nothing between requests. It binds no listener of its own — the caller mounts
+// nothing between requests. Only the stateless mode serves the sessionless
+// protocol revision 2026-07-28; the default serves 2025-11-25 and earlier, and a
+// client that asks for the newer revision is told so and falls back. It binds no listener of its own — the caller mounts
 // the returned handler on an existing mux and closes it at shutdown so its MCP
 // sessions are reaped.
 func NewHandler(telset telemetry.Settings, queryAPI *querysvc.QueryService, tenancyMgr *tenancy.Manager, params ServerParams) *Handler {
@@ -148,11 +150,12 @@ func NewHandler(telset telemetry.Settings, queryAPI *querysvc.QueryService, tena
 
 // NewStatelessHandler returns a second HTTP handler for the same *mcp.Server,
 // with the same options and tenant extraction as this one except that it is
-// stateless whatever the configured transport says. A stateless handler keeps no
-// table of sessions: the SDK builds a session for each request from that
-// request's context and closes it when the request ends, ignores the
-// Mcp-Session-Id header, and answers the GET that opens a standing event stream
-// with 405. The AI gateway serves its turn-scoped routes through it, because
+// stateless even when the configured transport is not. A stateless handler keeps
+// no table of sessions and issues no session id: the SDK builds a session for
+// each request from that request's context and closes it when the request ends,
+// which is the model of protocol revision 2026-07-28, and it serves older clients
+// the same way, ignoring any Mcp-Session-Id they send. GET and DELETE are
+// answered 405. The AI gateway serves its turn-scoped routes through it, because
 // those routes need every tool call to run under the identity carried by that
 // request, and a session that outlives a request would carry the identity of the
 // request that opened it instead.
