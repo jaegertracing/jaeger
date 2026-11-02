@@ -45,12 +45,7 @@ func rawUITool(t *testing.T, name string) json.RawMessage {
 // and hands to the gateway — the same server both mounts are served from.
 func sharedMCPHandler(t *testing.T) *mcptools.Handler {
 	t.Helper()
-	return sharedMCPHandlerWithParams(t, mcptools.DefaultServerParams())
-}
-
-func sharedMCPHandlerWithParams(t *testing.T, params mcptools.ServerParams) *mcptools.Handler {
-	t.Helper()
-	return sharedMCPHandlerWithReader(t, params, &tracestoremocks.Reader{})
+	return sharedMCPHandlerWithReader(t, mcptools.DefaultServerParams(), &tracestoremocks.Reader{})
 }
 
 func sharedMCPHandlerWithReader(t *testing.T, params mcptools.ServerParams, reader tracestore.Reader) *mcptools.Handler {
@@ -66,19 +61,13 @@ func sharedMCPHandlerWithReader(t *testing.T, params mcptools.ServerParams, read
 // the recorder backing that turn's SSE stream (to observe UI-tool dispatch).
 func turnMCPServer(t *testing.T, uiTools []json.RawMessage) (ts *httptest.Server, rec *httptest.ResponseRecorder, grant turnGrant) {
 	t.Helper()
-	return turnMCPServerWithParams(t, mcptools.DefaultServerParams(), uiTools)
-}
-
-func turnMCPServerWithParams(t *testing.T, params mcptools.ServerParams, uiTools []json.RawMessage) (ts *httptest.Server, rec *httptest.ResponseRecorder, grant turnGrant) {
-	t.Helper()
-	f := newTurnMCPFixture(t, turnMCPOptions{params: params, uiTools: uiTools})
+	f := newTurnMCPFixture(t, turnMCPOptions{uiTools: uiTools})
 	return f.ts, f.rec, f.grant
 }
 
-// turnMCPOptions configures newTurnMCPFixture. Zero values give the default
-// server params and no UI tools.
+// turnMCPOptions configures newTurnMCPFixture. Zero values give no UI tools, a
+// reader that answers nothing and no middleware.
 type turnMCPOptions struct {
-	params  mcptools.ServerParams
 	uiTools []json.RawMessage
 	// reader is the trace reader behind the telemetry tools; nil gives a bare
 	// mock that answers no call.
@@ -110,7 +99,7 @@ func newTurnMCPFixture(t *testing.T, opts turnMCPOptions) turnMCPFixture {
 	if reader == nil {
 		reader = &tracestoremocks.Reader{}
 	}
-	shared := sharedMCPHandlerWithReader(t, opts.params, reader)
+	shared := sharedMCPHandlerWithReader(t, mcptools.DefaultServerParams(), reader)
 	h := turnScopedEndpointBuilder{
 		baseHandler: shared,
 		turns:       turns,
@@ -135,52 +124,106 @@ func newTurnMCPFixture(t *testing.T, opts turnMCPOptions) turnMCPFixture {
 	}
 }
 
-// The agent sends the announced headers on every request to the turn's MCP
-// server, and the query server's own middleware reads them off the tool request,
-// so a telemetry tool runs with the chat caller's identity in its context without
-// the gateway storing any. A session opened without them runs as nobody.
-func TestTurnScopedEndpointRunsToolCallsAsTheAnnouncedCaller(t *testing.T) {
-	forwarded := []headerforwarding.ForwardedHeader{{HTTPName: "X-User", HTTPOutboundName: "X-Forwarded-User"}}
-	type seen struct {
-		bearer   string
-		captured []headerforwarding.CapturedHeader
-	}
-	calls := make(chan seen, 2)
+// callerSeen is what a telemetry tool saw in its context: the identity the query
+// server's middleware captured from the HTTP request that carried the tool call.
+type callerSeen struct {
+	bearer string
+	user   string
+}
+
+// identityFixture mounts the turn-scoped endpoint behind the server-wide bearer
+// token and header forwarding middleware, the way the query server mounts it, with
+// a trace reader that reports the caller each get_services call ran as.
+func identityFixture(t *testing.T) (f turnMCPFixture, forwarded []headerforwarding.ForwardedHeader, calls chan callerSeen) {
+	t.Helper()
+	forwarded = []headerforwarding.ForwardedHeader{{HTTPName: "X-User", HTTPOutboundName: "X-Forwarded-User"}}
+	calls = make(chan callerSeen, 4)
 	reader := &tracestoremocks.Reader{}
 	reader.On("GetServices", mock.Anything).Run(func(args mock.Arguments) {
 		ctx := args.Get(0).(context.Context)
-		bearer, _ := bearertoken.GetBearerToken(ctx)
-		calls <- seen{bearer: bearer, captured: headerforwarding.CapturedFromContext(ctx)}
+		seen := callerSeen{}
+		seen.bearer, _ = bearertoken.GetBearerToken(ctx)
+		for _, c := range headerforwarding.CapturedFromContext(ctx) {
+			if c.Header.HTTPName == "X-User" {
+				seen.user = c.Value
+			}
+		}
+		calls <- seen
 	}).Return([]string{"svc"}, nil)
-	f := newTurnMCPFixture(t, turnMCPOptions{
+	f = newTurnMCPFixture(t, turnMCPOptions{
 		reader: reader,
 		wrap: func(next http.Handler) http.Handler {
 			return bearertoken.PropagationHandler(zap.NewNop(), headerforwarding.HTTPServerMiddleware(forwarded, next))
 		},
 	})
+	return f, forwarded, calls
+}
 
-	// The chat request's identity as the same middleware captured it.
-	chatCtx := bearertoken.ContextWithBearerToken(t.Context(), "tok-user")
-	chatCtx = headerforwarding.ContextWithCaptured(chatCtx, []headerforwarding.CapturedHeader{{Header: &forwarded[0], Value: "alice"}})
-	announced := turnServerHeaders(chatCtx, f.grant)
+// announcedHeaders returns the headers the gateway announces for grant when the
+// chat request carried the given bearer token and X-User value.
+func announcedHeaders(t *testing.T, forwarded []headerforwarding.ForwardedHeader, grant turnGrant, bearer, user string) []acp.HttpHeader {
+	t.Helper()
+	ctx := bearertoken.ContextWithBearerToken(t.Context(), bearer)
+	ctx = headerforwarding.ContextWithCaptured(ctx, []headerforwarding.CapturedHeader{{Header: &forwarded[0], Value: user}})
+	return turnServerHeaders(ctx, grant)
+}
 
-	withIdentity := connectTurnMCPWithHeaders(t, f.ts, routeMCPPrefix+f.grant.routeID+"/", announced)
+// The agent sends the announced headers on every request to the turn's MCP
+// server, and the query server's own middleware reads them off the tool request,
+// so a telemetry tool runs with the chat caller's identity in its context without
+// the gateway storing any. A session opened without them runs as nobody.
+func TestTurnScopedEndpointRunsToolCallsAsTheAnnouncedCaller(t *testing.T) {
+	f, forwarded, calls := identityFixture(t)
+	path := routeMCPPrefix + f.grant.routeID + "/"
+
+	withIdentity := connectTurnMCPWithHeaders(t, f.ts, path, announcedHeaders(t, forwarded, f.grant, "tok-alice", "alice"))
 	res, err := withIdentity.CallTool(t.Context(), &mcp.CallToolParams{Name: "get_services"})
 	require.NoError(t, err)
 	require.False(t, res.IsError)
-	got := <-calls
-	assert.Equal(t, "tok-user", got.bearer)
-	require.Len(t, got.captured, 1)
-	assert.Equal(t, "X-User", got.captured[0].Header.HTTPName)
-	assert.Equal(t, "alice", got.captured[0].Value)
+	assert.Equal(t, callerSeen{bearer: "tok-alice", user: "alice"}, <-calls)
 
-	anonymous := connectTurnMCP(t, f.ts, routeMCPPrefix+f.grant.routeID+"/", f.grant.token)
+	anonymous := connectTurnMCP(t, f.ts, path, f.grant.token)
 	res, err = anonymous.CallTool(t.Context(), &mcp.CallToolParams{Name: "get_services"})
 	require.NoError(t, err)
 	require.False(t, res.IsError)
-	got = <-calls
-	assert.Empty(t, got.bearer, "the token alone carries no identity")
-	assert.Empty(t, got.captured)
+	assert.Equal(t, callerSeen{}, <-calls, "the token alone carries no identity")
+}
+
+// Each tool call runs under the identity of its own HTTP request, and nothing
+// outlives the request: the endpoint keeps no MCP session, so the session id it
+// issued to one caller selects neither that caller's identity nor their turn when
+// another request carries it. A request on turn B with turn B's token and Bob's
+// headers runs as Bob, even when it names the session id Alice's client received
+// on turn A, and so does a request on turn A itself with the right token.
+func TestTurnScopedEndpointRunsEachRequestAsItsOwnCaller(t *testing.T) {
+	f, forwarded, calls := identityFixture(t)
+	alice := connectTurnMCPWithHeaders(t, f.ts, routeMCPPrefix+f.grant.routeID+"/", announcedHeaders(t, forwarded, f.grant, "tok-alice", "alice"))
+	_, err := alice.CallTool(t.Context(), &mcp.CallToolParams{Name: "get_services"})
+	require.NoError(t, err)
+	require.Equal(t, callerSeen{bearer: "tok-alice", user: "alice"}, <-calls, "precondition: Alice's call runs as Alice")
+
+	grantB, closeB := f.turns.register(newAGUIRun(t.Context(), httptest.NewRecorder(), "thread-b", "run-b"), nil)
+	t.Cleanup(closeB)
+
+	callAsBob := func(t *testing.T, grant turnGrant) {
+		t.Helper()
+		req, err := http.NewRequestWithContext(t.Context(), http.MethodPost, f.ts.URL+routeMCPPrefix+grant.routeID+"/",
+			strings.NewReader(`{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"get_services","arguments":{}}}`))
+		require.NoError(t, err)
+		req.Header.Set("Content-Type", "application/json")
+		req.Header.Set("Accept", "application/json, text/event-stream")
+		req.Header.Set("Mcp-Session-Id", alice.ID())
+		for _, h := range announcedHeaders(t, forwarded, grant, "tok-bob", "bob") {
+			req.Header.Set(h.Name, h.Value)
+		}
+		resp, err := f.ts.Client().Do(req)
+		require.NoError(t, err)
+		defer resp.Body.Close()
+		require.Equal(t, http.StatusOK, resp.StatusCode)
+		assert.Equal(t, callerSeen{bearer: "tok-bob", user: "bob"}, <-calls)
+	}
+	t.Run("on another turn", func(t *testing.T) { callAsBob(t, grantB) })
+	t.Run("on the same turn", func(t *testing.T) { callAsBob(t, f.grant) })
 }
 
 // connectTurnMCP connects an MCP client to path. token is the turn's token, sent
@@ -259,25 +302,6 @@ func TestTurnScopedEndpointServesTelemetryPlusUITools(t *testing.T) {
 	assert.NotContains(t, got, "show_chart", "the bare frontend name is not an MCP tool")
 }
 
-// TestTurnScopedEndpointStateless checks that the turn's UI tools are still
-// advertised when the shared handler runs in stateless mode. ServeHTTP stamps the
-// route id on every request, and in stateless mode the SDK builds the session from
-// each request's context, so uiToolsMiddleware finds the turn without a session
-// that outlives the request. The test talks to the endpoint through the real
-// go-sdk client, which after initialize sends a GET to open a stream for
-// server-to-client messages; a stateless server answers that GET with 405, and the
-// client has to treat that as "no stream" and continue, or ListTools below would
-// fail.
-func TestTurnScopedEndpointStateless(t *testing.T) {
-	params := mcptools.DefaultServerParams()
-	params.StreamableHTTP.Stateless = true
-	ts, _, grant := turnMCPServerWithParams(t, params, []json.RawMessage{rawUITool(t, "show_chart")})
-
-	got := listToolNames(t, ts, "/api/ai/mcp/"+grant.routeID+"/", grant.token)
-	assert.Contains(t, got, "get_services", "built-in telemetry tools must be advertised")
-	assert.Contains(t, got, UIToolPrefix+"show_chart", "the turn's UI tools must be advertised under the namespace")
-}
-
 // TestSharedMCPHandlerServesTelemetryOnly pins the shared endpoint's contract while a
 // chat gateway runs on the same server. Building the gateway installs
 // uiToolsMiddleware on that server, so the middleware now sees the external clients'
@@ -309,9 +333,9 @@ func TestSharedMCPHandlerServesTelemetryOnly(t *testing.T) {
 	assert.NotContains(t, got, UIToolPrefix+"show_chart", "the shared endpoint must never advertise a turn's UI tools")
 }
 
-// A turn's MCP session lives on the turn-scoped endpoint's own handler, so its
-// session id opens nothing on the shared endpoint, where no turn token is checked.
-// Without that, a session id would be a second way into the turn.
+// The turn-scoped endpoint keeps no session, so the session id its stateless
+// handler issues names nothing: the shared endpoint, where no turn token is
+// checked, does not know it, so the id is no second way into the turn.
 func TestTurnSessionIsNotAddressableOnSharedEndpoint(t *testing.T) {
 	shared := sharedMCPHandler(t)
 	h := NewHandler(HandlerParams{
@@ -329,7 +353,7 @@ func TestTurnSessionIsNotAddressableOnSharedEndpoint(t *testing.T) {
 	t.Cleanup(ts.Close)
 
 	session := connectTurnMCP(t, ts, "/api/ai/mcp/"+grant.routeID+"/", grant.token)
-	require.NotEmpty(t, session.ID(), "precondition: the default transport is stateful and issues a session id")
+	require.NotEmpty(t, session.ID(), "precondition: the SDK issues a session id even to a stateless client")
 
 	req, err := http.NewRequestWithContext(context.Background(), http.MethodPost, ts.URL+"/api/ai/mcp/",
 		strings.NewReader(`{"jsonrpc":"2.0","id":2,"method":"tools/list"}`))

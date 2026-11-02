@@ -88,11 +88,14 @@ request to it. One header carries the turn's token; the others carry the chat
 caller's identity as the gateway captured it, the `header_forwarding` headers
 under the names the chat request carried and, with `bearer_token_propagation` on, an
 `Authorization` bearer. The agent must connect to that URL for this turn only,
-send every announced header on every request to it, including the SSE `GET`
-and the `DELETE`, treat the URL and the headers as opaque, and not reuse them
-after the prompt completes. A request without the token is refused with 401. A
-session opened without the identity headers runs as nobody, so Jaeger's own
-access control for the storage then applies to an anonymous caller.
+send every announced header on every request to it, treat the URL and the
+headers as opaque, and not reuse them after the prompt completes. The endpoint
+keeps no MCP session: it serves each request under the headers that request
+carries, and it answers the `GET` that opens a standing event stream with 405,
+which the MCP specification requires a client to accept. A request without the
+token is refused with 401. A request without the identity headers runs as
+nobody, so Jaeger's own access control for the storage then applies to an
+anonymous caller.
 
 **Tools.** Jaeger's telemetry tools and the UI tools that the browser supplied
 with the chat request arrive together in one `tools/list` from that endpoint.

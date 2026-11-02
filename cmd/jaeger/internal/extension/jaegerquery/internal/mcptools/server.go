@@ -74,11 +74,9 @@ func newServer(telset telemetry.Settings, queryAPI *querysvc.QueryService, param
 
 // Handler serves an *mcp.Server over HTTP and owns that server's teardown: Close
 // reaps the sessions still bound to it, so a mount gets its teardown from
-// construction instead of from whoever remembers to reach for the server. Mounting
-// one Handler at several paths — jaeger-query serves it at /api/ai/mcp/, and the AI
-// gateway serves it again under the turn-scoped routes — gives those paths one
-// server and one session map, so a session established through either resolves on
-// both.
+// construction instead of from whoever remembers to reach for the server.
+// jaeger-query serves the Handler itself at /api/ai/mcp/; the AI gateway serves
+// the same server under its turn-scoped routes through NewStatelessHandler.
 type Handler struct {
 	http.Handler
 	server *mcp.Server
@@ -141,23 +139,33 @@ func NewHandler(telset telemetry.Settings, queryAPI *querysvc.QueryService, tena
 		recovery: createRecoveryMiddleware(telset.Logger),
 	}
 	h.Handler = otelhttp.NewHandler(
-		h.NewIsolatedHandler(),
+		h.newStreamableHandler(h.streamableOptions),
 		"jaeger_mcp",
 		otelhttp.WithTracerProvider(telset.TracerProvider),
 	)
 	return h
 }
 
-// NewIsolatedHandler returns a second HTTP handler for the same *mcp.Server,
-// with the same options and tenant extraction as this one, whose MCP sessions
-// are invisible to this handler and the reverse. The go-sdk's Streamable HTTP
-// handler owns the table of sessions, keyed by the Mcp-Session-Id header, so
-// a session opened through one handler cannot be addressed through the other.
-// Close reaps the sessions of both, because they belong to the one server.
-func (h *Handler) NewIsolatedHandler() http.Handler {
+// NewStatelessHandler returns a second HTTP handler for the same *mcp.Server,
+// with the same options and tenant extraction as this one except that it is
+// stateless whatever the configured transport says. A stateless handler keeps no
+// table of sessions: the SDK builds a session for each request from that
+// request's context and closes it when the request ends, ignores the
+// Mcp-Session-Id header, and answers the GET that opens a standing event stream
+// with 405. The AI gateway serves its turn-scoped routes through it, because
+// those routes need every tool call to run under the identity carried by that
+// request, and a session that outlives a request would carry the identity of the
+// request that opened it instead.
+func (h *Handler) NewStatelessHandler() http.Handler {
+	opts := h.streamableOptions
+	opts.Stateless = true
+	return h.newStreamableHandler(opts)
+}
+
+func (h *Handler) newStreamableHandler(opts mcp.StreamableHTTPOptions) http.Handler {
 	streamable := mcp.NewStreamableHTTPHandler(
 		func(*http.Request) *mcp.Server { return h.server },
-		&h.streamableOptions,
+		&opts,
 	)
 	return tenancy.ExtractTenantHTTPHandler(h.tenancyMgr, streamable)
 }
