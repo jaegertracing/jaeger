@@ -61,7 +61,7 @@ func turnMCPServerWithParams(t *testing.T, params mcptools.ServerParams, uiTools
 	t.Helper()
 	turns := newTurnRegistry()
 	rec = httptest.NewRecorder()
-	routeID = registerTurn(turns, newStreamingClient(context.Background(), rec, "thread", "run"), uiTools)
+	routeID = registerTurn(turns, newAGUIRun(context.Background(), rec, "thread", "run"), uiTools)
 
 	h := turnScopedEndpointBuilder{
 		shared: sharedMCPHandlerWithParams(t, params),
@@ -142,7 +142,7 @@ func TestSharedMCPHandlerServesTelemetryOnly(t *testing.T) {
 		MaxRequestBodySize: 1 << 20,
 		MCP:                shared,
 	})
-	routeID := registerTurn(h.mcp.turns, testStreamingClient(), []json.RawMessage{rawUITool(t, "show_chart")})
+	routeID := registerTurn(h.mcp.turns, testAGUIRun(), []json.RawMessage{rawUITool(t, "show_chart")})
 
 	mux := http.NewServeMux()
 	h.RegisterRoutes(mux)
@@ -184,8 +184,8 @@ func TestTurnScopedEndpointDispatchesUIToolToStream(t *testing.T) {
 func TestTurnScopedEndpointIsolatesTurns(t *testing.T) {
 	turns := newTurnRegistry()
 	recA, recB := httptest.NewRecorder(), httptest.NewRecorder()
-	idA := registerTurn(turns, newStreamingClient(context.Background(), recA, "ta", "ra"), []json.RawMessage{rawUITool(t, "chart_a")})
-	idB := registerTurn(turns, newStreamingClient(context.Background(), recB, "tb", "rb"), []json.RawMessage{rawUITool(t, "chart_b")})
+	idA := registerTurn(turns, newAGUIRun(context.Background(), recA, "ta", "ra"), []json.RawMessage{rawUITool(t, "chart_a")})
+	idB := registerTurn(turns, newAGUIRun(context.Background(), recB, "tb", "rb"), []json.RawMessage{rawUITool(t, "chart_b")})
 
 	h := turnScopedEndpointBuilder{
 		shared: sharedMCPHandler(t),

@@ -1,3 +1,5 @@
 # Jaeger Threat Model
 
-This is a placeholder for the Jaeger Threat Model. This will be based on [OSSF standards](https://github.com/ossf/security-insights-spec/tree/main/docs/threat-model) and examples of existing threat models. This is a significant chunk of work for Jaeger due to the diversity and complexity of all the supported components in deployment.
+The threat model is [docs/security/threat-model.md](docs/security/threat-model.md).
+
+That document describes the v2 `jaeger` binary in this repository: one OpenTelemetry Collector process, its receivers and storage backends, the query API and UI, and the in-process MCP endpoint.

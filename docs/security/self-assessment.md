@@ -21,12 +21,12 @@ Jaeger is a distributed tracing system originally developed at Uber Technologies
 
 Jaeger adheres to established secure design principles:
 - **Economy of Mechanism**: Uses standard protocols (OTLP, gRPC).
-- **Fail-Safe Defaults**: TLS verification enabled by default.
+- **Fail-Safe Defaults**: When TLS is configured, certificate verification is on unless `insecure_skip_verify` is set. TLS itself is opt-in. Collector `configtls` defaults the minimum version to TLS 1.2.
 - **Open Design**: Fully open-source and publicly documented.
 
 ### Trust Boundaries
 
-Trust boundaries exist between instrumented applications and the collector, between the collector and storage, and between the query service and users. Each boundary is protected by TLS and authentication controls.
+Trust boundaries exist between instrumented applications and the receivers, between the process and storage, between the query/UI surface and users, and between that same HTTP server and MCP or AI clients. TLS and authentication are collector configuration. They are not on in the embedded all-in-one config. The v2 binary does not implement RBAC, OAuth2, or Kerberos. See [threat-model.md](threat-model.md).
 
 ### Security Testing
 
@@ -39,9 +39,9 @@ Trust boundaries exist between instrumented applications and the collector, betw
 
 | Attribute | Details |
 | -- | -- |
-| Last Updated | 2026-01-16 |
-| Status | Completed |
-| Assessment Process | CNCF TAG Security Self-Assessment |
+| Last Updated | 2026-10-11 |
+| Status | Local summary aligned with the v2 threat model. This edit is not a new CNCF TAG Security assessment. |
+| Assessment Process | CNCF TAG Security Self-Assessment (historical). The assessment linked from `SECURITY-INSIGHTS.yml` was not changed here. |
 
 ## Vulnerability Handling
 

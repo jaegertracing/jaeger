@@ -157,3 +157,23 @@ func TestHTTPClientRoundTripper_PropagatesBaseError(t *testing.T) {
 	_, err = rt.RoundTrip(req)
 	assert.ErrorIs(t, err, wantErr)
 }
+
+func TestSetForwardedHTTPHeaders(t *testing.T) {
+	renamed := &headerforwarding.ForwardedHeader{HTTPName: "x-user", HTTPOutboundName: "x-forwarded-user"}
+	plain := &headerforwarding.ForwardedHeader{HTTPName: "x-token"}
+	ctx := headerforwarding.ContextWithCaptured(context.Background(), []headerforwarding.CapturedHeader{
+		{Header: renamed, Value: "alice"},
+		{Header: plain, Value: "tok"},
+	})
+
+	header := http.Header{"X-Token": []string{"static"}}
+	headerforwarding.SetForwardedHTTPHeaders(ctx, header)
+
+	assert.Equal(t, "alice", header.Get("x-forwarded-user"))
+	assert.Empty(t, header.Values("x-user"))
+	assert.Equal(t, "tok", header.Get("x-token"), "a captured value replaces an existing header of the same name")
+
+	untouched := http.Header{}
+	headerforwarding.SetForwardedHTTPHeaders(context.Background(), untouched)
+	assert.Empty(t, untouched)
+}
