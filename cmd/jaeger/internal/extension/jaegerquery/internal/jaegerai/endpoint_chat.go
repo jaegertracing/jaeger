@@ -79,14 +79,18 @@ func (h *chatEndpoint) announceMCP(ctx context.Context, caps acp.AgentCapabiliti
 
 // turnServerHeaders lists the headers the agent must send on every request to the
 // turn's MCP server: the turn's token, and the chat caller's identity as the query
-// server's middleware captured it from the chat request. The identity is the
-// propagated bearer token and the header_forwarding captures under their outbound
-// names, the same headers the handshake carries (see DialWsAdapter). The agent
-// returns them on its tool calls, so the turn-scoped endpoint authenticates each
-// request as it would any other and never has to remember who the caller was.
+// server's middleware captured it from the chat request: the propagated bearer
+// token and the header_forwarding captures. The captures keep their inbound names,
+// because the tool request comes back to this same server and its middleware reads
+// those names; the handshake sends the same headers under their outbound names
+// (see DialWsAdapter). The agent returns them on its tool calls, so the turn-scoped
+// endpoint authenticates each request as it would any other and never has to
+// remember who the caller was.
 func turnServerHeaders(ctx context.Context, grant turnGrant) []acp.HttpHeader {
 	header := make(http.Header)
-	headerforwarding.SetForwardedHTTPHeaders(ctx, header)
+	for _, c := range headerforwarding.CapturedFromContext(ctx) {
+		header.Set(c.Header.HTTPName, c.Value)
+	}
 	if token, ok := bearertoken.GetBearerToken(ctx); ok && token != "" {
 		header.Set("Authorization", "Bearer "+token)
 	}
