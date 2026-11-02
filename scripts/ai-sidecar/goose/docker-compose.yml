@@ -20,6 +20,8 @@ services:
     volumes:
       - "./jaeger-config.yaml:/etc/jaeger/config.yaml:ro"
     environment:
+      # jaeger-config.yaml expands this into the X-Secret-Key header that
+      # Jaeger sends on every dial to Goose, which requires it on the upgrade.
       GOOSE_SERVER__SECRET_KEY: ${GOOSE_SERVER__SECRET_KEY:-goose-secret}
     ports: ["127.0.0.1:16686:16686"]
 
