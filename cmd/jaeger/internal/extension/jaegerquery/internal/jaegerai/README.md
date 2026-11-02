@@ -197,8 +197,9 @@ Every request to the turn-scoped endpoint runs as the person behind the chat
 request, because the agent sends that person's identity with each one. The
 `session/new` announcement lists, beside the turn token, the headers the query
 server's middleware recorded about the chat caller: the bearer token of
-`bearer_token_propagation` and the `header_forwarding` headers under their
-outbound names. The agent sends every announced header on every request to the
+`bearer_token_propagation` and the `header_forwarding` headers under the
+names the chat request carried, which are the names the middleware reads when
+the tool request comes back. The agent sends every announced header on every request to the
 announced server, so the turn-scoped endpoint receives each tool call as an
 ordinary request from the caller, and the same server-wide middleware that
 authenticated the chat request authenticates the tool call. An interceptor or
