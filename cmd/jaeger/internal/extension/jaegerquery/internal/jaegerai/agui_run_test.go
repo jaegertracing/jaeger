@@ -89,9 +89,9 @@ func TestParseSSEEventsAcceptsDataPrefixWithOrWithoutSpace(t *testing.T) {
 	assert.Equal(t, "RUN_FINISHED", events[1]["type"])
 }
 
-func TestStreamingClientEmitWritesSSEFrame(t *testing.T) {
+func TestAGUIRunEmitWritesSSEFrame(t *testing.T) {
 	rec := httptest.NewRecorder()
-	c := newStreamingClient(context.Background(), rec, "thread-1", "run-1")
+	c := newAGUIRun(context.Background(), rec, "thread-1", "run-1")
 
 	c.emit(aguievents.NewRunStartedEvent("thread-1", "run-1"))
 
@@ -102,12 +102,12 @@ func TestStreamingClientEmitWritesSSEFrame(t *testing.T) {
 	assert.Equal(t, "RUN_STARTED", events[0]["type"])
 }
 
-func TestStreamingClientEmitContextDoneSetsClosedFlag(t *testing.T) {
+func TestAGUIRunEmitContextDoneSetsClosedFlag(t *testing.T) {
 	rec := httptest.NewRecorder()
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
 
-	c := newStreamingClient(ctx, rec, "thread-1", "run-1")
+	c := newAGUIRun(ctx, rec, "thread-1", "run-1")
 
 	c.emit(aguievents.NewRunStartedEvent("thread-1", "run-1"))
 
@@ -115,8 +115,8 @@ func TestStreamingClientEmitContextDoneSetsClosedFlag(t *testing.T) {
 	assert.Empty(t, rec.Body.String(), "expected no SSE frames after context cancellation")
 }
 
-func TestStreamingClientEmitErrorSetsClosedFlag(t *testing.T) {
-	c := &streamingClient{
+func TestAGUIRunEmitErrorSetsClosedFlag(t *testing.T) {
+	c := &aguiRun{
 		requestCtx: context.Background(),
 		w:          &errResponseWriter{},
 		sse:        aguisse.NewSSEWriter(),
@@ -127,9 +127,9 @@ func TestStreamingClientEmitErrorSetsClosedFlag(t *testing.T) {
 	assert.True(t, c.closed, "expected client to be closed on write error")
 }
 
-func TestStreamingClientEmitNoopWhenClosed(t *testing.T) {
+func TestAGUIRunEmitNoopWhenClosed(t *testing.T) {
 	rec := httptest.NewRecorder()
-	c := &streamingClient{
+	c := &aguiRun{
 		requestCtx: context.Background(),
 		w:          rec,
 		sse:        aguisse.NewSSEWriter(),
@@ -141,9 +141,9 @@ func TestStreamingClientEmitNoopWhenClosed(t *testing.T) {
 	assert.Empty(t, rec.Body.String(), "expected no writes when already closed")
 }
 
-func TestStreamingClientStartRunEmitsRunStarted(t *testing.T) {
+func TestAGUIRunStartRunEmitsRunStarted(t *testing.T) {
 	rec := httptest.NewRecorder()
-	c := newStreamingClient(context.Background(), rec, "thread-1", "run-1")
+	c := newAGUIRun(context.Background(), rec, "thread-1", "run-1")
 
 	c.startRun()
 
@@ -156,9 +156,9 @@ func TestStreamingClientStartRunEmitsRunStarted(t *testing.T) {
 	assert.NotEmpty(t, c.messageID, "startRun should allocate a messageID")
 }
 
-func TestStreamingClientStartRunGeneratesIdsWhenEmpty(t *testing.T) {
+func TestAGUIRunStartRunGeneratesIdsWhenEmpty(t *testing.T) {
 	rec := httptest.NewRecorder()
-	c := newStreamingClient(context.Background(), rec, "", "")
+	c := newAGUIRun(context.Background(), rec, "", "")
 
 	c.startRun()
 
@@ -179,15 +179,15 @@ func TestStreamingClientStartRunGeneratesIdsWhenEmpty(t *testing.T) {
 	assert.Equal(t, threadSuffix, msgSuffix, "threadID and messageID must share the nanosecond stem")
 }
 
-func TestStreamingClientStartRunMintsUniqueStemsAcrossCalls(t *testing.T) {
+func TestAGUIRunStartRunMintsUniqueStemsAcrossCalls(t *testing.T) {
 	// The process-wide atomic counter is the guarantee against coarse-clock
-	// collisions: two streamingClients constructed and startRun-ed in the
+	// collisions: two aguiRuns constructed and startRun-ed in the
 	// same nanosecond must still get distinct stems. Calling startRun
 	// twice in rapid succession in a single goroutine is the simplest way
 	// to exercise that — the timestamp may or may not increment between
 	// calls, but the counter must.
-	a := newStreamingClient(context.Background(), httptest.NewRecorder(), "", "")
-	b := newStreamingClient(context.Background(), httptest.NewRecorder(), "", "")
+	a := newAGUIRun(context.Background(), httptest.NewRecorder(), "", "")
+	b := newAGUIRun(context.Background(), httptest.NewRecorder(), "", "")
 
 	a.startRun()
 	b.startRun()
@@ -198,13 +198,13 @@ func TestStreamingClientStartRunMintsUniqueStemsAcrossCalls(t *testing.T) {
 	assert.NotEqual(t, a.messageID, b.messageID, "messageIDs must be distinct too")
 }
 
-func TestStreamingClientStartRunDoesNotOverwriteSuppliedIDs(t *testing.T) {
+func TestAGUIRunStartRunDoesNotOverwriteSuppliedIDs(t *testing.T) {
 	// When the caller already supplies threadID/runID, startRun must keep
 	// them as-is and only allocate the missing messageID. The caller's
 	// IDs come from the AG-UI RunAgentInput and are what the frontend
 	// uses to correlate the run — overwriting them would orphan events.
 	rec := httptest.NewRecorder()
-	c := newStreamingClient(context.Background(), rec, "thread-from-frontend", "run-from-frontend")
+	c := newAGUIRun(context.Background(), rec, "thread-from-frontend", "run-from-frontend")
 
 	c.startRun()
 
@@ -213,9 +213,9 @@ func TestStreamingClientStartRunDoesNotOverwriteSuppliedIDs(t *testing.T) {
 	assert.NotEmpty(t, c.messageID, "missing messageID must still be allocated")
 }
 
-func TestStreamingClientFinishRunClosesOpenTextAndEmitsRunFinished(t *testing.T) {
+func TestAGUIRunFinishRunClosesOpenTextAndEmitsRunFinished(t *testing.T) {
 	rec := httptest.NewRecorder()
-	c := newStreamingClient(context.Background(), rec, "thread-1", "run-1")
+	c := newAGUIRun(context.Background(), rec, "thread-1", "run-1")
 	c.startRun()
 	c.ensureTextStart()
 
@@ -238,9 +238,9 @@ func TestStreamingClientFinishRunClosesOpenTextAndEmitsRunFinished(t *testing.T)
 	assert.Empty(t, c.messageID, "messageID should be cleared with the text message")
 }
 
-func TestStreamingClientFinishRunOmitsResultWhenNoStopReason(t *testing.T) {
+func TestAGUIRunFinishRunOmitsResultWhenNoStopReason(t *testing.T) {
 	rec := httptest.NewRecorder()
-	c := newStreamingClient(context.Background(), rec, "thread-1", "run-1")
+	c := newAGUIRun(context.Background(), rec, "thread-1", "run-1")
 	c.startRun()
 
 	c.finishRun("")
@@ -254,9 +254,9 @@ func TestStreamingClientFinishRunOmitsResultWhenNoStopReason(t *testing.T) {
 		"result must be omitted when no stop reason is supplied so the event stays compact")
 }
 
-func TestStreamingClientFailRunEmitsRunError(t *testing.T) {
+func TestAGUIRunFailRunEmitsRunError(t *testing.T) {
 	rec := httptest.NewRecorder()
-	c := newStreamingClient(context.Background(), rec, "thread-1", "run-1")
+	c := newAGUIRun(context.Background(), rec, "thread-1", "run-1")
 	c.startRun()
 	c.ensureTextStart()
 
@@ -271,9 +271,9 @@ func TestStreamingClientFailRunEmitsRunError(t *testing.T) {
 	assert.Empty(t, c.messageID)
 }
 
-func TestStreamingClientEnsureTextStartIsIdempotent(t *testing.T) {
+func TestAGUIRunEnsureTextStartIsIdempotent(t *testing.T) {
 	rec := httptest.NewRecorder()
-	c := newStreamingClient(context.Background(), rec, "thread-1", "run-1")
+	c := newAGUIRun(context.Background(), rec, "thread-1", "run-1")
 	// startRun would normally allocate this; set it directly so the test
 	// targets ensureTextStart only. Without a messageID the SDK rejects the
 	// event at encode time and emits nothing.
@@ -287,14 +287,14 @@ func TestStreamingClientEnsureTextStartIsIdempotent(t *testing.T) {
 	assert.Equal(t, []string{"TEXT_MESSAGE_START"}, types, "ensureTextStart should only emit once per open message")
 }
 
-func TestStreamingClientRequestPermissionAcceptsAllowOnce(t *testing.T) {
+func TestACPClientRequestPermissionAcceptsAllowOnce(t *testing.T) {
 	// Agents like the Claude Agent SDK route every tool call through a
 	// session/request_permission RPC. The gateway already curates which
 	// tools the agent can invoke (operator-configured MCP + frontend-
 	// declared contextual tools), and AG-UI has no per-call permission
 	// event to bubble up — so the gateway must select an allow option
 	// rather than cancel, which Claude treats as "Tool use aborted".
-	c := &streamingClient{}
+	c := &acpClient{}
 
 	resp, err := c.RequestPermission(context.Background(), acp.RequestPermissionRequest{
 		Options: []acp.PermissionOption{{
@@ -309,12 +309,12 @@ func TestStreamingClientRequestPermissionAcceptsAllowOnce(t *testing.T) {
 	assert.Equal(t, acp.PermissionOptionId("opt-1"), resp.Outcome.Selected.OptionId)
 }
 
-func TestStreamingClientRequestPermissionPicksFirstAllowOption(t *testing.T) {
+func TestACPClientRequestPermissionPicksFirstAllowOption(t *testing.T) {
 	// Agents typically present a list like [allow_once, allow_always,
 	// reject_once]. Order-preserving "first allow wins" keeps the agent's
 	// suggested ordering authoritative — the gateway has no preference
 	// between scopes, so don't impose one.
-	c := &streamingClient{}
+	c := &acpClient{}
 
 	resp, err := c.RequestPermission(context.Background(), acp.RequestPermissionRequest{
 		Options: []acp.PermissionOption{
@@ -329,10 +329,10 @@ func TestStreamingClientRequestPermissionPicksFirstAllowOption(t *testing.T) {
 		"first allow-kind option must be chosen, skipping any preceding reject options")
 }
 
-func TestStreamingClientRequestPermissionAcceptsAllowAlwaysWhenNoOnce(t *testing.T) {
+func TestACPClientRequestPermissionAcceptsAllowAlwaysWhenNoOnce(t *testing.T) {
 	// Some agents may only offer allow_always (e.g. for tools they consider
 	// safe to remember). Accept that too — both kinds are "yes."
-	c := &streamingClient{}
+	c := &acpClient{}
 
 	resp, err := c.RequestPermission(context.Background(), acp.RequestPermissionRequest{
 		Options: []acp.PermissionOption{{
@@ -346,10 +346,10 @@ func TestStreamingClientRequestPermissionAcceptsAllowAlwaysWhenNoOnce(t *testing
 	assert.Equal(t, acp.PermissionOptionId("always"), resp.Outcome.Selected.OptionId)
 }
 
-func TestStreamingClientRequestPermissionCancelsWhenNoOptions(t *testing.T) {
+func TestACPClientRequestPermissionCancelsWhenNoOptions(t *testing.T) {
 	// Defensive: with no options to choose from there's nothing to accept,
 	// so fall through to cancelled rather than fabricate an option id.
-	c := &streamingClient{}
+	c := &acpClient{}
 
 	resp, err := c.RequestPermission(context.Background(), acp.RequestPermissionRequest{})
 	require.NoError(t, err)
@@ -357,11 +357,11 @@ func TestStreamingClientRequestPermissionCancelsWhenNoOptions(t *testing.T) {
 	require.Nil(t, resp.Outcome.Selected)
 }
 
-func TestStreamingClientRequestPermissionCancelsWhenOnlyRejectOptions(t *testing.T) {
+func TestACPClientRequestPermissionCancelsWhenOnlyRejectOptions(t *testing.T) {
 	// A misconfigured or hostile agent that only presents reject options
 	// cannot be coerced into an allow — the gateway falls through to
 	// cancelled so the tool call is aborted instead of forced.
-	c := &streamingClient{}
+	c := &acpClient{}
 
 	resp, err := c.RequestPermission(context.Background(), acp.RequestPermissionRequest{
 		Options: []acp.PermissionOption{
@@ -374,12 +374,12 @@ func TestStreamingClientRequestPermissionCancelsWhenOnlyRejectOptions(t *testing
 	require.Nil(t, resp.Outcome.Selected, "must not promote a reject option to an allow")
 }
 
-func TestStreamingClientSessionUpdateAgentMessageChunkEmitsTextContent(t *testing.T) {
+func TestACPClientSessionUpdateAgentMessageChunkEmitsTextContent(t *testing.T) {
 	rec := httptest.NewRecorder()
-	c := newStreamingClient(context.Background(), rec, "thread-1", "run-1")
+	c := newAGUIRun(context.Background(), rec, "thread-1", "run-1")
 	c.startRun()
 
-	err := c.SessionUpdate(context.Background(), acp.SessionNotification{
+	err := newACPClient(c).SessionUpdate(context.Background(), acp.SessionNotification{
 		Update: acp.SessionUpdate{
 			AgentMessageChunk: &acp.SessionUpdateAgentMessageChunk{Content: acp.TextBlock("hello world")},
 		},
@@ -395,7 +395,7 @@ func TestStreamingClientSessionUpdateAgentMessageChunkEmitsTextContent(t *testin
 	assert.Equal(t, c.messageID, contentEvent["messageId"])
 }
 
-func TestStreamingClientSessionUpdateAgentMessageChunkSkipsEmptyText(t *testing.T) {
+func TestACPClientSessionUpdateAgentMessageChunkSkipsEmptyText(t *testing.T) {
 	// AG-UI's TextMessageContentEvent forbids empty deltas — its SDK encoder
 	// rejects them at write time, which would mark the SSE stream closed and
 	// strand the browser bubble after TEXT_MESSAGE_START. ACP itself permits
@@ -404,9 +404,9 @@ func TestStreamingClientSessionUpdateAgentMessageChunkSkipsEmptyText(t *testing.
 	// TEXT_MESSAGE_START fires either: pairing START with content that
 	// never arrives breaks the AG-UI invariant START → CONTENT+ → END.
 	rec := httptest.NewRecorder()
-	c := newStreamingClient(context.Background(), rec, "thread-1", "run-1")
+	c := newAGUIRun(context.Background(), rec, "thread-1", "run-1")
 
-	err := c.SessionUpdate(context.Background(), acp.SessionNotification{
+	err := newACPClient(c).SessionUpdate(context.Background(), acp.SessionNotification{
 		Update: acp.SessionUpdate{
 			AgentMessageChunk: &acp.SessionUpdateAgentMessageChunk{Content: acp.TextBlock("")},
 		},
@@ -438,14 +438,14 @@ func contentDeltas(events []map[string]any) []string {
 	return deltas
 }
 
-func sendAgentText(t *testing.T, c *streamingClient, text string) {
+func sendAgentText(t *testing.T, c *aguiRun, text string) {
 	t.Helper()
 	sendAgentContent(t, c, acp.TextBlock(text))
 }
 
-func sendAgentContent(t *testing.T, c *streamingClient, content acp.ContentBlock) {
+func sendAgentContent(t *testing.T, c *aguiRun, content acp.ContentBlock) {
 	t.Helper()
-	err := c.SessionUpdate(context.Background(), acp.SessionNotification{
+	err := newACPClient(c).SessionUpdate(context.Background(), acp.SessionNotification{
 		Update: acp.SessionUpdate{
 			AgentMessageChunk: &acp.SessionUpdateAgentMessageChunk{Content: content},
 		},
@@ -453,7 +453,7 @@ func sendAgentContent(t *testing.T, c *streamingClient, content acp.ContentBlock
 	require.NoError(t, err)
 }
 
-func TestStreamingClientSessionUpdateKeepsWhitespaceChunks(t *testing.T) {
+func TestACPClientSessionUpdateKeepsWhitespaceChunks(t *testing.T) {
 	// ACP agents such as Claude Code (via claude-agent-acp) stream spaces
 	// and newlines as their own chunks. Dropping those glues tokens
 	// ("of" + "2.23s" → "of2.23s") and erases paragraph breaks. Empty
@@ -496,7 +496,7 @@ func TestStreamingClientSessionUpdateKeepsWhitespaceChunks(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			rec := httptest.NewRecorder()
-			c := newStreamingClient(context.Background(), rec, "thread-1", "run-1")
+			c := newAGUIRun(context.Background(), rec, "thread-1", "run-1")
 			c.startRun()
 
 			for _, chunk := range tt.chunks {
@@ -519,10 +519,10 @@ func TestStreamingClientSessionUpdateKeepsWhitespaceChunks(t *testing.T) {
 	}
 }
 
-func TestStreamingClientWhitespaceAroundToolCall(t *testing.T) {
-	toolCall := func(c *streamingClient) {
+func TestAGUIRunWhitespaceAroundToolCall(t *testing.T) {
+	toolCall := func(c *aguiRun) {
 		t.Helper()
-		err := c.SessionUpdate(context.Background(), acp.SessionNotification{
+		err := newACPClient(c).SessionUpdate(context.Background(), acp.SessionNotification{
 			Update: acp.SessionUpdate{
 				ToolCall: &acp.SessionUpdateToolCall{
 					ToolCallId: "tool-1",
@@ -536,7 +536,7 @@ func TestStreamingClientWhitespaceAroundToolCall(t *testing.T) {
 
 	t.Run("whitespace between tool calls before any text is dropped", func(t *testing.T) {
 		rec := httptest.NewRecorder()
-		c := newStreamingClient(context.Background(), rec, "thread-1", "run-1")
+		c := newAGUIRun(context.Background(), rec, "thread-1", "run-1")
 		c.startRun()
 
 		sendAgentText(t, c, "\n")
@@ -558,7 +558,7 @@ func TestStreamingClientWhitespaceAroundToolCall(t *testing.T) {
 
 	t.Run("whitespace inside an open message is kept across a tool call", func(t *testing.T) {
 		rec := httptest.NewRecorder()
-		c := newStreamingClient(context.Background(), rec, "thread-1", "run-1")
+		c := newAGUIRun(context.Background(), rec, "thread-1", "run-1")
 		c.startRun()
 
 		sendAgentText(t, c, "Hello")
@@ -570,10 +570,10 @@ func TestStreamingClientWhitespaceAroundToolCall(t *testing.T) {
 	})
 }
 
-func TestStreamingClientWhitespaceRunLifecycle(t *testing.T) {
+func TestAGUIRunWhitespaceRunLifecycle(t *testing.T) {
 	t.Run("visible text with streamed whitespace", func(t *testing.T) {
 		rec := httptest.NewRecorder()
-		c := newStreamingClient(context.Background(), rec, "thread-1", "run-1")
+		c := newAGUIRun(context.Background(), rec, "thread-1", "run-1")
 		c.startRun()
 
 		for _, chunk := range []string{"\n", "of", " ", "2.23s", "\n\n", "Done"} {
@@ -599,7 +599,7 @@ func TestStreamingClientWhitespaceRunLifecycle(t *testing.T) {
 
 	t.Run("only whitespace then finish emits no message", func(t *testing.T) {
 		rec := httptest.NewRecorder()
-		c := newStreamingClient(context.Background(), rec, "thread-1", "run-1")
+		c := newAGUIRun(context.Background(), rec, "thread-1", "run-1")
 		c.startRun()
 
 		sendAgentText(t, c, "\n\n")
@@ -611,9 +611,9 @@ func TestStreamingClientWhitespaceRunLifecycle(t *testing.T) {
 	})
 }
 
-func TestStreamingClientSessionUpdateNonTextChunkDoesNotPanic(t *testing.T) {
+func TestACPClientSessionUpdateNonTextChunkDoesNotPanic(t *testing.T) {
 	rec := httptest.NewRecorder()
-	c := newStreamingClient(context.Background(), rec, "thread-1", "run-1")
+	c := newAGUIRun(context.Background(), rec, "thread-1", "run-1")
 	c.startRun()
 
 	require.NotPanics(t, func() {
@@ -626,17 +626,17 @@ func TestStreamingClientSessionUpdateNonTextChunkDoesNotPanic(t *testing.T) {
 	assert.False(t, c.textOpen)
 }
 
-func TestStreamingClientSessionUpdateAgentMessageChunkPreservesInternalWhitespace(t *testing.T) {
+func TestACPClientSessionUpdateAgentMessageChunkPreservesInternalWhitespace(t *testing.T) {
 	// Whitespace inside a chunk is meaningful glue between streamed
 	// deltas — e.g. when an agent emits "Hello" then " world" separately,
 	// the leading space must survive so the assembled message reads
 	// "Hello world". The filter drops only empty chunks; it does not
 	// trim a delta it forwards.
 	rec := httptest.NewRecorder()
-	c := newStreamingClient(context.Background(), rec, "thread-1", "run-1")
+	c := newAGUIRun(context.Background(), rec, "thread-1", "run-1")
 	c.startRun()
 
-	err := c.SessionUpdate(context.Background(), acp.SessionNotification{
+	err := newACPClient(c).SessionUpdate(context.Background(), acp.SessionNotification{
 		Update: acp.SessionUpdate{
 			AgentMessageChunk: &acp.SessionUpdateAgentMessageChunk{Content: acp.TextBlock(" world ")},
 		},
@@ -651,11 +651,11 @@ func TestStreamingClientSessionUpdateAgentMessageChunkPreservesInternalWhitespac
 		"non-blank chunks must be forwarded verbatim, preserving leading/trailing whitespace")
 }
 
-func TestStreamingClientSessionUpdateToolCallEmitsStartAndArgs(t *testing.T) {
+func TestACPClientSessionUpdateToolCallEmitsStartAndArgs(t *testing.T) {
 	rec := httptest.NewRecorder()
-	c := newStreamingClient(context.Background(), rec, "thread-1", "run-1")
+	c := newAGUIRun(context.Background(), rec, "thread-1", "run-1")
 
-	err := c.SessionUpdate(context.Background(), acp.SessionNotification{
+	err := newACPClient(c).SessionUpdate(context.Background(), acp.SessionNotification{
 		Update: acp.SessionUpdate{
 			ToolCall: &acp.SessionUpdateToolCall{
 				ToolCallId: "tool-1",
@@ -687,17 +687,17 @@ func TestStreamingClientSessionUpdateToolCallEmitsStartAndArgs(t *testing.T) {
 		"TOOL_CALL_ARGS.delta must be the JSON-encoded args string")
 }
 
-func TestStreamingClientToolCallClosesTextAndStartsNewMessage(t *testing.T) {
+func TestAGUIRunToolCallClosesTextAndStartsNewMessage(t *testing.T) {
 	tests := []struct {
 		name     string
-		toolCall func(t *testing.T, c *streamingClient)
+		toolCall func(t *testing.T, c *aguiRun)
 		types    []string
 	}{
 		{
 			name: "ACP tool call",
-			toolCall: func(t *testing.T, c *streamingClient) {
+			toolCall: func(t *testing.T, c *aguiRun) {
 				t.Helper()
-				err := c.SessionUpdate(context.Background(), acp.SessionNotification{
+				err := newACPClient(c).SessionUpdate(context.Background(), acp.SessionNotification{
 					Update: acp.SessionUpdate{
 						ToolCall: &acp.SessionUpdateToolCall{
 							ToolCallId: "tool-1",
@@ -718,7 +718,7 @@ func TestStreamingClientToolCallClosesTextAndStartsNewMessage(t *testing.T) {
 		},
 		{
 			name: "UI tool call",
-			toolCall: func(_ *testing.T, c *streamingClient) {
+			toolCall: func(_ *testing.T, c *aguiRun) {
 				c.EmitUIToolCall("tool-1", "navigate", nil)
 			},
 			types: []string{
@@ -733,7 +733,7 @@ func TestStreamingClientToolCallClosesTextAndStartsNewMessage(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			rec := httptest.NewRecorder()
-			c := newStreamingClient(context.Background(), rec, "thread-1", "run-1")
+			c := newAGUIRun(context.Background(), rec, "thread-1", "run-1")
 			c.startRun()
 			sendAgentText(t, c, "before")
 			tt.toolCall(t, c)
@@ -754,9 +754,9 @@ func TestStreamingClientToolCallClosesTextAndStartsNewMessage(t *testing.T) {
 	}
 }
 
-func TestStreamingClientToolCallWithoutOpenTextEmitsNoTextEnd(t *testing.T) {
+func TestAGUIRunToolCallWithoutOpenTextEmitsNoTextEnd(t *testing.T) {
 	rec := httptest.NewRecorder()
-	c := newStreamingClient(context.Background(), rec, "thread-1", "run-1")
+	c := newAGUIRun(context.Background(), rec, "thread-1", "run-1")
 	c.startRun()
 	c.EmitUIToolCall("tool-1", "navigate", nil)
 
@@ -764,14 +764,14 @@ func TestStreamingClientToolCallWithoutOpenTextEmitsNoTextEnd(t *testing.T) {
 		eventTypes(parseSSEEvents(t, rec.Body.String())))
 }
 
-func TestStreamingClientSessionUpdateToolCallStripsUIPrefixForName(t *testing.T) {
+func TestACPClientSessionUpdateToolCallStripsUIPrefixForName(t *testing.T) {
 	rec := httptest.NewRecorder()
-	c := newStreamingClient(context.Background(), rec, "thread-1", "run-1")
+	c := newAGUIRun(context.Background(), rec, "thread-1", "run-1")
 
 	// The agent reports progress under the name the MCP endpoint advertised,
 	// which for a UI tool carries UIToolPrefix. The frontend registered it under
 	// the bare name, so TOOL_CALL_START.toolCallName must be stripped.
-	err := c.SessionUpdate(context.Background(), acp.SessionNotification{
+	err := newACPClient(c).SessionUpdate(context.Background(), acp.SessionNotification{
 		Update: acp.SessionUpdate{
 			ToolCall: &acp.SessionUpdateToolCall{
 				ToolCallId: "tool-2",
@@ -788,12 +788,12 @@ func TestStreamingClientSessionUpdateToolCallStripsUIPrefixForName(t *testing.T)
 		"contextual tool names must have %q stripped before being sent to the frontend", UIToolPrefix)
 }
 
-func TestStreamingClientSessionUpdateToolCallUpdateEmitsResultAndEnd(t *testing.T) {
+func TestACPClientSessionUpdateToolCallUpdateEmitsResultAndEnd(t *testing.T) {
 	rec := httptest.NewRecorder()
-	c := newStreamingClient(context.Background(), rec, "thread-1", "run-1")
+	c := newAGUIRun(context.Background(), rec, "thread-1", "run-1")
 
 	completed := acp.ToolCallStatusCompleted
-	err := c.SessionUpdate(context.Background(), acp.SessionNotification{
+	err := newACPClient(c).SessionUpdate(context.Background(), acp.SessionNotification{
 		Update: acp.SessionUpdate{
 			ToolCallUpdate: &acp.SessionToolCallUpdate{
 				ToolCallId: "tool-1",
@@ -825,14 +825,14 @@ func TestStreamingClientSessionUpdateToolCallUpdateEmitsResultAndEnd(t *testing.
 	assert.Equal(t, "tool-1", events[2]["toolCallId"])
 }
 
-func TestStreamingClientSessionUpdateToolCallUpdateFlattensMCPEnvelope(t *testing.T) {
+func TestACPClientSessionUpdateToolCallUpdateFlattensMCPEnvelope(t *testing.T) {
 	rec := httptest.NewRecorder()
-	c := newStreamingClient(context.Background(), rec, "thread-1", "run-1")
+	c := newAGUIRun(context.Background(), rec, "thread-1", "run-1")
 
 	completed := acp.ToolCallStatusCompleted
 	// Sidecar forwards MCP CallToolResult envelopes verbatim. The handler
 	// must concatenate the text blocks so AG-UI receives content as a string.
-	err := c.SessionUpdate(context.Background(), acp.SessionNotification{
+	err := newACPClient(c).SessionUpdate(context.Background(), acp.SessionNotification{
 		Update: acp.SessionUpdate{
 			ToolCallUpdate: &acp.SessionToolCallUpdate{
 				ToolCallId: "search_traces-1",
@@ -862,12 +862,12 @@ func TestStreamingClientSessionUpdateToolCallUpdateFlattensMCPEnvelope(t *testin
 	assert.Equal(t, "tool", resultEvent["role"])
 }
 
-func TestStreamingClientSessionUpdateToolCallUpdateSkipsEndForInProgress(t *testing.T) {
+func TestACPClientSessionUpdateToolCallUpdateSkipsEndForInProgress(t *testing.T) {
 	rec := httptest.NewRecorder()
-	c := newStreamingClient(context.Background(), rec, "thread-1", "run-1")
+	c := newAGUIRun(context.Background(), rec, "thread-1", "run-1")
 
 	inProgress := acp.ToolCallStatusInProgress
-	err := c.SessionUpdate(context.Background(), acp.SessionNotification{
+	err := newACPClient(c).SessionUpdate(context.Background(), acp.SessionNotification{
 		Update: acp.SessionUpdate{
 			ToolCallUpdate: &acp.SessionToolCallUpdate{
 				ToolCallId: "tool-1",
@@ -881,14 +881,14 @@ func TestStreamingClientSessionUpdateToolCallUpdateSkipsEndForInProgress(t *test
 		"in_progress tool call updates with no content should emit no SSE events")
 }
 
-func TestStreamingClientUtilityMethods(t *testing.T) {
+func TestAGUIRunUtilityMethods(t *testing.T) {
 	assert.Equal(t, "unknown", valueOrUnknown(nil))
 	status := acp.ToolCallStatusInProgress
 	assert.Equal(t, "in_progress", valueOrUnknown(&status))
 }
 
-func TestStreamingClientUnsupportedOperationsReturnError(t *testing.T) {
-	c := &streamingClient{}
+func TestACPClientUnsupportedOperationsReturnError(t *testing.T) {
+	c := &acpClient{}
 
 	_, err := c.WriteTextFile(context.Background(), acp.WriteTextFileRequest{})
 	require.ErrorIs(t, err, errNotSupported)
