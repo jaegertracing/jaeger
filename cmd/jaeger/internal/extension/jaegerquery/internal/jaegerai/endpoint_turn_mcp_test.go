@@ -96,7 +96,7 @@ type turnMCPFixture struct {
 	grant     turnGrant
 	closeTurn func()
 	turns     *turnRegistry
-	// mount is the turn-scoped endpoint's own MCP handler, for tests that
+	// handler is the turn-scoped endpoint's own MCP handler, for tests that
 	// observe a session's lifetime behind the route and token checks.
 	handler http.Handler
 }

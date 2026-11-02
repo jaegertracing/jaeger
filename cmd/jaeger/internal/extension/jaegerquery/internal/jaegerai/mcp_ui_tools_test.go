@@ -292,7 +292,7 @@ func TestUIToolsMiddlewareRefusesInitializeForEndedTurn(t *testing.T) {
 	assert.False(t, nextCalled)
 	closeTurn()
 
-	// Without a route id the request came through the shared mount and is not
+	// Without a route id the request came through the shared endpoint and is not
 	// the gateway's to refuse.
 	_, err = handler(context.Background(), methodInitialize, req)
 	require.NoError(t, err)
