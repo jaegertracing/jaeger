@@ -75,10 +75,10 @@ func NewHandler(p HandlerParams) *Handler {
 	h := &Handler{basePath: basePath, chat: chat, chatMiddleware: p.ChatMiddleware}
 	if p.MCP != nil {
 		h.mcp = turnScopedEndpointBuilder{
-			shared:   p.MCP,
-			turns:    turns,
-			basePath: basePath,
-			logger:   p.Logger,
+			baseHandler: p.MCP,
+			turns:       turns,
+			basePath:    basePath,
+			logger:      p.Logger,
 		}.build()
 		// Hand the chat endpoint the endpoint's reachable base URL so each turn
 		// announces it to the sidecar (see chatEndpoint.announceMCP). Setting it only

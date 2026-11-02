@@ -35,7 +35,7 @@ const (
 
 // mcpRouteIDContextKey carries the URL route id from ServeHTTP into the
 // UI-dispatch middleware. ServeHTTP stamps it on the request context before
-// delegating to the streamable handler; the go-sdk propagates the initialize
+// delegating to the MCP handler; the go-sdk propagates the initialize
 // request's context values onto the resulting ServerSession, so every later
 // tools/list and tools/call for that turn can recover the id here.
 type mcpRouteIDContextKey struct{}
@@ -53,13 +53,13 @@ func mcpRouteIDFromContext(ctx context.Context) string {
 // SSE stream. Access is gated to route ids that belong to an active chat turn
 // (present in turnRegistry).
 type turnScopedEndpoint struct {
-	// streamable is the telemetry MCP endpoint's handler, which the query server
-	// built and still owns. Serving it here means both mounts share one *mcp.Server,
-	// so the telemetry tools are registered once and this endpoint closes nothing.
-	streamable http.Handler
-	turns      *turnRegistry
-	basePath   string
-	logger     *zap.Logger
+	// baseHandler is the handler that jaeger-query mounts at /api/ai/mcp/. ServeHTTP
+	// strips the route id from the path and forwards the request to it. jaeger-query
+	// owns the handler and closes it; this endpoint does not.
+	baseHandler http.Handler
+	turns       *turnRegistry
+	basePath    string
+	logger      *zap.Logger
 }
 
 // turnScopedEndpointBuilder collects the endpoint's dependencies. The MCP handler
@@ -67,10 +67,10 @@ type turnScopedEndpoint struct {
 // no chat sidecar involved, so the query server builds it and this endpoint layers
 // the per-turn UI tools onto it.
 type turnScopedEndpointBuilder struct {
-	shared   *mcptools.Handler
-	turns    *turnRegistry
-	basePath string
-	logger   *zap.Logger
+	baseHandler *mcptools.Handler
+	turns       *turnRegistry
+	basePath    string
+	logger      *zap.Logger
 }
 
 // build layers this gateway's per-turn UI tools onto the shared MCP server and
@@ -78,12 +78,12 @@ type turnScopedEndpointBuilder struct {
 // tools per request, keyed by the route id in the request context, so neither a
 // server per turn nor a second server for this mount is needed.
 func (b turnScopedEndpointBuilder) build() *turnScopedEndpoint {
-	b.shared.AddReceivingMiddleware(uiToolsMiddleware(b.turns, b.logger))
+	b.baseHandler.AddReceivingMiddleware(uiToolsMiddleware(b.turns, b.logger))
 	return &turnScopedEndpoint{
-		streamable: b.shared,
-		turns:      b.turns,
-		basePath:   b.basePath,
-		logger:     b.logger,
+		baseHandler: b.baseHandler,
+		turns:       b.turns,
+		basePath:    b.basePath,
+		logger:      b.logger,
 	}
 }
 
@@ -117,5 +117,5 @@ func (h *turnScopedEndpoint) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	rewritten := r.Clone(context.WithValue(r.Context(), mcpRouteIDContextKey{}, mcpRouteID))
 	rewritten.URL.Path = rest
 	rewritten.URL.RawPath = ""
-	h.streamable.ServeHTTP(w, rewritten)
+	h.baseHandler.ServeHTTP(w, rewritten)
 }
