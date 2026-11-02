@@ -211,6 +211,49 @@ testPinnedChartRendersCollectorStartupProbe() {
   assertContains "$resources" "memory: 200Mi"
 }
 
+testPinnedChartRendersCheckoutMemoryHeadroom() {
+  local chart_version
+  local rendered
+  local render_rc
+  local checkout
+  local gomemlimit_count
+  local gomemlimit
+  local resources
+
+  chart_version=$(bash -c \
+    'source "$1"; printf "%s" "$OTEL_DEMO_CHART_VERSION"' \
+    _ "$SCRIPT")
+
+  rendered=$(helm template otel-demo opentelemetry-demo \
+    --repo https://open-telemetry.github.io/opentelemetry-helm-charts \
+    --version "$chart_version" \
+    --namespace otel-demo \
+    --values "$(dirname "$SCRIPT")/otel-demo-values.yaml" \
+    --show-only templates/component.yaml)
+  render_rc=$?
+
+  assertEquals "pinned OTel Demo chart should render" 0 "$render_rc"
+  [[ "$render_rc" -eq 0 ]] || return
+
+  checkout=$(printf '%s\n' "$rendered" | awk '
+    /^---$/ { if (dep && named) printf "%s", doc; doc = ""; dep = 0; named = 0; next }
+    { doc = doc $0 "\n" }
+    /^kind: Deployment$/ { dep = 1 }
+    /^  name: checkout$/ { named = 1 }
+    END { if (dep && named) printf "%s", doc }
+  ')
+  assertContains "$checkout" "kind: Deployment"
+
+  gomemlimit_count=$(printf '%s\n' "$checkout" | grep -c -- '- name: GOMEMLIMIT$' || true)
+  assertEquals "checkout should render exactly one GOMEMLIMIT" 1 "$gomemlimit_count"
+
+  gomemlimit=$(printf '%s\n' "$checkout" | grep -A1 -- '- name: GOMEMLIMIT$' | tail -1)
+  assertContains "$gomemlimit" "48MiB"
+
+  resources=$(printf '%s\n' "$checkout" | grep -A2 '^[[:space:]]*resources:$')
+  assertContains "$resources" "memory: 64Mi"
+}
+
 testPinsCompatibleOpenSearchCharts() {
   output=$(bash -c 'source "$1"; printf "%s|%s" "$OPENSEARCH_CHART_VERSION" "$OPENSEARCH_DASHBOARDS_CHART_VERSION"' _ "$SCRIPT")
   assertEquals "3.7.0|3.7.0" "$output"

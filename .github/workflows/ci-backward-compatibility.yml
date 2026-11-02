@@ -49,7 +49,7 @@ jobs:
         - backend: cassandra
           command: SKIP_APPLY_SCHEMA=true bash scripts/e2e/cassandra.sh 5.x v004 compat
         - backend: clickhouse
-          command: bash scripts/e2e/clickhouse.sh compat
+          command: bash scripts/e2e/clickhouse.sh compat lts-august
     name: ${{ matrix.backend }} (${{ matrix.baseline }})
     steps:
     - name: Harden Runner

@@ -59,6 +59,14 @@ func TestLowering(t *testing.T) {
 			}},
 		},
 		{
+			name:  "reference built elsewhere",
+			built: p.RefOf(&ast.FieldRef{Name: ast.SpanFieldDuration, Level: ast.LevelSpan}).Gt("2s"),
+			want: &ast.Call{Op: ast.OpGt, Args: []ast.Expression{
+				&ast.FieldRef{Name: ast.SpanFieldDuration, Level: ast.LevelSpan},
+				&ast.AnyValue{Value: "2s"},
+			}},
+		},
+		{
 			name:  "regular expression",
 			built: p.Span().Name.Matches("GET|POST"),
 			want: &ast.Call{Op: ast.OpRegex, Args: []ast.Expression{

@@ -31,7 +31,7 @@ type ChatRequest = aguitypes.RunAgentInput
 // events.
 type chatEndpoint struct {
 	Logger *zap.Logger
-	// turns registers each turn's SSE streaming client and UI tools so the
+	// turns registers each turn's AG-UI run and UI tools so the
 	// turn-scoped MCP endpoint can resolve an active turn. Always non-nil (set by
 	// the constructor).
 	turns *turnRegistry
@@ -40,7 +40,7 @@ type chatEndpoint struct {
 	// a reachable address is known, so empty means announce nothing.
 	mcpBaseURL   string
 	sidecarWSURL string
-	// sidecarHeaders are sent on the agent WebSocket handshake; see AIConfig.AgentHeaders.
+	// sidecarHeaders are sent on the agent WebSocket handshake; see Config.AgentHeaders.
 	sidecarHeaders     configopaque.MapList
 	basePath           string
 	maxRequestBodySize int64
@@ -140,16 +140,16 @@ func (h *chatEndpoint) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 	defer adapter.Close()
 
-	clientImpl := newStreamingClient(ctx, w, req.ThreadID, req.RunID)
+	run := newAGUIRun(ctx, w, req.ThreadID, req.RunID)
 
-	// Register this turn's stream and UI tools so the turn-scoped MCP endpoint can
+	// Register this turn's AG-UI run and UI tools so the turn-scoped MCP endpoint can
 	// confirm the turn is active, advertise its UI tools, and dispatch their calls
-	// onto the stream. The registry mints the route id, which we announce to the
+	// onto that run. The registry mints the route id, which we announce to the
 	// sidecar below as the turn's MCP URL, and hands back a closer.
-	mcpRouteID, closeTurn := h.turns.register(clientImpl, rawUITools)
+	mcpRouteID, closeTurn := h.turns.register(run, rawUITools)
 	defer closeTurn()
 
-	acpConn := acp.NewClientSideConnection(clientImpl, adapter, adapter)
+	acpConn := acp.NewClientSideConnection(newACPClient(run), adapter, adapter)
 
 	init, err := acpConn.Initialize(acpCtx, acp.InitializeRequest{
 		ProtocolVersion: acp.ProtocolVersionNumber,
@@ -208,7 +208,7 @@ func (h *chatEndpoint) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "text/event-stream")
 	w.Header().Set("Cache-Control", "no-cache")
 
-	clientImpl.startRun()
+	run.startRun()
 
 	// Prompt blocks until the sidecar completes the ACP turn. The
 	// acp-go-sdk drains pending SessionUpdate notifications before the
@@ -225,9 +225,9 @@ func (h *chatEndpoint) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		Meta:      injectTraceContextIntoMeta(ctx, nil),
 	})
 	if err != nil {
-		clientImpl.failRun(fmt.Sprintf("Error starting prompt: %v", err))
+		run.failRun(fmt.Sprintf("Error starting prompt: %v", err))
 		return
 	}
 
-	clientImpl.finishRun(string(promptResp.StopReason))
+	run.finishRun(string(promptResp.StopReason))
 }
