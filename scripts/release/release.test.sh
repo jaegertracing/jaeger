@@ -197,5 +197,31 @@ testStartContinuesWithoutExistingIssue() {
   assertNotContains "$out" "already exists"
 }
 
+testStartTakesVersionFlagWithoutPrompt() {
+  setup_start_stubs
+  for v in 2.23.0 v2.23.0; do
+    : > "$GH_LOG"
+    out=$(cd "$T" && EXISTING_ISSUE=https://github.com/jaegertracing/jaeger/issues/7757 \
+      bash "$RELEASE_DIR/start.sh" -d -v "$v" </dev/null 2>&1)
+    assertEquals 1 $?
+    assertNotContains "$out" "New version:"
+    assertContains "$out" "Using new version: v2.23.0"
+    assertContains "$out" 'open issue "Prepare Jaeger Release v2.23.0" already exists'
+  done
+}
+
+testStartRejectsInvalidVersionBeforeGh() {
+  setup_start_stubs
+  for v in 2.23 2.23.0-rc1 x.y.z vv2.23.0; do
+    out=$(cd "$T" && bash "$RELEASE_DIR/start.sh" -d -v "$v" </dev/null 2>&1)
+    assertEquals "$v accepted" 1 $?
+    assertContains "$out" "invalid version"
+  done
+  out=$(cd "$T" && bash "$RELEASE_DIR/start.sh" -d <<< "2.23" 2>&1)
+  assertEquals 1 $?
+  assertContains "$out" "invalid version"
+  assertFalse "gh was called" "[ -s '$GH_LOG' ]"
+}
+
 # shellcheck disable=SC1091
 source "${SHUNIT2}/shunit2"

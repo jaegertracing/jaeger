@@ -8,6 +8,12 @@ Run the following command to create a tracking issue with the full checklist:
 bash scripts/release/start.sh
 ```
 
+To skip the version prompt, pass the version with `-v` (`2.14.0` or `v2.14.0`); add `-d` to print the issue body without creating it:
+
+```bash
+bash scripts/release/start.sh -d -v 2.14.0
+```
+
 This script will:
 - Automatically determine the next version number (e.g., v2.14.0)
 - Create a GitHub issue with the complete release checklist

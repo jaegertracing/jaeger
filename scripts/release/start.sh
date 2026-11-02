@@ -7,18 +7,23 @@
 set -euo pipefail
 
 dry_run=false
+user_version=""
+usage="Usage: $0 [-d] [-v <version>]"
 
-while getopts "dh" opt; do
+while getopts "dhv:" opt; do
     case "${opt}" in
         d)
             dry_run=true
             ;;
+        v)
+            user_version="${OPTARG#v}"
+            ;;
         h)
-            echo "Usage: $0 [-d]"
+            echo "$usage"
             exit 0
             ;;
         *)
-            echo "Usage: $0 [-d]"
+            echo "$usage"
             exit 1
             ;;
     esac
@@ -37,7 +42,14 @@ minor=$((minor + 1))
 patch=0
 suggested_version="${major}.${minor}.${patch}"
 echo "Current version: ${current_version}"
-read -r -e -p "New version: v" -i "${suggested_version}" user_version
+if [ -z "$user_version" ]; then
+  read -r -e -p "New version: v" -i "${suggested_version}" user_version
+fi
+
+if [[ ! "$user_version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+  echo "Error: invalid version \"${user_version}\", expected X.Y.Z or vX.Y.Z (e.g. 2.23.0)."
+  exit 1
+fi
 
 new_version="v${user_version}"
 echo "Using new version: ${new_version}"
