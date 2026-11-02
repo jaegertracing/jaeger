@@ -17,12 +17,14 @@ flowchart TB
 
     subgraph jaeger["Jaeger Query"]
         CHAT["POST /api/ai/chat<br>chatEndpoint"]
-        SC["streamingClient<br>(ACP notifications → AG-UI SSE)"]
+        ACPC["acpClient<br>(ACP callbacks)"]
+        SC["aguiRun<br>(AG-UI SSE events)"]
         WS["WsReadWriteCloser<br>(WebSocket adapter)"]
         TURNS["turnRegistry<br>(per-turn UI tools + SSE stream)"]
         MCP["/api/ai/mcp/&lt;route-id&gt;/<br>turn-scoped MCP endpoint"]
         SHARED["/api/ai/mcp/<br>shared MCP endpoint"]
-        CHAT --> SC
+        CHAT --> ACPC
+        ACPC --> SC
         CHAT --> WS
         CHAT -- "register turn" --> TURNS
         MCP -- "resolve turn" --> TURNS
@@ -53,17 +55,32 @@ The chat endpoint is registered at `POST /api/ai/chat` only when
 (`messages`, `tools`, `context`, `threadId`, `runId`), establishes the ACP
 WebSocket connection, runs the ACP session lifecycle, and streams AG-UI events
 back to the browser. It passes the request's `threadId` and `runId` to the
-`streamingClient` so the SSE events match what the AG-UI client expects.
+`aguiRun` so the SSE events match what the AG-UI client expects.
 
-### streamingClient (`streaming_client.go`)
+### aguiRun (`agui_run.go`)
 
-`streamingClient` implements the ACP `Client` interface for one chat turn and
-writes AG-UI SSE frames into the HTTP response.
+`aguiRun` is the server side of one AG-UI run for one chat turn. It writes the
+run's events as AG-UI SSE frames into the HTTP response. `acpClient` translates
+the agent's output onto it and the turn-scoped MCP endpoint feeds it UI tool calls.
 
 - **Run lifecycle.** `startRun`, `finishRun`, and `failRun` emit `RUN_STARTED`,
   `RUN_FINISHED`, and `RUN_ERROR`. Assistant text is bracketed with
   `TEXT_MESSAGE_START` and `TEXT_MESSAGE_END`; a tool call closes the open
   text message, and text after it starts a new message with a new id.
+- **`EmitUIToolCall`.** Called from the MCP endpoint when the agent invokes a UI
+  tool. Emits `TOOL_CALL_START`, `TOOL_CALL_ARGS`, and `TOOL_CALL_END` under the
+  bare name the browser registered.
+
+A mutex guards its mutable state because `acpClient.SessionUpdate` runs on a
+different goroutine than the one driving `Prompt`, while lifecycle calls come from the
+chat endpoint and UI tool calls from the MCP endpoint.
+
+### acpClient (`agui_run.go`)
+
+`acpClient` implements the ACP `Client` interface for one chat turn. The ACP
+SDK calls it with the agent's notifications and requests, and it drives the
+turn's `aguiRun`.
+
 - **`SessionUpdate`.** Maps ACP `session/update` notifications to AG-UI events:
   `AgentMessageChunk` to `TEXT_MESSAGE_CONTENT`; `ToolCall` to
   `TOOL_CALL_START`, plus `TOOL_CALL_ARGS` when `RawInput` is set;
@@ -73,17 +90,12 @@ writes AG-UI SSE frames into the HTTP response.
   tool calls themselves travel over MCP (below), not over ACP. The tool name in
   a notification is the name the agent was offered, so a UI tool arrives with
   `UIToolPrefix`, which is stripped before the event reaches the browser.
-- **`EmitUIToolCall`.** Called from the MCP endpoint when the agent invokes a UI
-  tool. Emits `TOOL_CALL_START`, `TOOL_CALL_ARGS`, and `TOOL_CALL_END` under the
-  bare name the browser registered.
 - **`RequestPermission`.** Answers `session/request_permission` by selecting the
   first option of kind `allow_once` or `allow_always`, and cancels if the agent
   offers neither. The gateway advertises no filesystem or terminal capability in
   `Initialize`, so a well-behaved agent has nothing else to ask about.
-
-A mutex guards its mutable state because ACP updates may arrive from a
-different goroutine than the one driving `Prompt`, while lifecycle calls come
-from the chat endpoint and UI tool calls from the MCP endpoint.
+- **Filesystem and terminal operations** return an error, because the gateway
+  advertises those capabilities as disabled.
 
 ### WsReadWriteCloser (`ws_adapter.go`)
 
@@ -98,13 +110,14 @@ sends SDK writes as WebSocket text messages.
 sequenceDiagram
     participant UI as Jaeger UI
     participant CHAT as chatEndpoint
-    participant SC as streamingClient
+    participant ACPC as acpClient
+    participant SC as aguiRun
     participant TURNS as turnRegistry
     participant AGENT as ACP agent
     participant MCP as turn-scoped MCP endpoint
 
     UI->>CHAT: POST /api/ai/chat (RunAgentInput)
-    CHAT->>TURNS: register(stream, UI tools) → route id
+    CHAT->>TURNS: register(run, UI tools) → route id
     CHAT->>AGENT: WS connect, Initialize
     AGENT-->>CHAT: InitializeResponse (mcpCapabilities.http)
     CHAT->>AGENT: NewSession {mcpServers: [turn-scoped URL]}
@@ -128,7 +141,8 @@ sequenceDiagram
         end
     and Progress over ACP
         AGENT->>CHAT: session/update (text chunks, tool_call, tool_call_update)
-        CHAT->>SC: SessionUpdate (strip ui__ from tool names)
+        AGENT-->>ACPC: session/update
+        ACPC->>SC: TEXT_MESSAGE_* / TOOL_CALL_* (strip ui__ from tool names)
         SC-->>UI: TEXT_MESSAGE_*, TOOL_CALL_*
     end
 
@@ -205,7 +219,11 @@ extensions:
 ```
 
 `agent_url` is the external agent's WebSocket URL. `agent_headers` are sent on
-every dial and redacted from logs. `mcp.base_url` is the address that the
+every dial and redacted from logs. The headers that the query extension's
+`header_forwarding` list captures from the chat request go onto the same dial,
+so an agent that acts on the caller's behalf receives the caller's own identity
+token rather than a credential of the gateway. Each header arrives under its
+`http_outbound_name`, or its `http_name` when that is unset. `mcp.base_url` is the address that the
 agent can use to call Jaeger's MCP endpoint. When both ends are on the same
 loopback host, the gateway can infer a suitable MCP URL; other deployments
 should configure it explicitly.
@@ -216,7 +234,7 @@ should configure it explicitly.
 - `endpoint_turn_mcp.go` and `turn_registry.go` provide the per-turn MCP
   route and lifecycle.
 - `mcp_ui_tools.go` exposes browser UI tools through MCP under `UIToolPrefix`.
-- `streaming_client.go` translates ACP notifications into AG-UI SSE events.
+- `agui_run.go` holds `aguiRun` and `acpClient`, which turn the agent's output into AG-UI SSE events.
 - `translation.go` holds the AG-UI to ACP helpers, including the prefix strip.
 - `ws_adapter.go` adapts the ACP WebSocket transport.
 - `../mcptools` serves the shared MCP endpoint and the telemetry tools.

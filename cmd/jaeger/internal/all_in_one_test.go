@@ -19,9 +19,9 @@ import (
 	"github.com/gogo/protobuf/jsonpb"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.opentelemetry.io/collector/pdata/ptrace"
 
 	"github.com/jaegertracing/jaeger-idl/proto-gen/api_v2"
-	ui "github.com/jaegertracing/jaeger/internal/uimodel"
 	"github.com/jaegertracing/jaeger/ports"
 )
 
@@ -30,7 +30,7 @@ import (
 const (
 	host = "0.0.0.0"
 
-	getTraceURL            = "/api/traces/"
+	getTraceAPIV3URL       = "/api/v3/traces/"
 	getServicesAPIV3URL    = "/api/v3/services"
 	getSamplingStrategyURL = "/api/sampling?service=whatever"
 )
@@ -41,7 +41,7 @@ var (
 	healthAddr   = fmt.Sprintf("http://%s:%d/status", host, ports.CollectorV2HealthChecks)
 )
 
-var traceID string // stores state exchanged between createTrace and verifyGetTraceAPI
+var traceID string // stores state exchanged between createTrace and verifyGetTraceAPIV3
 
 var httpClient = &http.Client{
 	Timeout: time.Second,
@@ -58,7 +58,7 @@ func TestAllInOne(t *testing.T) {
 	t.Run("healthCheckV2", healthCheckV2)
 	t.Run("checkWebUI", checkWebUI)
 	t.Run("createTrace", createTrace)
-	t.Run("verifyGetTraceAPI", verifyGetTraceAPI)
+	t.Run("verifyGetTraceAPIV3", verifyGetTraceAPIV3)
 	t.Run("verifyGetSamplingStrategyAPI", verifyGetSamplingStrategyAPI)
 	t.Run("verifyGetServicesAPIV3", verifyGetServicesAPIV3)
 }
@@ -149,22 +149,28 @@ func createTrace(t *testing.T) {
 	t.Logf("Created trace %s", traceID)
 }
 
-type response struct {
-	Data []*ui.Trace `json:"data"`
-}
-
-func verifyGetTraceAPI(t *testing.T) {
-	var queryResponse response
+func verifyGetTraceAPIV3(t *testing.T) {
+	var trace ptrace.Traces
 	require.Eventually(t, func() bool {
-		_, body := httpGet(t, queryAddr+getTraceURL+traceID)
-		if err := json.Unmarshal(body, &queryResponse); err != nil {
+		resp, body := httpGet(t, queryAddr+getTraceAPIV3URL+traceID)
+		if resp.StatusCode != http.StatusOK {
 			return false
 		}
-		return len(queryResponse.Data) == 1
+		var wrapper struct {
+			Result json.RawMessage `json:"result"`
+		}
+		if err := json.Unmarshal(body, &wrapper); err != nil {
+			return false
+		}
+		td, err := new(ptrace.JSONUnmarshaler).UnmarshalTraces(wrapper.Result)
+		if err != nil {
+			return false
+		}
+		trace = td
+		return trace.SpanCount() > 0
 	}, 20*time.Second, time.Second, "Trace %s not found", traceID)
 
-	require.Len(t, queryResponse.Data, 1)
-	require.Len(t, queryResponse.Data[0].Spans, 1)
+	require.Equal(t, 1, trace.SpanCount())
 }
 
 func verifyGetSamplingStrategyAPI(t *testing.T) {

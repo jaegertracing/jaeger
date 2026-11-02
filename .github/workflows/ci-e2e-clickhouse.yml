@@ -42,7 +42,7 @@ jobs:
     - uses: ./.github/actions/verify-metrics-snapshot
       if: matrix.storage_test == 'e2e'
       with:
-        snapshot: metrics_snapshot_clickhouse_${{ matrix.clickhouse_version }}
+        snapshot: metrics_snapshot_clickhouse
         artifact_key: metrics_snapshot_clickhouse_${{ matrix.clickhouse_version }}
 
     - name: Upload coverage to codecov
