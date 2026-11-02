@@ -13,18 +13,19 @@
 # With a real OPENROUTER_API_KEY the agent also calls a tool, and the chat
 # output shows the tool call.
 #
-# Usage: [OPENROUTER_API_KEY=...] ./smoke.sh [--local] [extra docker compose args]
+# Usage: [OPENROUTER_API_KEY=...] ./smoke.sh [--release] [extra docker compose args]
 #
-# --local builds cmd/jaeger from this working tree for Linux and runs that binary
-# inside the released image (see docker-compose.local.yml), so the test
-# exercises the checkout instead of a release.
+# By default the script builds cmd/jaeger from this working tree for Linux and
+# runs that binary inside the released image (see docker-compose.local.yml), so
+# the test exercises the checkout. --release runs the released image as is.
 set -euo pipefail
 cd "$(dirname "$0")"
 
 export OPENROUTER_API_KEY="${OPENROUTER_API_KEY:-unset}"
 compose=(docker compose -f docker-compose.yml)
-if [ "${1:-}" = "--local" ]; then
+if [ "${1:-}" = "--release" ]; then
   shift
+else
   build_dir=$(mktemp -d)
   echo "--- building cmd/jaeger for linux into $build_dir"
   CGO_ENABLED=0 GOOS=linux go build -o "$build_dir/jaeger-linux" ../../../cmd/jaeger
