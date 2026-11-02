@@ -15,7 +15,8 @@ Goose and Jaeger's MCP endpoint whose access log prints the headers of every
 proxied request. `run.sh` starts the stack and leaves it up, so the assistant
 can be tried in the Jaeger UI at <http://localhost:16686>, where the AI panel
 appears once Jaeger's health probe reaches Goose. Chatting needs a model
-provider: set `OPENROUTER_API_KEY` as in step 1 before starting.
+provider: set `OPENROUTER_API_KEY`, or `SECRET_RESOLVER_CMD` to fetch it, as
+in step 1 before starting.
 
 ```bash
 ./run.sh              # a Linux build of this working tree, inside the released image
