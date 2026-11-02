@@ -34,26 +34,31 @@ Follow the checklist in the created tracking issue. The high level steps are:
 
 <!-- BEGIN_CHECKLIST -->
 
-1. Create a PR "Prepare release vX.Y.Z" against main or maintenance branch ([example](https://github.com/jaegertracing/jaeger/pull/6826)).
+1. Land the feature gate transitions due in vX.Y.Z before preparing the release.
+  * Review the [feature gate lifecycle tracker](https://github.com/jaegertracing/jaeger/issues/9057), then merge PRs for every gate stage advancement and legacy-ID removal due in vX.Y.Z.
+  * Confirm no gate on main still carries `WithRegisterToVersion("vX.Y.Z")`; nothing checks this automatically.
+2. Create a PR "Prepare release vX.Y.Z" against main or maintenance branch ([example](https://github.com/jaegertracing/jaeger/pull/6826)).
   * **Automated**:
     ```bash
     make prepare-release VERSION=X.Y.Z ISSUE=__RELEASE_ISSUE__
     ```
     * Updates CHANGELOG.md (generates content via `make changelog`)
     * Upgrades jaeger-ui submodule to the corresponding version
-    * Rotates release managers table
+    * Rotates release managers table (only for the X.Y.0 release in its first row)
     * Creates PR with label `changelog:skip`
   * Manual: See [Manual release pull request](https://github.com/jaegertracing/jaeger/blob/main/RELEASE.md#manual-release-pull-request).
-2. After the PR is merged, create a release on Github:
-  * **Automated**:
-    ```bash
-    make draft-release
-    ```
-  * Manual: See [Manual release](https://github.com/jaegertracing/jaeger/blob/main/RELEASE.md#manual-release).
-3. Once the release is created, the [Publish Release workflow](https://github.com/jaegertracing/jaeger/actions/workflows/ci-release.yml) will run to build artifacts.
+3. After the PR is merged, the [Draft release workflow](https://github.com/jaegertracing/jaeger/actions/workflows/ci-release-draft.yml) creates a draft release from the merge commit.
+  * Open the draft on [GitHub Releases](https://github.com/jaegertracing/jaeger/releases), review the notes, and publish it.
+  * If no draft appears (the workflow failed, or the PR targeted a maintenance branch), run `./scripts/release/draft.py --target <merge commit SHA>` instead, or see [Manual release](https://github.com/jaegertracing/jaeger/blob/main/RELEASE.md#manual-release).
+4. Once the release is created, the [Publish Release workflow](https://github.com/jaegertracing/jaeger/actions/workflows/ci-release.yml) will run to build artifacts.
   * Wait for the workflow to finish. For monitoring and troubleshooting, open the logs of the workflow run from above URL.
   * Check the images are available on [Docker Hub](https://hub.docker.com/r/jaegertracing/) and binaries are uploaded [to the release](https://github.com/jaegertracing/jaeger/releases).
-4. Review the [feature gate lifecycle tracker](https://github.com/jaegertracing/jaeger/issues/9057) and open follow-up PRs for any gate stage advancements or legacy-ID removals due in the next release.
+  * If the workflow fails:
+    * Failed before uploading anything: use "Re-run failed jobs" on the failed run; it rebuilds the same tag.
+    * The fix is on `main` (workflow or build process): "Run workflow" on `main` with `overwrite=true` (`gh workflow run ci-release.yml --ref main -f dry_run=false -f overwrite=true`). The build then includes the commits after the tag; the run summary lists them.
+    * To build exactly the tag or a specific commit, add `-f ref=vX.Y.Z` (or a full commit SHA).
+    * Code fix, release not announced, and `git log --oneline vX.Y.Z..<upstream-remote>/main` lists only the fix: move the tag (`git tag -f vX.Y.Z <fix-sha> && git push -f <upstream-remote> vX.Y.Z`) and run the workflow with `-f ref=vX.Y.Z` (safe for Go: the module path has no `/v2`).
+    * Anything else: cut a patch release.
 
 <!-- END_CHECKLIST -->
 
@@ -120,9 +125,9 @@ Here are the release managers for future versions with the tentative release dat
 
 | Version | Release Manager | Tentative release date    |
 |---------|-----------------|---------------------------|
-| 2.22.0  | @mahadzaryab1   | 7 October 2026            |
 | 2.23.0  | @albertteoh     | 4 November 2026           |
 | 2.24.0  | @pavolloffay    | 2 December 2026           |
 | 2.25.0  | @joe-elliott    | 6 January 2027            |
 | 2.26.0  | @yurishkuro     | 3 February 2027           |
 | 2.27.0  | @jkowall        | 3 March 2027              |
+| 2.28.0  | @mahadzaryab1   | 7 April 2027              |

@@ -46,8 +46,8 @@ func (ss *SamplingStore) InsertThroughput(throughput []*model.Throughput) error 
 
 // GetThroughput implements samplingstore.Store#GetThroughput.
 func (ss *SamplingStore) GetThroughput(start, end time.Time) ([]*model.Throughput, error) {
-	ss.mu.Lock()
-	defer ss.mu.Unlock()
+	ss.mu.RLock()
+	defer ss.mu.RUnlock()
 	var retSlice []*model.Throughput
 	for _, t := range ss.throughputs {
 		if t.time.After(start) && (t.time.Before(end) || t.time.Equal(end)) {
@@ -71,8 +71,8 @@ func (ss *SamplingStore) InsertProbabilitiesAndQPS(
 
 // GetLatestProbabilities implements samplingstore.Store#GetLatestProbabilities.
 func (ss *SamplingStore) GetLatestProbabilities() (model.ServiceOperationProbabilities, error) {
-	ss.mu.Lock()
-	defer ss.mu.Unlock()
+	ss.mu.RLock()
+	defer ss.mu.RUnlock()
 	if ss.probabilitiesAndQPS != nil {
 		return ss.probabilitiesAndQPS.probabilities, nil
 	}

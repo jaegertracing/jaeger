@@ -25,7 +25,7 @@
         "date_histogram": {
           "extended_bounds": {
             "max": 1577934245000,
-            "min": 1577930045000
+            "min": 1577930645000
           },
           "field": "startTimeMillis",
           "fixed_interval": "60000ms",
@@ -54,7 +54,7 @@
             "range": {
               "startTimeMillis": {
                 "format": "epoch_millis",
-                "gte": 1577930045000,
+                "gte": 1577930645000,
                 "lte": 1577934245000
               }
             }

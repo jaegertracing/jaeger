@@ -1,0 +1,37 @@
+// Copyright (c) 2026 The Jaeger Authors.
+// SPDX-License-Identifier: Apache-2.0
+
+syntax = "proto3";
+
+package jaeger.pagetoken.v1;
+
+import "gogoproto/gogo.proto";
+
+option go_package = "pagetoken";
+
+// The options give the generated type the Marshal/Unmarshal/Size methods that
+// tracestore.PageToken calls to turn a token into the string a client receives.
+option (gogoproto.marshaler_all) = true;
+option (gogoproto.unmarshaler_all) = true;
+option (gogoproto.sizer_all) = true;
+
+// PageToken is the continuation token a paginating storage reader returns
+// with a page and receives back on the next request (RFC 0014 §3.1). The query
+// service passes it through unchanged. It travels as the URL-safe base64
+// encoding of this message, with no padding. It is not signed: it guards a
+// client against resuming the wrong query by mistake, not against a client
+// that forges one.
+message PageToken {
+  // version says how the fingerprint and cursor are to be read. A token whose
+  // version the reader does not know is refused.
+  uint32 version = 1;
+
+  // fingerprint binds the token to the query it was built for; the reader
+  // refuses the token against any other query (RFC 0014 §3.2).
+  bytes fingerprint = 2;
+
+  // cursor is the storage reader's own position in the result, in whatever
+  // form that reader resumes from. It is opaque here: the reader that built
+  // it is the only one that interprets it.
+  bytes cursor = 3;
+}

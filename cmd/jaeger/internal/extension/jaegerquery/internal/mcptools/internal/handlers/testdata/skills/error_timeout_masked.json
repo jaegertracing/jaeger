@@ -1,0 +1,2505 @@
+{
+  "resourceSpans": [
+    {
+      "resource": {
+        "attributes": [
+          {
+            "key": "host.arch",
+            "value": {
+              "stringValue": "amd64"
+            }
+          },
+          {
+            "key": "host.cpu.cache.l2.size",
+            "value": {
+              "intValue": "512"
+            }
+          },
+          {
+            "key": "host.cpu.family",
+            "value": {
+              "stringValue": "23"
+            }
+          },
+          {
+            "key": "host.cpu.model.id",
+            "value": {
+              "stringValue": "96"
+            }
+          },
+          {
+            "key": "host.cpu.model.name",
+            "value": {
+              "stringValue": "AMD Ryzen 5 4600H with Radeon Graphics"
+            }
+          },
+          {
+            "key": "host.cpu.stepping",
+            "value": {
+              "stringValue": "1"
+            }
+          },
+          {
+            "key": "host.cpu.vendor.id",
+            "value": {
+              "stringValue": "AuthenticAMD"
+            }
+          },
+          {
+            "key": "host.name",
+            "value": {
+              "stringValue": "SoumyaRaikwar"
+            }
+          },
+          {
+            "key": "os.description",
+            "value": {
+              "stringValue": "Linux 38991e2a83d7 7.0.0-28-generic #28~24.04.1-Ubuntu SMP PREEMPT_DYNAMIC Wed Jul  1 15:50:57 UTC 2 x86_64"
+            }
+          },
+          {
+            "key": "os.type",
+            "value": {
+              "stringValue": "linux"
+            }
+          },
+          {
+            "key": "service.criticality",
+            "value": {
+              "stringValue": "critical"
+            }
+          },
+          {
+            "key": "service.name",
+            "value": {
+              "stringValue": "frontend-proxy"
+            }
+          },
+          {
+            "key": "service.namespace",
+            "value": {
+              "stringValue": "opentelemetry-demo"
+            }
+          },
+          {
+            "key": "service.version",
+            "value": {
+              "stringValue": "3.0.0"
+            }
+          },
+          {
+            "key": "telemetry.sdk.language",
+            "value": {
+              "stringValue": "cpp"
+            }
+          },
+          {
+            "key": "telemetry.sdk.name",
+            "value": {
+              "stringValue": "envoy"
+            }
+          },
+          {
+            "key": "telemetry.sdk.version",
+            "value": {
+              "stringValue": "9aed67d36497690a0d0dc65305ab823927441b77/1.39.0/Clean/RELEASE/BoringSSL"
+            }
+          }
+        ]
+      },
+      "scopeSpans": [
+        {
+          "spans": [
+            {
+              "traceId": "3e241b731fcf87976a3d50f5a7cc4d94",
+              "spanId": "8098b17b3047cba7",
+              "parentSpanId": "d4cd047e8243e430",
+              "name": "GET",
+              "kind": 2,
+              "startTimeUnixNano": "1786060425528391000",
+              "endTimeUnixNano": "1786060425566425000",
+              "attributes": [
+                {
+                  "key": "component",
+                  "value": {
+                    "stringValue": "proxy"
+                  }
+                },
+                {
+                  "key": "downstream_cluster",
+                  "value": {
+                    "stringValue": "-"
+                  }
+                },
+                {
+                  "key": "guid:x-request-id",
+                  "value": {
+                    "stringValue": "987c31de-1955-948d-b3d4-4517680b258c"
+                  }
+                },
+                {
+                  "key": "http.method",
+                  "value": {
+                    "stringValue": "GET"
+                  }
+                },
+                {
+                  "key": "http.protocol",
+                  "value": {
+                    "stringValue": "HTTP/1.1"
+                  }
+                },
+                {
+                  "key": "http.status_code",
+                  "value": {
+                    "stringValue": "200"
+                  }
+                },
+                {
+                  "key": "http.url",
+                  "value": {
+                    "stringValue": "http://frontend-proxy:8080/api/products/9SIQT8TOJO"
+                  }
+                },
+                {
+                  "key": "node_id",
+                  "value": {
+                    "stringValue": ""
+                  }
+                },
+                {
+                  "key": "original_span_name",
+                  "value": {
+                    "stringValue": "ingress"
+                  }
+                },
+                {
+                  "key": "peer.address",
+                  "value": {
+                    "stringValue": "172.30.0.26"
+                  }
+                },
+                {
+                  "key": "request_size",
+                  "value": {
+                    "stringValue": "0"
+                  }
+                },
+                {
+                  "key": "response_flags",
+                  "value": {
+                    "stringValue": "-"
+                  }
+                },
+                {
+                  "key": "response_size",
+                  "value": {
+                    "stringValue": "778"
+                  }
+                },
+                {
+                  "key": "upstream_cluster",
+                  "value": {
+                    "stringValue": "frontend"
+                  }
+                },
+                {
+                  "key": "upstream_cluster.name",
+                  "value": {
+                    "stringValue": "frontend"
+                  }
+                },
+                {
+                  "key": "user_agent",
+                  "value": {
+                    "stringValue": "Grafana k6/2.1.0"
+                  }
+                },
+                {
+                  "key": "zone",
+                  "value": {
+                    "stringValue": ""
+                  }
+                }
+              ],
+              "status": {}
+            },
+            {
+              "traceId": "3e241b731fcf87976a3d50f5a7cc4d94",
+              "spanId": "dc512c12db4bc651",
+              "parentSpanId": "8098b17b3047cba7",
+              "name": "router frontend egress",
+              "kind": 3,
+              "startTimeUnixNano": "1786060425528586000",
+              "endTimeUnixNano": "1786060425566386000",
+              "attributes": [
+                {
+                  "key": "component",
+                  "value": {
+                    "stringValue": "proxy"
+                  }
+                },
+                {
+                  "key": "http.protocol",
+                  "value": {
+                    "stringValue": "HTTP/1.1"
+                  }
+                },
+                {
+                  "key": "http.status_code",
+                  "value": {
+                    "stringValue": "200"
+                  }
+                },
+                {
+                  "key": "peer.address",
+                  "value": {
+                    "stringValue": "172.30.0.24:8080"
+                  }
+                },
+                {
+                  "key": "response_flags",
+                  "value": {
+                    "stringValue": "-"
+                  }
+                },
+                {
+                  "key": "upstream_address",
+                  "value": {
+                    "stringValue": "172.30.0.24:8080"
+                  }
+                },
+                {
+                  "key": "upstream_cluster",
+                  "value": {
+                    "stringValue": "frontend"
+                  }
+                },
+                {
+                  "key": "upstream_cluster.name",
+                  "value": {
+                    "stringValue": "frontend"
+                  }
+                }
+              ],
+              "status": {}
+            },
+            {
+              "traceId": "3e241b731fcf87976a3d50f5a7cc4d94",
+              "spanId": "9b31b701fe7535d8",
+              "parentSpanId": "d4cd047e8243e430",
+              "name": "POST",
+              "kind": 2,
+              "startTimeUnixNano": "1786060425566988000",
+              "endTimeUnixNano": "1786060425573203000",
+              "attributes": [
+                {
+                  "key": "component",
+                  "value": {
+                    "stringValue": "proxy"
+                  }
+                },
+                {
+                  "key": "downstream_cluster",
+                  "value": {
+                    "stringValue": "-"
+                  }
+                },
+                {
+                  "key": "guid:x-request-id",
+                  "value": {
+                    "stringValue": "54bc5071-1b32-9e0c-a045-e78b16f5ecbf"
+                  }
+                },
+                {
+                  "key": "http.method",
+                  "value": {
+                    "stringValue": "POST"
+                  }
+                },
+                {
+                  "key": "http.protocol",
+                  "value": {
+                    "stringValue": "HTTP/1.1"
+                  }
+                },
+                {
+                  "key": "http.status_code",
+                  "value": {
+                    "stringValue": "200"
+                  }
+                },
+                {
+                  "key": "http.url",
+                  "value": {
+                    "stringValue": "http://frontend-proxy:8080/api/cart"
+                  }
+                },
+                {
+                  "key": "node_id",
+                  "value": {
+                    "stringValue": ""
+                  }
+                },
+                {
+                  "key": "original_span_name",
+                  "value": {
+                    "stringValue": "ingress"
+                  }
+                },
+                {
+                  "key": "peer.address",
+                  "value": {
+                    "stringValue": "172.30.0.26"
+                  }
+                },
+                {
+                  "key": "request_size",
+                  "value": {
+                    "stringValue": "96"
+                  }
+                },
+                {
+                  "key": "response_flags",
+                  "value": {
+                    "stringValue": "-"
+                  }
+                },
+                {
+                  "key": "response_size",
+                  "value": {
+                    "stringValue": "99"
+                  }
+                },
+                {
+                  "key": "upstream_cluster",
+                  "value": {
+                    "stringValue": "frontend"
+                  }
+                },
+                {
+                  "key": "upstream_cluster.name",
+                  "value": {
+                    "stringValue": "frontend"
+                  }
+                },
+                {
+                  "key": "user_agent",
+                  "value": {
+                    "stringValue": "Grafana k6/2.1.0"
+                  }
+                },
+                {
+                  "key": "zone",
+                  "value": {
+                    "stringValue": ""
+                  }
+                }
+              ],
+              "status": {}
+            },
+            {
+              "traceId": "3e241b731fcf87976a3d50f5a7cc4d94",
+              "spanId": "70285c4bad5fe3c5",
+              "parentSpanId": "9b31b701fe7535d8",
+              "name": "router frontend egress",
+              "kind": 3,
+              "startTimeUnixNano": "1786060425567118000",
+              "endTimeUnixNano": "1786060425573168000",
+              "attributes": [
+                {
+                  "key": "component",
+                  "value": {
+                    "stringValue": "proxy"
+                  }
+                },
+                {
+                  "key": "http.protocol",
+                  "value": {
+                    "stringValue": "HTTP/1.1"
+                  }
+                },
+                {
+                  "key": "http.status_code",
+                  "value": {
+                    "stringValue": "200"
+                  }
+                },
+                {
+                  "key": "peer.address",
+                  "value": {
+                    "stringValue": "172.30.0.24:8080"
+                  }
+                },
+                {
+                  "key": "response_flags",
+                  "value": {
+                    "stringValue": "-"
+                  }
+                },
+                {
+                  "key": "upstream_address",
+                  "value": {
+                    "stringValue": "172.30.0.24:8080"
+                  }
+                },
+                {
+                  "key": "upstream_cluster",
+                  "value": {
+                    "stringValue": "frontend"
+                  }
+                },
+                {
+                  "key": "upstream_cluster.name",
+                  "value": {
+                    "stringValue": "frontend"
+                  }
+                }
+              ],
+              "status": {}
+            },
+            {
+              "traceId": "3e241b731fcf87976a3d50f5a7cc4d94",
+              "spanId": "247a43490cfe60cd",
+              "parentSpanId": "3e77d7cad1306af6",
+              "name": "POST",
+              "kind": 2,
+              "startTimeUnixNano": "1786060425606622000",
+              "endTimeUnixNano": "1786060440608084000",
+              "attributes": [
+                {
+                  "key": "component",
+                  "value": {
+                    "stringValue": "proxy"
+                  }
+                },
+                {
+                  "key": "downstream_cluster",
+                  "value": {
+                    "stringValue": "-"
+                  }
+                },
+                {
+                  "key": "error",
+                  "value": {
+                    "stringValue": "true"
+                  }
+                },
+                {
+                  "key": "guid:x-request-id",
+                  "value": {
+                    "stringValue": "dccb2e73-5c67-9067-bb4e-c6817c4b7928"
+                  }
+                },
+                {
+                  "key": "http.method",
+                  "value": {
+                    "stringValue": "POST"
+                  }
+                },
+                {
+                  "key": "http.protocol",
+                  "value": {
+                    "stringValue": "HTTP/1.1"
+                  }
+                },
+                {
+                  "key": "http.status_code",
+                  "value": {
+                    "stringValue": "504"
+                  }
+                },
+                {
+                  "key": "http.url",
+                  "value": {
+                    "stringValue": "http://frontend-proxy:8080/api/checkout"
+                  }
+                },
+                {
+                  "key": "node_id",
+                  "value": {
+                    "stringValue": ""
+                  }
+                },
+                {
+                  "key": "original_span_name",
+                  "value": {
+                    "stringValue": "ingress"
+                  }
+                },
+                {
+                  "key": "peer.address",
+                  "value": {
+                    "stringValue": "172.30.0.26"
+                  }
+                },
+                {
+                  "key": "request_size",
+                  "value": {
+                    "stringValue": "379"
+                  }
+                },
+                {
+                  "key": "response_flags",
+                  "value": {
+                    "stringValue": "UT"
+                  }
+                },
+                {
+                  "key": "response_size",
+                  "value": {
+                    "stringValue": "24"
+                  }
+                },
+                {
+                  "key": "upstream_cluster",
+                  "value": {
+                    "stringValue": "frontend"
+                  }
+                },
+                {
+                  "key": "upstream_cluster.name",
+                  "value": {
+                    "stringValue": "frontend"
+                  }
+                },
+                {
+                  "key": "user_agent",
+                  "value": {
+                    "stringValue": "Grafana k6/2.1.0"
+                  }
+                },
+                {
+                  "key": "zone",
+                  "value": {
+                    "stringValue": ""
+                  }
+                }
+              ],
+              "status": {
+                "code": 2
+              }
+            },
+            {
+              "traceId": "3e241b731fcf87976a3d50f5a7cc4d94",
+              "spanId": "fb403de242b50b18",
+              "parentSpanId": "247a43490cfe60cd",
+              "name": "router frontend egress",
+              "kind": 3,
+              "startTimeUnixNano": "1786060425606750000",
+              "endTimeUnixNano": "1786060440607656000",
+              "attributes": [
+                {
+                  "key": "canceled",
+                  "value": {
+                    "stringValue": "true"
+                  }
+                },
+                {
+                  "key": "component",
+                  "value": {
+                    "stringValue": "proxy"
+                  }
+                },
+                {
+                  "key": "error",
+                  "value": {
+                    "stringValue": "true"
+                  }
+                },
+                {
+                  "key": "http.protocol",
+                  "value": {
+                    "stringValue": "HTTP/1.1"
+                  }
+                },
+                {
+                  "key": "http.status_code",
+                  "value": {
+                    "stringValue": "0"
+                  }
+                },
+                {
+                  "key": "peer.address",
+                  "value": {
+                    "stringValue": "172.30.0.24:8080"
+                  }
+                },
+                {
+                  "key": "response_flags",
+                  "value": {
+                    "stringValue": "-"
+                  }
+                },
+                {
+                  "key": "upstream_address",
+                  "value": {
+                    "stringValue": "172.30.0.24:8080"
+                  }
+                },
+                {
+                  "key": "upstream_cluster",
+                  "value": {
+                    "stringValue": "frontend"
+                  }
+                },
+                {
+                  "key": "upstream_cluster.name",
+                  "value": {
+                    "stringValue": "frontend"
+                  }
+                }
+              ],
+              "status": {}
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "resource": {
+        "attributes": [
+          {
+            "key": "container.id",
+            "value": {
+              "stringValue": "9b04f5053a19daa892a0f4c75e7b86af664afca93e4e6e93bb04e4c363d928a0"
+            }
+          },
+          {
+            "key": "host.arch",
+            "value": {
+              "stringValue": "amd64"
+            }
+          },
+          {
+            "key": "host.cpu.cache.l2.size",
+            "value": {
+              "intValue": "512"
+            }
+          },
+          {
+            "key": "host.cpu.family",
+            "value": {
+              "stringValue": "23"
+            }
+          },
+          {
+            "key": "host.cpu.model.id",
+            "value": {
+              "stringValue": "96"
+            }
+          },
+          {
+            "key": "host.cpu.model.name",
+            "value": {
+              "stringValue": "AMD Ryzen 5 4600H with Radeon Graphics"
+            }
+          },
+          {
+            "key": "host.cpu.stepping",
+            "value": {
+              "stringValue": "1"
+            }
+          },
+          {
+            "key": "host.cpu.vendor.id",
+            "value": {
+              "stringValue": "AuthenticAMD"
+            }
+          },
+          {
+            "key": "host.name",
+            "value": {
+              "stringValue": "SoumyaRaikwar"
+            }
+          },
+          {
+            "key": "os.description",
+            "value": {
+              "stringValue": "Linux 38991e2a83d7 7.0.0-28-generic #28~24.04.1-Ubuntu SMP PREEMPT_DYNAMIC Wed Jul  1 15:50:57 UTC 2 x86_64"
+            }
+          },
+          {
+            "key": "os.type",
+            "value": {
+              "stringValue": "linux"
+            }
+          },
+          {
+            "key": "os.version",
+            "value": {
+              "stringValue": "7.0.0-28-generic"
+            }
+          },
+          {
+            "key": "process.command",
+            "value": {
+              "stringValue": "/app/server.js"
+            }
+          },
+          {
+            "key": "process.command_args",
+            "value": {
+              "arrayValue": {
+                "values": [
+                  {
+                    "stringValue": "/nodejs/bin/node"
+                  },
+                  {
+                    "stringValue": "--require=./Instrumentation.js"
+                  },
+                  {
+                    "stringValue": "/app/server.js"
+                  }
+                ]
+              }
+            }
+          },
+          {
+            "key": "process.executable.name",
+            "value": {
+              "stringValue": "/nodejs/bin/node"
+            }
+          },
+          {
+            "key": "process.executable.path",
+            "value": {
+              "stringValue": "/nodejs/bin/node"
+            }
+          },
+          {
+            "key": "process.owner",
+            "value": {
+              "stringValue": "nonroot"
+            }
+          },
+          {
+            "key": "process.pid",
+            "value": {
+              "intValue": "1"
+            }
+          },
+          {
+            "key": "process.runtime.description",
+            "value": {
+              "stringValue": "Node.js"
+            }
+          },
+          {
+            "key": "process.runtime.name",
+            "value": {
+              "stringValue": "nodejs"
+            }
+          },
+          {
+            "key": "process.runtime.version",
+            "value": {
+              "stringValue": "24.19.0"
+            }
+          },
+          {
+            "key": "service.criticality",
+            "value": {
+              "stringValue": "critical"
+            }
+          },
+          {
+            "key": "service.name",
+            "value": {
+              "stringValue": "frontend"
+            }
+          },
+          {
+            "key": "service.namespace",
+            "value": {
+              "stringValue": "opentelemetry-demo"
+            }
+          },
+          {
+            "key": "service.version",
+            "value": {
+              "stringValue": "3.0.0"
+            }
+          },
+          {
+            "key": "telemetry.sdk.language",
+            "value": {
+              "stringValue": "nodejs"
+            }
+          },
+          {
+            "key": "telemetry.sdk.name",
+            "value": {
+              "stringValue": "opentelemetry"
+            }
+          },
+          {
+            "key": "telemetry.sdk.version",
+            "value": {
+              "stringValue": "2.10.0"
+            }
+          }
+        ]
+      },
+      "scopeSpans": [
+        {
+          "spans": [
+            {
+              "traceId": "3e241b731fcf87976a3d50f5a7cc4d94",
+              "spanId": "252303db5f016cf2",
+              "parentSpanId": "dc512c12db4bc651",
+              "flags": 769,
+              "name": "GET /api/products/[productId]/index",
+              "kind": 2,
+              "startTimeUnixNano": "1786060425529000000",
+              "endTimeUnixNano": "1786060425566137902",
+              "attributes": [
+                {
+                  "key": "client.address",
+                  "value": {
+                    "stringValue": "172.30.0.25"
+                  }
+                },
+                {
+                  "key": "http.request.method",
+                  "value": {
+                    "stringValue": "GET"
+                  }
+                },
+                {
+                  "key": "http.response.status_code",
+                  "value": {
+                    "intValue": "200"
+                  }
+                },
+                {
+                  "key": "http.route",
+                  "value": {
+                    "stringValue": "/api/products/[productId]/index"
+                  }
+                },
+                {
+                  "key": "network.peer.address",
+                  "value": {
+                    "stringValue": "172.30.0.25"
+                  }
+                },
+                {
+                  "key": "network.peer.port",
+                  "value": {
+                    "intValue": "44588"
+                  }
+                },
+                {
+                  "key": "network.protocol.version",
+                  "value": {
+                    "stringValue": "1.1"
+                  }
+                },
+                {
+                  "key": "original_span_name",
+                  "value": {
+                    "stringValue": "GET"
+                  }
+                },
+                {
+                  "key": "server.address",
+                  "value": {
+                    "stringValue": "frontend-proxy"
+                  }
+                },
+                {
+                  "key": "server.port",
+                  "value": {
+                    "intValue": "8080"
+                  }
+                },
+                {
+                  "key": "url.path",
+                  "value": {
+                    "stringValue": "/api/products/9SIQT8TOJO"
+                  }
+                },
+                {
+                  "key": "url.scheme",
+                  "value": {
+                    "stringValue": "http"
+                  }
+                },
+                {
+                  "key": "user_agent.original",
+                  "value": {
+                    "stringValue": "Grafana k6/2.1.0"
+                  }
+                }
+              ],
+              "status": {}
+            },
+            {
+              "traceId": "3e241b731fcf87976a3d50f5a7cc4d94",
+              "spanId": "8a6cc5e0a19e94e9",
+              "parentSpanId": "252303db5f016cf2",
+              "flags": 257,
+              "name": "GET /api/products/[productId]/index",
+              "kind": 2,
+              "startTimeUnixNano": "1786060425529000000",
+              "endTimeUnixNano": "1786060425565577500",
+              "attributes": [
+                {
+                  "key": "http.method",
+                  "value": {
+                    "stringValue": "GET"
+                  }
+                },
+                {
+                  "key": "http.route",
+                  "value": {
+                    "stringValue": "/api/products/[productId]/index"
+                  }
+                },
+                {
+                  "key": "http.status_code",
+                  "value": {
+                    "intValue": "200"
+                  }
+                },
+                {
+                  "key": "http.target",
+                  "value": {
+                    "stringValue": "/api/products/9SIQT8TOJO"
+                  }
+                },
+                {
+                  "key": "next.route",
+                  "value": {
+                    "stringValue": "/api/products/[productId]/index"
+                  }
+                },
+                {
+                  "key": "next.rsc",
+                  "value": {
+                    "boolValue": false
+                  }
+                },
+                {
+                  "key": "next.span_name",
+                  "value": {
+                    "stringValue": "GET /api/products/[productId]/index"
+                  }
+                },
+                {
+                  "key": "next.span_type",
+                  "value": {
+                    "stringValue": "BaseServer.handleRequest"
+                  }
+                }
+              ],
+              "status": {}
+            },
+            {
+              "traceId": "3e241b731fcf87976a3d50f5a7cc4d94",
+              "spanId": "5ef1a0eaf182e41d",
+              "parentSpanId": "8a6cc5e0a19e94e9",
+              "flags": 257,
+              "name": "executing api route (pages) /api/products/[productId]/index",
+              "kind": 1,
+              "startTimeUnixNano": "1786060425530000000",
+              "endTimeUnixNano": "1786060425565340785",
+              "attributes": [
+                {
+                  "key": "http.status_code",
+                  "value": {
+                    "intValue": "200"
+                  }
+                },
+                {
+                  "key": "next.span_name",
+                  "value": {
+                    "stringValue": "executing api route (pages) /api/products/[productId]/index"
+                  }
+                },
+                {
+                  "key": "next.span_type",
+                  "value": {
+                    "stringValue": "Node.runHandler"
+                  }
+                }
+              ],
+              "status": {}
+            },
+            {
+              "traceId": "3e241b731fcf87976a3d50f5a7cc4d94",
+              "spanId": "d70b98f0f2365fa9",
+              "parentSpanId": "5ef1a0eaf182e41d",
+              "flags": 257,
+              "name": "oteldemo.ProductCatalogService/GetProduct",
+              "kind": 3,
+              "startTimeUnixNano": "1786060425531000000",
+              "endTimeUnixNano": "1786060425565590049",
+              "attributes": [
+                {
+                  "key": "original_span_name",
+                  "value": {
+                    "stringValue": "grpc.oteldemo.ProductCatalogService/GetProduct"
+                  }
+                },
+                {
+                  "key": "rpc.grpc.status_code",
+                  "value": {
+                    "intValue": "0"
+                  }
+                },
+                {
+                  "key": "rpc.method",
+                  "value": {
+                    "stringValue": "GetProduct"
+                  }
+                },
+                {
+                  "key": "rpc.service",
+                  "value": {
+                    "stringValue": "oteldemo.ProductCatalogService"
+                  }
+                },
+                {
+                  "key": "rpc.system",
+                  "value": {
+                    "stringValue": "grpc"
+                  }
+                },
+                {
+                  "key": "server.address",
+                  "value": {
+                    "stringValue": "product-catalog"
+                  }
+                },
+                {
+                  "key": "server.port",
+                  "value": {
+                    "intValue": "3550"
+                  }
+                }
+              ],
+              "status": {}
+            },
+            {
+              "traceId": "3e241b731fcf87976a3d50f5a7cc4d94",
+              "spanId": "24d75d079d8f5ee9",
+              "parentSpanId": "84af5b43ba47cb99",
+              "flags": 257,
+              "name": "POST /api/cart",
+              "kind": 2,
+              "startTimeUnixNano": "1786060425567000000",
+              "endTimeUnixNano": "1786060425572286330",
+              "attributes": [
+                {
+                  "key": "http.method",
+                  "value": {
+                    "stringValue": "POST"
+                  }
+                },
+                {
+                  "key": "http.route",
+                  "value": {
+                    "stringValue": "/api/cart"
+                  }
+                },
+                {
+                  "key": "http.status_code",
+                  "value": {
+                    "intValue": "200"
+                  }
+                },
+                {
+                  "key": "http.target",
+                  "value": {
+                    "stringValue": "/api/cart"
+                  }
+                },
+                {
+                  "key": "next.route",
+                  "value": {
+                    "stringValue": "/api/cart"
+                  }
+                },
+                {
+                  "key": "next.rsc",
+                  "value": {
+                    "boolValue": false
+                  }
+                },
+                {
+                  "key": "next.span_name",
+                  "value": {
+                    "stringValue": "POST /api/cart"
+                  }
+                },
+                {
+                  "key": "next.span_type",
+                  "value": {
+                    "stringValue": "BaseServer.handleRequest"
+                  }
+                }
+              ],
+              "status": {}
+            },
+            {
+              "traceId": "3e241b731fcf87976a3d50f5a7cc4d94",
+              "spanId": "84af5b43ba47cb99",
+              "parentSpanId": "70285c4bad5fe3c5",
+              "flags": 769,
+              "name": "POST /api/cart",
+              "kind": 2,
+              "startTimeUnixNano": "1786060425567000000",
+              "endTimeUnixNano": "1786060425572575532",
+              "attributes": [
+                {
+                  "key": "client.address",
+                  "value": {
+                    "stringValue": "172.30.0.25"
+                  }
+                },
+                {
+                  "key": "http.request.method",
+                  "value": {
+                    "stringValue": "POST"
+                  }
+                },
+                {
+                  "key": "http.response.status_code",
+                  "value": {
+                    "intValue": "200"
+                  }
+                },
+                {
+                  "key": "http.route",
+                  "value": {
+                    "stringValue": "/api/cart"
+                  }
+                },
+                {
+                  "key": "network.peer.address",
+                  "value": {
+                    "stringValue": "172.30.0.25"
+                  }
+                },
+                {
+                  "key": "network.peer.port",
+                  "value": {
+                    "intValue": "44588"
+                  }
+                },
+                {
+                  "key": "network.protocol.version",
+                  "value": {
+                    "stringValue": "1.1"
+                  }
+                },
+                {
+                  "key": "original_span_name",
+                  "value": {
+                    "stringValue": "POST"
+                  }
+                },
+                {
+                  "key": "server.address",
+                  "value": {
+                    "stringValue": "frontend-proxy"
+                  }
+                },
+                {
+                  "key": "server.port",
+                  "value": {
+                    "intValue": "8080"
+                  }
+                },
+                {
+                  "key": "url.path",
+                  "value": {
+                    "stringValue": "/api/cart"
+                  }
+                },
+                {
+                  "key": "url.scheme",
+                  "value": {
+                    "stringValue": "http"
+                  }
+                },
+                {
+                  "key": "user_agent.original",
+                  "value": {
+                    "stringValue": "Grafana k6/2.1.0"
+                  }
+                }
+              ],
+              "status": {}
+            },
+            {
+              "traceId": "3e241b731fcf87976a3d50f5a7cc4d94",
+              "spanId": "b789381d2419ca1c",
+              "parentSpanId": "24d75d079d8f5ee9",
+              "flags": 257,
+              "name": "executing api route (pages) /api/cart",
+              "kind": 1,
+              "startTimeUnixNano": "1786060425568000000",
+              "endTimeUnixNano": "1786060425572732059",
+              "attributes": [
+                {
+                  "key": "http.status_code",
+                  "value": {
+                    "intValue": "200"
+                  }
+                },
+                {
+                  "key": "next.span_name",
+                  "value": {
+                    "stringValue": "executing api route (pages) /api/cart"
+                  }
+                },
+                {
+                  "key": "next.span_type",
+                  "value": {
+                    "stringValue": "Node.runHandler"
+                  }
+                }
+              ],
+              "status": {}
+            },
+            {
+              "traceId": "3e241b731fcf87976a3d50f5a7cc4d94",
+              "spanId": "95abac0c85c31e68",
+              "parentSpanId": "b789381d2419ca1c",
+              "flags": 257,
+              "name": "oteldemo.CartService/AddItem",
+              "kind": 3,
+              "startTimeUnixNano": "1786060425568000000",
+              "endTimeUnixNano": "1786060425570603889",
+              "attributes": [
+                {
+                  "key": "original_span_name",
+                  "value": {
+                    "stringValue": "grpc.oteldemo.CartService/AddItem"
+                  }
+                },
+                {
+                  "key": "rpc.grpc.status_code",
+                  "value": {
+                    "intValue": "0"
+                  }
+                },
+                {
+                  "key": "rpc.method",
+                  "value": {
+                    "stringValue": "AddItem"
+                  }
+                },
+                {
+                  "key": "rpc.service",
+                  "value": {
+                    "stringValue": "oteldemo.CartService"
+                  }
+                },
+                {
+                  "key": "rpc.system",
+                  "value": {
+                    "stringValue": "grpc"
+                  }
+                },
+                {
+                  "key": "server.address",
+                  "value": {
+                    "stringValue": "cart"
+                  }
+                },
+                {
+                  "key": "server.port",
+                  "value": {
+                    "intValue": "7070"
+                  }
+                }
+              ],
+              "status": {}
+            },
+            {
+              "traceId": "3e241b731fcf87976a3d50f5a7cc4d94",
+              "spanId": "5d3f329aef79e86f",
+              "parentSpanId": "b789381d2419ca1c",
+              "flags": 257,
+              "name": "oteldemo.CartService/GetCart",
+              "kind": 3,
+              "startTimeUnixNano": "1786060425571000000",
+              "endTimeUnixNano": "1786060425572570012",
+              "attributes": [
+                {
+                  "key": "original_span_name",
+                  "value": {
+                    "stringValue": "grpc.oteldemo.CartService/GetCart"
+                  }
+                },
+                {
+                  "key": "rpc.grpc.status_code",
+                  "value": {
+                    "intValue": "0"
+                  }
+                },
+                {
+                  "key": "rpc.method",
+                  "value": {
+                    "stringValue": "GetCart"
+                  }
+                },
+                {
+                  "key": "rpc.service",
+                  "value": {
+                    "stringValue": "oteldemo.CartService"
+                  }
+                },
+                {
+                  "key": "rpc.system",
+                  "value": {
+                    "stringValue": "grpc"
+                  }
+                },
+                {
+                  "key": "server.address",
+                  "value": {
+                    "stringValue": "cart"
+                  }
+                },
+                {
+                  "key": "server.port",
+                  "value": {
+                    "intValue": "7070"
+                  }
+                }
+              ],
+              "status": {}
+            },
+            {
+              "traceId": "3e241b731fcf87976a3d50f5a7cc4d94",
+              "spanId": "909a94f934468e91",
+              "parentSpanId": "fb403de242b50b18",
+              "flags": 769,
+              "name": "POST",
+              "kind": 2,
+              "startTimeUnixNano": "1786060425607000000",
+              "endTimeUnixNano": "1786060440607947152",
+              "attributes": [
+                {
+                  "key": "client.address",
+                  "value": {
+                    "stringValue": "172.30.0.25"
+                  }
+                },
+                {
+                  "key": "http.request.method",
+                  "value": {
+                    "stringValue": "POST"
+                  }
+                },
+                {
+                  "key": "http.response.status_code",
+                  "value": {
+                    "intValue": "200"
+                  }
+                },
+                {
+                  "key": "network.peer.address",
+                  "value": {
+                    "stringValue": "172.30.0.25"
+                  }
+                },
+                {
+                  "key": "network.peer.port",
+                  "value": {
+                    "intValue": "44588"
+                  }
+                },
+                {
+                  "key": "network.protocol.version",
+                  "value": {
+                    "stringValue": "1.1"
+                  }
+                },
+                {
+                  "key": "server.address",
+                  "value": {
+                    "stringValue": "frontend-proxy"
+                  }
+                },
+                {
+                  "key": "server.port",
+                  "value": {
+                    "intValue": "8080"
+                  }
+                },
+                {
+                  "key": "url.path",
+                  "value": {
+                    "stringValue": "/api/checkout"
+                  }
+                },
+                {
+                  "key": "url.scheme",
+                  "value": {
+                    "stringValue": "http"
+                  }
+                },
+                {
+                  "key": "user_agent.original",
+                  "value": {
+                    "stringValue": "Grafana k6/2.1.0"
+                  }
+                }
+              ],
+              "status": {}
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "resource": {
+        "attributes": [
+          {
+            "key": "host.arch",
+            "value": {
+              "stringValue": "amd64"
+            }
+          },
+          {
+            "key": "host.cpu.cache.l2.size",
+            "value": {
+              "intValue": "512"
+            }
+          },
+          {
+            "key": "host.cpu.family",
+            "value": {
+              "stringValue": "23"
+            }
+          },
+          {
+            "key": "host.cpu.model.id",
+            "value": {
+              "stringValue": "96"
+            }
+          },
+          {
+            "key": "host.cpu.model.name",
+            "value": {
+              "stringValue": "AMD Ryzen 5 4600H with Radeon Graphics"
+            }
+          },
+          {
+            "key": "host.cpu.stepping",
+            "value": {
+              "stringValue": "1"
+            }
+          },
+          {
+            "key": "host.cpu.vendor.id",
+            "value": {
+              "stringValue": "AuthenticAMD"
+            }
+          },
+          {
+            "key": "host.name",
+            "value": {
+              "stringValue": "SoumyaRaikwar"
+            }
+          },
+          {
+            "key": "os.description",
+            "value": {
+              "stringValue": "Linux 38991e2a83d7 7.0.0-28-generic #28~24.04.1-Ubuntu SMP PREEMPT_DYNAMIC Wed Jul  1 15:50:57 UTC 2 x86_64"
+            }
+          },
+          {
+            "key": "os.type",
+            "value": {
+              "stringValue": "linux"
+            }
+          },
+          {
+            "key": "process.command_args",
+            "value": {
+              "arrayValue": {
+                "values": [
+                  {
+                    "stringValue": "k6"
+                  },
+                  {
+                    "stringValue": "run"
+                  },
+                  {
+                    "stringValue": "script.js"
+                  },
+                  {
+                    "stringValue": "--out"
+                  },
+                  {
+                    "stringValue": "opentelemetry"
+                  }
+                ]
+              }
+            }
+          },
+          {
+            "key": "process.executable.name",
+            "value": {
+              "stringValue": "k6"
+            }
+          },
+          {
+            "key": "process.executable.path",
+            "value": {
+              "stringValue": "/usr/bin/k6"
+            }
+          },
+          {
+            "key": "process.owner",
+            "value": {
+              "stringValue": "k6"
+            }
+          },
+          {
+            "key": "process.pid",
+            "value": {
+              "intValue": "12"
+            }
+          },
+          {
+            "key": "process.runtime.description",
+            "value": {
+              "stringValue": "go version go1.26.5 linux/amd64"
+            }
+          },
+          {
+            "key": "process.runtime.name",
+            "value": {
+              "stringValue": "go"
+            }
+          },
+          {
+            "key": "process.runtime.version",
+            "value": {
+              "stringValue": "go1.26.5"
+            }
+          },
+          {
+            "key": "service.criticality",
+            "value": {
+              "stringValue": "low"
+            }
+          },
+          {
+            "key": "service.name",
+            "value": {
+              "stringValue": "load-generator"
+            }
+          },
+          {
+            "key": "service.namespace",
+            "value": {
+              "stringValue": "opentelemetry-demo"
+            }
+          },
+          {
+            "key": "service.version",
+            "value": {
+              "stringValue": "3.0.0"
+            }
+          },
+          {
+            "key": "telemetry.sdk.language",
+            "value": {
+              "stringValue": "go"
+            }
+          },
+          {
+            "key": "telemetry.sdk.name",
+            "value": {
+              "stringValue": "opentelemetry"
+            }
+          },
+          {
+            "key": "telemetry.sdk.version",
+            "value": {
+              "stringValue": "1.44.0"
+            }
+          }
+        ]
+      },
+      "scopeSpans": [
+        {
+          "spans": [
+            {
+              "traceId": "3e241b731fcf87976a3d50f5a7cc4d94",
+              "spanId": "3e77d7cad1306af6",
+              "flags": 257,
+              "name": "user_checkout_multi",
+              "kind": 3,
+              "startTimeUnixNano": "1786060425527853051",
+              "endTimeUnixNano": "1786060440608555014",
+              "attributes": [
+                {
+                  "key": "item.count",
+                  "value": {
+                    "intValue": "3"
+                  }
+                },
+                {
+                  "key": "user.id",
+                  "value": {
+                    "stringValue": "a790148b-8331-4730-8b5e-cbc93b41be85"
+                  }
+                }
+              ],
+              "status": {}
+            },
+            {
+              "traceId": "3e241b731fcf87976a3d50f5a7cc4d94",
+              "spanId": "d4cd047e8243e430",
+              "parentSpanId": "3e77d7cad1306af6",
+              "flags": 257,
+              "name": "user_add_to_cart",
+              "kind": 3,
+              "startTimeUnixNano": "1786060425528008499",
+              "endTimeUnixNano": "1786060425573765754",
+              "attributes": [
+                {
+                  "key": "product.id",
+                  "value": {
+                    "stringValue": "9SIQT8TOJO"
+                  }
+                },
+                {
+                  "key": "quantity",
+                  "value": {
+                    "intValue": "1"
+                  }
+                },
+                {
+                  "key": "user.id",
+                  "value": {
+                    "stringValue": "a790148b-8331-4730-8b5e-cbc93b41be85"
+                  }
+                }
+              ],
+              "status": {}
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "resource": {
+        "attributes": [
+          {
+            "key": "container.id",
+            "value": {
+              "stringValue": "645515fcff54ac953efab924063cb76a054e750ddfe8e2f49ff6833bd1f32586"
+            }
+          },
+          {
+            "key": "host.arch",
+            "value": {
+              "stringValue": "amd64"
+            }
+          },
+          {
+            "key": "host.cpu.cache.l2.size",
+            "value": {
+              "intValue": "512"
+            }
+          },
+          {
+            "key": "host.cpu.family",
+            "value": {
+              "stringValue": "23"
+            }
+          },
+          {
+            "key": "host.cpu.model.id",
+            "value": {
+              "stringValue": "96"
+            }
+          },
+          {
+            "key": "host.cpu.model.name",
+            "value": {
+              "stringValue": "AMD Ryzen 5 4600H with Radeon Graphics"
+            }
+          },
+          {
+            "key": "host.cpu.stepping",
+            "value": {
+              "stringValue": "1"
+            }
+          },
+          {
+            "key": "host.cpu.vendor.id",
+            "value": {
+              "stringValue": "AuthenticAMD"
+            }
+          },
+          {
+            "key": "host.name",
+            "value": {
+              "stringValue": "SoumyaRaikwar"
+            }
+          },
+          {
+            "key": "os.description",
+            "value": {
+              "stringValue": "Linux 38991e2a83d7 7.0.0-28-generic #28~24.04.1-Ubuntu SMP PREEMPT_DYNAMIC Wed Jul  1 15:50:57 UTC 2 x86_64"
+            }
+          },
+          {
+            "key": "os.type",
+            "value": {
+              "stringValue": "linux"
+            }
+          },
+          {
+            "key": "service.criticality",
+            "value": {
+              "stringValue": "high"
+            }
+          },
+          {
+            "key": "service.instance.id",
+            "value": {
+              "stringValue": "c7c3a89b-a404-4a72-b139-7f26e9a99611"
+            }
+          },
+          {
+            "key": "service.name",
+            "value": {
+              "stringValue": "cart"
+            }
+          },
+          {
+            "key": "service.namespace",
+            "value": {
+              "stringValue": "opentelemetry-demo"
+            }
+          },
+          {
+            "key": "service.version",
+            "value": {
+              "stringValue": "3.0.0"
+            }
+          },
+          {
+            "key": "telemetry.sdk.language",
+            "value": {
+              "stringValue": "dotnet"
+            }
+          },
+          {
+            "key": "telemetry.sdk.name",
+            "value": {
+              "stringValue": "opentelemetry"
+            }
+          },
+          {
+            "key": "telemetry.sdk.version",
+            "value": {
+              "stringValue": "1.17.0"
+            }
+          }
+        ]
+      },
+      "scopeSpans": [
+        {
+          "spans": [
+            {
+              "traceId": "3e241b731fcf87976a3d50f5a7cc4d94",
+              "spanId": "1f618c1631303634",
+              "parentSpanId": "95abac0c85c31e68",
+              "flags": 769,
+              "name": "POST /oteldemo.CartService/AddItem",
+              "kind": 2,
+              "startTimeUnixNano": "1786060425569257300",
+              "endTimeUnixNano": "1786060425570172200",
+              "attributes": [
+                {
+                  "key": "demo.product.id",
+                  "value": {
+                    "stringValue": "9SIQT8TOJO"
+                  }
+                },
+                {
+                  "key": "demo.product.quantity",
+                  "value": {
+                    "intValue": "1"
+                  }
+                },
+                {
+                  "key": "grpc.method",
+                  "value": {
+                    "stringValue": "/oteldemo.CartService/AddItem"
+                  }
+                },
+                {
+                  "key": "grpc.status_code",
+                  "value": {
+                    "stringValue": "0"
+                  }
+                },
+                {
+                  "key": "http.request.method",
+                  "value": {
+                    "stringValue": "POST"
+                  }
+                },
+                {
+                  "key": "http.response.status_code",
+                  "value": {
+                    "intValue": "200"
+                  }
+                },
+                {
+                  "key": "http.route",
+                  "value": {
+                    "stringValue": "/oteldemo.CartService/AddItem"
+                  }
+                },
+                {
+                  "key": "network.protocol.version",
+                  "value": {
+                    "stringValue": "2"
+                  }
+                },
+                {
+                  "key": "server.address",
+                  "value": {
+                    "stringValue": "cart"
+                  }
+                },
+                {
+                  "key": "server.port",
+                  "value": {
+                    "intValue": "7070"
+                  }
+                },
+                {
+                  "key": "url.path",
+                  "value": {
+                    "stringValue": "/oteldemo.CartService/AddItem"
+                  }
+                },
+                {
+                  "key": "url.scheme",
+                  "value": {
+                    "stringValue": "http"
+                  }
+                },
+                {
+                  "key": "user.id",
+                  "value": {
+                    "stringValue": "a790148b-8331-4730-8b5e-cbc93b41be85"
+                  }
+                },
+                {
+                  "key": "user_agent.original",
+                  "value": {
+                    "stringValue": "grpc-node-js/1.14.4"
+                  }
+                }
+              ],
+              "status": {}
+            },
+            {
+              "traceId": "3e241b731fcf87976a3d50f5a7cc4d94",
+              "spanId": "2743b416bcc31d52",
+              "parentSpanId": "1f618c1631303634",
+              "flags": 257,
+              "name": "valkey-cart:6379",
+              "kind": 3,
+              "startTimeUnixNano": "1786060425569350900",
+              "endTimeUnixNano": "1786060425569624300",
+              "attributes": [
+                {
+                  "key": "db.redis.database_index",
+                  "value": {
+                    "intValue": "0"
+                  }
+                },
+                {
+                  "key": "db.statement",
+                  "value": {
+                    "stringValue": "HGET a790148b-8331-4730-8b5e-cbc93b41be85"
+                  }
+                },
+                {
+                  "key": "db.system",
+                  "value": {
+                    "stringValue": "redis"
+                  }
+                },
+                {
+                  "key": "original_span_name",
+                  "value": {
+                    "stringValue": "HGET"
+                  }
+                },
+                {
+                  "key": "server.address",
+                  "value": {
+                    "stringValue": "valkey-cart"
+                  }
+                },
+                {
+                  "key": "server.port",
+                  "value": {
+                    "intValue": "6379"
+                  }
+                }
+              ],
+              "events": [
+                {
+                  "timeUnixNano": "1786060425569361900",
+                  "name": "Enqueued"
+                },
+                {
+                  "timeUnixNano": "1786060425569623900",
+                  "name": "ResponseReceived"
+                },
+                {
+                  "timeUnixNano": "1786060425569368000",
+                  "name": "Sent"
+                }
+              ],
+              "status": {}
+            },
+            {
+              "traceId": "3e241b731fcf87976a3d50f5a7cc4d94",
+              "spanId": "fe4bc855e53342be",
+              "parentSpanId": "1f618c1631303634",
+              "flags": 257,
+              "name": "valkey-cart:6379",
+              "kind": 3,
+              "startTimeUnixNano": "1786060425569642000",
+              "endTimeUnixNano": "1786060425569836500",
+              "attributes": [
+                {
+                  "key": "db.redis.database_index",
+                  "value": {
+                    "intValue": "0"
+                  }
+                },
+                {
+                  "key": "db.statement",
+                  "value": {
+                    "stringValue": "HMSET a790148b-8331-4730-8b5e-cbc93b41be85"
+                  }
+                },
+                {
+                  "key": "db.system",
+                  "value": {
+                    "stringValue": "redis"
+                  }
+                },
+                {
+                  "key": "original_span_name",
+                  "value": {
+                    "stringValue": "HMSET"
+                  }
+                },
+                {
+                  "key": "server.address",
+                  "value": {
+                    "stringValue": "valkey-cart"
+                  }
+                },
+                {
+                  "key": "server.port",
+                  "value": {
+                    "intValue": "6379"
+                  }
+                }
+              ],
+              "events": [
+                {
+                  "timeUnixNano": "1786060425569646800",
+                  "name": "Enqueued"
+                },
+                {
+                  "timeUnixNano": "1786060425569836100",
+                  "name": "ResponseReceived"
+                },
+                {
+                  "timeUnixNano": "1786060425569653000",
+                  "name": "Sent"
+                }
+              ],
+              "status": {}
+            },
+            {
+              "traceId": "3e241b731fcf87976a3d50f5a7cc4d94",
+              "spanId": "44e9dbeb9efb712d",
+              "parentSpanId": "1f618c1631303634",
+              "flags": 257,
+              "name": "valkey-cart:6379",
+              "kind": 3,
+              "startTimeUnixNano": "1786060425569847500",
+              "endTimeUnixNano": "1786060425570119500",
+              "attributes": [
+                {
+                  "key": "db.redis.database_index",
+                  "value": {
+                    "intValue": "0"
+                  }
+                },
+                {
+                  "key": "db.statement",
+                  "value": {
+                    "stringValue": "EXPIRE a790148b-8331-4730-8b5e-cbc93b41be85"
+                  }
+                },
+                {
+                  "key": "db.system",
+                  "value": {
+                    "stringValue": "redis"
+                  }
+                },
+                {
+                  "key": "original_span_name",
+                  "value": {
+                    "stringValue": "EXPIRE"
+                  }
+                },
+                {
+                  "key": "server.address",
+                  "value": {
+                    "stringValue": "valkey-cart"
+                  }
+                },
+                {
+                  "key": "server.port",
+                  "value": {
+                    "intValue": "6379"
+                  }
+                }
+              ],
+              "events": [
+                {
+                  "timeUnixNano": "1786060425569853100",
+                  "name": "Enqueued"
+                },
+                {
+                  "timeUnixNano": "1786060425570119100",
+                  "name": "ResponseReceived"
+                },
+                {
+                  "timeUnixNano": "1786060425569858400",
+                  "name": "Sent"
+                }
+              ],
+              "status": {}
+            },
+            {
+              "traceId": "3e241b731fcf87976a3d50f5a7cc4d94",
+              "spanId": "a29fc85abe5176c8",
+              "parentSpanId": "5d3f329aef79e86f",
+              "flags": 769,
+              "name": "POST /oteldemo.CartService/GetCart",
+              "kind": 2,
+              "startTimeUnixNano": "1786060425571952500",
+              "endTimeUnixNano": "1786060425572370000",
+              "attributes": [
+                {
+                  "key": "demo.cart.items.count",
+                  "value": {
+                    "intValue": "1"
+                  }
+                },
+                {
+                  "key": "grpc.method",
+                  "value": {
+                    "stringValue": "/oteldemo.CartService/GetCart"
+                  }
+                },
+                {
+                  "key": "grpc.status_code",
+                  "value": {
+                    "stringValue": "0"
+                  }
+                },
+                {
+                  "key": "http.request.method",
+                  "value": {
+                    "stringValue": "POST"
+                  }
+                },
+                {
+                  "key": "http.response.status_code",
+                  "value": {
+                    "intValue": "200"
+                  }
+                },
+                {
+                  "key": "http.route",
+                  "value": {
+                    "stringValue": "/oteldemo.CartService/GetCart"
+                  }
+                },
+                {
+                  "key": "network.protocol.version",
+                  "value": {
+                    "stringValue": "2"
+                  }
+                },
+                {
+                  "key": "server.address",
+                  "value": {
+                    "stringValue": "cart"
+                  }
+                },
+                {
+                  "key": "server.port",
+                  "value": {
+                    "intValue": "7070"
+                  }
+                },
+                {
+                  "key": "url.path",
+                  "value": {
+                    "stringValue": "/oteldemo.CartService/GetCart"
+                  }
+                },
+                {
+                  "key": "url.scheme",
+                  "value": {
+                    "stringValue": "http"
+                  }
+                },
+                {
+                  "key": "user.id",
+                  "value": {
+                    "stringValue": "a790148b-8331-4730-8b5e-cbc93b41be85"
+                  }
+                },
+                {
+                  "key": "user_agent.original",
+                  "value": {
+                    "stringValue": "grpc-node-js/1.14.4"
+                  }
+                }
+              ],
+              "events": [
+                {
+                  "timeUnixNano": "1786060425572016500",
+                  "name": "Fetch cart"
+                }
+              ],
+              "status": {}
+            },
+            {
+              "traceId": "3e241b731fcf87976a3d50f5a7cc4d94",
+              "spanId": "bf0eab1da213a619",
+              "parentSpanId": "a29fc85abe5176c8",
+              "flags": 257,
+              "name": "valkey-cart:6379",
+              "kind": 3,
+              "startTimeUnixNano": "1786060425572071700",
+              "endTimeUnixNano": "1786060425572310800",
+              "attributes": [
+                {
+                  "key": "db.redis.database_index",
+                  "value": {
+                    "intValue": "0"
+                  }
+                },
+                {
+                  "key": "db.statement",
+                  "value": {
+                    "stringValue": "HGET a790148b-8331-4730-8b5e-cbc93b41be85"
+                  }
+                },
+                {
+                  "key": "db.system",
+                  "value": {
+                    "stringValue": "redis"
+                  }
+                },
+                {
+                  "key": "original_span_name",
+                  "value": {
+                    "stringValue": "HGET"
+                  }
+                },
+                {
+                  "key": "server.address",
+                  "value": {
+                    "stringValue": "valkey-cart"
+                  }
+                },
+                {
+                  "key": "server.port",
+                  "value": {
+                    "intValue": "6379"
+                  }
+                }
+              ],
+              "events": [
+                {
+                  "timeUnixNano": "1786060425572080200",
+                  "name": "Enqueued"
+                },
+                {
+                  "timeUnixNano": "1786060425572310500",
+                  "name": "ResponseReceived"
+                },
+                {
+                  "timeUnixNano": "1786060425572086500",
+                  "name": "Sent"
+                }
+              ],
+              "status": {}
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "resource": {
+        "attributes": [
+          {
+            "key": "host.arch",
+            "value": {
+              "stringValue": "amd64"
+            }
+          },
+          {
+            "key": "host.cpu.cache.l2.size",
+            "value": {
+              "intValue": "512"
+            }
+          },
+          {
+            "key": "host.cpu.family",
+            "value": {
+              "stringValue": "23"
+            }
+          },
+          {
+            "key": "host.cpu.model.id",
+            "value": {
+              "stringValue": "96"
+            }
+          },
+          {
+            "key": "host.cpu.model.name",
+            "value": {
+              "stringValue": "AMD Ryzen 5 4600H with Radeon Graphics"
+            }
+          },
+          {
+            "key": "host.cpu.stepping",
+            "value": {
+              "stringValue": "1"
+            }
+          },
+          {
+            "key": "host.cpu.vendor.id",
+            "value": {
+              "stringValue": "AuthenticAMD"
+            }
+          },
+          {
+            "key": "host.name",
+            "value": {
+              "stringValue": "SoumyaRaikwar"
+            }
+          },
+          {
+            "key": "os.description",
+            "value": {
+              "stringValue": "Linux 38991e2a83d7 7.0.0-28-generic #28~24.04.1-Ubuntu SMP PREEMPT_DYNAMIC Wed Jul  1 15:50:57 UTC 2 x86_64"
+            }
+          },
+          {
+            "key": "os.type",
+            "value": {
+              "stringValue": "linux"
+            }
+          },
+          {
+            "key": "service.criticality",
+            "value": {
+              "stringValue": "high"
+            }
+          },
+          {
+            "key": "service.name",
+            "value": {
+              "stringValue": "product-catalog"
+            }
+          },
+          {
+            "key": "service.namespace",
+            "value": {
+              "stringValue": "opentelemetry-demo"
+            }
+          },
+          {
+            "key": "service.version",
+            "value": {
+              "stringValue": "3.0.0"
+            }
+          }
+        ]
+      },
+      "scopeSpans": [
+        {
+          "spans": [
+            {
+              "traceId": "3e241b731fcf87976a3d50f5a7cc4d94",
+              "spanId": "ae2f5902cdf8d312",
+              "parentSpanId": "d70b98f0f2365fa9",
+              "flags": 769,
+              "name": "oteldemo.ProductCatalogService/GetProduct",
+              "kind": 2,
+              "startTimeUnixNano": "1786060425552404303",
+              "endTimeUnixNano": "1786060425565297349",
+              "attributes": [
+                {
+                  "key": "demo.product.id",
+                  "value": {
+                    "stringValue": "9SIQT8TOJO"
+                  }
+                },
+                {
+                  "key": "demo.product.name",
+                  "value": {
+                    "stringValue": "Optical Tube Assembly"
+                  }
+                },
+                {
+                  "key": "rpc.method",
+                  "value": {
+                    "stringValue": "oteldemo.ProductCatalogService/GetProduct"
+                  }
+                },
+                {
+                  "key": "rpc.response.status_code",
+                  "value": {
+                    "stringValue": "OK"
+                  }
+                },
+                {
+                  "key": "rpc.system.name",
+                  "value": {
+                    "stringValue": "grpc"
+                  }
+                },
+                {
+                  "key": "server.address",
+                  "value": {
+                    "stringValue": "172.30.0.20"
+                  }
+                },
+                {
+                  "key": "server.port",
+                  "value": {
+                    "intValue": "3550"
+                  }
+                }
+              ],
+              "events": [
+                {
+                  "timeUnixNano": "1786060425564989971",
+                  "name": "Product Found"
+                },
+                {
+                  "timeUnixNano": "1786060425560608623",
+                  "name": "feature_flag.evaluation",
+                  "attributes": [
+                    {
+                      "key": "feature_flag.context.id",
+                      "value": {
+                        "stringValue": ""
+                      }
+                    },
+                    {
+                      "key": "feature_flag.key",
+                      "value": {
+                        "stringValue": "productCatalogFailure"
+                      }
+                    },
+                    {
+                      "key": "feature_flag.provider.name",
+                      "value": {
+                        "stringValue": "flagd"
+                      }
+                    },
+                    {
+                      "key": "feature_flag.result.reason",
+                      "value": {
+                        "stringValue": "targeting_match"
+                      }
+                    },
+                    {
+                      "key": "feature_flag.result.value",
+                      "value": {
+                        "boolValue": false
+                      }
+                    },
+                    {
+                      "key": "feature_flag.result.variant",
+                      "value": {
+                        "stringValue": "off"
+                      }
+                    }
+                  ]
+                }
+              ],
+              "status": {}
+            },
+            {
+              "traceId": "3e241b731fcf87976a3d50f5a7cc4d94",
+              "spanId": "27463993cedb6a6f",
+              "parentSpanId": "ae2f5902cdf8d312",
+              "flags": 257,
+              "name": "astronomy-db",
+              "kind": 3,
+              "startTimeUnixNano": "1786060425561838074",
+              "endTimeUnixNano": "1786060425563715094",
+              "attributes": [
+                {
+                  "key": "db.query.text",
+                  "value": {
+                    "stringValue": "\n\t\tSELECT p.id, p.name, p.description, p.picture, \n\t\t       p.price_currency_code, p.price_units, p.price_nanos, p.categories\n\t\tFROM catalog.products p\n\t\tWHERE p.id = $1\n\t"
+                  }
+                },
+                {
+                  "key": "db.system.name",
+                  "value": {
+                    "stringValue": "postgresql"
+                  }
+                },
+                {
+                  "key": "original_span_name",
+                  "value": {
+                    "stringValue": "sql.conn.query"
+                  }
+                },
+                {
+                  "key": "server.address",
+                  "value": {
+                    "stringValue": "astronomy-db"
+                  }
+                }
+              ],
+              "status": {}
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

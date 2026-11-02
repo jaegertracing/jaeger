@@ -102,3 +102,53 @@ builds, dynamic analysis, and newcomer-task availability.
 This review should be refreshed within five years or sooner after a major
 security-boundary change, such as a new externally reachable service, a new
 storage security model, or a major release-process change.
+
+## Correction (2026-10-11)
+
+The sections above are the 2026-05-17 review record and are unchanged.
+This note records where that record no longer matches the v2 binary.
+It is not a new security review. Tracked by
+[#9822](https://github.com/jaegertracing/jaeger/issues/9822).
+
+The threat model and assurance case were aligned with `cmd/jaeger` on
+this date. Where the May notes name a control, the current tree differs
+as follows:
+
+- **Access control.** The May notes list bearer tokens, OAuth2, and
+  Kerberos as Jaeger authentication mechanisms, and RBAC as authorization.
+  The binary ships `basicauth` (htpasswd) as the server authenticator,
+  referenced from collector `auth.authenticator` on receivers,
+  `jaeger_query` HTTP and gRPC, `remote_sampling` HTTP and gRPC, and
+  `remote_storage` gRPC. Nothing in the default config sets it.
+  `bearer_token_propagation` copies an incoming bearer token onto storage
+  calls. Jaeger does not validate that token. OAuth2, OIDC, Kerberos, and
+  in-process RBAC are not compiled in. A reverse proxy in front of the
+  query port can authenticate callers. That proxy is an operator control,
+  not a Jaeger feature. Kubernetes RBAC does not authorize requests to
+  the query API.
+- **Audit and CSP.** The process does not write an audit log of trace
+  reads. The UI static handler does not send a `Content-Security-Policy`
+  header, and the UI has no CSP meta tag.
+- **Availability.** The May notes list rate limiting and deployment-level
+  quotas as primary mitigations. The embedded pipeline has no request
+  rate limiter and no per-service quota. Its sampling probability is 1.
+  `memory_limiter`, tail sampling, and adaptive sampling are compiled in
+  and are not enabled there. Memory storage is capped by `max_traces`.
+- **TLS.** TLS is not on unless configured. The embedded all-in-one
+  config does not set it. Jaeger Thrift compact and Thrift binary are
+  UDP and cannot use TLS. Certificate pinning is not implemented. When
+  TLS is configured and `min_version` is unset, collector `configtls`
+  uses TLS 1.2 as the minimum.
+- **MCP.** The May boundary table does not include an MCP listener.
+  `/api/ai/mcp/` is enabled in the embedded config (`ai.mcp: {}`) and is
+  mounted on the query HTTP server, which defaults to `:16686` on every
+  interface. It has no authenticator of its own, so it has the same
+  exposure as the query API. The embedded `ai:` block does not set
+  `agent_url`, and unmarshalling keeps the factory default
+  `ws://localhost:16688`, so `/api/ai/chat` and `/api/ai/mcp/<id>/`
+  are mounted too. `agent_url: ""` is what leaves MCP without chat.
+
+The May conclusions about supply-chain controls, vulnerability
+reporting, the absence of hardcoded production secrets, and structured
+ingest formats still match the tree. Those rows were not the subject of
+this correction.

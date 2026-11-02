@@ -516,47 +516,6 @@ func TestGetSpanDetailsHandler_ExceedsLimit(t *testing.T) {
 	assert.Contains(t, err.Error(), "max allowed 2")
 }
 
-func TestParseTraceID(t *testing.T) {
-	tests := []struct {
-		name      string
-		input     string
-		wantError bool
-	}{
-		{
-			name:      "valid trace ID",
-			input:     "00000000000000000000000000000001",
-			wantError: false,
-		},
-		{
-			name:      "invalid trace ID - wrong length",
-			input:     "invalid",
-			wantError: true,
-		},
-		{
-			name:      "invalid trace ID - non-hex characters",
-			input:     "ZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZ",
-			wantError: true,
-		},
-		{
-			name:      "empty trace ID",
-			input:     "",
-			wantError: true,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			result, err := parseTraceID(tt.input)
-			if tt.wantError {
-				require.Error(t, err)
-			} else {
-				require.NoError(t, err)
-				assert.False(t, result.IsEmpty())
-			}
-		})
-	}
-}
-
 func TestGetSpanDetailsHandler_Handle_UppercaseSpanID(t *testing.T) {
 	// An uppercase hex span_id passes hex validation but must still match the
 	// canonical lowercase ID the trace iterator emits, instead of being reported
@@ -617,51 +576,23 @@ func TestGetSpanDetailsHandler_Handle_InvalidSpanID(t *testing.T) {
 
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), `invalid span_id "abc"`)
-	assert.Contains(t, err.Error(), "span ID must be 16 hex characters, got 3")
+	assert.Contains(t, err.Error(), "span ID must be 16 hex characters")
 }
 
 func TestParseSpanID(t *testing.T) {
-	tests := []struct {
-		name      string
-		input     string
-		wantError bool
-	}{
-		{
-			name:      "valid span ID",
-			input:     "0000000000000001",
-			wantError: false,
-		},
-		{
-			name:      "invalid span ID - wrong length",
-			input:     "abc",
-			wantError: true,
-		},
-		{
-			name:      "invalid span ID - non-hex characters",
-			input:     "ZZZZZZZZZZZZZZZZ",
-			wantError: true,
-		},
-		{
-			name:      "empty span ID",
-			input:     "",
-			wantError: true,
-		},
-		{
-			name:      "invalid span ID - all zero",
-			input:     "0000000000000000",
-			wantError: true,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			result, err := parseSpanID(tt.input)
-			if tt.wantError {
-				require.Error(t, err)
-			} else {
-				require.NoError(t, err)
-				assert.False(t, result.IsEmpty())
-			}
-		})
-	}
+	// Hex parsing is covered by jptrace; this test only checks what the
+	// wrapper adds on top of it.
+	t.Run("valid span ID", func(t *testing.T) {
+		result, err := parseSpanID("0000000000000001")
+		require.NoError(t, err)
+		assert.Equal(t, pcommon.SpanID{0, 0, 0, 0, 0, 0, 0, 1}, result)
+	})
+	t.Run("malformed span ID is rejected", func(t *testing.T) {
+		_, err := parseSpanID("abc")
+		require.Error(t, err)
+	})
+	t.Run("all-zero span ID is rejected", func(t *testing.T) {
+		_, err := parseSpanID("0000000000000000")
+		require.EqualError(t, err, "span ID must not be all zero")
+	})
 }

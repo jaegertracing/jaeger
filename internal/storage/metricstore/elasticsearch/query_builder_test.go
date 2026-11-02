@@ -30,10 +30,10 @@ var commonTimeRange = TimeRange{
 // index settings so that tests will catch any mix-up between the two.
 var testIndicesConfig = config.Indices{
 	IndexPrefix: "test-jaeger",
-	Spans: config.IndexOptions{
+	Spans: config.SpanIndexOptions{IndexOptions: config.IndexOptions{
 		DateLayout:        configoptional.Some("2006-01-02"),
 		RolloverFrequency: configoptional.Some("day"),
-	},
+	}},
 	Services: config.IndexOptions{
 		DateLayout:        configoptional.Some("2006-01-02-15"),
 		RolloverFrequency: configoptional.Some("hour"),
@@ -50,9 +50,12 @@ func testSpanRotation() indices.Rotation {
 
 // Test helper functions
 func setupTestQB() *QueryBuilder {
+	indicesCfg := testIndicesConfig
+	indicesCfg.Spans.Tags = config.TagsAsFields{
+		DotReplacement: "_",
+	}
 	return NewQueryBuilder(nil, config.Configuration{
-		Indices: testIndicesConfig,
-		Tags:    config.TagsAsFields{DotReplacement: "_"},
+		Indices: indicesCfg,
 	}, testSpanRotation())
 }
 

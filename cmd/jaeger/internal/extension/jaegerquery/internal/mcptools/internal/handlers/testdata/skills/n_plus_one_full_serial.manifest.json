@@ -1,0 +1,29 @@
+{
+  "fixture": "n-plus-one-full-serial",
+  "skill": "detect-n-plus-one",
+  "pattern_present": true,
+  "label_derived_from": "capture",
+  "source": {
+    "system": "HotROD",
+    "hotrod_build": "jaegertracing/example-hotrod@sha256:69be0c5805c52dd10213cbcf7c846383ae89a8319d5954eadc789cd34e3392e4",
+    "hotrod_flags": "-W 1",
+    "endpoint": "GET /dispatch?customer=123",
+    "captured": "2026-08-19"
+  },
+  "trace_id": "fe65c5beefbe4e96119efbba3da07e99",
+  "untrimmed": true,
+  "expected": {
+    "parent_span_id": "9c3834fb5a6fea99",
+    "service": "frontend",
+    "operation": "HTTP GET",
+    "siblings": 11,
+    "overlapping_pairs": 0,
+    "wall_ms": 1116.6,
+    "sum_of_durations_ms": 871.2
+  },
+  "why_it_is_an_n_plus_one": "Captured with -W 1, so the route-service worker pool is one and the same eleven calls run one after another. Nothing else about the request changed.",
+  "notes": [
+    "Whole trace, 40 spans, nothing removed. Paired with n_plus_one_full_concurrent, which is the same shape at -W 3.",
+    "The pair isolates timing: identical services, identical call graph, identical span count. Only the concurrency differs, so a procedure that decides on repetition alone gets exactly one of the two right."
+  ]
+}

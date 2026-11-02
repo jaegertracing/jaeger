@@ -146,7 +146,7 @@ dev = [
 
 [package.metadata]
 requires-dist = [
-    { name = "grpcio", marker = "extra == 'grpc'", specifier = ">=1.83.0" },
+    { name = "grpcio", marker = "extra == 'grpc'", specifier = ">=1.83.1" },
     { name = "opentelemetry-proto", marker = "extra == 'grpc'", specifier = ">=1.20" },
     { name = "protobuf", marker = "extra == 'grpc'", specifier = ">=7.35.1" },
 ]

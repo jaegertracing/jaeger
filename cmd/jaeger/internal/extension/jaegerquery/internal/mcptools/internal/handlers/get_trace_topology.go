@@ -57,6 +57,7 @@ type rawSpan struct {
 // Once the response is full, only its missing parents and direct children matter.
 type topologyCollector struct {
 	limit       int
+	totalSpans  int
 	spans       []rawSpan
 	retainedIDs map[string]struct{}
 	knownIDs    map[string]struct{}
@@ -74,19 +75,23 @@ func newTopologyCollector(limit int) *topologyCollector {
 }
 
 func (c *topologyCollector) add(pos jptrace.SpanIterPos, span ptrace.Span) {
+	c.totalSpans++
 	if c.limit <= 0 || len(c.spans) < c.limit {
 		s := extractRawSpan(pos, span)
 		c.spans = append(c.spans, s)
-		c.retainedIDs[s.spanID] = struct{}{}
-		c.knownIDs[s.spanID] = struct{}{}
-		if s.parentID != "" {
+		if _, duplicate := c.retainedIDs[s.spanID]; !duplicate && s.parentID != "" {
 			c.childCounts[s.parentID]++
 		}
+		c.retainedIDs[s.spanID] = struct{}{}
+		c.knownIDs[s.spanID] = struct{}{}
 		return
 	}
 
 	c.truncated = true
 	id := span.SpanID().String()
+	if _, duplicate := c.retainedIDs[id]; duplicate {
+		return
+	}
 	// Keys are parents referenced by retained spans, or retained spans with
 	// omitted children. Unrelated IDs never enter either metadata map.
 	if _, needed := c.childCounts[id]; needed {
@@ -138,9 +143,10 @@ func (h *getTraceTopologyHandler) handle(
 	}
 
 	output := types.GetTraceTopologyOutput{
-		TraceID:   input.TraceID,
-		Truncated: collector.truncated || upstreamTruncated,
-		Spans:     h.buildFlatTopology(collector.spans, input.Depth, collector.knownIDs, collector.childCounts, upstreamTruncated),
+		TraceID:        input.TraceID,
+		TotalSpanCount: collector.totalSpans,
+		Truncated:      collector.truncated || upstreamTruncated,
+		Spans:          h.buildFlatTopology(collector.spans, input.Depth, collector.knownIDs, collector.childCounts, upstreamTruncated),
 	}
 
 	return nil, output, nil
@@ -153,7 +159,7 @@ func (*getTraceTopologyHandler) buildQuery(input types.GetTraceTopologyInput) (q
 		return querysvc.GetTraceParams{}, errors.New("trace_id is required")
 	}
 
-	traceID, err := parseTraceID(input.TraceID)
+	traceID, err := jptrace.TraceIDFromString(input.TraceID)
 	if err != nil {
 		return querysvc.GetTraceParams{}, fmt.Errorf("invalid trace_id: %w", err)
 	}
@@ -213,16 +219,20 @@ func (h *getTraceTopologyHandler) buildFlatTopology(
 	upstreamTruncated bool,
 ) []types.TopologySpan {
 	byID := make(map[string]*rawSpan, len(spans))
+	unique := make([]*rawSpan, 0, len(spans))
 	for i := range spans {
+		if _, ok := byID[spans[i].spanID]; ok {
+			continue
+		}
 		byID[spans[i].spanID] = &spans[i]
+		unique = append(unique, &spans[i])
 	}
 
 	// Build parent-child relationships among returned spans; collect forest roots
 	// (true roots, genuine orphans, and spans whose parent was dropped by the cap).
 	childrenOf := make(map[string][]*rawSpan)
 	var roots []*rawSpan
-	for i := range spans {
-		s := &spans[i]
+	for _, s := range unique {
 		if s.parentID != "" && byID[s.parentID] != nil {
 			childrenOf[s.parentID] = append(childrenOf[s.parentID], s)
 		} else {
@@ -235,7 +245,8 @@ func (h *getTraceTopologyHandler) buildFlatTopology(
 		sortByStartNano(childrenOf[k])
 	}
 
-	result := make([]types.TopologySpan, 0, len(spans))
+	result := make([]types.TopologySpan, 0, len(unique))
+	visited := make(map[string]struct{}, len(unique))
 	for _, root := range roots {
 		var rootPath string
 		if root.parentID != "" {
@@ -251,7 +262,7 @@ func (h *getTraceTopologyHandler) buildFlatTopology(
 		} else {
 			rootPath = root.spanID
 		}
-		h.dfs(root, rootPath, 1, maxDepth, childrenOf, childCounts, &result)
+		h.dfs(root, rootPath, 1, maxDepth, childrenOf, childCounts, visited, &result)
 	}
 	return result
 }
@@ -268,11 +279,17 @@ func (h *getTraceTopologyHandler) dfs(
 	maxDepth int,
 	childrenOf map[string][]*rawSpan,
 	childCounts map[string]int,
+	visited map[string]struct{},
 	result *[]types.TopologySpan,
 ) {
 	if maxDepth > 0 && depth > maxDepth {
 		return
 	}
+
+	if _, ok := visited[span.spanID]; ok {
+		return
+	}
+	visited[span.spanID] = struct{}{}
 
 	truncated := 0
 	if maxDepth > 0 && depth >= maxDepth {
@@ -293,7 +310,7 @@ func (h *getTraceTopologyHandler) dfs(
 	// Recurse only for children still in this response and above the depth limit.
 	if maxDepth <= 0 || depth < maxDepth {
 		for _, child := range childrenOf[span.spanID] {
-			h.dfs(child, path+"/"+child.spanID, depth+1, maxDepth, childrenOf, childCounts, result)
+			h.dfs(child, path+"/"+child.spanID, depth+1, maxDepth, childrenOf, childCounts, visited, result)
 		}
 	}
 }

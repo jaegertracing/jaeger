@@ -29,7 +29,11 @@ import (
 
 func TestToUpsertItem(t *testing.T) {
 	indexName := "jaeger-1995-04-21"
-	serviceHash := "de3b5a8f1a79989d"
+	// The Elasticsearch document _id for the service/operation pair below. The
+	// value is pinned because it is persisted: if hashCode changes, existing
+	// indices keep the old ids and every pair is stored a second time.
+	serviceHash := "d82cd4c84f128f01"
+
 	jsonSpan := &dbmodel.Span{
 		OperationName: "operation",
 		Process:       dbmodel.Process{ServiceName: "service"},
@@ -52,6 +56,59 @@ func TestToUpsertItem(t *testing.T) {
 	s.commitToCache(key)
 	_, _, ok = s.toUpsertItem(indexName, jsonSpan)
 	assert.False(t, ok, "must be cached after confirm")
+}
+
+func TestHashCodeSeparatesServiceAndOperation(t *testing.T) {
+	first := dbmodel.Service{ServiceName: "ab", OperationName: "c"}
+	second := dbmodel.Service{ServiceName: "a", OperationName: "bc"}
+	assert.NotEqual(t, hashCode(first), hashCode(second))
+}
+
+func TestServiceOperationBatchKeepsDistinctPairsWithSameConcatenation(t *testing.T) {
+	indexName := "jaeger-1995-04-21"
+	store := NewServiceOperationStorage(nil, zap.NewNop(), time.Hour)
+	batch := newServiceOperationBatch(store)
+
+	firstSpan := &dbmodel.Span{
+		OperationName: "c",
+		Process:       dbmodel.Process{ServiceName: "ab"},
+	}
+	secondSpan := &dbmodel.Span{
+		OperationName: "bc",
+		Process:       dbmodel.Process{ServiceName: "a"},
+	}
+
+	firstItem, ok := batch.toUpsertItem(indexName, firstSpan)
+	require.True(t, ok)
+
+	secondItem, ok := batch.toUpsertItem(indexName, secondSpan)
+	require.True(t, ok)
+
+	assert.NotEqual(t, firstItem.ID, secondItem.ID)
+}
+
+func TestServiceOperationCacheKeepsDistinctPairsWithSameConcatenation(t *testing.T) {
+	indexName := "jaeger-1995-04-21"
+	store := NewServiceOperationStorage(nil, zap.NewNop(), time.Hour)
+
+	firstSpan := &dbmodel.Span{
+		OperationName: "c",
+		Process:       dbmodel.Process{ServiceName: "ab"},
+	}
+	secondSpan := &dbmodel.Span{
+		OperationName: "bc",
+		Process:       dbmodel.Process{ServiceName: "a"},
+	}
+
+	_, firstKey, ok := store.toUpsertItem(indexName, firstSpan)
+	require.True(t, ok)
+	store.commitToCache(firstKey)
+
+	secondItem, secondKey, ok := store.toUpsertItem(indexName, secondSpan)
+	require.True(t, ok)
+
+	assert.NotEqual(t, firstKey, secondKey)
+	assert.Equal(t, secondKey, secondItem.ID)
 }
 
 func TestServiceOperationStorage_ClearCache(t *testing.T) {

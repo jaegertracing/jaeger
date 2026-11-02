@@ -4,6 +4,10 @@
 STORAGE_PKGS = ./internal/storage/integration/...
 JAEGER_V2_STORAGE_PKGS = ./cmd/jaeger/internal/integration
 INTEGRATION_TEST_FLAGS = --format standard-verbose --format-icons hivis
+# The storage integration packages take several minutes under the race detector even on a healthy
+# runner, so go test's default 10-minute limit fails them on a slow one. The limit is raised so a
+# slow runner finishes late rather than failing; a genuinely hung test still stops.
+INTEGRATION_TEST_TIMEOUT ?= 20m
 
 .PHONY: all-in-one-integration-test
 all-in-one-integration-test: $(GOTESTSUM)
@@ -37,7 +41,7 @@ jaeger-v2-storage-integration-test: $(GOTESTSUM) $(GOCOVMERGE)
 	# Expire tests results for jaeger storage integration tests since the environment
 	# might have changed even though the code remains the same.
 	go clean -testcache
-	JAEGER_BINARY_COVERDIR=$(BINARY_COVERDIR) $(GOTESTSUM) $(INTEGRATION_TEST_FLAGS) -- $(RACE) $(EXTRA_TEST_ARGS) -covermode=atomic -coverprofile $(COVEROUT) $(JAEGER_V2_STORAGE_PKGS)
+	JAEGER_BINARY_COVERDIR=$(BINARY_COVERDIR) $(GOTESTSUM) $(INTEGRATION_TEST_FLAGS) -- $(RACE) -timeout $(INTEGRATION_TEST_TIMEOUT) $(EXTRA_TEST_ARGS) -covermode=atomic -coverprofile $(COVEROUT) $(JAEGER_V2_STORAGE_PKGS)
 	# Require both files. The meta file is written when the instrumented binary
 	# starts, the counters only when it exits normally, so an abnormal exit leaves
 	# meta alone. covdata is happy to convert that: it exits 0 and emits a profile
@@ -80,7 +84,7 @@ endif
 	# even though the code remains the same.
 	go clean -testcache
 	mkdir -p $(COVERDIR)
-	$(GOTESTSUM) $(INTEGRATION_TEST_FLAGS) -- $(RACE) -coverpkg=./... -coverprofile $(COVEROUT) $(STORAGE_PKGS)
+	$(GOTESTSUM) $(INTEGRATION_TEST_FLAGS) -- $(RACE) -timeout $(INTEGRATION_TEST_TIMEOUT) -coverpkg=./... -coverprofile $(COVEROUT) $(STORAGE_PKGS)
 
 .PHONY: badger-storage-integration-test
 badger-storage-integration-test:

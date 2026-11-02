@@ -6,6 +6,7 @@ package app
 
 import (
 	"cmp"
+	"net/http"
 	"slices"
 	"testing"
 	"time"
@@ -343,4 +344,36 @@ func TestGetDependenciesLookbackParsingFailure(t *testing.T) {
 	var response structuredResponse
 	err := getJSON(ts.server.URL+"/api/dependencies?endTs=1476374248550&service=testing&lookback=shazbot", &response)
 	require.Error(t, err)
+}
+
+func TestGetDependenciesNonPositiveLookbackRejected(t *testing.T) {
+	for _, lookback := range []string{"0", "-3600000"} {
+		t.Run("lookback="+lookback, func(t *testing.T) {
+			ts := initializeTestServer(t)
+			var response structuredResponse
+			err := getJSON(ts.server.URL+"/api/dependencies?endTs=1476374248550&service=testing&lookback="+lookback, &response)
+			var httpErr *HTTPError
+			require.ErrorAs(t, err, &httpErr)
+			require.Equal(t, http.StatusBadRequest, httpErr.StatusCode)
+		})
+	}
+}
+
+func TestGetDependenciesPositiveLookback(t *testing.T) {
+	ts := initializeTestServer(t)
+	expectedDependencies := []model.DependencyLink{{Parent: "killer", Child: "queen", CallCount: 12}}
+	endTs := time.Unix(0, 1476374248550*millisToNanosMultiplier)
+	ts.dependencyReader.On(
+		"GetDependencies",
+		mock.Anything, // context
+		depstore.QueryParameters{
+			StartTime: endTs.Add(-time.Hour),
+			EndTime:   endTs,
+		},
+	).Return(expectedDependencies, nil).Times(1)
+
+	var response structuredResponse
+	err := getJSON(ts.server.URL+"/api/dependencies?endTs=1476374248550&service=queen&lookback=3600000", &response)
+	require.NoError(t, err)
+	require.NotEmpty(t, response.Data)
 }

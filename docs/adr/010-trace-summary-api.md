@@ -2,7 +2,7 @@
 
 * **Status**: Implemented; graduated from [RFC 0011](../rfc/0011-trace-summary-api.md)
 * **Decided**: 2026-05-21 — delivered across five milestones, [#8604](https://github.com/jaegertracing/jaeger/pull/8604) through [#8812](https://github.com/jaegertracing/jaeger/pull/8812); storage interface reshaped afterwards in [#9067](https://github.com/jaegertracing/jaeger/pull/9067)
-* **Describes the implementation as of**: 2026-07-25
+* **Describes the implementation as of**: 2026-09-22 (native-summaries gate promoted to Stable)
 
 > **Graduation note:** The proposal behind this decision — the motivation, the four alternatives weighed, and the five-milestone plan with its delivery history — lives in [RFC 0011](../rfc/0011-trace-summary-api.md). This ADR describes the summary API as it stands today.
 
@@ -34,7 +34,7 @@ Callers therefore see one behavior regardless of backend: the endpoint always wo
 
 ### Native support, and who has it
 
-Elasticsearch/OpenSearch computes summaries in a single storage-side aggregation, behind the `jaeger.es.nativeTraceSummaries` feature gate — Beta and enabled by default since v2.20.0, and requiring inline Painless scripts on the cluster. When the gate is off, or the cluster rejects scripting, the reader yields `errors.ErrUnsupported` and the query service falls back transparently.
+Elasticsearch/OpenSearch computes summaries in a single storage-side aggregation, requiring inline Painless scripts on the cluster. The `jaeger.es.nativeTraceSummaries` feature gate that introduced it (Beta since v2.20.0) is Stable as of v2.22.0 and can no longer be disabled; the gate ID is removed in v2.24.0. When the cluster rejects scripting, the reader yields `errors.ErrUnsupported` and the query service falls back transparently.
 
 The remote storage gRPC adapter forwards the RPC and translates `codes.Unimplemented` into `errors.ErrUnsupported`. For server-streaming RPCs the server's status arrives on the first `Recv()` rather than at stream open, which the client iterator handles.
 

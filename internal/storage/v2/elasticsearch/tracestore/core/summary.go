@@ -63,7 +63,7 @@ func (s *SpanReader) FindTraceSummaries(
 	// FindTraces-based fallback. The aggregation is sized to the matched trace
 	// count, since phase 2 only aggregates over those traces.
 	const aggName = "trace_summaries"
-	aggregation := s.buildTraceSummariesAggregation(len(traceIDs))
+	aggregation := s.buildTraceSummariesAggregation(uint64(len(traceIDs)))
 	boolQuery := s.buildTraceSummariesByIDsQuery(traceIDs, traceQuery.StartTimeMin, traceQuery.StartTimeMax)
 	jaegerIndices := s.spanRotation.ReadTargets(
 		traceQuery.StartTimeMin.Add(-s.maxTraceDuration),
@@ -149,7 +149,7 @@ func (s *SpanReader) buildTraceSummariesByIDsQuery(traceIDs []dbmodel.TraceID, s
 		Must(startTimeQuery)
 }
 
-func (s *SpanReader) buildTraceSummariesAggregation(numOfTraces int) esquery.Aggregation {
+func (s *SpanReader) buildTraceSummariesAggregation(numOfTraces uint64) esquery.Aggregation {
 	// "error"="true" is the canonical boolean error tag the v2 ES writer emits for
 	// spans with OTEL StatusCode=ERROR (see to_dbmodel.go).
 	errorFilter := s.buildTagQuery("error", "true")

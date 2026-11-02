@@ -9,7 +9,7 @@ package query
 // layer previously produced.
 type TermsAggregation struct {
 	field   string
-	size    int
+	size    uint64
 	order   []map[string]string
 	subAggs map[string]Aggregation
 }
@@ -20,7 +20,7 @@ func NewTermsAggregation(field string) *TermsAggregation {
 }
 
 // Size bounds the number of distinct buckets returned.
-func (a *TermsAggregation) Size(size int) *TermsAggregation {
+func (a *TermsAggregation) Size(size uint64) *TermsAggregation {
 	a.size = size
 	return a
 }

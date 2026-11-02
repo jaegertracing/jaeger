@@ -111,16 +111,16 @@ Backend-specific policy:
 
 Support means backend versions are in scope for proactive compatibility fixes. CI coverage is not the definitive support matrix: it may test only a subset of supported versions and may retain older versions on a best-effort basis. CI coverage alone does not make a backend version supported. Jaeger does not provide support for the backend product itself, vendor-specific distributions, or versions outside the upstream maintenance window.
 
-As of July 6, 2026, this policy means:
+The table below translates the policy into where each backend's versions are defined. The image pins in the per-backend Docker Compose files are what CI tests, and the upstream lifecycle page is what decides which versions the policy covers.
 
-| Backend | Jaeger policy basis | Versions covered by policy | Versions not covered |
-| --- | --- | --- | --- |
-| Elasticsearch | Elastic EOL policy | `9.x`; `8.19.x` until Elastic's published 8.x maintenance window ends | `8.18.x` and earlier |
-| OpenSearch | OpenSearch maintenance policy | `3.x`; `2.x`, with `2.19.x` as the currently maintained 2.x line | `1.x` and earlier |
-| Cassandra | Current major plus previous major, using maintained Apache release lines | `5.0.x`; maintained `4.x` lines, currently `4.1.x` and `4.0.x` | `3.x` and earlier |
-| ClickHouse | Current and previous ClickHouse LTS releases | `26.3 LTS` and `25.8 LTS` | Monthly stable releases and older LTS branches |
+| Backend | Versions covered by policy | Versions tested in CI |
+| --- | --- | --- |
+| Elasticsearch | Per [Elastic's EOL policy](https://www.elastic.co/support/eol) | Pins in [`docker-compose/elasticsearch/`](./docker-compose/elasticsearch/) |
+| OpenSearch | Current and previous major, per the [OpenSearch maintenance policy](https://opensearch.org/releases/) | Pins in [`docker-compose/opensearch/`](./docker-compose/opensearch/) |
+| Cassandra | Current and previous major, per the [maintained Apache release lines](https://cassandra.apache.org/_/download.html) | Pins in [`docker-compose/cassandra/`](./docker-compose/cassandra/) |
+| ClickHouse | Current and previous [LTS release](https://clickhouse.com/docs/faq/operations/production) | Pins in [`docker-compose/clickhouse/`](./docker-compose/clickhouse/) |
 
-This table is informational and should be refreshed when upstream policies or release lines change. Versions listed as not covered may still appear in CI on a best-effort basis; their presence in CI does not extend the support policy.
+Compose files for versions outside the policy may remain on a best-effort basis; their presence in CI does not extend the support policy.
 
 ## Related Repositories
 

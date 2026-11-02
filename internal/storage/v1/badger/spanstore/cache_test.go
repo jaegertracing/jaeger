@@ -53,6 +53,21 @@ func TestExpiredItems(t *testing.T) {
 	})
 }
 
+func TestGetServicesRemovesExpiredOperations(t *testing.T) {
+	runWithBadger(t, func(store *badger.DB, t *testing.T) {
+		cache := NewCacheStore(store, time.Duration(-1*time.Hour))
+
+		expireTime := uint64(time.Now().Add(cache.ttl).Unix())
+		cache.Update("service1", "op1", expireTime)
+
+		services, err := cache.GetServices()
+		require.NoError(t, err)
+		assert.Empty(t, services)
+
+		assert.Empty(t, cache.operations, "GetServices must remove operations for services it expires")
+	})
+}
+
 // func runFactoryTest(tb testing.TB, test func(tb testing.TB, sw spanstore.Writer, sr spanstore.Reader)) {
 func runWithBadger(t *testing.T, test func(store *badger.DB, t *testing.T)) {
 	opts := badger.DefaultOptions("")

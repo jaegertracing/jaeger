@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"io"
 	"math"
+	"time"
 
 	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/config/configgrpc"
@@ -142,6 +143,10 @@ func (f *Factory) initializeConnections(
 		streamInterceptors = append(streamInterceptors, headerforwarding.NewStreamClientInterceptor())
 	}
 
+	if f.config.Timeout > 0 {
+		unaryInterceptors = append(unaryInterceptors, timeoutUnaryClientInterceptor(f.config.Timeout))
+	}
+
 	baseOpts := []grpc.DialOption{
 		grpc.WithChainUnaryInterceptor(unaryInterceptors...),
 		grpc.WithChainStreamInterceptor(streamInterceptors...),
@@ -169,4 +174,22 @@ func (f *Factory) initializeConnections(
 	f.readerConn, f.writerConn = readerConn, writerConn
 
 	return nil
+}
+
+// timeoutUnaryClientInterceptor bounds every unary call by the configured timeout.
+// Streaming calls are not bounded, because their deadline would also cover the time
+// the caller spends consuming the stream.
+func timeoutUnaryClientInterceptor(timeout time.Duration) grpc.UnaryClientInterceptor {
+	return func(
+		ctx context.Context,
+		method string,
+		req, reply any,
+		cc *grpc.ClientConn,
+		invoker grpc.UnaryInvoker,
+		opts ...grpc.CallOption,
+	) error {
+		ctx, cancel := context.WithTimeout(ctx, timeout)
+		defer cancel()
+		return invoker(ctx, method, req, reply, cc, opts...)
+	}
 }

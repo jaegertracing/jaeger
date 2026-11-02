@@ -5,6 +5,7 @@ package writer
 
 import (
 	"encoding/json"
+	"errors"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -15,6 +16,7 @@ import (
 	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger-idl/model/v1"
+	"github.com/jaegertracing/jaeger/cmd/anonymizer/app/uiconv"
 )
 
 var tags = []model.KeyValue{
@@ -165,4 +167,106 @@ func TestWriter_TruncatesExistingFile(t *testing.T) {
 	require.NotContains(t, string(anonymizedData), "extra") // proves no leftover tail
 	// Ensure no partial/corrupted JSON remains
 	require.NoError(t, json.Unmarshal(anonymizedData, &v))
+}
+
+func TestWriter_CloseIdempotent(t *testing.T) {
+	tempDir := t.TempDir()
+	capturedFile := filepath.Join(tempDir, "captured.json")
+	anonymizedFile := filepath.Join(tempDir, "anonymized.json")
+	mappingFile := filepath.Join(tempDir, "mapping.json")
+
+	config := Config{
+		MaxSpansCount:  5,
+		CapturedFile:   capturedFile,
+		AnonymizedFile: anonymizedFile,
+		MappingFile:    mappingFile,
+	}
+
+	w, err := New(config, zap.NewNop())
+	require.NoError(t, err)
+
+	err = w.WriteSpan(span)
+	require.NoError(t, err)
+
+	// Multiple calls to Close() should not error or corrupt files
+	w.Close()
+	w.Close()
+	w.Close()
+
+	var captured []any
+	capturedData, err := os.ReadFile(capturedFile)
+	require.NoError(t, err)
+	require.NoError(t, json.Unmarshal(capturedData, &captured))
+	require.Len(t, captured, 1)
+
+	var anonymized []any
+	anonymizedData, err := os.ReadFile(anonymizedFile)
+	require.NoError(t, err)
+	require.NoError(t, json.Unmarshal(anonymizedData, &anonymized))
+	require.Len(t, anonymized, 1)
+}
+
+func TestWriter_MaxSpansCountAndUIExtraction(t *testing.T) {
+	tempDir := t.TempDir()
+	capturedFile := filepath.Join(tempDir, "captured.json")
+	anonymizedFile := filepath.Join(tempDir, "anonymized.json")
+	mappingFile := filepath.Join(tempDir, "mapping.json")
+	uiFile := filepath.Join(tempDir, "ui.json")
+
+	config := Config{
+		MaxSpansCount:  2,
+		CapturedFile:   capturedFile,
+		AnonymizedFile: anonymizedFile,
+		MappingFile:    mappingFile,
+	}
+
+	w, err := New(config, zap.NewNop())
+	require.NoError(t, err)
+
+	spans := []*model.Span{span, span, span}
+	for _, s := range spans {
+		if err := w.WriteSpan(s); err != nil {
+			if errors.Is(err, ErrMaxSpansCountReached) {
+				break
+			}
+		}
+	}
+	// Calling Close() after loop breaks on ErrMaxSpansCountReached
+	w.Close()
+
+	// Subsequent WriteSpan should return ErrMaxSpansCountReached
+	err = w.WriteSpan(span)
+	require.ErrorIs(t, err, ErrMaxSpansCountReached)
+
+	// Both files must be valid JSON arrays with exactly 2 spans
+	var captured []any
+	capturedData, err := os.ReadFile(capturedFile)
+	require.NoError(t, err)
+	require.NoError(t, json.Unmarshal(capturedData, &captured))
+	require.Len(t, captured, 2)
+
+	var anonymized []any
+	anonymizedData, err := os.ReadFile(anonymizedFile)
+	require.NoError(t, err)
+	require.NoError(t, json.Unmarshal(anonymizedData, &anonymized))
+	require.Len(t, anonymized, 2)
+
+	// UI extraction must succeed on the capped anonymized file
+	err = uiconv.Extract(uiconv.Config{
+		CapturedFile: anonymizedFile,
+		UIFile:       uiFile,
+		TraceID:      traceID.String(),
+	}, zap.NewNop())
+	require.NoError(t, err)
+
+	uiData, err := os.ReadFile(uiFile)
+	require.NoError(t, err)
+	var uiObj struct {
+		Data []struct {
+			Spans []any `json:"spans"`
+		} `json:"data"`
+	}
+	require.NoError(t, json.Unmarshal(uiData, &uiObj))
+	require.Len(t, uiObj.Data, 1)
+	require.Len(t, uiObj.Data[0].Spans, 2)
 }

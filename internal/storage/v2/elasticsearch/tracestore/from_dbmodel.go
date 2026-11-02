@@ -72,11 +72,11 @@ func dbSpansToSpans(dbSpans []dbmodel.Span, resourceSpans ptrace.ResourceSpansSl
 }
 
 func dbSpanToSpan(dbSpan *dbmodel.Span, span ptrace.Span) error {
-	traceId, err := convertTraceIDFromDB(dbSpan.TraceID)
+	traceId, err := dbSpan.TraceID.ToOTEL()
 	if err != nil {
 		return err
 	}
-	spanId, err := fromDbSpanId(dbSpan.SpanID)
+	spanId, err := dbSpan.SpanID.ToOTEL()
 	if err != nil {
 		return err
 	}
@@ -111,7 +111,7 @@ func dbSpanToSpan(dbSpan *dbmodel.Span, span ptrace.Span) error {
 	}
 	dbParentSpanId := getParentSpanId(dbSpan)
 	if dbParentSpanId != "" {
-		parentSpanId, err := fromDbSpanId(dbParentSpanId)
+		parentSpanId, err := dbParentSpanId.ToOTEL()
 		if err != nil {
 			return err
 		}
@@ -340,11 +340,11 @@ func dbSpanRefsToSpanEvents(refs []dbmodel.Reference, excludeParentID dbmodel.Sp
 		}
 
 		link := spanLinks.AppendEmpty()
-		refTraceId, err := convertTraceIDFromDB(ref.TraceID)
+		refTraceId, err := ref.TraceID.ToOTEL()
 		if err != nil {
 			return err
 		}
-		refSpanId, err := fromDbSpanId(ref.SpanID)
+		refSpanId, err := ref.SpanID.ToOTEL()
 		if err != nil {
 			return err
 		}
@@ -374,9 +374,12 @@ func dbSpanToScope(span *dbmodel.Span, scopeSpan ptrace.ScopeSpans) {
 	}
 }
 
+// getAndDeleteTag removes the string tag named key and returns its value. The type check matters
+// because ToDBModel also stores a non-finite double as a string token, and such a tag is an
+// attribute of the span, not scope metadata.
 func getAndDeleteTag(span *dbmodel.Span, key string) (string, bool) {
 	for i := range span.Tags {
-		if span.Tags[i].Key == key {
+		if span.Tags[i].Key == key && span.Tags[i].Type == dbmodel.StringType {
 			if val, ok := span.Tags[i].Value.(string); ok {
 				span.Tags = append(span.Tags[:i], span.Tags[i+1:]...)
 				return val, true
