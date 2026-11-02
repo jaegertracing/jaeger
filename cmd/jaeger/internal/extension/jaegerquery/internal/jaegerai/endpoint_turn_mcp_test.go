@@ -189,12 +189,12 @@ func TestTurnScopedEndpointRunsToolCallsAsTheAnnouncedCaller(t *testing.T) {
 	assert.Equal(t, callerSeen{}, <-calls, "the token alone carries no identity")
 }
 
-// Each tool call runs under the identity of its own HTTP request, and nothing
-// outlives the request: the endpoint keeps no MCP session, so the session id it
-// issued to one caller selects neither that caller's identity nor their turn when
-// another request carries it. A request on turn B with turn B's token and Bob's
-// headers runs as Bob, even when it names the session id Alice's client received
-// on turn A, and so does a request on turn A itself with the right token.
+// Each tool call runs under the identity of its own HTTP request: the session id
+// the endpoint issued to one caller selects neither that caller's identity nor
+// their turn when another request carries it. A request on turn B with turn B's
+// token and Bob's headers runs as Bob, even when it names the session id Alice's
+// client received on turn A, and so does a request on turn A itself with the
+// right token.
 func TestTurnScopedEndpointRunsEachRequestAsItsOwnCaller(t *testing.T) {
 	f, forwarded, calls := identityFixture(t)
 	alice := connectTurnMCPWithHeaders(t, f.ts, routeMCPPrefix+f.grant.routeID+"/", announcedHeaders(t, forwarded, f.grant, "tok-alice", "alice"))

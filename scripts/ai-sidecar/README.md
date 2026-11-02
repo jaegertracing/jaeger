@@ -92,7 +92,8 @@ send every announced header on every request to it, treat the URL and the
 headers as opaque, and not reuse them after the prompt completes. The endpoint
 keeps no MCP session: it serves each request under the headers that request
 carries, and it answers the `GET` that opens a standing event stream with 405,
-which the MCP specification requires a client to accept. A request without the
+which the MCP specification allows; a conforming client continues without the
+stream. A request without the
 token is refused with 401. A request without the identity headers runs as
 nobody, so Jaeger's own access control for the storage then applies to an
 anonymous caller.

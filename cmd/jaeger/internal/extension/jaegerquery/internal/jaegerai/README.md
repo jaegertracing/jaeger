@@ -221,8 +221,10 @@ that opened it, so a session would keep its first identity whatever later
 requests carried, and one session table shared by all turns would let the holder
 of any live turn's token address another turn's session. The stateless handler
 answers the `GET` that opens a standing event stream with 405, as the MCP
-specification allows for a server that sends no messages of its own; the
-gateway's UI tool calls travel in the tool call's own response.
+specification allows for a server that sends no messages of its own, and a
+conforming client continues without the stream. The gateway needs no such
+stream: a UI tool call is dispatched to the browser over the chat request's own
+SSE stream, and the MCP response to the agent carries only the acknowledgement.
 
 The announcement hands the agent the caller's bearer token, which the handshake
 does not carry; the forwarded headers it already receives on the handshake. An
