@@ -62,7 +62,7 @@ func TestValidateExtraDimensions(t *testing.T) {
 	}{
 		{
 			name: "valid single",
-			dims: []metricstore.Dimension{{Name: "deployment.environment"}},
+			dims: []metricstore.Dimension{{Name: "deployment.environment", Values: []string{"prod", "staging"}}},
 		},
 		{
 			name: "valid multiple",
@@ -100,6 +100,32 @@ func TestValidateExtraDimensions(t *testing.T) {
 			},
 			wantErr: "duplicate name",
 		},
+		{
+			name:    "translated names collide",
+			dims:    []metricstore.Dimension{{Name: "k8s.cluster"}, {Name: "k8s_cluster"}},
+			wantErr: "duplicate name",
+		},
+		{
+			name:    "translated names collide in reverse order",
+			dims:    []metricstore.Dimension{{Name: "k8s_cluster"}, {Name: "k8s.cluster"}},
+			wantErr: "duplicate name",
+		},
+		{
+			name:    "empty allowed value",
+			dims:    []metricstore.Dimension{{Name: "environment", Values: []string{"prod", ""}}},
+			wantErr: "empty value",
+		},
+	}
+	for _, spelling := range []string{"service_name", "service.name", "span_kind", "span.kind", "status_code", "status.code", "le", "__name__", "__name.."} {
+		tests = append(tests, struct {
+			name    string
+			dims    []metricstore.Dimension
+			wantErr string
+		}{
+			name:    "reserved " + spelling,
+			dims:    []metricstore.Dimension{{Name: spelling}},
+			wantErr: "reserved",
+		})
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {

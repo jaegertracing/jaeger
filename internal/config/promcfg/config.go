@@ -6,6 +6,7 @@ package promcfg
 import (
 	"fmt"
 	"regexp"
+	"strings"
 	"time"
 
 	"github.com/asaskevich/govalidator"
@@ -59,10 +60,20 @@ func (c *Configuration) Validate() error {
 			return fmt.Errorf("extra_dimensions[%d]: invalid name %q (must match %s)",
 				i, d.Name, dimensionNameRegex.String())
 		}
-		if _, dup := seen[d.Name]; dup {
-			return fmt.Errorf("extra_dimensions[%d]: duplicate name %q", i, d.Name)
+		label := strings.ReplaceAll(d.Name, ".", "_")
+		switch label {
+		case "service_name", "span_kind", "status_code", "le", "__name__":
+			return fmt.Errorf("extra_dimensions[%d]: name %q maps to reserved label %q", i, d.Name, label)
 		}
-		seen[d.Name] = struct{}{}
+		if _, dup := seen[label]; dup {
+			return fmt.Errorf("extra_dimensions[%d]: duplicate name %q after translation to %q", i, d.Name, label)
+		}
+		seen[label] = struct{}{}
+		for j, value := range d.Values {
+			if value == "" {
+				return fmt.Errorf("extra_dimensions[%d].values[%d]: empty value", i, j)
+			}
+		}
 	}
 	return nil
 }
