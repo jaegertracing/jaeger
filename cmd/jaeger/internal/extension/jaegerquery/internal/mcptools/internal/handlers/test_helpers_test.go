@@ -183,9 +183,7 @@ func createTestTraceWithSpans(traceID string, spanConfigs []spanConfig) ptrace.T
 		span.SetStartTimestamp(pcommon.NewTimestampFromTime(time.Now().Add(-5 * time.Second)))
 		span.SetEndTimestamp(pcommon.NewTimestampFromTime(time.Now()))
 
-		if config.spanKind != ptrace.SpanKindUnspecified {
-			span.SetKind(config.spanKind)
-		}
+		span.SetKind(config.spanKind)
 
 		// Set status
 		if config.hasError {
