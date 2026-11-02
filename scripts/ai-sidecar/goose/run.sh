@@ -25,6 +25,9 @@
 set -euo pipefail
 cd "$(dirname "$0")"
 
+if [ -z "${OPENROUTER_API_KEY:-}" ]; then
+  echo "--- OPENROUTER_API_KEY is not set: the header check still runs, but chatting in the UI fails until Goose has a model key (see README.md, step 1)"
+fi
 export OPENROUTER_API_KEY="${OPENROUTER_API_KEY:-unset}"
 compose=(docker compose -f docker-compose.yml)
 release=0 down=0
