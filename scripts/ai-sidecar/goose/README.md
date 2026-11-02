@@ -84,4 +84,13 @@ which can still produce a plausible-looking answer.
 Goose ships general-purpose extensions, including shell access, and runs its own
 agent loop. Anything it can reach on the host is reachable from a chat turn, so
 run it with the same care as any other process holding your provider
-credentials.
+credentials. Those extensions also show up in answers: with them on, a question
+about services may come back with a clock widget or a delegated "developer"
+call beside the Jaeger tools. Goose has no switch that turns them all off, only a
+per-extension `enabled: false` in its config file, so the image in
+`docker-compose.yml` generates that file at build time from the extension list
+its own `goose info -v` prints, every entry disabled; the agent then has only
+the tools Jaeger announces for the turn, and a new Goose version brings its own
+list. Running Goose by hand, as in step 2, uses whatever
+`~/.config/goose/config.yaml` enables; `goose info -v` lists the extensions and
+their state.

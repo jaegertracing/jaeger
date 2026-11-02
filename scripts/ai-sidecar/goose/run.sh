@@ -75,6 +75,10 @@ for _ in $(seq 1 30); do
   sleep 1
 done
 
+# Only the proxy log lines written from here on belong to this check; the
+# stack may have served chat turns from the UI before, and those carry no
+# identity headers.
+since=$(date -u +%Y-%m-%dT%H:%M:%SZ)
 echo "--- chat request with a caller identity"
 curl -sS -N --max-time 180 http://127.0.0.1:16690/api/ai/chat \
   -H 'Content-Type: application/json' \
@@ -85,7 +89,7 @@ curl -sS -N --max-time 180 http://127.0.0.1:16690/api/ai/chat \
   | grep -E '"type":"(TOOL_CALL_START|RUN_ERROR)"' || true
 
 echo "--- MCP requests seen by the proxy"
-mcp=$("${compose[@]}" logs --no-log-prefix mcp-proxy | grep -E '^[A-Z]+ /api/ai/mcp/' || true)
+mcp=$("${compose[@]}" logs --no-log-prefix --since "$since" mcp-proxy | grep -E '^[A-Z]+ /api/ai/mcp/' || true)
 echo "${mcp:-<none>}"
 
 fail=0
