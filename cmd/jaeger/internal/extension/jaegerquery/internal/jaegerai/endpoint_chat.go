@@ -8,7 +8,9 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"maps"
 	"net/http"
+	"slices"
 
 	aguitypes "github.com/ag-ui-protocol/ag-ui/sdks/community/go/pkg/core/types"
 	acp "github.com/coder/acp-go-sdk"
@@ -16,6 +18,8 @@ import (
 	oteltrace "go.opentelemetry.io/otel/trace"
 	"go.uber.org/zap"
 
+	"github.com/jaegertracing/jaeger/internal/auth/bearertoken"
+	"github.com/jaegertracing/jaeger/internal/headerforwarding"
 	"github.com/jaegertracing/jaeger/internal/telemetry/otelsemconv"
 	"github.com/jaegertracing/jaeger/internal/version"
 )
@@ -59,7 +63,7 @@ const mcpServerName = "jaeger"
 // requires an agent to opt into each McpServer variant, and announcing one it cannot
 // consume would make it fail the session. Streamable HTTP is the only variant the
 // gateway offers today.
-func (h *chatEndpoint) announceMCP(caps acp.AgentCapabilities, grant turnGrant) []acp.McpServer {
+func (h *chatEndpoint) announceMCP(ctx context.Context, caps acp.AgentCapabilities, grant turnGrant) []acp.McpServer {
 	if grant.routeID == "" || h.mcpBaseURL == "" || !caps.McpCapabilities.Http {
 		return []acp.McpServer{}
 	}
@@ -68,9 +72,31 @@ func (h *chatEndpoint) announceMCP(caps acp.AgentCapabilities, grant turnGrant) 
 			Type:    "http",
 			Name:    mcpServerName,
 			Url:     h.mcpBaseURL + h.basePath + routeMCPPrefix + grant.routeID + "/",
-			Headers: []acp.HttpHeader{{Name: turnTokenHeader, Value: grant.token}},
+			Headers: turnServerHeaders(ctx, grant),
 		},
 	}}
+}
+
+// turnServerHeaders lists the headers the agent must send on every request to the
+// turn's MCP server: the turn's token, and the chat caller's identity as the query
+// server's middleware captured it from the chat request. The identity is the
+// propagated bearer token and the header_forwarding captures under their outbound
+// names, the same headers the handshake carries (see DialWsAdapter). The agent
+// returns them on its tool calls, so the turn-scoped endpoint authenticates each
+// request as it would any other and never has to remember who the caller was.
+func turnServerHeaders(ctx context.Context, grant turnGrant) []acp.HttpHeader {
+	header := make(http.Header)
+	headerforwarding.SetForwardedHTTPHeaders(ctx, header)
+	if token, ok := bearertoken.GetBearerToken(ctx); ok && token != "" {
+		header.Set("Authorization", "Bearer "+token)
+	}
+	header.Set(turnTokenHeader, grant.token)
+	names := slices.Sorted(maps.Keys(header))
+	headers := make([]acp.HttpHeader, 0, len(names))
+	for _, name := range names {
+		headers = append(headers, acp.HttpHeader{Name: name, Value: header.Get(name)})
+	}
+	return headers
 }
 
 // newChatEndpoint wires the chat endpoint against a sidecar WebSocket URL.
@@ -142,13 +168,12 @@ func (h *chatEndpoint) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	run := newAGUIRun(ctx, w, req.ThreadID, req.RunID)
 
-	// Register this turn's run, UI tools and caller so the turn-scoped MCP
-	// endpoint can confirm the turn is active, advertise its UI tools, dispatch
-	// their calls onto the stream, and run every tool call as the person behind
-	// this request. The registry mints the route id and token, which we announce
+	// Register this turn's run and UI tools so the turn-scoped MCP endpoint can
+	// confirm the turn is active, advertise its UI tools, and dispatch their calls
+	// onto that run. The registry mints the route id and token, which we announce
 	// to the sidecar below as the turn's MCP URL and header, and hands back a
 	// closer.
-	grant, closeTurn := h.turns.register(run, rawUITools, captureTurnCaller(ctx))
+	grant, closeTurn := h.turns.register(run, rawUITools)
 	defer closeTurn()
 
 	acpConn := acp.NewClientSideConnection(newACPClient(run), adapter, adapter)
@@ -191,7 +216,7 @@ func (h *chatEndpoint) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		Cwd: "/",
 		// Point the sidecar at this turn's turn-scoped MCP endpoint, on the
 		// transports it advertised support for in Initialize.
-		McpServers: h.announceMCP(init.AgentCapabilities, grant),
+		McpServers: h.announceMCP(ctx, init.AgentCapabilities, grant),
 	}
 	sess, err := acpConn.NewSession(acpCtx, newSessionReq)
 	if err != nil {

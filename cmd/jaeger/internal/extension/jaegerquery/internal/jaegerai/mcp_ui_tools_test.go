@@ -282,7 +282,7 @@ func TestUIToolsMiddlewareRefusesInitializeForEndedTurn(t *testing.T) {
 
 	// The turn is still in the registry when the lookup runs but has closed by
 	// the time the session is attached.
-	grant, closeTurn := turns.register(testAGUIRun(), nil, turnCaller{})
+	grant, closeTurn := turns.register(testAGUIRun(), nil)
 	turn := turns.get(grant.routeID)
 	turn.closeSessions()
 	ctx = context.WithValue(context.Background(), mcpRouteIDContextKey{}, grant.routeID)
