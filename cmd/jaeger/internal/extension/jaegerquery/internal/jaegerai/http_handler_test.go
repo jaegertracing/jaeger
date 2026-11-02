@@ -146,7 +146,7 @@ func TestRegisterRoutesMountsSessionScopedMCPWhenEnabled(t *testing.T) {
 	})
 
 	t.Run("one turn's token does not open another turn", func(t *testing.T) {
-		other := registerTurn(h.mcp.turns, testStreamingClient(), nil)
+		other := registerTurn(h.mcp.turns, testAGUIRun(), nil)
 		rr := httptest.NewRecorder()
 		mux.ServeHTTP(rr, turnRequest("/api/ai/mcp/"+grant.routeID+"/mcp", other.token))
 		assert.Equal(t, http.StatusUnauthorized, rr.Code)
