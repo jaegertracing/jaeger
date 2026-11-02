@@ -21,4 +21,5 @@ import (
 	_ "github.com/wadey/gocovmerge"
 	_ "go.opentelemetry.io/collector/cmd/builder"
 	_ "golang.org/x/vuln/cmd/govulncheck"
+	_ "google.golang.org/protobuf/cmd/protoc-gen-go"
 )
