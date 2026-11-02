@@ -120,8 +120,13 @@ func NewMetricsReader(cfg config.Configuration, logger *zap.Logger, tracer trace
 
 	dimensions := append([]metricstore.Dimension(nil), cfg.ExtraDimensions...)
 	dimensionByName := make(map[string]metricstore.Dimension, len(dimensions))
-	for _, d := range dimensions {
-		dimensionByName[d.Name] = d
+	for i := range dimensions {
+		d := &dimensions[i]
+		d.Values = slices.Clone(d.Values)
+		if d.DisplayName == "" {
+			d.DisplayName = d.Name
+		}
+		dimensionByName[d.Name] = *d
 	}
 
 	mr := &MetricsReader{
@@ -149,6 +154,9 @@ func (m MetricsReader) GetDimensions(_ context.Context) ([]metricstore.Dimension
 	}
 	out := make([]metricstore.Dimension, len(m.dimensions))
 	copy(out, m.dimensions)
+	for i := range out {
+		out[i].Values = slices.Clone(out[i].Values)
+	}
 	return out, nil
 }
 

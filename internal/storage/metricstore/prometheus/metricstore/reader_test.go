@@ -1228,13 +1228,20 @@ func TestGetDimensions(t *testing.T) {
 
 	got, err := reader.GetDimensions(context.Background())
 	require.NoError(t, err)
-	assert.Equal(t, dims, got)
+	want := []metricstore.Dimension{
+		{Name: "deployment.environment", DisplayName: "Environment", Values: []string{"prod", "staging"}},
+		{Name: "k8s.cluster", DisplayName: "k8s.cluster"},
+	}
+	assert.Equal(t, want, got)
 
 	// Returned slice is a copy; mutating it must not affect the reader's state.
 	got[0].Name = "mutated"
+	got[0].Values[0] = "mutated"
+	dims[0].Values[1] = "config mutated"
 	got2, err := reader.GetDimensions(context.Background())
 	require.NoError(t, err)
-	assert.Equal(t, "deployment.environment", got2[0].Name)
+	assert.Equal(t, want, got2)
+	assert.Empty(t, dims[1].DisplayName, "defaulting must not mutate the input configuration")
 }
 
 func TestGetDimensionsEmpty(t *testing.T) {

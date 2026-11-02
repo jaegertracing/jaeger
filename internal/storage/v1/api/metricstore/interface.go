@@ -39,7 +39,7 @@ type Dimension struct {
 	// constructing PromQL label selectors.
 	Name string `json:"name" mapstructure:"name"`
 	// DisplayName is the user-facing label shown in the UI dropdown.
-	// Defaults to Name when empty.
+	// Readers default it to Name when it is not configured.
 	DisplayName string `json:"displayName,omitempty" mapstructure:"display_name"`
 	// Values is the closed set of allowed values shown in the UI dropdown
 	// and enforced by the API. An empty slice means the UI may render a
