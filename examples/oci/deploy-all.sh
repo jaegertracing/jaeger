@@ -84,16 +84,19 @@ if [[ "$MODE" == "upgrade" ]]; then
   prepare_upgrade_release jaeger
   PROMETHEUS_RELEASE_STATUS=$(release_status prometheus)
   case "$PROMETHEUS_RELEASE_STATUS" in
-    deployed)
+    deployed|failed)
       DEPLOY_PROMETHEUS=true
+      if [[ "$PROMETHEUS_RELEASE_STATUS" == "failed" ]]; then
+        echo "🟡 Prometheus Helm release is in 'failed' state. Retrying in upgrade mode."
+      fi
       ;;
     "")
       DEPLOY_PROMETHEUS=false
-      echo "🟡 Prometheus Helm release is not installed. Skipping Prometheus in upgrade mode."
+      echo "::warning title=Prometheus Skipped::Prometheus Helm release is not installed. Skipping Prometheus in upgrade mode."
       ;;
     *)
       DEPLOY_PROMETHEUS=false
-      echo "🟡 Prometheus Helm release is in '$PROMETHEUS_RELEASE_STATUS' state. Skipping Prometheus in upgrade mode."
+      echo "::warning title=Prometheus Skipped::Prometheus Helm release is in '$PROMETHEUS_RELEASE_STATUS' state. Skipping Prometheus in upgrade mode."
       echo "🟡 Use clean mode or repair the Prometheus release separately to reinstall monitoring."
       ;;
   esac
@@ -177,7 +180,7 @@ fi
 echo "🟢 Deploying Prometheus..."
 kubectl apply -f prometheus-svc.yaml
 if [[ "$DEPLOY_PROMETHEUS" == "true" ]]; then
-  helm $HELM_PROM_CMD --timeout 10m0s prometheus "$PROMETHEUS_STACK_CHART" \
+  helm $HELM_PROM_CMD --timeout 15m0s prometheus "$PROMETHEUS_STACK_CHART" \
     --version "$PROMETHEUS_STACK_CHART_VERSION" \
     --set crds.upgradeJob.enabled=true \
     --set crds.upgradeJob.forceConflicts=true \
@@ -225,10 +228,33 @@ smoke_expect() {
   return 1
 }
 
+smoke_reject() {
+  local url=$1
+  local rejected=$2
+  local output=$3
+
+  for attempt in $(seq 1 12); do
+    if curl -fsS "$url" -o "$output" && ! grep -q "$rejected" "$output"; then
+      echo "✅ Smoke check passed: $url (does not contain $rejected)"
+      return 0
+    fi
+    echo "Waiting for $url to return response without $rejected (attempt $attempt/12)..."
+    sleep 10
+  done
+
+  echo "❌ Smoke check failed: $url"
+  echo "Rejected content found: $rejected"
+  echo "Last response:"
+  cat "$output" 2>/dev/null || true
+  return 1
+}
+
 if [[ "$RUN_PUBLIC_SMOKE_TESTS" == "true" ]]; then
   echo "🔎 Step 7: Verifying public demo endpoints..."
   smoke_expect "${PUBLIC_BASE_URL}/hotrod/dispatch?customer=123" '"Driver"' /tmp/hotrod-smoke.json
   smoke_expect "${PUBLIC_BASE_URL}/jaeger/api/v3/services" '"frontend"' /tmp/jaeger-services.json
+  smoke_reject "${PUBLIC_BASE_URL}/jaeger/api/metrics/calls?service=frontend" '"errors"' /tmp/jaeger-metrics-calls.json
+  smoke_expect "${PUBLIC_BASE_URL}/grafana/api/health" '"database": "ok"' /tmp/grafana-health.json
 fi
 
 # Output Port-forward Instructions
