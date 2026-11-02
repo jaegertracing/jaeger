@@ -1095,7 +1095,7 @@ func TestServerGRPC_RecoversFromPanic(t *testing.T) {
 	tenancyMgr := tenancy.NewManager(&opts.Tenancy)
 	core, logs := observer.New(zap.ErrorLevel)
 	telset := initTelSet(zap.New(core), nooptrace.NewTracerProvider())
-	server, err := NewServer(context.Background(), qs, nil, opts, nilBackendCaps, tenancyMgr, telset)
+	server, err := NewServer(context.Background(), qs, nil, opts, noBackendCaps, tenancyMgr, telset)
 	require.NoError(t, err)
 	require.NoError(t, server.Start(context.Background()))
 	t.Cleanup(func() { require.NoError(t, server.Close()) })
