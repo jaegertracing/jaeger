@@ -215,7 +215,7 @@ caller authentication: its host provides no extensions, so `auth` cannot
 resolve an authenticator. mTLS (`grpc.tls` with `client_ca_file`) and
 network policy are the only controls on that port.
 
-The tenant header is not authentication on either server. With
+The tenant header is not authentication on either server (see T4). With
 `multi_tenancy` enabled, a caller that can reach the port and presents a
 tenant name the server accepts is served.
 
@@ -352,7 +352,7 @@ These follow the settings above. They are not a new policy.
    `1.0` or `1.1`. Do not set `insecure` or `insecure_skip_verify`.
 8. Treat the remote-storage gRPC port (default `:17271`) as trusted.
    Require mTLS (`client_ca_file`) and network policy. The standalone
-   binary has no `auth`, and the tenant header is not authentication.
+   binary cannot use `auth`, and the tenant header is not authentication.
 
 ## References
 
