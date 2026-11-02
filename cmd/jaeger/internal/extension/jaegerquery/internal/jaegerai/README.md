@@ -201,18 +201,24 @@ names the chat request carried, which are the names the middleware reads when
 the tool request comes back. The agent sends every announced header on every
 request to the announced server, so the turn-scoped endpoint receives each tool
 call as an ordinary request from the caller, and the same server-wide middleware
-that authenticated the chat request authenticates the tool call. An interceptor
-or storage client that filters or masks by caller therefore sees the person who
-asked, not the agent. The gateway stores no identity in the turn; the token
+that captured the identity from the chat request captures it from the tool call.
+The headers are as trustworthy on the tool call as on the chat request, which is
+to say as trustworthy as the proxy in front of Jaeger that sets them. An
+interceptor or storage client that filters or masks by caller therefore sees the
+person who asked, not the agent. The gateway stores no identity in the turn; the token
 proves only that a request belongs to the turn, and a session opened with the
 token but without the caller's headers runs as nobody.
 
 In the stateful transport the SDK serves every call of a session from the
 context of the `initialize` request that opened it, so the identity a session
 runs under is the one its first request carried, whatever later requests of the
-same session carry. A session of an ended turn is unreachable, because its route
-answers 404, and the SDK closes it when it idles out. The stateless transport
-reads each request's own headers.
+same session carry. The turn-scoped endpoint serves every turn from one session
+table, and it checks the route and the token but not which turn opened a
+session, so a holder of a live turn's token can address a session of another
+turn, including an ended one, until the SDK closes it as idle. Only the agent
+host holds turn tokens, and the deployment already trusts that host with every
+live caller's identity, so the gateway keeps no record of sessions. The
+stateless transport reads each request's own headers.
 
 The announcement hands the agent the caller's bearer token, which the handshake
 does not carry; the forwarded headers it already receives on the handshake. An
