@@ -278,6 +278,22 @@ func spanDocID(span *dbmodel.Span, body []byte) string {
 	return string(span.TraceID) + "_" + string(span.SpanID) + "_" + strconv.FormatUint(h.Sum64(), 16)
 }
 
+// canElevate reports whether a tag may move to the flat tag map. The map has
+// no type field, so the reader infers the type from the JSON value. A binary
+// tag and a non-finite float are stored as strings and would come back as
+// string tags, so they stay in the typed nested array.
+func canElevate(kv dbmodel.KeyValue) bool {
+	switch kv.Type {
+	case dbmodel.BinaryType:
+		return false
+	case dbmodel.Float64Type:
+		_, isString := kv.Value.(string)
+		return !isString
+	default:
+		return true
+	}
+}
+
 func (s *SpanWriter) splitElevatedTags(keyValues []dbmodel.KeyValue) ([]dbmodel.KeyValue, map[string]any) {
 	if !s.allTagsAsFields && len(s.tagKeysAsFields) == 0 {
 		return keyValues, nil
@@ -285,7 +301,7 @@ func (s *SpanWriter) splitElevatedTags(keyValues []dbmodel.KeyValue) ([]dbmodel.
 	var tagsMap map[string]any
 	var kvs []dbmodel.KeyValue
 	for _, kv := range keyValues {
-		if kv.Type != dbmodel.BinaryType && (s.allTagsAsFields || s.tagKeysAsFields[kv.Key]) {
+		if canElevate(kv) && (s.allTagsAsFields || s.tagKeysAsFields[kv.Key]) {
 			if tagsMap == nil {
 				tagsMap = map[string]any{}
 			}

@@ -1,0 +1,38 @@
+{
+  "bool": {
+    "should": [
+      {
+        "regexp": {
+          "tag.http@status_code": {
+            "flags": "NONE",
+            "value": "(5[0-9][0-9])"
+          }
+        }
+      },
+      {
+        "nested": {
+          "path": "tags",
+          "query": {
+            "bool": {
+              "must": [
+                {
+                  "term": {
+                    "tags.key": "http.status_code"
+                  }
+                },
+                {
+                  "regexp": {
+                    "tags.value": {
+                      "flags": "NONE",
+                      "value": "(5[0-9][0-9])"
+                    }
+                  }
+                }
+              ]
+            }
+          }
+        }
+      }
+    ]
+  }
+}

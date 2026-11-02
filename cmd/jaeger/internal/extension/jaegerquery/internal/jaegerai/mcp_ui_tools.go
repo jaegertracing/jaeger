@@ -89,7 +89,7 @@ func uiToolsMiddleware(turns *turnRegistry, logger *zap.Logger) mcp.Middleware {
 				if turn == nil || !turnDeclaredUITool(turn, name) {
 					return uiToolErrorResult(fmt.Sprintf("ui tool %q was not declared for this turn", call.Params.Name)), nil
 				}
-				return emitUIToolCall(turn.stream, name, call.Params.Arguments), nil
+				return emitUIToolCall(turn.run, name, call.Params.Arguments), nil
 
 			default:
 				return next(ctx, method, req)
@@ -186,12 +186,12 @@ func parseUITool(raw json.RawMessage) (uiToolDef, bool) {
 // emitUIToolCall fires the UI tool's TOOL_CALL_* lifecycle onto the browser
 // SSE stream under the bare frontend name and returns a synthetic ack so the
 // agent's tool-call loop can progress. The browser is the real executor, so this
-// is fire-and-forget at the LLM layer. A nil stream (turn ended mid-request) or
+// is fire-and-forget at the LLM layer. A nil run (turn ended mid-request) or
 // malformed arguments return an MCP error result rather than failing the call at
 // the transport.
-func emitUIToolCall(stream *streamingClient, toolName string, rawArgs json.RawMessage) *mcp.CallToolResult {
-	if stream == nil {
-		return uiToolErrorResult(fmt.Sprintf("browser stream closed for tool %q", toolName))
+func emitUIToolCall(run *aguiRun, toolName string, rawArgs json.RawMessage) *mcp.CallToolResult {
+	if run == nil {
+		return uiToolErrorResult(fmt.Sprintf("AG-UI run closed for tool %q", toolName))
 	}
 	var args any
 	if len(rawArgs) > 0 {
@@ -199,7 +199,7 @@ func emitUIToolCall(stream *streamingClient, toolName string, rawArgs json.RawMe
 			return uiToolErrorResult(fmt.Sprintf("invalid JSON arguments for tool %q: %v", toolName, err))
 		}
 	}
-	stream.EmitUIToolCall(newUIToolCallID(toolName), toolName, args)
+	run.EmitUIToolCall(newUIToolCallID(toolName), toolName, args)
 	return &mcp.CallToolResult{
 		Content: []mcp.Content{&mcp.TextContent{Text: fmt.Sprintf("ui tool %q dispatched to the browser", toolName)}},
 	}

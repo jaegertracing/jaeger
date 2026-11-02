@@ -103,6 +103,14 @@ func (Predicate) Link() LinkLevel {
 	}
 }
 
+// RefOf wraps a reference term the caller already holds, for a compiler from another syntax
+// that resolves a name to a FieldRef or AttributeRef first and chooses the operator after. A
+// term that is not a reference builds a tree ValidateFilter refuses, which is the same answer
+// a hand-written tree gets.
+func (Predicate) RefOf(term ast.Expression) Ref {
+	return Ref{term}
+}
+
 // Attr names an attribute without saying which level it lives in, which a backend looks for at
 // the span and resource levels. It is the filter counterpart of the legacy attributes map.
 func (Predicate) Attr(name string) Ref {
