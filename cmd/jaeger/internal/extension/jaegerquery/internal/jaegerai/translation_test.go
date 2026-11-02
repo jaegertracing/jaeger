@@ -248,7 +248,7 @@ func TestStripUIToolPrefixPassesThroughUnprefixed(t *testing.T) {
 func TestStripUIToolPrefixFallsBackOnEmptyStrip(t *testing.T) {
 	// An input of exactly the prefix would strip to "", which AG-UI tool-call
 	// events reject and which would break SSE encoding. The streaming path
-	// must defend itself because the streaming client receives ACP
+	// must defend itself because the AG-UI run receives ACP
 	// session/update notifications independently, so a malformed upstream
 	// name must not terminate the run.
 	assert.Equal(t, UIToolPrefix, stripUIToolPrefix(UIToolPrefix),

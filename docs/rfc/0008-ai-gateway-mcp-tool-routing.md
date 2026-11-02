@@ -87,7 +87,7 @@ The single biggest readability problem in the package is overloaded vocabulary: 
 | `mcp_endpoint.go` → `mcpSessionHandler` | the **turn-scoped MCP endpoint** (`/api/ai/mcp/<id>/`): gates on the turn registry, strips the prefix, injects the turn id, serves the MCP handler with that turn's UI tools layered on | "session"; and it is not *all* of MCP — the shared MCP endpoint is wired separately (via `mcptools` in the query server) | `endpoint_turn_mcp.go` → `turnScopedEndpoint` |
 | `dispatcher.go` → `newDispatcher` | the former inbound ACP handler for standard notifications and the ext-method | "dispatcher" over-elevates a plain handler | removed in M6; the ACP SDK handles standard methods |
 | `mcp_ui_tools.go` → `uiDispatchMiddleware` | the **MCP middleware** that layers a turn's UI tools onto the server (`tools/list` append; `tools/call` for a UI tool → browser) | "dispatch" is the same generic-verb problem as "dispatcher" — it is just what middleware does | `uiToolsMiddleware` (and the internal `dispatch*` helpers likewise) |
-| `streaming_client.go` → `streamingClient` | the SSE writer to the browser | "stream" reserved for SSE, so consistent | unchanged |
+| `streaming_client.go` → `streamingClient` | the ACP `Client` that writes AG-UI events to the browser | "streaming" says nothing about which of the gateway's streams it is | `aguiRun` (the server side of one AG-UI run) and `acpClient` (the `acp.Client` callbacks that drive it), both in `agui_run.go` |
 | `routes.go` | 5-line `RegisterRoutes` on `Handler` | a whole file for one method | **deleted** — folded into `http_handler.go` |
 | `translation.go`, `trace_propagation.go`, `ws_adapter.go` | AG-UI↔ACP translation; trace propagation; WebSocket adapter | fine | unchanged |
 
