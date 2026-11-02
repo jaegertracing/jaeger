@@ -13,5 +13,14 @@ RUN apk add --no-cache ca-certificates curl \
      | tar -xz -C /usr/local/bin ./goose \
   && apk del curl
 ENV HOME=/tmp
+# Goose enables its bundled extensions (shell access, apps, skills and more)
+# unless its config file disables each by name, and it has no switch that turns
+# them all off. The config is therefore generated here from the list this Goose
+# version prints, every entry disabled, so the agent has only the tools Jaeger
+# announces for the turn, and a new Goose version brings its own list.
+RUN mkdir -p "$HOME/.config/goose" \
+  && goose info -v | awk '/^  extensions:/ { on = 1; print "extensions:"; next } on && /^  [^ ]/ { on = 0 } on && /^    [^ ]/ { print "  " $1; print "    enabled: false"; next } on && /^      (name|type): / { sub(/^      /, "    "); print }' > "$HOME/.config/goose/config.yaml" \
+  && grep -q "enabled: false" "$HOME/.config/goose/config.yaml" \
+  && cat "$HOME/.config/goose/config.yaml"
 EXPOSE 16688
 ENTRYPOINT ["goose", "serve", "--host", "0.0.0.0", "--port", "16688"]

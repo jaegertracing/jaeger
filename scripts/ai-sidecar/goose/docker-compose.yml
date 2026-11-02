@@ -33,6 +33,9 @@ services:
       OTEL_EXPORTER_OTLP_TRACES_ENDPOINT: http://jaeger:4318/v1/traces
     depends_on: [jaeger]
 
+  # The image turns Goose's own extensions off (see Dockerfile), so the agent
+  # has only the tools Jaeger announces; without that, Goose answers with its
+  # developer, apps and other built-in tools alongside them.
   goose:
     build:
       context: .
