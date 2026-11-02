@@ -275,9 +275,9 @@ func validateMetricFilters(filters map[string]string, dims []metricstore.Dimensi
 	for k, v := range filters {
 		d, ok := byName[k]
 		if !ok {
-			names := make([]string, 0, len(byName))
-			for n := range byName {
-				names = append(names, n)
+			names := make([]string, 0, len(dims))
+			for _, dim := range dims {
+				names = append(names, dim.Name)
 			}
 			return fmt.Errorf("unknown filter dimension %q; configured: %v", k, names)
 		}

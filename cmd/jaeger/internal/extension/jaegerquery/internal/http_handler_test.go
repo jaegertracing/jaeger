@@ -830,6 +830,14 @@ func TestMetricsMalformedQuery(t *testing.T) {
 	}
 }
 
+func TestMetricFilterConfiguredOrder(t *testing.T) {
+	dims := []metricstore.Dimension{{Name: "z"}, {Name: "a"}, {Name: "m"}}
+	for range 20 {
+		err := validateMetricFilters(map[string]string{"unknown": "value"}, dims)
+		require.EqualError(t, err, `unknown filter dimension "unknown"; configured: [z a m]`)
+	}
+}
+
 func TestMetricsFilterMalformed(t *testing.T) {
 	for _, filter := range []string{"missing-colon", ":value", "key:"} {
 		t.Run(filter, func(t *testing.T) {
