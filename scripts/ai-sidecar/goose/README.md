@@ -133,9 +133,16 @@ and sends the same headers, so a missing or wrong `agent_headers` value hides
 the panel even though nothing else looks broken. Check the gateway log for
 `AI health check failed`.
 
-**`401 Unauthorized` on dial.** The header is missing, misnamed, or its value
-does not match `GOOSE_SERVER__SECRET_KEY`. Verify the variable is exported in
-*both* processes: Goose reads it, and Jaeger expands it.
+**An authentication error.** A chat turn crosses four authenticated hops, and
+each fails with a different message. The message says which hop failed:
+
+| Hop | What it looks like | Cause |
+| --- | --- | --- |
+| Browser → Jaeger `/api/ai/chat` | The request fails with an HTTP 401 or 403 before any chat event arrives | The proxy in front of Jaeger, or `ai.auth`, rejected the user |
+| Jaeger → Goose (WebSocket dial) | `401 Unauthorized` on dial in the gateway log; the panel is missing | The `agent_headers` value is missing, misnamed, or does not match `GOOSE_SERVER__SECRET_KEY`. Verify the variable is exported in *both* processes: Goose reads it, and Jaeger expands it |
+| Goose → model provider | A `RUN_ERROR` event `The agent failed the turn (ACP session/prompt): {"code":-32000,"message":"Authentication required",...}` | Goose has no usable credential for its provider: `OPENROUTER_API_KEY` is not in Goose's environment |
+| Goose → model provider | The assistant answers with text such as `Authentication error: Authentication failed for https://openrouter.ai/... Status: 401` | The key reached Goose and the provider rejected it, or it is empty. Goose reports the provider's answer as its reply |
+| Goose → Jaeger MCP endpoint | `401` lines in the proxy log, or `user=-` on them while the chat request carried a user | Goose did not send the announced headers back; see the agent contract in [../README.md](../README.md) |
 
 **Connection hangs, then the health check times out.** The build predates
 [#9296](https://github.com/jaegertracing/jaeger/pull/9296). ACP sends one
