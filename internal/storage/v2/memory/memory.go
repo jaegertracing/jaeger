@@ -373,10 +373,15 @@ func reshuffleScopeSpans(scopeSpanSlice ptrace.ScopeSpansSlice) map[pcommon.Trac
 func reshuffleSpans(spanSlice ptrace.SpanSlice) map[pcommon.TraceID]ptrace.SpanSlice {
 	spansByTraceId := make(map[pcommon.TraceID]ptrace.SpanSlice)
 	for _, span := range spanSlice.All() {
-		spansSlice, ok := spansByTraceId[span.TraceID()]
+		traceID := span.TraceID()
+		// Empty trace IDs are reserved for unused slots in the ring buffer.
+		if traceID.IsEmpty() {
+			continue
+		}
+		spansSlice, ok := spansByTraceId[traceID]
 		if !ok {
 			spansSlice = ptrace.NewSpanSlice()
-			spansByTraceId[span.TraceID()] = spansSlice
+			spansByTraceId[traceID] = spansSlice
 		}
 		span.CopyTo(spansSlice.AppendEmpty())
 	}
