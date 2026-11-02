@@ -58,7 +58,7 @@ report_missing() {
 # A failing make or awk would only shorten these lists, so check they are not empty.
 want_assets=$(expected_assets)
 want_images=$(expected_images)
-if (( $(grep -c . <<< "$want_assets") <= 3 )) || [[ -z "$want_images" ]]; then
+if (( $(grep -c . <<< "$want_assets") <= 3 )) || (( $(grep -c . <<< "$want_images") <= 3 )); then
   echo "::error::Could not derive the expected platforms or images from the build scripts"
   exit 1
 fi
