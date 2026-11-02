@@ -11,13 +11,16 @@ import (
 	"io/fs"
 	"os"
 	"testing"
+	"testing/fstest"
 	"time"
 
 	"github.com/ClickHouse/clickhouse-go/v2"
+	"github.com/ClickHouse/clickhouse-go/v2/lib/driver"
 	"github.com/golang-migrate/migrate/v4"
 	"github.com/golang-migrate/migrate/v4/database"
 	clickhousemigrate "github.com/golang-migrate/migrate/v4/database/clickhouse"
 	"github.com/golang-migrate/migrate/v4/source"
+	"github.com/open-telemetry/opentelemetry-collector-contrib/extension/basicauthextension"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/collector/config/configoptional"
@@ -63,6 +66,23 @@ func TestGetProtocol(t *testing.T) {
 	}
 }
 
+func TestOptions_BasicAuth(t *testing.T) {
+	cfg := Configuration{
+		Protocol:  "native",
+		Addresses: []string{"localhost:9000"},
+		Auth: Authentication{
+			Basic: configoptional.Some(basicauthextension.ClientAuthSettings{
+				Username: "myuser",
+				Password: "mypassword",
+			}),
+		},
+	}
+	opts, err := Options(context.Background(), cfg)
+	require.NoError(t, err)
+	assert.Equal(t, "myuser", opts.Auth.Username)
+	assert.Equal(t, "mypassword", opts.Auth.Password)
+}
+
 func TestNewFactory_TLSLoadError(t *testing.T) {
 	cfg := Configuration{
 		Protocol:  "native",
@@ -95,19 +115,57 @@ func TestNewFactory_TLSLoadSuccess(t *testing.T) {
 }
 
 func TestNewSchemaBuilder_Errors(t *testing.T) {
-	originalLoadTemplate := loadTemplate
-	t.Cleanup(func() { loadTemplate = originalLoadTemplate })
-
-	loadTemplate = func(_, _ string, _ any) (string, error) {
-		return "", errors.New("mock template error")
-	}
-
 	opts := &clickhouse.Options{}
-	_, err := newSchemaBuilder(
-		Configuration{CreateSchema: true, TableEngine: localTableEngine},
-		opts,
-	)
-	require.ErrorContains(t, err, "mock template error")
+
+	t.Run("template execution error", func(t *testing.T) {
+		originalLoadTemplate := loadTemplate
+		defer func() { loadTemplate = originalLoadTemplate }()
+		loadTemplate = func(_, _ string, _ any) (string, error) {
+			return "", errors.New("mock template error")
+		}
+
+		_, err := newSchemaBuilder(
+			Configuration{CreateSchema: true, TableEngine: localTableEngine},
+			opts,
+		)
+		require.ErrorContains(t, err, "mock template error")
+	})
+
+	t.Run("aggregating engine clause error", func(t *testing.T) {
+		orig := tableEngineClause
+		defer func() { tableEngineClause = orig }()
+		tableEngineClause = func(e TableEngine, family engineFamily) (string, error) {
+			if family == aggregatingMergeTreeFamily {
+				return "", errors.New("mock aggregating error")
+			}
+			return orig(e, family)
+		}
+		_, err := newSchemaBuilder(Configuration{CreateSchema: true, TableEngine: localTableEngine}, opts)
+		require.ErrorContains(t, err, "mock aggregating error")
+	})
+
+	t.Run("migration files read dir error", func(t *testing.T) {
+		orig := migrationsFS
+		defer func() { migrationsFS = orig }()
+		migrationsFS = &mockMigrationFS{readDirErr: errors.New("mock readdir error")}
+		_, err := newSchemaBuilder(Configuration{CreateSchema: true, TableEngine: localTableEngine}, opts)
+		require.ErrorContains(t, err, "failed to read migration files directory")
+		require.ErrorContains(t, err, "mock readdir error")
+	})
+
+	t.Run("migration file read file error", func(t *testing.T) {
+		orig := migrationsFS
+		defer func() { migrationsFS = orig }()
+		migrationsFS = &mockMigrationFS{
+			entries: []fs.DirEntry{
+				&mockDirEntry{name: "000001_initial_schema.up.sql"},
+			},
+			readFileErr: errors.New("mock readfile error"),
+		}
+		_, err := newSchemaBuilder(Configuration{CreateSchema: true, TableEngine: localTableEngine}, opts)
+		require.ErrorContains(t, err, "failed to read migration file 000001_initial_schema.up.sql")
+		require.ErrorContains(t, err, "mock readfile error")
+	})
 }
 
 func TestLoadTemplate(t *testing.T) {
@@ -422,6 +480,7 @@ type mockSourceDriver struct {
 	nextVersion  uint
 	nextErr      error
 	nextFn       func(uint) (uint, error)
+	readUpErr    error
 }
 
 func (m *mockSourceDriver) Open(_ string) (source.Driver, error) { return m, nil }
@@ -432,16 +491,57 @@ func (m *mockSourceDriver) Next(v uint) (uint, error) {
 	if m.nextFn != nil {
 		return m.nextFn(v)
 	}
-	return m.nextVersion, m.nextErr
+	if m.nextErr != nil {
+		return m.nextVersion, m.nextErr
+	}
+	return 0, os.ErrNotExist
 }
 
-func (*mockSourceDriver) ReadUp(_ uint) (io.ReadCloser, string, error) {
+func (m *mockSourceDriver) ReadUp(_ uint) (io.ReadCloser, string, error) {
+	if m.readUpErr != nil {
+		return nil, "", m.readUpErr
+	}
 	return nil, "", os.ErrNotExist
 }
 
 func (*mockSourceDriver) ReadDown(_ uint) (io.ReadCloser, string, error) {
 	return nil, "", os.ErrNotExist
 }
+
+type mockMigrationFS struct {
+	readDirErr  error
+	entries     []fs.DirEntry
+	readFileErr error
+	fileData    []byte
+}
+
+func (*mockMigrationFS) Open(string) (fs.File, error) {
+	return nil, os.ErrNotExist
+}
+
+func (m *mockMigrationFS) ReadDir(string) ([]fs.DirEntry, error) {
+	if m.readDirErr != nil {
+		return nil, m.readDirErr
+	}
+	return m.entries, nil
+}
+
+func (m *mockMigrationFS) ReadFile(string) ([]byte, error) {
+	if m.readFileErr != nil {
+		return nil, m.readFileErr
+	}
+	return m.fileData, nil
+}
+
+type mockDirEntry struct {
+	name  string
+	isDir bool
+}
+
+func (m *mockDirEntry) Name() string             { return m.name }
+func (m *mockDirEntry) IsDir() bool              { return m.isDir }
+func (*mockDirEntry) Type() fs.FileMode          { return 0 }
+func (*mockDirEntry) Info() (fs.FileInfo, error) { return nil, nil }
 
 func TestSchemaBuilder_ConcurrencyAndRetry(t *testing.T) {
 	srv := clickhousetest.NewServer(clickhousetest.FailureConfig{})
@@ -535,6 +635,24 @@ func TestSchemaBuilder_ConcurrencyAndRetry(t *testing.T) {
 
 		err = b.build(ctx)
 		require.ErrorIs(t, err, context.Canceled)
+	})
+
+	t.Run("non-dirty error from m.Up() fails immediately", func(t *testing.T) {
+		b, err := newSchemaBuilder(cfg, opts)
+		require.NoError(t, err)
+
+		origSource := newSourceDriver
+		defer func() { newSourceDriver = origSource }()
+		newSourceDriver = func(_ fs.FS, _ string) (source.Driver, error) {
+			return &mockSourceDriver{
+				firstVersion: 1,
+				readUpErr:    errors.New("mock read up error"),
+			}, nil
+		}
+
+		err = b.build(context.Background())
+		require.ErrorContains(t, err, "failed to apply migrations")
+		require.ErrorContains(t, err, "mock read up error")
 	})
 }
 
@@ -678,6 +796,22 @@ func TestSchemaBuilder_Build(t *testing.T) {
 		assert.Equal(t, "ReplicatedMergeTree", capturedEngine)
 	})
 
+	t.Run("replicated engine clause error in build", func(t *testing.T) {
+		b := &schemaBuilder{
+			cfg: Configuration{
+				CreateSchema: true,
+				TableEngine: TableEngine{
+					MergeTree:  configoptional.Some(MergeTreeEngine{}),
+					Replicated: configoptional.Some(ReplicatedEngine{}),
+				},
+			},
+			renderedFS: fstest.MapFS{},
+			opts:       opts,
+		}
+		err := b.build(context.Background())
+		require.ErrorContains(t, err, "`table_engine` must set only one of `merge_tree` or `replicated`")
+	})
+
 	t.Run("create_schema false checks database version against binary version", func(t *testing.T) {
 		noCreateCfg := Configuration{
 			Protocol:     "http",
@@ -809,6 +943,26 @@ func TestNewFactory_Lifecycle(t *testing.T) {
 		require.ErrorContains(t, err, "mock build failure")
 	})
 
+	t.Run("schema builder error fails factory creation", func(t *testing.T) {
+		failCfg := cfg
+		failCfg.CreateSchema = true
+		failCfg.TableEngine = TableEngine{}
+		_, err := NewFactory(context.Background(), failCfg, telemetry.NoopSettings())
+		require.ErrorContains(t, err, "`create_schema` requires `table_engine`")
+	})
+
+	t.Run("open connection error fails factory creation", func(t *testing.T) {
+		orig := clickhouseOpen
+		defer func() { clickhouseOpen = orig }()
+		clickhouseOpen = func(_ *clickhouse.Options) (driver.Conn, error) {
+			return nil, errors.New("mock open connection error")
+		}
+
+		_, err := NewFactory(context.Background(), cfg, telemetry.NoopSettings())
+		require.ErrorContains(t, err, "failed to create ClickHouse connection")
+		require.ErrorContains(t, err, "mock open connection error")
+	})
+
 	t.Run("factory success and create readers/writers and purge", func(t *testing.T) {
 		f, err := NewFactory(context.Background(), cfg, telemetry.NoopSettings())
 		require.NoError(t, err)
@@ -836,5 +990,22 @@ func TestNewFactory_Lifecycle(t *testing.T) {
 
 		err = f.Purge(context.Background())
 		require.NoError(t, err)
+	})
+
+	t.Run("purge error on exec failure", func(t *testing.T) {
+		failSrv := clickhousetest.NewServer(clickhousetest.FailureConfig{
+			chsql.TruncateSpans: errors.New("mock purge error"),
+		})
+		defer failSrv.Close()
+
+		failCfg := cfg
+		failCfg.Addresses = []string{failSrv.Listener.Addr().String()}
+		f, err := NewFactory(context.Background(), failCfg, telemetry.NoopSettings())
+		require.NoError(t, err)
+		defer func() { require.NoError(t, f.Close()) }()
+
+		err = f.Purge(context.Background())
+		require.ErrorContains(t, err, "failed to purge spans")
+		require.ErrorContains(t, err, "mock purge error")
 	})
 }

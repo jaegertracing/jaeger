@@ -56,11 +56,21 @@ type schemaTemplateParams struct {
 	AggregatingMergeTree string
 }
 
+type migrationFS interface {
+	fs.ReadDirFS
+	fs.ReadFileFS
+}
+
 var (
-	newSourceDriver    = iofs.New
-	newDatabaseDriver  = clickhousemigrate.WithInstance
-	newMigrateInstance = migrate.NewWithInstance
-	readSchemaVersion  = readSchemaVersionImpl
+	newSourceDriver                = iofs.New
+	newDatabaseDriver              = clickhousemigrate.WithInstance
+	newMigrateInstance             = migrate.NewWithInstance
+	readSchemaVersion              = readSchemaVersionImpl
+	clickhouseOpen                 = clickhouse.Open
+	migrationsFS       migrationFS = chsql.MigrationFiles
+	tableEngineClause              = func(e TableEngine, family engineFamily) (string, error) {
+		return e.engineClause(family)
+	}
 )
 
 var selectSchemaVersionQuery = "SELECT version, dirty FROM schema_migrations ORDER BY sequence DESC LIMIT 1"
@@ -88,11 +98,11 @@ func readSchemaVersionImpl(ctx context.Context, db *dbsql.DB) (uint, bool, error
 func renderMigrationFiles(cfg Configuration) (fs.FS, error) {
 	var params schemaTemplateParams
 	if cfg.CreateSchema {
-		mergeTree, err := cfg.TableEngine.engineClause(mergeTreeFamily)
+		mergeTree, err := tableEngineClause(cfg.TableEngine, mergeTreeFamily)
 		if err != nil {
 			return nil, err
 		}
-		aggregatingMergeTree, err := cfg.TableEngine.engineClause(aggregatingMergeTreeFamily)
+		aggregatingMergeTree, err := tableEngineClause(cfg.TableEngine, aggregatingMergeTreeFamily)
 		if err != nil {
 			return nil, err
 		}
@@ -104,7 +114,7 @@ func renderMigrationFiles(cfg Configuration) (fs.FS, error) {
 	}
 
 	renderedFS := fstest.MapFS{}
-	entries, err := chsql.MigrationFiles.ReadDir(".")
+	entries, err := migrationsFS.ReadDir(".")
 	if err != nil {
 		return nil, fmt.Errorf("failed to read migration files directory: %w", err)
 	}
@@ -114,7 +124,7 @@ func renderMigrationFiles(cfg Configuration) (fs.FS, error) {
 		if entry.IsDir() || !strings.HasSuffix(name, ".up.sql") {
 			continue
 		}
-		content, err := chsql.MigrationFiles.ReadFile(name)
+		content, err := migrationsFS.ReadFile(name)
 		if err != nil {
 			return nil, fmt.Errorf("failed to read migration file %s: %w", name, err)
 		}
@@ -325,7 +335,7 @@ func NewFactory(ctx context.Context, cfg Configuration, telset telemetry.Setting
 		telset: telset,
 	}
 
-	conn, err := clickhouse.Open(opts)
+	conn, err := clickhouseOpen(opts)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create ClickHouse connection: %w", err)
 	}
