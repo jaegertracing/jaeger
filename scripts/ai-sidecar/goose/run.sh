@@ -94,10 +94,10 @@ echo "${mcp:-<none>}"
 
 fail=0
 [ -n "$mcp" ] || { echo "FAIL: Goose made no MCP request"; fail=1; }
-grep -q 'turn=-' <<<"$mcp" && { echo "FAIL: an MCP request had no turn token"; fail=1; }
-grep -qv 'user=alice' <<<"$mcp" && { echo "FAIL: an MCP request did not carry X-User"; fail=1; }
-grep -qv 'auth=Bearer user-token' <<<"$mcp" && { echo "FAIL: an MCP request did not carry the caller's bearer token"; fail=1; }
-grep -q 'unlisted=private' <<<"$mcp" && { echo "FAIL: an unlisted header leaked to the agent"; fail=1; }
+grep -q 'turn="-"' <<<"$mcp" && { echo "FAIL: an MCP request had no turn token"; fail=1; }
+grep -qv 'user="alice"' <<<"$mcp" && { echo "FAIL: an MCP request did not carry X-User"; fail=1; }
+grep -qv 'auth="Bearer user-token"' <<<"$mcp" && { echo "FAIL: an MCP request did not carry the caller's bearer token"; fail=1; }
+grep -q 'unlisted="private"' <<<"$mcp" && { echo "FAIL: an unlisted header leaked to the agent"; fail=1; }
 [ "$fail" = 0 ] && echo "PASS"
 if [ "$ci" = 0 ]; then
   echo "--- the stack is up: Jaeger UI at http://localhost:16686, with the AI assistant. Stop it with: $0 --down"
