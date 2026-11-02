@@ -44,10 +44,9 @@ const (
 //     telemetry handlers.
 //
 // The turn is resolved from the request context: ServeHTTP stamps the URL
-// route id before delegating, and the go-sdk propagates the initialize
-// request's context values onto the ServerSession, so the id is recoverable on
-// tools/list and tools/call alike. A request with no active turn degrades to
-// telemetry-only. UI-tool dispatch short-circuits before the telemetry tracing/
+// route id before delegating, and the stateless MCP handler serves tools/list
+// and tools/call from that request's context. A request with no active turn
+// degrades to telemetry-only. UI-tool dispatch short-circuits before the telemetry tracing/
 // metrics middleware (which this wraps), so browser dispatches don't pollute the
 // query-tool instrumentation.
 func uiToolsMiddleware(turns *turnRegistry, logger *zap.Logger) mcp.Middleware {

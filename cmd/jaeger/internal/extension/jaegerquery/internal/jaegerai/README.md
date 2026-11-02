@@ -209,16 +209,19 @@ person who asked, not the agent. The gateway stores no identity in the turn; the
 proves only that a request belongs to the turn, and a session opened with the
 token but without the caller's headers runs as nobody.
 
-In the stateful transport the SDK serves every call of a session from the
-context of the `initialize` request that opened it, so the identity a session
-runs under is the one its first request carried, whatever later requests of the
-same session carry. The turn-scoped endpoint serves every turn from one session
-table, and it checks the route and the token but not which turn opened a
-session, so a holder of a live turn's token can address a session of another
-turn, including an ended one, until the SDK closes it as idle. Only the agent
-host holds turn tokens, and the deployment already trusts that host with every
-live caller's identity, so the gateway keeps no record of sessions. The
-stateless transport reads each request's own headers.
+The turn-scoped endpoint serves the shared MCP server through a stateless
+Streamable HTTP handler, whatever `ai.mcp.stateless` says for the shared
+endpoint. The SDK then builds a session for each request from that request's
+context and closes it when the request ends, so every tool call runs under the
+turn token and the identity headers of its own request, and nothing outlives
+the request that another request could reach by session id. A stateful handler
+would serve every call of a session from the context of the `initialize` request
+that opened it, so a session would keep its first identity whatever later
+requests carried, and one session table shared by all turns would let the holder
+of any live turn's token address another turn's session. The stateless handler
+answers the `GET` that opens a standing event stream with 405, as the MCP
+specification allows for a server that sends no messages of its own; the
+gateway's UI tool calls travel in the tool call's own response.
 
 The announcement hands the agent the caller's bearer token, which the handshake
 does not carry; the forwarded headers it already receives on the handshake. An

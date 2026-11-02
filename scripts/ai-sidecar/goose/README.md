@@ -25,15 +25,17 @@ JAEGER_BINARY=/tmp/jaeger-linux ./smoke.sh -f docker-compose.local.yml   # this 
 
 The proxy logs the credentials on purpose, so the test can check them; a
 deployment's proxy must not. The log looks like this (the token and route id
-are per turn). Goose
-sends one POST before `initialize` that Jaeger answers 400, and its `DELETE`
-after the turn is answered 404 because the turn-scoped route is gone by then;
-both are expected.
+are per turn). Three answers are expected and depend on no header: Goose sends
+one POST before `initialize` that Jaeger answers 400; the `GET` that would open
+a standing event stream is answered 405, because the turn-scoped endpoint keeps
+no session, and Goose continues without it; a `DELETE` after the turn is
+answered 404 because the turn-scoped route is gone by then.
 
 ```text
+POST /api/ai/mcp/<route>/ -> 400 turn=<token> user=alice auth=Bearer user-token unlisted=- ...
 POST /api/ai/mcp/<route>/ -> 200 turn=<token> user=alice auth=Bearer user-token unlisted=- ...
-GET /api/ai/mcp/<route>/ -> 200 turn=<token> user=alice auth=Bearer user-token unlisted=- ...
-DELETE /api/ai/mcp/<route>/ -> 404 turn=<token> user=alice auth=Bearer user-token unlisted=- ...
+GET /api/ai/mcp/<route>/ -> 405 turn=<token> user=alice auth=Bearer user-token unlisted=- ...
+POST /api/ai/mcp/<route>/ -> 200 turn=<token> user=alice auth=Bearer user-token unlisted=- ...
 ```
 
 ## Troubleshooting

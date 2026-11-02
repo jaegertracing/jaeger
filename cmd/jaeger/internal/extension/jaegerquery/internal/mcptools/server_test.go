@@ -322,16 +322,24 @@ func TestNewHandler_Stateless(t *testing.T) {
 		return first, second
 	}
 
-	t.Run("an isolated handler over one server keeps its own sessions", func(t *testing.T) {
-		first := NewHandler(telemetry.NoopSettings(), svc, tenancyMgr, DefaultServerParams())
-		t.Cleanup(func() { first.Close() })
-		second := first.NewIsolatedHandler()
-		resp := post(first, initialize, "")
+	t.Run("a stateless handler over a stateful server answers each request on its own", func(t *testing.T) {
+		stateful := NewHandler(telemetry.NoopSettings(), svc, tenancyMgr, DefaultServerParams())
+		t.Cleanup(func() { stateful.Close() })
+		stateless := stateful.NewStatelessHandler()
+		resp := post(stateful, initialize, "")
 		require.Equal(t, http.StatusOK, resp.StatusCode)
 		sessionID := resp.Header.Get("Mcp-Session-Id")
-		require.NotEmpty(t, sessionID)
-		require.Equal(t, http.StatusOK, post(first, listTools, sessionID).StatusCode, "the session is live on the handler that opened it")
-		assert.Equal(t, http.StatusNotFound, post(second, listTools, sessionID).StatusCode, "the other handler does not know it")
+		require.NotEmpty(t, sessionID, "precondition: the stateful handler issues a session id")
+
+		assert.Equal(t, http.StatusOK, post(stateless, listTools, "").StatusCode, "no initialize is needed")
+		assert.Equal(t, http.StatusOK, post(stateless, listTools, sessionID).StatusCode, "a session id of the stateful handler is ignored, not resolved")
+		assert.Equal(t, http.StatusOK, post(stateless, listTools, "not-a-session").StatusCode, "an unknown session id is ignored too")
+
+		req := httptest.NewRequest(http.MethodGet, "/", http.NoBody)
+		req.Header.Set("Accept", "text/event-stream")
+		rr := httptest.NewRecorder()
+		stateless.ServeHTTP(rr, req)
+		assert.Equal(t, http.StatusMethodNotAllowed, rr.Code, "no standing event stream")
 	})
 
 	t.Run("default loses the session on the other replica", func(t *testing.T) {

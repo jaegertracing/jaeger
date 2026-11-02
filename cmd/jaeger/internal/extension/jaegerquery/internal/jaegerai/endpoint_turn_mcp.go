@@ -35,9 +35,8 @@ const (
 
 // mcpRouteIDContextKey carries the URL route id from ServeHTTP into the
 // UI-dispatch middleware. ServeHTTP stamps it on the request context before
-// delegating to the MCP handler; the go-sdk propagates the initialize
-// request's context values onto the resulting ServerSession, so every later
-// tools/list and tools/call for that turn can recover the id here.
+// delegating to the MCP handler, which is stateless and so serves each
+// tools/list and tools/call from that request's own context.
 type mcpRouteIDContextKey struct{}
 
 // mcpRouteIDFromContext returns the URL route id stamped by ServeHTTP, or ""
@@ -53,12 +52,12 @@ func mcpRouteIDFromContext(ctx context.Context) string {
 // SSE stream. Access is gated to route ids that belong to an active chat turn
 // (present in turnRegistry).
 type turnScopedEndpoint struct {
-	// handler is this endpoint's own HTTP handler over the MCP server behind
-	// baseHandler, which jaeger-query mounts at /api/ai/mcp/ and owns. Sharing the
-	// server registers the telemetry tools once; having a handler of its own gives
-	// this endpoint a session table of its own, so a turn's MCP sessions are
-	// addressable only here, behind the token check, and never by session id
-	// through the shared path.
+	// handler is this endpoint's own stateless HTTP handler over the MCP server
+	// behind baseHandler, which jaeger-query mounts at /api/ai/mcp/ and owns.
+	// Sharing the server registers the telemetry tools once. Being stateless, the
+	// handler keeps no session between requests, so each tool call runs under the
+	// turn token and the identity headers of its own request, and no session id
+	// opens a way into another request's turn or identity.
 	handler  http.Handler
 	turns    *turnRegistry
 	basePath string
@@ -83,7 +82,7 @@ type turnScopedEndpointBuilder struct {
 func (b turnScopedEndpointBuilder) build() *turnScopedEndpoint {
 	b.baseHandler.AddReceivingMiddleware(uiToolsMiddleware(b.turns, b.logger))
 	return &turnScopedEndpoint{
-		handler:  b.baseHandler.NewIsolatedHandler(),
+		handler:  b.baseHandler.NewStatelessHandler(),
 		turns:    b.turns,
 		basePath: b.basePath,
 		logger:   b.logger,
