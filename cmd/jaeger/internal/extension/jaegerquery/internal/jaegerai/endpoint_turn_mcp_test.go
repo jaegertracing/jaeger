@@ -96,7 +96,7 @@ type turnMCPFixture struct {
 	grant     turnGrant
 	closeTurn func()
 	turns     *turnRegistry
-	// mount is the turn-scoped endpoint's own MCP mount, for tests that
+	// mount is the turn-scoped endpoint's own MCP handler, for tests that
 	// observe a session's lifetime behind the route and token checks.
 	handler http.Handler
 }
@@ -158,11 +158,11 @@ func TestTurnSessionIsNotServedOnAnotherTurnsRoute(t *testing.T) {
 	assert.Equal(t, http.StatusNotFound, resp.StatusCode)
 }
 
-// callToolOnTurnMount posts one tools/call for sessionID straight to the
-// turn-scoped endpoint's mount, past the route and token checks, and returns
-// the HTTP status. It observes whether the mount still holds the session:
+// callToolOnTurnHandler posts one tools/call for sessionID straight to the
+// turn-scoped endpoint's handler, past the route and token checks, and returns
+// the HTTP status. It observes whether the handler still holds the session:
 // 200 while it does, 404 once the session is closed.
-func callToolOnTurnMount(t *testing.T, f turnMCPFixture, sessionID string) int {
+func callToolOnTurnHandler(t *testing.T, f turnMCPFixture, sessionID string) int {
 	t.Helper()
 	body := `{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"get_services"}}`
 	req := httptest.NewRequest(http.MethodPost, "/", strings.NewReader(body))
@@ -274,10 +274,10 @@ func TestTurnScopedEndpointQueriesStorageAsChatCaller(t *testing.T) {
 
 // TestClosingTurnClosesItsMCPSessions pins the lifetime of the caller's identity
 // to the turn. A stateful session created under the turn's route keeps the chat
-// caller in its context for as long as the mount holds it, so the turn must
+// caller in its context for as long as the handler holds it, so the turn must
 // close the session when it ends rather than leave it to the idle timer. The
 // route answers 404 after the turn whether or not the session was closed, so the
-// test asks the endpoint's mount directly.
+// test asks the endpoint's handler directly.
 func TestClosingTurnClosesItsMCPSessions(t *testing.T) {
 	f := newTurnMCPFixture(t, turnMCPOptions{
 		caller: captureTurnCaller(chatRequestContext(t)),
@@ -288,9 +288,9 @@ func TestClosingTurnClosesItsMCPSessions(t *testing.T) {
 	res, err := session.CallTool(context.Background(), &mcp.CallToolParams{Name: "get_services"})
 	require.NoError(t, err)
 	require.False(t, res.IsError, "the session works while the turn is live")
-	require.Equal(t, http.StatusOK, callToolOnTurnMount(t, f, session.ID()), "the mount holds the turn's session while the turn is live")
+	require.Equal(t, http.StatusOK, callToolOnTurnHandler(t, f, session.ID()), "the handler holds the turn's session while the turn is live")
 
-	// A second turn on the same mount is the control: closing the first
+	// A second turn on the same handler is the control: closing the first
 	// turn must not close its sessions.
 	other := registerTurn(f.turns, testAGUIRun(), nil)
 	otherSession := connectTurnMCP(t, f.ts, routeMCPPrefix+other.routeID+"/", other.token)
@@ -299,9 +299,9 @@ func TestClosingTurnClosesItsMCPSessions(t *testing.T) {
 
 	// Closing runs on its own goroutine, so the refusal arrives shortly after.
 	require.Eventually(t, func() bool {
-		return callToolOnTurnMount(t, f, session.ID()) == http.StatusNotFound
+		return callToolOnTurnHandler(t, f, session.ID()) == http.StatusNotFound
 	}, 5*time.Second, 10*time.Millisecond, "a session opened under the turn is closed with it")
-	assert.Equal(t, http.StatusOK, callToolOnTurnMount(t, f, otherSession.ID()), "another turn's session stays open")
+	assert.Equal(t, http.StatusOK, callToolOnTurnHandler(t, f, otherSession.ID()), "another turn's session stays open")
 }
 
 // TestTurnScopedEndpointStateless checks that the turn's UI tools are still
