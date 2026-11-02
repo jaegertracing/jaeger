@@ -137,9 +137,6 @@ func ancestorFirstOrder(spanMap map[pcommon.SpanID]CPSpan) []pcommon.SpanID {
 	for len(queue) > 0 {
 		spanID := queue[0]
 		queue = queue[1:]
-		if _, ok := visited[spanID]; ok {
-			continue
-		}
 		visited[spanID] = struct{}{}
 		order = append(order, spanID)
 		queue = append(queue, children[spanID]...)
