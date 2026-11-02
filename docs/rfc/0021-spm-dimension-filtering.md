@@ -92,6 +92,12 @@ metrics, including the environment-filtering use case described in #7433.
    identical in spirit to the existing requirement that span-kind and
    service-name labels exist on the metrics.
 
+   Configuration validation rejects names that translate to the reserved
+   labels `service_name`, `span_kind`, `status_code`, `le`, or `__name__`,
+   and names that collide after dot-to-underscore translation. Allowed-value
+   lists must not contain empty strings. An omitted or empty list still
+   permits free-text values.
+
 2. **The Jaeger Query backend exposes the declared dimensions** via a new
    endpoint:
 
@@ -108,6 +114,9 @@ metrics, including the environment-filtering use case described in #7433.
    one dropdown per dimension. The backend supplies the dimension list, so
    clients do not need a separate UI-config-JSON declaration. UI changes
    are not delivered by the backend implementation.
+
+   The Prometheus reader defaults an omitted `display_name` to `name` and
+   returns a defensive copy of the dimensions, including each values list.
 
 3. **Selected filter values are sent on the metrics endpoints** as repeated
    `filter=key:value` query params:
@@ -161,11 +170,19 @@ metrics, including the environment-filtering use case described in #7433.
    `Reader.GetDimensions(ctx)` before invoking the reader:
 
    - Unknown filter keys → 400.
+   - Malformed URL query encoding → 400, without using partially parsed filters.
+   - Filters requested with no dimensions configured → 501 (`errors.ErrUnsupported`).
    - Values not in the declared `Values:` set (when configured) → 400.
    - Values containing control characters, double quotes, or backslashes → 400
      (length capped at 256).
    - Unexpected failures retrieving dimensions → 500.
    - Disabled metrics backend → 501.
+
+   Readers also enforce the filter contract for direct callers, as required
+   by ADR-013: Prometheus rejects unknown keys, and enabled readers without
+   dimension filtering reject non-empty filters with an error wrapping
+   `errors.ErrUnsupported`. The dimensions endpoint itself returns 500 on
+   unexpected discovery failures and 501 for unsupported discovery.
 
 ### Naming
 
@@ -209,9 +226,10 @@ the runtime values passed in by callers.
 - Dimension filters require underscore-translated stored labels. Pipelines
   that retain dots in label names are not supported.
 - Asymmetric backend support: today only the Prometheus metricstore honours
-  `Filters`. The Elasticsearch and ClickHouse metricstores accept the field
-  (it's additive on the shared `BaseQueryParameters`) and return an empty
-  dimension list from `GetDimensions`. The proposed UI integration can hide
+  `Filters`. The Elasticsearch and ClickHouse metricstores reject non-empty
+  filters with `errors.ErrUnsupported`, replacing the proposed silent-ignore
+  behavior, and return an empty dimension list from `GetDimensions`.
+  The proposed UI integration can hide
   the dropdowns for those backends. Elasticsearch/OpenSearch support
   requested in #7433 remains unfinished.
 - The disabled metricstore returns `ErrDisabled` from `GetDimensions` as
@@ -261,9 +279,9 @@ rendering.
 count the spanmetrics connector. Doubles the surface area for
 silent-misconfiguration regressions. Rejected.
 
-### D. Inject into `JAEGER_STORAGE_CAPABILITIES`
+### D. Inject into `JAEGER_BACKEND_CAPABILITIES`
 
-The static-asset handler already injects a `JAEGER_STORAGE_CAPABILITIES`
+The static-asset handler already injects a `JAEGER_BACKEND_CAPABILITIES`
 JSON object into `index.html`. We could extend that with a
 `spmDimensions` field.
 
@@ -271,7 +289,7 @@ JSON object into `index.html`. We could extend that with a
 no extra round-trip on page load.
 
 **Cons**: The capabilities object today carries booleans
-(`archiveStorage`, `dependenciesV2`, …) — short, static, page-load-cached
+(`archiveStorage`, `metricsStorage`, …) — short, static, page-load-cached
 values. Dimension lists are richer, may change at runtime if the operator
 hot-reloads config, and are only relevant to the Monitor page (not the
 trace-search or dependency pages). A dedicated endpoint is a better fit
@@ -284,7 +302,8 @@ The backend implementation is proposed in
 review:
 
 1. Add the shared `Dimension`, `Filters`, and `GetDimensions` API types and
-   methods, with empty declarations for unsupported metric backends.
+   methods, with empty declarations and rejection of filters for unsupported
+   metric backends.
 2. Add and validate Prometheus `extra_dimensions` configuration, and
    generate exact-match label selectors for selected filters.
 3. Expose the dimensions endpoint and parse and validate filters on metrics
@@ -293,7 +312,7 @@ review:
    in the SPM sample.
 
 UI integration is separate, proposed in
-[jaeger-ui#3900](https://github.com/jaegertracing/jaeger-ui/pull/3900).
+[jaeger-ui#4681](https://github.com/jaegertracing/jaeger-ui/pull/4681).
 Elasticsearch/OpenSearch filtering remains follow-up work under #7433;
 it is not delivered by the backend PR above.
 
@@ -312,11 +331,17 @@ it is not delivered by the backend PR above.
   - Values containing characters that need PromQL string escaping (e.g.
     `"`) emitted via `%q` without breaking the query.
   - Empty `Filters` produces PromQL byte-identical to today (no regression).
-  - `GetDimensions` returns the configured slice (defensive copy).
+  - No configured dimensions → `errors.ErrUnsupported` for filtered queries.
+  - `GetDimensions` deep-copies dimensions and values and defaults display names.
+- Elasticsearch and ClickHouse reader tests
+  - Non-empty filters → `errors.ErrUnsupported` without querying storage,
+    for latencies, calls, and errors.
 - `internal/config/promcfg/config_test.go`
   - Valid `extra_dimensions:` config validates.
   - Invalid name (regex violation) → error.
-  - Duplicate names → error.
+  - Duplicate names, including collisions after translation → error.
+  - Reserved labels, including names that translate to them → error.
+  - Empty strings in allowed-value lists → error.
 - `cmd/jaeger/internal/extension/jaegerquery/internal/query_parser_test.go`
   - Single `?filter=k:v` parsed into `Filters` map.
   - Repeated `?filter=k:v` parsed into the map.
@@ -325,6 +350,10 @@ it is not delivered by the backend PR above.
   - `GET /api/metrics/dimensions` happy path.
   - `ErrDisabled` → 501.
   - Unexpected `GetDimensions` failure on a filtered metrics request → 500.
+  - Unexpected `GetDimensions` failure on `/api/metrics/dimensions` → 500.
+  - Filters on a backend without dimensions → 501 without querying metrics.
+  - Malformed URL query encoding → 400 without calling the reader.
+  - Unknown-key errors list configured dimensions in configuration order.
   - Unknown filter key → 400 (mock advertises a different dimension set).
   - Value not in `Values:` → 400.
   - Free-text value containing a control character → 400.
