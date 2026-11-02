@@ -5,6 +5,7 @@ package metricstore
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net"
 	"net/http"
@@ -359,6 +360,9 @@ func (m MetricsReader) buildPromQuery(metricsParams metricsQueryParams) (string,
 func (m MetricsReader) buildExtraFilterSelectors(filters map[string]string) ([]string, error) {
 	if len(filters) == 0 {
 		return nil, nil
+	}
+	if len(m.dimensions) == 0 {
+		return nil, fmt.Errorf("dimension filtering (no dimensions configured): %w", errors.ErrUnsupported)
 	}
 	keys := make([]string, 0, len(filters))
 	for k := range filters {

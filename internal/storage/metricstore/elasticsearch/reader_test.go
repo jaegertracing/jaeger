@@ -6,6 +6,7 @@ package elasticsearch
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"io"
 	"math"
 	"net/http"
@@ -220,6 +221,37 @@ func TestScaleToMillisAndRound_EmptyWindow(t *testing.T) {
 	var window []*metrics.MetricPoint
 	result := scaleToMillisAndRound(nil, window)
 	assert.True(t, math.IsNaN(result))
+}
+
+func TestFiltersUnsupported(t *testing.T) {
+	// A reader without a searcher must reject filters before touching storage.
+	r := MetricsReader{}
+	end, lookback, step, rate := time.Now(), time.Hour, time.Minute, time.Minute
+	params := metricstore.BaseQueryParameters{
+		ServiceNames: []string{"frontend"},
+		EndTime:      &end,
+		Lookback:     &lookback,
+		Step:         &step,
+		RatePer:      &rate,
+		Filters:      map[string]string{"deployment.environment": "prod"},
+	}
+	for name, query := range map[string]func() (*metrics.MetricFamily, error){
+		"latencies": func() (*metrics.MetricFamily, error) {
+			return r.GetLatencies(t.Context(), &metricstore.LatenciesQueryParameters{BaseQueryParameters: params})
+		},
+		"calls": func() (*metrics.MetricFamily, error) {
+			return r.GetCallRates(t.Context(), &metricstore.CallRateQueryParameters{BaseQueryParameters: params})
+		},
+		"errors": func() (*metrics.MetricFamily, error) {
+			return r.GetErrorRates(t.Context(), &metricstore.ErrorRateQueryParameters{BaseQueryParameters: params})
+		},
+	} {
+		t.Run(name, func(t *testing.T) {
+			got, err := query()
+			require.ErrorIs(t, err, errors.ErrUnsupported)
+			assert.Nil(t, got)
+		})
+	}
 }
 
 func TestGetDimensions(t *testing.T) {

@@ -266,7 +266,7 @@ func (aH *APIHandler) dimensions(w http.ResponseWriter, r *http.Request) {
 // dimensions and (when configured) their allowed values.
 func validateMetricFilters(filters map[string]string, dims []metricstore.Dimension) error {
 	if len(dims) == 0 {
-		return errors.New("metric filtering is not supported by this backend (no dimensions configured)")
+		return fmt.Errorf("metric filtering is not supported by this backend (no dimensions configured): %w", errors.ErrUnsupported)
 	}
 	byName := make(map[string]metricstore.Dimension, len(dims))
 	for _, d := range dims {
@@ -444,7 +444,7 @@ func (aH *APIHandler) handleError(w http.ResponseWriter, err error, statusCode i
 	if err == nil {
 		return false
 	}
-	if errors.Is(err, disabled.ErrDisabled) {
+	if errors.Is(err, disabled.ErrDisabled) || errors.Is(err, errors.ErrUnsupported) {
 		statusCode = http.StatusNotImplemented
 	}
 	if statusCode == http.StatusInternalServerError {

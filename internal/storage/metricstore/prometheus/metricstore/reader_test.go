@@ -5,6 +5,7 @@ package metricstore
 
 import (
 	"context"
+	"errors"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -1196,7 +1197,11 @@ func TestUnknownFilterKeyRejected(t *testing.T) {
 					result, err := method.query(reader, params)
 
 					assert.Zero(t, requests.Load(), "invalid filters must not send a Prometheus request")
-					require.ErrorContains(t, err, `unknown filter dimension "deployment.environmnt"`)
+					if len(tc.dimensions) == 0 {
+						require.ErrorIs(t, err, errors.ErrUnsupported)
+					} else {
+						require.ErrorContains(t, err, `unknown filter dimension "deployment.environmnt"`)
+					}
 					assert.Nil(t, result)
 				})
 			}

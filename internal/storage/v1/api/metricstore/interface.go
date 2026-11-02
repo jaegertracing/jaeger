@@ -72,7 +72,7 @@ type BaseQueryParameters struct {
 	// Filters is an optional map of pre-configured dimension name -> value used
 	// to scope the metrics query further (e.g. {"deployment.environment": "prod"}).
 	// Keys are OTel attribute names matching a configured Dimension; backends that
-	// do not support dimension filtering ignore this field.
+	// do not support dimension filtering must reject non-empty Filters.
 	Filters map[string]string
 }
 

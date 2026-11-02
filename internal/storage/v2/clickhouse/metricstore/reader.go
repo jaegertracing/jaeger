@@ -5,6 +5,7 @@ package metricstore
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"time"
 
@@ -99,6 +100,9 @@ func (r *Reader) queryMetrics(
 	cfg metricsQuery,
 	params metricstore.BaseQueryParameters,
 ) (*metrics.MetricFamily, error) {
+	if len(params.Filters) > 0 {
+		return nil, fmt.Errorf("dimension filtering: %w", errors.ErrUnsupported)
+	}
 	name, desc := cfg.baseName, cfg.baseDesc
 	query := cfg.baseQuery
 	if params.GroupByOperation {

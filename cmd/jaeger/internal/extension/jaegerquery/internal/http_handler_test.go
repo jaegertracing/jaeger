@@ -783,6 +783,30 @@ func TestGetDimensionsEndpointEmpty(t *testing.T) {
 	assert.Equal(t, "[]", string(bytes.TrimSpace(body)))
 }
 
+func TestGetDimensionsEndpointError(t *testing.T) {
+	for _, tc := range []struct {
+		name   string
+		err    error
+		status int
+	}{
+		{name: "internal failure", err: assert.AnError, status: http.StatusInternalServerError},
+		{name: "unsupported", err: fmt.Errorf("dimensions: %w", errors.ErrUnsupported), status: http.StatusNotImplemented},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			reader := &metricsmocks.Reader{}
+			ts := initializeTestServer(t, HandlerOptions.MetricsQueryService(reader))
+			reader.On("GetDimensions", mock.Anything).Return(nil, tc.err).Once()
+			var response any
+			err := getJSON(ts.server.URL+"/api/metrics/dimensions", &response)
+			var httpErr *HTTPError
+			require.ErrorAs(t, err, &httpErr)
+			assert.Equal(t, tc.status, httpErr.StatusCode)
+			assert.Contains(t, httpErr.Body, tc.err.Error())
+			reader.AssertExpectations(t)
+		})
+	}
+}
+
 func TestMetricsFilterMalformed(t *testing.T) {
 	for _, filter := range []string{"missing-colon", ":value", "key:"} {
 		t.Run(filter, func(t *testing.T) {
@@ -902,19 +926,25 @@ func TestMetricsFilterGetDimensionsError(t *testing.T) {
 
 func TestMetricsFilterRequestOnBackendWithoutDimensions(t *testing.T) {
 	// A backend that advertises no dimensions must reject filter requests
-	// with 400; otherwise the operator would silently get an unfiltered
+	// with 501; otherwise the operator would silently get an unfiltered
 	// response when they intended to filter.
-	metricsReader := &metricsmocks.Reader{}
-	ts := initializeTestServer(t, HandlerOptions.MetricsQueryService(metricsReader))
-	metricsReader.On("GetDimensions", mock.Anything).Return(nil, nil).Once()
+	for _, endpoint := range []string{"calls", "errors", "latencies"} {
+		t.Run(endpoint, func(t *testing.T) {
+			metricsReader := &metricsmocks.Reader{}
+			ts := initializeTestServer(t, HandlerOptions.MetricsQueryService(metricsReader))
+			metricsReader.On("GetDimensions", mock.Anything).Return(nil, nil).Once()
 
-	resp, err := http.Get(ts.server.URL + "/api/metrics/calls?service=svc&filter=anything:x")
-	require.NoError(t, err)
-	defer resp.Body.Close()
-	assert.Equal(t, http.StatusBadRequest, resp.StatusCode)
-	body, err := io.ReadAll(resp.Body)
-	require.NoError(t, err)
-	assert.Contains(t, string(body), "metric filtering is not supported by this backend")
+			resp, err := http.Get(ts.server.URL + "/api/metrics/" + endpoint + "?service=svc&quantile=0.95&filter=anything:x")
+			require.NoError(t, err)
+			defer resp.Body.Close()
+			assert.Equal(t, http.StatusNotImplemented, resp.StatusCode)
+			body, err := io.ReadAll(resp.Body)
+			require.NoError(t, err)
+			assert.Contains(t, string(body), "metric filtering is not supported by this backend")
+			metricsReader.AssertExpectations(t)
+			assert.Len(t, metricsReader.Calls, 1, "unsupported filters must not execute a metrics query")
+		})
+	}
 }
 
 // getJSON fetches a JSON document from a server via HTTP GET

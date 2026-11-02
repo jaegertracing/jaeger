@@ -4,6 +4,7 @@
 package metricstore
 
 import (
+	"errors"
 	"testing"
 	"time"
 
@@ -307,6 +308,19 @@ func TestStepSeconds(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			p := metricstore.BaseQueryParameters{Step: tt.step}
 			assert.Equal(t, tt.want, stepSeconds(p))
+		})
+	}
+}
+
+func TestFiltersUnsupported(t *testing.T) {
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			params := testQueryParams
+			params.Filters = map[string]string{"deployment.environment": "prod"}
+			// A nil connection ensures no query can be sent to storage.
+			got, err := tc.queryFn(t, NewReader(nil), params)
+			require.ErrorIs(t, err, errors.ErrUnsupported)
+			assert.Nil(t, got)
 		})
 	}
 }
