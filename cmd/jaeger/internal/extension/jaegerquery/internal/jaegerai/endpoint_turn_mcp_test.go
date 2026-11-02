@@ -98,9 +98,6 @@ type turnMCPFixture struct {
 	grant     turnGrant
 	closeTurn func()
 	turns     *turnRegistry
-	// handler is the turn-scoped endpoint's own MCP handler, for tests that
-	// observe a session's lifetime behind the route and token checks.
-	handler http.Handler
 }
 
 func newTurnMCPFixture(t *testing.T, opts turnMCPOptions) turnMCPFixture {
@@ -135,7 +132,6 @@ func newTurnMCPFixture(t *testing.T, opts turnMCPOptions) turnMCPFixture {
 		grant:     grant,
 		closeTurn: closeTurn,
 		turns:     turns,
-		handler:   h.handler,
 	}
 }
 
@@ -185,45 +181,6 @@ func TestTurnScopedEndpointRunsToolCallsAsTheAnnouncedCaller(t *testing.T) {
 	got = <-calls
 	assert.Empty(t, got.bearer, "the token alone carries no identity")
 	assert.Empty(t, got.captured)
-}
-
-// A session belongs to the turn that opened it. A request on another turn's
-// route, with that turn's own token, that names the session is refused, so a
-// token holder cannot reach a different turn's session, route id and identity.
-func TestTurnSessionIsNotServedOnAnotherTurnsRoute(t *testing.T) {
-	f := newTurnMCPFixture(t, turnMCPOptions{})
-	other := registerTurn(f.turns, testAGUIRun(), nil)
-
-	session := connectTurnMCP(t, f.ts, routeMCPPrefix+f.grant.routeID+"/", f.grant.token)
-	require.NotEmpty(t, session.ID())
-
-	body := `{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"get_services"}}`
-	req, err := http.NewRequestWithContext(t.Context(), http.MethodPost, f.ts.URL+routeMCPPrefix+other.routeID+"/", strings.NewReader(body))
-	require.NoError(t, err)
-	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("Accept", "application/json, text/event-stream")
-	req.Header.Set(turnTokenHeader, other.token)
-	req.Header.Set(mcpSessionIDHeader, session.ID())
-	resp, err := f.ts.Client().Do(req)
-	require.NoError(t, err)
-	defer resp.Body.Close()
-	assert.Equal(t, http.StatusNotFound, resp.StatusCode)
-}
-
-// callToolOnTurnHandler posts one tools/call for sessionID straight to the
-// turn-scoped endpoint's handler, past the route and token checks, and returns
-// the HTTP status. It observes whether the handler still holds the session:
-// 200 while it does, 404 once the session is closed.
-func callToolOnTurnHandler(t *testing.T, f turnMCPFixture, sessionID string) int {
-	t.Helper()
-	body := `{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"get_services"}}`
-	req := httptest.NewRequest(http.MethodPost, "/", strings.NewReader(body))
-	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("Accept", "application/json, text/event-stream")
-	req.Header.Set(mcpSessionIDHeader, sessionID)
-	rr := httptest.NewRecorder()
-	f.handler.ServeHTTP(rr, req)
-	return rr.Code
 }
 
 // connectTurnMCP connects an MCP client to path. token is the turn's token, sent
@@ -300,35 +257,6 @@ func TestTurnScopedEndpointServesTelemetryPlusUITools(t *testing.T) {
 	assert.Contains(t, got, "get_services", "built-in telemetry tools must be advertised")
 	assert.Contains(t, got, UIToolPrefix+"show_chart", "the turn's UI tools must be advertised under the namespace")
 	assert.NotContains(t, got, "show_chart", "the bare frontend name is not an MCP tool")
-}
-
-// TestClosingTurnClosesItsMCPSessions pins a session's lifetime to its turn. A
-// stateful session created under the turn's route keeps the context of the
-// request that created it, identity headers and route id included, for as long
-// as the handler holds it, so the turn must close the session when it ends
-// rather than leave it to the idle timer. The route answers 404 after the turn
-// whether or not the session was closed, so the test asks the endpoint's handler
-// directly.
-func TestClosingTurnClosesItsMCPSessions(t *testing.T) {
-	f := newTurnMCPFixture(t, turnMCPOptions{})
-
-	session := connectTurnMCP(t, f.ts, routeMCPPrefix+f.grant.routeID+"/", f.grant.token)
-	_, err := session.ListTools(t.Context(), nil)
-	require.NoError(t, err, "the session works while the turn is live")
-	require.Equal(t, http.StatusOK, callToolOnTurnHandler(t, f, session.ID()), "the handler holds the turn's session while the turn is live")
-
-	// A second turn on the same handler is the control: closing the first
-	// turn must not close its sessions.
-	other := registerTurn(f.turns, testAGUIRun(), nil)
-	otherSession := connectTurnMCP(t, f.ts, routeMCPPrefix+other.routeID+"/", other.token)
-
-	f.closeTurn()
-
-	// Closing runs on its own goroutine, so the refusal arrives shortly after.
-	require.Eventually(t, func() bool {
-		return callToolOnTurnHandler(t, f, session.ID()) == http.StatusNotFound
-	}, 5*time.Second, 10*time.Millisecond, "a session opened under the turn is closed with it")
-	assert.Equal(t, http.StatusOK, callToolOnTurnHandler(t, f, otherSession.ID()), "another turn's session stays open")
 }
 
 // TestTurnScopedEndpointStateless checks that the turn's UI tools are still

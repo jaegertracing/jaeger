@@ -211,9 +211,9 @@ token but without the caller's headers runs as nobody.
 In the stateful transport the SDK serves every call of a session from the
 context of the `initialize` request that opened it, so the identity a session
 runs under is the one its first request carried, whatever later requests of the
-same session carry. The turn closes the sessions opened under its route when it
-ends, so that identity does not outlive the turn. The stateless transport reads
-each request's own headers.
+same session carry. A session of an ended turn is unreachable, because its route
+answers 404, and the SDK closes it when it idles out. The stateless transport
+reads each request's own headers.
 
 The announcement hands the agent the caller's bearer token, which the handshake
 does not carry; the forwarded headers it already receives on the handshake. An
