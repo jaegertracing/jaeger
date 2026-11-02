@@ -84,9 +84,9 @@ type Handler struct {
 	server *mcp.Server
 	// recovery guards the middleware added through AddReceivingMiddleware, which
 	// the SDK places outside the recovery newServer installs.
-	recovery         mcp.Middleware
-	tenancyMgr       *tenancy.Manager
-	transportOptions mcp.StreamableHTTPOptions
+	recovery          mcp.Middleware
+	tenancyMgr        *tenancy.Manager
+	streamableOptions mcp.StreamableHTTPOptions
 }
 
 var _ io.Closer = (*Handler)(nil)
@@ -132,7 +132,7 @@ func NewHandler(telset telemetry.Settings, queryAPI *querysvc.QueryService, tena
 	h := &Handler{
 		server:     newServer(telset, queryAPI, params),
 		tenancyMgr: tenancyMgr,
-		transportOptions: mcp.StreamableHTTPOptions{
+		streamableOptions: mcp.StreamableHTTPOptions{
 			JSONResponse:               params.StreamableHTTP.JSONResponse,
 			Stateless:                  params.StreamableHTTP.Stateless,
 			SessionTimeout:             mcpSessionTimeout,
@@ -141,22 +141,23 @@ func NewHandler(telset telemetry.Settings, queryAPI *querysvc.QueryService, tena
 		recovery: createRecoveryMiddleware(telset.Logger),
 	}
 	h.Handler = otelhttp.NewHandler(
-		h.NewTransport(),
+		h.NewMount(),
 		"jaeger_mcp",
 		otelhttp.WithTracerProvider(telset.TracerProvider),
 	)
 	return h
 }
 
-// NewTransport returns a new Streamable HTTP transport over the same *mcp.Server,
-// with the same options and tenant extraction as the shared endpoint. Each
-// transport keeps its own table of MCP sessions, so a session opened through one
-// transport cannot be addressed by its id through another. Close reaps the
-// sessions of every transport, because they all belong to the one server.
-func (h *Handler) NewTransport() http.Handler {
+// NewMount returns another HTTP handler for the same *mcp.Server, with the same
+// options and tenant extraction as the shared endpoint, to be mounted on a
+// second path. Each mount keeps its own table of MCP sessions, keyed by the
+// Mcp-Session-Id header, so a session opened on one mount is unknown on another.
+// Close reaps the sessions of every mount, because they all belong to the one
+// server.
+func (h *Handler) NewMount() http.Handler {
 	streamable := mcp.NewStreamableHTTPHandler(
 		func(*http.Request) *mcp.Server { return h.server },
-		&h.transportOptions,
+		&h.streamableOptions,
 	)
 	return tenancy.ExtractTenantHTTPHandler(h.tenancyMgr, streamable)
 }
