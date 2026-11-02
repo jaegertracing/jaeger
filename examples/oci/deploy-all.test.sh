@@ -9,17 +9,16 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 
 testPinnedChartRendersGrafanaLivenessProbe() {
   local chart_version
-  local chart_ref
   local rendered
   local render_rc
   local grafana_deploy
   local initial_delay
   local failure_threshold
 
-  chart_ref=$(sed -n -E 's/^PROMETHEUS_STACK_CHART="([^"]+)"/\1/p' "$SCRIPT_DIR/deploy-all.sh")
   chart_version=$(sed -n -E 's/^PROMETHEUS_STACK_CHART_VERSION="\$\{PROMETHEUS_STACK_CHART_VERSION:-([^}]+)\}"/\1/p' "$SCRIPT_DIR/deploy-all.sh")
 
-  rendered=$(helm template prometheus "${chart_ref:-prometheus-community/kube-prometheus-stack}" \
+  rendered=$(helm template prometheus kube-prometheus-stack \
+    --repo https://prometheus-community.github.io/helm-charts \
     --version "${chart_version:-82.10.4}" \
     --values "$SCRIPT_DIR/monitoring-values.yaml" \
     --show-only charts/grafana/templates/deployment.yaml)
