@@ -274,7 +274,7 @@ func TestUIToolsMiddlewareRefusesInitializeForEndedTurn(t *testing.T) {
 		return &mcp.InitializeResult{}, nil
 	})
 
-	ctx := context.WithValue(context.Background(), mcpRouteIDContextKey{}, "ended-turn")
+	ctx := context.WithValue(t.Context(), mcpRouteIDContextKey{}, "ended-turn")
 	req := &mcp.ServerRequest[*mcp.InitializeParams]{Params: &mcp.InitializeParams{}}
 	_, err := handler(ctx, methodInitialize, req)
 	require.ErrorIs(t, err, errEndedTurn, "a route id with no turn behind it is refused")
@@ -285,7 +285,7 @@ func TestUIToolsMiddlewareRefusesInitializeForEndedTurn(t *testing.T) {
 	grant, closeTurn := turns.register(testAGUIRun(), nil)
 	turn := turns.get(grant.routeID)
 	turn.closeSessions()
-	ctx = context.WithValue(context.Background(), mcpRouteIDContextKey{}, grant.routeID)
+	ctx = context.WithValue(t.Context(), mcpRouteIDContextKey{}, grant.routeID)
 	req = &mcp.ServerRequest[*mcp.InitializeParams]{Params: &mcp.InitializeParams{}, Session: &mcp.ServerSession{}}
 	_, err = handler(ctx, methodInitialize, req)
 	require.ErrorIs(t, err, errEndedTurn, "a turn that closed before the attach refuses the session")
@@ -294,7 +294,7 @@ func TestUIToolsMiddlewareRefusesInitializeForEndedTurn(t *testing.T) {
 
 	// Without a route id the request came through the shared endpoint and is not
 	// the gateway's to refuse.
-	_, err = handler(context.Background(), methodInitialize, req)
+	_, err = handler(t.Context(), methodInitialize, req)
 	require.NoError(t, err)
 	assert.True(t, nextCalled)
 }
