@@ -30,7 +30,7 @@ Setting the API key only in the config file leaves Goose reporting
 
 ```bash
 export GOOSE_PROVIDER=openrouter
-export GOOSE_MODEL=nvidia/nemotron-3-super-120b-a12b:free
+export GOOSE_MODEL=nvidia/nemotron-3.5-lightning:free
 export OPENROUTER_API_KEY=...
 ```
 
@@ -50,7 +50,9 @@ export SECRET_RESOLVER_CMD="secret-tool lookup service api-tokens key"
 ```
 
 The model **must support tool calling**, or it answers from prior knowledge and
-never queries telemetry. To list free tool-calling models:
+never queries telemetry. Free slugs come and go: a model that leaves the free
+tier answers every prompt with a 404 that names the paid slug. To list the free
+tool-calling models of the day:
 
 ```bash
 curl -s https://openrouter.ai/api/v1/models \

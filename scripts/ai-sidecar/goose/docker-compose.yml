@@ -40,7 +40,7 @@ services:
         GOOSE_VERSION: ${GOOSE_VERSION:-v1.57.0}
     environment:
       GOOSE_PROVIDER: ${GOOSE_PROVIDER:-openrouter}
-      GOOSE_MODEL: ${GOOSE_MODEL:-nvidia/nemotron-3-super-120b-a12b:free}
+      GOOSE_MODEL: ${GOOSE_MODEL:-nvidia/nemotron-3.5-lightning:free}
       OPENROUTER_API_KEY: ${OPENROUTER_API_KEY:-}
       GOOSE_SERVER__SECRET_KEY: ${GOOSE_SERVER__SECRET_KEY:-goose-secret}
 
