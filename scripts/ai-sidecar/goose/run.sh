@@ -15,9 +15,16 @@
 #
 # Goose lists the MCP server's tools before it calls the model, so the header
 # check needs no model provider. Chatting in the UI, and the agent calling a
-# tool, needs OPENROUTER_API_KEY (or another provider; see README.md).
+# tool, needs OPENROUTER_API_KEY (or another provider; see README.md). When
+# OPENROUTER_API_KEY is not set and SECRET_RESOLVER_CMD is, the script reads the
+# key from a secret store by running "$SECRET_RESOLVER_CMD OPENROUTER_API_KEY",
+# so the key never sits in the shell's environment or history. For example:
 #
-# Usage: [OPENROUTER_API_KEY=...] ./run.sh [--release] [--ci] [extra docker compose args]
+#   export SECRET_RESOLVER_CMD="security find-generic-password -s api-tokens -w -a"   # macOS Keychain
+#   export SECRET_RESOLVER_CMD="pass show"                                            # Linux, pass
+#   export SECRET_RESOLVER_CMD="secret-tool lookup service api-tokens key"            # Linux, libsecret
+#
+# Usage: [OPENROUTER_API_KEY=... | SECRET_RESOLVER_CMD=...] ./run.sh [--release] [--ci] [extra docker compose args]
 #        ./run.sh --down
 #
 # By default the script builds cmd/jaeger from this working tree for Linux and
@@ -30,6 +37,10 @@ compose=(docker compose -f docker-compose.yml)
 if [ "${1:-}" = "--down" ]; then
   # The override needs JAEGER_BINARY to parse; down mounts nothing.
   JAEGER_BINARY="${JAEGER_BINARY:-/dev/null}" exec "${compose[@]}" -f docker-compose.local.yml down
+fi
+
+if [ -z "${OPENROUTER_API_KEY:-}" ] && [ -n "${SECRET_RESOLVER_CMD:-}" ]; then
+  OPENROUTER_API_KEY=$(eval "$SECRET_RESOLVER_CMD OPENROUTER_API_KEY")
 fi
 
 if [ -z "${OPENROUTER_API_KEY:-}" ]; then

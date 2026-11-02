@@ -34,6 +34,21 @@ export GOOSE_MODEL=nvidia/nemotron-3-super-120b-a12b:free
 export OPENROUTER_API_KEY=...
 ```
 
+`run.sh` (see "Run the stack") can read the key from a secret store instead,
+so it never sits in the shell's environment or history. Set
+`SECRET_RESOLVER_CMD` to a command that prints the secret named by its last
+argument; the script runs it with `OPENROUTER_API_KEY` appended when the
+variable itself is not set:
+
+```bash
+# macOS Keychain: a generic password with service "api-tokens" and account "OPENROUTER_API_KEY"
+export SECRET_RESOLVER_CMD="security find-generic-password -s api-tokens -w -a"
+# Linux, pass: an entry named OPENROUTER_API_KEY
+export SECRET_RESOLVER_CMD="pass show"
+# Linux, libsecret: a secret with attributes service=api-tokens key=OPENROUTER_API_KEY
+export SECRET_RESOLVER_CMD="secret-tool lookup service api-tokens key"
+```
+
 The model **must support tool calling**, or it answers from prior knowledge and
 never queries telemetry. To list free tool-calling models:
 
@@ -95,7 +110,8 @@ Goose and Jaeger's MCP endpoint whose access log prints the headers of every
 proxied request. `run.sh` starts the stack and leaves it up, so the assistant
 can be tried in the Jaeger UI at <http://localhost:16686>, where the AI panel
 appears once Jaeger's health probe reaches Goose. Chatting needs a model
-provider: set `OPENROUTER_API_KEY` as in step 1 before starting.
+provider: set `OPENROUTER_API_KEY`, or `SECRET_RESOLVER_CMD` to fetch it, as
+in step 1 before starting.
 
 ```bash
 ./run.sh              # a Linux build of this working tree, inside the released image
