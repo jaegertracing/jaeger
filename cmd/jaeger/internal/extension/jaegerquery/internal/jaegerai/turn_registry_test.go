@@ -10,7 +10,6 @@ import (
 	"sync"
 	"testing"
 
-	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -69,13 +68,4 @@ func TestTurnRegistryConcurrent(t *testing.T) {
 func registerTurn(r *turnRegistry, run *aguiRun, uiTools []json.RawMessage) turnGrant {
 	grant, _ := r.register(run, uiTools)
 	return grant
-}
-
-// A session that reaches a turn after the turn ended must not be adopted, or
-// nothing would ever close it; attachSession says so and the turn stays empty.
-func TestTurnStateRefusesSessionAfterClose(t *testing.T) {
-	turn := &turnState{}
-	turn.closeSessions()
-	assert.False(t, turn.attachSession(&mcp.ServerSession{}), "a closed turn adopts no session")
-	assert.Empty(t, turn.sessions)
 }

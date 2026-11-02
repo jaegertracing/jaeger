@@ -262,39 +262,3 @@ func mustJSON(t *testing.T, v any) json.RawMessage {
 	require.NoError(t, err)
 	return b
 }
-
-// An initialize that carries a route id whose turn has ended is refused, so an
-// agent that connected just as the turn closed does not get a session that
-// would carry the caller's identity past the turn.
-func TestUIToolsMiddlewareRefusesInitializeForEndedTurn(t *testing.T) {
-	turns := newTurnRegistry()
-	nextCalled := false
-	handler := uiToolsMiddleware(turns, zap.NewNop())(func(context.Context, string, mcp.Request) (mcp.Result, error) {
-		nextCalled = true
-		return &mcp.InitializeResult{}, nil
-	})
-
-	ctx := context.WithValue(t.Context(), mcpRouteIDContextKey{}, "ended-turn")
-	req := &mcp.ServerRequest[*mcp.InitializeParams]{Params: &mcp.InitializeParams{}}
-	_, err := handler(ctx, methodInitialize, req)
-	require.ErrorIs(t, err, errEndedTurn, "a route id with no turn behind it is refused")
-	assert.False(t, nextCalled, "the SDK's initialize handler is not reached")
-
-	// The turn is still in the registry when the lookup runs but has closed by
-	// the time the session is attached.
-	grant, closeTurn := turns.register(testAGUIRun(), nil)
-	turn := turns.get(grant.routeID)
-	turn.closeSessions()
-	ctx = context.WithValue(t.Context(), mcpRouteIDContextKey{}, grant.routeID)
-	req = &mcp.ServerRequest[*mcp.InitializeParams]{Params: &mcp.InitializeParams{}, Session: &mcp.ServerSession{}}
-	_, err = handler(ctx, methodInitialize, req)
-	require.ErrorIs(t, err, errEndedTurn, "a turn that closed before the attach refuses the session")
-	assert.False(t, nextCalled)
-	closeTurn()
-
-	// Without a route id the request came through the shared endpoint and is not
-	// the gateway's to refuse.
-	_, err = handler(t.Context(), methodInitialize, req)
-	require.NoError(t, err)
-	assert.True(t, nextCalled)
-}

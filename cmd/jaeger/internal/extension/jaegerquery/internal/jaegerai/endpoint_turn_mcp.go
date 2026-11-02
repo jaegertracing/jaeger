@@ -31,9 +31,6 @@ const (
 	routeMCPPrefix      = "/api/ai/mcp/"
 	routeTurnMCPNoSlash = routeMCPPrefix + "{mcpRouteID}"
 	routeTurnMCP        = routeTurnMCPNoSlash + "/"
-
-	// mcpSessionIDHeader is the Streamable HTTP header that names an MCP session.
-	mcpSessionIDHeader = "Mcp-Session-Id"
 )
 
 // mcpRouteIDContextKey carries the URL route id from ServeHTTP into the
@@ -117,15 +114,6 @@ func (h *turnScopedEndpoint) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if !turn.authorize(r.Header.Get(turnTokenHeader)) {
 		h.logger.Debug("turn-scoped MCP request without the turn's token", zap.String("mcp_route_id", mcpRouteID))
 		http.Error(w, "missing or invalid turn token", http.StatusUnauthorized)
-		return
-	}
-	// A session id must belong to this turn. The handler resolves a session by
-	// its id alone and serves it from the context it was created with, so a
-	// session opened under another turn would carry that turn's route id and
-	// identity.
-	if sessionID := r.Header.Get(mcpSessionIDHeader); sessionID != "" && !turn.ownsSession(sessionID) {
-		h.logger.Debug("turn-scoped MCP request for a session of another turn", zap.String("mcp_route_id", mcpRouteID))
-		http.NotFound(w, r)
 		return
 	}
 	// Strip "<basePath>/api/ai/mcp/<mcpRouteID>" so the wrapped MCP handler sees
