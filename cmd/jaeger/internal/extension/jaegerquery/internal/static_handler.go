@@ -31,6 +31,16 @@ var (
 	capabilitiesPattern = regexp.MustCompile("JAEGER_BACKEND_CAPABILITIES *= *DEFAULT_BACKEND_CAPABILITIES;")
 )
 
+// uiContentSecurityPolicy is served with index.html. base-uri 'self' makes the
+// browser reject a <base href> whose origin differs from the document, so a
+// path like //evil.example/search cannot move the UI's script loads to another
+// host even if the inline base-path script (ADR-009) regresses. script-src
+// keeps scripts same-origin; 'unsafe-inline' is required by the inline
+// base-path and runtime-config scripts that the backend rewrites into the
+// page. A nonce or hash would be stricter but has to be generated per
+// response, which is a separate change.
+const uiContentSecurityPolicy = "base-uri 'self'; script-src 'self' 'unsafe-inline'"
+
 // uiConfigReloadInterval is the TTL on the cached UI config: deriveIndexHTML
 // re-reads the file from disk when the cached value is older than this. A
 // package-level var (not const) so tests can shorten it. Matches the
@@ -287,6 +297,7 @@ func (h *staticAssetsHandler) serveSPA(w http.ResponseWriter, r *http.Request) {
 	// The page carries capabilities decided for this caller, so a shared cache must
 	// not hand one caller's page to another. The assets under /static stay cacheable.
 	w.Header().Set("Cache-Control", "no-store")
+	w.Header().Set("Content-Security-Policy", uiContentSecurityPolicy)
 	w.Write(h.deriveIndexHTML(r))
 }
 

@@ -169,6 +169,36 @@ func TestRegisterStaticHandler(t *testing.T) {
 	}
 }
 
+// TestStaticHandlerServesContentSecurityPolicy: the document response must carry a
+// CSP that makes the browser refuse a cross-origin <base>, independently of the
+// inline base-path script that ADR-009 relies on.
+func TestStaticHandlerServesContentSecurityPolicy(t *testing.T) {
+	r := http.NewServeMux()
+	closer := RegisterStaticHandler(
+		r, zap.NewNop(),
+		&QueryOptions{UIConfig: UIConfig{AssetsPath: "fixture"}, BasePath: ""},
+		noBackendCaps,
+	)
+	defer closer.Close()
+
+	for _, path := range []string{"/", "/search?service=foo"} {
+		rr := httptest.NewRecorder()
+		r.ServeHTTP(rr, httptest.NewRequest(http.MethodGet, path, http.NoBody))
+		require.Equal(t, http.StatusOK, rr.Code, "path: %s", path)
+		assert.Equal(t,
+			"base-uri 'self'; script-src 'self' 'unsafe-inline'",
+			rr.Header().Get("Content-Security-Policy"),
+			"path: %s", path,
+		)
+	}
+
+	// The policy belongs to the document, not to the assets it loads.
+	asset := httptest.NewRecorder()
+	r.ServeHTTP(asset, httptest.NewRequest(http.MethodGet, "/static/asset.txt", http.NoBody))
+	require.Equal(t, http.StatusOK, asset.Code)
+	assert.Empty(t, asset.Header().Get("Content-Security-Policy"))
+}
+
 // TestStaticHandlerInjectsBackendCapabilities covers the handler's whole part in this:
 // serialize what the provider reports into the JAEGER_BACKEND_CAPABILITIES slot, under the
 // key names and in the order the UI bundle expects.
