@@ -34,11 +34,13 @@ one, the agent also calls a tool.
 
 The proxy logs the credentials on purpose, so the check can read them; a
 deployment's proxy must not. The log looks like this (the token and route id
-are per turn). Three answers are expected and depend on no header: Goose sends
-one POST before `initialize` that Jaeger answers 400; the `GET` that would open
-a standing event stream is answered 405, because the turn-scoped endpoint keeps
-no session, and Goose continues without it; a `DELETE` after the turn is
-answered 404 because the turn-scoped route is gone by then.
+are per turn). Three answers are expected and depend on no header. Goose first
+sends `server/discover`, a request from a newer MCP revision than the Go SDK
+implements, which Jaeger answers 400 with `"server/discover" unsupported`, and
+Goose then proceeds to `initialize`. The `GET` that would open a standing event
+stream is answered 405, because the turn-scoped endpoint keeps no session, and
+Goose continues without it. A `DELETE` after the turn is answered 404 because
+the turn-scoped route is gone by then.
 
 ```text
 POST /api/ai/mcp/<route>/ -> 400 turn=<token> user=alice auth=Bearer user-token unlisted=- ...
