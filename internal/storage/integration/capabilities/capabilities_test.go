@@ -19,6 +19,7 @@ var optOuts = map[string]func(Capabilities) Capabilities{
 	"WithoutSpanSearch":            Capabilities.WithoutSpanSearch,
 	"WithoutSpanSorting":           Capabilities.WithoutSpanSorting,
 	"WithoutSpanAttributeOrdering": Capabilities.WithoutSpanAttributeOrdering,
+	"WithoutNonFiniteDoubles":      Capabilities.WithoutNonFiniteDoubles,
 }
 
 // outcomeModifiers is every exported method that sets a typed field instead of adding to the

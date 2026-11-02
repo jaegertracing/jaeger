@@ -374,9 +374,12 @@ func dbSpanToScope(span *dbmodel.Span, scopeSpan ptrace.ScopeSpans) {
 	}
 }
 
+// getAndDeleteTag removes the string tag named key and returns its value. The type check matters
+// because ToDBModel also stores a non-finite double as a string token, and such a tag is an
+// attribute of the span, not scope metadata.
 func getAndDeleteTag(span *dbmodel.Span, key string) (string, bool) {
 	for i := range span.Tags {
-		if span.Tags[i].Key == key {
+		if span.Tags[i].Key == key && span.Tags[i].Type == dbmodel.StringType {
 			if val, ok := span.Tags[i].Value.(string); ok {
 				span.Tags = append(span.Tags[:i], span.Tags[i+1:]...)
 				return val, true
