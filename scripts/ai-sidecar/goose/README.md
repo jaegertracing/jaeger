@@ -19,8 +19,9 @@ provider: set `OPENROUTER_API_KEY` as in step 1 before starting.
 
 ```bash
 ./run.sh              # a Linux build of this working tree, inside the released image
-./run.sh --release    # the released Jaeger image as is
-./run.sh --down       # tear the stack down after the check, for CI
+./run.sh --release    # the released Jaeger image as is; the check passes once a release carries the identity headers
+./run.sh --ci         # start, check, tear down, and exit with the check's result
+./run.sh --down       # stop the stack
 ```
 
 Before it hands the stack over, the script sends one chat request that carries
