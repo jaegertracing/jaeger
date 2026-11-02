@@ -1,0 +1,41 @@
+# Copyright (c) 2026 The Jaeger Authors.
+# SPDX-License-Identifier: Apache-2.0
+
+# This Compose file runs the smoke test that smoke.sh drives: Jaeger, Goose as
+# the ACP agent, and an Apache httpd reverse proxy between Goose and Jaeger's
+# MCP endpoint whose access log prints the headers of every proxied request.
+# The log is the evidence that the agent sends the turn token and the chat
+# caller's identity on each MCP request. See README.md, "Smoke test".
+#
+# Goose needs a model provider; set OPENROUTER_API_KEY (or another provider's
+# variables together with GOOSE_PROVIDER and GOOSE_MODEL) in the environment.
+
+services:
+  jaeger:
+    image: ${JAEGER_IMAGE:-cr.jaegertracing.io/jaegertracing/jaeger:latest}
+    command: ["--config", "/etc/jaeger/config.yaml"]
+    volumes:
+      - "./smoke-jaeger-config.yaml:/etc/jaeger/config.yaml:ro"
+    environment:
+      GOOSE_SERVER__SECRET_KEY: ${GOOSE_SERVER__SECRET_KEY:-smoke-secret}
+    ports: ["16686:16686"]
+
+  goose:
+    build:
+      context: .
+      args:
+        GOOSE_VERSION: ${GOOSE_VERSION:-v1.57.0}
+    environment:
+      GOOSE_PROVIDER: ${GOOSE_PROVIDER:-openrouter}
+      GOOSE_MODEL: ${GOOSE_MODEL:-nvidia/nemotron-3-super-120b-a12b:free}
+      OPENROUTER_API_KEY: ${OPENROUTER_API_KEY:-}
+      GOOSE_SERVER__SECRET_KEY: ${GOOSE_SERVER__SECRET_KEY:-smoke-secret}
+
+  # mcp-proxy sits where a deployment's ingress would: Goose reaches Jaeger's
+  # MCP endpoint only through it, so its log shows what Goose sends.
+  mcp-proxy:
+    image: httpd:2.4.67
+    volumes:
+      - "./smoke-httpd.conf:/usr/local/apache2/conf/httpd.conf:ro"
+    ports: ["16690:80"]
+    depends_on: [jaeger]
