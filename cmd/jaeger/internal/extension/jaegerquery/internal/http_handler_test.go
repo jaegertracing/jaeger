@@ -807,6 +807,29 @@ func TestGetDimensionsEndpointError(t *testing.T) {
 	}
 }
 
+func TestMetricsMalformedQuery(t *testing.T) {
+	for _, endpoint := range []string{"calls", "errors", "latencies"} {
+		for _, query := range []string{
+			"filter=k8s.cluster:%ZZ",
+			"filter=k8s.cluster:%",
+			"filter=k8s.cluster:prod;staging",
+			"filter=k8s.cluster:prod&filter=deployment.environment:%ZZ",
+		} {
+			t.Run(endpoint+"/"+query, func(t *testing.T) {
+				reader := &metricsmocks.Reader{}
+				ts := initializeTestServer(t, HandlerOptions.MetricsQueryService(reader))
+				var response any
+				err := getJSON(ts.server.URL+"/api/metrics/"+endpoint+"?service=svc&quantile=0.95&"+query, &response)
+				var httpErr *HTTPError
+				require.ErrorAs(t, err, &httpErr)
+				assert.Equal(t, http.StatusBadRequest, httpErr.StatusCode)
+				assert.Contains(t, httpErr.Body, "invalid query")
+				assert.Empty(t, reader.Calls, "malformed queries must not reach the reader")
+			})
+		}
+	}
+}
+
 func TestMetricsFilterMalformed(t *testing.T) {
 	for _, filter := range []string{"missing-colon", ":value", "key:"} {
 		t.Run(filter, func(t *testing.T) {

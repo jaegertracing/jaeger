@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"math"
 	"net/http"
+	"net/url"
 	"strconv"
 	"strings"
 	"time"
@@ -111,7 +112,10 @@ func (p *queryParser) parseDependenciesQueryParams(r *http.Request) (dqp depende
 //	filters ::= filter | filter '&' filters
 //	filter ::= 'filter=' strValue ':' strValue (pre-configured dimension name and value, e.g. deployment.environment:prod)
 func (p *queryParser) parseMetricsQueryParams(r *http.Request) (bqp metricstore.BaseQueryParameters, err error) {
-	query := r.URL.Query()
+	query, err := url.ParseQuery(r.URL.RawQuery)
+	if err != nil {
+		return bqp, fmt.Errorf("invalid query: %w", err)
+	}
 	services, ok := query[serviceParam]
 	if !ok {
 		return bqp, newParseError(errors.New("please provide at least one service name"), serviceParam)
