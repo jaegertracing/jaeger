@@ -256,7 +256,9 @@ func (h *chatEndpoint) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		Meta:      injectTraceContextIntoMeta(ctx, nil),
 	})
 	if err != nil {
-		run.failRun(fmt.Sprintf("Error starting prompt: %v", err))
+		// The agent, not Jaeger, refused or failed the turn. Saying so names the
+		// layer, because the agent's own error text rarely does.
+		run.failRun(fmt.Sprintf("The agent failed the turn (ACP session/prompt): %v", err))
 		return
 	}
 

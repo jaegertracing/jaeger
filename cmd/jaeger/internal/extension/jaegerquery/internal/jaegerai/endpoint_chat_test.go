@@ -834,7 +834,7 @@ func TestChatEndpointPromptError(t *testing.T) {
 	require.Contains(t, types, "RUN_ERROR")
 	for _, e := range events {
 		if e["type"] == "RUN_ERROR" {
-			require.Contains(t, e["message"], "Error starting prompt")
+			require.Contains(t, e["message"], "The agent failed the turn")
 			return
 		}
 	}
