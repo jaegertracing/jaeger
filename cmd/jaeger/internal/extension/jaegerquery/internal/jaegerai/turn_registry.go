@@ -13,8 +13,11 @@ import (
 	"github.com/google/uuid"
 )
 
-// turnState holds the per-turn state the turn-scoped MCP endpoint needs: the AG-UI
-// run that writes to the browser, and the UI tools the frontend declared for that
+// turnTokenHeader is the request header that carries a turn's token.
+const turnTokenHeader = "X-Jaeger-Turn-Token" //nolint:gosec // a header name, not a credential
+
+// turnState holds the per-turn state the turn-scoped MCP endpoint needs: the live
+// SSE stream back to the browser, and the UI tools the frontend declared for that
 // turn. The endpoint advertises those UI tools (alongside the built-in telemetry
 // tools) and dispatches their calls onto that run.
 type turnState struct {
@@ -41,9 +44,6 @@ type turnGrant struct {
 	routeID string
 	token   string
 }
-
-// turnTokenHeader is the request header that carries a turn's token.
-const turnTokenHeader = "X-Jaeger-Turn-Token" //nolint:gosec // a header name, not a credential
 
 // newTurnToken returns a random token with at least 128 bits of entropy.
 func newTurnToken() string {

@@ -191,7 +191,7 @@ func TestTurnSessionIsNotAddressableOnSharedMount(t *testing.T) {
 		MaxRequestBodySize: 1 << 20,
 		MCP:                shared,
 	})
-	grant := registerTurn(h.mcp.turns, testStreamingClient(), []json.RawMessage{rawUITool(t, "show_chart")})
+	grant := registerTurn(h.mcp.turns, testAGUIRun(), []json.RawMessage{rawUITool(t, "show_chart")})
 
 	mux := http.NewServeMux()
 	h.RegisterRoutes(mux)
@@ -218,7 +218,7 @@ func TestTurnSessionIsNotAddressableOnSharedMount(t *testing.T) {
 // right token is refused like any other request for a dead route id.
 func TestTurnTokenIsVoidAfterTurnEnds(t *testing.T) {
 	turns := newTurnRegistry()
-	grant, closeTurn := turns.register(testStreamingClient(), nil)
+	grant, closeTurn := turns.register(testAGUIRun(), nil)
 	h := turnScopedEndpointBuilder{
 		shared: sharedMCPHandler(t),
 		turns:  turns,
