@@ -69,7 +69,7 @@ func TestTurnRegistryConcurrent(t *testing.T) {
 // id, which integration tests need to dial that turn's URL. It drops the closer —
 // the registry is a local test object, so the entry simply lives for the test.
 func registerTurn(r *turnRegistry, run *aguiRun, uiTools []json.RawMessage) turnGrant {
-	grant, _ := r.register(stream, uiTools, turnCaller{})
+	grant, _ := r.register(run, uiTools, turnCaller{})
 	return grant
 }
 

@@ -18,8 +18,8 @@ import (
 // turnTokenHeader is the request header that carries a turn's token.
 const turnTokenHeader = "X-Jaeger-Turn-Token" //nolint:gosec // a header name, not a credential
 
-// turnState holds what the turn-scoped MCP endpoint needs for one turn: the SSE
-// stream back to the browser, the UI tools the frontend declared, and the caller
+// turnState holds what the turn-scoped MCP endpoint needs for one turn: the AG-UI
+// run that writes to the browser, the UI tools the frontend declared, and the caller
 // the chat request resolved, which every tool call runs as.
 //
 // A turn also owns the MCP sessions the agent opened under its route and closes
