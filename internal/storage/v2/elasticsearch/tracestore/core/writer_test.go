@@ -8,6 +8,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"math"
 	"net/http/httptest"
 	"testing"
 	"time"
@@ -493,14 +494,12 @@ func TestBuildSpanItem_EncodeError(t *testing.T) {
 		ServiceRotation: indices.NewAliasedRotation("jaeger-service-write", "jaeger-service-read"),
 	})
 
-	// A channel cannot be JSON-encoded, so buildSpanItem returns an error and the
-	// caller drops the span (see TestSpanWriter_WriteSpansEncodeError). Non-finite
-	// floats are not this case; they are stored as strings.
-	span := &dbmodel.Span{TraceID: "a", SpanID: "b", Tag: map[string]any{"bad": make(chan int)}}
+	// A NaN float tag value cannot be JSON-encoded, so buildSpanItem returns an error
+	// (the caller decides to drop the span — see TestSpanWriter_WriteSpansEncodeError).
+	span := &dbmodel.Span{TraceID: "a", SpanID: "b", Tag: map[string]any{"bad": math.NaN()}}
 	item, err := writer.buildSpanItem("jaeger-span-write", span)
 
 	require.Error(t, err)
-	require.ErrorContains(t, err, "unsupported type")
 	assert.Empty(t, item.ID)
 }
 
@@ -510,14 +509,13 @@ func TestSpanWriter_WriteSpansEncodeError(t *testing.T) {
 	withSpanWriter(func(w *spanWriterTest) {
 		startTime := model.TimeAsEpochMicroseconds(time.Now())
 		good := dbmodel.Span{TraceID: "t", SpanID: "ok", OperationName: "op", Process: dbmodel.Process{ServiceName: "svc"}, StartTime: startTime}
-		// A value encoding/json cannot encode (kept in Tags, so it survives tag
-		// elevation) makes this span fail to encode. It shares (service, op) with
-		// the good span so the service doc is deduped. Non-finite floats are
-		// encodable and are covered by TestWriteSpans_NonFiniteFloatNotDropped.
+		// A NaN tag value (kept in Tags, so it survives tag elevation) makes this
+		// span fail to JSON-encode. It shares (service, op) with the good span so the
+		// service doc is deduped.
 		bad := dbmodel.Span{
 			TraceID: "t", SpanID: "bad", OperationName: "op",
 			Process:   dbmodel.Process{ServiceName: "svc"},
-			Tags:      []dbmodel.KeyValue{{Key: "x", Type: dbmodel.StringType, Value: make(chan int)}},
+			Tags:      []dbmodel.KeyValue{{Key: "x", Type: dbmodel.Float64Type, Value: math.NaN()}},
 			StartTime: startTime,
 		}
 
@@ -698,6 +696,30 @@ func TestTagMap(t *testing.T) {
 	tagsMap["b:b"] = int64(1)
 	assert.Equal(t, tagsMap, dbSpan.Tag)
 	assert.Equal(t, tagsMap, dbSpan.Process.Tag)
+}
+
+// TestTagMap_KeepsStringEncodedTypedTagsNested checks that a binary tag and a
+// non-finite float, both stored as strings, stay in the typed array even when
+// every tag is elevated, because the flat tag map cannot carry their type.
+func TestTagMap_KeepsStringEncodedTypedTagsNested(t *testing.T) {
+	tags := []dbmodel.KeyValue{
+		{Key: "ratio", Value: 1.5, Type: dbmodel.Float64Type},
+		{Key: "nan", Value: "NaN", Type: dbmodel.Float64Type},
+		{Key: "blob", Value: "0102", Type: dbmodel.BinaryType},
+	}
+	dbSpan := dbmodel.Span{Tags: tags, Process: dbmodel.Process{Tags: tags}}
+	converter := NewSpanWriter(SpanWriterParams{
+		Logger:          zap.NewNop(),
+		MetricsFactory:  metrics.NullFactory,
+		AllTagsAsFields: true,
+	})
+	converter.convertNestedTagsToFieldTags(&dbSpan)
+
+	expectedNested := []dbmodel.KeyValue{tags[1], tags[2]}
+	assert.Equal(t, expectedNested, dbSpan.Tags)
+	assert.Equal(t, expectedNested, dbSpan.Process.Tags)
+	assert.Equal(t, map[string]any{"ratio": 1.5}, dbSpan.Tag)
+	assert.Equal(t, map[string]any{"ratio": 1.5}, dbSpan.Process.Tag)
 }
 
 func TestNewSpanTags(t *testing.T) {
