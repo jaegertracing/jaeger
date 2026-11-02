@@ -103,7 +103,9 @@ CGO_ENABLED=0 GOOS=linux go build -o /tmp/jaeger-linux ../../../cmd/jaeger
 JAEGER_BINARY=/tmp/jaeger-linux ./smoke.sh -f docker-compose.local.yml   # this working tree
 ```
 
-The proxy log looks like this (the token and route id are per turn). Goose
+The proxy logs the credentials on purpose, so the test can check them; a
+deployment's proxy must not. The log looks like this (the token and route id
+are per turn). Goose
 sends one POST before `initialize` that Jaeger answers 400, and its `DELETE`
 after the turn is answered 404 because the turn-scoped route is gone by then;
 both are expected.

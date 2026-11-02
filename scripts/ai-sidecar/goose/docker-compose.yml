@@ -18,7 +18,7 @@ services:
       - "./smoke-jaeger-config.yaml:/etc/jaeger/config.yaml:ro"
     environment:
       GOOSE_SERVER__SECRET_KEY: ${GOOSE_SERVER__SECRET_KEY:-smoke-secret}
-    ports: ["16686:16686"]
+    ports: ["127.0.0.1:16686:16686"]
 
   goose:
     build:
@@ -37,5 +37,5 @@ services:
     image: httpd:2.4.67
     volumes:
       - "./smoke-httpd.conf:/usr/local/apache2/conf/httpd.conf:ro"
-    ports: ["16690:80"]
+    ports: ["127.0.0.1:16690:80"]
     depends_on: [jaeger]
