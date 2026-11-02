@@ -1471,7 +1471,7 @@ func TestInitRouterAIHandlerRegistration(t *testing.T) {
 			rr := post(first, initialize, "")
 			require.Equal(t, http.StatusOK, rr.Code)
 			sessionID := rr.Header().Get("Mcp-Session-Id")
-			require.NotEmpty(t, sessionID)
+			require.Equal(t, tc.stateless, sessionID == "", "only a stateful replica issues a session id")
 			rr = post(second, listTools, sessionID)
 			assert.Equal(t, tc.want, rr.Code, "stateless=%v", tc.stateless)
 		}

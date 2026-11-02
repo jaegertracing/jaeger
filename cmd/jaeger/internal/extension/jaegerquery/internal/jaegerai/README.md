@@ -211,18 +211,22 @@ token but without the caller's headers runs as nobody.
 
 The turn-scoped endpoint serves the shared MCP server through a stateless
 Streamable HTTP handler. The `ai.mcp.stateless` setting applies only to the
-shared endpoint; the turn-scoped endpoint is stateless regardless of it. The
-SDK then builds a session for each request from that request's
-context and closes it when the request ends, so every tool call runs under the
-turn token and the identity headers of its own request, and nothing outlives
-the request that another request could reach by session id. A stateful handler
-would serve every call of a session from the context of the `initialize` request
-that opened it, so a session would keep its first identity no matter what later
-requests carried, and one session table shared by all turns would let the holder
-of any live turn's token address another turn's session. The stateless handler
-answers the `GET` that opens a standing event stream with 405, as the MCP
-specification allows for a server that sends no messages of its own, and a
-conforming client continues without the stream. The gateway needs no such
+shared endpoint; the turn-scoped endpoint is stateless regardless of it. MCP
+revision 2026-07-28 has no sessions: there is no `initialize` handshake and no
+`Mcp-Session-Id`, every request carries its own protocol version and
+capabilities, and the server judges each request on its own. That is the model
+identity-per-request needs, and the SDK serves that revision only through a
+stateless handler, which builds a session for each request from that request's
+context and closes it when the request ends. Every tool call therefore runs
+under the turn token and the identity headers of its own request, and nothing
+outlives the request that another request could name. An agent on an older
+revision still opens with `initialize` and may send a session id; the endpoint
+serves it the same way, per request, and issues no id back. The MCP
+specification was explicit about the danger even before it removed sessions: a
+server must verify every inbound request and must not use sessions for
+authentication, because a session bound to the identity of the request that
+opened it is a session anyone holding its id can act through. The stateless
+handler answers `GET` and `DELETE` with 405. The gateway needs no standing
 stream: a UI tool call is dispatched to the browser over the chat request's own
 SSE stream, and the MCP response to the agent carries only the acknowledgement.
 
