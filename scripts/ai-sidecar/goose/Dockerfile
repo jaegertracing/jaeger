@@ -1,7 +1,7 @@
 # Copyright (c) 2026 The Jaeger Authors.
 # SPDX-License-Identifier: Apache-2.0
 
-# This image runs a released Goose binary as the ACP agent of the smoke test in
+# This image runs a released Goose binary as the ACP agent of the stack in
 # docker-compose.yml. Goose publishes no versioned container image, so the
 # binary is taken from its GitHub release for the build platform.
 FROM alpine:3.21

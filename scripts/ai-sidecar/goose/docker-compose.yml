@@ -1,24 +1,37 @@
 # Copyright (c) 2026 The Jaeger Authors.
 # SPDX-License-Identifier: Apache-2.0
 
-# This Compose file runs the smoke test that smoke.sh drives: Jaeger, Goose as
-# the ACP agent, and an Apache httpd reverse proxy between Goose and Jaeger's
-# MCP endpoint whose access log prints the headers of every proxied request.
-# The log is the evidence that the agent sends the turn token and the chat
-# caller's identity on each MCP request. See README.md, "Smoke test".
+# This Compose file runs Jaeger with an AI agent: Jaeger with the AI gateway on,
+# Goose as the ACP agent, microsim sending a trickle of traces so there is
+# something to ask about, and an Apache httpd reverse proxy between Goose and
+# Jaeger's MCP endpoint whose access log prints the headers of every proxied
+# request, which is how run.sh checks that the agent sends the turn token and
+# the chat caller's identity on each MCP request. run.sh starts it; see
+# README.md, "Run the stack".
 #
-# Goose needs a model provider; set OPENROUTER_API_KEY (or another provider's
-# variables together with GOOSE_PROVIDER and GOOSE_MODEL) in the environment.
+# Goose needs a model provider to chat; set OPENROUTER_API_KEY (or another
+# provider's variables together with GOOSE_PROVIDER and GOOSE_MODEL) in the
+# environment.
 
 services:
   jaeger:
     image: ${JAEGER_IMAGE:-cr.jaegertracing.io/jaegertracing/jaeger:latest}
     command: ["--config", "/etc/jaeger/config.yaml"]
     volumes:
-      - "./smoke-jaeger-config.yaml:/etc/jaeger/config.yaml:ro"
+      - "./jaeger-config.yaml:/etc/jaeger/config.yaml:ro"
     environment:
-      GOOSE_SERVER__SECRET_KEY: ${GOOSE_SERVER__SECRET_KEY:-smoke-secret}
+      GOOSE_SERVER__SECRET_KEY: ${GOOSE_SERVER__SECRET_KEY:-goose-secret}
     ports: ["127.0.0.1:16686:16686"]
+
+  # microsim is the same trace generator the SPM example uses
+  # (docker-compose/monitor): a simulated microservice topology sending a
+  # steady trickle of traces over OTLP.
+  microsim:
+    image: yurishkuro/microsim:v0.6.0@sha256:fd75a9b3dd1bb4d7d305a562edeac60051a7fec784b898ff7ab834eacc73f41e
+    command: "-d 24h -s 500ms"
+    environment:
+      OTEL_EXPORTER_OTLP_TRACES_ENDPOINT: http://jaeger:4318/v1/traces
+    depends_on: [jaeger]
 
   goose:
     build:
@@ -29,13 +42,13 @@ services:
       GOOSE_PROVIDER: ${GOOSE_PROVIDER:-openrouter}
       GOOSE_MODEL: ${GOOSE_MODEL:-nvidia/nemotron-3-super-120b-a12b:free}
       OPENROUTER_API_KEY: ${OPENROUTER_API_KEY:-}
-      GOOSE_SERVER__SECRET_KEY: ${GOOSE_SERVER__SECRET_KEY:-smoke-secret}
+      GOOSE_SERVER__SECRET_KEY: ${GOOSE_SERVER__SECRET_KEY:-goose-secret}
 
   # mcp-proxy sits where a deployment's ingress would: Goose reaches Jaeger's
   # MCP endpoint only through it, so its log shows what Goose sends.
   mcp-proxy:
     image: httpd:2.4.67
     volumes:
-      - "./smoke-httpd.conf:/usr/local/apache2/conf/httpd.conf:ro"
+      - "./httpd.conf:/usr/local/apache2/conf/httpd.conf:ro"
     ports: ["127.0.0.1:16690:80"]
     depends_on: [jaeger]
