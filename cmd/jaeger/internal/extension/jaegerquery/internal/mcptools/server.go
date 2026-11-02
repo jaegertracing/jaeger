@@ -84,9 +84,9 @@ type Handler struct {
 	server *mcp.Server
 	// recovery guards the middleware added through AddReceivingMiddleware, which
 	// the SDK places outside the recovery newServer installs.
-	recovery   mcp.Middleware
-	tenancyMgr *tenancy.Manager
-	transport  mcp.StreamableHTTPOptions
+	recovery         mcp.Middleware
+	tenancyMgr       *tenancy.Manager
+	transportOptions mcp.StreamableHTTPOptions
 }
 
 var _ io.Closer = (*Handler)(nil)
@@ -132,7 +132,7 @@ func NewHandler(telset telemetry.Settings, queryAPI *querysvc.QueryService, tena
 	h := &Handler{
 		server:     newServer(telset, queryAPI, params),
 		tenancyMgr: tenancyMgr,
-		transport: mcp.StreamableHTTPOptions{
+		transportOptions: mcp.StreamableHTTPOptions{
 			JSONResponse:               params.StreamableHTTP.JSONResponse,
 			Stateless:                  params.StreamableHTTP.Stateless,
 			SessionTimeout:             mcpSessionTimeout,
@@ -156,7 +156,7 @@ func NewHandler(telset telemetry.Settings, queryAPI *querysvc.QueryService, tena
 func (h *Handler) NewTransport() http.Handler {
 	streamable := mcp.NewStreamableHTTPHandler(
 		func(*http.Request) *mcp.Server { return h.server },
-		&h.transport,
+		&h.transportOptions,
 	)
 	return tenancy.ExtractTenantHTTPHandler(h.tenancyMgr, streamable)
 }
