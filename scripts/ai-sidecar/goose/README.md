@@ -98,9 +98,8 @@ MCP server's tools before it calls the model, so the checks run without a model
 provider; with `OPENROUTER_API_KEY` set, the agent also calls a tool.
 
 ```bash
-./smoke.sh                                   # released Jaeger image
-CGO_ENABLED=0 GOOS=linux go build -o /tmp/jaeger-linux ../../../cmd/jaeger
-JAEGER_BINARY=/tmp/jaeger-linux ./smoke.sh -f docker-compose.local.yml   # this working tree
+./smoke.sh            # released Jaeger image
+./smoke.sh --local    # a Linux build of this working tree, inside the released image
 ```
 
 The proxy logs the credentials on purpose, so the test can check them; a
