@@ -6,8 +6,6 @@ package jaegerai
 import (
 	"context"
 	"encoding/json"
-	"errors"
-	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -16,14 +14,10 @@ import (
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
-	"go.opentelemetry.io/collector/client"
 
 	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerquery/internal/mcptools"
 	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerquery/querysvc"
-	"github.com/jaegertracing/jaeger/internal/auth/bearertoken"
-	"github.com/jaegertracing/jaeger/internal/headerforwarding"
 	depstoremocks "github.com/jaegertracing/jaeger/internal/storage/v2/api/depstore/mocks"
 	tracestoremocks "github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore/mocks"
 	"github.com/jaegertracing/jaeger/internal/telemetry"
@@ -50,14 +44,7 @@ func sharedMCPHandler(t *testing.T) *mcptools.Handler {
 
 func sharedMCPHandlerWithParams(t *testing.T, params mcptools.ServerParams) *mcptools.Handler {
 	t.Helper()
-	return sharedMCPHandlerWithReader(t, params, &tracestoremocks.Reader{})
-}
-
-// sharedMCPHandlerWithReader builds the shared endpoint over a caller-supplied
-// trace reader, for tests that observe what the telemetry tools pass to storage.
-func sharedMCPHandlerWithReader(t *testing.T, params mcptools.ServerParams, reader *tracestoremocks.Reader) *mcptools.Handler {
-	t.Helper()
-	svc := querysvc.NewQueryService(reader, &depstoremocks.Reader{}, querysvc.QueryServiceOptions{})
+	svc := querysvc.NewQueryService(&tracestoremocks.Reader{}, &depstoremocks.Reader{}, querysvc.QueryServiceOptions{})
 	h := mcptools.NewHandler(telemetry.NoopSettings(), svc, tenancy.NewManager(&tenancy.Options{}), params)
 	t.Cleanup(func() { h.Close() })
 	return h
@@ -78,13 +65,10 @@ func turnMCPServerWithParams(t *testing.T, params mcptools.ServerParams, uiTools
 }
 
 // turnMCPOptions configures newTurnMCPFixture. Zero values give the default
-// server params, no UI tools, an anonymous caller and a reader with no
-// expectations.
+// server params and no UI tools.
 type turnMCPOptions struct {
 	params  mcptools.ServerParams
 	uiTools []json.RawMessage
-	caller  turnCaller
-	reader  *tracestoremocks.Reader
 }
 
 // turnMCPFixture is a test server with one active turn, mounted the way the
@@ -103,14 +87,11 @@ type turnMCPFixture struct {
 
 func newTurnMCPFixture(t *testing.T, opts turnMCPOptions) turnMCPFixture {
 	t.Helper()
-	if opts.reader == nil {
-		opts.reader = &tracestoremocks.Reader{}
-	}
 	turns := newTurnRegistry()
 	rec := httptest.NewRecorder()
-	grant, closeTurn := turns.register(newAGUIRun(context.Background(), rec, "thread", "run"), opts.uiTools, opts.caller)
+	grant, closeTurn := turns.register(newAGUIRun(context.Background(), rec, "thread", "run"), opts.uiTools)
 
-	shared := sharedMCPHandlerWithReader(t, opts.params, opts.reader)
+	shared := sharedMCPHandlerWithParams(t, opts.params)
 	h := turnScopedEndpointBuilder{
 		baseHandler: shared,
 		turns:       turns,
@@ -134,12 +115,9 @@ func newTurnMCPFixture(t *testing.T, opts turnMCPOptions) turnMCPFixture {
 
 // A session belongs to the turn that opened it. A request on another turn's
 // route, with that turn's own token, that names the session is refused, so a
-// token holder cannot run tools as a different turn's caller.
+// token holder cannot reach a different turn's session, route id and identity.
 func TestTurnSessionIsNotServedOnAnotherTurnsRoute(t *testing.T) {
-	f := newTurnMCPFixture(t, turnMCPOptions{
-		caller: captureTurnCaller(chatRequestContext(t)),
-		reader: chatCallerReader(),
-	})
+	f := newTurnMCPFixture(t, turnMCPOptions{})
 	other := registerTurn(f.turns, testAGUIRun(), nil)
 
 	session := connectTurnMCP(t, f.ts, routeMCPPrefix+f.grant.routeID+"/", f.grant.token)
@@ -227,67 +205,19 @@ func TestTurnScopedEndpointServesTelemetryPlusUITools(t *testing.T) {
 	assert.NotContains(t, got, "show_chart", "the bare frontend name is not an MCP tool")
 }
 
-// chatCallerReader is a trace reader that answers get_services only for the
-// caller that chatRequestContext describes, and refuses anyone else with an
-// error rather than a mock panic, so a regression reads as a failed assertion.
-func chatCallerReader() *tracestoremocks.Reader {
-	reader := &tracestoremocks.Reader{}
-	reader.On("GetServices", mock.MatchedBy(func(ctx context.Context) bool {
-		token, ok := bearertoken.GetBearerToken(ctx)
-		auth := client.FromContext(ctx).Auth
-		forwarded := headerforwarding.CapturedFromContext(ctx)
-		return ok && token == "tok-123" &&
-			auth != nil && auth.GetAttribute("enduser.id") == "alice" &&
-			len(forwarded) == 1 && forwarded[0].Value == "alice"
-	})).Return([]string{"checkout"}, nil)
-	reader.On("GetServices", mock.Anything).Return(nil, errors.New("anonymous caller"))
-	return reader
-}
-
-// TestTurnScopedEndpointQueriesStorageAsChatCaller follows the identity from the
-// chat request to the storage call: a telemetry tool invoked through the
-// turn-scoped endpoint reaches the trace reader with the chat caller's
-// client.Info and bearer token, although the MCP request itself carried neither.
-// The stateful transport serves every call from the context of the request that
-// created the session; the stateless one builds a session from each request. The
-// caller has to arrive either way.
-func TestTurnScopedEndpointQueriesStorageAsChatCaller(t *testing.T) {
-	for _, stateless := range []bool{false, true} {
-		t.Run(fmt.Sprintf("stateless=%t", stateless), func(t *testing.T) {
-			params := mcptools.DefaultServerParams()
-			params.StreamableHTTP.Stateless = stateless
-			reader := chatCallerReader()
-			f := newTurnMCPFixture(t, turnMCPOptions{
-				params: params,
-				caller: captureTurnCaller(chatRequestContext(t)),
-				reader: reader,
-			})
-
-			session := connectTurnMCP(t, f.ts, routeMCPPrefix+f.grant.routeID+"/", f.grant.token)
-			res, err := session.CallTool(context.Background(), &mcp.CallToolParams{Name: "get_services"})
-			require.NoError(t, err)
-			require.False(t, res.IsError, "the tool must succeed, which it only does when the reader saw the chat caller: %v", res.Content)
-			reader.AssertExpectations(t)
-		})
-	}
-}
-
-// TestClosingTurnClosesItsMCPSessions pins the lifetime of the caller's identity
-// to the turn. A stateful session created under the turn's route keeps the chat
-// caller in its context for as long as the handler holds it, so the turn must
-// close the session when it ends rather than leave it to the idle timer. The
-// route answers 404 after the turn whether or not the session was closed, so the
-// test asks the endpoint's handler directly.
+// TestClosingTurnClosesItsMCPSessions pins a session's lifetime to its turn. A
+// stateful session created under the turn's route keeps the context of the
+// request that created it, identity headers and route id included, for as long
+// as the handler holds it, so the turn must close the session when it ends
+// rather than leave it to the idle timer. The route answers 404 after the turn
+// whether or not the session was closed, so the test asks the endpoint's handler
+// directly.
 func TestClosingTurnClosesItsMCPSessions(t *testing.T) {
-	f := newTurnMCPFixture(t, turnMCPOptions{
-		caller: captureTurnCaller(chatRequestContext(t)),
-		reader: chatCallerReader(),
-	})
+	f := newTurnMCPFixture(t, turnMCPOptions{})
 
 	session := connectTurnMCP(t, f.ts, routeMCPPrefix+f.grant.routeID+"/", f.grant.token)
-	res, err := session.CallTool(context.Background(), &mcp.CallToolParams{Name: "get_services"})
-	require.NoError(t, err)
-	require.False(t, res.IsError, "the session works while the turn is live")
+	_, err := session.ListTools(context.Background(), nil)
+	require.NoError(t, err, "the session works while the turn is live")
 	require.Equal(t, http.StatusOK, callToolOnTurnHandler(t, f, session.ID()), "the handler holds the turn's session while the turn is live")
 
 	// A second turn on the same handler is the control: closing the first
@@ -392,7 +322,7 @@ func TestTurnSessionIsNotAddressableOnSharedEndpoint(t *testing.T) {
 // right token is refused like any other request for a dead route id.
 func TestTurnTokenIsVoidAfterTurnEnds(t *testing.T) {
 	turns := newTurnRegistry()
-	grant, closeTurn := turns.register(testAGUIRun(), nil, turnCaller{})
+	grant, closeTurn := turns.register(testAGUIRun(), nil)
 	h := turnScopedEndpointBuilder{
 		baseHandler: sharedMCPHandler(t),
 		turns:       turns,

@@ -193,20 +193,20 @@ void when the turn ends; a request without the turn's token is refused with
   did not offer. Unprefixed names fall through to the telemetry handlers.
 
 Every request to the turn-scoped endpoint runs as the person behind the chat
-request. The sidecar's own request names nobody, since it carries the route id
-and no identity headers, so the chat endpoint captures what the query server's
-middleware recorded about the chat caller (`turn_caller.go`: the collector's
-`client.Info`, the bearer token and the forwarded headers) and the turn-scoped
-endpoint installs it on the request context before the telemetry tools reach
-the query service. An interceptor or storage client that filters or masks by
-caller therefore sees the person who asked, not the sidecar. In the stateful
-transport the SDK serves every call of a session from the context of the
-request that created it, so the caller is bound to the session, and the turn
-closes the sessions opened under its route when it ends so that the identity
-does not outlive the turn. The turn's token is therefore a capability: whoever
-holds it acts as the chat caller for the life of the turn, which is why the
-gateway hands it to the sidecar alone and the deployment trusts the host the
-sidecar runs on.
+request, because the agent sends that person's identity with each one. The
+`session/new` announcement lists, beside the turn token, the headers the query
+server's middleware recorded about the chat caller: the bearer token of
+`bearer_token_propagation` and the `header_forwarding` headers under their
+outbound names. The agent sends every announced header on every request to the
+announced server, so the turn-scoped endpoint receives each tool call as an
+ordinary request from the caller, and the same server-wide middleware that
+authenticated the chat request authenticates the tool call. An interceptor or
+storage client that filters or masks by caller therefore sees the person who
+asked, not the agent. The gateway stores no identity in the turn; the token
+proves only that a request belongs to the turn, and a request that carries the
+token without the caller's headers runs as nobody. The agent already receives
+the same headers on the ACP handshake, so announcing them for the tool leg
+exposes nothing new to it.
 
 The namespace exists so a UI tool can never shadow a telemetry tool of the same
 name. The frontend chooses UI tool names per request, so without a namespace

@@ -119,9 +119,10 @@ func (h *turnScopedEndpoint) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "missing or invalid turn token", http.StatusUnauthorized)
 		return
 	}
-	// A session id must belong to this turn. The transport resolves a session
-	// by its id alone and serves it from the context it was created with, so a
-	// session opened under another turn would run as that turn's caller.
+	// A session id must belong to this turn. The handler resolves a session by
+	// its id alone and serves it from the context it was created with, so a
+	// session opened under another turn would carry that turn's route id and
+	// identity.
 	if sessionID := r.Header.Get(mcpSessionIDHeader); sessionID != "" && !turn.ownsSession(sessionID) {
 		h.logger.Debug("turn-scoped MCP request for a session of another turn", zap.String("mcp_route_id", mcpRouteID))
 		http.NotFound(w, r)
@@ -132,15 +133,12 @@ func (h *turnScopedEndpoint) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	// middleware. The no-slash form strips to "", which we normalize to "/". Our
 	// routes carry no percent-encoding past the UUID, so Path is canonical and
 	// RawPath cleared.
-	//
-	// The request also runs as the chat caller (see turnCaller and turnState).
 	prefix := h.basePath + routeMCPPrefix + mcpRouteID
 	rest := strings.TrimPrefix(r.URL.Path, prefix)
 	if rest == "" {
 		rest = "/"
 	}
-	ctx := turn.caller.contextFor(r.Context())
-	rewritten := r.Clone(context.WithValue(ctx, mcpRouteIDContextKey{}, mcpRouteID))
+	rewritten := r.Clone(context.WithValue(r.Context(), mcpRouteIDContextKey{}, mcpRouteID))
 	rewritten.URL.Path = rest
 	rewritten.URL.RawPath = ""
 	h.handler.ServeHTTP(w, rewritten)

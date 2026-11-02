@@ -19,17 +19,15 @@ import (
 const turnTokenHeader = "X-Jaeger-Turn-Token" //nolint:gosec // a header name, not a credential
 
 // turnState holds what the turn-scoped MCP endpoint needs for one turn: the AG-UI
-// run that writes to the browser, the UI tools the frontend declared, and the caller
-// the chat request resolved, which every tool call runs as.
+// run that writes to the browser and the UI tools the frontend declared.
 //
 // A turn also owns the MCP sessions the agent opened under its route and closes
 // them when it ends. In the stateful transport a session keeps the context of
-// the request that created it, caller included, until it is closed or idles
-// out, so an unclosed session would let the caller's identity outlive the turn.
+// the request that created it, identity headers and route id included, until it
+// is closed or idles out, so an unclosed session would outlive its turn.
 type turnState struct {
 	run     *aguiRun
 	uiTools []json.RawMessage
-	caller  turnCaller
 	// tokenHash is the SHA-256 of the turn's token; see turnGrant.token.
 	tokenHash [sha256.Size]byte
 
@@ -136,19 +134,18 @@ func newTurnRegistry() *turnRegistry {
 	}
 }
 
-// register records a new turn — the browser's SSE stream, the UI tools it
-// declared and the caller behind it — under a freshly minted route id and token,
+// register records a new turn — the browser's SSE stream and the UI tools it
+// declared — under a freshly minted route id and token,
 // and returns that grant plus a closer that removes the turn and closes its MCP
 // sessions. The registry mints both (nothing outside chooses how a turn is
 // keyed); the closer is meant to be deferred by the chat handler and is
 // idempotent. The chat handler announces the grant to the sidecar as the turn's
 // MCP URL and header.
-func (s *turnRegistry) register(run *aguiRun, uiTools []json.RawMessage, caller turnCaller) (grant turnGrant, closer func()) {
+func (s *turnRegistry) register(run *aguiRun, uiTools []json.RawMessage) (grant turnGrant, closer func()) {
 	grant = turnGrant{routeID: uuid.NewString(), token: newTurnToken()}
 	turn := &turnState{
 		run:       run,
 		uiTools:   uiTools,
-		caller:    caller,
 		tokenHash: sha256.Sum256([]byte(grant.token)),
 	}
 	s.mu.Lock()
