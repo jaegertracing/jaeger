@@ -211,13 +211,14 @@ proves only that a request belongs to the turn, and a session opened with the
 token but without the caller's headers runs as nobody.
 
 The turn-scoped endpoint serves the shared MCP server through a stateless
-Streamable HTTP handler, whatever `ai.mcp.stateless` says for the shared
-endpoint. The SDK then builds a session for each request from that request's
+Streamable HTTP handler. The `ai.mcp.stateless` setting applies only to the
+shared endpoint; the turn-scoped endpoint is stateless regardless of it. The
+SDK then builds a session for each request from that request's
 context and closes it when the request ends, so every tool call runs under the
 turn token and the identity headers of its own request, and nothing outlives
 the request that another request could reach by session id. A stateful handler
 would serve every call of a session from the context of the `initialize` request
-that opened it, so a session would keep its first identity whatever later
+that opened it, so a session would keep its first identity no matter what later
 requests carried, and one session table shared by all turns would let the holder
 of any live turn's token address another turn's session. The stateless handler
 answers the `GET` that opens a standing event stream with 405, as the MCP
