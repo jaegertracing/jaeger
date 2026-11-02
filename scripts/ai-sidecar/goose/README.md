@@ -18,8 +18,8 @@ MCP server's tools before it calls the model, so the checks run without a model
 provider; with `OPENROUTER_API_KEY` set, the agent also calls a tool.
 
 ```bash
-./smoke.sh            # released Jaeger image
-./smoke.sh --local    # a Linux build of this working tree, inside the released image
+./smoke.sh              # a Linux build of this working tree, inside the released image
+./smoke.sh --release    # the released Jaeger image as is
 ```
 
 The proxy logs the credentials on purpose, so the test can check them; a
