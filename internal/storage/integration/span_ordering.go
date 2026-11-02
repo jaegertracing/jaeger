@@ -57,6 +57,19 @@ func buildSpanOrderingTraces() []ptrace.Traces {
 	return traces
 }
 
+// withoutRepeats is the expected page sequence for a reader that drops the later occurrences of
+// a tied run at a page boundary: the two copies of "a" tie on every sort key, so only the first
+// comes back when each page holds one span.
+func withoutRepeats(names []string) []string {
+	out := make([]string, 0, len(names))
+	for i, name := range names {
+		if i == 0 || name != names[i-1] {
+			out = append(out, name)
+		}
+	}
+	return out
+}
+
 func orderingTerm(field string, direction tracestore.SortDirection) tracestore.SpanSortOrder {
 	return tracestore.SpanSortOrder{Expression: &expression.FieldRef{Level: expression.LevelSpan, Name: field}, Direction: direction}
 }
@@ -142,17 +155,31 @@ func (s *StorageIntegration) testSpanOrderingBasic(t *testing.T) {
 			assert.Equal(t, tc.want, names)
 			assert.Empty(t, token)
 			q.Pagination.PageSize = 1
-			for i, want := range tc.want {
+			paged := tc.want
+			trailingEmptyPage := false
+			if s.Capabilities.PagingDropsTiedSpans() {
+				paged = withoutRepeats(tc.want)
+				// When the tied run closes the order, the page holding its first copy sees the
+				// second as its lookahead hit and announces another page, which the cursor
+				// cannot reach, so that page is empty.
+				trailingEmptyPage = tc.want[len(tc.want)-1] == tc.want[len(tc.want)-2]
+			}
+			for i, want := range paged {
 				names, token, err = search(q)
 				require.NoError(t, err)
 				require.Equal(t, []string{want}, names)
-				if i == len(tc.want)-1 {
-					require.Empty(t, token)
-				} else {
+				if i < len(paged)-1 {
 					require.NotEmpty(t, token)
+				} else if trailingEmptyPage {
+					require.NotEmpty(t, token)
+					q.Pagination.PageToken = token
+					names, token, err = search(q)
+					require.NoError(t, err)
+					require.Empty(t, names)
 				}
 				q.Pagination.PageToken = token
 			}
+			require.Empty(t, token)
 		})
 	}
 	for _, tc := range []struct {

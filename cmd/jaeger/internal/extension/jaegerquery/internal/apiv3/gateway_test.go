@@ -110,6 +110,7 @@ func runGatewayTests(
 	gw.setupRequest = setupRequest
 	t.Run("GetServices", gw.runGatewayGetServices)
 	t.Run("GetOperations", gw.runGatewayGetOperations)
+	t.Run("GetCapabilities", gw.runGatewayGetCapabilities)
 	t.Run("GetTrace", gw.runGatewayGetTrace)
 	t.Run("FindTraces", gw.runGatewayFindTraces)
 	t.Run("FindTraceSummaries", gw.runGatewayFindTraceSummaries)
@@ -128,6 +129,17 @@ func (gw *testGateway) runGatewayGetServices(t *testing.T) {
 	var response api_v3.GetServicesResponse
 	parseResponse(t, body, &response)
 	assert.Equal(t, []string{"foo"}, response.Services)
+}
+
+// runGatewayGetCapabilities runs against the harness baseline, a reader that declares
+// nothing; TestHTTPGatewayGetCapabilities pins the JSON shape of a full declaration.
+func (gw *testGateway) runGatewayGetCapabilities(t *testing.T) {
+	body, statusCode := gw.execRequest(t, "/api/v3/capabilities")
+	require.Equal(t, http.StatusOK, statusCode)
+
+	var response api_v3.GetCapabilitiesResponse
+	parseResponse(t, body, &response)
+	assert.Equal(t, &api_v3.SearchCapabilities{}, response.GetSearch())
 }
 
 func (gw *testGateway) runGatewayGetOperations(t *testing.T) {

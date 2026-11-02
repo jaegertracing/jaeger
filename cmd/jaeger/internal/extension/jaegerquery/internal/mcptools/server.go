@@ -38,22 +38,22 @@ var serverInstructions string
 var skillsEmbedFS embed.FS
 
 // newServer builds an *mcp.Server with the Jaeger telemetry tools and the
-// tracing/metrics middleware registered. It takes *querysvc.QueryService
+// tracing/metrics/recovery middleware registered. It takes *querysvc.QueryService
 // directly (rather than fetching it from the component host), which keeps it
 // dependency-free of the jaegerquery extension package and avoids the import
 // cycle a host-based lookup would create now that the tools live under
 // jaegerquery/internal.
-func newServer(telset telemetry.Settings, queryAPI *querysvc.QueryService, cfg Config) *mcp.Server {
+func newServer(telset telemetry.Settings, queryAPI *querysvc.QueryService, params ServerParams) *mcp.Server {
 	server := mcp.NewServer(
 		&mcp.Implementation{
-			Name:    cfg.ServerName,
-			Version: cfg.ServerVersion,
+			Name:    params.ServerName,
+			Version: params.ServerVersion,
 		},
 		&mcp.ServerOptions{
 			Instructions: serverInstructions,
 		},
 	)
-	registerTools(server, queryAPI, cfg)
+	registerTools(server, queryAPI, params)
 
 	mw := []mcp.Middleware{
 		createTracingMiddleware(telset.TracerProvider),
@@ -64,6 +64,10 @@ func newServer(telset telemetry.Settings, queryAPI *querysvc.QueryService, cfg C
 	} else {
 		mw = append(mw, metricsMiddleware)
 	}
+	// Innermost, so tracing and metrics record a recovered panic as a failed call.
+	// Middleware added later through Handler.AddReceivingMiddleware wraps this
+	// chain, so the Handler guards it with a recovery of its own.
+	mw = append(mw, createRecoveryMiddleware(telset.Logger))
 	server.AddReceivingMiddleware(mw...)
 	return server
 }
@@ -78,6 +82,9 @@ func newServer(telset telemetry.Settings, queryAPI *querysvc.QueryService, cfg C
 type Handler struct {
 	http.Handler
 	server *mcp.Server
+	// recovery guards the middleware added through AddReceivingMiddleware, which
+	// the SDK places outside the recovery newServer installs.
+	recovery mcp.Middleware
 }
 
 var _ io.Closer = (*Handler)(nil)
@@ -101,25 +108,33 @@ func (h *Handler) Close() error {
 // shared telemetry server. The HTTP shell captures the server by pointer, so
 // middleware added here applies to every later request; call it during startup,
 // before the HTTP server begins serving.
+//
+// The SDK wraps the existing chain with each later call, so the given middleware
+// runs outside the tracing, metrics and recovery middleware newServer installs,
+// and a call it answers itself (as the gateway does for its UI tools) never
+// reaches them. A recovery middleware is therefore added outside it, so a panic
+// in the caller's middleware fails only that request.
 func (h *Handler) AddReceivingMiddleware(middleware ...mcp.Middleware) {
-	h.server.AddReceivingMiddleware(middleware...)
+	h.server.AddReceivingMiddleware(append([]mcp.Middleware{h.recovery}, middleware...)...)
 }
 
 // NewHandler builds a closeable Handler that serves the Jaeger telemetry MCP tools
 // over streamable HTTP, backed by the given QueryService — the shared endpoint at
-// jaeger-query's /api/ai/mcp/. One *mcp.Server is reused for every session: with
-// Stateless: false the SDK builds one ServerSession per MCP session and reuses it
-// for that session's requests. It binds no listener of its own — the caller mounts
+// jaeger-query's /api/ai/mcp/. One *mcp.Server is reused for every session. By
+// default the SDK builds one ServerSession per MCP session and reuses it for that
+// session's requests; with params.StreamableHTTP.Stateless it builds one per request and keeps
+// nothing between requests. It binds no listener of its own — the caller mounts
 // the returned handler on an existing mux and closes it at shutdown so its MCP
 // sessions are reaped.
-func NewHandler(telset telemetry.Settings, queryAPI *querysvc.QueryService, tenancyMgr *tenancy.Manager, cfg Config) *Handler {
-	server := newServer(telset, queryAPI, cfg)
+func NewHandler(telset telemetry.Settings, queryAPI *querysvc.QueryService, tenancyMgr *tenancy.Manager, params ServerParams) *Handler {
+	server := newServer(telset, queryAPI, params)
 	streamable := mcp.NewStreamableHTTPHandler(
 		func(*http.Request) *mcp.Server { return server },
 		&mcp.StreamableHTTPOptions{
-			JSONResponse:   false, // Use SSE for streamed events
-			Stateless:      false, // Session state management
-			SessionTimeout: mcpSessionTimeout,
+			JSONResponse:               params.StreamableHTTP.JSONResponse,
+			Stateless:                  params.StreamableHTTP.Stateless,
+			SessionTimeout:             mcpSessionTimeout,
+			DisableLocalhostProtection: params.StreamableHTTP.DisableLocalhostProtection,
 		},
 	)
 	tenantHandler := tenancy.ExtractTenantHTTPHandler(tenancyMgr, streamable)
@@ -129,22 +144,23 @@ func NewHandler(telset telemetry.Settings, queryAPI *querysvc.QueryService, tena
 			"jaeger_mcp",
 			otelhttp.WithTracerProvider(telset.TracerProvider),
 		),
-		server: server,
+		server:   server,
+		recovery: createRecoveryMiddleware(telset.Logger),
 	}
 }
 
 // RegisterTools registers all Jaeger telemetry MCP tools on the given server,
-// wiring each handler to the supplied QueryService. cfg supplies the per-tool
+// wiring each handler to the supplied QueryService. params supplies the per-tool
 // limits (search results, span details, read-file size).
-func registerTools(server *mcp.Server, queryAPI *querysvc.QueryService, cfg Config) {
+func registerTools(server *mcp.Server, queryAPI *querysvc.QueryService, params ServerParams) {
 	s := struct { // alias to minimize code diff during move
 		mcpServer *mcp.Server
-		config    Config
+		params    ServerParams
 		queryAPI  *querysvc.QueryService
 		skillsFS  fs.FS
 	}{
 		mcpServer: server,
-		config:    cfg,
+		params:    params,
 		queryAPI:  queryAPI,
 	}
 	mcp.AddTool(s.mcpServer, &mcp.Tool{
@@ -160,30 +176,34 @@ func registerTools(server *mcp.Server, queryAPI *querysvc.QueryService, cfg Conf
 
 	mcp.AddTool(s.mcpServer, &mcp.Tool{
 		Name: "search_traces",
-		Description: "Search for traces matching filters. Returns lightweight summaries " +
+		Description: "Search for traces matching filters, given as the structured inputs or as one " +
+			"SQL statement in 'sql'. Returns lightweight summaries " +
 			"(trace_id, duration, span_count, error flag, etc.) without individual spans or attributes.",
-	}, handlers.NewSearchTracesHandler(s.queryAPI, s.config.MaxSearchResults))
+	}, handlers.NewSearchTracesHandler(s.queryAPI, s.params.MaxSearchResults))
 
 	mcp.AddTool(s.mcpServer, &mcp.Tool{
 		Name: "get_span_details",
 		Description: "Fetch full span data (attributes, events, links, status) for specific spans. " +
 			"Returns verbose output per span.",
-	}, handlers.NewGetSpanDetailsHandler(s.queryAPI, s.config.MaxSpanDetailsPerRequest))
+	}, handlers.NewGetSpanDetailsHandler(s.queryAPI, s.params.MaxSpanDetailsPerRequest))
 
 	mcp.AddTool(s.mcpServer, &mcp.Tool{
 		Name: "get_trace_errors",
 		Description: "Get full details for all error-status spans in a trace. " +
 			"Results may be truncated to the server limit; " +
 			"compare total_error_count with the number of returned spans to detect truncation.",
-	}, handlers.NewGetTraceErrorsHandler(s.queryAPI, s.config.MaxSpanDetailsPerRequest))
+	}, handlers.NewGetTraceErrorsHandler(s.queryAPI, s.params.MaxSpanDetailsPerRequest))
 
 	mcp.AddTool(s.mcpServer, &mcp.Tool{
 		Name: "get_trace_topology",
 		Description: "Get the structural overview of a trace as a flat, depth-first span list. " +
 			"Each span includes a 'path' field encoding ancestry as slash-delimited span IDs " +
 			"(e.g. 'rootID/parentID/spanID'). " +
+			"Results may be truncated to the server limit, keeping a depth-first prefix " +
+			"(later roots and sibling subtrees are omitted); " +
+			"compare total_span_count with the number of returned spans to detect truncation. " +
 			"Does NOT include attributes, events, or links.",
-	}, handlers.NewGetTraceTopologyHandler(s.queryAPI, s.config.MaxSpanDetailsPerRequest))
+	}, handlers.NewGetTraceTopologyHandler(s.queryAPI, s.params.MaxSpanDetailsPerRequest))
 
 	mcp.AddTool(s.mcpServer, &mcp.Tool{
 		Name: "get_critical_path",
@@ -205,5 +225,5 @@ func registerTools(server *mcp.Server, queryAPI *querysvc.QueryService, cfg Conf
 		Description: "Read a skill file for trace analysis. " +
 			"Skills are organized using progressive disclosure. " +
 			"Start with SKILL.md which will guide you to more specific sub-skills.",
-	}, handlers.NewReadSkillHandler(s.skillsFS, s.config.CustomSkillsFS, s.config.MaxReadFileSize))
+	}, handlers.NewReadSkillHandler(s.skillsFS, s.params.CustomSkillsFS, s.params.MaxReadFileSize))
 }

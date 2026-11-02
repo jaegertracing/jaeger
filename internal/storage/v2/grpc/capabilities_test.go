@@ -14,19 +14,19 @@ import (
 	"google.golang.org/grpc/status"
 
 	expression "github.com/jaegertracing/jaeger-idl/query/expression/v1"
+	builder "github.com/jaegertracing/jaeger/internal/expression"
 	"github.com/jaegertracing/jaeger/internal/proto-gen/storage/v2"
 	expressionproto "github.com/jaegertracing/jaeger/internal/proto/expression/v1"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore"
 	tracestoremocks "github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore/mocks"
 )
 
+var p builder.Predicate
+
 // TestQueryParametersCarryTheFilter pins the filter onto the query parameters themselves,
 // which is what makes a remote backend that declares filter support actually receive one.
 func TestQueryParametersCarryTheFilter(t *testing.T) {
-	filter := &expression.Call{Op: expression.OpEq, Args: []expression.Expression{
-		&expression.AttributeRef{Key: "http.route", Level: expression.LevelSpan},
-		&expression.AnyValue{Value: "/cart"},
-	}}
+	filter := p.Span().Attr("http.route").Eq("/cart")
 
 	sent, err := toProtoQueryParameters(tracestore.TraceQueryParams{Attributes: pcommon.NewMap(), Filter: filter})
 	require.NoError(t, err)
@@ -51,13 +51,7 @@ func TestQueryParametersCarryTheFilter(t *testing.T) {
 // them without saying which. The filter itself is passed on as sent, whatever the reader declared,
 // because converting it toward the reader's capabilities is the query service's job (ADR-013).
 func TestRemoteIngress_RefusesAMixedQuery(t *testing.T) {
-	filter, err := expressionproto.CallToProto(&expression.Call{
-		Op: expression.OpEq,
-		Args: []expression.Expression{
-			&expression.AttributeRef{Key: "http.route", Level: expression.LevelSpan},
-			&expression.AnyValue{Value: "/cart"},
-		},
-	})
+	filter, err := expressionproto.CallToProto(p.Span().Attr("http.route").Eq("/cart"))
 	require.NoError(t, err)
 
 	tests := map[string]*storage.TraceQueryParameters{
@@ -81,6 +75,7 @@ func TestRemoteIngress_RefusesAMixedQuery(t *testing.T) {
 // TestQueryParametersRefuseAnUnsendableFilter pins that a filter the wire has no form for is
 // answered here rather than sent as a query with no predicates at all.
 func TestQueryParametersRefuseAnUnsendableFilter(t *testing.T) {
+	// A nil operand is a tree the builder cannot spell.
 	filter := &expression.Call{Op: expression.OpEq, Args: []expression.Expression{
 		&expression.AttributeRef{Key: "http.route"}, nil,
 	}}

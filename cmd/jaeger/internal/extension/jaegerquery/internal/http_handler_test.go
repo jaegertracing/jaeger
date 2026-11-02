@@ -897,3 +897,22 @@ func TestNewAPIHandler_Defaults(t *testing.T) {
 	assert.NotNil(t, aH.logger)
 	assert.NotNil(t, aH.tracer)
 }
+
+// Non-finite double attributes (NaN, ±Inf) must not break JSON encoding of the trace.
+func TestGetTraceWithNonFiniteDoubleAttribute(t *testing.T) {
+	for _, v := range []float64{math.NaN(), math.Inf(1), math.Inf(-1)} {
+		t.Run(fmt.Sprintf("%v", v), func(t *testing.T) {
+			tr := makeMockPTrace()
+			tr.ResourceSpans().At(0).ScopeSpans().At(0).Spans().At(0).Attributes().PutDouble("ratio", v)
+
+			ts := initializeTestServer(t)
+			ts.traceReader.On("GetTraces", mock.Anything, mock.Anything).
+				Return(tracesIter(tr)).Once()
+
+			var response structuredResponse
+			err := getJSON(ts.server.URL+`/api/traces/123456abc`, &response)
+			require.NoError(t, err)
+			assert.Empty(t, response.Errors)
+		})
+	}
+}

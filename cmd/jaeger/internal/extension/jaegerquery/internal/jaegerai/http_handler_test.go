@@ -7,6 +7,7 @@ import (
 	"context"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
@@ -178,4 +179,37 @@ func TestSharedCloseReapsTurnScopedSessions(t *testing.T) {
 
 	_, err = session.ListTools(context.Background(), &mcp.ListToolsParams{})
 	require.Error(t, err, "closing the shared handler must reap the turn-scoped session too")
+}
+
+// The ai.auth check arrives as ChatMiddleware. It must stop at the chat endpoint:
+// the turn-scoped MCP endpoint is dialed by the sidecar, which carries no user
+// credential, so wrapping it would break every chat turn.
+func TestChatMiddlewareLeavesTurnScopedEndpointAlone(t *testing.T) {
+	shared := sharedMCPHandler(t)
+	rejectEveryone := func(http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+			http.Error(w, "no user", http.StatusUnauthorized)
+		})
+	}
+	h := NewHandler(HandlerParams{
+		Logger:             zap.NewNop(),
+		AgentURL:           "ws://127.0.0.1:1",
+		MaxRequestBodySize: 1 << 20,
+		MCP:                shared,
+		ChatMiddleware:     rejectEveryone,
+	})
+	routeID := registerTurn(h.mcp.turns, testStreamingClient(), nil)
+
+	mux := http.NewServeMux()
+	h.RegisterRoutes(mux)
+	ts := httptest.NewServer(mux)
+	t.Cleanup(ts.Close)
+
+	resp, err := ts.Client().Post(ts.URL+"/api/ai/chat", "application/json", strings.NewReader(`{}`))
+	require.NoError(t, err)
+	resp.Body.Close()
+	assert.Equal(t, http.StatusUnauthorized, resp.StatusCode, "the chat endpoint is behind the middleware")
+
+	assert.Contains(t, listToolNames(t, ts, "/api/ai/mcp/"+routeID+"/"), "get_services",
+		"the turn-scoped endpoint serves the sidecar without the middleware")
 }

@@ -165,7 +165,7 @@ func serveAndCollect(
 
 	querySvc := makeQuerySvc()
 	server, err := NewServer(context.Background(), querySvc.qs, nil, opts,
-		nilBackendCaps, tenancy.NewManager(&opts.Tenancy), telset)
+		noBackendCaps, tenancy.NewManager(&opts.Tenancy), telset)
 	require.NoError(t, err)
 	require.NoError(t, server.Start(context.Background()))
 	t.Cleanup(func() { require.NoError(t, server.Close()) })

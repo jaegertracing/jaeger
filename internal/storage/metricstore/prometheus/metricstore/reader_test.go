@@ -10,7 +10,9 @@ import (
 	"net/http/httptest"
 	"net/url"
 	"os"
+	"regexp"
 	"slices"
+	"strconv"
 	"strings"
 	"sync/atomic"
 	"testing"
@@ -325,6 +327,70 @@ func TestGetCallRates(t *testing.T) {
 			require.NoError(t, err)
 			assertMetrics(t, m, tc.wantLabels, tc.wantName, tc.wantDescription)
 			assert.Len(t, exp.GetSpans(), 1, "HTTP request was traced and span reported")
+		})
+	}
+}
+
+func TestServiceNamesAreMatchedLiterally(t *testing.T) {
+	for _, tc := range []struct {
+		name         string
+		serviceNames []string
+		wantMatcher  string // the service_name string literal exactly as sent to Prometheus
+		wantNoMatch  []string
+	}{
+		{
+			name:         "wildcard",
+			serviceNames: []string{".*"},
+			wantMatcher:  `"\\.\\*"`,
+			wantNoMatch:  []string{"emailservice", ""},
+		},
+		{
+			name:         "dot",
+			serviceNames: []string{"a.b"},
+			wantMatcher:  `"a\\.b"`,
+			wantNoMatch:  []string{"aXb"},
+		},
+		{
+			name:         "unbalanced brackets and leading repetition",
+			serviceNames: []string{"foo(bar", "+baz", "qux["},
+			wantMatcher:  `"foo\\(bar|\\+baz|qux\\["`,
+			wantNoMatch:  []string{"foobar", "baz", "qux"},
+		},
+		{
+			name:         "double quote and backslash",
+			serviceNames: []string{`say "hi"`, `a\b`},
+			wantMatcher:  `"say \"hi\"|a\\\\b"`,
+			wantNoMatch:  []string{"say hi", "a"},
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			// Prometheus decodes the literal with Go's escaping rules and fully anchors the regex.
+			regex, err := strconv.Unquote(tc.wantMatcher)
+			require.NoError(t, err)
+			re, err := regexp.Compile("^(?s:" + regex + ")$")
+			require.NoError(t, err)
+			for _, name := range tc.serviceNames {
+				assert.True(t, re.MatchString(name), "should match %q", name)
+			}
+			for _, name := range tc.wantNoMatch {
+				assert.False(t, re.MatchString(name), "should not match %q", name)
+			}
+
+			params := metricstore.CallRateQueryParameters{
+				BaseQueryParameters: buildTestBaseQueryParametersFrom(metricsTestCase{
+					serviceNames: tc.serviceNames,
+					spanKinds:    []string{"SPAN_KIND_SERVER"},
+				}),
+			}
+			tracer, _, closer := tracerProvider(t)
+			defer closer()
+			wantPromQlQuery := `sum(rate(calls{service_name =~ ` + tc.wantMatcher +
+				`, span_kind =~ "SPAN_KIND_SERVER"}[10m])) by (service_name)`
+			reader, mockPrometheus := prepareMetricsReaderAndServer(t, defaultConfig, wantPromQlQuery, nil, tracer)
+			defer mockPrometheus.Close()
+
+			_, err = reader.GetCallRates(context.Background(), &params)
+			require.NoError(t, err)
 		})
 	}
 }

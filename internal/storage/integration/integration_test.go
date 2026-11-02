@@ -11,8 +11,10 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
+	"go.opentelemetry.io/collector/pdata/pcommon"
 	"go.opentelemetry.io/collector/pdata/ptrace"
 
+	"github.com/jaegertracing/jaeger/internal/jptrace"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore"
 	tracestoremocks "github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore/mocks"
 	"github.com/jaegertracing/jaeger/internal/telemetry/otelsemconv"
@@ -79,4 +81,33 @@ func TestGetServicesUnexpectedServiceDiagnostic(t *testing.T) {
 func TestQueryToTraceQueryParamsPreservesSearchDepth(t *testing.T) {
 	query := Query{NumTraces: tracestore.MaxSearchDepth + 1}
 	assert.Equal(t, tracestore.MaxSearchDepth+1, query.ToTraceQueryParams(t).SearchDepth)
+}
+
+// TestQueryFixturesHaveDistinctStartTimesPerService guards the shared search fixtures against two
+// traces of one service whose spans start in the same microsecond. The Cassandra
+// service_operation_index keys a row by (service_name, operation_name, start_time) and the
+// service_name_index by (service_name, bucket, start_time), neither with a trace_id, so such spans
+// overwrite each other: always in the first index, and in the second whenever their hash lands in
+// the same bucket. The hash moves with the date-shifted start time, so a search case that expects
+// both traces fails on some days and passes on others.
+func TestQueryFixturesHaveDistinctStartTimesPerService(t *testing.T) {
+	type key struct {
+		service string
+		start   uint64
+	}
+	seen := make(map[key]pcommon.TraceID)
+	for _, queryCase := range LoadAndParseQueryTestCases(t, "fixtures/queries.json") {
+		for _, name := range queryCase.ExpectedFixtures {
+			for pos, span := range jptrace.SpanIter(getTraceFixture(t, name)) {
+				service, _ := pos.Resource.Resource().Attributes().Get(otelsemconv.ServiceNameKey)
+				k := key{service: service.Str(), start: uint64(span.StartTimestamp()) / 1000}
+				if other, ok := seen[k]; ok && other != span.TraceID() {
+					assert.Failf(t, "same service and start microsecond",
+						"traces %s and %s of %s both have a span starting at %d (fixture %s)",
+						other, span.TraceID(), k.service, span.StartTimestamp(), name)
+				}
+				seen[k] = span.TraceID()
+			}
+		}
+	}
 }

@@ -18,7 +18,7 @@ import (
 	"go.opentelemetry.io/collector/pdata/ptrace"
 	"go.uber.org/zap"
 
-	expression "github.com/jaegertracing/jaeger-idl/query/expression/v1"
+	builder "github.com/jaegertracing/jaeger/internal/expression"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/elasticsearch/tracestore/core"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/elasticsearch/tracestore/core/dbmodel"
@@ -270,13 +270,7 @@ func TestTraceReader_FindTraceIDs_Error(t *testing.T) {
 // reader as the expression tree it is. The query service keeps it mutually exclusive with
 // the legacy predicate fields, so those travel empty alongside it.
 func TestTraceReader_FindTraceIDs_Filter(t *testing.T) {
-	filter := &expression.Call{
-		Op: expression.OpGt,
-		Args: []expression.Expression{
-			&expression.FieldRef{Name: expression.SpanFieldDuration, Level: expression.LevelSpan},
-			&expression.AnyValue{Value: "2s"},
-		},
-	}
+	filter := (builder.Predicate{}).Span().Duration.Gt("2s")
 	ts := time.Now()
 	coreReader := &mocks.Reader{}
 	coreReader.On("FindTraceIDs", mock.Anything, dbmodel.TraceQueryParameters{

@@ -213,6 +213,47 @@ func TestHTTPGatewayGetTrace(t *testing.T) {
 	}
 }
 
+func TestHTTPGatewayGetTracePrettyPrint(t *testing.T) {
+	testCases := []struct {
+		name         string
+		query        string
+		expectPrefix string
+	}{
+		{name: "not set", query: "", expectPrefix: `{"result":`},
+		{name: "true", query: "?prettyPrint=true", expectPrefix: "{\n    \"result\": {\n        "},
+		{name: "false", query: "?prettyPrint=false", expectPrefix: `{"result":`},
+	}
+
+	var compactBodies []string
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			gw := setupHTTPGatewayNoServer(t, "")
+			gw.reader.
+				On("GetTraces", matchContext, []tracestore.GetTraceParams{{TraceID: traceID}}).
+				Return(iter.Seq2[[]ptrace.Traces, error](func(yield func([]ptrace.Traces, error) bool) {
+					yield([]ptrace.Traces{makeTestTrace()}, nil)
+				})).Once()
+
+			r := httptest.NewRequest(http.MethodGet, "/api/v3/traces/1"+tc.query, http.NoBody)
+			w := httptest.NewRecorder()
+			gw.router.ServeHTTP(w, r)
+
+			require.Equal(t, http.StatusOK, w.Code)
+			assert.Equal(t, "application/json", w.Header().Get("Content-Type"))
+			assert.True(t, bytes.HasPrefix(w.Body.Bytes(), []byte(tc.expectPrefix)), "body: %s", w.Body.String())
+
+			var compact bytes.Buffer
+			require.NoError(t, json.Compact(&compact, w.Body.Bytes()))
+			compactBodies = append(compactBodies, compact.String())
+		})
+	}
+	// Indentation changes only whitespace, never the payload.
+	require.Len(t, compactBodies, len(testCases))
+	for _, body := range compactBodies[1:] {
+		assert.Equal(t, compactBodies[0], body)
+	}
+}
+
 func TestHTTPGatewayGetTraceBase64(t *testing.T) {
 	tests := []struct {
 		name    string
@@ -522,6 +563,65 @@ func TestHTTPGatewayGetServicesErrors(t *testing.T) {
 	w := httptest.NewRecorder()
 	gw.router.ServeHTTP(w, r)
 	assert.Contains(t, w.Body.String(), assert.AnError.Error())
+}
+
+// TestHTTPGatewayGetCapabilities pins the JSON shape of a full declaration, which is what a
+// client or the UI reads.
+func TestHTTPGatewayGetCapabilities(t *testing.T) {
+	gw := setupHTTPGatewayNoServer(t, "")
+	gw.reader.ExpectedCalls = nil
+	gw.reader.On("SearchCapabilities", mock.Anything).Return(tracestore.SearchCapabilities{
+		WithoutServiceName:  true,
+		SameSpanConjunction: true,
+		Filter: &tracestore.FilterCapabilities{
+			Levels:    []expression.Level{expression.LevelSpan, expression.LevelResource, expression.LevelEvent},
+			Operators: []expression.Operator{expression.OpAnd, expression.OpOr, expression.OpNot, expression.OpEq},
+		},
+		Paginated:   true,
+		SpanSearch:  true,
+		SpanSorting: true,
+	}, nil).Once()
+
+	r, err := http.NewRequest(http.MethodGet, "/api/v3/capabilities", http.NoBody)
+	require.NoError(t, err)
+	w := httptest.NewRecorder()
+	gw.router.ServeHTTP(w, r)
+	require.Equal(t, http.StatusOK, w.Code)
+	gw.verifySnapshot(t, w.Body.Bytes())
+	gw.reader.AssertExpectations(t)
+}
+
+func TestHTTPGatewayGetCapabilitiesErrors(t *testing.T) {
+	tests := []struct {
+		name   string
+		err    error
+		status int
+	}{
+		{
+			name:   "a reader that cannot report is 501",
+			err:    fmt.Errorf("cannot ask: %w", errors.ErrUnsupported),
+			status: http.StatusNotImplemented,
+		},
+		{
+			name:   "any other failure is 500",
+			err:    assert.AnError,
+			status: http.StatusInternalServerError,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			gw := setupHTTPGatewayNoServer(t, "")
+			gw.reader.ExpectedCalls = nil
+			gw.reader.On("SearchCapabilities", mock.Anything).Return(tracestore.SearchCapabilities{}, tt.err).Once()
+
+			r, err := http.NewRequest(http.MethodGet, "/api/v3/capabilities", http.NoBody)
+			require.NoError(t, err)
+			w := httptest.NewRecorder()
+			gw.router.ServeHTTP(w, r)
+			assert.Equal(t, tt.status, w.Code)
+			assert.Contains(t, w.Body.String(), tt.err.Error())
+		})
+	}
 }
 
 func TestHTTPGatewayGetOperationsDefaultSpanKind(t *testing.T) {

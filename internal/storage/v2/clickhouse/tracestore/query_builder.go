@@ -42,10 +42,6 @@ func appendNewlineAndIndent(q *strings.Builder, indent int) {
 	}
 }
 
-func indentBlock(s string) string {
-	return "\t" + strings.ReplaceAll(s, "\n", "\n\t")
-}
-
 func appendAnd(q *strings.Builder, cond string) {
 	appendNewlineAndIndent(q, 1)
 	q.WriteString("AND ")
@@ -101,22 +97,40 @@ func buildGetTracesQuery(params tracestore.GetTraceParams) (string, []any) {
 	q.WriteString(sql.SelectSpansByTraceID)
 	args := []any{params.TraceID}
 
+	// Positional time.Time arguments are truncated to seconds by clickhouse-go.
 	if !params.Start.IsZero() {
-		q.WriteString(" AND s.start_time >= ?")
-		args = append(args, params.Start)
+		q.WriteString(" AND s.start_time >= fromUnixTimestamp64Nano(?)")
+		args = append(args, params.Start.UnixNano())
 	}
 	if !params.End.IsZero() {
-		q.WriteString(" AND s.start_time <= ?")
-		args = append(args, params.End)
+		q.WriteString(" AND s.start_time <= fromUnixTimestamp64Nano(?)")
+		args = append(args, params.End.UnixNano())
 	}
 
 	return q.String(), args
 }
 
-func buildFindTracesQuery(traceIDsQuery string) string {
-	inner := indentBlock("SELECT trace_id FROM (\n" + indentBlock(strings.TrimSpace(traceIDsQuery)) + "\n)")
-	base := strings.TrimRight(sql.SelectSpansQuery, "\n")
-	return base + "\nWHERE s.trace_id IN (\n" + inner + "\n)\nORDER BY s.trace_id"
+func buildFindTracesQuery(traceIDs []tracestore.FoundTraceID) (string, []any) {
+	var q strings.Builder
+	q.WriteString(strings.TrimRight(sql.SelectSpansQuery, "\n"))
+	q.WriteString("\nWHERE ")
+	args := make([]any, 0, 3*len(traceIDs))
+	for i, trace := range traceIDs {
+		if i > 0 {
+			q.WriteString(" OR ")
+		}
+		q.WriteString("(s.trace_id = ?")
+		args = append(args, trace.TraceID.String())
+		// Missing metadata leaves only this trace unbounded.
+		if !trace.Start.IsZero() && !trace.End.IsZero() {
+			// Positional time.Time arguments are truncated to seconds by clickhouse-go.
+			q.WriteString(" AND s.start_time >= fromUnixTimestamp64Nano(?) AND s.start_time <= fromUnixTimestamp64Nano(?)")
+			args = append(args, trace.Start.UnixNano(), trace.End.UnixNano())
+		}
+		q.WriteString(")")
+	}
+	q.WriteString("\nORDER BY s.trace_id")
+	return q.String(), args
 }
 
 func (r *Reader) buildFindTraceIDsQuery(
@@ -136,49 +150,76 @@ func (r *Reader) buildFindTraceIDsQuery(
 	inner.WriteString(sql.SearchTraceIDsBase)
 	args := []any{}
 
-	if query.ServiceName != "" {
-		appendAnd(&inner, "s.service_name = ?")
-		args = append(args, query.ServiceName)
-	}
-	if query.OperationName != "" {
-		appendAnd(&inner, "s.name = ?")
-		args = append(args, query.OperationName)
-	}
-	if query.DurationMin > 0 {
-		appendAnd(&inner, "s.duration >= ?")
-		args = append(args, query.DurationMin.Nanoseconds())
-	}
-	if query.DurationMax > 0 {
-		appendAnd(&inner, "s.duration <= ?")
-		args = append(args, query.DurationMax.Nanoseconds())
-	}
-	if !query.StartTimeMin.IsZero() {
-		appendAnd(&inner, "s.start_time >= ?")
-		args = append(args, query.StartTimeMin)
-	}
-	if !query.StartTimeMax.IsZero() {
-		appendAnd(&inner, "s.start_time <= ?")
-		args = append(args, query.StartTimeMax)
+	// The time range bounds either shape, so it is appended after the predicates each shape
+	// carries rather than repeated in both branches.
+	appendTimeRange := func() {
+		if !query.StartTimeMin.IsZero() {
+			appendAnd(&inner, "s.start_time >= ?")
+			args = append(args, query.StartTimeMin)
+		}
+		if !query.StartTimeMax.IsZero() {
+			appendAnd(&inner, "s.start_time <= ?")
+			args = append(args, query.StartTimeMax)
+		}
 	}
 
-	attributeMetadata, err := r.getAttributeMetadata(ctx, query.Attributes)
-	if err != nil {
-		return "", nil, fmt.Errorf("failed to get attribute metadata: %w", err)
-	}
+	if query.Filter != nil {
+		// The query service refuses a query that carries both a filter and the legacy
+		// scalar fields (EnsureFilterStandsAlone), so the two shapes are alternatives here
+		// rather than combined. A remote-storage client reaches this reader without that
+		// check, so it is repeated rather than letting the legacy fields be dropped silently.
+		if err := query.EnsureFilterStandsAlone(); err != nil {
+			return "", nil, err
+		}
+		// The untyped attribute metadata for the whole tree is looked up once here, and the
+		// lowering reads it from that map.
+		metadata, err := r.lookupUntypedMetadata(ctx, query.Filter)
+		if err != nil {
+			return "", nil, err
+		}
 
-	args, err = buildAttributeConditions(&inner, args, query.Attributes, attributeMetadata)
-	if err != nil {
-		return "", nil, err
+		appendAnd(&inner, "(")
+		args, err = buildFilterCondition(&inner, 2, args, metadata, query.Filter)
+		if err != nil {
+			return "", nil, err
+		}
+		appendNewlineAndIndent(&inner, 1)
+		inner.WriteString(")")
+		appendTimeRange()
+	} else {
+		if query.ServiceName != "" {
+			appendAnd(&inner, "s.service_name = ?")
+			args = append(args, query.ServiceName)
+		}
+		if query.OperationName != "" {
+			appendAnd(&inner, "s.name = ?")
+			args = append(args, query.OperationName)
+		}
+		if query.DurationMin > 0 {
+			appendAnd(&inner, "s.duration >= ?")
+			args = append(args, query.DurationMin.Nanoseconds())
+		}
+		if query.DurationMax > 0 {
+			appendAnd(&inner, "s.duration <= ?")
+			args = append(args, query.DurationMax.Nanoseconds())
+		}
+		appendTimeRange()
+
+		attributeMetadata, err := r.getAttributeMetadata(ctx, query.Attributes)
+		if err != nil {
+			return "", nil, fmt.Errorf("failed to get attribute metadata: %w", err)
+		}
+
+		args, err = buildAttributeConditions(&inner, args, query.Attributes, attributeMetadata)
+		if err != nil {
+			return "", nil, err
+		}
 	}
 
 	inner.WriteString("\nLIMIT ?")
 	args = append(args, limit)
 
-	// Wrap the inner subquery with a JOIN to trace_id_timestamps
-	// to retrieve start/end times only for the limited set of trace IDs.
-	q := fmt.Sprintf(sql.SearchTraceIDs, indentBlock(inner.String()))
-
-	return q, args, nil
+	return inner.String(), args, nil
 }
 
 func buildAttributeConditions(q *strings.Builder, args []any, attributes pcommon.Map, metadata attributeMetadata) ([]any, error) {

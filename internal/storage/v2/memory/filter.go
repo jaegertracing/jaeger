@@ -167,7 +167,8 @@ func validateFilterShape(filter *expression.Call) error {
 			return errArity(filter)
 		}
 	case expression.OpEq, expression.OpNe, expression.OpGt, expression.OpLt,
-		expression.OpGte, expression.OpLte, expression.OpRegex, expression.OpIn, expression.OpNotIn:
+		expression.OpGte, expression.OpLte, expression.OpRegex, expression.OpIn, expression.OpNotIn,
+		expression.OpPhrase, expression.OpFulltext:
 		if len(filter.Args) != 2 {
 			return errArity(filter)
 		}
@@ -321,6 +322,10 @@ func evalPredicate(expr expression.Expression, ctx filterCtx) bool {
 		return evalNotIn(call.Args[0], call.Args[1], ctx)
 	case expression.OpSome:
 		return evalSome(call.Args[0], call.Args[1], ctx)
+	case expression.OpPhrase:
+		return evalTextSearch(call.Args[0], call.Args[1], ctx, containsPhrase)
+	case expression.OpFulltext:
+		return evalTextSearch(call.Args[0], call.Args[1], ctx, containsAllWords)
 	default:
 		// Unreached for a filter the query boundary admitted: it only ever names
 		// one of the operators above. Refusing to match, rather than panicking,
@@ -517,8 +522,66 @@ func evalNotIn(ref, listExpr expression.Expression, ctx filterCtx) bool {
 	return true
 }
 
-// resolveMembership resolves the operands of in and not_in, reporting false when the
-// reference is absent or the right operand is not a list.
+// evalTextSearch matches when match accepts the words of one of the attribute's string
+// values (RFC 0005 §5.3). Both sides are lowercased and the value is split on Unicode
+// whitespace, so "Refund Policy" matches the phrase ["refund", "policy"]. phrase passes
+// containsPhrase and fulltext passes containsAllWords.
+func evalTextSearch(ref, listExpr expression.Expression, ctx filterCtx, match func(haystack, needle []string) bool) bool {
+	values, list, ok := resolveMembership(ref, listExpr, ctx)
+	if !ok {
+		return false
+	}
+	needle := lowerWords(list.Values)
+	for _, v := range values {
+		if v.kind == kindString && match(splitWords(v.str), needle) {
+			return true
+		}
+	}
+	return false
+}
+
+func splitWords(s string) []string {
+	return strings.Fields(strings.ToLower(s))
+}
+
+func lowerWords(words []string) []string {
+	out := make([]string, len(words))
+	for i, w := range words {
+		out[i] = strings.ToLower(w)
+	}
+	return out
+}
+
+func containsPhrase(haystack, needle []string) bool {
+outer:
+	for i := 0; i <= len(haystack)-len(needle); i++ {
+		for j, w := range needle {
+			if haystack[i+j] != w {
+				continue outer
+			}
+		}
+		return true
+	}
+	return false
+}
+
+func containsAllWords(haystack, needle []string) bool {
+	remaining := make(map[string]struct{}, len(needle))
+	for _, w := range needle {
+		remaining[w] = struct{}{}
+	}
+	for _, w := range haystack {
+		if len(remaining) == 0 {
+			break
+		}
+		delete(remaining, w)
+	}
+	return len(remaining) == 0
+}
+
+// resolveMembership resolves the operands of an operator whose right operand is a list
+// (in, not_in, phrase and fulltext), reporting false when the reference is absent or the
+// right operand is not a list.
 func resolveMembership(ref, listExpr expression.Expression, ctx filterCtx) ([]evalValue, *expression.List, bool) {
 	values := resolveOperand(ref, ctx)
 	if len(values) == 0 {

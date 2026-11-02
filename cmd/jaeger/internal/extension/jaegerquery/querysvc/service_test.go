@@ -1666,10 +1666,8 @@ func forwardsOneTrace(reader *tracestoremocks.Reader, dispatched *tracestore.Tra
 // already understands and no filter at all.
 func TestFindTraces_FilterReachesStorageAsLegacyFields(t *testing.T) {
 	enableStructuredFilters(t)
-	query := filterQuery(compare(expression.OpAnd,
-		compare(expression.OpEq,
-			&expression.FieldRef{Level: expression.LevelResource, Name: expression.ResourceFieldService},
-			&expression.AnyValue{Value: "cart"}),
+	query := filterQuery(p.And(
+		p.Resource().Service.Eq("cart"),
 		tag(expression.OpEq, "http.status_code", "500")))
 
 	var dispatched tracestore.TraceQueryParams
@@ -1693,9 +1691,7 @@ func TestFindTraces_FilterReachesStorageAsLegacyFields(t *testing.T) {
 // declares filter support gets the filter itself.
 func TestFindTraces_FilterReachesADeclaringReader(t *testing.T) {
 	enableStructuredFilters(t)
-	filter := compare(expression.OpRegex,
-		&expression.AttributeRef{Key: "http.route", Level: expression.LevelSpan},
-		&expression.AnyValue{Value: "/cart/.*"})
+	filter := p.Span().Attr("http.route").Matches("/cart/.*")
 	query := filterQuery(filter)
 
 	var dispatched tracestore.TraceQueryParams
@@ -1722,9 +1718,7 @@ func TestFindTraces_FilterReachesADeclaringReader(t *testing.T) {
 func TestFindTraces_FilterCanNameTheServiceForABackendThatRequiresOne(t *testing.T) {
 	enableStructuredFilters(t)
 	filterOn := func(level expression.Level, name, value string) *expression.Call {
-		return compare(expression.OpEq,
-			&expression.FieldRef{Level: level, Name: name},
-			&expression.AnyValue{Value: value})
+		return p.RefOf(&expression.FieldRef{Level: level, Name: name}).Eq(value)
 	}
 
 	t.Run("the filter names the service", func(t *testing.T) {
@@ -1757,7 +1751,7 @@ func TestFindTraces_FilterCanNameTheServiceForABackendThatRequiresOne(t *testing
 // unreachable backend refuses the same filter.
 func TestFindTraces_UnservableFilterIsRefusedBeforeStorage(t *testing.T) {
 	enableStructuredFilters(t)
-	query := filterQuery(compare(expression.OpOr,
+	query := filterQuery(p.Or(
 		tag(expression.OpEq, "a", "1"),
 		tag(expression.OpEq, "b", "2")))
 	for name, answer := range map[string]struct {
@@ -1813,4 +1807,14 @@ func TestFindSpansOrdering(t *testing.T) {
 	_, err := jiter.CollectWithErrors(tqs.queryService.FindSpans(t.Context(), SpanQueryParams{OrderBy: []tracestore.SpanSortOrder{{}}}))
 	require.ErrorIs(t, err, tracestore.ErrSpanOrderInvalid)
 	tqs.traceReader.AssertNotCalled(t, "FindSpans", mock.Anything, mock.Anything)
+}
+
+func TestSearchCapabilitiesForwardsTheReaderDeclaration(t *testing.T) {
+	tqs := initializeBareTestQueryService()
+	want := tracestore.SearchCapabilities{WithoutServiceName: true, SpanSearch: true}
+	tqs.traceReader.On("SearchCapabilities", mock.Anything).Return(want, nil).Once()
+
+	got, err := tqs.queryService.SearchCapabilities(context.Background())
+	require.NoError(t, err)
+	assert.Equal(t, want, got)
 }

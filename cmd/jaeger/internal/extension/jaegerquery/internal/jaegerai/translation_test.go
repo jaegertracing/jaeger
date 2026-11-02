@@ -55,12 +55,12 @@ func TestContextTextEntriesFormatsDescriptionAndValue(t *testing.T) {
 		"blank values should be filtered out, descriptions prepended when present")
 }
 
-func TestEncodeToolsAsRawMarshalsEachTool(t *testing.T) {
+func TestEncodeUIToolsAsRawMarshalsEachTool(t *testing.T) {
 	tools := []aguitypes.Tool{
 		{Name: "tool-a", Description: "first", Parameters: map[string]any{"type": "object"}},
 		{Name: "tool-b"},
 	}
-	raw := encodeToolsAsRaw(tools)
+	raw := encodeUIToolsAsRaw(tools)
 	require.Len(t, raw, 2)
 
 	var first map[string]any
@@ -96,7 +96,7 @@ func TestExtractTextReturnsEmptyForUnknownShape(t *testing.T) {
 	assert.Empty(t, extractText(42))
 }
 
-func TestEncodeToolsAsRawSkipsUnmarshalableTool(t *testing.T) {
+func TestEncodeUIToolsAsRawSkipsUnmarshalableTool(t *testing.T) {
 	// A chan is not JSON-marshalable, so the middle tool should be dropped
 	// while the neighbours are still encoded.
 	tools := []aguitypes.Tool{
@@ -104,7 +104,7 @@ func TestEncodeToolsAsRawSkipsUnmarshalableTool(t *testing.T) {
 		{Name: "broken", Parameters: map[string]any{"ch": make(chan int)}},
 		{Name: "ok-2"},
 	}
-	raw := encodeToolsAsRaw(tools)
+	raw := encodeUIToolsAsRaw(tools)
 	require.Len(t, raw, 2)
 
 	var first, second map[string]any
@@ -248,48 +248,47 @@ func TestStripUIToolPrefixPassesThroughUnprefixed(t *testing.T) {
 func TestStripUIToolPrefixFallsBackOnEmptyStrip(t *testing.T) {
 	// An input of exactly the prefix would strip to "", which AG-UI tool-call
 	// events reject and which would break SSE encoding. The streaming path
-	// must defend itself even though handleJaegerToolCall already rejects
-	// this shape on the ext_method side — the streaming client receives ACP
+	// must defend itself because the streaming client receives ACP
 	// session/update notifications independently, so a malformed upstream
 	// name must not terminate the run.
 	assert.Equal(t, UIToolPrefix, stripUIToolPrefix(UIToolPrefix),
 		"a name that is exactly the prefix must NOT strip to empty — fall back to the original")
 }
 
-func TestValidateContextualToolNamesAcceptsEmptyAndValidSlices(t *testing.T) {
-	// A request with no tools is the common case (no contextual tools
+func TestValidateUIToolNamesAcceptsEmptyAndValidSlices(t *testing.T) {
+	// A request with no tools is the common case (no UI tools
 	// declared) — validate must accept it without trying to read the
 	// nil slice. An all-valid slice must also pass through cleanly so
 	// the happy path is never gated on this check.
-	assert.NoError(t, validateContextualToolNames(nil),
+	assert.NoError(t, validateUIToolNames(nil),
 		"nil/empty tool list must not be flagged")
-	assert.NoError(t, validateContextualToolNames([]aguitypes.Tool{
+	assert.NoError(t, validateUIToolNames([]aguitypes.Tool{
 		{Name: "render_chart"},
 		{Name: "show_flamegraph", Description: "open flamegraph view"},
 	}), "an all-valid slice must pass validation")
 }
 
-func TestValidateContextualToolNamesRejectsEmptyName(t *testing.T) {
-	err := validateContextualToolNames([]aguitypes.Tool{{Name: ""}})
-	require.Error(t, err, "empty name must be rejected — would prefix to a bare 'ui_'")
+func TestValidateUIToolNamesRejectsEmptyName(t *testing.T) {
+	err := validateUIToolNames([]aguitypes.Tool{{Name: ""}})
+	require.Error(t, err, "empty name must be rejected before it reaches the MCP tool list")
 	assert.Contains(t, err.Error(), "tools[0].name")
 }
 
-func TestValidateContextualToolNamesRejectsWhitespaceName(t *testing.T) {
+func TestValidateUIToolNamesRejectsWhitespaceName(t *testing.T) {
 	// strings.TrimSpace covers ASCII spaces, tabs, newlines, and the
 	// other Unicode whitespace categories — any of which would slip past
 	// a naive `name == ""` check and produce 'ui_   ' style entries
 	// downstream.
-	err := validateContextualToolNames([]aguitypes.Tool{{Name: "  \t\n  "}})
+	err := validateUIToolNames([]aguitypes.Tool{{Name: "  \t\n  "}})
 	require.Error(t, err, "whitespace-only name must be rejected")
 	assert.Contains(t, err.Error(), "tools[0].name")
 }
 
-func TestValidateContextualToolNamesReportsFirstOffendingIndex(t *testing.T) {
+func TestValidateUIToolNamesReportsFirstOffendingIndex(t *testing.T) {
 	// The error message must point at the first bad entry's index, not
 	// just say "some tool was invalid" — that's what makes the 400
 	// useful to a frontend developer debugging a typo in the tools array.
-	err := validateContextualToolNames([]aguitypes.Tool{
+	err := validateUIToolNames([]aguitypes.Tool{
 		{Name: "ok-first"},
 		{Name: "ok-second"},
 		{Name: ""},

@@ -44,6 +44,7 @@ var matchContext = mock.Anything
 func newGrpcServer(t *testing.T, handler *Handler) (*grpc.Server, net.Addr) {
 	server := grpc.NewServer()
 	api_v3.RegisterQueryServiceServer(server, handler)
+	api_v3.RegisterCapabilitiesServer(server, &CapabilitiesHandler{QueryService: handler.QueryService})
 
 	lis, err := net.Listen("tcp", ":0")
 	require.NoError(t, err)
@@ -61,6 +62,7 @@ type testServerClient struct {
 	reader     *tracestoremocks.Reader
 	depsReader *dependencystoremocks.Reader
 	client     api_v3.QueryServiceClient
+	caps       api_v3.CapabilitiesClient
 }
 
 // fakeStream records the last response the handler sends, or fails the send with sendErr when
@@ -120,6 +122,7 @@ func newTestServerClientWithCapabilities(t *testing.T, caps tracestore.SearchCap
 	require.NoError(t, err)
 	t.Cleanup(func() { conn.Close() })
 	tsc.client = api_v3.NewQueryServiceClient(conn)
+	tsc.caps = api_v3.NewCapabilitiesClient(conn)
 
 	return tsc
 }
@@ -817,10 +820,7 @@ func TestFindSpansWithFilter(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, 1, recv.GetSpans().ToTraces().SpanCount())
 
-	assert.Equal(t, &expression.Call{Op: expression.OpEq, Args: []expression.Expression{
-		&expression.AttributeRef{Key: "http.route", Level: expression.LevelSpan},
-		&expression.AnyValue{Value: "/cart"},
-	}}, dispatched.Filter)
+	assert.Equal(t, p.Span().Attr("http.route").Eq("/cart"), dispatched.Filter)
 }
 
 // TestFindSpansMalformedFilter pins that a filter this build cannot make sense of reaches the
@@ -1010,16 +1010,10 @@ func TestFindTracesWithFilter(t *testing.T) {
 
 	// The service name is compared as text because expression.ResolveConstants read the untyped
 	// constant as the type resource.service declares.
-	assert.Equal(t, &expression.Call{Op: expression.OpAnd, Args: []expression.Expression{
-		&expression.Call{Op: expression.OpEq, Args: []expression.Expression{
-			&expression.FieldRef{Name: expression.ResourceFieldService, Level: expression.LevelResource},
-			&expression.StringValue{Value: "myservice"},
-		}},
-		&expression.Call{Op: expression.OpEq, Args: []expression.Expression{
-			&expression.AttributeRef{Key: "foo"},
-			&expression.AnyValue{Value: "bar"},
-		}},
-	}}, dispatched.Filter)
+	assert.Equal(t, p.And(
+		p.Resource().Service.Eq(p.String("myservice")),
+		p.Attr("foo").Eq("bar"),
+	), dispatched.Filter)
 }
 
 // TestFindTracesMalformedFilter pins that a filter this build cannot make sense of reaches the

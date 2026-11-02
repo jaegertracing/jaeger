@@ -71,7 +71,7 @@ func TestElasticsearchStorage_BackwardCompatibility(t *testing.T) {
 			NewGates:     searchGates,
 			OldEnv:       map[string]string{numericAttributesEnvVar: "false"},
 			NewEnv:       map[string]string{numericAttributesEnvVar: "true"},
-			Capabilities: capabilities.Elasticsearch().WithNumericAttributesNotYetIndexed(),
+			Capabilities: capabilities.Elasticsearch().WithNumericAttributesEnabledAtUpgrade(),
 		},
 	)
 }

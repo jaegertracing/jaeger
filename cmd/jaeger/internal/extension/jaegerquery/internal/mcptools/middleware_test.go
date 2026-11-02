@@ -12,6 +12,7 @@ import (
 	"time"
 	"unicode/utf8"
 
+	"github.com/modelcontextprotocol/go-sdk/jsonrpc"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -25,6 +26,8 @@ import (
 	tracesdk "go.opentelemetry.io/otel/sdk/trace"
 	"go.opentelemetry.io/otel/sdk/trace/tracetest"
 	traceapi "go.opentelemetry.io/otel/trace"
+	"go.uber.org/zap"
+	"go.uber.org/zap/zaptest/observer"
 
 	"github.com/jaegertracing/jaeger/internal/telemetry/otelsemconv"
 )
@@ -43,6 +46,7 @@ func TestTracingMiddlewareToolCallSuccess(t *testing.T) {
 
 	spanData := capture.singleSpan(t)
 	assert.Equal(t, mcpMethodToolsCall+" get_services", spanData.Name)
+	assertHasStringAttribute(t, spanData.Attributes, string(otelsemconv.McpMethodName("").Key), mcpMethodToolsCall)
 	assertHasStringAttribute(t, spanData.Attributes, string(otelsemconv.GenAIToolName("").Key), "get_services")
 	assertHasStringAttribute(t, spanData.Attributes, string(otelsemconv.GenAIOperationNameExecuteTool.Key), "execute_tool")
 	assert.Equal(t, codes.Unset, spanData.Status.Code)
@@ -233,7 +237,8 @@ func TestTracingMiddlewareToolCallResultError(t *testing.T) {
 	assertHasStringAttribute(t, spanData.Attributes, string(otelsemconv.GenAIToolName("").Key), "get_services")
 	assertHasStringAttribute(t, spanData.Attributes, string(otelsemconv.GenAIOperationNameExecuteTool.Key), "execute_tool")
 	assertHasStringAttribute(t, spanData.Attributes, string(otelsemconv.ErrorType("").Key), errorTypeTool)
-	assert.Equal(t, codes.Unset, spanData.Status.Code)
+	assert.Equal(t, codes.Error, spanData.Status.Code)
+	assert.Equal(t, "invalid pattern", spanData.Status.Description)
 }
 
 func TestTracingMiddlewareTracesNonToolMethods(t *testing.T) {
@@ -320,7 +325,8 @@ func TestTracingMiddlewareToolCallResultErrorWithoutConcreteError(t *testing.T) 
 	assertHasStringAttribute(t, spanData.Attributes, string(otelsemconv.GenAIToolName("").Key), "get_services")
 	assertHasStringAttribute(t, spanData.Attributes, string(otelsemconv.GenAIOperationNameExecuteTool.Key), "execute_tool")
 	assertHasStringAttribute(t, spanData.Attributes, string(otelsemconv.ErrorType("").Key), errorTypeTool)
-	assert.Equal(t, codes.Unset, spanData.Status.Code)
+	assert.Equal(t, codes.Error, spanData.Status.Code)
+	assert.Equal(t, "tool returned an error result", spanData.Status.Description)
 }
 
 func TestTracingMiddlewareUsesTraceContextFromRequestMeta(t *testing.T) {
@@ -859,4 +865,53 @@ func (m *failingMeter) Float64Histogram(name string, opts ...metric.Float64Histo
 		return nil, errors.New("histogram creation failed")
 	}
 	return m.Meter.Float64Histogram(name, opts...)
+}
+
+func TestRecoveryMiddlewareToolCallPanic(t *testing.T) {
+	core, logs := observer.New(zap.ErrorLevel)
+	wrapped := createRecoveryMiddleware(zap.New(core))(func(context.Context, string, mcp.Request) (mcp.Result, error) {
+		panic("tool failed")
+	})
+
+	result, err := wrapped(context.Background(), mcpMethodToolsCall, newToolCallRequest("get_span_details"))
+	require.NoError(t, err)
+	callResult, ok := result.(*mcp.CallToolResult)
+	require.True(t, ok)
+	assert.True(t, callResult.IsError)
+	require.ErrorIs(t, callResult.GetError(), errToolPanicked)
+
+	entries := logs.All()
+	require.Len(t, entries, 1)
+	fields := entries[0].ContextMap()
+	assert.Equal(t, mcpMethodToolsCall, fields["method"])
+	assert.Equal(t, "get_span_details", fields["tool"])
+	assert.Equal(t, "tool failed", fields["panic"])
+	assert.Contains(t, fields["stack"], "TestRecoveryMiddlewareToolCallPanic")
+}
+
+func TestRecoveryMiddlewareNonToolMethodPanic(t *testing.T) {
+	core, logs := observer.New(zap.ErrorLevel)
+	wrapped := createRecoveryMiddleware(zap.New(core))(func(context.Context, string, mcp.Request) (mcp.Result, error) {
+		panic("listing failed")
+	})
+
+	result, err := wrapped(context.Background(), "tools/list", nil)
+	assert.Nil(t, result)
+	var wireErr *jsonrpc.Error
+	require.ErrorAs(t, err, &wireErr)
+	assert.EqualValues(t, jsonrpc.CodeInternalError, wireErr.Code)
+	assert.Equal(t, 1, logs.Len())
+}
+
+func TestRecoveryMiddlewarePassesThrough(t *testing.T) {
+	core, logs := observer.New(zap.ErrorLevel)
+	want := &mcp.CallToolResult{}
+	wrapped := createRecoveryMiddleware(zap.New(core))(func(context.Context, string, mcp.Request) (mcp.Result, error) {
+		return want, nil
+	})
+
+	result, err := wrapped(context.Background(), mcpMethodToolsCall, newToolCallRequest("get_services"))
+	require.NoError(t, err)
+	assert.Same(t, want, result)
+	assert.Zero(t, logs.Len())
 }

@@ -230,9 +230,8 @@ func TestFindSpans_TieBreaksOnTraceAndSpanID(t *testing.T) {
 // search with another filter refuses it.
 func TestFindSpans_PagesAFilteredSearch(t *testing.T) {
 	store, _ := writeTwoTraceStore(t)
-	service := fieldRef(expression.LevelResource, expression.ResourceFieldService)
 	query := tracestore.SpanQueryParams{
-		Filter:     call(expression.OpEq, service, str("frontend")),
+		Filter:     p.Resource().Service.Eq("frontend"),
 		Pagination: tracestore.Pagination{PageSize: 1},
 	}
 	first, err := findSpansPage(t, store, query)
@@ -246,7 +245,7 @@ func TestFindSpans_PagesAFilteredSearch(t *testing.T) {
 	assert.Equal(t, []string{"GET /"}, spanNames(second.Results))
 	assert.Empty(t, second.NextPageToken, "handle-request belongs to another service")
 
-	query.Filter = call(expression.OpEq, service, str("backend"))
+	query.Filter = p.Resource().Service.Eq("backend")
 	_, err = findSpansPage(t, store, query)
 	require.ErrorIs(t, err, tracestore.ErrPaginationInvalid, "the token was minted for the frontend filter")
 }
