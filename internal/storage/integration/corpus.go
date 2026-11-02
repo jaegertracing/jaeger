@@ -49,8 +49,9 @@ type Corpus struct {
 	CrossService []ptrace.Traces
 
 	// NonFinite is a one-span trace whose resource, span and event each carry a NaN and the two
-	// infinities as double attributes. The fixtures are JSON, which cannot spell those values, so
-	// the trace is built in code.
+	// infinities as double attributes, present unless the backend has excused itself from the
+	// assertion. The fixtures are JSON, which cannot spell those values, so the trace is built
+	// in code.
 	NonFinite ptrace.Traces
 
 	// Pagination holds five traces under a dedicated service, including a start-time tie.
@@ -72,6 +73,7 @@ type Corpus struct {
 	// where the cost of the 10k-span trace actually is.
 	hasLarge      bool
 	hasDuplicates bool
+	hasNonFinite  bool
 }
 
 const (
@@ -82,6 +84,7 @@ const (
 	// for, so that a backend's skip list decides whether the corpus carries it.
 	largeTraceTest     = "GetLargeTrace"
 	duplicateSpansTest = "GetTraceWithDuplicateSpans"
+	nonFiniteTest      = "GetTraceWithNonFiniteDoubles"
 
 	largeTraceService      = "large-trace-service"
 	nonFiniteService       = "non-finite-service"
@@ -137,7 +140,10 @@ func BuildCorpus(t *testing.T, suiteFixtures []*QueryFixtures, caps capabilities
 	}
 	c.Bounded = buildBoundedTrace()
 	c.CrossService = buildCrossServiceTraces()
-	c.NonFinite = buildNonFiniteTrace()
+	c.hasNonFinite = !skipsTest(caps, nonFiniteTest)
+	if c.hasNonFinite {
+		c.NonFinite = buildNonFiniteTrace()
+	}
 	c.QueryTraces["complete_search"] = buildCompleteSearchTrace()
 	c.Pagination = buildPaginationTraces()
 	c.SpanOrdering = buildSpanOrderingTraces()
@@ -309,7 +315,7 @@ func (c *Corpus) All() []ptrace.Traces {
 		all = append(all, c.Bounded)
 	}
 	all = append(all, c.CrossService...)
-	if c.NonFinite != (ptrace.Traces{}) {
+	if c.hasNonFinite {
 		all = append(all, c.NonFinite)
 	}
 	all = append(all, c.SpanOrdering...)
