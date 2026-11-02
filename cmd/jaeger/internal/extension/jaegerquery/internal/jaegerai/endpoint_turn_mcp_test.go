@@ -64,9 +64,9 @@ func turnMCPServerWithParams(t *testing.T, params mcptools.ServerParams, uiTools
 	routeID = registerTurn(turns, newAGUIRun(context.Background(), rec, "thread", "run"), uiTools)
 
 	h := turnScopedEndpointBuilder{
-		shared: sharedMCPHandlerWithParams(t, params),
-		turns:  turns,
-		logger: telemetry.NoopSettings().Logger,
+		baseHandler: sharedMCPHandlerWithParams(t, params),
+		turns:       turns,
+		logger:      telemetry.NoopSettings().Logger,
 	}.build()
 	mux := http.NewServeMux()
 	h.registerRoutes(mux)
@@ -188,9 +188,9 @@ func TestTurnScopedEndpointIsolatesTurns(t *testing.T) {
 	idB := registerTurn(turns, newAGUIRun(context.Background(), recB, "tb", "rb"), []json.RawMessage{rawUITool(t, "chart_b")})
 
 	h := turnScopedEndpointBuilder{
-		shared: sharedMCPHandler(t),
-		turns:  turns,
-		logger: telemetry.NoopSettings().Logger,
+		baseHandler: sharedMCPHandler(t),
+		turns:       turns,
+		logger:      telemetry.NoopSettings().Logger,
 	}.build()
 	mux := http.NewServeMux()
 	h.registerRoutes(mux)
