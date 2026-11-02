@@ -13,20 +13,55 @@ import (
 	"github.com/coder/acp-go-sdk"
 )
 
-// latestUserMessageText returns the text content of the most recent user
-// message in the AG-UI run input. It is an error if no user message carries
-// any textual content.
-func latestUserMessageText(messages []aguitypes.Message) (string, error) {
+// latestUserMessageIndex returns the index of the most recent user message
+// in the AG-UI run input that carries textual content, or -1 if none is found.
+func latestUserMessageIndex(messages []aguitypes.Message) int {
 	for i := len(messages) - 1; i >= 0; i-- {
 		if messages[i].Role != aguitypes.RoleUser {
 			continue
 		}
 		text := extractText(messages[i].Content)
 		if text != "" {
-			return text, nil
+			return i
 		}
 	}
-	return "", errors.New("no user message with text content found")
+	return -1
+}
+
+// latestUserMessageText returns the text content of the most recent user
+// message in the AG-UI run input. It is an error if no user message carries
+// any textual content.
+func latestUserMessageText(messages []aguitypes.Message) (string, error) {
+	idx := latestUserMessageIndex(messages)
+	if idx == -1 {
+		return "", errors.New("no user message with text content found")
+	}
+	return extractText(messages[idx].Content), nil
+}
+
+// historyPromptBlocks formats earlier conversation turns occurring before
+// latestUserIdx into prompt text blocks for agents that do not support
+// session resume.
+func historyPromptBlocks(messages []aguitypes.Message, latestUserIdx int) []acp.ContentBlock {
+	if latestUserIdx <= 0 {
+		return nil
+	}
+	var blocks []acp.ContentBlock
+	for i := 0; i < latestUserIdx; i++ {
+		msg := messages[i]
+		text := extractText(msg.Content)
+		if text == "" {
+			continue
+		}
+		role := string(msg.Role)
+		if len(role) > 0 {
+			role = strings.ToUpper(role[:1]) + role[1:]
+		} else {
+			role = "User"
+		}
+		blocks = append(blocks, acp.TextBlock(fmt.Sprintf("[%s]:\n%s", role, text)))
+	}
+	return blocks
 }
 
 // contextTextEntries flattens AG-UI context entries into strings that can be
