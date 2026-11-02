@@ -63,7 +63,7 @@ func uiToolsMiddleware(turns *turnRegistry, logger *zap.Logger) mcp.Middleware {
 			case methodInitialize:
 				routeID := mcpRouteIDFromContext(ctx)
 				if routeID == "" {
-					// The shared mount: an external MCP client with no turn.
+					// The shared endpoint: an external MCP client with no turn.
 					return next(ctx, method, req)
 				}
 				// initialize creates the session, so the turn claims it here (see
