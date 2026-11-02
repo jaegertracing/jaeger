@@ -178,7 +178,7 @@ func TestRegisterRoutesOmitsMCPEndpointWhenDisabled(t *testing.T) {
 // TestSharedCloseReapsTurnScopedSessions pins the turn-scoped endpoint into
 // jaeger-query's teardown chain (Server.Close → httpServer.Close → closers.Close →
 // mcptools.Handler.Close). The gateway holds nothing itself, so closing the shared
-// MCP handler has to reap the sessions the turn-scoped mount bound; the SDK reaps a
+// MCP handler has to reap the sessions the turn-scoped endpoint bound; the SDK reaps a
 // session only when it goes idle, so otherwise a live turn's session would outlive
 // the server.
 func TestSharedCloseReapsTurnScopedSessions(t *testing.T) {

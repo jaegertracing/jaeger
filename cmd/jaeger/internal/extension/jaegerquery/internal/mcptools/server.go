@@ -141,20 +141,20 @@ func NewHandler(telset telemetry.Settings, queryAPI *querysvc.QueryService, tena
 		recovery: createRecoveryMiddleware(telset.Logger),
 	}
 	h.Handler = otelhttp.NewHandler(
-		h.NewHTTPHandler(),
+		h.NewIsolatedHandler(),
 		"jaeger_mcp",
 		otelhttp.WithTracerProvider(telset.TracerProvider),
 	)
 	return h
 }
 
-// NewHTTPHandler returns another HTTP handler for the same *mcp.Server, with the
-// same options and tenant extraction as this one, for serving on a second path.
-// The go-sdk's Streamable HTTP handler owns the table of MCP sessions, keyed by
-// the Mcp-Session-Id header, so a session opened through one handler is unknown
-// to the other. Close reaps the sessions of both, because they belong to the one
-// server.
-func (h *Handler) NewHTTPHandler() http.Handler {
+// NewIsolatedHandler returns a second HTTP handler for the same *mcp.Server,
+// with the same options and tenant extraction as this one, whose MCP sessions
+// are invisible to this handler and the reverse. The go-sdk's Streamable HTTP
+// handler owns the table of sessions, keyed by the Mcp-Session-Id header, so
+// a session opened through one handler cannot be addressed through the other.
+// Close reaps the sessions of both, because they belong to the one server.
+func (h *Handler) NewIsolatedHandler() http.Handler {
 	streamable := mcp.NewStreamableHTTPHandler(
 		func(*http.Request) *mcp.Server { return h.server },
 		&h.streamableOptions,

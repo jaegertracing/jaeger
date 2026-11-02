@@ -322,10 +322,10 @@ func TestNewHandler_Stateless(t *testing.T) {
 		return first, second
 	}
 
-	t.Run("a second HTTP handler over one server keeps its own sessions", func(t *testing.T) {
+	t.Run("an isolated handler over one server keeps its own sessions", func(t *testing.T) {
 		first := NewHandler(telemetry.NoopSettings(), svc, tenancyMgr, DefaultServerParams())
 		t.Cleanup(func() { first.Close() })
-		second := first.NewHTTPHandler()
+		second := first.NewIsolatedHandler()
 		resp := post(first, initialize, "")
 		require.Equal(t, http.StatusOK, resp.StatusCode)
 		sessionID := resp.Header.Get("Mcp-Session-Id")
