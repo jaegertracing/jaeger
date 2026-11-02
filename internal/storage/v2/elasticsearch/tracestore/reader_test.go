@@ -18,7 +18,7 @@ import (
 	"go.opentelemetry.io/collector/pdata/ptrace"
 	"go.uber.org/zap"
 
-	expression "github.com/jaegertracing/jaeger-idl/query/expression/v1"
+	builder "github.com/jaegertracing/jaeger/internal/expression"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/elasticsearch/tracestore/core"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/elasticsearch/tracestore/core/dbmodel"
@@ -37,6 +37,9 @@ func TestTraceReader_SearchCapabilities(t *testing.T) {
 		WithoutServiceName:  true,
 		SameSpanConjunction: true,
 		Filter:              &filter,
+		SpanSearch:          true,
+		SpanSorting:         true,
+		Paginated:           true,
 	}, caps)
 }
 
@@ -199,11 +202,12 @@ func TestTraceReader_FindTraceIDs(t *testing.T) {
 		expected = append(expected, fromDBTraceId(t, dbTraceID))
 	}
 	coreReader.On("FindTraceIDs", mock.Anything, mock.Anything).Return(dbTraceIDs, nil)
-	for traceIds, err := range reader.FindTraceIDs(context.Background(), tracestore.TraceQueryParams{
+	for chunk, err := range reader.FindTraceIDs(context.Background(), tracestore.TraceQueryParams{
 		Attributes: pcommon.NewMap(),
 	}) {
 		require.NoError(t, err)
-		require.Equal(t, expected, traceIds)
+		require.Empty(t, chunk.NextPageToken)
+		require.Equal(t, expected, chunk.Results)
 	}
 }
 
@@ -253,9 +257,10 @@ func TestTraceReader_FindTraceIDs_Error(t *testing.T) {
 			}
 			coreReader.On("FindTraceIDs", mock.Anything, dbTraceQueryParams).Return(test.traceIdsFromCoreReader, test.errFromCoreReader)
 			reader := TraceReader{spanReader: coreReader}
-			for traceIds, err := range reader.FindTraceIDs(context.Background(), traceQueryParams) {
+			for chunk, err := range reader.FindTraceIDs(context.Background(), traceQueryParams) {
 				require.ErrorContains(t, err, test.expectedErr)
-				require.Nil(t, traceIds)
+				require.Empty(t, chunk.Results)
+				require.Empty(t, chunk.NextPageToken)
 			}
 		})
 	}
@@ -265,13 +270,7 @@ func TestTraceReader_FindTraceIDs_Error(t *testing.T) {
 // reader as the expression tree it is. The query service keeps it mutually exclusive with
 // the legacy predicate fields, so those travel empty alongside it.
 func TestTraceReader_FindTraceIDs_Filter(t *testing.T) {
-	filter := &expression.Call{
-		Op: expression.OpGt,
-		Args: []expression.Expression{
-			&expression.FieldRef{Name: expression.SpanFieldDuration, Level: expression.LevelSpan},
-			&expression.AnyValue{Value: "2s"},
-		},
-	}
+	filter := (builder.Predicate{}).Span().Duration.Gt("2s")
 	ts := time.Now()
 	coreReader := &mocks.Reader{}
 	coreReader.On("FindTraceIDs", mock.Anything, dbmodel.TraceQueryParameters{
@@ -300,7 +299,7 @@ func Test_NewTraceReader(t *testing.T) {
 }
 
 func fromDBTraceId(t *testing.T, traceID dbmodel.TraceID) tracestore.FoundTraceID {
-	traceId, err := convertTraceIDFromDB(traceID)
+	traceId, err := traceID.ToOTEL()
 	require.NoError(t, err)
 	return tracestore.FoundTraceID{
 		TraceID: traceId,

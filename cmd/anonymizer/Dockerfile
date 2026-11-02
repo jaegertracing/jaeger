@@ -4,7 +4,8 @@
 FROM scratch
 ARG TARGETARCH
 ARG USER_UID=10001
+ARG USER_GID=10001
 
 COPY anonymizer-linux-$TARGETARCH /go/bin/anonymizer-linux
 ENTRYPOINT ["/go/bin/anonymizer-linux"]
-USER ${USER_UID}
+USER ${USER_UID}:${USER_GID}

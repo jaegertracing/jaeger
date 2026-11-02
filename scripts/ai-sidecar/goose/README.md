@@ -14,7 +14,11 @@ needed. **Any agent that serves ACP over WebSocket works the same way** — only
 - A Jaeger build that includes [#9296](https://github.com/jaegertracing/jaeger/pull/9296)
   (WebSocket message framing) and [#9395](https://github.com/jaegertracing/jaeger/pull/9395)
   (`ai.agent_headers`). Both are on `main`.
-- The `goose` binary from [Goose releases](https://github.com/aaif-goose/goose/releases).
+- The `goose` binary from [Goose releases](https://github.com/aaif-goose/goose/releases),
+  v1.55.0 or later. That release includes
+  [aaif-goose/goose#12697](https://github.com/aaif-goose/goose/pull/12697), which
+  propagates the chat request's trace context into Goose's MCP tool calls so the
+  agent's spans appear in the request trace.
 - Credentials for a model provider. The zero-cost route is
   [OpenRouter](https://openrouter.ai)'s free tier — see below.
 

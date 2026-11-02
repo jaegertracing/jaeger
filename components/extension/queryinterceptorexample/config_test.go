@@ -28,8 +28,8 @@ import (
 // and validates it end to end. This proves the file is a correct Jaeger config:
 // every referenced component resolves, the service graph validates, and the
 // query_interceptor_example extension parses its deny/redact policy from the
-// file. The runtime behavior of the two hooks (OnQuery rejecting a forbidden
-// filter, OnResult redacting attributes) is covered by extension_test.go, and
+// file. The runtime behavior of the two hooks (OnTraceQuery rejecting a forbidden
+// filter, OnTraceResult redacting attributes) is covered by extension_test.go, and
 // the query service that invokes them by its own interceptor_test.go.
 func TestExampleConfigValidates(t *testing.T) {
 	provider, err := otelcol.NewConfigProvider(otelcol.ConfigProviderSettings{

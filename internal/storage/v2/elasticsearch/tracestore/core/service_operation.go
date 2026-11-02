@@ -6,6 +6,7 @@ package core
 
 import (
 	"context"
+	"encoding/binary"
 	"errors"
 	"fmt"
 	"hash/fnv"
@@ -147,7 +148,7 @@ func (s *ServiceOperationStorage) getServices(ctx context.Context, indices []str
 		Aggregations: map[string]query.Aggregation{
 			// Size bounds distinct buckets — ES deprecated size omission for
 			// aggregating all. https://github.com/elastic/elasticsearch/issues/18838
-			servicesAggregation: query.NewTermsAggregation(serviceName).Size(maxDocCount),
+			servicesAggregation: query.NewTermsAggregation(serviceName).Size(uint64(max(0, maxDocCount))),
 		},
 	})
 	if err != nil {
@@ -164,7 +165,7 @@ func (s *ServiceOperationStorage) getOperations(ctx context.Context, indices []s
 		Size:  0,
 		Query: query.NewTermQuery(serviceName, service),
 		Aggregations: map[string]query.Aggregation{
-			operationsAggregation: query.NewTermsAggregation(operationNameField).Size(maxDocCount),
+			operationsAggregation: query.NewTermsAggregation(operationNameField).Size(uint64(max(0, maxDocCount))),
 		},
 	})
 	if err != nil {
@@ -196,7 +197,11 @@ func aggregationKeys(resp *esclient.SearchResponse, name string) ([]string, erro
 
 func hashCode(s dbmodel.Service) string {
 	h := fnv.New64a()
-	h.Write([]byte(s.ServiceName))
-	h.Write([]byte(s.OperationName))
+	var length [8]byte
+	for _, value := range []string{s.ServiceName, s.OperationName} {
+		binary.BigEndian.PutUint64(length[:], uint64(len(value)))
+		_, _ = h.Write(length[:])
+		_, _ = h.Write([]byte(value))
+	}
 	return strconv.FormatUint(h.Sum64(), 16)
 }

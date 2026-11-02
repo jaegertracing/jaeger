@@ -12,9 +12,28 @@ Configure remote-storage using a YAML configuration file with the `--config-file
 ./jaeger-remote-storage --config-file config.yaml
 ```
 
+The file is the only place the service is configured: `--config-file` and `--feature-gates` are its only flags. It is read the same way the `jaeger` binary reads its configuration, so a value can refer to an environment variable as `${env:VAR}`, `${VAR}` or `${env:VAR:-default}`, and a key the configuration does not define is rejected. Every section is optional and falls back to the defaults shown below.
+
 #### Configuration File Structure
 
 ```yaml
+# Admin server: health check on /, metrics, /debug/pprof (default :17270)
+admin:
+  endpoint: :17270
+  # tls:
+  #   cert_file: /path/to/cert.pem
+  #   key_file: /path/to/key.pem
+
+# Logging (defaults shown)
+logging:
+  level: info        # debug, info, warn, error
+  encoding: json     # json or console
+
+# Metrics (defaults shown)
+metrics:
+  backend: prometheus  # prometheus or none
+  http_route: /metrics
+
 # Server configuration
 grpc:
   endpoint: :17271  # gRPC endpoint for remote storage API
@@ -93,7 +112,7 @@ To enable multi-tenancy:
 
 ```yaml
 grpc:
-  host-port: :17271
+  endpoint: :17271
 
 multi_tenancy:
   enabled: true

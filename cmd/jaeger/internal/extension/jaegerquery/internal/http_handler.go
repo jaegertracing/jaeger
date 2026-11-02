@@ -279,7 +279,7 @@ func (aH *APIHandler) parseTraceID(w http.ResponseWriter, r *http.Request) (mode
 
 func (aH *APIHandler) parseMicroseconds(w http.ResponseWriter, r *http.Request, timeKey string) (time.Time, bool) {
 	if timeString := r.URL.Query().Get(timeKey); timeString != "" {
-		t, err := aH.queryParser.parseTime(r, timeKey, time.Microsecond)
+		t, err := aH.queryParser.parseTime(r, timeKey, time.UnixMicro)
 		if aH.handleError(w, err, http.StatusBadRequest) {
 			return time.Time{}, false
 		}
@@ -383,10 +383,6 @@ func (aH *APIHandler) handleError(w http.ResponseWriter, err error, statusCode i
 	}
 	if errors.Is(err, disabled.ErrDisabled) {
 		statusCode = http.StatusNotImplemented
-	}
-	if errors.Is(err, querysvc.ErrServiceNameRequired) {
-		// The request is well-formed; this deployment's storage cannot serve it.
-		statusCode = http.StatusBadRequest
 	}
 	if statusCode == http.StatusInternalServerError {
 		aH.logger.Error("HTTP handler, Internal Server Error", zap.Error(err))

@@ -55,11 +55,17 @@ func (m *mockQueryService) GetTraces(ctx context.Context, params querysvc.GetTra
 	return func(_ func([]ptrace.Traces, error) bool) {}
 }
 
-func (m *mockQueryService) FindTraceSummaries(ctx context.Context, query querysvc.TraceQueryParams) iter.Seq2[[]tracestore.TraceSummary, error] {
-	if m.findTraceSummariesFunc != nil {
-		return m.findTraceSummariesFunc(ctx, query)
+func (m *mockQueryService) FindTraceSummaries(ctx context.Context, query querysvc.TraceQueryParams) iter.Seq2[querysvc.PageChunk[[]tracestore.TraceSummary], error] {
+	return func(yield func(querysvc.PageChunk[[]tracestore.TraceSummary], error) bool) {
+		if m.findTraceSummariesFunc == nil {
+			return
+		}
+		for summaries, err := range m.findTraceSummariesFunc(ctx, query) {
+			if !yield(querysvc.PageChunk[[]tracestore.TraceSummary]{Results: summaries}, err) {
+				return
+			}
+		}
 	}
-	return func(_ func([]tracestore.TraceSummary, error) bool) {}
 }
 
 // newMockYieldingTraces creates a mock that yields the given traces for GetTraces calls

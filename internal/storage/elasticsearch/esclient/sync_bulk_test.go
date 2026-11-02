@@ -7,6 +7,7 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -87,10 +88,31 @@ func TestSyncBulkWriter_ChunkSplitByMaxBytes(t *testing.T) {
 	rec.Assert(t, "testdata/sync_bulk_chunk_split")
 }
 
+// TestSyncBulkWriter_RecordsRequestBytes is the sync peer of
+// TestBulkIndexerRecordsRequestBytes: one multi-item chunk records exactly the
+// length of the _bulk body the server received.
+func TestSyncBulkWriter_RecordsRequestBytes(t *testing.T) {
+	rec, url := bulkServer(t, okBulkN(3))
+	mf := metricstest.NewFactory(time.Second)
+	defer mf.Stop()
+	w := newSyncWriter(t, url, 0, mf, zap.NewNop())
+
+	items := make([]BulkItem, 3)
+	for i := range items {
+		items[i] = BulkItem{Index: "idx", ID: strconv.Itoa(i), Body: map[string]any{"payload": strings.Repeat("x", 100*(i+1))}}
+	}
+	require.NoError(t, w.WriteBatch(context.Background(), items))
+
+	reqs := rec.Requests()
+	require.Len(t, reqs, 1, "the batch fits in one chunk")
+	assert.Equal(t, 3, strings.Count(string(reqs[0].Body), `"_index":"idx"`))
+	assertRequestBytes(t, mf, len(reqs[0].Body))
+}
+
 func TestSyncBulkWriter_ItemErrorPropagates(t *testing.T) {
 	mf := metricstest.NewFactory(time.Second)
 	defer mf.Stop()
-	_, url := bulkServer(t, func(w http.ResponseWriter) {
+	rec, url := bulkServer(t, func(w http.ResponseWriter) {
 		w.Write([]byte(`{"took":2,"errors":true,"items":[` +
 			`{"index":{"_index":"idx","status":201}},` +
 			`{"index":{"_index":"idx","_id":"bad-1","status":400,"error":{"type":"mapper_parsing_exception","reason":"boom"}}}` +
@@ -118,6 +140,9 @@ func TestSyncBulkWriter_ItemErrorPropagates(t *testing.T) {
 	_, gauges := mf.Snapshot()
 	assert.True(t, hasTimer(gauges, "bulk_index.latency-ok"), "item rejection still records latency-ok: %v", gauges)
 	assert.False(t, hasTimer(gauges, "bulk_index.latency-err"), "item rejection must not record latency-err: %v", gauges)
+	// The chunk records the size of the _bulk body the server received.
+	require.Len(t, rec.Requests(), 1)
+	assertRequestBytes(t, mf, len(rec.Requests()[0].Body))
 }
 
 // TestSyncBulkWriter_ConflictIsIdempotent asserts a 409 version_conflict (op_type:

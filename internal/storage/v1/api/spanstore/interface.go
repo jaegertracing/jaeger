@@ -67,5 +67,5 @@ type TraceQueryParameters struct {
 	StartTimeMax  time.Time
 	DurationMin   time.Duration
 	DurationMax   time.Duration
-	NumTraces     int
+	NumTraces     uint32
 }

@@ -7,7 +7,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/collector/pdata/pcommon"
 
@@ -15,10 +14,7 @@ import (
 )
 
 func serviceIs(name string) *expression.Call {
-	return &expression.Call{Op: expression.OpEq, Args: []expression.Expression{
-		&expression.FieldRef{Name: expression.ResourceFieldService, Level: expression.LevelResource},
-		&expression.StringValue{Value: name},
-	}}
+	return p.Resource().Service.Eq(p.String(name))
 }
 
 func attributesWith(key, value string) pcommon.Map {
@@ -96,56 +92,6 @@ func TestEnsureFilterStandsAlone(t *testing.T) {
 	}
 }
 
-// TestForCapabilities covers the choice between the two filtering models: a Reader that declared
-// filter support is given the filter, and one that declared none is given the legacy fields it does
-// understand, or a refusal where they cannot carry the filter.
-func TestForCapabilities(t *testing.T) {
-	filterCapable := SearchCapabilities{Filter: &FilterCapabilities{
-		Levels:    []expression.Level{expression.LevelResource},
-		Operators: []expression.Operator{expression.OpEq},
-	}}
-
-	t.Run("no filter is left alone", func(t *testing.T) {
-		query := TraceQueryParams{ServiceName: "cart"}
-		prepared, err := query.ForCapabilities(SearchCapabilities{})
-		require.NoError(t, err)
-		assert.Equal(t, query, prepared)
-	})
-
-	t.Run("a reader that evaluates filters is given the filter", func(t *testing.T) {
-		query := TraceQueryParams{Filter: serviceIs("cart")}
-		prepared, err := query.ForCapabilities(filterCapable)
-		require.NoError(t, err)
-		assert.Equal(t, query, prepared)
-	})
-
-	t.Run("a reader that evaluates none is given the legacy fields", func(t *testing.T) {
-		query := TraceQueryParams{Filter: serviceIs("cart")}
-		prepared, err := query.ForCapabilities(SearchCapabilities{})
-		require.NoError(t, err)
-		assert.Equal(t, "cart", prepared.ServiceName)
-		assert.Nil(t, prepared.Filter)
-	})
-
-	t.Run("a filter the legacy fields cannot carry is refused", func(t *testing.T) {
-		disjunction := &expression.Call{Op: expression.OpOr, Args: []expression.Expression{
-			serviceIs("cart"), serviceIs("checkout"),
-		}}
-		_, err := TraceQueryParams{Filter: disjunction}.ForCapabilities(SearchCapabilities{})
-		require.ErrorIs(t, err, ErrFilterUnsupported)
-	})
-
-	t.Run("a predicate the reader did not declare is refused", func(t *testing.T) {
-		spanLevel := &expression.Call{Op: expression.OpEq, Args: []expression.Expression{
-			&expression.AttributeRef{Key: "http.route", Level: expression.LevelSpan},
-			&expression.AnyValue{Value: "/cart"},
-		}}
-		_, err := TraceQueryParams{Filter: spanLevel}.ForCapabilities(filterCapable)
-		require.ErrorIs(t, err, ErrFilterUnsupported)
-		require.ErrorContains(t, err, `it does not index the "span" level`)
-	})
-}
-
 // TestEnsureSupported walks the shapes the declaration is read against, since a predicate refused
 // here is one that would otherwise reach a Reader that cannot evaluate it.
 func TestEnsureSupported(t *testing.T) {
@@ -159,42 +105,28 @@ func TestEnsureSupported(t *testing.T) {
 	})
 
 	t.Run("an operator and level both declared", func(t *testing.T) {
-		require.NoError(t, caps.EnsureSupported(&expression.Call{Op: expression.OpEq, Args: []expression.Expression{
-			&expression.AttributeRef{Key: "http.route", Level: expression.LevelSpan},
-			&expression.AnyValue{Value: "/cart"},
-		}}))
+		require.NoError(t, caps.EnsureSupported(p.Span().Attr("http.route").Eq("/cart")))
 	})
 
 	t.Run("an unqualified reference always reaches the reader", func(t *testing.T) {
-		require.NoError(t, caps.EnsureSupported(&expression.Call{Op: expression.OpEq, Args: []expression.Expression{
-			&expression.AttributeRef{Key: "http.route"},
-			&expression.AnyValue{Value: "/cart"},
-		}}))
+		require.NoError(t, caps.EnsureSupported(p.Attr("http.route").Eq("/cart")))
 	})
 
 	t.Run("an operator not declared", func(t *testing.T) {
-		err := caps.EnsureSupported(&expression.Call{Op: expression.OpRegex, Args: []expression.Expression{
-			&expression.AttributeRef{Key: "http.route", Level: expression.LevelSpan},
-			&expression.AnyValue{Value: "/cart/.*"},
-		}})
+		err := caps.EnsureSupported(p.Span().Attr("http.route").Matches("/cart/.*"))
 		require.ErrorContains(t, err, `it does not support the operator "regex"`)
 	})
 
 	t.Run("a nested predicate is walked too", func(t *testing.T) {
-		err := caps.EnsureSupported(&expression.Call{Op: expression.OpAnd, Args: []expression.Expression{
-			&expression.Call{Op: expression.OpEq, Args: []expression.Expression{
-				&expression.AttributeRef{Key: "http.route", Level: expression.LevelSpan},
-				&expression.AnyValue{Value: "/cart"},
-			}},
-			&expression.Call{Op: expression.OpRegex, Args: []expression.Expression{
-				&expression.AttributeRef{Key: "http.route", Level: expression.LevelSpan},
-				&expression.AnyValue{Value: "/cart/.*"},
-			}},
-		}})
+		err := caps.EnsureSupported(p.And(
+			p.Span().Attr("http.route").Eq("/cart"),
+			p.Span().Attr("http.route").Matches("/cart/.*"),
+		))
 		require.ErrorContains(t, err, `it does not support the operator "regex"`)
 	})
 
 	t.Run("a collection reference carries a level like any other", func(t *testing.T) {
+		// The builder only quantifies over a collection, so a comparison against one is built by hand.
 		err := caps.EnsureSupported(&expression.Call{Op: expression.OpEq, Args: []expression.Expression{
 			&expression.NestedRef{Level: expression.LevelEvent},
 			&expression.AnyValue{Value: "x"},

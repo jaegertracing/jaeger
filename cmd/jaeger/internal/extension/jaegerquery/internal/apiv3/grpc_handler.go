@@ -23,6 +23,10 @@ import (
 	"github.com/jaegertracing/jaeger/internal/storage/v2/v1adapter"
 )
 
+// errorInfoDomain is the ErrorInfo domain under which the API v3 server marks ordering and
+// pagination refusals, so a client can tell them apart from other InvalidArgument answers.
+const errorInfoDomain = "jaeger.api_v3"
+
 // Handler implements api_v3.QueryServiceServer
 type Handler struct {
 	api_v3.UnimplementedQueryServiceServer
@@ -77,47 +81,104 @@ func (h *Handler) internalFindTraces(
 ) error {
 	queryParams, err := traceQueryParams(request.GetQuery())
 	if err != nil {
-		return err
+		return asStatusError(err)
 	}
 	queryParams.RawTraces = request.GetQuery().GetRawTraces()
 	findTracesIter := h.QueryService.FindTraces(ctx, queryParams)
 	return receiveTraces(findTracesIter, streamSend)
 }
 
-// traceQueryParams converts a proto TraceQueryParameters to querysvc.TraceQueryParams,
-// validating that the required time range fields are present. An unset (or
-// non-positive) search_depth defaults to defaultSearchDepth, mirroring the
-// HTTP gateway: proto3 cannot distinguish an omitted field from 0, and a
-// literal 0 is rejected by some storage backends (e.g. the in-memory store).
+// traceQueryParams translates a proto TraceQueryParameters into the query service's shape.
+// What the query must satisfy is the query service's decision, so nothing is checked here
+// beyond what the translation itself needs.
 func traceQueryParams(query *api_v3.TraceQueryParameters) (querysvc.TraceQueryParams, error) {
 	if query == nil {
 		return querysvc.TraceQueryParams{}, status.Error(codes.InvalidArgument, "missing query")
 	}
-	if query.GetStartTimeMin().IsZero() || query.GetStartTimeMax().IsZero() {
-		return querysvc.TraceQueryParams{}, status.Error(codes.InvalidArgument, "start time min and max are required parameters")
+	depth := query.GetSearchDepth()
+	if depth < 0 || depth > int32(tracestore.MaxSearchDepth) {
+		return querysvc.TraceQueryParams{}, fmt.Errorf("%w: search depth must be in [0, %d]", tracestore.ErrInvalidQuery, tracestore.MaxSearchDepth)
 	}
-	searchDepth := int(query.GetSearchDepth())
-	if searchDepth <= 0 {
-		searchDepth = defaultSearchDepth
-	}
+	searchDepth := uint32(depth)
 	queryParams := querysvc.TraceQueryParams{
-		TraceQueryParams: tracestore.TraceQueryParams{
-			ServiceName:   query.GetServiceName(),
-			OperationName: query.GetOperationName(),
-			Attributes:    jptrace.PlainMapToPcommonMap(query.GetAttributes()),
-			SearchDepth:   searchDepth,
-			StartTimeMin:  query.GetStartTimeMin(),
-			StartTimeMax:  query.GetStartTimeMax(),
-			DurationMin:   query.GetDurationMin(),
-			DurationMax:   query.GetDurationMax(),
-		},
+		ServiceName:   query.GetServiceName(),
+		OperationName: query.GetOperationName(),
+		Attributes:    jptrace.PlainMapToPcommonMap(query.GetAttributes()),
+		SearchDepth:   searchDepth,
+		StartTimeMin:  query.GetStartTimeMin(),
+		StartTimeMax:  query.GetStartTimeMax(),
+		DurationMin:   query.GetDurationMin(),
+		DurationMax:   query.GetDurationMax(),
 	}
 	if protoFilter := query.GetFilter(); protoFilter != nil {
-		filter, err := expressionproto.FromProto(protoFilter)
+		filter, err := expressionproto.CallFromProto(protoFilter)
 		if err != nil {
-			return querysvc.TraceQueryParams{}, status.Error(codes.InvalidArgument, err.Error())
+			return querysvc.TraceQueryParams{}, fmt.Errorf("%w: %w", tracestore.ErrInvalidQuery, err)
 		}
 		queryParams.Filter = filter
+	}
+	if pagination := query.GetPagination(); pagination != nil {
+		queryParams.Pagination = &querysvc.Pagination{
+			PageSize:  pagination.GetPageSize(),
+			PageToken: pagination.GetPageToken(),
+		}
+	}
+	return queryParams, nil
+}
+
+// FindSpans implements api_v3.QueryServiceServer's FindSpans
+func (h *Handler) FindSpans(request *api_v3.FindSpansRequest, stream api_v3.QueryService_FindSpansServer) error {
+	queryParams, err := spanQueryParams(request.GetQuery())
+	if err != nil {
+		return asStatusError(err)
+	}
+
+	for chunk, err := range h.QueryService.FindSpans(stream.Context(), queryParams) {
+		if err != nil {
+			return asStatusError(err)
+		}
+		spans := jptrace.TracesData(chunk.Results)
+		response := &api_v3.FindSpansResponse{
+			Spans:         &spans,
+			NextPageToken: string(chunk.NextPageToken),
+		}
+		if err := stream.Send(response); err != nil {
+			return status.Errorf(codes.Internal, "failed to send response stream chunk to client: %v", err)
+		}
+	}
+	return nil
+}
+
+// spanQueryParams translates a proto SpanQueryParameters into the query service's shape. What
+// the query must satisfy is the query service's decision (prepareSpanSearchQuery), so nothing is
+// checked here beyond what the translation itself needs — including whether Pagination is
+// acceptable at all: it is decoded here because decoding is translation, but the query service
+// is where it is refused.
+func spanQueryParams(query *api_v3.SpanQueryParameters) (querysvc.SpanQueryParams, error) {
+	if query == nil {
+		return querysvc.SpanQueryParams{}, status.Error(codes.InvalidArgument, "missing query")
+	}
+	queryParams := querysvc.SpanQueryParams{
+		StartTimeMin: query.GetStartTimeMin(),
+		StartTimeMax: query.GetStartTimeMax(),
+	}
+	if protoFilter := query.GetFilter(); protoFilter != nil {
+		filter, err := expressionproto.CallFromProto(protoFilter)
+		if err != nil {
+			return querysvc.SpanQueryParams{}, fmt.Errorf("%w: %w", tracestore.ErrInvalidQuery, err)
+		}
+		queryParams.Filter = filter
+	}
+	order, err := tracestore.SpanOrderFromProto(query.GetOrderBy())
+	if err != nil {
+		return querysvc.SpanQueryParams{}, fmt.Errorf("%w: %w", tracestore.ErrSpanOrderInvalid, err)
+	}
+	queryParams.OrderBy = order
+	if pagination := query.GetPagination(); pagination != nil {
+		queryParams.Pagination = querysvc.Pagination{
+			PageSize:  pagination.GetPageSize(),
+			PageToken: pagination.GetPageToken(),
+		}
 	}
 	return queryParams, nil
 }
@@ -126,14 +187,18 @@ func traceQueryParams(query *api_v3.TraceQueryParameters) (querysvc.TraceQueryPa
 func (h *Handler) FindTraceSummaries(request *api_v3.FindTraceSummariesRequest, stream api_v3.QueryService_FindTraceSummariesServer) error {
 	queryParams, err := traceQueryParams(request.GetQuery())
 	if err != nil {
-		return err
+		return asStatusError(err)
 	}
 
-	for summaries, err := range h.QueryService.FindTraceSummaries(stream.Context(), queryParams) {
+	for chunk, err := range h.QueryService.FindTraceSummaries(stream.Context(), queryParams) {
 		if err != nil {
 			return asStatusError(err)
 		}
-		if err := stream.Send(&api_v3.FindTraceSummariesResponse{Summaries: toProtoTraceSummaries(summaries)}); err != nil {
+		response := &api_v3.FindTraceSummariesResponse{
+			Summaries:     toProtoTraceSummaries(chunk.Results),
+			NextPageToken: chunk.NextPageToken,
+		}
+		if err := stream.Send(response); err != nil {
 			return status.Errorf(codes.Internal, "failed to send response stream chunk to client: %v", err)
 		}
 	}
@@ -232,18 +297,16 @@ func (h *Handler) GetDependencies(ctx context.Context, request *api_v3.GetDepend
 	return &api_v3.DependenciesResponse{Dependencies: links}, nil
 }
 
-// asStatusError maps a query-service error to a gRPC status code. A query this
-// deployment's storage cannot serve is the caller's problem (InvalidArgument) rather than
-// a server fault, and without this it would reach the client as Unknown. Other errors pass
-// through unchanged.
+// asStatusError maps a query-service error to a gRPC status code. A malformed query is
+// InvalidArgument, and a query this deployment's storage cannot serve is Unimplemented, so a
+// caller can tell a mistake from a missing capability; without this either would reach the
+// client as Unknown. Typed refusals keep their reason so the client can restore the error
+// type. Other errors pass through unchanged.
 func asStatusError(err error) error {
-	if querysvc.IsBadRequest(err) {
-		return status.Error(codes.InvalidArgument, err.Error())
-	}
 	if errors.Is(err, queryinterceptor.ErrAccessDenied) {
 		return status.Error(codes.PermissionDenied, err.Error())
 	}
-	return err
+	return tracestore.RefusalStatus(err, errorInfoDomain)
 }
 
 func receiveTraces(

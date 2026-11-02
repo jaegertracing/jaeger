@@ -6,9 +6,13 @@ package mcptools
 import (
 	"context"
 	"encoding/json"
+	"io"
+	"io/fs"
 	"net/http"
 	"net/http/httptest"
+	"regexp"
 	"slices"
+	"strings"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -17,11 +21,13 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
+	"go.opentelemetry.io/otel/sdk/trace/tracetest"
 
 	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerquery/querysvc"
 	depstoremocks "github.com/jaegertracing/jaeger/internal/storage/v2/api/depstore/mocks"
 	tracestoremocks "github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore/mocks"
 	"github.com/jaegertracing/jaeger/internal/telemetry"
+	"github.com/jaegertracing/jaeger/internal/telemetry/otelsemconv"
 	"github.com/jaegertracing/jaeger/internal/tenancy"
 )
 
@@ -51,7 +57,7 @@ func connectTestClient(t *testing.T, handler http.Handler) *mcp.ClientSession {
 // backed by empty mocks.
 func TestNewHandler_ListTools(t *testing.T) {
 	svc := querysvc.NewQueryService(&tracestoremocks.Reader{}, &depstoremocks.Reader{}, querysvc.QueryServiceOptions{})
-	handler := NewHandler(telemetry.NoopSettings(), svc, tenancy.NewManager(&tenancy.Options{}), DefaultConfig())
+	handler := NewHandler(telemetry.NoopSettings(), svc, tenancy.NewManager(&tenancy.Options{}), DefaultServerParams())
 
 	session := connectTestClient(t, handler)
 	listed, err := session.ListTools(context.Background(), &mcp.ListToolsParams{})
@@ -92,7 +98,7 @@ func TestNewHandler_CallTool(t *testing.T) {
 	reader := &tracestoremocks.Reader{}
 	reader.On("GetServices", mock.Anything).Return([]string{"svc-a", "svc-b"}, nil)
 	svc := querysvc.NewQueryService(reader, &depstoremocks.Reader{}, querysvc.QueryServiceOptions{})
-	handler := NewHandler(telemetry.NoopSettings(), svc, tenancy.NewManager(&tenancy.Options{}), DefaultConfig())
+	handler := NewHandler(telemetry.NoopSettings(), svc, tenancy.NewManager(&tenancy.Options{}), DefaultServerParams())
 
 	session := connectTestClient(t, handler)
 	result, err := session.CallTool(context.Background(), &mcp.CallToolParams{Name: "get_services"})
@@ -106,6 +112,40 @@ func TestNewHandler_CallTool(t *testing.T) {
 	assert.Contains(t, text.Text, "svc-b")
 }
 
+// TestNewHandler_ToolPanicFailsOnlyThatCall drives a panicking tool through the
+// full HTTP stack. The SDK runs tool handlers on goroutines of its own, so an
+// unrecovered panic there would terminate the test binary. With recovery in place
+// the call returns an error result that tracing records as a failed call, and the
+// session keeps serving.
+func TestNewHandler_ToolPanicFailsOnlyThatCall(t *testing.T) {
+	reader := &tracestoremocks.Reader{}
+	reader.On("GetServices", mock.Anything).Run(func(mock.Arguments) { panic("storage failed") }).Once()
+	reader.On("GetServices", mock.Anything).Return([]string{"svc-a"}, nil)
+	svc := querysvc.NewQueryService(reader, &depstoremocks.Reader{}, querysvc.QueryServiceOptions{})
+	capture := newTraceCapture(t)
+	telset := telemetry.NoopSettings()
+	telset.TracerProvider = capture.provider
+	handler := NewHandler(telset, svc, tenancy.NewManager(&tenancy.Options{}), DefaultServerParams())
+
+	session := connectTestClient(t, handler)
+	result, err := session.CallTool(context.Background(), &mcp.CallToolParams{Name: "get_services"})
+	require.NoError(t, err)
+	assert.True(t, result.IsError)
+
+	result, err = session.CallTool(context.Background(), &mcp.CallToolParams{Name: "get_services"})
+	require.NoError(t, err)
+	assert.False(t, result.IsError, "the session must keep serving after a panic")
+
+	var toolSpans []tracetest.SpanStub
+	for _, span := range capture.exporter.GetSpans() {
+		if span.Name == mcpMethodToolsCall+" get_services" {
+			toolSpans = append(toolSpans, span)
+		}
+	}
+	require.Len(t, toolSpans, 2)
+	assertHasStringAttribute(t, toolSpans[0].Attributes, string(otelsemconv.ErrorType("").Key), errorTypeTool)
+}
+
 // TestNewServerDegradesWithoutMetrics covers the branch where the metrics
 // middleware fails to build: the server is still returned (metrics degraded)
 // rather than the construction failing.
@@ -114,7 +154,7 @@ func TestNewServerDegradesWithoutMetrics(t *testing.T) {
 	telset := telemetry.NoopSettings()
 	telset.MeterProvider = &failingMeterProvider{failCounter: true}
 
-	srv := newServer(telset, svc, DefaultConfig())
+	srv := newServer(telset, svc, DefaultServerParams())
 	require.NotNil(t, srv)
 }
 
@@ -123,7 +163,7 @@ func TestNewServerDegradesWithoutMetrics(t *testing.T) {
 // must reap it or it outlives the server that served it.
 func TestHandlerCloseReapsSessions(t *testing.T) {
 	svc := querysvc.NewQueryService(&tracestoremocks.Reader{}, &depstoremocks.Reader{}, querysvc.QueryServiceOptions{})
-	h := NewHandler(telemetry.NoopSettings(), svc, tenancy.NewManager(&tenancy.Options{}), DefaultConfig())
+	h := NewHandler(telemetry.NoopSettings(), svc, tenancy.NewManager(&tenancy.Options{}), DefaultServerParams())
 
 	// Bind a session the way an MCP client on the HTTP transport does; nothing else
 	// owns it, so nothing else would ever reap it.
@@ -143,7 +183,7 @@ func TestHandlerCloseReapsSessions(t *testing.T) {
 // serve telemetry tools only.
 func TestHandlerAddReceivingMiddleware(t *testing.T) {
 	svc := querysvc.NewQueryService(&tracestoremocks.Reader{}, &depstoremocks.Reader{}, querysvc.QueryServiceOptions{})
-	h := NewHandler(telemetry.NoopSettings(), svc, tenancy.NewManager(&tenancy.Options{}), DefaultConfig())
+	h := NewHandler(telemetry.NoopSettings(), svc, tenancy.NewManager(&tenancy.Options{}), DefaultServerParams())
 	t.Cleanup(func() { require.NoError(t, h.Close()) })
 
 	var saw atomic.Bool
@@ -162,6 +202,37 @@ func TestHandlerAddReceivingMiddleware(t *testing.T) {
 	assert.True(t, saw.Load(), "middleware added after the handler is built must run for later requests")
 }
 
+// TestHandlerAddReceivingMiddlewarePanicFailsOnlyThatCall covers middleware the AI
+// gateway adds after the server is built. The SDK places it outside the recovery
+// newServer installs, so a call it answers itself (a UI tool) never reaches that
+// recovery. A panic there must still fail only that call rather than terminate the
+// test binary, and the session must keep serving the built-in tools.
+func TestHandlerAddReceivingMiddlewarePanicFailsOnlyThatCall(t *testing.T) {
+	reader := &tracestoremocks.Reader{}
+	reader.On("GetServices", mock.Anything).Return([]string{"svc-a"}, nil)
+	svc := querysvc.NewQueryService(reader, &depstoremocks.Reader{}, querysvc.QueryServiceOptions{})
+	h := NewHandler(telemetry.NoopSettings(), svc, tenancy.NewManager(&tenancy.Options{}), DefaultServerParams())
+	t.Cleanup(func() { require.NoError(t, h.Close()) })
+
+	h.AddReceivingMiddleware(func(next mcp.MethodHandler) mcp.MethodHandler {
+		return func(ctx context.Context, method string, req mcp.Request) (mcp.Result, error) {
+			if toolNameFromRequest(method, req) == "ui_tool" {
+				panic("ui tool failed")
+			}
+			return next(ctx, method, req)
+		}
+	})
+
+	session := connectTestClient(t, h)
+	result, err := session.CallTool(context.Background(), &mcp.CallToolParams{Name: "ui_tool"})
+	require.NoError(t, err)
+	assert.True(t, result.IsError)
+
+	result, err = session.CallTool(context.Background(), &mcp.CallToolParams{Name: "get_services"})
+	require.NoError(t, err)
+	assert.False(t, result.IsError, "the session must keep serving after a panic")
+}
+
 // TestRegisterTools verifies RegisterTools advertises the full tool set on a
 // bare server (in-memory transport, no HTTP stack). Registration only, so the
 // QueryService is backed by empty mocks that are never invoked.
@@ -169,7 +240,7 @@ func TestRegisterTools(t *testing.T) {
 	svc := querysvc.NewQueryService(&tracestoremocks.Reader{}, &depstoremocks.Reader{}, querysvc.QueryServiceOptions{})
 
 	server := mcp.NewServer(&mcp.Implementation{Name: "test", Version: "0.0.0"}, nil)
-	registerTools(server, svc, DefaultConfig())
+	registerTools(server, svc, DefaultServerParams())
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
@@ -239,4 +310,189 @@ func spanItemProperties(t *testing.T, tool *mcp.Tool) map[string]any {
 	t.Helper()
 	require.NotNil(t, tool)
 	return schemaObject(t, marshalSchema(t, tool.OutputSchema), "properties", "spans", "items", "properties")
+}
+
+// TestNewHandler_LocalhostProtection pins the SDK's DNS-rebinding guard and the
+// config switch that turns it off. httptest listens on 127.0.0.1, so a request
+// that carries a non-loopback Host header is the shape the guard rejects: the
+// same shape a sidecar that dials 127.0.0.1 and preserves Host produces. The
+// SDK also honours MCPGODEBUG=disablelocalhostprotection=1, read once at process
+// start, so the default subtest fails on a machine with that variable set.
+func TestNewHandler_LocalhostProtection(t *testing.T) {
+	initialize := `{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18","capabilities":{},"clientInfo":{"name":"test","version":"0"}}}`
+	post := func(t *testing.T, h http.Handler) *http.Response {
+		ts := httptest.NewServer(h)
+		t.Cleanup(ts.Close)
+		req, err := http.NewRequestWithContext(context.Background(), http.MethodPost, ts.URL, strings.NewReader(initialize))
+		require.NoError(t, err)
+		req.Host = "jaeger.example.com"
+		req.Header.Set("Content-Type", "application/json")
+		req.Header.Set("Accept", "application/json, text/event-stream")
+		resp, err := ts.Client().Do(req)
+		require.NoError(t, err)
+		t.Cleanup(func() { resp.Body.Close() })
+		return resp
+	}
+	svc := querysvc.NewQueryService(&tracestoremocks.Reader{}, &depstoremocks.Reader{}, querysvc.QueryServiceOptions{})
+	tenancyMgr := tenancy.NewManager(&tenancy.Options{})
+
+	t.Run("default rejects a non-loopback Host over loopback", func(t *testing.T) {
+		h := NewHandler(telemetry.NoopSettings(), svc, tenancyMgr, DefaultServerParams())
+		t.Cleanup(func() { h.Close() })
+		resp := post(t, h)
+		assert.Equal(t, http.StatusForbidden, resp.StatusCode)
+		body, err := io.ReadAll(resp.Body)
+		require.NoError(t, err)
+		assert.Contains(t, string(body), "invalid Host header")
+	})
+
+	t.Run("disable_localhost_protection admits it", func(t *testing.T) {
+		params := DefaultServerParams()
+		params.StreamableHTTP.DisableLocalhostProtection = true
+		h := NewHandler(telemetry.NoopSettings(), svc, tenancyMgr, params)
+		t.Cleanup(func() { h.Close() })
+		resp := post(t, h)
+		assert.Equal(t, http.StatusOK, resp.StatusCode)
+	})
+}
+
+// TestNewHandler_Stateless pins the behaviour that matters behind a load balancer
+// without session affinity: a client that ran initialize against one replica and
+// is then routed to another. Each NewHandler stands in for one jaeger-query
+// process, since the session map lives in the handler.
+func TestNewHandler_Stateless(t *testing.T) {
+	initialize := `{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18","capabilities":{},"clientInfo":{"name":"test","version":"0"}}}`
+	listTools := `{"jsonrpc":"2.0","id":2,"method":"tools/list"}`
+	post := func(h http.Handler, body, sessionID string) *http.Response {
+		req := httptest.NewRequest(http.MethodPost, "/", strings.NewReader(body))
+		req.Header.Set("Content-Type", "application/json")
+		req.Header.Set("Accept", "application/json, text/event-stream")
+		if sessionID != "" {
+			req.Header.Set("Mcp-Session-Id", sessionID)
+		}
+		rr := httptest.NewRecorder()
+		h.ServeHTTP(rr, req)
+		return rr.Result()
+	}
+	svc := querysvc.NewQueryService(&tracestoremocks.Reader{}, &depstoremocks.Reader{}, querysvc.QueryServiceOptions{})
+	tenancyMgr := tenancy.NewManager(&tenancy.Options{})
+	twoReplicas := func(t *testing.T, params ServerParams) (first, second *Handler) {
+		first = NewHandler(telemetry.NoopSettings(), svc, tenancyMgr, params)
+		second = NewHandler(telemetry.NoopSettings(), svc, tenancyMgr, params)
+		t.Cleanup(func() { first.Close(); second.Close() })
+		return first, second
+	}
+
+	t.Run("default loses the session on the other replica", func(t *testing.T) {
+		first, second := twoReplicas(t, DefaultServerParams())
+		resp := post(first, initialize, "")
+		require.Equal(t, http.StatusOK, resp.StatusCode)
+		sessionID := resp.Header.Get("Mcp-Session-Id")
+		require.NotEmpty(t, sessionID)
+		resp = post(second, listTools, sessionID)
+		assert.Equal(t, http.StatusNotFound, resp.StatusCode)
+		body, err := io.ReadAll(resp.Body)
+		require.NoError(t, err)
+		assert.Contains(t, string(body), "session not found")
+	})
+
+	t.Run("stateless serves the other replica", func(t *testing.T) {
+		params := DefaultServerParams()
+		params.StreamableHTTP.Stateless = true
+		first, second := twoReplicas(t, params)
+		resp := post(first, initialize, "")
+		require.Equal(t, http.StatusOK, resp.StatusCode)
+		sessionID := resp.Header.Get("Mcp-Session-Id")
+		require.NotEmpty(t, sessionID)
+		resp = post(second, listTools, sessionID)
+		require.Equal(t, http.StatusOK, resp.StatusCode)
+		body, err := io.ReadAll(resp.Body)
+		require.NoError(t, err)
+		assert.Contains(t, string(body), `"name":"get_services"`)
+	})
+
+	t.Run("stateless declines the standing event stream", func(t *testing.T) {
+		params := DefaultServerParams()
+		params.StreamableHTTP.Stateless = true
+		h := NewHandler(telemetry.NoopSettings(), svc, tenancyMgr, params)
+		t.Cleanup(func() { h.Close() })
+		req := httptest.NewRequest(http.MethodGet, "/", http.NoBody)
+		req.Header.Set("Accept", "text/event-stream")
+		rr := httptest.NewRecorder()
+		h.ServeHTTP(rr, req)
+		assert.Equal(t, http.StatusMethodNotAllowed, rr.Code)
+		assert.Equal(t, "POST", rr.Header().Get("Allow"))
+	})
+}
+
+// TestNewHandler_JSONResponse pins the body form of a single-message POST under
+// each setting, and that the go-sdk client, which accepts both forms, completes a
+// session against the JSON form.
+func TestNewHandler_JSONResponse(t *testing.T) {
+	initialize := `{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18","capabilities":{},"clientInfo":{"name":"test","version":"0"}}}`
+	svc := querysvc.NewQueryService(&tracestoremocks.Reader{}, &depstoremocks.Reader{}, querysvc.QueryServiceOptions{})
+	tenancyMgr := tenancy.NewManager(&tenancy.Options{})
+	contentType := func(t *testing.T, h http.Handler) string {
+		req := httptest.NewRequest(http.MethodPost, "/", strings.NewReader(initialize))
+		req.Header.Set("Content-Type", "application/json")
+		req.Header.Set("Accept", "application/json, text/event-stream")
+		rr := httptest.NewRecorder()
+		h.ServeHTTP(rr, req)
+		require.Equal(t, http.StatusOK, rr.Code)
+		return rr.Header().Get("Content-Type")
+	}
+
+	t.Run("default answers with an event stream", func(t *testing.T) {
+		h := NewHandler(telemetry.NoopSettings(), svc, tenancyMgr, DefaultServerParams())
+		t.Cleanup(func() { h.Close() })
+		assert.Equal(t, "text/event-stream", contentType(t, h))
+	})
+
+	t.Run("json_response answers with a JSON body", func(t *testing.T) {
+		params := DefaultServerParams()
+		params.StreamableHTTP.JSONResponse = true
+		h := NewHandler(telemetry.NoopSettings(), svc, tenancyMgr, params)
+		t.Cleanup(func() { h.Close() })
+		assert.Equal(t, "application/json", contentType(t, h))
+	})
+
+	t.Run("go-sdk client completes a session against the JSON form", func(t *testing.T) {
+		params := DefaultServerParams()
+		params.StreamableHTTP.JSONResponse = true
+		h := NewHandler(telemetry.NoopSettings(), svc, tenancyMgr, params)
+		t.Cleanup(func() { h.Close() })
+		ts := httptest.NewServer(h)
+		t.Cleanup(ts.Close)
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		t.Cleanup(cancel)
+		client := mcp.NewClient(&mcp.Implementation{Name: "test-client", Version: "0.0.0"}, nil)
+		session, err := client.Connect(ctx, &mcp.StreamableClientTransport{Endpoint: ts.URL, HTTPClient: ts.Client()}, nil)
+		require.NoError(t, err)
+		t.Cleanup(func() { session.Close() })
+		listed, err := session.ListTools(ctx, &mcp.ListToolsParams{})
+		require.NoError(t, err)
+		assert.True(t, slices.ContainsFunc(listed.Tools, func(tool *mcp.Tool) bool { return tool.Name == "get_services" }))
+	})
+}
+
+// TestBuiltinSkillsCatalog checks that every skill the root catalog links to is in the
+// binary, because an agent passes the link text straight back to read_skill.
+func TestBuiltinSkillsCatalog(t *testing.T) {
+	skills, err := fs.Sub(skillsEmbedFS, "skills")
+	require.NoError(t, err)
+	catalog, err := fs.ReadFile(skills, entryPointSkill)
+	require.NoError(t, err)
+
+	links := regexp.MustCompile(`\]\(([^)]+/SKILL\.md)\)`).FindAllStringSubmatch(string(catalog), -1)
+	require.NotEmpty(t, links)
+	var linked []string
+	for _, link := range links {
+		if strings.HasPrefix(link[1], "custom/") {
+			continue
+		}
+		linked = append(linked, link[1])
+		_, err := fs.Stat(skills, link[1])
+		require.NoError(t, err, "catalog links %s", link[1])
+	}
+	assert.Contains(t, linked, "jaeger-sql/SKILL.md")
 }

@@ -4,9 +4,11 @@
 package dbmodel
 
 import (
+	"strings"
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/collector/pdata/pcommon"
 	"go.opentelemetry.io/collector/pdata/ptrace"
@@ -27,17 +29,20 @@ func TestFromRow(t *testing.T) {
 }
 
 func TestFromRow_DecodeID(t *testing.T) {
+	// The ID parsers live in jptrace and their errors are tested there. This
+	// test only checks that FromRow turns each failure into a warning that
+	// names the field, and that it never panics on a corrupted row.
 	tests := []struct {
-		name string
-		arg  *SpanRow
-		want string
+		name       string
+		arg        *SpanRow
+		wantPrefix string
 	}{
 		{
 			name: "decode span trace id failed",
 			arg: &SpanRow{
 				TraceID: "0x",
 			},
-			want: "failed to decode trace ID: encoding/hex: invalid byte: U+0078 'x'",
+			wantPrefix: "failed to decode trace ID: ",
 		},
 		{
 			name: "decode span id failed",
@@ -45,7 +50,7 @@ func TestFromRow_DecodeID(t *testing.T) {
 				TraceID: "00010001000100010001000100010001",
 				ID:      "0x",
 			},
-			want: "failed to decode span ID: encoding/hex: invalid byte: U+0078 'x'",
+			wantPrefix: "failed to decode span ID: ",
 		},
 		{
 			name: "decode span parent id failed",
@@ -54,7 +59,7 @@ func TestFromRow_DecodeID(t *testing.T) {
 				ID:           "0001000100010001",
 				ParentSpanID: "0x",
 			},
-			want: "failed to decode parent span ID: encoding/hex: invalid byte: U+0078 'x'",
+			wantPrefix: "failed to decode parent span ID: ",
 		},
 		{
 			name: "decode link trace id failed",
@@ -64,7 +69,7 @@ func TestFromRow_DecodeID(t *testing.T) {
 				ParentSpanID: "0001000100010001",
 				LinkTraceIDs: []string{"0x"},
 			},
-			want: "failed to decode link trace ID: encoding/hex: invalid byte: U+0078 'x'",
+			wantPrefix: "failed to decode link trace ID: ",
 		},
 		{
 			name: "decode link span id failed",
@@ -75,95 +80,7 @@ func TestFromRow_DecodeID(t *testing.T) {
 				LinkTraceIDs: []string{"00010001000100010001000100010001"},
 				LinkSpanIDs:  []string{"0x"},
 			},
-			want: "failed to decode link span ID: encoding/hex: invalid byte: U+0078 'x'",
-		},
-		{
-			name: "empty trace id",
-			arg: &SpanRow{
-				TraceID: "",
-			},
-			want: `failed to decode trace ID: invalid length 0 of decoded trace ID "", expected 16 bytes`,
-		},
-		{
-			name: "too short trace id",
-			arg: &SpanRow{
-				TraceID: "0001",
-			},
-			want: `failed to decode trace ID: invalid length 2 of decoded trace ID "0001", expected 16 bytes`,
-		},
-		{
-			name: "too long trace id",
-			arg: &SpanRow{
-				TraceID: "000100010001000100010001000100010001",
-			},
-			want: `failed to decode trace ID: invalid length 18 of decoded trace ID "000100010001000100010001000100010001", expected 16 bytes`,
-		},
-		{
-			name: "empty span id",
-			arg: &SpanRow{
-				TraceID: "00010001000100010001000100010001",
-				ID:      "",
-			},
-			want: `failed to decode span ID: invalid length 0 of decoded span ID "", expected 8 bytes`,
-		},
-		{
-			name: "too short span id",
-			arg: &SpanRow{
-				TraceID: "00010001000100010001000100010001",
-				ID:      "0001",
-			},
-			want: `failed to decode span ID: invalid length 2 of decoded span ID "0001", expected 8 bytes`,
-		},
-		{
-			name: "too short parent span id",
-			arg: &SpanRow{
-				TraceID:      "00010001000100010001000100010001",
-				ID:           "0001000100010001",
-				ParentSpanID: "0001",
-			},
-			want: `failed to decode parent span ID: invalid length 2 of decoded span ID "0001", expected 8 bytes`,
-		},
-		{
-			name: "empty link trace id",
-			arg: &SpanRow{
-				TraceID:      "00010001000100010001000100010001",
-				ID:           "0001000100010001",
-				ParentSpanID: "0001000100010001",
-				LinkTraceIDs: []string{""},
-			},
-			want: `failed to decode link trace ID: invalid length 0 of decoded trace ID "", expected 16 bytes`,
-		},
-		{
-			name: "too short link trace id",
-			arg: &SpanRow{
-				TraceID:      "00010001000100010001000100010001",
-				ID:           "0001000100010001",
-				ParentSpanID: "0001000100010001",
-				LinkTraceIDs: []string{"0001"},
-			},
-			want: `failed to decode link trace ID: invalid length 2 of decoded trace ID "0001", expected 16 bytes`,
-		},
-		{
-			name: "empty link span id",
-			arg: &SpanRow{
-				TraceID:      "00010001000100010001000100010001",
-				ID:           "0001000100010001",
-				ParentSpanID: "0001000100010001",
-				LinkTraceIDs: []string{"00010001000100010001000100010001"},
-				LinkSpanIDs:  []string{""},
-			},
-			want: `failed to decode link span ID: invalid length 0 of decoded span ID "", expected 8 bytes`,
-		},
-		{
-			name: "too short link span id",
-			arg: &SpanRow{
-				TraceID:      "00010001000100010001000100010001",
-				ID:           "0001000100010001",
-				ParentSpanID: "0001000100010001",
-				LinkTraceIDs: []string{"00010001000100010001000100010001"},
-				LinkSpanIDs:  []string{"0001"},
-			},
-			want: `failed to decode link span ID: invalid length 2 of decoded span ID "0001", expected 8 bytes`,
+			wantPrefix: "failed to decode link span ID: ",
 		},
 	}
 
@@ -174,7 +91,9 @@ func TestFromRow_DecodeID(t *testing.T) {
 				trace = FromRow(tt.arg)
 			})
 			span := trace.ResourceSpans().At(0).ScopeSpans().At(0).Spans().At(0)
-			require.Contains(t, jptrace.GetWarnings(span), tt.want)
+			warnings := jptrace.GetWarnings(span)
+			require.Len(t, warnings, 1)
+			assert.True(t, strings.HasPrefix(warnings[0], tt.wantPrefix), "warning %q lacks prefix %q", warnings[0], tt.wantPrefix)
 		})
 	}
 }

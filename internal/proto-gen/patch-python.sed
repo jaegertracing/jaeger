@@ -17,6 +17,7 @@
 \|^import "google/api/annotations.proto";$|d
 \|^import "google/api/field_behavior.proto";$|d
 \|^import "gnostic/openapiv3/annotations.proto";$|d
+\|^import "expression/v1/vocabulary.proto";$|d
 
 # Field behaviour, always a single-line option on one field.
 s| \[(google\.api\.field_behavior) = [A-Z]*\];|;|g
@@ -30,6 +31,12 @@ s| \[(google\.api\.field_behavior) = [A-Z]*\];|;|g
 # the list itself.
 /^  [A-Za-z<>, ]* = [0-9]* \[$/ s| = \([0-9]*\) \[$| = \1;|
 /^    (openapi\.v3\.property) = {$/,/^  \];$/d
+
+# The operator and level vocabularies, lists of (jaeger.expression.v1.operators) entries on
+# Call.op and (jaeger.expression.v1.levels) entries on FieldReference.level, in the same
+# bracketed shape. Each range runs from the first entry to the closing bracket.
+/^    (jaeger\.expression\.v1\.operators) = {$/,/^  \];$/d
+/^    (jaeger\.expression\.v1\.levels) = {$/,/^  \];$/d
 
 # Message-level OpenAPI schema options, single-line and braced-block forms. These
 # arrived with the expression protos, which api_v3 now imports.

@@ -25,16 +25,26 @@ class GetTraceRequest(_message.Message):
     def __init__(self, trace_id: _Optional[str] = ..., start_time: _Optional[_Union[datetime.datetime, _timestamp_pb2.Timestamp, _Mapping]] = ..., end_time: _Optional[_Union[datetime.datetime, _timestamp_pb2.Timestamp, _Mapping]] = ..., raw_traces: _Optional[bool] = ...) -> None: ...
 
 class SpanQueryParameters(_message.Message):
-    __slots__ = ("start_time_min", "start_time_max", "filter", "pagination")
+    __slots__ = ("start_time_min", "start_time_max", "filter", "pagination", "order_by")
     START_TIME_MIN_FIELD_NUMBER: _ClassVar[int]
     START_TIME_MAX_FIELD_NUMBER: _ClassVar[int]
     FILTER_FIELD_NUMBER: _ClassVar[int]
     PAGINATION_FIELD_NUMBER: _ClassVar[int]
+    ORDER_BY_FIELD_NUMBER: _ClassVar[int]
     start_time_min: _timestamp_pb2.Timestamp
     start_time_max: _timestamp_pb2.Timestamp
     filter: _expression_pb2.Call
     pagination: Pagination
-    def __init__(self, start_time_min: _Optional[_Union[datetime.datetime, _timestamp_pb2.Timestamp, _Mapping]] = ..., start_time_max: _Optional[_Union[datetime.datetime, _timestamp_pb2.Timestamp, _Mapping]] = ..., filter: _Optional[_Union[_expression_pb2.Call, _Mapping]] = ..., pagination: _Optional[_Union[Pagination, _Mapping]] = ...) -> None: ...
+    order_by: _containers.RepeatedCompositeFieldContainer[SpanSortOrder]
+    def __init__(self, start_time_min: _Optional[_Union[datetime.datetime, _timestamp_pb2.Timestamp, _Mapping]] = ..., start_time_max: _Optional[_Union[datetime.datetime, _timestamp_pb2.Timestamp, _Mapping]] = ..., filter: _Optional[_Union[_expression_pb2.Call, _Mapping]] = ..., pagination: _Optional[_Union[Pagination, _Mapping]] = ..., order_by: _Optional[_Iterable[_Union[SpanSortOrder, _Mapping]]] = ...) -> None: ...
+
+class SpanSortOrder(_message.Message):
+    __slots__ = ("expression", "direction")
+    EXPRESSION_FIELD_NUMBER: _ClassVar[int]
+    DIRECTION_FIELD_NUMBER: _ClassVar[int]
+    expression: _expression_pb2.Expression
+    direction: str
+    def __init__(self, expression: _Optional[_Union[_expression_pb2.Expression, _Mapping]] = ..., direction: _Optional[str] = ...) -> None: ...
 
 class TraceQueryParameters(_message.Message):
     __slots__ = ("service_name", "operation_name", "attributes", "start_time_min", "start_time_max", "duration_min", "duration_max", "search_depth", "raw_traces", "filter", "pagination")
