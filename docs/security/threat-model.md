@@ -213,15 +213,21 @@ read the backend it wraps and can write traces through OTLP `Export`. The
 standalone `jaeger-remote-storage` binary (`cmd/remote-storage`) has no
 caller authentication: its host provides no extensions, so `auth` cannot
 resolve an authenticator. mTLS (`grpc.tls` with `client_ca_file`) and
-network policy are the only controls on that port.
+network policy are the controls that restrict who can call that port. With
+`multi_tenancy` enabled, the tenant allowlist rejects a missing or unlisted
+tenant, but it does not authenticate the caller.
 
 The tenant header is not authentication on either server (see T4). With
 `multi_tenancy` enabled, a caller that can reach the port and presents a
 tenant name the server accepts is served.
 
-grpc-go's receive limit (4 MB by default, set with `max_recv_msg_size_mib`)
-applies before decode, and protobuf-go's unmarshal recursion limit bounds
-nesting. Those bound decoding. They are not access control.
+grpc-go's receive limit (4 MiB by default) applies before decode. It is
+`grpc.max_recv_msg_size_mib` on the standalone binary and
+`max_recv_msg_size_mib` on the extension. It is the only bound applied
+before decode. The server's codecs (pdata for OTLP, gogo for Jaeger types)
+do not limit nesting depth while they decode; the query expression depth
+limit is checked only after the request is decoded. The receive limit bounds
+payload size. It is not access control.
 
 Badger data is whatever the process user can read on disk. The container
 image runs as uid/gid 10001.
