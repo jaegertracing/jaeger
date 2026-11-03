@@ -295,11 +295,11 @@ func TestNewHandler_LocalhostProtection(t *testing.T) {
 	})
 }
 
-// TestNewHandler_Stateless pins the behaviour that matters behind a load balancer
-// without session affinity: a client that ran initialize against one replica and
-// is then routed to another. Each NewHandler stands in for one jaeger-query
-// process, since the session map lives in the handler.
-func TestNewHandler_Stateless(t *testing.T) {
+// TestNewHandler_Sessionless pins the request model of MCP revision 2026-07-28 on
+// the endpoint: no request depends on an earlier one, so a client behind a load
+// balancer without session affinity is served by whichever replica its request
+// reaches. Each NewHandler stands in for one jaeger-query process.
+func TestNewHandler_Sessionless(t *testing.T) {
 	initialize := `{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18","capabilities":{},"clientInfo":{"name":"test","version":"0"}}}`
 	listTools := `{"jsonrpc":"2.0","id":2,"method":"tools/list"}`
 	post := func(h http.Handler, body, sessionID string) *http.Response {
@@ -315,53 +315,17 @@ func TestNewHandler_Stateless(t *testing.T) {
 	}
 	svc := querysvc.NewQueryService(&tracestoremocks.Reader{}, &depstoremocks.Reader{}, querysvc.QueryServiceOptions{})
 	tenancyMgr := tenancy.NewManager(&tenancy.Options{})
-	twoReplicas := func(t *testing.T, params ServerParams) (first, second *Handler) {
-		first = NewHandler(telemetry.NoopSettings(), svc, tenancyMgr, params)
-		second = NewHandler(telemetry.NoopSettings(), svc, tenancyMgr, params)
-		t.Cleanup(func() { first.Close(); second.Close() })
-		return first, second
+	newReplica := func(t *testing.T) *Handler {
+		h := NewHandler(telemetry.NoopSettings(), svc, tenancyMgr, DefaultServerParams())
+		t.Cleanup(func() { h.Close() })
+		return h
 	}
 
-	t.Run("a stateless handler over a stateful server answers each request on its own", func(t *testing.T) {
-		stateful := NewHandler(telemetry.NoopSettings(), svc, tenancyMgr, DefaultServerParams())
-		t.Cleanup(func() { stateful.Close() })
-		stateless := stateful.NewStatelessHandler()
-		resp := post(stateful, initialize, "")
-		require.Equal(t, http.StatusOK, resp.StatusCode)
-		sessionID := resp.Header.Get("Mcp-Session-Id")
-		require.NotEmpty(t, sessionID, "precondition: the stateful handler issues a session id")
-
-		assert.Equal(t, http.StatusOK, post(stateless, listTools, "").StatusCode, "no initialize is needed")
-		assert.Equal(t, http.StatusOK, post(stateless, listTools, sessionID).StatusCode, "a session id of the stateful handler is ignored, not resolved")
-		assert.Equal(t, http.StatusOK, post(stateless, listTools, "not-a-session").StatusCode, "an unknown session id is ignored too")
-
-		req := httptest.NewRequest(http.MethodGet, "/", http.NoBody)
-		req.Header.Set("Accept", "text/event-stream")
-		rr := httptest.NewRecorder()
-		stateless.ServeHTTP(rr, req)
-		assert.Equal(t, http.StatusMethodNotAllowed, rr.Code, "no standing event stream")
-	})
-
-	t.Run("default loses the session on the other replica", func(t *testing.T) {
-		first, second := twoReplicas(t, DefaultServerParams())
+	t.Run("a legacy initialize is answered without a session id and the other replica serves the next request", func(t *testing.T) {
+		first, second := newReplica(t), newReplica(t)
 		resp := post(first, initialize, "")
 		require.Equal(t, http.StatusOK, resp.StatusCode)
-		sessionID := resp.Header.Get("Mcp-Session-Id")
-		require.NotEmpty(t, sessionID)
-		resp = post(second, listTools, sessionID)
-		assert.Equal(t, http.StatusNotFound, resp.StatusCode)
-		body, err := io.ReadAll(resp.Body)
-		require.NoError(t, err)
-		assert.Contains(t, string(body), "session not found")
-	})
-
-	t.Run("stateless serves the other replica", func(t *testing.T) {
-		params := DefaultServerParams()
-		params.StreamableHTTP.Stateless = true
-		first, second := twoReplicas(t, params)
-		resp := post(first, initialize, "")
-		require.Equal(t, http.StatusOK, resp.StatusCode)
-		assert.Empty(t, resp.Header.Get("Mcp-Session-Id"), "a stateless replica issues no session id")
+		assert.Empty(t, resp.Header.Get("Mcp-Session-Id"), "the endpoint issues no session id")
 		resp = post(second, listTools, "")
 		require.Equal(t, http.StatusOK, resp.StatusCode)
 		body, err := io.ReadAll(resp.Body)
@@ -369,17 +333,22 @@ func TestNewHandler_Stateless(t *testing.T) {
 		assert.Contains(t, string(body), `"name":"get_services"`)
 	})
 
-	t.Run("stateless declines the standing event stream", func(t *testing.T) {
-		params := DefaultServerParams()
-		params.StreamableHTTP.Stateless = true
-		h := NewHandler(telemetry.NoopSettings(), svc, tenancyMgr, params)
-		t.Cleanup(func() { h.Close() })
-		req := httptest.NewRequest(http.MethodGet, "/", http.NoBody)
-		req.Header.Set("Accept", "text/event-stream")
-		rr := httptest.NewRecorder()
-		h.ServeHTTP(rr, req)
-		assert.Equal(t, http.StatusMethodNotAllowed, rr.Code)
-		assert.Equal(t, "POST", rr.Header().Get("Allow"))
+	t.Run("a session id sent anyway is ignored", func(t *testing.T) {
+		h := newReplica(t)
+		assert.Equal(t, http.StatusOK, post(h, listTools, "not-a-session").StatusCode)
+	})
+
+	t.Run("the standing event stream and the session delete are declined", func(t *testing.T) {
+		h := newReplica(t)
+		for _, method := range []string{http.MethodGet, http.MethodDelete} {
+			req := httptest.NewRequest(method, "/", http.NoBody)
+			req.Header.Set("Accept", "text/event-stream")
+			req.Header.Set("Mcp-Session-Id", "not-a-session")
+			rr := httptest.NewRecorder()
+			h.ServeHTTP(rr, req)
+			assert.Equal(t, http.StatusMethodNotAllowed, rr.Code, method)
+			assert.Equal(t, "POST", rr.Header().Get("Allow"), method)
+		}
 	})
 }
 

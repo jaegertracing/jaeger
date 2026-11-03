@@ -76,24 +76,21 @@ func newServer(telset telemetry.Settings, queryAPI *querysvc.QueryService, param
 // reaps the sessions still bound to it, so a mount gets its teardown from
 // construction instead of from whoever remembers to reach for the server.
 // jaeger-query serves the Handler itself at /api/ai/mcp/; the AI gateway serves
-// the same server under its turn-scoped routes through NewStatelessHandler.
+// the same Handler under its turn-scoped routes.
 type Handler struct {
 	http.Handler
 	server *mcp.Server
 	// recovery guards the middleware added through AddReceivingMiddleware, which
 	// the SDK places outside the recovery newServer installs.
-	recovery          mcp.Middleware
-	tenancyMgr        *tenancy.Manager
-	streamableOptions mcp.StreamableHTTPOptions
+	recovery mcp.Middleware
 }
 
 var _ io.Closer = (*Handler)(nil)
 
-// Close reaps every session still bound to the server. The SDK reaps a session
-// only when it goes idle (see StreamableHTTPOptions.SessionTimeout), so without
-// this a live session would outlive the server. Sessions() yields a snapshot (it
-// clones under lock), so closing each one mid-iteration — which deregisters it —
-// is safe.
+// Close reaps every session still bound to the server: the session the HTTP
+// handler builds for a request that is still in flight, and any session bound
+// to the server by other means. Sessions() yields a snapshot (it clones under
+// lock), so closing each one mid-iteration, which deregisters it, is safe.
 func (h *Handler) Close() error {
 	var errs []error
 	for session := range h.server.Sessions() {
@@ -119,58 +116,36 @@ func (h *Handler) AddReceivingMiddleware(middleware ...mcp.Middleware) {
 }
 
 // NewHandler builds a closeable Handler that serves the Jaeger telemetry MCP tools
-// over streamable HTTP, backed by the given QueryService — the shared endpoint at
-// jaeger-query's /api/ai/mcp/. One *mcp.Server is reused for every session. By
-// default the SDK builds one ServerSession per MCP session and reuses it for that
-// session's requests; with params.StreamableHTTP.Stateless it builds one per request and keeps
-// nothing between requests. Only the stateless mode serves the sessionless
-// protocol revision 2026-07-28; the default serves 2025-11-25 and earlier, and a
-// client that asks for the newer revision is told so and falls back. It binds no listener of its own — the caller mounts
-// the returned handler on an existing mux and closes it at shutdown so its MCP
-// sessions are reaped.
+// over streamable HTTP, backed by the given QueryService: the shared endpoint at
+// jaeger-query's /api/ai/mcp/. One *mcp.Server serves every request. The handler
+// keeps no table of sessions and issues no session id: the SDK builds a server
+// session for each request from that request's context and closes it when the
+// request ends, which is the model of MCP revision 2026-07-28, and it serves a
+// client on an older revision the same way, answering its initialize per request
+// and ignoring any Mcp-Session-Id it sends. GET and DELETE are answered 405.
+// Every request therefore runs under the tenant and identity it carries itself,
+// and any replica can serve any request. It binds no listener of its own: the
+// caller mounts the returned handler on an existing mux and closes it at
+// shutdown.
 func NewHandler(telset telemetry.Settings, queryAPI *querysvc.QueryService, tenancyMgr *tenancy.Manager, params ServerParams) *Handler {
 	h := &Handler{
-		server:     newServer(telset, queryAPI, params),
-		tenancyMgr: tenancyMgr,
-		streamableOptions: mcp.StreamableHTTPOptions{
-			JSONResponse:               params.StreamableHTTP.JSONResponse,
-			Stateless:                  params.StreamableHTTP.Stateless,
-			SessionTimeout:             mcpSessionTimeout,
-			DisableLocalhostProtection: params.StreamableHTTP.DisableLocalhostProtection,
-		},
+		server:   newServer(telset, queryAPI, params),
 		recovery: createRecoveryMiddleware(telset.Logger),
 	}
+	streamable := mcp.NewStreamableHTTPHandler(
+		func(*http.Request) *mcp.Server { return h.server },
+		&mcp.StreamableHTTPOptions{
+			JSONResponse:               params.StreamableHTTP.JSONResponse,
+			Stateless:                  true,
+			DisableLocalhostProtection: params.StreamableHTTP.DisableLocalhostProtection,
+		},
+	)
 	h.Handler = otelhttp.NewHandler(
-		h.newStreamableHandler(h.streamableOptions),
+		tenancy.ExtractTenantHTTPHandler(tenancyMgr, streamable),
 		"jaeger_mcp",
 		otelhttp.WithTracerProvider(telset.TracerProvider),
 	)
 	return h
-}
-
-// NewStatelessHandler returns a second HTTP handler for the same *mcp.Server,
-// with the same options and tenant extraction as this one except that it is
-// stateless even when the configured transport is not. A stateless handler keeps
-// no table of sessions and issues no session id: the SDK builds a session for
-// each request from that request's context and closes it when the request ends,
-// which is the model of protocol revision 2026-07-28, and it serves older clients
-// the same way, ignoring any Mcp-Session-Id they send. GET and DELETE are
-// answered 405. The AI gateway serves its turn-scoped routes through it, because
-// those routes need every tool call to run under the identity carried by that
-// request, and a session that outlives a request would carry the identity of the
-// request that opened it instead.
-func (h *Handler) NewStatelessHandler() http.Handler {
-	opts := h.streamableOptions
-	opts.Stateless = true
-	return h.newStreamableHandler(opts)
-}
-
-func (h *Handler) newStreamableHandler(opts mcp.StreamableHTTPOptions) http.Handler {
-	streamable := mcp.NewStreamableHTTPHandler(
-		func(*http.Request) *mcp.Server { return h.server },
-		&opts,
-	)
-	return tenancy.ExtractTenantHTTPHandler(h.tenancyMgr, streamable)
 }
 
 // RegisterTools registers all Jaeger telemetry MCP tools on the given server,
