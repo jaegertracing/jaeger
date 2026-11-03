@@ -15,7 +15,6 @@ import (
 	"github.com/jaegertracing/jaeger/cmd/anonymizer/app"
 	"github.com/jaegertracing/jaeger/cmd/anonymizer/app/anonymizer"
 	"github.com/jaegertracing/jaeger/cmd/anonymizer/app/query"
-	"github.com/jaegertracing/jaeger/cmd/anonymizer/app/uiconv"
 	"github.com/jaegertracing/jaeger/cmd/anonymizer/app/writer"
 	"github.com/jaegertracing/jaeger/internal/version"
 )
@@ -54,7 +53,7 @@ func main() {
 				logger.Fatal("error while creating query object", zap.Error(err))
 			}
 
-			spans, err := query.QueryTrace(
+			traces, err := query.QueryTrace(
 				options.TraceID,
 				initTime(options.StartTime),
 				initTime(options.EndTime),
@@ -66,27 +65,15 @@ func main() {
 				logger.Error("Failed to close grpc client connection", zap.Error(err))
 			}
 
-			for i := range spans {
-				span := &spans[i]
-				if err := w.WriteSpan(span); err != nil {
-					if errors.Is(err, writer.ErrMaxSpansCountReached) {
-						logger.Info("max spans count reached")
-						break
-					}
-					logger.Error("error while writing span", zap.Error(err))
+			if err := w.WriteTraces(traces); err != nil {
+				if errors.Is(err, writer.ErrMaxSpansCountReached) {
+					logger.Info("max spans count reached")
+				} else {
+					logger.Error("error while writing traces", zap.Error(err))
 				}
 			}
 			w.Close()
-
-			uiCfg := uiconv.Config{
-				CapturedFile: conf.AnonymizedFile,
-				UIFile:       prefix + ".anonymized-ui-trace.json",
-				TraceID:      options.TraceID,
-			}
-			if err := uiconv.Extract(uiCfg, logger); err != nil {
-				logger.Fatal("error while extracing UI trace", zap.Error(err))
-			}
-			logger.Sugar().Infof("Wrote UI-compatible anonymized file to %s", uiCfg.UIFile)
+			logger.Sugar().Infof("Wrote anonymized trace to %s; it can be uploaded to Jaeger UI", conf.AnonymizedFile)
 		},
 	}
 

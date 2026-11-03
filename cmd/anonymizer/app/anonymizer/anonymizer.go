@@ -13,20 +13,20 @@ import (
 	"sync"
 	"time"
 
+	"go.opentelemetry.io/collector/pdata/pcommon"
+	"go.opentelemetry.io/collector/pdata/ptrace"
 	"go.uber.org/zap"
 
-	"github.com/jaegertracing/jaeger-idl/model/v1"
-	"github.com/jaegertracing/jaeger/internal/uimodel"
-	uiconv "github.com/jaegertracing/jaeger/internal/uimodel/converter/v1/json"
+	"github.com/jaegertracing/jaeger/internal/telemetry/otelsemconv"
 )
 
 var allowedTags = map[string]bool{
-	"error":               true,
-	"http.method":         true,
-	"http.status_code":    true,
-	model.SpanKindKey:     true,
-	model.SamplerTypeKey:  true,
-	model.SamplerParamKey: true,
+	"error":            true,
+	"http.method":      true,
+	"http.status_code": true,
+	"span.kind":        true,
+	"sampler.type":     true,
+	"sampler.param":    true,
 }
 
 const PermUserRW = 0o600 // Read-write for owner only
@@ -38,9 +38,8 @@ type mapping struct {
 	Operations map[string]string // key=[service]:operation
 }
 
-// Anonymizer transforms Jaeger span in the domain model by obfuscating site-specific strings,
-// like service and operation names, and removes custom tags. It returns obfuscated span in the
-// Jaeger UI format, to make it easy to visualize traces.
+// Anonymizer transforms a trace in the OTLP data model by obfuscating site-specific strings,
+// like service and operation names, and by hashing or removing attributes.
 //
 // The mapping from original to obfuscated strings is stored in a file and can be reused between runs.
 type Anonymizer struct {
@@ -148,87 +147,153 @@ func hash(value string) string {
 	return fmt.Sprintf("%016x", h.Sum64())
 }
 
-// AnonymizeSpan obfuscates and converts the span.
-func (a *Anonymizer) AnonymizeSpan(span *model.Span) *uimodel.Span {
-	service := span.Process.ServiceName
-	span.OperationName = a.mapOperationName(service, span.OperationName)
+// AnonymizeTraces anonymizes the traces in place. What each option covers:
+//   - resource attributes, the v1 process tags: hashed with HashProcess, otherwise dropped. The
+//     service name is always kept, as its hash;
+//   - span attributes: the standard ones (allowedTags) are kept, or hashed with HashStandardTags;
+//     the rest are hashed with HashCustomTags, otherwise dropped;
+//   - span events, the v1 logs: name and attributes hashed with HashLogs, otherwise dropped.
+//
+// OTLP carries some text v1 had no place for: schema URLs, the instrumentation scope, link
+// attributes and the span status message. Each can hold site-specific strings, so each is treated as a custom
+// attribute. The trace state, which v1 did not keep, is cleared. The span kind and status code are
+// enumerations rather than text, so they are kept as they are.
+func (a *Anonymizer) AnonymizeTraces(traces ptrace.Traces) {
+	for _, rs := range traces.ResourceSpans().All() {
+		rs.SetSchemaUrl(a.customText(rs.SchemaUrl()))
+		service, hasService := rs.Resource().Attributes().Get(string(otelsemconv.ServiceNameKey))
+		serviceName := ""
+		if hasService {
+			serviceName = service.AsString()
+		}
+		for _, ss := range rs.ScopeSpans().All() {
+			ss.SetSchemaUrl(a.customText(ss.SchemaUrl()))
+			a.anonymizeScope(ss.Scope())
+			for _, span := range ss.Spans().All() {
+				a.anonymizeSpan(serviceName, span)
+			}
+		}
+		a.anonymizeResource(rs.Resource(), serviceName, hasService)
+	}
+}
 
-	outputTags := filterStandardTags(span.Tags)
+func (a *Anonymizer) anonymizeResource(resource pcommon.Resource, service string, hasService bool) {
+	attrs := resource.Attributes()
+	if a.options.HashProcess {
+		attrs.RemoveIf(func(key string, _ pcommon.Value) bool {
+			return key == string(otelsemconv.ServiceNameKey)
+		})
+		hashAttributes(attrs)
+	} else {
+		attrs.Clear()
+	}
+	if hasService {
+		attrs.PutStr(string(otelsemconv.ServiceNameKey), a.mapServiceName(service))
+	}
+}
+
+func (a *Anonymizer) anonymizeScope(scope pcommon.InstrumentationScope) {
+	scope.SetName(a.customText(scope.Name()))
+	scope.SetVersion(a.customText(scope.Version()))
+	a.anonymizeCustomAttributes(scope.Attributes())
+}
+
+func (a *Anonymizer) anonymizeSpan(service string, span ptrace.Span) {
+	span.SetName(a.mapOperationName(service, span.Name()))
+	a.anonymizeSpanAttributes(span.Attributes())
+	span.TraceState().FromRaw("")
+	span.Status().SetMessage(a.customText(span.Status().Message()))
+
+	// when true, events are hashed, when false, they are dropped
+	if a.options.HashLogs {
+		for _, event := range span.Events().All() {
+			event.SetName(hash(event.Name()))
+			hashAttributes(event.Attributes())
+		}
+	} else {
+		span.Events().RemoveIf(func(ptrace.SpanEvent) bool { return true })
+	}
+
+	for _, link := range span.Links().All() {
+		link.TraceState().FromRaw("")
+		a.anonymizeCustomAttributes(link.Attributes())
+	}
+}
+
+// anonymizeSpanAttributes keeps the standard attributes ahead of the custom ones, which is the
+// order the v1 anonymizer wrote tags in.
+func (a *Anonymizer) anonymizeSpanAttributes(attrs pcommon.Map) {
+	standard := pcommon.NewMap()
+	custom := pcommon.NewMap()
+	for key, value := range attrs.All() {
+		if allowedTags[key] {
+			value.CopyTo(standard.PutEmpty(key))
+			if key == "error" {
+				normalizeError(standard, value)
+			}
+		} else {
+			value.CopyTo(custom.PutEmpty(key))
+		}
+	}
 	// when true, the allowedTags are hashed and when false they are preserved as it is
 	if a.options.HashStandardTags {
-		outputTags = hashTags(outputTags)
+		hashAttributes(standard)
 	}
 	// when true, all tags other than allowedTags are hashed, when false they are dropped
 	if a.options.HashCustomTags {
-		customTags := hashTags(filterCustomTags(span.Tags))
-		outputTags = append(outputTags, customTags...)
-	}
-	span.Tags = outputTags
-
-	// when true, logs are hashed, when false, they are dropped
-	if a.options.HashLogs {
-		for _, log := range span.Logs {
-			log.Fields = hashTags(log.Fields)
-		}
+		hashAttributes(custom)
 	} else {
-		span.Logs = nil
+		custom.Clear()
 	}
+	attrs.Clear()
+	attrs.EnsureCapacity(standard.Len() + custom.Len())
+	for key, value := range standard.All() {
+		value.CopyTo(attrs.PutEmpty(key))
+	}
+	for key, value := range custom.All() {
+		value.CopyTo(attrs.PutEmpty(key))
+	}
+}
 
-	span.Process.ServiceName = a.mapServiceName(service)
+// normalizeError keeps the error attribute a boolean, or a string that reads as one, and replaces
+// anything else with true, so no free text survives under the one standard key that could hold it.
+func normalizeError(attrs pcommon.Map, value pcommon.Value) {
+	switch value.Type() {
+	case pcommon.ValueTypeBool:
+		return
+	case pcommon.ValueTypeStr:
+		if s := value.Str(); s == "true" || s == "false" {
+			return
+		}
+	default:
+	}
+	attrs.PutBool("error", true)
+}
 
-	// when true, process tags are hashed, when false they are dropped
-	if a.options.HashProcess {
-		span.Process.Tags = hashTags(span.Process.Tags)
+// anonymizeCustomAttributes hashes attributes with HashCustomTags and drops them otherwise.
+func (a *Anonymizer) anonymizeCustomAttributes(attrs pcommon.Map) {
+	if a.options.HashCustomTags {
+		hashAttributes(attrs)
 	} else {
-		span.Process.Tags = nil
+		attrs.Clear()
 	}
-
-	span.Warnings = nil
-	return uiconv.FromDomainEmbedProcess(span)
 }
 
-// filterStandardTags returns only allowedTags
-func filterStandardTags(tags []model.KeyValue) []model.KeyValue {
-	out := make([]model.KeyValue, 0, len(tags))
-	for _, tag := range tags {
-		if !allowedTags[tag.Key] {
-			continue
-		}
-		if tag.Key == "error" {
-			switch tag.VType {
-			case model.BoolType:
-				// allowed
-			case model.StringType:
-				if tag.VStr != "true" && tag.VStr != "false" {
-					tag = model.Bool("error", true)
-				}
-			default:
-				tag = model.Bool("error", true)
-			}
-		}
-		out = append(out, tag)
+// customText treats a piece of free text the way a custom attribute is treated: hashed with
+// HashCustomTags and dropped otherwise. Empty text stays empty.
+func (a *Anonymizer) customText(text string) string {
+	if text == "" || !a.options.HashCustomTags {
+		return ""
 	}
-	return out
+	return hash(text)
 }
 
-// filterCustomTags returns all tags other than allowedTags
-func filterCustomTags(tags []model.KeyValue) []model.KeyValue {
-	out := make([]model.KeyValue, 0, len(tags))
-	for _, tag := range tags {
-		if !allowedTags[tag.Key] {
-			out = append(out, tag)
-		}
+// hashAttributes replaces every attribute with the hashes of its key and of its value as a string.
+func hashAttributes(attrs pcommon.Map) {
+	hashed := pcommon.NewMap()
+	hashed.EnsureCapacity(attrs.Len())
+	for key, value := range attrs.All() {
+		hashed.PutStr(hash(key), hash(value.AsString()))
 	}
-	return out
-}
-
-// hashTags converts each tag into corresponding string values
-// and then find its hash
-func hashTags(tags []model.KeyValue) []model.KeyValue {
-	out := make([]model.KeyValue, 0, len(tags))
-	for _, tag := range tags {
-		kv := model.String(hash(tag.Key), hash(tag.AsString()))
-		out = append(out, kv)
-	}
-	return out
+	hashed.CopyTo(attrs)
 }
