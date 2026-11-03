@@ -261,8 +261,8 @@ config enables it. Tools are `get_services`, `get_span_names`,
 `read_skill`. They call the same `QueryService` as the UI.
 
 Limits compiled into the handler: 100 search hits, 20 spans of detail per
-call, and 512 KiB for a skill file. Idle MCP sessions expire after 5
-minutes. `read_skill` rejects paths that fail `fs.ValidPath` (which rejects
+call, and 512 KiB for a skill file. The endpoint keeps no session between
+requests, so there is nothing for an idle client to hold. `read_skill` rejects paths that fail `fs.ValidPath` (which rejects
 `..`) and only opens the embedded skill tree, or `custom/<path>` from
 `ai.mcp.skills_dir` when that directory is set.
 

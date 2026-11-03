@@ -5,6 +5,7 @@ package mcptools
 
 import (
 	"context"
+	"fmt"
 	"io"
 	"io/fs"
 	"net/http"
@@ -140,8 +141,8 @@ func TestNewServerDegradesWithoutMetrics(t *testing.T) {
 }
 
 // TestHandlerCloseReapsSessions pins the shared endpoint into the query server's
-// teardown (M7.1): NewHandler's server holds a session until it goes idle, so Close
-// must reap it or it outlives the server that served it.
+// teardown (M7.1): a session bound to the server, such as the one a request still
+// in flight runs under, is closed by Close instead of outliving the server.
 func TestHandlerCloseReapsSessions(t *testing.T) {
 	svc := querysvc.NewQueryService(&tracestoremocks.Reader{}, &depstoremocks.Reader{}, querysvc.QueryServiceOptions{})
 	h := NewHandler(telemetry.NoopSettings(), svc, tenancy.NewManager(&tenancy.Options{}), DefaultServerParams())
@@ -336,6 +337,30 @@ func TestNewHandler_Sessionless(t *testing.T) {
 	t.Run("a session id sent anyway is ignored", func(t *testing.T) {
 		h := newReplica(t)
 		assert.Equal(t, http.StatusOK, post(h, listTools, "not-a-session").StatusCode)
+	})
+
+	t.Run("a 2026-07-28 client is served without any handshake", func(t *testing.T) {
+		// A current client sends no initialize: every request names its protocol
+		// version in the header and in _meta, carries its capabilities in _meta and
+		// repeats its method in the Mcp-Method header, and server/discover is how
+		// it reads the server's capabilities when it wants them.
+		h := newReplica(t)
+		send := func(id int, method string) string {
+			body := fmt.Sprintf(`{"jsonrpc":"2.0","id":%d,"method":%q,"params":{"_meta":{"io.modelcontextprotocol/protocolVersion":"2026-07-28","io.modelcontextprotocol/clientCapabilities":{}}}}`, id, method)
+			req := httptest.NewRequest(http.MethodPost, "/", strings.NewReader(body))
+			req.Header.Set("Content-Type", "application/json")
+			req.Header.Set("Accept", "application/json, text/event-stream")
+			req.Header.Set("MCP-Protocol-Version", "2026-07-28")
+			req.Header.Set("Mcp-Method", method)
+			rr := httptest.NewRecorder()
+			h.ServeHTTP(rr, req)
+			require.Equal(t, http.StatusOK, rr.Code, rr.Body.String())
+			return rr.Body.String()
+		}
+		body := send(1, "tools/list")
+		assert.Contains(t, body, `"name":"get_services"`)
+		assert.NotContains(t, body, "unsupported", "the current revision is served, not refused")
+		assert.Contains(t, send(2, "server/discover"), `"2026-07-28"`, "discover lists the current revision")
 	})
 
 	t.Run("the standing event stream and the session delete are declined", func(t *testing.T) {

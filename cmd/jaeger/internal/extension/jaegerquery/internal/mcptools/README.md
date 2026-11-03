@@ -69,7 +69,10 @@ interfaces. An HTTP reverse proxy does not protect it; bind
 restricted access, or configure gRPC authentication and TLS as shown below.
 
 MCP uses Streamable HTTP: forward POST requests, the `MCP-Protocol-Version`
-header, and SSE responses without buffering. A client on an older MCP revision
+header and every `Mcp-*` header (revision 2026-07-28 repeats a request's method,
+tool name and parameters in `Mcp-Method`, `Mcp-Name` and `Mcp-Param-*` headers,
+and the endpoint refuses a request whose headers disagree with its body), and
+SSE responses without buffering. A client on an older MCP revision
 also sends GET and DELETE and an `Mcp-Session-Id` header; the endpoint answers
 those methods 405 and ignores the header, so a proxy may forward or drop them.
 Preserve the configured `base_path`. If multi-tenancy is enabled,
@@ -284,9 +287,10 @@ affinity can spread one client's requests over any number of `jaeger-query`
 replicas and each request is served by whichever replica receives it. A client
 on an older MCP revision, whose `initialize` one replica answered, is served its
 `tools/list` by another without a session id. The SDK's `MCPGODEBUG`
-environment variable has an `allowsessionsinstateless` setting that restores
-session ids and `DELETE` for such clients; leave it unset, because a session
-answered by one replica is unknown to the others.
+environment variable has an `allowsessionsinstateless` setting that hands such
+a client a session id and accepts its `DELETE`, while still keeping nothing
+between requests. Leave it unset: the id would name no state and must not be
+taken for an identity, which is what a client given one tends to assume.
 
 This covers external MCP clients on the shared `/api/ai/mcp/` endpoint. The chat gateway's
 turn-scoped endpoint, `/api/ai/mcp/<id>/`, is different: the turn it serves is held in the memory
