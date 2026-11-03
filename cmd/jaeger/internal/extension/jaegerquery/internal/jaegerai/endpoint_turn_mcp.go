@@ -53,10 +53,12 @@ func mcpRouteIDFromContext(ctx context.Context) string {
 // (present in turnRegistry).
 type turnScopedEndpoint struct {
 	// handler is the shared MCP handler that jaeger-query mounts at /api/ai/mcp/
-	// and owns. Sharing it registers the telemetry tools once. The handler keeps
-	// no session between requests and issues no session id, so each tool call
-	// runs under the turn token and the identity headers of its own request, and
-	// nothing names another request's turn or identity.
+	// and owns, with its tenant extraction and its jaeger_mcp server span, which
+	// nests under the span of the turn-scoped route. Sharing it registers the
+	// telemetry tools once. The handler keeps no session between requests and
+	// issues no session id, so each tool call runs under the turn token and the
+	// identity headers of its own request, and nothing names another request's
+	// turn or identity.
 	handler  http.Handler
 	turns    *turnRegistry
 	basePath string

@@ -349,13 +349,26 @@ func TestTurnScopedEndpointIssuesNoSessionID(t *testing.T) {
 		t.Cleanup(func() { resp.Body.Close() })
 		return resp
 	}
-	// A stateful handler answers this legacy initialize with a session id.
+	// This is the initialize an agent on a pre-2026-07-28 revision opens with,
+	// and the one request a server that keeps sessions answers with a session id.
 	initialize := `{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-11-25","capabilities":{},"clientInfo":{"name":"test-client","version":"0.0.0"}}}`
 	resp := post(initialize, "")
 	assert.Equal(t, http.StatusOK, resp.StatusCode)
 	assert.Empty(t, resp.Header.Get("Mcp-Session-Id"), "the turn-scoped endpoint issues no session id")
 	toolsList := `{"jsonrpc":"2.0","id":2,"method":"tools/list"}`
 	assert.Equal(t, http.StatusOK, post(toolsList, "some-session").StatusCode, "a session id sent anyway is ignored")
+
+	for _, method := range []string{http.MethodGet, http.MethodDelete} {
+		req, err := http.NewRequestWithContext(context.Background(), method, ts.URL+"/api/ai/mcp/"+grant.routeID+"/", http.NoBody)
+		require.NoError(t, err)
+		req.Header.Set("Accept", "text/event-stream")
+		req.Header.Set("Mcp-Session-Id", "some-session")
+		req.Header.Set(turnTokenHeader, grant.token)
+		resp, err := ts.Client().Do(req)
+		require.NoError(t, err)
+		resp.Body.Close()
+		assert.Equal(t, http.StatusMethodNotAllowed, resp.StatusCode, "%s on a live turn: no standing stream and no session to end", method)
+	}
 }
 
 // A token outlives nothing: once the turn closes, a request that carries the
