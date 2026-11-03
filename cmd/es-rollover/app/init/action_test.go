@@ -253,7 +253,7 @@ func TestRolloverAction(t *testing.T) {
 				test.setupCallExpectations(indexClient, ilmClient)
 			}
 
-			err := initAction.Do()
+			err := initAction.Do(context.Background())
 			if test.expectedErr != nil {
 				require.Error(t, err)
 				assert.Equal(t, test.expectedErr, err)
@@ -307,7 +307,7 @@ func TestRolloverAction_OpenSearchUsesISMEndpoint(t *testing.T) {
 		ILMClient:     ilmClient,
 	}
 
-	err = action.Do()
+	err = action.Do(context.Background())
 	require.NoError(t, err)
 	assert.True(t, ismEndpointCalled.Load(), "expected ISM endpoint to be called")
 }
