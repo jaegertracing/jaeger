@@ -56,6 +56,20 @@ func TestFromList(t *testing.T) {
 	assert.Contains(t, uniqueTraceIDs, someID)
 }
 
+func TestIntersectTraceIDs_EdgeCases(t *testing.T) {
+	assert.Empty(t, IntersectTraceIDs(nil))
+	assert.Empty(t, IntersectTraceIDs([]UniqueTraceIDs{}))
+
+	thirdTraceID := TraceID{0, 0, 0, 0, 0, 0, 0, 3, 0, 0, 0, 0, 0, 0, 0, 3}
+	large := UniqueTraceIDs{firstTraceID: {}, secondTraceID: {}, thirdTraceID: {}}
+	small := UniqueTraceIDs{firstTraceID: {}, thirdTraceID: {}}
+	mid := UniqueTraceIDs{firstTraceID: {}, secondTraceID: {}}
+
+	// smallest set is in the middle and has an ID the last set lacks
+	actual := IntersectTraceIDs([]UniqueTraceIDs{large, small, mid})
+	assert.Equal(t, UniqueTraceIDs{firstTraceID: {}}, actual)
+}
+
 func TestIntersectTraceIDs_SmallestSetNotFirst(t *testing.T) {
 	// The smallest set is the last element; verify the result is
 	// identical regardless of ordering.
