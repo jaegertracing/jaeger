@@ -35,8 +35,8 @@ const (
 
 // mcpRouteIDContextKey carries the URL route id from ServeHTTP into the
 // UI-dispatch middleware. ServeHTTP stamps it on the request context before
-// delegating to the MCP handler, which is stateless and so serves each
-// tools/list and tools/call from that request's own context.
+// delegating to the MCP handler, which serves each tools/list and tools/call
+// from that request's own context.
 type mcpRouteIDContextKey struct{}
 
 // mcpRouteIDFromContext returns the URL route id stamped by ServeHTTP, or ""
@@ -52,12 +52,11 @@ func mcpRouteIDFromContext(ctx context.Context) string {
 // SSE stream. Access is gated to route ids that belong to an active chat turn
 // (present in turnRegistry).
 type turnScopedEndpoint struct {
-	// handler is this endpoint's own stateless HTTP handler over the MCP server
-	// behind baseHandler, which jaeger-query mounts at /api/ai/mcp/ and owns.
-	// Sharing the server registers the telemetry tools once. Being stateless, the
-	// handler keeps no session between requests and issues no session id, so each
-	// tool call runs under the turn token and the identity headers of its own
-	// request, and nothing names another request's turn or identity.
+	// handler is the shared MCP handler that jaeger-query mounts at /api/ai/mcp/
+	// and owns. Sharing it registers the telemetry tools once. The handler keeps
+	// no session between requests and issues no session id, so each tool call
+	// runs under the turn token and the identity headers of its own request, and
+	// nothing names another request's turn or identity.
 	handler  http.Handler
 	turns    *turnRegistry
 	basePath string
@@ -82,7 +81,7 @@ type turnScopedEndpointBuilder struct {
 func (b turnScopedEndpointBuilder) build() *turnScopedEndpoint {
 	b.baseHandler.AddReceivingMiddleware(uiToolsMiddleware(b.turns, b.logger))
 	return &turnScopedEndpoint{
-		handler:  b.baseHandler.NewStatelessHandler(),
+		handler:  b.baseHandler,
 		turns:    b.turns,
 		basePath: b.basePath,
 		logger:   b.logger,

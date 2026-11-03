@@ -68,10 +68,11 @@ interfaces. An HTTP reverse proxy does not protect it; bind
 `extensions.jaeger_query.grpc.endpoint` to a private or loopback address with
 restricted access, or configure gRPC authentication and TLS as shown below.
 
-MCP uses Streamable HTTP: forward POST, GET, and DELETE requests, the
-`Mcp-Session-Id` and `MCP-Protocol-Version` headers, and SSE responses without
-buffering. Clients on MCP revision 2026-07-28 send only POST and no session
-header; older clients send all three. Preserve the configured `base_path`. If multi-tenancy is enabled,
+MCP uses Streamable HTTP: forward POST requests, the `MCP-Protocol-Version`
+header, and SSE responses without buffering. A client on an older MCP revision
+also sends GET and DELETE and an `Mcp-Session-Id` header; the endpoint answers
+those methods 405 and ignores the header, so a proxy may forward or drop them.
+Preserve the configured `base_path`. If multi-tenancy is enabled,
 the proxy must derive the tenant header from the authenticated identity and
 overwrite any client-supplied value.
 
@@ -133,7 +134,7 @@ to this URL; do not include them in `base_url`.
 `ai.agent_headers` authenticates the outbound connection to the agent; it does
 not configure authentication for the agent's requests back to MCP.
 
-### Tenants and session identity
+### Tenants and request identity
 
 MCP follows `extensions.jaeger_query.multi_tenancy`. When enabled, every MCP HTTP
 request must supply the configured tenant header (`x-tenant` by default).
@@ -143,29 +144,23 @@ header selects a tenant; it is not proof that the caller is allowed to access it
 Enforce that authorization at the proxy/gateway, and use storage that supports
 the required tenant isolation.
 
-By default, the MCP transport is stateful and serves MCP revisions up to
-2025-11-25, which open a session with `initialize` and name it with
-`Mcp-Session-Id` on every later request. Tool calls retain the context of the
-request that created the session, including its tenant. Changing a tenant header
-on a later request does not switch that session's tenant. Use a separate session
-for each identity and tenant, and reconnect when either changes.
+The endpoint speaks MCP revision 2026-07-28, which has no sessions: each
+request carries its own protocol version and capabilities, the handler builds a
+server session for that request from the request's own context and closes it
+when the request ends, and nothing is kept between requests. The tenant and the
+identity a tool call runs under are therefore always those of its own request.
+A client on an older revision, which opens with `initialize` and expects an
+`Mcp-Session-Id`, is served the same way: its `initialize` is answered per
+request, no session id is issued, and one it sends anyway is ignored. Its `GET`
+for a standing event stream and its `DELETE` are answered 405, which the MCP
+specification allows for a server that sends nothing of its own; a conforming
+client continues without them.
 
-An `Mcp-Session-Id` is not an authentication credential. The MCP SDK can bind
-sessions to a user through its token metadata, but Jaeger's `basicauth`
-authenticator does not populate that metadata. Authenticating each request
-therefore does not, by itself, bind the session to that user. Do not share
-session IDs across users or tenants; deployments requiring enforced session
-ownership must enforce it at the gateway. Idle sessions expire after five
-minutes.
-
-MCP revision 2026-07-28 removed sessions: each request carries its own protocol
-version and capabilities, and the server authenticates and serves it on its own.
-The MCP SDK serves that revision only with `streamable_http.stateless` set (see
-"Running several replicas behind a load balancer"), where every request is
-served from its own context and the tenant and identity are those of that
-request. A stateful endpoint answers a 2026-07-28 request with an
-unsupported-protocol-version error that lists the revisions it serves, and a
-conforming client retries with one of them.
+An `Mcp-Session-Id` is never an authentication credential here, and the MCP
+specification forbids a server from using one as such. Authentication is the
+request's own: the authenticator in front of the endpoint judges every request,
+and a deployment that needs a caller bound to what it may see enforces that per
+request, at the gateway or in the storage.
 
 ## Disabling MCP
 
@@ -186,7 +181,7 @@ Restart Jaeger after changing the configuration.
 
 ## Verifying the deployment
 
-Use an MCP client to initialize a session at
+Use an MCP client to connect to
 `https://<host>:16686<basePath>/api/ai/mcp/`, where `<basePath>` is the configured
 `base_path`, including its leading slash (for example, `/jaeger`). Omit
 `<basePath>` when unset or set to `/`.
@@ -202,15 +197,14 @@ curl --cacert /path/to/ca.crt --user alice --include \
 ```
 
 Use your actual hostname, CA file, and username; add the tenant header when
-required. A successful initialization returns HTTP 200 and, unless
-`streamable_http.stateless` is set, an `Mcp-Session-Id` header. Then check that:
+required. A successful initialization returns HTTP 200 and no `Mcp-Session-Id`
+header. Then check that:
 
 - Requests without valid credentials are rejected before MCP runs.
 - With valid credentials and CA trust, initialization and `tools/list` succeed.
 - Query gRPC requests also require valid credentials and a trusted TLS
   connection, or the gRPC listener is reachable only on the restricted network.
-- With multi-tenancy enabled, requests without the tenant header are rejected;
-  start a new session for each permitted tenant.
+- With multi-tenancy enabled, requests without the tenant header are rejected.
 - After disabling MCP, an authenticated request to the MCP path returns HTTP
   404, while the query UI/API remains available.
 
@@ -285,37 +279,19 @@ a routable host name; only a loopback connection carrying some other name is aff
 
 ## Running several replicas behind a load balancer
 
-By default the endpoint keeps one MCP session per client in the memory of the `jaeger-query`
-process that handled `initialize`, and the SDK looks that session up by the `Mcp-Session-Id`
-header on every later request. When a load balancer without session affinity spreads a client's
-requests over several replicas, a request that reaches a replica other than the one that holds the
-session is answered with `404 session not found`; and when the client's `notifications/initialized`
-is the request that went astray, the replica that holds the session rejects the next `tools/list`
-with `method "tools/list" is invalid during session initialization`. Set `streamable_http.stateless` to make every
-request stand on its own:
-
-```yaml
-extensions:
-  jaeger_query:
-    ai:
-      mcp:
-        streamable_http:
-          stateless: true
-```
-
-Jaeger's tools keep no state between requests, so they behave the same. A stateless endpoint is
-also the only one that serves MCP revision 2026-07-28, which has no sessions at all; it answers
-405 to the GET and DELETE of older revisions, which open a stream for server-initiated messages
-and close a session. Jaeger never sends a server-initiated message, so in the default mode that
-stream only sits idle until the session times out; the MCP specification allows a server to
-offer no stream and requires the client to continue without it. The SDK's `MCPGODEBUG`
-environment variable has an `allowsessionsinstateless` setting that restores session ids and
-DELETE for older clients on a stateless endpoint; leave it unset.
+The endpoint keeps nothing between requests, so a load balancer without session
+affinity can spread one client's requests over any number of `jaeger-query`
+replicas and each request is served by whichever replica receives it. A client
+on an older MCP revision, whose `initialize` one replica answered, is served its
+`tools/list` by another without a session id. The SDK's `MCPGODEBUG`
+environment variable has an `allowsessionsinstateless` setting that restores
+session ids and `DELETE` for such clients; leave it unset, because a session
+answered by one replica is unknown to the others.
 
 This covers external MCP clients on the shared `/api/ai/mcp/` endpoint. The chat gateway's
 turn-scoped endpoint, `/api/ai/mcp/<id>/`, is different: the turn it serves is held in the memory
 of the process that is streaming that chat to the browser, so a request for it that lands on
-another replica is answered 404 before the MCP handler is reached, stateless or not. An agent that
+another replica is answered 404 before the MCP handler is reached. An agent that
 is not co-located with `jaeger-query` must reach the replica that owns the turn, which means
 `ai.mcp.base_url` has to name that process (its pod address, not a load-balanced service name) or
 the load balancer has to route by the `<id>` path segment.
