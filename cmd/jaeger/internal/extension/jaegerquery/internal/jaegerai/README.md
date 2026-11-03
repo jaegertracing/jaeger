@@ -211,7 +211,7 @@ proves only that a request belongs to the turn, and a session opened with the
 token but without the caller's headers runs as nobody.
 
 The turn-scoped endpoint serves the shared MCP server through a stateless
-Streamable HTTP handler. The `ai.mcp.stateless` setting applies only to the
+Streamable HTTP handler. The `ai.mcp.streamable_http.stateless` setting applies only to the
 shared endpoint; the turn-scoped endpoint is stateless regardless of it. MCP
 revision 2026-07-28 has no sessions: there is no `initialize` handshake and no
 `Mcp-Session-Id`, every request carries its own protocol version and

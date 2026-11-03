@@ -35,7 +35,8 @@ export OPENROUTER_API_KEY=...
 ```
 
 `run.sh` (see "Run the stack") can read the key from a secret store instead,
-so it never sits in the shell's environment or history. Set
+so it is never typed into the shell or kept in its history; the script resolves
+it and passes it to the Goose container. Set
 `SECRET_RESOLVER_CMD` to a command that prints the secret named by its last
 argument; the script runs it with `OPENROUTER_API_KEY` appended when the
 variable itself is not set:
@@ -131,20 +132,17 @@ one, the agent also calls a tool.
 
 The proxy logs the credentials on purpose, so the check can read them; a
 deployment's proxy must not. The log looks like this (the token and route id
-are per turn). Three answers are expected and depend on no header. Goose first
-sends `server/discover`, the request with which a newer MCP revision than the Go
-SDK implements lets a client read a server's protocol versions, capabilities and
-identity in one call before anything else; Jaeger answers 400 with
-`"server/discover" unsupported`, and Goose then proceeds to `initialize`. The `GET` that would open a standing event
-stream is answered 405, because the turn-scoped endpoint keeps no session, and
-Goose continues without it. A `DELETE` after the turn is answered 404 because
-the turn-scoped route is gone by then.
+are per turn). Goose and Jaeger speak MCP revision 2026-07-28, which has no
+`initialize` handshake and no session, so every request is a `POST` that
+carries the protocol version in its `MCP-Protocol-Version` header and no
+`Mcp-Session-Id`. The three requests of a turn are `server/discover`,
+`tools/list`, and the `tools/call` the model asks for; without a model
+provider the third is missing.
 
 ```text
-POST /api/ai/mcp/<route>/ -> 400 turn="<token>" user="alice" auth="Bearer user-token" unlisted="-" ...
-POST /api/ai/mcp/<route>/ -> 200 turn="<token>" user="alice" auth="Bearer user-token" unlisted="-" ...
-GET /api/ai/mcp/<route>/ -> 405 turn="<token>" user="alice" auth="Bearer user-token" unlisted="-" ...
-POST /api/ai/mcp/<route>/ -> 200 turn="<token>" user="alice" auth="Bearer user-token" unlisted="-" ...
+POST /api/ai/mcp/<route>/ -> 200 turn="<token>" user="alice" auth="Bearer user-token" unlisted="-" accept="text/event-stream, application/json" proto="2026-07-28" sid="-"
+POST /api/ai/mcp/<route>/ -> 200 turn="<token>" user="alice" auth="Bearer user-token" unlisted="-" accept="text/event-stream, application/json" proto="2026-07-28" sid="-"
+POST /api/ai/mcp/<route>/ -> 200 turn="<token>" user="alice" auth="Bearer user-token" unlisted="-" accept="text/event-stream, application/json" proto="2026-07-28" sid="-"
 ```
 
 ## Troubleshooting

@@ -65,10 +65,10 @@ fi
 compose+=("$@")
 
 "${compose[@]}" build --quiet
-"${compose[@]}" up -d --wait --wait-timeout 120 || { "${compose[@]}" logs; exit 1; }
 if [ "$ci" = 1 ]; then
   trap '"${compose[@]}" down' EXIT
 fi
+"${compose[@]}" up -d --wait --wait-timeout 120 || { "${compose[@]}" logs; exit 1; }
 
 for _ in $(seq 1 30); do
   curl -fsS -o /dev/null http://127.0.0.1:16690/api/v3/services && break
@@ -94,6 +94,7 @@ echo "${mcp:-<none>}"
 
 fail=0
 [ -n "$mcp" ] || { echo "FAIL: Goose made no MCP request"; fail=1; }
+grep -qv -- '-> 200 ' <<<"$mcp" && { echo "FAIL: an MCP request was not answered 200"; fail=1; }
 grep -q 'turn="-"' <<<"$mcp" && { echo "FAIL: an MCP request had no turn token"; fail=1; }
 grep -qv 'user="alice"' <<<"$mcp" && { echo "FAIL: an MCP request did not carry X-User"; fail=1; }
 grep -qv 'auth="Bearer user-token"' <<<"$mcp" && { echo "FAIL: an MCP request did not carry the caller's bearer token"; fail=1; }

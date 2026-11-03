@@ -308,7 +308,9 @@ also the only one that serves MCP revision 2026-07-28, which has no sessions at 
 405 to the GET and DELETE of older revisions, which open a stream for server-initiated messages
 and close a session. Jaeger never sends a server-initiated message, so in the default mode that
 stream only sits idle until the session times out; the MCP specification allows a server to
-offer no stream and requires the client to continue without it.
+offer no stream and requires the client to continue without it. The SDK's `MCPGODEBUG`
+environment variable has an `allowsessionsinstateless` setting that restores session ids and
+DELETE for older clients on a stateless endpoint; leave it unset.
 
 This covers external MCP clients on the shared `/api/ai/mcp/` endpoint. The chat gateway's
 turn-scoped endpoint, `/api/ai/mcp/<id>/`, is different: the turn it serves is held in the memory

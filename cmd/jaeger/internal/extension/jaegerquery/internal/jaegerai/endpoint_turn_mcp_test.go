@@ -189,18 +189,17 @@ func TestTurnScopedEndpointRunsToolCallsAsTheAnnouncedCaller(t *testing.T) {
 	assert.Equal(t, callerSeen{}, <-calls, "the token alone carries no identity")
 }
 
-// Each tool call runs under the identity of its own HTTP request: the session id
-// the endpoint issued to one caller selects neither that caller's identity nor
-// their turn when another request carries it. A request on turn B with turn B's
-// token and Bob's headers runs as Bob, even when it names the session id Alice's
-// client received on turn A, and so does a request on turn A itself with the
-// right token.
+// Each tool call runs under the identity of its own HTTP request, and nothing
+// from an earlier request selects a caller: a request on turn B with turn B's
+// token and Bob's headers runs as Bob after Alice's call on turn A, and so does a
+// request on turn A itself with the right token and Bob's headers.
 func TestTurnScopedEndpointRunsEachRequestAsItsOwnCaller(t *testing.T) {
 	f, forwarded, calls := identityFixture(t)
 	alice := connectTurnMCPWithHeaders(t, f.ts, routeMCPPrefix+f.grant.routeID+"/", announcedHeaders(t, forwarded, f.grant, "tok-alice", "alice"))
 	_, err := alice.CallTool(t.Context(), &mcp.CallToolParams{Name: "get_services"})
 	require.NoError(t, err)
 	require.Equal(t, callerSeen{bearer: "tok-alice", user: "alice"}, <-calls, "precondition: Alice's call runs as Alice")
+	require.Empty(t, alice.ID(), "precondition: the endpoint issued Alice no session id that Bob could name")
 
 	grantB, closeB := f.turns.register(newAGUIRun(t.Context(), httptest.NewRecorder(), "thread-b", "run-b"), nil)
 	t.Cleanup(closeB)
@@ -212,7 +211,6 @@ func TestTurnScopedEndpointRunsEachRequestAsItsOwnCaller(t *testing.T) {
 		require.NoError(t, err)
 		req.Header.Set("Content-Type", "application/json")
 		req.Header.Set("Accept", "application/json, text/event-stream")
-		req.Header.Set("Mcp-Session-Id", alice.ID())
 		for _, h := range announcedHeaders(t, forwarded, grant, "tok-bob", "bob") {
 			req.Header.Set(h.Name, h.Value)
 		}
@@ -230,16 +228,11 @@ func TestTurnScopedEndpointRunsEachRequestAsItsOwnCaller(t *testing.T) {
 // on every request; it is empty for the shared endpoint, which requires none.
 func connectTurnMCP(t *testing.T, ts *httptest.Server, path, token string) *mcp.ClientSession {
 	t.Helper()
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	t.Cleanup(cancel)
-	mcpClient := mcp.NewClient(&mcp.Implementation{Name: "test-client", Version: "0.0.0"}, nil)
-	session, err := mcpClient.Connect(ctx, &mcp.StreamableClientTransport{
-		Endpoint:   ts.URL + path,
-		HTTPClient: turnHTTPClient(ts, token),
-	}, nil)
-	require.NoError(t, err)
-	t.Cleanup(func() { session.Close() })
-	return session
+	var headers []acp.HttpHeader
+	if token != "" {
+		headers = []acp.HttpHeader{{Name: turnTokenHeader, Value: token}}
+	}
+	return connectTurnMCPWithHeaders(t, ts, path, headers)
 }
 
 // connectTurnMCPWithHeaders connects an MCP client to path, sending headers on
@@ -256,15 +249,6 @@ func connectTurnMCPWithHeaders(t *testing.T, ts *httptest.Server, path string, h
 	require.NoError(t, err)
 	t.Cleanup(func() { session.Close() })
 	return session
-}
-
-// turnHTTPClient returns ts's client, sending token as the turn token header on
-// every request when it is not empty.
-func turnHTTPClient(ts *httptest.Server, token string) *http.Client {
-	if token == "" {
-		return ts.Client()
-	}
-	return headersHTTPClient(ts, []acp.HttpHeader{{Name: turnTokenHeader, Value: token}})
 }
 
 // headersHTTPClient returns ts's client, sending headers on every request.
@@ -333,9 +317,10 @@ func TestSharedMCPHandlerServesTelemetryOnly(t *testing.T) {
 	assert.NotContains(t, got, UIToolPrefix+"show_chart", "the shared endpoint must never advertise a turn's UI tools")
 }
 
-// The turn-scoped endpoint issues no session id: the protocol revision it
-// speaks has no sessions, so there is no id that could name a turn's identity on
-// any endpoint. A client that still sends one is served as if it had not.
+// The turn-scoped endpoint issues no session id, not even to a client on an
+// older protocol revision whose initialize would open a session elsewhere, so
+// there is no id that could name a turn's identity on any endpoint. A client
+// that sends one anyway is served as if it had not.
 func TestTurnScopedEndpointIssuesNoSessionID(t *testing.T) {
 	turns := newTurnRegistry()
 	grant, _ := turns.register(testAGUIRun(), nil)
@@ -349,9 +334,9 @@ func TestTurnScopedEndpointIssuesNoSessionID(t *testing.T) {
 	ts := httptest.NewServer(mux)
 	t.Cleanup(ts.Close)
 
-	post := func(sessionID string) *http.Response {
+	post := func(body, sessionID string) *http.Response {
 		req, err := http.NewRequestWithContext(context.Background(), http.MethodPost, ts.URL+"/api/ai/mcp/"+grant.routeID+"/",
-			strings.NewReader(`{"jsonrpc":"2.0","id":1,"method":"tools/list"}`))
+			strings.NewReader(body))
 		require.NoError(t, err)
 		req.Header.Set("Content-Type", "application/json")
 		req.Header.Set("Accept", "application/json, text/event-stream")
@@ -364,10 +349,13 @@ func TestTurnScopedEndpointIssuesNoSessionID(t *testing.T) {
 		t.Cleanup(func() { resp.Body.Close() })
 		return resp
 	}
-	resp := post("")
+	// A stateful handler answers this legacy initialize with a session id.
+	initialize := `{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-11-25","capabilities":{},"clientInfo":{"name":"test-client","version":"0.0.0"}}}`
+	resp := post(initialize, "")
 	assert.Equal(t, http.StatusOK, resp.StatusCode)
 	assert.Empty(t, resp.Header.Get("Mcp-Session-Id"), "the turn-scoped endpoint issues no session id")
-	assert.Equal(t, http.StatusOK, post("some-session").StatusCode, "a session id sent anyway is ignored")
+	toolsList := `{"jsonrpc":"2.0","id":2,"method":"tools/list"}`
+	assert.Equal(t, http.StatusOK, post(toolsList, "some-session").StatusCode, "a session id sent anyway is ignored")
 }
 
 // A token outlives nothing: once the turn closes, a request that carries the
