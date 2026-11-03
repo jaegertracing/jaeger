@@ -403,3 +403,61 @@ func TestGetTraceErrorsHandler_Handle_LimitEnforced(t *testing.T) {
 	// Returned Spans are capped at exactly the limit (5 errors, limit=3 → exactly 3 spans).
 	assert.Len(t, output.Spans, 3)
 }
+
+func TestGetTraceErrorsHandler_Handle_PaginationOffsetAndLimit(t *testing.T) {
+	traceID := testTraceID
+
+	spanConfigs := []spanConfig{
+		{spanID: "span001", operation: "/api/error1", hasError: true, errorMessage: "err1"},
+		{spanID: "span002", operation: "/api/error2", hasError: true, errorMessage: "err2"},
+		{spanID: "span003", operation: "/api/error3", hasError: true, errorMessage: "err3"},
+		{spanID: "span004", operation: "/api/error4", hasError: true, errorMessage: "err4"},
+		{spanID: "span005", operation: "/api/error5", hasError: true, errorMessage: "err5"},
+	}
+
+	testTrace := createTestTraceWithSpans(traceID, spanConfigs)
+	mock := newMockYieldingTraces(testTrace)
+
+	handler := &getTraceErrorsHandler{
+		queryService:             mock,
+		maxSpanDetailsPerRequest: 10,
+	}
+
+	// Page 1: offset 0, limit 2
+	inputPage1 := types.GetTraceErrorsInput{TraceID: traceID, Offset: 0, Limit: 2}
+	_, output1, err := handler.handle(context.Background(), &mcp.CallToolRequest{}, inputPage1)
+	require.NoError(t, err)
+	assert.Equal(t, 5, output1.TotalErrorCount)
+	assert.Equal(t, 0, output1.Offset)
+	assert.Len(t, output1.Spans, 2)
+	assert.Equal(t, "/api/error1", output1.Spans[0].SpanName)
+	assert.Equal(t, "/api/error2", output1.Spans[1].SpanName)
+
+	// Page 2: offset 2, limit 2
+	inputPage2 := types.GetTraceErrorsInput{TraceID: traceID, Offset: 2, Limit: 2}
+	_, output2, err := handler.handle(context.Background(), &mcp.CallToolRequest{}, inputPage2)
+	require.NoError(t, err)
+	assert.Equal(t, 5, output2.TotalErrorCount)
+	assert.Equal(t, 2, output2.Offset)
+	assert.Len(t, output2.Spans, 2)
+	assert.Equal(t, "/api/error3", output2.Spans[0].SpanName)
+	assert.Equal(t, "/api/error4", output2.Spans[1].SpanName)
+
+	// Page 3: offset 4, limit 2
+	inputPage3 := types.GetTraceErrorsInput{TraceID: traceID, Offset: 4, Limit: 2}
+	_, output3, err := handler.handle(context.Background(), &mcp.CallToolRequest{}, inputPage3)
+	require.NoError(t, err)
+	assert.Equal(t, 5, output3.TotalErrorCount)
+	assert.Equal(t, 4, output3.Offset)
+	assert.Len(t, output3.Spans, 1)
+	assert.Equal(t, "/api/error5", output3.Spans[0].SpanName)
+}
+
+func TestGetTraceErrorsHandler_Handle_NegativeOffset(t *testing.T) {
+	handler := NewGetTraceErrorsHandler(nil, 10)
+	input := types.GetTraceErrorsInput{TraceID: testTraceID, Offset: -1}
+
+	_, _, err := handler(context.Background(), &mcp.CallToolRequest{}, input)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "offset cannot be negative")
+}
