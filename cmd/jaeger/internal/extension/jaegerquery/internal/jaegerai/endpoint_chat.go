@@ -82,10 +82,11 @@ func (h *chatEndpoint) announceMCP(ctx context.Context, caps acp.AgentCapabiliti
 // server's middleware captured it from the chat request: the propagated bearer
 // token and the header_forwarding captures. The captures keep their inbound names,
 // because the tool request comes back to this same server and its middleware reads
-// those names; the handshake sends the same headers under their outbound names
-// (see DialWsAdapter). The agent returns them on its tool calls, so the turn-scoped
-// endpoint authenticates each request as it would any other and never has to
-// remember who the caller was.
+// those names; the handshake sends the captures under their outbound names and no
+// bearer token (see DialWsAdapter). The agent returns the headers on its tool calls,
+// so the same middleware that read the caller's identity from the chat request reads
+// it from each tool call, and the turn-scoped endpoint never has to remember who
+// the caller was.
 func turnServerHeaders(ctx context.Context, grant turnGrant) []acp.HttpHeader {
 	header := make(http.Header)
 	for _, c := range headerforwarding.CapturedFromContext(ctx) {

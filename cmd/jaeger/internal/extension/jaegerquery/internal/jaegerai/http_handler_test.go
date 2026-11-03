@@ -174,8 +174,9 @@ func TestRegisterRoutesOmitsMCPEndpointWhenDisabled(t *testing.T) {
 }
 
 // The ai.auth check arrives as ChatMiddleware. It must stop at the chat endpoint:
-// the turn-scoped MCP endpoint is dialed by the sidecar, which carries no user
-// credential, so wrapping it would break every chat turn.
+// the turn-scoped MCP endpoint is dialed by the agent, whose requests are admitted
+// by the turn token and carry only the headers the gateway announced, so a check
+// written for the browser's request would refuse them and break every chat turn.
 func TestChatMiddlewareLeavesTurnScopedEndpointAlone(t *testing.T) {
 	shared := sharedMCPHandler(t)
 	rejectEveryone := func(http.Handler) http.Handler {

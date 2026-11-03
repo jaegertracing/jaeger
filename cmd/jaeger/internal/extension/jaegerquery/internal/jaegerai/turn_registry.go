@@ -79,8 +79,8 @@ func newTurnRegistry() *turnRegistry {
 
 // register records a new turn — the browser's SSE stream and the UI tools it
 // declared — under a freshly minted route id and token,
-// and returns that grant plus a closer that removes the turn and closes its MCP
-// sessions. The registry mints both (nothing outside chooses how a turn is
+// and returns that grant plus a closer that removes the turn, after which requests
+// for its route id are refused. The registry mints both (nothing outside chooses how a turn is
 // keyed); the closer is meant to be deferred by the chat handler and is
 // idempotent. The chat handler announces the grant to the sidecar as the turn's
 // MCP URL and header.
