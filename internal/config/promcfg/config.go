@@ -65,6 +65,11 @@ func (c *Configuration) Validate() error {
 		case "service_name", "span_kind", "status_code", "le", "__name__":
 			return fmt.Errorf("extra_dimensions[%d]: name %q maps to reserved label %q", i, d.Name, label)
 		}
+		// Exporter sanitization can collapse underscores or prefix a leading one.
+		// Restrict names so dot-to-underscore translation matches either mode.
+		if strings.Contains(label, "__") || strings.HasPrefix(label, "_") || strings.HasSuffix(label, "_") {
+			return fmt.Errorf("extra_dimensions[%d]: invalid name %q (leading, trailing, or repeated dots/underscores are not supported)", i, d.Name)
+		}
 		if _, dup := seen[label]; dup {
 			return fmt.Errorf("extra_dimensions[%d]: duplicate name %q after translation to %q", i, d.Name, label)
 		}

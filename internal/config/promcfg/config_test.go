@@ -144,6 +144,27 @@ func TestValidateExtraDimensions(t *testing.T) {
 	}
 }
 
+func TestValidateExtraDimensionSeparators(t *testing.T) {
+	for _, name := range []string{"foo..bar", "foo__bar", "foo._bar", "foo_.bar", ".foo", "_foo", "foo.", "foo_", "_"} {
+		t.Run("reject "+name, func(t *testing.T) {
+			cfg := Configuration{
+				ServerURL:       "localhost:1234",
+				ExtraDimensions: []metricstore.Dimension{{Name: name}},
+			}
+			require.ErrorContains(t, cfg.Validate(), "invalid name")
+		})
+	}
+	for _, name := range []string{"a", "deployment.environment", "team_id", "k8s.cluster.name", "Team0.cluster_1"} {
+		t.Run("accept "+name, func(t *testing.T) {
+			cfg := Configuration{
+				ServerURL:       "localhost:1234",
+				ExtraDimensions: []metricstore.Dimension{{Name: name}},
+			}
+			require.NoError(t, cfg.Validate())
+		})
+	}
+}
+
 // TestExtraDimensionsConfmapDecode locks in the mapstructure tags on
 // metricstore.Dimension. Without them, OTel's confmap strict-decode rejects
 // the snake_case YAML keys (display_name, etc.) so operator configs fail to
