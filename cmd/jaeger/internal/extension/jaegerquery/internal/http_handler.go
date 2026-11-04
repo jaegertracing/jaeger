@@ -10,6 +10,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"maps"
 	"net/http"
 	"regexp"
 	"slices"
@@ -272,7 +273,8 @@ func validateMetricFilters(filters map[string]string, dims []metricstore.Dimensi
 	for _, d := range dims {
 		byName[d.Name] = d
 	}
-	for k, v := range filters {
+	for _, k := range slices.Sorted(maps.Keys(filters)) {
+		v := filters[k]
 		d, ok := byName[k]
 		if !ok {
 			names := make([]string, 0, len(dims))

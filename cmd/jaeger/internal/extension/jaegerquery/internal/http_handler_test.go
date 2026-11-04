@@ -838,6 +838,41 @@ func TestMetricFilterConfiguredOrder(t *testing.T) {
 	}
 }
 
+func TestMetricFilterValidationOrder(t *testing.T) {
+	dims := []metricstore.Dimension{
+		{Name: "z"},
+		{Name: "a", Values: []string{"prod"}},
+		{Name: "m"},
+	}
+	for _, tc := range []struct {
+		name    string
+		filters map[string]string
+		wantErr string
+	}{
+		{
+			name:    "unknown keys",
+			filters: map[string]string{"y": "value", "b": "value"},
+			wantErr: `unknown filter dimension "b"; configured: [z a m]`,
+		},
+		{
+			name:    "invalid value before unknown key",
+			filters: map[string]string{"unknown": "value", "a": "dev", "m": "bad\nvalue"},
+			wantErr: `value "dev" not allowed for filter "a"; allowed: [prod]`,
+		},
+		{
+			name:    "valid value before invalid filters",
+			filters: map[string]string{"a": "prod", "unknown": "value", "m": "bad\nvalue"},
+			wantErr: `invalid value for filter "m" (control characters, quotes, and backslashes are not allowed)`,
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			for range 20 {
+				require.EqualError(t, validateMetricFilters(tc.filters, dims), tc.wantErr)
+			}
+		})
+	}
+}
+
 func TestMetricsFilterMalformed(t *testing.T) {
 	for _, filter := range []string{"missing-colon", ":value", "key:"} {
 		t.Run(filter, func(t *testing.T) {
