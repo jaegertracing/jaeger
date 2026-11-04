@@ -116,7 +116,7 @@ func TestValidateExtraDimensions(t *testing.T) {
 			wantErr: "empty value",
 		},
 	}
-	for _, spelling := range []string{"service_name", "service.name", "span_kind", "span.kind", "status_code", "status.code", "le", "__name__", "__name.."} {
+	for _, spelling := range []string{"service_name", "service.name", "span_kind", "span.kind", "status_code", "status.code", "span_name", "span.name", "job", "instance", "le", "__name__", "__name.."} {
 		tests = append(tests, struct {
 			name    string
 			dims    []metricstore.Dimension

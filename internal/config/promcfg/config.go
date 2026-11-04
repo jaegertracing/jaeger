@@ -62,7 +62,7 @@ func (c *Configuration) Validate() error {
 		}
 		label := strings.ReplaceAll(d.Name, ".", "_")
 		switch label {
-		case "service_name", "span_kind", "status_code", "le", "__name__":
+		case "service_name", "span_kind", "status_code", "span_name", "job", "instance", "le", "__name__":
 			return fmt.Errorf("extra_dimensions[%d]: name %q maps to reserved label %q", i, d.Name, label)
 		}
 		// Exporter sanitization can collapse underscores or prefix a leading one.
