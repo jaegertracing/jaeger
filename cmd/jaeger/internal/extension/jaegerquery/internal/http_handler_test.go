@@ -160,7 +160,7 @@ func TestRemovedTraceRoutes(t *testing.T) {
 		{http.MethodPost, "/api/transform"},
 	} {
 		t.Run(tc.path, func(t *testing.T) {
-			req, err := http.NewRequest(tc.method, ts.server.URL+tc.path, nil)
+			req, err := http.NewRequest(tc.method, ts.server.URL+tc.path, http.NoBody)
 			require.NoError(t, err)
 			resp, err := ts.server.Client().Do(req)
 			require.NoError(t, err)
@@ -500,11 +500,6 @@ func execJSON(req *http.Request, additionalHeaders map[string]string, out any) e
 	}
 	decoder := json.NewDecoder(resp.Body)
 	return decoder.Decode(out)
-}
-
-// Generates a JSON response that the server should produce given a certain error code and error.
-func parsedError(code int, err string) string {
-	return fmt.Sprintf(`%d error from server: {"data":null,"total":0,"limit":0,"offset":0,"errors":[{"code":%d,"msg":"%s"}]}`+"\n", code, code, err)
 }
 
 func TestNewAPIHandler_Defaults(t *testing.T) {
