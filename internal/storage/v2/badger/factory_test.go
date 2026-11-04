@@ -45,6 +45,19 @@ func TestNewFac(t *testing.T) {
 	require.NoError(t, err)
 }
 
+func TestCreateTraceWriterReturnsSpanWriterError(t *testing.T) {
+	cfg := *badger.DefaultConfig()
+	cfg.SpanEncoding = "yaml"
+	factory, err := NewFactory(cfg, telemetry.NoopSettings())
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		require.NoError(t, factory.Close())
+	})
+
+	_, err = factory.CreateTraceWriter()
+	require.ErrorContains(t, err, "unsupported Badger span encoding")
+}
+
 func TestBadgerStorageFactoryWithConfig(t *testing.T) {
 	t.Parallel()
 	cfg := badger.Config{}

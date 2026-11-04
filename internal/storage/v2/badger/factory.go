@@ -34,7 +34,10 @@ func NewFactory(
 }
 
 func (f *Factory) CreateTraceWriter() (tracestore.Writer, error) {
-	v1Writer, _ := f.v1Factory.CreateSpanWriter() // error is always nil
+	v1Writer, err := f.v1Factory.CreateSpanWriter()
+	if err != nil {
+		return nil, err
+	}
 	return v1adapter.NewTraceWriter(v1Writer), nil
 }
 

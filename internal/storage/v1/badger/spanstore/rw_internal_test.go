@@ -24,16 +24,18 @@ func TestEncodingTypes(t *testing.T) {
 		testSpan := createDummySpan()
 
 		cache := NewCacheStore(store, time.Duration(1*time.Hour))
-		sw := NewSpanWriter(store, cache, time.Duration(1*time.Hour))
+		sw := NewSpanWriterWithEncoding(store, cache, time.Duration(1*time.Hour), EncodingJSON)
 		rw := NewTraceReader(store, cache, true)
-
-		sw.encodingType = jsonEncoding
 		err := sw.WriteSpan(context.Background(), &testSpan)
 		require.NoError(t, err)
+		protobufSpan := createDummySpan()
+		protobufSpan.StartTime = testSpan.StartTime.Add(time.Second)
+		protobufWriter := NewSpanWriter(store, cache, time.Duration(1*time.Hour))
+		require.NoError(t, protobufWriter.WriteSpan(context.Background(), &protobufSpan))
 
 		tr, err := rw.GetTrace(context.Background(), spanstore.GetTraceParameters{TraceID: model.TraceID{Low: 0, High: 1}})
 		require.NoError(t, err)
-		assert.Len(t, tr.Spans, 1)
+		assert.Len(t, tr.Spans, 2)
 	})
 
 	// Unknown encoding write
@@ -41,10 +43,9 @@ func TestEncodingTypes(t *testing.T) {
 		testSpan := createDummySpan()
 
 		cache := NewCacheStore(store, time.Duration(1*time.Hour))
-		sw := NewSpanWriter(store, cache, time.Duration(1*time.Hour))
 		// rw := NewTraceReader(store, cache)
 
-		sw.encodingType = 0x04
+		sw := NewSpanWriterWithEncoding(store, cache, time.Duration(1*time.Hour), 0x04)
 		err := sw.WriteSpan(context.Background(), &testSpan)
 		require.EqualError(t, err, "unknown encoding type: 0x04")
 	})
@@ -62,7 +63,7 @@ func TestEncodingTypes(t *testing.T) {
 
 		startTime := model.TimeAsEpochMicroseconds(testSpan.StartTime)
 
-		key, _, _ := createTraceKV(&testSpan, protoEncoding, startTime)
+		key, _, _ := createTraceKV(&testSpan, EncodingProtobuf, startTime)
 		e := &badger.Entry{
 			Key:       key,
 			ExpiresAt: uint64(time.Now().Add(1 * time.Hour).Unix()),
@@ -82,10 +83,10 @@ func TestEncodingTypes(t *testing.T) {
 func TestDecodeErrorReturns(t *testing.T) {
 	garbage := []byte{0x08}
 
-	_, err := decodeValue(garbage, protoEncoding)
+	_, err := decodeValue(garbage, EncodingProtobuf)
 	require.Error(t, err)
 
-	_, err = decodeValue(garbage, jsonEncoding)
+	_, err = decodeValue(garbage, EncodingJSON)
 	require.Error(t, err)
 }
 
