@@ -267,8 +267,22 @@ func TestSkillFixtures_ErrorLocus(t *testing.T) {
 		require.GreaterOrEqual(t, out.TotalErrorCount, 4,
 			"both failing branches must be reported, or there is nothing to disambiguate")
 
-		// Start-time order is the tie-breaker the span tree cannot supply.
-		spans := slices.Clone(out.Spans)
+		spanIDs := make([]string, 0, len(out.Spans))
+		for _, span := range out.Spans {
+			spanIDs = append(spanIDs, span.SpanID)
+		}
+		traces, _ := loadSkillFixture(t, "sibling_errors")
+		h := &getSpanDetailsHandler{
+			queryService:             newMockYieldingTraces(traces),
+			maxSpanDetailsPerRequest: skillFixtureSpanLimit,
+		}
+		_, details, err := h.handle(context.Background(), &mcp.CallToolRequest{},
+			types.GetSpanDetailsInput{TraceID: out.TraceID, SpanIDs: spanIDs})
+		require.NoError(t, err)
+		require.Len(t, details.Spans, len(out.Spans))
+
+		// Start-time order requires details beyond the compact error listing.
+		spans := slices.Clone(details.Spans)
 		slices.SortFunc(spans, func(a, b types.SpanDetail) int {
 			return strings.Compare(a.StartTime, b.StartTime)
 		})
