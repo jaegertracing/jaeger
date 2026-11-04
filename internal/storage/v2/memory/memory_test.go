@@ -532,31 +532,53 @@ func TestFindTraceIds_NegativeSearchDepth(t *testing.T) {
 }
 
 func testInvalidSearchDepth(t *testing.T, fxn func(store *Store, params tracestore.TraceQueryParams)) {
-	tests := []struct {
-		name        string
-		searchDepth uint32
-	}{
-		{
-			name:        "zero search depth",
-			searchDepth: 0,
-		},
-		{
-			name:        "search depth greater than max traces",
-			searchDepth: 11,
-		},
+	store, err := NewStore(Configuration{
+		MaxTraces: 10,
+	})
+	require.NoError(t, err)
+	fxn(store, tracestore.TraceQueryParams{SearchDepth: 0})
+}
+
+func TestFindTraces_SearchDepthAboveMaxTracesIsCapped(t *testing.T) {
+	store, traceIDs := storeWithTraces(t, 2, 3)
+	var found []pcommon.TraceID
+	for traces, err := range store.FindTraces(context.Background(), tracestore.TraceQueryParams{SearchDepth: 100, Attributes: pcommon.NewMap()}) {
+		require.NoError(t, err)
+		for _, trace := range traces {
+			found = append(found, trace.ResourceSpans().At(0).ScopeSpans().At(0).Spans().At(0).TraceID())
+		}
 	}
-	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
-			store, err := NewStore(Configuration{
-				MaxTraces: 10,
-			})
-			require.NoError(t, err)
-			params := tracestore.TraceQueryParams{
-				SearchDepth: test.searchDepth,
-			}
-			fxn(store, params)
-		})
+	// The store holds the two most recent traces; the first one was evicted.
+	assert.Equal(t, []pcommon.TraceID{traceIDs[2], traceIDs[1]}, found)
+}
+
+func TestFindTraceIDs_SearchDepthAboveMaxTracesIsCapped(t *testing.T) {
+	store, traceIDs := storeWithTraces(t, 2, 3)
+	var found []pcommon.TraceID
+	for chunk, err := range store.FindTraceIDs(context.Background(), tracestore.TraceQueryParams{SearchDepth: 100, Attributes: pcommon.NewMap()}) {
+		require.NoError(t, err)
+		for _, id := range chunk.Results {
+			found = append(found, id.TraceID)
+		}
 	}
+	assert.Equal(t, []pcommon.TraceID{traceIDs[2], traceIDs[1]}, found)
+}
+
+// storeWithTraces writes count single-span traces, oldest first, to a store
+// that holds at most maxTraces of them.
+func storeWithTraces(t *testing.T, maxTraces uint32, count int) (*Store, []pcommon.TraceID) {
+	store, err := NewStore(Configuration{MaxTraces: maxTraces})
+	require.NoError(t, err)
+	traceIDs := make([]pcommon.TraceID, count)
+	for i := range traceIDs {
+		traceIDs[i] = pcommon.TraceID([16]byte{byte(i + 1)})
+		td := ptrace.NewTraces()
+		span := td.ResourceSpans().AppendEmpty().ScopeSpans().AppendEmpty().Spans().AppendEmpty()
+		span.SetTraceID(traceIDs[i])
+		span.SetStartTimestamp(pcommon.NewTimestampFromTime(time.Now()))
+		require.NoError(t, store.WriteTraces(context.Background(), td))
+	}
+	return store, traceIDs
 }
 
 func TestFindTraces_StatusCode(t *testing.T) {
