@@ -1311,3 +1311,98 @@ func TestReaderErrorDetails(t *testing.T) {
 		require.NotErrorIs(t, readerError(foreign.Err()), tc.err)
 	}
 }
+
+// cancelObservingServer sends one response on each stream and then waits until the
+// client cancels the stream, signalling that on cancelled.
+type cancelObservingServer struct {
+	storage.UnimplementedTraceReaderServer
+	cancelled chan struct{}
+}
+
+func (s *cancelObservingServer) waitForCancel(ctx context.Context) error {
+	<-ctx.Done()
+	close(s.cancelled)
+	return ctx.Err()
+}
+
+func (s *cancelObservingServer) GetTraces(_ *storage.GetTracesRequest, stream storage.TraceReader_GetTracesServer) error {
+	trace := makeTestTrace()
+	if err := stream.Send((*jptrace.TracesData)(&trace)); err != nil {
+		return err
+	}
+	return s.waitForCancel(stream.Context())
+}
+
+func (s *cancelObservingServer) FindTraces(_ *storage.FindTracesRequest, stream storage.TraceReader_FindTracesServer) error {
+	trace := makeTestTrace()
+	if err := stream.Send((*jptrace.TracesData)(&trace)); err != nil {
+		return err
+	}
+	return s.waitForCancel(stream.Context())
+}
+
+func (s *cancelObservingServer) FindTraceSummaries(
+	_ *storage.FindTraceSummariesRequest,
+	stream storage.TraceReader_FindTraceSummariesServer,
+) error {
+	resp := &storage.FindTraceSummariesResponse{Summaries: []*storage.TraceSummary{{TraceId: []byte{1}}}}
+	if err := stream.Send(resp); err != nil {
+		return err
+	}
+	return s.waitForCancel(stream.Context())
+}
+
+func TestTraceReader_StreamCancelledWhenIterationStopsEarly(t *testing.T) {
+	queryParams := tracestore.TraceQueryParams{Attributes: pcommon.NewMap()}
+	tests := []struct {
+		name         string
+		readAndBreak func(ctx context.Context, reader *TraceReader)
+	}{
+		{
+			name: "GetTraces",
+			readAndBreak: func(ctx context.Context, reader *TraceReader) {
+				for _, err := range reader.GetTraces(ctx, tracestore.GetTraceParams{}) {
+					require.NoError(t, err)
+					break
+				}
+			},
+		},
+		{
+			name: "FindTraces",
+			readAndBreak: func(ctx context.Context, reader *TraceReader) {
+				for _, err := range reader.FindTraces(ctx, queryParams) {
+					require.NoError(t, err)
+					break
+				}
+			},
+		},
+		{
+			name: "FindTraceSummaries",
+			readAndBreak: func(ctx context.Context, reader *TraceReader) {
+				for _, err := range reader.FindTraceSummaries(ctx, queryParams) {
+					require.NoError(t, err)
+					break
+				}
+			},
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			listener, err := net.Listen("tcp", ":0")
+			require.NoError(t, err)
+			server := grpc.NewServer()
+			cancelServer := &cancelObservingServer{cancelled: make(chan struct{})}
+			storage.RegisterTraceReaderServer(server, cancelServer)
+			conn := startServer(t, server, listener)
+
+			// The caller's context stays active, so only the reader can cancel the stream.
+			test.readAndBreak(context.Background(), NewTraceReader(conn))
+
+			select {
+			case <-cancelServer.cancelled:
+			case <-time.After(5 * time.Second):
+				t.Fatal("the server did not observe the stream cancellation")
+			}
+		})
+	}
+}
