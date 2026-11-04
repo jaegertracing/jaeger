@@ -213,6 +213,47 @@ func TestHTTPGatewayGetTrace(t *testing.T) {
 	}
 }
 
+func TestHTTPGatewayGetTracePrettyPrint(t *testing.T) {
+	testCases := []struct {
+		name         string
+		query        string
+		expectPrefix string
+	}{
+		{name: "not set", query: "", expectPrefix: `{"result":`},
+		{name: "true", query: "?prettyPrint=true", expectPrefix: "{\n    \"result\": {\n        "},
+		{name: "false", query: "?prettyPrint=false", expectPrefix: `{"result":`},
+	}
+
+	var compactBodies []string
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			gw := setupHTTPGatewayNoServer(t, "")
+			gw.reader.
+				On("GetTraces", matchContext, []tracestore.GetTraceParams{{TraceID: traceID}}).
+				Return(iter.Seq2[[]ptrace.Traces, error](func(yield func([]ptrace.Traces, error) bool) {
+					yield([]ptrace.Traces{makeTestTrace()}, nil)
+				})).Once()
+
+			r := httptest.NewRequest(http.MethodGet, "/api/v3/traces/1"+tc.query, http.NoBody)
+			w := httptest.NewRecorder()
+			gw.router.ServeHTTP(w, r)
+
+			require.Equal(t, http.StatusOK, w.Code)
+			assert.Equal(t, "application/json", w.Header().Get("Content-Type"))
+			assert.True(t, bytes.HasPrefix(w.Body.Bytes(), []byte(tc.expectPrefix)), "body: %s", w.Body.String())
+
+			var compact bytes.Buffer
+			require.NoError(t, json.Compact(&compact, w.Body.Bytes()))
+			compactBodies = append(compactBodies, compact.String())
+		})
+	}
+	// Indentation changes only whitespace, never the payload.
+	require.Len(t, compactBodies, len(testCases))
+	for _, body := range compactBodies[1:] {
+		assert.Equal(t, compactBodies[0], body)
+	}
+}
+
 func TestHTTPGatewayGetTraceBase64(t *testing.T) {
 	tests := []struct {
 		name    string

@@ -113,7 +113,7 @@ func TestRegisterRoutesMountsSessionScopedMCPWhenEnabled(t *testing.T) {
 	require.NotNil(t, h.mcp, "MCP endpoint must be built when an MCP handler is supplied")
 	mux := http.NewServeMux()
 	h.RegisterRoutes(mux)
-	routeID := registerTurn(h.mcp.turns, testStreamingClient(), nil) // active turn
+	routeID := registerTurn(h.mcp.turns, testAGUIRun(), nil) // active turn
 
 	t.Run("active turn is served", func(t *testing.T) {
 		rr := httptest.NewRecorder()
@@ -167,7 +167,7 @@ func TestSharedCloseReapsTurnScopedSessions(t *testing.T) {
 
 	mux := http.NewServeMux()
 	h.RegisterRoutes(mux)
-	routeID := registerTurn(h.mcp.turns, testStreamingClient(), nil)
+	routeID := registerTurn(h.mcp.turns, testAGUIRun(), nil)
 	ts := httptest.NewServer(mux)
 	t.Cleanup(ts.Close)
 
@@ -198,7 +198,7 @@ func TestChatMiddlewareLeavesTurnScopedEndpointAlone(t *testing.T) {
 		MCP:                shared,
 		ChatMiddleware:     rejectEveryone,
 	})
-	routeID := registerTurn(h.mcp.turns, testStreamingClient(), nil)
+	routeID := registerTurn(h.mcp.turns, testAGUIRun(), nil)
 
 	mux := http.NewServeMux()
 	h.RegisterRoutes(mux)

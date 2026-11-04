@@ -104,13 +104,13 @@ func TestDispatchUIToolCall(t *testing.T) {
 	assert.True(t, res.IsError, "a closed stream is reported as a tool error")
 
 	// Invalid JSON arguments → error result.
-	res = emitUIToolCall(testStreamingClient(), "show_chart", json.RawMessage(`{not json`))
+	res = emitUIToolCall(testAGUIRun(), "show_chart", json.RawMessage(`{not json`))
 	assert.True(t, res.IsError, "invalid JSON arguments must return an error result")
 
 	// Success → non-error ack and the TOOL_CALL_* frames land on the stream.
 	rec := httptest.NewRecorder()
-	stream := newStreamingClient(context.Background(), rec, "t", "r")
-	res = emitUIToolCall(stream, "show_chart", json.RawMessage(`{"series":"latency"}`))
+	run := newAGUIRun(context.Background(), rec, "t", "r")
+	res = emitUIToolCall(run, "show_chart", json.RawMessage(`{"series":"latency"}`))
 	require.False(t, res.IsError)
 	assert.Contains(t, rec.Body.String(), "show_chart", "the tool-call lifecycle is emitted to the browser stream")
 }
@@ -125,7 +125,7 @@ func TestNewUIToolCallID(t *testing.T) {
 func TestUIDispatchMiddleware(t *testing.T) {
 	rec := httptest.NewRecorder()
 	turns := newTurnRegistry()
-	routeID := registerTurn(turns, newStreamingClient(context.Background(), rec, "t", "r"),
+	routeID := registerTurn(turns, newAGUIRun(context.Background(), rec, "t", "r"),
 		[]json.RawMessage{rawUITool(t, "show_chart")})
 	mw := uiToolsMiddleware(turns, zap.NewNop())
 	ctx := context.WithValue(context.Background(), mcpRouteIDContextKey{}, routeID)

@@ -31,10 +31,20 @@ name: 'Verify Metric Snapshot and Upload Metrics'
 description: 'Upload or cache the metrics data after verification'
 inputs:
   snapshot:
-    description: 'Path to the metric file'
+    description: >-
+      Base name of the snapshot file that the e2e harness writes to
+      ./.metrics/<snapshot>.txt. The harness derives it from the storage name
+      passed to e2eInitialize, so it is metrics_snapshot_<storage> with no
+      matrix variant. Matrix jobs for one backend therefore share this name,
+      which is safe because each job runs on its own runner and nothing leaves
+      the runner under this name.
     required: true
   artifact_key:
-    description: 'Artifact key used for uploading and fetching artifacts'
+    description: >-
+      Key for everything that leaves the runner: the uploaded snapshot artifact,
+      the baseline cache entry, and the PR diff artifact. It must be unique per
+      matrix job, so it carries the backend version and any other matrix
+      dimension, otherwise two jobs overwrite each other's baseline.
     required: true
 runs:
   using: 'composite'

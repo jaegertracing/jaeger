@@ -9,16 +9,18 @@
 // containing UNTRUSTED content crafted by the PR author.
 //
 // NEVER interpolate artifact content verbatim into PR comments, check run
-// summaries, or any GitHub API call. Doing so allows a malicious PR to inject
-// arbitrary Markdown or URLs into the repository's UI.
+// summaries, log lines, workflow commands, or any GitHub API call. Doing so
+// allows a malicious PR to inject arbitrary Markdown, URLs, or a workflow
+// command into this privileged job.
+//
+// The artifact never chooses where results are written: resolvePublishTarget()
+// takes the commit and PR from the CI run as reported by GitHub.
 //
 // Required invariants maintained by this file:
 //   1. ci-summary.json contains ONLY typed primitives: numbers, booleans, and
 //      fixed enum strings ("success"/"failure"/"skipped"). No free-form text.
-//      Exception: head_sha is a 40-char hex string produced from GitHub's own
-//      event context (github.event.pull_request.head.sha), validated as
-//      /^[0-9a-f]{40}$/ in the publish workflow before being passed here, and
-//      used only as an API parameter — never interpolated into display strings.
+//      Any other field, including pr_number or head_sha from an older
+//      artifact, is ignored.
 //   2. All display text (PR comments, check summaries) is constructed entirely
 //      from trusted template strings defined in this file.
 //   3. Numeric values are coerced through safeNum() which validates with
@@ -313,6 +315,76 @@ async function postOrUpdateComment(github, owner, repo, prNumber, body, core, { 
   }
 }
 
+
+const SHA_RE = /^[0-9a-f]{40}$/;
+
+/**
+ * Choose the CI run, commit, and PR this privileged job writes to.
+ *
+ * The commit is always the CI run's head_sha, which for a pull_request run is
+ * the PR branch tip (the synthetic merge commit is only GITHUB_SHA inside the
+ * run). The PR is the single open PR in this repository whose head is that
+ * commit, found by the run's head repository and branch. The run's
+ * pull_requests array is not used: it is empty for fork PRs, and on a push to
+ * main it lists PRs in forks whose head is main. Nothing here reads the
+ * ci-summary artifact.
+ *
+ * @param {object} args
+ * @param {object} args.github  - Octokit client
+ * @param {object} args.context - actions/github-script context
+ * @param {object} args.core    - GitHub Actions core logger
+ * @returns {Promise<{runId: number, headSha: string, prNumber: number|null}|null>}
+ */
+async function resolvePublishTarget({ github, context, core }) {
+  const { owner, repo } = context.repo;
+  let run = context.payload?.workflow_run;
+  if (context.eventName === 'workflow_dispatch') {
+    const runId = Number(context.payload?.inputs?.run_id);
+    if (!Number.isSafeInteger(runId) || runId <= 0) {
+      core.warning('workflow_dispatch run_id is not a valid run ID.');
+      return null;
+    }
+    ({ data: run } = await github.rest.actions.getWorkflowRun({ owner, repo, run_id: runId }));
+  }
+  if (!Number.isSafeInteger(run?.id) || typeof run?.head_sha !== 'string' || !SHA_RE.test(run.head_sha)) {
+    core.warning('CI run has no valid run ID or head SHA.');
+    return null;
+  }
+
+  let prNumber = null;
+  const headOwner = run.head_repository?.owner?.login;
+  if (run.event === 'pull_request' && headOwner && run.head_branch) {
+    try {
+      const { data } = await github.rest.pulls.list({
+        owner, repo, state: 'open', head: `${headOwner}:${run.head_branch}`,
+      });
+      const matches = data.filter(pr => pr.head?.sha === run.head_sha);
+      if (matches.length === 1 && Number.isSafeInteger(matches[0].number)) {
+        prNumber = matches[0].number;
+      } else {
+        core.warning('No single open PR has the CI run head SHA as its head; skipping the PR comment.');
+      }
+    } catch {
+      core.warning('Pulls API request failed; skipping the PR comment.');
+    }
+  }
+  return { runId: run.id, headSha: run.head_sha, prNumber };
+}
+
+/**
+ * @param {object} fs
+ * @returns {object|null} the parsed artifact, or null if it is missing or not a JSON object
+ */
+function readSummaryArtifact(fs) {
+  let parsed;
+  try {
+    parsed = JSON.parse(fs.readFileSync('.artifacts/ci-summary.json', 'utf8'));
+  } catch {
+    return null;
+  }
+  return parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed : null;
+}
+
 /**
  * GitHub Actions entry point.
  * Reads ci-summary.json, computes conclusions, posts check runs and PR comment.
@@ -320,41 +392,34 @@ async function postOrUpdateComment(github, owner, repo, prNumber, body, core, { 
  * @param {object} opts
  * @param {object} opts.github  - Octokit client from actions/github-script
  * @param {object} opts.core    - GitHub Actions core logger
+ * @param {object} opts.context - actions/github-script context
  * @param {object} opts.fs      - Node fs module (injected for testability)
- * @param {object} opts.inputs
- * @param {string} opts.inputs.owner
- * @param {string} opts.inputs.repo
- * @param {string} opts.inputs.headSha
- * @param {string} opts.inputs.prNumber  - raw string from step output
- * @param {string} opts.inputs.ciRunUrl
- * @param {string} opts.inputs.publishUrl
- * @param {string} [opts.inputs.sourceRunId] - numeric run ID of the CI Orchestrator run;
- *   used to construct direct artifact download URLs (e.g. .../artifacts/{id})
  */
-async function handler({ github, core, fs, inputs }) {
-  const { owner, repo, headSha, ciRunUrl, publishUrl } = inputs;
-  const prNumber = parseInt(inputs.prNumber, 10) || null;
+async function handler({ github, core, context, fs }) {
+  const { owner, repo } = context.repo;
+  const target = await resolvePublishTarget({ github, context, core });
+  if (!target) {
+    core.warning('No CI run to publish; skipping check runs and PR comment.');
+    return;
+  }
+  const { runId, headSha, prNumber } = target;
+  core.info(`Publishing CI run ${runId} for ${headSha}${prNumber ? ` on PR #${prNumber}` : ''}`);
 
-  const links  = `➡️ [View CI run](${ciRunUrl}) | [View publish logs](${publishUrl})`;
-  const ts     = new Date().toISOString().replace('T', ' ').replace(/\.\d+Z$/, ' UTC');
-  const footer = `${links}\n_${ts}_`;
-
-  // Construct the artifact URL prefix for per-snapshot diff download links.
-  // All parts come from trusted sources: owner/repo from context, runId validated as integer.
-  const sourceRunId = parseInt(inputs.sourceRunId, 10) || null;
-  const artifactUrlPrefix = (owner && repo && sourceRunId)
-    ? `https://github.com/${owner}/${repo}/actions/runs/${sourceRunId}/artifacts`
-    : null;
+  const runsUrl    = `https://github.com/${owner}/${repo}/actions/runs`;
+  const ciRunUrl   = `${runsUrl}/${runId}`;
+  const publishUrl = `${runsUrl}/${context.runId}`;
+  const links      = `➡️ [View CI run](${ciRunUrl}) | [View publish logs](${publishUrl})`;
+  const ts         = new Date().toISOString().replace('T', ' ').replace(/\.\d+Z$/, ' UTC');
+  const footer     = `${links}\n_${ts}_`;
+  const artifactUrlPrefix = `${ciRunUrl}/artifacts`;
 
   // Read structured data written by ci-summary-report.yml.
   // All fields are primitives (enums, numbers, booleans) — no free-form text.
-  let s;
-  try {
-    s = JSON.parse(fs.readFileSync('.artifacts/ci-summary.json', 'utf8'));
-  } catch (e) {
-    core.warning(`ci-summary.json not found or unparseable: ${e.message}`);
+  const s = readSummaryArtifact(fs);
+  if (!s) {
+    // Fixed text only: JSON.parse error messages quote the file contents.
+    core.warning('ci-summary.json not found or unparseable.');
     // Post failing check runs so required status checks are never silently absent.
-    // All text here is a trusted, fixed string — no artifact content is used.
     const errorSummary = 'ci-summary artifact missing or unparseable; check CI run logs.';
     for (const name of ['Metrics Comparison', 'Coverage Gate']) {
       await postCheckRun(github, owner, repo, headSha, name, 'failure',
@@ -407,3 +472,4 @@ module.exports.buildCommentBody     = buildCommentBody;
 module.exports.postCheckRun         = postCheckRun;
 module.exports.postOrUpdateComment  = postOrUpdateComment;
 module.exports.COMMENT_TAG          = COMMENT_TAG;
+module.exports.resolvePublishTarget = resolvePublishTarget;

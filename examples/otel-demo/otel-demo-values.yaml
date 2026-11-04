@@ -71,6 +71,13 @@ components:
       - name: wait-for-kafka
         image: docker.io/busybox:latest
         command: ["sh", "-c", "until nc -z -v -w30 kafka 9092; do echo waiting for kafka; sleep 2; done;"]
+    # The chart default (20Mi, GOMEMLIMIT=16MiB) gets checkout OOM-killed and starves its outbound calls under load.
+    envOverrides:
+      - name: GOMEMLIMIT
+        value: 48MiB
+    resources:
+      limits:
+        memory: 64Mi
 
   fraud-detection:
     initContainers:
