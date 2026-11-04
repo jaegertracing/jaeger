@@ -202,31 +202,9 @@ to a final answer in the same turn. The browser cannot return a value during
 the turn; RFC 0008 §4.4 records that as an implementation limit, not a protocol
 one.
 
-The external-agent contract and the Goose worked example are documented in
-[`scripts/ai-sidecar/README.md`](../../../../../../../scripts/ai-sidecar/README.md).
-
-## Configuration
-
-```yaml
-extensions:
-  jaeger_query:
-    ai:
-      agent_url: "ws://localhost:16688"
-      agent_headers:
-        Authorization: Bearer ${env:MY_AGENT_TOKEN}
-      mcp:
-        base_url: "http://localhost:16686"
-```
-
-`agent_url` is the external agent's WebSocket URL. `agent_headers` are sent on
-every dial and redacted from logs. The headers that the query extension's
-`header_forwarding` list captures from the chat request go onto the same dial,
-so an agent that acts on the caller's behalf receives the caller's own identity
-token rather than a credential of the gateway. Each header arrives under its
-`http_outbound_name`, or its `http_name` when that is unset. `mcp.base_url` is the address that the
-agent can use to call Jaeger's MCP endpoint. When both ends are on the same
-loopback host, the gateway can infer a suitable MCP URL; other deployments
-should configure it explicitly.
+The external-agent contract, the Goose worked example, and the operator
+configuration are documented on the website, in
+[AI Assistant](https://www.jaegertracing.io/docs/latest/ai/assistant/).
 
 ## Related code
 

@@ -48,9 +48,9 @@ Use authentication and TLS on the query HTTP server or an authenticated
 reverse proxy/gateway that clients cannot bypass. Tenant headers and MCP
 session IDs are not authentication credentials; deployments must authorize
 tenant selection and enforce session ownership where required. See the
-[MCP deployment guide](../../cmd/jaeger/internal/extension/jaegerquery/internal/mcptools/README.md#production-deployment)
+[MCP deployment guide](https://www.jaegertracing.io/docs/latest/ai/mcp-server/#exposure-and-access-to-trace-data)
 for configuration examples, tenant and session behavior, and
-[instructions to disable MCP](../../cmd/jaeger/internal/extension/jaegerquery/internal/mcptools/README.md#disabling-mcp).
+[instructions to disable MCP](https://www.jaegertracing.io/docs/latest/ai/mcp-server/#enabling-the-endpoint).
 
 ## Input Validation
 

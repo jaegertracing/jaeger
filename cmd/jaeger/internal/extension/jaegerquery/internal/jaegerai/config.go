@@ -107,7 +107,7 @@ type MCPConfig struct {
 	// SkillsDir is a directory of operator-supplied skill playbooks on the query
 	// server's disk, served by the read_skill MCP tool under custom/ beside the
 	// built-in skills, so an installation can add its own without rebuilding
-	// Jaeger. See mcptools/README.md for the layout it expects. Empty (the
+	// Jaeger. See mcptools/README.md for how it is mounted. Empty (the
 	// default) serves the built-in skills only.
 	SkillsDir string `mapstructure:"skills_dir" valid:"optional"`
 	// StreamableHTTP holds the options of the MCP Streamable HTTP transport the
