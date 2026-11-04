@@ -119,9 +119,9 @@ the AG-UI run.
 2. Start Jaeger with `agent_url`, the required `agent_headers`, and `mcp: {}`.
 3. Confirm the health check passes:
    ```bash
-   curl -s http://127.0.0.1:16686/api/v3/capabilities | jq .aiAssistant
+   curl -s http://127.0.0.1:16686/ | grep -o '"aiAssistant":[a-z]*'
    ```
-   The output is `true` once the agent answers `initialize`.
+   The output is `"aiAssistant":true` once the agent answers `initialize`.
 4. Send a chat request without the browser:
    ```bash
    curl -N -X POST http://127.0.0.1:16686/api/ai/chat \
