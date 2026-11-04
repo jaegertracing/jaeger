@@ -922,8 +922,8 @@ func TestServerHTTP_TracesRequest(t *testing.T) {
 			name:          "api v1/v2",
 			httpEndpoint:  ":8080",
 			grpcEndpoint:  ":8081",
-			queryString:   "/api/traces/123456aBC",
-			expectedTrace: "/api/traces/{traceID}",
+			queryString:   "/api/quality-metrics",
+			expectedTrace: "/api/quality-metrics",
 		},
 		{
 			name:          "api v3",

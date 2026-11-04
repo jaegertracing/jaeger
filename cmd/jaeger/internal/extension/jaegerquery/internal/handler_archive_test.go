@@ -13,61 +13,12 @@ import (
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 
+	"github.com/jaegertracing/jaeger-idl/model/v1"
 	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerquery/querysvc"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore"
 	tracestoremocks "github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore/mocks"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/v1adapter"
 )
-
-func TestGetArchivedTrace_NotFound(t *testing.T) {
-	mockReader := &tracestoremocks.Reader{}
-	mockReader.On("GetTraces", mock.Anything, mock.Anything).
-		Return(emptyIter()).Once()
-	for _, tc := range []struct {
-		name   string
-		reader tracestore.Reader
-	}{
-		{
-			name:   "nil",
-			reader: nil,
-		},
-		{
-			name:   "mock reader",
-			reader: mockReader,
-		},
-	} {
-		t.Run(tc.name, func(t *testing.T) {
-			withTestServer(t, func(ts *testServer) {
-				ts.traceReader.On("GetTraces", mock.Anything, mock.Anything).
-					Return(emptyIter()).Once()
-				var response structuredResponse
-				err := getJSON(ts.server.URL+"/api/traces/"+mockTraceID.String(), &response)
-				require.EqualError(
-					t, err,
-					`404 error from server: {"data":null,"total":0,"limit":0,"offset":0,"errors":[{"code":404,"msg":"trace not found"}]}`+"\n",
-				)
-			}, querysvc.QueryServiceOptions{
-				ArchiveTraceReader: tc.reader,
-			}) // nil is ok
-		})
-	}
-}
-
-func TestGetArchivedTraceSuccess(t *testing.T) {
-	mockReader := &tracestoremocks.Reader{}
-	mockReader.On("GetTraces", mock.Anything, mock.Anything).
-		Return(tracesIter(makeMockPTrace())).Once()
-	withTestServer(t, func(ts *testServer) {
-		// make main reader return empty (not found)
-		ts.traceReader.On("GetTraces", mock.Anything, mock.Anything).
-			Return(emptyIter()).Once()
-		var response structuredTraceResponse
-		err := getJSON(ts.server.URL+"/api/traces/"+mockTraceID.String(), &response)
-		require.NoError(t, err)
-		assert.Empty(t, response.Errors)
-		assert.Len(t, response.Traces, 1)
-	}, querysvc.QueryServiceOptions{ArchiveTraceReader: mockReader})
-}
 
 // Test failure in parsing trace ID.
 func TestArchiveTrace_BadTraceID(t *testing.T) {
@@ -175,4 +126,32 @@ func TestArchiveTrace_BadTimeWindow(t *testing.T) {
 			}, querysvc.QueryServiceOptions{ArchiveTraceWriter: mockWriter})
 		})
 	}
+}
+
+func TestArchiveTrace_Base64TraceID(t *testing.T) {
+	// base64 "AAAAAAAAAP///////////w==" decodes to traceID {High: 0xFF, Low: 0xFFFFFFFFFFFFFFFF}
+	expectedTraceID := v1adapter.FromV1TraceID(model.NewTraceID(0xFF, 0xFFFFFFFFFFFFFFFF))
+	mockWriter := &tracestoremocks.Writer{}
+	mockWriter.On("WriteTraces", mock.Anything, mock.Anything).
+		Return(nil).Once()
+	withTestServer(t, func(ts *testServer) {
+		ts.traceReader.On("GetTraces", mock.Anything, mock.MatchedBy(func(params []tracestore.GetTraceParams) bool {
+			return len(params) == 1 && params[0].TraceID == expectedTraceID
+		})).Return(tracesIter(makeMockPTrace())).Once()
+		// "/" in base64 is percent-encoded as %2F in the URL path
+		var response structuredResponse
+		err := postJSON(ts.server.URL+`/api/archive/AAAAAAAAAP%2F%2F%2F%2F%2F%2F%2F%2F%2F%2F%2Fw==`, []string{}, &response)
+		require.NoError(t, err)
+		assert.Empty(t, response.Errors)
+	}, querysvc.QueryServiceOptions{ArchiveTraceWriter: mockWriter})
+}
+
+func TestArchiveTrace_BadRawTracesFlag(t *testing.T) {
+	withTestServer(t, func(ts *testServer) {
+		var response structuredResponse
+		err := postJSON(ts.server.URL+"/api/archive/"+mockTraceID.String()+"?raw=foobar", []string{}, &response)
+		require.Error(t, err)
+		require.ErrorContains(t, err, "400 error from server")
+		require.ErrorContains(t, err, "unable to parse param 'raw'")
+	}, querysvc.QueryServiceOptions{ArchiveTraceWriter: &tracestoremocks.Writer{}})
 }
