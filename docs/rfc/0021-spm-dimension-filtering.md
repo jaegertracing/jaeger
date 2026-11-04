@@ -93,10 +93,13 @@ metrics, including the environment-filtering use case described in #7433.
    service-name labels exist on the metrics.
 
    Configuration validation rejects names that translate to the reserved
-   labels `service_name`, `span_kind`, `status_code`, `le`, or `__name__`,
-   and names that collide after dot-to-underscore translation. Allowed-value
-   lists must not contain empty strings. An omitted or empty list still
-   permits free-text values.
+   labels `service_name`, `span_kind`, `status_code`, `span_name`, `job`,
+   `instance`, `le`, or `__name__`, and names that collide after
+   dot-to-underscore translation. Leading, trailing, or consecutive dots and
+   underscores (including mixed pairs such as `._`) are rejected so label
+   selectors match exported labels with either setting of
+   `PermissiveLabelSanitization`. Allowed-value lists must not contain empty
+   strings. An omitted or empty list still permits free-text values.
 
 2. **The Jaeger Query backend exposes the declared dimensions** via a new
    endpoint:
@@ -173,10 +176,14 @@ metrics, including the environment-filtering use case described in #7433.
    - Malformed URL query encoding → 400, without using partially parsed filters.
    - Filters requested with no dimensions configured → 501 (`errors.ErrUnsupported`).
    - Values not in the declared `Values:` set (when configured) → 400.
-   - Values containing control characters, double quotes, or backslashes → 400
-     (length capped at 256).
+   - Free-text values containing ASCII control characters (including DEL),
+     double quotes, or backslashes → 400 (length capped at 256).
    - Unexpected failures retrieving dimensions → 500.
    - Disabled metrics backend → 501.
+
+   Filters are validated in alphabetical key order so requests with multiple
+   invalid filters report the same first error. Unknown-key errors list
+   available dimensions in configuration order.
 
    Readers also enforce the filter contract for direct callers, as required
    by ADR-013: Prometheus rejects unknown keys, and enabled readers without
@@ -341,6 +348,8 @@ it is not delivered by the backend PR above.
   - Invalid name (regex violation) → error.
   - Duplicate names, including collisions after translation → error.
   - Reserved labels, including names that translate to them → error.
+  - Leading, trailing, or repeated separators, including mixed dot/underscore
+    pairs → error; ordinary dotted and underscored names remain valid.
   - Empty strings in allowed-value lists → error.
 - `cmd/jaeger/internal/extension/jaegerquery/internal/query_parser_test.go`
   - Single `?filter=k:v` parsed into `Filters` map.
@@ -354,9 +363,10 @@ it is not delivered by the backend PR above.
   - Filters on a backend without dimensions → 501 without querying metrics.
   - Malformed URL query encoding → 400 without calling the reader.
   - Unknown-key errors list configured dimensions in configuration order.
+  - Multiple invalid filters report the first error in alphabetical key order.
   - Unknown filter key → 400 (mock advertises a different dimension set).
   - Value not in `Values:` → 400.
-  - Free-text value containing a control character → 400.
+  - Free-text value containing a control character, including DEL → 400.
   - Valid filter ⇒ underlying mock receives `Filters` map populated.
 
 ### Integration / manual verification
