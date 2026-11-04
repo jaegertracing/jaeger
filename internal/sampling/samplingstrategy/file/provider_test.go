@@ -459,6 +459,35 @@ func TestAutoUpdateStrategyErrors(t *testing.T) {
 	assert.Len(t, logs.FilterMessage("failed to update sampling strategies").All(), 2)
 }
 
+func TestAutoUpdateStrategyKeepsLastKnownGoodOnServiceUnavailable(t *testing.T) {
+	logger := zap.NewNop()
+	mockServer, _ := mockStrategyServer(t)
+
+	s, err := NewProvider(Options{
+		StrategiesFile: mockServer.URL,
+		ReloadInterval: time.Hour,
+	}, logger)
+	require.NoError(t, err)
+	provider := s.(*samplingProvider)
+	defer provider.Close()
+
+	// Confirm the real strategies loaded on startup are in effect.
+	strategy, err := provider.GetSamplingStrategy(context.Background(), "foo")
+	require.NoError(t, err)
+	assert.Equal(t, makeResponse(api_v2.SamplingStrategyType_PROBABILISTIC, 0.8), *strategy)
+
+	// A reload that hits a transient 503 must not wipe out the last known good
+	// strategies: the strategy endpoint being temporarily unavailable is not the same
+	// as it legitimately serving no strategies.
+	loadFn := provider.samplingStrategyLoader(mockServer.URL + "/service-unavailable")
+	provider.reloadSamplingStrategy(loadFn, strategiesJSON(0.8))
+
+	strategy, err = provider.GetSamplingStrategy(context.Background(), "foo")
+	require.NoError(t, err)
+	assert.Equal(t, makeResponse(api_v2.SamplingStrategyType_PROBABILISTIC, 0.8), *strategy,
+		"a transient 503 on reload must not reset strategies to defaults")
+}
+
 func TestServiceNoPerOperationStrategies(t *testing.T) {
 	// given setup of strategy provider with no specific per operation sampling strategies
 	// and option "sampling.strategies.bugfix-5270=true"
