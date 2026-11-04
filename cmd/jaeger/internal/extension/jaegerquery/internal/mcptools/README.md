@@ -8,7 +8,9 @@ cause. Agents reach them through `read_skill`, starting at the root `SKILL.md`
 and following its links, so a skill is only read when it looks relevant.
 
 The `skills/` directory beside this file holds the skills compiled into the
-Jaeger binary. For writing a skill, see [AUTHORING.md](./AUTHORING.md).
+Jaeger binary. For writing a skill, see
+[Custom Skills](https://www.jaegertracing.io/docs/latest/ai/skills/) on the
+website.
 
 Operating the endpoint is documented on the website, in
 [MCP Server](https://www.jaegertracing.io/docs/latest/ai/mcp-server/): enabling
@@ -64,6 +66,6 @@ Two limits apply to what is served:
   agent.
 
 Jaeger serving a skill and an agent choosing to read it are separate questions;
-see [AUTHORING.md](./AUTHORING.md), and
+see [Custom Skills](https://www.jaegertracing.io/docs/latest/ai/skills/), and
 [#9336](https://github.com/jaegertracing/jaeger/issues/9336) for what is known
 about the second.
