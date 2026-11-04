@@ -888,6 +888,12 @@ func TestMetricsFilterValidation(t *testing.T) {
 			wantMsg:  "invalid value for filter",
 		},
 		{
+			name:     "free-text value with DEL returns 400",
+			urlPath:  "/api/metrics/calls?service=svc&filter=k8s.cluster:bad%7Fvalue",
+			wantCode: http.StatusBadRequest,
+			wantMsg:  "invalid value for filter",
+		},
+		{
 			name:     "free-text value with double-quote returns 400",
 			urlPath:  `/api/metrics/calls?service=svc&filter=k8s.cluster:bad"value`,
 			wantCode: http.StatusBadRequest,

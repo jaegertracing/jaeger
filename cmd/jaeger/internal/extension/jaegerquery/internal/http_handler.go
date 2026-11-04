@@ -39,7 +39,7 @@ import (
 // filterValueRegex restricts free-text filter values when a Dimension's Values
 // set is empty. It rejects control chars, double-quotes and backslashes — the
 // PromQL-string-literal escape characters — and caps length at 256.
-var filterValueRegex = regexp.MustCompile(`^[^\x00-\x1f"\\]{1,256}$`)
+var filterValueRegex = regexp.MustCompile(`^[^\x00-\x1f\x7f"\\]{1,256}$`)
 
 const (
 	traceIDParam          = "traceID"
