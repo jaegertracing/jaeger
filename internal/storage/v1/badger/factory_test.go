@@ -6,6 +6,7 @@ package badger
 import (
 	"expvar"
 	"os"
+	"path/filepath"
 	"testing"
 	"time"
 
@@ -19,7 +20,8 @@ import (
 
 func TestInitializationErrors(t *testing.T) {
 	f := NewFactory()
-	dir := "/root/this_should_fail" // If this test fails, you have some issues in your system
+	dir := filepath.Join(t.TempDir(), "not-a-directory")
+	require.NoError(t, os.WriteFile(dir, nil, 0o600))
 	f.Config.Ephemeral = false
 	f.Config.SyncWrites = true
 	f.Config.Directories.Keys = dir
@@ -49,11 +51,12 @@ func TestForCodecov(t *testing.T) {
 	require.NoError(t, err)
 	assert.NotNil(t, lock)
 
-	// Now, remove the badger directories
-	err = os.RemoveAll(f.tmpDir)
-	require.NoError(t, err)
+	// Force a cleanup error without removing files while the database is open.
+	dir := f.tmpDir
+	t.Cleanup(func() { require.NoError(t, os.RemoveAll(dir)) })
+	f.tmpDir = dir + "\x00"
 
-	// Now try to close, since the files have been deleted this should throw an error
+	// The database must close even when temporary-directory cleanup fails.
 	err = f.Close()
 	require.Error(t, err)
 }

@@ -9,7 +9,9 @@ package_name="go.opentelemetry.io/otel/semconv"
 version_regex="v[0-9]\.[0-9]\+\.[0-9]\+"
 
 function find_files() {
-    find . -type f -name "*.go" -exec grep -o -H "$package_name/$version_regex" {} + \
+    find . -type f -name "*.go" -exec bash -c \
+      'grep -o -H "$1" "${@:2}" || test "$?" -eq 1' \
+      _ "$package_name/$version_regex" {} + \
     | tr ':' ' ' \
     | sed "s|$package_name/||g"
 }

@@ -338,7 +338,8 @@ func makeResponse(samplerType api_v2.SamplingStrategyType, param float64) (resp 
 }
 
 func TestAutoUpdateStrategyWithFile(t *testing.T) {
-	tempFile, _ := os.Create(t.TempDir() + "for_go_test_*.json")
+	tempFile, err := os.CreateTemp(t.TempDir(), "for_go_test_*.json")
+	require.NoError(t, err)
 	require.NoError(t, tempFile.Close())
 
 	// copy known fixture content into temp file which we can later overwrite
@@ -422,7 +423,8 @@ func TestAutoUpdateStrategyWithURL(t *testing.T) {
 }
 
 func TestAutoUpdateStrategyErrors(t *testing.T) {
-	tempFile, _ := os.Create(t.TempDir() + "for_go_test_*.json")
+	tempFile, err := os.CreateTemp(t.TempDir(), "for_go_test_*.json")
+	require.NoError(t, err)
 	require.NoError(t, tempFile.Close())
 
 	zapCore, logs := observer.New(zap.InfoLevel)
