@@ -56,8 +56,9 @@ type turnScopedEndpoint struct {
 	// and owns, with its tenant extraction and its jaeger_mcp server span, which
 	// nests under the span of the turn-scoped route. Sharing it registers the
 	// telemetry tools once. The handler keeps no session between requests and
-	// issues no session id, so each tool call runs under the turn token of its
-	// own request, and nothing names another request's turn.
+	// issues no session id, so each tool call runs under the turn token and the
+	// identity headers of its own request, and nothing names another request's
+	// turn or identity.
 	handler  http.Handler
 	turns    *turnRegistry
 	basePath string

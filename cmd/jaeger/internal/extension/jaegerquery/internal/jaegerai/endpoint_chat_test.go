@@ -27,6 +27,8 @@ import (
 	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerquery/internal/jaegerai/internal/acptest"
+	"github.com/jaegertracing/jaeger/internal/auth/bearertoken"
+	"github.com/jaegertracing/jaeger/internal/headerforwarding"
 	"github.com/jaegertracing/jaeger/internal/telemetry/otelsemconv"
 	"github.com/jaegertracing/jaeger/internal/version"
 )
@@ -400,7 +402,7 @@ func announceEndpoint(baseURL, basePath string) *chatEndpoint {
 }
 
 func TestAnnounceMCPOverHTTP(t *testing.T) {
-	got := announceEndpoint(testBaseURL, "").announceMCP(httpCaps(true), turnGrant{routeID: "route-1", token: "tok"})
+	got := announceEndpoint(testBaseURL, "").announceMCP(t.Context(), httpCaps(true), turnGrant{routeID: "route-1", token: "tok"})
 	require.Len(t, got, 1)
 	require.NotNil(t, got[0].Http)
 	assert.Equal(t, "http", got[0].Http.Type)
@@ -414,25 +416,52 @@ func TestAnnounceMCPOverHTTP(t *testing.T) {
 // to opt into each McpServer variant, so announcing HTTP to an agent that cannot
 // consume it would make it fail the session.
 func TestAnnounceMCPRequiresHTTPCapability(t *testing.T) {
-	got := announceEndpoint(testBaseURL, "").announceMCP(httpCaps(false), turnGrant{routeID: "route-1", token: "tok"})
+	got := announceEndpoint(testBaseURL, "").announceMCP(t.Context(), httpCaps(false), turnGrant{routeID: "route-1", token: "tok"})
 	assert.Empty(t, got, "an agent that did not advertise mcpCapabilities.http is offered nothing")
+}
+
+// TestTurnServerHeaders lists what the agent is told to send on every request to
+// the turn's MCP server: the turn token always, and the chat caller's identity
+// when the query server's middleware captured one on the chat request.
+func TestTurnServerHeaders(t *testing.T) {
+	grant := turnGrant{routeID: "route-1", token: "tok-turn"}
+
+	t.Run("no identity on the chat request", func(t *testing.T) {
+		got := turnServerHeaders(t.Context(), grant)
+		assert.Equal(t, []acp.HttpHeader{{Name: turnTokenHeader, Value: "tok-turn"}}, got)
+	})
+
+	t.Run("bearer token and forwarded headers", func(t *testing.T) {
+		ctx := bearertoken.ContextWithBearerToken(t.Context(), "tok-user")
+		ctx = headerforwarding.ContextWithCaptured(ctx, []headerforwarding.CapturedHeader{
+			{Header: &headerforwarding.ForwardedHeader{HTTPName: "X-User", HTTPOutboundName: "X-Forwarded-User"}, Value: "alice"},
+			{Header: &headerforwarding.ForwardedHeader{HTTPName: "X-Identity-Token"}, Value: "id-123"},
+		})
+		got := turnServerHeaders(ctx, grant)
+		assert.Equal(t, []acp.HttpHeader{
+			{Name: "Authorization", Value: "Bearer tok-user"},
+			{Name: "X-Identity-Token", Value: "id-123"},
+			{Name: turnTokenHeader, Value: "tok-turn"},
+			{Name: "X-User", Value: "alice"},
+		}, got, "a renamed header keeps its inbound name, which is the name the query server's middleware reads when the request comes back")
+	})
 }
 
 // TestAnnounceMCPRequiresBaseURL covers both reasons mcpBaseURL is empty: the
 // turn-scoped endpoint is not mounted at all, or it is mounted but no reachable
 // address is known (see Config.ResolveMCPBaseURL).
 func TestAnnounceMCPRequiresBaseURL(t *testing.T) {
-	got := announceEndpoint("", "").announceMCP(httpCaps(true), turnGrant{routeID: "route-1", token: "tok"})
+	got := announceEndpoint("", "").announceMCP(t.Context(), httpCaps(true), turnGrant{routeID: "route-1", token: "tok"})
 	assert.Empty(t, got, "with no reachable base URL the endpoint is not announced")
 }
 
 func TestAnnounceMCPRequiresRouteID(t *testing.T) {
-	got := announceEndpoint(testBaseURL, "").announceMCP(httpCaps(true), turnGrant{})
+	got := announceEndpoint(testBaseURL, "").announceMCP(t.Context(), httpCaps(true), turnGrant{})
 	assert.Empty(t, got, "without a route id there is no turn-scoped endpoint to announce")
 }
 
 func TestAnnounceMCPEmbedsBasePath(t *testing.T) {
-	got := announceEndpoint("http://127.0.0.1:16686", "/jaeger").announceMCP(httpCaps(true), turnGrant{routeID: "u-1", token: "tok"})
+	got := announceEndpoint("http://127.0.0.1:16686", "/jaeger").announceMCP(t.Context(), httpCaps(true), turnGrant{routeID: "u-1", token: "tok"})
 	require.Len(t, got, 1)
 	assert.Equal(t, "http://127.0.0.1:16686/jaeger/api/ai/mcp/u-1/", got[0].Http.Url,
 		"the announced URL must carry the query server's base path")
@@ -805,7 +834,7 @@ func TestChatEndpointPromptError(t *testing.T) {
 	require.Contains(t, types, "RUN_ERROR")
 	for _, e := range events {
 		if e["type"] == "RUN_ERROR" {
-			require.Contains(t, e["message"], "Error starting prompt")
+			require.Contains(t, e["message"], "The agent failed the turn")
 			return
 		}
 	}
