@@ -91,11 +91,11 @@ func (b turnScopedEndpointBuilder) build() *turnScopedEndpoint {
 }
 
 // registerRoutes mounts the endpoint on both the slash and no-slash forms of its
-// URL. Keeping this here means the route patterns stay owned by this file rather
-// than leaking into the gateway HTTP handler.
-func (h *turnScopedEndpoint) registerRoutes(router *http.ServeMux) {
-	router.Handle(h.basePath+routeTurnMCP, h)
-	router.Handle(h.basePath+routeTurnMCPNoSlash, h)
+// URL. The gateway passes h wrapped in its auth middleware as guarded; the
+// route patterns stay owned by this file.
+func (h *turnScopedEndpoint) registerRoutes(router *http.ServeMux, guarded http.Handler) {
+	router.Handle(h.basePath+routeTurnMCP, guarded)
+	router.Handle(h.basePath+routeTurnMCPNoSlash, guarded)
 }
 
 func (h *turnScopedEndpoint) ServeHTTP(w http.ResponseWriter, r *http.Request) {
