@@ -5,9 +5,8 @@ Jaeger's AI gateway is bring-your-own-agent: it dials an
 protocol to it. No agent code lives here.
 
 [Goose](https://github.com/aaif-goose/goose) is a reference implementation of
-an ACP agent, so it works behind Jaeger's AI gateway as it ships. The steps to
-configure it, point Jaeger at it, and verify the result are on the
-website, on the
+an ACP agent. The steps to configure it, point Jaeger at it, and verify the
+result are on the website, on the
 [AI Assistant page](https://www.jaegertracing.io/docs/latest/ai/assistant/).
 This file keeps the prerequisites, the provider notes, and the authentication
 note that the website does not carry.
