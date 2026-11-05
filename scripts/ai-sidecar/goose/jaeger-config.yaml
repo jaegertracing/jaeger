@@ -1,0 +1,49 @@
+# Copyright (c) 2026 The Jaeger Authors.
+# SPDX-License-Identifier: Apache-2.0
+
+# This is the Jaeger configuration of the stack in docker-compose.yml: an
+# in-memory store fed over OTLP, the AI gateway pointed at the Goose container,
+# and the two identity mechanisms that run.sh checks, header_forwarding and
+# bearer token propagation. The MCP base URL points at the logging proxy rather
+# than at Jaeger itself, so every MCP request from Goose passes through the
+# proxy.
+service:
+  extensions: [jaeger_storage, jaeger_query]
+  pipelines:
+    traces:
+      receivers: [otlp]
+      exporters: [jaeger_storage_exporter]
+  telemetry:
+    logs:
+      level: info
+
+extensions:
+  jaeger_query:
+    storage:
+      traces: mem
+    bearer_token_propagation: true
+    header_forwarding:
+      - http_name: X-User
+    ai:
+      agent_url: ws://goose:16688/acp
+      agent_headers:
+        X-Secret-Key: ${env:GOOSE_SERVER__SECRET_KEY}
+      mcp:
+        base_url: http://mcp-proxy:80
+  jaeger_storage:
+    backends:
+      mem:
+        memory:
+          max_traces: 100000
+
+receivers:
+  otlp:
+    protocols:
+      grpc:
+        endpoint: 0.0.0.0:4317
+      http:
+        endpoint: 0.0.0.0:4318
+
+exporters:
+  jaeger_storage_exporter:
+    trace_storage: mem
