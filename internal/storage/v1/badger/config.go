@@ -4,6 +4,7 @@
 package badger
 
 import (
+	"errors"
 	"os"
 	"path/filepath"
 	"time"
@@ -84,7 +85,24 @@ func getCurrentExecutableDir() string {
 	return filepath.Dir(exec)
 }
 
+var (
+	errNonPositiveSpansTTL              = errors.New("ttl.spans must be a positive duration")
+	errNonPositiveMaintenanceInterval   = errors.New("maintenance_interval must be a positive duration")
+	errNonPositiveMetricsUpdateInterval = errors.New("metrics_update_interval must be a positive duration")
+)
+
 func (c *Config) Validate() error {
+	// Spans are written already expired when the TTL is not positive, and the
+	// intervals are passed to time.NewTicker, which panics on non-positive values.
+	if c.TTL.Spans <= 0 {
+		return errNonPositiveSpansTTL
+	}
+	if c.MaintenanceInterval <= 0 {
+		return errNonPositiveMaintenanceInterval
+	}
+	if c.MetricsUpdateInterval <= 0 {
+		return errNonPositiveMetricsUpdateInterval
+	}
 	_, err := govalidator.ValidateStruct(c)
 	return err
 }
