@@ -422,7 +422,7 @@ func TestMetricStorageStartError(t *testing.T) {
 					},
 				},
 			},
-			expectedError: "failed to initialize metrics storage 'foo'",
+			expectedError: "ServerURL: non zero value required",
 		},
 		{
 			name: "Elasticsearch backend initialization error",
@@ -455,7 +455,7 @@ func TestMetricStorageStartError(t *testing.T) {
 					},
 				},
 			},
-			expectedError: "failed to initialize metrics storage 'foo'",
+			expectedError: "Addresses: non zero value required",
 		},
 	}
 
@@ -542,15 +542,15 @@ func TestCassandraError(t *testing.T) {
 func TestClickHouse(t *testing.T) {
 	testServer := clickhousetest.NewServer(clickhousetest.FailureConfig{})
 	t.Cleanup(testServer.Close)
+	cfg := clickhouse.DefaultConfiguration()
+	cfg.Protocol = "http"
+	cfg.Addresses = []string{
+		testServer.Listener.Addr().String(),
+	}
 	ext := makeStorageExtension(t, storageconfig.Config{
 		TraceBackends: map[string]storageconfig.TraceBackend{
 			"foo": {
-				ClickHouse: &clickhouse.Configuration{
-					Protocol: "http",
-					Addresses: []string{
-						testServer.Listener.Addr().String(),
-					},
-				},
+				ClickHouse: &cfg,
 			},
 		},
 	})
