@@ -202,8 +202,12 @@ a tool call reaches the query service as an ordinary request from the caller and
 the gateway stores no identity in the turn; the token proves only that a request
 belongs to the turn, and a request without the caller's headers runs as nobody.
 The MCP handler keeps nothing between requests, so nothing outlives a request
-that another request could name. What the agent holds as a result, and what the
-deployment has to trust, is on the website's
+that another request could name. The `ai.auth` authenticator guards the
+turn-scoped endpoint as it guards the chat endpoint, and on a tool call it sees
+only the announced headers: it admits the call when the credential it reads is
+the propagated bearer token or a forwarded header, and refuses the call with
+401 when the credential is anything else, a query parameter included. What the
+agent holds as a result, and what the deployment has to trust, is on the website's
 [AI Assistant page](https://www.jaegertracing.io/docs/latest/ai/assistant/).
 
 The namespace exists so a UI tool can never shadow a telemetry tool of the same
