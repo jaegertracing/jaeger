@@ -24,6 +24,8 @@ setUp() {
   echo "$TAG_SHA" > "$T/jaeger.rev"
   echo "$TAG_SHA" > "$T/jaeger-es-rollover.rev"
   : > "$T/example-hotrod.rev"
+  # Pinned so the gh stub matches when CI runs on a fork.
+  export GITHUB_REPOSITORY=jaegertracing/jaeger
   export T TAG_SHA ATTEMPTS=1 BACKOFF=0 GITHUB_STEP_SUMMARY="$T/summary"
   ORIG_PATH="$PATH"
   export PATH="$T/bin:$PATH"
