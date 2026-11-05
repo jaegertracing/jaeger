@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 
@@ -38,14 +39,9 @@ func rawUITool(t *testing.T, name string) json.RawMessage {
 // and hands to the gateway — the same server both mounts are served from.
 func sharedMCPHandler(t *testing.T) *mcptools.Handler {
 	t.Helper()
-	return sharedMCPHandlerWithParams(t, mcptools.DefaultServerParams())
-}
-
-func sharedMCPHandlerWithParams(t *testing.T, params mcptools.ServerParams) *mcptools.Handler {
-	t.Helper()
+	params := mcptools.DefaultServerParams()
 	svc := querysvc.NewQueryService(&tracestoremocks.Reader{}, &depstoremocks.Reader{}, querysvc.QueryServiceOptions{})
 	h := mcptools.NewHandler(telemetry.NoopSettings(), svc, tenancy.NewManager(&tenancy.Options{}), params)
-	t.Cleanup(func() { h.Close() })
 	return h
 }
 
@@ -54,17 +50,12 @@ func sharedMCPHandlerWithParams(t *testing.T, params mcptools.ServerParams) *mcp
 // the recorder backing that turn's SSE stream (to observe UI-tool dispatch).
 func turnMCPServer(t *testing.T, uiTools []json.RawMessage) (ts *httptest.Server, rec *httptest.ResponseRecorder, routeID string) {
 	t.Helper()
-	return turnMCPServerWithParams(t, mcptools.DefaultServerParams(), uiTools)
-}
-
-func turnMCPServerWithParams(t *testing.T, params mcptools.ServerParams, uiTools []json.RawMessage) (ts *httptest.Server, rec *httptest.ResponseRecorder, routeID string) {
-	t.Helper()
 	turns := newTurnRegistry()
 	rec = httptest.NewRecorder()
 	routeID = registerTurn(turns, newAGUIRun(context.Background(), rec, "thread", "run"), uiTools)
 
 	h := turnScopedEndpointBuilder{
-		shared: sharedMCPHandlerWithParams(t, params),
+		shared: sharedMCPHandler(t),
 		turns:  turns,
 		logger: telemetry.NoopSettings().Logger,
 	}.build()
@@ -109,23 +100,47 @@ func TestTurnScopedEndpointServesTelemetryPlusUITools(t *testing.T) {
 	assert.NotContains(t, got, "show_chart", "the bare frontend name is not an MCP tool")
 }
 
-// TestTurnScopedEndpointStateless checks that the turn's UI tools are still
-// advertised when the shared handler runs in stateless mode. ServeHTTP stamps the
-// route id on every request, and in stateless mode the SDK builds the session from
-// each request's context, so uiToolsMiddleware finds the turn without a session
-// that outlives the request. The test talks to the endpoint through the real
-// go-sdk client, which after initialize sends a GET to open a stream for
-// server-to-client messages; a stateless server answers that GET with 405, and the
-// client has to treat that as "no stream" and continue, or ListTools below would
-// fail.
-func TestTurnScopedEndpointStateless(t *testing.T) {
-	params := mcptools.DefaultServerParams()
-	params.StreamableHTTP.Stateless = true
-	ts, _, routeID := turnMCPServerWithParams(t, params, []json.RawMessage{rawUITool(t, "show_chart")})
+// The turn-scoped endpoint issues no session id, not even to a client on an
+// older protocol revision whose initialize would open a session elsewhere, so
+// nothing outlives a request that another request could name. A client that
+// sends one anyway is served as if it had not, and the GET and DELETE of older
+// revisions are refused: there is no standing stream and no session to end.
+func TestTurnScopedEndpointIssuesNoSessionID(t *testing.T) {
+	ts, _, routeID := turnMCPServer(t, nil)
 
-	got := listToolNames(t, ts, "/api/ai/mcp/"+routeID+"/")
-	assert.Contains(t, got, "get_services", "built-in telemetry tools must be advertised")
-	assert.Contains(t, got, UIToolPrefix+"show_chart", "the turn's UI tools must be advertised under the namespace")
+	post := func(body, sessionID string) *http.Response {
+		req, err := http.NewRequestWithContext(context.Background(), http.MethodPost, ts.URL+"/api/ai/mcp/"+routeID+"/",
+			strings.NewReader(body))
+		require.NoError(t, err)
+		req.Header.Set("Content-Type", "application/json")
+		req.Header.Set("Accept", "application/json, text/event-stream")
+		if sessionID != "" {
+			req.Header.Set("Mcp-Session-Id", sessionID)
+		}
+		resp, err := ts.Client().Do(req)
+		require.NoError(t, err)
+		t.Cleanup(func() { resp.Body.Close() })
+		return resp
+	}
+	// This is the initialize an agent on a pre-2026-07-28 revision opens with,
+	// and the one request a server that keeps sessions answers with a session id.
+	initialize := `{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-11-25","capabilities":{},"clientInfo":{"name":"test-client","version":"0.0.0"}}}`
+	resp := post(initialize, "")
+	assert.Equal(t, http.StatusOK, resp.StatusCode)
+	assert.Empty(t, resp.Header.Get("Mcp-Session-Id"), "the turn-scoped endpoint issues no session id")
+	toolsList := `{"jsonrpc":"2.0","id":2,"method":"tools/list"}`
+	assert.Equal(t, http.StatusOK, post(toolsList, "some-session").StatusCode, "a session id sent anyway is ignored")
+
+	for _, method := range []string{http.MethodGet, http.MethodDelete} {
+		req, err := http.NewRequestWithContext(context.Background(), method, ts.URL+"/api/ai/mcp/"+routeID+"/", http.NoBody)
+		require.NoError(t, err)
+		req.Header.Set("Accept", "text/event-stream")
+		req.Header.Set("Mcp-Session-Id", "some-session")
+		resp, err := ts.Client().Do(req)
+		require.NoError(t, err)
+		resp.Body.Close()
+		assert.Equal(t, http.StatusMethodNotAllowed, resp.StatusCode, "%s on a live turn: no standing stream and no session to end", method)
+	}
 }
 
 // TestSharedMCPHandlerServesTelemetryOnly pins the shared mount's contract while a
