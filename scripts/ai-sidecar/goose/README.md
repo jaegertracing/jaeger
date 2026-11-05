@@ -8,15 +8,15 @@ and verify the result are on the website on the
 
 ## Run the stack
 
-`docker-compose.yml` runs the setup above as containers, plus two things that
-make it usable on its own: microsim, the trace generator of the SPM example,
-sending a steady trickle of traces, and an Apache httpd reverse proxy between
-Goose and Jaeger's MCP endpoint whose access log prints the headers of every
-proxied request. `run.sh` starts the stack and leaves it up, so the assistant
-can be tried in the Jaeger UI at <http://localhost:16686>, where the AI panel
-appears once Jaeger's health probe reaches Goose. Chatting needs a model
-provider: set `OPENROUTER_API_KEY`, or `SECRET_RESOLVER_CMD` to fetch it, as
-in step 1 before starting.
+`docker-compose.yml` runs that setup as containers, plus two things that make
+it usable on its own: microsim, the trace generator of the SPM example, sending
+a steady trickle of traces, and an Apache httpd reverse proxy between Goose and
+Jaeger's MCP endpoint whose access log prints the headers of every proxied
+request. `run.sh` starts the stack and leaves it up, so the assistant can be
+tried in the Jaeger UI at <http://localhost:16686>, where the AI panel appears
+once Jaeger's health probe reaches Goose. Chatting needs a model provider: set
+`OPENROUTER_API_KEY` before starting, or set `SECRET_RESOLVER_CMD` to a command
+that prints it, as the script's header comment describes.
 
 ```bash
 ./run.sh              # a Linux build of this working tree, inside the released image
@@ -47,50 +47,27 @@ POST /api/ai/mcp/<route>/ -> 200 turn="<token>" user="alice" auth="Bearer user-t
 POST /api/ai/mcp/<route>/ -> 200 turn="<token>" user="alice" auth="Bearer user-token" unlisted="-" accept="text/event-stream, application/json" proto="2026-07-28" sid="-"
 ```
 
-## Troubleshooting
+## Reading a failure of the stack
 
-**Assistant panel missing / `"aiAssistant":false` in the page source.** The
-health check cannot reach the agent. It dials separately from the chat endpoint
-and sends the same headers, so a missing or wrong `agent_headers` value hides
-the panel even though nothing else looks broken. Check the gateway log for
-`AI health check failed`.
-
-**An authentication error.** A chat turn crosses four authenticated hops, and
-each fails with a different message. The message says which hop failed:
+The website's troubleshooting section covers the agent and the gateway. The
+stack adds two hops of its own, the model provider and the proxied MCP
+endpoint, and each failure shows up in a different place:
 
 | Hop | What it looks like | Cause |
 | --- | --- | --- |
-| Browser → Jaeger `/api/ai/chat` | The request fails with an HTTP 401 or 403 before any chat event arrives | The proxy in front of Jaeger, or `ai.auth`, rejected the user |
-| Jaeger → Goose (WebSocket dial) | `401 Unauthorized` on dial in the gateway log; the panel is missing | The `agent_headers` value is missing, misnamed, or does not match `GOOSE_SERVER__SECRET_KEY`. Verify the variable is exported in *both* processes: Goose reads it, and Jaeger expands it |
 | Goose → model provider | A `RUN_ERROR` event `The agent failed the turn (ACP session/prompt): {"code":-32000,"message":"Authentication required",...}` | Goose has no usable credential for its provider: `OPENROUTER_API_KEY` is not in Goose's environment |
 | Goose → model provider | The assistant answers with text such as `Authentication error: Authentication failed for https://openrouter.ai/... Status: 401` | The key reached Goose and the provider rejected it, or it is empty. Goose reports the provider's answer as its reply |
-| Goose → Jaeger MCP endpoint | `401` lines in the proxy log, or `user=-` on them while the chat request carried a user | Goose did not send the announced headers back; see the agent contract in [../README.md](../README.md) |
+| Goose → model provider | Every prompt fails with a 404 that names a paid model slug | OpenRouter's free tier changed and the default `GOOSE_MODEL` is no longer free. Set `GOOSE_MODEL` to another free tool-calling model; the website shows how to list them |
+| Goose → Jaeger MCP endpoint | `401` lines in the proxy log, or `user="-"` on them while the chat request carried a user | Goose did not send the announced headers back, which the agent contract on the website requires |
 
-**Connection hangs, then the health check times out.** The build predates
-[#9296](https://github.com/jaegertracing/jaeger/pull/9296). ACP sends one
-JSON-RPC object per WebSocket message with no trailing newline, which older
-gateways waited for forever. Update Jaeger.
+## Agent-supplied tools
 
-**`404 Not Found` on dial.** The path is wrong — Goose serves ACP at `/acp`, and
-the bare host and port returns 404.
-
-**Agent answers without any `jaeger:` tool calls.** It is using its own tools
-instead of Jaeger's. Confirm the `mcp:` block is present; without it the gateway
-announces no MCP endpoint and Goose falls back to its built-in shell extension,
-which can still produce a plausible-looking answer.
-
-## Note on agent-supplied tools
-
-Goose ships general-purpose extensions, including shell access, and runs its own
-agent loop. Anything it can reach on the host is reachable from a chat turn, so
-run it with the same care as any other process holding your provider
-credentials. Those extensions also show up in answers: with them on, a question
-about services may come back with a clock widget or a delegated "developer"
-call beside the Jaeger tools. Goose has no switch that turns them all off, only a
-per-extension `enabled: false` in its config file, so the image in
-`docker-compose.yml` generates that file at build time from the extension list
-its own `goose info -v` prints, every entry disabled; the agent then has only
-the tools Jaeger announces for the turn, and a new Goose version brings its own
-list. Running Goose by hand, as in step 2, uses whatever
-`~/.config/goose/config.yaml` enables; `goose info -v` lists the extensions and
-their state.
+Goose ships general-purpose extensions, including shell access, and with them
+on a question about services may come back with a clock widget or a delegated
+"developer" call beside the Jaeger tools. Goose has no switch that turns them
+all off, only a per-extension `enabled: false` in its config file, so the image
+in `docker-compose.yml` generates that file at build time from the extension
+list its own `goose info -v` prints, every entry disabled; the agent then has
+only the tools Jaeger announces for the turn, and a new Goose version brings its
+own list. Goose started by hand uses whatever `~/.config/goose/config.yaml`
+enables; `goose info -v` lists the extensions and their state.
