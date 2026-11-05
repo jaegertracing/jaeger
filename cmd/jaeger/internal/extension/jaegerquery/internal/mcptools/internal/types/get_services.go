@@ -15,11 +15,11 @@ type GetServicesInput struct {
 
 // GetServicesOutput defines the output of the get_services MCP tool.
 type GetServicesOutput struct {
-	Services []string `json:"services" jsonschema:"List of service names"`
+	Services []string `json:"services"`
 
 	// TotalCount is the number of services that matched before the limit was applied.
-	TotalCount int `json:"total_count" jsonschema:"Total number of matching services before the limit was applied"`
+	TotalCount int `json:"total_count"`
 
 	// Truncated is true when the limit dropped some matching services from the result.
-	Truncated bool `json:"truncated" jsonschema:"True if results were truncated by the limit; raise limit or refine pattern to see more"`
+	Truncated bool `json:"truncated"`
 }

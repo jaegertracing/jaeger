@@ -15,42 +15,42 @@ type GetSpanDetailsInput struct {
 
 // GetSpanDetailsOutput defines the output of the get_span_details MCP tool.
 type GetSpanDetailsOutput struct {
-	TraceID string       `json:"trace_id" jsonschema:"Unique identifier for the trace"`
-	Spans   []SpanDetail `json:"spans,omitempty" jsonschema:"List of span details"`
-	Error   string       `json:"error,omitempty" jsonschema:"Error message if some spans were not found"`
+	TraceID string       `json:"trace_id"`
+	Spans   []SpanDetail `json:"spans,omitempty"`
+	Error   string       `json:"error,omitempty"`
 }
 
 // SpanDetail contains full OTLP span data including attributes, events, and links.
 type SpanDetail struct {
-	SpanID       string         `json:"span_id" jsonschema:"Unique identifier for the span"`
-	TraceID      string         `json:"trace_id" jsonschema:"Trace identifier this span belongs to"`
-	ParentSpanID string         `json:"parent_span_id,omitempty" jsonschema:"Parent span identifier"`
-	Service      string         `json:"service" jsonschema:"Service name from resource attributes"`
-	SpanName     string         `json:"span_name" jsonschema:"Span name"`
-	StartTime    string         `json:"start_time" jsonschema:"Span start time in RFC3339 format"`
-	DurationUs   int64          `json:"duration_us" jsonschema:"Span duration in microseconds"`
-	Status       SpanStatus     `json:"status" jsonschema:"Span status information"`
-	Attributes   map[string]any `json:"attributes,omitempty" jsonschema:"Span attributes"`
-	Events       []SpanEvent    `json:"events,omitempty" jsonschema:"Span events"`
-	Links        []SpanLink     `json:"links,omitempty" jsonschema:"Span links"`
+	SpanID       string         `json:"span_id"`
+	TraceID      string         `json:"trace_id"`
+	ParentSpanID string         `json:"parent_span_id,omitempty"`
+	Service      string         `json:"service"`
+	SpanName     string         `json:"span_name"`
+	StartTime    string         `json:"start_time"`
+	DurationUs   int64          `json:"duration_us"`
+	Status       SpanStatus     `json:"status"`
+	Attributes   map[string]any `json:"attributes,omitempty"`
+	Events       []SpanEvent    `json:"events,omitempty"`
+	Links        []SpanLink     `json:"links,omitempty"`
 }
 
 // SpanStatus represents the status of a span.
 type SpanStatus struct {
-	Code    string `json:"code" jsonschema:"Status code (Unset Ok Error)"`
-	Message string `json:"message,omitempty" jsonschema:"Status message"`
+	Code    string `json:"code"`
+	Message string `json:"message,omitempty"`
 }
 
 // SpanEvent represents an event within a span.
 type SpanEvent struct {
-	Name       string         `json:"name" jsonschema:"Event name"`
-	Timestamp  string         `json:"timestamp" jsonschema:"Event timestamp in RFC3339 format"`
-	Attributes map[string]any `json:"attributes,omitempty" jsonschema:"Event attributes"`
+	Name       string         `json:"name"`
+	Timestamp  string         `json:"timestamp"`
+	Attributes map[string]any `json:"attributes,omitempty"`
 }
 
 // SpanLink represents a link to another span.
 type SpanLink struct {
-	TraceID    string         `json:"trace_id" jsonschema:"Linked trace ID"`
-	SpanID     string         `json:"span_id" jsonschema:"Linked span ID"`
-	Attributes map[string]any `json:"attributes,omitempty" jsonschema:"Link attributes"`
+	TraceID    string         `json:"trace_id"`
+	SpanID     string         `json:"span_id"`
+	Attributes map[string]any `json:"attributes,omitempty"`
 }
