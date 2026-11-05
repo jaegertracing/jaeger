@@ -533,7 +533,7 @@ func TestTraceReader_FindTraceIDs(t *testing.T) {
 			queryParams: queryParams,
 			expectedIDs: []tracestore.FoundTraceID{
 				{
-					TraceID: pcommon.TraceID([16]byte{1, 2, 3, 4, 5, 6, 7, 8}),
+					TraceID: pcommon.TraceID([16]byte{0, 0, 0, 0, 0, 0, 0, 0, 1, 2, 3, 4, 5, 6, 7, 8}),
 					Start:   now,
 					End:     now.Add(1 * time.Second),
 				},
@@ -797,6 +797,18 @@ func TestTraceReader_FindTraceSummaries_Success(t *testing.T) {
 				{Name: "frontend", SpanCount: 2, ErrorSpanCount: 1},
 			},
 		},
+		{
+			TraceId:              []byte{1, 2, 3, 4, 5, 6, 7, 8},
+			RootServiceName:      "backend",
+			RootOperationName:    "HTTP POST /data",
+			MinStartTimeUnixNano: uint64(minStart.UnixNano()),
+			MaxEndTimeUnixNano:   uint64(maxEnd.UnixNano()),
+			SpanCount:            2,
+			ErrorSpanCount:       0,
+			Services: []*storage.ServiceSummary{
+				{Name: "backend", SpanCount: 2, ErrorSpanCount: 0},
+			},
+		},
 	}
 	ts := &testServer{summaries: wantSummaries, nextPageToken: "next-page"}
 	conn := startTestServer(t, ts)
@@ -810,7 +822,7 @@ func TestTraceReader_FindTraceSummaries_Success(t *testing.T) {
 		assert.Equal(t, tracestore.PageToken("next-page"), chunk.NextPageToken)
 		got = append(got, chunk.Results...)
 	}
-	require.Len(t, got, 1)
+	require.Len(t, got, 2)
 	assert.Equal(t, pcommon.TraceID([16]byte{1}), got[0].TraceID)
 	assert.Equal(t, "frontend", got[0].RootServiceName)
 	assert.Equal(t, "HTTP GET /", got[0].RootOperationName)
@@ -820,6 +832,45 @@ func TestTraceReader_FindTraceSummaries_Success(t *testing.T) {
 	assert.Equal(t, 1, got[0].ErrorSpanCount)
 	require.Len(t, got[0].Services, 1)
 	assert.Equal(t, "frontend", got[0].Services[0].Name)
+
+	assert.Equal(t, pcommon.TraceID([16]byte{0, 0, 0, 0, 0, 0, 0, 0, 1, 2, 3, 4, 5, 6, 7, 8}), got[1].TraceID)
+	assert.Equal(t, "backend", got[1].RootServiceName)
+	assert.Equal(t, "HTTP POST /data", got[1].RootOperationName)
+}
+
+func TestTraceIDFromBytes(t *testing.T) {
+	tests := []struct {
+		name     string
+		input    []byte
+		expected pcommon.TraceID
+	}{
+		{
+			name:     "empty",
+			input:    []byte{},
+			expected: pcommon.TraceID{},
+		},
+		{
+			name:     "8 bytes (placed in low 64-bit half)",
+			input:    []byte{1, 2, 3, 4, 5, 6, 7, 8},
+			expected: pcommon.TraceID([16]byte{0, 0, 0, 0, 0, 0, 0, 0, 1, 2, 3, 4, 5, 6, 7, 8}),
+		},
+		{
+			name:     "16 bytes",
+			input:    []byte{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16},
+			expected: pcommon.TraceID([16]byte{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16}),
+		},
+		{
+			name:     "other length (preserves copy semantics)",
+			input:    []byte{1, 2, 3},
+			expected: pcommon.TraceID([16]byte{1, 2, 3}),
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := traceIDFromBytes(tt.input)
+			assert.Equal(t, tt.expected, got)
+		})
+	}
 }
 
 func TestTraceReader_FindTraceSummaries_GRPCClientError(t *testing.T) {
