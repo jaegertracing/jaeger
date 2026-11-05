@@ -105,6 +105,9 @@ echo "${mcp:-<none>}"
 fail=0
 [ -n "$mcp" ] || { echo "FAIL: Goose made no MCP request"; fail=1; }
 grep -qv -- '-> 200 ' <<<"$mcp" && { echo "FAIL: an MCP request was not answered 200"; fail=1; }
+grep -qv '^POST ' <<<"$mcp" && { echo "FAIL: an MCP request was not a POST"; fail=1; }
+grep -qv 'proto="2026-07-28"' <<<"$mcp" && { echo "FAIL: an MCP request did not declare MCP revision 2026-07-28"; fail=1; }
+grep -qv 'sid="-"' <<<"$mcp" && { echo "FAIL: an MCP request carried a session id"; fail=1; }
 grep -q 'turn="-"' <<<"$mcp" && { echo "FAIL: an MCP request had no turn token"; fail=1; }
 grep -qv 'user="alice"' <<<"$mcp" && { echo "FAIL: an MCP request did not carry X-User"; fail=1; }
 grep -qv 'auth="Bearer user-token"' <<<"$mcp" && { echo "FAIL: an MCP request did not carry the caller's bearer token"; fail=1; }
