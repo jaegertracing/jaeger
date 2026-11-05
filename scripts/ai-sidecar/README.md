@@ -6,7 +6,7 @@ agent and selects no model provider. The operator runs an ACP agent and points
 Jaeger at it over WebSocket.
 
 The website documents how to configure the gateway, the contract an agent must
-meet, how to run [Goose](./goose/README.md) as the agent, and how to verify an
+meet, how to run Goose as the agent, and how to verify an
 integration: see
 [AI Assistant](https://www.jaegertracing.io/docs/latest/ai/assistant/). The
 gateway code in
