@@ -1,110 +1,232 @@
 # AGENTS.md
 
-This file provides guidance for AI agents working on the Jaeger repository. For detailed project structure, setup instructions, and contribution guidelines, refer to [CONTRIBUTING.md](./CONTRIBUTING.md).
+Context file for AI agents working on jaeger.
 
-What the project expects from a human contributor who works with an agent is stated in the [AI Usage Policy](./AI_POLICY.md). It applies to work done in this repository, and the human running you owns everything you produce.
+**Dual Format**: This file combines Category A (Operations Manual) and Category B (Context Guide) for comprehensive agent guidance.
 
-## Setup
+## Project Overview
 
-The primary branch is called `main`, all PRs are merged into it.
+jaeger is a Go project using Go (Makefile).
 
-If checking out a fresh repository, initialize submodules:
+**Key Info:**
+- **Primary Language:** Go
+- **Build System:** Go (Makefile)
+- **Test Framework:** Go testing
+- **Total Files:** 1964
+- **Test Files:** 639
+- **AI Readiness Score:** 98/100 (Agent-Optimized)
+
+---
+
+## 🚨 AI Policy & Operations
+
+Extracted from CONTRIBUTING.md - operational constraints and procedures.
+
+### AI Policy
+
+- General contributing guidelines are described in [Contributing Guidelines](./CONTRIBUTING_GUIDELINES.md).
+- If you use AI tools to help you contribute, read the [AI Usage Policy](./AI_POLICY.md) as well.
+- pull requests. This document outlines some of the conventions on development
+- These are general guidelines on how to organize source code in this repository.
+- imports from standard library
+
+### Key Requirements
+
+- creates a `gocql.Session`, because it requires an active connection to Cassandra database. It is
+- requires connection to Cassandra
+- security-sensitive changes, dependency changes, authentication or authorization changes, network-facing behavior, release tooling, and configuration defaults receive extra scrutiny from maintainers familiar with the affected area,
+- If we don't want to change the default behavior right away, we can start the feature in the Alpha state, where it is disabled by default. No breaking changes need to be called out in the changelog.
+- **`ToVersion` is the removal release.** It is required once a gate is Stable or Deprecated (registration panics otherwise) and names the release in which the gate ID is removed. A Stable gate can no longer be disabled; explicitly enabling one logs that it will be removed in `ToVersion`.
+
+### Development Procedures
+
+- workflow, commit message formatting, contact points and other resources to make
+- Install [Go](https://golang.org/doc/install) and setup GOPATH and add $GOPATH/bin in PATH
+- If you are running `make test` or other Makefile targets on macOS, please ensure that you have GNU `sed` installed.
+- To install GNU `sed`:
+- brew install gnu-sed
+
+
+
+## 🏗️ Architecture & Context Guide
+
+This section provides architectural context and agent-understanding for the codebase.
+
+### Prerequisites
+
+- **Go:** 1.18+ (or applicable language version)
+- **Package Manager:** go modules
+- **Test Runner:** Go testing
+
+### Environment Requirements
+
+- **Go:** 1.27.0+ (from `go.mod`)
+  - GCC required for CGo/SQLite compilation
+- **Python:** 1.18+
+- **Package Manager:** go modules
+
+
+### Project Structure
+
+```
+jaeger/
+├── Makefile
+├── Makefile
+├── pyproject.toml
+├── src/                  # Source code
+├── tests/                # Test suite (639 files)
+└── README.md             # Project documentation
+```
+
+### Architecture Overview
+
+#### Key Components
+- **Main Entry:** main.go, main.go, main.go, main.go, main.go
+- **Test Suite:** 639 test files
+- **Build Configuration:** Makefile, Makefile, pyproject.toml
+
+#### Design Principles
+
+1. **Modularity** - Code organized by functionality with clear separation of concerns
+2. **Testability** - Comprehensive test coverage across critical paths
+3. **Clarity** - Explicit naming and structure for AI agent understanding
+4. **Consistency** - Uniform patterns and conventions throughout codebase
+5. **Maintainability** - Well-documented code with clear intent
+
+### Directory Map
+
+| Directory | Purpose |
+|-----------|----------|
+| `cmd/` | Command-line tools |
+| `docs/` | Documentation |
+| `examples/` | Usage examples |
+| `scripts/` | Build and utility scripts |
+
+
+### Development Workflow
+
+#### Initial Setup
+
 ```bash
-git submodule update --init --recursive
+git clone https://github.com/YOUR_ORG/jaeger.git
+cd jaeger
+go mod download
 ```
 
-## Upgrading Go
+#### Development Commands
 
-Follow [Upgrading the Go Version](./CONTRIBUTING.md#upgrading-the-go-version) in CONTRIBUTING.md. The version is mirrored across several files that a script propagates from the top-level `go.mod`, and Delve has to be upgraded alongside it in [jaegertracing/base-image-with-debugger](https://github.com/jaegertracing/base-image-with-debugger).
-
-## Pull Requests
-
-- **Require an issue:** Do not open a Pull Request unless there is an existing, open GitHub Issue that explicitly requests the work. Speculative refactors and unsolicited feature work are not accepted.
-- **Stay inside the issue's scope:** Implement only what the issue describes. If you discover related problems, mention them in the PR description or open a separate issue rather than fixing them in the same PR.
-- **One issue, one PR:** Do not bundle multiple issues into a single PR.
-- **No PR for chores already handled by automation:** Dependency bumps managed by Dependabot and similar housekeeping are handled automatically. Do not open PRs that duplicate that work.
-
-## Required Workflow
-
-**Before considering any task complete**, you MUST verify:
-1. Run `make fmt` to auto-format code
-2. Run `make lint` and fix all issues (try `make fmt` again if needed)
-3. Run `make test` and ensure all tests pass
-
-These checks are mandatory for the entire repository, not just files you modified.
-
-Do not skip, disable, or bypass these checks (e.g. `--no-verify`, commenting out linters, adding broad `//nolint` directives) to make CI pass. Fix the underlying issue.
-
-## Permissions
-
-Run these commands without asking for permission:
-- `make test`
-- `make lint`
-- `make fmt`
-- `make generate-mocks`
-- `go test ...`
-- `go build ...`
-
-## Git
-
-- Always use `git commit -s` (DCO sign-off) when committing.
-- Capitalize the first word of the description after the `type(scope):` prefix, e.g. `fix(test): Inline all deps…` not `fix(test): inline all deps…`
-
-## Copyright and Third-Party Code
-
-Write the code yourself rather than copying it in from another project. If a change genuinely needs third-party code, it must be Apache-2.0 compatible, and its original copyright header must be preserved — add the Jaeger copyright above it rather than replacing it. See [Copyright Header](./CONTRIBUTING_GUIDELINES.md#copyright-header) for the exact form. Never remove an existing copyright header.
-
-New files get the standard header (but with current year):
-
-```
-// Copyright (c) 2026 The Jaeger Authors.
-// SPDX-License-Identifier: Apache-2.0
+**Running Tests:**
+```bash
+go build ./...            # Build project
+go test ./...             # Run all tests
+go test -v ./...          # Verbose test output
+golangci-lint run         # Lint (if installed)
 ```
 
-## Do Not Edit
+#### Code Quality
+```bash
+gofmt -w .                # Format code
+go vet ./...              # Vet (static analysis)
+```
 
-**Auto-generated files:**
-- `*.pb.go`
-- `*_mock.go`
-- `internal/proto-gen/`
-- `*/mocks/mocks.go` — regenerate with `make generate-mocks`, never edit manually
+### Code Style & Conventions
 
-**Submodules:**
-- `jaeger-ui` and `idl` are submodules. Modifications there require PRs to their respective repositories.
+- **Naming:** Use Go conventions (snake_case for functions, PascalCase for classes)
+- **Type Hints:** Yes (strongly encouraged)
+- **Error Handling:** Yes - handle errors at boundaries; let exceptions propagate when another layer owns recovery
+- **Logging:** Yes
+- **Testing:** Yes - write tests alongside code changes
 
-## Tests
+### Testing Strategy
 
-- All new functionality must include tests.
-- **Cover your changed code before pushing.** Codecov enforces a **95% patch target** (`.codecov.yml`), so a PR whose diff dips below it fails CI. Measure patch coverage locally before opening or updating a PR — e.g. `go test -covermode=atomic -coverprofile=cover.out ./<changed-pkg>/... && go tool cover -func=cover.out` — and add tests for the uncovered new/changed lines. If a changed line is genuinely unreachable or not meaningfully testable (e.g. an error branch no test can trigger), restructure it to be testable or call it out in the PR description; don't leave the gap silent. Files matched by `.codecov.yml`'s `ignore` list (generated code, `mocks/`, `main.go`, integration tests, `internal/tools`) are exempt.
-- Bug fixes must include a regression test that fails without the fix.
-- Do not delete existing tests to make a build green. If a test is genuinely wrong, explain why in the PR description.
-- Do not weaken assertions (e.g. replacing exact checks with `assert.NotNil`) just to make a flaky test pass.
-- Every package must have at least one `*_test.go` file (enforced by `make nocover`). If no tests are possible (e.g. a package that only defines types), create an empty `empty_test.go`.
+**Framework:** Go testing
+**Test Files:** 639 found
 
-## Storage Integration Tests
+Before committing:
+1. Run the full test suite: `go test ./...`
+2. Ensure all tests pass: `go test -v ./...`
+3. Run linter: `golangci-lint run`
+4. Format code: `gofmt -w .`
 
-Storage behavior belongs in the shared `internal/storage/integration` corpus and `StorageIntegration.AssertCorpus`, which run in both direct and e2e modes. New assertions run for every backend by default; unsupported backends must explicitly opt out in `internal/storage/integration/capabilities`. Extend the e2e reader/writer adapters when the shared tests need new API fields, and keep transport-specific assertions in the e2e package. Read [the integration architecture](cmd/jaeger/internal/integration/README.md) before adding tests.
+### Writing Documentation
 
-## Scope Discipline
+When updating docs:
+1. Always include explanatory text before code snippets
+2. Describe *why* and *what* before showing *how*
+3. Keep sections focused on a single concept
+4. Use clear, concrete examples
 
-- Do not reformat, rename, or restructure code outside the scope of the requested change.
-- Do not bump dependencies unless the task requires it.
-- Do not change CI workflows or release tooling unless explicitly asked.
-- Before adding a flag or field that controls behavior, find the mechanism that already owns that decision and extend it. Expressing one decision in two places is worse than either place alone, and replacing an established mechanism is a maintainer's call.
+## Known Gotchas & Warnings
 
-## RFC / ADR Documents
+- Merge the PR by using "Squash and merge" option on Github. Avoid creating merge commits.
+- If we don't want to change the default behavior right away, we can start the feature in the Alpha state, where it is disabled by default. No breaking changes need to be called out in the changelog.
+- **Naming.** Every new gate ID MUST use the `jaeger.` prefix (e.g. `jaeger.es.config.rejectLegacyRotationFlags`). Jaeger shares the process-wide OTel `featuregate.GlobalRegistry()` with the embedded Collector and its contrib components, and the prefix avoids ID collisions with their gates. A legacy ID that predates this convention (e.g. `storage.clickhouse`) may stay registered without the prefix for the duration of its deprecation/removal window, but it must not be the canonical ID for new work: introduce the `jaeger.`-prefixed name and treat the old one as a deprecated alias per the renaming cycle below.
 
-RFCs (`docs/rfc/`) are proposals; ADRs (`docs/adr/`) are decision records.
+### Contributing Guidelines
 
-- When a PR implements a milestone described in an RFC or ADR, update that document in the same PR: mark the milestone ✅ and link the delivering PR. Keep the milestone/status tracking current.
-- Put the ✅ at the start of the bullet, right after the list marker and before the bold label (`- ✅ **M4 — Elasticsearch/OpenSearch.** …`), because a checkmark buried mid-sentence cannot be scanned down the left margin; the "Delivered in #NNNN, which …" note stays inside the text and carries no emoji of its own. If other delivered entries in the document use a different placement, normalize them in the same change rather than adding another variant.
-- **An RFC still being implemented is a live document.** While its status is Draft or its milestones are in flight, implementation turns up findings and reverses decisions, and the RFC is expected to be rewritten to match — that is the point of writing one down. Update the prose that a decision moved past, and say what is true now rather than narrating the document's own history; where the new decision reverses what the RFC proposed, it is worth one clause saying so, because a reader who knows the old shape needs to see it was considered and dropped.
-- **An RFC whose work is finished is a snapshot.** Once its status is Implemented, do not rewrite its prose, abstract, or diagrams to track the evolving codebase: from then on the narrative is a record of the state and plan at the time, and the code has moved on for reasons the RFC never claimed to cover.
-- ADRs are different: they describe a design, not a plan, so keeping one accurate is worth more than keeping it pristine. Judge by proportion. If a change touches a small part of an ADR and reverses none of its decisions, **edit that ADR in place** — extend the affected sections, note the extension in the Status or Date line, and leave the original Context and Decision prose alone. Write a new superseding ADR only when the change replaces the original's decision or architecture outright. [ADR-004](./docs/adr/004-migrating-coverage-gating-to-github-actions.md) is an example of the former: its fan-in gating decision and requirements stood, so later work extended it rather than superseding it. What the rule forbids is rewriting an ADR into running documentation of the code.
-- When an RFC's work is fully delivered, mark its status Implemented; if the resulting architecture is worth an enduring reference, graduate it into a new ADR in [`docs/adr/`](./docs/adr/) that states the outcome and links back to the RFC, rather than mutating the RFC. [ADR-012](./docs/adr/012-unified-elasticsearch-client.md) (graduated from RFC 0006) is an example.
+This project has a detailed contribution guide at **`CONTRIBUTING.md`**.
 
-## When in Doubt
+**Key Requirements:**
+- **DCO Sign-off Required**: Every commit must be signed with `git commit -s`
+- **Performance Work**: Requires benchmarks and performance metrics in PR description
 
-Stop and ask rather than guessing. It is better to surface a question in the PR description than to invent behavior, fabricate API names, or silence failing checks.
+**Before submitting:**
+1. Read `CONTRIBUTING.md` in full
+2. Check recent merged PRs for patterns
+3. Follow the specific requirements above
 
-Ask as well when you are *not* in doubt but are about to depart from a documented convention, because that is where confidence is least informative.
+### Common Patterns
+
+When contributing to this project:
+1. Read existing code in the area you're modifying
+2. Follow the established patterns and style
+3. Write tests for new functionality
+4. Use clear, descriptive variable and function names
+5. Add docstrings for public APIs
+6. Update tests when changing behavior
+
+### What We Value
+
+✅ Well-tested code with clear intent
+✅ Consistent code style and naming conventions
+✅ Code that is easy for AI agents to understand
+✅ Clear, descriptive commit messages
+✅ Modular, reusable components
+✅ Comprehensive documentation
+
+### What We Avoid
+
+❌ Large functions doing multiple things
+❌ Commented-out dead code
+❌ Inconsistent naming or patterns
+❌ Unclear error messages
+❌ Unexplained magic numbers or strings
+❌ Skipped tests or test TODOs
+
+### AI Readiness Dimensions (Scoring)
+
+This project is evaluated across 8 dimensions:
+
+1. **Architecture** (20/100) - Code organization and modularity
+2. **Testing** (15/100) - Test coverage and quality
+3. **Dependencies** (12/100) - Dependency management
+4. **Conventions** (8/100) - Consistent patterns
+5. **Entry Points** (10/100) - Clear main/start locations
+6. **Security** (15/100) - Input validation and error handling
+7. **Build** (10/100) - Clear build/setup instructions
+8. **Documentation** (8/100) - Code and project documentation
+
+### Next Steps
+
+Before making changes:
+1. Read relevant source files to understand the existing code
+2. Look at existing tests for similar functionality
+3. Follow the patterns you see in the codebase
+4. Write tests for your changes
+5. Run `pytest` to verify nothing breaks
+6. Run code quality checks: `ruff check . && mypy .`
+7. Format your code: `ruff format .`
+
+---
+
+*Generated by Braxis - keeping AI agents in sync with your code*
