@@ -47,10 +47,11 @@ access controls must cover MCP as well as the UI and HTTP query API.
 Use authentication and TLS on the query HTTP server or an authenticated
 reverse proxy/gateway that clients cannot bypass. Tenant headers and MCP
 session IDs are not authentication credentials; deployments must authorize
-tenant selection and enforce session ownership where required. See the
-[MCP deployment guide](https://www.jaegertracing.io/docs/latest/ai/mcp-server/#exposure-and-access-to-trace-data)
-for configuration examples, tenant and session behavior, and
-[instructions to disable MCP](https://www.jaegertracing.io/docs/latest/ai/mcp-server/#enabling-the-endpoint).
+tenant selection and enforce session ownership where required. The
+[security guide](https://www.jaegertracing.io/docs/latest/deployment/security/)
+has configuration examples and the tenant and session behavior, and the
+[MCP server page](https://www.jaegertracing.io/docs/latest/ai/mcp-server/)
+explains how the endpoint is enabled and turned off.
 
 ## Input Validation
 

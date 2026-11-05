@@ -18,7 +18,10 @@ Read the [blog post](https://medium.com/jaegertracing/towards-jaeger-v2-moar-ope
 The embedded all-in-one configuration enables AI agents to query trace data at
 `/api/ai/mcp/` on the query HTTP port. The listener defaults to all interfaces
 on port 16686, without TLS or authentication configured. Before exposing it to
-remote clients, follow the [MCP deployment guide](https://www.jaegertracing.io/docs/latest/ai/mcp-server/#exposure-and-access-to-trace-data)
-to configure authentication and TLS, account for tenant and session identity,
-or [disable MCP](https://www.jaegertracing.io/docs/latest/ai/mcp-server/#enabling-the-endpoint)
-if it is not needed.
+remote clients, follow the
+[security guide](https://www.jaegertracing.io/docs/latest/deployment/security/)
+to configure authentication and TLS and to account for tenant and session
+identity, or leave the `mcp` block out of the configuration to turn the
+endpoint off, as the
+[MCP server page](https://www.jaegertracing.io/docs/latest/ai/mcp-server/)
+describes.

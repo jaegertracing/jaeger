@@ -3,8 +3,8 @@
 [Goose](https://github.com/aaif-goose/goose) serves ACP over WebSocket natively,
 so it works as the agent behind Jaeger's AI gateway with no bridge or wrapper.
 The steps to configure it, point Jaeger at it, and verify the result are on the
-website, in
-[Running Goose as the agent](https://www.jaegertracing.io/docs/latest/ai/assistant/#running-goose-as-the-agent).
+website, on the
+[AI Assistant page](https://www.jaegertracing.io/docs/latest/ai/assistant/).
 This file keeps the prerequisites, the provider notes, and the authentication
 note that the website does not carry.
 
