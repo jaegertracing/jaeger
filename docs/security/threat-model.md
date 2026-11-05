@@ -113,7 +113,7 @@ tools. They are not the query or ingest path.
 | **B1: Applications → receivers** | Untrusted spans | OTLP, Jaeger, Zipkin, and Kafka receivers unmarshal structured payloads and enforce transport message limits. TLS and receiver `auth` are off unless configured. Thrift compact and Thrift binary are UDP and have no TLS. The UDP servers bound a packet queue (`queue_size`, default 1000 in the Jaeger receiver). |
 | **B2: Pipeline → storage** | Spans and credentials | The storage client uses the backend's own TLS and auth settings. The embedded config uses memory and sends nothing off-box. |
 | **B3: Storage → query** | Trace reads | Same client credentials as B2. Separate read and write endpoints exist for the gRPC storage client (`writer`). Cassandra keyspaces can be split. There is no built-in read-only mode for every backend. |
-| **B4: Query/UI → users** | HTTP and gRPC | TLS and `auth.authenticator` are collector server settings and are unset by default. The same `auth.authenticator` setting applies to `remote_sampling` HTTP/gRPC and to `remote_storage` gRPC. The shipped server authenticator is `basicauth` (htpasswd). `sigv4auth` is a client authenticator for outbound AWS calls, not a listener authenticator. |
+| **B4: Query/UI → users** | HTTP and gRPC | TLS and `auth.authenticator` are collector server settings and are unset by default. The same `auth.authenticator` setting applies to `remote_sampling` HTTP/gRPC and to the `remote_storage` extension's gRPC server. The standalone `jaeger-remote-storage` binary cannot use an authenticator (see T5). The shipped server authenticator is `basicauth` (htpasswd). `sigv4auth` is a client authenticator for outbound AWS calls, not a listener authenticator. |
 | **B5: Query → MCP and AI clients** | Trace data and tool calls | `/api/ai/mcp/`, `/api/ai/chat`, and `/api/ai/mcp/<id>/` are on the query HTTP mux in the embedded config, because `ai.mcp: {}` keeps the default `agent_url`. None of them has a second authenticator. Chat dials that WebSocket and can announce the turn-scoped MCP URL to the sidecar. |
 | **B6: Browser rendering** | Span data and uploaded JSON | The UI renders stored traces and files dropped on the search page. See T7 and T8. |
 | **B7: Debug listeners** | Process internals | Embedded config enables `healthcheckv2`, `expvar`, and `zpages` on `JAEGER_LISTEN_HOST`. `cmd/jaeger/config.yaml` also enables `pprof` on `0.0.0.0:1777`. Query gRPC registers server reflection. |
@@ -206,9 +206,29 @@ their config says so. Several checked-in examples set `tls.insecure: true`
 and, for Cassandra, the username and password `cassandra`. Those files are
 examples, not the code defaults.
 
-The gRPC `remote_storage` server uses collector gRPC server config. Without
-`tls` and `auth`, anyone who can dial it can read the backend it wraps and
-can write traces through OTLP `Export`.
+The remote-storage gRPC port is a trusted interface. Both servers use
+collector gRPC server config. The `remote_storage` extension can name an
+`auth` authenticator; without `tls` and `auth`, anyone who can dial it can
+read the backend it wraps and can write traces through OTLP `Export`. The
+standalone `jaeger-remote-storage` binary (`cmd/remote-storage`) has no
+caller authentication: its host provides no extensions, so `auth` cannot
+resolve an authenticator. mTLS (`grpc.tls` with `client_ca_file`) and
+network policy are the controls that restrict who can call that port. With
+`multi_tenancy` enabled, the tenant allowlist rejects a missing or unlisted
+tenant, but it does not authenticate the caller.
+
+The tenant header is not authentication on either server (see T4). With
+`multi_tenancy` enabled, a caller that can reach the port and presents a
+tenant name the server accepts is served.
+
+grpc-go's receive limit (4 MiB by default) applies before decode. It is
+`grpc.max_recv_msg_size_mib` on the standalone binary and
+`max_recv_msg_size_mib` on the extension. It is the only bound applied
+before decode. The server's codecs (pdata for OTLP, gogo for Jaeger types)
+do not limit nesting depth while they decode; the query expression depth
+limit is checked only after the request is decoded. The receive limit bounds
+payload size. It is not access control.
+
 Badger data is whatever the process user can read on disk. The container
 image runs as uid/gid 10001.
 
@@ -261,8 +281,8 @@ config enables it. Tools are `get_services`, `get_span_names`,
 `read_skill`. They call the same `QueryService` as the UI.
 
 Limits compiled into the handler: 100 search hits, 20 spans of detail per
-call, and 512 KiB for a skill file. Idle MCP sessions expire after 5
-minutes. `read_skill` rejects paths that fail `fs.ValidPath` (which rejects
+call, and 512 KiB for a skill file. The endpoint keeps no session between
+requests, so there is nothing for an idle client to hold. `read_skill` rejects paths that fail `fs.ValidPath` (which rejects
 `..`) and only opens the embedded skill tree, or `custom/<path>` from
 `ai.mcp.skills_dir` when that directory is set.
 
@@ -336,6 +356,9 @@ These follow the settings above. They are not a new policy.
    extension point for redaction; the default build does not redact.
 7. For TLS, leave `min_version` unset (TLS 1.2) or set `1.3`. Do not set
    `1.0` or `1.1`. Do not set `insecure` or `insecure_skip_verify`.
+8. Treat the remote-storage gRPC port (default `:17271`) as trusted.
+   Require mTLS (`client_ca_file`) and network policy. The standalone
+   binary cannot use `auth`, and the tenant header is not authentication.
 
 ## References
 
@@ -346,5 +369,7 @@ These follow the settings above. They are not a new policy.
 - [Security review 2026](security-review-2026.md) — 2026-05-17 review
   record, with a 2026-10-11 correction note for controls this model
   does not claim
+- [Remote storage trust boundary](../../cmd/remote-storage/README.md#trust-boundary)
+- [`remote_storage` extension trust boundary](../../cmd/jaeger/internal/extension/remotestorage/README.md#trust-boundary)
 - Embedded default: `cmd/jaeger/internal/all-in-one.yaml`
 - Component list: `cmd/jaeger/internal/components.go`

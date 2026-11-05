@@ -35,9 +35,8 @@ const (
 
 // mcpRouteIDContextKey carries the URL route id from ServeHTTP into the
 // UI-dispatch middleware. ServeHTTP stamps it on the request context before
-// delegating to the streamable handler; the go-sdk propagates the initialize
-// request's context values onto the resulting ServerSession, so every later
-// tools/list and tools/call for that turn can recover the id here.
+// delegating to the MCP handler, which serves each tools/list and tools/call
+// from that request's own context.
 type mcpRouteIDContextKey struct{}
 
 // mcpRouteIDFromContext returns the URL route id stamped by ServeHTTP, or ""
@@ -53,13 +52,17 @@ func mcpRouteIDFromContext(ctx context.Context) string {
 // SSE stream. Access is gated to route ids that belong to an active chat turn
 // (present in turnRegistry).
 type turnScopedEndpoint struct {
-	// streamable is the telemetry MCP endpoint's handler, which the query server
-	// built and still owns. Serving it here means both mounts share one *mcp.Server,
-	// so the telemetry tools are registered once and this endpoint closes nothing.
-	streamable http.Handler
-	turns      *turnRegistry
-	basePath   string
-	logger     *zap.Logger
+	// handler is the shared MCP handler that jaeger-query mounts at /api/ai/mcp/
+	// and owns, with its tenant extraction and its jaeger_mcp server span, which
+	// nests under the span of the turn-scoped route. Sharing it registers the
+	// telemetry tools once. The handler keeps no session between requests and
+	// issues no session id, so each tool call runs under the turn token and the
+	// identity headers of its own request, and nothing names another request's
+	// turn or identity.
+	handler  http.Handler
+	turns    *turnRegistry
+	basePath string
+	logger   *zap.Logger
 }
 
 // turnScopedEndpointBuilder collects the endpoint's dependencies. The MCP handler
@@ -67,10 +70,10 @@ type turnScopedEndpoint struct {
 // no chat sidecar involved, so the query server builds it and this endpoint layers
 // the per-turn UI tools onto it.
 type turnScopedEndpointBuilder struct {
-	shared   *mcptools.Handler
-	turns    *turnRegistry
-	basePath string
-	logger   *zap.Logger
+	baseHandler *mcptools.Handler
+	turns       *turnRegistry
+	basePath    string
+	logger      *zap.Logger
 }
 
 // build layers this gateway's per-turn UI tools onto the shared MCP server and
@@ -78,30 +81,39 @@ type turnScopedEndpointBuilder struct {
 // tools per request, keyed by the route id in the request context, so neither a
 // server per turn nor a second server for this mount is needed.
 func (b turnScopedEndpointBuilder) build() *turnScopedEndpoint {
-	b.shared.AddReceivingMiddleware(uiToolsMiddleware(b.turns, b.logger))
+	b.baseHandler.AddReceivingMiddleware(uiToolsMiddleware(b.turns, b.logger))
 	return &turnScopedEndpoint{
-		streamable: b.shared,
-		turns:      b.turns,
-		basePath:   b.basePath,
-		logger:     b.logger,
+		handler:  b.baseHandler,
+		turns:    b.turns,
+		basePath: b.basePath,
+		logger:   b.logger,
 	}
 }
 
 // registerRoutes mounts the endpoint on both the slash and no-slash forms of its
-// URL. Keeping this here means the route patterns stay owned by this file rather
-// than leaking into the gateway HTTP handler.
-func (h *turnScopedEndpoint) registerRoutes(router *http.ServeMux) {
-	router.Handle(h.basePath+routeTurnMCP, h)
-	router.Handle(h.basePath+routeTurnMCPNoSlash, h)
+// URL. The gateway passes h wrapped in its auth middleware as guarded; the
+// route patterns stay owned by this file.
+func (h *turnScopedEndpoint) registerRoutes(router *http.ServeMux, guarded http.Handler) {
+	router.Handle(h.basePath+routeTurnMCP, guarded)
+	router.Handle(h.basePath+routeTurnMCPNoSlash, guarded)
 }
 
 func (h *turnScopedEndpoint) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	mcpRouteID := r.PathValue("mcpRouteID")
-	if h.turns.get(mcpRouteID) == nil {
+	turn := h.turns.get(mcpRouteID)
+	if turn == nil {
 		// Unknown or expired route id: the scoped endpoint is only valid
 		// during an active chat turn, so a missing entry is a client error.
 		h.logger.Debug("turn-scoped MCP request for unknown route id", zap.String("mcp_route_id", mcpRouteID))
 		http.NotFound(w, r)
+		return
+	}
+	// The route id names the turn; the token proves the caller was given it.
+	// Anyone who can reach the query port can send a request to this path, so
+	// the id alone, which travels in URLs and lands in logs, is not enough.
+	if !turn.authorize(r.Header.Get(turnTokenHeader)) {
+		h.logger.Debug("turn-scoped MCP request without the turn's token", zap.String("mcp_route_id", mcpRouteID))
+		http.Error(w, "missing or invalid turn token", http.StatusUnauthorized)
 		return
 	}
 	// Strip "<basePath>/api/ai/mcp/<mcpRouteID>" so the wrapped MCP handler sees
@@ -117,5 +129,5 @@ func (h *turnScopedEndpoint) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	rewritten := r.Clone(context.WithValue(r.Context(), mcpRouteIDContextKey{}, mcpRouteID))
 	rewritten.URL.Path = rest
 	rewritten.URL.RawPath = ""
-	h.streamable.ServeHTTP(w, rewritten)
+	h.handler.ServeHTTP(w, rewritten)
 }
