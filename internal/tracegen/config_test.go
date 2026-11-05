@@ -7,6 +7,7 @@ import (
 	"errors"
 	"flag"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
@@ -68,6 +69,43 @@ func Test_Run(t *testing.T) {
 			},
 			expectedErr: errors.New("`attr-values` must be greater than 0"),
 		},
+		{
+			name: "max-span-duration less than min-span-duration",
+			config: &Config{
+				Traces:          10,
+				AttrKeys:        97,
+				AttrValues:      1000,
+				MinSpanDuration: 500 * time.Millisecond,
+				MaxSpanDuration: 100 * time.Millisecond,
+			},
+			expectedErr: errors.New("`max-span-duration` must be greater than or equal to `min-span-duration`"),
+		},
+		{
+			name: "valid min and max span duration range",
+			config: &Config{
+				Workers:         1,
+				Traces:          5,
+				ChildSpans:      1,
+				AttrKeys:        97,
+				AttrValues:      1000,
+				MinSpanDuration: 100 * time.Millisecond,
+				MaxSpanDuration: 500 * time.Millisecond,
+			},
+			expectedErr: nil,
+		},
+		{
+			name: "min equals max span duration (fixed duration)",
+			config: &Config{
+				Workers:         1,
+				Traces:          5,
+				ChildSpans:      1,
+				AttrKeys:        97,
+				AttrValues:      1000,
+				MinSpanDuration: 200 * time.Millisecond,
+				MaxSpanDuration: 200 * time.Millisecond,
+			},
+			expectedErr: nil,
+		},
 	}
 
 	for _, tt := range tests {
@@ -83,19 +121,21 @@ func Test_Flags(t *testing.T) {
 	fs := &flag.FlagSet{}
 	config := &Config{}
 	expectedConfig := &Config{
-		Workers:       1,
-		Traces:        1,
-		ChildSpans:    1,
-		Attributes:    11,
-		AttrKeys:      97,
-		AttrValues:    1000,
-		Debug:         false,
-		Firehose:      false,
-		Pause:         1000,
-		Duration:      0,
-		Service:       "tracegen",
-		Services:      1,
-		TraceExporter: "otlp-http",
+		Workers:         1,
+		Traces:          1,
+		ChildSpans:      1,
+		Attributes:      11,
+		AttrKeys:        97,
+		AttrValues:      1000,
+		Debug:           false,
+		Firehose:        false,
+		Pause:           1000,
+		Duration:        0,
+		Service:         "tracegen",
+		Services:        1,
+		TraceExporter:   "otlp-http",
+		MinSpanDuration: 123 * time.Microsecond,
+		MaxSpanDuration: 123 * time.Microsecond,
 	}
 
 	config.Flags(fs)
