@@ -45,75 +45,129 @@ func sharedMCPHandler(t *testing.T) *mcptools.Handler {
 	return h
 }
 
-// turnMCPServer mounts a real turn-scoped handler with one active turn
-// ("sess-1") holding the given UI tools, and returns the test HTTP server plus
-// the recorder backing that turn's SSE stream (to observe UI-tool dispatch).
-func turnMCPServer(t *testing.T, uiTools []json.RawMessage) (ts *httptest.Server, rec *httptest.ResponseRecorder, routeID string) {
+// turnMCPServer mounts a real turn-scoped handler with one active turn holding
+// the given UI tools, beside the shared telemetry mount at /api/ai/mcp/ as the
+// query server mounts it, and returns the test HTTP server, the recorder backing
+// that turn's SSE stream (to observe UI-tool dispatch) and the turn's grant.
+func turnMCPServer(t *testing.T, uiTools []json.RawMessage) (ts *httptest.Server, rec *httptest.ResponseRecorder, grant turnGrant) {
 	t.Helper()
 	turns := newTurnRegistry()
 	rec = httptest.NewRecorder()
-	routeID = registerTurn(turns, newAGUIRun(context.Background(), rec, "thread", "run"), uiTools)
+	grant = registerTurn(turns, newAGUIRun(t.Context(), rec, "thread", "run"), uiTools)
 
+	shared := sharedMCPHandler(t)
 	h := turnScopedEndpointBuilder{
-		shared: sharedMCPHandler(t),
-		turns:  turns,
-		logger: telemetry.NoopSettings().Logger,
+		baseHandler: shared,
+		turns:       turns,
+		logger:      telemetry.NoopSettings().Logger,
 	}.build()
 	mux := http.NewServeMux()
 	h.registerRoutes(mux)
+	mux.Handle(routeMCPPrefix, http.StripPrefix(strings.TrimSuffix(routeMCPPrefix, "/"), shared))
 
 	ts = httptest.NewServer(mux)
 	t.Cleanup(ts.Close)
-	return ts, rec, routeID
+	return ts, rec, grant
 }
 
-func connectTurnMCP(t *testing.T, ts *httptest.Server, path string) *mcp.ClientSession {
+// connectTurnMCP connects an MCP client to path, sending token as the turn token
+// header on every request the way an agent sends the header announced in
+// session/new. token is empty for the shared endpoint, which requires none.
+func connectTurnMCP(t *testing.T, ts *httptest.Server, path, token string) *mcp.ClientSession {
 	t.Helper()
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	ctx, cancel := context.WithTimeout(t.Context(), 5*time.Second)
 	t.Cleanup(cancel)
-	client := mcp.NewClient(&mcp.Implementation{Name: "test-client", Version: "0.0.0"}, nil)
-	session, err := client.Connect(ctx, &mcp.StreamableClientTransport{
+	mcpClient := mcp.NewClient(&mcp.Implementation{Name: "test-client", Version: "0.0.0"}, nil)
+	session, err := mcpClient.Connect(ctx, &mcp.StreamableClientTransport{
 		Endpoint:   ts.URL + path,
-		HTTPClient: ts.Client(),
+		HTTPClient: tokenHTTPClient(ts, token),
 	}, nil)
 	require.NoError(t, err)
 	t.Cleanup(func() { session.Close() })
 	return session
 }
 
+// tokenHTTPClient returns ts's client, sending token in the turn token header on
+// every request when it is not empty.
+func tokenHTTPClient(ts *httptest.Server, token string) *http.Client {
+	base := ts.Client()
+	return &http.Client{Transport: roundTripperFunc(func(r *http.Request) (*http.Response, error) {
+		r = r.Clone(r.Context())
+		if token != "" {
+			r.Header.Set(turnTokenHeader, token)
+		}
+		return base.Transport.RoundTrip(r)
+	})}
+}
+
+type roundTripperFunc func(*http.Request) (*http.Response, error)
+
+func (f roundTripperFunc) RoundTrip(r *http.Request) (*http.Response, error) { return f(r) }
+
 // listToolNames connects an MCP client to path and returns the tool names the
 // server advertises there.
-func listToolNames(t *testing.T, ts *httptest.Server, path string) []string {
+func listToolNames(t *testing.T, ts *httptest.Server, path, token string) []string {
 	t.Helper()
-	session := connectTurnMCP(t, ts, path)
+	session := connectTurnMCP(t, ts, path, token)
 	listed, err := session.ListTools(context.Background(), &mcp.ListToolsParams{})
 	require.NoError(t, err)
 	return toolNames(listed.Tools)
 }
 
 func TestTurnScopedEndpointServesTelemetryPlusUITools(t *testing.T) {
-	ts, _, routeID := turnMCPServer(t, []json.RawMessage{rawUITool(t, "show_chart")})
+	ts, _, grant := turnMCPServer(t, []json.RawMessage{rawUITool(t, "show_chart")})
 
-	got := listToolNames(t, ts, "/api/ai/mcp/"+routeID+"/")
+	got := listToolNames(t, ts, "/api/ai/mcp/"+grant.routeID+"/", grant.token)
 	assert.Contains(t, got, "get_services", "built-in telemetry tools must be advertised")
 	assert.Contains(t, got, UIToolPrefix+"show_chart", "the turn's UI tools must be advertised under the namespace")
 	assert.NotContains(t, got, "show_chart", "the bare frontend name is not an MCP tool")
 }
 
+// TestSharedMCPHandlerServesTelemetryOnly pins the shared endpoint's contract while a
+// chat gateway runs on the same server. Building the gateway installs
+// uiToolsMiddleware on that server, so the middleware now sees the external clients'
+// requests too; it must resolve no turn for them and leave the tool list alone. The
+// turn below is live throughout, so a leak would show up as its UI tool appearing on
+// the shared endpoint.
+func TestSharedMCPHandlerServesTelemetryOnly(t *testing.T) {
+	shared := sharedMCPHandler(t)
+	h := NewHandler(HandlerParams{
+		Logger:             telemetry.NoopSettings().Logger,
+		AgentURL:           "ws://127.0.0.1:1",
+		MaxRequestBodySize: 1 << 20,
+		MCP:                shared,
+	})
+	grant := registerTurn(h.mcp.turns, testAGUIRun(), []json.RawMessage{rawUITool(t, "show_chart")})
+
+	mux := http.NewServeMux()
+	h.RegisterRoutes(mux)
+	// The shared endpoint, as jaeger-query's mountSharedMCP registers it.
+	mux.Handle("/api/ai/mcp/", http.StripPrefix("/api/ai/mcp", shared))
+	ts := httptest.NewServer(mux)
+	t.Cleanup(ts.Close)
+
+	require.Contains(t, listToolNames(t, ts, "/api/ai/mcp/"+grant.routeID+"/", grant.token), UIToolPrefix+"show_chart",
+		"precondition: the turn's UI tool is live on the turn-scoped endpoint")
+
+	got := listToolNames(t, ts, "/api/ai/mcp/", "")
+	assert.Contains(t, got, "get_services", "the shared endpoint serves the telemetry tools")
+	assert.NotContains(t, got, UIToolPrefix+"show_chart", "the shared endpoint must never advertise a turn's UI tools")
+}
+
 // The turn-scoped endpoint issues no session id, not even to a client on an
 // older protocol revision whose initialize would open a session elsewhere, so
-// nothing outlives a request that another request could name. A client that
-// sends one anyway is served as if it had not, and the GET and DELETE of older
-// revisions are refused: there is no standing stream and no session to end.
+// there is no id that could name a turn's identity on any endpoint. A client
+// that sends one anyway is served as if it had not.
 func TestTurnScopedEndpointIssuesNoSessionID(t *testing.T) {
-	ts, _, routeID := turnMCPServer(t, nil)
+	ts, _, grant := turnMCPServer(t, nil)
 
 	post := func(body, sessionID string) *http.Response {
-		req, err := http.NewRequestWithContext(context.Background(), http.MethodPost, ts.URL+"/api/ai/mcp/"+routeID+"/",
+		req, err := http.NewRequestWithContext(context.Background(), http.MethodPost, ts.URL+"/api/ai/mcp/"+grant.routeID+"/",
 			strings.NewReader(body))
 		require.NoError(t, err)
 		req.Header.Set("Content-Type", "application/json")
 		req.Header.Set("Accept", "application/json, text/event-stream")
+		req.Header.Set(turnTokenHeader, grant.token)
 		if sessionID != "" {
 			req.Header.Set("Mcp-Session-Id", sessionID)
 		}
@@ -132,10 +186,11 @@ func TestTurnScopedEndpointIssuesNoSessionID(t *testing.T) {
 	assert.Equal(t, http.StatusOK, post(toolsList, "some-session").StatusCode, "a session id sent anyway is ignored")
 
 	for _, method := range []string{http.MethodGet, http.MethodDelete} {
-		req, err := http.NewRequestWithContext(context.Background(), method, ts.URL+"/api/ai/mcp/"+routeID+"/", http.NoBody)
+		req, err := http.NewRequestWithContext(context.Background(), method, ts.URL+"/api/ai/mcp/"+grant.routeID+"/", http.NoBody)
 		require.NoError(t, err)
 		req.Header.Set("Accept", "text/event-stream")
 		req.Header.Set("Mcp-Session-Id", "some-session")
+		req.Header.Set(turnTokenHeader, grant.token)
 		resp, err := ts.Client().Do(req)
 		require.NoError(t, err)
 		resp.Body.Close()
@@ -143,40 +198,30 @@ func TestTurnScopedEndpointIssuesNoSessionID(t *testing.T) {
 	}
 }
 
-// TestSharedMCPHandlerServesTelemetryOnly pins the shared mount's contract while a
-// chat gateway runs on the same server. Building the gateway installs
-// uiToolsMiddleware on that server, so the middleware now sees the external clients'
-// requests too; it must resolve no turn for them and leave the tool list alone. The
-// turn below is live throughout, so a leak would show up as its UI tool appearing on
-// the shared mount.
-func TestSharedMCPHandlerServesTelemetryOnly(t *testing.T) {
-	shared := sharedMCPHandler(t)
-	h := NewHandler(HandlerParams{
-		Logger:             telemetry.NoopSettings().Logger,
-		AgentURL:           "ws://127.0.0.1:1",
-		MaxRequestBodySize: 1 << 20,
-		MCP:                shared,
-	})
-	routeID := registerTurn(h.mcp.turns, testAGUIRun(), []json.RawMessage{rawUITool(t, "show_chart")})
-
+// A token outlives nothing: once the turn closes, a request that carries the
+// right token is refused like any other request for a dead route id.
+func TestTurnTokenIsVoidAfterTurnEnds(t *testing.T) {
+	turns := newTurnRegistry()
+	grant, closeTurn := turns.register(testAGUIRun(), nil)
+	h := turnScopedEndpointBuilder{
+		baseHandler: sharedMCPHandler(t),
+		turns:       turns,
+		logger:      telemetry.NoopSettings().Logger,
+	}.build()
 	mux := http.NewServeMux()
-	h.RegisterRoutes(mux)
-	// The shared mount, as jaeger-query's mountSharedMCP registers it.
-	mux.Handle("/api/ai/mcp/", http.StripPrefix("/api/ai/mcp", shared))
-	ts := httptest.NewServer(mux)
-	t.Cleanup(ts.Close)
+	h.registerRoutes(mux)
 
-	require.Contains(t, listToolNames(t, ts, "/api/ai/mcp/"+routeID+"/"), UIToolPrefix+"show_chart",
-		"precondition: the turn's UI tool is live on the turn-scoped mount")
-
-	got := listToolNames(t, ts, "/api/ai/mcp/")
-	assert.Contains(t, got, "get_services", "the shared mount serves the telemetry tools")
-	assert.NotContains(t, got, UIToolPrefix+"show_chart", "the shared mount must never advertise a turn's UI tools")
+	closeTurn()
+	req := httptest.NewRequest(http.MethodGet, "/api/ai/mcp/"+grant.routeID+"/", http.NoBody)
+	req.Header.Set(turnTokenHeader, grant.token)
+	rr := httptest.NewRecorder()
+	mux.ServeHTTP(rr, req)
+	assert.Equal(t, http.StatusNotFound, rr.Code)
 }
 
 func TestTurnScopedEndpointDispatchesUIToolToStream(t *testing.T) {
-	ts, rec, routeID := turnMCPServer(t, []json.RawMessage{rawUITool(t, "show_chart")})
-	session := connectTurnMCP(t, ts, "/api/ai/mcp/"+routeID+"/")
+	ts, rec, grant := turnMCPServer(t, []json.RawMessage{rawUITool(t, "show_chart")})
+	session := connectTurnMCP(t, ts, "/api/ai/mcp/"+grant.routeID+"/", grant.token)
 
 	result, err := session.CallTool(context.Background(), &mcp.CallToolParams{
 		Name:      UIToolPrefix + "show_chart",
@@ -199,21 +244,21 @@ func TestTurnScopedEndpointDispatchesUIToolToStream(t *testing.T) {
 func TestTurnScopedEndpointIsolatesTurns(t *testing.T) {
 	turns := newTurnRegistry()
 	recA, recB := httptest.NewRecorder(), httptest.NewRecorder()
-	idA := registerTurn(turns, newAGUIRun(context.Background(), recA, "ta", "ra"), []json.RawMessage{rawUITool(t, "chart_a")})
-	idB := registerTurn(turns, newAGUIRun(context.Background(), recB, "tb", "rb"), []json.RawMessage{rawUITool(t, "chart_b")})
+	grantA := registerTurn(turns, newAGUIRun(context.Background(), recA, "ta", "ra"), []json.RawMessage{rawUITool(t, "chart_a")})
+	grantB := registerTurn(turns, newAGUIRun(context.Background(), recB, "tb", "rb"), []json.RawMessage{rawUITool(t, "chart_b")})
 
 	h := turnScopedEndpointBuilder{
-		shared: sharedMCPHandler(t),
-		turns:  turns,
-		logger: telemetry.NoopSettings().Logger,
+		baseHandler: sharedMCPHandler(t),
+		turns:       turns,
+		logger:      telemetry.NoopSettings().Logger,
 	}.build()
 	mux := http.NewServeMux()
 	h.registerRoutes(mux)
 	ts := httptest.NewServer(mux)
 	t.Cleanup(ts.Close)
 
-	sessionA := connectTurnMCP(t, ts, "/api/ai/mcp/"+idA+"/")
-	sessionB := connectTurnMCP(t, ts, "/api/ai/mcp/"+idB+"/")
+	sessionA := connectTurnMCP(t, ts, "/api/ai/mcp/"+grantA.routeID+"/", grantA.token)
+	sessionB := connectTurnMCP(t, ts, "/api/ai/mcp/"+grantB.routeID+"/", grantB.token)
 
 	listA, err := sessionA.ListTools(context.Background(), &mcp.ListToolsParams{})
 	require.NoError(t, err)
