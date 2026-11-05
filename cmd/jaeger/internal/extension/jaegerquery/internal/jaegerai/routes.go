@@ -104,7 +104,6 @@ func Register(ctx context.Context, r *http.ServeMux, p RegisterParams) (*Routes,
 		mcpParams.StreamableHTTP = mcp.StreamableHTTP
 
 		mcpHandler = mcptools.NewHandler(telset, p.QueryService, p.Tenancy, mcpParams)
-		cs = append(cs, mcpHandler)
 		// The shared endpoint and the gateway's turn-scoped /api/ai/mcp/<id>/ patterns
 		// coexist because the latter are strictly more specific for ServeMux.
 		prefix := strings.TrimSuffix(p.BasePath, "/") + "/api/ai/mcp"

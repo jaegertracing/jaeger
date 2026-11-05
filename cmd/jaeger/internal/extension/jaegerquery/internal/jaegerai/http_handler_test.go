@@ -4,13 +4,11 @@
 package jaegerai
 
 import (
-	"context"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
 
-	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
@@ -148,37 +146,6 @@ func TestRegisterRoutesOmitsMCPEndpointWhenDisabled(t *testing.T) {
 	rr := httptest.NewRecorder()
 	mux.ServeHTTP(rr, httptest.NewRequest(http.MethodGet, "/api/ai/mcp/any-id/mcp", http.NoBody))
 	assert.Equal(t, http.StatusNotFound, rr.Code, "turn-scoped MCP endpoint must not be mounted when disabled")
-}
-
-// TestSharedCloseReapsTurnScopedSessions pins the turn-scoped endpoint into
-// jaeger-query's teardown chain (Server.Close → httpServer.Close → closers.Close →
-// mcptools.Handler.Close). The gateway holds nothing itself, so closing the shared
-// MCP handler has to reap the sessions the turn-scoped mount bound; the SDK reaps a
-// session only when it goes idle, so otherwise a live turn's session would outlive
-// the server.
-func TestSharedCloseReapsTurnScopedSessions(t *testing.T) {
-	shared := sharedMCPHandler(t)
-	h := NewHandler(HandlerParams{
-		Logger:             zap.NewNop(),
-		AgentURL:           "ws://127.0.0.1:1",
-		MaxRequestBodySize: 1 << 20,
-		MCP:                shared,
-	})
-
-	mux := http.NewServeMux()
-	h.RegisterRoutes(mux)
-	routeID := registerTurn(h.mcp.turns, testAGUIRun(), nil)
-	ts := httptest.NewServer(mux)
-	t.Cleanup(ts.Close)
-
-	session := connectTurnMCP(t, ts, "/api/ai/mcp/"+routeID+"/")
-	_, err := session.ListTools(context.Background(), &mcp.ListToolsParams{})
-	require.NoError(t, err, "the session works before Close")
-
-	require.NoError(t, shared.Close())
-
-	_, err = session.ListTools(context.Background(), &mcp.ListToolsParams{})
-	require.Error(t, err, "closing the shared handler must reap the turn-scoped session too")
 }
 
 // The ai.auth check arrives as ChatMiddleware. It must stop at the chat endpoint:

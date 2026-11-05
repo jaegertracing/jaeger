@@ -35,9 +35,8 @@ const (
 
 // mcpRouteIDContextKey carries the URL route id from ServeHTTP into the
 // UI-dispatch middleware. ServeHTTP stamps it on the request context before
-// delegating to the streamable handler; the go-sdk propagates the initialize
-// request's context values onto the resulting ServerSession, so every later
-// tools/list and tools/call for that turn can recover the id here.
+// delegating to the MCP handler, which serves each tools/list and tools/call
+// from that request's own context.
 type mcpRouteIDContextKey struct{}
 
 // mcpRouteIDFromContext returns the URL route id stamped by ServeHTTP, or ""
@@ -56,6 +55,9 @@ type turnScopedEndpoint struct {
 	// streamable is the telemetry MCP endpoint's handler, which the query server
 	// built and still owns. Serving it here means both mounts share one *mcp.Server,
 	// so the telemetry tools are registered once and this endpoint closes nothing.
+	// The handler keeps no session between requests and issues no session id, so
+	// each tool call is served from its own request and nothing outlives it that
+	// another request could name.
 	streamable http.Handler
 	turns      *turnRegistry
 	basePath   string

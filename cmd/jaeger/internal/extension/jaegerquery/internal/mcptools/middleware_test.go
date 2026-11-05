@@ -545,42 +545,6 @@ func chainMiddleware(middlewares ...mcp.Middleware) mcp.Middleware {
 	}
 }
 
-func TestSessionIDFromRequestNilCases(t *testing.T) {
-	assert.Empty(t, sessionIDFromRequest(nil))
-
-	req := &mcp.ServerRequest[*mcp.CallToolParamsRaw]{
-		Session: nil,
-		Params:  &mcp.CallToolParamsRaw{Name: "get_services"},
-	}
-	assert.Empty(t, sessionIDFromRequest(req))
-
-	clientReq := &mcp.ClientRequest[*mcp.CallToolParamsRaw]{
-		Session: (*mcp.ClientSession)(nil),
-		Params:  &mcp.CallToolParamsRaw{Name: "get_services"},
-	}
-	assert.Empty(t, sessionIDFromRequest(clientReq))
-
-	serverReq := &mcp.ServerRequest[*mcp.CallToolParamsRaw]{
-		Session: (*mcp.ServerSession)(nil),
-		Params:  &mcp.CallToolParamsRaw{Name: "get_services"},
-	}
-	assert.Empty(t, sessionIDFromRequest(serverReq))
-}
-
-func TestSessionIDFromRequestWithNonNilSession(t *testing.T) {
-	clientReq := &mcp.ClientRequest[*mcp.CallToolParamsRaw]{
-		Session: &mcp.ClientSession{},
-		Params:  &mcp.CallToolParamsRaw{Name: "get_services"},
-	}
-	assert.Empty(t, sessionIDFromRequest(clientReq))
-
-	serverReq := &mcp.ServerRequest[*mcp.CallToolParamsRaw]{
-		Session: &mcp.ServerSession{},
-		Params:  &mcp.CallToolParamsRaw{Name: "get_services"},
-	}
-	assert.Empty(t, sessionIDFromRequest(serverReq))
-}
-
 func TestIsNil(t *testing.T) {
 	var nilMap map[string]any
 	var nilSlice []string
