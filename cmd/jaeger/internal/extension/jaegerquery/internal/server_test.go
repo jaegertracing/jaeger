@@ -712,6 +712,36 @@ func TestServerInUseHostPort(t *testing.T) {
 	}
 }
 
+// TestServerReportsServeErrors makes both Serve calls fail by closing their
+// listeners before the servers accept on them, so the error branches of the two
+// serving goroutines run every time instead of only when Close happens to race
+// ahead of Serve.
+func TestServerReportsServeErrors(t *testing.T) {
+	zapCore, logs := observer.New(zap.ErrorLevel)
+	telset := initTelSet(zap.New(zapCore), nooptrace.NewTracerProvider())
+	server, err := NewServer(context.Background(), &querysvc.QueryService{}, nil,
+		&QueryOptions{
+			HTTP: confighttp.ServerConfig{NetAddr: confignet.AddrConfig{Endpoint: "127.0.0.1:0", Transport: confignet.TransportTypeTCP}},
+			GRPC: configgrpc.ServerConfig{NetAddr: confignet.AddrConfig{Endpoint: "127.0.0.1:0", Transport: confignet.TransportTypeTCP}},
+		},
+		noBackendCaps, noopTenancyMgr(), telset)
+	require.NoError(t, err)
+	require.NoError(t, server.Start(context.Background()))
+
+	// A closed listener fails Accept with a permanent error, which both Serve
+	// calls report, whether or not they had started accepting yet. The reports
+	// are awaited before Close, because a running gRPC Serve that observes Stop
+	// while it handles the Accept error returns nil instead.
+	require.NoError(t, server.httpConn.Close())
+	require.NoError(t, server.grpcConn.Close())
+	logged := func(message string) bool {
+		return logs.FilterMessage(message).Len() == 1
+	}
+	assert.Eventually(t, func() bool { return logged("Could not start HTTP server") }, 5*time.Second, 10*time.Millisecond)
+	assert.Eventually(t, func() bool { return logged("Could not start GRPC server") }, 5*time.Second, 10*time.Millisecond)
+	require.NoError(t, server.Close())
+}
+
 func TestServerGracefulExit(t *testing.T) {
 	zapCore, logs := observer.New(zap.ErrorLevel)
 	assert.Equal(t, 0, logs.Len(), "Expected initial ObservedLogs to have zero length.")
