@@ -40,8 +40,7 @@ flowchart TB
 ```
 
 The shared endpoint serves the telemetry tools to external MCP clients with no
-chat turn involved; see the
-[`mcptools` README](../mcptools/README.md). The turn-scoped endpoint serves the
+chat turn involved. The turn-scoped endpoint serves the
 same telemetry tools plus the calling turn's UI tools from the same
 `mcp.Server`.
 
@@ -202,31 +201,32 @@ to a final answer in the same turn. The browser cannot return a value during
 the turn; RFC 0008 §4.4 records that as an implementation limit, not a protocol
 one.
 
-The external-agent contract and the Goose worked example are documented in
-[`scripts/ai-sidecar/README.md`](../../../../../../../scripts/ai-sidecar/README.md).
+## Exercising a UI tool without the browser
 
-## Configuration
+The website's verification steps send a chat request with no UI tools. To see
+the gateway dispatch a UI tool, pass one with the request and ask for it:
 
-```yaml
-extensions:
-  jaeger_query:
-    ai:
-      agent_url: "ws://localhost:16688"
-      agent_headers:
-        Authorization: Bearer ${env:MY_AGENT_TOKEN}
-      mcp:
-        base_url: "http://localhost:16686"
+```bash
+curl -N -X POST http://127.0.0.1:16686/api/ai/chat \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "threadId": "t1", "runId": "r2",
+    "messages": [{"role": "user", "content": "show the flamegraph for trace abc123"}],
+    "tools": [{
+      "name": "show_flamegraph",
+      "description": "Open the flamegraph view for a trace_id.",
+      "parameters": {"type":"object","properties":{"trace_id":{"type":"string"}},"required":["trace_id"]}
+    }]
+  }'
 ```
 
-`agent_url` is the external agent's WebSocket URL. `agent_headers` are sent on
-every dial and redacted from logs. The headers that the query extension's
-`header_forwarding` list captures from the chat request go onto the same dial,
-so an agent that acts on the caller's behalf receives the caller's own identity
-token rather than a credential of the gateway. Each header arrives under its
-`http_outbound_name`, or its `http_name` when that is unset. `mcp.base_url` is the address that the
-agent can use to call Jaeger's MCP endpoint. When both ends are on the same
-loopback host, the gateway can infer a suitable MCP URL; other deployments
-should configure it explicitly.
+The stream carries `TOOL_CALL_START`, `TOOL_CALL_ARGS` and `TOOL_CALL_END` for
+`show_flamegraph`. The agent sees the tool as `ui__show_flamegraph`, and the
+gateway strips the prefix before the event reaches the browser.
+
+The external-agent contract, the Goose worked example, and the operator
+configuration are documented on the website, in
+[AI Assistant](https://www.jaegertracing.io/docs/latest/ai/assistant/).
 
 ## Related code
 
