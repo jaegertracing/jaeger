@@ -26,7 +26,7 @@ func Command(v *viper.Viper, adminPort int) *cobra.Command {
 		Use:   "status",
 		Short: "Print the status.",
 		Long:  `Print Jaeger component status information, exit non-zero on any error.`,
-		RunE: func(_ *cobra.Command, _ /* args */ []string) error {
+		RunE: func(cmd *cobra.Command, _ /* args */ []string) error {
 			url := convert(v.GetString(statusHTTPHostPort))
 			ctx, cx := context.WithTimeout(context.Background(), time.Second)
 			defer cx()
@@ -37,8 +37,13 @@ func Command(v *viper.Viper, adminPort int) *cobra.Command {
 			}
 			defer resp.Body.Close()
 			body, _ := io.ReadAll(resp.Body)
-			fmt.Println(string(body))
-			if resp.StatusCode != http.StatusOK {
+			if len(body) == 0 {
+				// The health endpoint may answer without a body (e.g. 204 No Content),
+				// so report the HTTP status instead of printing an empty line.
+				body = []byte(resp.Status)
+			}
+			fmt.Fprintln(cmd.OutOrStdout(), string(body))
+			if resp.StatusCode < http.StatusOK || resp.StatusCode >= http.StatusMultipleChoices {
 				return fmt.Errorf("abnormal value of http status code: %v", resp.StatusCode)
 			}
 			return nil

@@ -4,6 +4,7 @@
 package status
 
 import (
+	"bytes"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -20,6 +21,10 @@ func readyHandler(w http.ResponseWriter, _ *http.Request) {
 	w.Write([]byte("{\"status\":\"Server available\"}"))
 }
 
+func noContentHandler(w http.ResponseWriter, _ *http.Request) {
+	w.WriteHeader(http.StatusNoContent)
+}
+
 func unavailableHandler(w http.ResponseWriter, _ *http.Request) {
 	w.WriteHeader(http.StatusServiceUnavailable)
 	w.Write([]byte("{\"status\":\"Server not available\"}"))
@@ -30,9 +35,25 @@ func TestReady(t *testing.T) {
 	defer ts.Close()
 	v := viper.New()
 	cmd := Command(v, 80)
+	var out bytes.Buffer
+	cmd.SetOut(&out)
 	cmd.ParseFlags([]string{"--status.http.host-port=" + strings.TrimPrefix(ts.URL, "http://")})
 	err := cmd.Execute()
 	require.NoError(t, err)
+	require.JSONEq(t, `{"status":"Server available"}`, out.String())
+}
+
+func TestReadyNoContent(t *testing.T) {
+	ts := httptest.NewServer(http.HandlerFunc(noContentHandler))
+	defer ts.Close()
+	v := viper.New()
+	cmd := Command(v, 80)
+	var out bytes.Buffer
+	cmd.SetOut(&out)
+	cmd.ParseFlags([]string{"--status.http.host-port=" + strings.TrimPrefix(ts.URL, "http://")})
+	err := cmd.Execute()
+	require.NoError(t, err)
+	require.Equal(t, "204 No Content\n", out.String())
 }
 
 func TestOnlyPortConfig(t *testing.T) {
