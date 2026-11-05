@@ -75,10 +75,15 @@ if [ "$ci" = 1 ]; then
 fi
 "${compose[@]}" up -d --wait --wait-timeout 120 || { "${compose[@]}" logs; exit 1; }
 
-for _ in $(seq 1 30); do
-  curl -fsS -o /dev/null http://127.0.0.1:16690/api/v3/services && break
+# Compose reports Goose as started before it listens, so the script waits for
+# the aiAssistant flag in the UI page, which Jaeger sets after its health check
+# reaches Goose over ACP (health_check_interval in jaeger-config.yaml).
+ready=0
+for _ in $(seq 1 60); do
+  if curl -fsS http://127.0.0.1:16690/ 2>/dev/null | grep -q '"aiAssistant":true'; then ready=1; break; fi
   sleep 1
 done
+[ "$ready" = 1 ] || { echo "FAIL: Jaeger did not report the agent healthy within 60s"; "${compose[@]}" logs goose jaeger; exit 1; }
 
 # Only the proxy log lines written from here on belong to this check; the
 # stack may have served chat turns from the UI before, and those carry no

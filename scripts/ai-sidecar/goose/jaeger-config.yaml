@@ -28,6 +28,9 @@ extensions:
       agent_url: ws://goose:16688/acp
       agent_headers:
         X-Secret-Key: ${env:GOOSE_SERVER__SECRET_KEY}
+      # run.sh waits for this check to reach Goose before it sends the chat
+      # request, so the stack checks more often than the 30s default.
+      health_check_interval: 2s
       mcp:
         base_url: http://mcp-proxy:80
   jaeger_storage:
