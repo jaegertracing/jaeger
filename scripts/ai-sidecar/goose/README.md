@@ -16,8 +16,7 @@ note that the website does not carry.
 
 - Jaeger 2.21 or later.
 - The `goose` binary from [Goose releases](https://github.com/aaif-goose/goose/releases),
-  v1.55.0 or later, which propagates the chat request's trace context into
-  Goose's MCP tool calls so the agent's spans appear in the request trace.
+  v1.55.0 or later.
 - Credentials for a model provider. The zero-cost route is
   [OpenRouter](https://openrouter.ai)'s free tier.
 
