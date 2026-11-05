@@ -40,8 +40,7 @@ flowchart TB
 ```
 
 The shared endpoint serves the telemetry tools to external MCP clients with no
-chat turn involved; see the
-[`mcptools` README](../mcptools/README.md). The turn-scoped endpoint serves the
+chat turn involved. The turn-scoped endpoint serves the
 same telemetry tools plus the calling turn's UI tools from the same
 `mcp.Server`.
 
