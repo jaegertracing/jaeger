@@ -57,6 +57,11 @@ while [ $# -gt 0 ]; do
 done
 if [ "$release" = 0 ]; then
   build_dir=$(mktemp -d)
+  # The binary embeds the UI only when the assets have been built; without
+  # them it serves a placeholder page, and the header check still works.
+  if [ ! -f ../../../cmd/jaeger/internal/extension/jaegerquery/internal/ui/actual/index.html.gz ]; then
+    echo "--- UI assets are not built: the UI at http://localhost:16686 is a placeholder page; run 'make build-ui' first, or pass --release, to get the Jaeger UI"
+  fi
   echo "--- building cmd/jaeger for linux into $build_dir"
   CGO_ENABLED=0 GOOS=linux go build -o "$build_dir/jaeger-linux" ../../../cmd/jaeger
   export JAEGER_BINARY="$build_dir/jaeger-linux"
