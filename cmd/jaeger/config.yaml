@@ -51,7 +51,7 @@ extensions:
       # through a loopback-dialing proxy or sidecar, stateless for several
       # jaeger-query replicas behind a load balancer without session affinity,
       # json_response to answer POSTs with plain JSON instead of an event stream
-      # (see https://www.jaegertracing.io/docs/latest/ai/mcp-server/).
+      # (see cmd/jaeger/internal/extension/jaegerquery/internal/mcptools/params.go).
       mcp: {}
       # An auth block naming an authenticator extension gates the AI surfaces
       # alone (the chat endpoint, this MCP endpoint and the UI's chat panel),
