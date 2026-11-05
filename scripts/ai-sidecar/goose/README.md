@@ -1,5 +1,9 @@
 # Goose (ACP Agent)
 
+Jaeger's AI gateway is bring-your-own-agent: it dials an
+[ACP](https://agentclientprotocol.com/) agent over WebSocket and speaks the
+protocol to it. No agent code lives here.
+
 [Goose](https://github.com/aaif-goose/goose) serves ACP over WebSocket natively,
 so it works as the agent behind Jaeger's AI gateway with no bridge or wrapper.
 The steps to configure it, point Jaeger at it, and verify the result are on the
