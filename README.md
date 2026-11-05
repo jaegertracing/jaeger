@@ -1,3 +1,5 @@
+English | [简体中文](https://github.com/jaegertracing/jaeger/blob/main/README.zh-CN.md)
+
 [![Stand With Ukraine](https://raw.githubusercontent.com/vshymanskyy/StandWithUkraine/main/banner2-direct.svg)](https://stand-with-ukraine.pp.ua)
 
 <img align="right" width="290" height="290" src="https://www.jaegertracing.io/img/jaeger-vector.svg">
