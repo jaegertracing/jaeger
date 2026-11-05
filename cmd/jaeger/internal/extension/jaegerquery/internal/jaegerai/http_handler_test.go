@@ -88,7 +88,7 @@ func TestNewHandlerNormalizesMCPBaseURL(t *testing.T) {
 			Logger: zap.NewNop(), AgentURL: "ws://x", MaxRequestBodySize: 1,
 			MCP: sharedMCPHandler(t), MCPBaseURL: base,
 		})
-		got := h.chat.announceMCP(httpCaps(true), "SID")
+		got := h.chat.announceMCP(httpCaps(true), turnGrant{routeID: "SID", token: "tok"})
 		require.Len(t, got, 1)
 		assert.Equal(t, "http://127.0.0.1:16686/api/ai/mcp/SID/", got[0].Http.Url,
 			"base URL %q must normalize to a single slash", base)
@@ -111,18 +111,43 @@ func TestRegisterRoutesMountsSessionScopedMCPWhenEnabled(t *testing.T) {
 	require.NotNil(t, h.mcp, "MCP endpoint must be built when an MCP handler is supplied")
 	mux := http.NewServeMux()
 	h.RegisterRoutes(mux)
-	routeID := registerTurn(h.mcp.turns, testAGUIRun(), nil) // active turn
+	grant := registerTurn(h.mcp.turns, testAGUIRun(), nil) // active turn
+
+	turnRequest := func(path, token string) *http.Request {
+		req := httptest.NewRequest(http.MethodGet, path, http.NoBody)
+		if token != "" {
+			req.Header.Set(turnTokenHeader, token)
+		}
+		return req
+	}
 
 	t.Run("active turn is served", func(t *testing.T) {
 		rr := httptest.NewRecorder()
-		mux.ServeHTTP(rr, httptest.NewRequest(http.MethodGet, "/api/ai/mcp/"+routeID+"/mcp", http.NoBody))
+		mux.ServeHTTP(rr, turnRequest("/api/ai/mcp/"+grant.routeID+"/mcp", grant.token))
 		assert.NotEqual(t, http.StatusNotFound, rr.Code, "registered turn must reach the MCP handler")
+		assert.NotEqual(t, http.StatusUnauthorized, rr.Code, "the turn's token must be accepted")
 	})
 
 	t.Run("active turn is served without a trailing slash", func(t *testing.T) {
 		rr := httptest.NewRecorder()
-		mux.ServeHTTP(rr, httptest.NewRequest(http.MethodGet, "/api/ai/mcp/"+routeID, http.NoBody))
+		mux.ServeHTTP(rr, turnRequest("/api/ai/mcp/"+grant.routeID, grant.token))
 		assert.NotEqual(t, http.StatusNotFound, rr.Code, "no-slash form must also reach the MCP handler")
+		assert.NotEqual(t, http.StatusUnauthorized, rr.Code, "the turn's token must be accepted")
+	})
+
+	t.Run("active turn without its token is refused", func(t *testing.T) {
+		for _, token := range []string{"", "not-the-token"} {
+			rr := httptest.NewRecorder()
+			mux.ServeHTTP(rr, turnRequest("/api/ai/mcp/"+grant.routeID+"/mcp", token))
+			assert.Equal(t, http.StatusUnauthorized, rr.Code, "token %q", token)
+		}
+	})
+
+	t.Run("one turn's token does not open another turn", func(t *testing.T) {
+		other := registerTurn(h.mcp.turns, testAGUIRun(), nil)
+		rr := httptest.NewRecorder()
+		mux.ServeHTTP(rr, turnRequest("/api/ai/mcp/"+grant.routeID+"/mcp", other.token))
+		assert.Equal(t, http.StatusUnauthorized, rr.Code)
 	})
 
 	t.Run("unknown route id is rejected", func(t *testing.T) {
@@ -149,8 +174,9 @@ func TestRegisterRoutesOmitsMCPEndpointWhenDisabled(t *testing.T) {
 }
 
 // The ai.auth check arrives as ChatMiddleware. It must stop at the chat endpoint:
-// the turn-scoped MCP endpoint is dialed by the sidecar, which carries no user
-// credential, so wrapping it would break every chat turn.
+// the turn-scoped MCP endpoint is dialed by the agent, whose requests are admitted
+// by the turn token and carry only the headers the gateway announced, so a check
+// written for the browser's request would refuse them and break every chat turn.
 func TestChatMiddlewareLeavesTurnScopedEndpointAlone(t *testing.T) {
 	shared := sharedMCPHandler(t)
 	rejectEveryone := func(http.Handler) http.Handler {
@@ -165,7 +191,7 @@ func TestChatMiddlewareLeavesTurnScopedEndpointAlone(t *testing.T) {
 		MCP:                shared,
 		ChatMiddleware:     rejectEveryone,
 	})
-	routeID := registerTurn(h.mcp.turns, testAGUIRun(), nil)
+	grant := registerTurn(h.mcp.turns, testAGUIRun(), nil)
 
 	mux := http.NewServeMux()
 	h.RegisterRoutes(mux)
@@ -177,6 +203,6 @@ func TestChatMiddlewareLeavesTurnScopedEndpointAlone(t *testing.T) {
 	resp.Body.Close()
 	assert.Equal(t, http.StatusUnauthorized, resp.StatusCode, "the chat endpoint is behind the middleware")
 
-	assert.Contains(t, listToolNames(t, ts, "/api/ai/mcp/"+routeID+"/"), "get_services",
+	assert.Contains(t, listToolNames(t, ts, "/api/ai/mcp/"+grant.routeID+"/", grant.token), "get_services",
 		"the turn-scoped endpoint serves the sidecar without the middleware")
 }
