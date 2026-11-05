@@ -12,13 +12,19 @@ import (
 	"testing"
 	"time"
 
+	acp "github.com/coder/acp-go-sdk"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerquery/internal/mcptools"
 	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerquery/querysvc"
+	"github.com/jaegertracing/jaeger/internal/auth/bearertoken"
+	"github.com/jaegertracing/jaeger/internal/headerforwarding"
 	depstoremocks "github.com/jaegertracing/jaeger/internal/storage/v2/api/depstore/mocks"
+	"github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore"
 	tracestoremocks "github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore/mocks"
 	"github.com/jaegertracing/jaeger/internal/telemetry"
 	"github.com/jaegertracing/jaeger/internal/tenancy"
@@ -39,23 +45,60 @@ func rawUITool(t *testing.T, name string) json.RawMessage {
 // and hands to the gateway — the same server both mounts are served from.
 func sharedMCPHandler(t *testing.T) *mcptools.Handler {
 	t.Helper()
-	params := mcptools.DefaultServerParams()
-	svc := querysvc.NewQueryService(&tracestoremocks.Reader{}, &depstoremocks.Reader{}, querysvc.QueryServiceOptions{})
+	return sharedMCPHandlerWithReader(t, mcptools.DefaultServerParams(), &tracestoremocks.Reader{})
+}
+
+func sharedMCPHandlerWithReader(t *testing.T, params mcptools.ServerParams, reader tracestore.Reader) *mcptools.Handler {
+	t.Helper()
+	svc := querysvc.NewQueryService(reader, &depstoremocks.Reader{}, querysvc.QueryServiceOptions{})
 	h := mcptools.NewHandler(telemetry.NoopSettings(), svc, tenancy.NewManager(&tenancy.Options{}), params)
 	return h
 }
 
-// turnMCPServer mounts a real turn-scoped handler with one active turn holding
-// the given UI tools, beside the shared telemetry mount at /api/ai/mcp/ as the
-// query server mounts it, and returns the test HTTP server, the recorder backing
-// that turn's SSE stream (to observe UI-tool dispatch) and the turn's grant.
+// turnMCPServer mounts a real turn-scoped handler with one active turn
+// ("sess-1") holding the given UI tools, and returns the test HTTP server plus
+// the recorder backing that turn's SSE stream (to observe UI-tool dispatch).
 func turnMCPServer(t *testing.T, uiTools []json.RawMessage) (ts *httptest.Server, rec *httptest.ResponseRecorder, grant turnGrant) {
 	t.Helper()
-	turns := newTurnRegistry()
-	rec = httptest.NewRecorder()
-	grant = registerTurn(turns, newAGUIRun(t.Context(), rec, "thread", "run"), uiTools)
+	f := newTurnMCPFixture(t, turnMCPOptions{uiTools: uiTools})
+	return f.ts, f.rec, f.grant
+}
 
-	shared := sharedMCPHandler(t)
+// turnMCPOptions configures newTurnMCPFixture. Zero values give no UI tools, a
+// reader that answers nothing and no middleware.
+type turnMCPOptions struct {
+	uiTools []json.RawMessage
+	// reader is the trace reader behind the telemetry tools; nil gives a bare
+	// mock that answers no call.
+	reader tracestore.Reader
+	// wrap wraps the fixture's router the way the query server wraps its own,
+	// so a test can put the server-wide identity middleware in front of the
+	// turn-scoped endpoint. nil installs none.
+	wrap func(http.Handler) http.Handler
+}
+
+// turnMCPFixture is a test server with one active turn, mounted the way the
+// query server mounts the gateway: the turn-scoped routes plus the shared
+// telemetry mount at /api/ai/mcp/, both served from one MCP server.
+type turnMCPFixture struct {
+	ts        *httptest.Server
+	rec       *httptest.ResponseRecorder
+	grant     turnGrant
+	closeTurn func()
+	turns     *turnRegistry
+}
+
+func newTurnMCPFixture(t *testing.T, opts turnMCPOptions) turnMCPFixture {
+	t.Helper()
+	turns := newTurnRegistry()
+	rec := httptest.NewRecorder()
+	grant, closeTurn := turns.register(newAGUIRun(t.Context(), rec, "thread", "run"), opts.uiTools)
+
+	reader := opts.reader
+	if reader == nil {
+		reader = &tracestoremocks.Reader{}
+	}
+	shared := sharedMCPHandlerWithReader(t, mcptools.DefaultServerParams(), reader)
 	h := turnScopedEndpointBuilder{
 		baseHandler: shared,
 		turns:       turns,
@@ -65,36 +108,155 @@ func turnMCPServer(t *testing.T, uiTools []json.RawMessage) (ts *httptest.Server
 	h.registerRoutes(mux)
 	mux.Handle(routeMCPPrefix, http.StripPrefix(strings.TrimSuffix(routeMCPPrefix, "/"), shared))
 
-	ts = httptest.NewServer(mux)
+	var handler http.Handler = mux
+	if opts.wrap != nil {
+		handler = opts.wrap(mux)
+	}
+	ts := httptest.NewServer(handler)
 	t.Cleanup(ts.Close)
-	return ts, rec, grant
+	return turnMCPFixture{
+		ts:        ts,
+		rec:       rec,
+		grant:     grant,
+		closeTurn: closeTurn,
+		turns:     turns,
+	}
 }
 
-// connectTurnMCP connects an MCP client to path, sending token as the turn token
-// header on every request the way an agent sends the header announced in
-// session/new. token is empty for the shared endpoint, which requires none.
+// callerSeen is what a telemetry tool saw in its context: the identity the query
+// server's middleware captured from the HTTP request that carried the tool call.
+type callerSeen struct {
+	bearer string
+	user   string
+}
+
+// identityFixture mounts the turn-scoped endpoint behind the server-wide bearer
+// token and header forwarding middleware, the way the query server mounts it, with
+// a trace reader that reports the caller each get_services call ran as.
+func identityFixture(t *testing.T) (f turnMCPFixture, forwarded []headerforwarding.ForwardedHeader, calls chan callerSeen) {
+	t.Helper()
+	forwarded = []headerforwarding.ForwardedHeader{{HTTPName: "X-User", HTTPOutboundName: "X-Forwarded-User"}}
+	calls = make(chan callerSeen, 4)
+	reader := &tracestoremocks.Reader{}
+	reader.On("GetServices", mock.Anything).Run(func(args mock.Arguments) {
+		ctx := args.Get(0).(context.Context)
+		seen := callerSeen{}
+		seen.bearer, _ = bearertoken.GetBearerToken(ctx)
+		for _, c := range headerforwarding.CapturedFromContext(ctx) {
+			if c.Header.HTTPName == "X-User" {
+				seen.user = c.Value
+			}
+		}
+		calls <- seen
+	}).Return([]string{"svc"}, nil)
+	f = newTurnMCPFixture(t, turnMCPOptions{
+		reader: reader,
+		wrap: func(next http.Handler) http.Handler {
+			return bearertoken.PropagationHandler(zap.NewNop(), headerforwarding.HTTPServerMiddleware(forwarded, next))
+		},
+	})
+	return f, forwarded, calls
+}
+
+// announcedHeaders returns the headers the gateway announces for grant when the
+// chat request carried the given bearer token and X-User value.
+func announcedHeaders(t *testing.T, forwarded []headerforwarding.ForwardedHeader, grant turnGrant, bearer, user string) []acp.HttpHeader {
+	t.Helper()
+	ctx := bearertoken.ContextWithBearerToken(t.Context(), bearer)
+	ctx = headerforwarding.ContextWithCaptured(ctx, []headerforwarding.CapturedHeader{{Header: &forwarded[0], Value: user}})
+	return turnServerHeaders(ctx, grant)
+}
+
+// The agent sends the announced headers on every request to the turn's MCP
+// server, and the query server's own middleware reads them off the tool request,
+// so a telemetry tool runs with the chat caller's identity in its context without
+// the gateway storing any. A session opened without them runs as nobody.
+func TestTurnScopedEndpointRunsToolCallsAsTheAnnouncedCaller(t *testing.T) {
+	f, forwarded, calls := identityFixture(t)
+	path := routeMCPPrefix + f.grant.routeID + "/"
+
+	withIdentity := connectTurnMCPWithHeaders(t, f.ts, path, announcedHeaders(t, forwarded, f.grant, "tok-alice", "alice"))
+	res, err := withIdentity.CallTool(t.Context(), &mcp.CallToolParams{Name: "get_services"})
+	require.NoError(t, err)
+	require.False(t, res.IsError)
+	assert.Equal(t, callerSeen{bearer: "tok-alice", user: "alice"}, <-calls)
+
+	anonymous := connectTurnMCP(t, f.ts, path, f.grant.token)
+	res, err = anonymous.CallTool(t.Context(), &mcp.CallToolParams{Name: "get_services"})
+	require.NoError(t, err)
+	require.False(t, res.IsError)
+	assert.Equal(t, callerSeen{}, <-calls, "the token alone carries no identity")
+}
+
+// Each tool call runs under the identity of its own HTTP request, and nothing
+// from an earlier request selects a caller: a request on turn B with turn B's
+// token and Bob's headers runs as Bob after Alice's call on turn A, and so does a
+// request on turn A itself with the right token and Bob's headers.
+func TestTurnScopedEndpointRunsEachRequestAsItsOwnCaller(t *testing.T) {
+	f, forwarded, calls := identityFixture(t)
+	alice := connectTurnMCPWithHeaders(t, f.ts, routeMCPPrefix+f.grant.routeID+"/", announcedHeaders(t, forwarded, f.grant, "tok-alice", "alice"))
+	_, err := alice.CallTool(t.Context(), &mcp.CallToolParams{Name: "get_services"})
+	require.NoError(t, err)
+	require.Equal(t, callerSeen{bearer: "tok-alice", user: "alice"}, <-calls, "precondition: Alice's call runs as Alice")
+	require.Empty(t, alice.ID(), "precondition: the endpoint issued Alice no session id that Bob could name")
+
+	grantB, closeB := f.turns.register(newAGUIRun(t.Context(), httptest.NewRecorder(), "thread-b", "run-b"), nil)
+	t.Cleanup(closeB)
+
+	callAsBob := func(t *testing.T, grant turnGrant) {
+		t.Helper()
+		req, err := http.NewRequestWithContext(t.Context(), http.MethodPost, f.ts.URL+routeMCPPrefix+grant.routeID+"/",
+			strings.NewReader(`{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"get_services","arguments":{}}}`))
+		require.NoError(t, err)
+		req.Header.Set("Content-Type", "application/json")
+		req.Header.Set("Accept", "application/json, text/event-stream")
+		for _, h := range announcedHeaders(t, forwarded, grant, "tok-bob", "bob") {
+			req.Header.Set(h.Name, h.Value)
+		}
+		resp, err := f.ts.Client().Do(req)
+		require.NoError(t, err)
+		defer resp.Body.Close()
+		require.Equal(t, http.StatusOK, resp.StatusCode)
+		assert.Equal(t, callerSeen{bearer: "tok-bob", user: "bob"}, <-calls)
+	}
+	t.Run("on another turn", func(t *testing.T) { callAsBob(t, grantB) })
+	t.Run("on the same turn", func(t *testing.T) { callAsBob(t, f.grant) })
+}
+
+// connectTurnMCP connects an MCP client to path. token is the turn's token, sent
+// on every request; it is empty for the shared endpoint, which requires none.
 func connectTurnMCP(t *testing.T, ts *httptest.Server, path, token string) *mcp.ClientSession {
+	t.Helper()
+	var headers []acp.HttpHeader
+	if token != "" {
+		headers = []acp.HttpHeader{{Name: turnTokenHeader, Value: token}}
+	}
+	return connectTurnMCPWithHeaders(t, ts, path, headers)
+}
+
+// connectTurnMCPWithHeaders connects an MCP client to path, sending headers on
+// every request the way an agent sends the headers announced in session/new.
+func connectTurnMCPWithHeaders(t *testing.T, ts *httptest.Server, path string, headers []acp.HttpHeader) *mcp.ClientSession {
 	t.Helper()
 	ctx, cancel := context.WithTimeout(t.Context(), 5*time.Second)
 	t.Cleanup(cancel)
 	mcpClient := mcp.NewClient(&mcp.Implementation{Name: "test-client", Version: "0.0.0"}, nil)
 	session, err := mcpClient.Connect(ctx, &mcp.StreamableClientTransport{
 		Endpoint:   ts.URL + path,
-		HTTPClient: tokenHTTPClient(ts, token),
+		HTTPClient: headersHTTPClient(ts, headers),
 	}, nil)
 	require.NoError(t, err)
 	t.Cleanup(func() { session.Close() })
 	return session
 }
 
-// tokenHTTPClient returns ts's client, sending token in the turn token header on
-// every request when it is not empty.
-func tokenHTTPClient(ts *httptest.Server, token string) *http.Client {
+// headersHTTPClient returns ts's client, sending headers on every request.
+func headersHTTPClient(ts *httptest.Server, headers []acp.HttpHeader) *http.Client {
 	base := ts.Client()
 	return &http.Client{Transport: roundTripperFunc(func(r *http.Request) (*http.Response, error) {
 		r = r.Clone(r.Context())
-		if token != "" {
-			r.Header.Set(turnTokenHeader, token)
+		for _, h := range headers {
+			r.Header.Set(h.Name, h.Value)
 		}
 		return base.Transport.RoundTrip(r)
 	})}
@@ -159,7 +321,17 @@ func TestSharedMCPHandlerServesTelemetryOnly(t *testing.T) {
 // there is no id that could name a turn's identity on any endpoint. A client
 // that sends one anyway is served as if it had not.
 func TestTurnScopedEndpointIssuesNoSessionID(t *testing.T) {
-	ts, _, grant := turnMCPServer(t, nil)
+	turns := newTurnRegistry()
+	grant, _ := turns.register(testAGUIRun(), nil)
+	h := turnScopedEndpointBuilder{
+		baseHandler: sharedMCPHandler(t),
+		turns:       turns,
+		logger:      telemetry.NoopSettings().Logger,
+	}.build()
+	mux := http.NewServeMux()
+	h.registerRoutes(mux)
+	ts := httptest.NewServer(mux)
+	t.Cleanup(ts.Close)
 
 	post := func(body, sessionID string) *http.Response {
 		req, err := http.NewRequestWithContext(context.Background(), http.MethodPost, ts.URL+"/api/ai/mcp/"+grant.routeID+"/",
