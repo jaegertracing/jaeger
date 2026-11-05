@@ -70,7 +70,7 @@ type StreamableHTTPConfig struct {
 	// Jaeger never sends any, so that stream carried nothing and the client
 	// continues without it, as the MCP specification requires. The chat gateway's
 	// turn-scoped endpoint still has to be reached on the replica that owns the
-	// turn; see README.md.
+	// turn.
 	Stateless bool `mapstructure:"stateless" valid:"optional"`
 	// JSONResponse makes the endpoint answer a POST that carries one JSON-RPC
 	// message with a plain application/json body instead of a text/event-stream

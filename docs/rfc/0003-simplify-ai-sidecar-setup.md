@@ -777,7 +777,7 @@ pre-flight auth check, Jaeger launch, sidecar launch, and clean shutdown.
 ---
 
 [rfc-0002]: ./0002-ai-gateway-contextual-tools.md
-[sidecar-readme]: ../../scripts/ai-sidecar/README.md
+[sidecar-readme]: ../../cmd/jaeger/internal/extension/jaegerquery/internal/jaegerai/README.md
 [ui-config]: ../../jaeger-ui/packages/jaeger-ui/src/types/config.ts
 [server-go]: ../../cmd/jaeger/internal/extension/jaegerquery/internal/server.go
 [flags-go]: ../../cmd/jaeger/internal/extension/jaegerquery/internal/flags.go

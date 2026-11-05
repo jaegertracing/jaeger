@@ -43,11 +43,11 @@ extensions:
     ai:
       agent_url: ws://localhost:16688
       # Serves the MCP endpoint for AI agents at /api/ai/mcp/ on the query port.
-      # Remove the block to disable it; the optional keys are described in
-      # cmd/jaeger/internal/extension/jaegerquery/internal/mcptools/README.md.
+      # Remove the block to disable it. The optional keys are described at
+      # https://www.jaegertracing.io/docs/latest/ai/mcp-server/.
       mcp: {}
       # Names an authenticator extension that gates the AI surfaces alone; see
-      # cmd/jaeger/internal/extension/jaegerquery/README.md.
+      # https://www.jaegertracing.io/docs/latest/deployment/security/.
       # auth:
       #   authenticator: proxy_identity
     # Accept OTLP/HTTP spans from the UI same-origin at /api/otlp/v1/*

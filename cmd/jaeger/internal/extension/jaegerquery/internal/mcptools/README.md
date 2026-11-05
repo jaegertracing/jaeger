@@ -1,24 +1,16 @@
 # mcptools
 
 This package serves Jaeger's telemetry tools over MCP, `read_skill` among them.
-
-A *skill* is a markdown playbook an AI agent reads before attempting a task —
-how to detect an N+1 query pattern, how to walk a failed trace to its root
-cause. Agents reach them through `read_skill`, starting at the root `SKILL.md`
-and following its links, so a skill is only read when it looks relevant.
+Operating the endpoint is documented on the website, starting at
+[MCP Server](https://www.jaegertracing.io/docs/latest/ai/mcp-server/). This file
+keeps the developer-level detail of the skills mount: how the operator's
+directory is mounted, the exact startup errors, and how the limits are enforced.
 
 The `skills/` directory beside this file holds the skills compiled into the
-Jaeger binary. For writing a skill, see
+Jaeger binary. A built-in skill follows the same guide as an operator's skill,
 [Custom Skills](https://www.jaegertracing.io/docs/latest/ai/skills/) on the
-website.
-
-Operating the endpoint is documented on the website, in
-[MCP Server](https://www.jaegertracing.io/docs/latest/ai/mcp-server/): enabling
-and disabling it, the tool catalog, connecting a client, exposure and
-authentication, tenants and sessions, the Streamable HTTP transport options, and
-serving installation-specific skills from `ai.mcp.skills_dir`. This file keeps
-the developer-level detail of the skills mount: how the operator's directory is
-mounted, the exact startup errors, and how the limits are enforced.
+website, with one difference: the root `SKILL.md` links to it without the
+`custom/` prefix, for example `detect-n-plus-one/SKILL.md`.
 
 ## How `skills_dir` is mounted
 
@@ -33,22 +25,15 @@ custom/SKILL.md                # operator entry point, mounts <skills_dir>/SKILL
 custom/your-skill/SKILL.md     # operator skill      , mounts <skills_dir>/your-skill/SKILL.md
 ```
 
-`custom/` is a prefix on the path an agent asks for, not a directory the
-operator creates. The built-in root `SKILL.md` links to `custom/SKILL.md`, so an
-agent that follows the index reaches the operator's skills, and a `read_skill`
-for any `custom/…` path answers `cannot read "<path>": …` when no `skills_dir`
-is configured.
-
-The directory is read live, so an edit takes effect on the next `read_skill`
-call. Startup validation is the exception: it runs once, so a directory that
-breaks after the server started is reported when an agent reads it rather than
-by refusing to serve.
+A `read_skill` for any `custom/…` path answers `cannot read "<path>": …` when
+no `skills_dir` is configured. Startup validation runs once, so a directory that
+breaks after the server started is reported the same way, when an agent reads
+it, rather than by refusing to serve.
 
 ## What Jaeger checks, and what it limits
 
-A `skills_dir` that cannot be opened, or whose `SKILL.md` cannot be read, is
-broken configuration, and Jaeger refuses to start rather than quietly serving an
-incomplete skill set:
+These are the startup errors for a `skills_dir` that cannot be opened or whose
+`SKILL.md` cannot be read:
 
 | Startup error | Cause |
 | --- | --- |
