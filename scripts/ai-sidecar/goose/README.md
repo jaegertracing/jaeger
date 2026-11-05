@@ -14,13 +14,10 @@ note that the website does not carry.
 
 ## Prerequisites
 
-- Jaeger 2.21 or later. Earlier gateways waited for a newline after each ACP
-  message, which Goose does not send, and had no `ai.agent_headers`.
+- Jaeger 2.21 or later.
 - The `goose` binary from [Goose releases](https://github.com/aaif-goose/goose/releases),
-  v1.55.0 or later. That release includes
-  [aaif-goose/goose#12697](https://github.com/aaif-goose/goose/pull/12697), which
-  propagates the chat request's trace context into Goose's MCP tool calls so the
-  agent's spans appear in the request trace.
+  v1.55.0 or later, which propagates the chat request's trace context into
+  Goose's MCP tool calls so the agent's spans appear in the request trace.
 - Credentials for a model provider. The zero-cost route is
   [OpenRouter](https://openrouter.ai)'s free tier.
 
