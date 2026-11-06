@@ -19,19 +19,13 @@ import (
 	"go.uber.org/zap"
 )
 
-// streamingClientIDSeq is a process-wide monotonic counter appended to the
-// time-derived stem when startRun allocates IDs. Even on systems with
-// coarse clock resolution (some VMs, older Windows) or two streamingClients
-// constructed within the same nanosecond, the counter guarantees no two
-// runs in this process share a stem. The combination (nanos-seq) is also
-// time-sortable across processes, which keeps logs from a single Jaeger
-// instance well-ordered.
-var streamingClientIDSeq atomic.Uint64
+// aguiRunIDSeq is the process-wide monotonic counter that newIDStem
+// appends to its time-derived stem.
+var aguiRunIDSeq atomic.Uint64
 
-var _ acp.Client = (*streamingClient)(nil)
-
-// streamingClient implements acp.Client and translates ACP session updates
-// into AG-UI SSE events written to the HTTP response.
+// aguiRun is the server side of one AG-UI run for one chat turn. It writes the
+// run's events as AG-UI SSE frames into the HTTP response; acpClient translates
+// the agent's output onto it and the turn-scoped MCP endpoint feeds it UI tool calls.
 //
 // Events are constructed via the typed AG-UI SDK constructors so that
 // schema-required fields (toolCallName, messageId, etc.) are positional —
@@ -39,11 +33,11 @@ var _ acp.Client = (*streamingClient)(nil)
 // frontend. Framing is delegated to the SDK's SSEWriter.
 //
 // All mutable fields (closed, threadID, runID, messageID, textOpen) are
-// guarded by mu. The ACP SDK may invoke SessionUpdate on a goroutine other
-// than the one driving Prompt, and lifecycle calls (startRun, finishRun,
-// failRun) come from the chat handler — every entry point that touches
+// guarded by mu. acpClient.SessionUpdate runs on a goroutine other than the
+// one driving Prompt, and lifecycle calls (startRun, finishRun, failRun) come
+// from the chat handler, so every entry point that touches
 // state or writes a frame must acquire the lock first.
-type streamingClient struct {
+type aguiRun struct {
 	requestCtx context.Context
 	w          http.ResponseWriter
 	sse        *aguisse.SSEWriter
@@ -55,8 +49,8 @@ type streamingClient struct {
 	textOpen   bool
 }
 
-func newStreamingClient(ctx context.Context, w http.ResponseWriter, threadID, runID string) *streamingClient {
-	return &streamingClient{
+func newAGUIRun(ctx context.Context, w http.ResponseWriter, threadID, runID string) *aguiRun {
+	return &aguiRun{
 		requestCtx: ctx,
 		w:          w,
 		sse:        aguisse.NewSSEWriter(),
@@ -68,8 +62,8 @@ func newStreamingClient(ctx context.Context, w http.ResponseWriter, threadID, ru
 // emit writes a typed AG-UI event as a single SSE frame. The SDK's
 // SSEWriter handles JSON encoding, newline escaping, and flushing.
 // Must be called with c.mu held; on context cancellation or write error
-// the client is marked closed so subsequent emissions are dropped.
-func (c *streamingClient) emit(event aguievents.Event) {
+// the run is marked closed so subsequent emissions are dropped.
+func (c *aguiRun) emit(event aguievents.Event) {
 	if c.closed {
 		return
 	}
@@ -90,18 +84,16 @@ func (c *streamingClient) emit(event aguievents.Event) {
 // text stream. ThreadID and RunID are preserved if the caller provided them
 // via the AG-UI RunAgentInput payload; otherwise time-derived defaults fill
 // in so the frontend always sees stable identifiers per run.
-func (c *streamingClient) startRun() {
+func (c *aguiRun) startRun() {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	// Allocate one stem per startRun and derive all three IDs from it.
-	// The stem is "<nanos>-<seq>": the nanosecond is time-sortable across
-	// processes, and the process-wide atomic counter guarantees no two
-	// runs in this process collide even on coarse-clock systems where
-	// two startRun calls might land in the same nanosecond. Sharing the
-	// stem also makes the trio visibly correlated in logs/traces — a
+	// Sharing the stem makes the trio visibly correlated in logs/traces — a
 	// thread-N-K, run-N-K, msg-N-K triplet tells a debugger at a glance
-	// they came from the same run startup.
-	stem := fmt.Sprintf("%d-%d", time.Now().UnixNano(), streamingClientIDSeq.Add(1))
+	// they came from the same run startup. Only the first text message of
+	// the run carries the shared stem; closeText clears messageID and
+	// ensureTextStart mints a fresh stem for each later message.
+	stem := newIDStem()
 	if c.threadID == "" {
 		c.threadID = "thread-" + stem
 	}
@@ -114,18 +106,22 @@ func (c *streamingClient) startRun() {
 	c.emit(aguievents.NewRunStartedEvent(c.threadID, c.runID))
 }
 
+// newIDStem returns "<nanos>-<seq>". The nanosecond keeps IDs time-sortable
+// across processes, and the counter keeps two stems minted in the same
+// nanosecond distinct on systems with coarse clock resolution.
+func newIDStem() string {
+	return fmt.Sprintf("%d-%d", time.Now().UnixNano(), aguiRunIDSeq.Add(1))
+}
+
 // finishRun closes any open text message and emits RUN_FINISHED. The
 // AG-UI schema has no top-level stopReason field, so the sidecar's stop
 // reason is forwarded via the schema-supported `result` payload as
 // `{"stopReason": "<reason>"}`. Empty stop reasons are omitted so the
 // emitted event stays compact.
-func (c *streamingClient) finishRun(stopReason string) {
+func (c *aguiRun) finishRun(stopReason string) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	if c.textOpen {
-		c.emit(aguievents.NewTextMessageEndEvent(c.messageID))
-		c.textOpen = false
-	}
+	c.closeText()
 	if stopReason != "" {
 		c.emit(aguievents.NewRunFinishedEventWithOptions(
 			c.threadID, c.runID,
@@ -139,41 +135,54 @@ func (c *streamingClient) finishRun(stopReason string) {
 // failRun emits RUN_ERROR with the supplied message. It is safe to call from
 // any handler error path; an open text message is closed first so frontends
 // can finalize rendering before reporting the failure.
-func (c *streamingClient) failRun(message string) {
+func (c *aguiRun) failRun(message string) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	if c.textOpen {
-		c.emit(aguievents.NewTextMessageEndEvent(c.messageID))
-		c.textOpen = false
-	}
+	c.closeText()
 	c.emit(aguievents.NewRunErrorEvent(message, aguievents.WithRunID(c.runID)))
 }
 
-// ensureTextStart emits TEXT_MESSAGE_START the first time streamed assistant
-// text is observed. Subsequent chunks are emitted as TEXT_MESSAGE_CONTENT.
-// A messageID is allocated lazily here as well as in startRun so an
-// out-of-order SessionUpdate (no preceding startRun) still produces a
-// schema-valid event — the SDK rejects events with empty required fields
-// at encode time. Must be called with c.mu held.
-func (c *streamingClient) ensureTextStart() {
+// ensureTextStart emits TEXT_MESSAGE_START when streamed assistant text is
+// observed and no message is open. Subsequent chunks are emitted as
+// TEXT_MESSAGE_CONTENT. A messageID is allocated lazily here as well as in
+// startRun so an out-of-order SessionUpdate (no preceding startRun) still
+// produces a schema-valid event — the SDK rejects events with empty required
+// fields at encode time. Must be called with c.mu held.
+func (c *aguiRun) ensureTextStart() {
 	if c.textOpen {
 		return
 	}
 	if c.messageID == "" {
-		c.messageID = fmt.Sprintf("msg-%d", time.Now().UnixNano())
+		c.messageID = "msg-" + newIDStem()
 	}
 	c.emit(aguievents.NewTextMessageStartEvent(c.messageID))
 	c.textOpen = true
 }
 
-// EmitContextualToolCall fires the TOOL_CALL_START / TOOL_CALL_ARGS /
+// closeText emits TEXT_MESSAGE_END for the open text message, if any, and
+// clears messageID so the next text chunk starts a new message. The
+// @assistant-ui/react-ag-ui aggregator keeps one text part per messageId, so
+// text that arrives after a tool call must carry a new id to render after
+// the tool call rather than be appended to the text before it. Must be
+// called with c.mu held.
+func (c *aguiRun) closeText() {
+	if !c.textOpen {
+		return
+	}
+	c.emit(aguievents.NewTextMessageEndEvent(c.messageID))
+	c.textOpen = false
+	c.messageID = ""
+}
+
+// EmitUIToolCall fires the TOOL_CALL_START / TOOL_CALL_ARGS /
 // TOOL_CALL_END lifecycle for a UI tool the agent invoked via the
 // turn-scoped MCP endpoint, writing the events onto the browser SSE stream so
 // the frontend executes the tool. It acquires c.mu like the other entry points,
-// so it is safe to call concurrently with the ACP SessionUpdate path.
-func (c *streamingClient) EmitContextualToolCall(toolCallID, toolName string, rawArgs any) {
+// so it is safe to call concurrently with the SessionUpdate path.
+func (c *aguiRun) EmitUIToolCall(toolCallID, toolName string, rawArgs any) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
+	c.closeText()
 	c.emit(aguievents.NewToolCallStartEvent(toolCallID, toolName))
 	if rawArgs != nil {
 		c.emit(aguievents.NewToolCallArgsEvent(toolCallID, marshalToolArgsDelta(rawArgs)))
@@ -181,12 +190,27 @@ func (c *streamingClient) EmitContextualToolCall(toolCallID, toolName string, ra
 	c.emit(aguievents.NewToolCallEndEvent(toolCallID))
 }
 
+var _ acp.Client = (*acpClient)(nil)
+
+// acpClient is the gateway's side of the ACP connection to the sidecar agent
+// for one chat turn. The ACP SDK calls it with the agent's session updates and
+// permission requests; it translates each update into events on the turn's
+// aguiRun and declines the file and terminal operations the gateway does not
+// offer.
+type acpClient struct {
+	run *aguiRun
+}
+
+func newACPClient(run *aguiRun) *acpClient {
+	return &acpClient{run: run}
+}
+
 // RequestPermission auto-accepts tool calls by selecting the first
 // allow-flavoured option the agent offers. The gateway curates which tools
 // an agent can invoke through two pre-approved channels:
 //   - MCP tools the operator wires up at deploy time (read-only telemetry
 //     queries against Jaeger).
-//   - Contextual tools the frontend declares for the chat turn (browser-
+//   - UI tools the frontend declares for the chat turn (browser-
 //     side AG-UI tools the user is implicitly authorising by sending the
 //     prompt).
 //
@@ -205,7 +229,7 @@ func (c *streamingClient) EmitContextualToolCall(toolCallID, toolName string, ra
 // If the agent presents no allow-kind option (e.g. only reject choices),
 // we fall through to cancelled so a misconfigured agent cannot be coerced
 // into a forbidden action.
-func (*streamingClient) RequestPermission(_ context.Context, req acp.RequestPermissionRequest) (acp.RequestPermissionResponse, error) {
+func (*acpClient) RequestPermission(_ context.Context, req acp.RequestPermissionRequest) (acp.RequestPermissionResponse, error) {
 	for _, opt := range req.Options {
 		if opt.Kind == acp.PermissionOptionKindAllowOnce || opt.Kind == acp.PermissionOptionKindAllowAlways {
 			return acp.RequestPermissionResponse{
@@ -222,39 +246,32 @@ func (*streamingClient) RequestPermission(_ context.Context, req acp.RequestPerm
 	}, nil
 }
 
-func (c *streamingClient) SessionUpdate(_ context.Context, n acp.SessionNotification) error {
-	c.mu.Lock()
-	defer c.mu.Unlock()
+func (c *acpClient) SessionUpdate(_ context.Context, n acp.SessionNotification) error {
+	run := c.run
+	run.mu.Lock()
+	defer run.mu.Unlock()
 	u := n.Update
-	if u.AgentMessageChunk != nil {
-		content := u.AgentMessageChunk.Content
-		// AG-UI's TextMessageContentEvent forbids empty deltas and the SDK
-		// encoder rejects them at write time, marking the SSE stream closed
-		// and stranding the browser bubble half-rendered. ACP, however,
-		// allows agents to emit text-block lifecycle/framing chunks whose
-		// `text` is "" or whitespace-only (Claude's stream maps
-		// content_block_start → empty-text chunk this way). Skip those at
-		// the boundary so the AG-UI invariant START → CONTENT+ → END holds
-		// and a noisy upstream agent doesn't take down the run. Note we
-		// emit the original Text (not the trimmed value) — leading/trailing
-		// whitespace inside a multi-chunk message is meaningful glue
-		// between deltas, only fully-blank chunks are skipped.
-		if content.Text != nil && strings.TrimSpace(content.Text.Text) != "" {
-			c.ensureTextStart()
-			c.emit(aguievents.NewTextMessageContentEvent(c.messageID, content.Text.Text))
+	if u.AgentMessageChunk != nil && u.AgentMessageChunk.Content.Text != nil {
+		text := u.AgentMessageChunk.Content.Text.Text
+		// The AG-UI SDK rejects an empty delta and closes the stream.
+		// Whitespace between tokens and paragraphs is a real delta and is kept.
+		// Whitespace before the first visible text must not open a message.
+		if text != "" && (run.textOpen || strings.TrimSpace(text) != "") {
+			run.ensureTextStart()
+			run.emit(aguievents.NewTextMessageContentEvent(run.messageID, text))
 		}
 	}
 	if u.ToolCall != nil {
-		// The sidecar populates ACP Title with the tool identifier (prefixed
-		// with UIToolPrefix for contextual tools). The prefix is stripped
-		// here so the frontend sees the same name it registered the tool
-		// under, regardless of the wire-level namespace.
-		c.emit(aguievents.NewToolCallStartEvent(
+		run.closeText()
+		// The agent populates ACP Title with the tool name it was offered, which
+		// for a UI tool carries UIToolPrefix. Strip it so the frontend sees the
+		// name it registered.
+		run.emit(aguievents.NewToolCallStartEvent(
 			string(u.ToolCall.ToolCallId),
 			stripUIToolPrefix(u.ToolCall.Title),
 		))
 		if u.ToolCall.RawInput != nil {
-			c.emit(aguievents.NewToolCallArgsEvent(
+			run.emit(aguievents.NewToolCallArgsEvent(
 				string(u.ToolCall.ToolCallId),
 				marshalToolArgsDelta(u.ToolCall.RawInput),
 			))
@@ -262,13 +279,13 @@ func (c *streamingClient) SessionUpdate(_ context.Context, n acp.SessionNotifica
 	}
 	if u.ToolCallUpdate != nil {
 		if u.ToolCallUpdate.RawInput != nil {
-			c.emit(aguievents.NewToolCallArgsEvent(
+			run.emit(aguievents.NewToolCallArgsEvent(
 				string(u.ToolCallUpdate.ToolCallId),
 				marshalToolArgsDelta(u.ToolCallUpdate.RawInput),
 			))
 		}
 		if u.ToolCallUpdate.RawOutput != nil {
-			c.emit(aguievents.NewToolCallResultEvent(
+			run.emit(aguievents.NewToolCallResultEvent(
 				toolResultMessageID(u.ToolCallUpdate.ToolCallId),
 				string(u.ToolCallUpdate.ToolCallId),
 				flattenToolResultContent(u.ToolCallUpdate.RawOutput),
@@ -276,43 +293,43 @@ func (c *streamingClient) SessionUpdate(_ context.Context, n acp.SessionNotifica
 		}
 		status := valueOrUnknown(u.ToolCallUpdate.Status)
 		if status == string(acp.ToolCallStatusCompleted) || status == string(acp.ToolCallStatusFailed) {
-			c.emit(aguievents.NewToolCallEndEvent(string(u.ToolCallUpdate.ToolCallId)))
+			run.emit(aguievents.NewToolCallEndEvent(string(u.ToolCallUpdate.ToolCallId)))
 		}
 	}
 	return nil
 }
 
-// The methods below implement acp.Client operations that the Jaeger gateway
-// does not support (filesystem and terminal). They return errors because the
-// client advertises these capabilities as disabled during Initialize.
+// The methods below are the acp.Client operations the gateway does not offer:
+// filesystem and terminal. They return errors because the chat endpoint
+// advertises these capabilities as disabled during Initialize.
 
 var errNotSupported = errors.New("operation not supported by jaeger-ai-gateway")
 
-func (*streamingClient) WriteTextFile(context.Context, acp.WriteTextFileRequest) (acp.WriteTextFileResponse, error) {
+func (*acpClient) WriteTextFile(context.Context, acp.WriteTextFileRequest) (acp.WriteTextFileResponse, error) {
 	return acp.WriteTextFileResponse{}, errNotSupported
 }
 
-func (*streamingClient) ReadTextFile(context.Context, acp.ReadTextFileRequest) (acp.ReadTextFileResponse, error) {
+func (*acpClient) ReadTextFile(context.Context, acp.ReadTextFileRequest) (acp.ReadTextFileResponse, error) {
 	return acp.ReadTextFileResponse{}, errNotSupported
 }
 
-func (*streamingClient) CreateTerminal(context.Context, acp.CreateTerminalRequest) (acp.CreateTerminalResponse, error) {
+func (*acpClient) CreateTerminal(context.Context, acp.CreateTerminalRequest) (acp.CreateTerminalResponse, error) {
 	return acp.CreateTerminalResponse{}, errNotSupported
 }
 
-func (*streamingClient) KillTerminal(context.Context, acp.KillTerminalRequest) (acp.KillTerminalResponse, error) {
+func (*acpClient) KillTerminal(context.Context, acp.KillTerminalRequest) (acp.KillTerminalResponse, error) {
 	return acp.KillTerminalResponse{}, errNotSupported
 }
 
-func (*streamingClient) ReleaseTerminal(context.Context, acp.ReleaseTerminalRequest) (acp.ReleaseTerminalResponse, error) {
+func (*acpClient) ReleaseTerminal(context.Context, acp.ReleaseTerminalRequest) (acp.ReleaseTerminalResponse, error) {
 	return acp.ReleaseTerminalResponse{}, errNotSupported
 }
 
-func (*streamingClient) TerminalOutput(context.Context, acp.TerminalOutputRequest) (acp.TerminalOutputResponse, error) {
+func (*acpClient) TerminalOutput(context.Context, acp.TerminalOutputRequest) (acp.TerminalOutputResponse, error) {
 	return acp.TerminalOutputResponse{}, errNotSupported
 }
 
-func (*streamingClient) WaitForTerminalExit(context.Context, acp.WaitForTerminalExitRequest) (acp.WaitForTerminalExitResponse, error) {
+func (*acpClient) WaitForTerminalExit(context.Context, acp.WaitForTerminalExitRequest) (acp.WaitForTerminalExitResponse, error) {
 	return acp.WaitForTerminalExitResponse{}, errNotSupported
 }
 
@@ -328,13 +345,13 @@ func (*streamingClient) WaitForTerminalExit(context.Context, acp.WaitForTerminal
 // values such as tracing. The 5s deadline keeps a stuck agent from
 // hanging the goroutine indefinitely. Errors are Debug-logged because the
 // HTTP response has already been streamed by the time this runs.
-func closeACPSession(ctx context.Context, conn *acp.Connection, caps acp.AgentCapabilities, sessionID acp.SessionId, logger *zap.Logger) {
+func closeACPSession(ctx context.Context, conn *acp.ClientSideConnection, caps acp.AgentCapabilities, sessionID acp.SessionId, logger *zap.Logger) {
 	if caps.SessionCapabilities.Close == nil {
 		return
 	}
 	closeCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 5*time.Second)
 	defer cancel()
-	_, err := acp.SendRequest[acp.CloseSessionResponse](conn, closeCtx, acp.AgentMethodSessionClose, acp.CloseSessionRequest{
+	_, err := conn.CloseSession(closeCtx, acp.CloseSessionRequest{
 		SessionId: sessionID,
 	})
 	if err != nil {

@@ -15,9 +15,11 @@ const (
 	// battery lists it, so the incomplete functionality is recorded here rather than silently
 	// untested. Remove the entry from a backend once it orders by attributes.
 	spanAttributeOrderingTest = "SpanOrdering/Attributes"
-	traceIDPaginationTest     = "Pagination/TraceIDs"
-	spanPaginationTest        = "Pagination/Spans"
-	summaryPaginationTest     = "Pagination/TraceSummaries"
+	// nonFiniteDoublesTest reads back a trace whose double attributes are NaN and the infinities.
+	nonFiniteDoublesTest  = "GetTraceWithNonFiniteDoubles"
+	traceIDPaginationTest = "Pagination/TraceIDs"
+	spanPaginationTest    = "Pagination/Spans"
+	summaryPaginationTest = "Pagination/TraceSummaries"
 
 	// attributeComparisonTest asserts the outcome the deployment declares through
 	// AttributeComparison; a backend that evaluates no ordered comparison on an attribute skips it.
@@ -165,6 +167,16 @@ func (c Capabilities) WithoutSpanSorting() Capabilities {
 // WithoutSpanAttributeOrdering skips ordering spans by an attribute, which no backend supports yet.
 func (c Capabilities) WithoutSpanAttributeOrdering() Capabilities {
 	c.skipList = append(append([]string(nil), c.skipList...), spanAttributeOrderingTest)
+	return c
+}
+
+// WithoutNonFiniteDoubles excuses a corpus written by an Elasticsearch or OpenSearch writer from
+// before https://github.com/jaegertracing/jaeger/pull/9912, which dropped every span that carried
+// a NaN or an infinite double, so the trace is neither written nor read back. The backward
+// compatibility scenarios use it while the release they write with predates the fix; remove the
+// calls once that release includes it.
+func (c Capabilities) WithoutNonFiniteDoubles() Capabilities {
+	c.skipList = append(append([]string(nil), c.skipList...), nonFiniteDoublesTest)
 	return c
 }
 

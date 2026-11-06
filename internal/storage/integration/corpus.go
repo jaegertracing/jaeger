@@ -5,6 +5,7 @@ package integration
 
 import (
 	"encoding/binary"
+	"math"
 	"slices"
 	"strings"
 	"testing"
@@ -39,9 +40,19 @@ type Corpus struct {
 	// Duplicates is a trace that repeats a span ID, which a backend must return as written.
 	Duplicates ptrace.Traces
 
+	// Bounded is a two-span trace whose spans start within the same second, for the GetTraces
+	// lookup that carries Start and End.
+	Bounded ptrace.Traces
+
 	// CrossService is two traces from different services that share a marker attribute, for the
 	// RFC 0013 search that carries no service name.
 	CrossService []ptrace.Traces
+
+	// NonFinite is a one-span trace whose resource, span and event each carry a NaN and the two
+	// infinities as double attributes, present unless the backend has excused itself from the
+	// assertion. The fixtures are JSON, which cannot spell those values, so the trace is built
+	// in code.
+	NonFinite ptrace.Traces
 
 	// Pagination holds five traces under a dedicated service, including a start-time tie.
 	Pagination map[string]ptrace.Traces
@@ -62,6 +73,7 @@ type Corpus struct {
 	// where the cost of the 10k-span trace actually is.
 	hasLarge      bool
 	hasDuplicates bool
+	hasNonFinite  bool
 }
 
 const (
@@ -72,8 +84,10 @@ const (
 	// for, so that a backend's skip list decides whether the corpus carries it.
 	largeTraceTest     = "GetLargeTrace"
 	duplicateSpansTest = "GetTraceWithDuplicateSpans"
+	nonFiniteTest      = "GetTraceWithNonFiniteDoubles"
 
 	largeTraceService      = "large-trace-service"
+	nonFiniteService       = "non-finite-service"
 	duplicateSpansService  = "duplicate-spans-service"
 	largeTraceSpanCount    = 10008
 	duplicateTraceSpans    = 200
@@ -124,7 +138,13 @@ func BuildCorpus(t *testing.T, suiteFixtures []*QueryFixtures, caps capabilities
 	if c.hasDuplicates {
 		c.Duplicates = buildSyntheticTrace(t, duplicateTraceSpans, duplicateSpanFrequency, duplicateSpansService, 0xD1)
 	}
+	c.Bounded = buildBoundedTrace()
 	c.CrossService = buildCrossServiceTraces()
+	c.hasNonFinite = !skipsTest(caps, nonFiniteTest)
+	if c.hasNonFinite {
+		c.NonFinite = buildNonFiniteTrace()
+	}
+	c.QueryTraces["complete_search"] = buildCompleteSearchTrace()
 	c.Pagination = buildPaginationTraces()
 	c.SpanOrdering = buildSpanOrderingTraces()
 
@@ -175,6 +195,26 @@ func buildSyntheticTrace(t *testing.T, totalCount, dupFreq int, service string, 
 	return trace
 }
 
+// buildBoundedTrace is a trace of two spans starting 300 ms apart inside one second, at offsets
+// a backend that stores microseconds returns unchanged. GetTraces with Start and End set to the
+// two starts must return both spans, which a bound rendered at second precision does not.
+func buildBoundedTrace() ptrace.Traces {
+	trace := ptrace.NewTraces()
+	rs := trace.ResourceSpans().AppendEmpty()
+	rs.Resource().Attributes().PutStr(otelsemconv.ServiceNameKey, "bounded-trace-service")
+	spans := rs.ScopeSpans().AppendEmpty().Spans()
+	first := time.Now().Add(-time.Hour).Truncate(time.Second).Add(100 * time.Millisecond)
+	for i, start := range []time.Time{first, first.Add(300 * time.Millisecond)} {
+		span := spans.AppendEmpty()
+		span.SetTraceID(pcommon.TraceID{0xB1})
+		span.SetSpanID(pcommon.SpanID{0xB1, byte(i + 1)})
+		span.SetName("bounded-operation")
+		span.SetStartTimestamp(pcommon.NewTimestampFromTime(start))
+		span.SetEndTimestamp(pcommon.NewTimestampFromTime(start.Add(time.Millisecond)))
+	}
+	return trace
+}
+
 // buildCrossServiceTraces are two traces of different services carrying one shared attribute, so
 // that a search on the attribute alone must return both.
 func buildCrossServiceTraces() []ptrace.Traces {
@@ -193,6 +233,43 @@ func buildCrossServiceTraces() []ptrace.Traces {
 		traces = append(traces, trace)
 	}
 	return traces
+}
+
+// nonFiniteAttributes are the double attributes the non-finite trace carries at every level,
+// by key. A backend that encodes a double as JSON has to spell these specially, because JSON has
+// no token for them, and a backend that stores them as text has to parse them back.
+var nonFiniteAttributes = map[string]float64{
+	"double.nan":     math.NaN(),
+	"double.pos-inf": math.Inf(1),
+	"double.neg-inf": math.Inf(-1),
+}
+
+func putNonFiniteAttributes(attrs pcommon.Map) {
+	for key, value := range nonFiniteAttributes {
+		attrs.PutDouble(key, value)
+	}
+}
+
+// buildNonFiniteTrace is a single span under its own service, carrying the non-finite doubles
+// on the resource, on the span and on one event.
+func buildNonFiniteTrace() ptrace.Traces {
+	trace := ptrace.NewTraces()
+	rs := trace.ResourceSpans().AppendEmpty()
+	rs.Resource().Attributes().PutStr(otelsemconv.ServiceNameKey, nonFiniteService)
+	putNonFiniteAttributes(rs.Resource().Attributes())
+	span := rs.ScopeSpans().AppendEmpty().Spans().AppendEmpty()
+	span.SetTraceID(pcommon.TraceID{0xF1})
+	span.SetSpanID(pcommon.SpanID{0xF1, 1})
+	span.SetName("non-finite-operation")
+	start := time.Now().Add(-time.Hour)
+	span.SetStartTimestamp(pcommon.NewTimestampFromTime(start))
+	span.SetEndTimestamp(pcommon.NewTimestampFromTime(start.Add(time.Millisecond)))
+	putNonFiniteAttributes(span.Attributes())
+	event := span.Events().AppendEmpty()
+	event.SetName("non-finite-event")
+	event.SetTimestamp(span.StartTimestamp())
+	putNonFiniteAttributes(event.Attributes())
+	return trace
 }
 
 func buildPaginationTraces() map[string]ptrace.Traces {
@@ -233,7 +310,14 @@ func (c *Corpus) All() []ptrace.Traces {
 	if c.hasDuplicates {
 		all = append(all, c.Duplicates)
 	}
+	// A corpus built by hand, as the unit tests of this package do, may leave Bounded unset.
+	if c.Bounded != (ptrace.Traces{}) {
+		all = append(all, c.Bounded)
+	}
 	all = append(all, c.CrossService...)
+	if c.hasNonFinite {
+		all = append(all, c.NonFinite)
+	}
 	all = append(all, c.SpanOrdering...)
 	for _, name := range slices.Sorted(maps(c.Pagination)) {
 		all = append(all, c.Pagination[name])

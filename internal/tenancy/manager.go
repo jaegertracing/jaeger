@@ -36,8 +36,10 @@ func NewManager(options *Options) *Manager {
 	}
 }
 
+// Valid reports whether the tenant may be served. An empty tenant is never
+// valid, even when no tenant allow-list is configured.
 func (tc *Manager) Valid(tenant string) bool {
-	return tc.guard.Valid(tenant)
+	return tenant != "" && tc.guard.Valid(tenant)
 }
 
 type tenantDontCare bool

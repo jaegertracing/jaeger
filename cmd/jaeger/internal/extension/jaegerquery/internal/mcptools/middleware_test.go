@@ -12,6 +12,7 @@ import (
 	"time"
 	"unicode/utf8"
 
+	"github.com/modelcontextprotocol/go-sdk/jsonrpc"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -25,6 +26,8 @@ import (
 	tracesdk "go.opentelemetry.io/otel/sdk/trace"
 	"go.opentelemetry.io/otel/sdk/trace/tracetest"
 	traceapi "go.opentelemetry.io/otel/trace"
+	"go.uber.org/zap"
+	"go.uber.org/zap/zaptest/observer"
 
 	"github.com/jaegertracing/jaeger/internal/telemetry/otelsemconv"
 )
@@ -542,42 +545,6 @@ func chainMiddleware(middlewares ...mcp.Middleware) mcp.Middleware {
 	}
 }
 
-func TestSessionIDFromRequestNilCases(t *testing.T) {
-	assert.Empty(t, sessionIDFromRequest(nil))
-
-	req := &mcp.ServerRequest[*mcp.CallToolParamsRaw]{
-		Session: nil,
-		Params:  &mcp.CallToolParamsRaw{Name: "get_services"},
-	}
-	assert.Empty(t, sessionIDFromRequest(req))
-
-	clientReq := &mcp.ClientRequest[*mcp.CallToolParamsRaw]{
-		Session: (*mcp.ClientSession)(nil),
-		Params:  &mcp.CallToolParamsRaw{Name: "get_services"},
-	}
-	assert.Empty(t, sessionIDFromRequest(clientReq))
-
-	serverReq := &mcp.ServerRequest[*mcp.CallToolParamsRaw]{
-		Session: (*mcp.ServerSession)(nil),
-		Params:  &mcp.CallToolParamsRaw{Name: "get_services"},
-	}
-	assert.Empty(t, sessionIDFromRequest(serverReq))
-}
-
-func TestSessionIDFromRequestWithNonNilSession(t *testing.T) {
-	clientReq := &mcp.ClientRequest[*mcp.CallToolParamsRaw]{
-		Session: &mcp.ClientSession{},
-		Params:  &mcp.CallToolParamsRaw{Name: "get_services"},
-	}
-	assert.Empty(t, sessionIDFromRequest(clientReq))
-
-	serverReq := &mcp.ServerRequest[*mcp.CallToolParamsRaw]{
-		Session: &mcp.ServerSession{},
-		Params:  &mcp.CallToolParamsRaw{Name: "get_services"},
-	}
-	assert.Empty(t, sessionIDFromRequest(serverReq))
-}
-
 func TestIsNil(t *testing.T) {
 	var nilMap map[string]any
 	var nilSlice []string
@@ -862,4 +829,53 @@ func (m *failingMeter) Float64Histogram(name string, opts ...metric.Float64Histo
 		return nil, errors.New("histogram creation failed")
 	}
 	return m.Meter.Float64Histogram(name, opts...)
+}
+
+func TestRecoveryMiddlewareToolCallPanic(t *testing.T) {
+	core, logs := observer.New(zap.ErrorLevel)
+	wrapped := createRecoveryMiddleware(zap.New(core))(func(context.Context, string, mcp.Request) (mcp.Result, error) {
+		panic("tool failed")
+	})
+
+	result, err := wrapped(context.Background(), mcpMethodToolsCall, newToolCallRequest("get_span_details"))
+	require.NoError(t, err)
+	callResult, ok := result.(*mcp.CallToolResult)
+	require.True(t, ok)
+	assert.True(t, callResult.IsError)
+	require.ErrorIs(t, callResult.GetError(), errToolPanicked)
+
+	entries := logs.All()
+	require.Len(t, entries, 1)
+	fields := entries[0].ContextMap()
+	assert.Equal(t, mcpMethodToolsCall, fields["method"])
+	assert.Equal(t, "get_span_details", fields["tool"])
+	assert.Equal(t, "tool failed", fields["panic"])
+	assert.Contains(t, fields["stack"], "TestRecoveryMiddlewareToolCallPanic")
+}
+
+func TestRecoveryMiddlewareNonToolMethodPanic(t *testing.T) {
+	core, logs := observer.New(zap.ErrorLevel)
+	wrapped := createRecoveryMiddleware(zap.New(core))(func(context.Context, string, mcp.Request) (mcp.Result, error) {
+		panic("listing failed")
+	})
+
+	result, err := wrapped(context.Background(), "tools/list", nil)
+	assert.Nil(t, result)
+	var wireErr *jsonrpc.Error
+	require.ErrorAs(t, err, &wireErr)
+	assert.EqualValues(t, jsonrpc.CodeInternalError, wireErr.Code)
+	assert.Equal(t, 1, logs.Len())
+}
+
+func TestRecoveryMiddlewarePassesThrough(t *testing.T) {
+	core, logs := observer.New(zap.ErrorLevel)
+	want := &mcp.CallToolResult{}
+	wrapped := createRecoveryMiddleware(zap.New(core))(func(context.Context, string, mcp.Request) (mcp.Result, error) {
+		return want, nil
+	})
+
+	result, err := wrapped(context.Background(), mcpMethodToolsCall, newToolCallRequest("get_services"))
+	require.NoError(t, err)
+	assert.Same(t, want, result)
+	assert.Zero(t, logs.Len())
 }

@@ -7,6 +7,7 @@ package app
 import (
 	"errors"
 	"fmt"
+	"math"
 	"net/http"
 	"strconv"
 	"time"
@@ -44,6 +45,9 @@ func newDurationUnitsParser(units time.Duration) durationParser {
 		if err != nil {
 			return 0, err
 		}
+		if i > int64(math.MaxInt64/units) || i < int64(math.MinInt64/units) {
+			return 0, fmt.Errorf("value %d is out of range for a duration", i)
+		}
 		return time.Duration(i) * units, nil
 	}
 }
@@ -54,17 +58,14 @@ func newDurationUnitsParser(units time.Duration) durationParser {
 // and the typical backend granularity of those is on the order of 15min or more. As such, microseconds aren't
 // useful in this domain and milliseconds are sufficient for both times and durations.
 func (p *queryParser) parseDependenciesQueryParams(r *http.Request) (dqp dependenciesQueryParameters, err error) {
-	dqp.endTs, err = p.parseTime(r, endTsParam, time.Millisecond)
+	dqp.endTs, err = p.parseTime(r, endTsParam, time.UnixMilli)
 	if err != nil {
 		return dqp, err
 	}
 
-	dqp.lookback, err = parseDuration(r, lookbackParam, newDurationUnitsParser(time.Millisecond), defaultDependencyLookbackDuration)
+	dqp.lookback, err = parsePositiveDuration(r, lookbackParam, newDurationUnitsParser(time.Millisecond), defaultDependencyLookbackDuration)
 	if err != nil {
 		return dqp, err
-	}
-	if dqp.lookback <= 0 {
-		return dqp, newParseError(errors.New("must be a positive duration"), lookbackParam)
 	}
 	return dqp, nil
 }
@@ -121,20 +122,20 @@ func (p *queryParser) parseMetricsQueryParams(r *http.Request) (bqp metricstore.
 	if err != nil {
 		return bqp, err
 	}
-	endTs, err := p.parseTime(r, endTsParam, time.Millisecond)
+	endTs, err := p.parseTime(r, endTsParam, time.UnixMilli)
 	if err != nil {
 		return bqp, err
 	}
 	parser := newDurationUnitsParser(time.Millisecond)
-	lookback, err := parseDuration(r, lookbackParam, parser, defaultMetricsQueryLookbackDuration)
+	lookback, err := parsePositiveDuration(r, lookbackParam, parser, defaultMetricsQueryLookbackDuration)
 	if err != nil {
 		return bqp, err
 	}
-	step, err := parseDuration(r, stepParam, parser, defaultMetricsQueryStepDuration)
+	step, err := parsePositiveDuration(r, stepParam, parser, defaultMetricsQueryStepDuration)
 	if err != nil {
 		return bqp, err
 	}
-	ratePer, err := parseDuration(r, rateParam, parser, defaultMetricsQueryRateDuration)
+	ratePer, err := parsePositiveDuration(r, rateParam, parser, defaultMetricsQueryRateDuration)
 	if err != nil {
 		return bqp, err
 	}
@@ -145,9 +146,11 @@ func (p *queryParser) parseMetricsQueryParams(r *http.Request) (bqp metricstore.
 	return bqp, err
 }
 
-// parseTime parses the time parameter of an HTTP request that is represented the number of "units" since epoch.
+// parseTime parses the time parameter of an HTTP request that is represented as a number of units since
+// epoch, which toTime (time.UnixMilli or time.UnixMicro) converts to a time. Converting this way rather than
+// multiplying by a time.Duration keeps large values from overflowing.
 // If the time parameter is empty, the current time will be returned.
-func (p *queryParser) parseTime(r *http.Request, paramName string, units time.Duration) (time.Time, error) {
+func (p *queryParser) parseTime(r *http.Request, paramName string, toTime func(int64) time.Time) (time.Time, error) {
 	formValue := r.URL.Query().Get(paramName)
 	if formValue == "" {
 		return p.timeNow(), nil
@@ -156,7 +159,7 @@ func (p *queryParser) parseTime(r *http.Request, paramName string, units time.Du
 	if err != nil {
 		return time.Time{}, newParseError(err, paramName)
 	}
-	return time.Unix(0, 0).Add(time.Duration(t) * units), nil
+	return toTime(t), nil
 }
 
 // parseDuration parses the duration parameter of an HTTP request using the provided durationParser.
@@ -169,6 +172,20 @@ func parseDuration(r *http.Request, paramName string, parse durationParser, defa
 	d, err := parse(formValue)
 	if err != nil {
 		return 0, newParseError(err, paramName)
+	}
+	return d, nil
+}
+
+// parsePositiveDuration is parseDuration for a parameter that must be positive when it is given,
+// such as a lookback window, a query step or a rate interval. A zero or negative value is
+// rejected here, so the request never reaches storage with an empty or inverted range.
+func parsePositiveDuration(r *http.Request, paramName string, parse durationParser, defaultDuration time.Duration) (time.Duration, error) {
+	d, err := parseDuration(r, paramName, parse, defaultDuration)
+	if err != nil {
+		return 0, err
+	}
+	if d <= 0 {
+		return 0, newParseError(errors.New("must be a positive duration"), paramName)
 	}
 	return d, nil
 }
