@@ -559,9 +559,8 @@ func TestSearchTracesHandler_Handle_EnvelopeRefusedByQueryService(t *testing.T) 
 }
 
 // TestSearchTracesHandler_Handle_ZeroDurationValid covers the boundary the negative check
-// must not overreach: a zero duration is a valid "no lower/upper bound" sentinel elsewhere
-// in this handler (see the minDuration > 0 && maxDuration > 0 guard below), so it must still
-// reach the query service rather than being rejected as negative.
+// must not overreach: the query service treats a zero duration as "no lower/upper bound",
+// so it must still reach the query service rather than being rejected as negative.
 func TestSearchTracesHandler_Handle_ZeroDurationValid(t *testing.T) {
 	want := makeTraceSummary("test", "/test", false)
 	mock := newMockFindTraceSummaries(want)
