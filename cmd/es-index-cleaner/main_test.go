@@ -10,6 +10,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.opentelemetry.io/collector/featuregate"
 
 	"github.com/jaegertracing/jaeger/internal/testutils"
 )
@@ -31,4 +32,16 @@ func TestMainRejectsNegativeNumOfDays(t *testing.T) {
 	output, err := cmd.CombinedOutput()
 	require.Error(t, err)
 	assert.Contains(t, string(output), "NUM_OF_DAYS argument must be non-negative")
+}
+
+func TestRelativeTimeIndexDeletionGateRegistration(t *testing.T) {
+	gates := map[string]*featuregate.Gate{}
+	featuregate.GlobalRegistry().VisitAll(func(g *featuregate.Gate) {
+		gates[g.ID()] = g
+	})
+
+	gate, ok := gates["jaeger.es.index.relativeTimeIndexDeletion"]
+	require.True(t, ok)
+	assert.Equal(t, featuregate.StageBeta, gate.Stage())
+	assert.NotContains(t, gates, "es.index.relativeTimeIndexDeletion")
 }
