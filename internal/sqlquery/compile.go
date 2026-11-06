@@ -206,9 +206,18 @@ func (c *compiler) spans(sel *parser.SelectQuery, sc *scope) (*Query, error) {
 			return nil, c.pos.at(alias, "a column alias in SELECT has no effect", "The result's field names are fixed by the query service")
 		}
 		query.Kind = KindFindTraceIDs
-	case len(sel.SelectItems) == 1 && isStar(sel.SelectItems[0].Expr):
-		query.Kind = KindFindSpans
 	default:
+		star, err := c.isStar(sc, sel.SelectItems[0].Expr)
+		if err != nil {
+			return nil, err
+		}
+		if len(sel.SelectItems) == 1 && star {
+			if alias := sel.SelectItems[0].Alias; alias != nil {
+				return nil, c.pos.at(alias, "a column alias in SELECT has no effect", "The result's field names are fixed by the query service")
+			}
+			query.Kind = KindFindSpans
+			break
+		}
 		query.Kind = KindFindSpans
 		for _, item := range sel.SelectItems {
 			if err := c.refuseSelectItem(item); err != nil {
@@ -403,13 +412,27 @@ func isColumnOf(sc *scope, node parser.Expr, key string) bool {
 
 // sameScope reports whether a column reference is unqualified or qualified by the scope's alias.
 func sameScope(sc *scope, node parser.Expr) bool {
+	node = unparenthesized(node)
 	path, ok := node.(*parser.Path)
 	return !ok || strings.EqualFold(path.Fields[0].Name, sc.alias)
 }
 
-func isStar(node parser.Expr) bool {
-	ident, ok := node.(*parser.Ident)
-	return ok && ident.Name == "*"
+// isStar reports whether a select item is * or alias.* for the current scope.
+func (c *compiler) isStar(sc *scope, node parser.Expr) (bool, error) {
+	node = unparenthesized(node)
+	switch n := node.(type) {
+	case *parser.Ident:
+		return n.Name == "*", nil
+	case *parser.NestedIdentifier:
+		if n.DotIdent != nil && n.DotIdent.Name == "*" {
+			if !strings.EqualFold(n.Ident.Name, sc.alias) {
+				return false, c.pos.at(n.Ident, fmt.Sprintf("unknown alias %q", n.Ident.Name), fmt.Sprintf("The statement reads %s as %s", sc.rel, sc.alias))
+			}
+			return true, nil
+		}
+	default:
+	}
+	return false, nil
 }
 
 // order lowers ORDER BY to the span order of RFC 0016 §6.
@@ -448,6 +471,7 @@ func (c *compiler) order(clause *parser.OrderByClause, sc *scope) ([]tracestore.
 }
 
 func columnName(node parser.Expr) string {
+	node = unparenthesized(node)
 	switch ref := node.(type) {
 	case *parser.Ident:
 		return ref.Name
@@ -489,7 +513,15 @@ func (c *compiler) traces(sel *parser.SelectQuery, alias string) (*Query, error)
 	if sel.HasDistinct {
 		return nil, c.pos.at(sel, "DISTINCT applies to a span search", "SELECT DISTINCT trace_id FROM spans returns trace IDs; a traces query returns one row per trace already")
 	}
-	if len(sel.SelectItems) != 1 || !isStar(sel.SelectItems[0].Expr) {
+	star, err := c.isStar(&scope{alias: alias, rel: relationTraces}, sel.SelectItems[0].Expr)
+	if err != nil {
+		return nil, err
+	}
+	if len(sel.SelectItems) == 1 && star {
+		if alias := sel.SelectItems[0].Alias; alias != nil {
+			return nil, c.pos.at(alias, "a column alias in SELECT has no effect", "The result's field names are fixed by the query service")
+		}
+	} else {
 		query.Kind = KindFindTraceSummaries
 		for _, item := range sel.SelectItems {
 			if err := c.refuseSelectItem(item); err != nil {
