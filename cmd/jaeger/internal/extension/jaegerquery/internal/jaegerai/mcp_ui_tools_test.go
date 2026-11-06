@@ -125,10 +125,10 @@ func TestNewUIToolCallID(t *testing.T) {
 func TestUIDispatchMiddleware(t *testing.T) {
 	rec := httptest.NewRecorder()
 	turns := newTurnRegistry()
-	routeID := registerTurn(turns, newAGUIRun(context.Background(), rec, "t", "r"),
+	grant := registerTurn(turns, newAGUIRun(context.Background(), rec, "t", "r"),
 		[]json.RawMessage{rawUITool(t, "show_chart")})
 	mw := uiToolsMiddleware(turns, zap.NewNop())
-	ctx := context.WithValue(context.Background(), mcpRouteIDContextKey{}, routeID)
+	ctx := context.WithValue(context.Background(), mcpRouteIDContextKey{}, grant.routeID)
 
 	telemetryList := func(context.Context, string, mcp.Request) (mcp.Result, error) {
 		return &mcp.ListToolsResult{Tools: []*mcp.Tool{{Name: "get_services"}}}, nil

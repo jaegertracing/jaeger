@@ -15,7 +15,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-    - uses: step-security/harden-runner@05e31511f85b41b11d1cf0ef85d0992719546e2c # v2.21.0
+    - uses: step-security/harden-runner@46b06cea07f9e64621fdf066ba77ac6915163d43 # v2.22.3
       with:
         egress-policy: audit # TODO: change to 'egress-policy: block' after couple of runs
 
@@ -32,7 +32,7 @@ jobs:
 
     - uses: ./.github/actions/setup-branch
 
-    - uses: docker/setup-qemu-action@1f40c72289eff860ee54a304f1438e3cff362e0a # v4.3.0
+    - uses: docker/setup-qemu-action@99012661954931238ded8c8b007157a8430204e1 # v4.4.0
 
     - name: Build only linux/amd64 container images (PR and merge queue)
       if: github.event_name == 'pull_request' || github.event_name == 'merge_group'

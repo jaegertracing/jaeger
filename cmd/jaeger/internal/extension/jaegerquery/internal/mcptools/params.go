@@ -68,19 +68,6 @@ type StreamableHTTPConfig struct {
 	// the proxy rewrite Host or dial a non-loopback address; set this when the proxy
 	// cannot be changed.
 	DisableLocalhostProtection bool `mapstructure:"disable_localhost_protection" valid:"optional"`
-	// Stateless makes the endpoint answer each request on its own instead of
-	// keeping an MCP session per client in memory. The default keeps a session,
-	// which the SDK stores in the process that handled initialize and looks up by
-	// the Mcp-Session-Id header on every later request; a request that reaches a
-	// different replica of jaeger-query fails with 404, so several replicas behind
-	// a load balancer without session affinity need this on. Jaeger's tools keep no
-	// per-session state, so a stateless endpoint serves the same tools. It answers
-	// 405 to the GET a client sends to open a stream for server-initiated messages;
-	// Jaeger never sends any, so that stream carried nothing and the client
-	// continues without it, as the MCP specification requires. The chat gateway's
-	// turn-scoped endpoint still has to be reached on the replica that owns the
-	// turn; see README.md.
-	Stateless bool `mapstructure:"stateless" valid:"optional"`
 	// JSONResponse makes the endpoint answer a POST that carries one JSON-RPC
 	// message with a plain application/json body instead of a text/event-stream
 	// body holding that one message. The stream form exists so a server can send
