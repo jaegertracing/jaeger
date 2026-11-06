@@ -186,11 +186,8 @@ func (tr *TraceReader) FindTraceIDs(
 		}
 		foundTraceIDs := make([]tracestore.FoundTraceID, len(resp.TraceIds))
 		for i, foundTraceID := range resp.TraceIds {
-			var sizedTraceID [16]byte
-			copy(sizedTraceID[:], foundTraceID.TraceId)
-
 			foundTraceIDs[i] = tracestore.FoundTraceID{
-				TraceID: pcommon.TraceID(sizedTraceID),
+				TraceID: traceIDFromBytes(foundTraceID.TraceId),
 				Start:   foundTraceID.Start,
 				End:     foundTraceID.End,
 			}
@@ -293,8 +290,7 @@ func (tr *TraceReader) FindTraceSummaries(
 func convertSummaryBatch(protos []*storage.TraceSummary) []tracestore.TraceSummary {
 	batch := make([]tracestore.TraceSummary, len(protos))
 	for i, ps := range protos {
-		var traceID [16]byte
-		copy(traceID[:], ps.GetTraceId())
+		traceID := traceIDFromBytes(ps.GetTraceId())
 		svcs := make([]tracestore.ServiceSummary, len(ps.GetServices()))
 		for j, ss := range ps.GetServices() {
 			svcs[j] = tracestore.ServiceSummary{
@@ -304,7 +300,7 @@ func convertSummaryBatch(protos []*storage.TraceSummary) []tracestore.TraceSumma
 			}
 		}
 		batch[i] = tracestore.TraceSummary{
-			TraceID:           pcommon.TraceID(traceID),
+			TraceID:           traceID,
 			RootServiceName:   ps.GetRootServiceName(),
 			RootOperationName: ps.GetRootOperationName(),
 			MinStartTime:      jptrace.UnixNanoToTime(ps.GetMinStartTimeUnixNano()),
