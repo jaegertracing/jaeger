@@ -507,8 +507,6 @@ github.com/open-telemetry/opentelemetry-collector-contrib/pkg/ottl/xottl v0.164.
 github.com/open-telemetry/opentelemetry-collector-contrib/pkg/ottl/xottl v0.164.1/go.mod h1:JZqhWqzBFSQbs+4ZARwkyAG6qv46ivfcg0yJKBymV4Y=
 github.com/open-telemetry/opentelemetry-collector-contrib/pkg/pdatatest v0.164.1 h1:Xmj/ptkrKnMGPaaWcLplVw0czXI1txV0VQW4LvIP+z0=
 github.com/open-telemetry/opentelemetry-collector-contrib/pkg/pdatatest v0.164.1/go.mod h1:m35oPRTuzmdit0lfy0EzfAUlvnqpIZIyLBqm4rGQMPY=
-github.com/open-telemetry/opentelemetry-collector-contrib/pkg/pdatautil v0.161.0 h1:+2B7C+G+xI8oFpXibJJrJslPBGKXpm/omzbOgBhS/R4=
-github.com/open-telemetry/opentelemetry-collector-contrib/pkg/pdatautil v0.161.0/go.mod h1:oryfiqu59Q9no8x69+C4KOvZt1Ay/twAP8IApotDE6g=
 github.com/open-telemetry/opentelemetry-collector-contrib/pkg/resourcetotelemetry v0.164.1 h1:S4Fp6ujAWXsgOxwWdKq3r7FwgbvZCQGgxLzNChSXc0M=
 github.com/open-telemetry/opentelemetry-collector-contrib/pkg/resourcetotelemetry v0.164.1/go.mod h1:DgqArHga9MGVQAKbpnV2Rgg66+FfpyX1yBh+3LK97hw=
 github.com/open-telemetry/opentelemetry-collector-contrib/pkg/sampling v0.164.1 h1:yR01L83iH6OmWjHLIlkiLjV+wmWD2uykJdvq+aKa+x0=

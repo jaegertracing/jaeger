@@ -36,7 +36,6 @@ require (
 	github.com/open-telemetry/opentelemetry-collector-contrib/extension/storage v0.164.1
 	github.com/open-telemetry/opentelemetry-collector-contrib/pkg/core/xidutils v0.164.1
 	github.com/open-telemetry/opentelemetry-collector-contrib/pkg/pdatatest v0.164.1
-	github.com/open-telemetry/opentelemetry-collector-contrib/pkg/pdatautil v0.161.0
 	github.com/open-telemetry/opentelemetry-collector-contrib/pkg/translator/jaeger v0.164.1
 	github.com/open-telemetry/opentelemetry-collector-contrib/processor/attributesprocessor v0.164.1
 	github.com/open-telemetry/opentelemetry-collector-contrib/processor/filterprocessor v0.164.1
