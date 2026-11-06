@@ -50,6 +50,7 @@ runs:
     - name: Retry upload
       # The js_action variant is pinned directly: the composite variant at the plain v3.8.0
       # tag wraps it and hardcodes `github_context`, so the override below would not reach it.
+      # renovate.json excludes this action, so bump it by hand along the _js_action tag line.
       uses: Wandalen/wretry.action@71a909ebf09f3ffdc6f42a17bd54ecb43481da49 # v3.8.0_js_action
       with:
         attempt_limit: 6
