@@ -52,6 +52,8 @@ type Factory struct {
 	tmpDir          string
 	maintenanceDone chan bool
 	bgWg            sync.WaitGroup
+	closeOnce       sync.Once
+	closeErr        error
 
 	// TODO initialize via reflection; convert comments to tag 'description'.
 	metrics struct {
@@ -173,22 +175,29 @@ func (*Factory) CreateLock() (distributedlock.Lock, error) {
 
 // Close Implements io.Closer and closes the underlying storage
 func (f *Factory) Close() error {
-	close(f.maintenanceDone)
-	f.bgWg.Wait() // Wait for background goroutines to finish before closing store
-	if f.store == nil {
-		return nil
-	}
-	err := f.store.Close()
-
-	// Remove tmp files if this was ephemeral storage
-	if f.Config.Ephemeral {
-		errSecondary := os.RemoveAll(f.tmpDir)
-		if err == nil {
-			err = errSecondary
+	f.closeOnce.Do(func() {
+		// maintenanceDone may be nil on a zero-value Factory.
+		if f.maintenanceDone != nil {
+			close(f.maintenanceDone)
 		}
-	}
+		f.bgWg.Wait() // Wait for background goroutines to finish before closing store
+		if f.store == nil {
+			return
+		}
+		err := f.store.Close()
 
-	return err
+		// Remove tmp files if this was ephemeral storage
+		if f.Config.Ephemeral {
+			errSecondary := os.RemoveAll(f.tmpDir)
+			if err == nil {
+				err = errSecondary
+			}
+		}
+
+		f.closeErr = err
+	})
+
+	return f.closeErr
 }
 
 // Maintenance starts a background maintenance job for the badger K/V store, such as ValueLogGC

@@ -155,3 +155,15 @@ func TestBadgerMetrics(t *testing.T) {
 
 	require.NoError(t, f.Close())
 }
+
+func TestCloseIsIdempotent(t *testing.T) {
+	f := NewFactory()
+
+	require.NotPanics(t, func() {
+		require.NoError(t, f.Close())
+	})
+
+	require.NotPanics(t, func() {
+		require.NoError(t, f.Close())
+	})
+}
