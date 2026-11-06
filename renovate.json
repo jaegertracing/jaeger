@@ -97,6 +97,13 @@
       "enabled": false
     },
     {
+      "description": "The codecov upload pins the js_action tag line of wretry.action, and Renovate reads only the numeric part of the pin comment, so an automatic bump would re-pin the composite variant that ignores the github_context override.",
+      "matchDepNames": [
+        "Wandalen/wretry.action"
+      ],
+      "enabled": false
+    },
+    {
       "matchManagers": [
         "github-actions"
       ],
