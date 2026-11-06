@@ -24,7 +24,6 @@ import (
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 
-	"github.com/jaegertracing/jaeger/internal/jaegerclientenv2otel"
 	"github.com/jaegertracing/jaeger/internal/telemetry/otelsemconv"
 	"github.com/jaegertracing/jaeger/internal/tracegen"
 	"github.com/jaegertracing/jaeger/internal/version"
@@ -58,7 +57,6 @@ func main() {
 	logger.Info(version.Get().String())
 
 	otel.SetTextMapPropagator(propagation.TraceContext{})
-	jaegerclientenv2otel.MapJaegerToOtelEnvVars(logger)
 
 	tracers, shutdown := createTracers(cfg, logger)
 	defer shutdown(context.Background())
