@@ -1,0 +1,21 @@
+{
+  "bool": {
+    "should": [
+      {
+        "exists": {
+          "field": "tag.span@kind"
+        }
+      },
+      {
+        "nested": {
+          "path": "tags",
+          "query": {
+            "term": {
+              "tags.key": "span.kind"
+            }
+          }
+        }
+      }
+    ]
+  }
+}
