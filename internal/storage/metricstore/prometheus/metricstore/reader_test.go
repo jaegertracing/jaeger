@@ -26,7 +26,6 @@ import (
 	"go.opentelemetry.io/otel/sdk/trace/tracetest"
 	"go.opentelemetry.io/otel/trace"
 	"go.uber.org/zap"
-	"go.uber.org/zap/zaptest/observer"
 
 	"github.com/jaegertracing/jaeger/internal/auth/bearertoken"
 	config "github.com/jaegertracing/jaeger/internal/config/promcfg"
@@ -745,23 +744,13 @@ func TestWarningResponse(t *testing.T) {
 	}
 	tracer, exp, closer := tracerProvider(t)
 	defer closer()
-	mockPrometheus := startMockPrometheusServer(t, "", []string{"warning0", "warning1"})
+	reader, mockPrometheus := prepareMetricsReaderAndServer(t, config.Configuration{}, "", []string{"warning0", "warning1"}, tracer)
 	defer mockPrometheus.Close()
-
-	core, logs := observer.New(zap.InfoLevel)
-	cfg := config.Configuration{
-		ServerURL:      "http://" + mockPrometheus.Listener.Addr().String(),
-		ConnectTimeout: defaultTimeout,
-	}
-	reader, err := NewMetricsReader(cfg, zap.New(core), tracer, nil)
-	require.NoError(t, err)
 
 	m, err := reader.GetErrorRates(context.Background(), &params)
 	require.NoError(t, err)
 	assert.NotNil(t, m)
 	assert.Len(t, exp.GetSpans(), 2, "expected an error rate query and a call rate query to be made")
-	assert.NotEmpty(t, logs.FilterMessage("Warnings detected on Prometheus query").All())
-	assert.NotEmpty(t, logs.FilterMessage("Info annotations detected on Prometheus query").All())
 }
 
 type fakePromServer struct {

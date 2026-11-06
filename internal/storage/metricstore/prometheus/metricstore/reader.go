@@ -268,7 +268,7 @@ func (m MetricsReader) executeQuery(ctx context.Context, p metricsQueryParams) (
 		Step:  *p.Step,
 	}
 
-	mv, warnings, infos, err := m.client.QueryRange(ctx, promQuery, queryRange)
+	mv, warnings, _, err := m.client.QueryRange(ctx, promQuery, queryRange)
 	if err != nil {
 		err = fmt.Errorf("failed executing metrics query: %w", err)
 		logErrorToSpan(span, err)
@@ -276,9 +276,6 @@ func (m MetricsReader) executeQuery(ctx context.Context, p metricsQueryParams) (
 	}
 	if len(warnings) > 0 {
 		m.logger.Warn("Warnings detected on Prometheus query", zap.Any("warnings", warnings), zap.String("query", promQuery), zap.Any("range", queryRange))
-	}
-	if len(infos) > 0 {
-		m.logger.Info("Info annotations detected on Prometheus query", zap.Any("infos", infos), zap.String("query", promQuery), zap.Any("range", queryRange))
 	}
 
 	m.logger.Debug("Prometheus query results", zap.String("results", mv.String()), zap.String("query", promQuery), zap.Any("range", queryRange))
