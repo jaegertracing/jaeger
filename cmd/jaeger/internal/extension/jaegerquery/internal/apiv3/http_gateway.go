@@ -31,13 +31,14 @@ import (
 )
 
 const (
-	routeGetTrace      = "/api/v3/traces/{" + paramTraceID + "}"
-	routeFindTraces    = "/api/v3/traces"
-	routeFindSummaries = "/api/v3/trace-summaries"
-	routeFindSpans     = "/api/v3/spans"
-	routeGetServices   = "/api/v3/services"
-	routeGetOperations = "/api/v3/operations"
-	routeCapabilities  = "/api/v3/capabilities"
+	routeGetTrace        = "/api/v3/traces/{" + paramTraceID + "}"
+	routeFindTraces      = "/api/v3/traces"
+	routeFindSummaries   = "/api/v3/trace-summaries"
+	routeFindSpans       = "/api/v3/spans"
+	routeGetServices     = "/api/v3/services"
+	routeGetOperations   = "/api/v3/operations"
+	routeCapabilities    = "/api/v3/capabilities"
+	routeGetDependencies = "/api/v3/dependencies"
 )
 
 // HTTPGateway exposes APIv3 HTTP endpoints.
@@ -57,6 +58,7 @@ func (h *HTTPGateway) RegisterRoutes(router *http.ServeMux) {
 	h.addRoute(router, h.getServices, routeGetServices, http.MethodGet)
 	h.addRoute(router, h.getOperations, routeGetOperations, http.MethodGet)
 	h.addRoute(router, h.getCapabilities, routeCapabilities, http.MethodGet)
+	h.addRoute(router, h.getDependencies, routeGetDependencies, http.MethodGet)
 }
 
 // addRoute adds a new endpoint to the router with given path and handler function.
@@ -357,4 +359,51 @@ func (h *HTTPGateway) getCapabilities(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	h.marshalResponse(&api_v3.GetCapabilitiesResponse{Search: toSearchCapabilities(caps)}, w, r)
+}
+
+// getDependencies serves GET /api/v3/dependencies, the HTTP counterpart of the
+// GetDependencies RPC. Both startTime and endTime are required RFC3339Nano
+// timestamps; endTime must be strictly after startTime.
+func (h *HTTPGateway) getDependencies(w http.ResponseWriter, r *http.Request) {
+	q := r.URL.Query()
+
+	startTime, err := parseTimeQueryParam(q.Get(paramStartTime), paramStartTime)
+	if h.tryHandleError(w, err, http.StatusBadRequest) {
+		return
+	}
+
+	endTime, err := parseTimeQueryParam(q.Get(paramEndTime), paramEndTime)
+	if h.tryHandleError(w, err, http.StatusBadRequest) {
+		return
+	}
+
+	if startTime.IsZero() {
+		h.tryHandleError(w, fmt.Errorf("parameter %s is required", paramStartTime), http.StatusBadRequest)
+		return
+	}
+
+	if endTime.IsZero() {
+		h.tryHandleError(w, fmt.Errorf("parameter %s is required", paramEndTime), http.StatusBadRequest)
+		return
+	}
+
+	if !endTime.After(startTime) {
+		h.tryHandleError(w, fmt.Errorf("parameter %s must be after %s", paramEndTime, paramStartTime), http.StatusBadRequest)
+		return
+	}
+
+	deps, err := h.QueryService.GetDependencies(r.Context(), endTime, endTime.Sub(startTime))
+	if h.tryHandleError(w, err, http.StatusInternalServerError) {
+		return
+	}
+
+	links := make([]*api_v3.Dependency, len(deps))
+	for i, dep := range deps {
+		links[i] = &api_v3.Dependency{
+			Parent:    dep.Parent,
+			Child:     dep.Child,
+			CallCount: dep.CallCount,
+		}
+	}
+	h.marshalResponse(&api_v3.DependenciesResponse{Dependencies: links}, w, r)
 }
