@@ -268,7 +268,7 @@ func (m MetricsReader) executeQuery(ctx context.Context, p metricsQueryParams) (
 		Step:  *p.Step,
 	}
 
-	mv, warnings, err := m.client.QueryRange(ctx, promQuery, queryRange)
+	mv, warnings, _, err := m.client.QueryRange(ctx, promQuery, queryRange)
 	if err != nil {
 		err = fmt.Errorf("failed executing metrics query: %w", err)
 		logErrorToSpan(span, err)
