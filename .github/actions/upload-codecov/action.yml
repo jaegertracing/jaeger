@@ -54,6 +54,11 @@ runs:
         # sleep 10 seconds between retries
         attempt_delay: 10000
         action: codecov/codecov-action@7afa10ed9b269c561c2336fd862446844e0cbf71 # v4.2.0
+        # wretry.action copies the whole `github` context into one environment variable
+        # of the child process, and it reads that copy only to evaluate `${{ }}` expressions
+        # in the wrapped action's input defaults. codecov-action has none, and a large PR
+        # payload pushes the variable past the 128 KiB limit for a single environment string.
+        github_context: '{}'
         with: |
           files: ${{ inputs.files }}
           flags: ${{ inputs.flag }}
