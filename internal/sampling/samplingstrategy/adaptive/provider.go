@@ -16,8 +16,6 @@ import (
 	"github.com/jaegertracing/jaeger/internal/storage/v1/api/samplingstore/model"
 )
 
-const defaultFollowerProbabilityInterval = 20 * time.Second
-
 // Provider is responsible for providing sampling strategies for services.
 // It periodically loads sampling probabilities from storage and converts them
 // into sampling strategies that are cached and served to clients.
@@ -55,7 +53,7 @@ func NewProvider(options Options, logger *zap.Logger, participant leaderelection
 		strategyResponses:       make(map[string]*api_v2.SamplingStrategyResponse),
 		logger:                  logger,
 		electionParticipant:     participant,
-		followerRefreshInterval: defaultFollowerProbabilityInterval,
+		followerRefreshInterval: options.FollowerRefreshInterval,
 		shutdown:                make(chan struct{}),
 	}
 }
