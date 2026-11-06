@@ -40,14 +40,25 @@ type Store struct {
 }
 
 // NewStore creates an in-memory store
-func NewStore(cfg Configuration) (*Store, error) {
+func NewStore(cfg Configuration, tenancyOpts tenancy.Options) (*Store, error) {
 	if cfg.MaxTraces == 0 {
 		return nil, errInvalidMaxTraces
+	}
+	if err := ValidateTenancy(tenancyOpts); err != nil {
+		return nil, err
 	}
 	return &Store{
 		cfg:       cfg,
 		perTenant: make(map[string]*Tenant),
 	}, nil
+}
+
+// ValidateTenancy rejects an unrestricted tenant list for the memory store.
+func ValidateTenancy(opts tenancy.Options) error {
+	if opts.Enabled && len(opts.Tenants) == 0 {
+		return errors.New("multi-tenancy is enabled with an empty tenant list; the memory store allocates a trace ring per tenant and would grow without a bound; set multi_tenancy.tenants")
+	}
+	return nil
 }
 
 // getTenant returns the per-tenant storage.  Note that tenantID has already been checked for by the collector or query

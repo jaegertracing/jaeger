@@ -77,6 +77,9 @@ func (s *server) Start(ctx context.Context, host component.Host) error {
 	telset.Metrics = telset.Metrics.
 		Namespace(metrics.NSOptions{Name: "jaeger"}).
 		Namespace(metrics.NSOptions{Name: "query"})
+	if err := jaegerstorage.ConfigureTenancy(host, s.config.Tenancy); err != nil {
+		return fmt.Errorf("cannot configure storage tenancy: %w", err)
+	}
 	tf, err := jaegerstorage.GetTraceStoreFactory(s.config.Storage.TracesPrimary, host)
 	if err != nil {
 		return fmt.Errorf("cannot find factory for trace storage %s: %w", s.config.Storage.TracesPrimary, err)

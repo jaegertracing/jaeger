@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"slices"
 	"sync"
 
 	"go.opentelemetry.io/collector/component"
@@ -23,7 +24,9 @@ import (
 	"github.com/jaegertracing/jaeger/internal/storage/v1"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/clickhouse"
+	"github.com/jaegertracing/jaeger/internal/storage/v2/memory"
 	"github.com/jaegertracing/jaeger/internal/telemetry"
+	"github.com/jaegertracing/jaeger/internal/tenancy"
 )
 
 var _ Extension = (*storageExt)(nil)
@@ -32,6 +35,7 @@ type Extension interface {
 	extension.Extension
 	TraceStorageFactory(name string) (tracestore.Factory, error)
 	MetricStorageFactory(name string) (storage.MetricStoreFactory, error)
+	SetTenancyOptions(tenancy.Options) error
 }
 
 type storageExt struct {
@@ -40,6 +44,41 @@ type storageExt struct {
 	factories        map[string]tracestore.Factory
 	metricsFactories map[string]storage.MetricStoreFactory
 	factoryMu        sync.Mutex
+	tenancyOptions   tenancy.Options
+}
+
+// ConfigureTenancy supplies server tenancy options before acquiring a storage factory.
+func ConfigureTenancy(host component.Host, options tenancy.Options) error {
+	ext, err := findExtension(host)
+	if err != nil {
+		return err
+	}
+	return ext.SetTenancyOptions(options)
+}
+
+func (s *storageExt) SetTenancyOptions(options tenancy.Options) error {
+	if !options.Enabled {
+		return nil
+	}
+	s.factoryMu.Lock()
+	defer s.factoryMu.Unlock()
+
+	tenants := slices.Clone(options.Tenants)
+	slices.Sort(tenants)
+	tenants = slices.Compact(tenants)
+	if s.tenancyOptions.Enabled && !slices.Equal(s.tenancyOptions.Tenants, tenants) {
+		return errors.New("conflicting multi_tenancy tenant lists for jaeger_query and remote_storage")
+	}
+	for name := range s.factories {
+		if s.config.TraceBackends[name].Memory != nil {
+			if err := memory.ValidateTenancy(options); err != nil {
+				return fmt.Errorf("failed to initialize storage '%s': %w", name, err)
+			}
+		}
+	}
+	options.Tenants = tenants
+	s.tenancyOptions = options
+	return nil
 }
 
 // getStorageFactory locates the extension in Host and retrieves
@@ -208,6 +247,7 @@ func (s *storageExt) TraceStorageFactory(name string) (tracestore.Factory, error
 		func(authCfg config.Authentication, backendType, backendName string) (extensionauth.HTTPClient, error) {
 			return s.resolveAuthenticator(s.telset.Host, authCfg, backendType, backendName)
 		},
+		s.tenancyOptions,
 	)
 	if err != nil {
 		return nil, fmt.Errorf("failed to initialize storage '%s': %w", name, err)

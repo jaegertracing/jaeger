@@ -44,6 +44,7 @@ import (
 	"github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore"
 	tracestoremocks "github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore/mocks"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/memory"
+	"github.com/jaegertracing/jaeger/internal/tenancy"
 )
 
 func makeStorageExtension(t *testing.T, memstoreName string) component.Host {
@@ -329,6 +330,8 @@ type fakeStorageExtensionForTest struct {
 	storageName string
 	failOn      string
 }
+
+func (*fakeStorageExtensionForTest) SetTenancyOptions(tenancy.Options) error { return nil }
 
 func (*fakeStorageExtensionForTest) Start(context.Context, component.Host) error { return nil }
 func (*fakeStorageExtensionForTest) Shutdown(context.Context) error              { return nil }
