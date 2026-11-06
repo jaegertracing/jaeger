@@ -364,6 +364,49 @@ GROUP BY
 ORDER BY
     ts`
 
+// SelectCallCounts returns the raw per-bucket span count, not yet divided into
+// a rate. GetCallRates uses this only when a RatePer wider than Step was
+// requested, and sums these over the RatePer-wide sliding window itself
+// before dividing by the window length - that time-normalization can't
+// happen in this query, where only a single bucket's count is in scope.
+const SelectCallCounts = `
+SELECT
+    toStartOfInterval(start_time, toIntervalSecond(?)) AS ts,
+    service_name,
+    count(*) AS val
+FROM
+    spans
+WHERE
+    start_time >= ?
+    AND start_time < ?
+    AND service_name IN (?)
+    AND kind IN (?)
+GROUP BY
+    ts,
+    service_name
+ORDER BY
+    ts`
+
+const SelectCallCountsByOperation = `
+SELECT
+    toStartOfInterval(start_time, toIntervalSecond(?)) AS ts,
+    service_name,
+    name,
+    count(*) AS val
+FROM
+    spans
+WHERE
+    start_time >= ?
+    AND start_time < ?
+    AND service_name IN (?)
+    AND kind IN (?)
+GROUP BY
+    ts,
+    service_name,
+    name
+ORDER BY
+    ts`
+
 const SelectErrorRates = `
 SELECT
     toStartOfInterval(start_time, toIntervalSecond(?)) AS ts,
