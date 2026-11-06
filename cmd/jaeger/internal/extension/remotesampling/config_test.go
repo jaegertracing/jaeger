@@ -136,6 +136,101 @@ func Test_Validate(t *testing.T) {
 			},
 			expectedErr: "follower_lease_refresh_interval must be a positive value",
 		},
+		{
+			name: "Adaptive provider has zero calculation interval",
+			config: &Config{
+				Adaptive: configoptional.Some(AdaptiveConfig{
+					SamplingStore: "test-store",
+					Options:       adaptiveOptions(func(o *adaptive.Options) { o.CalculationInterval = 0 }),
+				}),
+			},
+			expectedErr: "CalculationInterval and AggregationBuckets must be greater than 0",
+		},
+		{
+			name: "Adaptive provider has negative calculation interval",
+			config: &Config{
+				Adaptive: configoptional.Some(AdaptiveConfig{
+					SamplingStore: "test-store",
+					Options:       adaptiveOptions(func(o *adaptive.Options) { o.CalculationInterval = -time.Second }),
+				}),
+			},
+			expectedErr: "CalculationInterval and AggregationBuckets must be greater than 0",
+		},
+		{
+			name: "Adaptive provider has zero aggregation buckets",
+			config: &Config{
+				Adaptive: configoptional.Some(AdaptiveConfig{
+					SamplingStore: "test-store",
+					Options:       adaptiveOptions(func(o *adaptive.Options) { o.AggregationBuckets = 0 }),
+				}),
+			},
+			expectedErr: "CalculationInterval and AggregationBuckets must be greater than 0",
+		},
+		{
+			name: "Adaptive provider has negative aggregation buckets",
+			config: &Config{
+				Adaptive: configoptional.Some(AdaptiveConfig{
+					SamplingStore: "test-store",
+					Options:       adaptiveOptions(func(o *adaptive.Options) { o.AggregationBuckets = -1 }),
+				}),
+			},
+			expectedErr: "CalculationInterval and AggregationBuckets must be greater than 0",
+		},
+		{
+			name: "Adaptive provider has zero calculation buckets",
+			config: &Config{
+				Adaptive: configoptional.Some(AdaptiveConfig{
+					SamplingStore: "test-store",
+					Options:       adaptiveOptions(func(o *adaptive.Options) { o.BucketsForCalculation = 0 }),
+				}),
+			},
+			expectedErr: "BucketsForCalculation cannot be less than 1",
+		},
+		{
+			name: "Adaptive provider has negative calculation buckets",
+			config: &Config{
+				Adaptive: configoptional.Some(AdaptiveConfig{
+					SamplingStore: "test-store",
+					Options:       adaptiveOptions(func(o *adaptive.Options) { o.BucketsForCalculation = -1 }),
+				}),
+			},
+			expectedErr: "BucketsForCalculation cannot be less than 1",
+		},
+		{
+			name: "Adaptive provider has zero target samples per second",
+			config: &Config{
+				Adaptive: configoptional.Some(AdaptiveConfig{
+					SamplingStore: "test-store",
+					Options:       adaptiveOptions(func(o *adaptive.Options) { o.TargetSamplesPerSecond = 0 }),
+				}),
+			},
+			expectedErr: "TargetSamplesPerSecond must be a finite number greater than 0",
+		},
+		{
+			name: "Adaptive provider has negative target samples per second",
+			config: &Config{
+				Adaptive: configoptional.Some(AdaptiveConfig{
+					SamplingStore: "test-store",
+					Options:       adaptiveOptions(func(o *adaptive.Options) { o.TargetSamplesPerSecond = -1 }),
+				}),
+			},
+			expectedErr: "TargetSamplesPerSecond must be a finite number greater than 0",
+		},
+		{
+			name: "Adaptive provider with valid custom options",
+			config: &Config{
+				Adaptive: configoptional.Some(AdaptiveConfig{
+					SamplingStore: "test-store",
+					Options: adaptiveOptions(func(o *adaptive.Options) {
+						o.CalculationInterval = 30 * time.Second
+						o.AggregationBuckets = 5
+						o.BucketsForCalculation = 2
+						o.TargetSamplesPerSecond = 2.5
+					}),
+				}),
+			},
+			expectedErr: "",
+		},
 	}
 
 	for _, tt := range tests {
