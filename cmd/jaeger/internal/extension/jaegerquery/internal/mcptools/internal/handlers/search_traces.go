@@ -148,15 +148,15 @@ func (h *searchTracesHandler) buildQuery(input types.SearchTracesInput) (querysv
 
 	// Whether the time range and the duration bounds are ordered is the query service's
 	// decision, so only what this tool cannot hand over unparsed is checked here.
-	var durationMin, durationMax time.Duration
+	var minDuration, maxDuration time.Duration
 	if input.DurationMin != "" {
-		durationMin, err = time.ParseDuration(input.DurationMin)
+		minDuration, err = time.ParseDuration(input.DurationMin)
 		if err != nil {
 			return querysvc.TraceQueryParams{}, fmt.Errorf("invalid duration_min: %w", err)
 		}
 	}
 	if input.DurationMax != "" {
-		durationMax, err = time.ParseDuration(input.DurationMax)
+		maxDuration, err = time.ParseDuration(input.DurationMax)
 		if err != nil {
 			return querysvc.TraceQueryParams{}, fmt.Errorf("invalid duration_max: %w", err)
 		}
@@ -176,8 +176,8 @@ func (h *searchTracesHandler) buildQuery(input types.SearchTracesInput) (querysv
 		Attributes:    attributes,
 		StartTimeMin:  minStartTime,
 		StartTimeMax:  maxStartTime,
-		DurationMin:   durationMin,
-		DurationMax:   durationMax,
+		DurationMin:   minDuration,
+		DurationMax:   maxDuration,
 		SearchDepth:   h.searchDepth(input.SearchDepth),
 		RawTraces:     false,
 	}, nil

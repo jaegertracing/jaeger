@@ -157,11 +157,6 @@ linters:
         # existing packages conflict with stdlib names or use underscores; cannot rename
         - name: package-naming
           disabled: true
-        # these rules started firing with revive 1.17.1; whether to adopt them is tracked in a separate issue
-        - name: epoch-naming
-          disabled: true
-        - name: time-naming
-          disabled: true
     staticcheck:
       checks:
         - all
