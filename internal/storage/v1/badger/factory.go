@@ -7,6 +7,7 @@ import (
 	"context"
 	"errors"
 	"expvar"
+	"fmt"
 	"io"
 	"os"
 	"strings"
@@ -95,9 +96,12 @@ func (f *Factory) Initialize(metricsFactory metrics.Factory, logger *zap.Logger)
 		f.Config.Directories.Keys = f.tmpDir
 		f.Config.Directories.Values = f.tmpDir
 	} else {
-		// Errors are ignored as they're caught in the Open call
-		initializeDir(f.Config.Directories.Keys)
-		initializeDir(f.Config.Directories.Values)
+		if err := os.MkdirAll(f.Config.Directories.Keys, 0o700); err != nil {
+			return fmt.Errorf("cannot create keys directory: %w", err)
+		}
+		if err := os.MkdirAll(f.Config.Directories.Values, 0o700); err != nil {
+			return fmt.Errorf("cannot create values directory: %w", err)
+		}
 
 		opts.SyncWrites = f.Config.SyncWrites
 		opts.Dir = f.Config.Directories.Keys
@@ -135,13 +139,6 @@ func (f *Factory) Initialize(metricsFactory metrics.Factory, logger *zap.Logger)
 	logger.Info("Badger storage configuration", zap.Any("configuration", opts))
 
 	return nil
-}
-
-// initializeDir makes the directory and parent directories if the path doesn't exists yet.
-func initializeDir(path string) {
-	if _, err := os.Stat(path); err != nil && os.IsNotExist(err) {
-		_ = os.MkdirAll(path, 0o700)
-	}
 }
 
 // CreateSpanReader creates a spanstore.Reader.
