@@ -43,7 +43,7 @@ func MapJaegerToOtelEnvVars(logger *zap.Logger) {
 		if otelname == "" {
 			logger.Sugar().Infof("Ignoring deprecated Jaeger SDK env var %s, as there is no equivalent in OpenTelemetry", jname)
 		} else {
-			os.Setenv(otelname, val)
+			_ = os.Setenv(otelname, val)
 			logger.Sugar().Infof("Replacing deprecated Jaeger SDK env var %s with OpenTelemetry env var %s", jname, otelname)
 		}
 	}
