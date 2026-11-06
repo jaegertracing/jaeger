@@ -48,7 +48,9 @@ runs:
         retention-days: 7
 
     - name: Retry upload
-      uses: Wandalen/wretry.action@e68c23e6309f2871ca8ae4763e7629b9c258e1ea # v3.8.0
+      # The js_action variant is pinned directly: the composite variant at the plain v3.8.0
+      # tag wraps it and hardcodes `github_context`, so the override below would not reach it.
+      uses: Wandalen/wretry.action@71a909ebf09f3ffdc6f42a17bd54ecb43481da49 # v3.8.0_js_action
       with:
         attempt_limit: 6
         # sleep 10 seconds between retries
@@ -56,8 +58,9 @@ runs:
         action: codecov/codecov-action@7afa10ed9b269c561c2336fd862446844e0cbf71 # v4.2.0
         # wretry.action copies the whole `github` context into one environment variable
         # of the child process, and it reads that copy only to evaluate `${{ }}` expressions
-        # in the wrapped action's input defaults. codecov-action has none, and a large PR
-        # payload pushes the variable past the 128 KiB limit for a single environment string.
+        # in the wrapped action's metadata and in a non-boolean retry_condition. codecov-action
+        # has none, and a large PR payload pushes the variable past the 128 KiB limit for a
+        # single environment string.
         github_context: '{}'
         with: |
           files: ${{ inputs.files }}
