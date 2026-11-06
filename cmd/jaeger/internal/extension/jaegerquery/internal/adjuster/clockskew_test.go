@@ -243,6 +243,26 @@ func TestHostKey(t *testing.T) {
 			expected: "host-123",
 		},
 		{
+			name: "non-string host.id falls back to host.name",
+			resource: func() ptrace.ResourceSpans {
+				rs := ptrace.NewResourceSpans()
+				rs.Resource().Attributes().PutInt("host.id", 123)
+				rs.Resource().Attributes().PutStr("host.name", "host-a")
+				return rs
+			}(),
+			expected: "host-a",
+		},
+		{
+			name: "empty host.id falls back to host.ip",
+			resource: func() ptrace.ResourceSpans {
+				rs := ptrace.NewResourceSpans()
+				rs.Resource().Attributes().PutStr("host.id", "")
+				rs.Resource().Attributes().PutStr("host.ip", "1.2.3.4")
+				return rs
+			}(),
+			expected: "1.2.3.4",
+		},
+		{
 			name: "string host.ip attribute",
 			resource: func() ptrace.ResourceSpans {
 				rs := ptrace.NewResourceSpans()
@@ -250,6 +270,16 @@ func TestHostKey(t *testing.T) {
 				return rs
 			}(),
 			expected: "192.168.1.1",
+		},
+		{
+			name: "empty host.ip string falls back to host.name",
+			resource: func() ptrace.ResourceSpans {
+				rs := ptrace.NewResourceSpans()
+				rs.Resource().Attributes().PutStr("host.ip", "")
+				rs.Resource().Attributes().PutStr("host.name", "host-a")
+				return rs
+			}(),
+			expected: "host-a",
 		},
 		{
 			name: "slice host.ip attribute",
@@ -270,6 +300,16 @@ func TestHostKey(t *testing.T) {
 				return rs
 			}(),
 			expected: "",
+		},
+		{
+			name: "empty first host.ip value falls back to host.name",
+			resource: func() ptrace.ResourceSpans {
+				rs := ptrace.NewResourceSpans()
+				rs.Resource().Attributes().PutEmptySlice("host.ip").AppendEmpty().SetStr("")
+				rs.Resource().Attributes().PutStr("host.name", "host-a")
+				return rs
+			}(),
+			expected: "host-a",
 		},
 		{
 			name: "host.name attribute",
