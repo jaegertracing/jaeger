@@ -1,6 +1,6 @@
 # Cassandra FindTraceIDs Duration Query Behavior
 
-* **Status**: Documented existing implementation
+* **Status**: Documented existing implementation; extended 2026-10-25 to bound results by the requested start-time window
 * **Date**: 2026-01-03
 
 ## Context
@@ -150,6 +150,12 @@ This approach is documented in code comments and in this ADR to set proper expec
   3. Filtering the results by tag values in your application code
 
 - **Query design**: Structure queries to leverage the indices available. Use `ServiceName` and `OperationName` in conjunction with duration queries for best results.
+
+## Update: Bounding Results by the Requested Time Window
+
+The hourly bucket is wider than most search windows: spans are bucketed with `startTime.Round(durationBucketSize)`, so a bucket holds spans that started up to 30 minutes either side of the hour. A query that selected only on bucket, service, operation and duration therefore returned traces that started outside `StartTimeMin`/`StartTimeMax`, which the other Cassandra query paths never do.
+
+`start_time` is a clustering column that follows `duration`, so it cannot be restricted by a plain range once `duration` is restricted. The query now also restricts `start_time > ? AND start_time < ?` and ends with `ALLOW FILTERING`. The filtering stays inside the single `(service_name, operation_name, bucket)` partition that the query already targets, and it is applied before `LIMIT`, so a busy bucket cannot fill the limit with traces that are then discarded. The bucket iteration, the exclusion of tag filters and the other decisions above are unchanged.
 
 ## References
 
