@@ -17,6 +17,6 @@ WHERE 1=1
 			)
 		)
 	)
-	AND s.start_time >= ?
-	AND s.start_time <= ?
+	AND s.start_time >= fromUnixTimestamp64Nano(?)
+	AND s.start_time <= fromUnixTimestamp64Nano(?)
 LIMIT ?

@@ -6,8 +6,8 @@ WHERE 1=1
 	AND s.name = ?
 	AND s.duration >= ?
 	AND s.duration <= ?
-	AND s.start_time >= ?
-	AND s.start_time <= ?
+	AND s.start_time >= fromUnixTimestamp64Nano(?)
+	AND s.start_time <= fromUnixTimestamp64Nano(?)
 	AND (
 		arrayExists((key, value) -> key = ? AND value = ?, s.bool_attributes.key, s.bool_attributes.value)
 		OR

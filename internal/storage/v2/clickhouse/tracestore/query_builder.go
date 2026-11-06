@@ -153,13 +153,14 @@ func (r *Reader) buildFindTraceIDsQuery(
 	// The time range bounds either shape, so it is appended after the predicates each shape
 	// carries rather than repeated in both branches.
 	appendTimeRange := func() {
+		// Positional time.Time arguments are truncated to seconds by clickhouse-go.
 		if !query.StartTimeMin.IsZero() {
-			appendAnd(&inner, "s.start_time >= ?")
-			args = append(args, query.StartTimeMin)
+			appendAnd(&inner, "s.start_time >= fromUnixTimestamp64Nano(?)")
+			args = append(args, query.StartTimeMin.UnixNano())
 		}
 		if !query.StartTimeMax.IsZero() {
-			appendAnd(&inner, "s.start_time <= ?")
-			args = append(args, query.StartTimeMax)
+			appendAnd(&inner, "s.start_time <= fromUnixTimestamp64Nano(?)")
+			args = append(args, query.StartTimeMax.UnixNano())
 		}
 	}
 
