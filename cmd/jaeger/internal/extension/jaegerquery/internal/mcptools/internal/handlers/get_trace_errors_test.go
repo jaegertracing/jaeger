@@ -5,8 +5,10 @@ package handlers
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"iter"
+	"math"
 	"testing"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
@@ -17,6 +19,58 @@ import (
 	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerquery/internal/mcptools/internal/types"
 	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerquery/querysvc"
 )
+
+func TestGetTraceErrorsHandler_Handle_NonFiniteAttributes(t *testing.T) {
+	testTrace := createTestTraceWithSpans(testTraceID, []spanConfig{
+		{
+			spanID:    "span001",
+			operation: "/api/test",
+			hasError:  true,
+		},
+	})
+
+	span := testTrace.ResourceSpans().At(0).
+		ScopeSpans().At(0).Spans().At(0)
+
+	span.Attributes().PutDouble("measurement", math.NaN())
+
+	event := span.Events().AppendEmpty()
+	event.SetName("test-event")
+	event.Attributes().PutDouble("measurement", math.NaN())
+
+	link := span.Links().AppendEmpty()
+	link.SetTraceID(span.TraceID())
+	link.SetSpanID(span.SpanID())
+	link.Attributes().PutDouble("measurement", math.NaN())
+
+	handler := &getTraceErrorsHandler{
+		queryService:             newMockYieldingTraces(testTrace),
+		maxSpanDetailsPerRequest: 50,
+	}
+
+	input := types.GetTraceErrorsInput{
+		TraceID: testTraceID,
+	}
+
+	_, output, err := handler.handle(
+		context.Background(), &mcp.CallToolRequest{}, input,
+	)
+	require.NoError(t, err)
+	assert.Equal(t, 1, output.TotalErrorCount)
+	require.Len(t, output.Spans, 1)
+
+	detail := output.Spans[0]
+	assert.Equal(t, "NaN", detail.Attributes["measurement"])
+
+	require.Len(t, detail.Events, 1)
+	assert.Equal(t, "NaN", detail.Events[0].Attributes["measurement"])
+
+	require.Len(t, detail.Links, 1)
+	assert.Equal(t, "NaN", detail.Links[0].Attributes["measurement"])
+
+	_, err = json.Marshal(output)
+	require.NoError(t, err)
+}
 
 func TestGetTraceErrorsHandler_Handle_Success(t *testing.T) {
 	traceID := testTraceID
