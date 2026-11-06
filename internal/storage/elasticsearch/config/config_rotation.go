@@ -5,6 +5,7 @@ package config
 
 import (
 	"fmt"
+	"time"
 
 	"go.opentelemetry.io/collector/config/configoptional"
 )
@@ -117,12 +118,13 @@ func (c *Configuration) validateRotationConfig() error {
 		name     string
 		opts     *IndexOptions
 		rotation *RotationConfig
+		resolved func() RotationConfig
 	}
 	entries := []rotationEntry{
-		{"spans", &c.Indices.Spans.IndexOptions, &c.Indices.Spans.Rotation},
-		{"services", &c.Indices.Services, &c.Indices.Services.Rotation},
-		{"dependencies", &c.Indices.Dependencies, &c.Indices.Dependencies.Rotation},
-		{"sampling", &c.Indices.Sampling, &c.Indices.Sampling.Rotation},
+		{"spans", &c.Indices.Spans.IndexOptions, &c.Indices.Spans.Rotation, c.ResolvedSpanRotation},
+		{"services", &c.Indices.Services, &c.Indices.Services.Rotation, c.ResolvedServiceRotation},
+		{"dependencies", &c.Indices.Dependencies, &c.Indices.Dependencies.Rotation, c.ResolvedDependencyRotation},
+		{"sampling", &c.Indices.Sampling, &c.Indices.Sampling.Rotation, c.ResolvedSamplingRotation},
 	}
 	for _, e := range entries {
 		if err := e.rotation.validate(e.name); err != nil {
@@ -135,8 +137,37 @@ func (c *Configuration) validateRotationConfig() error {
 				e.name,
 			)
 		}
+		resolved := e.resolved()
+		if p := resolved.Periodic.Get(); p != nil {
+			if err := p.validate(e.name); err != nil {
+				return err
+			}
+		}
 	}
 
+	return nil
+}
+
+// validate rejects a rollover frequency that reads cannot step by, and a date layout that
+// produces more than one index per step, since reads would skip the indices in between.
+func (p *PeriodicRotation) validate(indexType string) error {
+	frequency := p.RolloverFrequency
+	if frequency == "" {
+		frequency = "day"
+	}
+	if frequency != "day" && frequency != "hour" {
+		return fmt.Errorf("indices.%s: rollover_frequency must be \"day\" or \"hour\", got %q", indexType, p.RolloverFrequency)
+	}
+	layout := p.DateLayout
+	if layout == "" {
+		layout = "2006-01-02"
+	}
+	stepStart := time.Date(2000, 1, 1, 0, 0, 0, 0, time.UTC)
+	stepEnd := stepStart.Add(RolloverFrequencyDuration(frequency) - time.Nanosecond)
+	if stepStart.Format(layout) != stepEnd.Format(layout) {
+		return fmt.Errorf("indices.%s: date_layout %q changes more often than rollover_frequency %q",
+			indexType, layout, frequency)
+	}
 	return nil
 }
 
