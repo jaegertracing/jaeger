@@ -24,3 +24,11 @@ Read a sub-skill's SKILL.md before applying it.
 Installation-specific skills, if any, are listed under
 [custom/SKILL.md](custom/SKILL.md). If that file does not exist, this Jaeger
 instance has none.
+
+## Gotchas
+
+- A client span that failed to connect (connection refused, unavailable) and
+  has no server-side child is not the origin: the callee was down or
+  restarting. Use `search_traces` on the callee for the period before the
+  failure and `get_span_details` on its own spans to find why it went down,
+  such as spans getting slower or attribute values that stand out.
