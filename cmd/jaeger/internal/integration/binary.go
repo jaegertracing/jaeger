@@ -110,7 +110,7 @@ func (b *Binary) Stop(t *testing.T) {
 	// rather than calling Wait again.
 	exited := make(chan struct{})
 	go func() {
-		b.Process.Wait()
+		_, _ = b.Process.Wait()
 		close(exited)
 	}()
 
