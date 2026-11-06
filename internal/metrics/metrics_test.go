@@ -47,6 +47,7 @@ func TestInitMetrics(t *testing.T) {
 	assert.EqualValues(t, 42, g["histogram|key=value.P50"])
 
 	stopwatch := metrics.StartStopwatch(testMetrics.Timer)
+	require.Eventually(t, func() bool { return stopwatch.ElapsedTime() > 0 }, time.Second, time.Millisecond)
 	stopwatch.Stop()
 	assert.Positive(t, stopwatch.ElapsedTime())
 }

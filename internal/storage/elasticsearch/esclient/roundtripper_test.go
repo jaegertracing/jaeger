@@ -152,7 +152,7 @@ func TestGetHTTPRoundTripper(t *testing.T) {
 				},
 			},
 			ctx:             context.Background(),
-			wantErrContains: "no such file or directory",
+			wantErrContains: "failed to initialize bearer authentication",
 		},
 		{
 			name: "Invalid TLS config should fail",
@@ -177,6 +177,9 @@ func TestGetHTTPRoundTripper(t *testing.T) {
 				require.Error(t, err)
 				assert.Contains(t, err.Error(), tt.wantErrContains)
 				assert.Nil(t, rt)
+				if tt.name == "BearerToken file error" {
+					require.ErrorIs(t, err, os.ErrNotExist)
+				}
 			} else {
 				require.NoError(t, err)
 				tt.validate(t, unwrapCloseable(t, rt))

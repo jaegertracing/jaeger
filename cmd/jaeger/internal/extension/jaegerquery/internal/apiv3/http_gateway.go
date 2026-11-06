@@ -356,5 +356,5 @@ func (h *HTTPGateway) getCapabilities(w http.ResponseWriter, r *http.Request) {
 	if h.tryHandleError(w, err, http.StatusInternalServerError) {
 		return
 	}
-	h.marshalResponse(&api_v3.GetCapabilitiesResponse{Search: toSearchCapabilities(caps)}, w, r)
+	h.marshalResponse(&api_v3.GetCapabilitiesResponse{Search: ToSearchCapabilities(caps)}, w, r)
 }

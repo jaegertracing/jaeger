@@ -53,12 +53,22 @@ func New(config Config, logger *zap.Logger) (*Writer, error) {
 	if err != nil {
 		return nil, fmt.Errorf("cannot create output file: %w", err)
 	}
+	initialized := false
+	files := []*os.File{cf}
+	defer func() {
+		if !initialized {
+			for _, file := range files {
+				file.Close()
+			}
+		}
+	}()
 	logger.Sugar().Infof("Writing captured spans to file %s", config.CapturedFile)
 
 	af, err := os.OpenFile(config.AnonymizedFile, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, os.ModePerm)
 	if err != nil {
 		return nil, fmt.Errorf("cannot create output file: %w", err)
 	}
+	files = append(files, af)
 	logger.Sugar().Infof("Writing anonymized spans to file %s", config.AnonymizedFile)
 
 	_, err = cf.WriteString("[")
@@ -77,6 +87,7 @@ func New(config Config, logger *zap.Logger) (*Writer, error) {
 		HashProcess:      config.AnonymizerOpts.HashProcess,
 	}
 
+	initialized = true
 	return &Writer{
 		config:         config,
 		logger:         logger,

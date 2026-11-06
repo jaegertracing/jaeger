@@ -251,30 +251,16 @@ func TestNewTokenProvider_WithZapLogger(t *testing.T) {
 
 // TestCachedFileTokenLoader_FilePermissions tests file permission errors
 func TestCachedFileTokenLoader_FilePermissions(t *testing.T) {
-	if os.Getuid() == 0 {
-		t.Skip("Running as root - file permission tests not meaningful")
-	}
-
-	currentTime := time.Unix(0, 0)
-	timeFn := func() time.Time { return currentTime }
-
-	// Create a file and make it unreadable
-	tokenFile := createTempTokenFile(t, "permission-test\n")
-	err := os.Chmod(tokenFile, 0o000) // No permissions
-	require.NoError(t, err)
-
-	// Cleanup with restored permissions
-	t.Cleanup(func() {
-		os.Chmod(tokenFile, 0o644)
-		os.Remove(tokenFile)
-	})
-
-	loader := cachedFileTokenLoader(tokenFile, 100*time.Millisecond, timeFn)
-
-	// Should return permission error
-	_, err = loader()
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "permission denied")
+	permissionError := &os.PathError{Op: "open", Path: "token", Err: os.ErrPermission}
+	loader := cachedFileTokenLoaderWithReader("token", 100*time.Millisecond, time.Now,
+		func(path string) ([]byte, error) {
+			assert.Equal(t, "token", path)
+			return nil, permissionError
+		})
+	_, err := loader()
+	require.ErrorIs(t, err, os.ErrPermission)
+	require.ErrorIs(t, err, permissionError)
+	require.ErrorContains(t, err, "failed to read token file")
 }
 
 // TestTokenProviderWithTime_ConcurrentCalls is a regression test for a data

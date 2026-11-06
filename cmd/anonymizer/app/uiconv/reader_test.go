@@ -17,6 +17,7 @@ func TestReaderTraceSuccess(t *testing.T) {
 	inputFile := "fixtures/trace_success.json"
 	r, err := newSpanReader(inputFile, zap.NewNop())
 	require.NoError(t, err)
+	defer r.capturedFile.Close()
 
 	s1, err := r.NextSpan()
 	require.NoError(t, err)
@@ -48,6 +49,7 @@ func TestReaderTraceEmpty(t *testing.T) {
 	inputFile := "fixtures/trace_empty.json"
 	r, err := newSpanReader(inputFile, zap.NewNop())
 	require.NoError(t, err)
+	defer r.capturedFile.Close()
 
 	_, err = r.NextSpan()
 	require.ErrorContains(t, err, "cannot read file")
@@ -59,6 +61,7 @@ func TestReaderTraceWrongFormat(t *testing.T) {
 	inputFile := "fixtures/trace_wrong_format.json"
 	r, err := newSpanReader(inputFile, zap.NewNop())
 	require.NoError(t, err)
+	defer r.capturedFile.Close()
 
 	_, err = r.NextSpan()
 	require.Equal(t, "file must begin with '['", err.Error())
@@ -70,6 +73,7 @@ func TestReaderTraceInvalidJson(t *testing.T) {
 	inputFile := "fixtures/trace_invalid_json.json"
 	r, err := newSpanReader(inputFile, zap.NewNop())
 	require.NoError(t, err)
+	defer r.capturedFile.Close()
 
 	_, err = r.NextSpan()
 	require.ErrorContains(t, err, "cannot unmarshal span")
@@ -82,6 +86,7 @@ func TestReaderTraceNoSpans(t *testing.T) {
 	inputFile := "fixtures/trace_no_spans.json"
 	r, err := newSpanReader(inputFile, zap.NewNop())
 	require.NoError(t, err)
+	defer r.capturedFile.Close()
 
 	_, err = r.NextSpan()
 	require.ErrorIs(t, err, errNoMoreSpans)
@@ -98,6 +103,7 @@ func TestReaderTraceBlankLinesAndCRLF(t *testing.T) {
 	require.NoError(t, os.WriteFile(inputFile, []byte(content), 0o600))
 	r, err := newSpanReader(inputFile, zap.NewNop())
 	require.NoError(t, err)
+	defer r.capturedFile.Close()
 
 	span, err := r.NextSpan()
 	require.NoError(t, err)
@@ -118,6 +124,7 @@ func TestReaderTraceTruncatedAfterComma(t *testing.T) {
 	require.NoError(t, os.WriteFile(inputFile, []byte(content), 0o600))
 	r, err := newSpanReader(inputFile, zap.NewNop())
 	require.NoError(t, err)
+	defer r.capturedFile.Close()
 
 	span, err := r.NextSpan()
 	require.NoError(t, err)

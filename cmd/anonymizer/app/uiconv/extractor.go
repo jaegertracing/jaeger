@@ -40,6 +40,7 @@ func newExtractor(uiFile string, traceID string, reader *spanReader, logger *zap
 
 // Run executes the extraction.
 func (e *extractor) Run() error {
+	defer e.uiFile.Close()
 	e.logger.Info("Parsing captured file for trace", zap.String("trace_id", e.traceID))
 
 	var (
@@ -77,7 +78,6 @@ func (e *extractor) Run() error {
 	e.uiFile.Write(jsonBytes)
 	e.uiFile.WriteString(`]}`)
 	e.uiFile.Sync()
-	e.uiFile.Close()
 	e.logger.Sugar().Infof("Wrote spans to UI file %s", e.uiFile.Name())
 	return nil
 }

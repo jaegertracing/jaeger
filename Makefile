@@ -1,7 +1,7 @@
 # Copyright (c) 2023 The Jaeger Authors.
 # SPDX-License-Identifier: Apache-2.0
 
-SHELL := /bin/bash
+SHELL := $(if $(filter Windows_NT,$(OS)),bash,/bin/bash)
 JAEGER_IMPORT_PATH = github.com/jaegertracing/jaeger
 
 # PLATFORMS is a list of all supported platforms
@@ -23,7 +23,7 @@ endif
 
 
 # All .go files that are not auto-generated and should be auto-formatted and linted.
-ALL_SRC = $(shell find . -name '*.go' \
+LIST_SRC = find . -name '*.go' \
 				   -not -name '_*' \
 				   -not -name '.*' \
 				   -not -name 'mocks*' \
@@ -36,7 +36,8 @@ ALL_SRC = $(shell find . -name '*.go' \
 				   -not -path '*/mocks/*' \
 				   -not -path './cmd/jaeger/_build/*' \
 				   -type f | \
-				sort)
+				sort
+ALL_SRC = $(shell $(LIST_SRC))
 
 # All tracked file types that should carry copyright and SPDX license headers.
 LIST_LICENSE_SRC = git ls-files \
@@ -55,9 +56,11 @@ SCRIPTS_SRC = $(shell find . \( -name '*.sh' -o -name '*.py' -o -name '*.mk' -o 
 					sort)
 
 # ALL_PKGS is used with 'nocover' and 'goleak'
-ALL_PKGS = $(shell echo $(dir $(ALL_SRC)) | tr ' ' '\n' | grep -v '/.*-gen/' | sort -u)
+LIST_PKGS = $(LIST_SRC) | sed 's|/[^/]*$$|/|' | grep -v '/.*-gen/' | sort -u
+ALL_PKGS = $(shell $(LIST_PKGS))
 
 GO=go
+PYTHON ?= $(if $(filter Windows_NT,$(OS)),python,python3)
 GOOS ?= $(shell $(GO) env GOOS)
 GOARCH ?= $(shell $(GO) env GOARCH)
 
@@ -157,20 +160,20 @@ cover: nocover $(GOTESTSUM)
 .PHONY: nocover
 nocover:
 	@echo Verifying that all packages have test files to count in coverage
-	@scripts/lint/check-test-files.sh $(ALL_PKGS)
+	@set -o pipefail && $(LIST_PKGS) | xargs -n 50 bash scripts/lint/check-test-files.sh
 
 .PHONY: fmt
 fmt: $(GOFUMPT)
 	@echo Running import-order-cleanup on ALL_SRC ...
-	@./scripts/lint/import-order-cleanup.py -o inplace -t $(ALL_SRC)
+	@set -o pipefail && $(LIST_SRC) | xargs -n 50 $(PYTHON) scripts/lint/import-order-cleanup.py -o inplace -t
 	@echo Running gofmt on ALL_SRC ...
-	@$(GOFMT) -e -s -l -w $(ALL_SRC)
+	@set -o pipefail && $(LIST_SRC) | xargs -n 50 $(GOFMT) -e -s -l -w
 	@echo Running gofumpt on ALL_SRC ...
-	@$(GOFUMPT) -e -l -w $(ALL_SRC)
+	@set -o pipefail && $(LIST_SRC) | xargs -n 50 $(GOFUMPT) -e -l -w
 	@echo Running updateLicense.py on LICENSE_SRC ...
-	@./scripts/lint/updateLicense.py $(shell $(LIST_LICENSE_SRC))
+	@set -o pipefail && $(LIST_LICENSE_SRC) | xargs -n 50 $(PYTHON) scripts/lint/updateLicense.py
 	@echo Running check-line-endings on all files ...
-	@./scripts/lint/check-line-endings.py -u
+	@$(PYTHON) scripts/lint/check-line-endings.py -u
 
 .PHONY: lint
 lint: lint-fmt lint-license lint-imports lint-semconv lint-goversion lint-goleak lint-go lint-monitoring lint-line-endings
@@ -184,7 +187,7 @@ lint-monitoring:
 .PHONY: lint-license
 lint-license:
 	@echo Verifying that all files have license headers
-	@./scripts/lint/updateLicense.py $(shell $(LIST_LICENSE_SRC)) > $(FMT_LOG)
+	@set -o pipefail && $(LIST_LICENSE_SRC) | xargs -n 50 $(PYTHON) scripts/lint/updateLicense.py > $(FMT_LOG)
 	@[ ! -s "$(FMT_LOG)" ] || (echo "License check failures, run 'make fmt'" | cat - $(FMT_LOG) && false)
 
 .PHONY: lint-nocommit
@@ -200,34 +203,34 @@ lint-nocommit:
 .PHONY: lint-imports
 lint-imports:
 	@echo Verifying that all Go files have correctly ordered imports
-	@./scripts/lint/import-order-cleanup.py -o stdout -t $(ALL_SRC) > $(IMPORT_LOG)
+	@set -o pipefail && $(LIST_SRC) | xargs -n 50 $(PYTHON) scripts/lint/import-order-cleanup.py -o stdout -t > $(IMPORT_LOG)
 	@[ ! -s "$(IMPORT_LOG)" ] || (echo "Import ordering failures, run 'make fmt'" | cat - $(IMPORT_LOG) && false)
 
 .PHONY: lint-line-endings
 lint-line-endings:
 	@echo Verifying that all files use Unix line endings, have no trailing whitespace, and end with a final newline at EOF
-	@./scripts/lint/check-line-endings.py
+	@$(PYTHON) scripts/lint/check-line-endings.py
 
 .PHONY: lint-fmt
 lint-fmt: $(GOFUMPT)
 	@echo Verifying that all Go files are formatted with gofmt and gofumpt
 	@rm -f $(FMT_LOG)
-	@$(GOFMT) -d -e -s $(ALL_SRC) > $(FMT_LOG) || true
-	@$(GOFUMPT) -d -e $(ALL_SRC) >> $(FMT_LOG) || true
+	@set -o pipefail && $(LIST_SRC) | xargs -n 50 $(GOFMT) -d -e -s > $(FMT_LOG)
+	@set -o pipefail && $(LIST_SRC) | xargs -n 50 $(GOFUMPT) -d -e >> $(FMT_LOG)
 	@[ ! -s "$(FMT_LOG)" ] || (echo "Formatting check failed. Please run 'make fmt'" && head -100 $(FMT_LOG) && false)
 
 .PHONY: lint-semconv
 lint-semconv:
-	./scripts/lint/check-semconv-version.sh
+	bash scripts/lint/check-semconv-version.sh
 
 .PHONY: lint-goversion
 lint-goversion:
-	./scripts/lint/check-go-version.sh
+	bash scripts/lint/check-go-version.sh
 
 .PHONY: lint-goleak
 lint-goleak:
 	@echo Verifying that all packages with tests have goleak in their TestMain
-	@scripts/lint/check-goleak-files.sh $(ALL_PKGS)
+	@set -o pipefail && $(LIST_PKGS) | xargs -n 50 bash scripts/lint/check-goleak-files.sh
 
 # Each checkout gets its own cache because golangci-lint keys entries by file
 # content rather than by path, so worktrees sharing one cache report findings
