@@ -4,9 +4,6 @@
 package apiv3
 
 import (
-	"encoding/json"
-	"errors"
-	"io"
 	"net/url"
 	"runtime"
 	"strconv"
@@ -519,57 +516,12 @@ func sortTermJSON(callJSON string) string {
 	return `[{"expression":{"call":` + callJSON + `}}]`
 }
 
-// jsonDepth is how deeply value nests objects and arrays, as encoding/json reads it, which makes it
-// an oracle independent of nestsDeeperThan.
-func jsonDepth(t *testing.T, value string) int {
-	dec := json.NewDecoder(strings.NewReader(value))
-	depth, deepest := 0, 0
-	for {
-		token, err := dec.Token()
-		if errors.Is(err, io.EOF) {
-			return deepest
-		}
-		require.NoError(t, err)
-		switch token {
-		case json.Delim('{'), json.Delim('['):
-			depth++
-			deepest = max(deepest, depth)
-		case json.Delim('}'), json.Delim(']'):
-			depth--
-		default:
-			// A key or a scalar nests nothing.
-		}
-	}
-}
-
-func TestNestsDeeperThan(t *testing.T) {
-	for _, tc := range []struct {
-		name  string
-		value string
-		limit int
-		want  bool
-	}{
-		{"at the limit", `{"a":[1]}`, 2, false},
-		{"past the limit", `{"a":[[1]]}`, 2, true},
-		{"siblings do not add up", `[[],{"a":1},[[]]]`, 3, false},
-		{"brackets inside a string", `["[[{{"]`, 1, false},
-		{"an escaped quote does not end a string", `["\"[[{{"]`, 1, false},
-		{"an escaped backslash does not escape the quote after it", `["\\",[[1]]]`, 2, true},
-	} {
-		t.Run(tc.name, func(t *testing.T) {
-			assert.Equal(t, tc.want, jsonDepth(t, tc.value) > tc.limit, "the case itself")
-			assert.Equal(t, tc.want, nestsDeeperThan(tc.value, tc.limit))
-		})
-	}
-}
-
-// TestParseFilterParam_NestingDepth pins the bound checked before decoding to the AST's own: the
-// deepest filter within expression.MaxNestingDepth reaches maxFilterJSONDepth and still decodes,
-// and JSON one level deeper is refused without being decoded.
+// TestParseFilterParam_NestingDepth pins the bound checked during decoding to the AST's own: the
+// deepest filter within expression.MaxNestingDepth reaches the limit and still decodes,
+// and JSON one level deeper is refused.
 func TestParseFilterParam_NestingDepth(t *testing.T) {
 	t.Run("the deepest filter the limit accepts", func(t *testing.T) {
 		deepest := nestedFilterJSON(expression.MaxNestingDepth, deepestCallJSON)
-		require.Equal(t, maxFilterJSONDepth, jsonDepth(t, deepest))
 		q := url.Values{}
 		q.Set(paramFilter, deepest)
 
@@ -584,12 +536,10 @@ func TestParseFilterParam_NestingDepth(t *testing.T) {
 
 	t.Run("one level deeper", func(t *testing.T) {
 		tooDeep := nestedFilterJSON(expression.MaxNestingDepth+1, emptyArgCallJSON)
-		require.Equal(t, maxFilterJSONDepth+1, jsonDepth(t, tooDeep))
 		q := url.Values{}
 		q.Set(paramFilter, tooDeep)
 
 		_, err := parseFilterParam(q)
-		require.ErrorIs(t, err, errNestedTooDeeply)
 		require.ErrorIs(t, err, expression.ErrTooDeeplyNested)
 		require.ErrorContains(t, err, "malformed parameter query.filter")
 	})
@@ -614,7 +564,6 @@ func TestParseFindSpansQuery_OrderByNestingDepth(t *testing.T) {
 	// (tracestore.NormalizeSpanOrder); the parser decodes whatever the depth limit accepts.
 	t.Run("the deepest expression the limit accepts", func(t *testing.T) {
 		deepest := sortTermJSON(nestedFilterJSON(expression.MaxNestingDepth, deepestCallJSON))
-		require.Equal(t, maxOrderByJSONDepth, jsonDepth(t, deepest))
 		q := url.Values{}
 		q.Set(paramOrderBy, deepest)
 
@@ -626,20 +575,17 @@ func TestParseFindSpansQuery_OrderByNestingDepth(t *testing.T) {
 
 	t.Run("one level deeper", func(t *testing.T) {
 		tooDeep := sortTermJSON(nestedFilterJSON(expression.MaxNestingDepth+1, emptyArgCallJSON))
-		require.Equal(t, maxOrderByJSONDepth+1, jsonDepth(t, tooDeep))
 		q := url.Values{}
 		q.Set(paramOrderBy, tooDeep)
 
 		_, err := parseFindSpansQuery(q)
-		require.ErrorIs(t, err, errNestedTooDeeply)
+		require.ErrorIs(t, err, expression.ErrTooDeeplyNested)
 		require.ErrorContains(t, err, "malformed parameter query.orderBy")
 	})
 }
 
-// TestParseFindSpansQuery_RefusesDeepJSONBeforeDecoding is why the depth is checked first. The
-// protobuf decoder copies the text below every level it descends, so a long parameter nested
-// thousands deep costs gigabytes of allocation before the AST's own bound refuses the tree.
-// Checked first, the same parameter costs one read of its first few hundred bytes.
+// TestParseFindSpansQuery_RefusesDeepJSONBeforeDecoding is why the depth is checked. A long parameter
+// nested thousands deep must be refused with bounded memory allocation.
 func TestParseFindSpansQuery_RefusesDeepJSONBeforeDecoding(t *testing.T) {
 	// About half a megabyte, which a GET query string carries: 2000 calls, about 6000 JSON levels
 	// and so inside encoding/json's own limit of 10000, around one long constant.
@@ -658,11 +604,10 @@ func TestParseFindSpansQuery_RefusesDeepJSONBeforeDecoding(t *testing.T) {
 			_, err := parseFindSpansQuery(q)
 			runtime.ReadMemStats(&after)
 
-			// The check allocates nothing; what is allocated is the error, and json.Valid's copy of
-			// query.orderBy. 16 MB leaves room for that and the runtime, and is still far below
-			// what decoding the parameter allocates.
+			// 16 MB leaves room for json.Valid and the runtime, and is still far below
+			// what unconstrained decoding of the parameter allocates.
 			assert.Less(t, after.TotalAlloc-before.TotalAlloc, uint64(16<<20), "bytes allocated")
-			require.ErrorIs(t, err, errNestedTooDeeply)
+			require.ErrorIs(t, err, expression.ErrTooDeeplyNested)
 		})
 	}
 }

@@ -11,12 +11,15 @@ import (
 	"strings"
 	"time"
 
-	"github.com/gogo/protobuf/jsonpb"
 	"go.opentelemetry.io/collector/pdata/pcommon"
+	"google.golang.org/protobuf/encoding/protojson"
+	"google.golang.org/protobuf/proto"
 
 	expression "github.com/jaegertracing/jaeger-idl/query/expression/v1"
 	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerquery/querysvc"
 	"github.com/jaegertracing/jaeger/internal/jptrace"
+	apiv3go "github.com/jaegertracing/jaeger/internal/proto-gen/go/api_v3"
+	expressiongo "github.com/jaegertracing/jaeger/internal/proto-gen/go/expression/v1"
 	"github.com/jaegertracing/jaeger/internal/proto/api_v3"
 	expressionproto "github.com/jaegertracing/jaeger/internal/proto/expression/v1"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore"
@@ -60,63 +63,16 @@ const (
 	paramSpanKindDeprecated       = "span_kind"
 )
 
-// maxFilterJSONDepth is the deepest the protobuf JSON of a filter within expression.MaxNestingDepth
-// nests objects and arrays. Each call takes three levels: its Call object, its "args" array, and
-// the Expression object of the argument holding the next call, so the argument Expressions of the
-// deepest call allowed open at 3*MaxNestingDepth. Below them a term is one object of strings, or a
-// List object whose "values" array of strings is one level more, which makes 3*MaxNestingDepth+2.
-// A call argument at that point is past the limit already.
+// maxFilterRecursionLimit is the recursion limit passed to protojson.UnmarshalOptions for query.filter.
+// In protojson, each nested Call message consumes two recursion levels (the Call message and its
+// argument Expression message), plus one level for the innermost term/list, giving 2*MaxNestingDepth + 1.
 //
-// maxOrderByJSONDepth is the same bound for query.orderBy, whose sort terms hold an Expression that
-// is decoded under the same limit: the array, a sort term object and its "expression" object put a
-// call three levels deeper than in a filter.
+// maxOrderByRecursionLimit is the same bound for query.orderBy, whose sort terms wrap the expression in
+// an outer object and array, adding three levels.
 const (
-	maxFilterJSONDepth  = 3*expression.MaxNestingDepth + 2
-	maxOrderByJSONDepth = maxFilterJSONDepth + 3
+	maxFilterRecursionLimit  = 2*expression.MaxNestingDepth + 1
+	maxOrderByRecursionLimit = maxFilterRecursionLimit + 3
 )
-
-// errNestedTooDeeply refuses a filter or an ordering whose JSON nests deeper than any value within
-// expression.MaxNestingDepth can, before the protobuf decoder reads it. It wraps the error that
-// decoding a well-formed value that deep ends in.
-var errNestedTooDeeply = fmt.Errorf("JSON nested too deeply to decode: %w", expression.ErrTooDeeplyNested)
-
-// nestsDeeperThan reports whether the JSON text in value opens more than limit objects and arrays
-// at once. The protobuf decoder copies the rest of the text at every level it descends, so its work
-// grows with the depth times the length; this check reads the text once, allocates nothing, and
-// stops at the first level past limit. It skips string contents, escapes included, and validates
-// nothing else: text it lets through is still decoded, and refused if malformed, by the decoder.
-func nestsDeeperThan(value string, limit int) bool {
-	depth := 0
-	inString := false
-	for i := 0; i < len(value); i++ {
-		c := value[i]
-		if inString {
-			switch c {
-			case '\\':
-				i++ // the escaped byte, which may be a quote, does not end the string
-			case '"':
-				inString = false
-			default:
-				// Any other byte, a bracket included, is part of the string.
-			}
-			continue
-		}
-		switch c {
-		case '"':
-			inString = true
-		case '{', '[':
-			depth++
-			if depth > limit {
-				return true
-			}
-		case '}', ']':
-			depth--
-		default:
-			// Any other byte neither opens nor closes a level.
-		}
-	}
-	return false
-}
 
 // parseTimeQueryParam parses value, already resolved from a query parameter, as RFC3339Nano,
 // reporting a malformed value under paramName. An empty value is not an error: it returns the
@@ -162,11 +118,20 @@ func parseFilterParam(q url.Values) (*expression.Call, error) {
 	if filterParam == "" {
 		return nil, nil
 	}
-	if nestsDeeperThan(filterParam, maxFilterJSONDepth) {
-		return nil, fmt.Errorf("malformed parameter %s: %w", paramFilter, errNestedTooDeeply)
+	opts := protojson.UnmarshalOptions{RecursionLimit: maxFilterRecursionLimit}
+	var goCall expressiongo.Call
+	if err := opts.Unmarshal([]byte(filterParam), &goCall); err != nil {
+		if strings.Contains(err.Error(), "exceeded max recursion depth") {
+			return nil, fmt.Errorf("malformed parameter %s: JSON nested too deeply to decode: %w", paramFilter, expression.ErrTooDeeplyNested)
+		}
+		return nil, fmt.Errorf("malformed parameter %s: %w", paramFilter, err)
+	}
+	wireBytes, err := proto.Marshal(&goCall)
+	if err != nil {
+		return nil, fmt.Errorf("malformed parameter %s: %w", paramFilter, err)
 	}
 	var call expressionproto.Call
-	if err := jsonpb.Unmarshal(strings.NewReader(filterParam), &call); err != nil {
+	if err := call.Unmarshal(wireBytes); err != nil {
 		return nil, fmt.Errorf("malformed parameter %s: %w", paramFilter, err)
 	}
 	filter, err := expressionproto.CallFromProto(&call)
@@ -287,11 +252,20 @@ func parseFindSpansQuery(q url.Values) (*querysvc.SpanQueryParams, error) {
 		if !json.Valid([]byte(raw)) {
 			return nil, fmt.Errorf("malformed parameter %s: not a single JSON value", paramOrderBy)
 		}
-		if nestsDeeperThan(raw, maxOrderByJSONDepth) {
-			return nil, fmt.Errorf("malformed parameter %s: %w", paramOrderBy, errNestedTooDeeply)
+		opts := protojson.UnmarshalOptions{RecursionLimit: maxOrderByRecursionLimit}
+		var goWire apiv3go.SpanQueryParameters
+		if err := opts.Unmarshal([]byte(`{"orderBy":`+raw+`}`), &goWire); err != nil {
+			if strings.Contains(err.Error(), "exceeded max recursion depth") {
+				return nil, fmt.Errorf("malformed parameter %s: JSON nested too deeply to decode: %w", paramOrderBy, expression.ErrTooDeeplyNested)
+			}
+			return nil, fmt.Errorf("malformed parameter %s: %w", paramOrderBy, err)
+		}
+		wireBytes, err := proto.Marshal(&goWire)
+		if err != nil {
+			return nil, fmt.Errorf("malformed parameter %s: %w", paramOrderBy, err)
 		}
 		var wire api_v3.SpanQueryParameters
-		if err := jsonpb.UnmarshalString(`{"orderBy":`+raw+`}`, &wire); err != nil {
+		if err := wire.Unmarshal(wireBytes); err != nil {
 			return nil, fmt.Errorf("malformed parameter %s: %w", paramOrderBy, err)
 		}
 		order, err := tracestore.SpanOrderFromProto(wire.OrderBy)
