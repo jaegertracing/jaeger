@@ -46,7 +46,7 @@ func TestFindSpansHandler_Handle_FullWorkflow(t *testing.T) {
 		SQL: "SELECT * FROM spans " + findSpansWindow + " AND service = 'test-service' AND name = '/checkout'",
 	}
 
-	_, output, err := handler.handle(context.Background(), &mcp.CallToolRequest{}, input)
+	_, output, err := handler.handle(t.Context(), &mcp.CallToolRequest{}, input)
 
 	require.NoError(t, err)
 	require.Len(t, output.Spans, 2)
@@ -62,7 +62,7 @@ func TestFindSpansHandler_Handle_FullWorkflow(t *testing.T) {
 
 func TestFindSpansHandler_Handle_BlankSQL(t *testing.T) {
 	handler := NewFindSpansHandler(nil, 100)
-	_, _, err := handler(context.Background(), &mcp.CallToolRequest{}, types.FindSpansInput{SQL: " \n\t"})
+	_, _, err := handler(t.Context(), &mcp.CallToolRequest{}, types.FindSpansInput{SQL: " \n\t"})
 	require.ErrorContains(t, err, "sql is required")
 }
 
@@ -133,7 +133,7 @@ func TestFindSpansHandler_Handle_Results(t *testing.T) {
 			handler := &findSpansHandler{queryService: mock, maxResults: tt.cap}
 
 			input := types.FindSpansInput{SQL: "SELECT * FROM spans " + findSpansWindow}
-			_, output, err := handler.handle(context.Background(), &mcp.CallToolRequest{}, input)
+			_, output, err := handler.handle(t.Context(), &mcp.CallToolRequest{}, input)
 
 			require.ErrorIs(t, err, tt.wantErr)
 			assert.Len(t, output.Spans, tt.wantSpans)
@@ -234,7 +234,7 @@ func TestFindSpansHandler_BuildQuery_Refusals(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			handler := NewFindSpansHandler(nil, 100)
-			_, _, err := handler(context.Background(), &mcp.CallToolRequest{}, types.FindSpansInput{SQL: tt.sql})
+			_, _, err := handler(t.Context(), &mcp.CallToolRequest{}, types.FindSpansInput{SQL: tt.sql})
 			require.ErrorContains(t, err, tt.wantErr)
 		})
 	}
@@ -246,7 +246,7 @@ func TestFindSpansHandler_BuildQuery_Refusals(t *testing.T) {
 func TestFindSpansHandler_Handle_ServedByMemoryStore(t *testing.T) {
 	store, err := memory.NewStore(memory.Configuration{MaxTraces: 10})
 	require.NoError(t, err)
-	require.NoError(t, store.WriteTraces(context.Background(), createTestTrace(
+	require.NoError(t, store.WriteTraces(t.Context(), createTestTrace(
 		"trace111", "test", "/ok", false,
 	)))
 
@@ -256,7 +256,7 @@ func TestFindSpansHandler_Handle_ServedByMemoryStore(t *testing.T) {
 	}
 
 	input := types.FindSpansInput{SQL: "SELECT * FROM spans " + findSpansWindow}
-	_, output, err := handler.handle(context.Background(), &mcp.CallToolRequest{}, input)
+	_, output, err := handler.handle(t.Context(), &mcp.CallToolRequest{}, input)
 
 	require.NoError(t, err)
 	require.Len(t, output.Spans, 1)
