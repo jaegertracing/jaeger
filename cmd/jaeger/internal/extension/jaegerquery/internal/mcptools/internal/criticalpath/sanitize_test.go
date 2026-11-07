@@ -296,3 +296,74 @@ func TestSanitizeOverFlowingChildren_MultipleChildren(t *testing.T) {
 	_, ok4 := result[[8]byte{4}]
 	assert.False(t, ok4)
 }
+
+func TestSanitizeOverFlowingChildren_GrandchildOfTruncatedParent(t *testing.T) {
+	// Span 2 overflows span 1 and is cut to 150-200. Span 3 fits span 2's original
+	// range but starts after its cut end, so it must be dropped. That only happens
+	// when span 2 is cut before span 3 is checked, whatever the map order.
+	for range 100 {
+		input := map[pcommon.SpanID]CPSpan{
+			[8]byte{1}: {
+				SpanID:       [8]byte{1},
+				StartTime:    100,
+				Duration:     100, // 100-200
+				ChildSpanIDs: []pcommon.SpanID{[8]byte{2}},
+			},
+			[8]byte{2}: {
+				SpanID:       [8]byte{2},
+				ParentSpanID: [8]byte{1},
+				StartTime:    150,
+				Duration:     150, // 150-300
+				ChildSpanIDs: []pcommon.SpanID{[8]byte{3}},
+			},
+			[8]byte{3}: {
+				SpanID:       [8]byte{3},
+				ParentSpanID: [8]byte{2},
+				StartTime:    250,
+				Duration:     30, // 250-280
+			},
+		}
+
+		result := removeOverflowingChildren(input)
+
+		parent := result[[8]byte{2}]
+		assert.Equal(t, uint64(150), parent.StartTime)
+		assert.Equal(t, uint64(50), parent.Duration)
+		assert.Empty(t, parent.ChildSpanIDs)
+		_, ok := result[[8]byte{3}]
+		assert.False(t, ok, "span 3 starts after its truncated parent ends and must be dropped")
+
+		criticalPath := computeCriticalPath(result, [8]byte{1}, []Section{}, nil)
+		for _, section := range criticalPath {
+			assert.LessOrEqual(t, section.SectionStart, section.SectionEnd)
+		}
+		if t.Failed() {
+			return
+		}
+	}
+}
+
+func TestSpanIDsParentsFirst(t *testing.T) {
+	spanMap := map[pcommon.SpanID]CPSpan{
+		[8]byte{1}: {
+			SpanID: [8]byte{1},
+			// span 9 is not in the map, and span 2 is listed twice
+			ChildSpanIDs: []pcommon.SpanID{[8]byte{2}, [8]byte{9}, [8]byte{2}},
+		},
+		[8]byte{2}: {
+			SpanID:       [8]byte{2},
+			ParentSpanID: [8]byte{1},
+			ChildSpanIDs: []pcommon.SpanID{[8]byte{3}},
+		},
+		[8]byte{3}: {
+			SpanID:       [8]byte{3},
+			ParentSpanID: [8]byte{2},
+		},
+		[8]byte{4}: { // parent is not in the map
+			SpanID:       [8]byte{4},
+			ParentSpanID: [8]byte{8},
+		},
+	}
+
+	assert.Equal(t, []pcommon.SpanID{{1}, {2}, {3}, {4}}, spanIDsParentsFirst(spanMap))
+}
