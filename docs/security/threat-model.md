@@ -275,16 +275,18 @@ body. It is on the query port and subject to the collector HTTP
 ### T9: MCP and AI agent access
 
 `/api/ai/mcp/` serves streamable HTTP MCP on the query port. The embedded
-config enables it. Tools are `get_services`, `get_span_names`,
-`find_traces`, `find_spans`, `get_span_details`, `get_trace_errors`,
-`get_trace_topology`, `get_critical_path`, `get_service_dependencies`, and
-`read_skill`. They call the same `QueryService` as the UI.
+config enables it. Every tool registered on this route is read-only and calls
+the same `QueryService` as the UI, so an agent can read what a UI user can
+read and nothing else. The one tool that touches anything but `QueryService`
+is `read_skill`, which reads files: it rejects paths that fail `fs.ValidPath`
+(which rejects `..`) and only opens the embedded skill tree, or
+`custom/<path>` from `ai.mcp.skills_dir` when that directory is set. The
+registered tool set is what `tools/list` returns on this route; the gateway's
+turn-scoped route below adds UI tools to it.
 
 Limits compiled into the handler: 100 search hits, 20 spans of detail per
 call, and 512 KiB for a skill file. The endpoint keeps no session between
-requests, so there is nothing for an idle client to hold. `read_skill` rejects paths that fail `fs.ValidPath` (which rejects
-`..`) and only opens the embedded skill tree, or `custom/<path>` from
-`ai.mcp.skills_dir` when that directory is set.
+requests, so there is nothing for an idle client to hold.
 
 There is no MCP-specific authentication, allowlist of clients, or filter of
 span text before it is returned. Tool arguments and tool results are copied
