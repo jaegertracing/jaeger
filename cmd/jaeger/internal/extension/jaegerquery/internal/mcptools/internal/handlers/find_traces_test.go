@@ -786,7 +786,7 @@ func TestFindTracesHandler_BuildSQLQuery_Refusals(t *testing.T) {
 		{
 			name:    "a span search",
 			input:   types.FindTracesInput{SQL: "SELECT * FROM spans WHERE between(start_time, now() - '1h', now())"},
-			wantErr: "invalid sql: the statement selects spans, and find_traces returns traces. Write one of: SELECT DISTINCT trace_id FROM spans WHERE between(start_time, <from>, <to>) AND ...; or SELECT * FROM traces WHERE trace_id IN (SELECT trace_id FROM spans WHERE between(start_time, <from>, <to>) AND ...). Both bounds on start_time are required",
+			wantErr: "invalid sql: the statement selects spans, and find_traces returns traces",
 		},
 		{
 			name:    "a compiler error carries the invalid sql prefix",

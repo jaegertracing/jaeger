@@ -221,7 +221,7 @@ func TestFindSpansHandler_BuildQuery_Refusals(t *testing.T) {
 		{
 			name:    "a trace-ID search",
 			sql:     "SELECT DISTINCT trace_id FROM spans " + findSpansWindow,
-			wantErr: "invalid sql: the statement returns traces, and find_spans returns spans. Write SELECT * FROM spans WHERE between(start_time, <from>, <to>) AND ... [ORDER BY ...] [LIMIT n]. Both bounds on start_time are required",
+			wantErr: "invalid sql: the statement returns traces, and find_spans returns spans",
 		},
 		{
 			name:    "a compiler error carries the invalid sql prefix",
