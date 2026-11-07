@@ -3,7 +3,7 @@
 - **Status:** Draft
 - **Author:** Yuri Shkuro
 - **Created:** 2026-10-23
-- **Last Updated:** 2026-11-06
+- **Last Updated:** 2026-11-07
 - **Related:** [RFC 0005 (structured query filters)](0005-structured-query-filters.md) · [RFC 0016 (span search)](0016-span-search.md) · [RFC 0014 (search result pagination)](0014-search-result-pagination.md) · [RFC 0011 (trace summary API)](0011-trace-summary-api.md) · [ADR-002 (MCP server)](../adr/002-mcp-server.md) · [ADR-013 (storage capability declaration)](../adr/013-storage-capability-declaration.md)
 
 ---
@@ -137,7 +137,7 @@ The compiler picks the query service method from the `SELECT` list and the `FROM
 |---|---|---|
 | `SELECT DISTINCT trace_id FROM spans WHERE …` | `FindTraceIDs` | filter, window, limit, cursor |
 | `SELECT * FROM spans WHERE …` | `FindSpans` (RFC 0016) | filter, window, order, limit, cursor |
-| `SELECT span_id, duration, … FROM spans WHERE …` | `FindSpans` | the above plus a reference-only `projection`, which the query service refuses until it has a result the projection can shape (RFC 0016 §5) |
+| `SELECT span_id, duration, … FROM spans WHERE …` | `FindSpans` | the above plus a reference-only `projection`, which the query service refuses until it has a result the projection can shape (RFC 0016 §5, M2 of §9) |
 | `SELECT * FROM traces WHERE trace_id IN (SELECT trace_id FROM spans WHERE …)` | `FindTraces` | the inner filter and window; `LIMIT` on the outer query is `search_depth` |
 | `SELECT trace_id, root_service, span_count, … FROM traces WHERE trace_id IN (…)` | `FindTraceSummaries` (RFC 0011) | as above |
 | `SELECT … FROM spans … GROUP BY …`, any aggregate function | refused | reserved for the method of RFC 0016 §5 |
@@ -298,14 +298,14 @@ Option D is the status quo plus a better skill document, and it is cheap. It fai
 
 ## 9. Implementation roadmap
 
-Each milestone is independently shippable.
+Each milestone is independently shippable, except where its entry names what it waits on.
 
 - ✅ **M0 — Parser spike.** Delivered as the `internal/sqlquery` package: the compiler for every construct of §4, with a corpus of 44 accepted statements that compile to the builder's trees byte for byte and 172 refused statements whose message and position are asserted, all against `clickhouse-sql-parser`. The findings are recorded in §4.2 and §6.3. The package is not yet reachable from the API or the MCP tools; M1 wires it into its first client.
 - ✅ **M1 — MCP `find_traces`.** Delivered in #9925: the `sql` input of the tool, compiled in the handler for the trace-returning shapes of §4.4, and the `jaeger-sql` skill served through `read_skill`. No API or IDL change. *Exit met:* a statement sent through the tool returns the same traces as the equivalent structured inputs, shown against the memory backend in the handler's tests.
-- ✅ **M1a — MCP `find_spans`.** Delivered in [#9643](https://github.com/jaegertracing/jaeger/pull/9643) as RFC 0016 M7: the span-returning shape of §4.4 compiled in the tool's handler and sent to `FindSpans` with the window, the filter, the order, the limit and the projection, which the query service refuses until a result shaped by a column list exists (§4.4). *Exit met:* a span statement sent through the tool returns the matching spans, shown against the memory backend in the handler's tests.
-- **M2 — `WHERE` tier in api_v3.** The `sql` field on `TraceQueryParameters` for `FindTraceIDs`, `FindTraces` and `FindTraceSummaries`, and `ExplainQuery`. *Exit:* a statement sent through the API returns the same traces as the equivalent `filter`.
-- **M3 — Result shaping.** The `sql` field on `SpanQueryParameters`, so that `SELECT *` and column lists over `spans` reach `FindSpans` with the ordering, limit and projection the compiler already produces, as RFC 0016 lands those fields. *Exit:* the shared storage integration suite's filter battery runs its cases through SQL as well as through `filter`.
-- **M4 — Aggregation.** `GROUP BY`, `HAVING` and the aggregate functions compile to the row-returning method of RFC 0016 §5 when that method exists. This milestone is owned by that RFC's successor and listed here so the clause mapping is reserved.
+- ✅ **M1a — MCP `find_spans`.** Delivered in [#9643](https://github.com/jaegertracing/jaeger/pull/9643) as RFC 0016 M7: the span-returning shape of §4.4 compiled in the tool's handler and sent to `FindSpans` with the window, the filter, the order, the limit and the projection, which the query service refuses until a result shaped by a column list exists (§4.4, M2 of §9). *Exit met:* a span statement sent through the tool returns the matching spans, shown against the memory backend in the handler's tests.
+- **M2 — Sparse spans.** A column list over `spans` returns spans with only the selected fields populated, the reference-only projection of [RFC 0016 §5.2](0016-span-search.md#52-only-aggregation-needs-a-new-result-shape-and-that-is-the-rpc-boundary), which the query service refuses today ([#10077](https://github.com/jaegertracing/jaeger/pull/10077)). The compiler already produces the projection and the MCP `find_spans` tool already sends it, so nothing in the dialect changes. The work is in `FindSpans` and the backends that declare span search, which RFC 0016 lists as its own future work and this RFC does not do (G2); the milestone is listed here because M4 waits on it. *Exit:* a statement with a column list returns the matching spans carrying only those fields; `SELECT *` is unchanged.
+- **M3 — Aggregation.** `GROUP BY`, `HAVING` and the aggregate functions compile to the row-returning method of RFC 0016 §5 when that method exists. This milestone is owned by that RFC's successor and listed here so the clause mapping is reserved.
+- **M4 — `sql` in api_v3.** The `sql` field on `SpanQueryParameters` and `TraceQueryParameters`, in the same mutual-exclusion group as `filter`, and `ExplainQuery` (§5.1). This milestone waits on M2 and M3 rather than preceding them, which reverses the order first proposed here: on `TraceQueryParameters` alone the field compiles to nothing that `filter` does not already carry, and a public API field that is a second spelling of an existing one is not worth its compatibility cost until the clauses that distinguish SQL from `filter`, the column list and the aggregates, have a result to shape. Until then the MCP tools are the only SQL clients, and they need no API change. *Exit:* the shared storage integration suite's filter battery runs its cases through `sql` as well as through `filter`, and a statement of each shape of §4.4 returns through the API what the equivalent structured request returns.
 - **M5 (optional) — UI SQL mode.** A search box in jaeger-ui backed by `ExplainQuery` for inline errors, and a format button, which SQL input boxes customarily have. The button needs a formatter in Go that lays a statement out one clause per line; the parser library's beautifying mode produces a different layout, so the formatter is written over the library's AST and returned by `ExplainQuery` beside the normalized SQL. The same formatter then holds the compiler's test corpus to its layout from a test. The search box is out of this repository; the formatter is in it.
 
 ---
