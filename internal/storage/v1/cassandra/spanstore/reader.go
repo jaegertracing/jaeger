@@ -171,10 +171,13 @@ func (s *SpanReader) readTrace(ctx context.Context, traceID dbmodel.TraceID) ([]
 	return spans, err
 }
 
-func (s *SpanReader) readTraceInSpan(_ context.Context, traceID dbmodel.TraceID) ([]dbmodel.Span, error) {
+func (s *SpanReader) readTraceInSpan(ctx context.Context, traceID dbmodel.TraceID) ([]dbmodel.Span, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
 	start := time.Now()
 	q := s.session.Query(querySpanByTraceID, traceID)
-	i := q.Iter()
+	i := q.IterContext(ctx)
 	var traceIDFromSpan dbmodel.TraceID
 	var startTime, spanID, duration, parentID int64
 	var flags int32
@@ -184,7 +187,7 @@ func (s *SpanReader) readTraceInSpan(_ context.Context, traceID dbmodel.TraceID)
 	var tags []dbmodel.KeyValue
 	var logs []dbmodel.Log
 	var spans []dbmodel.Span
-	for i.Scan(&traceIDFromSpan, &spanID, &parentID, &operationName, &flags, &startTime, &duration, &tags, &logs, &refs, &dbProcess) {
+	for ctx.Err() == nil && i.Scan(&traceIDFromSpan, &spanID, &parentID, &operationName, &flags, &startTime, &duration, &tags, &logs, &refs, &dbProcess) {
 		spans = append(spans, dbmodel.Span{
 			TraceID:       traceIDFromSpan,
 			SpanID:        spanID,
@@ -201,7 +204,7 @@ func (s *SpanReader) readTraceInSpan(_ context.Context, traceID dbmodel.TraceID)
 		})
 	}
 
-	err := i.Close()
+	err := errors.Join(i.Close(), ctx.Err())
 	s.metrics.readTraces.Emit(err, time.Since(start))
 	if err != nil {
 		return nil, fmt.Errorf("error reading traces from storage: %w", err)
@@ -252,6 +255,10 @@ func (s *SpanReader) FindTraces(ctx context.Context, traceQuery *tracestore.Trac
 		for _, traceID := range dbTraceIDs {
 			spans, err := s.GetTrace(ctx, traceID)
 			if err != nil {
+				if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
+					yield(dbmodel.Trace{}, err)
+					return
+				}
 				s.logger.Error("Failure to read trace", zap.String("trace_id", traceID.String()), zap.Error(err))
 				continue
 			}
@@ -339,7 +346,7 @@ func (s *SpanReader) queryByTagsAndLogs(ctx context.Context, tq *tracestore.Trac
 			model.TimeAsEpochMicroseconds(tq.StartTimeMax),
 			tq.SearchDepth*limitMultiple,
 		).PageSize(0)
-		t, err := s.executeQuery(childSpan, query, s.metrics.queryTagIndex)
+		t, err := s.executeQuery(ctx, childSpan, query, s.metrics.queryTagIndex)
 		childSpan.End()
 		if err != nil {
 			return nil, err
@@ -378,7 +385,7 @@ func (s *SpanReader) queryByDuration(ctx context.Context, traceQuery *tracestore
 			maxDurationMicros,
 			traceQuery.SearchDepth*limitMultiple,
 		)
-		t, err := s.executeQuery(childSpan, query, s.metrics.queryDurationIndex)
+		t, err := s.executeQuery(ctx, childSpan, query, s.metrics.queryDurationIndex)
 		childSpan.End()
 		if err != nil {
 			return nil, err
@@ -397,7 +404,7 @@ func (s *SpanReader) queryByDuration(ctx context.Context, traceQuery *tracestore
 }
 
 func (s *SpanReader) queryByServiceNameAndOperation(ctx context.Context, tq *tracestore.TraceQueryParams) (dbmodel.UniqueTraceIDs, error) {
-	_, span := s.startSpanForQuery(ctx, "queryByServiceNameAndOperation", queryByServiceAndOperationName)
+	ctx, span := s.startSpanForQuery(ctx, "queryByServiceNameAndOperation", queryByServiceAndOperationName)
 	defer span.End()
 	query := s.session.Query(
 		queryByServiceAndOperationName,
@@ -407,11 +414,11 @@ func (s *SpanReader) queryByServiceNameAndOperation(ctx context.Context, tq *tra
 		model.TimeAsEpochMicroseconds(tq.StartTimeMax),
 		tq.SearchDepth*limitMultiple,
 	).PageSize(0)
-	return s.executeQuery(span, query, s.metrics.queryServiceOperationIndex)
+	return s.executeQuery(ctx, span, query, s.metrics.queryServiceOperationIndex)
 }
 
 func (s *SpanReader) queryByService(ctx context.Context, tq *tracestore.TraceQueryParams) (dbmodel.UniqueTraceIDs, error) {
-	_, span := s.startSpanForQuery(ctx, "queryByService", queryByServiceAndOperationName)
+	ctx, span := s.startSpanForQuery(ctx, "queryByService", queryByServiceAndOperationName)
 	defer span.End()
 	query := s.session.Query(
 		queryByServiceName,
@@ -420,18 +427,21 @@ func (s *SpanReader) queryByService(ctx context.Context, tq *tracestore.TraceQue
 		model.TimeAsEpochMicroseconds(tq.StartTimeMax),
 		tq.SearchDepth*limitMultiple,
 	).PageSize(0)
-	return s.executeQuery(span, query, s.metrics.queryServiceNameIndex)
+	return s.executeQuery(ctx, span, query, s.metrics.queryServiceNameIndex)
 }
 
-func (s *SpanReader) executeQuery(span trace.Span, query cassandra.Query, tableMetrics *casmetrics.Table) (dbmodel.UniqueTraceIDs, error) {
+func (s *SpanReader) executeQuery(ctx context.Context, span trace.Span, query cassandra.Query, tableMetrics *casmetrics.Table) (dbmodel.UniqueTraceIDs, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
 	start := time.Now()
-	i := query.Iter()
+	i := query.IterContext(ctx)
 	retMe := dbmodel.UniqueTraceIDs{}
 	var traceID dbmodel.TraceID
-	for i.Scan(&traceID) {
+	for ctx.Err() == nil && i.Scan(&traceID) {
 		retMe.Add(traceID)
 	}
-	err := i.Close()
+	err := errors.Join(i.Close(), ctx.Err())
 	tableMetrics.Emit(err, time.Since(start))
 	if err != nil {
 		logErrorToSpan(span, err)
