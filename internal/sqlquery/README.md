@@ -61,7 +61,7 @@ The columns of `traces` are the RFC 0011 summary fields. They may be selected bu
 | `SELECT * FROM spans WHERE ...` | `FindSpans` | filter, window, order, limit |
 | `SELECT span_id, duration, ... FROM spans WHERE ...` | `FindSpans` | the above, plus a projection of the listed columns |
 | `SELECT * FROM traces WHERE trace_id IN (SELECT trace_id FROM spans WHERE ...)` | `FindTraces` | the subquery's filter and window; the outer `LIMIT` is the search depth |
-| `SELECT trace_id, root_service, ... FROM traces WHERE trace_id IN (...)` | `FindTraceSummaries` | as above |
+| `SELECT trace_id, root_service, ... FROM traces WHERE trace_id IN (...)` | refused | the expression tree has no trace level to carry a summary column, and no method shapes a result by the list |
 
 `ORDER BY` is accepted on a span search only, over `start_time`, `duration`, `trace_id` and `span_id`, each `ASC` or `DESC`. `LIMIT n` is the page size, or the search depth of a trace search; the server caps it. `OFFSET` is refused because the API paginates with the page token the response carries.
 

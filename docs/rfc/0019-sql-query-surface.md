@@ -139,7 +139,7 @@ The compiler picks the query service method from the `SELECT` list and the `FROM
 | `SELECT * FROM spans WHERE …` | `FindSpans` (RFC 0016) | filter, window, order, limit, cursor |
 | `SELECT span_id, duration, … FROM spans WHERE …` | `FindSpans` | the above plus a reference-only `projection`, which the query service refuses until it has a result the projection can shape (RFC 0016 §5) |
 | `SELECT * FROM traces WHERE trace_id IN (SELECT trace_id FROM spans WHERE …)` | `FindTraces` | the inner filter and window; `LIMIT` on the outer query is `search_depth` |
-| `SELECT trace_id, root_service, span_count, … FROM traces WHERE trace_id IN (…)` | `FindTraceSummaries` (RFC 0011) | as above |
+| `SELECT trace_id, root_service, span_count, … FROM traces WHERE trace_id IN (…)` | refused | the expression tree has no trace level (RFC 0005 §5.1) to carry a summary column as a reference, so the compiler cannot keep the list and `FindTraceSummaries` (RFC 0011) has no field to shape its result by it; reserved until both exist |
 | `SELECT … FROM spans … GROUP BY …`, any aggregate function | refused | reserved for the method of RFC 0016 §5 |
 
 `ORDER BY` accepts the fields RFC 0016 §6 declares sortable (`start_time`, `duration`, `trace_id`, `span_id`) and compiles to its ordering message; any other column is refused with the list. `LIMIT n` compiles to the page size, capped by the server's configured maximum, and `OFFSET` is refused in favor of the keyset cursor, which the response carries and the request accepts as a field beside the SQL. A `traces` query without the `IN (SELECT …)` shape is refused, because a trace predicate alone has nothing to search on; a later RFC may let `traces.duration > '5s'` compile to a summary-level filter if a backend indexes it.

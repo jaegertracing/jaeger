@@ -330,7 +330,7 @@ func TestFindTracesHandler_Handle_Refusals(t *testing.T) {
 		{
 			name:    "a column list over traces",
 			sql:     "SELECT trace_id, root_service FROM traces WHERE trace_id IN (SELECT trace_id FROM spans " + findTracesWindow + ")",
-			wantErr: []string{"invalid sql: find_traces returns whole trace summaries. ", types.NoColumnList},
+			wantErr: []string{"invalid sql: ", "a column list over traces is not supported yet"},
 		},
 		{
 			name:    "a compiler error carries the invalid sql prefix",
