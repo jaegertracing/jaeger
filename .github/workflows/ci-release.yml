@@ -52,7 +52,7 @@ jobs:
         sudo rm -rf /usr/local/lib/android || true
         df -h /
 
-    - uses: step-security/harden-runner@05e31511f85b41b11d1cf0ef85d0992719546e2c # v2.21.0
+    - uses: step-security/harden-runner@46b06cea07f9e64621fdf066ba77ac6915163d43 # v2.22.3
       with:
         egress-policy: audit # TODO: change to 'egress-policy: block' after couple of runs
 
@@ -172,7 +172,7 @@ jobs:
         username: ${{ github.actor }}
         password: ${{ secrets.GITHUB_TOKEN }}
 
-    - uses: docker/setup-qemu-action@1f40c72289eff860ee54a304f1438e3cff362e0a # v4.3.0
+    - uses: docker/setup-qemu-action@99012661954931238ded8c8b007157a8430204e1 # v4.4.0
 
     - name: Build and upload all container images
       # -B skips building the binaries since we already did that above
@@ -231,7 +231,7 @@ jobs:
       actions: read
       id-token: write
       contents: write
-    uses: slsa-framework/slsa-github-generator/.github/workflows/generator_generic_slsa3.yml@v2.1.0
+    uses: slsa-framework/slsa-github-generator/.github/workflows/generator_generic_slsa3.yml@f7dd8c54c2067bafc12ca7a55595d5ee9b75204a # v2.1.0
     with:
       base64-subjects: "${{ needs.publish-release.outputs.hashes }}"
       upload-assets: ${{ inputs.dry_run != true }}

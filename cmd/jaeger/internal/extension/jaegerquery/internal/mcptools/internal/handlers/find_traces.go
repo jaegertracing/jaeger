@@ -29,36 +29,36 @@ type queryServiceInterface interface {
 	FindTraceSummaries(ctx context.Context, query querysvc.TraceQueryParams) iter.Seq2[querysvc.PageChunk[[]tracestore.TraceSummary], error]
 }
 
-// searchTracesHandler implements the search_traces MCP tool.
+// findTracesHandler implements the find_traces MCP tool.
 // This tool searches for traces matching service, time, attributes, and duration criteria.
 // It returns trace summaries without full span details, optimized for
 // browsing and filtering large result sets.
-type searchTracesHandler struct {
+type findTracesHandler struct {
 	queryService queryServiceInterface
 	maxResults   uint32
 }
 
-// NewSearchTracesHandler creates a new search_traces handler and returns the handler function.
-func NewSearchTracesHandler(
+// NewFindTracesHandler creates a new find_traces handler and returns the handler function.
+func NewFindTracesHandler(
 	queryService *querysvc.QueryService,
 	maxResults uint32,
-) mcp.ToolHandlerFor[types.SearchTracesInput, types.SearchTracesOutput] {
-	h := &searchTracesHandler{
+) mcp.ToolHandlerFor[types.FindTracesInput, types.FindTracesOutput] {
+	h := &findTracesHandler{
 		queryService: queryService,
 		maxResults:   maxResults,
 	}
 	return h.handle
 }
 
-// handle processes the search_traces tool request.
-func (h *searchTracesHandler) handle(
+// handle processes the find_traces tool request.
+func (h *findTracesHandler) handle(
 	ctx context.Context,
 	_ *mcp.CallToolRequest,
-	input types.SearchTracesInput,
-) (*mcp.CallToolResult, types.SearchTracesOutput, error) {
+	input types.FindTracesInput,
+) (*mcp.CallToolResult, types.FindTracesOutput, error) {
 	query, err := h.buildQuery(input)
 	if err != nil {
-		return nil, types.SearchTracesOutput{}, err
+		return nil, types.FindTracesOutput{}, err
 	}
 
 	var summaries []types.TraceSummary
@@ -78,17 +78,16 @@ outer:
 		}
 	}
 
-	output := types.SearchTracesOutput{Traces: summaries}
+	output := types.FindTracesOutput{Traces: summaries}
 	if len(processErrs) > 0 {
 		searchErr := errors.Join(processErrs...)
 		if len(summaries) == 0 {
-			// Nothing came back — a query the storage backend refused, for one — so calling
-			// it partial would send an agent looking for the missing part instead of
-			// reading why the search could not run.
-			output.Error = searchErr.Error()
-		} else {
-			output.Error = fmt.Sprintf("partial results returned due to error: %v", searchErr)
+			// Nothing came back, so the call failed: a query the storage backend refused,
+			// or a transport error. The error is the result, not a note beside an empty
+			// page.
+			return nil, types.FindTracesOutput{}, searchErr
 		}
+		output.Error = fmt.Sprintf("partial results returned due to error: %v", searchErr)
 	}
 	return nil, output, nil
 }
@@ -121,8 +120,8 @@ func toMCPTraceSummary(s tracestore.TraceSummary) types.TraceSummary {
 	}
 }
 
-// buildQuery converts SearchTracesInput to querysvc.TraceQueryParams.
-func (h *searchTracesHandler) buildQuery(input types.SearchTracesInput) (querysvc.TraceQueryParams, error) {
+// buildQuery converts FindTracesInput to querysvc.TraceQueryParams.
+func (h *findTracesHandler) buildQuery(input types.FindTracesInput) (querysvc.TraceQueryParams, error) {
 	if strings.TrimSpace(input.SQL) != "" {
 		return h.buildSQLQuery(input)
 	}
@@ -148,15 +147,15 @@ func (h *searchTracesHandler) buildQuery(input types.SearchTracesInput) (querysv
 
 	// Whether the time range and the duration bounds are ordered is the query service's
 	// decision, so only what this tool cannot hand over unparsed is checked here.
-	var durationMin, durationMax time.Duration
+	var minDuration, maxDuration time.Duration
 	if input.DurationMin != "" {
-		durationMin, err = time.ParseDuration(input.DurationMin)
+		minDuration, err = time.ParseDuration(input.DurationMin)
 		if err != nil {
 			return querysvc.TraceQueryParams{}, fmt.Errorf("invalid duration_min: %w", err)
 		}
 	}
 	if input.DurationMax != "" {
-		durationMax, err = time.ParseDuration(input.DurationMax)
+		maxDuration, err = time.ParseDuration(input.DurationMax)
 		if err != nil {
 			return querysvc.TraceQueryParams{}, fmt.Errorf("invalid duration_max: %w", err)
 		}
@@ -176,15 +175,15 @@ func (h *searchTracesHandler) buildQuery(input types.SearchTracesInput) (querysv
 		Attributes:    attributes,
 		StartTimeMin:  minStartTime,
 		StartTimeMax:  maxStartTime,
-		DurationMin:   durationMin,
-		DurationMax:   durationMax,
+		DurationMin:   minDuration,
+		DurationMax:   maxDuration,
 		SearchDepth:   h.searchDepth(input.SearchDepth),
 		RawTraces:     false,
 	}, nil
 }
 
 // searchDepth applies the tool's default and the server's cap to a requested depth.
-func (h *searchTracesHandler) searchDepth(requested uint32) uint32 {
+func (h *findTracesHandler) searchDepth(requested uint32) uint32 {
 	if requested == 0 {
 		requested = defaultSearchDepth
 	}
@@ -197,7 +196,7 @@ func (h *searchTracesHandler) searchDepth(requested uint32) uint32 {
 // buildSQLQuery compiles the statement of input.SQL into the trace search it describes. The
 // statement carries the filter and the window itself, so every other filter input is refused
 // beside it rather than merged, which keeps one description of the search per request.
-func (h *searchTracesHandler) buildSQLQuery(input types.SearchTracesInput) (querysvc.TraceQueryParams, error) {
+func (h *findTracesHandler) buildSQLQuery(input types.FindTracesInput) (querysvc.TraceQueryParams, error) {
 	if set := structuredInputsSet(input); len(set) > 0 {
 		return querysvc.TraceQueryParams{}, fmt.Errorf(
 			"sql replaces the other filter inputs; remove %s or write the condition into the statement",
@@ -209,9 +208,9 @@ func (h *searchTracesHandler) buildSQLQuery(input types.SearchTracesInput) (quer
 	}
 	if query.Kind == sqlquery.KindFindSpans {
 		return querysvc.TraceQueryParams{}, errors.New(
-			"invalid sql: the statement selects spans, and search_traces returns traces. " +
-				"Write SELECT DISTINCT trace_id FROM spans WHERE ..., " +
-				"or SELECT * FROM traces WHERE trace_id IN (SELECT trace_id FROM spans WHERE ...)")
+			"invalid sql: find_traces takes one of: SELECT DISTINCT trace_id FROM spans WHERE between(start_time, <from>, <to>) AND ...; " +
+				"or SELECT * FROM traces WHERE trace_id IN (SELECT trace_id FROM spans WHERE between(start_time, <from>, <to>) AND ...). " +
+				"Both bounds on start_time are required")
 	}
 	searchDepth := input.SearchDepth
 	if query.Limit > 0 {
@@ -229,7 +228,7 @@ func (h *searchTracesHandler) buildSQLQuery(input types.SearchTracesInput) (quer
 
 // structuredInputsSet names the filter inputs of input that are set, in the order the type
 // declares them. search_depth is not among them because a statement without LIMIT takes it.
-func structuredInputsSet(input types.SearchTracesInput) []string {
+func structuredInputsSet(input types.FindTracesInput) []string {
 	var set []string
 	add := func(name string, isSet bool) {
 		if isSet {

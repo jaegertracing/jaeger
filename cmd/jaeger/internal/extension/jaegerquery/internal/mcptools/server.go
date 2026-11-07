@@ -90,17 +90,25 @@ func registerTools(server *mcp.Server, queryAPI *querysvc.QueryService, params S
 	}, handlers.NewGetSpanNamesHandler(s.queryAPI))
 
 	mcp.AddTool(s.mcpServer, &mcp.Tool{
-		Name: "search_traces",
-		Description: "Search for traces matching filters, given as the structured inputs or as one " +
+		Name: "find_traces",
+		Description: "Find traces matching filters, given as the structured inputs or as one " +
 			"SQL statement in 'sql'. Returns lightweight summaries " +
 			"(trace_id, duration, span_count, error flag, etc.) without individual spans or attributes.",
-	}, handlers.NewSearchTracesHandler(s.queryAPI, s.params.MaxSearchResults))
+	}, handlers.NewFindTracesHandler(s.queryAPI, s.params.MaxSearchResults))
 
 	mcp.AddTool(s.mcpServer, &mcp.Tool{
 		Name: "get_span_details",
 		Description: "Fetch full span data (attributes, events, links, status) for specific spans. " +
 			"Returns verbose output per span.",
 	}, handlers.NewGetSpanDetailsHandler(s.queryAPI, s.params.MaxSpanDetailsPerRequest))
+
+	mcp.AddTool(s.mcpServer, &mcp.Tool{
+		Name: "find_spans",
+		Description: "Find spans matching one SQL statement in 'sql', across however many traces. " +
+			"Returns lightweight summaries (trace_id, span_id, service, span_name, duration, " +
+			"status) without attributes or events; use get_span_details for those. " +
+			"The statement is SELECT * FROM spans WHERE ... with both bounds on start_time.",
+	}, handlers.NewFindSpansHandler(s.queryAPI, s.params.MaxSearchResults))
 
 	mcp.AddTool(s.mcpServer, &mcp.Tool{
 		Name: "get_trace_errors",

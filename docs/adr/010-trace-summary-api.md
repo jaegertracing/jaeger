@@ -42,7 +42,7 @@ The shared storage integration suite always runs a `FindTraceSummaries` sub-test
 
 ### Consumers
 
-The endpoint backs the UI search screen, which no longer aggregates full traces client-side, and the `search_traces` MCP tool, which consumes `QueryService.FindTraceSummaries` directly rather than the HTTP route.
+The endpoint backs the UI search screen, which no longer aggregates full traces client-side, and the `find_traces` MCP tool, which consumes `QueryService.FindTraceSummaries` directly rather than the HTTP route.
 
 ## Consequences
 
