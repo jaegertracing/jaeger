@@ -12,8 +12,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
+	"go.opentelemetry.io/collector/pdata/pcommon"
 
-	"github.com/jaegertracing/jaeger-idl/model/v1"
 	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerquery/querysvc"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore"
 	tracestoremocks "github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore/mocks"
@@ -129,8 +129,8 @@ func TestArchiveTrace_BadTimeWindow(t *testing.T) {
 }
 
 func TestArchiveTrace_Base64TraceID(t *testing.T) {
-	// base64 "AAAAAAAAAP///////////w==" decodes to traceID {High: 0xFF, Low: 0xFFFFFFFFFFFFFFFF}
-	expectedTraceID := v1adapter.FromV1TraceID(model.NewTraceID(0xFF, 0xFFFFFFFFFFFFFFFF))
+	// base64 "AAAAAAAAAP///////////w==" decodes to 7 zero bytes followed by 9 0xFF bytes
+	expectedTraceID := pcommon.TraceID{0, 0, 0, 0, 0, 0, 0, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF}
 	mockWriter := &tracestoremocks.Writer{}
 	mockWriter.On("WriteTraces", mock.Anything, mock.Anything).
 		Return(nil).Once()

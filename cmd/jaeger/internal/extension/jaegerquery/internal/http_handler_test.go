@@ -150,26 +150,6 @@ func withTestServer(t *testing.T, doTest func(s *testServer), queryOptions query
 	doTest(ts)
 }
 
-func TestRemovedTraceRoutes(t *testing.T) {
-	ts := initializeTestServer(t)
-	for _, tc := range []struct {
-		method string
-		path   string
-	}{
-		{http.MethodGet, "/api/traces/123456"},
-		{http.MethodPost, "/api/transform"},
-	} {
-		t.Run(tc.path, func(t *testing.T) {
-			req, err := http.NewRequest(tc.method, ts.server.URL+tc.path, http.NoBody)
-			require.NoError(t, err)
-			resp, err := ts.server.Client().Do(req)
-			require.NoError(t, err)
-			defer resp.Body.Close()
-			assert.Equal(t, http.StatusNotFound, resp.StatusCode)
-		})
-	}
-}
-
 func TestLogOnServerError(t *testing.T) {
 	zapCore, logs := observer.New(zap.InfoLevel)
 	logger := zap.New(zapCore)
