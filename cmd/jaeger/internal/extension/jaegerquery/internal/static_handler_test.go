@@ -13,6 +13,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"path/filepath"
 	"strings"
 	"sync/atomic"
 	"testing"
@@ -372,6 +373,45 @@ func TestUIConfigReloadErrorKeepsCachedValue(t *testing.T) {
 		return logObserver.FilterMessage("could not reload UI config; keeping previously cached value").Len() > 0
 	}, time.Second, 5*time.Millisecond,
 		"expected the static handler to keep the previously cached UI config when a reload fails")
+}
+
+func TestDeriveIndexHTMLInjectsUIConfigVerbatim(t *testing.T) {
+	tests := []struct {
+		name     string
+		fileName string
+		content  string
+		expected string
+	}{
+		{
+			name:     "json",
+			fileName: "ui-config.json",
+			content:  `{"menu":[{"label":"Grafana","url":"https://grafana.example.com/d/abc?var-service=$service&var-env=${env}&var-n=$1&cost=$$"}]}`,
+			expected: `JAEGER_CONFIG = {"menu":[{"label":"Grafana","url":"https://grafana.example.com/d/abc?var-service=$service\u0026var-env=${env}\u0026var-n=$1\u0026cost=$$"}]};`,
+		},
+		{
+			name:     "js",
+			fileName: "ui-config.js",
+			content:  "function UIConfig() {\n  return { url: '/d/abc?var-service=$service&var-env=${env}', price: '$5', cost: '$$' };\n}",
+			expected: "function UIConfig() {\n  return { url: '/d/abc?var-service=$service&var-env=${env}', price: '$5', cost: '$$' };\n}",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cfgFile := filepath.Join(t.TempDir(), tt.fileName)
+			require.NoError(t, os.WriteFile(cfgFile, []byte(tt.content), 0o600))
+
+			h, err := newStaticAssetsHandler(
+				&QueryOptions{UIConfig: UIConfig{AssetsPath: "fixture", ConfigFile: cfgFile}},
+				noBackendCaps,
+				zap.NewNop(),
+			)
+			require.NoError(t, err)
+			defer h.Close()
+
+			html := string(h.deriveIndexHTML(httptest.NewRequest(http.MethodGet, "/", http.NoBody)))
+			assert.Contains(t, html, tt.expected)
+		})
+	}
 }
 
 func TestLoadUIConfig(t *testing.T) {
