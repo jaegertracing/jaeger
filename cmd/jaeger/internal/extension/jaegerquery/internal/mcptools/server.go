@@ -103,6 +103,14 @@ func registerTools(server *mcp.Server, queryAPI *querysvc.QueryService, params S
 	}, handlers.NewGetSpanDetailsHandler(s.queryAPI, s.params.MaxSpanDetailsPerRequest))
 
 	mcp.AddTool(s.mcpServer, &mcp.Tool{
+		Name: "find_spans",
+		Description: "Find spans matching one SQL statement in 'sql', across however many traces. " +
+			"Returns lightweight summaries (trace_id, span_id, service, span_name, duration, " +
+			"status) without attributes or events; use get_span_details for those. " +
+			"The statement is SELECT * FROM spans WHERE ... with both bounds on start_time.",
+	}, handlers.NewFindSpansHandler(s.queryAPI, s.params.MaxSearchResults))
+
+	mcp.AddTool(s.mcpServer, &mcp.Tool{
 		Name: "get_trace_errors",
 		Description: "Get full details for all error-status spans in a trace. " +
 			"Results may be truncated to the server limit; " +
