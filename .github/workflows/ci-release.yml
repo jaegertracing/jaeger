@@ -236,3 +236,25 @@ jobs:
       base64-subjects: "${{ needs.publish-release.outputs.hashes }}"
       upload-assets: ${{ inputs.dry_run != true }}
       upload-tag-name: "${{ needs.publish-release.outputs.tag }}"
+
+  verify-release:
+    # Runs after a failed publish too, so a partial upload lists what is missing.
+    needs: [publish-release, generate-provenance]
+    if: ${{ !cancelled() && github.repository == 'jaegertracing/jaeger' && inputs.dry_run != true && needs.publish-release.outputs.tag != '' }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+    - uses: step-security/harden-runner@05e31511f85b41b11d1cf0ef85d0992719546e2c # v2.21.0
+      with:
+        egress-policy: audit
+
+    - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+
+    - uses: ./.github/actions/setup-go
+
+    - name: Verify published assets and images
+      run: bash scripts/release/verify-published.sh "${TAG}"
+      env:
+        TAG: ${{ needs.publish-release.outputs.tag }}
+        GH_TOKEN: ${{ github.token }}
