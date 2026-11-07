@@ -426,8 +426,8 @@ func TestFindTracesHandler_Handle_NoServiceName(t *testing.T) {
 }
 
 // TestFindTracesHandler_Handle_ServiceNameRequiredByBackend covers the other side: the
-// query service refuses the query for a backend that cannot serve it, and the agent is told
-// why rather than being handed an empty result set described as partial.
+// query service refuses the query for a backend that cannot serve it, and the call fails
+// with that refusal rather than returning an empty result set.
 func TestFindTracesHandler_Handle_ServiceNameRequiredByBackend(t *testing.T) {
 	mock := &mockQueryService{
 		findTraceSummariesFunc: func(_ context.Context, _ querysvc.TraceQueryParams) iter.Seq2[[]tracestore.TraceSummary, error] {
@@ -442,11 +442,8 @@ func TestFindTracesHandler_Handle_ServiceNameRequiredByBackend(t *testing.T) {
 		StartTimeMin: "-1h",
 	})
 
-	require.NoError(t, err)
+	require.ErrorIs(t, err, querysvc.ErrServiceNameRequired)
 	assert.Empty(t, output.Traces)
-	assert.Contains(t, output.Error, "requires a service name")
-	assert.NotContains(t, output.Error, "partial results",
-		"nothing was returned, so the agent must not be told results were partial")
 }
 
 func TestFindTracesHandler_Handle_InvalidTimeFormat(t *testing.T) {
@@ -511,7 +508,7 @@ func TestFindTracesHandler_Handle_InvalidDurationMax(t *testing.T) {
 // TestFindTracesHandler_Handle_EnvelopeRefusedByQueryService covers the checks this tool no
 // longer makes itself: an inverted time range and a negative or inverted duration bound are the
 // query service's to refuse, and its refusal is what the agent reads. Nothing is returned, so
-// the answer names the refusal rather than calling the results partial.
+// the call fails with the refusal.
 func TestFindTracesHandler_Handle_EnvelopeRefusedByQueryService(t *testing.T) {
 	tests := []struct {
 		name    string
@@ -550,10 +547,8 @@ func TestFindTracesHandler_Handle_EnvelopeRefusedByQueryService(t *testing.T) {
 
 			_, output, err := handler.handle(context.Background(), &mcp.CallToolRequest{}, tt.input)
 
-			require.NoError(t, err)
+			require.ErrorContains(t, err, tt.wantErr)
 			assert.Empty(t, output.Traces)
-			assert.Contains(t, output.Error, tt.wantErr)
-			assert.NotContains(t, output.Error, "partial results")
 		})
 	}
 }

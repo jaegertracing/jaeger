@@ -82,13 +82,12 @@ outer:
 	if len(processErrs) > 0 {
 		searchErr := errors.Join(processErrs...)
 		if len(summaries) == 0 {
-			// Nothing came back — a query the storage backend refused, for one — so calling
-			// it partial would send an agent looking for the missing part instead of
-			// reading why the search could not run.
-			output.Error = searchErr.Error()
-		} else {
-			output.Error = fmt.Sprintf("partial results returned due to error: %v", searchErr)
+			// Nothing came back, so the call failed: a query the storage backend refused,
+			// or a transport error. The error is the result, not a note beside an empty
+			// page.
+			return nil, types.FindTracesOutput{}, searchErr
 		}
+		output.Error = fmt.Sprintf("partial results returned due to error: %v", searchErr)
 	}
 	return nil, output, nil
 }
