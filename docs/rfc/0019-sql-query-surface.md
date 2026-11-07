@@ -3,7 +3,7 @@
 - **Status:** Draft
 - **Author:** Yuri Shkuro
 - **Created:** 2026-10-23
-- **Last Updated:** 2026-10-23
+- **Last Updated:** 2026-11-06
 - **Related:** [RFC 0005 (structured query filters)](0005-structured-query-filters.md) · [RFC 0016 (span search)](0016-span-search.md) · [RFC 0014 (search result pagination)](0014-search-result-pagination.md) · [RFC 0011 (trace summary API)](0011-trace-summary-api.md) · [ADR-002 (MCP server)](../adr/002-mcp-server.md) · [ADR-013 (storage capability declaration)](../adr/013-storage-capability-declaration.md)
 
 ---
@@ -137,7 +137,7 @@ The compiler picks the query service method from the `SELECT` list and the `FROM
 |---|---|---|
 | `SELECT DISTINCT trace_id FROM spans WHERE …` | `FindTraceIDs` | filter, window, limit, cursor |
 | `SELECT * FROM spans WHERE …` | `FindSpans` (RFC 0016) | filter, window, order, limit, cursor |
-| `SELECT span_id, duration, … FROM spans WHERE …` | `FindSpans` | the above plus a reference-only `projection` |
+| `SELECT span_id, duration, … FROM spans WHERE …` | `FindSpans` | the above plus a reference-only `projection`, which the query service refuses until it has a result the projection can shape (RFC 0016 §5) |
 | `SELECT * FROM traces WHERE trace_id IN (SELECT trace_id FROM spans WHERE …)` | `FindTraces` | the inner filter and window; `LIMIT` on the outer query is `search_depth` |
 | `SELECT trace_id, root_service, span_count, … FROM traces WHERE trace_id IN (…)` | `FindTraceSummaries` (RFC 0011) | as above |
 | `SELECT … FROM spans … GROUP BY …`, any aggregate function | refused | reserved for the method of RFC 0016 §5 |
