@@ -110,17 +110,6 @@ func newMockYieldingEmpty() *mockQueryService {
 	}
 }
 
-// newMockFindTraceSummaries creates a mock for FindTraceSummaries calls that yields the given summaries
-func newMockFindTraceSummaries(summaries ...tracestore.TraceSummary) *mockQueryService {
-	return &mockQueryService{
-		findTraceSummariesFunc: func(_ context.Context, _ querysvc.TraceQueryParams) iter.Seq2[[]tracestore.TraceSummary, error] {
-			return func(yield func([]tracestore.TraceSummary, error) bool) {
-				yield(summaries, nil)
-			}
-		},
-	}
-}
-
 // createTestTrace creates a simple trace with a single span for testing
 func createTestTrace(traceID string, serviceName string, spanName string, hasError bool) ptrace.Traces {
 	traces := ptrace.NewTraces()

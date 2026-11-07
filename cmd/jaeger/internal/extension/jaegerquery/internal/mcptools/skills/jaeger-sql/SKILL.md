@@ -1,10 +1,10 @@
 ---
 name: jaeger-sql
 description: >-
-  Write the sql input of find_traces or find_spans. Use when the user writes
-  the search as SQL, when the search is for spans rather than traces, or when
-  the structured inputs cannot say it: OR, NOT, a comparison on an attribute,
-  a text pattern, or a condition on a span's events or links.
+  Write the sql input of find_traces or find_spans: the statement shapes, the
+  columns, the values and the predicates, including OR, NOT, a comparison on
+  an attribute, a text pattern, and a condition on a span's events or links.
+  Read it before the first call to either tool.
 allowed-tools: find_traces find_spans
 ---
 

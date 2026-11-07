@@ -29,10 +29,9 @@ type queryServiceInterface interface {
 	FindTraceSummaries(ctx context.Context, query querysvc.TraceQueryParams) iter.Seq2[querysvc.PageChunk[[]tracestore.TraceSummary], error]
 }
 
-// findTracesHandler implements the find_traces MCP tool.
-// This tool searches for traces matching service, time, attributes, and duration criteria.
-// It returns trace summaries without full span details, optimized for
-// browsing and filtering large result sets.
+// findTracesHandler implements the find_traces MCP tool. The tool searches for the traces
+// that one SQL statement over spans describes and returns trace summaries without span
+// details, optimized for browsing and filtering large result sets.
 type findTracesHandler struct {
 	queryService queryServiceInterface
 	maxResults   uint32
@@ -120,87 +119,12 @@ func toMCPTraceSummary(s tracestore.TraceSummary) types.TraceSummary {
 	}
 }
 
-// buildQuery converts FindTracesInput to querysvc.TraceQueryParams.
+// buildQuery compiles the statement of input.SQL (RFC 0019) into the trace search it
+// describes. The statement carries the filter, the window and, through LIMIT, the search depth,
+// so the tool has no other input to merge with it.
 func (h *findTracesHandler) buildQuery(input types.FindTracesInput) (querysvc.TraceQueryParams, error) {
-	if strings.TrimSpace(input.SQL) != "" {
-		return h.buildSQLQuery(input)
-	}
-	startTimeMinInput := input.StartTimeMin
-	if startTimeMinInput == "" {
-		startTimeMinInput = "-1h"
-	}
-
-	minStartTime, err := parseTimeParam(startTimeMinInput)
-	if err != nil {
-		return querysvc.TraceQueryParams{}, fmt.Errorf("invalid start_time_min: %w", err)
-	}
-
-	var maxStartTime time.Time
-	if input.StartTimeMax != "" {
-		maxStartTime, err = parseTimeParam(input.StartTimeMax)
-		if err != nil {
-			return querysvc.TraceQueryParams{}, fmt.Errorf("invalid start_time_max: %w", err)
-		}
-	} else {
-		maxStartTime = time.Now()
-	}
-
-	// Whether the time range and the duration bounds are ordered is the query service's
-	// decision, so only what this tool cannot hand over unparsed is checked here.
-	var minDuration, maxDuration time.Duration
-	if input.DurationMin != "" {
-		minDuration, err = time.ParseDuration(input.DurationMin)
-		if err != nil {
-			return querysvc.TraceQueryParams{}, fmt.Errorf("invalid duration_min: %w", err)
-		}
-	}
-	if input.DurationMax != "" {
-		maxDuration, err = time.ParseDuration(input.DurationMax)
-		if err != nil {
-			return querysvc.TraceQueryParams{}, fmt.Errorf("invalid duration_max: %w", err)
-		}
-	}
-
-	attributes := pcommon.NewMap()
-	for key, value := range input.Attributes {
-		attributes.PutStr(key, value)
-	}
-	if input.WithErrors {
-		attributes.PutStr("error", "true")
-	}
-
-	return querysvc.TraceQueryParams{
-		ServiceName:   input.ServiceName,
-		OperationName: input.SpanName,
-		Attributes:    attributes,
-		StartTimeMin:  minStartTime,
-		StartTimeMax:  maxStartTime,
-		DurationMin:   minDuration,
-		DurationMax:   maxDuration,
-		SearchDepth:   h.searchDepth(input.SearchDepth),
-		RawTraces:     false,
-	}, nil
-}
-
-// searchDepth applies the tool's default and the server's cap to a requested depth.
-func (h *findTracesHandler) searchDepth(requested uint32) uint32 {
-	if requested == 0 {
-		requested = defaultSearchDepth
-	}
-	if h.maxResults > 0 && requested > h.maxResults {
-		requested = h.maxResults
-	}
-	return requested
-}
-
-// buildSQLQuery compiles the statement of input.SQL into the trace search it describes. The
-// statement carries the filter and the window itself, so every other filter input is refused
-// beside it rather than merged, which keeps one description of the search per request.
-func (h *findTracesHandler) buildSQLQuery(input types.FindTracesInput) (querysvc.TraceQueryParams, error) {
-	if set := structuredInputsSet(input); len(set) > 0 {
-		return querysvc.TraceQueryParams{}, fmt.Errorf(
-			"sql replaces the other filter inputs; remove %s or write the condition into the statement",
-			strings.Join(set, ", "))
+	if strings.TrimSpace(input.SQL) == "" {
+		return querysvc.TraceQueryParams{}, errors.New("sql is required")
 	}
 	query, err := sqlquery.Compile(input.SQL, time.Now())
 	if err != nil {
@@ -212,60 +136,24 @@ func (h *findTracesHandler) buildSQLQuery(input types.FindTracesInput) (querysvc
 				"or SELECT * FROM traces WHERE trace_id IN (SELECT trace_id FROM spans WHERE between(start_time, <from>, <to>) AND ...). " +
 				"Both bounds on start_time are required")
 	}
-	searchDepth := input.SearchDepth
-	if query.Limit > 0 {
-		searchDepth = query.Limit
-	}
 	return querysvc.TraceQueryParams{
 		Attributes:   pcommon.NewMap(),
 		StartTimeMin: query.StartTimeMin,
 		StartTimeMax: query.StartTimeMax,
-		SearchDepth:  h.searchDepth(searchDepth),
+		SearchDepth:  h.searchDepth(query.Limit),
 		Filter:       query.Filter,
 		RawTraces:    false,
 	}, nil
 }
 
-// structuredInputsSet names the filter inputs of input that are set, in the order the type
-// declares them. search_depth is not among them because a statement without LIMIT takes it.
-func structuredInputsSet(input types.FindTracesInput) []string {
-	var set []string
-	add := func(name string, isSet bool) {
-		if isSet {
-			set = append(set, name)
-		}
+// searchDepth applies the tool's default and the server's cap to the depth a statement's LIMIT
+// asks for; zero means the statement has no LIMIT.
+func (h *findTracesHandler) searchDepth(requested uint32) uint32 {
+	if requested == 0 {
+		requested = defaultSearchDepth
 	}
-	add("start_time_min", input.StartTimeMin != "")
-	add("start_time_max", input.StartTimeMax != "")
-	add("service_name", input.ServiceName != "")
-	add("span_name", input.SpanName != "")
-	add("attributes", len(input.Attributes) > 0)
-	add("with_errors", input.WithErrors)
-	add("duration_min", input.DurationMin != "")
-	add("duration_max", input.DurationMax != "")
-	return set
-}
-
-// parseTimeParam parses time parameters supporting RFC3339 and relative time formats.
-// Relative formats: "-1h", "-30m", "-5s", "now"
-func parseTimeParam(input string) (time.Time, error) {
-	input = strings.TrimSpace(input)
-
-	if input == "now" {
-		return time.Now(), nil
+	if h.maxResults > 0 && requested > h.maxResults {
+		requested = h.maxResults
 	}
-
-	if strings.HasPrefix(input, "-") {
-		duration, err := time.ParseDuration(input[1:])
-		if err != nil {
-			return time.Time{}, fmt.Errorf("invalid relative time format: %w", err)
-		}
-		return time.Now().Add(-duration), nil
-	}
-
-	t, err := time.Parse(time.RFC3339, input)
-	if err != nil {
-		return time.Time{}, fmt.Errorf("time must be RFC3339 or relative format (e.g., '-1h', 'now'): %w", err)
-	}
-	return t, nil
+	return requested
 }
