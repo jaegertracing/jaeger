@@ -186,6 +186,41 @@ func TestTimer(t *testing.T) {
 	assert.Equal(t, expectedLabels, promLabelsToMap(metricData[0].GetLabel()))
 }
 
+func TestTimerDefaultBucketsAreSeconds(t *testing.T) {
+	registry := promreg.NewPedanticRegistry()
+	factory := newTestFactory(t, registry)
+	timer := factory.Timer(metrics.TimerOptions{Name: "test_timer_default_buckets"})
+	timer.Record(30 * time.Millisecond)
+
+	buckets := findMetric(t, registry, "test_timer_default_buckets_seconds").GetMetric()[0].GetHistogram().GetBucket()
+	require.NotEmpty(t, buckets)
+	assert.InDelta(t, 0.005, buckets[0].GetUpperBound(), 1e-9)
+	for _, b := range buckets {
+		if b.GetUpperBound() < 0.03 {
+			assert.Equal(t, uint64(0), b.GetCumulativeCount(), "le=%v", b.GetUpperBound())
+		} else if b.GetUpperBound() <= 0.05 {
+			assert.Equal(t, uint64(1), b.GetCumulativeCount(), "le=%v", b.GetUpperBound())
+		}
+	}
+}
+
+func TestTimerCustomBuckets(t *testing.T) {
+	registry := promreg.NewPedanticRegistry()
+	factory := newTestFactory(t, registry)
+	timer := factory.Timer(metrics.TimerOptions{
+		Name:    "test_timer_buckets",
+		Buckets: []time.Duration{10 * time.Millisecond, 100 * time.Millisecond},
+	})
+	timer.Record(50 * time.Millisecond)
+
+	buckets := findMetric(t, registry, "test_timer_buckets_seconds").GetMetric()[0].GetHistogram().GetBucket()
+	require.Len(t, buckets, 2)
+	assert.InDelta(t, 0.01, buckets[0].GetUpperBound(), 1e-9)
+	assert.Equal(t, uint64(0), buckets[0].GetCumulativeCount())
+	assert.InDelta(t, 0.1, buckets[1].GetUpperBound(), 1e-9)
+	assert.Equal(t, uint64(1), buckets[1].GetCumulativeCount())
+}
+
 func TestNamespace(t *testing.T) {
 	testCases := []struct {
 		name           string
