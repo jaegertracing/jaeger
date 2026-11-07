@@ -49,6 +49,10 @@ func connectTestClient(t *testing.T, handler http.Handler) *mcp.ClientSession {
 	return session
 }
 
+// TestNewHandler_ListTools drives the full in-process serving stack (mcp.Server
+// + middleware + tenancy + otelhttp) over HTTP and asserts the telemetry tools
+// are advertised. ListTools does not touch storage, so the QueryService is
+// backed by empty mocks.
 func TestNewHandler_ListTools(t *testing.T) {
 	svc := querysvc.NewQueryService(&tracestoremocks.Reader{}, &depstoremocks.Reader{}, querysvc.QueryServiceOptions{})
 	handler := NewHandler(telemetry.NoopSettings(), svc, tenancy.NewManager(&tenancy.Options{}), DefaultServerParams())
@@ -62,12 +66,14 @@ func TestNewHandler_ListTools(t *testing.T) {
 		got = append(got, tool.Name)
 	}
 	assert.ElementsMatch(t, []string{
-		"get_services", "get_span_names", "search_traces", "get_span_details",
+		"get_services", "get_span_names", "find_traces", "get_span_details",
 		"get_trace_errors", "get_trace_topology", "get_critical_path", "get_service_dependencies",
 		"read_skill",
 	}, got)
 }
 
+// TestNewHandler_CallTool exercises a tool end-to-end through the HTTP stack,
+// confirming the handler reaches the QueryService and returns a result.
 func TestNewHandler_CallTool(t *testing.T) {
 	reader := &tracestoremocks.Reader{}
 	reader.On("GetServices", mock.Anything).Return([]string{"svc-a", "svc-b"}, nil)
@@ -86,6 +92,11 @@ func TestNewHandler_CallTool(t *testing.T) {
 	assert.Contains(t, text.Text, "svc-b")
 }
 
+// TestNewHandler_ToolPanicFailsOnlyThatCall drives a panicking tool through the
+// full HTTP stack. The SDK runs tool handlers on goroutines of its own, so an
+// unrecovered panic there would terminate the test binary. With recovery in place
+// the call returns an error result that tracing records as a failed call, and the
+// session keeps serving.
 func TestNewHandler_ToolPanicFailsOnlyThatCall(t *testing.T) {
 	reader := &tracestoremocks.Reader{}
 	reader.On("GetServices", mock.Anything).Run(func(mock.Arguments) { panic("storage failed") }).Once()
@@ -160,6 +171,12 @@ func TestHandlerAddReceivingMiddlewarePanicFailsOnlyThatCall(t *testing.T) {
 	assert.False(t, result.IsError, "the session must keep serving after a panic")
 }
 
+// TestNewHandler_LocalhostProtection pins the SDK's DNS-rebinding guard and the
+// config switch that turns it off. httptest listens on 127.0.0.1, so a request
+// that carries a non-loopback Host header is the shape the guard rejects: the
+// same shape a sidecar that dials 127.0.0.1 and preserves Host produces. The
+// SDK also honours MCPGODEBUG=disablelocalhostprotection=1, read once at process
+// start, so the default subtest fails on a machine with that variable set.
 func TestNewHandler_LocalhostProtection(t *testing.T) {
 	initialize := `{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18","capabilities":{},"clientInfo":{"name":"test","version":"0"}}}`
 	post := func(t *testing.T, h http.Handler) *http.Response {
@@ -196,6 +213,10 @@ func TestNewHandler_LocalhostProtection(t *testing.T) {
 	})
 }
 
+// TestNewHandler_Sessionless pins the request model of MCP revision 2026-07-28 on
+// the endpoint: no request depends on an earlier one, so a client behind a load
+// balancer without session affinity is served by whichever replica its request
+// reaches. Each NewHandler stands in for one jaeger-query process.
 func TestNewHandler_Sessionless(t *testing.T) {
 	initialize := `{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18","capabilities":{},"clientInfo":{"name":"test","version":"0"}}}`
 	listTools := `{"jsonrpc":"2.0","id":2,"method":"tools/list"}`
@@ -271,6 +292,9 @@ func TestNewHandler_Sessionless(t *testing.T) {
 	})
 }
 
+// TestNewHandler_JSONResponse pins the body form of a single-message POST under
+// each setting, and that the go-sdk client, which accepts both forms, completes a
+// session against the JSON form.
 func TestNewHandler_JSONResponse(t *testing.T) {
 	initialize := `{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18","capabilities":{},"clientInfo":{"name":"test","version":"0"}}}`
 	svc := querysvc.NewQueryService(&tracestoremocks.Reader{}, &depstoremocks.Reader{}, querysvc.QueryServiceOptions{})
