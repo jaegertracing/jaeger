@@ -7,7 +7,6 @@ import (
 	"context"
 	"errors"
 	"iter"
-	"math"
 	"testing"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
@@ -53,10 +52,10 @@ func TestFindSpansHandler_Handle_FullWorkflow(t *testing.T) {
 	assert.Empty(t, output.Error)
 }
 
-func TestFindSpansHandler_Handle_NoFilterWhenNoCriteria(t *testing.T) {
+func TestFindSpansHandler_Handle_WindowOnlyHasNoFilter(t *testing.T) {
 	mock := &mockQueryService{
 		findSpansFunc: func(_ context.Context, query querysvc.SpanQueryParams) iter.Seq2[tracestore.PageChunk[ptrace.Traces], error] {
-			assert.Nil(t, query.Filter, "no criteria means the base case: time range alone")
+			assert.Nil(t, query.Filter, "a statement with only the window compiles to no filter")
 			return func(yield func(tracestore.PageChunk[ptrace.Traces], error) bool) {
 				yield(tracestore.PageChunk[ptrace.Traces]{Results: ptrace.NewTraces()}, nil)
 			}
@@ -70,9 +69,9 @@ func TestFindSpansHandler_Handle_NoFilterWhenNoCriteria(t *testing.T) {
 }
 
 func TestFindSpansHandler_Handle_BlankSQL(t *testing.T) {
-	// Via the exported constructor, like NewSearchTracesHandler/NewGetSpanDetailsHandler's own
-	// validation-error tests: nil is a valid *querysvc.QueryService here because this path
-	// returns before ever touching it.
+	// Via the exported constructor, like the validation-error tests of NewFindTracesHandler
+	// and NewGetSpanDetailsHandler: nil is a valid *querysvc.QueryService here because this
+	// path returns before ever touching it.
 	handler := NewFindSpansHandler(nil, 100)
 	_, _, err := handler(context.Background(), &mcp.CallToolRequest{}, types.FindSpansInput{SQL: " \n\t"})
 	require.ErrorContains(t, err, "sql is required")
@@ -91,9 +90,8 @@ func TestFindSpansHandler_Handle_QueryError(t *testing.T) {
 	input := types.FindSpansInput{SQL: "SELECT * FROM spans " + findSpansWindow}
 	_, output, err := handler.handle(context.Background(), &mcp.CallToolRequest{}, input)
 
-	require.NoError(t, err, "a query error is reported in output.Error, not returned")
+	require.ErrorContains(t, err, "backend unavailable", "a search that returns nothing fails the call")
 	assert.Empty(t, output.Spans)
-	assert.Contains(t, output.Error, "backend unavailable")
 }
 
 func TestFindSpansHandler_Handle_SpanSearchUnsupported(t *testing.T) {
@@ -109,9 +107,8 @@ func TestFindSpansHandler_Handle_SpanSearchUnsupported(t *testing.T) {
 	input := types.FindSpansInput{SQL: "SELECT * FROM spans " + findSpansWindow}
 	_, output, err := handler.handle(context.Background(), &mcp.CallToolRequest{}, input)
 
-	require.NoError(t, err)
+	require.ErrorIs(t, err, querysvc.ErrSpanSearchUnsupported)
 	assert.Empty(t, output.Spans)
-	assert.Contains(t, output.Error, querysvc.ErrSpanSearchUnsupported.Error())
 }
 
 func TestFindSpansHandler_Handle_PartialResults(t *testing.T) {
@@ -177,7 +174,7 @@ func TestFindSpansHandler_BuildQuery_EffectiveLimit(t *testing.T) {
 	tests := []struct {
 		name       string
 		sql        string
-		maxResults int
+		maxResults uint32
 		want       uint32
 	}{
 		{
@@ -218,27 +215,17 @@ func TestFindSpansHandler_BuildQuery_EffectiveLimit(t *testing.T) {
 	}
 }
 
-// TestFindSpansHandler_EffectiveLimit_NegativeRequested pins that a negative max_results
-// (which the schema does not forbid) is treated the same as unset, not as a negative page size.
-func TestFindSpansHandler_EffectiveLimit_NegativeRequested(t *testing.T) {
-	handler := &findSpansHandler{maxResults: 100}
-	assert.EqualValues(t, 100, handler.effectiveLimit(-5, 0))
+// TestFindSpansHandler_EffectiveLimit_NoCap pins that a server without a cap passes the
+// requested limit through, and a zero limit through as zero for the query service to default.
+func TestFindSpansHandler_EffectiveLimit_NoCap(t *testing.T) {
+	handler := &findSpansHandler{}
+	assert.EqualValues(t, 7, handler.effectiveLimit(7, 0))
+	assert.EqualValues(t, 0, handler.effectiveLimit(0, 0))
 }
 
-// TestClampToInt32 pins that a compiledLimit above math.MaxInt32 (LIMIT comes from the SQL
-// compiler as a uint32, RFC 0019 puts no smaller bound on it) clamps rather than wrapping
-// negative when narrowed to int, which is what CodeQL's unchecked-conversion check wants
-// demonstrated at the call site.
-func TestClampToInt32(t *testing.T) {
-	assert.Equal(t, 5, clampToInt32(5))
-	assert.Equal(t, math.MaxInt32, clampToInt32(math.MaxInt32))
-	assert.Equal(t, math.MaxInt32, clampToInt32(math.MaxInt32+1))
-	assert.Equal(t, math.MaxInt32, clampToInt32(math.MaxUint32))
-}
-
-// TestFindSpansHandler_BuildQuery_PageSizeMatchesLimit pins the fix for the bug Yuri's review
-// found: the effective limit must be the backend page size, not just the output truncation
-// bound, or a request for one span still makes the backend fetch a full default page.
+// TestFindSpansHandler_BuildQuery_PageSizeMatchesLimit pins that the effective limit is also
+// the page size the backend is asked for, so a request for one span does not make the backend
+// fetch a full default page and then discard most of it.
 func TestFindSpansHandler_BuildQuery_PageSizeMatchesLimit(t *testing.T) {
 	handler := &findSpansHandler{maxResults: 100}
 	query, limit, err := handler.buildQuery(types.FindSpansInput{

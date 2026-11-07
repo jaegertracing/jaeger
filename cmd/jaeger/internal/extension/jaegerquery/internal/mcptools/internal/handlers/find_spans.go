@@ -8,7 +8,6 @@ import (
 	"errors"
 	"fmt"
 	"iter"
-	"math"
 	"strings"
 	"time"
 
@@ -28,19 +27,17 @@ type findSpansQueryService interface {
 }
 
 // findSpansHandler implements the find_spans MCP tool (RFC 0016 M7, RFC 0019). Unlike
-// get_span_details, which names spans it already knows the IDs of, this tool discovers spans
-// matching whatever a statement over spans describes, across however many traces in one call,
-// which before this tool took a find_traces call followed by one or more get_span_details
-// calls.
+// get_span_details, which names spans by IDs the agent already holds, this tool returns the
+// spans that a statement over spans describes, across however many traces, in one call.
 type findSpansHandler struct {
 	queryService findSpansQueryService
-	maxResults   int
+	maxResults   uint32
 }
 
 // NewFindSpansHandler creates a new find_spans handler and returns the handler function.
 func NewFindSpansHandler(
 	queryService *querysvc.QueryService,
-	maxResults int,
+	maxResults uint32,
 ) mcp.ToolHandlerFor[types.FindSpansInput, types.FindSpansOutput] {
 	h := &findSpansHandler{
 		queryService: queryService,
@@ -71,7 +68,7 @@ outer:
 		}
 		for pos, span := range jptrace.SpanIter(chunk.Results) {
 			spans = append(spans, buildSpanDetail(pos, span))
-			if limit > 0 && len(spans) >= clampToInt32(limit) {
+			if limit > 0 && uint64(len(spans)) >= uint64(limit) {
 				break outer
 			}
 		}
@@ -81,14 +78,12 @@ outer:
 	if len(processErrs) > 0 {
 		searchErr := errors.Join(processErrs...)
 		if len(spans) == 0 {
-			// Nothing came back, so calling it partial would send an agent looking for
-			// the missing part instead of reading why the search could not run: a
-			// backend refusing the query (ErrSpanSearchUnsupported, ErrFilterDisabled)
-			// reports the same way find_traces reports FindTraceSummaries refusing.
-			output.Error = searchErr.Error()
-		} else {
-			output.Error = fmt.Sprintf("partial results returned due to error: %v", searchErr)
+			// Nothing came back, so the call failed: a backend refusing the query
+			// (ErrSpanSearchUnsupported, ErrFilterDisabled) or a transport error. The
+			// error is the result, not a note beside an empty page.
+			return nil, types.FindSpansOutput{}, searchErr
 		}
+		output.Error = fmt.Sprintf("partial results returned due to error: %v", searchErr)
 	}
 	return nil, output, nil
 }
@@ -125,25 +120,13 @@ func (h *findSpansHandler) buildQuery(input types.FindSpansInput) (querysvc.Span
 // present, else requested (input.MaxResults), with the server's configured cap applied either
 // way. A zero result here is passed through as a zero PageSize, which the query service reads
 // as its own default, rather than this handler guessing at one.
-func (h *findSpansHandler) effectiveLimit(requested int, compiledLimit uint32) uint32 {
+func (h *findSpansHandler) effectiveLimit(requested, compiledLimit uint32) uint32 {
 	limit := requested
 	if compiledLimit > 0 {
-		limit = clampToInt32(compiledLimit)
-	}
-	if limit < 0 {
-		limit = 0
+		limit = compiledLimit
 	}
 	if h.maxResults > 0 && (limit == 0 || limit > h.maxResults) {
 		limit = h.maxResults
 	}
-	return uint32(limit)
-}
-
-// clampToInt32 converts a uint32 to int with an explicit upper bound, so the conversion stays
-// in range regardless of whether int is 32 or 64 bits on the build platform.
-func clampToInt32(v uint32) int {
-	if v > math.MaxInt32 {
-		return math.MaxInt32
-	}
-	return int(v)
+	return limit
 }
