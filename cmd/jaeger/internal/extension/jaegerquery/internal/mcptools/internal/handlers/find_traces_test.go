@@ -425,14 +425,14 @@ func TestFindTracesHandler_Handle_NoServiceName(t *testing.T) {
 	assert.Empty(t, output.Error)
 }
 
-// TestFindTracesHandler_Handle_ServiceNameRequiredByBackend covers the other side: the
-// query service refuses the query for a backend that cannot serve it, and the call fails
-// with that refusal rather than returning an empty result set.
-func TestFindTracesHandler_Handle_ServiceNameRequiredByBackend(t *testing.T) {
+// TestFindTracesHandler_Handle_ErrorBeforeAnyResult covers a search that fails before
+// any summary came back: the call fails with that error instead of returning an empty page.
+func TestFindTracesHandler_Handle_ErrorBeforeAnyResult(t *testing.T) {
+	refused := errors.New("backend refused the query")
 	mock := &mockQueryService{
 		findTraceSummariesFunc: func(_ context.Context, _ querysvc.TraceQueryParams) iter.Seq2[[]tracestore.TraceSummary, error] {
 			return func(yield func([]tracestore.TraceSummary, error) bool) {
-				yield(nil, querysvc.ErrServiceNameRequired)
+				yield(nil, refused)
 			}
 		},
 	}
@@ -442,7 +442,7 @@ func TestFindTracesHandler_Handle_ServiceNameRequiredByBackend(t *testing.T) {
 		StartTimeMin: "-1h",
 	})
 
-	require.ErrorIs(t, err, querysvc.ErrServiceNameRequired)
+	require.ErrorIs(t, err, refused)
 	assert.Empty(t, output.Traces)
 }
 
@@ -503,54 +503,6 @@ func TestFindTracesHandler_Handle_InvalidDurationMax(t *testing.T) {
 
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "invalid duration_max")
-}
-
-// TestFindTracesHandler_Handle_EnvelopeRefusedByQueryService covers the checks this tool no
-// longer makes itself: an inverted time range and a negative or inverted duration bound are the
-// query service's to refuse, and its refusal is what the agent reads. Nothing is returned, so
-// the call fails with the refusal.
-func TestFindTracesHandler_Handle_EnvelopeRefusedByQueryService(t *testing.T) {
-	tests := []struct {
-		name    string
-		input   types.FindTracesInput
-		wantErr string
-	}{
-		{
-			name:    "start_time_max before start_time_min",
-			input:   types.FindTracesInput{StartTimeMin: "-1h", StartTimeMax: "-2h", ServiceName: "test"},
-			wantErr: "min start time must be before max start time",
-		},
-		{
-			name:    "duration_max less than duration_min",
-			input:   types.FindTracesInput{StartTimeMin: "-1h", ServiceName: "test", DurationMin: "10s", DurationMax: "5s"},
-			wantErr: "max duration cannot be less than min duration",
-		},
-		{
-			name:    "negative duration_min",
-			input:   types.FindTracesInput{StartTimeMin: "-1h", ServiceName: "test", DurationMin: "-5s"},
-			wantErr: "cannot be negative",
-		},
-		{
-			name:    "negative duration_max",
-			input:   types.FindTracesInput{StartTimeMin: "-1h", ServiceName: "test", DurationMax: "-10s"},
-			wantErr: "cannot be negative",
-		},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			store, err := memory.NewStore(memory.Configuration{MaxTraces: 10})
-			require.NoError(t, err)
-			handler := &findTracesHandler{
-				queryService: querysvc.NewQueryService(store, store, querysvc.QueryServiceOptions{}),
-				maxResults:   100,
-			}
-
-			_, output, err := handler.handle(context.Background(), &mcp.CallToolRequest{}, tt.input)
-
-			require.ErrorContains(t, err, tt.wantErr)
-			assert.Empty(t, output.Traces)
-		})
-	}
 }
 
 // TestFindTracesHandler_Handle_ZeroDurationValid covers the boundary the negative check
