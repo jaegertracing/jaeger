@@ -25,7 +25,7 @@ jobs:
     - name: Print Jaeger version for no reason
       run: make echo-version
 
-    - run: make install-test-tools
+    - run: make install-lint-tools
 
     - run: make lint
 
