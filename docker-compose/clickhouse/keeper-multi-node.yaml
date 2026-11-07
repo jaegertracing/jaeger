@@ -1,0 +1,15 @@
+# Copyright (c) 2026 The Jaeger Authors.
+# SPDX-License-Identifier: Apache-2.0
+
+# A dedicated Keeper for the two-server cluster. One Keeper is enough for an integration-test
+# cluster; the point of this topology is the Distributed query plan, not Keeper fault tolerance.
+keeper_server:
+  tcp_port: 9181
+  server_id: 1
+  log_storage_path: /var/lib/clickhouse/coordination/log
+  snapshot_storage_path: /var/lib/clickhouse/coordination/snapshots
+  raft_configuration:
+    server:
+      id: 1
+      hostname: clickhouse-keeper
+      port: 9234
