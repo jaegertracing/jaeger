@@ -56,6 +56,15 @@ func Run(c *Config, tracers []trace.Tracer, logger *zap.Logger) error {
 	} else if c.Traces <= 0 {
 		return errors.New("either `traces` or `duration` must be greater than 0")
 	}
+	if c.Workers <= 0 {
+		return errors.New("`workers` must be greater than 0")
+	}
+	if c.ChildSpans < 0 {
+		return errors.New("`spans` must be non-negative")
+	}
+	if c.Attributes < 0 {
+		return errors.New("`attrs` must be non-negative")
+	}
 	if c.AttrKeys <= 0 {
 		return errors.New("`attr-keys` must be greater than 0")
 	}
