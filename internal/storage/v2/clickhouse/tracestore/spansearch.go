@@ -159,7 +159,7 @@ func (r *Reader) findSpanPage(ctx context.Context, query tracestore.SpanQueryPar
 		return none, fmt.Errorf("failed to query spans: %w", err)
 	}
 	// One row beyond the page tells whether another page exists.
-	found, err := readFoundSpans(rows, after, int(pageSize)+1)
+	found, err := readFoundSpans(rows, after, pageSize+1)
 	if err != nil {
 		return none, err
 	}
@@ -229,7 +229,7 @@ func (r *Reader) buildFindSpansQuery(
 // readFoundSpans scans rows into foundSpans until it holds want of them, dropping the rows at
 // the cursor's key that the cursor says earlier pages returned, one row per listed hash. It
 // stops reading at want rather than trust the statement's LIMIT, which a token sized.
-func readFoundSpans(rows driver.Rows, after *spanCursor, want int) ([]foundSpan, error) {
+func readFoundSpans(rows driver.Rows, after *spanCursor, want uint32) ([]foundSpan, error) {
 	var returned []uint64
 	if after != nil {
 		returned = slices.Clone(after.returned)
@@ -251,7 +251,7 @@ func readFoundSpans(rows driver.Rows, after *spanCursor, want int) ([]foundSpan,
 			}
 		}
 		found = append(found, span)
-		if len(found) == want {
+		if uint64(len(found)) == uint64(want) {
 			return errStopReading
 		}
 		return nil
