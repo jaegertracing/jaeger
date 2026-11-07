@@ -24,8 +24,8 @@ import (
 	"github.com/jaegertracing/jaeger/internal/storage/v2/clickhouse/tracestore/dbmodel"
 )
 
-// spanKey is the default sort key of a span search, (startTime desc, traceID asc, spanID asc)
-// (RFC 0016 §6.1), read from the row the way the spans table stores it.
+// spanKey is the default sort key of a span search, (startTime desc, traceID asc, spanID asc),
+// read from the row the way the spans table stores it (RFC 0016 §6.1).
 type spanKey struct {
 	// startTime is the span's start as Unix nanoseconds, so that keys compare with ==.
 	startTime int64
@@ -41,9 +41,9 @@ const spanKeySize = 8 + 16 + 8
 // with that key the pages so far have returned. The spans table has no column that names one
 // row, and ClickHouse does not promise the same order among rows that tie on the whole key from
 // one query to the next, so a count of tied rows would not say which of them a page already
-// holds (RFC 0016 §6.4). The hashes do: the continuation re-reads the tied rows and drops one
-// occurrence per listed hash, so a span stored twice comes back twice, and two rows that tie on
-// the key but differ in content each come back once, whichever order ClickHouse returns them in.
+// holds. The hashes do: the continuation re-reads the tied rows and drops one occurrence per
+// listed hash, so a span stored twice comes back twice, and two rows that tie on the key but
+// differ in content each come back once, whichever order ClickHouse returns them in (RFC 0016 §6.4).
 type spanCursor struct {
 	key      spanKey
 	returned []uint64
@@ -104,11 +104,11 @@ func (s foundSpan) hash() uint64 {
 }
 
 // FindSpans returns one page of the spans matching query, in the default order, with the token
-// that resumes the search after them (RFC 0016 §6). It selects the span rows directly, with the
+// that resumes the search after them. It selects the span rows directly, with the
 // same predicates the trace search assembles and without the trace-ID subquery, ordered by
 // spanKey and cut at the page size; the cursor inside the token is the last row's key, and a
 // continuation reads from that key onward. The reader orders by the default key only, so an
-// explicit order is refused (SpanSorting is false).
+// explicit order is refused (SpanSorting is false). See RFC 0016 §6.
 func (r *Reader) FindSpans(ctx context.Context, query tracestore.SpanQueryParams) iter.Seq2[tracestore.PageChunk[ptrace.Traces], error] {
 	return func(yield func(tracestore.PageChunk[ptrace.Traces], error) bool) {
 		chunk, err := r.findSpanPage(ctx, query)
@@ -144,8 +144,8 @@ func (r *Reader) findSpanPage(ctx context.Context, query tracestore.SpanQueryPar
 		}
 		after = &cursor
 	}
-	// The query service clamps the page size (RFC 0014 §4); a caller reaching the reader
-	// directly gets the same bound.
+	// The query service clamps the page size; a caller reaching the reader directly gets the
+	// same bound (RFC 0014 §4).
 	pageSize := min(query.Pagination.PageSize, tracestore.MaxPageSize)
 	if pageSize == 0 {
 		return none, fmt.Errorf("%w: page size must be greater than 0", tracestore.ErrPaginationInvalid)
@@ -175,7 +175,7 @@ func (r *Reader) findSpanPage(ctx context.Context, query tracestore.SpanQueryPar
 		}
 	}
 	// Every span keeps its own ResourceSpans, so the page keeps the SQL order even where
-	// consecutive spans alternate between services (RFC 0016 §6.4).
+	// consecutive spans alternate between services.
 	for _, span := range found {
 		dbmodel.FromRow(span.row).ResourceSpans().MoveAndAppendTo(chunk.Results.ResourceSpans())
 	}

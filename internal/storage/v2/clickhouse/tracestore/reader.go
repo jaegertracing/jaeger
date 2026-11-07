@@ -70,8 +70,8 @@ func (*Reader) SearchCapabilities(context.Context) (tracestore.SearchCapabilitie
 		// trace.
 		SameSpanConjunction: true,
 		Filter:              &filter,
-		// FindSpans (spansearch.go) selects span rows in the default order of RFC 0016 §6.1;
-		// it does not lower a caller-selected order yet (RFC 0016 M12).
+		// FindSpans orders span rows by the default sort key only; it does not lower a
+		// caller-selected order yet (RFC 0016 M12).
 		SpanSearch:  true,
 		SpanSorting: false,
 		// FindSpans pages with a keyset cursor over its sort key. The capability covers the
@@ -198,7 +198,7 @@ func (r *Reader) FindTraceIDs(
 			return
 		}
 
-		// The trace searches do not page yet (RFC 0014 M3), so the page is the last one.
+		// The trace searches do not page yet, so the page is the last one (RFC 0014 M3).
 		for _, trace := range traceIDs {
 			if !yield(tracestore.PageChunk[[]tracestore.FoundTraceID]{Results: []tracestore.FoundTraceID{trace}}, nil) {
 				return

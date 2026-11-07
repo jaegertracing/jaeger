@@ -245,10 +245,10 @@ func Cassandra() Capabilities {
 // fresh slice, so a caller may append to it.
 func clickHouseSkipList() []string {
 	return []string{
-		// FindSpans orders by the default key only (RFC 0016 M12 is open), so the ordering
-		// battery, whose default case runs through the same test, is skipped whole.
+		// FindSpans orders by the default key only, so the ordering battery, whose default
+		// case runs through the same test, is skipped whole (RFC 0016 M12).
 		spanOrderingTest,
-		// The trace searches do not page yet (RFC 0014 M3).
+		// The trace searches do not page yet.
 		traceIDPaginationTest,
 		summaryPaginationTest,
 		// The lowering maps five built-in fields; event.name has a column but is not among them yet.

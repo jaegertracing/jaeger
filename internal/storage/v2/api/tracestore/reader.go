@@ -219,11 +219,12 @@ type Pagination struct {
 	PageToken PageToken
 }
 
-// PaginationAsDepth is RFC 0014 §6.2 applied inside a reader whose trace searches do not page
-// while its Paginated capability, declared for FindSpans, covers them too (RFC 0016 §6.1). The
-// page size bounds the search as its depth, and a token is refused, because these searches
-// cannot have produced one. The query service applies the same rule, before dispatch, to a
-// reader that declares no pagination at all. A query without Pagination is returned unchanged.
+// PaginationAsDepth converts a pagination request into a search depth, for a reader whose
+// trace searches do not page although it declares the Paginated capability for FindSpans.
+// The page size becomes the search depth, and a token is refused, because these searches
+// cannot have produced one. A query without Pagination is returned unchanged. The query
+// service applies the same conversion before dispatch to a reader that declares no
+// pagination at all (RFC 0014 §6.2).
 func (q TraceQueryParams) PaginationAsDepth() (TraceQueryParams, error) {
 	if q.Pagination == nil {
 		return q, nil
