@@ -16,7 +16,6 @@ import (
 
 	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerquery/internal/mcptools/internal/types"
 	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerquery/querysvc"
-	"github.com/jaegertracing/jaeger/internal/sqlquery"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/memory"
 )
@@ -201,16 +200,6 @@ func TestFindSpansHandler_BuildQuery_ColumnListIsTheProjection(t *testing.T) {
 	assert.Len(t, query.Projection, 2)
 }
 
-// TestFindSpansHandler_RefuseKind pins which statement kinds the trace-shaped refusal speaks
-// for, and that a kind outside that list is refused by name rather than described as traces.
-func TestFindSpansHandler_RefuseKind(t *testing.T) {
-	require.NoError(t, refuseKind(sqlquery.KindFindSpans))
-	for _, kind := range []sqlquery.Kind{sqlquery.KindFindTraceIDs, sqlquery.KindFindTraces, sqlquery.KindFindTraceSummaries} {
-		require.ErrorContains(t, refuseKind(kind), "the statement returns traces", kind)
-	}
-	require.EqualError(t, refuseKind(sqlquery.Kind("Rows")), "invalid sql: find_spans does not serve a Rows statement")
-}
-
 // TestFindSpansHandler_BuildQuery_Refusals covers the two refusals that are the handler's
 // own: a statement of a shape this tool does not serve, and the prefix it puts on a compiler
 // error. What the compiler refuses, and how, is the sqlquery package's to test.
@@ -223,7 +212,7 @@ func TestFindSpansHandler_BuildQuery_Refusals(t *testing.T) {
 		{
 			name:    "a trace-ID search",
 			sql:     "SELECT DISTINCT trace_id FROM spans " + findSpansWindow,
-			wantErr: "invalid sql: the statement returns traces, and find_spans returns spans",
+			wantErr: "invalid sql: find_spans takes SELECT * FROM spans WHERE",
 		},
 		{
 			name:    "a compiler error carries the invalid sql prefix",

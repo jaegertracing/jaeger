@@ -89,8 +89,10 @@ func (h *findSpansHandler) buildQuery(input types.FindSpansInput) (querysvc.Span
 	if err != nil {
 		return querysvc.SpanQueryParams{}, 0, fmt.Errorf("invalid sql: %w", err)
 	}
-	if err := refuseKind(query.Kind); err != nil {
-		return querysvc.SpanQueryParams{}, 0, err
+	if query.Kind != sqlquery.KindFindSpans {
+		return querysvc.SpanQueryParams{}, 0, errors.New(
+			"invalid sql: find_spans takes SELECT * FROM spans WHERE between(start_time, <from>, <to>) AND ... " +
+				"[ORDER BY ...] [LIMIT n]. Both bounds on start_time are required")
 	}
 
 	limit := h.effectiveLimit(query.Limit)
@@ -102,23 +104,6 @@ func (h *findSpansHandler) buildQuery(input types.FindSpansInput) (querysvc.Span
 		Pagination:   querysvc.Pagination{PageSize: limit},
 		Projection:   query.Projection,
 	}, limit, nil
-}
-
-// refuseKind is the refusal for a statement of a shape this tool does not serve. The three
-// other kinds the compiler produces all return traces, so the message says so and states what
-// to write instead; a kind this handler does not know is refused by name.
-func refuseKind(kind sqlquery.Kind) error {
-	switch kind {
-	case sqlquery.KindFindSpans:
-		return nil
-	case sqlquery.KindFindTraceIDs, sqlquery.KindFindTraces, sqlquery.KindFindTraceSummaries:
-		return errors.New(
-			"invalid sql: the statement returns traces, and find_spans returns spans. " +
-				"Write SELECT * FROM spans WHERE between(start_time, <from>, <to>) AND ... " +
-				"[ORDER BY ...] [LIMIT n]. Both bounds on start_time are required")
-	default:
-		return fmt.Errorf("invalid sql: find_spans does not serve a %s statement", kind)
-	}
 }
 
 // effectiveLimit is the page size the backend is asked for: the statement's own LIMIT,
