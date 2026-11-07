@@ -17,7 +17,7 @@ Read a sub-skill's SKILL.md before applying it.
 - [error-root-cause](error-root-cause/SKILL.md) — Walk a failed trace to the first
   originating error span. Use when a request failed and the user wants to know where.
 
-- [jaeger-sql](jaeger-sql/SKILL.md) — Write the sql input of search_traces. Use when the
+- [jaeger-sql](jaeger-sql/SKILL.md) — Write the sql input of find_traces. Use when the
   user writes the search as SQL, or when the structured inputs cannot say it: OR, NOT, a
   comparison on an attribute, a text pattern, or a condition on a span's events or links.
 
@@ -29,6 +29,6 @@ instance has none.
 
 - A client span that failed to connect (connection refused, unavailable) and
   has no server-side child is not the origin: the callee was down or
-  restarting. Use `search_traces` on the callee for the period before the
+  restarting. Use `find_traces` on the callee for the period before the
   failure and `get_span_details` on its own spans to find why it went down,
   such as spans getting slower or attribute values that stand out.
