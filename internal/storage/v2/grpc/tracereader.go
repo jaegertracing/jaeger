@@ -81,6 +81,9 @@ func (tr *TraceReader) GetTraces(
 	traceIDs ...tracestore.GetTraceParams,
 ) iter.Seq2[[]ptrace.Traces, error] {
 	return func(yield func([]ptrace.Traces, error) bool) {
+		// Cancel the stream when the consumer stops iterating early.
+		ctx, cancel := context.WithCancel(ctx)
+		defer cancel()
 		query := []*storage.GetTraceParams{}
 		for _, traceID := range traceIDs {
 			query = append(query, &storage.GetTraceParams{
@@ -142,6 +145,9 @@ func (tr *TraceReader) FindTraces(
 	params tracestore.TraceQueryParams,
 ) iter.Seq2[[]ptrace.Traces, error] {
 	return func(yield func([]ptrace.Traces, error) bool) {
+		// Cancel the stream when the consumer stops iterating early.
+		ctx, cancel := context.WithCancel(ctx)
+		defer cancel()
 		query, err := toProtoQueryParameters(params)
 		if err != nil {
 			yield(nil, err)
@@ -260,6 +266,9 @@ func (tr *TraceReader) FindTraceSummaries(
 	params tracestore.TraceQueryParams,
 ) iter.Seq2[tracestore.PageChunk[[]tracestore.TraceSummary], error] {
 	return func(yield func(tracestore.PageChunk[[]tracestore.TraceSummary], error) bool) {
+		// Cancel the stream when the consumer stops iterating early.
+		ctx, cancel := context.WithCancel(ctx)
+		defer cancel()
 		query, err := toProtoQueryParameters(params)
 		if err != nil {
 			yield(tracestore.PageChunk[[]tracestore.TraceSummary]{}, err)
