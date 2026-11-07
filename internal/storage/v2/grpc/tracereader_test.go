@@ -629,9 +629,10 @@ func TestTraceReader_InvalidArgumentBecomesPaginationInvalid(t *testing.T) {
 
 func TestConvertMapToKeyValueList(t *testing.T) {
 	tests := []struct {
-		name       string
-		attributes pcommon.Map
-		expected   []*storage.KeyValue
+		name          string
+		attributes    pcommon.Map
+		expected      []*storage.KeyValue
+		expectedError string
 	}{
 		{
 			name:       "empty map",
@@ -645,12 +646,40 @@ func TestConvertMapToKeyValueList(t *testing.T) {
 				m.PutEmpty("key1")
 				return m
 			}(),
-			expected: []*storage.KeyValue{
-				{
-					Key:   "key1",
-					Value: nil,
-				},
-			},
+			expectedError: `key "key1": Empty value has no wire form`,
+		},
+		{
+			name: "empty value in slice",
+			attributes: func() pcommon.Map {
+				m := pcommon.NewMap()
+				arr := m.PutEmptySlice("key1")
+				arr.AppendEmpty().SetStr("value1")
+				arr.AppendEmpty()
+				return m
+			}(),
+			expectedError: `key "key1": index 1: Empty value has no wire form`,
+		},
+		{
+			name: "empty value in map",
+			attributes: func() pcommon.Map {
+				m := pcommon.NewMap()
+				nested := m.PutEmptyMap("key1")
+				nested.PutStr("nestedKey", "nestedValue")
+				nested.PutEmpty("emptyKey")
+				return m
+			}(),
+			expectedError: `key "key1": key "emptyKey": Empty value has no wire form`,
+		},
+		{
+			name: "empty value in slice in map",
+			attributes: func() pcommon.Map {
+				m := pcommon.NewMap()
+				arr := m.PutEmptyMap("key1").PutEmptySlice("key2")
+				arr.AppendEmpty().SetInt(42)
+				arr.AppendEmpty().SetEmptySlice().AppendEmpty()
+				return m
+			}(),
+			expectedError: `key "key1": key "key2": index 1: index 0: Empty value has no wire form`,
 		},
 		{
 			name: "primitive types",
@@ -701,6 +730,24 @@ func TestConvertMapToKeyValueList(t *testing.T) {
 					Value: &storage.AnyValue{
 						Value: &storage.AnyValue_BytesValue{
 							BytesValue: []byte{1, 2},
+						},
+					},
+				},
+			},
+		},
+		{
+			name: "empty bytes",
+			attributes: func() pcommon.Map {
+				m := pcommon.NewMap()
+				m.PutEmptyBytes("key1")
+				return m
+			}(),
+			expected: []*storage.KeyValue{
+				{
+					Key: "key1",
+					Value: &storage.AnyValue{
+						Value: &storage.AnyValue_BytesValue{
+							BytesValue: []byte{},
 						},
 					},
 				},
@@ -775,8 +822,14 @@ func TestConvertMapToKeyValueList(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			result := convertMapToKeyValueList(test.attributes)
-			require.Equal(t, test.expected, result)
+			result, err := convertMapToKeyValueList(test.attributes)
+			if test.expectedError != "" {
+				require.EqualError(t, err, test.expectedError)
+				require.Nil(t, result)
+			} else {
+				require.NoError(t, err)
+				require.Equal(t, test.expected, result)
+			}
 		})
 	}
 }
@@ -1089,6 +1142,36 @@ func TestToProtoQueryParameters_SearchDepth(t *testing.T) {
 			require.Error(t, err)
 			assert.ErrorContains(t, err, "SearchDepth must be in [0,")
 		}
+	})
+}
+
+func TestToProtoQueryParameters_EmptyAttribute(t *testing.T) {
+	t.Run("top level", func(t *testing.T) {
+		attrs := pcommon.NewMap()
+		attrs.PutEmpty("key1")
+		q, err := toProtoQueryParameters(tracestore.TraceQueryParams{Attributes: attrs})
+		require.EqualError(t, err, `cannot send the query attributes: key "key1": Empty value has no wire form`)
+		require.Nil(t, q)
+	})
+	t.Run("in slice", func(t *testing.T) {
+		attrs := pcommon.NewMap()
+		attrs.PutEmptySlice("key1").AppendEmpty()
+		q, err := toProtoQueryParameters(tracestore.TraceQueryParams{Attributes: attrs})
+		require.EqualError(t, err, `cannot send the query attributes: key "key1": index 0: Empty value has no wire form`)
+		require.Nil(t, q)
+	})
+	t.Run("empty bytes keep their oneof on the wire", func(t *testing.T) {
+		attrs := pcommon.NewMap()
+		attrs.PutEmptyBytes("key1")
+		q, err := toProtoQueryParameters(tracestore.TraceQueryParams{Attributes: attrs})
+		require.NoError(t, err)
+		data, err := q.Marshal()
+		require.NoError(t, err)
+		decoded := &storage.TraceQueryParameters{}
+		require.NoError(t, decoded.Unmarshal(data))
+		got := decoded.GetAttributes()[0].GetValue().GetBytesValue()
+		require.NotNil(t, got)
+		require.Empty(t, got)
 	})
 }
 
