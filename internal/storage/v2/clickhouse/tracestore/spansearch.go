@@ -6,6 +6,8 @@ package tracestore
 import (
 	"context"
 	"encoding/binary"
+	"encoding/json"
+	"errors"
 	"fmt"
 	"hash/fnv"
 	"iter"
@@ -47,9 +49,16 @@ type spanCursor struct {
 	returned []uint64
 }
 
+// maxCursorHashes bounds the hashes a cursor may list, and with them the rows a continuation
+// reads beyond its page. A page lists at most its own size of hashes, and the list grows only
+// while consecutive pages end inside one run of rows tying on the whole key, so the bound is
+// reached only by a run of duplicate writes longer than the largest page; a token past it is
+// refused rather than let a forged token size the fetch.
+const maxCursorHashes = int(tracestore.MaxPageSize)
+
 func (c spanCursor) encode() []byte {
 	buf := make([]byte, 0, spanKeySize+8*len(c.returned))
-	buf = binary.BigEndian.AppendUint64(buf, uint64(c.key.startTime)) //nolint:gosec // G115: the value is decoded back as int64.
+	buf, _ = binary.Append(buf, binary.BigEndian, c.key.startTime)
 	buf = append(buf, c.key.traceID[:]...)
 	buf = append(buf, c.key.spanID[:]...)
 	for _, h := range c.returned {
@@ -62,8 +71,12 @@ func decodeSpanCursor(raw []byte) (spanCursor, error) {
 	if len(raw) < spanKeySize || (len(raw)-spanKeySize)%8 != 0 {
 		return spanCursor{}, fmt.Errorf("%w: page token does not carry a span position", tracestore.ErrPaginationInvalid)
 	}
+	if (len(raw)-spanKeySize)/8 > maxCursorHashes {
+		return spanCursor{}, fmt.Errorf("%w: page token lists more than %d spans at its position", tracestore.ErrPaginationInvalid, maxCursorHashes)
+	}
 	var c spanCursor
-	c.key.startTime = int64(binary.BigEndian.Uint64(raw)) //nolint:gosec // G115: the value was encoded from an int64.
+	// A fixed-size integer always decodes from a buffer of at least its size.
+	_, _ = binary.Decode(raw, binary.BigEndian, &c.key.startTime)
 	copy(c.key.traceID[:], raw[8:24])
 	copy(c.key.spanID[:], raw[24:spanKeySize])
 	for rest := raw[spanKeySize:]; len(rest) > 0; rest = rest[8:] {
@@ -72,16 +85,19 @@ func decodeSpanCursor(raw []byte) (spanCursor, error) {
 	return c, nil
 }
 
-// foundSpan is one row of a span search page: its key, and the span as the reader returns it.
+// foundSpan is one row of a span search page: its key and the row as scanned.
 type foundSpan struct {
-	key   spanKey
-	trace ptrace.Traces
+	key spanKey
+	row *dbmodel.SpanRow
 }
 
-// hash is the content hash a cursor lists for a row at its key. Two rows hash alike when the
-// spans table holds the same values in both, which is what a duplicate write produces.
+// hash is the content hash a cursor lists for a row at its key. It hashes the row as the spans
+// table returns it, whose columns are strings and arrays in stored order, so two reads of one
+// row hash alike and so do two rows a duplicate write produced. The converted span would not do:
+// a map-valued attribute is rebuilt through a Go map, whose order differs between reads.
 func (s foundSpan) hash() uint64 {
-	b, _ := (&ptrace.ProtoMarshaler{}).MarshalTraces(s.trace)
+	// The row holds only strings, numbers, times and slices of those, which encode without error.
+	b, _ := json.Marshal(s.row)
 	h := fnv.New64a()
 	_, _ = h.Write(b)
 	return h.Sum64()
@@ -142,7 +158,8 @@ func (r *Reader) findSpanPage(ctx context.Context, query tracestore.SpanQueryPar
 	if err != nil {
 		return none, fmt.Errorf("failed to query spans: %w", err)
 	}
-	found, err := readFoundSpans(rows, after)
+	// One row beyond the page tells whether another page exists.
+	found, err := readFoundSpans(rows, after, int(pageSize)+1)
 	if err != nil {
 		return none, err
 	}
@@ -152,7 +169,6 @@ func (r *Reader) findSpanPage(ctx context.Context, query tracestore.SpanQueryPar
 	}
 	chunk := tracestore.PageChunk[ptrace.Traces]{Results: ptrace.NewTraces()}
 	if more {
-		// The cursor hashes the page's last spans, so it is taken before they move out.
 		next := nextSpanCursor(found, after)
 		if chunk.NextPageToken, err = tracestore.NewPageToken(fingerprint, next.encode()); err != nil {
 			return none, err
@@ -161,7 +177,7 @@ func (r *Reader) findSpanPage(ctx context.Context, query tracestore.SpanQueryPar
 	// Every span keeps its own ResourceSpans, so the page keeps the SQL order even where
 	// consecutive spans alternate between services (RFC 0016 §6.4).
 	for _, span := range found {
-		span.trace.ResourceSpans().MoveAndAppendTo(chunk.Results.ResourceSpans())
+		dbmodel.FromRow(span.row).ResourceSpans().MoveAndAppendTo(chunk.Results.ResourceSpans())
 	}
 	return chunk, nil
 }
@@ -210,9 +226,10 @@ func (r *Reader) buildFindSpansQuery(
 	return q.String(), args, nil
 }
 
-// readFoundSpans scans every row into a foundSpan, dropping the rows at the cursor's key that
-// the cursor says earlier pages returned, one row per listed hash.
-func readFoundSpans(rows driver.Rows, after *spanCursor) ([]foundSpan, error) {
+// readFoundSpans scans rows into foundSpans until it holds want of them, dropping the rows at
+// the cursor's key that the cursor says earlier pages returned, one row per listed hash. It
+// stops reading at want rather than trust the statement's LIMIT, which a token sized.
+func readFoundSpans(rows driver.Rows, after *spanCursor, want int) ([]foundSpan, error) {
 	var returned []uint64
 	if after != nil {
 		returned = slices.Clone(after.returned)
@@ -234,9 +251,15 @@ func readFoundSpans(rows driver.Rows, after *spanCursor) ([]foundSpan, error) {
 			}
 		}
 		found = append(found, span)
+		if len(found) == want {
+			return errStopReading
+		}
 		return nil
 	})
-	return found, err
+	if err != nil && !errors.Is(err, errStopReading) {
+		return nil, err
+	}
+	return found, nil
 }
 
 func newFoundSpan(row *dbmodel.SpanRow) (foundSpan, error) {
@@ -254,7 +277,7 @@ func newFoundSpan(row *dbmodel.SpanRow) (foundSpan, error) {
 			traceID:   traceID,
 			spanID:    spanID,
 		},
-		trace: dbmodel.FromRow(row),
+		row: row,
 	}, nil
 }
 

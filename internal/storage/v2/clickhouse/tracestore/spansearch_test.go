@@ -6,6 +6,7 @@ package tracestore
 import (
 	"context"
 	"errors"
+	"slices"
 	"testing"
 	"time"
 
@@ -124,6 +125,20 @@ func TestFindSpans_Query(t *testing.T) {
 	}, conn.RecordedArgs[1], "the continuation resumes at the cursor's key and fetches one row more per hash it lists")
 }
 
+// TestFindSpans_TimeRangeOnly snapshots the statement of a span query that carries no filter.
+func TestFindSpans_TimeRangeOnly(t *testing.T) {
+	conn, _ := spanSearchConn(spanSearchRow("a", "0000000000000001", now))
+	reader := NewReader(conn, testReaderConfig)
+	query := spanSearchQuery(5, "")
+	query.Filter = nil
+	names, token := findSpans(t, reader, query)
+	assert.Equal(t, []string{"a"}, names)
+	assert.Empty(t, token)
+	require.Len(t, conn.RecordedQueries, 1)
+	verifyQuerySnapshot(t, conn.RecordedQueries...)
+	assert.Equal(t, []any{now.Add(-time.Hour).UnixNano(), now.UnixNano(), uint64(6)}, conn.RecordedArgs[0])
+}
+
 // TestFindSpans_DistinctRowsSharingAKey pages through two rows that tie on the whole sort key
 // but differ in content, with ClickHouse returning the tied rows in a different order on each
 // request: every row still comes back exactly once.
@@ -169,6 +184,56 @@ func TestFindSpans_IdenticalRows(t *testing.T) {
 	assert.Empty(t, query.Pagination.PageToken)
 }
 
+// TestFindSpans_TiedRunLongerThanTheFetch pages, one span at a time, through four rows that tie
+// on the whole key when the server honors the LIMIT and so returns only part of the run on each
+// continuation, in an order that changes between requests. The reader stops reading at the page
+// plus one row, so a page never grows past that whatever the statement's LIMIT fetched, and
+// every row still comes back exactly once.
+func TestFindSpans_TiedRunLongerThanTheFetch(t *testing.T) {
+	tied := []*dbmodel.SpanRow{
+		spanSearchRow("a1", "0000000000000001", now),
+		spanSearchRow("a2", "0000000000000001", now),
+		spanSearchRow("a3", "0000000000000001", now),
+		spanSearchRow("a4", "0000000000000001", now),
+	}
+	conn, serve := spanSearchConn(tied...)
+	reader := NewReader(conn, testReaderConfig)
+
+	var names []string
+	query := spanSearchQuery(1, "")
+	for page := 0; page < 4; page++ {
+		var got []string
+		got, query.Pagination.PageToken = findSpans(t, reader, query)
+		names = append(names, got...)
+		// The next request sees the run rotated by one and cut to three rows, fewer than tie.
+		rotated := append(slices.Clone(tied[page+1:]), tied[:page+1]...)
+		serve(rotated[:3]...)
+	}
+	assert.ElementsMatch(t, []string{"a1", "a2", "a3", "a4"}, names)
+	assert.Empty(t, query.Pagination.PageToken)
+}
+
+// TestFoundSpan_HashIsStable hashes one row many times: a row with a map-valued attribute, which
+// the converted span rebuilds through a Go map in a different order on each conversion, hashes
+// the same every time because the hash reads the row as stored.
+func TestFoundSpan_HashIsStable(t *testing.T) {
+	row := spanSearchRow("a", "0000000000000001", now)
+	row.Attributes.ComplexKeys = []string{"@map@metadata"}
+	row.Attributes.ComplexValues = []string{`{"kvlistValue":{"values":[` +
+		`{"key":"k1","value":{"stringValue":"v"}},{"key":"k2","value":{"stringValue":"v"}},` +
+		`{"key":"k3","value":{"stringValue":"v"}},{"key":"k4","value":{"stringValue":"v"}},` +
+		`{"key":"k5","value":{"stringValue":"v"}},{"key":"k6","value":{"stringValue":"v"}},` +
+		`{"key":"k7","value":{"stringValue":"v"}},{"key":"k8","value":{"stringValue":"v"}}]}}`}
+	first, err := newFoundSpan(row)
+	require.NoError(t, err)
+	want := first.hash()
+	for range 64 {
+		span, err := newFoundSpan(row)
+		require.NoError(t, err)
+		require.Equal(t, want, span.hash())
+	}
+}
+
 func TestFindSpans_PageSizeIsClamped(t *testing.T) {
 	conn, _ := spanSearchConn()
 	reader := NewReader(conn, testReaderConfig)
@@ -190,6 +255,9 @@ func TestFindSpans_Refusals(t *testing.T) {
 	otherToken, err := tracestore.NewPageToken(otherFingerprint, []byte("cursor"))
 	require.NoError(t, err)
 	shortCursor, err := tracestore.NewPageToken(fingerprint, []byte{1, 2, 3})
+	require.NoError(t, err)
+	oversized := spanCursor{returned: make([]uint64, maxCursorHashes+1)}
+	oversizedCursor, err := tracestore.NewPageToken(fingerprint, oversized.encode())
 	require.NoError(t, err)
 
 	tests := []struct {
@@ -222,6 +290,12 @@ func TestFindSpans_Refusals(t *testing.T) {
 			query:   spanSearchQuery(1, shortCursor),
 			wantErr: tracestore.ErrPaginationInvalid,
 			message: "does not carry a span position",
+		},
+		{
+			name:    "cursor listing too many spans",
+			query:   spanSearchQuery(1, oversizedCursor),
+			wantErr: tracestore.ErrPaginationInvalid,
+			message: "lists more than",
 		},
 		{
 			name:    "zero page size",
