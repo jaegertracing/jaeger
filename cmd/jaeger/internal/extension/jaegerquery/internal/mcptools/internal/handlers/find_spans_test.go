@@ -243,6 +243,9 @@ func TestFindSpansHandler_BuildQuery_PageSizeMatchesLimit(t *testing.T) {
 	assert.EqualValues(t, 1, query.Pagination.PageSize)
 }
 
+// TestFindSpansHandler_BuildQuery_Refusals covers the two refusals that are the handler's
+// own: a statement of a shape this tool does not serve, and the prefix it puts on a compiler
+// error. What the compiler refuses, and how, is the sqlquery package's to test.
 func TestFindSpansHandler_BuildQuery_Refusals(t *testing.T) {
 	tests := []struct {
 		name    string
@@ -255,19 +258,9 @@ func TestFindSpansHandler_BuildQuery_Refusals(t *testing.T) {
 			wantErr: "invalid sql: the statement returns traces, and find_spans returns spans. Write SELECT * FROM spans WHERE between(start_time, <from>, <to>) AND ... [ORDER BY ...] [LIMIT n]. Both bounds on start_time are required",
 		},
 		{
-			name:    "a whole-traces search",
-			sql:     "SELECT * FROM traces WHERE trace_id IN (SELECT trace_id FROM spans " + findSpansWindow + ")",
-			wantErr: "invalid sql: the statement returns traces, and find_spans returns spans. Write SELECT * FROM spans WHERE between(start_time, <from>, <to>) AND ... [ORDER BY ...] [LIMIT n]. Both bounds on start_time are required",
-		},
-		{
-			name:    "a compile error carries the position and the hint",
+			name:    "a compiler error carries the invalid sql prefix",
 			sql:     "SELECT * FROM spans WHERE service = 'checkout'",
-			wantErr: "invalid sql: line 1:21: WHERE needs both bounds on start_time",
-		},
-		{
-			name:    "a parse error",
-			sql:     "SELEC * FROM spans",
-			wantErr: "invalid sql: line 1:1:",
+			wantErr: "invalid sql: line 1:21:",
 		},
 	}
 	for _, tt := range tests {

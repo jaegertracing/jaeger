@@ -772,6 +772,10 @@ func TestFindTracesHandler_Handle_SQL_EmptyStatement(t *testing.T) {
 	assert.Empty(t, output.Traces)
 }
 
+// TestFindTracesHandler_BuildSQLQuery_Refusals covers the refusals that are the handler's
+// own: a statement of a shape this tool does not serve, the prefix it puts on a compiler
+// error, and a structured input sent beside sql. What the compiler refuses, and how, is the
+// sqlquery package's to test.
 func TestFindTracesHandler_BuildSQLQuery_Refusals(t *testing.T) {
 	const statement = "SELECT DISTINCT trace_id FROM spans WHERE between(start_time, now() - '1h', now())"
 	tests := []struct {
@@ -785,17 +789,9 @@ func TestFindTracesHandler_BuildSQLQuery_Refusals(t *testing.T) {
 			wantErr: "invalid sql: the statement selects spans, and find_traces returns traces. Write one of: SELECT DISTINCT trace_id FROM spans WHERE between(start_time, <from>, <to>) AND ...; or SELECT * FROM traces WHERE trace_id IN (SELECT trace_id FROM spans WHERE between(start_time, <from>, <to>) AND ...). Both bounds on start_time are required",
 		},
 		{
-			name: "a compile error carries the position and the hint",
-			input: types.FindTracesInput{SQL: `
-				SELECT DISTINCT trace_id
-				FROM spans
-				WHERE service = 'checkout'`},
-			wantErr: "invalid sql: line 4:5: WHERE needs both bounds on start_time. Add both bounds to WHERE",
-		},
-		{
-			name:    "a parse error",
-			input:   types.FindTracesInput{SQL: "SELEC trace_id FROM spans"},
-			wantErr: "invalid sql: line 1:1:",
+			name:    "a compiler error carries the invalid sql prefix",
+			input:   types.FindTracesInput{SQL: "SELECT DISTINCT trace_id FROM spans WHERE service = 'checkout'"},
+			wantErr: "invalid sql: line 1:37:",
 		},
 		{
 			name:    "one structured input beside sql",
