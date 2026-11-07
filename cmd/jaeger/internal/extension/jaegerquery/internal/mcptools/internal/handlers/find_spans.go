@@ -57,33 +57,24 @@ func (h *findSpansHandler) handle(
 		return nil, types.FindSpansOutput{}, err
 	}
 
-	var spans []types.SpanSummary
-	var processErrs []error
-
-outer:
+	var output types.FindSpansOutput
 	for chunk, err := range h.queryService.FindSpans(ctx, query) {
 		if err != nil {
-			processErrs = append(processErrs, err)
-			break
+			if len(output.Spans) == 0 {
+				// Nothing came back, so the call failed: a backend refusing the query
+				// (ErrSpanSearchUnsupported, ErrFilterDisabled) or a transport error. The
+				// error is the result, not a note beside an empty page.
+				return nil, types.FindSpansOutput{}, err
+			}
+			output.Error = fmt.Sprintf("partial results returned due to error: %v", err)
+			return nil, output, nil
 		}
 		for pos, span := range jptrace.SpanIter(chunk.Results) {
-			spans = append(spans, buildSpanSummary(pos, span))
-			if limit > 0 && uint64(len(spans)) >= uint64(limit) {
-				break outer
+			output.Spans = append(output.Spans, buildSpanSummary(pos, span))
+			if limit > 0 && uint64(len(output.Spans)) >= uint64(limit) {
+				return nil, output, nil
 			}
 		}
-	}
-
-	output := types.FindSpansOutput{Spans: spans}
-	if len(processErrs) > 0 {
-		searchErr := errors.Join(processErrs...)
-		if len(spans) == 0 {
-			// Nothing came back, so the call failed: a backend refusing the query
-			// (ErrSpanSearchUnsupported, ErrFilterDisabled) or a transport error. The
-			// error is the result, not a note beside an empty page.
-			return nil, types.FindSpansOutput{}, searchErr
-		}
-		output.Error = fmt.Sprintf("partial results returned due to error: %v", searchErr)
 	}
 	return nil, output, nil
 }
@@ -117,9 +108,7 @@ func (h *findSpansHandler) buildQuery(input types.FindSpansInput) (querysvc.Span
 }
 
 // effectiveLimit is the page size the backend is asked for: the statement's own LIMIT,
-// clamped to the server's configured cap, which also stands in for an absent LIMIT. With no
-// cap, an absent LIMIT is passed through as a zero PageSize, which the query service reads as
-// its own default, rather than this handler guessing at one.
+// clamped to the server's configured cap, which also stands in for an absent LIMIT.
 func (h *findSpansHandler) effectiveLimit(compiledLimit uint32) uint32 {
 	if h.maxResults > 0 && (compiledLimit == 0 || compiledLimit > h.maxResults) {
 		return h.maxResults
