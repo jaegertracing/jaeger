@@ -3,11 +3,11 @@
 
 package types
 
-// NoColumnList is the sentence that tells an agent not to project, in the description and
-// the schema of find_spans and find_traces and in the refusal each returns for a column list.
-// The schema tags below repeat it verbatim, since a struct tag cannot name a constant, and a
-// test holds them to it. When a result is shaped by a column list, the refusal goes and this
-// sentence goes with it.
+// NoColumnList is the sentence that tells an agent not to project. It appears in the
+// description and the schema of find_spans and find_traces and in the refusal each returns for
+// a column list. A struct tag is a string literal and cannot refer to this constant, so the
+// schema tags spell the sentence out and a test keeps them equal to it. When a result is shaped
+// by a column list, the refusal goes and this sentence goes with it.
 const NoColumnList = "Only SELECT *; no column list."
 
 // FindSpansInput defines the input parameters for the find_spans MCP tool. The statement is

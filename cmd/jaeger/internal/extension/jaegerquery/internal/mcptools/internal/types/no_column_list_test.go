@@ -11,8 +11,9 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// TestNoColumnListInSchemas holds the schema of each tool that refuses a column list to the
-// NoColumnList sentence, which a struct tag can only repeat.
+// TestNoColumnListInSchemas checks that the schema tag of each tool that refuses a column
+// list contains the NoColumnList sentence. A struct tag is a string literal and cannot refer to
+// the constant, so the tag spells the sentence out and this test keeps the two copies equal.
 func TestNoColumnListInSchemas(t *testing.T) {
 	for _, input := range []any{FindSpansInput{}, FindTracesInput{}} {
 		field, ok := reflect.TypeOf(input).FieldByName("SQL")
