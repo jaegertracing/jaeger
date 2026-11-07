@@ -1,0 +1,95 @@
+{
+  "bool": {
+    "must": {
+      "bool": {
+        "should": [
+          {
+            "exists": {
+              "field": "tag.otel@scope@name"
+            }
+          },
+          {
+            "nested": {
+              "path": "tags",
+              "query": {
+                "term": {
+                  "tags.key": "otel.scope.name"
+                }
+              }
+            }
+          }
+        ]
+      }
+    },
+    "must_not": {
+      "bool": {
+        "should": [
+          {
+            "bool": {
+              "should": [
+                {
+                  "term": {
+                    "tag.otel@scope@name": "io.opentelemetry.contrib.cart"
+                  }
+                },
+                {
+                  "nested": {
+                    "path": "tags",
+                    "query": {
+                      "bool": {
+                        "must": [
+                          {
+                            "term": {
+                              "tags.key": "otel.scope.name"
+                            }
+                          },
+                          {
+                            "term": {
+                              "tags.value": "io.opentelemetry.contrib.cart"
+                            }
+                          }
+                        ]
+                      }
+                    }
+                  }
+                }
+              ]
+            }
+          },
+          {
+            "bool": {
+              "should": [
+                {
+                  "term": {
+                    "tag.otel@scope@name": "io.opentelemetry.contrib.order"
+                  }
+                },
+                {
+                  "nested": {
+                    "path": "tags",
+                    "query": {
+                      "bool": {
+                        "must": [
+                          {
+                            "term": {
+                              "tags.key": "otel.scope.name"
+                            }
+                          },
+                          {
+                            "term": {
+                              "tags.value": "io.opentelemetry.contrib.order"
+                            }
+                          }
+                        ]
+                      }
+                    }
+                  }
+                }
+              ]
+            }
+          }
+        ]
+      }
+    }
+  }
+}

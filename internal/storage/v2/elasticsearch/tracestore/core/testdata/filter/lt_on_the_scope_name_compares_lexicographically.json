@@ -1,0 +1,36 @@
+{
+  "bool": {
+    "should": [
+      {
+        "range": {
+          "tag.otel@scope@name": {
+            "lt": "io.opentelemetry.z"
+          }
+        }
+      },
+      {
+        "nested": {
+          "path": "tags",
+          "query": {
+            "bool": {
+              "must": [
+                {
+                  "term": {
+                    "tags.key": "otel.scope.name"
+                  }
+                },
+                {
+                  "range": {
+                    "tags.value": {
+                      "lt": "io.opentelemetry.z"
+                    }
+                  }
+                }
+              ]
+            }
+          }
+        }
+      }
+    ]
+  }
+}
