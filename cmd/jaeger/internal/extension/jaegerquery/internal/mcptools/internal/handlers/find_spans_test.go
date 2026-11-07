@@ -25,6 +25,7 @@ const findSpansWindow = "WHERE between(start_time, now() - '1h', now())"
 func TestFindSpansHandler_Handle_FullWorkflow(t *testing.T) {
 	trace := createTestTraceWithSpans("trace111", []spanConfig{
 		{spanID: "span0001", operation: "/checkout"},
+		{spanID: "span0002", parentSpanID: "span0001", operation: "/charge"},
 	})
 
 	mock := &mockQueryService{
@@ -47,8 +48,14 @@ func TestFindSpansHandler_Handle_FullWorkflow(t *testing.T) {
 	_, output, err := handler.handle(context.Background(), &mcp.CallToolRequest{}, input)
 
 	require.NoError(t, err)
-	require.Len(t, output.Spans, 1)
+	require.Len(t, output.Spans, 2)
 	assert.Equal(t, "/checkout", output.Spans[0].SpanName)
+	assert.Empty(t, output.Spans[0].ParentSpanID)
+	assert.Equal(t, "/charge", output.Spans[1].SpanName)
+	assert.Equal(t, output.Spans[0].SpanID, output.Spans[1].ParentSpanID)
+	assert.Equal(t, output.Spans[0].TraceID, output.Spans[1].TraceID)
+	assert.NotEmpty(t, output.Spans[1].TraceID)
+	assert.Equal(t, "test-service", output.Spans[1].Service)
 	assert.Empty(t, output.Error)
 }
 
@@ -316,6 +323,6 @@ func TestFindSpansHandler_Handle_StatusFilter(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, output.Spans, 1)
 	assert.Equal(t, "/error", output.Spans[0].SpanName)
-	assert.Equal(t, "Error", output.Spans[0].Status.Code)
+	assert.Equal(t, "Error", output.Spans[0].Status)
 	assert.Empty(t, output.Error)
 }

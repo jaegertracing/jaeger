@@ -57,7 +57,7 @@ func (h *findSpansHandler) handle(
 		return nil, types.FindSpansOutput{}, err
 	}
 
-	var spans []types.SpanDetail
+	var spans []types.SpanSummary
 	var processErrs []error
 
 outer:
@@ -67,7 +67,7 @@ outer:
 			break
 		}
 		for pos, span := range jptrace.SpanIter(chunk.Results) {
-			spans = append(spans, buildSpanDetail(pos, span))
+			spans = append(spans, buildSpanSummary(pos, span))
 			if limit > 0 && uint64(len(spans)) >= uint64(limit) {
 				break outer
 			}
@@ -128,4 +128,27 @@ func (h *findSpansHandler) effectiveLimit(requested, compiledLimit uint32) uint3
 		limit = h.maxResults
 	}
 	return limit
+}
+
+// buildSpanSummary is the identity and shape of one span, the same fields that
+// get_trace_topology reports per span, with the IDs an agent needs to fetch it.
+func buildSpanSummary(pos jptrace.SpanIterPos, span ptrace.Span) types.SpanSummary {
+	serviceName := ""
+	if svc, ok := pos.Resource.Resource().Attributes().Get("service.name"); ok {
+		serviceName = svc.Str()
+	}
+	parentSpanID := ""
+	if !span.ParentSpanID().IsEmpty() {
+		parentSpanID = span.ParentSpanID().String()
+	}
+	return types.SpanSummary{
+		SpanID:       span.SpanID().String(),
+		TraceID:      span.TraceID().String(),
+		ParentSpanID: parentSpanID,
+		Service:      serviceName,
+		SpanName:     span.Name(),
+		StartTime:    span.StartTimestamp().AsTime().Format(time.RFC3339Nano),
+		DurationUs:   span.EndTimestamp().AsTime().Sub(span.StartTimestamp().AsTime()).Microseconds(),
+		Status:       span.Status().Code().String(),
+	}
 }

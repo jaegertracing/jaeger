@@ -104,10 +104,11 @@ func registerTools(server *mcp.Server, queryAPI *querysvc.QueryService, params S
 
 	mcp.AddTool(s.mcpServer, &mcp.Tool{
 		Name: "find_spans",
-		Description: "Find spans matching one SQL statement in 'sql', across however many traces, " +
-			"returning full span data (attributes, events, links, status) in one call. " +
-			"Unlike find_traces, the statement must select from spans, not traces, and needs both " +
-			"bounds on start_time. A column list is accepted but does not narrow the output. " +
+		Description: "Find spans matching one SQL statement in 'sql', across however many traces. " +
+			"Returns lightweight summaries (trace_id, span_id, service, span_name, duration, " +
+			"status) without attributes or events; use get_span_details for those. " +
+			"The statement selects from spans and needs both bounds on start_time. " +
+			"A column list is accepted but does not change the output. " +
 			"Refused if the storage backend does not support span search.",
 	}, handlers.NewFindSpansHandler(s.queryAPI, s.params.MaxSearchResults))
 
