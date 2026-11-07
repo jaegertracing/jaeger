@@ -131,11 +131,19 @@ func (h *findTracesHandler) buildQuery(input types.FindTracesInput) (querysvc.Tr
 	if err != nil {
 		return querysvc.TraceQueryParams{}, fmt.Errorf("invalid sql: %w", err)
 	}
-	if query.Kind == sqlquery.KindFindSpans {
+	switch query.Kind {
+	case sqlquery.KindFindSpans:
 		return querysvc.TraceQueryParams{}, errors.New(
 			"invalid sql: find_traces takes one of: SELECT DISTINCT trace_id FROM spans WHERE between(start_time, <from>, <to>) AND ...; " +
-				"or SELECT * FROM traces WHERE trace_id IN (SELECT trace_id FROM spans WHERE between(start_time, <from>, <to>) AND ...), " +
-				"with a column list over traces in place of *. Both bounds on start_time are required")
+				"or SELECT * FROM traces WHERE trace_id IN (SELECT trace_id FROM spans WHERE between(start_time, <from>, <to>) AND ...). " +
+				"Both bounds on start_time are required")
+	case sqlquery.KindFindTraceSummaries:
+		// The compiler validates the names but carries no projection over traces, and the
+		// tool returns the whole summary for every shape, so a column list would be
+		// accepted and ignored. It is refused until a result is shaped by it, as the
+		// query service refuses a column list over spans.
+		return querysvc.TraceQueryParams{}, errors.New(
+			"invalid sql: a column list over traces is not supported: find_traces returns whole trace summaries. Use SELECT * FROM traces")
 	}
 	return querysvc.TraceQueryParams{
 		Attributes:   pcommon.NewMap(),

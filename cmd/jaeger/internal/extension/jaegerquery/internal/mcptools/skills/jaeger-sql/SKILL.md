@@ -10,7 +10,7 @@ allowed-tools: find_traces find_spans
 
 # Jaeger SQL
 
-Find traces or spans with one read-only `SELECT` in the `sql` input of `find_traces` or `find_spans`. The statement is compiled to Jaeger's filter; nothing is executed as SQL. `find_traces` returns traces, so it takes the first and third shapes below, the third with `*` or a column list over `traces`. `find_spans` returns spans, so it takes the second.
+Find traces or spans with one read-only `SELECT` in the `sql` input of `find_traces` or `find_spans`. The statement is compiled to Jaeger's filter; nothing is executed as SQL. `find_traces` returns traces, so it takes the first and third shapes below. `find_spans` returns spans, so it takes the second.
 
 ## Three statement shapes
 
@@ -83,7 +83,7 @@ Every attribute predicate names its level. When the level is unknown, `attribute
 
 ### `traces`
 
-`trace_id`, `root_service`, `root_name`, `start_time`, `duration`, `span_count`, `error_count`. These columns may be selected but not filtered on; the only `WHERE` on `traces` is `trace_id IN (SELECT trace_id FROM spans WHERE ...)`.
+`trace_id`, `root_service`, `root_name`, `start_time`, `duration`, `span_count`, `error_count`. These columns may not be filtered on, and `find_traces` returns every one of them, so write `SELECT *`; a column list is refused. The only `WHERE` on `traces` is `trace_id IN (SELECT trace_id FROM spans WHERE ...)`.
 
 ## Values
 

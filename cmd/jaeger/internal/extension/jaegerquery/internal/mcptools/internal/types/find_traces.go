@@ -7,7 +7,7 @@ package types
 // in the dialect of RFC 0019 and carries the whole search: the filter, the time window and,
 // through LIMIT, the number of traces.
 type FindTracesInput struct {
-	SQL string `json:"sql" jsonschema:"A SELECT DISTINCT trace_id FROM spans WHERE ... or SELECT * FROM traces WHERE trace_id IN (SELECT trace_id FROM spans WHERE ...) statement, with a column list over traces in place of *, with both bounds on start_time, and LIMIT for the number of traces. Read the jaeger-sql/SKILL.md skill before writing one"`
+	SQL string `json:"sql" jsonschema:"A SELECT DISTINCT trace_id FROM spans WHERE ... or SELECT * FROM traces WHERE trace_id IN (SELECT trace_id FROM spans WHERE ...) statement with both bounds on start_time, and LIMIT for the number of traces. Read the jaeger-sql/SKILL.md skill before writing one"`
 }
 
 // FindTracesOutput defines the output of the find_traces MCP tool.

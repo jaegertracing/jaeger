@@ -242,10 +242,6 @@ func TestFindTracesHandler_BuildQuery_Shapes(t *testing.T) {
 			name: "whole traces",
 			sql:  "SELECT * FROM traces WHERE trace_id IN (SELECT trace_id FROM spans " + window + ")",
 		},
-		{
-			name: "trace summaries",
-			sql:  "SELECT trace_id, root_service FROM traces WHERE trace_id IN (SELECT trace_id FROM spans " + window + ")",
-		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -330,6 +326,11 @@ func TestFindTracesHandler_Handle_Refusals(t *testing.T) {
 			name:    "a span search",
 			sql:     "SELECT * FROM spans " + findTracesWindow,
 			wantErr: []string{"invalid sql: find_traces takes one of: SELECT DISTINCT trace_id FROM spans WHERE"},
+		},
+		{
+			name:    "a column list over traces",
+			sql:     "SELECT trace_id, root_service FROM traces WHERE trace_id IN (SELECT trace_id FROM spans " + findTracesWindow + ")",
+			wantErr: []string{"invalid sql: a column list over traces is not supported", "Use SELECT * FROM traces"},
 		},
 		{
 			name:    "a compiler error carries the invalid sql prefix",
