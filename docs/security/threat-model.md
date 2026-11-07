@@ -50,8 +50,7 @@ Receivers in that default pipeline:
 The query extension serves, on one HTTP port and one gRPC port:
 
 - The UI (embedded `jaeger-ui` assets).
-- Legacy HTTP `/api/` (traces, archive, dependencies, metrics, quality
-  metrics, and `POST /api/transform`).
+- Legacy HTTP `/api/` (archive, dependencies, metrics, and quality metrics).
 - HTTP `/api/v3/` (services, operations, traces, trace summaries, spans,
   capabilities) and gRPC `jaeger.api_v2.QueryService` and
   `jaeger.api_v3.QueryService`.
@@ -267,10 +266,6 @@ transform as API data, and caches it locally. The file is not uploaded to
 Jaeger. A hostile file can still trip the rendering paths in T7, or hang the
 tab. There is no server-side size limit on that path because the server
 never sees the file.
-
-`POST /api/transform` is a different, server-side conversion of an OTLP JSON
-body. It is on the query port and subject to the collector HTTP
-`max_request_body_size` (20 MiB when unset).
 
 ### T9: MCP and AI agent access
 
