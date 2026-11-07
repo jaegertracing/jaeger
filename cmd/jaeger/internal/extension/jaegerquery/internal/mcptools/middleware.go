@@ -61,7 +61,6 @@ func createTracingMiddleware(tracerProvider trace.TracerProvider) mcp.Middleware
 			ctx = contextWithRequestMetaTraceContext(ctx, req)
 
 			toolName := toolNameFromRequest(method, req)
-			sessionID := sessionIDFromRequest(req)
 			spanName := method
 			attrs := []attribute.KeyValue{
 				otelsemconv.McpMethodName(method),
@@ -77,10 +76,6 @@ func createTracingMiddleware(tracerProvider trace.TracerProvider) mcp.Middleware
 					attrs = append(attrs, otelsemconv.GenAIToolCallArguments(truncateForSpan(toolArgs, maxSpanAttrChars)))
 				}
 			}
-			if sessionID != "" {
-				attrs = append(attrs, otelsemconv.McpSessionID(sessionID))
-			}
-
 			ctx, span := tracer.Start(
 				ctx,
 				spanName,
@@ -277,17 +272,6 @@ func truncateForSpan(text string, maxChars int) string {
 		keep--
 	}
 	return prefix + text[:keep]
-}
-
-func sessionIDFromRequest(req mcp.Request) string {
-	if req == nil {
-		return ""
-	}
-	session := req.GetSession()
-	if isNil(session) {
-		return ""
-	}
-	return session.ID()
 }
 
 func contextWithRequestMetaTraceContext(ctx context.Context, req mcp.Request) context.Context {

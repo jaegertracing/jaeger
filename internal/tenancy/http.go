@@ -22,13 +22,13 @@ func ExtractTenantHTTPHandler(tc *Manager, h http.Handler) http.Handler {
 		tenant := r.Header.Get(tc.Header)
 		if tenant == "" {
 			w.WriteHeader(http.StatusUnauthorized)
-			w.Write([]byte("missing tenant header"))
+			_, _ = w.Write([]byte("missing tenant header"))
 			return
 		}
 
 		if !tc.Valid(tenant) {
 			w.WriteHeader(http.StatusUnauthorized)
-			w.Write([]byte("unknown tenant"))
+			_, _ = w.Write([]byte("unknown tenant"))
 			return
 		}
 

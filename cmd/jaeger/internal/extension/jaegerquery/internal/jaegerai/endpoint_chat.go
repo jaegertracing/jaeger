@@ -8,7 +8,9 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"maps"
 	"net/http"
+	"slices"
 
 	aguitypes "github.com/ag-ui-protocol/ag-ui/sdks/community/go/pkg/core/types"
 	acp "github.com/coder/acp-go-sdk"
@@ -16,6 +18,8 @@ import (
 	oteltrace "go.opentelemetry.io/otel/trace"
 	"go.uber.org/zap"
 
+	"github.com/jaegertracing/jaeger/internal/auth/bearertoken"
+	"github.com/jaegertracing/jaeger/internal/headerforwarding"
 	"github.com/jaegertracing/jaeger/internal/telemetry/otelsemconv"
 	"github.com/jaegertracing/jaeger/internal/version"
 )
@@ -59,18 +63,43 @@ const mcpServerName = "jaeger"
 // requires an agent to opt into each McpServer variant, and announcing one it cannot
 // consume would make it fail the session. Streamable HTTP is the only variant the
 // gateway offers today.
-func (h *chatEndpoint) announceMCP(caps acp.AgentCapabilities, mcpRouteID string) []acp.McpServer {
-	if mcpRouteID == "" || h.mcpBaseURL == "" || !caps.McpCapabilities.Http {
+func (h *chatEndpoint) announceMCP(ctx context.Context, caps acp.AgentCapabilities, grant turnGrant) []acp.McpServer {
+	if grant.routeID == "" || h.mcpBaseURL == "" || !caps.McpCapabilities.Http {
 		return []acp.McpServer{}
 	}
 	return []acp.McpServer{{
 		Http: &acp.McpServerHttpInline{
 			Type:    "http",
 			Name:    mcpServerName,
-			Url:     h.mcpBaseURL + h.basePath + routeMCPPrefix + mcpRouteID + "/",
-			Headers: []acp.HttpHeader{},
+			Url:     h.mcpBaseURL + h.basePath + routeMCPPrefix + grant.routeID + "/",
+			Headers: turnServerHeaders(ctx, grant),
 		},
 	}}
+}
+
+// turnServerHeaders lists the headers the agent must send on every request to the
+// turn's MCP server: the turn's token, and the chat caller's identity as the query
+// server's middleware captured it from the chat request: the propagated bearer
+// token and the header_forwarding captures. The captures keep their inbound names,
+// because the tool request comes back to this same server and its middleware reads
+// those names; the handshake sends the captures under their outbound names and no
+// bearer token (see DialWsAdapter). The agent returns the headers on its tool calls,
+// so the same middleware that read the caller's identity from the chat request reads
+// it from each tool call, and the turn-scoped endpoint never has to remember who
+// the caller was.
+func turnServerHeaders(ctx context.Context, grant turnGrant) []acp.HttpHeader {
+	header := make(http.Header)
+	for _, c := range headerforwarding.CapturedFromContext(ctx) {
+		header.Set(c.Header.HTTPName, c.Value)
+	}
+	bearertoken.SetAuthorizationHeader(ctx, header)
+	header.Set(turnTokenHeader, grant.token)
+	names := slices.Sorted(maps.Keys(header))
+	headers := make([]acp.HttpHeader, 0, len(names))
+	for _, name := range names {
+		headers = append(headers, acp.HttpHeader{Name: name, Value: header.Get(name)})
+	}
+	return headers
 }
 
 // newChatEndpoint wires the chat endpoint against a sidecar WebSocket URL.
@@ -142,11 +171,12 @@ func (h *chatEndpoint) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	run := newAGUIRun(ctx, w, req.ThreadID, req.RunID)
 
-	// Register this turn's AG-UI run and UI tools so the turn-scoped MCP endpoint can
+	// Register this turn's run and UI tools so the turn-scoped MCP endpoint can
 	// confirm the turn is active, advertise its UI tools, and dispatch their calls
-	// onto that run. The registry mints the route id, which we announce to the
-	// sidecar below as the turn's MCP URL, and hands back a closer.
-	mcpRouteID, closeTurn := h.turns.register(run, rawUITools)
+	// onto that run. The registry mints the route id and token, which we announce
+	// to the sidecar below as the turn's MCP URL and header, and hands back a
+	// closer.
+	grant, closeTurn := h.turns.register(run, rawUITools)
 	defer closeTurn()
 
 	acpConn := acp.NewClientSideConnection(newACPClient(run), adapter, adapter)
@@ -189,7 +219,7 @@ func (h *chatEndpoint) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		Cwd: "/",
 		// Point the sidecar at this turn's turn-scoped MCP endpoint, on the
 		// transports it advertised support for in Initialize.
-		McpServers: h.announceMCP(init.AgentCapabilities, mcpRouteID),
+		McpServers: h.announceMCP(ctx, init.AgentCapabilities, grant),
 	}
 	sess, err := acpConn.NewSession(acpCtx, newSessionReq)
 	if err != nil {
@@ -225,7 +255,9 @@ func (h *chatEndpoint) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		Meta:      injectTraceContextIntoMeta(ctx, nil),
 	})
 	if err != nil {
-		run.failRun(fmt.Sprintf("Error starting prompt: %v", err))
+		// The agent, not Jaeger, refused or failed the turn. Saying so names the
+		// layer, because the agent's own error text rarely does.
+		run.failRun(fmt.Sprintf("The agent failed the turn (ACP session/prompt): %v", err))
 		return
 	}
 
