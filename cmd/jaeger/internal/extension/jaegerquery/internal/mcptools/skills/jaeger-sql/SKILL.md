@@ -10,7 +10,7 @@ allowed-tools: find_traces find_spans
 
 # Jaeger SQL
 
-Find traces or spans with one read-only `SELECT` in the `sql` input of `find_traces` or `find_spans`. The statement is compiled to Jaeger's filter; nothing is executed as SQL. `find_traces` returns traces, so it takes the first and third shapes below. `find_spans` returns spans, so it takes the second. Each tool refuses the other's shapes and names the tool to send them to. `find_spans` accepts a column list in place of `*` but returns every field of each span regardless.
+Find traces or spans with one read-only `SELECT` in the `sql` input of `find_traces` or `find_spans`. The statement is compiled to Jaeger's filter; nothing is executed as SQL. `find_traces` returns traces, so it takes the first and third shapes below. `find_spans` returns spans, so it takes the second.
 
 ## Three statement shapes
 
