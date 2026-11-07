@@ -7,7 +7,7 @@ package types
 type FindSpansInput struct {
 	// SQL is a read-only SELECT in the dialect of RFC 0019, over spans. It carries the window,
 	// the filter, the order and the limit; there is no other way to shape the search.
-	SQL string `json:"sql" jsonschema:"A SELECT statement over spans, with a bound on start_time. Read the jaeger-sql/SKILL.md skill before writing one"`
+	SQL string `json:"sql" jsonschema:"A SELECT * FROM spans WHERE ... statement with both bounds on start_time. Read the jaeger-sql/SKILL.md skill before writing one"`
 
 	// MaxResults caps the number of spans returned (optional). The statement's own LIMIT, when
 	// present, overrides it. The server's MaxSearchResults caps both regardless of what is
