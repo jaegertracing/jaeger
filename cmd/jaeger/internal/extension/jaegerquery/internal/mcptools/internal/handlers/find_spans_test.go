@@ -262,6 +262,24 @@ func TestFindSpansHandler_Handle_ServedByMemoryStore(t *testing.T) {
 	assert.Empty(t, output.Error)
 }
 
+// A column list reaches the query service as a projection, which refuses it until a result
+// shaped by the column list exists. The tool passes the refusal through as the call's error.
+func TestFindSpansHandler_Handle_ColumnListRefusedByQueryService(t *testing.T) {
+	store, err := memory.NewStore(memory.Configuration{MaxTraces: 10})
+	require.NoError(t, err)
+
+	handler := &findSpansHandler{
+		queryService: querysvc.NewQueryService(store, store, querysvc.QueryServiceOptions{}),
+		maxResults:   100,
+	}
+
+	input := types.FindSpansInput{SQL: "SELECT service, name FROM spans " + findSpansWindow}
+	_, output, err := handler.handle(context.Background(), &mcp.CallToolRequest{}, input)
+
+	require.ErrorIs(t, err, querysvc.ErrProjectionUnsupported)
+	assert.Empty(t, output.Spans)
+}
+
 func TestFindSpansHandler_Handle_StatusFilter(t *testing.T) {
 	trace := createTestTraceWithSpans("trace111", []spanConfig{
 		{spanID: "span0001", operation: "/error", hasError: true, errorMessage: "boom"},

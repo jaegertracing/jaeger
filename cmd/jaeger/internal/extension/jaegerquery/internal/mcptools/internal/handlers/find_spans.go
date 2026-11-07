@@ -112,6 +112,7 @@ func (h *findSpansHandler) buildQuery(input types.FindSpansInput) (querysvc.Span
 		Filter:       query.Filter,
 		OrderBy:      query.OrderBy,
 		Pagination:   querysvc.Pagination{PageSize: limit},
+		Projection:   query.Projection,
 	}, limit, nil
 }
 
