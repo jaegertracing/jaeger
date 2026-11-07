@@ -177,8 +177,9 @@ func TestFindTracesHandler_Handle_ErrorBeforeAnyResult(t *testing.T) {
 	assert.Empty(t, output.Traces)
 }
 
-// TestFindTracesHandler_Handle_LimitEnforced covers the server's cap on a page: the handler
-// stops reading summaries once the cap is reached, whatever the backend keeps yielding.
+// TestFindTracesHandler_Handle_LimitEnforced covers the bound on a page: the statement's
+// LIMIT, or the server's cap without one. The handler stops reading summaries at that bound,
+// whatever a backend that treats the search depth as a hint keeps yielding.
 func TestFindTracesHandler_Handle_LimitEnforced(t *testing.T) {
 	summaries := []tracestore.TraceSummary{
 		makeTraceSummary("svc", "/op1", false),
@@ -198,14 +199,33 @@ func TestFindTracesHandler_Handle_LimitEnforced(t *testing.T) {
 			}
 		},
 	}
-	handler := &findTracesHandler{queryService: mock, maxResults: 3}
-
-	input := types.FindTracesInput{SQL: "SELECT DISTINCT trace_id FROM spans " + findTracesWindow}
-
-	_, output, err := handler.handle(context.Background(), &mcp.CallToolRequest{}, input)
-
-	require.NoError(t, err)
-	assert.Len(t, output.Traces, 3)
+	tests := []struct {
+		name       string
+		sql        string
+		maxResults uint32
+		want       int
+	}{
+		{
+			name:       "the statement's LIMIT",
+			sql:        "SELECT DISTINCT trace_id FROM spans " + findTracesWindow + " LIMIT 2",
+			maxResults: 100,
+			want:       2,
+		},
+		{
+			name:       "the server cap without LIMIT",
+			sql:        "SELECT DISTINCT trace_id FROM spans " + findTracesWindow,
+			maxResults: 3,
+			want:       3,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			handler := &findTracesHandler{queryService: mock, maxResults: tt.maxResults}
+			_, output, err := handler.handle(context.Background(), &mcp.CallToolRequest{}, types.FindTracesInput{SQL: tt.sql})
+			require.NoError(t, err)
+			assert.Len(t, output.Traces, tt.want)
+		})
+	}
 }
 
 func TestFindTracesHandler_BuildQuery_Shapes(t *testing.T) {

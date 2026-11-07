@@ -94,7 +94,8 @@ func registerTools(server *mcp.Server, queryAPI *querysvc.QueryService, params S
 		Description: "Find traces matching one SQL statement in 'sql'. Returns lightweight summaries " +
 			"(trace_id, duration, span_count, error flag, etc.) without individual spans or attributes. " +
 			"The statement is SELECT DISTINCT trace_id FROM spans WHERE ... or SELECT * FROM traces " +
-			"WHERE trace_id IN (SELECT trace_id FROM spans WHERE ...), with both bounds on start_time.",
+			"WHERE trace_id IN (SELECT trace_id FROM spans WHERE ...), with a column list over traces " +
+			"in place of *, and with both bounds on start_time.",
 	}, handlers.NewFindTracesHandler(s.queryAPI, s.params.MaxSearchResults))
 
 	mcp.AddTool(s.mcpServer, &mcp.Tool{

@@ -71,7 +71,9 @@ outer:
 		}
 		for i := range chunk.Results {
 			summaries = append(summaries, toMCPTraceSummary(chunk.Results[i]))
-			if h.maxResults > 0 && uint64(len(summaries)) >= uint64(h.maxResults) {
+			// The depth is the statement's LIMIT, defaulted and capped, so a backend
+			// that treats the depth as a hint and returns more does not grow the page.
+			if uint64(len(summaries)) >= uint64(query.SearchDepth) {
 				break outer
 			}
 		}
@@ -132,8 +134,8 @@ func (h *findTracesHandler) buildQuery(input types.FindTracesInput) (querysvc.Tr
 	if query.Kind == sqlquery.KindFindSpans {
 		return querysvc.TraceQueryParams{}, errors.New(
 			"invalid sql: find_traces takes one of: SELECT DISTINCT trace_id FROM spans WHERE between(start_time, <from>, <to>) AND ...; " +
-				"or SELECT * FROM traces WHERE trace_id IN (SELECT trace_id FROM spans WHERE between(start_time, <from>, <to>) AND ...). " +
-				"Both bounds on start_time are required")
+				"or SELECT * FROM traces WHERE trace_id IN (SELECT trace_id FROM spans WHERE between(start_time, <from>, <to>) AND ...), " +
+				"with a column list over traces in place of *. Both bounds on start_time are required")
 	}
 	return querysvc.TraceQueryParams{
 		Attributes:   pcommon.NewMap(),
