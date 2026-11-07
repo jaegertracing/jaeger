@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"iter"
+	"slices"
 	"time"
 
 	"github.com/ClickHouse/clickhouse-go/v2/lib/driver"
@@ -22,6 +23,11 @@ import (
 )
 
 var _ tracestore.Reader = (*Reader)(nil)
+
+// traceSearchChunkSize caps the number of trace IDs per bounds lookup and span
+// fetch statement. clickhouse-go inlines the arguments into the SQL text, which
+// the server parses under max_query_size (256 KiB by default).
+const traceSearchChunkSize = 500
 
 type ReaderConfig struct {
 	// DefaultSearchDepth is the default number of trace IDs to return when searching for traces.
@@ -164,14 +170,20 @@ func (r *Reader) FindTraces(
 		if len(traceIDs) == 0 {
 			return
 		}
-		q, args := buildFindTracesQuery(traceIDs)
-		rows, err := r.conn.Query(ctx, q, args...)
-		if err != nil {
-			yield(nil, fmt.Errorf("failed to query traces: %w", err))
-			return
-		}
-		if err := readRows(rows, "span", yieldSpanRow(yield)); err != nil && !errors.Is(err, errStopReading) {
-			yield(nil, err)
+
+		for chunk := range slices.Chunk(traceIDs, traceSearchChunkSize) {
+			q, args := buildFindTracesQuery(chunk)
+			rows, err := r.conn.Query(ctx, q, args...)
+			if err != nil {
+				yield(nil, fmt.Errorf("failed to query traces: %w", err))
+				return
+			}
+			if err := readRows(rows, "span", yieldSpanRow(yield)); err != nil {
+				if !errors.Is(err, errStopReading) {
+					yield(nil, err)
+				}
+				return
+			}
 		}
 	}
 }
@@ -206,7 +218,13 @@ func (r *Reader) findBoundedTraceIDs(ctx context.Context, query tracestore.Trace
 	if len(ids) == 0 {
 		return nil, nil
 	}
-	return r.attachTraceBounds(ctx, ids)
+	// Each chunk is a subslice of ids, so attachTraceBounds fills the bounds in ids itself.
+	for chunk := range slices.Chunk(ids, traceSearchChunkSize) {
+		if _, err := r.attachTraceBounds(ctx, chunk); err != nil {
+			return nil, err
+		}
+	}
+	return ids, nil
 }
 
 // queryCandidateTraceIDs runs the bounded search statement and returns IDs without bounds. The

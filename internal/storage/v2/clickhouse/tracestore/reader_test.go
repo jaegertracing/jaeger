@@ -9,6 +9,7 @@ import (
 	"fmt"
 	stditer "iter"
 	"reflect"
+	"strings"
 	"testing"
 	"time"
 
@@ -1318,6 +1319,106 @@ func TestFindTraceIDs_BuildQueryError(t *testing.T) {
 	})
 	_, err := flattenPageChunks(iter)
 	require.ErrorContains(t, err, "failed to build query")
+}
+
+// chunkedSearchConn answers the trace search stages from the arguments of each
+// statement, so every chunk gets rows for exactly the trace IDs it asked for.
+type chunkedSearchConn struct {
+	chdriver.Conn
+
+	candidates []string
+	queries    []string
+	args       [][]any
+}
+
+func (c *chunkedSearchConn) Query(_ context.Context, query string, args ...any) (chdriver.Rows, error) {
+	c.queries = append(c.queries, query)
+	c.args = append(c.args, args)
+	switch {
+	case query == sql.SelectTraceIDTimestamps:
+		var data [][]any
+		for _, id := range args[0].([]string) {
+			data = append(data, []any{id, now.Add(-time.Hour), now})
+		}
+		return &clickhousetest.Rows[[]any]{Data: data, ScanFn: scanTraceIDFn()}, nil
+	case strings.HasPrefix(query, strings.TrimRight(sql.SelectSpansQuery, "\n")):
+		var data []*dbmodel.SpanRow
+		for i := 0; i < len(args); i += 3 {
+			span := *singleSpan[0]
+			span.TraceID = args[i].(string)
+			data = append(data, &span)
+		}
+		return &clickhousetest.Rows[*dbmodel.SpanRow]{Data: data, ScanFn: scanSpanRowFn()}, nil
+	default:
+		var data [][]any
+		for _, id := range c.candidates {
+			data = append(data, []any{id})
+		}
+		return &clickhousetest.Rows[[]any]{Data: data, ScanFn: scanTraceIDFn()}, nil
+	}
+}
+
+func newChunkedSearchConn(n int) *chunkedSearchConn {
+	conn := &chunkedSearchConn{}
+	for i := 1; i <= n; i++ {
+		conn.candidates = append(conn.candidates, fmt.Sprintf("%032x", i))
+	}
+	return conn
+}
+
+func TestFindTraces_ChunksLargeCandidateSets(t *testing.T) {
+	conn := newChunkedSearchConn(1200)
+	reader := NewReader(conn, ReaderConfig{MaxSearchDepth: 10_000})
+	traces, err := jiter.FlattenWithErrors(reader.FindTraces(context.Background(), tracestore.TraceQueryParams{
+		Attributes:  pcommon.NewMap(),
+		SearchDepth: 1200,
+	}))
+	require.NoError(t, err)
+
+	// One search, then a bounds lookup and a span fetch per chunk of 500, 500 and 200 traces.
+	require.Len(t, conn.queries, 7)
+	chunkSizes := []int{500, 500, 200}
+	for i, size := range chunkSizes {
+		ids := conn.candidates[i*traceSearchChunkSize : i*traceSearchChunkSize+size]
+
+		assert.Contains(t, conn.queries[1+i], sql.SelectTraceIDTimestamps)
+		assert.Equal(t, []any{ids}, conn.args[1+i])
+
+		spansQuery := conn.queries[1+len(chunkSizes)+i]
+		assert.Equal(t, size, strings.Count(spansQuery, "(s.trace_id = ?"))
+		var wantArgs []any
+		for _, id := range ids {
+			wantArgs = append(wantArgs, id, now.Add(-time.Hour).UnixNano(), now.UnixNano())
+		}
+		assert.Equal(t, wantArgs, conn.args[1+len(chunkSizes)+i])
+	}
+
+	require.Len(t, traces, len(conn.candidates))
+	for i, trace := range traces {
+		assert.Equal(t, conn.candidates[i], trace.ResourceSpans().At(0).ScopeSpans().At(0).Spans().At(0).TraceID().String())
+	}
+}
+
+func TestFindTraceIDs_ChunksLargeCandidateSets(t *testing.T) {
+	conn := newChunkedSearchConn(1200)
+	reader := NewReader(conn, ReaderConfig{MaxSearchDepth: 10_000})
+	ids, err := flattenPageChunks(reader.FindTraceIDs(context.Background(), tracestore.TraceQueryParams{
+		Attributes:  pcommon.NewMap(),
+		SearchDepth: 1200,
+	}))
+	require.NoError(t, err)
+
+	require.Len(t, conn.queries, 4)
+	assert.Equal(t, []any{conn.candidates[:500]}, conn.args[1])
+	assert.Equal(t, []any{conn.candidates[500:1000]}, conn.args[2])
+	assert.Equal(t, []any{conn.candidates[1000:]}, conn.args[3])
+
+	require.Len(t, ids, len(conn.candidates))
+	for i, id := range ids {
+		assert.Equal(t, conn.candidates[i], id.TraceID.String())
+		assert.Equal(t, now.Add(-time.Hour), id.Start)
+		assert.Equal(t, now, id.End)
+	}
 }
 
 // The search SQL appends every predicate conditionally, so ClickHouse answers a query
