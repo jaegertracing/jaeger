@@ -3,10 +3,18 @@
 
 package types
 
+// NoColumnList is the sentence that tells an agent not to project. It appears in the
+// description and the schema of find_spans and find_traces. A struct tag is a string literal
+// and cannot refer to this constant, so the schema tags spell the sentence out. A test of each
+// tool sends a column list through the real query service and requires the schema to carry the
+// sentence exactly when the list is refused, so when a result is shaped by a column list the
+// sentence has to go.
+const NoColumnList = "Only SELECT *; no column list."
+
 // FindSpansInput defines the input parameters for the find_spans MCP tool. The statement is
 // in the dialect of RFC 0019.
 type FindSpansInput struct {
-	SQL string `json:"sql" jsonschema:"A SELECT * FROM spans WHERE ... statement with both bounds on start_time, and LIMIT for the number of spans. Read the jaeger-sql/SKILL.md skill before writing one"`
+	SQL string `json:"sql" jsonschema:"A SELECT * FROM spans WHERE ... statement with both bounds on start_time, and LIMIT for the number of spans. Only SELECT *; no column list. Read the jaeger-sql/SKILL.md skill before writing one"`
 }
 
 // FindSpansOutput defines the output of the find_spans MCP tool.

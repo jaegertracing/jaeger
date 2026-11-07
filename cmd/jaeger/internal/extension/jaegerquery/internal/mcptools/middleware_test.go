@@ -62,13 +62,13 @@ func TestTracingMiddlewareRecordsArgumentsAndResult(t *testing.T) {
 		}, nil
 	})
 
-	req := newToolCallRequestWithArguments("find_traces", `{"service_name":"frontend"}`)
+	req := newToolCallRequestWithArguments("find_traces", `{"sql":"SELECT DISTINCT trace_id FROM spans"}`)
 	result, err := wrapped(context.Background(), mcpMethodToolsCall, req)
 	require.NoError(t, err)
 	require.NotNil(t, result)
 
 	spanData := capture.singleSpan(t)
-	assertHasStringAttribute(t, spanData.Attributes, string(otelsemconv.GenAIToolCallArguments("").Key), `{"service_name":"frontend"}`)
+	assertHasStringAttribute(t, spanData.Attributes, string(otelsemconv.GenAIToolCallArguments("").Key), `{"sql":"SELECT DISTINCT trace_id FROM spans"}`)
 
 	resultAttr := findAttribute(t, spanData.Attributes, string(otelsemconv.GenAIToolCallResult("").Key))
 	assert.Contains(t, resultAttr.Value.AsString(), "3 services found")
