@@ -33,11 +33,6 @@ func TestNewServerDegradesWithoutMetrics(t *testing.T) {
 	require.NotNil(t, srv)
 }
 
-// TestHandlerAddReceivingMiddlewarePanicFailsOnlyThatCall covers middleware the AI
-// gateway adds after the server is built. The SDK places it outside the recovery
-// newServer installs, so a call it answers itself (a UI tool) never reaches that
-// recovery. A panic there must still fail only that call rather than terminate the
-// test binary, and the session must keep serving the built-in tools.
 // toolNamePattern is the naming convention of ADR-002: a verb and its direct object,
 // where the verb is get for a lookup, find for a search, or read for a document.
 var toolNamePattern = regexp.MustCompile(`^(get|find|read)_[a-z]+(_[a-z]+)*$`)
