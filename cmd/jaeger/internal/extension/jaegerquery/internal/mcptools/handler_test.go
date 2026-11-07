@@ -51,8 +51,8 @@ func connectTestClient(t *testing.T, handler http.Handler) *mcp.ClientSession {
 
 // TestNewHandler_ListTools drives the full in-process serving stack (mcp.Server
 // + middleware + tenancy + otelhttp) over HTTP and asserts that tools/list reaches
-// the registered tools. Which tools those are is TestRegisterTools's concern.
-// ListTools does not touch storage, so the QueryService is backed by empty mocks.
+// the registered tools. ListTools does not touch storage, so the QueryService is
+// backed by empty mocks.
 func TestNewHandler_ListTools(t *testing.T) {
 	svc := querysvc.NewQueryService(&tracestoremocks.Reader{}, &depstoremocks.Reader{}, querysvc.QueryServiceOptions{})
 	handler := NewHandler(telemetry.NoopSettings(), svc, tenancy.NewManager(&tenancy.Options{}), DefaultServerParams())
