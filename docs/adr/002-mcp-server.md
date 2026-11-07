@@ -14,9 +14,9 @@ Jaeger holds the telemetry an LLM agent needs to diagnose a distributed system, 
 
 ### 1. Expose Jaeger telemetry to agents as MCP tools ✅ stands
 
-Jaeger serves an MCP endpoint whose tools wrap the existing `QueryService`, rather than expecting agents to drive the HTTP query API directly. The tool set has grown past what [RFC 0012](../rfc/0012-mcp-server-extension.md) specified and now covers `get_services`, `get_span_names`, `find_traces`, `get_span_details`, `get_trace_errors`, `get_trace_topology`, `get_critical_path`, `get_service_dependencies` and `read_skill`, the last serving built-in playbooks from an embedded filesystem.
+Jaeger serves an MCP endpoint whose tools wrap the existing `QueryService`, rather than expecting agents to drive the HTTP query API directly. The tool set has grown past what [RFC 0012](../rfc/0012-mcp-server-extension.md) specified; the registered set is what `tools/list` returns on the shared endpoint, and one tool, `read_skill`, serves built-in playbooks from an embedded filesystem instead of wrapping a query. The AI gateway's turn-scoped endpoint adds the browser's UI tools to that list, as [RFC 0008](../rfc/0008-ai-gateway-mcp-tool-routing.md) describes.
 
-A tool name is a verb and its direct object, and the verbs follow the storage API: `get_*` for a lookup by identity or a view derived from one, `find_*` for a search by predicate, so that `find_traces` sits next to `FindTraceSummaries` and `FindSpans`. The tool was named `search_traces` until #10073; the rename cost nothing on the agent side, because an agent discovers tool names from `tools/list` on every session rather than compiling them in.
+A tool name is a verb and its direct object, and the verbs follow the storage API: `get_*` for a lookup by identity or a view derived from one, `find_*` for a search by predicate, so that `find_traces` sits next to `FindTraceSummaries` and `FindSpans`, and `read_*` for a document rather than telemetry. The tool was named `search_traces` until #10073; the rename cost nothing on the agent side, because an agent discovers tool names from `tools/list` on every session rather than compiling them in.
 
 ### 2. Run as a standalone `jaeger_mcp` extension on its own port ⚠️ superseded
 
