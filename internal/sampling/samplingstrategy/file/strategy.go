@@ -3,6 +3,11 @@
 
 package file
 
+import (
+	"fmt"
+	"math"
+)
+
 // strategy defines a sampling strategy. Type can be "probabilistic" or "ratelimiting"
 // and Param will represent "sampling probability" and "max traces per second" respectively.
 type strategy struct {
@@ -27,4 +32,57 @@ type serviceStrategy struct {
 type strategies struct {
 	DefaultStrategy   *serviceStrategy   `json:"default_strategy"`
 	ServiceStrategies []*serviceStrategy `json:"service_strategies"`
+}
+
+// validate checks that Param is within the range its Type allows. It does not
+// reject unknown types, which parseStrategy handles by falling back to the
+// default strategy.
+func (s *strategy) validate(where string) error {
+	switch s.Type {
+	case samplerTypeProbabilistic:
+		if s.Param < 0 || s.Param > 1 || math.IsNaN(s.Param) {
+			return fmt.Errorf("%s: probabilistic sampling param must be between 0 and 1, got %v", where, s.Param)
+		}
+	case samplerTypeRateLimiting:
+		// parseStrategy converts Param to int32; values outside that range
+		// wrap or are implementation-defined, so refuse them here.
+		if s.Param < 0 || s.Param > math.MaxInt32 || math.IsNaN(s.Param) {
+			return fmt.Errorf("%s: ratelimiting sampling param must be between 0 and %d, got %v", where, math.MaxInt32, s.Param)
+		}
+	default:
+		// Unknown types are reported by parseStrategy.
+	}
+	return nil
+}
+
+func (s *serviceStrategy) validate(where string) error {
+	if err := s.strategy.validate(where); err != nil {
+		return err
+	}
+	for _, op := range s.OperationStrategies {
+		if err := op.validate(fmt.Sprintf("%s, operation %q", where, op.Operation)); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// validate rejects strategies whose params are outside the range that
+// parseStrategy can serve to clients, so that neither startup nor a reload
+// replaces a working configuration with an invalid one.
+func (s *strategies) validate() error {
+	if s == nil {
+		return nil
+	}
+	if s.DefaultStrategy != nil {
+		if err := s.DefaultStrategy.validate("default strategy"); err != nil {
+			return err
+		}
+	}
+	for _, svc := range s.ServiceStrategies {
+		if err := svc.validate(fmt.Sprintf("service %q", svc.Service)); err != nil {
+			return err
+		}
+	}
+	return nil
 }
