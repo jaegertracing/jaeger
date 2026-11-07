@@ -13,6 +13,7 @@ import (
 	"go.opentelemetry.io/collector/pdata/pcommon"
 	"go.opentelemetry.io/collector/pdata/xpdata"
 
+	expression "github.com/jaegertracing/jaeger-idl/query/expression/v1"
 	"github.com/jaegertracing/jaeger/internal/jptrace"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/clickhouse/sql"
@@ -171,20 +172,10 @@ func (r *Reader) buildFindTraceIDsQuery(
 		if err := query.EnsureFilterStandsAlone(); err != nil {
 			return "", nil, err
 		}
-		// The untyped attribute metadata for the whole tree is looked up once here, and the
-		// lowering reads it from that map.
-		metadata, err := r.lookupUntypedMetadata(ctx, query.Filter)
-		if err != nil {
+		var err error
+		if args, err = r.appendFilter(ctx, &inner, args, query.Filter); err != nil {
 			return "", nil, err
 		}
-
-		appendAnd(&inner, "(")
-		args, err = buildFilterCondition(&inner, 2, args, metadata, query.Filter)
-		if err != nil {
-			return "", nil, err
-		}
-		appendNewlineAndIndent(&inner, 1)
-		inner.WriteString(")")
 		appendTimeRange()
 	} else {
 		if query.ServiceName != "" {
@@ -220,6 +211,24 @@ func (r *Reader) buildFindTraceIDsQuery(
 	args = append(args, limit)
 
 	return inner.String(), args, nil
+}
+
+// appendFilter lowers a structured filter as one more AND clause of a WHERE that already has a
+// predicate. The untyped attribute metadata for the whole tree is looked up once here, and the
+// lowering reads it from that map.
+func (r *Reader) appendFilter(ctx context.Context, q *strings.Builder, args []any, filter *expression.Call) ([]any, error) {
+	metadata, err := r.lookupUntypedMetadata(ctx, filter)
+	if err != nil {
+		return nil, err
+	}
+	appendAnd(q, "(")
+	args, err = buildFilterCondition(q, 2, args, metadata, filter)
+	if err != nil {
+		return nil, err
+	}
+	appendNewlineAndIndent(q, 1)
+	q.WriteString(")")
+	return args, nil
 }
 
 func buildAttributeConditions(q *strings.Builder, args []any, attributes pcommon.Map, metadata attributeMetadata) ([]any, error) {

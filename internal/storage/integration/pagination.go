@@ -39,6 +39,12 @@ func (s *StorageIntegration) findPaginatedSpanTraceIDs(ctx context.Context, quer
 	if query.OperationName != "" {
 		filter = p.And(filter, p.Span().Name.Eq(query.OperationName))
 	}
+	// The filter is finalized so that a direct suite hands its Reader the resolved AST the
+	// query service hands it in production (RFC 0005 §7), as filterQuery does.
+	filter, err := tracestore.FinalizeFilter(filter)
+	if err != nil {
+		return nil, "", err
+	}
 	var ids []pcommon.TraceID
 	var token tracestore.PageToken
 	for chunk, err := range s.TraceReader.FindSpans(ctx, tracestore.SpanQueryParams{

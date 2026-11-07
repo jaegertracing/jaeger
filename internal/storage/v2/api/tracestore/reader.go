@@ -219,6 +219,23 @@ type Pagination struct {
 	PageToken PageToken
 }
 
+// PaginationAsDepth is RFC 0014 §6.2 applied inside a reader whose trace searches do not page
+// while its Paginated capability, declared for FindSpans, covers them too (RFC 0016 §6.1). The
+// page size bounds the search as its depth, and a token is refused, because these searches
+// cannot have produced one. The query service applies the same rule, before dispatch, to a
+// reader that declares no pagination at all. A query without Pagination is returned unchanged.
+func (q TraceQueryParams) PaginationAsDepth() (TraceQueryParams, error) {
+	if q.Pagination == nil {
+		return q, nil
+	}
+	if q.Pagination.PageToken != "" {
+		return TraceQueryParams{}, fmt.Errorf("%w: trace searches on this storage backend do not page yet", ErrPaginationUnsupported)
+	}
+	q.SearchDepth = q.Pagination.PageSize
+	q.Pagination = nil
+	return q, nil
+}
+
 // FoundTraceID is a wrapper around trace ID returned from FindTraceIDs
 // with an optional time range that may be used in GetTraces calls.
 //
