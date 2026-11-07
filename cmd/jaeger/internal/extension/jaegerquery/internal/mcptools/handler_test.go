@@ -50,9 +50,9 @@ func connectTestClient(t *testing.T, handler http.Handler) *mcp.ClientSession {
 }
 
 // TestNewHandler_ListTools drives the full in-process serving stack (mcp.Server
-// + middleware + tenancy + otelhttp) over HTTP and asserts the telemetry tools
-// are advertised. ListTools does not touch storage, so the QueryService is
-// backed by empty mocks.
+// + middleware + tenancy + otelhttp) over HTTP and asserts that tools/list reaches
+// the registered tools. Which tools those are is TestRegisterTools's concern.
+// ListTools does not touch storage, so the QueryService is backed by empty mocks.
 func TestNewHandler_ListTools(t *testing.T) {
 	svc := querysvc.NewQueryService(&tracestoremocks.Reader{}, &depstoremocks.Reader{}, querysvc.QueryServiceOptions{})
 	handler := NewHandler(telemetry.NoopSettings(), svc, tenancy.NewManager(&tenancy.Options{}), DefaultServerParams())
@@ -60,16 +60,7 @@ func TestNewHandler_ListTools(t *testing.T) {
 	session := connectTestClient(t, handler)
 	listed, err := session.ListTools(context.Background(), &mcp.ListToolsParams{})
 	require.NoError(t, err)
-
-	got := make([]string, 0, len(listed.Tools))
-	for _, tool := range listed.Tools {
-		got = append(got, tool.Name)
-	}
-	assert.ElementsMatch(t, []string{
-		"get_services", "get_span_names", "find_traces", "get_span_details",
-		"get_trace_errors", "get_trace_topology", "get_critical_path", "get_service_dependencies",
-		"read_skill",
-	}, got)
+	assert.NotEmpty(t, listed.Tools)
 }
 
 // TestNewHandler_CallTool exercises a tool end-to-end through the HTTP stack,

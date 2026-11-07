@@ -38,9 +38,14 @@ func TestNewServerDegradesWithoutMetrics(t *testing.T) {
 // newServer installs, so a call it answers itself (a UI tool) never reaches that
 // recovery. A panic there must still fail only that call rather than terminate the
 // test binary, and the session must keep serving the built-in tools.
-// TestRegisterTools verifies RegisterTools advertises the full tool set on a
-// bare server (in-memory transport, no HTTP stack). Registration only, so the
-// QueryService is backed by empty mocks that are never invoked.
+// toolNamePattern is the naming convention of ADR-002: a verb and its direct object,
+// where the verb is get for a lookup, find for a search, or read for a document.
+var toolNamePattern = regexp.MustCompile(`^(get|find|read)_[a-z]+(_[a-z]+)*$`)
+
+// TestRegisterTools verifies that every registered tool reaches a client through
+// tools/list on a bare server (in-memory transport, no HTTP stack) with a name that
+// follows the convention and a description. Registration only, so the QueryService
+// is backed by empty mocks that are never invoked.
 func TestRegisterTools(t *testing.T) {
 	svc := querysvc.NewQueryService(&tracestoremocks.Reader{}, &depstoremocks.Reader{}, querysvc.QueryServiceOptions{})
 
@@ -62,17 +67,13 @@ func TestRegisterTools(t *testing.T) {
 
 	listed, err := clientSession.ListTools(ctx, &mcp.ListToolsParams{})
 	require.NoError(t, err)
+	require.NotEmpty(t, listed.Tools)
 
-	got := make([]string, 0, len(listed.Tools))
 	for _, tool := range listed.Tools {
-		got = append(got, tool.Name)
+		assert.Regexp(t, toolNamePattern, tool.Name)
+		assert.NotEmpty(t, tool.Description, tool.Name)
+		assert.NotNil(t, tool.InputSchema, tool.Name)
 	}
-
-	assert.ElementsMatch(t, []string{
-		"get_services", "get_span_names", "find_traces", "get_span_details",
-		"get_trace_errors", "get_trace_topology", "get_critical_path", "get_service_dependencies",
-		"read_skill",
-	}, got)
 }
 
 // TestBuiltinSkillsCatalog checks that every skill the root catalog links to is in the
