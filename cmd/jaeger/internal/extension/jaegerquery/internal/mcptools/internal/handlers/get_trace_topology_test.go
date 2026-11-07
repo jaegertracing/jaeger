@@ -6,18 +6,52 @@ package handlers
 import (
 	"context"
 	"errors"
+	"fmt"
 	"iter"
+	"strings"
 	"testing"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/stretchr/testify/assert"
+	testifymock "github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/collector/pdata/ptrace"
 
 	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerquery/internal/mcptools/internal/types"
 	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerquery/querysvc"
 	"github.com/jaegertracing/jaeger/internal/jptrace"
+	tracestoremocks "github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore/mocks"
 )
+
+func TestTopologyCollector_MetadataBoundedByResponseLimit(t *testing.T) {
+	collector := newTopologyCollector(2)
+	add := func(configs []spanConfig) {
+		trace := createTestTraceWithSpans(testTraceID, configs)
+		for pos, span := range jptrace.SpanIter(trace) {
+			collector.add(pos, span)
+		}
+	}
+	add([]spanConfig{
+		{spanID: "grand01", parentSpanID: "child01", operation: "grandchild"},
+		{spanID: "root001", operation: "root"},
+	})
+	// Each omitted span has a distinct, unrelated parent. Neither ID should
+	// consume metadata space; the relevant parent may arrive much later.
+	for i := range 1000 {
+		add([]spanConfig{{spanID: fmt.Sprintf("s%06d", i), parentSpanID: fmt.Sprintf("p%06d", i)}})
+		assert.Len(t, collector.knownIDs, 2)
+		assert.Len(t, collector.childCounts, 1)
+	}
+	add([]spanConfig{{spanID: "child01", parentSpanID: "root001", operation: "child"}})
+	require.Len(t, collector.spans, 2)
+	assert.Len(t, collector.retainedIDs, 2)
+	assert.Len(t, collector.knownIDs, 3)
+	assert.Len(t, collector.childCounts, 2)
+	assert.Contains(t, collector.knownIDs, spanIDToHex("child01"))
+	assert.Equal(t, 1, collector.childCounts[spanIDToHex("root001")])
+	assert.True(t, collector.truncated)
+	assert.Equal(t, 1003, collector.totalSpans)
+}
 
 // findSpanByName is a test helper that looks up a TopologySpan by its SpanName field.
 func findSpanByName(spans []types.TopologySpan, spanName string) *types.TopologySpan {
@@ -107,6 +141,11 @@ func TestGetTraceTopologyHandler_Handle_DepthLimit(t *testing.T) {
 		expectRootTruncated  int
 		expectChildTruncated int
 	}{
+		{
+			name:            "negative depth returns full tree",
+			depth:           -1,
+			expectSpanNames: []string{"/api/checkout", "getCart", "queryDB"},
+		},
 		{
 			name:                 "depth 0 returns full tree",
 			depth:                0,
@@ -258,25 +297,38 @@ func TestGetTraceTopologyHandler_Handle_DuplicateSpanIDs(t *testing.T) {
 			actual := make([]pathAndName, 0, len(output.Spans))
 			for _, s := range output.Spans {
 				actual = append(actual, pathAndName{path: s.Path, name: s.SpanName})
+				assert.Zero(t, s.TruncatedChildren)
 			}
 			assert.Equal(t, tt.expected, actual)
 		})
 	}
 }
 
+func TestGetTraceTopologyHandler_Handle_OmittedDuplicateIsNotTruncatedChild(t *testing.T) {
+	trace := createTestTraceWithSpans(testTraceID, []spanConfig{
+		{spanID: "root001", operation: "root"},
+		{spanID: "root001", parentSpanID: "root001", operation: "duplicate"},
+	})
+	handler := &getTraceTopologyHandler{
+		queryService: newMockYieldingTraces(trace), maxSpanDetailsPerRequest: 1,
+	}
+	_, output, err := handler.handle(context.Background(), &mcp.CallToolRequest{}, types.GetTraceTopologyInput{TraceID: testTraceID})
+	require.NoError(t, err)
+	require.Len(t, output.Spans, 1)
+	assert.Equal(t, 2, output.TotalSpanCount)
+	assert.True(t, output.Truncated)
+	assert.Zero(t, output.Spans[0].TruncatedChildren)
+}
+
 func TestGetTraceTopologyHandler_DFS_SkipsVisitedSpan(t *testing.T) {
-	traces := ptrace.NewTraces()
-	rs := traces.ResourceSpans().AppendEmpty()
-	ss := rs.ScopeSpans().AppendEmpty()
-	pos := jptrace.SpanIterPos{Resource: rs, Scope: ss}
-	a := &rawSpan{spanID: "a", pos: pos, span: ss.Spans().AppendEmpty()}
-	b := &rawSpan{spanID: "b", pos: pos, span: ss.Spans().AppendEmpty()}
+	a := &rawSpan{spanID: "a"}
+	b := &rawSpan{spanID: "b"}
 	childrenOf := map[string][]*rawSpan{"a": {b}, "b": {a}}
 
 	var result []types.TopologySpan
 	handler := &getTraceTopologyHandler{}
-	// maxSpans 0 leaves the walk unbounded; visited is what stops the a -> b -> a cycle.
-	handler.dfs(a, "a", 1, 0, 0, childrenOf, map[string]struct{}{}, &result)
+	// Unlimited depth leaves visited to stop the a -> b -> a cycle.
+	handler.dfs(a, "a", 1, 0, childrenOf, map[string]int{"a": 1, "b": 1}, map[string]struct{}{}, &result)
 
 	require.Len(t, result, 2)
 	assert.Equal(t, "a", result[0].Path)
@@ -673,8 +725,7 @@ func TestGetTraceTopologyHandler_Handle_LimitEnforced(t *testing.T) {
 	testTrace := createTestTraceWithSpans(traceID, spanConfigs)
 	mock := newMockYieldingTraces(testTrace)
 
-	// Set limit to 3: the full trace is walked (for the count and correct
-	// roots-first ordering) but only the first 3 spans are emitted.
+	// Set limit to 3: count the full trace while retaining the first 3 spans.
 	handler := &getTraceTopologyHandler{
 		queryService:             mock,
 		maxSpanDetailsPerRequest: 3,
@@ -692,11 +743,8 @@ func TestGetTraceTopologyHandler_Handle_LimitEnforced(t *testing.T) {
 	assert.Equal(t, "root", output.Spans[0].SpanName)
 }
 
-// TestGetTraceTopologyHandler_Handle_LimitPreservesRootWhenLast verifies that
-// when the root span is appended after its children in OTLP iteration order,
-// the topology builder still rooted the tree correctly and the root is the
-// first span in the truncated output.
-func TestGetTraceTopologyHandler_Handle_LimitPreservesRootWhenLast(t *testing.T) {
+// A root arriving after the response cap is recognized as omitted, not missing.
+func TestGetTraceTopologyHandler_Handle_LimitRecognizesRootWhenLast(t *testing.T) {
 	traceID := testTraceID
 
 	// Children appear before the root in iteration order, a real-world case
@@ -723,10 +771,11 @@ func TestGetTraceTopologyHandler_Handle_LimitPreservesRootWhenLast(t *testing.T)
 	require.NoError(t, err)
 	assert.Len(t, output.Spans, 3)
 	assert.Equal(t, 5, output.TotalSpanCount)
-	// Root must come first in DFS order even though it was appended last in the trace.
-	assert.Equal(t, "root", output.Spans[0].SpanName)
-	// Path of the root span is just its own ID, no orphan parent prefix.
-	assert.NotContains(t, output.Spans[0].Path, "/")
+	assert.True(t, output.Truncated)
+	for i, span := range output.Spans {
+		assert.Equal(t, fmt.Sprintf("child%d", i+1), span.SpanName)
+		assert.Equal(t, spanIDToHex(fmt.Sprintf("child00%d", i+1)), span.Path)
+	}
 }
 
 // TestGetTraceTopologyHandler_Handle_LimitDropsLaterRoot verifies that when the
@@ -761,4 +810,102 @@ func TestGetTraceTopologyHandler_Handle_LimitDropsLaterRoot(t *testing.T) {
 		assert.Zero(t, s.TruncatedChildren)
 	}
 	assert.Equal(t, []string{"rootA", "childA1", "childA2"}, names)
+}
+
+// TestGetTraceTopologyHandler_Handle_LimitOutOfOrderSpans is the #9178 repro:
+// iteration order is grandchild, root, child, so a count limit of 2 keeps the
+// descendant and the root and drops the intermediate parent.
+func TestGetTraceTopologyHandler_Handle_LimitOutOfOrderSpans(t *testing.T) {
+	traceID := testTraceID
+
+	spanConfigs := []spanConfig{
+		{spanID: "grand01", parentSpanID: "child01", operation: "grandchild"},
+		{spanID: "root001", operation: "root"},
+		{spanID: "child01", parentSpanID: "root001", operation: "child"},
+	}
+
+	testTrace := createTestTraceWithSpans(traceID, spanConfigs)
+	mock := newMockYieldingTraces(testTrace)
+
+	handler := &getTraceTopologyHandler{
+		queryService:             mock,
+		maxSpanDetailsPerRequest: 2,
+	}
+
+	input := types.GetTraceTopologyInput{TraceID: traceID}
+	_, output, err := handler.handle(context.Background(), &mcp.CallToolRequest{}, input)
+	require.NoError(t, err)
+
+	assert.Len(t, output.Spans, 2)
+	assert.True(t, output.Truncated)
+
+	root := findSpanByName(output.Spans, "root")
+	child := findSpanByName(output.Spans, "child")
+	grandchild := findSpanByName(output.Spans, "grandchild")
+
+	require.NotNil(t, root)
+	require.Nil(t, child)
+	require.NotNil(t, grandchild)
+
+	assert.NotZero(t, root.TruncatedChildren,
+		"surviving ancestor must signal that the count limit dropped part of its subtree")
+
+	droppedParentPrefix := spanIDToHex("child01") + "/"
+	assert.False(t, strings.HasPrefix(grandchild.Path, droppedParentPrefix),
+		"grandchild Path must not use genuine-orphan encoding for a parent dropped only by the count limit, got %q", grandchild.Path)
+}
+
+func TestGetTraceTopologyHandler_Handle_OmittedRootSignalsTruncation(t *testing.T) {
+	traceID := testTraceID
+	trace := createTestTraceWithSpans(traceID, []spanConfig{
+		{spanID: "child01", parentSpanID: "root001", operation: "child"},
+		{spanID: "root001", operation: "root"},
+	})
+	handler := &getTraceTopologyHandler{
+		queryService: newMockYieldingTraces(trace), maxSpanDetailsPerRequest: 1,
+	}
+	_, output, err := handler.handle(context.Background(), &mcp.CallToolRequest{}, types.GetTraceTopologyInput{TraceID: traceID})
+	require.NoError(t, err)
+	require.Len(t, output.Spans, 1)
+	assert.True(t, output.Truncated)
+	assert.Equal(t, spanIDToHex("child01"), output.Spans[0].Path)
+}
+
+func TestGetTraceTopologyHandler_Handle_UpstreamTruncationDoesNotClaimOrphan(t *testing.T) {
+	traceID := testTraceID
+	trace := createTestTraceWithSpans(traceID, []spanConfig{
+		{spanID: "child01", parentSpanID: "root001", operation: "child"},
+		{spanID: "root001", operation: "root"},
+	})
+	reader := &tracestoremocks.Reader{}
+	reader.On("GetTraces", testifymock.Anything, testifymock.Anything).Return(iter.Seq2[[]ptrace.Traces, error](func(yield func([]ptrace.Traces, error) bool) {
+		yield([]ptrace.Traces{trace}, nil)
+	})).Once()
+	handler := &getTraceTopologyHandler{queryService: querysvc.NewQueryService(reader, nil, querysvc.QueryServiceOptions{MaxTraceSize: 1})}
+	_, output, err := handler.handle(context.Background(), &mcp.CallToolRequest{}, types.GetTraceTopologyInput{TraceID: traceID})
+	require.NoError(t, err)
+	require.Len(t, output.Spans, 1)
+	assert.True(t, output.Truncated)
+	assert.Equal(t, spanIDToHex("child01"), output.Spans[0].Path)
+	reader.AssertExpectations(t)
+}
+
+func TestGetTraceTopologyHandler_Handle_StoredWarningPreservesOrphan(t *testing.T) {
+	trace := createTestTraceWithSpans(testTraceID, []spanConfig{
+		{spanID: "child01", parentSpanID: "root001", operation: "child"},
+	})
+	for _, span := range jptrace.SpanIter(trace) {
+		jptrace.AddWarnings(span, "trace has more than 1 spans, showing first 1 spans only")
+	}
+	reader := &tracestoremocks.Reader{}
+	reader.On("GetTraces", testifymock.Anything, testifymock.Anything).Return(iter.Seq2[[]ptrace.Traces, error](func(yield func([]ptrace.Traces, error) bool) {
+		yield([]ptrace.Traces{trace}, nil)
+	})).Once()
+	handler := &getTraceTopologyHandler{queryService: querysvc.NewQueryService(reader, nil, querysvc.QueryServiceOptions{MaxTraceSize: 1})}
+	_, output, err := handler.handle(context.Background(), &mcp.CallToolRequest{}, types.GetTraceTopologyInput{TraceID: testTraceID})
+	require.NoError(t, err)
+	require.Len(t, output.Spans, 1)
+	assert.False(t, output.Truncated)
+	assert.Equal(t, spanIDToHex("root001")+"/"+spanIDToHex("child01"), output.Spans[0].Path)
+	reader.AssertExpectations(t)
 }
