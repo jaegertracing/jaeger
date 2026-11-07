@@ -58,6 +58,7 @@ func TestFindSpansHandler_Handle_FullWorkflow(t *testing.T) {
 	assert.Equal(t, output.Spans[0].TraceID, output.Spans[1].TraceID)
 	assert.NotEmpty(t, output.Spans[1].TraceID)
 	assert.Equal(t, "test-service", output.Spans[1].Service)
+	assert.NotEmpty(t, output.Spans[0].Duration)
 	assert.Empty(t, output.Error)
 }
 

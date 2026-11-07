@@ -202,8 +202,7 @@ func buildSpanDetail(pos jptrace.SpanIterPos, span ptrace.Span) types.SpanDetail
 		})
 	}
 
-	// Calculate duration in microseconds
-	durationUs := span.EndTimestamp().AsTime().Sub(span.StartTimestamp().AsTime()).Microseconds()
+	duration := span.EndTimestamp().AsTime().Sub(span.StartTimestamp().AsTime()).String()
 
 	// Get parent span ID
 	parentSpanID := ""
@@ -218,7 +217,7 @@ func buildSpanDetail(pos jptrace.SpanIterPos, span ptrace.Span) types.SpanDetail
 		Service:      serviceName,
 		SpanName:     span.Name(),
 		StartTime:    span.StartTimestamp().AsTime().Format(time.RFC3339Nano),
-		DurationUs:   durationUs,
+		Duration:     duration,
 		Status:       status,
 		Attributes:   attributes,
 		Events:       events,

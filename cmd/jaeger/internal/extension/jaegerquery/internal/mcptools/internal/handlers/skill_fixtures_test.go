@@ -133,14 +133,16 @@ func serialityOf(t *testing.T, group []types.TopologySpan) (sumUs, windowUs int6
 	for i, s := range group {
 		start, err := time.Parse(time.RFC3339Nano, s.StartTime)
 		require.NoError(t, err)
-		end := start.Add(time.Duration(s.DurationUs) * time.Microsecond)
+		d, err := time.ParseDuration(s.Duration)
+		require.NoError(t, err)
+		end := start.Add(d)
 		if i == 0 || start.Before(earliest) {
 			earliest = start
 		}
 		if i == 0 || end.After(latest) {
 			latest = end
 		}
-		sumUs += s.DurationUs
+		sumUs += d.Microseconds()
 	}
 	return sumUs, latest.Sub(earliest).Microseconds()
 }
@@ -243,9 +245,11 @@ func TestSkillFixtures_ErrorLocus(t *testing.T) {
 		topology, _ := topologyOf(t, "error_timeout_masked")
 		var locus *types.TopologySpan
 		for i := range topology.Spans {
+			d, err := time.ParseDuration(topology.Spans[i].Duration)
+			require.NoError(t, err)
 			if topology.Spans[i].Service == expected.LocusService &&
 				topology.Spans[i].SpanName == expected.LocusOperation &&
-				topology.Spans[i].DurationUs > 10_000_000 {
+				d > 10*time.Second {
 				locus = &topology.Spans[i]
 				break
 			}

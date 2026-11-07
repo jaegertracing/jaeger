@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"iter"
+	"time"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"go.opentelemetry.io/collector/pdata/ptrace"
@@ -171,9 +172,9 @@ func (*getCriticalPathHandler) buildOutput(
 	}
 
 	return types.GetCriticalPathOutput{
-		TraceID:                traceIDStr,
-		TotalDurationUs:        traceEndTime - traceStartTime,
-		CriticalPathDurationUs: criticalPathDuration,
-		Segments:               segments,
+		TraceID:              traceIDStr,
+		TotalDuration:        (time.Duration(traceEndTime-traceStartTime) * time.Microsecond).String(),
+		CriticalPathDuration: (time.Duration(criticalPathDuration) * time.Microsecond).String(),
+		Segments:             segments,
 	}
 }
