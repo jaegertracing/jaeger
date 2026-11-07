@@ -46,7 +46,7 @@ func queryToReaderCapabilities(
 ) (tracestore.TraceQueryParams, error) {
 	if !caps.Paginated {
 		var err error
-		if query, err = query.PaginationAsDepth(); err != nil {
+		if query, err = query.ReplacePaginationWithDepth(); err != nil {
 			return tracestore.TraceQueryParams{}, err
 		}
 	}

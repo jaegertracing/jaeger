@@ -76,7 +76,7 @@ func (*Reader) SearchCapabilities(context.Context) (tracestore.SearchCapabilitie
 		SpanSorting: false,
 		// FindSpans pages with a keyset cursor over its sort key. The capability covers the
 		// trace searches as well, which do not page yet: they serve one page bounded by the
-		// page size and refuse a token (TraceQueryParams.PaginationAsDepth).
+		// page size and refuse a token (TraceQueryParams.ReplacePaginationWithDepth).
 		Paginated: true,
 	}, nil
 }
@@ -187,7 +187,7 @@ func (r *Reader) FindTraceIDs(
 	query tracestore.TraceQueryParams,
 ) iter.Seq2[tracestore.PageChunk[[]tracestore.FoundTraceID], error] {
 	return func(yield func(tracestore.PageChunk[[]tracestore.FoundTraceID], error) bool) {
-		query, err := query.PaginationAsDepth()
+		query, err := query.ReplacePaginationWithDepth()
 		if err != nil {
 			yield(tracestore.PageChunk[[]tracestore.FoundTraceID]{}, err)
 			return

@@ -219,13 +219,13 @@ type Pagination struct {
 	PageToken PageToken
 }
 
-// PaginationAsDepth converts a pagination request into a search depth for a trace search that
+// ReplacePaginationWithDepth converts a pagination request into a search depth for a trace search that
 // does not page. The page size becomes the search depth, and a token is refused, because such a
 // search cannot have produced one. A query without Pagination is returned unchanged. The query
 // service applies it before dispatch to a reader that declares no Paginated capability; a
 // reader that declares the capability for FindSpans while its trace searches do not page
 // applies it itself (RFC 0014 §6.2).
-func (q TraceQueryParams) PaginationAsDepth() (TraceQueryParams, error) {
+func (q TraceQueryParams) ReplacePaginationWithDepth() (TraceQueryParams, error) {
 	if q.Pagination == nil {
 		return q, nil
 	}
