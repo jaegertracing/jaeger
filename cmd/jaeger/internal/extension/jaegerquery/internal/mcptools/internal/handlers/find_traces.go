@@ -60,35 +60,26 @@ func (h *findTracesHandler) handle(
 		return nil, types.FindTracesOutput{}, err
 	}
 
-	var summaries []types.TraceSummary
-	var processErrs []error
-
-outer:
+	var output types.FindTracesOutput
 	for chunk, err := range h.queryService.FindTraceSummaries(ctx, query) {
 		if err != nil {
-			processErrs = append(processErrs, err)
-			break
+			if len(output.Traces) == 0 {
+				// Nothing came back, so the call failed: a query the storage backend
+				// refused, or a transport error. The error is the result, not a note
+				// beside an empty page.
+				return nil, types.FindTracesOutput{}, err
+			}
+			output.Error = fmt.Sprintf("partial results returned due to error: %v", err)
+			return nil, output, nil
 		}
 		for i := range chunk.Results {
-			summaries = append(summaries, toMCPTraceSummary(chunk.Results[i]))
+			output.Traces = append(output.Traces, toMCPTraceSummary(chunk.Results[i]))
 			// The depth is the statement's LIMIT, defaulted and capped, so a backend
 			// that treats the depth as a hint and returns more does not grow the page.
-			if uint64(len(summaries)) >= uint64(query.SearchDepth) {
-				break outer
+			if uint64(len(output.Traces)) >= uint64(query.SearchDepth) {
+				return nil, output, nil
 			}
 		}
-	}
-
-	output := types.FindTracesOutput{Traces: summaries}
-	if len(processErrs) > 0 {
-		searchErr := errors.Join(processErrs...)
-		if len(summaries) == 0 {
-			// Nothing came back, so the call failed: a query the storage backend refused,
-			// or a transport error. The error is the result, not a note beside an empty
-			// page.
-			return nil, types.FindTracesOutput{}, searchErr
-		}
-		output.Error = fmt.Sprintf("partial results returned due to error: %v", searchErr)
 	}
 	return nil, output, nil
 }
