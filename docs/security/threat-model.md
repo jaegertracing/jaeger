@@ -276,7 +276,7 @@ body. It is on the query port and subject to the collector HTTP
 
 `/api/ai/mcp/` serves streamable HTTP MCP on the query port. The embedded
 config enables it. Tools are `get_services`, `get_span_names`,
-`search_traces`, `get_span_details`, `get_trace_errors`,
+`find_traces`, `get_span_details`, `get_trace_errors`,
 `get_trace_topology`, `get_critical_path`, `get_service_dependencies`, and
 `read_skill`. They call the same `QueryService` as the UI.
 
