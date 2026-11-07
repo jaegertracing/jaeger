@@ -120,8 +120,7 @@ func toMCPTraceSummary(s tracestore.TraceSummary) types.TraceSummary {
 }
 
 // buildQuery compiles the statement of input.SQL (RFC 0019) into the trace search it
-// describes. The statement carries the filter, the window and, through LIMIT, the search depth,
-// so the tool has no other input to merge with it.
+// describes: the filter, the window and, through LIMIT, the search depth.
 func (h *findTracesHandler) buildQuery(input types.FindTracesInput) (querysvc.TraceQueryParams, error) {
 	if strings.TrimSpace(input.SQL) == "" {
 		return querysvc.TraceQueryParams{}, errors.New("sql is required")
