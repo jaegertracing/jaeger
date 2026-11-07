@@ -30,7 +30,7 @@ type findSpansQueryService interface {
 // findSpansHandler implements the find_spans MCP tool (RFC 0016 M7, RFC 0019). Unlike
 // get_span_details, which names spans it already knows the IDs of, this tool discovers spans
 // matching whatever a statement over spans describes, across however many traces in one call,
-// which before this tool took a search_traces call followed by one or more get_span_details
+// which before this tool took a find_traces call followed by one or more get_span_details
 // calls.
 type findSpansHandler struct {
 	queryService findSpansQueryService
@@ -84,7 +84,7 @@ outer:
 			// Nothing came back, so calling it partial would send an agent looking for
 			// the missing part instead of reading why the search could not run: a
 			// backend refusing the query (ErrSpanSearchUnsupported, ErrFilterDisabled)
-			// reports the same way search_traces reports FindTraceSummaries refusing.
+			// reports the same way find_traces reports FindTraceSummaries refusing.
 			output.Error = searchErr.Error()
 		} else {
 			output.Error = fmt.Sprintf("partial results returned due to error: %v", searchErr)
@@ -107,7 +107,7 @@ func (h *findSpansHandler) buildQuery(input types.FindSpansInput) (querysvc.Span
 	if query.Kind != sqlquery.KindFindSpans {
 		return querysvc.SpanQueryParams{}, 0, errors.New(
 			"invalid sql: the statement selects traces, and find_spans returns spans. " +
-				"Send it to search_traces instead, or write SELECT * FROM spans WHERE ... " +
+				"Send it to find_traces instead, or write SELECT * FROM spans WHERE ... " +
 				"to search spans")
 	}
 

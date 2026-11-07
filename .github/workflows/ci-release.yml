@@ -10,6 +10,11 @@ on:
 
   workflow_dispatch:
     inputs:
+      ref:
+        required: false
+        type: string
+        description: Tag or full commit SHA to build, e.g. v2.23.0. Leave blank to build the branch the workflow runs from. The workflow file always comes from that branch.
+
       dry_run:
         required: true
         type: boolean
@@ -47,12 +52,13 @@ jobs:
         sudo rm -rf /usr/local/lib/android || true
         df -h /
 
-    - uses: step-security/harden-runner@05e31511f85b41b11d1cf0ef85d0992719546e2c # v2.21.0
+    - uses: step-security/harden-runner@46b06cea07f9e64621fdf066ba77ac6915163d43 # v2.22.3
       with:
         egress-policy: audit # TODO: change to 'egress-policy: block' after couple of runs
 
     - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
       with:
+        ref: ${{ inputs.ref }}
         submodules: true
 
     - name: Fetch git tags
@@ -91,6 +97,29 @@ jobs:
         echo ${BRANCH} | grep -E '^v[0-9]+.[0-9]+.[0-9]+(-rc[0-9]+)?$'
         echo "BRANCH=${BRANCH}" >> ${GITHUB_ENV}
         echo "tag=${BRANCH}" >> "$GITHUB_OUTPUT"
+
+    - name: Report commits built past the release tag
+      # Manual runs from a branch may build later commits than the tag. Show them; don't block.
+      continue-on-error: true
+      run: |
+        tag_sha=$(git rev-parse "${BRANCH}^{commit}")
+        head_sha=$(git rev-parse HEAD)
+        if [[ "${head_sha}" == "${tag_sha}" ]]; then
+          echo "Building ${BRANCH} at ${head_sha}"
+          exit 0
+        fi
+        count=$(git rev-list --count "${BRANCH}..HEAD")
+        echo "::warning::Building ${head_sha}, which is ${count} commit(s) past ${BRANCH} (${tag_sha})"
+        {
+          echo "### Built commit is not the ${BRANCH} tag"
+          echo "Built \`${head_sha}\`, ${count} commit(s) past \`${BRANCH}\` (\`${tag_sha}\`)."
+          echo '```'
+          git log --oneline -n 20 "${BRANCH}..HEAD"
+          echo '```'
+          if (( count > 20 )); then
+            echo "Showing the newest 20."
+          fi
+        } >> "${GITHUB_STEP_SUMMARY}"
 
     - name: Configure GPG Key
       if: ${{ inputs.dry_run != true }}
@@ -143,11 +172,14 @@ jobs:
         username: ${{ github.actor }}
         password: ${{ secrets.GITHUB_TOKEN }}
 
-    - uses: docker/setup-qemu-action@1f40c72289eff860ee54a304f1438e3cff362e0a # v4.3.0
+    - uses: docker/setup-qemu-action@99012661954931238ded8c8b007157a8430204e1 # v4.4.0
 
     - name: Build and upload all container images
       # -B skips building the binaries since we already did that above
       run: |
+        # Name snapshot images after the built commit, which differs from the dispatch commit when ref is set.
+        GITHUB_SHA=$(git rev-parse HEAD)
+        export GITHUB_SHA
         bash scripts/build/build-upload-docker-images.sh -B \
           ${{ steps.params.outputs.docker_flags }}
       env:
@@ -156,6 +188,8 @@ jobs:
 
     - name: Build, test, and publish jaeger image
       run: |
+        GITHUB_SHA=$(git rev-parse HEAD)
+        export GITHUB_SHA
         bash scripts/build/build-all-in-one-image.sh \
           ${{ steps.params.outputs.docker_flags }}
       env:
@@ -164,6 +198,8 @@ jobs:
 
     - name: Build, test, and publish hotrod image
       run: |
+        GITHUB_SHA=$(git rev-parse HEAD)
+        export GITHUB_SHA
         bash scripts/build/build-hotrod-image.sh \
           ${{ steps.params.outputs.docker_flags }}
       env:
@@ -195,7 +231,7 @@ jobs:
       actions: read
       id-token: write
       contents: write
-    uses: slsa-framework/slsa-github-generator/.github/workflows/generator_generic_slsa3.yml@v2.1.0
+    uses: slsa-framework/slsa-github-generator/.github/workflows/generator_generic_slsa3.yml@f7dd8c54c2067bafc12ca7a55595d5ee9b75204a # v2.1.0
     with:
       base64-subjects: "${{ needs.publish-release.outputs.hashes }}"
       upload-assets: ${{ inputs.dry_run != true }}

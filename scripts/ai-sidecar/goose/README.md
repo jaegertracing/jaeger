@@ -1,119 +1,73 @@
-# Goose (ACP Agent)
+# Goose
 
-Jaeger's AI gateway is bring-your-own-agent: it dials an
-[ACP](https://agentclientprotocol.com/) agent over WebSocket and speaks the
-protocol to it. No agent code lives here.
+[Goose](https://github.com/aaif-goose/goose) is a reference implementation of
+an ACP agent, and this directory holds what is needed to run it as the agent
+behind Jaeger's AI gateway. The steps to configure Goose, point Jaeger at it,
+and verify the result are on the website on the
+[AI Assistant page](https://www.jaegertracing.io/docs/latest/ai/assistant/).
 
-[Goose](https://github.com/aaif-goose/goose) is used below as a worked example
-because it serves ACP over WebSocket natively, so no bridge or wrapper is
-needed. **Any agent that serves ACP over WebSocket works the same way** — only
-`agent_url`, the auth header name, and the agent's own launch command change.
+## Run the stack
 
-## Prerequisites
-
-- A Jaeger build that includes [#9296](https://github.com/jaegertracing/jaeger/pull/9296)
-  (WebSocket message framing) and [#9395](https://github.com/jaegertracing/jaeger/pull/9395)
-  (`ai.agent_headers`). Both are on `main`.
-- The `goose` binary from [Goose releases](https://github.com/aaif-goose/goose/releases),
-  v1.55.0 or later. That release includes
-  [aaif-goose/goose#12697](https://github.com/aaif-goose/goose/pull/12697), which
-  propagates the chat request's trace context into Goose's MCP tool calls so the
-  agent's spans appear in the request trace.
-- Credentials for a model provider. The zero-cost route is
-  [OpenRouter](https://openrouter.ai)'s free tier — see below.
-
-## 1. Configure the model provider
-
-Goose reads these from its **environment**, not from `~/.config/goose/config.yaml`.
-Setting the API key only in the config file leaves Goose reporting
-`Provider not set`.
+`docker-compose.yml` runs that setup as containers, plus two things that make
+it usable on its own: microsim, the trace generator of the SPM example, sending
+a steady trickle of traces, and an Apache httpd reverse proxy between Goose and
+Jaeger's MCP endpoint whose access log prints the headers of every proxied
+request. `run.sh` starts the stack and leaves it up, so the assistant can be
+tried in the Jaeger UI at <http://localhost:16686>, where the AI panel appears
+once Jaeger's health probe reaches Goose. Chatting needs a model provider: set
+`OPENROUTER_API_KEY` before starting, or set `SECRET_RESOLVER_CMD` to a command
+that prints it, as the script's header comment describes.
 
 ```bash
-export GOOSE_PROVIDER=openrouter
-export GOOSE_MODEL=nvidia/nemotron-3-super-120b-a12b:free
-export OPENROUTER_API_KEY=...
+./run.sh              # a Linux build of this working tree, inside the released image
+./run.sh --release    # the released Jaeger image as is; the check passes once a release carries the identity headers
+./run.sh --ci         # start, check, tear down, and exit with the check's result
+./run.sh --down       # stop the stack
 ```
 
-The model **must support tool calling**, or it answers from prior knowledge and
-never queries telemetry. To list free tool-calling models:
+Before it hands the stack over, the script sends one chat request that carries
+a caller identity and checks the proxy log: every MCP request Goose made
+carries the turn token and the caller's identity headers, and none carries a
+header the gateway was not told to forward. Goose lists the MCP server's tools
+before it calls the model, so the check passes without a model provider; with
+one, the agent also calls a tool.
 
-```bash
-curl -s https://openrouter.ai/api/v1/models \
-  -H "Authorization: Bearer $OPENROUTER_API_KEY" |
-  jq -r '.data[] | select(.supported_parameters | index("tools"))
-         | select((.pricing.prompt|tonumber) == 0) | .id'
+The proxy logs the credentials on purpose, so the check can read them; a
+deployment's proxy must not. The log looks like this (the token and route id
+are per turn). Goose and Jaeger speak MCP revision 2026-07-28, which has no
+`initialize` handshake and no session, so every request is a `POST` that
+carries the protocol version in its `MCP-Protocol-Version` header and no
+`Mcp-Session-Id`. The three requests of a turn are `server/discover`,
+`tools/list`, and the `tools/call` the model asks for; without a model
+provider the third is missing.
+
+```text
+POST /api/ai/mcp/<route>/ -> 200 turn="<token>" user="alice" auth="Bearer user-token" unlisted="-" accept="text/event-stream, application/json" proto="2026-07-28" sid="-"
+POST /api/ai/mcp/<route>/ -> 200 turn="<token>" user="alice" auth="Bearer user-token" unlisted="-" accept="text/event-stream, application/json" proto="2026-07-28" sid="-"
+POST /api/ai/mcp/<route>/ -> 200 turn="<token>" user="alice" auth="Bearer user-token" unlisted="-" accept="text/event-stream, application/json" proto="2026-07-28" sid="-"
 ```
 
-## 2. Start Goose with authentication on
+## Reading a failure of the stack
 
-```bash
-export GOOSE_SERVER__SECRET_KEY=$(openssl rand -hex 16)
-goose serve --host 127.0.0.1 --port 16688
-```
+The website's troubleshooting section covers the agent and the gateway. The
+stack adds two hops of its own, the model provider and the proxied MCP
+endpoint, and each failure shows up in a different place:
 
-Goose then requires that secret as an `X-Secret-Key` header on the WebSocket
-upgrade, and serves ACP at the **`/acp`** path. Its default port is 3284; the
-`--port` above matches Jaeger's default `agent_url` port instead.
+| Hop | What it looks like | Cause |
+| --- | --- | --- |
+| Goose → model provider | A `RUN_ERROR` event `The agent failed the turn (ACP session/prompt): {"code":-32000,"message":"Authentication required",...}` | Goose has no usable credential for its provider: `OPENROUTER_API_KEY` is not in Goose's environment |
+| Goose → model provider | The assistant answers with text such as `Authentication error: Authentication failed for https://openrouter.ai/... Status: 401` | The key reached Goose and the provider rejected it, or it is empty. Goose reports the provider's answer as its reply |
+| Goose → model provider | Every prompt fails with a 404 that names a paid model slug | OpenRouter's free tier changed and the default `GOOSE_MODEL` is no longer free. Set `GOOSE_MODEL` to another free tool-calling model; the website shows how to list them |
+| Goose → Jaeger MCP endpoint | `401` lines in the proxy log, or `user="-"` on them while the chat request carried a user | Goose did not send the announced headers back, which the agent contract on the website requires |
 
-Goose also accepts `--dangerously-unauthenticated`, which disables this check.
-It is not used here and should not be used with a Jaeger that can send headers.
+## Agent-supplied tools
 
-## 3. Point Jaeger at it
-
-In the `jaeger_query` extension config:
-
-```yaml
-    ai:
-      agent_url: ws://127.0.0.1:16688/acp
-      agent_headers:
-        X-Secret-Key: ${env:GOOSE_SERVER__SECRET_KEY}
-      # Present enables the telemetry MCP endpoint the agent's tools come from.
-      mcp: {}
-```
-
-`agent_headers` values are `configopaque` strings, so they stay out of logs and
-config dumps. Prefer `${env:VAR}` over an inline secret. Start Jaeger with
-`GOOSE_SERVER__SECRET_KEY` set in its environment too, so the expansion resolves.
-
-The header name belongs to the agent, not to Jaeger: Goose wants
-`X-Secret-Key`, another agent may want `Authorization`. Set whatever it expects.
-
-## 4. Verify
-
-Open the Jaeger UI. If the gateway's health check reached the agent, the AI
-assistant panel is available; if not, it is hidden. Ask it something that needs
-telemetry, for example *"list the services you can see"*, and the streamed tool
-calls should be prefixed `jaeger:` — that prefix means they came from Jaeger's
-MCP endpoint rather than from a tool the agent brought itself.
-
-## Troubleshooting
-
-**Assistant panel missing / `"aiAssistant":false` in the page source.** The
-health check cannot reach the agent. It dials separately from the chat endpoint
-and sends the same headers, so a missing or wrong `agent_headers` value hides
-the panel even though nothing else looks broken. Check the gateway log for
-`AI health check failed`.
-
-**`401 Unauthorized` on dial.** The header is missing, misnamed, or its value
-does not match `GOOSE_SERVER__SECRET_KEY`. Verify the variable is exported in
-*both* processes: Goose reads it, and Jaeger expands it.
-
-**Connection hangs, then the health check times out.** The build predates
-[#9296](https://github.com/jaegertracing/jaeger/pull/9296). ACP sends one
-JSON-RPC object per WebSocket message with no trailing newline, which older
-gateways waited for forever. Update Jaeger.
-
-**`404 Not Found` on dial.** The path is wrong — Goose serves ACP at `/acp`, and
-the bare host and port returns 404.
-
-**Agent answers without any `jaeger:` tool calls.** It is using its own tools
-instead of Jaeger's. Confirm the `mcp:` block is present; without it the gateway
-announces no MCP endpoint and Goose falls back to its built-in shell extension,
-which can still produce a plausible-looking answer.
-
-## Note on agent-supplied tools
-
-Goose ships general-purpose extensions, including shell access, and runs its own
-agent loop. Anything it can reach on the host is reachable from a chat turn, so
-run it with the same care as any other process holding your provider
-credentials.
+Goose ships general-purpose extensions, including shell access, and with them
+on a question about services may come back with a clock widget or a delegated
+"developer" call beside the Jaeger tools. Goose has no switch that turns them
+all off, only a per-extension `enabled: false` in its config file, so the image
+in `docker-compose.yml` generates that file at build time from the extension
+list its own `goose info -v` prints, every entry disabled; the agent then has
+only the tools Jaeger announces for the turn, and a new Goose version brings its
+own list. Goose started by hand uses whatever `~/.config/goose/config.yaml`
+enables; `goose info -v` lists the extensions and their state.

@@ -42,6 +42,14 @@ read -r -e -p "New version: v" -i "${suggested_version}" user_version
 new_version="v${user_version}"
 echo "Using new version: ${new_version}"
 
+issue_title="Prepare Jaeger Release ${new_version}"
+existing_issue=$(gh issue list -R jaegertracing/jaeger --state open --search "in:title \"${issue_title}\"" \
+  --json title,url --jq ".[] | select(.title == \"${issue_title}\") | .url")
+if [ -n "$existing_issue" ]; then
+  echo "Error: an open issue \"${issue_title}\" already exists: ${existing_issue}"
+  exit 1
+fi
+
 
 
 DOCS_TEMPLATE=$(mktemp "/tmp/DOC_RELEASE.XXXXXX")
@@ -59,7 +67,7 @@ issue_body=$(python3 scripts/release/formatter.py "${user_version}" "${UI_TMPFIL
 if $dry_run; then
   echo "${issue_body//__RELEASE_ISSUE__/<this issue number>}"
 else
-  issue_url=$(gh issue create -R jaegertracing/jaeger --title "Prepare Jaeger Release ${new_version}" --body "$issue_body")
+  issue_url=$(gh issue create -R jaegertracing/jaeger --title "${issue_title}" --body "$issue_body")
   echo "Created issue: ${issue_url}"
   issue_number="${issue_url##*/}"
   if [[ "$issue_number" =~ ^[0-9]+$ ]] && [[ "$issue_body" == *"__RELEASE_ISSUE__"* ]]; then

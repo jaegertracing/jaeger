@@ -258,12 +258,12 @@ func TestFindSpansHandler_BuildQuery_Refusals(t *testing.T) {
 		{
 			name:    "a trace-ID search",
 			sql:     "SELECT DISTINCT trace_id FROM spans " + findSpansWindow,
-			wantErr: "invalid sql: the statement selects traces, and find_spans returns spans. Send it to search_traces instead",
+			wantErr: "invalid sql: the statement selects traces, and find_spans returns spans. Send it to find_traces instead",
 		},
 		{
 			name:    "a whole-traces search",
 			sql:     "SELECT * FROM traces WHERE trace_id IN (SELECT trace_id FROM spans " + findSpansWindow + ")",
-			wantErr: "invalid sql: the statement selects traces, and find_spans returns spans. Send it to search_traces instead",
+			wantErr: "invalid sql: the statement selects traces, and find_spans returns spans. Send it to find_traces instead",
 		},
 		{
 			name:    "a compile error carries the position and the hint",
