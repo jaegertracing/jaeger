@@ -297,6 +297,58 @@ func TestGetTraceNilRequestOnHandlerGRPC(t *testing.T) {
 	require.EqualError(t, err, errNilRequest.Error())
 }
 
+func TestGetTraceFailureInvertedTimeRangeGRPC(t *testing.T) {
+	now := time.Now().UTC()
+	timeInputs := []struct {
+		name      string
+		startTime time.Time
+		endTime   time.Time
+	}{
+		{"end before start", now, now.Add(-time.Hour)},
+		{"end equal to start", now, now},
+	}
+
+	for _, input := range timeInputs {
+		t.Run(input.name, func(t *testing.T) {
+			withServerAndClient(t, func(_ *grpcServer, client *grpcClient) {
+				stream, err := client.GetTrace(context.Background(), &api_v2.GetTraceRequest{
+					TraceID:   model.NewTraceID(1, 2),
+					StartTime: input.startTime,
+					EndTime:   input.endTime,
+				})
+				require.NoError(t, err)
+				_, err = stream.Recv()
+				assertGRPCError(t, err, codes.InvalidArgument, "end_time must be after start_time")
+			})
+		})
+	}
+}
+
+func TestArchiveTraceFailureInvertedTimeRangeGRPC(t *testing.T) {
+	now := time.Now().UTC()
+	timeInputs := []struct {
+		name      string
+		startTime time.Time
+		endTime   time.Time
+	}{
+		{"end before start", now, now.Add(-time.Hour)},
+		{"end equal to start", now, now},
+	}
+
+	for _, input := range timeInputs {
+		t.Run(input.name, func(t *testing.T) {
+			withServerAndClient(t, func(_ *grpcServer, client *grpcClient) {
+				_, err := client.ArchiveTrace(context.Background(), &api_v2.ArchiveTraceRequest{
+					TraceID:   model.NewTraceID(1, 2),
+					StartTime: input.startTime,
+					EndTime:   input.endTime,
+				})
+				assertGRPCError(t, err, codes.InvalidArgument, "end_time must be after start_time")
+			})
+		})
+	}
+}
+
 func TestArchiveTraceSuccessGRPC(t *testing.T) {
 	var traceID pcommon.TraceID
 	binary.BigEndian.PutUint64(traceID[:8], mockTraceID.High)
