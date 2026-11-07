@@ -108,8 +108,7 @@ func registerTools(server *mcp.Server, queryAPI *querysvc.QueryService, params S
 			"Returns lightweight summaries (trace_id, span_id, service, span_name, duration, " +
 			"status) without attributes or events; use get_span_details for those. " +
 			"The statement selects from spans and needs both bounds on start_time. " +
-			"A column list is accepted but does not change the output. " +
-			"Refused if the storage backend does not support span search.",
+			"A column list is accepted but does not change the output.",
 	}, handlers.NewFindSpansHandler(s.queryAPI, s.params.MaxSearchResults))
 
 	mcp.AddTool(s.mcpServer, &mcp.Tool{
