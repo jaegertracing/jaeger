@@ -30,6 +30,11 @@ var ErrServiceNameRequired = tracestore.Unsupported(
 // interceptor with no span-search policy; that one is a deployment fault, not a refusal.
 var ErrSpanSearchUnsupported = tracestore.Unsupported("this storage backend does not declare span search support")
 
+// ErrProjectionUnsupported is returned for a span search that selects a column list. RFC 0016
+// §5.2 shapes such a search into sparse spans, which §13 defers; until then the search is
+// refused rather than served as if every column had been selected.
+var ErrProjectionUnsupported = tracestore.Unsupported("a column list is not supported: a span search returns whole spans, so select *")
+
 // ErrFilterDisabled is returned for a query carrying a filter to a deployment that has not
 // enabled StructuredFiltersGate. The query is refused rather than served with the filter
 // ignored, because dropping a predicate would answer with every trace in the time range. The

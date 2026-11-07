@@ -29,6 +29,12 @@ var requestOnlyTraceFields = map[string]bool{
 	"RawTraces": true, // presentation, applied after the reader answers
 }
 
+// requestOnlySpanFields are the span request fields that have no counterpart in the reader's
+// query, asserted absent from tracestore.SpanQueryParams in the same way.
+var requestOnlySpanFields = map[string]bool{
+	"Projection": true, // refused by prepareSpanSearchQuery, never sent to the reader
+}
+
 // distinctValue returns a value of the field's type that is not the zero value and stays inside
 // the range toReaderQuery accepts alongside a bare time window. A field of a type this function
 // does not know fails the test, which is the point: the new field needs a generator and a mapping.
@@ -117,6 +123,11 @@ func TestSpanQueryParams_EveryFieldReachesTheReader(t *testing.T) {
 	for i := 0; i < requestType.NumField(); i++ {
 		field := requestType.Field(i)
 		t.Run(field.Name, func(t *testing.T) {
+			if requestOnlySpanFields[field.Name] {
+				_, ok := readerType.FieldByName(field.Name)
+				assert.False(t, ok, "%s is listed as request-only but the reader's query has it", field.Name)
+				return
+			}
 			request := SpanQueryParams{StartTimeMin: testWindowStart, StartTimeMax: testWindowEnd}
 			reflect.ValueOf(&request).Elem().Field(i).Set(distinctValue(t, field))
 

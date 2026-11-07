@@ -137,7 +137,7 @@ The compiler picks the query service method from the `SELECT` list and the `FROM
 |---|---|---|
 | `SELECT DISTINCT trace_id FROM spans WHERE …` | `FindTraceIDs` | filter, window, limit, cursor |
 | `SELECT * FROM spans WHERE …` | `FindSpans` (RFC 0016) | filter, window, order, limit, cursor |
-| `SELECT span_id, duration, … FROM spans WHERE …` | `FindSpans` | the above plus a reference-only `projection` |
+| `SELECT span_id, duration, … FROM spans WHERE …` | `FindSpans` | the above plus a reference-only `projection`, which the query service refuses until it has a result the projection can shape (RFC 0016 §5) |
 | `SELECT * FROM traces WHERE trace_id IN (SELECT trace_id FROM spans WHERE …)` | `FindTraces` | the inner filter and window; `LIMIT` on the outer query is `search_depth` |
 | `SELECT trace_id, root_service, span_count, … FROM traces WHERE trace_id IN (…)` | `FindTraceSummaries` (RFC 0011) | as above |
 | `SELECT … FROM spans … GROUP BY …`, any aggregate function | refused | reserved for the method of RFC 0016 §5 |
