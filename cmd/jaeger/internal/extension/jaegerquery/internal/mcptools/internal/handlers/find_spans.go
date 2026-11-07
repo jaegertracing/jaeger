@@ -101,8 +101,9 @@ func (h *findSpansHandler) buildQuery(input types.FindSpansInput) (querysvc.Span
 	}
 	if query.Kind != sqlquery.KindFindSpans {
 		return querysvc.SpanQueryParams{}, 0, errors.New(
-			"invalid sql: find_spans takes a statement that selects from spans: " +
-				"SELECT * FROM spans WHERE ...")
+			"invalid sql: the statement returns traces, and find_spans returns spans. " +
+				"Write SELECT * FROM spans WHERE between(start_time, <from>, <to>) AND ... " +
+				"[ORDER BY ...] [LIMIT n]. Both bounds on start_time are required")
 	}
 
 	limit := h.effectiveLimit(input.MaxResults, query.Limit)

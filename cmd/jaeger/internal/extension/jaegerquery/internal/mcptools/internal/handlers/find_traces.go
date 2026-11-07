@@ -208,9 +208,10 @@ func (h *findTracesHandler) buildSQLQuery(input types.FindTracesInput) (querysvc
 	}
 	if query.Kind == sqlquery.KindFindSpans {
 		return querysvc.TraceQueryParams{}, errors.New(
-			"invalid sql: find_traces takes a statement that returns traces: " +
-				"SELECT DISTINCT trace_id FROM spans WHERE ..., " +
-				"or SELECT * FROM traces WHERE trace_id IN (SELECT trace_id FROM spans WHERE ...)")
+			"invalid sql: the statement selects spans, and find_traces returns traces. " +
+				"Write one of: SELECT DISTINCT trace_id FROM spans WHERE between(start_time, <from>, <to>) AND ...; " +
+				"or SELECT * FROM traces WHERE trace_id IN (SELECT trace_id FROM spans WHERE between(start_time, <from>, <to>) AND ...). " +
+				"Both bounds on start_time are required")
 	}
 	searchDepth := input.SearchDepth
 	if query.Limit > 0 {
