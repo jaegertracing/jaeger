@@ -62,7 +62,7 @@ func TestTracingMiddlewareRecordsArgumentsAndResult(t *testing.T) {
 		}, nil
 	})
 
-	req := newToolCallRequestWithArguments("search_traces", `{"service_name":"frontend"}`)
+	req := newToolCallRequestWithArguments("find_traces", `{"service_name":"frontend"}`)
 	result, err := wrapped(context.Background(), mcpMethodToolsCall, req)
 	require.NoError(t, err)
 	require.NotNil(t, result)
@@ -100,7 +100,7 @@ func TestTracingMiddlewareTruncatesOversizedResult(t *testing.T) {
 		}, nil
 	})
 
-	_, err := wrapped(context.Background(), mcpMethodToolsCall, newToolCallRequest("search_traces"))
+	_, err := wrapped(context.Background(), mcpMethodToolsCall, newToolCallRequest("find_traces"))
 	require.NoError(t, err)
 
 	spanData := capture.singleSpan(t)
@@ -164,11 +164,11 @@ func TestTruncateForSpanCutsOnRuneBoundary(t *testing.T) {
 }
 
 func TestToolArgumentsFromRequest(t *testing.T) {
-	req := newToolCallRequestWithArguments("search_traces", `{"a":1}`)
+	req := newToolCallRequestWithArguments("find_traces", `{"a":1}`)
 	assert.Equal(t, `{"a":1}`, toolArgumentsFromRequest(mcpMethodToolsCall, req))
 	assert.Empty(t, toolArgumentsFromRequest("initialize", req))
 	assert.Empty(t, toolArgumentsFromRequest(mcpMethodToolsCall, nil))
-	assert.Empty(t, toolArgumentsFromRequest(mcpMethodToolsCall, newToolCallRequest("search_traces")))
+	assert.Empty(t, toolArgumentsFromRequest(mcpMethodToolsCall, newToolCallRequest("find_traces")))
 }
 
 func TestToolArgumentsFromRequestWrongParams(t *testing.T) {
@@ -207,12 +207,12 @@ func TestTracingMiddlewareToolCallGenericError(t *testing.T) {
 		return nil, expectedErr
 	})
 
-	_, err := wrapped(context.Background(), mcpMethodToolsCall, newToolCallRequest("search_traces"))
+	_, err := wrapped(context.Background(), mcpMethodToolsCall, newToolCallRequest("find_traces"))
 	require.ErrorIs(t, err, expectedErr)
 
 	spanData := capture.singleSpan(t)
-	assert.Equal(t, mcpMethodToolsCall+" search_traces", spanData.Name)
-	assertHasStringAttribute(t, spanData.Attributes, string(otelsemconv.GenAIToolName("").Key), "search_traces")
+	assert.Equal(t, mcpMethodToolsCall+" find_traces", spanData.Name)
+	assertHasStringAttribute(t, spanData.Attributes, string(otelsemconv.GenAIToolName("").Key), "find_traces")
 	assertHasStringAttribute(t, spanData.Attributes, string(otelsemconv.GenAIOperationNameExecuteTool.Key), "execute_tool")
 	assert.Equal(t, codes.Error, spanData.Status.Code)
 	assert.Equal(t, expectedErr.Error(), spanData.Status.Description)
@@ -364,8 +364,8 @@ func TestTracingMiddlewareUsesTraceContextFromRequestMeta(t *testing.T) {
 }
 
 func TestToolNameFromRequest(t *testing.T) {
-	req := newToolCallRequest("search_traces")
-	assert.Equal(t, "search_traces", toolNameFromRequest(mcpMethodToolsCall, req))
+	req := newToolCallRequest("find_traces")
+	assert.Equal(t, "find_traces", toolNameFromRequest(mcpMethodToolsCall, req))
 	assert.Empty(t, toolNameFromRequest("initialize", req))
 	assert.Empty(t, toolNameFromRequest(mcpMethodToolsCall, nil))
 }
@@ -649,7 +649,7 @@ func TestMetricsMiddlewareToolCallError(t *testing.T) {
 		return nil, expectedErr
 	})
 
-	_, err = wrapped(context.Background(), mcpMethodToolsCall, newToolCallRequest("search_traces"))
+	_, err = wrapped(context.Background(), mcpMethodToolsCall, newToolCallRequest("find_traces"))
 	require.ErrorIs(t, err, expectedErr)
 
 	metrics := capture.collect(t)
@@ -658,7 +658,7 @@ func TestMetricsMiddlewareToolCallError(t *testing.T) {
 	require.Len(t, counterDP.DataPoints, 1)
 	assert.Equal(t, int64(1), counterDP.DataPoints[0].Value)
 	assertMetricHasAttr(t, counterDP.DataPoints[0].Attributes, "status", metricStatusError)
-	assertMetricHasAttr(t, counterDP.DataPoints[0].Attributes, string(otelsemconv.GenAIToolName("").Key), "search_traces")
+	assertMetricHasAttr(t, counterDP.DataPoints[0].Attributes, string(otelsemconv.GenAIToolName("").Key), "find_traces")
 }
 
 func TestMetricsMiddlewareToolCallResultError(t *testing.T) {

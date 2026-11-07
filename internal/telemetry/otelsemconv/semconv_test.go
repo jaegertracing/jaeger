@@ -211,10 +211,10 @@ func TestMCPGenAIAttributes(t *testing.T) {
 		},
 		{
 			name:     "gen ai tool",
-			attr:     GenAIToolName("search_traces"),
+			attr:     GenAIToolName("find_traces"),
 			wantKey:  string(semconv.GenAIToolNameKey),
 			wantType: attribute.STRING,
-			wantVal:  "search_traces",
+			wantVal:  "find_traces",
 		},
 		{
 			name:     "error type",

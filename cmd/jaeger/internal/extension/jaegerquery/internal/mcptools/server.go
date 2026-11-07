@@ -90,11 +90,11 @@ func registerTools(server *mcp.Server, queryAPI *querysvc.QueryService, params S
 	}, handlers.NewGetSpanNamesHandler(s.queryAPI))
 
 	mcp.AddTool(s.mcpServer, &mcp.Tool{
-		Name: "search_traces",
-		Description: "Search for traces matching filters, given as the structured inputs or as one " +
+		Name: "find_traces",
+		Description: "Find traces matching filters, given as the structured inputs or as one " +
 			"SQL statement in 'sql'. Returns lightweight summaries " +
 			"(trace_id, duration, span_count, error flag, etc.) without individual spans or attributes.",
-	}, handlers.NewSearchTracesHandler(s.queryAPI, s.params.MaxSearchResults))
+	}, handlers.NewFindTracesHandler(s.queryAPI, s.params.MaxSearchResults))
 
 	mcp.AddTool(s.mcpServer, &mcp.Tool{
 		Name: "get_span_details",

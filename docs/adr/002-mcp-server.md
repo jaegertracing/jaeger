@@ -14,7 +14,9 @@ Jaeger holds the telemetry an LLM agent needs to diagnose a distributed system, 
 
 ### 1. Expose Jaeger telemetry to agents as MCP tools ✅ stands
 
-Jaeger serves an MCP endpoint whose tools wrap the existing `QueryService`, rather than expecting agents to drive the HTTP query API directly. The tool set has grown past what [RFC 0012](../rfc/0012-mcp-server-extension.md) specified and now covers `get_services`, `get_span_names`, `search_traces`, `get_span_details`, `get_trace_errors`, `get_trace_topology`, `get_critical_path`, `get_service_dependencies` and `read_skill`, the last serving built-in playbooks from an embedded filesystem.
+Jaeger serves an MCP endpoint whose tools wrap the existing `QueryService`, rather than expecting agents to drive the HTTP query API directly. The tool set has grown past what [RFC 0012](../rfc/0012-mcp-server-extension.md) specified and now covers `get_services`, `get_span_names`, `find_traces`, `get_span_details`, `get_trace_errors`, `get_trace_topology`, `get_critical_path`, `get_service_dependencies` and `read_skill`, the last serving built-in playbooks from an embedded filesystem.
+
+A tool name is a verb and its direct object, and the verb is the one used by the `QueryService` method the tool wraps: `get_*` for a lookup by identity, `find_*` for a search by predicate, so that `find_traces` sits next to `FindTraceSummaries` and `FindSpans`. The tool was named `search_traces` until #10073; the rename cost nothing on the agent side, because an agent discovers tool names from `tools/list` on every session rather than compiling them in.
 
 ### 2. Run as a standalone `jaeger_mcp` extension on its own port ⚠️ superseded
 
