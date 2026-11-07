@@ -16,6 +16,7 @@ import (
 
 	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerquery/internal/mcptools/internal/types"
 	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerquery/querysvc"
+	"github.com/jaegertracing/jaeger/internal/sqlquery"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/memory"
 )
@@ -198,6 +199,16 @@ func TestFindSpansHandler_BuildQuery_ColumnListIsTheProjection(t *testing.T) {
 	query, _, err := handler.buildQuery(types.FindSpansInput{SQL: "SELECT service, name FROM spans " + findSpansWindow})
 	require.NoError(t, err)
 	assert.Len(t, query.Projection, 2)
+}
+
+// TestFindSpansHandler_RefuseKind pins which statement kinds the trace-shaped refusal speaks
+// for, and that a kind outside that list is refused by name rather than described as traces.
+func TestFindSpansHandler_RefuseKind(t *testing.T) {
+	require.NoError(t, refuseKind(sqlquery.KindFindSpans))
+	for _, kind := range []sqlquery.Kind{sqlquery.KindFindTraceIDs, sqlquery.KindFindTraces, sqlquery.KindFindTraceSummaries} {
+		require.ErrorContains(t, refuseKind(kind), "the statement returns traces", kind)
+	}
+	require.EqualError(t, refuseKind(sqlquery.Kind("Rows")), "invalid sql: find_spans does not serve a Rows statement")
 }
 
 // TestFindSpansHandler_BuildQuery_Refusals covers the two refusals that are the handler's
