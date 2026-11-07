@@ -1,30 +1,22 @@
 // Copyright (c) 2026 The Jaeger Authors.
 // SPDX-License-Identifier: Apache-2.0
 
-// Package mcptools provides the Jaeger telemetry MCP tools as a reusable
-// library. The tools wrap a *querysvc.QueryService. NewHandler returns a
-// closeable Handler serving them over streamable HTTP, so any component holding a
-// QueryService can expose the Jaeger telemetry tools over MCP without
-// re-implementing the handlers; a component that needs the server to dispatch more
-// than the built-in tools (e.g. the AI gateway's per-turn UI tools) layers its own
-// receiving middleware on with Handler.AddReceivingMiddleware.
+// Package mcptools serves the Jaeger telemetry tools over MCP. The tools query a
+// *querysvc.QueryService; NewHandler serves them over streamable HTTP, and
+// Handler.AddReceivingMiddleware lets the AI gateway add its per-turn UI tools to
+// the same server.
 package mcptools
 
 import (
 	"embed"
-	"errors"
-	"io"
 	"io/fs"
-	"net/http"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
-	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
 	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerquery/internal/mcptools/internal/handlers"
 	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerquery/querysvc"
 	"github.com/jaegertracing/jaeger/internal/telemetry"
-	"github.com/jaegertracing/jaeger/internal/tenancy"
 )
 
 //go:embed INSTRUCTIONS.md
@@ -72,83 +64,6 @@ func newServer(telset telemetry.Settings, queryAPI *querysvc.QueryService, param
 	return server
 }
 
-// Handler serves an *mcp.Server over HTTP and owns that server's teardown: Close
-// reaps the sessions still bound to it, so a mount gets its teardown from
-// construction instead of from whoever remembers to reach for the server. Mounting
-// one Handler at several paths — jaeger-query serves it at /api/ai/mcp/, and the AI
-// gateway serves it again under the turn-scoped routes — gives those paths one
-// server and one session map, so a session established through either resolves on
-// both.
-type Handler struct {
-	http.Handler
-	server *mcp.Server
-	// recovery guards the middleware added through AddReceivingMiddleware, which
-	// the SDK places outside the recovery newServer installs.
-	recovery mcp.Middleware
-}
-
-var _ io.Closer = (*Handler)(nil)
-
-// Close reaps every session still bound to the server. The SDK reaps a session
-// only when it goes idle (see StreamableHTTPOptions.SessionTimeout), so without
-// this a live session would outlive the server. Sessions() yields a snapshot (it
-// clones under lock), so closing each one mid-iteration — which deregisters it —
-// is safe.
-func (h *Handler) Close() error {
-	var errs []error
-	for session := range h.server.Sessions() {
-		errs = append(errs, session.Close())
-	}
-	return errors.Join(errs...)
-}
-
-// AddReceivingMiddleware layers middleware onto the wrapped server after it has
-// been built, so a caller that did not construct the server can still extend what
-// it dispatches — the AI gateway uses this to add its per-turn UI tools to the
-// shared telemetry server. The HTTP shell captures the server by pointer, so
-// middleware added here applies to every later request; call it during startup,
-// before the HTTP server begins serving.
-//
-// The SDK wraps the existing chain with each later call, so the given middleware
-// runs outside the tracing, metrics and recovery middleware newServer installs,
-// and a call it answers itself (as the gateway does for its UI tools) never
-// reaches them. A recovery middleware is therefore added outside it, so a panic
-// in the caller's middleware fails only that request.
-func (h *Handler) AddReceivingMiddleware(middleware ...mcp.Middleware) {
-	h.server.AddReceivingMiddleware(append([]mcp.Middleware{h.recovery}, middleware...)...)
-}
-
-// NewHandler builds a closeable Handler that serves the Jaeger telemetry MCP tools
-// over streamable HTTP, backed by the given QueryService — the shared endpoint at
-// jaeger-query's /api/ai/mcp/. One *mcp.Server is reused for every session. By
-// default the SDK builds one ServerSession per MCP session and reuses it for that
-// session's requests; with params.StreamableHTTP.Stateless it builds one per request and keeps
-// nothing between requests. It binds no listener of its own — the caller mounts
-// the returned handler on an existing mux and closes it at shutdown so its MCP
-// sessions are reaped.
-func NewHandler(telset telemetry.Settings, queryAPI *querysvc.QueryService, tenancyMgr *tenancy.Manager, params ServerParams) *Handler {
-	server := newServer(telset, queryAPI, params)
-	streamable := mcp.NewStreamableHTTPHandler(
-		func(*http.Request) *mcp.Server { return server },
-		&mcp.StreamableHTTPOptions{
-			JSONResponse:               params.StreamableHTTP.JSONResponse,
-			Stateless:                  params.StreamableHTTP.Stateless,
-			SessionTimeout:             mcpSessionTimeout,
-			DisableLocalhostProtection: params.StreamableHTTP.DisableLocalhostProtection,
-		},
-	)
-	tenantHandler := tenancy.ExtractTenantHTTPHandler(tenancyMgr, streamable)
-	return &Handler{
-		Handler: otelhttp.NewHandler(
-			tenantHandler,
-			"jaeger_mcp",
-			otelhttp.WithTracerProvider(telset.TracerProvider),
-		),
-		server:   server,
-		recovery: createRecoveryMiddleware(telset.Logger),
-	}
-}
-
 // RegisterTools registers all Jaeger telemetry MCP tools on the given server,
 // wiring each handler to the supplied QueryService. params supplies the per-tool
 // limits (search results, span details, read-file size).
@@ -175,11 +90,11 @@ func registerTools(server *mcp.Server, queryAPI *querysvc.QueryService, params S
 	}, handlers.NewGetSpanNamesHandler(s.queryAPI))
 
 	mcp.AddTool(s.mcpServer, &mcp.Tool{
-		Name: "search_traces",
-		Description: "Search for traces matching filters, given as the structured inputs or as one " +
+		Name: "find_traces",
+		Description: "Find traces matching filters, given as the structured inputs or as one " +
 			"SQL statement in 'sql'. Returns lightweight summaries " +
 			"(trace_id, duration, span_count, error flag, etc.) without individual spans or attributes.",
-	}, handlers.NewSearchTracesHandler(s.queryAPI, s.params.MaxSearchResults))
+	}, handlers.NewFindTracesHandler(s.queryAPI, s.params.MaxSearchResults))
 
 	mcp.AddTool(s.mcpServer, &mcp.Tool{
 		Name: "get_span_details",

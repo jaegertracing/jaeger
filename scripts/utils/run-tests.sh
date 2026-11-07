@@ -15,6 +15,7 @@ TEST_FILES=(
     "$REPO_ROOT/scripts/release/release.test.sh"
     "$REPO_ROOT/examples/oci/deploy-all.test.sh"
     "$REPO_ROOT/examples/otel-demo/deploy-all.test.sh"
+    "$REPO_ROOT/examples/otel-demo/jaeger-values.test.sh"
     "$REPO_ROOT/examples/otel-demo/opensearch-expand-volume.test.sh"
     "$REPO_ROOT/examples/otel-demo/opensearch-recovery.test.sh"
     "$REPO_ROOT/internal/storage/v1/cassandra/schema/create.test.sh"
