@@ -3,10 +3,9 @@
 
 package types
 
-// FindSpansInput defines the input parameters for the find_spans MCP tool.
+// FindSpansInput defines the input parameters for the find_spans MCP tool. The statement is
+// in the dialect of RFC 0019.
 type FindSpansInput struct {
-	// SQL is a read-only SELECT in the dialect of RFC 0019, over spans. It carries the window,
-	// the filter, the order and the limit; there is no other way to shape the search.
 	SQL string `json:"sql" jsonschema:"A SELECT * FROM spans WHERE ... statement with both bounds on start_time, and LIMIT for the number of spans. Read the jaeger-sql/SKILL.md skill before writing one"`
 }
 
