@@ -528,7 +528,7 @@ func TestFindSpans_ProjectionUnsupported(t *testing.T) {
 	query := SpanQueryParams{
 		StartTimeMin: testWindowStart,
 		StartTimeMax: testWindowEnd,
-		Projection:   []expression.Expression{&expression.FieldRef{Name: expression.SpanFieldDuration, Level: expression.LevelSpan}},
+		Projection:   []expression.Expression{p.Span().Duration.Term()},
 	}
 	seq := tqs.queryService.FindSpans(context.Background(), query)
 	_, err := jiter.CollectWithErrors(seq)
