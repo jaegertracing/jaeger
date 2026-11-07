@@ -1,7 +1,7 @@
 # Badger Storage Record Layouts
 
 * **Status**: Documented existing implementation
-* **Date**: 2026-03-12
+* **Date**: 2026-03-12; extended 2026-10-30 for operation span kinds
 
 ## Context
 
@@ -84,7 +84,7 @@ An index entry is written for each span, keyed by the service name of the span's
 
 **Purpose**: enables scanning all trace IDs associated with a given service within a time range. The reader seeks to `[0x81][serviceName]` and iterates in reverse (latest first), extracting the trailing 16 bytes of each key as the trace ID.
 
-**TTL**: same as the corresponding primary span record.
+**TTL**: the later of the existing service entry's expiry and the merged operation entry's expiry. Zero means no expiry and takes precedence over finite expiries. This keeps the service discoverable while any operation sharing this service-index key remains unexpired.
 
 ---
 
@@ -99,13 +99,19 @@ An index entry is written for each span, keyed by the concatenation of service n
 
 - `serviceName + operationName` — the two strings concatenated directly, no separator
 
-**Value**: empty (`nil`)
+**Value**: versioned span-kind set:
+```
+[version: 1B = 0x01][flags: 1B]
+repeated: [kindLength: 4B big-endian][spanKind: kindLength bytes]
+```
 
-**Purpose**: enables finding trace IDs for a specific service + operation pair within a time range.
+Kinds are distinct and sorted by their raw string bytes. The first span-level `span.kind` tag supplies the kind; non-string values use `KeyValue.AsString()`. An absent or empty tag is encoded as a zero-length kind. Legacy entries with `nil` values mean the historical kinds are unknown. Flag `0x01` preserves this uncertainty when a new write merges with a legacy entry; other flag bits are reserved.
 
-**Note**: because the service name and operation name are concatenated without a separator, a service named `"foo"` with operation `"bar"` produces the same prefix as a service named `"foobar"` with operation `""`. The reader guards against this ambiguity by checking that the full key prefix (up to the timestamp) matches exactly.
+**Purpose**: enables finding trace IDs for a specific service + operation pair within a time range and rebuilding operation/kind discovery after restart. Trace searches still read only the unchanged keys, so older readers can search entries with the new values.
 
-**TTL**: same as the corresponding primary span record.
+**Note**: because the service name and operation name are concatenated without a separator, a service named `"foo"` with operation `"bar"` produces the same prefix as a service named `"foobar"` with operation `""`. Exact-prefix checks reject longer concatenations but cannot distinguish two service/operation combinations with the same concatenation. This existing limitation remains.
+
+**TTL and collisions**: the key has no span ID, so a transaction merges all kinds at the same key and retains the later expiry, with zero meaning no expiry. It also extends the corresponding service entry when necessary. Conflicting transactions retry from a fresh read. Caches update only after a successful commit and never shorten an existing expiry. One expiry covers the entire kind set, so a kind may remain discoverable after its own spans expire.
 
 ---
 
@@ -213,11 +219,13 @@ The reader builds an *execution plan* that describes how to combine index result
 Service names and operation names are not queried directly from Badger on every request. Instead, they are maintained in an **in-memory cache** (`CacheStore`) that mirrors the TTL semantics of the underlying index entries:
 
 - `services: map[string]uint64` — maps service name to its expiry time (Unix seconds)
-- `operations: map[string]map[string]uint64` — maps service → operation → expiry time
+- `operations: map[string]map[tracestore.Operation]uint64` — maps service → (operation name, span kind) → expiry time; zero means no expiry
 
 The cache is populated in two ways:
-1. **On write**: `cache.Update(serviceName, operationName, expireTime)` is called after every `WriteSpan`, keeping the cache current without re-scanning Badger.
-2. **On startup** (if `prefillCache=true`): the reader scans all service name index keys (`0x81`) and operation name index keys (`0x82`) to preload any entries persisted from a previous run.
+1. **On write**: after a successful commit, all merged kinds and expiries update the cache. Older cache updates arriving later cannot shorten expiries.
+2. **On startup**: the factory completes service and operation prefill once before exposing writers. It scans all unexpired operation entries for legacy, partially known, and invalid values. Read failures or incomplete coverage prevent span-kind queries for that database until a later restart passes the check. The result and entry counts are logged per database; primary and archive stores are independent.
+
+The alpha feature gate `jaeger.badger.operationIndex` is disabled by default. With the gate enabled and startup coverage complete, operation discovery returns distinct name/kind pairs, sorted by name then kind, and applies an optional kind filter. Otherwise it returns distinct names with empty kinds and ignores the filter, preserving legacy behavior. Writers store kinds in both gate states. Readiness is never persisted or reused after rollback or backup restore; legacy entries must expire before a subsequent startup can pass, and rewriting a partial entry preserves its legacy flag.
 
 Expired entries are lazily removed from the cache when `GetServices` or `GetOperations` is called.
 
@@ -247,7 +255,7 @@ The record layouts described above were chosen to satisfy the following requirem
 
 1. **Lexicographic range scans**: all time-based queries rely on big-endian encoding of timestamps so that key iteration maps directly to time-range iteration.
 2. **Single-instance simplicity**: all record types share one Badger database, distinguished by prefix byte. This avoids the complexity of managing multiple database handles.
-3. **Index-only secondary records**: secondary index keys carry no values (nil), keeping the index footprint minimal. The full span data is always fetched from the primary record after the index identifies the relevant trace IDs.
+3. **Index-only trace searches**: secondary index keys identify traces without reading their values. Service, tag, and duration indexes carry no values; the operation index stores kind sets for discovery. The full span data is fetched from the primary record after the index identifies the relevant trace IDs.
 4. **TTL-driven expiry**: Badger's native per-entry TTL mechanism is used for automatic data expiration, eliminating the need for a background deletion job.
 5. **Embedded operation**: Badger requires no external process, making the Badger backend suitable for single-binary, all-in-one deployments.
 
@@ -263,8 +271,8 @@ The record layouts described above were chosen to satisfy the following requirem
 ### Negative / Limitations
 
 - **Not distributed**: Badger is a single-node store. It is not suitable for high-throughput or multi-instance deployments.
-- **No spanKind in operations**: the operation name index does not encode span kind, so `GetOperations` returns operations without span kind information (tracked in [issue #1922](https://github.com/jaegertracing/jaeger/issues/1922)).
-- **String concatenation without separators**: the absence of separators between service name, tag key, and tag value in composite index keys means that a suffix of one component can collide with a prefix of the next. The implementation handles this with exact-prefix length checks but it is a latent source of subtle bugs if the key format is extended.
+- **Legacy span-kind coverage**: older operation entries lack kinds. Without backfill, kind-aware discovery must wait until incomplete entries expire and a startup check passes. Repeated writes to a partial entry can extend this wait indefinitely. The shared expiry can retain kinds longer than their individual spans.
+- **String concatenation without separators**: different combinations of service name, operation name, tag key, and tag value can produce identical concatenations. Exact-prefix length checks do not resolve that ambiguity.
 - **No dependency index**: the dependency store computes dependency links via a full trace scan on every request rather than maintaining a dedicated index, which may be slow for large datasets.
 - **Sampling entries have no TTL**: throughput and probabilities records are not automatically expired and accumulate indefinitely unless explicitly pruned.
 - **Ephemeral by default**: the default configuration (`Ephemeral: true`) stores data in a temporary directory that is deleted on process exit, which may surprise users who expect data to persist across restarts.
