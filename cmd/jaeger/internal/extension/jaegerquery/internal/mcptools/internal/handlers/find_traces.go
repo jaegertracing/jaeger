@@ -143,7 +143,7 @@ func (h *findTracesHandler) buildQuery(input types.FindTracesInput) (querysvc.Tr
 		// accepted and ignored. It is refused until a result is shaped by it, as the
 		// query service refuses a column list over spans.
 		return querysvc.TraceQueryParams{}, errors.New(
-			"invalid sql: a column list over traces is not supported: find_traces returns whole trace summaries. Use SELECT * FROM traces")
+			"invalid sql: find_traces returns whole trace summaries. " + types.NoColumnList)
 	}
 	return querysvc.TraceQueryParams{
 		Attributes:   pcommon.NewMap(),

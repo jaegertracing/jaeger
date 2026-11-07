@@ -14,6 +14,8 @@ Find traces or spans with one read-only `SELECT` in the `sql` input of `find_tra
 
 ## Three statement shapes
 
+`SELECT *` is the only select list over `spans` and over `traces`; a column list is refused by both tools. `SELECT DISTINCT trace_id FROM spans` is the one other form.
+
 Trace IDs of the traces that have a matching span:
 
 ```sql

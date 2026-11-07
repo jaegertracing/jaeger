@@ -252,3 +252,22 @@ func TestFindSpansHandler_Handle_ServedByMemoryStore(t *testing.T) {
 	assert.Equal(t, "/ok", output.Spans[0].SpanName)
 	assert.Empty(t, output.Error)
 }
+
+// TestFindSpansHandler_Handle_ColumnListRefusedByQueryService pins that a column list is
+// refused by the query service, which is what the NoColumnList sentence in the tool's
+// description and schema promises. When sparse spans land and this test fails, the sentence
+// and the refusal it describes go together.
+func TestFindSpansHandler_Handle_ColumnListRefusedByQueryService(t *testing.T) {
+	store, err := memory.NewStore(memory.Configuration{MaxTraces: 10})
+	require.NoError(t, err)
+	handler := &findSpansHandler{
+		queryService: querysvc.NewQueryService(store, store, querysvc.QueryServiceOptions{}),
+		maxResults:   100,
+	}
+
+	input := types.FindSpansInput{SQL: "SELECT service, name FROM spans " + findSpansWindow}
+	_, output, err := handler.handle(t.Context(), &mcp.CallToolRequest{}, input)
+
+	require.ErrorIs(t, err, querysvc.ErrProjectionUnsupported)
+	assert.Empty(t, output.Spans)
+}
