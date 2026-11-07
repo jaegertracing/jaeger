@@ -24,7 +24,10 @@ jobs:
         clickhouse_version:
         - lts-march
         - lts-august
-    name: clickhouse ${{ matrix.storage_test }} ${{ matrix.clickhouse_version }}
+        cluster_mode:
+        - single-node
+        - multi-node
+    name: clickhouse ${{ matrix.storage_test }} ${{ matrix.clickhouse_version }} ${{ matrix.cluster_mode }}
     steps:
     - name: Harden Runner
       uses: step-security/harden-runner@05e31511f85b41b11d1cf0ef85d0992719546e2c # v2.21.0
@@ -37,10 +40,10 @@ jobs:
 
     - name: Run ClickHouse integration tests
       id: test-execution
-      run: bash scripts/e2e/clickhouse.sh ${{ matrix.storage_test }} ${{ matrix.clickhouse_version }}
+      run: bash scripts/e2e/clickhouse.sh ${{ matrix.storage_test }} ${{ matrix.clickhouse_version }} ${{ matrix.cluster_mode }}
 
     - uses: ./.github/actions/verify-metrics-snapshot
-      if: matrix.storage_test == 'e2e'
+      if: matrix.storage_test == 'e2e' && matrix.cluster_mode == 'single-node'
       with:
         snapshot: metrics_snapshot_clickhouse
         artifact_key: metrics_snapshot_clickhouse_${{ matrix.clickhouse_version }}
@@ -48,6 +51,6 @@ jobs:
     - name: Upload coverage to codecov
       uses: ./.github/actions/upload-codecov
       with:
-        flag: clickhouse-${{ matrix.storage_test }}-${{ matrix.clickhouse_version }}
+        flag: clickhouse-${{ matrix.storage_test }}-${{ matrix.clickhouse_version }}-${{ matrix.cluster_mode }}
 
 

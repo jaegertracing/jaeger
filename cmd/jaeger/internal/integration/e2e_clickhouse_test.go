@@ -4,16 +4,27 @@
 package integration
 
 import (
+	"os"
 	"testing"
 
 	"github.com/jaegertracing/jaeger/internal/storage/integration"
 	"github.com/jaegertracing/jaeger/internal/storage/integration/capabilities"
 )
 
+// clickhouseConfigFile selects the hand-built Distributed schema's config when the e2e harness
+// starts a multi-node cluster. The schema is applied before Jaeger starts, so that config disables
+// create_schema; the single-node config keeps creating its own tables.
+func clickhouseConfigFile() string {
+	if os.Getenv("CLICKHOUSE_MULTI_NODE") == "true" {
+		return "../../config-clickhouse-multi-node.yaml"
+	}
+	return "../../config-clickhouse.yaml"
+}
+
 func TestClickHouseStorage(t *testing.T) {
 	integration.SkipUnlessEnv(t, integration.StorageClickHouse)
 	s := &E2EStorageIntegration{
-		ConfigFile:   "../../config-clickhouse.yaml",
+		ConfigFile:   clickhouseConfigFile(),
 		FeatureGates: searchGates,
 		StorageIntegration: integration.StorageIntegration{
 			CleanUp:      purge,
@@ -27,7 +38,7 @@ func TestClickHouseStorage(t *testing.T) {
 func TestClickHouseStorage_BackwardCompatibility(t *testing.T) {
 	integration.SkipUnlessEnv(t, integration.StorageClickHouse)
 	runBackwardCompatibilityTests(t, "clickhouse", E2EStorageIntegration{
-		ConfigFile: "../../config-clickhouse.yaml",
+		ConfigFile: clickhouseConfigFile(),
 	}, compatScenario{
 		Name: "feature gates disabled on both old writer and new reader",
 		Capabilities: capabilities.
