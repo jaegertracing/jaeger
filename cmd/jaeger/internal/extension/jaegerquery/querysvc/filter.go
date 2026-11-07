@@ -32,10 +32,10 @@ var StructuredFiltersGate = featuregate.GlobalRegistry().MustRegister(
 // queryToReaderCapabilities returns the query in the shape the reader declared it can serve, immediately
 // before dispatch.
 //
-// A reader that cannot paginate has no field to read PageSize from, so PageSize is folded into
+// A reader that cannot paginate has no field to read PageSize from, so PageSize becomes the
 // SearchDepth and Pagination is cleared, which keeps the search bounded. A PageToken is never
-// folded: a reader that cannot paginate cannot have minted it, so the query is refused
-// (RFC 0014 §6.2) rather than restarted as a new search.
+// folded: a reader that cannot paginate cannot have minted it, so the query is refused rather
+// than restarted as a new search (RFC 0014 §6.2).
 //
 // A reader that declares filter support gets the filter itself, once every level and operator
 // it uses is one the reader listed. A reader that declares none gets the filter rewritten into
@@ -44,12 +44,11 @@ func queryToReaderCapabilities(
 	query tracestore.TraceQueryParams,
 	caps tracestore.SearchCapabilities,
 ) (tracestore.TraceQueryParams, error) {
-	if query.Pagination != nil && !caps.Paginated {
-		if query.Pagination.PageToken != "" {
-			return tracestore.TraceQueryParams{}, tracestore.ErrPaginationUnsupported
+	if !caps.Paginated {
+		var err error
+		if query, err = query.PaginationAsDepth(); err != nil {
+			return tracestore.TraceQueryParams{}, err
 		}
-		query.SearchDepth = query.Pagination.PageSize
-		query.Pagination = nil
 	}
 	if query.Filter == nil {
 		return query, nil
