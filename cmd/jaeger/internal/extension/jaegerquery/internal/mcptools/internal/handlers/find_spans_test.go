@@ -159,88 +159,54 @@ func TestFindSpansHandler_Handle_LimitEnforced(t *testing.T) {
 	assert.Len(t, output.Spans, 2)
 }
 
-func TestFindSpansHandler_Handle_MaxResultsClampedToServerCap(t *testing.T) {
-	trace := createTestTraceWithSpans("trace111", []spanConfig{
-		{spanID: "span0001", operation: "/a"},
-		{spanID: "span0002", operation: "/b"},
-		{spanID: "span0003", operation: "/c"},
-	})
-	mock := newMockFindSpans(trace)
-	handler := &findSpansHandler{queryService: mock, maxResults: 2}
-
-	input := types.FindSpansInput{SQL: "SELECT * FROM spans " + findSpansWindow, MaxResults: 100}
-	_, output, err := handler.handle(context.Background(), &mcp.CallToolRequest{}, input)
-
-	require.NoError(t, err)
-	assert.Len(t, output.Spans, 2, "a request above the server cap is clamped to it")
-}
-
-// TestFindSpansHandler_BuildQuery_EffectiveLimit pins how max_results and the statement's own
-// LIMIT interact: LIMIT overrides max_results, and the server cap applies to either.
+// TestFindSpansHandler_BuildQuery_EffectiveLimit pins how the statement's LIMIT and the server
+// cap interact, and that the result is also the page size the backend is asked for, so a
+// request for one span does not make the backend fetch a full default page.
 func TestFindSpansHandler_BuildQuery_EffectiveLimit(t *testing.T) {
 	tests := []struct {
-		name       string
-		sql        string
-		maxResults uint32
-		want       uint32
+		name string
+		sql  string
+		cap  uint32
+		want uint32
 	}{
 		{
 			name: "the statement's LIMIT is the limit",
+			sql:  "SELECT * FROM spans " + findSpansWindow + " LIMIT 1",
+			cap:  100,
+			want: 1,
+		},
+		{
+			name: "the server cap stands in for an absent LIMIT",
+			sql:  "SELECT * FROM spans " + findSpansWindow,
+			cap:  100,
+			want: 100,
+		},
+		{
+			name: "the server cap bounds LIMIT",
+			sql:  "SELECT * FROM spans " + findSpansWindow + " LIMIT 500",
+			cap:  100,
+			want: 100,
+		},
+		{
+			name: "without a cap, LIMIT passes through",
 			sql:  "SELECT * FROM spans " + findSpansWindow + " LIMIT 7",
 			want: 7,
 		},
 		{
-			name:       "LIMIT overrides max_results",
-			sql:        "SELECT * FROM spans " + findSpansWindow + " LIMIT 7",
-			maxResults: 50,
-			want:       7,
-		},
-		{
-			name:       "max_results applies without LIMIT",
-			sql:        "SELECT * FROM spans " + findSpansWindow,
-			maxResults: 50,
-			want:       50,
-		},
-		{
-			name: "the server cap applies without either",
+			name: "without a cap or LIMIT, zero leaves the default to the query service",
 			sql:  "SELECT * FROM spans " + findSpansWindow,
-			want: 100,
-		},
-		{
-			name: "the server cap applies to LIMIT",
-			sql:  "SELECT * FROM spans " + findSpansWindow + " LIMIT 500",
-			want: 100,
+			want: 0,
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			handler := &findSpansHandler{maxResults: 100}
-			_, limit, err := handler.buildQuery(types.FindSpansInput{SQL: tt.sql, MaxResults: tt.maxResults})
+			handler := &findSpansHandler{maxResults: tt.cap}
+			query, limit, err := handler.buildQuery(types.FindSpansInput{SQL: tt.sql})
 			require.NoError(t, err)
 			assert.Equal(t, tt.want, limit)
+			assert.Equal(t, tt.want, query.Pagination.PageSize)
 		})
 	}
-}
-
-// TestFindSpansHandler_EffectiveLimit_NoCap pins that a server without a cap passes the
-// requested limit through, and a zero limit through as zero for the query service to default.
-func TestFindSpansHandler_EffectiveLimit_NoCap(t *testing.T) {
-	handler := &findSpansHandler{}
-	assert.EqualValues(t, 7, handler.effectiveLimit(7, 0))
-	assert.EqualValues(t, 0, handler.effectiveLimit(0, 0))
-}
-
-// TestFindSpansHandler_BuildQuery_PageSizeMatchesLimit pins that the effective limit is also
-// the page size the backend is asked for, so a request for one span does not make the backend
-// fetch a full default page and then discard most of it.
-func TestFindSpansHandler_BuildQuery_PageSizeMatchesLimit(t *testing.T) {
-	handler := &findSpansHandler{maxResults: 100}
-	query, limit, err := handler.buildQuery(types.FindSpansInput{
-		SQL: "SELECT * FROM spans " + findSpansWindow, MaxResults: 1,
-	})
-	require.NoError(t, err)
-	assert.EqualValues(t, 1, limit)
-	assert.EqualValues(t, 1, query.Pagination.PageSize)
 }
 
 // TestFindSpansHandler_BuildQuery_Refusals covers the two refusals that are the handler's

@@ -89,8 +89,7 @@ outer:
 }
 
 // buildQuery compiles input.SQL (RFC 0019) into the span search it describes, and the
-// effective result limit: the statement's own LIMIT when present, else input.MaxResults,
-// clamped either way to the server's configured cap.
+// effective result limit: the statement's own LIMIT, clamped to the server's configured cap.
 func (h *findSpansHandler) buildQuery(input types.FindSpansInput) (querysvc.SpanQueryParams, uint32, error) {
 	if strings.TrimSpace(input.SQL) == "" {
 		return querysvc.SpanQueryParams{}, 0, errors.New("sql is required")
@@ -106,7 +105,7 @@ func (h *findSpansHandler) buildQuery(input types.FindSpansInput) (querysvc.Span
 				"[ORDER BY ...] [LIMIT n]. Both bounds on start_time are required")
 	}
 
-	limit := h.effectiveLimit(input.MaxResults, query.Limit)
+	limit := h.effectiveLimit(query.Limit)
 	return querysvc.SpanQueryParams{
 		StartTimeMin: query.StartTimeMin,
 		StartTimeMax: query.StartTimeMax,
@@ -116,19 +115,15 @@ func (h *findSpansHandler) buildQuery(input types.FindSpansInput) (querysvc.Span
 	}, limit, nil
 }
 
-// effectiveLimit is the page size the backend is asked for: the statement's own LIMIT when
-// present, else requested (input.MaxResults), with the server's configured cap applied either
-// way. A zero result here is passed through as a zero PageSize, which the query service reads
-// as its own default, rather than this handler guessing at one.
-func (h *findSpansHandler) effectiveLimit(requested, compiledLimit uint32) uint32 {
-	limit := requested
-	if compiledLimit > 0 {
-		limit = compiledLimit
+// effectiveLimit is the page size the backend is asked for: the statement's own LIMIT,
+// clamped to the server's configured cap, which also stands in for an absent LIMIT. With no
+// cap, an absent LIMIT is passed through as a zero PageSize, which the query service reads as
+// its own default, rather than this handler guessing at one.
+func (h *findSpansHandler) effectiveLimit(compiledLimit uint32) uint32 {
+	if h.maxResults > 0 && (compiledLimit == 0 || compiledLimit > h.maxResults) {
+		return h.maxResults
 	}
-	if h.maxResults > 0 && (limit == 0 || limit > h.maxResults) {
-		limit = h.maxResults
-	}
-	return limit
+	return compiledLimit
 }
 
 // buildSpanSummary is the identity and shape of one span, the same fields that
