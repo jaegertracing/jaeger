@@ -51,7 +51,7 @@ The `span_id` and `trace_id` of an event or link appear only in the optional cor
 | `duration` | duration |
 | `span_count`, `error_count` | number |
 
-The columns of `traces` are the RFC 0011 summary fields. They may be selected but not filtered on, because the expression tree has no trace-level fields; the only `WHERE` on `traces` is `trace_id IN (SELECT trace_id FROM spans WHERE ...)`.
+The columns of `traces` are the RFC 0011 summary fields. A traces query selects `*` and returns every one of them; a column list is refused, because the expression tree has no trace level to carry a summary column, and they cannot be filtered on either: the only `WHERE` on `traces` is `trace_id IN (SELECT trace_id FROM spans WHERE ...)`.
 
 ## Statement shape selects the method
 

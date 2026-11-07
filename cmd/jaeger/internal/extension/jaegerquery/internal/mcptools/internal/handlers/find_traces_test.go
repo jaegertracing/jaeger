@@ -8,6 +8,7 @@ import (
 	"errors"
 	"iter"
 	"slices"
+	"strings"
 	"testing"
 	"time"
 
@@ -328,11 +329,6 @@ func TestFindTracesHandler_Handle_Refusals(t *testing.T) {
 			wantErr: []string{"invalid sql: find_traces takes one of: SELECT DISTINCT trace_id FROM spans WHERE"},
 		},
 		{
-			name:    "a column list over traces",
-			sql:     "SELECT trace_id, root_service FROM traces WHERE trace_id IN (SELECT trace_id FROM spans " + findTracesWindow + ")",
-			wantErr: []string{"invalid sql: ", "a column list over traces is not supported yet"},
-		},
-		{
 			name:    "a compiler error carries the invalid sql prefix",
 			sql:     "SELECT DISTINCT trace_id FROM spans WHERE service = 'checkout'",
 			wantErr: []string{"invalid sql: line 1:37:"},
@@ -428,7 +424,7 @@ func TestFindTracesHandler_Handle_UsingMemoryStore(t *testing.T) {
 // TestFindTracesHandler_ColumnListSchemaMatchesBehavior ties the NoColumnList sentence in the
 // tool's schema to what the tool does with a column list over traces: the schema carries the
 // sentence exactly when the call is refused. When a result is shaped by the list, the refusal
-// in buildQuery goes and this test fails until the sentence is removed from the schema.
+// in the compiler goes and this test fails until the sentence is removed from the schema.
 func TestFindTracesHandler_ColumnListSchemaMatchesBehavior(t *testing.T) {
 	store, err := memory.NewStore(memory.Configuration{MaxTraces: 10})
 	require.NoError(t, err)
@@ -442,7 +438,7 @@ func TestFindTracesHandler_ColumnListSchemaMatchesBehavior(t *testing.T) {
 	}
 	_, _, err = handler.handle(context.Background(), &mcp.CallToolRequest{}, input)
 
-	refused := err != nil
+	refused := err != nil && strings.Contains(err.Error(), "a column list over traces is not supported yet")
 	assert.Equal(t, refused, schemaSaysNoColumnList(t, input),
 		"the find_traces schema must say %q exactly when a column list is refused; got %v", types.NoColumnList, err)
 }

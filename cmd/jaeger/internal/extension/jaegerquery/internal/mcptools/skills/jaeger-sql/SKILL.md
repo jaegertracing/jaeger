@@ -85,7 +85,7 @@ Every attribute predicate names its level. When the level is unknown, `attribute
 
 ### `traces`
 
-`trace_id`, `root_service`, `root_name`, `start_time`, `duration`, `span_count`, `error_count`. These columns may not be filtered on, and `find_traces` returns every one of them, so write `SELECT *`; a column list is refused. The only `WHERE` on `traces` is `trace_id IN (SELECT trace_id FROM spans WHERE ...)`.
+`trace_id`, `root_service`, `root_name`, `start_time`, `duration`, `span_count`, `error_count`. These columns may not be filtered on, and `find_traces` returns the whole summary of each trace, so write `SELECT *`; a column list is refused. The only `WHERE` on `traces` is `trace_id IN (SELECT trace_id FROM spans WHERE ...)`.
 
 ## Values
 

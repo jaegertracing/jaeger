@@ -165,7 +165,7 @@ flowchart LR
     shape --> compile[["compile"]]
     compile --> expr["RFC 0005 Expression<br/>+ window, order,<br/>limit, projection"]
     expr --> caps[["capability check<br/>(ADR-013)"]]
-    caps --> rpc["FindTraceIDs / FindSpans /<br/>FindTraces / FindTraceSummaries"]
+    caps --> rpc["FindTraceIDs / FindSpans /<br/>FindTraces"]
 ```
 
 **Parse** is the library's job. Its output is the library's AST for the whole statement, including constructs the dialect will refuse; a full-dialect parser is an asset here, because a model that writes `GROUP BY` gets "aggregation is not supported yet" instead of a tokenizer error at the first unexpected keyword.
@@ -180,7 +180,7 @@ flowchart LR
 
 Three additions, all additive, in the order they ship:
 
-1. **The MCP `find_traces` tool** takes the `sql` input and compiles it in the handler, so the query service sees the same parameters a structured request carries. The tool first gained the input beside its structured filter inputs and then dropped those, as `find_spans` was built with `sql` alone: two spellings of one search cost the handler a mutual-exclusion check and the agent a choice, and the statement says everything the structured inputs said. The dialect reaches the agent as a skill served through `read_skill`, which the `sql` input's description points at. For an agent this is the whole feature, and it needs no change to the API or the IDL; the two items below exist so that the MCP server is not the only client.
+1. **The MCP `find_traces` tool** takes the `sql` input and compiles it in the handler, so the query service sees the same parameters a structured request carries. The structured filter inputs the tool first carried beside `sql` were dropped, since the statement says everything they said and `find_spans` was built with `sql` alone. The dialect reaches the agent as a skill served through `read_skill`, which the `sql` input's description points at. For an agent this is the whole feature, and it needs no change to the API or the IDL; the two items below exist so that the MCP server is not the only client.
 2. **A `sql` field** (`string`) on `TraceQueryParameters` and `SpanQueryParameters` in api_v3, in the same mutual-exclusion group as `filter` and the legacy predicate fields. The HTTP gateway takes it as a query parameter or request-body field; the gRPC service as the field. The query service compiles it before anything else looks at the request, so storage, capability checks and admission see a request indistinguishable from one that arrived with `filter`.
 3. **`ExplainQuery`** (name provisional), an RPC taking the SQL and returning the normalized SQL, the compiled `Expression`, the chosen method, the extracted window, and the warnings, or the error. It is the dry run of G5. It is also what a UI "SQL mode" would call for inline validation.
 

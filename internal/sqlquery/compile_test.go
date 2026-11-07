@@ -1050,7 +1050,7 @@ func TestRefusals(t *testing.T) {
 			want: "a column alias in ORDER BY has no effect",
 		},
 		{
-			name: "traces column of another alias",
+			name: "traces single column",
 			sql: `
 				SELECT x.trace_id
 				FROM traces t
@@ -1892,16 +1892,16 @@ func TestRefusals(t *testing.T) {
 			want: "a trace search has no ORDER BY",
 		},
 		{
-			name: "traces unknown column",
+			name: "traces column list",
 			sql: `
-				SELECT trace_id, name
-				FROM traces
-				WHERE trace_id IN (
+				SELECT t.trace_id, root_service
+				FROM traces t
+				WHERE t.trace_id IN (
 					SELECT trace_id
 					FROM spans
 					WHERE between(start_time, now() - '1h', now())
 				)`,
-			at:   "trace_id, name",
+			at:   "t.trace_id, root_service",
 			want: "a column list over traces is not supported yet",
 			hint: "Write SELECT * FROM traces",
 		},
