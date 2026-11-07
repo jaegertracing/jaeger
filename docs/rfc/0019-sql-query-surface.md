@@ -3,7 +3,7 @@
 - **Status:** Draft
 - **Author:** Yuri Shkuro
 - **Created:** 2026-10-23
-- **Last Updated:** 2026-10-23
+- **Last Updated:** 2026-11-06
 - **Related:** [RFC 0005 (structured query filters)](0005-structured-query-filters.md) · [RFC 0016 (span search)](0016-span-search.md) · [RFC 0014 (search result pagination)](0014-search-result-pagination.md) · [RFC 0011 (trace summary API)](0011-trace-summary-api.md) · [ADR-002 (MCP server)](../adr/002-mcp-server.md) · [ADR-013 (storage capability declaration)](../adr/013-storage-capability-declaration.md)
 
 ---
@@ -301,7 +301,8 @@ Option D is the status quo plus a better skill document, and it is cheap. It fai
 Each milestone is independently shippable.
 
 - ✅ **M0 — Parser spike.** Delivered as the `internal/sqlquery` package: the compiler for every construct of §4, with a corpus of 44 accepted statements that compile to the builder's trees byte for byte and 172 refused statements whose message and position are asserted, all against `clickhouse-sql-parser`. The findings are recorded in §4.2 and §6.3. The package is not yet reachable from the API or the MCP tools; M1 wires it into its first client.
-- ✅ **M1 — MCP `find_traces`.** Delivered in #9925: the `sql` input of the tool, compiled in the handler for the trace-returning shapes of §4.4, and the `jaeger-sql` skill served through `read_skill`. No API or IDL change. *Exit met:* a statement sent through the tool returns the same traces as the equivalent structured inputs, shown against the memory backend in the handler's tests. The span-returning shape of §4.4 reaches `FindSpans` through the `find_spans` tool, delivered in [#9643](https://github.com/jaegertracing/jaeger/pull/9643) under RFC 0016 M7; the projection a column list compiles to is carried but not yet applied to the output.
+- ✅ **M1 — MCP `find_traces`.** Delivered in #9925: the `sql` input of the tool, compiled in the handler for the trace-returning shapes of §4.4, and the `jaeger-sql` skill served through `read_skill`. No API or IDL change. *Exit met:* a statement sent through the tool returns the same traces as the equivalent structured inputs, shown against the memory backend in the handler's tests.
+- ✅ **M1a — MCP `find_spans`.** Delivered in [#9643](https://github.com/jaegertracing/jaeger/pull/9643) as RFC 0016 M7: the span-returning shape of §4.4 compiled in the tool's handler and sent to `FindSpans` with the window, the filter, the order and the limit. The projection a column list compiles to is carried but not yet applied to the output. *Exit met:* a span statement sent through the tool returns the matching spans, shown against the memory backend in the handler's tests.
 - **M2 — `WHERE` tier in api_v3.** The `sql` field on `TraceQueryParameters` for `FindTraceIDs`, `FindTraces` and `FindTraceSummaries`, and `ExplainQuery`. *Exit:* a statement sent through the API returns the same traces as the equivalent `filter`.
 - **M3 — Result shaping.** The `sql` field on `SpanQueryParameters`, so that `SELECT *` and column lists over `spans` reach `FindSpans` with the ordering, limit and projection the compiler already produces, as RFC 0016 lands those fields. *Exit:* the shared storage integration suite's filter battery runs its cases through SQL as well as through `filter`.
 - **M4 — Aggregation.** `GROUP BY`, `HAVING` and the aggregate functions compile to the row-returning method of RFC 0016 §5 when that method exists. This milestone is owned by that RFC's successor and listed here so the clause mapping is reserved.

@@ -245,12 +245,12 @@ func TestFindSpansHandler_BuildQuery_Refusals(t *testing.T) {
 		{
 			name:    "a trace-ID search",
 			sql:     "SELECT DISTINCT trace_id FROM spans " + findSpansWindow,
-			wantErr: "invalid sql: the statement selects traces, and find_spans returns spans. Send it to find_traces instead",
+			wantErr: "invalid sql: find_spans takes a statement that selects from spans",
 		},
 		{
 			name:    "a whole-traces search",
 			sql:     "SELECT * FROM traces WHERE trace_id IN (SELECT trace_id FROM spans " + findSpansWindow + ")",
-			wantErr: "invalid sql: the statement selects traces, and find_spans returns spans. Send it to find_traces instead",
+			wantErr: "invalid sql: find_spans takes a statement that selects from spans",
 		},
 		{
 			name:    "a compile error carries the position and the hint",
@@ -296,7 +296,7 @@ func TestFindSpansHandler_Handle_ServedByMemoryStore(t *testing.T) {
 	assert.Empty(t, output.Error)
 }
 
-func TestFindSpansHandler_Handle_WithErrorsFilter(t *testing.T) {
+func TestFindSpansHandler_Handle_StatusFilter(t *testing.T) {
 	trace := createTestTraceWithSpans("trace111", []spanConfig{
 		{spanID: "span0001", operation: "/error", hasError: true, errorMessage: "boom"},
 	})

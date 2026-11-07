@@ -835,7 +835,7 @@ func TestFindTracesHandler_BuildSQLQuery_Refusals(t *testing.T) {
 		{
 			name:    "a span search",
 			input:   types.FindTracesInput{SQL: "SELECT * FROM spans WHERE between(start_time, now() - '1h', now())"},
-			wantErr: "invalid sql: the statement selects spans, and find_traces returns traces. Send it to find_spans instead",
+			wantErr: "invalid sql: find_traces takes a statement that returns traces",
 		},
 		{
 			name: "a compile error carries the position and the hint",

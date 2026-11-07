@@ -21,7 +21,7 @@ import (
 	"github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore"
 )
 
-// findSpansQueryService defines the interface we need from QueryService for find_spans.
+// findSpansQueryService is the part of QueryService that find_spans calls.
 type findSpansQueryService interface {
 	FindSpans(ctx context.Context, query querysvc.SpanQueryParams) iter.Seq2[tracestore.PageChunk[ptrace.Traces], error]
 }
@@ -101,9 +101,8 @@ func (h *findSpansHandler) buildQuery(input types.FindSpansInput) (querysvc.Span
 	}
 	if query.Kind != sqlquery.KindFindSpans {
 		return querysvc.SpanQueryParams{}, 0, errors.New(
-			"invalid sql: the statement selects traces, and find_spans returns spans. " +
-				"Send it to find_traces instead, or write SELECT * FROM spans WHERE ... " +
-				"to search spans")
+			"invalid sql: find_spans takes a statement that selects from spans: " +
+				"SELECT * FROM spans WHERE ...")
 	}
 
 	limit := h.effectiveLimit(input.MaxResults, query.Limit)
