@@ -424,3 +424,25 @@ func TestFindTracesHandler_Handle_UsingMemoryStore(t *testing.T) {
 		})
 	}
 }
+
+// TestFindTracesHandler_ColumnListSchemaMatchesBehavior ties the NoColumnList sentence in the
+// tool's schema to what the tool does with a column list over traces: the schema carries the
+// sentence exactly when the call is refused. When a result is shaped by the list, the refusal
+// in buildQuery goes and this test fails until the sentence is removed from the schema.
+func TestFindTracesHandler_ColumnListSchemaMatchesBehavior(t *testing.T) {
+	store, err := memory.NewStore(memory.Configuration{MaxTraces: 10})
+	require.NoError(t, err)
+	handler := &findTracesHandler{
+		queryService: querysvc.NewQueryService(store, store, querysvc.QueryServiceOptions{}),
+		maxResults:   100,
+	}
+
+	input := types.FindTracesInput{
+		SQL: "SELECT trace_id, root_service FROM traces WHERE trace_id IN (SELECT trace_id FROM spans " + findTracesWindow + ")",
+	}
+	_, _, err = handler.handle(context.Background(), &mcp.CallToolRequest{}, input)
+
+	refused := err != nil
+	assert.Equal(t, refused, schemaSaysNoColumnList(t, input),
+		"the find_traces schema must say %q exactly when a column list is refused; got %v", types.NoColumnList, err)
+}
