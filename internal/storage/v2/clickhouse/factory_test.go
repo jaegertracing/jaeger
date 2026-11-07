@@ -168,6 +168,13 @@ func TestNewFactory_Errors(t *testing.T) {
 			expectedError: "failed to create trace id timestamps materialized view",
 		},
 		{
+			name: "trace id timestamps materialized view query update error",
+			failureConfig: clickhousetest.FailureConfig{
+				sql.AlterTraceIDTimestampsMaterializedView: assert.AnError,
+			},
+			expectedError: "failed to create trace id timestamps materialized view query",
+		},
+		{
 			name: "attribute metadata table creation error",
 			failureConfig: clickhousetest.FailureConfig{
 				schemaQuery(t, "attribute metadata table"): assert.AnError,

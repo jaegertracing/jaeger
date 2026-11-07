@@ -426,6 +426,14 @@ var CreateTraceIDTimestampsTable string
 //go:embed create_trace_id_timestamps_mv.sql
 var CreateTraceIDTimestampsMaterializedView string
 
+// AlterTraceIDTimestampsMaterializedView replaces the query of an existing
+// trace_id_timestamps_mv, because CreateTraceIDTimestampsMaterializedView is a no-op
+// on a database where the view already exists. Its SELECT must match the one in
+// CreateTraceIDTimestampsMaterializedView.
+//
+//go:embed alter_trace_id_timestamps_mv.sql
+var AlterTraceIDTimestampsMaterializedView string
+
 //go:embed create_attribute_metadata_table.sql
 var CreateAttributeMetadataTable string
 
