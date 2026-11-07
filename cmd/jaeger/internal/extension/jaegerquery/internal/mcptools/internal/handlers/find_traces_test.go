@@ -89,7 +89,7 @@ func TestToMCPTraceSummary_MultipleServices(t *testing.T) {
 	assert.Equal(t, []string{"api-gateway", "payment", "user-service"}, out.Services)
 }
 
-func TestSearchTracesHandler_Handle_FullWorkflow(t *testing.T) {
+func TestFindTracesHandler_Handle_FullWorkflow(t *testing.T) {
 	want := makeTraceSummary("cart-service", "/get-cart", false)
 
 	mock := &mockQueryService{
@@ -103,9 +103,9 @@ func TestSearchTracesHandler_Handle_FullWorkflow(t *testing.T) {
 		},
 	}
 
-	handler := &searchTracesHandler{queryService: mock, maxResults: 100}
+	handler := &findTracesHandler{queryService: mock, maxResults: 100}
 
-	input := types.SearchTracesInput{
+	input := types.FindTracesInput{
 		StartTimeMin: "-1h",
 		ServiceName:  "cart-service",
 		SpanName:     "/get-cart",
@@ -119,13 +119,13 @@ func TestSearchTracesHandler_Handle_FullWorkflow(t *testing.T) {
 	assert.Equal(t, "/get-cart", output.Traces[0].RootSpanName)
 }
 
-func TestSearchTracesHandler_Handle_WithStartTimeMax(t *testing.T) {
+func TestFindTracesHandler_Handle_WithStartTimeMax(t *testing.T) {
 	want := makeTraceSummary("test-service", "/test", false)
 	mock := newMockFindTraceSummaries(want)
 
-	handler := &searchTracesHandler{queryService: mock, maxResults: 100}
+	handler := &findTracesHandler{queryService: mock, maxResults: 100}
 
-	input := types.SearchTracesInput{
+	input := types.FindTracesInput{
 		StartTimeMin: "-2h",
 		StartTimeMax: "-1h",
 		ServiceName:  "test-service",
@@ -137,7 +137,7 @@ func TestSearchTracesHandler_Handle_WithStartTimeMax(t *testing.T) {
 	require.Len(t, output.Traces, 1)
 }
 
-func TestSearchTracesHandler_Handle_WithDurations(t *testing.T) {
+func TestFindTracesHandler_Handle_WithDurations(t *testing.T) {
 	want := makeTraceSummary("slow-service", "/slow", false)
 
 	mock := &mockQueryService{
@@ -150,9 +150,9 @@ func TestSearchTracesHandler_Handle_WithDurations(t *testing.T) {
 		},
 	}
 
-	handler := &searchTracesHandler{queryService: mock, maxResults: 100}
+	handler := &findTracesHandler{queryService: mock, maxResults: 100}
 
-	input := types.SearchTracesInput{
+	input := types.FindTracesInput{
 		StartTimeMin: "-1h",
 		ServiceName:  "slow-service",
 		DurationMin:  "2s",
@@ -165,7 +165,7 @@ func TestSearchTracesHandler_Handle_WithDurations(t *testing.T) {
 	require.Len(t, output.Traces, 1)
 }
 
-func TestSearchTracesHandler_Handle_WithAttributes(t *testing.T) {
+func TestFindTracesHandler_Handle_WithAttributes(t *testing.T) {
 	want := makeTraceSummary("api-service", "/api", false)
 
 	mock := &mockQueryService{
@@ -179,9 +179,9 @@ func TestSearchTracesHandler_Handle_WithAttributes(t *testing.T) {
 		},
 	}
 
-	handler := &searchTracesHandler{queryService: mock, maxResults: 100}
+	handler := &findTracesHandler{queryService: mock, maxResults: 100}
 
-	input := types.SearchTracesInput{
+	input := types.FindTracesInput{
 		StartTimeMin: "-1h",
 		ServiceName:  "api-service",
 		Attributes: map[string]string{
@@ -195,7 +195,7 @@ func TestSearchTracesHandler_Handle_WithAttributes(t *testing.T) {
 	require.Len(t, output.Traces, 1)
 }
 
-func TestSearchTracesHandler_Handle_WithErrorsFilter(t *testing.T) {
+func TestFindTracesHandler_Handle_WithErrorsFilter(t *testing.T) {
 	errSummary := makeTraceSummary("error-service", "/error", true)
 
 	mock := &mockQueryService{
@@ -209,9 +209,9 @@ func TestSearchTracesHandler_Handle_WithErrorsFilter(t *testing.T) {
 		},
 	}
 
-	handler := &searchTracesHandler{queryService: mock, maxResults: 100}
+	handler := &findTracesHandler{queryService: mock, maxResults: 100}
 
-	input := types.SearchTracesInput{
+	input := types.FindTracesInput{
 		StartTimeMin: "-1h",
 		ServiceName:  "error-service",
 		WithErrors:   true,
@@ -224,7 +224,7 @@ func TestSearchTracesHandler_Handle_WithErrorsFilter(t *testing.T) {
 	assert.True(t, output.Traces[0].HasErrors)
 }
 
-func TestSearchTracesHandler_Handle_WithErrorsFilter_UsingMemoryStore(t *testing.T) {
+func TestFindTracesHandler_Handle_WithErrorsFilter_UsingMemoryStore(t *testing.T) {
 	store, err := memory.NewStore(memory.Configuration{MaxTraces: 10})
 	require.NoError(t, err)
 
@@ -241,12 +241,12 @@ func TestSearchTracesHandler_Handle_WithErrorsFilter_UsingMemoryStore(t *testing
 		true,
 	)))
 
-	handler := &searchTracesHandler{
+	handler := &findTracesHandler{
 		queryService: querysvc.NewQueryService(store, store, querysvc.QueryServiceOptions{}),
 		maxResults:   100,
 	}
 
-	input := types.SearchTracesInput{
+	input := types.FindTracesInput{
 		StartTimeMin: "-1h",
 		ServiceName:  "test",
 		WithErrors:   true,
@@ -262,7 +262,7 @@ func TestSearchTracesHandler_Handle_WithErrorsFilter_UsingMemoryStore(t *testing
 	assert.Empty(t, output.Error)
 }
 
-func TestSearchTracesHandler_Handle_SearchDepthDefault(t *testing.T) {
+func TestFindTracesHandler_Handle_SearchDepthDefault(t *testing.T) {
 	want := makeTraceSummary("test", "/test", false)
 
 	mock := &mockQueryService{
@@ -274,9 +274,9 @@ func TestSearchTracesHandler_Handle_SearchDepthDefault(t *testing.T) {
 		},
 	}
 
-	handler := &searchTracesHandler{queryService: mock, maxResults: 100}
+	handler := &findTracesHandler{queryService: mock, maxResults: 100}
 
-	input := types.SearchTracesInput{
+	input := types.FindTracesInput{
 		StartTimeMin: "-1h",
 		ServiceName:  "test",
 		SearchDepth:  0,
@@ -286,7 +286,7 @@ func TestSearchTracesHandler_Handle_SearchDepthDefault(t *testing.T) {
 	require.NoError(t, err)
 }
 
-func TestSearchTracesHandler_Handle_SearchDepthMax(t *testing.T) {
+func TestFindTracesHandler_Handle_SearchDepthMax(t *testing.T) {
 	want := makeTraceSummary("test", "/test", false)
 
 	mock := &mockQueryService{
@@ -298,9 +298,9 @@ func TestSearchTracesHandler_Handle_SearchDepthMax(t *testing.T) {
 		},
 	}
 
-	handler := &searchTracesHandler{queryService: mock, maxResults: 100}
+	handler := &findTracesHandler{queryService: mock, maxResults: 100}
 
-	input := types.SearchTracesInput{
+	input := types.FindTracesInput{
 		StartTimeMin: "-1h",
 		ServiceName:  "test",
 		SearchDepth:  200, // capped at maxResults=100
@@ -310,7 +310,7 @@ func TestSearchTracesHandler_Handle_SearchDepthMax(t *testing.T) {
 	require.NoError(t, err)
 }
 
-func TestSearchTracesHandler_Handle_SearchDepthUnlimitedMaxResults(t *testing.T) {
+func TestFindTracesHandler_Handle_SearchDepthUnlimitedMaxResults(t *testing.T) {
 	want := makeTraceSummary("test", "/test", false)
 
 	mock := &mockQueryService{
@@ -323,9 +323,9 @@ func TestSearchTracesHandler_Handle_SearchDepthUnlimitedMaxResults(t *testing.T)
 	}
 
 	// maxResults == 0 means "no global cap", so an explicit search_depth must be preserved.
-	handler := &searchTracesHandler{queryService: mock, maxResults: 0}
+	handler := &findTracesHandler{queryService: mock, maxResults: 0}
 
-	input := types.SearchTracesInput{
+	input := types.FindTracesInput{
 		StartTimeMin: "-1h",
 		ServiceName:  "test",
 		SearchDepth:  25,
@@ -335,7 +335,7 @@ func TestSearchTracesHandler_Handle_SearchDepthUnlimitedMaxResults(t *testing.T)
 	require.NoError(t, err)
 }
 
-func TestSearchTracesHandler_Handle_QueryError(t *testing.T) {
+func TestFindTracesHandler_Handle_QueryError(t *testing.T) {
 	want := makeTraceSummary("test-service", "/api/test", false)
 
 	mock := &mockQueryService{
@@ -347,9 +347,9 @@ func TestSearchTracesHandler_Handle_QueryError(t *testing.T) {
 		},
 	}
 
-	handler := &searchTracesHandler{queryService: mock, maxResults: 100}
+	handler := &findTracesHandler{queryService: mock, maxResults: 100}
 
-	input := types.SearchTracesInput{
+	input := types.FindTracesInput{
 		StartTimeMin: "-1h",
 		ServiceName:  "test",
 	}
@@ -363,7 +363,7 @@ func TestSearchTracesHandler_Handle_QueryError(t *testing.T) {
 	assert.Contains(t, output.Error, "database connection failed")
 }
 
-func TestSearchTracesHandler_Handle_PartialResults(t *testing.T) {
+func TestFindTracesHandler_Handle_PartialResults(t *testing.T) {
 	s1 := makeTraceSummary("test-service", "/api/test1", false)
 	s2 := makeTraceSummary("test-service", "/api/test2", false)
 
@@ -382,9 +382,9 @@ func TestSearchTracesHandler_Handle_PartialResults(t *testing.T) {
 		},
 	}
 
-	handler := &searchTracesHandler{queryService: mock, maxResults: 100}
+	handler := &findTracesHandler{queryService: mock, maxResults: 100}
 
-	input := types.SearchTracesInput{
+	input := types.FindTracesInput{
 		StartTimeMin: "-1h",
 		ServiceName:  "test",
 	}
@@ -398,11 +398,11 @@ func TestSearchTracesHandler_Handle_PartialResults(t *testing.T) {
 	assert.Contains(t, output.Error, "temporary failure")
 }
 
-// TestSearchTracesHandler_Handle_NoServiceName covers the cross-service search an agent can
+// TestFindTracesHandler_Handle_NoServiceName covers the cross-service search an agent can
 // now ask for: the tool forwards a query with no service name instead of refusing it, so an
 // agent asked for "HTTP 500s in the last 10 minutes" makes one call rather than fanning out
 // over get_services (RFC 0013).
-func TestSearchTracesHandler_Handle_NoServiceName(t *testing.T) {
+func TestFindTracesHandler_Handle_NoServiceName(t *testing.T) {
 	var gotQuery querysvc.TraceQueryParams
 	mock := &mockQueryService{
 		findTraceSummariesFunc: func(_ context.Context, query querysvc.TraceQueryParams) iter.Seq2[[]tracestore.TraceSummary, error] {
@@ -412,9 +412,9 @@ func TestSearchTracesHandler_Handle_NoServiceName(t *testing.T) {
 			}
 		},
 	}
-	handler := &searchTracesHandler{queryService: mock, maxResults: 100}
+	handler := &findTracesHandler{queryService: mock, maxResults: 100}
 
-	_, output, err := handler.handle(context.Background(), &mcp.CallToolRequest{}, types.SearchTracesInput{
+	_, output, err := handler.handle(context.Background(), &mcp.CallToolRequest{}, types.FindTracesInput{
 		StartTimeMin: "-1h",
 		Attributes:   map[string]string{"http.status_code": "500"},
 	})
@@ -425,34 +425,31 @@ func TestSearchTracesHandler_Handle_NoServiceName(t *testing.T) {
 	assert.Empty(t, output.Error)
 }
 
-// TestSearchTracesHandler_Handle_ServiceNameRequiredByBackend covers the other side: the
-// query service refuses the query for a backend that cannot serve it, and the agent is told
-// why rather than being handed an empty result set described as partial.
-func TestSearchTracesHandler_Handle_ServiceNameRequiredByBackend(t *testing.T) {
+// TestFindTracesHandler_Handle_ErrorBeforeAnyResult covers a search that fails before
+// any summary came back: the call fails with that error instead of returning an empty page.
+func TestFindTracesHandler_Handle_ErrorBeforeAnyResult(t *testing.T) {
+	refused := errors.New("backend refused the query")
 	mock := &mockQueryService{
 		findTraceSummariesFunc: func(_ context.Context, _ querysvc.TraceQueryParams) iter.Seq2[[]tracestore.TraceSummary, error] {
 			return func(yield func([]tracestore.TraceSummary, error) bool) {
-				yield(nil, querysvc.ErrServiceNameRequired)
+				yield(nil, refused)
 			}
 		},
 	}
-	handler := &searchTracesHandler{queryService: mock, maxResults: 100}
+	handler := &findTracesHandler{queryService: mock, maxResults: 100}
 
-	_, output, err := handler.handle(context.Background(), &mcp.CallToolRequest{}, types.SearchTracesInput{
+	_, output, err := handler.handle(context.Background(), &mcp.CallToolRequest{}, types.FindTracesInput{
 		StartTimeMin: "-1h",
 	})
 
-	require.NoError(t, err)
+	require.ErrorIs(t, err, refused)
 	assert.Empty(t, output.Traces)
-	assert.Contains(t, output.Error, "requires a service name")
-	assert.NotContains(t, output.Error, "partial results",
-		"nothing was returned, so the agent must not be told results were partial")
 }
 
-func TestSearchTracesHandler_Handle_InvalidTimeFormat(t *testing.T) {
-	handler := NewSearchTracesHandler(nil, 100)
+func TestFindTracesHandler_Handle_InvalidTimeFormat(t *testing.T) {
+	handler := NewFindTracesHandler(nil, 100)
 
-	input := types.SearchTracesInput{
+	input := types.FindTracesInput{
 		StartTimeMin: "invalid-time",
 		ServiceName:  "test",
 	}
@@ -463,10 +460,10 @@ func TestSearchTracesHandler_Handle_InvalidTimeFormat(t *testing.T) {
 	assert.Contains(t, err.Error(), "invalid start_time_min")
 }
 
-func TestSearchTracesHandler_Handle_InvalidStartTimeMax(t *testing.T) {
-	handler := NewSearchTracesHandler(nil, 100)
+func TestFindTracesHandler_Handle_InvalidStartTimeMax(t *testing.T) {
+	handler := NewFindTracesHandler(nil, 100)
 
-	input := types.SearchTracesInput{
+	input := types.FindTracesInput{
 		StartTimeMin: "-1h",
 		StartTimeMax: "invalid-time",
 		ServiceName:  "test",
@@ -478,10 +475,10 @@ func TestSearchTracesHandler_Handle_InvalidStartTimeMax(t *testing.T) {
 	assert.Contains(t, err.Error(), "invalid start_time_max")
 }
 
-func TestSearchTracesHandler_Handle_InvalidDurationMin(t *testing.T) {
-	handler := NewSearchTracesHandler(nil, 100)
+func TestFindTracesHandler_Handle_InvalidDurationMin(t *testing.T) {
+	handler := NewFindTracesHandler(nil, 100)
 
-	input := types.SearchTracesInput{
+	input := types.FindTracesInput{
 		StartTimeMin: "-1h",
 		ServiceName:  "test",
 		DurationMin:  "invalid-duration",
@@ -493,10 +490,10 @@ func TestSearchTracesHandler_Handle_InvalidDurationMin(t *testing.T) {
 	assert.Contains(t, err.Error(), "invalid duration_min")
 }
 
-func TestSearchTracesHandler_Handle_InvalidDurationMax(t *testing.T) {
-	handler := NewSearchTracesHandler(nil, 100)
+func TestFindTracesHandler_Handle_InvalidDurationMax(t *testing.T) {
+	handler := NewFindTracesHandler(nil, 100)
 
-	input := types.SearchTracesInput{
+	input := types.FindTracesInput{
 		StartTimeMin: "-1h",
 		ServiceName:  "test",
 		DurationMax:  "invalid-duration",
@@ -508,67 +505,16 @@ func TestSearchTracesHandler_Handle_InvalidDurationMax(t *testing.T) {
 	assert.Contains(t, err.Error(), "invalid duration_max")
 }
 
-// TestSearchTracesHandler_Handle_EnvelopeRefusedByQueryService covers the checks this tool no
-// longer makes itself: an inverted time range and a negative or inverted duration bound are the
-// query service's to refuse, and its refusal is what the agent reads. Nothing is returned, so
-// the answer names the refusal rather than calling the results partial.
-func TestSearchTracesHandler_Handle_EnvelopeRefusedByQueryService(t *testing.T) {
-	tests := []struct {
-		name    string
-		input   types.SearchTracesInput
-		wantErr string
-	}{
-		{
-			name:    "start_time_max before start_time_min",
-			input:   types.SearchTracesInput{StartTimeMin: "-1h", StartTimeMax: "-2h", ServiceName: "test"},
-			wantErr: "min start time must be before max start time",
-		},
-		{
-			name:    "duration_max less than duration_min",
-			input:   types.SearchTracesInput{StartTimeMin: "-1h", ServiceName: "test", DurationMin: "10s", DurationMax: "5s"},
-			wantErr: "max duration cannot be less than min duration",
-		},
-		{
-			name:    "negative duration_min",
-			input:   types.SearchTracesInput{StartTimeMin: "-1h", ServiceName: "test", DurationMin: "-5s"},
-			wantErr: "cannot be negative",
-		},
-		{
-			name:    "negative duration_max",
-			input:   types.SearchTracesInput{StartTimeMin: "-1h", ServiceName: "test", DurationMax: "-10s"},
-			wantErr: "cannot be negative",
-		},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			store, err := memory.NewStore(memory.Configuration{MaxTraces: 10})
-			require.NoError(t, err)
-			handler := &searchTracesHandler{
-				queryService: querysvc.NewQueryService(store, store, querysvc.QueryServiceOptions{}),
-				maxResults:   100,
-			}
-
-			_, output, err := handler.handle(context.Background(), &mcp.CallToolRequest{}, tt.input)
-
-			require.NoError(t, err)
-			assert.Empty(t, output.Traces)
-			assert.Contains(t, output.Error, tt.wantErr)
-			assert.NotContains(t, output.Error, "partial results")
-		})
-	}
-}
-
-// TestSearchTracesHandler_Handle_ZeroDurationValid covers the boundary the negative check
-// must not overreach: a zero duration is a valid "no lower/upper bound" sentinel elsewhere
-// in this handler (see the durationMin > 0 && durationMax > 0 guard below), so it must still
-// reach the query service rather than being rejected as negative.
-func TestSearchTracesHandler_Handle_ZeroDurationValid(t *testing.T) {
+// TestFindTracesHandler_Handle_ZeroDurationValid covers the boundary the negative check
+// must not overreach: the query service treats a zero duration as "no lower/upper bound",
+// so it must still reach the query service rather than being rejected as negative.
+func TestFindTracesHandler_Handle_ZeroDurationValid(t *testing.T) {
 	want := makeTraceSummary("test", "/test", false)
 	mock := newMockFindTraceSummaries(want)
 
-	handler := &searchTracesHandler{queryService: mock, maxResults: 100}
+	handler := &findTracesHandler{queryService: mock, maxResults: 100}
 
-	input := types.SearchTracesInput{
+	input := types.FindTracesInput{
 		StartTimeMin: "-1h",
 		ServiceName:  "test",
 		DurationMin:  "0s",
@@ -637,7 +583,7 @@ func TestParseTimeParam(t *testing.T) {
 	}
 }
 
-func TestSearchTracesHandler_Handle_DefaultStartTime(t *testing.T) {
+func TestFindTracesHandler_Handle_DefaultStartTime(t *testing.T) {
 	want := makeTraceSummary("default-service", "/test", false)
 
 	mock := &mockQueryService{
@@ -650,9 +596,9 @@ func TestSearchTracesHandler_Handle_DefaultStartTime(t *testing.T) {
 		},
 	}
 
-	handler := &searchTracesHandler{queryService: mock, maxResults: 100}
+	handler := &findTracesHandler{queryService: mock, maxResults: 100}
 
-	input := types.SearchTracesInput{
+	input := types.FindTracesInput{
 		ServiceName: "default-service",
 	}
 
@@ -662,7 +608,7 @@ func TestSearchTracesHandler_Handle_DefaultStartTime(t *testing.T) {
 	require.Len(t, output.Traces, 1)
 }
 
-func TestSearchTracesHandler_Handle_LimitEnforced(t *testing.T) {
+func TestFindTracesHandler_Handle_LimitEnforced(t *testing.T) {
 	summaries := []tracestore.TraceSummary{
 		makeTraceSummary("svc", "/op1", false),
 		makeTraceSummary("svc", "/op2", false),
@@ -683,9 +629,9 @@ func TestSearchTracesHandler_Handle_LimitEnforced(t *testing.T) {
 		},
 	}
 
-	handler := &searchTracesHandler{queryService: mock, maxResults: 3}
+	handler := &findTracesHandler{queryService: mock, maxResults: 3}
 
-	input := types.SearchTracesInput{
+	input := types.FindTracesInput{
 		StartTimeMin: "-1h",
 		ServiceName:  "svc",
 	}
@@ -696,7 +642,7 @@ func TestSearchTracesHandler_Handle_LimitEnforced(t *testing.T) {
 	assert.Len(t, output.Traces, 3)
 }
 
-func TestSearchTracesHandler_Handle_SQL(t *testing.T) {
+func TestFindTracesHandler_Handle_SQL(t *testing.T) {
 	want := makeTraceSummary("checkout", "/pay", false)
 	mock := &mockQueryService{
 		findTraceSummariesFunc: func(_ context.Context, query querysvc.TraceQueryParams) iter.Seq2[[]tracestore.TraceSummary, error] {
@@ -710,9 +656,9 @@ func TestSearchTracesHandler_Handle_SQL(t *testing.T) {
 			}
 		},
 	}
-	handler := &searchTracesHandler{queryService: mock, maxResults: 100}
+	handler := &findTracesHandler{queryService: mock, maxResults: 100}
 
-	input := types.SearchTracesInput{
+	input := types.FindTracesInput{
 		SQL: `
 			SELECT DISTINCT trace_id
 			FROM spans
@@ -728,17 +674,17 @@ func TestSearchTracesHandler_Handle_SQL(t *testing.T) {
 	assert.Equal(t, "checkout", output.Traces[0].RootService)
 }
 
-// TestSearchTracesHandler_BuildQuery_BlankSQL covers a blank sql input, which means no
+// TestFindTracesHandler_BuildQuery_BlankSQL covers a blank sql input, which means no
 // statement and so leaves the structured inputs in charge.
-func TestSearchTracesHandler_BuildQuery_BlankSQL(t *testing.T) {
-	handler := &searchTracesHandler{maxResults: 100}
-	query, err := handler.buildQuery(types.SearchTracesInput{SQL: " \n\t", ServiceName: "checkout"})
+func TestFindTracesHandler_BuildQuery_BlankSQL(t *testing.T) {
+	handler := &findTracesHandler{maxResults: 100}
+	query, err := handler.buildQuery(types.FindTracesInput{SQL: " \n\t", ServiceName: "checkout"})
 	require.NoError(t, err)
 	assert.Equal(t, "checkout", query.ServiceName)
 	assert.Nil(t, query.Filter)
 }
 
-func TestSearchTracesHandler_BuildSQLQuery_Shapes(t *testing.T) {
+func TestFindTracesHandler_BuildSQLQuery_Shapes(t *testing.T) {
 	const window = "WHERE between(start_time, now() - '1h', now()) AND service = 'checkout'"
 	tests := []struct {
 		name string
@@ -759,8 +705,8 @@ func TestSearchTracesHandler_BuildSQLQuery_Shapes(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			handler := &searchTracesHandler{maxResults: 100}
-			query, err := handler.buildQuery(types.SearchTracesInput{SQL: tt.sql})
+			handler := &findTracesHandler{maxResults: 100}
+			query, err := handler.buildQuery(types.FindTracesInput{SQL: tt.sql})
 			require.NoError(t, err)
 			require.NotNil(t, query.Filter)
 			assert.EqualValues(t, "eq", query.Filter.Op)
@@ -768,7 +714,7 @@ func TestSearchTracesHandler_BuildSQLQuery_Shapes(t *testing.T) {
 	}
 }
 
-func TestSearchTracesHandler_BuildSQLQuery_SearchDepth(t *testing.T) {
+func TestFindTracesHandler_BuildSQLQuery_SearchDepth(t *testing.T) {
 	const window = "WHERE between(start_time, now() - '1h', now())"
 	tests := []struct {
 		name        string
@@ -806,59 +752,55 @@ func TestSearchTracesHandler_BuildSQLQuery_SearchDepth(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			handler := &searchTracesHandler{maxResults: 100}
-			query, err := handler.buildQuery(types.SearchTracesInput{SQL: tt.sql, SearchDepth: tt.searchDepth})
+			handler := &findTracesHandler{maxResults: 100}
+			query, err := handler.buildQuery(types.FindTracesInput{SQL: tt.sql, SearchDepth: tt.searchDepth})
 			require.NoError(t, err)
 			assert.Equal(t, tt.want, query.SearchDepth)
 		})
 	}
 }
 
-// TestSearchTracesHandler_Handle_SQL_EmptyStatement pins that a statement with no SELECT in
+// TestFindTracesHandler_Handle_SQL_EmptyStatement pins that a statement with no SELECT in
 // it, such as a lone semicolon, comes back as an ordinary tool error.
-func TestSearchTracesHandler_Handle_SQL_EmptyStatement(t *testing.T) {
-	handler := &searchTracesHandler{queryService: &mockQueryService{}, maxResults: 100}
+func TestFindTracesHandler_Handle_SQL_EmptyStatement(t *testing.T) {
+	handler := &findTracesHandler{queryService: &mockQueryService{}, maxResults: 100}
 
-	_, output, err := handler.handle(context.Background(), &mcp.CallToolRequest{}, types.SearchTracesInput{SQL: ";"})
+	_, output, err := handler.handle(context.Background(), &mcp.CallToolRequest{}, types.FindTracesInput{SQL: ";"})
 
 	require.ErrorContains(t, err, "invalid sql: ")
 	require.ErrorContains(t, err, "no statement")
 	assert.Empty(t, output.Traces)
 }
 
-func TestSearchTracesHandler_BuildSQLQuery_Refusals(t *testing.T) {
+// TestFindTracesHandler_BuildSQLQuery_Refusals covers the refusals that are the handler's
+// own: a statement of a shape this tool does not serve, the prefix it puts on a compiler
+// error, and a structured input sent beside sql. What the compiler refuses, and how, is the
+// sqlquery package's to test.
+func TestFindTracesHandler_BuildSQLQuery_Refusals(t *testing.T) {
 	const statement = "SELECT DISTINCT trace_id FROM spans WHERE between(start_time, now() - '1h', now())"
 	tests := []struct {
 		name    string
-		input   types.SearchTracesInput
+		input   types.FindTracesInput
 		wantErr string
 	}{
 		{
 			name:    "a span search",
-			input:   types.SearchTracesInput{SQL: "SELECT * FROM spans WHERE between(start_time, now() - '1h', now())"},
-			wantErr: "invalid sql: the statement selects spans, and search_traces returns traces. Write SELECT DISTINCT trace_id FROM spans WHERE ...",
+			input:   types.FindTracesInput{SQL: "SELECT * FROM spans WHERE between(start_time, now() - '1h', now())"},
+			wantErr: "invalid sql: find_traces takes one of: SELECT DISTINCT trace_id FROM spans WHERE",
 		},
 		{
-			name: "a compile error carries the position and the hint",
-			input: types.SearchTracesInput{SQL: `
-				SELECT DISTINCT trace_id
-				FROM spans
-				WHERE service = 'checkout'`},
-			wantErr: "invalid sql: line 4:5: WHERE needs both bounds on start_time. Add both bounds to WHERE",
-		},
-		{
-			name:    "a parse error",
-			input:   types.SearchTracesInput{SQL: "SELEC trace_id FROM spans"},
-			wantErr: "invalid sql: line 1:1:",
+			name:    "a compiler error carries the invalid sql prefix",
+			input:   types.FindTracesInput{SQL: "SELECT DISTINCT trace_id FROM spans WHERE service = 'checkout'"},
+			wantErr: "invalid sql: line 1:37:",
 		},
 		{
 			name:    "one structured input beside sql",
-			input:   types.SearchTracesInput{SQL: statement, ServiceName: "checkout"},
+			input:   types.FindTracesInput{SQL: statement, ServiceName: "checkout"},
 			wantErr: "sql replaces the other filter inputs; remove service_name or write the condition into the statement",
 		},
 		{
 			name: "every structured input beside sql, in the order of the schema",
-			input: types.SearchTracesInput{
+			input: types.FindTracesInput{
 				SQL:          statement,
 				StartTimeMin: "-1h",
 				StartTimeMax: "now",
@@ -874,35 +816,35 @@ func TestSearchTracesHandler_BuildSQLQuery_Refusals(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			handler := NewSearchTracesHandler(nil, 100)
+			handler := NewFindTracesHandler(nil, 100)
 			_, _, err := handler(context.Background(), &mcp.CallToolRequest{}, tt.input)
 			require.ErrorContains(t, err, tt.wantErr)
 		})
 	}
 }
 
-// TestSearchTracesHandler_Handle_SQL_UsingMemoryStore is the exit test of RFC 0019 M1: a
+// TestFindTracesHandler_Handle_SQL_UsingMemoryStore is the exit test of RFC 0019 M1: a
 // statement returns the traces the equivalent structured inputs return.
-func TestSearchTracesHandler_Handle_SQL_UsingMemoryStore(t *testing.T) {
+func TestFindTracesHandler_Handle_SQL_UsingMemoryStore(t *testing.T) {
 	store, err := memory.NewStore(memory.Configuration{MaxTraces: 10})
 	require.NoError(t, err)
 	require.NoError(t, store.WriteTraces(context.Background(), createTestTrace("trace111", "checkout", "/ok", false)))
 	require.NoError(t, store.WriteTraces(context.Background(), createTestTrace("trace222", "checkout", "/error", true)))
 	require.NoError(t, store.WriteTraces(context.Background(), createTestTrace("trace333", "frontend", "/home", false)))
-	handler := &searchTracesHandler{
+	handler := &findTracesHandler{
 		queryService: querysvc.NewQueryService(store, store, querysvc.QueryServiceOptions{}),
 		maxResults:   100,
 	}
 
 	tests := []struct {
 		name       string
-		structured types.SearchTracesInput
+		structured types.FindTracesInput
 		sql        string
 		wantSpans  []string
 	}{
 		{
 			name:       "by service, as trace IDs",
-			structured: types.SearchTracesInput{ServiceName: "checkout"},
+			structured: types.FindTracesInput{ServiceName: "checkout"},
 			sql: `
 				SELECT DISTINCT trace_id
 				FROM spans
@@ -912,7 +854,7 @@ func TestSearchTracesHandler_Handle_SQL_UsingMemoryStore(t *testing.T) {
 		},
 		{
 			name:       "by service and error, as whole traces",
-			structured: types.SearchTracesInput{ServiceName: "checkout", WithErrors: true},
+			structured: types.FindTracesInput{ServiceName: "checkout", WithErrors: true},
 			sql: `
 				SELECT *
 				FROM traces
@@ -927,7 +869,7 @@ func TestSearchTracesHandler_Handle_SQL_UsingMemoryStore(t *testing.T) {
 		},
 		{
 			name:       "a service without traces",
-			structured: types.SearchTracesInput{ServiceName: "payments"},
+			structured: types.FindTracesInput{ServiceName: "payments"},
 			sql: `
 				SELECT DISTINCT trace_id
 				FROM spans
@@ -936,7 +878,7 @@ func TestSearchTracesHandler_Handle_SQL_UsingMemoryStore(t *testing.T) {
 			wantSpans: nil,
 		},
 	}
-	rootSpans := func(output types.SearchTracesOutput) []string {
+	rootSpans := func(output types.FindTracesOutput) []string {
 		var names []string
 		for _, trace := range output.Traces {
 			names = append(names, trace.RootSpanName)
@@ -949,7 +891,7 @@ func TestSearchTracesHandler_Handle_SQL_UsingMemoryStore(t *testing.T) {
 			_, viaStructured, err := handler.handle(context.Background(), &mcp.CallToolRequest{}, tt.structured)
 			require.NoError(t, err)
 			require.Empty(t, viaStructured.Error)
-			_, viaSQL, err := handler.handle(context.Background(), &mcp.CallToolRequest{}, types.SearchTracesInput{SQL: tt.sql})
+			_, viaSQL, err := handler.handle(context.Background(), &mcp.CallToolRequest{}, types.FindTracesInput{SQL: tt.sql})
 			require.NoError(t, err)
 			require.Empty(t, viaSQL.Error)
 

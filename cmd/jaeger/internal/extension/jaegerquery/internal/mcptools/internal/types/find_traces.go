@@ -3,8 +3,8 @@
 
 package types
 
-// SearchTracesInput defines the input parameters for the search_traces MCP tool.
-type SearchTracesInput struct {
+// FindTracesInput defines the input parameters for the find_traces MCP tool.
+type FindTracesInput struct {
 	// StartTimeMin is the start of time interval (optional, defaults to "-1h").
 	// Supports RFC3339 or relative time (e.g., "-1h", "-30m").
 	StartTimeMin string `json:"start_time_min,omitempty" jsonschema:"Start of time interval (RFC3339 or relative like -1h). Default: -1h"`
@@ -44,8 +44,8 @@ type SearchTracesInput struct {
 	SearchDepth uint32 `json:"search_depth,omitempty" jsonschema:"Maximum search depth (default: 10, max controlled by server config)"`
 }
 
-// SearchTracesOutput defines the output of the search_traces MCP tool.
-type SearchTracesOutput struct {
+// FindTracesOutput defines the output of the find_traces MCP tool.
+type FindTracesOutput struct {
 	Traces []TraceSummary `json:"traces,omitempty" jsonschema:"List of trace summaries matching the search criteria"`
 	Error  string         `json:"error,omitempty" jsonschema:"Error message if partial results were returned"`
 }

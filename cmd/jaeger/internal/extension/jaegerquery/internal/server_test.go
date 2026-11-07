@@ -1396,14 +1396,15 @@ func TestInitRouterAIHandlerRegistration(t *testing.T) {
 		alice := http.Header{"X-Test-User": {"alice"}}
 
 		// An admitted request reaches the handler behind the gate, and both handlers
-		// judge the probe's empty `{}` body for themselves: the MCP transport wants an
-		// SSE Accept header and the chat gateway wants a prompt. 400 from either one
-		// proves the gate let the request through.
+		// judge the probe for themselves: the MCP transport answers a GET with 405,
+		// because it has no standing event stream, and the chat gateway rejects the
+		// empty `{}` body because it wants a prompt. Either answer proves the gate
+		// let the request through.
 		for _, route := range []struct {
 			method, path string
 			admitted     int
 		}{
-			{http.MethodGet, "/api/ai/mcp/", http.StatusBadRequest},
+			{http.MethodGet, "/api/ai/mcp/", http.StatusMethodNotAllowed},
 			{http.MethodPost, "/api/ai/chat", http.StatusBadRequest},
 		} {
 			anonymous := serve(route.method, route.path, http.Header{})
@@ -1469,10 +1470,10 @@ func TestInitRouterAIHandlerRegistration(t *testing.T) {
 		}
 	})
 
-	t.Run("mcp stateless reaches the SDK handler", func(t *testing.T) {
-		// Two routers stand in for two jaeger-query replicas: the session that
-		// initialize creates lives in one handler's memory, so a tools/list that a
-		// load balancer sends to the other replica only succeeds when stateless.
+	t.Run("mcp endpoint serves a client from any replica", func(t *testing.T) {
+		// Two routers stand in for two jaeger-query replicas behind a load
+		// balancer without session affinity: nothing from the initialize one
+		// replica answered is needed by the tools/list the other one receives.
 		initialize := `{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18","capabilities":{},"clientInfo":{"name":"test","version":"0"}}}`
 		listTools := `{"jsonrpc":"2.0","id":2,"method":"tools/list"}`
 		post := func(handler http.Handler, body, sessionID string) *httptest.ResponseRecorder {
@@ -1486,25 +1487,19 @@ func TestInitRouterAIHandlerRegistration(t *testing.T) {
 			handler.ServeHTTP(rr, req)
 			return rr
 		}
-		for _, tc := range []struct {
-			stateless bool
-			want      int
-		}{{stateless: false, want: http.StatusNotFound}, {stateless: true, want: http.StatusOK}} {
-			opts := DefaultQueryOptions()
-			opts.AI = configoptional.Some(jaegerai.Config{MCP: configoptional.Some(jaegerai.MCPConfig{StreamableHTTP: mcptools.StreamableHTTPConfig{Stateless: tc.stateless}}), MaxRequestBodySize: 1 << 20})
-			first, cs1, err := initRouter(context.Background(), querySvc.qs, nil, &opts, noBackendCaps, tenancyMgr, telset)
-			require.NoError(t, err)
-			t.Cleanup(func() { require.NoError(t, cs1.Close()) })
-			second, cs2, err := initRouter(context.Background(), querySvc.qs, nil, &opts, noBackendCaps, tenancyMgr, telset)
-			require.NoError(t, err)
-			t.Cleanup(func() { require.NoError(t, cs2.Close()) })
-			rr := post(first, initialize, "")
-			require.Equal(t, http.StatusOK, rr.Code)
-			sessionID := rr.Header().Get("Mcp-Session-Id")
-			require.NotEmpty(t, sessionID)
-			rr = post(second, listTools, sessionID)
-			assert.Equal(t, tc.want, rr.Code, "stateless=%v", tc.stateless)
-		}
+		opts := DefaultQueryOptions()
+		opts.AI = configoptional.Some(jaegerai.Config{MCP: configoptional.Some(jaegerai.MCPConfig{}), MaxRequestBodySize: 1 << 20})
+		first, cs1, err := initRouter(context.Background(), querySvc.qs, nil, &opts, noBackendCaps, tenancyMgr, telset)
+		require.NoError(t, err)
+		t.Cleanup(func() { require.NoError(t, cs1.Close()) })
+		second, cs2, err := initRouter(context.Background(), querySvc.qs, nil, &opts, noBackendCaps, tenancyMgr, telset)
+		require.NoError(t, err)
+		t.Cleanup(func() { require.NoError(t, cs2.Close()) })
+		rr := post(first, initialize, "")
+		require.Equal(t, http.StatusOK, rr.Code)
+		assert.Empty(t, rr.Header().Get("Mcp-Session-Id"), "the endpoint issues no session id")
+		rr = post(second, listTools, "")
+		assert.Equal(t, http.StatusOK, rr.Code)
 	})
 
 	t.Run("mcp endpoint mounted with base path", func(t *testing.T) {

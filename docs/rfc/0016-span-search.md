@@ -3,7 +3,7 @@
 - **Status:** Draft
 - **Author:** Yuri Shkuro
 - **Created:** 2026-08-18
-- **Last Updated:** 2026-09-27
+- **Last Updated:** 2026-11-06
 - **Related:** [RFC 0005 (structured query filters)](0005-structured-query-filters.md) · [RFC 0011 (trace summary API)](0011-trace-summary-api.md) · [RFC 0014 (search result pagination)](0014-search-result-pagination.md) · [RFC 0001 (GenAI data layer)](0001-genai-data-layer.md) · [ADR-010](../adr/010-trace-summary-api.md) · [ADR-013 (storage capability declaration)](../adr/013-storage-capability-declaration.md)
 
 ---
@@ -370,7 +370,7 @@ The important finding is that L3 and L4 do not need the same thing from the resp
 
 **Grouping always needs rows.** A group with a count is not a span, and no arrangement of `ResourceSpans` represents one. So L4 needs a row result, and a later RFC that adds `group_by` has to define three things this one does not: a typed value encoding for a cell, column metadata naming and typing each output column, and the aggregate `op` vocabulary. Paging over grouped results is a separate question again, and usually a non-question — a grouped result is small by construction, and the honest answer is likely to be a cap and a refusal rather than a cursor.
 
-**So the clause split is also the RPC split** (§4.4). `FindSpans` honors the clauses whose result is still spans — `WHERE`, a reference-only `SELECT`, the ordering and the cursor — and refuses `group_by` and a computed projection with `InvalidArgument`. A second RPC takes the same `SpanQueryParameters`, honors all of them, and returns rows. Both read one query model; what differs is the shape each can express its answer in, and that is a property of the RPC rather than of a field inside the response.
+**So the clause split is also the RPC split** (§4.4). `FindSpans` honors the clauses whose result is still spans — `WHERE`, a reference-only `SELECT`, the ordering and the cursor — and refuses `group_by` and a computed projection with `InvalidArgument`. Until sparse spans are implemented (§13), the query service refuses a reference-only `SELECT` as well, as `Unimplemented`, rather than return whole spans for a statement that asked for fewer columns. A second RPC takes the same `SpanQueryParameters`, honors all of them, and returns rows. Both read one query model; what differs is the shape each can express its answer in, and that is a property of the RPC rather than of a field inside the response.
 
 **That second RPC is deliberately left unnamed here.** This RFC has no design for the row result — no value encoding, no column metadata, no aggregate operator set (§5.2 above) — and §4.2 shows that naming an RPC well depends on knowing what its response holds, so a name chosen now would be chosen with the least information anyone will ever have about it. What can be said is which criterion will apply: its response shape does not vary, so the same reasoning that picked `FindSpans` over `QuerySpans` will favor a name describing the rows it returns over one describing the spans it reads.
 
@@ -666,6 +666,9 @@ PR-sized milestones with exit bars. Everything here sits behind RFC 0005 M1 and 
 **M6 — Remote-storage gRPC.** Client and server for the new RPC, and capability forwarding. If M9 lands first, this milestone also delivers its ordering request/capability forwarding and structured-error mappings (§6.3). *Exit:* a remote backend that declares support serves a span query end to end; one that does not, or that predates the declaration, is refused before dispatch.
 
 **M7 — MCP.** A `find_spans` tool, and `get_span_details` rewired onto an identity filter where the backend declares support. *Exit:* an agent retrieves spans across traces in one call; `get_span_details` stops fetching whole traces on a declaring backend and is unchanged elsewhere.
+
+- ✅ `find_spans`, taking a `sql` input compiled by [RFC 0019](0019-sql-query-surface.md) into the filter, the window, the order and the limit, mirroring `find_traces`'s own SQL input. Delivered in [#9643](https://github.com/jaegertracing/jaeger/pull/9643).
+- `get_span_details` rewired onto an identity filter where the backend declares support.
 
 **Caller-selected ordering has its own milestones.** M0–M7 retain their default-order exit criteria and do not depend on M8–M12. These milestones extend only `FindSpans`; trace-search ordering is out of scope.
 
