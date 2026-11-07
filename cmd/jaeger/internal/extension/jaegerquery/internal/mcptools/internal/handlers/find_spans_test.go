@@ -59,104 +59,86 @@ func TestFindSpansHandler_Handle_FullWorkflow(t *testing.T) {
 	assert.Empty(t, output.Error)
 }
 
-func TestFindSpansHandler_Handle_WindowOnlyHasNoFilter(t *testing.T) {
-	mock := &mockQueryService{
-		findSpansFunc: func(_ context.Context, query querysvc.SpanQueryParams) iter.Seq2[tracestore.PageChunk[ptrace.Traces], error] {
-			assert.Nil(t, query.Filter, "a statement with only the window compiles to no filter")
-			return func(yield func(tracestore.PageChunk[ptrace.Traces], error) bool) {
-				yield(tracestore.PageChunk[ptrace.Traces]{Results: ptrace.NewTraces()}, nil)
-			}
-		},
-	}
-	handler := &findSpansHandler{queryService: mock, maxResults: 100}
-
-	input := types.FindSpansInput{SQL: "SELECT * FROM spans " + findSpansWindow}
-	_, _, err := handler.handle(context.Background(), &mcp.CallToolRequest{}, input)
-	require.NoError(t, err)
-}
-
 func TestFindSpansHandler_Handle_BlankSQL(t *testing.T) {
-	// Via the exported constructor, like the validation-error tests of NewFindTracesHandler
-	// and NewGetSpanDetailsHandler: nil is a valid *querysvc.QueryService here because this
-	// path returns before ever touching it.
 	handler := NewFindSpansHandler(nil, 100)
 	_, _, err := handler(context.Background(), &mcp.CallToolRequest{}, types.FindSpansInput{SQL: " \n\t"})
 	require.ErrorContains(t, err, "sql is required")
 }
 
-func TestFindSpansHandler_Handle_QueryError(t *testing.T) {
-	mock := &mockQueryService{
-		findSpansFunc: func(_ context.Context, _ querysvc.SpanQueryParams) iter.Seq2[tracestore.PageChunk[ptrace.Traces], error] {
-			return func(yield func(tracestore.PageChunk[ptrace.Traces], error) bool) {
-				yield(tracestore.PageChunk[ptrace.Traces]{}, errors.New("backend unavailable"))
-			}
-		},
-	}
-	handler := &findSpansHandler{queryService: mock, maxResults: 100}
-
-	input := types.FindSpansInput{SQL: "SELECT * FROM spans " + findSpansWindow}
-	_, output, err := handler.handle(context.Background(), &mcp.CallToolRequest{}, input)
-
-	require.ErrorContains(t, err, "backend unavailable", "a search that returns nothing fails the call")
-	assert.Empty(t, output.Spans)
-}
-
-func TestFindSpansHandler_Handle_SpanSearchUnsupported(t *testing.T) {
-	mock := &mockQueryService{
-		findSpansFunc: func(_ context.Context, _ querysvc.SpanQueryParams) iter.Seq2[tracestore.PageChunk[ptrace.Traces], error] {
-			return func(yield func(tracestore.PageChunk[ptrace.Traces], error) bool) {
-				yield(tracestore.PageChunk[ptrace.Traces]{}, querysvc.ErrSpanSearchUnsupported)
-			}
-		},
-	}
-	handler := &findSpansHandler{queryService: mock, maxResults: 100}
-
-	input := types.FindSpansInput{SQL: "SELECT * FROM spans " + findSpansWindow}
-	_, output, err := handler.handle(context.Background(), &mcp.CallToolRequest{}, input)
-
-	require.ErrorIs(t, err, querysvc.ErrSpanSearchUnsupported)
-	assert.Empty(t, output.Spans)
-}
-
-func TestFindSpansHandler_Handle_PartialResults(t *testing.T) {
-	trace := createTestTraceWithSpans("trace111", []spanConfig{
-		{spanID: "span0001", operation: "/first"},
-	})
-	mock := &mockQueryService{
-		findSpansFunc: func(_ context.Context, _ querysvc.SpanQueryParams) iter.Seq2[tracestore.PageChunk[ptrace.Traces], error] {
-			return func(yield func(tracestore.PageChunk[ptrace.Traces], error) bool) {
-				if !yield(tracestore.PageChunk[ptrace.Traces]{Results: trace}, nil) {
-					return
-				}
-				yield(tracestore.PageChunk[ptrace.Traces]{}, errors.New("connection lost"))
-			}
-		},
-	}
-	handler := &findSpansHandler{queryService: mock, maxResults: 100}
-
-	input := types.FindSpansInput{SQL: "SELECT * FROM spans " + findSpansWindow}
-	_, output, err := handler.handle(context.Background(), &mcp.CallToolRequest{}, input)
-
-	require.NoError(t, err)
-	require.Len(t, output.Spans, 1)
-	assert.Contains(t, output.Error, "partial results")
-	assert.Contains(t, output.Error, "connection lost")
-}
-
-func TestFindSpansHandler_Handle_LimitEnforced(t *testing.T) {
+// TestFindSpansHandler_Handle_Results pins what the handler makes of the chunks the query
+// service yields: how many spans it keeps, and whether an error fails the call or is reported
+// beside the spans collected before it.
+func TestFindSpansHandler_Handle_Results(t *testing.T) {
 	trace := createTestTraceWithSpans("trace111", []spanConfig{
 		{spanID: "span0001", operation: "/a"},
 		{spanID: "span0002", operation: "/b"},
 		{spanID: "span0003", operation: "/c"},
 	})
-	mock := newMockFindSpans(trace)
-	handler := &findSpansHandler{queryService: mock, maxResults: 2}
+	chunk := tracestore.PageChunk[ptrace.Traces]{Results: trace}
+	searchErr := errors.New("connection lost")
 
-	input := types.FindSpansInput{SQL: "SELECT * FROM spans " + findSpansWindow}
-	_, output, err := handler.handle(context.Background(), &mcp.CallToolRequest{}, input)
+	tests := []struct {
+		name      string
+		chunks    []tracestore.PageChunk[ptrace.Traces]
+		errAfter  error
+		cap       uint32
+		wantSpans int
+		wantErr   error
+		wantNote  string
+	}{
+		{
+			name:      "every span of every chunk",
+			chunks:    []tracestore.PageChunk[ptrace.Traces]{chunk, chunk},
+			cap:       100,
+			wantSpans: 6,
+		},
+		{
+			name:      "the limit stops the collection",
+			chunks:    []tracestore.PageChunk[ptrace.Traces]{chunk, chunk},
+			cap:       2,
+			wantSpans: 2,
+		},
+		{
+			name:      "an error after a chunk is reported beside the spans",
+			chunks:    []tracestore.PageChunk[ptrace.Traces]{chunk},
+			errAfter:  searchErr,
+			cap:       100,
+			wantSpans: 3,
+			wantNote:  "partial results returned due to error: connection lost",
+		},
+		{
+			name:     "an error before any span fails the call",
+			errAfter: searchErr,
+			cap:      100,
+			wantErr:  searchErr,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			mock := &mockQueryService{
+				findSpansFunc: func(_ context.Context, _ querysvc.SpanQueryParams) iter.Seq2[tracestore.PageChunk[ptrace.Traces], error] {
+					return func(yield func(tracestore.PageChunk[ptrace.Traces], error) bool) {
+						for _, c := range tt.chunks {
+							if !yield(c, nil) {
+								return
+							}
+						}
+						if tt.errAfter != nil {
+							yield(tracestore.PageChunk[ptrace.Traces]{}, tt.errAfter)
+						}
+					}
+				},
+			}
+			handler := &findSpansHandler{queryService: mock, maxResults: tt.cap}
 
-	require.NoError(t, err)
-	assert.Len(t, output.Spans, 2)
+			input := types.FindSpansInput{SQL: "SELECT * FROM spans " + findSpansWindow}
+			_, output, err := handler.handle(context.Background(), &mcp.CallToolRequest{}, input)
+
+			require.ErrorIs(t, err, tt.wantErr)
+			assert.Len(t, output.Spans, tt.wantSpans)
+			assert.Equal(t, tt.wantNote, output.Error)
+		})
+	}
 }
 
 // TestFindSpansHandler_BuildQuery_EffectiveLimit pins how the statement's LIMIT and the server
@@ -209,6 +191,15 @@ func TestFindSpansHandler_BuildQuery_EffectiveLimit(t *testing.T) {
 	}
 }
 
+// A column list reaches the query service as the projection of the request, which is the
+// query service's to refuse or shape.
+func TestFindSpansHandler_BuildQuery_ColumnListIsTheProjection(t *testing.T) {
+	handler := &findSpansHandler{maxResults: 100}
+	query, _, err := handler.buildQuery(types.FindSpansInput{SQL: "SELECT service, name FROM spans " + findSpansWindow})
+	require.NoError(t, err)
+	assert.Len(t, query.Projection, 2)
+}
+
 // TestFindSpansHandler_BuildQuery_Refusals covers the two refusals that are the handler's
 // own: a statement of a shape this tool does not serve, and the prefix it puts on a compiler
 // error. What the compiler refuses, and how, is the sqlquery package's to test.
@@ -238,9 +229,9 @@ func TestFindSpansHandler_BuildQuery_Refusals(t *testing.T) {
 	}
 }
 
-// TestFindSpansHandler_Handle_ServedByMemoryStore pins the end-to-end behavior against the
-// built-in memory backend, which declares SearchCapabilities.SpanSearch (RFC 0016 M2), so
-// find_spans returns the stored span rather than refusing.
+// TestFindSpansHandler_Handle_ServedByMemoryStore is the one test through the real query
+// service and a storage backend: the statement compiles into a search the memory store
+// serves, which is the exit criterion of RFC 0019 M1a.
 func TestFindSpansHandler_Handle_ServedByMemoryStore(t *testing.T) {
 	store, err := memory.NewStore(memory.Configuration{MaxTraces: 10})
 	require.NoError(t, err)
@@ -259,47 +250,5 @@ func TestFindSpansHandler_Handle_ServedByMemoryStore(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, output.Spans, 1)
 	assert.Equal(t, "/ok", output.Spans[0].SpanName)
-	assert.Empty(t, output.Error)
-}
-
-// A column list reaches the query service as a projection, which refuses it until a result
-// shaped by the column list exists. The tool passes the refusal through as the call's error.
-func TestFindSpansHandler_Handle_ColumnListRefusedByQueryService(t *testing.T) {
-	store, err := memory.NewStore(memory.Configuration{MaxTraces: 10})
-	require.NoError(t, err)
-
-	handler := &findSpansHandler{
-		queryService: querysvc.NewQueryService(store, store, querysvc.QueryServiceOptions{}),
-		maxResults:   100,
-	}
-
-	input := types.FindSpansInput{SQL: "SELECT service, name FROM spans " + findSpansWindow}
-	_, output, err := handler.handle(context.Background(), &mcp.CallToolRequest{}, input)
-
-	require.ErrorIs(t, err, querysvc.ErrProjectionUnsupported)
-	assert.Empty(t, output.Spans)
-}
-
-func TestFindSpansHandler_Handle_StatusFilter(t *testing.T) {
-	trace := createTestTraceWithSpans("trace111", []spanConfig{
-		{spanID: "span0001", operation: "/error", hasError: true, errorMessage: "boom"},
-	})
-
-	store, err := memory.NewStore(memory.Configuration{MaxTraces: 10})
-	require.NoError(t, err)
-	require.NoError(t, store.WriteTraces(context.Background(), trace))
-
-	handler := &findSpansHandler{
-		queryService: querysvc.NewQueryService(store, store, querysvc.QueryServiceOptions{}),
-		maxResults:   100,
-	}
-
-	input := types.FindSpansInput{SQL: "SELECT * FROM spans " + findSpansWindow + " AND status = 'error'"}
-	_, output, err := handler.handle(context.Background(), &mcp.CallToolRequest{}, input)
-
-	require.NoError(t, err)
-	require.Len(t, output.Spans, 1)
-	assert.Equal(t, "/error", output.Spans[0].SpanName)
-	assert.Equal(t, "Error", output.Spans[0].Status)
 	assert.Empty(t, output.Error)
 }

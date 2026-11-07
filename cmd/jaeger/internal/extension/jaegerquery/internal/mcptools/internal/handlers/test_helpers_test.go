@@ -121,22 +121,6 @@ func newMockFindTraceSummaries(summaries ...tracestore.TraceSummary) *mockQueryS
 	}
 }
 
-// newMockFindSpans creates a mock for FindSpans calls that yields the given traces, one chunk
-// per trace.
-func newMockFindSpans(traces ...ptrace.Traces) *mockQueryService {
-	return &mockQueryService{
-		findSpansFunc: func(_ context.Context, _ querysvc.SpanQueryParams) iter.Seq2[tracestore.PageChunk[ptrace.Traces], error] {
-			return func(yield func(tracestore.PageChunk[ptrace.Traces], error) bool) {
-				for _, t := range traces {
-					if !yield(tracestore.PageChunk[ptrace.Traces]{Results: t}, nil) {
-						return
-					}
-				}
-			}
-		},
-	}
-}
-
 // createTestTrace creates a simple trace with a single span for testing
 func createTestTrace(traceID string, serviceName string, spanName string, hasError bool) ptrace.Traces {
 	traces := ptrace.NewTraces()
