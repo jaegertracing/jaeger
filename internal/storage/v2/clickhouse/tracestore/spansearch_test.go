@@ -12,7 +12,6 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"go.opentelemetry.io/collector/pdata/pcommon"
 
 	expression "github.com/jaegertracing/jaeger-idl/query/expression/v1"
 	"github.com/jaegertracing/jaeger/internal/jptrace"
@@ -224,13 +223,10 @@ func TestFoundSpan_HashIsStable(t *testing.T) {
 		`{"key":"k3","value":{"stringValue":"v"}},{"key":"k4","value":{"stringValue":"v"}},` +
 		`{"key":"k5","value":{"stringValue":"v"}},{"key":"k6","value":{"stringValue":"v"}},` +
 		`{"key":"k7","value":{"stringValue":"v"}},{"key":"k8","value":{"stringValue":"v"}}]}}`}
-	first, err := newFoundSpan(row)
-	require.NoError(t, err)
-	want := first.hash()
+	sort := defaultSpanSort(t)
+	want := newFoundSpan(row, sort).hash()
 	for range 64 {
-		span, err := newFoundSpan(row)
-		require.NoError(t, err)
-		require.Equal(t, want, span.hash())
+		require.Equal(t, want, newFoundSpan(row, sort).hash())
 	}
 }
 
@@ -254,11 +250,17 @@ func TestFindSpans_Refusals(t *testing.T) {
 	require.NoError(t, err)
 	otherToken, err := tracestore.NewPageToken(otherFingerprint, []byte("cursor"))
 	require.NoError(t, err)
+	cursorToken := func(cursor spanCursor) tracestore.PageToken {
+		token, err := tracestore.NewPageToken(fingerprint, cursor.encode())
+		require.NoError(t, err)
+		return token
+	}
 	shortCursor, err := tracestore.NewPageToken(fingerprint, []byte{1, 2, 3})
 	require.NoError(t, err)
-	oversized := spanCursor{returned: make([]uint64, maxCursorHashes+1)}
-	oversizedCursor, err := tracestore.NewPageToken(fingerprint, oversized.encode())
-	require.NoError(t, err)
+	key := []any{now.UnixNano(), traceIDHex1, "0000000000000001"}
+	oversizedCursor := cursorToken(spanCursor{Key: key, Returned: make([]uint64, maxCursorHashes+1)})
+	truncatedCursor := cursorToken(spanCursor{Key: key[:2]})
+	mistypedCursor := cursorToken(spanCursor{Key: []any{"now", traceIDHex1, "0000000000000001"}})
 
 	tests := []struct {
 		name    string
@@ -280,6 +282,16 @@ func TestFindSpans_Refusals(t *testing.T) {
 			message: "explicit span ordering",
 		},
 		{
+			name: "invalid order",
+			query: func() tracestore.SpanQueryParams {
+				q := spanSearchQuery(1, "")
+				q.OrderBy = []tracestore.SpanSortOrder{{Expression: str("duration")}}
+				return q
+			}(),
+			wantErr: tracestore.ErrSpanOrderInvalid,
+			message: "must reference a built-in span field",
+		},
+		{
 			name:    "token of another query",
 			query:   spanSearchQuery(1, otherToken),
 			wantErr: tracestore.ErrPaginationInvalid,
@@ -296,6 +308,18 @@ func TestFindSpans_Refusals(t *testing.T) {
 			query:   spanSearchQuery(1, oversizedCursor),
 			wantErr: tracestore.ErrPaginationInvalid,
 			message: "lists more than",
+		},
+		{
+			name:    "cursor with a value per sort clause missing",
+			query:   spanSearchQuery(1, truncatedCursor),
+			wantErr: tracestore.ErrPaginationInvalid,
+			message: "does not carry a span position",
+		},
+		{
+			name:    "cursor with a value of the wrong type",
+			query:   spanSearchQuery(1, mistypedCursor),
+			wantErr: tracestore.ErrPaginationInvalid,
+			message: "value 0 does not fit the sort column start_time",
 		},
 		{
 			name:    "zero page size",
@@ -338,36 +362,64 @@ func TestFindSpans_Errors(t *testing.T) {
 		err := findSpansError(NewReader(conn, testReaderConfig), spanSearchQuery(1, ""))
 		require.ErrorContains(t, err, "failed to scan span row: boom")
 	})
-	t.Run("trace ID does not decode", func(t *testing.T) {
-		row := spanSearchRow("a", "0000000000000001", now)
-		row.TraceID = "not-hex"
-		conn, _ := spanSearchConn(row)
-		err := findSpansError(NewReader(conn, testReaderConfig), spanSearchQuery(1, ""))
-		require.ErrorContains(t, err, "failed to decode trace ID")
-	})
-	t.Run("span ID does not decode", func(t *testing.T) {
-		row := spanSearchRow("a", "not-hex", now)
-		conn, _ := spanSearchConn(row)
-		err := findSpansError(NewReader(conn, testReaderConfig), spanSearchQuery(1, ""))
-		require.ErrorContains(t, err, "failed to decode span ID")
-	})
+}
+
+func defaultSpanSort(t *testing.T) []sortClause {
+	t.Helper()
+	sort, err := spanSort(nil)
+	require.NoError(t, err)
+	return sort
 }
 
 func TestSpanCursor_Encoding(t *testing.T) {
 	cursor := spanCursor{
-		key: spanKey{
-			startTime: now.UnixNano(),
-			traceID:   pcommon.TraceID{1, 2, 3},
-			spanID:    pcommon.SpanID{4, 5, 6},
-		},
-		returned: []uint64{7, 8},
+		Key:      []any{now.UnixNano(), traceIDHex1, "0000000000000001"},
+		Returned: []uint64{7, 1<<64 - 1},
 	}
-	decoded, err := decodeSpanCursor(cursor.encode())
+	decoded, err := decodeSpanCursor(cursor.encode(), defaultSpanSort(t))
 	require.NoError(t, err)
 	assert.Equal(t, cursor, decoded)
 
-	for _, size := range []int{0, spanKeySize - 1, spanKeySize + 1} {
-		_, err := decodeSpanCursor(make([]byte, size))
-		require.ErrorIs(t, err, tracestore.ErrPaginationInvalid)
-	}
+	// A cursor of a one-clause order carries one value, and a hash list is optional.
+	cursor = spanCursor{Key: []any{int64(5)}}
+	decoded, err = decodeSpanCursor(cursor.encode(), []sortClause{{column: "duration"}})
+	require.NoError(t, err)
+	assert.Equal(t, cursor, decoded)
+}
+
+// TestSpanSort_Continuation lowers an explicit order, which the reader does not accept yet, to
+// its sort clauses, and checks the ORDER BY and the continuation predicate built from them
+// against the order's semantics: a clause is past the cursor's value in its own direction, or
+// equal to it and the remaining clauses decide, and the last clause compares inclusively.
+func TestSpanSort_Continuation(t *testing.T) {
+	sort, err := spanSort([]tracestore.SpanSortOrder{
+		{Expression: fieldRef(expression.LevelSpan, expression.SpanFieldDuration), Direction: tracestore.SortDescending},
+		{Expression: fieldRef(expression.LevelSpan, expression.SpanFieldStartTime), Direction: tracestore.SortAscending},
+	})
+	require.NoError(t, err)
+	assert.Equal(t, []sortClause{
+		{column: "duration", descending: true},
+		{column: "start_time"},
+		{column: "trace_id"},
+		{column: "id"},
+	}, sort)
+
+	reader := NewReader(&clickhousetest.Driver{}, testReaderConfig)
+	after := &spanCursor{Key: []any{int64(1000), now.UnixNano(), traceIDHex1, "0000000000000001"}}
+	query := spanSearchQuery(2, "")
+	query.Filter = nil
+	q, args, err := reader.buildFindSpansQuery(context.Background(), query, sort, after, 2)
+	require.NoError(t, err)
+	assert.Contains(t, q, "AND (s.duration < ? OR (s.duration = ? AND "+
+		"(s.start_time > fromUnixTimestamp64Nano(?) OR (s.start_time = fromUnixTimestamp64Nano(?) AND "+
+		"(s.trace_id > ? OR (s.trace_id = ? AND s.id >= ?))))))")
+	assert.Contains(t, q, "ORDER BY s.duration DESC, s.start_time ASC, s.trace_id ASC, s.id ASC")
+	assert.Equal(t, []any{
+		now.Add(-time.Hour).UnixNano(), now.UnixNano(),
+		int64(1000), int64(1000), now.UnixNano(), now.UnixNano(), traceIDHex1, traceIDHex1, "0000000000000001",
+		uint64(3),
+	}, args)
+
+	row := spanSearchRow("a", "0000000000000001", now)
+	assert.Equal(t, []any{int64(1000), now.UnixNano(), traceIDHex1, "0000000000000001"}, newFoundSpan(row, sort).key)
 }

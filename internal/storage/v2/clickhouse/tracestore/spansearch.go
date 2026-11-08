@@ -5,7 +5,6 @@ package tracestore
 
 import (
 	"context"
-	"encoding/binary"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -15,38 +14,22 @@ import (
 	"strings"
 
 	"github.com/ClickHouse/clickhouse-go/v2/lib/driver"
-	"go.opentelemetry.io/collector/pdata/pcommon"
 	"go.opentelemetry.io/collector/pdata/ptrace"
 
-	"github.com/jaegertracing/jaeger/internal/jptrace"
+	expression "github.com/jaegertracing/jaeger-idl/query/expression/v1"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/clickhouse/sql"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/clickhouse/tracestore/dbmodel"
 )
 
-// spanKey is the default sort key of a span search, (startTime desc, traceID asc, spanID asc),
-// read from the row the way the spans table stores it (RFC 0016 §6.1).
-type spanKey struct {
-	// startTime is the span's start as Unix nanoseconds, so that keys compare with ==.
-	startTime int64
-	traceID   pcommon.TraceID
-	spanID    pcommon.SpanID
-}
-
-// spanKeySize is the encoded size of a spanKey: the start time as Unix nanoseconds, then the
-// two IDs.
-const spanKeySize = 8 + 16 + 8
-
-// spanCursor is where a page ended: the key of its last span and the content hashes of the rows
-// with that key the pages so far have returned. The spans table has no column that names one
-// row, and ClickHouse does not promise the same order among rows that tie on the whole key from
-// one query to the next, so a count of tied rows would not say which of them a page already
-// holds. The hashes do: the continuation re-reads the tied rows and drops one occurrence per
-// listed hash, so a span stored twice comes back twice, and two rows that tie on the key but
-// differ in content each come back once, whichever order ClickHouse returns them in (RFC 0016 §6.4).
-type spanCursor struct {
-	key      spanKey
-	returned []uint64
+// spanSortColumns maps an ordering term's built-in span field to the spans table column that
+// carries it. The IDs are fixed-width lower-case hex strings, so their bytewise order is their
+// numeric order, and start_time and duration are numeric columns (RFC 0016 §6.3).
+var spanSortColumns = map[string]string{
+	expression.SpanFieldStartTime: "start_time",
+	expression.SpanFieldDuration:  "duration",
+	expression.SpanFieldTraceID:   "trace_id",
+	expression.SpanFieldSpanID:    "id",
 }
 
 // maxCursorHashes bounds the hashes a cursor may list, and with them the rows a continuation
@@ -56,38 +39,111 @@ type spanCursor struct {
 // refused rather than let a forged token size the fetch.
 const maxCursorHashes = int(tracestore.MaxPageSize)
 
-func (c spanCursor) encode() []byte {
-	buf := make([]byte, 0, spanKeySize+8*len(c.returned))
-	buf, _ = binary.Append(buf, binary.BigEndian, c.key.startTime)
-	buf = append(buf, c.key.traceID[:]...)
-	buf = append(buf, c.key.spanID[:]...)
-	for _, h := range c.returned {
-		buf = binary.BigEndian.AppendUint64(buf, h)
-	}
-	return buf
+// sortClause is one term of a span search's ORDER BY: a spans table column and its direction.
+type sortClause struct {
+	column     string
+	descending bool
 }
 
-func decodeSpanCursor(raw []byte) (spanCursor, error) {
-	if len(raw) < spanKeySize || (len(raw)-spanKeySize)%8 != 0 {
+// placeholder is the bound parameter the clause's column compares against. A start time binds
+// as Unix nanoseconds, because clickhouse-go truncates a time.Time argument to seconds.
+func (c sortClause) placeholder() string {
+	if c.column == "start_time" {
+		return "fromUnixTimestamp64Nano(?)"
+	}
+	return "?"
+}
+
+// value is the row's value for the clause, in the form the cursor carries and the placeholder
+// binds: an int64 for a numeric column and a string for an ID.
+func (c sortClause) value(row *dbmodel.SpanRow) any {
+	switch c.column {
+	case "start_time":
+		return row.StartTime.UnixNano()
+	case "duration":
+		return row.Duration
+	case "trace_id":
+		return row.TraceID
+	default:
+		return row.ID
+	}
+}
+
+// spanSort lowers the query's order to sort clauses. The effective order ends in the
+// tie-breakers, so the clauses name one row up to duplicate writes (RFC 0016 §6.4).
+func spanSort(order []tracestore.SpanSortOrder) ([]sortClause, error) {
+	order, err := tracestore.EffectiveSpanOrder(order)
+	if err != nil {
+		return nil, err
+	}
+	sort := make([]sortClause, 0, len(order))
+	for _, term := range order {
+		// EffectiveSpanOrder admits only field refs to the fields spanSortColumns maps.
+		ref := term.Expression.(*expression.FieldRef)
+		sort = append(sort, sortClause{
+			column:     spanSortColumns[ref.Name],
+			descending: term.Direction == tracestore.SortDescending,
+		})
+	}
+	return sort, nil
+}
+
+// spanCursor is where a page ended: the sort values of its last span, one per sort clause, and
+// the content hashes of the rows with those values the pages so far have returned. The spans
+// table has no column that names one row, and ClickHouse does not promise the same order among
+// rows that tie on the whole key from one query to the next, so a count of tied rows would not
+// say which of them a page already holds. The hashes do: the continuation re-reads the tied rows
+// and drops one occurrence per listed hash, so a span stored twice comes back twice, and two
+// rows that tie on the key but differ in content each come back once, whichever order ClickHouse
+// returns them in (RFC 0016 §6.4).
+type spanCursor struct {
+	Key      []any    `json:"key"`
+	Returned []uint64 `json:"returned,omitempty"`
+}
+
+func (c spanCursor) encode() []byte {
+	// The cursor holds only integers and strings, which encode without error.
+	b, _ := json.Marshal(c)
+	return b
+}
+
+// decodeSpanCursor reads the cursor a token carried. A cursor is refused unless it holds one
+// value per sort clause, an integer for a numeric column and a string for an ID, since the
+// reader never returns one shaped otherwise.
+func decodeSpanCursor(raw []byte, sort []sortClause) (spanCursor, error) {
+	var wire struct {
+		Key      []json.RawMessage `json:"key"`
+		Returned []uint64          `json:"returned"`
+	}
+	if err := json.Unmarshal(raw, &wire); err != nil || len(wire.Key) != len(sort) {
 		return spanCursor{}, fmt.Errorf("%w: page token does not carry a span position", tracestore.ErrPaginationInvalid)
 	}
-	if (len(raw)-spanKeySize)/8 > maxCursorHashes {
+	if len(wire.Returned) > maxCursorHashes {
 		return spanCursor{}, fmt.Errorf("%w: page token lists more than %d spans at its position", tracestore.ErrPaginationInvalid, maxCursorHashes)
 	}
-	var c spanCursor
-	// A fixed-size integer always decodes from a buffer of at least its size.
-	_, _ = binary.Decode(raw, binary.BigEndian, &c.key.startTime)
-	copy(c.key.traceID[:], raw[8:24])
-	copy(c.key.spanID[:], raw[24:spanKeySize])
-	for rest := raw[spanKeySize:]; len(rest) > 0; rest = rest[8:] {
-		c.returned = append(c.returned, binary.BigEndian.Uint64(rest))
+	cursor := spanCursor{Key: make([]any, len(sort)), Returned: wire.Returned}
+	for i, clause := range sort {
+		var err error
+		switch clause.column {
+		case "trace_id", "id":
+			var s string
+			err = json.Unmarshal(wire.Key[i], &s)
+			cursor.Key[i] = s
+		default:
+			var n int64
+			err = json.Unmarshal(wire.Key[i], &n)
+			cursor.Key[i] = n
+		}
+		if err != nil {
+			return spanCursor{}, fmt.Errorf("%w: page token value %d does not fit the sort column %s", tracestore.ErrPaginationInvalid, i, clause.column)
+		}
 	}
-	return c, nil
+	return cursor, nil
 }
 
-// foundSpan is one row of a span search page: its key and the row as scanned.
+// foundSpan is one row of a span search page: its sort values and the row as scanned.
 type foundSpan struct {
-	key spanKey
+	key []any
 	row *dbmodel.SpanRow
 }
 
@@ -103,12 +159,19 @@ func (s foundSpan) hash() uint64 {
 	return h.Sum64()
 }
 
-// FindSpans returns one page of the spans matching query, in the default order, with the token
-// that resumes the search after them. It selects the span rows directly, with the
-// same predicates the trace search assembles and without the trace-ID subquery, ordered by
-// spanKey and cut at the page size; the cursor inside the token is the last row's key, and a
-// continuation reads from that key onward. The reader orders by the default key only, so an
-// explicit order is refused (SpanSorting is false). See RFC 0016 §6.
+func newFoundSpan(row *dbmodel.SpanRow, sort []sortClause) foundSpan {
+	key := make([]any, len(sort))
+	for i, clause := range sort {
+		key[i] = clause.value(row)
+	}
+	return foundSpan{key: key, row: row}
+}
+
+// FindSpans returns one page of the spans matching query, in the query's effective order, with
+// the token that resumes the search after them. It selects the span rows directly, with the
+// same predicates the trace search assembles and without the trace-ID subquery, ordered by the
+// sort clauses and cut at the page size; the cursor inside the token is the last row's sort
+// values, and a continuation reads from them onward. See RFC 0016 §6.
 func (r *Reader) FindSpans(ctx context.Context, query tracestore.SpanQueryParams) iter.Seq2[tracestore.PageChunk[ptrace.Traces], error] {
 	return func(yield func(tracestore.PageChunk[ptrace.Traces], error) bool) {
 		chunk, err := r.findSpanPage(ctx, query)
@@ -122,8 +185,12 @@ func (r *Reader) FindSpans(ctx context.Context, query tracestore.SpanQueryParams
 
 func (r *Reader) findSpanPage(ctx context.Context, query tracestore.SpanQueryParams) (tracestore.PageChunk[ptrace.Traces], error) {
 	var none tracestore.PageChunk[ptrace.Traces]
+	sort, err := spanSort(query.OrderBy)
+	if err != nil {
+		return none, err
+	}
 	// The query service refuses an explicit order before dispatch, but a reader reached directly
-	// must refuse it too, since the SQL orders by the default key alone.
+	// must refuse it too while SpanSorting is off.
 	capabilities, _ := r.SearchCapabilities(ctx)
 	if err := capabilities.ValidateSpanSorting(query.OrderBy); err != nil {
 		return none, err
@@ -138,7 +205,7 @@ func (r *Reader) findSpanPage(ctx context.Context, query tracestore.SpanQueryPar
 		if err != nil {
 			return none, err
 		}
-		cursor, err := decodeSpanCursor(raw)
+		cursor, err := decodeSpanCursor(raw, sort)
 		if err != nil {
 			return none, err
 		}
@@ -150,7 +217,7 @@ func (r *Reader) findSpanPage(ctx context.Context, query tracestore.SpanQueryPar
 	if pageSize == 0 {
 		return none, fmt.Errorf("%w: page size must be greater than 0", tracestore.ErrPaginationInvalid)
 	}
-	q, args, err := r.buildFindSpansQuery(ctx, query, after, pageSize)
+	q, args, err := r.buildFindSpansQuery(ctx, query, sort, after, pageSize)
 	if err != nil {
 		return none, fmt.Errorf("failed to build query: %w", err)
 	}
@@ -159,7 +226,7 @@ func (r *Reader) findSpanPage(ctx context.Context, query tracestore.SpanQueryPar
 		return none, fmt.Errorf("failed to query spans: %w", err)
 	}
 	// One row beyond the page tells whether another page exists.
-	found, err := readFoundSpans(rows, after, pageSize+1)
+	found, err := readFoundSpans(rows, sort, after, pageSize+1)
 	if err != nil {
 		return none, err
 	}
@@ -183,12 +250,13 @@ func (r *Reader) findSpanPage(ctx context.Context, query tracestore.SpanQueryPar
 }
 
 // buildFindSpansQuery selects the span rows the query matches, from the cursor's key onward
-// when there is one, ordered by spanKey. It fetches one row beyond the page, which tells
-// whether another page exists, and one more per hash the cursor lists, since those rows are
-// read again and dropped.
+// when there is one, ordered by the sort clauses. It fetches one row beyond the page, which
+// tells whether another page exists, and one more per hash the cursor lists, since those rows
+// are read again and dropped.
 func (r *Reader) buildFindSpansQuery(
 	ctx context.Context,
 	query tracestore.SpanQueryParams,
+	sort []sortClause,
 	after *spanCursor,
 	pageSize uint32,
 ) (string, []any, error) {
@@ -213,26 +281,57 @@ func (r *Reader) buildFindSpansQuery(
 	}
 	fetch := uint64(pageSize) + 1
 	if after != nil {
-		// The continuation is inclusive of the cursor's key, so that the rows tying on it are
-		// read again and the cursor's hashes decide which of them the earlier pages hold.
-		appendAnd(&q, "(s.start_time < fromUnixTimestamp64Nano(?) OR (s.start_time = fromUnixTimestamp64Nano(?) AND (s.trace_id > ? OR (s.trace_id = ? AND s.id >= ?))))")
-		traceID := after.key.traceID.String()
-		args = append(args, after.key.startTime, after.key.startTime, traceID, traceID, after.key.spanID.String())
-		fetch += uint64(len(after.returned))
+		appendAnd(&q, "")
+		args = appendContinuation(&q, args, sort, after.Key)
+		fetch += uint64(len(after.Returned))
 	}
-	q.WriteString("\nORDER BY s.start_time DESC, s.trace_id ASC, s.id ASC")
+	q.WriteString("\nORDER BY ")
+	for i, clause := range sort {
+		if i > 0 {
+			q.WriteString(", ")
+		}
+		q.WriteString("s." + clause.column)
+		if clause.descending {
+			q.WriteString(" DESC")
+		} else {
+			q.WriteString(" ASC")
+		}
+	}
 	q.WriteString("\nLIMIT ?")
 	args = append(args, fetch)
 	return q.String(), args, nil
 }
 
+// appendContinuation writes the predicate that selects the rows at or after key in the order
+// of the sort clauses: the first clause is past its value, or equal to it and the remaining
+// clauses are at or after theirs. The last clause compares inclusively, so that the rows tying
+// on the whole key are read again and the cursor's hashes decide which of them the earlier
+// pages hold.
+func appendContinuation(q *strings.Builder, args []any, sort []sortClause, key []any) []any {
+	clause := sort[0]
+	past := ">"
+	if clause.descending {
+		past = "<"
+	}
+	column := "s." + clause.column
+	if len(sort) == 1 {
+		q.WriteString(column + " " + past + "= " + clause.placeholder())
+		return append(args, key[0])
+	}
+	q.WriteString("(" + column + " " + past + " " + clause.placeholder() + " OR (" + column + " = " + clause.placeholder() + " AND ")
+	args = append(args, key[0], key[0])
+	args = appendContinuation(q, args, sort[1:], key[1:])
+	q.WriteString("))")
+	return args
+}
+
 // readFoundSpans scans rows into foundSpans until it holds want of them, dropping the rows at
 // the cursor's key that the cursor says earlier pages returned, one row per listed hash. It
 // stops reading at want rather than trust the statement's LIMIT, which a token sized.
-func readFoundSpans(rows driver.Rows, after *spanCursor, want uint32) ([]foundSpan, error) {
+func readFoundSpans(rows driver.Rows, sort []sortClause, after *spanCursor, want uint32) ([]foundSpan, error) {
 	var returned []uint64
 	if after != nil {
-		returned = slices.Clone(after.returned)
+		returned = slices.Clone(after.Returned)
 	}
 	var found []foundSpan
 	err := readRows(rows, "span", func(rows driver.Rows) error {
@@ -240,11 +339,8 @@ func readFoundSpans(rows driver.Rows, after *spanCursor, want uint32) ([]foundSp
 		if err != nil {
 			return fmt.Errorf("failed to scan span row: %w", err)
 		}
-		span, err := newFoundSpan(row)
-		if err != nil {
-			return err
-		}
-		if after != nil && span.key == after.key {
+		span := newFoundSpan(row, sort)
+		if after != nil && slices.Equal(span.key, after.Key) {
 			if i := slices.Index(returned, span.hash()); i >= 0 {
 				returned = slices.Delete(returned, i, i+1)
 				return nil
@@ -262,35 +358,16 @@ func readFoundSpans(rows driver.Rows, after *spanCursor, want uint32) ([]foundSp
 	return found, nil
 }
 
-func newFoundSpan(row *dbmodel.SpanRow) (foundSpan, error) {
-	traceID, err := jptrace.TraceIDFromString(row.TraceID)
-	if err != nil {
-		return foundSpan{}, fmt.Errorf("failed to decode trace ID: %w", err)
-	}
-	spanID, err := jptrace.SpanIDFromString(row.ID)
-	if err != nil {
-		return foundSpan{}, fmt.Errorf("failed to decode span ID: %w", err)
-	}
-	return foundSpan{
-		key: spanKey{
-			startTime: row.StartTime.UnixNano(),
-			traceID:   traceID,
-			spanID:    spanID,
-		},
-		row: row,
-	}, nil
-}
-
-// nextSpanCursor is the cursor after a full page: the key of its last span, and the hashes of
-// every span in the page with that key, plus those the incoming cursor listed when the page
-// never left its key.
+// nextSpanCursor is the cursor after a full page: the sort values of its last span, and the
+// hashes of every span in the page with those values, plus those the incoming cursor listed
+// when the page never left its key.
 func nextSpanCursor(page []foundSpan, after *spanCursor) spanCursor {
-	next := spanCursor{key: page[len(page)-1].key}
-	for i := len(page) - 1; i >= 0 && page[i].key == next.key; i-- {
-		next.returned = append(next.returned, page[i].hash())
+	next := spanCursor{Key: page[len(page)-1].key}
+	for i := len(page) - 1; i >= 0 && slices.Equal(page[i].key, next.Key); i-- {
+		next.Returned = append(next.Returned, page[i].hash())
 	}
-	if after != nil && after.key == next.key {
-		next.returned = append(next.returned, after.returned...)
+	if after != nil && slices.Equal(after.Key, next.Key) {
+		next.Returned = append(next.Returned, after.Returned...)
 	}
 	return next
 }
