@@ -6,6 +6,7 @@ package tracestore
 import (
 	"context"
 	"errors"
+	"math"
 	"slices"
 	"testing"
 	"time"
@@ -210,6 +211,30 @@ func TestFindSpans_TiedRunLongerThanTheFetch(t *testing.T) {
 	}
 	assert.ElementsMatch(t, []string{"a1", "a2", "a3", "a4"}, names)
 	assert.Empty(t, query.Pagination.PageToken)
+}
+
+// TestFindSpans_TiedRowsWithNonFiniteAttributes pages through two rows that tie on the key and
+// each carry a NaN double attribute, served in the other order on the continuation: a hash that
+// cannot encode such a value would give both rows one hash, and the continuation would then
+// drop whichever came first and return the other again.
+func TestFindSpans_TiedRowsWithNonFiniteAttributes(t *testing.T) {
+	first := spanSearchRow("a1", "0000000000000001", now)
+	second := spanSearchRow("a2", "0000000000000001", now)
+	for _, row := range []*dbmodel.SpanRow{first, second} {
+		row.Attributes.DoubleKeys = []string{"ratio", "bound"}
+		row.Attributes.DoubleValues = []float64{math.NaN(), math.Inf(1)}
+	}
+	conn, serve := spanSearchConn(first, second)
+	reader := NewReader(conn, testReaderConfig)
+
+	names, token := findSpans(t, reader, spanSearchQuery(1, ""))
+	assert.Equal(t, []string{"a1"}, names)
+	require.NotEmpty(t, token)
+
+	serve(second, first)
+	names, token = findSpans(t, reader, spanSearchQuery(1, token))
+	assert.Equal(t, []string{"a2"}, names)
+	assert.Empty(t, token)
 }
 
 // TestFoundSpan_HashIsStable hashes one row many times: a row with a map-valued attribute, which

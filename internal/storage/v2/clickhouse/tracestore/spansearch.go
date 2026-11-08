@@ -5,6 +5,7 @@ package tracestore
 
 import (
 	"context"
+	"encoding/gob"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -150,12 +151,14 @@ type foundSpan struct {
 // hash is the content hash a cursor lists for a row at its key. It hashes the row as the spans
 // table returns it, whose columns are strings and arrays in stored order, so two reads of one
 // row hash alike and so do two rows a duplicate write produced. The converted span would not do:
-// a map-valued attribute is rebuilt through a Go map, whose order differs between reads.
+// a map-valued attribute is rebuilt through a Go map, whose order differs between reads. The
+// row is encoded with gob rather than JSON because a double attribute may hold NaN or an
+// infinity, which JSON cannot encode and gob writes as the float's bits.
 func (s foundSpan) hash() uint64 {
-	// The row holds only strings, numbers, times and slices of those, which encode without error.
-	b, _ := json.Marshal(s.row)
 	h := fnv.New64a()
-	_, _ = h.Write(b)
+	// The row holds only strings, numbers, times and slices of those, which gob encodes without
+	// error, and the hash never fails to write.
+	_ = gob.NewEncoder(h).Encode(s.row)
 	return h.Sum64()
 }
 
