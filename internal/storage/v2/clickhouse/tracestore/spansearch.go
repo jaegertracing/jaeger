@@ -13,6 +13,7 @@ import (
 	"iter"
 	"slices"
 	"strings"
+	"time"
 
 	"github.com/ClickHouse/clickhouse-go/v2/lib/driver"
 	"go.opentelemetry.io/collector/pdata/ptrace"
@@ -34,10 +35,12 @@ var spanSortColumns = map[string]string{
 }
 
 // maxCursorHashes bounds the hashes a cursor may list, and with them the rows a continuation
-// reads beyond its page. A page lists at most its own size of hashes, and the list grows only
-// while consecutive pages end inside one run of rows tying on the whole key, so the bound is
-// reached only by a run of duplicate writes longer than the largest page; a token past it is
-// refused rather than let a forged token size the fetch.
+// reads beyond its page. The list holds one hash per row returned so far from the run of rows
+// tying on the cursor's key, so it grows by a page per page while the search stays inside one
+// run, and only a run of duplicate writes longer than the largest page reaches the bound. The
+// reader refuses to mint a cursor past it, with an error that says so, rather than mint a
+// token it would refuse on the next request; a received token past it is refused so that a
+// forged token cannot size the fetch.
 const maxCursorHashes = int(tracestore.MaxPageSize)
 
 // sortClause is one term of a span search's ORDER BY: a spans table column and its direction.
@@ -153,12 +156,20 @@ type foundSpan struct {
 // row hash alike and so do two rows a duplicate write produced. The converted span would not do:
 // a map-valued attribute is rebuilt through a Go map, whose order differs between reads. The
 // row is encoded with gob rather than JSON because a double attribute may hold NaN or an
-// infinity, which JSON cannot encode and gob writes as the float's bits.
+// infinity, which JSON cannot encode and gob writes as the float's bits. Its times are hashed
+// in UTC, because clickhouse-go reads a DateTime64 column in the server's time zone, and two
+// replicas behind one address may be configured with different zones.
 func (s foundSpan) hash() uint64 {
+	row := *s.row
+	row.StartTime = row.StartTime.UTC()
+	row.EventTimestamps = make([]time.Time, len(s.row.EventTimestamps))
+	for i, ts := range s.row.EventTimestamps {
+		row.EventTimestamps[i] = ts.UTC()
+	}
 	h := fnv.New64a()
 	// The row holds only strings, numbers, times and slices of those, which gob encodes without
 	// error, and the hash never fails to write.
-	_ = gob.NewEncoder(h).Encode(s.row)
+	_ = gob.NewEncoder(h).Encode(&row)
 	return h.Sum64()
 }
 
@@ -240,6 +251,9 @@ func (r *Reader) findSpanPage(ctx context.Context, query tracestore.SpanQueryPar
 	chunk := tracestore.PageChunk[ptrace.Traces]{Results: ptrace.NewTraces()}
 	if more {
 		next := nextSpanCursor(found, after)
+		if len(next.Returned) > maxCursorHashes {
+			return none, fmt.Errorf("span search cannot page past %d spans that tie on the sort key", maxCursorHashes)
+		}
 		if chunk.NextPageToken, err = tracestore.NewPageToken(fingerprint, next.encode()); err != nil {
 			return none, err
 		}

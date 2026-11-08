@@ -8,6 +8,7 @@ import (
 	"errors"
 	"math"
 	"slices"
+	"strconv"
 	"testing"
 	"time"
 
@@ -237,6 +238,27 @@ func TestFindSpans_TiedRowsWithNonFiniteAttributes(t *testing.T) {
 	assert.Empty(t, token)
 }
 
+// TestFindSpans_TiedRunOutgrowsTheCursor pages, with the largest page, through a run of rows
+// tying on the key that is longer than two pages: the second page would mint a cursor listing
+// more hashes than a token may carry, so the reader reports that it cannot page past the run
+// instead of minting a token it would refuse.
+func TestFindSpans_TiedRunOutgrowsTheCursor(t *testing.T) {
+	tied := make([]*dbmodel.SpanRow, 2*maxCursorHashes+1)
+	for i := range tied {
+		tied[i] = spanSearchRow(strconv.Itoa(i), "0000000000000001", now)
+	}
+	conn, serve := spanSearchConn(tied...)
+	reader := NewReader(conn, testReaderConfig)
+
+	names, token := findSpans(t, reader, spanSearchQuery(tracestore.MaxPageSize, ""))
+	assert.Len(t, names, maxCursorHashes)
+	require.NotEmpty(t, token)
+
+	serve(tied...)
+	err := findSpansError(reader, spanSearchQuery(tracestore.MaxPageSize, token))
+	require.ErrorContains(t, err, "cannot page past")
+}
+
 // TestFoundSpan_HashIsStable hashes one row many times: a row with a map-valued attribute, which
 // the converted span rebuilds through a Go map in a different order on each conversion, hashes
 // the same every time because the hash reads the row as stored.
@@ -253,6 +275,14 @@ func TestFoundSpan_HashIsStable(t *testing.T) {
 	for range 64 {
 		require.Equal(t, want, newFoundSpan(row, sort).hash())
 	}
+
+	// The same row read in another server time zone hashes alike.
+	zoned := *row
+	zone := time.FixedZone("server", 3*3600)
+	zoned.StartTime = row.StartTime.In(zone)
+	zoned.EventTimestamps = []time.Time{now.In(zone)}
+	row.EventTimestamps = []time.Time{now}
+	assert.Equal(t, newFoundSpan(row, sort).hash(), newFoundSpan(&zoned, sort).hash())
 }
 
 func TestFindSpans_PageSizeIsClamped(t *testing.T) {
@@ -286,6 +316,9 @@ func TestFindSpans_Refusals(t *testing.T) {
 	oversizedCursor := cursorToken(spanCursor{Key: key, Returned: make([]uint64, maxCursorHashes+1)})
 	truncatedCursor := cursorToken(spanCursor{Key: key[:2]})
 	mistypedCursor := cursorToken(spanCursor{Key: []any{"now", traceIDHex1, "0000000000000001"}})
+	nestedCursor := cursorToken(spanCursor{Key: []any{now.UnixNano(), []string{traceIDHex1}, "0000000000000001"}})
+	malformedHashes, err := tracestore.NewPageToken(fingerprint, []byte(`{"key":[1,"a","b"],"returned":["x"]}`))
+	require.NoError(t, err)
 
 	tests := []struct {
 		name    string
@@ -345,6 +378,18 @@ func TestFindSpans_Refusals(t *testing.T) {
 			query:   spanSearchQuery(1, mistypedCursor),
 			wantErr: tracestore.ErrPaginationInvalid,
 			message: "value 0 does not fit the sort column start_time",
+		},
+		{
+			name:    "cursor with a nested value",
+			query:   spanSearchQuery(1, nestedCursor),
+			wantErr: tracestore.ErrPaginationInvalid,
+			message: "value 1 does not fit the sort column trace_id",
+		},
+		{
+			name:    "cursor with a malformed hash",
+			query:   spanSearchQuery(1, malformedHashes),
+			wantErr: tracestore.ErrPaginationInvalid,
+			message: "does not carry a span position",
 		},
 		{
 			name:    "zero page size",
