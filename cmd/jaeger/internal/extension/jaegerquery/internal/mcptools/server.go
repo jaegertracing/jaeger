@@ -15,6 +15,7 @@ import (
 	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerquery/internal/mcptools/internal/handlers"
+	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerquery/internal/mcptools/internal/types"
 	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerquery/querysvc"
 	"github.com/jaegertracing/jaeger/internal/telemetry"
 )
@@ -91,9 +92,11 @@ func registerTools(server *mcp.Server, queryAPI *querysvc.QueryService, params S
 
 	mcp.AddTool(s.mcpServer, &mcp.Tool{
 		Name: "find_traces",
-		Description: "Find traces matching filters, given as the structured inputs or as one " +
-			"SQL statement in 'sql'. Returns lightweight summaries " +
-			"(trace_id, duration, span_count, error flag, etc.) without individual spans or attributes.",
+		Description: "Find traces matching one SQL statement in 'sql'. Returns lightweight summaries " +
+			"(trace_id, duration, span_count, error flag, etc.) without individual spans or attributes. " +
+			"The statement is SELECT DISTINCT trace_id FROM spans WHERE ... or SELECT * FROM traces " +
+			"WHERE trace_id IN (SELECT trace_id FROM spans WHERE ...), with both bounds on start_time. " +
+			types.NoColumnList,
 	}, handlers.NewFindTracesHandler(s.queryAPI, s.params.MaxSearchResults))
 
 	mcp.AddTool(s.mcpServer, &mcp.Tool{
@@ -107,7 +110,8 @@ func registerTools(server *mcp.Server, queryAPI *querysvc.QueryService, params S
 		Description: "Find spans matching one SQL statement in 'sql', across however many traces. " +
 			"Returns lightweight summaries (trace_id, span_id, service, span_name, duration, " +
 			"status) without attributes or events; use get_span_details for those. " +
-			"The statement is SELECT * FROM spans WHERE ... with both bounds on start_time.",
+			"The statement is SELECT * FROM spans WHERE ... with both bounds on start_time. " +
+			types.NoColumnList,
 	}, handlers.NewFindSpansHandler(s.queryAPI, s.params.MaxSearchResults))
 
 	mcp.AddTool(s.mcpServer, &mcp.Tool{

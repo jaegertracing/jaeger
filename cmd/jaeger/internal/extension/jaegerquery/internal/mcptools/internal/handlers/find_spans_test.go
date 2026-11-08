@@ -7,6 +7,8 @@ import (
 	"context"
 	"errors"
 	"iter"
+	"reflect"
+	"strings"
 	"testing"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
@@ -251,4 +253,33 @@ func TestFindSpansHandler_Handle_ServedByMemoryStore(t *testing.T) {
 	require.Len(t, output.Spans, 1)
 	assert.Equal(t, "/ok", output.Spans[0].SpanName)
 	assert.Empty(t, output.Error)
+}
+
+// TestFindSpansHandler_ColumnListSchemaMatchesBehavior ties the NoColumnList sentence in the
+// tool's schema to what the query service does with a column list: the schema carries the
+// sentence exactly when the query service refuses the list. When sparse spans land, the
+// refusal stops and this test fails until the sentence is removed from the schema.
+func TestFindSpansHandler_ColumnListSchemaMatchesBehavior(t *testing.T) {
+	store, err := memory.NewStore(memory.Configuration{MaxTraces: 10})
+	require.NoError(t, err)
+	handler := &findSpansHandler{
+		queryService: querysvc.NewQueryService(store, store, querysvc.QueryServiceOptions{}),
+		maxResults:   100,
+	}
+
+	input := types.FindSpansInput{SQL: "SELECT service, name FROM spans " + findSpansWindow}
+	_, _, err = handler.handle(t.Context(), &mcp.CallToolRequest{}, input)
+
+	refused := errors.Is(err, querysvc.ErrProjectionUnsupported)
+	assert.Equal(t, refused, schemaSaysNoColumnList(t, input),
+		"the find_spans schema must say %q exactly when a column list is refused; got %v", types.NoColumnList, err)
+}
+
+// schemaSaysNoColumnList reports whether the schema of a tool input's SQL field carries the
+// NoColumnList sentence. A struct tag is a string literal and cannot refer to the constant, so
+// the tag spells the sentence out and the tests of each tool compare the two.
+func schemaSaysNoColumnList(t *testing.T, input any) bool {
+	field, ok := reflect.TypeOf(input).FieldByName("SQL")
+	require.True(t, ok)
+	return strings.Contains(field.Tag.Get("jsonschema"), types.NoColumnList)
 }

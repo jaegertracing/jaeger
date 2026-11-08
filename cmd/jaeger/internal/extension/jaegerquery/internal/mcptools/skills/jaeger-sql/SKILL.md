@@ -1,10 +1,10 @@
 ---
 name: jaeger-sql
 description: >-
-  Write the sql input of find_traces or find_spans. Use when the user writes
-  the search as SQL, when the search is for spans rather than traces, or when
-  the structured inputs cannot say it: OR, NOT, a comparison on an attribute,
-  a text pattern, or a condition on a span's events or links.
+  Write the sql input of find_traces or find_spans: the statement shapes, the
+  columns, the values and the predicates, including OR, NOT, a comparison on
+  an attribute, a text pattern, and a condition on a span's events or links.
+  Read it before the first call to either tool.
 allowed-tools: find_traces find_spans
 ---
 
@@ -13,6 +13,8 @@ allowed-tools: find_traces find_spans
 Find traces or spans with one read-only `SELECT` in the `sql` input of `find_traces` or `find_spans`. The statement is compiled to Jaeger's filter; nothing is executed as SQL. `find_traces` returns traces, so it takes the first and third shapes below. `find_spans` returns spans, so it takes the second.
 
 ## Three statement shapes
+
+`SELECT *` is the only select list over `spans` and over `traces`; a column list is refused by both tools. `SELECT DISTINCT trace_id FROM spans` is the one other form.
 
 Trace IDs of the traces that have a matching span:
 
@@ -83,7 +85,7 @@ Every attribute predicate names its level. When the level is unknown, `attribute
 
 ### `traces`
 
-`trace_id`, `root_service`, `root_name`, `start_time`, `duration`, `span_count`, `error_count`. These columns may be selected but not filtered on; the only `WHERE` on `traces` is `trace_id IN (SELECT trace_id FROM spans WHERE ...)`.
+`trace_id`, `root_service`, `root_name`, `start_time`, `duration`, `span_count`, `error_count`. These columns may not be filtered on, and `find_traces` returns the whole summary of each trace, so write `SELECT *`; a column list is refused. The only `WHERE` on `traces` is `trace_id IN (SELECT trace_id FROM spans WHERE ...)`.
 
 ## Values
 
