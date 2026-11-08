@@ -275,6 +275,7 @@ jobs:
         password: ${{ secrets.QUAY_TOKEN }}
 
     - name: Verify published assets and images
+      if: ${{ !cancelled() }}
       run: bash scripts/release/verify-published.sh "${TAG}"
       env:
         TAG: ${{ needs.publish-release.outputs.tag }}
