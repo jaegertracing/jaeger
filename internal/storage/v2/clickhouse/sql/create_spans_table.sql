@@ -1,5 +1,5 @@
 CREATE TABLE
-    IF NOT EXISTS spans (
+    IF NOT EXISTS spans{{ .Suffix }} (
         id String,
         trace_id String,
         trace_state String,

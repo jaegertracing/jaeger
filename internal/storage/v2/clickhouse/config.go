@@ -100,6 +100,19 @@ type ReplicatedEngine struct {
 	// ReplicaName identifies this replica under KeeperPath. The same value is used for
 	// every table, which is what the `{replica}` macro expects.
 	ReplicaName string `mapstructure:"replica_name"`
+	// Cluster, when set, additionally creates a distributed layout: every table in the
+	// schema is created twice, once under its name with a `_local` suffix, using the
+	// engine this block otherwise selects, and once under its plain name as a
+	// `Distributed` table over `_local` reached through this cluster, so that application
+	// reads and writes against the plain name are routed and fanned out across the
+	// cluster's shards without a code change. The materialized views attach to the
+	// `_local` tables, the conventional layout, rather than to the `Distributed` wrapper.
+	//
+	// Jaeger issues no `ON CLUSTER` DDL and does not detect a database's own cluster
+	// registration: create_schema: true must be run against every replica directly, or
+	// the layout created by another means first. Empty keeps today's single table per
+	// name, under the engine this block selects.
+	Cluster string `mapstructure:"cluster"`
 }
 
 // engineFamily is the local engine of a table in the schema, which a TableEngine
@@ -137,6 +150,10 @@ func (e TableEngine) engineClause(family engineFamily) (string, error) {
 	// literal and a backslash escapes the character after it.
 	if strings.ContainsAny(r.KeeperPath, `'\`) || strings.ContainsAny(r.ReplicaName, `'\`) {
 		return "", errors.New("`table_engine.replicated` `keeper_path` and `replica_name` must not contain a single quote or a backslash")
+	}
+	// Cluster is rendered the same way, as the first argument of a Distributed(...) table.
+	if strings.ContainsAny(r.Cluster, `'\`) {
+		return "", errors.New("`table_engine.replicated` `cluster` must not contain a single quote or a backslash")
 	}
 	if r.KeeperPath == "" {
 		return "Replicated" + string(family), nil
@@ -192,6 +209,11 @@ func (cfg *Configuration) Validate() error {
 	if cfg.CreateSchema {
 		if _, err := cfg.TableEngine.engineClause(mergeTreeFamily); err != nil {
 			return err
+		}
+		// Database is otherwise only a driver connection parameter, but the distributed
+		// layout renders it inside a Distributed(...) table's single-quoted literal too.
+		if r := cfg.TableEngine.Replicated.Get(); r != nil && r.Cluster != "" && strings.ContainsAny(cfg.Database, `'\`) {
+			return errors.New("`database` must not contain a single quote or a backslash when `table_engine.replicated.cluster` is set")
 		}
 	}
 	return nil

@@ -184,6 +184,46 @@ func TestValidate(t *testing.T) {
 			mutate:  func(cfg *Configuration) { cfg.AttributeMetadataCacheMaxSize = -1 },
 			wantErr: "attribute_metadata_cache_max_size must be a non-negative number",
 		},
+		{
+			name: "replicated with cluster",
+			mutate: func(cfg *Configuration) {
+				cfg.CreateSchema = true
+				cfg.TableEngine.Replicated = configoptional.Some(ReplicatedEngine{Cluster: "my_cluster"})
+			},
+		},
+		{
+			name: "replicated cluster with a quote",
+			mutate: func(cfg *Configuration) {
+				cfg.CreateSchema = true
+				cfg.TableEngine.Replicated = configoptional.Some(ReplicatedEngine{Cluster: "it's"})
+			},
+			wantErr: "`table_engine.replicated` `cluster` must not contain a single quote or a backslash",
+		},
+		{
+			name: "replicated cluster with a backslash",
+			mutate: func(cfg *Configuration) {
+				cfg.CreateSchema = true
+				cfg.TableEngine.Replicated = configoptional.Some(ReplicatedEngine{Cluster: `my\cluster`})
+			},
+			wantErr: "`table_engine.replicated` `cluster` must not contain a single quote or a backslash",
+		},
+		{
+			name: "replicated cluster with a database containing a quote",
+			mutate: func(cfg *Configuration) {
+				cfg.CreateSchema = true
+				cfg.Database = "it's"
+				cfg.TableEngine.Replicated = configoptional.Some(ReplicatedEngine{Cluster: "my_cluster"})
+			},
+			wantErr: "`database` must not contain a single quote or a backslash when `table_engine.replicated.cluster` is set",
+		},
+		{
+			name: "database with a quote is fine without cluster",
+			mutate: func(cfg *Configuration) {
+				cfg.CreateSchema = true
+				cfg.Database = "it's"
+				cfg.TableEngine.MergeTree = configoptional.Some(MergeTreeEngine{})
+			},
+		},
 	}
 
 	for _, tt := range tests {

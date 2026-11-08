@@ -437,3 +437,6 @@ var CreateEventAttributeMetadataMaterializedView string
 
 //go:embed create_link_attribute_metadata_mv.sql
 var CreateLinkAttributeMetadataMaterializedView string
+
+//go:embed create_distributed_table.sql
+var CreateDistributedTable string
