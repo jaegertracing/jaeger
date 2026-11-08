@@ -210,6 +210,10 @@ type Factory struct {
 }
 
 func NewFactory(ctx context.Context, cfg Configuration, telset telemetry.Settings) (*Factory, error) {
+	if err := cfg.Validate(); err != nil {
+		return nil, fmt.Errorf("invalid clickhouse configuration: %w", err)
+	}
+
 	layout, err := cfg.attributeLayout()
 	if err != nil {
 		return nil, err
