@@ -19,13 +19,15 @@ repo=${GITHUB_REPOSITORY:-jaegertracing/jaeger}
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 summary=${GITHUB_STEP_SUMMARY:-/dev/null}
 missing=()
+# Names that do not come from the build scripts: the combined checksum file,
+# the SBOM, and the provenance file that ci-release.yml uploads after packaging.
+fixed_assets=("jaeger-${version}.sha256sum.txt" jaeger-SBOM.spdx.json multiple.intoto.jsonl)
+# Images of build-all-in-one-image.sh and build-hotrod-image.sh.
+fixed_images=(jaeger jaeger-debug example-hotrod)
 
-# Same names as scripts/build/package-deploy.sh, plus the SBOM and the
-# provenance file that ci-release.yml uploads after packaging.
+# Same names as scripts/build/package-deploy.sh, plus the fixed names.
 expected_assets() {
-  echo "jaeger-${version}.sha256sum.txt"
-  echo "jaeger-SBOM.spdx.json"
-  echo "multiple.intoto.jsonl"
+  printf '%s\n' "${fixed_assets[@]}"
   local platform os_arch pkg
   for platform in $(make -s -C "$repo_root" echo-platforms | tr ',' ' '); do
     os_arch="${platform%%/*}-${platform##*/}"
@@ -42,12 +44,11 @@ expected_assets() {
 }
 
 # build_image calls in build-upload-docker-images.sh (a "true" fourth argument
-# adds a -debug image), plus the images of build-all-in-one-image.sh and
-# build-hotrod-image.sh.
+# adds a -debug image), plus the fixed images.
 expected_images() {
   awk '$1 == "build_image" { print $2; if ($5 == "true") print $2 "-debug" }' \
     "$repo_root/scripts/build/build-upload-docker-images.sh"
-  printf '%s\n' jaeger jaeger-debug example-hotrod
+  printf '%s\n' "${fixed_images[@]}"
 }
 
 report_missing() {
@@ -55,10 +56,12 @@ report_missing() {
   echo "::error::Missing $1"
 }
 
-# A failing make or awk would only shorten these lists, so check they are not empty.
+# A failing make or awk would leave only the fixed names, so check the build
+# scripts added at least one name to each list.
 want_assets=$(expected_assets)
 want_images=$(expected_images)
-if (( $(grep -c . <<< "$want_assets") <= 3 )) || (( $(grep -c . <<< "$want_images") <= 3 )); then
+if (( $(grep -c . <<< "$want_assets") <= ${#fixed_assets[@]} )) ||
+  (( $(grep -c . <<< "$want_images") <= ${#fixed_images[@]} )); then
   echo "::error::Could not derive the expected platforms or images from the build scripts"
   exit 1
 fi

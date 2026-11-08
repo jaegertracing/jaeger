@@ -101,5 +101,12 @@ testFailsWhenPlatformsCannotBeDerived() {
   assertContains "$out" "::error::Could not derive the expected platforms or images"
 }
 
+testFailsWhenImagesCannotBeDerived() {
+  stub awk 'exit 2'
+  out=$(bash "$script" v2.22.0 2>&1)
+  assertEquals 1 $?
+  assertContains "$out" "::error::Could not derive the expected platforms or images"
+}
+
 # shellcheck disable=SC1091
 source "${SHUNIT2}/shunit2"
