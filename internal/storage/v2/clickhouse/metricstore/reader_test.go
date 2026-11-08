@@ -311,6 +311,147 @@ func TestStepSeconds(t *testing.T) {
 	}
 }
 
+func TestLookbackBuckets(t *testing.T) {
+	tests := []struct {
+		name    string
+		step    uint64
+		ratePer *time.Duration
+		want    int
+	}{
+		{name: "nil RatePer", step: 60, ratePer: nil, want: 1},
+		{name: "RatePer narrower than step", step: 60, ratePer: ptr(30 * time.Second), want: 1},
+		{name: "RatePer equal to step", step: 60, ratePer: ptr(time.Minute), want: 1},
+		{name: "RatePer exact multiple of step", step: 60, ratePer: ptr(3 * time.Minute), want: 3},
+		{name: "RatePer rounds up to next step", step: 60, ratePer: ptr(90 * time.Second), want: 2},
+		{name: "zero step", step: 0, ratePer: ptr(time.Minute), want: 1},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.want, lookbackBuckets(tt.step, tt.ratePer))
+		})
+	}
+}
+
+func TestAlignDown(t *testing.T) {
+	tests := []struct {
+		name     string
+		unixSecs int64
+		step     int64
+		want     int64
+	}{
+		{name: "already aligned", unixSecs: 1735732800, step: 60, want: 1735732800},
+		{name: "rounds down to previous bucket", unixSecs: 1735732859, step: 60, want: 1735732800},
+		{name: "one second past a bucket", unixSecs: 1735732801, step: 60, want: 1735732800},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.want, alignDown(tt.unixSecs, tt.step))
+		})
+	}
+}
+
+// TestGetCallRates_NoRatePer_UnchangedBehavior pins down that a nil (or
+// narrower-than-step) RatePer takes the exact pre-existing codepath: the
+// divided-in-SQL SelectCallRates query, not the new raw-count query.
+func TestGetCallRates_NoRatePer_UnchangedBehavior(t *testing.T) {
+	ts := time.Date(2025, 1, 1, 11, 30, 0, 0, time.UTC)
+	drv := &clickhousetest.Driver{
+		QueryResponses: map[string]*clickhousetest.QueryResponse{
+			sql.SelectCallRates: {
+				Rows: &clickhousetest.Rows[metricsRow]{
+					Data:   []metricsRow{{Timestamp: ts, ServiceName: "frontend", Value: 1.5}},
+					ScanFn: scanMetricsRowFn,
+				},
+			},
+		},
+	}
+	result, err := NewReader(drv).GetCallRates(t.Context(), &metricstore.CallRateQueryParameters{
+		BaseQueryParameters: testQueryParams,
+	})
+	require.NoError(t, err)
+	require.Len(t, drv.RecordedQueries, 1)
+	assert.Contains(t, drv.RecordedQueries[0], "count(*) / ?")
+	require.Len(t, result.Metrics, 1)
+	require.Len(t, result.Metrics[0].MetricPoints, 1)
+	assert.InDelta(t, 1.5, result.Metrics[0].MetricPoints[0].GetGaugeValue().GetDoubleValue(), 0.001)
+}
+
+// TestGetCallRates_RatePerSmoothing exercises the new windowed path end to
+// end: RatePer=3m wider than Step=1m means lookback=3, so the reader should
+// query 2 extra 1-minute buckets of history before the requested start, then
+// return a rate smoothed over 3-minute (180s) windows.
+//
+// frontend's raw per-bucket counts, 11:53 through 11:59 (one per minute):
+// 3, _, 6, 3, 9, 3, 6 - the 11:54 bucket has no row at all (a quiet minute,
+// not a zero explicitly returned by ClickHouse), checking that a gap is
+// treated as 0 calls rather than skipped. Hand-computed sums over the
+// trailing 3-bucket window, divided by 180s:
+//
+//	11:55: (3+0+6)/180  = 0.05
+//	11:56: (0+6+3)/180  = 0.05
+//	11:57: (6+3+9)/180  = 0.1
+//	11:58: (3+9+3)/180  = 0.08333...
+//	11:59: (9+3+6)/180  = 0.1
+//
+// 11:53 and 11:54 aren't emitted (not enough history yet), and nothing
+// before 11:53 is emitted either (outside the requested start of 11:55).
+func TestGetCallRates_RatePerSmoothing(t *testing.T) {
+	bucket := func(hh, mm int) time.Time {
+		return time.Date(2025, 1, 1, hh, mm, 0, 0, time.UTC)
+	}
+	drv := &clickhousetest.Driver{
+		QueryResponses: map[string]*clickhousetest.QueryResponse{
+			sql.SelectCallCounts: {
+				Rows: &clickhousetest.Rows[metricsRow]{
+					Data: []metricsRow{
+						{Timestamp: bucket(11, 53), ServiceName: "frontend", Value: 3},
+						// 11:54 deliberately omitted - simulates a quiet bucket.
+						{Timestamp: bucket(11, 55), ServiceName: "frontend", Value: 6},
+						{Timestamp: bucket(11, 56), ServiceName: "frontend", Value: 3},
+						{Timestamp: bucket(11, 57), ServiceName: "frontend", Value: 9},
+						{Timestamp: bucket(11, 58), ServiceName: "frontend", Value: 3},
+						{Timestamp: bucket(11, 59), ServiceName: "frontend", Value: 6},
+					},
+					ScanFn: scanMetricsRowFn,
+				},
+			},
+		},
+	}
+
+	params := metricstore.BaseQueryParameters{
+		ServiceNames: []string{"frontend"},
+		EndTime:      ptr(bucket(12, 0)),
+		Lookback:     ptr(5 * time.Minute),
+		Step:         ptr(time.Minute),
+		RatePer:      ptr(3 * time.Minute),
+		SpanKinds:    []string{"SPAN_KIND_SERVER"},
+	}
+	result, err := NewReader(drv).GetCallRates(t.Context(), &metricstore.CallRateQueryParameters{
+		BaseQueryParameters: params,
+	})
+	require.NoError(t, err)
+
+	require.Len(t, drv.RecordedQueries, 1)
+	assert.Contains(t, drv.RecordedQueries[0], sql.SelectCallCounts)
+	recordedArgs := drv.RecordedArgs[0]
+	require.Len(t, recordedArgs, 5)
+	assert.Equal(t, uint64(60), recordedArgs[0])
+	assert.Equal(t, bucket(11, 53), recordedArgs[1], "query should start 2 buckets before the requested start to fill the lookback window")
+	assert.Equal(t, bucket(12, 0), recordedArgs[2])
+
+	require.Len(t, result.Metrics, 1)
+	points := result.Metrics[0].MetricPoints
+	require.Len(t, points, 5)
+
+	wantTimestamps := []time.Time{bucket(11, 55), bucket(11, 56), bucket(11, 57), bucket(11, 58), bucket(11, 59)}
+	wantValues := []float64{0.05, 0.05, 0.1, 15.0 / 180.0, 0.1}
+	for i, p := range points {
+		gotTS := time.Unix(p.GetTimestamp().GetSeconds(), 0).UTC()
+		assert.Equal(t, wantTimestamps[i], gotTS, "point %d timestamp", i)
+		assert.InDelta(t, wantValues[i], p.GetGaugeValue().GetDoubleValue(), 1e-9, "point %d value", i)
+	}
+}
+
 func TestConvertSpanKinds(t *testing.T) {
 	tests := []struct {
 		name  string
