@@ -103,10 +103,10 @@ func (w *Writer) WriteSpan(msg *model.Span) error {
 		return err
 	}
 	if w.spanCount > 0 {
-		w.capturedFile.WriteString(",\n")
+		_, _ = w.capturedFile.WriteString(",\n")
 	}
-	w.capturedFile.Write(out.Bytes())
-	w.capturedFile.Sync()
+	_, _ = w.capturedFile.Write(out.Bytes())
+	_ = w.capturedFile.Sync()
 
 	span := w.anonymizer.AnonymizeSpan(msg)
 
@@ -115,12 +115,12 @@ func (w *Writer) WriteSpan(msg *model.Span) error {
 		return err
 	}
 	if w.spanCount > 0 {
-		w.anonymizedFile.WriteString(",\n")
+		_, _ = w.anonymizedFile.WriteString(",\n")
 	}
 	if _, err := w.anonymizedFile.Write(dat); err != nil {
 		return err
 	}
-	w.anonymizedFile.Sync()
+	_ = w.anonymizedFile.Sync()
 
 	w.spanCount++
 	if w.spanCount%100 == 0 {
@@ -150,12 +150,12 @@ func (w *Writer) closeLocked() {
 	w.closed = true
 
 	if w.capturedFile != nil {
-		w.capturedFile.WriteString("\n]\n")
-		w.capturedFile.Close()
+		_, _ = w.capturedFile.WriteString("\n]\n")
+		_ = w.capturedFile.Close()
 	}
 	if w.anonymizedFile != nil {
-		w.anonymizedFile.WriteString("\n]\n")
-		w.anonymizedFile.Close()
+		_, _ = w.anonymizedFile.WriteString("\n]\n")
+		_ = w.anonymizedFile.Close()
 	}
 	if w.anonymizer != nil {
 		w.anonymizer.Stop()

@@ -520,6 +520,23 @@ func TestFindSpans_WithUnsupportingBackend_UnsupportedError(t *testing.T) {
 	require.Equal(t, ErrSpanSearchUnsupported, err)
 }
 
+// TestFindSpans_ProjectionUnsupported pins that a column list is refused before the backend is
+// consulted: the reader's capabilities are never asked for.
+func TestFindSpans_ProjectionUnsupported(t *testing.T) {
+	tqs := initializeBareTestQueryService()
+
+	query := SpanQueryParams{
+		StartTimeMin: testWindowStart,
+		StartTimeMax: testWindowEnd,
+		Projection:   []expression.Expression{p.Span().Duration.Term()},
+	}
+	seq := tqs.queryService.FindSpans(context.Background(), query)
+	_, err := jiter.CollectWithErrors(seq)
+	require.ErrorIs(t, err, ErrProjectionUnsupported)
+	require.ErrorIs(t, err, errors.ErrUnsupported)
+	tqs.traceReader.AssertNotCalled(t, "SearchCapabilities", mock.Anything)
+}
+
 func TestFindTraces_Success(t *testing.T) {
 	tqs := initializeTestService()
 	responseIter := iter.Seq2[[]ptrace.Traces, error](func(yield func([]ptrace.Traces, error) bool) {

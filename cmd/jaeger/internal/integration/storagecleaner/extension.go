@@ -54,7 +54,7 @@ func (c *storageCleaner) Start(_ context.Context, host component.Host) error {
 			return
 		}
 		w.WriteHeader(http.StatusOK)
-		w.Write([]byte("Purge request processed successfully"))
+		_, _ = w.Write([]byte("Purge request processed successfully"))
 	}
 
 	mux := http.NewServeMux()
