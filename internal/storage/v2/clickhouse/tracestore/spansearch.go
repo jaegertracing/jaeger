@@ -77,8 +77,8 @@ func (c sortTerm) value(row *dbmodel.SpanRow) any {
 	}
 }
 
-// spanSort lowers the query's order to sort terms. The effective order ends in the trace ID
-// and the span ID, so two rows tie on every term only when one span was stored twice
+// spanSort lowers the query's effective order to sort terms. The effective order ends in the
+// trace ID and the span ID, so two rows tie on every term only when one span was stored twice
 // (RFC 0016 §6.4). Ordering by an ID column orders by the ID's numeric value, since the IDs
 // are stored as fixed-width lower-case hex strings whose bytewise order is their numeric order.
 func spanSort(order []tracestore.SpanSortOrder) ([]tracestore.SpanSortOrder, []sortTerm, error) {
@@ -130,16 +130,13 @@ func (r *Reader) FindSpans(ctx context.Context, query tracestore.SpanQueryParams
 
 func (r *Reader) findSpanPage(ctx context.Context, query tracestore.SpanQueryParams) (tracestore.PageChunk[ptrace.Traces], error) {
 	var none tracestore.PageChunk[ptrace.Traces]
-	_, sort, err := spanSort(query.OrderBy)
+	// The fingerprint covers the effective order, so a token minted for the omitted default order
+	// continues an explicit equivalent of it, and the other way round (RFC 0016 §6.4).
+	order, sort, err := spanSort(query.OrderBy)
 	if err != nil {
 		return none, err
 	}
-	// The query service refuses an explicit order before dispatch, but a reader reached directly
-	// must refuse it too while SpanSorting is off.
-	capabilities, _ := r.SearchCapabilities(ctx)
-	if err := capabilities.ValidateSpanSorting(query.OrderBy); err != nil {
-		return none, err
-	}
+	query.OrderBy = order
 	fingerprint, err := query.Fingerprint()
 	if err != nil {
 		return none, err

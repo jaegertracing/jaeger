@@ -245,9 +245,11 @@ func Cassandra() Capabilities {
 // fresh slice, so a caller may append to it.
 func clickHouseSkipList() []string {
 	return []string{
-		// FindSpans orders by the default key only, so the ordering battery, whose default
-		// case runs through the same test, is skipped whole (RFC 0016 M12).
-		spanOrderingTest,
+		// The span search orders by the built-in span fields only; no backend orders by an
+		// attribute yet.
+		spanAttributeOrderingTest,
+		// The lowering maps five built-in fields; span.startTime is not among them yet.
+		"SpanOrdering/Basic/TimestampFilter",
 		// The trace searches do not page yet.
 		traceIDPaginationTest,
 		summaryPaginationTest,

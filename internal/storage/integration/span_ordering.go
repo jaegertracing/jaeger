@@ -200,6 +200,7 @@ func (s *StorageIntegration) testSpanOrderingBasic(t *testing.T) {
 		{"TimestampFilter", expression.SpanFieldStartTime, &expression.TimestampValue{Value: first.StartTimestamp().AsTime()}, []string{"c", "b", "d", "e"}},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
+			s.skipIfNeeded(t)
 			q := query
 			q.Filter = &expression.Call{Op: expression.OpAnd, Args: []expression.Expression{
 				query.Filter,
