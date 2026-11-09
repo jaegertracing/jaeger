@@ -70,10 +70,10 @@ func (*Reader) SearchCapabilities(context.Context) (tracestore.SearchCapabilitie
 		// trace.
 		SameSpanConjunction: true,
 		Filter:              &filter,
-		// FindSpans orders span rows by the default sort key only; it does not lower a
-		// caller-selected order yet (RFC 0016 M12).
+		// FindSpans lowers a caller-selected order over the built-in span fields to the ORDER BY,
+		// the continuation predicate and the cursor alike (RFC 0016 §6.3).
 		SpanSearch:  true,
-		SpanSorting: false,
+		SpanSorting: true,
 		// FindSpans pages with a keyset cursor over its sort key. The capability covers the
 		// trace searches as well, which do not page yet: they serve one page bounded by the
 		// page size and refuse a token (TraceQueryParams.ReplacePaginationWithDepth).

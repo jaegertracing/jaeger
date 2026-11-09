@@ -120,6 +120,43 @@ func TestFindSpans_Query(t *testing.T) {
 	}, conn.RecordedArgs[1], "the continuation resumes after the cursor's key")
 }
 
+// TestFindSpans_ExplicitOrder pages through spans in a caller-selected order, duration
+// descending with the start time as the first tie-breaker, and snapshots both statements: the
+// ORDER BY carries the caller's terms before the tie-breakers, and the continuation predicate
+// compares each term in its own direction.
+func TestFindSpans_ExplicitOrder(t *testing.T) {
+	slow := spanSearchRow("slow", "0000000000000001", now.Add(-2*time.Second))
+	slow.Duration = 3000
+	mid := spanSearchRow("mid", "0000000000000002", now)
+	mid.Duration = 2000
+	fast := spanSearchRow("fast", "0000000000000003", now.Add(-time.Second))
+	conn, serve := spanSearchConn(slow, mid, fast)
+	reader := NewReader(conn, testReaderConfig)
+
+	query := spanSearchQuery(2, "")
+	query.OrderBy = []tracestore.SpanSortOrder{
+		{Expression: fieldRef(expression.LevelSpan, expression.SpanFieldDuration), Direction: tracestore.SortDescending},
+		{Expression: fieldRef(expression.LevelSpan, expression.SpanFieldStartTime), Direction: tracestore.SortAscending},
+	}
+	names, token := findSpans(t, reader, query)
+	assert.Equal(t, []string{"slow", "mid"}, names)
+	require.NotEmpty(t, token)
+
+	serve(fast)
+	query.Pagination.PageToken = token
+	names, token = findSpans(t, reader, query)
+	assert.Equal(t, []string{"fast"}, names)
+	assert.Empty(t, token)
+
+	require.Len(t, conn.RecordedQueries, 2)
+	verifyQuerySnapshot(t, conn.RecordedQueries...)
+	assert.Equal(t, []any{
+		now.Add(-time.Hour).UnixNano(), now.UnixNano(), "cart",
+		int64(2000), int64(2000), now.UnixNano(), now.UnixNano(), traceIDHex1, traceIDHex1, "0000000000000002",
+		uint64(3),
+	}, conn.RecordedArgs[1], "the continuation carries one value per sort term")
+}
+
 // TestFindSpans_TimeRangeOnly snapshots the statement of a span query that carries no filter.
 func TestFindSpans_TimeRangeOnly(t *testing.T) {
 	conn, _ := spanSearchConn(spanSearchRow("a", "0000000000000001", now))
@@ -146,7 +183,12 @@ func TestFindSpans_PageSizeIsClamped(t *testing.T) {
 }
 
 func TestFindSpans_Refusals(t *testing.T) {
-	fingerprint, err := spanSearchQuery(1, "").Fingerprint()
+	// The reader fingerprints the effective order, so a token's fingerprint carries it too.
+	fingerprinted := spanSearchQuery(1, "")
+	order, err := tracestore.EffectiveSpanOrder(nil)
+	require.NoError(t, err)
+	fingerprinted.OrderBy = order
+	fingerprint, err := fingerprinted.Fingerprint()
 	require.NoError(t, err)
 	otherQuery := spanSearchQuery(1, "")
 	otherQuery.StartTimeMax = now.Add(time.Second)
@@ -172,19 +214,6 @@ func TestFindSpans_Refusals(t *testing.T) {
 		wantErr error
 		message string
 	}{
-		{
-			name: "explicit order",
-			query: func() tracestore.SpanQueryParams {
-				q := spanSearchQuery(1, "")
-				q.OrderBy = []tracestore.SpanSortOrder{{
-					Expression: fieldRef(expression.LevelSpan, expression.SpanFieldDuration),
-					Direction:  tracestore.SortDescending,
-				}}
-				return q
-			}(),
-			wantErr: tracestore.ErrSpanOrderUnsupported,
-			message: "explicit span ordering",
-		},
 		{
 			name: "invalid order",
 			query: func() tracestore.SpanQueryParams {
@@ -276,8 +305,8 @@ func TestFindSpans_Errors(t *testing.T) {
 	})
 }
 
-// TestSpanSort_Continuation lowers an explicit order, which the reader does not accept yet, to
-// its sort terms, and checks the ORDER BY and the continuation predicate built from them
+// TestSpanSort_Continuation lowers an explicit order to its sort terms, and checks the ORDER BY
+// and the continuation predicate built from them
 // against the order's semantics: a term is past the cursor's value in its own direction, or
 // equal to it and the remaining terms decide, and the last term compares inclusively.
 func TestSpanSort_Continuation(t *testing.T) {
