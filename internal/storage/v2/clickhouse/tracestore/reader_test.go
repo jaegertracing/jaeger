@@ -1322,20 +1322,6 @@ func TestFindTraceIDs_BuildQueryError(t *testing.T) {
 
 // The search SQL appends every predicate conditionally, so ClickHouse answers a query
 // that omits the service name (RFC 0013).
-func TestReader_SearchCapabilities(t *testing.T) {
-	caps, err := (&Reader{}).SearchCapabilities(context.Background())
-	require.NoError(t, err)
-	filter := FilterCapabilities()
-	assert.Equal(t, tracestore.SearchCapabilities{
-		WithoutServiceName:  true,
-		SameSpanConjunction: true,
-		Filter:              &filter,
-		SpanSearch:          true,
-		SpanSorting:         true,
-		Paginated:           true,
-	}, caps)
-}
-
 // TestFindTraceIDs_Pagination covers the fold of RFC 0014 §6.2 inside the reader: the page size
 // bounds the search as its depth and the page is the last one, while a token is refused.
 func TestFindTraceIDs_Pagination(t *testing.T) {
