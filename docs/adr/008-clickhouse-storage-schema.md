@@ -218,10 +218,10 @@ Schema creation uses `CREATE TABLE IF NOT EXISTS`, so changing the `operations` 
 
 Because `operations` is derived entirely from `spans`, the safest upgrade path is to recreate it and backfill from retained span data. Run the steps in the Jaeger database, off-peak: the backfill `INSERT ... SELECT` scans every retained row of `spans`.
 
-Before dropping anything, capture the table's current definition with `SHOW CREATE TABLE operations` and reuse its `ENGINE` clause verbatim.
-The DDL template renders `ENGINE = {{ .AggregatingMergeTree }}`, which is `AggregatingMergeTree` on a single node but `ReplicatedAggregatingMergeTree(...)` on a replicated deployment;
-pasting the single-node form on a cluster would silently create a local table that misses operation names written through other replicas.
-Keep the `ON CLUSTER` clause too, if the deployment uses one, and change only the `ORDER BY`. The snippet below is the single-node form:
+Before dropping anything, capture the table's current definition with `SHOW CREATE TABLE operations`.
+The DDL template renders `ENGINE = {{ .AggregatingMergeTree }}`, which is `AggregatingMergeTree` for local tables but `ReplicatedAggregatingMergeTree(...)` on a replicated deployment;
+pasting the local form on a replicated deployment would silently create a table that misses operation names written through other replicas.
+The following snippet is for single-node deployments using `AggregatingMergeTree` only. Replicated deployments must follow the ordered steps below it instead:
 
 ```sql
 DROP VIEW IF EXISTS operations_mv;
@@ -256,6 +256,14 @@ GROUP BY
     name,
     kind;
 ```
+
+For replicated deployments, complete each of steps 1–4 on every replica before proceeding to the next step; step 5 runs only once per shard. Jaeger does not emit `ON CLUSTER` DDL, and `operations_mv` is a local view, so table and view DDL must be run explicitly on each replica:
+
+1. Drop `operations_mv` on every replica with `DROP VIEW IF EXISTS operations_mv`.
+2. Drop `operations` on every replica with `DROP TABLE IF EXISTS operations SYNC`. Wait for all drops to complete before recreating the table on any replica. The sorting key is stored in Keeper and must match across replicas sharing a Keeper path; recreating while any replica still has the old table causes a metadata mismatch. `SYNC` also waits for the old replica entry to be removed, which a plain `DROP` can defer in an Atomic database.
+3. Recreate `operations` on every replica using its saved `SHOW CREATE TABLE` definition, preserving the `ENGINE` clause, including the Keeper path and replica parameters, and changing only `ORDER BY` to `(service_name, span_kind, name)`.
+4. Recreate `operations_mv` on every replica using the materialized-view definition in the snippet above.
+5. Run the backfill `INSERT ... SELECT` from the snippet above **once per shard**, on one replica of that shard, after all tables and views have been recreated. The inserted operation rows replicate to the other replicas; running the backfill on every replica would unnecessarily scan `spans` once per replica.
 
 If the source spans have already expired due to TTL, operation names that only existed in expired data cannot be recovered by the backfill.
 
