@@ -122,6 +122,47 @@ func filterTestCases(p builder.Predicate) []filterCase {
 			expected: []string{"cart_get", "cart_post"},
 		},
 		{
+			// Without the anchor the pattern also matches search, whose name is "GET /search".
+			caption:  "a pattern anchored at the start of the operation name",
+			filter:   p.Span().Name.Matches("^search"),
+			expected: []string{"text-search"},
+		},
+		{
+			// Without the anchor the pattern also matches cart_post, whose name is "POST /cart/items".
+			caption:  "a pattern anchored at the end of the operation name",
+			filter:   p.Span().Name.Matches("/cart$"),
+			expected: []string{"cart_get"},
+		},
+		{
+			caption:  "a pattern with a negated class",
+			filter:   p.Span().Name.Matches("GET /[^/]+$"),
+			expected: []string{"cart_get", "checkout", "search"},
+		},
+		{
+			caption:  "a pattern with a quantified group",
+			filter:   p.Span().Name.Matches("/cart(/items)?$"),
+			expected: []string{"cart_get", "cart_post"},
+		},
+		{
+			caption:  "a pattern folding case",
+			filter:   p.Span().Name.Matches("(?i)^post /cart"),
+			expected: []string{"cart_post"},
+		},
+		{
+			// The range spells the lowercase of the G the name starts with and the literal the
+			// uppercase of the rest, so the case passes only when both fold.
+			caption:  "a pattern folding the case of a range",
+			filter:   p.Span().Name.Matches("(?i)^[g-h]et /CART$"),
+			expected: []string{"cart_get"},
+		},
+		{
+			// The long s (U+017F) folds to s and S under the simple case folding RE2 applies, so a
+			// pattern written with it matches a name spelled in ASCII.
+			caption:  "a pattern folding a letter beyond ASCII",
+			filter:   p.Span().Name.Matches("(?i)^po\u017ft /cart"),
+			expected: []string{"cart_post"},
+		},
+		{
 			// The write path stores an event's name as an attribute of the event, so this asserts
 			// that a filter naming the field finds what the write path recorded.
 			caption:  "the name of one of the span's events",
@@ -193,6 +234,18 @@ func filterTestCases(p builder.Predicate) []filterCase {
 			expected: []string{"cart_post"},
 		},
 		{
+			// The class spells the characters Lucene reads as syntax inside a class, and the value
+			// holds a hyphen.
+			caption:  "a pattern with a class holding a hyphen and a bracket",
+			filter:   p.Attr("zone").Matches(`^[a-z\]\-^]+$`),
+			expected: []string{"cart_get", "checkout"},
+		},
+		{
+			caption:  "a pattern using a Perl shorthand on an attribute value",
+			filter:   p.Span().Attr("http.status_code").Matches(`^5\d\d$`),
+			expected: []string{"cart_post"},
+		},
+		{
 			caption: "a conjunction of a built-in field and a duration",
 			filter: p.And(
 				p.Resource().Service.Eq("filter-cart"),
@@ -226,6 +279,46 @@ func filterTestCases(p builder.Predicate) []filterCase {
 				),
 			),
 			expected: []string{"cart_get", "cart_post"},
+		},
+		{
+			caption:  "a phrase matches adjacent ordered words",
+			filter:   p.Span().Attr("note").Phrase("refund", "policy"),
+			expected: []string{"text-search"},
+		},
+		{
+			caption:  "a phrase is case insensitive",
+			filter:   p.Span().Attr("note").Phrase("REFUND", "POLICY"),
+			expected: []string{"text-search"},
+		},
+		{
+			caption:  "a phrase does not match when words are not adjacent",
+			filter:   p.Span().Attr("note").Phrase("refund", "updated"),
+			expected: nil,
+		},
+		{
+			caption:  "a phrase does not match when words are in the wrong order",
+			filter:   p.Span().Attr("note").Phrase("policy", "refund"),
+			expected: nil,
+		},
+		{
+			caption:  "fulltext matches all words in any order",
+			filter:   p.Span().Attr("note").Fulltext("premium", "refund"),
+			expected: []string{"text-search"},
+		},
+		{
+			caption:  "fulltext matches the words a phrase rejects for their order",
+			filter:   p.Span().Attr("note").Fulltext("policy", "refund"),
+			expected: []string{"text-search"},
+		},
+		{
+			caption:  "fulltext is case insensitive",
+			filter:   p.Span().Attr("note").Fulltext("PREMIUM", "REFUND"),
+			expected: []string{"text-search"},
+		},
+		{
+			caption:  "fulltext does not match when a word is missing",
+			filter:   p.Span().Attr("note").Fulltext("refund", "discount"),
+			expected: nil,
 		},
 	}
 }

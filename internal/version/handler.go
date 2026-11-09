@@ -19,6 +19,6 @@ func RegisterHandler(mu *http.ServeMux, logger *zap.Logger) {
 	}
 	mu.HandleFunc("/version", func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusOK)
-		w.Write(jsonData)
+		_, _ = w.Write(jsonData)
 	})
 }

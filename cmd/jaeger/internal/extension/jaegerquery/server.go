@@ -6,6 +6,7 @@ package jaegerquery
 import (
 	"context"
 	"fmt"
+	"net/http"
 
 	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/extension"
@@ -51,13 +52,20 @@ func newServer(config *Config, otel component.TelemetrySettings) *server {
 
 // Dependencies implements extensioncapabilities.Dependent so the collector
 // starts this extension after the ones it consumes: the jaegerstorage extension
-// (for the trace reader) and every configured query-interceptor extension. The
-// latter guarantees each interceptor's own Start has run before jaeger-query
-// begins serving queries, so it is ready when OnTraceQuery/OnTraceResult are invoked.
+// (for the trace reader), every configured query-interceptor extension, and the
+// authenticator named by ai.auth. Listing them guarantees each one's own
+// Start has run before jaeger-query begins serving, so an interceptor is ready
+// when OnTraceQuery/OnTraceResult are invoked and the authenticator is ready
+// when the first AI request arrives.
 func (s *server) Dependencies() []component.ID {
-	deps := make([]component.ID, 0, 1+len(s.config.QueryInterceptors))
+	deps := make([]component.ID, 0, 2+len(s.config.QueryInterceptors))
 	deps = append(deps, jaegerstorage.ID)
 	deps = append(deps, s.config.QueryInterceptors...)
+	if ai := s.config.AI.Get(); ai != nil {
+		if auth := ai.Auth.Get(); auth != nil {
+			deps = append(deps, auth.Config.AuthenticatorID)
+		}
+	}
 	return deps
 }
 
@@ -115,8 +123,8 @@ func (s *server) Start(ctx context.Context, host component.Host) error {
 
 	archiveStorage := opts.ArchiveTraceReader != nil && opts.ArchiveTraceWriter != nil
 	metricsStorage := s.config.Storage.Metrics != ""
-	backendCaps := func(ctx context.Context) queryapp.BackendCapabilities {
-		searchWithoutServiceName, err := qs.SearchWithoutServiceName(ctx)
+	backendCaps := func(r *http.Request) queryapp.BackendCapabilities {
+		searchWithoutServiceName, err := qs.SearchWithoutServiceName(r.Context())
 		if err != nil {
 			searchWithoutServiceName = false
 			telset.Logger.Info("Storage did not report its search capabilities; assuming baseline",

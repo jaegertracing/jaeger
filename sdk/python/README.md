@@ -12,7 +12,7 @@ It is a prototype: not published to PyPI and not tested by the repository's CI. 
 
 ## Getting started
 
-The toolchain is [uv](https://docs.astral.sh/uv/), as in `scripts/ai-sidecar/gemini`. `uv run` syncs the environment from `uv.lock` before each command, so there is nothing to bootstrap:
+The toolchain is [uv](https://docs.astral.sh/uv/). `uv run` syncs the environment from `uv.lock` before each command, so there is nothing to bootstrap:
 
 ```bash
 cd sdk/python

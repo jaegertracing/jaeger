@@ -1,0 +1,21 @@
+# Copyright (c) 2026 The Jaeger Authors.
+# SPDX-License-Identifier: Apache-2.0
+
+services:
+  clickhouse:
+    image: clickhouse/clickhouse-server:26.3.57@sha256:aebd3c39b3d6b72168a600a7f6f3cb1c6856e2ba4fe112b85eaaea55c622cc7e
+    container_name: clickhouse
+    environment:
+      - CLICKHOUSE_USER=default
+      - CLICKHOUSE_PASSWORD=password
+      - CLICKHOUSE_DB=jaeger
+    ports:
+      - "8123:8123"
+      - "9000:9000"
+    volumes:
+      - ./keeper.yaml:/etc/clickhouse-server/config.d/keeper.yaml:ro
+    healthcheck:
+      test: ["CMD", "clickhouse-client", "--query=SELECT 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5

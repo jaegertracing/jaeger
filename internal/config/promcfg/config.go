@@ -5,11 +5,20 @@ package promcfg
 
 import (
 	"fmt"
+	"regexp"
+	"strings"
 	"time"
 
 	"github.com/asaskevich/govalidator"
 	"go.opentelemetry.io/collector/config/configtls"
+
+	"github.com/jaegertracing/jaeger/internal/storage/v1/api/metricstore"
 )
+
+// dimensionNameRegex limits dimension names to OTel-style attribute identifiers.
+// After dot→underscore conversion, the result also satisfies the Prometheus
+// label-name regex `^[A-Za-z_][A-Za-z0-9_]*$`.
+var dimensionNameRegex = regexp.MustCompile(`^[A-Za-z_][A-Za-z0-9_.]*$`)
 
 // Configuration describes the options to customize the storage behavior.
 type Configuration struct {
@@ -28,6 +37,14 @@ type Configuration struct {
 	// ExtraQueryParams is used to provide extra parameters to be appended
 	// to the URL of queries going out to the metrics backend.
 	ExtraQueryParams map[string]string `mapstructure:"extra_query_parameters"`
+	// ExtraDimensions declares a fixed, pre-configured set of additional
+	// Prometheus labels that the SPM API will accept as filters and inject
+	// into PromQL queries. Names must match dimensions declared in the
+	// spanmetrics connector config (so the labels exist on the stored time
+	// series). Stored label names must use underscore translation: dots in
+	// dimension names become underscores in selectors. Preserved dotted labels
+	// are not supported. Attributes discarded during aggregation cannot be filtered.
+	ExtraDimensions []metricstore.Dimension `mapstructure:"extra_dimensions" valid:"-"`
 }
 
 func (c *Configuration) Validate() error {
@@ -36,6 +53,32 @@ func (c *Configuration) Validate() error {
 	}
 	if u := c.LatencyUnit; u != "" && u != "ms" && u != "s" {
 		return fmt.Errorf(`latency_unit must be "ms" or "s", not %q`, u)
+	}
+	seen := make(map[string]struct{}, len(c.ExtraDimensions))
+	for i, d := range c.ExtraDimensions {
+		if !dimensionNameRegex.MatchString(d.Name) {
+			return fmt.Errorf("extra_dimensions[%d]: invalid name %q (must match %s)",
+				i, d.Name, dimensionNameRegex.String())
+		}
+		label := strings.ReplaceAll(d.Name, ".", "_")
+		switch label {
+		case "service_name", "span_kind", "status_code", "span_name", "job", "instance", "le", "__name__":
+			return fmt.Errorf("extra_dimensions[%d]: name %q maps to reserved label %q", i, d.Name, label)
+		}
+		// Exporter sanitization can collapse underscores or prefix a leading one.
+		// Restrict names so dot-to-underscore translation matches either mode.
+		if strings.Contains(label, "__") || strings.HasPrefix(label, "_") || strings.HasSuffix(label, "_") {
+			return fmt.Errorf("extra_dimensions[%d]: invalid name %q (leading, trailing, or repeated dots/underscores are not supported)", i, d.Name)
+		}
+		if _, dup := seen[label]; dup {
+			return fmt.Errorf("extra_dimensions[%d]: duplicate name %q after translation to %q", i, d.Name, label)
+		}
+		seen[label] = struct{}{}
+		for j, value := range d.Values {
+			if value == "" {
+				return fmt.Errorf("extra_dimensions[%d].values[%d]: empty value", i, j)
+			}
+		}
 	}
 	return nil
 }

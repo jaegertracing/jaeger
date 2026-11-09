@@ -6,8 +6,8 @@
 # repository's own codegen — `make proto-api-v3-python` from the root, or `make
 # proto` to refresh every language at once.
 #
-# The toolchain is uv, as in scripts/ai-sidecar/gemini. `uv run` syncs the
-# environment from uv.lock before each command, so there is no bootstrap step.
+# The toolchain is uv. `uv run` syncs the environment from uv.lock before each
+# command, so there is no bootstrap step.
 
 # The gRPC runtime is an extra, so the tests have to ask for it.
 UV := uv run --extra grpc
