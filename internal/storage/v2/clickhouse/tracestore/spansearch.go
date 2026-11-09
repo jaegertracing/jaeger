@@ -39,11 +39,14 @@ func (r *Reader) FindSpans(ctx context.Context, query tracestore.SpanQueryParams
 
 func (r *Reader) findSpanPage(ctx context.Context, query tracestore.SpanQueryParams) (tracestore.PageChunk[ptrace.Traces], error) {
 	var none tracestore.PageChunk[ptrace.Traces]
-	// The query service refuses an explicit order before dispatch, but a reader reached directly
-	// must refuse it too while SpanSorting is off.
+	// The query service refuses an explicit order and a page token before dispatch, but a reader
+	// reached directly must refuse them too while SpanSorting and Paginated are off.
 	capabilities, _ := r.SearchCapabilities(ctx)
 	if err := capabilities.ValidateSpanSorting(query.OrderBy); err != nil {
 		return none, err
+	}
+	if query.Pagination.PageToken != "" {
+		return none, fmt.Errorf("%w: the span search on this storage backend does not page yet", tracestore.ErrPaginationUnsupported)
 	}
 	// The query service clamps the page size; a caller reaching the reader directly gets the
 	// same bound (RFC 0014 §4).

@@ -154,6 +154,16 @@ func TestFindSpans_Refusals(t *testing.T) {
 			message: "explicit span ordering",
 		},
 		{
+			name: "page token",
+			query: func() tracestore.SpanQueryParams {
+				q := spanSearchQuery(1)
+				q.Pagination.PageToken = "token"
+				return q
+			}(),
+			wantErr: tracestore.ErrPaginationUnsupported,
+			message: "does not page yet",
+		},
+		{
 			name:    "zero page size",
 			query:   spanSearchQuery(0),
 			wantErr: tracestore.ErrPaginationInvalid,
