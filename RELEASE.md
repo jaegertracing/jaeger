@@ -52,7 +52,7 @@ Follow the checklist in the created tracking issue. The high level steps are:
   * If no draft appears (the workflow failed, or the PR targeted a maintenance branch), run `./scripts/release/draft.py --target <merge commit SHA>` instead, or see [Manual release](https://github.com/jaegertracing/jaeger/blob/main/RELEASE.md#manual-release).
 4. Once the release is created, the [Publish Release workflow](https://github.com/jaegertracing/jaeger/actions/workflows/ci-release.yml) will run to build artifacts.
   * Wait for the workflow to finish. For monitoring and troubleshooting, open the logs of the workflow run from above URL.
-  * Check the images are available on [Docker Hub](https://hub.docker.com/r/jaegertracing/) and binaries are uploaded [to the release](https://github.com/jaegertracing/jaeger/releases).
+  * Check that the workflow's `verify-release` job passed. It fails if a binary archive is missing from the release or an image lacks the version tag on docker.io or quay.io, and it warns (without failing) if the linux-amd64 binaries were built from a commit other than the tag. Its run summary lists what is missing. To check again after a fix, run `bash scripts/release/verify-published.sh vX.Y.Z` locally (needs `gh`, `docker`, `go`, and `make`).
   * If the workflow fails:
     * Failed before uploading anything: use "Re-run failed jobs" on the failed run; it rebuilds the same tag.
     * The fix is on `main` (workflow or build process): "Run workflow" on `main` with `overwrite=true` (`gh workflow run ci-release.yml --ref main -f dry_run=false -f overwrite=true`). The build then includes the commits after the tag; the run summary lists them.
