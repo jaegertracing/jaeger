@@ -43,10 +43,7 @@ func spanSearchQuery() dbmodel.SpanQueryParameters {
 func orderBy(terms ...string) []tracestore.SpanSortOrder {
 	var order []tracestore.SpanSortOrder
 	for i := 0; i < len(terms); i += 2 {
-		order = append(order, tracestore.SpanSortOrder{
-			Expression: &expression.FieldRef{Level: expression.LevelSpan, Name: terms[i]},
-			Direction:  tracestore.SortDirection(terms[i+1]),
-		})
+		order = append(order, tracestore.OrderBySpanField(terms[i], tracestore.SortDirection(terms[i+1])))
 	}
 	return order
 }

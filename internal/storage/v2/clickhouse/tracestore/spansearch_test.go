@@ -135,8 +135,8 @@ func TestFindSpans_ExplicitOrder(t *testing.T) {
 
 	query := spanSearchQuery(2, "")
 	query.OrderBy = []tracestore.SpanSortOrder{
-		{Expression: fieldRef(expression.LevelSpan, expression.SpanFieldDuration), Direction: tracestore.SortDescending},
-		{Expression: fieldRef(expression.LevelSpan, expression.SpanFieldStartTime), Direction: tracestore.SortAscending},
+		tracestore.OrderBySpanField(expression.SpanFieldDuration, tracestore.SortDescending),
+		tracestore.OrderBySpanField(expression.SpanFieldStartTime, tracestore.SortAscending),
 	}
 	names, token := findSpans(t, reader, query)
 	assert.Equal(t, []string{"slow", "mid"}, names)
@@ -311,8 +311,8 @@ func TestFindSpans_Errors(t *testing.T) {
 // equal to it and the remaining terms decide, and the last term compares inclusively.
 func TestSpanSort_Continuation(t *testing.T) {
 	_, sort, err := spanSort([]tracestore.SpanSortOrder{
-		{Expression: fieldRef(expression.LevelSpan, expression.SpanFieldDuration), Direction: tracestore.SortDescending},
-		{Expression: fieldRef(expression.LevelSpan, expression.SpanFieldStartTime), Direction: tracestore.SortAscending},
+		tracestore.OrderBySpanField(expression.SpanFieldDuration, tracestore.SortDescending),
+		tracestore.OrderBySpanField(expression.SpanFieldStartTime, tracestore.SortAscending),
 	})
 	require.NoError(t, err)
 	assert.Equal(t, []sortTerm{
@@ -349,6 +349,6 @@ func TestLowerSpanOrder_Refusals(t *testing.T) {
 	_, err := lowerSpanOrder([]tracestore.SpanSortOrder{{Expression: str("duration")}})
 	require.ErrorContains(t, err, "ordering term is not a field ref")
 
-	_, err = lowerSpanOrder([]tracestore.SpanSortOrder{{Expression: fieldRef(expression.LevelSpan, expression.SpanFieldName)}})
+	_, err = lowerSpanOrder([]tracestore.SpanSortOrder{tracestore.OrderBySpanField(expression.SpanFieldName, "")})
 	require.ErrorContains(t, err, "ordering term names a field without a sort column: "+expression.SpanFieldName)
 }

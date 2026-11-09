@@ -14,22 +14,18 @@ import (
 	expressionproto "github.com/jaegertracing/jaeger/internal/proto/expression/v1"
 )
 
-func sortTerm(name string, direction SortDirection) SpanSortOrder {
-	return SpanSortOrder{Expression: &expression.FieldRef{Level: expression.LevelSpan, Name: name}, Direction: direction}
-}
-
 func TestNormalizeSpanOrder(t *testing.T) {
 	for _, name := range []string{"startTime", "duration", "traceID", "spanID"} {
 		for _, direction := range []SortDirection{"", SortAscending, SortDescending} {
 			t.Run(name+string(direction), func(t *testing.T) {
-				input := []SpanSortOrder{sortTerm(name, direction)}
+				input := []SpanSortOrder{OrderBySpanField(name, direction)}
 				got, err := NormalizeSpanOrder(input)
 				require.NoError(t, err)
 				want := direction
 				if want == "" {
 					want = SortAscending
 				}
-				assert.Equal(t, []SpanSortOrder{sortTerm(name, want)}, got)
+				assert.Equal(t, []SpanSortOrder{OrderBySpanField(name, want)}, got)
 				assert.Equal(t, direction, input[0].Direction)
 				got[0].Expression.(*expression.FieldRef).Name = "changed"
 				assert.Equal(t, name, input[0].Expression.(*expression.FieldRef).Name)
@@ -37,10 +33,10 @@ func TestNormalizeSpanOrder(t *testing.T) {
 		}
 	}
 	t.Run("multiple terms", func(t *testing.T) {
-		input := []SpanSortOrder{sortTerm("duration", SortDescending), sortTerm("startTime", ""), sortTerm("spanID", SortAscending)}
+		input := []SpanSortOrder{OrderBySpanField("duration", SortDescending), OrderBySpanField("startTime", ""), OrderBySpanField("spanID", SortAscending)}
 		got, err := NormalizeSpanOrder(input)
 		require.NoError(t, err)
-		assert.Equal(t, []SpanSortOrder{sortTerm("duration", SortDescending), sortTerm("startTime", SortAscending), sortTerm("spanID", SortAscending)}, got)
+		assert.Equal(t, []SpanSortOrder{OrderBySpanField("duration", SortDescending), OrderBySpanField("startTime", SortAscending), OrderBySpanField("spanID", SortAscending)}, got)
 		assert.Equal(t, SortDirection(""), input[1].Direction)
 	})
 	got, err := NormalizeSpanOrder(nil)
@@ -54,9 +50,9 @@ func TestNormalizeSpanOrder(t *testing.T) {
 		"nested":        {{Expression: &expression.NestedRef{Level: expression.LevelEvent}}},
 		"other level":   {{Expression: &expression.FieldRef{Level: expression.LevelResource, Name: "startTime"}}},
 		"unqualified":   {{Expression: &expression.FieldRef{Name: "startTime"}}},
-		"unknown field": {sortTerm("name", "")},
-		"direction":     {sortTerm("duration", "ASC")},
-		"duplicate":     {sortTerm("duration", "asc"), sortTerm("duration", "desc")},
+		"unknown field": {OrderBySpanField("name", "")},
+		"direction":     {OrderBySpanField("duration", "ASC")},
+		"duplicate":     {OrderBySpanField("duration", "asc"), OrderBySpanField("duration", "desc")},
 	} {
 		t.Run(name, func(t *testing.T) {
 			_, err := NormalizeSpanOrder(order)
@@ -66,13 +62,13 @@ func TestNormalizeSpanOrder(t *testing.T) {
 }
 
 func TestEffectiveSpanOrder(t *testing.T) {
-	defaults := []SpanSortOrder{sortTerm("startTime", "desc"), sortTerm("traceID", "asc"), sortTerm("spanID", "asc")}
-	for _, order := range [][]SpanSortOrder{nil, defaults, {sortTerm("startTime", "desc")}} {
+	defaults := []SpanSortOrder{OrderBySpanField("startTime", "desc"), OrderBySpanField("traceID", "asc"), OrderBySpanField("spanID", "asc")}
+	for _, order := range [][]SpanSortOrder{nil, defaults, {OrderBySpanField("startTime", "desc")}} {
 		got, err := EffectiveSpanOrder(order)
 		require.NoError(t, err)
 		assert.Equal(t, defaults, got)
 	}
-	duration := []SpanSortOrder{sortTerm("duration", "desc")}
+	duration := []SpanSortOrder{OrderBySpanField("duration", "desc")}
 	effective, err := EffectiveSpanOrder(duration)
 	require.NoError(t, err)
 	assert.Equal(t, append(duration, defaults...), effective)
@@ -83,22 +79,22 @@ func TestEffectiveSpanOrder(t *testing.T) {
 	assert.Equal(t, effective, again)
 
 	// An omitted direction is defaulted before the tie-breakers are chosen.
-	settled, err := EffectiveSpanOrder([]SpanSortOrder{sortTerm("traceID", "")})
+	settled, err := EffectiveSpanOrder([]SpanSortOrder{OrderBySpanField("traceID", "")})
 	require.NoError(t, err)
-	assert.Equal(t, []SpanSortOrder{sortTerm("traceID", "asc"), sortTerm("startTime", "desc"), sortTerm("spanID", "asc")}, settled)
+	assert.Equal(t, []SpanSortOrder{OrderBySpanField("traceID", "asc"), OrderBySpanField("startTime", "desc"), OrderBySpanField("spanID", "asc")}, settled)
 
-	_, err = EffectiveSpanOrder([]SpanSortOrder{sortTerm("name", "asc")})
+	_, err = EffectiveSpanOrder([]SpanSortOrder{OrderBySpanField("name", "asc")})
 	require.ErrorIs(t, err, ErrSpanOrderInvalid)
 }
 
 func TestSpanOrderFingerprint(t *testing.T) {
 	orders := [][]SpanSortOrder{
 		nil,
-		{sortTerm("startTime", "asc")},
-		{sortTerm("duration", "desc")},
-		{sortTerm("duration", "asc")},
-		{sortTerm("traceID", "asc"), sortTerm("duration", "desc")},
-		{sortTerm("duration", "desc"), sortTerm("traceID", "asc")},
+		{OrderBySpanField("startTime", "asc")},
+		{OrderBySpanField("duration", "desc")},
+		{OrderBySpanField("duration", "asc")},
+		{OrderBySpanField("traceID", "asc"), OrderBySpanField("duration", "desc")},
+		{OrderBySpanField("duration", "desc"), OrderBySpanField("traceID", "asc")},
 	}
 	seen := map[string]bool{}
 	for _, order := range orders {
@@ -117,7 +113,7 @@ func TestSpanOrderFingerprint(t *testing.T) {
 func TestSpanSortingCapability(t *testing.T) {
 	for _, caps := range []SearchCapabilities{{}, {SpanSearch: true}, {SpanSorting: true}, {SpanSearch: true, SpanSorting: true}} {
 		require.NoError(t, caps.ValidateSpanSorting(nil))
-		err := caps.ValidateSpanSorting([]SpanSortOrder{sortTerm("startTime", "desc")})
+		err := caps.ValidateSpanSorting([]SpanSortOrder{OrderBySpanField("startTime", "desc")})
 		if caps.SpanSearch && caps.SpanSorting {
 			require.NoError(t, err)
 		} else {
@@ -132,8 +128,8 @@ func TestSpanOrderProto(t *testing.T) {
 	require.NoError(t, err)
 	assert.Nil(t, got)
 	for _, term := range []SpanSortOrder{
-		sortTerm("duration", ""),
-		sortTerm("unknown", "custom-direction"),
+		OrderBySpanField("duration", ""),
+		OrderBySpanField("unknown", "custom-direction"),
 		{Expression: &expression.AttributeRef{Level: expression.LevelSpan, Key: "priority"}},
 		{Expression: &expression.NestedRef{Level: expression.LevelEvent}},
 		{Expression: &expression.IntValue{Value: 42}},
@@ -153,7 +149,7 @@ func TestSpanOrderProto(t *testing.T) {
 }
 
 func TestSpanOrderBindsContinuationToken(t *testing.T) {
-	query := SpanQueryParams{OrderBy: []SpanSortOrder{sortTerm("duration", "desc")}}
+	query := SpanQueryParams{OrderBy: []SpanSortOrder{OrderBySpanField("duration", "desc")}}
 	fingerprint, err := query.Fingerprint()
 	require.NoError(t, err)
 	token, err := NewPageToken(fingerprint, []byte("cursor"))
