@@ -197,5 +197,17 @@ testStartContinuesWithoutExistingIssue() {
   assertNotContains "$out" "already exists"
 }
 
+testFormatterOrdersSectionsAndFillsVersion() {
+  printf '<!-- BEGIN_CHECKLIST -->\n- ui step vX.Y.Z\n<!-- END_CHECKLIST -->\n' > "$T/ui.md"
+  printf '<!-- BEGIN_CHECKLIST -->\n- doc step\n<!-- END_CHECKLIST -->\n' > "$T/doc.md"
+  out=$(cd "$REPO_ROOT" && python3 scripts/release/formatter.py 2.99.0 "$T/ui.md" "$T/doc.md")
+  assertEquals 0 $?
+  headings=$(grep '^# ' <<< "$out" | tr '\n' '|')
+  assertEquals "# Preflight|# UI Release|# Backend Release|# Doc Release|# Wrap-up|" "$headings"
+  assertContains "$out" '* [ ] ui step v2.99.0'
+  assertContains "$out" "WithRegisterToVersion(\"v2.99.0\")"
+  assertNotContains "$out" 'X.Y.Z'
+}
+
 # shellcheck disable=SC1091
 source "${SHUNIT2}/shunit2"
