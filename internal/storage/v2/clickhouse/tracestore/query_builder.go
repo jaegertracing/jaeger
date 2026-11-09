@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
+	"time"
 
 	"go.opentelemetry.io/collector/pdata/pcommon"
 	"go.opentelemetry.io/collector/pdata/xpdata"
@@ -35,22 +36,47 @@ type typedAttributeValue struct {
 	valueType pcommon.ValueType
 }
 
-func appendNewlineAndIndent(q *strings.Builder, indent int) {
+// sqlBuilder assembles a statement clause by clause. Its methods write the fragments the
+// query builders and the filter lowering share, each on its own indented line.
+type sqlBuilder struct {
+	strings.Builder
+}
+
+func (q *sqlBuilder) appendNewlineAndIndent(indent int) {
 	q.WriteString("\n")
 	for range indent {
 		q.WriteString("\t")
 	}
 }
 
-func appendAnd(q *strings.Builder, cond string) {
-	appendNewlineAndIndent(q, 1)
+// appendAnd writes cond as one more AND clause of a WHERE that already has a predicate.
+func (q *sqlBuilder) appendAnd(cond string) {
+	q.appendNewlineAndIndent(1)
 	q.WriteString("AND ")
 	q.WriteString(cond)
 }
 
-type arrayExistsFn func(q *strings.Builder, indent int, prefix string, valueType pcommon.ValueType)
+// appendTimeRange writes the start-time bounds a query carries, skipping a zero bound. The
+// bounds bind as Unix nanoseconds, because clickhouse-go truncates a time.Time argument to
+// seconds.
+func (q *sqlBuilder) appendTimeRange(args []any, from, to time.Time) []any {
+	if !from.IsZero() {
+		q.appendAnd("s.start_time >= fromUnixTimestamp64Nano(?)")
+		args = append(args, from.UnixNano())
+	}
+	if !to.IsZero() {
+		q.appendAnd("s.start_time <= fromUnixTimestamp64Nano(?)")
+		args = append(args, to.UnixNano())
+	}
+	return args
+}
 
-func appendArrayExists(q *strings.Builder, indent int, prefix string, valueType pcommon.ValueType) {
+// arrayExistsFn is arrayExists or nestedArrayExists, chosen by the level the attribute lives at.
+type arrayExistsFn func(q *sqlBuilder, indent int, prefix string, valueType pcommon.ValueType)
+
+// appendArrayExists writes a condition that checks for a key-value pair in the attribute arrays of
+// one level: the span itself when prefix is empty, otherwise the resource or scope arrays.
+func (q *sqlBuilder) appendArrayExists(indent int, prefix string, valueType pcommon.ValueType) {
 	strColumnType := jptrace.ValueTypeToString(valueType)
 	if valueType == pcommon.ValueTypeBytes || valueType == pcommon.ValueTypeMap || valueType == pcommon.ValueTypeSlice {
 		strColumnType = "complex"
@@ -59,59 +85,51 @@ func appendArrayExists(q *strings.Builder, indent int, prefix string, valueType 
 	if prefix != "" {
 		columnPrefix = prefix + "_"
 	}
-	appendNewlineAndIndent(q, indent)
+	q.appendNewlineAndIndent(indent)
 	q.WriteString("arrayExists((key, value) -> key = ? AND value = ?, s." + columnPrefix + strColumnType + "_attributes.key, s." + columnPrefix + strColumnType + "_attributes.value)")
 }
 
-// appendNestedArrayExists appends a condition that checks for a key-value pair in nested array attributes.
-// Events and links are stored as nested arrays within spans, so we need to use a nested arrayExists to search
-// through all items and their attributes.
-func appendNestedArrayExists(q *strings.Builder, indent int, nestedArray string, valueType pcommon.ValueType) {
+// appendNestedArrayExists writes a condition that checks for a key-value pair in nested array
+// attributes. Events and links are stored as nested arrays within spans, so a nested
+// arrayExists searches through all items and their attributes.
+func (q *sqlBuilder) appendNestedArrayExists(indent int, nestedArray string, valueType pcommon.ValueType) {
 	strColumnType := jptrace.ValueTypeToString(valueType)
 	if valueType == pcommon.ValueTypeBytes || valueType == pcommon.ValueTypeMap || valueType == pcommon.ValueTypeSlice {
 		strColumnType = "complex"
 	}
-	appendNewlineAndIndent(q, indent)
+	q.appendNewlineAndIndent(indent)
 	q.WriteString("arrayExists(x -> arrayExists((key, value) -> key = ? AND value = ?, x." + strColumnType + "_attributes.key, x." + strColumnType + "_attributes.value), s." + nestedArray + ")")
 }
 
-func appendStringAttributeFallback(q *strings.Builder, args []any, key string, attr pcommon.Value) []any {
-	appendArrayExists(q, 2, "", pcommon.ValueTypeStr)
-	appendNewlineAndIndent(q, 2)
+// appendStringAttributeFallback writes the condition for an attribute whose type is unknown: a string
+// match at every level.
+func (q *sqlBuilder) appendStringAttributeFallback(args []any, key string, attr pcommon.Value) []any {
+	q.appendArrayExists(2, "", pcommon.ValueTypeStr)
+	q.appendNewlineAndIndent(2)
 	q.WriteString("OR")
-	appendArrayExists(q, 2, "resource", pcommon.ValueTypeStr)
-	appendNewlineAndIndent(q, 2)
+	q.appendArrayExists(2, "resource", pcommon.ValueTypeStr)
+	q.appendNewlineAndIndent(2)
 	q.WriteString("OR")
-	appendArrayExists(q, 2, "scope", pcommon.ValueTypeStr)
-	appendNewlineAndIndent(q, 2)
+	q.appendArrayExists(2, "scope", pcommon.ValueTypeStr)
+	q.appendNewlineAndIndent(2)
 	q.WriteString("OR")
-	appendNestedArrayExists(q, 2, "events", pcommon.ValueTypeStr)
-	appendNewlineAndIndent(q, 2)
+	q.appendNestedArrayExists(2, "events", pcommon.ValueTypeStr)
+	q.appendNewlineAndIndent(2)
 	q.WriteString("OR")
-	appendNestedArrayExists(q, 2, "links", pcommon.ValueTypeStr)
+	q.appendNestedArrayExists(2, "links", pcommon.ValueTypeStr)
 	return append(args, key, attr.Str(), key, attr.Str(), key, attr.Str(), key, attr.Str(), key, attr.Str())
 }
 
 func buildGetTracesQuery(params tracestore.GetTraceParams) (string, []any) {
-	var q strings.Builder
+	var q sqlBuilder
 	q.WriteString(sql.SelectSpansByTraceID)
 	args := []any{params.TraceID}
-
-	// Positional time.Time arguments are truncated to seconds by clickhouse-go.
-	if !params.Start.IsZero() {
-		q.WriteString(" AND s.start_time >= fromUnixTimestamp64Nano(?)")
-		args = append(args, params.Start.UnixNano())
-	}
-	if !params.End.IsZero() {
-		q.WriteString(" AND s.start_time <= fromUnixTimestamp64Nano(?)")
-		args = append(args, params.End.UnixNano())
-	}
-
+	args = q.appendTimeRange(args, params.Start, params.End)
 	return q.String(), args
 }
 
 func buildFindTracesQuery(traceIDs []tracestore.FoundTraceID) (string, []any) {
-	var q strings.Builder
+	var q sqlBuilder
 	q.WriteString(strings.TrimRight(sql.SelectSpansQuery, "\n"))
 	q.WriteString("\nWHERE ")
 	args := make([]any, 0, 3*len(traceIDs))
@@ -146,7 +164,7 @@ func (r *Reader) buildFindTraceIDsQuery(
 	}
 
 	// Build the inner subquery that finds distinct trace IDs from spans.
-	var inner strings.Builder
+	var inner sqlBuilder
 	inner.WriteString(sql.SearchTraceIDsBase)
 	args := []any{}
 
@@ -154,11 +172,11 @@ func (r *Reader) buildFindTraceIDsQuery(
 	// carries rather than repeated in both branches.
 	appendTimeRange := func() {
 		if !query.StartTimeMin.IsZero() {
-			appendAnd(&inner, "s.start_time >= ?")
+			inner.appendAnd("s.start_time >= ?")
 			args = append(args, query.StartTimeMin)
 		}
 		if !query.StartTimeMax.IsZero() {
-			appendAnd(&inner, "s.start_time <= ?")
+			inner.appendAnd("s.start_time <= ?")
 			args = append(args, query.StartTimeMax)
 		}
 	}
@@ -178,29 +196,29 @@ func (r *Reader) buildFindTraceIDsQuery(
 			return "", nil, err
 		}
 
-		appendAnd(&inner, "(")
-		args, err = buildFilterCondition(&inner, 2, args, metadata, query.Filter)
+		inner.appendAnd("(")
+		args, err = inner.buildFilterCondition(2, args, metadata, query.Filter)
 		if err != nil {
 			return "", nil, err
 		}
-		appendNewlineAndIndent(&inner, 1)
+		inner.appendNewlineAndIndent(1)
 		inner.WriteString(")")
 		appendTimeRange()
 	} else {
 		if query.ServiceName != "" {
-			appendAnd(&inner, "s.service_name = ?")
+			inner.appendAnd("s.service_name = ?")
 			args = append(args, query.ServiceName)
 		}
 		if query.OperationName != "" {
-			appendAnd(&inner, "s.name = ?")
+			inner.appendAnd("s.name = ?")
 			args = append(args, query.OperationName)
 		}
 		if query.DurationMin > 0 {
-			appendAnd(&inner, "s.duration >= ?")
+			inner.appendAnd("s.duration >= ?")
 			args = append(args, query.DurationMin.Nanoseconds())
 		}
 		if query.DurationMax > 0 {
-			appendAnd(&inner, "s.duration <= ?")
+			inner.appendAnd("s.duration <= ?")
 			args = append(args, query.DurationMax.Nanoseconds())
 		}
 		appendTimeRange()
@@ -210,7 +228,7 @@ func (r *Reader) buildFindTraceIDsQuery(
 			return "", nil, fmt.Errorf("failed to get attribute metadata: %w", err)
 		}
 
-		args, err = buildAttributeConditions(&inner, args, query.Attributes, attributeMetadata)
+		args, err = inner.buildAttributeConditions(args, query.Attributes, attributeMetadata)
 		if err != nil {
 			return "", nil, err
 		}
@@ -222,29 +240,29 @@ func (r *Reader) buildFindTraceIDsQuery(
 	return inner.String(), args, nil
 }
 
-func buildAttributeConditions(q *strings.Builder, args []any, attributes pcommon.Map, metadata attributeMetadata) ([]any, error) {
+func (q *sqlBuilder) buildAttributeConditions(args []any, attributes pcommon.Map, metadata attributeMetadata) ([]any, error) {
 	for key, attr := range attributes.All() {
-		appendAnd(q, "(")
+		q.appendAnd("(")
 
 		var err error
 		switch attr.Type() {
 		case pcommon.ValueTypeBool:
-			args = buildSimpleAttributeCondition(q, args, key, pcommon.ValueTypeBool, attr.Bool())
+			args = q.buildSimpleAttributeCondition(args, key, pcommon.ValueTypeBool, attr.Bool())
 		case pcommon.ValueTypeDouble:
-			args = buildSimpleAttributeCondition(q, args, key, pcommon.ValueTypeDouble, attr.Double())
+			args = q.buildSimpleAttributeCondition(args, key, pcommon.ValueTypeDouble, attr.Double())
 		case pcommon.ValueTypeInt:
-			args = buildSimpleAttributeCondition(q, args, key, pcommon.ValueTypeInt, attr.Int())
+			args = q.buildSimpleAttributeCondition(args, key, pcommon.ValueTypeInt, attr.Int())
 		case pcommon.ValueTypeStr:
-			args = buildStringAttributeCondition(q, args, key, attr, metadata)
+			args = q.buildStringAttributeCondition(args, key, attr, metadata)
 		case pcommon.ValueTypeBytes:
-			args = buildBytesAttributeCondition(q, args, key, attr)
+			args = q.buildBytesAttributeCondition(args, key, attr)
 		case pcommon.ValueTypeSlice:
-			args, err = buildSliceAttributeCondition(q, args, key, attr)
+			args, err = q.buildSliceAttributeCondition(args, key, attr)
 			if err != nil {
 				return args, err
 			}
 		case pcommon.ValueTypeMap:
-			args, err = buildMapAttributeCondition(q, args, key, attr)
+			args, err = q.buildMapAttributeCondition(args, key, attr)
 			if err != nil {
 				return args, err
 			}
@@ -252,48 +270,48 @@ func buildAttributeConditions(q *strings.Builder, args []any, attributes pcommon
 			return args, fmt.Errorf("unsupported attribute type %v for key %s", attr.Type(), key)
 		}
 
-		appendNewlineAndIndent(q, 1)
+		q.appendNewlineAndIndent(1)
 		q.WriteString(")")
 	}
 
 	return args, nil
 }
 
-func buildSimpleAttributeCondition(q *strings.Builder, args []any, key string, valueType pcommon.ValueType, value any) []any {
-	appendArrayExists(q, 2, "", valueType)
-	appendNewlineAndIndent(q, 2)
+func (q *sqlBuilder) buildSimpleAttributeCondition(args []any, key string, valueType pcommon.ValueType, value any) []any {
+	q.appendArrayExists(2, "", valueType)
+	q.appendNewlineAndIndent(2)
 	q.WriteString("OR")
-	appendArrayExists(q, 2, "resource", valueType)
-	appendNewlineAndIndent(q, 2)
+	q.appendArrayExists(2, "resource", valueType)
+	q.appendNewlineAndIndent(2)
 	q.WriteString("OR")
-	appendArrayExists(q, 2, "scope", valueType)
-	appendNewlineAndIndent(q, 2)
+	q.appendArrayExists(2, "scope", valueType)
+	q.appendNewlineAndIndent(2)
 	q.WriteString("OR")
-	appendNestedArrayExists(q, 2, "events", valueType)
-	appendNewlineAndIndent(q, 2)
+	q.appendNestedArrayExists(2, "events", valueType)
+	q.appendNewlineAndIndent(2)
 	q.WriteString("OR")
-	appendNestedArrayExists(q, 2, "links", valueType)
+	q.appendNestedArrayExists(2, "links", valueType)
 	return append(args, key, value, key, value, key, value, key, value, key, value)
 }
 
-func buildBytesAttributeCondition(q *strings.Builder, args []any, key string, attr pcommon.Value) []any {
-	return buildSimpleAttributeCondition(q, args, "@bytes@"+key, pcommon.ValueTypeBytes, base64.StdEncoding.EncodeToString(attr.Bytes().AsRaw()))
+func (q *sqlBuilder) buildBytesAttributeCondition(args []any, key string, attr pcommon.Value) []any {
+	return q.buildSimpleAttributeCondition(args, "@bytes@"+key, pcommon.ValueTypeBytes, base64.StdEncoding.EncodeToString(attr.Bytes().AsRaw()))
 }
 
-func buildSliceAttributeCondition(q *strings.Builder, args []any, key string, attr pcommon.Value) ([]any, error) {
+func (q *sqlBuilder) buildSliceAttributeCondition(args []any, key string, attr pcommon.Value) ([]any, error) {
 	b, err := marshalValueForQuery(attr)
 	if err != nil {
 		return args, fmt.Errorf("failed to marshal slice attribute %q: %w", key, err)
 	}
-	return buildSimpleAttributeCondition(q, args, "@slice@"+key, pcommon.ValueTypeSlice, b), nil
+	return q.buildSimpleAttributeCondition(args, "@slice@"+key, pcommon.ValueTypeSlice, b), nil
 }
 
-func buildMapAttributeCondition(q *strings.Builder, args []any, key string, attr pcommon.Value) ([]any, error) {
+func (q *sqlBuilder) buildMapAttributeCondition(args []any, key string, attr pcommon.Value) ([]any, error) {
 	b, err := marshalValueForQuery(attr)
 	if err != nil {
 		return args, fmt.Errorf("failed to marshal map attribute %q: %w", key, err)
 	}
-	return buildSimpleAttributeCondition(q, args, "@map@"+key, pcommon.ValueTypeMap, b), nil
+	return q.buildSimpleAttributeCondition(args, "@map@"+key, pcommon.ValueTypeMap, b), nil
 }
 
 func parseStringToTypedValue(key string, attr pcommon.Value, t pcommon.ValueType) (typedAttributeValue, error) {
@@ -340,8 +358,7 @@ func parseStringToTypedValue(key string, attr pcommon.Value, t pcommon.ValueType
 //
 // If metadata exists but the value cannot be parsed as any of the metadata types,
 // we fall back to treating it as a string attribute.
-func buildStringAttributeCondition(
-	q *strings.Builder,
+func (q *sqlBuilder) buildStringAttributeCondition(
 	args []any,
 	key string,
 	attr pcommon.Value,
@@ -351,7 +368,7 @@ func buildStringAttributeCondition(
 
 	// if no metadata found, assume string type
 	if !ok {
-		return appendStringAttributeFallback(q, args, key, attr)
+		return q.appendStringAttributeFallback(args, key, attr)
 	}
 
 	generatedCondition := false
@@ -364,7 +381,7 @@ func buildStringAttributeCondition(
 			}
 
 			if generatedCondition {
-				appendNewlineAndIndent(q, 2)
+				q.appendNewlineAndIndent(2)
 				q.WriteString("OR")
 			}
 			generatedCondition = true
@@ -374,16 +391,16 @@ func buildStringAttributeCondition(
 		}
 	}
 
-	appendLevel(levelTypes.resource, "resource", appendArrayExists)
-	appendLevel(levelTypes.scope, "scope", appendArrayExists)
-	appendLevel(levelTypes.span, "", appendArrayExists)
-	appendLevel(levelTypes.event, "events", appendNestedArrayExists)
-	appendLevel(levelTypes.link, "links", appendNestedArrayExists)
+	appendLevel(levelTypes.resource, "resource", (*sqlBuilder).appendArrayExists)
+	appendLevel(levelTypes.scope, "scope", (*sqlBuilder).appendArrayExists)
+	appendLevel(levelTypes.span, "", (*sqlBuilder).appendArrayExists)
+	appendLevel(levelTypes.event, "events", (*sqlBuilder).appendNestedArrayExists)
+	appendLevel(levelTypes.link, "links", (*sqlBuilder).appendNestedArrayExists)
 
 	// If no conditions were generated (all types failed to parse),
 	// fall back to treating it as a string attribute
 	if !generatedCondition {
-		return appendStringAttributeFallback(q, args, key, attr)
+		return q.appendStringAttributeFallback(args, key, attr)
 	}
 	return args
 }
@@ -399,23 +416,23 @@ func buildSelectAttributeMetadataQuery(attributes pcommon.Map) (string, []any) {
 		}
 	}
 
-	var q strings.Builder
+	var q sqlBuilder
 	q.WriteString(sql.SelectAttributeMetadata)
 	if len(placeholders) > 0 {
-		appendNewlineAndIndent(&q, 0)
+		q.appendNewlineAndIndent(0)
 		q.WriteString("WHERE")
-		appendNewlineAndIndent(&q, 1)
+		q.appendNewlineAndIndent(1)
 		q.WriteString("attribute_key IN (")
 		q.WriteString(strings.Join(placeholders, ", "))
 		q.WriteString(")")
 	}
-	appendNewlineAndIndent(&q, 0)
+	q.appendNewlineAndIndent(0)
 	q.WriteString("GROUP BY")
-	appendNewlineAndIndent(&q, 1)
+	q.appendNewlineAndIndent(1)
 	q.WriteString("attribute_key,")
-	appendNewlineAndIndent(&q, 1)
+	q.appendNewlineAndIndent(1)
 	q.WriteString("type,")
-	appendNewlineAndIndent(&q, 1)
+	q.appendNewlineAndIndent(1)
 	q.WriteString("level")
 	return q.String(), args
 }

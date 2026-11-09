@@ -103,10 +103,10 @@ func TestBuildStringAttributeCondition_Fallbacks(t *testing.T) {
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			attr := pcommon.NewValueStr(tc.attrValue)
-			var q strings.Builder
+			var q sqlBuilder
 			var args []any
 
-			args = buildStringAttributeCondition(&q, args, "k", attr, tc.metadata)
+			args = q.buildStringAttributeCondition(args, "k", attr, tc.metadata)
 
 			query := q.String()
 			assert.Contains(t, query, "str_attributes")
@@ -141,7 +141,7 @@ func TestBuildGetTracesQuery(t *testing.T) {
 				Start:   now.Add(-1 * time.Hour),
 				End:     now,
 			},
-			expectedSQL:  sql.SelectSpansByTraceID + " AND s.start_time >= fromUnixTimestamp64Nano(?) AND s.start_time <= fromUnixTimestamp64Nano(?)",
+			expectedSQL:  sql.SelectSpansByTraceID + "\n\tAND s.start_time >= fromUnixTimestamp64Nano(?)\n\tAND s.start_time <= fromUnixTimestamp64Nano(?)",
 			expectedArgs: []any{traceID, now.Add(-1 * time.Hour).UnixNano(), now.UnixNano()},
 		},
 		{
@@ -150,7 +150,7 @@ func TestBuildGetTracesQuery(t *testing.T) {
 				TraceID: traceID,
 				Start:   now.Add(-1 * time.Hour),
 			},
-			expectedSQL:  sql.SelectSpansByTraceID + " AND s.start_time >= fromUnixTimestamp64Nano(?)",
+			expectedSQL:  sql.SelectSpansByTraceID + "\n\tAND s.start_time >= fromUnixTimestamp64Nano(?)",
 			expectedArgs: []any{traceID, now.Add(-1 * time.Hour).UnixNano()},
 		},
 		{
@@ -159,7 +159,7 @@ func TestBuildGetTracesQuery(t *testing.T) {
 				TraceID: traceID,
 				End:     now,
 			},
-			expectedSQL:  sql.SelectSpansByTraceID + " AND s.start_time <= fromUnixTimestamp64Nano(?)",
+			expectedSQL:  sql.SelectSpansByTraceID + "\n\tAND s.start_time <= fromUnixTimestamp64Nano(?)",
 			expectedArgs: []any{traceID, now.UnixNano()},
 		},
 	}
@@ -175,14 +175,14 @@ func TestBuildGetTracesQuery(t *testing.T) {
 
 func TestBuildStringAttributeCondition_MultipleTypes(t *testing.T) {
 	attr := pcommon.NewValueStr("123") // parses as both int and str
-	var q strings.Builder
+	var q sqlBuilder
 	var args []any
 
 	metadata := attributeMetadata{
 		"http.status": {span: []pcommon.ValueType{pcommon.ValueTypeInt, pcommon.ValueTypeStr}},
 	}
 
-	args = buildStringAttributeCondition(&q, args, "http.status", attr, metadata)
+	args = q.buildStringAttributeCondition(args, "http.status", attr, metadata)
 
 	query := q.String()
 	assert.Contains(t, query, "int_attributes")
