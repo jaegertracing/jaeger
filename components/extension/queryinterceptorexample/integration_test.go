@@ -152,14 +152,14 @@ func freePort(t *testing.T) int {
 
 func pushSpan(t *testing.T, otlpHTTPPort int) {
 	t.Helper()
-	now := time.Now().UnixNano()
+	nowNano := time.Now().UnixNano()
 	payload := fmt.Sprintf(`{"resourceSpans":[{"resource":{"attributes":[`+
 		`{"key":"service.name","value":{"stringValue":"checkout"}}]},"scopeSpans":[{"spans":[{`+
 		`"traceId":"%s","spanId":"0000000000abc123","name":"llm-call","kind":2,`+
 		`"startTimeUnixNano":"%d","endTimeUnixNano":"%d","attributes":[`+
 		`{"key":"prompt","value":{"stringValue":"my password is hunter2"}},`+
 		`{"key":"llm.response","value":{"stringValue":"the capital is Paris"}},`+
-		`{"key":"keep","value":{"stringValue":"visible"}}]}]}]}]}`, traceID, now, now+1000)
+		`{"key":"keep","value":{"stringValue":"visible"}}]}]}]}]}`, traceID, nowNano, nowNano+1000)
 
 	endpoint := fmt.Sprintf("http://127.0.0.1:%d/v1/traces", otlpHTTPPort)
 	var code int

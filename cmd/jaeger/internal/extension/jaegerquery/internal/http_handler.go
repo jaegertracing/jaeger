@@ -34,7 +34,6 @@ import (
 	"github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/v1adapter"
 	ui "github.com/jaegertracing/jaeger/internal/uimodel"
-	uiconv "github.com/jaegertracing/jaeger/internal/uimodel/converter/v1/json"
 )
 
 // filterValueRegex restricts free-text filter values when a Dimension's Values
@@ -111,9 +110,7 @@ func NewAPIHandler(queryService *querysvc.QueryService, options ...HandlerOption
 
 // RegisterRoutes registers routes for this handler on the given router
 func (aH *APIHandler) RegisterRoutes(router *http.ServeMux) {
-	aH.handleFunc(router, aH.getTrace, http.MethodGet, "/traces/{%s}", traceIDParam)
 	aH.handleFunc(router, aH.archiveTrace, http.MethodPost, "/archive/{%s}", traceIDParam)
-	aH.handleFunc(router, aH.transformOTLP, http.MethodPost, "/transform")
 	aH.handleFunc(router, aH.dependencies, http.MethodGet, "/dependencies")
 	aH.handleFunc(router, aH.deepDependencies, http.MethodGet, "/deep-dependencies")
 	aH.handleFunc(router, aH.latencies, http.MethodGet, "/metrics/latencies")
@@ -142,35 +139,6 @@ func (aH *APIHandler) formatRoute(route string, args ...any) string {
 		formattedRoute = aH.basePath + formattedRoute
 	}
 	return formattedRoute
-}
-
-func (aH *APIHandler) transformOTLP(w http.ResponseWriter, r *http.Request) {
-	body, err := io.ReadAll(r.Body)
-	if aH.handleError(w, err, http.StatusBadRequest) {
-		return
-	}
-
-	traces, err := otlp2traces(body)
-	if aH.handleError(w, err, http.StatusBadRequest) {
-		return
-	}
-
-	var uiErrors []structuredError
-	structuredRes := aH.tracesToResponse(traces, uiErrors)
-	aH.writeJSON(w, r, structuredRes)
-}
-
-func (*APIHandler) tracesToResponse(traces []*model.Trace, uiErrors []structuredError) *structuredResponse {
-	uiTraces := make([]*ui.Trace, len(traces))
-	for i, v := range traces {
-		uiTrace := uiconv.FromDomain(v)
-		uiTraces[i] = uiTrace
-	}
-
-	return &structuredResponse{
-		Data:   uiTraces,
-		Errors: uiErrors,
-	}
 }
 
 func (aH *APIHandler) dependencies(w http.ResponseWriter, r *http.Request) {
@@ -332,7 +300,7 @@ func (*APIHandler) filterDependenciesByService(
 	return filteredDependencies
 }
 
-// Parses trace ID from URL like /traces/{trace-id}
+// Parses trace ID from URL like /archive/{trace-id}
 func (aH *APIHandler) parseTraceID(w http.ResponseWriter, r *http.Request) (model.TraceID, bool) {
 	traceIDVar := r.PathValue(traceIDParam)
 	traceID, err := apiv3.TraceIDFromString(traceIDVar)
@@ -392,29 +360,6 @@ func (aH *APIHandler) parseGetTraceParameters(w http.ResponseWriter, r *http.Req
 	}
 	query.RawTraces = raw
 	return query, true
-}
-
-// getTrace implements the REST API /traces/{trace-id}
-// It parses trace ID from the path, fetches the trace from QueryService,
-// formats it in the UI JSON format, and responds to the client.
-func (aH *APIHandler) getTrace(w http.ResponseWriter, r *http.Request) {
-	query, ok := aH.parseGetTraceParameters(w, r)
-	if !ok {
-		return
-	}
-	getTracesIter := aH.queryService.GetTraces(r.Context(), query)
-	traces, err := v1adapter.V1TracesFromSeq2(getTracesIter)
-	if errors.Is(err, spanstore.ErrTraceNotFound) || (err == nil && len(traces) == 0) {
-		aH.handleError(w, spanstore.ErrTraceNotFound, http.StatusNotFound)
-		return
-	}
-	if aH.handleError(w, err, http.StatusInternalServerError) {
-		return
-	}
-
-	var uiErrors []structuredError
-	structuredRes := aH.tracesToResponse(traces, uiErrors)
-	aH.writeJSON(w, r, structuredRes)
 }
 
 // archiveTrace implements the REST API POST:/archive/{trace-id}.

@@ -526,7 +526,7 @@ func TestAGUIRunWhitespaceAroundToolCall(t *testing.T) {
 			Update: acp.SessionUpdate{
 				ToolCall: &acp.SessionUpdateToolCall{
 					ToolCallId: "tool-1",
-					Title:      "search_traces",
+					Title:      "find_traces",
 					Kind:       acp.ToolKindSearch,
 				},
 			},
@@ -659,7 +659,7 @@ func TestACPClientSessionUpdateToolCallEmitsStartAndArgs(t *testing.T) {
 		Update: acp.SessionUpdate{
 			ToolCall: &acp.SessionUpdateToolCall{
 				ToolCallId: "tool-1",
-				Title:      "search_traces",
+				Title:      "find_traces",
 				Kind:       acp.ToolKindSearch,
 				RawInput:   map[string]any{"service": "checkout"},
 			},
@@ -673,7 +673,7 @@ func TestACPClientSessionUpdateToolCallEmitsStartAndArgs(t *testing.T) {
 	startEvent := events[0]
 	assert.Equal(t, "TOOL_CALL_START", startEvent["type"])
 	assert.Equal(t, "tool-1", startEvent["toolCallId"])
-	assert.Equal(t, "search_traces", startEvent["toolCallName"],
+	assert.Equal(t, "find_traces", startEvent["toolCallName"],
 		"AG-UI TOOL_CALL_START requires toolCallName")
 
 	argsEvent := events[1]
@@ -701,7 +701,7 @@ func TestAGUIRunToolCallClosesTextAndStartsNewMessage(t *testing.T) {
 					Update: acp.SessionUpdate{
 						ToolCall: &acp.SessionUpdateToolCall{
 							ToolCallId: "tool-1",
-							Title:      "search_traces",
+							Title:      "find_traces",
 							Kind:       acp.ToolKindSearch,
 						},
 					},
@@ -835,7 +835,7 @@ func TestACPClientSessionUpdateToolCallUpdateFlattensMCPEnvelope(t *testing.T) {
 	err := newACPClient(c).SessionUpdate(context.Background(), acp.SessionNotification{
 		Update: acp.SessionUpdate{
 			ToolCallUpdate: &acp.SessionToolCallUpdate{
-				ToolCallId: "search_traces-1",
+				ToolCallId: "find_traces-1",
 				RawOutput: map[string]any{
 					"content": []any{
 						map[string]any{"type": "text", "text": `{"traces":[]}`},
@@ -858,7 +858,7 @@ func TestACPClientSessionUpdateToolCallUpdateFlattensMCPEnvelope(t *testing.T) {
 	require.True(t, ok, "TOOL_CALL_RESULT.content must be a string")
 	assert.JSONEq(t, `{"traces":[]}`, content,
 		"MCP text block should become the top-level content string")
-	assert.Equal(t, "tool-msg-search_traces-1", resultEvent["messageId"])
+	assert.Equal(t, "tool-msg-find_traces-1", resultEvent["messageId"])
 	assert.Equal(t, "tool", resultEvent["role"])
 }
 

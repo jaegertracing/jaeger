@@ -52,7 +52,7 @@ jobs:
         sudo rm -rf /usr/local/lib/android || true
         df -h /
 
-    - uses: step-security/harden-runner@05e31511f85b41b11d1cf0ef85d0992719546e2c # v2.21.0
+    - uses: step-security/harden-runner@46b06cea07f9e64621fdf066ba77ac6915163d43 # v2.22.3
       with:
         egress-policy: audit # TODO: change to 'egress-policy: block' after couple of runs
 
@@ -172,7 +172,7 @@ jobs:
         username: ${{ github.actor }}
         password: ${{ secrets.GITHUB_TOKEN }}
 
-    - uses: docker/setup-qemu-action@1f40c72289eff860ee54a304f1438e3cff362e0a # v4.3.0
+    - uses: docker/setup-qemu-action@99012661954931238ded8c8b007157a8430204e1 # v4.4.0
 
     - name: Build and upload all container images
       # -B skips building the binaries since we already did that above
@@ -231,8 +231,52 @@ jobs:
       actions: read
       id-token: write
       contents: write
-    uses: slsa-framework/slsa-github-generator/.github/workflows/generator_generic_slsa3.yml@v2.1.0
+    uses: slsa-framework/slsa-github-generator/.github/workflows/generator_generic_slsa3.yml@f7dd8c54c2067bafc12ca7a55595d5ee9b75204a # v2.1.0
     with:
       base64-subjects: "${{ needs.publish-release.outputs.hashes }}"
       upload-assets: ${{ inputs.dry_run != true }}
       upload-tag-name: "${{ needs.publish-release.outputs.tag }}"
+
+  verify-release:
+    # Runs after a failed publish too, so a partial upload lists what is missing.
+    needs: [publish-release, generate-provenance]
+    if: ${{ !cancelled() && github.repository == 'jaegertracing/jaeger' && inputs.dry_run != true && needs.publish-release.outputs.tag != '' }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    env:
+      # Booleans only, so the steps can skip login without exposing the tokens.
+      HAS_DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN != '' }}
+      HAS_QUAY_TOKEN: ${{ secrets.QUAY_TOKEN != '' }}
+    steps:
+    - uses: step-security/harden-runner@05e31511f85b41b11d1cf0ef85d0992719546e2c # v2.21.0
+      with:
+        egress-policy: audit
+
+    - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+
+    - uses: ./.github/actions/setup-go
+
+    # Authenticated manifest checks avoid the anonymous Docker Hub rate limit.
+    - name: Log in to Docker Hub
+      if: env.HAS_DOCKERHUB_TOKEN == 'true'
+      uses: docker/login-action@b45d80f862d83dbcd57f89517bcf500b2ab88fb2 # v4
+      with:
+        registry: docker.io
+        username: jaegertracingbot
+        password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+    - name: Log in to Quay
+      if: env.HAS_QUAY_TOKEN == 'true'
+      uses: docker/login-action@b45d80f862d83dbcd57f89517bcf500b2ab88fb2 # v4
+      with:
+        registry: quay.io
+        username: jaegertracing+github_workflows
+        password: ${{ secrets.QUAY_TOKEN }}
+
+    - name: Verify published assets and images
+      if: ${{ !cancelled() }}
+      run: bash scripts/release/verify-published.sh "${TAG}"
+      env:
+        TAG: ${{ needs.publish-release.outputs.tag }}
+        GH_TOKEN: ${{ github.token }}

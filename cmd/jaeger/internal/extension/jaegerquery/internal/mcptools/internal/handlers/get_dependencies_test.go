@@ -136,3 +136,59 @@ func TestNewGetDependenciesHandler(t *testing.T) {
 	handler := NewGetDependenciesHandler(nil)
 	assert.NotNil(t, handler)
 }
+
+func TestParseTimeParam(t *testing.T) {
+	tests := []struct {
+		name      string
+		input     string
+		wantError bool
+	}{
+		{
+			name:      "now",
+			input:     "now",
+			wantError: false,
+		},
+		{
+			name:      "relative hours",
+			input:     "-1h",
+			wantError: false,
+		},
+		{
+			name:      "relative minutes",
+			input:     "-30m",
+			wantError: false,
+		},
+		{
+			name:      "relative seconds",
+			input:     "-5s",
+			wantError: false,
+		},
+		{
+			name:      "RFC3339",
+			input:     "2024-01-15T10:30:00Z",
+			wantError: false,
+		},
+		{
+			name:      "invalid format",
+			input:     "invalid",
+			wantError: true,
+		},
+		{
+			name:      "invalid relative",
+			input:     "-invalid",
+			wantError: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result, err := parseTimeParam(tt.input)
+			if tt.wantError {
+				require.Error(t, err)
+			} else {
+				require.NoError(t, err)
+				assert.False(t, result.IsZero())
+			}
+		})
+	}
+}
