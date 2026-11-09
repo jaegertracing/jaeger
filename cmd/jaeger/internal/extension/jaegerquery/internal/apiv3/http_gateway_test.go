@@ -995,8 +995,8 @@ func TestHTTPGatewayFindSpansOrdering(t *testing.T) {
 			gw.reader.ExpectedCalls = nil
 			gw.reader.On("SearchCapabilities", mock.Anything).Return(tracestore.SearchCapabilities{SpanSearch: true, SpanSorting: supported}, nil)
 			qp.OrderBy = []tracestore.SpanSortOrder{
-				{Expression: &expression.FieldRef{Level: expression.LevelSpan, Name: "duration"}, Direction: tracestore.SortDescending},
-				{Expression: &expression.FieldRef{Level: expression.LevelSpan, Name: "traceID"}, Direction: tracestore.SortAscending},
+				tracestore.OrderBySpanField("duration", tracestore.SortDescending),
+				tracestore.OrderBySpanField("traceID", tracestore.SortAscending),
 			}
 			if supported {
 				gw.reader.On("FindSpans", matchContext, qp).Return(iter.Seq2[tracestore.PageChunk[ptrace.Traces], error](func(yield func(tracestore.PageChunk[ptrace.Traces], error) bool) {
