@@ -40,8 +40,6 @@ type Reader struct {
 	// ClickHouse does not compute trace summaries natively yet; fall back to
 	// FindTraces + client-side aggregation.
 	tracestore.UnsupportedTraceSummaries
-	// SpanSearch is unsupported in ClickHouse for now.
-	tracestore.UnsupportedSpanSearch
 
 	conn          driver.Conn
 	config        ReaderConfig
@@ -72,6 +70,12 @@ func (*Reader) SearchCapabilities(context.Context) (tracestore.SearchCapabilitie
 		// trace.
 		SameSpanConjunction: true,
 		Filter:              &filter,
+		// FindSpans orders span rows by the default sort key only; it does not lower a
+		// caller-selected order yet (RFC 0016 M12).
+		SpanSearch:  true,
+		SpanSorting: false,
+		// FindSpans serves one page bounded by the page size and does not mint a token yet.
+		Paginated: false,
 	}, nil
 }
 

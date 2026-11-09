@@ -1330,6 +1330,7 @@ func TestReader_SearchCapabilities(t *testing.T) {
 		WithoutServiceName:  true,
 		SameSpanConjunction: true,
 		Filter:              &filter,
+		SpanSearch:          true,
 	}, caps)
 }
 
