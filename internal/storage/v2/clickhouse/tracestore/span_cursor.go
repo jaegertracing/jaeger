@@ -12,11 +12,13 @@ import (
 )
 
 // spanCursor is where a page ended: the sort values of its last span, one per sort term. A
-// continuation resumes strictly after them, which treats the span ID, the last term of every
-// effective order, as naming one row. The spans table has no column that does: a span stored
-// twice ties on every term, and when such a pair straddles a page boundary the second copy is
-// not returned. Elasticsearch makes the same departure from RFC 0016 §6.4 by default; a span
-// hash written at ingestion would close it for ClickHouse.
+// continuation resumes strictly after them, with the span ID, the last term of every effective
+// order, as the tie-breaker. The span ID is not unique in the spans table: a span stored twice
+// ties on every term, and when such a pair straddles a page boundary the second copy is not
+// returned. Elasticsearch makes the same departure from RFC 0016 §6.4 by default.
+//
+// TODO: write a span hash at ingestion and append it as the last sort term, so that the
+// tie-breaker is unique and no copy is lost.
 type spanCursor struct {
 	Key []any `json:"key"`
 }

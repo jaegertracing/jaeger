@@ -262,8 +262,8 @@ func clickHouseSkipList() []string {
 // ClickHouse returns the capabilities for the ClickHouse storage backend read directly.
 func ClickHouse() Capabilities {
 	return Capabilities{
-		// The spans table has no column that names one row, so the span search resumes after
-		// the span ID and loses the later copies of a span stored twice at a page boundary.
+		// The span ID is the span search's tie-breaker and is not unique in the spans table,
+		// so the search loses the later copies of a span stored twice at a page boundary.
 		pagingDropsTiedSpans: true,
 		// The lowering has no mapping for span.traceState yet and refuses a filter naming it.
 		traceStateRefused: true,
