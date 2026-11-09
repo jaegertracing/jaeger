@@ -218,9 +218,9 @@ Schema creation uses `CREATE TABLE IF NOT EXISTS`, so changing the `operations` 
 
 Because `operations` is derived entirely from `spans`, the safest upgrade path is to recreate it and backfill from retained span data. Run the steps in the Jaeger database, off-peak: the backfill `INSERT ... SELECT` scans every retained row of `spans`.
 
-Before dropping anything, capture the table's current definition with `SHOW CREATE TABLE operations` and reuse its `ENGINE` clause verbatim. 
-The DDL template renders `ENGINE = {{ .AggregatingMergeTree }}`, which is `AggregatingMergeTree` on a single node but `ReplicatedAggregatingMergeTree(...)` on a replicated deployment; 
-pasting the single-node form on a cluster would silently create a local table that misses operation names written through other replicas. 
+Before dropping anything, capture the table's current definition with `SHOW CREATE TABLE operations` and reuse its `ENGINE` clause verbatim.
+The DDL template renders `ENGINE = {{ .AggregatingMergeTree }}`, which is `AggregatingMergeTree` on a single node but `ReplicatedAggregatingMergeTree(...)` on a replicated deployment;
+pasting the single-node form on a cluster would silently create a local table that misses operation names written through other replicas.
 Keep the `ON CLUSTER` clause too, if the deployment uses one, and change only the `ORDER BY`. The snippet below is the single-node form:
 
 ```sql
