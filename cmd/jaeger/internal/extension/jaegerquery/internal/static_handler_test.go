@@ -13,6 +13,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"path/filepath"
 	"strings"
 	"sync/atomic"
 	"testing"
@@ -216,6 +217,53 @@ func TestStaticHandlerInjectsBackendCapabilities(t *testing.T) {
 			)
 			assert.Contains(t, body, expected, "backend capabilities injection mismatch")
 			assert.Equal(t, "no-store", rr.Header().Get("Cache-Control"), "a per-caller page must not be served from a shared cache")
+		})
+	}
+}
+
+// TestStaticHandlerInjectsUIConfigVerbatim checks that a UI config reaches the page exactly as
+// written. A "$" in it must not be read as a submatch reference of the substitution pattern:
+// Grafana links in the menu carry template variables such as "$service" and "${env}".
+func TestStaticHandlerInjectsUIConfigVerbatim(t *testing.T) {
+	tests := []struct {
+		name     string
+		file     string
+		content  string
+		expected string
+	}{
+		{
+			name:     "json",
+			file:     "ui-config.json",
+			content:  `{"menu":[{"label":"Grafana","url":"https://grafana.example.com/d/abc?var-service=$service"}],"x":["${env}","$1","$$"]}`,
+			expected: `JAEGER_CONFIG = {"menu":[{"label":"Grafana","url":"https://grafana.example.com/d/abc?var-service=$service"}],"x":["${env}","$1","$$"]};`,
+		},
+		{
+			name: "js",
+			file: "ui-config.js",
+			content: "function UIConfig() {\n" +
+				"  return { url: 'https://grafana.example.com/d/abc?var-service=$service', env: '${env}', price: '$5', both: '$$' };\n" +
+				"}",
+			expected: "function UIConfig() {\n" +
+				"  return { url: 'https://grafana.example.com/d/abc?var-service=$service', env: '${env}', price: '$5', both: '$$' };\n" +
+				"}",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			configFile := filepath.Join(t.TempDir(), tt.file)
+			require.NoError(t, os.WriteFile(configFile, []byte(tt.content), 0o600))
+
+			r := http.NewServeMux()
+			closer := RegisterStaticHandler(
+				r, zap.NewNop(),
+				&QueryOptions{UIConfig: UIConfig{ConfigFile: configFile, AssetsPath: "fixture"}},
+				noBackendCaps,
+			)
+			defer closer.Close()
+
+			rr := httptest.NewRecorder()
+			r.ServeHTTP(rr, httptest.NewRequest(http.MethodGet, "/", http.NoBody))
+			assert.Contains(t, rr.Body.String(), tt.expected)
 		})
 	}
 }

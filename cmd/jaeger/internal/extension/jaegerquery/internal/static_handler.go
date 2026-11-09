@@ -175,15 +175,19 @@ func (h *staticAssetsHandler) getUIConfig() *loadedConfig {
 //
 // The <base href> is not injected here. The UI detects its own mount-point
 // prefix at page-load time via an inline script in index.html (see ADR-009).
+//
+// The substitutions are literal: ReplaceAll would expand "$name", "${name}" and "$1" in the
+// replacement as submatch references and drop them, so a UI config holding a Grafana link
+// such as "?var-service=$service" would reach the browser as "?var-service=".
 func (h *staticAssetsHandler) deriveIndexHTML(r *http.Request) []byte {
 	out := h.indexHTMLRaw
 	if cfg := h.getUIConfig(); cfg != nil {
-		out = cfg.regexp.ReplaceAll(out, cfg.config)
+		out = cfg.regexp.ReplaceAllLiteral(out, cfg.config)
 	}
 	versionJSON, _ := json.Marshal(version.Get())
-	out = versionPattern.ReplaceAll(out, fmt.Appendf(nil, "JAEGER_VERSION = %s;", versionJSON))
+	out = versionPattern.ReplaceAllLiteral(out, fmt.Appendf(nil, "JAEGER_VERSION = %s;", versionJSON))
 	capsJSON, _ := json.Marshal(h.backendCaps(r))
-	out = capabilitiesPattern.ReplaceAll(out, fmt.Appendf(nil, "JAEGER_BACKEND_CAPABILITIES = %s;", capsJSON))
+	out = capabilitiesPattern.ReplaceAllLiteral(out, fmt.Appendf(nil, "JAEGER_BACKEND_CAPABILITIES = %s;", capsJSON))
 	return out
 }
 
