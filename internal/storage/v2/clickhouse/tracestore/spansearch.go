@@ -18,59 +18,94 @@ import (
 	"github.com/jaegertracing/jaeger/internal/storage/v2/clickhouse/tracestore/dbmodel"
 )
 
-// spanSortColumns maps an ordering term's built-in span field to the spans table column that
-// carries it. The IDs are fixed-width lower-case hex strings, so their bytewise order is their
-// numeric order, and start_time and duration are numeric columns (RFC 0016 §6.3).
-var spanSortColumns = map[string]string{
-	expression.SpanFieldStartTime: "start_time",
-	expression.SpanFieldDuration:  "duration",
-	expression.SpanFieldTraceID:   "trace_id",
-	expression.SpanFieldSpanID:    "id",
+// spanSortColumn is a column of the spans table that a span search can order by.
+type spanSortColumn string
+
+const (
+	columnStartTime spanSortColumn = "start_time"
+	columnDuration  spanSortColumn = "duration"
+	columnTraceID   spanSortColumn = "trace_id"
+	columnSpanID    spanSortColumn = "id"
+)
+
+// spanSortColumns maps an ordering term's built-in span field to the column that carries it.
+var spanSortColumns = map[string]spanSortColumn{
+	expression.SpanFieldStartTime: columnStartTime,
+	expression.SpanFieldDuration:  columnDuration,
+	expression.SpanFieldTraceID:   columnTraceID,
+	expression.SpanFieldSpanID:    columnSpanID,
 }
 
 // sortTerm is one term of a span search's ORDER BY: a spans table column and its direction.
 type sortTerm struct {
-	column     string
+	column     spanSortColumn
 	descending bool
 }
 
 // placeholder is the bound parameter the term's column compares against. A start time binds
 // as Unix nanoseconds, because clickhouse-go truncates a time.Time argument to seconds.
 func (c sortTerm) placeholder() string {
-	if c.column == "start_time" {
+	if c.column == columnStartTime {
 		return "fromUnixTimestamp64Nano(?)"
 	}
 	return "?"
+}
+
+// keyValueType is the type of the term's value in a cursor: a string for an ID, an integer
+// for a start time or a duration.
+func (c sortTerm) keyValueType() tracestore.SortKeyValueType {
+	switch c.column {
+	case columnTraceID, columnSpanID:
+		return tracestore.SortKeyString
+	default:
+		return tracestore.SortKeyInteger
+	}
 }
 
 // value is the row's value for the term, in the form the cursor carries and the placeholder
 // binds: an int64 for a numeric column and a string for an ID.
 func (c sortTerm) value(row *dbmodel.SpanRow) any {
 	switch c.column {
-	case "start_time":
+	case columnStartTime:
 		return row.StartTime.UnixNano()
-	case "duration":
+	case columnDuration:
 		return row.Duration
-	case "trace_id":
+	case columnTraceID:
 		return row.TraceID
 	default:
 		return row.ID
 	}
 }
 
-// spanSort lowers the query's order to sort terms. The effective order ends in the
-// tie-breakers, so the terms name one row up to duplicate writes (RFC 0016 §6.4).
-func spanSort(order []tracestore.SpanSortOrder) ([]sortTerm, error) {
+// spanSort lowers the query's order to sort terms. The effective order ends in the trace ID
+// and the span ID, so two rows tie on every term only when one span was stored twice
+// (RFC 0016 §6.4). Ordering by an ID column orders by the ID's numeric value, since the IDs
+// are stored as fixed-width lower-case hex strings whose bytewise order is their numeric order.
+func spanSort(order []tracestore.SpanSortOrder) ([]tracestore.SpanSortOrder, []sortTerm, error) {
 	order, err := tracestore.EffectiveSpanOrder(order)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
+	sort, err := lowerSpanOrder(order)
+	return order, sort, err
+}
+
+// lowerSpanOrder maps each term of an effective order to its column. The order arrives
+// settled by tracestore.EffectiveSpanOrder, which admits only field refs to the fields
+// spanSortColumns maps, so a term of another shape is a programming error.
+func lowerSpanOrder(order []tracestore.SpanSortOrder) ([]sortTerm, error) {
 	sort := make([]sortTerm, 0, len(order))
 	for _, term := range order {
-		// EffectiveSpanOrder admits only field refs to the fields spanSortColumns maps.
-		ref := term.Expression.(*expression.FieldRef)
+		ref, ok := term.Expression.(*expression.FieldRef)
+		if !ok {
+			return nil, fmt.Errorf("ordering term is not a field ref: %T", term.Expression)
+		}
+		column, ok := spanSortColumns[ref.Name]
+		if !ok {
+			return nil, fmt.Errorf("ordering term names a field without a sort column: %s", ref.Name)
+		}
 		sort = append(sort, sortTerm{
-			column:     spanSortColumns[ref.Name],
+			column:     column,
 			descending: term.Direction == tracestore.SortDescending,
 		})
 	}
@@ -95,7 +130,7 @@ func (r *Reader) FindSpans(ctx context.Context, query tracestore.SpanQueryParams
 
 func (r *Reader) findSpanPage(ctx context.Context, query tracestore.SpanQueryParams) (tracestore.PageChunk[ptrace.Traces], error) {
 	var none tracestore.PageChunk[ptrace.Traces]
-	sort, err := spanSort(query.OrderBy)
+	_, sort, err := spanSort(query.OrderBy)
 	if err != nil {
 		return none, err
 	}
@@ -109,17 +144,15 @@ func (r *Reader) findSpanPage(ctx context.Context, query tracestore.SpanQueryPar
 	if err != nil {
 		return none, err
 	}
-	var after *spanCursor
+	var after spanCursor
 	if query.Pagination.PageToken != "" {
 		raw, err := query.Pagination.PageToken.Cursor(fingerprint)
 		if err != nil {
 			return none, err
 		}
-		cursor, err := decodeSpanCursor(raw, sort)
-		if err != nil {
+		if after, err = decodeSpanCursor(raw, sort); err != nil {
 			return none, err
 		}
-		after = &cursor
 	}
 	// The query service clamps the page size; a caller reaching the reader directly gets the
 	// same bound (RFC 0014 §4).
@@ -166,7 +199,7 @@ func (r *Reader) buildFindSpansQuery(
 	ctx context.Context,
 	query tracestore.SpanQueryParams,
 	sort []sortTerm,
-	after *spanCursor,
+	after spanCursor,
 	pageSize uint32,
 ) (string, []any, error) {
 	var q sqlBuilder
@@ -181,23 +214,28 @@ func (r *Reader) buildFindSpansQuery(
 	}
 	if after != nil {
 		q.appendAnd("")
-		args = q.appendContinuation(args, sort, after.Key)
+		args = q.appendContinuation(args, sort, after)
 	}
+	q.appendOrderBy(sort)
+	q.WriteString("\nLIMIT ?")
+	args = append(args, uint64(pageSize)+1)
+	return q.String(), args, nil
+}
+
+// appendOrderBy writes the ORDER BY clause of the sort terms, each column in its direction.
+func (q *sqlBuilder) appendOrderBy(sort []sortTerm) {
 	q.WriteString("\nORDER BY ")
 	for i, term := range sort {
 		if i > 0 {
 			q.WriteString(", ")
 		}
-		q.WriteString("s." + term.column)
+		q.WriteString("s." + string(term.column))
 		if term.descending {
 			q.WriteString(" DESC")
 		} else {
 			q.WriteString(" ASC")
 		}
 	}
-	q.WriteString("\nLIMIT ?")
-	args = append(args, uint64(pageSize)+1)
-	return q.String(), args, nil
 }
 
 // appendContinuation writes the predicate that selects the rows after key in the order of the
@@ -209,7 +247,7 @@ func (q *sqlBuilder) appendContinuation(args []any, sort []sortTerm, key []any) 
 	if term.descending {
 		past = "<"
 	}
-	column := "s." + term.column
+	column := "s." + string(term.column)
 	if len(sort) == 1 {
 		q.WriteString(column + " " + past + " " + term.placeholder())
 		return append(args, key[0])

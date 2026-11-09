@@ -161,10 +161,10 @@ func TestFindSpans_Refusals(t *testing.T) {
 	}
 	shortCursor, err := tracestore.NewPageToken(fingerprint, []byte{1, 2, 3})
 	require.NoError(t, err)
-	key := []any{now.UnixNano(), traceIDHex1, "0000000000000001"}
-	truncatedCursor := cursorToken(spanCursor{Key: key[:2]})
-	mistypedCursor := cursorToken(spanCursor{Key: []any{"now", traceIDHex1, "0000000000000001"}})
-	nestedCursor := cursorToken(spanCursor{Key: []any{now.UnixNano(), []string{traceIDHex1}, "0000000000000001"}})
+	key := spanCursor{now.UnixNano(), traceIDHex1, "0000000000000001"}
+	truncatedCursor := cursorToken(key[:2])
+	mistypedCursor := cursorToken(spanCursor{"now", traceIDHex1, "0000000000000001"})
+	nestedCursor := cursorToken(spanCursor{now.UnixNano(), []string{traceIDHex1}, "0000000000000001"})
 
 	tests := []struct {
 		name    string
@@ -211,19 +211,19 @@ func TestFindSpans_Refusals(t *testing.T) {
 			name:    "cursor with a value per sort term missing",
 			query:   spanSearchQuery(1, truncatedCursor),
 			wantErr: tracestore.ErrPaginationInvalid,
-			message: "does not carry a span position",
+			message: "carries 2 values for 3 sort fields",
 		},
 		{
 			name:    "cursor with a value of the wrong type",
 			query:   spanSearchQuery(1, mistypedCursor),
 			wantErr: tracestore.ErrPaginationInvalid,
-			message: "value 0 does not fit the sort column start_time",
+			message: "value 0 is not of type integer",
 		},
 		{
 			name:    "cursor with a nested value",
 			query:   spanSearchQuery(1, nestedCursor),
 			wantErr: tracestore.ErrPaginationInvalid,
-			message: "value 1 does not fit the sort column trace_id",
+			message: "value 1 is not of type string",
 		},
 		{
 			name:    "zero page size",
@@ -281,20 +281,20 @@ func TestFindSpans_Errors(t *testing.T) {
 // against the order's semantics: a term is past the cursor's value in its own direction, or
 // equal to it and the remaining terms decide, and the last term compares inclusively.
 func TestSpanSort_Continuation(t *testing.T) {
-	sort, err := spanSort([]tracestore.SpanSortOrder{
+	_, sort, err := spanSort([]tracestore.SpanSortOrder{
 		{Expression: fieldRef(expression.LevelSpan, expression.SpanFieldDuration), Direction: tracestore.SortDescending},
 		{Expression: fieldRef(expression.LevelSpan, expression.SpanFieldStartTime), Direction: tracestore.SortAscending},
 	})
 	require.NoError(t, err)
 	assert.Equal(t, []sortTerm{
-		{column: "duration", descending: true},
-		{column: "start_time"},
-		{column: "trace_id"},
-		{column: "id"},
+		{column: columnDuration, descending: true},
+		{column: columnStartTime},
+		{column: columnTraceID},
+		{column: columnSpanID},
 	}, sort)
 
 	reader := NewReader(&clickhousetest.Driver{}, testReaderConfig)
-	after := &spanCursor{Key: []any{int64(1000), now.UnixNano(), traceIDHex1, "0000000000000001"}}
+	after := spanCursor{int64(1000), now.UnixNano(), traceIDHex1, "0000000000000001"}
 	query := spanSearchQuery(2, "")
 	query.Filter = nil
 	q, args, err := reader.buildFindSpansQuery(context.Background(), query, sort, after, 2)
@@ -310,5 +310,16 @@ func TestSpanSort_Continuation(t *testing.T) {
 	}, args)
 
 	row := spanSearchRow("a", "0000000000000001", now)
-	assert.Equal(t, []any{int64(1000), now.UnixNano(), traceIDHex1, "0000000000000001"}, newSpanCursor(row, sort).Key)
+	assert.Equal(t, spanCursor{int64(1000), now.UnixNano(), traceIDHex1, "0000000000000001"}, newSpanCursor(row, sort))
+}
+
+// TestLowerSpanOrder_Refusals covers the two shapes of term that lowerSpanOrder refuses and
+// that tracestore.EffectiveSpanOrder never lets through: a term that is not a field ref, and a
+// field ref without a sort column.
+func TestLowerSpanOrder_Refusals(t *testing.T) {
+	_, err := lowerSpanOrder([]tracestore.SpanSortOrder{{Expression: str("duration")}})
+	require.ErrorContains(t, err, "ordering term is not a field ref")
+
+	_, err = lowerSpanOrder([]tracestore.SpanSortOrder{{Expression: fieldRef(expression.LevelSpan, expression.SpanFieldName)}})
+	require.ErrorContains(t, err, "ordering term names a field without a sort column: "+expression.SpanFieldName)
 }
