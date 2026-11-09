@@ -12,19 +12,111 @@ import (
 	"github.com/ClickHouse/clickhouse-go/v2/lib/driver"
 	"go.opentelemetry.io/collector/pdata/ptrace"
 
+	expression "github.com/jaegertracing/jaeger-idl/query/expression/v1"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/clickhouse/sql"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/clickhouse/tracestore/dbmodel"
 )
 
-// defaultSpanOrder is the ORDER BY of the default span order of RFC 0016 §6.1: start time
-// descending, then the trace ID and the span ID ascending as tie-breakers. The IDs are
-// fixed-width lower-case hex strings, so their bytewise order is their numeric order.
-const defaultSpanOrder = "s.start_time DESC, s.trace_id ASC, s.id ASC"
+// spanSortColumn is a column of the spans table that a span search can order by.
+type spanSortColumn string
 
-// FindSpans returns the spans matching query, in the query's effective order, cut at the page
-// size. It selects the span rows directly, with the same predicates the trace search assembles
-// and without the trace-ID subquery, in the default span order. See RFC 0016 §6.
+const (
+	columnStartTime spanSortColumn = "start_time"
+	columnDuration  spanSortColumn = "duration"
+	columnTraceID   spanSortColumn = "trace_id"
+	columnSpanID    spanSortColumn = "id"
+)
+
+// spanSortColumns maps an ordering term's built-in span field to the column that carries it.
+var spanSortColumns = map[string]spanSortColumn{
+	expression.SpanFieldStartTime: columnStartTime,
+	expression.SpanFieldDuration:  columnDuration,
+	expression.SpanFieldTraceID:   columnTraceID,
+	expression.SpanFieldSpanID:    columnSpanID,
+}
+
+// sortTerm is one term of a span search's ORDER BY: a spans table column and its direction.
+type sortTerm struct {
+	column     spanSortColumn
+	descending bool
+}
+
+// placeholder is the bound parameter the term's column compares against. A start time binds
+// as Unix nanoseconds, because clickhouse-go truncates a time.Time argument to seconds.
+func (c sortTerm) placeholder() string {
+	if c.column == columnStartTime {
+		return "fromUnixTimestamp64Nano(?)"
+	}
+	return "?"
+}
+
+// keyValueType is the type of the term's value in a cursor: a string for an ID, an integer
+// for a start time or a duration.
+func (c sortTerm) keyValueType() tracestore.SortKeyValueType {
+	switch c.column {
+	case columnTraceID, columnSpanID:
+		return tracestore.SortKeyString
+	default:
+		return tracestore.SortKeyInteger
+	}
+}
+
+// value is the row's value for the term, in the form the cursor carries and the placeholder
+// binds: an int64 for a numeric column and a string for an ID.
+func (c sortTerm) value(row *dbmodel.SpanRow) any {
+	switch c.column {
+	case columnStartTime:
+		return row.StartTime.UnixNano()
+	case columnDuration:
+		return row.Duration
+	case columnTraceID:
+		return row.TraceID
+	default:
+		return row.ID
+	}
+}
+
+// spanSort lowers the query's order to sort terms. The effective order ends in the trace ID
+// and the span ID, so two rows tie on every term only when one span was stored twice
+// (RFC 0016 §6.4). Ordering by an ID column orders by the ID's numeric value, since the IDs
+// are stored as fixed-width lower-case hex strings whose bytewise order is their numeric order.
+func spanSort(order []tracestore.SpanSortOrder) ([]tracestore.SpanSortOrder, []sortTerm, error) {
+	order, err := tracestore.EffectiveSpanOrder(order)
+	if err != nil {
+		return nil, nil, err
+	}
+	sort, err := lowerSpanOrder(order)
+	return order, sort, err
+}
+
+// lowerSpanOrder maps each term of an effective order to its column. The order arrives
+// settled by tracestore.EffectiveSpanOrder, which admits only field refs to the fields
+// spanSortColumns maps, so a term of another shape is a programming error.
+func lowerSpanOrder(order []tracestore.SpanSortOrder) ([]sortTerm, error) {
+	sort := make([]sortTerm, 0, len(order))
+	for _, term := range order {
+		ref, ok := term.Expression.(*expression.FieldRef)
+		if !ok {
+			return nil, fmt.Errorf("ordering term is not a field ref: %T", term.Expression)
+		}
+		column, ok := spanSortColumns[ref.Name]
+		if !ok {
+			return nil, fmt.Errorf("ordering term names a field without a sort column: %s", ref.Name)
+		}
+		sort = append(sort, sortTerm{
+			column:     column,
+			descending: term.Direction == tracestore.SortDescending,
+		})
+	}
+	return sort, nil
+}
+
+// FindSpans returns one page of the spans matching query, in the query's effective order, with
+// the token that resumes the search after them. It selects the span rows directly, with the
+// same predicates the trace search assembles and without the trace-ID subquery, ordered by the
+// sort terms and cut at the page size; the cursor inside the token is the last row's sort
+// values, and a continuation reads from them onward. See RFC 0016 §6.
 func (r *Reader) FindSpans(ctx context.Context, query tracestore.SpanQueryParams) iter.Seq2[tracestore.PageChunk[ptrace.Traces], error] {
 	return func(yield func(tracestore.PageChunk[ptrace.Traces], error) bool) {
 		chunk, err := r.findSpanPage(ctx, query)
@@ -38,14 +130,29 @@ func (r *Reader) FindSpans(ctx context.Context, query tracestore.SpanQueryParams
 
 func (r *Reader) findSpanPage(ctx context.Context, query tracestore.SpanQueryParams) (tracestore.PageChunk[ptrace.Traces], error) {
 	var none tracestore.PageChunk[ptrace.Traces]
-	// The query service refuses an explicit order and a page token before dispatch, but a reader
-	// reached directly must refuse them too while SpanSorting and Paginated are off.
+	_, sort, err := spanSort(query.OrderBy)
+	if err != nil {
+		return none, err
+	}
+	// The query service refuses an explicit order before dispatch, but a reader reached directly
+	// must refuse it too while SpanSorting is off.
 	capabilities, _ := r.SearchCapabilities(ctx)
 	if err := capabilities.ValidateSpanSorting(query.OrderBy); err != nil {
 		return none, err
 	}
+	fingerprint, err := query.Fingerprint()
+	if err != nil {
+		return none, err
+	}
+	var after spanCursor
 	if query.Pagination.PageToken != "" {
-		return none, fmt.Errorf("%w: the span search on this storage backend does not page yet", tracestore.ErrPaginationUnsupported)
+		raw, err := query.Pagination.PageToken.Cursor(fingerprint)
+		if err != nil {
+			return none, err
+		}
+		if after, err = decodeSpanCursor(raw, sort); err != nil {
+			return none, err
+		}
 	}
 	// The query service clamps the page size; a caller reaching the reader directly gets the
 	// same bound (RFC 0014 §4).
@@ -53,7 +160,7 @@ func (r *Reader) findSpanPage(ctx context.Context, query tracestore.SpanQueryPar
 	if pageSize == 0 {
 		return none, fmt.Errorf("%w: page size must be greater than 0", tracestore.ErrPaginationInvalid)
 	}
-	q, args, err := r.buildFindSpansQuery(ctx, query, pageSize)
+	q, args, err := r.buildFindSpansQuery(ctx, query, sort, after, pageSize)
 	if err != nil {
 		return none, fmt.Errorf("failed to build query: %w", err)
 	}
@@ -61,11 +168,22 @@ func (r *Reader) findSpanPage(ctx context.Context, query tracestore.SpanQueryPar
 	if err != nil {
 		return none, fmt.Errorf("failed to query spans: %w", err)
 	}
+	// One row beyond the page tells whether another page exists.
 	found, err := readSpanRows(rows)
 	if err != nil {
 		return none, err
 	}
+	more := uint64(len(found)) > uint64(pageSize)
+	if more {
+		found = found[:pageSize]
+	}
 	chunk := tracestore.PageChunk[ptrace.Traces]{Results: ptrace.NewTraces()}
+	if more {
+		next := newSpanCursor(found[len(found)-1], sort)
+		if chunk.NextPageToken, err = tracestore.NewPageToken(fingerprint, next.encode()); err != nil {
+			return none, err
+		}
+	}
 	// Every span keeps its own ResourceSpans, so the page keeps the SQL order even where
 	// consecutive spans alternate between services.
 	for _, row := range found {
@@ -74,11 +192,14 @@ func (r *Reader) findSpanPage(ctx context.Context, query tracestore.SpanQueryPar
 	return chunk, nil
 }
 
-// buildFindSpansQuery selects the span rows the query matches, in the default span order and
-// cut at the page size.
+// buildFindSpansQuery selects the span rows the query matches, after the cursor's key when
+// there is one, ordered by the sort terms. It fetches one row beyond the page, which tells
+// whether another page exists.
 func (r *Reader) buildFindSpansQuery(
 	ctx context.Context,
 	query tracestore.SpanQueryParams,
+	sort []sortTerm,
+	after spanCursor,
 	pageSize uint32,
 ) (string, []any, error) {
 	var q sqlBuilder
@@ -91,10 +212,51 @@ func (r *Reader) buildFindSpansQuery(
 			return "", nil, err
 		}
 	}
-	q.WriteString("\nORDER BY " + defaultSpanOrder)
+	if after != nil {
+		q.appendAnd("")
+		args = q.appendContinuation(args, sort, after)
+	}
+	q.appendOrderBy(sort)
 	q.WriteString("\nLIMIT ?")
-	args = append(args, uint64(pageSize))
+	args = append(args, uint64(pageSize)+1)
 	return q.String(), args, nil
+}
+
+// appendOrderBy writes the ORDER BY clause of the sort terms, each column in its direction.
+func (q *sqlBuilder) appendOrderBy(sort []sortTerm) {
+	q.WriteString("\nORDER BY ")
+	for i, term := range sort {
+		if i > 0 {
+			q.WriteString(", ")
+		}
+		q.WriteString("s." + string(term.column))
+		if term.descending {
+			q.WriteString(" DESC")
+		} else {
+			q.WriteString(" ASC")
+		}
+	}
+}
+
+// appendContinuation writes the predicate that selects the rows after key in the order of the
+// sort terms: the first term is past its value, or equal to it and the remaining terms are
+// past theirs.
+func (q *sqlBuilder) appendContinuation(args []any, sort []sortTerm, key []any) []any {
+	term := sort[0]
+	past := ">"
+	if term.descending {
+		past = "<"
+	}
+	column := "s." + string(term.column)
+	if len(sort) == 1 {
+		q.WriteString(column + " " + past + " " + term.placeholder())
+		return append(args, key[0])
+	}
+	q.WriteString("(" + column + " " + past + " " + term.placeholder() + " OR (" + column + " = " + term.placeholder() + " AND ")
+	args = append(args, key[0], key[0])
+	args = q.appendContinuation(args, sort[1:], key[1:])
+	q.WriteString("))")
+	return args
 }
 
 // readSpanRows scans every row of the result set into a span row. The statement's LIMIT bounds

@@ -1331,7 +1331,31 @@ func TestReader_SearchCapabilities(t *testing.T) {
 		SameSpanConjunction: true,
 		Filter:              &filter,
 		SpanSearch:          true,
+		Paginated:           true,
 	}, caps)
+}
+
+// TestFindTraceIDs_Pagination covers the fold of RFC 0014 §6.2 inside the reader: the page size
+// bounds the search as its depth and the page is the last one, while a token is refused.
+func TestFindTraceIDs_Pagination(t *testing.T) {
+	driver := &clickhousetest.Driver{}
+	addTraceSearchResponses(driver)
+	reader := NewReader(driver, testReaderConfig)
+
+	traceIDs, err := flattenPageChunks(reader.FindTraceIDs(context.Background(), tracestore.TraceQueryParams{
+		Attributes: pcommon.NewMap(),
+		Pagination: &tracestore.Pagination{PageSize: 7},
+	}))
+	require.NoError(t, err)
+	require.Len(t, traceIDs, 1)
+	require.Len(t, driver.RecordedArgs, 2)
+	assert.Equal(t, []any{uint32(7)}, driver.RecordedArgs[0], "the page size bounds the candidate search")
+
+	_, err = flattenPageChunks(reader.FindTraceIDs(context.Background(), tracestore.TraceQueryParams{
+		Attributes: pcommon.NewMap(),
+		Pagination: &tracestore.Pagination{PageSize: 7, PageToken: "token"},
+	}))
+	require.ErrorIs(t, err, tracestore.ErrPaginationUnsupported)
 }
 
 func addTraceSearchResponses(conn *clickhousetest.Driver) {

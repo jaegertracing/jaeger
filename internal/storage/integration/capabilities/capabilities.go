@@ -248,8 +248,9 @@ func clickHouseSkipList() []string {
 		// FindSpans orders by the default key only, so the ordering battery, whose default
 		// case runs through the same test, is skipped whole (RFC 0016 M12).
 		spanOrderingTest,
-		// The reader does not mint continuation tokens yet.
-		paginationTest,
+		// The trace searches do not page yet.
+		traceIDPaginationTest,
+		summaryPaginationTest,
 		// The lowering maps five built-in fields; event.name has a column but is not among them yet.
 		filterEventNameTest,
 		// The lowering declares the ordered comparisons but evaluates them on span.duration only, and
@@ -261,6 +262,9 @@ func clickHouseSkipList() []string {
 // ClickHouse returns the capabilities for the ClickHouse storage backend read directly.
 func ClickHouse() Capabilities {
 	return Capabilities{
+		// The span ID is the span search's tie-breaker and is not unique in the spans table,
+		// so the search loses the later copies of a span stored twice at a page boundary.
+		pagingDropsTiedSpans: true,
 		// The lowering has no mapping for span.traceState yet and refuses a filter naming it.
 		traceStateRefused: true,
 		skipList: append(
@@ -278,8 +282,9 @@ func ClickHouse() Capabilities {
 // through jaeger-query.
 func ClickHouseE2E() Capabilities {
 	return Capabilities{
-		traceStateRefused: true,
-		skipList:          clickHouseSkipList(),
+		pagingDropsTiedSpans: true,
+		traceStateRefused:    true,
+		skipList:             clickHouseSkipList(),
 	}
 }
 
