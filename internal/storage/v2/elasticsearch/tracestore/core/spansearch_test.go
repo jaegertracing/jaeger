@@ -10,7 +10,6 @@ import (
 	"fmt"
 	"net/http/httptest"
 	"strconv"
-	"strings"
 	"testing"
 	"time"
 
@@ -142,7 +141,7 @@ func TestSpanReader_FindSpans_Continuation(t *testing.T) {
 	withSpanReader(t, func(r *spanReaderTest) {
 		mockSearchService(r).Run(func(args mock.Arguments) {
 			req := args.Get(2).(esclient.SearchRequest)
-			assert.Equal(t, []any{json.RawMessage(`10`), json.RawMessage(`"t1"`), json.RawMessage(`"s2"`), json.RawMessage(`"i1"`), json.RawMessage(`"d2"`)}, req.SearchAfter)
+			assert.Equal(t, []any{int64(10), "t1", "s2", "i1", "d2"}, req.SearchAfter)
 		}).Return(&esclient.SearchResponse{Hits: esclient.HitsResult{Hits: []esclient.SearchHit{
 			spanHit(t, "i1", "d3", "t1", "s2", 10), spanHit(t, "i1", "d5", "t2", "s1", 5),
 		}}}, nil)
@@ -248,53 +247,25 @@ func TestSpanReader_FindSpans_RefusedBeforeSearching(t *testing.T) {
 	}
 }
 
-// TestDecodeSpanCursor covers every refusal of a cursor against one explicit sort, so the
-// cases do not depend on the clauses the reader appends. Each malformed cursor is the valid
-// one with a single value replaced, which keeps its length right by construction and leaves
-// only the replaced value under test; the two refusals carry distinct messages, so a case
-// aimed at one cannot pass by tripping the other.
-func TestDecodeSpanCursor(t *testing.T) {
+// TestSortKeyValueTypes covers the mapping over one explicit sort that holds every string
+// field and the two long fields, so the cases do not depend on the clauses the reader appends.
+func TestSortKeyValueTypes(t *testing.T) {
 	sort := []esclient.SortOrder{
 		{Field: startTimeField, Order: esquery.Descending},
+		{Field: durationField, Order: esquery.Ascending},
 		{Field: traceIDField, Order: esquery.Ascending},
+		{Field: spanIDField, Order: esquery.Ascending},
 		{Field: indexField, Order: esquery.Descending},
 		{Field: idField, Order: esquery.Ascending},
 	}
-	valid := []string{`10`, `"t1"`, `"i1"`, `"d1"`}
-	cursorWith := func(i int, value string) []byte {
-		values := append([]string{}, valid...)
-		values[i] = value
-		return []byte("[" + strings.Join(values, ",") + "]")
-	}
-	for _, tc := range []struct {
-		name   string
-		cursor []byte
-		err    string
-	}{
-		{"NotJSON", []byte("not json"), "does not carry a span position"},
-		{"TooShort", []byte(`[10,"t1","i1"]`), "carries 3 values for 4 sort fields"},
-		{"TooLong", []byte(`[10,"t1","i1","d1","extra"]`), "carries 5 values for 4 sort fields"},
-		{"ObjectForTime", cursorWith(0, `{}`), "value 0 is not a number"},
-		{"NullForTraceID", cursorWith(1, `null`), "value 1 is not a string"},
-		{"NumberForIndex", cursorWith(2, `7`), "value 2 is not a string"},
-		{"NullForID", cursorWith(3, `null`), "value 3 is not a string"},
-	} {
-		t.Run(tc.name, func(t *testing.T) {
-			_, err := decodeSpanCursor(tc.cursor, sort)
-			require.ErrorIs(t, err, tracestore.ErrPaginationInvalid)
-			require.ErrorContains(t, err, tc.err)
-		})
-	}
-	t.Run("Valid", func(t *testing.T) {
-		values, err := decodeSpanCursor(cursorWith(0, `10`), sort)
-		require.NoError(t, err)
-		assert.Equal(t, sortValues(valid...), values)
-	})
-	t.Run("None", func(t *testing.T) {
-		values, err := decodeSpanCursor(nil, sort)
-		require.NoError(t, err)
-		assert.Nil(t, values)
-	})
+	assert.Equal(t, []tracestore.SortKeyValueType{
+		tracestore.SortKeyInteger,
+		tracestore.SortKeyInteger,
+		tracestore.SortKeyString,
+		tracestore.SortKeyString,
+		tracestore.SortKeyString,
+		tracestore.SortKeyString,
+	}, sortKeyValueTypes(sort))
 }
 
 func TestSpanReader_FindSpans_SearchErrors(t *testing.T) {
