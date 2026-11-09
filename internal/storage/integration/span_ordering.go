@@ -70,6 +70,15 @@ func withoutRepeats(names []string) []string {
 	return out
 }
 
+// finalizedFilter resolves filter the way the query service does before dispatch, so a direct
+// suite hands the reader the shape it sees in production.
+func finalizedFilter(t *testing.T, filter *expression.Call) *expression.Call {
+	t.Helper()
+	finalized, err := tracestore.FinalizeFilter(filter)
+	require.NoError(t, err)
+	return finalized
+}
+
 func orderingTerm(field string, direction tracestore.SortDirection) tracestore.SpanSortOrder {
 	return tracestore.SpanSortOrder{Expression: &expression.FieldRef{Level: expression.LevelSpan, Name: field}, Direction: direction}
 }
@@ -87,7 +96,7 @@ func (s *StorageIntegration) spanOrderingSearch(t *testing.T) (tracestore.SpanQu
 	query := tracestore.SpanQueryParams{
 		StartTimeMin: first.StartTimestamp().AsTime().Add(-time.Minute),
 		StartTimeMax: first.StartTimestamp().AsTime().Add(time.Minute),
-		Filter:       (builder.Predicate{}).Span().Attr("ordering-corpus").Eq("yes"),
+		Filter:       finalizedFilter(t, (builder.Predicate{}).Span().Attr("ordering-corpus").Eq("yes")),
 		Pagination:   tracestore.Pagination{PageSize: 10},
 	}
 	search := func(q tracestore.SpanQueryParams) ([]string, tracestore.PageToken, error) {
@@ -224,7 +233,7 @@ func (s *StorageIntegration) testSpanOrderingBasic(t *testing.T) {
 	t.Run("Empty", func(t *testing.T) {
 		q := query
 		q.OrderBy = []tracestore.SpanSortOrder{orderingTerm("duration", "desc")}
-		q.Filter = (builder.Predicate{}).Span().Name.Eq("absent-ordering-span")
+		q.Filter = finalizedFilter(t, (builder.Predicate{}).Span().Name.Eq("absent-ordering-span"))
 		names, token, err := search(q)
 		require.NoError(t, err)
 		assert.Empty(t, names)
