@@ -5,7 +5,6 @@ package tracestore
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"iter"
 	"strings"
@@ -62,7 +61,7 @@ func (r *Reader) findSpanPage(ctx context.Context, query tracestore.SpanQueryPar
 	if err != nil {
 		return none, fmt.Errorf("failed to query spans: %w", err)
 	}
-	found, err := readSpanRows(rows, pageSize)
+	found, err := readSpanRows(rows)
 	if err != nil {
 		return none, err
 	}
@@ -98,9 +97,10 @@ func (r *Reader) buildFindSpansQuery(
 	return q.String(), args, nil
 }
 
-// readSpanRows scans rows into span rows until it holds want of them. It stops reading at want
-// rather than trust the statement's LIMIT.
-func readSpanRows(rows driver.Rows, want uint32) ([]*dbmodel.SpanRow, error) {
+// readSpanRows scans every row of the result set into a span row. The statement's LIMIT bounds
+// the result, so the rows are read to the end and the iteration and close errors are checked
+// on every page.
+func readSpanRows(rows driver.Rows) ([]*dbmodel.SpanRow, error) {
 	var found []*dbmodel.SpanRow
 	err := readRows(rows, "span", func(rows driver.Rows) error {
 		row, err := dbmodel.ScanRow(rows)
@@ -108,12 +108,9 @@ func readSpanRows(rows driver.Rows, want uint32) ([]*dbmodel.SpanRow, error) {
 			return fmt.Errorf("failed to scan span row: %w", err)
 		}
 		found = append(found, row)
-		if uint64(len(found)) == uint64(want) {
-			return errStopReading
-		}
 		return nil
 	})
-	if err != nil && !errors.Is(err, errStopReading) {
+	if err != nil {
 		return nil, err
 	}
 	return found, nil

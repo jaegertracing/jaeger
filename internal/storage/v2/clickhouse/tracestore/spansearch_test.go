@@ -94,12 +94,11 @@ func TestFindSpans_Query(t *testing.T) {
 	conn, _ := spanSearchConn(
 		spanSearchRow("a", "0000000000000001", now),
 		spanSearchRow("b", "0000000000000002", now.Add(-time.Second)),
-		spanSearchRow("c", "0000000000000003", now.Add(-2*time.Second)),
 	)
 	reader := NewReader(conn, testReaderConfig)
 
 	names, token := findSpans(t, reader, spanSearchQuery(2))
-	assert.Equal(t, []string{"a", "b"}, names, "the reader stops at the page size whatever the statement returned")
+	assert.Equal(t, []string{"a", "b"}, names)
 	assert.Empty(t, token)
 
 	require.Len(t, conn.RecordedQueries, 1)
@@ -203,5 +202,13 @@ func TestFindSpans_Errors(t *testing.T) {
 		conn.QueryResponses[sql.SelectSpansQuery].Rows.(*clickhousetest.Rows[*dbmodel.SpanRow]).ScanErr = errors.New("boom")
 		err := findSpansError(NewReader(conn, testReaderConfig), spanSearchQuery(1))
 		require.ErrorContains(t, err, "failed to scan span row: boom")
+	})
+	// A full page reads the result set to its end, so an error the server reports after the
+	// last row, or on closing the rows, still fails the page.
+	t.Run("close fails after a full page", func(t *testing.T) {
+		conn, _ := spanSearchConn(spanSearchRow("a", "0000000000000001", now))
+		conn.QueryResponses[sql.SelectSpansQuery].Rows.(*clickhousetest.Rows[*dbmodel.SpanRow]).CloseErr = errors.New("boom")
+		err := findSpansError(NewReader(conn, testReaderConfig), spanSearchQuery(1))
+		require.ErrorContains(t, err, "failed to close rows: boom")
 	})
 }
