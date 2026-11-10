@@ -89,7 +89,7 @@ func (q *QueryBuilder) BuildCallRateAggQuery(params metricstore.BaseQueryParamet
 }
 
 // buildTimeSeriesAggQuery constructs a time series aggregation with a sub-aggregation.
-func (*QueryBuilder) buildTimeSeriesAggQuery(params metricstore.BaseQueryParameters, timeRange TimeRange, subAggName string, subAgg esquery.Aggregation) esquery.Aggregation {
+func (q *QueryBuilder) buildTimeSeriesAggQuery(params metricstore.BaseQueryParameters, timeRange TimeRange, subAggName string, subAgg esquery.Aggregation) esquery.Aggregation {
 	fixedIntervalString := strconv.FormatInt(params.Step.Milliseconds(), 10) + "ms"
 
 	dateHistAgg := esquery.NewDateHistogramAggregation().
@@ -101,7 +101,7 @@ func (*QueryBuilder) buildTimeSeriesAggQuery(params metricstore.BaseQueryParamet
 
 	if params.GroupByOperation {
 		return esquery.NewTermsAggregation("operationName").
-			Size(10).
+			Size(uint64(max(0, q.cfg.MaxDocCount))).
 			SubAggregation(dateHistAggName, dateHistAgg)
 	}
 	return dateHistAgg

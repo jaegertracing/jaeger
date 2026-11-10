@@ -148,6 +148,84 @@ func TestBuildTimeSeriesAggQuery(t *testing.T) {
 	})
 }
 
+func TestBuildTimeSeriesAggQuery_GroupByOperation(t *testing.T) {
+	indicesCfg := testIndicesConfig
+	indicesCfg.Spans.Tags = config.TagsAsFields{
+		DotReplacement: "_",
+	}
+	cfg := config.Configuration{
+		Indices:     indicesCfg,
+		MaxDocCount: 5000,
+	}
+	qb := NewQueryBuilder(nil, cfg, testSpanRotation())
+	step := time.Minute
+	params := metricstore.BaseQueryParameters{
+		Step:             &step,
+		GroupByOperation: true,
+	}
+	subAgg := esquery.NewCumulativeSumAggregation()
+
+	agg := qb.buildTimeSeriesAggQuery(params, commonTimeRange, "test_sub_agg", subAgg)
+	require.NotNil(t, agg)
+
+	src, err := agg.Source()
+	require.NoError(t, err)
+
+	aggMap, ok := src.(map[string]any)
+	require.True(t, ok)
+
+	terms, ok := aggMap["terms"].(map[string]any)
+	require.True(t, ok)
+	assert.Equal(t, "operationName", terms["field"])
+	assert.Equal(t, uint64(5000), terms["size"])
+
+	aggs, ok := aggMap["aggregations"].(map[string]any)
+	require.True(t, ok)
+
+	dateHistAgg, ok := aggs["date_histogram"].(map[string]any)
+	require.True(t, ok)
+
+	dateHist, ok := dateHistAgg["date_histogram"].(map[string]any)
+	require.True(t, ok)
+	assert.Equal(t, "60000ms", dateHist["fixed_interval"])
+
+	dateHistSubAggs, ok := dateHistAgg["aggregations"].(map[string]any)
+	require.True(t, ok)
+	require.NotNil(t, dateHistSubAggs["test_sub_agg"])
+}
+
+func TestBuildTimeSeriesAggQuery_GroupByOperation_DefaultMaxDocCount(t *testing.T) {
+	indicesCfg := testIndicesConfig
+	indicesCfg.Spans.Tags = config.TagsAsFields{
+		DotReplacement: "_",
+	}
+	cfg := config.Configuration{
+		Indices:     indicesCfg,
+		MaxDocCount: 10_000,
+	}
+	qb := NewQueryBuilder(nil, cfg, testSpanRotation())
+	step := time.Minute
+	params := metricstore.BaseQueryParameters{
+		Step:             &step,
+		GroupByOperation: true,
+	}
+	subAgg := esquery.NewCumulativeSumAggregation()
+
+	agg := qb.buildTimeSeriesAggQuery(params, commonTimeRange, "test_sub_agg", subAgg)
+	require.NotNil(t, agg)
+
+	src, err := agg.Source()
+	require.NoError(t, err)
+
+	aggMap, ok := src.(map[string]any)
+	require.True(t, ok)
+
+	terms, ok := aggMap["terms"].(map[string]any)
+	require.True(t, ok)
+	assert.Equal(t, "operationName", terms["field"])
+	assert.Equal(t, uint64(10_000), terms["size"])
+}
+
 func TestExecute(t *testing.T) {
 	var requestPath string
 	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
