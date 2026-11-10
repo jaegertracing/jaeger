@@ -105,8 +105,8 @@ type hoistedColumn struct {
 // definition returns the column definition as it appears in CREATE TABLE. The name is quoted
 // because a name such as index is a keyword at that position.
 func (c hoistedColumn) definition() string {
-	return fmt.Sprintf("`%s` %s MATERIALIZED %s CODEC(%s)",
-		c.attribute.Column, c.attribute.ColumnType(), c.attribute.SourceExpression(), c.codec)
+	return "`" + c.attribute.Column + "` " + fmt.Sprintf("%s MATERIALIZED %s CODEC(%s)",
+		c.attribute.ColumnType(), c.attribute.SourceExpression(), c.codec)
 }
 
 const defaultHoistedCodec = "ZSTD(1)"
