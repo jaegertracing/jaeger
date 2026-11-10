@@ -224,6 +224,20 @@ func filterTestCases(p builder.Predicate) []filterCase {
 			expected: []string{"search"},
 		},
 		{
+			// Only `checkout` carries `queue.depth`, and its value is zero. A backend that reads
+			// a missing attribute as the zero of its type would return every trace here.
+			caption:  "an attribute equal to zero leaves out a span that lacks the attribute",
+			filter:   p.Span().Attr("queue.depth").Eq(0),
+			expected: []string{"checkout"},
+		},
+		{
+			// The complement of the case above: a span that lacks the attribute does not equal
+			// zero, so the negation keeps it.
+			caption:  "a negated attribute equality keeps a span that lacks the attribute",
+			filter:   p.Not(p.Span().Attr("queue.depth").Eq(0)),
+			expected: []string{"cart_get", "cart_post", "search", "text-search", "worker"},
+		},
+		{
 			caption:  "an attribute exists",
 			filter:   p.Span().Attr("http.status_code").Exists(),
 			expected: []string{"cart_get", "cart_post", "checkout"},
