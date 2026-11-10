@@ -1799,12 +1799,12 @@ func TestFindSpansOrdering(t *testing.T) {
 			tqs.traceReader.On("SearchCapabilities", mock.Anything).Return(tracestore.SearchCapabilities{SpanSearch: true, SpanSorting: supported}, nil)
 			query := SpanQueryParams{
 				StartTimeMin: testWindowStart, StartTimeMax: testWindowEnd,
-				OrderBy: []tracestore.SpanSortOrder{{Expression: &expression.FieldRef{Level: expression.LevelSpan, Name: "duration"}}},
+				OrderBy: []tracestore.SpanSortOrder{tracestore.OrderBySpanField("duration", "")},
 			}
 			if supported {
 				expected := tracestore.SpanQueryParams{
 					StartTimeMin: testWindowStart, StartTimeMax: testWindowEnd,
-					OrderBy:    []tracestore.SpanSortOrder{{Expression: &expression.FieldRef{Level: expression.LevelSpan, Name: "duration"}, Direction: tracestore.SortAscending}},
+					OrderBy:    []tracestore.SpanSortOrder{tracestore.OrderBySpanField("duration", tracestore.SortAscending)},
 					Pagination: tracestore.Pagination{PageSize: DefaultPageSize},
 				}
 				tqs.traceReader.On("FindSpans", mock.Anything, expected).Return(iter.Seq2[tracestore.PageChunk[ptrace.Traces], error](func(func(tracestore.PageChunk[ptrace.Traces], error) bool) {})).Once()
