@@ -4,13 +4,21 @@
 package clickhouse
 
 import (
+	"bytes"
 	"context"
 	"errors"
+	"io"
+	"net/http"
+	"net/http/httptest"
 	"regexp"
+	"slices"
+	"strings"
 	"testing"
 	"time"
 
+	"github.com/ClickHouse/ch-go/proto"
 	"github.com/ClickHouse/clickhouse-go/v2"
+	chproto "github.com/ClickHouse/clickhouse-go/v2/lib/proto"
 	"github.com/open-telemetry/opentelemetry-collector-contrib/extension/basicauthextension"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -527,6 +535,106 @@ func TestNewSchemaBuilder_InvalidHoistedAttribute(t *testing.T) {
 		TableEngine:       localTableEngine,
 		HoistedAttributes: []HoistedAttribute{{Key: "k"}},
 	})
+	require.ErrorContains(t, err, "hoisted_attributes[0]")
+}
+
+// TestNewFactory_SpansTableMissing checks that the factory runs the check: the test server
+// answers every query with no rows, so neither the configured column nor the table is found.
+func TestNewFactory_SpansTableMissing(t *testing.T) {
+	srv := clickhousetest.NewServer(clickhousetest.FailureConfig{})
+	defer srv.Close()
+
+	_, err := NewFactory(context.Background(), Configuration{
+		Protocol:  "http",
+		Addresses: []string{srv.Listener.Addr().String()},
+		Database:  "default",
+		HoistedAttributes: []HoistedAttribute{
+			{
+				Key:    "k",
+				Level:  "span",
+				Type:   "string",
+				Column: "k_column",
+			},
+		},
+	}, telemetry.NoopSettings())
+	require.ErrorContains(t, err, "the spans table does not exist")
+}
+
+// hoistedColumnServer is a test server whose spans table declares every hoisted column as
+// state, and which records the queries it receives.
+func hoistedColumnServer(t *testing.T, state hoistedColumnState) (srv *httptest.Server, queries *[]string) {
+	fakeServer := clickhousetest.NewServer(clickhousetest.FailureConfig{})
+	t.Cleanup(fakeServer.Close)
+	queries = new([]string)
+	srv = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		body, _ := io.ReadAll(r.Body)
+		*queries = append(*queries, string(body))
+		if !strings.Contains(string(body), "FROM system.columns") {
+			r.Body = io.NopCloser(bytes.NewReader(body))
+			fakeServer.Config.Handler.ServeHTTP(w, r)
+			return
+		}
+		block := chproto.NewBlock()
+		block.AddColumn("type", "String")
+		block.AddColumn("default_kind", "String")
+		block.AddColumn("default_expression", "String")
+		block.AddColumn("compression_codec", "String")
+		block.AddColumn("same_expression", "UInt8")
+		block.Append(state.Type, state.Kind, state.Expression, state.Codec, state.SameExpression)
+		var buf proto.Buffer
+		block.Encode(&buf, clickhouse.ClientTCPProtocolVersion)
+		w.Header().Set("Content-Type", "application/octet-stream")
+		_, _ = w.Write(buf.Buf)
+	}))
+	t.Cleanup(srv.Close)
+	return srv, queries
+}
+
+// TestNewFactory_HoistedColumns checks that the factory creates the schema before it checks the
+// columns, and starts when the spans table declares them as configured.
+func TestNewFactory_HoistedColumns(t *testing.T) {
+	srv, queries := hoistedColumnServer(t, hoistedColumnState{
+		Type:           "Nullable(Int64)",
+		Kind:           "MATERIALIZED",
+		Codec:          "CODEC(ZSTD(1))",
+		SameExpression: 1,
+	})
+	cfg := DefaultConfiguration()
+	cfg.Protocol = "http"
+	cfg.Addresses = []string{srv.Listener.Addr().String()}
+	cfg.CreateSchema = true
+	cfg.TableEngine = localTableEngine
+	cfg.HoistedAttributes = []HoistedAttribute{
+		{
+			Key:    "gen_ai.usage.input_tokens",
+			Level:  "span",
+			Type:   "int",
+			Column: "input_tokens",
+		},
+	}
+
+	factory, err := NewFactory(context.Background(), cfg, telemetry.NoopSettings())
+	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, factory.Close()) })
+
+	createQueryIndex := slices.IndexFunc(*queries, func(q string) bool {
+		return strings.Contains(q, "IF NOT EXISTS spans (")
+	})
+	checkQueryIndex := slices.IndexFunc(*queries, func(q string) bool {
+		return strings.Contains(q, "FROM system.columns")
+	})
+	require.NotEqual(t, -1, createQueryIndex)
+	require.Greater(t, checkQueryIndex, createQueryIndex)
+	// The driver writes the bind values into the query, so the text shows which value went to
+	// which placeholder.
+	assert.Contains(t, (*queries)[checkQueryIndex], "name = 'input_tokens'")
+	assert.Contains(t, (*queries)[checkQueryIndex], `concat('SELECT ', 'if(has(int_attributes.key, \'gen_ai.usage.input_tokens\')`)
+}
+
+func TestNewFactory_InvalidHoistedAttribute(t *testing.T) {
+	_, err := NewFactory(context.Background(), Configuration{
+		HoistedAttributes: []HoistedAttribute{{Key: "k"}},
+	}, telemetry.NoopSettings())
 	require.ErrorContains(t, err, "hoisted_attributes[0]")
 }
 

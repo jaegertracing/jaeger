@@ -127,9 +127,12 @@ type Factory struct {
 }
 
 func NewFactory(ctx context.Context, cfg Configuration, telset telemetry.Settings) (*Factory, error) {
+	hoistedColumns, err := newHoistedColumns(cfg.HoistedAttributes)
+	if err != nil {
+		return nil, err
+	}
 	var builder *schemaBuilder
 	if cfg.CreateSchema {
-		var err error
 		builder, err = newSchemaBuilder(cfg)
 		if err != nil {
 			return nil, err
@@ -180,6 +183,12 @@ func NewFactory(ctx context.Context, cfg Configuration, telset telemetry.Setting
 		if err := builder.build(ctx, conn); err != nil {
 			return nil, err
 		}
+	}
+
+	// CREATE TABLE IF NOT EXISTS leaves an existing table as it is, so the check runs whether
+	// or not the schema was just built.
+	if err := checkHoistedColumns(ctx, conn, hoistedColumns); err != nil {
+		return nil, err
 	}
 
 	success = true

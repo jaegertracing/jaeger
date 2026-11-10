@@ -41,12 +41,23 @@ type HoistedColumn struct {
 // Definition returns the column as CREATE TABLE declares it. The name is quoted because a
 // name such as index is a keyword at that position.
 func (c HoistedColumn) Definition() string {
-	return "`" + c.Name + "` " + hoistedColumnTypes[c.Type] + " MATERIALIZED " + c.sourceExpression() + " CODEC(" + c.Codec + ")"
+	return "`" + c.Name + "` " + c.Declaration()
 }
 
-// sourceExpression returns the expression that ClickHouse computes the column from: the value
+// Declaration returns the type, expression and codec of the column, as they follow its name
+// in CREATE TABLE.
+func (c HoistedColumn) Declaration() string {
+	return c.NullableType() + " MATERIALIZED " + c.SourceExpression() + " CODEC(" + c.Codec + ")"
+}
+
+// NullableType returns the ClickHouse type of the column.
+func (c HoistedColumn) NullableType() string {
+	return hoistedColumnTypes[c.Type]
+}
+
+// SourceExpression returns the expression that ClickHouse computes the column from: the value
 // stored under Key in the typed group of Level, or NULL when the group has no such key.
-func (c HoistedColumn) sourceExpression() string {
+func (c HoistedColumn) SourceExpression() string {
 	group := attributeGroup(c.Level, c.Type)
 	key := quoteString(c.Key)
 	return "if(has(" + group + ".key, " + key + "), " + group + ".value[indexOf(" + group + ".key, " + key + ")], NULL)"
