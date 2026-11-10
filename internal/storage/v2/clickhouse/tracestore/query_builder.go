@@ -50,13 +50,13 @@ type typedAttributeValue struct {
 // query builders and the filter lowering share, each on its own indented line.
 type sqlBuilder struct {
 	strings.Builder
-	// attributes writes the attribute conditions of the statement.
-	attributes attributeBuilder
+	// attrBuilder writes the attribute conditions of the statement.
+	attrBuilder attributeBuilder
 }
 
-// newSQLBuilder returns a builder that writes attribute conditions for this reader's schema.
+// newSQLBuilder returns a builder that writes attribute conditions with the reader's attrBuilder.
 func (r *Reader) newSQLBuilder() *sqlBuilder {
-	return &sqlBuilder{attributes: r.attributes}
+	return &sqlBuilder{attrBuilder: r.attrBuilder}
 }
 
 func (q *sqlBuilder) appendNewlineAndIndent(indent int) {
@@ -266,7 +266,7 @@ func (q *sqlBuilder) buildSimpleAttributeCondition(args []any, key string, value
 			q.appendNewlineAndIndent(2)
 			q.WriteString("OR")
 		}
-		args = q.attributes.appendEquals(q, 2, args, level, tav)
+		args = q.attrBuilder.appendEquals(q, 2, args, level, tav)
 	}
 	return args
 }
@@ -363,7 +363,7 @@ func (q *sqlBuilder) buildStringAttributeCondition(
 			}
 			generatedCondition = true
 
-			args = q.attributes.appendEquals(q, 2, args, level, tav)
+			args = q.attrBuilder.appendEquals(q, 2, args, level, tav)
 		}
 	}
 
