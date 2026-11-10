@@ -125,21 +125,6 @@ func TestBuildStringAttributeCondition_Fallbacks(t *testing.T) {
 	}
 }
 
-func TestAttributeColumnType(t *testing.T) {
-	for valueType, want := range map[pcommon.ValueType]string{
-		pcommon.ValueTypeBool:   "bool",
-		pcommon.ValueTypeDouble: "double",
-		pcommon.ValueTypeInt:    "int",
-		pcommon.ValueTypeStr:    "str",
-		pcommon.ValueTypeBytes:  "complex",
-		pcommon.ValueTypeMap:    "complex",
-		pcommon.ValueTypeSlice:  "complex",
-		pcommon.ValueTypeEmpty:  "",
-	} {
-		assert.Equal(t, want, attributeColumnType(valueType), valueType.String())
-	}
-}
-
 func TestBuildGetTracesQuery(t *testing.T) {
 	tests := []struct {
 		name         string

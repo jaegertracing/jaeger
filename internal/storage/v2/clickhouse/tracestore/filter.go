@@ -400,7 +400,7 @@ func (q *sqlBuilder) appendAttributeCandidates(indent int, args []any, candidate
 			q.appendNewlineAndIndent(indent + 1)
 			q.WriteString("OR")
 		}
-		args = q.appendAttributeEquals(indent+1, args, c.level, c.tav)
+		args = q.attributes.appendEquals(q, indent+1, args, c.level, c.tav)
 	}
 	q.appendNewlineAndIndent(indent)
 	q.WriteString(")")

@@ -44,6 +44,7 @@ type Reader struct {
 	conn          driver.Conn
 	config        ReaderConfig
 	attrMetaCache cache.Cache
+	attributes    attributeSchema
 }
 
 // NewReader returns a new Reader instance that uses the given ClickHouse connection

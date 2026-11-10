@@ -50,6 +50,13 @@ type typedAttributeValue struct {
 // query builders and the filter lowering share, each on its own indented line.
 type sqlBuilder struct {
 	strings.Builder
+	// attributes writes the attribute conditions of the statement.
+	attributes attributeSchema
+}
+
+// newSQLBuilder returns a builder that writes attribute conditions for this reader's schema.
+func (r *Reader) newSQLBuilder() *sqlBuilder {
+	return &sqlBuilder{attributes: r.attributes}
 }
 
 func (q *sqlBuilder) appendNewlineAndIndent(indent int) {
@@ -79,67 +86,6 @@ func (q *sqlBuilder) appendTimeRange(args []any, from, to time.Time) []any {
 		args = append(args, to.UnixNano())
 	}
 	return args
-}
-
-// attributeColumnType names the typed column group that stores values of valueType. Bytes, maps
-// and slices share the complex group, where the key carries a prefix that tells them apart.
-// The names are spelled out because they are column names of the spans table, which must not
-// change when a library changes how it prints a value type.
-func attributeColumnType(valueType pcommon.ValueType) string {
-	switch valueType {
-	case pcommon.ValueTypeBool:
-		return "bool"
-	case pcommon.ValueTypeDouble:
-		return "double"
-	case pcommon.ValueTypeInt:
-		return "int"
-	case pcommon.ValueTypeStr:
-		return "str"
-	case pcommon.ValueTypeBytes, pcommon.ValueTypeMap, pcommon.ValueTypeSlice:
-		return "complex"
-	default:
-		// No column group stores an empty value, and no caller passes one.
-		return ""
-	}
-}
-
-// attributeLocation is where a level's attributes live: the column prefix of that level, and
-// whether the level is a nested array (event, link) rather than a flat one (span, resource,
-// scope).
-func attributeLocation(level expression.Level) (prefix string, nested bool) {
-	switch level {
-	case expression.LevelResource:
-		return "resource", false
-	case expression.LevelScope:
-		return "scope", false
-	case expression.LevelEvent:
-		return "events", true
-	case expression.LevelLink:
-		return "links", true
-	default: // expression.LevelSpan
-		return "", false
-	}
-}
-
-// appendAttributeEquals writes the condition that the attributes of one level hold the key and
-// value of tav, and returns args extended with the values that the condition binds. It is the
-// only place that writes the placeholders of an attribute condition, so they and their bind
-// values cannot drift apart between callers.
-func (q *sqlBuilder) appendAttributeEquals(indent int, args []any, level expression.Level, tav typedAttributeValue) []any {
-	columnType := attributeColumnType(tav.valueType)
-	prefix, nested := attributeLocation(level)
-	q.appendNewlineAndIndent(indent)
-	if nested {
-		// Events and links are arrays inside the span row, so the condition searches the
-		// attributes of every item.
-		q.WriteString("arrayExists(x -> arrayExists((key, value) -> key = ? AND value = ?, x." + columnType + "_attributes.key, x." + columnType + "_attributes.value), s." + prefix + ")")
-	} else {
-		if prefix != "" {
-			prefix += "_"
-		}
-		q.WriteString("arrayExists((key, value) -> key = ? AND value = ?, s." + prefix + columnType + "_attributes.key, s." + prefix + columnType + "_attributes.value)")
-	}
-	return append(args, tav.key, tav.value)
 }
 
 func buildGetTracesQuery(params tracestore.GetTraceParams) (string, []any) {
@@ -186,7 +132,7 @@ func (r *Reader) buildFindTraceIDsQuery(
 	}
 
 	// Build the inner subquery that finds distinct trace IDs from spans.
-	var inner sqlBuilder
+	inner := r.newSQLBuilder()
 	inner.WriteString(sql.SearchTraceIDsBase)
 	args := []any{}
 
@@ -212,7 +158,7 @@ func (r *Reader) buildFindTraceIDsQuery(
 			return "", nil, err
 		}
 		var err error
-		if args, err = r.appendFilter(ctx, &inner, args, query.Filter); err != nil {
+		if args, err = r.appendFilter(ctx, inner, args, query.Filter); err != nil {
 			return "", nil, err
 		}
 		appendTimeRange()
@@ -320,7 +266,7 @@ func (q *sqlBuilder) buildSimpleAttributeCondition(args []any, key string, value
 			q.appendNewlineAndIndent(2)
 			q.WriteString("OR")
 		}
-		args = q.appendAttributeEquals(2, args, level, tav)
+		args = q.attributes.appendEquals(q, 2, args, level, tav)
 	}
 	return args
 }
@@ -417,7 +363,7 @@ func (q *sqlBuilder) buildStringAttributeCondition(
 			}
 			generatedCondition = true
 
-			args = q.appendAttributeEquals(2, args, level, tav)
+			args = q.attributes.appendEquals(q, 2, args, level, tav)
 		}
 	}
 

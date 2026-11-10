@@ -199,13 +199,13 @@ func (r *Reader) buildFindSpansQuery(
 	after spanCursor,
 	pageSize uint32,
 ) (string, []any, error) {
-	var q sqlBuilder
+	q := r.newSQLBuilder()
 	q.WriteString(strings.TrimRight(sql.SelectSpansQuery, "\n"))
 	q.WriteString("\nWHERE 1=1")
 	args := q.appendTimeRange(nil, query.StartTimeMin, query.StartTimeMax)
 	if query.Filter != nil {
 		var err error
-		if args, err = r.appendFilter(ctx, &q, args, query.Filter); err != nil {
+		if args, err = r.appendFilter(ctx, q, args, query.Filter); err != nil {
 			return "", nil, err
 		}
 	}
