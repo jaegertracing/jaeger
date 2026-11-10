@@ -103,10 +103,10 @@ func TestBuildStringAttributeCondition_Fallbacks(t *testing.T) {
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			attr := pcommon.NewValueStr(tc.attrValue)
-			var q strings.Builder
+			var q sqlBuilder
 			var args []any
 
-			args = buildStringAttributeCondition(&q, args, "k", attr, tc.metadata)
+			args = q.buildStringAttributeCondition(args, "k", attr, tc.metadata)
 
 			query := q.String()
 			assert.Contains(t, query, "str_attributes")
@@ -114,8 +114,29 @@ func TestBuildStringAttributeCondition_Fallbacks(t *testing.T) {
 			assert.Contains(t, query, "scope_str_attributes")
 			assert.Contains(t, query, "events")
 			assert.Contains(t, query, "links")
-			assert.Len(t, args, 10)
+			assert.Equal(t, []any{
+				"k", tc.attrValue,
+				"k", tc.attrValue,
+				"k", tc.attrValue,
+				"k", tc.attrValue,
+				"k", tc.attrValue,
+			}, args)
 		})
+	}
+}
+
+func TestAttributeColumnType(t *testing.T) {
+	for valueType, want := range map[pcommon.ValueType]string{
+		pcommon.ValueTypeBool:   "bool",
+		pcommon.ValueTypeDouble: "double",
+		pcommon.ValueTypeInt:    "int",
+		pcommon.ValueTypeStr:    "str",
+		pcommon.ValueTypeBytes:  "complex",
+		pcommon.ValueTypeMap:    "complex",
+		pcommon.ValueTypeSlice:  "complex",
+		pcommon.ValueTypeEmpty:  "",
+	} {
+		assert.Equal(t, want, attributeColumnType(valueType), valueType.String())
 	}
 }
 
@@ -141,7 +162,7 @@ func TestBuildGetTracesQuery(t *testing.T) {
 				Start:   now.Add(-1 * time.Hour),
 				End:     now,
 			},
-			expectedSQL:  sql.SelectSpansByTraceID + " AND s.start_time >= fromUnixTimestamp64Nano(?) AND s.start_time <= fromUnixTimestamp64Nano(?)",
+			expectedSQL:  sql.SelectSpansByTraceID + "\n\tAND s.start_time >= fromUnixTimestamp64Nano(?)\n\tAND s.start_time <= fromUnixTimestamp64Nano(?)",
 			expectedArgs: []any{traceID, now.Add(-1 * time.Hour).UnixNano(), now.UnixNano()},
 		},
 		{
@@ -150,7 +171,7 @@ func TestBuildGetTracesQuery(t *testing.T) {
 				TraceID: traceID,
 				Start:   now.Add(-1 * time.Hour),
 			},
-			expectedSQL:  sql.SelectSpansByTraceID + " AND s.start_time >= fromUnixTimestamp64Nano(?)",
+			expectedSQL:  sql.SelectSpansByTraceID + "\n\tAND s.start_time >= fromUnixTimestamp64Nano(?)",
 			expectedArgs: []any{traceID, now.Add(-1 * time.Hour).UnixNano()},
 		},
 		{
@@ -159,7 +180,7 @@ func TestBuildGetTracesQuery(t *testing.T) {
 				TraceID: traceID,
 				End:     now,
 			},
-			expectedSQL:  sql.SelectSpansByTraceID + " AND s.start_time <= fromUnixTimestamp64Nano(?)",
+			expectedSQL:  sql.SelectSpansByTraceID + "\n\tAND s.start_time <= fromUnixTimestamp64Nano(?)",
 			expectedArgs: []any{traceID, now.UnixNano()},
 		},
 	}
@@ -175,20 +196,50 @@ func TestBuildGetTracesQuery(t *testing.T) {
 
 func TestBuildStringAttributeCondition_MultipleTypes(t *testing.T) {
 	attr := pcommon.NewValueStr("123") // parses as both int and str
-	var q strings.Builder
+	var q sqlBuilder
 	var args []any
 
 	metadata := attributeMetadata{
 		"http.status": {span: []pcommon.ValueType{pcommon.ValueTypeInt, pcommon.ValueTypeStr}},
 	}
 
-	args = buildStringAttributeCondition(&q, args, "http.status", attr, metadata)
+	args = q.buildStringAttributeCondition(args, "http.status", attr, metadata)
 
 	query := q.String()
 	assert.Contains(t, query, "int_attributes")
 	assert.Contains(t, query, "OR")
 	assert.Contains(t, query, "str_attributes")
 	assert.Len(t, args, 4)
+}
+
+// TestBuildStringAttributeCondition_AllLevels gives every level a different stored type, so
+// the expected SQL pins both the order of the levels and the column each level reads.
+func TestBuildStringAttributeCondition_AllLevels(t *testing.T) {
+	attr := pcommon.NewValueStr("1") // parses as every scalar type
+	metadata := attributeMetadata{
+		"k": {
+			resource: []pcommon.ValueType{pcommon.ValueTypeInt},
+			scope:    []pcommon.ValueType{pcommon.ValueTypeDouble},
+			span:     []pcommon.ValueType{pcommon.ValueTypeBool},
+			event:    []pcommon.ValueType{pcommon.ValueTypeStr},
+			link:     []pcommon.ValueType{pcommon.ValueTypeInt},
+		},
+	}
+	var q sqlBuilder
+
+	args := q.buildStringAttributeCondition(nil, "k", attr, metadata)
+
+	const expectedSQL = "\n\t\tarrayExists((key, value) -> key = ? AND value = ?, s.resource_int_attributes.key, s.resource_int_attributes.value)" +
+		"\n\t\tOR" +
+		"\n\t\tarrayExists((key, value) -> key = ? AND value = ?, s.scope_double_attributes.key, s.scope_double_attributes.value)" +
+		"\n\t\tOR" +
+		"\n\t\tarrayExists((key, value) -> key = ? AND value = ?, s.bool_attributes.key, s.bool_attributes.value)" +
+		"\n\t\tOR" +
+		"\n\t\tarrayExists(x -> arrayExists((key, value) -> key = ? AND value = ?, x.str_attributes.key, x.str_attributes.value), s.events)" +
+		"\n\t\tOR" +
+		"\n\t\tarrayExists(x -> arrayExists((key, value) -> key = ? AND value = ?, x.int_attributes.key, x.int_attributes.value), s.links)"
+	require.Equal(t, expectedSQL, q.String())
+	require.Equal(t, []any{"k", int64(1), "k", float64(1), "k", true, "k", "1", "k", int64(1)}, args)
 }
 
 func TestBuildFindTracesQuery(t *testing.T) {
