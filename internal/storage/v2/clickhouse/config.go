@@ -6,6 +6,8 @@ package clickhouse
 import (
 	"errors"
 	"fmt"
+	"regexp"
+	"strconv"
 	"strings"
 	"time"
 
@@ -13,6 +15,11 @@ import (
 	"github.com/open-telemetry/opentelemetry-collector-contrib/extension/basicauthextension"
 	"go.opentelemetry.io/collector/config/configoptional"
 	"go.opentelemetry.io/collector/config/configtls"
+	"go.opentelemetry.io/collector/pdata/pcommon"
+
+	expression "github.com/jaegertracing/jaeger-idl/query/expression/v1"
+	"github.com/jaegertracing/jaeger/internal/storage/v2/clickhouse/sql"
+	chtracestore "github.com/jaegertracing/jaeger/internal/storage/v2/clickhouse/tracestore"
 )
 
 const (
@@ -63,6 +70,143 @@ type Configuration struct {
 	// TTL is the Time-To-Live for spans in the database.
 	// Data older than this will be automatically deleted. 0 means disabled.
 	TTL time.Duration `mapstructure:"ttl"`
+	// HoistedAttributes lists the attributes that the spans table copies into dedicated
+	// MATERIALIZED columns. CreateSchema adds the columns to a table it creates; an existing
+	// table is not altered, so the operator adds the columns to it. An empty list leaves the
+	// schema as it is.
+	HoistedAttributes []HoistedAttribute `mapstructure:"hoisted_attributes"`
+}
+
+// HoistedAttribute selects one attribute to copy into a column of its own. All fields except
+// Codec are required.
+type HoistedAttribute struct {
+	// Key is the attribute key. It is an opaque string, not a column name or an expression.
+	Key string `mapstructure:"key"`
+	// Level is where the attribute is stored: "span" or "resource".
+	Level string `mapstructure:"level"`
+	// Type is the stored type of the attribute: "string", "int", "double" or "bool". It selects
+	// the typed group to copy from and is not a conversion: a value stored under the same key
+	// with another type is not copied.
+	Type string `mapstructure:"type"`
+	// Column is the name of the dedicated column. It must match [a-z_][a-z0-9_]* and must not
+	// be a column the spans table already has.
+	Column string `mapstructure:"column"`
+	// Codec is the compression codec of the column, in the form ZSTD(level) with a level from
+	// 1 through 22. The default is ZSTD(1).
+	Codec string `mapstructure:"codec"`
+}
+
+// hoistedColumn is a validated HoistedAttribute.
+type hoistedColumn struct {
+	attribute chtracestore.HoistedAttribute
+	codec     string
+}
+
+// definition returns the column definition as it appears in CREATE TABLE. The name is quoted
+// because a name such as index is a keyword at that position.
+func (c hoistedColumn) definition() string {
+	return fmt.Sprintf("`%s` %s MATERIALIZED %s CODEC(%s)",
+		c.attribute.Column, c.attribute.ColumnType(), c.attribute.SourceExpression(), c.codec)
+}
+
+const defaultHoistedCodec = "ZSTD(1)"
+
+var (
+	hoistedColumnNamePattern = regexp.MustCompile(`^[a-z_][a-z0-9_]*$`)
+	hoistedCodecPattern      = regexp.MustCompile(`^ZSTD\((\d{1,2})\)$`)
+	// spansColumnPattern matches the name of a top-level column in the spans table template,
+	// which is how a hoisted column is checked against the columns the table already has.
+	spansColumnPattern = regexp.MustCompile(`(?m)^ {8}([a-z_]+) `)
+
+	hoistedLevels = map[string]expression.Level{
+		"span":     expression.LevelSpan,
+		"resource": expression.LevelResource,
+	}
+	hoistedTypes = map[string]pcommon.ValueType{
+		"string": pcommon.ValueTypeStr,
+		"int":    pcommon.ValueTypeInt,
+		"double": pcommon.ValueTypeDouble,
+		"bool":   pcommon.ValueTypeBool,
+	}
+)
+
+// zstdCodec returns codec as ClickHouse reports it, and false unless codec is ZSTD(level) with
+// a level that ClickHouse accepts. No other codec is accepted, so the value can be rendered
+// into DDL without being arbitrary SQL. The level is rendered from its number because
+// ClickHouse stores ZSTD(01) as ZSTD(1), and the startup check compares the stored text.
+func zstdCodec(codec string) (string, bool) {
+	m := hoistedCodecPattern.FindStringSubmatch(codec)
+	if m == nil {
+		return "", false
+	}
+	// The pattern admits one or two digits, so the conversion cannot fail.
+	level, _ := strconv.Atoi(m[1])
+	if level < 1 || level > 22 {
+		return "", false
+	}
+	return fmt.Sprintf("ZSTD(%d)", level), true
+}
+
+// hoistedColumns validates HoistedAttributes and returns the columns they describe, in the
+// configured order. Validation and conversion share one function so that no column can be
+// rendered from an entry that was not checked.
+func (cfg *Configuration) hoistedColumns() ([]hoistedColumn, error) {
+	type source struct {
+		level expression.Level
+		key   string
+		typ   pcommon.ValueType
+	}
+	sources := make(map[source]struct{}, len(cfg.HoistedAttributes))
+	names := make(map[string]struct{})
+	for _, match := range spansColumnPattern.FindAllStringSubmatch(sql.CreateSpansTable, -1) {
+		names[match[1]] = struct{}{}
+	}
+	columns := make([]hoistedColumn, 0, len(cfg.HoistedAttributes))
+	for i, h := range cfg.HoistedAttributes {
+		fail := func(format string, args ...any) ([]hoistedColumn, error) {
+			return nil, fmt.Errorf("hoisted_attributes[%d]: %s", i, fmt.Sprintf(format, args...))
+		}
+		if h.Key == "" {
+			return fail("key must not be empty")
+		}
+		level, ok := hoistedLevels[h.Level]
+		if !ok {
+			return fail("level must be span or resource, not %q", h.Level)
+		}
+		typ, ok := hoistedTypes[h.Type]
+		if !ok {
+			return fail("type must be string, int, double or bool, not %q", h.Type)
+		}
+		if !hoistedColumnNamePattern.MatchString(h.Column) {
+			return fail("column %q must match [a-z_][a-z0-9_]*", h.Column)
+		}
+		if _, taken := names[h.Column]; taken {
+			return fail("column %q is already a column of the spans table or of another entry", h.Column)
+		}
+		names[h.Column] = struct{}{}
+		src := source{level: level, key: h.Key, typ: typ}
+		if _, dup := sources[src]; dup {
+			return fail("the %s attribute %q of type %s is listed twice", h.Level, h.Key, h.Type)
+		}
+		sources[src] = struct{}{}
+		codec := defaultHoistedCodec
+		if h.Codec != "" {
+			codec, ok = zstdCodec(h.Codec)
+		}
+		if !ok {
+			return fail("codec %q must be ZSTD(level) with a level from 1 through 22", h.Codec)
+		}
+		columns = append(columns, hoistedColumn{
+			attribute: chtracestore.HoistedAttribute{
+				Level:  level,
+				Key:    h.Key,
+				Type:   typ,
+				Column: h.Column,
+			},
+			codec: codec,
+		})
+	}
+	return columns, nil
 }
 
 type Authentication struct {
@@ -186,6 +330,9 @@ func (cfg *Configuration) Validate() error {
 	}
 	if cfg.AttributeMetadataCacheMaxSize < 0 {
 		return errors.New("attribute_metadata_cache_max_size must be a non-negative number")
+	}
+	if _, err := cfg.hoistedColumns(); err != nil {
+		return err
 	}
 	// The table_engine block is ignored without create_schema, because the operator then
 	// owns the tables.

@@ -7,6 +7,7 @@ import (
 	"context"
 	"errors"
 	"regexp"
+	"strings"
 	"testing"
 	"time"
 
@@ -462,6 +463,55 @@ func TestCreateSpansTableTemplate(t *testing.T) {
 		require.NoError(t, err)
 		assert.Contains(t, queryWithTTL, "TTL start_time + INTERVAL 86400 SECOND DELETE")
 	})
+}
+
+func TestCreateSpansTable_HoistedColumns(t *testing.T) {
+	builder, err := newSchemaBuilder(Configuration{
+		CreateSchema: true,
+		TableEngine:  localTableEngine,
+		HoistedAttributes: []HoistedAttribute{
+			{
+				Key:    "gen_ai.usage.input_tokens",
+				Level:  "span",
+				Type:   "int",
+				Column: "input_tokens",
+			},
+			{
+				Key:    "it's a key",
+				Level:  "resource",
+				Type:   "string",
+				Column: "quoted",
+				Codec:  "ZSTD(03)",
+			},
+			{
+				Key:    "k",
+				Level:  "span",
+				Type:   "bool",
+				Column: "index",
+			},
+		},
+	})
+	require.NoError(t, err)
+	query := builder.statements[0].query
+
+	// The columns follow the last attribute group, in the configured order, and precede the
+	// indexes. The names are quoted because ClickHouse reads a bare index as the start of an
+	// index declaration, and the codec level is written as ClickHouse stores it.
+	// The expected text writes each backtick as a double quote, which a raw string can hold.
+	assert.Contains(t, query, strings.ReplaceAll(`        scope_complex_attributes Nested (key String, value String),
+        "input_tokens" Nullable(Int64) MATERIALIZED if(has(int_attributes.key, 'gen_ai.usage.input_tokens'), int_attributes.value[indexOf(int_attributes.key, 'gen_ai.usage.input_tokens')], NULL) CODEC(ZSTD(1)),
+        "quoted" Nullable(String) MATERIALIZED if(has(resource_str_attributes.key, 'it\'s a key'), resource_str_attributes.value[indexOf(resource_str_attributes.key, 'it\'s a key')], NULL) CODEC(ZSTD(3)),
+        "index" Nullable(Bool) MATERIALIZED if(has(bool_attributes.key, 'k'), bool_attributes.value[indexOf(bool_attributes.key, 'k')], NULL) CODEC(ZSTD(1)),
+        INDEX idx_trace_id`, `"`, "`"))
+}
+
+func TestNewSchemaBuilder_InvalidHoistedAttribute(t *testing.T) {
+	_, err := newSchemaBuilder(Configuration{
+		CreateSchema:      true,
+		TableEngine:       localTableEngine,
+		HoistedAttributes: []HoistedAttribute{{Key: "k"}},
+	})
+	require.ErrorContains(t, err, "hoisted_attributes[0]")
 }
 
 func TestCreateTraceIDTimestampsTableTemplate(t *testing.T) {

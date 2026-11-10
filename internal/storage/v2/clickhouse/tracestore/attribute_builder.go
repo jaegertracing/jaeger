@@ -4,6 +4,8 @@
 package tracestore
 
 import (
+	"strings"
+
 	"go.opentelemetry.io/collector/pdata/pcommon"
 
 	expression "github.com/jaegertracing/jaeger-idl/query/expression/v1"
@@ -64,23 +66,77 @@ func levelColumns(level expression.Level) (prefix string, nested bool) {
 	}
 }
 
+// attributeGroup names the column group that stores the attributes of valueType at a level
+// whose attributes are columns of the span row: span, resource or scope.
+func attributeGroup(level expression.Level, valueType pcommon.ValueType) string {
+	prefix, _ := levelColumns(level)
+	if prefix != "" {
+		prefix += "_"
+	}
+	return prefix + attributeColumnType(valueType) + "_attributes"
+}
+
 // appendEquals writes to q the condition that the attributes of one level hold the key and
 // value of tav, and returns args extended with the values that the condition binds. It is the
 // only place that writes the placeholders of an attribute condition, so they and their bind
 // values cannot drift apart between callers.
 func (attributeBuilder) appendEquals(q *sqlBuilder, indent int, args []any, level expression.Level, tav typedAttributeValue) []any {
-	columnType := attributeColumnType(tav.valueType)
-	prefix, nested := levelColumns(level)
 	q.appendNewlineAndIndent(indent)
-	if nested {
+	if prefix, nested := levelColumns(level); nested {
 		// Events and links are arrays inside the span row, so the condition searches the
 		// attributes of every item.
+		columnType := attributeColumnType(tav.valueType)
 		q.WriteString("arrayExists(x -> arrayExists((key, value) -> key = ? AND value = ?, x." + columnType + "_attributes.key, x." + columnType + "_attributes.value), s." + prefix + ")")
 	} else {
-		if prefix != "" {
-			prefix += "_"
-		}
-		q.WriteString("arrayExists((key, value) -> key = ? AND value = ?, s." + prefix + columnType + "_attributes.key, s." + prefix + columnType + "_attributes.value)")
+		group := attributeGroup(level, tav.valueType)
+		q.WriteString("arrayExists((key, value) -> key = ? AND value = ?, s." + group + ".key, s." + group + ".value)")
 	}
 	return append(args, tav.key, tav.value)
+}
+
+// HoistedAttribute is one attribute that the spans table copies into a column of its own.
+// The copy is a MATERIALIZED column that ClickHouse computes from the typed attribute group on
+// insert, so the group stays the source of the value.
+type HoistedAttribute struct {
+	// Level is the span or the resource level.
+	Level expression.Level
+	// Key is the attribute key, an opaque string.
+	Key string
+	// Type is the stored type of the attribute: string, int, double or bool. An attribute
+	// stored under the same key with another type is not copied.
+	Type pcommon.ValueType
+	// Column is the name of the dedicated column.
+	Column string
+}
+
+// ColumnType returns the ClickHouse type of the dedicated column. The type is Nullable because
+// a span without the attribute has no value, which is not the same as zero, false or an empty
+// string.
+func (h HoistedAttribute) ColumnType() string {
+	switch h.Type {
+	case pcommon.ValueTypeBool:
+		return "Nullable(Bool)"
+	case pcommon.ValueTypeDouble:
+		return "Nullable(Float64)"
+	case pcommon.ValueTypeInt:
+		return "Nullable(Int64)"
+	case pcommon.ValueTypeStr:
+		return "Nullable(String)"
+	default:
+		// No other type can be hoisted, and an empty type makes the DDL fail.
+		return ""
+	}
+}
+
+// SourceExpression returns the SQL expression that the dedicated column is computed from: the
+// value stored under Key in the typed group of Level, or NULL when the group has no such key.
+func (h HoistedAttribute) SourceExpression() string {
+	group := attributeGroup(h.Level, h.Type)
+	key := quoteString(h.Key)
+	return "if(has(" + group + ".key, " + key + "), " + group + ".value[indexOf(" + group + ".key, " + key + ")], NULL)"
+}
+
+// quoteString writes s as a ClickHouse string literal.
+func quoteString(s string) string {
+	return "'" + strings.NewReplacer(`\`, `\\`, `'`, `\'`).Replace(s) + "'"
 }

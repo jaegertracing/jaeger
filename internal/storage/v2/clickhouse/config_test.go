@@ -202,6 +202,171 @@ func TestValidate(t *testing.T) {
 	}
 }
 
+func TestValidate_HoistedAttributes(t *testing.T) {
+	valid := HoistedAttribute{
+		Key:    "gen_ai.request.model",
+		Level:  "span",
+		Type:   "string",
+		Column: "gen_ai_request_model",
+	}
+	with := func(mutate func(h *HoistedAttribute)) []HoistedAttribute {
+		h := valid
+		mutate(&h)
+		return []HoistedAttribute{h}
+	}
+	tests := []struct {
+		name    string
+		hoisted []HoistedAttribute
+		wantErr string
+	}{
+		{
+			name:    "one entry",
+			hoisted: []HoistedAttribute{valid},
+		},
+		{
+			name: "same key at two types and two levels",
+			hoisted: []HoistedAttribute{
+				valid,
+				{
+					Key:    valid.Key,
+					Level:  "span",
+					Type:   "int",
+					Column: "model_int",
+				},
+				{
+					Key:    valid.Key,
+					Level:  "resource",
+					Type:   "string",
+					Column: "resource_model",
+					Codec:  "ZSTD(22)",
+				},
+			},
+		},
+		{
+			name:    "empty key",
+			hoisted: with(func(h *HoistedAttribute) { h.Key = "" }),
+			wantErr: "hoisted_attributes[0]: key must not be empty",
+		},
+		{
+			name:    "unsupported level",
+			hoisted: with(func(h *HoistedAttribute) { h.Level = "scope" }),
+			wantErr: `level must be span or resource, not "scope"`,
+		},
+		{
+			name:    "unsupported type",
+			hoisted: with(func(h *HoistedAttribute) { h.Type = "bytes" }),
+			wantErr: `type must be string, int, double or bool, not "bytes"`,
+		},
+		{
+			name:    "column is not an identifier",
+			hoisted: with(func(h *HoistedAttribute) { h.Column = "model; DROP TABLE spans" }),
+			wantErr: "must match [a-z_][a-z0-9_]*",
+		},
+		{
+			name:    "empty column",
+			hoisted: with(func(h *HoistedAttribute) { h.Column = "" }),
+			wantErr: "must match [a-z_][a-z0-9_]*",
+		},
+		{
+			name:    "column of the spans table",
+			hoisted: with(func(h *HoistedAttribute) { h.Column = "trace_id" }),
+			wantErr: `column "trace_id" is already a column`,
+		},
+		{
+			name:    "attribute group of the spans table",
+			hoisted: with(func(h *HoistedAttribute) { h.Column = "resource_str_attributes" }),
+			wantErr: `column "resource_str_attributes" is already a column`,
+		},
+		{
+			name: "column used twice",
+			hoisted: []HoistedAttribute{
+				valid,
+				{
+					Key:    "other",
+					Level:  "span",
+					Type:   "string",
+					Column: valid.Column,
+				},
+			},
+			wantErr: `hoisted_attributes[1]: column "gen_ai_request_model" is already a column`,
+		},
+		{
+			name: "attribute listed twice",
+			hoisted: []HoistedAttribute{
+				valid,
+				{
+					Key:    valid.Key,
+					Level:  valid.Level,
+					Type:   valid.Type,
+					Column: "second_copy",
+				},
+			},
+			wantErr: `the span attribute "gen_ai.request.model" of type string is listed twice`,
+		},
+		{
+			name:    "codec other than ZSTD",
+			hoisted: with(func(h *HoistedAttribute) { h.Codec = "LZ4" }),
+			wantErr: `codec "LZ4" must be ZSTD(level)`,
+		},
+		{
+			name:    "codec with SQL after it",
+			hoisted: with(func(h *HoistedAttribute) { h.Codec = "ZSTD(1)) TTL now(" }),
+			wantErr: "must be ZSTD(level)",
+		},
+		{
+			name:    "codec level zero",
+			hoisted: with(func(h *HoistedAttribute) { h.Codec = "ZSTD(0)" }),
+			wantErr: "must be ZSTD(level)",
+		},
+		{
+			name:    "codec level above the maximum",
+			hoisted: with(func(h *HoistedAttribute) { h.Codec = "ZSTD(23)" }),
+			wantErr: "must be ZSTD(level)",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cfg := DefaultConfiguration()
+			cfg.Addresses = []string{"localhost:9000"}
+			cfg.HoistedAttributes = tt.hoisted
+
+			err := cfg.Validate()
+			if tt.wantErr == "" {
+				require.NoError(t, err)
+			} else {
+				require.ErrorContains(t, err, tt.wantErr)
+			}
+		})
+	}
+}
+
+// TestHoistedAttributes_Unmarshal checks the keys of a hoisted_attributes entry as the
+// collector's confmap reads them.
+func TestHoistedAttributes_Unmarshal(t *testing.T) {
+	conf := confmap.NewFromStringMap(map[string]any{
+		"hoisted_attributes": []any{
+			map[string]any{
+				"key":    "gen_ai.usage.input_tokens",
+				"level":  "span",
+				"type":   "int",
+				"column": "input_tokens",
+				"codec":  "ZSTD(3)",
+			},
+		},
+	})
+	cfg := DefaultConfiguration()
+	require.NoError(t, conf.Unmarshal(&cfg))
+	require.Equal(t, []HoistedAttribute{
+		{
+			Key:    "gen_ai.usage.input_tokens",
+			Level:  "span",
+			Type:   "int",
+			Column: "input_tokens",
+			Codec:  "ZSTD(3)",
+		},
+	}, cfg.HoistedAttributes)
+}
+
 // TestTableEngine_Unmarshal checks that each variant is selected by its key the way the
 // collector's confmap unmarshals an optional block, including the empty merge_tree: {},
 // and that the two likely mistakes, an empty block and a misspelled key, are rejected.
