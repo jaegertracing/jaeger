@@ -37,10 +37,9 @@ func attributeColumnType(valueType pcommon.ValueType) string {
 	}
 }
 
-// attributeLocation is where a level's attributes live: the column prefix of that level, and
-// whether the level is a nested array (event, link) rather than a flat one (span, resource,
-// scope).
-func attributeLocation(level expression.Level) (prefix string, nested bool) {
+// levelColumns returns the column prefix of a level, and whether the level is a nested array
+// (event, link) rather than a set of columns of the span row (span, resource, scope).
+func levelColumns(level expression.Level) (prefix string, nested bool) {
 	switch level {
 	case expression.LevelResource:
 		return "resource", false
@@ -61,7 +60,7 @@ func attributeLocation(level expression.Level) (prefix string, nested bool) {
 // values cannot drift apart between callers.
 func (attributeSchema) appendEquals(q *sqlBuilder, indent int, args []any, level expression.Level, tav typedAttributeValue) []any {
 	columnType := attributeColumnType(tav.valueType)
-	prefix, nested := attributeLocation(level)
+	prefix, nested := levelColumns(level)
 	q.appendNewlineAndIndent(indent)
 	if nested {
 		// Events and links are arrays inside the span row, so the condition searches the
