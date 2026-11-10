@@ -6,6 +6,7 @@ package badger
 import (
 	"expvar"
 	"os"
+	"path/filepath"
 	"testing"
 	"time"
 
@@ -27,6 +28,34 @@ func TestInitializationErrors(t *testing.T) {
 
 	err := f.Initialize(metrics.NullFactory, zap.NewNop())
 	require.Error(t, err)
+}
+
+func TestInitializeDirectoryCreationErrors(t *testing.T) {
+	// A regular file in the path makes MkdirAll fail, so the directory cannot be created.
+	blocker := filepath.Join(t.TempDir(), "file")
+	require.NoError(t, os.WriteFile(blocker, nil, 0o600))
+	goodDir := t.TempDir()
+
+	tests := []struct {
+		name   string
+		keys   string
+		values string
+		errMsg string
+	}{
+		{name: "keys", keys: filepath.Join(blocker, "keys"), values: goodDir, errMsg: "cannot create keys directory"},
+		{name: "values", keys: goodDir, values: filepath.Join(blocker, "values"), errMsg: "cannot create values directory"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			f := NewFactory()
+			f.Config.Ephemeral = false
+			f.Config.Directories.Keys = tt.keys
+			f.Config.Directories.Values = tt.values
+
+			err := f.Initialize(metrics.NullFactory, zap.NewNop())
+			require.ErrorContains(t, err, tt.errMsg)
+		})
+	}
 }
 
 func TestForCodecov(t *testing.T) {

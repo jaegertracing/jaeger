@@ -140,7 +140,7 @@ The result tells the query builder, for each requested string key, exactly which
 2. For every `(type, level)` pair that parses successfully, emits one `arrayExists(...)` predicate against the corresponding column (e.g. `int_attributes` at the span level, `resource_str_attributes` at the resource level).
 3. `OR`s the predicates together inside a single `AND ( ... )` block per attribute key.
 
-If `attribute_metadata` has no entry for a key (newly-seen key, or the materialized view hasn't caught up yet), or if the supplied value can't be parsed as any of the observed types, the builder falls back to "string at every level" — preserving correctness at the cost of a wider scan. The fallback path is in [`query_builder.go`](../../internal/storage/v2/clickhouse/tracestore/query_builder.go) as `appendStringAttributeFallback`.
+If `attribute_metadata` has no entry for a key (newly-seen key, or the materialized view hasn't caught up yet), or if the supplied value can't be parsed as any of the observed types, the builder falls back to "string at every level" — preserving correctness at the cost of a wider scan. The fallback path is in [`query_builder.go`](../../internal/storage/v2/clickhouse/tracestore/query_builder.go), in `buildStringAttributeCondition`.
 
 ---
 

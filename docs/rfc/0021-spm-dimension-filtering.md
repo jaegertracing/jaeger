@@ -1,0 +1,464 @@
+# RFC 0021: SPM Dimension Filtering
+
+- **Status:** Draft
+- **Author:** [ChaitanyaD48](https://github.com/ChaitanyaD48)
+- **Created:** 2026-05-15
+- **Last Updated:** 2026-11-01
+- **Issue:** [#7433: Filter metrics on page by tag](https://github.com/jaegertracing/jaeger/issues/7433)
+
+## Abstract
+
+We propose backend API support and operator-declared dimension filtering
+for Prometheus-backed Service Performance Monitoring (SPM). Operators declare
+filterable dimensions in Jaeger's configuration, clients retrieve those
+declarations through a new endpoint, and selected values become exact-match
+PromQL label selectors. This partially addresses #7433. UI integration and
+Elasticsearch/OpenSearch filtering remain separate work.
+
+## 1. Motivation
+
+The Service Performance Monitoring (SPM) page in the Jaeger UI surfaces
+call-rate, error-rate, and latency metrics aggregated by service. Today the
+only filterable axis (beyond service name and span kind) is the time range.
+Operators who emit metrics for multiple environments — `prod`, `staging`,
+`dev` — into a single Prometheus backend cannot scope the SPM view to one
+environment. The community workaround has been to run a duplicate Jaeger
+deployment per environment, which is operationally expensive and defeats the
+purpose of a centralised observability stack.
+
+[#7433](https://github.com/jaegertracing/jaeger/issues/7433) requests SPM
+filtering with API changes and support for Prometheus and
+Elasticsearch/OpenSearch. This RFC covers the backend API and Prometheus
+portion: filtering metrics by configured dimensions such as deployment
+environment. It does not complete the issue. UI integration,
+Elasticsearch/OpenSearch filtering, and dynamic discovery of dimensions or
+their values are outside this proposal's implementation scope.
+
+### Why PromQL Constrains the Design
+
+PromQL is not SQL. A query like
+
+```
+sum(rate(calls{service_name="cart"}[5m])) by (service_name)
+```
+
+can only filter on labels that exist on the stored time series. The
+spanmetrics connector aggregates spans using its default dimensions and any
+additional attributes listed in its
+[`dimensions:`](https://github.com/open-telemetry/opentelemetry-collector-contrib/tree/main/connector/spanmetricsconnector#configurations)
+configuration. An attribute discarded during aggregation cannot be
+recovered by a later metrics query. Additional filterable attributes must
+therefore be preserved as dimensions when generating span metrics.
+
+Prometheus supports discovering existing label names and values through its
+[HTTP API](https://prometheus.io/docs/prometheus/latest/querying/api/#querying-metadata).
+Dynamic discovery is possible for retained labels; it cannot recover
+discarded attributes. This proposal chooses operator-declared dimensions
+to provide a server-side allowlist and optional bounded value lists without
+adding discovery queries.
+
+### Backend Asymmetry
+
+Elasticsearch/OpenSearch and ClickHouse can query stored span attributes,
+but wiring these filters into their metric queries is separate work. This
+proposal adds shared API types while implementing filtering only in the
+Prometheus reader. Other readers return an empty dimension list. The API
+contract is that the backend advertises which dimensions are filterable,
+and clients send filters that match the advertised set.
+
+## 2. Proposed Design
+
+We propose a **pre-configured** dimension-filter capability for Prometheus
+metrics, including the environment-filtering use case described in #7433.
+
+### Mechanism
+
+1. **Operator declares the filterable dimensions in the Jaeger backend
+   YAML**, under the Prometheus metric backend:
+
+   ```yaml
+   metric_backends:
+     some_metrics_storage:
+       prometheus:
+         endpoint: http://prometheus:9090
+         extra_dimensions:
+           - name: deployment.environment
+             display_name: Environment
+             values: [prod, staging, dev]
+   ```
+
+   The same names must already appear in the spanmetrics connector's
+   `dimensions:` list — this is the operator's responsibility and is
+   identical in spirit to the existing requirement that span-kind and
+   service-name labels exist on the metrics.
+
+   Configuration validation rejects names that translate to the reserved
+   labels `service_name`, `span_kind`, `status_code`, `span_name`, `job`,
+   `instance`, `le`, or `__name__`, and names that collide after
+   dot-to-underscore translation. Leading, trailing, or consecutive dots and
+   underscores (including mixed pairs such as `._`) are rejected so label
+   selectors match exported labels with either setting of
+   `PermissiveLabelSanitization`. Allowed-value lists must not contain empty
+   strings. An omitted or empty list still permits free-text values.
+
+2. **The Jaeger Query backend exposes the declared dimensions** via a new
+   endpoint:
+
+   ```
+   GET /api/metrics/dimensions
+   → [
+       { "name": "deployment.environment",
+         "displayName": "Environment",
+         "values": ["prod", "staging", "dev"] }
+     ]
+   ```
+
+   A separate UI integration can call this on Monitor-page load and render
+   one dropdown per dimension. The backend supplies the dimension list, so
+   clients do not need a separate UI-config-JSON declaration. UI changes
+   are not delivered by the backend implementation.
+
+   The Prometheus reader defaults an omitted `display_name` to `name` and
+   returns a defensive copy of the dimensions, including each values list.
+
+3. **Selected filter values are sent on the metrics endpoints** as repeated
+   `filter=key:value` query params:
+
+   ```
+   GET /api/metrics/calls?service=cart
+     &filter=deployment.environment:prod
+   ```
+
+   The Go API surface gains a `Filters map[string]string` on
+   `metricstore.BaseQueryParameters`. The HTTP parser reuses the existing
+   `key:value` convention from trace search's `?tag=` parameter.
+
+4. **The Prometheus reader injects the filters as PromQL label selectors**,
+   in the same position and pattern as the existing `span_kind` selector:
+
+   ```
+   sum(rate(calls{service_name=~"cart",
+                  span_kind=~"SPAN_KIND_SERVER",
+                  deployment_environment="prod"}[10m]))
+     by (service_name)
+   ```
+
+   The reader rejects unknown filter keys before sending any Prometheus
+   request, including when called directly without HTTP validation. A mix
+   of valid and unknown keys rejects the entire query.
+
+   **Compatibility requirement:** dimension filtering currently requires
+   labels stored with underscore translation. For example, the configured
+   dimension `deployment.environment` is queried as
+   `deployment_environment="prod"`. Use an ingestion pipeline that stores
+   that underscore label, such as the Prometheus exporter's
+   `UnderscoreEscapingWithSuffixes` or `UnderscoreEscapingWithoutSuffixes`
+   translation strategy. Metric name suffixes must also match the reader's
+   existing `normalize_calls` and `normalize_duration` settings.
+
+   Strategies such as `NoUTF8EscapingWithSuffixes` and `NoTranslation` can
+   preserve dotted label names, depending on scrape negotiation. Stored
+   dotted labels are not supported by this implementation; querying the
+   underscore name instead normally returns no matching series. Jaeger
+   does not discover the ingestion translation strategy. Supporting those
+   labels would require a reliable mapping to stored label names and
+   quoted PromQL label identifiers. See the
+   [exporter documentation](https://github.com/open-telemetry/opentelemetry-collector-contrib/blob/main/exporter/prometheusexporter/README.md#metric-names-and-labels-normalization).
+
+   Values are emitted with Go's `%q` (which produces PromQL-compatible string literals)
+   and the matcher is `=` (exact), not `=~` (regex), to keep the attack
+   surface and cardinality predictable.
+
+5. **The HTTP handler validates each request's filters** against
+   `Reader.GetDimensions(ctx)` before invoking the reader:
+
+   - Unknown filter keys → 400.
+   - Malformed URL query encoding → 400, without using partially parsed filters.
+   - Filters requested with no dimensions configured → 501 (`errors.ErrUnsupported`).
+   - Values not in the declared `Values:` set (when configured) → 400.
+   - Free-text values containing ASCII control characters (including DEL),
+     double quotes, or backslashes → 400 (length capped at 256).
+   - Unexpected failures retrieving dimensions → 500.
+   - Disabled metrics backend → 501.
+
+   Filters are validated in alphabetical key order so requests with multiple
+   invalid filters report the same first error. Unknown-key errors list
+   available dimensions in configuration order.
+
+   Readers also enforce the filter contract for direct callers, as required
+   by ADR-013: Prometheus rejects unknown keys, and enabled readers without
+   dimension filtering reject non-empty filters with an error wrapping
+   `errors.ErrUnsupported`. The dimensions endpoint itself returns 500 on
+   unexpected discovery failures and 501 for unsupported discovery.
+
+### Naming
+
+The Go field is `Filters` (not `Tags` or `Dimensions`) and the HTTP param is
+`?filter=k:v`. This deliberately:
+
+- Avoids the existing `?tag=k:v` parameter used by `/api/traces`, which has
+  unrelated semantics for trace search.
+- Reads naturally in code: `params.Filters["deployment.environment"]`.
+
+The OTel-ecosystem word "dimensions" is reserved for the **declaration** of
+the filterable set (matching the spanmetrics connector vocabulary), not for
+the runtime values passed in by callers.
+
+## 3. Consequences
+
+### Positive
+
+- Clients can query metrics for one environment through a shared Jaeger
+  deployment. Exposing this in the Monitor page requires the separate UI
+  integration.
+- The new API surface (`Filters`, `?filter=`, `/api/metrics/dimensions`) is
+  additive and backwards-compatible. Existing clients that don't pass
+  filters are unaffected; existing readers that don't implement filter
+  semantics return an empty dimension list, allowing a future UI integration
+  to hide the dropdowns.
+- The design makes the requirement to retain attributes during aggregation
+  explicit while leaving discovery of existing labels as possible future
+  work.
+- Operators can configure a closed set of values for bounded dropdowns
+  without querying Prometheus for label values on every page load.
+
+### Negative
+
+- Operators must keep `extra_dimensions:` in the Jaeger config in sync with
+  `dimensions:` in their spanmetrics connector config. There is no
+  cross-validation across the two configs (they live in different process
+  spaces). A declared dimension whose label is absent from the stored
+  metrics can produce no matching series.
+- Dynamic discovery of dimensions and values is not included.
+- Dimension filters require underscore-translated stored labels. Pipelines
+  that retain dots in label names are not supported.
+- Asymmetric backend support: today only the Prometheus metricstore honours
+  `Filters`. The Elasticsearch and ClickHouse metricstores reject non-empty
+  filters with `errors.ErrUnsupported`, replacing the proposed silent-ignore
+  behavior, and return an empty dimension list from `GetDimensions`.
+  The proposed UI integration can hide
+  the dropdowns for those backends. Elasticsearch/OpenSearch support
+  requested in #7433 remains unfinished.
+- The disabled metricstore returns `ErrDisabled` from `GetDimensions` as
+  well as the three existing query methods, which maps to HTTP 501. Clients
+  must handle this just as they handle 501 from `/api/metrics/calls` today.
+
+## 4. Alternatives Considered
+
+### A. Dynamic discovery through the Prometheus HTTP API
+
+Discover label names and values through Prometheus's `/api/v1/labels` and
+`/api/v1/label/<label_name>/values` endpoints, scoped to the relevant span
+metrics, and let users select filters from those results.
+
+**Pros**: Avoids duplicating available label names and values in Jaeger's
+configuration and reflects labels already present on stored metrics.
+
+**Cons**: Requires discovery queries and decisions about which labels to
+expose, value cardinality, caching, and dropdown behavior. It still cannot
+recover attributes discarded during span-to-metrics aggregation. Deferred
+in favor of an explicit operator-controlled allowlist for this proposal;
+it remains a feasible extension for existing labels.
+
+### B. Operator declares dropdowns in the UI-config JSON only
+
+Put the dimension list in `config-ui.json`, the same file that defines the
+menu and other UI options. The backend accepts whatever the UI sends without
+validating against an allowlist.
+
+**Pros**: Zero new backend config; one declaration site.
+
+**Cons**: The backend trusts the client. Anyone with HTTP access to the
+metrics API can pass arbitrary label selectors into PromQL, which is both a
+security concern (label-cardinality DoS, query-shape probing) and a
+maintenance hazard (no server-side validation means typos succeed silently
+and produce subtly wrong results). Rejected.
+
+### C. Declare in both backend YAML and UI-config JSON
+
+Declare names in backend YAML (for validation) and dropdown definitions
+(display names, allowed values) in UI-config JSON.
+
+**Pros**: Cleanest separation of concerns between API-surface and UI
+rendering.
+
+**Cons**: Two configs the operator must keep in lockstep — three when you
+count the spanmetrics connector. Doubles the surface area for
+silent-misconfiguration regressions. Rejected.
+
+### D. Inject into `JAEGER_BACKEND_CAPABILITIES`
+
+The static-asset handler already injects a `JAEGER_BACKEND_CAPABILITIES`
+JSON object into `index.html`. We could extend that with a
+`spmDimensions` field.
+
+**Pros**: Symmetric with the existing capabilities-injection mechanism;
+no extra round-trip on page load.
+
+**Cons**: The capabilities object today carries booleans
+(`archiveStorage`, `metricsStorage`, …) — short, static, page-load-cached
+values. Dimension lists are richer, may change at runtime if the operator
+hot-reloads config, and are only relevant to the Monitor page (not the
+trace-search or dependency pages). A dedicated endpoint is a better fit
+for the access pattern, and keeps the HTML payload lean. Rejected.
+
+## 5. Implementation Plan
+
+The backend implementation is proposed in
+[#8579](https://github.com/jaegertracing/jaeger/pull/8579), which is under
+review:
+
+1. Add the shared `Dimension`, `Filters`, and `GetDimensions` API types and
+   methods, with empty declarations and rejection of filters for unsupported
+   metric backends.
+2. Add and validate Prometheus `extra_dimensions` configuration, and
+   generate exact-match label selectors for selected filters.
+3. Expose the dimensions endpoint and parse and validate filters on metrics
+   requests.
+4. Validate the backend with the test plan below and document configuration
+   in the SPM sample.
+
+UI integration is separate, proposed in
+[jaeger-ui#4681](https://github.com/jaegertracing/jaeger-ui/pull/4681).
+Elasticsearch/OpenSearch filtering remains follow-up work under #7433;
+it is not delivered by the backend PR above.
+
+## 6. Test Plan
+
+### Unit tests (automated, in CI)
+
+- `internal/storage/metricstore/prometheus/metricstore/reader_test.go`
+  - Single filter selector emitted in PromQL for latencies, calls, and
+    errors (both numerator and denominator).
+  - Multiple filters emitted in deterministic alphabetical order.
+  - Unknown-only and mixed valid/unknown filters return an error without
+    sending a Prometheus request for latencies, calls, and errors.
+  - Underscore label translation: one or multiple dots become underscores;
+    existing underscores remain unchanged.
+  - Values containing characters that need PromQL string escaping (e.g.
+    `"`) emitted via `%q` without breaking the query.
+  - Empty `Filters` produces PromQL byte-identical to today (no regression).
+  - No configured dimensions → `errors.ErrUnsupported` for filtered queries.
+  - `GetDimensions` deep-copies dimensions and values and defaults display names.
+- Elasticsearch and ClickHouse reader tests
+  - Non-empty filters → `errors.ErrUnsupported` without querying storage,
+    for latencies, calls, and errors.
+- `internal/config/promcfg/config_test.go`
+  - Valid `extra_dimensions:` config validates.
+  - Invalid name (regex violation) → error.
+  - Duplicate names, including collisions after translation → error.
+  - Reserved labels, including names that translate to them → error.
+  - Leading, trailing, or repeated separators, including mixed dot/underscore
+    pairs → error; ordinary dotted and underscored names remain valid.
+  - Empty strings in allowed-value lists → error.
+- `cmd/jaeger/internal/extension/jaegerquery/internal/query_parser_test.go`
+  - Single `?filter=k:v` parsed into `Filters` map.
+  - Repeated `?filter=k:v` parsed into the map.
+  - Malformed (missing colon, empty value) → 400.
+- `cmd/jaeger/internal/extension/jaegerquery/internal/http_handler_test.go`
+  - `GET /api/metrics/dimensions` happy path.
+  - `ErrDisabled` → 501.
+  - Unexpected `GetDimensions` failure on a filtered metrics request → 500.
+  - Unexpected `GetDimensions` failure on `/api/metrics/dimensions` → 500.
+  - Filters on a backend without dimensions → 501 without querying metrics.
+  - Malformed URL query encoding → 400 without calling the reader.
+  - Unknown-key errors list configured dimensions in configuration order.
+  - Multiple invalid filters report the first error in alphabetical key order.
+  - Unknown filter key → 400 (mock advertises a different dimension set).
+  - Value not in `Values:` → 400.
+  - Free-text value containing a control character, including DEL → 400.
+  - Valid filter ⇒ underlying mock receives `Filters` map populated.
+
+### Integration / manual verification
+
+1. Build the current branch and run Jaeger with Prometheus, using the SPM
+   sample configuration. Enable `extra_dimensions` for
+   `deployment.environment` with `values: [prod, staging, dev]`, and add
+   that dimension to the spanmetrics connector. Set the Prometheus
+   exporter's `translation_strategy: UnderscoreEscapingWithSuffixes`,
+   matching `normalize_calls: true` and `normalize_duration: true`.
+2. Send spans for the **same service**, `microsim-server`, with the span
+   attribute `deployment.environment` set to either `prod` or `staging`.
+   Use different traffic profiles so an ignored filter cannot pass the
+   check: for example, 20 spans/second with 10% errors and 10ms duration
+   in prod, versus 10 spans/second with 40% errors and 100ms duration in
+   staging. For explicit latency histograms, use buckets including 5ms,
+   10ms, 50ms, and 100ms. With 2s metric flush and scrape intervals, send
+   traffic for at least 90s before comparing a 60s window with 30s rates.
+3. Confirm `GET /api/metrics/dimensions` returns the declared dimension,
+   and the stored metrics contain `deployment_environment` labels for
+   both environments.
+4. Query each endpoint with the real `filter=key:value` syntax. Use the
+   same end time and query window for each comparison:
+
+   ```bash
+   spm_end_ts="$(date +%s)000"
+   for environment in prod staging; do
+     for metric in calls errors latencies; do
+       curl -fsS -G "http://localhost:16686/api/metrics/$metric" \
+         --data-urlencode 'service=microsim-server' \
+         --data-urlencode "endTs=$spm_end_ts" \
+         --data-urlencode 'lookback=60000' \
+         --data-urlencode 'step=5000' \
+         --data-urlencode 'ratePer=30000' \
+         --data-urlencode 'quantile=0.95' \
+         --data-urlencode "filter=deployment.environment:$environment"
+     done
+   done
+   ```
+
+   `quantile` is used by the latencies endpoint. Compare against requests
+   without `filter`: prod and staging should have distinct call rates,
+   error rates, and latency percentiles. Their call rates should sum to
+   the unfiltered call rate; error rates should reflect each environment's
+   own failures and calls.
+5. Inspect Jaeger's debug query logs or enable Prometheus's
+   `global.query_log_file`. Each filtered query must contain the selected
+   `deployment_environment="prod"` or `deployment_environment="staging"`
+   selector. For errors, check both the numerator and denominator. For
+   latencies, check the histogram bucket selector before aggregation.
+6. Repeat the negative requests for calls, errors, and latencies, supplying
+   `quantile=0.95` for latencies:
+
+   ```bash
+   curl -sS -i -G 'http://localhost:16686/api/metrics/calls' \
+     --data-urlencode 'service=microsim-server' \
+     --data-urlencode 'filter=bogus:x'
+   curl -sS -i -G 'http://localhost:16686/api/metrics/calls' \
+     --data-urlencode 'service=microsim-server' \
+     --data-urlencode 'filter=deployment.environment:hacker'
+   ```
+
+   Both return 400, with unknown-dimension and disallowed-value errors,
+   respectively, and do not execute a Prometheus query. A free-text
+   dimension's control-character values also return 400.
+7. With metrics disabled, `GET /api/metrics/dimensions` and filtered
+   metrics requests return 501.
+
+`filter.deployment.environment=prod` is not the filter parameter. It is
+ignored by this parser, so a 200 response to that spelling does not verify
+filtering. Record the actual responses and selectors from the corrected
+requests when reporting manual-test results.
+
+## 7. Future Improvements
+
+- **Elasticsearch/OpenSearch filtering.** Implement dimension declarations
+  and apply `Filters` in metric queries to cover the remaining backend
+  support requested in #7433.
+- **ClickHouse filtering.** Apply filters in ClickHouse metric queries and
+  advertise supported dimensions in a separate backend change.
+- **Dynamic label discovery.** Explore discovering existing labels and
+  values, with cardinality limits, caching, and UI behavior designed
+  explicitly. Attributes must still be retained during aggregation.
+
+## 8. References
+
+- [Issue #7433](https://github.com/jaegertracing/jaeger/issues/7433) — the
+  SPM filtering request partially addressed by this proposal.
+- [OpenTelemetry Collector Contrib — spanmetrics connector
+  configuration](https://github.com/open-telemetry/opentelemetry-collector-contrib/tree/main/connector/spanmetricsconnector#configurations).
+- [OpenTelemetry → Prometheus translator — label name normalisation](https://github.com/open-telemetry/opentelemetry-collector-contrib/tree/main/pkg/translator/prometheus#metric-name).
+- `internal/storage/v1/api/metricstore/interface.go` — Reader interface, including the new `GetDimensions` and `Filters`.
+- `internal/config/promcfg/config.go` — `ExtraDimensions` configuration.
+- `internal/storage/metricstore/prometheus/metricstore/reader.go` — PromQL injection.
+- `cmd/jaeger/internal/extension/jaegerquery/internal/http_handler.go` — request validation and the new `/api/metrics/dimensions` endpoint.

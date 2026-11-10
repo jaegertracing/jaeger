@@ -17,6 +17,24 @@ import (
 	"github.com/jaegertracing/jaeger/internal/storage/v2/clickhouse/tracestore/dbmodel"
 )
 
+func TestMetadataValueType(t *testing.T) {
+	for name, want := range map[string]pcommon.ValueType{
+		"bool":    pcommon.ValueTypeBool,
+		"double":  pcommon.ValueTypeDouble,
+		"int":     pcommon.ValueTypeInt,
+		"str":     pcommon.ValueTypeStr,
+		"bytes":   pcommon.ValueTypeBytes,
+		"map":     pcommon.ValueTypeMap,
+		"slice":   pcommon.ValueTypeSlice,
+		"":        pcommon.ValueTypeEmpty,
+		"unknown": pcommon.ValueTypeEmpty,
+		// The views write lowercase names only, so no other spelling is a type.
+		"Str": pcommon.ValueTypeEmpty,
+	} {
+		assert.Equal(t, want, metadataValueType(name), name)
+	}
+}
+
 func TestGetAttributeMetadata_ErrorCases(t *testing.T) {
 	attrs := pcommon.NewMap()
 	attrs.PutStr("http.method", "GET")
