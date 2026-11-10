@@ -846,3 +846,39 @@ func TestBuildFindTraceIDsQuery_OneMetadataQueryForKeysWithNoMetadata(t *testing
 	}
 	assert.Equal(t, 1, metadataQueries, "three unknown keys cost one query, not one each")
 }
+
+// TestBuildAttributeComparison_HoistedColumn checks that a negated equality keeps the
+// IS NOT NULL test inside the NOT, and that an unqualified reference reads the column at the
+// span level and the typed group at the resource level.
+func TestBuildAttributeComparison_HoistedColumn(t *testing.T) {
+	reader := newHoistedColumnReader()
+
+	t.Run("negation", func(t *testing.T) {
+		q := reader.newSQLBuilder()
+		args, err := lowerFilter(t, reader, q, p.Not(p.Span().Attr("model").Eq(p.String("x"))))
+		require.NoError(t, err)
+		verifyQuerySnapshot(t, q.String())
+		assert.Equal(t, []any{"x"}, args)
+	})
+
+	t.Run("unqualified reference", func(t *testing.T) {
+		q := reader.newSQLBuilder()
+		args, err := lowerFilter(t, reader, q, p.Attr("model").Eq(p.String("x")))
+		require.NoError(t, err)
+		verifyQuerySnapshot(t, q.String())
+		assert.Equal(t, []any{"x", "model", "x"}, args)
+	})
+}
+
+// TestBuildUntypedAttributeEq_HoistedColumn checks that a filter value whose type comes from
+// the attribute metadata is converted to the type of the hoisted column.
+func TestBuildUntypedAttributeEq_HoistedColumn(t *testing.T) {
+	reader := newHoistedColumnReader()
+	q := reader.newSQLBuilder()
+
+	args, err := lowerFilter(t, reader, q, p.Resource().Attr("shard").Eq("7"))
+
+	require.NoError(t, err)
+	verifyQuerySnapshot(t, q.String())
+	assert.Equal(t, []any{int64(7)}, args)
+}

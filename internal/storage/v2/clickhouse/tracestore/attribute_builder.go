@@ -12,18 +12,43 @@ import (
 // attributeBuilder writes the conditions that search attributes, so that the way the spans
 // table stores an attribute is decided here and not at each place that builds a query. A
 // Reader owns one and hands it to every sqlBuilder it creates. The zero value writes
-// conditions for the table that the backend creates.
+// conditions for a table without hoisted columns.
 //
-// TODO: equality is the only attribute condition today. Two additions are expected:
+// TODO: equality is the only attribute condition today. Two additions are expected, and both
+// read the hoisted column of an attribute that has one, as appendEquals does:
 //   - An ordering comparison (<, >=) is a condition like equality, so it adds an operator to
 //     appendEquals. It keeps writing a whole condition, because an event or a link attribute
 //     has one value per item and can be compared only inside the arrayExists lambda.
 //   - Ordering a search by an attribute needs the attribute as a value. That is a second
 //     method, which writes an expression with one value per span and therefore serves the
-//     span, resource and scope levels only. Conditions must not be rebuilt on that method:
-//     arrayExists matches every value of a key that a span carries more than once, and a
-//     single-value expression does not.
-type attributeBuilder struct{}
+//     span, resource and scope levels only. The condition of an attribute without a hoisted
+//     column must not be rebuilt on that method: arrayExists matches every value of a key
+//     that a span carries more than once, and a single-value expression does not.
+type attributeBuilder struct {
+	// columnBySource maps a hoisted attribute to the name of its column.
+	columnBySource map[hoistedSource]string
+}
+
+// hoistedSource identifies a hoisted attribute. The type is part of the identity because the
+// column copies one typed group only, so the same key stored with another type is not in it.
+type hoistedSource struct {
+	level     expression.Level
+	key       string
+	valueType pcommon.ValueType
+}
+
+func newAttributeBuilder(columns []HoistedColumn) attributeBuilder {
+	builder := attributeBuilder{columnBySource: make(map[hoistedSource]string, len(columns))}
+	for _, column := range columns {
+		source := hoistedSource{
+			level:     column.Level,
+			key:       column.Key,
+			valueType: column.Type,
+		}
+		builder.columnBySource[source] = column.Name
+	}
+	return builder
+}
 
 // attributeColumnType names the typed column group that stores values of valueType. Bytes, maps
 // and slices share the complex group, where the key carries a prefix that tells them apart.
@@ -77,9 +102,26 @@ func attributeGroup(level expression.Level, valueType pcommon.ValueType) string 
 // appendEquals writes to q the condition that the attributes of one level hold the key and
 // value of tav, and returns args extended with the values that the condition binds. It is the
 // only place that writes the placeholders of an attribute condition, so they and their bind
-// values cannot drift apart between callers.
-func (attributeBuilder) appendEquals(q *sqlBuilder, indent int, args []any, level expression.Level, tav typedAttributeValue) []any {
+// values cannot drift apart between callers. A hoisted attribute is compared in its dedicated
+// column; every other attribute, and the same key at another level or type, is searched in
+// the typed groups.
+func (b attributeBuilder) appendEquals(q *sqlBuilder, indent int, args []any, level expression.Level, tav typedAttributeValue) []any {
 	q.appendNewlineAndIndent(indent)
+	source := hoistedSource{
+		level:     level,
+		key:       tav.key,
+		valueType: tav.valueType,
+	}
+	if name, ok := b.columnBySource[source]; ok {
+		// The column is NULL on a span without the attribute, and NULL = ? is NULL, which
+		// stays NULL under NOT and would drop the span. The IS NOT NULL test makes the
+		// condition false there, as the array condition is false there. The column holds the
+		// first value of a key that a span carries more than once, so a search for a later
+		// value does not match, unlike the array condition.
+		column := "s.`" + name + "`"
+		q.WriteString("(" + column + " IS NOT NULL AND " + column + " = ?)")
+		return append(args, tav.value)
+	}
 	if prefix, nested := levelColumns(level); nested {
 		// Events and links are arrays inside the span row, so the condition searches the
 		// attributes of every item.

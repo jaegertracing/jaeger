@@ -34,6 +34,9 @@ type ReaderConfig struct {
 	AttributeMetadataCacheTTL time.Duration
 	// AttributeMetadataCacheMaxSize is the maximum number of entries in the attribute metadata cache.
 	AttributeMetadataCacheMaxSize int
+	// HoistedColumns lists the hoisted columns of the spans table. A search for the attribute
+	// of one of them compares the column.
+	HoistedColumns []HoistedColumn
 }
 
 type Reader struct {
@@ -56,7 +59,12 @@ func NewReader(conn driver.Conn, cfg ReaderConfig) *Reader {
 	attrMetaCache := cache.NewLRUWithOptions(cfg.AttributeMetadataCacheMaxSize, &cache.Options{
 		TTL: cfg.AttributeMetadataCacheTTL,
 	})
-	return &Reader{conn: conn, config: cfg, attrMetaCache: attrMetaCache}
+	return &Reader{
+		conn:          conn,
+		config:        cfg,
+		attrMetaCache: attrMetaCache,
+		attrBuilder:   newAttributeBuilder(cfg.HoistedColumns),
+	}
 }
 
 func (r *Reader) newSQLBuilder() *sqlBuilder {
