@@ -56,7 +56,6 @@ def main(title, repo, target=None, dry_run=False):
 
 
 def get_changelog(repo):
-# ... (rest of get_changelog remains the same)
     changelog_text = ""
     in_changelog_text = False
     version = ""
