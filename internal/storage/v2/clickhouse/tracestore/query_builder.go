@@ -31,6 +31,16 @@ var marshalValueForQuery = func(v pcommon.Value) (string, error) {
 	return string(b), nil
 }
 
+// legacyAttributeLevels is the levels at which the legacy Attributes map searches an attribute,
+// in the order the conditions are written.
+var legacyAttributeLevels = []expression.Level{
+	expression.LevelSpan,
+	expression.LevelResource,
+	expression.LevelScope,
+	expression.LevelEvent,
+	expression.LevelLink,
+}
+
 type typedAttributeValue struct {
 	key       string
 	value     any
@@ -72,53 +82,54 @@ func (q *sqlBuilder) appendTimeRange(args []any, from, to time.Time) []any {
 	return args
 }
 
-// arrayExistsFn is arrayExists or nestedArrayExists, chosen by the level the attribute lives at.
-type arrayExistsFn func(q *sqlBuilder, indent int, prefix string, valueType pcommon.ValueType)
-
-// appendArrayExists writes a condition that checks for a key-value pair in the attribute arrays of
-// one level: the span itself when prefix is empty, otherwise the resource or scope arrays.
-func (q *sqlBuilder) appendArrayExists(indent int, prefix string, valueType pcommon.ValueType) {
-	strColumnType := jptrace.ValueTypeToString(valueType)
-	if valueType == pcommon.ValueTypeBytes || valueType == pcommon.ValueTypeMap || valueType == pcommon.ValueTypeSlice {
-		strColumnType = "complex"
+// attributeColumnType names the typed column group that stores values of valueType. Bytes, maps
+// and slices share the complex group, where the key carries a prefix that tells them apart.
+func attributeColumnType(valueType pcommon.ValueType) string {
+	switch valueType {
+	case pcommon.ValueTypeBytes, pcommon.ValueTypeMap, pcommon.ValueTypeSlice:
+		return "complex"
+	default:
+		return jptrace.ValueTypeToString(valueType)
 	}
-	columnPrefix := ""
-	if prefix != "" {
-		columnPrefix = prefix + "_"
-	}
-	q.appendNewlineAndIndent(indent)
-	q.WriteString("arrayExists((key, value) -> key = ? AND value = ?, s." + columnPrefix + strColumnType + "_attributes.key, s." + columnPrefix + strColumnType + "_attributes.value)")
 }
 
-// appendNestedArrayExists writes a condition that checks for a key-value pair in nested array
-// attributes. Events and links are stored as nested arrays within spans, so a nested
-// arrayExists searches through all items and their attributes.
-func (q *sqlBuilder) appendNestedArrayExists(indent int, nestedArray string, valueType pcommon.ValueType) {
-	strColumnType := jptrace.ValueTypeToString(valueType)
-	if valueType == pcommon.ValueTypeBytes || valueType == pcommon.ValueTypeMap || valueType == pcommon.ValueTypeSlice {
-		strColumnType = "complex"
+// attributeLocation is where a level's attributes live: the column prefix of that level, and
+// whether the level is a nested array (event, link) rather than a flat one (span, resource,
+// scope).
+func attributeLocation(level expression.Level) (prefix string, nested bool) {
+	switch level {
+	case expression.LevelResource:
+		return "resource", false
+	case expression.LevelScope:
+		return "scope", false
+	case expression.LevelEvent:
+		return "events", true
+	case expression.LevelLink:
+		return "links", true
+	default: // expression.LevelSpan
+		return "", false
 	}
-	q.appendNewlineAndIndent(indent)
-	q.WriteString("arrayExists(x -> arrayExists((key, value) -> key = ? AND value = ?, x." + strColumnType + "_attributes.key, x." + strColumnType + "_attributes.value), s." + nestedArray + ")")
 }
 
-// appendStringAttributeFallback writes the condition for an attribute whose type is unknown: a string
-// match at every level.
-func (q *sqlBuilder) appendStringAttributeFallback(args []any, key string, attr pcommon.Value) []any {
-	q.appendArrayExists(2, "", pcommon.ValueTypeStr)
-	q.appendNewlineAndIndent(2)
-	q.WriteString("OR")
-	q.appendArrayExists(2, "resource", pcommon.ValueTypeStr)
-	q.appendNewlineAndIndent(2)
-	q.WriteString("OR")
-	q.appendArrayExists(2, "scope", pcommon.ValueTypeStr)
-	q.appendNewlineAndIndent(2)
-	q.WriteString("OR")
-	q.appendNestedArrayExists(2, "events", pcommon.ValueTypeStr)
-	q.appendNewlineAndIndent(2)
-	q.WriteString("OR")
-	q.appendNestedArrayExists(2, "links", pcommon.ValueTypeStr)
-	return append(args, key, attr.Str(), key, attr.Str(), key, attr.Str(), key, attr.Str(), key, attr.Str())
+// appendAttributeEquals writes the condition that the attributes of one level hold the key and
+// value of tav, and returns args extended with the values that the condition binds. It is the
+// only place that writes the placeholders of an attribute condition, so they and their bind
+// values cannot drift apart between callers.
+func (q *sqlBuilder) appendAttributeEquals(indent int, args []any, level expression.Level, tav typedAttributeValue) []any {
+	columnType := attributeColumnType(tav.valueType)
+	prefix, nested := attributeLocation(level)
+	q.appendNewlineAndIndent(indent)
+	if nested {
+		// Events and links are arrays inside the span row, so the condition searches the
+		// attributes of every item.
+		q.WriteString("arrayExists(x -> arrayExists((key, value) -> key = ? AND value = ?, x." + columnType + "_attributes.key, x." + columnType + "_attributes.value), s." + prefix + ")")
+	} else {
+		if prefix != "" {
+			prefix += "_"
+		}
+		q.WriteString("arrayExists((key, value) -> key = ? AND value = ?, s." + prefix + columnType + "_attributes.key, s." + prefix + columnType + "_attributes.value)")
+	}
+	return append(args, tav.key, tav.value)
 }
 
 func buildGetTracesQuery(params tracestore.GetTraceParams) (string, []any) {
@@ -286,21 +297,22 @@ func (q *sqlBuilder) buildAttributeConditions(args []any, attributes pcommon.Map
 	return args, nil
 }
 
+// buildSimpleAttributeCondition matches one typed value at every level, which is how the legacy
+// Attributes map searches an attribute whose stored type the query states or cannot look up.
 func (q *sqlBuilder) buildSimpleAttributeCondition(args []any, key string, valueType pcommon.ValueType, value any) []any {
-	q.appendArrayExists(2, "", valueType)
-	q.appendNewlineAndIndent(2)
-	q.WriteString("OR")
-	q.appendArrayExists(2, "resource", valueType)
-	q.appendNewlineAndIndent(2)
-	q.WriteString("OR")
-	q.appendArrayExists(2, "scope", valueType)
-	q.appendNewlineAndIndent(2)
-	q.WriteString("OR")
-	q.appendNestedArrayExists(2, "events", valueType)
-	q.appendNewlineAndIndent(2)
-	q.WriteString("OR")
-	q.appendNestedArrayExists(2, "links", valueType)
-	return append(args, key, value, key, value, key, value, key, value, key, value)
+	tav := typedAttributeValue{
+		key:       key,
+		value:     value,
+		valueType: valueType,
+	}
+	for i, level := range legacyAttributeLevels {
+		if i > 0 {
+			q.appendNewlineAndIndent(2)
+			q.WriteString("OR")
+		}
+		args = q.appendAttributeEquals(2, args, level, tav)
+	}
+	return args
 }
 
 func (q *sqlBuilder) buildBytesAttributeCondition(args []any, key string, attr pcommon.Value) []any {
@@ -377,11 +389,11 @@ func (q *sqlBuilder) buildStringAttributeCondition(
 
 	// if no metadata found, assume string type
 	if !ok {
-		return q.appendStringAttributeFallback(args, key, attr)
+		return q.buildSimpleAttributeCondition(args, key, pcommon.ValueTypeStr, attr.Str())
 	}
 
 	generatedCondition := false
-	appendLevel := func(types []pcommon.ValueType, prefix string, fn arrayExistsFn) {
+	appendLevel := func(types []pcommon.ValueType, level expression.Level) {
 		for _, t := range types {
 			tav, err := parseStringToTypedValue(key, attr, t)
 			if err != nil {
@@ -395,21 +407,20 @@ func (q *sqlBuilder) buildStringAttributeCondition(
 			}
 			generatedCondition = true
 
-			fn(q, 2, prefix, tav.valueType)
-			args = append(args, tav.key, tav.value)
+			args = q.appendAttributeEquals(2, args, level, tav)
 		}
 	}
 
-	appendLevel(levelTypes.resource, "resource", (*sqlBuilder).appendArrayExists)
-	appendLevel(levelTypes.scope, "scope", (*sqlBuilder).appendArrayExists)
-	appendLevel(levelTypes.span, "", (*sqlBuilder).appendArrayExists)
-	appendLevel(levelTypes.event, "events", (*sqlBuilder).appendNestedArrayExists)
-	appendLevel(levelTypes.link, "links", (*sqlBuilder).appendNestedArrayExists)
+	appendLevel(levelTypes.resource, expression.LevelResource)
+	appendLevel(levelTypes.scope, expression.LevelScope)
+	appendLevel(levelTypes.span, expression.LevelSpan)
+	appendLevel(levelTypes.event, expression.LevelEvent)
+	appendLevel(levelTypes.link, expression.LevelLink)
 
 	// If no conditions were generated (all types failed to parse),
 	// fall back to treating it as a string attribute
 	if !generatedCondition {
-		return q.appendStringAttributeFallback(args, key, attr)
+		return q.buildSimpleAttributeCondition(args, key, pcommon.ValueTypeStr, attr.Str())
 	}
 	return args
 }

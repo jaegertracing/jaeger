@@ -191,6 +191,36 @@ func TestBuildStringAttributeCondition_MultipleTypes(t *testing.T) {
 	assert.Len(t, args, 4)
 }
 
+// TestBuildStringAttributeCondition_AllLevels gives every level a different stored type, so
+// the expected SQL pins both the order of the levels and the column each level reads.
+func TestBuildStringAttributeCondition_AllLevels(t *testing.T) {
+	attr := pcommon.NewValueStr("1") // parses as every scalar type
+	metadata := attributeMetadata{
+		"k": {
+			resource: []pcommon.ValueType{pcommon.ValueTypeInt},
+			scope:    []pcommon.ValueType{pcommon.ValueTypeDouble},
+			span:     []pcommon.ValueType{pcommon.ValueTypeBool},
+			event:    []pcommon.ValueType{pcommon.ValueTypeStr},
+			link:     []pcommon.ValueType{pcommon.ValueTypeInt},
+		},
+	}
+	var q sqlBuilder
+
+	args := q.buildStringAttributeCondition(nil, "k", attr, metadata)
+
+	const expectedSQL = "\n\t\tarrayExists((key, value) -> key = ? AND value = ?, s.resource_int_attributes.key, s.resource_int_attributes.value)" +
+		"\n\t\tOR" +
+		"\n\t\tarrayExists((key, value) -> key = ? AND value = ?, s.scope_double_attributes.key, s.scope_double_attributes.value)" +
+		"\n\t\tOR" +
+		"\n\t\tarrayExists((key, value) -> key = ? AND value = ?, s.bool_attributes.key, s.bool_attributes.value)" +
+		"\n\t\tOR" +
+		"\n\t\tarrayExists(x -> arrayExists((key, value) -> key = ? AND value = ?, x.str_attributes.key, x.str_attributes.value), s.events)" +
+		"\n\t\tOR" +
+		"\n\t\tarrayExists(x -> arrayExists((key, value) -> key = ? AND value = ?, x.int_attributes.key, x.int_attributes.value), s.links)"
+	require.Equal(t, expectedSQL, q.String())
+	require.Equal(t, []any{"k", int64(1), "k", float64(1), "k", true, "k", "1", "k", int64(1)}, args)
+}
+
 func TestBuildFindTracesQuery(t *testing.T) {
 	start := time.Unix(1700000000, 123456789)
 	end := start.Add(3*time.Second + 987654321*time.Nanosecond)

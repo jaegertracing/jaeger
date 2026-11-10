@@ -360,26 +360,8 @@ func attributeLevelsToSearch(level expression.Level) ([]expression.Level, error)
 	}
 }
 
-// attributeLocation is where a level's attributes live: the arrayExists column prefix
-// query_builder.go's helpers already use, and whether that level is a nested array (event,
-// link) rather than a flat one (span, resource, scope).
-func attributeLocation(level expression.Level) (prefix string, nested bool) {
-	switch level {
-	case expression.LevelResource:
-		return "resource", false
-	case expression.LevelScope:
-		return "scope", false
-	case expression.LevelEvent:
-		return "events", true
-	case expression.LevelLink:
-		return "links", true
-	default: // expression.LevelSpan
-		return "", false
-	}
-}
-
 // attributeCandidate is one (level, typed value) pair an attribute equality is lowered to: one
-// arrayExists over that level's column of that type.
+// condition on that level's column of that type.
 type attributeCandidate struct {
 	level expression.Level
 	tav   typedAttributeValue
@@ -408,8 +390,8 @@ func (q *sqlBuilder) buildAttributeEqAcrossLevels(
 	return q.appendAttributeCandidates(indent, args, candidates)
 }
 
-// appendAttributeCandidates ORs one arrayExists (or nested arrayExists) per candidate, wrapped
-// in parentheses so the disjunction survives nesting.
+// appendAttributeCandidates ORs one condition per candidate, wrapped in parentheses so the
+// disjunction survives nesting.
 func (q *sqlBuilder) appendAttributeCandidates(indent int, args []any, candidates []attributeCandidate) []any {
 	q.appendNewlineAndIndent(indent)
 	q.WriteString("(")
@@ -418,13 +400,7 @@ func (q *sqlBuilder) appendAttributeCandidates(indent int, args []any, candidate
 			q.appendNewlineAndIndent(indent + 1)
 			q.WriteString("OR")
 		}
-		prefix, nested := attributeLocation(c.level)
-		if nested {
-			q.appendNestedArrayExists(indent+1, prefix, c.tav.valueType)
-		} else {
-			q.appendArrayExists(indent+1, prefix, c.tav.valueType)
-		}
-		args = append(args, c.tav.key, c.tav.value)
+		args = q.appendAttributeEquals(indent+1, args, c.level, c.tav)
 	}
 	q.appendNewlineAndIndent(indent)
 	q.WriteString(")")
@@ -488,7 +464,7 @@ func (q *sqlBuilder) buildUntypedAttributeEq(
 	}
 	if len(candidates) == 0 {
 		// No metadata for this key at any requested level: fall back to a literal string
-		// match, the same default stringAttributeFallback uses for the legacy map.
+		// match, the same default buildStringAttributeCondition uses for the legacy map.
 		return q.buildAttributeEqAcrossLevels(indent, args, key, levels, pcommon.ValueTypeStr, raw), nil
 	}
 
