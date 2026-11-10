@@ -5,6 +5,7 @@ package metricstore
 
 import (
 	"context"
+	"errors"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -1010,6 +1011,250 @@ func buildTestBaseQueryParametersFrom(tc metricsTestCase) metricstore.BaseQueryP
 		RatePer:          &ratePer,
 		SpanKinds:        tc.spanKinds,
 	}
+}
+
+// configWithDimensions returns the default test config augmented with the
+// supplied filterable dimensions.
+func configWithDimensions(dims ...metricstore.Dimension) config.Configuration {
+	cfg := defaultConfig
+	cfg.ExtraDimensions = dims
+	return cfg
+}
+
+func TestGetCallRatesWithFilter(t *testing.T) {
+	for _, tc := range []struct {
+		name    string
+		filters map[string]string
+		want    string
+	}{
+		{
+			name:    "underscore translation replaces a dot in the dimension name",
+			filters: map[string]string{"deployment.environment": "prod"},
+			want: `sum(rate(calls{service_name =~ "emailservice", ` +
+				`span_kind =~ "SPAN_KIND_SERVER", deployment_environment="prod"}[10m])) by (service_name)`,
+		},
+		{
+			name:    "underscore translation replaces every dot in the dimension name",
+			filters: map[string]string{"k8s.cluster.name": "us-west-1"},
+			want: `sum(rate(calls{service_name =~ "emailservice", ` +
+				`span_kind =~ "SPAN_KIND_SERVER", k8s_cluster_name="us-west-1"}[10m])) by (service_name)`,
+		},
+		{
+			name:    "underscore translation preserves existing underscores",
+			filters: map[string]string{"region_name": "us-west-1"},
+			want: `sum(rate(calls{service_name =~ "emailservice", ` +
+				`span_kind =~ "SPAN_KIND_SERVER", region_name="us-west-1"}[10m])) by (service_name)`,
+		},
+		{
+			name: "multiple filters emit in sorted order",
+			filters: map[string]string{
+				"deployment.environment": "prod",
+				"k8s.cluster":            "us-west-1",
+			},
+			want: `sum(rate(calls{service_name =~ "emailservice", ` +
+				`span_kind =~ "SPAN_KIND_SERVER", deployment_environment="prod", k8s_cluster="us-west-1"}[10m])) by (service_name)`,
+		},
+		{
+			name:    `value with double quote is escaped via %q`,
+			filters: map[string]string{"deployment.environment": `pr"od`},
+			want: `sum(rate(calls{service_name =~ "emailservice", ` +
+				`span_kind =~ "SPAN_KIND_SERVER", deployment_environment="pr\"od"}[10m])) by (service_name)`,
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			params := metricstore.CallRateQueryParameters{
+				BaseQueryParameters: buildTestBaseQueryParametersFrom(metricsTestCase{
+					serviceNames: []string{"emailservice"},
+					spanKinds:    []string{"SPAN_KIND_SERVER"},
+				}),
+			}
+			params.Filters = tc.filters
+
+			tracer, _, closer := tracerProvider(t)
+			defer closer()
+			cfg := configWithDimensions(
+				metricstore.Dimension{Name: "deployment.environment"},
+				metricstore.Dimension{Name: "k8s.cluster"},
+				metricstore.Dimension{Name: "k8s.cluster.name"},
+				metricstore.Dimension{Name: "region_name"},
+			)
+			reader, mockPrometheus := prepareMetricsReaderAndServer(t, cfg, tc.want, nil, tracer)
+			defer mockPrometheus.Close()
+
+			_, err := reader.GetCallRates(context.Background(), &params)
+			require.NoError(t, err)
+		})
+	}
+}
+
+func TestGetLatenciesWithFilter(t *testing.T) {
+	params := metricstore.LatenciesQueryParameters{
+		BaseQueryParameters: buildTestBaseQueryParametersFrom(metricsTestCase{
+			serviceNames: []string{"emailservice"},
+			spanKinds:    []string{"SPAN_KIND_SERVER"},
+		}),
+		Quantile: 0.95,
+	}
+	params.Filters = map[string]string{"deployment.environment": "prod"}
+
+	tracer, _, closer := tracerProvider(t)
+	defer closer()
+	cfg := configWithDimensions(metricstore.Dimension{Name: "deployment.environment"})
+	want := `histogram_quantile(0.95, sum(rate(duration_bucket{service_name =~ "emailservice", ` +
+		`span_kind =~ "SPAN_KIND_SERVER", deployment_environment="prod"}[10m])) by (service_name,le))`
+	reader, mockPrometheus := prepareMetricsReaderAndServer(t, cfg, want, nil, tracer)
+	defer mockPrometheus.Close()
+
+	_, err := reader.GetLatencies(context.Background(), &params)
+	require.NoError(t, err)
+}
+
+func TestGetErrorRatesWithFilterAppliesToBothNumeratorAndDenominator(t *testing.T) {
+	params := metricstore.ErrorRateQueryParameters{
+		BaseQueryParameters: buildTestBaseQueryParametersFrom(metricsTestCase{
+			serviceNames: []string{"emailservice"},
+			spanKinds:    []string{"SPAN_KIND_SERVER"},
+		}),
+	}
+	params.Filters = map[string]string{"deployment.environment": "prod"}
+
+	tracer, _, closer := tracerProvider(t)
+	defer closer()
+	cfg := configWithDimensions(metricstore.Dimension{Name: "deployment.environment"})
+	want := `sum(rate(calls{service_name =~ "emailservice", status_code = "STATUS_CODE_ERROR", ` +
+		`span_kind =~ "SPAN_KIND_SERVER", deployment_environment="prod"}[10m])) by (service_name) / ` +
+		`sum(rate(calls{service_name =~ "emailservice", ` +
+		`span_kind =~ "SPAN_KIND_SERVER", deployment_environment="prod"}[10m])) by (service_name)`
+	reader, mockPrometheus := prepareMetricsReaderAndServer(t, cfg, want, nil, tracer)
+	defer mockPrometheus.Close()
+
+	_, err := reader.GetErrorRates(context.Background(), &params)
+	require.NoError(t, err)
+}
+
+func TestUnknownFilterKeyRejected(t *testing.T) {
+	for _, method := range []struct {
+		name  string
+		query func(metricstore.Reader, metricstore.BaseQueryParameters) (*metrics.MetricFamily, error)
+	}{
+		{
+			name: "calls",
+			query: func(reader metricstore.Reader, params metricstore.BaseQueryParameters) (*metrics.MetricFamily, error) {
+				return reader.GetCallRates(context.Background(), &metricstore.CallRateQueryParameters{BaseQueryParameters: params})
+			},
+		},
+		{
+			name: "latencies",
+			query: func(reader metricstore.Reader, params metricstore.BaseQueryParameters) (*metrics.MetricFamily, error) {
+				return reader.GetLatencies(context.Background(), &metricstore.LatenciesQueryParameters{BaseQueryParameters: params, Quantile: 0.95})
+			},
+		},
+		{
+			name: "errors",
+			query: func(reader metricstore.Reader, params metricstore.BaseQueryParameters) (*metrics.MetricFamily, error) {
+				return reader.GetErrorRates(context.Background(), &metricstore.ErrorRateQueryParameters{BaseQueryParameters: params})
+			},
+		},
+	} {
+		t.Run(method.name, func(t *testing.T) {
+			for _, tc := range []struct {
+				name       string
+				dimensions []metricstore.Dimension
+				filters    map[string]string
+			}{
+				{
+					name:       "unknown only",
+					dimensions: []metricstore.Dimension{{Name: "deployment.environment"}},
+					filters:    map[string]string{"deployment.environmnt": "prod"},
+				},
+				{
+					name:       "valid and unknown",
+					dimensions: []metricstore.Dimension{{Name: "deployment.environment"}},
+					filters:    map[string]string{"deployment.environment": "prod", "deployment.environmnt": "prod"},
+				},
+				{
+					name:    "no configured dimensions",
+					filters: map[string]string{"deployment.environmnt": "prod"},
+				},
+			} {
+				t.Run(tc.name, func(t *testing.T) {
+					var requests atomic.Int32
+					mockPrometheus := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+						requests.Add(1)
+						sendResponse(t, w, "testdata/service_datapoint_response.json")
+					}))
+					defer mockPrometheus.Close()
+
+					tracer, _, closer := tracerProvider(t)
+					defer closer()
+					cfg := configWithDimensions(tc.dimensions...)
+					cfg.ServerURL = mockPrometheus.URL
+					reader, err := NewMetricsReader(cfg, zap.NewNop(), tracer, nil)
+					require.NoError(t, err)
+					params := buildTestBaseQueryParametersFrom(metricsTestCase{serviceNames: []string{"emailservice"}})
+					params.Filters = tc.filters
+
+					result, err := method.query(reader, params)
+
+					assert.Zero(t, requests.Load(), "invalid filters must not send a Prometheus request")
+					if len(tc.dimensions) == 0 {
+						require.ErrorIs(t, err, errors.ErrUnsupported)
+					} else {
+						require.ErrorContains(t, err, `unknown filter dimension "deployment.environmnt"`)
+					}
+					assert.Nil(t, result)
+				})
+			}
+		})
+	}
+}
+
+func TestGetDimensions(t *testing.T) {
+	tracer, _, closer := tracerProvider(t)
+	defer closer()
+	logger := zap.NewNop()
+
+	dims := []metricstore.Dimension{
+		{Name: "deployment.environment", DisplayName: "Environment", Values: []string{"prod", "staging"}},
+		{Name: "k8s.cluster"},
+	}
+	cfg := config.Configuration{
+		ServerURL:       "http://localhost:1234",
+		ConnectTimeout:  defaultTimeout,
+		ExtraDimensions: dims,
+	}
+	reader, err := NewMetricsReader(cfg, logger, tracer, nil)
+	require.NoError(t, err)
+
+	got, err := reader.GetDimensions(context.Background())
+	require.NoError(t, err)
+	want := []metricstore.Dimension{
+		{Name: "deployment.environment", DisplayName: "Environment", Values: []string{"prod", "staging"}},
+		{Name: "k8s.cluster", DisplayName: "k8s.cluster"},
+	}
+	assert.Equal(t, want, got)
+
+	// Returned slice is a copy; mutating it must not affect the reader's state.
+	got[0].Name = "mutated"
+	got[0].Values[0] = "mutated"
+	dims[0].Values[1] = "config mutated"
+	got2, err := reader.GetDimensions(context.Background())
+	require.NoError(t, err)
+	assert.Equal(t, want, got2)
+	assert.Empty(t, dims[1].DisplayName, "defaulting must not mutate the input configuration")
+}
+
+func TestGetDimensionsEmpty(t *testing.T) {
+	tracer, _, closer := tracerProvider(t)
+	defer closer()
+	reader, err := NewMetricsReader(config.Configuration{
+		ServerURL:      "http://localhost:1234",
+		ConnectTimeout: defaultTimeout,
+	}, zap.NewNop(), tracer, nil)
+	require.NoError(t, err)
+	got, err := reader.GetDimensions(context.Background())
+	require.NoError(t, err)
+	assert.Empty(t, got)
 }
 
 func prepareMetricsReaderAndServer(t *testing.T, cfg config.Configuration, wantPromQlQuery string, wantWarnings []string, tracer trace.TracerProvider) (metricstore.Reader, *httptest.Server) {

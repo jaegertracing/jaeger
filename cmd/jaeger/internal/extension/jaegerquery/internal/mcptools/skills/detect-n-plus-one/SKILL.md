@@ -8,7 +8,7 @@ license: Apache-2.0
 metadata:
   author: jaegertracing
   version: "1.0"
-allowed-tools: search_traces get_trace_topology get_span_details
+allowed-tools: find_traces get_trace_topology get_span_details
 ---
 
 # Detect N+1 Query Patterns
@@ -20,7 +20,7 @@ duration, typically database queries or RPC calls.
 
 ## Procedure
 
-1. Find candidate traces with `search_traces`.
+1. Find candidate traces with `find_traces`.
 2. Pull the span tree with `get_trace_topology`; group child spans by operation
    name under each parent. Operation name alone is not enough to make a group:
    spans sharing a name may call different endpoints, and one unrelated call
