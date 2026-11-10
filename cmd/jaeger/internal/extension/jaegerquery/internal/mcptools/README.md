@@ -34,7 +34,7 @@ extensions:
 
 | Setting | Bounds | Tools it limits |
 | --- | --- | --- |
-| `max_search_results` | returned spans | `search_traces` |
+| `max_search_results` | traces searched, spans returned | `find_traces`, `find_spans` |
 | `max_span_details_per_request` | spans per call | `get_span_details`, `get_trace_errors`, `get_trace_topology` |
 | `max_read_file_size` | bytes served | `read_skill` |
 
@@ -44,5 +44,5 @@ Leave a setting out, or set it to `0`, to keep its default. A value outside the
 range above is rejected at startup rather than being silently clamped, so a
 limit an operator raised deliberately is the limit that takes effect.
 
-The bounds are per call, not per session: they stop one request from allocating
+The bounds are per call, not per client: they stop one request from allocating
 without limit, and do not cap what a client can ask for across many requests.

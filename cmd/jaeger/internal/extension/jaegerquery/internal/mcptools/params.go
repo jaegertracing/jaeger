@@ -5,7 +5,6 @@ package mcptools
 
 import (
 	"io/fs"
-	"time"
 
 	"github.com/jaegertracing/jaeger/internal/version"
 )
@@ -26,11 +25,6 @@ const (
 	MaxSpanDetailsPerRequestLimit = 100
 	MaxSearchResultsLimit         = 1000
 	MaxReadFileSizeLimit          = 10 * 1024 * 1024
-
-	// mcpSessionTimeout caps an idle MCP session when the handler keeps sessions
-	// (ServerParams.StreamableHTTP.Stateless is false). The streamable handler keeps per-MCP-session
-	// state for SSE resumption and stream-id correlation.
-	mcpSessionTimeout = 5 * time.Minute
 )
 
 // ServerParams holds what NewHandler needs beyond its dependencies: the tool

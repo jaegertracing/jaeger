@@ -114,7 +114,8 @@ type MCPConfig struct {
 	// get_trace_errors, or get_trace_topology call may request. Zero (the
 	// default) is 20. Raised to at most 100.
 	MaxSpanDetailsPerRequest int `mapstructure:"max_span_details_per_request" valid:"optional"`
-	// MaxSearchResults bounds how many spans one search_traces call may return.
+	// MaxSearchResults bounds how much one search may return: the number of
+	// traces find_traces searches, and the number of spans find_spans returns.
 	// Zero (the default) is 100. Raised to at most 1000.
 	MaxSearchResults uint32 `mapstructure:"max_search_results" valid:"optional"`
 	// MaxReadFileSize bounds how many bytes read_skill serves from one skill
