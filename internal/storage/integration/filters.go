@@ -232,10 +232,14 @@ func filterTestCases(p builder.Predicate) []filterCase {
 		},
 		{
 			// The complement of the case above: a span that lacks the attribute does not equal
-			// zero, so the negation keeps it.
-			caption:  "a negated attribute equality keeps a span that lacks the attribute",
-			filter:   p.Not(p.Span().Attr("queue.depth").Eq(0)),
-			expected: []string{"cart_get", "cart_post", "search", "text-search", "worker"},
+			// zero, so the negation keeps it. The first operand limits the result to the traces
+			// that carry `http.status_code`, of which `checkout` is the one the negation removes.
+			caption: "a negated attribute equality keeps a span that lacks the attribute",
+			filter: p.And(
+				p.Span().Attr("http.status_code").Exists(),
+				p.Not(p.Span().Attr("queue.depth").Eq(0)),
+			),
+			expected: []string{"cart_get", "cart_post"},
 		},
 		{
 			caption:  "an attribute exists",
