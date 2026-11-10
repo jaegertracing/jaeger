@@ -9,11 +9,11 @@ import (
 	expression "github.com/jaegertracing/jaeger-idl/query/expression/v1"
 )
 
-// attributeSchema describes how the spans table stores attributes and writes the conditions
-// that search them. A Reader owns one and hands it to every sqlBuilder it creates, so a
-// storage decision that depends on the backend's configuration is made here and not at the
-// places that build a query. The zero value describes the table that the backend creates.
-type attributeSchema struct{}
+// attributeBuilder writes the conditions that search attributes, so that the way the spans
+// table stores an attribute is decided here and not at each place that builds a query. A
+// Reader owns one and hands it to every sqlBuilder it creates. The zero value writes
+// conditions for the table that the backend creates.
+type attributeBuilder struct{}
 
 // attributeColumnType names the typed column group that stores values of valueType. Bytes, maps
 // and slices share the complex group, where the key carries a prefix that tells them apart.
@@ -58,7 +58,7 @@ func levelColumns(level expression.Level) (prefix string, nested bool) {
 // value of tav, and returns args extended with the values that the condition binds. It is the
 // only place that writes the placeholders of an attribute condition, so they and their bind
 // values cannot drift apart between callers.
-func (attributeSchema) appendEquals(q *sqlBuilder, indent int, args []any, level expression.Level, tav typedAttributeValue) []any {
+func (attributeBuilder) appendEquals(q *sqlBuilder, indent int, args []any, level expression.Level, tav typedAttributeValue) []any {
 	columnType := attributeColumnType(tav.valueType)
 	prefix, nested := levelColumns(level)
 	q.appendNewlineAndIndent(indent)

@@ -51,7 +51,7 @@ type typedAttributeValue struct {
 type sqlBuilder struct {
 	strings.Builder
 	// attributes writes the attribute conditions of the statement.
-	attributes attributeSchema
+	attributes attributeBuilder
 }
 
 // newSQLBuilder returns a builder that writes attribute conditions for this reader's schema.
