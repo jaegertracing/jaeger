@@ -69,7 +69,10 @@ func Register(ctx context.Context, r *http.ServeMux, p RegisterParams) (*Routes,
 	}
 
 	// One authenticator guards every AI surface, so a caller admitted to the chat
-	// panel is admitted to the MCP tools and the other way round.
+	// panel is admitted to the MCP tools and the other way round. It guards the
+	// turn-scoped endpoint too: the agent's tool calls carry the chat caller's
+	// propagated and forwarded headers, so the check judges each call as that
+	// caller.
 	var auth *authenticator
 	authWrap := func(h http.Handler) http.Handler { return h }
 	if authCfg := aiCfg.Auth.Get(); authCfg != nil {
@@ -129,7 +132,7 @@ func Register(ctx context.Context, r *http.ServeMux, p RegisterParams) (*Routes,
 			MaxRequestBodySize: aiCfg.MaxRequestBodySize,
 			MCP:                mcpHandler,
 			MCPBaseURL:         aiCfg.ResolveMCPBaseURL(ctx, p.HTTPEndpoint, p.TLSEnabled),
-			ChatMiddleware:     authWrap,
+			AuthMiddleware:     authWrap,
 		})
 		aiGateway.RegisterRoutes(r)
 	}

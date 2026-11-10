@@ -73,18 +73,18 @@ func TestUIToolDescriptorsDeduplicatesNames(t *testing.T) {
 
 func TestAppendUITools(t *testing.T) {
 	// No UI tools → telemetry list returned unchanged.
-	telemetry := []*mcp.Tool{{Name: "get_services"}, {Name: "search_traces"}}
+	telemetry := []*mcp.Tool{{Name: "get_services"}, {Name: "find_traces"}}
 	assert.Equal(t, telemetry, appendUITools(telemetry, &turnState{}, zap.NewNop()))
 
 	// A UI tool named like a telemetry tool does not shadow it: the namespace
 	// keeps both, so the agent's telemetry capability never depends on what the
 	// frontend chose to call its tools.
 	sess := &turnState{uiTools: []json.RawMessage{
-		rawUITool(t, "search_traces"),
+		rawUITool(t, "find_traces"),
 		rawUITool(t, "show_chart"),
 	}}
-	merged := appendUITools([]*mcp.Tool{{Name: "get_services"}, {Name: "search_traces"}}, sess, zap.NewNop())
-	assert.Equal(t, []string{"get_services", "search_traces", UIToolPrefix + "search_traces", UIToolPrefix + "show_chart"}, toolNames(merged),
+	merged := appendUITools([]*mcp.Tool{{Name: "get_services"}, {Name: "find_traces"}}, sess, zap.NewNop())
+	assert.Equal(t, []string{"get_services", "find_traces", UIToolPrefix + "find_traces", UIToolPrefix + "show_chart"}, toolNames(merged),
 		"telemetry tools are kept whole and UI tools are appended under the namespace")
 }
 

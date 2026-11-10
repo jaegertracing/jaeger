@@ -105,7 +105,7 @@ func newTurnMCPFixture(t *testing.T, opts turnMCPOptions) turnMCPFixture {
 		logger:      telemetry.NoopSettings().Logger,
 	}.build()
 	mux := http.NewServeMux()
-	h.registerRoutes(mux)
+	h.registerRoutes(mux, h)
 	mux.Handle(routeMCPPrefix, http.StripPrefix(strings.TrimSuffix(routeMCPPrefix, "/"), shared))
 
 	var handler http.Handler = mux
@@ -329,7 +329,7 @@ func TestTurnScopedEndpointIssuesNoSessionID(t *testing.T) {
 		logger:      telemetry.NoopSettings().Logger,
 	}.build()
 	mux := http.NewServeMux()
-	h.registerRoutes(mux)
+	h.registerRoutes(mux, h)
 	ts := httptest.NewServer(mux)
 	t.Cleanup(ts.Close)
 
@@ -381,7 +381,7 @@ func TestTurnTokenIsVoidAfterTurnEnds(t *testing.T) {
 		logger:      telemetry.NoopSettings().Logger,
 	}.build()
 	mux := http.NewServeMux()
-	h.registerRoutes(mux)
+	h.registerRoutes(mux, h)
 
 	closeTurn()
 	req := httptest.NewRequest(http.MethodGet, "/api/ai/mcp/"+grant.routeID+"/", http.NoBody)
@@ -425,7 +425,7 @@ func TestTurnScopedEndpointIsolatesTurns(t *testing.T) {
 		logger:      telemetry.NoopSettings().Logger,
 	}.build()
 	mux := http.NewServeMux()
-	h.registerRoutes(mux)
+	h.registerRoutes(mux, h)
 	ts := httptest.NewServer(mux)
 	t.Cleanup(ts.Close)
 

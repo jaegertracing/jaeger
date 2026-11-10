@@ -219,6 +219,24 @@ type Pagination struct {
 	PageToken PageToken
 }
 
+// ReplacePaginationWithDepth converts a pagination request into a search depth for a trace search that
+// does not page. The page size becomes the search depth, and a token is refused, because such a
+// search cannot have produced one. A query without Pagination is returned unchanged. The query
+// service applies it before dispatch to a reader that declares no Paginated capability; a
+// reader that declares the capability for FindSpans while its trace searches do not page
+// applies it itself (RFC 0014 §6.2).
+func (q TraceQueryParams) ReplacePaginationWithDepth() (TraceQueryParams, error) {
+	if q.Pagination == nil {
+		return q, nil
+	}
+	if q.Pagination.PageToken != "" {
+		return TraceQueryParams{}, fmt.Errorf("%w: trace searches on this storage backend do not page yet", ErrPaginationUnsupported)
+	}
+	q.SearchDepth = q.Pagination.PageSize
+	q.Pagination = nil
+	return q, nil
+}
+
 // FoundTraceID is a wrapper around trace ID returned from FindTraceIDs
 // with an optional time range that may be used in GetTraces calls.
 //

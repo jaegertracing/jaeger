@@ -604,10 +604,7 @@ func TestParseFindSpansQuery_OrderByNestingDepth(t *testing.T) {
 
 		got, err := parseFindSpansQuery(q)
 		require.NoError(t, err)
-		assert.Equal(t, []tracestore.SpanSortOrder{{
-			Expression: &expression.FieldRef{Level: expression.LevelSpan, Name: "duration"},
-			Direction:  tracestore.SortDescending,
-		}}, got.OrderBy)
+		assert.Equal(t, []tracestore.SpanSortOrder{tracestore.OrderBySpanField("duration", tracestore.SortDescending)}, got.OrderBy)
 	})
 
 	// Only a built-in field sorts, but refusing anything else is the query service's decision

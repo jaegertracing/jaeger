@@ -1176,7 +1176,7 @@ func TestFindSpansGRPCOrdering(t *testing.T) {
 	for _, supported := range []bool{false, true} {
 		t.Run(strconv.FormatBool(supported), func(t *testing.T) {
 			tsc := newTestServerClientWithCapabilities(t, tracestore.SearchCapabilities{SpanSearch: true, SpanSorting: supported})
-			order := []tracestore.SpanSortOrder{{Expression: &expression.FieldRef{Level: expression.LevelSpan, Name: "duration"}, Direction: tracestore.SortDescending}}
+			order := []tracestore.SpanSortOrder{tracestore.OrderBySpanField("duration", tracestore.SortDescending)}
 			start, end := time.Now().Add(-time.Hour).UTC(), time.Now().UTC()
 			if supported {
 				tsc.reader.On("FindSpans", matchContext, tracestore.SpanQueryParams{StartTimeMin: start, StartTimeMax: end, OrderBy: order, Pagination: tracestore.Pagination{PageSize: querysvc.DefaultPageSize}}).Return(iter.Seq2[tracestore.PageChunk[ptrace.Traces], error](func(yield func(tracestore.PageChunk[ptrace.Traces], error) bool) {
