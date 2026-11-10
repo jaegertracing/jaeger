@@ -115,6 +115,45 @@ func TestProcessCallRates(t *testing.T) {
 	}
 }
 
+// TestCalcCallRateSteadyTraffic checks that a steady 1 call/sec cumulative
+// series reports a call rate of 1.0 for various ratePer windows. The window
+// must span lookback+1 cumulative points: (last - first) over lookback points
+// only covers lookback-1 intervals, which under-reported the rate by
+// (lookback-1)/lookback and reported 0 when ratePer <= step.
+func TestCalcCallRateSteadyTraffic(t *testing.T) {
+	now := time.Now()
+	step := time.Minute
+
+	buildInput := func(points int) *metrics.MetricFamily {
+		pts := make([]*metrics.MetricPoint, points)
+		for i := range pts {
+			pts[i] = createMetricPoint(now.Add(time.Duration(i)*step), float64((i+1)*60))
+		}
+		return createMetricFamily("service_call_rate", []*metrics.Metric{createMetric(pts)})
+	}
+
+	for _, tt := range []struct {
+		name    string
+		ratePer time.Duration
+		points  int
+	}{
+		{name: "ratePer much larger than step", ratePer: 10 * time.Minute, points: 11},
+		{name: "ratePer twice the step", ratePer: 2 * time.Minute, points: 3},
+		{name: "ratePer equal to step", ratePer: time.Minute, points: 2},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			params := metricstore.BaseQueryParameters{
+				Step:    new(step),
+				RatePer: new(tt.ratePer),
+			}
+			result := calcCallRate(buildInput(tt.points), params)
+			pts := result.Metrics[0].MetricPoints
+			last := pts[len(pts)-1].GetGaugeValue().GetDoubleValue()
+			assert.InDelta(t, 1.0, last, 0.001)
+		})
+	}
+}
+
 // TestProcessErrorRates tests the ProcessErrorRates function for error rate calculation.
 func TestProcessErrorRates(t *testing.T) {
 	now := time.Now()
