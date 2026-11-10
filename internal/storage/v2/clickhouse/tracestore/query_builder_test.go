@@ -114,8 +114,29 @@ func TestBuildStringAttributeCondition_Fallbacks(t *testing.T) {
 			assert.Contains(t, query, "scope_str_attributes")
 			assert.Contains(t, query, "events")
 			assert.Contains(t, query, "links")
-			assert.Len(t, args, 10)
+			assert.Equal(t, []any{
+				"k", tc.attrValue,
+				"k", tc.attrValue,
+				"k", tc.attrValue,
+				"k", tc.attrValue,
+				"k", tc.attrValue,
+			}, args)
 		})
+	}
+}
+
+func TestAttributeColumnType(t *testing.T) {
+	for valueType, want := range map[pcommon.ValueType]string{
+		pcommon.ValueTypeBool:   "bool",
+		pcommon.ValueTypeDouble: "double",
+		pcommon.ValueTypeInt:    "int",
+		pcommon.ValueTypeStr:    "str",
+		pcommon.ValueTypeBytes:  "complex",
+		pcommon.ValueTypeMap:    "complex",
+		pcommon.ValueTypeSlice:  "complex",
+		pcommon.ValueTypeEmpty:  "",
+	} {
+		assert.Equal(t, want, attributeColumnType(valueType), valueType.String())
 	}
 }
 

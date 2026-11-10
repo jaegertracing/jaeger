@@ -15,7 +15,6 @@ import (
 	"go.opentelemetry.io/collector/pdata/xpdata"
 
 	expression "github.com/jaegertracing/jaeger-idl/query/expression/v1"
-	"github.com/jaegertracing/jaeger/internal/jptrace"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/clickhouse/sql"
 )
@@ -84,12 +83,23 @@ func (q *sqlBuilder) appendTimeRange(args []any, from, to time.Time) []any {
 
 // attributeColumnType names the typed column group that stores values of valueType. Bytes, maps
 // and slices share the complex group, where the key carries a prefix that tells them apart.
+// The names are spelled out because they are column names of the spans table, which must not
+// change when a library changes how it prints a value type.
 func attributeColumnType(valueType pcommon.ValueType) string {
 	switch valueType {
+	case pcommon.ValueTypeBool:
+		return "bool"
+	case pcommon.ValueTypeDouble:
+		return "double"
+	case pcommon.ValueTypeInt:
+		return "int"
+	case pcommon.ValueTypeStr:
+		return "str"
 	case pcommon.ValueTypeBytes, pcommon.ValueTypeMap, pcommon.ValueTypeSlice:
 		return "complex"
 	default:
-		return jptrace.ValueTypeToString(valueType)
+		// No column group stores an empty value, and no caller passes one.
+		return ""
 	}
 }
 
