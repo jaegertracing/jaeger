@@ -13,6 +13,16 @@ import (
 // table stores an attribute is decided here and not at each place that builds a query. A
 // Reader owns one and hands it to every sqlBuilder it creates. The zero value writes
 // conditions for the table that the backend creates.
+//
+// TODO: equality is the only attribute condition today. Two additions are expected:
+//   - An ordering comparison (<, >=) is a condition like equality, so it adds an operator to
+//     appendEquals. It keeps writing a whole condition, because an event or a link attribute
+//     has one value per item and can be compared only inside the arrayExists lambda.
+//   - Ordering a search by an attribute needs the attribute as a value. That is a second
+//     method, which writes an expression with one value per span and therefore serves the
+//     span, resource and scope levels only. Conditions must not be rebuilt on that method:
+//     arrayExists matches every value of a key that a span carries more than once, and a
+//     single-value expression does not.
 type attributeBuilder struct{}
 
 // attributeColumnType names the typed column group that stores values of valueType. Bytes, maps
