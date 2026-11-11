@@ -55,9 +55,11 @@ func (f *testStream) Send(td *jptrace.TracesData) error {
 func TestHandler_GetTraces(t *testing.T) {
 	start := time.Now()
 	end := start.Add(time.Minute)
+	// A single byte {1} sent on the wire must land in the low (right) half of
+	// the 16-byte trace ID array, i.e. at index 15, not index 0.
 	query := []tracestore.GetTraceParams{
 		{
-			TraceID: pcommon.TraceID([16]byte{1}),
+			TraceID: pcommon.TraceID([16]byte{15: 1}),
 			Start:   start,
 			End:     end,
 		},
@@ -142,6 +144,44 @@ func TestHandler_GetTraces(t *testing.T) {
 			}
 		})
 	}
+}
+
+// TestHandler_GetTraces_ByteOrdering verifies that short trace IDs received
+// over gRPC (e.g. 8-byte / 64-bit IDs) are right-aligned into the low half
+// of the 16-byte pcommon.TraceID, matching the behaviour of
+// model.TraceIDFromBytes.  A naive copy(dst[:], src) would fill from the
+// left (high half) and produce a trace ID that matches nothing in storage.
+func TestHandler_GetTraces_ByteOrdering(t *testing.T) {
+	start := time.Now()
+	end := start.Add(time.Minute)
+
+	// 8-byte wire value: should land in TraceID[8:16] (low half).
+	var want pcommon.TraceID
+	copy(want[8:], []byte{0, 0, 0, 0, 0, 0, 0, 1})
+
+	query := []tracestore.GetTraceParams{
+		{TraceID: want, Start: start, End: end},
+	}
+
+	reader := new(tracestoremocks.Reader)
+	writer := new(tracestoremocks.Writer)
+	depReader := new(depstoremocks.Reader)
+	reader.On("GetTraces", mock.Anything, query).
+		Return(iter.Seq2[[]ptrace.Traces, error](func(_ func([]ptrace.Traces, error) bool) {})).Once()
+
+	server := NewHandler(reader, writer, depReader)
+	stream := &testStream{}
+	err := server.GetTraces(&storage.GetTracesRequest{
+		Query: []*storage.GetTraceParams{
+			{
+				TraceId:   []byte{0, 0, 0, 0, 0, 0, 0, 1},
+				StartTime: start,
+				EndTime:   end,
+			},
+		},
+	}, stream)
+	require.NoError(t, err)
+	reader.AssertExpectations(t)
 }
 
 func TestHandler_GetServices(t *testing.T) {
