@@ -9,6 +9,26 @@ DIR="$(cd "$(dirname "$0")" && pwd)"
 VALUES="$DIR/jaeger-values.yaml"
 CONFIG="$DIR/jaeger-config.yaml"
 
+oneTimeSetUp() {
+  CHART_DIR="${JAEGER_TEST_HELM_CHART:-}"
+  if [[ -z "$CHART_DIR" ]]; then
+    CHART_TEMP=$(mktemp -d)
+    git clone --quiet --depth 1 --branch v2 https://github.com/jaegertracing/helm-charts.git "$CHART_TEMP/helm-charts" || return 1
+    CHART_DIR="$CHART_TEMP/helm-charts/charts/jaeger"
+    helm dependency build "$CHART_DIR" >/dev/null || return 1
+  fi
+  RENDERED=$(helm template jaeger "$CHART_DIR" --namespace jaeger \
+    --set storage.type=elasticsearch \
+    --set goose.image=example.invalid/goose:test \
+    --set-file userconfig="$CONFIG" -f "$VALUES") || return 1
+}
+
+oneTimeTearDown() {
+  if [[ -n "${CHART_TEMP:-}" ]]; then
+    rm -rf "$CHART_TEMP"
+  fi
+}
+
 # value_in_block KEY_PATH FILE prints the value of a scalar nested under
 # top-level key "$1" at the given indentation, e.g. value_in_block esIndexCleaner "  numberOfDays".
 value_in_block() {
@@ -57,6 +77,73 @@ testJaegerWritesDailyIndicesWithDefaultDateLayout() {
 
 testQueryReadsUIConfigFromChartMount() {
   assertEquals "/etc/jaeger/ui-config/ui-config.json" "$(value_in_block extensions "      config_file" "$CONFIG")"
+}
+
+testGooseImageMustBeConfiguredBeforeDeployment() {
+  output=$(helm template jaeger "$CHART_DIR" --namespace jaeger \
+    --set storage.type=elasticsearch -f "$VALUES" 2>&1)
+  assertNotEquals "an unconfigured image must fail before Helm upgrade" 0 "$?"
+  assertContains "$output" "Set goose.image"
+}
+
+testGooseIsPrivateAndHasNoKubernetesCredential() {
+  assertContains "$RENDERED" "name: jaeger-goose"
+  assertContains "$RENDERED" "type: ClusterIP"
+  assertContains "$RENDERED" "automountServiceAccountToken: false"
+  assertContains "$RENDERED" "kind: NetworkPolicy"
+  assertContains "$RENDERED" "app.kubernetes.io/component: all-in-one"
+  assertNotContains "$RENDERED" "type: LoadBalancer"
+  assertNotContains "$RENDERED" "hostNetwork: true"
+}
+
+testGooseUsesBoundedDirectOpenAiRequests() {
+  assertContains "$RENDERED" "- name: GOOSE_PROVIDER
+          value: openai"
+  assertContains "$RENDERED" "- name: GOOSE_MODEL
+          value: gpt-6-luna"
+  assertContains "$RENDERED" '- name: GOOSE_THINKING_EFFORT
+          value: "off"'
+  assertContains "$RENDERED" '- name: GOOSE_MAX_TURNS
+          value: "8"'
+  assertContains "$RENDERED" '- name: GOOSE_MAX_TOKENS
+          value: "4096"'
+  assertContains "$RENDERED" '- name: GOOSE_DISABLE_SESSION_NAMING
+          value: "true"'
+  assertNotContains "$RENDERED" "OPENROUTER_API_KEY"
+}
+
+testBothProcessesReadTheAgentSecret() {
+  assertEquals "Jaeger and Goose need the same agent credential" 2 \
+    "$(printf '%s\n' "$RENDERED" | grep -c 'key: GOOSE_SERVER__SECRET_KEY')"
+  assertEquals "only Goose gets the provider key" 1 \
+    "$(printf '%s\n' "$RENDERED" | grep -c 'key: OPENAI_API_KEY')"
+  assertContains "$RENDERED" "X-Secret-Key: \${env:GOOSE_SERVER__SECRET_KEY}"
+  assertContains "$RENDERED" "agent_url: ws://jaeger-goose:16688/acp"
+  assertContains "$RENDERED" "base_url: http://jaeger-query-clusterip:16686"
+}
+
+testWritableRuntimePreservesDisabledExtensionConfiguration() {
+  assertContains "$RENDERED" "name: goose-config"
+  assertContains "$RENDERED" "cp -R /tmp/.config/goose /runtime/.config/"
+  assertContains "$RENDERED" "mountPath: /tmp"
+  assertContains "$RENDERED" "readOnlyRootFilesystem: true"
+}
+
+testChatLimitsDoNotCoverBrowsingOrMcp() {
+  local ingress="$DIR/ingress/ingress-jaeger.yaml"
+  local chat
+  local browsing
+  chat=$(sed -n '/^  name: jaeger-demo-ai-ingress$/,$p' "$ingress")
+  browsing=$(sed '/^---$/,$d' "$ingress")
+  assertContains "$chat" 'nginx.ingress.kubernetes.io/limit-rpm: "10"'
+  assertContains "$chat" 'nginx.ingress.kubernetes.io/limit-connections: "2"'
+  assertContains "$chat" 'nginx.ingress.kubernetes.io/limit-burst-multiplier: "1"'
+  assertContains "$chat" 'nginx.ingress.kubernetes.io/proxy-buffering: "off"'
+  assertContains "$chat" "path: /api/ai/chat"
+  assertContains "$chat" "pathType: Exact"
+  assertNotContains "$chat" "/api/ai/mcp"
+  assertNotContains "$browsing" "limit-rpm"
+  assertNotContains "$browsing" "limit-connections"
 }
 
 # shellcheck disable=SC1091

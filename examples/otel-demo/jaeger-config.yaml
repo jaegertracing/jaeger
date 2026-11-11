@@ -19,6 +19,12 @@ extensions:
   jaeger_query:
     ui:
       config_file: /etc/jaeger/ui-config/ui-config.json
+    ai:
+      agent_url: ws://jaeger-goose:16688/acp
+      agent_headers:
+        X-Secret-Key: ${env:GOOSE_SERVER__SECRET_KEY}
+      mcp:
+        base_url: http://jaeger-query-clusterip:16686
     storage:
       traces: some_storage
       traces_archive: another_storage

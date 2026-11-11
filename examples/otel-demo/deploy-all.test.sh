@@ -556,5 +556,108 @@ testInvalidRecoveryPolicyCannotCallHelm() {
   assertNotContains "$output" "unsafe helm call"
 }
 
+testCleanRestoresAiCredentialsFromPrivateBackup() {
+  output=$(bash -c '
+    source "$1"
+    log() { :; }
+    kubectl() {
+      if [[ "$1" == "-n" ]]; then
+        printf "test-only-secret"
+      elif [[ "$1" == "create" ]]; then
+        printf "namespace"
+      elif [[ "$3" == "-" ]]; then
+        cat >/dev/null
+      else
+        [[ -s "$3" ]] || return 1
+        local mode
+        mode=$(LC_ALL=C ls -ld "$3")
+        [[ "${mode:0:10}" == "-rw-------" ]] || return 1
+        grep -q test-only-secret "$3"
+      fi
+    }
+    cleanup() { printf "cleanup\n"; }
+    cleanup_preserving_ai_secret
+  ' _ "$SCRIPT" 2>&1)
+  assertEquals "clean should restore the credential Secret" 0 "$?"
+  assertEquals "credentials must not appear in output" "cleanup" "$output"
+}
+
+testCleanCannotProceedWithoutCredentialBackup() {
+  output=$(bash -c '
+    source "$1"
+    kubectl() { return 1; }
+    cleanup() { printf "unsafe cleanup\n"; }
+    cleanup_preserving_ai_secret
+  ' _ "$SCRIPT" 2>&1)
+  assertNotEquals "backup failure must prevent namespace deletion" 0 "$?"
+  assertContains "$output" "Cannot preserve AI credentials"
+  assertNotContains "$output" "unsafe cleanup"
+}
+
+testCleanRetainsPrivateBackupIfRestoreFails() {
+  local path_file
+  local retained
+  path_file=$(mktemp)
+  output=$(BACKUP_PATH_FILE="$path_file" bash -c '
+    source "$1"
+    log() { :; }
+    cleanup() { :; }
+    kubectl() {
+      if [[ "$1" == "-n" ]]; then
+        printf "test-only-secret"
+      elif [[ "$1" == "create" ]]; then
+        printf "namespace"
+      elif [[ "$3" == "-" ]]; then
+        cat >/dev/null
+      else
+        printf "%s" "$3" >"$BACKUP_PATH_FILE"
+        return 1
+      fi
+    }
+    cleanup_preserving_ai_secret
+  ' _ "$SCRIPT" 2>&1)
+  assertNotEquals "restore failure must stop deployment" 0 "$?"
+  retained=$(cat "$path_file")
+  assertTrue "credential backup must remain available for recovery" "[[ -s '$retained' ]]"
+  assertContains "$output" "Restore AI credentials from $retained"
+  assertNotContains "$output" "test-only-secret"
+  [[ -z "$retained" ]] || rm -f "$retained"
+  rm -f "$path_file"
+}
+
+testMissingAiSecretStopsBeforeDeployment() {
+  output=$(bash -c '
+    source "$1"
+    kubectl() { return 1; }
+    check_ai_secret
+    printf "unsafe deployment\n"
+  ' _ "$SCRIPT" 2>&1)
+  rc=$?
+  assertNotEquals "missing credentials must stop deployment" 0 "$rc"
+  assertContains "$output" "Create jaeger/jaeger-demo-ai"
+  assertNotContains "$output" "unsafe deployment"
+}
+
+testIncompleteAiSecretStopsWithoutPrintingValues() {
+  output=$(bash -c '
+    source "$1"
+    kubectl() { printf "OPENAI_API_KEY\n"; }
+    check_ai_secret
+  ' _ "$SCRIPT" 2>&1)
+  rc=$?
+  assertNotEquals "both credentials are required" 0 "$rc"
+  assertContains "$output" "missing GOOSE_SERVER__SECRET_KEY"
+}
+
+testCompleteAiSecretPassesWithoutPrintingKeys() {
+  output=$(bash -c '
+    source "$1"
+    kubectl() { printf "OPENAI_API_KEY\nGOOSE_SERVER__SECRET_KEY\n"; }
+    check_ai_secret
+  ' _ "$SCRIPT" 2>&1)
+  assertEquals "credential check should succeed" 0 "$?"
+  assertEquals "credential check must not log Secret data" "" "$output"
+}
+
 # shellcheck disable=SC1091
 source "${SHUNIT2}/shunit2"

@@ -12,12 +12,16 @@ It is driven by `deploy-all.sh`, which supports both clean installs and upgrades
 - Kubernetes cluster reachable via `kubectl`
 - Installed CLIs: `bash`, `git`, `curl`, `kubectl`, `helm`
 - Network access to Helm repositories
+- The AI assistant's published agent image, project spending controls, and
+  `jaeger-demo-ai` credential Secret, provisioned before a Jaeger upgrade as
+  described in [AI_ASSISTANT.md](./AI_ASSISTANT.md).
 
 ## Quick start
-- Clean install (removes previous releases/namespaces, then installs everything):
-```bash path=null start=null
-./deploy-all.sh clean
-```
+
+The public AI assistant uses a separately managed credential Secret. Use the
+upgrade path after completing [AI setup](./AI_ASSISTANT.md). Clean mode preserves
+the AI Secret in a private temporary file and restores it after recreating the
+namespace; all other clean-mode data deletion remains unchanged.
 - Upgrade (default) — installs if missing, upgrades if present:
 ```bash path=null start=null
 ./deploy-all.sh
@@ -36,7 +40,7 @@ Environment variables:
 - OPENSEARCH_DASHBOARDS_HELM_TIMEOUT: Helm wait timeout for OpenSearch Dashboards (default 60m)
 
 ```bash path=null start=null
-ROLLOUT_TIMEOUT=900 ./deploy-all.sh clean
+ROLLOUT_TIMEOUT=900 ./deploy-all.sh upgrade
 ```
 
 ## What gets deployed

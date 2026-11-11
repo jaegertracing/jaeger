@@ -113,6 +113,40 @@ check_required_files() {
   done
 }
 
+check_ai_secret() {
+  # Print only key names, never Secret values, including on a failed rollout.
+  local keys
+  local key
+  # shellcheck disable=SC2016 # These are Go-template variables, not shell variables.
+  keys=$(kubectl -n jaeger get secret jaeger-demo-ai -o 'go-template={{range $key, $value := .data}}{{if $value}}{{$key}}{{"\n"}}{{end}}{{end}}') || {
+    err "Create jaeger/jaeger-demo-ai after verifying the OpenAI project cap; see AI_ASSISTANT.md"
+  }
+  for key in OPENAI_API_KEY GOOSE_SERVER__SECRET_KEY; do
+    if ! grep -Fxq "$key" <<<"$keys"; then
+      err "jaeger/jaeger-demo-ai is missing $key; see AI_ASSISTANT.md"
+    fi
+  done
+}
+
+cleanup_preserving_ai_secret() {
+  local backup
+  backup=$(umask 077; mktemp "${TMPDIR:-/tmp}/jaeger-demo-ai.XXXXXX")
+  # shellcheck disable=SC2016 # Go-template values are written only to a private file.
+  if ! kubectl -n jaeger get secret jaeger-demo-ai \
+    -o 'go-template={"apiVersion":"v1","kind":"Secret","metadata":{"name":"jaeger-demo-ai","namespace":"jaeger"},"type":"Opaque","data":{"OPENAI_API_KEY":"{{index .data "OPENAI_API_KEY"}}","GOOSE_SERVER__SECRET_KEY":"{{index .data "GOOSE_SERVER__SECRET_KEY"}}"}}' >"$backup"; then
+    rm -f "$backup"
+    err "Cannot preserve AI credentials; refusing cleanup"
+  fi
+  # Retain the backup on failure, including an exit from cleanup, for recovery.
+  log "Private AI credential backup: $backup (removed after successful restore)"
+  cleanup
+  kubectl create namespace jaeger --dry-run=client -o yaml | kubectl apply -f -
+  if ! kubectl apply -f "$backup" >/dev/null; then
+    err "Restore AI credentials from $backup before retrying deployment"
+  fi
+  rm -f "$backup"
+}
+
 wait_for_deployment() {
   local namespace="$1"
   local deployment="$2"
@@ -560,9 +594,8 @@ main() {
   check_required_files
   check_cluster
 
-
-  if [[ "$MODE" == "clean" ]]; then
-    cleanup
+  if deploy_jaeger_stack; then
+    check_ai_secret
   fi
 
   log "Adding/updating Helm repos"
@@ -572,8 +605,18 @@ main() {
   helm repo update >/dev/null
   if deploy_jaeger_stack; then
     clone_jaeger_v2
+    # Validate the image setting and manifests before deleting any deployment.
+    helm template jaeger "$SCRIPT_DIR/helm-charts/charts/jaeger" \
+      --namespace jaeger \
+      --set storage.type=elasticsearch \
+      --set-file userconfig="$SCRIPT_DIR/jaeger-config.yaml" \
+      -f "$SCRIPT_DIR/jaeger-values.yaml" >/dev/null
   else
     log "Skipping Jaeger Helm chart preparation in '$MODE' mode with deploy scope '$DEPLOY_SCOPE'"
+  fi
+
+  if [[ "$MODE" == "clean" ]]; then
+    cleanup_preserving_ai_secret
   fi
 
   if deploy_opensearch_stack; then
@@ -613,6 +656,7 @@ main() {
       err "Helm release jaeger failed"
     fi
     wait_for_deployment jaeger jaeger "${ROLLOUT_TIMEOUT}s"
+    wait_for_deployment jaeger jaeger-goose "${ROLLOUT_TIMEOUT}s"
 
     log "Creating Jaeger query ClusterIP service..."
     kubectl apply -n jaeger -f "$SCRIPT_DIR/jaeger-query-service.yaml"
