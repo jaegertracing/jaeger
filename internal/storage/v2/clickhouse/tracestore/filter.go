@@ -6,7 +6,6 @@ package tracestore
 import (
 	"context"
 	"fmt"
-	"strings"
 
 	"go.opentelemetry.io/collector/pdata/pcommon"
 
@@ -115,8 +114,7 @@ func (r *Reader) lookupUntypedMetadata(ctx context.Context, predicate *expressio
 // arrives already checked against FilterCapabilities when it comes through the query service,
 // but a remote-storage client can reach this reader without that check, so every refusal is
 // made here too rather than assumed.
-func buildFilterCondition(
-	q *strings.Builder,
+func (q *sqlBuilder) buildFilterCondition(
 	indent int,
 	args []any,
 	metadata attributeMetadata,
@@ -124,7 +122,7 @@ func buildFilterCondition(
 ) ([]any, error) {
 	switch predicate.Op {
 	case expression.OpAnd, expression.OpOr:
-		return buildBooleanCondition(q, indent, args, metadata, predicate)
+		return q.buildBooleanCondition(indent, args, metadata, predicate)
 	case expression.OpNot:
 		if len(predicate.Args) != 1 {
 			return nil, errArity(predicate)
@@ -135,17 +133,17 @@ func buildFilterCondition(
 		if !ok || child == nil {
 			return nil, fmt.Errorf("%w: %q negates a predicate, not a value", tracestore.ErrFilterInvalid, predicate.Op)
 		}
-		appendNewlineAndIndent(q, indent)
+		q.appendNewlineAndIndent(indent)
 		q.WriteString("NOT (")
-		args, err := buildFilterCondition(q, indent+1, args, metadata, child)
+		args, err := q.buildFilterCondition(indent+1, args, metadata, child)
 		if err != nil {
 			return nil, err
 		}
-		appendNewlineAndIndent(q, indent)
+		q.appendNewlineAndIndent(indent)
 		q.WriteString(")")
 		return args, nil
 	case expression.OpEq, expression.OpGt, expression.OpLt, expression.OpGte, expression.OpLte:
-		return buildComparisonCondition(q, indent, args, metadata, predicate)
+		return q.buildComparisonCondition(indent, args, metadata, predicate)
 	default:
 		return nil, fmt.Errorf("%w: it does not support the operator %q", tracestore.ErrFilterUnsupported, predicate.Op)
 	}
@@ -153,8 +151,7 @@ func buildFilterCondition(
 
 // buildBooleanCondition lowers and/or: each argument is itself a predicate, joined by the
 // operator's SQL keyword and wrapped in parentheses so precedence survives nesting.
-func buildBooleanCondition(
-	q *strings.Builder,
+func (q *sqlBuilder) buildBooleanCondition(
 	indent int,
 	args []any,
 	metadata attributeMetadata,
@@ -167,7 +164,7 @@ func buildBooleanCondition(
 	if predicate.Op == expression.OpOr {
 		sep = "OR"
 	}
-	appendNewlineAndIndent(q, indent)
+	q.appendNewlineAndIndent(indent)
 	q.WriteString("(")
 	for i, arg := range predicate.Args {
 		child, ok := arg.(*expression.Call)
@@ -175,16 +172,16 @@ func buildBooleanCondition(
 			return nil, fmt.Errorf("%w: %q combines predicates, not values", tracestore.ErrFilterInvalid, predicate.Op)
 		}
 		if i > 0 {
-			appendNewlineAndIndent(q, indent+1)
+			q.appendNewlineAndIndent(indent + 1)
 			q.WriteString(sep)
 		}
 		var err error
-		args, err = buildFilterCondition(q, indent+1, args, metadata, child)
+		args, err = q.buildFilterCondition(indent+1, args, metadata, child)
 		if err != nil {
 			return nil, err
 		}
 	}
-	appendNewlineAndIndent(q, indent)
+	q.appendNewlineAndIndent(indent)
 	q.WriteString(")")
 	return args, nil
 }
@@ -192,8 +189,7 @@ func buildBooleanCondition(
 // buildComparisonCondition dispatches a comparison to the built-in-field or attribute path by
 // the shape of its first operand; a finalized filter puts the reference first (RFC 0005 §5.3)
 // and a constant second.
-func buildComparisonCondition(
-	q *strings.Builder,
+func (q *sqlBuilder) buildComparisonCondition(
 	indent int,
 	args []any,
 	metadata attributeMetadata,
@@ -209,13 +205,13 @@ func buildComparisonCondition(
 	}
 	switch ref := predicate.Args[0].(type) {
 	case *expression.FieldRef:
-		return buildFieldComparison(q, indent, args, predicate.Op, *ref, predicate.Args[1])
+		return q.buildFieldComparison(indent, args, predicate.Op, *ref, predicate.Args[1])
 	case *expression.AttributeRef:
 		if predicate.Op != expression.OpEq {
 			return nil, fmt.Errorf("%w: it does not order attributes, so it cannot evaluate %q on %q",
 				tracestore.ErrFilterUnsupported, predicate.Op, ref.Key)
 		}
-		return buildAttributeComparison(q, indent, args, metadata, *ref, predicate.Args[1])
+		return q.buildAttributeComparison(indent, args, metadata, *ref, predicate.Args[1])
 	default:
 		return nil, fmt.Errorf("%w: %q compares a field or attribute against a constant",
 			tracestore.ErrFilterInvalid, predicate.Op)
@@ -226,8 +222,7 @@ func buildComparisonCondition(
 // reaches every mapped field; the ordered comparisons reach span.duration only, since the other
 // mapped fields hold words (span.kind, span.status, which RFC 0005 §5.4 says have no order) or
 // names, whose lexicographic ordering this increment does not lower.
-func buildFieldComparison(
-	q *strings.Builder,
+func (q *sqlBuilder) buildFieldComparison(
 	indent int,
 	args []any,
 	op expression.Operator,
@@ -248,7 +243,7 @@ func buildFieldComparison(
 	if err != nil {
 		return nil, err
 	}
-	appendNewlineAndIndent(q, indent)
+	q.appendNewlineAndIndent(indent)
 	q.WriteString(mapping.column + " " + sqlComparisonOperators[op] + " ?")
 	return append(args, value), nil
 }
@@ -324,8 +319,7 @@ func spanStatusColumnValue(word string) (string, error) {
 // stored type, the same authoritative-type rule RFC 0005 §5.4 states; an untyped AnyValue
 // resolves against whatever type(s) metadata reports the key stored at the requested level(s),
 // falling back to a literal string match when metadata knows nothing about it.
-func buildAttributeComparison(
-	q *strings.Builder,
+func (q *sqlBuilder) buildAttributeComparison(
 	indent int,
 	args []any,
 	metadata attributeMetadata,
@@ -338,15 +332,15 @@ func buildAttributeComparison(
 	}
 	switch v := valueExpr.(type) {
 	case *expression.StringValue:
-		return buildAttributeEqAcrossLevels(q, indent, args, ref.Key, levels, pcommon.ValueTypeStr, v.Value), nil
+		return q.buildAttributeEqAcrossLevels(indent, args, ref.Key, levels, pcommon.ValueTypeStr, v.Value), nil
 	case *expression.IntValue:
-		return buildAttributeEqAcrossLevels(q, indent, args, ref.Key, levels, pcommon.ValueTypeInt, v.Value), nil
+		return q.buildAttributeEqAcrossLevels(indent, args, ref.Key, levels, pcommon.ValueTypeInt, v.Value), nil
 	case *expression.DoubleValue:
-		return buildAttributeEqAcrossLevels(q, indent, args, ref.Key, levels, pcommon.ValueTypeDouble, v.Value), nil
+		return q.buildAttributeEqAcrossLevels(indent, args, ref.Key, levels, pcommon.ValueTypeDouble, v.Value), nil
 	case *expression.BoolValue:
-		return buildAttributeEqAcrossLevels(q, indent, args, ref.Key, levels, pcommon.ValueTypeBool, v.Value), nil
+		return q.buildAttributeEqAcrossLevels(indent, args, ref.Key, levels, pcommon.ValueTypeBool, v.Value), nil
 	case *expression.AnyValue:
-		return buildUntypedAttributeEq(metadata, q, indent, args, ref.Key, levels, v.Value)
+		return q.buildUntypedAttributeEq(metadata, indent, args, ref.Key, levels, v.Value)
 	default:
 		return nil, errTypedConstant(valueExpr)
 	}
@@ -366,34 +360,15 @@ func attributeLevelsToSearch(level expression.Level) ([]expression.Level, error)
 	}
 }
 
-// attributeLocation is where a level's attributes live: the arrayExists column prefix
-// query_builder.go's helpers already use, and whether that level is a nested array (event,
-// link) rather than a flat one (span, resource, scope).
-func attributeLocation(level expression.Level) (prefix string, nested bool) {
-	switch level {
-	case expression.LevelResource:
-		return "resource", false
-	case expression.LevelScope:
-		return "scope", false
-	case expression.LevelEvent:
-		return "events", true
-	case expression.LevelLink:
-		return "links", true
-	default: // expression.LevelSpan
-		return "", false
-	}
-}
-
 // attributeCandidate is one (level, typed value) pair an attribute equality is lowered to: one
-// arrayExists over that level's column of that type.
+// condition on that level's column of that type.
 type attributeCandidate struct {
 	level expression.Level
 	tav   typedAttributeValue
 }
 
 // buildAttributeEqAcrossLevels ORs an equality of one declared type across every level in levels.
-func buildAttributeEqAcrossLevels(
-	q *strings.Builder,
+func (q *sqlBuilder) buildAttributeEqAcrossLevels(
 	indent int,
 	args []any,
 	key string,
@@ -412,28 +387,22 @@ func buildAttributeEqAcrossLevels(
 			},
 		})
 	}
-	return appendAttributeCandidates(q, indent, args, candidates)
+	return q.appendAttributeCandidates(indent, args, candidates)
 }
 
-// appendAttributeCandidates ORs one arrayExists (or nested arrayExists) per candidate, wrapped
-// in parentheses so the disjunction survives nesting.
-func appendAttributeCandidates(q *strings.Builder, indent int, args []any, candidates []attributeCandidate) []any {
-	appendNewlineAndIndent(q, indent)
+// appendAttributeCandidates ORs one condition per candidate, wrapped in parentheses so the
+// disjunction survives nesting.
+func (q *sqlBuilder) appendAttributeCandidates(indent int, args []any, candidates []attributeCandidate) []any {
+	q.appendNewlineAndIndent(indent)
 	q.WriteString("(")
 	for i, c := range candidates {
 		if i > 0 {
-			appendNewlineAndIndent(q, indent+1)
+			q.appendNewlineAndIndent(indent + 1)
 			q.WriteString("OR")
 		}
-		prefix, nested := attributeLocation(c.level)
-		if nested {
-			appendNestedArrayExists(q, indent+1, prefix, c.tav.valueType)
-		} else {
-			appendArrayExists(q, indent+1, prefix, c.tav.valueType)
-		}
-		args = append(args, c.tav.key, c.tav.value)
+		args = q.appendAttributeEquals(indent+1, args, c.level, c.tav)
 	}
-	appendNewlineAndIndent(q, indent)
+	q.appendNewlineAndIndent(indent)
 	q.WriteString(")")
 	return args
 }
@@ -464,7 +433,7 @@ func collectUntypedAttributeKeys(predicate *expression.Call, keys pcommon.Map) {
 		}
 	default:
 		// Every other operator either has no sub-predicates to walk into or names no
-		// attribute this collection pass cares about; buildFilterCondition is what
+		// attribute this collection pass cares about; filterCondition is what
 		// refuses an operator this capability declaration does not cover.
 	}
 }
@@ -472,9 +441,8 @@ func collectUntypedAttributeKeys(predicate *expression.Call, keys pcommon.Map) {
 // buildUntypedAttributeEq resolves an untyped constant against the metadata already looked up for
 // its tree, restricted to levels rather than always searching every one metadata reports. A key
 // the metadata does not know resolves to nothing here and takes the literal string fallback.
-func buildUntypedAttributeEq(
+func (q *sqlBuilder) buildUntypedAttributeEq(
 	metadata attributeMetadata,
-	q *strings.Builder,
 	indent int,
 	args []any,
 	key string,
@@ -496,11 +464,11 @@ func buildUntypedAttributeEq(
 	}
 	if len(candidates) == 0 {
 		// No metadata for this key at any requested level: fall back to a literal string
-		// match, the same default appendStringAttributeFallback uses for the legacy map.
-		return buildAttributeEqAcrossLevels(q, indent, args, key, levels, pcommon.ValueTypeStr, raw), nil
+		// match, the same default buildStringAttributeCondition uses for the legacy map.
+		return q.buildAttributeEqAcrossLevels(indent, args, key, levels, pcommon.ValueTypeStr, raw), nil
 	}
 
-	return appendAttributeCandidates(q, indent, args, candidates), nil
+	return q.appendAttributeCandidates(indent, args, candidates), nil
 }
 
 func attributeTypesForLevel(lt attrTypes, level expression.Level) []pcommon.ValueType {

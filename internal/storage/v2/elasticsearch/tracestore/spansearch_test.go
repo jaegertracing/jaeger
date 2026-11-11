@@ -45,7 +45,7 @@ func collectSpanPage(t *testing.T, seq func(func(tracestore.PageChunk[ptrace.Tra
 
 func TestTraceReader_FindSpans(t *testing.T) {
 	query := spanQuery()
-	query.OrderBy = []tracestore.SpanSortOrder{{Expression: &expression.FieldRef{Level: expression.LevelSpan, Name: expression.SpanFieldDuration}}}
+	query.OrderBy = []tracestore.SpanSortOrder{tracestore.OrderBySpanField(expression.SpanFieldDuration, "")}
 	effective, err := tracestore.EffectiveSpanOrder(query.OrderBy)
 	require.NoError(t, err)
 	spans := []dbmodel.Span{
@@ -84,10 +84,7 @@ func TestTraceReader_FindSpans(t *testing.T) {
 	require.NoError(t, err)
 
 	// An equivalent explicit default order shares the fingerprint, so the token still applies.
-	query.OrderBy = append(query.OrderBy, tracestore.SpanSortOrder{
-		Expression: &expression.FieldRef{Level: expression.LevelSpan, Name: expression.SpanFieldStartTime},
-		Direction:  tracestore.SortDescending,
-	})
+	query.OrderBy = append(query.OrderBy, tracestore.OrderBySpanField(expression.SpanFieldStartTime, tracestore.SortDescending))
 	coreReader.On("FindSpans", mock.Anything, mock.Anything).Return(dbmodel.SpanPage{}, nil).Once()
 	_, err = collectSpanPage(t, reader.FindSpans(context.Background(), query))
 	require.NoError(t, err)
@@ -105,7 +102,7 @@ func TestTraceReader_FindSpans_Errors(t *testing.T) {
 		wants string
 	}{
 		{name: "InvalidOrder", query: func(q *tracestore.SpanQueryParams) {
-			q.OrderBy = []tracestore.SpanSortOrder{{Expression: &expression.FieldRef{Level: expression.LevelSpan, Name: "name"}}}
+			q.OrderBy = []tracestore.SpanSortOrder{tracestore.OrderBySpanField("name", "")}
 		}, want: tracestore.ErrSpanOrderInvalid},
 		{name: "UnfingerprintableFilter", query: func(q *tracestore.SpanQueryParams) {
 			q.Filter = &expression.Call{Op: expression.OpEq, Args: []expression.Expression{(*expression.AttributeRef)(nil)}}

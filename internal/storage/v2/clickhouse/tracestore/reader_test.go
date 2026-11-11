@@ -1322,15 +1322,27 @@ func TestFindTraceIDs_BuildQueryError(t *testing.T) {
 
 // The search SQL appends every predicate conditionally, so ClickHouse answers a query
 // that omits the service name (RFC 0013).
-func TestReader_SearchCapabilities(t *testing.T) {
-	caps, err := (&Reader{}).SearchCapabilities(context.Background())
+// TestFindTraceIDs_Pagination covers the fold of RFC 0014 §6.2 inside the reader: the page size
+// bounds the search as its depth and the page is the last one, while a token is refused.
+func TestFindTraceIDs_Pagination(t *testing.T) {
+	driver := &clickhousetest.Driver{}
+	addTraceSearchResponses(driver)
+	reader := NewReader(driver, testReaderConfig)
+
+	traceIDs, err := flattenPageChunks(reader.FindTraceIDs(context.Background(), tracestore.TraceQueryParams{
+		Attributes: pcommon.NewMap(),
+		Pagination: &tracestore.Pagination{PageSize: 7},
+	}))
 	require.NoError(t, err)
-	filter := FilterCapabilities()
-	assert.Equal(t, tracestore.SearchCapabilities{
-		WithoutServiceName:  true,
-		SameSpanConjunction: true,
-		Filter:              &filter,
-	}, caps)
+	require.Len(t, traceIDs, 1)
+	require.Len(t, driver.RecordedArgs, 2)
+	assert.Equal(t, []any{uint32(7)}, driver.RecordedArgs[0], "the page size bounds the candidate search")
+
+	_, err = flattenPageChunks(reader.FindTraceIDs(context.Background(), tracestore.TraceQueryParams{
+		Attributes: pcommon.NewMap(),
+		Pagination: &tracestore.Pagination{PageSize: 7, PageToken: "token"},
+	}))
+	require.ErrorIs(t, err, tracestore.ErrPaginationUnsupported)
 }
 
 func addTraceSearchResponses(conn *clickhousetest.Driver) {

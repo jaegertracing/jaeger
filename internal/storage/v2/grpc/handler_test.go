@@ -1196,7 +1196,7 @@ func TestHandler_FindSpansPreservesQuery(t *testing.T) {
 		Filter:       &expression.Call{Op: "custom", Args: []expression.Expression{}},
 		OrderBy: []tracestore.SpanSortOrder{
 			{Expression: &expression.AttributeRef{Level: expression.LevelSpan, Key: "priority"}},
-			{Expression: &expression.FieldRef{Level: expression.LevelSpan, Name: "custom"}, Direction: "custom"},
+			tracestore.OrderBySpanField("custom", "custom"),
 		},
 		Pagination: tracestore.Pagination{PageSize: 5, PageToken: "cursor"},
 	}

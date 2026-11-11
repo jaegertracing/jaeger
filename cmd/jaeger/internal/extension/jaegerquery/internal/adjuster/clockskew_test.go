@@ -4,6 +4,10 @@
 package adjuster
 
 import (
+	"encoding/binary"
+	"os"
+	"os/exec"
+	"runtime/debug"
 	"testing"
 	"time"
 
@@ -225,6 +229,89 @@ func TestClockSkewAdjuster(t *testing.T) {
 			assert.Equal(t, testCase.err, gotErr)
 		})
 	}
+}
+
+func TestClockSkewAdjusterRestoresSkewBetweenSiblings(t *testing.T) {
+	toTime := func(milliseconds int) time.Time {
+		return time.Unix(0, (time.Duration(milliseconds) * time.Millisecond).Nanoseconds()).UTC()
+	}
+	makeNode := func(id byte, start, duration int, host string) *node {
+		span := ptrace.NewSpan()
+		span.SetSpanID(pcommon.SpanID([8]byte{id}))
+		span.SetStartTimestamp(pcommon.NewTimestampFromTime(toTime(start)))
+		span.SetEndTimestamp(pcommon.NewTimestampFromTime(toTime(start + duration)))
+		return &node{span: span, hostKey: host}
+	}
+
+	root := makeNode(1, 10, 100, "a")
+	branch := makeNode(2, 0, 50, "b")
+	childC := makeNode(3, 0, 10, "c")
+	childB1 := makeNode(4, 5, 10, "b")
+	childB2 := makeNode(5, 10, 10, "b")
+	root.children = []*node{branch}
+	// Children are built from a map, so their order is fixed here to make sure
+	// the different-host child is visited before its same-host siblings.
+	branch.children = []*node{childC, childB1, childB2}
+
+	adjuster := clockSkewAdjuster{maxDelta: time.Second}
+	adjuster.adjustNode(root, nil, clockSkew{hostKey: root.hostKey})
+
+	assert.Equal(t, toTime(10), root.span.StartTimestamp().AsTime())
+	assert.Equal(t, toTime(35), branch.span.StartTimestamp().AsTime())
+	assert.Equal(t, toTime(55), childC.span.StartTimestamp().AsTime())
+	assert.Equal(t, toTime(40), childB1.span.StartTimestamp().AsTime())
+	assert.Equal(t, toTime(45), childB2.span.StartTimestamp().AsTime())
+}
+
+func TestClockSkewAdjusterDeepTrace(t *testing.T) {
+	const childProcessEnv = "JAEGER_TEST_CLOCK_SKEW_DEEP_TRACE"
+	if os.Getenv(childProcessEnv) != "1" {
+		// Exceeding the maximum stack size is a fatal error that cannot be recovered,
+		// so the walk runs in a child process to report it as a test failure.
+		cmd := exec.CommandContext(t.Context(), os.Args[0], "-test.run=^"+t.Name()+"$", "-test.count=1")
+		cmd.Env = append(os.Environ(), childProcessEnv+"=1")
+		output, err := cmd.CombinedOutput()
+		require.NoErrorf(t, err, "deep-trace subprocess failed:\n%s", output)
+		return
+	}
+
+	toTimestamp := func(milliseconds int) pcommon.Timestamp {
+		return pcommon.NewTimestampFromTime(time.UnixMilli(int64(milliseconds)))
+	}
+	newSpan := func(spans ptrace.SpanSlice, id uint64, parentID pcommon.SpanID, start, duration int) ptrace.Span {
+		var spanID pcommon.SpanID
+		binary.BigEndian.PutUint64(spanID[:], id)
+		span := spans.AppendEmpty()
+		span.SetSpanID(spanID)
+		span.SetParentSpanID(parentID)
+		span.SetStartTimestamp(toTimestamp(start))
+		span.SetEndTimestamp(toTimestamp(start + duration))
+		return span
+	}
+
+	// A single chain of spans on host "a", ending in a span from host "b" that
+	// starts before its parent and therefore needs adjustment.
+	const depth = 10_000
+	traces := ptrace.NewTraces()
+	resourceA := traces.ResourceSpans().AppendEmpty()
+	resourceA.Resource().Attributes().PutStr("host.name", "a")
+	spansA := resourceA.ScopeSpans().AppendEmpty().Spans()
+	parentID := pcommon.NewSpanIDEmpty()
+	for i := uint64(1); i < depth; i++ {
+		parentID = newSpan(spansA, i, parentID, 10, 100).SpanID()
+	}
+	resourceB := traces.ResourceSpans().AppendEmpty()
+	resourceB.Resource().Attributes().PutStr("host.name", "b")
+	leaf := newSpan(resourceB.ScopeSpans().AppendEmpty().Spans(), depth, parentID, 0, 50)
+
+	// A recursive walk needs well over 256 KiB of stack for this depth.
+	previousMaxStack := debug.SetMaxStack(256 << 10)
+	defer debug.SetMaxStack(previousMaxStack)
+	CorrectClockSkew(time.Second).Adjust(traces)
+
+	// latency = (100 - 50) / 2 = 25, delta = (10 - 0) + latency = 35
+	assert.Equal(t, toTimestamp(35), leaf.StartTimestamp())
+	assert.Equal(t, toTimestamp(85), leaf.EndTimestamp())
 }
 
 func TestHostKey(t *testing.T) {

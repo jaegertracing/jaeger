@@ -1094,8 +1094,8 @@ func TestToProtoQueryParameters_SearchDepth(t *testing.T) {
 
 func spanOrder() []tracestore.SpanSortOrder {
 	return []tracestore.SpanSortOrder{
-		{Expression: &expression.FieldRef{Level: expression.LevelSpan, Name: "duration"}, Direction: tracestore.SortDescending},
-		{Expression: &expression.FieldRef{Level: expression.LevelSpan, Name: "traceID"}, Direction: tracestore.SortAscending},
+		tracestore.OrderBySpanField("duration", tracestore.SortDescending),
+		tracestore.OrderBySpanField("traceID", tracestore.SortAscending),
 	}
 }
 
