@@ -124,6 +124,39 @@ func TestStrategiesValidate(t *testing.T) {
 			wantErr: `service "svc", operation "op": probabilistic sampling param must be between 0 and 1, got 10`,
 		},
 		{
+			name: "null service strategy",
+			strategies: &strategies{
+				ServiceStrategies: []*serviceStrategy{
+					{Service: "a", strategy: strategy{Type: samplerTypeProbabilistic, Param: 0.5}},
+					nil,
+				},
+			},
+			wantErr: "service strategy 1 must not be null",
+		},
+		{
+			name: "null operation strategy",
+			strategies: &strategies{
+				ServiceStrategies: []*serviceStrategy{
+					{
+						Service:             "svc",
+						strategy:            strategy{Type: samplerTypeProbabilistic, Param: 0.5},
+						OperationStrategies: []*operationStrategy{nil},
+					},
+				},
+			},
+			wantErr: `service "svc": operation strategy 0 must not be null`,
+		},
+		{
+			name: "null default operation strategy",
+			strategies: &strategies{
+				DefaultStrategy: &serviceStrategy{
+					strategy:            strategy{Type: samplerTypeProbabilistic, Param: 0.5},
+					OperationStrategies: []*operationStrategy{nil},
+				},
+			},
+			wantErr: "default strategy: operation strategy 0 must not be null",
+		},
+		{
 			name: "default operation ratelimiting negative",
 			strategies: &strategies{
 				DefaultStrategy: &serviceStrategy{
@@ -175,6 +208,16 @@ func TestNewProviderRejectsInvalidParam(t *testing.T) {
 			name:    "ratelimiting above int32",
 			content: `{"service_strategies":[{"service":"svc","type":"ratelimiting","param":3000000000}]}`,
 			wantErr: `invalid sampling strategies: service "svc": ratelimiting sampling param must be between 0 and 2147483647, got 3e+09`,
+		},
+		{
+			name:    "null service strategy",
+			content: `{"default_strategy":{"type":"probabilistic","param":0.5},"service_strategies":[null]}`,
+			wantErr: "invalid sampling strategies: service strategy 0 must not be null",
+		},
+		{
+			name:    "null operation strategy",
+			content: `{"service_strategies":[{"service":"svc","type":"probabilistic","param":0.5,"operation_strategies":[null]}]}`,
+			wantErr: `invalid sampling strategies: service "svc": operation strategy 0 must not be null`,
 		},
 	}
 	for _, test := range tests {

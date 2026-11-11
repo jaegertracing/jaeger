@@ -59,7 +59,12 @@ func (s *serviceStrategy) validate(where string) error {
 	if err := s.strategy.validate(where); err != nil {
 		return err
 	}
-	for _, op := range s.OperationStrategies {
+	for i, op := range s.OperationStrategies {
+		// A JSON null in the list unmarshals to a nil pointer, which
+		// parseServiceStrategies would dereference.
+		if op == nil {
+			return fmt.Errorf("%s: operation strategy %d must not be null", where, i)
+		}
 		if err := op.validate(fmt.Sprintf("%s, operation %q", where, op.Operation)); err != nil {
 			return err
 		}
@@ -79,7 +84,10 @@ func (s *strategies) validate() error {
 			return err
 		}
 	}
-	for _, svc := range s.ServiceStrategies {
+	for i, svc := range s.ServiceStrategies {
+		if svc == nil {
+			return fmt.Errorf("service strategy %d must not be null", i)
+		}
 		if err := svc.validate(fmt.Sprintf("service %q", svc.Service)); err != nil {
 			return err
 		}
