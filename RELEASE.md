@@ -13,6 +13,10 @@ This script will:
 - Create a GitHub issue with the complete release checklist
 - Include the exact automation commands with the correct version numbers
 
+Pass `-v <version>` (e.g. `-v 2.14.0` or `-v v2.14.0`) to set the version directly instead
+of being prompted, so the script can run unattended. Combine with `-d` for a dry run that
+prints the issue body without creating anything.
+
 Example output:
 ```
 Current version: v2.13.0
