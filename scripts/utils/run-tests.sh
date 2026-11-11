@@ -44,6 +44,8 @@ main() {
         echo "Error: shunit2 not found at ${SHUNIT2}/shunit2"
         exit 1
     fi
+    python3 -m unittest discover -s "$REPO_ROOT/scripts/demo" -p "*_test.py" -v || return 1
+
     local failed=0
     local total=0
     local passed=0
