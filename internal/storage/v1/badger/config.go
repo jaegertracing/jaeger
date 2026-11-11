@@ -4,6 +4,7 @@
 package badger
 
 import (
+	"errors"
 	"os"
 	"path/filepath"
 	"time"
@@ -84,7 +85,18 @@ func getCurrentExecutableDir() string {
 	return filepath.Dir(exec)
 }
 
+var (
+	ErrMaintenanceInterval   = errors.New("maintenance_interval must be greater than 0")
+	ErrMetricsUpdateInterval = errors.New("metrics_update_interval must be greater than 0")
+)
+
 func (c *Config) Validate() error {
+	if c.MaintenanceInterval <= 0 {
+		return ErrMaintenanceInterval
+	}
+	if c.MetricsUpdateInterval <= 0 {
+		return ErrMetricsUpdateInterval
+	}
 	_, err := govalidator.ValidateStruct(c)
 	return err
 }

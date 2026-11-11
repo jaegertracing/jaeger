@@ -16,8 +16,8 @@ func TestValidate_DoesNotReturnErrorWhenValid(t *testing.T) {
 		cfg  *Config
 	}{
 		{
-			name: "non-required fields not set",
-			cfg:  &Config{},
+			name: "default config",
+			cfg:  DefaultConfig(),
 		},
 		{
 			name: "all fields are set",
@@ -42,6 +42,54 @@ func TestValidate_DoesNotReturnErrorWhenValid(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			err := test.cfg.Validate()
 			require.NoError(t, err)
+		})
+	}
+}
+
+func TestValidate_NonPositiveIntervals(t *testing.T) {
+	tests := []struct {
+		name        string
+		cfg         *Config
+		expectedErr error
+	}{
+		{
+			name: "zero maintenance interval",
+			cfg: &Config{
+				MaintenanceInterval:   0,
+				MetricsUpdateInterval: time.Second,
+			},
+			expectedErr: ErrMaintenanceInterval,
+		},
+		{
+			name: "negative maintenance interval",
+			cfg: &Config{
+				MaintenanceInterval:   -1 * time.Second,
+				MetricsUpdateInterval: time.Second,
+			},
+			expectedErr: ErrMaintenanceInterval,
+		},
+		{
+			name: "zero metrics update interval",
+			cfg: &Config{
+				MaintenanceInterval:   time.Minute,
+				MetricsUpdateInterval: 0,
+			},
+			expectedErr: ErrMetricsUpdateInterval,
+		},
+		{
+			name: "negative metrics update interval",
+			cfg: &Config{
+				MaintenanceInterval:   time.Minute,
+				MetricsUpdateInterval: -5 * time.Second,
+			},
+			expectedErr: ErrMetricsUpdateInterval,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			err := test.cfg.Validate()
+			require.ErrorIs(t, err, test.expectedErr)
 		})
 	}
 }
