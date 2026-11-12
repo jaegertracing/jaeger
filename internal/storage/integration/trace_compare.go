@@ -12,11 +12,11 @@ import (
 
 	"github.com/davecgh/go-spew/spew"
 	"github.com/open-telemetry/opentelemetry-collector-contrib/pkg/pdatatest/ptracetest"
-	"github.com/open-telemetry/opentelemetry-collector-contrib/pkg/pdatautil"
 	"github.com/pmezard/go-difflib/difflib"
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/collector/pdata/pcommon"
 	"go.opentelemetry.io/collector/pdata/ptrace"
+	"go.opentelemetry.io/collector/pdata/xpdata/xhash"
 
 	"github.com/jaegertracing/jaeger/internal/jptrace"
 )
@@ -181,8 +181,8 @@ func compareSpanIDs(a, b pcommon.SpanID) int {
 }
 
 func compareAttributes(a, b pcommon.Map) int {
-	aAttrs := pdatautil.MapHash(a)
-	bAttrs := pdatautil.MapHash(b)
+	aAttrs := xhash.MapHash(a)
+	bAttrs := xhash.MapHash(b)
 	return bytes.Compare(aAttrs[:], bAttrs[:])
 }
 

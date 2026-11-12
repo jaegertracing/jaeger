@@ -253,13 +253,23 @@ func (s *StorageIntegration) assertTraceByID(
 	expected ptrace.Traces,
 	validator func(t *testing.T, actual ptrace.Traces),
 ) {
+	// The skip runs before the trace ID is read: a backend that skips the large or duplicate
+	// trace assertion has no such trace in its corpus.
 	s.skipIfNeeded(t)
+	s.assertTrace(t, tracestore.GetTraceParams{TraceID: jptrace.GetTraceID(expected)}, expected, validator)
+}
 
-	expectedTraceID := jptrace.GetTraceID(expected)
-
+// assertTrace loads one trace through GetTraces with the given parameters, waits until it holds
+// at least the expected spans, and hands it to validator. Callers run skipIfNeeded first.
+func (s *StorageIntegration) assertTrace(
+	t *testing.T,
+	params tracestore.GetTraceParams,
+	expected ptrace.Traces,
+	validator func(t *testing.T, actual ptrace.Traces),
+) {
 	actual := ptrace.NewTraces()
 	found := s.waitForCondition(t, func(_ *testing.T) bool {
-		iterTraces := s.TraceReader.GetTraces(context.Background(), tracestore.GetTraceParams{TraceID: expectedTraceID})
+		iterTraces := s.TraceReader.GetTraces(context.Background(), params)
 		traces, err := jiter.CollectWithErrors(jptrace.AggregateTraces(iterTraces))
 		if err != nil {
 			t.Logf("Error loading trace: %v", err)
@@ -284,6 +294,22 @@ func (s *StorageIntegration) assertTraceByID(
 	}
 }
 
+// testGetTraceWithBounds reads the bounded trace with Start and End set to its first and last
+// span start. Every span lies inside the window, so the trace must come back whole.
+func (s *StorageIntegration) testGetTraceWithBounds(t *testing.T) {
+	s.skipIfNeeded(t)
+	expected := s.Corpus.Bounded
+	spans := expected.ResourceSpans().At(0).ScopeSpans().At(0).Spans()
+	params := tracestore.GetTraceParams{
+		TraceID: jptrace.GetTraceID(expected),
+		Start:   spans.At(0).StartTimestamp().AsTime(),
+		End:     spans.At(spans.Len() - 1).StartTimestamp().AsTime(),
+	}
+	s.assertTrace(t, params, expected, func(t *testing.T, actual ptrace.Traces) {
+		CompareTraces(t, expected, actual)
+	})
+}
+
 func (s *StorageIntegration) testGetLargeTrace(t *testing.T) {
 	s.assertTraceByID(t, s.Corpus.Large, nil)
 }
@@ -301,6 +327,40 @@ func (s *StorageIntegration) testGetTraceWithDuplicates(t *testing.T) {
 		assert.Positive(t, duplicateCount, "Duplicate SpanIDs should be present in the trace")
 	}
 	s.assertTraceByID(t, s.Corpus.Duplicates, validator)
+}
+
+// testGetTraceWithNonFiniteDoubles reads back the trace whose attributes hold NaN and the two
+// infinities. CompareTraces cannot check it, because NaN never equals itself, so each attribute
+// is checked by its class instead.
+func (s *StorageIntegration) testGetTraceWithNonFiniteDoubles(t *testing.T) {
+	expected := s.Corpus.NonFinite
+	s.assertTraceByID(t, expected, func(t *testing.T, actual ptrace.Traces) {
+		require.Equal(t, 1, actual.SpanCount())
+		rs := actual.ResourceSpans().At(0)
+		span := rs.ScopeSpans().At(0).Spans().At(0)
+		require.Equal(t, 1, span.Events().Len())
+		assertNonFiniteAttributes(t, "resource", rs.Resource().Attributes())
+		assertNonFiniteAttributes(t, "span", span.Attributes())
+		assertNonFiniteAttributes(t, "event", span.Events().At(0).Attributes())
+	})
+}
+
+func assertNonFiniteAttributes(t *testing.T, level string, attrs pcommon.Map) {
+	for key, expected := range nonFiniteAttributes {
+		actual, ok := attrs.Get(key)
+		if !assert.True(t, ok, "%s attribute %q is missing", level, key) {
+			continue
+		}
+		if !assert.Equal(t, pcommon.ValueTypeDouble, actual.Type(), "%s attribute %q came back as %v", level, key, actual.AsString()) {
+			continue
+		}
+		switch {
+		case math.IsNaN(expected):
+			assert.True(t, math.IsNaN(actual.Double()), "%s attribute %q is %v, want NaN", level, key, actual.Double())
+		default:
+			assert.InDelta(t, expected, actual.Double(), 0, "%s attribute %q", level, key)
+		}
+	}
 }
 
 func (s *StorageIntegration) testGetOperations(t *testing.T) {
@@ -743,9 +803,12 @@ func (s *StorageIntegration) AssertCorpus(t *testing.T) {
 	t.Run("GetServices", s.testGetServices)
 	t.Run("GetOperations", s.testGetOperations)
 	t.Run("GetTrace", s.testGetTrace)
+	t.Run("GetTraceWithBounds", s.testGetTraceWithBounds)
 	t.Run("GetLargeTrace", s.testGetLargeTrace)
 	t.Run("GetTraceWithDuplicateSpans", s.testGetTraceWithDuplicates)
+	t.Run("GetTraceWithNonFiniteDoubles", s.testGetTraceWithNonFiniteDoubles)
 	t.Run("FindTraces", s.testFindTraces)
+	t.Run("FindCompleteTraces", s.testFindCompleteTraces)
 	t.Run("FindTracesWithFilter", s.testFindTracesWithFilter)
 	t.Run("FindTraceSummaries", s.testFindTraceSummaries)
 	t.Run("Pagination", s.testPagination)

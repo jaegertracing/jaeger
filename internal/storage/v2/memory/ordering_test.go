@@ -51,7 +51,7 @@ func TestFindSpansOrdering(t *testing.T) {
 	} {
 		for _, direction := range []tracestore.SortDirection{tracestore.SortAscending, tracestore.SortDescending} {
 			t.Run(tc.field+string(direction), func(t *testing.T) {
-				query := tracestore.SpanQueryParams{OrderBy: []tracestore.SpanSortOrder{{Expression: &expression.FieldRef{Level: expression.LevelSpan, Name: tc.field}, Direction: direction}}, Pagination: tracestore.Pagination{PageSize: 1}}
+				query := tracestore.SpanQueryParams{OrderBy: []tracestore.SpanSortOrder{tracestore.OrderBySpanField(tc.field, direction)}, Pagination: tracestore.Pagination{PageSize: 1}}
 				var names []string
 				for range 4 {
 					chunk, err := findSpansPage(t, store, query)
@@ -91,7 +91,7 @@ func TestSpanOrderingCursorValues(t *testing.T) {
 }
 
 func TestSpanOrderingDuration(t *testing.T) {
-	order := []tracestore.SpanSortOrder{{Expression: &expression.FieldRef{Level: expression.LevelSpan, Name: "duration"}, Direction: tracestore.SortAscending}}
+	order := []tracestore.SpanSortOrder{tracestore.OrderBySpanField("duration", tracestore.SortAscending)}
 	span := ptrace.NewSpan()
 	span.SetStartTimestamp(42)
 	span.SetEndTimestamp(17)
@@ -128,7 +128,7 @@ func TestFindSpansOrderedDuplicatesAndChangedToken(t *testing.T) {
 	base := time.Date(2026, 3, 1, 12, 0, 0, 0, time.UTC)
 	writeTracesStartingAt(t, store, 2, base)
 	writeTracesStartingAt(t, store, 2, base)
-	query := tracestore.SpanQueryParams{OrderBy: []tracestore.SpanSortOrder{{Expression: &expression.FieldRef{Level: expression.LevelSpan, Name: "traceID"}, Direction: tracestore.SortAscending}}, Pagination: tracestore.Pagination{PageSize: 1}}
+	query := tracestore.SpanQueryParams{OrderBy: []tracestore.SpanSortOrder{tracestore.OrderBySpanField("traceID", tracestore.SortAscending)}, Pagination: tracestore.Pagination{PageSize: 1}}
 	var ids []byte
 	var firstToken tracestore.PageToken
 	for range 4 {

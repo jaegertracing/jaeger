@@ -73,18 +73,18 @@ func TestUIToolDescriptorsDeduplicatesNames(t *testing.T) {
 
 func TestAppendUITools(t *testing.T) {
 	// No UI tools → telemetry list returned unchanged.
-	telemetry := []*mcp.Tool{{Name: "get_services"}, {Name: "search_traces"}}
+	telemetry := []*mcp.Tool{{Name: "get_services"}, {Name: "find_traces"}}
 	assert.Equal(t, telemetry, appendUITools(telemetry, &turnState{}, zap.NewNop()))
 
 	// A UI tool named like a telemetry tool does not shadow it: the namespace
 	// keeps both, so the agent's telemetry capability never depends on what the
 	// frontend chose to call its tools.
 	sess := &turnState{uiTools: []json.RawMessage{
-		rawUITool(t, "search_traces"),
+		rawUITool(t, "find_traces"),
 		rawUITool(t, "show_chart"),
 	}}
-	merged := appendUITools([]*mcp.Tool{{Name: "get_services"}, {Name: "search_traces"}}, sess, zap.NewNop())
-	assert.Equal(t, []string{"get_services", "search_traces", UIToolPrefix + "search_traces", UIToolPrefix + "show_chart"}, toolNames(merged),
+	merged := appendUITools([]*mcp.Tool{{Name: "get_services"}, {Name: "find_traces"}}, sess, zap.NewNop())
+	assert.Equal(t, []string{"get_services", "find_traces", UIToolPrefix + "find_traces", UIToolPrefix + "show_chart"}, toolNames(merged),
 		"telemetry tools are kept whole and UI tools are appended under the namespace")
 }
 
@@ -104,13 +104,13 @@ func TestDispatchUIToolCall(t *testing.T) {
 	assert.True(t, res.IsError, "a closed stream is reported as a tool error")
 
 	// Invalid JSON arguments → error result.
-	res = emitUIToolCall(testStreamingClient(), "show_chart", json.RawMessage(`{not json`))
+	res = emitUIToolCall(testAGUIRun(), "show_chart", json.RawMessage(`{not json`))
 	assert.True(t, res.IsError, "invalid JSON arguments must return an error result")
 
 	// Success → non-error ack and the TOOL_CALL_* frames land on the stream.
 	rec := httptest.NewRecorder()
-	stream := newStreamingClient(context.Background(), rec, "t", "r")
-	res = emitUIToolCall(stream, "show_chart", json.RawMessage(`{"series":"latency"}`))
+	run := newAGUIRun(context.Background(), rec, "t", "r")
+	res = emitUIToolCall(run, "show_chart", json.RawMessage(`{"series":"latency"}`))
 	require.False(t, res.IsError)
 	assert.Contains(t, rec.Body.String(), "show_chart", "the tool-call lifecycle is emitted to the browser stream")
 }
@@ -125,10 +125,10 @@ func TestNewUIToolCallID(t *testing.T) {
 func TestUIDispatchMiddleware(t *testing.T) {
 	rec := httptest.NewRecorder()
 	turns := newTurnRegistry()
-	routeID := registerTurn(turns, newStreamingClient(context.Background(), rec, "t", "r"),
+	grant := registerTurn(turns, newAGUIRun(context.Background(), rec, "t", "r"),
 		[]json.RawMessage{rawUITool(t, "show_chart")})
 	mw := uiToolsMiddleware(turns, zap.NewNop())
-	ctx := context.WithValue(context.Background(), mcpRouteIDContextKey{}, routeID)
+	ctx := context.WithValue(context.Background(), mcpRouteIDContextKey{}, grant.routeID)
 
 	telemetryList := func(context.Context, string, mcp.Request) (mcp.Result, error) {
 		return &mcp.ListToolsResult{Tools: []*mcp.Tool{{Name: "get_services"}}}, nil

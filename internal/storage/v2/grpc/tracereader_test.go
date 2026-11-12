@@ -1094,8 +1094,8 @@ func TestToProtoQueryParameters_SearchDepth(t *testing.T) {
 
 func spanOrder() []tracestore.SpanSortOrder {
 	return []tracestore.SpanSortOrder{
-		{Expression: &expression.FieldRef{Level: expression.LevelSpan, Name: "duration"}, Direction: tracestore.SortDescending},
-		{Expression: &expression.FieldRef{Level: expression.LevelSpan, Name: "traceID"}, Direction: tracestore.SortAscending},
+		tracestore.OrderBySpanField("duration", tracestore.SortDescending),
+		tracestore.OrderBySpanField("traceID", tracestore.SortAscending),
 	}
 }
 
@@ -1178,7 +1178,7 @@ func TestFindTracesRemoteErrors(t *testing.T) {
 }
 
 func TestSpanQueryConversion(t *testing.T) {
-	filter := &expression.Call{Op: expression.OpEq, Args: []expression.Expression{&expression.FieldRef{Level: expression.LevelSpan, Name: "name"}, &expression.StringValue{Value: "operation"}}}
+	filter := p.Span().Name.Eq(p.String("operation"))
 	query := tracestore.SpanQueryParams{Filter: filter, OrderBy: spanOrder()}
 	wire, err := toProtoSpanQuery(query)
 	require.NoError(t, err)
