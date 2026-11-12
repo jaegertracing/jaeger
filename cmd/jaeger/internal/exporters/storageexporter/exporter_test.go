@@ -43,7 +43,7 @@ type mockStorageExt struct {
 	metricsFactory *factorymocks.MetricStoreFactory
 }
 
-func (*mockStorageExt) SetTenancyOptions(tenancy.Options) error { return nil }
+func (*mockStorageExt) SetTenancyOptions(tenancy.Options, ...string) error { return nil }
 
 var _ jaegerstorage.Extension = (*mockStorageExt)(nil)
 
@@ -94,7 +94,7 @@ type fakeFactoryExt struct {
 	factory tracestore.Factory
 }
 
-func (*fakeFactoryExt) SetTenancyOptions(tenancy.Options) error { return nil }
+func (*fakeFactoryExt) SetTenancyOptions(tenancy.Options, ...string) error { return nil }
 
 var _ jaegerstorage.Extension = (*fakeFactoryExt)(nil)
 

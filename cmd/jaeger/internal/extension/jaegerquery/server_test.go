@@ -122,15 +122,17 @@ func (fmf fakeMetricsFactory) CreateMetricsReader() (metricstore.Reader, error) 
 
 type fakeStorageExt struct{}
 
-func (fakeStorageExt) SetTenancyOptions(tenancy.Options) error { return nil }
+func (fakeStorageExt) SetTenancyOptions(tenancy.Options, ...string) error { return nil }
 
 type recordingStorageExt struct {
 	fakeStorageExt
-	options tenancy.Options
+	options      tenancy.Options
+	storageNames []string
 }
 
-func (s *recordingStorageExt) SetTenancyOptions(options tenancy.Options) error {
+func (s *recordingStorageExt) SetTenancyOptions(options tenancy.Options, storageNames ...string) error {
 	s.options = options
+	s.storageNames = storageNames
 	return errors.New("tenancy rejected")
 }
 
@@ -138,6 +140,7 @@ func TestServerPassesTenancyToStorage(t *testing.T) {
 	options := tenancy.Options{Enabled: true, Tenants: []string{"team-a"}}
 	cfg := createDefaultConfig().(*Config)
 	cfg.Tenancy = options
+	cfg.Storage.TracesArchive = "archive"
 	ext := &recordingStorageExt{}
 	host := storagetest.NewStorageHost().WithExtension(jaegerstorage.ID, ext)
 	s := newServer(cfg, component.TelemetrySettings{
@@ -148,6 +151,7 @@ func TestServerPassesTenancyToStorage(t *testing.T) {
 	err := s.Start(t.Context(), host)
 	require.ErrorContains(t, err, "tenancy rejected")
 	require.Equal(t, options, ext.options)
+	require.Equal(t, []string{"jaeger_storage", "archive"}, ext.storageNames)
 }
 
 var _ jaegerstorage.Extension = (*fakeStorageExt)(nil)

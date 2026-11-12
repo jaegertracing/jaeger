@@ -7,6 +7,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -110,26 +111,26 @@ func TestStorageTenancyOptions(t *testing.T) {
 	t.Run("matching lists are order independent", func(t *testing.T) {
 		ext := startStorageExtension(t, "memory", "").(*storageExt)
 		host := storagetest.NewStorageHost().WithExtension(ID, ext)
-		require.NoError(t, ConfigureTenancy(host, tenancy.Options{Enabled: true, Tenants: []string{"a", "b"}}))
+		require.NoError(t, ConfigureTenancy(host, tenancy.Options{Enabled: true, Tenants: []string{"a", "b"}}, "memory"))
 		_, err := GetTraceStoreFactory("memory", host)
 		require.NoError(t, err)
-		require.NoError(t, ConfigureTenancy(host, tenancy.Options{Enabled: true, Tenants: []string{"b", "a"}}))
-		require.NoError(t, ConfigureTenancy(host, tenancy.Options{}))
+		require.NoError(t, ConfigureTenancy(host, tenancy.Options{Enabled: true, Tenants: []string{"b", "a"}}, "memory"))
+		require.NoError(t, ConfigureTenancy(host, tenancy.Options{}, "memory"))
 	})
 
 	t.Run("different lists fail after initialization", func(t *testing.T) {
 		ext := startStorageExtension(t, "memory", "").(*storageExt)
 		host := storagetest.NewStorageHost().WithExtension(ID, ext)
-		require.NoError(t, ConfigureTenancy(host, tenancy.Options{Enabled: true, Tenants: []string{"a"}}))
+		require.NoError(t, ConfigureTenancy(host, tenancy.Options{Enabled: true, Tenants: []string{"a"}}, "memory"))
 		_, err := GetTraceStoreFactory("memory", host)
 		require.NoError(t, err)
-		require.ErrorContains(t, ConfigureTenancy(host, tenancy.Options{Enabled: true, Tenants: []string{"b"}}), "conflicting multi_tenancy tenant lists")
+		require.ErrorContains(t, ConfigureTenancy(host, tenancy.Options{Enabled: true, Tenants: []string{"b"}}, "memory"), "conflicting multi_tenancy tenant lists")
 	})
 
 	t.Run("empty list fails before initialization", func(t *testing.T) {
 		ext := startStorageExtension(t, "memory", "").(*storageExt)
 		host := storagetest.NewStorageHost().WithExtension(ID, ext)
-		require.NoError(t, ConfigureTenancy(host, tenancy.Options{Enabled: true}))
+		require.NoError(t, ConfigureTenancy(host, tenancy.Options{Enabled: true}, "memory"))
 		_, err := GetTraceStoreFactory("memory", host)
 		require.ErrorContains(t, err, "multi-tenancy is enabled with an empty tenant list")
 	})
@@ -139,12 +140,47 @@ func TestStorageTenancyOptions(t *testing.T) {
 		host := storagetest.NewStorageHost().WithExtension(ID, ext)
 		_, err := GetTraceStoreFactory("memory", host)
 		require.NoError(t, err)
-		require.ErrorContains(t, ConfigureTenancy(host, tenancy.Options{Enabled: true}), "multi-tenancy is enabled with an empty tenant list")
+		require.ErrorContains(t, ConfigureTenancy(host, tenancy.Options{Enabled: true}, "memory"), "multi-tenancy is enabled with an empty tenant list")
 	})
 
 	t.Run("unknown storage extension", func(t *testing.T) {
 		require.ErrorContains(t, ConfigureTenancy(componenttest.NewNopHost(), tenancy.Options{}), "cannot find extension")
 	})
+}
+
+func TestStorageTenancyOptionsAreScopedToConfiguredBackends(t *testing.T) {
+	newHost := func(t *testing.T) component.Host {
+		config := storageconfig.Config{
+			TraceBackends: map[string]storageconfig.TraceBackend{
+				"query":  {},
+				"remote": {Memory: &memory.Configuration{MaxTraces: 10000}},
+			},
+		}
+		ext := newStorageExt(&Config{Config: config}, noopTelemetrySettings())
+		return storagetest.NewStorageHost().WithExtension(ID, ext)
+	}
+
+	for _, remoteFirst := range []bool{false, true} {
+		t.Run(fmt.Sprintf("remote starts first=%t", remoteFirst), func(t *testing.T) {
+			host := newHost(t)
+			configureRemote := func() {
+				require.NoError(t, ConfigureTenancy(host, tenancy.Options{}, "remote"))
+				_, err := GetTraceStoreFactory("remote", host)
+				require.NoError(t, err)
+			}
+			configureQuery := func() {
+				require.NoError(t, ConfigureTenancy(host, tenancy.Options{Enabled: true}, "query"))
+			}
+
+			if remoteFirst {
+				configureRemote()
+				configureQuery()
+			} else {
+				configureQuery()
+				configureRemote()
+			}
+		})
+	}
 }
 
 func TestStorageExtensionRejectsMultipleInstances(t *testing.T) {

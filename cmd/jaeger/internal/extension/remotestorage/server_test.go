@@ -71,15 +71,17 @@ func newFakeFactory(name string) *fakeFactory {
 
 type fakeStorageExt struct{}
 
-func (fakeStorageExt) SetTenancyOptions(tenancy.Options) error { return nil }
+func (fakeStorageExt) SetTenancyOptions(tenancy.Options, ...string) error { return nil }
 
 type recordingStorageExt struct {
 	fakeStorageExt
-	options tenancy.Options
+	options      tenancy.Options
+	storageNames []string
 }
 
-func (s *recordingStorageExt) SetTenancyOptions(options tenancy.Options) error {
+func (s *recordingStorageExt) SetTenancyOptions(options tenancy.Options, storageNames ...string) error {
 	s.options = options
+	s.storageNames = storageNames
 	return errors.New("tenancy rejected")
 }
 
@@ -97,6 +99,7 @@ func TestServerPassesTenancyToStorage(t *testing.T) {
 	err := s.Start(t.Context(), host)
 	require.ErrorContains(t, err, "tenancy rejected")
 	require.Equal(t, options, ext.options)
+	require.Equal(t, []string{"jaeger_storage"}, ext.storageNames)
 }
 
 var _ jaegerstorage.Extension = (*fakeStorageExt)(nil)

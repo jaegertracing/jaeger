@@ -46,7 +46,7 @@ type mockStorageExt struct {
 	metricsFactory storage.MetricStoreFactory
 }
 
-func (*mockStorageExt) SetTenancyOptions(tenancy.Options) error { return nil }
+func (*mockStorageExt) SetTenancyOptions(tenancy.Options, ...string) error { return nil }
 
 func (*mockStorageExt) Start(context.Context, component.Host) error {
 	panic("not implemented")

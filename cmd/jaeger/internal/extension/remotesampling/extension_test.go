@@ -331,7 +331,7 @@ type fakeStorageExtensionForTest struct {
 	failOn      string
 }
 
-func (*fakeStorageExtensionForTest) SetTenancyOptions(tenancy.Options) error { return nil }
+func (*fakeStorageExtensionForTest) SetTenancyOptions(tenancy.Options, ...string) error { return nil }
 
 func (*fakeStorageExtensionForTest) Start(context.Context, component.Host) error { return nil }
 func (*fakeStorageExtensionForTest) Shutdown(context.Context) error              { return nil }

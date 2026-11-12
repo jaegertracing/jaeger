@@ -39,7 +39,7 @@ func (s *server) Start(ctx context.Context, host component.Host) error {
 	telset.Metrics = telset.Metrics.
 		Namespace(metrics.NSOptions{Name: "jaeger"}).
 		Namespace(metrics.NSOptions{Name: "remote_storage"})
-	if err := jaegerstorage.ConfigureTenancy(host, s.config.Tenancy); err != nil {
+	if err := jaegerstorage.ConfigureTenancy(host, s.config.Tenancy, s.config.Storage); err != nil {
 		return fmt.Errorf("cannot configure storage tenancy: %w", err)
 	}
 	tf, err := jaegerstorage.GetTraceStoreFactory(s.config.Storage, host)

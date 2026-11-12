@@ -35,49 +35,55 @@ type Extension interface {
 	extension.Extension
 	TraceStorageFactory(name string) (tracestore.Factory, error)
 	MetricStorageFactory(name string) (storage.MetricStoreFactory, error)
-	SetTenancyOptions(tenancy.Options) error
+	SetTenancyOptions(tenancy.Options, ...string) error
 }
 
 type storageExt struct {
-	config           *Config
-	telset           telemetry.Settings
-	factories        map[string]tracestore.Factory
-	metricsFactories map[string]storage.MetricStoreFactory
-	factoryMu        sync.Mutex
-	tenancyOptions   tenancy.Options
+	config            *Config
+	telset            telemetry.Settings
+	factories         map[string]tracestore.Factory
+	metricsFactories  map[string]storage.MetricStoreFactory
+	factoryMu         sync.Mutex
+	tenancyConfigured bool
+	tenants           []string
+	tenancyOptions    map[string]tenancy.Options
 }
 
-// ConfigureTenancy supplies server tenancy options before acquiring a storage factory.
-func ConfigureTenancy(host component.Host, options tenancy.Options) error {
+// ConfigureTenancy supplies server tenancy options for its storage backends before acquiring a factory.
+func ConfigureTenancy(host component.Host, options tenancy.Options, storageNames ...string) error {
 	ext, err := findExtension(host)
 	if err != nil {
 		return err
 	}
-	return ext.SetTenancyOptions(options)
+	return ext.SetTenancyOptions(options, storageNames...)
 }
 
-func (s *storageExt) SetTenancyOptions(options tenancy.Options) error {
-	if !options.Enabled {
-		return nil
-	}
+func (s *storageExt) SetTenancyOptions(options tenancy.Options, storageNames ...string) error {
 	s.factoryMu.Lock()
 	defer s.factoryMu.Unlock()
 
 	tenants := slices.Clone(options.Tenants)
 	slices.Sort(tenants)
 	tenants = slices.Compact(tenants)
-	if s.tenancyOptions.Enabled && !slices.Equal(s.tenancyOptions.Tenants, tenants) {
-		return errors.New("conflicting multi_tenancy tenant lists for jaeger_query and remote_storage")
+	if options.Enabled {
+		if s.tenancyConfigured && !slices.Equal(s.tenants, tenants) {
+			return errors.New("conflicting multi_tenancy tenant lists for jaeger_query and remote_storage")
+		}
+		s.tenancyConfigured = true
+		s.tenants = tenants
 	}
-	for name := range s.factories {
-		if s.config.TraceBackends[name].Memory != nil {
+	options.Tenants = tenants
+	if s.tenancyOptions == nil {
+		s.tenancyOptions = make(map[string]tenancy.Options)
+	}
+	for _, name := range storageNames {
+		if _, initialized := s.factories[name]; initialized && s.config.TraceBackends[name].Memory != nil {
 			if err := memory.ValidateTenancy(options); err != nil {
 				return fmt.Errorf("failed to initialize storage '%s': %w", name, err)
 			}
 		}
+		s.tenancyOptions[name] = options
 	}
-	options.Tenants = tenants
-	s.tenancyOptions = options
 	return nil
 }
 
@@ -177,6 +183,7 @@ func newStorageExt(cfg *Config, telset component.TelemetrySettings) *storageExt 
 		telset:           tset,
 		factories:        make(map[string]tracestore.Factory),
 		metricsFactories: make(map[string]storage.MetricStoreFactory),
+		tenancyOptions:   make(map[string]tenancy.Options),
 	}
 }
 
@@ -247,7 +254,7 @@ func (s *storageExt) TraceStorageFactory(name string) (tracestore.Factory, error
 		func(authCfg config.Authentication, backendType, backendName string) (extensionauth.HTTPClient, error) {
 			return s.resolveAuthenticator(s.telset.Host, authCfg, backendType, backendName)
 		},
-		s.tenancyOptions,
+		s.tenancyOptions[name],
 	)
 	if err != nil {
 		return nil, fmt.Errorf("failed to initialize storage '%s': %w", name, err)
