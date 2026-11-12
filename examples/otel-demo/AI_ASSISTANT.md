@@ -35,6 +35,10 @@ available if the agent is stopped or its OpenAI project exhausts its budget.
    HotROD, then passes it as `JAEGER_DEMO_GOOSE_IMAGE`. Scheduled runs may use the
    newest published SHA if the current commit's image is not available yet.
 
+   Publishing an image does not deploy or enable the assistant. Activation
+   requires the credential Secret, account checks, and an explicit Jaeger
+   deployment through the existing OTel demo upgrade path.
+
    For a deployment outside CI, build and publish the same Dockerfile and set
    `JAEGER_DEMO_GOOSE_IMAGE` to an explicit digest:
 
@@ -80,6 +84,15 @@ available if the agent is stopped or its OpenAI project exhausts its budget.
 
    The environment variable is set by the workflow automatically. An empty
    image is rejected during chart rendering before any workloads are changed.
+
+   Before changing releases, the script applies the Jaeger ingress manifest,
+   verifies its nginx controller class and exact chat route, and checks the
+   admitted resources against the source policy with `kubectl diff`. A missing,
+   rejected, unreadable, or different policy aborts the upgrade and scales any
+   existing Goose deployment to zero. If Kubernetes cannot stop Goose, revoke
+   its OpenAI key before retrying. This verifies the Kubernetes configuration;
+   the controller's actual enforcement and client-IP handling still require
+   the rollout checks below.
 
    The normal upgrade preserves the credential Secret. Clean mode saves only
    that Secret to a mode-0600 temporary file, recreates the namespace, and restores

@@ -510,22 +510,61 @@ cleanup() {
   log "Cleanup complete"
 }
 
-# Deploy HTTPS ingress resources
+stop_ai_after_ingress_failure() {
+  local deployment
+  log "Chat ingress prerequisite failed; stopping the AI agent"
+  if ! deployment=$(kubectl -n jaeger get deployment jaeger-goose --ignore-not-found -o name); then
+    err "Cannot inspect Goose; revoke its OpenAI key before retrying ingress reconciliation"
+  fi
+  if [[ -n "$deployment" ]] && ! kubectl -n jaeger scale deployment/jaeger-goose --replicas=0; then
+    err "Cannot stop Goose; revoke its OpenAI key before retrying ingress reconciliation"
+  fi
+  err "Chat ingress limits could not be verified; refusing the AI-enabled upgrade"
+}
+
+verify_ai_ingress() {
+  local controller
+  local protection
+  local template
+  controller=$(kubectl get ingressclass nginx -o 'jsonpath={.spec.controller}') || return 1
+  [[ "$controller" == "k8s.io/ingress-nginx" ]] || return 1
+
+  # shellcheck disable=SC2016 # These variables belong to the Go template.
+  template='{{- $annotations := .metadata.annotations -}}
+{{- if and (eq .spec.ingressClassName "nginx")
+  (index $annotations "nginx.ingress.kubernetes.io/limit-rpm")
+  (index $annotations "nginx.ingress.kubernetes.io/limit-connections")
+  (index $annotations "nginx.ingress.kubernetes.io/limit-burst-multiplier") -}}
+  {{- range .spec.rules -}}{{- if eq .host "jaeger.demo.jaegertracing.io" -}}
+    {{- range .http.paths -}}
+      {{- if and (eq .path "/api/ai/chat") (eq .pathType "Exact")
+        (eq .backend.service.name "jaeger-query-clusterip")
+        (eq (printf "%v" .backend.service.port.number) "16686") -}}protected{{- end -}}
+    {{- end -}}
+  {{- end -}}{{- end -}}
+{{- end -}}'
+  protection=$(kubectl -n jaeger get ingress jaeger-demo-ai-ingress -o "go-template=$template") || return 1
+  [[ "$protection" == "protected" ]] || return 1
+
+  # The manifest owns the limit values. A nonzero diff (including API errors)
+  # prevents an upgrade when the admitted resources differ from that policy.
+  kubectl diff -f "$SCRIPT_DIR/ingress/ingress-jaeger.yaml" >/dev/null
+}
+
+deploy_jaeger_ingress() {
+  log "Reconciling Jaeger ingress and chat limits before enabling AI"
+  if [[ ! -f "$SCRIPT_DIR/ingress/ingress-jaeger.yaml" ]] ||
+    ! kubectl apply -f "$SCRIPT_DIR/ingress/ingress-jaeger.yaml" ||
+    ! verify_ai_ingress; then
+    stop_ai_after_ingress_failure
+  fi
+  log "Jaeger ingress and chat-limit policy verified"
+}
+
+# Jaeger's ingress is a prerequisite of its AI-enabled Helm release. Reconcile
+# the remaining namespaces only after their workloads have been installed.
 deploy_ingress() {
-  log "Deploying HTTPS ingress resources..."
-
-  # Check if ingress files exist
-  if [[ ! -f "$SCRIPT_DIR/ingress/ingress-jaeger.yaml" ]]; then
-    log " Ingress files not found in $SCRIPT_DIR/ingress/ - skipping HTTPS setup"
-    return 0
-  fi
-
-  # Apply ingress for each namespace
-  if kubectl apply -f "$SCRIPT_DIR/ingress/ingress-jaeger.yaml" 2>&1 | grep -q "created\|configured\|unchanged"; then
-    log "Jaeger ingress configured (jaeger.demo.jaegertracing.io, hotrod.demo.jaegertracing.io)"
-  else
-    log " Failed to apply Jaeger ingress "
-  fi
+  log "Deploying remaining HTTPS ingress resources..."
 
   if kubectl apply -f "$SCRIPT_DIR/ingress/ingress-opensearch.yaml" 2>&1 | grep -q "created\|configured\|unchanged"; then
     log " OpenSearch ingress configured (opensearch.demo.jaegertracing.io)"
@@ -619,6 +658,10 @@ main() {
 
   if [[ "$MODE" == "clean" ]]; then
     cleanup_preserving_ai_secret
+  fi
+
+  if deploy_jaeger_stack; then
+    deploy_jaeger_ingress
   fi
 
   if deploy_opensearch_stack; then
