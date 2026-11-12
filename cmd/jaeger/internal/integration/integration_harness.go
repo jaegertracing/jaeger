@@ -236,9 +236,9 @@ func createStorageCleanerConfig(t *testing.T, configFile string, storage string)
 		query, isMap := queryAny.(map[string]any)
 		require.True(t, isMap, "expecting 'jaeger_query' to be a map, found: %T", queryAny)
 		if storageAny, found := query["storage"]; found {
-			storage, isMap := storageAny.(map[string]any)
+			queryStorage, isMap := storageAny.(map[string]any)
 			require.True(t, isMap, "expecting 'jaeger_query.storage' to be a map, found: %T", storageAny)
-			if traceStorageAny, found := storage["traces"]; found {
+			if traceStorageAny, found := queryStorage["traces"]; found {
 				traceStorage, ok = traceStorageAny.(string)
 				require.True(t, ok, "expecting 'jaeger_query.storage.traces' to be a string, found: %T", traceStorageAny)
 			}
