@@ -74,7 +74,12 @@ available if the agent is stopped or its OpenAI project exhausts its budget.
    [Cloud Shell bootstrap procedure](CLOUD_SHELL.md). Install the Secret once;
    subsequent CI deployments reuse it. The OpenAI and Goose credentials do not
    need to be copied into GitHub Actions secrets.
-5. Use the existing Jaeger-only upgrade path:
+5. Complete the shared ingress [client-IP setup](ingress/CLIENT_IP.md) before
+   activating the assistant. The OCI TCP load balancer needs PROXY protocol
+   paired with the controller's configuration; otherwise unrelated visitors
+   share the proxy address's limits. Verify real client addresses and rejection
+   of forged forwarding headers through the public endpoint.
+6. Use the existing Jaeger-only upgrade path:
 
    ```bash
    JAEGER_DEMO_GOOSE_IMAGE=YOUR_REGISTRY/jaeger-demo-goose@sha256:DIGEST \

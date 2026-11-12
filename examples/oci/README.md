@@ -87,6 +87,11 @@ ingress-nginx-controller   LoadBalancer   10.96.229.38    129.146.214.219   80:3
 
 > 🧠 Note: The `EXTERNAL-IP` is the public IP address your domain (e.g., `demo.jaegertracing.io`) should point to via DNS.
 
+For an OCI TCP load balancer, complete the shared controller's
+[client-IP setup](../otel-demo/ingress/CLIENT_IP.md) before relying on per-IP
+ingress limits. That procedure coordinates PROXY protocol on both sides and
+documents verification and recovery for all hostnames using the controller.
+
 ---
 
 ### Step 3: Apply the Ingress Resource
