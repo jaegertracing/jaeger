@@ -132,6 +132,24 @@ testPrepareFailsWhenUITagMissing() {
   assertFalse "gh was called" "[ -s '$GH_LOG' ]"
 }
 
+testPrepareRefusesGateDueInRelease() {
+  setup_prepare_repos
+  printf 'featuregate.WithRegisterToVersion("v2.23.0"),\n' > "$T/seed/gate.go"
+  printf 'featuregate.WithRegisterToVersion("v2.23.0"),\n' > "$T/seed/gate_test.go"
+  git -C "$T/seed" add -A && git -C "$T/seed" commit -q -m due-gate
+  git -C "$T/seed" push -q "$T/github.com/jaegertracing/jaeger" main
+  out=$(run_prepare 2.23.0)
+  assertEquals 1 $?
+  assertContains "$out" "due for removal in v2.23.0"
+  assertContains "$out" "gate.go:1:"
+  assertNotContains "$out" "gate_test.go"
+  assertNull "branch was pushed" "$(pushed_branch)"
+  assertFalse "gh was called" "[ -s '$GH_LOG' ]"
+
+  out=$(run_prepare 2.23.1)
+  assertEquals "prepare.sh failed: $out" 0 $?
+}
+
 testPrepareCreatesPRInOfficialRepo() {
   setup_prepare_repos
   run_prepare 2.23.0 42 >/dev/null

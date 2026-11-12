@@ -205,14 +205,9 @@ Create a PR "Prepare release vX.Y.Z" against main or maintenance branch ([exampl
 
 Create a release on [GitHub Releases](https://github.com/jaegertracing/jaeger/releases/):
 
-  * Title "Prepare Release v2.x.x"
+  * Title "Release v2.x.x"
   * Tag `v2.x.x` (note the `v` prefix) and choose appropriate branch (usually `main`)
   * Copy the new CHANGELOG.md section into the release notes
-  * Extra: GitHub has a button "generate release notes". Those are not formatted as we want,
-    but it has a nice feature of explicitly listing first-time contributors.
-    Before doing the previous step, you can click that button and then remove everything
-    except the New Contributors section. Change the header to `### 👏 New Contributors`,
-    then copy the main changelog above it. [Example](https://github.com/jaegertracing/jaeger/releases/tag/v1.55.0).
 
 ## 🔧 Patch Release
 
@@ -224,7 +219,8 @@ Maintenance branches should follow naming convention: `release-major.minor` (e.g
 2. `git checkout ${commit}; git checkout -b ${branch-name}`. The branch name should be in the form `release-major.minor`, e.g., `release-1.34`. Push the branch to the upstream repository.
 3. Apply fixes to the branch. The recommended way is to merge the fixes into `main` first and then cherry-pick them into the version branch (e.g., `git cherry-pick c733708c` for the fix going into `v1.34.1`).
 4. Follow the regular process for creating a release (except for the Documentation step).
-   * When creating a release on GitHub, pick the version branch when applying the new tag.
+   * `make prepare-release` always opens its PR against `main`. Create the "Prepare release" PR by hand instead ([Manual release pull request](#manual-release-pull-request)), with the version branch as its base.
+   * The draft release workflow runs only for merges into `main`, so no draft appears. Create the release with `./scripts/release/draft.py --target <merge commit SHA>`, or by hand ([Manual release](#manual-release)) picking the version branch when applying the new tag.
    * Once the release tag is created, the `ci-release` workflow will kick in and deploy the artifacts for the patch release.
 5. Do not perform a new release of the documentation since the major.minor is not changing. The one change that may be useful is bumping the `binariesLatest` variable in the `config.toml` file ([example](https://github.com/jaegertracing/documentation/commit/eacb52f332a7e069c254e652a6b4a58ea5a07b32)).
 
